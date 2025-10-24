@@ -72,8 +72,8 @@ func (s *Server) handleAppUpdate(msg *nats.Msg) {
 	// 从消息体中获取租户用户信息
 	tenantUser := msgInfo.Data.User
 
-	logger.Infof(ctx, "[handleAppUpdate] *** ENTRY *** Received app update request: tenantUser=%s, requestUser=%s, app=%s, reply=%s",
-		tenantUser, msgInfo.RequestUser, msgInfo.Data.App, msg.Reply)
+	//logger.Infof(ctx, "[handleAppUpdate] *** ENTRY *** Received app update request: tenantUser=%s, requestUser=%s, app=%s, reply=%s",
+	//	tenantUser, msgInfo.RequestUser, msgInfo.Data.App, msg.Reply)
 
 	// 调用应用管理服务更新应用
 	result, err := s.appManageService.UpdateApp(ctx, tenantUser, msgInfo.Data.App)
@@ -93,8 +93,8 @@ func (s *Server) handleAppUpdate(msg *nats.Msg) {
 	}
 
 	msgx.RespSuccessMsg(msg, resp)
-	logger.Infof(ctx, "[handleAppUpdate] *** EXIT *** App updated successfully: user=%s, app=%s, oldVersion=%s, newVersion=%s",
-		result.User, result.App, result.OldVersion, result.NewVersion)
+	//logger.Infof(ctx, "[handleAppUpdate] *** EXIT *** App updated successfully: user=%s, app=%s, oldVersion=%s, newVersion=%s",
+	//	result.User, result.App, result.OldVersion, result.NewVersion)
 }
 
 // handleAppDelete 处理应用删除请求
@@ -216,25 +216,29 @@ func (s *Server) handleAppDiscoveryResponse(msg *nats.Msg) {
 }
 
 // handleAppStartupNotification 处理应用启动完成通知
-func (s *Server) handleAppStartupNotification(msg *nats.Msg) {
+func (s *Server) handleAppStartupNotification(message subjects.Message) {
 	ctx := context.Background()
 
+	// 从 message.Data 中提取业务数据
 	var msgData struct {
-		User      string `json:"user"`
-		App       string `json:"app"`
-		Version   string `json:"version"`
 		Status    string `json:"status"`
 		StartTime string `json:"start_time"`
-		Timestamp string `json:"timestamp"`
 	}
 
-	if err := json.Unmarshal(msg.Data, &msgData); err != nil {
+	// 将 message.Data 转换为具体结构
+	dataBytes, err := json.Marshal(message.Data)
+	if err != nil {
+		logger.Errorf(ctx, "[handleAppStartupNotification] Failed to marshal message data: %v", err)
+		return
+	}
+
+	if err := json.Unmarshal(dataBytes, &msgData); err != nil {
 		logger.Errorf(ctx, "[handleAppStartupNotification] Failed to decode notification: %v", err)
 		return
 	}
 
 	logger.Infof(ctx, "[handleAppStartupNotification] Received startup notification: user=%s, app=%s, version=%s, status=%s, start_time=%s",
-		msgData.User, msgData.App, msgData.Version, msgData.Status, msgData.StartTime)
+		message.User, message.App, message.Version, msgData.Status, msgData.StartTime)
 
 	// 解析时间
 	startTime, err := time.Parse(time.RFC3339, msgData.StartTime)
@@ -245,9 +249,9 @@ func (s *Server) handleAppStartupNotification(msg *nats.Msg) {
 
 	// 构建通知对象
 	notification := &service.StartupNotification{
-		User:      msgData.User,
-		App:       msgData.App,
-		Version:   msgData.Version,
+		User:      message.User,
+		App:       message.App,
+		Version:   message.Version,
 		Status:    msgData.Status,
 		StartTime: startTime,
 	}
@@ -257,33 +261,37 @@ func (s *Server) handleAppStartupNotification(msg *nats.Msg) {
 }
 
 // handleAppCloseNotification 处理应用关闭通知
-func (s *Server) handleAppCloseNotification(msg *nats.Msg) {
+func (s *Server) handleAppCloseNotification(message subjects.Message) {
 	ctx := context.Background()
 
+	// 从 message.Data 中提取业务数据
 	var msgData struct {
-		User      string `json:"user"`
-		App       string `json:"app"`
-		Version   string `json:"version"`
 		Status    string `json:"status"`
 		StartTime string `json:"start_time"`
 		CloseTime string `json:"close_time"`
-		Timestamp string `json:"timestamp"`
 	}
 
-	if err := json.Unmarshal(msg.Data, &msgData); err != nil {
+	// 将 message.Data 转换为具体结构
+	dataBytes, err := json.Marshal(message.Data)
+	if err != nil {
+		logger.Errorf(ctx, "[handleAppCloseNotification] Failed to marshal message data: %v", err)
+		return
+	}
+
+	if err := json.Unmarshal(dataBytes, &msgData); err != nil {
 		logger.Errorf(ctx, "[handleAppCloseNotification] Failed to decode notification: %v", err)
 		return
 	}
 
 	logger.Infof(ctx, "[handleAppCloseNotification] Received close notification: user=%s, app=%s, version=%s, status=%s, close_time=%s",
-		msgData.User, msgData.App, msgData.Version, msgData.Status, msgData.CloseTime)
+		message.User, message.App, message.Version, msgData.Status, msgData.CloseTime)
 
 	// 更新数据库中的应用状态
-	if err := s.appManageService.UpdateAppStatus(ctx, msgData.User, msgData.App, msgData.Version, "stopped"); err != nil {
+	if err := s.appManageService.UpdateAppStatus(ctx, message.User, message.App, message.Version, "stopped"); err != nil {
 		logger.Errorf(ctx, "[handleAppCloseNotification] Failed to update app status: %v", err)
 	} else {
 		logger.Infof(ctx, "[handleAppCloseNotification] App status updated to stopped: %s/%s/%s",
-			msgData.User, msgData.App, msgData.Version)
+			message.User, message.App, message.Version)
 	}
 }
 
@@ -417,9 +425,7 @@ func getFunctionServer2AppRuntimeRequestSubject() string {
 	return subjects.GetFunctionServer2AppRuntimeRequestSubject()
 }
 
-func getAppDiscoveryResponseSubject() string {
-	return subjects.GetAppDiscoveryResponseSubject()
-}
+// getAppDiscoveryResponseSubject 已移除，现在使用统一的 runtime.status 主题
 
 func getAppServer2AppRuntimeDeleteRequestSubject() string {
 	return subjects.GetAppServer2AppRuntimeDeleteRequestSubject()
@@ -431,4 +437,31 @@ func getAppStartupNotificationSubject() string {
 
 func getAppCloseNotificationSubject() string {
 	return subjects.GetAppCloseNotificationSubject()
+}
+
+// handleRuntimeStatusMessage 处理 Runtime 状态消息（startup、close、discovery）
+func (s *Server) handleRuntimeStatusMessage(msg *nats.Msg) {
+	ctx := context.Background()
+
+	var message subjects.Message
+	if err := json.Unmarshal(msg.Data, &message); err != nil {
+		logger.Errorf(ctx, "[handleRuntimeStatusMessage] Failed to unmarshal message: %v", err)
+		return
+	}
+
+	logger.Infof(ctx, "[handleRuntimeStatusMessage] Received %s message for %s/%s/%s",
+		message.Type, message.User, message.App, message.Version)
+
+	switch message.Type {
+	case subjects.MessageTypeStartup:
+		s.handleAppStartupNotification(message)
+	case subjects.MessageTypeClose:
+		s.handleAppCloseNotification(message)
+	case subjects.MessageTypeDiscovery:
+		// 处理发现消息 - 调用 AppDiscoveryService 的处理逻辑
+		logger.Infof(ctx, "[handleRuntimeStatusMessage] Received discovery message")
+		s.appDiscoveryService.HandleDiscoveryResponse(message)
+	default:
+		logger.Warnf(ctx, "[handleRuntimeStatusMessage] Unknown message type: %s", message.Type)
+	}
 }

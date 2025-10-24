@@ -93,11 +93,15 @@ type Error struct {
 	Message string `json:"message"`
 }
 
-// Subjects NATS 主题
+// Subjects NATS 主题（重构后）
 type Subjects struct {
-	AppRequest  string // 接收来自 app_runtime 的请求
-	AppResponse string // 发送给 function_server 的响应
-	Discovery   string // 接收发现消息
+	// 保持独立的复杂主题
+	AppRequest  string // app_runtime.app.{user}.{app}.{version} - 应用请求
+	AppResponse string // app.function_server.{user}.{app}.{version} - 应用响应
+
+	// 简化的状态通知主题
+	AppStatus     string // app.status.{user}.{app}.{version} - 处理 shutdown、discovery
+	RuntimeStatus string // runtime.status.{user}.{app}.{version} - 处理 startup、close、discovery
 }
 
 // NewApp 创建新的应用实例
@@ -138,9 +142,13 @@ func NewApp() (*App, error) {
 		startTime:  time.Now(), // 记录启动时间
 		routerInfo: make(map[string]*routerInfo),
 		subjects: &Subjects{
+			// 保持独立的复杂主题
 			AppRequest:  subjects.BuildAppRuntime2AppSubject(env.User, env.App, env.Version),
 			AppResponse: subjects.BuildApp2FunctionServerSubject(env.User, env.App, env.Version),
-			Discovery:   subjects.GetRuntimeDiscoverySubject(),
+
+			// 简化的状态通知主题
+			AppStatus:     subjects.BuildAppStatusSubject(env.User, env.App, env.Version),
+			RuntimeStatus: subjects.BuildRuntimeStatusSubject(env.User, env.App, env.Version),
 		},
 	}
 	newApp.routerInfo[routerKey("/test/add", "POST")] = &routerInfo{
@@ -156,38 +164,32 @@ func NewApp() (*App, error) {
 		Template:   Temp,
 	}
 
-	// 订阅请求消息
+	// 订阅应用请求主题（保持独立，复杂逻辑）
 	logger.Infof(context.Background(), "Subscribing to app request: %s", newApp.subjects.AppRequest)
-	subs, err := newApp.conn.Subscribe(newApp.subjects.AppRequest, newApp.handleMessage)
+	requestSub, err := newApp.conn.Subscribe(newApp.subjects.AppRequest, newApp.handleMessageAsync)
 	if err != nil {
 		logger.Errorf(context.Background(), "Failed to subscribe to app request: %v", err)
 		return nil, fmt.Errorf("failed to subscribe to %s: %w", newApp.subjects.AppRequest, err)
 	}
-	newApp.subs = append(newApp.subs, subs)
-	logger.Infof(context.Background(), "App request subscription successful")
+	newApp.subs = append(newApp.subs, requestSub)
 
-	// 订阅发现消息
-	logger.Infof(context.Background(), "Subscribing to discovery: %s", newApp.subjects.Discovery)
-	discoverySub, err := newApp.conn.Subscribe(newApp.subjects.Discovery, newApp.handleDiscovery)
+	// 订阅 App 状态主题（处理 shutdown、discovery）
+	logger.Infof(context.Background(), "Subscribing to app status: %s", newApp.subjects.AppStatus)
+	appStatusSub, err := newApp.conn.Subscribe(newApp.subjects.AppStatus, newApp.handleAppStatusMessage)
+	if err != nil {
+		logger.Errorf(context.Background(), "Failed to subscribe to app status: %v", err)
+		return nil, fmt.Errorf("failed to subscribe to %s: %w", newApp.subjects.AppStatus, err)
+	}
+	newApp.subs = append(newApp.subs, appStatusSub)
+
+	// 订阅服务发现主题（接收 discovery 广播）
+	discoverySub, err := newApp.conn.Subscribe(subjects.GetRuntimeDiscoverySubject(), newApp.handleDiscovery)
 	if err != nil {
 		logger.Errorf(context.Background(), "Failed to subscribe to discovery: %v", err)
 		return nil, fmt.Errorf("failed to subscribe to discovery: %w", err)
 	}
 	newApp.subs = append(newApp.subs, discoverySub)
 	logger.Infof(context.Background(), "Discovery subscription successful")
-
-	// 订阅 runtime 关闭命令
-	shutdownSubject := subjects.BuildRuntime2AppShutdownSubject(env.User, env.App, env.Version)
-	logger.Infof(context.Background(), "Subscribing to runtime shutdown command: %s", shutdownSubject)
-	shutdownSub, err := newApp.conn.Subscribe(shutdownSubject, newApp.handleShutdownCommand)
-	if err != nil {
-		logger.Errorf(context.Background(), "Failed to subscribe to shutdown command: %v", err)
-		return nil, fmt.Errorf("failed to subscribe to shutdown command: %w", err)
-	}
-	newApp.subs = append(newApp.subs, shutdownSub)
-	logger.Infof(context.Background(), "Runtime shutdown command subscription successful")
-
-	logger.Infof(context.Background(), "NewApp() completed successfully")
 
 	// 发送启动完成通知给 runtime
 	// 通知 runtime 新版本已经成功启动并准备好接收请求
@@ -286,25 +288,39 @@ func (a *App) handleDiscovery(msg *nats.Msg) {
 		return
 	}
 
-	// 发送响应
-	response := discovery.DiscoveryResponse{
-		Type:      "response",
+	// 构建发现响应数据
+	responseData := map[string]interface{}{
+		"type":       "response",
+		"status":     "running",
+		"runtime_id": discoveryMsg.RuntimeID,
+		"start_time": a.startTime.Format(time.RFC3339),
+		"timestamp":  time.Now().Format(time.RFC3339),
+	}
+
+	// 使用新的统一消息格式
+	message := subjects.Message{
+		Type:      subjects.MessageTypeDiscovery,
 		User:      env.User,
 		App:       env.App,
 		Version:   env.Version,
-		Status:    "running",
-		RuntimeID: discoveryMsg.RuntimeID,
-		StartTime: a.startTime, // 应用启动时间
-		Timestamp: time.Now(),  // 响应时间
+		Data:      responseData,
+		Timestamp: time.Now().Format(time.RFC3339),
 	}
 
-	data, err := json.Marshal(response)
+	messageData, err := json.Marshal(message)
 	if err != nil {
+		logger.Errorf(context.Background(), "Failed to marshal discovery response: %v", err)
 		return
 	}
 
-	// 发送到响应主题
-	a.conn.Publish(subjects.GetAppDiscoveryResponseSubject(), data)
+	// 发送到 Runtime 状态主题
+	subject := subjects.BuildRuntimeStatusSubject(env.User, env.App, env.Version)
+	if err := a.conn.Publish(subject, messageData); err != nil {
+		logger.Errorf(context.Background(), "Failed to publish discovery response: %v", err)
+		return
+	}
+
+	logger.Infof(context.Background(), "Discovery response sent to subject: %s", subject)
 }
 
 // Close 关闭应用
@@ -343,24 +359,30 @@ func Run() error {
 
 // sendStartupNotification 发送启动完成通知
 func (a *App) sendStartupNotification() error {
-	// 构建启动通知消息
+	// 构建启动通知消息（只包含业务数据，不重复标识信息）
 	notification := map[string]interface{}{
-		"user":       env.User,
-		"app":        env.App,
-		"version":    env.Version,
 		"status":     "started",
 		"start_time": a.startTime.Format(time.RFC3339),
-		"timestamp":  time.Now().Format(time.RFC3339),
 	}
 
-	data, err := json.Marshal(notification)
+	// 使用新的消息格式
+	message := subjects.Message{
+		Type:      subjects.MessageTypeStartup,
+		User:      env.User,
+		App:       env.App,
+		Version:   env.Version,
+		Data:      notification,
+		Timestamp: time.Now().Format(time.RFC3339),
+	}
+
+	messageData, err := json.Marshal(message)
 	if err != nil {
-		return fmt.Errorf("failed to marshal startup notification: %w", err)
+		return fmt.Errorf("failed to marshal startup message: %w", err)
 	}
 
-	// 发送到启动通知主题
-	subject := subjects.BuildAppStartupNotificationSubject(env.User, env.App, env.Version)
-	if err := a.conn.Publish(subject, data); err != nil {
+	// 发送到 Runtime 状态主题
+	subject := subjects.BuildRuntimeStatusSubject(env.User, env.App, env.Version)
+	if err := a.conn.Publish(subject, messageData); err != nil {
 		return fmt.Errorf("failed to publish startup notification: %w", err)
 	}
 
@@ -370,25 +392,31 @@ func (a *App) sendStartupNotification() error {
 
 // sendCloseNotification 发送应用关闭通知
 func (a *App) sendCloseNotification() error {
-	// 构建关闭通知消息
+	// 构建关闭通知消息（只包含业务数据，不重复标识信息）
 	notification := map[string]interface{}{
-		"user":       env.User,
-		"app":        env.App,
-		"version":    env.Version,
 		"status":     "closed",
 		"start_time": a.startTime.Format(time.RFC3339),
 		"close_time": time.Now().Format(time.RFC3339),
-		"timestamp":  time.Now().Format(time.RFC3339),
 	}
 
-	data, err := json.Marshal(notification)
+	// 使用新的消息格式
+	message := subjects.Message{
+		Type:      subjects.MessageTypeClose,
+		User:      env.User,
+		App:       env.App,
+		Version:   env.Version,
+		Data:      notification,
+		Timestamp: time.Now().Format(time.RFC3339),
+	}
+
+	messageData, err := json.Marshal(message)
 	if err != nil {
-		return fmt.Errorf("failed to marshal close notification: %w", err)
+		return fmt.Errorf("failed to marshal close message: %w", err)
 	}
 
-	// 发送到关闭通知主题
-	subject := subjects.BuildAppCloseNotificationSubject(env.User, env.App, env.Version)
-	if err := a.conn.Publish(subject, data); err != nil {
+	// 发送到 Runtime 状态主题
+	subject := subjects.BuildRuntimeStatusSubject(env.User, env.App, env.Version)
+	if err := a.conn.Publish(subject, messageData); err != nil {
 		return fmt.Errorf("failed to publish close notification: %w", err)
 	}
 
@@ -397,9 +425,9 @@ func (a *App) sendCloseNotification() error {
 }
 
 // handleShutdownCommand 处理 runtime 发送的关闭命令
-func (a *App) handleShutdownCommand(msg *nats.Msg) {
+func (a *App) handleShutdownCommand(message subjects.Message) {
 	ctx := context.Background()
-	logger.Infof(ctx, "Received shutdown command from runtime: %s", string(msg.Data))
+	logger.Infof(ctx, "Received shutdown command from runtime: %s/%s/%s", message.User, message.App, message.Version)
 
 	// 设置关闭请求标志，拒绝新请求
 	a.shutdownMu.Lock()
@@ -469,3 +497,31 @@ func (a *App) waitForAllFunctionsToComplete(ctx context.Context, timeout time.Du
 		}
 	}
 }
+
+// handleAppStatusMessage 处理 App 状态消息（shutdown、discovery）
+func (a *App) handleAppStatusMessage(msg *nats.Msg) {
+	var message subjects.Message
+	if err := json.Unmarshal(msg.Data, &message); err != nil {
+		logger.Errorf(context.Background(), "Failed to unmarshal app status message: %v", err)
+		return
+	}
+
+	// 验证消息是否发给当前应用
+	if message.User != env.User || message.App != env.App || message.Version != env.Version {
+		logger.Debugf(context.Background(), "Message not for current app: %s/%s/%s (expected: %s/%s/%s)",
+			message.User, message.App, message.Version, env.User, env.App, env.Version)
+		return
+	}
+
+	switch message.Type {
+	case subjects.MessageTypeShutdown:
+		a.handleShutdownCommand(message)
+	case subjects.MessageTypeDiscovery:
+		a.handleDiscovery(msg) // 发现消息还是用原来的格式
+	default:
+		logger.Warnf(context.Background(), "Unknown app status message type: %s", message.Type)
+	}
+}
+
+// handleRuntimeStatusMessage 方法已移除
+// RuntimeStatus 主题是应用发送给 Runtime 的，不需要接收

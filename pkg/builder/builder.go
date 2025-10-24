@@ -89,10 +89,10 @@ func (b *Builder) Build(ctx context.Context, user, app string, opts *BuildOpts) 
 	}
 	binaryPath := filepath.Join(opts.OutputDir, binaryName)
 
-	logger.Infof(ctx, "Building app: %s/%s, version: %s", user, app, version)
-	logger.Infof(ctx, "Source: %s", opts.SourceDir)
-	logger.Infof(ctx, "Output: %s", binaryPath)
-	logger.Infof(ctx, "Platform: %s", opts.Platform)
+	//logger.Infof(ctx, "Building app: %s/%s, version: %s", user, app, version)
+	//logger.Infof(ctx, "Source: %s", opts.SourceDir)
+	//logger.Infof(ctx, "Output: %s", binaryPath)
+	//logger.Infof(ctx, "Platform: %s", opts.Platform)
 
 	// 先执行 go mod tidy 确保依赖是最新的
 	if err := b.runGoModTidy(ctx, opts.SourceDir); err != nil {
@@ -114,7 +114,7 @@ func (b *Builder) Build(ctx context.Context, user, app string, opts *BuildOpts) 
 		return nil, fmt.Errorf("failed to get file info: %w", err)
 	}
 
-	logger.Infof(ctx, "Build successful: %s (size: %d bytes)", binaryName, fileInfo.Size())
+	//logger.Infof(ctx, "Build successful: %s (size: %d bytes)", binaryName, fileInfo.Size())
 
 	return &BuildResult{
 		Version:    version,
@@ -192,7 +192,7 @@ func (b *Builder) buildLdFlags(opts *BuildOpts) []string {
 
 // runGoModTidy 执行 go mod tidy
 func (b *Builder) runGoModTidy(ctx context.Context, sourceDir string) error {
-	logger.Infof(ctx, "Running go mod tidy in: %s", sourceDir)
+	//logger.Infof(ctx, "Running go mod tidy in: %s", sourceDir)
 
 	cmd := exec.CommandContext(ctx, "go", "mod", "tidy")
 	cmd.Dir = sourceDir
@@ -202,7 +202,7 @@ func (b *Builder) runGoModTidy(ctx context.Context, sourceDir string) error {
 		return fmt.Errorf("go mod tidy failed: %w, output: %s", err, string(output))
 	}
 
-	logger.Infof(ctx, "go mod tidy completed successfully")
+	//logger.Infof(ctx, "go mod tidy completed successfully")
 	return nil
 }
 

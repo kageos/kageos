@@ -3,11 +3,13 @@ package server
 import (
 	"context"
 	"fmt"
-	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
+
+	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-runtime/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-runtime/repository"
@@ -86,7 +88,6 @@ func (s *Server) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to start HTTP server: %w", err)
 	}
 
-	logger.Infof(ctx, "[Server] App-runtime server started successfully")
 	return nil
 }
 
@@ -123,8 +124,6 @@ func (s *Server) initDatabase(ctx context.Context) error {
 		return fmt.Errorf("failed to create database directory: %w", err)
 	}
 
-	logger.Infof(ctx, "[Server] Initializing SQLite database at: %s", absPath)
-
 	// 连接数据库
 	db, err := gorm.Open(sqlite.Open(absPath), &gorm.Config{
 		Logger: gormLogger.Default.LogMode(gormLogger.Info),
@@ -139,7 +138,6 @@ func (s *Server) initDatabase(ctx context.Context) error {
 	}
 
 	s.db = db
-	logger.Infof(ctx, "[Server] Database initialized successfully")
 	return nil
 }
 
@@ -159,7 +157,6 @@ func (s *Server) closeDatabase(ctx context.Context) {
 
 // initNATS 初始化 NATS 连接
 func (s *Server) initNATS(ctx context.Context) error {
-	logger.Infof(ctx, "[Server] Connecting to NATS: %s", s.cfg.Nats.URL)
 
 	conn, err := nats.Connect(s.cfg.Nats.URL)
 	if err != nil {
@@ -167,7 +164,6 @@ func (s *Server) initNATS(ctx context.Context) error {
 	}
 
 	s.natsConn = conn
-	logger.Infof(ctx, "[Server] NATS connected successfully")
 	return nil
 }
 
@@ -181,18 +177,28 @@ func (s *Server) closeNATS(ctx context.Context) {
 
 // initServices 初始化所有业务服务
 func (s *Server) initServices(ctx context.Context) error {
-	logger.Infof(ctx, "[Server] Initializing services...")
 
 	// 初始化容器服务
 	s.containerService = service.NewDefaultContainerOperator()
 	if err := s.containerService.Start(ctx); err != nil {
 		return fmt.Errorf("failed to start container service: %w", err)
 	}
-	logger.Infof(ctx, "[Server] Container service initialized")
 
 	// 初始化应用仓库
 	appRepo := repository.NewAppRepository(s.db)
-	logger.Infof(ctx, "[Server] App repository initialized")
+
+	// 初始化应用发现服务（需要在 AppManageService 之前）
+	s.appDiscoveryService = service.NewAppDiscoveryService(s.natsConn, s.cfg.AppManage.AppDir.BasePath)
+
+	// 设置回调函数
+	s.appDiscoveryService.SetCallbacks(
+		s.handleAppStartupFromDiscovery,
+		s.handleAppCloseFromDiscovery,
+	)
+
+	if err := s.appDiscoveryService.Start(); err != nil {
+		return fmt.Errorf("failed to start app discovery service: %w", err)
+	}
 
 	// 初始化应用管理服务
 	wd, _ := os.Getwd()
@@ -201,27 +207,47 @@ func (s *Server) initServices(ctx context.Context) error {
 		&s.cfg.AppManage,
 		s.containerService,
 		appRepo,
+		s.appDiscoveryService,
 		s.natsConn,
 	)
-	logger.Infof(ctx, "[Server] App manage service initialized")
 
 	// 启动 QPS 跟踪器清理任务
 	go s.appManageService.QPSTracker.StartCleanup(ctx)
-	logger.Infof(ctx, "[Server] QPS tracker cleanup started")
 
 	// 启动应用清理任务
 	go s.appManageService.StartCleanupTask(ctx)
-	logger.Infof(ctx, "[Server] App cleanup task started")
 
-	// 初始化应用发现服务
-	s.appDiscoveryService = service.NewAppDiscoveryService(s.natsConn, s.cfg.AppManage.AppDir.BasePath)
-	if err := s.appDiscoveryService.Start(); err != nil {
-		return fmt.Errorf("failed to start app discovery service: %w", err)
-	}
-	logger.Infof(ctx, "[Server] App discovery service initialized")
-
-	logger.Infof(ctx, "[Server] All services initialized successfully")
 	return nil
+}
+
+// handleAppStartupFromDiscovery 处理来自 AppDiscoveryService 的启动通知
+func (s *Server) handleAppStartupFromDiscovery(user, app, version string, startTime time.Time) {
+	//ctx := context.Background()
+	//logger.Infof(ctx, "[Server] Received startup notification from discovery: %s/%s/%s", user, app, version)
+
+	// 构建通知对象
+	notification := &service.StartupNotification{
+		User:      user,
+		App:       app,
+		Version:   version,
+		Status:    "started",
+		StartTime: startTime,
+	}
+
+	// 通知应用管理服务
+	s.appManageService.NotifyStartup(notification)
+}
+
+// handleAppCloseFromDiscovery 处理来自 AppDiscoveryService 的关闭通知
+func (s *Server) handleAppCloseFromDiscovery(user, app, version string) {
+	ctx := context.Background()
+
+	// 更新数据库中的应用状态
+	if err := s.appManageService.UpdateAppStatus(ctx, user, app, version, "stopped"); err != nil {
+		logger.Errorf(ctx, "[Server] Failed to update app status: %v", err)
+	} else {
+		logger.Infof(ctx, "[Server] App status updated to stopped: %s/%s/%s", user, app, version)
+	}
 }
 
 // stopServices 停止所有业务服务
@@ -234,7 +260,6 @@ func (s *Server) stopServices(ctx context.Context) {
 
 // subscribeNATS 订阅所有 NATS 主题
 func (s *Server) subscribeNATS(ctx context.Context) error {
-	logger.Infof(ctx, "[Server] Subscribing to NATS subjects...")
 
 	// 暂时导入 subject 包以使用现有的 handler
 	// TODO: 后续可以考虑将 handler 改为 Server 的方法
@@ -295,27 +320,10 @@ func (s *Server) subscribeNATS(ctx context.Context) error {
 	}
 	s.subscriptions = append(s.subscriptions, sub)
 
-	// 订阅应用启动通知
-	sub, err = s.natsConn.Subscribe(
-		getAppStartupNotificationSubject(),
-		s.handleAppStartupNotification,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to subscribe to app startup notification: %w", err)
-	}
-	s.subscriptions = append(s.subscriptions, sub)
+	// Runtime 状态主题由 AppDiscoveryService 统一处理，不需要重复订阅
 
-	// 订阅应用关闭通知
-	sub, err = s.natsConn.Subscribe(
-		getAppCloseNotificationSubject(),
-		s.handleAppCloseNotification,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to subscribe to app close notification: %w", err)
-	}
-	s.subscriptions = append(s.subscriptions, sub)
+	// 旧的订阅已移除，现在通过 runtime.status 主题统一处理
 
-	logger.Infof(ctx, "[Server] NATS subscriptions initialized successfully")
 	return nil
 }
 
@@ -343,7 +351,6 @@ func (s *Server) startHTTP(ctx context.Context) error {
 
 	// 保持端口监听，作为实例运行的标识
 	// 当进程退出时，端口会自动释放
-	logger.Infof(ctx, "[Server] Instance lock acquired on port %s", port)
 
 	// 将 listener 保存到 httpServer 的 Addr 字段，用于后续关闭
 	s.httpServer = &http.Server{
