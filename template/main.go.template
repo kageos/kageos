@@ -1,0 +1,12 @@
+package main
+
+import (
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
+)
+
+func main() {
+	err := app.Run()
+	if err != nil {
+		panic(err)
+	}
+}

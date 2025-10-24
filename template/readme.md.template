@@ -1,0 +1,21 @@
+# 应用目录结构
+
+## 目录说明
+- code/: 源代码目录
+  - api/: API 定义
+  - cmd/app/: 应用主程序
+- workplace/: 工作目录
+  - bin/: 可执行文件和脚本
+    - releases/: 版本发布目录
+    - configs/: 配置文件
+    - logs/: 日志文件
+    - temp/: 临时文件
+  - conf/: 配置目录
+  - data/: 数据目录
+  - logs/: 日志目录
+  - metadata/: 元数据目录
+
+## 使用说明
+1. 将编译好的可执行文件放入 workplace/bin/releases/ 目录
+2. 启动脚本会自动创建软链接指向最新版本
+3. 通过软链接启动应用
