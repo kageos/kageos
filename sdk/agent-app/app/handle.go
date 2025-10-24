@@ -1,0 +1,112 @@
+package app
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"runtime/debug"
+
+	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/response"
+	"github.com/nats-io/nats.go"
+)
+
+// handleMessage 处理接收到的消息
+func (a *App) handleMessage(msg *nats.Msg) {
+	ctx := context.Background()
+
+	// 检查是否已经请求关闭
+	a.shutdownMu.RLock()
+	if a.shutdownRequested {
+		a.shutdownMu.RUnlock()
+		logger.Warnf(ctx, "Shutdown requested, rejecting new request")
+		return
+	}
+	a.shutdownMu.RUnlock()
+
+	var req dto.RequestAppReq
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		a.sendErrResponse(&dto.RequestAppResp{Error: err.Error(), TraceId: msg.Header.Get("trace_id")})
+		logger.Errorf(context.Background(), err.Error())
+		return
+	}
+
+	// 增加运行中函数计数
+	a.incrementRunningCount()
+
+	// 异步处理请求
+	go func() {
+		defer a.decrementRunningCount()
+
+		resp, err := a.handle(&req)
+		if err != nil {
+			a.sendErrResponse(resp)
+			logger.Errorf(context.Background(), err.Error())
+			return
+		}
+		a.sendResponse(resp)
+		logger.Infof(context.Background(), "Handled app request: %s", req.TraceId)
+	}()
+}
+
+func (a *App) handle(req *dto.RequestAppReq) (resp *dto.RequestAppResp, err error) {
+	// 添加 panic 恢复机制
+	defer func() {
+		if r := recover(); r != nil {
+			// 获取完整的堆栈信息
+			stack := debug.Stack()
+
+			// 将 panic 转换为 error，包含堆栈信息
+			var panicMsg string
+			if panicErr, ok := r.(error); ok {
+				panicMsg = panicErr.Error()
+			} else {
+				panicMsg = fmt.Sprintf("%v", r)
+			}
+
+			// 创建包含堆栈信息的错误
+			err = fmt.Errorf("panic occurred: %s\nStack trace:\n%s", panicMsg, string(stack))
+
+			resp.Error = err.Error()
+			resp.TraceId = req.TraceId
+			// 记录详细的 panic 信息到日志
+			logger.Errorf(context.Background(), "Handler panic recovered: %s\nStack trace:\n%s", panicMsg, string(stack))
+			return
+		}
+	}()
+
+	// 解析请求
+	//var req dto.RequestAppReq
+	//if err := json.Unmarshal(msg.Data, &req); err != nil {
+	//	return nil, err
+	//}
+	ctx := context.Background()
+	newContext, err := NewContext(ctx, req)
+	if err != nil {
+		return &dto.RequestAppResp{Result: nil, Error: err.Error(), TraceId: newContext.msg.TraceId}, err
+	}
+	logger.Infof(ctx, "收到消息: %+v", newContext)
+
+	// TODO: 这里调用具体的业务逻辑处理
+	// result := handleBusinessLogic(req.Method, req.Body, req.UrlQuery)
+
+	router, err := a.getRouter(newContext.msg.Router, newContext.msg.Method)
+	if err != nil {
+		// 发送响应（带上 trace_id）
+		return &dto.RequestAppResp{Result: nil, Error: err.Error(), TraceId: newContext.msg.TraceId}, err
+	}
+	handleFunc := router.HandleFunc
+
+	var res response.RunFunctionResp
+	err = handleFunc(newContext, &res)
+	if err != nil {
+		return &dto.RequestAppResp{Result: res.Data, Error: err.Error(), TraceId: newContext.msg.TraceId}, err
+	}
+
+	// 退出命令
+	if newContext.msg.Method == "exit" {
+		a.Close()
+	}
+	return &dto.RequestAppResp{Result: res.Data, TraceId: newContext.msg.TraceId}, nil
+}
