@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -49,12 +48,13 @@ type StartupNotification struct {
 
 // AppManageService 应用管理服务 - 负责应用的增删改查
 type AppManageService struct {
-	builder          *builder.Builder
-	config           *appconfig.AppManageServiceConfig
-	containerService ContainerOperator         // 容器服务依赖
-	appRepo          *repository.AppRepository // 应用数据访问层
-	natsConn         *nats.Conn                // NATS 连接，用于发送关闭命令
-	QPSTracker       *QPSTracker               // QPS 跟踪器
+	builder             *builder.Builder
+	config              *appconfig.AppManageServiceConfig
+	containerService    ContainerOperator         // 容器服务依赖
+	appRepo             *repository.AppRepository // 应用数据访问层
+	appDiscoveryService *AppDiscoveryService      // 应用发现服务，用于获取运行状态
+	natsConn            *nats.Conn                // NATS 连接，用于发送关闭命令
+	QPSTracker          *QPSTracker               // QPS 跟踪器
 
 	// 启动等待器 - 用于等待应用启动完成通知
 	startupWaiters   map[string]chan *StartupNotification // key: user/app/version
@@ -65,38 +65,66 @@ type AppManageService struct {
 	cleanupDone   chan struct{}
 }
 
+// ============================================================================
+// 启动等待器管理方法
+// ============================================================================
+
+// registerStartupWaiter 注册启动等待器
+func (s *AppManageService) registerStartupWaiter(user, app, version string) chan *StartupNotification {
+	key := fmt.Sprintf("%s/%s/%s", user, app, version)
+	s.startupWaitersMu.Lock()
+	defer s.startupWaitersMu.Unlock()
+
+	waiterChan := make(chan *StartupNotification, 1)
+	s.startupWaiters[key] = waiterChan
+	return waiterChan
+}
+
+// unregisterStartupWaiter 注销启动等待器
+func (s *AppManageService) unregisterStartupWaiter(user, app, version string) {
+	key := fmt.Sprintf("%s/%s/%s", user, app, version)
+	s.startupWaitersMu.Lock()
+	defer s.startupWaitersMu.Unlock()
+
+	if waiterChan, exists := s.startupWaiters[key]; exists {
+		close(waiterChan)
+		delete(s.startupWaiters, key)
+	}
+}
+
+// notifyStartupWaiter 通知启动等待器
+func (s *AppManageService) notifyStartupWaiter(user, app, version string, notification *StartupNotification) {
+	key := fmt.Sprintf("%s/%s/%s", user, app, version)
+	s.startupWaitersMu.RLock()
+	waiterChan, exists := s.startupWaiters[key]
+	s.startupWaitersMu.RUnlock()
+
+	if exists {
+		select {
+		case waiterChan <- notification:
+		default:
+		}
+	}
+}
+
 // NewAppManageService 创建应用管理服务（依赖注入）
-func NewAppManageService(builder *builder.Builder, config *appconfig.AppManageServiceConfig, containerService ContainerOperator, appRepo *repository.AppRepository, natsConn *nats.Conn) *AppManageService {
+func NewAppManageService(builder *builder.Builder, config *appconfig.AppManageServiceConfig, containerService ContainerOperator, appRepo *repository.AppRepository, appDiscoveryService *AppDiscoveryService, natsConn *nats.Conn) *AppManageService {
 	return &AppManageService{
-		builder:          builder,
-		config:           config,
-		containerService: containerService,
-		appRepo:          appRepo,
-		natsConn:         natsConn,
-		QPSTracker:       NewQPSTracker(60*time.Second, 10*time.Second), // 60秒窗口，10秒检查间隔
-		startupWaiters:   make(map[string]chan *StartupNotification),
-		cleanupDone:      make(chan struct{}),
+		builder:             builder,
+		config:              config,
+		containerService:    containerService,
+		appRepo:             appRepo,
+		appDiscoveryService: appDiscoveryService,
+		natsConn:            natsConn,
+		QPSTracker:          NewQPSTracker(60*time.Second, 10*time.Second), // 60秒窗口，10秒检查间隔
+		startupWaiters:      make(map[string]chan *StartupNotification),
+		cleanupDone:         make(chan struct{}),
 	}
 }
 
 // NotifyStartup 通知应用启动完成（由 NATS 消息处理器调用）
 func (s *AppManageService) NotifyStartup(notification *StartupNotification) {
-	key := fmt.Sprintf("%s/%s/%s", notification.User, notification.App, notification.Version)
-
-	s.startupWaitersMu.RLock()
-	ch, exists := s.startupWaiters[key]
-	s.startupWaitersMu.RUnlock()
-
-	if exists {
-		select {
-		case ch <- notification:
-			logger.Infof(context.Background(), "[NotifyStartup] Notification sent to waiter: %s", key)
-		default:
-			logger.Warnf(context.Background(), "[NotifyStartup] Waiter channel full or closed: %s", key)
-		}
-	} else {
-		logger.Debugf(context.Background(), "[NotifyStartup] No waiter registered for: %s", key)
-	}
+	s.notifyStartupWaiter(notification.User, notification.App, notification.Version, notification)
 }
 
 // RegisterStartupWaiter 注册启动等待器
@@ -144,14 +172,12 @@ func (s *AppManageService) waitForStartup(ctx context.Context, user, app, versio
 		s.startupWaitersMu.Unlock()
 	}()
 
-	logger.Infof(ctx, "[waitForStartup] Waiting for: %s (timeout: %v)", key, timeout)
+	//logger.Infof(ctx, "[waitForStartup] Waiting for: %s (timeout: %v)", key, timeout)
 
 	select {
 	case notification := <-ch:
-		logger.Infof(ctx, "[waitForStartup] Received notification for: %s", key)
 		return notification, nil
 	case <-time.After(timeout):
-		logger.Warnf(ctx, "[waitForStartup] Timeout for: %s", key)
 		return nil, fmt.Errorf("timeout waiting for startup notification")
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -214,7 +240,7 @@ func (s *AppManageService) CreateApp(ctx context.Context, user, app string, opts
 
 // BuildApp 编译应用
 func (s *AppManageService) BuildApp(ctx context.Context, user, app string, opts ...*BuildOpts) (*builder.BuildResult, error) {
-	logger.Infof(ctx, "[BuildApp] *** ENTRY *** user=%s, app=%s", user, app)
+	//logger.Infof(ctx, "[BuildApp] *** ENTRY *** user=%s, app=%s", user, app)
 
 	// 设置默认编译选项（使用配置中的平台和格式）
 	buildOpts := &builder.BuildOpts{
@@ -391,7 +417,7 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string) (*Up
 
 	if isRunning {
 		// 应用正在运行：在容器内启动新版本（灰度发布）
-		logger.Infof(ctx, "[UpdateApp] Starting new version in container for gray deployment: %s", containerName)
+		//logger.Infof(ctx, "[UpdateApp] Starting new version in container for gray deployment: %s", containerName)
 
 		// 构建新版本的二进制文件名
 		binaryName := fmt.Sprintf("%s_%s_%s", user, app, newVersion)
@@ -450,20 +476,11 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string) (*Up
 		//   - 不会变成僵尸进程
 		// ====================================================================================
 		// 先注册等待器，再执行启动命令，避免错过通知
-		// 启动异步等待 goroutine
-		notificationChan := make(chan *StartupNotification, 1)
-		errChan := make(chan error, 1)
-		go func() {
-			notification, err := s.waitForStartup(ctx, user, app, newVersion, 30*time.Second)
-			if err != nil {
-				errChan <- err
-			} else {
-				notificationChan <- notification
-			}
-		}()
+		// 使用同步方式注册等待器，确保注册完成后再启动应用
+		waiterChan := s.registerStartupWaiter(user, app, newVersion)
 
-		// 等待 50ms 确保等待器已注册
-		time.Sleep(50 * time.Millisecond)
+		// 确保等待器已注册后再启动应用
+		logger.Infof(ctx, "[StartAppVersion] Waiting for startup notification for %s/%s/%s", user, app, newVersion)
 
 		// 执行启动命令
 		startCmd := fmt.Sprintf("cd /app/workplace/bin && setsid nohup ./releases/%s </dev/null >/dev/null 2>&1 &", binaryName)
@@ -475,16 +492,19 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string) (*Up
 
 		logStr.WriteString("Command executed\t")
 
-		// 等待启动通知结果
+		// 等待启动通知结果（同步等待）
 		select {
-		case notification := <-notificationChan:
+		case notification := <-waiterChan:
 			logStr.WriteString(fmt.Sprintf("Startup confirmed at %s\t", notification.StartTime.Format(time.RFC3339)))
 			logger.Infof(ctx, "[UpdateApp] New version startup confirmed: %s/%s/%s", user, app, newVersion)
-		case err := <-errChan:
-			logStr.WriteString(fmt.Sprintf("Startup timeout: %v\t", err))
+		case <-time.After(30 * time.Second):
+			logStr.WriteString("Startup timeout\t")
 			logger.Warnf(ctx, "[UpdateApp] Startup notification timeout for %s/%s/%s, but continue anyway", user, app, newVersion)
 			// 不返回错误，超时不应阻止更新流程
 		}
+
+		// 清理等待器
+		s.unregisterStartupWaiter(user, app, newVersion)
 
 		logStr.WriteString("New version started in container\t")
 	} else {
@@ -565,7 +585,7 @@ func (s *AppManageService) IsAppRunning(ctx context.Context, user, app string) (
 		}
 	}
 
-	logger.Infof(ctx, "[IsAppRunning] Container %s: exists=%v, running=%v", containerName, exists, isRunning)
+	//logger.Infof(ctx, "[IsAppRunning] Container %s: exists=%v, running=%v", containerName, exists, isRunning)
 	return exists && isRunning, nil
 }
 
@@ -690,7 +710,7 @@ func (s *AppManageService) updateVersionJson(appDir, user, app, newVersion strin
 		// 不返回错误，纯文本文件失败不应阻止更新
 	}
 
-	logger.Infof(context.Background(), "[updateVersionJson] Updated version.json: current_version=%s, latest_version=%s", newVersion, newVersion)
+	//logger.Infof(context.Background(), "[updateVersionJson] Updated version.json: current_version=%s, latest_version=%s", newVersion, newVersion)
 	return nil
 }
 
@@ -716,7 +736,7 @@ func (s *AppManageService) updateCurrentVersionFiles(user, app, version string) 
 		return fmt.Errorf("failed to write current_app.txt: %w", err)
 	}
 
-	logger.Infof(context.Background(), "[updateCurrentVersionFiles] Updated current_version.txt=%s, current_app.txt=%s", version, appName)
+	//logger.Infof(context.Background(), "[updateCurrentVersionFiles] Updated current_version.txt=%s, current_app.txt=%s", version, appName)
 	return nil
 }
 
@@ -725,16 +745,11 @@ func (s *AppManageService) createMainGoFile(mainGoPath, user, app string) error 
 	content := []byte(`package main
 
 import (
-	"context"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
 )
 
 func main() {
-	newApp, err := app.NewApp()
-	if err != nil {
-		panic(err)
-	}
-	err = newApp.Start(context.Background())
+	err := app.Run()
 	if err != nil {
 		panic(err)
 	}
@@ -768,7 +783,7 @@ func (s *AppManageService) startAppContainer(ctx context.Context, containerName,
 
 	// 设置环境变量
 	envVars := []string{
-		"NATS_URL=nats://host.containers.internal:4223",
+		"NATS_URL=nats://host.containers.internal:4223", // 使用 host.containers.internal 访问宿主机 NATS
 	}
 
 	// 启动容器，使用 ai-agent-os 镜像的启动脚本
@@ -823,7 +838,7 @@ func (s *AppManageService) UpdateAppStatus(ctx context.Context, user, app, versi
 
 // ShutdownAppVersion 主动关闭指定版本的应用
 func (s *AppManageService) ShutdownAppVersion(ctx context.Context, user, app, version string) error {
-	logger.Infof(ctx, "[ShutdownAppVersion] Sending shutdown command to %s/%s/%s", user, app, version)
+	//logger.Infof(ctx, "[ShutdownAppVersion] Sending shutdown command to %s/%s/%s", user, app, version)
 
 	// 构建关闭命令消息
 	shutdownCmd := map[string]interface{}{
@@ -845,7 +860,7 @@ func (s *AppManageService) ShutdownAppVersion(ctx context.Context, user, app, ve
 		return fmt.Errorf("failed to publish shutdown command to %s: %w", subject, err)
 	}
 
-	logger.Infof(ctx, "[ShutdownAppVersion] Shutdown command sent to %s", subject)
+	//logger.Infof(ctx, "[ShutdownAppVersion] Shutdown command sent to %s", subject)
 	return nil
 }
 
@@ -853,10 +868,19 @@ func (s *AppManageService) ShutdownAppVersion(ctx context.Context, user, app, ve
 func (s *AppManageService) ShutdownOldVersions(ctx context.Context, user, app string, keepVersions int) error {
 	logger.Infof(ctx, "[ShutdownOldVersions] Shutting down old versions for %s/%s, keeping %d versions", user, app, keepVersions)
 
-	// 获取所有运行中的版本
-	runningVersions, err := s.appRepo.GetRunningAppVersions(user, app)
-	if err != nil {
-		return fmt.Errorf("failed to get running app versions: %w", err)
+	// 从内存中获取运行中的版本（通过 AppDiscoveryService）
+	runningApps := s.appDiscoveryService.GetRunningApps()
+	appKey := user + "/" + app
+	appInfo, exists := runningApps[appKey]
+	if !exists {
+		logger.Infof(ctx, "[ShutdownOldVersions] No running versions found for %s/%s", user, app)
+		return nil
+	}
+
+	// 转换为版本列表
+	var runningVersions []string
+	for versionKey := range appInfo.Versions {
+		runningVersions = append(runningVersions, versionKey)
 	}
 
 	if len(runningVersions) <= keepVersions {
@@ -864,24 +888,21 @@ func (s *AppManageService) ShutdownOldVersions(ctx context.Context, user, app st
 		return nil
 	}
 
-	// 按创建时间排序，保留最新的版本
-	sort.Slice(runningVersions, func(i, j int) bool {
-		return time.Time(runningVersions[i].CreatedAt).After(time.Time(runningVersions[j].CreatedAt))
-	})
-
 	// 关闭旧版本（基于 QPS 安全检查）
+	// 注意：这里简化逻辑，因为内存中的版本信息不包含创建时间
+	// 实际应用中，应该根据业务需求决定关闭策略
 	versionsToShutdown := runningVersions[keepVersions:]
 	for _, version := range versionsToShutdown {
 		// 检查是否可以安全关闭
-		if !s.QPSTracker.IsSafeToShutdown(user, app, version.Version) {
-			logger.Warnf(ctx, "[ShutdownOldVersions] Version %s still has traffic, skipping shutdown", version.Version)
+		if !s.QPSTracker.IsSafeToShutdown(user, app, version) {
+			logger.Warnf(ctx, "[ShutdownOldVersions] Version %s still has traffic, skipping shutdown", version)
 			continue
 		}
 
-		if err := s.ShutdownAppVersion(ctx, user, app, version.Version); err != nil {
-			logger.Errorf(ctx, "[ShutdownOldVersions] Failed to shutdown version %s: %v", version.Version, err)
+		if err := s.ShutdownAppVersion(ctx, user, app, version); err != nil {
+			logger.Errorf(ctx, "[ShutdownOldVersions] Failed to shutdown version %s: %v", version, err)
 		} else {
-			logger.Infof(ctx, "[ShutdownOldVersions] Shutdown command sent to version %s", version.Version)
+			logger.Infof(ctx, "[ShutdownOldVersions] Shutdown command sent to version %s", version)
 		}
 	}
 
@@ -890,7 +911,6 @@ func (s *AppManageService) ShutdownOldVersions(ctx context.Context, user, app st
 
 // StartCleanupTask 启动定时清理任务
 func (s *AppManageService) StartCleanupTask(ctx context.Context) {
-	logger.Infof(ctx, "[AppManageService] Starting cleanup task...")
 
 	// 每30秒检查一次是否需要关闭旧版本
 	s.cleanupTicker = time.NewTicker(30 * time.Second)
@@ -912,7 +932,6 @@ func (s *AppManageService) StartCleanupTask(ctx context.Context) {
 		}
 	}()
 
-	logger.Infof(ctx, "[AppManageService] Cleanup task started")
 }
 
 // StopCleanupTask 停止定时清理任务
@@ -931,7 +950,7 @@ func (s *AppManageService) StopCleanupTask(ctx context.Context) {
 
 // performCleanup 执行清理任务
 func (s *AppManageService) performCleanup(ctx context.Context) {
-	logger.Infof(ctx, "[AppManageService] Performing cleanup check...")
+	//logger.Infof(ctx, "[AppManageService] Performing cleanup check...")
 
 	// 获取所有应用
 	apps, err := s.getAllApps(ctx)
@@ -961,7 +980,7 @@ func (s *AppManageService) getAllApps(ctx context.Context) ([]*model.App, error)
 // CleanupNonCurrentVersions 清理非当前版本的无流量版本
 // 策略：只保留 current_version（metadata 中的当前版本），其他版本只要 QPS 为 0 就停掉
 func (s *AppManageService) CleanupNonCurrentVersions(ctx context.Context, user, app string) error {
-	logger.Infof(ctx, "[CleanupNonCurrentVersions] Checking %s/%s", user, app)
+	//logger.Infof(ctx, "[CleanupNonCurrentVersions] Checking %s/%s", user, app)
 
 	// 1. 读取 current_version
 	currentVersion, err := s.getCurrentVersion(ctx, user, app)
@@ -970,38 +989,41 @@ func (s *AppManageService) CleanupNonCurrentVersions(ctx context.Context, user, 
 	}
 
 	if currentVersion == "" {
-		logger.Warnf(ctx, "[CleanupNonCurrentVersions] No current version found for %s/%s", user, app)
+		//logger.Warnf(ctx, "[CleanupNonCurrentVersions] No current version found for %s/%s", user, app)
 		return nil
 	}
 
-	logger.Infof(ctx, "[CleanupNonCurrentVersions] Current version: %s", currentVersion)
+	//logger.Infof(ctx, "[CleanupNonCurrentVersions] Current version: %s", currentVersion)
 
-	// 2. 获取所有运行中的版本
-	runningVersions, err := s.appRepo.GetRunningAppVersions(user, app)
-	if err != nil {
-		return fmt.Errorf("failed to get running versions: %w", err)
+	// 2. 从内存中获取所有运行中的版本
+	runningApps := s.appDiscoveryService.GetRunningApps()
+	appKey := user + "/" + app
+	appInfo, exists := runningApps[appKey]
+	if !exists {
+		//logger.Infof(ctx, "[CleanupNonCurrentVersions] No running versions found for %s/%s", user, app)
+		return nil
 	}
 
 	// 3. 关闭非当前版本且无流量的版本
-	for _, version := range runningVersions {
+	for _, version := range appInfo.Versions {
 		// 跳过当前版本
 		if version.Version == currentVersion {
-			logger.Infof(ctx, "[CleanupNonCurrentVersions] Skipping current version: %s", version.Version)
+			//logger.Infof(ctx, "[CleanupNonCurrentVersions] Skipping current version: %s", version.Version)
 			continue
 		}
 
 		// 检查是否可以安全关闭（QPS 为 0）
 		if !s.QPSTracker.IsSafeToShutdown(user, app, version.Version) {
-			logger.Infof(ctx, "[CleanupNonCurrentVersions] Version %s still has traffic, skipping", version.Version)
+			//logger.Infof(ctx, "[CleanupNonCurrentVersions] Version %s still has traffic, skipping", version.Version)
 			continue
 		}
 
 		// 关闭该版本
-		logger.Infof(ctx, "[CleanupNonCurrentVersions] Shutting down non-current version %s (no traffic)", version.Version)
+		//logger.Infof(ctx, "[CleanupNonCurrentVersions] Shutting down non-current version %s (no traffic)", version.Version)
 		if err := s.ShutdownAppVersion(ctx, user, app, version.Version); err != nil {
-			logger.Errorf(ctx, "[CleanupNonCurrentVersions] Failed to shutdown version %s: %v", version.Version, err)
+			//logger.Errorf(ctx, "[CleanupNonCurrentVersions] Failed to shutdown version %s: %v", version.Version, err)
 		} else {
-			logger.Infof(ctx, "[CleanupNonCurrentVersions] Successfully sent shutdown command to version %s", version.Version)
+			//logger.Infof(ctx, "[CleanupNonCurrentVersions] Successfully sent shutdown command to version %s", version.Version)
 		}
 	}
 

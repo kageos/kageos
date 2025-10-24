@@ -12,6 +12,12 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
+// handleMessageAsync 异步处理接收到的消息
+func (a *App) handleMessageAsync(msg *nats.Msg) {
+	// 立即启动 goroutine 处理，避免阻塞 NATS 订阅
+	go a.handleMessage(msg)
+}
+
 // handleMessage 处理接收到的消息
 func (a *App) handleMessage(msg *nats.Msg) {
 	ctx := context.Background()
@@ -35,19 +41,15 @@ func (a *App) handleMessage(msg *nats.Msg) {
 	// 增加运行中函数计数
 	a.incrementRunningCount()
 
-	// 异步处理请求
-	go func() {
-		defer a.decrementRunningCount()
+	defer a.decrementRunningCount()
 
-		resp, err := a.handle(&req)
-		if err != nil {
-			a.sendErrResponse(resp)
-			logger.Errorf(context.Background(), err.Error())
-			return
-		}
-		a.sendResponse(resp)
-		logger.Infof(context.Background(), "Handled app request: %s", req.TraceId)
-	}()
+	resp, err := a.handle(&req)
+	if err != nil {
+		a.sendErrResponse(resp)
+		logger.Errorf(context.Background(), err.Error())
+		return
+	}
+	a.sendResponse(resp)
 }
 
 func (a *App) handle(req *dto.RequestAppReq) (resp *dto.RequestAppResp, err error) {
@@ -86,7 +88,6 @@ func (a *App) handle(req *dto.RequestAppReq) (resp *dto.RequestAppResp, err erro
 	if err != nil {
 		return &dto.RequestAppResp{Result: nil, Error: err.Error(), TraceId: newContext.msg.TraceId}, err
 	}
-	logger.Infof(ctx, "收到消息: %+v", newContext)
 
 	// TODO: 这里调用具体的业务逻辑处理
 	// result := handleBusinessLogic(req.Method, req.Body, req.UrlQuery)
