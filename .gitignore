@@ -16,3 +16,8 @@ bin/
 # 运行时目录
 run/
 namespace/
+
+# 配置文件（包含敏感信息）
+configs/*.yaml
+configs/*.yml
+configs/*.json
