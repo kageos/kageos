@@ -14,18 +14,14 @@ type ServiceTree struct {
 	Title       string `json:"title"`
 	Name        string `json:"name"`
 	ParentID    int64  `json:"parent_id" gorm:"default:0"`
-	Type        string `json:"type"` //package or function
+	Type        string `json:"type"` //package（服务目录） or function （函数，文件）
 	Description string `json:"description,omitempty"`
 	Tags        string `json:"tags"`
 	AppID       int64  `json:"app_id"`
 	//下面字段是数据库
-	Level         int            `json:"level" gorm:"default:1"`
-	Sort          int            `json:"sort" gorm:"default:0"`
-	FullIDPath    string         `json:"full_id_path"`
-	FullNamePath  string         `json:"full_name_path"`
-	User          string         `json:"user"`
-	ChildrenCount int            `json:"children_count" gorm:"default:0"`
-	Children      []*ServiceTree `json:"children" gorm:"-"`
+	FullIDPath   string         `json:"full_id_path"`   // /0/2/7 这种
+	FullNamePath string         `json:"full_name_path"` // /tools/pdf 这种
+	Children     []*ServiceTree `json:"children" gorm:"-"`
 }
 
 // TableName 指定表名

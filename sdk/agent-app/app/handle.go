@@ -109,5 +109,5 @@ func (a *App) handle(req *dto.RequestAppReq) (resp *dto.RequestAppResp, err erro
 	if newContext.msg.Method == "exit" {
 		a.Close()
 	}
-	return &dto.RequestAppResp{Result: res.Data, TraceId: newContext.msg.TraceId}, nil
+	return &dto.RequestAppResp{Result: res.Data(), TraceId: newContext.msg.TraceId}, nil
 }

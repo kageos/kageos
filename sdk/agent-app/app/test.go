@@ -8,7 +8,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/response"
 )
 
-var Temp = TableTemplate{
+var Temp = &TableTemplate{
 	BaseConfig: BaseConfig{},
 }
 
@@ -27,7 +27,7 @@ func (t *Test) TableName() string {
 }
 
 func GetHandle(ctx *Context, resp response.Response) error {
-	var req GetReq
+	var req Test
 	err := ctx.ShouldBind(&req)
 	if err != nil {
 		return err
@@ -44,10 +44,7 @@ func GetHandle(ctx *Context, resp response.Response) error {
 	}
 
 	var tests []*Test
-	err = db.Model(&Test{}).Where("name = ?", req.Name).Find(&tests).Error
-	if err != nil {
-		return err
-	}
+	db = db.Model(&Test{}).Where("name = ?", req.Name)
 	err = resp.Table(&tests).AutoSearchFilterPaged(db, &Test{}, &query.SearchFilterPageReq{PageSize: 20}).Build()
 	if err != nil {
 		return err

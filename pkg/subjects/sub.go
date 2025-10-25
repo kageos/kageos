@@ -46,10 +46,11 @@ func GetRuntimeStatusSubjectPattern() string {
 // 消息类型常量
 const (
 	// 状态通知消息类型
-	MessageTypeShutdown  = "shutdown"  // 关闭命令
-	MessageTypeDiscovery = "discovery" // 服务发现
-	MessageTypeStartup   = "startup"   // 启动通知
-	MessageTypeClose     = "close"     // 关闭通知
+	MessageTypeShutdown    = "shutdown"    // 关闭命令
+	MessageTypeDiscovery   = "discovery"   // 服务发现
+	MessageTypeStartup     = "startup"     // 启动通知
+	MessageTypeClose       = "close"       // 关闭通知
+	MessageTypeOnAppUpdate = "onAppUpdate" // 当程序更新时候
 )
 
 // 消息结构体

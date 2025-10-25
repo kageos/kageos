@@ -170,7 +170,7 @@ type Ticket struct {
 }
 
 // 【框架说明】TableName方法指定数据库表名
-func (Ticket) TableName() string { return "ticket" }
+func (Ticket) TableName() string { return "crm" }
 
 
 ```

@@ -43,8 +43,8 @@ type RequestAppResp struct {
 
 // UpdateAppReq 更新应用请求
 type UpdateAppReq struct {
-	User string `json:"user" binding:"required" example:"beiluo"` // 用户名
-	App  string `json:"app" binding:"required" example:"myapp"`   // 应用名
+	User string `json:"user" binding:"required" swaggerignore:"true" example:"beiluo"` // 用户名
+	App  string `json:"app" binding:"required" example:"myapp"`                        // 应用名
 }
 
 // UpdateAppResp 更新应用响应

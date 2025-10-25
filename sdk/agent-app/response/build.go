@@ -6,7 +6,6 @@ func build(resp *RunFunctionResp, data interface{}) error {
 	if resp == nil {
 		return errors.New("resp is nil")
 	}
-	resp.Data = data
-	resp.Msg = "ok"
+	//resp.Data = data
 	return nil
 }

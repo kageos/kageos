@@ -23,9 +23,7 @@ import (
 var app *App
 
 func initApp() {
-	fmt.Println("initApp() called")
 	if app != nil {
-		fmt.Println("App already exists, returning")
 		return
 	}
 	var err error
@@ -37,7 +35,6 @@ func initApp() {
 	//POST("/test/add", AddHandle, Temp)
 	//POST("/test/get", GetHandle, Temp)
 
-	fmt.Println("initApp() completed successfully")
 }
 
 // App SDK 应用基类
@@ -57,6 +54,22 @@ type App struct {
 	shutdownMu        sync.RWMutex
 }
 
+const (
+	MethodPost   = "POST"
+	MethodPut    = "PUT"
+	MethodGet    = "GET"
+	MethodDelete = "DELETE"
+)
+
+func (a *App) registerRouter(method string, router string, handler HandleFunc, templater Templater) {
+	a.routerInfo[routerKey(router, method)] = &routerInfo{
+		Router:     router,
+		Method:     method,
+		Template:   templater,
+		HandleFunc: handler,
+	}
+}
+
 func (a *App) getRouter(router string, method string) (*routerInfo, error) {
 	trim := strings.Trim(router, "/")
 	key := fmt.Sprintf("%s.%s", trim, method)
@@ -69,30 +82,6 @@ func (a *App) getRouter(router string, method string) (*routerInfo, error) {
 	return nil, fmt.Errorf("router %s not found", key)
 }
 
-// Request 请求消息
-type Request struct {
-	TraceId     string                 `json:"trace_id"`     // 追踪ID
-	RequestUser string                 `json:"request_user"` // 请求用户
-	User        string                 `json:"user"`         // 应用所属用户
-	App         string                 `json:"app"`          // 应用名
-	Version     string                 `json:"version"`      // 版本号
-	Method      string                 `json:"method"`       // 方法名（路径）
-	Body        interface{}            `json:"body"`         // 请求体
-	UrlQuery    map[string]interface{} `json:"url_query"`    // URL 查询参数
-}
-
-// Response 响应消息
-type Response struct {
-	Result interface{} `json:"result,omitempty"` // 结果
-	Error  string      `json:"error,omitempty"`  // 错误信息
-}
-
-// Error 错误信息
-type Error struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-}
-
 // Subjects NATS 主题（重构后）
 type Subjects struct {
 	// 保持独立的复杂主题
@@ -102,6 +91,7 @@ type Subjects struct {
 	// 简化的状态通知主题
 	AppStatus     string // app.status.{user}.{app}.{version} - 处理 shutdown、discovery
 	RuntimeStatus string // runtime.status.{user}.{app}.{version} - 处理 startup、close、discovery
+	Discovery     string // ai-agent-os.runtime.discovery 处理服务发现
 }
 
 // NewApp 创建新的应用实例
@@ -149,21 +139,11 @@ func NewApp() (*App, error) {
 			// 简化的状态通知主题
 			AppStatus:     subjects.BuildAppStatusSubject(env.User, env.App, env.Version),
 			RuntimeStatus: subjects.BuildRuntimeStatusSubject(env.User, env.App, env.Version),
+			Discovery:     subjects.GetRuntimeDiscoverySubject(),
 		},
 	}
-	newApp.routerInfo[routerKey("/test/add", "POST")] = &routerInfo{
-		Router:     "/test/add",
-		Method:     "POST",
-		HandleFunc: AddHandle,
-		Template:   Temp,
-	}
-	newApp.routerInfo[routerKey("/test/get", "POST")] = &routerInfo{
-		Router:     "/test/get",
-		Method:     "POST",
-		HandleFunc: GetHandle,
-		Template:   Temp,
-	}
 
+	initRouter(newApp)
 	// 订阅应用请求主题（保持独立，复杂逻辑）
 	logger.Infof(context.Background(), "Subscribing to app request: %s", newApp.subjects.AppRequest)
 	requestSub, err := newApp.conn.Subscribe(newApp.subjects.AppRequest, newApp.handleMessageAsync)
@@ -183,7 +163,7 @@ func NewApp() (*App, error) {
 	newApp.subs = append(newApp.subs, appStatusSub)
 
 	// 订阅服务发现主题（接收 discovery 广播）
-	discoverySub, err := newApp.conn.Subscribe(subjects.GetRuntimeDiscoverySubject(), newApp.handleDiscovery)
+	discoverySub, err := newApp.conn.Subscribe(newApp.subjects.Discovery, newApp.handleDiscovery)
 	if err != nil {
 		logger.Errorf(context.Background(), "Failed to subscribe to discovery: %v", err)
 		return nil, fmt.Errorf("failed to subscribe to discovery: %w", err)
@@ -217,17 +197,13 @@ func (a *App) Start(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
 		logger.Infof(ctx, "Context cancelled, shutting down...")
-		// 发送关闭通知
-		if err := a.sendCloseNotification(); err != nil {
-			logger.Warnf(ctx, "Failed to send close notification: %v", err)
-		}
+		// 不要在这里发送关闭通知，因为连接可能已被Close()方法关闭
+		// 关闭通知会在Close()方法中发送，确保正确的关闭顺序
 		return ctx.Err()
 	case <-a.exit:
 		logger.Infof(ctx, "Exit signal received, shutting down...")
-		// 发送关闭通知
-		if err := a.sendCloseNotification(); err != nil {
-			logger.Warnf(ctx, "Failed to send close notification: %v", err)
-		}
+		// 不要在这里发送关闭通知，因为连接可能已被Close()方法关闭
+		// 关闭通知会在Close()方法中发送，确保正确的关闭顺序
 		return nil
 	}
 }
@@ -293,8 +269,8 @@ func (a *App) handleDiscovery(msg *nats.Msg) {
 		"type":       "response",
 		"status":     "running",
 		"runtime_id": discoveryMsg.RuntimeID,
-		"start_time": a.startTime.Format(time.RFC3339),
-		"timestamp":  time.Now().Format(time.RFC3339),
+		"start_time": a.startTime.Format(time.DateTime),
+		"timestamp":  time.Now().Format(time.DateTime),
 	}
 
 	// 使用新的统一消息格式
@@ -304,7 +280,7 @@ func (a *App) handleDiscovery(msg *nats.Msg) {
 		App:       env.App,
 		Version:   env.Version,
 		Data:      responseData,
-		Timestamp: time.Now().Format(time.RFC3339),
+		Timestamp: time.Now().Format(time.DateTime),
 	}
 
 	messageData, err := json.Marshal(message)
@@ -326,34 +302,60 @@ func (a *App) handleDiscovery(msg *nats.Msg) {
 // Close 关闭应用
 func (a *App) Close() error {
 	logger.Infof(context.Background(), "App.Close() called")
+
+	// 设置关闭请求标志
+	a.shutdownMu.Lock()
+	if a.shutdownRequested {
+		// 如果已经在关闭过程中，避免重复关闭
+		logger.Infof(context.Background(), "Shutdown already in progress")
+		a.shutdownMu.Unlock()
+		return nil
+	}
+	a.shutdownRequested = true
+	a.shutdownMu.Unlock()
+
+	// 1. 先发送关闭通知（在连接关闭前）
+	if err := a.sendCloseNotification(); err != nil {
+		logger.Warnf(context.Background(), "Failed to send close notification: %v", err)
+		// 不返回错误，通知失败不应阻止关闭流程
+	}
+
+	// 2. 取消所有订阅
 	for _, sub := range a.subs {
 		sub.Unsubscribe()
 	}
+
+	// 3. 关闭NATS连接
 	if a.conn != nil {
 		a.conn.Close()
 	}
-	// 非阻塞方式发送退出信号
+
+	// 4. 安全地关闭退出channel
+	a.shutdownMu.Lock()
+	defer a.shutdownMu.Unlock()
+
 	select {
-	case a.exit <- struct{}{}:
-		logger.Infof(context.Background(), "Exit signal sent")
+	case <-a.exit:
+		// channel已经关闭，避免重复关闭
+		logger.Infof(context.Background(), "Exit channel already closed")
 	default:
-		logger.Infof(context.Background(), "Exit signal not sent (channel full)")
+		// channel未关闭，安全关闭
+		close(a.exit)
+		logger.Infof(context.Background(), "Exit channel closed")
 	}
+
 	return nil
 }
 
 func Run() error {
 	if app == nil {
-		logger.Infof(context.Background(), "App is nil, initializing...")
 		initApp()
 	}
-	logger.Infof(context.Background(), "Starting app...")
 	err := app.Start(context.Background())
 	if err != nil {
 		logger.Errorf(context.Background(), "App.Start() failed: %v", err)
 		return err
 	}
-	logger.Infof(context.Background(), "App.Start() returned successfully")
 	return nil
 }
 
@@ -362,7 +364,7 @@ func (a *App) sendStartupNotification() error {
 	// 构建启动通知消息（只包含业务数据，不重复标识信息）
 	notification := map[string]interface{}{
 		"status":     "started",
-		"start_time": a.startTime.Format(time.RFC3339),
+		"start_time": a.startTime.Format(time.DateTime),
 	}
 
 	// 使用新的消息格式
@@ -372,7 +374,7 @@ func (a *App) sendStartupNotification() error {
 		App:       env.App,
 		Version:   env.Version,
 		Data:      notification,
-		Timestamp: time.Now().Format(time.RFC3339),
+		Timestamp: time.Now().Format(time.DateTime),
 	}
 
 	messageData, err := json.Marshal(message)
@@ -395,8 +397,8 @@ func (a *App) sendCloseNotification() error {
 	// 构建关闭通知消息（只包含业务数据，不重复标识信息）
 	notification := map[string]interface{}{
 		"status":     "closed",
-		"start_time": a.startTime.Format(time.RFC3339),
-		"close_time": time.Now().Format(time.RFC3339),
+		"start_time": a.startTime.Format(time.DateTime),
+		"close_time": time.Now().Format(time.DateTime),
 	}
 
 	// 使用新的消息格式
@@ -406,7 +408,7 @@ func (a *App) sendCloseNotification() error {
 		App:       env.App,
 		Version:   env.Version,
 		Data:      notification,
-		Timestamp: time.Now().Format(time.RFC3339),
+		Timestamp: time.Now().Format(time.DateTime),
 	}
 
 	messageData, err := json.Marshal(message)
@@ -431,6 +433,12 @@ func (a *App) handleShutdownCommand(message subjects.Message) {
 
 	// 设置关闭请求标志，拒绝新请求
 	a.shutdownMu.Lock()
+	if a.shutdownRequested {
+		// 如果已经在关闭过程中，忽略重复的关闭命令
+		logger.Infof(ctx, "Shutdown already in progress, ignoring duplicate shutdown command")
+		a.shutdownMu.Unlock()
+		return
+	}
 	a.shutdownRequested = true
 	a.shutdownMu.Unlock()
 
@@ -444,13 +452,25 @@ func (a *App) handleShutdownCommand(message subjects.Message) {
 		logger.Infof(ctx, "All functions completed successfully")
 	}
 
-	// 发送关闭通知
+	// 发送关闭通知（这是runtime主动发起的关闭，需要确认收到）
 	if err := a.sendCloseNotification(); err != nil {
 		logger.Warnf(ctx, "Failed to send close notification: %v", err)
 	}
 
-	// 触发应用退出
-	close(a.exit)
+	// 触发应用退出（安全地关闭channel）
+	a.shutdownMu.Lock()
+	defer a.shutdownMu.Unlock()
+
+	select {
+	case <-a.exit:
+		// channel已经关闭，避免重复关闭
+		logger.Infof(ctx, "Exit channel already closed")
+	default:
+		// channel未关闭，安全关闭
+		close(a.exit)
+		logger.Infof(ctx, "Exit channel closed")
+	}
+
 	logger.Infof(ctx, "Application shutdown initiated by runtime command")
 }
 
@@ -518,6 +538,9 @@ func (a *App) handleAppStatusMessage(msg *nats.Msg) {
 		a.handleShutdownCommand(message)
 	case subjects.MessageTypeDiscovery:
 		a.handleDiscovery(msg) // 发现消息还是用原来的格式
+	case subjects.MessageTypeOnAppUpdate:
+		a.onAppUpdate(msg) // 发现消息还是用原来的格式
+
 	default:
 		logger.Warnf(context.Background(), "Unknown app status message type: %s", message.Type)
 	}
