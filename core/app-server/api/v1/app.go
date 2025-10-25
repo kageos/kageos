@@ -29,9 +29,12 @@ func NewApp(appService *service.AppService) *App {
 // @Tags 应用管理
 // @Accept json
 // @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
 // @Param request body dto.CreateAppReq true "创建应用请求，包含应用名（租户用户通过 header 传递）"
 // @Success 200 {object} dto.CreateAppResp "创建成功"
 // @Failure 400 {string} string "请求参数错误"
+// @Failure 401 {string} string "未授权"
 // @Failure 500 {string} string "服务器内部错误"
 // @Router /app/create [post]
 func (a *App) CreateApp(c *gin.Context) {

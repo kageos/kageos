@@ -57,6 +57,34 @@ func (s *Server) handleAppCreate(msg *nats.Msg) {
 	logger.Infof(ctx, "[handleAppCreate] *** EXIT *** App created successfully: %s", appDir)
 }
 
+// handleServiceTreeCreate 处理服务目录创建请求
+func (s *Server) handleServiceTreeCreate(msg *nats.Msg) {
+	ctx := context.Background()
+
+	// 使用统一的解析方法
+	msgInfo, err := msgx.DecodeNatsMsg[dto.CreateServiceTreeRuntimeReq](msg)
+	if err != nil {
+		logger.Errorf(ctx, "[handleServiceTreeCreate] Failed to decode message: %v", err)
+		msgx.RespFailMsg(msg, err)
+		return
+	}
+
+	logger.Infof(ctx, "[handleServiceTreeCreate] *** ENTRY *** Received service tree create request: user=%s, app=%s, serviceTree=%s, reply=%s",
+		msgInfo.Data.User, msgInfo.Data.App, msgInfo.Data.ServiceTree.Name, msg.Reply)
+
+	// 调用服务目录管理服务
+	resp, err := s.serviceTreeService.CreateServiceTree(ctx, &msgInfo.Data)
+	if err != nil {
+		logger.Errorf(ctx, "[handleServiceTreeCreate] Failed to create service tree: %v", err)
+		msgx.RespFailMsg(msg, err)
+		return
+	}
+
+	// 返回成功响应
+	msgx.RespSuccessMsg(msg, resp)
+	logger.Infof(ctx, "[handleServiceTreeCreate] *** EXIT *** Service tree created successfully: %s", resp.ServiceTree)
+}
+
 // handleAppUpdate 处理应用更新请求
 func (s *Server) handleAppUpdate(msg *nats.Msg) {
 	ctx := context.Background()

@@ -36,4 +36,13 @@ func (s *Server) setupRoutes() {
 	app.DELETE("/delete/:app", appHandler.DeleteApp)
 	// 支持所有 HTTP 方法的请求应用接口
 	app.Any("/request/:app/*router", appHandler.RequestApp)
+
+	// 服务目录管理路由（需要JWT验证）
+	serviceTree := apiV1.Group("/service_tree")
+	serviceTree.Use(middleware2.JWTAuth()) // 服务目录管理需要JWT认证
+	serviceTreeHandler := v1.NewServiceTree(s.serviceTreeService)
+	serviceTree.POST("", serviceTreeHandler.CreateServiceTree)
+	serviceTree.GET("", serviceTreeHandler.GetServiceTree)
+	serviceTree.PUT("", serviceTreeHandler.UpdateServiceTree)
+	serviceTree.DELETE("", serviceTreeHandler.DeleteServiceTree)
 }

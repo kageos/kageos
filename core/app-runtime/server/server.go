@@ -36,6 +36,7 @@ type Server struct {
 	containerService    service.ContainerOperator
 	appManageService    *service.AppManageService
 	appDiscoveryService *service.AppDiscoveryService
+	serviceTreeService  *service.ServiceTreeService
 
 	// HTTP 健康检查服务器
 	httpServer *http.Server
@@ -217,6 +218,9 @@ func (s *Server) initServices(ctx context.Context) error {
 	// 启动应用清理任务
 	go s.appManageService.StartCleanupTask(ctx)
 
+	// 初始化服务目录管理服务
+	s.serviceTreeService = service.NewServiceTreeService(&s.cfg.AppManage)
+
 	return nil
 }
 
@@ -285,6 +289,17 @@ func (s *Server) subscribeNATS(ctx context.Context) error {
 	)
 	if err != nil {
 		return fmt.Errorf("failed to subscribe to app update: %w", err)
+	}
+	s.subscriptions = append(s.subscriptions, sub)
+
+	// 订阅服务目录创建请求（使用队列组）
+	sub, err = s.natsConn.QueueSubscribe(
+		subjects.GetAppRuntime2ServiceTreeCreateRequestSubject(),
+		"app-runtime-service-tree-workers",
+		s.handleServiceTreeCreate,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to subscribe to service tree create: %w", err)
 	}
 	s.subscriptions = append(s.subscriptions, sub)
 
@@ -392,4 +407,9 @@ func (s *Server) GetNatsConn() *nats.Conn {
 // GetDB 获取数据库连接
 func (s *Server) GetDB() *gorm.DB {
 	return s.db
+}
+
+// GetServiceTreeService 获取服务目录管理服务
+func (s *Server) GetServiceTreeService() *service.ServiceTreeService {
+	return s.serviceTreeService
 }

@@ -851,7 +851,7 @@ func (s *AppManageService) ShutdownAppVersion(ctx context.Context, user, app, ve
 		App:       app,
 		Version:   version,
 		Data:      map[string]interface{}{"command": "shutdown"},
-		Timestamp: time.Now().Format(time.RFC3339),
+		Timestamp: time.Now(),
 	}
 
 	data, err := json.Marshal(message)
