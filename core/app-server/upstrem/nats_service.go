@@ -5,9 +5,11 @@ import (
 	"sync"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
+	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/subject"
 	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
 	"github.com/nats-io/nats.go"
+	"gorm.io/gorm"
 )
 
 var natsService *NatsService
@@ -35,6 +37,21 @@ func NewDefaultNatsService() *NatsService {
 	if err != nil {
 		panic(err)
 	}
+	return newNatsServiceFromHostList(list)
+}
+
+// NewNatsServiceWithDB 使用指定的数据库连接创建 NATS 服务
+func NewNatsServiceWithDB(db *gorm.DB) *NatsService {
+	hostRepo := repository.NewHostRepository(db)
+	list, err := hostRepo.GetHostList()
+	if err != nil {
+		panic(err)
+	}
+	return newNatsServiceFromHostList(list)
+}
+
+// newNatsServiceFromHostList 从主机列表创建 NATS 服务
+func newNatsServiceFromHostList(list []*model.Host) *NatsService {
 	natsIdMap := make(map[int64]*nats.Conn)
 	hostIdMap := make(map[int64]*nats.Conn)
 	subsByHost := make(map[int64][]*nats.Subscription)

@@ -26,3 +26,4 @@ func GetHostList() ([]*Host, error) {
 	}
 	return hostList, nil
 }
+
