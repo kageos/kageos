@@ -1,4 +1,4 @@
-package upstrem
+package service
 
 import (
 	"fmt"
