@@ -22,6 +22,13 @@ func NewDefaultApp() *App {
 	}
 }
 
+// NewApp 创建 App 处理器（依赖注入）
+func NewApp(appService *service.AppService) *App {
+	return &App{
+		appService: appService,
+	}
+}
+
 // CreateApp 创建应用
 // @Summary 创建应用
 // @Description 创建一个新的应用实例。租户用户（应用所有者）从请求体获取，请求用户（实际发起请求的用户）从请求头获取。租户用户决定应用的所有权，请求用户用于审计追踪。

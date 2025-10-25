@@ -30,7 +30,7 @@ func (s *Server) setupRoutes() {
 	// 应用管理路由（需要JWT验证）
 	app := apiV1.Group("/app")
 	app.Use(middleware2.JWTAuth()) // 应用管理需要JWT认证
-	appHandler := v1.NewDefaultApp()
+	appHandler := v1.NewApp(s.appService)
 	app.POST("/create", appHandler.CreateApp)
 	app.POST("/update/:app", appHandler.UpdateApp)
 	app.DELETE("/delete/:app", appHandler.DeleteApp)
