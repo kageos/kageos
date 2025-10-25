@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/upstrem"
 	"github.com/ai-agent-os/ai-agent-os/pkg/waiter"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
@@ -19,18 +18,18 @@ import (
 type AppRuntime struct {
 	waiter      *waiter.ResponseWaiter
 	config      *config.AppServerConfig
-	natsService *upstrem.NatsService
+	natsService *NatsService
 }
 
 // NewDefaultAppRuntimeService 创建 AppRuntime 服务（默认，内部获取依赖）
 func NewDefaultAppRuntimeService() *AppRuntime {
 	cfg := config.GetAppServerConfig()
-	natsService := upstrem.GetNatsService() // 保持向后兼容
+	natsService := GetNatsService() // 保持向后兼容
 	return NewAppRuntimeService(waiter.GetDefaultWaiter(), cfg, natsService)
 }
 
 // NewAppRuntimeService 创建 AppRuntime 服务（依赖注入）
-func NewAppRuntimeService(waiter *waiter.ResponseWaiter, cfg *config.AppServerConfig, natsService *upstrem.NatsService) *AppRuntime {
+func NewAppRuntimeService(waiter *waiter.ResponseWaiter, cfg *config.AppServerConfig, natsService *NatsService) *AppRuntime {
 	return &AppRuntime{
 		waiter:      waiter,
 		config:      cfg,

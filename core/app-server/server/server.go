@@ -7,7 +7,6 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/upstrem"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
@@ -38,7 +37,7 @@ type Server struct {
 	appRuntime   *service.AppRuntime
 
 	// 上游服务
-	natsService *upstrem.NatsService
+	natsService *service.NatsService
 
 	// 上下文
 	ctx context.Context
@@ -249,7 +248,7 @@ func (s *Server) initUpstream(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Initializing upstream services...")
 
 	// 初始化 NATS 服务 - 传入数据库连接
-	s.natsService = upstrem.NewNatsServiceWithDB(s.db)
+	s.natsService = service.NewNatsServiceWithDB(s.db)
 
 	logger.Infof(ctx, "[Server] Upstream services initialized successfully")
 	return nil
