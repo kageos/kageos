@@ -11,7 +11,7 @@ import (
 	"net/smtp"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
+	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	appconfig "github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
@@ -19,14 +19,16 @@ import (
 
 // EmailService 邮箱服务
 type EmailService struct {
-	config *appconfig.EmailConfig
+	config         *appconfig.EmailConfig
+	emailCodeRepo  *repository.EmailCodeRepository
 }
 
-// NewEmailService 创建邮箱服务
-func NewEmailService() *EmailService {
+// NewEmailService 创建邮箱服务（依赖注入）
+func NewEmailService(emailCodeRepo *repository.EmailCodeRepository) *EmailService {
 	appConfig := appconfig.GetAppServerConfig()
 	return &EmailService{
-		config: &appConfig.Email,
+		config:        &appConfig.Email,
+		emailCodeRepo: emailCodeRepo,
 	}
 }
 
@@ -39,7 +41,7 @@ func (s *EmailService) SendVerificationCode(email, codeType, ipAddress, userAgen
 	expiresAt := models.Time(time.Now().Add(time.Duration(s.config.Verification.CodeExpire) * time.Second))
 
 	// 检查发送频率（防刷）
-	count, err := model.GetEmailCodeCount(email, 5) // 5分钟内
+	count, err := s.emailCodeRepo.GetEmailCodeCount(email, 5) // 5分钟内
 	if err != nil {
 		logger.Errorf(nil, "[EmailService] Failed to get email code count: %v", err)
 		return err
@@ -49,7 +51,7 @@ func (s *EmailService) SendVerificationCode(email, codeType, ipAddress, userAgen
 	}
 
 	// 保存验证码到数据库
-	err = model.CreateEmailCode(email, code, expiresAt, codeType, ipAddress, userAgent)
+	err = s.emailCodeRepo.CreateEmailCode(email, code, expiresAt, codeType, ipAddress, userAgent)
 	if err != nil {
 		logger.Errorf(nil, "[EmailService] Failed to create email code: %v", err)
 		return err
@@ -71,13 +73,13 @@ func (s *EmailService) SendVerificationCode(email, codeType, ipAddress, userAgen
 
 // VerifyCode 验证验证码
 func (s *EmailService) VerifyCode(email, code, codeType string) error {
-	_, err := model.GetValidEmailCode(email, code, codeType)
+	_, err := s.emailCodeRepo.GetValidEmailCode(email, code, codeType)
 	if err != nil {
 		return fmt.Errorf("验证码无效或已过期")
 	}
 
 	// 标记为已使用
-	err = model.MarkEmailCodeAsUsed(email, code, codeType)
+	err = s.emailCodeRepo.MarkEmailCodeAsUsed(email, code, codeType)
 	if err != nil {
 		logger.Errorf(nil, "[EmailService] Failed to mark email code as used: %v", err)
 		return err

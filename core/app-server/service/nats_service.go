@@ -12,32 +12,11 @@ import (
 	"gorm.io/gorm"
 )
 
-var natsService *NatsService
-
-func Init() {
-	natsService = NewDefaultNatsService()
-}
-
-func GetNatsService() *NatsService {
-	if natsService == nil {
-		natsService = NewDefaultNatsService()
-	}
-	return natsService
-}
-
 type NatsService struct {
 	mu         sync.RWMutex
 	natsIdMap  map[int64]*nats.Conn
 	hostIdMap  map[int64]*nats.Conn
 	subsByHost map[int64][]*nats.Subscription
-}
-
-func NewDefaultNatsService() *NatsService {
-	list, err := model.GetHostList()
-	if err != nil {
-		panic(err)
-	}
-	return newNatsServiceFromHostList(list)
 }
 
 // NewNatsServiceWithDB 使用指定的数据库连接创建 NATS 服务

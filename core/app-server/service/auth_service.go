@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
+	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	appconfig "github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
@@ -15,28 +16,32 @@ import (
 type AuthService struct {
 	config     *appconfig.AppServerConfig
 	jwtService *JWTService
+	userRepo   *repository.UserRepository
+	hostRepo   *repository.HostRepository
 }
 
-// NewAuthService 创建认证服务
-func NewAuthService() *AuthService {
+// NewAuthService 创建认证服务（依赖注入）
+func NewAuthService(userRepo *repository.UserRepository, hostRepo *repository.HostRepository) *AuthService {
 	config := appconfig.GetAppServerConfig()
 	jwtService := NewJWTService()
 	return &AuthService{
 		config:     config,
 		jwtService: jwtService,
+		userRepo:   userRepo,
+		hostRepo:   hostRepo,
 	}
 }
 
 // RegisterUser 注册用户
 func (s *AuthService) RegisterUser(username, email, password string) (int64, error) {
 	// 检查用户名是否已存在
-	existingUser, err := model.GetUserByUsername(username)
+	existingUser, err := s.userRepo.GetUserByUsername(username)
 	if err == nil && existingUser != nil {
 		return 0, fmt.Errorf("用户名已存在")
 	}
 
 	// 检查邮箱是否已存在
-	existingEmail, err := model.GetUserByEmail(email)
+	existingEmail, err := s.userRepo.GetUserByEmail(email)
 	if err == nil && existingEmail != nil {
 		return 0, fmt.Errorf("邮箱已被注册")
 	}
@@ -49,12 +54,12 @@ func (s *AuthService) RegisterUser(username, email, password string) (int64, err
 	}
 
 	// 获取可用的host（选择app_count最小的host）
-	var host model.Host
-	err = model.DB.Order("app_count ASC").First(&host).Error
-	if err != nil {
+	hosts, err := s.hostRepo.GetHostList()
+	if err != nil || len(hosts) == 0 {
 		logger.Errorf(nil, "[AuthService] Failed to get available host: %v", err)
 		return 0, fmt.Errorf("无法获取可用的主机")
 	}
+	host := hosts[0] // 选择第一个可用的host
 
 	// 创建用户
 	user := &model.User{
@@ -69,7 +74,7 @@ func (s *AuthService) RegisterUser(username, email, password string) (int64, err
 	}
 
 	// 保存到数据库
-	err = model.DB.Create(user).Error
+	err = s.userRepo.CreateUser(user)
 	if err != nil {
 		logger.Errorf(nil, "[AuthService] Failed to create user: %v", err)
 		return 0, fmt.Errorf("用户创建失败")
@@ -98,11 +103,11 @@ func (s *AuthService) ActivateUser(userID int64) error {
 // LoginUser 用户登录
 func (s *AuthService) LoginUser(username, password string, remember bool) (*model.User, string, string, error) {
 	// 获取用户信息
-	user, err := model.GetUserForLogin(username)
+	user, err := s.userRepo.GetUserByUsername(username)
 	if err != nil {
 		return nil, "", "", fmt.Errorf("用户名或密码错误")
 	}
-
+	
 	// 检查用户状态
 	if user.Status != "active" {
 		return nil, "", "", fmt.Errorf("账户未激活，请先验证邮箱")
