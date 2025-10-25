@@ -93,6 +93,18 @@ func (s *Server) Start(ctx context.Context) error {
 func (s *Server) Stop(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Stopping app-server...")
 
+	// 关闭 AppRuntime 服务（包括 NATS 订阅）
+	if s.appRuntime != nil {
+		s.appRuntime.Close()
+		logger.Infof(ctx, "[Server] AppRuntime service closed")
+	}
+
+	// 关闭 NATS 服务
+	if s.natsService != nil {
+		s.natsService.Close()
+		logger.Infof(ctx, "[Server] NATS service closed")
+	}
+
 	// 关闭 NATS 连接
 	if s.natsConn != nil {
 		s.natsConn.Close()
@@ -188,17 +200,11 @@ func (s *Server) initNATS(ctx context.Context) error {
 func (s *Server) initServices(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Initializing services...")
 
-	// 先创建一个临时的 AppRuntime 实例来初始化 NatsService
-	tempAppRuntime := service.NewAppRuntimeService(s.cfg, nil)
-
 	// 初始化 NATS 服务 - 其他服务的基础依赖
-	s.natsService = service.NewNatsServiceWithDB(s.db, tempAppRuntime)
+	s.natsService = service.NewNatsServiceWithDB(s.db)
 
-	// 重新初始化应用运行时服务，使用正确的 NatsService
+	// 初始化应用运行时服务
 	s.appRuntime = service.NewAppRuntimeService(s.cfg, s.natsService)
-
-	// 更新 NatsService 中的 AppRuntime 引用
-	s.natsService.SetAppRuntime(s.appRuntime)
 
 	// 初始化应用服务
 	userRepo := repository.NewUserRepository(s.db)
