@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
+	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
@@ -194,7 +195,9 @@ func (s *Server) initServices(ctx context.Context) error {
 	s.appRuntime = service.NewAppRuntimeService(s.cfg, s.natsService)
 
 	// 初始化应用服务
-	s.appService = service.NewAppService(s.appRuntime)
+	userRepo := repository.NewUserRepository(s.db)
+	appRepo := repository.NewAppRepository(s.db)
+	s.appService = service.NewAppService(s.appRuntime, userRepo, appRepo)
 
 	// 初始化认证服务
 	s.authService = service.NewAuthService()

@@ -5,18 +5,25 @@ import (
 	"fmt"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
+	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 )
 
 type AppService struct {
-	appRuntime *AppRuntime
+	appRuntime    *AppRuntime
+	userRepo      *repository.UserRepository
+	appRepo       *repository.AppRepository
 }
 
 // NewAppService 创建 AppService（依赖注入）
-func NewAppService(appRuntime *AppRuntime) *AppService {
-	return &AppService{appRuntime: appRuntime}
+func NewAppService(appRuntime *AppRuntime, userRepo *repository.UserRepository, appRepo *repository.AppRepository) *AppService {
+	return &AppService{
+		appRuntime: appRuntime,
+		userRepo:   userRepo,
+		appRepo:    appRepo,
+	}
 }
 
 // CreateApp 创建应用
@@ -34,7 +41,7 @@ func (a *AppService) CreateApp(ctx context.Context, req *dto.CreateAppReq) (*dto
 	}
 
 	// 根据租户用户获取主机和 NATS 信息
-	user, err := model.GetUserByUsernameWithHostAndNats(tenantUser)
+	user, err := a.userRepo.GetUserByUsernameWithHostAndNats(tenantUser)
 	if err != nil {
 		return nil, fmt.Errorf("获取租户用户 %s 的主机信息失败: %w", tenantUser, err)
 	}
@@ -65,7 +72,7 @@ func (a *AppService) CreateApp(ctx context.Context, req *dto.CreateAppReq) (*dto
 		HostID:  user.Host.ID,
 		Status:  "已启用",
 	}
-	err = model.CreateApp(&app)
+	err = a.appRepo.CreateApp(&app)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +83,7 @@ func (a *AppService) CreateApp(ctx context.Context, req *dto.CreateAppReq) (*dto
 // UpdateApp 更新应用
 func (a *AppService) UpdateApp(ctx context.Context, req *dto.UpdateAppReq) (*dto.UpdateAppResp, error) {
 	// 根据应用信息获取 NATS 连接，而不是根据当前用户
-	app, err := model.GetAppByUserName(req.User, req.App)
+	app, err := a.appRepo.GetAppByUserName(req.User, req.App)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +96,7 @@ func (a *AppService) UpdateApp(ctx context.Context, req *dto.UpdateAppReq) (*dto
 
 	// 更新数据库中的版本信息
 	app.Version = resp.NewVersion
-	err = model.UpdateApp(app)
+	err = a.appRepo.UpdateApp(app)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +106,7 @@ func (a *AppService) UpdateApp(ctx context.Context, req *dto.UpdateAppReq) (*dto
 
 // RequestApp 请求应用
 func (a *AppService) RequestApp(ctx context.Context, req *dto.RequestAppReq) (*dto.RequestAppResp, error) {
-	app, err := model.GetAppByUserName(req.User, req.App)
+	app, err := a.appRepo.GetAppByUserName(req.User, req.App)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +122,7 @@ func (a *AppService) RequestApp(ctx context.Context, req *dto.RequestAppReq) (*d
 // DeleteApp 删除应用
 func (a *AppService) DeleteApp(ctx context.Context, req *dto.DeleteAppReq) (*dto.DeleteAppResp, error) {
 	// 根据应用信息获取 NATS 连接
-	app, err := model.GetAppByUserName(req.User, req.App)
+	app, err := a.appRepo.GetAppByUserName(req.User, req.App)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +134,7 @@ func (a *AppService) DeleteApp(ctx context.Context, req *dto.DeleteAppReq) (*dto
 	}
 
 	// 删除数据库记录
-	err = model.DeleteAppAndVersions(req.User, req.App)
+	err = a.appRepo.DeleteAppAndVersions(req.User, req.App)
 	if err != nil {
 		return nil, err
 	}
