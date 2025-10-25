@@ -60,10 +60,6 @@ func NewServer(cfg *config.AppServerConfig) (*Server, error) {
 		return nil, fmt.Errorf("failed to init NATS: %w", err)
 	}
 
-	if err := s.initUpstream(ctx); err != nil {
-		return nil, fmt.Errorf("failed to init upstream: %w", err)
-	}
-
 	if err := s.initServices(ctx); err != nil {
 		return nil, fmt.Errorf("failed to init services: %w", err)
 	}
@@ -192,6 +188,9 @@ func (s *Server) initNATS(ctx context.Context) error {
 func (s *Server) initServices(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Initializing services...")
 
+	// 初始化 NATS 服务 - 其他服务的基础依赖
+	s.natsService = service.NewNatsServiceWithDB(s.db)
+
 	// 初始化应用运行时服务
 	s.appRuntime = service.NewAppRuntimeService(waiter.GetDefaultWaiter(), s.cfg, s.natsService)
 
@@ -241,16 +240,6 @@ func (s *Server) healthHandler(c *gin.Context) {
 	})
 }
 
-// initUpstream 初始化上游服务
-func (s *Server) initUpstream(ctx context.Context) error {
-	logger.Infof(ctx, "[Server] Initializing upstream services...")
-
-	// 初始化 NATS 服务 - 传入数据库连接
-	s.natsService = service.NewNatsServiceWithDB(s.db)
-
-	logger.Infof(ctx, "[Server] Upstream services initialized successfully")
-	return nil
-}
 
 // GetDB 获取数据库连接
 func (s *Server) GetDB() *gorm.DB {
