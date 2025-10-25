@@ -17,21 +17,24 @@ import (
 )
 
 type AppRuntime struct {
-	waiter *waiter.ResponseWaiter
-	config *config.AppServerConfig
+	waiter      *waiter.ResponseWaiter
+	config      *config.AppServerConfig
+	natsService *upstrem.NatsService
 }
 
 // NewDefaultAppRuntimeService 创建 AppRuntime 服务（默认，内部获取依赖）
 func NewDefaultAppRuntimeService() *AppRuntime {
 	cfg := config.GetAppServerConfig()
-	return NewAppRuntimeService(waiter.GetDefaultWaiter(), cfg)
+	natsService := upstrem.GetNatsService() // 保持向后兼容
+	return NewAppRuntimeService(waiter.GetDefaultWaiter(), cfg, natsService)
 }
 
 // NewAppRuntimeService 创建 AppRuntime 服务（依赖注入）
-func NewAppRuntimeService(waiter *waiter.ResponseWaiter, cfg *config.AppServerConfig) *AppRuntime {
+func NewAppRuntimeService(waiter *waiter.ResponseWaiter, cfg *config.AppServerConfig, natsService *upstrem.NatsService) *AppRuntime {
 	return &AppRuntime{
-		waiter: waiter,
-		config: cfg,
+		waiter:      waiter,
+		config:      cfg,
+		natsService: natsService,
 	}
 }
 
@@ -40,7 +43,7 @@ func (a *AppRuntime) CreateApp(ctx context.Context, hostId int64, req interface{
 	var resp dto.CreateAppResp
 	timeout := time.Duration(a.config.GetNatsRequestTimeout()) * time.Second
 
-	conn, err := upstrem.GetNatsService().GetNatsByHost(hostId)
+	conn, err := a.natsService.GetNatsByHost(hostId)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +60,7 @@ func (a *AppRuntime) UpdateApp(ctx context.Context, hostId int64, req *dto.Updat
 	var resp dto.UpdateAppResp
 	timeout := time.Duration(a.config.GetNatsRequestTimeout()) * time.Second
 
-	conn, err := upstrem.GetNatsService().GetNatsByHost(hostId)
+	conn, err := a.natsService.GetNatsByHost(hostId)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +77,7 @@ func (a *AppRuntime) RequestApp(ctx context.Context, natsId int64, req *dto.Requ
 
 	// 发送到 app-runtime，由 app-runtime 转发给具体的 app
 	subject := subjects.BuildFunctionServer2AppRuntimeSubject(req.User, req.App, req.Version)
-	conn, err := upstrem.GetNatsService().GetNatsByHost(natsId)
+	conn, err := a.natsService.GetNatsByHost(natsId)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +122,7 @@ func (a *AppRuntime) DeleteApp(ctx context.Context, hostId int64, req *dto.Delet
 	var resp dto.DeleteAppResp
 	timeout := time.Duration(a.config.GetNatsRequestTimeout()) * time.Second
 
-	conn, err := upstrem.GetNatsService().GetNatsByHost(hostId)
+	conn, err := a.natsService.GetNatsByHost(hostId)
 	if err != nil {
 		return nil, err
 	}
