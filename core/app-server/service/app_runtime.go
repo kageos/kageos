@@ -19,15 +19,22 @@ type AppRuntime struct {
 	waiter      *waiter.ResponseWaiter
 	config      *config.AppServerConfig
 	natsService *NatsService
+	subs        []*nats.Subscription // 添加订阅管理
 }
 
 // NewAppRuntimeService 创建 AppRuntime 服务（依赖注入）
 func NewAppRuntimeService(cfg *config.AppServerConfig, natsService *NatsService) *AppRuntime {
-	return &AppRuntime{
+	appRuntime := &AppRuntime{
 		waiter:      waiter.GetDefaultWaiter(), // 内部初始化 waiter
 		config:      cfg,
 		natsService: natsService,
+		subs:        []*nats.Subscription{},
 	}
+	
+	// 初始化订阅
+	appRuntime.initSubscriptions()
+	
+	return appRuntime
 }
 
 // CreateApp 创建应用
@@ -126,6 +133,26 @@ func (a *AppRuntime) DeleteApp(ctx context.Context, hostId int64, req *dto.Delet
 	return &resp, nil
 }
 
+// initSubscriptions 初始化 NATS 订阅
+func (a *AppRuntime) initSubscriptions() {
+	// 获取所有可用的 NATS 连接
+	for hostId := range a.natsService.hostIdMap {
+		conn, err := a.natsService.GetNatsByHost(hostId)
+		if err != nil {
+			continue
+		}
+		
+		// 订阅应用响应主题
+		sub, err := conn.Subscribe(subjects.GetApp2FunctionServerResponseSubject(), a.HandleApp2FunctionServerResponse)
+		if err != nil {
+			fmt.Printf("[AppRuntime] Failed to subscribe to response subject on host %d: %v\n", hostId, err)
+			continue
+		}
+		
+		a.subs = append(a.subs, sub)
+	}
+}
+
 // HandleApp2FunctionServerResponse 处理应用返回的响应
 func (a *AppRuntime) HandleApp2FunctionServerResponse(msg *nats.Msg) {
 	// 解析响应
@@ -144,4 +171,16 @@ func (a *AppRuntime) HandleApp2FunctionServerResponse(msg *nats.Msg) {
 		// 如果没有找到等待的请求，记录日志
 		fmt.Printf("[AppRuntime] No waiting request found for traceId: %s\n", resp.TraceId)
 	}
+}
+
+// Close 关闭 AppRuntime 服务
+func (a *AppRuntime) Close() error {
+	// 取消所有订阅
+	for _, sub := range a.subs {
+		if sub != nil {
+			sub.Unsubscribe()
+		}
+	}
+	a.subs = []*nats.Subscription{}
+	return nil
 }
