@@ -21,17 +21,10 @@ type AppRuntime struct {
 	natsService *NatsService
 }
 
-// NewDefaultAppRuntimeService 创建 AppRuntime 服务（默认，内部获取依赖）
-func NewDefaultAppRuntimeService() *AppRuntime {
-	cfg := config.GetAppServerConfig()
-	natsService := GetNatsService() // 保持向后兼容
-	return NewAppRuntimeService(waiter.GetDefaultWaiter(), cfg, natsService)
-}
-
 // NewAppRuntimeService 创建 AppRuntime 服务（依赖注入）
-func NewAppRuntimeService(waiter *waiter.ResponseWaiter, cfg *config.AppServerConfig, natsService *NatsService) *AppRuntime {
+func NewAppRuntimeService(cfg *config.AppServerConfig, natsService *NatsService) *AppRuntime {
 	return &AppRuntime{
-		waiter:      waiter,
+		waiter:      waiter.GetDefaultWaiter(), // 内部初始化 waiter
 		config:      cfg,
 		natsService: natsService,
 	}
