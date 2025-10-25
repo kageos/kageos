@@ -188,11 +188,17 @@ func (s *Server) initNATS(ctx context.Context) error {
 func (s *Server) initServices(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Initializing services...")
 
-	// 初始化 NATS 服务 - 其他服务的基础依赖
-	s.natsService = service.NewNatsServiceWithDB(s.db)
+	// 先创建一个临时的 AppRuntime 实例来初始化 NatsService
+	tempAppRuntime := service.NewAppRuntimeService(s.cfg, nil)
 
-	// 初始化应用运行时服务
+	// 初始化 NATS 服务 - 其他服务的基础依赖
+	s.natsService = service.NewNatsServiceWithDB(s.db, tempAppRuntime)
+
+	// 重新初始化应用运行时服务，使用正确的 NatsService
 	s.appRuntime = service.NewAppRuntimeService(s.cfg, s.natsService)
+
+	// 更新 NatsService 中的 AppRuntime 引用
+	s.natsService.SetAppRuntime(s.appRuntime)
 
 	// 初始化应用服务
 	userRepo := repository.NewUserRepository(s.db)

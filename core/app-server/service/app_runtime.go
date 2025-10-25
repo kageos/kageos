@@ -125,3 +125,23 @@ func (a *AppRuntime) DeleteApp(ctx context.Context, hostId int64, req *dto.Delet
 	}
 	return &resp, nil
 }
+
+// HandleApp2FunctionServerResponse 处理应用返回的响应
+func (a *AppRuntime) HandleApp2FunctionServerResponse(msg *nats.Msg) {
+	// 解析响应
+	var resp dto.RequestAppResp
+	if err := json.Unmarshal(msg.Data, &resp); err != nil {
+		return
+	}
+
+	// 从消息头获取 traceId（如果有）
+	if traceId := msg.Header.Get("trace_id"); traceId != "" {
+		resp.TraceId = traceId
+	}
+
+	// 通知等待的请求
+	if !a.waiter.Notify(resp.TraceId, &resp) {
+		// 如果没有找到等待的请求，记录日志
+		fmt.Printf("[AppRuntime] No waiting request found for traceId: %s\n", resp.TraceId)
+	}
+}

@@ -1,8 +1,6 @@
 package model
 
 import (
-	"time"
-
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 	"gorm.io/gorm"
 )
@@ -25,47 +23,4 @@ type EmailCode struct {
 
 func (EmailCode) TableName() string {
 	return "email_code"
-}
-
-// CreateEmailCode 创建邮箱验证码
-func CreateEmailCode(email, code string, expiresAt models.Time, codeType, ipAddress, userAgent string) error {
-	emailCode := EmailCode{
-		Email:     email,
-		Code:      code,
-		ExpiresAt: expiresAt,
-		Type:      codeType,
-		IPAddress: ipAddress,
-		UserAgent: userAgent,
-	}
-	return DB.Create(&emailCode).Error
-}
-
-// GetValidEmailCode 获取有效的邮箱验证码
-func GetValidEmailCode(email, code, codeType string) (*EmailCode, error) {
-	var emailCode EmailCode
-	err := DB.Where("email = ? AND code = ? AND type = ? AND used = false AND expires_at > ?",
-		email, code, codeType, models.Time{}).First(&emailCode).Error
-	if err != nil {
-		return nil, err
-	}
-	return &emailCode, nil
-}
-
-// MarkEmailCodeAsUsed 标记邮箱验证码为已使用
-func MarkEmailCodeAsUsed(email, code, codeType string) error {
-	return DB.Model(&EmailCode{}).Where("email = ? AND code = ? AND type = ?",
-		email, code, codeType).Update("used", true).Error
-}
-
-// DeleteExpiredEmailCodes 删除过期的邮箱验证码
-func DeleteExpiredEmailCodes() error {
-	return DB.Where("expires_at < ?", models.Time{}).Delete(&EmailCode{}).Error
-}
-
-// GetEmailCodeCount 获取邮箱在指定时间内的验证码数量（防刷）
-func GetEmailCodeCount(email string, minutes int) (int64, error) {
-	var count int64
-	err := DB.Model(&EmailCode{}).Where("email = ? AND created_at > ?",
-		email, models.Time(time.Now().Add(-time.Duration(minutes)*time.Minute))).Count(&count).Error
-	return count, err
 }

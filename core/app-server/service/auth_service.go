@@ -14,11 +14,11 @@ import (
 
 // AuthService 认证服务
 type AuthService struct {
-	config           *appconfig.AppServerConfig
-	jwtService       *JWTService
-	userRepo         *repository.UserRepository
-	hostRepo         *repository.HostRepository
-	userSessionRepo  *repository.UserSessionRepository
+	config          *appconfig.AppServerConfig
+	jwtService      *JWTService
+	userRepo        *repository.UserRepository
+	hostRepo        *repository.HostRepository
+	userSessionRepo *repository.UserSessionRepository
 }
 
 // NewAuthService 创建认证服务（依赖注入）
@@ -115,7 +115,7 @@ func (s *AuthService) LoginUser(username, password string, remember bool) (*mode
 	if err != nil {
 		return nil, "", "", fmt.Errorf("用户名或密码错误")
 	}
-	
+
 	// 检查用户状态
 	if user.Status != "active" {
 		return nil, "", "", fmt.Errorf("账户未激活，请先验证邮箱")

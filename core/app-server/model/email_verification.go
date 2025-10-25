@@ -26,35 +26,3 @@ type EmailVerification struct {
 func (EmailVerification) TableName() string {
 	return "email_verification"
 }
-
-// CreateEmailVerification 创建邮箱验证记录
-func CreateEmailVerification(userID int64, email, token string, expiresAt models.Time, verificationType string) error {
-	verification := EmailVerification{
-		UserID:    userID,
-		Email:     email,
-		Token:     token,
-		ExpiresAt: expiresAt,
-		Type:      verificationType,
-	}
-	return DB.Create(&verification).Error
-}
-
-// GetEmailVerificationByToken 根据token获取邮箱验证记录
-func GetEmailVerificationByToken(token string) (*EmailVerification, error) {
-	var verification EmailVerification
-	err := DB.Where("token = ? AND used = false AND expires_at > ?", token, models.Time{}).First(&verification).Error
-	if err != nil {
-		return nil, err
-	}
-	return &verification, nil
-}
-
-// MarkEmailVerificationAsUsed 标记邮箱验证记录为已使用
-func MarkEmailVerificationAsUsed(token string) error {
-	return DB.Model(&EmailVerification{}).Where("token = ?", token).Update("used", true).Error
-}
-
-// DeleteExpiredEmailVerifications 删除过期的邮箱验证记录
-func DeleteExpiredEmailVerifications() error {
-	return DB.Where("expires_at < ?", models.Time{}).Delete(&EmailVerification{}).Error
-}

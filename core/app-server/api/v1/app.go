@@ -46,6 +46,7 @@ func (a *App) CreateApp(c *gin.Context) {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
+	req.User = contextx.GetRequestUser(c)
 	app, err := a.appService.CreateApp(c, &req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())

@@ -9,8 +9,8 @@ type NamespaceCreateResp struct {
 }
 
 type CreateAppReq struct {
-	User string `json:"user" binding:"required" swaggerignore:"true"` // 租户用户名（应用所有者，决定应用的所有权）- 内部字段，不显示在文档中
-	App  string `json:"app" binding:"required" example:"myapp"`       // 应用名
+	User string `json:"user" swaggerignore:"true"`              // 租户用户名（应用所有者，决定应用的所有权）- 内部字段，不显示在文档中
+	App  string `json:"app" binding:"required" example:"myapp"` // 应用名
 }
 
 type CreateAppResp struct {
@@ -43,8 +43,8 @@ type RequestAppResp struct {
 
 // UpdateAppReq 更新应用请求
 type UpdateAppReq struct {
-	User string `json:"user" binding:"required" swaggerignore:"true" example:"beiluo"` // 用户名
-	App  string `json:"app" binding:"required" example:"myapp"`                        // 应用名
+	User string `json:"user" swaggerignore:"true" example:"beiluo"` // 用户名
+	App  string `json:"app" binding:"required" example:"myapp"`     // 应用名
 }
 
 // UpdateAppResp 更新应用响应
