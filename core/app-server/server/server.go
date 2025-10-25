@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	v1 "github.com/ai-agent-os/ai-agent-os/core/app-server/api/v1"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/upstrem"
@@ -15,8 +14,6 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/waiter"
 	"github.com/gin-gonic/gin"
 	"github.com/nats-io/nats.go"
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	gormLogger "gorm.io/gorm/logger"
@@ -65,16 +62,16 @@ func NewServer(cfg *config.AppServerConfig) (*Server, error) {
 		return nil, fmt.Errorf("failed to init NATS: %w", err)
 	}
 
+	if err := s.initUpstream(ctx); err != nil {
+		return nil, fmt.Errorf("failed to init upstream: %w", err)
+	}
+
 	if err := s.initServices(ctx); err != nil {
 		return nil, fmt.Errorf("failed to init services: %w", err)
 	}
 
 	if err := s.initRouter(ctx); err != nil {
 		return nil, fmt.Errorf("failed to init router: %w", err)
-	}
-
-	if err := s.initUpstream(ctx); err != nil {
-		return nil, fmt.Errorf("failed to init upstream: %w", err)
 	}
 
 	return s, nil
@@ -198,7 +195,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Initializing services...")
 
 	// 初始化应用运行时服务
-	s.appRuntime = service.NewAppRuntimeService(waiter.GetDefaultWaiter(), s.cfg)
+	s.appRuntime = service.NewAppRuntimeService(waiter.GetDefaultWaiter(), s.cfg, s.natsService)
 
 	// 初始化应用服务
 	s.appService = service.NewAppService(s.appRuntime)
@@ -236,37 +233,6 @@ func (s *Server) initRouter(ctx context.Context) error {
 
 	logger.Infof(ctx, "[Server] Router initialized successfully")
 	return nil
-}
-
-// setupRoutes 设置路由
-func (s *Server) setupRoutes() {
-	// 健康检查
-	s.httpServer.GET("/health", s.healthHandler)
-
-	// Swagger 文档路由
-	s.httpServer.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-
-	// API v1 路由组
-	apiV1 := s.httpServer.Group("/api/v1")
-
-	// 认证相关路由（不需要JWT验证）
-	auth := apiV1.Group("/auth")
-	authHandler := v1.NewAuth()
-	auth.POST("/send_email_code", authHandler.SendEmailCode)
-	auth.POST("/register", authHandler.Register)
-	auth.POST("/login", authHandler.Login)
-	auth.POST("/refresh", authHandler.RefreshToken)
-	auth.POST("/logout", authHandler.Logout)
-
-	// 应用管理路由（需要JWT验证）
-	app := apiV1.Group("/app")
-	app.Use(middleware2.JWTAuth()) // 应用管理需要JWT认证
-	appHandler := v1.NewDefaultApp()
-	app.POST("/create", appHandler.CreateApp)
-	app.POST("/update/:app", appHandler.UpdateApp)
-	app.DELETE("/delete/:app", appHandler.DeleteApp)
-	// 支持所有 HTTP 方法的请求应用接口
-	app.Any("/request/:app/*router", appHandler.RequestApp)
 }
 
 // healthHandler 健康检查处理器
