@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/api/v1"
+	v1 "github.com/ai-agent-os/ai-agent-os/core/app-server/api/v1"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/upstrem"
@@ -14,9 +14,9 @@ import (
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
 	"github.com/ai-agent-os/ai-agent-os/pkg/waiter"
 	"github.com/gin-gonic/gin"
+	"github.com/nats-io/nats.go"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
-	"github.com/nats-io/nats.go"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	gormLogger "gorm.io/gorm/logger"
@@ -28,17 +28,17 @@ type Server struct {
 	cfg *config.AppServerConfig
 
 	// 核心组件
-	db        *gorm.DB
-	natsConn  *nats.Conn
-	router    *gin.Engine
+	db         *gorm.DB
+	natsConn   *nats.Conn
+	router     *gin.Engine
 	httpServer *gin.Engine
 
 	// 服务
-	appService    *service.AppService
-	authService   *service.AuthService
-	emailService  *service.EmailService
-	jwtService    *service.JWTService
-	appRuntime    *service.AppRuntime
+	appService   *service.AppService
+	authService  *service.AuthService
+	emailService *service.EmailService
+	jwtService   *service.JWTService
+	appRuntime   *service.AppRuntime
 
 	// 上游服务
 	natsService *upstrem.NatsService
@@ -87,7 +87,7 @@ func (s *Server) Start(ctx context.Context) error {
 	// 启动 HTTP 服务器
 	port := fmt.Sprintf(":%d", s.cfg.GetPort())
 	logger.Infof(ctx, "[Server] HTTP server starting on port %s", port)
-	
+
 	go func() {
 		if err := s.httpServer.Run(port); err != nil {
 			logger.Errorf(ctx, "[Server] HTTP server error: %v", err)
@@ -282,8 +282,8 @@ func (s *Server) healthHandler(c *gin.Context) {
 func (s *Server) initUpstream(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Initializing upstream services...")
 
-	// 初始化 NATS 服务
-	s.natsService = upstrem.NewDefaultNatsService()
+	// 初始化 NATS 服务 - 传入数据库连接
+	s.natsService = upstrem.NewNatsServiceWithDB(s.db)
 
 	logger.Infof(ctx, "[Server] Upstream services initialized successfully")
 	return nil
