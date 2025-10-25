@@ -20,16 +20,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	"log"
 	"os"
+	"os/signal"
+	"syscall"
 
 	_ "github.com/ai-agent-os/ai-agent-os/core/app-server/docs"
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/upstrem"
-
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/global"
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/router"
+	"github.com/ai-agent-os/ai-agent-os/core/app-server/server"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	
@@ -38,18 +36,10 @@ import (
 )
 
 func main() {
+	ctx := context.Background()
+
 	// 获取配置
 	cfg := config.GetAppServerConfig()
-
-	// 初始化数据库
-	model.InitDB()
-	defer model.CloseDB()
-
-	// 初始化全局变量（NATS）
-	global.Init()
-	defer global.Close()
-
-	upstrem.Init()
 
 	// 初始化日志系统
 	logConfig := logger.Config{
@@ -67,7 +57,31 @@ func main() {
 		os.Exit(1)
 	}
 
-	r := router.Init()
-	port := fmt.Sprintf(":%d", cfg.GetPort())
-	log.Fatal(r.Run(port))
+	logger.Infof(ctx, "Logger initialized - Service: app-server, File: %s", logConfig.Filename)
+
+	// 创建并启动服务器
+	srv, err := server.NewServer(cfg)
+	if err != nil {
+		logger.Errorf(ctx, "Failed to create server: %v", err)
+		os.Exit(1)
+	}
+
+	if err := srv.Start(ctx); err != nil {
+		logger.Errorf(ctx, "Failed to start server: %v", err)
+		os.Exit(1)
+	}
+
+	// 等待信号
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	<-sigChan
+
+	logger.Infof(ctx, "Shutting down app-server...")
+
+	// 优雅关闭服务器
+	if err := srv.Stop(ctx); err != nil {
+		logger.Errorf(ctx, "Error during shutdown: %v", err)
+	}
+
+	logger.Infof(ctx, "App-server stopped")
 }
