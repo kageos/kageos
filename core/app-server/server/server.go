@@ -29,11 +29,12 @@ type Server struct {
 	httpServer *gin.Engine
 
 	// 服务
-	appService   *service.AppService
-	authService  *service.AuthService
-	emailService *service.EmailService
-	jwtService   *service.JWTService
-	appRuntime   *service.AppRuntime
+	appService         *service.AppService
+	authService        *service.AuthService
+	emailService       *service.EmailService
+	jwtService         *service.JWTService
+	appRuntime         *service.AppRuntime
+	serviceTreeService *service.ServiceTreeService
 
 	// 上游服务
 	natsService *service.NatsService
@@ -222,6 +223,10 @@ func (s *Server) initServices(ctx context.Context) error {
 
 	// 初始化 JWT 服务
 	s.jwtService = service.NewJWTService()
+
+	// 初始化服务目录服务
+	serviceTreeRepo := repository.NewServiceTreeRepository(s.db)
+	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appRuntime)
 
 	logger.Infof(ctx, "[Server] Services initialized successfully")
 	return nil

@@ -1,6 +1,9 @@
 package subjects
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 // 重构后的主题设计：保持应用请求/响应独立，简化状态通知主题
 
@@ -60,7 +63,7 @@ type Message struct {
 	App       string      `json:"app"`
 	Version   string      `json:"version"`
 	Data      interface{} `json:"data"`
-	Timestamp string      `json:"timestamp"`
+	Timestamp time.Time   `json:"timestamp"`
 }
 
 // GetAppRuntime2AppCreateRequestSubject 获取 app_runtime 到 app 创建请求的订阅主题
@@ -71,6 +74,11 @@ func GetAppRuntime2AppCreateRequestSubject() string {
 // GetAppRuntime2AppUpdateRequestSubject 获取 app_runtime 到 app 更新请求的订阅主题
 func GetAppRuntime2AppUpdateRequestSubject() string {
 	return "app_runtime.app.update"
+}
+
+// GetAppRuntime2ServiceTreeCreateRequestSubject 获取 app_runtime 到 service_tree 创建请求的订阅主题
+func GetAppRuntime2ServiceTreeCreateRequestSubject() string {
+	return "app_runtime.service_tree.create"
 }
 
 // GetFunctionServer2AppRuntimeNamespaceCreateSubject 获取 function_server 到 app_runtime 命名空间创建的主题

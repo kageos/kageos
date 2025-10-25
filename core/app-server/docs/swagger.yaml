@@ -28,6 +28,53 @@ definitions:
         example: beiluo
         type: string
     type: object
+  dto.CreateServiceTreeReq:
+    properties:
+      app:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
+      parent_id:
+        type: integer
+      tags:
+        type: string
+      title:
+        type: string
+      user:
+        type: string
+    required:
+    - app
+    - name
+    - title
+    - user
+    type: object
+  dto.CreateServiceTreeResp:
+    properties:
+      app_id:
+        type: integer
+      description:
+        type: string
+      full_id_path:
+        type: string
+      full_name_path:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      parent_id:
+        type: integer
+      status:
+        type: string
+      tags:
+        type: string
+      title:
+        type: string
+      type:
+        type: string
+    type: object
   dto.DeleteAppResp:
     properties:
       app:
@@ -41,6 +88,40 @@ definitions:
       user:
         description: 用户名
         example: beiluo
+        type: string
+    type: object
+  dto.DeleteServiceTreeReq:
+    properties:
+      id:
+        type: integer
+    required:
+    - id
+    type: object
+  dto.GetServiceTreeResp:
+    properties:
+      app_id:
+        type: integer
+      children:
+        items:
+          $ref: '#/definitions/dto.GetServiceTreeResp'
+        type: array
+      description:
+        type: string
+      full_id_path:
+        type: string
+      full_name_path:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      parent_id:
+        type: integer
+      tags:
+        type: string
+      title:
+        type: string
+      type:
         type: string
     type: object
   dto.LoginReq:
@@ -153,6 +234,9 @@ definitions:
         description: 追踪ID
         example: req-123456
         type: string
+      version:
+        example: v1
+        type: string
     type: object
   dto.SendEmailCodeReq:
     properties:
@@ -187,6 +271,21 @@ definitions:
         description: 用户名
         example: beiluo
         type: string
+    type: object
+  dto.UpdateServiceTreeReq:
+    properties:
+      description:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      tags:
+        type: string
+      title:
+        type: string
+    required:
+    - id
     type: object
   dto.UserInfo:
     properties:
@@ -240,12 +339,184 @@ info:
   title: AI Agent OS API
   version: "1.0"
 paths:
+  /api/v1/service_tree:
+    delete:
+      consumes:
+      - application/json
+      description: 删除指定服务目录（级联删除子目录）
+      parameters:
+      - description: JWT Token
+        in: header
+        name: X-Token
+        required: true
+        type: string
+      - description: 删除服务目录请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.DeleteServiceTreeReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            type: string
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "401":
+          description: 未授权
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: 删除服务目录
+      tags:
+      - 服务目录
+    get:
+      consumes:
+      - application/json
+      description: 获取指定应用的服务目录树形结构
+      parameters:
+      - description: JWT Token
+        in: header
+        name: X-Token
+        required: true
+        type: string
+      - description: 用户名
+        in: query
+        name: user
+        required: true
+        type: string
+      - description: 应用名
+        in: query
+        name: app
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.GetServiceTreeResp'
+            type: array
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "401":
+          description: 未授权
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: 获取服务目录树
+      tags:
+      - 服务目录
+    post:
+      consumes:
+      - application/json
+      description: 为指定应用创建服务目录
+      parameters:
+      - description: JWT Token
+        in: header
+        name: X-Token
+        required: true
+        type: string
+      - description: 创建服务目录请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateServiceTreeReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.CreateServiceTreeResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "401":
+          description: 未授权
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: 创建服务目录
+      tags:
+      - 服务目录
+    put:
+      consumes:
+      - application/json
+      description: 更新指定服务目录的信息
+      parameters:
+      - description: JWT Token
+        in: header
+        name: X-Token
+        required: true
+        type: string
+      - description: 更新服务目录请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateServiceTreeReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            type: string
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "401":
+          description: 未授权
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: 更新服务目录
+      tags:
+      - 服务目录
   /app/create:
     post:
       consumes:
       - application/json
       description: 创建一个新的应用实例。租户用户（应用所有者）从请求体获取，请求用户（实际发起请求的用户）从请求头获取。租户用户决定应用的所有权，请求用户用于审计追踪。
       parameters:
+      - description: JWT Token
+        in: header
+        name: X-Token
+        required: true
+        type: string
       - description: 创建应用请求，包含应用名（租户用户通过 header 传递）
         in: body
         name: request
@@ -263,10 +534,16 @@ paths:
           description: 请求参数错误
           schema:
             type: string
+        "401":
+          description: 未授权
+          schema:
+            type: string
         "500":
           description: 服务器内部错误
           schema:
             type: string
+      security:
+      - ApiKeyAuth: []
       summary: 创建应用
       tags:
       - 应用管理
@@ -545,6 +822,10 @@ paths:
       tags:
       - 认证管理
 securityDefinitions:
+  ApiKeyAuth:
+    in: header
+    name: X-Token
+    type: apiKey
   BasicAuth:
     type: basic
 swagger: "2.0"

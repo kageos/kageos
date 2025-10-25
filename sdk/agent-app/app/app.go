@@ -269,8 +269,8 @@ func (a *App) handleDiscovery(msg *nats.Msg) {
 		"type":       "response",
 		"status":     "running",
 		"runtime_id": discoveryMsg.RuntimeID,
-		"start_time": a.startTime.Format(time.DateTime),
-		"timestamp":  time.Now().Format(time.DateTime),
+		"start_time": a.startTime,
+		"timestamp":  time.Now(),
 	}
 
 	// 使用新的统一消息格式
@@ -280,7 +280,7 @@ func (a *App) handleDiscovery(msg *nats.Msg) {
 		App:       env.App,
 		Version:   env.Version,
 		Data:      responseData,
-		Timestamp: time.Now().Format(time.DateTime),
+		Timestamp: time.Now(),
 	}
 
 	messageData, err := json.Marshal(message)
@@ -364,7 +364,7 @@ func (a *App) sendStartupNotification() error {
 	// 构建启动通知消息（只包含业务数据，不重复标识信息）
 	notification := map[string]interface{}{
 		"status":     "started",
-		"start_time": a.startTime.Format(time.DateTime),
+		"start_time": a.startTime,
 	}
 
 	// 使用新的消息格式
@@ -374,7 +374,7 @@ func (a *App) sendStartupNotification() error {
 		App:       env.App,
 		Version:   env.Version,
 		Data:      notification,
-		Timestamp: time.Now().Format(time.DateTime),
+		Timestamp: time.Now(),
 	}
 
 	messageData, err := json.Marshal(message)
@@ -397,8 +397,8 @@ func (a *App) sendCloseNotification() error {
 	// 构建关闭通知消息（只包含业务数据，不重复标识信息）
 	notification := map[string]interface{}{
 		"status":     "closed",
-		"start_time": a.startTime.Format(time.DateTime),
-		"close_time": time.Now().Format(time.DateTime),
+		"start_time": a.startTime,
+		"close_time": time.Now(),
 	}
 
 	// 使用新的消息格式
@@ -408,7 +408,7 @@ func (a *App) sendCloseNotification() error {
 		App:       env.App,
 		Version:   env.Version,
 		Data:      notification,
-		Timestamp: time.Now().Format(time.DateTime),
+		Timestamp: time.Now(),
 	}
 
 	messageData, err := json.Marshal(message)

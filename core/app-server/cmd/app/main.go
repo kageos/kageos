@@ -15,6 +15,10 @@
 
 // @securityDefinitions.basic BasicAuth
 
+// @securityDefinitions.apikey ApiKeyAuth
+// @in header
+// @name X-Token
+
 // @externalDocs.description  OpenAPI
 // @externalDocs.url          https://swagger.io/resources/open-api/
 package main
@@ -30,7 +34,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/server"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	
+
 	// 导入认证 API 以确保 swag 扫描到
 	_ "github.com/ai-agent-os/ai-agent-os/core/app-server/api/v1"
 )

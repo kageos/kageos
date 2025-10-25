@@ -30,10 +30,10 @@ func NewAppRuntimeService(cfg *config.AppServerConfig, natsService *NatsService)
 		natsService: natsService,
 		subs:        []*nats.Subscription{},
 	}
-	
+
 	// 初始化订阅
 	appRuntime.initSubscriptions()
-	
+
 	return appRuntime
 }
 
@@ -133,6 +133,23 @@ func (a *AppRuntime) DeleteApp(ctx context.Context, hostId int64, req *dto.Delet
 	return &resp, nil
 }
 
+// CreateServiceTree 创建服务目录
+func (a *AppRuntime) CreateServiceTree(ctx context.Context, hostId int64, req *dto.CreateServiceTreeRuntimeReq) (*dto.CreateServiceTreeRuntimeResp, error) {
+	var resp dto.CreateServiceTreeRuntimeResp
+	timeout := time.Duration(a.config.GetNatsRequestTimeout()) * time.Second
+
+	conn, err := a.natsService.GetNatsByHost(hostId)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = msgx.RequestMsgWithTimeout(ctx, conn, subjects.GetAppRuntime2ServiceTreeCreateRequestSubject(), req, &resp, timeout)
+	if err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 // initSubscriptions 初始化 NATS 订阅
 func (a *AppRuntime) initSubscriptions() {
 	// 获取所有可用的 NATS 连接
@@ -141,14 +158,14 @@ func (a *AppRuntime) initSubscriptions() {
 		if err != nil {
 			continue
 		}
-		
+
 		// 订阅应用响应主题
 		sub, err := conn.Subscribe(subjects.GetApp2FunctionServerResponseSubject(), a.HandleApp2FunctionServerResponse)
 		if err != nil {
 			fmt.Printf("[AppRuntime] Failed to subscribe to response subject on host %d: %v\n", hostId, err)
 			continue
 		}
-		
+
 		a.subs = append(a.subs, sub)
 	}
 }
