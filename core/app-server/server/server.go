@@ -10,7 +10,6 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
-	"github.com/ai-agent-os/ai-agent-os/pkg/waiter"
 	"github.com/gin-gonic/gin"
 	"github.com/nats-io/nats.go"
 	"gorm.io/driver/mysql"
@@ -192,7 +191,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	s.natsService = service.NewNatsServiceWithDB(s.db)
 
 	// 初始化应用运行时服务
-	s.appRuntime = service.NewAppRuntimeService(waiter.GetDefaultWaiter(), s.cfg, s.natsService)
+	s.appRuntime = service.NewAppRuntimeService(s.cfg, s.natsService)
 
 	// 初始化应用服务
 	s.appService = service.NewAppService(s.appRuntime)
@@ -239,7 +238,6 @@ func (s *Server) healthHandler(c *gin.Context) {
 		"service":   "app-server",
 	})
 }
-
 
 // GetDB 获取数据库连接
 func (s *Server) GetDB() *gorm.DB {

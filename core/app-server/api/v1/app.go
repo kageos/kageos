@@ -16,12 +16,6 @@ type App struct {
 	appService *service.AppService
 }
 
-func NewDefaultApp() *App {
-	return &App{
-		appService: service.NewDefaultAppService(),
-	}
-}
-
 // NewApp 创建 App 处理器（依赖注入）
 func NewApp(appService *service.AppService) *App {
 	return &App{

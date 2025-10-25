@@ -14,11 +14,6 @@ type AppService struct {
 	appRuntime *AppRuntime
 }
 
-// NewDefaultAppService 创建 AppService（默认，内部获取依赖）
-func NewDefaultAppService() *AppService {
-	return NewAppService(NewDefaultAppRuntimeService())
-}
-
 // NewAppService 创建 AppService（依赖注入）
 func NewAppService(appRuntime *AppRuntime) *AppService {
 	return &AppService{appRuntime: appRuntime}
