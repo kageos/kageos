@@ -29,16 +29,6 @@ func (User) TableName() string {
 	return "user"
 }
 
-// GetUserByID 根据用户ID获取用户信息
-func GetUserByID(id int64) (*User, error) {
-	var user User
-	err := DB.Where("id = ?", id).First(&user).Error
-	if err != nil {
-		return nil, err
-	}
-	return &user, nil
-}
-
 // CheckEmailVerificationRequired 检查用户是否需要邮箱验证（仅邮箱注册用户需要）
 func (u *User) CheckEmailVerificationRequired() bool {
 	return u.RegisterType == "email" && !u.EmailVerified
