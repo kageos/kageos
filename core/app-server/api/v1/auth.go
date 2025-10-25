@@ -16,12 +16,8 @@ type Auth struct {
 	emailService *service.EmailService
 }
 
-// NewAuth 创建认证API
-func NewAuth() *Auth {
-	// 添加错误处理，避免初始化失败
-	authService := service.NewAuthService()
-	emailService := service.NewEmailService()
-
+// NewAuth 创建认证API（依赖注入）
+func NewAuth(authService *service.AuthService, emailService *service.EmailService) *Auth {
 	return &Auth{
 		authService:  authService,
 		emailService: emailService,

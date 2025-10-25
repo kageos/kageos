@@ -12,9 +12,9 @@ import (
 )
 
 type AppService struct {
-	appRuntime    *AppRuntime
-	userRepo      *repository.UserRepository
-	appRepo       *repository.AppRepository
+	appRuntime *AppRuntime
+	userRepo   *repository.UserRepository
+	appRepo    *repository.AppRepository
 }
 
 // NewAppService 创建 AppService（依赖注入）

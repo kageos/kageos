@@ -40,9 +40,9 @@ func (r *AppRepository) DeleteAppAndVersions(user, app string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	// 注意：app-server 中没有 AppVersion 表，所以只删除 App 记录即可
-	
+
 	return nil
 }
 

@@ -20,7 +20,7 @@ func (s *Server) setupRoutes() {
 
 	// 认证相关路由（不需要JWT验证）
 	auth := apiV1.Group("/auth")
-	authHandler := v1.NewAuth()
+	authHandler := v1.NewAuth(s.authService, s.emailService)
 	auth.POST("/send_email_code", authHandler.SendEmailCode)
 	auth.POST("/register", authHandler.Register)
 	auth.POST("/login", authHandler.Login)

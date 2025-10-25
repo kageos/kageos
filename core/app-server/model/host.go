@@ -17,12 +17,3 @@ type Host struct {
 func (Host) TableName() string {
 	return "host"
 }
-
-func GetHostList() ([]*Host, error) {
-	var hostList []*Host
-	err := DB.Model(&Host{}).Preload("Nats").Find(&hostList).Error
-	if err != nil {
-		return nil, err
-	}
-	return hostList, nil
-}
