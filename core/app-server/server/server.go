@@ -26,7 +26,6 @@ type Server struct {
 	// 核心组件
 	db         *gorm.DB
 	natsConn   *nats.Conn
-	router     *gin.Engine
 	httpServer *gin.Engine
 
 	// 服务
@@ -228,7 +227,6 @@ func (s *Server) initRouter(ctx context.Context) error {
 	s.setupRoutes()
 
 	// 设置 router 引用
-	s.router = s.httpServer
 
 	logger.Infof(ctx, "[Server] Router initialized successfully")
 	return nil
