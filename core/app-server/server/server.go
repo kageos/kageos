@@ -198,10 +198,11 @@ func (s *Server) initServices(ctx context.Context) error {
 	userRepo := repository.NewUserRepository(s.db)
 	appRepo := repository.NewAppRepository(s.db)
 	hostRepo := repository.NewHostRepository(s.db)
+	userSessionRepo := repository.NewUserSessionRepository(s.db)
 	s.appService = service.NewAppService(s.appRuntime, userRepo, appRepo)
 
 	// 初始化认证服务
-	s.authService = service.NewAuthService(userRepo, hostRepo)
+	s.authService = service.NewAuthService(userRepo, hostRepo, userSessionRepo)
 
 	// 初始化邮件服务
 	emailCodeRepo := repository.NewEmailCodeRepository(s.db)
