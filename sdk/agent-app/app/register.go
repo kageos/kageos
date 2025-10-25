@@ -38,3 +38,9 @@ func PUT(router string, handleFunc HandleFunc, templater Templater) {
 func DELETE(router string, handleFunc HandleFunc, templater Templater) {
 	register(router, "DELETE", handleFunc, templater)
 }
+
+func initRouter(a *App) {
+	a.registerRouter(MethodPost, "/test/add", AddHandle, Temp)
+	a.registerRouter(MethodPost, "/test/get", GetHandle, Temp)
+
+}

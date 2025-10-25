@@ -495,7 +495,7 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string) (*Up
 		// 等待启动通知结果（同步等待）
 		select {
 		case notification := <-waiterChan:
-			logStr.WriteString(fmt.Sprintf("Startup confirmed at %s\t", notification.StartTime.Format(time.RFC3339)))
+			logStr.WriteString(fmt.Sprintf("Startup confirmed at %s\t", notification.StartTime.Format(time.DateTime)))
 			logger.Infof(ctx, "[UpdateApp] New version startup confirmed: %s/%s/%s", user, app, newVersion)
 		case <-time.After(30 * time.Second):
 			logStr.WriteString("Startup timeout\t")
@@ -523,6 +523,10 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string) (*Up
 
 	// 统一打印所有日志
 	logger.Infof(ctx, logStr.String())
+
+	//todo 发送diff 回调，什么是diff回调，就是当你更新时候，有可能新增api，有可能删除api，有可能更新api
+	//这时候我们要做个diff，给出这个变更的明细，返回出去，这样server层可以更新
+	//这里可以复用那个status主题来发送
 
 	return &UpdateResult{
 		User:       user,
@@ -840,22 +844,23 @@ func (s *AppManageService) UpdateAppStatus(ctx context.Context, user, app, versi
 func (s *AppManageService) ShutdownAppVersion(ctx context.Context, user, app, version string) error {
 	//logger.Infof(ctx, "[ShutdownAppVersion] Sending shutdown command to %s/%s/%s", user, app, version)
 
-	// 构建关闭命令消息
-	shutdownCmd := map[string]interface{}{
-		"user":      user,
-		"app":       app,
-		"version":   version,
-		"command":   "shutdown",
-		"timestamp": time.Now().Format(time.RFC3339),
+	// 构建关闭命令消息（使用 subjects.Message 格式）
+	message := subjects.Message{
+		Type:      subjects.MessageTypeShutdown,
+		User:      user,
+		App:       app,
+		Version:   version,
+		Data:      map[string]interface{}{"command": "shutdown"},
+		Timestamp: time.Now().Format(time.RFC3339),
 	}
 
-	data, err := json.Marshal(shutdownCmd)
+	data, err := json.Marshal(message)
 	if err != nil {
 		return fmt.Errorf("failed to marshal shutdown command: %w", err)
 	}
 
-	// 发送关闭命令到应用
-	subject := subjects.BuildRuntime2AppShutdownSubject(user, app, version)
+	// 发送关闭命令到应用状态主题
+	subject := subjects.BuildAppStatusSubject(user, app, version)
 	if err := s.natsConn.Publish(subject, data); err != nil {
 		return fmt.Errorf("failed to publish shutdown command to %s: %w", subject, err)
 	}

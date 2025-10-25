@@ -63,3 +63,25 @@ func (c *Context) ShouldBind(req interface{}) error {
 	}
 	return nil
 }
+
+func (c *Context) ShouldBindValidate(req interface{}) error {
+	if c.msg == nil {
+		return fmt.Errorf("msg is nil")
+	}
+	if strings.ToUpper(c.msg.Method) == "GET" {
+		if c.urlQuery == "" {
+			return nil
+		}
+		query, err := url.ParseQuery(c.urlQuery)
+		if err != nil {
+			return fmt.Errorf("解析查询参数失败: %w", err)
+		}
+		err = form.NewDecoder().Decode(req, query)
+		if err != nil {
+			return fmt.Errorf("解码表单数据失败: %w", err)
+		}
+	} else {
+		return json.Unmarshal(c.body, req)
+	}
+	return nil
+}

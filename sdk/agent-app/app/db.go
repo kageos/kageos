@@ -22,15 +22,19 @@ var (
 	dbs    = make(map[string]*gorm.DB)
 )
 
-func (c *Context) getDBName() string {
+func getDBName() string {
 	return fmt.Sprintf("%s_%s.db", env.User, env.App)
 }
-func (c *Context) GetGormDB() *gorm.DB {
-	db, err := getOrInitDB(c.getDBName())
+
+func getGormDB() *gorm.DB {
+	db, err := getOrInitDB(getDBName())
 	if err != nil {
 		return nil
 	}
 	return db
+}
+func (c *Context) GetGormDB() *gorm.DB {
+	return getGormDB()
 }
 
 // sanitizeDBName 安全处理数据库名称，防止目录穿越
