@@ -14,21 +14,23 @@ import (
 
 // AuthService 认证服务
 type AuthService struct {
-	config     *appconfig.AppServerConfig
-	jwtService *JWTService
-	userRepo   *repository.UserRepository
-	hostRepo   *repository.HostRepository
+	config           *appconfig.AppServerConfig
+	jwtService       *JWTService
+	userRepo         *repository.UserRepository
+	hostRepo         *repository.HostRepository
+	userSessionRepo  *repository.UserSessionRepository
 }
 
 // NewAuthService 创建认证服务（依赖注入）
-func NewAuthService(userRepo *repository.UserRepository, hostRepo *repository.HostRepository) *AuthService {
+func NewAuthService(userRepo *repository.UserRepository, hostRepo *repository.HostRepository, userSessionRepo *repository.UserSessionRepository) *AuthService {
 	config := appconfig.GetAppServerConfig()
 	jwtService := NewJWTService()
 	return &AuthService{
-		config:     config,
-		jwtService: jwtService,
-		userRepo:   userRepo,
-		hostRepo:   hostRepo,
+		config:          config,
+		jwtService:      jwtService,
+		userRepo:        userRepo,
+		hostRepo:        hostRepo,
+		userSessionRepo: userSessionRepo,
 	}
 }
 
@@ -86,11 +88,17 @@ func (s *AuthService) RegisterUser(username, email, password string) (int64, err
 
 // ActivateUser 激活用户
 func (s *AuthService) ActivateUser(userID int64) error {
+	// 获取用户信息
+	user, err := s.userRepo.GetUserByID(userID)
+	if err != nil {
+		logger.Errorf(nil, "[AuthService] Failed to get user %d: %v", userID, err)
+		return fmt.Errorf("用户不存在")
+	}
+
 	// 更新用户状态为active，并标记邮箱已验证
-	err := model.DB.Model(&model.User{}).Where("id = ?", userID).Updates(map[string]interface{}{
-		"status":         "active",
-		"email_verified": true,
-	}).Error
+	user.Status = "active"
+	user.EmailVerified = true
+	err = s.userRepo.UpdateUser(user)
 	if err != nil {
 		logger.Errorf(nil, "[AuthService] Failed to activate user %d: %v", userID, err)
 		return fmt.Errorf("用户激活失败")
@@ -158,13 +166,13 @@ func (s *AuthService) LoginUser(username, password string, remember bool) (*mode
 // RefreshToken 刷新Token
 func (s *AuthService) RefreshToken(refreshToken string) (string, string, error) {
 	// 验证 RefreshToken
-	session, err := model.GetUserSessionByRefreshToken(refreshToken)
+	session, err := s.userSessionRepo.GetUserSessionByRefreshToken(refreshToken)
 	if err != nil {
 		return "", "", fmt.Errorf("RefreshToken无效或已过期")
 	}
 
 	// 获取用户信息
-	user, err := model.GetUserByID(session.UserID)
+	user, err := s.userRepo.GetUserByID(session.UserID)
 	if err != nil {
 		return "", "", fmt.Errorf("用户不存在")
 	}
@@ -177,10 +185,7 @@ func (s *AuthService) RefreshToken(refreshToken string) (string, string, error) 
 	}
 
 	// 更新会话中的Token和RefreshToken
-	err = model.DB.Model(&model.UserSession{}).Where("id = ?", session.ID).Updates(map[string]interface{}{
-		"token":         newAccessToken,
-		"refresh_token": newRefreshToken,
-	}).Error
+	err = s.userSessionRepo.UpdateUserSessionTokens(session.ID, newAccessToken, newRefreshToken)
 	if err != nil {
 		logger.Errorf(nil, "[AuthService] Failed to update tokens: %v", err)
 		// 不返回错误，继续执行
@@ -193,7 +198,7 @@ func (s *AuthService) RefreshToken(refreshToken string) (string, string, error) 
 // LogoutUser 用户登出
 func (s *AuthService) LogoutUser(token string) error {
 	// 停用用户会话
-	err := model.DeactivateUserSession(token)
+	err := s.userSessionRepo.DeactivateUserSession(token)
 	if err != nil {
 		logger.Errorf(nil, "[AuthService] Failed to deactivate user session: %v", err)
 		return fmt.Errorf("登出失败")
@@ -209,7 +214,7 @@ func (s *AuthService) saveUserSession(userID int64, token, refreshToken string) 
 	expiresAt := models.Time(time.Now().Add(24 * time.Hour))
 
 	// 创建用户会话
-	err := model.CreateUserSession(userID, token, refreshToken, expiresAt, "", "")
+	err := s.userSessionRepo.CreateUserSession(userID, token, refreshToken, expiresAt, "", "")
 	if err != nil {
 		return fmt.Errorf("会话保存失败: %w", err)
 	}
@@ -223,7 +228,7 @@ func (s *AuthService) saveUserSessionWithExpire(userID int64, token, refreshToke
 	expiresAt := models.Time(time.Now().Add(time.Duration(expireSeconds) * time.Second))
 
 	// 创建用户会话
-	err := model.CreateUserSession(userID, token, refreshToken, expiresAt, "", "")
+	err := s.userSessionRepo.CreateUserSession(userID, token, refreshToken, expiresAt, "", "")
 	if err != nil {
 		return fmt.Errorf("会话保存失败: %w", err)
 	}
