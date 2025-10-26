@@ -156,26 +156,15 @@ func (s *AppManageService) GetStartupWaiter(key string) chan *StartupNotificatio
 
 // waitForStartup 等待应用启动完成（内部方法）
 func (s *AppManageService) waitForStartup(ctx context.Context, user, app, version string, timeout time.Duration) (*StartupNotification, error) {
-	key := fmt.Sprintf("%s/%s/%s", user, app, version)
+	// 使用统一的等待器注册方法
+	waiterChan := s.registerStartupWaiter(user, app, version)
+	// 确保在方法结束时清理等待器
+	defer s.unregisterStartupWaiter(user, app, version)
 
-	// 注册等待器
-	ch := make(chan *StartupNotification, 1)
-	s.startupWaitersMu.Lock()
-	s.startupWaiters[key] = ch
-	s.startupWaitersMu.Unlock()
-
-	// 确保清理
-	defer func() {
-		s.startupWaitersMu.Lock()
-		delete(s.startupWaiters, key)
-		close(ch)
-		s.startupWaitersMu.Unlock()
-	}()
-
-	//logger.Infof(ctx, "[waitForStartup] Waiting for: %s (timeout: %v)", key, timeout)
+	//logger.Infof(ctx, "[waitForStartup] Waiting for: %s/%s/%s (timeout: %v)", user, app, version, timeout)
 
 	select {
-	case notification := <-ch:
+	case notification := <-waiterChan:
 		return notification, nil
 	case <-time.After(timeout):
 		return nil, fmt.Errorf("timeout waiting for startup notification")
@@ -415,6 +404,12 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string) (*Up
 		return nil, fmt.Errorf("container operator not available")
 	}
 
+	// 统一在外层注册启动等待器，因为无论哪种启动方式都需要等待
+	// 先注册等待器，再执行启动命令，避免错过通知
+	waiterChan := s.registerStartupWaiter(user, app, newVersion)
+	// 确保在方法结束时清理等待器
+	defer s.unregisterStartupWaiter(user, app, newVersion)
+
 	if isRunning {
 		// 应用正在运行：在容器内启动新版本（灰度发布）
 		//logger.Infof(ctx, "[UpdateApp] Starting new version in container for gray deployment: %s", containerName)
@@ -475,12 +470,6 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string) (*Up
 		//   - 真正的守护进程，支持灰度发布（新旧版本同时运行）
 		//   - 不会变成僵尸进程
 		// ====================================================================================
-		// 先注册等待器，再执行启动命令，避免错过通知
-		// 使用同步方式注册等待器，确保注册完成后再启动应用
-		waiterChan := s.registerStartupWaiter(user, app, newVersion)
-
-		// 确保等待器已注册后再启动应用
-		logger.Infof(ctx, "[StartAppVersion] Waiting for startup notification for %s/%s/%s", user, app, newVersion)
 
 		// 执行启动命令
 		startCmd := fmt.Sprintf("cd /app/workplace/bin && setsid nohup ./releases/%s </dev/null >/dev/null 2>&1 &", binaryName)
@@ -491,32 +480,29 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string) (*Up
 		}
 
 		logStr.WriteString("Command executed\t")
-
-		// 等待启动通知结果（同步等待）
-		select {
-		case notification := <-waiterChan:
-			logStr.WriteString(fmt.Sprintf("Startup confirmed at %s\t", notification.StartTime.Format(time.DateTime)))
-			logger.Infof(ctx, "[UpdateApp] New version startup confirmed: %s/%s/%s", user, app, newVersion)
-		case <-time.After(30 * time.Second):
-			logStr.WriteString("Startup timeout\t")
-			logger.Warnf(ctx, "[UpdateApp] Startup notification timeout for %s/%s/%s, but continue anyway", user, app, newVersion)
-			// 不返回错误，超时不应阻止更新流程
-		}
-
-		// 清理等待器
-		s.unregisterStartupWaiter(user, app, newVersion)
-
-		logStr.WriteString("New version started in container\t")
 	} else {
 		// 应用没有运行：先启动容器，再启动应用
 		logger.Infof(ctx, "[UpdateApp] App is not running, starting container and app: %s", containerName)
 
 		// 启动容器（挂载目录和可执行文件）
-		if err := s.startAppContainer(ctx, containerName, appDirRel, ""); err != nil {
+		if err := s.startAppContainer(ctx, containerName, appDirRel, newVersion); err != nil {
 			return nil, fmt.Errorf("failed to start app container: %w", err)
 		}
 
-		logger.Infof(ctx, "[UpdateApp] Container started successfully, app will start automatically via start.sh")
+		logger.Infof(ctx, "[UpdateApp] Container started successfully")
+	}
+
+	// 统一在外层等待启动通知，无论哪种启动方式都需要等待
+	logger.Infof(ctx, "[UpdateApp] Waiting for startup notification for %s/%s/%s", user, app, newVersion)
+
+	select {
+	case notification := <-waiterChan:
+		logStr.WriteString(fmt.Sprintf("Startup confirmed at %s\t", notification.StartTime.Format(time.DateTime)))
+		logger.Infof(ctx, "[UpdateApp] Startup confirmed: %s/%s/%s", user, app, newVersion)
+	case <-time.After(60 * time.Second):
+		logStr.WriteString("Startup timeout\t")
+		logger.Warnf(ctx, "[UpdateApp] Startup notification timeout for %s/%s/%s, but continue anyway", user, app, newVersion)
+		// 不返回错误，超时不应阻止更新流程
 	}
 
 	logStr.WriteString(fmt.Sprintf("Update completed: %s->%s", oldVersion, newVersion))
@@ -524,16 +510,83 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string) (*Up
 	// 统一打印所有日志
 	logger.Infof(ctx, logStr.String())
 
-	//todo 发送diff 回调，什么是diff回调，就是当你更新时候，有可能新增api，有可能删除api，有可能更新api
-	//这时候我们要做个diff，给出这个变更的明细，返回出去，这样server层可以更新
-	//这里可以复用那个status主题来发送
+	// 使用 NATS Request/Reply 模式获取 API diff 结果
+	logger.Infof(ctx, "[UpdateApp] 🚀 Using NATS Request/Reply to get update callback from %s/%s/%s", user, app, newVersion)
 
-	return &UpdateResult{
+	updateCallbackResponse, callbackErr := s.sendUpdateCallbackAndWait(ctx, user, app, newVersion)
+	if callbackErr != nil {
+		logger.Warnf(ctx, "[UpdateApp] ❌ Update callback failed: %v", callbackErr)
+		logger.Warnf(ctx, "[UpdateApp] Continuing without diff information")
+	} else {
+		logger.Infof(ctx, "[UpdateApp] ✅ Update callback response received from %s/%s/%s: %+v", user, app, newVersion, updateCallbackResponse)
+	}
+
+	// 构建 UpdateResult，包含 diff 信息（如果有）
+	// 解析嵌套的 diff 数据，避免双嵌套
+
+	result := &UpdateResult{
 		User:       user,
 		App:        app,
 		OldVersion: oldVersion,
 		NewVersion: newVersion,
-	}, nil
+		Diff:       updateCallbackResponse.Data, // 修复后的 diff 信息
+		Error:      callbackErr,
+	}
+
+	return result, nil
+}
+
+// sendUpdateCallbackAndWait 使用 NATS Request/Reply 模式发送 update 回调并等待响应
+func (s *AppManageService) sendUpdateCallbackAndWait(ctx context.Context, user, app, version string) (*subjects.Message, error) {
+	if s.natsConn == nil {
+		return nil, fmt.Errorf("NATS connection is nil")
+	}
+
+	// 构建更新回调请求
+	request := subjects.Message{
+		Type:      subjects.MessageTypeStatusOnAppUpdate,
+		User:      user,
+		App:       app,
+		Version:   version,
+		Data:      map[string]interface{}{"trigger": "update_callback"},
+		Timestamp: time.Now(),
+	}
+
+	// 构建请求主题
+	//subject := subjects.GetAppUpdateCallbackRequestSubject(user, app, version)
+	subject := subjects.BuildAppStatusSubject(user, app, version)
+
+	logger.Infof(ctx, "[sendUpdateCallbackAndWait] 📤 Sending update callback request to subject: %s", subject)
+	logger.Infof(ctx, "[sendUpdateCallbackAndWait] Request data: %+v", request)
+
+	// 使用原生 NATS Request 模式，避免依赖 gin context
+	msg := nats.NewMsg(subject)
+	requestData, err := json.Marshal(request)
+	if err != nil {
+		logger.Errorf(ctx, "[sendUpdateCallbackAndWait] Failed to marshal request: %v", err)
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+	msg.Data = requestData
+
+	// 发送请求并等待响应（60秒超时）
+	responseMsg, err := s.natsConn.RequestMsg(msg, 60*time.Second)
+	if err != nil {
+		logger.Errorf(ctx, "[sendUpdateCallbackAndWait] ❌ Request failed: %v", err)
+		return nil, fmt.Errorf("update callback request failed: %w", err)
+	}
+
+	var rsp subjects.Message
+
+	// 解析响应
+	if err := json.Unmarshal(responseMsg.Data, &rsp); err != nil {
+		logger.Errorf(ctx, "[sendUpdateCallbackAndWait] Failed to unmarshal response: %v", err)
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	logger.Infof(ctx, "[sendUpdateCallbackAndWait] ✅ Response received: %+v", rsp)
+	logger.Infof(ctx, "[sendUpdateCallbackAndWait] 📊 Response details: subject=%s, headers=%+v", responseMsg.Subject, responseMsg.Header)
+
+	return &rsp, nil
 }
 
 // UpdateResult 更新结果
@@ -542,6 +595,8 @@ type UpdateResult struct {
 	App        string
 	OldVersion string
 	NewVersion string
+	Diff       interface{} `json:"diff,omitempty"`  // API diff 信息
+	Error      error       `json:"error,omitempty"` // 回调过程中的错误
 }
 
 // GetAppInfo 获取应用信息
@@ -764,8 +819,8 @@ func main() {
 }
 
 // startAppContainer 启动应用容器
-func (s *AppManageService) startAppContainer(ctx context.Context, containerName, appDir, executablePath string) error {
-	logger.Infof(ctx, "Starting container: %s, appDir: %s, executablePath: %s", containerName, appDir, executablePath)
+func (s *AppManageService) startAppContainer(ctx context.Context, containerName, appDir, version string) error {
+	logger.Infof(ctx, "Starting container: %s, appDir: %s, version: %s", containerName, appDir, version)
 
 	// 获取容器操作器
 	if s.containerService == nil {
@@ -791,9 +846,9 @@ func (s *AppManageService) startAppContainer(ctx context.Context, containerName,
 	}
 
 	// 启动容器，使用 ai-agent-os 镜像的启动脚本
-	// 启动脚本会自动读取 metadata/version.json 来获取版本信息
+	// 启动脚本会自动读取 metadata/version.json 来获取版本信息，或者使用传入的版本参数
 	logger.Infof(ctx, "[startAppContainer] Creating container with ai-agent-os image: %s", containerName)
-	if err := s.containerService.RunContainerWithCommand(ctx, image, containerName, absHostPath, containerPath, []string{"/start.sh"}, envVars...); err != nil {
+	if err := s.containerService.RunContainerWithCommand(ctx, image, containerName, absHostPath, containerPath, []string{"/start.sh", version}, envVars...); err != nil {
 		logger.Errorf(ctx, "[startAppContainer] Failed to start container: %v", err)
 		return fmt.Errorf("failed to start container: %w", err)
 	}
@@ -846,7 +901,7 @@ func (s *AppManageService) ShutdownAppVersion(ctx context.Context, user, app, ve
 
 	// 构建关闭命令消息（使用 subjects.Message 格式）
 	message := subjects.Message{
-		Type:      subjects.MessageTypeShutdown,
+		Type:      subjects.MessageTypeStatusShutdown,
 		User:      user,
 		App:       app,
 		Version:   version,
@@ -861,6 +916,7 @@ func (s *AppManageService) ShutdownAppVersion(ctx context.Context, user, app, ve
 
 	// 发送关闭命令到应用状态主题
 	subject := subjects.BuildAppStatusSubject(user, app, version)
+
 	if err := s.natsConn.Publish(subject, data); err != nil {
 		return fmt.Errorf("failed to publish shutdown command to %s: %w", subject, err)
 	}
@@ -1059,6 +1115,11 @@ func (s *AppManageService) StartAppVersion(ctx context.Context, user, app, versi
 
 	containerName := fmt.Sprintf("%s_%s", user, app)
 
+	// 注册启动等待器（统一在外层注册）
+	waiterChan := s.registerStartupWaiter(user, app, version)
+	// 确保在方法结束时清理等待器
+	defer s.unregisterStartupWaiter(user, app, version)
+
 	// 读取 current_app.txt 获取二进制前缀
 	appFile := filepath.Join(s.config.AppDir.BasePath, user, app, "workplace/metadata/current_app.txt")
 	appData, err := os.ReadFile(appFile)
@@ -1084,28 +1145,13 @@ func (s *AppManageService) StartAppVersion(ctx context.Context, user, app, versi
 
 	logger.Infof(ctx, "[StartAppVersion] Startup command executed, output: %s", output)
 
-	// 注册启动等待器
-	key := fmt.Sprintf("%s/%s/%s", user, app, version)
-	s.startupWaitersMu.Lock()
-	s.startupWaiters[key] = make(chan *StartupNotification, 1)
-	s.startupWaitersMu.Unlock()
-
 	// 等待启动完成通知（30秒超时）
 	logger.Infof(ctx, "[StartAppVersion] Waiting for startup notification from version %s...", version)
-
-	s.startupWaitersMu.RLock()
-	waiterChan := s.startupWaiters[key]
-	s.startupWaitersMu.RUnlock()
 
 	select {
 	case notification := <-waiterChan:
 		logger.Infof(ctx, "[StartAppVersion] Received startup notification: %s/%s/%s, status=%s",
 			notification.User, notification.App, notification.Version, notification.Status)
-
-		// 清理等待器
-		s.startupWaitersMu.Lock()
-		delete(s.startupWaiters, key)
-		s.startupWaitersMu.Unlock()
 
 		if notification.Status == "running" {
 			logger.Infof(ctx, "[StartAppVersion] Version %s started successfully", version)
@@ -1114,11 +1160,6 @@ func (s *AppManageService) StartAppVersion(ctx context.Context, user, app, versi
 		return fmt.Errorf("app started but status is not running: %s", notification.Status)
 
 	case <-time.After(30 * time.Second):
-		// 清理等待器
-		s.startupWaitersMu.Lock()
-		delete(s.startupWaiters, key)
-		s.startupWaitersMu.Unlock()
-
 		logger.Warnf(ctx, "[StartAppVersion] Timeout waiting for startup notification from version %s", version)
 		return fmt.Errorf("timeout waiting for app startup notification")
 	}

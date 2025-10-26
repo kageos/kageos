@@ -237,16 +237,16 @@ func (s *AppDiscoveryService) handleRuntimeStatusMessage(msg *nats.Msg) {
 
 	var message subjects.Message
 	if err := json.Unmarshal(msg.Data, &message); err != nil {
-		logger.Errorf(ctx, "[AppDiscoveryService] Failed to unmarshal runtime status message: %v", err)
+		logger.Errorf(ctx, "[AppDiscoveryService] Failed to unmarshal runtime status %s message: %v", string(msg.Data), err)
 		return
 	}
 
 	switch message.Type {
-	case subjects.MessageTypeStartup:
+	case subjects.MessageTypeStatusStartup:
 		s.handleStartupNotification(message)
-	case subjects.MessageTypeClose:
+	case subjects.MessageTypeStatusClose:
 		s.handleCloseNotification(message)
-	case subjects.MessageTypeDiscovery:
+	case subjects.MessageTypeStatusDiscovery:
 		s.HandleDiscoveryResponse(message)
 	default:
 		logger.Warnf(ctx, "[AppDiscoveryService] Unknown message type: %s", message.Type)

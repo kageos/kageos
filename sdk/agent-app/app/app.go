@@ -11,10 +11,8 @@ import (
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
-
 	"github.com/ai-agent-os/ai-agent-os/pkg/discovery"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-
 	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/env"
 	"github.com/nats-io/nats.go"
@@ -92,6 +90,9 @@ type Subjects struct {
 	AppStatus     string // app.status.{user}.{app}.{version} - 处理 shutdown、discovery
 	RuntimeStatus string // runtime.status.{user}.{app}.{version} - 处理 startup、close、discovery
 	Discovery     string // ai-agent-os.runtime.discovery 处理服务发现
+
+	// Request/Reply 主题
+	UpdateCallback string // app.update.callback.{user}.{app}.{version} - 更新回调请求
 }
 
 // NewApp 创建新的应用实例
@@ -140,6 +141,9 @@ func NewApp() (*App, error) {
 			AppStatus:     subjects.BuildAppStatusSubject(env.User, env.App, env.Version),
 			RuntimeStatus: subjects.BuildRuntimeStatusSubject(env.User, env.App, env.Version),
 			Discovery:     subjects.GetRuntimeDiscoverySubject(),
+
+			// Request/Reply 主题
+			UpdateCallback: subjects.GetAppUpdateCallbackRequestSubject(env.User, env.App, env.Version),
 		},
 	}
 
@@ -170,6 +174,16 @@ func NewApp() (*App, error) {
 	}
 	newApp.subs = append(newApp.subs, discoverySub)
 	logger.Infof(context.Background(), "Discovery subscription successful")
+
+	// 订阅 Update Callback 主题（Request/Reply 模式）
+	//logger.Infof(context.Background(), "Subscribing to update callback: %s", newApp.subjects.UpdateCallback)
+	//updateCallbackSub, err := newApp.conn.Subscribe(newApp.subjects.UpdateCallback, newApp.handleUpdateCallbackRequest)
+	//if err != nil {
+	//	logger.Errorf(context.Background(), "Failed to subscribe to update callback: %v", err)
+	//	return nil, fmt.Errorf("failed to subscribe to %s: %w", newApp.subjects.UpdateCallback, err)
+	//}
+	//newApp.subs = append(newApp.subs, updateCallbackSub)
+	//logger.Infof(context.Background(), "Update callback subscription successful")
 
 	// 发送启动完成通知给 runtime
 	// 通知 runtime 新版本已经成功启动并准备好接收请求
@@ -275,7 +289,7 @@ func (a *App) handleDiscovery(msg *nats.Msg) {
 
 	// 使用新的统一消息格式
 	message := subjects.Message{
-		Type:      subjects.MessageTypeDiscovery,
+		Type:      subjects.MessageTypeStatusDiscovery,
 		User:      env.User,
 		App:       env.App,
 		Version:   env.Version,
@@ -369,7 +383,7 @@ func (a *App) sendStartupNotification() error {
 
 	// 使用新的消息格式
 	message := subjects.Message{
-		Type:      subjects.MessageTypeStartup,
+		Type:      subjects.MessageTypeStatusStartup,
 		User:      env.User,
 		App:       env.App,
 		Version:   env.Version,
@@ -403,7 +417,7 @@ func (a *App) sendCloseNotification() error {
 
 	// 使用新的消息格式
 	message := subjects.Message{
-		Type:      subjects.MessageTypeClose,
+		Type:      subjects.MessageTypeStatusClose,
 		User:      env.User,
 		App:       env.App,
 		Version:   env.Version,
@@ -525,26 +539,162 @@ func (a *App) handleAppStatusMessage(msg *nats.Msg) {
 		logger.Errorf(context.Background(), "Failed to unmarshal app status message: %v", err)
 		return
 	}
-
-	// 验证消息是否发给当前应用
-	if message.User != env.User || message.App != env.App || message.Version != env.Version {
-		logger.Debugf(context.Background(), "Message not for current app: %s/%s/%s (expected: %s/%s/%s)",
-			message.User, message.App, message.Version, env.User, env.App, env.Version)
-		return
-	}
+	logger.Infof(context.Background(), "Received app status message: %+v", message)
 
 	switch message.Type {
-	case subjects.MessageTypeShutdown:
+	case subjects.MessageTypeStatusShutdown:
 		a.handleShutdownCommand(message)
-	case subjects.MessageTypeDiscovery:
+	case subjects.MessageTypeStatusDiscovery:
 		a.handleDiscovery(msg) // 发现消息还是用原来的格式
-	case subjects.MessageTypeOnAppUpdate:
+	case subjects.MessageTypeStatusOnAppUpdate:
 		a.onAppUpdate(msg) // 发现消息还是用原来的格式
-
 	default:
 		logger.Warnf(context.Background(), "Unknown app status message type: %s", message.Type)
 	}
 }
+
+//// handleUpdateCallbackRequest 处理 Update Callback 请求（Request/Reply 模式）
+//func (a *App) handleUpdateCallbackRequest(msg *nats.Msg) {
+//
+//	var request subjects.Message
+//	if err := json.Unmarshal(msg.Data, &request); err != nil {
+//		logger.Errorf(context.Background(), "Failed to unmarshal update callback request: %v", err)
+//		// 发送错误响应
+//		msgx.RespFailMsg(msg, fmt.Errorf("failed to unmarshal request: %w", err))
+//		return
+//	}
+//
+//	// 验证消息类型
+//	if request.Type != subjects.MessageTypeUpdateCallbackRequest {
+//		logger.Warnf(context.Background(), "Invalid message type: %s (expected: %s)", request.Type, subjects.MessageTypeUpdateCallbackRequest)
+//		// 发送错误响应
+//		msgx.RespFailMsg(msg, fmt.Errorf("invalid message type: %s", request.Type))
+//		return
+//	}
+//	// 处理 update 回调逻辑（复用现有的 onAppUpdate 逻辑）
+//	response, err := a.processUpdateCallback(request)
+//	if err != nil {
+//		logger.Errorf(context.Background(), "❌ Update callback processing failed: %v", err)
+//		// 发送错误响应
+//		msgx.RespFailMsg(msg, err)
+//		return
+//	}
+//	// 发送成功响应
+//	if err := msgx.RespSuccessMsg(msg, response); err != nil {
+//		logger.Errorf(context.Background(), "Failed to send update callback response: %v", err)
+//	} else {
+//		logger.Infof(context.Background(), "📤 Update callback response sent successfully")
+//	}
+//}
+
+// processUpdateCallback 处理 update 回调的核心逻辑
+//func (a *App) processUpdateCallback(request subjects.Message) (interface{}, error) {
+//	logger.Infof(context.Background(), "🔄 Processing update callback for trigger: %+v", request.Data)
+//
+//	// 直接在这里实现 update 逻辑，复用 onAppUpdate 的核心逻辑
+//	// 1. 获取当前所有API和表
+//	currentApis, tables, err := a.getApis()
+//	if err != nil {
+//		return nil, fmt.Errorf("failed to get current APIs: %w", err)
+//	}
+//
+//	logger.Infof(context.Background(), "📋 Found %d current APIs and %d tables", len(currentApis), len(tables))
+//
+//	// 🔥 修复：先从上一个版本文件加载API信息，用于获取正确的 AddedVersion
+//	previousVersionFile := a.getPreviousVersionFile()
+//	previousApis, err := a.loadVersion(previousVersionFile)
+//	if err != nil {
+//		logger.Warnf(context.Background(), "Failed to load previous version file: %v", err)
+//		// 不返回错误，继续执行
+//	} else {
+//		logger.Infof(context.Background(), "Loaded %d APIs from previous version", len(previousApis))
+//	}
+//
+//	// 创建 API 映射，用于快速查找
+//	previousApiMap := make(map[string]*model.ApiInfo)
+//	for _, api := range previousApis {
+//		key := a.getApiKey(api)
+//		previousApiMap[key] = api
+//	}
+//
+//	// 修正当前API的 AddedVersion
+//	for _, api := range currentApis {
+//		key := a.getApiKey(api)
+//		if previousApi, exists := previousApiMap[key]; exists {
+//			// 已存在的API，保持原有的 AddedVersion
+//			api.AddedVersion = previousApi.AddedVersion
+//			logger.Debugf(context.Background(), "Preserved AddedVersion for %s: %s", key, api.AddedVersion)
+//		}
+//		// 新API保持 AddedVersion = env.Version（已在getApis中设置）
+//	}
+//
+//	// 2. 执行数据库迁移（如果有数据库连接）
+//	db := getGormDB()
+//	if db != nil {
+//		logger.Infof(context.Background(), "🗄️ Performing database migration for %d tables", len(tables))
+//		for _, table := range tables {
+//			if err := db.AutoMigrate(table); err != nil {
+//				return nil, fmt.Errorf("failed to migrate table: %w", err)
+//			}
+//		}
+//		logger.Infof(context.Background(), "✅ Database migration completed successfully")
+//	}
+//
+//	// 3. 保存当前版本到API日志
+//	if err := a.saveCurrentVersion(currentApis); err != nil {
+//		return nil, fmt.Errorf("failed to save current version: %w", err)
+//	}
+//
+//	// 4. 执行API差异对比
+//	add, update, delete, err := a.diffApi()
+//	if err != nil {
+//		return nil, fmt.Errorf("failed to diff APIs: %w", err)
+//	}
+//
+//	// 5. 构建差异结果
+//	diffData := map[string]interface{}{
+//		"added_apis":   add,
+//		"updated_apis": update,
+//		"deleted_apis": delete,
+//	}
+//
+//	// 6. 构建最终响应
+//	response := map[string]interface{}{
+//		"status":    "success",
+//		"message":   "API diff completed successfully",
+//		"diff":      diffData,
+//		"version":   env.Version,
+//		"timestamp": time.Now(),
+//		"trigger":   request.Data,
+//	}
+//
+//	logger.Infof(context.Background(), "📊 Generated update callback response: %+v", response)
+//	logger.Infof(context.Background(), "✅ API diff summary - Added: %d, Updated: %d, Deleted: %d", len(add), len(update), len(delete))
+//
+//	return response, nil
+//}
+
+//// createOnAppUpdateMessage 创建用于 onAppUpdate 的消息数据
+//func (a *App) createOnAppUpdateMessage(data interface{}) []byte {
+//	message := subjects.Message{
+//		Type:      subjects.MessageTypeStatusOnAppUpdate,
+//		User:      env.User,
+//		App:       env.App,
+//		Version:   env.Version,
+//		Data:      data,
+//		Timestamp: time.Now(),
+//	}
+//
+//	messageData, err := json.Marshal(message)
+//	if err != nil {
+//		logger.Errorf(context.Background(), "Failed to marshal onAppUpdate message: %v", err)
+//		// 返回基本的消息数据
+//		message.Data = map[string]interface{}{"fallback": true}
+//		messageData, _ = json.Marshal(message)
+//	}
+//
+//	return messageData
+//}
 
 // handleRuntimeStatusMessage 方法已移除
 // RuntimeStatus 主题是应用发送给 Runtime 的，不需要接收

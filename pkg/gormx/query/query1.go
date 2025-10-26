@@ -20,23 +20,23 @@ type PaginatedTable[T any] struct {
 
 // SearchFilterPageReq 分页参数结构体
 type SearchFilterPageReq struct {
-	Page     int    `json:"page" form:"page" runner:"search_cond;code:page"`
-	PageSize int    `json:"page_size" form:"page_size" runner:"search_cond;code:page_size"`
-	Sorts    string `json:"sorts" form:"sorts" runner:"search_cond;code:sorts"` //category:asc,price:desc
+	Page     int    `json:"page" form:"page"`
+	PageSize int    `json:"page_size" form:"page_size"`
+	Sorts    string `json:"sorts" form:"sorts"` //category:asc,price:desc
 
-	Keyword string `json:"keyword" form:"keyword" runner:"search_cond;keyword"`
+	Keyword string `json:"keyword" form:"keyword"`
 	// 查询条件
-	Eq   []string `form:"eq" json:"eq" runner:"search_cond;code:like"`     // 格式：field:value
-	Like []string `form:"like" json:"like" runner:"search_cond;code:like"` // 格式：field:value
-	In   []string `form:"in" json:"in" runner:"search_cond;code:in"`       // 格式：field:value
-	Gt   []string `form:"gt" json:"gt" runner:"search_cond;code:gt"`       // 格式：field:value
-	Gte  []string `form:"gte" json:"gte" runner:"search_cond;code:gte"`    // 格式：field:value
-	Lt   []string `form:"lt" json:"lt" runner:"search_cond;code:lt"`       // 格式：field:value
-	Lte  []string `form:"lte" json:"lte" runner:"search_cond;code:lte"`    // 格式：field:value
+	Eq   []string `form:"eq" json:"eq"`     // 格式：field:value
+	Like []string `form:"like" json:"like"` // 格式：field:value
+	In   []string `form:"in" json:"in"`     // 格式：field:value
+	Gt   []string `form:"gt" json:"gt"`     // 格式：field:value
+	Gte  []string `form:"gte" json:"gte"`   // 格式：field:value
+	Lt   []string `form:"lt" json:"lt"`     // 格式：field:value
+	Lte  []string `form:"lte" json:"lte"`   // 格式：field:value
 	// 否定查询条件
-	NotEq   []string `form:"not_eq" json:"not_eq" runner:"search_cond;code:not_eq"`       // 格式：field:value
-	NotLike []string `form:"not_like" json:"not_like" runner:"search_cond;code:not_like"` // 格式：field:value
-	NotIn   []string `form:"not_in" json:"not_in" runner:"search_cond;code:not_in"`       // 格式：field:value
+	NotEq   []string `form:"not_eq" json:"not_eq"`     // 格式：field:value
+	NotLike []string `form:"not_like" json:"not_like"` // 格式：field:value
+	NotIn   []string `form:"not_in" json:"not_in"`     // 格式：field:value
 }
 
 // normalizeSortField 标准化排序字段格式

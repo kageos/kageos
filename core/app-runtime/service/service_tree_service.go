@@ -54,6 +54,14 @@ func (s *ServiceTreeService) CreateServiceTree(ctx context.Context, req *dto.Cre
 		return nil, fmt.Errorf("failed to generate init file: %w", err)
 	}
 
+	// 🔥 新增：自动更新main文件，添加新包的import
+	if err := s.updateMainFileImports(ctx, req.User, req.App, packagePath); err != nil {
+		logger.Warnf(ctx, "[ServiceTreeService] Failed to update main file imports: %v", err)
+		// 不返回错误，因为服务目录已经创建成功，只是import可能需要手动添加
+	} else {
+		logger.Infof(ctx, "[ServiceTreeService] Main file updated successfully with new import")
+	}
+
 	logger.Infof(ctx, "[ServiceTreeService] Service tree created successfully: %s", packageDir)
 
 	return &dto.CreateServiceTreeRuntimeResp{
@@ -61,7 +69,7 @@ func (s *ServiceTreeService) CreateServiceTree(ctx context.Context, req *dto.Cre
 		App:         req.App,
 		ServiceTree: req.ServiceTree.Name,
 		Status:      "created",
-		Message:     fmt.Sprintf("Service tree created at %s", packageDir),
+		Message:     fmt.Sprintf("Service tree created at %s, main file updated", packageDir),
 	}, nil
 }
 
@@ -177,5 +185,59 @@ func (s *ServiceTreeService) updateInitFilePackageName(initFilePath, newPackageN
 		return fmt.Errorf("failed to write init file: %w", err)
 	}
 
+	return nil
+}
+
+// updateMainFileImports 更新main文件，添加新包的import（简化版本）
+func (s *ServiceTreeService) updateMainFileImports(ctx context.Context, user, app, packagePath string) error {
+	logger.Infof(ctx, "[ServiceTreeService] Updating main file imports for package: %s", packagePath)
+
+	// 构建main文件路径
+	appDir := filepath.Join(s.config.AppDir.BasePath, user, app)
+	mainFilePath := filepath.Join(appDir, "code", "cmd", "app", "main.go")
+
+	// 检查main文件是否存在
+	if _, err := os.Stat(mainFilePath); os.IsNotExist(err) {
+		return fmt.Errorf("main file does not exist: %s", mainFilePath)
+	}
+
+	// 读取main文件内容
+	content, err := os.ReadFile(mainFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to read main file: %w", err)
+	}
+
+	contentStr := string(content)
+
+	// 找到 app SDK 的 import 行
+	appSDKImport := `"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"`
+	if !strings.Contains(contentStr, appSDKImport) {
+		return fmt.Errorf("cannot find app SDK import in main file")
+	}
+
+	// 生成新的import语句
+	newImport := fmt.Sprintf(`_ "github.com/ai-agent-os/ai-agent-os/namespace/%s/%s/code/api/%s"`, user, app, strings.Trim(packagePath, "/"))
+
+	// 检查import是否已存在
+	if strings.Contains(contentStr, newImport) {
+		logger.Infof(ctx, "[ServiceTreeService] Import already exists: %s", newImport)
+		return nil
+	}
+
+	// 根据 app SDK import 行分割内容
+	parts := strings.Split(contentStr, appSDKImport)
+	if len(parts) != 2 {
+		return fmt.Errorf("unexpected main file format")
+	}
+
+	// 重新组装内容：第一部分 + 新import + app SDK import + 第二部分
+	newContent := parts[0] + "\n\t" + newImport + "\n" + appSDKImport + parts[1]
+
+	// 写回main文件
+	if err := os.WriteFile(mainFilePath, []byte(newContent), 0644); err != nil {
+		return fmt.Errorf("failed to write main file: %w", err)
+	}
+
+	logger.Infof(ctx, "[ServiceTreeService] Successfully added import: %s", newImport)
 	return nil
 }
