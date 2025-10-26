@@ -1,10 +1,5 @@
 package widget
 
-type Widget interface {
-	Config() interface{}
-	Type() string
-}
-
 // 数据类型
 const (
 	// DataTypeString 字符串类型
@@ -30,11 +25,11 @@ const (
 )
 
 type Field struct {
-	Code   string      `json:"code"` //从json标签里解析，
-	Desc   string      `json:"desc"` //
-	Name   string      `json:"name"`
-	Search interface{} `json:"search"`
-	Data   *FieldData  `json:"data"`
+	Code   string     `json:"code"` //从json标签里解析，
+	Desc   string     `json:"desc"` //
+	Name   string     `json:"name"`
+	Search string     `json:"search"`
+	Data   *FieldData `json:"data"`
 	Widget struct {
 		Type   string      `json:"type"`
 		Config interface{} `json:"config"`
@@ -46,8 +41,7 @@ type Field struct {
 
 // FieldData
 type FieldData struct {
-	Type         string `json:"type"`          // 这里的type可以自动根据组件类型来推断出来，例如Widget类型是input，那么很显然，FieldData的type是DataTypeString
-	StringFormat string `json:"string_format"` //默认不格式化，特殊场景可以格式化成 csv/markdown/json/yaml/html 等等，这个不重要，后面再说吧
-	Example      string `json:"example"`       //示例数据，例如 10，紧急 这种，方便前端展示一些示例数据
-	DefaultValue string `json:"default_value"` //默认值，例如下拉框一般可以有默认值，例如：中等
+	Type    string `json:"type"`    // 这里的type可以自动根据组件类型来推断出来，例如Widget类型是input，那么很显然，FieldData的type是DataTypeString
+	Format  string `json:"format"`  //默认不格式化，特殊场景可以格式化成 csv/markdown/json/yaml/html 等等，这个不重要，后面再说吧
+	Example string `json:"example"` //示例数据，例如 10，紧急 这种，方便前端展示一些示例数据
 }

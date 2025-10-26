@@ -118,11 +118,18 @@ func (s *Server) handleAppUpdate(msg *nats.Msg) {
 		OldVersion: result.OldVersion,
 		NewVersion: result.NewVersion,
 		Status:     "updated",
+		Diff:       result.Diff, // 添加 diff 信息
+	}
+
+	// 如果有回调错误，添加到响应中
+	if result.Error != nil {
+		resp.Error = result.Error.Error()
+		logger.Warnf(ctx, "[handleAppUpdate] Update completed with callback error: %v", result.Error)
 	}
 
 	msgx.RespSuccessMsg(msg, resp)
-	//logger.Infof(ctx, "[handleAppUpdate] *** EXIT *** App updated successfully: user=%s, app=%s, oldVersion=%s, newVersion=%s",
-	//	result.User, result.App, result.OldVersion, result.NewVersion)
+	logger.Infof(ctx, "[handleAppUpdate] *** EXIT *** App updated successfully: user=%s, app=%s, oldVersion=%s, newVersion=%s, hasDiff=%v",
+		result.User, result.App, result.OldVersion, result.NewVersion, result.Diff != nil)
 }
 
 // handleAppDelete 处理应用删除请求
@@ -481,11 +488,11 @@ func (s *Server) handleRuntimeStatusMessage(msg *nats.Msg) {
 		message.Type, message.User, message.App, message.Version)
 
 	switch message.Type {
-	case subjects.MessageTypeStartup:
+	case subjects.MessageTypeStatusStartup:
 		s.handleAppStartupNotification(message)
-	case subjects.MessageTypeClose:
+	case subjects.MessageTypeStatusClose:
 		s.handleAppCloseNotification(message)
-	case subjects.MessageTypeDiscovery:
+	case subjects.MessageTypeStatusDiscovery:
 		// 处理发现消息 - 调用 AppDiscoveryService 的处理逻辑
 		logger.Infof(ctx, "[handleRuntimeStatusMessage] Received discovery message")
 		s.appDiscoveryService.HandleDiscoveryResponse(message)

@@ -49,11 +49,13 @@ type UpdateAppReq struct {
 
 // UpdateAppResp 更新应用响应
 type UpdateAppResp struct {
-	User       string `json:"user" example:"beiluo"`    // 用户名
-	App        string `json:"app" example:"myapp"`      // 应用名
-	OldVersion string `json:"old_version" example:"v1"` // 旧版本号
-	NewVersion string `json:"new_version" example:"v2"` // 新版本号
-	Status     string `json:"status" example:"updated"` // 状态
+	User       string      `json:"user" example:"beiluo"`    // 用户名
+	App        string      `json:"app" example:"myapp"`      // 应用名
+	OldVersion string      `json:"old_version" example:"v1"` // 旧版本号
+	NewVersion string      `json:"new_version" example:"v2"` // 新版本号
+	Status     string      `json:"status" example:"updated"` // 状态
+	Diff       interface{} `json:"diff,omitempty"`           // API diff 信息
+	Error      string      `json:"error,omitempty"`          // 回调过程中的错误信息
 }
 
 // DeleteAppReq 删除应用请求

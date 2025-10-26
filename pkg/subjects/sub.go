@@ -35,6 +35,16 @@ func GetAppStatusSubjectPattern() string {
 	return "app.status.*.*.*"
 }
 
+// GetAppUpdateCallbackRequestSubject 获取 App Update Callback 请求主题
+func GetAppUpdateCallbackRequestSubject(user, app, version string) string {
+	return fmt.Sprintf("app.update.callback.%s.%s.%s", user, app, version)
+}
+
+// GetAppUpdateCallbackRequestSubjectPattern 获取 App Update Callback 请求主题模式（通配符）
+func GetAppUpdateCallbackRequestSubjectPattern() string {
+	return "app.update.callback.*.*.*"
+}
+
 // BuildRuntimeStatusSubject 构建 Runtime 状态主题
 // 处理：startup、close、discovery
 func BuildRuntimeStatusSubject(user, app, version string) string {
@@ -49,15 +59,19 @@ func GetRuntimeStatusSubjectPattern() string {
 // 消息类型常量
 const (
 	// 状态通知消息类型
-	MessageTypeShutdown    = "shutdown"    // 关闭命令
-	MessageTypeDiscovery   = "discovery"   // 服务发现
-	MessageTypeStartup     = "startup"     // 启动通知
-	MessageTypeClose       = "close"       // 关闭通知
-	MessageTypeOnAppUpdate = "onAppUpdate" // 当程序更新时候
+	MessageTypeStatusShutdown    = "shutdown"    // 关闭命令
+	MessageTypeStatusDiscovery   = "discovery"   // 服务发现
+	MessageTypeStatusStartup     = "startup"     // 启动通知
+	MessageTypeStatusClose       = "close"       // 关闭通知
+	MessageTypeStatusOnAppUpdate = "onAppUpdate" // 当程序更新时候
+
+	// Request/Reply 消息类型
+	MessageTypeUpdateCallbackRequest = "update_callback_request" // 更新回调请求
 )
 
 // 消息结构体
 type Message struct {
+	ErrorMsg  string      `json:"error_msg"`
 	Type      string      `json:"type"`
 	User      string      `json:"user"`
 	App       string      `json:"app"`
