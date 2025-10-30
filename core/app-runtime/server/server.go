@@ -246,12 +246,8 @@ func (s *Server) handleAppStartupFromDiscovery(user, app, version string, startT
 func (s *Server) handleAppCloseFromDiscovery(user, app, version string) {
 	ctx := context.Background()
 
-	// 更新数据库中的应用状态
-	if err := s.appManageService.UpdateAppStatus(ctx, user, app, version, "stopped"); err != nil {
-		logger.Errorf(ctx, "[Server] Failed to update app status: %v", err)
-	} else {
-		logger.Infof(ctx, "[Server] App status updated to stopped: %s/%s/%s", user, app, version)
-	}
+	// 应用关闭状态通过discovery service跟踪，不需要更新数据库
+	logger.Infof(ctx, "[Server] App closed: %s/%s/%s", user, app, version)
 }
 
 // stopServices 停止所有业务服务

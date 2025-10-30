@@ -235,6 +235,7 @@ func (a *App) sendResponse(resp *dto.RequestAppResp) {
 		Data:    data,
 		Header:  make(nats.Header),
 	}
+	logger.Infof(context.Background(), "Sending response: %s", msg.Subject)
 
 	// 设置 trace_id header
 	if resp.TraceId != "" {
@@ -249,6 +250,7 @@ func (a *App) sendResponse(resp *dto.RequestAppResp) {
 func (a *App) sendErrResponse(resp *dto.RequestAppResp) {
 	data, err := json.Marshal(resp)
 	if err != nil {
+		logger.Errorf(context.Background(), "Failed to marshal response: %v", err)
 		return
 	}
 

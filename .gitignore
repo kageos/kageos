@@ -21,3 +21,5 @@ namespace/
 configs/*.yaml
 configs/*.yml
 configs/*.json
+
+temp/

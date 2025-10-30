@@ -31,11 +31,18 @@ func (s *Server) setupRoutes() {
 	app := apiV1.Group("/app")
 	app.Use(middleware2.JWTAuth()) // 应用管理需要JWT认证
 	appHandler := v1.NewApp(s.appService)
+	app.GET("/list", appHandler.GetApps)
 	app.POST("/create", appHandler.CreateApp)
 	app.POST("/update/:app", appHandler.UpdateApp)
 	app.DELETE("/delete/:app", appHandler.DeleteApp)
 	// 支持所有 HTTP 方法的请求应用接口
-	app.Any("/request/:app/*router", appHandler.RequestApp)
+	request := apiV1.Group("/run")
+	request.Use(middleware2.JWTAuth())
+	request.Any("/*router", appHandler.RequestApp)
+
+	callback := apiV1.Group("/callback")
+	callback.Use(middleware2.JWTAuth())
+	callback.POST("/*router", appHandler.CallbackApp)
 
 	// 服务目录管理路由（需要JWT验证）
 	serviceTree := apiV1.Group("/service_tree")
@@ -45,4 +52,11 @@ func (s *Server) setupRoutes() {
 	serviceTree.GET("", serviceTreeHandler.GetServiceTree)
 	serviceTree.PUT("", serviceTreeHandler.UpdateServiceTree)
 	serviceTree.DELETE("", serviceTreeHandler.DeleteServiceTree)
+
+	// 函数管理路由（需要JWT验证）
+	function := apiV1.Group("/function")
+	function.Use(middleware2.JWTAuth()) // 函数管理需要JWT认证
+	functionHandler := v1.NewFunction(s.functionService)
+	function.GET("/get", functionHandler.GetFunction)
+	function.GET("/list", functionHandler.GetFunctionsByApp)
 }

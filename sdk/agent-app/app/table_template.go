@@ -4,7 +4,7 @@ type TableTemplate struct {
 	BaseConfig
 	AutoCrudTable     interface{}       `json:"auto_crud_table"`
 	OnTableAddRow     OnTableAddRow     `json:"on_table_add_row"`
-	OnTableUpdateRows OnTableUpdateRows `json:"on_table_update_rows"`
+	OnTableUpdateRow  OnTableUpdateRow  `json:"on_table_update_row"`
 	OnTableDeleteRows OnTableDeleteRows `json:"on_table_delete_rows"`
 }
 

@@ -2,12 +2,17 @@ basePath: /api/v1
 definitions:
   dto.CreateAppReq:
     properties:
-      app:
+      code:
         description: 应用名
         example: myapp
         type: string
+      name:
+        description: 应用名
+        example: 腾讯oa系统
+        type: string
     required:
-    - app
+    - code
+    - name
     type: object
   dto.CreateAppResp:
     properties:
@@ -19,10 +24,6 @@ definitions:
         description: 应用目录
         example: namespace/beiluo/myapp
         type: string
-      status:
-        description: 状态
-        example: created
-        type: string
       user:
         description: 用户名
         example: beiluo
@@ -31,48 +32,85 @@ definitions:
   dto.CreateServiceTreeReq:
     properties:
       app:
+        description: 应用名
+        example: myapp
+        type: string
+      code:
+        description: 服务目录代码
+        example: user
         type: string
       description:
+        description: 描述
+        example: 用户相关的API接口
         type: string
       name:
+        description: 服务目录名称
+        example: 用户管理
         type: string
       parent_id:
+        description: 父目录ID，0表示根目录
+        example: 0
         type: integer
       tags:
-        type: string
-      title:
+        description: 标签
+        example: user,management
         type: string
       user:
+        description: 用户名
+        example: beiluo
         type: string
     required:
     - app
+    - code
     - name
-    - title
     - user
     type: object
   dto.CreateServiceTreeResp:
     properties:
       app_id:
+        description: 应用ID
+        example: 1
         type: integer
+      code:
+        description: 服务目录代码
+        example: user
+        type: string
       description:
+        description: 描述
+        example: 用户相关的API接口
         type: string
-      full_id_path:
-        type: string
-      full_name_path:
+      full_code_path:
+        description: 完整代码路径
+        example: /beiluo/myapp/user
         type: string
       id:
+        description: 服务目录ID
+        example: 1
         type: integer
       name:
+        description: 服务目录名称
+        example: 用户管理
         type: string
       parent_id:
+        description: 父目录ID
+        example: 0
+        type: integer
+      ref_id:
+        description: 引用ID：指向真实资源的ID，如果是package类型指向package的ID，如果是function类型指向function的ID
+        example: 0
         type: integer
       status:
+        description: '状态: enabled(启用), disabled(禁用)'
+        example: enabled
         type: string
       tags:
-        type: string
-      title:
+        description: 标签
+        example: user,management
         type: string
       type:
+        description: '节点类型: package(服务目录/包), function(函数/文件), api(API接口), service(服务),
+          module(模块)'
+        example: package
         type: string
     type: object
   dto.DeleteAppResp:
@@ -81,47 +119,186 @@ definitions:
         description: 应用名
         example: myapp
         type: string
-      status:
-        description: 状态
-        example: deleted
-        type: string
       user:
-        description: 用户名
+        description: 租户名
         example: beiluo
         type: string
     type: object
   dto.DeleteServiceTreeReq:
     properties:
       id:
+        description: 服务目录ID
+        example: 1
         type: integer
     required:
     - id
     type: object
+  dto.FunctionInfo:
+    properties:
+      app_id:
+        description: 应用ID
+        example: 1
+        type: integer
+      callbacks:
+        description: 回调函数
+        example: onCreate,onUpdate
+        type: string
+      create_tables:
+        description: 创建的表
+        example: users,orders
+        type: string
+      created_at:
+        description: 创建时间
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      has_config:
+        description: 是否有配置
+        example: true
+        type: boolean
+      id:
+        description: 函数ID
+        example: 1
+        type: integer
+      method:
+        description: HTTP方法
+        example: GET
+        type: string
+      router:
+        description: 路由路径
+        example: /users
+        type: string
+      template_type:
+        description: 模板类型
+        example: default
+        type: string
+      tree_id:
+        description: 服务目录ID
+        example: 1
+        type: integer
+      updated_at:
+        description: 更新时间
+        example: "2024-01-01T00:00:00Z"
+        type: string
+    type: object
+  dto.GetAppsResp:
+    properties:
+      items: {}
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total_count:
+        type: integer
+    type: object
+  dto.GetFunctionResp:
+    properties:
+      app_id:
+        description: 应用ID
+        example: 1
+        type: integer
+      callbacks:
+        description: 回调函数
+        example: onCreate,onUpdate
+        type: string
+      create_tables:
+        description: 创建的表
+        example: users,orders
+        type: string
+      created_at:
+        description: 创建时间
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      full_code_path:
+        example: /beiluo/testapi18/crm/crm_ticket
+        type: string
+      has_config:
+        description: 是否有配置
+        example: true
+        type: boolean
+      id:
+        description: 函数ID
+        example: 1
+        type: integer
+      method:
+        description: HTTP方法
+        example: GET
+        type: string
+      request:
+        description: 请求配置（JSON对象）
+      response:
+        description: 响应配置（JSON对象）
+      router:
+        description: 路由路径
+        example: /crm/crm_ticket
+        type: string
+      template_type:
+        description: 模板类型
+        example: default
+        type: string
+      tree_id:
+        description: 服务目录ID
+        example: 1
+        type: integer
+      updated_at:
+        description: 更新时间
+        example: "2024-01-01T00:00:00Z"
+        type: string
+    type: object
+  dto.GetFunctionsByAppResp:
+    properties:
+      functions:
+        description: 函数列表
+        items:
+          $ref: '#/definitions/dto.FunctionInfo'
+        type: array
+    type: object
   dto.GetServiceTreeResp:
     properties:
       app_id:
+        description: 应用ID
+        example: 1
         type: integer
       children:
+        description: 子目录列表
         items:
           $ref: '#/definitions/dto.GetServiceTreeResp'
         type: array
+      code:
+        description: 服务目录代码
+        example: user
+        type: string
       description:
+        description: 描述
+        example: 用户相关的API接口
         type: string
-      full_id_path:
-        type: string
-      full_name_path:
+      full_code_path:
+        description: 完整代码路径
+        example: /beiluo/myapp/user
         type: string
       id:
+        description: 服务目录ID
+        example: 1
         type: integer
       name:
+        description: 服务目录名称
+        example: 用户管理
         type: string
       parent_id:
+        description: 父目录ID
+        example: 0
+        type: integer
+      ref_id:
+        description: 引用ID：指向真实资源的ID，如果是package类型指向package的ID，如果是function类型指向function的ID
+        example: 0
         type: integer
       tags:
-        type: string
-      title:
+        description: 标签
+        example: user,management
         type: string
       type:
+        description: '节点类型: package(服务目录/包), function(函数/文件), api(API接口), service(服务),
+          module(模块)'
+        example: package
         type: string
     type: object
   dto.LoginReq:
@@ -255,6 +432,13 @@ definitions:
         description: 应用名
         example: myapp
         type: string
+      diff:
+        allOf:
+        - $ref: '#/definitions/model.DiffData'
+        description: API diff 信息
+      error:
+        description: 回调过程中的错误信息
+        type: string
       new_version:
         description: 新版本号
         example: v2
@@ -263,10 +447,6 @@ definitions:
         description: 旧版本号
         example: v1
         type: string
-      status:
-        description: 状态
-        example: updated
-        type: string
       user:
         description: 用户名
         example: beiluo
@@ -274,15 +454,25 @@ definitions:
     type: object
   dto.UpdateServiceTreeReq:
     properties:
+      code:
+        description: 服务目录代码
+        example: user
+        type: string
       description:
+        description: 描述
+        example: 用户相关的API接口
         type: string
       id:
+        description: 服务目录ID
+        example: 1
         type: integer
       name:
+        description: 服务目录名称
+        example: 用户管理
         type: string
       tags:
-        type: string
-      title:
+        description: 标签
+        example: user,management
         type: string
     required:
     - id
@@ -314,12 +504,121 @@ definitions:
         example: email
         type: string
       status:
-        description: 用户状态
+        description: '用户状态: pending(待邮箱验证), active(已激活)'
         example: active
         type: string
       username:
         description: 用户名
         example: beiluo
+        type: string
+    type: object
+  model.ApiInfo:
+    properties:
+      added_version:
+        description: API首次添加的版本
+        type: string
+      app:
+        type: string
+      callback:
+        items:
+          type: string
+        type: array
+      code:
+        type: string
+      create_tables:
+        items:
+          type: string
+        type: array
+      desc:
+        type: string
+      full_code_path:
+        type: string
+      method:
+        type: string
+      name:
+        type: string
+      request:
+        items:
+          $ref: '#/definitions/widget.Field'
+        type: array
+      response:
+        items:
+          $ref: '#/definitions/widget.Field'
+        type: array
+      router:
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+      template_type:
+        type: string
+      update_versions:
+        description: API更新过的版本列表
+        items:
+          type: string
+        type: array
+      user:
+        type: string
+    type: object
+  model.DiffData:
+    properties:
+      add:
+        description: 新增的API
+        items:
+          $ref: '#/definitions/model.ApiInfo'
+        type: array
+      delete:
+        description: 删除的API
+        items:
+          $ref: '#/definitions/model.ApiInfo'
+        type: array
+      update:
+        description: 修改的API
+        items:
+          $ref: '#/definitions/model.ApiInfo'
+        type: array
+    type: object
+  widget.Field:
+    properties:
+      callbacks:
+        items:
+          type: string
+        type: array
+      code:
+        description: 从json标签里解析，
+        type: string
+      data:
+        $ref: '#/definitions/widget.FieldData'
+      desc:
+        type: string
+      name:
+        type: string
+      search:
+        type: string
+      table_permission:
+        description: read,update,create
+        type: string
+      validation:
+        description: 完全照搬github.com/go-playground/validator/v10
+        type: string
+      widget:
+        properties:
+          config: {}
+          type:
+            type: string
+        type: object
+    type: object
+  widget.FieldData:
+    properties:
+      example:
+        description: 示例数据，例如 10，紧急 这种，方便前端展示一些示例数据
+        type: string
+      format:
+        description: 默认不格式化，特殊场景可以格式化成 csv/markdown/json/yaml/html 等等，这个不重要，后面再说吧
+        type: string
+      type:
+        description: 这里的type可以自动根据组件类型来推断出来，例如Widget类型是input，那么很显然，FieldData的type是DataTypeString
         type: string
     type: object
 externalDocs:
@@ -339,6 +638,474 @@ info:
   title: AI Agent OS API
   version: "1.0"
 paths:
+  /api/v1/app/create:
+    post:
+      consumes:
+      - application/json
+      description: 创建一个新的应用实例。租户用户（应用所有者）从请求体获取，请求用户（实际发起请求的用户）从请求头获取。租户用户决定应用的所有权，请求用户用于审计追踪。
+      parameters:
+      - description: JWT Token
+        in: header
+        name: X-Token
+        required: true
+        type: string
+      - description: 创建应用请求，包含应用名（租户用户通过 header 传递）
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateAppReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 创建成功
+          schema:
+            $ref: '#/definitions/dto.CreateAppResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "401":
+          description: 未授权
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: 创建应用
+      tags:
+      - 应用管理
+  /api/v1/app/delete/{app}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除应用及其所有相关资源
+      parameters:
+      - description: 应用名
+        in: path
+        name: app
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/dto.DeleteAppResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      summary: 删除应用
+      tags:
+      - 应用管理
+  /api/v1/app/list:
+    get:
+      consumes:
+      - application/json
+      description: 获取当前用户的所有应用列表（支持分页）
+      parameters:
+      - description: JWT Token
+        in: header
+        name: X-Token
+        required: true
+        type: string
+      - default: 1
+        description: 页码，默认为1
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量，默认为10
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            $ref: '#/definitions/dto.GetAppsResp'
+        "401":
+          description: 未授权
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: 获取应用列表
+      tags:
+      - 应用管理
+  /api/v1/app/update/{app}:
+    post:
+      consumes:
+      - application/json
+      description: 更新应用代码并重新编译部署
+      parameters:
+      - description: 应用名
+        in: path
+        name: app
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/dto.UpdateAppResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      summary: 更新应用
+      tags:
+      - 应用管理
+  /api/v1/auth/login:
+    post:
+      consumes:
+      - application/json
+      description: 使用用户名和密码登录
+      parameters:
+      - description: 登录请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.LoginReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 登录成功
+          schema:
+            $ref: '#/definitions/dto.LoginResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "401":
+          description: 用户名或密码错误
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      summary: 用户登录
+      tags:
+      - 认证管理
+  /api/v1/auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: 用户登出，使Token失效
+      parameters:
+      - description: 登出请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.LogoutReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 登出成功
+          schema:
+            $ref: '#/definitions/dto.LogoutResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      summary: 用户登出
+      tags:
+      - 认证管理
+  /api/v1/auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: 使用RefreshToken刷新JWT Token
+      parameters:
+      - description: 刷新Token请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RefreshTokenReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 刷新成功
+          schema:
+            $ref: '#/definitions/dto.RefreshTokenResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "401":
+          description: RefreshToken无效
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      summary: 刷新Token
+      tags:
+      - 认证管理
+  /api/v1/auth/register:
+    post:
+      consumes:
+      - application/json
+      description: 使用邮箱验证码注册新用户
+      parameters:
+      - description: 注册请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RegisterReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 注册成功
+          schema:
+            $ref: '#/definitions/dto.RegisterResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      summary: 用户注册
+      tags:
+      - 认证管理
+  /api/v1/auth/send_email_code:
+    post:
+      consumes:
+      - application/json
+      description: 向指定邮箱发送验证码，用于注册验证
+      parameters:
+      - description: 发送验证码请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.SendEmailCodeReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 发送成功
+          schema:
+            $ref: '#/definitions/dto.SendEmailCodeResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      summary: 发送邮箱验证码
+      tags:
+      - 认证管理
+  /api/v1/callback/{router}:
+    post:
+      consumes:
+      - application/json
+      - application/x-www-form-urlencoded
+      - multipart/form-data
+      - text/plain
+      description: 接收外部系统的回调请求并转发到应用内部的 callback 路由。路径格式：/api/v1/callback/*router?_type=回调类型
+      parameters:
+      - description: JWT Token
+        in: header
+        name: X-Token
+        required: true
+        type: string
+      - description: 回调路由路径，格式：/{router}，例如：/api/v1/callback/*router?_type=回调类型
+        in: path
+        name: router
+        required: true
+        type: string
+      - description: 回调类型（可选），用于标识回调类型
+        in: query
+        name: _type
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 回调处理成功
+          schema:
+            $ref: '#/definitions/dto.RequestAppResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "401":
+          description: 未授权
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: 回调应用
+      tags:
+      - 应用接口请求(运行函数)
+  /api/v1/function/get:
+    get:
+      consumes:
+      - application/json
+      description: 根据函数ID获取函数的详细信息
+      parameters:
+      - description: JWT Token
+        in: header
+        name: X-Token
+        required: true
+        type: string
+      - description: 函数ID
+        in: query
+        name: function_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            $ref: '#/definitions/dto.GetFunctionResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "401":
+          description: 未授权
+          schema:
+            type: string
+        "404":
+          description: 函数不存在
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: 获取函数详情
+      tags:
+      - 函数管理
+  /api/v1/function/list:
+    get:
+      consumes:
+      - application/json
+      description: 根据应用ID获取该应用下的所有函数列表
+      parameters:
+      - description: JWT Token
+        in: header
+        name: X-Token
+        required: true
+        type: string
+      - description: 应用ID
+        in: query
+        name: app_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            $ref: '#/definitions/dto.GetFunctionsByAppResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "401":
+          description: 未授权
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: 获取应用下所有函数
+      tags:
+      - 函数管理
+  /api/v1/run/{full_code_path}:
+    get:
+      consumes:
+      - application/json
+      - application/x-www-form-urlencoded
+      - multipart/form-data
+      - text/plain
+      parameters:
+      - description: 应用名
+        in: path
+        name: app
+        required: true
+        type: string
+      - description: 接口路由路径
+        in: path
+        name: router
+        required: true
+        type: string
+      - description: 应用内部方法名（可选）
+        in: query
+        name: method
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 请求成功
+          schema:
+            $ref: '#/definitions/dto.RequestAppResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      tags:
+      - 应用接口请求(运行函数)
   /api/v1/service_tree:
     delete:
       consumes:
@@ -506,321 +1273,6 @@ paths:
       summary: 更新服务目录
       tags:
       - 服务目录
-  /app/create:
-    post:
-      consumes:
-      - application/json
-      description: 创建一个新的应用实例。租户用户（应用所有者）从请求体获取，请求用户（实际发起请求的用户）从请求头获取。租户用户决定应用的所有权，请求用户用于审计追踪。
-      parameters:
-      - description: JWT Token
-        in: header
-        name: X-Token
-        required: true
-        type: string
-      - description: 创建应用请求，包含应用名（租户用户通过 header 传递）
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.CreateAppReq'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 创建成功
-          schema:
-            $ref: '#/definitions/dto.CreateAppResp'
-        "400":
-          description: 请求参数错误
-          schema:
-            type: string
-        "401":
-          description: 未授权
-          schema:
-            type: string
-        "500":
-          description: 服务器内部错误
-          schema:
-            type: string
-      security:
-      - ApiKeyAuth: []
-      summary: 创建应用
-      tags:
-      - 应用管理
-  /app/delete/{app}:
-    delete:
-      consumes:
-      - application/json
-      description: 删除应用及其所有相关资源
-      parameters:
-      - description: 应用名
-        in: path
-        name: app
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 删除成功
-          schema:
-            $ref: '#/definitions/dto.DeleteAppResp'
-        "400":
-          description: 请求参数错误
-          schema:
-            type: string
-        "500":
-          description: 服务器内部错误
-          schema:
-            type: string
-      summary: 删除应用
-      tags:
-      - 应用管理
-  /app/request/{app}/{router}:
-    get:
-      consumes:
-      - application/json
-      - application/x-www-form-urlencoded
-      - multipart/form-data
-      - text/plain
-      description: |-
-        **支持的 HTTP 方法：**
-        - GET: 获取数据
-        - POST: 创建数据
-        - PUT: 更新数据
-        - DELETE: 删除数据
-        - PATCH: 部分更新数据
-        - HEAD: 获取响应头
-        - OPTIONS: 获取支持的方法
-
-        **功能说明：**
-        此接口通过 Gin 的 Any 方法注册，支持所有 HTTP 方法。会自动透传查询参数和请求体到目标应用。
-
-        **使用示例：**
-        - GET /api/v1/app/request/myapp/users?page=1
-        - POST /api/v1/app/request/myapp/users (with JSON body)
-        - PUT /api/v1/app/request/myapp/users/123 (with JSON body)
-        - DELETE /api/v1/app/request/myapp/users/123
-      parameters:
-      - description: 应用名
-        in: path
-        name: app
-        required: true
-        type: string
-      - description: 接口路由路径
-        in: path
-        name: router
-        required: true
-        type: string
-      - description: 应用内部方法名（可选）
-        in: query
-        name: method
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 请求成功
-          schema:
-            $ref: '#/definitions/dto.RequestAppResp'
-        "400":
-          description: 请求参数错误
-          schema:
-            type: string
-        "500":
-          description: 服务器内部错误
-          schema:
-            type: string
-      summary: 应用接口请求 (支持所有 HTTP 方法)
-      tags:
-      - 应用接口请求
-  /app/update/{app}:
-    post:
-      consumes:
-      - application/json
-      description: 更新应用代码并重新编译部署
-      parameters:
-      - description: 应用名
-        in: path
-        name: app
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 更新成功
-          schema:
-            $ref: '#/definitions/dto.UpdateAppResp'
-        "400":
-          description: 请求参数错误
-          schema:
-            type: string
-        "500":
-          description: 服务器内部错误
-          schema:
-            type: string
-      summary: 更新应用
-      tags:
-      - 应用管理
-  /auth/login:
-    post:
-      consumes:
-      - application/json
-      description: 使用用户名和密码登录
-      parameters:
-      - description: 登录请求
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.LoginReq'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 登录成功
-          schema:
-            $ref: '#/definitions/dto.LoginResp'
-        "400":
-          description: 请求参数错误
-          schema:
-            type: string
-        "401":
-          description: 用户名或密码错误
-          schema:
-            type: string
-        "500":
-          description: 服务器内部错误
-          schema:
-            type: string
-      summary: 用户登录
-      tags:
-      - 认证管理
-  /auth/logout:
-    post:
-      consumes:
-      - application/json
-      description: 用户登出，使Token失效
-      parameters:
-      - description: 登出请求
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.LogoutReq'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 登出成功
-          schema:
-            $ref: '#/definitions/dto.LogoutResp'
-        "400":
-          description: 请求参数错误
-          schema:
-            type: string
-        "500":
-          description: 服务器内部错误
-          schema:
-            type: string
-      summary: 用户登出
-      tags:
-      - 认证管理
-  /auth/refresh:
-    post:
-      consumes:
-      - application/json
-      description: 使用RefreshToken刷新JWT Token
-      parameters:
-      - description: 刷新Token请求
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.RefreshTokenReq'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 刷新成功
-          schema:
-            $ref: '#/definitions/dto.RefreshTokenResp'
-        "400":
-          description: 请求参数错误
-          schema:
-            type: string
-        "401":
-          description: RefreshToken无效
-          schema:
-            type: string
-        "500":
-          description: 服务器内部错误
-          schema:
-            type: string
-      summary: 刷新Token
-      tags:
-      - 认证管理
-  /auth/register:
-    post:
-      consumes:
-      - application/json
-      description: 使用邮箱验证码注册新用户
-      parameters:
-      - description: 注册请求
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.RegisterReq'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 注册成功
-          schema:
-            $ref: '#/definitions/dto.RegisterResp'
-        "400":
-          description: 请求参数错误
-          schema:
-            type: string
-        "500":
-          description: 服务器内部错误
-          schema:
-            type: string
-      summary: 用户注册
-      tags:
-      - 认证管理
-  /auth/send_email_code:
-    post:
-      consumes:
-      - application/json
-      description: 向指定邮箱发送验证码，用于注册验证
-      parameters:
-      - description: 发送验证码请求
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.SendEmailCodeReq'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 发送成功
-          schema:
-            $ref: '#/definitions/dto.SendEmailCodeResp'
-        "400":
-          description: 请求参数错误
-          schema:
-            type: string
-        "500":
-          description: 服务器内部错误
-          schema:
-            type: string
-      summary: 发送邮箱验证码
-      tags:
-      - 认证管理
 securityDefinitions:
   ApiKeyAuth:
     in: header

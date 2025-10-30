@@ -63,7 +63,7 @@ func initDefaultData(db *gorm.DB) error {
 		defaultHost := &Host{
 			Domain:   "localhost",
 			NatsID:   nats.ID,
-			Status:   "active",
+			Status:   "enabled",
 			AppCount: 0,
 		}
 		if err := db.Create(defaultHost).Error; err != nil {

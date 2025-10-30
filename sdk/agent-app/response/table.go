@@ -19,7 +19,7 @@ type Paginated struct {
 }
 
 //type table struct {
-//	Title      string      `json:"title"`
+//	Code      string      `json:"title"`
 //	Items     interface{} `json:"values"`
 //	Pagination Paginated   `json:"pagination"`
 //}

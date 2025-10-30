@@ -215,6 +215,32 @@ func (s *AppDiscoveryService) GetRunningVersions(user, app string) []*discovery.
 	return nil
 }
 
+// IsAppRunning 检查特定应用是否正在运行
+func (s *AppDiscoveryService) IsAppRunning(user, app string) bool {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	key := user + "/" + app
+	if appInfo, exists := s.apps[key]; exists {
+		return appInfo.IsRunning()
+	}
+	return false
+}
+
+// IsAppVersionRunning 检查特定应用的特定版本是否正在运行
+func (s *AppDiscoveryService) IsAppVersionRunning(user, app, version string) bool {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	key := user + "/" + app
+	if appInfo, exists := s.apps[key]; exists {
+		if versionInfo, exists := appInfo.Versions[version]; exists {
+			return versionInfo.IsRunning()
+		}
+	}
+	return false
+}
+
 // readCurrentVersion 读取应用的当前版本
 func (s *AppDiscoveryService) readCurrentVersion(user, app string) string {
 	versionFile := filepath.Join(s.basePath, user, app, "workplace/metadata/current_version.txt")

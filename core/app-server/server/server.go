@@ -35,6 +35,7 @@ type Server struct {
 	jwtService         *service.JWTService
 	appRuntime         *service.AppRuntime
 	serviceTreeService *service.ServiceTreeService
+	functionService    *service.FunctionService
 
 	// 上游服务
 	natsService *service.NatsService
@@ -212,7 +213,10 @@ func (s *Server) initServices(ctx context.Context) error {
 	appRepo := repository.NewAppRepository(s.db)
 	hostRepo := repository.NewHostRepository(s.db)
 	userSessionRepo := repository.NewUserSessionRepository(s.db)
-	s.appService = service.NewAppService(s.appRuntime, userRepo, appRepo)
+	functionRepo := repository.NewFunctionRepository(s.db)
+	serviceTreeRepo := repository.NewServiceTreeRepository(s.db)
+
+	s.appService = service.NewAppService(s.appRuntime, userRepo, appRepo, functionRepo, serviceTreeRepo)
 
 	// 初始化认证服务
 	s.authService = service.NewAuthService(userRepo, hostRepo, userSessionRepo)
@@ -224,9 +228,10 @@ func (s *Server) initServices(ctx context.Context) error {
 	// 初始化 JWT 服务
 	s.jwtService = service.NewJWTService()
 
-	// 初始化服务目录服务
-	serviceTreeRepo := repository.NewServiceTreeRepository(s.db)
 	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appRuntime)
+
+	// 初始化函数服务
+	s.functionService = service.NewFunctionService(functionRepo)
 
 	logger.Infof(ctx, "[Server] Services initialized successfully")
 	return nil

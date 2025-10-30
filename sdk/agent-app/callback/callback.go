@@ -11,3 +11,9 @@ type OnPageLoadReq struct {
 
 type OnPageLoadResp struct {
 }
+
+type OnSelectFuzzyReq struct {
+}
+
+type OnSelectFuzzyResp struct {
+}

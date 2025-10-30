@@ -18,6 +18,722 @@
     "host": "localhost:9090",
     "basePath": "/api/v1",
     "paths": {
+        "/api/v1/app/create": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "创建一个新的应用实例。租户用户（应用所有者）从请求体获取，请求用户（实际发起请求的用户）从请求头获取。租户用户决定应用的所有权，请求用户用于审计追踪。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "应用管理"
+                ],
+                "summary": "创建应用",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "创建应用请求，包含应用名（租户用户通过 header 传递）",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.CreateAppReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "创建成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.CreateAppResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/app/delete/{app}": {
+            "delete": {
+                "description": "删除应用及其所有相关资源",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "应用管理"
+                ],
+                "summary": "删除应用",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "应用名",
+                        "name": "app",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "删除成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.DeleteAppResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/app/list": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "获取当前用户的所有应用列表（支持分页）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "应用管理"
+                ],
+                "summary": "获取应用列表",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码，默认为1",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "每页数量，默认为10",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.GetAppsResp"
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/app/update/{app}": {
+            "post": {
+                "description": "更新应用代码并重新编译部署",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "应用管理"
+                ],
+                "summary": "更新应用",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "应用名",
+                        "name": "app",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateAppResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/login": {
+            "post": {
+                "description": "使用用户名和密码登录",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "认证管理"
+                ],
+                "summary": "用户登录",
+                "parameters": [
+                    {
+                        "description": "登录请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.LoginReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "登录成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.LoginResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "用户名或密码错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/logout": {
+            "post": {
+                "description": "用户登出，使Token失效",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "认证管理"
+                ],
+                "summary": "用户登出",
+                "parameters": [
+                    {
+                        "description": "登出请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.LogoutReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "登出成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.LogoutResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/refresh": {
+            "post": {
+                "description": "使用RefreshToken刷新JWT Token",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "认证管理"
+                ],
+                "summary": "刷新Token",
+                "parameters": [
+                    {
+                        "description": "刷新Token请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.RefreshTokenReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "刷新成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.RefreshTokenResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "RefreshToken无效",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/register": {
+            "post": {
+                "description": "使用邮箱验证码注册新用户",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "认证管理"
+                ],
+                "summary": "用户注册",
+                "parameters": [
+                    {
+                        "description": "注册请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.RegisterReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "注册成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.RegisterResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/send_email_code": {
+            "post": {
+                "description": "向指定邮箱发送验证码，用于注册验证",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "认证管理"
+                ],
+                "summary": "发送邮箱验证码",
+                "parameters": [
+                    {
+                        "description": "发送验证码请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.SendEmailCodeReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "发送成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.SendEmailCodeResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/callback/{router}": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "接收外部系统的回调请求并转发到应用内部的 callback 路由。路径格式：/api/v1/callback/*router?_type=回调类型",
+                "consumes": [
+                    "application/json",
+                    "application/x-www-form-urlencoded",
+                    "multipart/form-data",
+                    "text/plain"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "应用接口请求(运行函数)"
+                ],
+                "summary": "回调应用",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "回调路由路径，格式：/{router}，例如：/api/v1/callback/*router?_type=回调类型",
+                        "name": "router",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "回调类型（可选），用于标识回调类型",
+                        "name": "_type",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "回调处理成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.RequestAppResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/function/get": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "根据函数ID获取函数的详细信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "函数管理"
+                ],
+                "summary": "获取函数详情",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "函数ID",
+                        "name": "function_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.GetFunctionResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "函数不存在",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/function/list": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "根据应用ID获取该应用下的所有函数列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "函数管理"
+                ],
+                "summary": "获取应用下所有函数",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "应用ID",
+                        "name": "app_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.GetFunctionsByAppResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/run/{full_code_path}": {
+            "get": {
+                "consumes": [
+                    "application/json",
+                    "application/x-www-form-urlencoded",
+                    "multipart/form-data",
+                    "text/plain"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "应用接口请求(运行函数)"
+                ],
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "应用名",
+                        "name": "app",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "接口路由路径",
+                        "name": "router",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "应用内部方法名（可选）",
+                        "name": "method",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "请求成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.RequestAppResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/service_tree": {
             "get": {
                 "security": [
@@ -275,473 +991,25 @@
                     }
                 }
             }
-        },
-        "/app/create": {
-            "post": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "创建一个新的应用实例。租户用户（应用所有者）从请求体获取，请求用户（实际发起请求的用户）从请求头获取。租户用户决定应用的所有权，请求用户用于审计追踪。",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "应用管理"
-                ],
-                "summary": "创建应用",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "JWT Token",
-                        "name": "X-Token",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "description": "创建应用请求，包含应用名（租户用户通过 header 传递）",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.CreateAppReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "创建成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.CreateAppResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "未授权",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/app/delete/{app}": {
-            "delete": {
-                "description": "删除应用及其所有相关资源",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "应用管理"
-                ],
-                "summary": "删除应用",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "应用名",
-                        "name": "app",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "删除成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.DeleteAppResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/app/request/{app}/{router}": {
-            "get": {
-                "description": "**支持的 HTTP 方法：**\n- GET: 获取数据\n- POST: 创建数据\n- PUT: 更新数据\n- DELETE: 删除数据\n- PATCH: 部分更新数据\n- HEAD: 获取响应头\n- OPTIONS: 获取支持的方法\n\n**功能说明：**\n此接口通过 Gin 的 Any 方法注册，支持所有 HTTP 方法。会自动透传查询参数和请求体到目标应用。\n\n**使用示例：**\n- GET /api/v1/app/request/myapp/users?page=1\n- POST /api/v1/app/request/myapp/users (with JSON body)\n- PUT /api/v1/app/request/myapp/users/123 (with JSON body)\n- DELETE /api/v1/app/request/myapp/users/123",
-                "consumes": [
-                    "application/json",
-                    "application/x-www-form-urlencoded",
-                    "multipart/form-data",
-                    "text/plain"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "应用接口请求"
-                ],
-                "summary": "应用接口请求 (支持所有 HTTP 方法)",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "应用名",
-                        "name": "app",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "接口路由路径",
-                        "name": "router",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "应用内部方法名（可选）",
-                        "name": "method",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "请求成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.RequestAppResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/app/update/{app}": {
-            "post": {
-                "description": "更新应用代码并重新编译部署",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "应用管理"
-                ],
-                "summary": "更新应用",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "应用名",
-                        "name": "app",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "更新成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.UpdateAppResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/auth/login": {
-            "post": {
-                "description": "使用用户名和密码登录",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "认证管理"
-                ],
-                "summary": "用户登录",
-                "parameters": [
-                    {
-                        "description": "登录请求",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.LoginReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "登录成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.LoginResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "用户名或密码错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/auth/logout": {
-            "post": {
-                "description": "用户登出，使Token失效",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "认证管理"
-                ],
-                "summary": "用户登出",
-                "parameters": [
-                    {
-                        "description": "登出请求",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.LogoutReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "登出成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.LogoutResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/auth/refresh": {
-            "post": {
-                "description": "使用RefreshToken刷新JWT Token",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "认证管理"
-                ],
-                "summary": "刷新Token",
-                "parameters": [
-                    {
-                        "description": "刷新Token请求",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.RefreshTokenReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "刷新成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.RefreshTokenResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "RefreshToken无效",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/auth/register": {
-            "post": {
-                "description": "使用邮箱验证码注册新用户",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "认证管理"
-                ],
-                "summary": "用户注册",
-                "parameters": [
-                    {
-                        "description": "注册请求",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.RegisterReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "注册成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.RegisterResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/auth/send_email_code": {
-            "post": {
-                "description": "向指定邮箱发送验证码，用于注册验证",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "认证管理"
-                ],
-                "summary": "发送邮箱验证码",
-                "parameters": [
-                    {
-                        "description": "发送验证码请求",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.SendEmailCodeReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "发送成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.SendEmailCodeResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
         }
     },
     "definitions": {
         "dto.CreateAppReq": {
             "type": "object",
             "required": [
-                "app"
+                "code",
+                "name"
             ],
             "properties": {
-                "app": {
+                "code": {
                     "description": "应用名",
                     "type": "string",
                     "example": "myapp"
+                },
+                "name": {
+                    "description": "应用名",
+                    "type": "string",
+                    "example": "腾讯oa系统"
                 }
             }
         },
@@ -758,11 +1026,6 @@
                     "type": "string",
                     "example": "namespace/beiluo/myapp"
                 },
-                "status": {
-                    "description": "状态",
-                    "type": "string",
-                    "example": "created"
-                },
                 "user": {
                     "description": "用户名",
                     "type": "string",
@@ -774,31 +1037,45 @@
             "type": "object",
             "required": [
                 "app",
+                "code",
                 "name",
-                "title",
                 "user"
             ],
             "properties": {
                 "app": {
-                    "type": "string"
+                    "description": "应用名",
+                    "type": "string",
+                    "example": "myapp"
+                },
+                "code": {
+                    "description": "服务目录代码",
+                    "type": "string",
+                    "example": "user"
                 },
                 "description": {
-                    "type": "string"
+                    "description": "描述",
+                    "type": "string",
+                    "example": "用户相关的API接口"
                 },
                 "name": {
-                    "type": "string"
+                    "description": "服务目录名称",
+                    "type": "string",
+                    "example": "用户管理"
                 },
                 "parent_id": {
-                    "type": "integer"
+                    "description": "父目录ID，0表示根目录",
+                    "type": "integer",
+                    "example": 0
                 },
                 "tags": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
+                    "description": "标签",
+                    "type": "string",
+                    "example": "user,management"
                 },
                 "user": {
-                    "type": "string"
+                    "description": "用户名",
+                    "type": "string",
+                    "example": "beiluo"
                 }
             }
         },
@@ -806,37 +1083,59 @@
             "type": "object",
             "properties": {
                 "app_id": {
-                    "type": "integer"
+                    "description": "应用ID",
+                    "type": "integer",
+                    "example": 1
+                },
+                "code": {
+                    "description": "服务目录代码",
+                    "type": "string",
+                    "example": "user"
                 },
                 "description": {
-                    "type": "string"
+                    "description": "描述",
+                    "type": "string",
+                    "example": "用户相关的API接口"
                 },
-                "full_id_path": {
-                    "type": "string"
-                },
-                "full_name_path": {
-                    "type": "string"
+                "full_code_path": {
+                    "description": "完整代码路径",
+                    "type": "string",
+                    "example": "/beiluo/myapp/user"
                 },
                 "id": {
-                    "type": "integer"
+                    "description": "服务目录ID",
+                    "type": "integer",
+                    "example": 1
                 },
                 "name": {
-                    "type": "string"
+                    "description": "服务目录名称",
+                    "type": "string",
+                    "example": "用户管理"
                 },
                 "parent_id": {
-                    "type": "integer"
+                    "description": "父目录ID",
+                    "type": "integer",
+                    "example": 0
+                },
+                "ref_id": {
+                    "description": "引用ID：指向真实资源的ID，如果是package类型指向package的ID，如果是function类型指向function的ID",
+                    "type": "integer",
+                    "example": 0
                 },
                 "status": {
-                    "type": "string"
+                    "description": "状态: enabled(启用), disabled(禁用)",
+                    "type": "string",
+                    "example": "enabled"
                 },
                 "tags": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
+                    "description": "标签",
+                    "type": "string",
+                    "example": "user,management"
                 },
                 "type": {
-                    "type": "string"
+                    "description": "节点类型: package(服务目录/包), function(函数/文件), api(API接口), service(服务), module(模块)",
+                    "type": "string",
+                    "example": "package"
                 }
             }
         },
@@ -848,13 +1147,8 @@
                     "type": "string",
                     "example": "myapp"
                 },
-                "status": {
-                    "description": "状态",
-                    "type": "string",
-                    "example": "deleted"
-                },
                 "user": {
-                    "description": "用户名",
+                    "description": "租户名",
                     "type": "string",
                     "example": "beiluo"
                 }
@@ -867,7 +1161,166 @@
             ],
             "properties": {
                 "id": {
+                    "description": "服务目录ID",
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "dto.FunctionInfo": {
+            "type": "object",
+            "properties": {
+                "app_id": {
+                    "description": "应用ID",
+                    "type": "integer",
+                    "example": 1
+                },
+                "callbacks": {
+                    "description": "回调函数",
+                    "type": "string",
+                    "example": "onCreate,onUpdate"
+                },
+                "create_tables": {
+                    "description": "创建的表",
+                    "type": "string",
+                    "example": "users,orders"
+                },
+                "created_at": {
+                    "description": "创建时间",
+                    "type": "string",
+                    "example": "2024-01-01T00:00:00Z"
+                },
+                "has_config": {
+                    "description": "是否有配置",
+                    "type": "boolean",
+                    "example": true
+                },
+                "id": {
+                    "description": "函数ID",
+                    "type": "integer",
+                    "example": 1
+                },
+                "method": {
+                    "description": "HTTP方法",
+                    "type": "string",
+                    "example": "GET"
+                },
+                "router": {
+                    "description": "路由路径",
+                    "type": "string",
+                    "example": "/users"
+                },
+                "template_type": {
+                    "description": "模板类型",
+                    "type": "string",
+                    "example": "default"
+                },
+                "tree_id": {
+                    "description": "服务目录ID",
+                    "type": "integer",
+                    "example": 1
+                },
+                "updated_at": {
+                    "description": "更新时间",
+                    "type": "string",
+                    "example": "2024-01-01T00:00:00Z"
+                }
+            }
+        },
+        "dto.GetAppsResp": {
+            "type": "object",
+            "properties": {
+                "items": {},
+                "page": {
                     "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.GetFunctionResp": {
+            "type": "object",
+            "properties": {
+                "app_id": {
+                    "description": "应用ID",
+                    "type": "integer",
+                    "example": 1
+                },
+                "callbacks": {
+                    "description": "回调函数",
+                    "type": "string",
+                    "example": "onCreate,onUpdate"
+                },
+                "create_tables": {
+                    "description": "创建的表",
+                    "type": "string",
+                    "example": "users,orders"
+                },
+                "created_at": {
+                    "description": "创建时间",
+                    "type": "string",
+                    "example": "2024-01-01T00:00:00Z"
+                },
+                "full_code_path": {
+                    "type": "string",
+                    "example": "/beiluo/testapi18/crm/crm_ticket"
+                },
+                "has_config": {
+                    "description": "是否有配置",
+                    "type": "boolean",
+                    "example": true
+                },
+                "id": {
+                    "description": "函数ID",
+                    "type": "integer",
+                    "example": 1
+                },
+                "method": {
+                    "description": "HTTP方法",
+                    "type": "string",
+                    "example": "GET"
+                },
+                "request": {
+                    "description": "请求配置（JSON对象）"
+                },
+                "response": {
+                    "description": "响应配置（JSON对象）"
+                },
+                "router": {
+                    "description": "路由路径",
+                    "type": "string",
+                    "example": "/crm/crm_ticket"
+                },
+                "template_type": {
+                    "description": "模板类型",
+                    "type": "string",
+                    "example": "default"
+                },
+                "tree_id": {
+                    "description": "服务目录ID",
+                    "type": "integer",
+                    "example": 1
+                },
+                "updated_at": {
+                    "description": "更新时间",
+                    "type": "string",
+                    "example": "2024-01-01T00:00:00Z"
+                }
+            }
+        },
+        "dto.GetFunctionsByAppResp": {
+            "type": "object",
+            "properties": {
+                "functions": {
+                    "description": "函数列表",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.FunctionInfo"
+                    }
                 }
             }
         },
@@ -875,40 +1328,61 @@
             "type": "object",
             "properties": {
                 "app_id": {
-                    "type": "integer"
+                    "description": "应用ID",
+                    "type": "integer",
+                    "example": 1
                 },
                 "children": {
+                    "description": "子目录列表",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/dto.GetServiceTreeResp"
                     }
                 },
+                "code": {
+                    "description": "服务目录代码",
+                    "type": "string",
+                    "example": "user"
+                },
                 "description": {
-                    "type": "string"
+                    "description": "描述",
+                    "type": "string",
+                    "example": "用户相关的API接口"
                 },
-                "full_id_path": {
-                    "type": "string"
-                },
-                "full_name_path": {
-                    "type": "string"
+                "full_code_path": {
+                    "description": "完整代码路径",
+                    "type": "string",
+                    "example": "/beiluo/myapp/user"
                 },
                 "id": {
-                    "type": "integer"
+                    "description": "服务目录ID",
+                    "type": "integer",
+                    "example": 1
                 },
                 "name": {
-                    "type": "string"
+                    "description": "服务目录名称",
+                    "type": "string",
+                    "example": "用户管理"
                 },
                 "parent_id": {
-                    "type": "integer"
+                    "description": "父目录ID",
+                    "type": "integer",
+                    "example": 0
+                },
+                "ref_id": {
+                    "description": "引用ID：指向真实资源的ID，如果是package类型指向package的ID，如果是function类型指向function的ID",
+                    "type": "integer",
+                    "example": 0
                 },
                 "tags": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
+                    "description": "标签",
+                    "type": "string",
+                    "example": "user,management"
                 },
                 "type": {
-                    "type": "string"
+                    "description": "节点类型: package(服务目录/包), function(函数/文件), api(API接口), service(服务), module(模块)",
+                    "type": "string",
+                    "example": "package"
                 }
             }
         },
@@ -1093,6 +1567,18 @@
                     "type": "string",
                     "example": "myapp"
                 },
+                "diff": {
+                    "description": "API diff 信息",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.DiffData"
+                        }
+                    ]
+                },
+                "error": {
+                    "description": "回调过程中的错误信息",
+                    "type": "string"
+                },
                 "new_version": {
                     "description": "新版本号",
                     "type": "string",
@@ -1102,11 +1588,6 @@
                     "description": "旧版本号",
                     "type": "string",
                     "example": "v1"
-                },
-                "status": {
-                    "description": "状态",
-                    "type": "string",
-                    "example": "updated"
                 },
                 "user": {
                     "description": "用户名",
@@ -1121,20 +1602,30 @@
                 "id"
             ],
             "properties": {
+                "code": {
+                    "description": "服务目录代码",
+                    "type": "string",
+                    "example": "user"
+                },
                 "description": {
-                    "type": "string"
+                    "description": "描述",
+                    "type": "string",
+                    "example": "用户相关的API接口"
                 },
                 "id": {
-                    "type": "integer"
+                    "description": "服务目录ID",
+                    "type": "integer",
+                    "example": 1
                 },
                 "name": {
-                    "type": "string"
+                    "description": "服务目录名称",
+                    "type": "string",
+                    "example": "用户管理"
                 },
                 "tags": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
+                    "description": "标签",
+                    "type": "string",
+                    "example": "user,management"
                 }
             }
         },
@@ -1172,7 +1663,7 @@
                     "example": "email"
                 },
                 "status": {
-                    "description": "用户状态",
+                    "description": "用户状态: pending(待邮箱验证), active(已激活)",
                     "type": "string",
                     "example": "active"
                 },
@@ -1180,6 +1671,166 @@
                     "description": "用户名",
                     "type": "string",
                     "example": "beiluo"
+                }
+            }
+        },
+        "model.ApiInfo": {
+            "type": "object",
+            "properties": {
+                "added_version": {
+                    "description": "API首次添加的版本",
+                    "type": "string"
+                },
+                "app": {
+                    "type": "string"
+                },
+                "callback": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "code": {
+                    "type": "string"
+                },
+                "create_tables": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "desc": {
+                    "type": "string"
+                },
+                "full_code_path": {
+                    "type": "string"
+                },
+                "method": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "request": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/widget.Field"
+                    }
+                },
+                "response": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/widget.Field"
+                    }
+                },
+                "router": {
+                    "type": "string"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "template_type": {
+                    "type": "string"
+                },
+                "update_versions": {
+                    "description": "API更新过的版本列表",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "user": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.DiffData": {
+            "type": "object",
+            "properties": {
+                "add": {
+                    "description": "新增的API",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.ApiInfo"
+                    }
+                },
+                "delete": {
+                    "description": "删除的API",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.ApiInfo"
+                    }
+                },
+                "update": {
+                    "description": "修改的API",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.ApiInfo"
+                    }
+                }
+            }
+        },
+        "widget.Field": {
+            "type": "object",
+            "properties": {
+                "callbacks": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "code": {
+                    "description": "从json标签里解析，",
+                    "type": "string"
+                },
+                "data": {
+                    "$ref": "#/definitions/widget.FieldData"
+                },
+                "desc": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "search": {
+                    "type": "string"
+                },
+                "table_permission": {
+                    "description": "read,update,create",
+                    "type": "string"
+                },
+                "validation": {
+                    "description": "完全照搬github.com/go-playground/validator/v10",
+                    "type": "string"
+                },
+                "widget": {
+                    "type": "object",
+                    "properties": {
+                        "config": {},
+                        "type": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "widget.FieldData": {
+            "type": "object",
+            "properties": {
+                "example": {
+                    "description": "示例数据，例如 10，紧急 这种，方便前端展示一些示例数据",
+                    "type": "string"
+                },
+                "format": {
+                    "description": "默认不格式化，特殊场景可以格式化成 csv/markdown/json/yaml/html 等等，这个不重要，后面再说吧",
+                    "type": "string"
+                },
+                "type": {
+                    "description": "这里的type可以自动根据组件类型来推断出来，例如Widget类型是input，那么很显然，FieldData的type是DataTypeString",
+                    "type": "string"
                 }
             }
         }

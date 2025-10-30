@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ai-agent-os/ai-agent-os/core/app-runtime/dto"
+
 	"github.com/ai-agent-os/ai-agent-os/core/app-runtime/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-runtime/repository"
 	appPkg "github.com/ai-agent-os/ai-agent-os/pkg/app"
@@ -330,7 +332,7 @@ func (s *AppManageService) DeleteApp(ctx context.Context, user, app string) erro
 }
 
 // UpdateApp 更新应用（重新编译并重启容器）
-func (s *AppManageService) UpdateApp(ctx context.Context, user, app string) (*UpdateResult, error) {
+func (s *AppManageService) UpdateApp(ctx context.Context, user, app string) (*dto.UpdateAppResp, error) {
 
 	logStr := strings.Builder{}
 	logStr.WriteString(fmt.Sprintf("[UpdateApp] Starting update: %s/%s\t", user, app))
@@ -347,14 +349,23 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string) (*Up
 		return nil, fmt.Errorf("app not found: %s/%s", user, app)
 	}
 
-	// 2. 检查应用是否正在运行
+	// 2. 查询应用状态，判断是否为未激活状态
+	appRecord, err := s.appRepo.GetApp(user, app)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get app record: %w", err)
+	}
+
+	isInactive := appRecord.IsInactive()
+	logStr.WriteString(fmt.Sprintf("App status: %s\t", appRecord.Status))
+
+	// 3. 检查应用是否正在运行
 	isRunning, err := s.IsAppRunning(ctx, user, app)
 	if err != nil {
 		logStr.WriteString(fmt.Sprintf("Failed to check app running status: %v\t", err))
 		isRunning = false
 	}
 
-	// 使用 VersionManager 获取当前版本
+	// 4. 使用 VersionManager 获取当前版本
 	vm := appPkg.NewVersionManager(filepath.Join(s.config.AppDir.BasePath, user), app)
 	oldVersion, err := vm.GetCurrentVersion()
 	if err != nil {
@@ -499,6 +510,15 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string) (*Up
 	case notification := <-waiterChan:
 		logStr.WriteString(fmt.Sprintf("Startup confirmed at %s\t", notification.StartTime.Format(time.DateTime)))
 		logger.Infof(ctx, "[UpdateApp] Startup confirmed: %s/%s/%s", user, app, newVersion)
+
+		// 如果应用之前是未激活状态，现在启动成功后更新为已激活
+		if isInactive {
+			if err := s.updateAppStatusToActive(ctx, user, app); err != nil {
+				logger.Warnf(ctx, "[UpdateApp] Failed to update app status to active: %v", err)
+			} else {
+				logger.Infof(ctx, "[UpdateApp] App status updated to active: %s/%s", user, app)
+			}
+		}
 	case <-time.After(60 * time.Second):
 		logStr.WriteString("Startup timeout\t")
 		logger.Warnf(ctx, "[UpdateApp] Startup notification timeout for %s/%s/%s, but continue anyway", user, app, newVersion)
@@ -524,7 +544,7 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string) (*Up
 	// 构建 UpdateResult，包含 diff 信息（如果有）
 	// 解析嵌套的 diff 数据，避免双嵌套
 
-	result := &UpdateResult{
+	result := &dto.UpdateAppResp{
 		User:       user,
 		App:        app,
 		OldVersion: oldVersion,
@@ -534,6 +554,22 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string) (*Up
 	}
 
 	return result, nil
+}
+
+// updateAppStatusToActive 将应用状态更新为active（已激活）
+func (s *AppManageService) updateAppStatusToActive(ctx context.Context, user, app string) error {
+	appRecord, err := s.appRepo.GetApp(user, app)
+	if err != nil {
+		return fmt.Errorf("failed to get app record: %w", err)
+	}
+
+	// 更新状态为active
+	appRecord.Status = "active"
+	if err := s.appRepo.UpdateApp(appRecord); err != nil {
+		return fmt.Errorf("failed to update app status to active: %w", err)
+	}
+
+	return nil
 }
 
 // sendUpdateCallbackAndWait 使用 NATS Request/Reply 模式发送 update 回调并等待响应
@@ -583,21 +619,18 @@ func (s *AppManageService) sendUpdateCallbackAndWait(ctx context.Context, user, 
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
-	logger.Infof(ctx, "[sendUpdateCallbackAndWait] ✅ Response received: %+v", rsp)
-	logger.Infof(ctx, "[sendUpdateCallbackAndWait] 📊 Response details: subject=%s, headers=%+v", responseMsg.Subject, responseMsg.Header)
-
 	return &rsp, nil
 }
 
 // UpdateResult 更新结果
-type UpdateResult struct {
-	User       string
-	App        string
-	OldVersion string
-	NewVersion string
-	Diff       interface{} `json:"diff,omitempty"`  // API diff 信息
-	Error      error       `json:"error,omitempty"` // 回调过程中的错误
-}
+//type UpdateResult struct {
+//	User       string
+//	App        string
+//	OldVersion string
+//	NewVersion string
+//	Diff       interface{} `json:"diff,omitempty"`  // API diff 信息
+//	Error      error       `json:"error,omitempty"` // 回调过程中的错误
+//}
 
 // GetAppInfo 获取应用信息
 func (s *AppManageService) GetAppInfo(ctx context.Context, user, app string) (map[string]interface{}, error) {
@@ -621,31 +654,14 @@ func (s *AppManageService) GetAppInfo(ctx context.Context, user, app string) (ma
 }
 
 // IsAppRunning 检查应用是否正在运行
+// 使用discovery service检查运行状态，比调用podman更高效
 func (s *AppManageService) IsAppRunning(ctx context.Context, user, app string) (bool, error) {
-	containerName := fmt.Sprintf("%s-%s", user, app)
-
-	if s.containerService == nil {
-		return false, fmt.Errorf("container operator not available")
+	if s.appDiscoveryService == nil {
+		return false, fmt.Errorf("app discovery service not available")
 	}
 
-	// 检查容器是否存在且运行中
-	containerList, err := s.containerService.ListContainers(ctx)
-	if err != nil {
-		return false, fmt.Errorf("failed to list containers: %w", err)
-	}
-
-	// 查找指定名称的容器
-	var exists, isRunning bool
-	for _, container := range containerList {
-		if container.Names[0] == containerName {
-			exists = true
-			isRunning = container.State == "running"
-			break
-		}
-	}
-
-	//logger.Infof(ctx, "[IsAppRunning] Container %s: exists=%v, running=%v", containerName, exists, isRunning)
-	return exists && isRunning, nil
+	// 使用discovery service检查应用是否正在运行
+	return s.appDiscoveryService.IsAppRunning(user, app), nil
 }
 
 // createDirIfNotExists 创建目录（如果不存在）
@@ -857,44 +873,6 @@ func (s *AppManageService) startAppContainer(ctx context.Context, containerName,
 	return nil
 }
 
-// UpdateAppStatus 更新应用状态
-func (s *AppManageService) UpdateAppStatus(ctx context.Context, user, app, version, status string) error {
-	// 更新应用版本状态
-	versions, err := s.appRepo.GetAppVersions(user, app)
-	if err != nil {
-		return fmt.Errorf("failed to get app versions: %w", err)
-	}
-
-	for _, v := range versions {
-		if v.Version == version {
-			v.Status = status
-			v.LastSeen = time.Now()
-			if status == "stopped" {
-				now := time.Now()
-				v.StopTime = &now
-			}
-			if err := s.appRepo.UpdateAppVersion(v); err != nil {
-				return fmt.Errorf("failed to update app version status: %w", err)
-			}
-			logger.Infof(ctx, "[UpdateAppStatus] Updated version %s status to %s", version, status)
-			break
-		}
-	}
-
-	// 如果是当前版本，也更新应用主记录
-	appRecord, err := s.appRepo.GetApp(user, app)
-	if err == nil && appRecord.Version == version {
-		appRecord.Status = status
-		appRecord.LastSeen = time.Now()
-		if err := s.appRepo.UpdateApp(appRecord); err != nil {
-			return fmt.Errorf("failed to update app status: %w", err)
-		}
-		logger.Infof(ctx, "[UpdateAppStatus] Updated app %s/%s status to %s", user, app, status)
-	}
-
-	return nil
-}
-
 // ShutdownAppVersion 主动关闭指定版本的应用
 func (s *AppManageService) ShutdownAppVersion(ctx context.Context, user, app, version string) error {
 	//logger.Infof(ctx, "[ShutdownAppVersion] Sending shutdown command to %s/%s/%s", user, app, version)
@@ -1030,6 +1008,7 @@ func (s *AppManageService) performCleanup(ctx context.Context) {
 		if err := s.CleanupNonCurrentVersions(ctx, app.User, app.App); err != nil {
 			logger.Errorf(ctx, "[AppManageService] Failed to cleanup versions for %s/%s: %v", app.User, app.App, err)
 		}
+
 	}
 }
 
@@ -1082,9 +1061,9 @@ func (s *AppManageService) CleanupNonCurrentVersions(ctx context.Context, user, 
 		// 关闭该版本
 		//logger.Infof(ctx, "[CleanupNonCurrentVersions] Shutting down non-current version %s (no traffic)", version.Version)
 		if err := s.ShutdownAppVersion(ctx, user, app, version.Version); err != nil {
-			//logger.Errorf(ctx, "[CleanupNonCurrentVersions] Failed to shutdown version %s: %v", version.Version, err)
+			logger.Errorf(ctx, "[CleanupNonCurrentVersions] Failed to shutdown version %s: %v", version.Version, err)
 		} else {
-			//logger.Infof(ctx, "[CleanupNonCurrentVersions] Successfully sent shutdown command to version %s", version.Version)
+			logger.Infof(ctx, "[CleanupNonCurrentVersions] 停掉进程 成功  %s_%s_%s ", user, app, version.Version)
 		}
 	}
 

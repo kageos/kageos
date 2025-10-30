@@ -35,10 +35,10 @@ func (s *Server) handleAppCreate(msg *nats.Msg) {
 	tenantUser := msgInfo.Data.User
 
 	logger.Infof(ctx, "[handleAppCreate] *** ENTRY *** Received app create request: tenantUser=%s, requestUser=%s, app=%s, reply=%s",
-		tenantUser, msgInfo.RequestUser, msgInfo.Data.App, msg.Reply)
+		tenantUser, msgInfo.RequestUser, msgInfo.Data.Code, msg.Reply)
 
 	// 调用应用管理服务
-	appDir, err := s.appManageService.CreateApp(ctx, tenantUser, msgInfo.Data.App)
+	appDir, err := s.appManageService.CreateApp(ctx, tenantUser, msgInfo.Data.Code)
 	if err != nil {
 		logger.Errorf(ctx, "[handleAppCreate] Failed to create app: %v", err)
 		msgx.RespFailMsg(msg, err)
@@ -48,9 +48,8 @@ func (s *Server) handleAppCreate(msg *nats.Msg) {
 	// 返回成功响应
 	resp := dto.CreateAppResp{
 		User:   tenantUser,
-		App:    msgInfo.Data.App,
+		App:    msgInfo.Data.Code,
 		AppDir: appDir,
-		Status: "created",
 	}
 
 	msgx.RespSuccessMsg(msg, resp)
@@ -70,7 +69,7 @@ func (s *Server) handleServiceTreeCreate(msg *nats.Msg) {
 	}
 
 	logger.Infof(ctx, "[handleServiceTreeCreate] *** ENTRY *** Received service tree create request: user=%s, app=%s, serviceTree=%s, reply=%s",
-		msgInfo.Data.User, msgInfo.Data.App, msgInfo.Data.ServiceTree.Name, msg.Reply)
+		msgInfo.Data.User, msgInfo.Data.App, msgInfo.Data.ServiceTree.Code, msg.Reply)
 
 	// 调用服务目录管理服务
 	resp, err := s.serviceTreeService.CreateServiceTree(ctx, &msgInfo.Data)
@@ -111,23 +110,7 @@ func (s *Server) handleAppUpdate(msg *nats.Msg) {
 		return
 	}
 
-	// 返回成功响应
-	resp := dto.UpdateAppResp{
-		User:       result.User,
-		App:        result.App,
-		OldVersion: result.OldVersion,
-		NewVersion: result.NewVersion,
-		Status:     "updated",
-		Diff:       result.Diff, // 添加 diff 信息
-	}
-
-	// 如果有回调错误，添加到响应中
-	if result.Error != nil {
-		resp.Error = result.Error.Error()
-		logger.Warnf(ctx, "[handleAppUpdate] Update completed with callback error: %v", result.Error)
-	}
-
-	msgx.RespSuccessMsg(msg, resp)
+	msgx.RespSuccessMsg(msg, result)
 	logger.Infof(ctx, "[handleAppUpdate] *** EXIT *** App updated successfully: user=%s, app=%s, oldVersion=%s, newVersion=%s, hasDiff=%v",
 		result.User, result.App, result.OldVersion, result.NewVersion, result.Diff != nil)
 }
@@ -160,9 +143,8 @@ func (s *Server) handleAppDelete(msg *nats.Msg) {
 
 	// 返回成功响应
 	resp := dto.DeleteAppResp{
-		User:   tenantUser,
-		App:    msgInfo.Data.App,
-		Status: "deleted",
+		User: tenantUser,
+		App:  msgInfo.Data.App,
 	}
 
 	msgx.RespSuccessMsg(msg, resp)
@@ -321,13 +303,9 @@ func (s *Server) handleAppCloseNotification(message subjects.Message) {
 	logger.Infof(ctx, "[handleAppCloseNotification] Received close notification: user=%s, app=%s, version=%s, status=%s, close_time=%s",
 		message.User, message.App, message.Version, msgData.Status, msgData.CloseTime)
 
-	// 更新数据库中的应用状态
-	if err := s.appManageService.UpdateAppStatus(ctx, message.User, message.App, message.Version, "stopped"); err != nil {
-		logger.Errorf(ctx, "[handleAppCloseNotification] Failed to update app status: %v", err)
-	} else {
-		logger.Infof(ctx, "[handleAppCloseNotification] App status updated to stopped: %s/%s/%s",
-			message.User, message.App, message.Version)
-	}
+	// 应用关闭状态通过discovery service跟踪，不需要更新数据库
+	logger.Infof(ctx, "[handleAppCloseNotification] App closed: %s/%s/%s",
+		message.User, message.App, message.Version)
 }
 
 // ============================================================================

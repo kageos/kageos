@@ -13,10 +13,11 @@ func NewAppRepository(db *gorm.DB) *AppRepository {
 	return &AppRepository{db: db}
 }
 
-// GetAppByUserName 根据用户名和应用名获取应用信息
+// GetAppByUserName 根据用户名和应用代码获取应用信息
 func (r *AppRepository) GetAppByUserName(user, app string) (*model.App, error) {
 	var appModel model.App
-	err := r.db.Where("user = ? AND name = ?", user, app).First(&appModel).Error
+	// 使用code字段查询，因为app参数是应用代码
+	err := r.db.Where("user = ? AND code = ?", user, app).First(&appModel).Error
 	if err != nil {
 		return nil, err
 	}
@@ -28,6 +29,15 @@ func (r *AppRepository) CreateApp(app *model.App) error {
 	return r.db.Create(app).Error
 }
 
+// ExistsAppNameForUser 判断指定用户下是否已存在同名应用（按中文名称 Name 判断）
+func (r *AppRepository) ExistsAppNameForUser(user, name string) (bool, error) {
+	var count int64
+	if err := r.db.Model(&model.App{}).Where("user = ? AND name = ?", user, name).Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
 // UpdateApp 更新应用
 func (r *AppRepository) UpdateApp(app *model.App) error {
 	return r.db.Save(app).Error
@@ -35,8 +45,8 @@ func (r *AppRepository) UpdateApp(app *model.App) error {
 
 // DeleteAppAndVersions 删除应用及其所有版本
 func (r *AppRepository) DeleteAppAndVersions(user, app string) error {
-	// 删除应用记录
-	err := r.db.Where("user = ? AND name = ?", user, app).Delete(&model.App{}).Error
+	// 删除应用记录（使用code字段，因为app参数是应用代码）
+	err := r.db.Where("user = ? AND code = ?", user, app).Delete(&model.App{}).Error
 	if err != nil {
 		return err
 	}
@@ -64,4 +74,27 @@ func (r *AppRepository) GetAppsByUser(user string) ([]*model.App, error) {
 		return nil, err
 	}
 	return apps, nil
+}
+
+// GetAppsByUserWithPage 根据用户获取分页应用列表
+func (r *AppRepository) GetAppsByUserWithPage(user string, page, pageSize int) ([]*model.App, int64, error) {
+	var apps []*model.App
+	var totalCount int64
+
+	// 获取总数
+	err := r.db.Model(&model.App{}).Where("user = ?", user).Count(&totalCount).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// 计算偏移量
+	offset := (page - 1) * pageSize
+
+	// 获取分页数据
+	err = r.db.Where("user = ?", user).Offset(offset).Limit(pageSize).Find(&apps).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return apps, totalCount, nil
 }

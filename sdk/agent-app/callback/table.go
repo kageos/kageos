@@ -1,7 +1,7 @@
 package callback
 
 type OnTableAddRowReq struct {
-	Row interface{} `json:"row"`
+	Body interface{} `json:"body"`
 }
 
 type OnTableAddRowResp struct {
@@ -23,7 +23,22 @@ type OnTableUpdateRowReq struct {
 }
 
 func (c *OnTableUpdateRowReq) GetId() int {
+	if c.ID != 0 {
+		return c.ID
+	}
+	switch v := c.Updates["id"].(type) {
+	case int:
+		c.ID = v
+		// 直接使用id
+	case float64:
+		c.ID = int(v)
+		// 使用id
+	default:
+		// 处理不支持的类型
+		panic("unknown id type")
+	}
 	return c.ID
+
 }
 func (c *OnTableUpdateRowReq) GetUpdates() map[string]interface{} {
 	return c.Updates
