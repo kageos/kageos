@@ -38,7 +38,7 @@ func NewAppRuntimeService(cfg *config.AppServerConfig, natsService *NatsService)
 }
 
 // CreateApp 创建应用
-func (a *AppRuntime) CreateApp(ctx context.Context, hostId int64, req interface{}) (*dto.CreateAppResp, error) {
+func (a *AppRuntime) CreateApp(ctx context.Context, hostId int64, req *dto.CreateAppReq) (*dto.CreateAppResp, error) {
 	var resp dto.CreateAppResp
 	timeout := time.Duration(a.config.GetNatsRequestTimeout()) * time.Second
 

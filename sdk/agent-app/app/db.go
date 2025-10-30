@@ -34,7 +34,11 @@ func getGormDB() *gorm.DB {
 	return db
 }
 func (c *Context) GetGormDB() *gorm.DB {
-	return getGormDB()
+	db, err := getOrInitDB(getDBName())
+	if err != nil {
+		return nil
+	}
+	return db
 }
 
 // sanitizeDBName 安全处理数据库名称，防止目录穿越
@@ -51,7 +55,15 @@ func sanitizeDBName(dbName string) string {
 		dbName = dbName + ".db"
 	}
 
-	return "../data/" + dbName
+	// 计算数据目录（可配置，默认到 $HOME/.ai-agent-os/data）
+	base := getDataDir()
+	return filepath.Join(base, dbName)
+}
+
+// getDataDir 获取数据目录（优先环境变量 AI_AGENT_OS_DATA_DIR，其次 $HOME/.ai-agent-os/data）
+func getDataDir() string {
+	// 固定为容器内的绝对路径
+	return "/app/workplace/data"
 }
 
 // getOrInitDB 获取或初始化数据库连接
@@ -69,7 +81,7 @@ func getOrInitDB(dbName string) (*gorm.DB, error) {
 	}
 
 	// 确保数据目录存在
-	dataDir := "../data"
+	dataDir := filepath.Dir(dbName)
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
 		logger.Errorf(context.Background(), "创建数据目录失败: %v", err)
 		return nil, err
@@ -98,7 +110,7 @@ func getOrInitDB(dbName string) (*gorm.DB, error) {
 		return nil, err
 	}
 
-	// 设置SQLite优化参数
+	// 设置SQLite优化参数（恢复 WAL 模式以提升并发读写性能）
 	db.Exec("PRAGMA journal_mode=WAL;PRAGMA temp_store=MEMORY;PRAGMA synchronous=NORMAL;")
 
 	// 设置连接池参数

@@ -16,7 +16,7 @@ type EmailCode struct {
 	Code      string      `json:"code" gorm:"column:code;type:varchar(10);not null"`
 	ExpiresAt models.Time `json:"expires_at" gorm:"column:expires_at;type:datetime;not null"`
 	Used      bool        `json:"used" gorm:"column:used;type:boolean;default:false"`
-	Type      string      `json:"type" gorm:"column:type;type:varchar(50);default:'register'"` // register, reset_password, change_email
+	Type      string      `json:"type" gorm:"column:type;type:varchar(50);default:'register'"` // 验证码类型: register(注册), reset_password(重置密码), change_email(更换邮箱), login(登录), bind_email(绑定邮箱)
 	IPAddress string      `json:"ip_address" gorm:"column:ip_address;type:varchar(45)"`
 	UserAgent string      `json:"user_agent" gorm:"column:user_agent;type:varchar(500)"`
 }

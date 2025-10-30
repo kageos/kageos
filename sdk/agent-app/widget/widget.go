@@ -2,6 +2,7 @@ package widget
 
 const (
 	TypeInput     = "input"
+	TypeText      = "text"
 	TypeTextArea  = "text_area"
 	TypeSelect    = "select"
 	TypeSwitch    = "switch"

@@ -15,16 +15,22 @@ func NewServiceTreeRepository(db *gorm.DB) *ServiceTreeRepository {
 	return &ServiceTreeRepository{db: db}
 }
 
-// CreateServiceTree 创建服务目录
-func (r *ServiceTreeRepository) CreateServiceTree(serviceTree *model.ServiceTree) error {
+// CreateServiceTreeWithParentPath 创建服务目录
+func (r *ServiceTreeRepository) CreateServiceTreeWithParentPath(serviceTree *model.ServiceTree, parentFullIDPath string) error {
+	// 直接创建，不再计算FullIDPath
+	return r.db.Create(serviceTree).Error
+}
+
+// CreateServiceTreeWithAppPrefix 创建带有用户应用前缀的服务目录
+func (r *ServiceTreeRepository) CreateServiceTreeWithAppPrefix(serviceTree *model.ServiceTree, userAppPrefix string) error {
 	// 先保存到数据库获取ID
 	if err := r.db.Create(serviceTree).Error; err != nil {
 		return err
 	}
 
-	// 然后计算路径信息
-	if err := r.calculatePaths(serviceTree); err != nil {
-		return fmt.Errorf("failed to calculate paths: %w", err)
+	// 然后计算包含用户应用前缀的路径信息
+	if err := r.calculatePathsWithAppPrefix(serviceTree, userAppPrefix); err != nil {
+		return fmt.Errorf("failed to calculate paths with app prefix: %w", err)
 	}
 
 	// 更新路径信息到数据库
@@ -49,16 +55,6 @@ func (r *ServiceTreeRepository) GetServiceTreesByAppID(appID int64) ([]*model.Se
 		return nil, err
 	}
 	return serviceTrees, nil
-}
-
-// GetServiceTreeByAppAndName 根据应用ID和名称获取服务目录
-func (r *ServiceTreeRepository) GetServiceTreeByAppAndName(appID int64, name string) (*model.ServiceTree, error) {
-	var serviceTree model.ServiceTree
-	err := r.db.Where("app_id = ? AND name = ?", name).First(&serviceTree).Error
-	if err != nil {
-		return nil, err
-	}
-	return &serviceTree, nil
 }
 
 // GetServiceTreeChildren 获取子服务目录
@@ -106,11 +102,6 @@ func (r *ServiceTreeRepository) BuildServiceTree(appID int64) ([]*model.ServiceT
 
 // UpdateServiceTree 更新服务目录
 func (r *ServiceTreeRepository) UpdateServiceTree(serviceTree *model.ServiceTree) error {
-	// 重新计算路径
-	if err := r.calculatePaths(serviceTree); err != nil {
-		return fmt.Errorf("failed to calculate paths: %w", err)
-	}
-
 	return r.db.Save(serviceTree).Error
 }
 
@@ -132,44 +123,54 @@ func (r *ServiceTreeRepository) DeleteServiceTree(id int64) error {
 	return r.db.Delete(&model.ServiceTree{}, id).Error
 }
 
-// calculatePaths 计算路径信息
-func (r *ServiceTreeRepository) calculatePaths(serviceTree *model.ServiceTree) error {
-	// 计算 FullIDPath
-	if serviceTree.ParentID == 0 {
-		serviceTree.FullIDPath = fmt.Sprintf("/%d", serviceTree.ID)
-		serviceTree.FullNamePath = fmt.Sprintf("/%s", serviceTree.Name)
+// calculatePathsWithAppPrefix 计算带有用户应用前缀的路径信息
+func (r *ServiceTreeRepository) calculatePathsWithAppPrefix(serviceTree *model.ServiceTree, userAppPrefix string) error {
+	// FullCodePath使用预加载的app信息计算
+	if serviceTree.App != nil {
+		// 使用预加载的App对象构建路径
+		appPrefix := fmt.Sprintf("/%s/%s", serviceTree.App.User, serviceTree.App.Code)
+		serviceTree.FullCodePath = fmt.Sprintf("%s/%s", appPrefix, serviceTree.Code)
 	} else {
-		// 获取父节点信息
-		parent, err := r.GetServiceTreeByID(serviceTree.ParentID)
-		if err != nil {
-			return fmt.Errorf("failed to get parent service tree: %w", err)
-		}
-
-		serviceTree.FullIDPath = fmt.Sprintf("%s/%d", parent.FullIDPath, serviceTree.ID)
-		serviceTree.FullNamePath = fmt.Sprintf("%s/%s", parent.FullNamePath, serviceTree.Name)
+		// 回退到传入的用户应用前缀
+		serviceTree.FullCodePath = fmt.Sprintf("%s/%s", userAppPrefix, serviceTree.Code)
 	}
 
 	return nil
 }
 
-// GetServiceTreeByFullPath 根据完整路径获取服务目录
-func (r *ServiceTreeRepository) GetServiceTreeByFullPath(appID int64, fullPath string) (*model.ServiceTree, error) {
+// GetServiceTreeByFullPath 根据完整路径获取服务目录（full_code_path全局唯一）
+func (r *ServiceTreeRepository) GetServiceTreeByFullPath(fullPath string) (*model.ServiceTree, error) {
 	var serviceTree model.ServiceTree
-	err := r.db.Where("app_id = ? AND full_name_path = ?", appID, fullPath).First(&serviceTree).Error
+	err := r.db.Where("full_code_path = ?", fullPath).First(&serviceTree).Error
 	if err != nil {
 		return nil, err
 	}
 	return &serviceTree, nil
 }
 
-// CheckNameExists 检查名称是否已存在（在同一父目录下）
-func (r *ServiceTreeRepository) CheckNameExists(appID int64, parentID int64, name string, excludeID int64) (bool, error) {
-	var count int64
-	query := r.db.Model(&model.ServiceTree{}).Where("app_id = ? AND parent_id = ? AND name = ?", appID, parentID, name)
-
-	if excludeID > 0 {
-		query = query.Where("id != ?", excludeID)
+// GetServiceTreeByFullPaths 批量根据完整路径获取服务目录
+func (r *ServiceTreeRepository) GetServiceTreeByFullPaths(fullPaths []string) (map[string]*model.ServiceTree, error) {
+	if len(fullPaths) == 0 {
+		return make(map[string]*model.ServiceTree), nil
 	}
+
+	var serviceTrees []*model.ServiceTree
+	err := r.db.Where("full_code_path IN ?", fullPaths).Find(&serviceTrees).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]*model.ServiceTree)
+	for _, tree := range serviceTrees {
+		result[tree.FullCodePath] = tree
+	}
+	return result, nil
+}
+
+// CheckNameExists 检查名称是否已存在（在同一父目录下和同一应用内）
+func (r *ServiceTreeRepository) CheckNameExists(parentID int64, code string, appID int64) (bool, error) {
+	var count int64
+	query := r.db.Model(&model.ServiceTree{}).Where("parent_id = ? AND code = ? AND app_id = ?", parentID, code, appID)
 
 	err := query.Count(&count).Error
 	if err != nil {
@@ -177,4 +178,13 @@ func (r *ServiceTreeRepository) CheckNameExists(appID int64, parentID int64, nam
 	}
 
 	return count > 0, nil
+}
+
+func (r *ServiceTreeRepository) GetByID(parentId int64) (*model.ServiceTree, error) {
+	var tree model.ServiceTree
+	err := r.db.Model(&model.ServiceTree{}).Where("id = ?", parentId).First(&tree).Error
+	if err != nil {
+		return nil, err
+	}
+	return &tree, nil
 }

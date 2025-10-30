@@ -25,8 +25,8 @@ func (r *AppRepository) CreateApp(user, app string) error {
 	appRecord := &model.App{
 		User:      user,
 		App:       app,
-		Version:   "", // 初始时无版本，第一次 Update 时才会有版本
-		Status:    "created",
+		Version:   "",         // 初始时无版本，第一次 Update 时才会有版本
+		Status:    "inactive", // 创建时默认为未激活状态
 		StartTime: time.Now(),
 		LastSeen:  time.Now(),
 	}
@@ -94,15 +94,6 @@ func (r *AppRepository) GetActiveAppVersion(user, app string) (*model.AppVersion
 		return nil, err
 	}
 	return &version, nil
-}
-
-// GetRunningAppVersions 获取正在运行的应用版本
-func (r *AppRepository) GetRunningAppVersions(user, app string) ([]*model.AppVersion, error) {
-	var versions []*model.AppVersion
-	if err := r.db.Where("user = ? and app = ? and status = ?", user, app, "running").Find(&versions).Error; err != nil {
-		return nil, err
-	}
-	return versions, nil
 }
 
 // GetAllApps 获取所有应用

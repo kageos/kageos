@@ -46,6 +46,9 @@ func (c *Context) ShouldBind(req interface{}) error {
 	if c.msg == nil {
 		return fmt.Errorf("msg is nil")
 	}
+	if c.body != nil {
+		return json.Unmarshal(c.body, req)
+	}
 	if strings.ToUpper(c.msg.Method) == "GET" {
 		if c.urlQuery == "" {
 			return nil
@@ -67,6 +70,10 @@ func (c *Context) ShouldBind(req interface{}) error {
 func (c *Context) ShouldBindValidate(req interface{}) error {
 	if c.msg == nil {
 		return fmt.Errorf("msg is nil")
+	}
+
+	if c.body != nil {
+		return json.Unmarshal(c.body, req)
 	}
 	if strings.ToUpper(c.msg.Method) == "GET" {
 		if c.urlQuery == "" {

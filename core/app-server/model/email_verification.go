@@ -17,7 +17,7 @@ type EmailVerification struct {
 	Token     string      `json:"token" gorm:"column:token;type:varchar(500);uniqueIndex;not null"`
 	ExpiresAt models.Time `json:"expires_at" gorm:"column:expires_at;type:datetime;not null"`
 	Used      bool        `json:"used" gorm:"column:used;type:boolean;default:false"`
-	Type      string      `json:"type" gorm:"column:type;type:varchar(50);default:'register'"` // register, reset_password, change_email
+	Type      string      `json:"type" gorm:"column:type;type:varchar(50);default:'register'"` // 验证类型: register(注册), reset_password(重置密码), change_email(更换邮箱), login(登录), bind_email(绑定邮箱)
 
 	// 关联字段
 	User *User `json:"user" gorm:"foreignKey:UserID;references:ID"`

@@ -20,3 +20,11 @@ func (a *routerInfo) getCode() string {
 	split := strings.Split(trim, "/")
 	return split[len(split)-1]
 }
+
+func (a *routerInfo) IsDefaultRouter() bool {
+	t := strings.Trim(a.Router, "/")
+	if strings.HasPrefix(t, "_") {
+		return true
+	}
+	return false
+}

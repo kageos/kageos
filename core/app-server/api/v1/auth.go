@@ -34,7 +34,7 @@ func NewAuth(authService *service.AuthService, emailService *service.EmailServic
 // @Success 200 {object} dto.SendEmailCodeResp "发送成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /auth/send_email_code [post]
+// @Router /api/v1/auth/send_email_code [post]
 func (a *Auth) SendEmailCode(c *gin.Context) {
 	var req dto.SendEmailCodeReq
 	var resp *dto.SendEmailCodeResp
@@ -73,7 +73,7 @@ func (a *Auth) SendEmailCode(c *gin.Context) {
 // @Success 200 {object} dto.RegisterResp "注册成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /auth/register [post]
+// @Router /api/v1/auth/register [post]
 func (a *Auth) Register(c *gin.Context) {
 	var req dto.RegisterReq
 	var resp *dto.RegisterResp
@@ -127,7 +127,7 @@ func (a *Auth) Register(c *gin.Context) {
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 401 {string} string "用户名或密码错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /auth/login [post]
+// @Router /api/v1/auth/login [post]
 func (a *Auth) Login(c *gin.Context) {
 	var req dto.LoginReq
 	var resp *dto.LoginResp
@@ -178,7 +178,7 @@ func (a *Auth) Login(c *gin.Context) {
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 401 {string} string "RefreshToken无效"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /auth/refresh [post]
+// @Router /api/v1/auth/refresh [post]
 func (a *Auth) RefreshToken(c *gin.Context) {
 	var req dto.RefreshTokenReq
 	var resp *dto.RefreshTokenResp
@@ -218,7 +218,7 @@ func (a *Auth) RefreshToken(c *gin.Context) {
 // @Success 200 {object} dto.LogoutResp "登出成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /auth/logout [post]
+// @Router /api/v1/auth/logout [post]
 func (a *Auth) Logout(c *gin.Context) {
 	var req dto.LogoutReq
 	var resp *dto.LogoutResp

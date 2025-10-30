@@ -26,7 +26,7 @@ func NewServiceTreeService(config *config.AppManageServiceConfig) *ServiceTreeSe
 
 // CreateServiceTree 创建服务目录
 func (s *ServiceTreeService) CreateServiceTree(ctx context.Context, req *dto.CreateServiceTreeRuntimeReq) (*dto.CreateServiceTreeRuntimeResp, error) {
-	logger.Infof(ctx, "[ServiceTreeService] Creating service tree: %s/%s/%s", req.User, req.App, req.ServiceTree.Name)
+	logger.Infof(ctx, "[ServiceTreeService] Creating service tree: %s/%s/%s", req.User, req.App, req.ServiceTree.Code)
 
 	// 构建应用目录路径
 	appDir := filepath.Join(s.config.AppDir.BasePath, req.User, req.App)
@@ -54,7 +54,7 @@ func (s *ServiceTreeService) CreateServiceTree(ctx context.Context, req *dto.Cre
 		return nil, fmt.Errorf("failed to generate init file: %w", err)
 	}
 
-	// 🔥 新增：自动更新main文件，添加新包的import
+	// 新增：自动更新main文件，添加新包的import
 	if err := s.updateMainFileImports(ctx, req.User, req.App, packagePath); err != nil {
 		logger.Warnf(ctx, "[ServiceTreeService] Failed to update main file imports: %v", err)
 		// 不返回错误，因为服务目录已经创建成功，只是import可能需要手动添加
@@ -67,9 +67,7 @@ func (s *ServiceTreeService) CreateServiceTree(ctx context.Context, req *dto.Cre
 	return &dto.CreateServiceTreeRuntimeResp{
 		User:        req.User,
 		App:         req.App,
-		ServiceTree: req.ServiceTree.Name,
-		Status:      "created",
-		Message:     fmt.Sprintf("Service tree created at %s, main file updated", packageDir),
+		ServiceTree: req.ServiceTree.Code,
 	}, nil
 }
 
@@ -77,7 +75,7 @@ func (s *ServiceTreeService) CreateServiceTree(ctx context.Context, req *dto.Cre
 func (s *ServiceTreeService) calculatePackagePath(ctx context.Context, serviceTree *dto.ServiceTreeRuntimeData) (string, error) {
 	// 如果父目录ID为0，说明是根目录
 	if serviceTree.ParentID == 0 {
-		return serviceTree.Name, nil
+		return serviceTree.Code, nil
 	}
 
 	// 这里需要根据父目录ID获取父目录的路径
@@ -87,18 +85,16 @@ func (s *ServiceTreeService) calculatePackagePath(ctx context.Context, serviceTr
 
 	// 简化实现：假设父目录路径已经包含在FullNamePath中
 	// 去掉开头的"/"并转换为包路径
-	path := strings.TrimPrefix(serviceTree.FullNamePath, "/")
-	path = strings.ReplaceAll(path, "/", string(filepath.Separator))
 
-	return path, nil
+	return serviceTree.GetSubPath(), nil
 }
 
 // generateInitFile 生成init_.go文件
 func (s *ServiceTreeService) generateInitFile(packageDir string, serviceTree *dto.ServiceTreeRuntimeData) error {
 	// 计算RouterGroup
-	routerGroup := serviceTree.FullNamePath
+	routerGroup := serviceTree.GetSubPath()
 	if routerGroup == "" {
-		routerGroup = "/" + serviceTree.Name
+		routerGroup = "/" + serviceTree.Code
 	}
 
 	// 生成init_.go文件内容
@@ -113,7 +109,7 @@ const (
 func WithCurrentRouterGroup(router string) string {
 	return fmt.Sprintf("%%s/%%s", RouterGroup, router)
 }
-`, serviceTree.Name, routerGroup)
+`, serviceTree.Code, routerGroup)
 
 	// 写入文件
 	initFilePath := filepath.Join(packageDir, "init_.go")

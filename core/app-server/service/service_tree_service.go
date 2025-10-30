@@ -2,7 +2,10 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
+
+	"gorm.io/gorm"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
@@ -33,32 +36,46 @@ func (s *ServiceTreeService) CreateServiceTree(ctx context.Context, req *dto.Cre
 		return nil, fmt.Errorf("failed to get app: %w", err)
 	}
 
-	// 检查名称是否已存在
-	exists, err := s.serviceTreeRepo.CheckNameExists(app.ID, req.ParentID, req.Name, 0)
+	var parentTree *model.ServiceTree
+
+	if req.ParentID != 0 {
+		// 检查名称是否已存在
+		parentTree, err = s.serviceTreeRepo.GetByID(req.ParentID)
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("failed to check name exists: %s", err)
+		}
+	}
+
+	fullCodePath := fmt.Sprintf("/%s/%s/%s", app.User, app.Code, req.Code)
+	if parentTree != nil {
+		fullCodePath = parentTree.FullCodePath + "/" + req.Code
+	}
+	exists, err := s.serviceTreeRepo.CheckNameExists(req.ParentID, req.Code, app.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check name exists: %w", err)
 	}
 	if exists {
-		return nil, fmt.Errorf("service tree name '%s' already exists in this parent directory", req.Name)
+		return nil, fmt.Errorf("directory %s already exists", req.Code)
 	}
 
 	// 创建服务目录记录
 	serviceTree := &model.ServiceTree{
-		Title:       req.Title,
-		Name:        req.Name,
-		ParentID:    req.ParentID,
-		Type:        model.ServiceTreeTypePackage,
-		Description: req.Description,
-		Tags:        req.Tags,
-		AppID:       app.ID,
+		Name:         req.Name,
+		Code:         req.Code,
+		ParentID:     req.ParentID,
+		Type:         model.ServiceTreeTypePackage,
+		Description:  req.Description,
+		Tags:         req.Tags,
+		AppID:        app.ID,
+		FullCodePath: fullCodePath,
 	}
 
-	// 保存到数据库（repository会自动计算路径）
-	if err := s.serviceTreeRepo.CreateServiceTree(serviceTree); err != nil {
+	// 保存到数据库
+	if err := s.serviceTreeRepo.CreateServiceTreeWithParentPath(serviceTree, ""); err != nil {
 		return nil, fmt.Errorf("failed to create service tree: %w", err)
 	}
 
-	logger.Infof(ctx, "[ServiceTreeService] Created service tree: %s/%s/%s", req.User, req.App, req.Name)
+	logger.Infof(ctx, "[ServiceTreeService] Created service tree: %s/%s/%s", req.User, req.App, req.Code)
 
 	// 发送NATS消息给app-runtime创建目录结构
 	if err := s.sendCreateServiceTreeMessage(ctx, req.User, req.App, serviceTree); err != nil {
@@ -69,15 +86,14 @@ func (s *ServiceTreeService) CreateServiceTree(ctx context.Context, req *dto.Cre
 	// 返回响应
 	resp := &dto.CreateServiceTreeResp{
 		ID:           serviceTree.ID,
-		Title:        serviceTree.Title,
 		Name:         serviceTree.Name,
+		Code:         serviceTree.Code,
 		ParentID:     serviceTree.ParentID,
 		Type:         serviceTree.Type,
 		Description:  serviceTree.Description,
 		Tags:         serviceTree.Tags,
 		AppID:        serviceTree.AppID,
-		FullIDPath:   serviceTree.FullIDPath,
-		FullNamePath: serviceTree.FullNamePath,
+		FullCodePath: serviceTree.FullCodePath,
 		Status:       "created",
 	}
 
@@ -116,19 +132,19 @@ func (s *ServiceTreeService) UpdateServiceTree(ctx context.Context, req *dto.Upd
 	}
 
 	// 更新字段
-	if req.Title != "" {
-		serviceTree.Title = req.Title
-	}
 	if req.Name != "" {
+		serviceTree.Name = req.Name
+	}
+	if req.Code != "" {
 		// 检查新名称是否已存在
-		exists, err := s.serviceTreeRepo.CheckNameExists(serviceTree.AppID, serviceTree.ParentID, req.Name, req.ID)
+		exists, err := s.serviceTreeRepo.CheckNameExists(serviceTree.ParentID, req.Code, serviceTree.AppID)
 		if err != nil {
 			return fmt.Errorf("failed to check name exists: %w", err)
 		}
 		if exists {
-			return fmt.Errorf("service tree name '%s' already exists in this parent directory", req.Name)
+			return fmt.Errorf("service tree name '%s' already exists in this parent directory", req.Code)
 		}
-		serviceTree.Name = req.Name
+		serviceTree.Code = req.Code
 	}
 	if req.Description != "" {
 		serviceTree.Description = req.Description
@@ -159,7 +175,7 @@ func (s *ServiceTreeService) DeleteServiceTree(ctx context.Context, id int64) er
 		return fmt.Errorf("failed to delete service tree: %w", err)
 	}
 
-	logger.Infof(ctx, "[ServiceTreeService] Deleted service tree: ID=%d, Name=%s", id, serviceTree.Name)
+	logger.Infof(ctx, "[ServiceTreeService] Deleted service tree: ID=%d, Code=%s", id, serviceTree.Code)
 	return nil
 }
 
@@ -167,15 +183,15 @@ func (s *ServiceTreeService) DeleteServiceTree(ctx context.Context, id int64) er
 func (s *ServiceTreeService) convertToGetServiceTreeResp(tree *model.ServiceTree) *dto.GetServiceTreeResp {
 	resp := &dto.GetServiceTreeResp{
 		ID:           tree.ID,
-		Title:        tree.Title,
 		Name:         tree.Name,
+		Code:         tree.Code,
 		ParentID:     tree.ParentID,
+		RefID:        tree.RefID,
 		Type:         tree.Type,
 		Description:  tree.Description,
 		Tags:         tree.Tags,
 		AppID:        tree.AppID,
-		FullIDPath:   tree.FullIDPath,
-		FullNamePath: tree.FullNamePath,
+		FullCodePath: tree.FullCodePath,
 	}
 
 	// 递归处理子节点
@@ -202,26 +218,25 @@ func (s *ServiceTreeService) sendCreateServiceTreeMessage(ctx context.Context, u
 		App:  app,
 		ServiceTree: &dto.ServiceTreeRuntimeData{
 			ID:           serviceTree.ID,
-			Title:        serviceTree.Title,
 			Name:         serviceTree.Name,
+			Code:         serviceTree.Code,
 			ParentID:     serviceTree.ParentID,
 			Type:         serviceTree.Type,
 			Description:  serviceTree.Description,
 			Tags:         serviceTree.Tags,
 			AppID:        serviceTree.AppID,
-			FullIDPath:   serviceTree.FullIDPath,
-			FullNamePath: serviceTree.FullNamePath,
+			FullCodePath: serviceTree.FullCodePath,
 		},
 	}
 
 	// 调用 app-runtime 创建服务目录，使用应用所属的 HostID
-	resp, err := s.appRuntime.CreateServiceTree(ctx, appModel.HostID, &req)
+	_, err = s.appRuntime.CreateServiceTree(ctx, appModel.HostID, &req)
 	if err != nil {
 		return fmt.Errorf("failed to create service tree via app-runtime: %w", err)
 	}
 
-	logger.Infof(ctx, "[ServiceTreeService] Service tree created successfully via app-runtime: %s/%s/%s, status: %s",
-		user, app, serviceTree.Name, resp.Status)
+	logger.Infof(ctx, "[ServiceTreeService] Service tree created successfully via app-runtime: %s/%s/%s",
+		user, app, serviceTree.Code)
 
 	return nil
 }

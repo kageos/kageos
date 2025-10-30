@@ -117,7 +117,7 @@ func (s *AuthService) LoginUser(username, password string, remember bool) (*mode
 	}
 
 	// 检查用户状态
-	if user.Status != "active" {
+	if !user.IsActive() {
 		return nil, "", "", fmt.Errorf("账户未激活，请先验证邮箱")
 	}
 

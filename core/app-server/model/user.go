@@ -14,9 +14,9 @@ type User struct {
 	Username      string         `json:"username" gorm:"column:username;type:varchar(255);uniqueIndex;not null"`     // 登录用户名，唯一
 	Email         string         `json:"email" gorm:"column:email;type:varchar(255);uniqueIndex"`                    // 邮箱，用于注册验证，可为空（第三方登录用户）
 	PasswordHash  string         `json:"-" gorm:"column:password_hash;type:varchar(255)"`                            // 密码哈希，不返回给前端
-	Status        string         `json:"status" gorm:"column:status;type:varchar(50);default:'pending'"`             // active, inactive, pending
+	Status        string         `json:"status" gorm:"column:status;type:varchar(50);default:'pending'"`             // 用户状态: pending(待邮箱验证), active(已激活)
 	EmailVerified bool           `json:"email_verified" gorm:"column:email_verified;type:boolean;default:false"`     // 邮箱是否已验证
-	RegisterType  string         `json:"register_type" gorm:"column:register_type;type:varchar(50);default:'email'"` // 注册方式: email, wechat, github, google等
+	RegisterType  string         `json:"register_type" gorm:"column:register_type;type:varchar(50);default:'email'"` // 注册方式: email(邮箱), wechat(微信), github(GitHub), google(Google), qq(QQ), phone(手机号)
 	ThirdPartyID  string         `json:"third_party_id" gorm:"column:third_party_id;type:varchar(255)"`              // 第三方平台用户ID
 	Avatar        string         `json:"avatar" gorm:"column:avatar;type:varchar(500)"`                              // 头像URL
 	HostID        int64          `json:"host_id" gorm:"column:host_id"`                                              //每个用户分配一个host，相当于把每个用户都分配一个主机
@@ -37,4 +37,14 @@ func (u *User) CheckEmailVerificationRequired() bool {
 // IsPasswordLoginSupported 检查用户是否支持密码登录
 func (u *User) IsPasswordLoginSupported() bool {
 	return u.RegisterType == "email" && u.PasswordHash != ""
+}
+
+// IsActive 检查用户是否为激活状态
+func (u *User) IsActive() bool {
+	return u.Status == "active"
+}
+
+// IsPending 检查用户是否为待验证状态
+func (u *User) IsPending() bool {
+	return u.Status == "pending"
 }

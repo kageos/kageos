@@ -1,7 +1,10 @@
 package v1
 
 import (
+	"encoding/json"
 	"io"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
@@ -36,7 +39,7 @@ func NewApp(appService *service.AppService) *App {
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 401 {string} string "未授权"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /app/create [post]
+// @Router /api/v1/app/create [post]
 func (a *App) CreateApp(c *gin.Context) {
 	var req dto.CreateAppReq
 	var resp dto.CreateAppResp
@@ -68,7 +71,7 @@ func (a *App) CreateApp(c *gin.Context) {
 // @Success 200 {object} dto.UpdateAppResp "更新成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /app/update/{app} [post]
+// @Router /api/v1/app/update/{app} [post]
 func (a *App) UpdateApp(c *gin.Context) {
 	var resp *dto.UpdateAppResp
 	var err error
@@ -106,27 +109,8 @@ func (a *App) UpdateApp(c *gin.Context) {
 	response.OkWithData(c, resp)
 }
 
-// RequestApp 应用接口请求
-// @Summary 应用接口请求 (支持所有 HTTP 方法)
-// @Description
-// @Description **支持的 HTTP 方法：**
-// @Description - GET: 获取数据
-// @Description - POST: 创建数据
-// @Description - PUT: 更新数据
-// @Description - DELETE: 删除数据
-// @Description - PATCH: 部分更新数据
-// @Description - HEAD: 获取响应头
-// @Description - OPTIONS: 获取支持的方法
-// @Description
-// @Description **功能说明：**
-// @Description 此接口通过 Gin 的 Any 方法注册，支持所有 HTTP 方法。会自动透传查询参数和请求体到目标应用。
-// @Description
-// @Description **使用示例：**
-// @Description - GET /api/v1/app/request/myapp/users?page=1
-// @Description - POST /api/v1/app/request/myapp/users (with JSON body)
-// @Description - PUT /api/v1/app/request/myapp/users/123 (with JSON body)
-// @Description - DELETE /api/v1/app/request/myapp/users/123
-// @Tags 应用接口请求
+// RequestApp
+// @Tags 应用接口请求(运行函数)
 // @Accept json
 // @Accept application/x-www-form-urlencoded
 // @Accept multipart/form-data
@@ -138,7 +122,7 @@ func (a *App) UpdateApp(c *gin.Context) {
 // @Success 200 {object} dto.RequestAppResp "请求成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /app/request/{app}/{router} [get]
+// @Router /api/v1/run/{full_code_path} [get]
 func (a *App) RequestApp(c *gin.Context) {
 	var req dto.RequestAppReq
 	var resp *dto.RequestAppResp
@@ -148,16 +132,14 @@ func (a *App) RequestApp(c *gin.Context) {
 	}()
 
 	now := time.Now()
-	// 从JWT Token获取用户信息
-	user := contextx.GetUserInfo(c)
-	if user == "" {
-		response.FailWithMessage(c, "无法获取用户信息")
-		return
-	}
 
 	// 从路径参数获取 app, router
-	app := c.Param("app")
 	router := c.Param("router")
+	split := strings.Split(strings.Trim(router, "/"), "/")
+	user := split[0]
+	app := split[1]
+
+	r := split[2:]
 
 	if app == "" || router == "" {
 		response.FailWithMessage(c, "app and router parameters are required")
@@ -168,10 +150,10 @@ func (a *App) RequestApp(c *gin.Context) {
 	req = dto.RequestAppReq{
 		User:        user,
 		App:         app,
-		Router:      router,           // 路由路径
-		Method:      c.Request.Method, // 应用内部方法名（可选）
+		Router:      strings.Join(r, "/"), // 路由路径
+		Method:      c.Request.Method,     // 应用内部方法名（可选）
 		TraceId:     contextx.GetTraceId(c),
-		RequestUser: user,
+		RequestUser: contextx.GetRequestUser(c),
 	}
 
 	// 绑定请求体（POST、PUT、PATCH 等方法通常有请求体）
@@ -181,6 +163,7 @@ func (a *App) RequestApp(c *gin.Context) {
 			response.FailWithMessage(c, err.Error())
 			return
 		}
+		defer c.Request.Body.Close()
 		req.Body = all
 	}
 
@@ -199,7 +182,107 @@ func (a *App) RequestApp(c *gin.Context) {
 		response.FailWithMessage(c, resp.Error)
 		return
 	}
-	mill := time.Now().Sub(now).Milliseconds()
+	mill := time.Since(now).Milliseconds()
+	metadata := make(map[string]interface{})
+	metadata["trace_id"] = req.TraceId
+	metadata["app"] = req.App
+	metadata["version"] = resp.Version
+	metadata["total_cost_mill"] = mill
+
+	response.OkWithData(c, resp.Result, metadata)
+}
+
+// CallbackApp 回调应用接口
+// @Summary 回调应用
+// @Description 接收外部系统的回调请求并转发到应用内部的 callback 路由。路径格式：/api/v1/callback/*router?_type=回调类型
+// @Tags 应用接口请求(运行函数)
+// @Accept json
+// @Accept application/x-www-form-urlencoded
+// @Accept multipart/form-data
+// @Accept text/plain
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Param router path string true "回调路由路径，格式：/{router}，例如：/api/v1/callback/*router?_type=回调类型"
+// @Param _type query string false "回调类型（可选），用于标识回调类型"
+// @Success 200 {object} dto.RequestAppResp "回调处理成功"
+// @Failure 400 {string} string "请求参数错误"
+// @Failure 401 {string} string "未授权"
+// @Failure 500 {string} string "服务器内部错误"
+// @Router /api/v1/callback/{router} [post]
+func (a *App) CallbackApp(c *gin.Context) {
+	var req dto.RequestAppReq
+	var resp *dto.RequestAppResp
+	var err error
+	defer func() {
+		logger.Infof(c, "RequestApp req:%+v resp:%+v err:%v", req, resp, err)
+	}()
+
+	now := time.Now()
+
+	// 从路径参数获取 app, router
+	router := c.Param("router")
+	method := c.Query("_method")
+	callbackType := c.Query("_type")
+	split := strings.Split(strings.Trim(router, "/"), "/")
+	user := split[0]
+	app := split[1]
+
+	realRouter := split[2:]
+
+	if app == "" || router == "" {
+		response.FailWithMessage(c, "app and router parameters are required")
+		return
+	}
+
+	// 构建请求对象
+	req = dto.RequestAppReq{
+		User:        user,
+		App:         app,
+		Router:      "/_callback", // 路由路径
+		Method:      method,       // 应用内部方法名（可选）
+		TraceId:     contextx.GetTraceId(c),
+		RequestUser: contextx.GetRequestUser(c),
+	}
+	// 绑定请求体（POST、PUT、PATCH 等方法通常有请求体）
+
+	all, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	defer c.Request.Body.Close()
+
+	// 绑定查询参数
+	req.UrlQuery = c.Request.URL.RawQuery
+
+	mp := make(map[string]interface{})
+	mp["method"] = method
+	mp["router"] = strings.Join(realRouter, "/")
+	mp["body"] = all
+	mp["type"] = callbackType
+	// 绑定查询参数
+	req.UrlQuery = c.Request.URL.RawQuery
+	marshal, err := json.Marshal(mp)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	req.Body = marshal
+
+	// 调用服务层
+	resp, err = a.appService.RequestApp(c, &req)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+
+	// 如果应用返回了错误，也通过错误返回
+	if resp.Error != "" {
+		response.FailWithMessage(c, resp.Error)
+		return
+	}
+	mill := time.Since(now).Milliseconds()
 	metadata := make(map[string]interface{})
 	metadata["trace_id"] = req.TraceId
 	metadata["app"] = req.App
@@ -219,7 +302,7 @@ func (a *App) RequestApp(c *gin.Context) {
 // @Success 200 {object} dto.DeleteAppResp "删除成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /app/delete/{app} [delete]
+// @Router /api/v1/app/delete/{app} [delete]
 func (a *App) DeleteApp(c *gin.Context) {
 	var resp *dto.DeleteAppResp
 	var err error
@@ -255,4 +338,63 @@ func (a *App) DeleteApp(c *gin.Context) {
 		return
 	}
 	response.OkWithData(c, resp)
+}
+
+// GetApps 获取应用列表
+// @Summary 获取应用列表
+// @Description 获取当前用户的所有应用列表（支持分页）
+// @Tags 应用管理
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Param page query int false "页码，默认为1" default(1)
+// @Param page_size query int false "每页数量，默认为10" default(10)
+// @Success 200 {object} dto.GetAppsResp "获取成功"
+// @Failure 401 {string} string "未授权"
+// @Failure 500 {string} string "服务器内部错误"
+// @Router /api/v1/app/list [get]
+func (a *App) GetApps(c *gin.Context) {
+	var req dto.GetAppsReq
+	var resp *dto.GetAppsResp
+	var err error
+	defer func() {
+		logger.Infof(c, "GetApps req:%+v resp:%+v err:%v", req, resp, err)
+	}()
+
+	// 从JWT Token获取用户信息
+	user := contextx.GetUserInfo(c)
+	if user == "" {
+		response.FailWithMessage(c, "无法获取用户信息")
+		return
+	}
+
+	// 从查询参数获取分页信息
+	page := c.DefaultQuery("page", "1")
+	pageSize := c.DefaultQuery("page_size", "10")
+
+	// 构建请求对象
+	req = dto.GetAppsReq{
+		PageInfoReq: dto.PageInfoReq{
+			Page:     parseIntWithDefault(page, 1),
+			PageSize: parseIntWithDefault(pageSize, 10),
+		},
+		User: user,
+	}
+
+	resp, err = a.appService.GetApps(c, &req)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.OkWithData(c, resp)
+}
+
+// parseIntWithDefault 解析字符串为整数，如果解析失败则返回默认值
+func parseIntWithDefault(s string, defaultValue int) int {
+	result, err := strconv.Atoi(s)
+	if err != nil || result <= 0 {
+		return defaultValue
+	}
+	return result
 }
