@@ -93,20 +93,10 @@
               :function-data="functionDetail"
             />
             
-            <!-- Form类型：显示 FormRenderer -->
+            <!-- Form类型：显示 FormRenderer（新架构） -->
             <div v-else-if="functionDetail.template_type === 'form'" class="form-container">
-              <div class="form-header">
-                <h2>{{ currentFunction.name || currentFunction.code }}</h2>
-                <p v-if="currentFunction.description" class="form-description">
-                  {{ currentFunction.description }}
-                </p>
-              </div>
               <FormRenderer
-                :fields="functionDetail.request || []"
-                :response-fields="functionDetail.response || []"
-                :method="functionDetail.method"
-                :router="functionDetail.router"
-                mode="form"
+                :function-detail="functionDetail"
               />
             </div>
             
@@ -268,6 +258,61 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- 🔥 应用切换器（底部固定） -->
+    <AppSwitcher
+      :current-app="currentApp"
+      :app-list="appList"
+      :loading-apps="loadingApps"
+      @switch-app="switchApp"
+      @create-app="showCreateAppDialog"
+      @update-app="handleUpdateApp"
+      @delete-app="handleDeleteApp"
+      @load-apps="loadAppList"
+    />
+
+    <!-- 创建应用对话框 -->
+    <el-dialog
+      v-model="createAppDialogVisible"
+      title="创建新应用"
+      width="520px"
+      :close-on-click-modal="false"
+    >
+      <el-form :model="createAppForm" label-width="90px">
+        <el-form-item label="应用名称" required>
+          <el-input
+            v-model="createAppForm.name"
+            placeholder="请输入应用名称（如：客户管理系统）"
+            maxlength="100"
+            show-word-limit
+            clearable
+          />
+        </el-form-item>
+        <el-form-item label="应用代码" required>
+          <el-input
+            v-model="createAppForm.code"
+            placeholder="请输入应用代码（如：crm）"
+            maxlength="50"
+            show-word-limit
+            clearable
+            @input="createAppForm.code = createAppForm.code.toLowerCase()"
+          />
+          <div class="form-tip">
+            <el-icon><InfoFilled /></el-icon>
+            应用代码只能包含小写字母、数字和下划线，长度 2-50 个字符
+          </div>
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="createAppDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitCreateApp" :loading="creatingApp">
+            创建
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -275,30 +320,55 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, ArrowRight, Grid, InfoFilled, Folder } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon } from 'element-plus'
 import ServiceTreePanel from '@/components/ServiceTreePanel.vue'
 import TableRenderer from '@/components/TableRenderer.vue'
-import FormRenderer from '@/components/FormRenderer.vue'
-import { createServiceTree } from '@/api/service-tree'
+import FormRenderer from '@/core/renderers/FormRenderer.vue'
+import AppSwitcher from '@/components/AppSwitcher.vue'
 import { getFunctionDetail } from '@/api/function'
-import type { App, ServiceTree, CreateServiceTreeRequest, Function as FunctionType } from '@/types'
+import { createServiceTree } from '@/api/service-tree'
+import { useAppManager } from '@/composables/useAppManager'
+import { useServiceTree } from '@/composables/useServiceTree'
+import type { ServiceTree, CreateServiceTreeRequest, CreateAppRequest, Function as FunctionType } from '@/types'
 
 const route = useRoute()
 const router = useRouter()
 
-// 当前选中的应用（从MainLayout获取）
-const currentApp = ref<App | null>(null)
-// 服务目录树
-const serviceTree = ref<ServiceTree[]>([])
-const loadingTree = ref(false)
+// 🔥 使用 Composables（组件化逻辑）
+const {
+  currentApp,
+  appList,
+  loading: loadingApps,
+  loadAppList,
+  parseAppFromRoute,
+  switchApp: switchToApp,
+  handleCreateApp,
+  handleUpdateApp,
+  handleDeleteApp
+} = useAppManager()
+
+const {
+  serviceTree,
+  loading: loadingTree,
+  currentNode: currentFunction,
+  loadServiceTree: loadServiceTreeData,
+  locateNodeByRoute,
+  handleCreateDirectory: createDirectory
+} = useServiceTree()
 // 加载状态
 const loading = ref(false)
-// 当前选中的节点/函数
-const currentFunction = ref<ServiceTree | null>(null)
 // 函数详情数据
 const functionDetail = ref<FunctionType | null>(null)
 // 正在加载函数详情
 const loadingFunctionDetail = ref(false)
+
+// 创建应用对话框
+const createAppDialogVisible = ref(false)
+const creatingApp = ref(false)
+const createAppForm = ref<CreateAppRequest>({
+  code: '',
+  name: ''
+})
 // 当前正在定位的路径（防止重复定位）
 const currentLocatingPath = ref<string | null>(null)
 // 右侧边栏显示状态
@@ -320,40 +390,87 @@ const createDirectoryForm = ref<CreateServiceTreeRequest>({
   tags: ''
 })
 
-// 监听应用切换事件
-const handleAppSwitch = (event: CustomEvent) => {
-  console.log('[Workspace] ========== 应用切换 ==========')
-  console.log('[Workspace] 新应用:', event.detail.app?.user + '/' + event.detail.app?.code)
-  currentApp.value = event.detail.app
-  // 清空当前函数
-  currentFunction.value = null
-  showRightSidebar.value = false
-  console.log('[Workspace] 当前服务树节点数:', serviceTree.value.length)
-  // 应用切换后，如果服务树已加载，尝试定位节点
-  if (serviceTree.value.length > 0) {
-    nextTick(() => {
-      console.log('[Workspace] 应用切换后开始定位节点')
-      locateNodeByRoute()
-    })
+// 🔥 初始化：加载应用列表并切换应用
+const initializeWorkspace = async () => {
+  const items = await loadAppList()
+  
+  // 尝试从路由解析应用
+  const app = parseAppFromRoute()
+  if (app) {
+    await switchApp(app)
+  } else if (items.length > 0) {
+    await switchApp(items[0])
   }
 }
 
-// 监听服务目录树更新事件
-const handleServiceTreeUpdate = (event: CustomEvent) => {
-  console.log('[Workspace] ========== 服务目录树更新 ==========')
-  console.log('[Workspace] 服务树节点数:', event.detail.tree?.length || 0)
-  serviceTree.value = event.detail.tree || []
-  loadingTree.value = false
-  // 树更新后，等待 DOM 更新，然后根据路由路径定位到对应节点
+// 🔥 切换应用（封装 Composable 的方法，添加额外逻辑）
+const switchApp = async (app: any) => {
+  currentFunction.value = null
+  showRightSidebar.value = false
+  
+  // 调用 Composable 的切换方法
+  await switchToApp(app, true)
+  
+  // 加载服务树
+  await loadServiceTreeData(app)
+  
+  // 定位节点
   nextTick(() => {
-    console.log('[Workspace] nextTick 后开始定位节点')
-    locateNodeByRoute()
+    locateNodeByRoute(window.location.pathname)
   })
 }
 
-// 根据路由路径定位到对应的节点
-const locateNodeByRoute = () => {
-  // 直接从 window.location.pathname 获取完整路径
+// 🔥 显示创建应用对话框
+const showCreateAppDialog = () => {
+  createAppForm.value = {
+    code: '',
+    name: ''
+  }
+  createAppDialogVisible.value = true
+}
+
+// 🔥 提交创建应用
+const submitCreateApp = async () => {
+  // 表单验证
+  if (!createAppForm.value.name || !createAppForm.value.code) {
+    ElMessage.warning('请输入应用名称和代码')
+    return
+  }
+  
+  // 验证代码格式（只能包含小写字母、数字和下划线）
+  if (!/^[a-z0-9_]+$/.test(createAppForm.value.code)) {
+    ElMessage.warning('应用代码只能包含小写字母、数字和下划线')
+    return
+  }
+  
+  // 验证代码长度
+  if (createAppForm.value.code.length < 2 || createAppForm.value.code.length > 50) {
+    ElMessage.warning('应用代码长度必须在 2-50 个字符之间')
+    return
+  }
+
+  try {
+    creatingApp.value = true
+    console.log('[Workspace] 创建应用请求:', createAppForm.value)
+    
+    const newApp = await handleCreateApp(createAppForm.value)
+    
+    if (newApp) {
+      console.log('[Workspace] 应用创建成功:', newApp)
+      createAppDialogVisible.value = false
+      
+      // 切换到新创建的应用
+      await switchApp(newApp)
+    }
+  } catch (error: any) {
+    console.error('[Workspace] 创建应用失败:', error)
+  } finally {
+    creatingApp.value = false
+  }
+}
+
+// 根据路由路径定位到对应的节点（简化版，调用 Composable）
+const handleLocateNode = () => {
   const currentPath = window.location.pathname
   let fullPath = ''
   
@@ -630,6 +747,17 @@ const handleSubmitCreateDirectory = async () => {
     return
   }
 
+  // 🔥 确保当前应用信息完整
+  if (!currentApp.value.user || !currentApp.value.code) {
+    ElMessage.warning('当前应用信息不完整，请重新选择应用')
+    console.error('[Workspace] 当前应用信息不完整:', {
+      currentApp: currentApp.value,
+      user: currentApp.value?.user,
+      code: currentApp.value?.code
+    })
+    return
+  }
+
   try {
     creatingDirectory.value = true
     // 确保使用当前应用的信息
@@ -642,7 +770,14 @@ const handleSubmitCreateDirectory = async () => {
       description: createDirectoryForm.value.description || '',
       tags: createDirectoryForm.value.tags || ''
     }
-    console.log('创建服务目录请求数据:', requestData)
+    console.log('[Workspace] 创建服务目录请求数据:', requestData)
+    console.log('[Workspace] 当前应用信息:', {
+      id: currentApp.value.id,
+      user: currentApp.value.user,
+      code: currentApp.value.code,
+      name: currentApp.value.name
+    })
+    
     await createServiceTree(requestData)
     ElMessage.success('创建服务目录成功')
     createDirectoryDialogVisible.value = false
@@ -650,8 +785,9 @@ const handleSubmitCreateDirectory = async () => {
     // 刷新服务目录树
     window.dispatchEvent(new CustomEvent('refresh-service-tree'))
   } catch (error: any) {
-    console.error('创建服务目录失败:', error)
-    const errorMessage = error?.response?.data?.message || error?.message || '创建服务目录失败'
+    console.error('[Workspace] 创建服务目录失败:', error)
+    console.error('[Workspace] 错误详情:', error?.response?.data)
+    const errorMessage = error?.response?.data?.msg || error?.response?.data?.message || error?.message || '创建服务目录失败'
     ElMessage.error(errorMessage)
   } finally {
     creatingDirectory.value = false
@@ -660,13 +796,12 @@ const handleSubmitCreateDirectory = async () => {
 
 onMounted(() => {
   console.log('[Workspace] ========== 组件已挂载 ==========')
-  window.addEventListener('app-switched', handleAppSwitch as EventListener)
-  window.addEventListener('service-tree-updated', handleServiceTreeUpdate as EventListener)
-  window.addEventListener('refresh-service-tree', handleRefreshServiceTree as EventListener)
   
-  // 组件挂载后，发送"workspace-ready"事件，请求 MainLayout 重新发送当前状态
-  console.log('[Workspace] 发送 workspace-ready 事件，请求初始状态')
-  window.dispatchEvent(new CustomEvent('workspace-ready'))
+  // 🔥 初始化 Workspace
+  initializeWorkspace()
+  
+  // 保留刷新服务树事件（用于其他地方触发刷新）
+  window.addEventListener('refresh-service-tree', handleRefreshServiceTree as EventListener)
   
   // 组件挂载后，检查是否需要定位节点
   // 使用 setTimeout 确保所有初始化事件都已处理
@@ -689,8 +824,6 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  window.removeEventListener('app-switched', handleAppSwitch as EventListener)
-  window.removeEventListener('service-tree-updated', handleServiceTreeUpdate as EventListener)
   window.removeEventListener('refresh-service-tree', handleRefreshServiceTree as EventListener)
 })
 </script>
@@ -950,5 +1083,14 @@ onUnmounted(() => {
   color: var(--el-text-color-secondary);
   margin: 0;
   line-height: 1.6;
+}
+
+.form-tip {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 </style>

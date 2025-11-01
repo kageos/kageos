@@ -4,6 +4,17 @@ import { useAuthStore } from '@/stores/auth'
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
+    // 🔥 测试页面（放在最前面，避免被其他路由匹配）
+    {
+      path: '/test/form-renderer',
+      name: 'test-form-renderer',
+      component: () => import('../views/Test/FormRendererTest.vue'),
+      meta: {
+        title: '表单渲染器测试',
+        requireAuth: false
+      }
+    },
+
     // 认证页面
     {
       path: '/login',
@@ -43,6 +54,7 @@ const router = createRouter({
         requireAuth: true
       }
     },
+    
     // 重定向根路径到workspace
     {
       path: '/',
@@ -66,6 +78,15 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
 
+  // 🔥 调试日志
+  console.log('[Router Guard] 导航:', {
+    from: from.path,
+    to: to.path,
+    name: to.name,
+    requireAuth: to.meta?.requireAuth,
+    hasToken: !!authStore.token
+  })
+
   // 设置页面标题
   if (to.meta?.title) {
     document.title = `${to.meta.title} - ${import.meta.env.VITE_APP_TITLE || 'AI Agent OS'}`
@@ -76,6 +97,7 @@ router.beforeEach(async (to, from, next) => {
     // 检查登录状态（不自动调用API）
     if (!authStore.token) {
       // 没有token，直接跳转到登录页
+      console.log('[Router Guard] 未登录，跳转到登录页')
       next({ name: 'login', query: { redirect: to.fullPath } })
       return
     }
@@ -83,10 +105,12 @@ router.beforeEach(async (to, from, next) => {
 
   // 如果已登录用户访问登录/注册页面，重定向到工作空间
   if (authStore.isAuthenticated && (to.name === 'login' || to.name === 'register')) {
+    console.log('[Router Guard] 已登录用户访问登录页，跳转到工作空间')
     next({ name: 'workspace' })
     return
   }
 
+  console.log('[Router Guard] 允许导航')
   next()
 })
 

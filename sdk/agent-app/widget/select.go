@@ -6,6 +6,7 @@ type Select struct {
 	Options     []string `json:"options"`     // 选项列表
 	Placeholder string   `json:"placeholder"` // 占位符文本
 	Default     string   `json:"default"`     // 默认值
+	Creatable   bool     `json:"creatable"`   // 是否支持创建新选项
 }
 
 func (s *Select) Config() interface{} {
@@ -29,6 +30,9 @@ func newSelect(widgetParsed map[string]string) *Select {
 	}
 	if defaultValue, exists := widgetParsed["default"]; exists {
 		selectWidget.Default = defaultValue
+	}
+	if creatable, exists := widgetParsed["creatable"]; exists {
+		selectWidget.Creatable = creatable == "true"
 	}
 
 	return selectWidget

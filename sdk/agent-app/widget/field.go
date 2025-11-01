@@ -1,29 +1,5 @@
 package widget
 
-// 数据类型
-const (
-	// DataTypeString 字符串类型
-	DataTypeString = "string"
-	// DataTypeInt 数字类型
-	DataTypeInt = "int"
-	// DataTypeBool 布尔类型
-	DataTypeBool = "bool"
-
-	DataTypeStrings = "[]string"
-	DataTypeNumbers = "[]int"
-	DataTypeFloats  = "[]float"
-	// DataTypeTimestamp 时间类型
-	DataTypeTimestamp = "timestamp"
-	// DataTypeFloat 浮点数类型
-	DataTypeFloat = "float"
-	// DataTypeFiles 文件类型
-	DataTypeFiles = "files"
-	// DataTypeStruct 结构体类型
-	DataTypeStruct = "struct"
-	// DataTypeStructs 结构体数组类型
-	DataTypeStructs = "[]struct"
-)
-
 type Field struct {
 	Code   string     `json:"code"` //从json标签里解析，
 	Desc   string     `json:"desc"` //
@@ -34,6 +10,7 @@ type Field struct {
 		Type   string      `json:"type"`
 		Config interface{} `json:"config"`
 	} `json:"widget"`
+	Children        []*Field `json:"children"`
 	Callbacks       []string `json:"callbacks"`        //
 	TablePermission string   `json:"table_permission"` //read,update,create
 	Validation      string   `json:"validation"`       //完全照搬github.com/go-playground/validator/v10

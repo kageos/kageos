@@ -1,30 +1,24 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { RouterView, useRoute } from 'vue-router'
-import MainLayout from '@/views/layouts/MainLayout.vue'
-
-const route = useRoute()
-
-// 判断是否在认证页面
-const isAuthPage = computed(() => {
-  return ['/login', '/register'].includes(route.path)
-})
+import { RouterView } from 'vue-router'
 </script>
 
 <template>
-  <!-- 认证页面不显示主布局 -->
-  <div v-if="isAuthPage" class="auth-layout">
-    <RouterView />
-  </div>
-
-  <!-- 主应用布局 - 使用MainLayout -->
-  <MainLayout v-else>
-    <RouterView />
-  </MainLayout>
+  <!-- 🔥 移除 MainLayout，所有页面自己管理布局 -->
+  <RouterView />
 </template>
 
-<style scoped>
-.auth-layout {
-  min-height: 100vh;
+<style>
+/* 全局样式 */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif;
 }
 </style>

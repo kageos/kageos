@@ -31,7 +31,7 @@ func ExampleDecodeTable() {
 	request := &CrmTicketSearchReq{}
 	tableModel := &CrmTicket{}
 
-	requestFields, responseFields, err := DecodeTable(request, tableModel)
+	requestFields, responseFields, err := DecodeTable(map[string][]string{}, request, tableModel)
 	if err != nil {
 		fmt.Printf("DecodeTable error: %v\n", err)
 		return
@@ -98,11 +98,12 @@ func TestMVPWidgetJSON(t *testing.T) {
 			Options:     []string{"低", "中", "高"},
 			Placeholder: "请选择优先级",
 			Default:     "中",
+			Creatable:   false,
 		}
 		selectJSON, _ := json.Marshal(selectWidget)
 		t.Logf("Select widget JSON: %s", string(selectJSON))
 
-		expected := `{"options":["低","中","高"],"placeholder":"请选择优先级","default":"中"}`
+		expected := `{"options":["低","中","高"],"placeholder":"请选择优先级","default":"中","creatable":false}`
 		if string(selectJSON) != expected {
 			t.Errorf("Expected select JSON '%s', got '%s'", expected, string(selectJSON))
 		}

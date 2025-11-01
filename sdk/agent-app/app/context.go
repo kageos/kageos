@@ -12,6 +12,16 @@ import (
 	"strings"
 )
 
+func newCallbackContext() *Context {
+	msgInfo := trace.Msg{
+		User:    env.User,
+		App:     env.App,
+		Version: env.Version,
+	}
+	return &Context{
+		msg: &msgInfo,
+	}
+}
 func NewContext(ctx context.Context, req *dto.RequestAppReq) (*Context, error) {
 	msgInfo := trace.Msg{
 		User:        env.User,

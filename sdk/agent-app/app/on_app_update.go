@@ -8,6 +8,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/pkg/msgx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/callback"
 	"os"
 	"path/filepath"
 	"strings"
@@ -376,13 +377,19 @@ func (a *App) getApis() (apis []*model.ApiInfo, createTables []interface{}, err 
 			AddedVersion:   "",         // 不预设版本，让diff逻辑来正确设置
 			UpdateVersions: []string{}, // 初始化空的更新版本列表
 		}
-
+		fieldsCallback := make(map[string][]string)
+		fuzzyMap := base.OnSelectFuzzyMap
+		if len(fuzzyMap) > 0 {
+			for field, _ := range fuzzyMap {
+				fieldsCallback[field] = append(fieldsCallback[field], CallbackTypeOnSelectFuzzy)
+			}
+		}
 		templateType := info.Template.TemplateType()
 		api.TemplateType = string(templateType)
 		if templateType == TemplateTypeTable {
 			template := info.Template.(*TableTemplate)
 			table := template.AutoCrudTable
-			requestFields, responseFields, err := widget.DecodeTable(base.Request, table)
+			requestFields, responseFields, err := widget.DecodeTable(fieldsCallback, base.Request, table)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -403,8 +410,9 @@ func (a *App) getApis() (apis []*model.ApiInfo, createTables []interface{}, err 
 			}
 
 		}
+
 		if templateType == TemplateTypeForm {
-			fields, responseFields, err := widget.DecodeForm(base.Request, base.Response)
+			fields, responseFields, err := widget.DecodeForm(fieldsCallback, base.Request, base.Response)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -477,6 +485,23 @@ func (a *App) onAppUpdate(msg *nats.Msg) {
 		Add:    add,
 		Update: update,
 		Delete: delete,
+	}
+
+	for _, aa := range add {
+		router, err := a.getRouter(aa.Router, aa.Method)
+		if err != nil {
+			a.sendErrorResponse(msg, fmt.Sprintf("Failed to get router: %v", err))
+			return
+		}
+		create := router.Template.GetBaseConfig().OnApiCreate
+		if create != nil {
+			var req callback.OnApiCreateReq
+			_, err := create(newCallbackContext(), &req)
+			if err != nil {
+				a.sendErrorResponse(msg, fmt.Sprintf("Failed to create api: %v", err))
+				return
+			}
+		}
 	}
 	rsp := subjects.Message{
 		User:      env.User,
