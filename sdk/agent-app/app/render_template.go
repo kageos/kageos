@@ -24,4 +24,6 @@ type BaseConfig struct {
 	// 请求响应
 	Request  interface{} `json:"request"`
 	Response interface{} `json:"response"`
+
+	OnSelectFuzzyMap map[string]OnSelectFuzzy `json:"-"`
 }

@@ -233,17 +233,17 @@ const initFormData = () => {
     if (props.initialData && field.code in props.initialData) {
       data[field.code] = props.initialData[field.code]
     }
-    // 否则使用默认值
-    else if (field.widget.config.default !== undefined && field.widget.config.default !== '') {
+    // 否则使用默认值（需要检查 config 是否存在且不为 null）
+    else if (field.widget.config && typeof field.widget.config === 'object' && field.widget.config.default !== undefined && field.widget.config.default !== '') {
       data[field.code] = field.widget.config.default
     }
     // 根据类型设置默认值
     else {
-      switch (field.data.type) {
+      switch (field.data?.type) {
         case 'int':
         case 'float':
         case 'number':
-          data[field.code] = field.widget.config.default || undefined
+          data[field.code] = (field.widget.config && field.widget.config.default) || undefined
           break
         case 'bool':
           data[field.code] = false

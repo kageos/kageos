@@ -1,0 +1,644 @@
+<template>
+  <div class="form-renderer">
+    <div class="form-header">
+      <h2>{{ functionDetail?.name || '表单' }}</h2>
+      <p v-if="functionDetail?.description" class="form-description">
+        {{ functionDetail.description }}
+      </p>
+    </div>
+    
+    <!-- 请求参数表单 -->
+    <el-card class="request-card" shadow="never">
+      <template #header>
+        <div class="card-header">
+          <span class="card-title">请求参数</span>
+        </div>
+      </template>
+      
+      <el-form
+        ref="formRef"
+        :model="formData"
+        label-width="120px"
+        class="form-container"
+      >
+        <el-form-item
+          v-for="field in fields"
+          :key="field.code"
+          :label="field.name"
+          :prop="field.code"
+        >
+          <component :is="renderField(field)" />
+        </el-form-item>
+
+        <el-form-item class="form-actions">
+          <el-button v-if="showSubmitButton" type="primary" size="large" @click="handleRealSubmit">
+            <el-icon><Promotion /></el-icon>
+            提交
+          </el-button>
+          <el-button v-if="showResetButton" size="large" @click="handleReset">
+            <el-icon><RefreshLeft /></el-icon>
+            重置
+          </el-button>
+          
+          <!-- 🔧 调试按钮（开发阶段） -->
+          <template v-if="showDebugButton || showShareButton">
+            <el-divider direction="vertical" />
+            <el-button v-if="showDebugButton" type="info" plain size="small" @click="handlePreviewSubmit">
+              <el-icon><View /></el-icon>
+              预览提交数据
+            </el-button>
+            <el-button v-if="showShareButton" type="success" plain size="small" @click="handleShare">
+              <el-icon><Share /></el-icon>
+              生成分享快照
+            </el-button>
+            <el-button v-if="showDebugButton" plain size="small" @click="showDebug = !showDebug">
+              {{ showDebug ? '隐藏' : '显示' }}调试信息
+            </el-button>
+          </template>
+        </el-form-item>
+      </el-form>
+    </el-card>
+
+    <!-- 返回值展示 -->
+    <el-card v-if="responseFields.length > 0" class="response-card" shadow="never">
+      <template #header>
+        <div class="card-header">
+          <span class="card-title">返回值</span>
+          <el-tag v-if="!responseData" type="info" size="small">等待提交</el-tag>
+          <el-tag v-else type="success" size="small">已返回</el-tag>
+        </div>
+      </template>
+      
+      <el-form
+        label-width="120px"
+        class="response-container"
+        :class="{ 'is-empty': !responseData }"
+      >
+        <el-form-item
+          v-for="field in responseFields"
+          :key="field.code"
+          :label="field.name"
+        >
+          <component :is="renderResponseField(field)" />
+        </el-form-item>
+      </el-form>
+    </el-card>
+
+    <!-- 提交结果 -->
+    <el-card v-if="submitResult" class="result-card" style="margin-top: 20px;">
+      <template #header>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span>提交结果</span>
+          <el-button text @click="submitResult = null">关闭</el-button>
+        </div>
+      </template>
+      <div class="result-content">
+        <h4>提交的数据：</h4>
+        <pre>{{ submitResult }}</pre>
+      </div>
+    </el-card>
+
+    <!-- 分享信息 -->
+    <el-card v-if="shareInfo" class="share-card" style="margin-top: 20px;">
+      <template #header>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span>分享信息</span>
+          <el-button text @click="shareInfo = null">关闭</el-button>
+        </div>
+      </template>
+      <div class="share-content">
+        <h4>快照ID：</h4>
+        <el-input v-model="shareInfo.viewId" readonly>
+          <template #append>
+            <el-button @click="handleCopyViewId">复制</el-button>
+          </template>
+        </el-input>
+        
+        <h4 style="margin-top: 20px;">分享链接：</h4>
+        <el-input v-model="shareInfo.shareUrl" readonly>
+          <template #append>
+            <el-button @click="handleCopyShareUrl">复制</el-button>
+          </template>
+        </el-input>
+        
+        <h4 style="margin-top: 20px;">快照数据：</h4>
+        <pre>{{ shareInfo.snapshot }}</pre>
+      </div>
+    </el-card>
+
+    <!-- 调试信息 -->
+    <el-card v-if="showDebug" class="debug-card" style="margin-top: 20px;">
+      <template #header>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span>调试信息</span>
+          <el-button text @click="showDebug = false">关闭</el-button>
+        </div>
+      </template>
+      <pre>{{ debugInfo }}</pre>
+    </el-card>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, reactive, computed, h } from 'vue'
+import { ElForm, ElFormItem, ElButton, ElCard, ElMessage, ElInput, ElIcon, ElDivider, ElTag } from 'element-plus'
+import { Promotion, RefreshLeft, Share, View } from '@element-plus/icons-vue'
+import type { FieldConfig, FunctionDetail, FieldValue } from '../types/field'
+import type { WidgetRenderProps, WidgetSnapshot } from '../types/widget'
+import { ReactiveFormDataManager } from '../managers/ReactiveFormDataManager'
+import { widgetFactory } from '../factories/WidgetFactory'
+import { BaseWidget } from '../widgets/BaseWidget'
+import { executeFunction } from '@/api/function'
+
+const props = withDefaults(defineProps<{
+  functionDetail: FunctionDetail
+  showSubmitButton?: boolean
+  showShareButton?: boolean
+  showResetButton?: boolean
+  showDebugButton?: boolean
+}>(), {
+  showSubmitButton: true,
+  showShareButton: true,
+  showResetButton: true,
+  showDebugButton: true
+})
+
+// 表单引用
+const formRef = ref()
+
+// 请求字段列表
+const fields = computed(() => props.functionDetail?.request || [])
+
+// 返回值字段列表
+const responseFields = computed(() => props.functionDetail?.response || [])
+
+// 返回值数据
+const responseData = ref<any>(null)
+
+// FormDataManager
+const formManager = new ReactiveFormDataManager()
+
+// Widget 缓存（field_path -> Widget 实例）
+const allWidgets = new Map<string, BaseWidget>()
+
+// 表单数据（用于 el-form 绑定）
+const formData = reactive<Record<string, any>>({})
+
+// 调试信息
+const showDebug = ref(false)
+const debugInfo = ref('')
+
+// 提交结果
+const submitResult = ref<any>(null)
+
+// 分享信息
+const shareInfo = ref<any>(null)
+
+/**
+ * 初始化表单
+ */
+function initializeForm(): void {
+  console.log('[FormRenderer] 初始化表单', props.functionDetail)
+  
+  // 初始化所有字段
+  fields.value.forEach(field => {
+    const fieldPath = field.code
+    
+    // 🔥 使用 Widget 的静态方法获取默认值（面向对象）
+    const WidgetClass = widgetFactory.getWidgetClass(field.widget.type)
+    const defaultValue = WidgetClass.getDefaultValue(field)
+    
+    // 初始化 FormDataManager
+    formManager.initializeField(fieldPath, defaultValue)
+    
+    // 初始化 formData（用于 el-form）
+    formData[field.code] = defaultValue.raw
+  })
+}
+
+/**
+ * 注册 Widget
+ */
+function registerWidget(fieldPath: string, widget: BaseWidget): void {
+  allWidgets.set(fieldPath, widget)
+  console.log(`[FormRenderer] 注册 Widget: ${fieldPath}`)
+}
+
+/**
+ * 注销 Widget
+ */
+function unregisterWidget(fieldPath: string): void {
+  allWidgets.delete(fieldPath)
+  console.log(`[FormRenderer] 注销 Widget: ${fieldPath}`)
+}
+
+/**
+ * 渲染单个字段
+ */
+function renderField(field: FieldConfig): any {
+  const fieldPath = field.code
+  
+  // 检查是否已缓存
+  let widget = allWidgets.get(fieldPath)
+  
+  if (!widget) {
+    // 创建 Widget
+    const WidgetClass = widgetFactory.getWidgetClass(field.widget.type)
+    
+    // 🔥 捕获 functionDetail，避免闭包访问 props 的问题
+    const functionDetail = props.functionDetail
+    
+    const widgetProps: WidgetRenderProps = {
+      field: field,
+      currentFieldPath: fieldPath,
+      value: formManager.getValue(fieldPath),
+      onChange: (newValue: FieldValue) => {
+        formManager.setValue(fieldPath, newValue)
+        // 同步到 formData
+        formData[field.code] = newValue.raw
+      },
+      formManager: formManager,
+      formRenderer: {
+        registerWidget,
+        unregisterWidget,
+        getFunctionMethod: () => functionDetail.method,
+        getFunctionRouter: () => functionDetail.router
+      },
+      depth: 0
+    }
+    
+    widget = new WidgetClass(widgetProps)  // 🔥 使用 widgetProps 而不是 props
+    registerWidget(fieldPath, widget)
+  }
+  
+  return widget.render()
+}
+
+/**
+ * 渲染单个返回值字段（只读展示）
+ */
+function renderResponseField(field: FieldConfig): any {
+  // 如果没有返回数据，显示占位符
+  if (!responseData.value) {
+    return h(ElInput, {
+      modelValue: '',
+      placeholder: `等待提交后显示${field.name}`,
+      disabled: true,
+      style: { width: '100%' }
+    })
+  }
+  
+  // 获取返回值
+  const value = responseData.value[field.code]
+  
+  // 根据字段类型渲染不同的组件
+  const widgetType = field.widget?.type || 'input'
+  
+  // 对于列表/表格类型，显示 JSON
+  if (widgetType === 'table' || widgetType === 'list' || field.data?.type?.includes('[]')) {
+    return h('pre', {
+      style: {
+        background: '#f5f7fa',
+        padding: '12px',
+        borderRadius: '4px',
+        maxHeight: '300px',
+        overflow: 'auto'
+      }
+    }, JSON.stringify(value, null, 2))
+  }
+  
+  // 对于对象类型，显示 JSON
+  if (widgetType === 'form' || field.data?.type === 'struct') {
+    return h('pre', {
+      style: {
+        background: '#f5f7fa',
+        padding: '12px',
+        borderRadius: '4px',
+        maxHeight: '300px',
+        overflow: 'auto'
+      }
+    }, JSON.stringify(value, null, 2))
+  }
+  
+  // 对于文本域
+  if (widgetType === 'text_area' || widgetType === 'textarea') {
+    return h(ElInput, {
+      modelValue: value || '',
+      type: 'textarea',
+      rows: 4,
+      disabled: true,
+      style: { width: '100%' }
+    })
+  }
+  
+  // 默认使用只读输入框
+  return h(ElInput, {
+    modelValue: value !== undefined && value !== null ? String(value) : '',
+    disabled: true,
+    style: { width: '100%' }
+  })
+}
+
+/**
+ * 预览提交数据（调试用）
+ */
+function handlePreviewSubmit(): void {
+  console.log('[FormRenderer] 预览提交数据')
+  
+  const submitData = formManager.prepareSubmitData()
+  
+  // 显示提交结果
+  submitResult.value = JSON.stringify(submitData, null, 2)
+  
+  ElMessage.info({
+    message: '预览提交数据成功！查看下方调试信息',
+    duration: 3000
+  })
+  
+  console.log('[FormRenderer] 提交数据:', submitData)
+}
+
+/**
+ * 准备提交数据（使用 Widget 的转换逻辑）
+ */
+/**
+ * 🔥 准备提交数据（方案 4：统一使用 widget.getRawValueForSubmit()）
+ * 
+ * 核心思想：
+ * 1. 基础组件（Input/Select/...）：直接返回 raw 值
+ * 2. 容器组件（List/Struct）：递归调用子组件的 getRawValueForSubmit()
+ * 3. FormRenderer 只需遍历顶层字段，递归由各组件自己处理
+ */
+function prepareSubmitDataWithTypeConversion(): Record<string, any> {
+  const result: Record<string, any> = {}
+  
+  console.log('[FormRenderer] 🚀 开始收集提交数据（方案4-递归）')
+  
+  // 🔥 统一处理：无论基础类型还是嵌套类型，都调用 getRawValueForSubmit()
+  fields.value.forEach(field => {
+    const fieldPath = field.code
+    const widget = allWidgets.get(fieldPath)
+    
+    if (widget) {
+      result[fieldPath] = widget.getRawValueForSubmit()
+      console.log(`[FormRenderer]   ✅ ${fieldPath}:`, result[fieldPath])
+    } else {
+      console.warn(`[FormRenderer]   ⚠️ ${fieldPath}: Widget 未注册`)
+    }
+  })
+  
+  console.log('[FormRenderer] ✅ 收集完成，最终数据:', result)
+  return result
+}
+
+/**
+ * 真正提交表单到后端
+ */
+async function handleRealSubmit(): Promise<void> {
+  console.log('[FormRenderer] 提交表单到后端')
+  
+  try {
+    // 使用带类型转换的数据准备方法
+    const submitData = prepareSubmitDataWithTypeConversion()
+    console.log('[FormRenderer] 提交数据:', submitData)
+    
+    // 调用后端 API
+    const response = await executeFunction(
+      props.functionDetail.method,
+      props.functionDetail.router,
+      submitData
+    )
+    
+    console.log('[FormRenderer] 后端响应:', response)
+    
+    // 保存返回值
+    if (response && typeof response === 'object') {
+      responseData.value = response
+    } else {
+      // 如果返回的不是对象，包装一下
+      responseData.value = { result: response }
+    }
+    
+    ElMessage.success({
+      message: '表单提交成功！',
+      duration: 3000
+    })
+    
+  } catch (error: any) {
+    console.error('[FormRenderer] 提交失败:', error)
+    
+    // 提取错误信息
+    const errorMessage = error?.response?.data?.msg || 
+                       error?.response?.data?.message || 
+                       error?.message || 
+                       '提交失败'
+    
+    ElMessage.error({
+      message: errorMessage,
+      duration: 5000
+    })
+    
+    // 清空返回值（如果有之前的错误数据）
+    responseData.value = null
+  }
+}
+
+/**
+ * 重置表单
+ */
+function handleReset(): void {
+  formRef.value?.resetFields()
+  formManager.clear()
+  initializeForm()
+  
+  // 清空结果和分享信息
+  submitResult.value = null
+  shareInfo.value = null
+  
+  ElMessage.info('表单已重置')
+}
+
+/**
+ * 分享表单（生成快照）
+ */
+function handleShare(): void {
+  console.log('[FormRenderer] 生成分享快照')
+  
+  const snapshots: WidgetSnapshot[] = []
+  
+  // 捕获所有 Widget 的快照
+  for (const [fieldPath, widget] of allWidgets) {
+    const snapshot = widget.captureSnapshot()
+    snapshots.push(snapshot)
+  }
+  
+  // 生成快照ID（实际项目中应该调用后端API）
+  const viewId = `test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  
+  // 生成分享链接
+  const shareUrl = `${window.location.origin}/test/form-renderer?view_id=${viewId}`
+  
+  // 显示分享信息
+  shareInfo.value = {
+    viewId,
+    shareUrl,
+    snapshot: JSON.stringify({
+      view_id: viewId,
+      function_code: props.functionDetail.code,
+      widget_snapshots: snapshots,
+      metadata: {
+        created_at: new Date().toISOString(),
+        title: props.functionDetail.name
+      }
+    }, null, 2)
+  }
+  
+  ElMessage.success({
+    message: '快照生成成功！查看下方分享信息',
+    duration: 3000
+  })
+  
+  console.log('[FormRenderer] 快照数据:', snapshots)
+}
+
+/**
+ * 复制 ViewID
+ */
+function handleCopyViewId(): void {
+  navigator.clipboard.writeText(shareInfo.value.viewId)
+  ElMessage.success('ViewID 已复制到剪贴板')
+}
+
+/**
+ * 复制分享链接
+ */
+function handleCopyShareUrl(): void {
+  navigator.clipboard.writeText(shareInfo.value.shareUrl)
+  ElMessage.success('分享链接已复制到剪贴板')
+}
+
+/**
+ * 调试输出
+ */
+function handleDebug(): void {
+  showDebug.value = !showDebug.value
+  
+  debugInfo.value = JSON.stringify({
+    functionDetail: props.functionDetail,
+    fields: fields.value,
+    allFieldPaths: formManager.getAllFieldPaths(),
+    submitData: formManager.prepareSubmitData(),
+    registeredWidgets: Array.from(allWidgets.keys()),
+    registeredWidgetTypes: widgetFactory.getRegisteredTypes()
+  }, null, 2)
+}
+
+// 初始化
+initializeForm()
+
+/**
+ * 暴露方法给父组件（如 FormDialog）
+ */
+defineExpose({
+  prepareSubmitDataWithTypeConversion,
+  formManager,
+  allWidgets,
+  handleRealSubmit
+})
+</script>
+
+<style scoped>
+.form-renderer {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.form-header {
+  margin-bottom: 24px;
+}
+
+.form-header h2 {
+  margin: 0 0 8px 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.form-description {
+  margin: 0;
+  font-size: 14px;
+  color: #909399;
+}
+
+.request-card {
+  margin-bottom: 20px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.card-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.form-container {
+  max-width: 100%;
+}
+
+.form-actions {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid #ebeef5;
+}
+
+.response-card {
+  margin-bottom: 20px;
+}
+
+.response-container {
+  max-width: 100%;
+}
+
+.response-container.is-empty {
+  opacity: 0.6;
+}
+
+/* 调试卡片 */
+.result-card,
+.share-card,
+.debug-card {
+  margin-top: 20px;
+  max-width: 100%;
+}
+
+.result-card pre,
+.share-card pre,
+.debug-card pre {
+  max-height: 400px;
+  overflow: auto;
+  font-size: 12px;
+  background: #f5f7fa;
+  padding: 12px;
+  border-radius: 4px;
+  margin: 0;
+}
+
+.result-content h4,
+.share-content h4 {
+  margin: 0 0 10px 0;
+  color: #606266;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.share-content {
+  padding: 10px 0;
+}
+</style>
+

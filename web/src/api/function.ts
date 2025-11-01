@@ -104,6 +104,74 @@ export function tableDeleteRows(method: string, router: string, ids: number[]) {
   return post(url, data)
 }
 
+/**
+ * Select 回调操作 - 模糊查询选项
+ * 
+ * @param method 原函数的 HTTP 方法（GET/POST 等）
+ * @param router 函数路由（如 /luobei/test999/tools/cashier_desk）
+ * @param data 回调数据
+ * @param data.code 字段代码（如 product_id）
+ * @param data.type 查询类型：'by_keyword' | 'by_value'
+ *   - by_keyword: 根据用户输入的关键字模糊搜索（默认）
+ *   - by_value: 根据字段的实际值查询（用于回显、URL 恢复等场景）
+ * @param data.value 查询值（关键字或实际值）
+ * @param data.request 当前表单的所有字段值
+ * @param data.value_type 字段类型（int/string/float 等）
+ * 
+ * @returns Promise<{
+ *   data: {
+ *     error_msg: string,              // 错误信息（空表示成功）
+ *     items: Array<{                  // 选项列表
+ *       value: any,                   // 选项值
+ *       label: string,                // 显示标签
+ *       icon: string,                 // 图标（可选）
+ *       display_info: Record<string, any>  // 额外展示信息
+ *     }>,
+ *     statistics: Record<string, string>  // 聚合统计表达式
+ *   }
+ * }>
+ * 
+ * @example
+ * // 用户输入搜索（by_keyword）
+ * selectFuzzy('POST', '/luobei/test999/tools/cashier', {
+ *   code: 'product_id',
+ *   type: 'by_keyword',
+ *   value: '薯条',
+ *   request: { member_id: 1 },
+ *   value_type: 'int'
+ * })
+ * 
+ * @example
+ * // 根据值查询（by_value）- 用于编辑回显
+ * selectFuzzy('POST', '/luobei/test999/tools/cashier', {
+ *   code: 'product_id',
+ *   type: 'by_value',
+ *   value: 1,
+ *   request: {},
+ *   value_type: 'int'
+ * })
+ */
+export function selectFuzzy(method: string, router: string, data: {
+  code: string
+  type: 'by_keyword' | 'by_value'
+  value: any
+  request: Record<string, any>
+  value_type: string
+}) {
+  const url = `/api/v1/callback${router}?_type=OnSelectFuzzy&_method=${method.toUpperCase()}`
+  
+  console.log('[selectFuzzy] Select 回调查询')
+  console.log('[selectFuzzy]   Original Method:', method)
+  console.log('[selectFuzzy]   URL:', url)
+  console.log('[selectFuzzy]   Query Type:', data.type)
+  console.log('[selectFuzzy]   Field Code:', data.code)
+  console.log('[selectFuzzy]   Search Value:', data.value)
+  console.log('[selectFuzzy]   Full Request Body:', data)
+  
+  // 统一使用 POST 方法
+  return post(url, data)
+}
+
 // 导出数据
 export function exportData(router: string, params: SearchParams) {
   return post(`/api/v1/export`, { router, ...params })

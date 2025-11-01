@@ -138,6 +138,28 @@ func (a *App) CallbackRouter(ctx *Context, resp response.Response) error {
 		}
 		logger.Infof(ctx, "CallbackRouter OnTableDeleteRows success")
 		return nil
+	case CallbackTypeOnSelectFuzzy:
+		var onCallback callback.OnSelectFuzzyReq
+		base := router.Template.GetBaseConfig()
+		err := json.Unmarshal(ctx.body, &onCallback)
+		if err != nil {
+			return err
+		}
+
+		fuzzy := base.OnSelectFuzzyMap[onCallback.Code]
+		if fuzzy == nil {
+			return errors.New("invalid code " + onCallback.Code)
+		}
+		fuzzyResp, err := fuzzy(ctx, &onCallback)
+		if err != nil {
+			return err
+		}
+		err = resp.Form(fuzzyResp).Build()
+		if err != nil {
+			logger.Errorf(ctx, "callback OnSelectFuzzy router:%s error:%s", req.Type, err.Error())
+			return err
+		}
+		logger.Infof(ctx, "CallbackRouter OnSelectFuzzy success")
 	}
 	return nil
 

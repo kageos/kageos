@@ -1,19 +1,46 @@
 package widget
 
 const (
-	TypeInput     = "input"
-	TypeText      = "text"
-	TypeTextArea  = "text_area"
-	TypeSelect    = "select"
-	TypeSwitch    = "switch"
-	TypeTimestamp = "timestamp"
-	TypeUser      = "user"
-	TypeID        = "ID"
-	TypeNumber    = "number"
-	TypeFloat     = "float"
-	TypeFiles     = "files"
-	TypeCheckbox  = "checkbox"
-	TypeRadio     = "radio"
+	TypeInput       = "input"
+	TypeText        = "text"
+	TypeTextArea    = "text_area"
+	TypeSelect      = "select"
+	TypeSwitch      = "switch"
+	TypeTimestamp   = "timestamp"
+	TypeUser        = "user"
+	TypeID          = "ID"
+	TypeNumber      = "number"
+	TypeFloat       = "float"
+	TypeFiles       = "files"
+	TypeCheckbox    = "checkbox"
+	TypeRadio       = "radio"
+	TypeMultiSelect = "multiselect"
+	TypeTable       = "table"
+	TypeForm        = "form"
+)
+
+// 数据类型
+const (
+	// DataTypeString 字符串类型
+	DataTypeString = "string"
+	// DataTypeInt 数字类型
+	DataTypeInt = "int"
+	// DataTypeBool 布尔类型
+	DataTypeBool = "bool"
+
+	DataTypeStrings = "[]string"
+	DataTypeInts    = "[]int"
+	DataTypeFloats  = "[]float"
+	// DataTypeTimestamp 时间类型
+	DataTypeTimestamp = "timestamp"
+	// DataTypeFloat 浮点数类型
+	DataTypeFloat = "float"
+	// DataTypeFiles 文件类型
+	DataTypeFiles = "files"
+	// DataTypeStruct 结构体类型
+	DataTypeStruct = "struct"
+	// DataTypeStructs 结构体数组类型
+	DataTypeStructs = "[]struct"
 )
 
 type Widget interface {
@@ -29,6 +56,8 @@ func NewWidget(widgetType string, widgetParsed map[string]string) Widget {
 		return newTextArea(widgetParsed)
 	case TypeSelect:
 		return newSelect(widgetParsed)
+	case TypeMultiSelect:
+		return newMultiSelect(widgetParsed)
 	case TypeSwitch:
 		return newSwitch(widgetParsed)
 	case TypeTimestamp:

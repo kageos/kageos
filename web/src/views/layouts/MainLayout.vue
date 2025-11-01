@@ -374,6 +374,12 @@ const handleDeleteApp = async (app: App) => {
 
 // 组件挂载时获取应用列表
 onMounted(() => {
+  // 🔥 如果是测试路由，不加载应用列表
+  if (route.path.startsWith('/test/')) {
+    console.log('[MainLayout] 测试路由，跳过应用列表加载')
+    return
+  }
+  
   fetchAppList()
   window.addEventListener('refresh-service-tree', handleRefreshServiceTree as EventListener)
   window.addEventListener('workspace-ready', handleWorkspaceReady as EventListener)

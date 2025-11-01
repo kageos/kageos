@@ -556,7 +556,7 @@ func (a *App) handleAppStatusMessage(msg *nats.Msg) {
 }
 
 //// handleUpdateCallbackRequest 处理 Update Callback 请求（Request/Reply 模式）
-//func (a *App) handleUpdateCallbackRequest(msg *nats.Msg) {
+//func (a *App) handleUpdateCallbackRequest(msg *nats.ErrorMsg) {
 //
 //	var request subjects.Message
 //	if err := json.Unmarshal(msg.Data, &request); err != nil {
