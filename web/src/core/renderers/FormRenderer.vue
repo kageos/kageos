@@ -262,7 +262,8 @@ function renderField(field: FieldConfig): any {
         registerWidget,
         unregisterWidget,
         getFunctionMethod: () => functionDetail.method,
-        getFunctionRouter: () => functionDetail.router
+        getFunctionRouter: () => functionDetail.router,
+        getSubmitData: () => prepareSubmitDataWithTypeConversion()  // 🔥 提供统一的数据收集方法
       },
       depth: 0
     }
@@ -345,7 +346,8 @@ function renderResponseField(field: FieldConfig): any {
 function handlePreviewSubmit(): void {
   console.log('[FormRenderer] 预览提交数据')
   
-  const submitData = formManager.prepareSubmitData()
+  // 🔥 使用统一的数据收集方法（递归收集所有字段）
+  const submitData = prepareSubmitDataWithTypeConversion()
   
   // 显示提交结果
   submitResult.value = JSON.stringify(submitData, null, 2)
@@ -527,7 +529,7 @@ function handleDebug(): void {
     functionDetail: props.functionDetail,
     fields: fields.value,
     allFieldPaths: formManager.getAllFieldPaths(),
-    submitData: formManager.prepareSubmitData(),
+    submitData: prepareSubmitDataWithTypeConversion(),  // 🔥 使用统一的数据收集方法
     registeredWidgets: Array.from(allWidgets.keys()),
     registeredWidgetTypes: widgetFactory.getRegisteredTypes()
   }, null, 2)

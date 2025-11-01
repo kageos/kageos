@@ -101,40 +101,10 @@ export class ListWidget extends BaseWidget {
    * 订阅子组件事件
    */
   private subscribeChildEvents(): void {
-    // TODO: 事件系统尚未实现，暂时注释
-    // 🔥 监听 field:search 事件（Select/MultiSelect 触发）
-    // this.formManager.on('field:search', (eventData: any) => {
-    //   console.log(`[ListWidget] 收到子组件搜索事件:`, eventData)
-    //   
-    //   // 检查是否是当前 List 的子组件
-    //   if (eventData.field_path?.startsWith(this.fieldPath + '[')) {
-    //     this.handleChildSearch(eventData)
-    //   }
-    // })
-    // 
-    // 🔥 监听 field:change 事件（用于触发聚合计算）
-    // this.formManager.on('field:change', (eventData: any) => {
-    //   // 检查是否是当前 List 的子组件
-    //   if (eventData.field_path?.startsWith(this.fieldPath + '[')) {
-    //     this.recalculateAggregation()
-    //   }
-    // })
-  }
-
-  /**
-   * 处理子组件搜索（调用回调 API）
-   */
-  private async handleChildSearch(eventData: any): Promise<void> {
-    console.log(`[ListWidget] 处理子组件搜索:`, eventData)
-    
-    // TODO: 调用实际的回调 API
-    // 目前先模拟返回数据
-    
-    // 模拟异步请求
-    setTimeout(() => {
-      console.log(`[ListWidget] 搜索完成，更新子组件选项`)
-      // 实际项目中，这里会通过事件将结果传递给子组件
-    }, 300)
+    // TODO: 事件系统尚未实现
+    // 未来需要监听：
+    // - field:search 事件（Select/MultiSelect 触发回调）
+    // - field:change 事件（触发聚合计算）
   }
 
   /**

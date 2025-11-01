@@ -17,8 +17,9 @@ export interface WidgetRenderProps {
   formRenderer?: {
     registerWidget: (fieldPath: string, widget: any) => void
     unregisterWidget: (fieldPath: string) => void
-    getFunctionMethod?: () => string  // 🔥 获取函数的 HTTP 方法
-    getFunctionRouter?: () => string  // 🔥 获取函数的路由
+    getFunctionMethod?: () => string        // 🔥 获取函数的 HTTP 方法
+    getFunctionRouter?: () => string        // 🔥 获取函数的路由
+    getSubmitData?: () => Record<string, any>  // 🔥 获取完整的提交数据（递归收集）
   }
   depth?: number  // 嵌套深度
 }

@@ -57,22 +57,10 @@ export class ReactiveFormDataManager {
   }
 
   /**
-   * 准备提交数据（提取所有 raw 值）
+   * ❌ 已删除 prepareSubmitData()
+   * 原因：实现太简单（不处理嵌套），已被 FormRenderer.prepareSubmitDataWithTypeConversion() 取代
+   * 新方法使用 Widget 递归收集，支持任意深度嵌套
    */
-  prepareSubmitData(): Record<string, any> {
-    const result: Record<string, any> = {}
-
-    for (const [fieldPath, fieldValue] of this.data) {
-      // 简单处理：只取顶层字段
-      // TODO: 后续处理嵌套结构
-      if (!fieldPath.includes('.') && !fieldPath.includes('[')) {
-        result[fieldPath] = fieldValue.raw
-      }
-    }
-
-    console.log('[ReactiveFormDataManager] 提交数据:', result)
-    return result
-  }
 
   /**
    * 获取所有字段路径

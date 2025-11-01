@@ -147,7 +147,7 @@ export class SelectWidget extends BaseWidget {
         code: this.field.code,
         type: queryType,                                // 查询类型
         value: query,                                   // 搜索值
-        request: this.formManager.prepareSubmitData(), // 🔥 当前表单的所有字段值
+        request: this.formRenderer.getSubmitData(),    // 🔥 当前表单的所有字段值（递归收集）
         value_type: this.field.data?.type || 'string'  // 字段类型
       }
 
