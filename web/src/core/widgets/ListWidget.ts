@@ -346,23 +346,24 @@ export class ListWidget extends BaseWidget {
       // 初始化到 FormDataManager
       this.formManager.setValue(tempFieldPath, fieldValue)
       
-      // 创建子 Widget
-      const childProps: WidgetRenderProps = {
-        field: itemField,
-        currentFieldPath: tempFieldPath,
-        value: this.formManager.getValue(tempFieldPath),
-        onChange: (newValue: FieldValue) => {
-          this.formManager.setValue(tempFieldPath, newValue)
-        },
-        formManager: this.formManager,
-        formRenderer: this.formRenderer,
-        depth: this.depth + 1
-      }
-      
-      const widget = new WidgetClass(childProps)
-      
-      if (widget) {
-        widgets[itemField.code] = markRaw(widget)
+      // ✅ 使用 WidgetBuilder 创建子 Widget
+      try {
+        const widget = WidgetBuilder.create({
+          field: itemField,
+          fieldPath: tempFieldPath,
+          formManager: this.formManager,
+          formRenderer: this.formRenderer,
+          depth: this.depth + 1,
+          initialValue: fieldValue
+        })
+        
+        if (widget) {
+          widgets[itemField.code] = markRaw(widget)
+        }
+      } catch (error) {
+        ErrorHandler.handleWidgetError(`ListWidget.createFormWidgets[${itemField.code}]`, error, {
+          showMessage: false
+        })
       }
     }
     
