@@ -5,6 +5,8 @@ import './styles/theme.scss'
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
+import ElementPlus from 'element-plus'
+import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
 
 import App from './App.vue'
 import router from './router'
@@ -16,6 +18,11 @@ const pinia = createPinia()
 
 // 配置持久化插件
 pinia.use(piniaPluginPersistedstate)
+
+// 配置 Element Plus 中文语言包
+app.use(ElementPlus, {
+  locale: zhCn
+})
 
 app.use(pinia)
 app.use(router)
