@@ -19,9 +19,14 @@ export class WidgetFactory {
     // 🔥 注册默认 Widget
     this.registerWidget('input', InputWidget)
     this.registerWidget('text', InputWidget)  // text 也使用 InputWidget
+    this.registerWidget('number', InputWidget)  // number 使用 InputWidget（type="number"）
+    this.registerWidget('float', InputWidget)  // float 使用 InputWidget（type="number"）
+    this.registerWidget('ID', InputWidget)  // ID 使用 InputWidget（通常禁用或只读）
+    this.registerWidget('timestamp', InputWidget)  // timestamp 暂时使用 InputWidget（TODO: 实现 DatePicker）
     this.registerWidget('textarea', TextAreaWidget)
     this.registerWidget('text_area', TextAreaWidget)  // text_area 别名
     this.registerWidget('select', SelectWidget)
+    this.registerWidget('multiselect', SelectWidget)  // multiselect 暂时使用 SelectWidget（TODO: 实现 MultiSelectWidget）
     this.registerWidget('list', ListWidget)
     this.registerWidget('table', ListWidget)  // table 是 list 的别名（后端可能返回 table）
     this.registerWidget('form', FormWidget)  // 🔥 form 组件（用于 data.type="struct" 的字段）

@@ -133,8 +133,9 @@ export abstract class BaseWidget implements IWidgetSnapshot {
    * 根据字段类型转换值
    */
   protected convertValueByType(value: any): any {
+    // 🔥 空值统一返回 null（后端可以正确处理 null，但不能处理空字符串转数字）
     if (value === null || value === undefined || value === '') {
-      return value
+      return null
     }
     
     // 🔥 获取字段类型：优先使用 data.type，如果为空则使用 widget.type
@@ -149,12 +150,12 @@ export abstract class BaseWidget implements IWidgetSnapshot {
       case 'integer':
       case 'number':  // 🔥 widget.type 可能是 'number'
         const intValue = Number(value)
-        return isNaN(intValue) ? value : intValue
+        return isNaN(intValue) ? null : intValue  // 🔥 转换失败返回 null
       
       case 'float':
       case 'double':
         const floatValue = Number(value)
-        return isNaN(floatValue) ? value : floatValue
+        return isNaN(floatValue) ? null : floatValue  // 🔥 转换失败返回 null
       
       case 'bool':
       case 'boolean':
@@ -172,7 +173,8 @@ export abstract class BaseWidget implements IWidgetSnapshot {
       case 'textarea':
       case 'text_area':
       default:
-        return String(value)
+        // 🔥 字符串类型：空值返回 null，有值返回字符串
+        return value ? String(value) : null
     }
   }
 
