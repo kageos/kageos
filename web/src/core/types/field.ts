@@ -7,7 +7,7 @@
  * Widget 配置（基础）
  */
 export interface WidgetConfig {
-  type: string  // 'input', 'select', 'multiselect', 'list', etc.
+  type: string  // 'input', 'select', 'multiselect', 'table', etc.
   config?: Record<string, any>  // 各 Widget 的特定配置
 }
 
