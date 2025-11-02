@@ -272,6 +272,98 @@ export abstract class BaseWidget implements IWidgetSnapshot {
   }
 
   /**
+   * 🔥 渲染搜索输入框（用于 TableRenderer）
+   * 子类可以覆盖此方法来自定义搜索输入
+   * @param searchType 搜索类型，如 'eq', 'like', 'gte,lte', 'in'
+   * @returns VNode（Vue 虚拟节点）
+   */
+  renderSearchInput(searchType: string): any {
+    // 根据搜索类型返回不同的输入组件
+    if (searchType.includes('eq')) {
+      return this.renderExactSearch()
+    }
+    if (searchType.includes('like')) {
+      return this.renderFuzzySearch()
+    }
+    if (searchType.includes('gte') && searchType.includes('lte')) {
+      return this.renderRangeSearch()
+    }
+    if (searchType.includes('in')) {
+      return this.renderInSearch()
+    }
+    
+    // 默认：精确搜索
+    return this.renderExactSearch()
+  }
+
+  /**
+   * 渲染精确搜索输入框（eq）
+   * 子类可以覆盖
+   */
+  protected renderExactSearch(): any {
+    // 默认实现：返回配置对象，由 TableRenderer 渲染
+    return {
+      component: 'ElInput',
+      props: {
+        placeholder: `请输入${this.field.name}`,
+        clearable: true,
+        style: { width: '200px' }
+      }
+    }
+  }
+
+  /**
+   * 渲染模糊搜索输入框（like）
+   * 子类可以覆盖
+   */
+  protected renderFuzzySearch(): any {
+    // 默认实现：和精确搜索一样
+    return {
+      component: 'ElInput',
+      props: {
+        placeholder: `请输入${this.field.name}`,
+        clearable: true,
+        style: { width: '200px' }
+      }
+    }
+  }
+
+  /**
+   * 渲染范围搜索输入框（gte, lte）
+   * 子类应该覆盖此方法以提供类型特定的范围输入
+   */
+  protected renderRangeSearch(): any {
+    // 默认实现：两个文本输入框
+    return {
+      component: 'RangeInput',
+      props: {
+        minPlaceholder: `最小${this.field.name}`,
+        maxPlaceholder: `最大${this.field.name}`,
+        inputType: 'text'
+      }
+    }
+  }
+
+  /**
+   * 渲染包含搜索输入框（in）
+   * 子类可以覆盖
+   */
+  protected renderInSearch(): any {
+    // 默认实现：下拉选择（如果有 options）
+    const options = this.field.widget?.config?.options || []
+    
+    return {
+      component: 'ElSelect',
+      props: {
+        placeholder: `请选择${this.field.name}`,
+        clearable: true,
+        style: { width: '200px' },
+        options: options
+      }
+    }
+  }
+
+  /**
    * 🔥 发出事件
    * @param eventType 事件类型，如 'field:search', 'field:change'
    * @param payload 事件数据
