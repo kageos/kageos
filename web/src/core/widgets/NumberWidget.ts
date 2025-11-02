@@ -6,13 +6,14 @@
 import { h } from 'vue'
 import { ElInput } from 'element-plus'
 import { BaseWidget } from './BaseWidget'
+import { Logger } from '../utils/logger'
 import type { NumberLikeConfig } from './types/widget-config'
 import { createInputSlots, getDisabledState, getPlaceholder } from './utils/render-helpers'
 
 export class NumberWidget extends BaseWidget {
   private numberConfig: NumberLikeConfig
 
-  constructor(props: any) {
+  constructor(props: WidgetRenderProps) {
     super(props)
     this.numberConfig = (this.field.widget?.config as NumberLikeConfig) || {}
   }

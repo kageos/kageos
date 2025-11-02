@@ -18,7 +18,7 @@ interface SwitchConfig {
 export class SwitchWidget extends BaseWidget {
   private switchConfig: SwitchConfig
 
-  constructor(props: any) {
+  constructor(props: WidgetRenderProps) {
     super(props)
     this.switchConfig = (this.field.widget?.config as SwitchConfig) || {}
   }

@@ -6,6 +6,7 @@
 import { h } from 'vue'
 import { ElDatePicker } from 'element-plus'
 import { BaseWidget } from './BaseWidget'
+import { Logger } from '../utils/logger'
 import { getDateTimeShortcuts } from './utils/date-shortcuts'
 
 interface TimestampConfig {
@@ -21,7 +22,7 @@ interface TimestampConfig {
 export class TimestampWidget extends BaseWidget {
   private timestampConfig: TimestampConfig
 
-  constructor(props: any) {
+  constructor(props: WidgetRenderProps) {
     super(props)
     this.timestampConfig = (this.field.widget?.config as TimestampConfig) || {}
   }
