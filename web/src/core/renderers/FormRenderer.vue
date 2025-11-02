@@ -703,6 +703,17 @@ defineExpose({
   width: 100% !important;
 }
 
+/* 🔥 确保返回值的卡片和表格组件占满宽度 */
+.response-container :deep(.el-card),
+.response-container :deep(.el-table) {
+  width: 100% !important;
+}
+
+/* 🔥 确保返回值的表单组件占满宽度 */
+.response-container :deep(.el-form) {
+  width: 100% !important;
+}
+
 .response-container.is-empty {
   opacity: 0.6;
 }

@@ -128,20 +128,25 @@ export class ResponseFormWidget extends BaseWidget {
         padding: '20px'
       },
       style: {
+        width: '100%',  // 确保卡片占满宽度
         backgroundColor: 'var(--el-bg-color-page)',
         border: '1px solid var(--el-border-color-lighter)'
       }
     }, {
       default: () => h(ElForm, {
         labelWidth: '140px',  // 增加标签宽度，使布局更宽松
-        labelPosition: 'right' as const
+        labelPosition: 'right' as const,
+        style: {
+          width: '100%'  // 确保表单占满宽度
+        }
       }, {
         default: () => fields.map(field => 
           h(ElFormItem, {
             key: field.code,
             label: field.name,
             style: {
-              marginBottom: '20px'  // 增加表单项间距
+              marginBottom: '20px',  // 增加表单项间距
+              width: '100%'  // 确保表单项占满宽度
             }
           }, {
             default: () => {
