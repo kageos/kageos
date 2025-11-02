@@ -5,6 +5,8 @@
 
 import type { BaseWidget } from '../widgets/BaseWidget'
 import { InputWidget } from '../widgets/InputWidget'
+import { NumberWidget } from '../widgets/NumberWidget'
+import { FloatWidget } from '../widgets/FloatWidget'
 import { TextAreaWidget } from '../widgets/TextAreaWidget'
 import { SelectWidget } from '../widgets/SelectWidget'
 import { ListWidget } from '../widgets/ListWidget'
@@ -17,19 +19,28 @@ export class WidgetFactory {
     this.widgetMap = new Map()
     
     // 🔥 注册默认 Widget
+    // 文本输入
     this.registerWidget('input', InputWidget)
-    this.registerWidget('text', InputWidget)  // text 也使用 InputWidget
-    this.registerWidget('number', InputWidget)  // number 使用 InputWidget（type="number"）
-    this.registerWidget('float', InputWidget)  // float 使用 InputWidget（type="number"）
-    this.registerWidget('ID', InputWidget)  // ID 使用 InputWidget（通常禁用或只读）
+    this.registerWidget('text', InputWidget)  // text 别名
+    this.registerWidget('ID', InputWidget)  // ID 字段（通常禁用或只读）
     this.registerWidget('timestamp', InputWidget)  // timestamp 暂时使用 InputWidget（TODO: 实现 DatePicker）
+    
+    // 数字输入
+    this.registerWidget('number', NumberWidget)  // 🔥 整数输入（独立组件）
+    this.registerWidget('float', FloatWidget)    // 🔥 浮点数输入（独立组件）
+    
+    // 文本域
     this.registerWidget('textarea', TextAreaWidget)
     this.registerWidget('text_area', TextAreaWidget)  // text_area 别名
+    
+    // 选择器
     this.registerWidget('select', SelectWidget)
     this.registerWidget('multiselect', SelectWidget)  // multiselect 暂时使用 SelectWidget（TODO: 实现 MultiSelectWidget）
+    
+    // 容器组件
     this.registerWidget('list', ListWidget)
-    this.registerWidget('table', ListWidget)  // table 是 list 的别名（后端可能返回 table）
-    this.registerWidget('form', FormWidget)  // 🔥 form 组件（用于 data.type="struct" 的字段）
+    this.registerWidget('table', ListWidget)  // table 是 list 的别名
+    this.registerWidget('form', FormWidget)   // form 组件（用于 data.type="struct"）
     
     console.log('[WidgetFactory] 初始化，已注册 Widget:', Array.from(this.widgetMap.keys()))
   }
