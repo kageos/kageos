@@ -225,7 +225,7 @@ watch(() => props.currentNodeId, (nodeId) => {
   
   .node-icon {
     font-size: 16px;
-    color: var(--el-color-primary);  // ✅ 使用深色主题色（现代风格）
+    color: #409eff;  // ✅ 深蓝色（现代风格，更醒目）
     flex-shrink: 0;
     transition: color 0.2s ease;
   }
@@ -286,28 +286,8 @@ watch(() => props.currentNodeId, (nodeId) => {
     }
     
     .node-icon {
-      color: var(--el-color-primary);
+      color: #2b85e4;  // ✅ 选中状态使用更深的蓝色
     }
-  }
-}
-
-// ✅ 为图标添加更深的颜色（现代风格）
-.tree-node .node-icon {
-  // 深色模式下的颜色
-  @media (prefers-color-scheme: dark) {
-    color: #409eff;  // 深蓝色，更现代
-  }
-  
-  // 浅色模式下的颜色
-  @media (prefers-color-scheme: light) {
-    color: #409eff;  // 保持一致的深蓝色
-  }
-}
-
-// ✅ 选中状态下的图标颜色更深
-:deep(.el-tree-node.is-current > .el-tree-node__content) {
-  .tree-node .node-icon {
-    color: #2b85e4;  // 更深的蓝色
   }
 }
 
