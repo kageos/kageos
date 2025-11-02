@@ -28,11 +28,10 @@
       >
         <template #default="{ node, data }">
           <span class="tree-node">
-            <el-icon class="node-icon" :class="getNodeIconClass(data)">
-              <Folder v-if="data.type === 'package'" />
-              <Grid v-else-if="isTableFunction(data)" />
-              <Document v-else />
+            <el-icon v-if="data.type === 'package'" class="node-icon" :class="getNodeIconClass(data)">
+              <Folder />
             </el-icon>
+            <span v-else class="node-icon fx-icon" :class="getNodeIconClass(data)">fx</span>
             <span class="node-label">{{ node.label }}</span>
             
             <!-- 更多操作按钮 - 鼠标悬停时显示 -->
@@ -77,7 +76,7 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
-import { Folder, Document, Grid, Plus, MoreFilled, Link } from '@element-plus/icons-vue'
+import { Folder, Plus, MoreFilled, Link } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/types'
 
 interface Props {
@@ -268,6 +267,15 @@ watch(() => props.currentNodeId, (nodeId) => {
     }
     
     &.form-icon {
+      color: #6366f1;
+      opacity: 0.8;
+    }
+    
+    &.fx-icon {
+      font-size: 12px;
+      font-weight: 600;
+      font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+      font-style: italic;
       color: #6366f1;
       opacity: 0.8;
     }
