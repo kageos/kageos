@@ -140,10 +140,9 @@ const selectOptions = computed(() => {
 // 🔥 通过 Widget 获取搜索输入配置
 const inputConfig = computed(() => {
   try {
-    // ✅ 使用 WidgetBuilder 创建临时 Widget
+    // ✅ 使用 WidgetBuilder 创建临时 Widget（formManager 为 null）
     const tempWidget = WidgetBuilder.createTemporary({
-      field: props.field,
-      useMockFormManager: true
+      field: props.field
     })
     
     // 🔥 调用 Widget 的 renderSearchInput 方法

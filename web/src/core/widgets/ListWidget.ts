@@ -613,11 +613,10 @@ export class ListWidget extends BaseWidget {
    */
   private renderCellByWidget(value: FieldValue, field: FieldConfig): any {
     try {
-      // ✅ 使用 WidgetBuilder 创建临时 Widget
+      // ✅ 使用 WidgetBuilder 创建临时 Widget（不需要 formManager）
       const tempWidget = WidgetBuilder.createTemporary({
         field: field,
-        value: value,
-        customFormManager: this.formManager  // 使用当前 formManager，避免不必要的 mock
+        value: value
       })
       
       // 🔥 调用 Widget 的 renderTableCell 方法
