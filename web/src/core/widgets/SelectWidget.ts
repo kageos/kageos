@@ -235,13 +235,6 @@ export class SelectWidget extends BaseWidget {
       displayInfo: selectedOption?.displayInfo,
       statistics: this.currentStatistics
     })
-    
-      field_path: this.fieldPath,
-      raw: value,
-      display: displayValue,
-      has_displayInfo: !!meta.displayInfo,
-      has_statistics: !!meta.statistics
-    })
   }
 
   /**
