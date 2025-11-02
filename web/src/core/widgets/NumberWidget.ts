@@ -33,33 +33,24 @@ export class NumberWidget extends BaseWidget {
   render() {
     const currentValue = this.getValue()
     
-    return h('div', { class: 'number-widget' }, [
-      h('label', {
-        style: {
-          display: 'block',
-          marginBottom: '8px',
-          fontSize: '14px',
-          color: '#606266'
-        }
-      }, this.field.name),
-      h(ElInput, {
-        type: 'number',
-        modelValue: currentValue?.raw,
-        placeholder: this.numberConfig.placeholder || `请输入${this.field.name}`,
-        disabled: this.numberConfig.disabled || false,
-        min: this.numberConfig.min,
-        max: this.numberConfig.max,
-        step: this.numberConfig.step || 1,
-        onInput: (value: string | number) => {
-          // 🔥 整数处理：转为整数或 null
-          const numValue = value === '' ? null : parseInt(String(value), 10)
-          this.updateRawValue(numValue)
-        }
-      }, {
-        prepend: this.numberConfig.prepend ? () => this.numberConfig.prepend : undefined,
-        append: this.numberConfig.append ? () => this.numberConfig.append : undefined
-      })
-    ])
+    // 🔥 不渲染 label，由 FormRenderer 的 el-form-item 统一渲染
+    return h(ElInput, {
+      type: 'number',
+      modelValue: currentValue?.raw,
+      placeholder: this.numberConfig.placeholder || `请输入${this.field.name}`,
+      disabled: this.numberConfig.disabled || false,
+      min: this.numberConfig.min,
+      max: this.numberConfig.max,
+      step: this.numberConfig.step || 1,
+      onInput: (value: string | number) => {
+        // 🔥 整数处理：转为整数或 null
+        const numValue = value === '' ? null : parseInt(String(value), 10)
+        this.updateRawValue(numValue)
+      }
+    }, {
+      prepend: this.numberConfig.prepend ? () => this.numberConfig.prepend : undefined,
+      append: this.numberConfig.append ? () => this.numberConfig.append : undefined
+    })
   }
 }
 
