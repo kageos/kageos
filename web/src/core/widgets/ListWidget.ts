@@ -1,9 +1,10 @@
 /**
- * ListWidget - 列表组件（表格+表单混合模式）
+ * ListWidget - 列表组件（表格+表单混合模式 + 事件驱动）
  * 
  * 设计理念：
  * - 已填数据用表格展示（紧凑、清晰）
  * - 新增/编辑用表单展示（明确的编辑状态）
+ * - 事件驱动：监听子组件事件，协调回调和聚合
  * - 符合传统 CRUD 的用户习惯
  */
 
@@ -14,6 +15,8 @@ import { BaseWidget } from './BaseWidget'
 import { widgetFactory } from '../factories/WidgetFactory'
 import type { FieldConfig, FieldValue } from '../types/field'
 import type { WidgetRenderProps } from '../types/widget'
+import { selectFuzzy } from '@/api/function'  // 🔥 导入回调 API
+import { ExpressionParser } from '../utils/ExpressionParser'  // 🔥 导入表达式解析器
 
 /**
  * List 配置
@@ -63,6 +66,12 @@ export class ListWidget extends BaseWidget {
   // 🔥 编辑状态
   private editingIndex: any  // null 表示不在编辑，数字表示编辑第几行
   private isAdding: any      // 是否正在新增
+  
+  // 🔥 聚合统计配置（从回调获取）
+  private statisticsConfig: any
+  
+  // 🔥 聚合统计结果（计算后的值）
+  private statisticsResult: any
 
   /**
    * ListWidget 的默认值是空数组
@@ -83,6 +92,8 @@ export class ListWidget extends BaseWidget {
     this.formWidgets = ref<ListItemWidgets>({})
     this.editingIndex = ref<number | null>(null)
     this.isAdding = ref(false)
+    this.statisticsConfig = ref<Record<string, string>>({})
+    this.statisticsResult = ref<Record<string, any>>({})
     
     // 解析 List 配置
     this.listConfig = (this.field.widget?.config as ListConfig) || {}
@@ -138,7 +149,7 @@ export class ListWidget extends BaseWidget {
   }
 
   /**
-   * 🔥 订阅搜索事件
+   * 🔥 订阅搜索事件（核心：调用后端回调）
    */
   private subscribeSearchEvent(field: FieldConfig): void {
     // 监听所有行的该字段的搜索事件
@@ -149,17 +160,94 @@ export class ListWidget extends BaseWidget {
     
     this.formManager.on(eventPattern, async (event: any) => {
       console.log(`[ListWidget] 收到子组件搜索事件:`, event)
+      console.log(`[ListWidget]   触发字段: ${event.fieldPath}`)
+      console.log(`[ListWidget]   查询关键词: "${event.query}"`)
       
-      // TODO: 调用回调，获取选项
-      // 这里暂时先用 event.callback 返回空数组
-      if (event.callback) {
-        event.callback([])
+      try {
+        // 1. 获取函数的 method 和 router
+        if (!this.formRenderer?.getFunctionMethod || !this.formRenderer?.getFunctionRouter) {
+          console.error(`[ListWidget] formRenderer 不完整，无法调用回调`)
+          if (event.callback) event.callback([])
+          return
+        }
+        
+        const method = this.formRenderer.getFunctionMethod()
+        const router = this.formRenderer.getFunctionRouter()
+        
+        if (!router) {
+          console.error(`[ListWidget] 无法获取函数路由`)
+          if (event.callback) event.callback([])
+          return
+        }
+        
+        // 2. 构建回调请求体
+        const queryType: 'by_keyword' | 'by_value' = event.isByValue ? 'by_value' : 'by_keyword'
+        const requestBody = {
+          code: field.code,
+          type: queryType,
+          value: event.query,
+          request: this.formRenderer.getSubmitData?.() || {},  // 🔥 获取完整表单数据
+          value_type: field.data?.type || 'string'
+        }
+        
+        console.log(`[ListWidget] 调用后端回调:`, {
+          method,
+          router,
+          field: field.code,
+          query: event.query
+        })
+        
+        // 3. 调用回调 API
+        const response = await selectFuzzy(method, router, requestBody)
+        
+        console.log(`[ListWidget] 回调响应:`, response)
+        
+        // 4. 解析响应
+        const { items, error_msg, statistics } = response || {}
+        
+        if (error_msg) {
+          ElMessage.error(error_msg)
+          if (event.callback) event.callback([])
+          return
+        }
+        
+        // 5. 保存聚合配置
+        if (statistics && typeof statistics === 'object') {
+          this.statisticsConfig.value = statistics
+          console.log(`[ListWidget] 保存聚合配置:`, statistics)
+          
+          // 🔥 立即触发一次计算（如果已有数据）
+          if (this.savedData.value.length > 0) {
+            this.recalculateStatistics()
+          }
+        }
+        
+        // 6. 转换选项格式并返回给 SelectWidget
+        const options = (items || []).map((item: any) => ({
+          label: item.label || String(item.value),
+          value: item.value,
+          disabled: false,
+          displayInfo: item.display_info,
+          icon: item.icon
+        }))
+        
+        console.log(`[ListWidget] 返回 ${options.length} 个选项给子组件`)
+        
+        // 7. 通过回调函数返回选项
+        if (event.callback) {
+          event.callback(options)
+        }
+        
+      } catch (error: any) {
+        console.error(`[ListWidget] 回调失败:`, error)
+        ElMessage.error(error?.message || '查询失败')
+        if (event.callback) event.callback([])
       }
     })
   }
 
   /**
-   * 🔥 订阅变化事件
+   * 🔥 订阅变化事件（触发聚合计算）
    */
   private subscribeChangeEvent(field: FieldConfig): void {
     // 监听所有行的该字段的变化事件
@@ -170,9 +258,82 @@ export class ListWidget extends BaseWidget {
     
     this.formManager.on(eventPattern, (event: any) => {
       console.log(`[ListWidget] 收到子组件变化事件:`, event)
+      console.log(`[ListWidget]   触发字段: ${event.fieldPath}`)
       
-      // TODO: 重新计算聚合统计
-      // this.recalculateStatistics()
+      // 🔥 重新计算聚合统计
+      this.recalculateStatistics()
+    })
+  }
+
+  /**
+   * 🔥 获取所有行的数据（用于聚合计算）
+   * 包含：raw 值 + displayInfo
+   */
+  private getAllRowsData(): any[] {
+    return this.savedData.value.map(row => {
+      const merged: Record<string, any> = {}
+      
+      for (const [fieldCode, fieldValue] of Object.entries(row)) {
+        // 保存 raw 值
+        merged[fieldCode] = fieldValue.raw
+        
+        // 🔥 合并 displayInfo（来自 Select 回调）
+        if (fieldValue.meta?.displayInfo) {
+          Object.assign(merged, fieldValue.meta.displayInfo)
+        }
+        
+        // 🔥 合并行内聚合统计（来自 MultiSelect，场景 4 二层聚合）
+        if (fieldValue.meta?.rowStatistics) {
+          Object.assign(merged, fieldValue.meta.rowStatistics)
+        }
+      }
+      
+      return merged
+    })
+  }
+
+  /**
+   * 🔥 重新计算聚合统计（核心方法）
+   */
+  private recalculateStatistics(): void {
+    // 检查是否有聚合配置
+    if (!this.statisticsConfig.value || Object.keys(this.statisticsConfig.value).length === 0) {
+      console.log(`[ListWidget] 无聚合配置，跳过计算`)
+      return
+    }
+    
+    console.log(`[ListWidget] 开始计算聚合统计`)
+    
+    // 1. 获取所有行的数据
+    const allRows = this.getAllRowsData()
+    
+    console.log(`[ListWidget] 数据行数: ${allRows.length}`)
+    console.log(`[ListWidget] 聚合配置:`, this.statisticsConfig.value)
+    
+    // 2. 遍历聚合配置，计算每个统计项
+    const result: Record<string, any> = {}
+    
+    for (const [label, expression] of Object.entries(this.statisticsConfig.value)) {
+      try {
+        // 使用表达式解析器计算
+        const value = ExpressionParser.evaluate(expression, allRows)
+        result[label] = value
+        
+        console.log(`[ListWidget]   ${label}: ${expression} = ${value}`)
+      } catch (error) {
+        console.error(`[ListWidget] 计算失败: ${label} = ${expression}`, error)
+        result[label] = 0
+      }
+    }
+    
+    // 3. 更新统计结果
+    this.statisticsResult.value = result
+    
+    console.log(`[ListWidget] 聚合统计完成:`, result)
+    
+    // 4. 发出 List 聚合完成事件（如果父组件需要）
+    this.emit('list:statistics:updated', {
+      statistics: result
     })
   }
 
@@ -289,6 +450,9 @@ export class ListWidget extends BaseWidget {
     
     // 触发外部的 onChange（通知父组件数据已变化）
     this.updateParentValue()
+    
+    // 🔥 重新计算聚合统计（数据已变化）
+    this.recalculateStatistics()
   }
 
   /**
@@ -315,6 +479,9 @@ export class ListWidget extends BaseWidget {
     
     // 触发外部的 onChange
     this.updateParentValue()
+    
+    // 🔥 重新计算聚合统计（数据已变化）
+    this.recalculateStatistics()
   }
 
   /**
@@ -536,6 +703,62 @@ export class ListWidget extends BaseWidget {
   }
 
   /**
+   * 🔥 渲染聚合统计结果
+   */
+  private renderStatistics() {
+    // 如果没有统计结果，不渲染
+    if (!this.statisticsResult.value || Object.keys(this.statisticsResult.value).length === 0) {
+      return null
+    }
+    
+    return h('div', {
+      class: 'list-statistics',
+      style: {
+        width: '100%',
+        marginTop: '12px',
+        padding: '12px 16px',
+        backgroundColor: 'var(--el-fill-color-light)',
+        borderRadius: '4px',
+        border: '1px solid var(--el-border-color-lighter)',
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '16px'
+      }
+    }, 
+      // 渲染每个统计项
+      Object.entries(this.statisticsResult.value).map(([label, value]) => {
+        return h('div', {
+          key: label,
+          class: 'statistics-item',
+          style: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }
+        }, [
+          // 标签
+          h('span', {
+            style: {
+              fontSize: '13px',
+              color: 'var(--el-text-color-secondary)',
+              fontWeight: '500'
+            }
+          }, `${label}:`),
+          
+          // 数值
+          h('span', {
+            style: {
+              fontSize: '14px',
+              color: 'var(--el-color-primary)',
+              fontWeight: 'bold'
+            }
+          }, ExpressionParser.formatNumber(value))
+        ])
+      })
+    )
+  }
+
+  /**
    * 🔥 渲染组件（主入口）
    */
   render() {
@@ -564,6 +787,9 @@ export class ListWidget extends BaseWidget {
       
       // 表格展示
       this.renderTable(),
+      
+      // 🔥 聚合统计结果
+      this.renderStatistics(),
       
       // 新增/编辑表单
       this.renderForm(),
