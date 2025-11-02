@@ -121,12 +121,12 @@ export class SelectWidget extends BaseWidget {
     // 🔥 获取函数的 method 和 router（用于构建回调 URL）
     // Debug: 检查 formRenderer 是否存在
     if (!this.formRenderer) {
-      Logger.error("SelectWidget" ${this.field.code} formRenderer 为 undefined，无法调用回调`)
+      Logger.error('SelectWidget', `${this.field.code} formRenderer 为 undefined，无法调用回调`)
       return
     }
     
     if (!this.formRenderer.getFunctionMethod || !this.formRenderer.getFunctionRouter) {
-      Logger.error("SelectWidget" ${this.field.code} formRenderer 不完整:`, {
+      Logger.error('SelectWidget', `${this.field.code} formRenderer 不完整`, {
         hasRegisterWidget: !!this.formRenderer.registerWidget,
         hasGetFunctionMethod: !!this.formRenderer.getFunctionMethod,
         hasGetFunctionRouter: !!this.formRenderer.getFunctionRouter
@@ -138,7 +138,7 @@ export class SelectWidget extends BaseWidget {
     const router = this.formRenderer.getFunctionRouter()
     
     if (!router) {
-      Logger.error("SelectWidget" ${this.field.code} 无法获取函数路由，取消回调`)
+      Logger.error('SelectWidget', `${this.field.code} 无法获取函数路由，取消回调`)
       return
     }
 
@@ -191,7 +191,7 @@ export class SelectWidget extends BaseWidget {
       }
 
     } catch (error: any) {
-      Logger.error("SelectWidget" ${this.field.code} 回调失败:`, error)
+      Logger.error('SelectWidget', `${this.field.code} 回调失败`, error)
       ElMessage.error(error?.message || '查询失败')
       this.options.value = []
     } finally {
