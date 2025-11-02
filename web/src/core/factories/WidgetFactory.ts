@@ -12,6 +12,8 @@ import { SelectWidget } from '../widgets/SelectWidget'
 import { MultiSelectWidget } from '../widgets/MultiSelectWidget'
 import { ListWidget } from '../widgets/ListWidget'
 import { FormWidget } from '../widgets/FormWidget'
+import { SwitchWidget } from '../widgets/SwitchWidget'
+import { TimestampWidget } from '../widgets/TimestampWidget'
 
 export class WidgetFactory {
   private widgetMap: Map<string, typeof BaseWidget>
@@ -24,7 +26,6 @@ export class WidgetFactory {
     this.registerWidget('input', InputWidget)
     this.registerWidget('text', InputWidget)  // text 别名
     this.registerWidget('ID', InputWidget)  // ID 字段（通常禁用或只读）
-    this.registerWidget('timestamp', InputWidget)  // timestamp 暂时使用 InputWidget（TODO: 实现 DatePicker）
     
     // 数字输入
     this.registerWidget('number', NumberWidget)  // 🔥 整数输入（独立组件）
@@ -37,6 +38,12 @@ export class WidgetFactory {
     // 选择器
     this.registerWidget('select', SelectWidget)        // 🔥 单选
     this.registerWidget('multiselect', MultiSelectWidget)  // 🔥 多选（独立组件）
+    
+    // 开关
+    this.registerWidget('switch', SwitchWidget)  // 🔥 开关组件
+    
+    // 时间选择器
+    this.registerWidget('timestamp', TimestampWidget)  // 🔥 时间戳组件
     
     // 容器组件
     this.registerWidget('list', ListWidget)

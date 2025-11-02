@@ -245,6 +245,11 @@ export class MultiSelectWidget extends BaseWidget {
     // 🔥 计算最大选择数量（优先使用动态限制）
     const multipleLimit = this.maxSelections || this.selectConfig.max_count || 0
     
+    // 打印调试信息
+    if (multipleLimit > 0) {
+      console.log(`[MultiSelectWidget] ${this.field.code} 数量限制: ${multipleLimit}, 当前已选: ${selectedValues.length}`)
+    }
+    
     return h(ElSelect, {
       modelValue: selectedValues,  // 🔥 数组
       multiple: true,              // 🔥 多选模式
@@ -253,10 +258,16 @@ export class MultiSelectWidget extends BaseWidget {
       remoteMethod: this.remoteMethod,
       loading: this.loading.value,
       placeholder: this.selectConfig.placeholder || `请选择${this.field.name}`,
-      multipleLimit: multipleLimit,  // 🔥 限制数量
+      multipleLimit: multipleLimit,  // 🔥 限制数量（0表示无限制）
       clearable: true,
       onVisibleChange: this.handleVisibleChange,  // 🔥 下拉框展开/收起时触发
       onChange: (values: any[]) => {
+        // 验证数量限制
+        if (multipleLimit > 0 && values.length > multipleLimit) {
+          console.warn(`[MultiSelectWidget] ${this.field.code} 超出数量限制! 限制: ${multipleLimit}, 实际: ${values.length}`)
+          // Element Plus 应该会自动限制，但这里做二次验证
+          values = values.slice(0, multipleLimit)
+        }
         this.handleChange(values)
       }
     }, {

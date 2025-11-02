@@ -80,7 +80,6 @@
       v-loading="loading"
       :data="tableData"
       border
-      stripe
       style="width: 100%"
       @sort-change="handleSortChange"
     >
@@ -444,12 +443,14 @@ watch(() => props.functionData, () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 12px 0;
 }
 
 .search-bar {
   margin-bottom: 20px;
   padding: 20px;
-  background: var(--el-bg-color-page);
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-lighter);
   border-radius: 8px;
 }
 
@@ -463,6 +464,40 @@ watch(() => props.functionData, () => {
   margin-top: 20px;
   display: flex;
   justify-content: flex-end;
+}
+
+/* 确保表格单元格背景色正确 */
+:deep(.el-table) {
+  background-color: var(--el-bg-color) !important;
+}
+
+:deep(.el-table__body tr) {
+  background-color: var(--el-bg-color) !important;
+}
+
+:deep(.el-table__body tr:hover > td) {
+  background-color: var(--el-fill-color-light) !important;
+}
+
+/* 确保table内的link按钮清晰可见 */
+:deep(.el-button.is-link) {
+  font-weight: 500 !important;
+}
+
+:deep(.el-button.is-link.el-button--primary) {
+  color: var(--el-text-color-primary) !important;
+}
+
+:deep(.el-button.is-link.el-button--primary:hover) {
+  color: var(--el-color-primary) !important;
+}
+
+:deep(.el-button.is-link.el-button--danger) {
+  color: var(--el-text-color-primary) !important;
+}
+
+:deep(.el-button.is-link.el-button--danger:hover) {
+  color: var(--el-color-danger) !important;
 }
 </style>
 
