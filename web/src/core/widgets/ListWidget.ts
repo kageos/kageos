@@ -97,6 +97,7 @@ export class ListWidget extends BaseWidget {
     this.formWidgets = ref<ListItemWidgets>({})
     this.editingIndex = ref<number | null>(null)
     this.isAdding = ref(false)
+    this.isCollapsed = ref(false)  // 默认展开
     this.statisticsConfig = ref<Record<string, string>>({})
     this.statisticsResult = ref<Record<string, any>>({})
     
