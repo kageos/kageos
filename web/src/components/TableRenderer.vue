@@ -486,10 +486,9 @@ const handleDialogSubmit = async (data: Record<string, any>) => {
   }
 }
 
-// 🔥 判断是否是 ID 列
+// 🔥 判断是否是 ID 列（直接看 widget.type）
 const isIdColumn = (field: FieldConfig): boolean => {
-  const code = field.code.toLowerCase()
-  return code === 'id' || code === 'ID' || code.endsWith('_id') || code.endsWith('Id')
+  return field.widget?.type === 'ID'
 }
 
 // 🔥 显示详情
