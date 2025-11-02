@@ -217,6 +217,19 @@ export class MultiSelectWidget extends BaseWidget {
   }
 
   /**
+   * 下拉框展开时触发（点击输入框）
+   */
+  private handleVisibleChange = (visible: boolean) => {
+    if (visible && this.field.callbacks?.includes('OnSelectFuzzy')) {
+      // 🔥 展开时，如果选项为空，触发一次空查询加载默认选项
+      if (!this.options.value || this.options.value.length === 0) {
+        console.log(`[MultiSelectWidget] ${this.field.code} 下拉框展开，触发默认查询`)
+        this.handleSearch('', false)  // 空关键词查询
+      }
+    }
+  }
+
+  /**
    * 🔥 重写：返回数组
    */
   getRawValueForSubmit(): any[] {
@@ -242,6 +255,7 @@ export class MultiSelectWidget extends BaseWidget {
       placeholder: this.selectConfig.placeholder || `请选择${this.field.name}`,
       multipleLimit: multipleLimit,  // 🔥 限制数量
       clearable: true,
+      onVisibleChange: this.handleVisibleChange,  // 🔥 下拉框展开/收起时触发
       onChange: (values: any[]) => {
         this.handleChange(values)
       }
