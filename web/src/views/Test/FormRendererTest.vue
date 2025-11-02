@@ -186,6 +186,93 @@ const testDataList = ref<FunctionDetail[]>([
       }
     ],
     response: []
+  },
+  
+  // 测试4：Struct 结构体
+  {
+    code: 'order_form',
+    name: '订单表单 - Struct 测试',
+    description: '测试 Struct 结构体的渲染',
+    method: 'POST',
+    router: '/test/order',
+    template_type: 'form',
+    request: [
+      {
+        code: 'order_no',
+        name: '订单号',
+        data: { type: 'string' },
+        validation: 'required',
+        widget: {
+          type: 'input',
+          config: {
+            placeholder: '系统自动生成',
+            disabled: true
+          }
+        }
+      },
+      {
+        code: 'detail',
+        name: '订单详情',
+        data: { type: 'struct' },
+        validation: 'required',
+        widget: {
+          type: 'form',
+          config: null
+        },
+        children: [
+          {
+            code: 'address',
+            name: '收货地址',
+            data: { type: 'string' },
+            validation: 'required',
+            widget: {
+              type: 'text_area',
+              config: {
+                placeholder: '请输入收货地址'
+              }
+            }
+          },
+          {
+            code: 'phone',
+            name: '联系电话',
+            data: { type: 'string' },
+            validation: 'required,min=11,max=20',
+            widget: {
+              type: 'input',
+              config: {
+                placeholder: '请输入联系电话'
+              }
+            }
+          },
+          {
+            code: 'note',
+            name: '备注',
+            data: { type: 'string' },
+            validation: '',
+            widget: {
+              type: 'text_area',
+              config: {
+                placeholder: '请输入备注信息'
+              }
+            }
+          }
+        ]
+      },
+      {
+        code: 'payment_method',
+        name: '支付方式',
+        data: { type: 'string' },
+        validation: 'required,oneof=现金,支付宝,微信',
+        widget: {
+          type: 'select',
+          config: {
+            options: ['现金', '支付宝', '微信'],
+            placeholder: '请选择支付方式'
+          }
+        }
+      }
+    ],
+    response: []
   }
 ])
 
