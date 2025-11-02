@@ -29,7 +29,7 @@
         <template #default="{ node, data }">
           <span class="tree-node">
             <el-icon class="node-icon">
-              <FolderOpened v-if="data.type === 'package'" />
+              <Folder v-if="data.type === 'package'" />
               <Document v-else />
             </el-icon>
             <span class="node-label">{{ node.label }}</span>
@@ -76,7 +76,7 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
-import { FolderOpened, Document, Plus, MoreFilled, Link } from '@element-plus/icons-vue'
+import { Folder, Document, Plus, MoreFilled, Link } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/types'
 
 interface Props {
@@ -224,8 +224,11 @@ watch(() => props.currentNodeId, (nodeId) => {
   width: 100%;
   
   .node-icon {
-    font-size: 16px;
-    color: var(--el-color-primary);  /* ✅ 跟随主题色（现代风格） */
+    width: 16px;
+    height: 16px;
+    margin-right: 8px;
+    color: var(--el-color-primary);
+    opacity: 0.8;
     flex-shrink: 0;
     transition: color 0.2s ease;
   }
@@ -286,7 +289,8 @@ watch(() => props.currentNodeId, (nodeId) => {
     }
     
     .node-icon {
-      color: var(--el-color-primary);  /* ✅ 选中状态也使用主题色 */
+      color: var(--el-color-primary);
+      opacity: 0.8;
     }
   }
 }
