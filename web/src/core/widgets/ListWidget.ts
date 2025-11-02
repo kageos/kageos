@@ -189,12 +189,6 @@ export class ListWidget extends BaseWidget {
           value_type: field.data?.type || 'string'
         }
         
-          method,
-          router,
-          field: field.code,
-          query: event.query
-        })
-        
         // 3. 调用回调 API
         const response = await selectFuzzy(method, router, requestBody)
         
