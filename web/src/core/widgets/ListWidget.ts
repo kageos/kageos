@@ -152,13 +152,16 @@ export class ListWidget extends BaseWidget {
    * 🔥 订阅搜索事件（核心：调用后端回调）
    */
   private subscribeSearchEvent(field: FieldConfig): void {
-    // 监听所有行的该字段的搜索事件
-    // 例如：field:search:products[].product_id
-    const eventPattern = `field:search:${this.fieldPath}[].${field.code}`
+    // 监听两种路径：
+    // 1. field:search:products[].product_id（已保存的行）
+    // 2. field:search:products._form_.product_id（表单编辑状态）
+    const eventPattern1 = `field:search:${this.fieldPath}[].${field.code}`
+    const eventPattern2 = `field:search:${this.fieldPath}._form_.${field.code}`
     
-    console.log(`[ListWidget] 订阅搜索事件: ${eventPattern}`)
+    console.log(`[ListWidget] 订阅搜索事件: ${eventPattern1} 和 ${eventPattern2}`)
     
-    this.formManager.on(eventPattern, async (event: any) => {
+    // 定义事件处理器（两个模式共用）
+    const handleSearchEvent = async (event: any) => {
       console.log(`[ListWidget] 收到子组件搜索事件:`, event)
       console.log(`[ListWidget]   触发字段: ${event.fieldPath}`)
       console.log(`[ListWidget]   查询关键词: "${event.query}"`)
@@ -243,26 +246,36 @@ export class ListWidget extends BaseWidget {
         ElMessage.error(error?.message || '查询失败')
         if (event.callback) event.callback([])
       }
-    })
+    }
+    
+    // 🔥 同时监听两个模式
+    this.formManager.on(eventPattern1, handleSearchEvent)
+    this.formManager.on(eventPattern2, handleSearchEvent)
   }
 
   /**
    * 🔥 订阅变化事件（触发聚合计算）
    */
   private subscribeChangeEvent(field: FieldConfig): void {
-    // 监听所有行的该字段的变化事件
-    // 例如：field:change:products[].product_id
-    const eventPattern = `field:change:${this.fieldPath}[].${field.code}`
+    // 监听两种路径：
+    // 1. field:change:products[].product_id（已保存的行）
+    // 2. field:change:products._form_.product_id（表单编辑状态）
+    const eventPattern1 = `field:change:${this.fieldPath}[].${field.code}`
+    const eventPattern2 = `field:change:${this.fieldPath}._form_.${field.code}`
     
-    console.log(`[ListWidget] 订阅变化事件: ${eventPattern}`)
+    console.log(`[ListWidget] 订阅变化事件: ${eventPattern1} 和 ${eventPattern2}`)
     
-    this.formManager.on(eventPattern, (event: any) => {
+    const handleChangeEvent = (event: any) => {
       console.log(`[ListWidget] 收到子组件变化事件:`, event)
       console.log(`[ListWidget]   触发字段: ${event.fieldPath}`)
       
       // 🔥 重新计算聚合统计
       this.recalculateStatistics()
-    })
+    }
+    
+    // 🔥 同时监听两个模式
+    this.formManager.on(eventPattern1, handleChangeEvent)
+    this.formManager.on(eventPattern2, handleChangeEvent)
   }
 
   /**
