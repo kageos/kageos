@@ -109,27 +109,12 @@ const handleNodeAction = (command: string, data: ServiceTree) => {
   }
 }
 
-// 判断是否为表格函数（根据method或其他标识）
-// 注意：如果ServiceTree没有method字段，可以从其他地方推断，或者扩展ServiceTree类型
-const isTableFunction = (data: ServiceTree): boolean => {
-  // 如果ServiceTree有method字段，GET方法通常是table
-  // @ts-ignore - 可能扩展字段
-  if ((data as any).method) {
-    // @ts-ignore
-    return (data as any).method.toUpperCase() === 'GET'
-  }
-  // 默认返回false，显示为form函数
-  return false
-}
-
 // 获取节点图标样式类
 const getNodeIconClass = (data: ServiceTree) => {
   if (data.type === 'package') {
     return 'package-icon'
-  } else if (isTableFunction(data)) {
-    return 'table-icon'
   } else {
-    return 'form-icon'
+    return 'function-icon fx-icon'
   }
 }
 
