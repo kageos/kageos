@@ -50,11 +50,23 @@
         :label="field.name"
         :sortable="field.search ? 'custom' : false"
         :min-width="getColumnWidth(field)"
+        :class-name="isIdColumn(field) ? 'id-column' : ''"
       >
-        <template #default="{ row }">
-          <span v-if="field.widget.type === 'timestamp'">
+        <template #default="{ row, $index }">
+          <!-- 🔥 ID 列：可点击查看详情 -->
+          <span 
+            v-if="isIdColumn(field)" 
+            class="id-cell clickable"
+            @click="handleShowDetail(row, $index)"
+            :title="'点击查看详情'"
+          >
+            {{ row[field.code] }}
+          </span>
+          <!-- 时间戳列 -->
+          <span v-else-if="field.widget.type === 'timestamp'">
             {{ formatTimestamp(row[field.code], field.widget.config.format) }}
           </span>
+          <!-- 普通列 -->
           <span v-else>{{ row[field.code] }}</span>
         </template>
       </el-table-column>
@@ -112,12 +124,63 @@
       :initial-data="currentRow"
       @submit="handleDialogSubmit"
     />
+
+    <!-- 🔥 详情抽屉 -->
+    <el-drawer
+      v-model="showDetailDrawer"
+      title="记录详情"
+      direction="rtl"
+      size="600px"
+      class="detail-drawer"
+    >
+      <template #header>
+        <div class="drawer-header">
+          <span class="drawer-title">记录详情</span>
+          <div class="drawer-navigation" v-if="tableData.length > 1">
+            <el-button
+              size="small"
+              :disabled="currentDetailIndex <= 0"
+              @click="handleNavigate('prev')"
+            >
+              <el-icon><ArrowLeft /></el-icon>
+              上一个
+            </el-button>
+            <span class="nav-info">{{ currentDetailIndex + 1 }} / {{ tableData.length }}</span>
+            <el-button
+              size="small"
+              :disabled="currentDetailIndex >= tableData.length - 1"
+              @click="handleNavigate('next')"
+            >
+              下一个
+              <el-icon><ArrowRight /></el-icon>
+            </el-button>
+          </div>
+        </div>
+      </template>
+
+      <div class="detail-content" v-if="currentDetailRow">
+        <el-descriptions :column="1" border>
+          <el-descriptions-item
+            v-for="field in visibleFields"
+            :key="field.code"
+            :label="field.name"
+          >
+            <template v-if="field.widget.type === 'timestamp'">
+              {{ formatTimestamp(currentDetailRow[field.code], field.widget.config.format) }}
+            </template>
+            <template v-else>
+              {{ currentDetailRow[field.code] || '-' }}
+            </template>
+          </el-descriptions-item>
+        </el-descriptions>
+      </div>
+    </el-drawer>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { Search, Refresh, Edit, Delete, Plus } from '@element-plus/icons-vue'
+import { Search, Refresh, Edit, Delete, Plus, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { executeFunction, tableAddRow, tableUpdateRow, tableDeleteRows } from '@/api/function'
 import FormDialog from './FormDialog.vue'
@@ -138,6 +201,11 @@ const pageSize = ref(20)
 const total = ref(0)
 const sortField = ref('')
 const sortOrder = ref('')
+
+// 🔥 详情抽屉状态
+const showDetailDrawer = ref(false)
+const currentDetailRow = ref<any>(null)
+const currentDetailIndex = ref(-1)
 
 // 搜索表单
 const searchForm = ref<Record<string, any>>({})
@@ -415,6 +483,32 @@ const handleDialogSubmit = async (data: Record<string, any>) => {
   } catch (error: any) {
     console.error('[TableRenderer] 提交失败:', error)
     ElMessage.error(error.message || '操作失败')
+  }
+}
+
+// 🔥 判断是否是 ID 列
+const isIdColumn = (field: FieldConfig): boolean => {
+  const code = field.code.toLowerCase()
+  return code === 'id' || code === 'ID' || code.endsWith('_id') || code.endsWith('Id')
+}
+
+// 🔥 显示详情
+const handleShowDetail = (row: any, index: number) => {
+  currentDetailRow.value = row
+  currentDetailIndex.value = index
+  showDetailDrawer.value = true
+}
+
+// 🔥 导航（上一个/下一个）
+const handleNavigate = (direction: 'prev' | 'next') => {
+  if (!tableData.value || tableData.value.length === 0) return
+
+  if (direction === 'prev' && currentDetailIndex.value > 0) {
+    currentDetailIndex.value--
+    currentDetailRow.value = tableData.value[currentDetailIndex.value]
+  } else if (direction === 'next' && currentDetailIndex.value < tableData.value.length - 1) {
+    currentDetailIndex.value++
+    currentDetailRow.value = tableData.value[currentDetailIndex.value]
   }
 }
 
