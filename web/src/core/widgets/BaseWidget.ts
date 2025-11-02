@@ -260,7 +260,7 @@ export abstract class BaseWidget implements IWidgetSnapshot {
     
     // 对于嵌套结构（List/Struct），不做类型转换（由子组件处理）
     if (fieldType.includes('[]') || fieldType === 'struct' || 
-        fieldType === 'table' || fieldType === 'list' || fieldType === 'form') {
+        fieldType === 'table' || fieldType === 'form') {
       return raw
     }
     

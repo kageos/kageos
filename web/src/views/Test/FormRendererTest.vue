@@ -153,7 +153,7 @@ const testDataList = ref<FunctionDetail[]>([
           }
         ],
         widget: {
-          type: 'table',  // 🔥 后端返回的是 "table"，前端映射为 "list"
+          type: 'table',  // 🔥 后端返回的是 "table"
           config: null
         }
       },
