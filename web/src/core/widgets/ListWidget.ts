@@ -10,7 +10,7 @@
 
 import { h, ref, computed, markRaw } from 'vue'
 import { ElButton, ElTable, ElTableColumn, ElForm, ElFormItem, ElIcon, ElMessage } from 'element-plus'
-import { Plus, Delete, Edit, Check, Close } from '@element-plus/icons-vue'
+import { Plus, Delete, Edit, Check, Close, ArrowDown, ArrowUp, Upload, Download } from '@element-plus/icons-vue'
 import { BaseWidget } from './BaseWidget'
 import { Logger } from '../utils/logger'
 import { WidgetBuilder } from '../factories/WidgetBuilder'
@@ -68,6 +68,9 @@ export class ListWidget extends BaseWidget {
   // 🔥 编辑状态
   private editingIndex: any  // null 表示不在编辑，数字表示编辑第几行
   private isAdding: any      // 是否正在新增
+  
+  // 🔥 折叠状态
+  private isCollapsed: any
   
   // 🔥 聚合统计配置（从回调获取）
   private statisticsConfig: any
@@ -485,6 +488,121 @@ export class ListWidget extends BaseWidget {
     if (this.onChange) {
       this.onChange(newValue)
     }
+  }
+
+  /**
+   * 🔥 切换折叠状态
+   */
+  private toggleCollapse(): void {
+    this.isCollapsed.value = !this.isCollapsed.value
+  }
+
+  /**
+   * 🔥 处理导入数据（占位）
+   */
+  private handleImport(): void {
+    ElMessage.info('导入功能开发中...')
+  }
+
+  /**
+   * 🔥 处理导出模板（占位）
+   */
+  private handleExportTemplate(): void {
+    ElMessage.info('导出模板功能开发中...')
+  }
+
+  /**
+   * 🔥 渲染头部区域（标题和操作按钮）
+   */
+  private renderHeader(): any {
+    return h('div', {
+      class: 'list-widget-header',
+      style: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '12px 16px',
+        backgroundColor: 'var(--el-fill-color-light)',
+        borderBottom: '1px solid var(--el-border-color-light)'
+      }
+    }, [
+      // 左侧：标题和计数
+      h('div', {
+        class: 'header-left',
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px'
+        }
+      }, [
+        h('span', {
+          class: 'list-title',
+          style: {
+            fontWeight: '500',
+            color: 'var(--el-text-color-primary)'
+          }
+        }, this.field.name),
+        h('span', {
+          style: {
+            fontSize: '12px',
+            color: 'var(--el-text-color-secondary)'
+          }
+        }, `共 ${this.savedData.value.length} 条`)
+      ]),
+      
+      // 右侧：操作按钮
+      h('div', {
+        class: 'header-actions',
+        style: {
+          display: 'flex',
+          gap: '8px',
+          alignItems: 'center'
+        }
+      }, [
+        // 折叠按钮
+        h(ElButton, {
+          size: 'small',
+          type: this.isCollapsed.value ? 'primary' : 'default',
+          onClick: () => this.toggleCollapse(),
+          title: this.isCollapsed.value ? '展开列表' : '折叠列表'
+        }, {
+          default: () => [
+            h(ElIcon, {}, {
+              default: () => this.isCollapsed.value ? h(ArrowUp) : h(ArrowDown)
+            }),
+            this.isCollapsed.value ? '展开' : '折叠'
+          ]
+        }),
+        
+        // 添加按钮（独立显示）
+        h(ElButton, {
+          size: 'small',
+          type: 'primary',
+          icon: Plus,
+          onClick: () => this.startAdding(),
+          title: '添加项目',
+          disabled: this.isAdding.value || this.editingIndex.value !== null
+        }, { default: () => '添加' }),
+        
+        // 导入按钮
+        h(ElButton, {
+          size: 'small',
+          type: 'info',
+          icon: Upload,
+          onClick: () => this.handleImport(),
+          title: '导入数据'
+        }, { default: () => '导入' }),
+        
+        // 模板按钮（导出模板）
+        h(ElButton, {
+          size: 'small',
+          type: 'success',
+          icon: Download,
+          onClick: () => this.handleExportTemplate(),
+          title: '导出模板'
+        }, { default: () => '模板' })
+      ])
+    ])
   }
 
   /**
