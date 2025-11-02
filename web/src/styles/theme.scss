@@ -1,0 +1,218 @@
+/**
+ * 主题系统 - 参考旧版本 yunhanshu-web-ai
+ * 支持浅色和深色模式，可扩展更多主题
+ */
+
+/* ============================================
+   浅色模式（默认）- 现代浅色主题
+   ============================================ */
+:root,
+html.light {
+  /* 主色调 */
+  --el-color-primary: #6366f1;
+  --el-color-primary-light-3: #8b8ff6;
+  --el-color-primary-light-5: #a5a8f9;
+  --el-color-primary-light-7: #c0c2fb;
+  --el-color-primary-light-8: #d0d1fc;
+  --el-color-primary-light-9: #e0e1fd;
+  --el-color-primary-dark-2: #4f52e0;
+  
+  /* 功能色 */
+  --el-color-success: #10b981;
+  --el-color-warning: #f59e0b;
+  --el-color-danger: #ef4444;
+  --el-color-info: #3b82f6;
+  
+  /* 背景色 */
+  --el-bg-color: #ffffff;
+  --el-bg-color-page: #f8fafc;
+  --el-bg-color-overlay: #f8fafc;
+  
+  /* 文本颜色 */
+  --el-text-color-primary: #0f172a;
+  --el-text-color-regular: #475569;
+  --el-text-color-secondary: #64748b;
+  --el-text-color-placeholder: #cbd5e1;
+  --el-text-color-disabled: #cbd5e1;
+  
+  /* 边框颜色 */
+  --el-border-color: #e2e8f0;
+  --el-border-color-light: #f1f5f9;
+  --el-border-color-lighter: #f8fafc;
+  --el-border-color-extra-light: #fafafa;
+  --el-border-color-dark: #cbd5e1;
+  --el-border-color-darker: #94a3b8;
+  
+  /* 填充色 */
+  --el-fill-color: #f1f5f9;
+  --el-fill-color-light: #f8fafc;
+  --el-fill-color-lighter: #fafafa;
+  --el-fill-color-extra-light: #fcfcfc;
+  --el-fill-color-dark: #e2e8f0;
+  --el-fill-color-darker: #cbd5e1;
+  --el-fill-color-blank: #ffffff;
+  
+  /* 阴影颜色 */
+  --el-box-shadow-light: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --el-box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  --el-box-shadow-dark: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  
+  /* 输入框颜色 */
+  --el-input-bg-color: #ffffff;
+  --el-input-border-color: #e2e8f0;
+  --el-input-hover-border-color: #cbd5e1;
+  --el-input-focus-border-color: #6366f1;
+  
+  /* 遮罩层 */
+  --el-mask-color: rgba(0, 0, 0, 0.8);
+  --el-mask-color-extra-light: rgba(0, 0, 0, 0.3);
+}
+
+/* ============================================
+   深色模式 - 现代深色主题（参考旧版本）
+   ============================================ */
+html.dark {
+  /* 主色调 */
+  --el-color-primary: #818cf8;
+  --el-color-primary-light-3: #a5b4fc;
+  --el-color-primary-light-5: #c7d2fe;
+  --el-color-primary-light-7: #ddd6fe;
+  --el-color-primary-light-8: #e0e7ff;
+  --el-color-primary-light-9: #eef2ff;
+  --el-color-primary-dark-2: #6366f1;
+  
+  /* 功能色 */
+  --el-color-success: #34d399;
+  --el-color-warning: #fbbf24;
+  --el-color-danger: #f87171;
+  --el-color-info: #60a5fa;
+  
+  /* 背景色 - 参考旧版本的舒适深色调 */
+  --el-bg-color: #0f172a;           /* 主背景：深蓝灰色 */
+  --el-bg-color-page: #020617;      /* 页面背景：更深的蓝灰色 */
+  --el-bg-color-overlay: #1e293b;   /* 浮层背景：稍亮的深灰蓝 */
+  
+  /* 文本颜色 */
+  --el-text-color-primary: #f8fafc;
+  --el-text-color-regular: #cbd5e1;
+  --el-text-color-secondary: #94a3b8;
+  --el-text-color-placeholder: #64748b;
+  --el-text-color-disabled: #64748b;
+  
+  /* 边框颜色 */
+  --el-border-color: #334155;
+  --el-border-color-light: #475569;
+  --el-border-color-lighter: #334155;
+  --el-border-color-extra-light: #1e293b;
+  --el-border-color-dark: #64748b;
+  --el-border-color-darker: #475569;
+  
+  /* 填充色 */
+  --el-fill-color: #334155;
+  --el-fill-color-light: #1e293b;
+  --el-fill-color-lighter: #0f172a;
+  --el-fill-color-extra-light: #020617;
+  --el-fill-color-dark: #475569;
+  --el-fill-color-darker: #64748b;
+  --el-fill-color-blank: #0f172a;
+  
+  /* 阴影颜色（深色模式下阴影更深） */
+  --el-box-shadow-light: 0 1px 2px 0 rgba(0, 0, 0, 0.2);
+  --el-box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px 0 rgba(0, 0, 0, 0.2);
+  --el-box-shadow-dark: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+  
+  /* 输入框颜色 */
+  --el-input-bg-color: #1e293b;
+  --el-input-border-color: #334155;
+  --el-input-hover-border-color: #475569;
+  --el-input-focus-border-color: #818cf8;
+  
+  /* 遮罩层 */
+  --el-mask-color: rgba(0, 0, 0, 0.8);
+  --el-mask-color-extra-light: rgba(0, 0, 0, 0.3);
+}
+
+/* ============================================
+   组件增强样式（参考旧版本）
+   ============================================ */
+
+/* 按钮悬停效果 */
+.el-button {
+  transition: all 0.3s ease;
+  
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+  }
+  
+  &:active:not(:disabled) {
+    transform: translateY(0);
+  }
+}
+
+/* 卡片悬停效果 */
+.el-card {
+  transition: all 0.3s ease;
+  
+  &:hover {
+    box-shadow: var(--el-box-shadow-dark);
+  }
+}
+
+/* 输入框聚焦效果 */
+.el-input__wrapper {
+  transition: all 0.3s ease;
+  
+  &.is-focus {
+    box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.1);
+  }
+}
+
+/* 选择器聚焦效果 */
+.el-select__wrapper {
+  transition: all 0.3s ease;
+  
+  &.is-focused {
+    box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.1);
+  }
+}
+
+/* 表格样式增强 */
+.el-table {
+  transition: all 0.3s ease;
+  
+  tr:hover > td {
+    background-color: var(--el-fill-color-light);
+  }
+}
+
+/* 菜单项悬停效果 */
+.el-menu-item {
+  transition: all 0.3s ease;
+  
+  &:hover {
+    transform: translateX(4px);
+  }
+}
+
+/* ============================================
+   主题切换动画
+   ============================================ */
+html {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+* {
+  transition-property: background-color, border-color, color;
+  transition-duration: 0.3s;
+  transition-timing-function: ease;
+}
+
+/* 深色模式色彩方案标识 */
+html.dark {
+  color-scheme: dark;
+}
+
+html.light {
+  color-scheme: light;
+}
+
