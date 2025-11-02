@@ -78,7 +78,7 @@ html.dark {
   --el-color-primary-light-5: #c7d2fe;
   --el-color-primary-light-7: #ddd6fe;
   --el-color-primary-light-8: #e0e7ff;
-  --el-color-primary-light-9: #eef2ff;
+  --el-color-primary-light-9: #6366f133;  /* 🔥 深色模式下选中项背景：主色 + 20% 透明度 */
   --el-color-primary-dark-2: #6366f1;
   
   /* 功能色 */
@@ -88,8 +88,8 @@ html.dark {
   --el-color-info: #60a5fa;
   
   /* 背景色 - 参考旧版本的舒适深色调 */
-  --el-bg-color: #0f172a;           /* 主背景：深蓝灰色 */
-  --el-bg-color-page: #020617;      /* 页面背景：更深的蓝灰色 */
+  --el-bg-color: #1e293b;           /* 🔥 主背景：深蓝灰色（卡片、输入框等） */
+  --el-bg-color-page: #0f172a;      /* 🔥 页面背景：更深的蓝灰色 */
   --el-bg-color-overlay: #1e293b;   /* 浮层背景：稍亮的深灰蓝 */
   
   /* 文本颜色 */
@@ -114,7 +114,7 @@ html.dark {
   --el-fill-color-extra-light: #020617;
   --el-fill-color-dark: #475569;
   --el-fill-color-darker: #64748b;
-  --el-fill-color-blank: #0f172a;
+  --el-fill-color-blank: #1e293b;  /* 🔥 深色模式下空白填充色 */
   
   /* 阴影颜色（深色模式下阴影更深） */
   --el-box-shadow-light: 0 1px 2px 0 rgba(0, 0, 0, 0.2);
@@ -139,59 +139,59 @@ html.dark {
 /* 按钮悬停效果 */
 .el-button {
   transition: all 0.3s ease;
-}
-
-.el-button:hover:not(:disabled) {
-  transform: translateY(-2px);
-}
-
-.el-button:active:not(:disabled) {
-  transform: translateY(0);
+  
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+  }
+  
+  &:active:not(:disabled) {
+    transform: translateY(0);
+  }
 }
 
 /* 卡片悬停效果 */
 .el-card {
   transition: all 0.3s ease;
-}
-
-.el-card:hover {
-  box-shadow: var(--el-box-shadow-dark);
+  
+  &:hover {
+    box-shadow: var(--el-box-shadow-dark);
+  }
 }
 
 /* 输入框聚焦效果 */
 .el-input__wrapper {
   transition: all 0.3s ease;
-}
-
-.el-input__wrapper.is-focus {
-  box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.1);
+  
+  &.is-focus {
+    box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.1);
+  }
 }
 
 /* 选择器聚焦效果 */
 .el-select__wrapper {
   transition: all 0.3s ease;
-}
-
-.el-select__wrapper.is-focused {
-  box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.1);
+  
+  &.is-focused {
+    box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.1);
+  }
 }
 
 /* 表格样式增强 */
 .el-table {
   transition: all 0.3s ease;
-}
-
-.el-table tr:hover > td {
-  background-color: var(--el-fill-color-light);
+  
+  tr:hover > td {
+    background-color: var(--el-fill-color-light);
+  }
 }
 
 /* 菜单项悬停效果 */
 .el-menu-item {
   transition: all 0.3s ease;
-}
-
-.el-menu-item:hover {
-  transform: translateX(4px);
+  
+  &:hover {
+    transform: translateX(4px);
+  }
 }
 
 /* ============================================
