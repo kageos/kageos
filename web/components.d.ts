@@ -56,6 +56,7 @@ declare module 'vue' {
     ElTable: typeof import('element-plus/es')['ElTable']
     ElTableColumn: typeof import('element-plus/es')['ElTableColumn']
     ElTag: typeof import('element-plus/es')['ElTag']
+    ElTooltip: typeof import('element-plus/es')['ElTooltip']
     ElTree: typeof import('element-plus/es')['ElTree']
     FormDialog: typeof import('./src/components/FormDialog.vue')['default']
     FormRenderer: typeof import('./src/components/FormRenderer.vue')['default']
@@ -73,6 +74,7 @@ declare module 'vue' {
     ServiceTreeManager: typeof import('./src/components/ServiceTree/ServiceTreeManager.vue')['default']
     ServiceTreePanel: typeof import('./src/components/ServiceTreePanel.vue')['default']
     TableRenderer: typeof import('./src/components/TableRenderer.vue')['default']
+    ThemeToggle: typeof import('./src/components/ThemeToggle.vue')['default']
     TheWelcome: typeof import('./src/components/TheWelcome.vue')['default']
     WelcomeItem: typeof import('./src/components/WelcomeItem.vue')['default']
   }
@@ -127,6 +129,7 @@ declare global {
   const ElTable: typeof import('element-plus/es')['ElTable']
   const ElTableColumn: typeof import('element-plus/es')['ElTableColumn']
   const ElTag: typeof import('element-plus/es')['ElTag']
+  const ElTooltip: typeof import('element-plus/es')['ElTooltip']
   const ElTree: typeof import('element-plus/es')['ElTree']
   const FormDialog: typeof import('./src/components/FormDialog.vue')['default']
   const FormRenderer: typeof import('./src/components/FormRenderer.vue')['default']
@@ -144,6 +147,7 @@ declare global {
   const ServiceTreeManager: typeof import('./src/components/ServiceTree/ServiceTreeManager.vue')['default']
   const ServiceTreePanel: typeof import('./src/components/ServiceTreePanel.vue')['default']
   const TableRenderer: typeof import('./src/components/TableRenderer.vue')['default']
+  const ThemeToggle: typeof import('./src/components/ThemeToggle.vue')['default']
   const TheWelcome: typeof import('./src/components/TheWelcome.vue')['default']
   const WelcomeItem: typeof import('./src/components/WelcomeItem.vue')['default']
 }

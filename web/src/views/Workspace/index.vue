@@ -15,6 +15,22 @@
 
       <!-- 中间函数渲染区域 -->
       <div class="function-renderer-container">
+        <!-- 顶部工具栏 -->
+        <div class="top-toolbar">
+          <!-- 左侧：应用信息 -->
+          <div class="left-section">
+            <span v-if="currentApp" class="app-info">
+              {{ currentApp.name }}
+            </span>
+          </div>
+          
+          <!-- 右侧：工具按钮 -->
+          <div class="right-section">
+            <!-- 主题切换按钮 -->
+            <ThemeToggle />
+          </div>
+        </div>
+
         <!-- 右侧边栏控制按钮 -->
         <div class="sidebar-controls" v-if="currentFunction">
           <div class="right-controls">
@@ -325,6 +341,7 @@ import ServiceTreePanel from '@/components/ServiceTreePanel.vue'
 import TableRenderer from '@/components/TableRenderer.vue'
 import FormRenderer from '@/core/renderers/FormRenderer.vue'
 import AppSwitcher from '@/components/AppSwitcher.vue'
+import ThemeToggle from '@/components/ThemeToggle.vue'
 import { getFunctionDetail } from '@/api/function'
 import { createServiceTree } from '@/api/service-tree'
 import { useAppManager } from '@/composables/useAppManager'
@@ -860,10 +877,39 @@ onUnmounted(() => {
   position: relative;
 }
 
+/* 顶部工具栏 */
+.top-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background: var(--el-bg-color);
+  border-bottom: 1px solid var(--el-border-color-light);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.top-toolbar .left-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.top-toolbar .app-info {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.top-toolbar .right-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 /* 右侧边栏控制按钮 */
 .sidebar-controls {
   position: absolute;
-  top: 16px;
+  top: 70px;
   right: 16px;
   z-index: 100;
 }
