@@ -563,8 +563,8 @@ defineExpose({
 <style scoped>
 .form-renderer {
   padding: 20px;
-  max-width: 1200px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: 100%;
 }
 
 .form-header {
