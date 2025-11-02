@@ -898,50 +898,40 @@ export class ListWidget extends BaseWidget {
   /**
    * 🔥 渲染组件（主入口）
    */
+  /**
+   * 渲染 List 组件（卡片包裹结构，参考旧版本ListInput）
+   */
   render() {
-    return h('div', { class: 'list-widget', style: { width: '100%' } }, [
-      // 列表标题
+    // 卡片样式（参考旧版本）
+    return h('div', {
+      class: 'list-widget',
+      style: {
+        border: '1px solid var(--el-border-color-light)',
+        borderRadius: '6px',
+        overflow: 'hidden',
+        width: '100%'
+      }
+    }, [
+      // 头部区域（标题和操作按钮）
+      this.renderHeader(),
+      
+      // 内容区域（可折叠）
       h('div', {
+        class: 'list-widget-content',
         style: {
-          marginBottom: '12px',
-          fontSize: '14px',
-          fontWeight: 'bold',
-          color: 'var(--el-text-color-primary)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
+          display: this.isCollapsed.value ? 'none' : 'block',
+          padding: '16px'
         }
       }, [
-        h('span', this.field.name),
-        h('span', {
-          style: {
-            fontSize: '12px',
-            color: 'var(--el-text-color-secondary)',
-            fontWeight: 'normal'
-          }
-        }, `共 ${this.savedData.value.length} 条`)
-      ]),
-      
-      // 表格展示
-      this.renderTable(),
-      
-      // 🔥 聚合统计结果
-      this.renderStatistics(),
-      
-      // 新增/编辑表单
-      this.renderForm(),
-      
-      // 添加按钮（仅在不处于编辑状态时显示，宽度与表格一致）
-      (!this.isAdding.value && this.editingIndex.value === null) ? h('div', {
-        style: { width: '100%' }
-      }, [
-        h(ElButton, {
-          type: 'primary',
-          icon: Plus,
-          onClick: () => this.startAdding(),
-          style: { width: '100%' }
-        }, { default: () => '添加' })
-      ]) : null
+        // 表格展示
+        this.renderTable(),
+        
+        // 🔥 聚合统计结果
+        this.renderStatistics(),
+        
+        // 新增/编辑表单
+        this.renderForm()
+      ])
     ])
   }
 
