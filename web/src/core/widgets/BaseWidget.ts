@@ -221,6 +221,26 @@ export abstract class BaseWidget implements IWidgetSnapshot {
   }
 
   /**
+   * 🔥 发出事件
+   * @param eventType 事件类型，如 'field:search', 'field:change'
+   * @param payload 事件数据
+   */
+  protected emit(eventType: string, payload: any = {}): void {
+    // 自动添加 fieldPath 到 payload
+    const fullPayload = {
+      ...payload,
+      fieldPath: this.fieldPath,
+      fieldCode: this.fieldCode
+    }
+    
+    // 构建完整的事件名称：eventType:fieldPath
+    const fullEventType = `${eventType}:${this.fieldPath}`
+    
+    // 发出事件
+    this.formManager.emit(fullEventType, fullPayload)
+  }
+
+  /**
    * 捕获快照（默认实现）
    */
   captureSnapshot(): WidgetSnapshot {
