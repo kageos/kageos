@@ -587,5 +587,71 @@ watch(() => props.functionData, () => {
 :deep(.el-button.is-link.el-button--danger:hover) {
   color: var(--el-color-danger) !important;
 }
+
+/* 🔥 ID 列样式 */
+:deep(.id-column) {
+  .id-cell {
+    color: var(--el-color-primary);
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s;
+    
+    &:hover {
+      color: var(--el-color-primary-light-3);
+      text-decoration: underline;
+    }
+  }
+}
+
+/* 🔥 详情抽屉样式 */
+.detail-drawer {
+  :deep(.el-drawer__header) {
+    margin-bottom: 0;
+    padding: 20px;
+    border-bottom: 1px solid var(--el-border-color-lighter);
+  }
+
+  .drawer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+  }
+
+  .drawer-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--el-text-color-primary);
+  }
+
+  .drawer-navigation {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    .nav-info {
+      font-size: 14px;
+      color: var(--el-text-color-secondary);
+      min-width: 60px;
+      text-align: center;
+    }
+  }
+
+  .detail-content {
+    padding: 20px;
+
+    :deep(.el-descriptions) {
+      .el-descriptions__label {
+        width: 150px;
+        background-color: var(--el-fill-color-light);
+        font-weight: 500;
+      }
+
+      .el-descriptions__content {
+        color: var(--el-text-color-primary);
+      }
+    }
+  }
+}
 </style>
 
