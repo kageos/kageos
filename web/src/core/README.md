@@ -59,7 +59,7 @@ http://localhost:5173/test/form-renderer
 - ⬜ MultiSelectWidget
 
 ### Phase 2：容器组件
-- ⬜ ListWidget
+- ✅ TableWidget
 - ⬜ StructWidget
 
 ### Phase 3：高级功能
