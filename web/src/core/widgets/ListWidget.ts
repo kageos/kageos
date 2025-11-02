@@ -338,8 +338,7 @@ export class ListWidget extends BaseWidget {
       const tempFieldPath = `${this.fieldPath}._form_.${itemField.code}`
       
       // 获取初始值（编辑时使用已有值，新增时使用默认值）
-      const WidgetClass = widgetFactory.getWidgetClass(itemField.widget.type)
-      const defaultValue = WidgetClass.getDefaultValue(itemField)
+      const defaultValue = BaseWidget.getDefaultValue(itemField)
       
       // 🔥 直接使用 FieldValue，无需转换（已经是标准格式）
       const fieldValue = initialData?.[itemField.code] || defaultValue
