@@ -141,6 +141,8 @@ import type { WidgetRenderProps, WidgetSnapshot } from '../types/widget'
 import { ReactiveFormDataManager } from '../managers/ReactiveFormDataManager'
 import { widgetFactory } from '../factories/WidgetFactory'
 import { BaseWidget } from '../widgets/BaseWidget'
+import { ResponseTableWidget } from '../widgets/ResponseTableWidget'
+import { ResponseFormWidget } from '../widgets/ResponseFormWidget'
 import { executeFunction } from '@/api/function'
 
 const props = withDefaults(defineProps<{
@@ -299,30 +301,52 @@ function renderResponseField(field: FieldConfig): any {
   // 根据字段类型渲染不同的组件
   const widgetType = field.widget?.type || 'input'
   
-  // 对于列表/表格类型，显示 JSON
+  // 对于列表/表格类型，使用 ResponseTableWidget
   if (widgetType === 'table' || widgetType === 'list' || field.data?.type?.includes('[]')) {
-    return h('pre', {
-      style: {
-        background: '#f5f7fa',
-        padding: '12px',
-        borderRadius: '4px',
-        maxHeight: '300px',
-        overflow: 'auto'
-      }
-    }, JSON.stringify(value, null, 2))
+    const widget = new ResponseTableWidget({
+      field: field,
+      currentFieldPath: field.code,
+      value: {
+        raw: value,
+        display: Array.isArray(value) ? `共${value.length}条` : '',
+        meta: {}
+      },
+      onChange: () => {}, // 返回值是只读的，不需要 onChange
+      formManager: formManager,
+      formRenderer: {
+        registerWidget: () => {},
+        unregisterWidget: () => {},
+        getFunctionMethod: () => props.functionDetail.method,
+        getFunctionRouter: () => props.functionDetail.router,
+        getSubmitData: () => ({})
+      },
+      depth: 0
+    })
+    return widget.render()
   }
   
-  // 对于对象类型，显示 JSON
+  // 对于对象类型，使用 ResponseFormWidget
   if (widgetType === 'form' || field.data?.type === 'struct') {
-    return h('pre', {
-      style: {
-        background: '#f5f7fa',
-        padding: '12px',
-        borderRadius: '4px',
-        maxHeight: '300px',
-        overflow: 'auto'
-      }
-    }, JSON.stringify(value, null, 2))
+    const widget = new ResponseFormWidget({
+      field: field,
+      currentFieldPath: field.code,
+      value: {
+        raw: value,
+        display: value ? JSON.stringify(value) : '{}',
+        meta: {}
+      },
+      onChange: () => {}, // 返回值是只读的，不需要 onChange
+      formManager: formManager,
+      formRenderer: {
+        registerWidget: () => {},
+        unregisterWidget: () => {},
+        getFunctionMethod: () => props.functionDetail.method,
+        getFunctionRouter: () => props.functionDetail.router,
+        getSubmitData: () => ({})
+      },
+      depth: 0
+    })
+    return widget.render()
   }
   
   // 对于文本域
@@ -418,8 +442,11 @@ async function handleRealSubmit(): Promise<void> {
     console.log('[FormRenderer] 后端响应:', response)
     
     // 保存返回值
+    // 后端返回格式：{ code: 0, data: {...}, msg: "成功" }
+    // response 已经由 request 拦截器处理，直接就是 data 字段的内容
     if (response && typeof response === 'object') {
-      responseData.value = response
+      // 如果返回的数据有 data 字段，使用 data 字段；否则直接使用整个响应
+      responseData.value = response.data !== undefined ? response.data : response
     } else {
       // 如果返回的不是对象，包装一下
       responseData.value = { result: response }
