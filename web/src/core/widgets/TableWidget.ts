@@ -107,9 +107,12 @@ export class TableWidget extends BaseWidget {
     // 解析子字段（Table 的元素类型）
     this.itemFields = this.parseItemFields()
     
-    // 🔥 初始化默认行（如果配置了 default_items）
+    // 🔥 从父组件加载已有数据（如果有）
+    this.loadInitialData()
+    
+    // 🔥 初始化默认行（如果配置了 default_items 且没有已有数据）
     const defaultItems = this.tableConfig.default_items || 0
-    if (defaultItems > 0) {
+    if (defaultItems > 0 && this.savedData.value.length === 0) {
       // 创建空行数据
       for (let i = 0; i < defaultItems; i++) {
         this.savedData.value.push({})
@@ -118,6 +121,41 @@ export class TableWidget extends BaseWidget {
     
     // 🔥 订阅子组件事件
     this.subscribeChildEvents()
+  }
+
+  /**
+   * 🔥 从父组件加载已有数据
+   */
+  private loadInitialData(): void {
+    const currentValue = this.getValue()
+    
+    // 如果父组件有数据（raw 是数组）
+    if (currentValue?.raw && Array.isArray(currentValue.raw)) {
+      this.savedData.value = currentValue.raw.map((row: any) => {
+        // 将每一行转换为 SavedRowData 格式（{ field_code: FieldValue }）
+        const rowData: SavedRowData = {}
+        
+        for (const field of this.itemFields) {
+          const rawValue = row[field.code]
+          
+          // 🔥 如果 row 中的值已经是 FieldValue 格式，直接使用
+          // 否则转换为 FieldValue 格式
+          if (rawValue && typeof rawValue === 'object' && 'raw' in rawValue && 'display' in rawValue) {
+            // 已经是 FieldValue 格式
+            rowData[field.code] = rawValue
+          } else {
+            // 转换为 FieldValue 格式
+            rowData[field.code] = {
+              raw: rawValue,
+              display: rawValue !== null && rawValue !== undefined ? String(rawValue) : '',
+              meta: {}
+            }
+          }
+        }
+        
+        return rowData
+      })
+    }
   }
 
   /**
