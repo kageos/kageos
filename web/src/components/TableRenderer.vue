@@ -187,17 +187,11 @@ const searchableFields = computed(() => {
   return props.functionData.response.filter(field => field.search)
 })
 
-// 可见字段（根据 table_permission 控制）
+// 可见字段（table_permission 不影响列表展示，所有字段都显示）
 const visibleFields = computed(() => {
-  return props.functionData.response.filter(field => {
-    const permission = field.table_permission
-    // 列表中应该显示：
-    // - 空（全部权限）
-    // - read（只读）
-    // - update 不显示
-    // - create 不显示
-    return !permission || permission === '' || permission === 'read'
-  })
+  // 🔥 关键：Table 列表显示所有字段
+  // table_permission 只控制表单（新增/编辑）中的显示/隐藏
+  return props.functionData.response
 })
 
 // 判断是否有新增回调

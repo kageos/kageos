@@ -166,8 +166,19 @@ const props = withDefaults(defineProps<{
 // 表单引用
 const formRef = ref()
 
-// 请求字段列表
-const fields = computed(() => props.functionDetail?.request || [])
+// 请求字段列表（根据 table_permission 过滤）
+const fields = computed(() => {
+  const allFields = props.functionDetail?.request || []
+  
+  // 🔥 根据 table_permission 过滤字段（默认为"新增"模式）
+  return allFields.filter(field => {
+    const permission = field.table_permission
+    
+    // ✅ 显示：空、create
+    // ❌ 不显示：read（后端自动生成）、update（仅编辑时可修改）
+    return !permission || permission === '' || permission === 'create'
+  })
+})
 
 // 返回值字段列表
 const responseFields = computed(() => props.functionDetail?.response || [])
