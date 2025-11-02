@@ -89,7 +89,6 @@ export class SelectWidget extends BaseWidget {
         this.options.value = initialOptions as SelectOption[]
       }
       
-      Logger.debug("SelectWidget" ${this.field.code} 初始化选项:`, this.options.value)
     }
     
     // ✅ 使用类型诚实的辅助方法
@@ -116,7 +115,6 @@ export class SelectWidget extends BaseWidget {
     // 🔥 检查是否配置了 OnSelectFuzzy 回调
     const callbacks = this.field.callbacks
     if (!callbacks || !callbacks.includes('OnSelectFuzzy')) {
-      Logger.debug("SelectWidget" ${this.field.code} 未配置 OnSelectFuzzy 回调，跳过`)
       return
     }
 
@@ -157,15 +155,11 @@ export class SelectWidget extends BaseWidget {
         value_type: this.field.data?.type || 'string'  // 字段类型
       }
 
-      Logger.debug("SelectWidget" ${this.field.code} 触发回调`)
-      Logger.debug("SelectWidget"   Query Type: ${requestBody.type}`)
-      Logger.debug("SelectWidget"   Search Value:`, query)
 
       // 🔥 调用回调接口
       const response = await selectFuzzy(method, router, requestBody)
       
       // 🔥 Debug: 查看完整响应
-      Logger.debug("SelectWidget" ${this.field.code} 回调响应:`, response)
 
       // 🔥 解析响应（axios 拦截器已返回 data，无需再访问 .data）
       const { items, error_msg, statistics } = response || {}
@@ -187,16 +181,13 @@ export class SelectWidget extends BaseWidget {
           icon: item.icon                  // 图标（可选）
         }))
 
-        Logger.debug("SelectWidget" ${this.field.code} 查询成功，共 ${items.length} 个选项`)
       } else {
         this.options.value = []
-        Logger.debug("SelectWidget" ${this.field.code} 查询结果为空`)
       }
 
       // 🔥 保存聚合统计信息（后续用于聚合计算）
       if (statistics && typeof statistics === 'object') {
         this.currentStatistics = statistics
-        Logger.debug("SelectWidget" ${this.field.code} 收到聚合统计:`, statistics)
       }
 
     } catch (error: any) {
@@ -245,7 +236,6 @@ export class SelectWidget extends BaseWidget {
       statistics: this.currentStatistics
     })
     
-    Logger.debug("SelectWidget" ${this.field.code} 值变化:`, {
       field_path: this.fieldPath,
       raw: value,
       display: displayValue,
@@ -275,11 +265,9 @@ export class SelectWidget extends BaseWidget {
       callback: (options: SelectOption[]) => {
         this.options.value = options
         this.loading.value = false
-        Logger.debug("SelectWidget" ${this.field.code} 收到选项:`, options.length)
       }
     })
     
-    Logger.debug("SelectWidget" ${this.field.code} 发出搜索事件, query: "${query}", isByValue: ${isByValue}`)
   }
 
   /**
@@ -289,7 +277,6 @@ export class SelectWidget extends BaseWidget {
     if (visible && this.field.callbacks?.includes('OnSelectFuzzy')) {
       // 🔥 展开时，如果选项为空，触发一次空查询加载默认选项
       if (!this.options.value || this.options.value.length === 0) {
-        Logger.debug("SelectWidget" ${this.field.code} 下拉框展开，触发默认查询`)
         this.triggerSearch('', false)  // 发出事件
       }
     }

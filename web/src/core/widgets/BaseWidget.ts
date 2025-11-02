@@ -158,8 +158,6 @@ export abstract class BaseWidget implements IWidgetSnapshot {
       Logger.error('BaseWidget', `嵌套深度超过限制: ${this.depth}，字段: ${this.fieldPath}`)
       throw new Error(`最大嵌套深度为 ${BaseWidget.MAX_DEPTH}`)
     }
-
-    Logger.debug('BaseWidget', `创建 Widget: ${this.fieldPath}, depth: ${this.depth}`)
   }
 
   /**
@@ -197,8 +195,6 @@ export abstract class BaseWidget implements IWidgetSnapshot {
     if (this.formManager) {
       this.formManager.setValue(this.fieldPath, newValue)
     }
-    
-    Logger.debug('BaseWidget', `${this.fieldPath} 值变更`, newValue)
   }
 
   /**
@@ -464,7 +460,6 @@ export abstract class BaseWidget implements IWidgetSnapshot {
    * 捕获快照（默认实现）
    */
   captureSnapshot(): WidgetSnapshot {
-    Logger.debug('BaseWidget', `${this.fieldPath} 捕获快照`)
 
     return {
       widget_type: this.field.widget.type,
@@ -483,7 +478,6 @@ export abstract class BaseWidget implements IWidgetSnapshot {
    * 恢复快照（默认实现）
    */
   restoreSnapshot(snapshot: WidgetSnapshot): void {
-    Logger.debug('BaseWidget', `${this.fieldPath} 恢复快照`)
 
     // 恢复 FieldValue
     this.setValue({

@@ -188,7 +188,6 @@ const submitting = ref(false)
  * 初始化表单
  */
 function initializeForm(): void {
-  Logger.debug('[FormRenderer] 初始化表单', props.functionDetail)
   
   // 初始化所有字段
   fields.value.forEach(field => {
@@ -210,7 +209,6 @@ function initializeForm(): void {
  */
 function registerWidget(fieldPath: string, widget: BaseWidget): void {
   allWidgets.set(fieldPath, widget)
-  Logger.debug(`[FormRenderer] 注册 Widget: ${fieldPath}`)
 }
 
 /**
@@ -218,7 +216,6 @@ function registerWidget(fieldPath: string, widget: BaseWidget): void {
  */
 function unregisterWidget(fieldPath: string): void {
   allWidgets.delete(fieldPath)
-  Logger.debug(`[FormRenderer] 注销 Widget: ${fieldPath}`)
 }
 
 /**
@@ -354,7 +351,6 @@ function renderResponseField(field: FieldConfig): any {
  * 预览提交数据（调试用）
  */
 function handlePreviewSubmit(): void {
-  Logger.debug('[FormRenderer] 预览提交数据')
   
   // 🔥 使用统一的数据收集方法（递归收集所有字段）
   const submitData = prepareSubmitDataWithTypeConversion()
@@ -367,7 +363,6 @@ function handlePreviewSubmit(): void {
     duration: 3000
   })
   
-  Logger.debug('[FormRenderer] 提交数据:', submitData)
 }
 
 /**
@@ -384,7 +379,6 @@ function handlePreviewSubmit(): void {
 function prepareSubmitDataWithTypeConversion(): Record<string, any> {
   const result: Record<string, any> = {}
   
-  Logger.debug('[FormRenderer] 🚀 开始收集提交数据（方案4-递归）')
   
   // 🔥 统一处理：无论基础类型还是嵌套类型，都调用 getRawValueForSubmit()
   fields.value.forEach(field => {
@@ -393,13 +387,11 @@ function prepareSubmitDataWithTypeConversion(): Record<string, any> {
     
     if (widget) {
       result[fieldPath] = widget.getRawValueForSubmit()
-      Logger.debug(`[FormRenderer]   ✅ ${fieldPath}:`, result[fieldPath])
     } else {
       Logger.warn(`[FormRenderer]   ⚠️ ${fieldPath}: Widget 未注册`)
     }
   })
   
-  Logger.debug('[FormRenderer] ✅ 收集完成，最终数据:', result)
   return result
 }
 
@@ -407,14 +399,12 @@ function prepareSubmitDataWithTypeConversion(): Record<string, any> {
  * 真正提交表单到后端
  */
 async function handleRealSubmit(): Promise<void> {
-  Logger.debug('[FormRenderer] 提交表单到后端')
   
   submitting.value = true
   
   try {
     // 使用带类型转换的数据准备方法
     const submitData = prepareSubmitDataWithTypeConversion()
-    Logger.debug('[FormRenderer] 提交数据:', submitData)
     
     // 调用后端 API
     const response = await executeFunction(
@@ -423,7 +413,6 @@ async function handleRealSubmit(): Promise<void> {
       submitData
     )
     
-    Logger.debug('[FormRenderer] 后端响应:', response)
     
     // 保存返回值
     // 后端返回格式：{ code: 0, data: {...}, msg: "成功" }
@@ -482,7 +471,6 @@ function handleReset(): void {
  * 分享表单（生成快照）
  */
 function handleShare(): void {
-  Logger.debug('[FormRenderer] 生成分享快照')
   
   const snapshots: WidgetSnapshot[] = []
   
@@ -518,7 +506,6 @@ function handleShare(): void {
     duration: 3000
   })
   
-  Logger.debug('[FormRenderer] 快照数据:', snapshots)
 }
 
 /**
