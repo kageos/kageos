@@ -588,8 +588,22 @@ defineExpose({
 
 /* 🔥 强制内容区域占满剩余空间 */
 .form-container :deep(.el-form-item__content) {
-  flex: 1;
-  max-width: 100%;
+  flex: 1 !important;
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
+/* 🔥 确保表单项使用 flex 布局 */
+.form-container :deep(.el-form-item) {
+  display: flex !important;
+}
+
+/* 🔥 确保所有输入控件占满宽度 */
+.form-container :deep(.el-input),
+.form-container :deep(.el-select),
+.form-container :deep(.el-textarea),
+.form-container :deep(.el-date-picker) {
+  width: 100% !important;
 }
 
 .form-actions {
@@ -614,8 +628,22 @@ defineExpose({
 
 /* 🔥 强制返回值内容区域占满剩余空间 */
 .response-container :deep(.el-form-item__content) {
-  flex: 1;
-  max-width: 100%;
+  flex: 1 !important;
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
+/* 🔥 确保返回值表单项使用 flex 布局 */
+.response-container :deep(.el-form-item) {
+  display: flex !important;
+}
+
+/* 🔥 确保返回值所有输入控件占满宽度 */
+.response-container :deep(.el-input),
+.response-container :deep(.el-select),
+.response-container :deep(.el-textarea),
+.response-container :deep(.el-date-picker) {
+  width: 100% !important;
 }
 
 .response-container.is-empty {

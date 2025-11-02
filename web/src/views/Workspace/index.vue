@@ -1061,8 +1061,9 @@ onUnmounted(() => {
 
 /* Form 容器样式 */
 .form-container {
-  max-width: 900px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: 100%;
+  padding: 0 20px;
 }
 
 .form-header {
