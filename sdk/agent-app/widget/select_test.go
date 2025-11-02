@@ -77,3 +77,5 @@ func TestSelectCreatable(t *testing.T) {
 	t.Logf("  - Status: creatable=%v", statusConfig.Creatable)
 	t.Logf("  - Priority: creatable=%v", priorityConfig.Creatable)
 }
+
+
