@@ -9,7 +9,7 @@
  */
 
 import { h, ref, computed, markRaw } from 'vue'
-import { ElButton, ElTable, ElTableColumn, ElForm, ElFormItem, ElIcon, ElMessage } from 'element-plus'
+import { ElButton, ElTable, ElTableColumn, ElForm, ElFormItem, ElIcon, ElMessage, ElTag } from 'element-plus'
 import { Plus, Delete, Edit, Check, Close } from '@element-plus/icons-vue'
 import { BaseWidget } from './BaseWidget'
 import { widgetFactory } from '../factories/WidgetFactory'
@@ -558,6 +558,12 @@ export class ListWidget extends BaseWidget {
           }, {
             default: ({ row }: { row: SavedRowData }) => {
               const value = row[field.code]
+              if (!value) return '-'
+              
+              // 🔥 如果是 MultiSelect，使用特殊渲染
+              if (field.widget?.type === 'multiselect') {
+                return this.renderMultiSelectCell(value, field)
+              }
               return this.formatCellValue(value, field)
             }
           })
@@ -598,7 +604,80 @@ export class ListWidget extends BaseWidget {
   private getColumnWidth(field: FieldConfig): number {
     if (field.widget?.type === 'timestamp') return 180
     if (field.widget?.type === 'textarea' || field.widget?.type === 'text_area') return 200
+    if (field.widget?.type === 'multiselect') return 200  // MultiSelect 需要更宽的空间
     return 120
+  }
+
+  /**
+   * 🔥 渲染 MultiSelect 单元格（使用 Tag 标签）
+   */
+  private renderMultiSelectCell(fieldValue: FieldValue, field: FieldConfig): any {
+    if (!fieldValue || !fieldValue.raw) {
+      return h('span', { style: { color: 'var(--el-text-color-secondary)' } }, '-')
+    }
+    
+    const raw = fieldValue.raw
+    const meta = fieldValue.meta || {}
+    
+    // 如果不是数组，降级处理
+    if (!Array.isArray(raw)) {
+      return h('span', String(raw))
+    }
+    
+    // 如果是空数组
+    if (raw.length === 0) {
+      return h('span', { style: { color: 'var(--el-text-color-secondary)' } }, '未选择')
+    }
+    
+    // 🔥 尝试从 meta.displayInfo 中提取选项的 label
+    let labels: string[] = []
+    
+    // displayInfo 可能是数组（MultiSelect 多个选项的 displayInfo）
+    if (meta.displayInfo && Array.isArray(meta.displayInfo)) {
+      labels = meta.displayInfo.map((info: any) => {
+        // 如果 displayInfo 有 label 字段
+        if (info && typeof info === 'object' && 'label' in info) {
+          return info.label
+        }
+        // 尝试从字段中提取名称
+        return info?.商品名称 || info?.名称 || info?.name || String(info)
+      })
+    }
+    
+    // 如果没有 labels，回退到显示 raw 值
+    if (labels.length === 0) {
+      labels = raw.map(v => String(v))
+    }
+    
+    // 🔥 显示策略：
+    // - 如果 ≤ 3 个，全部显示为 Tag
+    // - 如果 > 3 个，显示前 2 个 + "等 N 项"
+    const maxDisplay = 3
+    const displayLabels = labels.slice(0, maxDisplay)
+    const hasMore = labels.length > maxDisplay
+    
+    return h('div', { 
+      style: { 
+        display: 'flex', 
+        gap: '4px', 
+        flexWrap: 'wrap',
+        alignItems: 'center'
+      } 
+    }, [
+      ...displayLabels.map(label => 
+        h(ElTag, { 
+          size: 'small',
+          type: 'info'
+        }, { default: () => label })
+      ),
+      // 如果有更多项，显示省略标识
+      hasMore ? h('span', { 
+        style: { 
+          fontSize: '12px', 
+          color: 'var(--el-text-color-secondary)' 
+        } 
+      }, `等${labels.length}项`) : null
+    ])
   }
 
   /**
