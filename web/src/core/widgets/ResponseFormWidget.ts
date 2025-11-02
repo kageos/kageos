@@ -4,11 +4,23 @@
  */
 
 import { h } from 'vue'
-import { ElForm, ElFormItem, ElInput, ElInputNumber } from 'element-plus'
+import { ElForm, ElFormItem, ElInput, ElInputNumber, ElCard } from 'element-plus'
 import { BaseWidget } from './BaseWidget'
 import type { FieldConfig } from '../types/field'
 
 export class ResponseFormWidget extends BaseWidget {
+  // 标记是否有实际返回数据（通过检查是否有非空值判断）
+  private get hasData(): boolean {
+    const currentValue = this.getValue()
+    const formData = currentValue?.raw || {}
+    const keys = Object.keys(formData)
+    if (keys.length === 0) return false
+    // 检查是否至少有一个字段有实际值（不为 undefined/null/空字符串）
+    return keys.some(key => {
+      const value = formData[key]
+      return value !== undefined && value !== null && value !== ''
+    })
+  }
   /**
    * 格式化时间戳
    */
@@ -109,29 +121,45 @@ export class ResponseFormWidget extends BaseWidget {
     // 获取子字段配置
     const fields: FieldConfig[] = this.field.children || []
     
-    // 如果没有数据，显示空状态
-    if (Object.keys(formData).length === 0) {
-      return h('div', {
-        style: {
-          padding: '20px',
-          textAlign: 'center',
-          color: 'var(--el-text-color-placeholder)'
-        }
-      }, '暂无数据')
-    }
-    
-    // 渲染表单
-    return h(ElForm, {
-      labelWidth: '120px'
+    // 渲染表单（即使没有数据也显示框架结构）
+    return h(ElCard, {
+      shadow: 'never',
+      bodyStyle: {
+        padding: '20px'
+      },
+      style: {
+        backgroundColor: 'var(--el-bg-color-page)',
+        border: '1px solid var(--el-border-color-lighter)'
+      }
     }, {
-      default: () => fields.map(field => 
-        h(ElFormItem, {
-          key: field.code,
-          label: field.name
-        }, {
-          default: () => this.renderField(field, formData[field.code])
-        })
-      )
+      default: () => h(ElForm, {
+        labelWidth: '140px',  // 增加标签宽度，使布局更宽松
+        labelPosition: 'right' as const
+      }, {
+        default: () => fields.map(field => 
+          h(ElFormItem, {
+            key: field.code,
+            label: field.name,
+            style: {
+              marginBottom: '20px'  // 增加表单项间距
+            }
+          }, {
+            default: () => {
+              const value = formData[field.code]
+              // 如果没有数据，显示占位符
+              if (!this.hasData && (value === undefined || value === null)) {
+                return h(ElInput, {
+                  modelValue: '',
+                  placeholder: '等待数据...',
+                  disabled: true,
+                  style: { width: '100%' }
+                })
+              }
+              return this.renderField(field, value)
+            }
+          })
+        )
+      })
     })
   }
 }

@@ -283,32 +283,23 @@ function renderField(field: FieldConfig): any {
 
 /**
  * 渲染单个返回值字段（只读展示）
+ * 即使没有数据也渲染框架结构，提供更好的用户体验
  */
 function renderResponseField(field: FieldConfig): any {
-  // 如果没有返回数据，显示占位符
-  if (!responseData.value) {
-    return h(ElInput, {
-      modelValue: '',
-      placeholder: `等待提交后显示${field.name}`,
-      disabled: true,
-      style: { width: '100%' }
-    })
-  }
-  
-  // 获取返回值
-  const value = responseData.value[field.code]
+  // 获取返回值（可能为 undefined）
+  const value = responseData.value?.[field.code]
   
   // 根据字段类型渲染不同的组件
   const widgetType = field.widget?.type || 'input'
   
-  // 对于列表/表格类型，使用 ResponseTableWidget
-  if (widgetType === 'table' || widgetType === 'list' || field.data?.type?.includes('[]')) {
+  // 对于表格类型，使用 ResponseTableWidget（始终渲染，即使没有数据也显示空表格）
+  if (widgetType === 'table' || field.data?.type?.includes('[]')) {
     const widget = new ResponseTableWidget({
       field: field,
       currentFieldPath: field.code,
       value: {
-        raw: value,
-        display: Array.isArray(value) ? `共${value.length}条` : '',
+        raw: value || [],  // 没有数据时使用空数组
+        display: Array.isArray(value) ? `共${value.length}条` : '等待数据...',
         meta: {}
       },
       onChange: () => {}, // 返回值是只读的，不需要 onChange
@@ -325,14 +316,14 @@ function renderResponseField(field: FieldConfig): any {
     return widget.render()
   }
   
-  // 对于对象类型，使用 ResponseFormWidget
+  // 对于对象类型，使用 ResponseFormWidget（始终渲染，即使没有数据也显示空表单框架）
   if (widgetType === 'form' || field.data?.type === 'struct') {
     const widget = new ResponseFormWidget({
       field: field,
       currentFieldPath: field.code,
       value: {
-        raw: value,
-        display: value ? JSON.stringify(value) : '{}',
+        raw: value || {},  // 没有数据时使用空对象
+        display: value ? JSON.stringify(value) : '等待数据...',
         meta: {}
       },
       onChange: () => {}, // 返回值是只读的，不需要 onChange
@@ -356,6 +347,7 @@ function renderResponseField(field: FieldConfig): any {
       type: 'textarea',
       rows: 4,
       disabled: true,
+      placeholder: responseData.value ? '' : `等待提交后显示${field.name}`,
       style: { width: '100%' }
     })
   }
@@ -364,6 +356,7 @@ function renderResponseField(field: FieldConfig): any {
   return h(ElInput, {
     modelValue: value !== undefined && value !== null ? String(value) : '',
     disabled: true,
+    placeholder: responseData.value ? '' : `等待提交后显示${field.name}`,
     style: { width: '100%' }
   })
 }
@@ -451,6 +444,7 @@ async function handleRealSubmit(): Promise<void> {
       // 如果返回的不是对象，包装一下
       responseData.value = { result: response }
     }
+    
     
     ElMessage.success({
       message: '表单提交成功！',
