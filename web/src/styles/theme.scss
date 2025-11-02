@@ -50,6 +50,7 @@
   --border-radius-sm: 2px;
   --border-radius-base: 4px;
   --border-radius-lg: 8px;
+  --border-radius-xl: 12px;
   --border-radius-full: 9999px;
   
   // 阴影
@@ -155,6 +156,7 @@ html.dark {
   .el-input__wrapper {
     background-color: var(--bg-primary) !important;
     border: 1px solid var(--border-base) !important;
+    border-radius: 6px !important;  /* 照抄旧版本的圆角设计 */
     box-shadow: none !important;
     
     &:hover {
@@ -180,6 +182,7 @@ html.dark {
   .el-textarea__inner {
     background-color: var(--bg-primary) !important;
     border-color: var(--border-base) !important;
+    border-radius: 6px !important;  /* 照抄旧版本的圆角设计 */
     color: var(--text-primary) !important;
     
     &::placeholder {
@@ -199,6 +202,7 @@ html.dark {
   .el-select__wrapper {
     background-color: var(--bg-primary) !important;
     border: 1px solid var(--border-base) !important;
+    border-radius: 6px !important;  /* 照抄旧版本的圆角设计 */
     box-shadow: none !important;
     
     &:hover {
@@ -630,14 +634,16 @@ body {
   border-radius: var(--border-radius-base);
 }
 
-// 全局输入框样式 - 确保在所有情况下都正确
+// 全局输入框样式 - 确保在所有情况下都正确（照抄旧版本的圆角设计）
 .el-input__wrapper {
   background-color: var(--el-bg-color) !important;
+  border-radius: 6px !important;  /* 照抄旧版本的圆角设计 */
   transition: all 0.3s ease;
 }
 
 .el-textarea__inner {
   background-color: var(--el-bg-color) !important;
+  border-radius: 6px !important;  /* 照抄旧版本的圆角设计 */
   transition: all 0.3s ease;
 }
 
