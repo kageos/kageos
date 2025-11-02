@@ -19,7 +19,8 @@
 import { h, markRaw } from 'vue'
 import { ElCard, ElForm, ElFormItem } from 'element-plus'
 import { BaseWidget } from './BaseWidget'
-import { widgetFactory } from '../factories/WidgetFactory'
+import { WidgetBuilder } from '../factories/WidgetBuilder'
+import { ErrorHandler } from '../utils/ErrorHandler'
 import type { FieldConfig, FieldValue } from '../types/field'
 import type { WidgetRenderProps } from '../types/widget'
 
@@ -96,34 +97,27 @@ export class FormWidget extends BaseWidget {
     this.subFields.forEach(subField => {
       const subFieldPath = `${this.fieldPath}.${subField.code}`
       
-      // 初始化子字段的值
-      this.formManager.initializeField(
-        subFieldPath,
-        BaseWidget.getDefaultValue(subField)
-      )
-      
-      // 创建子 Widget
-      const childProps: WidgetRenderProps = {
-        field: subField,
-        currentFieldPath: subFieldPath,
-        value: this.formManager.getValue(subFieldPath),
-        onChange: (newValue: FieldValue) => {
-          this.formManager.setValue(subFieldPath, newValue)
-        },
-        formManager: this.formManager,
-        formRenderer: this.formRenderer,
-        depth: this.depth + 1
-      }
-      
-      const WidgetClass = widgetFactory.getWidgetClass(subField.widget.type)
-      const widget = new WidgetClass(childProps)
-      
-      // 🔥 使用 markRaw 防止 Vue 响应式转换
-      this.subWidgets.set(subField.code, markRaw(widget))
-      
-      // 🔥 注册到父级的 allWidgets（用于快照和提交）
-      if (this.formRenderer?.registerWidget) {
-        this.formRenderer.registerWidget(subFieldPath, widget)
+      try {
+        // ✅ 使用 WidgetBuilder 创建子 Widget
+        const widget = WidgetBuilder.create({
+          field: subField,
+          fieldPath: subFieldPath,
+          formManager: this.formManager,
+          formRenderer: this.formRenderer,
+          depth: this.depth + 1
+        })
+        
+        // 🔥 使用 markRaw 防止 Vue 响应式转换
+        this.subWidgets.set(subField.code, markRaw(widget))
+        
+        // 🔥 注册到父级的 allWidgets（用于快照和提交）
+        if (this.formRenderer?.registerWidget) {
+          this.formRenderer.registerWidget(subFieldPath, widget)
+        }
+      } catch (error) {
+        ErrorHandler.handleWidgetError(`FormWidget.createSubWidgets[${subField.code}]`, error, {
+          showMessage: false
+        })
       }
     })
     

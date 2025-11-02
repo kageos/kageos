@@ -96,7 +96,8 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { widgetFactory } from '@/core/factories/WidgetFactory'
+import { WidgetBuilder } from '@/core/factories/WidgetBuilder'
+import { ErrorHandler } from '@/core/utils/ErrorHandler'
 import type { FieldConfig } from '@/types'
 
 interface Props {
@@ -136,49 +137,30 @@ const selectOptions = computed(() => {
   return inputConfig.value.props?.options || []
 })
 
-// 🔥 创建最小化的 mock formManager（避免 Widget 初始化报错）
-const createMockFormManager = () => {
-  return {
-    getValue: () => ({ raw: null, display: '', meta: {} }),
-    setValue: () => {},
-    emit: () => {},
-    on: () => () => {},
-    clear: () => {},
-    getAllValues: () => ({}),
-    setFormData: () => {}
-  } as any
-}
-
 // 🔥 通过 Widget 获取搜索输入配置
 const inputConfig = computed(() => {
   try {
-    // 创建临时 Widget 实例
-    const WidgetClass = widgetFactory.getWidgetClass(props.field.widget?.type || 'input')
-    
-    // 🔥 提供 mock formManager 避免初始化报错
-    const tempWidget = new WidgetClass({
+    // ✅ 使用 WidgetBuilder 创建临时 Widget
+    const tempWidget = WidgetBuilder.createTemporary({
       field: props.field,
-      fieldPath: `_search_.${props.field.code}`,
-      initialValue: { raw: null, display: '', meta: {} },
-      formManager: createMockFormManager(),  // 提供 mock
-      formRenderer: null,
-      depth: 0,
-      onChange: () => {}
+      useMockFormManager: true
     })
     
     // 🔥 调用 Widget 的 renderSearchInput 方法
-    return tempWidget.renderSearchInput(props.searchType)
+    return (tempWidget as any).renderSearchInput(props.searchType)
   } catch (error) {
-    console.error('[SearchInput] 获取配置失败:', error)
-    // 降级：返回默认输入框
-    return {
-      component: 'ElInput',
-      props: {
-        placeholder: `请输入${props.field.name}`,
-        clearable: true,
-        style: { width: '200px' }
+    // ✅ 使用 ErrorHandler 统一处理错误
+    return ErrorHandler.handleWidgetError('SearchInput.inputConfig', error, {
+      showMessage: false,
+      fallbackValue: {
+        component: 'ElInput',
+        props: {
+          placeholder: `请输入${props.field.name}`,
+          clearable: true,
+          style: { width: '200px' }
+        }
       }
-    }
+    })
   }
 })
 

@@ -4,6 +4,28 @@
 
 import type { FieldConfig, FieldValue } from './field'
 import type { ReactiveFormDataManager } from '../managers/ReactiveFormDataManager'
+import type { BaseWidget } from '../widgets/BaseWidget'
+
+/**
+ * FormRenderer 上下文接口
+ * 提供给 Widget 的 FormRenderer 能力
+ */
+export interface FormRendererContext {
+  /** 注册 Widget 实例 */
+  registerWidget: (fieldPath: string, widget: BaseWidget) => void
+  
+  /** 注销 Widget 实例 */
+  unregisterWidget: (fieldPath: string) => void
+  
+  /** 获取函数的 HTTP 方法 */
+  getFunctionMethod: () => string
+  
+  /** 获取函数的路由 */
+  getFunctionRouter: () => string
+  
+  /** 获取完整的提交数据（递归收集） */
+  getSubmitData: () => Record<string, any>
+}
 
 /**
  * Widget 渲染属性
@@ -14,14 +36,8 @@ export interface WidgetRenderProps {
   value: FieldValue
   onChange: (newValue: FieldValue) => void
   formManager: ReactiveFormDataManager
-  formRenderer?: {
-    registerWidget: (fieldPath: string, widget: any) => void
-    unregisterWidget: (fieldPath: string) => void
-    getFunctionMethod?: () => string        // 🔥 获取函数的 HTTP 方法
-    getFunctionRouter?: () => string        // 🔥 获取函数的路由
-    getSubmitData?: () => Record<string, any>  // 🔥 获取完整的提交数据（递归收集）
-  }
-  depth?: number  // 嵌套深度
+  formRenderer: FormRendererContext | null
+  depth?: number
 }
 
 /**
@@ -38,4 +54,3 @@ export interface WidgetSnapshot {
   }
   component_data?: any  // 各组件特定数据
 }
-
