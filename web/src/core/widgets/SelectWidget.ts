@@ -228,7 +228,7 @@ export class SelectWidget extends BaseWidget {
     // 🔥 更新值（使用 BaseWidget 的 setValue 方法）
     this.setValue(newFieldValue)
     
-    // 🔥 发出变化事件（通知父组件 ListWidget）
+    // 🔥 发出变化事件（通知父组件 TableWidget）
     this.emit('field:change', {
       value: value,
       display: displayValue,
@@ -250,7 +250,7 @@ export class SelectWidget extends BaseWidget {
     
     this.loading.value = true
     
-    // 🔥 发出搜索事件（让 ListWidget 处理）
+    // 🔥 发出搜索事件（让 TableWidget 处理）
     this.emit('field:search', {
       query: query,
       isByValue: isByValue,

@@ -63,7 +63,7 @@ export class WidgetBuilder {
    * 
    * 使用场景：
    * - FormRenderer 创建顶层 Widget
-   * - ListWidget 创建表单 Widget
+   * - TableWidget 创建表单 Widget
    * - FormWidget 创建子 Widget
    * 
    * @example
@@ -119,7 +119,7 @@ export class WidgetBuilder {
    * 
    * 使用场景：
    * - SearchInput.vue 渲染搜索框配置
-   * - ListWidget.renderCellByWidget() 渲染表格单元格
+   * - TableWidget.renderCellByWidget() 渲染表格单元格
    * - 其他不需要实际数据管理的临时渲染
    * 
    * 注意：临时 Widget 的 formManager 为 null，Widget 必须能够处理这种情况
@@ -172,7 +172,7 @@ export class WidgetBuilder {
    * 批量创建 Widget（用于容器组件）
    * 
    * 使用场景：
-   * - ListWidget 创建多个表单项
+   * - TableWidget 创建多个表单项
    * - FormWidget 创建多个子字段
    * 
    * @example

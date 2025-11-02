@@ -289,7 +289,7 @@ export abstract class BaseWidget implements IWidgetSnapshot {
   }
 
   /**
-   * 🔥 渲染表格单元格（用于 ListWidget）
+   * 🔥 渲染表格单元格（用于 TableWidget）
    * 子类可以覆盖此方法来自定义表格展示
    * @param value 字段值
    * @returns VNode（Vue 虚拟节点）或 字符串

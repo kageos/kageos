@@ -10,7 +10,7 @@ import { FloatWidget } from '../widgets/FloatWidget'
 import { TextAreaWidget } from '../widgets/TextAreaWidget'
 import { SelectWidget } from '../widgets/SelectWidget'
 import { MultiSelectWidget } from '../widgets/MultiSelectWidget'
-import { ListWidget } from '../widgets/ListWidget'
+import { TableWidget } from '../widgets/TableWidget'
 import { FormWidget } from '../widgets/FormWidget'
 import { SwitchWidget } from '../widgets/SwitchWidget'
 import { TimestampWidget } from '../widgets/TimestampWidget'
@@ -46,8 +46,7 @@ export class WidgetFactory {
     this.registerWidget('timestamp', TimestampWidget)  // 🔥 时间戳组件
     
     // 容器组件
-    this.registerWidget('list', ListWidget)
-    this.registerWidget('table', ListWidget)  // table 是 list 的别名
+    this.registerWidget('table', TableWidget)  // table 表格组件
     this.registerWidget('form', FormWidget)   // form 组件（用于 data.type="struct"）
     
     console.log('[WidgetFactory] 初始化，已注册 Widget:', Array.from(this.widgetMap.keys()))
