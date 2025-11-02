@@ -1,14 +1,67 @@
 /**
  * ResponseTableWidget - 返回值表格组件
  * 用于渲染返回值中的 table/list 类型字段（只读展示）
+ * 
+ * 功能特性：
+ * - 点击 ID 列查看详情
+ * - 详情抽屉导航（上一个/下一个）
+ * - 只读展示，无编辑功能
  */
 
-import { h } from 'vue'
-import { ElTable, ElTableColumn } from 'element-plus'
+import { h, ref } from 'vue'
+import { ElTable, ElTableColumn, ElDrawer, ElButton, ElIcon, ElDescriptions, ElDescriptionsItem } from 'element-plus'
+import { ArrowLeft, ArrowRight, Close } from '@element-plus/icons-vue'
 import { BaseWidget } from './BaseWidget'
 import type { FieldConfig } from '../types/field'
 
 export class ResponseTableWidget extends BaseWidget {
+  // 🔥 详情抽屉状态
+  private showDetailDrawer = ref(false)
+  private currentDetailRow = ref<any>(null)
+  private currentDetailIndex = ref<number>(-1)
+  private tableData = ref<any[]>([])
+  /**
+   * 🔥 判断是否是 ID 列
+   */
+  private isIdColumn(field: FieldConfig): boolean {
+    const code = field.code.toLowerCase()
+    return code === 'id' || code === 'ID' || code.endsWith('_id') || code.endsWith('Id')
+  }
+
+  /**
+   * 🔥 处理 ID 列点击
+   */
+  private handleIdClick(row: any, index: number): void {
+    this.currentDetailRow.value = row
+    this.currentDetailIndex.value = index
+    this.showDetailDrawer.value = true
+  }
+
+  /**
+   * 🔥 处理导航（上一个/下一个）
+   */
+  private handleNavigate(direction: 'prev' | 'next'): void {
+    const data = this.tableData.value
+    if (!data || data.length === 0) return
+
+    if (direction === 'prev' && this.currentDetailIndex.value > 0) {
+      this.currentDetailIndex.value--
+      this.currentDetailRow.value = data[this.currentDetailIndex.value]
+    } else if (direction === 'next' && this.currentDetailIndex.value < data.length - 1) {
+      this.currentDetailIndex.value++
+      this.currentDetailRow.value = data[this.currentDetailIndex.value]
+    }
+  }
+
+  /**
+   * 🔥 关闭详情抽屉
+   */
+  private handleCloseDetail(): void {
+    this.showDetailDrawer.value = false
+    this.currentDetailRow.value = null
+    this.currentDetailIndex.value = -1
+  }
+
   /**
    * 获取列宽
    */
