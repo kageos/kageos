@@ -236,9 +236,9 @@ export class ListWidget extends BaseWidget {
         gap: '12px',
         marginBottom: '12px',
         padding: '16px',
-        border: '1px solid #e4e7ed',
+        border: '1px solid var(--el-border-color)',  // 🔥 使用 CSS 变量
         borderRadius: '4px',
-        backgroundColor: '#fafafa'
+        backgroundColor: 'var(--el-fill-color-light)'  // 🔥 使用 CSS 变量
       }
     }, [
       // 行号
@@ -246,7 +246,7 @@ export class ListWidget extends BaseWidget {
         style: {
           minWidth: '30px',
           lineHeight: '32px',
-          color: '#909399',
+          color: 'var(--el-text-color-secondary)',  // 🔥 使用 CSS 变量
           fontWeight: 'bold'
         }
       }, `${index + 1}.`),
@@ -276,7 +276,7 @@ export class ListWidget extends BaseWidget {
               display: 'block',
               marginBottom: '4px',
               fontSize: '12px',
-              color: '#606266'
+              color: 'var(--el-text-color-regular)'  // 🔥 使用 CSS 变量
             }
           }, itemField.name),
           widget.render()
@@ -314,7 +314,7 @@ export class ListWidget extends BaseWidget {
           marginBottom: '12px',
           fontSize: '14px',
           fontWeight: 'bold',
-          color: '#303133'
+          color: 'var(--el-text-color-primary)'  // 🔥 使用 CSS 变量
         }
       }, this.field.name),
       
