@@ -132,11 +132,13 @@ const props = withDefaults(defineProps<{
   showShareButton?: boolean
   showResetButton?: boolean
   showDebugButton?: boolean
+  initialData?: Record<string, any>  // 🔥 初始数据（编辑模式）
 }>(), {
   showSubmitButton: true,
   showShareButton: true,
   showResetButton: true,
-  showDebugButton: true
+  showDebugButton: true,
+  initialData: () => ({})
 })
 
 // 表单引用
@@ -193,14 +195,32 @@ function initializeForm(): void {
   fields.value.forEach(field => {
     const fieldPath = field.code
     
-    // ✅ 使用 BaseWidget 的静态方法获取默认值
-    const defaultValue = BaseWidget.getDefaultValue(field)
+    // 🔥 如果有初始数据，优先使用初始数据；否则使用默认值
+    let fieldValue: FieldValue
+    if (props.initialData && field.code in props.initialData) {
+      const initialRawValue = props.initialData[field.code]
+      
+      // 🔥 如果初始值已经是 FieldValue 格式，直接使用；否则转换
+      if (initialRawValue && typeof initialRawValue === 'object' && 'raw' in initialRawValue && 'display' in initialRawValue) {
+        fieldValue = initialRawValue as FieldValue
+      } else {
+        // 转换为 FieldValue 格式
+        fieldValue = {
+          raw: initialRawValue,
+          display: initialRawValue !== null && initialRawValue !== undefined ? String(initialRawValue) : '',
+          meta: {}
+        }
+      }
+    } else {
+      // ✅ 使用 BaseWidget 的静态方法获取默认值
+      fieldValue = BaseWidget.getDefaultValue(field)
+    }
     
     // 初始化 FormDataManager
-    formManager.initializeField(fieldPath, defaultValue)
+    formManager.initializeField(fieldPath, fieldValue)
     
     // 初始化 formData（用于 el-form）
-    formData[field.code] = defaultValue.raw
+    formData[field.code] = fieldValue.raw
   })
 }
 

@@ -138,23 +138,83 @@ export class TableWidget extends BaseWidget {
         for (const field of this.itemFields) {
           const rawValue = row[field.code]
           
-          // 🔥 如果 row 中的值已经是 FieldValue 格式，直接使用
-          // 否则转换为 FieldValue 格式
-          if (rawValue && typeof rawValue === 'object' && 'raw' in rawValue && 'display' in rawValue) {
-            // 已经是 FieldValue 格式
-            rowData[field.code] = rawValue
-          } else {
-            // 转换为 FieldValue 格式
-            rowData[field.code] = {
-              raw: rawValue,
-              display: rawValue !== null && rawValue !== undefined ? String(rawValue) : '',
-              meta: {}
-            }
-          }
+          // 🔥 递归转换：处理嵌套的 table/form 组件
+          rowData[field.code] = this.convertToFieldValue(rawValue, field)
         }
         
         return rowData
       })
+    }
+  }
+
+  /**
+   * 🔥 递归转换值为 FieldValue 格式（支持嵌套的 table/form）
+   */
+  private convertToFieldValue(rawValue: any, field: FieldConfig): FieldValue {
+    // 如果已经是 FieldValue 格式，直接返回
+    if (rawValue && typeof rawValue === 'object' && 'raw' in rawValue && 'display' in rawValue) {
+      return rawValue
+    }
+    
+    // 🔥 递归处理嵌套的 table 组件
+    if (field.widget?.type === 'table') {
+      // 如果是数组，递归转换每一行
+      if (Array.isArray(rawValue)) {
+        const convertedRows = rawValue.map((row: any) => {
+          const rowData: Record<string, FieldValue> = {}
+          const subFields = field.children || []
+          
+          for (const subField of subFields) {
+            rowData[subField.code] = this.convertToFieldValue(row[subField.code], subField)
+          }
+          
+          return rowData
+        })
+        
+        return {
+          raw: convertedRows,
+          display: `共 ${convertedRows.length} 条`,
+          meta: {}
+        }
+      }
+      // 空数组
+      return {
+        raw: [],
+        display: '[]',
+        meta: {}
+      }
+    }
+    
+    // 🔥 递归处理嵌套的 form 组件
+    if (field.widget?.type === 'form') {
+      // 如果是对象，递归转换每个字段
+      if (rawValue && typeof rawValue === 'object' && !Array.isArray(rawValue)) {
+        const convertedData: Record<string, FieldValue> = {}
+        const subFields = field.children || []
+        
+        for (const subField of subFields) {
+          convertedData[subField.code] = this.convertToFieldValue(rawValue[subField.code], subField)
+        }
+        
+        return {
+          raw: convertedData,
+          display: JSON.stringify(convertedData),
+          meta: {}
+        }
+      }
+      // 空对象
+      return {
+        raw: {},
+        display: '{}',
+        meta: {}
+      }
+    }
+    
+    // 🔥 基础类型：直接转换
+    return {
+      raw: rawValue,
+      display: rawValue !== null && rawValue !== undefined ? String(rawValue) : '',
+      meta: {}
     }
   }
 
