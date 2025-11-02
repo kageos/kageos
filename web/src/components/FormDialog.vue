@@ -15,6 +15,7 @@
       :show-share-button="false"
       :show-reset-button="false"
       :show-debug-button="false"
+      :initial-data="props.initialData"
     />
 
     <template #footer>
