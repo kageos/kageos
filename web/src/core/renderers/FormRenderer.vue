@@ -1,12 +1,5 @@
 <template>
   <div class="form-renderer">
-    <div class="form-header">
-      <h2>{{ functionDetail?.name || '表单' }}</h2>
-      <p v-if="functionDetail?.description" class="form-description">
-        {{ functionDetail.description }}
-      </p>
-    </div>
-    
     <!-- 请求参数表单 -->
     <el-card class="request-card" shadow="never">
       <template #header>
@@ -18,7 +11,7 @@
       <el-form
         ref="formRef"
         :model="formData"
-        label-width="120px"
+        label-width="100px"
         class="form-container"
       >
         <el-form-item
@@ -70,7 +63,7 @@
       </template>
       
       <el-form
-        label-width="120px"
+        label-width="100px"
         class="response-container"
         :class="{ 'is-empty': !responseData }"
       >
@@ -565,23 +558,6 @@ defineExpose({
   padding: 20px;
   width: 100%;
   max-width: 100%;
-}
-
-.form-header {
-  margin-bottom: 24px;
-}
-
-.form-header h2 {
-  margin: 0 0 8px 0;
-  font-size: 24px;
-  font-weight: 600;
-  color: #303133;
-}
-
-.form-description {
-  margin: 0;
-  font-size: 14px;
-  color: #909399;
 }
 
 .request-card {
