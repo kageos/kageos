@@ -612,8 +612,11 @@ export class ListWidget extends BaseWidget {
    */
   private renderCellByWidget(value: FieldValue, field: FieldConfig): any {
     try {
+      // 获取 Widget 类
+      const WidgetClass = widgetFactory.getWidgetClass(field.widget?.type || 'input')
+      
       // 创建临时 Widget 实例（仅用于渲染）
-      const tempWidget = widgetFactory.createWidget({
+      const tempWidget = new WidgetClass({
         field: field,
         fieldPath: `${this.fieldPath}[]._temp_`,  // 临时路径
         initialValue: value,
