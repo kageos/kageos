@@ -29,7 +29,7 @@
         <template #default="{ node, data }">
           <span class="tree-node">
             <el-icon class="node-icon">
-              <Folder v-if="data.type === 'package'" />
+              <FolderOpened v-if="data.type === 'package'" />
               <Document v-else />
             </el-icon>
             <span class="node-label">{{ node.label }}</span>
@@ -76,7 +76,7 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
-import { Folder, Document, Plus, MoreFilled, Link } from '@element-plus/icons-vue'
+import { FolderOpened, Document, Plus, MoreFilled, Link } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/types'
 
 interface Props {
@@ -225,8 +225,9 @@ watch(() => props.currentNodeId, (nodeId) => {
   
   .node-icon {
     font-size: 16px;
-    color: var(--el-text-color-regular);
+    color: var(--el-color-primary);  // ✅ 使用深色主题色（现代风格）
     flex-shrink: 0;
+    transition: color 0.2s ease;
   }
   
   .node-label {
@@ -287,6 +288,26 @@ watch(() => props.currentNodeId, (nodeId) => {
     .node-icon {
       color: var(--el-color-primary);
     }
+  }
+}
+
+// ✅ 为图标添加更深的颜色（现代风格）
+.tree-node .node-icon {
+  // 深色模式下的颜色
+  @media (prefers-color-scheme: dark) {
+    color: #409eff;  // 深蓝色，更现代
+  }
+  
+  // 浅色模式下的颜色
+  @media (prefers-color-scheme: light) {
+    color: #409eff;  // 保持一致的深蓝色
+  }
+}
+
+// ✅ 选中状态下的图标颜色更深
+:deep(.el-tree-node.is-current > .el-tree-node__content) {
+  .tree-node .node-icon {
+    color: #2b85e4;  // 更深的蓝色
   }
 }
 
