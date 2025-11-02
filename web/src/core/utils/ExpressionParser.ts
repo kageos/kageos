@@ -23,18 +23,26 @@ export class ExpressionParser {
    * @returns 计算结果
    */
   static evaluate(expression: string, data: any[]): any {
-    if (!expression || !data || data.length === 0) {
+    if (!expression) {
+      return ''
+    }
+    
+    if (!data || data.length === 0) {
+      console.log(`[ExpressionParser] 数据为空，跳过计算: ${expression}`)
       return 0
     }
 
     // 解析表达式：函数名(参数1,参数2,...)
     const match = expression.match(/^(\w+)\((.*)\)$/)
     if (!match) {
-      // 不是函数调用，直接返回表达式
+      // 🔥 不是函数调用，可能是纯文本（如 "9折优惠"），直接返回
+      console.log(`[ExpressionParser] 非函数表达式，直接返回: ${expression}`)
       return expression
     }
 
     const [, funcName, argsStr] = match
+    
+    console.log(`[ExpressionParser] 解析表达式: ${funcName}(${argsStr})`)
     
     // 判断是 List 层聚合还是行内聚合
     if (funcName.startsWith('list_')) {
@@ -221,14 +229,19 @@ export class ExpressionParser {
   }
 
   /**
-   * 获取字段值（支持中文字段名）
+   * 获取字段值（支持中文字段名、英文字段名）
    */
   private static getFieldValue(row: any, fieldName: string): any {
-    if (!row || !fieldName) return null
+    if (!row || !fieldName) {
+      console.log(`[ExpressionParser] getFieldValue: row 或 fieldName 为空`)
+      return null
+    }
     
     // 直接访问字段
     if (row.hasOwnProperty(fieldName)) {
-      return row[fieldName]
+      const value = row[fieldName]
+      console.log(`[ExpressionParser] 找到字段 "${fieldName}": ${value}`)
+      return value
     }
     
     // 尝试处理嵌套字段（如果未来需要支持）
@@ -240,12 +253,15 @@ export class ExpressionParser {
         if (value && value.hasOwnProperty(part)) {
           value = value[part]
         } else {
+          console.log(`[ExpressionParser] 嵌套字段 "${fieldName}" 找不到部分: ${part}`)
           return null
         }
       }
+      console.log(`[ExpressionParser] 找到嵌套字段 "${fieldName}": ${value}`)
       return value
     }
     
+    console.log(`[ExpressionParser] 字段 "${fieldName}" 不存在，可用字段:`, Object.keys(row))
     return null
   }
 
