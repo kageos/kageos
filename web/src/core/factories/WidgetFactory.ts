@@ -8,6 +8,7 @@ import { InputWidget } from '../widgets/InputWidget'
 import { TextAreaWidget } from '../widgets/TextAreaWidget'
 import { SelectWidget } from '../widgets/SelectWidget'
 import { ListWidget } from '../widgets/ListWidget'
+import { FormWidget } from '../widgets/FormWidget'
 
 export class WidgetFactory {
   private widgetMap: Map<string, typeof BaseWidget>
@@ -23,6 +24,7 @@ export class WidgetFactory {
     this.registerWidget('select', SelectWidget)
     this.registerWidget('list', ListWidget)
     this.registerWidget('table', ListWidget)  // table 是 list 的别名（后端可能返回 table）
+    this.registerWidget('form', FormWidget)  // 🔥 form 组件（用于 data.type="struct" 的字段）
     
     console.log('[WidgetFactory] 初始化，已注册 Widget:', Array.from(this.widgetMap.keys()))
   }
