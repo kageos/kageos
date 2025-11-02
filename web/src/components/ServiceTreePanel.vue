@@ -277,7 +277,17 @@ watch(() => props.currentNodeId, (nodeId) => {
 
 :deep(.el-tree-node.is-current > .el-tree-node__content) {
   background-color: var(--el-color-primary-light-9);
-  color: var(--el-color-primary);
+  
+  .tree-node {
+    .node-label {
+      color: var(--el-color-primary);
+      font-weight: 500;
+    }
+    
+    .node-icon {
+      color: var(--el-color-primary);
+    }
+  }
 }
 
 :deep(.el-dropdown-menu__item) {

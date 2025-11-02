@@ -175,7 +175,7 @@ export class FormWidget extends BaseWidget {
           style: {
             fontSize: '14px',
             fontWeight: 'bold',
-            color: '#303133'
+            color: 'var(--el-text-color-primary)'  // 🔥 使用 CSS 变量，适配深色模式
           }
         }, this.field.name),
         default: () => [
@@ -185,26 +185,26 @@ export class FormWidget extends BaseWidget {
             style: { width: '100%' }  // 🔥 表单占满宽度
           }, () => [
             // 遍历子字段，渲染每个 Widget（包含标签）
-            ...Array.from(this.subWidgets.entries()).map(([fieldCode, widget]) => {
+          ...Array.from(this.subWidgets.entries()).map(([fieldCode, widget]) => {
               const subField = this.subFields.find(f => f.code === fieldCode)
               if (!subField) return null
               
               return h(ElFormItem, {
-                key: fieldCode,
+              key: fieldCode,
                 label: subField.name,  // 🔥 显示字段标签
                 prop: fieldCode,
-                style: { 
+              style: { 
                   width: '100%',
                   marginBottom: '18px'  // 🔥 增加表单项之间的间距
-                }
+              } 
               }, {
                 default: () => [
-                  // 渲染子 Widget
-                  (widget as any).render()
+              // 渲染子 Widget
+              (widget as any).render()
                 ]
               })
             })
-          ])
+            ])
         ]
       })
     ])
