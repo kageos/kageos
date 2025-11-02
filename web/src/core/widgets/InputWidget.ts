@@ -6,20 +6,8 @@
 import { h } from 'vue'
 import { BaseWidget } from './BaseWidget'
 import { ElInput } from 'element-plus'
-
-interface InputConfig {
-  placeholder?: string
-  disabled?: boolean
-  maxlength?: number
-  minlength?: number
-  showWordLimit?: boolean
-  clearable?: boolean
-  prepend?: string  // 前缀
-  append?: string   // 后缀
-  password?: boolean  // 是否为密码框
-  showPassword?: boolean  // 是否显示密码切换按钮
-  default?: string
-}
+import type { InputConfig } from './types/widget-config'
+import { createInputSlots, getDisabledState, getPlaceholder } from './utils/render-helpers'
 
 export class InputWidget extends BaseWidget {
   private inputConfig: InputConfig
@@ -46,9 +34,9 @@ export class InputWidget extends BaseWidget {
     const inputProps: any = {
       modelValue: currentValue?.raw || '',
       'onUpdate:modelValue': (value: string) => this.handleInput(value),
-      placeholder: this.inputConfig.placeholder || `请输入${this.field.name}`,
+      placeholder: getPlaceholder(this.inputConfig.placeholder, this.field.name),
       clearable: this.inputConfig.clearable !== false,
-      disabled: this.inputConfig.disabled || this.field.table_permission === 'read',
+      disabled: getDisabledState(this.inputConfig.disabled, this.field.table_permission),
       maxlength: this.inputConfig.maxlength,
       minlength: this.inputConfig.minlength,
       showWordLimit: this.inputConfig.showWordLimit || false
@@ -60,20 +48,7 @@ export class InputWidget extends BaseWidget {
       inputProps.showPassword = this.inputConfig.showPassword !== false  // 默认显示密码切换按钮
     }
 
-    // Slots 配置
-    const slots: any = {}
-    
-    // 前缀
-    if (this.inputConfig.prepend) {
-      slots.prepend = () => this.inputConfig.prepend
-    }
-    
-    // 后缀
-    if (this.inputConfig.append) {
-      slots.append = () => this.inputConfig.append
-    }
-
-    return h(ElInput, inputProps, slots)
+    return h(ElInput, inputProps, createInputSlots(this.inputConfig.prepend, this.inputConfig.append))
   }
 }
 
