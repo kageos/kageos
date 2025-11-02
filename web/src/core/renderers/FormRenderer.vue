@@ -1,70 +1,63 @@
 <template>
   <div class="form-renderer">
     <!-- 请求参数表单 -->
-    <el-card class="request-card" shadow="never">
-      <template #header>
-        <div class="card-header">
-          <span class="card-title">请求参数</span>
-        </div>
-      </template>
-      
-      <el-form
-        ref="formRef"
-        :model="formData"
-        label-width="100px"
-        class="form-container"
+    <el-form
+      v-if="fields.length > 0"
+      ref="formRef"
+      :model="formData"
+      label-width="100px"
+      class="function-form"
+    >
+      <div class="section-title">请求参数</div>
+      <el-form-item
+        v-for="field in fields"
+        :key="field.code"
+        :label="field.name"
+        :prop="field.code"
       >
-        <el-form-item
-          v-for="field in fields"
-          :key="field.code"
-          :label="field.name"
-          :prop="field.code"
-        >
-          <component :is="renderField(field)" />
-        </el-form-item>
+        <component :is="renderField(field)" />
+      </el-form-item>
+    </el-form>
 
-        <el-form-item class="form-actions">
-          <el-button v-if="showSubmitButton" type="primary" size="large" @click="handleRealSubmit">
-            <el-icon><Promotion /></el-icon>
-            提交
+    <!-- 提交按钮区域 - 将请求参数和响应参数分开 -->
+    <div v-if="showSubmitButton || showResetButton || showDebugButton || showShareButton" class="form-actions-section">
+      <div class="form-actions-row">
+        <el-button v-if="showSubmitButton" type="primary" size="large" @click="handleRealSubmit" :loading="submitting">
+          <el-icon><Promotion /></el-icon>
+          提交
+        </el-button>
+        <el-button v-if="showResetButton" size="large" @click="handleReset">
+          <el-icon><RefreshLeft /></el-icon>
+          重置
+        </el-button>
+        
+        <!-- 🔧 调试按钮（开发阶段） -->
+        <template v-if="showDebugButton || showShareButton">
+          <el-button v-if="showDebugButton" type="info" plain size="small" @click="handlePreviewSubmit">
+            <el-icon><View /></el-icon>
+            预览提交数据
           </el-button>
-          <el-button v-if="showResetButton" size="large" @click="handleReset">
-            <el-icon><RefreshLeft /></el-icon>
-            重置
+          <el-button v-if="showShareButton" type="success" plain size="small" @click="handleShare">
+            <el-icon><Share /></el-icon>
+            生成分享快照
           </el-button>
-          
-          <!-- 🔧 调试按钮（开发阶段） -->
-          <template v-if="showDebugButton || showShareButton">
-            <el-divider direction="vertical" />
-            <el-button v-if="showDebugButton" type="info" plain size="small" @click="handlePreviewSubmit">
-              <el-icon><View /></el-icon>
-              预览提交数据
-            </el-button>
-            <el-button v-if="showShareButton" type="success" plain size="small" @click="handleShare">
-              <el-icon><Share /></el-icon>
-              生成分享快照
-            </el-button>
-            <el-button v-if="showDebugButton" plain size="small" @click="showDebug = !showDebug">
-              {{ showDebug ? '隐藏' : '显示' }}调试信息
-            </el-button>
-          </template>
-        </el-form-item>
-      </el-form>
-    </el-card>
+          <el-button v-if="showDebugButton" plain size="small" @click="showDebug = !showDebug">
+            {{ showDebug ? '隐藏' : '显示' }}调试信息
+          </el-button>
+        </template>
+      </div>
+    </div>
 
-    <!-- 返回值展示 -->
-    <el-card v-if="responseFields.length > 0" class="response-card" shadow="never">
-      <template #header>
-        <div class="card-header">
-          <span class="card-title">返回值</span>
-          <el-tag v-if="!responseData" type="info" size="small">等待提交</el-tag>
-          <el-tag v-else type="success" size="small">已返回</el-tag>
-        </div>
-      </template>
-      
+    <!-- 响应参数展示 -->
+    <div v-if="responseFields.length > 0">
+      <div class="section-title">
+        响应参数
+        <el-tag v-if="!responseData" type="info" size="small" style="margin-left: 12px">等待提交</el-tag>
+        <el-tag v-else type="success" size="small" style="margin-left: 12px">已返回</el-tag>
+      </div>
       <el-form
         label-width="100px"
-        class="response-container"
+        class="function-form response-container"
         :class="{ 'is-empty': !responseData }"
       >
         <el-form-item
@@ -75,7 +68,7 @@
           <component :is="renderResponseField(field)" />
         </el-form-item>
       </el-form>
-    </el-card>
+    </div>
 
     <!-- 提交结果 -->
     <el-card v-if="submitResult" class="result-card" style="margin-top: 20px;">
@@ -199,6 +192,9 @@ const submitResult = ref<any>(null)
 
 // 分享信息
 const shareInfo = ref<any>(null)
+
+// 提交状态
+const submitting = ref(false)
 
 /**
  * 初始化表单
@@ -420,6 +416,8 @@ function prepareSubmitDataWithTypeConversion(): Record<string, any> {
 async function handleRealSubmit(): Promise<void> {
   console.log('[FormRenderer] 提交表单到后端')
   
+  submitting.value = true
+  
   try {
     // 使用带类型转换的数据准备方法
     const submitData = prepareSubmitDataWithTypeConversion()
@@ -467,6 +465,8 @@ async function handleRealSubmit(): Promise<void> {
     
     // 清空返回值（如果有之前的错误数据）
     responseData.value = null
+  } finally {
+    submitting.value = false
   }
 }
 
@@ -663,20 +663,50 @@ defineExpose({
   width: 100% !important;
 }
 
-.form-actions {
-  margin-top: 24px;
-  padding-top: 24px;
-  border-top: 1px solid #ebeef5;
+/* 章节标题样式 - 照抄旧版本 */
+.section-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+  margin: 24px 0 16px;
+  padding-left: 12px;
+  border-left: 3px solid var(--el-color-primary);
+  display: flex;
+  align-items: center;
 }
 
-.response-card {
-  margin-bottom: 20px;
-  width: 100%;
+/* 表单样式 - 照抄旧版本 */
+.function-form {
+  :deep(.el-form-item) {
+    margin-bottom: 20px;
+
+    .el-form-item__label {
+      font-weight: 500;
+      color: var(--el-text-color-primary);
+      padding-bottom: 8px;
+    }
+  }
 }
 
-/* 🔥 确保返回值卡片内容占满宽度 */
-.response-card :deep(.el-card__body) {
+/* 提交按钮区域 - 照抄旧版本 */
+.form-actions-section {
+  margin: 32px 0;
+  padding: 0;
+}
+
+.form-actions-row {
+  display: flex;
+  gap: 12px;
   width: 100%;
+  margin-bottom: 0;
+  
+  .el-button {
+    &.el-button--large {
+      height: 40px;
+      font-size: 16px;
+      font-weight: 500;
+    }
+  }
 }
 
 .response-container {
