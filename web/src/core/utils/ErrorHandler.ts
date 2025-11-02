@@ -37,7 +37,7 @@ export class ErrorHandler {
   /**
    * 处理 Widget 相关错误
    * 
-   * @param context - 错误上下文（如：'ListWidget.renderCellByWidget'）
+   * @param context - 错误上下文（如：'TableWidget.renderCellByWidget'）
    * @param error - 错误对象
    * @param options - 错误处理选项
    * @returns 降级返回值
@@ -47,7 +47,7 @@ export class ErrorHandler {
    * try {
    *   const widget = createWidget()
    * } catch (error) {
-   *   return ErrorHandler.handleWidgetError('ListWidget.createFormWidgets', error, {
+   *   return ErrorHandler.handleWidgetError('TableWidget.createFormWidgets', error, {
    *     showMessage: false,
    *     fallbackValue: null
    *   })
@@ -200,7 +200,7 @@ export class ErrorHandler {
    * @example
    * ```typescript
    * const safeRender = ErrorHandler.createErrorBoundary(
-   *   'ListWidget.render',
+   *   'TableWidget.render',
    *   () => this.renderTable(),
    *   { fallbackValue: h('div', '渲染失败') }
    * )

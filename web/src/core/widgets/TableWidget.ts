@@ -1,5 +1,5 @@
 /**
- * ListWidget - 列表组件（表格+表单混合模式 + 事件驱动）
+ * TableWidget - 表格组件（表格+表单混合模式 + 事件驱动）
  * 
  * 设计理念：
  * - 已填数据用表格展示（紧凑、清晰）
@@ -21,9 +21,9 @@ import { selectFuzzy } from '@/api/function'  // 🔥 导入回调 API
 import { ExpressionParser } from '../utils/ExpressionParser'  // 🔥 导入表达式解析器
 
 /**
- * List 配置
+ * Table 配置
  */
-export interface ListConfig {
+export interface TableConfig {
   min_items?: number
   max_items?: number
   default_items?: number
@@ -31,16 +31,16 @@ export interface ListConfig {
 }
 
 /**
- * List 子元素的 Widget 实例
+ * Table 子元素的 Widget 实例
  */
-interface ListItemWidgets {
+interface TableItemWidgets {
   [field_code: string]: BaseWidget
 }
 
 /**
- * List 组件数据（用于快照）
+ * Table 组件数据（用于快照）
  */
-interface ListComponentData {
+interface TableComponentData {
   item_count: number
 }
 
@@ -52,11 +52,11 @@ interface SavedRowData {
   [field_code: string]: FieldValue
 }
 
-export class ListWidget extends BaseWidget {
-  // List 配置
-  private listConfig: ListConfig
+export class TableWidget extends BaseWidget {
+  // Table 配置
+  private tableConfig: TableConfig
   
-  // 子字段配置（List 的元素类型）
+  // 子字段配置（Table 的元素类型）
   private itemFields: FieldConfig[]
   
   // 🔥 已保存的数据（用于表格展示）
@@ -79,7 +79,7 @@ export class ListWidget extends BaseWidget {
   private statisticsResult: any
 
   /**
-   * ListWidget 的默认值是空数组
+   * TableWidget 的默认值是空数组
    */
   static getDefaultValue(field: FieldConfig): FieldValue {
     return {
@@ -94,21 +94,21 @@ export class ListWidget extends BaseWidget {
     
     // 🔥 初始化状态
     this.savedData = ref<SavedRowData[]>([])
-    this.formWidgets = ref<ListItemWidgets>({})
+    this.formWidgets = ref<TableItemWidgets>({})
     this.editingIndex = ref<number | null>(null)
     this.isAdding = ref(false)
     this.isCollapsed = ref(false)  // 默认展开
     this.statisticsConfig = ref<Record<string, string>>({})
     this.statisticsResult = ref<Record<string, any>>({})
     
-    // 解析 List 配置
-    this.listConfig = (this.field.widget?.config as ListConfig) || {}
+    // 解析 Table 配置
+    this.tableConfig = (this.field.widget?.config as TableConfig) || {}
     
-    // 解析子字段（List 的元素类型）
+    // 解析子字段（Table 的元素类型）
     this.itemFields = this.parseItemFields()
     
     // 🔥 初始化默认行（如果配置了 default_items）
-    const defaultItems = this.listConfig.default_items || 0
+    const defaultItems = this.tableConfig.default_items || 0
     if (defaultItems > 0) {
       // 创建空行数据
       for (let i = 0; i < defaultItems; i++) {
@@ -169,7 +169,7 @@ export class ListWidget extends BaseWidget {
       try {
         // 1. 获取函数的 method 和 router
         if (!this.formRenderer?.getFunctionMethod || !this.formRenderer?.getFunctionRouter) {
-          Logger.error(`[ListWidget] formRenderer 不完整，无法调用回调`)
+          Logger.error(`[TableWidget] formRenderer 不完整，无法调用回调`)
           if (event.callback) event.callback([])
           return
         }
@@ -178,7 +178,7 @@ export class ListWidget extends BaseWidget {
         const router = this.formRenderer.getFunctionRouter()
         
         if (!router) {
-          Logger.error(`[ListWidget] 无法获取函数路由`)
+          Logger.error(`[TableWidget] 无法获取函数路由`)
           if (event.callback) event.callback([])
           return
         }
@@ -232,7 +232,7 @@ export class ListWidget extends BaseWidget {
         }
         
       } catch (error: any) {
-        Logger.error(`[ListWidget] 回调失败:`, error)
+        Logger.error(`[TableWidget] 回调失败:`, error)
         ElMessage.error(error?.message || '查询失败')
         if (event.callback) event.callback([])
       }
@@ -316,7 +316,7 @@ export class ListWidget extends BaseWidget {
         result[label] = value
         
       } catch (error) {
-        Logger.error(`[ListWidget] ✗ 计算失败: ${label} = ${expression}`, error)
+        Logger.error(`[TableWidget] ✗ 计算失败: ${label} = ${expression}`, error)
         result[label] = 0
       }
     }
@@ -335,7 +335,7 @@ export class ListWidget extends BaseWidget {
    * 🔥 创建表单的 Widget 实例
    */
   private createFormWidgets(initialData?: SavedRowData): void {
-    const widgets: ListItemWidgets = {}
+    const widgets: TableItemWidgets = {}
     
     for (const itemField of this.itemFields) {
       // 🔥 表单的 fieldPath 使用临时路径（不加索引）
@@ -365,7 +365,7 @@ export class ListWidget extends BaseWidget {
           widgets[itemField.code] = markRaw(widget)
         }
       } catch (error) {
-        ErrorHandler.handleWidgetError(`ListWidget.createFormWidgets[${itemField.code}]`, error, {
+        ErrorHandler.handleWidgetError(`TableWidget.createFormWidgets[${itemField.code}]`, error, {
           showMessage: false
         })
       }
@@ -395,7 +395,7 @@ export class ListWidget extends BaseWidget {
    * 🔥 开始新增
    */
   private startAdding(): void {
-    const maxItems = this.listConfig.max_items
+    const maxItems = this.tableConfig.max_items
     if (maxItems && this.savedData.value.length >= maxItems) {
       ElMessage.warning(`已达到最大行数 ${maxItems}`)
       return
@@ -460,7 +460,7 @@ export class ListWidget extends BaseWidget {
    * 🔥 删除一行
    */
   private handleDelete(index: number): void {
-    const minItems = this.listConfig.min_items || 0
+    const minItems = this.tableConfig.min_items || 0
     if (this.savedData.value.length <= minItems) {
       ElMessage.warning(`已达到最小行数 ${minItems}`)
       return
@@ -517,7 +517,7 @@ export class ListWidget extends BaseWidget {
    */
   private renderHeader(): any {
     return h('div', {
-      class: 'list-widget-header',
+      class: 'table-widget-header',
       style: {
         display: 'flex',
         justifyContent: 'space-between',
@@ -713,7 +713,7 @@ export class ListWidget extends BaseWidget {
       return (tempWidget as any).renderTableCell(value)
     } catch (error) {
       // ✅ 使用 ErrorHandler 统一处理错误
-      return ErrorHandler.handleWidgetError(`ListWidget.renderCellByWidget[${field.code}]`, error, {
+      return ErrorHandler.handleWidgetError(`TableWidget.renderCellByWidget[${field.code}]`, error, {
         showMessage: false,
         fallbackValue: value.display || String(value.raw) || '-'
       })
@@ -899,12 +899,12 @@ export class ListWidget extends BaseWidget {
    * 🔥 渲染组件（主入口）
    */
   /**
-   * 渲染 List 组件（卡片包裹结构，参考旧版本ListInput）
+   * 渲染 Table 组件（卡片包裹结构，参考旧版本ListInput）
    */
   render() {
     // 卡片样式（参考旧版本）
     return h('div', {
-      class: 'list-widget',
+      class: 'table-widget',
       style: {
         border: '1px solid var(--el-border-color-light)',
         borderRadius: '6px',
@@ -917,7 +917,7 @@ export class ListWidget extends BaseWidget {
       
       // 内容区域（可折叠）
       h('div', {
-        class: 'list-widget-content',
+        class: 'table-widget-content',
         style: {
           display: this.isCollapsed.value ? 'none' : 'block',
           padding: '16px'
@@ -938,7 +938,7 @@ export class ListWidget extends BaseWidget {
   /**
    * 捕获组件数据（用于快照）
    */
-  protected captureComponentData(): ListComponentData {
+  protected captureComponentData(): TableComponentData {
     return {
       item_count: this.savedData.value.length
     }
@@ -947,7 +947,7 @@ export class ListWidget extends BaseWidget {
   /**
    * 恢复组件数据（从快照）
    */
-  protected restoreComponentData(data: ListComponentData): void {
+  protected restoreComponentData(data: TableComponentData): void {
   }
 
   /**
