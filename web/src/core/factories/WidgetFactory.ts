@@ -9,6 +9,7 @@ import { NumberWidget } from '../widgets/NumberWidget'
 import { FloatWidget } from '../widgets/FloatWidget'
 import { TextAreaWidget } from '../widgets/TextAreaWidget'
 import { SelectWidget } from '../widgets/SelectWidget'
+import { MultiSelectWidget } from '../widgets/MultiSelectWidget'
 import { ListWidget } from '../widgets/ListWidget'
 import { FormWidget } from '../widgets/FormWidget'
 
@@ -34,8 +35,8 @@ export class WidgetFactory {
     this.registerWidget('text_area', TextAreaWidget)  // text_area 别名
     
     // 选择器
-    this.registerWidget('select', SelectWidget)
-    this.registerWidget('multiselect', SelectWidget)  // multiselect 暂时使用 SelectWidget（TODO: 实现 MultiSelectWidget）
+    this.registerWidget('select', SelectWidget)        // 🔥 单选
+    this.registerWidget('multiselect', MultiSelectWidget)  // 🔥 多选（独立组件）
     
     // 容器组件
     this.registerWidget('list', ListWidget)
