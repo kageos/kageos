@@ -136,18 +136,31 @@ const selectOptions = computed(() => {
   return inputConfig.value.props?.options || []
 })
 
+// 🔥 创建最小化的 mock formManager（避免 Widget 初始化报错）
+const createMockFormManager = () => {
+  return {
+    getValue: () => ({ raw: null, display: '', meta: {} }),
+    setValue: () => {},
+    emit: () => {},
+    on: () => () => {},
+    clear: () => {},
+    getAllValues: () => ({}),
+    setFormData: () => {}
+  } as any
+}
+
 // 🔥 通过 Widget 获取搜索输入配置
 const inputConfig = computed(() => {
   try {
     // 创建临时 Widget 实例
     const WidgetClass = widgetFactory.getWidgetClass(props.field.widget?.type || 'input')
     
-    // 注意：这里不需要完整的 formManager 等，只是为了调用 renderSearchInput
+    // 🔥 提供 mock formManager 避免初始化报错
     const tempWidget = new WidgetClass({
       field: props.field,
       fieldPath: `_search_.${props.field.code}`,
       initialValue: { raw: null, display: '', meta: {} },
-      formManager: null as any,  // 搜索不需要 formManager
+      formManager: createMockFormManager(),  // 提供 mock
       formRenderer: null,
       depth: 0,
       onChange: () => {}
