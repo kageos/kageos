@@ -312,8 +312,8 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
-  border-bottom: 1px solid #e4e7ed;
-  background: #fafafa;
+  border-bottom: 1px solid var(--el-border-color-light);
+  background: var(--el-bg-color);
 }
 
 .toolbar-left {
@@ -342,17 +342,33 @@ onMounted(() => {
   width: 100%;
   padding: 8px 12px;
   border-radius: 6px;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;  /* 照抄旧版本的过渡时间 */
   cursor: pointer;
+  position: relative;
+  margin: 1px 0;  /* 照抄旧版本的间距 */
 }
 
 .tree-node:hover {
-  background-color: #f5f7fa;
+  background-color: var(--el-fill-color-light);
 }
 
 .tree-node.is-selected {
-  background-color: #e6f7ff;
-  border: 1px solid #91d5ff;
+  background-color: var(--el-fill-color) !important;
+  border: 1px solid var(--el-border-color);
+  color: var(--el-text-color-primary);
+  font-weight: 500;
+}
+
+/* 选中状态的左侧彩色条 - 照抄旧版本 */
+.tree-node.is-selected::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background-color: var(--el-color-primary);
+  border-radius: 0 2px 2px 0;
 }
 
 .node-info {
@@ -364,10 +380,11 @@ onMounted(() => {
 }
 
 .node-icon {
-  color: #909399;
+  color: var(--el-color-primary);  /* 照抄旧版本 - 图标用主题色 */
   font-size: 16px;
   margin-top: 2px;
   flex-shrink: 0;
+  transition: color 0.2s ease;  /* 添加过渡动画 */
 }
 
 .node-content {
@@ -378,21 +395,21 @@ onMounted(() => {
 .node-name {
   font-size: 14px;
   font-weight: 500;
-  color: #303133;
+  color: var(--el-text-color-primary);
   line-height: 1.4;
   word-break: break-word;
 }
 
 .node-code {
   font-size: 12px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
   margin-top: 2px;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
 }
 
 .node-description {
   font-size: 12px;
-  color: #606266;
+  color: var(--el-text-color-regular);
   margin-top: 4px;
   line-height: 1.3;
   display: -webkit-box;
@@ -414,10 +431,12 @@ onMounted(() => {
 
 .node-actions {
   opacity: 0;
-  transition: opacity 0.3s ease;
+  transition: opacity 0.2s ease;  /* 照抄旧版本的过渡时间 */
+  margin-left: 8px;
 }
 
-.tree-node:hover .node-actions {
+.tree-node:hover .node-actions,
+.tree-node.is-selected .node-actions {  /* 照抄旧版本 - 选中状态也显示操作按钮 */
   opacity: 1;
 }
 
@@ -425,11 +444,14 @@ onMounted(() => {
   padding: 4px;
   min-height: 24px;
   width: 24px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
+  transition: all 0.2s ease;  /* 添加过渡动画 */
+  border-radius: 2px;  /* 照抄旧版本 */
 }
 
 .action-button:hover {
-  color: #409eff;
+  color: var(--el-color-primary);
+  background-color: var(--el-fill-color);  /* 照抄旧版本 */
 }
 
 /* Element Plus Tree样式覆盖 */
@@ -445,6 +467,24 @@ onMounted(() => {
 
 :deep(.el-tree-node__expand-icon) {
   padding: 6px;
+  transition: all 0.2s ease;  /* 照抄旧版本的过渡动画 */
+  color: var(--el-text-color-secondary);
+  border-radius: 2px;  /* 照抄旧版本 */
+  cursor: pointer;
+}
+
+/* 展开图标悬停效果 - 照抄旧版本 */
+:deep(.el-tree-node__expand-icon:hover) {
+  background-color: var(--el-fill-color);
+}
+
+/* 展开状态的旋转效果 - 照抄旧版本 */
+:deep(.el-tree-node.is-expanded > .el-tree-node__content .el-tree-node__expand-icon) {
+  transform: rotate(90deg);
+}
+
+:deep(.el-tree-node__expand-icon.is-leaf) {
+  color: transparent;
 }
 
 :deep(.el-tree-node.is-current > .el-tree-node__content) {

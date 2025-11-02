@@ -228,7 +228,7 @@ export class ListWidget extends BaseWidget {
       return null
     }
     
-    return h('div', { 
+    return h('div', {
       class: 'list-item',
       style: {
         display: 'flex',
@@ -236,9 +236,9 @@ export class ListWidget extends BaseWidget {
         gap: '12px',
         marginBottom: '12px',
         padding: '16px',
-        border: '1px solid var(--el-border-color)',  // 🔥 使用 CSS 变量
-        borderRadius: '4px',
-        backgroundColor: 'var(--el-fill-color-light)'  // 🔥 使用 CSS 变量
+        border: '1px solid var(--el-border-color-light)',  // 🔥 使用更浅的边框
+        borderRadius: '8px',
+        backgroundColor: 'transparent'  // 🔥 透明背景，融入主题
       }
     }, [
       // 行号
@@ -286,7 +286,7 @@ export class ListWidget extends BaseWidget {
       // 删除按钮
       h(ElButton, {
         type: 'danger',
-        text: true,
+        link: true,
         icon: Delete,
         onClick: () => this.deleteItem(index),
         style: { marginTop: '24px' }
@@ -325,7 +325,6 @@ export class ListWidget extends BaseWidget {
       h('div', { style: { marginTop: '12px' } }, [
         h(ElButton, {
           type: 'primary',
-          plain: true,
           icon: Plus,
           onClick: () => this.addItem()
         }, { default: () => '添加一行' })

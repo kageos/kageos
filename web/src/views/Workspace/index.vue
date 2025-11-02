@@ -586,7 +586,8 @@ const handleLocateNode = () => {
     currentFunction.value = targetNode
     
     if (targetNode.type === 'function') {
-      showRightSidebar.value = true
+      // 默认不展开右侧边栏，让用户需要时再手动展开
+      // showRightSidebar.value = true
       // 如果是函数类型，需要加载函数详情
       // 只有在节点不同，或者还没有加载过详情时才加载
       if (targetNode.ref_id && (!isSameNode || !functionDetail.value)) {
@@ -685,8 +686,8 @@ const handleNodeClick = async (node: ServiceTree) => {
   }
   
   if (node.type === 'function') {
-    // 如果是函数，加载函数详情
-    showRightSidebar.value = true
+    // 如果是函数，加载函数详情，但默认不展开右侧边栏
+    // showRightSidebar.value = true  // 注释掉，让用户需要时手动展开
     isLoadingFunction.value = true
     
     // 加载函数详情
