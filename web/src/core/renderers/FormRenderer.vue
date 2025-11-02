@@ -20,9 +20,9 @@
     </el-form>
 
     <!-- 提交按钮区域 - 将请求参数和响应参数分开 -->
-    <div v-if="showSubmitButton || showResetButton || showDebugButton || showShareButton" class="form-actions-section">
+    <div v-if="showSubmitButton || showResetButton" class="form-actions-section">
       <div class="form-actions-row">
-        <el-button v-if="showSubmitButton" type="primary" size="large" @click="handleRealSubmit" :loading="submitting">
+        <el-button v-if="showSubmitButton" type="primary" size="large" @click="handleRealSubmit" :loading="submitting" class="submit-button-full-width">
           <el-icon><Promotion /></el-icon>
           提交
         </el-button>
@@ -30,21 +30,6 @@
           <el-icon><RefreshLeft /></el-icon>
           重置
         </el-button>
-        
-        <!-- 🔧 调试按钮（开发阶段） -->
-        <template v-if="showDebugButton || showShareButton">
-          <el-button v-if="showDebugButton" type="info" plain size="small" @click="handlePreviewSubmit">
-            <el-icon><View /></el-icon>
-            预览提交数据
-          </el-button>
-          <el-button v-if="showShareButton" type="success" plain size="small" @click="handleShare">
-            <el-icon><Share /></el-icon>
-            生成分享快照
-          </el-button>
-          <el-button v-if="showDebugButton" plain size="small" @click="showDebug = !showDebug">
-            {{ showDebug ? '隐藏' : '显示' }}调试信息
-          </el-button>
-        </template>
       </div>
     </div>
 
@@ -128,7 +113,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, h } from 'vue'
 import { ElForm, ElFormItem, ElButton, ElCard, ElMessage, ElInput, ElIcon, ElDivider, ElTag } from 'element-plus'
-import { Promotion, RefreshLeft, Share, View } from '@element-plus/icons-vue'
+import { Promotion, RefreshLeft } from '@element-plus/icons-vue'
 import type { FieldConfig, FunctionDetail, FieldValue } from '../types/field'
 import type { WidgetRenderProps, WidgetSnapshot } from '../types/widget'
 import { ReactiveFormDataManager } from '../managers/ReactiveFormDataManager'
@@ -706,6 +691,11 @@ defineExpose({
       font-size: 16px;
       font-weight: 500;
     }
+  }
+  
+  .submit-button-full-width {
+    flex: 1;
+    width: 100%;
   }
 }
 

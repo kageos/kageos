@@ -231,6 +231,14 @@ export class SelectWidget extends BaseWidget {
     // 🔥 更新值（使用 BaseWidget 的 setValue 方法）
     this.setValue(newFieldValue)
     
+    // 🔥 发出变化事件（通知父组件 ListWidget）
+    this.emit('field:change', {
+      value: value,
+      display: displayValue,
+      displayInfo: selectedOption?.displayInfo,
+      statistics: this.currentStatistics
+    })
+    
     console.log(`[SelectWidget] ${this.field.code} 值变化:`, {
       field_path: this.fieldPath,
       raw: value,
@@ -241,6 +249,34 @@ export class SelectWidget extends BaseWidget {
   }
 
   /**
+   * 🔥 触发搜索（发出事件而不是直接调用回调）
+   * @param query 搜索关键词
+   * @param isByValue 是否按值查询
+   */
+  private triggerSearch(query: string, isByValue = false): void {
+    // 检查是否配置了回调
+    if (!this.field.callbacks?.includes('OnSelectFuzzy')) {
+      return
+    }
+    
+    this.loading.value = true
+    
+    // 🔥 发出搜索事件（让 ListWidget 处理）
+    this.emit('field:search', {
+      query: query,
+      isByValue: isByValue,
+      // 提供回调函数，让父组件调用来更新选项
+      callback: (options: SelectOption[]) => {
+        this.options.value = options
+        this.loading.value = false
+        console.log(`[SelectWidget] ${this.field.code} 收到选项:`, options.length)
+      }
+    })
+    
+    console.log(`[SelectWidget] ${this.field.code} 发出搜索事件, query: "${query}", isByValue: ${isByValue}`)
+  }
+
+  /**
    * 下拉框展开时触发（点击输入框）
    */
   private handleVisibleChange = (visible: boolean) => {
@@ -248,7 +284,7 @@ export class SelectWidget extends BaseWidget {
       // 🔥 展开时，如果选项为空，触发一次空查询加载默认选项
       if (!this.options.value || this.options.value.length === 0) {
         console.log(`[SelectWidget] ${this.field.code} 下拉框展开，触发默认查询`)
-        this.handleSearch('', false)  // 空关键词查询
+        this.triggerSearch('', false)  // 发出事件
       }
     }
   }
@@ -259,15 +295,25 @@ export class SelectWidget extends BaseWidget {
   render() {
     const currentValue = this.getValue()
     
+    // 🔥 判断是否使用事件驱动模式（在 List 内部）
+    const useEventMode = this.fieldPath.includes('[')  // 如果路径包含 [，说明在 List 内
+    
     return h(ElSelect, {
       modelValue: currentValue?.raw,
       placeholder: this.selectConfig.placeholder || `请选择${this.field.name}`,
       clearable: this.selectConfig.clearable !== false,
       filterable: this.selectConfig.filterable !== false,
       remote: true,
-      remoteMethod: (query: string) => this.handleSearch(query, false),
+      // 🔥 根据模式选择：事件驱动 or 直接调用
+      remoteMethod: (query: string) => {
+        if (useEventMode) {
+          this.triggerSearch(query, false)  // 事件驱动
+        } else {
+          this.handleSearch(query, false)   // 直接调用（向后兼容）
+        }
+      },
       loading: this.loading.value,
-      onVisibleChange: this.handleVisibleChange,  // 🔥 下拉框展开/收起时触发
+      onVisibleChange: this.handleVisibleChange,
       onChange: (value: any) => this.handleChange(value),
       style: { width: '100%' }
     }, {

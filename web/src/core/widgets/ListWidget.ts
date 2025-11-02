@@ -1,11 +1,15 @@
 /**
- * ListWidget - 列表组件
- * 支持添加/删除行、递归渲染子组件、聚合统计
+ * ListWidget - 列表组件（表格+表单混合模式）
+ * 
+ * 设计理念：
+ * - 已填数据用表格展示（紧凑、清晰）
+ * - 新增/编辑用表单展示（明确的编辑状态）
+ * - 符合传统 CRUD 的用户习惯
  */
 
 import { h, ref, computed, markRaw } from 'vue'
-import { ElButton, ElCard, ElIcon } from 'element-plus'
-import { Plus, Delete } from '@element-plus/icons-vue'
+import { ElButton, ElTable, ElTableColumn, ElForm, ElFormItem, ElIcon, ElMessage } from 'element-plus'
+import { Plus, Delete, Edit, Check, Close } from '@element-plus/icons-vue'
 import { BaseWidget } from './BaseWidget'
 import { widgetFactory } from '../factories/WidgetFactory'
 import type { FieldConfig, FieldValue } from '../types/field'
@@ -35,6 +39,14 @@ interface ListComponentData {
   item_count: number
 }
 
+/**
+ * 已保存的行数据
+ * 🔥 直接使用系统标准的 FieldValue，保持架构一致性
+ */
+interface SavedRowData {
+  [field_code: string]: FieldValue
+}
+
 export class ListWidget extends BaseWidget {
   // List 配置
   private listConfig: ListConfig
@@ -42,11 +54,15 @@ export class ListWidget extends BaseWidget {
   // 子字段配置（List 的元素类型）
   private itemFields: FieldConfig[]
   
-  // 每一行的 Widget 实例 [行索引 -> { field_code -> Widget }]
-  private itemWidgets: any
+  // 🔥 已保存的数据（用于表格展示）
+  private savedData: any
   
-  // 当前行数
-  private itemCount: any
+  // 🔥 表单的 Widget 实例（用于新增/编辑）
+  private formWidgets: any
+  
+  // 🔥 编辑状态
+  private editingIndex: any  // null 表示不在编辑，数字表示编辑第几行
+  private isAdding: any      // 是否正在新增
 
   /**
    * ListWidget 的默认值是空数组
@@ -62,9 +78,11 @@ export class ListWidget extends BaseWidget {
   constructor(props: WidgetRenderProps) {
     super(props)
     
-    // 🔥 在构造函数中初始化 ref（避免类属性初始化问题）
-    this.itemWidgets = ref<Map<number, ListItemWidgets>>(new Map())
-    this.itemCount = ref(0)
+    // 🔥 初始化状态
+    this.savedData = ref<SavedRowData[]>([])
+    this.formWidgets = ref<ListItemWidgets>({})
+    this.editingIndex = ref<number | null>(null)
+    this.isAdding = ref(false)
     
     // 解析 List 配置
     this.listConfig = (this.field.widget?.config as ListConfig) || {}
@@ -72,13 +90,16 @@ export class ListWidget extends BaseWidget {
     // 解析子字段（List 的元素类型）
     this.itemFields = this.parseItemFields()
     
-    // 初始化默认行数
-    const defaultItems = this.listConfig.default_items || 1
-    for (let i = 0; i < defaultItems; i++) {
-      this.addItem()
+    // 🔥 初始化默认行（如果配置了 default_items）
+    const defaultItems = this.listConfig.default_items || 0
+    if (defaultItems > 0) {
+      // 创建空行数据
+      for (let i = 0; i < defaultItems; i++) {
+        this.savedData.value.push({})
+      }
     }
     
-    // 🔥 订阅子组件的事件（Select/MultiSelect 的搜索事件）
+    // 🔥 订阅子组件事件
     this.subscribeChildEvents()
   }
 
@@ -86,249 +107,478 @@ export class ListWidget extends BaseWidget {
    * 解析子字段配置
    */
   private parseItemFields(): FieldConfig[] {
-    // 检查是否是 object 类型（结构体）
-    // 注意：后端返回的是 "children"，不是 "properties"
     if (this.field.children && Array.isArray(this.field.children)) {
       return this.field.children
     }
-    
-    // 如果是简单类型的列表（如 list<string>）
-    // 这里先不处理，后续扩展
     return []
   }
 
   /**
-   * 订阅子组件事件
+   * 🔥 订阅子组件事件（核心方法）
    */
   private subscribeChildEvents(): void {
-    // TODO: 事件系统尚未实现
-    // 未来需要监听：
-    // - field:search 事件（Select/MultiSelect 触发回调）
-    // - field:change 事件（触发聚合计算）
+    console.log(`[ListWidget] ${this.fieldPath} 开始订阅子组件事件`)
+    
+    // 找出所有 select/multiselect 字段
+    const selectFields = this.itemFields.filter(field => 
+      field.widget?.type === 'select' || field.widget?.type === 'multiselect'
+    )
+    
+    console.log(`[ListWidget] ${this.fieldPath} 发现 ${selectFields.length} 个 select/multiselect 字段`)
+    
+    selectFields.forEach(field => {
+      // 订阅搜索事件（如果配置了回调）
+      if (field.callbacks?.includes('OnSelectFuzzy')) {
+        this.subscribeSearchEvent(field)
+      }
+      
+      // 订阅变化事件（用于聚合统计）
+      this.subscribeChangeEvent(field)
+    })
   }
 
   /**
-   * 重新计算聚合
+   * 🔥 订阅搜索事件
    */
-  private recalculateAggregation(): void {
-    // TODO: 实现聚合计算逻辑
-    console.log(`[ListWidget] 重新计算聚合`)
+  private subscribeSearchEvent(field: FieldConfig): void {
+    // 监听所有行的该字段的搜索事件
+    // 例如：field:search:products[].product_id
+    const eventPattern = `field:search:${this.fieldPath}[].${field.code}`
     
-    // 检查是否配置了聚合
-    const statistics = this.field.widget?.statistics
-    if (!statistics) {
-      return
-    }
+    console.log(`[ListWidget] 订阅搜索事件: ${eventPattern}`)
     
-    // 遍历所有行，收集数据，计算聚合
-    // 例如：sum(price * quantity)
-    // 实际实现需要 ExpressionParser
+    this.formManager.on(eventPattern, async (event: any) => {
+      console.log(`[ListWidget] 收到子组件搜索事件:`, event)
+      
+      // TODO: 调用回调，获取选项
+      // 这里暂时先用 event.callback 返回空数组
+      if (event.callback) {
+        event.callback([])
+      }
+    })
   }
 
   /**
-   * 添加一行
+   * 🔥 订阅变化事件
    */
-  private addItem(): void {
-    const maxItems = this.listConfig.max_items
-    if (maxItems && this.itemCount.value >= maxItems) {
-      console.warn(`[ListWidget] 已达到最大行数 ${maxItems}`)
-      return
-    }
+  private subscribeChangeEvent(field: FieldConfig): void {
+    // 监听所有行的该字段的变化事件
+    // 例如：field:change:products[].product_id
+    const eventPattern = `field:change:${this.fieldPath}[].${field.code}`
     
-    const newIndex = this.itemCount.value
-    this.itemCount.value++
+    console.log(`[ListWidget] 订阅变化事件: ${eventPattern}`)
     
-    // 为新行创建 Widget 实例
-    const rowWidgets: ListItemWidgets = {}
+    this.formManager.on(eventPattern, (event: any) => {
+      console.log(`[ListWidget] 收到子组件变化事件:`, event)
+      
+      // TODO: 重新计算聚合统计
+      // this.recalculateStatistics()
+    })
+  }
+
+  /**
+   * 🔥 创建表单的 Widget 实例
+   */
+  private createFormWidgets(initialData?: SavedRowData): void {
+    const widgets: ListItemWidgets = {}
     
     for (const itemField of this.itemFields) {
-      const itemFieldPath = `${this.fieldPath}[${newIndex}].${itemField.code}`
+      // 🔥 表单的 fieldPath 使用临时路径（不加索引）
+      const tempFieldPath = `${this.fieldPath}._form_.${itemField.code}`
+      
+      // 获取初始值（编辑时使用已有值，新增时使用默认值）
+      const WidgetClass = widgetFactory.getWidgetClass(itemField.widget.type)
+      const defaultValue = WidgetClass.getDefaultValue(itemField)
+      
+      // 🔥 直接使用 FieldValue，无需转换（已经是标准格式）
+      const fieldValue = initialData?.[itemField.code] || defaultValue
+      
+      // 初始化到 FormDataManager
+      this.formManager.setValue(tempFieldPath, fieldValue)
       
       // 创建子 Widget
       const childProps: WidgetRenderProps = {
         field: itemField,
-        currentFieldPath: itemFieldPath,
-        value: this.formManager.getValue(itemFieldPath),
+        currentFieldPath: tempFieldPath,
+        value: this.formManager.getValue(tempFieldPath),
         onChange: (newValue: FieldValue) => {
-          this.formManager.setValue(itemFieldPath, newValue)
+          this.formManager.setValue(tempFieldPath, newValue)
         },
         formManager: this.formManager,
-        formRenderer: this.formRenderer,  // 🔥 传递完整的 formRenderer（包含 getFunctionMethod/Router）
+        formRenderer: this.formRenderer,
         depth: this.depth + 1
       }
       
-      // 🔥 Debug: 检查 formRenderer 是否完整
-      if (!this.formRenderer?.getFunctionMethod || !this.formRenderer?.getFunctionRouter) {
-        console.warn(`[ListWidget] ${itemFieldPath} formRenderer 不完整:`, {
-          hasRegisterWidget: !!this.formRenderer?.registerWidget,
-          hasGetFunctionMethod: !!this.formRenderer?.getFunctionMethod,
-          hasGetFunctionRouter: !!this.formRenderer?.getFunctionRouter
-        })
-      }
-      
-      const WidgetClass = widgetFactory.getWidgetClass(itemField.widget.type)
       const widget = new WidgetClass(childProps)
       
       if (widget) {
-        // 🔥 使用 markRaw 标记 widget 为非响应式，避免 Vue 破坏其内部的 ref
-        rowWidgets[itemField.code] = markRaw(widget)
-        
-        // 🔥 注册到父级的 allWidgets（用于快照）
-        if (this.formRenderer?.registerWidget) {
-          this.formRenderer.registerWidget(itemFieldPath, widget)
-        }
+        widgets[itemField.code] = markRaw(widget)
       }
     }
     
-    this.itemWidgets.value.set(newIndex, rowWidgets)
-    
-    console.log(`[ListWidget] 添加行 ${newIndex}`, rowWidgets)
+    this.formWidgets.value = widgets
   }
 
   /**
-   * 删除一行
+   * 🔥 清空表单的 Widget 实例
    */
-  private deleteItem(index: number): void {
-    const minItems = this.listConfig.min_items || 0
-    if (this.itemCount.value <= minItems) {
-      console.warn(`[ListWidget] 已达到最小行数 ${minItems}`)
-      return
-    }
-    
-    // 移除 Widget 实例
-    this.itemWidgets.value.delete(index)
-    
-    // 清空该行的数据
+  private clearFormWidgets(): void {
+    // 清空 FormDataManager 中的数据
     for (const itemField of this.itemFields) {
-      const itemFieldPath = `${this.fieldPath}[${index}].${itemField.code}`
-      this.formManager.setValue(itemFieldPath, {
+      const tempFieldPath = `${this.fieldPath}._form_.${itemField.code}`
+      this.formManager.setValue(tempFieldPath, {
         raw: null,
         display: '',
         meta: {}
       })
-      
-      // 🔥 从父级的 allWidgets 移除
-      if (this.formRenderer?.unregisterWidget) {
-        this.formRenderer.unregisterWidget(itemFieldPath)
-      }
     }
     
-    // 重新计算聚合
-    this.recalculateAggregation()
-    
-    console.log(`[ListWidget] 删除行 ${index}`)
+    this.formWidgets.value = {}
   }
 
   /**
-   * 渲染单行
+   * 🔥 开始新增
    */
-  private renderItem(index: number): any {
-    const rowWidgets = this.itemWidgets.value.get(index)
-    if (!rowWidgets) {
+  private startAdding(): void {
+    const maxItems = this.listConfig.max_items
+    if (maxItems && this.savedData.value.length >= maxItems) {
+      ElMessage.warning(`已达到最大行数 ${maxItems}`)
+      return
+    }
+    
+    this.isAdding.value = true
+    this.editingIndex.value = null
+    this.createFormWidgets()
+  }
+
+  /**
+   * 🔥 开始编辑
+   */
+  private startEditing(index: number): void {
+    this.editingIndex.value = index
+    this.isAdding.value = false
+    const rowData = this.savedData.value[index]
+    this.createFormWidgets(rowData)
+  }
+
+  /**
+   * 🔥 保存（新增或编辑）
+   */
+  private handleSave(): void {
+    // 🔥 直接使用 Widget 的 FieldValue，无需重构数据
+    const rowData: SavedRowData = {}
+    
+    for (const [fieldCode, widget] of Object.entries(this.formWidgets.value)) {
+      const rawWidget = widget as any
+      // 直接获取完整的 FieldValue（包含 raw、display、meta）
+      rowData[fieldCode] = rawWidget.getValue()
+    }
+    
+    if (this.isAdding.value) {
+      // 新增
+      this.savedData.value.push(rowData)
+      console.log(`[ListWidget] 新增行:`, rowData)
+    } else if (this.editingIndex.value !== null) {
+      // 编辑
+      this.savedData.value[this.editingIndex.value] = rowData
+      console.log(`[ListWidget] 编辑行 ${this.editingIndex.value}:`, rowData)
+    }
+    
+    // 清空状态
+    this.handleCancel()
+    
+    // 触发外部的 onChange（通知父组件数据已变化）
+    this.updateParentValue()
+  }
+
+  /**
+   * 🔥 取消（新增或编辑）
+   */
+  private handleCancel(): void {
+    this.isAdding.value = false
+    this.editingIndex.value = null
+    this.clearFormWidgets()
+  }
+
+  /**
+   * 🔥 删除一行
+   */
+  private handleDelete(index: number): void {
+    const minItems = this.listConfig.min_items || 0
+    if (this.savedData.value.length <= minItems) {
+      ElMessage.warning(`已达到最小行数 ${minItems}`)
+      return
+    }
+    
+    this.savedData.value.splice(index, 1)
+    console.log(`[ListWidget] 删除行 ${index}`)
+    
+    // 触发外部的 onChange
+    this.updateParentValue()
+  }
+
+  /**
+   * 🔥 更新父组件的值
+   */
+  private updateParentValue(): void {
+    const newValue: FieldValue = {
+      raw: this.savedData.value,
+      display: `共 ${this.savedData.value.length} 条`,
+      meta: {}
+    }
+    
+    // 调用 onChange 通知父组件
+    if (this.onChange) {
+      this.onChange(newValue)
+    }
+  }
+
+  /**
+   * 🔥 渲染表格（展示已有数据）
+   */
+  private renderTable(): any {
+    if (this.savedData.value.length === 0) {
+      return h('div', {
+        style: {
+          padding: '20px',
+          textAlign: 'center',
+          color: 'var(--el-text-color-secondary)',
+          backgroundColor: 'var(--el-fill-color-lighter)',
+          borderRadius: '4px',
+          marginBottom: '12px'
+        }
+      }, '暂无数据，点击下方"添加"按钮开始')
+    }
+    
+    // 渲染表格
+    return h(ElTable, {
+      data: this.savedData.value,
+      border: true,
+      stripe: true,
+      style: { width: '100%', marginBottom: '12px' }
+    }, {
+      default: () => [
+        // 序号列
+        h(ElTableColumn, {
+          type: 'index',
+          label: '#',
+          width: 60,
+          align: 'center'
+        }),
+        
+        // 数据列
+        ...this.itemFields.map(field => 
+          h(ElTableColumn, {
+            key: field.code,
+            prop: field.code,
+            label: field.name,
+            minWidth: this.getColumnWidth(field)
+          }, {
+            default: ({ row }: { row: SavedRowData }) => {
+              const value = row[field.code]
+              return this.formatCellValue(value, field)
+            }
+          })
+        ),
+        
+        // 操作列
+        h(ElTableColumn, {
+          label: '操作',
+          width: 150,
+          align: 'center',
+          fixed: 'right'
+        }, {
+          default: ({ $index }: { $index: number }) => {
+            return h('div', { style: { display: 'flex', gap: '8px', justifyContent: 'center' } }, [
+              h(ElButton, {
+                link: true,
+                type: 'primary',
+                icon: Edit,
+                onClick: () => this.startEditing($index)
+              }, { default: () => '编辑' }),
+              
+              h(ElButton, {
+                link: true,
+                type: 'danger',
+                icon: Delete,
+                onClick: () => this.handleDelete($index)
+              }, { default: () => '删除' })
+            ])
+          }
+        })
+      ]
+    })
+  }
+
+  /**
+   * 🔥 获取列宽
+   */
+  private getColumnWidth(field: FieldConfig): number {
+    if (field.widget?.type === 'timestamp') return 180
+    if (field.widget?.type === 'textarea' || field.widget?.type === 'text_area') return 200
+    return 120
+  }
+
+  /**
+   * 🔥 格式化单元格值
+   */
+  private formatCellValue(fieldValue: FieldValue, field: FieldConfig): string {
+    if (!fieldValue) return '-'
+    
+    // 🔥 直接使用 FieldValue 的 display 属性
+    if (fieldValue.display) {
+      return fieldValue.display
+    }
+    
+    // 降级：如果 display 为空，尝试格式化 raw 值
+    const raw = fieldValue.raw
+    if (raw === null || raw === undefined) return '-'
+    
+    // 根据字段类型格式化 raw 值
+    if (field.widget?.type === 'timestamp') {
+      return this.formatTimestamp(raw)
+    }
+    
+    if (Array.isArray(raw)) {
+      return raw.join(', ')
+    }
+    
+    return String(raw)
+  }
+
+  /**
+   * 格式化时间戳
+   */
+  private formatTimestamp(timestamp: number | string): string {
+    if (!timestamp) return '-'
+    const date = new Date(timestamp)
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const hours = String(date.getHours()).padStart(2, '0')
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    const seconds = String(date.getSeconds()).padStart(2, '0')
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+  }
+
+  /**
+   * 🔥 渲染表单（新增/编辑）
+   */
+  private renderForm(): any {
+    if (!this.isAdding.value && this.editingIndex.value === null) {
       return null
     }
     
+    const title = this.isAdding.value ? '新增' : `编辑第 ${this.editingIndex.value! + 1} 行`
+    
     return h('div', {
-      class: 'list-item',
       style: {
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: '12px',
-        marginBottom: '12px',
-        padding: '16px',
-        border: '1px solid var(--el-border-color-light)',  // 🔥 使用更浅的边框
+        padding: '20px',
+        backgroundColor: 'var(--el-fill-color-lighter)',
         borderRadius: '8px',
-        backgroundColor: 'transparent'  // 🔥 透明背景，融入主题
+        marginBottom: '12px',
+        border: '2px solid var(--el-color-primary)'
       }
     }, [
-      // 行号
+      // 表单标题
       h('div', {
         style: {
-          minWidth: '30px',
-          lineHeight: '32px',
-          color: 'var(--el-text-color-secondary)',  // 🔥 使用 CSS 变量
-          fontWeight: 'bold'
+          fontSize: '14px',
+          fontWeight: 'bold',
+          color: 'var(--el-color-primary)',
+          marginBottom: '16px'
         }
-      }, `${index + 1}.`),
+      }, title),
       
-      // 字段列表
+      // 表单字段
+      h(ElForm, {
+        labelWidth: '100px',
+        labelPosition: 'right'
+      }, {
+        default: () => this.itemFields.map(field => {
+          const widget = this.formWidgets.value[field.code]
+          if (!widget) return null
+          
+          return h(ElFormItem, {
+            key: field.code,
+            label: field.name,
+            style: { marginBottom: '18px' }
+          }, {
+            default: () => h('div', {
+              style: { width: '100%' }
+            }, [(widget as any).render()])
+          })
+        })
+      }),
+      
+      // 操作按钮（保存在左，取消在右，占满宽度）
       h('div', {
         style: {
-          flex: 1,
           display: 'flex',
           gap: '12px',
-          flexWrap: 'wrap'
+          marginTop: '16px',
+          width: '100%'
         }
-      }, this.itemFields.map(itemField => {
-        const widget = rowWidgets[itemField.code]
-        if (!widget) {
-          return null
-        }
+      }, [
+        h(ElButton, {
+          type: 'primary',
+          icon: Check,
+          onClick: () => this.handleSave(),
+          style: { flex: 1 }
+        }, { default: () => '保存' }),
         
-        return h('div', {
-          style: {
-            flex: '1 1 200px',
-            minWidth: '200px'
-          }
-        }, [
-          h('label', {
-            style: {
-              display: 'block',
-              marginBottom: '4px',
-              fontSize: '12px',
-              color: 'var(--el-text-color-regular)'  // 🔥 使用 CSS 变量
-            }
-          }, itemField.name),
-          widget.render()
-        ])
-      })),
-      
-      // 删除按钮
-      h(ElButton, {
-        type: 'danger',
-        link: true,
-        icon: Delete,
-        onClick: () => this.deleteItem(index),
-        style: { marginTop: '24px' }
-      }, { default: () => '删除' })
+        h(ElButton, {
+          onClick: () => this.handleCancel(),
+          style: { flex: 1 }
+        }, { default: () => '取消' })
+      ])
     ])
   }
 
   /**
-   * 渲染组件
+   * 🔥 渲染组件（主入口）
    */
   render() {
-    const items: any[] = []
-    
-    // 渲染所有行
-    for (let i = 0; i < this.itemCount.value; i++) {
-      if (this.itemWidgets.value.has(i)) {
-        items.push(this.renderItem(i))
-      }
-    }
-    
-    return h('div', { class: 'list-widget' }, [
+    return h('div', { class: 'list-widget', style: { width: '100%' } }, [
       // 列表标题
       h('div', {
         style: {
           marginBottom: '12px',
           fontSize: '14px',
           fontWeight: 'bold',
-          color: 'var(--el-text-color-primary)'  // 🔥 使用 CSS 变量
+          color: 'var(--el-text-color-primary)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
         }
-      }, this.field.name),
+      }, [
+        h('span', this.field.name),
+        h('span', {
+          style: {
+            fontSize: '12px',
+            color: 'var(--el-text-color-secondary)',
+            fontWeight: 'normal'
+          }
+        }, `共 ${this.savedData.value.length} 条`)
+      ]),
       
-      // 列表项
-      ...items,
+      // 表格展示
+      this.renderTable(),
       
-      // 添加按钮
-      h('div', { style: { marginTop: '12px' } }, [
+      // 新增/编辑表单
+      this.renderForm(),
+      
+      // 添加按钮（仅在不处于编辑状态时显示，宽度与表格一致）
+      (!this.isAdding.value && this.editingIndex.value === null) ? h('div', {
+        style: { width: '100%' }
+      }, [
         h(ElButton, {
           type: 'primary',
           icon: Plus,
-          onClick: () => this.addItem()
-        }, { default: () => '添加一行' })
-      ])
+          onClick: () => this.startAdding(),
+          style: { width: '100%' }
+        }, { default: () => '添加' })
+      ]) : null
     ])
   }
 
@@ -337,7 +587,7 @@ export class ListWidget extends BaseWidget {
    */
   protected captureComponentData(): ListComponentData {
     return {
-      item_count: this.itemCount.value
+      item_count: this.savedData.value.length
     }
   }
 
@@ -345,41 +595,26 @@ export class ListWidget extends BaseWidget {
    * 恢复组件数据（从快照）
    */
   protected restoreComponentData(data: ListComponentData): void {
-    // TODO: 恢复列表行数和子组件
     console.log(`[ListWidget] 恢复组件数据:`, data)
   }
 
   /**
-   * 🔥 重写：获取提交时的原始值（递归收集子组件的值）
-   * 
-   * ListWidget 不依赖自己的 raw 值，而是主动遍历子组件收集它们的值
-   * 这是方案 4 的核心：容器组件负责收集子组件，递归处理嵌套结构
+   * 🔥 获取提交时的原始值
+   * 从 FieldValue 中提取 raw 值（后端不需要 display 和 meta）
    */
   getRawValueForSubmit(): any[] {
-    const result: any[] = []
-    
-    console.log(`[ListWidget] ${this.fieldPath} 开始收集子组件值，共 ${this.itemCount.value} 行`)
-    
-    // 遍历每一行
-    this.itemWidgets.value.forEach((rowWidgets, index) => {
-      const rowData: Record<string, any> = {}
+    const result = this.savedData.value.map(row => {
+      const rowRaw: Record<string, any> = {}
       
-      console.log(`[ListWidget] ${this.fieldPath}[${index}] 收集该行的字段`)
+      for (const [fieldCode, fieldValue] of Object.entries(row)) {
+        // 🔥 提取 FieldValue 的 raw 属性
+        rowRaw[fieldCode] = fieldValue.raw
+      }
       
-      // 遍历该行的每个字段
-      Object.entries(rowWidgets).forEach(([fieldCode, widget]) => {
-        // 🔥 递归调用：子组件可能是基础组件（直接返回值）或容器组件（继续递归）
-        const rawWidget = widget as any  // markRaw 后需要转换
-        rowData[fieldCode] = rawWidget.getRawValueForSubmit()
-        
-        console.log(`[ListWidget]   - ${fieldCode}:`, rowData[fieldCode])
-      })
-      
-      result.push(rowData)
+      return rowRaw
     })
     
-    console.log(`[ListWidget] ${this.fieldPath} 收集完成:`, result)
+    console.log(`[ListWidget] ${this.fieldPath} 提交数据:`, result)
     return result
   }
 }
-
