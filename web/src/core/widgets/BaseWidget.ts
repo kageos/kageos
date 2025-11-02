@@ -4,8 +4,9 @@
 
 import { ref, type Ref } from 'vue'
 import type { FieldConfig, FieldValue } from '../types/field'
-import type { WidgetRenderProps, WidgetSnapshot } from '../types/widget'
+import type { WidgetRenderProps, WidgetSnapshot, FormRendererContext } from '../types/widget'
 import type { ReactiveFormDataManager } from '../managers/ReactiveFormDataManager'
+import { Logger } from '../utils/logger'
 
 /**
  * Widget 快照接口
@@ -24,7 +25,7 @@ export abstract class BaseWidget implements IWidgetSnapshot {
   protected fieldCode: string
   protected value: Ref<FieldValue>
   protected formManager: ReactiveFormDataManager | null  // ✅ 类型诚实
-  protected formRenderer: any
+  protected formRenderer: FormRendererContext | null  // ✅ 类型安全
   protected depth: number
   protected onChange: (newValue: FieldValue) => void
 
@@ -78,6 +79,14 @@ export abstract class BaseWidget implements IWidgetSnapshot {
       throw new Error(`[${this.constructor.name}] ${operation} requires formManager, but this is a temporary widget`)
     }
     return this.formManager
+  }
+
+  /**
+   * ✅ 获取配置（类型安全的配置提取）
+   * 避免每个子类都要写 (this.field.widget?.config as XxxConfig) || {}
+   */
+  protected getConfig<T = any>(): T {
+    return (this.field.widget?.config as T) || {} as T
   }
 
   /**
@@ -146,11 +155,11 @@ export abstract class BaseWidget implements IWidgetSnapshot {
 
     // 深度检查
     if (this.depth > BaseWidget.MAX_DEPTH) {
-      console.error(`嵌套深度超过限制: ${this.depth}，字段: ${this.fieldPath}`)
+      Logger.error('BaseWidget', `嵌套深度超过限制: ${this.depth}，字段: ${this.fieldPath}`)
       throw new Error(`最大嵌套深度为 ${BaseWidget.MAX_DEPTH}`)
     }
 
-    console.log(`[BaseWidget] 创建 Widget: ${this.fieldPath}, depth: ${this.depth}`)
+    Logger.debug('BaseWidget', `创建 Widget: ${this.fieldPath}, depth: ${this.depth}`)
   }
 
   /**
@@ -189,7 +198,7 @@ export abstract class BaseWidget implements IWidgetSnapshot {
       this.formManager.setValue(this.fieldPath, newValue)
     }
     
-    console.log(`[BaseWidget] ${this.fieldPath} 值变更:`, newValue)
+    Logger.debug('BaseWidget', `${this.fieldPath} 值变更`, newValue)
   }
 
   /**
@@ -455,7 +464,7 @@ export abstract class BaseWidget implements IWidgetSnapshot {
    * 捕获快照（默认实现）
    */
   captureSnapshot(): WidgetSnapshot {
-    console.log(`[BaseWidget] ${this.fieldPath} 捕获快照`)
+    Logger.debug('BaseWidget', `${this.fieldPath} 捕获快照`)
 
     return {
       widget_type: this.field.widget.type,
@@ -474,7 +483,7 @@ export abstract class BaseWidget implements IWidgetSnapshot {
    * 恢复快照（默认实现）
    */
   restoreSnapshot(snapshot: WidgetSnapshot): void {
-    console.log(`[BaseWidget] ${this.fieldPath} 恢复快照`)
+    Logger.debug('BaseWidget', `${this.fieldPath} 恢复快照`)
 
     // 恢复 FieldValue
     this.setValue({

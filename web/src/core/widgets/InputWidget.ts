@@ -12,7 +12,7 @@ import { createInputSlots, getDisabledState, getPlaceholder } from './utils/rend
 export class InputWidget extends BaseWidget {
   private inputConfig: InputConfig
 
-  constructor(props: any) {
+  constructor(props: WidgetRenderProps) {
     super(props)
     this.inputConfig = (this.field.widget?.config as InputConfig) || {}
   }

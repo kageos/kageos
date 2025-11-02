@@ -120,6 +120,7 @@ import { ReactiveFormDataManager } from '../managers/ReactiveFormDataManager'
 import { WidgetBuilder } from '../factories/WidgetBuilder'
 import { widgetFactory } from '../factories/WidgetFactory'
 import { ErrorHandler } from '../utils/ErrorHandler'
+import { Logger } from '../utils/logger'
 import { BaseWidget } from '../widgets/BaseWidget'
 import { ResponseTableWidget } from '../widgets/ResponseTableWidget'
 import { ResponseFormWidget } from '../widgets/ResponseFormWidget'
@@ -187,7 +188,7 @@ const submitting = ref(false)
  * 初始化表单
  */
 function initializeForm(): void {
-  console.log('[FormRenderer] 初始化表单', props.functionDetail)
+  Logger.debug('[FormRenderer] 初始化表单', props.functionDetail)
   
   // 初始化所有字段
   fields.value.forEach(field => {
@@ -209,7 +210,7 @@ function initializeForm(): void {
  */
 function registerWidget(fieldPath: string, widget: BaseWidget): void {
   allWidgets.set(fieldPath, widget)
-  console.log(`[FormRenderer] 注册 Widget: ${fieldPath}`)
+  Logger.debug(`[FormRenderer] 注册 Widget: ${fieldPath}`)
 }
 
 /**
@@ -217,7 +218,7 @@ function registerWidget(fieldPath: string, widget: BaseWidget): void {
  */
 function unregisterWidget(fieldPath: string): void {
   allWidgets.delete(fieldPath)
-  console.log(`[FormRenderer] 注销 Widget: ${fieldPath}`)
+  Logger.debug(`[FormRenderer] 注销 Widget: ${fieldPath}`)
 }
 
 /**
@@ -353,7 +354,7 @@ function renderResponseField(field: FieldConfig): any {
  * 预览提交数据（调试用）
  */
 function handlePreviewSubmit(): void {
-  console.log('[FormRenderer] 预览提交数据')
+  Logger.debug('[FormRenderer] 预览提交数据')
   
   // 🔥 使用统一的数据收集方法（递归收集所有字段）
   const submitData = prepareSubmitDataWithTypeConversion()
@@ -366,7 +367,7 @@ function handlePreviewSubmit(): void {
     duration: 3000
   })
   
-  console.log('[FormRenderer] 提交数据:', submitData)
+  Logger.debug('[FormRenderer] 提交数据:', submitData)
 }
 
 /**
@@ -383,7 +384,7 @@ function handlePreviewSubmit(): void {
 function prepareSubmitDataWithTypeConversion(): Record<string, any> {
   const result: Record<string, any> = {}
   
-  console.log('[FormRenderer] 🚀 开始收集提交数据（方案4-递归）')
+  Logger.debug('[FormRenderer] 🚀 开始收集提交数据（方案4-递归）')
   
   // 🔥 统一处理：无论基础类型还是嵌套类型，都调用 getRawValueForSubmit()
   fields.value.forEach(field => {
@@ -392,13 +393,13 @@ function prepareSubmitDataWithTypeConversion(): Record<string, any> {
     
     if (widget) {
       result[fieldPath] = widget.getRawValueForSubmit()
-      console.log(`[FormRenderer]   ✅ ${fieldPath}:`, result[fieldPath])
+      Logger.debug(`[FormRenderer]   ✅ ${fieldPath}:`, result[fieldPath])
     } else {
-      console.warn(`[FormRenderer]   ⚠️ ${fieldPath}: Widget 未注册`)
+      Logger.warn(`[FormRenderer]   ⚠️ ${fieldPath}: Widget 未注册`)
     }
   })
   
-  console.log('[FormRenderer] ✅ 收集完成，最终数据:', result)
+  Logger.debug('[FormRenderer] ✅ 收集完成，最终数据:', result)
   return result
 }
 
@@ -406,14 +407,14 @@ function prepareSubmitDataWithTypeConversion(): Record<string, any> {
  * 真正提交表单到后端
  */
 async function handleRealSubmit(): Promise<void> {
-  console.log('[FormRenderer] 提交表单到后端')
+  Logger.debug('[FormRenderer] 提交表单到后端')
   
   submitting.value = true
   
   try {
     // 使用带类型转换的数据准备方法
     const submitData = prepareSubmitDataWithTypeConversion()
-    console.log('[FormRenderer] 提交数据:', submitData)
+    Logger.debug('[FormRenderer] 提交数据:', submitData)
     
     // 调用后端 API
     const response = await executeFunction(
@@ -422,7 +423,7 @@ async function handleRealSubmit(): Promise<void> {
       submitData
     )
     
-    console.log('[FormRenderer] 后端响应:', response)
+    Logger.debug('[FormRenderer] 后端响应:', response)
     
     // 保存返回值
     // 后端返回格式：{ code: 0, data: {...}, msg: "成功" }
@@ -442,7 +443,7 @@ async function handleRealSubmit(): Promise<void> {
     })
     
   } catch (error: any) {
-    console.error('[FormRenderer] 提交失败:', error)
+    Logger.error('[FormRenderer] 提交失败:', error)
     
     // 提取错误信息
     const errorMessage = error?.response?.data?.msg || 
@@ -481,7 +482,7 @@ function handleReset(): void {
  * 分享表单（生成快照）
  */
 function handleShare(): void {
-  console.log('[FormRenderer] 生成分享快照')
+  Logger.debug('[FormRenderer] 生成分享快照')
   
   const snapshots: WidgetSnapshot[] = []
   
@@ -517,7 +518,7 @@ function handleShare(): void {
     duration: 3000
   })
   
-  console.log('[FormRenderer] 快照数据:', snapshots)
+  Logger.debug('[FormRenderer] 快照数据:', snapshots)
 }
 
 /**

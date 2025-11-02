@@ -19,6 +19,7 @@
 import { h, markRaw } from 'vue'
 import { ElCard, ElForm, ElFormItem } from 'element-plus'
 import { BaseWidget } from './BaseWidget'
+import { Logger } from '../utils/logger'
 import { WidgetBuilder } from '../factories/WidgetBuilder'
 import { ErrorHandler } from '../utils/ErrorHandler'
 import type { FieldConfig, FieldValue } from '../types/field'
@@ -74,7 +75,7 @@ export class FormWidget extends BaseWidget {
     this.subWidgets = new Map()
     this.createSubWidgets()
     
-    console.log(`[FormWidget] ${this.fieldPath} 初始化，子字段数: ${this.subFields.length}`)
+    Logger.debug(`[FormWidget] ${this.fieldPath} 初始化，子字段数: ${this.subFields.length}`)
   }
 
   /**
@@ -84,7 +85,7 @@ export class FormWidget extends BaseWidget {
     const children = this.field.children || []
     
     if (children.length === 0) {
-      console.warn(`[FormWidget] ${this.fieldPath} 没有子字段定义`)
+      Logger.warn(`[FormWidget] ${this.fieldPath} 没有子字段定义`)
     }
     
     return children
@@ -121,7 +122,7 @@ export class FormWidget extends BaseWidget {
       }
     })
     
-    console.log(`[FormWidget] ${this.fieldPath} 创建了 ${this.subWidgets.size} 个子 Widget`)
+    Logger.debug(`[FormWidget] ${this.fieldPath} 创建了 ${this.subWidgets.size} 个子 Widget`)
   }
 
   /**
@@ -133,7 +134,7 @@ export class FormWidget extends BaseWidget {
   getRawValueForSubmit(): Record<string, any> {
     const result: Record<string, any> = {}
     
-    console.log(`[FormWidget] ${this.fieldPath} 开始收集子组件值`)
+    Logger.debug(`[FormWidget] ${this.fieldPath} 开始收集子组件值`)
     
     // 遍历每个子字段
     this.subWidgets.forEach((widget, fieldCode) => {
@@ -141,10 +142,10 @@ export class FormWidget extends BaseWidget {
       const rawWidget = widget as any  // markRaw 后需要转换
       result[fieldCode] = rawWidget.getRawValueForSubmit()
       
-      console.log(`[FormWidget]   - ${fieldCode}:`, result[fieldCode])
+      Logger.debug(`[FormWidget]   - ${fieldCode}:`, result[fieldCode])
     })
     
-    console.log(`[FormWidget] ${this.fieldPath} 收集完成:`, result)
+    Logger.debug(`[FormWidget] ${this.fieldPath} 收集完成:`, result)
     return result
   }
 
@@ -218,7 +219,7 @@ export class FormWidget extends BaseWidget {
    */
   protected restoreComponentData(data: FormComponentData): void {
     // TODO: 恢复 Form 状态
-    console.log(`[FormWidget] 恢复组件数据:`, data)
+    Logger.debug(`[FormWidget] 恢复组件数据:`, data)
   }
 }
 
