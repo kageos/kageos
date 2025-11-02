@@ -298,30 +298,32 @@ export class ListWidget extends BaseWidget {
   private recalculateStatistics(): void {
     // 检查是否有聚合配置
     if (!this.statisticsConfig.value || Object.keys(this.statisticsConfig.value).length === 0) {
-      console.log(`[ListWidget] 无聚合配置，跳过计算`)
+      console.log(`[ListWidget] ${this.fieldPath} 无聚合配置，跳过计算`)
       return
     }
     
-    console.log(`[ListWidget] 开始计算聚合统计`)
+    console.log(`[ListWidget] ${this.fieldPath} 开始计算聚合统计`)
     
     // 1. 获取所有行的数据
     const allRows = this.getAllRowsData()
     
     console.log(`[ListWidget] 数据行数: ${allRows.length}`)
     console.log(`[ListWidget] 聚合配置:`, this.statisticsConfig.value)
+    console.log(`[ListWidget] 第一行数据示例:`, allRows[0])
     
     // 2. 遍历聚合配置，计算每个统计项
     const result: Record<string, any> = {}
     
     for (const [label, expression] of Object.entries(this.statisticsConfig.value)) {
       try {
+        console.log(`\n[ListWidget] 计算: ${label} = ${expression}`)
         // 使用表达式解析器计算
         const value = ExpressionParser.evaluate(expression, allRows)
         result[label] = value
         
-        console.log(`[ListWidget]   ${label}: ${expression} = ${value}`)
+        console.log(`[ListWidget]   ✓ 结果: ${value}`)
       } catch (error) {
-        console.error(`[ListWidget] 计算失败: ${label} = ${expression}`, error)
+        console.error(`[ListWidget] ✗ 计算失败: ${label} = ${expression}`, error)
         result[label] = 0
       }
     }
@@ -329,7 +331,7 @@ export class ListWidget extends BaseWidget {
     // 3. 更新统计结果
     this.statisticsResult.value = result
     
-    console.log(`[ListWidget] 聚合统计完成:`, result)
+    console.log(`\n[ListWidget] 聚合统计完成:`, result)
     
     // 4. 发出 List 聚合完成事件（如果父组件需要）
     this.emit('list:statistics:updated', {
@@ -708,8 +710,11 @@ export class ListWidget extends BaseWidget {
   private renderStatistics() {
     // 如果没有统计结果，不渲染
     if (!this.statisticsResult.value || Object.keys(this.statisticsResult.value).length === 0) {
+      console.log(`[ListWidget] renderStatistics: 无统计结果`)
       return null
     }
+    
+    console.log(`[ListWidget] renderStatistics: 渲染统计结果`, this.statisticsResult.value)
     
     return h('div', {
       class: 'list-statistics',
@@ -727,6 +732,10 @@ export class ListWidget extends BaseWidget {
     }, 
       // 渲染每个统计项
       Object.entries(this.statisticsResult.value).map(([label, value]) => {
+        // 🔥 判断是数值还是文本
+        const isNumeric = typeof value === 'number'
+        const displayValue = isNumeric ? ExpressionParser.formatNumber(value) : String(value)
+        
         return h('div', {
           key: label,
           class: 'statistics-item',
@@ -745,14 +754,14 @@ export class ListWidget extends BaseWidget {
             }
           }, `${label}:`),
           
-          // 数值
+          // 数值或文本
           h('span', {
             style: {
               fontSize: '14px',
-              color: 'var(--el-color-primary)',
-              fontWeight: 'bold'
+              color: isNumeric ? 'var(--el-color-primary)' : 'var(--el-text-color-primary)',
+              fontWeight: isNumeric ? 'bold' : 'normal'
             }
-          }, ExpressionParser.formatNumber(value))
+          }, displayValue)
         ])
       })
     )
