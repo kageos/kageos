@@ -225,7 +225,7 @@ watch(() => props.currentNodeId, (nodeId) => {
   
   .node-icon {
     font-size: 16px;
-    color: #409eff;  // ✅ 深蓝色（现代风格，更醒目）
+    color: #409eff;  /* ✅ 深蓝色（现代风格，更醒目） */
     flex-shrink: 0;
     transition: color 0.2s ease;
   }
@@ -286,7 +286,7 @@ watch(() => props.currentNodeId, (nodeId) => {
     }
     
     .node-icon {
-      color: #2b85e4;  // ✅ 选中状态使用更深的蓝色
+      color: #2b85e4;  /* ✅ 选中状态使用更深的蓝色 */
     }
   }
 }
