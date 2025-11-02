@@ -241,6 +241,19 @@ export class SelectWidget extends BaseWidget {
   }
 
   /**
+   * 下拉框展开时触发（点击输入框）
+   */
+  private handleVisibleChange = (visible: boolean) => {
+    if (visible && this.field.callbacks?.includes('OnSelectFuzzy')) {
+      // 🔥 展开时，如果选项为空，触发一次空查询加载默认选项
+      if (!this.options.value || this.options.value.length === 0) {
+        console.log(`[SelectWidget] ${this.field.code} 下拉框展开，触发默认查询`)
+        this.handleSearch('', false)  // 空关键词查询
+      }
+    }
+  }
+
+  /**
    * 渲染组件
    */
   render() {
@@ -254,6 +267,7 @@ export class SelectWidget extends BaseWidget {
       remote: true,
       remoteMethod: (query: string) => this.handleSearch(query, false),
       loading: this.loading.value,
+      onVisibleChange: this.handleVisibleChange,  // 🔥 下拉框展开/收起时触发
       onChange: (value: any) => this.handleChange(value),
       style: { width: '100%' }
     }, {
