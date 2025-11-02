@@ -86,7 +86,6 @@ export class MultiSelectWidget extends BaseWidget {
         this.options.value = configOptions as SelectOption[]
       }
       
-      Logger.debug(`[MultiSelectWidget] ${this.field.code} 初始化选项:`, this.options.value)
     }
     
     // 🔥 如果有初始值且有回调，触发一次搜索获取 displayInfo
@@ -96,7 +95,6 @@ export class MultiSelectWidget extends BaseWidget {
       
       // 检查是否有初始值（数组且不为空）
       if (Array.isArray(currentRaw) && currentRaw.length > 0) {
-        Logger.debug(`[MultiSelectWidget] ${this.field.code} 检测到初始值，触发回调获取 displayInfo`)
         this.handleSearch(currentRaw, true) // 静默搜索（by_value）
       }
     }
@@ -134,14 +132,10 @@ export class MultiSelectWidget extends BaseWidget {
         value_type: this.field.data?.type || '[]string'
       }
 
-      Logger.debug(`[MultiSelectWidget] ${this.field.code} 触发回调`)
-      Logger.debug(`[MultiSelectWidget]   Query Type: ${requestBody.type}`)
-      Logger.debug(`[MultiSelectWidget]   Search Value:`, query)
 
       // 调用回调 API
       const response = await selectFuzzy(method || 'POST', router, requestBody)
 
-      Logger.debug(`[MultiSelectWidget] ${this.field.code} 回调响应:`, response)
 
       // 解析响应
       if (response.error_msg) {
@@ -153,13 +147,11 @@ export class MultiSelectWidget extends BaseWidget {
       // 🔥 处理 max_selections（动态限制）
       if (response.max_selections !== undefined) {
         this.maxSelections = response.max_selections
-        Logger.debug(`[MultiSelectWidget] ${this.field.code} 动态限制最多选择: ${this.maxSelections}`)
       }
 
       // 🔥 处理 statistics（聚合统计）
       if (response.statistics) {
         this.currentStatistics = response.statistics
-        Logger.debug(`[MultiSelectWidget] ${this.field.code} 收到聚合统计:`, this.currentStatistics)
       }
 
       // 更新选项
@@ -170,7 +162,6 @@ export class MultiSelectWidget extends BaseWidget {
         icon: item.icon
       }))
 
-      Logger.debug(`[MultiSelectWidget] ${this.field.code} 查询成功，共 ${this.options.value.length} 个选项`)
 
     } catch (error) {
       Logger.error(`[MultiSelectWidget] ${this.field.code} 回调失败:`, error)
@@ -184,7 +175,6 @@ export class MultiSelectWidget extends BaseWidget {
    * 处理选择变更
    */
   private handleChange(values: any[]): void {
-    Logger.debug(`[MultiSelectWidget] ${this.field.code} 选择变更:`, values)
     
     // 🔥 收集多个值的 displayInfo
     const displayInfos = values.map(val => {
@@ -224,7 +214,6 @@ export class MultiSelectWidget extends BaseWidget {
     if (visible && this.field.callbacks?.includes('OnSelectFuzzy')) {
       // 🔥 展开时，如果选项为空，触发一次空查询加载默认选项
       if (!this.options.value || this.options.value.length === 0) {
-        Logger.debug(`[MultiSelectWidget] ${this.field.code} 下拉框展开，触发默认查询`)
         this.handleSearch('', false)  // 空关键词查询
       }
     }
@@ -248,7 +237,6 @@ export class MultiSelectWidget extends BaseWidget {
     
     // 打印调试信息
     if (multipleLimit > 0) {
-      Logger.debug(`[MultiSelectWidget] ${this.field.code} 数量限制: ${multipleLimit}, 当前已选: ${selectedValues.length}`)
     }
     
     return h(ElSelect, {

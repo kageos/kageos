@@ -75,7 +75,6 @@ export class FormWidget extends BaseWidget {
     this.subWidgets = new Map()
     this.createSubWidgets()
     
-    Logger.debug(`[FormWidget] ${this.fieldPath} 初始化，子字段数: ${this.subFields.length}`)
   }
 
   /**
@@ -122,7 +121,6 @@ export class FormWidget extends BaseWidget {
       }
     })
     
-    Logger.debug(`[FormWidget] ${this.fieldPath} 创建了 ${this.subWidgets.size} 个子 Widget`)
   }
 
   /**
@@ -134,7 +132,6 @@ export class FormWidget extends BaseWidget {
   getRawValueForSubmit(): Record<string, any> {
     const result: Record<string, any> = {}
     
-    Logger.debug(`[FormWidget] ${this.fieldPath} 开始收集子组件值`)
     
     // 遍历每个子字段
     this.subWidgets.forEach((widget, fieldCode) => {
@@ -142,10 +139,8 @@ export class FormWidget extends BaseWidget {
       const rawWidget = widget as any  // markRaw 后需要转换
       result[fieldCode] = rawWidget.getRawValueForSubmit()
       
-      Logger.debug(`[FormWidget]   - ${fieldCode}:`, result[fieldCode])
     })
     
-    Logger.debug(`[FormWidget] ${this.fieldPath} 收集完成:`, result)
     return result
   }
 
@@ -219,7 +214,6 @@ export class FormWidget extends BaseWidget {
    */
   protected restoreComponentData(data: FormComponentData): void {
     // TODO: 恢复 Form 状态
-    Logger.debug(`[FormWidget] 恢复组件数据:`, data)
   }
 }
 
