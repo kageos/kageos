@@ -54,5 +54,22 @@ export class FloatWidget extends BaseWidget {
       }
     }, createInputSlots(this.floatConfig.prepend, this.floatConfig.append))
   }
+
+  /**
+   * 🔥 渲染浮点数范围搜索（覆盖父类）
+   */
+  protected renderRangeSearch(): any {
+    return {
+      component: 'NumberRangeInput',
+      props: {
+        minPlaceholder: `最小${this.field.name}`,
+        maxPlaceholder: `最大${this.field.name}`,
+        precision: this.floatConfig.precision !== undefined ? this.floatConfig.precision : 2,
+        step: this.floatConfig.step || 0.01,
+        min: this.floatConfig.min,
+        max: this.floatConfig.max
+      }
+    }
+  }
 }
 

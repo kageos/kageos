@@ -56,5 +56,27 @@ export class TimestampWidget extends BaseWidget {
       }
     })
   }
+
+  /**
+   * 🔥 渲染时间范围搜索（覆盖父类）
+   */
+  protected renderRangeSearch(): any {
+    const showShortcuts = this.timestampConfig.shortcuts !== false
+    
+    return {
+      component: 'ElDatePicker',
+      props: {
+        type: 'datetimerange',
+        rangeSeparator: '至',
+        startPlaceholder: '开始时间',
+        endPlaceholder: '结束时间',
+        format: this.timestampConfig.format || 'YYYY-MM-DD HH:mm:ss',
+        valueFormat: 'x',  // 返回时间戳（毫秒）
+        shortcuts: showShortcuts ? getDateTimeShortcuts('datetimerange') : undefined,
+        style: { width: '360px' },
+        clearable: true
+      }
+    }
+  }
 }
 

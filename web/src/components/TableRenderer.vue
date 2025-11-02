@@ -11,53 +11,13 @@
     <div class="search-bar">
       <el-form :inline="true" :model="searchForm" class="search-form">
         <template v-for="field in searchableFields" :key="field.code">
-          <!-- 精确匹配 (eq) -->
-          <el-form-item v-if="field.search?.includes('eq')" :label="field.name">
-            <el-input
-              v-model="searchForm[`eq_${field.code}`]"
-              :placeholder="`请输入${field.name}`"
-              clearable
-              style="width: 200px"
-            />
-          </el-form-item>
-
-          <!-- 模糊查询 (like) -->
-          <el-form-item v-if="field.search?.includes('like')" :label="field.name">
-            <el-input
-              v-model="searchForm[`like_${field.code}`]"
-              :placeholder="`请输入${field.name}`"
-              clearable
-              style="width: 200px"
-            />
-          </el-form-item>
-
-          <!-- 包含查询 (in) - 下拉选择 -->
-          <el-form-item v-if="field.search?.includes('in') && field.widget.config.options" :label="field.name">
-            <el-select
-              v-model="searchForm[`in_${field.code}`]"
-              :placeholder="`请选择${field.name}`"
-              clearable
-              style="width: 200px"
-            >
-              <el-option
-                v-for="option in field.widget.config.options"
-                :key="option"
-                :label="option"
-                :value="option"
-              />
-            </el-select>
-          </el-form-item>
-
-          <!-- 时间范围查询 (gte, lte) -->
-          <el-form-item v-if="field.search?.includes('gte') || field.search?.includes('lte')" :label="field.name">
-            <el-date-picker
-              v-model="searchForm[`daterange_${field.code}`]"
-              type="datetimerange"
-              range-separator="至"
-              start-placeholder="开始时间"
-              end-placeholder="结束时间"
-              style="width: 360px"
-              value-format="x"
+          <!-- 🔥 通过 Widget 渲染搜索输入（组件自治） -->
+          <el-form-item :label="field.name">
+            <SearchInput
+              :field="field"
+              :search-type="field.search"
+              :model-value="getSearchValue(field)"
+              @update:model-value="(value) => updateSearchValue(field, value)"
             />
           </el-form-item>
         </template>
@@ -161,6 +121,7 @@ import { Search, Refresh, Edit, Delete, Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { executeFunction, tableAddRow, tableUpdateRow, tableDeleteRows } from '@/api/function'
 import FormDialog from './FormDialog.vue'
+import SearchInput from './SearchInput.vue'
 import type { Function as FunctionType, FieldConfig, SearchParams } from '@/types'
 
 interface Props {
@@ -256,6 +217,16 @@ const getColumnWidth = (field: FieldConfig) => {
   return 150
 }
 
+// 🔥 获取搜索值
+const getSearchValue = (field: FieldConfig): any => {
+  return searchForm.value[field.code] || null
+}
+
+// 🔥 更新搜索值
+const updateSearchValue = (field: FieldConfig, value: any): void => {
+  searchForm.value[field.code] = value
+}
+
 // 构建搜索参数
 const buildSearchParams = (): SearchParams => {
   const params: SearchParams = {
@@ -268,20 +239,43 @@ const buildSearchParams = (): SearchParams => {
     params.sort = `${sortField.value}:${sortOrder.value}`
   }
 
-  // 遍历搜索表单，构建查询参数
-  Object.keys(searchForm.value).forEach(key => {
-    const value = searchForm.value[key]
+  // 🔥 遍历搜索表单，构建查询参数（新逻辑）
+  searchableFields.value.forEach(field => {
+    const value = searchForm.value[field.code]
     if (!value) return
-
-    // 解析字段类型和字段名
-    const [type, fieldCode] = key.split('_')
-
-    if (type === 'eq' || type === 'like' || type === 'in') {
-      params[type] = `${fieldCode}:${value}`
-    } else if (type === 'daterange' && Array.isArray(value) && value.length === 2) {
-      // 时间范围
-      params.gte = `${fieldCode}:${value[0]}`
-      params.lte = `${fieldCode}:${value[1]}`
+    
+    const searchType = field.search || ''
+    
+    // 精确匹配
+    if (searchType.includes('eq')) {
+      params.eq = `${field.code}:${value}`
+    }
+    // 模糊查询
+    else if (searchType.includes('like')) {
+      params.like = `${field.code}:${value}`
+    }
+    // 包含查询
+    else if (searchType.includes('in')) {
+      params.in = `${field.code}:${value}`
+    }
+    // 范围查询
+    else if (searchType.includes('gte') && searchType.includes('lte')) {
+      // 可能是对象 {min, max} 或数组 [start, end]
+      if (typeof value === 'object') {
+        if (Array.isArray(value) && value.length === 2) {
+          // 日期范围数组
+          if (value[0]) params.gte = `${field.code}:${value[0]}`
+          if (value[1]) params.lte = `${field.code}:${value[1]}`
+        } else if (value.min !== undefined || value.max !== undefined) {
+          // 数字范围对象
+          if (value.min !== undefined && value.min !== null && value.min !== '') {
+            params.gte = `${field.code}:${value.min}`
+          }
+          if (value.max !== undefined && value.max !== null && value.max !== '') {
+            params.lte = `${field.code}:${value.max}`
+          }
+        }
+      }
     }
   })
 

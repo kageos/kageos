@@ -37,5 +37,22 @@ export class NumberWidget extends BaseWidget {
       }
     }, createInputSlots(this.numberConfig.prepend, this.numberConfig.append))
   }
+
+  /**
+   * 🔥 渲染整数范围搜索（覆盖父类）
+   */
+  protected renderRangeSearch(): any {
+    return {
+      component: 'NumberRangeInput',
+      props: {
+        minPlaceholder: `最小${this.field.name}`,
+        maxPlaceholder: `最大${this.field.name}`,
+        precision: 0,  // 整数，无小数
+        step: this.numberConfig.step || 1,
+        min: this.numberConfig.min,
+        max: this.numberConfig.max
+      }
+    }
+  }
 }
 
