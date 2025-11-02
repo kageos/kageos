@@ -159,7 +159,7 @@ export class WidgetBuilder {
       currentFieldPath: `_temp_.${field.code}`,  // 临时路径
       value: initialValue,
       onChange: () => {},  // 空回调（临时 Widget 不需要修改数据）
-      formManager: formManager as any,  // 允许为 null
+      formManager: formManager,  // ✅ 类型安全，不需要 as any
       formRenderer: null,  // 临时 Widget 不需要 formRenderer
       depth: 0
     }

@@ -29,13 +29,18 @@ export interface FormRendererContext {
 
 /**
  * Widget 渲染属性
+ * 
+ * 设计说明：
+ * - formManager 和 formRenderer 可以为 null（临时 Widget 场景）
+ * - 临时 Widget：用于表格渲染、搜索输入配置等只读场景
+ * - 标准 Widget：用于表单编辑，formManager 和 formRenderer 必需
  */
 export interface WidgetRenderProps {
   field: FieldConfig
   currentFieldPath: string
   value: FieldValue
   onChange: (newValue: FieldValue) => void
-  formManager: ReactiveFormDataManager
+  formManager: ReactiveFormDataManager | null  // ✅ 明确可以为 null
   formRenderer: FormRendererContext | null
   depth?: number
 }

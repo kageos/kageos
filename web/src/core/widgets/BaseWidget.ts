@@ -23,13 +23,62 @@ export abstract class BaseWidget implements IWidgetSnapshot {
   protected fieldPath: string
   protected fieldCode: string
   protected value: Ref<FieldValue>
-  protected formManager: ReactiveFormDataManager
+  protected formManager: ReactiveFormDataManager | null  // ✅ 类型诚实
   protected formRenderer: any
   protected depth: number
   protected onChange: (newValue: FieldValue) => void
 
   // 最大嵌套深度
   protected static readonly MAX_DEPTH = 10
+
+  /**
+   * ✅ 辅助属性：是否是临时 Widget
+   * 临时 Widget 没有 formManager，用于只读渲染（表格单元格、搜索输入配置等）
+   */
+  protected get isTemporary(): boolean {
+    return this.formManager === null
+  }
+
+  /**
+   * ✅ 辅助属性：是否有 formManager
+   * 语义更清晰的检查方式
+   */
+  protected get hasFormManager(): boolean {
+    return this.formManager !== null
+  }
+
+  /**
+   * ✅ 安全获取值
+   * 如果是临时 Widget，返回当前 value；否则从 formManager 读取
+   */
+  protected safeGetValue(fieldPath?: string): FieldValue {
+    if (!this.formManager) {
+      return this.value.value
+    }
+    return this.formManager.getValue(fieldPath || this.fieldPath)
+  }
+
+  /**
+   * ✅ 安全设置值
+   * 如果是临时 Widget，不做任何操作；否则写入 formManager
+   */
+  protected safeSetValue(fieldPath: string, value: FieldValue): void {
+    if (!this.formManager) {
+      return  // 临时 Widget 不需要设置值
+    }
+    this.formManager.setValue(fieldPath, value)
+  }
+
+  /**
+   * ✅ 要求 formManager 存在（用于必需 formManager 的操作）
+   * 如果是临时 Widget 却调用了需要 formManager 的方法，抛出清晰的错误
+   */
+  protected requireFormManager(operation: string): ReactiveFormDataManager {
+    if (!this.formManager) {
+      throw new Error(`[${this.constructor.name}] ${operation} requires formManager, but this is a temporary widget`)
+    }
+    return this.formManager
+  }
 
   /**
    * 获取字段的默认值
@@ -119,6 +168,14 @@ export abstract class BaseWidget implements IWidgetSnapshot {
     }
     return value
   }
+  
+  /**
+   * ✅ 获取当前值（用于提交，公开方法）
+   * 注意：这个方法名和上面的 protected getValue 不同
+   */
+  getRawValueForSubmit(): any {
+    return this.getValue().raw
+  }
 
   /**
    * 设置值
@@ -126,6 +183,12 @@ export abstract class BaseWidget implements IWidgetSnapshot {
   protected setValue(newValue: FieldValue): void {
     this.value.value = newValue
     this.onChange(newValue)
+    
+    // ✅ 同步到 formManager（如果存在）
+    if (this.formManager) {
+      this.formManager.setValue(this.fieldPath, newValue)
+    }
+    
     console.log(`[BaseWidget] ${this.fieldPath} 值变更:`, newValue)
   }
 
@@ -369,6 +432,11 @@ export abstract class BaseWidget implements IWidgetSnapshot {
    * @param payload 事件数据
    */
   protected emit(eventType: string, payload: any = {}): void {
+    // ✅ 如果是临时 Widget，不发射事件
+    if (!this.formManager) {
+      return
+    }
+    
     // 自动添加 fieldPath 到 payload
     const fullPayload = {
       ...payload,
