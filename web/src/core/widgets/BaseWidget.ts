@@ -221,6 +221,57 @@ export abstract class BaseWidget implements IWidgetSnapshot {
   }
 
   /**
+   * 🔥 渲染表格单元格（用于 ListWidget）
+   * 子类可以覆盖此方法来自定义表格展示
+   * @param value 字段值
+   * @returns VNode（Vue 虚拟节点）或 字符串
+   */
+  renderTableCell(value: FieldValue): any {
+    if (!value) return '-'
+    
+    // 🔥 优先使用 display 属性
+    if (value.display) {
+      return value.display
+    }
+    
+    // 降级：格式化 raw 值
+    const raw = value.raw
+    if (raw === null || raw === undefined) return '-'
+    
+    // 根据字段类型格式化
+    if (this.field.widget?.type === 'timestamp') {
+      return this.formatTimestamp(raw)
+    }
+    
+    if (Array.isArray(raw)) {
+      return raw.join(', ')
+    }
+    
+    return String(raw)
+  }
+
+  /**
+   * 格式化时间戳（用于表格显示）
+   */
+  protected formatTimestamp(timestamp: number | string): string {
+    if (!timestamp) return '-'
+    
+    const date = typeof timestamp === 'number' 
+      ? new Date(timestamp * 1000)  // Unix 时间戳（秒）
+      : new Date(timestamp)
+    
+    if (isNaN(date.getTime())) return String(timestamp)
+    
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const hours = String(date.getHours()).padStart(2, '0')
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    
+    return `${year}-${month}-${day} ${hours}:${minutes}`
+  }
+
+  /**
    * 🔥 发出事件
    * @param eventType 事件类型，如 'field:search', 'field:change'
    * @param payload 事件数据

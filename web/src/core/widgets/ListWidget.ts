@@ -9,7 +9,7 @@
  */
 
 import { h, ref, computed, markRaw } from 'vue'
-import { ElButton, ElTable, ElTableColumn, ElForm, ElFormItem, ElIcon, ElMessage, ElTag } from 'element-plus'
+import { ElButton, ElTable, ElTableColumn, ElForm, ElFormItem, ElIcon, ElMessage } from 'element-plus'
 import { Plus, Delete, Edit, Check, Close } from '@element-plus/icons-vue'
 import { BaseWidget } from './BaseWidget'
 import { widgetFactory } from '../factories/WidgetFactory'
@@ -560,11 +560,8 @@ export class ListWidget extends BaseWidget {
               const value = row[field.code]
               if (!value) return '-'
               
-              // 🔥 如果是 MultiSelect，使用特殊渲染
-              if (field.widget?.type === 'multiselect') {
-                return this.renderMultiSelectCell(value, field)
-              }
-              return this.formatCellValue(value, field)
+              // 🔥 通过 Widget 实例渲染（解耦）
+              return this.renderCellByWidget(value, field)
             }
           })
         ),
@@ -605,83 +602,40 @@ export class ListWidget extends BaseWidget {
     if (field.widget?.type === 'timestamp') return 180
     if (field.widget?.type === 'textarea' || field.widget?.type === 'text_area') return 200
     if (field.widget?.type === 'multiselect') return 200  // MultiSelect 需要更宽的空间
+    if (field.widget?.type === 'file') return 150  // File 组件
     return 120
   }
 
   /**
-   * 🔥 渲染 MultiSelect 单元格（使用 Tag 标签）
+   * 🔥 通过 Widget 渲染单元格（解耦方案）
+   * 每个 Widget 负责自己的表格展示逻辑
    */
-  private renderMultiSelectCell(fieldValue: FieldValue, field: FieldConfig): any {
-    if (!fieldValue || !fieldValue.raw) {
-      return h('span', { style: { color: 'var(--el-text-color-secondary)' } }, '-')
-    }
-    
-    const raw = fieldValue.raw
-    const meta = fieldValue.meta || {}
-    
-    // 如果不是数组，降级处理
-    if (!Array.isArray(raw)) {
-      return h('span', String(raw))
-    }
-    
-    // 如果是空数组
-    if (raw.length === 0) {
-      return h('span', { style: { color: 'var(--el-text-color-secondary)' } }, '未选择')
-    }
-    
-    // 🔥 尝试从 meta.displayInfo 中提取选项的 label
-    let labels: string[] = []
-    
-    // displayInfo 可能是数组（MultiSelect 多个选项的 displayInfo）
-    if (meta.displayInfo && Array.isArray(meta.displayInfo)) {
-      labels = meta.displayInfo.map((info: any) => {
-        // 如果 displayInfo 有 label 字段
-        if (info && typeof info === 'object' && 'label' in info) {
-          return info.label
-        }
-        // 尝试从字段中提取名称
-        return info?.商品名称 || info?.名称 || info?.name || String(info)
+  private renderCellByWidget(value: FieldValue, field: FieldConfig): any {
+    try {
+      // 创建临时 Widget 实例（仅用于渲染）
+      const tempWidget = widgetFactory.createWidget({
+        field: field,
+        fieldPath: `${this.fieldPath}[]._temp_`,  // 临时路径
+        initialValue: value,
+        formManager: this.formManager,
+        formRenderer: this.formRenderer,
+        depth: this.depth + 1,
+        onChange: () => {}  // 空回调（表格展示不需要修改数据）
       })
+      
+      // 🔥 调用 Widget 的 renderTableCell 方法
+      return (tempWidget as any).renderTableCell(value)
+    } catch (error) {
+      console.error(`[ListWidget] renderCellByWidget 失败:`, error)
+      // 降级：使用简单格式化
+      return value.display || String(value.raw) || '-'
     }
-    
-    // 如果没有 labels，回退到显示 raw 值
-    if (labels.length === 0) {
-      labels = raw.map(v => String(v))
-    }
-    
-    // 🔥 显示策略：
-    // - 如果 ≤ 3 个，全部显示为 Tag
-    // - 如果 > 3 个，显示前 2 个 + "等 N 项"
-    const maxDisplay = 3
-    const displayLabels = labels.slice(0, maxDisplay)
-    const hasMore = labels.length > maxDisplay
-    
-    return h('div', { 
-      style: { 
-        display: 'flex', 
-        gap: '4px', 
-        flexWrap: 'wrap',
-        alignItems: 'center'
-      } 
-    }, [
-      ...displayLabels.map(label => 
-        h(ElTag, { 
-          size: 'small',
-          type: 'info'
-        }, { default: () => label })
-      ),
-      // 如果有更多项，显示省略标识
-      hasMore ? h('span', { 
-        style: { 
-          fontSize: '12px', 
-          color: 'var(--el-text-color-secondary)' 
-        } 
-      }, `等${labels.length}项`) : null
-    ])
   }
 
+
   /**
-   * 🔥 格式化单元格值
+   * 🔥 旧方法（已废弃，保留用于向后兼容）
+   * @deprecated 使用 renderCellByWidget 代替
    */
   private formatCellValue(fieldValue: FieldValue, field: FieldConfig): string {
     if (!fieldValue) return '-'
@@ -695,11 +649,6 @@ export class ListWidget extends BaseWidget {
     const raw = fieldValue.raw
     if (raw === null || raw === undefined) return '-'
     
-    // 根据字段类型格式化 raw 值
-    if (field.widget?.type === 'timestamp') {
-      return this.formatTimestamp(raw)
-    }
-    
     if (Array.isArray(raw)) {
       return raw.join(', ')
     }
@@ -708,9 +657,10 @@ export class ListWidget extends BaseWidget {
   }
 
   /**
-   * 格式化时间戳
+   * 🔥 旧方法（已废弃，保留用于向后兼容）
+   * @deprecated BaseWidget 已提供 formatTimestamp
    */
-  private formatTimestamp(timestamp: number | string): string {
+  protected formatTimestamp(timestamp: number | string): string {
     if (!timestamp) return '-'
     const date = new Date(timestamp)
     const year = date.getFullYear()

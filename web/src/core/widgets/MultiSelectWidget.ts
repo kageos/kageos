@@ -8,7 +8,7 @@
  */
 
 import { h, ref } from 'vue'
-import { ElSelect, ElOption } from 'element-plus'
+import { ElSelect, ElOption, ElTag } from 'element-plus'
 import { BaseWidget } from './BaseWidget'
 import { selectFuzzy } from '@/api/function'
 import type { FieldConfig, FieldValue } from '../types/field'
@@ -279,6 +279,79 @@ export class MultiSelectWidget extends BaseWidget {
         })
       })
     })
+  }
+
+  /**
+   * 🔥 渲染表格单元格（覆盖父类方法）
+   * 使用 Tag 标签展示选中的选项
+   */
+  renderTableCell(value: FieldValue): any {
+    if (!value || !value.raw) {
+      return h('span', { style: { color: 'var(--el-text-color-secondary)' } }, '-')
+    }
+    
+    const raw = value.raw
+    const meta = value.meta || {}
+    
+    // 如果不是数组，降级处理
+    if (!Array.isArray(raw)) {
+      return h('span', String(raw))
+    }
+    
+    // 如果是空数组
+    if (raw.length === 0) {
+      return h('span', { style: { color: 'var(--el-text-color-secondary)' } }, '未选择')
+    }
+    
+    // 🔥 尝试从 meta.displayInfo 中提取选项的 label
+    let labels: string[] = []
+    
+    // displayInfo 可能是数组（MultiSelect 多个选项的 displayInfo）
+    if (meta.displayInfo && Array.isArray(meta.displayInfo)) {
+      labels = meta.displayInfo.map((info: any) => {
+        // 如果 displayInfo 有 label 字段
+        if (info && typeof info === 'object' && 'label' in info) {
+          return info.label
+        }
+        // 尝试从字段中提取名称
+        return info?.商品名称 || info?.名称 || info?.name || String(info)
+      })
+    }
+    
+    // 如果没有 labels，回退到显示 raw 值
+    if (labels.length === 0) {
+      labels = raw.map(v => String(v))
+    }
+    
+    // 🔥 显示策略：
+    // - 如果 ≤ 3 个，全部显示为 Tag
+    // - 如果 > 3 个，显示前 3 个 + "等 N 项"
+    const maxDisplay = 3
+    const displayLabels = labels.slice(0, maxDisplay)
+    const hasMore = labels.length > maxDisplay
+    
+    return h('div', { 
+      style: { 
+        display: 'flex', 
+        gap: '4px', 
+        flexWrap: 'wrap',
+        alignItems: 'center'
+      } 
+    }, [
+      ...displayLabels.map(label => 
+        h(ElTag, { 
+          size: 'small',
+          type: 'info'
+        }, { default: () => label })
+      ),
+      // 如果有更多项，显示省略标识
+      hasMore ? h('span', { 
+        style: { 
+          fontSize: '12px', 
+          color: 'var(--el-text-color-secondary)' 
+        } 
+      }, `等${labels.length}项`) : null
+    ])
   }
 }
 
