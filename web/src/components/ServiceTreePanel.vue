@@ -227,7 +227,7 @@ watch(() => props.currentNodeId, (nodeId) => {
     width: 16px;
     height: 16px;
     margin-right: 8px;
-    color: var(--el-color-primary);
+    color: #6366f1;  /* ✅ 旧版本紫色主题色（indigo-500） */
     opacity: 0.8;
     flex-shrink: 0;
     transition: color 0.2s ease;
@@ -289,7 +289,7 @@ watch(() => props.currentNodeId, (nodeId) => {
     }
     
     .node-icon {
-      color: var(--el-color-primary);
+      color: #6366f1;  /* ✅ 旧版本紫色主题色 */
       opacity: 0.8;
     }
   }
