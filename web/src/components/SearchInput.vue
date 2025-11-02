@@ -4,7 +4,10 @@
     <el-input
       v-if="inputConfig.component === 'ElInput'"
       v-model="localValue"
-      v-bind="inputConfig.props"
+      :placeholder="inputConfig.props?.placeholder"
+      :clearable="inputConfig.props?.clearable"
+      :disabled="inputConfig.props?.disabled"
+      :style="inputConfig.props?.style"
       @input="handleInput"
     />
 
@@ -12,14 +15,16 @@
     <el-select
       v-else-if="inputConfig.component === 'ElSelect'"
       v-model="localValue"
-      v-bind="inputConfig.props"
+      :placeholder="inputConfig.props?.placeholder"
+      :clearable="inputConfig.props?.clearable"
+      :style="inputConfig.props?.style"
       @change="handleInput"
     >
       <el-option
-        v-for="option in inputConfig.props?.options || []"
-        :key="option"
-        :label="option"
-        :value="option"
+        v-for="option in selectOptions"
+        :key="typeof option === 'object' ? option.value : option"
+        :label="typeof option === 'object' ? option.label : option"
+        :value="typeof option === 'object' ? option.value : option"
       />
     </el-select>
 
@@ -27,16 +32,28 @@
     <div v-else-if="inputConfig.component === 'NumberRangeInput'" class="number-range">
       <el-input-number
         v-model="rangeValue.min"
-        v-bind="getRangeProps('min')"
+        :placeholder="inputConfig.props?.minPlaceholder"
+        :precision="inputConfig.props?.precision"
+        :step="inputConfig.props?.step"
+        :min="inputConfig.props?.min"
+        :max="inputConfig.props?.max"
+        :clearable="true"
+        :controls-position="'right'"
+        :style="{ width: '160px' }"
         @change="handleRangeChange"
-        controls-position="right"
       />
       <span class="range-separator">至</span>
       <el-input-number
         v-model="rangeValue.max"
-        v-bind="getRangeProps('max')"
+        :placeholder="inputConfig.props?.maxPlaceholder"
+        :precision="inputConfig.props?.precision"
+        :step="inputConfig.props?.step"
+        :min="inputConfig.props?.min"
+        :max="inputConfig.props?.max"
+        :clearable="true"
+        :controls-position="'right'"
+        :style="{ width: '160px' }"
         @change="handleRangeChange"
-        controls-position="right"
       />
     </div>
 
@@ -44,7 +61,15 @@
     <el-date-picker
       v-else-if="inputConfig.component === 'ElDatePicker'"
       v-model="localValue"
-      v-bind="inputConfig.props"
+      :type="inputConfig.props?.type"
+      :range-separator="inputConfig.props?.rangeSeparator"
+      :start-placeholder="inputConfig.props?.startPlaceholder"
+      :end-placeholder="inputConfig.props?.endPlaceholder"
+      :format="inputConfig.props?.format"
+      :value-format="inputConfig.props?.valueFormat"
+      :shortcuts="inputConfig.props?.shortcuts"
+      :clearable="inputConfig.props?.clearable"
+      :style="inputConfig.props?.style"
       @change="handleInput"
     />
 
@@ -103,6 +128,14 @@ if (props.searchType?.includes('gte') && props.searchType?.includes('lte')) {
   }
 }
 
+// 🔥 提取下拉选项
+const selectOptions = computed(() => {
+  if (inputConfig.value.component !== 'ElSelect') {
+    return []
+  }
+  return inputConfig.value.props?.options || []
+})
+
 // 🔥 通过 Widget 获取搜索输入配置
 const inputConfig = computed(() => {
   try {
@@ -135,27 +168,6 @@ const inputConfig = computed(() => {
     }
   }
 })
-
-// 获取范围输入的 props
-const getRangeProps = (type: 'min' | 'max') => {
-  const baseProps = {
-    placeholder: type === 'min' ? inputConfig.value.props?.minPlaceholder : inputConfig.value.props?.maxPlaceholder,
-    clearable: true,
-    style: { width: '160px' }
-  }
-  
-  if (inputConfig.value.component === 'NumberRangeInput') {
-    return {
-      ...baseProps,
-      precision: inputConfig.value.props?.precision,
-      step: inputConfig.value.props?.step,
-      min: inputConfig.value.props?.min,
-      max: inputConfig.value.props?.max
-    }
-  }
-  
-  return baseProps
-}
 
 // 处理单值输入
 const handleInput = (value: any) => {
