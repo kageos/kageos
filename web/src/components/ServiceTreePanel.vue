@@ -28,8 +28,9 @@
       >
         <template #default="{ node, data }">
           <span class="tree-node">
-            <el-icon class="node-icon">
+            <el-icon class="node-icon" :class="getNodeIconClass(data)">
               <Folder v-if="data.type === 'package'" />
+              <Grid v-else-if="isTableFunction(data)" />
               <Document v-else />
             </el-icon>
             <span class="node-label">{{ node.label }}</span>
@@ -76,7 +77,7 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
-import { Folder, Document, Plus, MoreFilled, Link } from '@element-plus/icons-vue'
+import { Folder, Document, Grid, Plus, MoreFilled, Link } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/types'
 
 interface Props {
@@ -106,6 +107,30 @@ const handleNodeAction = (command: string, data: ServiceTree) => {
     emit('create-directory', data)
   } else if (command === 'copy-link') {
     emit('copy-link', data)
+  }
+}
+
+// 判断是否为表格函数（根据method或其他标识）
+// 注意：如果ServiceTree没有method字段，可以从其他地方推断，或者扩展ServiceTree类型
+const isTableFunction = (data: ServiceTree): boolean => {
+  // 如果ServiceTree有method字段，GET方法通常是table
+  // @ts-ignore - 可能扩展字段
+  if ((data as any).method) {
+    // @ts-ignore
+    return (data as any).method.toUpperCase() === 'GET'
+  }
+  // 默认返回false，显示为form函数
+  return false
+}
+
+// 获取节点图标样式类
+const getNodeIconClass = (data: ServiceTree) => {
+  if (data.type === 'package') {
+    return 'package-icon'
+  } else if (isTableFunction(data)) {
+    return 'table-icon'
+  } else {
+    return 'form-icon'
   }
 }
 
@@ -231,6 +256,21 @@ watch(() => props.currentNodeId, (nodeId) => {
     opacity: 0.8;
     flex-shrink: 0;
     transition: color 0.2s ease;
+    
+    &.package-icon {
+      color: #6366f1;
+      opacity: 0.8;
+    }
+    
+    &.table-icon {
+      color: #6366f1;
+      opacity: 0.8;
+    }
+    
+    &.form-icon {
+      color: #6366f1;
+      opacity: 0.8;
+    }
   }
   
   .node-label {
@@ -280,11 +320,12 @@ watch(() => props.currentNodeId, (nodeId) => {
 }
 
 :deep(.el-tree-node.is-current > .el-tree-node__content) {
-  background-color: var(--el-color-primary-light-9);
+  background-color: var(--el-fill-color-lighter);
+  border-left: 2px solid #6366f1;
   
   .tree-node {
     .node-label {
-      color: var(--el-color-primary);
+      color: var(--el-text-color-primary);
       font-weight: 500;
     }
     
@@ -293,6 +334,12 @@ watch(() => props.currentNodeId, (nodeId) => {
       opacity: 0.8;
     }
   }
+}
+
+/* 确保子节点不受父节点选中状态影响 */
+:deep(.el-tree-node.is-current .el-tree-node__children .el-tree-node__content) {
+  background-color: transparent;
+  border-left: none;
 }
 
 :deep(.el-dropdown-menu__item) {
