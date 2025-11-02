@@ -87,12 +87,26 @@ export class MultiSelectWidget extends BaseWidget {
       
       console.log(`[MultiSelectWidget] ${this.field.code} 初始化选项:`, this.options.value)
     }
+    
+    // 🔥 如果有初始值且有回调，触发一次搜索获取 displayInfo
+    if (this.field.callbacks?.includes('OnSelectFuzzy')) {
+      const currentValue = this.formManager.getValue(this.fieldPath)
+      const currentRaw = currentValue?.raw
+      
+      // 检查是否有初始值（数组且不为空）
+      if (Array.isArray(currentRaw) && currentRaw.length > 0) {
+        console.log(`[MultiSelectWidget] ${this.field.code} 检测到初始值，触发回调获取 displayInfo`)
+        this.handleSearch(currentRaw, true) // 静默搜索（by_value）
+      }
+    }
   }
 
   /**
    * 处理搜索（OnSelectFuzzy 回调）
+   * @param query 搜索关键词或值（可以是字符串或数组）
+   * @param isByValue 是否是按值查询（true: by_value, false: by_keyword）
    */
-  private async handleSearch(query: string, isByValue = false): Promise<void> {
+  private async handleSearch(query: string | any[], isByValue = false): Promise<void> {
     // 如果没有回调，不处理
     if (!this.field.callbacks?.includes('OnSelectFuzzy')) {
       return
