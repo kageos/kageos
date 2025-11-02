@@ -56,6 +56,7 @@ export class ResponseTableWidget extends BaseWidget {
 
   /**
    * 渲染表格
+   * 即使没有数据也显示表格框架结构
    */
   render(): any {
     const currentValue = this.getValue()
@@ -64,23 +65,16 @@ export class ResponseTableWidget extends BaseWidget {
     // 获取子字段配置
     const fields: FieldConfig[] = this.field.children || []
     
-    // 如果没有数据，显示空状态
-    if (tableData.length === 0) {
-      return h('div', {
-        style: {
-          padding: '20px',
-          textAlign: 'center',
-          color: 'var(--el-text-color-placeholder)'
-        }
-      }, '暂无数据')
-    }
+    // 判断是否有实际数据
+    const hasData = tableData.length > 0
     
-    // 渲染表格
+    // 始终渲染表格（即使没有数据也显示表头结构）
     return h(ElTable, {
       data: tableData,
       border: true,
       style: { width: '100%' },
-      maxHeight: 400
+      maxHeight: 400,
+      emptyText: hasData ? '暂无数据' : '等待数据...'
     }, {
       default: () => fields.map(field => 
         h(ElTableColumn, {
@@ -90,6 +84,9 @@ export class ResponseTableWidget extends BaseWidget {
           minWidth: this.getColumnWidth(field)
         }, {
           default: ({ row }: { row: any }) => {
+            // 如果没有数据，不渲染单元格内容
+            if (!hasData) return '-'
+            
             const value = row[field.code]
             
             // 根据字段类型格式化显示
