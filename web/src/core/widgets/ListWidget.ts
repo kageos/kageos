@@ -12,7 +12,8 @@ import { h, ref, computed, markRaw } from 'vue'
 import { ElButton, ElTable, ElTableColumn, ElForm, ElFormItem, ElIcon, ElMessage } from 'element-plus'
 import { Plus, Delete, Edit, Check, Close } from '@element-plus/icons-vue'
 import { BaseWidget } from './BaseWidget'
-import { widgetFactory } from '../factories/WidgetFactory'
+import { WidgetBuilder } from '../factories/WidgetBuilder'
+import { ErrorHandler } from '../utils/ErrorHandler'
 import type { FieldConfig, FieldValue } from '../types/field'
 import type { WidgetRenderProps } from '../types/widget'
 import { selectFuzzy } from '@/api/function'  // 🔥 导入回调 API
@@ -612,26 +613,21 @@ export class ListWidget extends BaseWidget {
    */
   private renderCellByWidget(value: FieldValue, field: FieldConfig): any {
     try {
-      // 获取 Widget 类
-      const WidgetClass = widgetFactory.getWidgetClass(field.widget?.type || 'input')
-      
-      // 创建临时 Widget 实例（仅用于渲染）
-      const tempWidget = new WidgetClass({
+      // ✅ 使用 WidgetBuilder 创建临时 Widget
+      const tempWidget = WidgetBuilder.createTemporary({
         field: field,
-        fieldPath: `${this.fieldPath}[]._temp_`,  // 临时路径
-        initialValue: value,
-        formManager: this.formManager,
-        formRenderer: this.formRenderer,
-        depth: this.depth + 1,
-        onChange: () => {}  // 空回调（表格展示不需要修改数据）
+        value: value,
+        customFormManager: this.formManager  // 使用当前 formManager，避免不必要的 mock
       })
       
       // 🔥 调用 Widget 的 renderTableCell 方法
       return (tempWidget as any).renderTableCell(value)
     } catch (error) {
-      console.error(`[ListWidget] renderCellByWidget 失败:`, error)
-      // 降级：使用简单格式化
-      return value.display || String(value.raw) || '-'
+      // ✅ 使用 ErrorHandler 统一处理错误
+      return ErrorHandler.handleWidgetError(`ListWidget.renderCellByWidget[${field.code}]`, error, {
+        showMessage: false,
+        fallbackValue: value.display || String(value.raw) || '-'
+      })
     }
   }
 

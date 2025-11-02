@@ -115,9 +115,11 @@ import { ref, reactive, computed, h } from 'vue'
 import { ElForm, ElFormItem, ElButton, ElCard, ElMessage, ElInput, ElIcon, ElDivider, ElTag } from 'element-plus'
 import { Promotion, RefreshLeft } from '@element-plus/icons-vue'
 import type { FieldConfig, FunctionDetail, FieldValue } from '../types/field'
-import type { WidgetRenderProps, WidgetSnapshot } from '../types/widget'
+import type { FormRendererContext, WidgetSnapshot } from '../types/widget'
 import { ReactiveFormDataManager } from '../managers/ReactiveFormDataManager'
+import { WidgetBuilder } from '../factories/WidgetBuilder'
 import { widgetFactory } from '../factories/WidgetFactory'
+import { ErrorHandler } from '../utils/ErrorHandler'
 import { BaseWidget } from '../widgets/BaseWidget'
 import { ResponseTableWidget } from '../widgets/ResponseTableWidget'
 import { ResponseFormWidget } from '../widgets/ResponseFormWidget'
@@ -191,9 +193,8 @@ function initializeForm(): void {
   fields.value.forEach(field => {
     const fieldPath = field.code
     
-    // 🔥 使用 Widget 的静态方法获取默认值（面向对象）
-    const WidgetClass = widgetFactory.getWidgetClass(field.widget.type)
-    const defaultValue = WidgetClass.getDefaultValue(field)
+    // ✅ 使用 BaseWidget 的静态方法获取默认值
+    const defaultValue = BaseWidget.getDefaultValue(field)
     
     // 初始化 FormDataManager
     formManager.initializeField(fieldPath, defaultValue)
@@ -220,6 +221,17 @@ function unregisterWidget(fieldPath: string): void {
 }
 
 /**
+ * ✅ FormRenderer 上下文对象（类型安全）
+ */
+const formRendererContext: FormRendererContext = {
+  registerWidget,
+  unregisterWidget,
+  getFunctionMethod: () => props.functionDetail.method,
+  getFunctionRouter: () => props.functionDetail.router,
+  getSubmitData: () => prepareSubmitDataWithTypeConversion()
+}
+
+/**
  * 渲染单个字段
  */
 function renderField(field: FieldConfig): any {
@@ -229,34 +241,29 @@ function renderField(field: FieldConfig): any {
   let widget = allWidgets.get(fieldPath)
   
   if (!widget) {
-    // 创建 Widget
-    const WidgetClass = widgetFactory.getWidgetClass(field.widget.type)
-    
-    // 🔥 捕获 functionDetail，避免闭包访问 props 的问题
-    const functionDetail = props.functionDetail
-    
-    const widgetProps: WidgetRenderProps = {
-      field: field,
-      currentFieldPath: fieldPath,
-      value: formManager.getValue(fieldPath),
-      onChange: (newValue: FieldValue) => {
-        formManager.setValue(fieldPath, newValue)
-        // 同步到 formData
-        formData[field.code] = newValue.raw
-      },
-      formManager: formManager,
-      formRenderer: {
-        registerWidget,
-        unregisterWidget,
-        getFunctionMethod: () => functionDetail.method,
-        getFunctionRouter: () => functionDetail.router,
-        getSubmitData: () => prepareSubmitDataWithTypeConversion()  // 🔥 提供统一的数据收集方法
-      },
-      depth: 0
+    try {
+      // ✅ 使用 WidgetBuilder 创建 Widget
+      widget = WidgetBuilder.create({
+        field: field,
+        fieldPath: fieldPath,
+        formManager: formManager,
+        formRenderer: formRendererContext,
+        depth: 0,
+        onChange: (newValue: FieldValue) => {
+          formManager.setValue(fieldPath, newValue)
+          // 同步到 formData
+          formData[field.code] = newValue.raw
+        }
+      })
+      
+      registerWidget(fieldPath, widget)
+    } catch (error) {
+      return ErrorHandler.handleWidgetError(`FormRenderer.renderField[${field.code}]`, error, {
+        showMessage: true,
+        message: `渲染字段 "${field.name}" 失败`,
+        fallbackValue: h('div', { style: { color: 'red' } }, `字段 "${field.name}" 渲染失败`)
+      })
     }
-    
-    widget = new WidgetClass(widgetProps)  // 🔥 使用 widgetProps 而不是 props
-    registerWidget(fieldPath, widget)
   }
   
   return widget.render()
