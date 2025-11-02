@@ -562,6 +562,12 @@ defineExpose({
 
 .request-card {
   margin-bottom: 20px;
+  width: 100%;
+}
+
+/* 🔥 确保卡片内容占满宽度 */
+.request-card :deep(.el-card__body) {
+  width: 100%;
 }
 
 .card-header {
@@ -580,6 +586,12 @@ defineExpose({
   max-width: 100%;
 }
 
+/* 🔥 强制内容区域占满剩余空间 */
+.form-container :deep(.el-form-item__content) {
+  flex: 1;
+  max-width: 100%;
+}
+
 .form-actions {
   margin-top: 24px;
   padding-top: 24px;
@@ -588,9 +600,21 @@ defineExpose({
 
 .response-card {
   margin-bottom: 20px;
+  width: 100%;
+}
+
+/* 🔥 确保返回值卡片内容占满宽度 */
+.response-card :deep(.el-card__body) {
+  width: 100%;
 }
 
 .response-container {
+  max-width: 100%;
+}
+
+/* 🔥 强制返回值内容区域占满剩余空间 */
+.response-container :deep(.el-form-item__content) {
+  flex: 1;
   max-width: 100%;
 }
 
