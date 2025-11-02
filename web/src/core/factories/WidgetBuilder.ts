@@ -13,7 +13,6 @@ import type { ReactiveFormDataManager } from '../managers/ReactiveFormDataManage
 import type { FormRendererContext, WidgetRenderProps } from '../types/widget'
 import type { BaseWidget } from '../widgets/BaseWidget'
 import { widgetFactory } from './WidgetFactory'
-import { MockFormManager } from '../managers/MockFormManager'
 
 /**
  * 标准 Widget 创建选项
@@ -51,11 +50,8 @@ export interface TemporaryWidgetCreateOptions {
   /** 初始值（可选） */
   value?: FieldValue
   
-  /** 是否使用 mock FormManager（默认 true） */
-  useMockFormManager?: boolean
-  
-  /** 自定义 FormManager（如果不使用 mock） */
-  customFormManager?: ReactiveFormDataManager
+  /** FormManager（可选，临时Widget通常不需要） */
+  formManager?: ReactiveFormDataManager | null
 }
 
 /**
@@ -126,6 +122,8 @@ export class WidgetBuilder {
    * - ListWidget.renderCellByWidget() 渲染表格单元格
    * - 其他不需要实际数据管理的临时渲染
    * 
+   * 注意：临时 Widget 的 formManager 为 null，Widget 必须能够处理这种情况
+   * 
    * @example
    * ```typescript
    * // 用于表格渲染
@@ -146,19 +144,8 @@ export class WidgetBuilder {
     const {
       field,
       value,
-      useMockFormManager = true,
-      customFormManager
+      formManager = null
     } = options
-    
-    // 决定使用哪个 FormManager
-    let formManager: ReactiveFormDataManager
-    if (customFormManager) {
-      formManager = customFormManager
-    } else if (useMockFormManager) {
-      formManager = MockFormManager.create()
-    } else {
-      throw new Error('[WidgetBuilder] createTemporary 必须提供 customFormManager 或设置 useMockFormManager=true')
-    }
     
     // 准备初始值
     const initialValue = value || { raw: null, display: '', meta: {} }
@@ -166,13 +153,13 @@ export class WidgetBuilder {
     // 获取 Widget 类
     const WidgetClass = widgetFactory.getWidgetClass(field.widget?.type || 'input')
     
-    // 构造 Widget 属性
+    // 构造 Widget 属性（formManager 可以为 null）
     const widgetProps: WidgetRenderProps = {
       field: field,
       currentFieldPath: `_temp_.${field.code}`,  // 临时路径
       value: initialValue,
       onChange: () => {},  // 空回调（临时 Widget 不需要修改数据）
-      formManager: formManager,
+      formManager: formManager as any,  // 允许为 null
       formRenderer: null,  // 临时 Widget 不需要 formRenderer
       depth: 0
     }
