@@ -91,13 +91,13 @@ export class SelectWidget extends BaseWidget {
       console.log(`[SelectWidget] ${this.field.code} 初始化选项:`, this.options.value)
     }
     
-    // 🔥 如果 formManager 为 null（临时Widget），跳过初始值处理
-    if (!this.formManager) {
-      return
+    // ✅ 使用类型诚实的辅助方法
+    if (this.isTemporary) {
+      return  // 临时 Widget，跳过初始值处理
     }
     
     // 如果有初始值，触发一次搜索获取 displayInfo
-    const currentValue = this.formManager.getValue(this.fieldPath)
+    const currentValue = this.safeGetValue()
     if (currentValue?.raw !== null && currentValue?.raw !== undefined) {
       this.handleSearch('', true) // 静默搜索（by_field_values）
     }
