@@ -62,6 +62,60 @@ export class FormWidget extends BaseWidget {
     }
   }
 
+  /**
+   * 🔥 从原始数据加载为 FieldValue 格式（重写父类方法）
+   * 
+   * FormWidget 的特殊逻辑：
+   * 1. rawValue 应该是对象
+   * 2. 递归调用子组件的 loadFromRawData() 处理每个字段
+   * 3. 返回的 raw 是 { field_code: FieldValue } 格式
+   */
+  static loadFromRawData(rawValue: any, field: FieldConfig): FieldValue {
+    // 🔥 如果已经是 FieldValue 格式，直接返回
+    if (rawValue && typeof rawValue === 'object' && 'raw' in rawValue && 'display' in rawValue) {
+      return rawValue
+    }
+    
+    // 🔥 空值或非对象：返回空对象
+    if (!rawValue || typeof rawValue !== 'object' || Array.isArray(rawValue)) {
+      return this.getDefaultValue(field)
+    }
+    
+    // 🔥 缺少 children 配置：无法递归，返回原始数据
+    const subFields = field.children || []
+    if (subFields.length === 0) {
+      Logger.warn(`[FormWidget] ${field.code} 缺少 children 配置，无法递归解析`)
+      return {
+        raw: rawValue,
+        display: JSON.stringify(rawValue),
+        meta: {}
+      }
+    }
+    
+    // 🔥 递归转换每个字段
+    const convertedData: Record<string, FieldValue> = {}
+    
+    for (const subField of subFields) {
+      const subRawValue = rawValue[subField.code]
+      
+      // 🔥 通过工厂获取子组件类，调用其 loadFromRawData()（多态）
+      try {
+        const WidgetClass = widgetFactory.getWidgetClass(subField.widget?.type || 'input')
+        convertedData[subField.code] = WidgetClass.loadFromRawData(subRawValue, subField)
+      } catch (error) {
+        Logger.error('[FormWidget]', `loadFromRawData 失败: 字段${subField.code}`, error)
+        // 失败时使用基类默认实现
+        convertedData[subField.code] = BaseWidget.loadFromRawData(subRawValue, subField)
+      }
+    }
+    
+    return {
+      raw: convertedData,
+      display: JSON.stringify(convertedData),
+      meta: {}
+    }
+  }
+
   constructor(props: WidgetRenderProps) {
     super(props)
     
@@ -70,6 +124,9 @@ export class FormWidget extends BaseWidget {
     
     // 解析子字段
     this.subFields = this.parseSubFields()
+    
+    // 🔥 从父组件加载已有数据（如果有）
+    this.loadInitialData()
     
     // 创建子 Widget 实例
     this.subWidgets = new Map()
@@ -88,6 +145,28 @@ export class FormWidget extends BaseWidget {
     }
     
     return children
+  }
+
+  /**
+   * 🔥 从父组件加载已有数据
+   * 
+   * 使用静态方法 loadFromRawData() 进行数据转换
+   * 符合开闭原则：FormWidget 不需要知道子组件的具体实现
+   */
+  private loadInitialData(): void {
+    const currentValue = this.getValue()
+    
+    // 🔥 使用静态方法加载数据（多态递归）
+    const converted = FormWidget.loadFromRawData(currentValue?.raw, this.field)
+    
+    // 🔥 converted.raw 已经是 { field_code: FieldValue } 格式
+    // 将转换后的数据写回 FormDataManager
+    if (converted.raw && typeof converted.raw === 'object' && !Array.isArray(converted.raw)) {
+      for (const [fieldCode, fieldValue] of Object.entries(converted.raw)) {
+        const subFieldPath = `${this.fieldPath}.${fieldCode}`
+        this.formManager?.setValue(subFieldPath, fieldValue as FieldValue)
+      }
+    }
   }
 
   /**

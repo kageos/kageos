@@ -243,7 +243,7 @@ const buildSearchParams = (): SearchParams => {
   searchableFields.value.forEach(field => {
     const value = searchForm.value[field.code]
     if (!value) return
-    
+
     const searchType = field.search || ''
     
     // 精确匹配

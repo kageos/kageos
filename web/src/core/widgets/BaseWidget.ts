@@ -143,6 +143,38 @@ export abstract class BaseWidget implements IWidgetSnapshot {
     }
   }
 
+  /**
+   * 🔥 从原始数据加载为 FieldValue 格式（静态方法，支持多态）
+   * 
+   * 每个组件负责自己的数据转换逻辑：
+   * - 基础组件（Input/Select/Number 等）：直接转换
+   * - 容器组件（Table/Form 等）：递归调用子组件的 loadFromRawData()
+   * 
+   * 这样符合开闭原则：新增组件类型不需要修改已有代码
+   * 
+   * @param rawValue 原始数据（可能来自后端、父组件、缓存等）
+   * @param field 字段配置
+   * @returns FieldValue 格式的数据
+   */
+  static loadFromRawData(rawValue: any, field: FieldConfig): FieldValue {
+    // 🔥 如果已经是 FieldValue 格式，直接返回
+    if (rawValue && typeof rawValue === 'object' && 'raw' in rawValue && 'display' in rawValue) {
+      return rawValue
+    }
+    
+    // 🔥 空值处理：返回默认值
+    if (rawValue === null || rawValue === undefined) {
+      return this.getDefaultValue(field)
+    }
+    
+    // 🔥 基础类型：直接转换
+    return {
+      raw: rawValue,
+      display: rawValue !== null && rawValue !== undefined ? String(rawValue) : '',
+      meta: {}
+    }
+  }
+
   constructor(props: WidgetRenderProps) {
     this.field = props.field
     this.fieldPath = props.currentFieldPath

@@ -262,19 +262,19 @@ function renderField(field: FieldConfig): any {
     try {
       // ✅ 使用 WidgetBuilder 创建 Widget
       widget = WidgetBuilder.create({
-        field: field,
+      field: field,
         fieldPath: fieldPath,
         formManager: formManager,
         formRenderer: formRendererContext,
         depth: 0,
-        onChange: (newValue: FieldValue) => {
-          formManager.setValue(fieldPath, newValue)
-          // 同步到 formData
-          formData[field.code] = newValue.raw
+      onChange: (newValue: FieldValue) => {
+        formManager.setValue(fieldPath, newValue)
+        // 同步到 formData
+        formData[field.code] = newValue.raw
         }
       })
       
-      registerWidget(fieldPath, widget)
+    registerWidget(fieldPath, widget)
     } catch (error) {
       return ErrorHandler.handleWidgetError(`FormRenderer.renderField[${field.code}]`, error, {
         showMessage: true,

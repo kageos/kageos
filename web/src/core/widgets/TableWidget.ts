@@ -89,6 +89,64 @@ export class TableWidget extends BaseWidget {
     }
   }
 
+  /**
+   * 🔥 从原始数据加载为 FieldValue 格式（重写父类方法）
+   * 
+   * TableWidget 的特殊逻辑：
+   * 1. rawValue 应该是数组
+   * 2. 递归调用子组件的 loadFromRawData() 处理每一行的每个字段
+   * 3. 返回的 raw 是 SavedRowData[] 格式（{ field_code: FieldValue }[]）
+   */
+  static loadFromRawData(rawValue: any, field: FieldConfig): FieldValue {
+    // 🔥 如果已经是 FieldValue 格式，直接返回
+    if (rawValue && typeof rawValue === 'object' && 'raw' in rawValue && 'display' in rawValue) {
+      return rawValue
+    }
+    
+    // 🔥 空值或非数组：返回空数组
+    if (!rawValue || !Array.isArray(rawValue)) {
+      return this.getDefaultValue(field)
+    }
+    
+    // 🔥 缺少 children 配置：无法递归，返回原始数据
+    const subFields = field.children || []
+    if (subFields.length === 0) {
+      Logger.warn(`[TableWidget] ${field.code} 缺少 children 配置，无法递归解析`)
+      return {
+        raw: rawValue,
+        display: `共 ${rawValue.length} 条（未解析）`,
+        meta: {}
+      }
+    }
+    
+    // 🔥 递归转换每一行
+    const convertedRows = rawValue.map((row: any, index: number) => {
+      const rowData: SavedRowData = {}
+      
+      for (const subField of subFields) {
+        const subRawValue = row[subField.code]
+        
+        // 🔥 通过工厂获取子组件类，调用其 loadFromRawData()（多态）
+        try {
+          const WidgetClass = widgetFactory.getWidgetClass(subField.widget?.type || 'input')
+          rowData[subField.code] = WidgetClass.loadFromRawData(subRawValue, subField)
+        } catch (error) {
+          Logger.error('[TableWidget]', `loadFromRawData 失败: 行${index}, 字段${subField.code}`, error)
+          // 失败时使用基类默认实现
+          rowData[subField.code] = BaseWidget.loadFromRawData(subRawValue, subField)
+        }
+      }
+      
+      return rowData
+    })
+    
+    return {
+      raw: convertedRows,
+      display: `共 ${convertedRows.length} 条`,
+      meta: {}
+    }
+  }
+
   constructor(props: WidgetRenderProps) {
     super(props)
     
@@ -125,96 +183,19 @@ export class TableWidget extends BaseWidget {
 
   /**
    * 🔥 从父组件加载已有数据
+   * 
+   * 使用静态方法 loadFromRawData() 进行数据转换
+   * 符合开闭原则：TableWidget 不需要知道子组件的具体实现
    */
   private loadInitialData(): void {
     const currentValue = this.getValue()
     
-    // 如果父组件有数据（raw 是数组）
-    if (currentValue?.raw && Array.isArray(currentValue.raw)) {
-      this.savedData.value = currentValue.raw.map((row: any) => {
-        // 将每一行转换为 SavedRowData 格式（{ field_code: FieldValue }）
-        const rowData: SavedRowData = {}
-        
-        for (const field of this.itemFields) {
-          const rawValue = row[field.code]
-          
-          // 🔥 递归转换：处理嵌套的 table/form 组件
-          rowData[field.code] = this.convertToFieldValue(rawValue, field)
-        }
-        
-        return rowData
-      })
-    }
-  }
-
-  /**
-   * 🔥 递归转换值为 FieldValue 格式（支持嵌套的 table/form）
-   */
-  private convertToFieldValue(rawValue: any, field: FieldConfig): FieldValue {
-    // 如果已经是 FieldValue 格式，直接返回
-    if (rawValue && typeof rawValue === 'object' && 'raw' in rawValue && 'display' in rawValue) {
-      return rawValue
-    }
+    // 🔥 使用静态方法加载数据（多态递归）
+    const converted = TableWidget.loadFromRawData(currentValue?.raw, this.field)
     
-    // 🔥 递归处理嵌套的 table 组件
-    if (field.widget?.type === 'table') {
-      // 如果是数组，递归转换每一行
-      if (Array.isArray(rawValue)) {
-        const convertedRows = rawValue.map((row: any) => {
-          const rowData: Record<string, FieldValue> = {}
-          const subFields = field.children || []
-          
-          for (const subField of subFields) {
-            rowData[subField.code] = this.convertToFieldValue(row[subField.code], subField)
-          }
-          
-          return rowData
-        })
-        
-        return {
-          raw: convertedRows,
-          display: `共 ${convertedRows.length} 条`,
-          meta: {}
-        }
-      }
-      // 空数组
-      return {
-        raw: [],
-        display: '[]',
-        meta: {}
-      }
-    }
-    
-    // 🔥 递归处理嵌套的 form 组件
-    if (field.widget?.type === 'form') {
-      // 如果是对象，递归转换每个字段
-      if (rawValue && typeof rawValue === 'object' && !Array.isArray(rawValue)) {
-        const convertedData: Record<string, FieldValue> = {}
-        const subFields = field.children || []
-        
-        for (const subField of subFields) {
-          convertedData[subField.code] = this.convertToFieldValue(rawValue[subField.code], subField)
-        }
-        
-        return {
-          raw: convertedData,
-          display: JSON.stringify(convertedData),
-          meta: {}
-        }
-      }
-      // 空对象
-      return {
-        raw: {},
-        display: '{}',
-        meta: {}
-      }
-    }
-    
-    // 🔥 基础类型：直接转换
-    return {
-      raw: rawValue,
-      display: rawValue !== null && rawValue !== undefined ? String(rawValue) : '',
-      meta: {}
+    // 🔥 converted.raw 已经是 SavedRowData[] 格式
+    if (Array.isArray(converted.raw)) {
+      this.savedData.value = converted.raw
     }
   }
 
