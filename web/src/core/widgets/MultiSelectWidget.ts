@@ -209,11 +209,11 @@ export class MultiSelectWidget extends BaseWidget {
 
   /**
    * 远程搜索方法
+   * 注意：不过滤空字符串，清空关键字时也应该触发查询
    */
   private remoteMethod = (query: string) => {
-    if (query) {
-      this.handleSearch(query, false)
-    }
+    // 🔥 不判断 query 是否为空，清空关键字时也要重新加载选项
+    this.handleSearch(query, false)
   }
 
   /**
