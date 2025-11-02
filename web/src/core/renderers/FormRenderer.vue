@@ -606,6 +606,42 @@ defineExpose({
   width: 100% !important;
 }
 
+/* 🔥 确保 FormWidget 占满宽度 */
+.form-container :deep(.form-widget) {
+  width: 100% !important;
+}
+
+.form-container :deep(.form-widget .el-card) {
+  width: 100% !important;
+}
+
+.form-container :deep(.form-widget .el-card__body) {
+  width: 100% !important;
+}
+
+.form-container :deep(.form-widget .el-form) {
+  width: 100% !important;
+}
+
+.form-container :deep(.form-widget .el-form-item) {
+  display: flex !important;
+  width: 100% !important;
+  margin-bottom: 18px !important;  /* 🔥 确保表单项之间有合适的间距 */
+}
+
+.form-container :deep(.form-widget .el-form-item__content) {
+  flex: 1 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+.form-container :deep(.form-widget .el-input),
+.form-container :deep(.form-widget .el-select),
+.form-container :deep(.form-widget .el-textarea),
+.form-container :deep(.form-widget .el-date-picker) {
+  width: 100% !important;
+}
+
 .form-actions {
   margin-top: 24px;
   padding-top: 24px;

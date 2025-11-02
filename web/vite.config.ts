@@ -15,6 +15,7 @@ export default defineConfig({
     vueJsx(),
     vueDevTools(),
     AutoImport({
+      imports: ['vue', 'vue-router'],
       resolvers: [ElementPlusResolver()],
     }),
     Components({

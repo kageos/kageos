@@ -17,7 +17,7 @@
  */
 
 import { h, markRaw } from 'vue'
-import { ElCard } from 'element-plus'
+import { ElCard, ElForm, ElFormItem } from 'element-plus'
 import { BaseWidget } from './BaseWidget'
 import { widgetFactory } from '../factories/WidgetFactory'
 import type { FieldConfig, FieldValue } from '../types/field'
@@ -162,12 +162,14 @@ export class FormWidget extends BaseWidget {
     return h('div', { 
       class: 'form-widget',
       style: {
-        marginBottom: '20px'
+        marginBottom: '20px',
+        width: '100%'  // 🔥 确保占满宽度
       }
     }, [
       h(ElCard, {
         shadow: 'hover',
-        bodyStyle: { padding: '20px' }
+        bodyStyle: { padding: '20px', width: '100%' },  // 🔥 卡片内容占满宽度
+        style: { width: '100%' }  // 🔥 卡片本身占满宽度
       }, {
         header: () => h('div', {
           style: {
@@ -177,19 +179,32 @@ export class FormWidget extends BaseWidget {
           }
         }, this.field.name),
         default: () => [
-          // 遍历子字段，渲染每个 Widget
-          ...Array.from(this.subWidgets.entries()).map(([fieldCode, widget]) => {
-            return h('div', { 
-              key: fieldCode,
-              class: 'form-field-item',
-              style: { 
-                marginBottom: '16px'
-              } 
-            }, [
-              // 渲染子 Widget
-              (widget as any).render()
-            ])
-          })
+          // 🔥 使用 ElForm 包裹子字段，提供统一的表单布局
+          h(ElForm, {
+            labelWidth: '100px',
+            style: { width: '100%' }  // 🔥 表单占满宽度
+          }, () => [
+            // 遍历子字段，渲染每个 Widget（包含标签）
+            ...Array.from(this.subWidgets.entries()).map(([fieldCode, widget]) => {
+              const subField = this.subFields.find(f => f.code === fieldCode)
+              if (!subField) return null
+              
+              return h(ElFormItem, {
+                key: fieldCode,
+                label: subField.name,  // 🔥 显示字段标签
+                prop: fieldCode,
+                style: { 
+                  width: '100%',
+                  marginBottom: '18px'  // 🔥 增加表单项之间的间距
+                }
+              }, {
+                default: () => [
+                  // 渲染子 Widget
+                  (widget as any).render()
+                ]
+              })
+            })
+          ])
         ]
       })
     ])
