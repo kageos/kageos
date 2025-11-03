@@ -149,7 +149,7 @@
       v-model="showDetailDrawer"
       title="记录详情"
       direction="rtl"
-      size="600px"
+      size="900px"
       class="detail-drawer"
     >
       <template #header>
@@ -180,18 +180,39 @@
 
       <!-- 🔥 详情内容：纯展示模式，参考旧版本设计 -->
       <div class="detail-content" v-if="currentDetailRow">
-        <el-descriptions :column="1" border>
-          <el-descriptions-item
+        <div class="fields-grid">
+          <div 
             v-for="field in visibleFields"
             :key="field.code"
-            :label="field.name"
+            class="field-row"
           >
-            <!-- 🔥 纯展示模式：根据字段类型格式化显示，不渲染输入框 -->
-            <component 
-              :is="renderDetailField(field, currentDetailRow[field.code])"
-            />
-          </el-descriptions-item>
-        </el-descriptions>
+            <div class="field-label">
+              {{ field.name }}
+            </div>
+            <div class="field-value">
+              <!-- 复制按钮（hover 时显示） -->
+              <div class="field-actions">
+                <el-button 
+                  type="primary" 
+                  size="small" 
+                  text 
+                  @click="copyFieldValue(field, currentDetailRow[field.code])"
+                  class="copy-btn"
+                  :title="`复制${field.name}`"
+                >
+                  <el-icon><DocumentCopy /></el-icon>
+                </el-button>
+              </div>
+              
+              <!-- 字段内容 -->
+              <div class="field-content">
+                <component 
+                  :is="renderDetailField(field, currentDetailRow[field.code])"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </el-drawer>
   </div>
@@ -215,7 +236,7 @@
  */
 
 import { computed, ref, watch, h } from 'vue'
-import { Search, Refresh, Edit, Delete, Plus, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
+import { Search, Refresh, Edit, Delete, Plus, ArrowLeft, ArrowRight, DocumentCopy } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useTableOperations } from '@/composables/useTableOperations'
 import { WidgetBuilder } from '@/core/factories/WidgetBuilder'
@@ -702,7 +723,7 @@ watch(() => props.functionData, () => {
   color: var(--el-color-danger) !important;
 }
 
-/* 🔥 详情抽屉样式 */
+/* 🔥 详情抽屉样式 - 参考旧版本设计 */
 .detail-drawer {
   :deep(.el-drawer__header) {
     margin-bottom: 0;
@@ -733,23 +754,100 @@ watch(() => props.functionData, () => {
       color: var(--el-text-color-secondary);
       min-width: 60px;
       text-align: center;
+      background: var(--el-fill-color-light);
+      padding: 6px 12px;
+      border-radius: 4px;
+      border: 1px solid var(--el-border-color-lighter);
+      font-weight: 500;
     }
   }
 
   .detail-content {
     padding: 20px;
+  }
 
-    :deep(.el-descriptions) {
-      .el-descriptions__label {
-        width: 150px;
-        background-color: var(--el-fill-color-light);
-        font-weight: 500;
-      }
+  /* 🔥 字段网格布局 - 参考旧版本 */
+  .fields-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
 
-      .el-descriptions__content {
-        color: var(--el-text-color-primary);
-      }
-    }
+  .field-row {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--el-border-color-extra-light);
+    align-items: start;
+    min-height: 40px;
+    transition: background-color 0.2s ease;
+    border-radius: 4px;
+  }
+
+  .field-row:hover {
+    background: var(--el-fill-color-extra-light);
+  }
+
+  .field-label {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--el-text-color-secondary);
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .field-value {
+    font-size: 14px;
+    color: var(--el-text-color-primary);
+    word-break: break-word;
+    line-height: 1.6;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    min-height: 24px;
+    position: relative;
+  }
+
+  .field-actions {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    margin-top: 2px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  .field-row:hover .field-actions {
+    opacity: 1;
+  }
+
+  .copy-btn {
+    padding: 4px 6px;
+    font-size: 12px;
+    height: 24px;
+    min-height: 24px;
+    border-radius: 4px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    background: var(--el-color-primary-light-8);
+    color: var(--el-color-primary);
+    border: 1px solid var(--el-color-primary-light-5);
+  }
+
+  .copy-btn:hover {
+    background: var(--el-color-primary-light-7);
+    border-color: var(--el-color-primary-light-3);
+    transform: scale(1.05);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .field-content {
+    flex: 1;
+    min-width: 0;
   }
 }
 </style>
