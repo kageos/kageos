@@ -49,6 +49,8 @@ export interface TableOperationsReturn {
   hasAddCallback: ReturnType<typeof computed<boolean>>
   hasUpdateCallback: ReturnType<typeof computed<boolean>>
   hasDeleteCallback: ReturnType<typeof computed<boolean>>
+  isDefaultSort: ReturnType<typeof computed<boolean>>
+  defaultSortConfig: ReturnType<typeof computed<{ prop: string; order: 'descending' } | null>>
   
   // 方法
   loadTableData: () => Promise<void>
@@ -191,6 +193,31 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
   const hasDeleteCallback = computed(() => {
     const callbacks = functionData.callbacks || ''
     return callbacks.includes('OnTableDeleteRows')
+  })
+  
+  /**
+   * 当前是否使用默认排序（id 降序）
+   * 用于 UI 显示默认排序状态
+   */
+  const isDefaultSort = computed(() => {
+    return !hasManualSort.value && sorts.value.length === 0
+  })
+  
+  /**
+   * 获取默认排序配置（用于 el-table 的 default-sort）
+   * 返回 { prop: string, order: 'descending' } 或 null
+   */
+  const defaultSortConfig = computed(() => {
+    if (!isDefaultSort.value) return null
+    
+    const idFieldCode = getIdFieldCode()
+    if (idFieldCode) {
+      return {
+        prop: idFieldCode,
+        order: 'descending' as const
+      }
+    }
+    return null
   })
   
   // ==================== 业务逻辑 ====================
@@ -639,6 +666,8 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
     hasAddCallback,
     hasUpdateCallback,
     hasDeleteCallback,
+    isDefaultSort,
+    defaultSortConfig,
     
     // 方法
     loadTableData,
