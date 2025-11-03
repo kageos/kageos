@@ -22,14 +22,27 @@ export class RequiredValidator implements Validator {
     if (isEmpty) {
       // 🔥 获取当前字段的 name，生成更友好的错误消息
       // 注意：context.fieldPath 可能是 field_path 或 code
-      const currentField = context.allFields.find(f => {
-        const fieldPath = f.field_path || f.code
-        return fieldPath === context.fieldPath
+      // 先尝试匹配 field_path，再尝试匹配 code
+      let foundField = context.allFields.find(f => {
+        if (f.field_path) {
+          return f.field_path === context.fieldPath
+        }
+        return f.code === context.fieldPath
       })
       
-      // 如果找不到，尝试只匹配 code
-      const foundField = currentField || context.allFields.find(f => f.code === context.fieldPath)
+      // 如果还找不到，尝试只匹配 code（可能 field_path 为空）
+      if (!foundField) {
+        foundField = context.allFields.find(f => f.code === context.fieldPath)
+      }
+      
       const fieldName = foundField?.name || '此字段'
+      
+      // 🔥 调试日志（开发时使用）
+      if (!foundField) {
+        console.warn(`[RequiredValidator] 未找到字段: fieldPath=${context.fieldPath}, allFields=`, 
+          context.allFields.map(f => ({ code: f.code, field_path: f.field_path, name: f.name }))
+        )
+      }
       
       return {
         valid: false,
