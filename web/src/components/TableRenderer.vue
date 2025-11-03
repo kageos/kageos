@@ -58,9 +58,8 @@
         :sortable="'custom'"
       >
         <template #header>
-          <div class="table-header-sort">
-            <span></span>
-            <span v-if="getFieldSortInfo(idField.code)" class="sort-indicator">
+          <div class="table-header-sort" v-if="getFieldSortInfo(idField.code)">
+            <span class="sort-indicator">
               <span class="sort-index">{{ getFieldSortInfo(idField.code)?.index }}</span>
               <el-icon :class="getFieldSortInfo(idField.code)?.order === 'asc' ? 'sort-asc' : 'sort-desc'">
                 <component :is="getFieldSortInfo(idField.code)?.order === 'asc' ? ArrowUp : ArrowDown" />
