@@ -5,7 +5,7 @@
  * 当 Email 字段有值时，当前字段必填
  */
 
-import type { ValidationRule, ValidationResult, ValidationContext } from '../types'
+import type { Validator, ValidationRule, ValidationResult, ValidationContext } from '../types'
 import type { FieldValue } from '../../types/field'
 
 export class RequiredWithValidator implements Validator {
