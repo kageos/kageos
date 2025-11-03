@@ -781,12 +781,15 @@ watch(() => props.functionData, () => {
     border-bottom: 1px solid var(--el-border-color-extra-light);
     align-items: start;
     min-height: 40px;
-    transition: background-color 0.2s ease;
+    transition: all 0.2s ease;
     border-radius: 4px;
+    background: transparent;
   }
 
   .field-row:hover {
-    background: var(--el-fill-color-extra-light);
+    background: var(--el-fill-color-light);
+    border-color: var(--el-border-color);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
   }
 
   .field-label {
