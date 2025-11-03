@@ -414,24 +414,33 @@ const initializeWorkspace = async () => {
   // 尝试从路由解析应用
   const app = parseAppFromRoute()
   if (app) {
-    await switchApp(app)
+    // 🔥 保留当前路径（刷新时保持 URL 不变）
+    await switchApp(app, true)
   } else if (items.length > 0) {
-    await switchApp(items[0])
+    // 没有应用路径时，切换到第一个应用
+    await switchApp(items[0], false)
   }
 }
 
 // 🔥 切换应用（封装 Composable 的方法，添加额外逻辑）
-const switchApp = async (app: any) => {
+const switchApp = async (app: any, preserveRoute = false) => {
   currentFunction.value = null
   showRightSidebar.value = false
   
-  // 调用 Composable 的切换方法
-  await switchToApp(app, true)
+  // 🔥 如果 preserveRoute 为 true，保留当前路径（用于刷新时）
+  // 否则更新路由到应用根路径
+  if (preserveRoute) {
+    // 只更新 currentApp，不更新路由
+    await switchToApp(app, false)
+  } else {
+    // 正常切换应用，更新路由
+    await switchToApp(app, true)
+  }
   
   // 加载服务树
   await loadServiceTreeData(app)
   
-  // 定位节点
+  // 定位节点（使用当前路径，而非应用路径）
   nextTick(() => {
     locateNodeByRoute(window.location.pathname)
   })
