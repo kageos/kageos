@@ -12,9 +12,10 @@
       <el-form-item
         v-for="field in fields"
         :key="field.code"
-        :label="field.name"
+        :label="getFieldLabel(field)"
         :prop="field.code"
         :error="getFieldError(field.code)"
+        :required="hasAnyRequiredRule(field)"
       >
         <component :is="renderField(field)" />
       </el-form-item>
@@ -129,6 +130,7 @@ import { executeFunction } from '@/api/function'
 import { ValidationEngine, createDefaultValidatorRegistry } from '../validation'
 import type { ValidationResult } from '../validation/types'
 import { shouldShowField } from '../utils/conditionEvaluator'
+import { hasAnyRequiredRule } from '../utils/validationUtils'
 
 const props = withDefaults(defineProps<{
   functionDetail: FunctionDetail
@@ -459,6 +461,17 @@ function prepareSubmitDataWithTypeConversion(): Record<string, any> {
   })
   
   return result
+}
+
+/**
+ * 获取字段标签（带必填标记）
+ */
+function getFieldLabel(field: FieldConfig): string {
+  const label = field.name || field.code
+  if (hasAnyRequiredRule(field)) {
+    return `${label} *`
+  }
+  return label
 }
 
 /**
