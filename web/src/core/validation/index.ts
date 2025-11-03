@@ -30,6 +30,9 @@ export { RequiredWithValidator } from './validators/RequiredWithValidator'
 export { RequiredWithoutValidator } from './validators/RequiredWithoutValidator'
 export { EmailValidator } from './validators/EmailValidator'
 
+// 导出验证工具函数
+export * from './utils/fieldUtils'
+
 /**
  * 创建默认的验证器注册表（包含所有已实现的验证器）
  */
