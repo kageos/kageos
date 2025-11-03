@@ -530,6 +530,9 @@ function getFieldError(fieldCode: string): string | null {
   // 获取错误消息
   let errorMessage = firstError.message || '验证失败'
   
+  // 🔥 调试日志
+  console.log(`[getFieldError] fieldCode=${fieldCode}, errorMessage="${errorMessage}", field=`, field)
+  
   // 🔥 如果错误消息已经是中文格式（包含"必填"），直接返回
   if (errorMessage.includes('必填')) {
     return errorMessage
@@ -543,9 +546,13 @@ function getFieldError(fieldCode: string): string | null {
       const codeRegex = new RegExp(`\\b${f.code}\\b`, 'gi')
       if (codeRegex.test(errorMessage)) {
         errorMessage = errorMessage.replace(codeRegex, f.name)
-        break
+        // 同时将 "is required" 替换为 "必填"
+        errorMessage = errorMessage.replace(/\s+is\s+required/gi, '必填')
+        console.log(`[getFieldError] 替换后: "${errorMessage}"`)
+        return errorMessage
       }
     }
+    console.warn(`[getFieldError] 未找到匹配的字段，原始错误消息: "${errorMessage}"`)
     return errorMessage
   }
   
