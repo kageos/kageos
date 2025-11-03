@@ -440,9 +440,9 @@ const switchApp = async (app: any, preserveRoute = false) => {
   // 加载服务树
   await loadServiceTreeData(app)
   
-  // 定位节点（使用当前路径，而非应用路径）
+  // 🔥 定位节点并加载函数详情（使用 handleLocateNode，它会加载函数详情）
   nextTick(() => {
-    locateNodeByRoute(window.location.pathname)
+    handleLocateNode()
   })
 }
 
@@ -649,7 +649,7 @@ watch(() => route.fullPath, () => {
   if (serviceTree.value.length > 0 && currentApp.value) {
     nextTick(() => {
       console.log('[Workspace] 路由变化后开始定位节点')
-      locateNodeByRoute()
+      handleLocateNode()  // 🔥 使用 handleLocateNode，它会加载函数详情
     })
   } else {
     console.log('[Workspace] ⚠️ 路由变化但条件不满足，不定位节点')
@@ -666,7 +666,7 @@ watch(currentApp, () => {
   if (serviceTree.value.length > 0 && currentApp.value) {
     nextTick(() => {
       console.log('[Workspace] 应用变化后开始定位节点')
-      locateNodeByRoute()
+      handleLocateNode()  // 🔥 使用 handleLocateNode，它会加载函数详情
     })
   } else {
     console.log('[Workspace] ⚠️ 应用变化但条件不满足，不定位节点')
