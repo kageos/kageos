@@ -45,7 +45,7 @@ export interface TableOperationsReturn {
   loadTableData: () => Promise<void>
   handleSearch: () => void
   handleReset: () => void
-  handleSortChange: (sorts: Array<{ column?: any; prop?: string; order?: string | null }>) => void
+  handleSortChange: (sortInfo: { prop?: string; order?: string }) => void
   handleSizeChange: (size: number) => void
   handleCurrentChange: (page: number) => void
   handleAdd: (data: Record<string, any>) => Promise<boolean>
@@ -266,22 +266,25 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
   
   /**
    * 排序变化
-   * @param sorts 排序信息数组 [{ column: 列对象, prop: 字段名, order: 'ascending' | 'descending' | null }]
+   * @param sortInfo 排序信息对象 { prop: 字段名, order: 'ascending' | 'descending' | '' }
    * 
-   * 注意：Element Plus 的 sort-change 事件传递的是 sorts 数组（支持多列排序）
-   * 但我们的后端只支持单列排序，所以只取第一个
+   * 注意：Element Plus 的 sort-change 事件传递的是单个对象
+   * - order 为 'ascending' 表示升序
+   * - order 为 'descending' 表示降序
+   * - order 为 ''（空字符串）或不存在时表示取消排序
    */
-  const handleSortChange = (sorts: Array<{ column?: any; prop?: string; order?: string | null }>): void => {
-    // 只处理第一个排序（后端只支持单列排序）
-    const sort = sorts && sorts.length > 0 ? sorts[0] : null
+  const handleSortChange = (sortInfo: { prop?: string; order?: string }): void => {
+    console.log('[useTableOperations] 排序变化:', sortInfo)
     
-    if (sort && sort.prop && sort.order) {
-      sortField.value = sort.prop
-      sortOrder.value = sort.order === 'ascending' ? 'asc' : sort.order === 'descending' ? 'desc' : ''
+    if (sortInfo && sortInfo.prop && sortInfo.order && sortInfo.order !== '') {
+      sortField.value = sortInfo.prop
+      sortOrder.value = sortInfo.order === 'ascending' ? 'asc' : sortInfo.order === 'descending' ? 'desc' : ''
+      console.log('[useTableOperations] 设置排序:', { field: sortField.value, order: sortOrder.value })
     } else {
       // 取消排序
       sortField.value = ''
       sortOrder.value = ''
+      console.log('[useTableOperations] 取消排序')
     }
     
     loadTableData()
