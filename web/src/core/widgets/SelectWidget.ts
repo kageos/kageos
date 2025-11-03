@@ -10,6 +10,7 @@ import type { FieldConfig, FieldValue } from '../types/field'
 import type { WidgetRenderProps } from '../types/widget'
 import { selectFuzzy } from '@/api/function'
 import { Logger } from '../utils/logger'
+import { getElementPlusFormProps } from './utils/widgetHelpers'
 
 /**
  * Select 配置
