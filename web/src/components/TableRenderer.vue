@@ -278,8 +278,6 @@ const {
   currentPage,
   pageSize,
   total,
-  sortField,
-  sortOrder,
   
   // 计算属性
   searchableFields,
@@ -645,6 +643,35 @@ const handleNavigate = (direction: 'prev' | 'next'): void => {
   } else if (direction === 'next' && currentDetailIndex.value < tableData.value.length - 1) {
     currentDetailIndex.value++
     currentDetailRow.value = tableData.value[currentDetailIndex.value]
+  }
+}
+
+/**
+ * 复制字段值到剪贴板
+ * @param field 字段配置
+ * @param value 字段值
+ */
+const copyFieldValue = (field: FieldConfig, value: any): void => {
+  try {
+    let textToCopy = ''
+    
+    if (value === null || value === undefined) {
+      textToCopy = ''
+    } else if (Array.isArray(value)) {
+      textToCopy = value.join(', ')
+    } else if (typeof value === 'object') {
+      textToCopy = JSON.stringify(value, null, 2)
+    } else {
+      textToCopy = String(value)
+    }
+    
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      ElMessage.success(`已复制 ${field.name}`)
+    }).catch(() => {
+      ElMessage.error('复制失败')
+    })
+  } catch (error) {
+    ElMessage.error('复制失败')
   }
 }
 

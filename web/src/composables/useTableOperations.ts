@@ -17,6 +17,7 @@ import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { executeFunction, tableAddRow, tableUpdateRow, tableDeleteRows } from '@/api/function'
+import { buildSearchParamsString, buildURLSearchParams } from '@/utils/searchParams'
 import type { Function as FunctionType, SearchParams, TableResponse } from '@/types'
 import type { FieldConfig } from '@/core/types/field'
 
@@ -40,8 +41,6 @@ export interface TableOperationsReturn {
   currentPage: ReturnType<typeof ref<number>>
   pageSize: ReturnType<typeof ref<number>>
   total: ReturnType<typeof ref<number>>
-  sortField: ReturnType<typeof ref<string>>
-  sortOrder: ReturnType<typeof ref<string>>
   sorts: ReturnType<typeof ref<SortItem[]>>
   
   // 计算属性
@@ -50,9 +49,6 @@ export interface TableOperationsReturn {
   hasAddCallback: ReturnType<typeof computed<boolean>>
   hasUpdateCallback: ReturnType<typeof computed<boolean>>
   hasDeleteCallback: ReturnType<typeof computed<boolean>>
-  isDefaultSort: ReturnType<typeof computed<boolean>>
-  defaultSortConfig: ReturnType<typeof computed<{ prop: string; order: 'descending' } | null>>
-  getFieldSortInfo: (fieldCode: string) => { index: number; order: 'asc' | 'desc' } | null
   
   // 方法
   loadTableData: () => Promise<void>
@@ -197,58 +193,6 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
     return callbacks.includes('OnTableDeleteRows')
   })
   
-  /**
-   * 当前是否使用默认排序（id 降序）
-   * 用于 UI 显示默认排序状态
-   */
-  const isDefaultSort = computed(() => {
-    return !hasManualSort.value && sorts.value.length === 0
-  })
-  
-  /**
-   * 获取默认排序配置（用于 el-table 的 default-sort）
-   * 返回 { prop: string, order: 'descending' } 或 null
-   */
-  const defaultSortConfig = computed(() => {
-    if (!isDefaultSort.value) return null
-    
-    const idFieldCode = getIdFieldCode()
-    if (idFieldCode) {
-      return {
-        prop: idFieldCode,
-        order: 'descending' as const
-      }
-    }
-    return null
-  })
-  
-  /**
-   * 获取字段的排序信息（用于 UI 显示）
-   * @param fieldCode 字段代码
-   * @returns 排序信息 { index: 排序序号（从1开始）, order: 'asc' | 'desc' } 或 null
-   */
-  const getFieldSortInfo = (fieldCode: string): { index: number; order: 'asc' | 'desc' } | null => {
-    // 如果使用默认排序，检查是否是 id 字段
-    if (isDefaultSort.value) {
-      const idFieldCode = getIdFieldCode()
-      if (idFieldCode === fieldCode) {
-        return { index: 1, order: 'desc' }
-      }
-      return null
-    }
-    
-    // 检查手动排序
-    const index = sorts.value.findIndex(item => item.field === fieldCode)
-    if (index !== -1) {
-      return {
-        index: index + 1,
-        order: sorts.value[index].order
-      }
-    }
-    
-    return null
-  }
-  
   // ==================== 业务逻辑 ====================
   
   /**
@@ -260,7 +204,8 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
   const buildSearchParams = (): SearchParams => {
     const params: SearchParams = {
       page: currentPage.value,
-      page_size: pageSize.value
+      page_size: pageSize.value,
+      ...buildSearchParamsString(searchForm.value, searchableFields.value)
     }
     
     // 排序（格式：sorts=field1:order1,field2:order2）
@@ -275,46 +220,6 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
       }
     }
     
-    // 遍历搜索表单，构建查询参数
-    searchableFields.value.forEach(field => {
-      const value = searchForm.value[field.code]
-      if (!value) return
-      
-      const searchType = field.search || ''
-      
-      // 精确匹配
-      if (searchType.includes('eq')) {
-        params.eq = `${field.code}:${value}`
-      }
-      // 模糊查询
-      else if (searchType.includes('like')) {
-        params.like = `${field.code}:${value}`
-      }
-      // 包含查询
-      else if (searchType.includes('in')) {
-        params.in = `${field.code}:${value}`
-      }
-      // 范围查询
-      else if (searchType.includes('gte') && searchType.includes('lte')) {
-        // 可能是对象 {min, max} 或数组 [start, end]
-        if (typeof value === 'object') {
-          if (Array.isArray(value) && value.length === 2) {
-            // 日期范围数组
-            if (value[0]) params.gte = `${field.code}:${value[0]}`
-            if (value[1]) params.lte = `${field.code}:${value[1]}`
-          } else if (value.min !== undefined || value.max !== undefined) {
-            // 数字范围对象
-            if (value.min !== undefined && value.min !== null && value.min !== '') {
-              params.gte = `${field.code}:${value.min}`
-            }
-            if (value.max !== undefined && value.max !== null && value.max !== '') {
-              params.lte = `${field.code}:${value.max}`
-            }
-          }
-        }
-      }
-    })
-    
     return params
   }
   
@@ -326,20 +231,8 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
   const loadTableData = async (): Promise<void> => {
     try {
       loading.value = true
-      console.log('[useTableOperations] 加载数据')
-      console.log('[useTableOperations]   Method:', functionData.method)
-      console.log('[useTableOperations]   Router:', functionData.router)
-      
       const params = buildSearchParams()
-      console.log('[useTableOperations] 查询参数:', params)
-      console.log('[useTableOperations] 排序参数:', {
-        sorts: sorts.value,
-        hasManualSort: hasManualSort.value,
-        sortsString: params.sorts
-      })
-      
       const response = await executeFunction(functionData.method, functionData.router, params) as TableResponse
-      console.log('[useTableOperations] 数据加载成功:', response)
       
       tableData.value = response.items || []
       if (response.paginated) {
@@ -347,7 +240,6 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
         currentPage.value = response.paginated.current_page
       }
     } catch (error: any) {
-      console.error('[useTableOperations] 加载数据失败:', error)
       ElMessage.error(error.message || '加载数据失败')
       tableData.value = []
     } finally {
@@ -388,34 +280,8 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
       query.sorts = finalSorts.map(item => `${item.field}:${item.order}`).join(',')
     }
     
-    // 搜索参数
-    searchableFields.value.forEach(field => {
-      const value = searchForm.value[field.code]
-      if (!value) return
-      
-      const searchType = field.search || ''
-      if (searchType.includes('eq')) {
-        query[`eq_${field.code}`] = String(value)
-      } else if (searchType.includes('like')) {
-        query[`like_${field.code}`] = String(value)
-      } else if (searchType.includes('in')) {
-        query[`in_${field.code}`] = String(value)
-      } else if (searchType.includes('gte') && searchType.includes('lte')) {
-        if (typeof value === 'object') {
-          if (Array.isArray(value) && value.length === 2) {
-            if (value[0]) query[`gte_${field.code}`] = String(value[0])
-            if (value[1]) query[`lte_${field.code}`] = String(value[1])
-          } else if (value.min !== undefined || value.max !== undefined) {
-            if (value.min !== undefined && value.min !== null && value.min !== '') {
-              query[`gte_${field.code}`] = String(value.min)
-            }
-            if (value.max !== undefined && value.max !== null && value.max !== '') {
-              query[`lte_${field.code}`] = String(value.max)
-            }
-          }
-        }
-      }
-    })
+    // 搜索参数（使用工具函数）
+    Object.assign(query, buildURLSearchParams(searchForm.value, searchableFields.value))
     
     // 更新 URL（不触发导航）
     router.replace({ query: { ...route.query, ...query } })
@@ -520,8 +386,6 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
    * 3. 同一字段重复排序会更新该字段的排序方向
    */
   const handleSortChange = (sortInfo: { prop?: string; order?: string }): void => {
-    console.log('[useTableOperations] 排序变化:', sortInfo)
-    
     hasManualSort.value = true
     
     if (sortInfo && sortInfo.prop && sortInfo.order && sortInfo.order !== '') {
@@ -537,13 +401,10 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
       
       // 添加或更新排序项
       setSortItem(field, order)
-      
-      console.log('[useTableOperations] 设置排序:', { field, order, allSorts: sorts.value })
     } else {
       // 取消该字段的排序
       if (sortInfo.prop) {
         removeSortByField(sortInfo.prop)
-        console.log('[useTableOperations] 取消字段排序:', sortInfo.prop)
       }
     }
     
@@ -609,13 +470,11 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
    */
   const handleAdd = async (data: Record<string, any>): Promise<boolean> => {
     try {
-      console.log('[useTableOperations] 新增记录:', data)
       await tableAddRow(functionData.method, functionData.router, data)
       ElMessage.success('新增成功')
       await loadTableData()
       return true
     } catch (error: any) {
-      console.error('[useTableOperations] 新增失败:', error)
       ElMessage.error(error.message || '新增失败')
       return false
     }
@@ -629,7 +488,6 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
    */
   const handleUpdate = async (id: number, data: Record<string, any>): Promise<boolean> => {
     try {
-      console.log('[useTableOperations] 更新记录:', { id, data })
       const updateData = {
         id,
         ...data
@@ -639,7 +497,6 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
       await loadTableData()
       return true
     } catch (error: any) {
-      console.error('[useTableOperations] 更新失败:', error)
       ElMessage.error(error.message || '更新失败')
       return false
     }
@@ -662,14 +519,12 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
         }
       )
       
-      console.log('[useTableOperations] 删除记录, ID:', id)
       await tableDeleteRows(functionData.method, functionData.router, [id])
       ElMessage.success('删除成功')
       await loadTableData()
       return true
     } catch (error: any) {
       if (error !== 'cancel') {
-        console.error('[useTableOperations] 删除失败:', error)
         ElMessage.error(error.message || '删除失败')
       }
       return false
@@ -686,8 +541,6 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
     currentPage,
     pageSize,
     total,
-    sortField: computed(() => sorts.value[0]?.field || ''),
-    sortOrder: computed(() => sorts.value[0]?.order || ''),
     sorts,
     
     // 计算属性
@@ -696,11 +549,8 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
     hasAddCallback,
     hasUpdateCallback,
     hasDeleteCallback,
-    isDefaultSort,
-    defaultSortConfig,
     
     // 方法
-    getFieldSortInfo,
     loadTableData,
     handleSearch,
     handleReset,
