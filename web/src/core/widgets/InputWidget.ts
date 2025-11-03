@@ -39,7 +39,9 @@ export class InputWidget extends BaseWidget {
       disabled: getDisabledState(this.inputConfig.disabled, this.field.table_permission),
       maxlength: this.inputConfig.maxlength,
       minlength: this.inputConfig.minlength,
-      showWordLimit: this.inputConfig.showWordLimit || false
+      showWordLimit: this.inputConfig.showWordLimit || false,
+      // 🔥 禁用 Element Plus 的原生验证（使用我们的自定义验证系统）
+      validateEvent: false
     }
 
     // 密码框配置

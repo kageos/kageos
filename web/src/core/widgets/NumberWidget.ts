@@ -31,6 +31,8 @@ export class NumberWidget extends BaseWidget {
       max: this.numberConfig.max,
       step: this.numberConfig.step || 1,
       clearable: this.numberConfig.clearable !== false,
+      // 🔥 禁用 Element Plus 的原生验证（使用我们的自定义验证系统）
+      validateEvent: false,
       onInput: (value: string | number) => {
         // 🔥 整数处理：转为整数或 null
         const numValue = value === '' ? null : parseInt(String(value), 10)

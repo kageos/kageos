@@ -5,6 +5,7 @@
       v-if="fields.length > 0"
       ref="formRef"
       :model="formData"
+      :rules="{}"
       label-width="100px"
       class="function-form"
     >
@@ -319,7 +320,11 @@ function renderField(field: FieldConfig): any {
         formData[field.code] = newValue.raw
         // 🔥 值变化时触发验证
         validateField(fieldPath)
-        }
+      },
+      onBlur: () => {
+        // 🔥 失去焦点时也触发验证（确保实时反馈）
+        validateField(fieldPath)
+      }
       })
       
     registerWidget(fieldPath, widget)
