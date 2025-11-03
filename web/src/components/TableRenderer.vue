@@ -37,12 +37,10 @@
 
     <!-- 表格 -->
     <el-table
-      ref="tableRef"
       v-loading="loading"
       :data="tableData"
       border
       style="width: 100%"
-      :default-sort="defaultSortConfig"
       @sort-change="handleSortChange"
     >
       <!-- 🔥 控制中心列（ID列改造） -->
@@ -243,7 +241,7 @@
  * - 记录导航（上一个/下一个）
  */
 
-import { computed, ref, watch, h, nextTick, onMounted } from 'vue'
+import { computed, ref, watch, h } from 'vue'
 import { Search, Refresh, Edit, Delete, Plus, ArrowLeft, ArrowRight, DocumentCopy } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useTableOperations } from '@/composables/useTableOperations'
@@ -252,7 +250,6 @@ import { ErrorHandler } from '@/core/utils/ErrorHandler'
 import { convertToFieldValue } from '@/utils/field'
 import FormDialog from './FormDialog.vue'
 import SearchInput from './SearchInput.vue'
-import { ElTable } from 'element-plus'
 import type { Function as FunctionType } from '@/types'
 import type { FieldConfig, FieldValue } from '@/core/types/field'
 
@@ -290,15 +287,12 @@ const {
   hasAddCallback,
   hasUpdateCallback,
   hasDeleteCallback,
-  isDefaultSort,
-  defaultSortConfig,
-  sorts,
   
   // 方法
   loadTableData,
   handleSearch,
   handleReset,
-  handleSortChange,
+  handleSortChange: originalHandleSortChange,
   handleSizeChange,
   handleCurrentChange,
   handleAdd: handleAddRow,
@@ -332,11 +326,6 @@ const dialogTitle = computed(() => dialogMode.value === 'create' ? '新增' : '�
 
 /** 当前编辑的行数据 */
 const currentRow = ref<Record<string, any>>({})
-
-// ==================== 表格引用 ====================
-
-/** 表格实例引用 */
-const tableRef = ref<InstanceType<typeof ElTable> | null>(null)
 
 // ==================== 字段计算属性 ====================
 
@@ -659,69 +648,7 @@ const handleNavigate = (direction: 'prev' | 'next'): void => {
   }
 }
 
-// ==================== 排序状态更新 ====================
-
-/**
- * 设置表格排序状态（用于显示当前排序）
- * Element Plus 的 default-sort 只在初始化时生效，需要通过表格实例动态设置
- */
-const updateTableSort = (): void => {
-  nextTick(() => {
-    if (!tableRef.value) return
-    
-    // 获取当前应该显示的排序（默认排序或手动排序的第一个）
-    let sortConfig: { prop: string; order: 'ascending' | 'descending' } | null = null
-    
-    if (isDefaultSort.value && defaultSortConfig.value) {
-      // 默认排序
-      sortConfig = {
-        prop: defaultSortConfig.value.prop,
-        order: defaultSortConfig.value.order
-      }
-    } else if (sorts.value.length > 0) {
-      // 手动排序（只显示第一个，Element Plus 不支持多字段排序显示）
-      const firstSort = sorts.value[0]
-      sortConfig = {
-        prop: firstSort.field,
-        order: firstSort.order === 'asc' ? 'ascending' : 'descending'
-      }
-    }
-    
-    // 通过表格实例的 sort 方法设置排序状态
-    if (sortConfig && tableRef.value) {
-      const tableInstance = tableRef.value as any
-      // Element Plus 表格的 sort 方法可以设置排序状态
-      // sort(prop: string, order: 'ascending' | 'descending' | null)
-      if (tableInstance && typeof tableInstance.sort === 'function') {
-        try {
-          tableInstance.sort(sortConfig.prop, sortConfig.order)
-          console.log('[TableRenderer] 设置排序状态:', sortConfig)
-        } catch (error) {
-          console.warn('[TableRenderer] 设置排序状态失败:', error)
-        }
-      }
-    } else if (tableRef.value) {
-      // 如果没有排序，清除排序状态
-      const tableInstance = tableRef.value as any
-      if (tableInstance && typeof tableInstance.sort === 'function') {
-        try {
-          tableInstance.sort(null, null)
-        } catch (error) {
-          // 忽略清除排序的错误
-        }
-      }
-    }
-  })
-}
-
 // ==================== 监听函数变化 ====================
-
-/**
- * 监听排序状态变化，更新表格 UI
- */
-watch([() => isDefaultSort.value, () => defaultSortConfig.value, () => sorts.value], () => {
-  updateTableSort()
-}, { deep: true })
 
 /**
  * 监听函数配置变化
@@ -730,30 +657,7 @@ watch([() => isDefaultSort.value, () => defaultSortConfig.value, () => sorts.val
 watch(() => props.functionData, () => {
   searchForm.value = {}
   currentPage.value = 1
-  loadTableData().then(() => {
-    updateTableSort()
-  })
-}, { immediate: true })
-
-/**
- * 组件挂载后设置初始排序状态
- */
-onMounted(() => {
-  // 延迟一点确保表格已完全渲染
-  setTimeout(() => {
-    updateTableSort()
-  }, 100)
-})
-
-/**
- * 监听表格数据加载完成，更新排序状态
- */
-watch(() => tableData.value, () => {
-  if (tableData.value.length > 0) {
-    nextTick(() => {
-      updateTableSort()
-    })
-  }
+  loadTableData()
 }, { immediate: true })
 </script>
 
