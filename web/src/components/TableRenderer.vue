@@ -46,22 +46,19 @@
       <!-- 🔥 控制中心列（ID列改造） -->
       <el-table-column
         v-if="idField"
-        label="操作"
+        label=""
         fixed="left"
-        width="100"
+        width="70"
         class-name="control-column"
       >
         <template #default="{ row, $index }">
-          <el-button
-            link
-            type="primary"
-            size="small"
+          <span 
+            class="detail-link"
             @click="handleShowDetail(row, $index)"
-            class="detail-button"
+            :title="'查看详情 #' + row[idField.code]"
           >
-            <el-icon><View /></el-icon>
-            <span class="button-text">#{{ row[idField.code] }}</span>
-          </el-button>
+            #{{ row[idField.code] }}
+          </span>
         </template>
       </el-table-column>
 
@@ -657,28 +654,23 @@ watch(() => props.functionData, () => {
   color: var(--el-color-danger) !important;
 }
 
-/* 🔥 控制中心列样式 */
+/* 🔥 控制中心列样式 - 不显眼的文本链接 */
 :deep(.control-column) {
-  .detail-button {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 8px;
+  .detail-link {
+    display: inline-block;
     font-size: 13px;
-    
-    .el-icon {
-      font-size: 14px;
-    }
-    
-    .button-text {
-      font-weight: 500;
-      color: var(--el-color-primary);
-    }
+    color: var(--el-text-color-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
     
     &:hover {
-      .button-text {
-        color: var(--el-color-primary-light-3);
-      }
+      color: var(--el-color-primary);
+      text-decoration: underline;
+    }
+    
+    &:active {
+      color: var(--el-color-primary-dark-2);
     }
   }
 }
