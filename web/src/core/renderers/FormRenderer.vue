@@ -514,15 +514,34 @@ function validateAllFields(): boolean {
 }
 
 /**
- * 获取字段的错误信息
+ * 获取字段的错误信息（将字段 code 替换为 name）
  */
 function getFieldError(fieldCode: string): string | null {
   const errors = fieldErrors.get(fieldCode)
   if (!errors || errors.length === 0) {
     return null
   }
-  // 返回第一个错误信息
-  return errors[0].message || '验证失败'
+  
+  // 获取字段配置，用于将 code 替换为 name
+  const field = props.functionDetail?.request?.find((f: FieldConfig) => f.code === fieldCode)
+  const fieldName = field?.name || fieldCode
+  
+  // 获取错误消息，并将字段 code 替换为 name
+  let errorMessage = errors[0].message || '验证失败'
+  
+  // 如果错误消息中包含字段 code，替换为 name
+  if (errorMessage.includes(fieldCode)) {
+    errorMessage = errorMessage.replace(fieldCode, fieldName)
+  }
+  
+  // 也处理小写的情况（如 "phone" -> "联系电话"）
+  if (errorMessage.toLowerCase().includes(fieldCode.toLowerCase())) {
+    // 使用正则表达式替换，不区分大小写
+    const regex = new RegExp(fieldCode, 'gi')
+    errorMessage = errorMessage.replace(regex, fieldName)
+  }
+  
+  return errorMessage
 }
 
 /**
