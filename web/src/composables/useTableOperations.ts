@@ -42,6 +42,7 @@ export interface TableOperationsReturn {
   total: ReturnType<typeof ref<number>>
   sortField: ReturnType<typeof ref<string>>
   sortOrder: ReturnType<typeof ref<string>>
+  sorts: ReturnType<typeof ref<SortItem[]>>
   
   // 计算属性
   searchableFields: ReturnType<typeof computed<FieldConfig[]>>

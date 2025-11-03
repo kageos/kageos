@@ -292,6 +292,7 @@ const {
   hasDeleteCallback,
   isDefaultSort,
   defaultSortConfig,
+  sorts,
   
   // 方法
   loadTableData,
