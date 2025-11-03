@@ -655,8 +655,6 @@ watch(() => props.functionData, () => {
   color: var(--el-color-danger) !important;
 }
 
-// 控制中心列使用删除按钮样式，无需额外样式
-
 /* 🔥 详情抽屉样式 */
 .detail-drawer {
   :deep(.el-drawer__header) {
