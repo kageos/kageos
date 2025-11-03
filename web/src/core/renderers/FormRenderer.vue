@@ -14,6 +14,7 @@
         :key="field.code"
         :label="field.name"
         :prop="field.code"
+        :error="getFieldError(field.code)"
       >
         <component :is="renderField(field)" />
       </el-form-item>
@@ -125,6 +126,8 @@ import { BaseWidget } from '../widgets/BaseWidget'
 import { ResponseTableWidget } from '../widgets/ResponseTableWidget'
 import { ResponseFormWidget } from '../widgets/ResponseFormWidget'
 import { executeFunction } from '@/api/function'
+import { ValidationEngine, createDefaultValidatorRegistry } from '../validation'
+import type { ValidationResult } from '../validation/types'
 
 const props = withDefaults(defineProps<{
   functionDetail: FunctionDetail
@@ -169,6 +172,16 @@ const formManager = new ReactiveFormDataManager()
 
 // Widget 缓存（field_path -> Widget 实例）
 const allWidgets = new Map<string, BaseWidget>()
+
+// 🔥 验证引擎（computed，当字段变化时重新创建）
+const validationEngine = computed(() => {
+  const validatorRegistry = createDefaultValidatorRegistry()
+  const allFields = props.functionDetail?.request || []
+  return new ValidationEngine(validatorRegistry, formManager, allFields)
+})
+
+// 🔥 字段验证错误（field_path -> ValidationResult[]）
+const fieldErrors = reactive<Map<string, ValidationResult[]>>(new Map())
 
 // 表单数据（用于 el-form 绑定）
 const formData = reactive<Record<string, any>>({})
@@ -271,6 +284,8 @@ function renderField(field: FieldConfig): any {
         formManager.setValue(fieldPath, newValue)
         // 同步到 formData
         formData[field.code] = newValue.raw
+        // 🔥 值变化时触发验证
+        validateField(fieldPath)
         }
       })
       
@@ -416,9 +431,65 @@ function prepareSubmitDataWithTypeConversion(): Record<string, any> {
 }
 
 /**
+ * 🔥 验证单个字段
+ */
+function validateField(fieldPath: string): void {
+  const widget = allWidgets.get(fieldPath)
+  if (!widget) return
+  
+  const allFields = props.functionDetail?.request || []
+  const errors = widget.validate(validationEngine.value, allFields)
+  
+  if (errors.length > 0) {
+    fieldErrors.set(fieldPath, errors)
+  } else {
+    fieldErrors.delete(fieldPath)
+  }
+}
+
+/**
+ * 🔥 验证所有字段
+ * @returns 是否有验证错误
+ */
+function validateAllFields(): boolean {
+  fieldErrors.clear()
+  
+  let hasError = false
+  
+  fields.value.forEach(field => {
+    const fieldPath = field.code
+    validateField(fieldPath)
+    
+    const errors = fieldErrors.get(fieldPath)
+    if (errors && errors.length > 0) {
+      hasError = true
+    }
+  })
+  
+  return hasError
+}
+
+/**
+ * 获取字段的错误信息
+ */
+function getFieldError(fieldCode: string): string | null {
+  const errors = fieldErrors.get(fieldCode)
+  if (!errors || errors.length === 0) {
+    return null
+  }
+  // 返回第一个错误信息
+  return errors[0].message || '验证失败'
+}
+
+/**
  * 真正提交表单到后端
  */
 async function handleRealSubmit(): Promise<void> {
+  // 🔥 提交前验证所有字段
+  if (validateAllFields()) {
+    ElMessage.warning('请检查表单中的错误')
+    return
+  }
   
   submitting.value = true
   

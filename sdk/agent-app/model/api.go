@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"github.com/ai-agent-os/ai-agent-os/pkg/jsonx"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
 	"strings"
 	"time"
@@ -103,6 +104,39 @@ func (a *ApiInfo) GetPackageChain() []string {
 
 	// 排除最后一个函数名，只返回包链
 	return parts[:len(parts)-1]
+}
+
+// IsEqual 比较当前API与另一个API是否相等（排除版本信息）
+// 比较的字段包括：Name, Desc, Tags, CreateTables, Request, Response
+func (a *ApiInfo) IsEqual(other *ApiInfo) bool {
+	if other == nil {
+		return false
+	}
+
+	// 比较基本信息（排除版本信息，因为版本信息会自然变化）
+	if a.Name != other.Name ||
+		a.Desc != other.Desc ||
+		!equalStrings(a.Tags, other.Tags) ||
+		!equalStrings(a.CreateTables, other.CreateTables) {
+		return false
+	}
+
+	// 比较请求参数和响应参数
+	return jsonx.DeepEqual(a.Request, other.Request) &&
+		jsonx.DeepEqual(a.Response, other.Response)
+}
+
+// equalStrings 比较两个字符串切片是否相等
+func equalStrings(a1, a2 []string) bool {
+	if len(a1) != len(a2) {
+		return false
+	}
+	for i, v := range a1 {
+		if a2[i] != v {
+			return false
+		}
+	}
+	return true
 }
 
 // ApiVersion 版本化的API信息
