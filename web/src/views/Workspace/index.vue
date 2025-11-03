@@ -342,7 +342,7 @@ import TableRenderer from '@/components/TableRenderer.vue'
 import FormRenderer from '@/core/renderers/FormRenderer.vue'
 import AppSwitcher from '@/components/AppSwitcher.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
-import { getFunctionDetail } from '@/api/function'
+import { getFunctionDetail, getFunctionByPath } from '@/api/function'
 import { createServiceTree } from '@/api/service-tree'
 import { useAppManager } from '@/composables/useAppManager'
 import { useServiceTree } from '@/composables/useServiceTree'
@@ -599,9 +599,18 @@ const handleLocateNode = () => {
       // showRightSidebar.value = true
       // 如果是函数类型，需要加载函数详情
       // 只有在节点不同，或者还没有加载过详情时才加载
-      if (targetNode.ref_id && (!isSameNode || !functionDetail.value)) {
-        console.log('[定位] 加载函数详情, ref_id:', targetNode.ref_id)
-        loadFunctionDetail(targetNode.ref_id)
+      if (!isSameNode || !functionDetail.value) {
+        // 🔥 优先使用 ref_id，如果没有则使用 full_code_path
+        if (targetNode.ref_id && targetNode.ref_id > 0) {
+          console.log('[定位] 加载函数详情, ref_id:', targetNode.ref_id)
+          loadFunctionDetail(targetNode.ref_id)
+        } else if (targetNode.full_code_path) {
+          console.log('[定位] ref_id 不存在，使用路径加载函数详情:', targetNode.full_code_path)
+          loadFunctionDetailByPath(targetNode.full_code_path)
+        } else {
+          console.warn('[定位] ⚠️ 节点没有 ref_id 和 full_code_path，无法加载函数详情')
+          ElMessage.warning('无法加载函数详情：节点信息不完整')
+        }
       } else {
         console.log('[定位] ⏭️ 跳过重复加载函数详情')
       }
@@ -664,7 +673,7 @@ watch(currentApp, () => {
   }
 })
 
-// 加载函数详情
+// 加载函数详情（通过 ref_id）
 const loadFunctionDetail = async (refId: number) => {
   try {
     loadingFunctionDetail.value = true
@@ -672,9 +681,30 @@ const loadFunctionDetail = async (refId: number) => {
     const detail = await getFunctionDetail(refId)
     console.log('[Workspace] 函数详情:', detail)
     functionDetail.value = detail
-  } catch (error) {
+  } catch (error: any) {
     console.error('[Workspace] 加载函数详情失败:', error)
-    ElMessage.error('加载函数详情失败')
+    const errorMessage = error?.response?.data?.message || error?.message || '加载函数详情失败'
+    console.error('[Workspace] 错误详情:', errorMessage)
+    ElMessage.error(errorMessage)
+    functionDetail.value = null
+  } finally {
+    loadingFunctionDetail.value = false
+  }
+}
+
+// 🔥 加载函数详情（通过路径，作为备选方案）
+const loadFunctionDetailByPath = async (fullCodePath: string) => {
+  try {
+    loadingFunctionDetail.value = true
+    console.log('[Workspace] 通过路径加载函数详情:', fullCodePath)
+    const detail = await getFunctionByPath(fullCodePath)
+    console.log('[Workspace] 函数详情:', detail)
+    functionDetail.value = detail
+  } catch (error: any) {
+    console.error('[Workspace] 通过路径加载函数详情失败:', error)
+    const errorMessage = error?.response?.data?.message || error?.message || '加载函数详情失败'
+    console.error('[Workspace] 错误详情:', errorMessage)
+    ElMessage.error(errorMessage)
     functionDetail.value = null
   } finally {
     loadingFunctionDetail.value = false
