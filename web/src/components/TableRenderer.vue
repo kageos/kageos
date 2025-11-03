@@ -41,15 +41,22 @@
       :data="tableData"
       border
       style="width: 100%"
+      :default-sort="defaultSortConfig"
       @sort-change="handleSortChange"
     >
       <!-- 🔥 控制中心列（ID列改造） -->
+      <!-- 
+        注意：ID 列默认启用排序，显示默认的 id 降序排序状态
+        当用户手动排序其他字段时，id 排序会被移除
+      -->
       <el-table-column
         v-if="idField"
+        :prop="idField.code"
         label=""
         fixed="left"
         width="80"
         class-name="control-column"
+        :sortable="'custom'"
       >
         <template #default="{ row, $index }">
           <el-button
@@ -281,6 +288,8 @@ const {
   hasAddCallback,
   hasUpdateCallback,
   hasDeleteCallback,
+  isDefaultSort,
+  defaultSortConfig,
   
   // 方法
   loadTableData,
