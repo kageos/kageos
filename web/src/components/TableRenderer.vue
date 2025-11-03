@@ -732,6 +732,43 @@ watch(() => props.functionData, () => {
   background-color: var(--el-fill-color-light) !important;
 }
 
+/* 表格表头排序指示器 */
+.table-header-sort {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 4px;
+}
+
+.sort-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--el-color-primary);
+  font-size: 12px;
+  margin-left: 4px;
+}
+
+.sort-index {
+  font-weight: 600;
+  font-size: 11px;
+  min-width: 12px;
+  text-align: center;
+}
+
+.sort-indicator .el-icon {
+  font-size: 14px;
+}
+
+.sort-indicator .sort-asc {
+  color: var(--el-color-primary);
+}
+
+.sort-indicator .sort-desc {
+  color: var(--el-color-primary);
+}
+
 /* 确保table内的link按钮清晰可见 */
 :deep(.el-button.is-link) {
   font-weight: 500 !important;
