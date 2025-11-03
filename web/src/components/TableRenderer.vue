@@ -659,6 +659,22 @@ watch(() => props.functionData, () => {
   color: var(--el-color-danger) !important;
 }
 
+/* 🔥 控制中心列样式 */
+:deep(.control-column) {
+  .control-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    
+    .id-hint {
+      font-size: 12px;
+      color: var(--el-text-color-secondary);
+      opacity: 0.7;
+    }
+  }
+}
+
 /* 🔥 ID 列样式 */
 :deep(.id-column) {
   .id-cell {
