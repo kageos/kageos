@@ -667,7 +667,7 @@ const handleNavigate = (direction: 'prev' | 'next'): void => {
  */
 const updateTableSort = (): void => {
   nextTick(() => {
-    if (!tableRef.value || !idField.value) return
+    if (!tableRef.value) return
     
     // 获取当前应该显示的排序（默认排序或手动排序的第一个）
     let sortConfig: { prop: string; order: 'ascending' | 'descending' } | null = null
@@ -691,8 +691,24 @@ const updateTableSort = (): void => {
     if (sortConfig && tableRef.value) {
       const tableInstance = tableRef.value as any
       // Element Plus 表格的 sort 方法可以设置排序状态
+      // sort(prop: string, order: 'ascending' | 'descending' | null)
       if (tableInstance && typeof tableInstance.sort === 'function') {
-        tableInstance.sort(sortConfig.prop, sortConfig.order)
+        try {
+          tableInstance.sort(sortConfig.prop, sortConfig.order)
+          console.log('[TableRenderer] 设置排序状态:', sortConfig)
+        } catch (error) {
+          console.warn('[TableRenderer] 设置排序状态失败:', error)
+        }
+      }
+    } else if (tableRef.value) {
+      // 如果没有排序，清除排序状态
+      const tableInstance = tableRef.value as any
+      if (tableInstance && typeof tableInstance.sort === 'function') {
+        try {
+          tableInstance.sort(null, null)
+        } catch (error) {
+          // 忽略清除排序的错误
+        }
       }
     }
   })
@@ -723,10 +739,22 @@ watch(() => props.functionData, () => {
  * 组件挂载后设置初始排序状态
  */
 onMounted(() => {
-  nextTick(() => {
+  // 延迟一点确保表格已完全渲染
+  setTimeout(() => {
     updateTableSort()
-  })
+  }, 100)
 })
+
+/**
+ * 监听表格数据加载完成，更新排序状态
+ */
+watch(() => tableData.value, () => {
+  if (tableData.value.length > 0) {
+    nextTick(() => {
+      updateTableSort()
+    })
+  }
+}, { immediate: true })
 </script>
 
 <style scoped>
