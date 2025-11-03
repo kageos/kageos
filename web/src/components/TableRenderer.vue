@@ -43,26 +43,41 @@
       style="width: 100%"
       @sort-change="handleSortChange"
     >
+      <!-- 🔥 控制中心列（ID列改造） -->
       <el-table-column
-        v-for="field in visibleFields"
+        v-if="idField"
+        label="操作"
+        fixed="left"
+        width="120"
+        class-name="control-column"
+      >
+        <template #default="{ row, $index }">
+          <div class="control-cell">
+            <el-button
+              link
+              type="primary"
+              size="small"
+              @click="handleShowDetail(row, $index)"
+              :icon="View"
+            >
+              查看详情
+            </el-button>
+            <span class="id-hint">ID: {{ row[idField.code] }}</span>
+          </div>
+        </template>
+      </el-table-column>
+
+      <!-- 数据列（排除ID列） -->
+      <el-table-column
+        v-for="field in dataFields"
         :key="field.code"
         :prop="field.code"
         :label="field.name"
         :sortable="field.search ? 'custom' : false"
         :min-width="getColumnWidth(field)"
-        :class-name="isIdColumn(field) ? 'id-column' : ''"
       >
         <template #default="{ row, $index }">
-          <!-- 🔥 ID 列：可点击查看详情（特殊处理） -->
-          <span 
-            v-if="isIdColumn(field)" 
-            class="id-cell clickable"
-            @click="handleShowDetail(row, $index)"
-            :title="'点击查看详情'"
-          >
-            {{ row[field.code] }}
-          </span>
-          <!-- 🔥 其他列：使用 Widget 的 renderTableCell() 方法（组件自治） -->
+          <!-- 🔥 使用 Widget 的 renderTableCell() 方法（组件自治） -->
           <!-- 
             注意：renderTableCell 可能返回字符串或 VNode
             - 字符串：直接显示（用于简单字段）
@@ -205,7 +220,7 @@
  */
 
 import { computed, ref, watch, h } from 'vue'
-import { Search, Refresh, Edit, Delete, Plus, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
+import { Search, Refresh, Edit, Delete, Plus, ArrowLeft, ArrowRight, View } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useTableOperations } from '@/composables/useTableOperations'
 import { WidgetBuilder } from '@/core/factories/WidgetBuilder'
@@ -313,13 +328,7 @@ const getColumnWidth = (field: FieldConfig): number => {
   return 150
 }
 
-/**
- * 🔥 判断是否是 ID 列
- * 直接看 widget.type，不猜测字段名
- */
-const isIdColumn = (field: FieldConfig): boolean => {
-  return field.widget?.type === 'ID'
-}
+// 注意：isIdColumn 方法已移除，改用 idField computed 和单独的控制中心列
 
 // ==================== 搜索表单相关 ====================
 
