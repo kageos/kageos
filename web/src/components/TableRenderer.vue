@@ -659,7 +659,53 @@ const handleNavigate = (direction: 'prev' | 'next'): void => {
   }
 }
 
+// ==================== 排序状态更新 ====================
+
+/**
+ * 设置表格排序状态（用于显示当前排序）
+ * Element Plus 的 default-sort 只在初始化时生效，需要通过表格实例动态设置
+ */
+const updateTableSort = (): void => {
+  nextTick(() => {
+    if (!tableRef.value || !idField.value) return
+    
+    // 获取当前应该显示的排序（默认排序或手动排序的第一个）
+    let sortConfig: { prop: string; order: 'ascending' | 'descending' } | null = null
+    
+    if (isDefaultSort.value && defaultSortConfig.value) {
+      // 默认排序
+      sortConfig = {
+        prop: defaultSortConfig.value.prop,
+        order: defaultSortConfig.value.order
+      }
+    } else if (sorts.value.length > 0) {
+      // 手动排序（只显示第一个，Element Plus 不支持多字段排序显示）
+      const firstSort = sorts.value[0]
+      sortConfig = {
+        prop: firstSort.field,
+        order: firstSort.order === 'asc' ? 'ascending' : 'descending'
+      }
+    }
+    
+    // 通过表格实例的 sort 方法设置排序状态
+    if (sortConfig && tableRef.value) {
+      const tableInstance = tableRef.value as any
+      // Element Plus 表格的 sort 方法可以设置排序状态
+      if (tableInstance && typeof tableInstance.sort === 'function') {
+        tableInstance.sort(sortConfig.prop, sortConfig.order)
+      }
+    }
+  })
+}
+
 // ==================== 监听函数变化 ====================
+
+/**
+ * 监听排序状态变化，更新表格 UI
+ */
+watch([() => isDefaultSort.value, () => defaultSortConfig.value, () => sorts.value], () => {
+  updateTableSort()
+}, { deep: true })
 
 /**
  * 监听函数配置变化
@@ -668,8 +714,19 @@ const handleNavigate = (direction: 'prev' | 'next'): void => {
 watch(() => props.functionData, () => {
   searchForm.value = {}
   currentPage.value = 1
-  loadTableData()
+  loadTableData().then(() => {
+    updateTableSort()
+  })
 }, { immediate: true })
+
+/**
+ * 组件挂载后设置初始排序状态
+ */
+onMounted(() => {
+  nextTick(() => {
+    updateTableSort()
+  })
+})
 </script>
 
 <style scoped>
