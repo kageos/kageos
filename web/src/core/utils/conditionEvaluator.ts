@@ -154,6 +154,9 @@ function isEmpty(fieldValue: FieldValue): boolean {
          (Array.isArray(fieldValue.raw) && fieldValue.raw.length === 0)
 }
 
+// 注意：此处的 isEmpty 与 validation/utils/fieldUtils.ts 中的 isEmpty 功能相同
+// 但为了保持模块独立性，暂时不合并。如果后续需要统一，可以从 fieldUtils 导入
+
 /**
  * 判断两个值是否相等
  */

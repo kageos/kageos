@@ -6,6 +6,7 @@ import { ref, type Ref } from 'vue'
 import type { FieldConfig, FieldValue } from '../types/field'
 import type { WidgetRenderProps, WidgetSnapshot, FormRendererContext } from '../types/widget'
 import type { ReactiveFormDataManager } from '../managers/ReactiveFormDataManager'
+import type { ValidationResult } from '../validation/types'
 import { Logger } from '../utils/logger'
 
 /**
@@ -96,7 +97,7 @@ export abstract class BaseWidget implements IWidgetSnapshot {
    * @param allFields 所有字段配置（从 formRenderer 获取）
    * @returns 验证错误列表（空数组表示验证通过）
    */
-  validate(validationEngine: any, allFields: FieldConfig[]): any[] {
+  validate(validationEngine: any, allFields: FieldConfig[]): ValidationResult[] {
     if (!this.formManager) {
       return []  // 临时 Widget 不需要验证
     }

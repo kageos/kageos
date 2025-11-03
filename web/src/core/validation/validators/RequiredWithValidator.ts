@@ -7,6 +7,7 @@
 
 import type { Validator, ValidationRule, ValidationResult, ValidationContext } from '../types'
 import type { FieldValue } from '../../types/field'
+import { isEmpty as isEmptyValue, getFieldName, createRequiredErrorMessage } from '../utils/fieldUtils'
 
 export class RequiredWithValidator implements Validator {
   readonly name = 'required_with'
@@ -25,28 +26,15 @@ export class RequiredWithValidator implements Validator {
     const otherFieldValue = context.formManager.getValue(rule.field)
     
     // 判断其他字段是否有值
-    const otherFieldHasValue = otherFieldValue.raw !== null &&
-                              otherFieldValue.raw !== undefined &&
-                              otherFieldValue.raw !== '' &&
-                              !(Array.isArray(otherFieldValue.raw) && otherFieldValue.raw.length === 0)
+    const otherFieldHasValue = !isEmptyValue(otherFieldValue)
     
     if (otherFieldHasValue) {
       // 其他字段有值，当前字段必填
-      const isEmpty = value.raw === null ||
-                     value.raw === undefined ||
-                     value.raw === '' ||
-                     (Array.isArray(value.raw) && value.raw.length === 0)
-      
-      if (isEmpty) {
-        // 🔥 获取当前字段的 name，生成更友好的错误消息
-        const currentField = context.allFields.find(f => 
-          (f.field_path || f.code) === context.fieldPath
-        )
-        const fieldName = currentField?.name || '此字段'
-        
+      if (isEmptyValue(value)) {
+        const fieldName = getFieldName(context)
         return {
           valid: false,
-          message: `${fieldName}必填`
+          message: createRequiredErrorMessage(fieldName)
         }
       }
     }

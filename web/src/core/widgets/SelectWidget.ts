@@ -290,8 +290,8 @@ export class SelectWidget extends BaseWidget {
       clearable: this.selectConfig.clearable !== false,
       filterable: this.selectConfig.filterable !== false,
       remote: true,
-      // 🔥 禁用 Element Plus 的原生验证（使用我们的自定义验证系统）
-      validateEvent: false,
+      // 🔥 统一处理 Element Plus 表单组件的通用属性
+      ...getElementPlusFormProps(this.formManager, this.formRenderer, this.fieldPath),
       // 🔥 根据模式选择：事件驱动 or 直接调用
       remoteMethod: (query: string) => {
         if (useEventMode) {

@@ -8,6 +8,7 @@ import { BaseWidget } from './BaseWidget'
 import { ElInput } from 'element-plus'
 import type { InputConfig } from './types/widget-config'
 import { createInputSlots, getDisabledState, getPlaceholder } from './utils/render-helpers'
+import { getElementPlusFormProps } from './utils/widgetHelpers'
 
 export class InputWidget extends BaseWidget {
   private inputConfig: InputConfig
@@ -40,16 +41,8 @@ export class InputWidget extends BaseWidget {
       maxlength: this.inputConfig.maxlength,
       minlength: this.inputConfig.minlength,
       showWordLimit: this.inputConfig.showWordLimit || false,
-      // 🔥 禁用 Element Plus 的原生验证（使用我们的自定义验证系统）
-      validateEvent: false,
-      // 🔥 失去焦点时触发验证（通过 formRenderer 的监听器处理）
-      onBlur: () => {
-        if (this.formManager && this.formRenderer) {
-          // 触发字段变化事件，formRenderer 会监听并验证
-          const currentValue = this.getValue()
-          this.formManager.setValue(this.fieldPath, currentValue)
-        }
-      }
+      // 🔥 统一处理 Element Plus 表单组件的通用属性（validateEvent, onBlur）
+      ...getElementPlusFormProps(this.formManager, this.formRenderer, this.fieldPath)
     }
 
     // 密码框配置
