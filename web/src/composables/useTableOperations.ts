@@ -687,6 +687,7 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
     total,
     sortField: computed(() => sorts.value[0]?.field || ''),
     sortOrder: computed(() => sorts.value[0]?.order || ''),
+    sorts,
     
     // 计算属性
     searchableFields,
