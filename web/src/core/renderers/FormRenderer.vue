@@ -112,7 +112,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, h } from 'vue'
+import { ref, reactive, computed, h, watch, onMounted, onUnmounted } from 'vue'
 import { ElForm, ElFormItem, ElButton, ElCard, ElMessage, ElInput, ElIcon, ElDivider, ElTag } from 'element-plus'
 import { Promotion, RefreshLeft } from '@element-plus/icons-vue'
 import type { FieldConfig, FunctionDetail, FieldValue } from '../types/field'
@@ -128,6 +128,7 @@ import { ResponseFormWidget } from '../widgets/ResponseFormWidget'
 import { executeFunction } from '@/api/function'
 import { ValidationEngine, createDefaultValidatorRegistry } from '../validation'
 import type { ValidationResult } from '../validation/types'
+import { shouldShowField } from '../utils/conditionEvaluator'
 
 const props = withDefaults(defineProps<{
   functionDetail: FunctionDetail
@@ -147,17 +148,29 @@ const props = withDefaults(defineProps<{
 // 表单引用
 const formRef = ref()
 
-// 请求字段列表（根据 table_permission 过滤）
+// 请求字段列表（根据 table_permission 和条件渲染规则过滤）
 const fields = computed(() => {
+  // 🔥 依赖 fieldChangeTrigger，当字段值变化时重新计算
+  fieldChangeTrigger.value
+  
   const allFields = props.functionDetail?.request || []
   
   // 🔥 根据 table_permission 过滤字段（默认为"新增"模式）
-  return allFields.filter(field => {
+  return allFields.filter((field: FieldConfig) => {
     const permission = field.table_permission
     
     // ✅ 显示：空、create
     // ❌ 不显示：read（后端自动生成）、update（仅编辑时可修改）
-    return !permission || permission === '' || permission === 'create'
+    if (permission && permission !== '' && permission !== 'create') {
+      return false
+    }
+    
+    // 🔥 条件渲染：根据其他字段的值决定是否显示
+    if (!shouldShowField(field, formManager, allFields)) {
+      return false
+    }
+    
+    return true
   })
 })
 
@@ -183,6 +196,9 @@ const validationEngine = computed(() => {
 // 🔥 字段验证错误（field_path -> ValidationResult[]）
 const fieldErrors = reactive<Map<string, ValidationResult[]>>(new Map())
 
+// 🔥 字段变化触发器（用于触发条件渲染的重新计算）
+const fieldChangeTrigger = ref(0)
+
 // 表单数据（用于 el-form 绑定）
 const formData = reactive<Record<string, any>>({})
 
@@ -200,12 +216,24 @@ const shareInfo = ref<any>(null)
 const submitting = ref(false)
 
 /**
+ * 字段变化监听器（用于触发条件渲染重新计算）
+ */
+function handleFieldChange(): void {
+  // 触发 computed 重新计算
+  fieldChangeTrigger.value++
+}
+
+/**
  * 初始化表单
  */
 function initializeForm(): void {
+  // 🔥 监听所有字段变化事件（用于条件渲染）
+  formManager.on('field:change:*', handleFieldChange)
   
   // 初始化所有字段
-  fields.value.forEach(field => {
+  // 注意：这里需要先获取 allFields，因为 fields computed 可能在初始化时为空
+  const allFields = props.functionDetail?.request || []
+  allFields.forEach((field: FieldConfig) => {
     const fieldPath = field.code
     
     // 🔥 如果有初始数据，优先使用初始数据；否则使用默认值
@@ -235,6 +263,9 @@ function initializeForm(): void {
     // 初始化 formData（用于 el-form）
     formData[field.code] = fieldValue.raw
   })
+  
+  // 🔥 初始化后触发一次条件渲染重新计算
+  handleFieldChange()
 }
 
 /**
@@ -416,7 +447,7 @@ function prepareSubmitDataWithTypeConversion(): Record<string, any> {
   
   
   // 🔥 统一处理：无论基础类型还是嵌套类型，都调用 getRawValueForSubmit()
-  fields.value.forEach(field => {
+  fields.value.forEach((field: FieldConfig) => {
     const fieldPath = field.code
     const widget = allWidgets.get(fieldPath)
     
@@ -434,13 +465,16 @@ function prepareSubmitDataWithTypeConversion(): Record<string, any> {
  * 🔥 验证单个字段
  */
 function validateField(fieldPath: string): void {
+  const field = props.functionDetail?.request?.find((f: FieldConfig) => f.code === fieldPath)
+  if (!field) return
+  
   const widget = allWidgets.get(fieldPath)
   if (!widget) return
   
   const allFields = props.functionDetail?.request || []
   const errors = widget.validate(validationEngine.value, allFields)
   
-  if (errors.length > 0) {
+  if (errors && errors.length > 0) {
     fieldErrors.set(fieldPath, errors)
   } else {
     fieldErrors.delete(fieldPath)
@@ -456,7 +490,7 @@ function validateAllFields(): boolean {
   
   let hasError = false
   
-  fields.value.forEach(field => {
+  fields.value.forEach((field: FieldConfig) => {
     const fieldPath = field.code
     validateField(fieldPath)
     
@@ -645,6 +679,20 @@ defineExpose({
   formManager,
   allWidgets,
   handleRealSubmit
+})
+
+// 监听 props.functionDetail 变化，重新初始化表单
+watch(() => props.functionDetail, () => {
+  // 🔥 清理之前的监听器
+  formManager.off('field:change:*', handleFieldChange)
+  
+  // 重新初始化
+  initializeForm()
+}, { immediate: true })
+
+// 🔥 组件卸载时清理监听器
+onUnmounted(() => {
+  formManager.off('field:change:*', handleFieldChange)
 })
 </script>
 
