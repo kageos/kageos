@@ -63,9 +63,17 @@
             {{ row[field.code] }}
           </span>
           <!-- 🔥 其他列：使用 Widget 的 renderTableCell() 方法（组件自治） -->
+          <!-- 
+            注意：renderTableCell 可能返回字符串或 VNode
+            - 字符串：直接显示（用于简单字段）
+            - VNode：作为组件渲染（用于复杂字段如 MultiSelect）
+          -->
+          <template v-if="getCellContent(field, row[field.code]).isString">
+            {{ getCellContent(field, row[field.code]).content }}
+          </template>
           <component 
             v-else
-            :is="renderTableCell(field, row[field.code])"
+            :is="getCellContent(field, row[field.code]).content"
           />
         </template>
       </el-table-column>
@@ -347,7 +355,7 @@ const updateSearchValue = (field: FieldConfig, value: any): void => {
  * 
  * @param field 字段配置
  * @param rawValue 原始值（来自后端）
- * @returns VNode（Vue 虚拟节点）或字符串
+ * @returns { content: string | VNode, isString: boolean } - 统一返回格式，方便模板处理
  * 
  * @example
  * // FileWidget 可以这样实现：
@@ -358,7 +366,7 @@ const updateSearchValue = (field: FieldConfig, value: any): void => {
  *   ])
  * }
  */
-const renderTableCell = (field: FieldConfig, rawValue: any): any => {
+const renderTableCell = (field: FieldConfig, rawValue: any): { content: any, isString: boolean } => {
   try {
     // 🔥 将原始值转换为 FieldValue 格式
     const value = convertToFieldValue(rawValue, field)
@@ -378,14 +386,32 @@ const renderTableCell = (field: FieldConfig, rawValue: any): any => {
     
     // 🔥 调用 Widget 的 renderTableCell() 方法（组件自治）
     // 每个 Widget 可以重写此方法来自定义表格展示
-    return tempWidget.renderTableCell(value)
+    const result = tempWidget.renderTableCell(value)
+    
+    // 🔥 统一返回格式：区分字符串和 VNode
+    const isString = typeof result === 'string'
+    return {
+      content: result,
+      isString
+    }
   } catch (error) {
     // ✅ 使用 ErrorHandler 统一处理错误
-    return ErrorHandler.handleWidgetError(`TableRenderer.renderTableCell[${field.code}]`, error, {
-      showMessage: false,
-      fallbackValue: rawValue !== null && rawValue !== undefined ? String(rawValue) : '-'
-    })
+    const fallbackValue = rawValue !== null && rawValue !== undefined ? String(rawValue) : '-'
+    return {
+      content: fallbackValue,
+      isString: true
+    }
   }
+}
+
+/**
+ * 🔥 获取表格单元格内容（用于模板）
+ * 
+ * 这是一个包装函数，用于统一处理字符串和 VNode 返回值
+ * 返回格式：{ content, isString }
+ */
+const getCellContent = (field: FieldConfig, rawValue: any): { content: any, isString: boolean } => {
+  return renderTableCell(field, rawValue)
 }
 
 // ==================== 详情字段渲染（复用 Form 渲染引擎） ====================

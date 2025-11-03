@@ -325,8 +325,12 @@ export abstract class BaseWidget implements IWidgetSnapshot {
    * 子类可以覆盖此方法来自定义表格展示
    * @param value 字段值
    * @returns VNode（Vue 虚拟节点）或 字符串
+   * 
+   * 注意：为了兼容 TableRenderer，如果返回字符串，TableRenderer 会用 span 包裹
+   * 子类如果要返回 VNode，可以直接返回 h(...)
    */
   renderTableCell(value: FieldValue): any {
+    // 需要导入 h，但为了保持简洁，返回字符串，由 TableRenderer 处理
     if (!value) return '-'
     
     // 🔥 优先使用 display 属性
