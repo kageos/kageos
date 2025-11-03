@@ -675,21 +675,6 @@ watch(() => props.functionData, () => {
   }
 }
 
-/* 🔥 ID 列样式 */
-:deep(.id-column) {
-  .id-cell {
-    color: var(--el-color-primary);
-    cursor: pointer;
-    font-weight: 500;
-    transition: all 0.2s;
-    
-    &:hover {
-      color: var(--el-color-primary-light-3);
-      text-decoration: underline;
-    }
-  }
-}
-
 /* 🔥 详情抽屉样式 */
 .detail-drawer {
   :deep(.el-drawer__header) {
