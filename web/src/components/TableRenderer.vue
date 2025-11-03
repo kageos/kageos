@@ -37,6 +37,7 @@
 
     <!-- 表格 -->
     <el-table
+      ref="tableRef"
       v-loading="loading"
       :data="tableData"
       border
@@ -242,7 +243,7 @@
  * - 记录导航（上一个/下一个）
  */
 
-import { computed, ref, watch, h } from 'vue'
+import { computed, ref, watch, h, nextTick, onMounted } from 'vue'
 import { Search, Refresh, Edit, Delete, Plus, ArrowLeft, ArrowRight, DocumentCopy } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useTableOperations } from '@/composables/useTableOperations'
@@ -251,6 +252,7 @@ import { ErrorHandler } from '@/core/utils/ErrorHandler'
 import { convertToFieldValue } from '@/utils/field'
 import FormDialog from './FormDialog.vue'
 import SearchInput from './SearchInput.vue'
+import { ElTable } from 'element-plus'
 import type { Function as FunctionType } from '@/types'
 import type { FieldConfig, FieldValue } from '@/core/types/field'
 
@@ -329,6 +331,11 @@ const dialogTitle = computed(() => dialogMode.value === 'create' ? '新增' : '�
 
 /** 当前编辑的行数据 */
 const currentRow = ref<Record<string, any>>({})
+
+// ==================== 表格引用 ====================
+
+/** 表格实例引用 */
+const tableRef = ref<InstanceType<typeof ElTable> | null>(null)
 
 // ==================== 字段计算属性 ====================
 
