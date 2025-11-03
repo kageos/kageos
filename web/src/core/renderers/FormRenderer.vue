@@ -514,7 +514,7 @@ function validateAllFields(): boolean {
 }
 
 /**
- * 获取字段的错误信息（将字段 code 替换为 name）
+ * 获取字段的错误信息（将字段 code 替换为 name，并转换为中文格式）
  */
 function getFieldError(fieldCode: string): string | null {
   const errors = fieldErrors.get(fieldCode)
@@ -539,16 +539,16 @@ function getFieldError(fieldCode: string): string | null {
   let errorMessage = firstError.message || '验证失败'
   
   // 🔥 将错误消息中的字段 code 替换为 name（支持多种格式）
-  // 使用正则表达式，不区分大小写，匹配整个单词边界
-  // 这样可以匹配：phone、Phone、phone is required、Phone is required、phone: message 等
+  // 处理英文格式：phone is required -> 联系电话必填
   
-  // 方案1: 替换所有出现的字段 code（不区分大小写，单词边界）
-  const codeRegex = new RegExp(`\\b${fieldCodeValue.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi')
-  errorMessage = errorMessage.replace(codeRegex, fieldName)
-  
-  // 方案2: 如果错误消息就是 "code" 本身（没有其他内容），直接替换为 name
-  if (errorMessage.trim().toLowerCase() === fieldCodeValue.toLowerCase()) {
-    errorMessage = fieldName
+  // 1. 替换 "code is required" 格式为 "name必填"
+  const isRequiredPattern = new RegExp(`\\b${fieldCodeValue.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s+is\\s+required\\b`, 'gi')
+  if (isRequiredPattern.test(errorMessage)) {
+    errorMessage = `${fieldName}必填`
+  } else {
+    // 2. 替换所有出现的字段 code（不区分大小写，单词边界）
+    const codeRegex = new RegExp(`\\b${fieldCodeValue.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi')
+    errorMessage = errorMessage.replace(codeRegex, fieldName)
   }
   
   return errorMessage

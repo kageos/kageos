@@ -20,9 +20,15 @@ export class RequiredValidator implements Validator {
                    (Array.isArray(value.raw) && value.raw.length === 0)
     
     if (isEmpty) {
+      // 🔥 获取当前字段的 name，生成更友好的错误消息
+      const currentField = context.allFields.find(f => 
+        (f.field_path || f.code) === context.fieldPath
+      )
+      const fieldName = currentField?.name || '此字段'
+      
       return {
         valid: false,
-        message: '此字段为必填项'
+        message: `${fieldName}必填`
       }
     }
     
