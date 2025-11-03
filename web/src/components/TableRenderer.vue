@@ -363,9 +363,16 @@ const renderTableCell = (field: FieldConfig, rawValue: any): any => {
     // 🔥 将原始值转换为 FieldValue 格式
     const value = convertToFieldValue(rawValue, field)
     
+    // 🔥 将 field 转换为 core 类型的 FieldConfig（类型兼容）
+    const coreField: FieldConfig = {
+      ...field,
+      widget: field.widget || { type: 'input', config: {} },
+      data: field.data || {}
+    } as FieldConfig
+    
     // 🔥 创建临时 Widget（不需要 formManager）
     const tempWidget = WidgetBuilder.createTemporary({
-      field: field,
+      field: coreField,
       value: value
     })
     
@@ -411,10 +418,17 @@ const renderDetailField = (field: FieldConfig, rawValue: any): any => {
     // 🔥 将原始值转换为 FieldValue 格式
     const value = convertToFieldValue(rawValue, field)
     
+    // 🔥 将 field 转换为 core 类型的 FieldConfig（类型兼容）
+    const coreField: FieldConfig = {
+      ...field,
+      widget: field.widget || { type: 'input', config: {} },
+      data: field.data || {}
+    } as FieldConfig
+    
     // 🔥 创建临时 Widget（只读模式）
     // Widget 的 render() 方法会根据只读模式调整展示
     const tempWidget = WidgetBuilder.createTemporary({
-      field: field,
+      field: coreField,
       value: value
     })
     
