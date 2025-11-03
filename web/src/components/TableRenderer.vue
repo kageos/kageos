@@ -17,7 +17,7 @@
               :field="field"
               :search-type="field.search"
               :model-value="getSearchValue(field)"
-              @update:model-value="(value) => updateSearchValue(field, value)"
+              @update:model-value="(value: any) => updateSearchValue(field, value)"
             />
           </el-form-item>
         </template>
@@ -53,7 +53,7 @@
         :class-name="isIdColumn(field) ? 'id-column' : ''"
       >
         <template #default="{ row, $index }">
-          <!-- 🔥 ID 列：可点击查看详情 -->
+          <!-- 🔥 ID 列：可点击查看详情（特殊处理） -->
           <span 
             v-if="isIdColumn(field)" 
             class="id-cell clickable"
@@ -62,15 +62,15 @@
           >
             {{ row[field.code] }}
           </span>
-          <!-- 时间戳列 -->
-          <span v-else-if="field.widget.type === 'timestamp'">
-            {{ formatTimestamp(row[field.code], field.widget.config.format) }}
-          </span>
-          <!-- 普通列 -->
-          <span v-else>{{ row[field.code] }}</span>
+          <!-- 🔥 其他列：使用 Widget 的 renderTableCell() 方法（组件自治） -->
+          <component 
+            v-else
+            :is="renderTableCell(field, row[field.code])"
+          />
         </template>
       </el-table-column>
 
+      <!-- 操作列 -->
       <el-table-column 
         v-if="hasUpdateCallback || hasDeleteCallback" 
         label="操作" 
@@ -136,6 +136,7 @@
       <template #header>
         <div class="drawer-header">
           <span class="drawer-title">记录详情</span>
+          <!-- 导航按钮（上一个/下一个） -->
           <div class="drawer-navigation" v-if="tableData.length > 1">
             <el-button
               size="small"
@@ -158,6 +159,7 @@
         </div>
       </template>
 
+      <!-- 🔥 详情内容：使用 Widget 的 render() 方法（与 Form 一致） -->
       <div class="detail-content" v-if="currentDetailRow">
         <el-descriptions :column="1" border>
           <el-descriptions-item
@@ -165,12 +167,11 @@
             :key="field.code"
             :label="field.name"
           >
-            <template v-if="field.widget.type === 'timestamp'">
-              {{ formatTimestamp(currentDetailRow[field.code], field.widget.config.format) }}
-            </template>
-            <template v-else>
-              {{ currentDetailRow[field.code] || '-' }}
-            </template>
+            <!-- 🔥 使用 Widget 的 render() 方法渲染详情（只读模式） -->
+            <!-- 这样详情展示与 Form 完全一致，组件可以自定义详情展示效果 -->
+            <component 
+              :is="renderDetailField(field, currentDetailRow[field.code])"
+            />
           </el-descriptions-item>
         </el-descriptions>
       </div>
@@ -179,327 +180,328 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+/**
+ * TableRenderer - 表格渲染器组件
+ * 
+ * 设计原则：
+ * 1. **依赖倒置**：依赖 Widget 抽象接口，不依赖具体实现
+ * 2. **组件自治**：每个 Widget 负责自己的表格展示逻辑（renderTableCell）
+ * 3. **一致性**：详情展示使用 Widget.render()，与 Form 渲染一致
+ * 4. **扩展性**：新增组件时，只需实现 Widget 方法，无需修改 TableRenderer
+ * 
+ * 功能特性：
+ * - 搜索、排序、分页
+ * - CRUD 操作（新增、编辑、删除）
+ * - 详情查看（点击 ID 列）
+ * - 记录导航（上一个/下一个）
+ */
+
+import { computed, ref, watch, h } from 'vue'
 import { Search, Refresh, Edit, Delete, Plus, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { executeFunction, tableAddRow, tableUpdateRow, tableDeleteRows } from '@/api/function'
+import { ElMessage } from 'element-plus'
+import { useTableOperations } from '@/composables/useTableOperations'
+import { WidgetBuilder } from '@/core/factories/WidgetBuilder'
+import { ErrorHandler } from '@/core/utils/ErrorHandler'
+import { convertToFieldValue } from '@/utils/field'
 import FormDialog from './FormDialog.vue'
 import SearchInput from './SearchInput.vue'
-import type { Function as FunctionType, FieldConfig, SearchParams } from '@/types'
+import type { Function as FunctionType } from '@/types'
+import type { FieldConfig, FieldValue } from '@/core/types/field'
 
 interface Props {
+  /** 函数配置数据 */
   functionData: FunctionType
 }
 
 const props = defineProps<Props>()
 
-// 表格数据
-const loading = ref(false)
-const tableData = ref<any[]>([])
-const currentPage = ref(1)
-const pageSize = ref(20)
-const total = ref(0)
-const sortField = ref('')
-const sortOrder = ref('')
+// ==================== 使用 Composable（业务逻辑层） ====================
 
-// 🔥 详情抽屉状态
+/**
+ * 🔥 使用 useTableOperations 管理所有业务逻辑
+ * 
+ * 优势：
+ * - 业务逻辑可复用
+ * - 易于单元测试
+ * - TableRenderer 只负责 UI 渲染
+ */
+const {
+  // 状态
+  loading,
+  tableData,
+  searchForm,
+  currentPage,
+  pageSize,
+  total,
+  sortField,
+  sortOrder,
+  
+  // 计算属性
+  searchableFields,
+  visibleFields,
+  hasAddCallback,
+  hasUpdateCallback,
+  hasDeleteCallback,
+  
+  // 方法
+  loadTableData,
+  handleSearch,
+  handleReset,
+  handleSortChange,
+  handleSizeChange,
+  handleCurrentChange,
+  handleAdd: handleAddRow,
+  handleUpdate: handleUpdateRow,
+  handleDelete: handleDeleteRow
+} = useTableOperations({
+  functionData: props.functionData
+})
+
+// ==================== 详情抽屉状态 ====================
+
+/** 详情抽屉显示状态 */
 const showDetailDrawer = ref(false)
+
+/** 当前详情的行数据 */
 const currentDetailRow = ref<any>(null)
+
+/** 当前详情的行索引 */
 const currentDetailIndex = ref(-1)
 
-// 搜索表单
-const searchForm = ref<Record<string, any>>({})
+// ==================== 对话框相关 ====================
 
-// 可搜索字段
-const searchableFields = computed(() => {
-  return props.functionData.response.filter(field => field.search)
-})
-
-// 可见字段（根据 table_permission 过滤）
-const visibleFields = computed(() => {
-  return props.functionData.response.filter(field => {
-    const permission = field.table_permission
-    // 🔥 列表中只显示：
-    // - 空（全部权限）
-    // - read（只读字段）
-    // 不显示：
-    // - create（只在新增表单显示）
-    // - update（只在编辑表单显示）
-    return !permission || permission === '' || permission === 'read'
-  })
-})
-
-// 判断是否有新增回调
-const hasAddCallback = computed(() => {
-  const callbacks = props.functionData.callbacks || ''
-  return callbacks.includes('OnTableAddRow')
-})
-
-// 判断是否有更新回调
-const hasUpdateCallback = computed(() => {
-  const callbacks = props.functionData.callbacks || ''
-  return callbacks.includes('OnTableUpdateRow')
-})
-
-// 判断是否有删除回调
-const hasDeleteCallback = computed(() => {
-  const callbacks = props.functionData.callbacks || ''
-  return callbacks.includes('OnTableDeleteRows')
-})
-
-// 对话框相关
+/** 对话框显示状态 */
 const dialogVisible = ref(false)
+
+/** 对话框模式（新增/编辑） */
 const dialogMode = ref<'create' | 'update'>('create')
+
+/** 对话框标题 */
 const dialogTitle = computed(() => dialogMode.value === 'create' ? '新增' : '编辑')
+
+/** 当前编辑的行数据 */
 const currentRow = ref<Record<string, any>>({})
 
-// 获取操作列宽度
-const getActionColumnWidth = () => {
+// ==================== UI 辅助方法 ====================
+
+/**
+ * 获取操作列宽度
+ * 根据是否有编辑/删除回调动态计算宽度
+ */
+const getActionColumnWidth = (): number => {
   let width = 80
   if (hasUpdateCallback.value) width += 60
   if (hasDeleteCallback.value) width += 60
   return width
 }
 
-// 格式化时间戳
-const formatTimestamp = (timestamp: number, format = 'YYYY-MM-DD HH:mm:ss') => {
-  if (!timestamp) return ''
-  const date = new Date(timestamp)
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  const hours = String(date.getHours()).padStart(2, '0')
-  const minutes = String(date.getMinutes()).padStart(2, '0')
-  const seconds = String(date.getSeconds()).padStart(2, '0')
-  
-  if (format.includes('HH:mm:ss')) {
-    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
-  }
-  return `${year}-${month}-${day}`
-}
-
-// 获取列宽度
-const getColumnWidth = (field: FieldConfig) => {
+/**
+ * 获取列宽度
+ * 根据字段类型返回合适的列宽
+ */
+const getColumnWidth = (field: FieldConfig): number => {
   if (field.widget.type === 'timestamp') return 180
   if (field.widget.type === 'text_area') return 300
   return 150
 }
 
-// 🔥 获取搜索值
+/**
+ * 🔥 判断是否是 ID 列
+ * 直接看 widget.type，不猜测字段名
+ */
+const isIdColumn = (field: FieldConfig): boolean => {
+  return field.widget?.type === 'ID'
+}
+
+// ==================== 搜索表单相关 ====================
+
+/**
+ * 获取搜索值
+ * @param field 字段配置
+ * @returns 搜索值
+ */
 const getSearchValue = (field: FieldConfig): any => {
   return searchForm.value[field.code] || null
 }
 
-// 🔥 更新搜索值
+/**
+ * 更新搜索值
+ * @param field 字段配置
+ * @param value 新的搜索值
+ */
 const updateSearchValue = (field: FieldConfig, value: any): void => {
   searchForm.value[field.code] = value
 }
 
-// 构建搜索参数
-const buildSearchParams = (): SearchParams => {
-  const params: SearchParams = {
-    page: currentPage.value,
-    page_size: pageSize.value
-  }
+// ==================== 表格单元格渲染（组件自治） ====================
 
-  // 排序
-  if (sortField.value && sortOrder.value) {
-    params.sort = `${sortField.value}:${sortOrder.value}`
-  }
-
-  // 🔥 遍历搜索表单，构建查询参数（新逻辑）
-  searchableFields.value.forEach(field => {
-    const value = searchForm.value[field.code]
-    if (!value) return
-
-    const searchType = field.search || ''
-    
-    // 精确匹配
-    if (searchType.includes('eq')) {
-      params.eq = `${field.code}:${value}`
-    }
-    // 模糊查询
-    else if (searchType.includes('like')) {
-      params.like = `${field.code}:${value}`
-    }
-    // 包含查询
-    else if (searchType.includes('in')) {
-      params.in = `${field.code}:${value}`
-    }
-    // 范围查询
-    else if (searchType.includes('gte') && searchType.includes('lte')) {
-      // 可能是对象 {min, max} 或数组 [start, end]
-      if (typeof value === 'object') {
-        if (Array.isArray(value) && value.length === 2) {
-          // 日期范围数组
-          if (value[0]) params.gte = `${field.code}:${value[0]}`
-          if (value[1]) params.lte = `${field.code}:${value[1]}`
-        } else if (value.min !== undefined || value.max !== undefined) {
-          // 数字范围对象
-          if (value.min !== undefined && value.min !== null && value.min !== '') {
-            params.gte = `${field.code}:${value.min}`
-          }
-          if (value.max !== undefined && value.max !== null && value.max !== '') {
-            params.lte = `${field.code}:${value.max}`
-          }
-        }
-      }
-    }
-  })
-
-  return params
-}
-
-// 加载表格数据
-const loadTableData = async () => {
+/**
+ * 🔥 渲染表格单元格
+ * 
+ * 使用 Widget 的 renderTableCell() 方法，实现组件自治
+ * 
+ * 设计优势：
+ * - 符合依赖倒置原则：TableRenderer 依赖 Widget 抽象接口
+ * - 扩展性强：新增组件只需实现 renderTableCell()，无需修改 TableRenderer
+ * - 展示一致：组件自己决定如何展示，如 FileWidget 显示文件图标、MultiSelectWidget 显示标签
+ * 
+ * @param field 字段配置
+ * @param rawValue 原始值（来自后端）
+ * @returns VNode（Vue 虚拟节点）或字符串
+ * 
+ * @example
+ * // FileWidget 可以这样实现：
+ * renderTableCell(value: FieldValue) {
+ *   return h('div', [
+ *     h(ElIcon, { File }),
+ *     h('span', `共 ${files.length} 个文件`)
+ *   ])
+ * }
+ */
+const renderTableCell = (field: FieldConfig, rawValue: any): any => {
   try {
-    loading.value = true
-    console.log('[TableRenderer] 加载数据')
-    console.log('[TableRenderer]   Method:', props.functionData.method)
-    console.log('[TableRenderer]   Router:', props.functionData.router)
+    // 🔥 将原始值转换为 FieldValue 格式
+    const value = convertToFieldValue(rawValue, field)
     
-    const params = buildSearchParams()
-    console.log('[TableRenderer] 查询参数:', params)
+    // 🔥 创建临时 Widget（不需要 formManager）
+    const tempWidget = WidgetBuilder.createTemporary({
+      field: field,
+      value: value
+    })
     
-    const response = await executeFunction(props.functionData.method, props.functionData.router, params)
-    console.log('[TableRenderer] 数据加载成功:', response)
-    
-    tableData.value = response.items || []
-    if (response.paginated) {
-      total.value = response.paginated.total_count
-      currentPage.value = response.paginated.current_page
-    }
+    // 🔥 调用 Widget 的 renderTableCell() 方法（组件自治）
+    // 每个 Widget 可以重写此方法来自定义表格展示
+    return tempWidget.renderTableCell(value)
   } catch (error) {
-    console.error('[TableRenderer] 加载数据失败:', error)
-  } finally {
-    loading.value = false
+    // ✅ 使用 ErrorHandler 统一处理错误
+    return ErrorHandler.handleWidgetError(`TableRenderer.renderTableCell[${field.code}]`, error, {
+      showMessage: false,
+      fallbackValue: rawValue !== null && rawValue !== undefined ? String(rawValue) : '-'
+    })
   }
 }
 
-// 搜索
-const handleSearch = () => {
-  currentPage.value = 1
-  loadTableData()
+// ==================== 详情字段渲染（复用 Form 渲染引擎） ====================
+
+/**
+ * 🔥 渲染详情字段
+ * 
+ * 使用 Widget 的 render() 方法，与 Form 渲染完全一致
+ * 
+ * 设计优势：
+ * - 详情展示与 Form 一致：FileWidget 在详情中也显示文件上传组件（只读）
+ * - SelectWidget 在详情中显示 label，而不是 raw 值
+ * - 无需重复实现详情渲染逻辑
+ * 
+ * @param field 字段配置
+ * @param rawValue 原始值（来自后端）
+ * @returns VNode（Vue 虚拟节点）
+ * 
+ * @example
+ * // FileWidget 的 render() 会自动适配只读模式：
+ * render() {
+ *   if (readonly) {
+ *     return h('div', files.map(file => h(FilePreview, { file })))
+ *   }
+ *   return h(ElUpload, { ... })
+ * }
+ */
+const renderDetailField = (field: FieldConfig, rawValue: any): any => {
+  try {
+    // 🔥 将原始值转换为 FieldValue 格式
+    const value = convertToFieldValue(rawValue, field)
+    
+    // 🔥 创建临时 Widget（只读模式）
+    // Widget 的 render() 方法会根据只读模式调整展示
+    const tempWidget = WidgetBuilder.createTemporary({
+      field: field,
+      value: value
+    })
+    
+    // 🔥 调用 Widget 的 render() 方法（与 Form 一致）
+    // 这样详情展示就与 Form 渲染完全一致了
+    return tempWidget.render()
+  } catch (error) {
+    // ✅ 使用 ErrorHandler 统一处理错误
+    return ErrorHandler.handleWidgetError(`TableRenderer.renderDetailField[${field.code}]`, error, {
+      showMessage: false,
+      fallbackValue: h('span', rawValue !== null && rawValue !== undefined ? String(rawValue) : '-')
+    })
+  }
 }
 
-// 重置
-const handleReset = () => {
-  searchForm.value = {}
-  currentPage.value = 1
-  sortField.value = ''
-  sortOrder.value = ''
-  loadTableData()
-}
+// ==================== CRUD 操作 ====================
 
-// 排序变化
-const handleSortChange = ({ prop, order }: any) => {
-  sortField.value = prop
-  sortOrder.value = order === 'ascending' ? 'asc' : order === 'descending' ? 'desc' : ''
-  loadTableData()
-}
-
-// 分页变化
-const handleSizeChange = (newSize: number) => {
-  pageSize.value = newSize
-  currentPage.value = 1
-  loadTableData()
-}
-
-const handleCurrentChange = (newPage: number) => {
-  currentPage.value = newPage
-  loadTableData()
-}
-
-// 新增
-const handleAdd = () => {
+/**
+ * 新增记录
+ * 打开对话框，模式设为 'create'
+ */
+const handleAdd = (): void => {
   dialogMode.value = 'create'
   currentRow.value = {}
   dialogVisible.value = true
 }
 
-// 编辑
-const handleEdit = (row: any) => {
+/**
+ * 编辑记录
+ * 打开对话框，模式设为 'update'，加载当前行数据
+ * @param row 要编辑的行数据
+ */
+const handleEdit = (row: any): void => {
   dialogMode.value = 'update'
   currentRow.value = { ...row }
   dialogVisible.value = true
 }
 
-// 删除
-const handleDelete = async (row: any) => {
-  try {
-    await ElMessageBox.confirm(
-      '确定要删除这条记录吗？',
-      '提示',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
-    
-    console.log('[TableRenderer] 删除记录, ID:', row.id)
-    
-    // 调用删除回调
-    await tableDeleteRows(props.functionData.method, props.functionData.router, [row.id])
-    
-    ElMessage.success('删除成功')
-    
-    // 重新加载数据
-    loadTableData()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      console.error('[TableRenderer] 删除失败:', error)
-      ElMessage.error(error.message || '删除失败')
-    }
-  }
+/**
+ * 删除记录
+ * 调用 composable 的删除方法
+ * @param row 要删除的行数据
+ */
+const handleDelete = async (row: any): Promise<void> => {
+  await handleDeleteRow(row.id)
 }
 
-// 对话框提交
-const handleDialogSubmit = async (data: Record<string, any>) => {
-  try {
-    console.log('[TableRenderer] 提交表单')
-    console.log('[TableRenderer]   Mode:', dialogMode.value)
-    console.log('[TableRenderer]   Data:', data)
-    
-    if (dialogMode.value === 'create') {
-      // 调用新增回调
-      await tableAddRow(props.functionData.method, props.functionData.router, data)
-      ElMessage.success('新增成功')
-    } else {
-      // 调用更新回调（需要包含 id）
-      const updateData = {
-        id: currentRow.value.id,
-        ...data
-      }
-      await tableUpdateRow(props.functionData.method, props.functionData.router, updateData)
-      ElMessage.success('更新成功')
-    }
-    
+/**
+ * 对话框提交
+ * 根据模式调用新增或更新方法
+ * @param data 表单数据
+ */
+const handleDialogSubmit = async (data: Record<string, any>): Promise<void> => {
+  let success = false
+  
+  if (dialogMode.value === 'create') {
+    success = await handleAddRow(data)
+  } else {
+    success = await handleUpdateRow(currentRow.value.id, data)
+  }
+  
+  if (success) {
     // 关闭对话框
     dialogVisible.value = false
-    
-    // 重新加载数据
-    loadTableData()
-  } catch (error: any) {
-    console.error('[TableRenderer] 提交失败:', error)
-    ElMessage.error(error.message || '操作失败')
   }
 }
 
-// 🔥 判断是否是 ID 列（直接看 widget.type）
-const isIdColumn = (field: FieldConfig): boolean => {
-  return field.widget?.type === 'ID'
-}
+// ==================== 详情抽屉操作 ====================
 
-// 🔥 显示详情
-const handleShowDetail = (row: any, index: number) => {
+/**
+ * 显示详情
+ * 打开详情抽屉，加载指定行的数据
+ * @param row 行数据
+ * @param index 行索引
+ */
+const handleShowDetail = (row: any, index: number): void => {
   currentDetailRow.value = row
   currentDetailIndex.value = index
   showDetailDrawer.value = true
 }
 
-// 🔥 导航（上一个/下一个）
-const handleNavigate = (direction: 'prev' | 'next') => {
+/**
+ * 导航（上一个/下一个）
+ * 在详情抽屉中切换记录
+ * @param direction 导航方向
+ */
+const handleNavigate = (direction: 'prev' | 'next'): void => {
   if (!tableData.value || tableData.value.length === 0) return
 
   if (direction === 'prev' && currentDetailIndex.value > 0) {
@@ -511,7 +513,12 @@ const handleNavigate = (direction: 'prev' | 'next') => {
   }
 }
 
-// 监听函数变化，重新加载数据
+// ==================== 监听函数变化 ====================
+
+/**
+ * 监听函数配置变化
+ * 当函数配置更新时，重新加载数据
+ */
 watch(() => props.functionData, () => {
   searchForm.value = {}
   currentPage.value = 1
@@ -653,4 +660,3 @@ watch(() => props.functionData, () => {
   }
 }
 </style>
-
