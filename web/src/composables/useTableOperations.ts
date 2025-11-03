@@ -154,9 +154,10 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
       page_size: pageSize.value
     }
     
-    // 排序
+    // 排序（格式：sorts=field:order）
+    // 后端支持多列排序（sorts=field1:order1,field2:order2），但我们目前只支持单列排序
     if (sortField.value && sortOrder.value) {
-      params.sort = `${sortField.value}:${sortOrder.value}`
+      params.sorts = `${sortField.value}:${sortOrder.value}`
     }
     
     // 遍历搜索表单，构建查询参数
