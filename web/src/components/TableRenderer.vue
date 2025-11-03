@@ -54,10 +54,9 @@
         <template #default="{ row, $index }">
           <el-button
             link
-            type="primary"
+            type="danger"
             size="small"
             @click="handleShowDetail(row, $index)"
-            class="detail-link-button"
           >
             #{{ row[idField.code] }}
           </el-button>
@@ -656,19 +655,7 @@ watch(() => props.functionData, () => {
   color: var(--el-color-danger) !important;
 }
 
-/* 🔥 控制中心列样式 - 低调的链接按钮 */
-:deep(.control-column) {
-  .detail-link-button {
-    font-size: 13px;
-    font-weight: normal;
-    padding: 0;
-    color: var(--el-text-color-secondary);
-    
-    &:hover {
-      color: var(--el-color-primary);
-    }
-  }
-}
+// 控制中心列使用删除按钮样式，无需额外样式
 
 /* 🔥 详情抽屉样式 */
 .detail-drawer {
