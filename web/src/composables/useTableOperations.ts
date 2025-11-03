@@ -257,11 +257,21 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
   
   /**
    * 排序变化
-   * @param sort 排序信息 { prop: 字段名, order: 'ascending' | 'descending' | null }
+   * @param sort 排序信息 { column: 列对象, prop: 字段名, order: 'ascending' | 'descending' | null }
    */
-  const handleSortChange = (sort: { prop: string; order: string }): void => {
-    sortField.value = sort.prop
-    sortOrder.value = sort.order === 'ascending' ? 'asc' : sort.order === 'descending' ? 'desc' : ''
+  const handleSortChange = (sort: { column?: any; prop?: string; order?: string | null }): void => {
+    const prop = sort.prop
+    const order = sort.order
+    
+    if (prop && order) {
+      sortField.value = prop
+      sortOrder.value = order === 'ascending' ? 'asc' : order === 'descending' ? 'desc' : ''
+    } else {
+      // 取消排序
+      sortField.value = ''
+      sortOrder.value = ''
+    }
+    
     loadTableData()
   }
   

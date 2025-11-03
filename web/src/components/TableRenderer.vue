@@ -69,7 +69,7 @@
         :key="field.code"
         :prop="field.code"
         :label="field.name"
-        :sortable="field.search ? 'custom' : false"
+        :sortable="'custom'"
         :min-width="getColumnWidth(field)"
       >
         <template #default="{ row, $index }">
