@@ -41,6 +41,8 @@ export class TimestampWidget extends BaseWidget {
       valueFormat: this.timestampConfig.valueFormat || 'x',  // 默认返回时间戳（毫秒）
       clearable: this.timestampConfig.clearable !== false,
       shortcuts: showShortcuts ? getDateTimeShortcuts(pickerType) : undefined,  // 添加快捷选择
+      // 🔥 禁用 Element Plus 的原生验证（使用我们的自定义验证系统）
+      validateEvent: false,
       style: { width: '100%' },
       onChange: (value: number | string | [number, number] | [string, string] | null) => {
         // 转换为时间戳（整数）

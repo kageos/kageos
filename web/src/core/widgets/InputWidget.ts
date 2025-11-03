@@ -41,7 +41,14 @@ export class InputWidget extends BaseWidget {
       minlength: this.inputConfig.minlength,
       showWordLimit: this.inputConfig.showWordLimit || false,
       // 🔥 禁用 Element Plus 的原生验证（使用我们的自定义验证系统）
-      validateEvent: false
+      validateEvent: false,
+      // 🔥 失去焦点时触发验证（通过 emit 通知 formRenderer）
+      onBlur: () => {
+        this.emit('field:blur', {
+          fieldPath: this.fieldPath,
+          value: this.getValue()
+        })
+      }
     }
 
     // 密码框配置
