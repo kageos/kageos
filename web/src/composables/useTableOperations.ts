@@ -51,6 +51,7 @@ export interface TableOperationsReturn {
   hasDeleteCallback: ReturnType<typeof computed<boolean>>
   isDefaultSort: ReturnType<typeof computed<boolean>>
   defaultSortConfig: ReturnType<typeof computed<{ prop: string; order: 'descending' } | null>>
+  getFieldSortInfo: (fieldCode: string) => { index: number; order: 'asc' | 'desc' } | null
   
   // 方法
   loadTableData: () => Promise<void>
@@ -219,6 +220,33 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
     }
     return null
   })
+  
+  /**
+   * 获取字段的排序信息（用于 UI 显示）
+   * @param fieldCode 字段代码
+   * @returns 排序信息 { index: 排序序号（从1开始）, order: 'asc' | 'desc' } 或 null
+   */
+  const getFieldSortInfo = (fieldCode: string): { index: number; order: 'asc' | 'desc' } | null => {
+    // 如果使用默认排序，检查是否是 id 字段
+    if (isDefaultSort.value) {
+      const idFieldCode = getIdFieldCode()
+      if (idFieldCode === fieldCode) {
+        return { index: 1, order: 'desc' }
+      }
+      return null
+    }
+    
+    // 检查手动排序
+    const index = sorts.value.findIndex(item => item.field === fieldCode)
+    if (index !== -1) {
+      return {
+        index: index + 1,
+        order: sorts.value[index].order
+      }
+    }
+    
+    return null
+  }
   
   // ==================== 业务逻辑 ====================
   
@@ -670,6 +698,7 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
     defaultSortConfig,
     
     // 方法
+    getFieldSortInfo,
     loadTableData,
     handleSearch,
     handleReset,
