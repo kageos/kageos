@@ -156,7 +156,10 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
     
     // 排序（格式：sorts=field:order）
     // 后端支持多列排序（sorts=field1:order1,field2:order2），但我们目前只支持单列排序
-    if (sortField.value && sortOrder.value) {
+    // 确保 sortField 和 sortOrder 都有值且不为空字符串
+    if (sortField.value && sortOrder.value && 
+        typeof sortField.value === 'string' && sortField.value.trim() !== '' &&
+        typeof sortOrder.value === 'string' && sortOrder.value.trim() !== '') {
       params.sorts = `${sortField.value}:${sortOrder.value}`
     }
     
@@ -217,6 +220,11 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
       
       const params = buildSearchParams()
       console.log('[useTableOperations] 查询参数:', params)
+      console.log('[useTableOperations] 排序参数:', {
+        sortField: sortField.value,
+        sortOrder: sortOrder.value,
+        sorts: params.sorts
+      })
       
       const response = await executeFunction(functionData.method, functionData.router, params) as TableResponse
       console.log('[useTableOperations] 数据加载成功:', response)

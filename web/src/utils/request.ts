@@ -152,7 +152,22 @@ export function get<T = any>(url: string, params?: any, useBody: boolean = false
     })
   } else {
     // 标准场景：GET 请求使用查询参数
-    return service.get(url, { params })
+    // 确保 params 是对象，并且只包含有值的字段
+    const cleanParams: Record<string, any> = {}
+    if (params && typeof params === 'object') {
+      Object.keys(params).forEach(key => {
+        const value = params[key]
+        // 只包含非空值（排除 null、undefined、空字符串）
+        if (value !== null && value !== undefined && value !== '') {
+          cleanParams[key] = value
+        }
+      })
+    }
+    console.log('[Request GET] URL:', url)
+    console.log('[Request GET] Original Params:', params)
+    console.log('[Request GET] Cleaned Params:', cleanParams)
+    console.log('[Request GET] Sorts:', cleanParams.sorts)
+    return service.get(url, { params: cleanParams })
   }
 }
 
