@@ -1,12 +1,13 @@
 package widget
 
 type Field struct {
-	Code   string     `json:"code"` //从json标签里解析，
-	Desc   string     `json:"desc"` //
-	Name   string     `json:"name"`
-	Search string     `json:"search"`
-	Data   *FieldData `json:"data"`
-	Widget struct {
+	Code      string     `json:"code"` //从json标签里解析，
+	Name      string     `json:"name"`
+	FieldName string     `json:"field_name"`
+	Desc      string     `json:"desc"` //
+	Search    string     `json:"search"`
+	Data      *FieldData `json:"data"`
+	Widget    struct {
 		Type   string      `json:"type"`
 		Config interface{} `json:"config"`
 	} `json:"widget"`

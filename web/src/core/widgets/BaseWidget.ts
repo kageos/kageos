@@ -88,6 +88,35 @@ export abstract class BaseWidget implements IWidgetSnapshot {
   protected getConfig<T = any>(): T {
     return (this.field.widget?.config as T) || {} as T
   }
+  
+  /**
+   * 🔥 验证当前字段
+   * 
+   * @param validationEngine 验证引擎实例（从 formRenderer 获取）
+   * @param allFields 所有字段配置（从 formRenderer 获取）
+   * @returns 验证错误列表（空数组表示验证通过）
+   */
+  validate(validationEngine: any, allFields: FieldConfig[]): any[] {
+    if (!this.formManager) {
+      return []  // 临时 Widget 不需要验证
+    }
+    
+    if (!this.field.validation) {
+      return []  // 无验证规则
+    }
+    
+    if (!validationEngine || typeof validationEngine.validateField !== 'function') {
+      return []  // 验证引擎未初始化
+    }
+    
+    try {
+      const value = this.getValue()
+      return validationEngine.validateField(this.field, value, allFields)
+    } catch (error) {
+      Logger.error('[BaseWidget]', `验证字段 ${this.field.code} 失败`, error)
+      return []  // 验证失败不影响表单提交（后端会兜底）
+    }
+  }
 
   /**
    * 获取字段的默认值

@@ -293,6 +293,7 @@ func ConvertTagsToField(tags *FieldTags) *Field {
 		Code:            tags.GetCode(),
 		Name:            tags.WidgetParsed["name"], // 从widget标签中获取显示名称
 		Desc:            tags.WidgetParsed["desc"], // 从widget标签中获取详细说明
+		FieldName:       tags.FieldName,
 		Search:          tags.Search,
 		Validation:      tags.Validate,
 		TablePermission: tags.Permission,

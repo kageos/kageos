@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/ai-agent-os/ai-agent-os/pkg/jsonx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/pkg/msgx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
@@ -129,121 +128,6 @@ func (a *App) loadVersion(versionFile string) ([]*model.ApiInfo, error) {
 	return versionInfo.Apis, nil
 }
 
-// deepEqualStrings 比较字符串切片是否相等
-func (a *App) deepEqualStrings(a1, a2 []string) bool {
-	if len(a1) != len(a2) {
-		return false
-	}
-	for i, v := range a1 {
-		if a2[i] != v {
-			return false
-		}
-	}
-	return true
-}
-
-// deepEqualInterfaces 比较interface{}是否相等（使用jsonx.DeepEqual）
-func (a *App) deepEqualInterfaces(a1, a2 interface{}) bool {
-	logger.Infof(context.Background(), "      Comparing values: old=%T %v new=%T %v", a1, a1, a2, a2)
-
-	equal := jsonx.DeepEqual(a1, a2)
-	logger.Infof(context.Background(), "      jsonx.DeepEqual result: %v", equal)
-	return equal
-}
-
-// 比较两个API信息是否相同
-func (a *App) compareApis(oldApi, newApi *model.ApiInfo) bool {
-	logger.Infof(context.Background(), "  Comparing API basic info:")
-	logger.Infof(context.Background(), "    Code: old='%s' new='%s' equal=%v", oldApi.Name, newApi.Name, oldApi.Name == newApi.Name)
-	logger.Infof(context.Background(), "    Desc: old='%s' new='%s' equal=%v", oldApi.Desc, newApi.Desc, oldApi.Desc == newApi.Desc)
-	logger.Infof(context.Background(), "    Tags: old=%v new=%v equal=%v", oldApi.Tags, newApi.Tags, a.deepEqualStrings(oldApi.Tags, newApi.Tags))
-	logger.Infof(context.Background(), "    CreateTables: old=%v new=%v equal=%v", oldApi.CreateTables, newApi.CreateTables, a.deepEqualStrings(oldApi.CreateTables, newApi.CreateTables))
-
-	// 比较基本信息（排除版本信息，因为版本信息会自然变化）
-	if oldApi.Name != newApi.Name ||
-		oldApi.Desc != newApi.Desc ||
-		!a.deepEqualStrings(oldApi.Tags, newApi.Tags) ||
-		!a.deepEqualStrings(oldApi.CreateTables, newApi.CreateTables) {
-		logger.Infof(context.Background(), "  Basic info comparison failed")
-		return false
-	}
-
-	// 比较请求参数
-	logger.Infof(context.Background(), "  Comparing request fields...")
-	if !a.compareFields(oldApi.Request, newApi.Request) {
-		logger.Infof(context.Background(), "  Request fields comparison failed")
-		return false
-	}
-
-	// 比较响应参数
-	logger.Infof(context.Background(), "  Comparing response fields...")
-	if !a.compareFields(oldApi.Response, newApi.Response) {
-		logger.Infof(context.Background(), "  Response fields comparison failed")
-		return false
-	}
-
-	logger.Infof(context.Background(), "  API comparison passed")
-	return true
-}
-
-// 比较字段列表
-func (a *App) compareFields(oldFields, newFields []*widget.Field) bool {
-	logger.Infof(context.Background(), "    Field count: old=%d new=%d", len(oldFields), len(newFields))
-	if len(oldFields) != len(newFields) {
-		logger.Infof(context.Background(), "    Field count mismatch")
-		return false
-	}
-
-	// 创建字段映射
-	oldMap := make(map[string]*widget.Field)
-	newMap := make(map[string]*widget.Field)
-
-	for _, field := range oldFields {
-		oldMap[field.Code] = field
-	}
-
-	for _, field := range newFields {
-		newMap[field.Code] = field
-	}
-
-	// 比较每个字段
-	for code, oldField := range oldMap {
-		newField, exists := newMap[code]
-		if !exists {
-			logger.Infof(context.Background(), "    Field %s not found in new fields", code)
-			return false
-		}
-
-		logger.Infof(context.Background(), "    Comparing field %s", code)
-		if !a.compareField(oldField, newField) {
-			logger.Infof(context.Background(), "    Field %s comparison failed", code)
-			return false
-		}
-	}
-
-	logger.Infof(context.Background(), "    All fields comparison passed")
-	return true
-}
-
-// 比较单个字段
-func (a *App) compareField(oldField, newField *widget.Field) bool {
-	logger.Infof(context.Background(), "      Code: old='%s' new='%s' equal=%v", oldField.Code, newField.Code, oldField.Code == newField.Code)
-	logger.Infof(context.Background(), "      Code: old='%s' new='%s' equal=%v", oldField.Name, newField.Name, oldField.Name == newField.Name)
-	logger.Infof(context.Background(), "      Desc: old='%s' new='%s' equal=%v", oldField.Desc, newField.Desc, oldField.Desc == newField.Desc)
-	logger.Infof(context.Background(), "      Widget.Type: old='%s' new='%s' equal=%v", oldField.Widget.Type, newField.Widget.Type, oldField.Widget.Type == newField.Widget.Type)
-	logger.Infof(context.Background(), "      Widget.Config: old=%v new=%v equal=%v", oldField.Widget.Config, newField.Widget.Config, a.deepEqualInterfaces(oldField.Widget.Config, newField.Widget.Config))
-	logger.Infof(context.Background(), "      Validation: old='%s' new='%s' equal=%v", oldField.Validation, newField.Validation, oldField.Validation == newField.Validation)
-
-	result := oldField.Code == newField.Code &&
-		oldField.Name == newField.Name &&
-		oldField.Desc == newField.Desc &&
-		oldField.Widget.Type == newField.Widget.Type &&
-		a.deepEqualInterfaces(oldField.Widget.Config, newField.Widget.Config) &&
-		oldField.Validation == newField.Validation
-
-	logger.Infof(context.Background(), "      Field comparison result: %v", result)
-	return result
-}
 
 // 检查版本是否存在于版本列表中
 func (a *App) containsVersion(versions []string, version string) bool {
@@ -313,14 +197,14 @@ func (a *App) diffApi() (add []*model.ApiInfo, update []*model.ApiInfo, delete [
 		}
 	}
 
-	// 找出修改的API
-	for key, currentApi := range currentMap {
-		if previousApi, exists := previousMap[key]; exists {
-			logger.Infof(context.Background(), "Comparing API %s: %s %s", key, currentApi.Method, currentApi.Router)
+		// 找出修改的API
+		for key, currentApi := range currentMap {
+			if previousApi, exists := previousMap[key]; exists {
+				logger.Infof(context.Background(), "Comparing API %s: %s %s", key, currentApi.Method, currentApi.Router)
 
-			// 先比较API是否真的变更了
-			isEqual := a.compareApis(previousApi, currentApi)
-			logger.Infof(context.Background(), "API %s comparison result: %v", key, isEqual)
+				// 先比较API是否真的变更了
+				isEqual := previousApi.IsEqual(currentApi)
+				logger.Infof(context.Background(), "API %s comparison result: %v", key, isEqual)
 
 			if !isEqual {
 				logger.Infof(context.Background(), "API %s has changed, adding to update list", key)
