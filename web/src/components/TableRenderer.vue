@@ -48,17 +48,19 @@
         v-if="idField"
         label=""
         fixed="left"
-        width="70"
+        width="80"
         class-name="control-column"
       >
         <template #default="{ row, $index }">
-          <span 
-            class="detail-link"
+          <el-button
+            link
+            type="primary"
+            size="small"
             @click="handleShowDetail(row, $index)"
-            :title="'查看详情 #' + row[idField.code]"
+            class="detail-link-button"
           >
             #{{ row[idField.code] }}
-          </span>
+          </el-button>
         </template>
       </el-table-column>
 
@@ -654,23 +656,16 @@ watch(() => props.functionData, () => {
   color: var(--el-color-danger) !important;
 }
 
-/* 🔥 控制中心列样式 - 不显眼的文本链接 */
+/* 🔥 控制中心列样式 - 低调的链接按钮 */
 :deep(.control-column) {
-  .detail-link {
-    display: inline-block;
+  .detail-link-button {
     font-size: 13px;
+    font-weight: normal;
+    padding: 0;
     color: var(--el-text-color-secondary);
-    cursor: pointer;
-    transition: all 0.2s;
-    user-select: none;
     
     &:hover {
       color: var(--el-color-primary);
-      text-decoration: underline;
-    }
-    
-    &:active {
-      color: var(--el-color-primary-dark-2);
     }
   }
 }
