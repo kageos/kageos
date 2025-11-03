@@ -178,7 +178,7 @@
         </div>
       </template>
 
-      <!-- 🔥 详情内容：使用 Widget 的 render() 方法（与 Form 一致） -->
+      <!-- 🔥 详情内容：纯展示模式，参考旧版本设计 -->
       <div class="detail-content" v-if="currentDetailRow">
         <el-descriptions :column="1" border>
           <el-descriptions-item
@@ -186,8 +186,7 @@
             :key="field.code"
             :label="field.name"
           >
-            <!-- 🔥 使用 Widget 的 render() 方法渲染详情（只读模式） -->
-            <!-- 这样详情展示与 Form 完全一致，组件可以自定义详情展示效果 -->
+            <!-- 🔥 纯展示模式：根据字段类型格式化显示，不渲染输入框 -->
             <component 
               :is="renderDetailField(field, currentDetailRow[field.code])"
             />
@@ -435,53 +434,84 @@ const getCellContent = (field: FieldConfig, rawValue: any): { content: any, isSt
   return renderTableCell(field, rawValue)
 }
 
-// ==================== 详情字段渲染（复用 Form 渲染引擎） ====================
+// ==================== 详情字段渲染（纯展示模式） ====================
 
 /**
- * 🔥 渲染详情字段
+ * 🔥 格式化详情字段显示值
  * 
- * 使用 Widget 的 render() 方法，与 Form 渲染完全一致
+ * 参考旧版本的设计，纯展示模式，不渲染输入框
  * 
- * 设计优势：
- * - 详情展示与 Form 一致：FileWidget 在详情中也显示文件上传组件（只读）
- * - SelectWidget 在详情中显示 label，而不是 raw 值
- * - 无需重复实现详情渲染逻辑
+ * 根据字段类型格式化显示：
+ * - 文本：直接显示
+ * - 数字：格式化显示
+ * - 布尔：显示 Tag（是/否）
+ * - 日期时间：格式化显示
+ * - 数组：显示多个 Tag
+ * - Select/MultiSelect：显示 label 标签
  * 
  * @param field 字段配置
  * @param rawValue 原始值（来自后端）
- * @returns VNode（Vue 虚拟节点）
- * 
- * @example
- * // FileWidget 的 render() 会自动适配只读模式：
- * render() {
- *   if (readonly) {
- *     return h('div', files.map(file => h(FilePreview, { file })))
- *   }
- *   return h(ElUpload, { ... })
- * }
+ * @returns 格式化的显示内容（字符串或 VNode）
  */
 const renderDetailField = (field: FieldConfig, rawValue: any): any => {
   try {
     // 🔥 将原始值转换为 FieldValue 格式
     const value = convertToFieldValue(rawValue, field)
     
-    // 🔥 将 field 转换为 core 类型的 FieldConfig（类型兼容）
-    const coreField: FieldConfig = {
-      ...field,
-      widget: field.widget || { type: 'input', config: {} },
-      data: field.data || {}
-    } as FieldConfig
+    // 🔥 优先使用 display 值（已经格式化好的）
+    if (value.display && value.display !== '-') {
+      // 如果是数组或多选，可能需要特殊处理
+      if (field.widget?.type === 'multiselect' && Array.isArray(value.raw)) {
+        return h('div', { style: 'display: flex; flex-wrap: wrap; gap: 4px;' },
+          value.raw.map((item: any) => {
+            const itemDisplay = value.meta?.displayInfo?.[item]?.label || String(item)
+            return h('el-tag', { size: 'small' }, () => itemDisplay)
+          })
+        )
+      }
+      
+      // Select 类型：显示标签
+      if (field.widget?.type === 'select' && value.meta?.displayInfo) {
+        const label = value.meta.displayInfo.label || value.display
+        return h('el-tag', { type: 'primary', size: 'default' }, () => label)
+      }
+      
+      // 布尔类型：显示 Tag
+      if (field.data?.type === 'boolean' || field.widget?.type === 'switch') {
+        const boolValue = value.raw === true || value.raw === 'true' || value.raw === 1
+        return h('el-tag', {
+          type: boolValue ? 'success' : 'info',
+          size: 'default'
+        }, () => boolValue ? '是' : '否')
+      }
+      
+      // 数字类型：格式化显示
+      if (field.data?.type === 'number' || field.data?.type === 'float' || field.widget?.type === 'number' || field.widget?.type === 'float') {
+        return h('span', { style: 'font-weight: 500;' }, value.display)
+      }
+      
+      // 时间戳类型：已格式化
+      if (field.widget?.type === 'timestamp') {
+        return h('span', value.display)
+      }
+      
+      // 数组类型：显示多个 Tag
+      if (Array.isArray(value.raw) && value.raw.length > 0) {
+        return h('div', { style: 'display: flex; flex-wrap: wrap; gap: 4px;' },
+          value.raw.map((item: any) => h('el-tag', { size: 'small' }, () => String(item)))
+        )
+      }
+      
+      // 默认：直接显示文本
+      return h('span', value.display)
+    }
     
-    // 🔥 创建临时 Widget（只读模式）
-    // Widget 的 render() 方法会根据只读模式调整展示
-    const tempWidget = WidgetBuilder.createTemporary({
-      field: coreField,
-      value: value
-    })
+    // 降级：直接显示原始值
+    if (rawValue === null || rawValue === undefined) {
+      return h('span', { style: 'color: var(--el-text-color-placeholder);' }, '-')
+    }
     
-    // 🔥 调用 Widget 的 render() 方法（与 Form 一致）
-    // 这样详情展示就与 Form 渲染完全一致了
-    return tempWidget.render()
+    return h('span', String(rawValue))
   } catch (error) {
     // ✅ 使用 ErrorHandler 统一处理错误
     return ErrorHandler.handleWidgetError(`TableRenderer.renderDetailField[${field.code}]`, error, {
