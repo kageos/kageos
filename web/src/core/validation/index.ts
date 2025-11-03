@@ -2,6 +2,19 @@
  * 验证系统统一导出
  */
 
+import { ValidatorRegistry } from './ValidatorRegistry'
+import { ValidationEngine } from './ValidationEngine'
+import { RequiredValidator } from './validators/RequiredValidator'
+import { MinValidator } from './validators/MinValidator'
+import { MaxValidator } from './validators/MaxValidator'
+import { OneOfValidator } from './validators/OneOfValidator'
+import { RequiredIfValidator } from './validators/RequiredIfValidator'
+import { RequiredUnlessValidator } from './validators/RequiredUnlessValidator'
+import { RequiredWithValidator } from './validators/RequiredWithValidator'
+import { RequiredWithoutValidator } from './validators/RequiredWithoutValidator'
+import { EmailValidator } from './validators/EmailValidator'
+
+// 导出类型和类
 export { ValidatorRegistry } from './ValidatorRegistry'
 export { ValidationEngine } from './ValidationEngine'
 export type { Validator, ValidationRule, ValidationResult, ValidationContext } from './types'
