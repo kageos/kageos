@@ -305,6 +305,22 @@ const dialogTitle = computed(() => dialogMode.value === 'create' ? '新增' : '�
 /** 当前编辑的行数据 */
 const currentRow = ref<Record<string, any>>({})
 
+// ==================== 字段计算属性 ====================
+
+/**
+ * ID 字段（用于控制中心列）
+ */
+const idField = computed(() => {
+  return props.functionData.response.find(field => field.widget?.type === 'ID')
+})
+
+/**
+ * 数据字段（排除ID列，ID列已单独作为控制中心列）
+ */
+const dataFields = computed(() => {
+  return visibleFields.value.filter(field => field.widget?.type !== 'ID')
+})
+
 // ==================== UI 辅助方法 ====================
 
 /**
