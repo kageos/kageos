@@ -464,14 +464,11 @@ function prepareSubmitDataWithTypeConversion(): Record<string, any> {
 }
 
 /**
- * 获取字段标签（带必填标记）
+ * 获取字段标签
+ * 注意：必填标记由 el-form-item 的 :required 属性自动处理，不需要手动添加 *
  */
 function getFieldLabel(field: FieldConfig): string {
-  const label = field.name || field.code
-  if (hasAnyRequiredRule(field)) {
-    return `${label} *`
-  }
-  return label
+  return field.name || field.code
 }
 
 /**
