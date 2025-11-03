@@ -729,9 +729,14 @@ const handleNodeClick = async (node: ServiceTree) => {
     // showRightSidebar.value = true  // 注释掉，让用户需要时手动展开
     isLoadingFunction.value = true
     
-    // 加载函数详情
-    if (node.ref_id) {
+    // 🔥 加载函数详情（优先使用 ref_id，否则使用路径）
+    if (node.ref_id && node.ref_id > 0) {
       await loadFunctionDetail(node.ref_id)
+    } else if (node.full_code_path) {
+      await loadFunctionDetailByPath(node.full_code_path)
+    } else {
+      console.warn('[Workspace] ⚠️ 节点没有 ref_id 和 full_code_path，无法加载函数详情')
+      ElMessage.warning('无法加载函数详情：节点信息不完整')
     }
     
     isLoadingFunction.value = false
