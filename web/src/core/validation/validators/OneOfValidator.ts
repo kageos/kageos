@@ -2,7 +2,7 @@
  * 枚举值验证器（oneof）
  */
 
-import type { ValidationRule, ValidationResult, ValidationContext } from '../types'
+import type { Validator, ValidationRule, ValidationResult, ValidationContext } from '../types'
 import type { FieldValue } from '../../types/field'
 
 export class OneOfValidator implements Validator {

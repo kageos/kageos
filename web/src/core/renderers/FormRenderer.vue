@@ -547,6 +547,9 @@ async function handleRealSubmit(): Promise<void> {
  * 重置表单
  */
 function handleReset(): void {
+  // 🔥 清除验证错误
+  fieldErrors.clear()
+  
   formRef.value?.resetFields()
   formManager.clear()
   initializeForm()
