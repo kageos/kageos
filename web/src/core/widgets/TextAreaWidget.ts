@@ -52,7 +52,9 @@ export class TextAreaWidget extends BaseWidget {
       maxlength: this.textAreaConfig.maxlength,
       showWordLimit: this.textAreaConfig.showWordLimit,
       'onUpdate:modelValue': (value: string) => this.handleInput(value),
-      disabled: this.field.table_permission === 'read'
+      disabled: this.field.table_permission === 'read',
+      // 🔥 禁用 Element Plus 的原生验证（使用我们的自定义验证系统）
+      validateEvent: false
     })
   }
 
