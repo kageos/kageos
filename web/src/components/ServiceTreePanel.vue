@@ -148,9 +148,24 @@ const findPathToNode = (nodes: ServiceTree[], targetId: number | string): number
   return path
 }
 
+// 🔥 展开所有父节点（递归展开）
+const expandParentNodes = (path: number[]) => {
+  if (path.length === 0 || !treeRef.value) return
+  
+  // 展开所有父节点
+  const expandKeys = path.slice(0, -1) // 最后一个节点不需要展开，只需选中
+  expandKeys.forEach((key: number) => {
+    const node = treeRef.value.store.nodesMap[key]
+    if (node && !node.expanded) {
+      node.expand()
+    }
+  })
+}
+
 // 监听 currentNodeId 变化，自动展开并选中节点
 watch(() => props.currentNodeId, (nodeId) => {
   if (nodeId && treeRef.value && props.treeData.length > 0) {
+    // 🔥 使用 nextTick 确保 DOM 已渲染
     nextTick(() => {
       console.log('[ServiceTreePanel] 定位到节点:', nodeId)
       // 查找路径
@@ -158,26 +173,48 @@ watch(() => props.currentNodeId, (nodeId) => {
       console.log('[ServiceTreePanel] 节点路径:', path)
       
       if (path.length > 0) {
-        // 展开所有父节点（除了当前节点本身）
-        const expandKeys = path.slice(0, -1)
-        console.log('[ServiceTreePanel] 展开节点:', expandKeys)
-        if (expandKeys.length > 0) {
-          treeRef.value.store.nodesMap[expandKeys[0]]?.expand()
-          expandKeys.forEach((key: number) => {
-            const node = treeRef.value.store.nodesMap[key]
-            if (node) {
-              node.expand()
+        // 🔥 展开所有父节点
+        expandParentNodes(path)
+        
+        // 🔥 延迟选中，确保展开动画完成
+        setTimeout(() => {
+          // 再次确保所有父节点已展开
+          expandParentNodes(path)
+          
+          // 选中当前节点
+          console.log('[ServiceTreePanel] 选中节点:', nodeId)
+          treeRef.value.setCurrentKey(nodeId)
+          
+          // 🔥 滚动到选中节点（可见）
+          nextTick(() => {
+            const selectedNode = treeRef.value.store.nodesMap[nodeId]
+            if (selectedNode) {
+              selectedNode.visible = true
             }
           })
-        }
-        
-        // 选中当前节点
-        console.log('[ServiceTreePanel] 选中节点:', nodeId)
-        treeRef.value.setCurrentKey(nodeId)
+        }, 100)
       }
     })
   }
 }, { immediate: true })
+
+// 🔥 监听服务树数据变化，如果 currentNodeId 存在但还没展开，重新尝试
+watch(() => props.treeData, (newTreeData) => {
+  if (newTreeData.length > 0 && props.currentNodeId) {
+    nextTick(() => {
+      const path = findPathToNode(newTreeData, props.currentNodeId)
+      if (path.length > 0) {
+        expandParentNodes(path)
+        setTimeout(() => {
+          expandParentNodes(path)
+          if (treeRef.value) {
+            treeRef.value.setCurrentKey(props.currentNodeId)
+          }
+        }, 100)
+      }
+    })
+  }
+})
 </script>
 
 <style scoped>
