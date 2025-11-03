@@ -526,35 +526,29 @@ function getFieldError(fieldCode: string): string | null {
   
   // 🔥 优先使用验证结果中的字段信息，如果没有则从 request 中查找
   const field = firstError.field || props.functionDetail?.request?.find((f: FieldConfig) => f.code === fieldCode)
-  const fieldName = field?.name || fieldCode
   
-  // 获取错误消息，并将字段 code 替换为 name
+  if (!field || !field.name) {
+    // 如果没有字段信息，直接返回原始错误消息
+    return firstError.message || '验证失败'
+  }
+  
+  const fieldCodeValue = field.code
+  const fieldName = field.name
+  
+  // 获取错误消息
   let errorMessage = firstError.message || '验证失败'
   
-  // 🔥 将错误消息中的字段 code 替换为 name
-  // 处理多种格式：phone、Phone、phone is required、Phone is required 等
-  if (field && field.code && field.name) {
-    // 替换完整的字段 code（大小写敏感）
-    if (errorMessage.includes(field.code)) {
-      errorMessage = errorMessage.replace(field.code, field.name)
-    }
-    
-    // 替换字段 code（不区分大小写）
-    const codeRegex = new RegExp(`\\b${field.code}\\b`, 'gi')
-    errorMessage = errorMessage.replace(codeRegex, field.name)
-    
-    // 如果错误消息格式是 "field is required" 或 "field: message"，也替换
-    const patterns = [
-      new RegExp(`^${field.code}\\s+is\\s+`, 'i'),  // "phone is required"
-      new RegExp(`^${field.code}:\\s*`, 'i'),       // "phone: message"
-      new RegExp(`\\b${field.code}\\s+为`, 'i'),     // "phone 为"
-    ]
-    
-    for (const pattern of patterns) {
-      if (pattern.test(errorMessage)) {
-        errorMessage = errorMessage.replace(pattern, (match: string) => match.replace(field.code, field.name))
-      }
-    }
+  // 🔥 将错误消息中的字段 code 替换为 name（支持多种格式）
+  // 使用正则表达式，不区分大小写，匹配整个单词边界
+  // 这样可以匹配：phone、Phone、phone is required、Phone is required、phone: message 等
+  
+  // 方案1: 替换所有出现的字段 code（不区分大小写，单词边界）
+  const codeRegex = new RegExp(`\\b${fieldCodeValue.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi')
+  errorMessage = errorMessage.replace(codeRegex, fieldName)
+  
+  // 方案2: 如果错误消息就是 "code" 本身（没有其他内容），直接替换为 name
+  if (errorMessage.trim().toLowerCase() === fieldCodeValue.toLowerCase()) {
+    errorMessage = fieldName
   }
   
   return errorMessage
