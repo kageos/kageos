@@ -138,7 +138,7 @@ export interface SearchParams {
   like?: string    // 模糊匹配 like=title:xxx
   gte?: string     // 大于等于 gte=created_at:timestamp
   lte?: string     // 小于等于 lte=created_at:timestamp
-  sort?: string    // 排序 sort=id:desc
+  sorts?: string   // 排序 sorts=category:asc,price:desc（支持多列排序，格式：field:order,field:order）
   page?: number    // 页码
   page_size?: number // 页大小
 }
