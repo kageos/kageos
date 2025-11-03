@@ -522,23 +522,39 @@ function getFieldError(fieldCode: string): string | null {
     return null
   }
   
-  // 获取字段配置，用于将 code 替换为 name
-  const field = props.functionDetail?.request?.find((f: FieldConfig) => f.code === fieldCode)
+  const firstError = errors[0]
+  
+  // 🔥 优先使用验证结果中的字段信息，如果没有则从 request 中查找
+  const field = firstError.field || props.functionDetail?.request?.find((f: FieldConfig) => f.code === fieldCode)
   const fieldName = field?.name || fieldCode
   
   // 获取错误消息，并将字段 code 替换为 name
-  let errorMessage = errors[0].message || '验证失败'
+  let errorMessage = firstError.message || '验证失败'
   
-  // 如果错误消息中包含字段 code，替换为 name
-  if (errorMessage.includes(fieldCode)) {
-    errorMessage = errorMessage.replace(fieldCode, fieldName)
-  }
-  
-  // 也处理小写的情况（如 "phone" -> "联系电话"）
-  if (errorMessage.toLowerCase().includes(fieldCode.toLowerCase())) {
-    // 使用正则表达式替换，不区分大小写
-    const regex = new RegExp(fieldCode, 'gi')
-    errorMessage = errorMessage.replace(regex, fieldName)
+  // 🔥 将错误消息中的字段 code 替换为 name
+  // 处理多种格式：phone、Phone、phone is required、Phone is required 等
+  if (field && field.code && field.name) {
+    // 替换完整的字段 code（大小写敏感）
+    if (errorMessage.includes(field.code)) {
+      errorMessage = errorMessage.replace(field.code, field.name)
+    }
+    
+    // 替换字段 code（不区分大小写）
+    const codeRegex = new RegExp(`\\b${field.code}\\b`, 'gi')
+    errorMessage = errorMessage.replace(codeRegex, field.name)
+    
+    // 如果错误消息格式是 "field is required" 或 "field: message"，也替换
+    const patterns = [
+      new RegExp(`^${field.code}\\s+is\\s+`, 'i'),  // "phone is required"
+      new RegExp(`^${field.code}:\\s*`, 'i'),       // "phone: message"
+      new RegExp(`\\b${field.code}\\s+为`, 'i'),     // "phone 为"
+    ]
+    
+    for (const pattern of patterns) {
+      if (pattern.test(errorMessage)) {
+        errorMessage = errorMessage.replace(pattern, (match) => match.replace(field.code, field.name))
+      }
+    }
   }
   
   return errorMessage
