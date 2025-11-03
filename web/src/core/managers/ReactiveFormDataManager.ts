@@ -138,7 +138,7 @@ export class ReactiveFormDataManager {
 
   /**
    * 🔥 监听事件
-   * @param eventPattern 事件模式，支持通配符 []
+   * @param eventPattern 事件模式，支持通配符 [] 和 *
    * @param handler 事件处理函数
    * @returns 取消监听的函数
    */
@@ -151,6 +151,16 @@ export class ReactiveFormDataManager {
       this.eventBus.off(eventPattern, handler)
       console.log(`[FormDataManager] 取消监听: ${eventPattern}`)
     }
+  }
+
+  /**
+   * 🔥 取消监听事件
+   * @param eventPattern 事件模式
+   * @param handler 事件处理函数
+   */
+  off(eventPattern: string, handler: Function): void {
+    this.eventBus.off(eventPattern, handler)
+    console.log(`[FormDataManager] 取消监听: ${eventPattern}`)
   }
 
   /**

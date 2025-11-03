@@ -454,7 +454,7 @@ function prepareSubmitDataWithTypeConversion(): Record<string, any> {
     if (widget) {
       result[fieldPath] = widget.getRawValueForSubmit()
     } else {
-      Logger.warn(`[FormRenderer]   ⚠️ ${fieldPath}: Widget 未注册`)
+      // Widget 未注册，跳过该字段（可能因为条件渲染被隐藏）
     }
   })
   
