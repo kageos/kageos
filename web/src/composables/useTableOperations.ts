@@ -45,7 +45,7 @@ export interface TableOperationsReturn {
   loadTableData: () => Promise<void>
   handleSearch: () => void
   handleReset: () => void
-  handleSortChange: (sort: { prop: string; order: string }) => void
+  handleSortChange: (sorts: Array<{ column?: any; prop?: string; order?: string | null }>) => void
   handleSizeChange: (size: number) => void
   handleCurrentChange: (page: number) => void
   handleAdd: (data: Record<string, any>) => Promise<boolean>
@@ -257,15 +257,18 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
   
   /**
    * 排序变化
-   * @param sort 排序信息 { column: 列对象, prop: 字段名, order: 'ascending' | 'descending' | null }
+   * @param sorts 排序信息数组 [{ column: 列对象, prop: 字段名, order: 'ascending' | 'descending' | null }]
+   * 
+   * 注意：Element Plus 的 sort-change 事件传递的是 sorts 数组（支持多列排序）
+   * 但我们的后端只支持单列排序，所以只取第一个
    */
-  const handleSortChange = (sort: { column?: any; prop?: string; order?: string | null }): void => {
-    const prop = sort.prop
-    const order = sort.order
+  const handleSortChange = (sorts: Array<{ column?: any; prop?: string; order?: string | null }>): void => {
+    // 只处理第一个排序（后端只支持单列排序）
+    const sort = sorts && sorts.length > 0 ? sorts[0] : null
     
-    if (prop && order) {
-      sortField.value = prop
-      sortOrder.value = order === 'ascending' ? 'asc' : order === 'descending' ? 'desc' : ''
+    if (sort && sort.prop && sort.order) {
+      sortField.value = sort.prop
+      sortOrder.value = sort.order === 'ascending' ? 'asc' : sort.order === 'descending' ? 'desc' : ''
     } else {
       // 取消排序
       sortField.value = ''
