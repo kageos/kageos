@@ -529,13 +529,6 @@ const renderDetailField = (field: FieldConfig, rawValue: any): any => {
     // 🔥 默认：显示 display 或 raw 值
     const display = value.display && value.display !== '-' ? value.display : String(rawValue || '-')
     return h('span', display)
-    
-    // 降级：直接显示原始值
-    if (rawValue === null || rawValue === undefined) {
-      return h('span', { style: 'color: var(--el-text-color-placeholder);' }, '-')
-    }
-    
-    return h('span', String(rawValue))
   } catch (error) {
     // ✅ 使用 ErrorHandler 统一处理错误
     return ErrorHandler.handleWidgetError(`TableRenderer.renderDetailField[${field.code}]`, error, {
