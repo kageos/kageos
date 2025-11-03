@@ -552,7 +552,7 @@ function getFieldError(fieldCode: string): string | null {
     
     for (const pattern of patterns) {
       if (pattern.test(errorMessage)) {
-        errorMessage = errorMessage.replace(pattern, (match) => match.replace(field.code, field.name))
+        errorMessage = errorMessage.replace(pattern, (match: string) => match.replace(field.code, field.name))
       }
     }
   }

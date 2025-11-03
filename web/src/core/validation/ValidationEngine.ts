@@ -87,7 +87,8 @@ export class ValidationEngine {
       try {
         const result = validator.validate(value, rule, context)
         if (!result.valid) {
-          errors.push(result)
+          // 🔥 将字段信息附加到验证结果中，用于错误消息格式化
+          errors.push({ ...result, field })
         }
       } catch (error) {
         console.error(`[ValidationEngine] 验证器 ${rule.type} 执行失败:`, error)
