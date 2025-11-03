@@ -38,6 +38,8 @@ export class FloatWidget extends BaseWidget {
       max: this.floatConfig.max,
       step: this.floatConfig.step || 0.01,  // 🔥 浮点数默认步长 0.01
       clearable: this.floatConfig.clearable !== false,
+      // 🔥 禁用 Element Plus 的原生验证（使用我们的自定义验证系统）
+      validateEvent: false,
       onInput: (value: string | number) => {
         // 🔥 浮点数处理：转为浮点数或 null
         if (value === '') {
