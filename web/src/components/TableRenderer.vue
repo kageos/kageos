@@ -739,6 +739,12 @@ watch(() => props.functionData, () => {
   justify-content: space-between;
   width: 100%;
   gap: 4px;
+  position: relative;
+}
+
+/* 隐藏 Element Plus 默认的排序 UI（当使用自定义 header 时） */
+:deep(.table-header-sort) + .cell {
+  display: none;
 }
 
 .sort-indicator {
@@ -767,6 +773,15 @@ watch(() => props.functionData, () => {
 
 .sort-indicator .sort-desc {
   color: var(--el-color-primary);
+}
+
+/* 隐藏 Element Plus 表格列默认的排序图标（使用自定义排序指示器） */
+:deep(.el-table__header-wrapper .el-table-column--sortable .el-table__column-sort) {
+  display: none;
+}
+
+:deep(.el-table__header-wrapper .el-table-column--sortable .caret-wrapper) {
+  display: none;
 }
 
 /* 确保table内的link按钮清晰可见 */
