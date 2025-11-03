@@ -42,12 +42,13 @@ export class InputWidget extends BaseWidget {
       showWordLimit: this.inputConfig.showWordLimit || false,
       // 🔥 禁用 Element Plus 的原生验证（使用我们的自定义验证系统）
       validateEvent: false,
-      // 🔥 失去焦点时触发验证（通过 emit 通知 formRenderer）
+      // 🔥 失去焦点时触发验证（通过 formRenderer 的监听器处理）
       onBlur: () => {
-        this.emit('field:blur', {
-          fieldPath: this.fieldPath,
-          value: this.getValue()
-        })
+        if (this.formManager && this.formRenderer) {
+          // 触发字段变化事件，formRenderer 会监听并验证
+          const currentValue = this.getValue()
+          this.formManager.setValue(this.fieldPath, currentValue)
+        }
       }
     }
 

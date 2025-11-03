@@ -37,13 +37,6 @@ export class RequiredValidator implements Validator {
       
       const fieldName = foundField?.name || '此字段'
       
-      // 🔥 调试日志（开发时使用）
-      if (!foundField) {
-        console.warn(`[RequiredValidator] 未找到字段: fieldPath=${context.fieldPath}, allFields=`, 
-          context.allFields.map(f => ({ code: f.code, field_path: f.field_path, name: f.name }))
-        )
-      }
-      
       return {
         valid: false,
         message: `${fieldName}必填`
