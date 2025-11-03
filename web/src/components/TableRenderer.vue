@@ -215,7 +215,7 @@
  */
 
 import { computed, ref, watch, h } from 'vue'
-import { Search, Refresh, Edit, Delete, Plus, ArrowLeft, ArrowRight, View } from '@element-plus/icons-vue'
+import { Search, Refresh, Edit, Delete, Plus, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useTableOperations } from '@/composables/useTableOperations'
 import { WidgetBuilder } from '@/core/factories/WidgetBuilder'
