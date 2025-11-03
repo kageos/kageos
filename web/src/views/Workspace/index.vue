@@ -877,7 +877,7 @@ onMounted(() => {
     if (serviceTree.value.length > 0 && currentApp.value) {
       console.log('[Workspace] 条件满足，开始定位节点')
       nextTick(() => {
-        locateNodeByRoute()
+        handleLocateNode()  // 🔥 使用 handleLocateNode，它会加载函数详情
       })
     } else {
       console.log('[Workspace] 条件不满足，等待事件')
