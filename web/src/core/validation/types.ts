@@ -25,6 +25,8 @@ export interface ValidationResult {
   valid: boolean
   /** 错误信息（验证失败时） */
   message?: string
+  /** 字段配置（用于错误消息格式化） */
+  field?: FieldConfig
 }
 
 /**
