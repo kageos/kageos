@@ -21,10 +21,15 @@ export class RequiredValidator implements Validator {
     
     if (isEmpty) {
       // 🔥 获取当前字段的 name，生成更友好的错误消息
-      const currentField = context.allFields.find(f => 
-        (f.field_path || f.code) === context.fieldPath
-      )
-      const fieldName = currentField?.name || '此字段'
+      // 注意：context.fieldPath 可能是 field_path 或 code
+      const currentField = context.allFields.find(f => {
+        const fieldPath = f.field_path || f.code
+        return fieldPath === context.fieldPath
+      })
+      
+      // 如果找不到，尝试只匹配 code
+      const foundField = currentField || context.allFields.find(f => f.code === context.fieldPath)
+      const fieldName = foundField?.name || '此字段'
       
       return {
         valid: false,

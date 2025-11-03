@@ -527,16 +527,30 @@ function getFieldError(fieldCode: string): string | null {
   // 🔥 优先使用验证结果中的字段信息，如果没有则从 request 中查找
   const field = firstError.field || props.functionDetail?.request?.find((f: FieldConfig) => f.code === fieldCode)
   
+  // 获取错误消息
+  let errorMessage = firstError.message || '验证失败'
+  
+  // 🔥 如果错误消息已经是中文格式（包含"必填"），直接返回
+  if (errorMessage.includes('必填')) {
+    return errorMessage
+  }
+  
+  // 🔥 如果没有字段信息，尝试从错误消息中提取字段 code 并替换
   if (!field || !field.name) {
-    // 如果没有字段信息，直接返回原始错误消息
-    return firstError.message || '验证失败'
+    // 尝试从所有字段中找到匹配的字段（可能是错误消息中包含字段 code）
+    const allFields = props.functionDetail?.request || []
+    for (const f of allFields) {
+      const codeRegex = new RegExp(`\\b${f.code}\\b`, 'gi')
+      if (codeRegex.test(errorMessage)) {
+        errorMessage = errorMessage.replace(codeRegex, f.name)
+        break
+      }
+    }
+    return errorMessage
   }
   
   const fieldCodeValue = field.code
   const fieldName = field.name
-  
-  // 获取错误消息
-  let errorMessage = firstError.message || '验证失败'
   
   // 🔥 将错误消息中的字段 code 替换为 name（支持多种格式）
   // 处理英文格式：phone is required -> 联系电话必填
@@ -549,6 +563,11 @@ function getFieldError(fieldCode: string): string | null {
     // 2. 替换所有出现的字段 code（不区分大小写，单词边界）
     const codeRegex = new RegExp(`\\b${fieldCodeValue.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi')
     errorMessage = errorMessage.replace(codeRegex, fieldName)
+    
+    // 3. 如果替换后仍然是 "is required"，转换为中文
+    if (errorMessage.includes('is required')) {
+      errorMessage = errorMessage.replace(/\s+is\s+required/gi, '必填')
+    }
   }
   
   return errorMessage
