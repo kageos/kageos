@@ -52,12 +52,22 @@
       <el-table-column
         v-if="idField"
         :prop="idField.code"
-        label=""
         fixed="left"
         width="80"
         class-name="control-column"
         :sortable="'custom'"
       >
+        <template #header>
+          <div class="table-header-sort">
+            <span></span>
+            <span v-if="getFieldSortInfo(idField.code)" class="sort-indicator">
+              <span class="sort-index">{{ getFieldSortInfo(idField.code)?.index }}</span>
+              <el-icon :class="getFieldSortInfo(idField.code)?.order === 'asc' ? 'sort-asc' : 'sort-desc'">
+                <component :is="getFieldSortInfo(idField.code)?.order === 'asc' ? ArrowUp : ArrowDown" />
+              </el-icon>
+            </span>
+          </div>
+        </template>
         <template #default="{ row, $index }">
           <el-button
             link
@@ -75,10 +85,20 @@
         v-for="field in dataFields"
         :key="field.code"
         :prop="field.code"
-        :label="field.name"
         :sortable="'custom'"
         :min-width="getColumnWidth(field)"
       >
+        <template #header>
+          <div class="table-header-sort">
+            <span>{{ field.name }}</span>
+            <span v-if="getFieldSortInfo(field.code)" class="sort-indicator">
+              <span class="sort-index">{{ getFieldSortInfo(field.code)?.index }}</span>
+              <el-icon :class="getFieldSortInfo(field.code)?.order === 'asc' ? 'sort-asc' : 'sort-desc'">
+                <component :is="getFieldSortInfo(field.code)?.order === 'asc' ? ArrowUp : ArrowDown" />
+              </el-icon>
+            </span>
+          </div>
+        </template>
         <template #default="{ row, $index }">
           <!-- 🔥 使用 Widget 的 renderTableCell() 方法（组件自治） -->
           <!-- 
@@ -243,7 +263,7 @@
  */
 
 import { computed, ref, watch, h } from 'vue'
-import { Search, Refresh, Edit, Delete, Plus, ArrowLeft, ArrowRight, DocumentCopy } from '@element-plus/icons-vue'
+import { Search, Refresh, Edit, Delete, Plus, ArrowLeft, ArrowRight, DocumentCopy, ArrowUp, ArrowDown } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useTableOperations } from '@/composables/useTableOperations'
 import { WidgetBuilder } from '@/core/factories/WidgetBuilder'
@@ -290,6 +310,7 @@ const {
   hasDeleteCallback,
   isDefaultSort,
   defaultSortConfig,
+  getFieldSortInfo,
   
   // 方法
   loadTableData,
