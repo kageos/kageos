@@ -48,22 +48,20 @@
         v-if="idField"
         label="操作"
         fixed="left"
-        width="120"
+        width="100"
         class-name="control-column"
       >
         <template #default="{ row, $index }">
-          <div class="control-cell">
-            <el-button
-              link
-              type="primary"
-              size="small"
-              @click="handleShowDetail(row, $index)"
-              :icon="View"
-            >
-              查看详情
-            </el-button>
-            <span class="id-hint">ID: {{ row[idField.code] }}</span>
-          </div>
+          <el-button
+            link
+            type="primary"
+            size="small"
+            @click="handleShowDetail(row, $index)"
+            class="detail-button"
+          >
+            <el-icon><View /></el-icon>
+            <span class="button-text">#{{ row[idField.code] }}</span>
+          </el-button>
         </template>
       </el-table-column>
 
@@ -661,16 +659,26 @@ watch(() => props.functionData, () => {
 
 /* 🔥 控制中心列样式 */
 :deep(.control-column) {
-  .control-cell {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
+  .detail-button {
+    display: inline-flex;
+    align-items: center;
     gap: 4px;
+    padding: 4px 8px;
+    font-size: 13px;
     
-    .id-hint {
-      font-size: 12px;
-      color: var(--el-text-color-secondary);
-      opacity: 0.7;
+    .el-icon {
+      font-size: 14px;
+    }
+    
+    .button-text {
+      font-weight: 500;
+      color: var(--el-color-primary);
+    }
+    
+    &:hover {
+      .button-text {
+        color: var(--el-color-primary-light-3);
+      }
     }
   }
 }
