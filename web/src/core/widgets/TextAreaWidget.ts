@@ -7,6 +7,7 @@ import { ElInput } from 'element-plus'
 import { BaseWidget } from './BaseWidget'
 import type { FieldConfig } from '../types/field'
 import type { WidgetRenderProps } from '../types/widget'
+import { getElementPlusFormProps } from './utils/widgetHelpers'
 
 /**
  * TextArea 配置
@@ -53,8 +54,8 @@ export class TextAreaWidget extends BaseWidget {
       showWordLimit: this.textAreaConfig.showWordLimit,
       'onUpdate:modelValue': (value: string) => this.handleInput(value),
       disabled: this.field.table_permission === 'read',
-      // 🔥 禁用 Element Plus 的原生验证（使用我们的自定义验证系统）
-      validateEvent: false
+      // 🔥 统一处理 Element Plus 表单组件的通用属性
+      ...getElementPlusFormProps(this.formManager, this.formRenderer, this.fieldPath)
     })
   }
 

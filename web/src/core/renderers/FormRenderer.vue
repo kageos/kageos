@@ -299,7 +299,7 @@ const formRendererContext: FormRendererContext = {
 /**
  * 渲染单个字段
  */
-function renderField(field: FieldConfig): any {
+function renderField(field: FieldConfig): ReturnType<typeof h> {
   const fieldPath = field.code
   
   // 检查是否已缓存
@@ -340,7 +340,7 @@ function renderField(field: FieldConfig): any {
  * 渲染单个返回值字段（只读展示）
  * 即使没有数据也渲染框架结构，提供更好的用户体验
  */
-function renderResponseField(field: FieldConfig): any {
+function renderResponseField(field: FieldConfig): ReturnType<typeof h> {
   // 获取返回值（可能为 undefined）
   const value = responseData.value?.[field.code]
   

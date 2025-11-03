@@ -9,6 +9,7 @@ import type { FieldConfig, FieldValue } from '../types/field'
 import type { ReactiveFormDataManager } from '../managers/ReactiveFormDataManager'
 import type { ValidationRule, ValidationResult, ValidationContext } from './types'
 import { ValidatorRegistry } from './ValidatorRegistry'
+import { Logger } from '../utils/logger'
 
 export class ValidationEngine {
   private fieldNameMap: Map<string, string>
@@ -91,7 +92,7 @@ export class ValidationEngine {
           errors.push({ ...result, field })
         }
       } catch (error) {
-        console.error(`[ValidationEngine] 验证器 ${rule.type} 执行失败:`, error)
+        Logger.error('[ValidationEngine]', `验证器 ${rule.type} 执行失败`, error)
         // 验证器执行失败，不阻止表单提交（后端会兜底）
       }
     }

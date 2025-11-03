@@ -9,6 +9,7 @@ import { BaseWidget } from './BaseWidget'
 import { Logger } from '../utils/logger'
 import type { NumberLikeConfig } from './types/widget-config'
 import { createInputSlots, getDisabledState, getPlaceholder } from './utils/render-helpers'
+import { getElementPlusFormProps } from './utils/widgetHelpers'
 
 export class NumberWidget extends BaseWidget {
   private numberConfig: NumberLikeConfig
@@ -31,8 +32,8 @@ export class NumberWidget extends BaseWidget {
       max: this.numberConfig.max,
       step: this.numberConfig.step || 1,
       clearable: this.numberConfig.clearable !== false,
-      // 🔥 禁用 Element Plus 的原生验证（使用我们的自定义验证系统）
-      validateEvent: false,
+      // 🔥 统一处理 Element Plus 表单组件的通用属性
+      ...getElementPlusFormProps(this.formManager, this.formRenderer, this.fieldPath),
       onInput: (value: string | number) => {
         // 🔥 整数处理：转为整数或 null
         const numValue = value === '' ? null : parseInt(String(value), 10)

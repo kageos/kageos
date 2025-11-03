@@ -9,6 +9,7 @@ import { BaseWidget } from './BaseWidget'
 import { Logger } from '../utils/logger'
 import type { NumberLikeConfig } from './types/widget-config'
 import { createInputSlots, getDisabledState, getPlaceholder } from './utils/render-helpers'
+import { getElementPlusFormProps } from './utils/widgetHelpers'
 
 /**
  * Float 配置（继承数字配置，添加精度）
@@ -38,8 +39,8 @@ export class FloatWidget extends BaseWidget {
       max: this.floatConfig.max,
       step: this.floatConfig.step || 0.01,  // 🔥 浮点数默认步长 0.01
       clearable: this.floatConfig.clearable !== false,
-      // 🔥 禁用 Element Plus 的原生验证（使用我们的自定义验证系统）
-      validateEvent: false,
+      // 🔥 统一处理 Element Plus 表单组件的通用属性
+      ...getElementPlusFormProps(this.formManager, this.formRenderer, this.fieldPath),
       onInput: (value: string | number) => {
         // 🔥 浮点数处理：转为浮点数或 null
         if (value === '') {
