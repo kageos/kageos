@@ -8,6 +8,7 @@ import { ElInput } from 'element-plus'
 import { BaseWidget } from './BaseWidget'
 import { Logger } from '../utils/logger'
 import type { NumberLikeConfig } from './types/widget-config'
+import type { WidgetRenderProps } from '../types/widget'
 import { createInputSlots, getDisabledState, getPlaceholder } from './utils/render-helpers'
 import { getElementPlusFormProps } from './utils/widgetHelpers'
 
