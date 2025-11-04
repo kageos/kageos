@@ -4,6 +4,7 @@
  */
 
 import type { BaseWidget } from '../widgets/BaseWidget'
+import { Logger } from '../utils/logger'
 import { InputWidget } from '../widgets/InputWidget'
 import { NumberWidget } from '../widgets/NumberWidget'
 import { FloatWidget } from '../widgets/FloatWidget'
@@ -53,7 +54,6 @@ export class WidgetFactory {
     this.registerWidget('table', TableWidget)  // table 表格组件
     this.registerWidget('form', FormWidget)   // form 组件（用于 data.type="struct"）
     
-    console.log('[WidgetFactory] 初始化，已注册 Widget:', Array.from(this.widgetMap.keys()))
   }
 
   /**
@@ -61,7 +61,6 @@ export class WidgetFactory {
    */
   registerWidget(type: string, WidgetClass: typeof BaseWidget): void {
     this.widgetMap.set(type, WidgetClass)
-    console.log(`[WidgetFactory] 注册 Widget: ${type}`)
   }
 
   /**
@@ -70,7 +69,7 @@ export class WidgetFactory {
   getWidgetClass(type: string): typeof BaseWidget {
     const WidgetClass = this.widgetMap.get(type)
     if (!WidgetClass) {
-      console.warn(`[WidgetFactory] 未知的 widget 类型: ${type}，使用 InputWidget`)
+      Logger.warn('WidgetFactory', `未知的 widget 类型: ${type}，使用 InputWidget`)
       return InputWidget
     }
     return WidgetClass

@@ -118,7 +118,7 @@ import { ref, reactive, computed, h, watch, onMounted, onUnmounted } from 'vue'
 import { ElForm, ElFormItem, ElButton, ElCard, ElMessage, ElInput, ElIcon, ElDivider, ElTag } from 'element-plus'
 import { Promotion, RefreshLeft } from '@element-plus/icons-vue'
 import type { FieldConfig, FunctionDetail, FieldValue } from '../types/field'
-import type { FormRendererContext, WidgetSnapshot } from '../types/widget'
+import type { FormRendererContext, WidgetSnapshot, WidgetStaticMethods } from '../types/widget'
 import { ReactiveFormDataManager } from '../managers/ReactiveFormDataManager'
 import { WidgetBuilder } from '../factories/WidgetBuilder'
 import { widgetFactory } from '../factories/WidgetFactory'
@@ -254,11 +254,13 @@ function initializeForm(): void {
         const widgetType = field.widget?.type || 'input'
         const WidgetClass = widgetFactory.getWidgetClass(widgetType)
         
-        if (WidgetClass && typeof (WidgetClass as any).loadFromRawData === 'function') {
+        // 🔥 类型安全地检查静态方法
+        const WidgetClassWithStatic = WidgetClass as typeof BaseWidget & WidgetStaticMethods
+        if (WidgetClassWithStatic && typeof WidgetClassWithStatic.loadFromRawData === 'function') {
           try {
-            fieldValue = (WidgetClass as any).loadFromRawData(initialRawValue, field)
+            fieldValue = WidgetClassWithStatic.loadFromRawData(initialRawValue, field)
           } catch (error) {
-            console.warn(`[FormRenderer] Widget.loadFromRawData failed for ${widgetType}:`, error)
+            Logger.warn('FormRenderer', `Widget.loadFromRawData failed for ${widgetType}`, error)
             // 降级到默认转换
             fieldValue = {
               raw: initialRawValue,
@@ -424,16 +426,6 @@ function renderResponseField(field: FieldConfig): ReturnType<typeof h> {
     // 将原始值转换为 FieldValue 格式
     const fieldValue = convertToFieldValue(value, field)
     
-    // 🔥 调试日志（仅在开发环境）
-    if (import.meta.env.DEV) {
-      console.log(`[FormRenderer] renderResponseField for ${field.code}:`, {
-        widgetType: widgetType,
-        rawValue: value,
-        fieldValue: fieldValue,
-        field: field
-      })
-    }
-    
     // 创建只读的 field 配置（禁用编辑）
     const readonlyField: FieldConfig = {
       ...field,
@@ -448,16 +440,6 @@ function renderResponseField(field: FieldConfig): ReturnType<typeof h> {
     
     // 🔥 先初始化 formManager 中的值（用于 Widget 获取初始值）
     formManager.initializeField(field.code, fieldValue)
-    
-    // 🔥 调试日志（仅在开发环境）
-    if (import.meta.env.DEV) {
-      console.log(`[FormRenderer] Before create widget for ${field.code}:`, {
-        fieldValue: fieldValue,
-        formManagerValue: formManager.getValue(field.code),
-        filesCount: fieldValue.raw && typeof fieldValue.raw === 'object' && 'files' in fieldValue.raw
-          ? (fieldValue.raw as any).files?.length : 0
-      })
-    }
     
     // 创建 Widget（只读模式：router 为空，onChange 为空回调）
     // 🔥 直接传递 initialValue，避免依赖 formManager 的时序问题
@@ -477,25 +459,12 @@ function renderResponseField(field: FieldConfig): ReturnType<typeof h> {
       onChange: () => {} // 响应参数是只读的，不需要 onChange
     })
     
-    // 🔥 调试日志（仅在开发环境）
-    if (import.meta.env.DEV) {
-      console.log(`[FormRenderer] Created widget for ${field.code}:`, {
-        widgetType: widget.constructor.name,
-        hasRenderForResponse: typeof widget.renderForResponse === 'function'
-      })
-    }
-    
     // 🔥 调用 Widget 的 renderForResponse() 方法（组件自治）
     const renderResult = widget.renderForResponse()
     
-    // 🔥 调试日志（仅在开发环境）
-    if (import.meta.env.DEV) {
-      console.log(`[FormRenderer] renderForResponse result for ${field.code}:`, renderResult)
-    }
-    
     return renderResult
   } catch (error) {
-    console.error(`[FormRenderer] renderResponseField error for ${field.code}:`, error)
+      Logger.error('FormRenderer', `renderResponseField error for ${field.code}`, error)
     // 降级到默认显示
     return h(ElInput, {
       modelValue: value !== undefined && value !== null ? String(value) : '',

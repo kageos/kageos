@@ -24,7 +24,7 @@ export class FloatWidget extends BaseWidget {
 
   constructor(props: WidgetRenderProps) {
     super(props)
-    this.floatConfig = (this.field.widget?.config as FloatConfig) || {}
+    this.floatConfig = this.getConfig<FloatConfig>()
   }
 
   render() {

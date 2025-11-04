@@ -5,6 +5,7 @@
 
 import { reactive, type UnwrapNestedRefs } from 'vue'
 import type { FieldValue } from '../types/field'
+import { Logger } from '../utils/logger'
 
 /**
  * 简单的事件发射器
@@ -51,7 +52,6 @@ export class ReactiveFormDataManager {
   constructor() {
     this.data = reactive(new Map<string, FieldValue>())
     this.eventBus = new EventEmitter()
-    console.log('[ReactiveFormDataManager] 初始化（集成事件总线）')
   }
 
   /**
@@ -75,7 +75,6 @@ export class ReactiveFormDataManager {
    */
   setValue(fieldPath: string, value: FieldValue): void {
     this.data.set(fieldPath, value)
-    console.log(`[ReactiveFormDataManager] 设置值: ${fieldPath}`, value)
   }
 
   /**
@@ -85,9 +84,6 @@ export class ReactiveFormDataManager {
     // 🔥 如果提供了 initialValue，直接设置（即使字段已存在也要更新）
     if (initialValue) {
       this.data.set(fieldPath, initialValue)
-      if (import.meta.env.DEV) {
-        console.log(`[ReactiveFormDataManager] 初始化字段: ${fieldPath}`, initialValue)
-      }
     } else if (!this.data.has(fieldPath)) {
       // 如果没有提供 initialValue 且字段不存在，使用默认空值
       const defaultFieldValue: FieldValue = {
@@ -96,9 +92,6 @@ export class ReactiveFormDataManager {
         meta: {}
       }
       this.data.set(fieldPath, defaultFieldValue)
-      if (import.meta.env.DEV) {
-        console.log(`[ReactiveFormDataManager] 初始化字段（默认值）: ${fieldPath}`, defaultFieldValue)
-      }
     }
   }
 
@@ -121,7 +114,6 @@ export class ReactiveFormDataManager {
   clear(): void {
     this.data.clear()
     this.eventBus.clear()
-    console.log('[ReactiveFormDataManager] 清空数据和事件监听')
   }
 
   /**
@@ -140,7 +132,6 @@ export class ReactiveFormDataManager {
       this.eventBus.emit(pattern, payload)
     })
     
-    console.log(`[FormDataManager] 发出事件: ${eventType}`, payload)
   }
 
   /**
@@ -151,12 +142,10 @@ export class ReactiveFormDataManager {
    */
   on(eventPattern: string, handler: Function): () => void {
     this.eventBus.on(eventPattern, handler)
-    console.log(`[FormDataManager] 监听事件: ${eventPattern}`)
     
     // 返回取消监听函数
     return () => {
       this.eventBus.off(eventPattern, handler)
-      console.log(`[FormDataManager] 取消监听: ${eventPattern}`)
     }
   }
 
@@ -167,7 +156,6 @@ export class ReactiveFormDataManager {
    */
   off(eventPattern: string, handler: Function): void {
     this.eventBus.off(eventPattern, handler)
-    console.log(`[FormDataManager] 取消监听: ${eventPattern}`)
   }
 
   /**

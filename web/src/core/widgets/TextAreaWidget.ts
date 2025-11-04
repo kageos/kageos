@@ -28,7 +28,7 @@ export class TextAreaWidget extends BaseWidget {
     super(props)
     
     // 解析 TextArea 配置
-    this.textAreaConfig = (this.field.widget?.config as TextAreaConfig) || {}
+    this.textAreaConfig = this.getConfig<TextAreaConfig>()
   }
 
   /**

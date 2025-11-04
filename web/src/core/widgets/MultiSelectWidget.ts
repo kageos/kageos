@@ -61,7 +61,7 @@ export class MultiSelectWidget extends BaseWidget {
     this.loading = ref(false)
     
     // 解析 MultiSelect 配置
-    this.selectConfig = (this.field.widget?.config as MultiSelectConfig) || {}
+    this.selectConfig = this.getConfig<MultiSelectConfig>()
     
     // 初始化选项
     this.initOptions()

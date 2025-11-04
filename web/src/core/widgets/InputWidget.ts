@@ -15,7 +15,7 @@ export class InputWidget extends BaseWidget {
 
   constructor(props: WidgetRenderProps) {
     super(props)
-    this.inputConfig = (this.field.widget?.config as InputConfig) || {}
+    this.inputConfig = this.getConfig<InputConfig>()
   }
 
   /**
