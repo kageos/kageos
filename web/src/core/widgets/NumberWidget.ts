@@ -16,7 +16,7 @@ export class NumberWidget extends BaseWidget {
 
   constructor(props: WidgetRenderProps) {
     super(props)
-    this.numberConfig = (this.field.widget?.config as NumberLikeConfig) || {}
+    this.numberConfig = this.getConfig<NumberLikeConfig>()
   }
 
   render() {

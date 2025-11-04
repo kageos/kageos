@@ -87,8 +87,8 @@ export class FilesWidget extends BaseWidget {
   constructor(props: WidgetRenderProps) {
     super(props)
 
-    // 解析配置
-    this.filesConfig = (props.field.widget?.config || {}) as FilesConfig
+    // 解析配置（使用基类的辅助方法）
+    this.filesConfig = this.getConfig<FilesConfig>()
     
     // ✅ 获取 router（如果是临时 Widget 则为空）
     this.router = this.getRouter()
@@ -98,16 +98,6 @@ export class FilesWidget extends BaseWidget {
     if (!this.isTemporary) {
       const currentValue = this.value.value
       
-      // 🔥 调试日志（仅在开发环境）
-      if (import.meta.env.DEV) {
-        console.log(`[FilesWidget] Constructor for ${this.fieldPath}:`, {
-          currentValue: currentValue,
-          isValidFilesData: currentValue?.raw ? this.isValidFilesData(currentValue.raw) : false,
-          filesCount: currentValue?.raw && typeof currentValue.raw === 'object' && 'files' in currentValue.raw
-            ? (currentValue.raw as FilesData).files?.length : 0
-        })
-      }
-      
       // 🔥 响应参数场景：如果已经有有效数据，不要初始化
       // 检查数据是否有效（有 files 数组）
       if (currentValue && 
@@ -115,13 +105,7 @@ export class FilesWidget extends BaseWidget {
           typeof currentValue.raw === 'object' && 
           'files' in currentValue.raw &&
           Array.isArray((currentValue.raw as FilesData).files)) {
-        // 数据有效，不需要初始化
-        if (import.meta.env.DEV) {
-          console.log(`[FilesWidget] Valid FilesData for ${this.fieldPath}, no initialization needed`, {
-            filesCount: (currentValue.raw as FilesData).files?.length || 0
-          })
-        }
-        // 直接返回，不进行任何初始化
+        // 数据有效，不需要初始化，直接返回
         return
       }
       
@@ -131,16 +115,10 @@ export class FilesWidget extends BaseWidget {
           currentValue.raw === null || 
           currentValue.raw === undefined) {
         // 只有在完全没有值时才初始化
-        if (import.meta.env.DEV) {
-          console.log(`[FilesWidget] Will initialize empty value for ${this.fieldPath}`)
-        }
         this.initializeEmptyValue()
       } else {
         // 数据无效，但不要覆盖（可能是响应参数中的有效数据）
-        // 只在开发环境警告
-        if (import.meta.env.DEV) {
-          console.warn(`[FilesWidget] Invalid FilesData structure for ${this.fieldPath}, but keeping original value:`, currentValue)
-        }
+        Logger.warn('FilesWidget', `Invalid FilesData structure for ${this.fieldPath}, but keeping original value`, currentValue)
       }
     }
   }
@@ -181,9 +159,6 @@ export class FilesWidget extends BaseWidget {
         typeof existingValue.raw === 'object' && 'files' in existingValue.raw &&
         Array.isArray((existingValue.raw as FilesData).files)) {
       // 已经有有效值，不初始化
-      if (import.meta.env.DEV) {
-        console.log(`[FilesWidget] Skipping initializeEmptyValue for ${this.fieldPath}, value already exists:`, existingValue)
-      }
       return
     }
     
@@ -199,9 +174,6 @@ export class FilesWidget extends BaseWidget {
       meta: {},
     })
     
-    if (import.meta.env.DEV) {
-      console.log(`[FilesWidget] Initialized empty value for ${this.fieldPath}`)
-    }
   }
 
   /**
@@ -520,19 +492,6 @@ export class FilesWidget extends BaseWidget {
     // 🔥 使用 props.value（WidgetBuilder.create 时传递的 initialValue）
     // 这是最可靠的值，因为它是创建时直接传递的
     const currentValue = this.value.value
-    
-    // 🔥 调试日志（仅在开发环境）
-    if (import.meta.env.DEV) {
-      const filesCount = currentValue?.raw && typeof currentValue.raw === 'object' && 'files' in currentValue.raw
-        ? (currentValue.raw as FilesData).files?.length : 0
-      console.log(`[FilesWidget] renderForResponse for ${this.fieldPath}:`, {
-        currentValue: currentValue,
-        valueFromProps: this.value.value,
-        filesCount: filesCount,
-        hasFormManager: !!this.formManager,
-        fieldPath: this.fieldPath
-      })
-    }
     
     // 🔥 直接使用 props.value，不尝试从 formManager 获取（因为可能已经被构造函数覆盖）
     return this.renderForDetail(currentValue)
@@ -1085,12 +1044,13 @@ export class FilesWidget extends BaseWidget {
     // ✅ 解析 FilesData 结构
     let files: FileItem[] = []
     if (fieldValue?.raw) {
-      const data = fieldValue.raw as FilesData | any
-      if (Array.isArray(data.files)) {
+      const data = fieldValue.raw as FilesData | FileItem[]
+      if (data && typeof data === 'object' && 'files' in data && Array.isArray(data.files)) {
+        // FilesData 结构
         files = data.files
       } else if (Array.isArray(data)) {
         // 兼容：如果 raw 直接是数组，当作文件列表
-        files = data as any[]
+        files = data
       }
     }
     
@@ -1240,8 +1200,9 @@ export class FilesWidget extends BaseWidget {
         }
       } else if (Array.isArray(rawValue)) {
         // 兼容：如果直接是数组，包装成 FilesData
+        // 类型断言：确保是 FileItem 数组
         filesData = {
-          files: rawValue as any[],
+          files: rawValue as FileItem[],
           remark: '',
           metadata: {},
         }

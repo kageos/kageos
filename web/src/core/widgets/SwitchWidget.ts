@@ -20,7 +20,7 @@ export class SwitchWidget extends BaseWidget {
 
   constructor(props: WidgetRenderProps) {
     super(props)
-    this.switchConfig = (this.field.widget?.config as SwitchConfig) || {}
+    this.switchConfig = this.getConfig<SwitchConfig>()
   }
 
   render() {

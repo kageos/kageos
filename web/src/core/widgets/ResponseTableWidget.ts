@@ -15,6 +15,7 @@ import { BaseWidget } from './BaseWidget'
 import type { FieldConfig } from '../types/field'
 import { WidgetBuilder } from '../factories/WidgetBuilder'
 import { convertToFieldValue } from '../../utils/field'
+import { Logger } from '../utils/logger'
 
 export class ResponseTableWidget extends BaseWidget {
   // 🔥 详情抽屉状态
@@ -141,7 +142,7 @@ export class ResponseTableWidget extends BaseWidget {
         isString
       }
     } catch (error) {
-      console.error(`[ResponseTableWidget] renderTableCell error for ${field.code}:`, error)
+      Logger.error('ResponseTableWidget', `renderTableCell error for ${field.code}`, error)
       const fallbackValue = rawValue !== null && rawValue !== undefined ? String(rawValue) : '-'
       return {
         content: fallbackValue,

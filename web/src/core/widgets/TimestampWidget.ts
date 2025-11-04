@@ -27,7 +27,7 @@ export class TimestampWidget extends BaseWidget {
 
   constructor(props: WidgetRenderProps) {
     super(props)
-    this.timestampConfig = (this.field.widget?.config as TimestampConfig) || {}
+    this.timestampConfig = this.getConfig<TimestampConfig>()
   }
 
   render() {

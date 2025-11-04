@@ -16,7 +16,7 @@ import { Logger } from '../utils/logger'
 import { WidgetBuilder } from '../factories/WidgetBuilder'
 import { ErrorHandler } from '../utils/ErrorHandler'
 import type { FieldConfig, FieldValue } from '../types/field'
-import type { WidgetRenderProps } from '../types/widget'
+import type { WidgetRenderProps, MarkRawWidget } from '../types/widget'
 import { selectFuzzy } from '@/api/function'  // 🔥 导入回调 API
 import { ExpressionParser } from '../utils/ExpressionParser'  // 🔥 导入表达式解析器
 
@@ -160,7 +160,7 @@ export class TableWidget extends BaseWidget {
     this.statisticsResult = ref<Record<string, any>>({})
     
     // 解析 Table 配置
-    this.tableConfig = (this.field.widget?.config as TableConfig) || {}
+    this.tableConfig = this.getConfig<TableConfig>()
     
     // 解析子字段（Table 的元素类型）
     this.itemFields = this.parseItemFields()
@@ -503,7 +503,8 @@ export class TableWidget extends BaseWidget {
     const rowData: SavedRowData = {}
     
     for (const [fieldCode, widget] of Object.entries(this.formWidgets.value)) {
-      const rawWidget = widget as any
+      // 🔥 类型安全地访问 markRaw 后的 Widget
+      const rawWidget = widget as MarkRawWidget
       // 直接获取完整的 FieldValue（包含 raw、display、meta）
       rowData[fieldCode] = rawWidget.getValue()
     }
@@ -789,7 +790,8 @@ export class TableWidget extends BaseWidget {
       })
       
       // 🔥 调用 Widget 的 renderTableCell 方法
-      return (tempWidget as any).renderTableCell(value)
+      const widget = tempWidget as MarkRawWidget
+      return widget.renderTableCell ? widget.renderTableCell(value) : widget.render()
     } catch (error) {
       // ✅ 使用 ErrorHandler 统一处理错误
       return ErrorHandler.handleWidgetError(`TableWidget.renderCellByWidget[${field.code}]`, error, {
@@ -884,7 +886,7 @@ export class TableWidget extends BaseWidget {
           }, {
             default: () => h('div', {
               style: { width: '100%' }
-            }, [(widget as any).render()])
+            }, [(widget as MarkRawWidget).render()])
           })
         })
       }),

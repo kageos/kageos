@@ -63,7 +63,7 @@ export class SelectWidget extends BaseWidget {
     this.loading = ref(false)
     
     // 解析 Select 配置
-    this.selectConfig = (this.field.widget?.config as SelectConfig) || {}
+    this.selectConfig = this.getConfig<SelectConfig>()
     
     // 初始化选项
     this.initOptions()

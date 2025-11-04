@@ -23,7 +23,7 @@ import { Logger } from '../utils/logger'
 import { WidgetBuilder } from '../factories/WidgetBuilder'
 import { ErrorHandler } from '../utils/ErrorHandler'
 import type { FieldConfig, FieldValue } from '../types/field'
-import type { WidgetRenderProps } from '../types/widget'
+import type { WidgetRenderProps, MarkRawWidget } from '../types/widget'
 
 /**
  * Form 配置（目前为空，未来可能扩展）
@@ -120,7 +120,7 @@ export class FormWidget extends BaseWidget {
     super(props)
     
     // 解析 Form 配置
-    this.formConfig = (this.field.widget?.config as FormConfig) || {}
+    this.formConfig = this.getConfig<FormConfig>()
     
     // 解析子字段
     this.subFields = this.parseSubFields()
@@ -215,7 +215,8 @@ export class FormWidget extends BaseWidget {
     // 遍历每个子字段
     this.subWidgets.forEach((widget, fieldCode) => {
       // 🔥 递归调用：子组件可能是基础组件（直接返回值）或容器组件（继续递归）
-      const rawWidget = widget as any  // markRaw 后需要转换
+      // 🔥 类型安全地访问 markRaw 后的 Widget
+      const rawWidget = widget as MarkRawWidget
       result[fieldCode] = rawWidget.getRawValueForSubmit()
       
     })
@@ -269,7 +270,7 @@ export class FormWidget extends BaseWidget {
               }, {
                 default: () => [
               // 渲染子 Widget
-              (widget as any).render()
+              (widget as MarkRawWidget).render()
                 ]
               })
             })

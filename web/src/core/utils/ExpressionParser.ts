@@ -15,6 +15,8 @@
  * - list_sum(用户总价) → 对所有行的"用户总价"字段求和（用于 MultiSelect 二层聚合）
  */
 
+import { Logger } from './logger'
+
 export class ExpressionParser {
   /**
    * 计算表达式
@@ -28,7 +30,6 @@ export class ExpressionParser {
     }
     
     if (!data || data.length === 0) {
-      console.log(`[ExpressionParser] 数据为空，跳过计算: ${expression}`)
       return 0
     }
 
@@ -36,13 +37,11 @@ export class ExpressionParser {
     const match = expression.match(/^(\w+)\((.*)\)$/)
     if (!match) {
       // 🔥 不是函数调用，可能是纯文本（如 "9折优惠"），直接返回
-      console.log(`[ExpressionParser] 非函数表达式，直接返回: ${expression}`)
       return expression
     }
 
     const [, funcName, argsStr] = match
     
-    console.log(`[ExpressionParser] 解析表达式: ${funcName}(${argsStr})`)
     
     // 判断是 List 层聚合还是行内聚合
     if (funcName.startsWith('list_')) {
@@ -95,7 +94,7 @@ export class ExpressionParser {
         return this.calculateMax(mainField, data)
       
       default:
-        console.warn(`[ExpressionParser] 未知函数: ${funcName}`)
+        Logger.warn('ExpressionParser', `未知函数: ${funcName}`)
         return 0
     }
   }
@@ -126,7 +125,7 @@ export class ExpressionParser {
         return this.calculateMax(field, data)
       
       default:
-        console.warn(`[ExpressionParser] 未知 List 函数: list_${funcName}`)
+        Logger.warn('ExpressionParser', `未知 List 函数: list_${funcName}`)
         return 0
     }
   }
@@ -233,14 +232,12 @@ export class ExpressionParser {
    */
   private static getFieldValue(row: any, fieldName: string): any {
     if (!row || !fieldName) {
-      console.log(`[ExpressionParser] getFieldValue: row 或 fieldName 为空`)
       return null
     }
     
     // 直接访问字段
     if (row.hasOwnProperty(fieldName)) {
       const value = row[fieldName]
-      console.log(`[ExpressionParser] 找到字段 "${fieldName}": ${value}`)
       return value
     }
     
@@ -253,15 +250,12 @@ export class ExpressionParser {
         if (value && value.hasOwnProperty(part)) {
           value = value[part]
         } else {
-          console.log(`[ExpressionParser] 嵌套字段 "${fieldName}" 找不到部分: ${part}`)
           return null
         }
       }
-      console.log(`[ExpressionParser] 找到嵌套字段 "${fieldName}": ${value}`)
       return value
     }
     
-    console.log(`[ExpressionParser] 字段 "${fieldName}" 不存在，可用字段:`, Object.keys(row))
     return null
   }
 
