@@ -79,6 +79,9 @@ interface UploadingFile {
 }
 
 export class FilesWidget extends BaseWidget {
+  // 常量定义
+  private static readonly MAX_DISPLAY_FILES = 3  // 表格单元格最多显示的文件数量
+  
   // 组件私有状态
   private uploadingFiles = ref<UploadingFile[]>([])
   private filesConfig: FilesConfig
@@ -1072,7 +1075,7 @@ export class FilesWidget extends BaseWidget {
         type: 'info',
         style: { marginBottom: '4px', width: 'fit-content' }
       }, () => `${files.length} 个文件`),
-      ...files.slice(0, 3).map((file, index) =>
+      ...files.slice(0, FilesWidget.MAX_DISPLAY_FILES).map((file, index) =>
         h('div', {
           key: file.url || file.name || index,
           class: 'file-item',
@@ -1120,7 +1123,7 @@ export class FilesWidget extends BaseWidget {
           }, file.name || '未知文件'),
         ])
       ),
-      files.length > 3 && h('span', { 
+      files.length > FilesWidget.MAX_DISPLAY_FILES && h('span', { 
         class: 'more-files', 
         style: { 
           marginTop: '4px',
@@ -1128,7 +1131,7 @@ export class FilesWidget extends BaseWidget {
           fontSize: '12px',
           fontStyle: 'italic'
         } 
-      }, `+${files.length - 3} 个文件`),
+      }, `+${files.length - FilesWidget.MAX_DISPLAY_FILES} 个文件`),
     ])
   }
 

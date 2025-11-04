@@ -4,6 +4,7 @@
 
 import type { Validator, ValidationRule, ValidationResult, ValidationContext } from '../types'
 import type { FieldValue } from '../../types/field'
+import { isStringField } from '../utils/fieldUtils'
 
 export class MaxValidator implements Validator {
   readonly name = 'max'
@@ -24,11 +25,8 @@ export class MaxValidator implements Validator {
     
     // 判断字段类型
     const field = context.allFields.find(f => (f.field_path || f.code) === context.fieldPath)
-    const isString = field?.data?.type === 'string' || 
-                     field?.widget?.type === 'input' ||
-                     field?.widget?.type === 'textarea'
     
-    if (isString) {
+    if (isStringField(field)) {
       // 字符串类型：比较长度
       const length = String(value.raw || '').length
       if (length > maxValue) {
