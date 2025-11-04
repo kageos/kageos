@@ -146,6 +146,7 @@
       :title="dialogTitle"
       :fields="props.functionData.response"
       :mode="dialogMode"
+      :router="props.functionData.router"
       :initial-data="currentRow"
       @submit="handleDialogSubmit"
     />
@@ -242,8 +243,9 @@
  */
 
 import { computed, ref, watch, h } from 'vue'
-import { Search, Refresh, Edit, Delete, Plus, ArrowLeft, ArrowRight, DocumentCopy } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { Search, Refresh, Edit, Delete, Plus, ArrowLeft, ArrowRight, DocumentCopy, Document, Download } from '@element-plus/icons-vue'
+import { ElIcon, ElButton, ElMessage } from 'element-plus'
+import { formatTimestamp } from '@/utils/date'
 import { useTableOperations } from '@/composables/useTableOperations'
 import { WidgetBuilder } from '@/core/factories/WidgetBuilder'
 import { ErrorHandler } from '@/core/utils/ErrorHandler'
@@ -462,98 +464,37 @@ const getCellContent = (field: FieldConfig, rawValue: any): { content: any, isSt
 // ==================== 详情字段渲染（纯展示模式） ====================
 
 /**
- * 🔥 格式化详情字段显示值
+ * 🔥 渲染详情字段（遵循依赖倒置原则）
  * 
- * 参考旧版本的设计，纯展示模式，不渲染输入框
- * 
- * 根据字段类型格式化显示：
- * - 文本：直接显示
- * - 数字：格式化显示
- * - 布尔：显示 Tag（是/否）
- * - 日期时间：格式化显示
- * - 数组：显示多个 Tag
- * - Select/MultiSelect：显示 label 标签
+ * 设计原则：
+ * - 遵循依赖倒置原则：TableRenderer 不需要知道具体 Widget 类型
+ * - 组件自治：每个 Widget 自己决定如何在详情中展示
+ * - 统一使用 widget.renderForDetail() 方法
  * 
  * @param field 字段配置
  * @param rawValue 原始值（来自后端）
- * @returns 格式化的显示内容（字符串或 VNode）
+ * @returns 渲染结果（VNode 或字符串）
  */
 const renderDetailField = (field: FieldConfig, rawValue: any): any => {
   try {
     // 🔥 将原始值转换为 FieldValue 格式
     const value = convertToFieldValue(rawValue, field)
     
-    // 🔥 处理 MultiSelect：显示多个 Tag
-    if (field.widget?.type === 'multiselect' && Array.isArray(value.raw) && value.raw.length > 0) {
-      // 尝试从 meta.displayInfo 获取标签（可能是数组）
-      let labels: string[] = []
-      if (value.meta?.displayInfo && Array.isArray(value.meta.displayInfo)) {
-        labels = value.meta.displayInfo.map((info: any) => {
-          if (info && typeof info === 'object' && 'label' in info) {
-            return info.label
-          }
-          // 尝试从字段中提取名称
-          return info?.商品名称 || info?.名称 || info?.name || String(info)
-        })
-      }
-      
-      // 如果没有 labels，使用 display 值或 raw 值
-      if (labels.length === 0) {
-        if (value.display && typeof value.display === 'string') {
-          // display 可能是逗号分隔的字符串
-          labels = value.display.split(',').map(s => s.trim())
-        } else {
-          labels = value.raw.map((v: any) => String(v))
-        }
-      }
-      
-      return h('div', { style: 'display: flex; flex-wrap: wrap; gap: 4px;' },
-        labels.map((label: string) => h('el-tag', { size: 'small' }, () => label))
-      )
+    // 🔥 创建临时 Widget（用于详情展示）
+    const widget = WidgetBuilder.createTemporary({
+      field: field,
+      value: value
+    })
+    
+    // 🔥 调用 Widget 的 renderForDetail() 方法（组件自治）
+    const result = widget.renderForDetail(value)
+    
+    // 🔥 如果返回的是字符串，需要包装成 VNode
+    if (typeof result === 'string') {
+      return h('span', result)
     }
     
-    // 🔥 处理 Select：显示标签 Tag
-    if (field.widget?.type === 'select') {
-      let label = value.display
-      // 尝试从 meta.displayInfo 获取 label
-      if (value.meta?.displayInfo) {
-        if (typeof value.meta.displayInfo === 'object' && 'label' in value.meta.displayInfo) {
-          label = value.meta.displayInfo.label
-        }
-      }
-      return h('el-tag', { type: 'primary', size: 'default' }, () => label || String(value.raw || '-'))
-    }
-    
-    // 🔥 处理布尔/Switch：显示 Tag
-    if (field.data?.type === 'boolean' || field.widget?.type === 'switch') {
-      const boolValue = value.raw === true || value.raw === 'true' || value.raw === 1 || value.raw === '1'
-      return h('el-tag', {
-        type: boolValue ? 'success' : 'info',
-        size: 'default'
-      }, () => boolValue ? '是' : '否')
-    }
-    
-    // 🔥 处理数组：显示多个 Tag
-    if (Array.isArray(value.raw) && value.raw.length > 0) {
-      return h('div', { style: 'display: flex; flex-wrap: wrap; gap: 4px;' },
-        value.raw.map((item: any) => h('el-tag', { size: 'small' }, () => String(item)))
-      )
-    }
-    
-    // 🔥 处理数字：格式化显示
-    if (field.data?.type === 'number' || field.data?.type === 'float' || field.widget?.type === 'number' || field.widget?.type === 'float') {
-      const display = value.display || String(value.raw || '-')
-      return h('span', { style: 'font-weight: 500;' }, display)
-    }
-    
-    // 🔥 处理时间戳：已格式化
-    if (field.widget?.type === 'timestamp') {
-      return h('span', value.display || String(value.raw || '-'))
-    }
-    
-    // 🔥 默认：显示 display 或 raw 值
-    const display = value.display && value.display !== '-' ? value.display : String(rawValue || '-')
-    return h('span', display)
+    return result
   } catch (error) {
     // ✅ 使用 ErrorHandler 统一处理错误
     return ErrorHandler.handleWidgetError(`TableRenderer.renderDetailField[${field.code}]`, error, {
@@ -647,23 +588,28 @@ const handleNavigate = (direction: 'prev' | 'next'): void => {
 }
 
 /**
- * 复制字段值到剪贴板
+ * 🔥 复制字段值到剪贴板（遵循组件自治原则）
+ * 
+ * 设计原则：
+ * - 遵循组件自治：每个 Widget 自己决定复制什么内容
+ * - 统一使用 widget.onCopy() 方法
+ * 
  * @param field 字段配置
- * @param value 字段值
+ * @param value 字段值（原始值）
  */
 const copyFieldValue = (field: FieldConfig, value: any): void => {
   try {
-    let textToCopy = ''
+    // 🔥 将原始值转换为 FieldValue 格式
+    const fieldValue = convertToFieldValue(value, field)
     
-    if (value === null || value === undefined) {
-      textToCopy = ''
-    } else if (Array.isArray(value)) {
-      textToCopy = value.join(', ')
-    } else if (typeof value === 'object') {
-      textToCopy = JSON.stringify(value, null, 2)
-    } else {
-      textToCopy = String(value)
-    }
+    // 🔥 创建临时 Widget（用于复制功能）
+    const widget = WidgetBuilder.createTemporary({
+      field: field,
+      value: fieldValue
+    })
+    
+    // 🔥 调用 Widget 的 onCopy() 方法（组件自治）
+    const textToCopy = widget.onCopy()
     
     navigator.clipboard.writeText(textToCopy).then(() => {
       ElMessage.success(`已复制 ${field.name}`)

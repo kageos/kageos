@@ -342,5 +342,108 @@ export class MultiSelectWidget extends BaseWidget {
       }, `等${labels.length}项`) : null
     ])
   }
+
+  /**
+   * 🔥 渲染详情展示（用于 TableRenderer 详情抽屉）
+   * 显示多个 Tag（全部显示，不限制数量）
+   */
+  renderForDetail(value?: FieldValue): any {
+    const fieldValue = value || this.safeGetValue(this.fieldPath)
+    if (!fieldValue || !fieldValue.raw) {
+      return h('span', { style: { color: 'var(--el-text-color-secondary)' } }, '-')
+    }
+    
+    const raw = fieldValue.raw
+    const meta = fieldValue.meta || {}
+    
+    // 如果不是数组，降级处理
+    if (!Array.isArray(raw)) {
+      return h('span', String(raw))
+    }
+    
+    if (raw.length === 0) {
+      return h('span', { style: { color: 'var(--el-text-color-secondary)' } }, '-')
+    }
+    
+    // 尝试从 meta.displayInfo 获取标签
+    let labels: string[] = []
+    if (meta.displayInfo && Array.isArray(meta.displayInfo)) {
+      labels = meta.displayInfo.map((info: any) => {
+        if (info && typeof info === 'object' && 'label' in info) {
+          return info.label
+        }
+        return info?.商品名称 || info?.名称 || info?.name || String(info)
+      })
+    }
+    
+    // 如果没有 labels，使用 display 值或 raw 值
+    if (labels.length === 0) {
+      if (fieldValue.display && typeof fieldValue.display === 'string') {
+        labels = fieldValue.display.split(',').map(s => s.trim())
+      } else {
+        labels = raw.map(v => String(v))
+      }
+    }
+    
+    // 详情中显示所有标签
+    return h('div', { 
+      style: { 
+        display: 'flex', 
+        gap: '4px', 
+        flexWrap: 'wrap',
+        alignItems: 'center'
+      } 
+    }, labels.map(label => 
+      h(ElTag, { 
+        size: 'small',
+        type: 'info'
+      }, { default: () => label })
+    ))
+  }
+
+  /**
+   * 🔥 获取复制文本
+   * 复制 label 列表（逗号分隔）
+   */
+  onCopy(): string {
+    const fieldValue = this.safeGetValue(this.fieldPath)
+    if (!fieldValue || !fieldValue.raw) {
+      return ''
+    }
+    
+    const raw = fieldValue.raw
+    const meta = fieldValue.meta || {}
+    
+    // 如果不是数组，返回字符串
+    if (!Array.isArray(raw)) {
+      return String(raw)
+    }
+    
+    if (raw.length === 0) {
+      return ''
+    }
+    
+    // 尝试从 meta.displayInfo 获取标签
+    let labels: string[] = []
+    if (meta.displayInfo && Array.isArray(meta.displayInfo)) {
+      labels = meta.displayInfo.map((info: any) => {
+        if (info && typeof info === 'object' && 'label' in info) {
+          return info.label
+        }
+        return info?.商品名称 || info?.名称 || info?.name || String(info)
+      })
+    }
+    
+    // 如果没有 labels，使用 display 值或 raw 值
+    if (labels.length === 0) {
+      if (fieldValue.display && typeof fieldValue.display === 'string') {
+        labels = fieldValue.display.split(',').map(s => s.trim())
+      } else {
+        labels = raw.map(v => String(v))
+      }
+    }
+    
+    return labels.join(', ')
+  }
 }
 

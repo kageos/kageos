@@ -9,6 +9,8 @@ import { BaseWidget } from './BaseWidget'
 import { Logger } from '../utils/logger'
 import { getDateTimeShortcuts } from './utils/date-shortcuts'
 import { getElementPlusFormProps } from './utils/widgetHelpers'
+import type { FieldConfig, FieldValue } from '../types/field'
+import { formatTimestamp } from '@/utils/date'
 
 interface TimestampConfig {
   disabled?: boolean
@@ -80,6 +82,102 @@ export class TimestampWidget extends BaseWidget {
         style: { width: '360px' },
         clearable: true
       }
+    }
+  }
+
+  /**
+   * 🔥 重写：渲染表格单元格
+   * 显示格式化后的时间，而不是时间戳
+   */
+  renderTableCell(value?: FieldValue): any {
+    const fieldValue = value || this.safeGetValue(this.fieldPath)
+    
+    if (!fieldValue || fieldValue.raw === null || fieldValue.raw === undefined) {
+      return '-'
+    }
+    
+    // ✅ 优先使用 display（如果已格式化）
+    if (fieldValue.display && fieldValue.display !== String(fieldValue.raw)) {
+      return fieldValue.display
+    }
+    
+    // ✅ 格式化时间戳
+    const format = this.timestampConfig.format || 'YYYY-MM-DD HH:mm:ss'
+    return formatTimestamp(fieldValue.raw, format)
+  }
+
+  /**
+   * 🔥 渲染详情展示（用于 TableRenderer 详情抽屉）
+   * 显示格式化后的时间
+   */
+  renderForDetail(value?: FieldValue): any {
+    const fieldValue = value || this.safeGetValue(this.fieldPath)
+    
+    if (!fieldValue || fieldValue.raw === null || fieldValue.raw === undefined) {
+      return '-'
+    }
+    
+    // ✅ 优先使用 display（如果已格式化）
+    if (fieldValue.display && fieldValue.display !== String(fieldValue.raw) && fieldValue.display !== '-') {
+      return fieldValue.display
+    }
+    
+    // ✅ 格式化时间戳
+    const format = this.timestampConfig.format || 'YYYY-MM-DD HH:mm:ss'
+    return formatTimestamp(fieldValue.raw, format)
+  }
+
+  /**
+   * 🔥 获取复制文本
+   * 复制格式化后的时间
+   */
+  onCopy(): string {
+    const fieldValue = this.safeGetValue(this.fieldPath)
+    
+    if (!fieldValue || fieldValue.raw === null || fieldValue.raw === undefined) {
+      return ''
+    }
+    
+    // ✅ 优先使用 display（如果已格式化）
+    if (fieldValue.display && fieldValue.display !== String(fieldValue.raw) && fieldValue.display !== '-') {
+      return fieldValue.display
+    }
+    
+    // ✅ 格式化时间戳
+    const format = this.timestampConfig.format || 'YYYY-MM-DD HH:mm:ss'
+    return formatTimestamp(fieldValue.raw, format)
+  }
+
+  /**
+   * 🔥 静态方法：从原始数据加载为 FieldValue 格式
+   * 确保时间戳被正确格式化
+   */
+  static loadFromRawData(rawValue: any, field: FieldConfig): FieldValue {
+    // 🔥 如果已经是 FieldValue 格式，直接返回
+    if (rawValue && typeof rawValue === 'object' && 'raw' in rawValue && 'display' in rawValue) {
+      return rawValue
+    }
+    
+    // 🔥 空值处理
+    if (rawValue === null || rawValue === undefined) {
+      return {
+        raw: null,
+        display: '-',
+        meta: {}
+      }
+    }
+
+    // ✅ 解析配置
+    const config = (field.widget?.config || {}) as TimestampConfig
+    const format = config.format || 'YYYY-MM-DD HH:mm:ss'
+    
+    // ✅ 格式化时间戳
+    const display = formatTimestamp(rawValue, format)
+    
+    return {
+      raw: rawValue,
+      display,
+      meta: {}
     }
   }
 }

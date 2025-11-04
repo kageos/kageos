@@ -14,6 +14,7 @@ import { TableWidget } from '../widgets/TableWidget'
 import { FormWidget } from '../widgets/FormWidget'
 import { SwitchWidget } from '../widgets/SwitchWidget'
 import { TimestampWidget } from '../widgets/TimestampWidget'
+import { FilesWidget } from '../widgets/FilesWidget'
 
 export class WidgetFactory {
   private widgetMap: Map<string, typeof BaseWidget>
@@ -44,6 +45,9 @@ export class WidgetFactory {
     
     // 时间选择器
     this.registerWidget('timestamp', TimestampWidget)  // 🔥 时间戳组件
+    
+    // 文件上传
+    this.registerWidget('files', FilesWidget)  // 🔥 文件上传组件
     
     // 容器组件
     this.registerWidget('table', TableWidget)  // table 表格组件

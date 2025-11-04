@@ -50,6 +50,8 @@ type Widget interface {
 
 func NewWidget(widgetType string, widgetParsed map[string]string) Widget {
 	switch widgetType {
+	case TypeFiles:
+		return newFiles(widgetParsed)
 	case TypeInput:
 		return newInput(widgetParsed)
 	case TypeTextArea:

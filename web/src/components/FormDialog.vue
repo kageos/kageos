@@ -39,13 +39,15 @@ interface Props {
   title: string  // 对话框标题
   fields: FieldConfig[]  // 表单字段
   mode: 'create' | 'update'  // 模式：新增或编辑
+  router: string  // ✨ 函数路由（用于文件上传等）
   initialData?: Record<string, any>  // 初始数据（编辑模式）
   width?: string | number  // 对话框宽度
 }
 
 const props = withDefaults(defineProps<Props>(), {
   width: '600px',
-  initialData: () => ({})
+  initialData: () => ({}),
+  router: ''
 })
 
 const emit = defineEmits<{
@@ -103,7 +105,7 @@ const formFunctionDetail = computed<FunctionDetail>(() => ({
   app_id: 0,
   tree_id: 0,
   method: 'POST',
-  router: '',
+  router: props.router,  // ✨ 使用传入的 router
   has_config: false,
   create_tables: '',
   callbacks: '',

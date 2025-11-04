@@ -4,7 +4,7 @@
  */
 
 import { h } from 'vue'
-import { ElSwitch } from 'element-plus'
+import { ElSwitch, ElTag } from 'element-plus'
 import { BaseWidget } from './BaseWidget'
 
 interface SwitchConfig {
@@ -37,6 +37,53 @@ export class SwitchWidget extends BaseWidget {
         this.updateRawValue(value)
       }
     })
+  }
+
+  /**
+   * 🔥 渲染响应参数（只读模式）
+   * 在响应参数中显示 Tag 而不是开关组件
+   */
+  renderForResponse(): any {
+    return this.renderForDetail()
+  }
+
+  /**
+   * 🔥 渲染详情展示（用于 TableRenderer 详情抽屉）
+   * 显示 Tag 而不是开关组件
+   */
+  renderForDetail(value?: FieldValue): any {
+    const currentValue = value || this.getValue()
+    const boolValue = currentValue?.raw === true || 
+                      currentValue?.raw === 'true' || 
+                      currentValue?.raw === 1 || 
+                      currentValue?.raw === '1' ||
+                      (this.switchConfig.activeValue !== undefined && currentValue?.raw === this.switchConfig.activeValue)
+    
+    const displayText = boolValue 
+      ? (this.switchConfig.activeText || '是')
+      : (this.switchConfig.inactiveText || '否')
+    
+    return h(ElTag, {
+      type: boolValue ? 'success' : 'info',
+      size: 'default'
+    }, () => displayText)
+  }
+
+  /**
+   * 🔥 获取复制文本
+   * 复制显示文本（"是"/"否"）
+   */
+  onCopy(): string {
+    const currentValue = this.getValue()
+    const boolValue = currentValue?.raw === true || 
+                      currentValue?.raw === 'true' || 
+                      currentValue?.raw === 1 || 
+                      currentValue?.raw === '1' ||
+                      (this.switchConfig.activeValue !== undefined && currentValue?.raw === this.switchConfig.activeValue)
+    
+    return boolValue 
+      ? (this.switchConfig.activeText || '是')
+      : (this.switchConfig.inactiveText || '否')
   }
 }
 
