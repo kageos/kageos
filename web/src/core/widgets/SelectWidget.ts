@@ -4,7 +4,7 @@
  */
 
 import { h, ref, computed } from 'vue'
-import { ElSelect, ElOption, ElMessage } from 'element-plus'
+import { ElSelect, ElOption, ElMessage, ElTag } from 'element-plus'
 import { BaseWidget } from './BaseWidget'
 import type { FieldConfig, FieldValue } from '../types/field'
 import type { WidgetRenderProps } from '../types/widget'
@@ -315,6 +315,60 @@ export class SelectWidget extends BaseWidget {
         })
       )
     })
+  }
+
+  /**
+   * 🔥 渲染详情展示（用于 TableRenderer 详情抽屉）
+   * 显示标签 Tag
+   */
+  renderForDetail(value?: FieldValue): any {
+    const fieldValue = value || this.safeGetValue(this.fieldPath)
+    if (!fieldValue) return '-'
+    
+    let label = fieldValue.display
+    // 尝试从 meta.displayInfo 获取 label
+    if (fieldValue.meta?.displayInfo) {
+      if (typeof fieldValue.meta.displayInfo === 'object' && 'label' in fieldValue.meta.displayInfo) {
+        label = fieldValue.meta.displayInfo.label
+      }
+    }
+    
+    // 如果没有 label，尝试从 options 中查找
+    if (!label || label === String(fieldValue.raw)) {
+      const option = this.options.value.find((opt: SelectOption) => opt.value === fieldValue.raw)
+      if (option) {
+        label = option.label
+      }
+    }
+    
+    return h(ElTag, { type: 'primary', size: 'default' }, () => label || String(fieldValue.raw || '-'))
+  }
+
+  /**
+   * 🔥 获取复制文本
+   * 复制 label（显示文本）
+   */
+  onCopy(): string {
+    const fieldValue = this.safeGetValue(this.fieldPath)
+    if (!fieldValue) return ''
+    
+    let label = fieldValue.display
+    // 尝试从 meta.displayInfo 获取 label
+    if (fieldValue.meta?.displayInfo) {
+      if (typeof fieldValue.meta.displayInfo === 'object' && 'label' in fieldValue.meta.displayInfo) {
+        label = fieldValue.meta.displayInfo.label
+      }
+    }
+    
+    // 如果没有 label，尝试从 options 中查找
+    if (!label || label === String(fieldValue.raw)) {
+      const option = this.options.value.find((opt: SelectOption) => opt.value === fieldValue.raw)
+      if (option) {
+        label = option.label
+      }
+    }
+    
+    return label || String(fieldValue.raw || '')
   }
 
   /**

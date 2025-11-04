@@ -127,6 +127,8 @@ import { Logger } from '../utils/logger'
 import { BaseWidget } from '../widgets/BaseWidget'
 import { ResponseTableWidget } from '../widgets/ResponseTableWidget'
 import { ResponseFormWidget } from '../widgets/ResponseFormWidget'
+import { FilesWidget } from '../widgets/FilesWidget'
+import { convertToFieldValue } from '../../utils/field'
 import { executeFunction } from '@/api/function'
 import { ValidationEngine, createDefaultValidatorRegistry } from '../validation'
 import type { ValidationResult } from '../validation/types'
@@ -248,11 +250,29 @@ function initializeForm(): void {
       if (initialRawValue && typeof initialRawValue === 'object' && 'raw' in initialRawValue && 'display' in initialRawValue) {
         fieldValue = initialRawValue as FieldValue
       } else {
-        // 转换为 FieldValue 格式
-        fieldValue = {
-          raw: initialRawValue,
-          display: initialRawValue !== null && initialRawValue !== undefined ? String(initialRawValue) : '',
-          meta: {}
+        // ✅ 优先使用 Widget 的 loadFromRawData 静态方法（如果存在）
+        const widgetType = field.widget?.type || 'input'
+        const WidgetClass = widgetFactory.getWidgetClass(widgetType)
+        
+        if (WidgetClass && typeof (WidgetClass as any).loadFromRawData === 'function') {
+          try {
+            fieldValue = (WidgetClass as any).loadFromRawData(initialRawValue, field)
+          } catch (error) {
+            console.warn(`[FormRenderer] Widget.loadFromRawData failed for ${widgetType}:`, error)
+            // 降级到默认转换
+            fieldValue = {
+              raw: initialRawValue,
+              display: initialRawValue !== null && initialRawValue !== undefined ? String(initialRawValue) : '',
+              meta: {}
+            }
+          }
+        } else {
+          // 默认转换：转换为 FieldValue 格式
+          fieldValue = {
+            raw: initialRawValue,
+            display: initialRawValue !== null && initialRawValue !== undefined ? String(initialRawValue) : '',
+            meta: {}
+          }
         }
       }
     } else {
@@ -344,11 +364,12 @@ function renderResponseField(field: FieldConfig): ReturnType<typeof h> {
   // 获取返回值（可能为 undefined）
   const value = responseData.value?.[field.code]
   
-  // 根据字段类型渲染不同的组件
+  // 🔥 widget.type 绝对优先于 data.type（data.type 只用于提交时的类型检查）
   const widgetType = field.widget?.type || 'input'
   
-  // 对于表格类型，使用 ResponseTableWidget（始终渲染，即使没有数据也显示空表格）
-  if (widgetType === 'table' || field.data?.type?.includes('[]')) {
+  // 🔥 对于表格类型，使用 ResponseTableWidget（始终渲染，即使没有数据也显示空表格）
+  // 完全基于 widget.type 判断，不依赖 data.type
+  if (widgetType === 'table') {
     const widget = new ResponseTableWidget({
       field: field,
       currentFieldPath: field.code,
@@ -371,8 +392,9 @@ function renderResponseField(field: FieldConfig): ReturnType<typeof h> {
     return widget.render()
   }
   
-  // 对于对象类型，使用 ResponseFormWidget（始终渲染，即使没有数据也显示空表单框架）
-  if (widgetType === 'form' || field.data?.type === 'struct') {
+  // 🔥 对于表单类型，使用 ResponseFormWidget（始终渲染，即使没有数据也显示空表单框架）
+  // 完全基于 widget.type 判断，不依赖 data.type
+  if (widgetType === 'form') {
     const widget = new ResponseFormWidget({
       field: field,
       currentFieldPath: field.code,
@@ -395,25 +417,93 @@ function renderResponseField(field: FieldConfig): ReturnType<typeof h> {
     return widget.render()
   }
   
-  // 对于文本域
-  if (widgetType === 'text_area' || widgetType === 'textarea') {
+  // 🔥 统一使用 Widget 的 renderForResponse() 方法（遵循依赖倒置原则）
+  // 每个 Widget 自己决定如何在响应参数中渲染，FormRenderer 不需要知道具体类型
+  // 这包括 files、switch、input、select 等所有基础组件
+  try {
+    // 将原始值转换为 FieldValue 格式
+    const fieldValue = convertToFieldValue(value, field)
+    
+    // 🔥 调试日志（仅在开发环境）
+    if (import.meta.env.DEV) {
+      console.log(`[FormRenderer] renderResponseField for ${field.code}:`, {
+        widgetType: widgetType,
+        rawValue: value,
+        fieldValue: fieldValue,
+        field: field
+      })
+    }
+    
+    // 创建只读的 field 配置（禁用编辑）
+    const readonlyField: FieldConfig = {
+      ...field,
+      widget: {
+        ...field.widget,
+        config: {
+          ...field.widget?.config,
+          disabled: true  // 🔥 禁用编辑功能
+        }
+      }
+    }
+    
+    // 🔥 先初始化 formManager 中的值（用于 Widget 获取初始值）
+    formManager.initializeField(field.code, fieldValue)
+    
+    // 🔥 调试日志（仅在开发环境）
+    if (import.meta.env.DEV) {
+      console.log(`[FormRenderer] Before create widget for ${field.code}:`, {
+        fieldValue: fieldValue,
+        formManagerValue: formManager.getValue(field.code),
+        filesCount: fieldValue.raw && typeof fieldValue.raw === 'object' && 'files' in fieldValue.raw
+          ? (fieldValue.raw as any).files?.length : 0
+      })
+    }
+    
+    // 创建 Widget（只读模式：router 为空，onChange 为空回调）
+    // 🔥 直接传递 initialValue，避免依赖 formManager 的时序问题
+    const widget = WidgetBuilder.create({
+      field: readonlyField,
+      fieldPath: field.code,
+      formManager: formManager,
+      formRenderer: {
+        registerWidget: () => {},
+        unregisterWidget: () => {},
+        getFunctionMethod: () => props.functionDetail.method,
+        getFunctionRouter: () => '',  // 🔥 响应参数不需要 router，设置为空字符串以禁用上传
+        getSubmitData: () => ({})
+      },
+      depth: 0,
+      initialValue: fieldValue,  // 🔥 直接传递初始值，确保 Widget 能立即获取到数据
+      onChange: () => {} // 响应参数是只读的，不需要 onChange
+    })
+    
+    // 🔥 调试日志（仅在开发环境）
+    if (import.meta.env.DEV) {
+      console.log(`[FormRenderer] Created widget for ${field.code}:`, {
+        widgetType: widget.constructor.name,
+        hasRenderForResponse: typeof widget.renderForResponse === 'function'
+      })
+    }
+    
+    // 🔥 调用 Widget 的 renderForResponse() 方法（组件自治）
+    const renderResult = widget.renderForResponse()
+    
+    // 🔥 调试日志（仅在开发环境）
+    if (import.meta.env.DEV) {
+      console.log(`[FormRenderer] renderForResponse result for ${field.code}:`, renderResult)
+    }
+    
+    return renderResult
+  } catch (error) {
+    console.error(`[FormRenderer] renderResponseField error for ${field.code}:`, error)
+    // 降级到默认显示
     return h(ElInput, {
-      modelValue: value || '',
-      type: 'textarea',
-      rows: 4,
+      modelValue: value !== undefined && value !== null ? String(value) : '',
       disabled: true,
       placeholder: responseData.value ? '' : `等待提交后显示${field.name}`,
       style: { width: '100%' }
     })
   }
-  
-  // 默认使用只读输入框
-  return h(ElInput, {
-    modelValue: value !== undefined && value !== null ? String(value) : '',
-    disabled: true,
-    placeholder: responseData.value ? '' : `等待提交后显示${field.name}`,
-    style: { width: '100%' }
-  })
 }
 
 /**
@@ -966,6 +1056,68 @@ onUnmounted(() => {
 
 .share-content {
   padding: 10px 0;
+}
+
+/* 🔥 文件上传组件样式优化 - 参考旧版本，使用 Element Plus 主题变量 */
+.form-renderer :deep(.files-widget),
+.function-form :deep(.files-widget),
+:deep(.files-widget) {
+  background-color: var(--el-fill-color-lighter) !important;
+  border: 1px solid var(--el-border-color-light) !important;
+  border-radius: 8px !important;
+  padding: 20px !important;
+}
+
+.form-renderer :deep(.files-widget .upload-area),
+.function-form :deep(.files-widget .upload-area),
+:deep(.files-widget .upload-area) {
+  background-color: var(--el-bg-color) !important;
+  border: 2px dashed var(--el-border-color) !important;
+  border-radius: 8px !important;
+  padding: 24px !important;
+}
+
+.form-renderer :deep(.files-widget .upload-area:hover),
+.function-form :deep(.files-widget .upload-area:hover),
+:deep(.files-widget .upload-area:hover) {
+  border-color: var(--el-color-primary) !important;
+  background-color: var(--el-color-primary-light-9) !important;
+}
+
+.form-renderer :deep(.files-widget .uploaded-file),
+.form-renderer :deep(.files-widget .uploading-file),
+.function-form :deep(.files-widget .uploaded-file),
+.function-form :deep(.files-widget .uploading-file),
+:deep(.files-widget .uploaded-file),
+:deep(.files-widget .uploading-file) {
+  background-color: var(--el-bg-color) !important;
+  border: 1px solid var(--el-border-color-light) !important;
+  border-radius: 6px !important;
+  padding: 12px !important;
+  margin-bottom: 10px !important;
+}
+
+.form-renderer :deep(.files-widget .uploaded-file:hover),
+.form-renderer :deep(.files-widget .uploading-file:hover),
+.function-form :deep(.files-widget .uploaded-file:hover),
+.function-form :deep(.files-widget .uploading-file:hover),
+:deep(.files-widget .uploaded-file:hover),
+:deep(.files-widget .uploading-file:hover) {
+  border-color: var(--el-color-primary) !important;
+  background-color: var(--el-color-primary-light-9) !important;
+}
+
+.form-renderer :deep(.files-widget .files-remark),
+.function-form :deep(.files-widget .files-remark),
+:deep(.files-widget .files-remark) {
+  margin-top: 20px !important;
+  padding-top: 20px !important;
+  border-top: 1px solid var(--el-border-color-lighter) !important;
+  background-color: transparent !important;
+  border-left: none !important;
+  border-right: none !important;
+  border-bottom: none !important;
+  box-shadow: none !important;
 }
 </style>
 

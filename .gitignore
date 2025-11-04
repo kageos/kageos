@@ -23,3 +23,4 @@ configs/*.yml
 configs/*.json
 
 temp/
+plan/

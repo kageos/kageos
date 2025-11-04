@@ -1,0 +1,169 @@
+/* Widget 样式 */
+
+/* FilesWidget 样式 */
+.files-widget {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* 上传区域 */
+.upload-area {
+  width: 100%;
+}
+
+.upload-dragger-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 30px 0;
+}
+
+.el-upload__text {
+  color: #606266;
+  font-size: 14px;
+}
+
+.el-upload__text em {
+  color: #409EFF;
+  font-style: normal;
+}
+
+.el-upload__tip {
+  color: #909399;
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+/* 节标题 */
+.section-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #303133;
+  margin-bottom: 12px;
+}
+
+/* 上传中的文件 */
+.uploading-files {
+  padding: 16px;
+  background: #f5f7fa;
+  border-radius: 8px;
+}
+
+.uploading-file {
+  padding: 12px;
+  background: #fff;
+  border-radius: 4px;
+  margin-bottom: 12px;
+}
+
+.uploading-file:last-child {
+  margin-bottom: 0;
+}
+
+.file-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: #606266;
+}
+
+.file-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-size {
+  color: #909399;
+  font-size: 12px;
+  margin-left: auto;
+}
+
+.error-message {
+  color: #f56c6c;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+/* 已上传的文件列表 */
+.uploaded-files {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.uploaded-file {
+  padding: 16px;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: box-shadow 0.2s;
+}
+
+.uploaded-file:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.file-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.file-header .file-name {
+  flex: 1;
+  font-weight: 500;
+  color: #303133;
+}
+
+.file-description {
+  width: 100%;
+}
+
+.file-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* 备注 */
+.files-remark {
+  width: 100%;
+}
+
+/* 表格单元格 */
+.files-table-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 200px;
+}
+
+.files-table-cell .file-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #606266;
+}
+
+.files-table-cell .file-item .file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.files-table-cell .more-files {
+  font-size: 12px;
+  color: #909399;
+}
+

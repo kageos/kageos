@@ -309,28 +309,6 @@ export abstract class BaseWidget implements IWidgetSnapshot {
   }
 
   /**
-   * 获取用于提交的原始值（已转换类型）
-   */
-  getRawValueForSubmit(): any {
-    const raw = this.value.value.raw
-    
-    // 🔥 获取字段类型：优先使用 data.type，如果为空则使用 widget.type
-    let fieldType = this.field.data?.type || ''
-    if (!fieldType || fieldType.trim() === '') {
-      fieldType = this.field.widget?.type || 'string'
-    }
-    
-    // 对于嵌套结构（List/Struct），不做类型转换（由子组件处理）
-    if (fieldType.includes('[]') || fieldType === 'struct' || 
-        fieldType === 'table' || fieldType === 'form') {
-      return raw
-    }
-    
-    // 对于基础类型，转换类型
-    return this.convertValueByType(raw)
-  }
-
-  /**
    * 更新原始值（保留 display 和 meta，自动类型转换）
    */
   protected updateRawValue(raw: any): void {
@@ -359,17 +337,17 @@ export abstract class BaseWidget implements IWidgetSnapshot {
    * 注意：为了兼容 TableRenderer，如果返回字符串，TableRenderer 会用 span 包裹
    * 子类如果要返回 VNode，可以直接返回 h(...)
    */
-  renderTableCell(value: FieldValue): any {
-    // 需要导入 h，但为了保持简洁，返回字符串，由 TableRenderer 处理
-    if (!value) return '-'
+  renderTableCell(value?: FieldValue): any {
+    const fieldValue = value || this.safeGetValue(this.fieldPath)
+    if (!fieldValue) return '-'
     
     // 🔥 优先使用 display 属性
-    if (value.display) {
-      return value.display
+    if (fieldValue.display) {
+      return fieldValue.display
     }
     
     // 降级：格式化 raw 值
-    const raw = value.raw
+    const raw = fieldValue.raw
     if (raw === null || raw === undefined) return '-'
     
     // 根据字段类型格式化
@@ -382,6 +360,86 @@ export abstract class BaseWidget implements IWidgetSnapshot {
     }
     
     return String(raw)
+  }
+
+  /**
+   * 🔥 渲染响应参数（只读模式）
+   * 
+   * 设计原则：
+   * - 遵循依赖倒置原则：FormRenderer 不需要知道具体 Widget 类型
+   * - 组件自治：每个 Widget 自己决定如何在响应参数中渲染
+   * - 默认实现：调用 render() 方法（某些组件可能需要重写）
+   * 
+   * 使用场景：
+   * - 响应参数展示（只读）
+   * - 某些组件在响应参数中可能需要不同的展示方式（如 switch 显示 Tag 而不是开关）
+   * 
+   * @returns 渲染结果（VNode）
+   */
+  renderForResponse(): any {
+    // 默认实现：调用 render() 方法
+    // 子类可以重写此方法来提供响应参数专用的渲染逻辑
+    return this.render()
+  }
+
+  /**
+   * 🔥 渲染详情展示（用于 TableRenderer 详情抽屉）
+   * 
+   * 设计原则：
+   * - 遵循依赖倒置原则：TableRenderer 不需要知道具体 Widget 类型
+   * - 组件自治：每个 Widget 自己决定如何在详情中展示
+   * - 默认实现：调用 renderForResponse()（详情也是只读展示）
+   * 
+   * 使用场景：
+   * - Table 详情抽屉中的字段展示
+   * - 某些组件在详情中可能需要更丰富的展示（如 files 显示文件列表）
+   * 
+   * @param value 字段值（可选，默认从 formManager 读取）
+   * @returns 渲染结果（VNode）
+   */
+  renderForDetail(value?: FieldValue): any {
+    // 默认实现：调用 renderForResponse()（详情也是只读展示）
+    // 子类可以重写此方法来提供详情专用的渲染逻辑
+    const fieldValue = value || this.safeGetValue(this.fieldPath)
+    if (!fieldValue) return '-'
+    
+    // 优先使用 display 属性
+    if (fieldValue.display && fieldValue.display !== '-') {
+      return fieldValue.display
+    }
+    
+    // 降级：格式化 raw 值
+    const raw = fieldValue.raw
+    if (raw === null || raw === undefined) return '-'
+    
+    return String(raw)
+  }
+
+  /**
+   * 🔥 获取复制文本（用于复制功能）
+   * 
+   * 设计原则：
+   * - 遵循组件自治：每个 Widget 自己决定复制什么内容
+   * - 默认实现：返回 display 或格式化后的 raw
+   * 
+   * 使用场景：
+   * - Table 详情抽屉中的复制按钮
+   * - 不同组件可能有不同的复制需求（如 files 复制 URL，select 复制 label）
+   * 
+   * @returns 要复制到剪贴板的字符串
+   */
+  onCopy(): string {
+    const value = this.safeGetValue(this.fieldPath)
+    if (!value) return ''
+    
+    // 默认：返回 display 或格式化后的 raw
+    if (value.display && value.display !== '-') {
+      return value.display
+    }
+    
+    if (value.raw === null || value.raw === undefined) return ''
+    
+    return String(value.raw)
   }
 
   /**

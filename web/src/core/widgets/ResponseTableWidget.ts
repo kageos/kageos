@@ -13,6 +13,8 @@ import { ElTable, ElTableColumn, ElDrawer, ElButton, ElIcon, ElDescriptions, ElD
 import { ArrowLeft, ArrowRight, Close } from '@element-plus/icons-vue'
 import { BaseWidget } from './BaseWidget'
 import type { FieldConfig } from '../types/field'
+import { WidgetBuilder } from '../factories/WidgetBuilder'
+import { convertToFieldValue } from '../../utils/field'
 
 export class ResponseTableWidget extends BaseWidget {
   // 🔥 详情抽屉状态
@@ -108,6 +110,47 @@ export class ResponseTableWidget extends BaseWidget {
   }
 
   /**
+   * 🔥 渲染表格单元格（使用 Widget 的 renderTableCell 方法）
+   * 与 TableRenderer 保持一致，支持复杂组件（如 files、multiselect 等）
+   */
+  private renderTableCell(field: FieldConfig, rawValue: any): { content: any, isString: boolean } {
+    try {
+      // 🔥 将原始值转换为 FieldValue 格式
+      const value = convertToFieldValue(rawValue, field)
+      
+      // 🔥 将 field 转换为 core 类型的 FieldConfig（类型兼容）
+      const coreField: FieldConfig = {
+        ...field,
+        widget: field.widget || { type: 'input', config: {} },
+        data: field.data || {}
+      } as FieldConfig
+      
+      // 🔥 创建临时 Widget（不需要 formManager）
+      const tempWidget = WidgetBuilder.createTemporary({
+        field: coreField,
+        value: value
+      })
+      
+      // 🔥 调用 Widget 的 renderTableCell() 方法（组件自治）
+      const result = tempWidget.renderTableCell(value)
+      
+      // 🔥 统一返回格式：区分字符串和 VNode
+      const isString = typeof result === 'string'
+      return {
+        content: result,
+        isString
+      }
+    } catch (error) {
+      console.error(`[ResponseTableWidget] renderTableCell error for ${field.code}:`, error)
+      const fallbackValue = rawValue !== null && rawValue !== undefined ? String(rawValue) : '-'
+      return {
+        content: fallbackValue,
+        isString: true
+      }
+    }
+  }
+
+  /**
    * 渲染表格
    * 即使没有数据也显示表格框架结构
    */
@@ -140,16 +183,18 @@ export class ResponseTableWidget extends BaseWidget {
             // 如果没有数据，不渲染单元格内容
             if (!hasData) return '-'
             
-            const value = row[field.code]
+            const rawValue = row[field.code]
             
-            // 根据字段类型格式化显示
-            if (field.widget?.type === 'timestamp') {
-              return this.formatTimestamp(value, field.widget.config?.format)
-            } else if (field.widget?.type === 'float' || field.data?.type === 'float') {
-              return this.formatFloat(value)
+            // 🔥 使用 Widget 的 renderTableCell 方法（支持复杂组件）
+            const cellResult = this.renderTableCell(field, rawValue)
+            
+            // 🔥 根据返回类型渲染：字符串或 VNode
+            if (cellResult.isString) {
+              return cellResult.content
+            } else {
+              // VNode 需要使用 component :is 渲染
+              return h('div', { style: 'display: inline-block; width: 100%;' }, cellResult.content)
             }
-            
-            return value !== undefined && value !== null ? String(value) : '-'
           }
         })
       )

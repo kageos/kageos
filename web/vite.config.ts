@@ -27,4 +27,18 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url))
     },
   },
+  server: {
+    proxy: {
+      // 代理存储服务 API
+      '/api/v1/storage': {
+        target: 'http://localhost:8083',
+        changeOrigin: true,
+      },
+      // 代理其他 API
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+    },
+  },
 })

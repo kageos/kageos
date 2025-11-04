@@ -82,16 +82,23 @@ export class ReactiveFormDataManager {
    * 初始化字段值
    */
   initializeField(fieldPath: string, initialValue?: FieldValue): void {
-    if (!this.data.has(fieldPath)) {
-      // 如果提供了 FieldValue，直接使用；否则使用默认空值
-      const defaultFieldValue: FieldValue = initialValue || {
+    // 🔥 如果提供了 initialValue，直接设置（即使字段已存在也要更新）
+    if (initialValue) {
+      this.data.set(fieldPath, initialValue)
+      if (import.meta.env.DEV) {
+        console.log(`[ReactiveFormDataManager] 初始化字段: ${fieldPath}`, initialValue)
+      }
+    } else if (!this.data.has(fieldPath)) {
+      // 如果没有提供 initialValue 且字段不存在，使用默认空值
+      const defaultFieldValue: FieldValue = {
         raw: '',
         display: '',
         meta: {}
       }
-      
       this.data.set(fieldPath, defaultFieldValue)
-      console.log(`[ReactiveFormDataManager] 初始化字段: ${fieldPath}`, defaultFieldValue)
+      if (import.meta.env.DEV) {
+        console.log(`[ReactiveFormDataManager] 初始化字段（默认值）: ${fieldPath}`, defaultFieldValue)
+      }
     }
   }
 
