@@ -4,14 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/pkg/msgx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/callback"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/pkg/msgx"
+	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/callback"
 
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/env"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/model"
@@ -128,7 +129,6 @@ func (a *App) loadVersion(versionFile string) ([]*model.ApiInfo, error) {
 	return versionInfo.Apis, nil
 }
 
-
 // 检查版本是否存在于版本列表中
 func (a *App) containsVersion(versions []string, version string) bool {
 	for _, v := range versions {
@@ -197,14 +197,14 @@ func (a *App) diffApi() (add []*model.ApiInfo, update []*model.ApiInfo, delete [
 		}
 	}
 
-		// 找出修改的API
-		for key, currentApi := range currentMap {
-			if previousApi, exists := previousMap[key]; exists {
-				logger.Infof(context.Background(), "Comparing API %s: %s %s", key, currentApi.Method, currentApi.Router)
+	// 找出修改的API
+	for key, currentApi := range currentMap {
+		if previousApi, exists := previousMap[key]; exists {
+			logger.Infof(context.Background(), "Comparing API %s: %s %s", key, currentApi.Method, currentApi.Router)
 
-				// 先比较API是否真的变更了
-				isEqual := previousApi.IsEqual(currentApi)
-				logger.Infof(context.Background(), "API %s comparison result: %v", key, isEqual)
+			// 先比较API是否真的变更了
+			isEqual := previousApi.IsEqual(currentApi)
+			logger.Infof(context.Background(), "API %s comparison result: %v", key, isEqual)
 
 			if !isEqual {
 				logger.Infof(context.Background(), "API %s has changed, adding to update list", key)

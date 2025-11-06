@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"strings"
+
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/trace"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/env"
 	"github.com/go-playground/form/v4"
-	"net/url"
-	"strings"
 )
 
 func newCallbackContext() *Context {
@@ -19,7 +20,8 @@ func newCallbackContext() *Context {
 		Version: env.Version,
 	}
 	return &Context{
-		msg: &msgInfo,
+		msg:   &msgInfo,
+		token: "", // 回调context可能没有token
 	}
 }
 func NewContext(ctx context.Context, req *dto.RequestAppReq) (*Context, error) {
@@ -42,6 +44,7 @@ func NewContext(ctx context.Context, req *dto.RequestAppReq) (*Context, error) {
 		urlQuery: req.UrlQuery,
 		Context:  ctx,
 		msg:      &msgInfo,
+		token:    req.Token, // ✨ 保存token，用于调用存储服务
 	}, nil
 }
 
@@ -50,6 +53,7 @@ type Context struct {
 	msg      *trace.Msg
 	body     []byte
 	urlQuery string
+	token    string // ✨ Token（用于调用存储服务等）
 }
 
 func (c *Context) ShouldBind(req interface{}) error {

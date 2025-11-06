@@ -100,6 +100,10 @@ func (a *AppRuntime) RequestApp(ctx context.Context, natsId int64, req *dto.Requ
 	msg.Header.Set("app", req.App)
 	msg.Header.Set("user", req.User)
 	msg.Header.Set("version", req.Version)
+	// ✅ 透传 token 到 SDK（用于调用 storage 等服务）
+	if req.Token != "" {
+		msg.Header.Set("X-Token", req.Token)
+	}
 	// 发送消息（不等待响应）
 	if err := conn.PublishMsg(msg); err != nil {
 		return nil, fmt.Errorf("publish request failed: %w", err)

@@ -20,8 +20,9 @@ type UploadCredentials struct {
 	Method UploadMethod // 上传方式
 	
 	// 预签名 URL 上传（MinIO、COS、OSS、S3）
-	URL     string            // 预签名 URL
-	Headers map[string]string // 请求头
+	URL       string            // ✨ 外部访问的预签名 URL（前端使用）
+	ServerURL string            // ✨ 内部访问的预签名 URL（服务端/SDK使用）
+	Headers   map[string]string // 请求头
 	
 	// 上传域名信息 ✨ 新增
 	UploadHost string // 上传目标域名（例如：localhost:9000 或 cdn.example.com）
@@ -43,6 +44,12 @@ type Storage interface {
 
 	// GetCDNDomain 获取 CDN 域名 ✨ 新增
 	GetCDNDomain() string
+
+	// GetUploadEndpoint 获取上传用的 endpoint
+	// uploadSource: 上传来源（browser 或 server）
+	// 返回: 上传用的 endpoint（如果为空则使用默认 endpoint）
+	// 统一逻辑：如果配置了 server_endpoint 且 upload_source 是 server，返回 server_endpoint；否则返回空字符串（使用默认）
+	GetUploadEndpoint(uploadSource string) string
 
 	// GenerateUploadCredentials 生成上传凭证（统一接口）✨ 新增
 	GenerateUploadCredentials(ctx context.Context, bucket, key, contentType string, expire time.Duration) (*UploadCredentials, error)

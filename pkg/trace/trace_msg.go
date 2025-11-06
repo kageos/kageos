@@ -1,5 +1,10 @@
 package trace
 
+import (
+	"fmt"
+	"strings"
+)
+
 type UserInfo struct {
 	Username   string `json:"username"`
 	IsLoggedIn bool   `json:"is_logged_in"`
@@ -30,4 +35,8 @@ type Msg struct {
 	Router      string `json:"router" binding:"required" example:"/users"` // 路由路径
 	Method      string `json:"method" example:"GET"`                       // 应用内部方法名（可选）
 
+}
+
+func (m *Msg) GetFullRouter() string {
+	return fmt.Sprintf("%s/%s/%s", m.User, m.App, strings.Trim(m.Router, "/"))
 }

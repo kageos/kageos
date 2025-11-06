@@ -10,6 +10,8 @@
  * - required_without=Field: 当字段无值时显示（有值时隐藏）
  */
 
+// 🔥 统一使用 validation/utils/fieldUtils 中的 isEmpty，避免重复代码
+import { isEmpty } from '../validation/utils/fieldUtils'
 import type { FieldConfig, FieldValue } from '../types/field'
 import type { ReactiveFormDataManager } from '../managers/ReactiveFormDataManager'
 
@@ -143,19 +145,6 @@ function evaluateCondition(
       return true
   }
 }
-
-/**
- * 判断值是否为空
- */
-function isEmpty(fieldValue: FieldValue): boolean {
-  return fieldValue.raw === null ||
-         fieldValue.raw === undefined ||
-         fieldValue.raw === '' ||
-         (Array.isArray(fieldValue.raw) && fieldValue.raw.length === 0)
-}
-
-// 注意：此处的 isEmpty 与 validation/utils/fieldUtils.ts 中的 isEmpty 功能相同
-// 但为了保持模块独立性，暂时不合并。如果后续需要统一，可以从 fieldUtils 导入
 
 /**
  * 判断两个值是否相等

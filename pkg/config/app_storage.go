@@ -35,13 +35,14 @@ type AppStorageConfig struct {
 		Type string `yaml:"type"` // 存储类型：minio | tencentcos | aliyunoss | awss3 | local
 
 		MinIO struct {
-			Endpoint      string `yaml:"endpoint"`
-			AccessKey     string `yaml:"access_key"`
-			SecretKey     string `yaml:"secret_key"`
-			UseSSL        bool   `yaml:"use_ssl"`
-			Region        string `yaml:"region"`
-			DefaultBucket string `yaml:"default_bucket"`
-			CDNDomain     string `yaml:"cdn_domain"` // ✨ CDN 域名（可选，用于加速访问）
+			Endpoint       string `yaml:"endpoint"`        // 浏览器上传用的 endpoint（宿主机访问）
+			ServerEndpoint string `yaml:"server_endpoint"` // ✨ 服务端上传用的 endpoint（容器内访问）
+			AccessKey      string `yaml:"access_key"`
+			SecretKey      string `yaml:"secret_key"`
+			UseSSL         bool   `yaml:"use_ssl"`
+			Region         string `yaml:"region"`
+			DefaultBucket  string `yaml:"default_bucket"`
+			CDNDomain      string `yaml:"cdn_domain"` // ✨ CDN 域名（可选，用于加速访问）
 		} `yaml:"minio"`
 
 		TencentCOS struct {

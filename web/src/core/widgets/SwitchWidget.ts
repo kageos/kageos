@@ -73,7 +73,7 @@ export class SwitchWidget extends BaseWidget {
    * 🔥 获取复制文本
    * 复制显示文本（"是"/"否"）
    */
-  onCopy(): string {
+  getCopyText(): string {
     const currentValue = this.getValue()
     const boolValue = currentValue?.raw === true || 
                       currentValue?.raw === 'true' || 

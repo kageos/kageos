@@ -2,10 +2,11 @@ package model
 
 import (
 	"fmt"
-	"github.com/ai-agent-os/ai-agent-os/pkg/jsonx"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
 	"strings"
 	"time"
+
+	"github.com/ai-agent-os/ai-agent-os/pkg/jsonx"
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
 )
 
 // ApiInfo API信息结构

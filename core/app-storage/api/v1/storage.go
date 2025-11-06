@@ -3,15 +3,16 @@ package v1
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
+
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-storage/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-storage/service"
 	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/gin-gonic/gin"
@@ -54,69 +55,144 @@ func (s *Storage) GetUploadToken(c *gin.Context) {
 		return
 	}
 
-	// ✅ 获取用户信息（使用与 app-server 一致的辅助函数）
-	// ✅ username 是不可变的，因此无需记录 user_id
-	requestUser := contextx.GetRequestUser(c) // ✅ 使用与 app-server 一致的辅助函数
+	// ✨ 设置默认 upload_source（如果不填写，默认为 browser）
+	uploadSource := string(req.UploadSource)
+	if uploadSource == "" {
+		uploadSource = string(dto.UploadSourceBrowser)
+	}
 
-	// ✅ 从 router 中提取 tenant（第一段）
-	// 例如：luobei/test88888/crm/crm_ticket → tenant = luobei
-	tenant := extractTenantFromRouter(req.Router)
-
-	// 生成上传凭证（包含函数路径）
-	creds, key, expire, err := s.storageService.GenerateUploadToken(c.Request.Context(), req.Router, req.FileName, req.ContentType, req.FileSize)
+	// ✅ 生成上传凭证（包含函数路径）
+	// ✅ 获取token时不写数据库，只返回凭证（上传成功后才会记录）
+	creds, key, expire, err := s.storageService.GenerateUploadToken(c.Request.Context(), req.Router, req.FileName, req.ContentType, req.FileSize, uploadSource)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
 
-	// 记录上传记录（预记录，状态为 pending）
-	// ✅ 只记录 username，不记录 user_id（username 不可变）
-	uploadRecord := &model.FileUpload{
-		FileKey:     key,
-		Router:      req.Router,
-		FileName:    req.FileName,
-		FileSize:    req.FileSize,
-		ContentType: req.ContentType,
-		Hash:        req.Hash,
-		UserID:      nil, // ✅ 不记录 user_id，username 不可变
-		Username:    requestUser,
-		Tenant:      tenant,
-		Status:      "pending",
-	}
-	if err := s.storageService.RecordUpload(c.Request.Context(), uploadRecord); err != nil {
-		logger.Errorf(c, "Failed to record upload: %v", err)
-		// 不影响上传流程，只记录错误
-	}
-
 	// 获取 CDN 域名
 	cdnDomain := s.storageService.GetCDNDomain()
-	
+
 	// ✅ 获取存储引擎类型（用于记录文件存储位置）
 	storageType := s.storageService.GetStorageType()
 
+	// ✅ 构建预期的下载URL（直接从存储服务生成，每个存储引擎有自己的实现）
+	downloadURL, serverDownloadURL, _, err := s.storageService.GetFileURLs(c.Request.Context(), key)
+	if err != nil {
+		logger.Errorf(c, "Failed to generate download URLs: %v", err)
+		// 下载URL生成失败不影响上传，设置为空
+		downloadURL = ""
+		serverDownloadURL = ""
+	}
+
 	// 构建响应（根据上传方式返回不同字段）
 	resp = &dto.GetUploadTokenResp{
-		Key:         key,
-		Bucket:      s.storageService.GetBucketName(),
-		Expire:      expire.Format("2006-01-02 15:04:05"),
-		Method:      dto.UploadMethod(creds.Method),
-		Storage:     storageType, // ✨ 存储引擎类型（minio/qiniu/tencentcos/aliyunoss/awss3）
-		URL:         creds.URL,
-		Headers:     creds.Headers,
-		UploadHost:  creds.UploadHost,   // ✨ 上传目标 host（用于 CORS、进度监听）
-		UploadDomain: creds.UploadDomain, // ✨ 上传完整域名（用于日志、调试）
-		FormData:    creds.FormData,
-		PostURL:     creds.PostURL,
-		SDKConfig:   creds.SDKConfig,
-		CDNDomain:   cdnDomain, // ✨ CDN 域名（用于下载访问）
+		Key:               key,
+		Bucket:            s.storageService.GetBucketName(),
+		Expire:            expire.Format("2006-01-02 15:04:05"),
+		Method:            dto.UploadMethod(creds.Method),
+		Storage:           storageType,     // ✨ 存储引擎类型（minio/qiniu/tencentcos/aliyunoss/awss3）
+		URL:               creds.URL,       // ✨ 外部访问的上传URL（前端使用）
+		ServerURL:         creds.ServerURL, // ✨ 内部访问的上传URL（服务端使用）
+		Headers:           creds.Headers,
+		UploadHost:        creds.UploadHost,   // ✨ 上传目标 host（用于 CORS、进度监听）
+		UploadDomain:      creds.UploadDomain, // ✨ 上传完整域名（用于日志、调试）
+		FormData:          creds.FormData,
+		PostURL:           creds.PostURL,
+		SDKConfig:         creds.SDKConfig,
+		CDNDomain:         cdnDomain,         // ✨ CDN 域名（用于下载访问）
+		DownloadURL:       downloadURL,       // ✨ 外部访问的下载地址（前端使用）
+		ServerDownloadURL: serverDownloadURL, // ✨ 内部访问的下载地址（服务端使用）
 	}
 
 	response.OkWithData(c, resp)
 }
 
+// BatchGetUploadToken 批量获取上传凭证
+// @Summary 批量获取上传凭证
+// @Description 批量获取多个文件的上传凭证，支持多种存储方式（presigned_url/form_upload/sdk_upload）
+// @Tags 存储管理
+// @Accept json
+// @Produce json
+// @Param request body dto.BatchGetUploadTokenReq true "批量获取上传凭证请求"
+// @Success 200 {object} dto.BatchGetUploadTokenResp "获取成功"
+// @Failure 400 {string} string "请求参数错误"
+// @Failure 500 {string} string "服务器内部错误"
+// @Router /api/v1/storage/batch_upload_token [post]
+func (s *Storage) BatchGetUploadToken(c *gin.Context) {
+	var req dto.BatchGetUploadTokenReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+
+	// ✨ 设置默认 upload_source（如果不填写，默认为 browser）
+	defaultUploadSource := string(req.UploadSource)
+	if defaultUploadSource == "" {
+		defaultUploadSource = string(dto.UploadSourceBrowser)
+	}
+
+	// ✅ 批量生成上传凭证
+	// ✅ 获取token时不写数据库，只返回凭证（上传成功后才会记录）
+	tokens := make([]dto.GetUploadTokenResp, 0, len(req.Files))
+	for _, fileReq := range req.Files {
+		// ✨ 优先使用文件项中的 upload_source，如果没有则使用顶层的
+		uploadSource := string(fileReq.UploadSource)
+		if uploadSource == "" {
+			uploadSource = defaultUploadSource
+		}
+
+		// 生成上传凭证
+		// ✅ 获取token时不写数据库，只返回凭证
+		creds, key, expire, err := s.storageService.GenerateUploadToken(c.Request.Context(), fileReq.Router, fileReq.FileName, fileReq.ContentType, fileReq.FileSize, uploadSource)
+		if err != nil {
+			// 单个文件失败，记录错误但继续处理其他文件
+			logger.Errorf(c, "Failed to generate upload token for file %s: %v", fileReq.FileName, err)
+			continue
+		}
+
+		// 获取 CDN 域名和存储引擎类型
+		cdnDomain := s.storageService.GetCDNDomain()
+		storageType := s.storageService.GetStorageType()
+
+		// ✅ 构建预期的下载URL（直接从存储服务生成，每个存储引擎有自己的实现）
+		downloadURL, serverDownloadURL, _, err := s.storageService.GetFileURLs(c.Request.Context(), key)
+		if err != nil {
+			logger.Errorf(c, "Failed to generate download URLs for key %s: %v", key, err)
+			// 下载URL生成失败不影响上传，设置为空
+			downloadURL = ""
+			serverDownloadURL = ""
+		}
+
+		// 构建响应
+		token := dto.GetUploadTokenResp{
+			Key:               key,
+			Bucket:            s.storageService.GetBucketName(),
+			Expire:            expire.Format("2006-01-02 15:04:05"),
+			Method:            dto.UploadMethod(creds.Method),
+			Storage:           storageType,
+			URL:               creds.URL,       // ✨ 外部访问的上传URL（前端使用）
+			ServerURL:         creds.ServerURL, // ✨ 内部访问的上传URL（服务端使用）
+			Headers:           creds.Headers,
+			UploadHost:        creds.UploadHost,
+			UploadDomain:      creds.UploadDomain,
+			FormData:          creds.FormData,
+			PostURL:           creds.PostURL,
+			SDKConfig:         creds.SDKConfig,
+			CDNDomain:         cdnDomain,
+			DownloadURL:       downloadURL,       // ✨ 外部访问的下载地址（前端使用）
+			ServerDownloadURL: serverDownloadURL, // ✨ 内部访问的下载地址（服务端使用）
+		}
+		tokens = append(tokens, token)
+	}
+
+	response.OkWithData(c, dto.BatchGetUploadTokenResp{
+		Tokens: tokens,
+	})
+}
+
 // UploadComplete 上传完成通知
 // @Summary 上传完成通知
-// @Description 前端上传完成后，通知后端更新上传记录状态
+// @Description 前端上传完成后，通知后端创建上传记录（仅在上传成功时记录）
 // @Tags 存储管理
 // @Accept json
 // @Produce json
@@ -132,55 +208,150 @@ func (s *Storage) UploadComplete(c *gin.Context) {
 		return
 	}
 
-	// 更新上传记录状态
-	status := "completed"
-	if !req.Success {
-		status = "failed"
-	}
-
-	err := s.storageService.UpdateUploadStatus(c.Request.Context(), req.Key, status)
-	if err != nil {
-		logger.Errorf(c, "Failed to update upload status: %v", err)
-		response.FailWithMessage(c, "更新上传状态失败")
-		return
-	}
-
-	logger.Infof(c, "Upload complete: key=%s, success=%v", req.Key, req.Success)
-
-	// ✅ 如果上传成功，返回通过 storage 服务代理的下载 URL（而不是 MinIO 的直接 URL）
+	// ✅ 只有上传成功时才创建记录
 	var downloadURL string
+	var serverDownloadURL string
 	var expireStr string
 	if req.Success {
-		// ✅ 生成通过 storage 服务代理的下载 URL
-		// 格式：http://{host}/api/v1/storage/download/{key}
-		// 这样前端可以直接访问，不需要直接访问 MinIO
-		scheme := "http"
-		if c.Request.TLS != nil {
-			scheme = "https"
+		// ✅ 获取用户信息
+		requestUser := contextx.GetRequestUser(c)
+		tenant := extractTenantFromRouter(req.Router)
+
+		// ✅ 创建上传记录（直接是 completed 状态，没有 pending）
+		uploadRecord := &model.FileUpload{
+			FileKey:     req.Key,
+			Router:      req.Router,
+			FileName:    req.FileName,
+			FileSize:    req.FileSize,
+			ContentType: req.ContentType,
+			Hash:        req.Hash,
+			UserID:      nil,
+			Username:    requestUser,
+			Tenant:      tenant,
+			Status:      "completed", // ✅ 直接是 completed，没有 pending
 		}
-		host := c.Request.Host
-		if host == "" {
-			// 降级：使用配置的端口（通过反射或其他方式获取，这里简化处理）
-			// 实际上 Request.Host 通常不会为空，但为了安全起见保留降级逻辑
-			host = "localhost:8083" // 默认端口
+		if err := s.storageService.RecordUpload(c.Request.Context(), uploadRecord); err != nil {
+			logger.Errorf(c, "Failed to record upload to database: %v (file_key: %s)", err, req.Key)
+			// 不影响响应，只记录错误（文件已上传到MinIO，只是数据库记录失败）
 		}
-		
-		// ✅ 构建代理下载 URL
-		downloadURL = fmt.Sprintf("%s://%s/api/v1/storage/download/%s", scheme, host, url.PathEscape(req.Key))
-		
-		// 获取过期时间（7天）
-		expire := time.Now().Add(7 * 24 * time.Hour)
-		expireStr = expire.Format("2006-01-02 15:04:05")
+
+		// ✅ 构建下载URL（直接从存储服务生成，每个存储引擎有自己的实现）
+		var expire time.Time
+		var err error
+		downloadURL, serverDownloadURL, expire, err = s.storageService.GetFileURLs(c.Request.Context(), req.Key)
+		if err != nil {
+			logger.Errorf(c, "Failed to generate download URLs: %v", err)
+			downloadURL = ""
+			serverDownloadURL = ""
+		}
+
+		// 获取过期时间
+		if !expire.IsZero() {
+			expireStr = expire.Format("2006-01-02 15:04:05")
+		} else {
+			// 默认7天过期
+			expire = time.Now().Add(7 * 24 * time.Hour)
+			expireStr = expire.Format("2006-01-02 15:04:05")
+		}
+
+		logger.Infof(c, "Upload complete: key=%s, success=true", req.Key)
+	} else {
+		// 上传失败，不记录数据库，只记录日志
+		logger.Warnf(c, "Upload failed: key=%s, error=%s", req.Key, req.Error)
 	}
 
 	// 构建响应（包含下载 URL）
 	resp := &dto.UploadCompleteResp{
-		Message:     "上传状态已更新",
-		DownloadURL: downloadURL,
-		Expire:      expireStr,
+		Message:           "上传完成通知已处理",
+		DownloadURL:       downloadURL,       // ✨ 外部访问的下载地址（前端使用）
+		ServerDownloadURL: serverDownloadURL, // ✨ 内部访问的下载地址（服务端使用）
+		Expire:            expireStr,
 	}
 
 	response.OkWithData(c, resp)
+}
+
+// BatchUploadComplete 批量上传完成通知
+// @Summary 批量上传完成通知
+// @Description 批量通知后端创建上传记录（仅在上传成功时记录）
+// @Tags 存储管理
+// @Accept json
+// @Produce json
+// @Param request body dto.BatchUploadCompleteReq true "批量上传完成请求"
+// @Success 200 {object} dto.BatchUploadCompleteResp "通知成功"
+// @Failure 400 {string} string "请求参数错误"
+// @Failure 500 {string} string "服务器内部错误"
+// @Router /api/v1/storage/batch_upload_complete [post]
+func (s *Storage) BatchUploadComplete(c *gin.Context) {
+	var req dto.BatchUploadCompleteReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+
+	// ✅ 获取用户信息
+	requestUser := contextx.GetRequestUser(c)
+
+	// ✅ 批量创建上传记录（仅成功时）
+	results := make([]dto.BatchUploadCompleteResult, 0, len(req.Items))
+	for _, item := range req.Items {
+		if item.Success {
+			// ✅ 只有上传成功时才创建记录
+			tenant := extractTenantFromRouter(item.Router)
+
+			uploadRecord := &model.FileUpload{
+				FileKey:     item.Key,
+				Router:      item.Router,
+				FileName:    item.FileName,
+				FileSize:    item.FileSize,
+				ContentType: item.ContentType,
+				Hash:        item.Hash,
+				UserID:      nil,
+				Username:    requestUser,
+				Tenant:      tenant,
+				Status:      "completed", // ✅ 直接是 completed，没有 pending
+			}
+
+			if err := s.storageService.RecordUpload(c.Request.Context(), uploadRecord); err != nil {
+				logger.Errorf(c, "Failed to record upload for key %s: %v", item.Key, err)
+				results = append(results, dto.BatchUploadCompleteResult{
+					Key:    item.Key,
+					Status: "failed",
+					Error:  fmt.Sprintf("记录失败: %v", err),
+				})
+				continue
+			}
+
+			// ✅ 构建下载URL（直接从存储服务生成，每个存储引擎有自己的实现）
+			downloadURL, serverDownloadURL, _, err := s.storageService.GetFileURLs(c.Request.Context(), item.Key)
+			if err != nil {
+				logger.Errorf(c, "Failed to generate download URLs for key %s: %v", item.Key, err)
+				downloadURL = ""
+				serverDownloadURL = ""
+			}
+
+			logger.Infof(c, "Upload complete: key=%s, success=true", item.Key)
+
+			results = append(results, dto.BatchUploadCompleteResult{
+				Key:               item.Key,
+				Status:            "completed",
+				DownloadURL:       downloadURL,       // ✨ 外部访问的下载地址（前端使用）
+				ServerDownloadURL: serverDownloadURL, // ✨ 内部访问的下载地址（服务端使用）
+			})
+		} else {
+			// 上传失败，不记录数据库，只记录日志
+			logger.Warnf(c, "Upload failed: key=%s, error=%s", item.Key, item.Error)
+			results = append(results, dto.BatchUploadCompleteResult{
+				Key:    item.Key,
+				Status: "failed",
+				Error:  item.Error,
+			})
+		}
+	}
+
+	response.OkWithData(c, dto.BatchUploadCompleteResp{
+		Results: results,
+	})
 }
 
 // GetFileURL 获取文件（直接代理下载，返回简洁 URL）
@@ -214,25 +385,25 @@ func (s *Storage) GetFileURL(c *gin.Context) {
 	// 获取用户信息（使用与 app-server 一致的辅助函数）
 	// ✅ username 是不可变的，因此无需记录 user_id
 	requestUser := contextx.GetRequestUser(c) // ✅ 使用与 app-server 一致的辅助函数
-	
-	// 获取客户端 IP 和 User-Agent
-	ipAddress := c.ClientIP()
+
+	// 获取客户端 IP 和 User-Agent（规范化IP地址）
+	ipAddress := normalizeIP(c.ClientIP())
 	userAgent := c.GetHeader("User-Agent")
-	
+
 	// 创建下载记录（只记录 username，不记录 user_id）
 	var usernameValue *string
 	if requestUser != "" {
 		usernameValue = &requestUser
 	}
-	
+
 	downloadRecord := &model.FileDownload{
-		FileKey:     key,
-		UserID:      nil, // ✅ 不记录 user_id，username 不可变
-		Username:    usernameValue,
-		IPAddress:   ipAddress,
-		UserAgent:   userAgent,
+		FileKey:   key,
+		UserID:    nil, // ✅ 不记录 user_id，username 不可变
+		Username:  usernameValue,
+		IPAddress: ipAddress,
+		UserAgent: userAgent,
 	}
-	
+
 	// 异步记录下载（不阻塞响应）
 	go func() {
 		// ✅ 使用新的 context，避免使用可能已取消的请求 context
@@ -258,11 +429,11 @@ func (s *Storage) GetFileURL(c *gin.Context) {
 	if lastSlash := strings.LastIndex(key, "/"); lastSlash != -1 {
 		fileName = key[lastSlash+1:]
 	}
-	
+
 	c.Header("Content-Type", info.ContentType)
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", fileName))
 	c.Header("Content-Length", fmt.Sprintf("%d", info.Size))
-	
+
 	// ✅ 流式传输文件内容
 	c.DataFromReader(http.StatusOK, info.Size, info.ContentType, reader, nil)
 }
@@ -453,6 +624,22 @@ func trimLeadingSlash(s string) string {
 	return s
 }
 
+// normalizeIP 规范化IP地址（将IPv6的::1转换为127.0.0.1）
+func normalizeIP(ip string) string {
+	if ip == "::1" {
+		return "127.0.0.1"
+	}
+	// 尝试解析IP地址，如果是IPv6映射的IPv4地址，转换为IPv4
+	parsedIP := net.ParseIP(ip)
+	if parsedIP != nil {
+		// 如果是IPv6映射的IPv4地址（::ffff:127.0.0.1），转换为IPv4
+		if ipv4 := parsedIP.To4(); ipv4 != nil {
+			return ipv4.String()
+		}
+	}
+	return ip
+}
+
 // formatSize 格式化文件大小
 func formatSize(size int64) string {
 	const unit = 1024
@@ -466,5 +653,3 @@ func formatSize(size int64) string {
 	}
 	return fmt.Sprintf("%.1f %cB", float64(size)/float64(div), "KMGTPE"[exp])
 }
-
-

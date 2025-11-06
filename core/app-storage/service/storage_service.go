@@ -16,7 +16,7 @@ import (
 
 // StorageService 存储服务
 type StorageService struct {
-	storage  storage.Storage               // ✅ 依赖抽象接口，不依赖具体实现
+	storage  storage.Storage // ✅ 依赖抽象接口，不依赖具体实现
 	cfg      *config.AppStorageConfig
 	fileRepo *repository.FileRepository
 }
@@ -31,7 +31,8 @@ func NewStorageService(storage storage.Storage, cfg *config.AppStorageConfig, fi
 }
 
 // GenerateUploadToken 生成上传凭证
-func (s *StorageService) GenerateUploadToken(ctx context.Context, router string, fileName string, contentType string, fileSize int64) (creds *storage.UploadCredentials, key string, expire time.Time, err error) {
+// uploadSource: 上传来源（browser 或 server），默认为 browser
+func (s *StorageService) GenerateUploadToken(ctx context.Context, router string, fileName string, contentType string, fileSize int64, uploadSource string) (creds *storage.UploadCredentials, key string, expire time.Time, err error) {
 	// 校验文件大小
 	if fileSize > s.cfg.Storage.Upload.MaxSize {
 		return nil, "", time.Time{}, fmt.Errorf("文件大小超过限制（最大 %d MB）", s.cfg.Storage.Upload.MaxSize/1024/1024)
@@ -44,21 +45,40 @@ func (s *StorageService) GenerateUploadToken(ctx context.Context, router string,
 	bucket := s.getDefaultBucket()
 	expiry := time.Duration(s.cfg.Storage.Upload.TokenExpire) * time.Second
 
-	creds, err = s.storage.GenerateUploadCredentials(ctx, bucket, key, contentType, expiry)
+	// ✨ 通过存储接口获取上传用的 endpoint（统一逻辑，每个存储实现自己决定）
+	uploadEndpoint := s.storage.GetUploadEndpoint(uploadSource)
+	// 如果 uploadEndpoint 为空，使用默认 endpoint（通过 GenerateUploadCredentials 处理）
+
+	// 使用支持 endpoint 参数的方法（如果存储层支持）
+	if minioStorage, ok := s.storage.(interface {
+		GenerateUploadCredentialsWithEndpoint(ctx context.Context, bucket, key, contentType string, expire time.Duration, uploadEndpoint string, uploadSource string) (*storage.UploadCredentials, error)
+	}); ok {
+		creds, err = minioStorage.GenerateUploadCredentialsWithEndpoint(ctx, bucket, key, contentType, expiry, uploadEndpoint, uploadSource)
+	} else {
+		// 存储层不支持，使用默认方法
+		creds, err = s.storage.GenerateUploadCredentials(ctx, bucket, key, contentType, expiry)
+	}
+
 	if err != nil {
 		logger.Errorf(ctx, "Failed to generate upload credentials: %v", err)
 		return nil, "", time.Time{}, fmt.Errorf("生成上传凭证失败")
 	}
 
 	expire = time.Now().Add(expiry)
-	logger.Infof(ctx, "Generated upload token for file: %s, key: %s, method: %s", fileName, key, creds.Method)
+	logger.Infof(ctx, "Generated upload token for file: %s, key: %s, method: %s, source: %s", fileName, key, creds.Method, uploadSource)
 
 	return creds, key, expire, nil
 }
 
-// GetFileURL 获取文件访问 URL
+// GetFileURL 获取文件访问 URL（返回外部访问URL，用于兼容旧接口）
 func (s *StorageService) GetFileURL(ctx context.Context, key string) (downloadURL string, expire time.Time, err error) {
-	// 生成预签名下载 URL（7 天有效）
+	externalURL, _, _, err := s.GetFileURLs(ctx, key)
+	return externalURL, expire, err
+}
+
+// GetFileURLs 获取文件访问 URL（同时返回外部和内部访问的URL）
+func (s *StorageService) GetFileURLs(ctx context.Context, key string) (externalURL string, serverURL string, expire time.Time, err error) {
+	// 生成下载 URL（7 天有效）
 	bucket := s.getDefaultBucket()
 	expiry := 7 * 24 * time.Hour
 
@@ -68,15 +88,28 @@ func (s *StorageService) GetFileURL(ctx context.Context, key string) (downloadUR
 	cacheControl := make(map[string]string)
 	// TODO: 未来可以通过对象元数据或在代理层设置 Cache-Control 响应头
 
-	presignedURL, err := s.storage.GenerateDownloadURL(ctx, bucket, key, expiry, cacheControl)
-	if err != nil {
-		logger.Errorf(ctx, "Failed to generate download URL: %v", err)
-		return "", time.Time{}, fmt.Errorf("生成下载链接失败")
+	// 如果存储支持生成两个URL的方法，使用它
+	if minioStorage, ok := s.storage.(interface {
+		GenerateDownloadURLs(ctx context.Context, bucket, key string, expire time.Duration, cacheControl map[string]string) (externalURL string, serverURL string, err error)
+	}); ok {
+		externalURL, serverURL, err = minioStorage.GenerateDownloadURLs(ctx, bucket, key, expiry, cacheControl)
+		if err != nil {
+			logger.Errorf(ctx, "Failed to generate download URLs: %v", err)
+			return "", "", time.Time{}, fmt.Errorf("生成下载链接失败")
+		}
+	} else {
+		// 降级处理：使用旧方法，两个URL都返回同一个
+		externalURL, err = s.storage.GenerateDownloadURL(ctx, bucket, key, expiry, cacheControl)
+		if err != nil {
+			logger.Errorf(ctx, "Failed to generate download URL: %v", err)
+			return "", "", time.Time{}, fmt.Errorf("生成下载链接失败")
+		}
+		serverURL = externalURL
 	}
 
 	expire = time.Now().Add(expiry)
-	logger.Infof(ctx, "Generated download URL for key: %s", key)
-	return presignedURL, expire, nil
+	logger.Infof(ctx, "Generated download URLs for key: %s (external: %s, server: %s)", key, externalURL, serverURL)
+	return externalURL, serverURL, expire, nil
 }
 
 // DeleteFile 删除文件
@@ -237,10 +270,26 @@ func (s *StorageService) DeleteFilesByRouter(ctx context.Context, router string)
 
 // RecordUpload 记录上传
 func (s *StorageService) RecordUpload(ctx context.Context, record *model.FileUpload) error {
-	if s.fileRepo == nil {
-		return nil // 审计功能未启用
+	// 检查是否启用了上传记录
+	if !s.cfg.Audit.UploadTracking.Enabled {
+		logger.Debugf(ctx, "[StorageService] Upload tracking disabled, skipping record")
+		return nil
 	}
-	return s.fileRepo.CreateUploadRecord(ctx, record)
+
+	if s.fileRepo == nil {
+		logger.Warnf(ctx, "[StorageService] Database not initialized, upload record not saved (file_key: %s)", record.FileKey)
+		return nil
+	}
+
+	err := s.fileRepo.CreateUploadRecord(ctx, record)
+	if err != nil {
+		logger.Errorf(ctx, "[StorageService] Failed to record upload (file_key: %s): %v", record.FileKey, err)
+		return err
+	}
+
+	logger.Infof(ctx, "[StorageService] Upload record saved (file_key: %s, router: %s, size: %d)",
+		record.FileKey, record.Router, record.FileSize)
+	return nil
 }
 
 // UpdateUploadStatus 更新上传状态
@@ -253,14 +302,21 @@ func (s *StorageService) UpdateUploadStatus(ctx context.Context, fileKey string,
 
 // RecordDownload 记录下载
 func (s *StorageService) RecordDownload(ctx context.Context, record *model.FileDownload) error {
-	// ✅ 检查是否启用了下载记录
+	// 检查是否启用了下载记录
 	if !s.cfg.Audit.DownloadTracking.Enabled {
 		return nil // 下载记录未启用
 	}
-	
+
 	if s.fileRepo == nil {
-		return nil // 审计功能未启用
+		logger.Warnf(ctx, "[StorageService] Database not initialized, download record not saved (file_key: %s)", record.FileKey)
+		return nil
 	}
-	
-	return s.fileRepo.CreateDownloadRecord(ctx, record)
+
+	err := s.fileRepo.CreateDownloadRecord(ctx, record)
+	if err != nil {
+		logger.Errorf(ctx, "[StorageService] Failed to record download (file_key: %s): %v", record.FileKey, err)
+		return err
+	}
+
+	return nil
 }

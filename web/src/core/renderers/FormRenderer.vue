@@ -100,16 +100,6 @@
       </div>
     </el-card>
 
-    <!-- 调试信息 -->
-    <el-card v-if="showDebug" class="debug-card" style="margin-top: 20px;">
-      <template #header>
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <span>调试信息</span>
-          <el-button text @click="showDebug = false">关闭</el-button>
-        </div>
-      </template>
-      <pre>{{ debugInfo }}</pre>
-    </el-card>
   </div>
 </template>
 
@@ -140,13 +130,11 @@ const props = withDefaults(defineProps<{
   showSubmitButton?: boolean
   showShareButton?: boolean
   showResetButton?: boolean
-  showDebugButton?: boolean
   initialData?: Record<string, any>  // 🔥 初始数据（编辑模式）
 }>(), {
   showSubmitButton: true,
   showShareButton: true,
   showResetButton: true,
-  showDebugButton: true,
   initialData: () => ({})
 })
 
@@ -207,9 +195,6 @@ const fieldChangeTrigger = ref(0)
 // 表单数据（用于 el-form 绑定）
 const formData = reactive<Record<string, any>>({})
 
-// 调试信息
-const showDebug = ref(false)
-const debugInfo = ref('')
 
 // 提交结果
 const submitResult = ref<any>(null)
@@ -476,7 +461,7 @@ function renderResponseField(field: FieldConfig): ReturnType<typeof h> {
 }
 
 /**
- * 预览提交数据（调试用）
+ * 预览提交数据
  */
 function handlePreviewSubmit(): void {
   
@@ -487,7 +472,7 @@ function handlePreviewSubmit(): void {
   submitResult.value = JSON.stringify(submitData, null, 2)
   
   ElMessage.info({
-    message: '预览提交数据成功！查看下方调试信息',
+    message: '预览提交数据成功！',
     duration: 3000
   })
   
@@ -772,21 +757,6 @@ function handleCopyShareUrl(): void {
   ElMessage.success('分享链接已复制到剪贴板')
 }
 
-/**
- * 调试输出
- */
-function handleDebug(): void {
-  showDebug.value = !showDebug.value
-  
-  debugInfo.value = JSON.stringify({
-    functionDetail: props.functionDetail,
-    fields: fields.value,
-    allFieldPaths: formManager.getAllFieldPaths(),
-    submitData: prepareSubmitDataWithTypeConversion(),  // 🔥 使用统一的数据收集方法
-    registeredWidgets: Array.from(allWidgets.keys()),
-    registeredWidgetTypes: widgetFactory.getRegisteredTypes()
-  }, null, 2)
-}
 
 // 初始化
 initializeForm()
@@ -810,9 +780,16 @@ watch(() => props.functionDetail, () => {
   initializeForm()
 }, { immediate: true })
 
-// 🔥 组件卸载时清理监听器
+// 🔥 组件卸载时清理监听器和 Widget 注册
 onUnmounted(() => {
+  // 清理事件监听器
   formManager.off('field:change:*', handleFieldChange)
+  
+  // 🔥 清理所有 Widget 注册（防止内存泄漏）
+  allWidgets.clear()
+  
+  // 清空表单数据
+  formManager.clear()
 })
 </script>
 
@@ -995,17 +972,14 @@ onUnmounted(() => {
   opacity: 0.6;
 }
 
-/* 调试卡片 */
 .result-card,
-.share-card,
-.debug-card {
+.share-card {
   margin-top: 20px;
   max-width: 100%;
 }
 
 .result-card pre,
-.share-card pre,
-.debug-card pre {
+.share-card pre {
   max-height: 400px;
   overflow: auto;
   font-size: 12px;

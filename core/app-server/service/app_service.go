@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 	agentModel "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/model"
 	"gorm.io/gorm"

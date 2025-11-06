@@ -140,12 +140,13 @@ func (s *Server) initDatabase(ctx context.Context) error {
 		return nil
 	}
 
-	// 自动迁移表结构（预留表，用于未来秒传功能）
+	// 自动迁移表结构
 	if err := model.InitTables(s.db); err != nil {
 		return fmt.Errorf("failed to migrate database: %w", err)
 	}
 
-	logger.Infof(ctx, "[Server] Database initialized successfully (tables created for future deduplication)")
+	logger.Infof(ctx, "[Server] Database initialized successfully")
+	logger.Infof(ctx, "[Server] Tables created: file_uploads, file_downloads, file_metadata, file_references")
 	return nil
 }
 
@@ -182,10 +183,31 @@ func (s *Server) initServices(ctx context.Context) error {
 	var fileRepo *repository.FileRepository
 	if s.db != nil {
 		fileRepo = repository.NewFileRepository(s.db)
+		logger.Infof(ctx, "[Server] File repository initialized (database connected)")
+	} else {
+		logger.Warnf(ctx, "[Server] Database not connected, upload/download tracking will be disabled")
+		logger.Warnf(ctx, "[Server] Please configure database in app-storage.yaml to enable audit tracking")
 	}
 
 	// 初始化 Service 层（依赖抽象接口）
 	s.storageService = service.NewStorageService(s.storage, s.cfg, fileRepo)
+	
+	// 检查审计配置
+	if s.cfg.Audit.UploadTracking.Enabled {
+		if fileRepo == nil {
+			logger.Warnf(ctx, "[Server] Upload tracking is enabled but database is not connected, records will not be saved")
+		} else {
+			logger.Infof(ctx, "[Server] Upload tracking enabled")
+		}
+	}
+	
+	if s.cfg.Audit.DownloadTracking.Enabled {
+		if fileRepo == nil {
+			logger.Warnf(ctx, "[Server] Download tracking is enabled but database is not connected, records will not be saved")
+		} else {
+			logger.Infof(ctx, "[Server] Download tracking enabled (retention: %d days)", s.cfg.Audit.DownloadTracking.RetentionDays)
+		}
+	}
 
 	logger.Infof(ctx, "[Server] Services initialized successfully")
 	return nil
@@ -201,7 +223,8 @@ func (s *Server) initRouter(ctx context.Context) error {
 	// 添加中间件
 	s.httpServer.Use(gin.Recovery())
 	s.httpServer.Use(middleware2.Cors())
-	s.httpServer.Use(middleware2.WithTraceId())
+	// ✅ 移除 WithTraceId 中间件，统一在网关生成 TraceId
+	// s.httpServer.Use(middleware2.WithTraceId())
 
 	// 设置路由
 	s.setupRoutes()

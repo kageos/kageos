@@ -29,14 +29,14 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      // 代理存储服务 API
-      '/api/v1/storage': {
-        target: 'http://localhost:8083',
+      // 统一通过网关代理所有 API 请求
+      '/api': {
+        target: 'http://localhost:9090',  // 网关地址
         changeOrigin: true,
       },
-      // 代理其他 API
-      '/api': {
-        target: 'http://localhost:8080',
+      // Swagger 文档也通过网关
+      '/swagger': {
+        target: 'http://localhost:9090',  // 网关地址
         changeOrigin: true,
       },
     },

@@ -27,6 +27,7 @@ type RequestAppReq struct {
 	TraceId     string `json:"trace_id" example:"req-123456"` // 追踪ID（由中间件自动填充）
 	IsCallback  bool   `json:"is_callback" example:"true"`
 	RequestUser string `json:"request_user" swaggerignore:"true"`          // 请求用户（由中间件自动填充）
+	Token       string `json:"token" swaggerignore:"true"`                 // 认证 Token（由中间件自动填充，透传到 SDK）
 	User        string `json:"user" binding:"required" example:"beiluo"`   // 租户用户名（应用所有者）
 	App         string `json:"app" binding:"required" example:"myapp"`     // 应用名
 	Version     string `json:"version" binding:"required" example:"v1"`    // 版本号

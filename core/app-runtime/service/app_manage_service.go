@@ -52,11 +52,12 @@ type StartupNotification struct {
 type AppManageService struct {
 	builder             *builder.Builder
 	config              *appconfig.AppManageServiceConfig
-	containerService    ContainerOperator         // 容器服务依赖
-	appRepo             *repository.AppRepository // 应用数据访问层
-	appDiscoveryService *AppDiscoveryService      // 应用发现服务，用于获取运行状态
-	natsConn            *nats.Conn                // NATS 连接，用于发送关闭命令
-	QPSTracker          *QPSTracker               // QPS 跟踪器
+	runtimeConfig       *appconfig.AppRuntimeConfig // 运行时完整配置（用于获取网关地址等）
+	containerService    ContainerOperator           // 容器服务依赖
+	appRepo             *repository.AppRepository   // 应用数据访问层
+	appDiscoveryService *AppDiscoveryService        // 应用发现服务，用于获取运行状态
+	natsConn            *nats.Conn                  // NATS 连接，用于发送关闭命令
+	QPSTracker          *QPSTracker                 // QPS 跟踪器
 
 	// 启动等待器 - 用于等待应用启动完成通知
 	startupWaiters   map[string]chan *StartupNotification // key: user/app/version
@@ -110,10 +111,11 @@ func (s *AppManageService) notifyStartupWaiter(user, app, version string, notifi
 }
 
 // NewAppManageService 创建应用管理服务（依赖注入）
-func NewAppManageService(builder *builder.Builder, config *appconfig.AppManageServiceConfig, containerService ContainerOperator, appRepo *repository.AppRepository, appDiscoveryService *AppDiscoveryService, natsConn *nats.Conn) *AppManageService {
+func NewAppManageService(builder *builder.Builder, config *appconfig.AppManageServiceConfig, runtimeConfig *appconfig.AppRuntimeConfig, containerService ContainerOperator, appRepo *repository.AppRepository, appDiscoveryService *AppDiscoveryService, natsConn *nats.Conn) *AppManageService {
 	return &AppManageService{
 		builder:             builder,
 		config:              config,
+		runtimeConfig:       runtimeConfig,
 		containerService:    containerService,
 		appRepo:             appRepo,
 		appDiscoveryService: appDiscoveryService,
@@ -860,6 +862,15 @@ func (s *AppManageService) startAppContainer(ctx context.Context, containerName,
 	envVars := []string{
 		"NATS_URL=nats://host.containers.internal:4223", // 使用 host.containers.internal 访问宿主机 NATS
 	}
+
+	// 注入网关地址（从 runtime 配置读取）
+	gatewayURL := s.runtimeConfig.Runtime.GatewayURL
+	if gatewayURL == "" {
+		// 如果没有配置，使用默认值
+		gatewayURL = "http://localhost:9090"
+	}
+	envVars = append(envVars, fmt.Sprintf("GATEWAY_URL=%s", gatewayURL))
+	logger.Infof(ctx, "[startAppContainer] Injecting GATEWAY_URL=%s into container", gatewayURL)
 
 	// 启动容器，使用 ai-agent-os 镜像的启动脚本
 	// 启动脚本会自动读取 metadata/version.json 来获取版本信息，或者使用传入的版本参数

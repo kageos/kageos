@@ -19,10 +19,6 @@ export class PresignedURLUploader implements Uploader {
       this.xhr = new XMLHttpRequest()
       this.startTime = Date.now()
 
-      // ✨ 记录上传域名（用于日志、调试）
-      const uploadDomain = credentials.upload_domain || 'unknown'
-      console.log(`[Upload] 开始上传到: ${uploadDomain}`)
-
       // 监听上传进度
       this.xhr.upload.addEventListener('progress', (e) => {
         if (e.lengthComputable) {
@@ -35,34 +31,25 @@ export class PresignedURLUploader implements Uploader {
             total: e.total,
             speed,
           })
-          
-          // 可选：记录进度日志（包含上传域名）
-          if (percent % 10 === 0) { // 每 10% 记录一次
-            console.log(`[Upload] ${uploadDomain} - 进度: ${percent}%`)
-          }
         }
       })
 
       // 上传完成
       this.xhr.addEventListener('load', () => {
         if (this.xhr!.status === 200) {
-          console.log(`[Upload] ${uploadDomain} - 上传成功`)
           resolve()
         } else {
-          console.error(`[Upload] ${uploadDomain} - 上传失败: ${this.xhr!.statusText}`)
           reject(new Error(`上传失败: ${this.xhr!.statusText}`))
         }
       })
 
       // 上传失败
       this.xhr.addEventListener('error', () => {
-        console.error(`[Upload] ${uploadDomain} - 网络错误`)
         reject(new Error('网络错误'))
       })
 
       // 上传中断
       this.xhr.addEventListener('abort', () => {
-        console.warn(`[Upload] ${uploadDomain} - 上传已取消`)
         reject(new Error('上传已取消'))
       })
 

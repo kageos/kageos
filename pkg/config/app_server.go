@@ -30,14 +30,21 @@ func GetAppServerConfig() *AppServerConfig {
 	return appServerConfig
 }
 
-// AppServerConfig app-server 配置（精简版）
+// AppServerConfig app-server 配置
 type AppServerConfig struct {
-	Server   ServerConfig        `mapstructure:"server"`
-	Nats     NatsConfig          `mapstructure:"nats"`
-	Timeouts AppServerTimeoutCfg `mapstructure:"timeouts"`
-	DB       DBConfig            `mapstructure:"db"`
-	Email    EmailConfig         `mapstructure:"email"`
-	JWT      JWTConfig           `mapstructure:"jwt"`
+	Server   AppServerServerConfig `mapstructure:"server"`
+	Nats     NatsConfig            `mapstructure:"nats"`
+	Timeouts AppServerTimeoutCfg   `mapstructure:"timeouts"`
+	DB       DBConfig              `mapstructure:"db"`
+	Email    EmailConfig           `mapstructure:"email"`
+	JWT      JWTConfig             `mapstructure:"jwt"`
+}
+
+// AppServerServerConfig app-server 服务器配置
+type AppServerServerConfig struct {
+	Port     int    `mapstructure:"port"`
+	LogLevel string `mapstructure:"log_level"`
+	Debug    bool   `mapstructure:"debug"`
 }
 
 // AppServerTimeoutCfg 超时配置

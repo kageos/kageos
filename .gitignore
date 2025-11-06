@@ -24,3 +24,5 @@ configs/*.json
 
 temp/
 plan/
+note/
+/test
