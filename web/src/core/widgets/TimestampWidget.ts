@@ -131,7 +131,7 @@ export class TimestampWidget extends BaseWidget {
    * 🔥 获取复制文本
    * 复制格式化后的时间
    */
-  onCopy(): string {
+  getCopyText(): string {
     const fieldValue = this.safeGetValue(this.fieldPath)
     
     if (!fieldValue || fieldValue.raw === null || fieldValue.raw === undefined) {

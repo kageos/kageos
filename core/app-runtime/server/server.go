@@ -206,6 +206,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	s.appManageService = service.NewAppManageService(
 		builder.NewBuilder(wd),
 		&s.cfg.AppManage,
+		s.cfg, // 传入完整的运行时配置（用于获取网关地址等）
 		s.containerService,
 		appRepo,
 		s.appDiscoveryService,

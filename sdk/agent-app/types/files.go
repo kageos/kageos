@@ -7,9 +7,10 @@ import (
 )
 
 type Files struct {
-	Files    []*File                `json:"files"`
-	Remark   string                 `json:"remark"`
-	Metadata map[string]interface{} `json:"metadata"`
+	Files      []*File                `json:"files"`
+	UploadUser string                 `json:"upload_user"`
+	Remark     string                 `json:"remark"`
+	Metadata   map[string]interface{} `json:"metadata"`
 }
 type File struct {
 	Name        string `json:"name"`
@@ -21,7 +22,8 @@ type File struct {
 	UploadTs    int64  `json:"upload_ts"`
 	LocalPath   string `json:"local_path"`
 	IsUploaded  bool   `json:"is_uploaded"`          //是否已经上传到云端
-	Url         string `json:"url"`                  // 上传后的地址
+	Url         string `json:"url"`                  // ✨ 外部访问地址（前端下载使用）
+	ServerUrl   string `json:"server_url"`           // ✨ 内部访问地址（服务端下载使用）
 	Downloaded  bool   `json:"downloaded,omitempty"` //是否已经下载到本地
 }
 

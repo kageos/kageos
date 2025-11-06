@@ -26,6 +26,18 @@ export class MaxValidator implements Validator {
     // 判断字段类型
     const field = context.allFields.find(f => (f.field_path || f.code) === context.fieldPath)
     
+    // 🔥 数组类型（table 字段）：比较数组长度
+    if (Array.isArray(value.raw)) {
+      const length = value.raw.length
+      if (length > maxValue) {
+        return {
+          valid: false,
+          message: `最多只能有 ${maxValue} 项`
+        }
+      }
+      return { valid: true }
+    }
+    
     if (isStringField(field)) {
       // 字符串类型：比较长度
       const length = String(value.raw || '').length

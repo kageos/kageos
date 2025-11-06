@@ -592,7 +592,7 @@ const handleNavigate = (direction: 'prev' | 'next'): void => {
  * 
  * 设计原则：
  * - 遵循组件自治：每个 Widget 自己决定复制什么内容
- * - 统一使用 widget.onCopy() 方法
+ * - 统一使用 widget.getCopyText() 方法
  * 
  * @param field 字段配置
  * @param value 字段值（原始值）
@@ -608,8 +608,8 @@ const copyFieldValue = (field: FieldConfig, value: any): void => {
       value: fieldValue
     })
     
-    // 🔥 调用 Widget 的 onCopy() 方法（组件自治）
-    const textToCopy = widget.onCopy()
+    // 🔥 调用 Widget 的 getCopyText() 方法（组件自治）
+    const textToCopy = widget.getCopyText()
     
     navigator.clipboard.writeText(textToCopy).then(() => {
       ElMessage.success(`已复制 ${field.name}`)

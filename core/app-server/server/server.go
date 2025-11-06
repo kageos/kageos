@@ -247,7 +247,8 @@ func (s *Server) initRouter(ctx context.Context) error {
 	// 添加中间件
 	s.httpServer.Use(gin.Recovery())
 	s.httpServer.Use(middleware2.Cors())
-	s.httpServer.Use(middleware2.WithTraceId())
+	// ✅ 移除 WithTraceId 中间件，统一在网关生成 TraceId
+	// s.httpServer.Use(middleware2.WithTraceId())
 
 	// 设置路由
 	s.setupRoutes()

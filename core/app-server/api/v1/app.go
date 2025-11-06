@@ -2,6 +2,7 @@ package v1
 
 import (
 	"encoding/json"
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"io"
 	"strconv"
 	"strings"
@@ -9,7 +10,6 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
 	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/gin-gonic/gin"
@@ -154,6 +154,7 @@ func (a *App) RequestApp(c *gin.Context) {
 		Method:      c.Request.Method,     // 应用内部方法名（可选）
 		TraceId:     contextx.GetTraceId(c),
 		RequestUser: contextx.GetRequestUser(c),
+		Token:       contextx.GetToken(c), // ✅ 透传 token 到 SDK
 	}
 
 	// 绑定请求体（POST、PUT、PATCH 等方法通常有请求体）
@@ -243,6 +244,7 @@ func (a *App) CallbackApp(c *gin.Context) {
 		Method:      method,       // 应用内部方法名（可选）
 		TraceId:     contextx.GetTraceId(c),
 		RequestUser: contextx.GetRequestUser(c),
+		Token:       contextx.GetToken(c), // ✅ 透传 token 到 SDK
 	}
 	// 绑定请求体（POST、PUT、PATCH 等方法通常有请求体）
 

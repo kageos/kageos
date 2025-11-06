@@ -348,7 +348,7 @@ export class SelectWidget extends BaseWidget {
    * 🔥 获取复制文本
    * 复制 label（显示文本）
    */
-  onCopy(): string {
+  getCopyText(): string {
     const fieldValue = this.safeGetValue(this.fieldPath)
     if (!fieldValue) return ''
     

@@ -61,9 +61,10 @@ type AppRuntimeTimeoutConfig struct {
 
 // RuntimeConfig 运行时配置
 type RuntimeConfig struct {
-	Port     int    `mapstructure:"port"`
-	LogLevel string `mapstructure:"log_level"`
-	Debug    bool   `mapstructure:"debug"`
+	Port       int    `mapstructure:"port"`
+	LogLevel   string `mapstructure:"log_level"`
+	Debug      bool   `mapstructure:"debug"`
+	GatewayURL string `mapstructure:"gateway_url"` // 网关地址（会注入到 SDK 容器中）
 }
 
 // AppManageServiceConfig App Manage 服务配置

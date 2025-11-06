@@ -60,6 +60,27 @@ export class UploaderFactory {
 }
 
 /**
+ * 文件信息（用于批量complete）
+ */
+export interface FileInfo {
+  key: string
+  router: string
+  file_name: string
+  file_size: number
+  content_type: string
+  hash?: string
+  error?: string
+}
+
+/**
+ * 上传结果（包含上传器实例）
+ */
+export interface UploadFileResult extends UploadResult {
+  uploader: Uploader  // ✨ 上传器实例，用于取消上传
+  fileInfo?: FileInfo // ✨ 文件信息（用于批量complete）
+}
+
+/**
  * 统一上传入口
  * 
  * 流程：
@@ -68,12 +89,17 @@ export class UploaderFactory {
  * 3. 后端返回：{ method, url, upload_host, upload_domain, storage, ... }
  * 4. 根据 method 创建对应的上传器
  * 5. 使用上传器执行上传（此时已知道上传域名）
+ * 
+ * ✨ 返回上传器实例，支持取消上传
  */
 export async function uploadFile(
   router: string,
   file: File,
   onProgress: (progress: UploadProgress & { uploadDomain?: string }) => void
-): Promise<UploadResult> {
+): Promise<UploadFileResult> {
+  
+  // ✨ Step 0: 计算文件 SHA256 hash（用于秒传和去重）
+  const hash = await calculateSHA256(file)
   
   // ✨ Step 1: 获取上传凭证（包含域名信息）
   // 这一步会请求后端 API，后端会根据配置的存储类型返回对应的上传凭证
@@ -82,7 +108,6 @@ export async function uploadFile(
   // ✨ Step 2: 根据上传方式创建对应的上传器
   // 此时已知道上传方式（presigned_url / form_upload / sdk_upload）
   if (!credentials.method) {
-    console.error('[Upload] 凭证数据:', credentials)
     throw new Error(`上传凭证缺少 method 字段，无法创建上传器`)
   }
   
@@ -101,20 +126,38 @@ export async function uploadFile(
     
     await uploader.upload(credentials, file, progressWrapper)
     
-    // Step 4: 通知后端上传成功，并获取下载 URL
-    const downloadURL = await notifyUploadComplete(credentials.key, true)
-    
-    // ✅ 返回上传结果（包含下载 URL、key 和存储引擎类型）
+    // ✅ 返回上传结果（包含文件信息，但不立即调用complete）
+    // complete 由调用方统一批量处理
     return {
-      downloadURL: downloadURL || credentials.key,
+      downloadURL: '', // 暂时为空，批量complete后会返回
       key: credentials.key,
       storage: credentials.storage, // ✨ 存储引擎类型
+      uploader, // ✨ 上传器实例，用于取消上传
+      // ✨ 新增：文件信息（用于批量complete）
+      fileInfo: {
+        key: credentials.key,
+        router,
+        file_name: file.name,
+        file_size: file.size,
+        content_type: file.type || '',
+        hash, // ✨ 添加文件hash
+      },
     }
     
   } catch (error: any) {
-    // 通知后端上传失败
-    await notifyUploadComplete(credentials.key, false, error.message)
-    throw error
+    // 上传失败，返回错误信息（不立即调用complete，由调用方统一处理）
+    throw {
+      ...error,
+      fileInfo: {
+        key: credentials.key,
+        router,
+        file_name: file.name,
+        file_size: file.size,
+        content_type: file.type || '',
+        hash, // ✨ 添加文件hash（即使上传失败也记录）
+        error: error.message,
+      },
+    }
   }
 }
 
@@ -158,23 +201,14 @@ async function getUploadCredentials(router: string, file: File): Promise<UploadC
   
   const response = await res.json()
   
-  // ✅ 调试：打印完整响应
-  console.log('[Upload] 后端响应:', JSON.stringify(response, null, 2))
-  
   // ✅ 先检查业务错误（code !== 0 表示后端返回了错误）
   if (response.code !== undefined && response.code !== 0) {
     const errorMsg = response.msg || response.message || '上传失败'
-    console.error('[Upload] 后端返回错误:', {
-      code: response.code,
-      msg: errorMsg,
-      data: response.data,
-    })
     throw new Error(errorMsg)
   }
   
   // ✅ 验证响应结构（只有在成功时才检查）
   if (!response.data) {
-    console.error('[Upload] 响应结构错误:', response)
     throw new Error('后端返回数据格式错误: 缺少 data 字段')
   }
   
@@ -184,35 +218,31 @@ async function getUploadCredentials(router: string, file: File): Promise<UploadC
   const method = data.method || data.Method || (data as any).method
   
   if (!method) {
-    console.error('[Upload] 后端返回数据（缺少 method）:', data)
-    console.error('[Upload] 数据类型检查:', {
-      'data.method': data.method,
-      'data.Method': data.Method,
-      'typeof data.method': typeof data.method,
-      'data keys': Object.keys(data),
-    })
     throw new Error(`后端未返回上传方式 (method 字段)，当前值: ${data.method}`)
   }
   
   // ✅ 确保 method 字段存在
   data.method = method
   
-  // ✨ 此时已获取到上传凭证，包含域名信息
-  console.log('[Upload] 获取上传凭证成功:', {
-    method: data.method,
-    upload_host: data.upload_host,
-    upload_domain: data.upload_domain,
-    key: data.key,
-  })
-  
   return data
 }
 
 /**
- * 通知后端上传完成
+ * 通知后端上传完成（单个文件）
  * ✅ 返回下载 URL（如果上传成功）
  */
-async function notifyUploadComplete(key: string, success: boolean, error?: string): Promise<string | null> {
+interface UploadCompleteParams {
+  key: string
+  success: boolean
+  error?: string
+  router: string
+  file_name: string
+  file_size: number
+  content_type: string
+  hash?: string
+}
+
+export async function notifyUploadComplete(params: UploadCompleteParams): Promise<string | null> {
   const token = localStorage.getItem('token') || ''
   
   try {
@@ -222,24 +252,122 @@ async function notifyUploadComplete(key: string, success: boolean, error?: strin
         'Content-Type': 'application/json',
         'X-Token': token,
       },
-      body: JSON.stringify({ key, success, error }),
+      body: JSON.stringify({
+        key: params.key,
+        success: params.success,
+        error: params.error,
+        router: params.router,
+        file_name: params.file_name,
+        file_size: params.file_size,
+        content_type: params.content_type,
+        hash: params.hash,
+      }),
     })
     
     if (!res.ok) {
-      console.error('通知上传完成失败:', res.statusText)
       return null
     }
     
     const response = await res.json()
     
     // ✅ 返回下载 URL（如果上传成功）
-    if (success && response.data?.download_url) {
+    if (params.success && response.data?.download_url) {
       return response.data.download_url
     }
     
     return null
   } catch (err) {
-    console.error('通知上传完成失败:', err)
     return null
   }
+}
+
+/**
+ * 批量通知后端上传完成
+ * ✅ 返回所有文件的下载 URL（如果上传成功）
+ */
+export interface BatchUploadCompleteItem {
+  key: string
+  success: boolean
+  error?: string
+  router: string
+  file_name: string
+  file_size: number
+  content_type: string
+  hash?: string
+}
+
+export interface BatchUploadCompleteResult {
+  key: string
+  status: string
+  download_url?: string      // ✨ 外部访问的下载地址（前端使用）
+  server_download_url?: string // ✨ 内部访问的下载地址（服务端使用）
+  error?: string
+}
+
+export async function notifyBatchUploadComplete(
+  items: BatchUploadCompleteItem[]
+): Promise<Map<string, BatchUploadCompleteResult>> {
+  const token = localStorage.getItem('token') || ''
+  const results = new Map<string, BatchUploadCompleteResult>()
+  
+  if (items.length === 0) {
+    return results
+  }
+  
+  try {
+    const res = await fetch('/api/v1/storage/batch_upload_complete', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Token': token,
+      },
+      body: JSON.stringify({ items }),
+    })
+    
+    if (!res.ok) {
+      // 如果批量接口失败，返回所有失败的结果
+      items.forEach(item => {
+        results.set(item.key, {
+          key: item.key,
+          status: 'failed',
+          error: '批量通知失败',
+        })
+      })
+      return results
+    }
+    
+    const response = await res.json()
+    
+    // ✅ 处理批量响应结果
+    if (response.data?.results && Array.isArray(response.data.results)) {
+      response.data.results.forEach((result: BatchUploadCompleteResult) => {
+        results.set(result.key, result)
+      })
+    }
+    
+    return results
+  } catch (err) {
+    // 如果批量接口出错，返回所有失败的结果
+    items.forEach(item => {
+      results.set(item.key, {
+        key: item.key,
+        status: 'failed',
+        error: '批量通知失败',
+      })
+    })
+    return results
+  }
+}
+
+/**
+ * 计算文件的 SHA256 hash
+ * @param file 文件对象
+ * @returns SHA256 hash 字符串（十六进制）
+ */
+async function calculateSHA256(file: File): Promise<string> {
+  const arrayBuffer = await file.arrayBuffer()
+  const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+  return hashHex
 }

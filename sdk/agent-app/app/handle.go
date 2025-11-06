@@ -38,6 +38,17 @@ func (a *App) handleMessage(msg *nats.Msg) {
 		return
 	}
 
+	// ✅ 从 header 优先读取 trace_id 和 token（如果 body 中没有，使用 header 中的值）
+	if req.TraceId == "" {
+		req.TraceId = msg.Header.Get("trace_id")
+	}
+	if req.Token == "" {
+		req.Token = msg.Header.Get("X-Token")
+	}
+	if req.RequestUser == "" {
+		req.RequestUser = msg.Header.Get("request_user")
+	}
+
 	// 增加运行中函数计数
 	a.incrementRunningCount()
 
@@ -109,7 +120,7 @@ func (a *App) handle(req *dto.RequestAppReq) (resp *dto.RequestAppResp, err erro
 		return &dto.RequestAppResp{Result: nil, Error: err.Error(), TraceId: newContext.msg.TraceId}, err
 	}
 	logger.Infof(ctx, "handleFunc req:%+v", req)
-
+	
 	// 退出命令
 	if newContext.msg.Method == "exit" {
 		a.Close()

@@ -25,7 +25,9 @@ func (s *Server) setupRoutes() {
 	
 	// 上传相关
 	storage.POST("/upload_token", storageHandler.GetUploadToken)
+	storage.POST("/batch_upload_token", storageHandler.BatchGetUploadToken) // ✨ 批量获取上传凭证
 	storage.POST("/upload_complete", storageHandler.UploadComplete)  // 上传完成通知
+	storage.POST("/batch_upload_complete", storageHandler.BatchUploadComplete) // ✨ 批量上传完成通知
 	
 	// 文件操作（key 包含斜杠，使用 *key 匹配）
 	storage.GET("/download/*key", storageHandler.GetFileURL)

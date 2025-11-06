@@ -1,0 +1,612 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "AI Agent OS 存储服务 API 文档",
+        "title": "AI Agent OS Storage API",
+        "contact": {},
+        "version": "1.0"
+    },
+    "host": "localhost:9092",
+    "basePath": "/api/v1",
+    "paths": {
+        "/api/v1/storage/batch_delete": {
+            "post": {
+                "description": "批量删除某个函数路径下的所有文件（危险操作）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "存储管理"
+                ],
+                "summary": "删除函数路径下的所有文件",
+                "parameters": [
+                    {
+                        "description": "删除请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.DeleteFilesByRouterReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "删除成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.DeleteFilesByRouterResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/storage/download/{key}": {
+            "get": {
+                "description": "直接代理下载文件，返回文件流（无需复杂的预签名 URL 参数）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/octet-stream"
+                ],
+                "tags": [
+                    "存储管理"
+                ],
+                "summary": "下载文件",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "文件 Key",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "文件内容",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/storage/files": {
+            "get": {
+                "description": "列举某个函数路径下的所有文件",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "存储管理"
+                ],
+                "summary": "列举文件",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "函数路径",
+                        "name": "router",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ListFilesResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/storage/files/{key}": {
+            "delete": {
+                "description": "删除存储的文件",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "存储管理"
+                ],
+                "summary": "删除文件",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "文件 Key",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "删除成功",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/storage/files/{key}/info": {
+            "get": {
+                "description": "获取文件的元数据信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "存储管理"
+                ],
+                "summary": "获取文件信息",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "文件 Key",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.GetFileInfoResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/storage/stats": {
+            "get": {
+                "description": "获取某个函数路径下的文件数量和总大小",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "存储管理"
+                ],
+                "summary": "获取存储统计信息",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "函数路径，例如：luobei/test88888/tools/cashier_desk",
+                        "name": "router",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.GetStorageStatsResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/storage/upload_complete": {
+            "post": {
+                "description": "前端上传完成后，通知后端更新上传记录状态",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "存储管理"
+                ],
+                "summary": "上传完成通知",
+                "parameters": [
+                    {
+                        "description": "上传完成请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UploadCompleteReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "通知成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.UploadCompleteResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/storage/upload_token": {
+            "post": {
+                "description": "获取文件上传的预签名 URL，文件将按函数路径分类存储",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "存储管理"
+                ],
+                "summary": "获取上传凭证",
+                "parameters": [
+                    {
+                        "description": "获取上传凭证请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.GetUploadTokenReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.GetUploadTokenResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "dto.DeleteFilesByRouterReq": {
+            "type": "object",
+            "required": [
+                "router"
+            ],
+            "properties": {
+                "router": {
+                    "description": "函数路径",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.DeleteFilesByRouterResp": {
+            "type": "object",
+            "properties": {
+                "deleted_count": {
+                    "type": "integer"
+                },
+                "router": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.GetFileInfoResp": {
+            "type": "object",
+            "properties": {
+                "content_type": {
+                    "type": "string"
+                },
+                "etag": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "last_modified": {
+                    "type": "string"
+                },
+                "size": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.GetStorageStatsResp": {
+            "type": "object",
+            "properties": {
+                "file_count": {
+                    "type": "integer"
+                },
+                "router": {
+                    "type": "string"
+                },
+                "size_human": {
+                    "description": "人类可读的大小，例如：10.5 MB",
+                    "type": "string"
+                },
+                "total_size": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.GetUploadTokenReq": {
+            "type": "object",
+            "required": [
+                "file_name",
+                "router"
+            ],
+            "properties": {
+                "content_type": {
+                    "type": "string"
+                },
+                "file_name": {
+                    "type": "string"
+                },
+                "file_size": {
+                    "type": "integer"
+                },
+                "hash": {
+                    "description": "文件 hash（预留，用于秒传）",
+                    "type": "string"
+                },
+                "router": {
+                    "description": "函数路径，例如：luobei/test88888/tools/cashier_desk",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.GetUploadTokenResp": {
+            "type": "object",
+            "properties": {
+                "bucket": {
+                    "description": "存储桶",
+                    "type": "string"
+                },
+                "cdn_domain": {
+                    "description": "CDN 域名（可选，用于下载访问）",
+                    "type": "string"
+                },
+                "expire": {
+                    "description": "过期时间",
+                    "type": "string"
+                },
+                "form_data": {
+                    "description": "表单上传（七牛云、又拍云等）",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "headers": {
+                    "description": "请求头",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "key": {
+                    "description": "通用字段",
+                    "type": "string"
+                },
+                "method": {
+                    "description": "上传方式 ✨ 新增",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/dto.UploadMethod"
+                        }
+                    ]
+                },
+                "post_url": {
+                    "description": "POST 地址",
+                    "type": "string"
+                },
+                "sdk_config": {
+                    "description": "SDK 上传（特殊云存储）",
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "storage": {
+                    "description": "✨ 存储引擎（minio/qiniu/tencentcos/aliyunoss/awss3）",
+                    "type": "string"
+                },
+                "upload_domain": {
+                    "description": "上传完整域名（例如：http://localhost:9000，用于日志、调试）",
+                    "type": "string"
+                },
+                "upload_host": {
+                    "description": "上传域名信息 ✨ 新增",
+                    "type": "string"
+                },
+                "url": {
+                    "description": "预签名 URL 上传（MinIO、COS、OSS、S3）",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.ListFilesResp": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "files": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "router": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.UploadCompleteReq": {
+            "type": "object",
+            "required": [
+                "key"
+            ],
+            "properties": {
+                "error": {
+                    "description": "错误信息（如果失败）",
+                    "type": "string"
+                },
+                "key": {
+                    "description": "文件 Key",
+                    "type": "string"
+                },
+                "success": {
+                    "description": "是否成功",
+                    "type": "boolean"
+                }
+            }
+        },
+        "dto.UploadCompleteResp": {
+            "type": "object",
+            "properties": {
+                "download_url": {
+                    "description": "✨ 下载 URL（上传成功后返回，方便直接下载）",
+                    "type": "string"
+                },
+                "expire": {
+                    "description": "过期时间",
+                    "type": "string"
+                },
+                "message": {
+                    "description": "消息",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.UploadMethod": {
+            "type": "string",
+            "enum": [
+                "presigned_url",
+                "form_upload",
+                "sdk_upload"
+            ],
+            "x-enum-comments": {
+                "UploadMethodFormUpload": "表单上传（七牛云等）",
+                "UploadMethodPresignedURL": "预签名 URL（标准 S3 协议）",
+                "UploadMethodSDKUpload": "SDK 上传（特殊云存储）"
+            },
+            "x-enum-descriptions": [
+                "预签名 URL（标准 S3 协议）",
+                "表单上传（七牛云等）",
+                "SDK 上传（特殊云存储）"
+            ],
+            "x-enum-varnames": [
+                "UploadMethodPresignedURL",
+                "UploadMethodFormUpload",
+                "UploadMethodSDKUpload"
+            ]
+        }
+    },
+    "securityDefinitions": {
+        "ApiKeyAuth": {
+            "type": "apiKey",
+            "name": "X-Token",
+            "in": "header"
+        }
+    }
+}

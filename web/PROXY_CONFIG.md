@@ -4,8 +4,9 @@
 
 | 服务 | 端口 | 说明 |
 |-----|------|------|
-| `app-server` | 8080 | 主业务 API |
-| `app-storage` | 8083 | 文件存储服务 |
+| `api-gateway` | 9090 | API 网关（统一入口） |
+| `app-server` | 9091 | 主业务 API |
+| `app-storage` | 9092 | 文件存储服务 |
 | MinIO | 9000 | 对象存储 |
 | Vite Dev Server | 5173 | 前端开发服务器 |
 
@@ -19,14 +20,14 @@
 export default defineConfig({
   server: {
     proxy: {
-      // 代理存储服务 API（优先级高）
-      '/api/v1/storage': {
-        target: 'http://localhost:8083',
+      // 统一通过网关代理所有 API 请求
+      '/api': {
+        target: 'http://localhost:9090',  // 网关地址
         changeOrigin: true,
       },
-      // 代理其他 API
-      '/api': {
-        target: 'http://localhost:8080',
+      // Swagger 文档也通过网关
+      '/swagger': {
+        target: 'http://localhost:9090',  // 网关地址
         changeOrigin: true,
       },
     },
@@ -36,18 +37,19 @@ export default defineConfig({
 
 ### 代理规则
 
-**规则 1：存储服务 API**
+**统一网关代理**
 ```
 前端请求：http://localhost:5173/api/v1/storage/upload_token
   ↓ 代理到
-后端服务：http://localhost:8083/api/v1/storage/upload_token
-```
+API Gateway：http://localhost:9090/api/v1/storage/upload_token
+  ↓ 网关转发
+app-storage：http://localhost:9092/api/v1/storage/upload_token
 
-**规则 2：其他 API**
-```
-前端请求：http://localhost:5173/api/v1/function/execute
+前端请求：http://localhost:5173/api/v1/app/list
   ↓ 代理到
-后端服务：http://localhost:8080/api/v1/function/execute
+API Gateway：http://localhost:9090/api/v1/app/list
+  ↓ 网关转发
+app-server：http://localhost:9091/api/v1/app/list
 ```
 
 ---
@@ -60,8 +62,10 @@ export default defineConfig({
 前端 (5173)
   ↓ POST /api/v1/storage/upload_token
 Vite 代理
-  ↓ 转发到 localhost:8083
-app-storage (8083)
+  ↓ 转发到 localhost:9090 (网关)
+API Gateway (9090)
+  ↓ 转发到 localhost:9092
+app-storage (9092)
   ↓ 生成预签名 URL
   ↓ 返回 { method: "presigned_url", url: "http://localhost:9000/...", ... }
 前端 (5173)
@@ -84,7 +88,7 @@ MinIO (9000)
 **关键点**：
 - 上传文件时，前端直接连接 MinIO（9000 端口）
 - 不经过 Vite 代理（5173）
-- 不经过 app-storage（8083）
+- 不经过网关（9090）和 app-storage（9092）
 - 浏览器原生监听上传进度
 
 ### 3. 通知上传完成
@@ -93,8 +97,10 @@ MinIO (9000)
 前端 (5173)
   ↓ POST /api/v1/storage/upload_complete
 Vite 代理
-  ↓ 转发到 localhost:8083
-app-storage (8083)
+  ↓ 转发到 localhost:9090 (网关)
+API Gateway (9090)
+  ↓ 转发到 localhost:9092
+app-storage (9092)
   ↓ 更新 file_uploads 表状态
 ```
 
@@ -214,9 +220,9 @@ curl -X POST http://localhost:5173/api/v1/storage/upload_token \
 3. 拖拽文件到上传组件
 4. 观察上传进度
 5. 查看 Network 面板：
-   - `POST /api/v1/storage/upload_token` → 8083（经过代理）
+   - `POST /api/v1/storage/upload_token` → 9090（网关）→ 9092（app-storage）
    - `PUT http://localhost:9000/...` → MinIO（直接连接）
-   - `POST /api/v1/storage/upload_complete` → 8083（经过代理）
+   - `POST /api/v1/storage/upload_complete` → 9090（网关）→ 9092（app-storage）
 
 ---
 
@@ -254,34 +260,40 @@ xhr.upload.addEventListener('progress', (e) => {
 | AWS S3 | 预签名 URL PUT | `xhr.upload.onprogress` ✅ |
 | 七牛云 | 表单 POST | `xhr.upload.onprogress` ✅ |
 
-### Q4: 代理配置的顺序重要吗？
+### Q4: 为什么使用统一网关？
 
-**A**: 是的！更具体的路径要放在前面。
+**A**: 统一网关提供更好的架构优势：
 
-**正确顺序**：
+**统一网关配置**：
 ```typescript
 {
-  '/api/v1/storage': { target: 'http://localhost:8083' },  // 优先匹配
-  '/api': { target: 'http://localhost:8080' },              // 兜底匹配
+  '/api': { target: 'http://localhost:9090' },    // 所有 API 通过网关
+  '/swagger': { target: 'http://localhost:9090' }, // Swagger 文档也通过网关
 }
 ```
 
-**错误顺序**：
-```typescript
-{
-  '/api': { target: 'http://localhost:8080' },              // 会匹配 /api/v1/storage
-  '/api/v1/storage': { target: 'http://localhost:8083' },  // 永远不会匹配
-}
-```
+**优势**：
+- ✅ 统一入口，简化配置
+- ✅ 网关负责路由转发和负载均衡
+- ✅ 前端无需关心后端服务端口
+- ✅ 支持服务发现和动态路由
+- ✅ 便于监控和日志收集
 
 ---
 
 ## 📝 总结
 
-1. ✅ **代理配置**：`/api/v1/storage` → `localhost:8083`
-2. ✅ **直接上传**：前端直接连接 MinIO（9000），不经过代理
-3. ✅ **进度监听**：使用浏览器原生 API，不需要后端提供接口
-4. ✅ **统一接口**：所有云存储都使用相同的进度监听方式
+1. ✅ **统一网关**：所有 API 请求通过 `api-gateway` (9090) 统一入口
+2. ✅ **代理配置**：Vite 代理 `/api` 和 `/swagger` 到网关
+3. ✅ **直接上传**：前端直接连接 MinIO（9000），不经过网关
+4. ✅ **进度监听**：使用浏览器原生 API，不需要后端提供接口
+5. ✅ **统一接口**：所有云存储都使用相同的进度监听方式
+
+**架构优势**：
+- 🎯 **统一入口**：前端只需知道网关地址，无需关心后端服务端口
+- 🚀 **负载均衡**：网关支持多实例负载均衡
+- 🔒 **安全隔离**：后端服务不直接暴露给前端
+- 📊 **监控统一**：所有请求经过网关，便于监控和日志
 
 **关键点：后端只负责生成上传凭证，文件传输由前端直接完成，进度监听由浏览器原生支持！** 🎉
 

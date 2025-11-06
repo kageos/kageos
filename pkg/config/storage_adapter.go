@@ -118,3 +118,11 @@ func (a *StorageConfigAdapter) GetCDNDomain() string {
 	}
 }
 
+// GetServerEndpoint 获取服务端 endpoint（仅用于 MinIO，容器内访问）
+func (a *StorageConfigAdapter) GetServerEndpoint() string {
+	if a.cfg.Storage.Type == "minio" {
+		return a.cfg.Storage.MinIO.ServerEndpoint
+	}
+	return ""
+}
+

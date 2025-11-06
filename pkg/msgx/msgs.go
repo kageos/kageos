@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/contextx"
 	"github.com/nats-io/nats.go"
 )
 

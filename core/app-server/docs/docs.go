@@ -1788,6 +1788,12 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "children": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/widget.Field"
+                    }
+                },
                 "code": {
                     "description": "从json标签里解析，",
                     "type": "string"
@@ -1796,6 +1802,9 @@ const docTemplate = `{
                     "$ref": "#/definitions/widget.FieldData"
                 },
                 "desc": {
+                    "type": "string"
+                },
+                "field_name": {
                     "type": "string"
                 },
                 "name": {

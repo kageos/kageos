@@ -14,6 +14,7 @@ import { Plus, Delete, Edit, Check, Close, ArrowDown, ArrowUp, Upload, Download 
 import { BaseWidget } from './BaseWidget'
 import { Logger } from '../utils/logger'
 import { WidgetBuilder } from '../factories/WidgetBuilder'
+import { widgetFactory } from '../factories/WidgetFactory'
 import { ErrorHandler } from '../utils/ErrorHandler'
 import type { FieldConfig, FieldValue } from '../types/field'
 import type { WidgetRenderProps, MarkRawWidget } from '../types/widget'
@@ -565,10 +566,43 @@ export class TableWidget extends BaseWidget {
       meta: {}
     }
     
+    // 🔥 同步到 formManager（确保验证时能获取到最新值）
+    if (this.formManager) {
+      this.formManager.setValue(this.fieldPath, newValue)
+    }
+    
+    // 🔥 更新内部的 value（保持一致性）
+    this.value.value = newValue
+    
     // 调用 onChange 通知父组件
     if (this.onChange) {
       this.onChange(newValue)
     }
+  }
+  
+  /**
+   * 🔥 重写 getValue()：从 formManager 或 savedData 获取最新值
+   * 确保验证时能获取到最新的数组数据
+   */
+  protected getValue(): FieldValue {
+    // 优先从 formManager 获取（保证数据一致性）
+    if (this.formManager) {
+      const managerValue = this.formManager.getValue(this.fieldPath)
+      // 🔥 对于数组类型，即使为空数组也应该返回（用于验证 min=1 等规则）
+      // 只有当 raw 是 undefined 或 null 时才回退到 savedData
+      if (managerValue && managerValue.raw !== undefined && managerValue.raw !== null) {
+        return managerValue
+      }
+    }
+    
+    // 否则从 savedData 构建（用于初始化或临时 Widget）
+    const currentValue: FieldValue = {
+      raw: this.savedData.value,
+      display: `共 ${this.savedData.value.length} 条`,
+      meta: {}
+    }
+    
+    return currentValue
   }
 
   /**

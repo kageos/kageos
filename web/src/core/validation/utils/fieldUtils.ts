@@ -61,3 +61,34 @@ export function getFieldName(context: ValidationContext, fallback: string = '此
   return field?.name || fallback
 }
 
+/**
+ * 判断字段是否为字符串类型
+ * 
+ * 判断规则：
+ * - 仅基于 data.type 判断（数据类型层面）
+ * - data.type 包含 'string'、'text' 等认为是字符串类型
+ * - 如果 data.type 为空，默认认为是字符串类型
+ * 
+ * 注意：不判断 widget.type，因为 widget.type 是渲染层面的概念，不是数据类型
+ * 
+ * @param field 字段配置（可为 null 或 undefined）
+ * @returns 是否为字符串类型
+ */
+export function isStringField(field: FieldConfig | null | undefined): boolean {
+  if (!field) return false
+  
+  const dataType = field.data?.type?.toLowerCase() || ''
+  
+  // 如果 data.type 为空，默认认为是字符串类型
+  if (!dataType || dataType === '') {
+    return true
+  }
+  
+  // 检查 data.type 是否包含字符串类型标识
+  if (dataType.includes('string') || dataType.includes('text')) {
+    return true
+  }
+  
+  return false
+}
+

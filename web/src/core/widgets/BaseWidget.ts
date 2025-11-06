@@ -7,6 +7,7 @@ import type { FieldConfig, FieldValue } from '../types/field'
 import type { WidgetRenderProps, WidgetSnapshot, FormRendererContext } from '../types/widget'
 import type { ReactiveFormDataManager } from '../managers/ReactiveFormDataManager'
 import type { ValidationResult } from '../validation/types'
+import type { ValidationEngine } from '../validation/ValidationEngine'
 import { Logger } from '../utils/logger'
 
 /**
@@ -87,17 +88,22 @@ export abstract class BaseWidget implements IWidgetSnapshot {
    * 避免每个子类都要写 (this.field.widget?.config as XxxConfig) || {}
    */
   protected getConfig<T = any>(): T {
-    return (this.field.widget?.config as T) || {} as T
+    const config = this.field.widget?.config
+    // 🔥 确保 config 是对象类型，避免 null 或非对象类型
+    if (!config || typeof config !== 'object') {
+      return {} as T
+    }
+    return config as T
   }
   
   /**
    * 🔥 验证当前字段
    * 
-   * @param validationEngine 验证引擎实例（从 formRenderer 获取）
+   * @param validationEngine 验证引擎实例（从 formRenderer 获取），可以为 null
    * @param allFields 所有字段配置（从 formRenderer 获取）
    * @returns 验证错误列表（空数组表示验证通过）
    */
-  validate(validationEngine: any, allFields: FieldConfig[]): ValidationResult[] {
+  validate(validationEngine: ValidationEngine | null, allFields: FieldConfig[]): ValidationResult[] {
     if (!this.formManager) {
       return []  // 临时 Widget 不需要验证
     }
@@ -122,14 +128,21 @@ export abstract class BaseWidget implements IWidgetSnapshot {
   /**
    * 获取字段的默认值
    * 每个 Widget 子类可以重写此方法来提供自定义的默认值逻辑
+   * 
+   * @param field 字段配置
+   * @returns 默认的 FieldValue
    */
   static getDefaultValue(field: FieldConfig): FieldValue {
     // 1. 优先使用 widget.config.default
-    if (field.widget?.config && typeof field.widget.config === 'object' && field.widget.config.default !== undefined && field.widget.config.default !== '') {
-      return {
-        raw: field.widget.config.default,
-        display: String(field.widget.config.default),
-        meta: {}
+    const config = field.widget?.config
+    if (config && typeof config === 'object' && 'default' in config) {
+      const defaultValue = (config as Record<string, any>).default
+      if (defaultValue !== undefined && defaultValue !== '') {
+        return {
+          raw: defaultValue,
+          display: String(defaultValue),
+          meta: {}
+        }
       }
     }
 
@@ -146,6 +159,7 @@ export abstract class BaseWidget implements IWidgetSnapshot {
           meta: {}
         }
       case 'bool':
+      case 'boolean':
         return {
           raw: false,
           display: '否',
@@ -189,11 +203,11 @@ export abstract class BaseWidget implements IWidgetSnapshot {
   static loadFromRawData(rawValue: any, field: FieldConfig): FieldValue {
     // 🔥 如果已经是 FieldValue 格式，直接返回
     if (rawValue && typeof rawValue === 'object' && 'raw' in rawValue && 'display' in rawValue) {
-      return rawValue
+      return rawValue as FieldValue
     }
     
-    // 🔥 空值处理：返回默认值
-    if (rawValue === null || rawValue === undefined) {
+    // 🔥 空值处理：返回默认值（包括空字符串）
+    if (rawValue === null || rawValue === undefined || rawValue === '') {
       return this.getDefaultValue(field)
     }
     
@@ -224,11 +238,13 @@ export abstract class BaseWidget implements IWidgetSnapshot {
 
   /**
    * 获取当前值
+   * 
+   * @returns 字段值，如果不存在则返回默认空值
    */
   protected getValue(): FieldValue {
     const value = this.value.value
-    // 如果值不存在，返回默认值
-    if (!value) {
+    // 🔥 检查值是否存在且有效（不是空对象）
+    if (!value || (typeof value === 'object' && !('raw' in value))) {
       return {
         raw: '',
         display: '',
@@ -321,28 +337,26 @@ export abstract class BaseWidget implements IWidgetSnapshot {
       convertedRaw = this.convertValueByType(raw)
     }
     
+    const currentValue = this.getValue()
     this.setValue({
-      ...this.value.value,
+      ...currentValue,
       raw: convertedRaw,
       display: String(raw)  // display 保持原样（用于显示）
     })
   }
 
   /**
-   * 🔥 渲染表格单元格（用于 TableWidget）
-   * 子类可以覆盖此方法来自定义表格展示
-   * @param value 字段值
-   * @returns VNode（Vue 虚拟节点）或 字符串
+   * 🔥 格式化字段值用于显示（内部方法，供 renderTableCell 和 renderForDetail 使用）
    * 
-   * 注意：为了兼容 TableRenderer，如果返回字符串，TableRenderer 会用 span 包裹
-   * 子类如果要返回 VNode，可以直接返回 h(...)
+   * @param value 字段值（可选，默认从 formManager 读取）
+   * @returns 格式化后的字符串
    */
-  renderTableCell(value?: FieldValue): any {
+  protected formatValueForDisplay(value?: FieldValue): string {
     const fieldValue = value || this.safeGetValue(this.fieldPath)
     if (!fieldValue) return '-'
     
     // 🔥 优先使用 display 属性
-    if (fieldValue.display) {
+    if (fieldValue.display && fieldValue.display !== '-') {
       return fieldValue.display
     }
     
@@ -360,6 +374,20 @@ export abstract class BaseWidget implements IWidgetSnapshot {
     }
     
     return String(raw)
+  }
+
+  /**
+   * 🔥 渲染表格单元格（用于 TableWidget）
+   * 子类可以覆盖此方法来自定义表格展示
+   * @param value 字段值
+   * @returns VNode（Vue 虚拟节点）或 字符串
+   * 
+   * 注意：为了兼容 TableRenderer，如果返回字符串，TableRenderer 会用 span 包裹
+   * 子类如果要返回 VNode，可以直接返回 h(...)
+   */
+  renderTableCell(value?: FieldValue): any {
+    // 默认实现：使用统一的格式化方法
+    return this.formatValueForDisplay(value)
   }
 
   /**
@@ -388,31 +416,22 @@ export abstract class BaseWidget implements IWidgetSnapshot {
    * 设计原则：
    * - 遵循依赖倒置原则：TableRenderer 不需要知道具体 Widget 类型
    * - 组件自治：每个 Widget 自己决定如何在详情中展示
-   * - 默认实现：调用 renderForResponse()（详情也是只读展示）
+   * - 默认实现：使用 formatValueForDisplay() 格式化字符串
    * 
    * 使用场景：
    * - Table 详情抽屉中的字段展示
    * - 某些组件在详情中可能需要更丰富的展示（如 files 显示文件列表）
    * 
    * @param value 字段值（可选，默认从 formManager 读取）
-   * @returns 渲染结果（VNode）
+   * @returns 渲染结果（VNode 或字符串）
+   * 
+   * 注意：返回字符串时，TableRenderer 会自动用 span 包裹
+   * 子类可以重写此方法返回 VNode 以提供更丰富的展示（如 FilesWidget）
    */
   renderForDetail(value?: FieldValue): any {
-    // 默认实现：调用 renderForResponse()（详情也是只读展示）
-    // 子类可以重写此方法来提供详情专用的渲染逻辑
-    const fieldValue = value || this.safeGetValue(this.fieldPath)
-    if (!fieldValue) return '-'
-    
-    // 优先使用 display 属性
-    if (fieldValue.display && fieldValue.display !== '-') {
-      return fieldValue.display
-    }
-    
-    // 降级：格式化 raw 值
-    const raw = fieldValue.raw
-    if (raw === null || raw === undefined) return '-'
-    
-    return String(raw)
+    // 默认实现：使用统一的格式化方法（与 renderTableCell 一致）
+    // 子类可以重写此方法来提供详情专用的渲染逻辑（如返回 VNode）
+    return this.formatValueForDisplay(value)
   }
 
   /**
@@ -420,7 +439,7 @@ export abstract class BaseWidget implements IWidgetSnapshot {
    * 
    * 设计原则：
    * - 遵循组件自治：每个 Widget 自己决定复制什么内容
-   * - 默认实现：返回 display 或格式化后的 raw
+   * - 默认实现：使用 formatValueForDisplay() 格式化
    * 
    * 使用场景：
    * - Table 详情抽屉中的复制按钮
@@ -428,29 +447,40 @@ export abstract class BaseWidget implements IWidgetSnapshot {
    * 
    * @returns 要复制到剪贴板的字符串
    */
-  onCopy(): string {
-    const value = this.safeGetValue(this.fieldPath)
-    if (!value) return ''
-    
-    // 默认：返回 display 或格式化后的 raw
-    if (value.display && value.display !== '-') {
-      return value.display
-    }
-    
-    if (value.raw === null || value.raw === undefined) return ''
-    
-    return String(value.raw)
+  getCopyText(): string {
+    // 默认实现：使用统一的格式化方法（与 renderTableCell 和 renderForDetail 一致）
+    const text = this.formatValueForDisplay()
+    // 如果格式化结果是 '-'，返回空字符串（避免复制占位符）
+    return text === '-' ? '' : text
   }
 
   /**
    * 格式化时间戳（用于表格显示）
+   * 
+   * 注意：这是一个简单的格式化方法，仅用于 BaseWidget 的默认显示
+   * 子类（如 TimestampWidget）应该使用更完整的格式化工具（如 @/utils/date）
+   * 
+   * @param timestamp 时间戳（支持秒级和毫秒级，自动判断）
+   * @returns 格式化后的日期时间字符串
    */
   protected formatTimestamp(timestamp: number | string): string {
     if (!timestamp) return '-'
     
-    const date = typeof timestamp === 'number' 
-      ? new Date(timestamp * 1000)  // Unix 时间戳（秒）
-      : new Date(timestamp)
+    let date: Date
+    if (typeof timestamp === 'string') {
+      // 字符串：尝试解析为数字
+      const numValue = Number(timestamp)
+      if (isNaN(numValue)) {
+        // 不是数字字符串，尝试直接解析
+        date = new Date(timestamp)
+      } else {
+        // 是数字字符串，按数字处理
+        date = this.createDateFromTimestamp(numValue)
+      }
+    } else {
+      // 数字：自动判断是秒级还是毫秒级
+      date = this.createDateFromTimestamp(timestamp)
+    }
     
     if (isNaN(date.getTime())) return String(timestamp)
     
@@ -461,6 +491,33 @@ export abstract class BaseWidget implements IWidgetSnapshot {
     const minutes = String(date.getMinutes()).padStart(2, '0')
     
     return `${year}-${month}-${day} ${hours}:${minutes}`
+  }
+
+  /**
+   * 从时间戳创建 Date 对象（自动判断秒级/毫秒级）
+   * 
+   * 判断规则：
+   * - 如果时间戳 < 86400000（1天），可能是毫秒级（但通常不会是这么小的值）
+   * - 如果时间戳 > 86400000（1天），且 < 9999999999（2001年的秒级时间戳），是秒级
+   * - 如果时间戳 > 9999999999，是毫秒级
+   * 
+   * @param timestamp 时间戳数字
+   * @returns Date 对象
+   */
+  private createDateFromTimestamp(timestamp: number): Date {
+    // 🔥 自动判断：如果时间戳小于 2001-01-01 的毫秒级时间戳（978307200000），
+    // 且大于一天的毫秒数（86400000），则认为是秒级时间戳
+    // 否则认为是毫秒级时间戳
+    const MILLISECONDS_PER_DAY = 86400000
+    const MILLISECONDS_2001 = 978307200000  // 2001-01-01 00:00:00 UTC 的毫秒时间戳
+    
+    if (timestamp > MILLISECONDS_PER_DAY && timestamp < MILLISECONDS_2001) {
+      // 秒级时间戳（2001年之前的值）
+      return new Date(timestamp * 1000)
+    } else {
+      // 毫秒级时间戳（2001年之后的值，或非常小的值）
+      return new Date(timestamp)
+    }
   }
 
   /**
@@ -582,17 +639,20 @@ export abstract class BaseWidget implements IWidgetSnapshot {
 
   /**
    * 捕获快照（默认实现）
+   * 
+   * @returns Widget 快照数据
    */
   captureSnapshot(): WidgetSnapshot {
-
+    const currentValue = this.getValue()
+    
     return {
-      widget_type: this.field.widget.type,
+      widget_type: this.field.widget?.type || 'input',
       field_path: this.fieldPath,
       field_code: this.fieldCode,
       field_value: {
-        raw: this.value.value.raw,
-        display: this.value.value.display,
-        meta: this.value.value.meta
+        raw: currentValue.raw,
+        display: currentValue.display,
+        meta: currentValue.meta || {}
       },
       component_data: this.captureComponentData()
     }
@@ -600,14 +660,15 @@ export abstract class BaseWidget implements IWidgetSnapshot {
 
   /**
    * 恢复快照（默认实现）
+   * 
+   * @param snapshot Widget 快照数据
    */
   restoreSnapshot(snapshot: WidgetSnapshot): void {
-
     // 恢复 FieldValue
     this.setValue({
       raw: snapshot.field_value.raw,
       display: snapshot.field_value.display,
-      meta: snapshot.field_value.meta
+      meta: snapshot.field_value.meta || {}
     })
 
     // 恢复组件特定数据

@@ -24,8 +24,10 @@ import {
 import { BaseWidget } from './BaseWidget'
 import type { FieldConfig, FieldValue } from '../types/field'
 import type { WidgetRenderProps } from '../types/widget'
-import { uploadFile } from '@/utils/upload'
+import { uploadFile, notifyBatchUploadComplete, type FileInfo, type BatchUploadCompleteItem } from '@/utils/upload'
 import type { UploadProgress, UploadResult } from '@/utils/upload/types'
+import type { Uploader } from '@/utils/upload'
+import type { UploadFileResult } from '@/utils/upload'
 import { Logger } from '../utils/logger'
 import { getElementPlusFormProps } from './utils/widgetHelpers'
 
@@ -52,7 +54,8 @@ export interface FileItem {
   upload_ts: number
   local_path: string
   is_uploaded: boolean
-  url: string
+  url: string           // ✨ 外部访问地址（前端下载使用）
+  server_url?: string   // ✨ 内部访问地址（服务端下载使用）
   downloaded?: boolean
 }
 
@@ -75,7 +78,14 @@ interface UploadingFile {
   percent: number
   status: 'uploading' | 'success' | 'error'
   error?: string
-  cancel?: () => void
+  speed?: string  // ✨ 上传速度
+  rawFile?: File  // ✨ 原始文件，用于重试
+  uploader?: Uploader  // ✨ 上传器实例，用于取消
+  cancel?: () => void  // ✨ 取消上传方法
+  retry?: () => void  // ✨ 重试上传方法
+  fileInfo?: FileInfo  // ✨ 文件信息（用于批量complete）
+  downloadURL?: string  // ✨ 下载URL（批量complete后填充）
+  storage?: string  // ✨ 存储引擎类型（从uploadResult获取）
 }
 
 export class FilesWidget extends BaseWidget {
@@ -86,6 +96,12 @@ export class FilesWidget extends BaseWidget {
   private uploadingFiles = ref<UploadingFile[]>([])
   private filesConfig: FilesConfig
   private router: string
+  
+  // ✨ 批量complete相关
+  private pendingCompleteQueue: BatchUploadCompleteItem[] = []  // 待批量complete的队列
+  private batchCompleteTimer: ReturnType<typeof setTimeout> | null = null  // 批量complete定时器
+  private readonly BATCH_COMPLETE_DELAY = 500  // 批量complete延迟（ms），等待更多文件完成
+  private readonly BATCH_COMPLETE_MAX_SIZE = 10  // 批量complete最大批次大小
 
   constructor(props: WidgetRenderProps) {
     super(props)
@@ -225,13 +241,19 @@ export class FilesWidget extends BaseWidget {
     }
 
     const match = maxSizeStr.match(/^(\d+(?:\.\d+)?)\s*(B|KB|MB|GB)$/i)
-    if (!match) {
-      Logger.error(`[FilesWidget] Invalid max_size format: ${maxSizeStr}`)
+    if (!match || !match[1] || !match[2]) {
+      Logger.error('FilesWidget', `Invalid max_size format: ${maxSizeStr}`)
       return Infinity
     }
 
-    const [, size, unit] = match
-    return parseFloat(size) * units[unit.toUpperCase()]
+    const size = match[1]
+    const unit = match[2].toUpperCase() as keyof typeof units
+    const unitValue = units[unit]
+    if (!unitValue) {
+      Logger.error('FilesWidget', `Unknown unit: ${unit}`)
+      return Infinity
+    }
+    return parseFloat(size) * unitValue
   }
 
   /**
@@ -270,7 +292,7 @@ export class FilesWidget extends BaseWidget {
       const fileName = file.name.toLowerCase()
       const fileType = file.type.toLowerCase()
 
-      const isAccepted = accept.some(pattern => {
+      const isAccepted = accept.some((pattern: string) => {
         // 扩展名匹配：.pdf
         if (pattern.startsWith('.')) {
           return fileName.endsWith(pattern)
@@ -278,7 +300,7 @@ export class FilesWidget extends BaseWidget {
         // MIME 通配符：image/*
         if (pattern.includes('/*')) {
           const prefix = pattern.split('/')[0]
-          return fileType.startsWith(prefix)
+          return prefix && fileType && fileType.startsWith(prefix)
         }
         // MIME 类型：application/pdf
         return fileType === pattern
@@ -322,70 +344,217 @@ export class FilesWidget extends BaseWidget {
       size: rawFile.size,
       percent: 0,
       status: 'uploading',
+      speed: '0 KB/s',
+      rawFile, // ✨ 保存原始文件，用于重试
     }
+    
+    // ✨ 定义取消方法
+    uploadingFile.cancel = () => {
+      if (uploadingFile.uploader) {
+        uploadingFile.uploader.cancel()
+        uploadingFile.status = 'error'
+        uploadingFile.error = '上传已取消'
+        ElMessage.warning('上传已取消')
+        // 2 秒后移除
+        setTimeout(() => {
+          const index = this.uploadingFiles.value.findIndex((f: UploadingFile) => f.uid === uid)
+          if (index !== -1) {
+            this.uploadingFiles.value.splice(index, 1)
+          }
+        }, 2000)
+      }
+    }
+    
+    // ✨ 定义重试方法
+    uploadingFile.retry = () => {
+      if (uploadingFile.rawFile) {
+        // 重置状态
+        uploadingFile.status = 'uploading'
+        uploadingFile.percent = 0
+        uploadingFile.error = undefined
+        uploadingFile.speed = '0 KB/s'
+        // 重新上传
+        this.handleFileSelect(uploadingFile.rawFile)
+      }
+    }
+    
     this.uploadingFiles.value.push(uploadingFile)
 
     try {
       // ✨ 调用统一上传工具（后端会根据配置返回对应的上传方式）
-      // ✅ uploadFile 现在返回 UploadResult，包含 downloadURL、key 和 storage
-      const uploadResult = await uploadFile(
+      // ✅ uploadFile 现在返回 UploadFileResult，包含 uploader 实例
+      const uploadResult: UploadFileResult = await uploadFile(
         this.router,
         rawFile,
         (progress: UploadProgress) => {
-          // 更新进度
-          const file = this.uploadingFiles.value.find(f => f.uid === uid)
+          // 更新进度和速度
+          const file = this.uploadingFiles.value.find((f: UploadingFile) => f.uid === uid)
           if (file) {
             file.percent = progress.percent
+            file.speed = progress.speed || '0 KB/s'  // ✨ 保存上传速度
           }
         }
       )
+      
+      // ✨ 保存上传器实例、文件信息和存储类型
+      uploadingFile.uploader = uploadResult.uploader
+      uploadingFile.fileInfo = uploadResult.fileInfo
+      uploadingFile.storage = uploadResult.storage
 
-      // 上传成功，更新状态
-      const file = this.uploadingFiles.value.find(f => f.uid === uid)
+      // 上传成功，更新状态（但downloadURL暂时为空，等待批量complete）
+      const file = this.uploadingFiles.value.find((f: UploadingFile) => f.uid === uid)
       if (file) {
         file.status = 'success'
       }
 
-      // 添加到文件列表
-      // ✅ downloadURL 已经是完整的下载 URL（从上传完成接口返回）
-      const newFile: FileItem = {
-        name: rawFile.name,
-        source_name: rawFile.name, // ✨ 源文件名称（上传时的原始文件名）
-        storage: uploadResult.storage || 'minio', // ✨ 存储引擎类型（从上传凭证获取）
-        description: '',
-        hash: '', // 后端会计算
-        size: rawFile.size,
-        upload_ts: Date.now(),
-        local_path: '',
-        is_uploaded: true,
-        url: uploadResult.downloadURL, // ✅ 直接使用返回的下载 URL
-        downloaded: false,
+      // ✨ 添加到批量complete队列
+      if (uploadResult.fileInfo) {
+        this.addToCompleteQueue({
+          key: uploadResult.fileInfo.key,
+          success: true,
+          router: uploadResult.fileInfo.router,
+          file_name: uploadResult.fileInfo.file_name,
+          file_size: uploadResult.fileInfo.file_size,
+          content_type: uploadResult.fileInfo.content_type,
+          hash: uploadResult.fileInfo.hash,
+        })
       }
-
-      const currentFiles = this.getCurrentFiles()
-      this.updateFiles([...currentFiles, newFile])
-
-      ElMessage.success('上传成功')
-
-      // 2 秒后移除上传记录
-      setTimeout(() => {
-        const index = this.uploadingFiles.value.findIndex(f => f.uid === uid)
-        if (index !== -1) {
-          this.uploadingFiles.value.splice(index, 1)
-        }
-      }, 2000)
 
     } catch (error: any) {
-      Logger.error('[FilesWidget] Upload failed:', error)
+      Logger.error('FilesWidget', 'Upload failed', error)
 
       // 更新状态
-      const file = this.uploadingFiles.value.find(f => f.uid === uid)
+      const file = this.uploadingFiles.value.find((f: UploadingFile) => f.uid === uid)
       if (file) {
         file.status = 'error'
-        file.error = error.message
+        file.error = error.message || '上传失败'
       }
 
-      ElMessage.error(`上传失败: ${error.message}`)
+      // ✨ 失败的文件也添加到批量complete队列（用于记录失败）
+      if (error.fileInfo) {
+        this.addToCompleteQueue({
+          key: error.fileInfo.key,
+          success: false,
+          error: error.fileInfo.error || error.message || '上传失败',
+          router: error.fileInfo.router,
+          file_name: error.fileInfo.file_name,
+          file_size: error.fileInfo.file_size,
+          content_type: error.fileInfo.content_type,
+        })
+      }
+
+      ElMessage.error(`上传失败: ${error.message || '未知错误'}`)
+    }
+  }
+
+  /**
+   * ✨ 添加到批量complete队列
+   */
+  private addToCompleteQueue(item: BatchUploadCompleteItem): void {
+    this.pendingCompleteQueue.push(item)
+    
+    // 如果队列达到最大批次大小，立即触发批量complete
+    if (this.pendingCompleteQueue.length >= this.BATCH_COMPLETE_MAX_SIZE) {
+      this.flushCompleteQueue()
+      return
+    }
+    
+    // 否则，设置延迟批量complete（等待更多文件完成）
+    if (this.batchCompleteTimer) {
+      clearTimeout(this.batchCompleteTimer)
+    }
+    this.batchCompleteTimer = setTimeout(() => {
+      this.flushCompleteQueue()
+    }, this.BATCH_COMPLETE_DELAY)
+  }
+
+  /**
+   * ✨ 批量complete处理
+   */
+  private async flushCompleteQueue(): Promise<void> {
+    if (this.pendingCompleteQueue.length === 0) {
+      return
+    }
+    
+    // 取出队列中的所有项目
+    const items = [...this.pendingCompleteQueue]
+    this.pendingCompleteQueue = []
+    
+    if (this.batchCompleteTimer) {
+      clearTimeout(this.batchCompleteTimer)
+      this.batchCompleteTimer = null
+    }
+    
+    try {
+      // ✨ 批量调用complete接口
+      const results = await notifyBatchUploadComplete(items)
+      
+      // 更新每个文件的状态和下载URL
+      items.forEach(item => {
+        const result = results.get(item.key)
+        const uploadingFile = this.uploadingFiles.value.find((f: UploadingFile) => f.fileInfo?.key === item.key)
+        
+        if (result && item.success && result.status === 'completed') {
+          // 上传成功，更新下载URL并添加到文件列表
+          if (uploadingFile && uploadingFile.fileInfo) {
+            uploadingFile.downloadURL = result.download_url || ''
+            
+            const newFile: FileItem = {
+              name: uploadingFile.name,
+              source_name: uploadingFile.name,
+              storage: uploadingFile.storage || '', // ✨ 从uploadingFile获取存储类型（从uploadResult.storage获取，后端返回）
+              description: '',
+              hash: '',
+              size: uploadingFile.size,
+              upload_ts: Date.now(),
+              local_path: '',
+              is_uploaded: true,
+              url: result.download_url || '',           // ✨ 外部访问地址（前端下载使用）
+              server_url: result.server_download_url || '', // ✨ 内部访问地址（服务端下载使用）
+              downloaded: false,
+            }
+            
+            const currentFiles = this.getCurrentFiles()
+            this.updateFiles([...currentFiles, newFile])
+            
+            // 2秒后移除上传记录
+            setTimeout(() => {
+              const index = this.uploadingFiles.value.findIndex((f: UploadingFile) => f.uid === uploadingFile.uid)
+              if (index !== -1) {
+                this.uploadingFiles.value.splice(index, 1)
+              }
+            }, 2000)
+          }
+          
+          // 单个文件成功时不显示消息（批量成功时统一显示）
+        } else if (!item.success || (result && result.status === 'failed')) {
+          // 上传失败
+          if (uploadingFile) {
+            uploadingFile.status = 'error'
+            uploadingFile.error = result?.error || item.error || '上传失败'
+          }
+        }
+      })
+      
+      // 如果所有文件都成功，显示批量成功提示
+      const successCount = items.filter(item => item.success && results.get(item.key)?.status === 'completed').length
+      if (successCount > 1) {
+        ElMessage.success(`批量上传完成：${successCount} 个文件`)
+      } else if (successCount === 1) {
+        // 单个文件成功时也显示
+        ElMessage.success('上传成功')
+      }
+      
+    } catch (error: any) {
+      Logger.error('FilesWidget', 'Batch complete failed', error)
+      // 如果批量complete失败，标记所有文件为错误
+      items.forEach(item => {
+        const uploadingFile = this.uploadingFiles.value.find((f: UploadingFile) => f.fileInfo?.key === item.key)
+        if (uploadingFile) {
+          uploadingFile.status = 'error'
+          uploadingFile.error = '批量通知失败'
+        }
+      })
     }
   }
 
@@ -445,7 +614,7 @@ export class FilesWidget extends BaseWidget {
       
       ElMessage.success('下载成功')
     } catch (error: any) {
-      Logger.error('[FilesWidget] Download failed:', error)
+      Logger.error('FilesWidget', 'Download failed', error)
       ElMessage.error(`下载失败: ${error.message}`)
     }
   }
@@ -455,9 +624,15 @@ export class FilesWidget extends BaseWidget {
    */
   private handleUpdateDescription(index: number, description: string): void {
     const currentFiles = this.getCurrentFiles()
+    if (index < 0 || index >= currentFiles.length) {
+      return
+    }
     const newFiles = [...currentFiles]
-    newFiles[index] = { ...newFiles[index], description }
-    this.updateFiles(newFiles)
+    const fileToUpdate = newFiles[index]
+    if (fileToUpdate) {
+      newFiles[index] = { ...fileToUpdate, description }
+      this.updateFiles(newFiles)
+    }
   }
 
   /**
@@ -674,7 +849,7 @@ export class FilesWidget extends BaseWidget {
    * 🔥 获取复制文本
    * 复制文件名称列表（换行分隔），如果有 URL 则复制 URL
    */
-  onCopy(): string {
+  getCopyText(): string {
     const currentValue = this.safeGetValue(this.fieldPath)
     const data = (currentValue?.raw as FilesData) || { files: [], remark: '', metadata: {} }
     const currentFiles = data.files || []
@@ -685,12 +860,13 @@ export class FilesWidget extends BaseWidget {
     
     // 如果有多个文件，复制文件名称列表（换行分隔）
     // 如果只有一个文件且有 URL，复制 URL
-    if (currentFiles.length === 1 && currentFiles[0].url) {
-      return currentFiles[0].url
+    const firstFile = currentFiles[0]
+    if (currentFiles.length === 1 && firstFile && firstFile.url) {
+      return firstFile.url
     }
     
     // 否则复制文件名称列表
-    return currentFiles.map(file => file.name || file.source_name || '未知文件').join('\n')
+    return currentFiles.map((file: FileItem) => file.name || file.source_name || '未知文件').join('\n')
   }
 
   render() {
@@ -819,7 +995,7 @@ export class FilesWidget extends BaseWidget {
             borderBottom: '1px solid var(--el-border-color-lighter)',
           }
         }, '上传中'),
-        ...this.uploadingFiles.value.map(file =>
+        ...this.uploadingFiles.value.map((file: UploadingFile) =>
           h('div', { 
             class: 'uploading-file', 
             key: file.uid,
@@ -850,6 +1026,7 @@ export class FilesWidget extends BaseWidget {
                   fontSize: '14px',
                   color: 'var(--el-text-color-primary)',
                   fontWeight: '500',
+                  flex: 1,
                 }
               }, file.name),
               h('span', { 
@@ -864,14 +1041,50 @@ export class FilesWidget extends BaseWidget {
               percentage: file.percent,
               status: file.status === 'error' ? 'exception' : undefined,
             }),
-            file.error && h('div', { 
-              class: 'error-message',
+            // ✨ 显示上传速度和操作按钮
+            h('div', {
               style: {
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
                 marginTop: '8px',
-                fontSize: '12px',
-                color: 'var(--el-color-danger)',
               }
-            }, file.error),
+            }, [
+              // 上传速度或错误信息
+              file.status === 'uploading' && file.speed && h('span', {
+                style: {
+                  fontSize: '12px',
+                  color: 'var(--el-text-color-secondary)',
+                }
+              }, `速度: ${file.speed}`),
+              file.error && h('span', { 
+                style: {
+                  fontSize: '12px',
+                  color: 'var(--el-color-danger)',
+                  flex: 1,
+                }
+              }, file.error),
+              // 操作按钮
+              h('div', {
+                style: {
+                  display: 'flex',
+                  gap: '8px',
+                }
+              }, [
+                // 取消按钮（上传中时显示）
+                file.status === 'uploading' && file.cancel && h(ElButton, {
+                  size: 'small',
+                  type: 'danger',
+                  onClick: file.cancel,
+                }, () => '取消'),
+                // 重试按钮（失败时显示）
+                file.status === 'error' && file.retry && h(ElButton, {
+                  size: 'small',
+                  type: 'primary',
+                  onClick: file.retry,
+                }, () => '重试'),
+              ]),
+            ]),
           ])
         ),
       ]),

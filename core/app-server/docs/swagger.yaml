@@ -585,12 +585,18 @@ definitions:
         items:
           type: string
         type: array
+      children:
+        items:
+          $ref: '#/definitions/widget.Field'
+        type: array
       code:
         description: 从json标签里解析，
         type: string
       data:
         $ref: '#/definitions/widget.FieldData'
       desc:
+        type: string
+      field_name:
         type: string
       name:
         type: string

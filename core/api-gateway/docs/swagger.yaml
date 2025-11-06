@@ -1,0 +1,24 @@
+basePath: /
+host: localhost:9090
+info:
+  contact: {}
+  description: AI Agent OS API 网关服务文档
+  title: AI Agent OS API Gateway
+  version: "1.0"
+paths:
+  /api/v1/config:
+    get:
+      description: 返回所有服务的访问地址（通过网关）
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 获取服务配置
+      tags:
+      - config
+swagger: "2.0"

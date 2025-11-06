@@ -2,8 +2,12 @@
 // @version 1.0
 // @description AI Agent OS 存储服务 API 文档
 
-// @host localhost:8083
+// @host localhost:9092
 // @BasePath /api/v1
+
+// @securityDefinitions.apikey ApiKeyAuth
+// @in header
+// @name X-Token
 
 package main
 
@@ -14,9 +18,13 @@ import (
 	"os/signal"
 	"syscall"
 
+	_ "github.com/ai-agent-os/ai-agent-os/core/app-storage/docs"
 	"github.com/ai-agent-os/ai-agent-os/core/app-storage/server"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+
+	// 导入存储 API 以确保 swag 扫描到
+	_ "github.com/ai-agent-os/ai-agent-os/core/app-storage/api/v1"
 )
 
 func main() {
