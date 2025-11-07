@@ -48,6 +48,14 @@ type StartupNotification struct {
 	StartTime time.Time
 }
 
+// CloseNotification 关闭通知
+type CloseNotification struct {
+	User      string
+	App       string
+	Version   string
+	CloseTime time.Time
+}
+
 // AppManageService 应用管理服务 - 负责应用的增删改查
 type AppManageService struct {
 	builder             *builder.Builder
@@ -63,9 +71,37 @@ type AppManageService struct {
 	startupWaiters   map[string]chan *StartupNotification // key: user/app/version
 	startupWaitersMu sync.RWMutex
 
+	// 关闭等待器 - 用于等待应用关闭完成通知
+	closeWaiters   map[string]chan *CloseNotification // key: user/app/version
+	closeWaitersMu sync.RWMutex
+
 	// 定时任务控制
 	cleanupTicker *time.Ticker
 	cleanupDone   chan struct{}
+}
+
+// ============================================================================
+// 容器名工具函数
+// ============================================================================
+
+// buildContainerName 构建容器名（新格式：{user}-{app}-{version}）
+func buildContainerName(user, app, version string) string {
+	return fmt.Sprintf("%s-%s-%s", user, app, version)
+}
+
+// parseContainerName 解析容器名（格式：{user}-{app}-{version}）
+// 返回：user, app, version, error
+func parseContainerName(containerName string) (string, string, string, error) {
+	parts := strings.Split(containerName, "-")
+	if len(parts) < 3 {
+		return "", "", "", fmt.Errorf("invalid container name format: %s, expected {user}-{app}-{version}", containerName)
+	}
+	// 最后一部分是 version
+	version := parts[len(parts)-1]
+	// 前面是 user-app（假设 user 和 app 都不包含连字符）
+	user := parts[0]
+	app := strings.Join(parts[1:len(parts)-1], "-")
+	return user, app, version, nil
 }
 
 // ============================================================================
@@ -122,13 +158,62 @@ func NewAppManageService(builder *builder.Builder, config *appconfig.AppManageSe
 		natsConn:            natsConn,
 		QPSTracker:          NewQPSTracker(60*time.Second, 10*time.Second), // 60秒窗口，10秒检查间隔
 		startupWaiters:      make(map[string]chan *StartupNotification),
+		closeWaiters:        make(map[string]chan *CloseNotification),
 		cleanupDone:         make(chan struct{}),
+	}
+}
+
+// ============================================================================
+// 关闭等待器管理方法
+// ============================================================================
+
+// registerCloseWaiter 注册关闭等待器
+func (s *AppManageService) registerCloseWaiter(user, app, version string) chan *CloseNotification {
+	key := fmt.Sprintf("%s/%s/%s", user, app, version)
+	s.closeWaitersMu.Lock()
+	defer s.closeWaitersMu.Unlock()
+
+	waiterChan := make(chan *CloseNotification, 1)
+	s.closeWaiters[key] = waiterChan
+	return waiterChan
+}
+
+// unregisterCloseWaiter 注销关闭等待器
+func (s *AppManageService) unregisterCloseWaiter(user, app, version string) {
+	key := fmt.Sprintf("%s/%s/%s", user, app, version)
+	s.closeWaitersMu.Lock()
+	defer s.closeWaitersMu.Unlock()
+
+	if waiterChan, exists := s.closeWaiters[key]; exists {
+		close(waiterChan)
+		delete(s.closeWaiters, key)
+	}
+}
+
+// notifyCloseWaiter 通知关闭等待器
+func (s *AppManageService) notifyCloseWaiter(user, app, version string, notification *CloseNotification) {
+	key := fmt.Sprintf("%s/%s/%s", user, app, version)
+	s.closeWaitersMu.RLock()
+	waiterChan, exists := s.closeWaiters[key]
+	s.closeWaitersMu.RUnlock()
+
+	if exists {
+		select {
+		case waiterChan <- notification:
+		default:
+			// 通道已满或已关闭，忽略
+		}
 	}
 }
 
 // NotifyStartup 通知应用启动完成（由 NATS 消息处理器调用）
 func (s *AppManageService) NotifyStartup(notification *StartupNotification) {
 	s.notifyStartupWaiter(notification.User, notification.App, notification.Version, notification)
+}
+
+// NotifyClose 通知应用关闭完成（由 NATS 消息处理器调用）
+func (s *AppManageService) NotifyClose(notification *CloseNotification) {
+	s.notifyCloseWaiter(notification.User, notification.App, notification.Version, notification)
 }
 
 // RegisterStartupWaiter 注册启动等待器
