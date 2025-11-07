@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"runtime"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -50,6 +52,8 @@ type App struct {
 	runningCount      int32
 	shutdownRequested bool
 	shutdownMu        sync.RWMutex
+
+	//fileCache
 }
 
 const (
@@ -319,14 +323,16 @@ func (a *App) handleDiscovery(msg *nats.Msg) {
 func (a *App) Close() error {
 	logger.Infof(context.Background(), "App.Close() called")
 
-	// 设置关闭请求标志
+	// 检查是否已经关闭过（使用原子操作避免重复清理）
 	a.shutdownMu.Lock()
-	if a.shutdownRequested {
+	alreadyClosed := a.shutdownRequested
+	if alreadyClosed {
 		// 如果已经在关闭过程中，避免重复关闭
-		logger.Infof(context.Background(), "Shutdown already in progress")
+		logger.Infof(context.Background(), "Shutdown already in progress, skipping cleanup")
 		a.shutdownMu.Unlock()
 		return nil
 	}
+	// 设置关闭请求标志
 	a.shutdownRequested = true
 	a.shutdownMu.Unlock()
 
@@ -346,7 +352,16 @@ func (a *App) Close() error {
 		a.conn.Close()
 	}
 
-	// 4. 安全地关闭退出channel
+	// 4. 关闭所有数据库连接
+	closeAllDatabases()
+
+	// 5. 清理文件缓存（立即删除所有无引用的待删除文件）
+	GetFileCache().CleanupOnShutdown()
+
+	// 6. 强制 GC 并释放内存回操作系统
+	forceGCAndFreeMemory()
+
+	// 7. 安全地关闭退出channel
 	a.shutdownMu.Lock()
 	defer a.shutdownMu.Unlock()
 
@@ -360,6 +375,8 @@ func (a *App) Close() error {
 		logger.Infof(context.Background(), "Exit channel closed")
 	}
 
+	logger.Infof(context.Background(), "App.Close() completed, all resources released")
+
 	return nil
 }
 
@@ -367,6 +384,16 @@ func Run() error {
 	if app == nil {
 		initApp()
 	}
+
+	// 确保在 Start() 返回后调用 Close() 清理资源
+	// 无论是正常退出还是异常退出，都要清理资源
+	// 注意：Close() 已经在 handleShutdownCommand 中调用过了，这里只是兜底
+	defer func() {
+		if app != nil {
+			app.Close()
+		}
+	}()
+
 	err := app.Start(context.Background())
 	if err != nil {
 		logger.Errorf(context.Background(), "App.Start() failed: %v", err)
@@ -447,7 +474,7 @@ func (a *App) handleShutdownCommand(message subjects.Message) {
 	ctx := context.Background()
 	logger.Infof(ctx, "Received shutdown command from runtime: %s/%s/%s", message.User, message.App, message.Version)
 
-	// 设置关闭请求标志，拒绝新请求
+	// 检查是否已经在关闭过程中
 	a.shutdownMu.Lock()
 	if a.shutdownRequested {
 		// 如果已经在关闭过程中，忽略重复的关闭命令
@@ -455,6 +482,7 @@ func (a *App) handleShutdownCommand(message subjects.Message) {
 		a.shutdownMu.Unlock()
 		return
 	}
+	// 先设置标志，防止并发关闭
 	a.shutdownRequested = true
 	a.shutdownMu.Unlock()
 
@@ -468,23 +496,15 @@ func (a *App) handleShutdownCommand(message subjects.Message) {
 		logger.Infof(ctx, "All functions completed successfully")
 	}
 
-	// 发送关闭通知（这是runtime主动发起的关闭，需要确认收到）
-	if err := a.sendCloseNotification(); err != nil {
-		logger.Warnf(ctx, "Failed to send close notification: %v", err)
-	}
-
-	// 触发应用退出（安全地关闭channel）
+	// 调用 Close() 方法清理所有资源（NATS连接、订阅、文件缓存、强制GC等）
+	// Close() 会检查 shutdownRequested，如果已经设置会跳过清理
+	// 但我们已经设置了，所以需要临时重置让 Close() 执行清理
 	a.shutdownMu.Lock()
-	defer a.shutdownMu.Unlock()
+	a.shutdownRequested = false // 临时重置，让 Close() 执行清理
+	a.shutdownMu.Unlock()
 
-	select {
-	case <-a.exit:
-		// channel已经关闭，避免重复关闭
-		logger.Infof(ctx, "Exit channel already closed")
-	default:
-		// channel未关闭，安全关闭
-		close(a.exit)
-		logger.Infof(ctx, "Exit channel closed")
+	if err := a.Close(); err != nil {
+		logger.Warnf(ctx, "Error during Close(): %v", err)
 	}
 
 	logger.Infof(ctx, "Application shutdown initiated by runtime command")
@@ -700,3 +720,47 @@ func (a *App) handleAppStatusMessage(msg *nats.Msg) {
 
 // handleRuntimeStatusMessage 方法已移除
 // RuntimeStatus 主题是应用发送给 Runtime 的，不需要接收
+
+// forceGCAndFreeMemory 强制 GC 并释放内存回操作系统
+// 在应用关闭时调用，帮助减少内存占用
+func forceGCAndFreeMemory() {
+	// 记录清理前的内存统计
+	var mBefore runtime.MemStats
+	runtime.ReadMemStats(&mBefore)
+	logger.Infof(context.Background(), "[Memory] Before GC: Alloc=%d KB, Sys=%d KB, NumGC=%d, HeapSys=%d KB",
+		mBefore.Alloc/1024, mBefore.Sys/1024, mBefore.NumGC, mBefore.HeapSys/1024)
+
+	// 1. 设置更激进的 GC 目标（临时降低 GOGC，让 GC 更频繁）
+	// 注意：这不会立即生效，但可以帮助后续的 GC
+	oldGOGC := debug.SetGCPercent(10) // 临时设置为 10%，让 GC 更激进
+	defer debug.SetGCPercent(oldGOGC) // 恢复原值
+
+	// 2. 强制 GC 多次，确保所有可回收对象都被回收
+	for i := 0; i < 10; i++ {
+		runtime.GC()
+		time.Sleep(100 * time.Millisecond) // 给 GC 更多时间完成
+	}
+
+	// 3. 释放内存回操作系统（如果支持）
+	// debug.FreeOSMemory() 会尝试将内存释放回操作系统
+	// 注意：这不会立即生效，操作系统可能会延迟回收
+	debug.FreeOSMemory()
+
+	// 4. 再次 GC，确保释放后的内存被回收
+	runtime.GC()
+	time.Sleep(100 * time.Millisecond)
+
+	// 5. 记录清理后的内存统计信息（用于调试）
+	var mAfter runtime.MemStats
+	runtime.ReadMemStats(&mAfter)
+	logger.Infof(context.Background(), "[Memory] After GC: Alloc=%d KB, Sys=%d KB, NumGC=%d, HeapSys=%d KB, Freed=%d KB",
+		mAfter.Alloc/1024, mAfter.Sys/1024, mAfter.NumGC, mAfter.HeapSys/1024, (mBefore.Alloc-mAfter.Alloc)/1024)
+
+	// 6. 记录系统内存变化（Sys 的变化更重要）
+	sysDiff := int64(mAfter.Sys) - int64(mBefore.Sys)
+	if sysDiff > 0 {
+		logger.Warnf(context.Background(), "[Memory] Warning: Sys increased by %d KB (Go may not release memory to OS immediately)", sysDiff/1024)
+	} else {
+		logger.Infof(context.Background(), "[Memory] Sys decreased by %d KB", -sysDiff/1024)
+	}
+}

@@ -36,12 +36,8 @@ func NewMinIOStorage(cfg Config) (*MinIOStorage, error) {
 		return nil, fmt.Errorf("failed to create MinIO client: %w", err)
 	}
 
-	// ✨ 获取 server_endpoint（如果配置了）
-	serverEndpoint := ""
-	// 通过类型断言获取 serverEndpoint（如果 StorageConfigAdapter 实现了 GetServerEndpoint）
-	if adapter, ok := cfg.(interface{ GetServerEndpoint() string }); ok {
-		serverEndpoint = adapter.GetServerEndpoint()
-	}
+	// 获取 server_endpoint（如果配置了）
+	serverEndpoint := cfg.GetServerEndpoint()
 
 	return &MinIOStorage{
 		client:         client,
@@ -69,34 +65,36 @@ func (s *MinIOStorage) GetUploadMethod() UploadMethod {
 // uploadSource: 上传来源（browser 或 server）
 // 统一逻辑：如果配置了 server_endpoint 且 upload_source 是 server，返回 server_endpoint；否则返回默认 endpoint
 func (s *MinIOStorage) GetUploadEndpoint(uploadSource string) string {
-	if uploadSource == "server" && s.serverEndpoint != "" {
+	if uploadSource == UploadSourceServer && s.serverEndpoint != "" {
 		return s.serverEndpoint
 	}
 	// 如果地址相同，server_endpoint 可以不配置，返回默认 endpoint
 	return s.endpoint
 }
 
-// GenerateUploadCredentials 生成上传凭证（同时生成外部和内部访问的URL）
-func (s *MinIOStorage) GenerateUploadCredentials(ctx context.Context, bucket, key, contentType string, expire time.Duration) (*UploadCredentials, error) {
-	// ✨ 生成两个URL：外部访问（默认endpoint）和内部访问（server_endpoint）
-	// 1. 生成外部访问的URL（前端使用）
+// GenerateUploadCredentials 生成上传凭证（统一接口）
+// 同时生成外部访问URL（前端使用）和内部访问URL（服务端使用）
+// uploadSource: 上传来源（browser 或 server），用于决定是否返回SDK配置
+func (s *MinIOStorage) GenerateUploadCredentials(ctx context.Context, bucket, key, contentType string, expire time.Duration, uploadSource string) (*UploadCredentials, error) {
+	// 1. 生成外部访问的URL（前端使用，使用默认endpoint）
 	externalURL, err := s.client.PresignedPutObject(ctx, bucket, key, expire)
 	if err != nil {
 		logger.Errorf(ctx, "[MinIOStorage] Failed to generate external upload URL: %v", err)
 		return nil, fmt.Errorf("生成上传凭证失败: %w", err)
 	}
 
-	// 2. 生成内部访问的URL（服务端使用，如果配置了server_endpoint）
+	// 2. 生成内部访问的URL（服务端使用，如果配置了server_endpoint且与默认endpoint不同）
 	var serverURL string
-	if s.serverEndpoint != "" && s.serverEndpoint != s.endpoint {
+	uploadEndpoint := s.GetUploadEndpoint(uploadSource)
+	if uploadEndpoint != "" && uploadEndpoint != s.endpoint {
 		// 创建临时 client 生成内部访问的预签名 URL
-		tempClient, err := minio.New(s.serverEndpoint, &minio.Options{
+		tempClient, err := minio.New(uploadEndpoint, &minio.Options{
 			Creds:  credentials.NewStaticV4(s.accessKey, s.secretKey, ""),
 			Secure: s.useSSL,
 			Region: s.region,
 		})
 		if err != nil {
-			logger.Errorf(ctx, "[MinIOStorage] Failed to create temp client for server endpoint %s: %v", s.serverEndpoint, err)
+			logger.Errorf(ctx, "[MinIOStorage] Failed to create temp client for server endpoint %s: %v", uploadEndpoint, err)
 			// 如果创建失败，使用外部URL（降级处理）
 			serverURL = externalURL.String()
 		} else {
@@ -115,69 +113,24 @@ func (s *MinIOStorage) GenerateUploadCredentials(ctx context.Context, bucket, ke
 	}
 
 	// 解析上传域名信息（使用外部URL）
-	uploadHost, uploadDomain := s.extractDomainInfo(externalURL.String())
-
-	return &UploadCredentials{
-		Method:    UploadMethodPresignedURL,
-		URL:       externalURL.String(), // 外部访问URL
-		ServerURL: serverURL,            // 内部访问URL
-		Headers: map[string]string{
-			"Content-Type": contentType,
-		},
-		UploadHost:   uploadHost,   // ✨ 上传目标 host（用于 CORS、进度监听）
-		UploadDomain: uploadDomain, // ✨ 上传完整域名（用于日志、调试）
-	}, nil
-}
-
-// GenerateUploadCredentialsWithEndpoint 生成上传凭证（支持指定 endpoint）
-// uploadEndpoint: 上传用的 endpoint（如果与默认 endpoint 相同，则使用默认 client）
-// uploadSource: 上传来源（browser 或 server），用于决定是否返回SDK配置
-func (s *MinIOStorage) GenerateUploadCredentialsWithEndpoint(ctx context.Context, bucket, key, contentType string, expire time.Duration, uploadEndpoint string, uploadSource string) (*UploadCredentials, error) {
-	var presignedURL *url.URL
-	var err error
-
-	// ✨ 如果指定的 endpoint 与默认 endpoint 相同，直接使用默认 client（避免创建重复的 client）
-	if uploadEndpoint == "" || uploadEndpoint == s.endpoint {
-		// 使用默认 client
-		presignedURL, err = s.client.PresignedPutObject(ctx, bucket, key, expire)
-	} else {
-		// endpoint 不同，创建临时 client 生成预签名 URL
-		var tempClient *minio.Client
-		tempClient, err = minio.New(uploadEndpoint, &minio.Options{
-			Creds:  credentials.NewStaticV4(s.accessKey, s.secretKey, ""),
-			Secure: s.useSSL,
-			Region: s.region,
-		})
-		if err != nil {
-			logger.Errorf(ctx, "[MinIOStorage] Failed to create temp client for endpoint %s: %v", uploadEndpoint, err)
-			return nil, fmt.Errorf("创建临时客户端失败: %w", err)
-		}
-		presignedURL, err = tempClient.PresignedPutObject(ctx, bucket, key, expire)
-	}
-
-	if err != nil {
-		logger.Errorf(ctx, "[MinIOStorage] Failed to generate upload credentials: %v", err)
-		return nil, fmt.Errorf("生成上传凭证失败: %w", err)
-	}
-
-	// 解析上传域名信息
-	uploadURL := presignedURL.String()
-	uploadHost, uploadDomain := s.extractDomainInfo(uploadURL)
+	uploadURLStr := externalURL.String()
+	uploadHost, uploadDomain := s.extractDomainInfo(uploadURLStr)
 
 	creds := &UploadCredentials{
-		Method: UploadMethodPresignedURL,
-		URL:    uploadURL,
+		Method:    UploadMethodPresignedURL,
+		URL:       uploadURLStr, // 外部访问URL
+		ServerURL: serverURL,    // 内部访问URL
 		Headers: map[string]string{
-			"Content-Type": contentType,
+			ContentTypeHeader: contentType,
 		},
-		UploadHost:   uploadHost,   // ✨ 上传目标 host（用于 CORS、进度监听）
-		UploadDomain: uploadDomain, // ✨ 上传完整域名（用于日志、调试）
+		UploadHost:   uploadHost,
+		UploadDomain: uploadDomain,
 	}
 
-	// ✨ 如果是服务端上传，在SDKConfig中放入MinIO连接信息（用于SDK直接上传）
-	if uploadSource == "server" {
+	// 如果是服务端上传，在SDKConfig中放入MinIO连接信息（用于SDK直接上传）
+	if uploadSource == UploadSourceServer {
 		creds.SDKConfig = map[string]interface{}{
-			"endpoint":   uploadEndpoint, // 使用实际的上传endpoint（可能是server_endpoint）
+			"endpoint":   uploadEndpoint,
 			"access_key": s.accessKey,
 			"secret_key": s.secretKey,
 			"region":     s.region,
@@ -211,9 +164,9 @@ func (s *MinIOStorage) extractDomainInfo(uploadURL string) (host string, domain 
 	return host, domain
 }
 
-// GenerateUploadURL 生成上传预签名 URL（兼容旧接口）
+// GenerateUploadURL 生成上传预签名 URL（兼容旧接口，默认browser上传）
 func (s *MinIOStorage) GenerateUploadURL(ctx context.Context, bucket, key, contentType string, expire time.Duration) (string, error) {
-	creds, err := s.GenerateUploadCredentials(ctx, bucket, key, contentType, expire)
+	creds, err := s.GenerateUploadCredentials(ctx, bucket, key, contentType, expire, UploadSourceBrowser)
 	if err != nil {
 		return "", err
 	}

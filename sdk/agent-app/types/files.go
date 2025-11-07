@@ -12,6 +12,7 @@ type Files struct {
 	Remark     string                 `json:"remark"`
 	Metadata   map[string]interface{} `json:"metadata"`
 }
+
 type File struct {
 	Name        string `json:"name"`
 	SourceName  string `json:"source_name"` //源文件名称
@@ -25,6 +26,10 @@ type File struct {
 	Url         string `json:"url"`                  // ✨ 外部访问地址（前端下载使用）
 	ServerUrl   string `json:"server_url"`           // ✨ 内部访问地址（服务端下载使用）
 	Downloaded  bool   `json:"downloaded,omitempty"` //是否已经下载到本地
+}
+
+func (f *File) GetLocalPath() string {
+	return f.LocalPath
 }
 
 // Scan 实现 sql.Scanner 接口，用于从数据库读取

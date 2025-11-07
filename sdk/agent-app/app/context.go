@@ -24,7 +24,7 @@ func newCallbackContext() *Context {
 		token: "", // 回调context可能没有token
 	}
 }
-func NewContext(ctx context.Context, req *dto.RequestAppReq) (*Context, error) {
+func (a *App) NewContext(ctx context.Context, req *dto.RequestAppReq) (*Context, error) {
 	msgInfo := trace.Msg{
 		User:        env.User,
 		App:         env.App,

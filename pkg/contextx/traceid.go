@@ -27,7 +27,7 @@ func GetTraceId(c context.Context) string {
 		}
 		
 		// 从 gin context 读取（兼容旧方式）
-		return v.GetString("trace_id")
+	return v.GetString("trace_id")
 	}
 	return ""
 }

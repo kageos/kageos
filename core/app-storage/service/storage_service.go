@@ -14,9 +14,14 @@ import (
 	"github.com/google/uuid"
 )
 
+// 导入常量以便使用
+const (
+	BytesPerMB = storage.BytesPerMB
+)
+
 // StorageService 存储服务
 type StorageService struct {
-	storage  storage.Storage // ✅ 依赖抽象接口，不依赖具体实现
+	storage  storage.Storage // 依赖抽象接口，不依赖具体实现
 	cfg      *config.AppStorageConfig
 	fileRepo *repository.FileRepository
 }
@@ -35,7 +40,7 @@ func NewStorageService(storage storage.Storage, cfg *config.AppStorageConfig, fi
 func (s *StorageService) GenerateUploadToken(ctx context.Context, router string, fileName string, contentType string, fileSize int64, uploadSource string) (creds *storage.UploadCredentials, key string, expire time.Time, err error) {
 	// 校验文件大小
 	if fileSize > s.cfg.Storage.Upload.MaxSize {
-		return nil, "", time.Time{}, fmt.Errorf("文件大小超过限制（最大 %d MB）", s.cfg.Storage.Upload.MaxSize/1024/1024)
+		return nil, "", time.Time{}, fmt.Errorf("文件大小超过限制（最大 %d MB）", s.cfg.Storage.Upload.MaxSize/BytesPerMB)
 	}
 
 	// 生成唯一的文件 Key（包含函数路径）
@@ -45,19 +50,8 @@ func (s *StorageService) GenerateUploadToken(ctx context.Context, router string,
 	bucket := s.getDefaultBucket()
 	expiry := time.Duration(s.cfg.Storage.Upload.TokenExpire) * time.Second
 
-	// ✨ 通过存储接口获取上传用的 endpoint（统一逻辑，每个存储实现自己决定）
-	uploadEndpoint := s.storage.GetUploadEndpoint(uploadSource)
-	// 如果 uploadEndpoint 为空，使用默认 endpoint（通过 GenerateUploadCredentials 处理）
-
-	// 使用支持 endpoint 参数的方法（如果存储层支持）
-	if minioStorage, ok := s.storage.(interface {
-		GenerateUploadCredentialsWithEndpoint(ctx context.Context, bucket, key, contentType string, expire time.Duration, uploadEndpoint string, uploadSource string) (*storage.UploadCredentials, error)
-	}); ok {
-		creds, err = minioStorage.GenerateUploadCredentialsWithEndpoint(ctx, bucket, key, contentType, expiry, uploadEndpoint, uploadSource)
-	} else {
-		// 存储层不支持，使用默认方法
-		creds, err = s.storage.GenerateUploadCredentials(ctx, bucket, key, contentType, expiry)
-	}
+	// 通过存储接口生成上传凭证（统一接口，所有存储引擎都必须实现）
+	creds, err = s.storage.GenerateUploadCredentials(ctx, bucket, key, contentType, expiry, uploadSource)
 
 	if err != nil {
 		logger.Errorf(ctx, "Failed to generate upload credentials: %v", err)
@@ -78,33 +72,21 @@ func (s *StorageService) GetFileURL(ctx context.Context, key string) (downloadUR
 
 // GetFileURLs 获取文件访问 URL（同时返回外部和内部访问的URL）
 func (s *StorageService) GetFileURLs(ctx context.Context, key string) (externalURL string, serverURL string, expire time.Time, err error) {
-	// 生成下载 URL（7 天有效）
+	// 生成下载 URL（使用默认过期时间）
 	bucket := s.getDefaultBucket()
-	expiry := 7 * 24 * time.Hour
+	expiry := storage.DefaultDownloadURLExpiry
 
-	// ✅ 注意：MinIO/S3 不支持 response-cache-control 和 response-expires 作为查询参数
+	// 注意：MinIO/S3 不支持 response-cache-control 和 response-expires 作为查询参数
 	// 这些响应头应该在存储对象时通过元数据设置，或者在代理层添加
 	// 暂时不添加查询参数，确保预签名 URL 能正常工作
 	cacheControl := make(map[string]string)
 	// TODO: 未来可以通过对象元数据或在代理层设置 Cache-Control 响应头
 
-	// 如果存储支持生成两个URL的方法，使用它
-	if minioStorage, ok := s.storage.(interface {
-		GenerateDownloadURLs(ctx context.Context, bucket, key string, expire time.Duration, cacheControl map[string]string) (externalURL string, serverURL string, err error)
-	}); ok {
-		externalURL, serverURL, err = minioStorage.GenerateDownloadURLs(ctx, bucket, key, expiry, cacheControl)
-		if err != nil {
-			logger.Errorf(ctx, "Failed to generate download URLs: %v", err)
-			return "", "", time.Time{}, fmt.Errorf("生成下载链接失败")
-		}
-	} else {
-		// 降级处理：使用旧方法，两个URL都返回同一个
-		externalURL, err = s.storage.GenerateDownloadURL(ctx, bucket, key, expiry, cacheControl)
-		if err != nil {
-			logger.Errorf(ctx, "Failed to generate download URL: %v", err)
-			return "", "", time.Time{}, fmt.Errorf("生成下载链接失败")
-		}
-		serverURL = externalURL
+	// 通过存储接口生成下载URL（统一接口，所有存储引擎都必须实现）
+	externalURL, serverURL, err = s.storage.GenerateDownloadURLs(ctx, bucket, key, expiry, cacheControl)
+	if err != nil {
+		logger.Errorf(ctx, "Failed to generate download URLs: %v", err)
+		return "", "", time.Time{}, fmt.Errorf("生成下载链接失败")
 	}
 
 	expire = time.Now().Add(expiry)
@@ -175,7 +157,7 @@ func (s *StorageService) getDefaultBucket() string {
 // 格式：{router}/{date}/{uuid}.{ext}
 // 例如：luobei/test88888/tools/cashier_desk/2025/01/03/xxx-xxx.jpg
 func (s *StorageService) generateFileKey(router string, filename string) string {
-	// ✅ 清理 router 前后的斜杠
+	// 清理 router 前后的斜杠
 	router = filepath.Clean(router)
 	if router == "." {
 		router = ""
@@ -198,6 +180,7 @@ func (s *StorageService) generateFileKey(router string, filename string) string 
 }
 
 // trimLeadingSlash 移除前导斜杠
+// 注意：此函数与 api/v1/storage.go 中的 trimLeadingSlash 功能相同，但保留在各自包中以避免循环依赖
 func trimLeadingSlash(s string) string {
 	for len(s) > 0 && s[0] == '/' {
 		s = s[1:]
