@@ -451,14 +451,7 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string) (*dt
 	isInactive := appRecord.IsInactive()
 	logStr.WriteString(fmt.Sprintf("App status: %s\t", appRecord.Status))
 
-	// 3. 检查应用是否正在运行
-	isRunning, err := s.IsAppRunning(ctx, user, app)
-	if err != nil {
-		logStr.WriteString(fmt.Sprintf("Failed to check app running status: %v\t", err))
-		isRunning = false
-	}
-
-	// 4. 使用 VersionManager 获取当前版本
+	// 3. 使用 VersionManager 获取当前版本
 	vm := appPkg.NewVersionManager(filepath.Join(s.config.AppDir.BasePath, user), app)
 	oldVersion, err := vm.GetCurrentVersion()
 	if err != nil {
@@ -501,110 +494,33 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string) (*dt
 		return nil, fmt.Errorf("failed to update version.json: %w", err)
 	}
 
-	// 5. 根据应用运行状态决定启动方式
-	// 注意：这里暂时保留旧格式，后续重构时会改为新格式
-	// 新格式：containerName := buildContainerName(user, app, newVersion)
-	containerName := fmt.Sprintf("%s-%s", user, app)
-
-	if s.containerService == nil {
-		return nil, fmt.Errorf("container operator not available")
-	}
-
+	// 5. 创建新版本容器（新架构：每个版本独立容器）
 	// 统一在外层注册启动等待器，因为无论哪种启动方式都需要等待
 	// 先注册等待器，再执行启动命令，避免错过通知
 	waiterChan := s.registerStartupWaiter(user, app, newVersion)
 	// 确保在方法结束时清理等待器
 	defer s.unregisterStartupWaiter(user, app, newVersion)
 
-	if isRunning {
-		// 应用正在运行：在容器内启动新版本（灰度发布）
-		//logger.Infof(ctx, "[UpdateApp] Starting new version in container for gray deployment: %s", containerName)
-
-		// 构建新版本的二进制文件名
-		binaryName := fmt.Sprintf("%s_%s_%s", user, app, newVersion)
-
-		// ====================================================================================
-		// 为什么使用 setsid nohup 而不是简单的 & 后台运行？
-		// ====================================================================================
-		//
-		// 问题背景：
-		// 当使用 podman exec 在容器内启动进程时：
-		//   podman exec container /bin/sh -c "cd /app && ./app &"
-		//
-		// 进程关系：
-		//   PID 1: 容器主进程 (./releases/beiluo_aaa_v1)
-		//     └─ sh (podman exec 创建的临时 shell)
-		//         └─ ./app (后台进程)
-		//
-		// 问题 1 - 僵尸进程：
-		//   - podman exec 执行完命令后，sh 进程会立即退出
-		//   - ./app 的父进程 sh 退出后，./app 成为孤儿进程，被 PID 1 接管
-		//   - 但容器的 PID 1 是应用程序（不是 init 系统），不会调用 wait() 回收子进程
-		//   - 当 ./app 退出时，就会变成僵尸进程 [app] <defunct>
-		//
-		// 问题 2 - 管道依赖：
-		//   - 简单的 & 后台运行，进程的 stdin/stdout/stderr 仍连接到 podman exec 的管道
-		//   - 管道关闭后，进程写入输出可能收到 SIGPIPE 信号而异常退出
-		//
-		// ====================================================================================
-		// 解决方案：setsid nohup ... </dev/null >/dev/null 2>&1 &
-		// ====================================================================================
-		//
-		// 1. setsid: 创建新会话
-		//    - 创建新的会话和进程组，进程成为会话领导者
-		//    - 脱离原来的控制终端，不再依附于 sh 进程
-		//    - 即使 sh 退出，新进程也不会被挂到 PID 1 下，而是独立运行
-		//
-		// 2. nohup: 忽略挂断信号
-		//    - 忽略 SIGHUP 信号，当终端/父进程关闭时进程不会被终止
-		//    - 确保进程在后台持续运行
-		//
-		// 3. </dev/null: 关闭标准输入
-		//    - 标准输入从 /dev/null 读取（永远返回 EOF）
-		//    - 避免进程等待输入导致阻塞
-		//
-		// 4. >/dev/null 2>&1: 重定向输出
-		//    - 标准输出和错误输出重定向到 /dev/null（丢弃）
-		//    - 应用自己会写日志文件，不需要通过标准输出
-		//    - 断开与 podman exec 管道的连接，避免 SIGPIPE
-		//
-		// 5. &: 后台运行
-		//    - 在后台异步执行，命令立即返回
-		//
-		// 最终效果：
-		//   - 进程完全独立运行，不依赖任何终端或父进程
-		//   - 真正的守护进程，支持灰度发布（新旧版本同时运行）
-		//   - 不会变成僵尸进程
-		// ====================================================================================
-
-		// 执行启动命令
-		startCmd := fmt.Sprintf("cd /app/workplace/bin && setsid nohup ./releases/%s </dev/null >/dev/null 2>&1 &", binaryName)
-		output, err := s.containerService.ExecCommand(ctx, containerName, []string{"/bin/sh", "-c", startCmd})
-		if err != nil {
-			logStr.WriteString(fmt.Sprintf("Failed to start new version: %v, output: %s\t", err, output))
-			return nil, fmt.Errorf("failed to start new version in container: %w", err)
-		}
-
-		logStr.WriteString("Command executed\t")
-	} else {
-		// 应用没有运行：先启动容器，再启动应用
-		logger.Infof(ctx, "[UpdateApp] App is not running, starting container and app: %s", containerName)
-
-		// 启动容器（挂载目录和可执行文件）
-		if err := s.startAppContainer(ctx, containerName, appDirRel, newVersion); err != nil {
-			return nil, fmt.Errorf("failed to start app container: %w", err)
-		}
-
-		logger.Infof(ctx, "[UpdateApp] Container started successfully")
+	if s.containerService == nil {
+		return nil, fmt.Errorf("container operator not available")
 	}
 
-	// 统一在外层等待启动通知，无论哪种启动方式都需要等待
-	logger.Infof(ctx, "[UpdateApp] Waiting for startup notification for %s/%s/%s", user, app, newVersion)
+	// 创建新版本容器（无论应用是否正在运行，都创建新容器）
+	logger.Infof(ctx, "[UpdateApp] Creating new version container for %s/%s/%s", user, app, newVersion)
+	if err := s.createVersionContainer(ctx, user, app, newVersion, appDirRel); err != nil {
+		logStr.WriteString(fmt.Sprintf("Failed to create version container: %v\t", err))
+		return nil, fmt.Errorf("failed to create version container: %w", err)
+	}
+
+	logStr.WriteString("New version container created\t")
+
+	// 6. 等待新版本启动（第一次握手）
+	logger.Infof(ctx, "[UpdateApp] Waiting for startup notification for %s/%s/%s (first handshake)", user, app, newVersion)
 
 	select {
 	case notification := <-waiterChan:
 		logStr.WriteString(fmt.Sprintf("Startup confirmed at %s\t", notification.StartTime.Format(time.DateTime)))
-		logger.Infof(ctx, "[UpdateApp] Startup confirmed: %s/%s/%s", user, app, newVersion)
+		logger.Infof(ctx, "[UpdateApp] ✅ Startup confirmed: %s/%s/%s (first handshake completed)", user, app, newVersion)
 
 		// 如果应用之前是未激活状态，现在启动成功后更新为已激活
 		if isInactive {
@@ -616,8 +532,23 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string) (*dt
 		}
 	case <-time.After(60 * time.Second):
 		logStr.WriteString("Startup timeout\t")
-		logger.Warnf(ctx, "[UpdateApp] Startup notification timeout for %s/%s/%s, but continue anyway", user, app, newVersion)
+		logger.Warnf(ctx, "[UpdateApp] ⚠️ Startup notification timeout for %s/%s/%s, but continue anyway", user, app, newVersion)
 		// 不返回错误，超时不应阻止更新流程
+	}
+
+	// 7. 优雅关闭旧容器（如果存在）- 三次握手流程
+	if oldVersion != "" && oldVersion != "unknown" {
+		logger.Infof(ctx, "[UpdateApp] Starting graceful shutdown for old version %s/%s/%s", user, app, oldVersion)
+		if err := s.stopOldVersionContainer(ctx, user, app, oldVersion); err != nil {
+			logStr.WriteString(fmt.Sprintf("Failed to stop old container: %v\t", err))
+			logger.Warnf(ctx, "[UpdateApp] ⚠️ Failed to stop old container: %v, but continue anyway", err)
+			// 不返回错误，继续执行
+		} else {
+			logStr.WriteString("Old container stopped gracefully\t")
+			logger.Infof(ctx, "[UpdateApp] ✅ Old container stopped gracefully: %s/%s/%s", user, app, oldVersion)
+		}
+	} else {
+		logger.Infof(ctx, "[UpdateApp] No old version to stop (oldVersion: %s)", oldVersion)
 	}
 
 	logStr.WriteString(fmt.Sprintf("Update completed: %s->%s", oldVersion, newVersion))
