@@ -385,7 +385,8 @@ func (s *Server) ensureAppVersionRunning(ctx context.Context, user, app, version
 		}
 	}
 
-	containerName := fmt.Sprintf("%s_%s", user, app)
+	// 使用新的容器命名格式：{user}-{app}-{version}
+	containerName := service.BuildContainerName(user, app, version)
 
 	if !hasAnyVersionRunning {
 		// 情况1: 没有任何版本在运行，说明容器可能都没运行，需要启动容器
