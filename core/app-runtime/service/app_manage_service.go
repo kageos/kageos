@@ -84,9 +84,15 @@ type AppManageService struct {
 // 容器名工具函数
 // ============================================================================
 
-// buildContainerName 构建容器名（新格式：{user}-{app}-{version}）
-func buildContainerName(user, app, version string) string {
+// BuildContainerName 构建容器名（新格式：{user}-{app}-{version}）
+// 公开函数，供其他包使用
+func BuildContainerName(user, app, version string) string {
 	return fmt.Sprintf("%s-%s-%s", user, app, version)
+}
+
+// buildContainerName 构建容器名（内部使用，调用公开函数）
+func buildContainerName(user, app, version string) string {
+	return BuildContainerName(user, app, version)
 }
 
 // parseContainerName 解析容器名（格式：{user}-{app}-{version}）
@@ -496,6 +502,8 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string) (*dt
 	}
 
 	// 5. 根据应用运行状态决定启动方式
+	// 注意：这里暂时保留旧格式，后续重构时会改为新格式
+	// 新格式：containerName := buildContainerName(user, app, newVersion)
 	containerName := fmt.Sprintf("%s-%s", user, app)
 
 	if s.containerService == nil {
@@ -1188,7 +1196,8 @@ func (s *AppManageService) getCurrentVersion(ctx context.Context, user, app stri
 func (s *AppManageService) StartAppVersion(ctx context.Context, user, app, version string) error {
 	logger.Infof(ctx, "[StartAppVersion] Starting version %s/%s/%s", user, app, version)
 
-	containerName := fmt.Sprintf("%s_%s", user, app)
+	// 使用新的容器命名格式：{user}-{app}-{version}
+	containerName := buildContainerName(user, app, version)
 
 	// 注册启动等待器（统一在外层注册）
 	waiterChan := s.registerStartupWaiter(user, app, version)
