@@ -409,6 +409,13 @@ export class FilesWidget extends BaseWidget {
 
       // ✨ 添加到批量complete队列
       if (uploadResult.fileInfo) {
+        // 调试：检查hash是否存在
+        if (!uploadResult.fileInfo.hash) {
+          Logger.warn('FilesWidget', `File ${uploadResult.fileInfo.file_name} has no hash`, {
+            key: uploadResult.fileInfo.key,
+            fileInfo: uploadResult.fileInfo,
+          })
+        }
         this.addToCompleteQueue({
           key: uploadResult.fileInfo.key,
           success: true,
@@ -416,7 +423,7 @@ export class FilesWidget extends BaseWidget {
           file_name: uploadResult.fileInfo.file_name,
           file_size: uploadResult.fileInfo.file_size,
           content_type: uploadResult.fileInfo.content_type,
-          hash: uploadResult.fileInfo.hash,
+          hash: uploadResult.fileInfo.hash || '', // 确保hash字段存在（即使为空）
         })
       }
 
@@ -440,6 +447,7 @@ export class FilesWidget extends BaseWidget {
           file_name: error.fileInfo.file_name,
           file_size: error.fileInfo.file_size,
           content_type: error.fileInfo.content_type,
+          hash: error.fileInfo.hash, // ✨ 即使失败也传递hash（如果已计算）
         })
       }
 
@@ -504,7 +512,7 @@ export class FilesWidget extends BaseWidget {
               source_name: uploadingFile.name,
               storage: uploadingFile.storage || '', // ✨ 从uploadingFile获取存储类型（从uploadResult.storage获取，后端返回）
               description: '',
-              hash: '',
+              hash: result.hash || uploadingFile.fileInfo?.hash || '', // ✨ 从响应中获取hash，如果没有则从fileInfo获取
               size: uploadingFile.size,
               upload_ts: Date.now(),
               local_path: '',

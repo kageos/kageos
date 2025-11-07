@@ -99,7 +99,16 @@ export async function uploadFile(
 ): Promise<UploadFileResult> {
   
   // ✨ Step 0: 计算文件 SHA256 hash（用于秒传和去重）
-  const hash = await calculateSHA256(file)
+  let hash = ''
+  try {
+    hash = await calculateSHA256(file)
+    if (!hash) {
+      console.warn('[uploadFile] Hash calculation returned empty string for file:', file.name)
+    }
+  } catch (error) {
+    console.error('[uploadFile] Hash calculation failed for file:', file.name, error)
+    // 继续上传，但hash为空（不影响上传流程）
+  }
   
   // ✨ Step 1: 获取上传凭证（包含域名信息）
   // 这一步会请求后端 API，后端会根据配置的存储类型返回对应的上传凭证
@@ -301,6 +310,7 @@ export interface BatchUploadCompleteResult {
   status: string
   download_url?: string      // ✨ 外部访问的下载地址（前端使用）
   server_download_url?: string // ✨ 内部访问的下载地址（服务端使用）
+  hash?: string              // ✨ 文件hash（用于文件缓存去重）
   error?: string
 }
 

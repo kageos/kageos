@@ -130,3 +130,34 @@ func getOrInitDB(dbName string) (*gorm.DB, error) {
 
 	return db, nil
 }
+
+// closeAllDatabases 关闭所有数据库连接
+// 在应用退出时调用，释放数据库连接占用的内存
+func closeAllDatabases() {
+	dbLock.Lock()
+	defer dbLock.Unlock()
+
+	closedCount := 0
+	for dbName, db := range dbs {
+		if db != nil {
+			// 获取原生数据库连接
+			sqlDB, err := db.DB()
+			if err == nil && sqlDB != nil {
+				// 关闭数据库连接
+				if err := sqlDB.Close(); err != nil {
+					logger.Warnf(context.Background(), "关闭数据库连接失败: %s, error: %v", dbName, err)
+				} else {
+					closedCount++
+					logger.Infof(context.Background(), "数据库连接已关闭: %s", dbName)
+				}
+			}
+		}
+	}
+
+	// 清空连接缓存
+	dbs = make(map[string]*gorm.DB)
+
+	if closedCount > 0 {
+		logger.Infof(context.Background(), "已关闭 %d 个数据库连接", closedCount)
+	}
+}

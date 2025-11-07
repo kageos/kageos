@@ -12,8 +12,9 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
-	v1 "github.com/ai-agent-os/ai-agent-os/core/api-gateway/api/v1"
+	v1 	"github.com/ai-agent-os/ai-agent-os/core/api-gateway/api/v1"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
 
@@ -177,11 +178,23 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 	// 由于 Transport 是共享的，我们使用配置的超时时间，但实际超时由 Context 控制
 	proxy.Transport = s.sharedTransport
 
-	// 自定义请求修改（支持路径重写）
+	// 自定义请求修改（支持路径重写和TraceId传递）
+	// 注意：httputil.ReverseProxy 默认会转发所有请求头（包括 X-Token、X-Request-User 等）
+	// 我们只需要确保 TraceId 被正确传递即可
 	originalDirector := proxy.Director
 	proxy.Director = func(req *http.Request) {
 		originalDirector(req)
 		req.Host = target.Host
+
+		// ✨ 传递 TraceId 到后端服务
+		// 如果请求 header 中已有 TraceId（由 gin handler 设置），直接使用
+		// 否则保持原样（可能客户端已提供）
+		if traceId := req.Header.Get(contextx.TraceIdHeader); traceId == "" {
+			// 如果 header 中没有，说明需要从其他地方获取（这种情况不应该发生，因为 gin handler 已设置）
+			logger.Debugf(s.ctx, "[Proxy] TraceId not found in request header")
+		}
+		
+		// 注意：X-Token 和其他请求头会被 httputil.ReverseProxy 自动转发，无需手动处理
 
 		// 路径重写：如果配置了 rewrite_path，替换路径前缀
 		if route != nil && route.RewritePath != "" {
@@ -227,6 +240,14 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 	}
 
 	return func(c *gin.Context) {
+		// ✨ 将 TraceId 从 gin context 设置到请求 header，供后端服务使用
+		// WithTraceId 中间件已经将 TraceId 设置到 gin context 中
+		traceId := c.GetString("trace_id")
+		if traceId != "" {
+			// 设置到请求 header，这样 proxy.Director 就能读取并传递给后端
+			c.Request.Header.Set(contextx.TraceIdHeader, traceId)
+		}
+		
 		proxy.ServeHTTP(c.Writer, c.Request)
 	}
 }

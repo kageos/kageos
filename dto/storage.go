@@ -116,5 +116,6 @@ type BatchUploadCompleteResult struct {
 	Status           string `json:"status"`                     // 状态：completed/failed
 	DownloadURL      string `json:"download_url,omitempty"`     // ✨ 外部访问的下载地址（前端使用）
 	ServerDownloadURL string `json:"server_download_url,omitempty"` // ✨ 内部访问的下载地址（服务端使用）
+	Hash             string `json:"hash,omitempty"`              // ✨ 文件hash（用于文件缓存去重）
 	Error            string `json:"error,omitempty"`            // 错误信息（如果失败）
 }

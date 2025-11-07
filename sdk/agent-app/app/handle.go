@@ -96,7 +96,7 @@ func (a *App) handle(req *dto.RequestAppReq) (resp *dto.RequestAppResp, err erro
 	//	return nil, err
 	//}
 	ctx := context.Background()
-	newContext, err := NewContext(ctx, req)
+	newContext, err := a.NewContext(ctx, req)
 	if err != nil {
 		return &dto.RequestAppResp{Result: nil, Error: err.Error(), TraceId: newContext.msg.TraceId}, err
 	}
@@ -120,7 +120,7 @@ func (a *App) handle(req *dto.RequestAppReq) (resp *dto.RequestAppResp, err erro
 		return &dto.RequestAppResp{Result: nil, Error: err.Error(), TraceId: newContext.msg.TraceId}, err
 	}
 	logger.Infof(ctx, "handleFunc req:%+v", req)
-	
+
 	// 退出命令
 	if newContext.msg.Method == "exit" {
 		a.Close()
