@@ -929,6 +929,28 @@ func main() {
 	return os.WriteFile(mainGoPath, content, 0644)
 }
 
+// createVersionContainer 创建版本容器
+// 这是新架构的核心方法：每个版本使用独立的容器
+func (s *AppManageService) createVersionContainer(ctx context.Context, user, app, version, appDir string) error {
+	containerName := buildContainerName(user, app, version)
+	logger.Infof(ctx, "[createVersionContainer] Creating version container: %s for %s/%s/%s", containerName, user, app, version)
+
+	// 检查容器是否已存在
+	exists, err := s.containerService.IsContainerRunning(ctx, containerName)
+	if err != nil {
+		return fmt.Errorf("failed to check container existence: %w", err)
+	}
+
+	if exists {
+		logger.Warnf(ctx, "[createVersionContainer] Container %s already exists and is running", containerName)
+		return fmt.Errorf("container %s already exists and is running", containerName)
+	}
+
+	// 调用现有的 startAppContainer，但使用新的容器名
+	// startAppContainer 会创建并启动容器
+	return s.startAppContainer(ctx, containerName, appDir, version)
+}
+
 // startAppContainer 启动应用容器
 func (s *AppManageService) startAppContainer(ctx context.Context, containerName, appDir, version string) error {
 	logger.Infof(ctx, "Starting container: %s, appDir: %s, version: %s", containerName, appDir, version)
