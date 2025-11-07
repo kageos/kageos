@@ -249,6 +249,17 @@ func (s *Server) handleAppCloseFromDiscovery(user, app, version string) {
 
 	// 应用关闭状态通过discovery service跟踪，不需要更新数据库
 	logger.Infof(ctx, "[Server] App closed: %s/%s/%s", user, app, version)
+
+	// 构建关闭通知对象
+	notification := &service.CloseNotification{
+		User:      user,
+		App:       app,
+		Version:   version,
+		CloseTime: time.Now(),
+	}
+
+	// 通知应用管理服务（用于优雅关闭流程的第三次握手）
+	s.appManageService.NotifyClose(notification)
 }
 
 // stopServices 停止所有业务服务
