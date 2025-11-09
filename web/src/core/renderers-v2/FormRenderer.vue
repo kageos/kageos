@@ -83,7 +83,7 @@
           :label="field.name"
         >
           <component
-            :is="getWidgetComponent(field.widget?.type || 'input')"
+            :is="getResponseWidgetComponent(field.widget?.type || 'input')"
             :field="field"
             :model-value="getResponseFieldValue(field.code)"
             :field-path="field.code"
@@ -206,9 +206,15 @@ function getResponseFieldValue(fieldCode: string): FieldValue {
   }
 }
 
-// 获取组件
+// 获取请求组件
 function getWidgetComponent(type: string) {
   return widgetComponentFactory.getRequestComponent(type)
+}
+
+// 获取响应组件
+function getResponseWidgetComponent(type: string) {
+  // 优先使用响应组件，如果没有则使用请求组件
+  return widgetComponentFactory.getResponseComponent(type)
 }
 
 // 检查字段是否必填
@@ -238,14 +244,23 @@ function shouldShowFieldInForm(
   formDataStore: ReturnType<typeof useFormDataStore>,
   allFields: FieldConfig[]
 ): boolean {
-  // 简单的条件评估（可以根据需要扩展）
-  if (!field.validation) {
-    return true
-  }
+  // 创建一个适配器，将 formDataStore 转换为 ReactiveFormDataManager 接口
+  const formManagerAdapter = {
+    getValue: (fieldPath: string) => {
+      const value = formDataStore.getValue(fieldPath)
+      return value
+    },
+    getAllValues: () => {
+      const allValues: Record<string, FieldValue> = {}
+      allFields.forEach(f => {
+        allValues[f.code] = formDataStore.getValue(f.code)
+      })
+      return allValues
+    }
+  } as any
   
-  // TODO: 完整实现条件渲染逻辑
-  // 这里先返回 true，后续可以集成完整的 conditionEvaluator
-  return true
+  // 使用现有的 shouldShowField 函数
+  return shouldShowField(field, formManagerAdapter, allFields)
 }
 
 // 初始化表单
