@@ -238,8 +238,8 @@ func (s *Server) handleAppStartupNotification(message subjects.Message) {
 
 	// 从 message.Data 中提取业务数据
 	var msgData struct {
-		Status    string `json:"status"`
-		StartTime string `json:"start_time"`
+		Status    string    `json:"status"`
+		StartTime time.Time `json:"start_time"`
 	}
 
 	// 将 message.Data 转换为具体结构
@@ -254,15 +254,13 @@ func (s *Server) handleAppStartupNotification(message subjects.Message) {
 		return
 	}
 
-	logger.Infof(ctx, "[handleAppStartupNotification] Received startup notification: user=%s, app=%s, version=%s, status=%s, start_time=%s",
-		message.User, message.App, message.Version, msgData.Status, msgData.StartTime)
-
-	// 解析时间
-	startTime, err := time.Parse(time.RFC3339, msgData.StartTime)
-	if err != nil {
-		logger.Warnf(ctx, "[handleAppStartupNotification] Failed to parse start_time: %v", err)
-		startTime = time.Now()
+	// 如果 StartTime 为零值，使用当前时间
+	if msgData.StartTime.IsZero() {
+		msgData.StartTime = time.Now()
 	}
+
+	logger.Infof(ctx, "[handleAppStartupNotification] Received startup notification: user=%s, app=%s, version=%s, status=%s, start_time=%s",
+		message.User, message.App, message.Version, msgData.Status, msgData.StartTime.Format(time.RFC3339))
 
 	// 构建通知对象
 	notification := &service.StartupNotification{
@@ -270,7 +268,7 @@ func (s *Server) handleAppStartupNotification(message subjects.Message) {
 		App:       message.App,
 		Version:   message.Version,
 		Status:    msgData.Status,
-		StartTime: startTime,
+		StartTime: msgData.StartTime,
 	}
 
 	// 通知应用管理服务
@@ -278,14 +276,15 @@ func (s *Server) handleAppStartupNotification(message subjects.Message) {
 }
 
 // handleAppCloseNotification 处理应用关闭通知
+// 这是应用主动发送的关闭通知（MessageTypeStatusClose），用于优雅关闭流程的第三次握手
 func (s *Server) handleAppCloseNotification(message subjects.Message) {
 	ctx := context.Background()
 
 	// 从 message.Data 中提取业务数据
 	var msgData struct {
-		Status    string `json:"status"`
-		StartTime string `json:"start_time"`
-		CloseTime string `json:"close_time"`
+		Status    string    `json:"status"`
+		StartTime time.Time `json:"start_time"`
+		CloseTime time.Time `json:"close_time"`
 	}
 
 	// 将 message.Data 转换为具体结构
@@ -300,10 +299,25 @@ func (s *Server) handleAppCloseNotification(message subjects.Message) {
 		return
 	}
 
-	logger.Infof(ctx, "[handleAppCloseNotification] Received close notification: user=%s, app=%s, version=%s, status=%s, close_time=%s",
-		message.User, message.App, message.Version, msgData.Status, msgData.CloseTime)
+	// 如果 CloseTime 为零值，使用当前时间
+	if msgData.CloseTime.IsZero() {
+		msgData.CloseTime = time.Now()
+	}
 
-	// 应用关闭状态通过discovery service跟踪，不需要更新数据库
+	logger.Infof(ctx, "[handleAppCloseNotification] Received close notification: user=%s, app=%s, version=%s, status=%s, close_time=%s",
+		message.User, message.App, message.Version, msgData.Status, msgData.CloseTime.Format(time.RFC3339))
+
+	// 构建关闭通知对象
+	notification := &service.CloseNotification{
+		User:      message.User,
+		App:       message.App,
+		Version:   message.Version,
+		CloseTime: msgData.CloseTime,
+	}
+
+	// 通知应用管理服务（用于优雅关闭流程的第三次握手）
+	s.appManageService.NotifyClose(notification)
+
 	logger.Infof(ctx, "[handleAppCloseNotification] App closed: %s/%s/%s",
 		message.User, message.App, message.Version)
 }
@@ -385,40 +399,41 @@ func (s *Server) ensureAppVersionRunning(ctx context.Context, user, app, version
 		}
 	}
 
-	containerName := fmt.Sprintf("%s_%s", user, app)
+	// 使用新的容器命名格式：{user}-{app}-{version}
+	containerName := service.BuildContainerName(user, app, version)
 
-	if !hasAnyVersionRunning {
-		// 情况1: 没有任何版本在运行，说明容器可能都没运行，需要启动容器
-		logger.Infof(ctx, "[ensureAppVersionRunning] No running versions detected, container might be stopped, starting container...")
-
-		// 只有在这种情况才调用 podman（因为可能容器都停了）
-		if err := s.containerService.StartContainer(ctx, containerName); err != nil {
-			// 启动失败，可能容器已经在运行了，继续尝试启动应用版本
-			logger.Warnf(ctx, "[ensureAppVersionRunning] Failed to start container (may already running): %v", err)
-		} else {
-			logger.Infof(ctx, "[ensureAppVersionRunning] Container %s started successfully, waiting for app startup...", containerName)
-
-			// 容器启动后，应用会自动启动（start.sh），等待启动通知
-			if err := s.waitForAppStartup(ctx, user, app, version, 30*time.Second); err != nil {
-				logger.Warnf(ctx, "[ensureAppVersionRunning] Failed to wait for app startup: %v", err)
-				return err
-			}
-
-			logger.Infof(ctx, "[ensureAppVersionRunning] App version %s started successfully after container restart", version)
-			return nil
-		}
+	// 检查目标版本的容器是否存在且运行中
+	containerRunning, err := s.containerService.IsContainerRunning(ctx, containerName)
+	if err != nil {
+		logger.Warnf(ctx, "[ensureAppVersionRunning] Failed to check container status: %v", err)
+		containerRunning = false
 	}
 
-	// 情况2: 有其他版本在运行，说明容器一定在运行，但目标版本的可执行程序没在运行
-	// 这种情况可能是：应用挂了、更新失败导致新版本没起来
-	logger.Infof(ctx, "[ensureAppVersionRunning] Container is running (has other versions), but target version %s is not running, starting it...", version)
+	if containerRunning {
+		// 容器已运行，先检查应用是否已经在运行
+		if s.isAppVersionRunning(user, app, version) {
+			logger.Infof(ctx, "[ensureAppVersionRunning] Container %s is running and app version %s is already running", containerName, version)
+			return nil
+		}
 
-	// 钻进容器启动目标版本（类似更新流程）
+		// 容器运行但应用未运行，可能是应用进程挂了，尝试重新启动
+		logger.Infof(ctx, "[ensureAppVersionRunning] Container %s is running but app version %s is not running, attempting to restart...", containerName, version)
+		if err := s.appManageService.StartAppVersion(ctx, user, app, version); err != nil {
+			logger.Warnf(ctx, "[ensureAppVersionRunning] Failed to restart app version: %v", err)
+			return err
+		}
+		logger.Infof(ctx, "[ensureAppVersionRunning] App version %s restarted successfully", version)
+		return nil
+	}
+
+	// 容器不存在或已停止，需要创建或启动版本容器
+	// 新架构：每个版本有独立容器，直接调用 StartAppVersion 创建/启动容器
+	logger.Infof(ctx, "[ensureAppVersionRunning] Container %s not running, creating/starting version container...", containerName)
 	if err := s.appManageService.StartAppVersion(ctx, user, app, version); err != nil {
 		return fmt.Errorf("failed to start app version: %w", err)
 	}
 
-	logger.Infof(ctx, "[ensureAppVersionRunning] Version %s/%s/%s startup command executed", user, app, version)
+	logger.Infof(ctx, "[ensureAppVersionRunning] Version %s/%s/%s started successfully", user, app, version)
 	return nil
 }
 

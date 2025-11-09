@@ -53,6 +53,54 @@ export class MultiSelectWidget extends BaseWidget {
     }
   }
 
+  /**
+   * 🔥 重写 loadFromRawData：正确处理数组类型数据
+   */
+  static loadFromRawData(rawValue: any, field: FieldConfig): FieldValue {
+    // 🔥 如果已经是 FieldValue 格式，直接返回
+    if (rawValue && typeof rawValue === 'object' && 'raw' in rawValue && 'display' in rawValue) {
+      return rawValue as FieldValue
+    }
+    
+    // 🔥 空值处理：返回默认值（空数组）
+    if (rawValue === null || rawValue === undefined || rawValue === '') {
+      return this.getDefaultValue(field)
+    }
+    
+    // 🔥 确保是数组类型
+    let rawArray: any[] = []
+    if (Array.isArray(rawValue)) {
+      rawArray = rawValue
+    } else if (typeof rawValue === 'string') {
+      // 尝试解析 JSON 字符串
+      try {
+        const parsed = JSON.parse(rawValue)
+        if (Array.isArray(parsed)) {
+          rawArray = parsed
+        } else {
+          rawArray = [rawValue]
+        }
+      } catch {
+        // 如果不是 JSON，当作单个值处理
+        rawArray = [rawValue]
+      }
+    } else {
+      // 其他类型，转换为数组
+      rawArray = [rawValue]
+    }
+    
+    // 🔥 生成 display 文本（使用逗号分隔）
+    const displayText = rawArray.length > 0 
+      ? rawArray.map(v => String(v)).join(', ')
+      : ''
+    
+    return {
+      raw: rawArray,
+      display: displayText,
+      meta: {}
+    }
+  }
+
   constructor(props: WidgetRenderProps) {
     super(props)
     
@@ -175,22 +223,25 @@ export class MultiSelectWidget extends BaseWidget {
    * 处理选择变更
    */
   private handleChange(values: any[]): void {
-    
     // 🔥 收集多个值的 displayInfo
     const displayInfos = values.map(val => {
       const option = this.options.value.find((opt: SelectOption) => opt.value === val)
       return option?.displayInfo || null
     })
     
-    // 🔥 生成 display 文本
+    // 🔥 生成 display 文本（确保即使没有找到 option 也能显示值）
     const displayText = values.map(val => {
       const option = this.options.value.find((opt: SelectOption) => opt.value === val)
-      return option?.label || val
+      // 🔥 优先使用 option.label，如果没有则使用值本身
+      return option?.label || String(val)
     }).join(', ')
     
+    // 🔥 确保 display 文本不为空（即使 values 为空数组，也要有占位文本）
+    const finalDisplay = displayText || '未选择'
+    
     this.setValue({
-      raw: values,  // 🔥 数组
-      display: displayText,
+      raw: values,  // 🔥 数组（可能是空数组）
+      display: finalDisplay,
       meta: {
         displayInfo: displayInfos,  // 🔥 数组
         statistics: this.currentStatistics
@@ -274,42 +325,128 @@ export class MultiSelectWidget extends BaseWidget {
    * 🔥 渲染表格单元格（覆盖父类方法）
    * 使用 Tag 标签展示选中的选项
    */
-  renderTableCell(value: FieldValue): any {
-    if (!value || !value.raw) {
+  renderTableCell(value?: FieldValue): any {
+    // 🔥 处理 value 为 null/undefined 的情况
+    if (!value) {
       return h('span', { style: { color: 'var(--el-text-color-secondary)' } }, '-')
     }
     
+    // 🔥 调试日志：检查 value 格式
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[MultiSelectWidget.renderTableCell]', this.field.code, 'value:', value, 'raw:', value.raw, 'display:', value.display, 'raw type:', typeof value.raw, 'isArray:', Array.isArray(value.raw))
+    }
+    
+    // 🔥 处理 value.raw 为 null/undefined 的情况
     const raw = value.raw
+    // 🔥 使用更严格的检查：null、undefined、空字符串都视为未选择
+    if (raw === null || raw === undefined || raw === '') {
+      return h('span', { style: { color: 'var(--el-text-color-secondary)' } }, '未选择')
+    }
+    
     const meta = value.meta || {}
     
-    // 如果不是数组，降级处理
-    if (!Array.isArray(raw)) {
+    // 🔥 确保 raw 是数组（处理 Proxy 对象）
+    let rawArray: any[] = []
+    if (Array.isArray(raw)) {
+      rawArray = raw
+    } else if (raw && typeof raw === 'object') {
+      // 如果是对象但不是数组，尝试转换
+      try {
+        rawArray = Array.from(raw as any)
+      } catch {
+        rawArray = []
+      }
+    } else {
+      // 其他类型，降级处理
       return h('span', String(raw))
     }
     
     // 如果是空数组
-    if (raw.length === 0) {
+    if (rawArray.length === 0) {
       return h('span', { style: { color: 'var(--el-text-color-secondary)' } }, '未选择')
     }
     
-    // 🔥 尝试从 meta.displayInfo 中提取选项的 label
+    // 🔥 尝试从多个来源获取 labels
     let labels: string[] = []
     
-    // displayInfo 可能是数组（MultiSelect 多个选项的 displayInfo）
-    if (meta.displayInfo && Array.isArray(meta.displayInfo)) {
-      labels = meta.displayInfo.map((info: any) => {
+    // 1. 优先从 meta.displayInfo 中提取选项的 label
+    if (meta.displayInfo && Array.isArray(meta.displayInfo) && meta.displayInfo.length > 0) {
+      const displayInfoLabels = meta.displayInfo.map((info: any) => {
         // 如果 displayInfo 有 label 字段
-        if (info && typeof info === 'object' && 'label' in info) {
-          return info.label
+        if (info && typeof info === 'object' && 'label' in info && info.label != null) {
+          return String(info.label)
         }
         // 尝试从字段中提取名称
-        return info?.商品名称 || info?.名称 || info?.name || String(info)
+        if (info && typeof info === 'object') {
+          return String(info?.商品名称 || info?.名称 || info?.name || '')
+        }
+        return ''
+      }).filter(label => label && label !== 'null' && label !== 'undefined' && label.length > 0)
+      
+      // 只有当 displayInfoLabels 长度与 rawArray 匹配且不为空时，才使用它
+      if (displayInfoLabels.length === rawArray.length && displayInfoLabels.every(l => l.length > 0)) {
+        labels = displayInfoLabels
+      }
+    }
+    
+    // 2. 如果没有有效的 labels，尝试使用 display 字段（可能包含逗号分隔的标签）
+    if (labels.length === 0 && value.display && typeof value.display === 'string' && value.display.trim() !== '') {
+      const displayLabels = value.display.split(',').map(s => s.trim()).filter(s => s.length > 0)
+      if (displayLabels.length === rawArray.length) {
+        labels = displayLabels
+      }
+    }
+    
+    // 3. 如果还是没有有效的 labels，尝试从配置的 options 中查找 label
+    if (labels.length === 0) {
+      // 🔥 获取配置的 options（从 field.widget.config.options 或 this.selectConfig）
+      const configOptions = this.selectConfig?.options || this.field.widget?.config?.options || []
+      labels = rawArray.map(val => {
+        // 查找配置中的选项
+        if (Array.isArray(configOptions) && configOptions.length > 0) {
+          // 如果是对象数组 [{ label, value }]
+          if (typeof configOptions[0] === 'object' && configOptions[0] !== null) {
+            const option = configOptions.find((opt: any) => opt.value === val)
+            if (option && option.label) {
+              return String(option.label)
+            }
+          }
+          // 如果是字符串数组，直接匹配
+          if (typeof configOptions[0] === 'string') {
+            const option = configOptions.find((opt: string) => opt === val)
+            if (option) {
+              return String(option)
+            }
+          }
+        }
+        // 回退到显示 raw 值
+        return String(val)
       })
     }
     
-    // 如果没有 labels，回退到显示 raw 值
-    if (labels.length === 0) {
-      labels = raw.map(v => String(v))
+    // 4. 最后回退：直接显示 raw 值（确保 labels 不为空且长度匹配）
+    if (labels.length === 0 || labels.length !== rawArray.length) {
+      labels = rawArray.map(v => String(v))
+    }
+    
+    // 🔥 最终验证：确保所有 labels 都是有效的字符串
+    labels = labels.map((label, index) => {
+      // 如果 label 是 null、undefined 或 'null'、'undefined'，使用 rawArray 中对应的值
+      if (!label || label === 'null' || label === 'undefined' || label.trim() === '') {
+        return String(rawArray[index] || '')
+      }
+      return String(label)
+    })
+    
+    // 🔥 调试日志：检查 labels
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[MultiSelectWidget.renderTableCell]', this.field.code, 'labels:', labels, 'rawArray:', rawArray, 'display:', value.display, 'labels.length:', labels.length)
+    }
+    
+    // 🔥 确保 labels 不为空
+    if (!labels || labels.length === 0) {
+      console.warn('[MultiSelectWidget.renderTableCell]', this.field.code, 'labels 为空，使用 rawArray')
+      labels = rawArray.map(v => String(v))
     }
     
     // 🔥 显示策略：
@@ -319,6 +456,49 @@ export class MultiSelectWidget extends BaseWidget {
     const displayLabels = labels.slice(0, maxDisplay)
     const hasMore = labels.length > maxDisplay
     
+    // 🔥 调试日志：检查最终渲染内容
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[MultiSelectWidget.renderTableCell]', this.field.code, '最终渲染:', displayLabels, 'hasMore:', hasMore, 'displayLabels.length:', displayLabels.length)
+    }
+    
+    // 🔥 构建 Tag 列表
+    const tagNodes = displayLabels.map((label, index) => {
+      // 🔥 确保 label 是字符串
+      const labelStr = label ? String(label) : String(rawArray[index] || '')
+      
+      // 🔥 调试日志：检查每个 label
+      if (process.env.NODE_ENV === 'development' && index === 0) {
+        console.log('[MultiSelectWidget.renderTableCell]', this.field.code, '创建 Tag，labelStr:', labelStr, 'type:', typeof labelStr)
+      }
+      
+      return h(ElTag, { 
+        key: `tag-${index}-${labelStr}`,
+        size: 'small',
+        type: 'info'
+      }, { default: () => labelStr })
+    })
+    
+    // 🔥 调试日志：检查 tagNodes
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[MultiSelectWidget.renderTableCell]', this.field.code, 'tagNodes:', tagNodes, 'tagNodes.length:', tagNodes.length)
+    }
+    
+    // 🔥 构建完整的节点列表
+    const children: any[] = [...tagNodes]
+    if (hasMore) {
+      children.push(h('span', { 
+        style: { 
+          fontSize: '12px', 
+          color: 'var(--el-text-color-secondary)' 
+        } 
+      }, `等${labels.length}项`))
+    }
+    
+    // 🔥 调试日志：检查最终 children
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[MultiSelectWidget.renderTableCell]', this.field.code, '最终 children:', children, 'children.length:', children.length)
+    }
+    
     return h('div', { 
       style: { 
         display: 'flex', 
@@ -326,21 +506,7 @@ export class MultiSelectWidget extends BaseWidget {
         flexWrap: 'wrap',
         alignItems: 'center'
       } 
-    }, [
-      ...displayLabels.map(label => 
-        h(ElTag, { 
-          size: 'small',
-          type: 'info'
-        }, { default: () => label })
-      ),
-      // 如果有更多项，显示省略标识
-      hasMore ? h('span', { 
-        style: { 
-          fontSize: '12px', 
-          color: 'var(--el-text-color-secondary)' 
-        } 
-      }, `等${labels.length}项`) : null
-    ])
+    }, children)
   }
 
   /**

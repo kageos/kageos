@@ -24,18 +24,27 @@ if [ ! -d "/app/workplace/metadata" ]; then
     exit 1
 fi
 
-# 读取当前版本（纯文本文件，极速启动）
-if [ ! -f "/app/workplace/metadata/current_version.txt" ]; then
-    echo "错误: current_version.txt 文件不存在"
-    exit 1
-fi
-
-# 读取版本号（纯文本，无需解析）
-CURRENT_VERSION=$(cat /app/workplace/metadata/current_version.txt | tr -d '\n\r')
-
-if [ -z "$CURRENT_VERSION" ]; then
-    echo "错误: current_version.txt 文件为空"
-    exit 1
+# 优先使用环境变量 APP_VERSION（新架构：每个容器对应特定版本）
+# 如果没有环境变量，再读取文件（向后兼容）
+if [ -n "$APP_VERSION" ]; then
+    CURRENT_VERSION="$APP_VERSION"
+    echo "使用环境变量 APP_VERSION: $CURRENT_VERSION"
+else
+    # 向后兼容：如果没有环境变量，读取文件
+    if [ ! -f "/app/workplace/metadata/current_version.txt" ]; then
+        echo "错误: APP_VERSION 环境变量未设置，且 current_version.txt 文件不存在"
+        exit 1
+    fi
+    
+    # 读取版本号（纯文本，无需解析）
+    CURRENT_VERSION=$(cat /app/workplace/metadata/current_version.txt | tr -d '\n\r')
+    
+    if [ -z "$CURRENT_VERSION" ]; then
+        echo "错误: APP_VERSION 环境变量未设置，且 current_version.txt 文件为空"
+        exit 1
+    fi
+    
+    echo "从文件读取版本: $CURRENT_VERSION"
 fi
 
 # 读取用户和应用名（纯文本文件）

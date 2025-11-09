@@ -60,6 +60,8 @@ export interface ServiceTree {
   app_id: number
   ref_id: number
   full_code_path: string
+  group_code?: string  // 组标识（相同 group_code 的函数属于同一组）
+  group_name?: string  // 组名称（用于展示，不参与路由）
   created_at: string
   updated_at: string
   children?: ServiceTree[]

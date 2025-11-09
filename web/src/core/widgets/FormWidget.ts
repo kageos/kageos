@@ -16,13 +16,15 @@
  * - widget.type = "form" → 组件类型（表单）
  */
 
-import { h, markRaw } from 'vue'
-import { ElCard, ElForm, ElFormItem } from 'element-plus'
+import { h, markRaw, ref } from 'vue'
+import { ElCard, ElForm, ElFormItem, ElInput, ElAlert, ElTag, ElIcon, ElDrawer, ElButton } from 'element-plus'
+import { Warning, View } from '@element-plus/icons-vue'
 import { BaseWidget } from './BaseWidget'
 import { Logger } from '../utils/logger'
 import { WidgetBuilder } from '../factories/WidgetBuilder'
 import { widgetFactory } from '../factories/WidgetFactory'
 import { ErrorHandler } from '../utils/ErrorHandler'
+import { ResponseFormWidget } from './ResponseFormWidget'
 import type { FieldConfig, FieldValue } from '../types/field'
 import type { WidgetRenderProps, MarkRawWidget } from '../types/widget'
 
@@ -51,6 +53,10 @@ export class FormWidget extends BaseWidget {
   
   // 子 Widget 实例 [field_code -> Widget]
   private subWidgets: Map<string, BaseWidget>
+  
+  // 🔥 详情抽屉状态（用于表格单元格中的 form 字段）
+  private showDetailDrawer = ref(false)
+  private detailFieldValue: FieldValue | null = null
 
   /**
    * FormWidget 的默认值是空对象
@@ -126,6 +132,12 @@ export class FormWidget extends BaseWidget {
     // 解析子字段
     this.subFields = this.parseSubFields()
     
+    // 🔥 临时 Widget 不需要创建子 Widget（只用于渲染）
+    if (this.isTemporary) {
+      this.subWidgets = new Map()
+      return
+    }
+    
     // 🔥 从父组件加载已有数据（如果有）
     this.loadInitialData()
     
@@ -155,6 +167,11 @@ export class FormWidget extends BaseWidget {
    * 符合开闭原则：FormWidget 不需要知道子组件的具体实现
    */
   private loadInitialData(): void {
+    // 🔥 临时 Widget 不需要加载数据
+    if (this.isTemporary) {
+      return
+    }
+    
     const currentValue = this.getValue()
     
     // 🔥 使用静态方法加载数据（多态递归）
@@ -208,28 +225,151 @@ export class FormWidget extends BaseWidget {
    * 
    * FormWidget 不依赖自己的 raw 值，而是主动遍历子组件收集它们的值
    * 返回一个对象 { field1: value1, field2: value2, ... }
+   * 
+   * 🔥 关键修复：始终从子 Widget 中收集数据，确保数据完整性
    */
   getRawValueForSubmit(): Record<string, any> {
     const result: Record<string, any> = {}
     
-    
-    // 遍历每个子字段
-    this.subWidgets.forEach((widget, fieldCode) => {
-      // 🔥 递归调用：子组件可能是基础组件（直接返回值）或容器组件（继续递归）
-      // 🔥 类型安全地访问 markRaw 后的 Widget
-      const rawWidget = widget as MarkRawWidget
-      result[fieldCode] = rawWidget.getRawValueForSubmit()
+    // 🔥 优先从子 Widget 中收集数据（最可靠的方式）
+    if (this.subWidgets.size > 0 && !this.isTemporary) {
+      // 🔥 有子 Widget：遍历每个子字段，递归收集数据
+      this.subWidgets.forEach((widget, fieldCode) => {
+        const rawWidget = widget as MarkRawWidget
+        // 🔥 使用 getRawValueForSubmit() 递归收集所有嵌套数据
+        if (typeof rawWidget.getRawValueForSubmit === 'function') {
+          result[fieldCode] = rawWidget.getRawValueForSubmit()
+        } else {
+          // 如果没有 getRawValueForSubmit，使用 getValue().raw
+          const fieldValue = rawWidget.getValue()
+          result[fieldCode] = fieldValue?.raw
+        }
+      })
+    } else {
+      // 🔥 临时 Widget 或没有子 Widget：从 value.raw 中提取
+      const currentValue = this.getValue()
+      const raw = currentValue?.raw
       
-    })
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        // 🔥 如果 raw 是对象，遍历子字段配置，递归处理每个字段
+        for (const subField of this.subFields) {
+          const fieldValue = (raw as Record<string, any>)[subField.code]
+          
+          if (fieldValue && typeof fieldValue === 'object' && 'raw' in fieldValue && 'display' in fieldValue) {
+            // 🔥 如果是 FieldValue 格式，检查是否是容器组件
+            const widgetType = subField.widget?.type
+            if (widgetType === 'table' || widgetType === 'form') {
+              try {
+                // 🔥 创建临时 Widget 来调用 getRawValueForSubmit
+                const tempWidget = WidgetBuilder.createTemporary({
+                  field: subField,
+                  value: fieldValue as FieldValue
+                })
+                const rawWidget = tempWidget as MarkRawWidget
+                if (typeof rawWidget.getRawValueForSubmit === 'function') {
+                  result[subField.code] = rawWidget.getRawValueForSubmit()
+                } else {
+                  result[subField.code] = (fieldValue as FieldValue).raw
+                }
+              } catch (error) {
+                Logger.error('[FormWidget]', `getRawValueForSubmit 失败: 字段${subField.code}`, error)
+                result[subField.code] = (fieldValue as FieldValue).raw
+              }
+            } else {
+              // 不是容器组件，直接使用 raw
+              result[subField.code] = (fieldValue as FieldValue).raw
+            }
+          } else {
+            // 不是 FieldValue 格式，直接使用
+            result[subField.code] = fieldValue
+          }
+        }
+      } else if (raw && typeof raw === 'object') {
+        // raw 是对象但不是 FieldValue 格式，直接返回
+        return raw as Record<string, any>
+      }
+    }
     
     return result
+  }
+
+  /**
+   * 🔥 降级渲染：深度很深时使用 JSON 编辑器
+   */
+  private renderFallback(): any {
+    const currentValue = this.getValue()
+    const jsonValue = JSON.stringify(currentValue?.raw || {}, null, 2)
+    
+    return h('div', {
+      class: 'form-widget-fallback',
+      style: {
+        marginBottom: '20px',
+        width: '100%'
+      }
+    }, [
+      h(ElCard, {
+        shadow: 'hover',
+        bodyStyle: { padding: '20px' }
+      }, {
+        header: () => h('div', {
+          style: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            fontSize: '14px',
+            fontWeight: 'bold'
+          }
+        }, [
+          h(ElIcon, { style: { color: '#E6A23C' } }, () => h(Warning)),
+          h('span', this.field.name),
+          h(ElTag, { 
+            type: 'warning', 
+            size: 'small',
+            style: { marginLeft: '8px' }
+          }, () => `深度 ${this.depth} - JSON 编辑模式`)
+        ]),
+        default: () => [
+          h(ElAlert, {
+            type: 'warning',
+            showIcon: true,
+            closable: false,
+            style: { marginBottom: '16px' }
+          }, {
+            default: () => `嵌套深度较深（${this.depth} 层），已切换到 JSON 编辑模式。您可以直接编辑 JSON 数据，或点击"展开表单"使用表单模式。`
+          }),
+          h(ElInput, {
+            type: 'textarea',
+            modelValue: jsonValue,
+            rows: 15,
+            placeholder: '请输入 JSON 数据',
+            'onUpdate:modelValue': (value: string) => {
+              try {
+                const parsed = JSON.parse(value)
+                this.updateRawValue(parsed)
+              } catch (error) {
+                // JSON 解析失败时不更新，但也不报错（允许用户继续编辑）
+              }
+            },
+            style: { 
+              fontFamily: 'monospace',
+              fontSize: '12px'
+            }
+          })
+        ]
+      })
+    ])
   }
 
   /**
    * 渲染 Form 组件
    */
   render() {
-    // 渲染成一个卡片，包含所有子字段
+    // 🔥 深度很深时使用降级渲染
+    if (this.shouldUseFallback) {
+      return this.renderFallback()
+    }
+    
+    // 渲染成一个卡片，包含所有子字段，以及详情抽屉
     return h('div', { 
       class: 'form-widget',
       style: {
@@ -244,11 +384,24 @@ export class FormWidget extends BaseWidget {
       }, {
         header: () => h('div', {
           style: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
             fontSize: '14px',
             fontWeight: 'bold',
             color: 'var(--el-text-color-primary)'  // 🔥 使用 CSS 变量，适配深色模式
           }
-        }, this.field.name),
+        }, [
+          this.shouldShowDepthWarning && h(ElIcon, { 
+            style: { color: '#E6A23C', fontSize: '16px' } 
+          }, () => h(Warning)),
+          h('span', this.field.name),
+          this.shouldShowDepthWarning && h(ElTag, { 
+            type: 'warning', 
+            size: 'small',
+            style: { marginLeft: '4px' }
+          }, () => `深度 ${this.depth}`)
+        ]),
         default: () => [
           // 🔥 使用 ElForm 包裹子字段，提供统一的表单布局
           h(ElForm, {
@@ -265,8 +418,8 @@ export class FormWidget extends BaseWidget {
                 label: subField.name,  // 🔥 显示字段标签
                 prop: fieldCode,
               style: { 
-                  width: '100%',
-                  marginBottom: '18px'  // 🔥 增加表单项之间的间距
+                width: '100%',
+                marginBottom: '18px'  // 🔥 增加表单项之间的间距
               } 
               }, {
                 default: () => [
@@ -277,8 +430,97 @@ export class FormWidget extends BaseWidget {
             })
             ])
         ]
-      })
+      }),
+      // 🔥 渲染详情抽屉（用于表格单元格中的 form 字段）
+      this.renderDetailDrawer()
     ])
+  }
+
+  /**
+   * 🔥 渲染表格单元格（覆盖父类方法）
+   * 当 FormWidget 嵌套在 TableWidget 中时，使用简化显示，并提供查看详情功能
+   */
+  renderTableCell(value?: FieldValue): any {
+    // 🔥 临时 Widget 或嵌套场景：使用简化显示，避免递归渲染
+    if (this.isTemporary || this.depth > 2) {
+      const fieldValue = value || this.getValue()
+      const raw = fieldValue?.raw
+      
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return h('span', { style: { color: 'var(--el-text-color-secondary)' } }, '-')
+      }
+      
+      // 显示字段数量和摘要信息，并提供查看按钮
+      const fieldCount = Object.keys(raw).length
+      
+      // 🔥 保存 fieldValue 用于详情抽屉
+      this.detailFieldValue = fieldValue
+      
+      // 🔥 渲染可点击的文本和查看按钮
+      return h('div', {
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          cursor: 'pointer'
+        },
+        onClick: (e: Event) => {
+          e.stopPropagation()
+          this.showDetailDrawer.value = true
+        }
+      }, [
+        h('span', { 
+          style: { 
+            color: 'var(--el-color-primary)',
+            textDecoration: 'underline'
+          } 
+        }, `共 ${fieldCount} 个字段`),
+        h(ElIcon, {
+          style: { 
+            fontSize: '14px',
+            color: 'var(--el-color-primary)'
+          }
+        }, {
+          default: () => h(View)
+        })
+      ])
+    }
+    
+    // 非临时 Widget：使用默认格式化
+    return super.renderTableCell(value)
+  }
+  
+  /**
+   * 🔥 渲染详情抽屉（用于表格单元格中的 form 字段）
+   */
+  private renderDetailDrawer(): any {
+    if (!this.showDetailDrawer.value || !this.detailFieldValue) {
+      return null
+    }
+    
+    // 🔥 使用 ResponseFormWidget 渲染表单内容（只读模式）
+    const responseWidget = new ResponseFormWidget({
+      field: this.field,
+      currentFieldPath: `${this.fieldPath}.detail`,
+      value: this.detailFieldValue,
+      onChange: () => {},
+      formManager: this.formManager,
+      formRenderer: this.formRenderer,
+      depth: this.depth + 1
+    })
+    
+    return h(ElDrawer, {
+      modelValue: this.showDetailDrawer.value,
+      title: this.field.name || '详细信息',
+      size: '50%',
+      destroyOnClose: true,
+      onClose: () => {
+        this.showDetailDrawer.value = false
+        this.detailFieldValue = null
+      }
+    }, {
+      default: () => responseWidget.render()
+    })
   }
 
   /**

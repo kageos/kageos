@@ -11,14 +11,17 @@ import (
 
 // ApiInfo API信息结构
 type ApiInfo struct {
-	Code           string          `json:"code"`
-	Name           string          `json:"name"`
-	Desc           string          `json:"desc"`
-	Tags           []string        `json:"tags"`
-	Router         string          `json:"router"`
-	Method         string          `json:"method"`
-	CreateTables   []string        `json:"create_tables"`
-	Callback       []string        `json:"callback"`
+	Code              string   `json:"code"`
+	Name              string   `json:"name"`
+	Desc              string   `json:"desc"`
+	Tags              []string `json:"tags"`
+	Router            string   `json:"router"`
+	Method            string   `json:"method"`
+	CreateTables      []string `json:"create_tables"`
+	Callback          []string `json:"callback"`
+	FunctionGroupCode string   `json:"function_group_code"`
+	FunctionGroupName string   `json:"function_group_name"`
+
 	Request        []*widget.Field `json:"request"`
 	Response       []*widget.Field `json:"response"`
 	AddedVersion   string          `json:"added_version"`   // API首次添加的版本

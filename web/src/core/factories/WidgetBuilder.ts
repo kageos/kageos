@@ -13,6 +13,7 @@ import type { ReactiveFormDataManager } from '../managers/ReactiveFormDataManage
 import type { FormRendererContext, WidgetRenderProps } from '../types/widget'
 import type { BaseWidget } from '../widgets/BaseWidget'
 import { widgetFactory } from './WidgetFactory'
+import { WidgetType } from '../constants/widget'
 
 /**
  * 标准 Widget 创建选项
@@ -89,14 +90,16 @@ export class WidgetBuilder {
     } = options
     
     // 获取 Widget 类
-    const WidgetClass = widgetFactory.getWidgetClass(field.widget?.type || 'input')
+    const WidgetClass = widgetFactory.getWidgetClass(field.widget?.type || WidgetType.INPUT)
     
     // 准备初始值
-    const value = initialValue || formManager.getValue(fieldPath)
+    const value = initialValue || (formManager ? formManager.getValue(fieldPath) : { raw: null, display: '', meta: {} })
     
     // 准备 onChange 回调
     const handleChange = onChange || ((newValue: FieldValue) => {
-      formManager.setValue(fieldPath, newValue)
+      if (formManager) {
+        formManager.setValue(fieldPath, newValue)
+      }
     })
     
     // 构造 Widget 属性
@@ -151,7 +154,7 @@ export class WidgetBuilder {
     const initialValue = value || { raw: null, display: '', meta: {} }
     
     // 获取 Widget 类
-    const WidgetClass = widgetFactory.getWidgetClass(field.widget?.type || 'input')
+    const WidgetClass = widgetFactory.getWidgetClass(field.widget?.type || WidgetType.INPUT)
     
     // 构造 Widget 属性（formManager 可以为 null）
     const widgetProps: WidgetRenderProps = {
