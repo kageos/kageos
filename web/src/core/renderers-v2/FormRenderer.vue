@@ -255,6 +255,11 @@ const getResponseFieldValue = (fieldCode: string): FieldValue => {
 
 // 🔥 为每个响应字段创建 computed，确保响应式更新
 const responseFieldValues = computed(() => {
+  // 如果组件未挂载，返回空值，避免在卸载时访问数据
+  if (!isMounted.value) {
+    return {}
+  }
+  
   const trigger = responseDataStore.renderTrigger
   const responseData = responseDataStore.data.value
   const values: Record<string, FieldValue> = {}
