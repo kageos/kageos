@@ -156,8 +156,15 @@ import { useTableEditMode } from '../composables/useTableEditMode'
 import { useTableResponseMode } from '../composables/useTableResponseMode'
 import { useTableStatistics } from '../composables/useTableStatistics'
 import { widgetComponentFactory } from '../../factories-v2'
+import { FieldValue } from '../../types/field'
 
-const props = defineProps<WidgetComponentProps>()
+const props = withDefaults(defineProps<WidgetComponentProps>(), {
+  value: () => ({
+    raw: null,
+    display: '',
+    meta: {}
+  } as FieldValue)
+})
 const emit = defineEmits<WidgetComponentEmits>()
 
 // 使用组合式函数
@@ -184,6 +191,16 @@ const displayValue = computed(() => {
   
   if (Array.isArray(raw)) {
     return `共 ${raw.length} 条`
+  }
+  
+  // 避免序列化循环引用的对象
+  if (typeof raw === 'object') {
+    try {
+      return JSON.stringify(raw)
+    } catch (e) {
+      // 如果序列化失败（循环引用），返回简单描述
+      return `[对象]`
+    }
   }
   
   return String(raw)
