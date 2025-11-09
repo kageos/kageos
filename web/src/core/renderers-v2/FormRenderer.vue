@@ -185,11 +185,15 @@ const responseFields = computed(() => {
 })
 
 // 是否有响应数据
+// 🔥 关键：需要追踪 renderTrigger 来确保响应式更新
 const hasResponseData = computed(() => {
   if (!responseDataStore || !responseDataStore.data) {
     return false
   }
-  return responseDataStore.data.value !== null
+  // 读取 renderTrigger 作为依赖，确保数据更新时重新计算
+  const trigger = responseDataStore.renderTrigger
+  const data = responseDataStore.data.value
+  return data !== null && data !== undefined
 })
 
 // 表单数据（用于 el-form 绑定）
@@ -213,7 +217,8 @@ function updateFieldValue(fieldCode: string, value: FieldValue): void {
 }
 
 // 获取响应字段值
-function getResponseFieldValue(fieldCode: string): FieldValue {
+// 🔥 使用 computed 确保响应式更新
+const getResponseFieldValue = (fieldCode: string): FieldValue => {
   if (!responseDataStore || !responseDataStore.data) {
     return {
       raw: null,
@@ -222,7 +227,10 @@ function getResponseFieldValue(fieldCode: string): FieldValue {
     }
   }
   
+  // 读取 renderTrigger 作为依赖，确保数据更新时重新计算
+  const trigger = responseDataStore.renderTrigger
   const responseData = responseDataStore.data.value
+  
   if (!responseData) {
     return {
       raw: null,
