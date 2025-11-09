@@ -54,7 +54,13 @@ import { ElInput } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useFormDataStore } from '../../stores-v2/formData'
 
-const props = defineProps<WidgetComponentProps>()
+const props = withDefaults(defineProps<WidgetComponentProps>(), {
+  value: () => ({
+    raw: null,
+    display: '',
+    meta: {}
+  })
+})
 const emit = defineEmits<WidgetComponentEmits>()
 
 const formDataStore = useFormDataStore()
