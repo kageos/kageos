@@ -22,6 +22,18 @@
       :loading="loading"
       :remote="hasCallback"
       :remote-method="handleRemoteSearch"
+      :popper-options="{
+        strategy: 'fixed',
+        modifiers: [
+          {
+            name: 'computeStyles',
+            options: {
+              adaptive: false,
+              roundOffsets: false
+            }
+          }
+        ]
+      }"
       @change="handleChange"
       @focus="handleFocus"
     >

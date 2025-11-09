@@ -228,6 +228,7 @@ function isFieldRequired(field: FieldConfig): boolean {
   padding: 16px 0;
   /* 确保下拉菜单可以正常显示 */
   overflow: visible;
+  position: relative;
 }
 
 .detail-field {
@@ -245,5 +246,14 @@ function isFieldRequired(field: FieldConfig): boolean {
 
 :deep(.el-popper) {
   z-index: 3001 !important;
+}
+
+/* 确保抽屉本身不会遮挡下拉菜单 */
+:deep(.el-drawer__body) {
+  overflow: visible !important;
+}
+
+:deep(.el-drawer) {
+  overflow: visible !important;
 }
 </style>
