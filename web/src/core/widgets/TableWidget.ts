@@ -9,14 +9,22 @@
  */
 
 import { h, ref, computed, markRaw, nextTick } from 'vue'
-import { ElButton, ElTable, ElTableColumn, ElForm, ElFormItem, ElIcon, ElMessage, ElDrawer } from 'element-plus'
-import { Plus, Delete, Edit, Check, Close, ArrowDown, ArrowUp, Upload, Download, View } from '@element-plus/icons-vue'
+import { ElButton, ElTable, ElTableColumn, ElForm, ElFormItem, ElIcon, ElMessage } from 'element-plus'
+import { Plus, Delete, Edit, Check, Close, ArrowDown, ArrowUp, Upload, Download } from '@element-plus/icons-vue'
 import { BaseWidget } from './BaseWidget'
 import { Logger } from '../utils/logger'
 import { WidgetBuilder } from '../factories/WidgetBuilder'
 import { widgetFactory } from '../factories/WidgetFactory'
 import { ErrorHandler } from '../utils/ErrorHandler'
-import { ResponseFormWidget } from './ResponseFormWidget'
+import {
+  createFormDrawerState,
+  handleFormFieldClick,
+  handleCloseFormDetail,
+  renderFormFieldButton,
+  renderFormDetailDrawer,
+  createDrawerContentComputed,
+  type FormDrawerState
+} from './utils/TableFormDrawerHelper'
 import type { FieldConfig, FieldValue } from '../types/field'
 import type { WidgetRenderProps, MarkRawWidget } from '../types/widget'
 import { selectFuzzy } from '@/api/function'  // 🔥 导入回调 API
@@ -83,23 +91,15 @@ export class TableWidget extends BaseWidget {
   // 🔥 防抖定时器（用于避免频繁更新）
   private updateTimer: ReturnType<typeof setTimeout> | null = null
   
-  // 🔥 Form 字段详情抽屉状态（用于表格单元格中的 form 字段）
-  private showFormDetailDrawer = ref(false)
-  private formDetailField = ref<FieldConfig | null>(null)
-  private formDetailValue = ref<FieldValue | null>(null)
+  // 🔥 Form 字段详情抽屉状态（使用工具类管理）
+  private formDrawerState: FormDrawerState = createFormDrawerState()
   
   // 🔥 使用 computed 包装抽屉渲染，确保响应式更新（作为实例属性）
-  private drawerContent = computed(() => {
-    const show = this.showFormDetailDrawer.value
-    const field = this.formDetailField.value
-    const value = this.formDetailValue.value
-    
-    if (!show || !field || !value) {
-      return null
-    }
-    
-    return this.renderFormDetailDrawer()
-  })
+  private drawerContent = createDrawerContentComputed(
+    this.formDrawerState,
+    () => this.renderFormDetailDrawer(),
+    'TableWidget'
+  )
 
   /**
    * TableWidget 的默认值是空数组
@@ -1038,19 +1038,14 @@ export class TableWidget extends BaseWidget {
    * 🔥 处理 Form 字段点击（打开详情抽屉）
    */
   private handleFormFieldClick(field: FieldConfig, value: FieldValue): void {
-    Logger.info('[TableWidget]', `点击 Form 字段: ${field.code}`)
-    this.formDetailField.value = field
-    this.formDetailValue.value = value
-    this.showFormDetailDrawer.value = true
+    handleFormFieldClick(this.formDrawerState, field, value, 'TableWidget')
   }
 
   /**
    * 🔥 关闭 Form 字段详情抽屉
    */
   private handleCloseFormDetail(): void {
-    this.showFormDetailDrawer.value = false
-    this.formDetailField.value = null
-    this.formDetailValue.value = null
+    handleCloseFormDetail(this.formDrawerState)
   }
 
   /**
@@ -1061,39 +1056,12 @@ export class TableWidget extends BaseWidget {
     try {
       // 🔥 如果是 Form 类型，提供可点击的查看按钮
       if (field.widget?.type === 'form') {
-        const raw = value?.raw
-        if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-          const fieldCount = Object.keys(raw).length
-          // 🔥 使用 ElButton 确保事件能正确绑定
-          return h(ElButton, {
-            link: true,
-            type: 'primary',
-            size: 'small',
-            style: {
-              padding: '0',
-              height: 'auto',
-              fontSize: '14px'
-            },
-            onClick: (e: MouseEvent) => {
-              e.preventDefault()
-              e.stopPropagation()
-              Logger.info('[TableWidget]', `点击事件触发: ${field.code}`)
-              this.handleFormFieldClick(field, value)
-            }
-          }, {
-            default: () => [
-              h('span', `共 ${fieldCount} 个字段`),
-              h('span', { style: { marginLeft: '4px' } }, ' '),
-              h(ElIcon, {
-                style: { 
-                  fontSize: '14px',
-                  verticalAlign: 'middle'
-                }
-              }, {
-                default: () => h(View)
-              })
-            ]
-          })
+        const button = renderFormFieldButton(field, value, (e: MouseEvent) => {
+          Logger.info('[TableWidget]', `点击事件触发: ${field.code}`)
+          this.handleFormFieldClick(field, value)
+        })
+        if (button) {
+          return button
         }
       }
       
@@ -1134,42 +1102,14 @@ export class TableWidget extends BaseWidget {
    * 🔥 渲染 Form 字段详情抽屉
    */
   private renderFormDetailDrawer(): any {
-    // 🔥 读取响应式值，确保 Vue 能追踪到变化
-    const show = this.showFormDetailDrawer.value
-    const field = this.formDetailField.value
-    const value = this.formDetailValue.value
-    
-    if (!show || !field || !value) {
-      return null
-    }
-    
-    // 🔥 使用 ResponseFormWidget 渲染表单内容（只读模式）
-    const responseWidget = new ResponseFormWidget({
-      field: field,
-      currentFieldPath: `${this.fieldPath}.${field.code}`,
-      value: value,
-      onChange: () => {},
-      formManager: this.formManager,
-      formRenderer: this.formRenderer,
-      depth: this.depth + 1
-    })
-    
-    return h(ElDrawer, {
-      modelValue: show,
-      title: field.name || '详细信息',
-      size: '50%',
-      destroyOnClose: true,
-      'onUpdate:modelValue': (val: boolean) => {
-        if (!val) {
-          this.handleCloseFormDetail()
-        }
-      },
-      onClose: () => {
-        this.handleCloseFormDetail()
-      }
-    }, {
-      default: () => responseWidget.render()
-    })
+    return renderFormDetailDrawer(
+      this.formDrawerState,
+      this.fieldPath,
+      this.formManager,
+      this.formRenderer,
+      this.depth,
+      'TableWidget'
+    )
   }
 
 

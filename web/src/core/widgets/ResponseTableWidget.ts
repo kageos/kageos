@@ -9,13 +9,21 @@
  */
 
 import { h, ref, computed } from 'vue'
-import { ElTable, ElTableColumn, ElDrawer, ElButton, ElIcon, ElDescriptions, ElDescriptionsItem } from 'element-plus'
-import { ArrowLeft, ArrowRight, Close, View } from '@element-plus/icons-vue'
+import { ElTable, ElTableColumn, ElDescriptions, ElDescriptionsItem } from 'element-plus'
+import { ArrowLeft, ArrowRight, Close } from '@element-plus/icons-vue'
 import { BaseWidget } from './BaseWidget'
 import type { FieldConfig, FieldValue } from '../types/field'
 import { WidgetBuilder } from '../factories/WidgetBuilder'
 import { convertToFieldValue } from '../../utils/field'
-import { ResponseFormWidget } from './ResponseFormWidget'
+import {
+  createFormDrawerState,
+  handleFormFieldClick,
+  handleCloseFormDetail,
+  renderFormFieldButton,
+  renderFormDetailDrawer,
+  createDrawerContentComputed,
+  type FormDrawerState
+} from './utils/TableFormDrawerHelper'
 import { Logger } from '../utils/logger'
 
 export class ResponseTableWidget extends BaseWidget {
@@ -25,25 +33,15 @@ export class ResponseTableWidget extends BaseWidget {
   private currentDetailIndex = ref<number>(-1)
   private tableData = ref<any[]>([])
   
-  // 🔥 Form 字段详情抽屉状态（用于表格单元格中的 form 字段）
-  private showFormDetailDrawer = ref(false)
-  private formDetailField = ref<FieldConfig | null>(null)
-  private formDetailValue = ref<FieldValue | null>(null)
+  // 🔥 Form 字段详情抽屉状态（使用工具类管理）
+  private formDrawerState: FormDrawerState = createFormDrawerState()
   
   // 🔥 使用 computed 包装抽屉渲染，确保响应式更新（作为实例属性）
-  private drawerContent = computed(() => {
-    const show = this.showFormDetailDrawer.value
-    const field = this.formDetailField.value
-    const value = this.formDetailValue.value
-    
-    Logger.info('[ResponseTableWidget]', `drawerContent computed: show=${show}, field=${field?.code}`)
-    
-    if (!show || !field || !value) {
-      return null
-    }
-    
-    return this.renderFormDetailDrawer()
-  })
+  private drawerContent = createDrawerContentComputed(
+    this.formDrawerState,
+    () => this.renderFormDetailDrawer(),
+    'ResponseTableWidget'
+  )
   /**
    * 🔥 判断是否是 ID 列
    */
@@ -135,20 +133,14 @@ export class ResponseTableWidget extends BaseWidget {
    * 🔥 处理 Form 字段点击（打开详情抽屉）
    */
   private handleFormFieldClick(field: FieldConfig, value: FieldValue): void {
-    Logger.info('[ResponseTableWidget]', `点击 Form 字段: ${field.code}`, { field, value })
-    this.formDetailField.value = field
-    this.formDetailValue.value = value
-    this.showFormDetailDrawer.value = true
-    Logger.info('[ResponseTableWidget]', `抽屉状态已更新: show=${this.showFormDetailDrawer.value}, field=${this.formDetailField.value?.code}`)
+    handleFormFieldClick(this.formDrawerState, field, value, 'ResponseTableWidget')
   }
 
   /**
    * 🔥 关闭 Form 字段详情抽屉
    */
   private handleCloseFormDetail(): void {
-    this.showFormDetailDrawer.value = false
-    this.formDetailField.value = null
-    this.formDetailValue.value = null
+    handleCloseFormDetail(this.formDrawerState)
   }
 
   /**
@@ -169,40 +161,13 @@ export class ResponseTableWidget extends BaseWidget {
       
       // 🔥 如果是 Form 类型，提供可点击的查看按钮
       if (field.widget?.type === 'form') {
-        const raw = value?.raw
-        if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-          const fieldCount = Object.keys(raw).length
-          // 🔥 使用 ElButton 确保事件能正确绑定
+        const button = renderFormFieldButton(field, value, (e: MouseEvent) => {
+          Logger.info('[ResponseTableWidget]', `点击事件触发: ${field.code}`)
+          this.handleFormFieldClick(field, value)
+        })
+        if (button) {
           return {
-            content: h(ElButton, {
-              link: true,
-              type: 'primary',
-              size: 'small',
-              style: {
-                padding: '0',
-                height: 'auto',
-                fontSize: '14px'
-              },
-              onClick: (e: MouseEvent) => {
-                e.preventDefault()
-                e.stopPropagation()
-                Logger.info('[ResponseTableWidget]', `点击事件触发: ${field.code}`)
-                this.handleFormFieldClick(field, value)
-              }
-            }, {
-              default: () => [
-                h('span', `共 ${fieldCount} 个字段`),
-                h('span', { style: { marginLeft: '4px' } }, ' '),
-                h(ElIcon, {
-                  style: { 
-                    fontSize: '14px',
-                    verticalAlign: 'middle'
-                  }
-                }, {
-                  default: () => h(View)
-                })
-              ]
-            }),
+            content: button,
             isString: false
           }
         }
@@ -237,46 +202,14 @@ export class ResponseTableWidget extends BaseWidget {
    * 🔥 渲染 Form 字段详情抽屉
    */
   private renderFormDetailDrawer(): any {
-    // 🔥 读取响应式值，确保 Vue 能追踪到变化
-    const show = this.showFormDetailDrawer.value
-    const field = this.formDetailField.value
-    const value = this.formDetailValue.value
-    
-    Logger.info('[ResponseTableWidget]', `renderFormDetailDrawer 调用: show=${show}, field=${field?.code}`)
-    
-    if (!show || !field || !value) {
-      return null
-    }
-    
-    // 🔥 使用 ResponseFormWidget 渲染表单内容（只读模式）
-    const responseWidget = new ResponseFormWidget({
-      field: field,
-      currentFieldPath: `${this.fieldPath}.${field.code}`,
-      value: value,
-      onChange: () => {},
-      formManager: this.formManager,
-      formRenderer: this.formRenderer,
-      depth: this.depth + 1
-    })
-    
-    return h(ElDrawer, {
-      modelValue: show,
-      title: field.name || '详细信息',
-      size: '50%',
-      destroyOnClose: true,
-      'onUpdate:modelValue': (val: boolean) => {
-        Logger.info('[ResponseTableWidget]', `抽屉 modelValue 更新: ${val}`)
-        if (!val) {
-          this.handleCloseFormDetail()
-        }
-      },
-      onClose: () => {
-        Logger.info('[ResponseTableWidget]', '抽屉 onClose 触发')
-        this.handleCloseFormDetail()
-      }
-    }, {
-      default: () => responseWidget.render()
-    })
+    return renderFormDetailDrawer(
+      this.formDrawerState,
+      this.fieldPath,
+      this.formManager,
+      this.formRenderer,
+      this.depth,
+      'ResponseTableWidget'
+    )
   }
 
   /**
