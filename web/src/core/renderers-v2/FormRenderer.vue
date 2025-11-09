@@ -216,24 +216,45 @@ function getResponseFieldValue(fieldCode: string): FieldValue {
   }
 }
 
+// 缓存组件查找结果，避免重复查找和确保组件引用稳定
+const componentCache = new Map<string, any>()
+
 // 获取请求组件
 function getWidgetComponent(type: string) {
+  const cacheKey = `request_${type}`
+  if (componentCache.has(cacheKey)) {
+    return componentCache.get(cacheKey)
+  }
+  
   const component = widgetComponentFactory.getRequestComponent(type)
   if (!component) {
     console.warn(`[FormRenderer-v2] 未找到组件: ${type}，使用默认 InputWidget`)
-    return widgetComponentFactory.getRequestComponent('input') || null
+    const defaultComponent = widgetComponentFactory.getRequestComponent('input')
+    componentCache.set(cacheKey, defaultComponent)
+    return defaultComponent
   }
+  
+  componentCache.set(cacheKey, component)
   return component
 }
 
 // 获取响应组件
 function getResponseWidgetComponent(type: string) {
+  const cacheKey = `response_${type}`
+  if (componentCache.has(cacheKey)) {
+    return componentCache.get(cacheKey)
+  }
+  
   // 优先使用响应组件，如果没有则使用请求组件
   const component = widgetComponentFactory.getResponseComponent(type)
   if (!component) {
     console.warn(`[FormRenderer-v2] 未找到响应组件: ${type}，使用默认 InputWidget`)
-    return widgetComponentFactory.getRequestComponent('input') || null
+    const defaultComponent = widgetComponentFactory.getRequestComponent('input')
+    componentCache.set(cacheKey, defaultComponent)
+    return defaultComponent
   }
+  
+  componentCache.set(cacheKey, component)
   return component
 }
 
