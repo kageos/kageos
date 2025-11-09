@@ -31,7 +31,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import FormRenderer from '@/core/renderers/FormRenderer.vue'
+import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
 import type { FieldConfig, FunctionDetail } from '@/core/types/field'
 
 interface Props {
