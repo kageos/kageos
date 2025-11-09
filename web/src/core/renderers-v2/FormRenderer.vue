@@ -90,11 +90,11 @@
         >
           <component
             v-if="getResponseWidgetComponent(field.widget?.type || 'input')"
-            :key="`response_widget_${field.code}_${field.widget?.type || 'input'}_${responseDataStore.renderTrigger}`"
+            :key="`response_widget_${field.code}_${field.widget?.type || 'input'}_${responseDataStore?.renderTrigger || 0}`"
             :is="getResponseWidgetComponent(field.widget?.type || 'input')"
             :field="field"
-            :value="responseFieldValues[field.code]"
-            :model-value="responseFieldValues[field.code]"
+            :value="responseFieldValues[field.code] || { raw: null, display: '', meta: {} }"
+            :model-value="responseFieldValues[field.code] || { raw: null, display: '', meta: {} }"
             :field-path="field.code"
             mode="response"
           />
@@ -187,13 +187,18 @@ const responseFields = computed(() => {
 // 是否有响应数据
 // 🔥 关键：需要追踪 renderTrigger 来确保响应式更新
 const hasResponseData = computed(() => {
-  if (!responseDataStore || !responseDataStore.data) {
+  if (!responseDataStore || !responseDataStore.data || !isMounted.value) {
     return false
   }
-  // 读取 renderTrigger 作为依赖，确保数据更新时重新计算
-  const trigger = responseDataStore.renderTrigger
-  const data = responseDataStore.data.value
-  return data !== null && data !== undefined
+  try {
+    // 读取 renderTrigger 作为依赖，确保数据更新时重新计算
+    const trigger = responseDataStore.renderTrigger
+    const data = responseDataStore.data.value
+    return data !== null && data !== undefined
+  } catch (error) {
+    Logger.warn('[FormRenderer-v2]', 'hasResponseData computed 错误:', error)
+    return false
+  }
 })
 
 // 表单数据（用于 el-form 绑定）
@@ -256,36 +261,41 @@ const getResponseFieldValue = (fieldCode: string): FieldValue => {
 // 🔥 为每个响应字段创建 computed，确保响应式更新
 const responseFieldValues = computed(() => {
   // 如果组件未挂载，返回空值，避免在卸载时访问数据
-  if (!isMounted.value) {
+  if (!isMounted.value || !responseDataStore) {
     return {}
   }
   
-  const trigger = responseDataStore.renderTrigger
-  const responseData = responseDataStore.data.value
-  const values: Record<string, FieldValue> = {}
-  
-  responseFields.value.forEach(field => {
-    if (!responseData) {
+  try {
+    const trigger = responseDataStore.renderTrigger
+    const responseData = responseDataStore.data?.value
+    const values: Record<string, FieldValue> = {}
+    
+    responseFields.value.forEach(field => {
+      if (!responseData) {
+        values[field.code] = {
+          raw: null,
+          display: '',
+          meta: {}
+        }
+        return
+      }
+      
+      const rawValue = responseData[field.code]
+      
       values[field.code] = {
-        raw: null,
-        display: '',
+        raw: rawValue ?? null,
+        display: rawValue !== null && rawValue !== undefined 
+          ? (typeof rawValue === 'object' ? JSON.stringify(rawValue) : String(rawValue))
+          : '',
         meta: {}
       }
-      return
-    }
+    })
     
-    const rawValue = responseData[field.code]
-    
-    values[field.code] = {
-      raw: rawValue ?? null,
-      display: rawValue !== null && rawValue !== undefined 
-        ? (typeof rawValue === 'object' ? JSON.stringify(rawValue) : String(rawValue))
-        : '',
-      meta: {}
-    }
-  })
-  
-  return values
+    return values
+  } catch (error) {
+    Logger.warn('[FormRenderer-v2]', 'responseFieldValues computed 错误:', error)
+    return {}
+  }
 })
 
 // 缓存组件查找结果，避免重复查找和确保组件引用稳定
