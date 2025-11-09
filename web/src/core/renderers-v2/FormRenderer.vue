@@ -90,7 +90,7 @@
         >
           <component
             v-if="getResponseWidgetComponent(field.widget?.type || 'input')"
-            :key="`response_widget_${field.code}_${field.widget?.type || 'input'}`"
+            :key="`response_widget_${field.code}_${field.widget?.type || 'input'}_${responseDataStore.renderTrigger}`"
             :is="getResponseWidgetComponent(field.widget?.type || 'input')"
             :field="field"
             :value="getResponseFieldValue(field.code)"
