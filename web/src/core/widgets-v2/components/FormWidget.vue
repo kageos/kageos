@@ -256,4 +256,13 @@ function isFieldRequired(field: FieldConfig): boolean {
 :deep(.el-drawer) {
   overflow: visible !important;
 }
+
+/* 全局样式：确保下拉菜单在抽屉中正常显示 */
+:deep(.select-dropdown-popper) {
+  z-index: 3001 !important;
+}
+
+:deep(.select-dropdown-popper .el-select-dropdown) {
+  z-index: 3001 !important;
+}
 </style>
