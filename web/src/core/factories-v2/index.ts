@@ -42,7 +42,6 @@ export function initializeWidgetComponentFactory(): void {
   
   widgetComponentFactory.registerRequestComponent(WidgetType.SELECT, SelectWidget)
   widgetComponentFactory.registerRequestComponent(WidgetType.MULTI_SELECT, MultiSelectWidget)
-  widgetComponentFactory.registerRequestComponent('multiselect', MultiSelectWidget)  // 兼容小写命名
   
   widgetComponentFactory.registerRequestComponent(WidgetType.TIMESTAMP, TimestampWidget)
   
