@@ -113,6 +113,10 @@ export const useFormDataStore = defineStore('formData-v2', () => {
             rowData[itemField.code] = extractFormData(itemField, itemFieldPath)
           } else if (itemField.widget?.type === 'table') {
             rowData[itemField.code] = extractTableData(itemField, itemFieldPath)
+          } else if (itemField.widget?.type === 'multiselect' || itemField.data?.type === '[]string') {
+            // 🔥 多选类型：确保返回数组
+            const raw = itemValue.raw
+            rowData[itemField.code] = Array.isArray(raw) ? raw : (raw !== null && raw !== undefined ? [raw] : [])
           } else {
             rowData[itemField.code] = itemValue.raw
           }
@@ -134,6 +138,9 @@ export const useFormDataStore = defineStore('formData-v2', () => {
                 })
                 return nestedRowData
               })
+            } else if (itemField.widget?.type === 'multiselect' || itemField.data?.type === '[]string') {
+              // 🔥 多选类型：确保返回数组
+              rowData[itemField.code] = Array.isArray(rawValue) ? rawValue : (rawValue !== null && rawValue !== undefined ? [rawValue] : [])
             } else {
               rowData[itemField.code] = rawValue
             }
@@ -199,6 +206,10 @@ export const useFormDataStore = defineStore('formData-v2', () => {
           formData[subField.code] = extractFormData(subField, subFieldPath)
         } else if (subField.widget?.type === 'table') {
           formData[subField.code] = extractTableData(subField, subFieldPath)
+        } else if (subField.widget?.type === 'multiselect' || subField.data?.type === '[]string') {
+          // 🔥 多选类型：确保返回数组
+          const raw = subValue.raw
+          formData[subField.code] = Array.isArray(raw) ? raw : (raw !== null && raw !== undefined ? [raw] : [])
         } else {
           formData[subField.code] = subValue.raw
         }
@@ -217,6 +228,9 @@ export const useFormDataStore = defineStore('formData-v2', () => {
             })
             return nestedRowData
           })
+        } else if (subField.widget?.type === 'multiselect' || subField.data?.type === '[]string') {
+          // 🔥 多选类型：确保返回数组
+          formData[subField.code] = Array.isArray(rawValue) ? rawValue : (rawValue !== null && rawValue !== undefined ? [rawValue] : [])
         } else {
           formData[subField.code] = rawValue
         }
