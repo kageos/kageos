@@ -339,7 +339,7 @@ import { ArrowLeft, ArrowRight, Grid, InfoFilled, Folder } from '@element-plus/i
 import { ElMessage, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon } from 'element-plus'
 import ServiceTreePanel from '@/components/ServiceTreePanel.vue'
 import TableRenderer from '@/components/TableRenderer.vue'
-import FormRenderer from '@/core/renderers/FormRenderer.vue'
+import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
 import AppSwitcher from '@/components/AppSwitcher.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import { getFunctionDetail, getFunctionByPath } from '@/api/function'
