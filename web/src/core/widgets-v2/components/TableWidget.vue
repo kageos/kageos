@@ -206,22 +206,39 @@ const displayValue = computed(() => {
   return String(raw)
 })
 
-// 格式化统计值（避免循环引用）
+// 格式化统计值（避免循环引用和 computed ref）
 function formatStatisticsValue(value: any): string {
   if (value === null || value === undefined) {
     return '-'
   }
   
-  if (typeof value === 'object') {
-    try {
-      return JSON.stringify(value)
-    } catch (e) {
-      // 如果序列化失败（循环引用），返回简单描述
-      return `[对象]`
-    }
+  // 如果是 computed ref，获取其值
+  if (value && typeof value === 'object' && '__v_isRef' in value && 'value' in value) {
+    return formatStatisticsValue(value.value)
   }
   
-  return String(value)
+  // 如果是基本类型，直接返回
+  if (typeof value !== 'object') {
+    return String(value)
+  }
+  
+  // 如果是数组
+  if (Array.isArray(value)) {
+    return `[${value.length} 项]`
+  }
+  
+  // 如果是对象，尝试序列化
+  try {
+    const str = JSON.stringify(value)
+    // 如果序列化结果太长，截断
+    if (str.length > 100) {
+      return str.substring(0, 100) + '...'
+    }
+    return str
+  } catch (e) {
+    // 如果序列化失败（循环引用），返回简单描述
+    return `[对象]`
+  }
 }
 
 // 获取列宽
