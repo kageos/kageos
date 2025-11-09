@@ -23,10 +23,11 @@
           :min-width="getColumnWidth(itemField)"
         >
           <template #default="{ row, $index }">
-            <!-- 编辑状态 -->
-            <template v-if="editMode.editingIndex.value === $index">
+            <!-- 🔥 对于 form 类型字段，在编辑和显示状态下都使用简化显示 + 抽屉 -->
+            <!-- 这样可以避免表格列过宽，保持布局整洁 -->
+            <template v-if="itemField.widget?.type === 'form'">
               <component
-                :is="getWidgetComponent(itemField.widget?.type || 'input')"
+                :is="getWidgetComponent('form')"
                 :field="itemField"
                 :value="getRowFieldValue($index, itemField.code)"
                 :model-value="getRowFieldValue($index, itemField.code)"
@@ -34,21 +35,39 @@
                 :field-path="`${fieldPath}[${$index}].${itemField.code}`"
                 :form-manager="formManager"
                 :form-renderer="formRenderer"
-                mode="edit"
-                :depth="(depth || 0) + 1"
-              />
-            </template>
-            <!-- 显示状态 -->
-            <template v-else>
-              <component
-                :is="getWidgetComponent(itemField.widget?.type || 'input')"
-                :field="itemField"
-                :value="getRowFieldValue($index, itemField.code)"
-                :model-value="getRowFieldValue($index, itemField.code)"
-                :field-path="`${fieldPath}[${$index}].${itemField.code}`"
                 mode="table-cell"
                 :depth="(depth || 0) + 1"
               />
+            </template>
+            <!-- 其他类型字段：编辑状态直接编辑，显示状态简化显示 -->
+            <template v-else>
+              <!-- 编辑状态 -->
+              <template v-if="editMode.editingIndex.value === $index">
+                <component
+                  :is="getWidgetComponent(itemField.widget?.type || 'input')"
+                  :field="itemField"
+                  :value="getRowFieldValue($index, itemField.code)"
+                  :model-value="getRowFieldValue($index, itemField.code)"
+                  @update:model-value="(v) => updateRowFieldValue($index, itemField.code, v)"
+                  :field-path="`${fieldPath}[${$index}].${itemField.code}`"
+                  :form-manager="formManager"
+                  :form-renderer="formRenderer"
+                  mode="edit"
+                  :depth="(depth || 0) + 1"
+                />
+              </template>
+              <!-- 显示状态 -->
+              <template v-else>
+                <component
+                  :is="getWidgetComponent(itemField.widget?.type || 'input')"
+                  :field="itemField"
+                  :value="getRowFieldValue($index, itemField.code)"
+                  :model-value="getRowFieldValue($index, itemField.code)"
+                  :field-path="`${fieldPath}[${$index}].${itemField.code}`"
+                  mode="table-cell"
+                  :depth="(depth || 0) + 1"
+                />
+              </template>
             </template>
           </template>
         </el-table-column>
