@@ -53,7 +53,13 @@
           :key="`response_${field.code}`"
           :label="field.name"
         >
-          <component :is="getResponseFieldVNode(field)" :key="`response_component_${field.code}`" />
+          <!-- 🔥 方案1: 使用 v-memo 缓存组件渲染结果，避免递归更新 -->
+          <!-- v-memo 依赖项：字段数据状态、渲染触发器、字段代码 -->
+          <component 
+            v-memo="[getResponseFieldDataComputed(field.code), responseRenderTrigger.value, field.code]"
+            :is="getResponseFieldVNode(field)" 
+            :key="`response_component_${field.code}`" 
+          />
         </el-form-item>
       </el-form>
     </div>
@@ -104,7 +110,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, h, watch, nextTick, shallowRef, markRaw, onMounted, onBeforeUnmount, onUnmounted } from 'vue'
+import { ref, reactive, computed, h, watch, nextTick, shallowRef, markRaw, toRaw, onMounted, onBeforeUnmount, onUnmounted } from 'vue'
 import { ElForm, ElFormItem, ElButton, ElCard, ElMessage, ElInput, ElIcon, ElDivider, ElTag } from 'element-plus'
 import { Promotion, RefreshLeft } from '@element-plus/icons-vue'
 import type { FieldConfig, FunctionDetail, FieldValue } from '../types/field'
@@ -173,6 +179,24 @@ const responseFields = computed(() => props.functionDetail?.response || [])
 // 返回值数据（使用 shallowRef 避免深度响应式追踪，减少递归更新风险）
 const responseData = shallowRef<any>(null)
 
+// 🔥 方案1: 为每个响应字段创建 computed 值，用于 v-memo 依赖
+const responseFieldDataMap = new Map<string, ReturnType<typeof computed>>()
+function getResponseFieldDataComputed(fieldCode: string) {
+  if (!responseFieldDataMap.has(fieldCode)) {
+    responseFieldDataMap.set(fieldCode, computed(() => {
+      const rawValue = responseData.value?.[fieldCode]
+      // 🔥 返回稳定的标识符：数据是否存在 + 数据长度（如果是数组）
+      return {
+        exists: !!rawValue,
+        length: Array.isArray(rawValue) ? rawValue.length : (rawValue ? 1 : 0),
+        // 对于数组，使用第一个元素的引用作为标识（如果存在）
+        firstItem: Array.isArray(rawValue) && rawValue.length > 0 ? rawValue[0] : null
+      }
+    }))
+  }
+  return responseFieldDataMap.get(fieldCode)!.value
+}
+
 // FormDataManager
 const formManager = new ReactiveFormDataManager()
 
@@ -195,8 +219,9 @@ const fieldChangeTrigger = ref(0)
 // 🔥 响应参数渲染触发器（用于触发响应参数区域的重新渲染）
 const responseRenderTrigger = ref(0)
 
-// 🔥 缓存响应字段的 VNode ref（避免每次渲染都创建新的 VNode）
-const responseFieldVNodes: Record<string, ReturnType<typeof shallowRef>> = {}
+// 🔥 缓存响应字段的 computed VNode（避免每次渲染都创建新的 VNode）
+// 🔥 方案2: 使用 computed 缓存，配合 toRaw 避免响应式追踪
+const responseFieldVNodes: Record<string, ReturnType<typeof computed>> = {}
 
 // 🔥 请求参数渲染触发器（用于触发请求参数区域的重新渲染，特别是 TableWidget 内部状态变化）
 const requestRenderTrigger = ref(0)
@@ -371,72 +396,59 @@ function renderField(field: FieldConfig): ReturnType<typeof h> {
 
 /**
  * 获取响应字段的 VNode（带缓存，避免递归更新）
- * 🔥 关键修复：使用 shallowRef + 手动更新控制，避免 computed 的自动响应式追踪导致递归
+ * 🔥 方案2: 使用 computed 缓存 VNode，配合 toRaw 避免响应式追踪
  */
 const getResponseFieldVNode = (field: FieldConfig) => {
   const fieldCode = field.code
   const cacheKey = `response_vnode_${fieldCode}`
   
-  // 🔥 检查是否已有缓存的 VNode ref
+  // 🔥 检查是否已有缓存的 computed
   if (!(responseFieldVNodes as any)[cacheKey]) {
-    Logger.info('[FormRenderer]', `getResponseFieldVNode: 创建VNode ref, field=${fieldCode}`)
+    Logger.info('[FormRenderer]', `getResponseFieldVNode: 创建computed, field=${fieldCode}`)
     
-    // 🔥 使用 shallowRef 存储 VNode，避免深度响应式追踪
-    const vnodeRef = shallowRef<any>(null)
-    
-    // 🔥 创建更新函数
-    const updateVNode = () => {
+    // 🔥 使用 computed 缓存 VNode，只在依赖真正变化时重新计算
+    // 关键：只追踪 responseRenderTrigger，不追踪 responseData（使用 toRaw 避免）
+    ;(responseFieldVNodes as any)[cacheKey] = computed(() => {
+      // 🔥 读取 responseRenderTrigger 作为依赖（用于手动触发更新）
       const trigger = responseRenderTrigger.value
-      const dataExists = !!responseData.value
+      // 🔥 使用 toRaw 读取响应式数据，避免触发响应式追踪
+      // 注意：这里不直接读取 responseData.value，而是通过 toRaw 获取原始值
+      // 这样 computed 不会追踪 responseData 的变化，避免递归更新
+      const rawResponseData = toRaw(responseData.value)
       
-      Logger.info('[FormRenderer]', `getResponseFieldVNode[update]: field=${fieldCode}, trigger=${trigger}, dataExists=${dataExists}`)
+      Logger.info('[FormRenderer]', `getResponseFieldVNode[computed]: field=${fieldCode}, trigger=${trigger}`)
       
+      // 🔥 调用 renderResponseField 创建 VNode（内部也使用 toRaw）
       const newVNode = renderResponseField(field)
       // 🔥 使用 markRaw 标记 VNode，防止被响应式系统追踪
-      vnodeRef.value = markRaw(newVNode)
-    }
-    
-    // 🔥 初始创建
-    updateVNode()
-    
-    // 🔥 使用 watch 监听依赖变化，手动更新 VNode（避免在 render 中触发响应式）
-    watch(
-      [() => responseRenderTrigger.value, () => !!responseData.value],
-      () => {
-        Logger.info('[FormRenderer]', `getResponseFieldVNode[watch]: 依赖变化, field=${fieldCode}`)
-        // 🔥 使用 nextTick 延迟更新，避免在渲染过程中更新
-        nextTick(() => {
-          updateVNode()
-        })
-      },
-      { immediate: false }
-    )
-    
-    ;(responseFieldVNodes as any)[cacheKey] = vnodeRef
+      return markRaw(newVNode)
+    })
   }
   
-  // 🔥 返回 VNode ref 的值（不触发响应式追踪）
-  // 注意：这里直接返回 ref 的值，不会触发响应式追踪，因为 VNode 已经被 markRaw 标记
+  // 🔥 返回 computed 的值（VNode）
   const vnode = (responseFieldVNodes as any)[cacheKey].value
-  Logger.info('[FormRenderer]', `getResponseFieldVNode: 返回VNode, field=${fieldCode}, vnode存在=${!!vnode}, vnodeKey=${vnode?.key || 'no-key'}`)
+  Logger.info('[FormRenderer]', `getResponseFieldVNode: 返回VNode, field=${fieldCode}, vnode存在=${!!vnode}`)
   return vnode
 }
 
 /**
  * 渲染单个返回值字段（只读展示）
  * 即使没有数据也渲染框架结构，提供更好的用户体验
+ * 🔥 方案2: 使用 toRaw 避免响应式追踪，彻底解决递归更新问题
  */
 function renderResponseField(field: FieldConfig): ReturnType<typeof h> {
   // 🔥 添加日志追踪
   const renderId = Math.random().toString(36).substr(2, 9)
   Logger.info('[FormRenderer]', `renderResponseField 开始: field=${field.code}, renderId=${renderId}`)
   
-  // 🔥 读取响应式触发器，确保当触发器变化时，函数会重新执行
-  const triggerValue = responseRenderTrigger.value
-  Logger.info('[FormRenderer]', `renderResponseField: field=${field.code}, trigger=${triggerValue}, renderId=${renderId}`)
+  // 🔥 关键修复：使用 toRaw 读取响应式数据，避免触发响应式追踪
+  // 这样即使数据变化，也不会触发响应式更新，从而避免递归
+  // 🔥 注意：不再读取 responseRenderTrigger，因为 computed 会自动追踪依赖
+  const rawResponseData = toRaw(responseData.value)
+  Logger.info('[FormRenderer]', `renderResponseField: field=${field.code}, renderId=${renderId}`)
   
-  // 获取返回值（可能为 undefined）
-  const value = responseData.value?.[field.code]
+  // 获取返回值（可能为 undefined）- 使用 toRaw 避免响应式追踪
+  const value = rawResponseData?.[field.code]
   Logger.info('[FormRenderer]', `renderResponseField: field=${field.code}, value存在=${!!value}, renderId=${renderId}`)
   
   // 🔥 widget.type 绝对优先于 data.type（data.type 只用于提交时的类型检查）

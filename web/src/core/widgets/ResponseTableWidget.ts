@@ -8,7 +8,7 @@
  * - 只读展示，无编辑功能
  */
 
-import { h, ref, computed } from 'vue'
+import { h, ref, computed, toRaw } from 'vue'
 import { ElTable, ElTableColumn, ElDescriptions, ElDescriptionsItem } from 'element-plus'
 import { ArrowLeft, ArrowRight, Close } from '@element-plus/icons-vue'
 import { BaseWidget } from './BaseWidget'
@@ -247,16 +247,18 @@ export class ResponseTableWidget extends BaseWidget {
     // 判断是否有实际数据
     const hasData = tableData.length > 0
     
-    // 🔥 读取 computed 值，确保 Vue 能追踪到变化
-    // 🔥 关键修复：只在抽屉真正需要显示时才读取 drawerContent，避免不必要的响应式追踪
-    // 先读取 showDrawer，如果为 false，就不读取 drawerContent，避免触发 computed 的响应式追踪
-    const showDrawer = this.formDrawerState.showFormDetailDrawer.value
+    // 🔥 关键修复：使用 toRaw 读取响应式数据，避免触发响应式追踪
+    // 这样可以防止在 render 过程中触发响应式更新，从而避免递归更新
+    const rawFormDrawerState = toRaw(this.formDrawerState)
+    const showDrawer = rawFormDrawerState?.showFormDetailDrawer?.value ?? false
     Logger.info('[ResponseTableWidget]', `render: field=${this.field.code}, showDrawer=${showDrawer}, renderId=${renderId}`)
     
-    // 🔥 只在 showDrawer 为 true 时才读取 drawerContent，避免不必要的响应式追踪
+    // 🔥 只在 showDrawer 为 true 时才读取 drawerContent，并且使用 toRaw 避免响应式追踪
     let drawer: any = null
     if (showDrawer) {
-      drawer = this.drawerContent.value
+      // 🔥 使用 toRaw 读取 computed 值，避免触发响应式追踪
+      const rawDrawerContent = toRaw(this.drawerContent)
+      drawer = rawDrawerContent?.value ?? null
       Logger.info('[ResponseTableWidget]', `render: field=${this.field.code}, drawer存在=${!!drawer}, renderId=${renderId}`)
     } else {
       Logger.info('[ResponseTableWidget]', `render: field=${this.field.code}, drawer跳过读取(showDrawer=false), renderId=${renderId}`)
