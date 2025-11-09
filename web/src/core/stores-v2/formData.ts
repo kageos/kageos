@@ -12,7 +12,7 @@ import { defineStore } from 'pinia'
 import { reactive } from 'vue'
 import type { FieldConfig, FieldValue } from '../../types/field'
 
-export const useFormDataStore = defineStore('formData', () => {
+export const useFormDataStore = defineStore('formData-v2', () => {
   // 存储所有字段的值（field_path -> FieldValue）
   const data = reactive<Map<string, FieldValue>>(new Map())
   

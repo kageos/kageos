@@ -10,7 +10,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-export const useResponseDataStore = defineStore('responseData', () => {
+export const useResponseDataStore = defineStore('responseData-v2', () => {
   // 响应数据
   const data = ref<any>(null)
   
