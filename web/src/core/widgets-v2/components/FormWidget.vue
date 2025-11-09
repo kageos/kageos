@@ -13,18 +13,27 @@
 <template>
   <div class="form-widget">
     <!-- 编辑模式 -->
-    <el-form
+    <el-card
       v-if="mode === 'edit'"
-      :model="formData"
-      label-width="100px"
+      shadow="hover"
+      class="form-card"
     >
-      <el-form-item
-        v-for="subField in visibleSubFields"
-        :key="subField.code"
-        :label="subField.name"
-        :required="isFieldRequired(subField)"
+      <template #header>
+        <div class="form-card-header">
+          <span class="form-title">{{ field.name }}</span>
+        </div>
+      </template>
+      <el-form
+        :model="formData"
+        label-width="100px"
       >
-        <!-- 🔥 递归渲染子组件 -->
+        <el-form-item
+          v-for="subField in visibleSubFields"
+          :key="subField.code"
+          :label="subField.name"
+          :required="isFieldRequired(subField)"
+        >
+          <!-- 🔥 递归渲染子组件 -->
           <component
             :is="getWidgetComponent(subField.widget?.type || 'input')"
             :field="subField"
@@ -37,31 +46,43 @@
             :mode="mode"
             :depth="(depth || 0) + 1"
           />
-      </el-form-item>
-    </el-form>
+        </el-form-item>
+      </el-form>
+    </el-card>
     
     <!-- 响应模式（只读） -->
-    <div v-else-if="mode === 'response'" class="response-form">
-      <div
-        v-for="subField in visibleSubFields"
-        :key="subField.code"
-        class="response-field"
-      >
-        <div class="field-label">{{ subField.name }}</div>
-        <div class="field-value">
-          <!-- 🔥 递归渲染子组件 -->
-          <component
-            :is="getWidgetComponent(subField.widget?.type || 'input')"
-            :field="subField"
-            :value="getSubFieldValue(subField.code)"
-            :model-value="getSubFieldValue(subField.code)"
-            :field-path="`${fieldPath}.${subField.code}`"
-            mode="response"
-            :depth="(depth || 0) + 1"
-          />
+    <el-card
+      v-else-if="mode === 'response'"
+      shadow="never"
+      class="form-card response-form-card"
+    >
+      <template #header>
+        <div class="form-card-header">
+          <span class="form-title">{{ field.name }}</span>
+        </div>
+      </template>
+      <div class="response-form">
+        <div
+          v-for="subField in visibleSubFields"
+          :key="subField.code"
+          class="response-field"
+        >
+          <div class="field-label">{{ subField.name }}</div>
+          <div class="field-value">
+            <!-- 🔥 递归渲染子组件 -->
+            <component
+              :is="getWidgetComponent(subField.widget?.type || 'input')"
+              :field="subField"
+              :value="getSubFieldValue(subField.code)"
+              :model-value="getSubFieldValue(subField.code)"
+              :field-path="`${fieldPath}.${subField.code}`"
+              mode="response"
+              :depth="(depth || 0) + 1"
+            />
+          </div>
         </div>
       </div>
-    </div>
+    </el-card>
     
     <!-- 表格单元格模式（简化显示 + 详情抽屉） -->
     <template v-else-if="mode === 'table-cell'">
@@ -147,7 +168,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { ElForm, ElFormItem, ElButton, ElDrawer, ElIcon } from 'element-plus'
+import { ElForm, ElFormItem, ElButton, ElDrawer, ElIcon, ElCard } from 'element-plus'
 import { View } from '@element-plus/icons-vue'
 import type { WidgetComponentProps } from '../types'
 import { useFormWidget } from '../composables/useFormWidget'
@@ -198,18 +219,54 @@ function isFieldRequired(field: FieldConfig): boolean {
   width: 100%;
 }
 
+/* Form 卡片样式 */
+.form-card {
+  width: 100%;
+  margin-bottom: 20px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.form-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.form-title {
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.response-form-card {
+  background-color: var(--el-bg-color-page);
+}
+
 .response-form {
   width: 100%;
 }
 
 .response-field {
-  margin-bottom: 16px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--el-border-color-extra-light);
+}
+
+.response-field:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
 }
 
 .field-label {
   font-weight: 500;
   color: var(--el-text-color-primary);
-  margin-bottom: 4px;
+  margin-bottom: 8px;
+  font-size: 14px;
 }
 
 .field-value {

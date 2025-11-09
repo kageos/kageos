@@ -14,7 +14,12 @@
   <div class="table-widget">
     <!-- 编辑模式 -->
     <template v-if="mode === 'edit'">
-      <el-table :data="editMode.tableData.value" border>
+      <div class="table-widget-container">
+        <div class="table-widget-header">
+          <span class="table-title">{{ field.name }}</span>
+        </div>
+        <div class="table-widget-content">
+          <el-table :data="editMode.tableData.value" border>
         <el-table-column
           v-for="itemField in itemFields"
           :key="itemField.code"
@@ -101,6 +106,8 @@
         >
           <span class="statistics-label">{{ label }}:</span>
           <span class="statistics-value">{{ formatStatisticsValue(value) }}</span>
+        </div>
+      </div>
         </div>
       </div>
     </template>
