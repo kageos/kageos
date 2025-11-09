@@ -163,7 +163,7 @@ const responseFields = computed(() => {
 
 // 是否有响应数据
 const hasResponseData = computed(() => {
-  return responseDataStore.getData() !== null
+  return responseDataStore.data.value !== null
 })
 
 // 表单数据（用于 el-form 绑定）
@@ -188,7 +188,7 @@ function updateFieldValue(fieldCode: string, value: FieldValue): void {
 
 // 获取响应字段值
 function getResponseFieldValue(fieldCode: string): FieldValue {
-  const responseData = responseDataStore.getData()
+  const responseData = responseDataStore.data.value
   const rawValue = responseData?.[fieldCode]
   
   if (rawValue === null || rawValue === undefined) {
