@@ -161,7 +161,10 @@ const isMounted = ref(false)
 
 // 渲染器 key（用于强制重新渲染）
 const rendererKey = computed(() => {
-  return props.functionDetail?.id || props.functionDetail?.router || 'default'
+  if (!props.functionDetail) {
+    return 'default'
+  }
+  return String(props.functionDetail.id || props.functionDetail.router || 'default')
 })
 
 // 请求字段列表（根据条件渲染规则过滤）
@@ -181,6 +184,9 @@ const responseFields = computed(() => {
 
 // 是否有响应数据
 const hasResponseData = computed(() => {
+  if (!responseDataStore || !responseDataStore.data) {
+    return false
+  }
   return responseDataStore.data.value !== null
 })
 
