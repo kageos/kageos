@@ -212,8 +212,24 @@ function updateFieldValue(fieldCode: string, value: FieldValue): void {
 
 // 获取响应字段值
 function getResponseFieldValue(fieldCode: string): FieldValue {
+  if (!responseDataStore || !responseDataStore.data) {
+    return {
+      raw: null,
+      display: '',
+      meta: {}
+    }
+  }
+  
   const responseData = responseDataStore.data.value
-  const rawValue = responseData?.[fieldCode]
+  if (!responseData) {
+    return {
+      raw: null,
+      display: '',
+      meta: {}
+    }
+  }
+  
+  const rawValue = responseData[fieldCode]
   
   if (rawValue === null || rawValue === undefined) {
     return {
