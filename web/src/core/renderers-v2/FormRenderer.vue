@@ -399,23 +399,15 @@ async function handleSubmit(): Promise<void> {
     )
     
     // 保存返回值
-    // 🔥 注意：executeFunction 返回的 response 可能已经是处理过的数据
-    // 如果 response 有 data 字段，使用 data；否则直接使用 response
-    let newResponseData: any
-    if (response && typeof response === 'object') {
-      if ('data' in response && response.data !== undefined) {
-        newResponseData = response.data
-      } else if ('code' in response && response.code === 0 && 'data' in response) {
-        // 如果响应格式是 { code: 0, data: {...} }，提取 data
-        newResponseData = response.data
-      } else {
-        newResponseData = response
-      }
-    } else {
-      newResponseData = { result: response }
-    }
+    // 🔥 注意：request 拦截器已经提取了 data 字段，所以 response 就是 data 的内容
+    // 直接使用 response 即可
+    const newResponseData = response && typeof response === 'object' 
+      ? response 
+      : { result: response }
     
     Logger.info('[FormRenderer-v2]', '保存响应数据', newResponseData)
+    Logger.info('[FormRenderer-v2]', '响应数据类型:', typeof newResponseData, '是否为对象:', typeof newResponseData === 'object')
+    
     responseDataStore.setData(newResponseData)
     
     // 保存提交结果（用于调试）
