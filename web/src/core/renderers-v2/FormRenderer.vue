@@ -193,7 +193,8 @@ const hasResponseData = computed(() => {
   try {
     // 读取 renderTrigger 作为依赖，确保数据更新时重新计算
     const trigger = responseDataStore.renderTrigger
-    const data = responseDataStore.data.value
+    // 🔥 注意：Pinia store 返回的 ref 需要直接访问 .value
+    const data = responseDataStore.data?.value ?? responseDataStore.data
     return data !== null && data !== undefined
   } catch (error) {
     Logger.warn('[FormRenderer-v2]', 'hasResponseData computed 错误:', error)
