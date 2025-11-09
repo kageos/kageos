@@ -89,53 +89,32 @@
       >
         <template #default>
           <div class="form-detail-content">
-            <!-- 🔥 在抽屉中使用编辑模式，支持嵌套编辑 -->
-            <!-- 对于 table 类型字段，不使用 el-form-item，直接渲染 -->
+            <!-- 🔥 抽屉中使用与正常编辑模式完全一致的渲染逻辑 -->
+            <!-- 直接使用 edit 模式的渲染方式，确保逻辑一致 -->
             <el-form
               :model="formData"
               label-width="120px"
             >
-              <template v-for="subField in visibleSubFields" :key="subField.code">
-                <!-- table 类型字段：不使用 el-form-item，直接渲染 -->
-                <template v-if="subField.widget?.type === 'table'">
-                  <div class="drawer-table-field">
-                    <div class="field-label">{{ subField.name }}</div>
-                    <div class="field-content">
-                      <component
-                        :is="getWidgetComponent('table')"
-                        :field="subField"
-                        :value="getSubFieldValue(subField.code)"
-                        :model-value="getSubFieldValue(subField.code)"
-                        @update:model-value="(v) => updateSubFieldValue(subField.code, v)"
-                        :field-path="`${fieldPath}.${subField.code}`"
-                        :form-manager="formManager"
-                        :form-renderer="formRenderer"
-                        mode="edit"
-                        :depth="(depth || 0) + 1"
-                      />
-                    </div>
-                  </div>
-                </template>
-                <!-- 其他类型字段：使用 el-form-item -->
-                <el-form-item
-                  v-else
-                  :label="subField.name"
-                  :required="isFieldRequired(subField)"
-                >
-                  <component
-                    :is="getWidgetComponent(subField.widget?.type || 'input')"
-                    :field="subField"
-                    :value="getSubFieldValue(subField.code)"
-                    :model-value="getSubFieldValue(subField.code)"
-                    @update:model-value="(v) => updateSubFieldValue(subField.code, v)"
-                    :field-path="`${fieldPath}.${subField.code}`"
-                    :form-manager="formManager"
-                    :form-renderer="formRenderer"
-                    mode="edit"
-                    :depth="(depth || 0) + 1"
-                  />
-                </el-form-item>
-              </template>
+              <el-form-item
+                v-for="subField in visibleSubFields"
+                :key="subField.code"
+                :label="subField.name"
+                :required="isFieldRequired(subField)"
+              >
+                <!-- 🔥 递归渲染子组件，使用与正常编辑模式完全相同的逻辑 -->
+                <component
+                  :is="getWidgetComponent(subField.widget?.type || 'input')"
+                  :field="subField"
+                  :value="getSubFieldValue(subField.code)"
+                  :model-value="getSubFieldValue(subField.code)"
+                  @update:model-value="(v) => updateSubFieldValue(subField.code, v)"
+                  :field-path="`${fieldPath}.${subField.code}`"
+                  :form-manager="formManager"
+                  :form-renderer="formRenderer"
+                  mode="edit"
+                  :depth="(depth || 0) + 1"
+                />
+              </el-form-item>
             </el-form>
           </div>
         </template>
@@ -247,6 +226,8 @@ function isFieldRequired(field: FieldConfig): boolean {
 /* 详情抽屉内容 */
 .form-detail-content {
   padding: 16px 0;
+  /* 确保下拉菜单可以正常显示 */
+  overflow: visible;
 }
 
 .detail-field {
@@ -257,35 +238,12 @@ function isFieldRequired(field: FieldConfig): boolean {
   width: 100%;
 }
 
-/* 抽屉中的 table 字段 */
-.drawer-table-field {
-  margin-bottom: 24px;
-  padding-bottom: 24px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-  position: relative;
-  z-index: 1;
+/* 确保抽屉内的下拉菜单可以正常显示 */
+:deep(.el-select-dropdown) {
+  z-index: 3001 !important;
 }
 
-.drawer-table-field:last-child {
-  border-bottom: none;
-}
-
-.drawer-table-field .field-label {
-  font-weight: 500;
-  color: var(--el-text-color-primary);
-  margin-bottom: 12px;
-  font-size: 14px;
-}
-
-.drawer-table-field .field-content {
-  width: 100%;
-  position: relative;
-  z-index: 1;
-}
-
-/* 确保抽屉内容在正确的层级 */
-.form-detail-content {
-  position: relative;
-  z-index: 1;
+:deep(.el-popper) {
+  z-index: 3001 !important;
 }
 </style>
