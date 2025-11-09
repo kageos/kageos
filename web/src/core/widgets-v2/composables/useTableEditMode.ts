@@ -44,15 +44,25 @@ export function useTableEditMode(props: WidgetComponentProps) {
     
     // 初始化新行的所有字段为空值
     const itemFields = props.field.children || []
+    const newIndex = currentData.length
+    
     itemFields.forEach(itemField => {
       newRow[itemField.code] = null
+      
+      // 初始化 formDataStore 中的字段值
+      const fieldPath = `${props.fieldPath}[${newIndex}].${itemField.code}`
+      formDataStore.initializeField(fieldPath, {
+        raw: null,
+        display: '',
+        meta: {}
+      })
     })
     
     currentData.push(newRow)
     tableData.value = currentData
     
     // 设置编辑索引为新行的索引
-    editingIndex.value = currentData.length - 1
+    editingIndex.value = newIndex
     isAdding.value = true
   }
   
