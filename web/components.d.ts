@@ -14,6 +14,7 @@ declare module 'vue' {
   export interface GlobalComponents {
     AppSwitcher: typeof import('./src/components/AppSwitcher.vue')['default']
     ElButton: typeof import('element-plus/es')['ElButton']
+    ElCard: typeof import('element-plus/es')['ElCard']
     ElDatePicker: typeof import('element-plus/es')['ElDatePicker']
     ElDialog: typeof import('element-plus/es')['ElDialog']
     ElDrawer: typeof import('element-plus/es')['ElDrawer']
@@ -64,6 +65,7 @@ declare module 'vue' {
 declare global {
   const AppSwitcher: typeof import('./src/components/AppSwitcher.vue')['default']
   const ElButton: typeof import('element-plus/es')['ElButton']
+  const ElCard: typeof import('element-plus/es')['ElCard']
   const ElDatePicker: typeof import('element-plus/es')['ElDatePicker']
   const ElDialog: typeof import('element-plus/es')['ElDialog']
   const ElDrawer: typeof import('element-plus/es')['ElDrawer']
