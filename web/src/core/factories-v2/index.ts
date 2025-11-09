@@ -18,6 +18,7 @@ import TextAreaWidget from '../widgets-v2/components/TextAreaWidget.vue'
 import SwitchWidget from '../widgets-v2/components/SwitchWidget.vue'
 import SelectWidget from '../widgets-v2/components/SelectWidget.vue'
 import MultiSelectWidget from '../widgets-v2/components/MultiSelectWidget.vue'
+import FilesWidget from '../widgets-v2/components/FilesWidget.vue'
 import TimestampWidget from '../widgets-v2/components/TimestampWidget.vue'
 import FormWidget from '../widgets-v2/components/FormWidget.vue'
 import TableWidget from '../widgets-v2/components/TableWidget.vue'
@@ -44,6 +45,8 @@ export function initializeWidgetComponentFactory(): void {
   widgetComponentFactory.registerRequestComponent(WidgetType.MULTI_SELECT, MultiSelectWidget)
   
   widgetComponentFactory.registerRequestComponent(WidgetType.TIMESTAMP, TimestampWidget)
+  
+  widgetComponentFactory.registerRequestComponent(WidgetType.FILES, FilesWidget)
   
   // 容器组件
   widgetComponentFactory.registerRequestComponent(WidgetType.FORM, FormWidget)
