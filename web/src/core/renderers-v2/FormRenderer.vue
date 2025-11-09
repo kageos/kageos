@@ -28,6 +28,7 @@
         :error="getFieldError(field.code)"
       >
         <component
+          v-if="getWidgetComponent(field.widget?.type || 'input')"
           :is="getWidgetComponent(field.widget?.type || 'input')"
           :field="field"
           :model-value="getFieldValue(field.code)"
@@ -37,6 +38,9 @@
           :form-renderer="formRendererContext"
           mode="edit"
         />
+        <div v-else class="widget-error">
+          组件未找到: {{ field.widget?.type || 'input' }}
+        </div>
       </el-form-item>
     </el-form>
 
