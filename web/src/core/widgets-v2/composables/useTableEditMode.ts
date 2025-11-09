@@ -38,7 +38,21 @@ export function useTableEditMode(props: WidgetComponentProps) {
   
   // 开始新增
   function startAdding(): void {
-    editingIndex.value = null
+    // 先添加一个空行到表格数据
+    const currentData = [...tableData.value]
+    const newRow: Record<string, any> = {}
+    
+    // 初始化新行的所有字段为空值
+    const itemFields = props.field.children || []
+    itemFields.forEach(itemField => {
+      newRow[itemField.code] = null
+    })
+    
+    currentData.push(newRow)
+    tableData.value = currentData
+    
+    // 设置编辑索引为新行的索引
+    editingIndex.value = currentData.length - 1
     isAdding.value = true
   }
   

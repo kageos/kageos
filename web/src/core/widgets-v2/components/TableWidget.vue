@@ -272,10 +272,20 @@ function handleSave(index: number): void {
   itemFields.value.forEach(itemField => {
     const fieldPath = `${props.fieldPath}[${index}].${itemField.code}`
     const value = getRowFieldValue(index, itemField.code)
-    rowData[itemField.code] = value?.raw
+    rowData[itemField.code] = value?.raw ?? null
   })
   
   editMode.saveRow(rowData)
+  
+  // 保存后，需要同步更新 formDataStore 中的值
+  // 因为 saveRow 只更新了 tableData，但 formDataStore 中的值可能还在临时路径
+  itemFields.value.forEach(itemField => {
+    const fieldPath = `${props.fieldPath}[${index}].${itemField.code}`
+    const value = getRowFieldValue(index, itemField.code)
+    if (value) {
+      formDataStore.setValue(fieldPath, value)
+    }
+  })
 }
 
 // 删除行
