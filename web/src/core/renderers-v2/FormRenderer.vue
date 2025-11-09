@@ -10,7 +10,7 @@
 -->
 
 <template>
-  <div class="form-renderer-v2">
+  <div v-if="isMounted" class="form-renderer-v2" :key="rendererKey">
     <!-- 请求参数表单 -->
     <el-form
       v-if="requestFields.length > 0"
@@ -120,7 +120,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { ElForm, ElFormItem, ElButton, ElCard, ElMessage, ElIcon, ElTag } from 'element-plus'
 import { Promotion, RefreshLeft } from '@element-plus/icons-vue'
 import type { FieldConfig, FunctionDetail, FieldValue } from '../types/field'
@@ -155,6 +155,14 @@ const formRef = ref()
 // 提交状态
 const submitting = ref(false)
 const submitResult = ref<any>(null)
+
+// 组件挂载状态（用于控制渲染）
+const isMounted = ref(false)
+
+// 渲染器 key（用于强制重新渲染）
+const rendererKey = computed(() => {
+  return props.functionDetail?.id || props.functionDetail?.router || 'default'
+})
 
 // 请求字段列表（根据条件渲染规则过滤）
 const requestFields = computed(() => {
@@ -373,12 +381,21 @@ async function handleSubmit(): Promise<void> {
 }
 
 // 生命周期
-onMounted(() => {
+onMounted(async () => {
+  // 延迟挂载，确保 DOM 已准备好
+  await nextTick()
+  isMounted.value = true
   initializeForm()
 })
 
 onBeforeUnmount(() => {
   // 清理工作
+  isMounted.value = false
+  // 清空组件缓存（可选，如果需要的话）
+  // componentCache.clear()
+  // 清空数据
+  formDataStore.clear()
+  responseDataStore.clear()
 })
 </script>
 
