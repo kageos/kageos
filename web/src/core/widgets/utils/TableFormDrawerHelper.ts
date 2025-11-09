@@ -117,6 +117,10 @@ export type DrawerContentRenderer = (
  * - 工具类不依赖具体的 Widget 实现（如 ResponseFormWidget）
  * - 通过 renderContent 回调函数注入具体的渲染逻辑
  * - 调用者负责提供具体的渲染实现
+ * 
+ * 安全措施：
+ * - 添加 try-catch 防止渲染错误
+ * - 确保在组件卸载时能正确清理
  */
 export function renderFormDetailDrawer(
   state: FormDrawerState,
@@ -137,25 +141,37 @@ export function renderFormDetailDrawer(
     return null
   }
   
-  // 🔥 通过回调函数渲染内容，不依赖具体实现
-  const content = renderContent(field, value, `${fieldPath}.${field.code}`)
-  
-  return h(ElDrawer, {
-    modelValue: show,
-    title: field.name || '详细信息',
-    size: '50%',
-    destroyOnClose: true,
-    'onUpdate:modelValue': (val: boolean) => {
-      if (!val) {
+  try {
+    // 🔥 通过回调函数渲染内容，不依赖具体实现
+    const content = renderContent(field, value, `${fieldPath}.${field.code}`)
+    
+    // 🔥 使用 key 确保 Vue 能正确追踪和清理组件
+    // key 使用 fieldPath + field.code 确保唯一性
+    const drawerKey = `drawer-${fieldPath}-${field.code}`
+    
+    return h(ElDrawer, {
+      key: drawerKey,
+      modelValue: show,
+      title: field.name || '详细信息',
+      size: '50%',
+      destroyOnClose: true,
+      'onUpdate:modelValue': (val: boolean) => {
+        if (!val) {
+          handleCloseFormDetail(state)
+        }
+      },
+      onClose: () => {
         handleCloseFormDetail(state)
       }
-    },
-    onClose: () => {
-      handleCloseFormDetail(state)
-    }
-  }, {
-    default: () => content
-  })
+    }, {
+      default: () => content
+    })
+  } catch (error) {
+    // 🔥 如果渲染出错，关闭抽屉并记录错误
+    Logger.error(`[${widgetName}]`, '渲染抽屉内容失败', error)
+    handleCloseFormDetail(state)
+    return null
+  }
 }
 
 /**
@@ -164,6 +180,10 @@ export function renderFormDetailDrawer(
  * 遵循依赖倒置原则：
  * - 通过 renderDrawer 回调函数注入具体的渲染逻辑
  * - 工具类不依赖具体的实现
+ * 
+ * 安全措施：
+ * - 添加 try-catch 防止计算错误
+ * - 确保在组件卸载时能正确清理
  */
 export function createDrawerContentComputed(
   state: FormDrawerState,
@@ -184,7 +204,14 @@ export function createDrawerContentComputed(
       return null
     }
     
-    return renderDrawer()
+    try {
+      return renderDrawer()
+    } catch (error) {
+      // 🔥 如果渲染出错，关闭抽屉并记录错误
+      Logger.error(`[${widgetName}]`, '计算抽屉内容失败', error)
+      handleCloseFormDetail(state)
+      return null
+    }
   })
 }
 
