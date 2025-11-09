@@ -285,8 +285,8 @@ func (s *AppDiscoveryService) handleStartupNotification(message subjects.Message
 
 	// 从 message.Data 中提取启动信息
 	var data struct {
-		Status    string `json:"status"`
-		StartTime string `json:"start_time"`
+		Status    string    `json:"status"`
+		StartTime time.Time `json:"start_time"`
 	}
 
 	dataBytes, err := json.Marshal(message.Data)
@@ -300,10 +300,9 @@ func (s *AppDiscoveryService) handleStartupNotification(message subjects.Message
 		return
 	}
 
-	// 解析启动时间
-	startTime, err := time.Parse(time.RFC3339, data.StartTime)
-	if err != nil {
-		logger.Warnf(ctx, "[AppDiscoveryService] Failed to parse start_time: %v", err)
+	// 如果 StartTime 为零值，使用当前时间
+	startTime := data.StartTime
+	if startTime.IsZero() {
 		startTime = time.Now()
 	}
 
@@ -352,9 +351,9 @@ func (s *AppDiscoveryService) handleCloseNotification(message subjects.Message) 
 
 	// 从 message.Data 中提取关闭信息
 	var data struct {
-		Status    string `json:"status"`
-		StartTime string `json:"start_time"`
-		CloseTime string `json:"close_time"`
+		Status    string    `json:"status"`
+		StartTime time.Time `json:"start_time"`
+		CloseTime time.Time `json:"close_time"`
 	}
 
 	dataBytes, err := json.Marshal(message.Data)

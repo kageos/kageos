@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	_ "net/http/pprof" // 导入 pprof
 	"os"
 	"runtime"
 	"runtime/debug"
@@ -188,6 +190,16 @@ func NewApp() (*App, error) {
 	//}
 	//newApp.subs = append(newApp.subs, updateCallbackSub)
 	//logger.Infof(context.Background(), "Update callback subscription successful")
+
+	// 启动 pprof HTTP 服务器（用于性能分析）
+	// 监听在 6060 端口，可以通过 http://localhost:6060/debug/pprof/ 访问
+	go func() {
+		pprofAddr := ":6060"
+		logger.Infof(context.Background(), "Starting pprof server on %s", pprofAddr)
+		if err := http.ListenAndServe(pprofAddr, nil); err != nil {
+			logger.Warnf(context.Background(), "pprof server failed: %v", err)
+		}
+	}()
 
 	// 发送启动完成通知给 runtime
 	// 通知 runtime 新版本已经成功启动并准备好接收请求

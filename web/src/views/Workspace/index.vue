@@ -1021,6 +1021,9 @@ onUnmounted(() => {
   flex: 1;
   padding: 24px;
   overflow-y: auto;
+  overflow-x: visible;
+  position: relative;
+  z-index: 1;
 }
 
 .function-info-placeholder {

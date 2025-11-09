@@ -188,6 +188,8 @@ func (s *ServiceTreeService) convertToGetServiceTreeResp(tree *model.ServiceTree
 		ParentID:     tree.ParentID,
 		RefID:        tree.RefID,
 		Type:         tree.Type,
+		GroupCode:    tree.GroupCode,
+		GroupName:    tree.GroupName,
 		Description:  tree.Description,
 		Tags:         tree.Tags,
 		AppID:        tree.AppID,

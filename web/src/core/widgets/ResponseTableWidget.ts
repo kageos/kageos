@@ -8,21 +8,42 @@
  * - 只读展示，无编辑功能
  */
 
-import { h, ref } from 'vue'
+import { h, ref, computed } from 'vue'
 import { ElTable, ElTableColumn, ElDrawer, ElButton, ElIcon, ElDescriptions, ElDescriptionsItem } from 'element-plus'
-import { ArrowLeft, ArrowRight, Close } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight, Close, View } from '@element-plus/icons-vue'
 import { BaseWidget } from './BaseWidget'
-import type { FieldConfig } from '../types/field'
+import type { FieldConfig, FieldValue } from '../types/field'
 import { WidgetBuilder } from '../factories/WidgetBuilder'
 import { convertToFieldValue } from '../../utils/field'
+import { ResponseFormWidget } from './ResponseFormWidget'
 import { Logger } from '../utils/logger'
 
 export class ResponseTableWidget extends BaseWidget {
-  // 🔥 详情抽屉状态
+  // 🔥 详情抽屉状态（用于 ID 列点击）
   private showDetailDrawer = ref(false)
   private currentDetailRow = ref<any>(null)
   private currentDetailIndex = ref<number>(-1)
   private tableData = ref<any[]>([])
+  
+  // 🔥 Form 字段详情抽屉状态（用于表格单元格中的 form 字段）
+  private showFormDetailDrawer = ref(false)
+  private formDetailField = ref<FieldConfig | null>(null)
+  private formDetailValue = ref<FieldValue | null>(null)
+  
+  // 🔥 使用 computed 包装抽屉渲染，确保响应式更新（作为实例属性）
+  private drawerContent = computed(() => {
+    const show = this.showFormDetailDrawer.value
+    const field = this.formDetailField.value
+    const value = this.formDetailValue.value
+    
+    Logger.info('[ResponseTableWidget]', `drawerContent computed: show=${show}, field=${field?.code}`)
+    
+    if (!show || !field || !value) {
+      return null
+    }
+    
+    return this.renderFormDetailDrawer()
+  })
   /**
    * 🔥 判断是否是 ID 列
    */
@@ -111,6 +132,26 @@ export class ResponseTableWidget extends BaseWidget {
   }
 
   /**
+   * 🔥 处理 Form 字段点击（打开详情抽屉）
+   */
+  private handleFormFieldClick(field: FieldConfig, value: FieldValue): void {
+    Logger.info('[ResponseTableWidget]', `点击 Form 字段: ${field.code}`, { field, value })
+    this.formDetailField.value = field
+    this.formDetailValue.value = value
+    this.showFormDetailDrawer.value = true
+    Logger.info('[ResponseTableWidget]', `抽屉状态已更新: show=${this.showFormDetailDrawer.value}, field=${this.formDetailField.value?.code}`)
+  }
+
+  /**
+   * 🔥 关闭 Form 字段详情抽屉
+   */
+  private handleCloseFormDetail(): void {
+    this.showFormDetailDrawer.value = false
+    this.formDetailField.value = null
+    this.formDetailValue.value = null
+  }
+
+  /**
    * 🔥 渲染表格单元格（使用 Widget 的 renderTableCell 方法）
    * 与 TableRenderer 保持一致，支持复杂组件（如 files、multiselect 等）
    */
@@ -125,6 +166,47 @@ export class ResponseTableWidget extends BaseWidget {
         widget: field.widget || { type: 'input', config: {} },
         data: field.data || {}
       } as FieldConfig
+      
+      // 🔥 如果是 Form 类型，提供可点击的查看按钮
+      if (field.widget?.type === 'form') {
+        const raw = value?.raw
+        if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+          const fieldCount = Object.keys(raw).length
+          // 🔥 使用 ElButton 确保事件能正确绑定
+          return {
+            content: h(ElButton, {
+              link: true,
+              type: 'primary',
+              size: 'small',
+              style: {
+                padding: '0',
+                height: 'auto',
+                fontSize: '14px'
+              },
+              onClick: (e: MouseEvent) => {
+                e.preventDefault()
+                e.stopPropagation()
+                Logger.info('[ResponseTableWidget]', `点击事件触发: ${field.code}`)
+                this.handleFormFieldClick(field, value)
+              }
+            }, {
+              default: () => [
+                h('span', `共 ${fieldCount} 个字段`),
+                h('span', { style: { marginLeft: '4px' } }, ' '),
+                h(ElIcon, {
+                  style: { 
+                    fontSize: '14px',
+                    verticalAlign: 'middle'
+                  }
+                }, {
+                  default: () => h(View)
+                })
+              ]
+            }),
+            isString: false
+          }
+        }
+      }
       
       // 🔥 创建临时 Widget（不需要 formManager）
       const tempWidget = WidgetBuilder.createTemporary({
@@ -150,6 +232,52 @@ export class ResponseTableWidget extends BaseWidget {
       }
     }
   }
+  
+  /**
+   * 🔥 渲染 Form 字段详情抽屉
+   */
+  private renderFormDetailDrawer(): any {
+    // 🔥 读取响应式值，确保 Vue 能追踪到变化
+    const show = this.showFormDetailDrawer.value
+    const field = this.formDetailField.value
+    const value = this.formDetailValue.value
+    
+    Logger.info('[ResponseTableWidget]', `renderFormDetailDrawer 调用: show=${show}, field=${field?.code}`)
+    
+    if (!show || !field || !value) {
+      return null
+    }
+    
+    // 🔥 使用 ResponseFormWidget 渲染表单内容（只读模式）
+    const responseWidget = new ResponseFormWidget({
+      field: field,
+      currentFieldPath: `${this.fieldPath}.${field.code}`,
+      value: value,
+      onChange: () => {},
+      formManager: this.formManager,
+      formRenderer: this.formRenderer,
+      depth: this.depth + 1
+    })
+    
+    return h(ElDrawer, {
+      modelValue: show,
+      title: field.name || '详细信息',
+      size: '50%',
+      destroyOnClose: true,
+      'onUpdate:modelValue': (val: boolean) => {
+        Logger.info('[ResponseTableWidget]', `抽屉 modelValue 更新: ${val}`)
+        if (!val) {
+          this.handleCloseFormDetail()
+        }
+      },
+      onClose: () => {
+        Logger.info('[ResponseTableWidget]', '抽屉 onClose 触发')
+        this.handleCloseFormDetail()
+      }
+    }, {
+      default: () => responseWidget.render()
+    })
+  }
 
   /**
    * 渲染表格
@@ -165,41 +293,50 @@ export class ResponseTableWidget extends BaseWidget {
     // 判断是否有实际数据
     const hasData = tableData.length > 0
     
-    // 始终渲染表格（即使没有数据也显示表头结构）
-    return h(ElTable, {
-      data: tableData,
-      border: true,
-      style: { width: '100%' },
-      maxHeight: 400,
-      emptyText: hasData ? '暂无数据' : '等待数据...'
-    }, {
-      default: () => fields.map(field => 
-        h(ElTableColumn, {
-          key: field.code,
-          prop: field.code,
-          label: field.name,
-          minWidth: this.getColumnWidth(field)
-        }, {
-          default: ({ row }: { row: any }) => {
-            // 如果没有数据，不渲染单元格内容
-            if (!hasData) return '-'
-            
-            const rawValue = row[field.code]
-            
-            // 🔥 使用 Widget 的 renderTableCell 方法（支持复杂组件）
-            const cellResult = this.renderTableCell(field, rawValue)
-            
-            // 🔥 根据返回类型渲染：字符串或 VNode
-            if (cellResult.isString) {
-              return cellResult.content
-            } else {
-              // VNode 需要使用 component :is 渲染
-              return h('div', { style: 'display: inline-block; width: 100%;' }, cellResult.content)
+    // 🔥 读取 computed 值，确保 Vue 能追踪到变化
+    const drawer = this.drawerContent.value
+    
+    Logger.info('[ResponseTableWidget]', `render 调用: drawer=${!!drawer}, showDrawer=${this.showFormDetailDrawer.value}`)
+    
+    // 始终渲染表格（即使没有数据也显示表头结构），以及 Form 字段详情抽屉
+    return h('div', { style: { width: '100%' } }, [
+      h(ElTable, {
+        data: tableData,
+        border: true,
+        style: { width: '100%' },
+        maxHeight: 400,
+        emptyText: hasData ? '暂无数据' : '等待数据...'
+      }, {
+        default: () => fields.map(field => 
+          h(ElTableColumn, {
+            key: field.code,
+            prop: field.code,
+            label: field.name,
+            minWidth: this.getColumnWidth(field)
+          }, {
+            default: ({ row }: { row: any }) => {
+              // 如果没有数据，不渲染单元格内容
+              if (!hasData) return '-'
+              
+              const rawValue = row[field.code]
+              
+              // 🔥 使用 Widget 的 renderTableCell 方法（支持复杂组件）
+              const cellResult = this.renderTableCell(field, rawValue)
+              
+              // 🔥 根据返回类型渲染：字符串或 VNode
+              if (cellResult.isString) {
+                return cellResult.content
+              } else {
+                // VNode 需要使用 component :is 渲染
+                return h('div', { style: 'display: inline-block; width: 100%;' }, cellResult.content)
+              }
             }
-          }
-        })
-      )
-    })
+          })
+        )
+      }),
+      // 🔥 渲染 Form 字段详情抽屉（使用 computed 确保响应式更新）
+      drawer
+    ])
   }
 }
 

@@ -16,9 +16,9 @@
     
     <div class="tree-content">
       <el-tree
-        v-if="treeData.length > 0"
+        v-if="groupedTreeData.length > 0"
         ref="treeRef"
-        :data="treeData"
+        :data="groupedTreeData"
         :props="{ children: 'children', label: 'name' }"
         node-key="id"
         :default-expand-all="false"
@@ -28,14 +28,26 @@
       >
         <template #default="{ node, data }">
           <span class="tree-node">
-            <el-icon v-if="data.type === 'package'" class="node-icon" :class="getNodeIconClass(data)">
-              <Folder />
-            </el-icon>
-            <span v-else class="node-icon fx-icon" :class="getNodeIconClass(data)">fx</span>
-            <span class="node-label">{{ node.label }}</span>
+            <!-- 分组节点：显示分组图标和组名 -->
+            <template v-if="(data as any).isGroup">
+              <el-icon class="node-icon group-icon">
+                <FolderOpened />
+              </el-icon>
+              <span class="node-label group-label">{{ node.label }}</span>
+              <el-tag type="info" size="small" class="group-tag">组</el-tag>
+            </template>
+            <!-- 普通节点 -->
+            <template v-else>
+              <el-icon v-if="data.type === 'package'" class="node-icon" :class="getNodeIconClass(data)">
+                <Folder />
+              </el-icon>
+              <span v-else class="node-icon fx-icon" :class="getNodeIconClass(data)">fx</span>
+              <span class="node-label">{{ node.label }}</span>
+            </template>
             
-            <!-- 更多操作按钮 - 鼠标悬停时显示 -->
+            <!-- 更多操作按钮 - 鼠标悬停时显示（分组节点不显示） -->
             <el-dropdown
+              v-if="!(data as any).isGroup"
               trigger="click"
               @click.stop
               class="node-more-actions"
@@ -75,8 +87,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
-import { Folder, Plus, MoreFilled, Link } from '@element-plus/icons-vue'
+import { ref, watch, nextTick, computed } from 'vue'
+import { Folder, FolderOpened, Plus, MoreFilled, Link } from '@element-plus/icons-vue'
+import { ElTag } from 'element-plus'
 import type { ServiceTree } from '@/types'
 
 interface Props {
@@ -97,7 +110,103 @@ const emit = defineEmits<Emits>()
 // el-tree 的引用
 const treeRef = ref()
 
+/**
+ * 🔥 按组分组处理服务树数据
+ * 将相同 group_code 的函数分组显示，组名使用 group_name
+ */
+const groupedTreeData = computed(() => {
+  const processNode = (node: ServiceTree): ServiceTree => {
+    // 如果是 package 且有子节点，需要分组处理
+    if (node.type === 'package' && node.children && node.children.length > 0) {
+      // 分离函数和包
+      const functions = node.children.filter(child => child.type === 'function')
+      const packages = node.children.filter(child => child.type === 'package')
+      
+      // 按 group_code 分组函数
+      const groupedFunctions = new Map<string, ServiceTree[]>()
+      const ungroupedFunctions: ServiceTree[] = []
+      
+      functions.forEach(func => {
+        if (func.group_code && func.group_code.trim() !== '') {
+          if (!groupedFunctions.has(func.group_code)) {
+            groupedFunctions.set(func.group_code, [])
+          }
+          groupedFunctions.get(func.group_code)!.push(func)
+        } else {
+          ungroupedFunctions.push(func)
+        }
+      })
+      
+      // 构建新的 children 数组
+      const newChildren: ServiceTree[] = []
+      
+      // 1. 先添加包（保持原有顺序）
+      packages.forEach(pkg => {
+        newChildren.push(processNode(pkg))
+      })
+      
+      // 2. 添加分组后的函数
+      groupedFunctions.forEach((funcs, groupCode) => {
+        // 获取组名（使用第一个函数的 group_name）
+        const groupName = funcs[0]?.group_name || groupCode
+        
+        // 创建分组节点（虚拟节点，用于展示组名）
+        // 生成唯一的负数 ID（避免与真实节点冲突）
+        // 使用简单的字符串哈希算法生成稳定的 ID
+        let hash = 0
+        for (let i = 0; i < groupCode.length; i++) {
+          const char = groupCode.charCodeAt(i)
+          hash = ((hash << 5) - hash) + char
+          hash = hash & hash // 转换为 32 位整数
+        }
+        const groupId = -Math.abs(hash || Date.now())
+        
+        const groupNode: ServiceTree = {
+          id: groupId,
+          name: groupName,
+          code: `__group__${groupCode}`,
+          parent_id: node.id,
+          type: 'package', // 使用 package 类型以便显示文件夹图标
+          description: '',
+          tags: '',
+          app_id: node.app_id,
+          ref_id: 0,
+          full_code_path: `${node.full_code_path}/__group__${groupCode}`,
+          group_code: groupCode,
+          group_name: groupName,
+          created_at: '',
+          updated_at: '',
+          children: funcs.map(func => processNode(func)),
+          // 标记为分组节点
+          isGroup: true
+        } as ServiceTree & { isGroup?: boolean }
+        
+        newChildren.push(groupNode)
+      })
+      
+      // 3. 添加未分组的函数
+      ungroupedFunctions.forEach(func => {
+        newChildren.push(processNode(func))
+      })
+      
+      return {
+        ...node,
+        children: newChildren
+      }
+    }
+    
+    // 如果是函数或没有子节点，直接返回
+    return node
+  }
+  
+  return props.treeData.map(node => processNode(node))
+})
+
 const handleNodeClick = (data: ServiceTree) => {
+  // 🔥 分组节点不可点击（只是用于展示分组）
+  if ((data as any).isGroup) {
+    return
+  }
   emit('node-click', data)
 }
 
@@ -126,6 +235,18 @@ const findPathToNode = (nodes: ServiceTree[], targetId: number | string): number
   
   const findNode = (nodes: ServiceTree[], targetId: number): boolean => {
     for (const node of nodes) {
+      // 🔥 跳过分组节点（分组节点是虚拟节点）
+      if ((node as any).isGroup) {
+        // 在分组节点的子节点中查找
+        if (node.children && node.children.length > 0) {
+          if (findNode(node.children, targetId)) {
+            path.push(Number(node.id)) // 包含分组节点到路径中
+            return true
+          }
+        }
+        continue
+      }
+      
       const nodeIdNum = Number(node.id)
       path.push(nodeIdNum)
       
@@ -164,12 +285,12 @@ const expandParentNodes = (path: number[]) => {
 
 // 监听 currentNodeId 变化，自动展开并选中节点
 watch(() => props.currentNodeId, (nodeId) => {
-  if (nodeId && treeRef.value && props.treeData.length > 0) {
+  if (nodeId && treeRef.value && groupedTreeData.value.length > 0) {
     // 🔥 使用 nextTick 确保 DOM 已渲染
     nextTick(() => {
       console.log('[ServiceTreePanel] 定位到节点:', nodeId)
-      // 查找路径
-      const path = findPathToNode(props.treeData, nodeId)
+      // 查找路径（使用分组后的数据）
+      const path = findPathToNode(groupedTreeData.value, nodeId)
       console.log('[ServiceTreePanel] 节点路径:', path)
       
       if (path.length > 0) {
@@ -199,7 +320,7 @@ watch(() => props.currentNodeId, (nodeId) => {
 }, { immediate: true })
 
 // 🔥 监听服务树数据变化，如果 currentNodeId 存在但还没展开，重新尝试
-watch(() => props.treeData, (newTreeData) => {
+watch(() => groupedTreeData.value, (newTreeData) => {
   if (newTreeData.length > 0 && props.currentNodeId) {
     nextTick(() => {
       const path = findPathToNode(newTreeData, props.currentNodeId)
@@ -301,6 +422,21 @@ watch(() => props.treeData, (newTreeData) => {
       color: #6366f1;
       opacity: 0.8;
     }
+    
+    &.group-icon {
+      color: #909399;
+      opacity: 0.9;
+    }
+  }
+  
+  .group-label {
+    font-weight: 500;
+    color: var(--el-text-color-regular);
+  }
+  
+  .group-tag {
+    margin-left: 8px;
+    font-size: 11px;
   }
   
   .node-label {

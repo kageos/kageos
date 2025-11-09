@@ -41,6 +41,7 @@
       :data="tableData"
       border
       style="width: 100%"
+      class="table-with-fixed-column"
       @sort-change="handleSortChange"
     >
       <!-- 🔥 控制中心列（ID列改造） -->
@@ -101,28 +102,31 @@
         label="操作" 
         fixed="right" 
         :width="getActionColumnWidth()"
+        class-name="action-column"
       >
         <template #default="{ row }">
-          <el-button 
-            v-if="hasUpdateCallback"
-            link 
-            type="primary" 
-            size="small"
-            @click="handleEdit(row)"
-          >
-            <el-icon><Edit /></el-icon>
-            编辑
-          </el-button>
-          <el-button 
-            v-if="hasDeleteCallback"
-            link 
-            type="danger" 
-            size="small"
-            @click="handleDelete(row)"
-          >
-            <el-icon><Delete /></el-icon>
-            删除
-          </el-button>
+          <div class="action-buttons">
+            <el-button 
+              v-if="hasUpdateCallback"
+              link 
+              type="primary" 
+              size="small"
+              @click.stop="handleEdit(row)"
+            >
+              <el-icon><Edit /></el-icon>
+              编辑
+            </el-button>
+            <el-button 
+              v-if="hasDeleteCallback"
+              link 
+              type="danger" 
+              size="small"
+              @click.stop="handleDelete(row)"
+            >
+              <el-icon><Delete /></el-icon>
+              删除
+            </el-button>
+          </div>
         </template>
       </el-table-column>
     </el-table>
@@ -242,7 +246,7 @@
  * - 记录导航（上一个/下一个）
  */
 
-import { computed, ref, watch, h } from 'vue'
+import { computed, ref, watch, h, nextTick, onMounted, onUpdated } from 'vue'
 import { Search, Refresh, Edit, Delete, Plus, ArrowLeft, ArrowRight, DocumentCopy, Document, Download } from '@element-plus/icons-vue'
 import { ElIcon, ElButton, ElMessage } from 'element-plus'
 import { formatTimestamp } from '@/utils/date'
@@ -632,12 +636,54 @@ watch(() => props.functionData, () => {
   currentPage.value = 1
   loadTableData()
 }, { immediate: true })
+
+// ==================== 修复 fixed 列按钮点击问题 ====================
+
+/**
+ * 修复 fixed 列按钮在窗口缩小时无法点击的问题
+ * 通过强制设置 fixed 列的 pointer-events 和 z-index
+ */
+const fixFixedColumnClick = () => {
+  nextTick(() => {
+    // 查找所有 fixed 列的操作按钮
+    const fixedRight = document.querySelector('.el-table__fixed-right')
+    if (fixedRight) {
+      // 强制设置样式
+      const fixedElement = fixedRight as HTMLElement
+      fixedElement.style.zIndex = '2000'
+      fixedElement.style.pointerEvents = 'auto'
+      
+      // 确保所有按钮可点击
+      const buttons = fixedElement.querySelectorAll('.el-button')
+      buttons.forEach(btn => {
+        const button = btn as HTMLElement
+        button.style.pointerEvents = 'auto'
+        button.style.zIndex = '2005'
+        button.style.position = 'relative'
+        button.style.cursor = 'pointer'
+      })
+    }
+  })
+}
+
+onMounted(() => {
+  fixFixedColumnClick()
+  // 监听窗口大小变化
+  window.addEventListener('resize', fixFixedColumnClick)
+})
+
+onUpdated(() => {
+  fixFixedColumnClick()
+})
 </script>
 
 <style scoped>
 .table-renderer {
   padding: 20px;
   background: var(--el-bg-color);
+  position: relative;
+  z-index: 1;
+  overflow: visible;
 }
 
 .toolbar {
@@ -700,6 +746,148 @@ watch(() => props.functionData, () => {
 
 :deep(.el-button.is-link.el-button--danger:hover) {
   color: var(--el-color-danger) !important;
+}
+
+/* 🔥 操作列样式 - 修复 fixed 列按钮点击问题 */
+:deep(.action-column) {
+  position: relative;
+  z-index: 10;
+}
+
+:deep(.action-column .cell) {
+  position: relative;
+  z-index: 10;
+  pointer-events: auto;
+}
+
+.action-buttons {
+  position: relative;
+  z-index: 11;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  pointer-events: auto;
+}
+
+/* 确保 fixed 列的操作按钮可以点击 */
+/* 修复非全屏模式下按钮无法点击的问题 */
+.table-with-fixed-column {
+  position: relative;
+}
+
+/* 关键修复：确保 fixed 列及其所有子元素都在最上层且可点击 */
+:deep(.el-table__fixed-right) {
+  z-index: 2000 !important;
+  pointer-events: auto !important;
+}
+
+:deep(.el-table__fixed-right *) {
+  pointer-events: auto !important;
+}
+
+/* fixed 列的所有 wrapper 和容器 */
+:deep(.el-table__fixed-right-patch) {
+  z-index: 1999 !important;
+  pointer-events: none !important; /* 补丁层不拦截事件 */
+}
+
+:deep(.el-table__fixed-right .el-table__fixed-body-wrapper) {
+  z-index: 2001 !important;
+  pointer-events: auto !important;
+}
+
+:deep(.el-table__fixed-right .el-table__fixed-header-wrapper) {
+  z-index: 2001 !important;
+  pointer-events: auto !important;
+}
+
+/* 操作列及其内容 */
+:deep(.el-table__fixed-right .action-column) {
+  z-index: 2002 !important;
+  pointer-events: auto !important;
+}
+
+:deep(.el-table__fixed-right .action-column .cell) {
+  position: relative !important;
+  z-index: 2003 !important;
+  pointer-events: auto !important;
+}
+
+.action-buttons {
+  position: relative !important;
+  z-index: 2004 !important;
+  pointer-events: auto !important;
+}
+
+:deep(.el-table__fixed-right .action-buttons) {
+  z-index: 2004 !important;
+  pointer-events: auto !important;
+}
+
+:deep(.el-table__fixed-right .action-buttons .el-button) {
+  position: relative !important;
+  z-index: 2005 !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
+
+/* 关键：确保表格主体内容不会遮挡 fixed 列 */
+:deep(.el-table__body-wrapper) {
+  z-index: 1 !important;
+  position: relative;
+  pointer-events: auto !important;
+  /* 确保主体内容不会覆盖 fixed 列区域 */
+  overflow: visible !important;
+}
+
+:deep(.el-table__body) {
+  z-index: 1 !important;
+}
+
+/* 表格主体单元格 - 确保它们不会覆盖 fixed 列 */
+:deep(.el-table__body-wrapper .el-table__body tr) {
+  position: relative;
+  z-index: 1 !important;
+}
+
+:deep(.el-table__body-wrapper .el-table__body tr td) {
+  position: relative;
+  z-index: 1 !important;
+}
+
+/* 关键修复：当窗口缩小时，确保 fixed 列区域的表格主体单元格不拦截点击 */
+:deep(.el-table__body-wrapper) {
+  /* 在 fixed 列区域，让点击事件穿透 */
+  clip-path: none !important;
+}
+
+/* 确保表格整体容器不会遮挡 */
+:deep(.el-table) {
+  position: relative;
+  z-index: 1;
+  overflow: visible !important;
+}
+
+:deep(.el-table__inner-wrapper) {
+  position: relative;
+  z-index: 1;
+  overflow: visible !important;
+}
+
+/* 确保滚动条不会遮挡 */
+:deep(.el-scrollbar) {
+  z-index: 1 !important;
+}
+
+:deep(.el-scrollbar__wrap) {
+  z-index: 1 !important;
+}
+
+/* 移除 fixed 列的遮罩层（如果有） */
+:deep(.el-table__fixed-right::before),
+:deep(.el-table__fixed-right::after) {
+  display: none !important;
+  pointer-events: none !important;
 }
 
 /* 🔥 详情抽屉样式 - 参考旧版本设计 */

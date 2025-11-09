@@ -13,6 +13,10 @@ type Files struct {
 	Metadata   map[string]interface{} `json:"metadata"`
 }
 
+func (f *Files) GetFiles() []*File {
+	return f.Files
+}
+
 type File struct {
 	Name        string `json:"name"`
 	SourceName  string `json:"source_name"` //源文件名称
