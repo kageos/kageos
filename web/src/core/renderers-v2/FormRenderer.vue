@@ -269,7 +269,8 @@ const responseFieldValues = computed(() => {
   try {
     // 🔥 关键：必须读取 renderTrigger 作为依赖，确保数据更新时重新计算
     const trigger = responseDataStore.renderTrigger
-    const responseData = responseDataStore.data?.value
+    // 🔥 注意：Pinia store 返回的 ref 需要直接访问 .value
+    const responseData = responseDataStore.data?.value ?? responseDataStore.data
     
     Logger.debug('[FormRenderer-v2]', `responseFieldValues computed: trigger=${trigger}, hasData=${!!responseData}`)
     
