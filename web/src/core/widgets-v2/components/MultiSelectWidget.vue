@@ -22,6 +22,7 @@
       :loading="loading"
       :placeholder="placeholder"
       :multiple-limit="maxCount"
+      teleported
       :popper-options="{
         strategy: 'fixed',
         modifiers: [
@@ -30,6 +31,12 @@
             options: {
               adaptive: false,
               roundOffsets: false
+            }
+          },
+          {
+            name: 'offset',
+            options: {
+              offset: [0, 4]
             }
           }
         ]
