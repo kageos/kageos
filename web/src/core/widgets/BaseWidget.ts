@@ -9,6 +9,7 @@ import type { ReactiveFormDataManager } from '../managers/ReactiveFormDataManage
 import type { ValidationResult } from '../validation/types'
 import type { ValidationEngine } from '../validation/ValidationEngine'
 import { Logger } from '../utils/logger'
+import { DataType, WidgetType } from '../constants/widget'
 
 /**
  * Widget 快照接口
@@ -31,8 +32,14 @@ export abstract class BaseWidget implements IWidgetSnapshot {
   protected depth: number
   protected onChange: (newValue: FieldValue) => void
 
-  // 最大嵌套深度
+  // 最大嵌套深度（软限制：超过此深度会警告，但不会阻止渲染）
   protected static readonly MAX_DEPTH = 10
+  
+  // 深度警告阈值（超过此深度会显示警告，但继续渲染）
+  protected static readonly DEPTH_WARNING_THRESHOLD = 5
+  
+  // 深度降级阈值（超过此深度会使用降级渲染方案）
+  protected static readonly DEPTH_FALLBACK_THRESHOLD = 8
 
   /**
    * ✅ 辅助属性：是否是临时 Widget
@@ -40,6 +47,21 @@ export abstract class BaseWidget implements IWidgetSnapshot {
    */
   protected get isTemporary(): boolean {
     return this.formManager === null
+  }
+  
+  /**
+   * ✅ 辅助属性：是否应该使用降级渲染
+   * 当深度超过 DEPTH_FALLBACK_THRESHOLD 时，使用简化的渲染方案
+   */
+  protected get shouldUseFallback(): boolean {
+    return this.depth >= BaseWidget.DEPTH_FALLBACK_THRESHOLD
+  }
+  
+  /**
+   * ✅ 辅助属性：是否应该显示深度警告
+   */
+  protected get shouldShowDepthWarning(): boolean {
+    return this.depth >= BaseWidget.DEPTH_WARNING_THRESHOLD && this.depth < BaseWidget.DEPTH_FALLBACK_THRESHOLD
   }
 
   /**
@@ -126,6 +148,149 @@ export abstract class BaseWidget implements IWidgetSnapshot {
   }
 
   /**
+   * 🔥 根据字段类型转换默认值（组件自身的方法，符合依赖倒置原则）
+   * 
+   * 注意：类型定义必须与后端保持一致（参考 sdk/agent-app/widget/widget.go）
+   * 后端定义的数据类型：
+   * - "string"
+   * - "int"
+   * - "bool"
+   * - "[]string"
+   * - "[]int"
+   * - "[]float"
+   * - "timestamp"
+   * - "float"
+   * - "files"
+   * - "struct"
+   * - "[]struct"
+   * 
+   * @param defaultValue 原始默认值（可能来自 widget.config.default）
+   * @param fieldType 字段类型（field.data.type）
+   * @returns 转换后的默认值
+   */
+  static convertDefaultValueByType(defaultValue: any, fieldType: string): any {
+    // 空值处理
+    if (defaultValue === null || defaultValue === undefined || defaultValue === '') {
+      return defaultValue
+    }
+
+    const type = fieldType?.toLowerCase() || DataType.STRING
+
+    switch (type) {
+      case DataType.INT.toLowerCase():
+        // 字符串数字转换为整数
+        if (typeof defaultValue === 'string') {
+          const numValue = Number(defaultValue)
+          return isNaN(numValue) ? defaultValue : Math.floor(numValue)
+        }
+        // 已经是数字类型，转换为整数
+        if (typeof defaultValue === 'number') {
+          return Math.floor(defaultValue)
+        }
+        // 其他类型尝试转换
+        const intValue = Number(defaultValue)
+        return isNaN(intValue) ? defaultValue : Math.floor(intValue)
+
+      case DataType.FLOAT.toLowerCase():
+        // 字符串数字转换为浮点数
+        if (typeof defaultValue === 'string') {
+          const numValue = Number(defaultValue)
+          return isNaN(numValue) ? defaultValue : numValue
+        }
+        // 已经是数字类型，直接返回
+        if (typeof defaultValue === 'number') {
+          return defaultValue
+        }
+        // 其他类型尝试转换
+        const floatValue = Number(defaultValue)
+        return isNaN(floatValue) ? defaultValue : floatValue
+
+      case DataType.BOOL.toLowerCase():
+        // 字符串布尔值转换
+        if (typeof defaultValue === 'string') {
+          const lower = defaultValue.toLowerCase()
+          return lower === 'true' || lower === '1' || lower === 'yes'
+        }
+        // 已经是布尔类型，直接返回
+        if (typeof defaultValue === 'boolean') {
+          return defaultValue
+        }
+        // 其他类型转换为布尔值
+        return Boolean(defaultValue)
+
+      case DataType.STRINGS.toLowerCase():
+      case DataType.INTS.toLowerCase():
+      case DataType.FLOATS.toLowerCase():
+      case DataType.STRUCTS.toLowerCase():
+        // 确保是数组类型
+        if (Array.isArray(defaultValue)) {
+          return defaultValue
+        }
+        // 字符串尝试解析为数组
+        if (typeof defaultValue === 'string') {
+          try {
+            const parsed = JSON.parse(defaultValue)
+            return Array.isArray(parsed) ? parsed : [defaultValue]
+          } catch {
+            return [defaultValue]
+          }
+        }
+        return defaultValue
+
+      case DataType.STRUCT.toLowerCase():
+        // 确保是对象类型
+        if (typeof defaultValue === 'object' && !Array.isArray(defaultValue)) {
+          return defaultValue
+        }
+        // 字符串尝试解析为对象
+        if (typeof defaultValue === 'string') {
+          try {
+            const parsed = JSON.parse(defaultValue)
+            return typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+          } catch {
+            return {}
+          }
+        }
+        return defaultValue
+
+      case DataType.TIMESTAMP.toLowerCase():
+        // 时间戳类型：字符串数字转换为数字
+        if (typeof defaultValue === 'string') {
+          const numValue = Number(defaultValue)
+          return isNaN(numValue) ? defaultValue : numValue
+        }
+        // 已经是数字类型，直接返回
+        if (typeof defaultValue === 'number') {
+          return defaultValue
+        }
+        return defaultValue
+
+      case DataType.FILES.toLowerCase():
+        // 文件类型：空值返回 null，有值则保持原样或转换为数组
+        if (defaultValue === null || defaultValue === undefined || defaultValue === '') {
+          return null
+        }
+        if (Array.isArray(defaultValue)) {
+          return defaultValue
+        }
+        if (typeof defaultValue === 'string') {
+          try {
+            const parsed = JSON.parse(defaultValue)
+            return Array.isArray(parsed) ? parsed : null
+          } catch {
+            return null
+          }
+        }
+        return defaultValue
+
+      case DataType.STRING.toLowerCase():
+      default:
+        // 字符串类型：转换为字符串
+        return String(defaultValue)
+    }
+  }
+
+  /**
    * 获取字段的默认值
    * 每个 Widget 子类可以重写此方法来提供自定义的默认值逻辑
    * 
@@ -138,46 +303,58 @@ export abstract class BaseWidget implements IWidgetSnapshot {
     if (config && typeof config === 'object' && 'default' in config) {
       const defaultValue = (config as Record<string, any>).default
       if (defaultValue !== undefined && defaultValue !== '') {
+        // 🔥 根据字段类型转换默认值（组件自身的方法，符合依赖倒置原则）
+        const fieldType = field.data?.type || DataType.STRING
+        const convertedValue = this.convertDefaultValueByType(defaultValue, fieldType)
+        
         return {
-          raw: defaultValue,
-          display: String(defaultValue),
+          raw: convertedValue,
+          display: String(convertedValue),
           meta: {}
         }
       }
     }
 
-    // 2. 根据字段类型设置默认值
-    const fieldType = field.data?.type || 'string'
+    // 2. 根据字段类型设置默认值（必须与后端定义一致）
+    const fieldType = field.data?.type || DataType.STRING
     
     switch (fieldType.toLowerCase()) {
-      case 'int':
-      case 'float':
-      case 'number':
+      case DataType.INT.toLowerCase():
+      case DataType.FLOAT.toLowerCase():
+      case DataType.TIMESTAMP.toLowerCase():
         return {
           raw: undefined,
           display: '',
           meta: {}
         }
-      case 'bool':
-      case 'boolean':
+      case DataType.BOOL.toLowerCase():
         return {
           raw: false,
           display: '否',
           meta: {}
         }
-      case 'array':
-      case '[]struct':
+      case DataType.STRINGS.toLowerCase():
+      case DataType.INTS.toLowerCase():
+      case DataType.FLOATS.toLowerCase():
+      case DataType.STRUCTS.toLowerCase():
         return {
           raw: [],
           display: '[]',
           meta: {}
         }
-      case 'struct':
+      case DataType.STRUCT.toLowerCase():
         return {
           raw: {},
           display: '{}',
           meta: {}
         }
+      case DataType.FILES.toLowerCase():
+        return {
+          raw: null,
+          display: '',
+          meta: {}
+        }
+      case DataType.STRING.toLowerCase():
       default:
         return {
           raw: '',
@@ -229,10 +406,12 @@ export abstract class BaseWidget implements IWidgetSnapshot {
     this.depth = props.depth || 0
     this.onChange = props.onChange
 
-    // 深度检查
+    // 深度检查（软限制：警告但不阻止）
     if (this.depth > BaseWidget.MAX_DEPTH) {
-      Logger.error('BaseWidget', `嵌套深度超过限制: ${this.depth}，字段: ${this.fieldPath}`)
-      throw new Error(`最大嵌套深度为 ${BaseWidget.MAX_DEPTH}`)
+      Logger.warn('BaseWidget', `嵌套深度超过建议限制: ${this.depth}（建议不超过 ${BaseWidget.MAX_DEPTH}），字段: ${this.fieldPath}`)
+      // 🔥 不再抛出错误，允许继续渲染，但会使用降级方案
+    } else if (this.depth >= BaseWidget.DEPTH_WARNING_THRESHOLD) {
+      Logger.warn('BaseWidget', `嵌套深度较深: ${this.depth}，字段: ${this.fieldPath}，可能影响性能`)
     }
   }
 
@@ -277,6 +456,9 @@ export abstract class BaseWidget implements IWidgetSnapshot {
 
   /**
    * 根据字段类型转换值
+   * 
+   * 注意：data.type 的判断必须与后端定义一致（参考 sdk/agent-app/widget/widget.go）
+   * widget.type 是组件类型，可以保留一些兼容性判断
    */
   protected convertValueByType(value: any): any {
     // 🔥 空值统一返回 null（后端可以正确处理 null，但不能处理空字符串转数字）
@@ -284,28 +466,74 @@ export abstract class BaseWidget implements IWidgetSnapshot {
       return null
     }
     
-    // 🔥 获取字段类型：优先使用 data.type，如果为空则使用 widget.type
+    // 🔥 获取字段类型：优先使用 data.type（数据类型），如果为空则使用 widget.type（组件类型）
     let fieldType = this.field.data?.type || ''
-    if (!fieldType || fieldType.trim() === '') {
-      fieldType = this.field.widget?.type || 'string'
+    const isDataType = !!fieldType && fieldType.trim() !== ''
+    
+    if (!isDataType) {
+      fieldType = this.field.widget?.type || DataType.STRING
     }
     
-    // 根据类型转换
-    switch (fieldType.toLowerCase()) {
-      case 'int':
-      case 'integer':
-      case 'number':  // 🔥 widget.type 可能是 'number'
+    const type = fieldType.toLowerCase()
+    
+    // 如果是 data.type，只使用后端定义的类型
+    if (isDataType) {
+      switch (type) {
+        case DataType.INT.toLowerCase():
+          const intValue = Number(value)
+          return isNaN(intValue) ? null : Math.floor(intValue)
+        
+        case DataType.FLOAT.toLowerCase():
+          const floatValue = Number(value)
+          return isNaN(floatValue) ? null : floatValue
+        
+        case DataType.BOOL.toLowerCase():
+          if (typeof value === 'boolean') return value
+          if (typeof value === 'string') {
+            const lower = value.toLowerCase()
+            return lower === 'true' || lower === '1' || lower === 'yes'
+          }
+          return Boolean(value)
+        
+        case DataType.TIMESTAMP.toLowerCase():
+          const timestampValue = Number(value)
+          return isNaN(timestampValue) ? null : timestampValue
+        
+        case DataType.STRINGS.toLowerCase():
+        case DataType.INTS.toLowerCase():
+        case DataType.FLOATS.toLowerCase():
+        case DataType.STRUCTS.toLowerCase():
+          return Array.isArray(value) ? value : null
+        
+        case DataType.STRUCT.toLowerCase():
+          return typeof value === 'object' && !Array.isArray(value) ? value : null
+        
+        case DataType.FILES.toLowerCase():
+          // files 类型：空值返回 null，有值则返回数组
+          if (value === null || value === undefined || value === '') {
+            return null
+          }
+          return Array.isArray(value) ? value : null
+        
+        case DataType.STRING.toLowerCase():
+        default:
+          return value ? String(value) : null
+      }
+    }
+    
+    // 如果是 widget.type，保留一些兼容性判断（组件类型）
+    switch (type) {
+      case DataType.INT.toLowerCase():
+      case WidgetType.NUMBER.toLowerCase():  // widget.type 可能是 'number'
         const intValue = Number(value)
-        return isNaN(intValue) ? null : intValue  // 🔥 转换失败返回 null
+        return isNaN(intValue) ? null : Math.floor(intValue)
       
-      case 'float':
-      case 'double':
+      case DataType.FLOAT.toLowerCase():
         const floatValue = Number(value)
-        return isNaN(floatValue) ? null : floatValue  // 🔥 转换失败返回 null
+        return isNaN(floatValue) ? null : floatValue
       
-      case 'bool':
-      case 'boolean':
-      case 'switch':  // 🔥 widget.type 可能是 'switch'
+      case DataType.BOOL.toLowerCase():
+      case WidgetType.SWITCH.toLowerCase():  // widget.type 可能是 'switch'
         if (typeof value === 'boolean') return value
         if (typeof value === 'string') {
           const lower = value.toLowerCase()
@@ -313,11 +541,11 @@ export abstract class BaseWidget implements IWidgetSnapshot {
         }
         return Boolean(value)
       
-      case 'string':
-      case 'input':  // 🔥 widget.type 可能是 'input'
-      case 'text':
-      case 'textarea':
-      case 'text_area':
+      case DataType.STRING.toLowerCase():
+      case WidgetType.INPUT.toLowerCase():  // widget.type 可能是 'input'
+      case WidgetType.TEXT.toLowerCase():
+      case 'textarea':  // 兼容旧命名
+      case WidgetType.TEXT_AREA.toLowerCase():
       default:
         // 🔥 字符串类型：空值返回 null，有值返回字符串
         return value ? String(value) : null
@@ -388,6 +616,26 @@ export abstract class BaseWidget implements IWidgetSnapshot {
   renderTableCell(value?: FieldValue): any {
     // 默认实现：使用统一的格式化方法
     return this.formatValueForDisplay(value)
+  }
+
+  /**
+   * 🔥 检查组件是否有子节点（用于判断是否需要递归渲染）
+   * 
+   * 设计原则：
+   * - 遵循依赖倒置原则：由组件自己声明是否有子节点
+   * - 组件自治：每个 Widget 自己决定是否有子节点
+   * - 默认实现：检查 field.children 是否存在且不为空
+   * 
+   * 使用场景：
+   * - 判断是否需要递归渲染子组件
+   * - 判断组件类型（容器组件 vs 基础组件）
+   * 
+   * @returns 是否有子节点
+   */
+  hasChildren(): boolean {
+    // 默认实现：检查 field.children 是否存在且不为空
+    const children = this.field.children || []
+    return children.length > 0
   }
 
   /**

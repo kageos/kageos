@@ -249,17 +249,19 @@ func (a *App) getApis() (apis []*model.ApiInfo, createTables []interface{}, err 
 		}
 		base := info.Template.GetBaseConfig()
 		api := &model.ApiInfo{
-			Code:           info.getCode(),
-			Name:           base.Name,
-			Desc:           base.Desc,
-			Tags:           base.Tags,
-			Router:         info.Router,
-			Method:         info.Method,
-			User:           env.User,
-			App:            env.App,
-			FullCodePath:   fmt.Sprintf("/%s/%s/%s", env.User, env.App, strings.Trim(info.Router, "/")),
-			AddedVersion:   "",         // 不预设版本，让diff逻辑来正确设置
-			UpdateVersions: []string{}, // 初始化空的更新版本列表
+			Code:              info.getCode(),
+			Name:              base.Name,
+			Desc:              base.Desc,
+			Tags:              base.Tags,
+			Router:            info.Router,
+			Method:            info.Method,
+			FunctionGroupCode: base.FunctionGroup.Code,
+			FunctionGroupName: base.FunctionGroup.Name,
+			User:              env.User,
+			App:               env.App,
+			FullCodePath:      fmt.Sprintf("/%s/%s/%s", env.User, env.App, strings.Trim(info.Router, "/")),
+			AddedVersion:      "",         // 不预设版本，让diff逻辑来正确设置
+			UpdateVersions:    []string{}, // 初始化空的更新版本列表
 		}
 		fieldsCallback := make(map[string][]string)
 		fuzzyMap := base.OnSelectFuzzyMap

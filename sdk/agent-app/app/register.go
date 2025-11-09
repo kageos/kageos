@@ -3,11 +3,66 @@ package app
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/callback"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/response"
 	"strings"
 )
+
+type PackageContext struct {
+	RouterGroup string `json:"router_group"`
+}
+
+type RouterGroup struct {
+	RouterGroup      string `json:"router_group"`
+	*RouterGroupInfo `json:"router_group_info"`
+}
+
+func (p *RouterGroup) GET(router string, handleFunc HandleFunc, templater Templater) {
+	config := templater.GetBaseConfig()
+	config.FunctionGroup.Name = p.GroupName
+	config.FunctionGroup.Code = p.GroupCode
+
+	GET(fmt.Sprintf("/%s/%s", strings.Trim(p.RouterGroup, "/"), strings.Trim(router, "/")), handleFunc, templater)
+}
+
+func (p *RouterGroup) POST(router string, handleFunc HandleFunc, templater Templater) {
+	config := templater.GetBaseConfig()
+	config.FunctionGroup.Name = p.GroupName
+	config.FunctionGroup.Code = p.GroupCode
+
+	POST(fmt.Sprintf("/%s/%s", strings.Trim(p.RouterGroup, "/"), strings.Trim(router, "/")), handleFunc, templater)
+}
+
+func (p *RouterGroup) PUT(router string, handleFunc HandleFunc, templater Templater) {
+	config := templater.GetBaseConfig()
+	config.FunctionGroup.Name = p.GroupName
+	config.FunctionGroup.Code = p.GroupCode
+
+	PUT(fmt.Sprintf("/%s/%s", strings.Trim(p.RouterGroup, "/"), strings.Trim(router, "/")), handleFunc, templater)
+}
+
+func (p *RouterGroup) DELETE(router string, handleFunc HandleFunc, templater Templater) {
+	config := templater.GetBaseConfig()
+	config.FunctionGroup.Name = p.GroupName
+	config.FunctionGroup.Code = p.GroupCode
+
+	DELETE(fmt.Sprintf("/%s/%s", strings.Trim(p.RouterGroup, "/"), strings.Trim(router, "/")), handleFunc, templater)
+}
+
+type RouterGroupInfo struct {
+	GroupCode string `json:"group_code"`
+	GroupName string `json:"group_name"`
+}
+
+func NewRouterGroup(pkgCtx *PackageContext, routerGroup *RouterGroupInfo) *RouterGroup {
+
+	return &RouterGroup{
+		RouterGroup:     pkgCtx.RouterGroup,
+		RouterGroupInfo: routerGroup,
+	}
+}
 
 func routerKey(router string, method string) string {
 	router = strings.Trim(router, "/")

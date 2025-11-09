@@ -164,15 +164,14 @@ func (c *FS) DownloadFiles(files *types.Files) *types.Files {
 	return files
 }
 
-// RemoveAll 删除下载到本地的所有文件（延迟删除）
-// 根据TraceId标记对应的下载目录为延迟删除，并释放文件缓存引用
-// 文件会在延迟时间后由清理任务自动删除
+// RemoveAll 删除下载到本地的所有文件
+// 根据TraceId删除对应的下载目录，并释放文件缓存引用
 func (c *FS) RemoveAll(files *types.Files) {
 	if files == nil || len(files.Files) == 0 {
 		return
 	}
 
-	// 释放文件缓存引用（标记为延迟删除，减少引用计数）
+	// 释放文件缓存引用（减少引用计数）
 	for _, file := range files.Files {
 		if file.LocalPath != "" {
 			c.fileCache.Release(file.LocalPath)
@@ -181,14 +180,17 @@ func (c *FS) RemoveAll(files *types.Files) {
 		}
 	}
 
-	// 注意：不立即删除下载目录，文件会由清理任务延迟删除
-	// 下载目录会在所有文件被删除后自动变为空目录，可以后续清理
+	// 根据TraceId删除下载目录
 	traceID := c.ctx.msg.TraceId
 	if traceID == "" {
 		traceID = "default"
 	}
 	downloadDir := filepath.Join("/app/workplace/uploads", traceID)
-	logger.Infof(c.ctx, "[RemoveAll] 已标记文件为延迟删除，下载目录: %s (文件将在延迟时间后自动删除)", downloadDir)
+	if err := os.RemoveAll(downloadDir); err != nil {
+		logger.Errorf(c.ctx, "[RemoveAll] 删除下载目录失败: %v", err)
+	} else {
+		logger.Infof(c.ctx, "[RemoveAll] 已删除下载目录: %s", downloadDir)
+	}
 }
 
 // calculateSHA256 计算文件的SHA256 hash

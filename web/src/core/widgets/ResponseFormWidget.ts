@@ -6,7 +6,12 @@
 import { h } from 'vue'
 import { ElForm, ElFormItem, ElInput, ElInputNumber, ElCard } from 'element-plus'
 import { BaseWidget } from './BaseWidget'
-import type { FieldConfig } from '../types/field'
+import { WidgetBuilder } from '../factories/WidgetBuilder'
+import { widgetFactory } from '../factories/WidgetFactory'
+import { convertToFieldValue } from '../../utils/field'
+import { Logger } from '../utils/logger'
+import type { FieldConfig, FieldValue } from '../types/field'
+import type { WidgetRenderProps } from '../types/widget'
 
 export class ResponseFormWidget extends BaseWidget {
   // 标记是否有实际返回数据（通过检查是否有非空值判断）
@@ -59,56 +64,84 @@ export class ResponseFormWidget extends BaseWidget {
 
   /**
    * 根据字段类型渲染单个字段
+   * 🔥 重构：遵循依赖倒置原则，完全移除硬编码组件类型判断
+   * 
+   * 设计原则：
+   * - 统一使用 WidgetBuilder 创建 Widget
+   * - 通过 hasChildren() 判断是否有子节点
+   * - 通过 WidgetFactory.getResponseWidgetClass() 检查是否有 Response Widget
+   * - 所有组件都使用 renderForResponse() 方法渲染
+   * - 新增组件时无需修改此方法，只需在 WidgetFactory 中注册 Response Widget 即可
    */
   private renderField(field: FieldConfig, value: any): any {
-    const widgetType = field.widget?.type || 'input'
-    
-    // 时间戳
-    if (widgetType === 'timestamp') {
-      const formatted = this.formatTimestamp(value, field.widget.config?.format)
-      return h(ElInput, {
-        modelValue: formatted,
-        disabled: true,
-        style: { width: '100%' }
+    try {
+      // 🔥 将原始值转换为 FieldValue 格式
+      const fieldValue = convertToFieldValue(value, field)
+      
+      // 🔥 创建只读的 field 配置（禁用编辑）
+      const readonlyField: FieldConfig = {
+        ...field,
+        widget: {
+          ...field.widget,
+          config: {
+            ...field.widget?.config,
+            disabled: true
+          }
+        }
+      }
+      
+      // 🔥 检查字段是否有子节点（通过创建临时 Widget 来判断）
+      const tempWidget = WidgetBuilder.createTemporary({
+        field: readonlyField,
+        value: fieldValue
       })
-    }
-    
-    // 浮点数
-    if (widgetType === 'float' || field.data?.type === 'float') {
-      const formatted = this.formatFloat(value)
-      return h(ElInput, {
-        modelValue: formatted,
-        disabled: true,
-        style: { width: '100%' }
+      
+      // 🔥 如果有子节点，检查是否有对应的 Response Widget（通过工厂模式）
+      if (tempWidget.hasChildren()) {
+        const widgetType = field.widget?.type || 'input'
+        const ResponseWidgetClass = widgetFactory.getResponseWidgetClass(widgetType)
+        
+        // 🔥 如果有 Response Widget，使用它（如 Form、Table）
+        // Response Widget 会在构造函数中自己处理 FieldValue 的转换
+        if (ResponseWidgetClass) {
+          const widget = new ResponseWidgetClass({
+            field: field,
+            currentFieldPath: `${this.fieldPath}.${field.code}`,
+            value: fieldValue,  // 🔥 直接传递 fieldValue，让 Response Widget 自己处理
+            onChange: () => {},
+            formManager: this.formManager,
+            formRenderer: this.formRenderer,
+            depth: this.depth + 1
+          })
+          return widget.render()
+        }
+      }
+      
+      // 🔥 对于所有其他类型（包括有子节点但没有 Response Widget 的），统一使用 WidgetBuilder 创建 Widget
+      // 然后调用 renderForResponse() 方法，让组件自己决定如何渲染
+      // 这样新增组件时，只需要实现 renderForResponse() 方法即可，无需修改此方法
+      const widget = WidgetBuilder.create({
+        field: readonlyField,
+        fieldPath: `${this.fieldPath}.${field.code}`,
+        formManager: this.formManager,
+        formRenderer: this.formRenderer,
+        depth: this.depth + 1,
+        initialValue: fieldValue,
+        onChange: () => {}
       })
-    }
-    
-    // 整数
-    if (widgetType === 'number' || field.data?.type === 'int') {
-      return h(ElInputNumber, {
-        modelValue: value,
-        disabled: true,
-        style: { width: '100%' }
-      })
-    }
-    
-    // 文本域
-    if (widgetType === 'textarea' || widgetType === 'text_area') {
+      
+      // 🔥 调用 Widget 的 renderForResponse() 方法（组件自治）
+      return widget.renderForResponse()
+    } catch (error) {
+      Logger.error('[ResponseFormWidget]', `渲染字段失败: ${field.code}`, error)
+      // 降级到字符串显示
       return h(ElInput, {
         modelValue: value !== undefined && value !== null ? String(value) : '',
-        type: 'textarea',
-        rows: 4,
         disabled: true,
+        placeholder: '渲染失败',
         style: { width: '100%' }
       })
     }
-    
-    // 默认输入框
-    return h(ElInput, {
-      modelValue: value !== undefined && value !== null ? String(value) : '',
-      disabled: true,
-      style: { width: '100%' }
-    })
   }
 
   /**

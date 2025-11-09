@@ -5,6 +5,7 @@
 import type { FieldConfig, FieldValue } from '@/core/types/field'
 import { formatTimestamp } from './date'
 import { widgetFactory } from '@/core/factories/WidgetFactory'
+import { WidgetType } from '@/core/constants/widget'
 
 /**
  * 将原始值转换为 FieldValue 格式
@@ -29,7 +30,7 @@ export function convertToFieldValue(rawValue: any, field: FieldConfig): FieldVal
   }
   
   // ✅ 优先使用 Widget 的 loadFromRawData 静态方法（如果存在）
-  const widgetType = field.widget?.type || 'input'
+  const widgetType = field.widget?.type || WidgetType.INPUT
   const WidgetClass = widgetFactory.getWidgetClass(widgetType)
   
   // 检查 Widget 是否有 loadFromRawData 静态方法
@@ -55,7 +56,7 @@ export function convertToFieldValue(rawValue: any, field: FieldConfig): FieldVal
   let display = String(rawValue)
   
   // 时间戳类型：格式化日期
-  if (field.widget?.type === 'timestamp') {
+  if (field.widget?.type === WidgetType.TIMESTAMP) {
     display = formatTimestamp(rawValue, field.widget.config?.format)
   }
   

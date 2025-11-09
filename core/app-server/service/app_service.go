@@ -282,6 +282,8 @@ func (a *AppService) createFunctionNode(appID int64, parentID int64, api *agentM
 	serviceTree := &model.ServiceTree{
 		AppID:        appID,
 		ParentID:     parentID,
+		GroupCode:    api.FunctionGroupCode,
+		GroupName:    api.FunctionGroupName,
 		Type:         model.ServiceTreeTypeFunction,
 		Code:         api.Code, // API的code作为ServiceTree的code
 		Name:         api.Name, // API的name作为ServiceTree的name

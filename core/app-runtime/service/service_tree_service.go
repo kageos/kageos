@@ -97,17 +97,15 @@ func (s *ServiceTreeService) generateInitFile(packageDir string, serviceTree *dt
 		routerGroup = "/" + serviceTree.Code
 	}
 
-	// 生成init_.go文件内容
+	// 生成init_.go文件内容（新格式：使用PackageContext）
 	content := fmt.Sprintf(`package %s
 
-import "fmt"
-
-const (
-	RouterGroup = "%s"
+import (
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
 )
 
-func WithCurrentRouterGroup(router string) string {
-	return fmt.Sprintf("%%s/%%s", RouterGroup, router)
+var packageContext = &app.PackageContext{
+	RouterGroup: "%s",
 }
 `, serviceTree.Code, routerGroup)
 
