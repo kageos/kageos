@@ -453,7 +453,16 @@ async function handleSubmit(): Promise<void> {
     Logger.info('[FormRenderer-v2]', '保存响应数据', newResponseData)
     Logger.info('[FormRenderer-v2]', '响应数据类型:', typeof newResponseData, '是否为对象:', typeof newResponseData === 'object')
     
+    // 保存数据
     responseDataStore.setData(newResponseData)
+    
+    // 等待一个 tick，确保 computed 更新
+    await nextTick()
+    
+    // 验证数据是否已保存
+    Logger.info('[FormRenderer-v2]', '保存后的 renderTrigger:', responseDataStore.renderTrigger)
+    Logger.info('[FormRenderer-v2]', '保存后的 data:', responseDataStore.data.value)
+    Logger.info('[FormRenderer-v2]', 'responseFieldValues 值:', responseFieldValues.value)
     
     // 保存提交结果（用于调试）
     submitResult.value = submitData
