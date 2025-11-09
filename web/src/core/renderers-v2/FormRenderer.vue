@@ -93,8 +93,8 @@
             :key="`response_widget_${field.code}_${field.widget?.type || 'input'}_${responseDataStore.renderTrigger}`"
             :is="getResponseWidgetComponent(field.widget?.type || 'input')"
             :field="field"
-            :value="getResponseFieldValue(field.code)"
-            :model-value="getResponseFieldValue(field.code)"
+            :value="responseFieldValues[field.code]"
+            :model-value="responseFieldValues[field.code]"
             :field-path="field.code"
             mode="response"
           />
@@ -217,19 +217,14 @@ function updateFieldValue(fieldCode: string, value: FieldValue): void {
 }
 
 // 获取响应字段值
-// 🔥 使用 computed 确保响应式更新
+// 🔥 为每个字段创建 computed，确保响应式更新
 const getResponseFieldValue = (fieldCode: string): FieldValue => {
-  if (!responseDataStore || !responseDataStore.data) {
-    return {
-      raw: null,
-      display: '',
-      meta: {}
-    }
-  }
-  
   // 读取 renderTrigger 作为依赖，确保数据更新时重新计算
   const trigger = responseDataStore.renderTrigger
   const responseData = responseDataStore.data.value
+  
+  // 🔥 添加日志以便调试
+  Logger.debug('[FormRenderer-v2]', `getResponseFieldValue: fieldCode=${fieldCode}, trigger=${trigger}, responseData=`, responseData)
   
   if (!responseData) {
     return {
@@ -238,9 +233,6 @@ const getResponseFieldValue = (fieldCode: string): FieldValue => {
       meta: {}
     }
   }
-  
-  // 🔥 添加日志以便调试
-  Logger.debug('[FormRenderer-v2]', `getResponseFieldValue: fieldCode=${fieldCode}, responseData=`, responseData)
   
   const rawValue = responseData[fieldCode]
   
@@ -260,6 +252,36 @@ const getResponseFieldValue = (fieldCode: string): FieldValue => {
     meta: {}
   }
 }
+
+// 🔥 为每个响应字段创建 computed，确保响应式更新
+const responseFieldValues = computed(() => {
+  const trigger = responseDataStore.renderTrigger
+  const responseData = responseDataStore.data.value
+  const values: Record<string, FieldValue> = {}
+  
+  responseFields.value.forEach(field => {
+    if (!responseData) {
+      values[field.code] = {
+        raw: null,
+        display: '',
+        meta: {}
+      }
+      return
+    }
+    
+    const rawValue = responseData[field.code]
+    
+    values[field.code] = {
+      raw: rawValue ?? null,
+      display: rawValue !== null && rawValue !== undefined 
+        ? (typeof rawValue === 'object' ? JSON.stringify(rawValue) : String(rawValue))
+        : '',
+      meta: {}
+    }
+  })
+  
+  return values
+})
 
 // 缓存组件查找结果，避免重复查找和确保组件引用稳定
 const componentCache = new Map<string, any>()
