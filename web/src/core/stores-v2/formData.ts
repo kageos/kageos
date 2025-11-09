@@ -5,16 +5,20 @@
  * 功能：
  * - 存储所有字段的值（field_path -> FieldValue）
  * - 提供设置和获取值的方法
- * - 提供提交数据提取方法（递归收集）
+ * - 提供提交数据提取方法（递归收集，使用策略模式）
  */
 
 import { defineStore } from 'pinia'
 import { reactive } from 'vue'
 import type { FieldConfig, FieldValue } from '../../types/field'
+import { FieldExtractorRegistry } from './extractors/FieldExtractorRegistry'
 
 export const useFormDataStore = defineStore('formData-v2', () => {
   // 存储所有字段的值（field_path -> FieldValue）
   const data = reactive<Map<string, FieldValue>>(new Map())
+  
+  // 🔥 字段提取器注册表（遵循依赖倒置原则）
+  const extractorRegistry = new FieldExtractorRegistry()
   
   /**
    * 设置字段值
@@ -43,6 +47,7 @@ export const useFormDataStore = defineStore('formData-v2', () => {
   
   /**
    * 提取提交数据（递归收集）
+   * 🔥 使用策略模式，遵循依赖倒置原则
    * 
    * @param fields 字段配置列表
    * @param basePath 基础路径（用于嵌套场景）
@@ -53,192 +58,21 @@ export const useFormDataStore = defineStore('formData-v2', () => {
     
     fields.forEach(field => {
       const fieldPath = basePath ? `${basePath}.${field.code}` : field.code
-      const value = data.get(fieldPath)
       
-      if (!value) {
-        // 字段不存在，跳过
-        return
-      }
+      // 🔥 使用提取器注册表提取字段值（即使字段不存在也会尝试从原始数据中提取）
+      const extractedValue = extractorRegistry.extractField(field, fieldPath, (path: string) => {
+        return data.get(path)
+      })
       
-      // 根据字段类型决定如何提取
-      if (field.widget?.type === 'table') {
-        // 表格类型：递归收集每行的数据
-        result[field.code] = extractTableData(field, fieldPath)
-      } else if (field.widget?.type === 'form') {
-        // 表单类型：递归收集子字段的数据
-        result[field.code] = extractFormData(field, fieldPath)
-      } else if (field.widget?.type === 'multiselect' || field.data?.type === '[]string') {
-        // 🔥 多选类型：确保返回数组
-        const raw = value.raw
-        if (Array.isArray(raw)) {
-          result[field.code] = raw
-        } else if (raw !== null && raw !== undefined) {
-          // 兼容旧数据：如果是字符串，转换为数组
-          result[field.code] = [raw]
-        } else {
-          result[field.code] = []
-        }
-      } else {
-        // 基础类型：直接返回 raw 值
-        result[field.code] = value.raw
+      // 只有当提取的值不为 undefined 时才添加到结果中
+      if (extractedValue !== undefined) {
+        result[field.code] = extractedValue
       }
     })
     
     return result
   }
   
-  /**
-   * 递归提取表格数据
-   */
-  function extractTableData(field: FieldConfig, basePath: string): any[] {
-    const value = data.get(basePath)
-    if (!value || !Array.isArray(value.raw)) {
-      return []
-    }
-    
-    const itemFields = field.children || []
-    const tableData = value.raw as any[]
-    
-    return tableData.map((row, index) => {
-      const rowData: Record<string, any> = {}
-      
-      itemFields.forEach(itemField => {
-        const itemFieldPath = `${basePath}[${index}].${itemField.code}`
-        const itemValue = data.get(itemFieldPath)
-        
-        // 🔥 如果 store 中有值，使用 store 的值；否则从原始 row 数据中读取
-        if (itemValue) {
-          // 递归处理嵌套结构
-          if (itemField.widget?.type === 'form') {
-            rowData[itemField.code] = extractFormData(itemField, itemFieldPath)
-          } else if (itemField.widget?.type === 'table') {
-            rowData[itemField.code] = extractTableData(itemField, itemFieldPath)
-          } else if (itemField.widget?.type === 'multiselect' || itemField.data?.type === '[]string') {
-            // 🔥 多选类型：确保返回数组
-            const raw = itemValue.raw
-            rowData[itemField.code] = Array.isArray(raw) ? raw : (raw !== null && raw !== undefined ? [raw] : [])
-          } else {
-            rowData[itemField.code] = itemValue.raw
-          }
-        } else if (row && typeof row === 'object') {
-          // 🔥 如果 store 中没有值，从原始 row 数据中读取
-          const rawValue = row[itemField.code]
-          if (rawValue !== undefined) {
-            // 递归处理嵌套结构
-            if (itemField.widget?.type === 'form' && rawValue && typeof rawValue === 'object' && !Array.isArray(rawValue)) {
-              // 对于嵌套的 form，需要递归提取
-              rowData[itemField.code] = extractFormDataFromRaw(itemField, rawValue)
-            } else if (itemField.widget?.type === 'table' && Array.isArray(rawValue)) {
-              // 对于嵌套的 table，需要递归提取
-              rowData[itemField.code] = rawValue.map((nestedRow: any) => {
-                const nestedItemFields = itemField.children || []
-                const nestedRowData: Record<string, any> = {}
-                nestedItemFields.forEach(nestedItemField => {
-                  nestedRowData[nestedItemField.code] = nestedRow[nestedItemField.code]
-                })
-                return nestedRowData
-              })
-            } else if (itemField.widget?.type === 'multiselect' || itemField.data?.type === '[]string') {
-              // 🔥 多选类型：确保返回数组
-              rowData[itemField.code] = Array.isArray(rawValue) ? rawValue : (rawValue !== null && rawValue !== undefined ? [rawValue] : [])
-            } else {
-              rowData[itemField.code] = rawValue
-            }
-          }
-        }
-      })
-      
-      return rowData
-    })
-  }
-  
-  /**
-   * 从原始数据中提取表单数据（用于嵌套结构）
-   */
-  function extractFormDataFromRaw(field: FieldConfig, rawData: Record<string, any>): Record<string, any> {
-    const subFields = field.children || []
-    const formData: Record<string, any> = {}
-    
-    subFields.forEach(subField => {
-      const rawValue = rawData[subField.code]
-      if (rawValue !== undefined) {
-        // 递归处理嵌套结构
-        if (subField.widget?.type === 'form' && rawValue && typeof rawValue === 'object' && !Array.isArray(rawValue)) {
-          formData[subField.code] = extractFormDataFromRaw(subField, rawValue)
-        } else if (subField.widget?.type === 'table' && Array.isArray(rawValue)) {
-          formData[subField.code] = rawValue.map((nestedRow: any) => {
-            const nestedItemFields = subField.children || []
-            const nestedRowData: Record<string, any> = {}
-            nestedItemFields.forEach(nestedItemField => {
-              nestedRowData[nestedItemField.code] = nestedRow[nestedItemField.code]
-            })
-            return nestedRowData
-          })
-        } else {
-          formData[subField.code] = rawValue
-        }
-      }
-    })
-    
-    return formData
-  }
-  
-  /**
-   * 递归提取表单数据
-   */
-  function extractFormData(field: FieldConfig, basePath: string): Record<string, any> {
-    const value = data.get(basePath)
-    const subFields = field.children || []
-    const formData: Record<string, any> = {}
-    
-    // 🔥 获取原始数据，用于回退
-    const rawData = value?.raw && typeof value.raw === 'object' && !Array.isArray(value.raw) 
-      ? value.raw as Record<string, any>
-      : null
-    
-    subFields.forEach(subField => {
-      const subFieldPath = `${basePath}.${subField.code}`
-      const subValue = data.get(subFieldPath)
-      
-      if (subValue) {
-        // 递归处理嵌套结构
-        if (subField.widget?.type === 'form') {
-          formData[subField.code] = extractFormData(subField, subFieldPath)
-        } else if (subField.widget?.type === 'table') {
-          formData[subField.code] = extractTableData(subField, subFieldPath)
-        } else if (subField.widget?.type === 'multiselect' || subField.data?.type === '[]string') {
-          // 🔥 多选类型：确保返回数组
-          const raw = subValue.raw
-          formData[subField.code] = Array.isArray(raw) ? raw : (raw !== null && raw !== undefined ? [raw] : [])
-        } else {
-          formData[subField.code] = subValue.raw
-        }
-      } else if (rawData && rawData[subField.code] !== undefined) {
-        // 🔥 如果 store 中没有值，从原始数据中读取
-        const rawValue = rawData[subField.code]
-        // 递归处理嵌套结构
-        if (subField.widget?.type === 'form' && rawValue && typeof rawValue === 'object' && !Array.isArray(rawValue)) {
-          formData[subField.code] = extractFormDataFromRaw(subField, rawValue)
-        } else if (subField.widget?.type === 'table' && Array.isArray(rawValue)) {
-          formData[subField.code] = rawValue.map((nestedRow: any) => {
-            const nestedItemFields = subField.children || []
-            const nestedRowData: Record<string, any> = {}
-            nestedItemFields.forEach(nestedItemField => {
-              nestedRowData[nestedItemField.code] = nestedRow[nestedItemField.code]
-            })
-            return nestedRowData
-          })
-        } else if (subField.widget?.type === 'multiselect' || subField.data?.type === '[]string') {
-          // 🔥 多选类型：确保返回数组
-          formData[subField.code] = Array.isArray(rawValue) ? rawValue : (rawValue !== null && rawValue !== undefined ? [rawValue] : [])
-        } else {
-          formData[subField.code] = rawValue
-        }
-      }
-    })
-    
-    return formData
-  }
   
   /**
    * 清空所有数据
