@@ -54,7 +54,7 @@
         <!-- 操作列 -->
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ $index }">
-            <template v-if="editMode.editingIndex.value === $index || editMode.isAdding.value">
+            <template v-if="editMode.editingIndex.value === $index">
               <el-button size="small" @click="handleSave($index)">保存</el-button>
               <el-button size="small" @click="editMode.cancelEditing()">取消</el-button>
             </template>
