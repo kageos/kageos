@@ -82,9 +82,20 @@ service.interceptors.response.use(
       return data
     }
 
-    // 业务错误
+    // 业务错误 - 输出详细错误信息
+    console.error('[Request] 业务错误:', {
+      code,
+      message,
+      data,
+      url: response.config.url,
+      method: response.config.method
+    })
+    
     ElMessage.error(message || '请求失败')
-    return Promise.reject(new Error(message || '请求失败'))
+    // 🔥 保留完整的错误信息，包括 response 对象
+    const error = new Error(message || '请求失败') as any
+    error.response = response
+    return Promise.reject(error)
   },
   async (error) => {
     const { response } = error

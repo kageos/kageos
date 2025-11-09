@@ -482,8 +482,23 @@ async function handleSubmit(): Promise<void> {
     
     ElMessage.success('表单提交成功！')
   } catch (error: any) {
+    // 🔥 输出详细的错误信息
     Logger.error('[FormRenderer-v2]', '提交失败', error)
-    ElMessage.error(error?.message || '提交失败')
+    Logger.error('[FormRenderer-v2]', '错误详情:', {
+      message: error?.message,
+      response: error?.response,
+      data: error?.response?.data,
+      status: error?.response?.status,
+      code: error?.response?.data?.code,
+      msg: error?.response?.data?.msg || error?.response?.data?.message
+    })
+    
+    // 显示更详细的错误信息
+    const errorMessage = error?.response?.data?.msg 
+      || error?.response?.data?.message 
+      || error?.message 
+      || '提交失败'
+    ElMessage.error(errorMessage)
   } finally {
     submitting.value = false
   }
