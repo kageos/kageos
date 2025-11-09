@@ -22,7 +22,7 @@
       :loading="loading"
       :remote="hasCallback"
       :remote-method="handleRemoteSearch"
-      teleported
+      popper-class="select-dropdown-popper"
       :popper-options="{
         strategy: 'fixed',
         modifiers: [
