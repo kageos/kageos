@@ -79,7 +79,7 @@
           class="statistics-item"
         >
           <span class="statistics-label">{{ label }}:</span>
-          <span class="statistics-value">{{ value }}</span>
+          <span class="statistics-value">{{ formatStatisticsValue(value) }}</span>
         </div>
       </div>
     </template>
@@ -205,6 +205,24 @@ const displayValue = computed(() => {
   
   return String(raw)
 })
+
+// 格式化统计值（避免循环引用）
+function formatStatisticsValue(value: any): string {
+  if (value === null || value === undefined) {
+    return '-'
+  }
+  
+  if (typeof value === 'object') {
+    try {
+      return JSON.stringify(value)
+    } catch (e) {
+      // 如果序列化失败（循环引用），返回简单描述
+      return `[对象]`
+    }
+  }
+  
+  return String(value)
+}
 
 // 获取列宽
 function getColumnWidth(field: any): number {
