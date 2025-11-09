@@ -35,6 +35,23 @@ export function useFormWidget(props: WidgetComponentProps) {
   
   // 获取子字段的值
   function getSubFieldValue(subFieldCode: string): any {
+    // 🔥 响应模式下，从 props.value.raw 读取数据
+    if (props.mode === 'response') {
+      const rawValue = props.value?.raw
+      if (rawValue && typeof rawValue === 'object' && !Array.isArray(rawValue)) {
+        const subValue = rawValue[subFieldCode]
+        return {
+          raw: subValue ?? null,
+          display: subValue !== null && subValue !== undefined 
+            ? (typeof subValue === 'object' ? JSON.stringify(subValue) : String(subValue))
+            : '',
+          meta: {}
+        }
+      }
+      return { raw: null, display: '', meta: {} }
+    }
+    
+    // 编辑模式下，从 formDataStore 读取
     const subFieldPath = `${props.fieldPath}.${subFieldCode}`
     return formDataStore.getValue(subFieldPath)
   }
