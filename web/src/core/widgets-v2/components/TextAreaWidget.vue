@@ -53,7 +53,13 @@ import { ElInput } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useFormDataStore } from '../../stores-v2/formData'
 
-const props = defineProps<WidgetComponentProps>()
+const props = withDefaults(defineProps<WidgetComponentProps>(), {
+  value: () => ({
+    raw: null,
+    display: '',
+    meta: {}
+  })
+})
 const emit = defineEmits<WidgetComponentEmits>()
 
 const formDataStore = useFormDataStore()
@@ -84,7 +90,9 @@ const showWordLimit = computed(() => {
 const internalValue = computed({
   get: () => {
     if (props.mode === 'edit' || props.mode === 'search') {
-      const value = props.value?.raw
+      // 优先使用 props.value，如果没有则使用 props.modelValue（兼容）
+      const fieldValue = props.value || (props as any).modelValue
+      const value = fieldValue?.raw
       return value !== null && value !== undefined ? String(value) : ''
     }
     return ''
@@ -105,16 +113,17 @@ const internalValue = computed({
 
 // 显示值
 const displayValue = computed(() => {
-  const value = props.value
-  if (!value) {
+  // 优先使用 props.value，如果没有则使用 props.modelValue（兼容）
+  const fieldValue = props.value || (props as any).modelValue
+  if (!fieldValue) {
     return '-'
   }
   
-  if (value.display) {
-    return value.display
+  if (fieldValue.display) {
+    return fieldValue.display
   }
   
-  const raw = value.raw
+  const raw = fieldValue.raw
   if (raw === null || raw === undefined || raw === '') {
     return '-'
   }
