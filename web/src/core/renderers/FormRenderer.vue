@@ -50,10 +50,10 @@
       >
         <el-form-item
           v-for="field in responseFields"
-          :key="field.code"
+          :key="`response_${field.code}`"
           :label="field.name"
         >
-          <component :is="renderResponseField(field)" />
+          <component :is="getResponseFieldVNode(field)" :key="`response_component_${field.code}`" />
         </el-form-item>
       </el-form>
     </div>
@@ -104,7 +104,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, h, watch, onMounted, onBeforeUnmount, onUnmounted } from 'vue'
+import { ref, reactive, computed, h, watch, nextTick, shallowRef, markRaw, onMounted, onBeforeUnmount, onUnmounted } from 'vue'
 import { ElForm, ElFormItem, ElButton, ElCard, ElMessage, ElInput, ElIcon, ElDivider, ElTag } from 'element-plus'
 import { Promotion, RefreshLeft } from '@element-plus/icons-vue'
 import type { FieldConfig, FunctionDetail, FieldValue } from '../types/field'
@@ -170,8 +170,8 @@ const fields = computed(() => {
 // 返回值字段列表
 const responseFields = computed(() => props.functionDetail?.response || [])
 
-// 返回值数据
-const responseData = ref<any>(null)
+// 返回值数据（使用 shallowRef 避免深度响应式追踪，减少递归更新风险）
+const responseData = shallowRef<any>(null)
 
 // FormDataManager
 const formManager = new ReactiveFormDataManager()
@@ -194,6 +194,9 @@ const fieldChangeTrigger = ref(0)
 
 // 🔥 响应参数渲染触发器（用于触发响应参数区域的重新渲染）
 const responseRenderTrigger = ref(0)
+
+// 🔥 缓存响应字段的 VNode ref（避免每次渲染都创建新的 VNode）
+const responseFieldVNodes: Record<string, ReturnType<typeof shallowRef>> = {}
 
 // 🔥 请求参数渲染触发器（用于触发请求参数区域的重新渲染，特别是 TableWidget 内部状态变化）
 const requestRenderTrigger = ref(0)
@@ -367,15 +370,74 @@ function renderField(field: FieldConfig): ReturnType<typeof h> {
 }
 
 /**
+ * 获取响应字段的 VNode（带缓存，避免递归更新）
+ * 🔥 关键修复：使用 shallowRef + 手动更新控制，避免 computed 的自动响应式追踪导致递归
+ */
+const getResponseFieldVNode = (field: FieldConfig) => {
+  const fieldCode = field.code
+  const cacheKey = `response_vnode_${fieldCode}`
+  
+  // 🔥 检查是否已有缓存的 VNode ref
+  if (!(responseFieldVNodes as any)[cacheKey]) {
+    Logger.info('[FormRenderer]', `getResponseFieldVNode: 创建VNode ref, field=${fieldCode}`)
+    
+    // 🔥 使用 shallowRef 存储 VNode，避免深度响应式追踪
+    const vnodeRef = shallowRef<any>(null)
+    
+    // 🔥 创建更新函数
+    const updateVNode = () => {
+      const trigger = responseRenderTrigger.value
+      const dataExists = !!responseData.value
+      
+      Logger.info('[FormRenderer]', `getResponseFieldVNode[update]: field=${fieldCode}, trigger=${trigger}, dataExists=${dataExists}`)
+      
+      const newVNode = renderResponseField(field)
+      // 🔥 使用 markRaw 标记 VNode，防止被响应式系统追踪
+      vnodeRef.value = markRaw(newVNode)
+    }
+    
+    // 🔥 初始创建
+    updateVNode()
+    
+    // 🔥 使用 watch 监听依赖变化，手动更新 VNode（避免在 render 中触发响应式）
+    watch(
+      [() => responseRenderTrigger.value, () => !!responseData.value],
+      () => {
+        Logger.info('[FormRenderer]', `getResponseFieldVNode[watch]: 依赖变化, field=${fieldCode}`)
+        // 🔥 使用 nextTick 延迟更新，避免在渲染过程中更新
+        nextTick(() => {
+          updateVNode()
+        })
+      },
+      { immediate: false }
+    )
+    
+    ;(responseFieldVNodes as any)[cacheKey] = vnodeRef
+  }
+  
+  // 🔥 返回 VNode ref 的值（不触发响应式追踪）
+  // 注意：这里直接返回 ref 的值，不会触发响应式追踪，因为 VNode 已经被 markRaw 标记
+  const vnode = (responseFieldVNodes as any)[cacheKey].value
+  Logger.info('[FormRenderer]', `getResponseFieldVNode: 返回VNode, field=${fieldCode}, vnode存在=${!!vnode}, vnodeKey=${vnode?.key || 'no-key'}`)
+  return vnode
+}
+
+/**
  * 渲染单个返回值字段（只读展示）
  * 即使没有数据也渲染框架结构，提供更好的用户体验
  */
 function renderResponseField(field: FieldConfig): ReturnType<typeof h> {
+  // 🔥 添加日志追踪
+  const renderId = Math.random().toString(36).substr(2, 9)
+  Logger.info('[FormRenderer]', `renderResponseField 开始: field=${field.code}, renderId=${renderId}`)
+  
   // 🔥 读取响应式触发器，确保当触发器变化时，函数会重新执行
-  responseRenderTrigger.value
+  const triggerValue = responseRenderTrigger.value
+  Logger.info('[FormRenderer]', `renderResponseField: field=${field.code}, trigger=${triggerValue}, renderId=${renderId}`)
   
   // 获取返回值（可能为 undefined）
   const value = responseData.value?.[field.code]
+  Logger.info('[FormRenderer]', `renderResponseField: field=${field.code}, value存在=${!!value}, renderId=${renderId}`)
   
   // 🔥 widget.type 绝对优先于 data.type（data.type 只用于提交时的类型检查）
   const widgetType = field.widget?.type || 'input'
@@ -387,7 +449,10 @@ function renderResponseField(field: FieldConfig): ReturnType<typeof h> {
     const widgetKey = `response_table_${field.code}`
     let widget = allWidgets.get(widgetKey) as ResponseTableWidget | undefined
     
+    Logger.info('[FormRenderer]', `renderResponseField[table]: field=${field.code}, widget存在=${!!widget}, renderId=${renderId}`)
+    
     if (!widget) {
+      Logger.info('[FormRenderer]', `renderResponseField[table]: 创建新Widget, field=${field.code}, renderId=${renderId}`)
       widget = new ResponseTableWidget({
         field: field,
         currentFieldPath: field.code,
@@ -410,29 +475,110 @@ function renderResponseField(field: FieldConfig): ReturnType<typeof h> {
       allWidgets.set(widgetKey, widget)
       
       // 🔥 监听 Widget 内部状态变化，触发 FormRenderer 重新渲染
-      // 通过 watchEffect 监听 Widget 的响应式状态
-      let lastShowDrawer = false
-      watchEffect(() => {
-        // 读取 Widget 的响应式状态，触发追踪
-        const showDrawer = (widget as any).showFormDetailDrawer?.value
-        // 只在状态变化时触发重新渲染（避免无限循环）
-        if (showDrawer !== lastShowDrawer) {
-          lastShowDrawer = showDrawer
-          responseRenderTrigger.value++
-        }
-      })
+      // 使用 watch 而不是 watchEffect，并且只在状态真正变化时触发
+      // 使用标记避免重复创建 watch
+      if (!(widget as any)._drawerWatchSetup) {
+        Logger.info('[FormRenderer]', `renderResponseField[table]: 设置watch, field=${field.code}, renderId=${renderId}`)
+        (widget as any)._drawerWatchSetup = true
+        let lastShowDrawer = false
+        let isUpdating = false  // 🔥 防止在更新过程中触发 watch
+        let watchCallCount = 0  // 🔥 追踪 watch 调用次数
+        
+        watch(
+          () => {
+            const drawerState = (widget as any).formDrawerState
+            const showDrawer = drawerState?.showFormDetailDrawer?.value ?? false
+            watchCallCount++
+            Logger.info('[FormRenderer]', `watch[${field.code}] 触发: showDrawer=${showDrawer}, callCount=${watchCallCount}, isUpdating=${isUpdating}`)
+            return showDrawer
+          },
+          (showDrawer) => {
+            Logger.info('[FormRenderer]', `watch[${field.code}] 回调: showDrawer=${showDrawer}, lastShowDrawer=${lastShowDrawer}, isUpdating=${isUpdating}`)
+            
+            // 🔥 防止在更新过程中触发 watch（避免递归更新）
+            if (isUpdating) {
+              Logger.warn('[FormRenderer]', `watch[${field.code}] 跳过: 正在更新中`)
+              return
+            }
+            
+            // 🔥 只在状态真正变化时触发重新渲染（避免无限循环）
+            if (showDrawer !== lastShowDrawer) {
+              Logger.info('[FormRenderer]', `watch[${field.code}] 状态变化: ${lastShowDrawer} -> ${showDrawer}`)
+              lastShowDrawer = showDrawer
+              // 🔥 使用 nextTick 延迟更新，避免在同一个渲染周期内触发多次更新
+              nextTick(() => {
+                if (!isUpdating) {
+                  isUpdating = true
+                  const oldTrigger = responseRenderTrigger.value
+                  responseRenderTrigger.value++
+                  Logger.info('[FormRenderer]', `watch[${field.code}] 更新trigger: ${oldTrigger} -> ${responseRenderTrigger.value}`)
+                  // 🔥 重置标记，允许下次更新
+                  nextTick(() => {
+                    isUpdating = false
+                    Logger.info('[FormRenderer]', `watch[${field.code}] 重置isUpdating标志`)
+                  })
+                } else {
+                  Logger.warn('[FormRenderer]', `watch[${field.code}] 跳过trigger更新: 正在更新中`)
+                }
+              })
+            } else {
+              Logger.info('[FormRenderer]', `watch[${field.code}] 跳过: 状态未变化`)
+            }
+          },
+          { immediate: false }
+        )
+      } else {
+        Logger.info('[FormRenderer]', `renderResponseField[table]: watch已设置, field=${field.code}, renderId=${renderId}`)
+      }
     } else {
       // 🔥 如果 Widget 已存在，更新其值（如果数据变化了）
+      // 注意：使用浅比较避免深度 JSON.stringify 的性能问题
       const currentValue = widget.getValue()
-      if (JSON.stringify(currentValue?.raw) !== JSON.stringify(value)) {
-        widget.setValue({
-          raw: value || [],
-          display: Array.isArray(value) ? `共${value.length}条` : '等待数据...',
-          meta: {}
+      const currentRaw = currentValue?.raw
+      
+      Logger.info('[FormRenderer]', `renderResponseField[table]: 更新Widget值, field=${field.code}, currentRaw存在=${!!currentRaw}, value存在=${!!value}, renderId=${renderId}`)
+      
+      // 🔥 浅比较：先比较引用，再比较长度，最后比较内容
+      let needsUpdate = false
+      if (currentRaw !== value) {
+        if (Array.isArray(currentRaw) && Array.isArray(value)) {
+          // 数组比较：长度和第一个元素
+          if (currentRaw.length !== value.length || 
+              (currentRaw.length > 0 && currentRaw[0] !== value[0])) {
+            needsUpdate = true
+            Logger.info('[FormRenderer]', `renderResponseField[table]: 数组需要更新, field=${field.code}, length=${currentRaw.length}->${value.length}, renderId=${renderId}`)
+          }
+        } else if (currentRaw !== value) {
+          needsUpdate = true
+          Logger.info('[FormRenderer]', `renderResponseField[table]: 值需要更新, field=${field.code}, renderId=${renderId}`)
+        }
+      } else {
+        Logger.info('[FormRenderer]', `renderResponseField[table]: 值无需更新, field=${field.code}, renderId=${renderId}`)
+      }
+      
+      // 🔥 只在需要更新时才更新值，避免触发不必要的响应式更新
+      if (needsUpdate) {
+        Logger.info('[FormRenderer]', `renderResponseField[table]: 准备更新值, field=${field.code}, renderId=${renderId}`)
+        // 🔥 使用 nextTick 延迟更新，避免在同一个渲染周期内触发多次更新
+        nextTick(() => {
+          Logger.info('[FormRenderer]', `renderResponseField[table]: 执行值更新, field=${field.code}, renderId=${renderId}`)
+          // 直接更新内部的 value ref，避免触发 onChange 回调（返回值是只读的）
+          const newValue: FieldValue = {
+            raw: value || [],
+            display: Array.isArray(value) ? `共${value.length}条` : '等待数据...',
+            meta: {}
+          }
+          // 直接修改 ref 的值，不触发 onChange（因为这是只读的响应数据）
+          ;(widget as any).value.value = newValue
+          Logger.info('[FormRenderer]', `renderResponseField[table]: 值更新完成, field=${field.code}, renderId=${renderId}`)
         })
       }
     }
-    return widget.render()
+    
+    Logger.info('[FormRenderer]', `renderResponseField[table]: 调用widget.render, field=${field.code}, renderId=${renderId}`)
+    const renderResult = widget.render()
+    Logger.info('[FormRenderer]', `renderResponseField[table]: widget.render完成, field=${field.code}, renderId=${renderId}`)
+    return renderResult
   }
   
   // 🔥 对于表单类型，使用 ResponseFormWidget（始终渲染，即使没有数据也显示空表单框架）
@@ -703,13 +849,18 @@ async function handleRealSubmit(): Promise<void> {
     // 保存返回值
     // 后端返回格式：{ code: 0, data: {...}, msg: "成功" }
     // response 已经由 request 拦截器处理，直接就是 data 字段的内容
-    if (response && typeof response === 'object') {
-      // 如果返回的数据有 data 字段，使用 data 字段；否则直接使用整个响应
-      responseData.value = response.data !== undefined ? response.data : response
-    } else {
-      // 如果返回的不是对象，包装一下
-      responseData.value = { result: response }
-    }
+    Logger.info('[FormRenderer]', `handleRealSubmit: 准备更新responseData, response类型=${typeof response}, isObject=${response && typeof response === 'object'}`)
+    
+    // 🔥 使用 nextTick 延迟更新，避免在提交过程中触发响应式更新导致递归
+    await nextTick()
+    
+    const newResponseData = response && typeof response === 'object' 
+      ? (response.data !== undefined ? response.data : response)
+      : { result: response }
+    
+    Logger.info('[FormRenderer]', `handleRealSubmit: 更新responseData, 旧值存在=${!!responseData.value}, 新值存在=${!!newResponseData}`)
+    responseData.value = newResponseData
+    Logger.info('[FormRenderer]', `handleRealSubmit: responseData更新完成`)
     
     
     ElMessage.success({
