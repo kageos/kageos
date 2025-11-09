@@ -22,6 +22,18 @@
       :loading="loading"
       :placeholder="placeholder"
       :multiple-limit="maxCount"
+      :popper-options="{
+        strategy: 'fixed',
+        modifiers: [
+          {
+            name: 'computeStyles',
+            options: {
+              adaptive: false,
+              roundOffsets: false
+            }
+          }
+        ]
+      }"
       clearable
       @change="handleChange"
     >
