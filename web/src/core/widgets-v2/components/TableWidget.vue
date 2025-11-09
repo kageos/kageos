@@ -114,27 +114,34 @@
     
     <!-- 响应模式（只读） -->
     <template v-else-if="mode === 'response'">
-      <el-table :data="responseTableData" border>
-        <el-table-column
-          v-for="itemField in itemFields"
-          :key="itemField.code"
-          :prop="itemField.code"
-          :label="itemField.name"
-          :min-width="getColumnWidth(itemField)"
-        >
-          <template #default="{ row, $index }">
-            <component
-              :is="getWidgetComponent(itemField.widget?.type || 'input')"
-              :field="itemField"
-              :value="getResponseRowFieldValue($index, itemField.code)"
-              :model-value="getResponseRowFieldValue($index, itemField.code)"
-              :field-path="`${fieldPath}[${$index}].${itemField.code}`"
-              mode="table-cell"
-              :depth="(depth || 0) + 1"
-            />
-          </template>
-        </el-table-column>
-      </el-table>
+      <div class="table-widget-container response-table-container">
+        <div class="table-widget-header">
+          <span class="table-title">{{ field.name }}</span>
+        </div>
+        <div class="table-widget-content">
+          <el-table :data="responseTableData" border>
+            <el-table-column
+              v-for="itemField in itemFields"
+              :key="itemField.code"
+              :prop="itemField.code"
+              :label="itemField.name"
+              :min-width="getColumnWidth(itemField)"
+            >
+              <template #default="{ row, $index }">
+                <component
+                  :is="getWidgetComponent(itemField.widget?.type || 'input')"
+                  :field="itemField"
+                  :value="getResponseRowFieldValue($index, itemField.code)"
+                  :model-value="getResponseRowFieldValue($index, itemField.code)"
+                  :field-path="`${fieldPath}[${$index}].${itemField.code}`"
+                  mode="table-cell"
+                  :depth="(depth || 0) + 1"
+                />
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+      </div>
       
       <!-- 详情抽屉 -->
       <el-drawer
