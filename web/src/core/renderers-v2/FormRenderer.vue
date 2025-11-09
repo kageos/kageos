@@ -120,7 +120,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { ElForm, ElFormItem, ElButton, ElCard, ElMessage, ElIcon, ElTag } from 'element-plus'
 import { Promotion, RefreshLeft } from '@element-plus/icons-vue'
 import type { FieldConfig, FunctionDetail, FieldValue } from '../types/field'
@@ -380,6 +380,28 @@ async function handleSubmit(): Promise<void> {
   }
 }
 
+// 清理函数
+function cleanup(): void {
+  isMounted.value = false
+  formDataStore.clear()
+  responseDataStore.clear()
+}
+
+// 监听 functionDetail 变化，在路由切换时清理
+watch(
+  () => props.functionDetail?.id || props.functionDetail?.router,
+  async (newId, oldId) => {
+    if (oldId && newId !== oldId) {
+      // 路由切换，先清理旧数据
+      cleanup()
+      await nextTick()
+      // 重新初始化
+      isMounted.value = true
+      initializeForm()
+    }
+  }
+)
+
 // 生命周期
 onMounted(async () => {
   // 延迟挂载，确保 DOM 已准备好
@@ -390,12 +412,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   // 清理工作
-  isMounted.value = false
-  // 清空组件缓存（可选，如果需要的话）
-  // componentCache.clear()
-  // 清空数据
-  formDataStore.clear()
-  responseDataStore.clear()
+  cleanup()
 })
 </script>
 
