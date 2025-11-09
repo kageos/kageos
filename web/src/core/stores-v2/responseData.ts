@@ -21,8 +21,12 @@ export const useResponseDataStore = defineStore('responseData', () => {
    * 设置响应数据
    */
   function setData(newData: any): void {
+    console.log('[ResponseDataStore] setData 被调用，newData:', newData)
+    console.log('[ResponseDataStore] setData 前，data.value:', data.value)
     data.value = newData
+    console.log('[ResponseDataStore] setData 后，data.value:', data.value)
     renderTrigger.value++
+    console.log('[ResponseDataStore] setData 后，renderTrigger:', renderTrigger.value)
   }
   
   /**
