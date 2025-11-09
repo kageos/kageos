@@ -8,14 +8,15 @@
  * - 符合传统 CRUD 的用户习惯
  */
 
-import { h, ref, computed, markRaw } from 'vue'
-import { ElButton, ElTable, ElTableColumn, ElForm, ElFormItem, ElIcon, ElMessage } from 'element-plus'
-import { Plus, Delete, Edit, Check, Close, ArrowDown, ArrowUp, Upload, Download } from '@element-plus/icons-vue'
+import { h, ref, computed, markRaw, nextTick } from 'vue'
+import { ElButton, ElTable, ElTableColumn, ElForm, ElFormItem, ElIcon, ElMessage, ElDrawer } from 'element-plus'
+import { Plus, Delete, Edit, Check, Close, ArrowDown, ArrowUp, Upload, Download, View } from '@element-plus/icons-vue'
 import { BaseWidget } from './BaseWidget'
 import { Logger } from '../utils/logger'
 import { WidgetBuilder } from '../factories/WidgetBuilder'
 import { widgetFactory } from '../factories/WidgetFactory'
 import { ErrorHandler } from '../utils/ErrorHandler'
+import { ResponseFormWidget } from './ResponseFormWidget'
 import type { FieldConfig, FieldValue } from '../types/field'
 import type { WidgetRenderProps, MarkRawWidget } from '../types/widget'
 import { selectFuzzy } from '@/api/function'  // 🔥 导入回调 API
@@ -78,6 +79,27 @@ export class TableWidget extends BaseWidget {
   
   // 🔥 聚合统计结果（计算后的值）
   private statisticsResult: any
+  
+  // 🔥 防抖定时器（用于避免频繁更新）
+  private updateTimer: ReturnType<typeof setTimeout> | null = null
+  
+  // 🔥 Form 字段详情抽屉状态（用于表格单元格中的 form 字段）
+  private showFormDetailDrawer = ref(false)
+  private formDetailField = ref<FieldConfig | null>(null)
+  private formDetailValue = ref<FieldValue | null>(null)
+  
+  // 🔥 使用 computed 包装抽屉渲染，确保响应式更新（作为实例属性）
+  private drawerContent = computed(() => {
+    const show = this.showFormDetailDrawer.value
+    const field = this.formDetailField.value
+    const value = this.formDetailValue.value
+    
+    if (!show || !field || !value) {
+      return null
+    }
+    
+    return this.renderFormDetailDrawer()
+  })
 
   /**
    * TableWidget 的默认值是空数组
@@ -130,7 +152,12 @@ export class TableWidget extends BaseWidget {
         // 🔥 通过工厂获取子组件类，调用其 loadFromRawData()（多态）
         try {
           const WidgetClass = widgetFactory.getWidgetClass(subField.widget?.type || 'input')
-          rowData[subField.code] = WidgetClass.loadFromRawData(subRawValue, subField)
+          // 🔥 如果 subRawValue 是 undefined，使用默认值
+          if (subRawValue === undefined) {
+            rowData[subField.code] = WidgetClass.getDefaultValue(subField)
+          } else {
+            rowData[subField.code] = WidgetClass.loadFromRawData(subRawValue, subField)
+          }
         } catch (error) {
           Logger.error('[TableWidget]', `loadFromRawData 失败: 行${index}, 字段${subField.code}`, error)
           // 失败时使用基类默认实现
@@ -172,9 +199,14 @@ export class TableWidget extends BaseWidget {
     // 🔥 初始化默认行（如果配置了 default_items 且没有已有数据）
     const defaultItems = this.tableConfig.default_items || 0
     if (defaultItems > 0 && this.savedData.value.length === 0) {
-      // 创建空行数据
+      // 创建空行数据（使用默认值填充所有字段）
       for (let i = 0; i < defaultItems; i++) {
-        this.savedData.value.push({})
+        const emptyRow: SavedRowData = {}
+        for (const field of this.itemFields) {
+          const WidgetClass = widgetFactory.getWidgetClass(field.widget?.type || 'input')
+          emptyRow[field.code] = WidgetClass.getDefaultValue(field)
+        }
+        this.savedData.value.push(emptyRow)
       }
     }
     
@@ -214,6 +246,10 @@ export class TableWidget extends BaseWidget {
    * 🔥 订阅子组件事件（核心方法）
    */
   private subscribeChildEvents(): void {
+    // 🔥 临时 Widget 不需要订阅事件（formManager 为 null）
+    if (!this.formManager) {
+      return
+    }
     
     // 找出所有 select/multiselect 字段
     const selectFields = this.itemFields.filter(field => 
@@ -236,6 +272,11 @@ export class TableWidget extends BaseWidget {
    * 🔥 订阅搜索事件（核心：调用后端回调）
    */
   private subscribeSearchEvent(field: FieldConfig): void {
+    // 🔥 临时 Widget 不需要订阅事件
+    if (!this.formManager) {
+      return
+    }
+    
     // 监听两种路径：
     // 1. field:search:products[].product_id（已保存的行）
     // 2. field:search:products._form_.product_id（表单编辑状态）
@@ -327,6 +368,11 @@ export class TableWidget extends BaseWidget {
    * 🔥 订阅变化事件（触发聚合计算）
    */
   private subscribeChangeEvent(field: FieldConfig): void {
+    // 🔥 临时 Widget 不需要订阅事件
+    if (!this.formManager) {
+      return
+    }
+    
     // 监听两种路径：
     // 1. field:change:products[].product_id（已保存的行）
     // 2. field:change:products._form_.product_id（表单编辑状态）
@@ -415,7 +461,18 @@ export class TableWidget extends BaseWidget {
    * 🔥 创建表单的 Widget 实例
    */
   private createFormWidgets(initialData?: SavedRowData): void {
+    // 🔥 检查 formManager 是否存在
+    if (!this.formManager) {
+      Logger.error('[TableWidget]', 'createFormWidgets: formManager 为 null，无法创建表单 Widget')
+      return
+    }
+    
     const widgets: TableItemWidgets = {}
+    
+    // 🔥 调试日志：检查 itemFields
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[TableWidget.createFormWidgets]', this.field.code, 'itemFields:', this.itemFields, 'initialData:', initialData)
+    }
     
     for (const itemField of this.itemFields) {
       // 🔥 表单的 fieldPath 使用临时路径（不加索引）
@@ -426,6 +483,11 @@ export class TableWidget extends BaseWidget {
       
       // 🔥 直接使用 FieldValue，无需转换（已经是标准格式）
       const fieldValue = initialData?.[itemField.code] || defaultValue
+      
+      // 🔥 调试日志：检查 fieldValue
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[TableWidget.createFormWidgets]', this.field.code, 'itemField.code:', itemField.code, 'fieldValue:', fieldValue, 'raw:', fieldValue?.raw)
+      }
       
       // 初始化到 FormDataManager
       this.formManager.setValue(tempFieldPath, fieldValue)
@@ -443,12 +505,23 @@ export class TableWidget extends BaseWidget {
         
         if (widget) {
           widgets[itemField.code] = markRaw(widget)
+          
+          // 🔥 调试日志：检查创建的 Widget
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[TableWidget.createFormWidgets]', this.field.code, '创建的 Widget:', itemField.code, 'widget type:', widget.constructor.name)
+          }
         }
       } catch (error) {
+        Logger.error('[TableWidget]', `createFormWidgets 失败: ${itemField.code}`, error)
         ErrorHandler.handleWidgetError(`TableWidget.createFormWidgets[${itemField.code}]`, error, {
           showMessage: false
         })
       }
+    }
+    
+    // 🔥 调试日志：检查创建的 widgets
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[TableWidget.createFormWidgets]', this.field.code, '创建的 widgets:', widgets, 'keys:', Object.keys(widgets))
     }
     
     this.formWidgets.value = widgets
@@ -498,34 +571,80 @@ export class TableWidget extends BaseWidget {
 
   /**
    * 🔥 保存（新增或编辑）
+   * 🔥 关键修复：使用 getRawValueForSubmit() 递归收集所有嵌套数据
    */
   private handleSave(): void {
-    // 🔥 直接使用 Widget 的 FieldValue，无需重构数据
     const rowData: SavedRowData = {}
     
+    // 🔥 遍历所有字段，使用 getRawValueForSubmit() 递归收集数据
     for (const [fieldCode, widget] of Object.entries(this.formWidgets.value)) {
-      // 🔥 类型安全地访问 markRaw 后的 Widget
       const rawWidget = widget as MarkRawWidget
-      // 直接获取完整的 FieldValue（包含 raw、display、meta）
-      rowData[fieldCode] = rawWidget.getValue()
+      const itemField = this.itemFields.find(f => f.code === fieldCode)
+      
+      if (!itemField) {
+        Logger.warn('[TableWidget]', `handleSave: 找不到字段配置 ${fieldCode}`)
+        continue
+      }
+      
+      // 🔥 关键修复：对于容器组件（Form、Table），使用 getRawValueForSubmit() 递归收集数据
+      // 对于基础组件，也使用 getRawValueForSubmit() 确保数据一致性
+      let rawValue: any
+      if (typeof rawWidget.getRawValueForSubmit === 'function') {
+        // 使用 getRawValueForSubmit() 递归收集所有嵌套数据
+        rawValue = rawWidget.getRawValueForSubmit()
+      } else {
+        // 如果没有 getRawValueForSubmit 方法，使用 getValue().raw
+        const fieldValue = rawWidget.getValue()
+        rawValue = fieldValue?.raw
+      }
+      
+      // 🔥 将 raw 值包装为 FieldValue 格式
+      // 对于容器组件，rawValue 已经是处理后的对象/数组
+      // 对于基础组件，rawValue 是原始值
+      const fieldValue: FieldValue = {
+        raw: rawValue,
+        display: this.formatFieldDisplay(rawValue, itemField),
+        meta: {}
+      }
+      
+      rowData[fieldCode] = fieldValue
     }
     
+    // 🔥 保存数据
     if (this.isAdding.value) {
-      // 新增
       this.savedData.value.push(rowData)
     } else if (this.editingIndex.value !== null) {
-      // 编辑
       this.savedData.value[this.editingIndex.value] = rowData
     }
     
     // 清空状态
     this.handleCancel()
     
-    // 触发外部的 onChange（通知父组件数据已变化）
-    this.updateParentValue()
+    // 🔥 延迟更新，避免递归更新
+    requestAnimationFrame(() => {
+      this.updateParentValue()
+      this.recalculateStatistics()
+    })
+  }
+  
+  /**
+   * 🔥 格式化字段显示值（用于 FieldValue.display）
+   */
+  private formatFieldDisplay(rawValue: any, field: FieldConfig): string {
+    if (rawValue === null || rawValue === undefined || rawValue === '') {
+      return ''
+    }
     
-    // 🔥 重新计算聚合统计（数据已变化）
-    this.recalculateStatistics()
+    const widgetType = field.widget?.type
+    if (widgetType === 'table') {
+      return Array.isArray(rawValue) ? `共 ${rawValue.length} 条` : '[]'
+    } else if (widgetType === 'form') {
+      return typeof rawValue === 'object' ? `共 ${Object.keys(rawValue).length} 个字段` : '{}'
+    } else if (widgetType === 'multiselect') {
+      return Array.isArray(rawValue) ? rawValue.join(', ') : String(rawValue)
+    } else {
+      return String(rawValue)
+    }
   }
 
   /**
@@ -549,35 +668,83 @@ export class TableWidget extends BaseWidget {
     
     this.savedData.value.splice(index, 1)
     
-    // 触发外部的 onChange
-    this.updateParentValue()
-    
-    // 🔥 重新计算聚合统计（数据已变化）
-    this.recalculateStatistics()
+    // 🔥 使用 requestAnimationFrame 延迟更新，避免递归更新
+    requestAnimationFrame(() => {
+      // 触发外部的 onChange
+      this.updateParentValue()
+      
+      // 🔥 重新计算聚合统计（数据已变化）
+      this.recalculateStatistics()
+    })
   }
 
   /**
-   * 🔥 更新父组件的值
+   * 🔥 更新父组件的值（防抖版本）
    */
   private updateParentValue(): void {
-    const newValue: FieldValue = {
-      raw: this.savedData.value,
-      display: `共 ${this.savedData.value.length} 条`,
-      meta: {}
+    // 🔥 清除之前的定时器
+    if (this.updateTimer) {
+      clearTimeout(this.updateTimer)
     }
     
-    // 🔥 同步到 formManager（确保验证时能获取到最新值）
-    if (this.formManager) {
-      this.formManager.setValue(this.fieldPath, newValue)
-    }
-    
-    // 🔥 更新内部的 value（保持一致性）
-    this.value.value = newValue
-    
-    // 调用 onChange 通知父组件
-    if (this.onChange) {
-      this.onChange(newValue)
-    }
+    // 🔥 使用防抖，延迟 50ms 执行更新
+    this.updateTimer = setTimeout(() => {
+      this.updateTimer = null
+      
+      // 🔥 检查是否需要更新（避免不必要的更新）
+      const currentRaw = this.value.value?.raw
+      const newRaw = this.savedData.value
+      
+      // 如果数据没有变化，跳过更新
+      if (currentRaw === newRaw) {
+        return
+      }
+      
+      // 🔥 深度比较数组内容，避免不必要的更新
+      if (Array.isArray(currentRaw) && Array.isArray(newRaw) && currentRaw.length === newRaw.length) {
+        let isEqual = true
+        for (let i = 0; i < currentRaw.length; i++) {
+          if (currentRaw[i] !== newRaw[i]) {
+            isEqual = false
+            break
+          }
+        }
+        if (isEqual) {
+          return
+        }
+      }
+      
+      const newValue: FieldValue = {
+        raw: newRaw,
+        display: `共 ${newRaw.length} 条`,
+        meta: {}
+      }
+      
+      // 🔥 同步到 formManager（确保验证时能获取到最新值）
+      if (this.formManager) {
+        this.formManager.setValue(this.fieldPath, newValue)
+      }
+      
+      // 🔥 更新内部的 value（保持一致性）
+      // 注意：使用浅拷贝避免触发深度响应式更新
+      const currentValue = this.value.value
+      if (currentValue.raw !== newRaw) {
+        currentValue.raw = newRaw
+      }
+      if (currentValue.display !== newValue.display) {
+        currentValue.display = newValue.display
+      }
+      if (currentValue.meta !== newValue.meta) {
+        currentValue.meta = newValue.meta
+      }
+      
+      // 🔥 使用 requestAnimationFrame 延迟调用 onChange，确保在下一个渲染帧执行
+      requestAnimationFrame(() => {
+        if (this.onChange) {
+          this.onChange(newValue)
+        }
+      })
+    }, 50)
   }
   
   /**
@@ -737,9 +904,28 @@ export class TableWidget extends BaseWidget {
       }, '暂无数据，点击下方"添加"按钮开始')
     }
     
+    // 🔥 创建数据的浅拷贝，避免在渲染过程中触发响应式更新
+    // 注意：不使用 computed，因为 renderTable 本身就在 render() 中，每次都会重新执行
+    const tableData = this.savedData.value.map((row: SavedRowData) => {
+      const rowCopy: Record<string, any> = {}
+      for (const [key, value] of Object.entries(row)) {
+        // 浅拷贝 FieldValue 对象，避免响应式污染
+        if (value && typeof value === 'object' && 'raw' in value && 'display' in value) {
+          rowCopy[key] = {
+            raw: value.raw,
+            display: value.display,
+            meta: value.meta ? { ...value.meta } : {}
+          }
+        } else {
+          rowCopy[key] = value
+        }
+      }
+      return rowCopy
+    })
+    
     // 渲染表格
     return h(ElTable, {
-      data: this.savedData.value,
+      data: tableData,
       border: true,
       stripe: true,
       style: { width: '100%', marginBottom: '12px' }
@@ -763,10 +949,41 @@ export class TableWidget extends BaseWidget {
           }, {
             default: ({ row }: { row: SavedRowData }) => {
               const value = row[field.code]
-              if (!value) return '-'
+              
+              // 🔥 调试日志：检查 value 格式
+              if (process.env.NODE_ENV === 'development' && field.widget?.type === 'multiselect') {
+                console.log('[TableWidget.renderCell]', field.code, 'value:', value, 'type:', typeof value, 'isFieldValue:', value && typeof value === 'object' && 'raw' in value)
+              }
+              
+              // 🔥 注意：value 可能是 FieldValue 对象，也可能是 null/undefined
+              // 如果是 null/undefined，直接返回 '-'，否则传递给 Widget 处理
+              if (value === null || value === undefined) {
+                return '-'
+              }
+              
+              // 🔥 确保 value 是 FieldValue 格式（如果不是，尝试转换）
+              let fieldValue: FieldValue
+              if (value && typeof value === 'object' && 'raw' in value && 'display' in value) {
+                // 创建 FieldValue 的浅拷贝，避免响应式污染
+                fieldValue = {
+                  raw: value.raw,
+                  display: value.display,
+                  meta: value.meta ? { ...value.meta } : {}
+                }
+              } else {
+                // 如果不是 FieldValue 格式，尝试使用 loadFromRawData 转换
+                try {
+                  const WidgetClass = widgetFactory.getWidgetClass(field.widget?.type || 'input')
+                  fieldValue = WidgetClass.loadFromRawData(value, field)
+                } catch (error) {
+                  Logger.error('[TableWidget]', `转换字段值失败: ${field.code}`, error)
+                  fieldValue = { raw: value, display: String(value), meta: {} }
+                }
+              }
               
               // 🔥 通过 Widget 实例渲染（解耦）
-              return this.renderCellByWidget(value, field)
+              // 使用 markRaw 确保不会触发响应式更新
+              return this.renderCellByWidget(fieldValue, field)
             }
           })
         ),
@@ -784,14 +1001,20 @@ export class TableWidget extends BaseWidget {
                 link: true,
                 type: 'primary',
                 icon: Edit,
-                onClick: () => this.startEditing($index)
+                onClick: (e: Event) => {
+                  e.stopPropagation()
+                  this.startEditing($index)
+                }
               }, { default: () => '编辑' }),
               
               h(ElButton, {
                 link: true,
                 type: 'danger',
                 icon: Delete,
-                onClick: () => this.handleDelete($index)
+                onClick: (e: Event) => {
+                  e.stopPropagation()
+                  this.handleDelete($index)
+                }
               }, { default: () => '删除' })
             ])
           }
@@ -812,20 +1035,92 @@ export class TableWidget extends BaseWidget {
   }
 
   /**
+   * 🔥 处理 Form 字段点击（打开详情抽屉）
+   */
+  private handleFormFieldClick(field: FieldConfig, value: FieldValue): void {
+    Logger.info('[TableWidget]', `点击 Form 字段: ${field.code}`)
+    this.formDetailField.value = field
+    this.formDetailValue.value = value
+    this.showFormDetailDrawer.value = true
+  }
+
+  /**
+   * 🔥 关闭 Form 字段详情抽屉
+   */
+  private handleCloseFormDetail(): void {
+    this.showFormDetailDrawer.value = false
+    this.formDetailField.value = null
+    this.formDetailValue.value = null
+  }
+
+  /**
    * 🔥 通过 Widget 渲染单元格（解耦方案）
    * 每个 Widget 负责自己的表格展示逻辑
    */
   private renderCellByWidget(value: FieldValue, field: FieldConfig): any {
     try {
+      // 🔥 如果是 Form 类型，提供可点击的查看按钮
+      if (field.widget?.type === 'form') {
+        const raw = value?.raw
+        if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+          const fieldCount = Object.keys(raw).length
+          // 🔥 使用 ElButton 确保事件能正确绑定
+          return h(ElButton, {
+            link: true,
+            type: 'primary',
+            size: 'small',
+            style: {
+              padding: '0',
+              height: 'auto',
+              fontSize: '14px'
+            },
+            onClick: (e: MouseEvent) => {
+              e.preventDefault()
+              e.stopPropagation()
+              Logger.info('[TableWidget]', `点击事件触发: ${field.code}`)
+              this.handleFormFieldClick(field, value)
+            }
+          }, {
+            default: () => [
+              h('span', `共 ${fieldCount} 个字段`),
+              h('span', { style: { marginLeft: '4px' } }, ' '),
+              h(ElIcon, {
+                style: { 
+                  fontSize: '14px',
+                  verticalAlign: 'middle'
+                }
+              }, {
+                default: () => h(View)
+              })
+            ]
+          })
+        }
+      }
+      
       // ✅ 使用 WidgetBuilder 创建临时 Widget（不需要 formManager）
-      const tempWidget = WidgetBuilder.createTemporary({
+      // 🔥 创建 FieldValue 的浅拷贝，避免响应式污染
+      const valueCopy: FieldValue = {
+        raw: value.raw,
+        display: value.display,
+        meta: value.meta ? { ...value.meta } : {}
+      }
+      
+      // 🔥 使用 markRaw 确保 Widget 不会被响应式系统追踪
+      const tempWidget = markRaw(WidgetBuilder.createTemporary({
         field: field,
-        value: value
-      })
+        value: valueCopy
+      }))
       
       // 🔥 调用 Widget 的 renderTableCell 方法
       const widget = tempWidget as MarkRawWidget
-      return widget.renderTableCell ? widget.renderTableCell(value) : widget.render()
+      const result = widget.renderTableCell ? widget.renderTableCell(valueCopy) : widget.render()
+      
+      // 🔥 如果结果是响应式对象，使用 markRaw 防止响应式追踪
+      if (result && typeof result === 'object' && !Array.isArray(result) && !('__v_isRef' in result)) {
+        return markRaw(result)
+      }
+      
+      return result
     } catch (error) {
       // ✅ 使用 ErrorHandler 统一处理错误
       return ErrorHandler.handleWidgetError(`TableWidget.renderCellByWidget[${field.code}]`, error, {
@@ -833,6 +1128,48 @@ export class TableWidget extends BaseWidget {
         fallbackValue: value.display || String(value.raw) || '-'
       })
     }
+  }
+  
+  /**
+   * 🔥 渲染 Form 字段详情抽屉
+   */
+  private renderFormDetailDrawer(): any {
+    // 🔥 读取响应式值，确保 Vue 能追踪到变化
+    const show = this.showFormDetailDrawer.value
+    const field = this.formDetailField.value
+    const value = this.formDetailValue.value
+    
+    if (!show || !field || !value) {
+      return null
+    }
+    
+    // 🔥 使用 ResponseFormWidget 渲染表单内容（只读模式）
+    const responseWidget = new ResponseFormWidget({
+      field: field,
+      currentFieldPath: `${this.fieldPath}.${field.code}`,
+      value: value,
+      onChange: () => {},
+      formManager: this.formManager,
+      formRenderer: this.formRenderer,
+      depth: this.depth + 1
+    })
+    
+    return h(ElDrawer, {
+      modelValue: show,
+      title: field.name || '详细信息',
+      size: '50%',
+      destroyOnClose: true,
+      'onUpdate:modelValue': (val: boolean) => {
+        if (!val) {
+          this.handleCloseFormDetail()
+        }
+      },
+      onClose: () => {
+        this.handleCloseFormDetail()
+      }
+    }, {
+      default: () => responseWidget.render()
+    })
   }
 
 
@@ -1018,6 +1355,9 @@ export class TableWidget extends BaseWidget {
    */
   render() {
     // 卡片样式（参考旧版本）
+    // 🔥 读取 computed 值，确保 Vue 能追踪到变化
+    const drawer = this.drawerContent.value
+    
     return h('div', {
       class: 'table-widget',
       style: {
@@ -1046,8 +1386,32 @@ export class TableWidget extends BaseWidget {
         
         // 新增/编辑表单
         this.renderForm()
-      ])
+      ]),
+      // 🔥 渲染 Form 字段详情抽屉
+      drawer
     ])
+  }
+
+  /**
+   * 🔥 渲染表格单元格（覆盖父类方法）
+   * 当 TableWidget 嵌套在另一个 TableWidget 中时，使用简化显示
+   */
+  renderTableCell(value?: FieldValue): any {
+    // 🔥 临时 Widget 或嵌套场景：使用简化显示，避免递归渲染
+    if (this.isTemporary || this.depth > 2) {
+      const fieldValue = value || this.getValue()
+      const raw = fieldValue?.raw
+      
+      if (!raw || !Array.isArray(raw) || raw.length === 0) {
+        return h('span', { style: { color: 'var(--el-text-color-secondary)' } }, '空')
+      }
+      
+      // 显示行数和摘要信息
+      return h('span', `共 ${raw.length} 行`)
+    }
+    
+    // 非临时 Widget：使用默认格式化
+    return super.renderTableCell(value)
   }
 
   /**
@@ -1068,18 +1432,94 @@ export class TableWidget extends BaseWidget {
   /**
    * 🔥 获取提交时的原始值
    * 从 FieldValue 中提取 raw 值（后端不需要 display 和 meta）
+   * 递归处理嵌套的 Table 和 Form
    */
   getRawValueForSubmit(): any[] {
-    const result = this.savedData.value.map(row => {
+    // 🔥 调试日志：检查 savedData
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[TableWidget.getRawValueForSubmit]', this.field.code, 'savedData.value:', this.savedData.value, 'length:', this.savedData.value.length)
+    }
+    
+    const result = this.savedData.value.map((row: SavedRowData) => {
       const rowRaw: Record<string, any> = {}
       
+      // 🔥 调试日志：检查 row 数据
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[TableWidget.getRawValueForSubmit]', this.field.code, 'row:', row, 'keys:', Object.keys(row))
+      }
+      
       for (const [fieldCode, fieldValue] of Object.entries(row)) {
-        // 🔥 提取 FieldValue 的 raw 属性
-        rowRaw[fieldCode] = fieldValue.raw
+        // 🔥 调试日志：检查 fieldValue
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[TableWidget.getRawValueForSubmit]', this.field.code, 'fieldCode:', fieldCode, 'fieldValue:', fieldValue)
+        }
+        
+        // 🔥 检查 fieldValue 是否是 FieldValue 格式
+        if (fieldValue && typeof fieldValue === 'object' && 'raw' in fieldValue && 'display' in fieldValue) {
+          const raw = (fieldValue as FieldValue).raw
+          
+          // 🔥 调试日志：检查 raw 值
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[TableWidget.getRawValueForSubmit]', this.field.code, 'fieldCode:', fieldCode, 'raw:', raw, 'raw type:', typeof raw)
+          }
+          
+          // 🔥 找到对应的字段配置
+          const subField = this.itemFields.find(f => f.code === fieldCode)
+          if (subField) {
+            // 🔥 检查是否是容器组件（Table 或 Form），需要递归处理
+            const widgetType = subField.widget?.type
+            if (widgetType === 'table' || widgetType === 'form') {
+              try {
+                // 🔥 使用 Widget 的 getRawValueForSubmit 方法（递归处理）
+                const WidgetClass = widgetFactory.getWidgetClass(widgetType)
+                // 创建临时 Widget 来调用 getRawValueForSubmit
+                const tempWidget = WidgetBuilder.createTemporary({
+                  field: subField,
+                  value: fieldValue as FieldValue
+                })
+                const rawWidget = tempWidget as MarkRawWidget
+                // 🔥 调用 getRawValueForSubmit 方法（如果是容器组件，会递归处理）
+                if (typeof rawWidget.getRawValueForSubmit === 'function') {
+                  const subResult = rawWidget.getRawValueForSubmit()
+                  if (process.env.NODE_ENV === 'development') {
+                    console.log('[TableWidget.getRawValueForSubmit]', this.field.code, 'fieldCode:', fieldCode, 'subResult:', subResult)
+                  }
+                  rowRaw[fieldCode] = subResult
+                } else {
+                  // 没有 getRawValueForSubmit 方法，直接使用 raw
+                  rowRaw[fieldCode] = raw
+                }
+              } catch (error) {
+                Logger.error('[TableWidget]', `getRawValueForSubmit 失败: 字段${fieldCode}`, error)
+                // 失败时回退到使用 raw
+                rowRaw[fieldCode] = raw
+              }
+            } else {
+              // 不是容器组件，直接使用 raw
+              rowRaw[fieldCode] = raw
+            }
+          } else {
+            // 找不到字段配置，直接使用 raw
+            rowRaw[fieldCode] = raw
+          }
+        } else {
+          // fieldValue 不是 FieldValue 格式，直接使用
+          rowRaw[fieldCode] = fieldValue
+        }
+      }
+      
+      // 🔥 调试日志：检查 rowRaw
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[TableWidget.getRawValueForSubmit]', this.field.code, 'rowRaw:', rowRaw)
       }
       
       return rowRaw
     })
+    
+    // 🔥 调试日志：检查最终结果
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[TableWidget.getRawValueForSubmit]', this.field.code, '最终结果:', result)
+    }
     
     return result
   }

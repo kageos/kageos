@@ -92,11 +92,13 @@ export class WidgetBuilder {
     const WidgetClass = widgetFactory.getWidgetClass(field.widget?.type || 'input')
     
     // 准备初始值
-    const value = initialValue || formManager.getValue(fieldPath)
+    const value = initialValue || (formManager ? formManager.getValue(fieldPath) : { raw: null, display: '', meta: {} })
     
     // 准备 onChange 回调
     const handleChange = onChange || ((newValue: FieldValue) => {
-      formManager.setValue(fieldPath, newValue)
+      if (formManager) {
+        formManager.setValue(fieldPath, newValue)
+      }
     })
     
     // 构造 Widget 属性

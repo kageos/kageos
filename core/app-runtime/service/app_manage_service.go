@@ -377,26 +377,38 @@ func (s *AppManageService) ListApps(ctx context.Context, user string) ([]string,
 }
 
 // DeleteApp 删除应用
+// 新架构：每个版本有独立容器，需要删除所有版本的容器
 func (s *AppManageService) DeleteApp(ctx context.Context, user, app string) error {
 	logger.Infof(ctx, "[DeleteApp] *** ENTRY *** user=%s, app=%s", user, app)
 
-	// 1. 停止并删除容器
-	containerName := fmt.Sprintf("%s-%s", user, app)
+	// 1. 获取应用的所有版本，删除每个版本的容器
 	if s.containerService != nil {
-
-		// 先尝试停止容器（如果正在运行）
-		if err := s.containerService.StopContainer(ctx, containerName); err != nil {
-			logger.Warnf(ctx, "[DeleteApp] Failed to stop container %s (may not be running): %v", containerName, err)
+		// 获取所有版本
+		versions, err := s.appRepo.GetAppVersions(user, app)
+		if err != nil {
+			logger.Warnf(ctx, "[DeleteApp] Failed to get app versions: %v, will try to delete containers by pattern", err)
+			// 如果获取版本失败，尝试通过容器名称模式查找并删除
+			// 这里可以扩展 ContainerOperator 接口支持按模式查找，暂时先跳过
 		} else {
-			logger.Infof(ctx, "[DeleteApp] Container %s stopped successfully", containerName)
-		}
+			// 删除每个版本的容器
+			for _, version := range versions {
+				containerName := buildContainerName(user, app, version.Version)
+				
+				// 先尝试停止容器（如果正在运行）
+				if err := s.containerService.StopContainer(ctx, containerName); err != nil {
+					logger.Warnf(ctx, "[DeleteApp] Failed to stop container %s (may not be running): %v", containerName, err)
+				} else {
+					logger.Infof(ctx, "[DeleteApp] Container %s stopped successfully", containerName)
+				}
 
-		// 强制删除容器（无论是否正在运行）
-		if err := s.containerService.RemoveContainer(ctx, containerName); err != nil {
-			logger.Errorf(ctx, "[DeleteApp] Failed to remove container %s: %v", containerName, err)
-			return fmt.Errorf("failed to remove container %s: %w", containerName, err)
-		} else {
-			logger.Infof(ctx, "[DeleteApp] Container %s removed successfully", containerName)
+				// 强制删除容器（无论是否正在运行）
+				if err := s.containerService.RemoveContainer(ctx, containerName); err != nil {
+					logger.Warnf(ctx, "[DeleteApp] Failed to remove container %s: %v", containerName, err)
+					// 不返回错误，继续删除其他容器
+				} else {
+					logger.Infof(ctx, "[DeleteApp] Container %s removed successfully", containerName)
+				}
+			}
 		}
 	} else {
 		logger.Warnf(ctx, "[DeleteApp] Container operator is nil, skipping container deletion")
@@ -918,10 +930,15 @@ func (s *AppManageService) startAppContainer(ctx context.Context, containerName,
 	envVars = append(envVars, fmt.Sprintf("GATEWAY_URL=%s", gatewayURL))
 	logger.Infof(ctx, "[startAppContainer] Injecting GATEWAY_URL=%s into container", gatewayURL)
 
+	// 注入版本信息到环境变量（新架构：每个容器对应特定版本）
+	// 这样启动脚本可以通过环境变量读取版本，而不依赖可能被更新的文件
+	envVars = append(envVars, fmt.Sprintf("APP_VERSION=%s", version))
+	logger.Infof(ctx, "[startAppContainer] Injecting APP_VERSION=%s into container", version)
+
 	// 启动容器，使用 ai-agent-os 镜像的启动脚本
-	// 启动脚本会自动读取 metadata/version.json 来获取版本信息，或者使用传入的版本参数
+	// 启动脚本会优先读取 APP_VERSION 环境变量，如果没有则读取文件（向后兼容）
 	logger.Infof(ctx, "[startAppContainer] Creating container with ai-agent-os image: %s", containerName)
-	if err := s.containerService.RunContainerWithCommand(ctx, image, containerName, absHostPath, containerPath, []string{"/start.sh", version}, envVars...); err != nil {
+	if err := s.containerService.RunContainerWithCommand(ctx, image, containerName, absHostPath, containerPath, []string{"/start.sh"}, envVars...); err != nil {
 		logger.Errorf(ctx, "[startAppContainer] Failed to start container: %v", err)
 		return fmt.Errorf("failed to start container: %w", err)
 	}
@@ -1195,8 +1212,17 @@ func (s *AppManageService) getCurrentVersion(ctx context.Context, user, app stri
 
 // StartAppVersion 启动指定版本的应用（兜底启动）
 // 用于应用挂了或更新失败时重新启动目标版本
+// 新架构：每个版本有独立容器，直接创建或启动版本容器
 func (s *AppManageService) StartAppVersion(ctx context.Context, user, app, version string) error {
 	logger.Infof(ctx, "[StartAppVersion] Starting version %s/%s/%s", user, app, version)
+
+	// 先检查应用是否已经在运行（避免重复启动）
+	if s.appDiscoveryService != nil {
+		if s.appDiscoveryService.IsAppVersionRunning(user, app, version) {
+			logger.Infof(ctx, "[StartAppVersion] Version %s/%s/%s is already running, skipping startup", user, app, version)
+			return nil
+		}
+	}
 
 	// 使用新的容器命名格式：{user}-{app}-{version}
 	containerName := buildContainerName(user, app, version)
@@ -1206,30 +1232,31 @@ func (s *AppManageService) StartAppVersion(ctx context.Context, user, app, versi
 	// 确保在方法结束时清理等待器
 	defer s.unregisterStartupWaiter(user, app, version)
 
-	// 读取 current_app.txt 获取二进制前缀
-	appFile := filepath.Join(s.config.AppDir.BasePath, user, app, "workplace/metadata/current_app.txt")
-	appData, err := os.ReadFile(appFile)
+	// 检查容器是否存在且运行中
+	exists, err := s.containerService.IsContainerRunning(ctx, containerName)
 	if err != nil {
-		return fmt.Errorf("failed to read current_app.txt: %w", err)
-	}
-	binaryPrefix := strings.TrimSpace(string(appData))
-	binaryName := fmt.Sprintf("%s_%s", binaryPrefix, version)
-
-	// 构建启动命令（使用 setsid nohup 确保进程后台运行）
-	startCmd := fmt.Sprintf(
-		"cd /app/workplace/bin && setsid nohup ./releases/%s </dev/null >/dev/null 2>&1 &",
-		binaryName,
-	)
-
-	logger.Infof(ctx, "[StartAppVersion] Executing startup command in container %s: %s", containerName, startCmd)
-
-	// 执行启动命令
-	output, err := s.containerService.ExecCommand(ctx, containerName, []string{"sh", "-c", startCmd})
-	if err != nil {
-		return fmt.Errorf("failed to execute startup command: %w, output: %s", err, output)
+		logger.Warnf(ctx, "[StartAppVersion] Failed to check container status: %v, will try to create", err)
+		exists = false
 	}
 
-	logger.Infof(ctx, "[StartAppVersion] Startup command executed, output: %s", output)
+	if exists {
+		// 容器已存在且运行中，应用应该已经启动，等待启动通知
+		logger.Infof(ctx, "[StartAppVersion] Container %s already exists and is running, waiting for startup notification", containerName)
+	} else {
+		// 容器不存在或已停止，需要创建或启动容器
+		appDirRel := filepath.Join(s.config.AppDir.BasePath, user, app)
+		
+		// 尝试启动已存在的容器（可能已停止）
+		if err := s.containerService.StartContainer(ctx, containerName); err != nil {
+			// 启动失败，可能容器不存在，创建新容器
+			logger.Infof(ctx, "[StartAppVersion] Container %s not found or failed to start, creating new container", containerName)
+			if err := s.createVersionContainer(ctx, user, app, version, appDirRel); err != nil {
+				return fmt.Errorf("failed to create version container: %w", err)
+			}
+		} else {
+			logger.Infof(ctx, "[StartAppVersion] Container %s started successfully", containerName)
+		}
+	}
 
 	// 等待启动完成通知（30秒超时）
 	logger.Infof(ctx, "[StartAppVersion] Waiting for startup notification from version %s...", version)

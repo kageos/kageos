@@ -16,12 +16,17 @@ import { FormWidget } from '../widgets/FormWidget'
 import { SwitchWidget } from '../widgets/SwitchWidget'
 import { TimestampWidget } from '../widgets/TimestampWidget'
 import { FilesWidget } from '../widgets/FilesWidget'
+import { ResponseFormWidget } from '../widgets/ResponseFormWidget'
+import { ResponseTableWidget } from '../widgets/ResponseTableWidget'
 
 export class WidgetFactory {
   private widgetMap: Map<string, typeof BaseWidget>
+  // 🔥 Response Widget 映射（用于响应参数渲染）
+  private responseWidgetMap: Map<string, typeof BaseWidget>
 
   constructor() {
     this.widgetMap = new Map()
+    this.responseWidgetMap = new Map()
     
     // 🔥 注册默认 Widget
     // 文本输入
@@ -54,6 +59,9 @@ export class WidgetFactory {
     this.registerWidget('table', TableWidget)  // table 表格组件
     this.registerWidget('form', FormWidget)   // form 组件（用于 data.type="struct"）
     
+    // 🔥 注册 Response Widget（用于响应参数渲染）
+    this.registerResponseWidget('form', ResponseFormWidget)
+    this.registerResponseWidget('table', ResponseTableWidget)
   }
 
   /**
@@ -61,6 +69,14 @@ export class WidgetFactory {
    */
   registerWidget(type: string, WidgetClass: typeof BaseWidget): void {
     this.widgetMap.set(type, WidgetClass)
+  }
+
+  /**
+   * 🔥 注册 Response Widget（用于响应参数渲染）
+   * 某些组件在响应参数中需要特殊的只读渲染（如 Form、Table）
+   */
+  registerResponseWidget(type: string, ResponseWidgetClass: typeof BaseWidget): void {
+    this.responseWidgetMap.set(type, ResponseWidgetClass)
   }
 
   /**
@@ -73,6 +89,14 @@ export class WidgetFactory {
       return InputWidget
     }
     return WidgetClass
+  }
+
+  /**
+   * 🔥 获取 Response Widget 类（用于响应参数渲染）
+   * 如果该类型有对应的 Response Widget，返回它；否则返回 null
+   */
+  getResponseWidgetClass(type: string): typeof BaseWidget | null {
+    return this.responseWidgetMap.get(type) || null
   }
 
   /**

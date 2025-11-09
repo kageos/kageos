@@ -192,6 +192,12 @@ const fieldErrors = reactive<Map<string, ValidationResult[]>>(new Map())
 // 🔥 字段变化触发器（用于触发条件渲染的重新计算）
 const fieldChangeTrigger = ref(0)
 
+// 🔥 响应参数渲染触发器（用于触发响应参数区域的重新渲染）
+const responseRenderTrigger = ref(0)
+
+// 🔥 请求参数渲染触发器（用于触发请求参数区域的重新渲染，特别是 TableWidget 内部状态变化）
+const requestRenderTrigger = ref(0)
+
 // 表单数据（用于 el-form 绑定）
 const formData = reactive<Record<string, any>>({})
 
@@ -307,6 +313,9 @@ const formRendererContext: FormRendererContext = {
  * 渲染单个字段
  */
 function renderField(field: FieldConfig): ReturnType<typeof h> {
+  // 🔥 读取响应式触发器，确保当触发器变化时，函数会重新执行
+  requestRenderTrigger.value
+  
   const fieldPath = field.code
   
   // 检查是否已缓存
@@ -331,6 +340,20 @@ function renderField(field: FieldConfig): ReturnType<typeof h> {
       })
       
     registerWidget(fieldPath, widget)
+    
+    // 🔥 如果是 TableWidget，监听其内部状态变化
+    if (field.widget?.type === 'table' && widget) {
+      let lastShowDrawer = false
+      watchEffect(() => {
+        // 读取 Widget 的响应式状态，触发追踪
+        const showDrawer = (widget as any).showFormDetailDrawer?.value
+        // 只在状态变化时触发重新渲染（避免无限循环）
+        if (showDrawer !== lastShowDrawer) {
+          lastShowDrawer = showDrawer
+          requestRenderTrigger.value++
+        }
+      })
+    }
     } catch (error) {
       return ErrorHandler.handleWidgetError(`FormRenderer.renderField[${field.code}]`, error, {
         showMessage: true,
@@ -348,6 +371,9 @@ function renderField(field: FieldConfig): ReturnType<typeof h> {
  * 即使没有数据也渲染框架结构，提供更好的用户体验
  */
 function renderResponseField(field: FieldConfig): ReturnType<typeof h> {
+  // 🔥 读取响应式触发器，确保当触发器变化时，函数会重新执行
+  responseRenderTrigger.value
+  
   // 获取返回值（可能为 undefined）
   const value = responseData.value?.[field.code]
   
@@ -357,25 +383,55 @@ function renderResponseField(field: FieldConfig): ReturnType<typeof h> {
   // 🔥 对于表格类型，使用 ResponseTableWidget（始终渲染，即使没有数据也显示空表格）
   // 完全基于 widget.type 判断，不依赖 data.type
   if (widgetType === 'table') {
-    const widget = new ResponseTableWidget({
-      field: field,
-      currentFieldPath: field.code,
-      value: {
-        raw: value || [],  // 没有数据时使用空数组
-        display: Array.isArray(value) ? `共${value.length}条` : '等待数据...',
-        meta: {}
-      },
-      onChange: () => {}, // 返回值是只读的，不需要 onChange
-      formManager: formManager,
-      formRenderer: {
-        registerWidget: () => {},
-        unregisterWidget: () => {},
-        getFunctionMethod: () => props.functionDetail.method,
-        getFunctionRouter: () => props.functionDetail.router,
-        getSubmitData: () => ({})
-      },
-      depth: 0
-    })
+    // 🔥 缓存 Widget 实例，避免每次渲染都创建新实例（导致状态丢失）
+    const widgetKey = `response_table_${field.code}`
+    let widget = allWidgets.get(widgetKey) as ResponseTableWidget | undefined
+    
+    if (!widget) {
+      widget = new ResponseTableWidget({
+        field: field,
+        currentFieldPath: field.code,
+        value: {
+          raw: value || [],  // 没有数据时使用空数组
+          display: Array.isArray(value) ? `共${value.length}条` : '等待数据...',
+          meta: {}
+        },
+        onChange: () => {}, // 返回值是只读的，不需要 onChange
+        formManager: formManager,
+        formRenderer: {
+          registerWidget: () => {},
+          unregisterWidget: () => {},
+          getFunctionMethod: () => props.functionDetail.method,
+          getFunctionRouter: () => props.functionDetail.router,
+          getSubmitData: () => ({})
+        },
+        depth: 0
+      })
+      allWidgets.set(widgetKey, widget)
+      
+      // 🔥 监听 Widget 内部状态变化，触发 FormRenderer 重新渲染
+      // 通过 watchEffect 监听 Widget 的响应式状态
+      let lastShowDrawer = false
+      watchEffect(() => {
+        // 读取 Widget 的响应式状态，触发追踪
+        const showDrawer = (widget as any).showFormDetailDrawer?.value
+        // 只在状态变化时触发重新渲染（避免无限循环）
+        if (showDrawer !== lastShowDrawer) {
+          lastShowDrawer = showDrawer
+          responseRenderTrigger.value++
+        }
+      })
+    } else {
+      // 🔥 如果 Widget 已存在，更新其值（如果数据变化了）
+      const currentValue = widget.getValue()
+      if (JSON.stringify(currentValue?.raw) !== JSON.stringify(value)) {
+        widget.setValue({
+          raw: value || [],
+          display: Array.isArray(value) ? `共${value.length}条` : '等待数据...',
+          meta: {}
+        })
+      }
+    }
     return widget.render()
   }
   

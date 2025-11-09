@@ -23,6 +23,8 @@ type ServiceTree struct {
 	Description string `json:"description,omitempty"`
 	Tags        string `json:"tags"`
 	AppID       int64  `json:"app_id"`
+	GroupCode   string `json:"group_code"`
+	GroupName   string `json:"group_name"`
 	RefID       int64  `json:"ref_id" gorm:"default:0"`                   // 引用ID：指向真实资源的ID，如果是package类型指向package的ID，如果是function类型指向function的ID
 	App         *App   `json:"app" gorm:"foreignKey:AppID;references:ID"` // 预加载的完整应用对象
 	//下面字段是数据库
