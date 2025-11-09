@@ -463,9 +463,14 @@ function prepareSubmitDataWithTypeConversion(): Record<string, any> {
 
 // 清理函数
 function cleanup(): void {
+  // 先设置 isMounted 为 false，阻止渲染
   isMounted.value = false
-  formDataStore.clear()
-  responseDataStore.clear()
+  // 等待一个 tick，确保组件停止渲染
+  nextTick(() => {
+    // 清理数据
+    formDataStore.clear()
+    responseDataStore.clear()
+  })
 }
 
 // 监听 functionDetail 变化，在路由切换时清理
@@ -475,12 +480,16 @@ watch(
     if (oldId && newId !== oldId) {
       // 路由切换，先清理旧数据
       cleanup()
+      // 等待 DOM 更新完成
+      await nextTick()
       await nextTick()
       // 重新初始化
       isMounted.value = true
+      await nextTick()
       initializeForm()
     }
-  }
+  },
+  { flush: 'post' } // 在 DOM 更新后执行
 )
 
 // 生命周期
