@@ -35,12 +35,17 @@ export class WidgetComponentFactory {
   /**
    * 获取请求参数组件
    */
-  getRequestComponent(type: string): Component {
+  getRequestComponent(type: string): Component | null {
     const component = this.requestComponentMap.get(type)
     if (!component) {
-      console.warn(`[WidgetComponentFactory] 未找到请求参数组件: ${type}，使用默认组件`)
-      // 返回默认组件（后续实现 InputWidget 后替换）
-      return this.requestComponentMap.get(WidgetType.INPUT) || (() => null)
+      console.warn(`[WidgetComponentFactory] 未找到请求参数组件: ${type}，尝试使用默认组件`)
+      // 返回默认组件（Input）
+      const defaultComponent = this.requestComponentMap.get(WidgetType.INPUT)
+      if (!defaultComponent) {
+        console.error(`[WidgetComponentFactory] 连默认组件（input）都未找到！`)
+        return null
+      }
+      return defaultComponent
     }
     return component
   }
@@ -49,12 +54,12 @@ export class WidgetComponentFactory {
    * 获取响应参数组件
    * 如果该类型有对应的响应组件，返回它；否则返回请求组件
    */
-  getResponseComponent(type: string): Component {
+  getResponseComponent(type: string): Component | null {
     const responseComponent = this.responseComponentMap.get(type)
     if (responseComponent) {
       return responseComponent
     }
-    
+
     // 没有响应组件，使用请求组件
     return this.getRequestComponent(type)
   }
