@@ -18,6 +18,8 @@ import TextAreaWidget from '../widgets-v2/components/TextAreaWidget.vue'
 import SwitchWidget from '../widgets-v2/components/SwitchWidget.vue'
 import SelectWidget from '../widgets-v2/components/SelectWidget.vue'
 import TimestampWidget from '../widgets-v2/components/TimestampWidget.vue'
+import FormWidget from '../widgets-v2/components/FormWidget.vue'
+import TableWidget from '../widgets-v2/components/TableWidget.vue'
 
 /**
  * 初始化组件工厂
@@ -41,10 +43,12 @@ export function initializeWidgetComponentFactory(): void {
   
   widgetComponentFactory.registerRequestComponent(WidgetType.TIMESTAMP, TimestampWidget)
   
+  // 容器组件
+  widgetComponentFactory.registerRequestComponent(WidgetType.FORM, FormWidget)
+  widgetComponentFactory.registerRequestComponent(WidgetType.TABLE, TableWidget)
+  
   // 后续添加其他组件时，在这里注册
   // widgetComponentFactory.registerRequestComponent(WidgetType.MULTI_SELECT, MultiSelectWidget)
-  // widgetComponentFactory.registerRequestComponent(WidgetType.TABLE, TableWidget)
-  // widgetComponentFactory.registerRequestComponent(WidgetType.FORM, FormWidget)
   // ...
 }
 

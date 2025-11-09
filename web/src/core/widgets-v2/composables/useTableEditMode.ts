@@ -27,8 +27,6 @@ export function useTableEditMode(props: WidgetComponentProps) {
       }
       
       formDataStore.setValue(props.fieldPath, newFieldValue)
-      // 触发 v-model 更新
-      // emit('update:modelValue', newFieldValue)
     }
   })
   
