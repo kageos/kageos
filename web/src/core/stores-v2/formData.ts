@@ -64,9 +64,16 @@ export const useFormDataStore = defineStore('formData-v2', () => {
         return data.get(path)
       })
       
-      // 只有当提取的值不为 undefined 时才添加到结果中
+      // 🔥 对于 form 和 table 类型，即使提取的值是空对象或空数组，也要添加到结果中
+      // 对于其他类型，只有当提取的值不为 undefined 时才添加
       if (extractedValue !== undefined) {
         result[field.code] = extractedValue
+      } else if (field.widget?.type === 'form') {
+        // 🔥 form 类型字段，即使没有值也要返回空对象，保持结构完整
+        result[field.code] = {}
+      } else if (field.widget?.type === 'table') {
+        // 🔥 table 类型字段，即使没有值也要返回空数组，保持结构完整
+        result[field.code] = []
       }
     })
     
