@@ -22,7 +22,7 @@
       :loading="loading"
       :placeholder="placeholder"
       :multiple-limit="maxCount"
-      teleported
+      popper-class="select-dropdown-popper"
       :popper-options="{
         strategy: 'fixed',
         modifiers: [
