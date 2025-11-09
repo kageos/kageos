@@ -22,13 +22,14 @@
       <div class="section-title">请求参数</div>
       <el-form-item
         v-for="field in requestFields"
-        :key="field.code"
+        :key="`request_${field.code}`"
         :label="field.name"
         :required="isFieldRequired(field)"
         :error="getFieldError(field.code)"
       >
         <component
           v-if="getWidgetComponent(field.widget?.type || 'input')"
+          :key="`request_widget_${field.code}_${field.widget?.type || 'input'}`"
           :is="getWidgetComponent(field.widget?.type || 'input')"
           :field="field"
           :model-value="getFieldValue(field.code)"
@@ -88,6 +89,7 @@
         >
           <component
             v-if="getResponseWidgetComponent(field.widget?.type || 'input')"
+            :key="`response_widget_${field.code}_${field.widget?.type || 'input'}`"
             :is="getResponseWidgetComponent(field.widget?.type || 'input')"
             :field="field"
             :model-value="getResponseFieldValue(field.code)"
