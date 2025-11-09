@@ -227,7 +227,8 @@ function updateFieldValue(fieldCode: string, value: FieldValue): void {
 const getResponseFieldValue = (fieldCode: string): FieldValue => {
   // 读取 renderTrigger 作为依赖，确保数据更新时重新计算
   const trigger = responseDataStore.renderTrigger
-  const responseData = responseDataStore.data.value
+  // 🔥 注意：Pinia store 返回的 ref 需要直接访问 .value
+  const responseData = responseDataStore.data?.value ?? responseDataStore.data
   
   // 🔥 添加日志以便调试
   Logger.debug('[FormRenderer-v2]', `getResponseFieldValue: fieldCode=${fieldCode}, trigger=${trigger}, responseData=`, responseData)
