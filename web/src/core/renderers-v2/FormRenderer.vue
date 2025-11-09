@@ -83,12 +83,16 @@
           :label="field.name"
         >
           <component
+            v-if="getResponseWidgetComponent(field.widget?.type || 'input')"
             :is="getResponseWidgetComponent(field.widget?.type || 'input')"
             :field="field"
             :model-value="getResponseFieldValue(field.code)"
             :field-path="field.code"
             mode="response"
           />
+          <div v-else class="widget-error">
+            响应组件未找到: {{ field.widget?.type || 'input' }}
+          </div>
         </el-form-item>
       </el-form>
     </div>
@@ -208,13 +212,23 @@ function getResponseFieldValue(fieldCode: string): FieldValue {
 
 // 获取请求组件
 function getWidgetComponent(type: string) {
-  return widgetComponentFactory.getRequestComponent(type)
+  const component = widgetComponentFactory.getRequestComponent(type)
+  if (!component) {
+    console.warn(`[FormRenderer-v2] 未找到组件: ${type}，使用默认 InputWidget`)
+    return widgetComponentFactory.getRequestComponent('input') || null
+  }
+  return component
 }
 
 // 获取响应组件
 function getResponseWidgetComponent(type: string) {
   // 优先使用响应组件，如果没有则使用请求组件
-  return widgetComponentFactory.getResponseComponent(type)
+  const component = widgetComponentFactory.getResponseComponent(type)
+  if (!component) {
+    console.warn(`[FormRenderer-v2] 未找到响应组件: ${type}，使用默认 InputWidget`)
+    return widgetComponentFactory.getRequestComponent('input') || null
+  }
+  return component
 }
 
 // 检查字段是否必填
