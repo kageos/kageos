@@ -28,6 +28,7 @@
               <component
                 :is="getWidgetComponent(itemField.widget?.type || 'input')"
                 :field="itemField"
+                :value="getRowFieldValue($index, itemField.code)"
                 :model-value="getRowFieldValue($index, itemField.code)"
                 @update:model-value="(v) => updateRowFieldValue($index, itemField.code, v)"
                 :field-path="`${fieldPath}[${$index}].${itemField.code}`"
@@ -42,6 +43,7 @@
               <component
                 :is="getWidgetComponent(itemField.widget?.type || 'input')"
                 :field="itemField"
+                :value="getRowFieldValue($index, itemField.code)"
                 :model-value="getRowFieldValue($index, itemField.code)"
                 :field-path="`${fieldPath}[${$index}].${itemField.code}`"
                 mode="table-cell"
@@ -98,6 +100,7 @@
             <component
               :is="getWidgetComponent(itemField.widget?.type || 'input')"
               :field="itemField"
+              :value="getRowFieldValue($index, itemField.code)"
               :model-value="getRowFieldValue($index, itemField.code)"
               :field-path="`${fieldPath}[${$index}].${itemField.code}`"
               mode="table-cell"

@@ -51,6 +51,7 @@
           <component
             :is="getWidgetComponent(subField.widget?.type || 'input')"
             :field="subField"
+            :value="getSubFieldValue(subField.code)"
             :model-value="getSubFieldValue(subField.code)"
             :field-path="`${fieldPath}.${subField.code}`"
             mode="response"
