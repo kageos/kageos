@@ -129,6 +129,7 @@
                 <component
                   :is="getWidgetComponent(itemField.widget?.type || 'input')"
                   :field="itemField"
+                  :value="getRowFieldValue(responseMode.currentDetailIndex.value, itemField.code)"
                   :model-value="getRowFieldValue(responseMode.currentDetailIndex.value, itemField.code)"
                   :field-path="`${fieldPath}[${responseMode.currentDetailIndex.value}].${itemField.code}`"
                   mode="detail"

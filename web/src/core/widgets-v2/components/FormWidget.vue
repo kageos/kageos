@@ -24,17 +24,18 @@
         :required="isFieldRequired(subField)"
       >
         <!-- 🔥 递归渲染子组件 -->
-        <component
-          :is="getWidgetComponent(subField.widget?.type || 'input')"
-          :field="subField"
-          :model-value="getSubFieldValue(subField.code)"
-          @update:model-value="(v) => updateSubFieldValue(subField.code, v)"
-          :field-path="`${fieldPath}.${subField.code}`"
-          :form-manager="formManager"
-          :form-renderer="formRenderer"
-          :mode="mode"
-          :depth="(depth || 0) + 1"
-        />
+          <component
+            :is="getWidgetComponent(subField.widget?.type || 'input')"
+            :field="subField"
+            :value="getSubFieldValue(subField.code)"
+            :model-value="getSubFieldValue(subField.code)"
+            @update:model-value="(v) => updateSubFieldValue(subField.code, v)"
+            :field-path="`${fieldPath}.${subField.code}`"
+            :form-manager="formManager"
+            :form-renderer="formRenderer"
+            :mode="mode"
+            :depth="(depth || 0) + 1"
+          />
       </el-form-item>
     </el-form>
     
