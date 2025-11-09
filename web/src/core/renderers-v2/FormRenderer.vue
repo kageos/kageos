@@ -468,9 +468,14 @@ async function handleSubmit(): Promise<void> {
     
     // 验证数据是否已保存
     Logger.info('[FormRenderer-v2]', '保存后的 renderTrigger:', responseDataStore.renderTrigger)
-    Logger.info('[FormRenderer-v2]', '保存后的 data:', responseDataStore.data)
-    Logger.info('[FormRenderer-v2]', '保存后的 data.value:', responseDataStore.data.value)
+    Logger.info('[FormRenderer-v2]', '保存后的 data 对象:', responseDataStore.data)
+    Logger.info('[FormRenderer-v2]', '保存后的 data.value:', responseDataStore.data?.value)
+    Logger.info('[FormRenderer-v2]', '保存后的 data (直接访问):', responseDataStore.data)
     Logger.info('[FormRenderer-v2]', 'responseFieldValues 值:', responseFieldValues.value)
+    
+    // 🔥 强制触发一次响应式更新
+    await nextTick()
+    Logger.info('[FormRenderer-v2]', 'nextTick 后的 responseFieldValues:', responseFieldValues.value)
     
     // 保存提交结果（用于调试）
     submitResult.value = submitData
