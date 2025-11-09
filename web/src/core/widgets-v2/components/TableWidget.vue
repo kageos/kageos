@@ -88,7 +88,7 @@
     
     <!-- 响应模式（只读） -->
     <template v-else-if="mode === 'response'">
-      <el-table :data="tableData" border>
+      <el-table :data="responseTableData" border>
         <el-table-column
           v-for="itemField in itemFields"
           :key="itemField.code"
@@ -100,8 +100,8 @@
             <component
               :is="getWidgetComponent(itemField.widget?.type || 'input')"
               :field="itemField"
-              :value="getRowFieldValue($index, itemField.code)"
-              :model-value="getRowFieldValue($index, itemField.code)"
+              :value="getResponseRowFieldValue($index, itemField.code)"
+              :model-value="getResponseRowFieldValue($index, itemField.code)"
               :field-path="`${fieldPath}[${$index}].${itemField.code}`"
               mode="table-cell"
               :depth="(depth || 0) + 1"
@@ -180,6 +180,37 @@ const statistics = useTableStatistics(props, getAllRowsData)
 
 // 获取 formDataStore
 const formDataStore = useFormDataStore()
+
+// 响应模式下的表格数据（从 props.value.raw 读取）
+const responseTableData = computed(() => {
+  if (props.mode === 'response') {
+    return Array.isArray(props.value?.raw) ? props.value.raw : []
+  }
+  return []
+})
+
+// 响应模式下获取行的字段值（从 row 数据直接读取）
+function getResponseRowFieldValue(rowIndex: number, fieldCode: string): FieldValue {
+  if (props.mode !== 'response') {
+    return { raw: null, display: '', meta: {} }
+  }
+  
+  const tableData = responseTableData.value
+  if (!tableData || rowIndex < 0 || rowIndex >= tableData.length) {
+    return { raw: null, display: '', meta: {} }
+  }
+  
+  const row = tableData[rowIndex]
+  const rawValue = row?.[fieldCode]
+  
+  return {
+    raw: rawValue ?? null,
+    display: rawValue !== null && rawValue !== undefined 
+      ? (typeof rawValue === 'object' ? JSON.stringify(rawValue) : String(rawValue))
+      : '',
+    meta: {}
+  }
+}
 
 // 显示值（用于 table-cell 模式）
 const displayValue = computed(() => {
