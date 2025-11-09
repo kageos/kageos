@@ -84,6 +84,8 @@
         :title="field.name"
         size="60%"
         destroy-on-close
+        :z-index="3000"
+        append-to-body
       >
         <template #default>
           <div class="form-detail-content">
@@ -260,6 +262,8 @@ function isFieldRequired(field: FieldConfig): boolean {
   margin-bottom: 24px;
   padding-bottom: 24px;
   border-bottom: 1px solid var(--el-border-color-lighter);
+  position: relative;
+  z-index: 1;
 }
 
 .drawer-table-field:last-child {
@@ -275,5 +279,13 @@ function isFieldRequired(field: FieldConfig): boolean {
 
 .drawer-table-field .field-content {
   width: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+/* 确保抽屉内容在正确的层级 */
+.form-detail-content {
+  position: relative;
+  z-index: 1;
 }
 </style>
