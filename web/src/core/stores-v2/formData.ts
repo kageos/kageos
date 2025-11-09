@@ -67,6 +67,17 @@ export const useFormDataStore = defineStore('formData-v2', () => {
       } else if (field.widget?.type === 'form') {
         // 表单类型：递归收集子字段的数据
         result[field.code] = extractFormData(field, fieldPath)
+      } else if (field.widget?.type === 'multiselect' || field.data?.type === '[]string') {
+        // 🔥 多选类型：确保返回数组
+        const raw = value.raw
+        if (Array.isArray(raw)) {
+          result[field.code] = raw
+        } else if (raw !== null && raw !== undefined) {
+          // 兼容旧数据：如果是字符串，转换为数组
+          result[field.code] = [raw]
+        } else {
+          result[field.code] = []
+        }
       } else {
         // 基础类型：直接返回 raw 值
         result[field.code] = value.raw
