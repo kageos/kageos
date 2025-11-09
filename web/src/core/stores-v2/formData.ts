@@ -95,6 +95,7 @@ export const useFormDataStore = defineStore('formData-v2', () => {
         const itemFieldPath = `${basePath}[${index}].${itemField.code}`
         const itemValue = data.get(itemFieldPath)
         
+        // 🔥 如果 store 中有值，使用 store 的值；否则从原始 row 数据中读取
         if (itemValue) {
           // 递归处理嵌套结构
           if (itemField.widget?.type === 'form') {
@@ -104,6 +105,28 @@ export const useFormDataStore = defineStore('formData-v2', () => {
           } else {
             rowData[itemField.code] = itemValue.raw
           }
+        } else if (row && typeof row === 'object') {
+          // 🔥 如果 store 中没有值，从原始 row 数据中读取
+          const rawValue = row[itemField.code]
+          if (rawValue !== undefined) {
+            // 递归处理嵌套结构
+            if (itemField.widget?.type === 'form' && rawValue && typeof rawValue === 'object' && !Array.isArray(rawValue)) {
+              // 对于嵌套的 form，需要递归提取
+              rowData[itemField.code] = extractFormDataFromRaw(itemField, rawValue)
+            } else if (itemField.widget?.type === 'table' && Array.isArray(rawValue)) {
+              // 对于嵌套的 table，需要递归提取
+              rowData[itemField.code] = rawValue.map((nestedRow: any) => {
+                const nestedItemFields = itemField.children || []
+                const nestedRowData: Record<string, any> = {}
+                nestedItemFields.forEach(nestedItemField => {
+                  nestedRowData[nestedItemField.code] = nestedRow[nestedItemField.code]
+                })
+                return nestedRowData
+              })
+            } else {
+              rowData[itemField.code] = rawValue
+            }
+          }
         }
       })
       
@@ -112,11 +135,48 @@ export const useFormDataStore = defineStore('formData-v2', () => {
   }
   
   /**
+   * 从原始数据中提取表单数据（用于嵌套结构）
+   */
+  function extractFormDataFromRaw(field: FieldConfig, rawData: Record<string, any>): Record<string, any> {
+    const subFields = field.children || []
+    const formData: Record<string, any> = {}
+    
+    subFields.forEach(subField => {
+      const rawValue = rawData[subField.code]
+      if (rawValue !== undefined) {
+        // 递归处理嵌套结构
+        if (subField.widget?.type === 'form' && rawValue && typeof rawValue === 'object' && !Array.isArray(rawValue)) {
+          formData[subField.code] = extractFormDataFromRaw(subField, rawValue)
+        } else if (subField.widget?.type === 'table' && Array.isArray(rawValue)) {
+          formData[subField.code] = rawValue.map((nestedRow: any) => {
+            const nestedItemFields = subField.children || []
+            const nestedRowData: Record<string, any> = {}
+            nestedItemFields.forEach(nestedItemField => {
+              nestedRowData[nestedItemField.code] = nestedRow[nestedItemField.code]
+            })
+            return nestedRowData
+          })
+        } else {
+          formData[subField.code] = rawValue
+        }
+      }
+    })
+    
+    return formData
+  }
+  
+  /**
    * 递归提取表单数据
    */
   function extractFormData(field: FieldConfig, basePath: string): Record<string, any> {
+    const value = data.get(basePath)
     const subFields = field.children || []
     const formData: Record<string, any> = {}
+    
+    // 🔥 获取原始数据，用于回退
+    const rawData = value?.raw && typeof value.raw === 'object' && !Array.isArray(value.raw) 
+      ? value.raw as Record<string, any>
+      : null
     
     subFields.forEach(subField => {
       const subFieldPath = `${basePath}.${subField.code}`
@@ -130,6 +190,24 @@ export const useFormDataStore = defineStore('formData-v2', () => {
           formData[subField.code] = extractTableData(subField, subFieldPath)
         } else {
           formData[subField.code] = subValue.raw
+        }
+      } else if (rawData && rawData[subField.code] !== undefined) {
+        // 🔥 如果 store 中没有值，从原始数据中读取
+        const rawValue = rawData[subField.code]
+        // 递归处理嵌套结构
+        if (subField.widget?.type === 'form' && rawValue && typeof rawValue === 'object' && !Array.isArray(rawValue)) {
+          formData[subField.code] = extractFormDataFromRaw(subField, rawValue)
+        } else if (subField.widget?.type === 'table' && Array.isArray(rawValue)) {
+          formData[subField.code] = rawValue.map((nestedRow: any) => {
+            const nestedItemFields = subField.children || []
+            const nestedRowData: Record<string, any> = {}
+            nestedItemFields.forEach(nestedItemField => {
+              nestedRowData[nestedItemField.code] = nestedRow[nestedItemField.code]
+            })
+            return nestedRowData
+          })
+        } else {
+          formData[subField.code] = rawValue
         }
       }
     })
