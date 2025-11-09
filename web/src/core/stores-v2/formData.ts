@@ -10,7 +10,7 @@
 
 import { defineStore } from 'pinia'
 import { reactive } from 'vue'
-import type { FieldConfig, FieldValue } from '@/types/field'
+import type { FieldConfig, FieldValue } from '../types/field'
 import { FieldExtractorRegistry } from './extractors/FieldExtractorRegistry'
 
 export const useFormDataStore = defineStore('formData-v2', () => {
