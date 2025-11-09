@@ -47,9 +47,22 @@ export class FormFieldExtractor implements IFieldExtractor {
         formData[subField.code] = this.extractFromRaw(subField, rawValue, extractorRegistry)
       } else {
         // 🔥 如果 store 和原始数据都没有值，根据字段类型返回默认值
-        // 对于嵌套的 form 或 table，返回空结构以保持数据完整性
+        // 对于嵌套的 form，需要递归提取所有子字段，即使值为空也要保持结构完整
         if (subField.widget?.type === 'form') {
-          formData[subField.code] = {}
+          const nestedFormData: Record<string, any> = {}
+          const nestedSubFields = subField.children || []
+          nestedSubFields.forEach(nestedSubField => {
+            // 🔥 递归提取嵌套字段，确保结构完整
+            const nestedExtracted = extractorRegistry.extractField(nestedSubField, `${subFieldPath}.${nestedSubField.code}`, getValue)
+            if (nestedExtracted !== undefined) {
+              nestedFormData[nestedSubField.code] = nestedExtracted
+            } else if (nestedSubField.widget?.type === 'form') {
+              nestedFormData[nestedSubField.code] = {}
+            } else if (nestedSubField.widget?.type === 'table') {
+              nestedFormData[nestedSubField.code] = []
+            }
+          })
+          formData[subField.code] = nestedFormData
         } else if (subField.widget?.type === 'table') {
           formData[subField.code] = []
         }
