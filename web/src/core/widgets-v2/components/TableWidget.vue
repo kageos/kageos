@@ -24,7 +24,7 @@
         >
           <template #default="{ row, $index }">
             <!-- 编辑状态 -->
-            <template v-if="editMode.editingIndex.value === $index || editMode.isAdding.value">
+            <template v-if="editMode.editingIndex.value === $index">
               <component
                 :is="getWidgetComponent(itemField.widget?.type || 'input')"
                 :field="itemField"

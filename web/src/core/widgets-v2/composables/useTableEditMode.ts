@@ -58,6 +58,21 @@ export function useTableEditMode(props: WidgetComponentProps) {
   
   // 取消编辑/新增
   function cancelEditing(): void {
+    // 如果是新增模式且还没有保存，需要移除刚添加的空行
+    if (isAdding.value && editingIndex.value !== null) {
+      const currentData = [...tableData.value]
+      const indexToRemove = editingIndex.value
+      currentData.splice(indexToRemove, 1)
+      tableData.value = currentData
+      
+      // 清理 formDataStore 中该行的数据
+      const itemFields = props.field.children || []
+      itemFields.forEach(itemField => {
+        const fieldPath = `${props.fieldPath}[${indexToRemove}].${itemField.code}`
+        // 注意：formDataStore 没有 delete 方法，这里先不清理，后续可以优化
+      })
+    }
+    
     editingIndex.value = null
     isAdding.value = false
   }
