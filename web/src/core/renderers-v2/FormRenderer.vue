@@ -616,5 +616,16 @@ defineExpose({
   font-family: monospace;
   font-size: 12px;
 }
+
+/* 表单项间距优化 */
+:deep(.function-form .request-form-item),
+:deep(.function-form .response-form-item) {
+  margin-bottom: 24px;
+}
+
+:deep(.function-form .request-form-item:last-child),
+:deep(.function-form .response-form-item:last-child) {
+  margin-bottom: 0;
+}
 </style>
 
