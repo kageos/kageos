@@ -254,6 +254,7 @@ import { useTableOperations } from '@/composables/useTableOperations'
 import { WidgetBuilder } from '@/core/factories/WidgetBuilder'
 import { ErrorHandler } from '@/core/utils/ErrorHandler'
 import { convertToFieldValue } from '@/utils/field'
+import { WidgetType } from '@/core/constants/widget'
 import FormDialog from './FormDialog.vue'
 import SearchInput from './SearchInput.vue'
 import type { Function as FunctionType } from '@/types'
@@ -365,8 +366,8 @@ const getActionColumnWidth = (): number => {
  * 根据字段类型返回合适的列宽
  */
 const getColumnWidth = (field: FieldConfig): number => {
-  if (field.widget.type === 'timestamp') return 180
-  if (field.widget.type === 'text_area') return 300
+  if (field.widget.type === WidgetType.TIMESTAMP) return 180
+  if (field.widget.type === WidgetType.TEXT_AREA) return 300
   return 150
 }
 

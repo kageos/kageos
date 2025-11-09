@@ -15,6 +15,7 @@ import { BaseWidget } from './BaseWidget'
 import type { FieldConfig, FieldValue } from '../types/field'
 import { WidgetBuilder } from '../factories/WidgetBuilder'
 import { convertToFieldValue } from '../../utils/field'
+import { WidgetType } from '../constants/widget'
 import {
   createFormDrawerState,
   handleFormFieldClick,
@@ -157,12 +158,12 @@ export class ResponseTableWidget extends BaseWidget {
       // 🔥 将 field 转换为 core 类型的 FieldConfig（类型兼容）
       const coreField: FieldConfig = {
         ...field,
-        widget: field.widget || { type: 'input', config: {} },
+        widget: field.widget || { type: WidgetType.INPUT, config: {} },
         data: field.data || {}
       } as FieldConfig
       
       // 🔥 如果是 Form 类型，提供可点击的查看按钮
-      if (field.widget?.type === 'form') {
+      if (field.widget?.type === WidgetType.FORM) {
         const button = renderFormFieldButton(field, value, (e: MouseEvent) => {
           Logger.info('[ResponseTableWidget]', `点击事件触发: ${field.code}`)
           this.handleFormFieldClick(field, value)

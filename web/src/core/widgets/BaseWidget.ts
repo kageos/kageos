@@ -9,6 +9,7 @@ import type { ReactiveFormDataManager } from '../managers/ReactiveFormDataManage
 import type { ValidationResult } from '../validation/types'
 import type { ValidationEngine } from '../validation/ValidationEngine'
 import { Logger } from '../utils/logger'
+import { DataType, WidgetType } from '../constants/widget'
 
 /**
  * Widget 快照接口
@@ -173,10 +174,10 @@ export abstract class BaseWidget implements IWidgetSnapshot {
       return defaultValue
     }
 
-    const type = fieldType?.toLowerCase() || 'string'
+    const type = fieldType?.toLowerCase() || DataType.STRING
 
     switch (type) {
-      case 'int':
+      case DataType.INT.toLowerCase():
         // 字符串数字转换为整数
         if (typeof defaultValue === 'string') {
           const numValue = Number(defaultValue)
@@ -190,7 +191,7 @@ export abstract class BaseWidget implements IWidgetSnapshot {
         const intValue = Number(defaultValue)
         return isNaN(intValue) ? defaultValue : Math.floor(intValue)
 
-      case 'float':
+      case DataType.FLOAT.toLowerCase():
         // 字符串数字转换为浮点数
         if (typeof defaultValue === 'string') {
           const numValue = Number(defaultValue)
@@ -204,7 +205,7 @@ export abstract class BaseWidget implements IWidgetSnapshot {
         const floatValue = Number(defaultValue)
         return isNaN(floatValue) ? defaultValue : floatValue
 
-      case 'bool':
+      case DataType.BOOL.toLowerCase():
         // 字符串布尔值转换
         if (typeof defaultValue === 'string') {
           const lower = defaultValue.toLowerCase()
@@ -217,10 +218,10 @@ export abstract class BaseWidget implements IWidgetSnapshot {
         // 其他类型转换为布尔值
         return Boolean(defaultValue)
 
-      case '[]string':
-      case '[]int':
-      case '[]float':
-      case '[]struct':
+      case DataType.STRINGS.toLowerCase():
+      case DataType.INTS.toLowerCase():
+      case DataType.FLOATS.toLowerCase():
+      case DataType.STRUCTS.toLowerCase():
         // 确保是数组类型
         if (Array.isArray(defaultValue)) {
           return defaultValue
@@ -236,7 +237,7 @@ export abstract class BaseWidget implements IWidgetSnapshot {
         }
         return defaultValue
 
-      case 'struct':
+      case DataType.STRUCT.toLowerCase():
         // 确保是对象类型
         if (typeof defaultValue === 'object' && !Array.isArray(defaultValue)) {
           return defaultValue
@@ -252,7 +253,7 @@ export abstract class BaseWidget implements IWidgetSnapshot {
         }
         return defaultValue
 
-      case 'timestamp':
+      case DataType.TIMESTAMP.toLowerCase():
         // 时间戳类型：字符串数字转换为数字
         if (typeof defaultValue === 'string') {
           const numValue = Number(defaultValue)
@@ -264,7 +265,7 @@ export abstract class BaseWidget implements IWidgetSnapshot {
         }
         return defaultValue
 
-      case 'files':
+      case DataType.FILES.toLowerCase():
         // 文件类型：空值返回 null，有值则保持原样或转换为数组
         if (defaultValue === null || defaultValue === undefined || defaultValue === '') {
           return null
@@ -282,7 +283,7 @@ export abstract class BaseWidget implements IWidgetSnapshot {
         }
         return defaultValue
 
-      case 'string':
+      case DataType.STRING.toLowerCase():
       default:
         // 字符串类型：转换为字符串
         return String(defaultValue)
@@ -303,7 +304,7 @@ export abstract class BaseWidget implements IWidgetSnapshot {
       const defaultValue = (config as Record<string, any>).default
       if (defaultValue !== undefined && defaultValue !== '') {
         // 🔥 根据字段类型转换默认值（组件自身的方法，符合依赖倒置原则）
-        const fieldType = field.data?.type || 'string'
+        const fieldType = field.data?.type || DataType.STRING
         const convertedValue = this.convertDefaultValueByType(defaultValue, fieldType)
         
         return {
@@ -315,45 +316,45 @@ export abstract class BaseWidget implements IWidgetSnapshot {
     }
 
     // 2. 根据字段类型设置默认值（必须与后端定义一致）
-    const fieldType = field.data?.type || 'string'
+    const fieldType = field.data?.type || DataType.STRING
     
     switch (fieldType.toLowerCase()) {
-      case 'int':
-      case 'float':
-      case 'timestamp':
+      case DataType.INT.toLowerCase():
+      case DataType.FLOAT.toLowerCase():
+      case DataType.TIMESTAMP.toLowerCase():
         return {
           raw: undefined,
           display: '',
           meta: {}
         }
-      case 'bool':
+      case DataType.BOOL.toLowerCase():
         return {
           raw: false,
           display: '否',
           meta: {}
         }
-      case '[]string':
-      case '[]int':
-      case '[]float':
-      case '[]struct':
+      case DataType.STRINGS.toLowerCase():
+      case DataType.INTS.toLowerCase():
+      case DataType.FLOATS.toLowerCase():
+      case DataType.STRUCTS.toLowerCase():
         return {
           raw: [],
           display: '[]',
           meta: {}
         }
-      case 'struct':
+      case DataType.STRUCT.toLowerCase():
         return {
           raw: {},
           display: '{}',
           meta: {}
         }
-      case 'files':
+      case DataType.FILES.toLowerCase():
         return {
           raw: null,
           display: '',
           meta: {}
         }
-      case 'string':
+      case DataType.STRING.toLowerCase():
       default:
         return {
           raw: '',
@@ -470,7 +471,7 @@ export abstract class BaseWidget implements IWidgetSnapshot {
     const isDataType = !!fieldType && fieldType.trim() !== ''
     
     if (!isDataType) {
-      fieldType = this.field.widget?.type || 'string'
+      fieldType = this.field.widget?.type || DataType.STRING
     }
     
     const type = fieldType.toLowerCase()
@@ -478,15 +479,15 @@ export abstract class BaseWidget implements IWidgetSnapshot {
     // 如果是 data.type，只使用后端定义的类型
     if (isDataType) {
       switch (type) {
-        case 'int':
+        case DataType.INT.toLowerCase():
           const intValue = Number(value)
           return isNaN(intValue) ? null : Math.floor(intValue)
         
-        case 'float':
+        case DataType.FLOAT.toLowerCase():
           const floatValue = Number(value)
           return isNaN(floatValue) ? null : floatValue
         
-        case 'bool':
+        case DataType.BOOL.toLowerCase():
           if (typeof value === 'boolean') return value
           if (typeof value === 'string') {
             const lower = value.toLowerCase()
@@ -494,27 +495,27 @@ export abstract class BaseWidget implements IWidgetSnapshot {
           }
           return Boolean(value)
         
-        case 'timestamp':
+        case DataType.TIMESTAMP.toLowerCase():
           const timestampValue = Number(value)
           return isNaN(timestampValue) ? null : timestampValue
         
-        case '[]string':
-        case '[]int':
-        case '[]float':
-        case '[]struct':
+        case DataType.STRINGS.toLowerCase():
+        case DataType.INTS.toLowerCase():
+        case DataType.FLOATS.toLowerCase():
+        case DataType.STRUCTS.toLowerCase():
           return Array.isArray(value) ? value : null
         
-        case 'struct':
+        case DataType.STRUCT.toLowerCase():
           return typeof value === 'object' && !Array.isArray(value) ? value : null
         
-        case 'files':
+        case DataType.FILES.toLowerCase():
           // files 类型：空值返回 null，有值则返回数组
           if (value === null || value === undefined || value === '') {
             return null
           }
           return Array.isArray(value) ? value : null
         
-        case 'string':
+        case DataType.STRING.toLowerCase():
         default:
           return value ? String(value) : null
       }
@@ -522,17 +523,17 @@ export abstract class BaseWidget implements IWidgetSnapshot {
     
     // 如果是 widget.type，保留一些兼容性判断（组件类型）
     switch (type) {
-      case 'int':
-      case 'number':  // widget.type 可能是 'number'
+      case DataType.INT.toLowerCase():
+      case WidgetType.NUMBER.toLowerCase():  // widget.type 可能是 'number'
         const intValue = Number(value)
         return isNaN(intValue) ? null : Math.floor(intValue)
       
-      case 'float':
+      case DataType.FLOAT.toLowerCase():
         const floatValue = Number(value)
         return isNaN(floatValue) ? null : floatValue
       
-      case 'bool':
-      case 'switch':  // widget.type 可能是 'switch'
+      case DataType.BOOL.toLowerCase():
+      case WidgetType.SWITCH.toLowerCase():  // widget.type 可能是 'switch'
         if (typeof value === 'boolean') return value
         if (typeof value === 'string') {
           const lower = value.toLowerCase()
@@ -540,11 +541,11 @@ export abstract class BaseWidget implements IWidgetSnapshot {
         }
         return Boolean(value)
       
-      case 'string':
-      case 'input':  // widget.type 可能是 'input'
-      case 'text':
-      case 'textarea':
-      case 'text_area':
+      case DataType.STRING.toLowerCase():
+      case WidgetType.INPUT.toLowerCase():  // widget.type 可能是 'input'
+      case WidgetType.TEXT.toLowerCase():
+      case 'textarea':  // 兼容旧命名
+      case WidgetType.TEXT_AREA.toLowerCase():
       default:
         // 🔥 字符串类型：空值返回 null，有值返回字符串
         return value ? String(value) : null
