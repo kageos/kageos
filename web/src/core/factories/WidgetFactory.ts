@@ -5,6 +5,7 @@
 
 import type { BaseWidget } from '../widgets/BaseWidget'
 import { Logger } from '../utils/logger'
+import { WidgetType } from '../constants/widget'
 import { InputWidget } from '../widgets/InputWidget'
 import { NumberWidget } from '../widgets/NumberWidget'
 import { FloatWidget } from '../widgets/FloatWidget'
@@ -30,38 +31,38 @@ export class WidgetFactory {
     
     // 🔥 注册默认 Widget
     // 文本输入
-    this.registerWidget('input', InputWidget)
-    this.registerWidget('text', InputWidget)  // text 别名
-    this.registerWidget('ID', InputWidget)  // ID 字段（通常禁用或只读）
+    this.registerWidget(WidgetType.INPUT, InputWidget)
+    this.registerWidget(WidgetType.TEXT, InputWidget)  // text 别名
+    this.registerWidget(WidgetType.ID, InputWidget)  // ID 字段（通常禁用或只读）
     
     // 数字输入
-    this.registerWidget('number', NumberWidget)  // 🔥 整数输入（独立组件）
-    this.registerWidget('float', FloatWidget)    // 🔥 浮点数输入（独立组件）
+    this.registerWidget(WidgetType.NUMBER, NumberWidget)  // 🔥 整数输入（独立组件）
+    this.registerWidget(WidgetType.FLOAT, FloatWidget)    // 🔥 浮点数输入（独立组件）
     
     // 文本域
-    this.registerWidget('textarea', TextAreaWidget)
-    this.registerWidget('text_area', TextAreaWidget)  // text_area 别名
+    this.registerWidget('textarea', TextAreaWidget)  // 兼容旧命名
+    this.registerWidget(WidgetType.TEXT_AREA, TextAreaWidget)
     
     // 选择器
-    this.registerWidget('select', SelectWidget)        // 🔥 单选
-    this.registerWidget('multiselect', MultiSelectWidget)  // 🔥 多选（独立组件）
+    this.registerWidget(WidgetType.SELECT, SelectWidget)        // 🔥 单选
+    this.registerWidget(WidgetType.MULTI_SELECT, MultiSelectWidget)  // 🔥 多选（独立组件）
     
     // 开关
-    this.registerWidget('switch', SwitchWidget)  // 🔥 开关组件
+    this.registerWidget(WidgetType.SWITCH, SwitchWidget)  // 🔥 开关组件
     
     // 时间选择器
-    this.registerWidget('timestamp', TimestampWidget)  // 🔥 时间戳组件
+    this.registerWidget(WidgetType.TIMESTAMP, TimestampWidget)  // 🔥 时间戳组件
     
     // 文件上传
-    this.registerWidget('files', FilesWidget)  // 🔥 文件上传组件
+    this.registerWidget(WidgetType.FILES, FilesWidget)  // 🔥 文件上传组件
     
     // 容器组件
-    this.registerWidget('table', TableWidget)  // table 表格组件
-    this.registerWidget('form', FormWidget)   // form 组件（用于 data.type="struct"）
+    this.registerWidget(WidgetType.TABLE, TableWidget)  // table 表格组件
+    this.registerWidget(WidgetType.FORM, FormWidget)   // form 组件（用于 data.type="struct"）
     
     // 🔥 注册 Response Widget（用于响应参数渲染）
-    this.registerResponseWidget('form', ResponseFormWidget)
-    this.registerResponseWidget('table', ResponseTableWidget)
+    this.registerResponseWidget(WidgetType.FORM, ResponseFormWidget)
+    this.registerResponseWidget(WidgetType.TABLE, ResponseTableWidget)
   }
 
   /**
