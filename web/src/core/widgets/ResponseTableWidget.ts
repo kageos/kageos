@@ -244,7 +244,7 @@ export class ResponseTableWidget extends BaseWidget {
     // 🔥 读取 computed 值，确保 Vue 能追踪到变化
     const drawer = this.drawerContent.value
     
-    Logger.info('[ResponseTableWidget]', `render 调用: drawer=${!!drawer}, showDrawer=${this.showFormDetailDrawer.value}`)
+    Logger.info('[ResponseTableWidget]', `render 调用: drawer=${!!drawer}, showDrawer=${this.formDrawerState.showFormDetailDrawer.value}`)
     
     // 始终渲染表格（即使没有数据也显示表头结构），以及 Form 字段详情抽屉
     return h('div', { style: { width: '100%' } }, [
