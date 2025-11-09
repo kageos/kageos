@@ -270,25 +270,46 @@ function getWidgetComponent(type: string) {
 
 // 保存行
 function handleSave(index: number): void {
-  // 收集当前行的数据
+  // 收集当前行的数据，并确保 formDataStore 中的值都被正确设置
   const rowData: Record<string, any> = {}
   
   itemFields.value.forEach(itemField => {
     const fieldPath = `${props.fieldPath}[${index}].${itemField.code}`
     const value = getRowFieldValue(index, itemField.code)
-    rowData[itemField.code] = value?.raw ?? null
+    
+    // 确保值存在，如果不存在则使用默认值
+    const fieldValue: FieldValue = value || {
+      raw: null,
+      display: '',
+      meta: {}
+    }
+    
+    // 确保 formDataStore 中有这个值
+    formDataStore.setValue(fieldPath, fieldValue)
+    
+    // 收集到 rowData 中
+    rowData[itemField.code] = fieldValue.raw ?? null
   })
   
+  // 保存行（这会更新 tableData，从而更新 formDataStore 中的整个数组）
+  const wasAdding = editMode.isAdding.value
   editMode.saveRow(rowData)
   
-  // 保存后，需要同步更新 formDataStore 中的值
-  // 因为 saveRow 只更新了 tableData，但 formDataStore 中的值可能还在临时路径
+  // 保存后，再次确保 formDataStore 中每个字段路径的值都是最新的
+  // 如果是新增，索引会变成数组的最后一个索引
+  const finalIndex = wasAdding ? tableData.value.length - 1 : index
+  
   itemFields.value.forEach(itemField => {
-    const fieldPath = `${props.fieldPath}[${index}].${itemField.code}`
-    const value = getRowFieldValue(index, itemField.code)
-    if (value) {
-      formDataStore.setValue(fieldPath, value)
+    const fieldPath = `${props.fieldPath}[${finalIndex}].${itemField.code}`
+    const rawValue = rowData[itemField.code]
+    
+    // 确保 formDataStore 中有正确的值
+    const fieldValue: FieldValue = {
+      raw: rawValue,
+      display: rawValue !== null && rawValue !== undefined ? String(rawValue) : '',
+      meta: {}
     }
+    formDataStore.setValue(fieldPath, fieldValue)
   })
 }
 
