@@ -262,12 +262,17 @@ const getResponseFieldValue = (fieldCode: string): FieldValue => {
 const responseFieldValues = computed(() => {
   // 如果组件未挂载，返回空值，避免在卸载时访问数据
   if (!isMounted.value || !responseDataStore) {
+    Logger.debug('[FormRenderer-v2]', 'responseFieldValues: 组件未挂载或 store 不存在')
     return {}
   }
   
   try {
+    // 🔥 关键：必须读取 renderTrigger 作为依赖，确保数据更新时重新计算
     const trigger = responseDataStore.renderTrigger
     const responseData = responseDataStore.data?.value
+    
+    Logger.debug('[FormRenderer-v2]', `responseFieldValues computed: trigger=${trigger}, hasData=${!!responseData}`)
+    
     const values: Record<string, FieldValue> = {}
     
     responseFields.value.forEach(field => {
@@ -282,6 +287,8 @@ const responseFieldValues = computed(() => {
       
       const rawValue = responseData[field.code]
       
+      Logger.debug('[FormRenderer-v2]', `responseFieldValues: field=${field.code}, rawValue=`, rawValue)
+      
       values[field.code] = {
         raw: rawValue ?? null,
         display: rawValue !== null && rawValue !== undefined 
@@ -291,6 +298,7 @@ const responseFieldValues = computed(() => {
       }
     })
     
+    Logger.debug('[FormRenderer-v2]', 'responseFieldValues 计算结果:', values)
     return values
   } catch (error) {
     Logger.warn('[FormRenderer-v2]', 'responseFieldValues computed 错误:', error)
