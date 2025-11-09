@@ -74,7 +74,7 @@
       <!-- 聚合统计 -->
       <div v-if="statistics.statisticsConfig && Object.keys(statistics.statisticsConfig).length > 0" class="statistics">
         <div
-          v-for="(value, label) in statistics.statisticsResult"
+          v-for="(value, label) in statistics.statisticsResult.value"
           :key="label"
           class="statistics-item"
         >
