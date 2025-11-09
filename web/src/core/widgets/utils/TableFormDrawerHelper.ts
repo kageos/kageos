@@ -8,11 +8,8 @@
 import { h, ref, computed, type Ref } from 'vue'
 import { ElDrawer, ElButton, ElIcon } from 'element-plus'
 import { View } from '@element-plus/icons-vue'
-import { ResponseFormWidget } from '../ResponseFormWidget'
 import { Logger } from '../../utils/logger'
 import type { FieldConfig, FieldValue } from '../../types/field'
-import type { ReactiveFormDataManager } from '../../managers/ReactiveFormDataManager'
-import type { FormRendererContext } from '../../types/widget'
 
 /**
  * Form 字段详情抽屉的状态
@@ -104,14 +101,27 @@ export function renderFormFieldButton(
 }
 
 /**
+ * 渲染 Form 字段详情抽屉的内容（抽象接口）
+ * 遵循依赖倒置原则：工具类不依赖具体的 Widget 实现，而是依赖抽象
+ */
+export type DrawerContentRenderer = (
+  field: FieldConfig,
+  value: FieldValue,
+  fieldPath: string
+) => any
+
+/**
  * 渲染 Form 字段详情抽屉
+ * 
+ * 遵循依赖倒置原则：
+ * - 工具类不依赖具体的 Widget 实现（如 ResponseFormWidget）
+ * - 通过 renderContent 回调函数注入具体的渲染逻辑
+ * - 调用者负责提供具体的渲染实现
  */
 export function renderFormDetailDrawer(
   state: FormDrawerState,
   fieldPath: string,
-  formManager: ReactiveFormDataManager | null,
-  formRenderer: FormRendererContext | null,
-  depth: number,
+  renderContent: DrawerContentRenderer,
   widgetName: string = 'TableWidget'
 ): any {
   const show = state.showFormDetailDrawer.value
@@ -127,16 +137,8 @@ export function renderFormDetailDrawer(
     return null
   }
   
-  // 🔥 使用 ResponseFormWidget 渲染表单内容（只读模式）
-  const responseWidget = new ResponseFormWidget({
-    field: field,
-    currentFieldPath: `${fieldPath}.${field.code}`,
-    value: value,
-    onChange: () => {},
-    formManager: formManager,
-    formRenderer: formRenderer,
-    depth: depth + 1
-  })
+  // 🔥 通过回调函数渲染内容，不依赖具体实现
+  const content = renderContent(field, value, `${fieldPath}.${field.code}`)
   
   return h(ElDrawer, {
     modelValue: show,
@@ -152,12 +154,16 @@ export function renderFormDetailDrawer(
       handleCloseFormDetail(state)
     }
   }, {
-    default: () => responseWidget.render()
+    default: () => content
   })
 }
 
 /**
  * 创建 computed 包装的抽屉内容
+ * 
+ * 遵循依赖倒置原则：
+ * - 通过 renderDrawer 回调函数注入具体的渲染逻辑
+ * - 工具类不依赖具体的实现
  */
 export function createDrawerContentComputed(
   state: FormDrawerState,

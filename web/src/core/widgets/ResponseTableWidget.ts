@@ -22,8 +22,10 @@ import {
   renderFormFieldButton,
   renderFormDetailDrawer,
   createDrawerContentComputed,
-  type FormDrawerState
+  type FormDrawerState,
+  type DrawerContentRenderer
 } from './utils/TableFormDrawerHelper'
+import { ResponseFormWidget } from './ResponseFormWidget'
 import { Logger } from '../utils/logger'
 
 export class ResponseTableWidget extends BaseWidget {
@@ -200,14 +202,27 @@ export class ResponseTableWidget extends BaseWidget {
   
   /**
    * 🔥 渲染 Form 字段详情抽屉
+   * 遵循依赖倒置原则：通过回调函数注入具体的渲染逻辑
    */
   private renderFormDetailDrawer(): any {
+    // 🔥 定义渲染内容的回调函数（具体实现）
+    const renderContent: DrawerContentRenderer = (field, value, fieldPath) => {
+      const responseWidget = new ResponseFormWidget({
+        field: field,
+        currentFieldPath: fieldPath,
+        value: value,
+        onChange: () => {},
+        formManager: this.formManager,
+        formRenderer: this.formRenderer,
+        depth: this.depth + 1
+      })
+      return responseWidget.render()
+    }
+    
     return renderFormDetailDrawer(
       this.formDrawerState,
       this.fieldPath,
-      this.formManager,
-      this.formRenderer,
-      this.depth,
+      renderContent,
       'ResponseTableWidget'
     )
   }
