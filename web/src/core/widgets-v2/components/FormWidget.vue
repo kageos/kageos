@@ -78,33 +78,40 @@
         </el-icon>
       </el-button>
       
-      <!-- 详情抽屉 -->
+      <!-- 详情抽屉（支持编辑和查看） -->
       <el-drawer
         v-model="showDetailDrawer"
         :title="field.name"
-        size="50%"
+        size="60%"
         destroy-on-close
       >
         <template #default>
           <div class="form-detail-content">
-            <div
-              v-for="subField in visibleSubFields"
-              :key="subField.code"
-              class="detail-field"
+            <!-- 🔥 在抽屉中使用编辑模式，支持嵌套编辑 -->
+            <el-form
+              :model="formData"
+              label-width="120px"
             >
-              <div class="field-label">{{ subField.name }}</div>
-              <div class="field-value">
+              <el-form-item
+                v-for="subField in visibleSubFields"
+                :key="subField.code"
+                :label="subField.name"
+                :required="isFieldRequired(subField)"
+              >
                 <component
                   :is="getWidgetComponent(subField.widget?.type || 'input')"
                   :field="subField"
                   :value="getSubFieldValue(subField.code)"
                   :model-value="getSubFieldValue(subField.code)"
+                  @update:model-value="(v) => updateSubFieldValue(subField.code, v)"
                   :field-path="`${fieldPath}.${subField.code}`"
-                  mode="detail"
+                  :form-manager="formManager"
+                  :form-renderer="formRenderer"
+                  mode="edit"
                   :depth="(depth || 0) + 1"
                 />
-              </div>
-            </div>
+              </el-form-item>
+            </el-form>
           </div>
         </template>
       </el-drawer>
