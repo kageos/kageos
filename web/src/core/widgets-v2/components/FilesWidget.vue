@@ -403,8 +403,8 @@ const remark = computed({
 const isDisabled = computed(() => {
   if (props.mode !== 'edit') return true
   if (filesConfig.value.disabled) return true
-  if (!formRenderer?.value) return true
-  const router = formRenderer.value.getFunctionRouter()
+  if (!props.formRenderer) return true
+  const router = props.formRenderer.getFunctionRouter()
   return !router || router === ''
 })
 
