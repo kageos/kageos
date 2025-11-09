@@ -404,6 +404,23 @@ async function handleSubmit(): Promise<void> {
   }
 }
 
+/**
+ * 准备提交数据（带类型转换）
+ * 这个方法会被 FormDialog 等外部组件调用
+ */
+function prepareSubmitDataWithTypeConversion(): Record<string, any> {
+  if (!props.functionDetail?.request) {
+    return {}
+  }
+  
+  // 使用 formDataStore 的 getSubmitData 方法递归收集所有字段的数据
+  const submitData = formDataStore.getSubmitData(props.functionDetail.request, '')
+  
+  Logger.info('[FormRenderer-v2]', '准备提交数据', submitData)
+  
+  return submitData
+}
+
 // 清理函数
 function cleanup(): void {
   isMounted.value = false
@@ -437,6 +454,11 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   // 清理工作
   cleanup()
+})
+
+// 暴露方法给外部组件（如 FormDialog）使用
+defineExpose({
+  prepareSubmitDataWithTypeConversion
 })
 </script>
 
