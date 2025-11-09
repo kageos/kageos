@@ -26,6 +26,7 @@
         :label="field.name"
         :required="isFieldRequired(field)"
         :error="getFieldError(field.code)"
+        class="request-form-item"
       >
         <component
           v-if="getWidgetComponent(field.widget?.type || 'input')"
@@ -87,6 +88,7 @@
           v-for="field in responseFields"
           :key="`response_${field.code}`"
           :label="field.name"
+          class="response-form-item"
         >
           <component
             v-if="getResponseWidgetComponent(field.widget?.type || 'input')"
