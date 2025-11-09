@@ -26,12 +26,14 @@
       <el-form
         :model="formData"
         label-width="100px"
+        class="form-widget-form"
       >
         <el-form-item
           v-for="subField in visibleSubFields"
           :key="subField.code"
           :label="subField.name"
           :required="isFieldRequired(subField)"
+          class="form-widget-item"
         >
           <!-- 🔥 递归渲染子组件 -->
           <component
@@ -222,10 +224,14 @@ function isFieldRequired(field: FieldConfig): boolean {
 /* Form 卡片样式 */
 .form-card {
   width: 100%;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 6px;
   overflow: hidden;
+}
+
+.form-card:last-child {
+  margin-bottom: 0;
 }
 
 .form-card-header {
@@ -271,6 +277,15 @@ function isFieldRequired(field: FieldConfig): boolean {
 
 .field-value {
   color: var(--el-text-color-regular);
+}
+
+/* Form 表单项间距 */
+:deep(.form-widget-form .el-form-item) {
+  margin-bottom: 20px;
+}
+
+:deep(.form-widget-form .el-form-item:last-child) {
+  margin-bottom: 0;
 }
 
 /* 表格单元格模式 */
