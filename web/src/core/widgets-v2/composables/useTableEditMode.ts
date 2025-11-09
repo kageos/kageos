@@ -15,8 +15,15 @@ export function useTableEditMode(props: WidgetComponentProps) {
   const isAdding = ref(false)
   
   // 表格数据（可编辑）
+  // 🔥 关键修复：getter 从 formDataStore 读取，确保与 setter 同步
   const tableData = computed({
     get: () => {
+      // 优先从 formDataStore 读取，如果没有则从 props.value 读取
+      const storeValue = formDataStore.getValue(props.fieldPath)
+      if (storeValue && Array.isArray(storeValue.raw)) {
+        return storeValue.raw
+      }
+      // 降级到 props.value
       return Array.isArray(props.value?.raw) ? props.value.raw : []
     },
     set: (newValue: any[]) => {
