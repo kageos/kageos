@@ -233,8 +233,13 @@ export class ResponseTableWidget extends BaseWidget {
    * 即使没有数据也显示表格框架结构
    */
   render(): any {
+    const renderId = Math.random().toString(36).substr(2, 9)
+    Logger.info('[ResponseTableWidget]', `render 开始: field=${this.field.code}, renderId=${renderId}`)
+    
     const currentValue = this.getValue()
     const tableData = Array.isArray(currentValue?.raw) ? currentValue.raw : []
+    
+    Logger.info('[ResponseTableWidget]', `render: field=${this.field.code}, tableData.length=${tableData.length}, renderId=${renderId}`)
     
     // 获取子字段配置
     const fields: FieldConfig[] = this.field.children || []
@@ -243,13 +248,28 @@ export class ResponseTableWidget extends BaseWidget {
     const hasData = tableData.length > 0
     
     // 🔥 读取 computed 值，确保 Vue 能追踪到变化
-    const drawer = this.drawerContent.value
+    // 🔥 关键修复：只在抽屉真正需要显示时才读取 drawerContent，避免不必要的响应式追踪
+    // 先读取 showDrawer，如果为 false，就不读取 drawerContent，避免触发 computed 的响应式追踪
+    const showDrawer = this.formDrawerState.showFormDetailDrawer.value
+    Logger.info('[ResponseTableWidget]', `render: field=${this.field.code}, showDrawer=${showDrawer}, renderId=${renderId}`)
     
-    Logger.info('[ResponseTableWidget]', `render 调用: drawer=${!!drawer}, showDrawer=${this.formDrawerState.showFormDetailDrawer.value}`)
+    // 🔥 只在 showDrawer 为 true 时才读取 drawerContent，避免不必要的响应式追踪
+    let drawer: any = null
+    if (showDrawer) {
+      drawer = this.drawerContent.value
+      Logger.info('[ResponseTableWidget]', `render: field=${this.field.code}, drawer存在=${!!drawer}, renderId=${renderId}`)
+    } else {
+      Logger.info('[ResponseTableWidget]', `render: field=${this.field.code}, drawer跳过读取(showDrawer=false), renderId=${renderId}`)
+    }
     
     // 始终渲染表格（即使没有数据也显示表头结构），以及 Form 字段详情抽屉
-    return h('div', { style: { width: '100%' } }, [
+    // 🔥 关键修复：给根元素添加稳定的 key，避免 Vue 认为需要重新创建组件
+    return h('div', { 
+      key: `response_table_${this.field.code}`,  // 🔥 稳定的 key
+      style: { width: '100%' } 
+    }, [
       h(ElTable, {
+        key: `table_${this.field.code}_${tableData.length}`,  // 🔥 基于数据长度的 key
         data: tableData,
         border: true,
         style: { width: '100%' },

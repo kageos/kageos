@@ -190,14 +190,22 @@ export function createDrawerContentComputed(
   renderDrawer: () => any,
   widgetName: string = 'TableWidget'
 ): ReturnType<typeof computed> {
+  // 🔥 使用 WeakMap 存储每个实例的日志状态，避免闭包变量共享问题
+  const logStateMap = new WeakMap<FormDrawerState, { lastShow: boolean; lastFieldCode?: string }>()
+  
   return computed(() => {
     const show = state.showFormDetailDrawer.value
     const field = state.formDetailField.value
     const value = state.formDetailValue.value
     
-    // 开发环境下输出调试日志
-    if (import.meta.env.DEV) {
-      Logger.info(`[${widgetName}]`, `drawerContent computed: show=${show}, field=${field?.code}`)
+    // 🔥 只在状态真正变化时输出日志（避免频繁日志）
+    const fieldCode = field?.code
+    const logState = logStateMap.get(state) || { lastShow: false }
+    if (import.meta.env.DEV && (show !== logState.lastShow || fieldCode !== logState.lastFieldCode)) {
+      Logger.info(`[${widgetName}]`, `drawerContent computed: show=${show}, field=${fieldCode}`)
+      logState.lastShow = show
+      logState.lastFieldCode = fieldCode
+      logStateMap.set(state, logState)
     }
     
     if (!show || !field || !value) {
