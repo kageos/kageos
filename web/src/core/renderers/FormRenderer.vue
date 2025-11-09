@@ -104,7 +104,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, h, watch, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, h, watch, onMounted, onBeforeUnmount, onUnmounted } from 'vue'
 import { ElForm, ElFormItem, ElButton, ElCard, ElMessage, ElInput, ElIcon, ElDivider, ElTag } from 'element-plus'
 import { Promotion, RefreshLeft } from '@element-plus/icons-vue'
 import type { FieldConfig, FunctionDetail, FieldValue } from '../types/field'
@@ -837,6 +837,21 @@ watch(() => props.functionDetail, () => {
 }, { immediate: true })
 
 // 🔥 组件卸载时清理监听器和 Widget 注册
+onBeforeUnmount(() => {
+  // 🔥 先关闭所有打开的抽屉（防止卸载时出现 VNode 错误）
+  allWidgets.forEach((widget) => {
+    // 如果是 TableWidget 或 ResponseTableWidget，关闭其抽屉
+    if (widget && typeof widget === 'object' && 'formDrawerState' in widget) {
+      const drawerState = (widget as any).formDrawerState
+      if (drawerState && drawerState.showFormDetailDrawer) {
+        drawerState.showFormDetailDrawer.value = false
+        drawerState.formDetailField.value = null
+        drawerState.formDetailValue.value = null
+      }
+    }
+  })
+})
+
 onUnmounted(() => {
   // 清理事件监听器
   formManager.off('field:change:*', handleFieldChange)
