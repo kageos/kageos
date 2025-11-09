@@ -88,29 +88,52 @@
         <template #default>
           <div class="form-detail-content">
             <!-- 🔥 在抽屉中使用编辑模式，支持嵌套编辑 -->
+            <!-- 对于 table 类型字段，不使用 el-form-item，直接渲染 -->
             <el-form
               :model="formData"
               label-width="120px"
             >
-              <el-form-item
-                v-for="subField in visibleSubFields"
-                :key="subField.code"
-                :label="subField.name"
-                :required="isFieldRequired(subField)"
-              >
-                <component
-                  :is="getWidgetComponent(subField.widget?.type || 'input')"
-                  :field="subField"
-                  :value="getSubFieldValue(subField.code)"
-                  :model-value="getSubFieldValue(subField.code)"
-                  @update:model-value="(v) => updateSubFieldValue(subField.code, v)"
-                  :field-path="`${fieldPath}.${subField.code}`"
-                  :form-manager="formManager"
-                  :form-renderer="formRenderer"
-                  mode="edit"
-                  :depth="(depth || 0) + 1"
-                />
-              </el-form-item>
+              <template v-for="subField in visibleSubFields" :key="subField.code">
+                <!-- table 类型字段：不使用 el-form-item，直接渲染 -->
+                <template v-if="subField.widget?.type === 'table'">
+                  <div class="drawer-table-field">
+                    <div class="field-label">{{ subField.name }}</div>
+                    <div class="field-content">
+                      <component
+                        :is="getWidgetComponent('table')"
+                        :field="subField"
+                        :value="getSubFieldValue(subField.code)"
+                        :model-value="getSubFieldValue(subField.code)"
+                        @update:model-value="(v) => updateSubFieldValue(subField.code, v)"
+                        :field-path="`${fieldPath}.${subField.code}`"
+                        :form-manager="formManager"
+                        :form-renderer="formRenderer"
+                        mode="edit"
+                        :depth="(depth || 0) + 1"
+                      />
+                    </div>
+                  </div>
+                </template>
+                <!-- 其他类型字段：使用 el-form-item -->
+                <el-form-item
+                  v-else
+                  :label="subField.name"
+                  :required="isFieldRequired(subField)"
+                >
+                  <component
+                    :is="getWidgetComponent(subField.widget?.type || 'input')"
+                    :field="subField"
+                    :value="getSubFieldValue(subField.code)"
+                    :model-value="getSubFieldValue(subField.code)"
+                    @update:model-value="(v) => updateSubFieldValue(subField.code, v)"
+                    :field-path="`${fieldPath}.${subField.code}`"
+                    :form-manager="formManager"
+                    :form-renderer="formRenderer"
+                    mode="edit"
+                    :depth="(depth || 0) + 1"
+                  />
+                </el-form-item>
+              </template>
             </el-form>
           </div>
         </template>
@@ -229,6 +252,28 @@ function isFieldRequired(field: FieldConfig): boolean {
 }
 
 .detail-form {
+  width: 100%;
+}
+
+/* 抽屉中的 table 字段 */
+.drawer-table-field {
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.drawer-table-field:last-child {
+  border-bottom: none;
+}
+
+.drawer-table-field .field-label {
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+.drawer-table-field .field-content {
   width: 100%;
 }
 </style>
