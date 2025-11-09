@@ -33,11 +33,27 @@ export class FormFieldExtractor implements IFieldExtractor {
       
       if (subValue) {
         // 从 store 中提取
-        formData[subField.code] = extractorRegistry.extractField(subField, subFieldPath, getValue)
+        const extracted = extractorRegistry.extractField(subField, subFieldPath, getValue)
+        // 🔥 即使提取的值是 undefined，也要添加到结果中（对于嵌套结构，需要保持结构完整）
+        if (extracted !== undefined) {
+          formData[subField.code] = extracted
+        } else if (subField.widget?.type === 'form' || subField.widget?.type === 'table') {
+          // 🔥 对于嵌套的 form 或 table，即使没有值也要返回空结构
+          formData[subField.code] = subField.widget?.type === 'table' ? [] : {}
+        }
       } else if (rawData && rawData[subField.code] !== undefined) {
         // 🔥 如果 store 中没有值，从原始数据中读取
         const rawValue = rawData[subField.code]
         formData[subField.code] = this.extractFromRaw(subField, rawValue, extractorRegistry)
+      } else {
+        // 🔥 如果 store 和原始数据都没有值，根据字段类型返回默认值
+        // 对于嵌套的 form 或 table，返回空结构以保持数据完整性
+        if (subField.widget?.type === 'form') {
+          formData[subField.code] = {}
+        } else if (subField.widget?.type === 'table') {
+          formData[subField.code] = []
+        }
+        // 对于基础字段，不添加到 formData 中（undefined 会被忽略）
       }
     })
     
