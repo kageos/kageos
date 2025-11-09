@@ -161,6 +161,7 @@ import { useTableResponseMode } from '../composables/useTableResponseMode'
 import { useTableStatistics } from '../composables/useTableStatistics'
 import { widgetComponentFactory } from '../../factories-v2'
 import { FieldValue } from '../../types/field'
+import { useFormDataStore } from '../../stores-v2/formData'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -176,6 +177,9 @@ const { tableData, itemFields, getRowFieldValue, updateRowFieldValue, getAllRows
 const editMode = useTableEditMode(props)
 const responseMode = useTableResponseMode()
 const statistics = useTableStatistics(props, getAllRowsData)
+
+// 获取 formDataStore
+const formDataStore = useFormDataStore()
 
 // 显示值（用于 table-cell 模式）
 const displayValue = computed(() => {
