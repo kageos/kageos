@@ -329,6 +329,141 @@ func (a *AppService) createFunctionNode(appID int64, parentID int64, api *agentM
 	return a.serviceTreeRepo.CreateServiceTreeWithParentPath(serviceTree, "")
 }
 
+// updateFunctionsForAPIs 更新API对应的Function记录
+func (a *AppService) updateFunctionsForAPIs(ctx context.Context, appID int64, apis []*agentModel.ApiInfo, functions []*model.Function) error {
+	// 批量更新Function记录
+	return a.functionRepo.UpdateFunctions(functions)
+}
+
+// updateServiceTreesForAPIs 更新API对应的ServiceTree记录
+func (a *AppService) updateServiceTreesForAPIs(ctx context.Context, appID int64, apis []*agentModel.ApiInfo, functions []*model.Function) error {
+	// 收集所有需要查询的父级路径
+	parentPaths := make(map[string]bool)
+	for _, api := range apis {
+		parentPath := api.GetParentFullCodePath()
+		if parentPath != "" {
+			parentPaths[parentPath] = true
+		}
+	}
+
+	// 批量查询所有父级package节点
+	parentPathList := make([]string, 0, len(parentPaths))
+	for path := range parentPaths {
+		parentPathList = append(parentPathList, path)
+	}
+
+	parentNodes, err := a.serviceTreeRepo.GetServiceTreeByFullPaths(parentPathList)
+	if err != nil {
+		return fmt.Errorf("批量查询父级package节点失败: %w", err)
+	}
+
+	// 验证所有父级节点都是package类型
+	for path, node := range parentNodes {
+		if !node.IsPackage() {
+			return fmt.Errorf("路径 %s 已存在，但类型不是package，当前类型: %s", path, node.Type)
+		}
+	}
+
+	// 更新function节点
+	for i, api := range apis {
+		// 根据FullCodePath查找现有的ServiceTree
+		existingTree, err := a.serviceTreeRepo.GetServiceTreeByFullPath(api.FullCodePath)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				// 如果不存在，创建新的节点（这种情况不应该发生，但为了容错处理）
+				var parentID int64 = 0
+				parentPath := api.GetParentFullCodePath()
+				if parentPath != "" {
+					parent, exists := parentNodes[parentPath]
+					if exists {
+						parentID = parent.ID
+					}
+				}
+				err = a.createFunctionNode(appID, parentID, api, functions[i].ID)
+				if err != nil {
+					return fmt.Errorf("创建function节点失败: %w", err)
+				}
+				continue
+			}
+			return fmt.Errorf("查询service_tree失败: %w", err)
+		}
+
+		// 确定父级ID
+		var parentID int64 = 0
+		parentPath := api.GetParentFullCodePath()
+		if parentPath != "" {
+			parent, exists := parentNodes[parentPath]
+			if !exists {
+				return fmt.Errorf("父级package节点不存在: %s", parentPath)
+			}
+			parentID = parent.ID
+		}
+
+		// 更新ServiceTree节点
+		existingTree.AppID = appID
+		existingTree.ParentID = parentID
+		existingTree.GroupCode = api.FunctionGroupCode
+		existingTree.GroupName = api.FunctionGroupName
+		existingTree.Code = api.Code
+		existingTree.Name = api.Name
+		existingTree.Description = api.Desc
+		existingTree.RefID = functions[i].ID // 更新RefID指向新的Function记录
+
+		if len(api.Tags) > 0 {
+			existingTree.Tags = strings.Join(api.Tags, ",")
+		} else {
+			existingTree.Tags = ""
+		}
+
+		err = a.serviceTreeRepo.UpdateServiceTree(existingTree)
+		if err != nil {
+			return fmt.Errorf("更新service_tree节点失败: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// deleteFunctionsForAPIs 删除API对应的Function和ServiceTree记录
+func (a *AppService) deleteFunctionsForAPIs(ctx context.Context, appID int64, apis []*agentModel.ApiInfo) error {
+	// 收集需要删除的router和method
+	routers := make([]string, 0, len(apis))
+	methods := make([]string, 0, len(apis))
+
+	for _, api := range apis {
+		// 根据FullCodePath查找ServiceTree
+		serviceTree, err := a.serviceTreeRepo.GetServiceTreeByFullPath(api.FullCodePath)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				// ServiceTree不存在，跳过
+				continue
+			}
+			return fmt.Errorf("查询service_tree失败: %w", err)
+		}
+
+		// 删除ServiceTree（会级联删除子节点）
+		err = a.serviceTreeRepo.DeleteServiceTree(serviceTree.ID)
+		if err != nil {
+			return fmt.Errorf("删除service_tree失败: %w", err)
+		}
+
+		// 收集Function的router和method用于删除
+		router := fmt.Sprintf("/%s/%s/%s", api.User, api.App, strings.Trim(api.Router, "/"))
+		routers = append(routers, router)
+		methods = append(methods, api.Method)
+	}
+
+	// 批量删除Function记录
+	if len(routers) > 0 {
+		err := a.functionRepo.DeleteFunctions(appID, routers, methods)
+		if err != nil {
+			return fmt.Errorf("删除function记录失败: %w", err)
+		}
+	}
+
+	return nil
+}
+
 // DeleteApp 删除应用
 func (a *AppService) DeleteApp(ctx context.Context, req *dto.DeleteAppReq) (*dto.DeleteAppResp, error) {
 	// 根据应用信息获取 NATS 连接
