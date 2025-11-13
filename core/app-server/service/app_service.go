@@ -331,6 +331,28 @@ func (a *AppService) createFunctionNode(appID int64, parentID int64, api *agentM
 
 // updateFunctionsForAPIs 更新API对应的Function记录
 func (a *AppService) updateFunctionsForAPIs(ctx context.Context, appID int64, apis []*agentModel.ApiInfo, functions []*model.Function) error {
+	// 对于每个要更新的API，先查找现有的Function记录获取ID
+	for i, api := range apis {
+		router := fmt.Sprintf("/%s/%s/%s", api.User, api.App, strings.Trim(api.Router, "/"))
+		existingFunction, err := a.functionRepo.GetFunctionByKey(appID, api.Method, router)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				// Function不存在，创建新的（这种情况不应该发生，但为了容错处理）
+				newFunctions := []*model.Function{functions[i]}
+				err = a.functionRepo.CreateFunctions(newFunctions)
+				if err != nil {
+					return fmt.Errorf("创建function记录失败: %w", err)
+				}
+				// 更新functions[i]的ID
+				functions[i].ID = newFunctions[0].ID
+				continue
+			}
+			return fmt.Errorf("查询function记录失败: %w", err)
+		}
+		// 保留现有的ID
+		functions[i].ID = existingFunction.ID
+	}
+
 	// 批量更新Function记录
 	return a.functionRepo.UpdateFunctions(functions)
 }
