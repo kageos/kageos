@@ -223,7 +223,7 @@ func (a *AppService) convertApiInfoToFunctions(appID int64, apis []*agentModel.A
 		function := &model.Function{
 			AppID:        appID,
 			Method:       api.Method,
-			Router:       fmt.Sprintf("/%s/%s/%s", api.User, api.App, strings.Trim(api.Router, "/")),
+			Router:       api.BuildFullCodePath(),
 			Request:      requestJSON,
 			Response:     responseJSON,
 			HasConfig:    false, // 预留字段，默认为false
@@ -333,7 +333,7 @@ func (a *AppService) createFunctionNode(appID int64, parentID int64, api *agentM
 func (a *AppService) updateFunctionsForAPIs(ctx context.Context, appID int64, apis []*agentModel.ApiInfo, functions []*model.Function) error {
 	// 对于每个要更新的API，先查找现有的Function记录获取ID
 	for i, api := range apis {
-		router := fmt.Sprintf("/%s/%s/%s", api.User, api.App, strings.Trim(api.Router, "/"))
+		router := api.BuildFullCodePath()
 		existingFunction, err := a.functionRepo.GetFunctionByKey(appID, api.Method, router)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -470,7 +470,7 @@ func (a *AppService) deleteFunctionsForAPIs(ctx context.Context, appID int64, ap
 		}
 
 		// 收集Function的router和method用于删除
-		router := fmt.Sprintf("/%s/%s/%s", api.User, api.App, strings.Trim(api.Router, "/"))
+		router := api.BuildFullCodePath()
 		routers = append(routers, router)
 		methods = append(methods, api.Method)
 	}
