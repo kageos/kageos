@@ -138,9 +138,9 @@ func (a *AppService) RequestApp(ctx context.Context, req *dto.RequestAppReq) (*d
 	return resp, nil
 }
 
-// processAPIDiff 处理API差异，先只处理新增的API
+// processAPIDiff 处理API差异，包括新增、更新、删除
 func (a *AppService) processAPIDiff(ctx context.Context, appID int64, diffData *agentModel.DiffData) error {
-	// 只处理新增的API，其他逻辑后续再添加
+	// 处理新增的API
 	if len(diffData.Add) > 0 {
 		// 1. 先创建Function记录获取ID
 		functions, err := a.convertApiInfoToFunctions(appID, diffData.Add)
@@ -158,6 +158,35 @@ func (a *AppService) processAPIDiff(ctx context.Context, appID int64, diffData *
 		err = a.createServiceTreesForAPIs(ctx, appID, diffData.Add, functions)
 		if err != nil {
 			return fmt.Errorf("创建service_tree记录失败: %w", err)
+		}
+	}
+
+	// 处理更新的API
+	if len(diffData.Update) > 0 {
+		// 1. 转换更新的API为Function模型
+		functions, err := a.convertApiInfoToFunctions(appID, diffData.Update)
+		if err != nil {
+			return fmt.Errorf("转换更新API失败: %w", err)
+		}
+
+		// 2. 更新Function记录
+		err = a.updateFunctionsForAPIs(ctx, appID, diffData.Update, functions)
+		if err != nil {
+			return fmt.Errorf("更新function记录失败: %w", err)
+		}
+
+		// 3. 更新ServiceTree记录
+		err = a.updateServiceTreesForAPIs(ctx, appID, diffData.Update, functions)
+		if err != nil {
+			return fmt.Errorf("更新service_tree记录失败: %w", err)
+		}
+	}
+
+	// 处理删除的API
+	if len(diffData.Delete) > 0 {
+		err := a.deleteFunctionsForAPIs(ctx, appID, diffData.Delete)
+		if err != nil {
+			return fmt.Errorf("删除function和service_tree记录失败: %w", err)
 		}
 	}
 
