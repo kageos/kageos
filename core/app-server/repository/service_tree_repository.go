@@ -74,6 +74,26 @@ func (r *ServiceTreeRepository) BuildServiceTree(appID int64) ([]*model.ServiceT
 	if err != nil {
 		return nil, err
 	}
+	return r.buildTreeFromNodes(allTrees), nil
+}
+
+// BuildServiceTreeByVersion 根据版本号构建树形结构（用于版本回滚）
+// versionNum: 目标版本号数字（如 19），只返回 add_version_num <= versionNum 且 (update_version_num = 0 或 update_version_num <= versionNum) 的节点
+func (r *ServiceTreeRepository) BuildServiceTreeByVersion(appID int64, versionNum int) ([]*model.ServiceTree, error) {
+	// 查询符合条件的节点：add_version_num <= versionNum 且 (update_version_num = 0 或 update_version_num <= versionNum)
+	var allTrees []*model.ServiceTree
+	err := r.db.Where("app_id = ? AND add_version_num <= ? AND (update_version_num = 0 OR update_version_num <= ?)", 
+		appID, versionNum, versionNum).
+		Order("created_at ASC").
+		Find(&allTrees).Error
+	if err != nil {
+		return nil, err
+	}
+	return r.buildTreeFromNodes(allTrees), nil
+}
+
+// buildTreeFromNodes 从节点列表构建树形结构（内部方法）
+func (r *ServiceTreeRepository) buildTreeFromNodes(allTrees []*model.ServiceTree) []*model.ServiceTree {
 
 	// 构建树形结构
 	treeMap := make(map[int64]*model.ServiceTree)
@@ -97,7 +117,7 @@ func (r *ServiceTreeRepository) BuildServiceTree(appID int64) ([]*model.ServiceT
 		}
 	}
 
-	return rootNodes, nil
+	return rootNodes
 }
 
 // UpdateServiceTree 更新服务目录

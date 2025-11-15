@@ -1,4 +1,4 @@
-package model
+package app
 
 import (
 	"fmt"
@@ -30,6 +30,12 @@ type ApiInfo struct {
 	User           string          `json:"user"`
 	App            string          `json:"app"`
 	FullCodePath   string          `json:"full_code_path"`
+
+	CreateTableModels []interface{} `json:"-"`
+
+	SourceCodeFilePath string `json:"source_code_file_path"`
+	SourceCode         string `json:"source_code"`
+	routerInfo         *routerInfo
 }
 
 func (a *ApiInfo) BuildFullCodePath() string {
@@ -111,7 +117,7 @@ func (a *ApiInfo) GetPackageChain() []string {
 }
 
 // IsEqual 比较当前API与另一个API是否相等（排除版本信息）
-// 比较的字段包括：Name, Desc, Tags, CreateTables, Request, Response
+// 比较的字段包括：Name, Desc, Tags, CreateTables, Callback, TemplateType, FunctionGroupCode, FunctionGroupName, Request, Response
 func (a *ApiInfo) IsEqual(other *ApiInfo) bool {
 	if other == nil {
 		return false
@@ -121,7 +127,11 @@ func (a *ApiInfo) IsEqual(other *ApiInfo) bool {
 	if a.Name != other.Name ||
 		a.Desc != other.Desc ||
 		!equalStrings(a.Tags, other.Tags) ||
-		!equalStrings(a.CreateTables, other.CreateTables) {
+		!equalStrings(a.CreateTables, other.CreateTables) ||
+		!equalStrings(a.Callback, other.Callback) ||
+		a.TemplateType != other.TemplateType ||
+		a.FunctionGroupCode != other.FunctionGroupCode ||
+		a.FunctionGroupName != other.FunctionGroupName {
 		return false
 	}
 

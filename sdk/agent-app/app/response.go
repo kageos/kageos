@@ -1,6 +1,8 @@
-package model
+package app
 
-import "time"
+import (
+	"time"
+)
 
 // UpdateResponse API更新响应结构
 type UpdateResponse struct {

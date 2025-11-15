@@ -48,6 +48,13 @@ export interface CreateAppRequest {
   name: string
 }
 
+// 创建应用响应（后端实际返回的结构）
+export interface CreateAppResponse {
+  user: string
+  app: string  // 对应 App 的 code 字段
+  app_dir: string
+}
+
 // 服务目录相关类型
 export interface ServiceTree {
   id: number
@@ -60,7 +67,7 @@ export interface ServiceTree {
   app_id: number
   ref_id: number
   full_code_path: string
-  group_code?: string  // 组标识（相同 group_code 的函数属于同一组）
+  full_group_code?: string  // 完整函数组代码：{full_path}/{group_code}，与 source_code.full_group_code 对齐
   group_name?: string  // 组名称（用于展示，不参与路由）
   created_at: string
   updated_at: string

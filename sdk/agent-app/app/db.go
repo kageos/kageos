@@ -34,7 +34,20 @@ func getGormDB() *gorm.DB {
 	return db
 }
 func (c *Context) GetGormDB() *gorm.DB {
-	db, err := getOrInitDB(getDBName())
+	// 如果 Context 中有 routerInfo 且 PackagePath 不为空，使用 PackagePath 构建数据库名称
+	// 否则使用默认的数据库名称（兼容旧代码）
+	var dbName string
+
+	if c.routerInfo != nil && c.routerInfo.Options != nil {
+		// 根据 PackagePath 构建数据库名称
+		// 例如：/tools -> tools.db, /crm/ticket -> crm_ticket.db
+		dbName = c.routerInfo.Options.GetDBName(c.msg.User, c.msg.App)
+	} else {
+		// 兼容旧代码，使用默认数据库名称
+		dbName = getDBName()
+	}
+
+	db, err := getOrInitDB(dbName)
 	if err != nil {
 		return nil
 	}

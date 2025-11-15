@@ -215,8 +215,9 @@ func (s *Server) initServices(ctx context.Context) error {
 	userSessionRepo := repository.NewUserSessionRepository(s.db)
 	functionRepo := repository.NewFunctionRepository(s.db)
 	serviceTreeRepo := repository.NewServiceTreeRepository(s.db)
+	sourceCodeRepo := repository.NewSourceCodeRepository(s.db)
 
-	s.appService = service.NewAppService(s.appRuntime, userRepo, appRepo, functionRepo, serviceTreeRepo)
+	s.appService = service.NewAppService(s.appRuntime, userRepo, appRepo, functionRepo, serviceTreeRepo, sourceCodeRepo)
 
 	// 初始化认证服务
 	s.authService = service.NewAuthService(userRepo, hostRepo, userSessionRepo)

@@ -8,7 +8,6 @@ import (
 	_ "net/http/pprof" // 导入 pprof
 	"os"
 	"runtime"
-	"runtime/debug"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -22,21 +21,26 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-var app *App
+var (
+	app      *App
+	initOnce sync.Once
+	initErr  error // 记录初始化错误
+)
 
 func initApp() {
-	if app != nil {
-		return
-	}
-	var err error
-	app, err = NewApp()
-	if err != nil {
-		fmt.Printf("Failed to init app: %v\n", err)
-		panic(err)
-	}
-	//POST("/test/add", AddHandle, Temp)
-	//POST("/test/get", GetHandle, Temp)
-
+	initOnce.Do(func() {
+		var err error
+		app, err = NewApp()
+		if err != nil {
+			initErr = err
+			fmt.Printf("Failed to init app: %v\n", err)
+			// 不要 panic，让错误在 Run() 时处理
+			// 如果是在 init() 中调用，panic 会导致应用无法启动
+			return
+		}
+		//POST("/test/add", AddHandle, Temp)
+		//POST("/test/get", GetHandle, Temp)
+	})
 }
 
 // App SDK 应用基类
@@ -66,12 +70,9 @@ const (
 )
 
 func (a *App) registerRouter(method string, router string, handler HandleFunc, templater Templater) {
-	a.routerInfo[routerKey(router, method)] = &routerInfo{
-		Router:     router,
-		Method:     method,
-		Template:   templater,
-		HandleFunc: handler,
-	}
+	// 系统路由（如 /_callback）没有 package 路径，传递 nil options
+	// 只有通过 RouterGroup 注册的路由才会有 PackagePath
+	register(router, method, handler, templater, nil)
 }
 
 func (a *App) getRouter(router string, method string) (*routerInfo, error) {
@@ -125,12 +126,32 @@ func NewApp() (*App, error) {
 	}
 
 	logger.Infof(context.Background(), "Connecting to NATS: %s", natsURL)
-	conn, err := nats.Connect(natsURL)
+
+	// 设置连接选项，包括超时
+	opts := []nats.Option{
+		nats.Timeout(10 * time.Second),      // 连接超时 10 秒
+		nats.ReconnectWait(2 * time.Second), // 重连等待时间
+		nats.MaxReconnects(5),               // 最大重连次数
+		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
+			if err != nil {
+				logger.Warnf(context.Background(), "NATS disconnected: %v", err)
+			}
+		}),
+		nats.ReconnectHandler(func(nc *nats.Conn) {
+			logger.Infof(context.Background(), "NATS reconnected to %s", nc.ConnectedUrl())
+		}),
+		nats.ErrorHandler(func(nc *nats.Conn, sub *nats.Subscription, err error) {
+			logger.Errorf(context.Background(), "NATS error: %v", err)
+		}),
+	}
+
+	conn, err := nats.Connect(natsURL, opts...)
 	if err != nil {
 		logger.Errorf(context.Background(), "Failed to connect to NATS: %v", err)
 		return nil, fmt.Errorf("failed to connect to NATS: %w", err)
 	}
-	logger.Infof(context.Background(), "NATS connected successfully")
+
+	logger.Infof(context.Background(), "NATS connected successfully to %s", conn.ConnectedUrl())
 
 	newApp := &App{
 		Context:    context.Background(),
@@ -153,7 +174,10 @@ func NewApp() (*App, error) {
 		},
 	}
 
+	logger.Infof(context.Background(), "Initializing router...")
 	initRouter(newApp)
+	logger.Infof(context.Background(), "Router initialized")
+
 	// 订阅应用请求主题（保持独立，复杂逻辑）
 	logger.Infof(context.Background(), "Subscribing to app request: %s", newApp.subjects.AppRequest)
 	requestSub, err := newApp.conn.Subscribe(newApp.subjects.AppRequest, newApp.handleMessageAsync)
@@ -203,11 +227,15 @@ func NewApp() (*App, error) {
 
 	// 发送启动完成通知给 runtime
 	// 通知 runtime 新版本已经成功启动并准备好接收请求
+	logger.Infof(context.Background(), "Sending startup notification...")
 	if err := newApp.sendStartupNotification(); err != nil {
 		logger.Warnf(context.Background(), "Failed to send startup notification: %v", err)
 		// 不返回错误，启动通知失败不应阻止应用运行
+	} else {
+		logger.Infof(context.Background(), "Startup notification sent successfully")
 	}
 
+	logger.Infof(context.Background(), "NewApp() completed successfully")
 	return newApp, nil
 }
 
@@ -395,6 +423,15 @@ func (a *App) Close() error {
 func Run() error {
 	if app == nil {
 		initApp()
+	}
+
+	// 检查初始化错误
+	if initErr != nil {
+		return fmt.Errorf("app initialization failed: %w", initErr)
+	}
+
+	if app == nil {
+		return fmt.Errorf("app is nil after initialization")
 	}
 
 	// 确保在 Start() 返回后调用 Close() 清理资源
@@ -741,26 +778,6 @@ func forceGCAndFreeMemory() {
 	runtime.ReadMemStats(&mBefore)
 	logger.Infof(context.Background(), "[Memory] Before GC: Alloc=%d KB, Sys=%d KB, NumGC=%d, HeapSys=%d KB",
 		mBefore.Alloc/1024, mBefore.Sys/1024, mBefore.NumGC, mBefore.HeapSys/1024)
-
-	// 1. 设置更激进的 GC 目标（临时降低 GOGC，让 GC 更频繁）
-	// 注意：这不会立即生效，但可以帮助后续的 GC
-	oldGOGC := debug.SetGCPercent(10) // 临时设置为 10%，让 GC 更激进
-	defer debug.SetGCPercent(oldGOGC) // 恢复原值
-
-	// 2. 强制 GC 多次，确保所有可回收对象都被回收
-	for i := 0; i < 10; i++ {
-		runtime.GC()
-		time.Sleep(100 * time.Millisecond) // 给 GC 更多时间完成
-	}
-
-	// 3. 释放内存回操作系统（如果支持）
-	// debug.FreeOSMemory() 会尝试将内存释放回操作系统
-	// 注意：这不会立即生效，操作系统可能会延迟回收
-	debug.FreeOSMemory()
-
-	// 4. 再次 GC，确保释放后的内存被回收
-	runtime.GC()
-	time.Sleep(100 * time.Millisecond)
 
 	// 5. 记录清理后的内存统计信息（用于调试）
 	var mAfter runtime.MemStats

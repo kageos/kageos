@@ -393,7 +393,7 @@ func (s *AppManageService) DeleteApp(ctx context.Context, user, app string) erro
 			// 删除每个版本的容器
 			for _, version := range versions {
 				containerName := buildContainerName(user, app, version.Version)
-				
+
 				// 先尝试停止容器（如果正在运行）
 				if err := s.containerService.StopContainer(ctx, containerName); err != nil {
 					logger.Warnf(ctx, "[DeleteApp] Failed to stop container %s (may not be running): %v", containerName, err)
@@ -575,6 +575,7 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string) (*dt
 	if callbackErr != nil {
 		logger.Warnf(ctx, "[UpdateApp] ❌ Update callback failed: %v", callbackErr)
 		logger.Warnf(ctx, "[UpdateApp] Continuing without diff information")
+		return nil, callbackErr
 	} else {
 		logger.Infof(ctx, "[UpdateApp] ✅ Update callback response received from %s/%s/%s: %+v", user, app, newVersion, updateCallbackResponse)
 	}
@@ -1245,7 +1246,7 @@ func (s *AppManageService) StartAppVersion(ctx context.Context, user, app, versi
 	} else {
 		// 容器不存在或已停止，需要创建或启动容器
 		appDirRel := filepath.Join(s.config.AppDir.BasePath, user, app)
-		
+
 		// 尝试启动已存在的容器（可能已停止）
 		if err := s.containerService.StartContainer(ctx, containerName); err != nil {
 			// 启动失败，可能容器不存在，创建新容器

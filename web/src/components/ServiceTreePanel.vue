@@ -112,7 +112,7 @@ const treeRef = ref()
 
 /**
  * 🔥 按组分组处理服务树数据
- * 将相同 group_code 的函数分组显示，组名使用 group_name
+ * 将相同 full_group_code 的函数分组显示，组名使用 group_name
  */
 const groupedTreeData = computed(() => {
   const processNode = (node: ServiceTree): ServiceTree => {
@@ -122,16 +122,16 @@ const groupedTreeData = computed(() => {
       const functions = node.children.filter(child => child.type === 'function')
       const packages = node.children.filter(child => child.type === 'package')
       
-      // 按 group_code 分组函数
+      // 按 full_group_code 分组函数
       const groupedFunctions = new Map<string, ServiceTree[]>()
       const ungroupedFunctions: ServiceTree[] = []
       
       functions.forEach(func => {
-        if (func.group_code && func.group_code.trim() !== '') {
-          if (!groupedFunctions.has(func.group_code)) {
-            groupedFunctions.set(func.group_code, [])
+        if (func.full_group_code && func.full_group_code.trim() !== '') {
+          if (!groupedFunctions.has(func.full_group_code)) {
+            groupedFunctions.set(func.full_group_code, [])
           }
-          groupedFunctions.get(func.group_code)!.push(func)
+          groupedFunctions.get(func.full_group_code)!.push(func)
         } else {
           ungroupedFunctions.push(func)
         }
@@ -172,7 +172,7 @@ const groupedTreeData = computed(() => {
           app_id: node.app_id,
           ref_id: 0,
           full_code_path: `${node.full_code_path}/__group__${groupCode}`,
-          group_code: groupCode,
+          full_group_code: groupCode,
           group_name: groupName,
           created_at: '',
           updated_at: '',

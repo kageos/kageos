@@ -111,6 +111,8 @@ func (a *App) handle(req *dto.RequestAppReq) (resp *dto.RequestAppResp, err erro
 		// 发送响应（带上 trace_id）
 		return &dto.RequestAppResp{Result: nil, Error: err.Error(), TraceId: newContext.msg.TraceId}, err
 	}
+	// 将 routerInfo 保存到 Context 中，方便后续获取 PackagePath
+	newContext.routerInfo = router
 	handleFunc := router.HandleFunc
 
 	var res response.RunFunctionResp

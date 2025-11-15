@@ -22,14 +22,16 @@ type ServiceTree struct {
 	Type        string `json:"type"` // 节点类型: package(服务目录/包), function(函数/文件), api(API接口), service(服务), module(模块)
 	Description string `json:"description,omitempty"`
 	Tags        string `json:"tags"`
-	AppID       int64  `json:"app_id"`
-	GroupCode   string `json:"group_code"`
-	GroupName   string `json:"group_name"`
+	AppID          int64  `json:"app_id"`
+	FullGroupCode  string `json:"full_group_code" gorm:"type:varchar(500);comment:完整函数组代码：{full_path}/{group_code}"` // 完整函数组代码：{full_path}/{group_code}，与 source_code.full_group_code 对齐
+	GroupName      string `json:"group_name"`
 	RefID       int64  `json:"ref_id" gorm:"default:0"`                   // 引用ID：指向真实资源的ID，如果是package类型指向package的ID，如果是function类型指向function的ID
 	App         *App   `json:"app" gorm:"foreignKey:AppID;references:ID"` // 预加载的完整应用对象
 	//下面字段是数据库
-	FullCodePath string         `json:"full_code_path"` // /$user/$app/tools/pdf 这种
-	Children     []*ServiceTree `json:"children" gorm:"-"`
+	FullCodePath     string         `json:"full_code_path"`     // /$user/$app/tools/pdf 这种
+	AddVersionNum    int            `json:"add_version_num"`    // 添加版本号（数字部分，如 v1 -> 1），用于版本回滚时过滤
+	UpdateVersionNum int            `json:"update_version_num"` // 更新版本号（数字部分，如 v2 -> 2），用于版本回滚时过滤
+	Children         []*ServiceTree `json:"children" gorm:"-"`
 }
 
 // TableName 指定表名

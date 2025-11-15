@@ -18,6 +18,8 @@ func InitTables(db *gorm.DB) error {
 		&EmailVerification{},
 		&EmailCode{},
 		&UserSession{},
+		// 源代码表
+		&SourceCode{},
 	)
 	if err != nil {
 		return err
