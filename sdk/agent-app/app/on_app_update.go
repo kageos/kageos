@@ -15,7 +15,6 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/callback"
 
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/env"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/model"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
 	"github.com/nats-io/nats.go"
 	"gorm.io/gorm"
@@ -77,7 +76,7 @@ func (a *App) getPreviousVersionFile() string {
 }
 
 // 保存当前版本的API信息到文件
-func (a *App) saveCurrentVersion(apis []*model.ApiInfo) error {
+func (a *App) saveCurrentVersion(apis []*ApiInfo) error {
 	apiLogsDir := a.getApiLogsDir()
 
 	// 创建目录
@@ -86,7 +85,7 @@ func (a *App) saveCurrentVersion(apis []*model.ApiInfo) error {
 	}
 
 	// 构建版本信息
-	versionInfo := &model.ApiVersion{
+	versionInfo := &ApiVersion{
 		Version:   env.Version,
 		Timestamp: time.Now(),
 		Apis:      apis,
@@ -108,20 +107,20 @@ func (a *App) saveCurrentVersion(apis []*model.ApiInfo) error {
 }
 
 // 加载指定版本的API信息
-func (a *App) loadVersion(versionFile string) ([]*model.ApiInfo, error) {
+func (a *App) loadVersion(versionFile string) ([]*ApiInfo, error) {
 	if versionFile == "" {
-		return []*model.ApiInfo{}, nil
+		return []*ApiInfo{}, nil
 	}
 
 	data, err := os.ReadFile(versionFile)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return []*model.ApiInfo{}, nil
+			return []*ApiInfo{}, nil
 		}
 		return nil, fmt.Errorf("failed to read version file: %w", err)
 	}
 
-	var versionInfo model.ApiVersion
+	var versionInfo ApiVersion
 	if err := json.Unmarshal(data, &versionInfo); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal version info: %w", err)
 	}
@@ -140,12 +139,12 @@ func (a *App) containsVersion(versions []string, version string) bool {
 }
 
 // 生成API的唯一键
-func (a *App) getApiKey(api *model.ApiInfo) string {
+func (a *App) getApiKey(api *ApiInfo) string {
 	return fmt.Sprintf("%s:%s", api.Method, api.Router)
 }
 
 // 执行API差异对比
-func (a *App) diffApi() (add []*model.ApiInfo, update []*model.ApiInfo, delete []*model.ApiInfo, err error) {
+func (a *App) diffApi() (add []*ApiInfo, update []*ApiInfo, delete []*ApiInfo, err error) {
 	logger.Infof(context.Background(), "=== Starting API diff analysis ===")
 
 	// 获取当前版本的API
@@ -165,8 +164,8 @@ func (a *App) diffApi() (add []*model.ApiInfo, update []*model.ApiInfo, delete [
 	logger.Infof(context.Background(), "Found %d previous APIs", len(previousApis))
 
 	// 创建API映射
-	currentMap := make(map[string]*model.ApiInfo)
-	previousMap := make(map[string]*model.ApiInfo)
+	currentMap := make(map[string]*ApiInfo)
+	previousMap := make(map[string]*ApiInfo)
 
 	for _, api := range currentApis {
 		key := a.getApiKey(api)
@@ -242,26 +241,59 @@ func (a *App) diffApi() (add []*model.ApiInfo, update []*model.ApiInfo, delete [
 }
 
 // 获取当前所有API信息
-func (a *App) getApis() (apis []*model.ApiInfo, createTables []interface{}, err error) {
+func (a *App) getApis() (apis []*ApiInfo, createTables []interface{}, err error) {
 	for _, info := range a.routerInfo {
 		if info.IsDefaultRouter() {
 			continue
 		}
 		base := info.Template.GetBaseConfig()
-		api := &model.ApiInfo{
-			Code:              info.getCode(),
-			Name:              base.Name,
-			Desc:              base.Desc,
-			Tags:              base.Tags,
-			Router:            info.Router,
-			Method:            info.Method,
-			FunctionGroupCode: base.FunctionGroup.Code,
-			FunctionGroupName: base.FunctionGroup.Name,
-			User:              env.User,
-			App:               env.App,
-			FullCodePath:      fmt.Sprintf("/%s/%s/%s", env.User, env.App, strings.Trim(info.Router, "/")),
-			AddedVersion:      "",         // 不预设版本，让diff逻辑来正确设置
-			UpdateVersions:    []string{}, // 初始化空的更新版本列表
+		// 构建源代码文件路径
+		sourceCodeFilePath := info.BuildSourceCodeFilePath()
+		
+		// 读取源代码文件内容
+		var sourceCode string
+		if sourceCodeFilePath != "" && info.Options != nil && info.Options.RouterGroup != nil {
+			// 构建实际的文件路径：在容器内，使用 /app/code/api/{package}/{group_code}.go
+			packagePath := strings.Trim(info.Options.PackagePath, "/")
+			groupCode := info.Options.RouterGroup.GroupCode
+			
+			// 文件路径：/app/code/api/{package}/{group_code}.go
+			var filePath string
+			if packagePath == "" {
+				filePath = fmt.Sprintf("/app/code/api/%s.go", groupCode)
+			} else {
+				filePath = fmt.Sprintf("/app/code/api/%s/%s.go", packagePath, groupCode)
+			}
+			
+			// 读取文件内容
+			if content, err := os.ReadFile(filePath); err == nil {
+				sourceCode = string(content)
+				logger.Infof(context.Background(), "Successfully read source code file %s, length: %d", filePath, len(sourceCode))
+			} else {
+				logger.Warnf(context.Background(), "Failed to read source code file %s: %v", filePath, err)
+			}
+		} else {
+			logger.Warnf(context.Background(), "Cannot read source code: sourceCodeFilePath=%s, Options=%v, RouterGroup=%v", 
+				sourceCodeFilePath, info.Options != nil, info.Options != nil && info.Options.RouterGroup != nil)
+		}
+		
+		api := &ApiInfo{
+			Code:               info.getCode(),
+			Name:               base.Name,
+			Desc:               base.Desc,
+			Tags:               base.Tags,
+			Router:             info.Router,
+			Method:             info.Method,
+			FunctionGroupCode:  base.FunctionGroup.Code,
+			FunctionGroupName:  base.FunctionGroup.Name,
+			User:               env.User,
+			App:                env.App,
+			FullCodePath:       fmt.Sprintf("/%s/%s/%s", env.User, env.App, strings.Trim(info.Router, "/")),
+			AddedVersion:       "",         // 不预设版本，让diff逻辑来正确设置
+			UpdateVersions:     []string{}, // 初始化空的更新版本列表
+			routerInfo:         info,
+			SourceCodeFilePath: sourceCodeFilePath,
+			SourceCode:         sourceCode,
 		}
 		fieldsCallback := make(map[string][]string)
 		fuzzyMap := base.OnSelectFuzzyMap
@@ -312,6 +344,7 @@ func (a *App) getApis() (apis []*model.ApiInfo, createTables []interface{}, err 
 			//}
 		}
 
+		api.CreateTableModels = base.CreateTables
 		// 提取创建表的名称
 		for _, createTable := range base.CreateTables {
 			if createTable != nil {
@@ -331,24 +364,41 @@ func (a *App) getApis() (apis []*model.ApiInfo, createTables []interface{}, err 
 
 // onAppUpdate 处理当api更新时候触发
 func (a *App) onAppUpdate(msg *nats.Msg) {
+	logger.Infof(context.Background(), "OnAppUpdate received: %s, Reply: %s", msg.Subject, msg.Reply)
 
-	logger.Infof(context.Background(), "OnAppUpdate received: %s", msg.Subject)
+	// 检查是否有 Reply subject（Request/Reply 模式）
+	if msg.Reply == "" {
+		logger.Warnf(context.Background(), "OnAppUpdate: No reply subject, cannot respond")
+		return
+	}
 	// 1. 获取当前所有API
-	currentApis, tables, err := a.getApis()
+	currentApis, _, err := a.getApis()
 	if err != nil {
 		// 发送错误响应
 		a.sendErrorResponse(msg, fmt.Sprintf("Failed to get current APIs: %v", err))
 		return
 	}
-	db := getGormDB()
-	if db != nil {
-		for _, table := range tables {
-			err := db.AutoMigrate(table)
+	for _, api := range currentApis {
+		if api.routerInfo.Options == nil {
+			logger.Infof(context.Background(), "WARNING: No options found for API %s", api.Name)
+			continue
+		}
+		name := api.routerInfo.Options.GetDBName(env.User, env.App)
+		db, err := getOrInitDB(name)
+		if err != nil {
+			// 发送错误响应
+			a.sendErrorResponse(msg, fmt.Sprintf(" Failed to getOrInitDB: %v", err))
+			return
+		}
+
+		for _, createTable := range api.CreateTableModels {
+			err = db.AutoMigrate(createTable)
 			if err != nil {
 				a.sendErrorResponse(msg, fmt.Sprintf("Failed to migrate table: %v", err))
 				return
 			}
 		}
+
 	}
 
 	// 2. 保存当前版本到API日志
@@ -367,7 +417,7 @@ func (a *App) onAppUpdate(msg *nats.Msg) {
 	}
 
 	// 4. 构建差异结果
-	diffData := &model.DiffData{
+	diffData := &DiffData{
 		Add:    add,
 		Update: update,
 		Delete: delete,
@@ -382,7 +432,7 @@ func (a *App) onAppUpdate(msg *nats.Msg) {
 		create := router.Template.GetBaseConfig().OnApiCreate
 		if create != nil {
 			var req callback.OnApiCreateReq
-			_, err := create(newCallbackContext(), &req)
+			_, err := create(newCallbackContext(router), &req)
 			if err != nil {
 				a.sendErrorResponse(msg, fmt.Sprintf("Failed to create api: %v", err))
 				return
@@ -404,7 +454,7 @@ func (a *App) onAppUpdate(msg *nats.Msg) {
 }
 
 // 发送成功响应 - 使用原请求消息直接响应
-func (a *App) sendSuccessResponse(msg *nats.Msg, data *model.DiffData) {
+func (a *App) sendSuccessResponse(msg *nats.Msg, data *DiffData) {
 	//response := &model.UpdateResponse{
 	//	Status:    "success",
 	//	Message:   message,

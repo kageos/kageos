@@ -77,13 +77,24 @@ export function useAppManager() {
    */
   const handleCreateApp = async (form: CreateAppRequest): Promise<App | null> => {
     try {
-      const newApp = await createApp(form)
+      const resp = await createApp(form)
       ElMessage.success('应用创建成功')
       
       // 刷新应用列表
       await loadAppList()
       
-      return newApp
+      // 从刷新后的应用列表中查找新创建的应用
+      // 后端返回的 resp 结构是 { user, app, app_dir }，其中 app 对应前端的 code
+      const createdApp = appList.value.find(
+        (a: App) => a.user === resp.user && a.code === resp.app
+      )
+      
+      if (!createdApp) {
+        console.error('[useAppManager] 创建应用后未在列表中找到新应用:', resp)
+        return null
+      }
+      
+      return createdApp
     } catch (error: any) {
       const errorMessage = error?.response?.data?.message || '创建应用失败'
       ElMessage.error(errorMessage)

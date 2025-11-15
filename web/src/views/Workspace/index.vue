@@ -634,9 +634,15 @@ const handleLocateNode = () => {
 }
 
 // 监听刷新服务目录树事件
-const handleRefreshServiceTree = () => {
+const handleRefreshServiceTree = async () => {
   if (currentApp.value) {
-    window.dispatchEvent(new CustomEvent('refresh-service-tree'))
+    console.log('[Workspace] 刷新服务目录树:', currentApp.value.user + '/' + currentApp.value.code)
+    // 重新加载服务树数据
+    await loadServiceTreeData(currentApp.value)
+    // 刷新后重新定位节点
+    nextTick(() => {
+      handleLocateNode()
+    })
   }
 }
 
