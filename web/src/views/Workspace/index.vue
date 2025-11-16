@@ -4,12 +4,15 @@
       <!-- 左侧服务目录树 -->
       <div class="left-sidebar">
         <ServiceTreePanel
+          ref="serviceTreePanelRef"
           :tree-data="serviceTree"
           :loading="loadingTree"
           :current-node-id="currentFunction?.id || null"
+          :current-function="currentFunction"
           @node-click="handleNodeClick"
           @create-directory="handleCreateDirectory"
           @copy-link="handleCopyLink"
+          @fork-group="handleForkGroup"
         />
       </div>
 
@@ -329,6 +332,15 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- Fork 函数组对话框 -->
+    <FunctionForkDialog
+      v-model="forkDialogVisible"
+      :source-full-group-code="forkSourceGroupCode || undefined"
+      :source-group-name="forkSourceGroupName || undefined"
+      :current-app="currentApp || undefined"
+      @success="handleForkSuccess"
+    />
   </div>
 </template>
 
@@ -342,6 +354,7 @@ import TableRenderer from '@/components/TableRenderer.vue'
 import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
 import AppSwitcher from '@/components/AppSwitcher.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
+import FunctionForkDialog from '@/components/FunctionForkDialog.vue'
 import { getFunctionDetail, getFunctionByPath } from '@/api/function'
 import { createServiceTree } from '@/api/service-tree'
 import { useAppManager } from '@/composables/useAppManager'
@@ -372,6 +385,9 @@ const {
   locateNodeByRoute,
   handleCreateDirectory: createDirectory
 } = useServiceTree()
+// ServiceTreePanel 的引用
+const serviceTreePanelRef = ref<InstanceType<typeof ServiceTreePanel> | null>(null)
+
 // 加载状态
 const loading = ref(false)
 // 函数详情数据
@@ -443,6 +459,8 @@ const switchApp = async (app: any, preserveRoute = false) => {
   // 🔥 定位节点并加载函数详情（使用 handleLocateNode，它会加载函数详情）
   nextTick(() => {
     handleLocateNode()
+    // 应用切换完成、服务树加载完成后，检查 forked 参数
+    checkAndExpandForkedPaths()
   })
 }
 
@@ -646,16 +664,90 @@ const handleRefreshServiceTree = async () => {
   }
 }
 
+// 检查并展开 forked 路径
+const checkAndExpandForkedPaths = () => {
+  const forkedParam = route.query.forked as string
+  console.log('[Workspace] 检查 forked 参数:', forkedParam)
+  console.log('[Workspace] 当前应用:', currentApp.value ? `${currentApp.value.user}/${currentApp.value.code}` : 'null')
+  console.log('[Workspace] serviceTree 长度:', serviceTree.value.length)
+  console.log('[Workspace] serviceTreePanelRef:', serviceTreePanelRef.value)
+  
+  // 检查当前应用是否匹配 URL 中的应用
+  const pathSegments = route.path.replace('/workspace/', '').split('/').filter(Boolean)
+  if (pathSegments.length >= 2) {
+    const [urlUser, urlApp] = pathSegments
+    if (currentApp.value && (currentApp.value.user !== urlUser || currentApp.value.code !== urlApp)) {
+      console.log('[Workspace] ⚠️ 应用不匹配，等待应用切换完成')
+      console.log('[Workspace]    URL 应用:', `${urlUser}/${urlApp}`)
+      console.log('[Workspace]    当前应用:', `${currentApp.value.user}/${currentApp.value.code}`)
+      return // 应用不匹配，不展开
+    }
+  }
+  
+  if (forkedParam && serviceTree.value.length > 0 && serviceTreePanelRef.value && currentApp.value) {
+    const forkedPaths = decodeURIComponent(forkedParam).split(',').filter(Boolean)
+    console.log('[Workspace] 解析后的路径列表:', forkedPaths)
+    
+    // 验证路径是否属于当前应用
+    const validPaths = forkedPaths.filter(path => {
+      const pathMatch = path.match(/^\/([^/]+)\/([^/]+)/)
+      if (pathMatch) {
+        const [, pathUser, pathApp] = pathMatch
+        const isValid = pathUser === currentApp.value?.user && pathApp === currentApp.value?.code
+        if (!isValid) {
+          console.log('[Workspace] ⚠️ 路径不属于当前应用，跳过:', path)
+        }
+        return isValid
+      }
+      return false
+    })
+    
+    if (validPaths.length > 0) {
+      console.log('[Workspace] 有效路径列表:', validPaths)
+      nextTick(() => {
+        setTimeout(() => {
+          if (serviceTreePanelRef.value && serviceTreePanelRef.value.expandPaths) {
+            console.log('[Workspace] 调用 expandPaths')
+            serviceTreePanelRef.value.expandPaths(validPaths)
+          } else {
+            console.log('[Workspace] ⚠️ serviceTreePanelRef 或 expandPaths 不存在')
+          }
+        }, 500) // 延迟确保树完全渲染
+      })
+    } else {
+      console.log('[Workspace] ⚠️ 没有有效的路径可以展开')
+    }
+  }
+}
+
 // 监听路由变化
-watch(() => route.fullPath, () => {
+watch(() => route.fullPath, async () => {
   console.log('[Workspace] ========== 路由变化 ==========')
   console.log('[Workspace] 新路由:', route.fullPath)
   console.log('[Workspace] 当前应用:', currentApp.value ? `${currentApp.value.user}/${currentApp.value.code}` : 'null')
   console.log('[Workspace] 服务树节点数:', serviceTree.value.length)
+  
+  // 从路由解析应用
+  const app = parseAppFromRoute()
+  if (app) {
+    // 如果应用不匹配，需要切换应用
+    if (!currentApp.value || currentApp.value.id !== app.id) {
+      console.log('[Workspace] 路由变化检测到应用不匹配，切换应用')
+      console.log('[Workspace]    URL 应用:', `${app.user}/${app.code}`)
+      console.log('[Workspace]    当前应用:', currentApp.value ? `${currentApp.value.user}/${currentApp.value.code}` : 'null')
+      // 切换应用（保留路由，因为路由已经变化了）
+      await switchApp(app, true)
+      // switchApp 完成后会自动检查 forked 参数
+      return
+    }
+  }
+  
   if (serviceTree.value.length > 0 && currentApp.value) {
     nextTick(() => {
       console.log('[Workspace] 路由变化后开始定位节点')
       handleLocateNode()  // 🔥 使用 handleLocateNode，它会加载函数详情
+      // 注意：不在这里检查 forked 参数，因为应用可能还没切换完成
+      // forked 参数会在应用切换完成、服务树加载完成后检查
     })
   } else {
     console.log('[Workspace] ⚠️ 路由变化但条件不满足，不定位节点')
@@ -673,11 +765,43 @@ watch(currentApp, () => {
     nextTick(() => {
       console.log('[Workspace] 应用变化后开始定位节点')
       handleLocateNode()  // 🔥 使用 handleLocateNode，它会加载函数详情
+      // 检查 forked 参数
+      checkAndExpandForkedPaths()
     })
   } else {
     console.log('[Workspace] ⚠️ 应用变化但条件不满足，不定位节点')
   }
 })
+
+// 监听服务树变化，检查 forked 参数
+watch(() => serviceTree.value.length, (newLength: number) => {
+  if (newLength > 0 && currentApp.value && route.query.forked) {
+    console.log('[Workspace] 服务树加载完成，检查 forked 参数')
+    checkAndExpandForkedPaths()
+  }
+})
+
+// 监听应用切换事件（从 MainLayout 或其他组件发送）
+const handleAppSwitched = async (event: CustomEvent) => {
+  const app = event.detail?.app
+  if (app && appList.value.length > 0) {
+    console.log('[Workspace] ========== 收到 app-switched 事件 ==========')
+    console.log('[Workspace] 目标应用:', app.user + '/' + app.code)
+    
+    // 从应用列表中找到对应的应用对象（确保使用最新的应用数据）
+    const targetApp = appList.value.find((a: App) => a.id === app.id || (a.user === app.user && a.code === app.code))
+    if (targetApp) {
+      console.log('[Workspace] 找到目标应用，切换应用')
+      // 使用 switchApp 方法切换应用（这会更新 currentApp 并加载服务树）
+      await switchApp(targetApp, true) // preserveRoute = true，因为路由已经跳转了
+    } else {
+      console.log('[Workspace] ⚠️ 未找到目标应用，尝试使用事件中的应用对象')
+      // 如果找不到，直接使用事件中的应用对象
+      await switchToApp(app, false) // 不更新路由，因为路由已经跳转了
+      await loadServiceTreeData(app)
+    }
+  }
+}
 
 // 加载函数详情（通过 ref_id）
 const loadFunctionDetail = async (refId: number) => {
@@ -797,6 +921,37 @@ const handleCopyLink = (node: ServiceTree) => {
   })
 }
 
+// Fork 函数组
+const forkDialogVisible = ref(false)
+const forkSourceGroupCode = ref('')
+const forkSourceGroupName = ref('')
+
+const handleForkGroup = (node: ServiceTree | null) => {
+  // 如果传入了节点，使用它；否则打开对话框让用户选择
+  if (node) {
+    if (!node.full_group_code) {
+      ElMessage.warning('该节点没有函数组代码，无法克隆')
+      return
+    }
+    forkSourceGroupCode.value = node.full_group_code
+    forkSourceGroupName.value = node.group_name || node.name || ''
+  } else {
+    // 没有传入节点，清空预设值，让用户在对话框中选择
+    forkSourceGroupCode.value = ''
+    forkSourceGroupName.value = ''
+  }
+  forkDialogVisible.value = true
+}
+
+// Fork 成功后的回调
+const handleForkSuccess = () => {
+  // 刷新服务目录树
+  if (currentApp.value) {
+    loadServiceTreeData(currentApp.value)
+  }
+  ElMessage.success('克隆完成！请刷新页面查看新功能')
+}
+
 // 提交创建目录
 const handleSubmitCreateDirectory = async () => {
   if (!currentApp.value) {
@@ -870,6 +1025,8 @@ onMounted(() => {
   
   // 保留刷新服务树事件（用于其他地方触发刷新）
   window.addEventListener('refresh-service-tree', handleRefreshServiceTree as EventListener)
+  // 监听应用切换事件
+  window.addEventListener('app-switched', handleAppSwitched as EventListener)
   
   // 组件挂载后，检查是否需要定位节点
   // 使用 setTimeout 确保所有初始化事件都已处理
@@ -878,6 +1035,9 @@ onMounted(() => {
     console.log('[Workspace] 当前应用:', currentApp.value ? `${currentApp.value.user}/${currentApp.value.code}` : 'null')
     console.log('[Workspace] 服务树节点数:', serviceTree.value.length)
     console.log('[Workspace] 当前路径:', window.location.pathname)
+    
+    // 检查 URL 参数中是否有新克隆的路径
+    checkAndExpandForkedPaths()
     
     // 如果有服务树和应用，尝试定位
     if (serviceTree.value.length > 0 && currentApp.value) {
@@ -893,6 +1053,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('refresh-service-tree', handleRefreshServiceTree as EventListener)
+  window.removeEventListener('app-switched', handleAppSwitched as EventListener)
 })
 </script>
 

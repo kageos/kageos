@@ -109,3 +109,10 @@ func (r *FunctionRepository) UpdateSourceCodeID(functionID int64, sourceCodeID i
 		Where("id = ?", functionID).
 		Update("source_code_id", sourceCodeID).Error
 }
+
+// GetBySourceCodeID 根据 SourceCodeID 获取所有函数
+func (r *FunctionRepository) GetBySourceCodeID(sourceCodeID int64) ([]*model.Function, error) {
+	var functions []*model.Function
+	err := r.db.Where("source_code_id = ?", sourceCodeID).Find(&functions).Error
+	return functions, err
+}

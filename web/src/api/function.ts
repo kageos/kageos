@@ -185,3 +185,11 @@ export function importData(router: string, formData: FormData) {
     }
   })
 }
+
+// Fork 函数组（支持批量）
+export function forkFunctionGroup(data: {
+  source_to_target_map: Record<string, string>
+  target_app_id: number
+}) {
+  return post<{ message: string }>('/api/v1/function/fork', data)
+}

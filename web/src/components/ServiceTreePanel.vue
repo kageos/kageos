@@ -2,16 +2,28 @@
   <div class="service-tree-panel" v-loading="loading">
     <div class="tree-header">
       <h3>服务目录</h3>
-      <el-button
-        v-if="!loading"
-        type="primary"
-        size="small"
-        @click="$emit('create-directory')"
-        class="create-btn"
-      >
-        <el-icon><Plus /></el-icon>
-        创建目录
-      </el-button>
+      <div class="header-actions">
+        <el-button
+          v-if="!loading"
+          type="primary"
+          size="small"
+          @click="$emit('create-directory')"
+          class="create-btn"
+        >
+          <el-icon><Plus /></el-icon>
+          创建目录
+        </el-button>
+        <el-button
+          v-if="!loading"
+          type="success"
+          size="small"
+          @click="handleForkButtonClick"
+          class="fork-btn"
+        >
+          <el-icon><CopyDocument /></el-icon>
+          克隆函数组
+        </el-button>
+      </div>
     </div>
     
     <div class="tree-content">
@@ -45,9 +57,8 @@
               <span class="node-label">{{ node.label }}</span>
             </template>
             
-            <!-- 更多操作按钮 - 鼠标悬停时显示（分组节点不显示） -->
+            <!-- 更多操作按钮 - 鼠标悬停时显示 -->
             <el-dropdown
-              v-if="!(data as any).isGroup"
               trigger="click"
               @click.stop
               class="node-more-actions"
@@ -59,7 +70,7 @@
               <template #dropdown>
                 <el-dropdown-menu>
                   <!-- 仅对package类型显示创建子目录选项 -->
-                  <el-dropdown-item v-if="data.type === 'package'" command="create-directory">
+                  <el-dropdown-item v-if="!(data as any).isGroup && data.type === 'package'" command="create-directory">
                     <el-icon><Plus /></el-icon>
                     添加服务目录
                   </el-dropdown-item>
@@ -88,7 +99,7 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick, computed } from 'vue'
-import { Folder, FolderOpened, Plus, MoreFilled, Link } from '@element-plus/icons-vue'
+import { Folder, FolderOpened, Plus, MoreFilled, Link, CopyDocument } from '@element-plus/icons-vue'
 import { ElTag } from 'element-plus'
 import type { ServiceTree } from '@/types'
 
@@ -96,12 +107,14 @@ interface Props {
   treeData: ServiceTree[]
   loading?: boolean
   currentNodeId?: number | string | null
+  currentFunction?: ServiceTree | null  // 当前选中的节点（用于判断是否可以克隆）
 }
 
 interface Emits {
   (e: 'node-click', node: ServiceTree): void
   (e: 'create-directory', parentNode?: ServiceTree): void
   (e: 'copy-link', node: ServiceTree): void
+  (e: 'fork-group', node: ServiceTree | null): void  // Fork 函数组（可以为 null，表示打开对话框让用户选择）
 }
 
 const props = defineProps<Props>()
@@ -203,10 +216,7 @@ const groupedTreeData = computed(() => {
 })
 
 const handleNodeClick = (data: ServiceTree) => {
-  // 🔥 分组节点不可点击（只是用于展示分组）
-  if ((data as any).isGroup) {
-    return
-  }
+  // 允许点击函数组节点，这样可以在顶部显示克隆按钮
   emit('node-click', data)
 }
 
@@ -215,7 +225,24 @@ const handleNodeAction = (command: string, data: ServiceTree) => {
     emit('create-directory', data)
   } else if (command === 'copy-link') {
     emit('copy-link', data)
+  } else if (command === 'fork') {
+    emit('fork-group', data)
   }
+}
+
+// 处理克隆按钮点击（直接打开克隆对话框，不需要选中节点）
+const handleForkButtonClick = () => {
+  // 如果有选中的函数组节点，使用它；否则传递 null，让对话框自己处理
+  if (props.currentFunction) {
+    const data = props.currentFunction as any
+    // 如果当前选中的是函数组节点，直接使用它
+    if (data.isGroup && data.full_group_code) {
+      emit('fork-group', props.currentFunction)
+      return
+    }
+  }
+  // 否则传递 null，打开对话框让用户选择要克隆的函数组
+  emit('fork-group', null)
 }
 
 // 获取节点图标样式类
@@ -283,6 +310,101 @@ const expandParentNodes = (path: number[]) => {
   })
 }
 
+// 根据 full_code_path 查找节点并展开
+const findAndExpandByPath = (targetPath: string): ServiceTree | null => {
+  if (!treeRef.value || !groupedTreeData.value.length) {
+    console.log('[ServiceTreePanel] findAndExpandByPath: 条件不满足')
+    return null
+  }
+  
+  // 规范化路径（移除开头的斜杠，确保格式一致）
+  const normalizedPath = targetPath.replace(/^\/+/, '')
+  console.log('[ServiceTreePanel] findAndExpandByPath: 目标路径:', targetPath, '规范化后:', normalizedPath)
+  
+  const findNode = (nodes: ServiceTree[], path: string, depth = 0): ServiceTree | null => {
+    const indent = '  '.repeat(depth)
+    for (const node of nodes) {
+      // 规范化节点的 full_code_path（移除开头的斜杠和 __group__ 部分）
+      let nodePath = node.full_code_path.replace(/^\/+/, '')
+      const isGroup = (node as any).isGroup
+      
+      // 如果是分组节点，移除 __group__ 部分来匹配目录路径
+      if (isGroup) {
+        nodePath = nodePath.replace(/\/__group__[^/]+$/, '')
+      }
+      
+      console.log(`${indent}[ServiceTreePanel] 检查节点: ${node.name} (${node.type}), 路径: ${nodePath}, 是否分组: ${isGroup}`)
+      
+      // 检查当前节点是否匹配（精确匹配或目录匹配）
+      if (nodePath === path || path.startsWith(nodePath + '/')) {
+        console.log(`${indent}[ServiceTreePanel] ✅ 路径匹配!`)
+        // 展开当前节点
+        const nodeKey = Number(node.id)
+        const treeNode = treeRef.value.store.nodesMap[nodeKey]
+        if (treeNode) {
+          if (!treeNode.expanded) {
+            treeNode.expand()
+            console.log(`${indent}[ServiceTreePanel] 展开节点: ${node.name}`)
+          } else {
+            console.log(`${indent}[ServiceTreePanel] 节点已展开: ${node.name}`)
+          }
+        }
+        
+        // 如果是精确匹配，返回该节点
+        if (nodePath === path) {
+          console.log(`${indent}[ServiceTreePanel] 精确匹配，返回节点: ${node.name}`)
+          return node
+        }
+        
+        // 如果是目录匹配，继续在子节点中查找
+        if (node.children && node.children.length > 0) {
+          const found = findNode(node.children, path, depth + 1)
+          if (found) return found
+        }
+      }
+    }
+    return null
+  }
+  
+  const result = findNode(groupedTreeData.value, normalizedPath)
+  console.log('[ServiceTreePanel] findAndExpandByPath 结果:', result ? result.name : 'null')
+  return result
+}
+
+// 展开多个路径
+const expandPaths = (paths: string[]) => {
+  console.log('[ServiceTreePanel] expandPaths 被调用，路径列表:', paths)
+  console.log('[ServiceTreePanel] treeRef:', treeRef.value)
+  console.log('[ServiceTreePanel] groupedTreeData 长度:', groupedTreeData.value.length)
+  
+  if (!treeRef.value || !groupedTreeData.value.length) {
+    console.log('[ServiceTreePanel] ⚠️ 条件不满足，无法展开')
+    return
+  }
+  
+  paths.forEach((path, index) => {
+    console.log(`[ServiceTreePanel] 处理路径 ${index + 1}/${paths.length}:`, path)
+    const node = findAndExpandByPath(path)
+    if (node) {
+      console.log('[ServiceTreePanel] ✅ 找到节点:', node.name, node.full_code_path)
+      // 找到节点后，展开到该节点的所有父节点
+      const nodeId = Number(node.id)
+      const pathToNode = findPathToNode(groupedTreeData.value, nodeId)
+      console.log('[ServiceTreePanel] 节点路径:', pathToNode)
+      if (pathToNode.length > 0) {
+        expandParentNodes(pathToNode)
+        // 高亮显示该节点
+        setTimeout(() => {
+          treeRef.value.setCurrentKey(nodeId)
+          console.log('[ServiceTreePanel] 已设置当前节点:', nodeId)
+        }, 100)
+      }
+    } else {
+      console.log('[ServiceTreePanel] ❌ 未找到节点，路径:', path)
+    }
+  })
+}
+
 // 监听 currentNodeId 变化，自动展开并选中节点
 watch(() => props.currentNodeId, (nodeId) => {
   if (nodeId && treeRef.value && groupedTreeData.value.length > 0) {
@@ -336,6 +458,12 @@ watch(() => groupedTreeData.value, (newTreeData) => {
     })
   }
 })
+
+// 暴露方法给父组件
+defineExpose({
+  treeRef,
+  expandPaths
+})
 </script>
 
 <style scoped>
@@ -361,7 +489,14 @@ watch(() => groupedTreeData.value, (newTreeData) => {
     color: var(--el-text-color-primary);
   }
   
-  .create-btn {
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .create-btn,
+  .fork-btn {
     display: inline-flex;
     align-items: center;
     gap: 4px;

@@ -124,15 +124,20 @@ func (s *ServiceTreeService) CreateServiceTree(ctx context.Context, req *dto.Cre
 }
 
 // GetServiceTree 获取服务目录
-func (s *ServiceTreeService) GetServiceTree(ctx context.Context, user, app string) ([]*dto.GetServiceTreeResp, error) {
+func (s *ServiceTreeService) GetServiceTree(ctx context.Context, user, app string, nodeType string) ([]*dto.GetServiceTreeResp, error) {
 	// 获取应用信息
 	appModel, err := s.appRepo.GetAppByUserName(user, app)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get app: %w", err)
 	}
 
-	// 构建树形结构
-	trees, err := s.serviceTreeRepo.BuildServiceTree(appModel.ID)
+	// 构建树形结构（如果指定了类型，则只返回该类型的节点）
+	var trees []*model.ServiceTree
+	if nodeType != "" {
+		trees, err = s.serviceTreeRepo.BuildServiceTreeByType(appModel.ID, nodeType)
+	} else {
+		trees, err = s.serviceTreeRepo.BuildServiceTree(appModel.ID)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to build service tree: %w", err)
 	}

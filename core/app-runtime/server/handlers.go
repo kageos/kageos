@@ -102,8 +102,8 @@ func (s *Server) handleAppUpdate(msg *nats.Msg) {
 	//logger.Infof(ctx, "[handleAppUpdate] *** ENTRY *** Received app update request: tenantUser=%s, requestUser=%s, app=%s, reply=%s",
 	//	tenantUser, msgInfo.RequestUser, msgInfo.Data.App, msg.Reply)
 
-	// 调用应用管理服务更新应用
-	result, err := s.appManageService.UpdateApp(ctx, tenantUser, msgInfo.Data.App)
+	// 调用应用管理服务更新应用（传递 ForkPackages）
+	result, err := s.appManageService.UpdateApp(ctx, tenantUser, msgInfo.Data.App, msgInfo.Data.ForkPackages)
 	if err != nil {
 		logger.Errorf(ctx, "[handleAppUpdate] Failed to update app: %v", err)
 		msgx.RespFailMsg(msg, err)

@@ -59,4 +59,5 @@ func (s *Server) setupRoutes() {
 	functionHandler := v1.NewFunction(s.functionService)
 	function.GET("/get", functionHandler.GetFunction)
 	function.GET("/list", functionHandler.GetFunctionsByApp)
+	function.POST("/fork", functionHandler.ForkFunctionGroup)
 }

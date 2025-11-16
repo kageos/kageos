@@ -2,8 +2,13 @@ import { get, post, put, del } from '@/utils/request'
 import type { ServiceTree, CreateServiceTreeRequest } from '@/types'
 
 // 获取服务目录树（使用user和app参数）
-export function getServiceTree(user: string, app: string) {
-  return get<ServiceTree[]>('/api/v1/service_tree', { user, app })
+// @param typeFilter 可选，节点类型过滤：'package'（只显示服务目录/包）、'function'（只显示函数/文件）
+export function getServiceTree(user: string, app: string, typeFilter?: 'package' | 'function') {
+  const params: Record<string, string> = { user, app }
+  if (typeFilter) {
+    params.type = typeFilter
+  }
+  return get<ServiceTree[]>('/api/v1/service_tree', params)
 }
 
 // 创建服务目录（使用user和app参数）

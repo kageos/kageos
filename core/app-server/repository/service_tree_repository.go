@@ -57,6 +57,20 @@ func (r *ServiceTreeRepository) GetServiceTreesByAppID(appID int64) ([]*model.Se
 	return serviceTrees, nil
 }
 
+// GetServiceTreesByAppIDAndType 根据应用ID和类型获取服务目录
+func (r *ServiceTreeRepository) GetServiceTreesByAppIDAndType(appID int64, nodeType string) ([]*model.ServiceTree, error) {
+	var serviceTrees []*model.ServiceTree
+	query := r.db.Where("app_id = ?", appID)
+	if nodeType != "" {
+		query = query.Where("type = ?", nodeType)
+	}
+	err := query.Order("created_at ASC").Find(&serviceTrees).Error
+	if err != nil {
+		return nil, err
+	}
+	return serviceTrees, nil
+}
+
 // GetServiceTreeChildren 获取子服务目录
 func (r *ServiceTreeRepository) GetServiceTreeChildren(parentID int64) ([]*model.ServiceTree, error) {
 	var children []*model.ServiceTree
@@ -71,6 +85,16 @@ func (r *ServiceTreeRepository) GetServiceTreeChildren(parentID int64) ([]*model
 func (r *ServiceTreeRepository) BuildServiceTree(appID int64) ([]*model.ServiceTree, error) {
 	// 获取所有服务目录
 	allTrees, err := r.GetServiceTreesByAppID(appID)
+	if err != nil {
+		return nil, err
+	}
+	return r.buildTreeFromNodes(allTrees), nil
+}
+
+// BuildServiceTreeByType 根据类型构建树形结构
+func (r *ServiceTreeRepository) BuildServiceTreeByType(appID int64, nodeType string) ([]*model.ServiceTree, error) {
+	// 获取指定类型的服务目录
+	allTrees, err := r.GetServiceTreesByAppIDAndType(appID, nodeType)
 	if err != nil {
 		return nil, err
 	}

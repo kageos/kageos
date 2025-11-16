@@ -2,17 +2,21 @@ import { get, post, put, del } from '@/utils/request'
 import type { App, CreateAppRequest, CreateAppResponse } from '@/types'
 
 // 获取应用列表
-export function getAppList(pageSize: number = 200) {
+export function getAppList(pageSize: number = 200, search?: string) {
   // 后端返回的是分页数据结构: { page, page_size, total_count, items: App[] }
+  const params: Record<string, any> = {
+    page_size: pageSize,
+    page: 1
+  }
+  if (search) {
+    params.search = search
+  }
   return get<{
     page: number
     page_size: number
     total_count: number
     items: App[]
-  }>('/api/v1/app/list', {
-    page_size: pageSize,
-    page: 1
-  }).then(res => res.items || [])
+  }>('/api/v1/app/list', params).then(res => res.items || [])
 }
 
 // 创建应用

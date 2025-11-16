@@ -344,7 +344,7 @@ func (a *App) DeleteApp(c *gin.Context) {
 
 // GetApps 获取应用列表
 // @Summary 获取应用列表
-// @Description 获取当前用户的所有应用列表（支持分页）
+// @Description 获取当前用户的所有应用列表（支持分页和搜索）
 // @Tags 应用管理
 // @Accept json
 // @Produce json
@@ -352,6 +352,7 @@ func (a *App) DeleteApp(c *gin.Context) {
 // @Param X-Token header string true "JWT Token"
 // @Param page query int false "页码，默认为1" default(1)
 // @Param page_size query int false "每页数量，默认为10" default(10)
+// @Param search query string false "搜索关键词（支持按应用名称或代码搜索）"
 // @Success 200 {object} dto.GetAppsResp "获取成功"
 // @Failure 401 {string} string "未授权"
 // @Failure 500 {string} string "服务器内部错误"
@@ -371,9 +372,10 @@ func (a *App) GetApps(c *gin.Context) {
 		return
 	}
 
-	// 从查询参数获取分页信息
+	// 从查询参数获取分页信息和搜索关键词
 	page := c.DefaultQuery("page", "1")
 	pageSize := c.DefaultQuery("page_size", "10")
+	search := c.Query("search")
 
 	// 构建请求对象
 	req = dto.GetAppsReq{
@@ -381,7 +383,8 @@ func (a *App) GetApps(c *gin.Context) {
 			Page:     parseIntWithDefault(page, 1),
 			PageSize: parseIntWithDefault(pageSize, 10),
 		},
-		User: user,
+		User:   user,
+		Search: search,
 	}
 
 	resp, err = a.appService.GetApps(c, &req)

@@ -139,7 +139,7 @@ const docTemplate = `{
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "获取当前用户的所有应用列表（支持分页）",
+                "description": "获取当前用户的所有应用列表（支持分页和搜索）",
                 "consumes": [
                     "application/json"
                 ],
@@ -170,6 +170,12 @@ const docTemplate = `{
                         "default": 10,
                         "description": "每页数量，默认为10",
                         "name": "page_size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "搜索关键词（支持按应用名称或代码搜索）",
+                        "name": "search",
                         "in": "query"
                     }
                 ],
@@ -552,6 +558,70 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/function/fork": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "批量 Fork 函数组到目标 package",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "函数管理"
+                ],
+                "summary": "Fork 函数组",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Fork 请求，source_to_target_map 的 key=函数组的full_group_code，value=服务目录的full_code_path",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.ForkFunctionGroupReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Fork 成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ForkFunctionGroupResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/function/get": {
             "get": {
                 "security": [
@@ -747,7 +817,7 @@ const docTemplate = `{
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "获取指定应用的服务目录树形结构",
+                "description": "获取指定应用的服务目录树形结构，支持按类型过滤（如只显示 package 类型的节点）",
                 "consumes": [
                     "application/json"
                 ],
@@ -779,6 +849,12 @@ const docTemplate = `{
                         "name": "app",
                         "in": "query",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "节点类型过滤（可选），如：package（只显示服务目录/包）、function（只显示函数/文件）",
+                        "name": "type",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1000,6 +1076,91 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "dto.ApiInfo": {
+            "type": "object",
+            "properties": {
+                "added_version": {
+                    "description": "API首次添加的版本",
+                    "type": "string"
+                },
+                "app": {
+                    "type": "string"
+                },
+                "callback": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "code": {
+                    "type": "string"
+                },
+                "create_tables": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "desc": {
+                    "type": "string"
+                },
+                "full_code_path": {
+                    "type": "string"
+                },
+                "function_group_code": {
+                    "type": "string"
+                },
+                "function_group_name": {
+                    "type": "string"
+                },
+                "method": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "request": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/widget.Field"
+                    }
+                },
+                "response": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/widget.Field"
+                    }
+                },
+                "router": {
+                    "type": "string"
+                },
+                "source_code": {
+                    "type": "string"
+                },
+                "source_code_file_path": {
+                    "type": "string"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "template_type": {
+                    "type": "string"
+                },
+                "update_versions": {
+                    "description": "API更新过的版本列表",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "user": {
+                    "type": "string"
+                }
+            }
+        },
         "dto.CreateAppReq": {
             "type": "object",
             "required": [
@@ -1170,6 +1331,67 @@ const docTemplate = `{
                     "description": "服务目录ID",
                     "type": "integer",
                     "example": 1
+                }
+            }
+        },
+        "dto.DiffData": {
+            "type": "object",
+            "properties": {
+                "add": {
+                    "description": "新增的API",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.ApiInfo"
+                    }
+                },
+                "delete": {
+                    "description": "删除的API",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.ApiInfo"
+                    }
+                },
+                "update": {
+                    "description": "修改的API",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.ApiInfo"
+                    }
+                }
+            }
+        },
+        "dto.ForkFunctionGroupReq": {
+            "type": "object",
+            "required": [
+                "source_to_target_map",
+                "target_app_id"
+            ],
+            "properties": {
+                "source_to_target_map": {
+                    "description": "源到目标的映射：key=函数组的full_group_code，value=服务目录的full_code_path",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    },
+                    "example": {
+                        "/luobei/app_a/tools/tools_cashier": "/luobei/app_b/a1",
+                        "/luobei/app_a/tools/tools_excel": "/luobei/app_b/b1"
+                    }
+                },
+                "target_app_id": {
+                    "description": "目标应用 ID",
+                    "type": "integer",
+                    "example": 123
+                }
+            }
+        },
+        "dto.ForkFunctionGroupResp": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "description": "响应消息",
+                    "type": "string",
+                    "example": "函数组 Fork 成功"
                 }
             }
         },
@@ -1359,6 +1581,14 @@ const docTemplate = `{
                     "description": "完整代码路径",
                     "type": "string",
                     "example": "/beiluo/myapp/user"
+                },
+                "full_group_code": {
+                    "description": "完整函数组代码：{full_path}/{group_code}，与 source_code.full_group_code 对齐",
+                    "type": "string"
+                },
+                "group_name": {
+                    "description": "组名称",
+                    "type": "string"
                 },
                 "id": {
                     "description": "服务目录ID",
@@ -1577,7 +1807,7 @@ const docTemplate = `{
                     "description": "API diff 信息",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/model.DiffData"
+                            "$ref": "#/definitions/dto.DiffData"
                         }
                     ]
                 },
@@ -1677,105 +1907,6 @@ const docTemplate = `{
                     "description": "用户名",
                     "type": "string",
                     "example": "beiluo"
-                }
-            }
-        },
-        "model.ApiInfo": {
-            "type": "object",
-            "properties": {
-                "added_version": {
-                    "description": "API首次添加的版本",
-                    "type": "string"
-                },
-                "app": {
-                    "type": "string"
-                },
-                "callback": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "code": {
-                    "type": "string"
-                },
-                "create_tables": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "desc": {
-                    "type": "string"
-                },
-                "full_code_path": {
-                    "type": "string"
-                },
-                "method": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "request": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/widget.Field"
-                    }
-                },
-                "response": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/widget.Field"
-                    }
-                },
-                "router": {
-                    "type": "string"
-                },
-                "tags": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "template_type": {
-                    "type": "string"
-                },
-                "update_versions": {
-                    "description": "API更新过的版本列表",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "user": {
-                    "type": "string"
-                }
-            }
-        },
-        "model.DiffData": {
-            "type": "object",
-            "properties": {
-                "add": {
-                    "description": "新增的API",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/model.ApiInfo"
-                    }
-                },
-                "delete": {
-                    "description": "删除的API",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/model.ApiInfo"
-                    }
-                },
-                "update": {
-                    "description": "修改的API",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/model.ApiInfo"
-                    }
                 }
             }
         },

@@ -1,5 +1,62 @@
 basePath: /api/v1
 definitions:
+  dto.ApiInfo:
+    properties:
+      added_version:
+        description: API首次添加的版本
+        type: string
+      app:
+        type: string
+      callback:
+        items:
+          type: string
+        type: array
+      code:
+        type: string
+      create_tables:
+        items:
+          type: string
+        type: array
+      desc:
+        type: string
+      full_code_path:
+        type: string
+      function_group_code:
+        type: string
+      function_group_name:
+        type: string
+      method:
+        type: string
+      name:
+        type: string
+      request:
+        items:
+          $ref: '#/definitions/widget.Field'
+        type: array
+      response:
+        items:
+          $ref: '#/definitions/widget.Field'
+        type: array
+      router:
+        type: string
+      source_code:
+        type: string
+      source_code_file_path:
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+      template_type:
+        type: string
+      update_versions:
+        description: API更新过的版本列表
+        items:
+          type: string
+        type: array
+      user:
+        type: string
+    type: object
   dto.CreateAppReq:
     properties:
       code:
@@ -132,6 +189,49 @@ definitions:
         type: integer
     required:
     - id
+    type: object
+  dto.DiffData:
+    properties:
+      add:
+        description: 新增的API
+        items:
+          $ref: '#/definitions/dto.ApiInfo'
+        type: array
+      delete:
+        description: 删除的API
+        items:
+          $ref: '#/definitions/dto.ApiInfo'
+        type: array
+      update:
+        description: 修改的API
+        items:
+          $ref: '#/definitions/dto.ApiInfo'
+        type: array
+    type: object
+  dto.ForkFunctionGroupReq:
+    properties:
+      source_to_target_map:
+        additionalProperties:
+          type: string
+        description: 源到目标的映射：key=函数组的full_group_code，value=服务目录的full_code_path
+        example:
+          /luobei/app_a/tools/tools_cashier: /luobei/app_b/a1
+          /luobei/app_a/tools/tools_excel: /luobei/app_b/b1
+        type: object
+      target_app_id:
+        description: 目标应用 ID
+        example: 123
+        type: integer
+    required:
+    - source_to_target_map
+    - target_app_id
+    type: object
+  dto.ForkFunctionGroupResp:
+    properties:
+      message:
+        description: 响应消息
+        example: 函数组 Fork 成功
+        type: string
     type: object
   dto.FunctionInfo:
     properties:
@@ -274,6 +374,13 @@ definitions:
       full_code_path:
         description: 完整代码路径
         example: /beiluo/myapp/user
+        type: string
+      full_group_code:
+        description: 完整函数组代码：{full_path}/{group_code}，与 source_code.full_group_code
+          对齐
+        type: string
+      group_name:
+        description: 组名称
         type: string
       id:
         description: 服务目录ID
@@ -434,7 +541,7 @@ definitions:
         type: string
       diff:
         allOf:
-        - $ref: '#/definitions/model.DiffData'
+        - $ref: '#/definitions/dto.DiffData'
         description: API diff 信息
       error:
         description: 回调过程中的错误信息
@@ -511,73 +618,6 @@ definitions:
         description: 用户名
         example: beiluo
         type: string
-    type: object
-  model.ApiInfo:
-    properties:
-      added_version:
-        description: API首次添加的版本
-        type: string
-      app:
-        type: string
-      callback:
-        items:
-          type: string
-        type: array
-      code:
-        type: string
-      create_tables:
-        items:
-          type: string
-        type: array
-      desc:
-        type: string
-      full_code_path:
-        type: string
-      method:
-        type: string
-      name:
-        type: string
-      request:
-        items:
-          $ref: '#/definitions/widget.Field'
-        type: array
-      response:
-        items:
-          $ref: '#/definitions/widget.Field'
-        type: array
-      router:
-        type: string
-      tags:
-        items:
-          type: string
-        type: array
-      template_type:
-        type: string
-      update_versions:
-        description: API更新过的版本列表
-        items:
-          type: string
-        type: array
-      user:
-        type: string
-    type: object
-  model.DiffData:
-    properties:
-      add:
-        description: 新增的API
-        items:
-          $ref: '#/definitions/model.ApiInfo'
-        type: array
-      delete:
-        description: 删除的API
-        items:
-          $ref: '#/definitions/model.ApiInfo'
-        type: array
-      update:
-        description: 修改的API
-        items:
-          $ref: '#/definitions/model.ApiInfo'
-        type: array
     type: object
   widget.Field:
     properties:
@@ -718,7 +758,7 @@ paths:
     get:
       consumes:
       - application/json
-      description: 获取当前用户的所有应用列表（支持分页）
+      description: 获取当前用户的所有应用列表（支持分页和搜索）
       parameters:
       - description: JWT Token
         in: header
@@ -735,6 +775,10 @@ paths:
         in: query
         name: page_size
         type: integer
+      - description: 搜索关键词（支持按应用名称或代码搜索）
+        in: query
+        name: search
+        type: string
       produces:
       - application/json
       responses:
@@ -989,6 +1033,47 @@ paths:
       summary: 回调应用
       tags:
       - 应用接口请求(运行函数)
+  /api/v1/function/fork:
+    post:
+      consumes:
+      - application/json
+      description: 批量 Fork 函数组到目标 package
+      parameters:
+      - description: JWT Token
+        in: header
+        name: X-Token
+        required: true
+        type: string
+      - description: Fork 请求，source_to_target_map 的 key=函数组的full_group_code，value=服务目录的full_code_path
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ForkFunctionGroupReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Fork 成功
+          schema:
+            $ref: '#/definitions/dto.ForkFunctionGroupResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "401":
+          description: 未授权
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: Fork 函数组
+      tags:
+      - 函数管理
   /api/v1/function/get:
     get:
       consumes:
@@ -1156,7 +1241,7 @@ paths:
     get:
       consumes:
       - application/json
-      description: 获取指定应用的服务目录树形结构
+      description: 获取指定应用的服务目录树形结构，支持按类型过滤（如只显示 package 类型的节点）
       parameters:
       - description: JWT Token
         in: header
@@ -1172,6 +1257,10 @@ paths:
         in: query
         name: app
         required: true
+        type: string
+      - description: 节点类型过滤（可选），如：package（只显示服务目录/包）、function（只显示函数/文件）
+        in: query
+        name: type
         type: string
       produces:
       - application/json

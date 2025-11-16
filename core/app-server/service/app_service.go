@@ -693,8 +693,8 @@ func (a *AppService) GetApps(ctx context.Context, req *dto.GetAppsReq) (*dto.Get
 		pageSize = 10 // 默认每页10条
 	}
 
-	// 从数据库获取用户的分页应用列表
-	apps, totalCount, err := a.appRepo.GetAppsByUserWithPage(req.User, page, pageSize)
+	// 从数据库获取用户的分页应用列表（支持搜索）
+	apps, totalCount, err := a.appRepo.GetAppsByUserWithPage(req.User, page, pageSize, req.Search)
 	if err != nil {
 		return nil, fmt.Errorf("获取应用列表失败: %w", err)
 	}
