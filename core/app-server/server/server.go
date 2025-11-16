@@ -231,8 +231,8 @@ func (s *Server) initServices(ctx context.Context) error {
 
 	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appRuntime)
 
-	// 初始化函数服务
-	s.functionService = service.NewFunctionService(functionRepo)
+	// 初始化函数服务（需要更多依赖）
+	s.functionService = service.NewFunctionService(functionRepo, sourceCodeRepo, appRepo, serviceTreeRepo, s.appRuntime, s.appService)
 
 	logger.Infof(ctx, "[Server] Services initialized successfully")
 	return nil

@@ -1,4 +1,31 @@
 basePath: /
+definitions:
+  v1.Service:
+    properties:
+      direct_url:
+        description: 直接地址（用于 SDK 内部调用，绕过网关）
+        type: string
+      path:
+        description: 路径前缀
+        type: string
+      url:
+        description: 通过网关的地址
+        type: string
+    type: object
+  v1.ServiceConfigResponse:
+    properties:
+      gateway:
+        description: 网关地址
+        type: string
+      services:
+        additionalProperties:
+          $ref: '#/definitions/v1.Service'
+        description: 服务配置
+        type: object
+      version:
+        description: 版本
+        type: string
+    type: object
 host: localhost:9090
 info:
   contact: {}
@@ -8,16 +35,14 @@ info:
 paths:
   /api/v1/config:
     get:
-      description: 返回所有服务的访问地址（通过网关）
+      description: 返回所有服务的访问地址（通过网关和直接地址）
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/v1.ServiceConfigResponse'
       summary: 获取服务配置
       tags:
       - config

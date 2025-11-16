@@ -58,8 +58,9 @@ type RequestAppResp struct {
 
 // UpdateAppReq 更新应用请求
 type UpdateAppReq struct {
-	User string `json:"user" swaggerignore:"true"`              // 用户名
-	App  string `json:"app" binding:"required" example:"myapp"` // 应用名
+	User         string             `json:"user" swaggerignore:"true"`              // 用户名
+	App          string             `json:"app" binding:"required" example:"myapp"` // 应用名
+	ForkPackages []*ForkPackageInfo `json:"fork_packages,omitempty"`                // 可选的 Fork 包列表（如果有，先执行 fork 再更新）
 }
 
 // UpdateAppResp 更新应用响应
@@ -197,7 +198,8 @@ type DeleteAppResp struct {
 // GetAppsReq 获取应用列表请求
 type GetAppsReq struct {
 	PageInfoReq
-	User string `json:"user" swaggerignore:"true"` // 租户名（从JWT Token获取）
+	User   string `json:"user" swaggerignore:"true"`   // 租户名（从JWT Token获取）
+	Search string `json:"search" form:"search"`        // 搜索关键词（支持按应用名称或代码搜索）
 }
 
 // GetAppsResp 获取应用列表响应

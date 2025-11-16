@@ -178,3 +178,13 @@ export interface WSMessage {
   data: any
   timestamp: number
 }
+
+// Fork 函数组相关类型
+export interface ForkFunctionGroupRequest {
+  source_to_target_map: Record<string, string>  // key=函数组的full_group_code，value=服务目录的full_code_path
+  target_app_id: number  // 目标应用 ID
+}
+
+export interface ForkFunctionGroupResponse {
+  message: string  // 响应消息
+}
