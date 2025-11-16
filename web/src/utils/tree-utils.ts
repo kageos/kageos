@@ -9,6 +9,11 @@ import type { ServiceTree } from '@/types'
 export interface ExtendedServiceTree extends ServiceTree {
   isGroup?: boolean
   isPending?: boolean
+  mappingColor?: {
+    bg: string
+    border: string
+    text: string
+  }
 }
 
 /**
