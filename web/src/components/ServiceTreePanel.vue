@@ -101,6 +101,7 @@
 import { ref, watch, nextTick, computed } from 'vue'
 import { Folder, FolderOpened, Plus, MoreFilled, Link, CopyDocument } from '@element-plus/icons-vue'
 import { ElTag } from 'element-plus'
+import { generateGroupId, createGroupNode, groupFunctionsByCode, getGroupName, type ExtendedServiceTree } from '@/utils/tree-utils'
 import type { ServiceTree } from '@/types'
 
 interface Props {
@@ -160,40 +161,10 @@ const groupedTreeData = computed(() => {
       
       // 2. 添加分组后的函数
       groupedFunctions.forEach((funcs, groupCode) => {
-        // 获取组名（使用第一个函数的 group_name）
-        const groupName = funcs[0]?.group_name || groupCode
-        
-        // 创建分组节点（虚拟节点，用于展示组名）
-        // 生成唯一的负数 ID（避免与真实节点冲突）
-        // 使用简单的字符串哈希算法生成稳定的 ID
-        let hash = 0
-        for (let i = 0; i < groupCode.length; i++) {
-          const char = groupCode.charCodeAt(i)
-          hash = ((hash << 5) - hash) + char
-          hash = hash & hash // 转换为 32 位整数
-        }
-        const groupId = -Math.abs(hash || Date.now())
-        
-        const groupNode: ServiceTree = {
-          id: groupId,
-          name: groupName,
-          code: `__group__${groupCode}`,
-          parent_id: node.id,
-          type: 'package', // 使用 package 类型以便显示文件夹图标
-          description: '',
-          tags: '',
-          app_id: node.app_id,
-          ref_id: 0,
-          full_code_path: `${node.full_code_path}/__group__${groupCode}`,
-          full_group_code: groupCode,
-          group_name: groupName,
-          created_at: '',
-          updated_at: '',
-          children: funcs.map(func => processNode(func)),
-          // 标记为分组节点
-          isGroup: true
-        } as ServiceTree & { isGroup?: boolean }
-        
+        const groupName = getGroupName(funcs, groupCode)
+        const groupNode = createGroupNode(groupCode, groupName, node, true)
+        // 函数组下包含函数节点
+        groupNode.children = funcs.map(func => processNode(func))
         newChildren.push(groupNode)
       })
       

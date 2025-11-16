@@ -6,7 +6,7 @@ import { Search, Delete, ArrowRight, Folder, FolderOpened, Plus, MoreFilled, Doc
 import { getAppList } from '@/api/app'
 import { getServiceTree, createServiceTree } from '@/api/service-tree'
 import { forkFunctionGroup } from '@/api/function'
-// import ServiceTree from './ServiceTree/ServiceTree.vue'  // 不再需要，直接使用 el-tree
+import { generateGroupId, createGroupNode, groupFunctionsByCode, getGroupName, type ExtendedServiceTree } from '@/utils/tree-utils'
 import type { App, ServiceTree as ServiceTreeType, CreateServiceTreeRequest } from '@/types'
 
 interface Props {
@@ -135,17 +135,14 @@ watch(appSearchKeyword, (keyword) => {
 // 加载源应用的服务目录树
 const loadSourceServiceTree = async () => {
   if (!sourceAppInfo.value) {
-    console.log('[FunctionForkDialog] 没有源应用信息，无法加载服务树')
     return
   }
   
   try {
     loadingSourceTree.value = true
-    console.log('[FunctionForkDialog] 开始加载源服务目录树:', sourceAppInfo.value.user + '/' + sourceAppInfo.value.app)
     // 加载所有类型的节点，然后在前端过滤出函数组
     const tree = await getServiceTree(sourceAppInfo.value.user, sourceAppInfo.value.app)
     sourceServiceTree.value = tree || []
-    console.log('[FunctionForkDialog] 源服务目录树加载完成，节点数:', sourceServiceTree.value.length)
   } catch (error) {
     console.error('加载源服务目录树失败:', error)
     ElMessage.error('加载源服务目录树失败')
@@ -218,8 +215,6 @@ const createDirectoryRecursively = async (
     description: sourceNode.description || '',
     tags: sourceNode.tags || ''
   })
-  
-  console.log(`[FunctionForkDialog] 创建目录: ${sourceNode.name} (${newDirectory.full_code_path})`)
   
   // 2. 递归创建子目录（只处理 package 类型的子节点）
   if (sourceNode.children && sourceNode.children.length > 0) {
@@ -705,19 +700,7 @@ const groupedSourceTree = computed(() => {
       const packages = node.children.filter(child => child.type === 'package')
       
       // 按 full_group_code 分组函数
-      const groupedFunctions = new Map<string, ServiceTreeType[]>()
-      const ungroupedFunctions: ServiceTreeType[] = []
-      
-      functions.forEach(func => {
-        if (func.full_group_code && func.full_group_code.trim() !== '') {
-          if (!groupedFunctions.has(func.full_group_code)) {
-            groupedFunctions.set(func.full_group_code, [])
-          }
-          groupedFunctions.get(func.full_group_code)!.push(func)
-        } else {
-          ungroupedFunctions.push(func)
-        }
-      })
+      const { grouped: groupedFunctions, ungrouped: ungroupedFunctions } = groupFunctionsByCode(functions)
       
       // 构建新的 children 数组
       const newChildren: ServiceTreeType[] = []
@@ -729,39 +712,10 @@ const groupedSourceTree = computed(() => {
       
       // 2. 添加分组后的函数（创建虚拟函数组节点）
       groupedFunctions.forEach((funcs, groupCode) => {
-        // 获取组名（使用第一个函数的 group_name）
-        const groupName = funcs[0]?.group_name || groupCode.split('/').pop() || groupCode
-        
-        // 生成唯一的负数 ID（避免与真实节点冲突）
-        let hash = 0
-        for (let i = 0; i < groupCode.length; i++) {
-          const char = groupCode.charCodeAt(i)
-          hash = ((hash << 5) - hash) + char
-          hash = hash & hash // 转换为 32 位整数
-        }
-        const groupId = -Math.abs(hash || Date.now())
-        
-        // 创建虚拟函数组节点
-        const groupNode: ServiceTreeType = {
-          id: groupId,
-          name: groupName,
-          code: `__group__${groupCode}`,
-          parent_id: node.id,
-          type: 'package', // 使用 package 类型以便显示文件夹图标
-          description: '',
-          tags: '',
-          app_id: node.app_id,
-          ref_id: 0,
-          full_code_path: `${node.full_code_path}/__group__${groupCode}`,
-          full_group_code: groupCode,
-          group_name: groupName,
-          created_at: '',
-          updated_at: '',
-          children: funcs.map(func => processNode(func)), // 函数组下包含函数节点
-          // 标记为分组节点
-          isGroup: true
-        } as ServiceTreeType & { isGroup?: boolean }
-        
+        const groupName = getGroupName(funcs, groupCode)
+        const groupNode = createGroupNode(groupCode, groupName, node, true)
+        // 函数组下包含函数节点
+        groupNode.children = funcs.map(func => processNode(func))
         newChildren.push(groupNode)
       })
       
@@ -794,9 +748,6 @@ const groupedTargetTree = computed(() => {
     mappingsByTarget.get(mapping.target)!.push(mapping)
   })
   
-  console.log('[groupedTargetTree] 当前 mappings:', mappings.value.map((m: ForkMapping) => ({ source: m.source, target: m.target, sourceName: m.sourceName })))
-  console.log('[groupedTargetTree] mappingsByTarget:', Array.from(mappingsByTarget.entries()).map(([k, v]) => [k, v.length, v.map((m: ForkMapping) => m.sourceName)]))
-  console.log('[groupedTargetTree] targetServiceTree 节点:', targetServiceTree.value.map((n: ServiceTreeType) => ({ name: n.name, full_code_path: n.full_code_path, hasChildren: !!n.children && n.children.length > 0 })))
   
   const processNode = (node: ServiceTreeType): ServiceTreeType | null => {
     // 如果是函数节点，直接返回 null（不显示）
@@ -810,18 +761,9 @@ const groupedTargetTree = computed(() => {
       const functions = node.children.filter(child => child.type === 'function')
       const packages = node.children.filter(child => child.type === 'package')
       
-      // 按 full_group_code 分组函数
-      const groupedFunctions = new Map<string, ServiceTreeType[]>()
-      
-      functions.forEach(func => {
-        if (func.full_group_code && func.full_group_code.trim() !== '') {
-          if (!groupedFunctions.has(func.full_group_code)) {
-            groupedFunctions.set(func.full_group_code, [])
-          }
-          groupedFunctions.get(func.full_group_code)!.push(func)
-        }
-        // 注意：未分组的函数不显示（右侧只显示 package 和函数组）
-      })
+      // 按 full_group_code 分组函数（只处理有 full_group_code 的函数）
+      const { grouped: groupedFunctions } = groupFunctionsByCode(functions)
+      // 注意：未分组的函数不显示（右侧只显示 package 和函数组）
       
       // 构建新的 children 数组
       const newChildren: ServiceTreeType[] = []
@@ -836,47 +778,14 @@ const groupedTargetTree = computed(() => {
       
       // 2. 添加分组后的函数（创建虚拟函数组节点）
       groupedFunctions.forEach((funcs, groupCode) => {
-        // 获取组名（使用第一个函数的 group_name）
-        const groupName = funcs[0]?.group_name || groupCode.split('/').pop() || groupCode
-        
-        // 生成唯一的负数 ID（避免与真实节点冲突）
-        let hash = 0
-        for (let i = 0; i < groupCode.length; i++) {
-          const char = groupCode.charCodeAt(i)
-          hash = ((hash << 5) - hash) + char
-          hash = hash & hash // 转换为 32 位整数
-        }
-        const groupId = -Math.abs(hash || Date.now())
-        
-        // 创建虚拟函数组节点
-        const groupNode: ServiceTreeType = {
-          id: groupId,
-          name: groupName,
-          code: `__group__${groupCode}`,
-          parent_id: node.id,
-          type: 'package', // 使用 package 类型以便显示文件夹图标
-          description: '',
-          tags: '',
-          app_id: node.app_id,
-          ref_id: 0,
-          full_code_path: `${node.full_code_path}/__group__${groupCode}`,
-          full_group_code: groupCode,
-          group_name: groupName,
-          created_at: '',
-          updated_at: '',
-          children: [], // 函数组下不显示函数节点（右侧只显示函数组，不显示函数）
-          // 标记为分组节点
-          isGroup: true
-        } as ServiceTreeType & { isGroup?: boolean }
-        
+        const groupName = getGroupName(funcs, groupCode)
+        const groupNode = createGroupNode(groupCode, groupName, node, false)
+        // 函数组下不显示函数节点（右侧只显示函数组，不显示函数）
         newChildren.push(groupNode)
       })
       
       // 3. 添加已添加映射但尚未 fork 的函数组（虚拟节点）
       const pendingMappings = mappingsByTarget.get(node.full_code_path) || []
-      if (pendingMappings.length > 0) {
-        console.log(`[groupedTargetTree] 节点 ${node.name} (${node.full_code_path}) 有 ${pendingMappings.length} 个待克隆映射`)
-      }
       pendingMappings.forEach(mapping => {
         // 检查是否已经存在对应的函数组节点（已 fork 的）
         const existingGroup = newChildren.find(
@@ -886,40 +795,12 @@ const groupedTargetTree = computed(() => {
         // 如果不存在，说明是已添加映射但尚未 fork 的函数组，需要显示
         if (!existingGroup) {
           const groupCode = mapping.source
-          const groupName = mapping.sourceName || groupCode.split('/').pop() || groupCode
-          
-          // 生成唯一的负数 ID
-          let hash = 0
-          for (let i = 0; i < groupCode.length; i++) {
-            const char = groupCode.charCodeAt(i)
-            hash = ((hash << 5) - hash) + char
-            hash = hash & hash
-          }
-          const groupId = -Math.abs(hash || Date.now())
+          const groupName = mapping.sourceName || getGroupName([], groupCode)
           
           // 创建虚拟函数组节点（待 fork）
-          const pendingGroupNode: ServiceTreeType = {
-            id: groupId,
-            name: groupName,
-            code: `__group__${groupCode}`,
-            parent_id: node.id,
-            type: 'package',
-            description: '',
-            tags: '',
-            app_id: node.app_id,
-            ref_id: 0,
-            full_code_path: `${node.full_code_path}/__group__${groupCode}`,
-            full_group_code: groupCode,
-            group_name: groupName,
-            created_at: '',
-            updated_at: '',
-            children: [],
-            // 标记为分组节点和待 fork 节点
-            isGroup: true,
-            isPending: true
-          } as ServiceTreeType & { isGroup?: boolean; isPending?: boolean }
+          const pendingGroupNode = createGroupNode(groupCode, groupName, node, false)
+          pendingGroupNode.isPending = true
           
-          console.log(`[groupedTargetTree] 添加待克隆函数组: ${groupName} (${groupCode}) 到节点 ${node.name}`)
           newChildren.push(pendingGroupNode)
         }
       })
