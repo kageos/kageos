@@ -90,9 +90,10 @@
             {{ getCellContent(field, row[field.code]).content }}
           </template>
           <component 
-            v-else
+            v-else-if="getCellContent(field, row[field.code]).isVNode"
             :is="getCellContent(field, row[field.code]).content"
           />
+          <span v-else>{{ getCellContent(field, row[field.code]).content }}</span>
         </template>
       </el-table-column>
 
@@ -246,7 +247,7 @@
  * - 记录导航（上一个/下一个）
  */
 
-import { computed, ref, watch, h, nextTick, onMounted, onUpdated } from 'vue'
+import { computed, ref, watch, h, nextTick, onMounted, onUpdated, isVNode } from 'vue'
 import { Search, Refresh, Edit, Delete, Plus, ArrowLeft, ArrowRight, DocumentCopy, Document, Download } from '@element-plus/icons-vue'
 import { ElIcon, ElButton, ElMessage } from 'element-plus'
 import { formatTimestamp } from '@/utils/date'
@@ -441,10 +442,13 @@ const renderTableCell = (field: FieldConfig, rawValue: any): { content: any, isS
     const result = tempWidget.renderTableCell(value)
     
     // 🔥 统一返回格式：区分字符串和 VNode
+    // 使用 isVNode 来正确识别 VNode 对象
     const isString = typeof result === 'string'
+    const isVNodeResult = !isString && (isVNode(result) || (result && typeof result === 'object' && 'type' in result))
     return {
       content: result,
-      isString
+      isString: isString,
+      isVNode: isVNodeResult
     }
   } catch (error) {
     // ✅ 使用 ErrorHandler 统一处理错误
@@ -685,6 +689,23 @@ onUpdated(() => {
   position: relative;
   z-index: 1;
   overflow: visible;
+}
+
+/* 文件表格单元格样式 */
+:deep(.files-table-cell-wrapper) {
+  position: relative;
+}
+
+:deep(.files-table-cell) {
+  min-width: 0;
+}
+
+:deep(.file-item-clickable) {
+  user-select: none;
+}
+
+:deep(.file-item-clickable:hover) {
+  background-color: var(--el-fill-color) !important;
 }
 
 .toolbar {

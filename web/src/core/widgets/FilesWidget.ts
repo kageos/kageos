@@ -13,6 +13,8 @@ import {
   ElTag,
   ElPopconfirm,
   ElInput,
+  ElImage,
+  ElCard,
 } from 'element-plus'
 import {
   Upload,
@@ -20,6 +22,10 @@ import {
   Delete,
   View,
   Download,
+  VideoPlay,
+  Picture,
+  Files,
+  Folder,
 } from '@element-plus/icons-vue'
 import { BaseWidget } from './BaseWidget'
 import type { FieldConfig, FieldValue } from '../types/field'
@@ -685,25 +691,21 @@ export class FilesWidget extends BaseWidget {
 
   /**
    * 🔥 渲染详情展示（用于 TableRenderer 详情抽屉）
-   * 显示完整的文件列表，支持下载
+   * 使用九宫格布局展示文件，支持点击预览
    */
   renderForDetail(value?: FieldValue): any {
     const currentValue = value || this.safeGetValue(this.fieldPath)
     const data = (currentValue?.raw as FilesData) || { files: [], remark: '', metadata: {} }
     const currentFiles = data.files || []
     
-    // 🔥 详情展示模式：禁用所有编辑功能
-    const isDisabled = true  // 详情始终禁用
-    const isMaxReached = false  // 不限制显示数量
-    
-    // 🔥 构建子元素数组（过滤掉 false 值）
+    // 🔥 构建子元素数组
     const children: any[] = []
     
-    // 已上传的文件列表
+    // 已上传的文件列表 - 九宫格布局
     if (currentFiles.length > 0) {
       children.push(
         h('div', { 
-          class: 'uploaded-files',
+          class: 'files-grid-container',
           style: {
             marginBottom: '20px',
           }
@@ -714,88 +716,146 @@ export class FilesWidget extends BaseWidget {
               fontSize: '14px',
               fontWeight: '500',
               color: 'var(--el-text-color-primary)',
-              marginBottom: '12px',
+              marginBottom: '16px',
               paddingBottom: '8px',
               borderBottom: '1px solid var(--el-border-color-lighter)',
             }
           }, `已上传文件 (${currentFiles.length})`),
-          ...currentFiles.map((file, index) =>
-            h('div', { 
-              class: 'uploaded-file', 
+          h('div', {
+            class: 'files-grid',
+            style: {
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+              gap: '16px',
+            }
+          }, currentFiles.map((file, index) => {
+            const isImage = this.isImageFile(file)
+            const canPreview = file.is_uploaded && file.url
+            
+            return h(ElCard, {
               key: file.url || file.name || index,
+              class: 'file-grid-item',
               style: {
-                backgroundColor: 'var(--el-bg-color)',
-                border: '1px solid var(--el-border-color-light)',
-                borderRadius: '6px',
-                padding: '12px',
-                marginBottom: '10px',
+                cursor: canPreview ? 'pointer' : 'default',
                 transition: 'all 0.2s ease',
               },
-            }, [
-              // 文件信息
-              h('div', { 
-                class: 'file-header',
+              shadow: 'hover',
+              onClick: canPreview ? () => this.handlePreviewInNewWindow(file) : undefined,
+            }, {
+              // 头部：文件名
+              header: () => h('div', {
+                style: {
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  color: 'var(--el-text-color-primary)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  lineHeight: '1.5',
+                  wordBreak: 'break-word',
+                  padding: '0 4px',
+                },
+                title: file.name,
+              }, file.name),
+              // 内容：图片预览或文件封面
+              default: () => {
+                const coverUrl = this.getFileCoverUrl(file)
+                
+                // 如果是图片且有URL，显示图片预览
+                if (isImage && file.is_uploaded && coverUrl) {
+                  return h('div', {
+                    style: {
+                      width: '100%',
+                      height: '150px',
+                      backgroundColor: 'var(--el-fill-color-light)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      overflow: 'hidden',
+                      borderRadius: '4px',
+                    }
+                  }, [
+                    h(ElImage, {
+                      src: coverUrl,
+                      fit: 'cover',
+                      style: {
+                        width: '100%',
+                        height: '100%',
+                        cursor: 'pointer',
+                      },
+                      previewSrcList: currentFiles
+                        .filter(f => this.isImageFile(f) && f.is_uploaded && f.url)
+                        .map(f => f.url || ''),
+                      previewTeleported: true,
+                      hideOnClickModal: false,
+                      initialIndex: currentFiles
+                        .filter(f => this.isImageFile(f) && f.is_uploaded && f.url)
+                        .findIndex(f => f.url === file.url),
+                      onClick: (e: Event) => {
+                        // 图片点击时，使用 ElImage 的预览功能，不触发卡片点击
+                        e.stopPropagation()
+                      }
+                    })
+                  ])
+                }
+                
+                // 其他文件类型，显示带颜色的封面图标
+                return h('div', {
+                  style: {
+                    width: '100%',
+                    height: '150px',
+                    borderRadius: '4px',
+                    overflow: 'hidden',
+                  }
+                }, [
+                  this.getFileTypeIcon(file)
+                ])
+              },
+              // 底部：文件大小和下载按钮
+              footer: () => h('div', {
                 style: {
                   display: 'flex',
-                  alignItems: 'center',
+                  flexDirection: 'column',
                   gap: '8px',
-                  marginBottom: '8px',
                 }
               }, [
-                h(ElIcon, { 
-                  size: 16, 
-                  style: { color: 'var(--el-color-primary)' } 
-                }, () => h(Document)),
-                h('span', { 
-                  class: 'file-name', 
-                  title: file.name,
+                h('div', {
                   style: {
-                    fontSize: '14px',
-                    color: 'var(--el-text-color-primary)',
-                    fontWeight: '500',
-                    flex: 1,
-                  }
-                }, file.name),
-                h('span', { 
-                  class: 'file-size',
-                  style: {
-                    fontSize: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    fontSize: '11px',
                     color: 'var(--el-text-color-secondary)',
                   }
-                }, this.formatSize(file.size)),
-                h(ElTag, {
-                  size: 'small',
-                  type: file.is_uploaded ? 'success' : 'info',
-                }, () => file.is_uploaded ? '已上传' : '本地'),
-              ]),
-
-              // 文件描述（只读显示）
-              file.description && h('div', { 
-                class: 'file-description',
-                style: {
-                  marginBottom: '8px',
-                  fontSize: '13px',
-                  color: 'var(--el-text-color-secondary)',
-                }
-              }, file.description),
-
-              // 操作按钮（只显示下载，不显示删除）
-              h('div', { 
-                class: 'file-actions',
-                style: {
-                  display: 'flex',
-                  gap: '8px',
-                }
-              }, [
-                // 下载按钮
+                }, [
+                  h('span', this.formatSize(file.size)),
+                  canPreview && h(ElIcon, {
+                    size: 12,
+                    style: { color: 'var(--el-color-primary)' }
+                  }, {
+                    default: () => h(View)
+                  }),
+                ]),
                 file.is_uploaded && h(ElButton, {
                   size: 'small',
+                  type: 'primary',
                   icon: Download,
-                  onClick: () => this.handleDownloadFile(file),
-                }, () => '下载'),
+                  onClick: (e: MouseEvent) => {
+                    e.stopPropagation() // 阻止触发卡片点击事件
+                    this.handleDownloadFile(file)
+                  },
+                  style: {
+                    width: '100%',
+                    fontSize: '11px',
+                  }
+                }, {
+                  default: () => '下载'
+                }),
               ]),
-            ])
-          ),
+            })
+          }))
         ])
       )
     } else {
@@ -803,7 +863,7 @@ export class FilesWidget extends BaseWidget {
       children.push(
         h('div', {
           style: {
-            padding: '20px',
+            padding: '40px',
             textAlign: 'center',
             color: 'var(--el-text-color-secondary)',
           }
@@ -836,6 +896,7 @@ export class FilesWidget extends BaseWidget {
               fontSize: '14px',
               color: 'var(--el-text-color-primary)',
               whiteSpace: 'pre-wrap',
+              lineHeight: '1.6',
             }
           }, data.remark),
         ])
@@ -843,14 +904,207 @@ export class FilesWidget extends BaseWidget {
     }
     
     return h('div', { 
-      class: 'files-widget',
+      class: 'files-widget-detail',
       style: {
         padding: '20px',
-        backgroundColor: 'var(--el-fill-color-lighter)',
-        borderRadius: '8px',
-        border: '1px solid var(--el-border-color-light)',
       }
     }, children)
+  }
+  
+  /**
+   * 判断是否为图片文件
+   */
+  private isImageFile(file: FileItem): boolean {
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg']
+    const fileName = (file.name || '').toLowerCase()
+    return imageExtensions.some(ext => fileName.endsWith(ext))
+  }
+
+  /**
+   * 获取文件类型图标（带渐变背景的封面）
+   */
+  private getFileTypeIcon(file: FileItem): any {
+    const fileName = (file.name || '').toLowerCase()
+    
+    // PDF
+    if (fileName.endsWith('.pdf')) {
+      return h('div', {
+        style: {
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          color: 'white',
+        }
+      }, [
+        h(ElIcon, { size: 48 }, { default: () => h(Document) }),
+        h('span', { style: { marginTop: '8px', fontSize: '12px', fontWeight: '500' } }, 'PDF')
+      ])
+    }
+    
+    // 视频
+    if (['.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv', '.webm'].some(ext => fileName.endsWith(ext))) {
+      return h('div', {
+        style: {
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+          color: 'white',
+        }
+      }, [
+        h(ElIcon, { size: 48 }, { default: () => h(VideoPlay) }),
+        h('span', { style: { marginTop: '8px', fontSize: '12px', fontWeight: '500' } }, '视频')
+      ])
+    }
+    
+    // Word
+    if (['.doc', '.docx'].some(ext => fileName.endsWith(ext))) {
+      return h('div', {
+        style: {
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+          color: 'white',
+        }
+      }, [
+        h(ElIcon, { size: 48 }, { default: () => h(Files) }),
+        h('span', { style: { marginTop: '8px', fontSize: '12px', fontWeight: '500' } }, 'Word')
+      ])
+    }
+    
+    // Excel
+    if (['.xls', '.xlsx', '.csv'].some(ext => fileName.endsWith(ext))) {
+      return h('div', {
+        style: {
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+          color: 'white',
+        }
+      }, [
+        h(ElIcon, { size: 48 }, { default: () => h(Files) }),
+        h('span', { style: { marginTop: '8px', fontSize: '12px', fontWeight: '500' } }, 'Excel')
+      ])
+    }
+    
+    // PowerPoint
+    if (['.ppt', '.pptx'].some(ext => fileName.endsWith(ext))) {
+      return h('div', {
+        style: {
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+          color: 'white',
+        }
+      }, [
+        h(ElIcon, { size: 48 }, { default: () => h(Files) }),
+        h('span', { style: { marginTop: '8px', fontSize: '12px', fontWeight: '500' } }, 'PPT')
+      ])
+    }
+    
+    // 压缩文件
+    if (['.zip', '.rar', '.7z', '.tar', '.gz'].some(ext => fileName.endsWith(ext))) {
+      return h('div', {
+        style: {
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)',
+          color: '#8b4513',
+        }
+      }, [
+        h(ElIcon, { size: 48 }, { default: () => h(Folder) }),
+        h('span', { style: { marginTop: '8px', fontSize: '12px', fontWeight: '500' } }, '压缩包')
+      ])
+    }
+    
+    // 默认文件图标
+    return h('div', {
+      style: {
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
+        color: '#333',
+      }
+    }, [
+      h(ElIcon, { size: 48 }, { default: () => h(Document) }),
+      h('span', { style: { marginTop: '8px', fontSize: '12px', fontWeight: '500' } }, '文件')
+    ])
+  }
+
+  /**
+   * 获取文件封面URL（尝试获取PDF第一页等）
+   */
+  private getFileCoverUrl(file: FileItem): string | null {
+    // 如果是图片，直接返回URL
+    if (this.isImageFile(file) && file.is_uploaded && file.url) {
+      return file.url
+    }
+    
+    // 对于PDF，可以尝试获取封面（需要后端支持或使用PDF.js）
+    // 这里暂时返回null，后续可以扩展
+    return null
+  }
+
+  /**
+   * 在新窗口预览文件（支持PDF、图片等）
+   * 对于需要认证的文件，通过添加 token 参数或使用下载接口
+   */
+  private async handlePreviewInNewWindow(file: FileItem): Promise<void> {
+    if (!file.is_uploaded || !file.url) {
+      ElMessage.warning('文件未上传，无法预览')
+      return
+    }
+
+    try {
+      let previewURL = file.url
+
+      // 如果 url 不是完整的 URL，需要构建完整 URL
+      if (!previewURL.startsWith('http://') && !previewURL.startsWith('https://')) {
+        previewURL = `/api/v1/storage/download/${encodeURIComponent(file.url)}`
+      }
+
+      // 对于需要认证的文件，添加 token 参数
+      if (previewURL.startsWith('/api/')) {
+        const token = localStorage.getItem('token') || ''
+        // 如果 URL 已经有参数，使用 &，否则使用 ?
+        const separator = previewURL.includes('?') ? '&' : '?'
+        previewURL = `${previewURL}${separator}token=${encodeURIComponent(token)}`
+      }
+
+      // 在新窗口打开文件
+      // 浏览器会根据文件类型自动处理（PDF、图片等）
+      window.open(previewURL, '_blank')
+    } catch (error: any) {
+      Logger.error('FilesWidget', 'Preview failed', error)
+      ElMessage.error(`预览失败: ${error.message}`)
+    }
   }
 
   /**
@@ -1259,7 +1513,7 @@ export class FilesWidget extends BaseWidget {
 
   /**
    * 渲染表格单元格
-   * ✅ 支持点击文件下载
+   * ✅ 简化显示：只显示文件数量，详情在详情抽屉中查看
    */
   renderTableCell(value?: FieldValue) {
     // ✅ 如果传入了 value，使用它；否则从当前值获取
@@ -1282,78 +1536,16 @@ export class FilesWidget extends BaseWidget {
       return h('span', { style: { color: '#909399' } }, '-')
     }
 
-    return h('div', { 
-      class: 'files-table-cell',
+    // ✅ 简化显示：只显示文件数量标签
+    return h(ElTag, { 
+      size: 'small', 
+      type: 'info',
       style: { 
-        display: 'flex', 
-        flexDirection: 'column', 
-        gap: '4px',
-        padding: '4px 0'
+        fontSize: '12px'
       }
-    }, [
-      h(ElTag, { 
-        size: 'small', 
-        type: 'info',
-        style: { marginBottom: '4px', width: 'fit-content' }
-      }, () => `${files.length} 个文件`),
-      ...files.slice(0, FilesWidget.MAX_DISPLAY_FILES).map((file, index) =>
-        h('div', {
-          key: file.url || file.name || index,
-          class: 'file-item',
-          title: file.name || file.description || '文件',
-          style: { 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '6px',
-            padding: '4px 8px',
-            backgroundColor: '#f5f7fa',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            transition: 'all 0.2s',
-          },
-          onClick: () => {
-            // ✅ 点击文件时下载
-            if (file.is_uploaded !== false && (file.url || file.name)) {
-              this.handleDownloadFile(file)
-            }
-          },
-          onMouseenter: (e: MouseEvent) => {
-            const target = e.currentTarget as HTMLElement
-            if (target) {
-              target.style.backgroundColor = '#e4e7ed'
-            }
-          },
-          onMouseleave: (e: MouseEvent) => {
-            const target = e.currentTarget as HTMLElement
-            if (target) {
-              target.style.backgroundColor = '#f5f7fa'
-            }
-          },
-        }, [
-          h(ElIcon, { size: 14, style: { color: '#409EFF' } }, () => h(Document)),
-          h('span', { 
-            class: 'file-name', 
-            style: { 
-              fontSize: '12px',
-              color: '#606266',
-              flex: 1,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            } 
-          }, file.name || '未知文件'),
-        ])
-      ),
-      files.length > FilesWidget.MAX_DISPLAY_FILES && h('span', { 
-        class: 'more-files', 
-        style: { 
-          marginTop: '4px',
-          color: '#909399', 
-          fontSize: '12px',
-          fontStyle: 'italic'
-        } 
-      }, `+${files.length - FilesWidget.MAX_DISPLAY_FILES} 个文件`),
-    ])
+    }, {
+      default: () => `${files.length} 个文件`
+    })
   }
 
   /**

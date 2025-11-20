@@ -98,6 +98,7 @@ import type { WidgetComponentProps } from '../types'
 import { selectFuzzy } from '@/api/function'
 import { Logger } from '../../utils/logger'
 import { useFormDataStore } from '../../stores-v2/formData'
+import { ExpressionParser } from '../../utils/ExpressionParser'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -192,12 +193,16 @@ const selectedValues = computed({
       return option?.label || String(val)
     }).join(', ')
     
+    // 🔥 计算行内聚合统计（如果有 statistics 配置）
+    const rowStatistics = calculateRowStatistics(displayInfos, currentStatistics.value)
+    
     const fieldValue = {
       raw: finalValues,
       display: displayText || '未选择',
       meta: {
         displayInfo: displayInfos,
-        statistics: currentStatistics.value
+        statistics: currentStatistics.value,
+        rowStatistics: rowStatistics  // 🔥 保存行内聚合结果
       }
     }
     
@@ -225,6 +230,46 @@ const displayValues = computed(() => {
 function getOptionLabel(value: any): string {
   const option = options.value.find((opt: any) => opt.value === value)
   return option ? option.label : String(value)
+}
+
+/**
+ * 🔥 计算行内聚合统计（MultiSelect 自己的职责）
+ * 使用选中的选项的 displayInfo 和 statistics 配置来计算
+ */
+function calculateRowStatistics(
+  displayInfos: any[],
+  statisticsConfig: Record<string, string> | null
+): Record<string, any> {
+  if (!statisticsConfig || Object.keys(statisticsConfig).length === 0) {
+    return {}
+  }
+  
+  // 过滤掉 null 的 displayInfo
+  const validDisplayInfos = displayInfos.filter(info => info && typeof info === 'object')
+  
+  if (validDisplayInfos.length === 0) {
+    return {}
+  }
+  
+  const result: Record<string, any> = {}
+  
+  try {
+    // 遍历统计配置，计算每个统计项
+    for (const [label, expression] of Object.entries(statisticsConfig)) {
+      try {
+        // 使用表达式解析器计算（使用 displayInfo 数组作为数据源）
+        const value = ExpressionParser.evaluate(expression, validDisplayInfos)
+        result[label] = value
+      } catch (error) {
+        Logger.error(`[MultiSelectWidget] 行内聚合计算失败: ${label} = ${expression}`, error)
+        result[label] = 0
+      }
+    }
+  } catch (error) {
+    Logger.error('[MultiSelectWidget] 行内聚合计算失败', error)
+  }
+  
+  return result
 }
 
 /**
@@ -288,7 +333,10 @@ async function handleSearch(query: string | any[], isByValue = false): Promise<v
 
 // 远程搜索方法
 async function remoteMethod(query: string): Promise<void> {
+  // 🔥 搜索时保持下拉框打开状态（不清除 shouldKeepOpen）
+  // 但搜索完成后，如果用户没有继续操作，应该允许关闭
   await handleSearch(query, false)
+  // 搜索完成后，如果下拉框仍然打开，保持 shouldKeepOpen 状态
 }
 
 // 选项点击时触发 - 提前设置标志
@@ -298,54 +346,93 @@ function handleOptionClick(): void {
   const shouldClose = maxCount.value > 0 && currentLength >= maxCount.value - 1
   if (!shouldClose) {
     shouldKeepOpen.value = true
+  } else {
+    // 如果已达到最大数量，清除标志，允许关闭
+    shouldKeepOpen.value = false
   }
 }
 
 // 移除标签时触发
 function handleRemoveTag(): void {
-  // 移除标签时也保持打开
+  // 移除标签时也保持打开（因为用户可能想继续选择）
   shouldKeepOpen.value = true
 }
 
 // 下拉框展开时触发
 function handleVisibleChange(visible: boolean): void {
-  // 🔥 关键：如果是因为选择而需要保持打开，但下拉框要关闭了，阻止关闭
-  if (!visible && shouldKeepOpen.value) {
-    // 阻止关闭：通过 DOM 操作重新打开下拉框
-    nextTick(() => {
-      if (selectRef.value) {
-        const selectEl = selectRef.value as any
-        const input = (selectEl.$el || selectEl.el || selectEl)?.querySelector?.('input')
-        if (input) {
-          input.focus()
-          // 触发点击事件来打开下拉框
-          const clickEvent = new MouseEvent('mousedown', { bubbles: true, cancelable: true })
-          input.dispatchEvent(clickEvent)
-          setTimeout(() => {
-            input.click()
-          }, 10)
-        }
-      }
-    })
-    return
-  }
-  
-  // 下拉框打开时，默认设置标志（为第一次选择做准备）
   if (visible) {
+    // 下拉框打开时，根据当前选择数量决定是否需要保持打开
     const currentLength = selectedValues.value.length
     const shouldClose = maxCount.value > 0 && currentLength >= maxCount.value
     if (!shouldClose) {
       shouldKeepOpen.value = true
+    } else {
+      shouldKeepOpen.value = false
     }
     
+    // 如果有远程搜索，且选项为空，触发初始搜索
     if (hasRemoteSearch.value) {
       if (dynamicOptions.value.length === 0) {
         handleSearch('', false)
       }
     }
   } else {
-    // 用户主动关闭，清除标志
-    shouldKeepOpen.value = false
+    // 下拉框关闭时
+    // 🔥 关键：只有在选择选项时才保持打开，用户点击外部或按 ESC 时应该关闭
+    // 延迟检查，给用户操作时间（点击选项后可能会触发关闭事件）
+    setTimeout(() => {
+      // 如果不需要保持打开，直接清除标志并允许关闭
+      if (!shouldKeepOpen.value) {
+        return
+      }
+      
+      // 检查焦点是否还在输入框
+      const input = selectRef.value?.$el?.querySelector('input')
+      const isInputFocused = document.activeElement === input
+      
+      // 如果焦点不在输入框，说明用户想关闭（点击外部或按 ESC），清除标志并允许关闭
+      if (!isInputFocused) {
+        shouldKeepOpen.value = false
+        return
+      }
+      
+      // 如果是选择后需要保持打开，且焦点还在输入框，阻止关闭
+      if (shouldKeepOpen.value && isInputFocused) {
+        // 阻止关闭：通过 DOM 操作重新打开下拉框
+        nextTick(() => {
+          if (selectRef.value) {
+            const selectEl = selectRef.value as any
+            const currentInput = (selectEl.$el || selectEl.el || selectEl)?.querySelector?.('input')
+            if (currentInput && document.activeElement === currentInput) {
+              // 重新打开下拉框：尝试多种方式
+              currentInput.focus()
+              // 方法1：使用 Element Plus Select 的内部方法
+              if (selectEl.handleMenuEnter) {
+                selectEl.handleMenuEnter()
+              } else if (selectEl.toggleMenu) {
+                selectEl.toggleMenu()
+              } else if (selectEl.setSoftFocus) {
+                selectEl.setSoftFocus()
+              } else {
+                // 方法2：直接设置 visible 属性（如果存在）
+                if (selectEl.visible !== undefined) {
+                  selectEl.visible = true
+                } else {
+                  // 方法3：触发点击事件
+                  currentInput.click()
+                }
+              }
+            } else {
+              // 如果焦点不在输入框，清除标志
+              shouldKeepOpen.value = false
+            }
+          } else {
+            // 如果组件引用不存在，清除标志
+            shouldKeepOpen.value = false
+          }
+        })
+      }
+    }, 100)
   }
 }
 

@@ -137,6 +137,7 @@ import { shouldShowField } from '../utils/conditionEvaluator'
 import { hasAnyRequiredRule } from '../utils/validationUtils'
 import type { ReactiveFormDataManager } from '../managers/ReactiveFormDataManager'
 import type { FormRendererContext } from '../types/widget'
+import { getWidgetDefaultValue } from '../widgets-v2/composables/useWidgetDefaultValue'
 
 const props = withDefaults(defineProps<{
   functionDetail: FunctionDetail
@@ -399,6 +400,12 @@ function shouldShowFieldInForm(
   return shouldShowField(field, formManagerAdapter, allFields)
 }
 
+// 获取字段默认值
+// 🔥 遵循依赖倒置原则：调用组件自己的默认值获取方法
+function getFieldDefaultValue(field: FieldConfig): FieldValue {
+  return getWidgetDefaultValue(field)
+}
+
 // 初始化表单
 function initializeForm(): void {
   // 清空数据
@@ -419,8 +426,9 @@ function initializeForm(): void {
       }
       formDataStore.setValue(fieldCode, fieldValue)
     } else {
-      // 使用默认值
-      formDataStore.initializeField(fieldCode)
+      // 使用默认值（从字段配置中获取）
+      const defaultValue = getFieldDefaultValue(field)
+      formDataStore.initializeField(fieldCode, defaultValue)
     }
   })
 }

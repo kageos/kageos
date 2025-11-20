@@ -98,9 +98,9 @@
       </div>
       
       <!-- 聚合统计 -->
-      <div v-if="statistics.statisticsConfig && Object.keys(statistics.statisticsConfig).length > 0" class="statistics">
+      <div v-if="hasStatistics" class="statistics">
         <div
-          v-for="(value, label) in statistics.statisticsResult.value"
+          v-for="(value, label) in statisticsResultDisplay"
           :key="label"
           class="statistics-item"
         >
@@ -213,6 +213,28 @@ const statistics = useTableStatistics(props, getAllRowsData)
 
 // 获取 formDataStore
 const formDataStore = useFormDataStore()
+
+// 聚合结果（用于模板显示，确保正确解包）
+const statisticsResultDisplay = computed(() => {
+  const result = statistics.statisticsResult.value
+  return result || {}
+})
+
+// 是否有聚合统计（用于模板条件判断）
+const hasStatistics = computed(() => {
+  const config = statistics.statisticsConfig.value
+  const result = statistics.statisticsResult.value
+  const hasConfig = config && Object.keys(config).length > 0
+  const hasResult = result && typeof result === 'object' && Object.keys(result).length > 0
+  console.log('[TableWidget] hasStatistics 检查', { 
+    hasConfig, 
+    hasResult, 
+    configKeys: config ? Object.keys(config) : [],
+    resultKeys: result ? Object.keys(result) : [],
+    result 
+  })
+  return hasConfig && hasResult
+})
 
 // 响应模式下的表格数据（从 props.value.raw 读取）
 const responseTableData = computed(() => {

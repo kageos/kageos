@@ -42,7 +42,19 @@ export function useTableWidget(props: WidgetComponentProps) {
       itemFields.value.forEach(itemField => {
         const fieldPath = `${props.fieldPath}[${index}].${itemField.code}`
         const itemValue = formDataStore.getValue(fieldPath)
+        
+        // 保存 raw 值
         rowData[itemField.code] = itemValue?.raw
+        
+        // 🔥 合并 displayInfo（来自 Select 回调）
+        if (itemValue?.meta?.displayInfo && typeof itemValue.meta.displayInfo === 'object') {
+          Object.assign(rowData, itemValue.meta.displayInfo)
+        }
+        
+        // 🔥 合并行内聚合统计（来自 MultiSelect，场景 4 二层聚合）
+        if (itemValue?.meta?.rowStatistics && typeof itemValue.meta.rowStatistics === 'object') {
+          Object.assign(rowData, itemValue.meta.rowStatistics)
+        }
       })
       
       rows.push(rowData)

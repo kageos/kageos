@@ -99,7 +99,14 @@
             <el-icon :size="16" class="file-icon">
               <Document />
             </el-icon>
-            <span class="file-name" :title="file.name">{{ file.name }}</span>
+            <span 
+              class="file-name" 
+              :title="file.name"
+              :class="{ 'file-name-clickable': isImageFile(file) && file.is_uploaded }"
+              @click="isImageFile(file) && file.is_uploaded ? handlePreviewImage(file) : null"
+            >
+              {{ file.name }}
+            </span>
             <span class="file-size">{{ formatSize(file.size) }}</span>
             <el-tag size="small" :type="file.is_uploaded ? 'success' : 'info'">
               {{ file.is_uploaded ? '已上传' : '本地' }}
@@ -119,6 +126,14 @@
 
           <!-- 操作按钮 -->
           <div class="file-actions">
+            <el-button
+              v-if="isImageFile(file) && file.is_uploaded"
+              size="small"
+              :icon="View"
+              @click="handlePreviewImage(file)"
+            >
+              预览
+            </el-button>
             <el-button
               v-if="file.is_uploaded"
               size="small"
@@ -174,7 +189,14 @@
               <el-icon :size="16" class="file-icon">
                 <Document />
               </el-icon>
-              <span class="file-name" :title="file.name">{{ file.name }}</span>
+              <span 
+                class="file-name" 
+                :title="file.name"
+                :class="{ 'file-name-clickable': isImageFile(file) && file.is_uploaded }"
+                @click="isImageFile(file) && file.is_uploaded ? handlePreviewImage(file) : null"
+              >
+                {{ file.name }}
+              </span>
               <span class="file-size">{{ formatSize(file.size) }}</span>
               <el-tag size="small" :type="file.is_uploaded ? 'success' : 'info'">
                 {{ file.is_uploaded ? '已上传' : '本地' }}
@@ -186,8 +208,16 @@
               {{ file.description }}
             </div>
 
-            <!-- 操作按钮（只显示下载） -->
+            <!-- 操作按钮（只显示下载和预览） -->
             <div class="file-actions">
+              <el-button
+                v-if="isImageFile(file) && file.is_uploaded"
+                size="small"
+                :icon="View"
+                @click="handlePreviewImage(file)"
+              >
+                预览
+              </el-button>
               <el-button
                 v-if="file.is_uploaded"
                 size="small"
@@ -220,7 +250,7 @@
           :key="file.url || file.name || index"
           class="file-item"
           :title="file.name || file.description || '文件'"
-          @click="handleDownloadFile(file)"
+          @click="handleShowFileDetail(file)"
         >
           <el-icon :size="14" class="file-icon">
             <Document />
@@ -248,7 +278,14 @@
               <el-icon :size="16" class="file-icon">
                 <Document />
               </el-icon>
-              <span class="file-name" :title="file.name">{{ file.name }}</span>
+              <span 
+                class="file-name" 
+                :title="file.name"
+                :class="{ 'file-name-clickable': isImageFile(file) && file.is_uploaded }"
+                @click="isImageFile(file) && file.is_uploaded ? handlePreviewImage(file) : null"
+              >
+                {{ file.name }}
+              </span>
               <span class="file-size">{{ formatSize(file.size) }}</span>
               <el-tag size="small" :type="file.is_uploaded ? 'success' : 'info'">
                 {{ file.is_uploaded ? '已上传' : '本地' }}
@@ -260,6 +297,14 @@
             </div>
 
             <div class="file-actions">
+              <el-button
+                v-if="isImageFile(file) && file.is_uploaded"
+                size="small"
+                :icon="View"
+                @click="handlePreviewImage(file)"
+              >
+                预览
+              </el-button>
               <el-button
                 v-if="file.is_uploaded"
                 size="small"
@@ -279,6 +324,93 @@
         </div>
       </div>
     </template>
+
+    <!-- 图片预览对话框 -->
+    <el-dialog
+      v-model="previewVisible"
+      :title="previewImageName"
+      width="80%"
+      :close-on-click-modal="true"
+      @close="handleClosePreview"
+    >
+      <div class="image-preview-container">
+        <el-image
+          :src="previewImageUrl"
+          :preview-src-list="[previewImageUrl]"
+          fit="contain"
+          style="max-width: 100%; max-height: 70vh;"
+          :preview-teleported="true"
+        />
+      </div>
+    </el-dialog>
+
+    <!-- 文件详情对话框 -->
+    <el-dialog
+      v-model="fileDetailVisible"
+      :title="currentDetailFile ? `文件详情 - ${currentDetailFile.name}` : '文件详情'"
+      width="600px"
+      :close-on-click-modal="true"
+      @close="handleCloseFileDetail"
+    >
+      <div v-if="currentDetailFile" class="file-detail-content">
+        <!-- 文件基本信息 -->
+        <el-descriptions :column="1" border>
+          <el-descriptions-item label="文件名">
+            {{ currentDetailFile.name }}
+          </el-descriptions-item>
+          <el-descriptions-item label="文件大小">
+            {{ formatSize(currentDetailFile.size) }}
+          </el-descriptions-item>
+          <el-descriptions-item label="状态">
+            <el-tag size="small" :type="currentDetailFile.is_uploaded ? 'success' : 'info'">
+              {{ currentDetailFile.is_uploaded ? '已上传' : '本地' }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item v-if="currentDetailFile.description" label="描述">
+            {{ currentDetailFile.description }}
+          </el-descriptions-item>
+          <el-descriptions-item v-if="currentDetailFile.upload_ts" label="上传时间">
+            {{ new Date(currentDetailFile.upload_ts).toLocaleString() }}
+          </el-descriptions-item>
+        </el-descriptions>
+
+        <!-- 图片预览区域 -->
+        <div v-if="isImageFile(currentDetailFile) && currentDetailFile.is_uploaded" class="file-preview-section">
+          <div class="section-title">预览</div>
+          <div class="image-preview-container">
+            <el-image
+              v-if="previewImageUrl"
+              :src="previewImageUrl"
+              :preview-src-list="[previewImageUrl]"
+              fit="contain"
+              style="max-width: 100%; max-height: 400px;"
+              :preview-teleported="true"
+              :loading="'lazy'"
+            />
+            <div v-else class="loading-preview">加载中...</div>
+          </div>
+        </div>
+
+        <!-- 操作按钮 -->
+        <div class="file-detail-actions">
+          <el-button
+            v-if="isImageFile(currentDetailFile) && currentDetailFile.is_uploaded"
+            type="primary"
+            :icon="View"
+            @click="handlePreviewImage(currentDetailFile)"
+          >
+            预览
+          </el-button>
+          <el-button
+            v-if="currentDetailFile.is_uploaded"
+            :icon="Download"
+            @click="handleDownloadFile(currentDetailFile)"
+          >
+            下载
+          </el-button>
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -293,12 +425,17 @@ import {
   ElTag,
   ElPopconfirm,
   ElInput,
+  ElDialog,
+  ElImage,
+  ElDescriptions,
+  ElDescriptionsItem,
 } from 'element-plus'
 import {
   Upload,
   Document,
   Delete,
   Download,
+  View,
 } from '@element-plus/icons-vue'
 import type { WidgetComponentProps } from '../types'
 import { uploadFile, notifyBatchUploadComplete } from '@/utils/upload'
@@ -337,6 +474,15 @@ const pendingCompleteQueue = ref<BatchUploadCompleteItem[]>([])
 const batchCompleteTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 const BATCH_COMPLETE_DELAY = 500
 const BATCH_COMPLETE_MAX_SIZE = 10
+
+// 图片预览相关状态
+const previewVisible = ref(false)
+const previewImageUrl = ref('')
+const previewImageName = ref('')
+
+// 文件详情弹窗相关状态
+const fileDetailVisible = ref(false)
+const currentDetailFile = ref<FileItem | null>(null)
 
 // 上传中的文件状态
 interface UploadingFile {
@@ -436,6 +582,106 @@ function formatSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
+}
+
+// 判断文件是否为图片
+function isImageFile(file: FileItem): boolean {
+  if (!file.name) return false
+  const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.ico']
+  const fileName = file.name.toLowerCase()
+  return imageExtensions.some(ext => fileName.endsWith(ext))
+}
+
+// 获取文件预览URL
+async function getPreviewUrl(file: FileItem): Promise<string> {
+  let previewURL = file.url
+
+  // 如果是完整的 http/https URL，直接返回
+  if (previewURL && (previewURL.startsWith('http://') || previewURL.startsWith('https://'))) {
+    return previewURL
+  }
+
+  // 否则构建下载URL
+  if (!previewURL || (!previewURL.startsWith('http://') && !previewURL.startsWith('https://'))) {
+    previewURL = `/api/v1/storage/download/${encodeURIComponent(file.url)}`
+  }
+
+  // 如果是相对路径，需要添加token，使用blob URL
+  if (previewURL.startsWith('/')) {
+    const token = localStorage.getItem('token') || ''
+    try {
+      const res = await fetch(previewURL, {
+        headers: {
+          'X-Token': token,
+        },
+      })
+      if (res.ok) {
+        const blob = await res.blob()
+        return window.URL.createObjectURL(blob)
+      } else {
+        throw new Error(`Failed to load image: ${res.statusText}`)
+      }
+    } catch (error) {
+      Logger.error('[FilesWidget]', 'Failed to load preview image', error)
+      throw error
+    }
+  }
+
+  return previewURL
+}
+
+// 预览图片
+async function handlePreviewImage(file: FileItem): Promise<void> {
+  if (!isImageFile(file)) {
+    ElMessage.warning('该文件不是图片格式，无法预览')
+    return
+  }
+
+  try {
+    previewImageName.value = file.name || '预览图片'
+    previewImageUrl.value = await getPreviewUrl(file)
+    previewVisible.value = true
+  } catch (error: any) {
+    Logger.error('[FilesWidget]', 'Preview failed', error)
+    ElMessage.error(`预览失败: ${error.message}`)
+  }
+}
+
+// 关闭预览
+function handleClosePreview(): void {
+  previewVisible.value = false
+  // 如果是blob URL，需要释放
+  if (previewImageUrl.value.startsWith('blob:')) {
+    window.URL.revokeObjectURL(previewImageUrl.value)
+  }
+  previewImageUrl.value = ''
+  previewImageName.value = ''
+}
+
+// 显示文件详情
+function handleShowFileDetail(file: FileItem): void {
+  currentDetailFile.value = file
+  fileDetailVisible.value = true
+  
+  // 如果是图片文件，自动加载预览URL
+  if (isImageFile(file) && file.is_uploaded) {
+    getPreviewUrl(file).then(url => {
+      previewImageUrl.value = url
+    }).catch(error => {
+      Logger.error('[FilesWidget]', 'Failed to load preview URL', error)
+    })
+  }
+}
+
+// 关闭文件详情
+function handleCloseFileDetail(): void {
+  fileDetailVisible.value = false
+  currentDetailFile.value = null
+  // 清理预览URL
+  if (previewImageUrl.value.startsWith('blob:')) {
+    window.URL.revokeObjectURL(previewImageUrl.value)
+  }
+  previewImageUrl.value = ''
 }
 
 // 解析文件大小限制
@@ -956,6 +1202,17 @@ function handleFileChange(file: any): void {
   flex: 1;
 }
 
+.file-name-clickable {
+  cursor: pointer;
+  color: var(--el-color-primary);
+  text-decoration: underline;
+  transition: color 0.2s;
+}
+
+.file-name-clickable:hover {
+  color: var(--el-color-primary-dark-2);
+}
+
 .file-size {
   font-size: 12px;
   color: var(--el-text-color-secondary);
@@ -1084,6 +1341,48 @@ function handleFileChange(file: any): void {
 /* 详情模式 */
 .detail-files {
   width: 100%;
+}
+
+/* 图片预览容器 */
+.image-preview-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+  padding: 20px;
+}
+
+/* 文件详情对话框 */
+.file-detail-content {
+  padding: 10px 0;
+}
+
+.file-preview-section {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+
+.file-preview-section .section-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+  margin-bottom: 12px;
+}
+
+.loading-preview {
+  text-align: center;
+  padding: 40px;
+  color: var(--el-text-color-secondary);
+}
+
+.file-detail-actions {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--el-border-color-lighter);
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
 }
 </style>
 

@@ -236,6 +236,22 @@ async function handleSearch(query: string, isByValue: boolean): Promise<void> {
       return
     }
     
+    // 🔥 保存 statistics 配置（用于聚合计算）
+    if (response.statistics && typeof response.statistics === 'object') {
+      currentStatistics.value = response.statistics
+      // 如果当前已有选中值，立即更新 meta.statistics
+      if (props.value?.raw) {
+        const newFieldValue = {
+          ...props.value,
+          meta: {
+            ...props.value.meta,
+            statistics: currentStatistics.value
+          }
+        }
+        formDataStore.setValue(props.fieldPath, newFieldValue)
+      }
+    }
+    
     if (response.items && Array.isArray(response.items)) {
       options.value = response.items.map((item: any) => ({
         label: item.label || String(item.value),
@@ -255,16 +271,20 @@ async function handleSearch(query: string, isByValue: boolean): Promise<void> {
   }
 }
 
+// 当前统计信息（从回调接口获取）
+const currentStatistics = ref<Record<string, string>>({})
+
 // 处理值变化
 function handleChange(value: any): void {
-  // 值变化时，保存 displayInfo
+  // 值变化时，保存 displayInfo 和 statistics
   const selectedOption = options.value.find(opt => opt.value === value)
   if (selectedOption) {
     const newFieldValue = {
       raw: value,
       display: selectedOption.label,
       meta: {
-        displayInfo: selectedOption.displayInfo
+        displayInfo: selectedOption.displayInfo,
+        statistics: currentStatistics.value  // 🔥 保存 statistics 配置
       }
     }
     
