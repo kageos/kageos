@@ -18,6 +18,9 @@ import TextAreaWidget from '../widgets-v2/components/TextAreaWidget.vue'
 import SwitchWidget from '../widgets-v2/components/SwitchWidget.vue'
 import SelectWidget from '../widgets-v2/components/SelectWidget.vue'
 import MultiSelectWidget from '../widgets-v2/components/MultiSelectWidget.vue'
+import CheckboxWidget from '../widgets-v2/components/CheckboxWidget.vue'
+import RadioWidget from '../widgets-v2/components/RadioWidget.vue'
+import TextWidget from '../widgets-v2/components/TextWidget.vue'
 import FilesWidget from '../widgets-v2/components/FilesWidget.vue'
 import TimestampWidget from '../widgets-v2/components/TimestampWidget.vue'
 import FormWidget from '../widgets-v2/components/FormWidget.vue'
@@ -43,6 +46,8 @@ export function initializeWidgetComponentFactory(): void {
   
   widgetComponentFactory.registerRequestComponent(WidgetType.SELECT, SelectWidget)
   widgetComponentFactory.registerRequestComponent(WidgetType.MULTI_SELECT, MultiSelectWidget)
+  widgetComponentFactory.registerRequestComponent(WidgetType.CHECKBOX, CheckboxWidget)
+  widgetComponentFactory.registerRequestComponent(WidgetType.RADIO, RadioWidget)
   
   widgetComponentFactory.registerRequestComponent(WidgetType.TIMESTAMP, TimestampWidget)
   
@@ -52,8 +57,10 @@ export function initializeWidgetComponentFactory(): void {
   widgetComponentFactory.registerRequestComponent(WidgetType.FORM, FormWidget)
   widgetComponentFactory.registerRequestComponent(WidgetType.TABLE, TableWidget)
   
+  // 响应参数组件（Text 主要用于响应模式）
+  widgetComponentFactory.registerResponseComponent(WidgetType.TEXT, TextWidget)
+  
   // 后续添加其他组件时，在这里注册
-  // widgetComponentFactory.registerRequestComponent(WidgetType.MULTI_SELECT, MultiSelectWidget)
   // ...
 }
 

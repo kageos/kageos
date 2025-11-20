@@ -6,18 +6,20 @@
 <template>
   <div class="float-widget">
     <!-- 编辑模式 -->
+    <div v-if="mode === 'edit'" class="float-input-wrapper">
     <el-input-number
-      v-if="mode === 'edit'"
       v-model="internalValue"
       :disabled="field.widget?.config?.disabled"
       :placeholder="field.desc || `请输入${field.name}`"
       :min="minValue"
       :max="maxValue"
-      :step="0.01"
-      :precision="2"
+        :step="stepValue"
+        :precision="precisionValue"
       :controls="true"
       @blur="handleBlur"
     />
+      <span v-if="unit" class="unit-text">{{ unit }}</span>
+    </div>
     
     <!-- 响应模式（只读） -->
     <span v-else-if="mode === 'response'" class="response-value">
@@ -36,21 +38,23 @@
     </div>
     
     <!-- 搜索模式 -->
+    <div v-else-if="mode === 'search'" class="float-input-wrapper">
     <el-input-number
-      v-else-if="mode === 'search'"
       v-model="internalValue"
       :placeholder="`搜索${field.name}`"
       :min="minValue"
       :max="maxValue"
-      :step="0.01"
-      :precision="2"
+        :step="stepValue"
+        :precision="precisionValue"
       :controls="true"
     />
+      <span v-if="unit" class="unit-text">{{ unit }}</span>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { ElInputNumber } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useFormDataStore } from '../../stores-v2/formData'
@@ -65,6 +69,42 @@ const props = withDefaults(defineProps<WidgetComponentProps>(), {
 const emit = defineEmits<WidgetComponentEmits>()
 
 const formDataStore = useFormDataStore()
+
+// 配置
+const config = computed(() => props.field.widget?.config || {})
+
+// 精度（小数位数）
+const precisionValue = computed(() => {
+  const precision = config.value.precision
+  if (precision !== undefined && precision !== null) {
+    const num = Number(precision)
+    return isNaN(num) ? 2 : num
+  }
+  return 2 // 默认2位小数
+})
+
+// 步长
+const stepValue = computed(() => {
+  const step = config.value.step
+  if (step !== undefined && step !== null) {
+    const num = Number(step)
+    return isNaN(num) ? 0.01 : num
+  }
+  return 0.01 // 默认0.01
+})
+
+// 单位
+const unit = computed(() => config.value.unit || '')
+
+// 默认值
+const defaultValue = computed(() => {
+  const def = config.value.default
+  if (def !== undefined && def !== null) {
+    const num = Number(def)
+    return isNaN(num) ? undefined : num
+  }
+  return undefined
+})
 
 // 最小值/最大值（从验证规则中提取）
 const minValue = computed(() => {
@@ -84,15 +124,24 @@ const internalValue = computed({
   get: () => {
     if (props.mode === 'edit' || props.mode === 'search') {
       const value = props.value?.raw
-      return value !== null && value !== undefined ? Number(value) : undefined
+      if (value !== null && value !== undefined) {
+        return Number(value)
+      }
+      // 如果没有值且有默认值，返回默认值
+      if (defaultValue.value !== undefined) {
+        return defaultValue.value
+      }
+      return undefined
     }
     return undefined
   },
   set: (newValue: number | undefined) => {
     if (props.mode === 'edit') {
+      const formatted = newValue !== undefined ? newValue.toFixed(precisionValue.value) : ''
+      const display = unit.value ? `${formatted} ${unit.value}` : formatted
       const newFieldValue = {
         raw: newValue ?? null,
-        display: newValue !== undefined ? newValue.toFixed(2) : '',
+        display,
         meta: {}
       }
       
@@ -110,7 +159,8 @@ const displayValue = computed(() => {
   }
   
   if (value.display) {
-    return value.display
+    const display = String(value.display)
+    return unit.value ? `${display} ${unit.value}` : display
   }
   
   const raw = value.raw
@@ -123,12 +173,26 @@ const displayValue = computed(() => {
     return String(raw)
   }
   
-  return numValue.toFixed(2)
+  const formatted = numValue.toFixed(precisionValue.value)
+  return unit.value ? `${formatted} ${unit.value}` : formatted
 })
 
 function handleBlur(): void {
   // 可以在这里添加验证逻辑
 }
+
+// 初始化：如果字段没有值，使用默认值
+watch(
+  () => props.value,
+  (newValue: any) => {
+    if (props.mode === 'edit' && (!newValue || newValue.raw === null || newValue.raw === undefined)) {
+      if (defaultValue.value !== undefined) {
+        internalValue.value = defaultValue.value
+      }
+    }
+  },
+  { immediate: true }
+)
 </script>
 
 <style scoped>
@@ -156,6 +220,18 @@ function handleBlur(): void {
 
 .detail-content {
   color: var(--el-text-color-regular);
+}
+
+.float-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.unit-text {
+  color: var(--el-text-color-secondary);
+  font-size: 14px;
+  white-space: nowrap;
 }
 </style>
 
