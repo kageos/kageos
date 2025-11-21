@@ -1268,7 +1268,7 @@ function handleFileChange(file: any): void {
 
 /* 已上传的文件 */
 .uploaded-files {
-  margin-bottom: 20px;
+  margin-bottom: 0;
 }
 
 .uploaded-file {
@@ -1294,6 +1294,79 @@ function handleFileChange(file: any): void {
 
 .file-description {
   margin-bottom: 8px;
+}
+
+/* 🔥 详情模式下的紧凑文件列表样式 */
+.detail-file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 4px;
+  margin-bottom: 6px;
+  background-color: var(--el-bg-color);
+  transition: all 0.2s ease;
+}
+
+.detail-file-item.file-clickable {
+  cursor: pointer;
+}
+
+.detail-file-item:hover {
+  background-color: var(--el-fill-color-light);
+  border-color: var(--el-color-primary);
+}
+
+.detail-file-item .file-icon {
+  color: var(--el-color-primary);
+  flex-shrink: 0;
+}
+
+.detail-file-item .file-name {
+  flex: 1;
+  font-size: 13px;
+  color: var(--el-text-color-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.detail-file-item .file-size {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  flex-shrink: 0;
+}
+
+.detail-file-item .file-actions-inline {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* 🔥 表格单元格模式下的简化样式 */
+.files-table-cell {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.file-names {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.file-name-inline {
+  font-size: 12px;
+  color: var(--el-text-color-primary);
+}
+
+.more-files {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 
 /* 备注 */
