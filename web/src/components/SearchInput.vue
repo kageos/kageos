@@ -160,8 +160,9 @@ import { ref, computed, watch, nextTick } from 'vue'
 import { ElAvatar, ElIcon } from 'element-plus'
 import { Close } from '@element-plus/icons-vue'
 import UserSearchInput from './UserSearchInput.vue'
-import { WidgetBuilder } from '@/core/factories/WidgetBuilder'
+import { widgetComponentFactory } from '@/core/factories-v2'
 import { ErrorHandler } from '@/core/utils/ErrorHandler'
+import { convertToFieldValue } from '@/utils/field'
 import type { FieldConfig } from '@/types'
 
 // 防抖函数
@@ -328,16 +329,311 @@ const initSelectedOptions = async () => {
   }
 }
 
-// 🔥 通过 Widget 获取搜索输入配置
+/**
+ * 🔥 通过 widgets-v2 获取搜索输入配置（重构版本）
+ * 
+ * 重构说明：
+ * - 按照 v2 的设计思路重新实现
+ * - 根据 field.widget.type 和 searchType 生成配置
+ * - 兼容现有的 SearchInput 逻辑（配置对象方式）
+ * 
+ * 注意：v2 组件支持 mode="search"，但 SearchInput 需要配置对象
+ * 所以这里创建一个适配层，根据 v2 的思路生成配置
+ */
 const inputConfig = computed(() => {
   try {
-    // ✅ 使用 WidgetBuilder 创建临时 Widget（formManager 为 null）
-    const tempWidget = WidgetBuilder.createTemporary({
-      field: props.field
-    })
+    const widgetType = props.field.widget?.type || 'input'
+    const searchType = props.searchType
     
-    // 🔥 调用 Widget 的 renderSearchInput 方法
-    return (tempWidget as any).renderSearchInput(props.searchType)
+    // 🔥 用户组件：根据 searchType 决定使用 UserSearchInput 还是 ElSelect
+    if (widgetType === 'user') {
+      // 如果 search 标签是 "in" 或 "eq"，使用自定义的用户搜索组件
+      if (searchType.includes('in') || searchType.includes('eq')) {
+        return {
+          component: 'UserSearchInput',
+          props: {
+            placeholder: `搜索${props.field.name}`,
+            multiple: searchType.includes('in') // in 支持多选
+          }
+        }
+      }
+      
+      // 如果 search 标签是 "like"，渲染普通文本输入框
+      if (searchType.includes('like')) {
+        return {
+          component: 'ElInput',
+          props: {
+            placeholder: `请输入${props.field.name}`,
+            clearable: true,
+            style: { width: '200px' }
+          }
+        }
+      }
+      
+      // 默认：使用精确搜索（eq），渲染用户选择器
+      return {
+        component: 'ElSelect',
+        props: {
+          placeholder: `请选择${props.field.name}`,
+          clearable: true,
+          filterable: true,
+          remote: true,
+          style: { width: '200px' }
+        },
+        onRemoteMethod: async (query: string) => {
+          if (!query || query.trim() === '') {
+            return []
+          }
+          
+          try {
+            const { searchUsersFuzzy } = await import('@/api/user')
+            const response = await searchUsersFuzzy(query.trim(), 20)
+            const users = response.users || []
+            
+            return users.map((user: any) => ({
+              label: user.nickname ? `${user.username}(${user.nickname})` : user.username,
+              value: user.username
+            }))
+          } catch (error) {
+            console.error('[SearchInput] 搜索用户失败', error)
+            return []
+          }
+        }
+      }
+    }
+    
+    // 🔥 时间戳组件：根据 searchType 决定使用日期范围还是单个日期
+    if (widgetType === 'timestamp') {
+      // 范围搜索（gte/lte）
+      if (searchType.includes('gte') && searchType.includes('lte')) {
+        return {
+          component: 'ElDatePicker',
+          props: {
+            type: 'datetimerange',
+            rangeSeparator: '至',
+            startPlaceholder: `开始${props.field.name}`,
+            endPlaceholder: `结束${props.field.name}`,
+            format: 'YYYY-MM-DD HH:mm:ss',
+            valueFormat: 'X', // 时间戳格式
+            clearable: true,
+            style: { width: '400px' },
+            shortcuts: [
+              { text: '今天', value: () => {
+                const start = new Date()
+                start.setHours(0, 0, 0, 0)
+                const end = new Date()
+                end.setHours(23, 59, 59, 999)
+                return [Math.floor(start.getTime() / 1000), Math.floor(end.getTime() / 1000)]
+              }},
+              { text: '昨天', value: () => {
+                const start = new Date()
+                start.setDate(start.getDate() - 1)
+                start.setHours(0, 0, 0, 0)
+                const end = new Date()
+                end.setDate(end.getDate() - 1)
+                end.setHours(23, 59, 59, 999)
+                return [Math.floor(start.getTime() / 1000), Math.floor(end.getTime() / 1000)]
+              }},
+              { text: '最近7天', value: () => {
+                const end = new Date()
+                end.setHours(23, 59, 59, 999)
+                const start = new Date()
+                start.setDate(start.getDate() - 6)
+                start.setHours(0, 0, 0, 0)
+                return [Math.floor(start.getTime() / 1000), Math.floor(end.getTime() / 1000)]
+              }},
+              { text: '最近30天', value: () => {
+                const end = new Date()
+                end.setHours(23, 59, 59, 999)
+                const start = new Date()
+                start.setDate(start.getDate() - 29)
+                start.setHours(0, 0, 0, 0)
+                return [Math.floor(start.getTime() / 1000), Math.floor(end.getTime() / 1000)]
+              }}
+            ]
+          }
+        }
+      }
+      
+      // 单个日期搜索
+      return {
+        component: 'ElDatePicker',
+        props: {
+          type: 'datetime',
+          placeholder: `请选择${props.field.name}`,
+          format: 'YYYY-MM-DD HH:mm:ss',
+          valueFormat: 'X', // 时间戳格式
+          clearable: true,
+          style: { width: '200px' }
+        }
+      }
+    }
+    
+    // 🔥 数字组件：根据 searchType 决定使用范围输入还是单个输入
+    if (widgetType === 'number' || widgetType === 'float') {
+      // 范围搜索（gte/lte）
+      if (searchType.includes('gte') && searchType.includes('lte')) {
+        const precision = widgetType === 'float' ? 2 : 0
+        return {
+          component: 'NumberRangeInput',
+          props: {
+            minPlaceholder: `最小${props.field.name}`,
+            maxPlaceholder: `最大${props.field.name}`,
+            precision: precision,
+            step: widgetType === 'float' ? 0.01 : 1,
+            min: undefined,
+            max: undefined
+          }
+        }
+      }
+      
+      // 单个数字搜索
+      return {
+        component: 'ElInput',
+        props: {
+          placeholder: `请输入${props.field.name}`,
+          clearable: true,
+          style: { width: '200px' }
+        }
+      }
+    }
+    
+    // 🔥 选择组件：根据 searchType 决定使用多选还是单选
+    if (widgetType === 'select') {
+      // 多选搜索（in）
+      if (searchType.includes('in')) {
+        return {
+          component: 'ElSelect',
+          props: {
+            placeholder: `请选择${props.field.name}`,
+            clearable: true,
+            filterable: true,
+            multiple: true,
+            style: { width: '200px' },
+            collapseTags: true,
+            maxCollapseTags: 3
+          },
+          // 如果有回调，使用回调获取选项
+          onRemoteMethod: props.field.callbacks?.includes('OnSelectFuzzy') 
+            ? async (query: string) => {
+                if (!query || query.trim() === '') {
+                  return []
+                }
+                try {
+                  const { selectFuzzy } = await import('@/api/function')
+                  const response = await selectFuzzy(props.field.code, query.trim())
+                  return response.options || []
+                } catch (error) {
+                  console.error('[SearchInput] 搜索选项失败', error)
+                  return []
+                }
+              }
+            : undefined,
+          // 如果有静态选项，使用静态选项
+          options: props.field.data?.options || []
+        }
+      }
+      
+      // 单选搜索（eq）
+      return {
+        component: 'ElSelect',
+        props: {
+          placeholder: `请选择${props.field.name}`,
+          clearable: true,
+          filterable: true,
+          style: { width: '200px' }
+        },
+        // 如果有回调，使用回调获取选项
+        onRemoteMethod: props.field.callbacks?.includes('OnSelectFuzzy')
+          ? async (query: string) => {
+              if (!query || query.trim() === '') {
+                return []
+              }
+              try {
+                const { selectFuzzy } = await import('@/api/function')
+                const response = await selectFuzzy(props.field.code, query.trim())
+                return response.options || []
+              } catch (error) {
+                console.error('[SearchInput] 搜索选项失败', error)
+                return []
+              }
+            }
+          : undefined,
+        // 如果有静态选项，使用静态选项
+        options: props.field.data?.options || []
+      }
+    }
+    
+    // 🔥 多选组件：使用多选下拉
+    if (widgetType === 'multiselect') {
+      return {
+        component: 'ElSelect',
+        props: {
+          placeholder: `请选择${props.field.name}`,
+          clearable: true,
+          filterable: true,
+          multiple: true,
+          style: { width: '200px' },
+          collapseTags: true,
+          maxCollapseTags: 3
+        },
+        // 如果有回调，使用回调获取选项
+        onRemoteMethod: props.field.callbacks?.includes('OnSelectFuzzy')
+          ? async (query: string) => {
+              if (!query || query.trim() === '') {
+                return []
+              }
+              try {
+                const { selectFuzzy } = await import('@/api/function')
+                const response = await selectFuzzy(props.field.code, query.trim())
+                return response.options || []
+              } catch (error) {
+                console.error('[SearchInput] 搜索选项失败', error)
+                return []
+              }
+            }
+          : undefined,
+        // 如果有静态选项，使用静态选项
+        options: props.field.data?.options || []
+      }
+    }
+    
+    // 🔥 文本范围搜索（gte/lte，用于文本类型）
+    if (searchType.includes('gte') && searchType.includes('lte')) {
+      return {
+        component: 'RangeInput',
+        props: {
+          minPlaceholder: `最小${props.field.name}`,
+          maxPlaceholder: `最大${props.field.name}`
+        }
+      }
+    }
+    
+    // 🔥 多选搜索（in，用于文本类型）
+    if (searchType.includes('in')) {
+      return {
+        component: 'ElSelect',
+        props: {
+          placeholder: `请选择${props.field.name}`,
+          clearable: true,
+          filterable: true,
+          multiple: true,
+          style: { width: '200px' },
+          collapseTags: true,
+          maxCollapseTags: 3
+        }
+      }
+    }
+    
+    // 🔥 默认：普通文本输入框（精确搜索 eq 或模糊搜索 like）
+    return {
+      component: 'ElInput',
+      props: {
+        placeholder: `请输入${props.field.name}`,
+        clearable: true,
+        style: { width: '200px' }
+      }
+    }
   } catch (error) {
     // ✅ 使用 ErrorHandler 统一处理错误
     return ErrorHandler.handleWidgetError('SearchInput.inputConfig', error, {

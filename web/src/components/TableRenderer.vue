@@ -260,7 +260,7 @@ import { Search, Refresh, Edit, Delete, Plus, ArrowLeft, ArrowRight, DocumentCop
 import { ElIcon, ElButton, ElMessage } from 'element-plus'
 import { formatTimestamp } from '@/utils/date'
 import { useTableOperations } from '@/composables/useTableOperations'
-import { WidgetBuilder } from '@/core/factories/WidgetBuilder'
+import { widgetComponentFactory } from '@/core/factories-v2'
 import { ErrorHandler } from '@/core/utils/ErrorHandler'
 import { convertToFieldValue } from '@/utils/field'
 import { WidgetType } from '@/core/constants/widget'
@@ -521,37 +521,50 @@ const updateSearchValue = (field: FieldConfig, value: any, shouldSearch: boolean
  *   ])
  * }
  */
+/**
+ * 🔥 渲染表格单元格（使用 widgets-v2）
+ * 
+ * 重构说明：
+ * - 按照 v2 的设计思路重新实现
+ * - 使用 widgetComponentFactory 获取组件
+ * - 使用 h() 渲染组件为 VNode
+ * - 统一返回 VNode（不再需要区分字符串和 VNode）
+ */
 const renderTableCell = (field: FieldConfig, rawValue: any): { content: any, isString: boolean } => {
   try {
     // 🔥 将原始值转换为 FieldValue 格式
     const value = convertToFieldValue(rawValue, field)
     
-    // 🔥 将 field 转换为 core 类型的 FieldConfig（类型兼容）
-    const coreField: FieldConfig = {
-      ...field,
-      widget: field.widget || { type: 'input', config: {} },
-      data: field.data || {}
-    } as FieldConfig
+    // 🔥 使用 widgetComponentFactory 获取组件（v2 方式）
+    const WidgetComponent = widgetComponentFactory.getRequestComponent(
+      field.widget?.type || 'input'
+    )
     
-    // 🔥 创建临时 Widget（不需要 formManager）
-    const tempWidget = WidgetBuilder.createTemporary({
-      field: coreField,
-      value: value
+    if (!WidgetComponent) {
+      // 如果组件未找到，返回 fallback
+      const fallbackValue = rawValue !== null && rawValue !== undefined ? String(rawValue) : '-'
+      return {
+        content: fallbackValue,
+        isString: true
+      }
+    }
+    
+    // 🔥 使用 h() 渲染组件为 VNode（v2 方式）
+    // 传递 mode="table-cell" 让组件自己决定如何渲染
+    // 传递 userInfoMap 用于批量查询优化
+    const vnode = h(WidgetComponent, {
+      field: field,
+      value: value,
+      'model-value': value,
+      'field-path': field.code,
+      mode: 'table-cell',
+      'user-info-map': userInfoMap.value
     })
     
-    // 🔥 调用 Widget 的 renderTableCell() 方法（组件自治）
-    // 每个 Widget 可以重写此方法来自定义表格展示
-    // 传递 userInfoMap 用于批量查询优化
-    const result = tempWidget.renderTableCell(value, userInfoMap.value)
-    
-    // 🔥 统一返回格式：区分字符串和 VNode
-    // 使用 isVNode 来正确识别 VNode 对象
-    const isString = typeof result === 'string'
-    const isVNodeResult = !isString && (isVNode(result) || (result && typeof result === 'object' && 'type' in result))
+    // 🔥 统一返回 VNode（v2 组件统一返回 VNode）
     return {
-      content: result,
-      isString: isString,
-      isVNode: isVNodeResult
+      content: vnode,
+      isString: false
     }
   } catch (error) {
     // ✅ 使用 ErrorHandler 统一处理错误
@@ -587,34 +600,41 @@ const getCellContent = (field: FieldConfig, rawValue: any): { content: any, isSt
  * @param rawValue 原始值（来自后端）
  * @returns 渲染结果（VNode 或字符串）
  */
+/**
+ * 🔥 渲染详情字段（使用 widgets-v2）
+ * 
+ * 重构说明：
+ * - 按照 v2 的设计思路重新实现
+ * - 使用 widgetComponentFactory 获取组件
+ * - 使用 h() 渲染组件为 VNode
+ * - 统一返回 VNode（v2 组件统一返回 VNode）
+ */
 const renderDetailField = (field: FieldConfig, rawValue: any): any => {
   try {
     // 🔥 将原始值转换为 FieldValue 格式
     const value = convertToFieldValue(rawValue, field)
     
-    // 🔥 创建临时 Widget（用于详情展示）
-    const widget = WidgetBuilder.createTemporary({
+    // 🔥 使用 widgetComponentFactory 获取组件（v2 方式）
+    const WidgetComponent = widgetComponentFactory.getRequestComponent(
+      field.widget?.type || 'input'
+    )
+    
+    if (!WidgetComponent) {
+      // 如果组件未找到，返回 fallback
+      return h('span', rawValue !== null && rawValue !== undefined ? String(rawValue) : '-')
+    }
+    
+    // 🔥 使用 h() 渲染组件为 VNode（v2 方式）
+    // 传递 mode="detail" 让组件自己决定如何渲染详情
+    // 传递 userInfoMap 用于批量查询优化
+    return h(WidgetComponent, {
       field: field,
-      value: value
+      value: value,
+      'model-value': value,
+      'field-path': field.code,
+      mode: 'detail',
+      'user-info-map': userInfoMap.value
     })
-    
-    // 🔥 准备上下文信息（function name 和记录ID，用于某些组件如FilesWidget的打包下载功能）
-    // 同时传递 userInfoMap 用于批量查询优化
-    const context = {
-      functionName: props.currentFunction?.name || props.currentFunction?.code || '',
-      recordId: currentDetailRow.value?.id || currentDetailRow.value?.[idField.value?.code || 'id'],
-      userInfoMap: userInfoMap.value
-    }
-    
-    // 🔥 调用 Widget 的 renderForDetail() 方法（组件自治）
-    const result = widget.renderForDetail(value, context)
-    
-    // 🔥 如果返回的是字符串，需要包装成 VNode
-    if (typeof result === 'string') {
-      return h('span', result)
-    }
-    
-    return result
   } catch (error) {
     // ✅ 使用 ErrorHandler 统一处理错误
     return ErrorHandler.handleWidgetError(`TableRenderer.renderDetailField[${field.code}]`, error, {
@@ -708,11 +728,12 @@ const handleNavigate = (direction: 'prev' | 'next'): void => {
 }
 
 /**
- * 🔥 复制字段值到剪贴板（遵循组件自治原则）
+ * 🔥 复制字段值到剪贴板（简化实现）
  * 
- * 设计原则：
- * - 遵循组件自治：每个 Widget 自己决定复制什么内容
- * - 统一使用 widget.getCopyText() 方法
+ * 重构说明：
+ * - v2 组件没有统一的 getCopyText 方法
+ * - 简化实现：直接使用 value.display 或 value.raw
+ * - 如果后续需要更复杂的复制逻辑，可以在组件内部处理
  * 
  * @param field 字段配置
  * @param value 字段值（原始值）
@@ -722,14 +743,14 @@ const copyFieldValue = (field: FieldConfig, value: any): void => {
     // 🔥 将原始值转换为 FieldValue 格式
     const fieldValue = convertToFieldValue(value, field)
     
-    // 🔥 创建临时 Widget（用于复制功能）
-    const widget = WidgetBuilder.createTemporary({
-      field: field,
-      value: fieldValue
-    })
+    // 🔥 简化实现：优先使用 display，否则使用 raw
+    // v2 组件没有统一的 getCopyText 方法，每个组件自己处理复制逻辑
+    const textToCopy = fieldValue?.display || (fieldValue?.raw !== null && fieldValue?.raw !== undefined ? String(fieldValue.raw) : '')
     
-    // 🔥 调用 Widget 的 getCopyText() 方法（组件自治）
-    const textToCopy = widget.getCopyText()
+    if (!textToCopy) {
+      ElMessage.warning('没有可复制的内容')
+      return
+    }
     
     navigator.clipboard.writeText(textToCopy).then(() => {
       ElMessage.success(`已复制 ${field.name}`)
@@ -737,7 +758,10 @@ const copyFieldValue = (field: FieldConfig, value: any): void => {
       ElMessage.error('复制失败')
     })
   } catch (error) {
-    ElMessage.error('复制失败')
+    // ✅ 使用 ErrorHandler 统一处理错误
+    ErrorHandler.handleWidgetError(`TableRenderer.copyFieldValue[${field.code}]`, error, {
+      showMessage: true
+    })
   }
 }
 
