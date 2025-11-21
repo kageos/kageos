@@ -285,12 +285,12 @@
               <!-- 🔥 文件上传用户信息（左侧显示） -->
               <div v-if="file.upload_user" class="file-upload-user">
                 <el-avatar
-                  v-if="getFileUploadUserInfo.value(file)"
-                  :src="getFileUploadUserInfo.value(file)?.avatar"
+                  v-if="getFileUploadUserInfo(file)"
+                  :src="getFileUploadUserInfo(file)?.avatar"
                   :size="24"
                   class="file-upload-user-avatar"
                 >
-                  {{ getFileUploadUserInfo.value(file)?.username?.[0]?.toUpperCase() || 'U' }}
+                  {{ getFileUploadUserInfo(file)?.username?.[0]?.toUpperCase() || 'U' }}
                 </el-avatar>
                 <el-avatar
                   v-else
@@ -300,8 +300,8 @@
                   {{ file.upload_user[0]?.toUpperCase() || 'U' }}
                 </el-avatar>
                 <span class="file-upload-user-name">
-                  <template v-if="getFileUploadUserInfo.value(file)">
-                    {{ getFileUploadUserInfo.value(file)?.nickname || getFileUploadUserInfo.value(file)?.username || file.upload_user }}
+                  <template v-if="getFileUploadUserInfo(file)">
+                    {{ getFileUploadUserInfo(file)?.nickname || getFileUploadUserInfo(file)?.username || file.upload_user }}
                   </template>
                   <template v-else>
                     <!-- 如果用户信息未加载，至少显示用户名 -->
@@ -652,43 +652,34 @@ const unifiedUploadUserInfo = computed(() => {
 })
 
 // 🔥 获取文件的上传用户信息（同步版本，用于模板）
-// 使用 computed 确保响应式更新
-const getFileUploadUserInfo = computed(() => {
-  return (file: FileItem) => {
-    if (!file.upload_user) return null
-    
-    // 🔥 优先从 userInfoMap 中获取（如果是在 TableRenderer 中使用）
-    if (props.userInfoMap && props.userInfoMap.has(file.upload_user)) {
-      const user = props.userInfoMap.get(file.upload_user)
-      console.log('[FilesWidget] 从 userInfoMap 获取用户信息', file.upload_user, user)
-      return user
-    }
-    
-    // 降级到 userInfoStore（同步获取，从缓存中读取）
-    // 使用 store 导出的 userInfoCache computed 属性
-    try {
-      const cache = userInfoStore.userInfoCache
-      console.log('[FilesWidget] userInfoCache 类型:', typeof cache, cache)
-      
-      // userInfoCache 是 computed，需要访问 .value
-      const cacheMap = (cache as any)?.value || cache
-      console.log('[FilesWidget] cacheMap 类型:', typeof cacheMap, cacheMap instanceof Map)
-      
-      if (cacheMap instanceof Map) {
-        const cachedUser = cacheMap.get(file.upload_user)
-        console.log('[FilesWidget] 从缓存获取用户信息', file.upload_user, cachedUser)
-        if (cachedUser) {
-          return cachedUser
-        }
-      }
-    } catch (error) {
-      console.warn('[FilesWidget] 获取用户信息失败', error)
-    }
-    
-    console.log('[FilesWidget] 未找到用户信息', file.upload_user)
-    return null
+// 使用函数形式，依赖 userInfoMap 和 userInfoStore 的响应式更新
+function getFileUploadUserInfo(file: FileItem) {
+  if (!file.upload_user) return null
+  
+  // 🔥 优先从 userInfoMap 中获取（如果是在 TableRenderer 中使用）
+  if (props.userInfoMap && props.userInfoMap.has(file.upload_user)) {
+    const user = props.userInfoMap.get(file.upload_user)
+    return user
   }
-})
+  
+  // 降级到 userInfoStore（同步获取，从缓存中读取）
+  // 使用 store 导出的 userInfoCache computed 属性
+  try {
+    const cache = userInfoStore.userInfoCache
+    // userInfoCache 是 computed，需要访问 .value
+    const cacheMap = (cache as any)?.value || cache
+    if (cacheMap instanceof Map) {
+      const cachedUser = cacheMap.get(file.upload_user)
+      if (cachedUser) {
+        return cachedUser
+      }
+    }
+  } catch (error) {
+    console.warn('[FilesWidget] 获取用户信息失败', error)
+  }
+  
+  return null
+}
 
 // 🔥 监听所有上传用户变化，自动加载用户信息
 // 注意：如果是在 TableRenderer 中使用，TableRenderer 会统一批量查询用户信息
