@@ -469,37 +469,54 @@ async function loadUserInfo(username: string | null): Promise<UserInfo | null> {
     return null
   }
   
+  console.log('[UserWidget] 🔍 loadUserInfo 被调用', {
+    username,
+    mode: props.mode,
+    hasUserInfoMap: !!props.userInfoMap,
+    fieldCode: props.field?.code,
+    timestamp: new Date().toISOString()
+  })
+  
   // 🔥 优化：优先从 userInfoMap 中获取（避免重复调用接口）
   if (props.userInfoMap && props.userInfoMap.has(username)) {
     const user = props.userInfoMap.get(username) as UserInfo
     userInfo.value = user
+    console.log('[UserWidget] ✅ 从 userInfoMap 获取用户信息', username)
     return user
   }
   
   // 如果 meta 中已有用户信息，直接使用
   if (props.value?.meta?.userInfo && props.value.meta.userInfo.username === username) {
     userInfo.value = props.value.meta.userInfo
+    console.log('[UserWidget] ✅ 从 meta 获取用户信息', username)
     return props.value.meta.userInfo
   }
   
-  // 🔥 最后才调用接口（如果 userInfoMap 和 meta 都没有）
+  // 🔥 使用 userInfoStore 批量查询（自动处理缓存和去重）
   try {
-    // 使用批量查询接口（即使只有一个用户）
-    const response = await getUsersByUsernames([username])
-    if (response.users && response.users.length > 0) {
-      const user = response.users[0] as UserInfo
+    const { useUserInfoStore } = await import('@/stores/userInfo')
+    const userInfoStore = useUserInfoStore()
+    
+    console.log('[UserWidget] 🔍 调用 userInfoStore.batchGetUserInfo', username)
+    const users = await userInfoStore.batchGetUserInfo([username])
+    
+    if (users && users.length > 0) {
+      const user = users[0] as UserInfo
       userInfo.value = user
       // 🔥 如果 userInfoMap 存在，也更新到 map 中（缓存）
       if (props.userInfoMap) {
         props.userInfoMap.set(username, user)
       }
+      console.log('[UserWidget] ✅ 获取到用户信息', username)
       return user
     } else {
       userInfo.value = null
+      console.log('[UserWidget] ⚠️ 未找到用户信息', username)
       return null
     }
   } catch (error) {
     // 查询用户信息失败，静默处理
+    console.error('[UserWidget] ❌ 查询用户信息失败', username, error)
     userInfo.value = null
     return null
   }
