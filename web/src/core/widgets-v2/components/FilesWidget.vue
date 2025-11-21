@@ -481,6 +481,7 @@ import {
   ElIcon,
   ElProgress,
   ElMessage,
+  ElTag,
   ElPopconfirm,
   ElInput,
   ElDialog,
