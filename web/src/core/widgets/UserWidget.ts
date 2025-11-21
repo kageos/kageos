@@ -3,12 +3,12 @@
  * 支持用户选择器和用户信息展示
  */
 
-import { h, ref, computed, watch, onMounted } from 'vue'
-import { ElSelect, ElOption, ElAvatar, ElMessage, ElPopover, ElButton, ElDialog } from 'element-plus'
+import { h, ref } from 'vue'
+import { ElSelect, ElOption, ElAvatar, ElMessage, ElPopover, ElButton } from 'element-plus'
 import { BaseWidget } from './BaseWidget'
 import type { FieldConfig, FieldValue } from '../types/field'
 import type { WidgetRenderProps } from '../types/widget'
-import { searchUsersFuzzy, queryUser } from '@/api/user'
+import { searchUsersFuzzy, queryUser, getUsersByUsernames } from '@/api/user'
 import type { UserInfo } from '@/types'
 import { Logger } from '../utils/logger'
 import { getElementPlusFormProps } from './utils/widgetHelpers'

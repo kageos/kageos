@@ -79,8 +79,6 @@
             :size="24" 
             class="user-avatar user-avatar-clickable"
             @click="handleAvatarClick"
-            @mousedown="(e: MouseEvent) => { e.stopPropagation(); e.preventDefault(); console.log('[UserWidget] 头像 mousedown') }"
-            style="pointer-events: auto !important;"
           >
             {{ userInfo.username?.[0]?.toUpperCase() || 'U' }}
           </el-avatar>
@@ -89,8 +87,6 @@
             :size="24" 
             class="user-avatar user-avatar-clickable"
             @click="handleAvatarClick"
-            @mousedown="(e: MouseEvent) => { e.stopPropagation(); e.preventDefault(); console.log('[UserWidget] 头像 mousedown') }"
-            style="pointer-events: auto !important;"
           >
             {{ displayName?.[0]?.toUpperCase() || 'U' }}
           </el-avatar>
@@ -139,8 +135,6 @@
       <span 
         class="user-name user-name-clickable" 
         @click="handleCopyName"
-        @mousedown="(e: MouseEvent) => { e.stopPropagation(); e.preventDefault(); console.log('[UserWidget] 名称 mousedown') }"
-        style="pointer-events: auto !important;"
       >{{ displayName }}</span>
     </span>
     
@@ -162,8 +156,6 @@
             :size="24" 
             class="user-avatar user-avatar-clickable"
             @click="handleAvatarClick"
-            @mousedown="(e: MouseEvent) => { e.stopPropagation(); e.preventDefault(); console.log('[UserWidget] 头像 mousedown') }"
-            style="pointer-events: auto !important;"
           >
             {{ userInfo.username?.[0]?.toUpperCase() || 'U' }}
           </el-avatar>
@@ -172,8 +164,6 @@
             :size="24" 
             class="user-avatar user-avatar-clickable"
             @click="handleAvatarClick"
-            @mousedown="(e: MouseEvent) => { e.stopPropagation(); e.preventDefault(); console.log('[UserWidget] 头像 mousedown') }"
-            style="pointer-events: auto !important;"
           >
             {{ displayName?.[0]?.toUpperCase() || 'U' }}
           </el-avatar>
@@ -218,8 +208,6 @@
       <span 
         class="user-name user-name-clickable" 
         @click="handleCopyName"
-        @mousedown="(e: MouseEvent) => { e.stopPropagation(); e.preventDefault(); console.log('[UserWidget] 名称 mousedown') }"
-        style="pointer-events: auto !important;"
       >{{ displayName }}</span>
     </span>
     
@@ -331,7 +319,7 @@ const userInfo = ref<UserInfo | null>(null)
 // 加载状态
 const loading = ref(false)
 
-// Popover 显示状态（用于调试）
+// Popover 显示状态
 const showPopover = ref(false)
 
 // 防抖定时器
@@ -436,7 +424,7 @@ function handleRemoteSearch(query: string): void {
       const response = await searchUsersFuzzy(query.trim(), 20)
       userOptions.value = response.users || []
     } catch (error) {
-      console.error('[UserWidget] 搜索用户失败:', error)
+      // 搜索用户失败，静默处理
       userOptions.value = []
     } finally {
       loading.value = false
@@ -511,7 +499,7 @@ async function loadUserInfo(username: string | null): Promise<UserInfo | null> {
       return null
     }
   } catch (error) {
-    console.error('[UserWidget] 查询用户信息失败:', error)
+    // 查询用户信息失败，静默处理
     userInfo.value = null
     return null
   }
@@ -542,7 +530,6 @@ watch(() => props.value?.raw, (newValue: any) => {
     // 显示模式：加载用户信息用于显示
     if (newValue) {
       loadUserInfo(String(newValue)).then((user) => {
-        console.log('[UserWidget] 用户信息加载完成', { mode: props.mode, user, hasUserInfo: !!userInfo.value })
       })
     } else {
       userInfo.value = null
@@ -588,65 +575,24 @@ function handleCopyUserInfo(event?: Event): void {
 
 // 处理名称复制（只复制显示名称）
 function handleCopyName(event: Event): void {
-  console.log('[UserWidget] 名称被点击', { 
-    target: event.target, 
-    currentTarget: event.currentTarget,
-    type: event.type,
-    mode: props.mode
-  })
-  event.stopPropagation() // 阻止事件冒泡
-  event.preventDefault() // 阻止默认行为
-  const copyText = displayName.value
-  console.log('[UserWidget] 准备复制名称', { copyText })
-  navigator.clipboard.writeText(copyText).then(() => {
-    console.log('[UserWidget] 复制成功')
+  event.stopPropagation()
+  event.preventDefault()
+  navigator.clipboard.writeText(displayName.value).then(() => {
     ElMessage.success('已复制名称')
   }).catch(() => {
-    console.error('[UserWidget] 复制失败')
     ElMessage.error('复制失败')
   })
 }
 
 // 处理头像点击（显示用户信息弹窗）
 function handleAvatarClick(event: Event): void {
-  console.log('[UserWidget] 头像被点击', { 
-    target: event.target, 
-    currentTarget: event.currentTarget,
-    type: event.type,
-    mode: props.mode
-  })
-  event.stopPropagation() // 阻止事件冒泡
-  event.preventDefault() // 阻止默认行为
-  console.log('[UserWidget] 切换弹窗显示状态', { 
-    before: showPopover.value,
-    after: !showPopover.value
-  })
+  event.stopPropagation()
+  event.preventDefault()
   showPopover.value = !showPopover.value
-  console.log('[UserWidget] 弹窗状态已更新', { showPopover: showPopover.value })
 }
 
 // 组件挂载时，如果有初始值，加载用户信息
 onMounted(() => {
-  console.log('[UserWidget] 组件已挂载', { 
-    mode: props.mode, 
-    value: props.value,
-    hasUserInfo: !!userInfo.value,
-    showPopover: showPopover.value
-  })
-  
-  // 添加全局点击监听器用于调试
-  const handleGlobalClick = (e: MouseEvent) => {
-    const target = e.target as HTMLElement
-    if (target.closest('.user-cell') || target.closest('.user-display')) {
-      console.log('[UserWidget] 全局点击事件捕获', {
-        target: target.tagName,
-        className: target.className,
-        closest: target.closest('.user-cell') ? 'user-cell' : target.closest('.user-display') ? 'user-display' : null
-      })
-    }
-  }
-  document.addEventListener('click', handleGlobalClick, true)
-  
   if (props.value?.raw) {
     if (props.mode === 'edit' || props.mode === 'search') {
       // 编辑模式：如果有初始值，需要加载用户信息到 userOptions 中以便显示
