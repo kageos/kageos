@@ -1,4 +1,3 @@
-basePath: /api/v1
 definitions:
   dto.ApiInfo:
     properties:
@@ -408,6 +407,29 @@ definitions:
         example: package
         type: string
     type: object
+  dto.GetUsersByUsernamesReq:
+    properties:
+      usernames:
+        description: 用户名列表，最多100个
+        example:
+        - '["user1"'
+        - '"user2"]'
+        items:
+          type: string
+        maxItems: 100
+        minItems: 1
+        type: array
+    required:
+    - usernames
+    type: object
+  dto.GetUsersByUsernamesResp:
+    properties:
+      users:
+        description: 用户列表
+        items:
+          $ref: '#/definitions/dto.UserInfo'
+        type: array
+    type: object
   dto.LoginReq:
     properties:
       password:
@@ -451,6 +473,13 @@ definitions:
     - token
     type: object
   dto.LogoutResp:
+    type: object
+  dto.QueryUserResp:
+    properties:
+      user:
+        allOf:
+        - $ref: '#/definitions/dto.UserInfo'
+        description: 用户信息
     type: object
   dto.RefreshTokenReq:
     properties:
@@ -522,6 +551,14 @@ definitions:
         example: v1
         type: string
     type: object
+  dto.SearchUsersFuzzyResp:
+    properties:
+      users:
+        description: 用户列表
+        items:
+          $ref: '#/definitions/dto.UserInfo'
+        type: array
+    type: object
   dto.SendEmailCodeReq:
     properties:
       email:
@@ -584,6 +621,32 @@ definitions:
     required:
     - id
     type: object
+  dto.UpdateUserReq:
+    properties:
+      avatar:
+        description: 头像URL（可选，传值则更新，不传则不更新）
+        example: https://avatar.com/1.jpg
+        type: string
+      gender:
+        description: '性别（可选，传值则更新，不传则不更新）: male(男), female(女), other(其他)'
+        example: male
+        type: string
+      nickname:
+        description: 昵称（可选，传值则更新，不传则不更新）
+        example: 北落
+        type: string
+      signature:
+        description: 个人签名/简介（可选，传值则更新，不传则不更新）
+        example: 这个人很懒，什么都没有留下
+        type: string
+    type: object
+  dto.UpdateUserResp:
+    properties:
+      user:
+        allOf:
+        - $ref: '#/definitions/dto.UserInfo'
+        description: 更新后的用户信息
+    type: object
   dto.UserInfo:
     properties:
       avatar:
@@ -602,13 +665,25 @@ definitions:
         description: 邮箱是否已验证
         example: true
         type: boolean
+      gender:
+        description: '性别: male(男), female(女), other(其他), 空字符串表示未设置'
+        example: male
+        type: string
       id:
         description: 用户ID
         example: 1
         type: integer
+      nickname:
+        description: 昵称
+        example: 北落
+        type: string
       register_type:
         description: 注册方式
         example: email
+        type: string
+      signature:
+        description: 个人签名/简介
+        example: 这个人很懒，什么都没有留下
         type: string
       status:
         description: '用户状态: pending(待邮箱验证), active(已激活)'
@@ -1368,6 +1443,211 @@ paths:
       summary: 更新服务目录
       tags:
       - 服务目录
+  /api/v1/user/info:
+    get:
+      consumes:
+      - application/json
+      description: 根据请求header中的username获取当前登录用户信息
+      parameters:
+      - description: JWT Token
+        in: header
+        name: X-Token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 用户信息
+          schema:
+            $ref: '#/definitions/dto.UserInfo'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "401":
+          description: 未认证
+          schema:
+            type: string
+        "404":
+          description: 用户不存在
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      summary: 获取当前登录用户信息
+      tags:
+      - 用户管理
+  /api/v1/user/query:
+    get:
+      consumes:
+      - application/json
+      description: 根据用户名精确查询用户信息
+      parameters:
+      - description: JWT Token
+        in: header
+        name: X-Token
+        required: true
+        type: string
+      - description: 用户名
+        in: query
+        name: username
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 用户信息
+          schema:
+            $ref: '#/definitions/dto.QueryUserResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "401":
+          description: 未认证
+          schema:
+            type: string
+        "404":
+          description: 用户不存在
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      summary: 根据用户名精确查询用户
+      tags:
+      - 用户管理
+  /api/v1/user/search_fuzzy:
+    get:
+      consumes:
+      - application/json
+      description: 根据关键词模糊查询用户（支持用户名和邮箱）
+      parameters:
+      - description: JWT Token
+        in: header
+        name: X-Token
+        required: true
+        type: string
+      - description: 搜索关键词
+        in: query
+        name: keyword
+        required: true
+        type: string
+      - description: 返回数量限制，默认10，最大100
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 用户列表
+          schema:
+            $ref: '#/definitions/dto.SearchUsersFuzzyResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "401":
+          description: 未认证
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      summary: 模糊查询用户
+      tags:
+      - 用户管理
+  /api/v1/user/update:
+    put:
+      consumes:
+      - application/json
+      description: 更新当前登录用户的昵称、签名、头像、性别等信息
+      parameters:
+      - description: JWT Token
+        in: header
+        name: X-Token
+        required: true
+        type: string
+      - description: 更新用户信息请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateUserReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/dto.UpdateUserResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "401":
+          description: 未认证
+          schema:
+            type: string
+        "404":
+          description: 用户不存在
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: 更新用户信息
+      tags:
+      - 用户管理
+  /api/v1/users:
+    post:
+      consumes:
+      - application/json
+      description: 根据用户名列表批量获取用户信息
+      parameters:
+      - description: JWT Token
+        in: header
+        name: X-Token
+        required: true
+        type: string
+      - description: 批量查询请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.GetUsersByUsernamesReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 用户列表
+          schema:
+            $ref: '#/definitions/dto.GetUsersByUsernamesResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "401":
+          description: 未认证
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      summary: 批量获取用户信息
+      tags:
+      - 用户管理
 securityDefinitions:
   ApiKeyAuth:
     in: header

@@ -428,7 +428,7 @@ function handleVisibleChange(visible: boolean): void {
             }
           } else {
             // 如果组件引用不存在，清除标志
-            shouldKeepOpen.value = false
+    shouldKeepOpen.value = false
           }
         })
       }

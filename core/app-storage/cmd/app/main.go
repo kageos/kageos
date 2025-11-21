@@ -3,7 +3,7 @@
 // @description AI Agent OS 存储服务 API 文档
 
 // @host localhost:9092
-// @BasePath /api/v1
+// @BasePath
 
 // @securityDefinitions.apikey ApiKeyAuth
 // @in header

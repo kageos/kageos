@@ -12,6 +12,9 @@ export interface UserInfo {
   email: string
   register_type: string
   avatar: string
+  nickname?: string           // 昵称
+  signature?: string          // 个人签名/简介
+  gender?: string            // 性别: 'male' | 'female' | 'other' | ''
   email_verified: boolean
   status: string
   created_at: string

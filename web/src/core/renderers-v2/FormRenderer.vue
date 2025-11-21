@@ -32,6 +32,7 @@
           v-if="getWidgetComponent(field.widget?.type || 'input')"
           :key="`request_widget_${field.code}_${field.widget?.type || 'input'}`"
           :is="getWidgetComponent(field.widget?.type || 'input')"
+          :ref="(el: any) => setWidgetRef(field.code, el)"
           :field="field"
           :value="getFieldValue(field.code)"
           :model-value="getFieldValue(field.code)"
@@ -39,6 +40,7 @@
           :field-path="field.code"
           :form-manager="formManager"
           :form-renderer="formRendererContext"
+          :user-info-map="userInfoMap"
           mode="edit"
         />
         <div v-else class="widget-error">
@@ -120,11 +122,12 @@
         <pre>{{ submitResult }}</pre>
       </div>
     </el-card>
+
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, onUnmounted, nextTick, watch, reactive } from 'vue'
 import { ElForm, ElFormItem, ElButton, ElCard, ElMessage, ElIcon, ElTag } from 'element-plus'
 import { Promotion, RefreshLeft } from '@element-plus/icons-vue'
 import type { FieldConfig, FunctionDetail, FieldValue } from '../types/field'
@@ -135,8 +138,10 @@ import { executeFunction } from '@/api/function'
 import { Logger } from '../utils/logger'
 import { shouldShowField } from '../utils/conditionEvaluator'
 import { hasAnyRequiredRule } from '../utils/validationUtils'
+import { ValidationEngine, createDefaultValidatorRegistry } from '../validation'
 import type { ReactiveFormDataManager } from '../managers/ReactiveFormDataManager'
 import type { FormRendererContext } from '../types/widget'
+import type { ValidationResult } from '../validation/types'
 import { getWidgetDefaultValue } from '../widgets-v2/composables/useWidgetDefaultValue'
 
 const props = withDefaults(defineProps<{
@@ -144,18 +149,37 @@ const props = withDefaults(defineProps<{
   showSubmitButton?: boolean
   showResetButton?: boolean
   initialData?: Record<string, any>
+  userInfoMap?: Map<string, any>  // 🔥 用户信息映射（用于 UserWidget 批量查询优化）
 }>(), {
   showSubmitButton: true,
   showResetButton: true,
-  initialData: () => ({})
+  initialData: () => ({}),
+  userInfoMap: () => new Map()
 })
 
 // Pinia Stores
 const formDataStore = useFormDataStore()
 const responseDataStore = useResponseDataStore()
 
+// 🔥 用户信息映射（从 props 获取，如果没有则使用空 Map）
+const userInfoMap = computed(() => props.userInfoMap || new Map())
+
 // 表单引用
 const formRef = ref()
+
+// 🔥 Widget refs 映射（用于调用 Widget 的 validate 方法）
+const widgetRefs = new Map<string, any>()
+
+/**
+ * 设置 Widget ref（用于调用 Widget 的 validate 方法）
+ */
+function setWidgetRef(fieldCode: string, el: any): void {
+  if (el) {
+    widgetRefs.set(fieldCode, el)
+  } else {
+    widgetRefs.delete(fieldCode)
+  }
+}
 
 // 提交状态
 const submitting = ref(false)
@@ -174,6 +198,9 @@ const rendererKey = computed(() => {
 
 // 请求字段列表（根据条件渲染规则过滤）
 const requestFields = computed(() => {
+  // 🔥 关键：追踪 formDataStore.data 的变化，确保条件渲染能响应式更新
+  const _ = formDataStore.data  // 触发响应式追踪
+  
   const allFields = props.functionDetail?.request || []
   return allFields.filter((field: FieldConfig) => {
     // 条件渲染：根据其他字段的值决定是否显示
@@ -223,6 +250,20 @@ function getFieldValue(fieldCode: string): FieldValue {
 // 更新字段值
 function updateFieldValue(fieldCode: string, value: FieldValue): void {
   formDataStore.setValue(fieldCode, value)
+  
+  // 字段值改变时，重新验证当前字段
+  const field = requestFields.value.find(f => f.code === fieldCode)
+  if (field) {
+    validateField(field)
+    
+    // 🔥 同时验证所有其他字段（因为条件验证可能依赖多个字段）
+    // 例如：字段A的值改变时，可能影响字段B的 required_if 验证
+    requestFields.value.forEach(otherField => {
+      if (otherField.code !== fieldCode && otherField.validation) {
+        validateField(otherField)
+      }
+    })
+  }
 }
 
 // 获取响应字段值
@@ -359,10 +400,214 @@ function isFieldRequired(field: FieldConfig): boolean {
   return hasAnyRequiredRule(field)
 }
 
-// 获取字段错误
+// 字段验证错误（field_code -> ValidationResult[]）
+const fieldErrors = reactive<Map<string, ValidationResult[]>>(new Map())
+
+// 验证引擎（适配 formDataStore）
+const validationEngine = computed(() => {
+  const validatorRegistry = createDefaultValidatorRegistry()
+  const allFields = props.functionDetail?.request || []
+  
+  // 创建适配器，将 formDataStore 转换为 ReactiveFormDataManager 接口
+  const formManagerAdapter = {
+    getValue: (fieldPath: string) => {
+      return formDataStore.getValue(fieldPath)
+    },
+    getAllValues: () => {
+      const allValues: Record<string, FieldValue> = {}
+      allFields.forEach(f => {
+        allValues[f.code] = formDataStore.getValue(f.code)
+      })
+      return allValues
+    }
+  } as any
+  
+  return new ValidationEngine(validatorRegistry, formManagerAdapter, allFields)
+})
+
+/**
+ * 获取字段错误消息（用于显示在表单项下方）
+ */
 function getFieldError(fieldCode: string): string {
-  // TODO: 集成验证引擎
+  const errors = fieldErrors.get(fieldCode)
+  if (!errors || errors.length === 0) {
   return ''
+  }
+  return errors[0].message || ''
+}
+
+/**
+ * 根据字段路径获取字段名称
+ */
+function getFieldNameByPath(fieldPath: string): string {
+  // 尝试从顶层字段中查找
+  const topLevelField = requestFields.value.find((f: FieldConfig) => fieldPath === f.code)
+  if (topLevelField) {
+    return topLevelField.name
+  }
+  
+  // 处理嵌套字段路径（如 customer.basic_info.name）
+  const pathParts = fieldPath.split('.')
+  if (pathParts.length > 1 && pathParts[0]) {
+    // 查找顶层字段
+    const topField = requestFields.value.find((f: FieldConfig) => f.code === pathParts[0])
+    if (topField && topField.children) {
+      // 递归查找嵌套字段
+      let currentField: FieldConfig | undefined = topField
+      for (let i = 1; i < pathParts.length; i++) {
+        const part = pathParts[i]
+        if (!part || !currentField) break
+        
+        // 处理数组索引（如 products[0].name）
+        const fieldCode = part.replace(/\[\d+\]/, '')
+        currentField = currentField.children?.find((f: FieldConfig) => f.code === fieldCode)
+        if (!currentField) break
+      }
+      if (currentField) {
+        return currentField.name
+      }
+    }
+  }
+  
+  // 处理数组索引路径（如 products[0].name）
+  const arrayMatch = fieldPath.match(/^(.+)\[(\d+)\]\.(.+)$/)
+  if (arrayMatch && arrayMatch[1] && arrayMatch[3]) {
+    const parentPath = arrayMatch[1]
+    const fieldCode = arrayMatch[3]
+    const topField = requestFields.value.find((f: FieldConfig) => f.code === parentPath.split('.')[0])
+    if (topField && topField.children) {
+      const field = topField.children.find((f: FieldConfig) => f.code === fieldCode)
+      if (field) {
+        return field.name
+      }
+    }
+  }
+  
+  // 如果找不到，返回字段路径
+  return fieldPath
+}
+
+/**
+ * 收集所有错误消息（包含字段名称）
+ */
+function collectErrorMessages(): string[] {
+  const messages: string[] = []
+  fieldErrors.forEach((errors: ValidationResult[], fieldPath: string) => {
+    const fieldName = getFieldNameByPath(fieldPath)
+    errors.forEach((err: ValidationResult) => {
+      if (err.message) {
+        // 如果错误消息已经包含字段名，直接使用；否则添加字段名
+        const message = err.message.includes(fieldName) 
+          ? err.message 
+          : `${fieldName}：${err.message}`
+        messages.push(message)
+      }
+    })
+  })
+  return messages
+}
+
+/**
+ * 生成友好的错误提示消息
+ */
+function generateErrorMessage(): string {
+  const errorMessages = collectErrorMessages()
+  const errorCount = fieldErrors.size
+  
+  if (errorCount === 0) {
+    return '请检查表单中的必填项和错误'
+  }
+  
+  if (errorCount === 1) {
+    // 只有一个错误，直接显示
+    return errorMessages[0] || '请检查表单中的必填项和错误'
+  }
+  
+  // 多个错误，显示汇总信息
+  const uniqueMessages = Array.from(new Set(errorMessages))
+  if (uniqueMessages.length <= 3) {
+    // 错误数量少，显示所有错误
+    return `请检查以下字段：${uniqueMessages.join('；')}`
+  } else {
+    // 错误数量多，只显示前几个
+    return `请检查以下字段：${uniqueMessages.slice(0, 3).join('；')}等共 ${errorCount} 个字段`
+  }
+}
+
+/**
+ * 验证单个字段
+ * 
+ * 符合依赖倒置原则：让 Widget 自己负责验证逻辑
+ * - 容器 Widget（FormWidget、TableWidget）：通过 ref 调用其 validate 方法，自行处理嵌套字段
+ * - 基础 Widget：直接使用验证引擎验证
+ */
+function validateField(field: FieldConfig): void {
+  const fieldPath = field.code
+  const allFields = props.functionDetail?.request || []
+  const widgetRef = widgetRefs.get(fieldPath)
+  
+  // 容器 Widget：通过 ref 调用其 validate 方法（会递归验证嵌套字段）
+  if (widgetRef && typeof widgetRef.validate === 'function') {
+    const errors = widgetRef.validate(validationEngine.value, allFields, fieldErrors)
+    updateFieldErrors(fieldPath, errors)
+    return
+  }
+  
+  // 基础 Widget：直接验证
+  const value = formDataStore.getValue(fieldPath)
+  if (field.validation) {
+    const errors = validationEngine.value.validateField(field, value, allFields)
+    updateFieldErrors(fieldPath, errors)
+  } else {
+    fieldErrors.delete(fieldPath)
+  }
+}
+
+/**
+ * 更新字段错误状态
+ */
+function updateFieldErrors(fieldPath: string, errors: ValidationResult[]): void {
+  if (errors && errors.length > 0) {
+    fieldErrors.set(fieldPath, errors)
+  } else {
+    fieldErrors.delete(fieldPath)
+  }
+}
+
+/**
+ * 验证所有字段
+ * 
+ * 符合依赖倒置原则：只验证顶层字段，嵌套字段的验证由 Widget 自己负责
+ * 
+ * @returns 是否有验证错误
+ */
+function validateAllFields(): boolean {
+  fieldErrors.clear()
+  
+  // 验证所有顶层字段（嵌套字段由 Widget 自行验证）
+  requestFields.value.forEach((field: FieldConfig) => {
+    validateField(field)
+  })
+  
+  // 检查是否有错误（包括嵌套字段的错误）
+  let hasError = false
+  fieldErrors.forEach((errors) => {
+    if (errors && errors.length > 0) {
+      hasError = true
+    }
+  })
+  
+  if (hasError) {
+    Logger.warn('[FormRenderer-v2]', '表单验证失败', {
+      errorCount: fieldErrors.size,
+      errors: Array.from(fieldErrors.entries()).map(([path, errs]) => ({
+        path,
+        messages: errs.map(e => e.message)
+      }))
+    })
+  }
+  
+  return hasError
 }
 
 // FormRenderer 上下文（兼容旧接口）
@@ -372,8 +617,10 @@ const formRendererContext: FormRendererContext = {
   unregisterWidget: () => {},
   getFunctionMethod: () => props.functionDetail.method,
   getFunctionRouter: () => props.functionDetail.router,
-  getSubmitData: () => formDataStore.getSubmitData(requestFields.value)
-}
+  getSubmitData: () => formDataStore.getSubmitData(requestFields.value),
+  // 添加获取字段错误的方法，供嵌套 Widget 使用
+  getFieldError: (fieldPath: string) => getFieldError(fieldPath)
+} as any
 
 // 条件渲染评估（适配 formDataStore）
 function shouldShowFieldInForm(
@@ -440,7 +687,24 @@ function handleReset(): void {
 }
 
 // 提交表单
+/**
+ * 提交表单
+ */
 async function handleSubmit(): Promise<void> {
+  // 验证所有字段
+  const hasError = validateAllFields()
+  
+  if (hasError) {
+    // 生成并显示友好的错误提示
+    const errorMessage = generateErrorMessage()
+    ElMessage.error(errorMessage)
+    
+    // TODO: 实现滚动到第一个错误字段
+    return
+  }
+  
+  // 验证通过，开始提交
+  
   submitting.value = true
   
   try {

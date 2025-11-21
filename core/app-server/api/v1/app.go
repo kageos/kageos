@@ -53,7 +53,10 @@ func (a *App) CreateApp(c *gin.Context) {
 		return
 	}
 	req.User = contextx.GetRequestUser(c)
-	app, err := a.appService.CreateApp(c, &req)
+	// 将 gin.Context 转换为标准 context.Context，解析 header 并放入 context.Value
+	// 这样即使内部使用 context.WithValue，也能通过 context.Value 获取到值
+	ctx := contextx.ToContext(c)
+	app, err := a.appService.CreateApp(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -77,7 +80,7 @@ func (a *App) UpdateApp(c *gin.Context) {
 	var err error
 
 	// 从JWT Token获取用户信息
-	user := contextx.GetUserInfo(c)
+	user := contextx.GetRequestUser(c)
 	if user == "" {
 		response.FailWithMessage(c, "无法获取用户信息")
 		return
@@ -101,7 +104,8 @@ func (a *App) UpdateApp(c *gin.Context) {
 		logger.Infof(c, "UpdateApp req:%+v resp:%+v err:%v", req, resp, err)
 	}()
 
-	resp, err = a.appService.UpdateApp(c, req)
+	ctx := contextx.ToContext(c)
+	resp, err = a.appService.UpdateApp(ctx, req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -172,7 +176,8 @@ func (a *App) RequestApp(c *gin.Context) {
 	req.UrlQuery = c.Request.URL.RawQuery
 
 	// 调用服务层
-	resp, err = a.appService.RequestApp(c, &req)
+	ctx := contextx.ToContext(c)
+	resp, err = a.appService.RequestApp(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -273,7 +278,8 @@ func (a *App) CallbackApp(c *gin.Context) {
 	req.Body = marshal
 
 	// 调用服务层
-	resp, err = a.appService.RequestApp(c, &req)
+	ctx := contextx.ToContext(c)
+	resp, err = a.appService.RequestApp(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -310,7 +316,7 @@ func (a *App) DeleteApp(c *gin.Context) {
 	var err error
 
 	// 从JWT Token获取用户信息
-	user := contextx.GetUserInfo(c)
+	user := contextx.GetRequestUser(c)
 	if user == "" {
 		response.FailWithMessage(c, "无法获取用户信息")
 		return
@@ -334,7 +340,8 @@ func (a *App) DeleteApp(c *gin.Context) {
 		logger.Infof(c, "DeleteApp req:%+v resp:%+v err:%v", req, resp, err)
 	}()
 
-	resp, err = a.appService.DeleteApp(c, req)
+	ctx := contextx.ToContext(c)
+	resp, err = a.appService.DeleteApp(ctx, req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -366,7 +373,7 @@ func (a *App) GetApps(c *gin.Context) {
 	}()
 
 	// 从JWT Token获取用户信息
-	user := contextx.GetUserInfo(c)
+	user := contextx.GetRequestUser(c)
 	if user == "" {
 		response.FailWithMessage(c, "无法获取用户信息")
 		return
@@ -387,7 +394,8 @@ func (a *App) GetApps(c *gin.Context) {
 		Search: search,
 	}
 
-	resp, err = a.appService.GetApps(c, &req)
+	ctx := contextx.ToContext(c)
+	resp, err = a.appService.GetApps(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return

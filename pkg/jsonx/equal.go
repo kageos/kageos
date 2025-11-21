@@ -102,3 +102,15 @@ func Canonicalize(value interface{}) (interface{}, error) {
 
 	return result, nil
 }
+
+func Convert(src, dest interface{}) error {
+	jsonBytes, err := json.Marshal(src)
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(jsonBytes, dest)
+	if err != nil {
+		return err
+	}
+	return nil
+}

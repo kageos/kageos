@@ -97,3 +97,24 @@ func (r *UserRepository) UpdateUser(user *model.User) error {
 func (r *UserRepository) DeleteUser(id int64) error {
 	return r.db.Delete(&model.User{}, id).Error
 }
+
+// SearchUsersFuzzy 模糊查询用户（根据用户名、邮箱或昵称）
+func (r *UserRepository) SearchUsersFuzzy(keyword string, limit int) ([]*model.User, error) {
+	var users []*model.User
+	query := r.db.Where("username LIKE ? OR email LIKE ? OR nickname LIKE ?", "%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+	err := query.Find(&users).Error
+	return users, err
+}
+
+// GetUsersByUsernames 根据用户名列表批量获取用户信息
+func (r *UserRepository) GetUsersByUsernames(usernames []string) ([]*model.User, error) {
+	if len(usernames) == 0 {
+		return []*model.User{}, nil
+	}
+	var users []*model.User
+	err := r.db.Where("username IN ?", usernames).Find(&users).Error
+	return users, err
+}

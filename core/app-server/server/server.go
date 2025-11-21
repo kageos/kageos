@@ -36,6 +36,7 @@ type Server struct {
 	appRuntime         *service.AppRuntime
 	serviceTreeService *service.ServiceTreeService
 	functionService    *service.FunctionService
+	userService        *service.UserService
 
 	// 上游服务
 	natsService *service.NatsService
@@ -233,6 +234,9 @@ func (s *Server) initServices(ctx context.Context) error {
 
 	// 初始化函数服务（需要更多依赖）
 	s.functionService = service.NewFunctionService(functionRepo, sourceCodeRepo, appRepo, serviceTreeRepo, s.appRuntime, s.appService)
+
+	// 初始化用户服务
+	s.userService = service.NewUserService(userRepo)
 
 	logger.Infof(ctx, "[Server] Services initialized successfully")
 	return nil

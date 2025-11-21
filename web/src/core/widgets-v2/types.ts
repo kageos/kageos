@@ -48,6 +48,9 @@ export interface WidgetComponentProps {
   
   /** 行索引（用于 table-cell 模式） */
   rowIndex?: number
+  
+  /** 用户信息映射（用于 UserWidget 批量查询优化，避免重复调用接口） */
+  userInfoMap?: Map<string, any>
 }
 
 /**

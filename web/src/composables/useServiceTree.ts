@@ -70,6 +70,24 @@ export function useServiceTree() {
   }
 
   /**
+   * 根据 tree_id 查找节点（递归）
+   */
+  const findNodeById = (tree: ServiceTree[], treeId: number): ServiceTree | null => {
+    for (const node of tree) {
+      if (node.id === treeId) {
+        return node
+      }
+      if (node.children && node.children.length > 0) {
+        const found = findNodeById(node.children, treeId)
+        if (found) {
+          return found
+        }
+      }
+    }
+    return null
+  }
+
+  /**
    * 根据路由路径定位节点
    */
   const locateNodeByRoute = (routePath?: string): ServiceTree | null => {
@@ -138,6 +156,7 @@ export function useServiceTree() {
     // 方法
     loadServiceTree,
     findNodeByPath,
+    findNodeById,
     locateNodeByRoute,
     handleCreateDirectory,
     clear

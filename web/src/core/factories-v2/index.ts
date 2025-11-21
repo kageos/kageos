@@ -25,6 +25,7 @@ import FilesWidget from '../widgets-v2/components/FilesWidget.vue'
 import TimestampWidget from '../widgets-v2/components/TimestampWidget.vue'
 import FormWidget from '../widgets-v2/components/FormWidget.vue'
 import TableWidget from '../widgets-v2/components/TableWidget.vue'
+import UserWidget from '../widgets-v2/components/UserWidget.vue'
 
 /**
  * 初始化组件工厂
@@ -56,6 +57,7 @@ export function initializeWidgetComponentFactory(): void {
   // 容器组件
   widgetComponentFactory.registerRequestComponent(WidgetType.FORM, FormWidget)
   widgetComponentFactory.registerRequestComponent(WidgetType.TABLE, TableWidget)
+  widgetComponentFactory.registerRequestComponent(WidgetType.USER, UserWidget)
   
   // 响应参数组件（Text 主要用于响应模式）
   widgetComponentFactory.registerResponseComponent(WidgetType.TEXT, TextWidget)

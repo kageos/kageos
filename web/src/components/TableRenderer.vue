@@ -153,6 +153,7 @@
       :mode="dialogMode"
       :router="props.functionData.router"
       :initial-data="currentRow"
+      :user-info-map="userInfoMap"
       @submit="handleDialogSubmit"
     />
 
@@ -227,6 +228,7 @@
         </div>
       </div>
     </el-drawer>
+
   </div>
 </template>
 
@@ -247,7 +249,7 @@
  * - 记录导航（上一个/下一个）
  */
 
-import { computed, ref, watch, h, nextTick, onMounted, onUpdated, isVNode } from 'vue'
+import { computed, ref, watch, h, nextTick, onMounted, onUpdated, onUnmounted, isVNode } from 'vue'
 import { Search, Refresh, Edit, Delete, Plus, ArrowLeft, ArrowRight, DocumentCopy, Document, Download } from '@element-plus/icons-vue'
 import { ElIcon, ElButton, ElMessage } from 'element-plus'
 import { formatTimestamp } from '@/utils/date'
@@ -258,12 +260,14 @@ import { convertToFieldValue } from '@/utils/field'
 import { WidgetType } from '@/core/constants/widget'
 import FormDialog from './FormDialog.vue'
 import SearchInput from './SearchInput.vue'
-import type { Function as FunctionType } from '@/types'
+import type { Function as FunctionType, ServiceTree } from '@/types'
 import type { FieldConfig, FieldValue } from '@/core/types/field'
 
 interface Props {
   /** 函数配置数据 */
   functionData: FunctionType
+  /** 当前函数节点（来自 ServiceTree） */
+  currentFunction?: ServiceTree
 }
 
 const props = defineProps<Props>()
@@ -318,6 +322,71 @@ const currentDetailRow = ref<any>(null)
 
 /** 当前详情的行索引 */
 const currentDetailIndex = ref(-1)
+
+// ==================== 用户信息批量查询优化 ====================
+
+/** 用户信息映射（username -> UserInfo） */
+const userInfoMap = ref<Map<string, any>>(new Map())
+
+/**
+ * 🔥 批量查询用户信息
+ * 在数据加载完成后，识别所有 user 类型字段，收集所有 username，去重后批量查询
+ */
+async function batchLoadUserInfo(): Promise<void> {
+  try {
+    // 1. 识别所有 user 类型的字段
+    const userFields = visibleFields.value.filter((field: FieldConfig) => field.widget?.type === 'user')
+    
+    if (userFields.length === 0) {
+      userInfoMap.value = new Map()
+      return
+    }
+    
+    // 2. 收集所有行数据中这些字段的值（username）
+    const usernames = new Set<string>()
+    tableData.value.forEach((row: any) => {
+      userFields.forEach((field: FieldConfig) => {
+        const value = row[field.code]
+        if (value !== null && value !== undefined && value !== '') {
+          usernames.add(String(value))
+        }
+      })
+    })
+    
+    if (usernames.size === 0) {
+      userInfoMap.value = new Map()
+      return
+    }
+    
+    // 3. 去重后批量查询用户信息
+    const { getUsersByUsernames } = await import('@/api/user')
+    const response = await getUsersByUsernames(Array.from(usernames))
+    
+    // 4. 构建映射
+    const map = new Map<string, any>()
+    if (response.users && Array.isArray(response.users)) {
+      response.users.forEach((user: any) => {
+        if (user.username) {
+          map.set(user.username, user)
+        }
+      })
+    }
+    
+    userInfoMap.value = map
+  } catch (error) {
+    console.error('[TableRenderer] 批量查询用户信息失败:', error)
+    userInfoMap.value = new Map()
+  }
+}
+
+// 监听 tableData 变化，自动批量查询用户信息
+watch(() => tableData.value, () => {
+  if (tableData.value && tableData.value.length > 0) {
+    batchLoadUserInfo()
+  } else {
+    userInfoMap.value = new Map()
+  }
+}, { immediate: true, deep: false })
 
 // ==================== 对话框相关 ====================
 
@@ -439,7 +508,8 @@ const renderTableCell = (field: FieldConfig, rawValue: any): { content: any, isS
     
     // 🔥 调用 Widget 的 renderTableCell() 方法（组件自治）
     // 每个 Widget 可以重写此方法来自定义表格展示
-    const result = tempWidget.renderTableCell(value)
+    // 传递 userInfoMap 用于批量查询优化
+    const result = tempWidget.renderTableCell(value, userInfoMap.value)
     
     // 🔥 统一返回格式：区分字符串和 VNode
     // 使用 isVNode 来正确识别 VNode 对象
@@ -495,8 +565,16 @@ const renderDetailField = (field: FieldConfig, rawValue: any): any => {
       value: value
     })
     
+    // 🔥 准备上下文信息（function name 和记录ID，用于某些组件如FilesWidget的打包下载功能）
+    // 同时传递 userInfoMap 用于批量查询优化
+    const context = {
+      functionName: props.currentFunction?.name || props.currentFunction?.code || '',
+      recordId: currentDetailRow.value?.id || currentDetailRow.value?.[idField.value?.code || 'id'],
+      userInfoMap: userInfoMap.value
+    }
+    
     // 🔥 调用 Widget 的 renderForDetail() 方法（组件自治）
-    const result = widget.renderForDetail(value)
+    const result = widget.renderForDetail(value, context)
     
     // 🔥 如果返回的是字符串，需要包装成 VNode
     if (typeof result === 'string') {
@@ -679,6 +757,11 @@ onMounted(() => {
 
 onUpdated(() => {
   fixFixedColumnClick()
+})
+
+onUnmounted(() => {
+  // 移除事件监听
+  window.removeEventListener('resize', fixFixedColumnClick)
 })
 </script>
 

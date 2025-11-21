@@ -33,6 +33,7 @@
           :key="subField.code"
           :label="subField.name"
           :required="isFieldRequired(subField)"
+          :error="getSubFieldError(subField.code)"
           class="form-widget-item"
         >
           <!-- 🔥 递归渲染子组件 -->
@@ -176,6 +177,8 @@ import type { WidgetComponentProps } from '../types'
 import { useFormWidget } from '../composables/useFormWidget'
 import { widgetComponentFactory } from '../../factories-v2'
 import type { FieldConfig } from '../../types/field'
+import type { ValidationEngine, ValidationResult } from '../../validation/types'
+import { validateFieldValue, validateFormWidgetNestedFields, type WidgetValidationContext } from '../composables/useWidgetValidation'
 
 const props = defineProps<WidgetComponentProps>()
 
@@ -214,6 +217,76 @@ function isFieldRequired(field: FieldConfig): boolean {
   const validation = field.validation || ''
   return validation.includes('required') && !validation.includes('omitempty')
 }
+
+/**
+ * 获取嵌套字段的错误信息（用于显示在表单项下方）
+ */
+function getSubFieldError(subFieldCode: string): string {
+  const subFieldPath = `${props.fieldPath}.${subFieldCode}`
+  
+  // 从 formRenderer 获取错误（如果可用）
+  if (props.formRenderer && typeof (props.formRenderer as any).getFieldError === 'function') {
+    return (props.formRenderer as any).getFieldError(subFieldPath)
+  }
+  
+  return ''
+}
+
+/**
+ * 验证当前 Widget 及其嵌套字段
+ * 
+ * 符合依赖倒置原则：FormWidget 自己负责验证嵌套字段
+ * 
+ * @param validationEngine 验证引擎
+ * @param allFields 所有字段配置
+ * @param fieldErrors 错误存储 Map（用于存储嵌套字段的错误）
+ * @returns 当前字段的错误列表
+ */
+function validate(
+  validationEngine: ValidationEngine | null,
+  allFields: FieldConfig[],
+  fieldErrors: Map<string, ValidationResult[]>
+): ValidationResult[] {
+  const context: WidgetValidationContext = {
+    validationEngine,
+    allFields,
+    fieldErrors
+  }
+  
+  // 1. 验证当前字段（如果有验证规则）
+  const currentFieldErrors = validateFieldValue(props.field, props.fieldPath, context)
+  updateFieldErrors(props.fieldPath, currentFieldErrors, fieldErrors)
+  
+  // 2. 验证嵌套字段（FormWidget 自己负责）
+  const nestedErrors = validateFormWidgetNestedFields(props.field, props.fieldPath, context)
+  
+  // 3. 将嵌套字段的错误存储到 fieldErrors 中
+  nestedErrors.forEach((errors, path) => {
+    updateFieldErrors(path, errors, fieldErrors)
+  })
+  
+  return currentFieldErrors
+}
+
+/**
+ * 更新字段错误状态
+ */
+function updateFieldErrors(
+  fieldPath: string,
+  errors: ValidationResult[],
+  fieldErrors: Map<string, ValidationResult[]>
+): void {
+  if (errors.length > 0) {
+    fieldErrors.set(fieldPath, errors)
+  } else {
+    fieldErrors.delete(fieldPath)
+  }
+}
+
+// 🔥 暴露验证方法给父组件
+defineExpose({
+  validate
+})
 </script>
 
 <style scoped>

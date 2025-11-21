@@ -35,6 +35,17 @@ const router = createRouter({
       }
     },
 
+    // 用户设置页面
+    {
+      path: '/user/settings',
+      name: 'user-settings',
+      component: () => import('../views/User/Settings.vue'),
+      meta: {
+        title: '个人设置',
+        requireAuth: true
+      }
+    },
+
     // 首页 - workspace页面（支持路径参数）
     {
       path: '/workspace',
@@ -54,6 +65,7 @@ const router = createRouter({
         requireAuth: true
       }
     },
+    
     
     // 重定向根路径到workspace
     {

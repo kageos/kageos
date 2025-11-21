@@ -31,6 +31,55 @@
           <div class="right-section">
             <!-- 主题切换按钮 -->
             <ThemeToggle />
+            
+            <!-- 用户菜单 -->
+            <el-dropdown
+              v-if="isAuthenticated"
+              trigger="click"
+              placement="bottom-end"
+              @command="handleUserCommand"
+              class="user-menu-dropdown"
+            >
+              <div class="user-info">
+                <el-avatar
+                  :size="32"
+                  :src="userAvatar"
+                  class="user-avatar"
+                >
+                  <el-icon><User /></el-icon>
+                </el-avatar>
+                <span class="user-name">{{ userName || '用户' }}</span>
+                <el-icon class="dropdown-icon"><ArrowDown /></el-icon>
+              </div>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item disabled>
+                    <div class="user-menu-header">
+                      <div class="user-menu-name">{{ userName || '用户' }}</div>
+                      <div class="user-menu-email">{{ userEmail || '' }}</div>
+                    </div>
+                  </el-dropdown-item>
+                  <el-dropdown-item command="settings">
+                    <el-icon><Setting /></el-icon>
+                    <span>个人设置</span>
+                  </el-dropdown-item>
+                  <el-dropdown-item divided command="logout">
+                    <el-icon><SwitchButton /></el-icon>
+                    <span>退出登录</span>
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+            
+            <!-- 未登录时显示登录按钮 -->
+            <el-button
+              v-else
+              type="primary"
+              @click="handleLogin"
+              class="login-button"
+            >
+              登录
+            </el-button>
           </div>
         </div>
 
@@ -110,6 +159,7 @@
             <TableRenderer
               v-if="functionDetail.template_type === 'table'"
               :function-data="functionDetail"
+              :current-function="currentFunction"
             />
             
             <!-- Form类型：显示 FormRenderer（新架构） -->
@@ -347,8 +397,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, ArrowRight, Grid, InfoFilled, Folder } from '@element-plus/icons-vue'
-import { ElMessage, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon } from 'element-plus'
+import { ArrowLeft, ArrowRight, Grid, InfoFilled, Folder, User, ArrowDown, SwitchButton, Setting } from '@element-plus/icons-vue'
+import { ElMessage, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon, ElAvatar, ElDropdown, ElDropdownMenu, ElDropdownItem } from 'element-plus'
 import ServiceTreePanel from '@/components/ServiceTreePanel.vue'
 import TableRenderer from '@/components/TableRenderer.vue'
 import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
@@ -359,10 +409,14 @@ import { getFunctionDetail, getFunctionByPath } from '@/api/function'
 import { createServiceTree } from '@/api/service-tree'
 import { useAppManager } from '@/composables/useAppManager'
 import { useServiceTree } from '@/composables/useServiceTree'
+import { useAuthStore } from '@/stores/auth'
 import type { ServiceTree, CreateServiceTreeRequest, CreateAppRequest, Function as FunctionType } from '@/types'
 
 const route = useRoute()
 const router = useRouter()
+
+// 用户认证
+const authStore = useAuthStore()
 
 // 🔥 使用 Composables（组件化逻辑）
 const {
@@ -882,6 +936,41 @@ const toggleRightSidebar = () => {
   showRightSidebar.value = !showRightSidebar.value
 }
 
+// 用户相关
+const isAuthenticated = computed(() => authStore.isAuthenticated)
+const userEmail = computed(() => authStore.userEmail || authStore.user?.email || '')
+const userAvatar = computed(() => authStore.user?.avatar || '')
+
+// 用户显示名称：username(昵称) 或 username
+const userName = computed(() => {
+  const user = authStore.user
+  if (!user) return '用户'
+  const username = user.username || ''
+  const nickname = user.nickname || ''
+  if (nickname) {
+    return `${username}(${nickname})`
+  }
+  return username
+})
+
+// 处理用户菜单命令
+const handleUserCommand = async (command: string) => {
+  if (command === 'logout') {
+    try {
+      await authStore.logout()
+    } catch (error) {
+      console.error('登出失败:', error)
+    }
+  } else if (command === 'settings') {
+    router.push('/user/settings')
+  }
+}
+
+// 跳转到登录页
+const handleLogin = () => {
+  router.push('/login')
+}
+
 // 返回列表
 const backToList = () => {
   router.push({ query: { ...route.query, tab: 'run' } })
@@ -1116,6 +1205,74 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+/* 用户菜单 */
+.user-menu-dropdown {
+  cursor: pointer;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  transition: background-color 0.2s;
+}
+
+.user-info:hover {
+  background-color: var(--el-fill-color-light);
+}
+
+.user-avatar {
+  flex-shrink: 0;
+}
+
+.user-name {
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dropdown-icon {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  transition: transform 0.2s;
+}
+
+.user-menu-dropdown.is-open .dropdown-icon {
+  transform: rotate(180deg);
+}
+
+.login-button {
+  font-size: 14px;
+}
+
+/* 用户菜单下拉项 */
+.user-menu-header {
+  padding: 4px 0;
+  min-width: 160px;
+}
+
+.user-menu-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+  margin-bottom: 4px;
+}
+
+.user-menu-email {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.el-dropdown-menu__item[disabled] {
+  cursor: default;
+  opacity: 1;
 }
 
 /* 右侧边栏控制按钮 */
