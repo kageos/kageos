@@ -301,7 +301,9 @@
                 </el-avatar>
                 <span class="file-upload-user-name">
                   <template v-if="getFileUploadUserInfo(file)">
-                    {{ getFileUploadUserInfo(file)?.nickname || getFileUploadUserInfo(file)?.username || file.upload_user }}
+                    {{ getFileUploadUserInfo(file)?.nickname 
+                      ? `${getFileUploadUserInfo(file)?.username}(${getFileUploadUserInfo(file)?.nickname})` 
+                      : (getFileUploadUserInfo(file)?.username || file.upload_user) }}
                   </template>
                   <template v-else>
                     <!-- 如果用户信息未加载，至少显示用户名 -->
