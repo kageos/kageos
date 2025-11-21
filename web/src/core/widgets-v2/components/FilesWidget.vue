@@ -476,9 +476,6 @@ const currentDetailFile = ref<FileItem | null>(null)
 // 打包下载状态
 const downloadingAll = ref(false)
 
-// 打包下载状态
-const downloadingAll = ref(false)
-
 // 上传中的文件状态
 interface UploadingFile {
   uid: string
