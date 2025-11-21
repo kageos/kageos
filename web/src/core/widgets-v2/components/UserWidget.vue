@@ -835,7 +835,7 @@ onMounted(() => {
 
 .user-detail {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 16px;
 }
 
@@ -847,6 +847,7 @@ onMounted(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 4px;
 }
 
