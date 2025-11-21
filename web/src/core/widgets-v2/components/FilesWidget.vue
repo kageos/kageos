@@ -362,6 +362,33 @@
                 </div>
               </div>
               
+              <!-- 🔥 文件上传用户信息（右侧显示） -->
+              <div v-if="file.upload_user && !isSameUploadUser" class="file-upload-user">
+                <el-avatar
+                  v-if="getFileUploadUserInfo(file)"
+                  :src="getFileUploadUserInfo(file)?.avatar"
+                  :size="20"
+                  class="file-upload-user-avatar"
+                >
+                  {{ getFileUploadUserInfo(file)?.username?.[0]?.toUpperCase() || 'U' }}
+                </el-avatar>
+                <el-avatar
+                  v-else
+                  :size="20"
+                  class="file-upload-user-avatar"
+                >
+                  {{ file.upload_user[0]?.toUpperCase() || 'U' }}
+                </el-avatar>
+                <span class="file-upload-user-name">
+                  <template v-if="getFileUploadUserInfo(file)">
+                    {{ getFileUploadUserInfo(file)?.nickname || getFileUploadUserInfo(file)?.username || file.upload_user }}
+                  </template>
+                  <template v-else>
+                    {{ file.upload_user }}
+                  </template>
+                </span>
+              </div>
+              
               <!-- 操作按钮 -->
               <div class="file-actions">
                 <el-button
@@ -586,13 +613,14 @@ interface FileItem {
   url: string
   server_url?: string
   downloaded?: boolean
+  upload_user?: string  // 🔥 每个文件的上传用户
 }
 
 interface FilesData {
   files: FileItem[]
   remark: string
   metadata: Record<string, any>
-  upload_user?: string    // 文件上传的用户
+  upload_user?: string    // 🔥 保留作为兼容字段（已废弃，使用 FileItem.upload_user）
   widget_type?: string    // Widget 类型，值为 "files"
   data_type?: string      // 数据类型，值为 "struct"
 }
@@ -619,28 +647,49 @@ const remark = computed({
   },
 })
 
-// 获取上传用户信息
-const uploadUser = computed(() => {
-  const raw = props.value?.raw
-  if (raw && typeof raw === 'object' && 'upload_user' in raw) {
-    return (raw as FilesData).upload_user || ''
+// 🔥 获取所有文件的上传用户（去重）
+const allUploadUsers = computed(() => {
+  const users = new Set<string>()
+  currentFiles.value.forEach((file: FileItem) => {
+    if (file.upload_user) {
+      users.add(file.upload_user)
+    }
+  })
+  return Array.from(users)
+})
+
+// 🔥 判断所有文件是否是同一个用户上传的
+const isSameUploadUser = computed(() => {
+  return allUploadUsers.value.length === 1
+})
+
+// 🔥 获取统一的上传用户（如果所有文件是同一个用户上传的）
+const unifiedUploadUser = computed(() => {
+  if (isSameUploadUser.value && allUploadUsers.value.length > 0) {
+    return allUploadUsers.value[0]
   }
-  return ''
+  return null
 })
 
-// 获取上传用户的用户信息
-const uploadUserInfo = computed(() => {
-  if (!uploadUser.value) return null
-  return userInfoStore.getUserInfo(uploadUser.value)
+// 🔥 获取统一上传用户的用户信息
+const unifiedUploadUserInfo = computed(() => {
+  if (!unifiedUploadUser.value) return null
+  return userInfoStore.getUserInfo(unifiedUploadUser.value)
 })
 
-// 🔥 监听 uploadUser 变化，自动加载用户信息
+// 🔥 获取文件的上传用户信息
+function getFileUploadUserInfo(file: FileItem) {
+  if (!file.upload_user) return null
+  return userInfoStore.getUserInfo(file.upload_user)
+}
+
+// 🔥 监听所有上传用户变化，自动加载用户信息
 watch(
-  () => uploadUser.value,
-  (newUsername: string | undefined) => {
-    if (newUsername && props.mode === 'detail') {
-      // 触发用户信息加载
-      userInfoStore.batchGetUserInfo([newUsername]).catch((error: any) => {
+  () => allUploadUsers.value,
+  (usernames: string[]) => {
+    if (usernames.length > 0 && props.mode === 'detail') {
+      // 批量加载所有上传用户信息
+      userInfoStore.batchGetUserInfo(usernames).catch((error: any) => {
         Logger.error('[FilesWidget] 加载上传用户信息失败', error)
       })
     }
@@ -650,8 +699,8 @@ watch(
 
 // 🔥 组件挂载时，如果有上传用户，触发加载
 onMounted(() => {
-  if (uploadUser.value && props.mode === 'detail') {
-    userInfoStore.batchGetUserInfo([uploadUser.value]).catch((error: any) => {
+  if (allUploadUsers.value.length > 0 && props.mode === 'detail') {
+    userInfoStore.batchGetUserInfo(allUploadUsers.value).catch((error: any) => {
       Logger.error('[FilesWidget] 加载上传用户信息失败', error)
     })
   }
@@ -1700,6 +1749,27 @@ function handleFileChange(file: any): void {
 
 .preview-tag {
   flex-shrink: 0;
+}
+
+/* 🔥 文件上传用户信息（右侧显示） */
+.file-upload-user {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-right: 8px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.file-upload-user-avatar {
+  flex-shrink: 0;
+}
+
+.file-upload-user-name {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
 }
 
 /* 操作按钮 */
