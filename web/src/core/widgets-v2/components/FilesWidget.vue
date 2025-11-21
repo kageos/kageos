@@ -254,10 +254,30 @@
     <template v-else-if="mode === 'detail'">
       <div class="detail-files">
         <div v-if="currentFiles.length > 0" class="uploaded-files">
+          <!-- 🔥 预加载上传用户信息 -->
+          <div v-if="uploadUser" style="display: none;">
+            {{ userInfoStore.getUserInfo(uploadUser) }}
+          </div>
           <!-- 🔥 参考旧版本的布局：标题和打包下载按钮 -->
           <div class="detail-files-header">
-            <div class="section-title">
-              已上传文件 ({{ currentFiles.length }})
+            <div class="header-left">
+              <div class="section-title">
+                已上传文件 ({{ currentFiles.length }})
+              </div>
+              <!-- 🔥 上传用户信息 -->
+              <div v-if="uploadUser" class="upload-user-info-header">
+                <el-avatar
+                  v-if="uploadUserInfo"
+                  :src="uploadUserInfo.avatar"
+                  :size="20"
+                  class="upload-user-avatar"
+                >
+                  {{ uploadUserInfo.username?.[0]?.toUpperCase() || 'U' }}
+                </el-avatar>
+                <span class="upload-user-name">
+                  上传者：{{ uploadUserInfo?.nickname || uploadUserInfo?.username || uploadUser }}
+                </span>
+              </div>
             </div>
             <el-button
               v-if="currentFiles.some((f: FileItem) => f.is_uploaded)"
@@ -470,6 +490,7 @@ import { uploadFile, notifyBatchUploadComplete } from '@/utils/upload'
 import type { FileInfo, BatchUploadCompleteItem, UploadProgress, UploadFileResult } from '@/utils/upload'
 import type { Uploader } from '@/utils/upload'
 import { useFormDataStore } from '../../stores-v2/formData'
+import { useUserInfoStore } from '@/stores/userInfo'
 import { Logger } from '../../utils/logger'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
@@ -485,6 +506,7 @@ const props = withDefaults(defineProps<WidgetComponentProps>(), {
 })
 
 const formDataStore = useFormDataStore()
+const userInfoStore = useUserInfoStore()
 
 // 常量定义
 const MAX_DISPLAY_FILES = 3
@@ -578,6 +600,21 @@ const remark = computed({
   set: (val: string) => {
     updateRemark(val)
   },
+})
+
+// 获取上传用户信息
+const uploadUser = computed(() => {
+  const raw = props.value?.raw
+  if (raw && typeof raw === 'object' && 'upload_user' in raw) {
+    return (raw as FilesData).upload_user || ''
+  }
+  return ''
+})
+
+// 获取上传用户的用户信息
+const uploadUserInfo = computed(() => {
+  if (!uploadUser.value) return null
+  return userInfoStore.getUserInfo(uploadUser.value)
 })
 
 const isDisabled = computed(() => {
@@ -1528,6 +1565,13 @@ function handleFileChange(file: any): void {
   margin-bottom: 16px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
 }
 
 .section-title {
