@@ -49,7 +49,6 @@
     
     <!-- 详情模式 -->
     <div v-else-if="mode === 'detail'" class="detail-checkbox">
-      <div class="detail-label">{{ field.name }}</div>
       <div class="detail-content">
         <el-tag
           v-for="(value, index) in displayValues"

@@ -35,7 +35,6 @@
     
     <!-- 详情模式 -->
     <div v-else-if="mode === 'detail'" class="detail-value">
-      <div class="detail-label">{{ field.name }}</div>
       <div class="detail-content">
         <el-tag :type="displayValue ? 'success' : 'info'" size="small">
           {{ displayValue ? activeText : inactiveText }}
