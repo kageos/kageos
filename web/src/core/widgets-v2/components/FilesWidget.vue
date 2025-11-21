@@ -260,34 +260,6 @@
               <div class="section-title">
                 已上传文件 ({{ currentFiles.length }})
               </div>
-              <!-- 🔥 如果所有文件是同一个用户上传的，在标题区域显示 -->
-              <div v-if="isSameUploadUser && unifiedUploadUser" class="upload-user-info-header">
-                <el-avatar
-                  v-if="unifiedUploadUserInfo"
-                  :src="unifiedUploadUserInfo.avatar"
-                  :size="20"
-                  class="upload-user-avatar"
-                >
-                  {{ unifiedUploadUserInfo.username?.[0]?.toUpperCase() || 'U' }}
-                </el-avatar>
-                <el-avatar
-                  v-else
-                  :size="20"
-                  class="upload-user-avatar"
-                >
-                  {{ unifiedUploadUser[0]?.toUpperCase() || 'U' }}
-                </el-avatar>
-                <span class="upload-user-name">
-                  <template v-if="unifiedUploadUserInfo">
-                    <!-- 🔥 优先显示昵称，如果没有昵称则显示用户名 -->
-                    上传者：{{ unifiedUploadUserInfo.nickname || unifiedUploadUserInfo.username || unifiedUploadUser }}
-                  </template>
-                  <template v-else>
-                    <!-- 🔥 用户信息加载中，显示原始用户名 -->
-                    上传者：{{ unifiedUploadUser }}
-                  </template>
-                </span>
-              </div>
             </div>
             <el-button
               v-if="currentFiles.some((f: FileItem) => f.is_uploaded)"
@@ -313,12 +285,12 @@
               <!-- 🔥 文件上传用户信息（左侧显示） -->
               <div v-if="file.upload_user" class="file-upload-user">
                 <el-avatar
-                  v-if="getFileUploadUserInfo(file)"
-                  :src="getFileUploadUserInfo(file)?.avatar"
+                  v-if="getFileUploadUserInfo.value(file)"
+                  :src="getFileUploadUserInfo.value(file)?.avatar"
                   :size="24"
                   class="file-upload-user-avatar"
                 >
-                  {{ getFileUploadUserInfo(file)?.username?.[0]?.toUpperCase() || 'U' }}
+                  {{ getFileUploadUserInfo.value(file)?.username?.[0]?.toUpperCase() || 'U' }}
                 </el-avatar>
                 <el-avatar
                   v-else
@@ -328,10 +300,11 @@
                   {{ file.upload_user[0]?.toUpperCase() || 'U' }}
                 </el-avatar>
                 <span class="file-upload-user-name">
-                  <template v-if="getFileUploadUserInfo(file)">
-                    {{ getFileUploadUserInfo(file)?.nickname || getFileUploadUserInfo(file)?.username || file.upload_user }}
+                  <template v-if="getFileUploadUserInfo.value(file)">
+                    {{ getFileUploadUserInfo.value(file)?.nickname || getFileUploadUserInfo.value(file)?.username || file.upload_user }}
                   </template>
                   <template v-else>
+                    <!-- 如果用户信息未加载，至少显示用户名 -->
                     {{ file.upload_user }}
                   </template>
                 </span>
