@@ -17,7 +17,7 @@
           <el-avatar :src="user.avatar" :size="20" class="user-avatar">
             {{ user.username?.[0]?.toUpperCase() || 'U' }}
           </el-avatar>
-          <span class="user-name">{{ user.nickname ? `${user.username}(${user.nickname})` : user.username }}</span>
+          <span class="user-name">{{ formatUserDisplayName(user) }}</span>
           <el-icon class="remove-icon" @click.stop="handleRemoveUser(user.username)">
             <Close />
           </el-icon>
@@ -78,6 +78,15 @@ import { Search, Check, Close } from '@element-plus/icons-vue'
 import { searchUsersFuzzy } from '@/api/user'
 import { useUserInfoStore } from '@/stores/userInfo'
 import type { UserInfo } from '@/types'
+import {
+  createPlaceholderUser,
+  formatUserDisplayName,
+  parseUsernamesFromModelValue,
+  isUsernameListEqual,
+  extractUsernames,
+  buildUserMap,
+  reorderUsersByUsernames
+} from '@/utils/userInfo'
 
 interface Props {
   modelValue: string | string[] | null
@@ -186,7 +195,7 @@ const handleSelectUser = (user: UserInfo) => {
     // 🔥 标记为内部更新，避免 watch 触发时覆盖
     isInternalUpdate.value = true
     // 更新 modelValue（确保是数组格式）
-    const usernames = selectedUsers.value.map(u => u.username)
+    const usernames = extractUsernames(selectedUsers.value)
     console.log('[UserSearchInput] handleSelectUser 更新 modelValue:', usernames)
     emit('update:modelValue', props.multiple ? usernames : (usernames.length > 0 ? usernames[0] : null))
     // 🔥 重置内部更新标记（延迟一点，确保 watch 不会触发）
@@ -219,7 +228,7 @@ const handleRemoveUser = (username: string) => {
   if (index >= 0) {
     selectedUsers.value.splice(index, 1)
     if (props.multiple) {
-      emit('update:modelValue', selectedUsers.value.map(u => u.username))
+      emit('update:modelValue', extractUsernames(selectedUsers.value))
     } else {
       emit('update:modelValue', null)
     }
@@ -267,57 +276,28 @@ const handleClickOutside = (event: MouseEvent) => {
 // 是否正在内部更新（避免 watch 触发时覆盖用户选择）
 const isInternalUpdate = ref(false)
 
-// 初始化已选中的用户（用于回显）
+  // 初始化已选中的用户（用于回显）
 const initSelectedUsers = async () => {
   // 🔥 如果是内部更新，不需要重新加载
   if (isInternalUpdate.value) {
     return
   }
 
-  if (!props.modelValue) {
-    selectedUsers.value = []
-    return
-  }
-
-  // 🔥 处理 modelValue：如果是数组就使用数组，如果是字符串就转换为数组
-  let usernames: string[] = []
-  if (props.multiple) {
-    // 多选模式：modelValue 应该是数组
-    if (Array.isArray(props.modelValue)) {
-      usernames = props.modelValue.map(u => String(u).trim()).filter(u => u)
-    } else if (props.modelValue) {
-      // 如果不是数组但是有值，转换为数组
-      usernames = [String(props.modelValue).trim()].filter(u => u)
-    }
-  } else {
-    // 单选模式：modelValue 应该是字符串
-    if (props.modelValue) {
-      const username = String(props.modelValue).trim()
-      if (username) {
-        usernames = [username]
-      }
-    }
-  }
+  // 🔥 使用工具函数解析用户名
+  const usernames = [...new Set(parseUsernamesFromModelValue(props.modelValue, props.multiple))]
 
   if (usernames.length === 0) {
     selectedUsers.value = []
     return
   }
-
-  // 🔥 去重 usernames
-  usernames = [...new Set(usernames)]
   
   console.log('[UserSearchInput] initSelectedUsers usernames:', usernames)
 
   // 🔥 检查当前 selectedUsers 是否已经包含了所有需要的用户（按顺序）
-  const currentUsernames = selectedUsers.value.map(u => u.username)
-  const needLoad = usernames.some(u => !currentUsernames.includes(u))
-  const needRemove = selectedUsers.value.some(u => !usernames.includes(u.username))
-  const needReorder = usernames.length === currentUsernames.length && 
-    usernames.some((u, i) => currentUsernames[i] !== u)
-
-  // 如果不需要加载、移除和重排序，直接返回
-  if (!needLoad && !needRemove && !needReorder) {
+  const currentUsernames = extractUsernames(selectedUsers.value)
+  
+  // 如果用户名列表相同（顺序和内容），直接返回
+  if (isUsernameListEqual(usernames, currentUsernames)) {
     console.log('[UserSearchInput] initSelectedUsers 无需更新')
     return
   }
@@ -327,55 +307,23 @@ const initSelectedUsers = async () => {
     const missingUsernames = usernames.filter(u => !currentUsernames.includes(u))
     console.log('[UserSearchInput] initSelectedUsers missingUsernames:', missingUsernames)
     
+    // 🔥 使用 store 批量查询（自动处理缓存和过期）
     if (missingUsernames.length > 0) {
-      // 🔥 使用 store 批量查询（自动处理缓存和过期）
       console.log('[UserSearchInput] 查询缺失的用户信息:', missingUsernames)
       const loadedUsers = await userInfoStore.batchGetUserInfo(missingUsernames)
       console.log('[UserSearchInput] 查询完成，获取到', loadedUsers.length, '个用户')
       
-      // 🔥 按照 usernames 的顺序重新组织 selectedUsers
-      const userMap = new Map<string, UserInfo>()
-      // 先添加已有的用户
-      selectedUsers.value.forEach(u => userMap.set(u.username, u))
-      // 再添加新加载的用户
-      loadedUsers.forEach(u => userMap.set(u.username, u))
-      // 按照 usernames 的顺序构建 selectedUsers
-      // 🔥 如果某个用户未找到，创建一个占位符用户对象，至少显示用户名
-      selectedUsers.value = usernames.map(username => {
-        const user = userMap.get(username)
-        if (!user) {
-          console.warn(`[UserSearchInput] 用户 ${username} 未找到，创建占位符`)
-          // 创建占位符用户对象
-          return {
-            username,
-            nickname: '',
-            avatar: '',
-            email: ''
-          } as UserInfo
-        }
-        return user
-      })
+      // 🔥 合并已有用户和新加载的用户
+      const userMap = buildUserMap([...selectedUsers.value, ...loadedUsers])
       
-      console.log('[UserSearchInput] initSelectedUsers 最终 selectedUsers:', selectedUsers.value.map(u => u.username))
+      // 🔥 按照 usernames 的顺序重新组织 selectedUsers
+      selectedUsers.value = reorderUsersByUsernames(usernames, userMap, true)
+      
+      console.log('[UserSearchInput] initSelectedUsers 最终 selectedUsers:', extractUsernames(selectedUsers.value))
     } else {
       // 🔥 如果没有缺失的用户，只需要移除和重排序
-      const userMap = new Map<string, UserInfo>()
-      selectedUsers.value.forEach(u => userMap.set(u.username, u))
-      // 按照 usernames 的顺序重新组织 selectedUsers
-      // 🔥 如果某个用户未找到，创建一个占位符用户对象
-      selectedUsers.value = usernames.map(username => {
-        const user = userMap.get(username)
-        if (!user) {
-          console.warn(`[UserSearchInput] 用户 ${username} 未找到，创建占位符`)
-          return {
-            username,
-            nickname: '',
-            avatar: '',
-            email: ''
-          } as UserInfo
-        }
-        return user
-      })
+      const userMap = buildUserMap(selectedUsers.value)
+      selectedUsers.value = reorderUsersByUsernames(usernames, userMap, true)
     }
   } catch (error) {
     console.error('[UserSearchInput] 加载用户信息失败', error)
