@@ -20,7 +20,7 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElPageHeader, ElDivider, ElButton, ElMessage } from 'element-plus'
-import FormRenderer from '@/core/renderers/FormRenderer.vue'
+import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
 import type { FunctionDetail } from '@/core/types/field'
 
 const router = useRouter()

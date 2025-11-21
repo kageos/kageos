@@ -14,8 +14,8 @@ core/
 │   └── ReactiveFormDataManager.ts  # 表单数据管理器
 ├── factories/         # 工厂
 │   └── WidgetFactory.ts  # Widget 工厂
-└── renderers/         # 渲染器
-    └── FormRenderer.vue  # 表单渲染器（新架构）
+└── renderers-v2/      # 渲染器（Vue 组件版本）
+    └── FormRenderer.vue  # 表单渲染器
 ```
 
 ## 已实现功能
@@ -81,7 +81,7 @@ http://localhost:5173/test/form-renderer
 </template>
 
 <script setup lang="ts">
-import FormRenderer from '@/core/renderers/FormRenderer.vue'
+import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
 import type { FunctionDetail } from '@/core/types/field'
 
 const functionDetail: FunctionDetail = {
