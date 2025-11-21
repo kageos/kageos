@@ -736,13 +736,18 @@ const handleShowDetail = async (row: any, index: number): Promise<void> => {
   
   // 🔥 收集当前行的 files widget 的 upload_user 并查询用户信息
   const filesUploadUsers = collectFilesUploadUsersFromRow(row, visibleFields.value)
+  console.log('[TableRenderer] handleShowDetail 收集到的上传用户:', filesUploadUsers)
+  
   if (filesUploadUsers.length > 0) {
     // 批量查询用户信息（自动处理缓存）
     const users = await userInfoStore.batchGetUserInfo(filesUploadUsers)
+    console.log('[TableRenderer] handleShowDetail 查询到的用户:', users)
+    
     // 更新 userInfoMap，供详情中的 FilesWidget 使用
     users.forEach((user: any) => {
       if (user.username) {
         userInfoMap.value.set(user.username, user)
+        console.log('[TableRenderer] 更新 userInfoMap:', user.username, user)
       }
     })
   }
