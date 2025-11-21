@@ -264,6 +264,7 @@ import { WidgetBuilder } from '@/core/factories/WidgetBuilder'
 import { ErrorHandler } from '@/core/utils/ErrorHandler'
 import { convertToFieldValue } from '@/utils/field'
 import { WidgetType } from '@/core/constants/widget'
+import { useUserInfoStore } from '@/stores/userInfo'
 import FormDialog from './FormDialog.vue'
 import SearchInput from './SearchInput.vue'
 import type { Function as FunctionType, ServiceTree } from '@/types'
@@ -333,12 +334,14 @@ const currentDetailIndex = ref(-1)
 
 // ==================== 用户信息批量查询优化 ====================
 
+const userInfoStore = useUserInfoStore()
+
 /** 用户信息映射（username -> UserInfo） */
 const userInfoMap = ref<Map<string, any>>(new Map())
 
 /**
  * 🔥 批量查询用户信息
- * 在数据加载完成后，识别所有 user 类型字段，收集所有 username，去重后批量查询
+ * 统一收集表格数据和搜索表单中的用户，使用 store 批量查询（自动处理缓存）
  */
 async function batchLoadUserInfo(): Promise<void> {
   try {
@@ -350,35 +353,52 @@ async function batchLoadUserInfo(): Promise<void> {
       return
     }
     
-    // 2. 收集所有行数据中这些字段的值（username）
-    const usernames = new Set<string>()
+    // 2. 收集表格数据中所有 user 类型字段的值（username）
+    const tableUsernames = new Set<string>()
     tableData.value.forEach((row: any) => {
       userFields.forEach((field: FieldConfig) => {
         const value = row[field.code]
         if (value !== null && value !== undefined && value !== '') {
-          usernames.add(String(value))
+          tableUsernames.add(String(value))
         }
       })
     })
     
-    if (usernames.size === 0) {
+    // 3. 收集搜索表单中所有 user 类型字段的值（username）
+    const searchUsernames = new Set<string>()
+    searchableFields.value.forEach((field: FieldConfig) => {
+      if (field.widget?.type === 'user' && searchForm.value[field.code]) {
+        const value = searchForm.value[field.code]
+        if (Array.isArray(value)) {
+          value.forEach(v => {
+            if (v) searchUsernames.add(String(v))
+          })
+        } else if (value) {
+          searchUsernames.add(String(value))
+        }
+      }
+    })
+    
+    // 4. 合并所有用户名并去重
+    const allUsernames = [...new Set([...tableUsernames, ...searchUsernames])]
+    
+    if (allUsernames.length === 0) {
       userInfoMap.value = new Map()
       return
     }
     
-    // 3. 去重后批量查询用户信息
-    const { getUsersByUsernames } = await import('@/api/user')
-    const response = await getUsersByUsernames(Array.from(usernames))
+    // 5. 使用 store 统一批量查询（自动处理缓存和过期）
+    console.log('[TableRenderer] 统一批量查询用户信息，用户名:', allUsernames)
+    const users = await userInfoStore.batchGetUserInfo(allUsernames)
+    console.log('[TableRenderer] 统一批量查询完成，获取到', users.length, '个用户')
     
-    // 4. 构建映射
+    // 6. 构建映射（供表格渲染使用）
     const map = new Map<string, any>()
-    if (response.users && Array.isArray(response.users)) {
-      response.users.forEach((user: any) => {
-        if (user.username) {
-          map.set(user.username, user)
-        }
-      })
-    }
+    users.forEach(user => {
+      if (user.username) {
+        map.set(user.username, user)
+      }
+    })
     
     userInfoMap.value = map
   } catch (error) {
@@ -395,6 +415,22 @@ watch(() => tableData.value, () => {
     userInfoMap.value = new Map()
   }
 }, { immediate: true, deep: false })
+
+// 🔥 监听搜索表单变化，提前查询搜索表单中的用户信息
+// 这样可以确保搜索表单中的用户信息在 UserSearchInput 初始化前就已经查询完成
+// 避免 UserSearchInput 重复查询
+watch(() => searchForm.value, () => {
+  // 延迟执行，避免在 searchForm 初始化时立即触发
+  nextTick(() => {
+    const hasUserFields = searchableFields.value.some((field: FieldConfig) => 
+      field.widget?.type === 'user' && searchForm.value[field.code]
+    )
+    if (hasUserFields) {
+      console.log('[TableRenderer] 搜索表单变化，提前查询用户信息')
+      batchLoadUserInfo()
+    }
+  })
+}, { deep: true, immediate: false })
 
 // ==================== 对话框相关 ====================
 
@@ -738,6 +774,9 @@ const copyFieldValue = (field: FieldConfig, value: any): void => {
 /**
  * 监听函数配置变化
  * 当函数配置更新时，重新加载数据
+ * 
+ * 🔥 注意：不设置 immediate: true，因为 useTableOperations 的 initialize() 已经会在初始化时调用 loadTableData()
+ * 如果设置 immediate: true，会导致初始化时调用两次 loadTableData()
  */
 watch(() => props.functionData, () => {
   // 🔥 清空搜索表单，但保留 URL 中的搜索参数（restoreFromURL 会恢复）
@@ -746,7 +785,7 @@ watch(() => props.functionData, () => {
   // 🔥 从 URL 恢复状态（包括搜索参数）
   restoreFromURL()
   loadTableData()
-}, { immediate: true })
+})
 
 // ==================== 修复 fixed 列按钮点击问题 ====================
 

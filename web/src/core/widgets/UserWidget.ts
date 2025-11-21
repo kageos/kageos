@@ -8,7 +8,8 @@ import { ElSelect, ElOption, ElAvatar, ElMessage, ElPopover, ElButton } from 'el
 import { BaseWidget } from './BaseWidget'
 import type { FieldConfig, FieldValue } from '../types/field'
 import type { WidgetRenderProps } from '../types/widget'
-import { searchUsersFuzzy, queryUser, getUsersByUsernames } from '@/api/user'
+import { searchUsersFuzzy, queryUser } from '@/api/user'
+import { useUserInfoStore } from '@/stores/userInfo'
 import type { UserInfo } from '@/types'
 import { Logger } from '../utils/logger'
 import { getElementPlusFormProps } from './utils/widgetHelpers'
@@ -96,10 +97,12 @@ export class UserWidget extends BaseWidget {
     }
     
     try {
-      // 使用批量查询接口（即使只有一个用户）
-      const response = await getUsersByUsernames([username])
-      if (response.users && response.users.length > 0) {
-        this.userInfo.value = response.users[0]
+      // 🔥 使用 store 获取用户信息（自动处理缓存）
+      const userInfoStore = useUserInfoStore()
+      const user = await userInfoStore.getUserInfo(username)
+      
+      if (user) {
+        this.userInfo.value = user
         
         // 更新 meta 中的用户信息
         if (this.hasFormManager) {
@@ -108,7 +111,7 @@ export class UserWidget extends BaseWidget {
             ...value,
             meta: {
               ...value.meta,
-              userInfo: response.users[0]
+              userInfo: user
             }
           })
         }
@@ -640,64 +643,13 @@ export class UserWidget extends BaseWidget {
    * @param searchType 搜索类型，如 'eq', 'like', 'in'
    */
   renderSearchInput(searchType: string): any {
-    // 如果 search 标签是 "in" 或 "eq"，渲染用户选择器（支持模糊查询）
+    // 如果 search 标签是 "in" 或 "eq"，使用自定义的用户搜索组件
     if (searchType.includes('in') || searchType.includes('eq')) {
       return {
-        component: 'ElSelect',
+        component: 'UserSearchInput',
         props: {
-          placeholder: `请选择${this.field.name}`,
-          clearable: true,
-          filterable: true,
-          remote: true,
-          multiple: searchType.includes('in'), // in 支持多选
-          style: { width: '200px' }
-        },
-        // 🔥 自定义 remote-method，调用用户模糊查询接口
-        onRemoteMethod: async (query: string) => {
-          if (!query || query.trim() === '') {
-            return []
-          }
-          
-          try {
-            const response = await searchUsersFuzzy(query.trim(), 20)
-            const users = response.users || []
-            
-            // 返回选项格式
-            return users.map((user: UserInfo) => ({
-              label: user.nickname ? `${user.username}(${user.nickname})` : user.username,
-              value: user.username
-            }))
-          } catch (error) {
-            Logger.error('UserWidget', '搜索用户失败', error)
-            return []
-          }
-        },
-        // 🔥 初始化已选中值的选项（用于回显）
-        onInitOptions: async (values: string | string[]) => {
-          if (!values) {
-            return []
-          }
-          
-          try {
-            // 将值转换为数组格式
-            const usernames = Array.isArray(values) ? values : [values]
-            if (usernames.length === 0) {
-              return []
-            }
-            
-            // 批量查询用户信息
-            const response = await getUsersByUsernames(usernames)
-            const users = response.users || []
-            
-            // 返回选项格式
-            return users.map((user: UserInfo) => ({
-              label: user.nickname ? `${user.username}(${user.nickname})` : user.username,
-              value: user.username
-            }))
-          } catch (error) {
-            Logger.error('UserWidget', '查询用户信息失败', error)
-            return []
-          }
+          placeholder: `搜索${this.field.name}`,
+          multiple: searchType.includes('in') // in 支持多选
         }
       }
     }
@@ -755,9 +707,9 @@ export class UserWidget extends BaseWidget {
             return []
           }
           
-          // 批量查询用户信息
-          const response = await getUsersByUsernames(usernames)
-          const users = response.users || []
+          // 🔥 使用 store 批量查询用户信息（自动处理缓存）
+          const userInfoStore = useUserInfoStore()
+          const users = await userInfoStore.batchGetUserInfo(usernames)
           
           // 返回选项格式
           return users.map((user: UserInfo) => ({

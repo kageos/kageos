@@ -40,6 +40,7 @@ declare module 'vue' {
     ElSelect: typeof import('element-plus/es')['ElSelect']
     ElTable: typeof import('element-plus/es')['ElTable']
     ElTableColumn: typeof import('element-plus/es')['ElTableColumn']
+    ElTag: typeof import('element-plus/es')['ElTag']
     ElTooltip: typeof import('element-plus/es')['ElTooltip']
     ElTree: typeof import('element-plus/es')['ElTree']
     FileUpload: typeof import('./src/components/FileUpload.vue')['default']
@@ -65,6 +66,7 @@ declare module 'vue' {
     ThemeToggle: typeof import('./src/components/ThemeToggle.vue')['default']
     TheWelcome: typeof import('./src/components/TheWelcome.vue')['default']
     UserDetailDialog: typeof import('./src/components/UserDetailDialog.vue')['default']
+    UserSearchInput: typeof import('./src/components/UserSearchInput.vue')['default']
     WelcomeItem: typeof import('./src/components/WelcomeItem.vue')['default']
   }
   export interface GlobalDirectives {
@@ -102,6 +104,7 @@ declare global {
   const ElSelect: typeof import('element-plus/es')['ElSelect']
   const ElTable: typeof import('element-plus/es')['ElTable']
   const ElTableColumn: typeof import('element-plus/es')['ElTableColumn']
+  const ElTag: typeof import('element-plus/es')['ElTag']
   const ElTooltip: typeof import('element-plus/es')['ElTooltip']
   const ElTree: typeof import('element-plus/es')['ElTree']
   const FileUpload: typeof import('./src/components/FileUpload.vue')['default']
@@ -127,5 +130,6 @@ declare global {
   const ThemeToggle: typeof import('./src/components/ThemeToggle.vue')['default']
   const TheWelcome: typeof import('./src/components/TheWelcome.vue')['default']
   const UserDetailDialog: typeof import('./src/components/UserDetailDialog.vue')['default']
+  const UserSearchInput: typeof import('./src/components/UserSearchInput.vue')['default']
   const WelcomeItem: typeof import('./src/components/WelcomeItem.vue')['default']
 }
