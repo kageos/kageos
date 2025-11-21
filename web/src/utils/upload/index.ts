@@ -249,6 +249,7 @@ interface UploadCompleteParams {
   file_size: number
   content_type: string
   hash?: string
+  upload_user?: string  // 🔥 上传用户
 }
 
 export async function notifyUploadComplete(params: UploadCompleteParams): Promise<string | null> {
@@ -270,6 +271,7 @@ export async function notifyUploadComplete(params: UploadCompleteParams): Promis
         file_size: params.file_size,
         content_type: params.content_type,
         hash: params.hash,
+        upload_user: params.upload_user,  // 🔥 传递上传用户
       }),
     })
     
@@ -303,6 +305,7 @@ export interface BatchUploadCompleteItem {
   file_size: number
   content_type: string
   hash?: string
+  upload_user?: string  // 🔥 上传用户
 }
 
 export interface BatchUploadCompleteResult {
