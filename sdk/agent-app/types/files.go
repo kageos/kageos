@@ -8,7 +8,6 @@ import (
 
 type Files struct {
 	Files      []*File                `json:"files"`
-	UploadUser string                 `json:"upload_user"`
 	WidgetType string                 `json:"widget_type"`
 	DataType   string                 `json:"data_type"`
 	Remark     string                 `json:"remark"`
@@ -32,6 +31,7 @@ type File struct {
 	Url         string `json:"url"`                  // ✨ 外部访问地址（前端下载使用）
 	ServerUrl   string `json:"server_url"`           // ✨ 内部访问地址（服务端下载使用）
 	Downloaded  bool   `json:"downloaded,omitempty"` //是否已经下载到本地
+	UploadUser  string `json:"upload_user"`
 }
 
 func (f *File) GetLocalPath() string {
