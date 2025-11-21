@@ -660,6 +660,7 @@ const getFileUploadUserInfo = computed(() => {
     // 🔥 优先从 userInfoMap 中获取（如果是在 TableRenderer 中使用）
     if (props.userInfoMap && props.userInfoMap.has(file.upload_user)) {
       const user = props.userInfoMap.get(file.upload_user)
+      console.log('[FilesWidget] 从 userInfoMap 获取用户信息', file.upload_user, user)
       return user
     }
     
@@ -667,10 +668,15 @@ const getFileUploadUserInfo = computed(() => {
     // 使用 store 导出的 userInfoCache computed 属性
     try {
       const cache = userInfoStore.userInfoCache
+      console.log('[FilesWidget] userInfoCache 类型:', typeof cache, cache)
+      
       // userInfoCache 是 computed，需要访问 .value
       const cacheMap = (cache as any)?.value || cache
+      console.log('[FilesWidget] cacheMap 类型:', typeof cacheMap, cacheMap instanceof Map)
+      
       if (cacheMap instanceof Map) {
         const cachedUser = cacheMap.get(file.upload_user)
+        console.log('[FilesWidget] 从缓存获取用户信息', file.upload_user, cachedUser)
         if (cachedUser) {
           return cachedUser
         }
@@ -679,6 +685,7 @@ const getFileUploadUserInfo = computed(() => {
       console.warn('[FilesWidget] 获取用户信息失败', error)
     }
     
+    console.log('[FilesWidget] 未找到用户信息', file.upload_user)
     return null
   }
 })
