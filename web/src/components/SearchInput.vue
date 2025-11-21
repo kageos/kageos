@@ -1,8 +1,17 @@
 <template>
   <div class="search-input">
+    <!-- 🔥 用户搜索组件（自定义组件） -->
+    <UserSearchInput
+      v-if="inputConfig.component === 'UserSearchInput'"
+      v-model="localValue"
+      :placeholder="inputConfig.props?.placeholder"
+      :multiple="inputConfig.props?.multiple"
+      @update:modelValue="handleInput"
+    />
+
     <!-- 🔥 精确搜索 / 模糊搜索 -->
     <el-input
-      v-if="inputConfig.component === 'ElInput'"
+      v-else-if="inputConfig.component === 'ElInput'"
       v-model="localValue"
       :placeholder="inputConfig.props?.placeholder"
       :clearable="inputConfig.props?.clearable"
@@ -23,16 +32,60 @@
       :remote-method="handleRemoteMethod"
       :multiple="inputConfig.props?.multiple"
       :loading="selectLoading || inputConfig.props?.loading"
+      :popper-class="inputConfig.props?.popperClass"
       :style="inputConfig.props?.style"
+      :collapse-tags="inputConfig.props?.multiple"
+      :max-collapse-tags="3"
+      :reserve-keyword="inputConfig.props?.remote && inputConfig.props?.multiple"
+      class="user-select-search"
       @change="handleInput"
       @clear="handleClear"
     >
+      <!-- 🔥 自定义标签显示（multiple 模式，使用 user-cell 样式） -->
+      <template v-if="inputConfig.props?.multiple && inputConfig.props?.popperClass === 'user-select-dropdown-popper'" #tag="{ item, close }">
+        <div
+          v-if="item"
+          class="user-cell user-cell-tag"
+        >
+          <el-avatar 
+            v-if="item.value && getUserInfoByValue(item.value)"
+            :src="getUserInfoByValue(item.value)?.avatar" 
+            :size="24" 
+            class="user-avatar"
+          >
+            {{ getUserInfoByValue(item.value)?.username?.[0]?.toUpperCase() || 'U' }}
+          </el-avatar>
+          <el-avatar 
+            v-else
+            :size="24" 
+            class="user-avatar"
+          >
+            {{ (item?.label || '')?.[0]?.toUpperCase() || 'U' }}
+          </el-avatar>
+          <span class="user-name">{{ item?.label || '' }}</span>
+          <el-icon class="user-tag-close" @click.stop="close">
+            <Close />
+          </el-icon>
+        </div>
+      </template>
+      
       <el-option
         v-for="option in selectOptionsComputed"
         :key="typeof option === 'object' ? option.value : option"
         :label="typeof option === 'object' ? option.label : option"
         :value="typeof option === 'object' ? option.value : option"
-      />
+      >
+        <!-- 🔥 如果是用户选择器，显示头像和用户信息 -->
+        <div v-if="option.userInfo" class="user-option">
+          <el-avatar :src="option.userInfo.avatar" :size="24" class="user-avatar">
+            {{ option.userInfo.username?.[0]?.toUpperCase() || 'U' }}
+          </el-avatar>
+          <span class="user-name">{{ option.userInfo.username }}</span>
+          <span v-if="option.userInfo.nickname" class="user-nickname">({{ option.userInfo.nickname }})</span>
+        </div>
+        <!-- 普通选项 -->
+        <span v-else>{{ typeof option === 'object' ? option.label : option }}</span>
+      </el-option>
     </el-select>
 
     <!-- 🔥 数字范围输入 -->
@@ -103,7 +156,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
+import { ElAvatar, ElIcon } from 'element-plus'
+import { Close } from '@element-plus/icons-vue'
+import UserSearchInput from './UserSearchInput.vue'
 import { WidgetBuilder } from '@/core/factories/WidgetBuilder'
 import { ErrorHandler } from '@/core/utils/ErrorHandler'
 import type { FieldConfig } from '@/types'
@@ -152,6 +208,18 @@ const selectOptions = ref<Array<{ label: string; value: any }>>([])
 
 // 下拉加载状态
 const selectLoading = ref(false)
+
+// 🔥 根据值获取用户信息（用于标签显示）
+const getUserInfoByValue = (value: any): any => {
+  if (!value) return null
+  if (!selectOptions.value || !Array.isArray(selectOptions.value)) return null
+  const option = selectOptions.value.find((opt: any) => {
+    if (!opt) return false
+    const optValue = typeof opt === 'object' ? opt.value : opt
+    return String(optValue) === String(value)
+  })
+  return option?.userInfo || null
+}
 
 // 🔥 提取下拉选项（兼容静态 options 和 remote 模式）
 const selectOptionsComputed = computed(() => {
@@ -334,6 +402,7 @@ const handleDateRangeChange = (value: [number | string | null, number | string |
 // 监听外部值变化
 watch(() => props.modelValue, (newValue: any) => {
   console.log(`[SearchInput] ${props.field.code} modelValue 变化:`, newValue, 'searchType:', props.searchType)
+  
   if (props.searchType?.includes('gte') && props.searchType?.includes('lte')) {
     // 🔥 如果是数组格式（时间戳范围），用于 ElDatePicker
     if (Array.isArray(newValue)) {
@@ -358,8 +427,14 @@ watch(() => props.modelValue, (newValue: any) => {
   } else {
     localValue.value = newValue
     // 🔥 当值变化时，如果是 remote 模式的 ElSelect，初始化已选中值的选项
-    if (inputConfig.value.component === 'ElSelect' && inputConfig.value.props?.remote && newValue) {
-      initSelectedOptions()
+    if (inputConfig.value.component === 'ElSelect' && 
+        inputConfig.value.props?.remote && 
+        newValue && 
+        (Array.isArray(newValue) ? newValue.length > 0 : true)) {
+      // 延迟执行，确保 inputConfig 已更新
+      nextTick(() => {
+        initSelectedOptions()
+      })
     }
   }
 }, { immediate: true })
@@ -373,6 +448,28 @@ watch(() => inputConfig.value, () => {
 </script>
 
 <style scoped>
+/* 🔥 用户选择器选项样式（与 UserWidget 保持一致） */
+.user-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-avatar {
+  flex-shrink: 0;
+}
+
+.user-name {
+  flex: 1;
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+}
+
+.user-nickname {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
 .search-input {
   display: inline-flex;
   align-items: center;
@@ -388,6 +485,64 @@ watch(() => inputConfig.value, () => {
 .range-separator {
   color: var(--el-text-color-secondary);
   font-size: 14px;
+}
+
+/* 🔥 用户选择器选中后的标签样式（multiple 模式，使用 user-cell 样式） */
+.user-select-search :deep(.el-select__tags) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.user-cell-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  padding-right: 20px;
+}
+
+.user-cell-tag .user-avatar {
+  flex-shrink: 0;
+  width: 24px !important;
+  height: 24px !important;
+}
+
+.user-cell-tag .user-name {
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+  white-space: nowrap;
+}
+
+.user-tag-close {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  color: var(--el-text-color-secondary);
+  transition: color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.user-tag-close:hover {
+  color: var(--el-text-color-primary);
+}
+</style>
+
+<style>
+/* 🔥 用户选择器下拉框样式（全局样式，与 UserWidget 保持一致） */
+.user-select-dropdown-popper .el-select-dropdown__item {
+  padding: 8px 12px;
+}
+
+.user-select-dropdown-popper .el-select-dropdown__item:hover {
+  background-color: var(--el-fill-color-light);
 }
 </style>
 

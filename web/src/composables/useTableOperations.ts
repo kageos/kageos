@@ -392,18 +392,51 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
       } else if (searchType.includes('in')) {
         const inValue = query.in
         if (inValue) {
-          // 🔥 支持多个字段：field1:value1,field2:value2
+          // 🔥 支持多个字段：field1:value1,value2,field2:value3,value4
+          // 格式：in=handler:liubeiluo,sina,otherField:value1,value2
           const inStr = String(inValue)
-          const parts = inStr.split(',')
-          for (const part of parts) {
-            if (part.trim().startsWith(`${field.code}:`)) {
-              const valueStr = part.trim().substring(field.code.length + 1)
-              if (valueStr) {
-                // 🔥 in 类型支持多选，需要将逗号分隔的字符串转换为数组
-                searchForm.value[field.code] = valueStr.includes(',') 
-                  ? valueStr.split(',').map(v => v.trim()).filter(v => v)
-                  : valueStr
-                break
+          
+          // 🔥 找到当前字段的部分（field:value1,value2,...）
+          // 需要处理字段值中可能包含逗号的情况
+          const fieldPrefix = `${field.code}:`
+          const fieldIndex = inStr.indexOf(fieldPrefix)
+          
+          if (fieldIndex >= 0) {
+            // 找到字段开始位置
+            const valueStart = fieldIndex + fieldPrefix.length
+            let valueEnd = inStr.length
+            
+            // 🔥 查找下一个字段的开始位置（下一个 field: 的位置）
+            // 需要找到所有可能的字段名（从 searchableFields 中获取）
+            const allFieldCodes = searchableFields.value.map(f => f.code)
+            let nextFieldIndex = -1
+            
+            for (const otherFieldCode of allFieldCodes) {
+              if (otherFieldCode === field.code) continue
+              const otherFieldPrefix = `${otherFieldCode}:`
+              const index = inStr.indexOf(otherFieldPrefix, valueStart)
+              if (index >= 0 && (nextFieldIndex < 0 || index < nextFieldIndex)) {
+                nextFieldIndex = index
+              }
+            }
+            
+            if (nextFieldIndex >= 0) {
+              valueEnd = nextFieldIndex
+            }
+            
+            // 提取字段值部分
+            const valueStr = inStr.substring(valueStart, valueEnd).trim()
+            
+            if (valueStr) {
+              // 🔥 in 类型支持多选，需要将逗号分隔的字符串转换为数组
+              // 注意：如果字段是 user 类型且 search 包含 'in'，即使只有一个值也要转换为数组
+              const values = valueStr.split(',').map(v => v.trim()).filter(v => v)
+              // 🔥 如果字段是 user 类型，始终使用数组格式（因为 ElSelect 的 multiple 模式需要数组）
+              if (field.widget?.type === 'user' && searchType.includes('in')) {
+                searchForm.value[field.code] = values.length > 0 ? values : []
+              } else {
+                // 其他类型：如果只有一个值，保持字符串；多个值使用数组
+                searchForm.value[field.code] = values.length > 1 ? values : (values.length === 1 ? values[0] : valueStr)
               }
             }
           }
