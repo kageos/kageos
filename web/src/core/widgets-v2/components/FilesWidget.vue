@@ -528,6 +528,7 @@ import type { FileInfo, BatchUploadCompleteItem, UploadProgress, UploadFileResul
 import type { Uploader } from '@/utils/upload'
 import { useFormDataStore } from '../../stores-v2/formData'
 import { useUserInfoStore } from '@/stores/userInfo'
+import { isCacheExpired } from '@/stores/userInfo/utils'
 import { Logger } from '../../utils/logger'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
@@ -677,17 +678,37 @@ const unifiedUploadUserInfo = computed(() => {
   return userInfoStore.getUserInfo(unifiedUploadUser.value)
 })
 
-// 🔥 获取文件的上传用户信息
+// 🔥 获取文件的上传用户信息（同步版本，用于模板）
 function getFileUploadUserInfo(file: FileItem) {
   if (!file.upload_user) return null
   
   // 🔥 优先从 userInfoMap 中获取（如果是在 TableRenderer 中使用）
   if (props.userInfoMap && props.userInfoMap.has(file.upload_user)) {
-    return props.userInfoMap.get(file.upload_user)
+    const user = props.userInfoMap.get(file.upload_user)
+    console.log('[FilesWidget] 从 userInfoMap 获取用户信息', file.upload_user, user)
+    return user
   }
   
-  // 降级到 userInfoStore
-  return userInfoStore.getUserInfo(file.upload_user)
+  // 降级到 userInfoStore（同步获取，从缓存中读取）
+  // 注意：getUserInfo 是异步的，但这里我们只从缓存中读取，不触发新的查询
+  try {
+    // 通过反射访问 store 的内部状态（因为 userInfoCache 可能不是公开的）
+    const store = userInfoStore as any
+    const cache = store.userInfoCache?.value || store.userInfoCache
+    if (cache && cache instanceof Map) {
+      const cacheItem = cache.get(file.upload_user)
+      if (cacheItem) {
+        const user = cacheItem.user || cacheItem
+        console.log('[FilesWidget] 从 userInfoStore 缓存获取用户信息', file.upload_user, user)
+        return user
+      }
+    }
+  } catch (error) {
+    console.warn('[FilesWidget] 无法从 userInfoStore 获取用户信息', error)
+  }
+  
+  console.log('[FilesWidget] 未找到用户信息', file.upload_user)
+  return null
 }
 
 // 🔥 监听所有上传用户变化，自动加载用户信息
