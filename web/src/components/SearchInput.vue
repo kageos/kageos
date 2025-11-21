@@ -517,21 +517,9 @@ const inputConfig = computed(() => {
             maxCollapseTags: 3
           },
           // 如果有回调，使用回调获取选项
-          onRemoteMethod: props.field.callbacks?.includes('OnSelectFuzzy') 
-            ? async (query: string) => {
-                if (!query || query.trim() === '') {
-                  return []
-                }
-                try {
-                  const { selectFuzzy } = await import('@/api/function')
-                  const response = await selectFuzzy(props.field.code, query.trim())
-                  return response.options || []
-                } catch (error) {
-                  console.error('[SearchInput] 搜索选项失败', error)
-                  return []
-                }
-              }
-            : undefined,
+          // 🔥 搜索场景下，如果有回调但缺少 method/router，使用静态选项
+          // 注意：搜索场景通常不需要调用 selectFuzzy，因为搜索栏的 select 使用静态选项
+          onRemoteMethod: undefined, // 搜索场景不使用远程方法
           // 如果有静态选项，使用静态选项
           options: props.field.data?.options || []
         }
