@@ -373,10 +373,10 @@ async function batchLoadUserInfo(): Promise<void> {
     // 🔥 构建映射（供表格渲染使用）
     const map = new Map<string, any>()
     users.forEach(user => {
-      if (user.username) {
-        map.set(user.username, user)
-      }
-    })
+        if (user.username) {
+          map.set(user.username, user)
+        }
+      })
     
     userInfoMap.value = map
   } catch (error) {

@@ -304,12 +304,39 @@
           <!-- 🔥 参考旧版本的卡片式布局 -->
           <div class="files-list">
             <div
-              v-for="(file, index) in currentFiles"
-              :key="file.url || file.name || index"
+            v-for="(file, index) in currentFiles"
+            :key="file.url || file.name || index"
               class="file-list-item"
               :class="{ 'file-clickable': canPreviewInBrowser(file) }"
               @click="canPreviewInBrowser(file) ? handlePreviewInNewWindow(file) : null"
             >
+              <!-- 🔥 文件上传用户信息（左侧显示） -->
+              <div v-if="file.upload_user" class="file-upload-user">
+                <el-avatar
+                  v-if="getFileUploadUserInfo(file)"
+                  :src="getFileUploadUserInfo(file)?.avatar"
+                  :size="24"
+                  class="file-upload-user-avatar"
+                >
+                  {{ getFileUploadUserInfo(file)?.username?.[0]?.toUpperCase() || 'U' }}
+                </el-avatar>
+                <el-avatar
+                  v-else
+                  :size="24"
+                  class="file-upload-user-avatar"
+                >
+                  {{ file.upload_user[0]?.toUpperCase() || 'U' }}
+                </el-avatar>
+                <span class="file-upload-user-name">
+                  <template v-if="getFileUploadUserInfo(file)">
+                    {{ getFileUploadUserInfo(file)?.nickname || getFileUploadUserInfo(file)?.username || file.upload_user }}
+                  </template>
+                  <template v-else>
+                    {{ file.upload_user }}
+                  </template>
+                </span>
+              </div>
+
               <!-- 文件图标/缩略图（60x60px） -->
               <div class="file-thumbnail">
                 <el-image
@@ -336,10 +363,10 @@
               <!-- 文件信息（垂直布局） -->
               <div class="file-info">
                 <div class="file-name" :title="file.name">
-                  {{ file.name }}
+                {{ file.name }}
                 </div>
                 <div class="file-meta">
-                  <span class="file-size">{{ formatSize(file.size) }}</span>
+              <span class="file-size">{{ formatSize(file.size) }}</span>
                   <el-tag
                     v-if="canPreviewInBrowser(file)"
                     size="small"
@@ -351,48 +378,21 @@
                       <View />
                     </el-icon>
                     可预览
-                  </el-tag>
+              </el-tag>
                 </div>
-              </div>
-              
-              <!-- 🔥 文件上传用户信息（右侧显示） -->
-              <div v-if="file.upload_user && !isSameUploadUser" class="file-upload-user">
-                <el-avatar
-                  v-if="getFileUploadUserInfo(file)"
-                  :src="getFileUploadUserInfo(file)?.avatar"
-                  :size="20"
-                  class="file-upload-user-avatar"
-                >
-                  {{ getFileUploadUserInfo(file)?.username?.[0]?.toUpperCase() || 'U' }}
-                </el-avatar>
-                <el-avatar
-                  v-else
-                  :size="20"
-                  class="file-upload-user-avatar"
-                >
-                  {{ file.upload_user[0]?.toUpperCase() || 'U' }}
-                </el-avatar>
-                <span class="file-upload-user-name">
-                  <template v-if="getFileUploadUserInfo(file)">
-                    {{ getFileUploadUserInfo(file)?.nickname || getFileUploadUserInfo(file)?.username || file.upload_user }}
-                  </template>
-                  <template v-else>
-                    {{ file.upload_user }}
-                  </template>
-                </span>
-              </div>
-              
+            </div>
+
               <!-- 操作按钮 -->
-              <div class="file-actions">
-                <el-button
-                  v-if="file.is_uploaded"
-                  size="small"
+            <div class="file-actions">
+              <el-button
+                v-if="file.is_uploaded"
+                size="small"
                   type="primary"
-                  :icon="Download"
+                :icon="Download"
                   @click.stop="handleDownloadFile(file)"
-                >
-                  下载
-                </el-button>
+              >
+                下载
+              </el-button>
               </div>
             </div>
           </div>
@@ -1840,10 +1840,12 @@ function handleFileChange(file: any): void {
 /* 🔥 文件上传用户信息（右侧显示） */
 .file-upload-user {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   flex-shrink: 0;
-  margin-right: 8px;
+  margin-right: 12px;
+  min-width: 60px;
   font-size: 12px;
   color: var(--el-text-color-secondary);
 }
@@ -1853,9 +1855,13 @@ function handleFileChange(file: any): void {
 }
 
 .file-upload-user-name {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--el-text-color-secondary);
   white-space: nowrap;
+  text-align: center;
+  max-width: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 操作按钮 */
