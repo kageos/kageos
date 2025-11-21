@@ -46,10 +46,9 @@ func (c *FS) ResponseDirFiles(dir string) *types.Files {
 	if err != nil {
 		logger.Errorf(c.ctx, "[ResponseDirFiles] Failed to read directory: %v", err)
 		return &types.Files{
-			Files:      []*types.File{},
-			UploadUser: c.ctx.msg.RequestUser,
-			Remark:     fmt.Sprintf("读取目录失败: %v", err),
-			Metadata:   make(map[string]interface{}),
+			Files:    []*types.File{},
+			Remark:   fmt.Sprintf("读取目录失败: %v", err),
+			Metadata: make(map[string]interface{}),
 		}
 	}
 
@@ -226,10 +225,9 @@ func readDirFiles(dir string) ([]string, error) {
 func (c *Context) batchUploadFiles(filePaths []string) *types.Files {
 	if len(filePaths) == 0 {
 		return &types.Files{
-			Files:      []*types.File{},
-			UploadUser: c.msg.RequestUser,
-			Remark:     "没有文件需要上传",
-			Metadata:   make(map[string]interface{}),
+			Files:    []*types.File{},
+			Remark:   "没有文件需要上传",
+			Metadata: make(map[string]interface{}),
 		}
 	}
 
@@ -245,19 +243,17 @@ func (c *Context) batchUploadFiles(filePaths []string) *types.Files {
 	if err != nil {
 		logger.Errorf(c, "[batchUploadFiles] Failed to collect file infos: %v", err)
 		return &types.Files{
-			Files:      []*types.File{},
-			UploadUser: c.msg.RequestUser,
-			Remark:     fmt.Sprintf("收集文件信息失败: %v", err),
-			Metadata:   make(map[string]interface{}),
+			Files:    []*types.File{},
+			Remark:   fmt.Sprintf("收集文件信息失败: %v", err),
+			Metadata: make(map[string]interface{}),
 		}
 	}
 
 	if len(fileInfos) == 0 {
 		return &types.Files{
-			Files:      []*types.File{},
-			UploadUser: c.msg.RequestUser,
-			Remark:     "没有有效的文件",
-			Metadata:   make(map[string]interface{}),
+			Files:    []*types.File{},
+			Remark:   "没有有效的文件",
+			Metadata: make(map[string]interface{}),
 		}
 	}
 
@@ -288,10 +284,9 @@ func (c *Context) batchUploadFiles(filePaths []string) *types.Files {
 	if err != nil {
 		logger.Errorf(c, "[batchUploadFiles] Failed to get batch upload tokens: %v", err)
 		return &types.Files{
-			Files:      []*types.File{},
-			UploadUser: c.msg.RequestUser,
-			Remark:     fmt.Sprintf("获取上传凭证失败: %v", err),
-			Metadata:   make(map[string]interface{}),
+			Files:    []*types.File{},
+			Remark:   fmt.Sprintf("获取上传凭证失败: %v", err),
+			Metadata: make(map[string]interface{}),
 		}
 	}
 
@@ -490,12 +485,14 @@ func (c *Context) batchUploadFiles(filePaths []string) *types.Files {
 		}
 	}
 
+	for i := range successFiles {
+		successFiles[i].UploadUser = c.msg.RequestUser
+	}
 	// 8. 构建返回结果
 	return &types.Files{
-		Files:      successFiles,
-		UploadUser: c.msg.RequestUser,
-		Remark:     fmt.Sprintf("成功上传 %d/%d 个文件", len(successFiles), len(filePaths)),
-		Metadata:   make(map[string]interface{}),
+		Files:    successFiles,
+		Remark:   fmt.Sprintf("成功上传 %d/%d 个文件", len(successFiles), len(filePaths)),
+		Metadata: make(map[string]interface{}),
 	}
 }
 

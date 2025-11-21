@@ -1150,33 +1150,34 @@ async function flushCompleteQueue(): Promise<void> {
   try {
     const results = await notifyBatchUploadComplete(items)
 
-    items.forEach(item => {
+    // 🔥 获取当前上传用户（在循环外获取，避免重复导入）
+    let currentUploadUser = ''
+    try {
+      // 优先从 localStorage 读取用户信息
+      const savedUserStr = localStorage.getItem('user')
+      if (savedUserStr) {
+        const savedUser = JSON.parse(savedUserStr)
+        currentUploadUser = savedUser.username || ''
+      }
+      
+      // 如果 localStorage 中没有，尝试从 authStore 获取
+      if (!currentUploadUser) {
+        const { useAuthStore } = await import('@/stores/auth')
+        const authStore = useAuthStore()
+        currentUploadUser = authStore.userName || authStore.user?.username || ''
+      }
+    } catch (error) {
+      Logger.warn('[FilesWidget] 无法获取用户信息', error)
+    }
+
+    // 🔥 使用 for...of 循环，支持 await
+    for (const item of items) {
       const result = results.get(item.key)
       const uploadingFile = uploadingFiles.value.find((f: UploadingFile) => f.fileInfo?.key === item.key)
 
       if (result && item.success && result.status === 'completed') {
         if (uploadingFile && uploadingFile.fileInfo) {
           uploadingFile.downloadURL = result.download_url || ''
-
-          // 🔥 获取当前上传用户
-          let currentUploadUser = ''
-          try {
-            // 优先从 localStorage 读取用户信息
-            const savedUserStr = localStorage.getItem('user')
-            if (savedUserStr) {
-              const savedUser = JSON.parse(savedUserStr)
-              currentUploadUser = savedUser.username || ''
-            }
-            
-            // 如果 localStorage 中没有，尝试从 authStore 获取
-            if (!currentUploadUser) {
-              const { useAuthStore } = await import('@/stores/auth')
-              const authStore = useAuthStore()
-              currentUploadUser = authStore.userName || authStore.user?.username || ''
-            }
-          } catch (error) {
-            Logger.warn('[FilesWidget] 无法获取用户信息', error)
-          }
 
           const newFile: FileItem = {
             name: uploadingFile.name,
@@ -1210,7 +1211,7 @@ async function flushCompleteQueue(): Promise<void> {
           uploadingFile.error = result?.error || item.error || '上传失败'
         }
       }
-    })
+    }
 
     const successCount = items.filter(item => item.success && results.get(item.key)?.status === 'completed').length
     if (successCount > 1) {
