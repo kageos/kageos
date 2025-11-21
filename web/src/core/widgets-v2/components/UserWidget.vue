@@ -492,7 +492,30 @@ async function loadUserInfo(username: string | null): Promise<UserInfo | null> {
     return props.value.meta.userInfo
   }
   
+  // 🔥 在 table-cell 模式下，如果有 userInfoMap，完全依赖它，不主动调用 API
+  // TableRenderer 会在渲染前统一批量查询所有用户信息
+  if (props.mode === 'table-cell' && props.userInfoMap) {
+    console.log('[UserWidget] ⏭️ table-cell 模式且有 userInfoMap，不主动调用 API', username)
+    // 如果 userInfoMap 中没有，说明 TableRenderer 的批量查询还没完成或用户不存在
+    // 等待一段时间后再次检查（最多等待 500ms）
+    for (let i = 0; i < 5; i++) {
+      await new Promise(resolve => setTimeout(resolve, 100))
+      if (props.userInfoMap.has(username)) {
+        const user = props.userInfoMap.get(username) as UserInfo
+        userInfo.value = user
+        console.log('[UserWidget] ✅ 批量查询后从 userInfoMap 获取用户信息', username)
+        return user
+      }
+    }
+    // 如果等待后还是没有，说明用户不存在或批量查询失败，返回 null
+    console.log('[UserWidget] ⚠️ table-cell 模式，等待后仍未找到用户信息', username)
+    userInfo.value = null
+    return null
+  }
+  
   // 🔥 使用 userInfoStore 批量查询（自动处理缓存和去重）
+  // 注意：在 table-cell 模式下，如果 userInfoMap 存在，应该已经由 TableRenderer 统一查询
+  // 这里只处理独立表单页面或其他模式的情况
   try {
     const { useUserInfoStore } = await import('@/stores/userInfo')
     const userInfoStore = useUserInfoStore()
