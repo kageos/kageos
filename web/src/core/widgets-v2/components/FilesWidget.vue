@@ -344,7 +344,7 @@
                 {{ file.name }}
                 </div>
                 <div class="file-meta">
-              <span class="file-size">{{ formatSize(file.size) }}</span>
+                  <span class="file-size">{{ formatSize(file.size) }}</span>
                   <el-tag
                     v-if="canPreviewInBrowser(file)"
                     size="small"
@@ -356,10 +356,10 @@
                       <View />
                     </el-icon>
                     可预览
-              </el-tag>
-                </div>
-                <div v-if="file.upload_ts" class="file-upload-time">
-                  {{ formatTimestamp(file.upload_ts) }}
+                  </el-tag>
+                  <span v-if="file.upload_ts" class="file-upload-time">
+                    {{ formatTimestamp(file.upload_ts) }}
+                  </span>
                 </div>
             </div>
 
@@ -1774,7 +1774,7 @@ function handleFileChange(file: any): void {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px;
+  padding: 8px 12px;
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 8px;
   background-color: var(--el-bg-color);
@@ -1818,7 +1818,7 @@ function handleFileChange(file: any): void {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .file-info .file-name {
@@ -1833,9 +1833,10 @@ function handleFileChange(file: any): void {
 .file-meta {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   font-size: 12px;
   color: var(--el-text-color-secondary);
+  flex-wrap: wrap;
 }
 
 .file-meta .file-size {
@@ -1849,7 +1850,7 @@ function handleFileChange(file: any): void {
 .file-upload-time {
   font-size: 12px;
   color: var(--el-text-color-placeholder);
-  margin-top: 2px;
+  flex-shrink: 0;
 }
 
 /* 🔥 文件上传用户信息（右侧显示） */
