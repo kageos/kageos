@@ -186,7 +186,8 @@ const displayValue = computed(() => {
   
   // 格式化时间戳
   if (typeof raw === 'number') {
-    return formatTimestamp(raw)
+    // 🔥 formatTimestamp 会自动判断秒级/毫秒级，直接调用即可
+    return formatTimestamp(raw, props.field.widget?.config?.format)
   }
   
   if (Array.isArray(raw)) {
