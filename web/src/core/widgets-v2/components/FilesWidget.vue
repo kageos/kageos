@@ -455,7 +455,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import {
   ElUpload,
   ElButton,
@@ -611,6 +611,29 @@ const uploadUser = computed(() => {
 const uploadUserInfo = computed(() => {
   if (!uploadUser.value) return null
   return userInfoStore.getUserInfo(uploadUser.value)
+})
+
+// 🔥 监听 uploadUser 变化，自动加载用户信息
+watch(
+  () => uploadUser.value,
+  (newUsername) => {
+    if (newUsername && props.mode === 'detail') {
+      // 触发用户信息加载
+      userInfoStore.batchGetUserInfo([newUsername]).catch((error) => {
+        Logger.error('[FilesWidget] 加载上传用户信息失败', error)
+      })
+    }
+  },
+  { immediate: true }
+)
+
+// 🔥 组件挂载时，如果有上传用户，触发加载
+onMounted(() => {
+  if (uploadUser.value && props.mode === 'detail') {
+    userInfoStore.batchGetUserInfo([uploadUser.value]).catch((error) => {
+      Logger.error('[FilesWidget] 加载上传用户信息失败', error)
+    })
+  }
 })
 
 const isDisabled = computed(() => {
