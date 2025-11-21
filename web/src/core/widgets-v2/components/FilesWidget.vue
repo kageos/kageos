@@ -242,12 +242,12 @@
     <!-- 表格单元格模式 -->
     <template v-else-if="mode === 'table-cell'">
       <div v-if="currentFiles.length > 0" class="files-table-cell">
-        <!-- 🔥 毛玻璃效果的文件数量显示，参考用户组件选中样式 -->
-        <div class="files-count-badge">
-          <el-icon :size="16" class="file-icon">
+        <!-- 🔥 完全照抄用户组件搜索框选中样式 -->
+        <div class="files-select-display">
+          <el-icon :size="20" class="files-icon-small">
             <Document />
           </el-icon>
-          <span class="files-count-text">{{ currentFiles.length }} 个文件</span>
+          <span class="files-display-text">{{ currentFiles.length }} 个文件</span>
         </div>
       </div>
       <span v-else class="empty-text">-</span>
@@ -1943,37 +1943,27 @@ function handleFileChange(file: any): void {
   gap: 4px;
 }
 
-/* 毛玻璃效果的文件数量徽章 */
-.files-count-badge {
-  display: inline-flex;
+/* 🔥 完全照抄用户组件搜索框选中样式 */
+.files-select-display {
+  display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  transition: all 0.2s ease;
-  cursor: default;
+  background: var(--el-bg-color);
+  border-radius: 4px;
+  padding: 2px 8px;
 }
 
-.files-count-badge:hover {
-  background: rgba(255, 255, 255, 0.85);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-}
-
-.files-count-badge .file-icon {
-  color: var(--el-color-primary);
+.files-select-display .files-icon-small {
   flex-shrink: 0;
+  color: var(--el-color-primary);
 }
 
-.files-count-text {
-  font-size: 13px;
+.files-select-display .files-display-text {
+  font-size: 14px;
   color: var(--el-text-color-primary);
-  font-weight: 500;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .file-item {
