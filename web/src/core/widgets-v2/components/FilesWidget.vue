@@ -242,23 +242,23 @@
     <!-- 表格单元格模式 -->
     <template v-else-if="mode === 'table-cell'">
       <div v-if="currentFiles.length > 0" class="files-table-cell">
-        <el-tag size="small" type="info" style="margin-bottom: 4px">
+        <!-- 🔥 简化展示：只显示文件数量和前几个文件名 -->
+        <el-tag size="small" type="info" style="margin-right: 4px">
           {{ currentFiles.length }} 个文件
         </el-tag>
-        <div
-          v-for="(file, index) in displayFiles"
-          :key="file.url || file.name || index"
-          class="file-item"
-          :title="file.name || file.description || '文件'"
-          @click="handleShowFileDetail(file)"
-        >
-          <el-icon :size="14" class="file-icon">
-            <Document />
-          </el-icon>
-          <span class="file-name">{{ file.name || '未知文件' }}</span>
-        </div>
-        <span v-if="currentFiles.length > MAX_DISPLAY_FILES" class="more-files">
-          +{{ currentFiles.length - MAX_DISPLAY_FILES }} 个文件
+        <span v-if="displayFiles.length > 0" class="file-names">
+          <span
+            v-for="(file, index) in displayFiles"
+            :key="file.url || file.name || index"
+            class="file-name-inline"
+            :title="file.name || '文件'"
+          >
+            {{ file.name || '未知文件' }}
+            <span v-if="index < displayFiles.length - 1">, </span>
+          </span>
+          <span v-if="currentFiles.length > MAX_DISPLAY_FILES" class="more-files">
+            ...
+          </span>
         </span>
       </div>
       <span v-else class="empty-text">-</span>
@@ -268,51 +268,41 @@
     <template v-else-if="mode === 'detail'">
       <div class="detail-files">
         <div v-if="currentFiles.length > 0" class="uploaded-files">
-          <div class="section-title">已上传文件 ({{ currentFiles.length }})</div>
+          <!-- 🔥 参考旧版本的紧凑列表布局 -->
           <div
             v-for="(file, index) in currentFiles"
             :key="file.url || file.name || index"
-            class="uploaded-file"
+            class="detail-file-item"
+            :class="{ 'file-clickable': isImageFile(file) && file.is_uploaded }"
+            @click="isImageFile(file) && file.is_uploaded ? handlePreviewImage(file) : null"
           >
-            <div class="file-header">
-              <el-icon :size="16" class="file-icon">
-                <Document />
-              </el-icon>
-              <span 
-                class="file-name" 
-                :title="file.name"
-                :class="{ 'file-name-clickable': isImageFile(file) && file.is_uploaded }"
-                @click="isImageFile(file) && file.is_uploaded ? handlePreviewImage(file) : null"
-              >
-                {{ file.name }}
-              </span>
-              <span class="file-size">{{ formatSize(file.size) }}</span>
-              <el-tag size="small" :type="file.is_uploaded ? 'success' : 'info'">
-                {{ file.is_uploaded ? '已上传' : '本地' }}
-              </el-tag>
-            </div>
-
-            <div v-if="file.description" class="file-description">
-              {{ file.description }}
-            </div>
-
-            <div class="file-actions">
+            <el-icon :size="16" class="file-icon">
+              <Document />
+            </el-icon>
+            <span class="file-name" :title="file.name">
+              {{ file.name }}
+            </span>
+            <span class="file-size">{{ formatSize(file.size) }}</span>
+            <el-tag size="small" :type="file.is_uploaded ? 'success' : 'info'">
+              {{ file.is_uploaded ? '已上传' : '本地' }}
+            </el-tag>
+            <div class="file-actions-inline">
               <el-button
                 v-if="isImageFile(file) && file.is_uploaded"
                 size="small"
+                text
                 :icon="View"
-                @click="handlePreviewImage(file)"
-              >
-                预览
-              </el-button>
+                @click.stop="handlePreviewImage(file)"
+                title="预览"
+              />
               <el-button
                 v-if="file.is_uploaded"
                 size="small"
+                text
                 :icon="Download"
-                @click="handleDownloadFile(file)"
-              >
-                下载
-              </el-button>
+                @click.stop="handleDownloadFile(file)"
+                title="下载"
+              />
             </div>
           </div>
         </div>

@@ -1115,17 +1115,17 @@ onUnmounted(() => {
   .fields-grid {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 8px;
+    gap: 4px;
   }
 
   .field-row {
     display: grid;
     grid-template-columns: 140px 1fr;
     gap: 12px;
-    padding: 12px 16px;
+    padding: 8px 12px;
     border-bottom: 1px solid var(--el-border-color-extra-light);
     align-items: start;
-    min-height: 40px;
+    min-height: auto;
     transition: all 0.2s ease;
     border-radius: 4px;
     background: transparent;
