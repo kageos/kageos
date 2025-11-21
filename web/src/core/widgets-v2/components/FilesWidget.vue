@@ -242,24 +242,10 @@
     <!-- 表格单元格模式 -->
     <template v-else-if="mode === 'table-cell'">
       <div v-if="currentFiles.length > 0" class="files-table-cell">
-        <!-- 🔥 简化展示：只显示文件数量和前几个文件名 -->
-        <el-tag size="small" type="info" style="margin-right: 4px">
+        <!-- 🔥 只显示文件数量，不显示文件名 -->
+        <el-tag size="small" type="info">
           {{ currentFiles.length }} 个文件
         </el-tag>
-        <span v-if="displayFiles.length > 0" class="file-names">
-          <span
-            v-for="(file, index) in displayFiles"
-            :key="file.url || file.name || index"
-            class="file-name-inline"
-            :title="file.name || '文件'"
-          >
-            {{ file.name || '未知文件' }}
-            <span v-if="index < displayFiles.length - 1">, </span>
-          </span>
-          <span v-if="currentFiles.length > MAX_DISPLAY_FILES" class="more-files">
-            ...
-          </span>
-        </span>
       </div>
       <span v-else class="empty-text">-</span>
     </template>
@@ -268,6 +254,19 @@
     <template v-else-if="mode === 'detail'">
       <div class="detail-files">
         <div v-if="currentFiles.length > 0" class="uploaded-files">
+          <!-- 🔥 打包下载按钮（如果有已上传的文件） -->
+          <div v-if="currentFiles.some(f => f.is_uploaded)" class="detail-files-header">
+            <el-button
+              size="small"
+              type="primary"
+              :icon="Download"
+              :loading="downloadingAll"
+              @click="handleDownloadAll"
+            >
+              打包下载
+            </el-button>
+          </div>
+          
           <!-- 🔥 参考旧版本的紧凑列表布局 -->
           <div
             v-for="(file, index) in currentFiles"
@@ -308,8 +307,8 @@
         </div>
         <div v-else class="empty-files">暂无文件</div>
 
+        <!-- 🔥 备注部分不显示标题，因为 TableRenderer 已经显示了字段名 -->
         <div v-if="remark" class="files-remark">
-          <div class="section-title">备注</div>
           <div class="remark-content">{{ remark }}</div>
         </div>
       </div>
@@ -473,6 +472,9 @@ const previewImageName = ref('')
 // 文件详情弹窗相关状态
 const fileDetailVisible = ref(false)
 const currentDetailFile = ref<FileItem | null>(null)
+
+// 打包下载状态
+const downloadingAll = ref(false)
 
 // 上传中的文件状态
 interface UploadingFile {
