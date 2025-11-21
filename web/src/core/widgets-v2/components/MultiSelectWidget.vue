@@ -291,7 +291,17 @@ async function handleSearch(query: string | any[], isByValue = false): Promise<v
   loading.value = true
 
   try {
-    const queryType: 'by_keyword' | 'by_value' = isByValue ? 'by_value' : 'by_keyword'
+    // 🔥 判断查询类型：
+    // - 如果是按值查询且 query 是数组，使用 by_values
+    // - 如果是按值查询且 query 是单个值，使用 by_value
+    // - 否则使用 by_keyword
+    let queryType: 'by_keyword' | 'by_value' | 'by_values'
+    if (isByValue) {
+      queryType = Array.isArray(query) ? 'by_values' : 'by_value'
+    } else {
+      queryType = 'by_keyword'
+    }
+    
     const requestBody = {
       code: props.field.code,
       type: queryType,

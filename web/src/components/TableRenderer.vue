@@ -17,7 +17,13 @@
               :field="field"
               :search-type="field.search"
               :model-value="getSearchValue(field)"
-              @update:model-value="(value: any) => updateSearchValue(field, value)"
+              @update:model-value="(value: any) => {
+                // 🔥 判断是否清空：值为 null 或空字符串，且之前有值
+                const isClearing = (value === null || value === '') && 
+                                   searchForm.value && 
+                                   searchForm.value[field.code] !== undefined
+                updateSearchValue(field, value, isClearing)
+              }"
             />
           </el-form-item>
         </template>
@@ -307,7 +313,9 @@ const {
   handleCurrentChange,
   handleAdd: handleAddRow,
   handleUpdate: handleUpdateRow,
-  handleDelete: handleDeleteRow
+  handleDelete: handleDeleteRow,
+  restoreFromURL,
+  syncToURL
 } = useTableOperations({
   functionData: props.functionData
 })
@@ -451,16 +459,33 @@ const getColumnWidth = (field: FieldConfig): number => {
  * @returns 搜索值
  */
 const getSearchValue = (field: FieldConfig): any => {
-  return searchForm.value[field.code] || null
+  const value = searchForm.value[field.code]
+  console.log(`[TableRenderer] getSearchValue ${field.code}:`, value, 'searchForm:', searchForm.value)
+  // 🔥 如果值是 undefined，返回 null；否则返回原值（包括空对象、空数组等）
+  return value === undefined ? null : value
 }
 
 /**
  * 更新搜索值
  * @param field 字段配置
  * @param value 新的搜索值
+ * @param shouldSearch 是否自动搜索（默认 false，清空时设为 true）
  */
-const updateSearchValue = (field: FieldConfig, value: any): void => {
-  searchForm.value[field.code] = value
+const updateSearchValue = (field: FieldConfig, value: any, shouldSearch: boolean = false): void => {
+  // 🔥 如果值为空（空数组、空字符串、null、undefined），删除该字段
+  if (value === null || value === undefined || 
+      (Array.isArray(value) && value.length === 0) || 
+      (typeof value === 'string' && value.trim() === '')) {
+    delete searchForm.value[field.code]
+  } else {
+    searchForm.value[field.code] = value
+  }
+  // 🔥 更新搜索值后，同步到 URL
+  syncToURL()
+  // 🔥 如果需要自动搜索（清空时），触发搜索
+  if (shouldSearch) {
+    loadTableData()
+  }
 }
 
 // ==================== 表格单元格渲染（组件自治） ====================
@@ -715,8 +740,11 @@ const copyFieldValue = (field: FieldConfig, value: any): void => {
  * 当函数配置更新时，重新加载数据
  */
 watch(() => props.functionData, () => {
+  // 🔥 清空搜索表单，但保留 URL 中的搜索参数（restoreFromURL 会恢复）
   searchForm.value = {}
   currentPage.value = 1
+  // 🔥 从 URL 恢复状态（包括搜索参数）
+  restoreFromURL()
   loadTableData()
 }, { immediate: true })
 

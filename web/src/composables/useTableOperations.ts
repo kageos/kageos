@@ -62,6 +62,7 @@ export interface TableOperationsReturn {
   handleUpdate: (id: number, data: Record<string, any>) => Promise<boolean>
   handleDelete: (id: number) => Promise<boolean>
   buildSearchParams: () => SearchParams
+  restoreFromURL: () => void
 }
 
 /**
@@ -283,8 +284,30 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
     // 搜索参数（使用工具函数）
     Object.assign(query, buildURLSearchParams(searchForm.value, searchableFields.value))
     
-    // 更新 URL（不触发导航）
-    router.replace({ query: { ...route.query, ...query } })
+    // 🔥 清理空值参数（确保不会生成 field: 这样的空参数）
+    Object.keys(query).forEach(key => {
+      const value = query[key]
+      if (!value || (typeof value === 'string' && (value.endsWith(':') || value.trim() === ''))) {
+        delete query[key]
+      }
+    })
+    
+    // 🔥 清理 URL 中已存在的搜索参数（如果字段已清空，从 URL 中删除）
+    const searchParamKeys = ['eq', 'like', 'in', 'gte', 'lte']
+    const newQuery: Record<string, string> = {}
+    
+    // 🔥 先复制所有非搜索参数（分页、排序等）
+    Object.keys(route.query).forEach(key => {
+      if (!searchParamKeys.includes(key)) {
+        newQuery[key] = String(route.query[key])
+      }
+    })
+    
+    // 🔥 然后添加新的搜索参数（buildURLSearchParams 已经过滤了空值）
+    Object.assign(newQuery, query)
+    
+    // 🔥 更新 URL（不触发导航）
+    router.replace({ query: newQuery })
   }
   
   /**
@@ -292,6 +315,7 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
    */
   const restoreFromURL = (): void => {
     const query = route.query
+    console.log('[useTableOperations] restoreFromURL 开始，query:', query)
     
     // 恢复分页
     if (query.page) {
@@ -327,35 +351,127 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
       }
     }
     
-    // 恢复搜索
+    // 恢复搜索（格式：eq=field:value 或 eq=field1:value1,field2:value2, like=field:value, in=field:value, gte=field:value, lte=field:value）
+    // 🔥 支持多个字段使用相同搜索类型，格式：field1:value1,field2:value2
+    console.log('[useTableOperations] 开始恢复搜索，searchableFields:', searchableFields.value.length)
     searchableFields.value.forEach(field => {
       const searchType = field.search || ''
+      
       if (searchType.includes('eq')) {
-        const value = query[`eq_${field.code}`]
-        if (value) searchForm.value[field.code] = String(value)
+        const eqValue = query.eq
+        if (eqValue) {
+          // 🔥 支持多个字段：field1:value1,field2:value2
+          const eqStr = String(eqValue)
+          const parts = eqStr.split(',')
+          for (const part of parts) {
+            if (part.trim().startsWith(`${field.code}:`)) {
+              const value = part.trim().substring(field.code.length + 1)
+              if (value) {
+                searchForm.value[field.code] = value
+                break
+              }
+            }
+          }
+        }
       } else if (searchType.includes('like')) {
-        const value = query[`like_${field.code}`]
-        if (value) searchForm.value[field.code] = String(value)
+        const likeValue = query.like
+        if (likeValue) {
+          // 🔥 支持多个字段：field1:value1,field2:value2
+          const likeStr = String(likeValue)
+          const parts = likeStr.split(',')
+          for (const part of parts) {
+            if (part.trim().startsWith(`${field.code}:`)) {
+              const value = part.trim().substring(field.code.length + 1)
+              if (value) {
+                searchForm.value[field.code] = value
+                break
+              }
+            }
+          }
+        }
       } else if (searchType.includes('in')) {
-        const value = query[`in_${field.code}`]
-        if (value) searchForm.value[field.code] = String(value)
+        const inValue = query.in
+        if (inValue) {
+          // 🔥 支持多个字段：field1:value1,field2:value2
+          const inStr = String(inValue)
+          const parts = inStr.split(',')
+          for (const part of parts) {
+            if (part.trim().startsWith(`${field.code}:`)) {
+              const valueStr = part.trim().substring(field.code.length + 1)
+              if (valueStr) {
+                // 🔥 in 类型支持多选，需要将逗号分隔的字符串转换为数组
+                searchForm.value[field.code] = valueStr.includes(',') 
+                  ? valueStr.split(',').map(v => v.trim()).filter(v => v)
+                  : valueStr
+                break
+              }
+            }
+          }
+        }
       } else if (searchType.includes('gte') && searchType.includes('lte')) {
-        const gteValue = query[`gte_${field.code}`]
-        const lteValue = query[`lte_${field.code}`]
-        if (gteValue || lteValue) {
+        const gteValue = query.gte
+        const lteValue = query.lte
+        
+        // 解析 gte（支持多个字段）
+        let gte: string | null = null
+        if (gteValue) {
+          const gteStr = String(gteValue)
+          const parts = gteStr.split(',')
+          for (const part of parts) {
+            if (part.trim().startsWith(`${field.code}:`)) {
+              gte = part.trim().substring(field.code.length + 1)
+              break
+            }
+          }
+        }
+        
+        // 解析 lte（支持多个字段）
+        let lte: string | null = null
+        if (lteValue) {
+          const lteStr = String(lteValue)
+          const parts = lteStr.split(',')
+          for (const part of parts) {
+            if (part.trim().startsWith(`${field.code}:`)) {
+              lte = part.trim().substring(field.code.length + 1)
+              break
+            }
+          }
+        }
+        
+        if (gte || lte) {
           // 根据字段类型判断是数字范围还是日期范围
+          // 🔥 检查 widget.type 或 data.type 是否为 timestamp
           const fieldType = field.data?.type
-          if (fieldType === 'timestamp' || fieldType === 'datetime') {
-            searchForm.value[field.code] = [gteValue ? String(gteValue) : null, lteValue ? String(lteValue) : null]
+          const widgetType = field.widget?.type
+          const isTimestamp = fieldType === 'timestamp' || widgetType === 'timestamp'
+          
+          console.log(`[useTableOperations] 字段 ${field.code} 类型检查:`, {
+            fieldType,
+            widgetType,
+            isTimestamp,
+            gte,
+            lte
+          })
+          
+          if (isTimestamp) {
+            // 🔥 时间戳类型：将字符串转换为数字（ElDatePicker 的 valueFormat='x' 需要数字）
+            const timestampRange = [
+              gte ? Number(gte) : null,
+              lte ? Number(lte) : null
+            ]
+            searchForm.value[field.code] = timestampRange
+            console.log(`[useTableOperations] 恢复时间戳范围 ${field.code}:`, timestampRange, '原始值 gte:', gte, 'lte:', lte)
           } else {
             searchForm.value[field.code] = {
-              min: gteValue ? String(gteValue) : undefined,
-              max: lteValue ? String(lteValue) : undefined
+              min: gte ? String(gte) : undefined,
+              max: lte ? String(lte) : undefined
             }
+            console.log(`[useTableOperations] 恢复数字范围 ${field.code}:`, searchForm.value[field.code])
           }
         }
       }
     })
+    console.log('[useTableOperations] restoreFromURL 完成，searchForm:', JSON.stringify(searchForm.value))
   }
   
   /**
@@ -447,6 +563,8 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
         sorts.value = defaultSorts
       }
     }
+    // 🔥 初始化后加载数据
+    loadTableData()
   }
   
   // 初始化（在首次创建时）
@@ -561,7 +679,8 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
     handleUpdate,
     handleDelete,
     buildSearchParams,
-    syncToURL
+    syncToURL,
+    restoreFromURL
   }
 }
 

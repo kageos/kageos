@@ -111,9 +111,10 @@ export function tableDeleteRows(method: string, router: string, ids: number[]) {
  * @param router 函数路由（如 /luobei/test999/tools/cashier_desk）
  * @param data 回调数据
  * @param data.code 字段代码（如 product_id）
- * @param data.type 查询类型：'by_keyword' | 'by_value'
+ * @param data.type 查询类型：'by_keyword' | 'by_value' | 'by_values'
  *   - by_keyword: 根据用户输入的关键字模糊搜索（默认）
- *   - by_value: 根据字段的实际值查询（用于回显、URL 恢复等场景）
+ *   - by_value: 根据字段的实际值查询（用于回显、URL 恢复等场景，单个值）
+ *   - by_values: 根据字段的实际值查询（用于多选回显，数组值）
  * @param data.value 查询值（关键字或实际值）
  * @param data.request 当前表单的所有字段值
  * @param data.value_type 字段类型（int/string/float 等）
@@ -153,7 +154,7 @@ export function tableDeleteRows(method: string, router: string, ids: number[]) {
  */
 export function selectFuzzy(method: string, router: string, data: {
   code: string
-  type: 'by_keyword' | 'by_value'
+  type: 'by_keyword' | 'by_value' | 'by_values'
   value: any
   request: Record<string, any>
   value_type: string

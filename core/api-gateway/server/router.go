@@ -12,7 +12,7 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
-	v1 	"github.com/ai-agent-os/ai-agent-os/core/api-gateway/api/v1"
+	v1 "github.com/ai-agent-os/ai-agent-os/core/api-gateway/api/v1"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
@@ -194,10 +194,10 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 			// 如果 header 中没有，说明需要从其他地方获取（这种情况不应该发生，因为 gin handler 已设置）
 			logger.Debugf(s.ctx, "[Proxy] TraceId not found in request header")
 		}
-		
+
 		// ✨ 解析 JWT Token 并提取 username，设置到 X-Request-User header
 		// 如果 header 中已有 X-Request-User，则不覆盖（允许手动指定）
-		if req.Header.Get("X-Request-User") == "" {
+		if req.Header.Get(contextx.RequestUserHeader) == "" {
 			token := req.Header.Get("X-Token")
 			if token != "" {
 				// 解析 token 获取 username
@@ -205,7 +205,7 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 				claims, err := jwtService.ValidateToken(token)
 				if err == nil {
 					// 解析成功，设置 username 到 header
-					req.Header.Set("X-Request-User", claims.Username)
+					req.Header.Set(contextx.RequestUserHeader, claims.Username)
 					logger.Debugf(s.ctx, "[Proxy] Extracted username from token: %s", claims.Username)
 				} else {
 					// token 解析失败，但不阻止请求（可能是不需要认证的接口）
@@ -213,7 +213,7 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 				}
 			}
 		}
-		
+
 		// 注意：X-Token 和其他请求头会被 httputil.ReverseProxy 自动转发，无需手动处理
 
 		// 路径重写：如果配置了 rewrite_path，替换路径前缀
@@ -267,7 +267,7 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 			// 设置到请求 header，这样 proxy.Director 就能读取并传递给后端
 			c.Request.Header.Set(contextx.TraceIdHeader, traceId)
 		}
-		
+
 		proxy.ServeHTTP(c.Writer, c.Request)
 	}
 }

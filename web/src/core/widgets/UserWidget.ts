@@ -633,5 +633,143 @@ export class UserWidget extends BaseWidget {
       meta: {}
     }
   }
+
+  /**
+   * 🔥 渲染搜索输入框（用于 TableRenderer）
+   * 根据 search 标签决定渲染用户选择器或普通输入框
+   * @param searchType 搜索类型，如 'eq', 'like', 'in'
+   */
+  renderSearchInput(searchType: string): any {
+    // 如果 search 标签是 "in" 或 "eq"，渲染用户选择器（支持模糊查询）
+    if (searchType.includes('in') || searchType.includes('eq')) {
+      return {
+        component: 'ElSelect',
+        props: {
+          placeholder: `请选择${this.field.name}`,
+          clearable: true,
+          filterable: true,
+          remote: true,
+          multiple: searchType.includes('in'), // in 支持多选
+          style: { width: '200px' }
+        },
+        // 🔥 自定义 remote-method，调用用户模糊查询接口
+        onRemoteMethod: async (query: string) => {
+          if (!query || query.trim() === '') {
+            return []
+          }
+          
+          try {
+            const response = await searchUsersFuzzy(query.trim(), 20)
+            const users = response.users || []
+            
+            // 返回选项格式
+            return users.map((user: UserInfo) => ({
+              label: user.nickname ? `${user.username}(${user.nickname})` : user.username,
+              value: user.username
+            }))
+          } catch (error) {
+            Logger.error('UserWidget', '搜索用户失败', error)
+            return []
+          }
+        },
+        // 🔥 初始化已选中值的选项（用于回显）
+        onInitOptions: async (values: string | string[]) => {
+          if (!values) {
+            return []
+          }
+          
+          try {
+            // 将值转换为数组格式
+            const usernames = Array.isArray(values) ? values : [values]
+            if (usernames.length === 0) {
+              return []
+            }
+            
+            // 批量查询用户信息
+            const response = await getUsersByUsernames(usernames)
+            const users = response.users || []
+            
+            // 返回选项格式
+            return users.map((user: UserInfo) => ({
+              label: user.nickname ? `${user.username}(${user.nickname})` : user.username,
+              value: user.username
+            }))
+          } catch (error) {
+            Logger.error('UserWidget', '查询用户信息失败', error)
+            return []
+          }
+        }
+      }
+    }
+    
+    // 如果 search 标签是 "like"，渲染普通文本输入框
+    if (searchType.includes('like')) {
+      return {
+        component: 'ElInput',
+        props: {
+          placeholder: `请输入${this.field.name}`,
+          clearable: true,
+          style: { width: '200px' }
+        }
+      }
+    }
+    
+    // 默认：使用精确搜索（eq），渲染用户选择器
+    return {
+      component: 'ElSelect',
+      props: {
+        placeholder: `请选择${this.field.name}`,
+        clearable: true,
+        filterable: true,
+        remote: true,
+        style: { width: '200px' }
+      },
+      onRemoteMethod: async (query: string) => {
+        if (!query || query.trim() === '') {
+          return []
+        }
+        
+        try {
+          const response = await searchUsersFuzzy(query.trim(), 20)
+          const users = response.users || []
+          
+          return users.map((user: UserInfo) => ({
+            label: user.nickname ? `${user.username}(${user.nickname})` : user.username,
+            value: user.username
+          }))
+        } catch (error) {
+          Logger.error('UserWidget', '搜索用户失败', error)
+          return []
+        }
+      },
+      // 🔥 初始化已选中值的选项（用于回显）
+      onInitOptions: async (values: string | string[]) => {
+        if (!values) {
+          return []
+        }
+        
+        try {
+          // 将值转换为数组格式
+          const usernames = Array.isArray(values) ? values : [values]
+          if (usernames.length === 0) {
+            return []
+          }
+          
+          // 批量查询用户信息
+          const response = await getUsersByUsernames(usernames)
+          const users = response.users || []
+          
+          // 返回选项格式
+          return users.map((user: UserInfo) => ({
+            label: user.nickname ? `${user.username}(${user.nickname})` : user.username,
+            value: user.username
+          }))
+        } catch (error) {
+          Logger.error('UserWidget', '查询用户信息失败', error)
+          return []
+        }
+      }
+    }
+  }
 }
 
