@@ -667,20 +667,38 @@ const unifiedUploadUser = computed(() => {
 // 🔥 获取统一上传用户的用户信息
 const unifiedUploadUserInfo = computed(() => {
   if (!unifiedUploadUser.value) return null
+  
+  // 🔥 优先从 userInfoMap 中获取（如果是在 TableRenderer 中使用）
+  if (props.userInfoMap && props.userInfoMap.has(unifiedUploadUser.value)) {
+    return props.userInfoMap.get(unifiedUploadUser.value)
+  }
+  
+  // 降级到 userInfoStore
   return userInfoStore.getUserInfo(unifiedUploadUser.value)
 })
 
 // 🔥 获取文件的上传用户信息
 function getFileUploadUserInfo(file: FileItem) {
   if (!file.upload_user) return null
+  
+  // 🔥 优先从 userInfoMap 中获取（如果是在 TableRenderer 中使用）
+  if (props.userInfoMap && props.userInfoMap.has(file.upload_user)) {
+    return props.userInfoMap.get(file.upload_user)
+  }
+  
+  // 降级到 userInfoStore
   return userInfoStore.getUserInfo(file.upload_user)
 }
 
 // 🔥 监听所有上传用户变化，自动加载用户信息
+// 注意：如果是在 TableRenderer 中使用，TableRenderer 会统一批量查询用户信息
+// 这里只处理不在表格中的情况（如独立的表单页面）
 watch(
   () => allUploadUsers.value,
   (usernames: string[]) => {
-    if (usernames.length > 0 && props.mode === 'detail') {
+    // 🔥 检查是否在 TableRenderer 中（通过 user-info-map prop 判断）
+    // 如果传入了 user-info-map，说明是在表格中，由 TableRenderer 统一处理
+    if (usernames.length > 0 && props.mode === 'detail' && !props.userInfoMap) {
       // 批量加载所有上传用户信息
       userInfoStore.batchGetUserInfo(usernames).catch((error: any) => {
         Logger.error('[FilesWidget] 加载上传用户信息失败', error)
@@ -691,8 +709,11 @@ watch(
 )
 
 // 🔥 组件挂载时，如果有上传用户，触发加载
+// 注意：如果是在 TableRenderer 中使用，TableRenderer 会统一批量查询用户信息
 onMounted(() => {
-  if (allUploadUsers.value.length > 0 && props.mode === 'detail') {
+  // 🔥 检查是否在 TableRenderer 中（通过 user-info-map prop 判断）
+  // 如果传入了 user-info-map，说明是在表格中，由 TableRenderer 统一处理
+  if (allUploadUsers.value.length > 0 && props.mode === 'detail' && !props.userInfoMap) {
     userInfoStore.batchGetUserInfo(allUploadUsers.value).catch((error: any) => {
       Logger.error('[FilesWidget] 加载上传用户信息失败', error)
     })
