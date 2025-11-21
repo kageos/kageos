@@ -142,7 +142,12 @@ const internalValue = computed({
       
       // 如果是数组（范围选择）
       if (Array.isArray(value)) {
-        return value.map(v => new Date(v))
+        // 🔥 自动判断时间戳是秒级还是毫秒级
+        const SECONDS_THRESHOLD = 9999999999
+        return value.map(v => {
+          const timestamp = typeof v === 'number' && v > 0 && v < SECONDS_THRESHOLD ? v * 1000 : v
+          return new Date(timestamp)
+        })
       }
       
       return value

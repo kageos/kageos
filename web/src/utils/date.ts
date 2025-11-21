@@ -45,6 +45,16 @@ export function formatTimestamp(timestamp: number | string | null | undefined, f
   }
   
   const year = date.getFullYear()
+  
+  // 🔥 调试日志：如果年份异常（> 2100 或 < 1970），输出警告
+  if (year > 2100 || year < 1970) {
+    console.warn('[formatTimestamp] 时间戳年份异常:', {
+      original: timestamp,
+      converted: numTimestamp,
+      year: year,
+      date: date.toISOString()
+    })
+  }
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
   const hours = String(date.getHours()).padStart(2, '0')
