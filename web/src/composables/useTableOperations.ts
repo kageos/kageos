@@ -487,10 +487,21 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
           })
           
           if (isTimestamp) {
-            // 🔥 时间戳类型：将字符串转换为数字（ElDatePicker 的 valueFormat='x' 需要数字）
+            // 🔥 时间戳类型：将字符串转换为数字（ElDatePicker 的 valueFormat='x' 需要毫秒级时间戳）
+            // 🔥 兼容旧格式：如果 URL 中的时间戳值 < 9999999999，认为是秒级，需要转换为毫秒级
+            const SECONDS_THRESHOLD = 9999999999
+            const convertTimestamp = (ts: string | null): number | null => {
+              if (!ts) return null
+              const num = Number(ts)
+              // 如果值很小，可能是旧格式的秒级时间戳，转换为毫秒级
+              if (num > 0 && num < SECONDS_THRESHOLD) {
+                return num * 1000
+              }
+              return num
+            }
             const timestampRange = [
-              gte ? Number(gte) : null,
-              lte ? Number(lte) : null
+              gte ? convertTimestamp(gte) : null,
+              lte ? convertTimestamp(lte) : null
             ]
             searchForm.value[field.code] = timestampRange
             console.log(`[useTableOperations] 恢复时间戳范围 ${field.code}:`, timestampRange, '原始值 gte:', gte, 'lte:', lte)

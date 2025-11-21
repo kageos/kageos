@@ -131,23 +131,14 @@ const internalValue = computed({
       }
       
       // 🔥 如果是时间戳，转换为 Date 对象
-      // 注意：系统统一使用毫秒级时间戳，但为了兼容性，需要判断
+      // 注意：系统统一使用毫秒级时间戳，直接使用
       if (typeof value === 'number') {
-        // 🔥 自动判断时间戳是秒级还是毫秒级
-        // 规则：如果时间戳 < 9999999999，认为是秒级，需要乘以 1000
-        const SECONDS_THRESHOLD = 9999999999
-        const timestamp = value > 0 && value < SECONDS_THRESHOLD ? value * 1000 : value
-        return new Date(timestamp)
+        return new Date(value)
       }
       
       // 如果是数组（范围选择）
       if (Array.isArray(value)) {
-        // 🔥 自动判断时间戳是秒级还是毫秒级
-        const SECONDS_THRESHOLD = 9999999999
-        return value.map(v => {
-          const timestamp = typeof v === 'number' && v > 0 && v < SECONDS_THRESHOLD ? v * 1000 : v
-          return new Date(timestamp)
-        })
+        return value.map(v => new Date(v))
       }
       
       return value

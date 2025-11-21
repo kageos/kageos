@@ -417,7 +417,7 @@ const inputConfig = computed(() => {
             startPlaceholder: `开始${props.field.name}`,
             endPlaceholder: `结束${props.field.name}`,
             format: 'YYYY-MM-DD HH:mm:ss',
-            valueFormat: 'X', // 时间戳格式
+            valueFormat: 'x', // 毫秒级时间戳格式
             clearable: true,
             style: { width: '400px' },
             shortcuts: [
@@ -426,7 +426,7 @@ const inputConfig = computed(() => {
                 start.setHours(0, 0, 0, 0)
                 const end = new Date()
                 end.setHours(23, 59, 59, 999)
-                return [Math.floor(start.getTime() / 1000), Math.floor(end.getTime() / 1000)]
+                return [start.getTime(), end.getTime()] // 🔥 毫秒级时间戳
               }},
               { text: '昨天', value: () => {
                 const start = new Date()
@@ -435,7 +435,7 @@ const inputConfig = computed(() => {
                 const end = new Date()
                 end.setDate(end.getDate() - 1)
                 end.setHours(23, 59, 59, 999)
-                return [Math.floor(start.getTime() / 1000), Math.floor(end.getTime() / 1000)]
+                return [start.getTime(), end.getTime()] // 🔥 毫秒级时间戳
               }},
               { text: '最近7天', value: () => {
                 const end = new Date()
@@ -443,7 +443,7 @@ const inputConfig = computed(() => {
                 const start = new Date()
                 start.setDate(start.getDate() - 6)
                 start.setHours(0, 0, 0, 0)
-                return [Math.floor(start.getTime() / 1000), Math.floor(end.getTime() / 1000)]
+                return [start.getTime(), end.getTime()] // 🔥 毫秒级时间戳
               }},
               { text: '最近30天', value: () => {
                 const end = new Date()
@@ -451,7 +451,7 @@ const inputConfig = computed(() => {
                 const start = new Date()
                 start.setDate(start.getDate() - 29)
                 start.setHours(0, 0, 0, 0)
-                return [Math.floor(start.getTime() / 1000), Math.floor(end.getTime() / 1000)]
+                return [start.getTime(), end.getTime()] // 🔥 毫秒级时间戳
               }}
             ]
           }
