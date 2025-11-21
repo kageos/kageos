@@ -1166,7 +1166,7 @@ async function flushCompleteQueue(): Promise<void> {
         const authStore = useAuthStore()
         currentUploadUser = authStore.userName || authStore.user?.username || ''
       }
-    } catch (error) {
+    } catch (error: any) {
       Logger.warn('[FilesWidget] 无法获取用户信息', error)
     }
 
