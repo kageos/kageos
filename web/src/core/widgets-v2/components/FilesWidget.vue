@@ -261,6 +261,13 @@
                 已上传文件 ({{ currentFiles.length }})
               </div>
               <!-- 🔥 上传用户信息 -->
+              <!-- 
+                说明：
+                1. upload_user 是 FilesData 级别的，表示整个文件列表的上传用户
+                2. 如果多个文件是同一个用户上传的：显示该用户（正确）
+                3. 如果多个文件是不同用户上传的：当前系统无法区分，因为 upload_user 是文件列表级别的
+                4. 显示优先级：昵称 > 用户名 > 原始字符串
+              -->
               <div v-if="uploadUser" class="upload-user-info-header">
                 <el-avatar
                   v-if="uploadUserInfo"
@@ -270,8 +277,22 @@
                 >
                   {{ uploadUserInfo.username?.[0]?.toUpperCase() || 'U' }}
                 </el-avatar>
+                <el-avatar
+                  v-else
+                  :size="20"
+                  class="upload-user-avatar"
+                >
+                  {{ uploadUser[0]?.toUpperCase() || 'U' }}
+                </el-avatar>
                 <span class="upload-user-name">
-                  上传者：{{ uploadUserInfo?.nickname || uploadUserInfo?.username || uploadUser }}
+                  <template v-if="uploadUserInfo">
+                    <!-- 🔥 优先显示昵称，如果没有昵称则显示用户名 -->
+                    上传者：{{ uploadUserInfo.nickname || uploadUserInfo.username || uploadUser }}
+                  </template>
+                  <template v-else>
+                    <!-- 🔥 用户信息加载中，显示原始用户名 -->
+                    上传者：{{ uploadUser }}
+                  </template>
                 </span>
               </div>
             </div>
@@ -616,10 +637,10 @@ const uploadUserInfo = computed(() => {
 // 🔥 监听 uploadUser 变化，自动加载用户信息
 watch(
   () => uploadUser.value,
-  (newUsername) => {
+  (newUsername: string | undefined) => {
     if (newUsername && props.mode === 'detail') {
       // 触发用户信息加载
-      userInfoStore.batchGetUserInfo([newUsername]).catch((error) => {
+      userInfoStore.batchGetUserInfo([newUsername]).catch((error: any) => {
         Logger.error('[FilesWidget] 加载上传用户信息失败', error)
       })
     }
@@ -630,7 +651,7 @@ watch(
 // 🔥 组件挂载时，如果有上传用户，触发加载
 onMounted(() => {
   if (uploadUser.value && props.mode === 'detail') {
-    userInfoStore.batchGetUserInfo([uploadUser.value]).catch((error) => {
+    userInfoStore.batchGetUserInfo([uploadUser.value]).catch((error: any) => {
       Logger.error('[FilesWidget] 加载上传用户信息失败', error)
     })
   }
