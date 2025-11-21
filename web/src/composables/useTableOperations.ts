@@ -427,16 +427,16 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
             // 提取字段值部分
             const valueStr = inStr.substring(valueStart, valueEnd).trim()
             
-            if (valueStr) {
-              // 🔥 in 类型支持多选，需要将逗号分隔的字符串转换为数组
-              // 注意：如果字段是 user 类型且 search 包含 'in'，即使只有一个值也要转换为数组
-              const values = valueStr.split(',').map(v => v.trim()).filter(v => v)
-              // 🔥 如果字段是 user 类型，始终使用数组格式（因为 ElSelect 的 multiple 模式需要数组）
-              if (field.widget?.type === 'user' && searchType.includes('in')) {
-                searchForm.value[field.code] = values.length > 0 ? values : []
-              } else {
-                // 其他类型：如果只有一个值，保持字符串；多个值使用数组
-                searchForm.value[field.code] = values.length > 1 ? values : (values.length === 1 ? values[0] : valueStr)
+              if (valueStr) {
+                // 🔥 in 类型支持多选，需要将逗号分隔的字符串转换为数组
+                // 注意：如果字段是 user 类型且 search 包含 'in'，即使只有一个值也要转换为数组
+                const values = valueStr.split(',').map(v => v.trim()).filter(v => v)
+                // 🔥 如果字段是 user 类型，始终使用数组格式（因为 ElSelect 的 multiple 模式需要数组）
+                if (field.widget?.type === 'user' && searchType.includes('in')) {
+                  searchForm.value[field.code] = values.length > 0 ? values : []
+                } else {
+                  // 其他类型：如果只有一个值，保持字符串；多个值使用数组
+                  searchForm.value[field.code] = values.length > 1 ? values : (values.length === 1 ? values[0] : valueStr)
               }
             }
           }

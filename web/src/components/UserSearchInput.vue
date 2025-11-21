@@ -259,7 +259,7 @@ const handleWrapperClick = () => {
       const inputEl = (inputRef.value as any).$el?.querySelector('input') as HTMLInputElement
       if (inputEl) {
         inputEl.focus()
-      }
+  }
     }
   })
 }
@@ -276,7 +276,7 @@ const handleClickOutside = (event: MouseEvent) => {
 // 是否正在内部更新（避免 watch 触发时覆盖用户选择）
 const isInternalUpdate = ref(false)
 
-  // 初始化已选中的用户（用于回显）
+// 初始化已选中的用户（用于回显）
 const initSelectedUsers = async () => {
   // 🔥 如果是内部更新，不需要重新加载
   if (isInternalUpdate.value) {
