@@ -738,15 +738,33 @@ const handleShowDetail = async (row: any, index: number): Promise<void> => {
  * 在详情抽屉中切换记录
  * @param direction 导航方向
  */
-const handleNavigate = (direction: 'prev' | 'next'): void => {
+const handleNavigate = async (direction: 'prev' | 'next'): Promise<void> => {
   if (!tableData.value || tableData.value.length === 0) return
 
-  if (direction === 'prev' && currentDetailIndex.value > 0) {
-    currentDetailIndex.value--
-    currentDetailRow.value = tableData.value[currentDetailIndex.value]
-  } else if (direction === 'next' && currentDetailIndex.value < tableData.value.length - 1) {
-    currentDetailIndex.value++
-    currentDetailRow.value = tableData.value[currentDetailIndex.value]
+  let newIndex = currentDetailIndex.value
+  if (direction === 'prev' && newIndex > 0) {
+    newIndex--
+  } else if (direction === 'next' && newIndex < tableData.value.length - 1) {
+    newIndex++
+  } else {
+    return
+  }
+
+  currentDetailIndex.value = newIndex
+  const row = tableData.value[newIndex]
+  currentDetailRow.value = row
+  
+  // 🔥 收集新行的 files widget 的 upload_user 并查询用户信息
+  const filesUploadUsers = collectFilesUploadUsersFromRow(row, visibleFields.value)
+  if (filesUploadUsers.length > 0) {
+    // 批量查询用户信息（自动处理缓存）
+    const users = await userInfoStore.batchGetUserInfo(filesUploadUsers)
+    // 更新 userInfoMap，供详情中的 FilesWidget 使用
+    users.forEach((user: any) => {
+      if (user.username) {
+        userInfoMap.value.set(user.username, user)
+      }
+    })
   }
 }
 
