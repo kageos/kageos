@@ -522,6 +522,9 @@ interface FilesData {
   files: FileItem[]
   remark: string
   metadata: Record<string, any>
+  upload_user?: string    // 文件上传的用户
+  widget_type?: string    // Widget 类型，值为 "files"
+  data_type?: string      // 数据类型，值为 "struct"
 }
 
 // 计算属性
@@ -975,17 +978,49 @@ async function flushCompleteQueue(): Promise<void> {
 }
 
 // 更新文件列表
-function updateFiles(files: FileItem[]): void {
+async function updateFiles(files: FileItem[]): Promise<void> {
   const currentValue = props.value
   const data = (currentValue?.raw as FilesData) || {
     files: [],
     remark: '',
     metadata: {},
+    upload_user: '',
+    widget_type: 'files',  // 固定值
+    data_type: 'struct',   // 固定值
+  }
+
+  // 获取当前用户信息（如果还没有设置）
+  let uploadUser = data.upload_user || ''
+  if (!uploadUser) {
+    try {
+      // 优先从 localStorage 读取用户信息（不需要调用 API）
+      const savedUserStr = localStorage.getItem('user')
+      if (savedUserStr) {
+        const savedUser = JSON.parse(savedUserStr)
+        uploadUser = savedUser.username || ''
+      }
+      
+      // 如果 localStorage 中没有，尝试从 authStore 获取
+      if (!uploadUser) {
+        const { useAuthStore } = await import('@/stores/auth')
+        const authStore = useAuthStore()
+        uploadUser = authStore.userName || authStore.user?.username || ''
+      }
+      
+      if (!uploadUser) {
+        console.warn('[FilesWidget] 无法获取用户信息：用户未登录或用户信息为空')
+      }
+    } catch (error) {
+      console.warn('[FilesWidget] 无法获取用户信息', error)
+    }
   }
 
   const newData: FilesData = {
     ...data,
     files,
+    upload_user: uploadUser,
+    widget_type: 'files',  // 固定值
+    data_type: 'struct',   // 固定值
   }
 
   formDataStore.setValue(props.fieldPath, {

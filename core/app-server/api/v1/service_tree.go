@@ -3,6 +3,7 @@ package v1
 import (
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
 	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
 	"github.com/gin-gonic/gin"
 )
@@ -40,7 +41,8 @@ func (s *ServiceTree) CreateServiceTree(c *gin.Context) {
 	}
 
 	// 创建服务目录
-	resp, err := s.serviceTreeService.CreateServiceTree(c, &req)
+	ctx := contextx.ToContext(c)
+	resp, err := s.serviceTreeService.CreateServiceTree(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, "创建服务目录失败: "+err.Error())
 		return
@@ -76,7 +78,8 @@ func (s *ServiceTree) GetServiceTree(c *gin.Context) {
 	}
 
 	// 获取服务目录树（支持类型过滤）
-	trees, err := s.serviceTreeService.GetServiceTree(c, user, app, nodeType)
+	ctx := contextx.ToContext(c)
+	trees, err := s.serviceTreeService.GetServiceTree(ctx, user, app, nodeType)
 	if err != nil {
 		response.FailWithMessage(c, "获取服务目录失败: "+err.Error())
 		return
@@ -107,7 +110,8 @@ func (s *ServiceTree) UpdateServiceTree(c *gin.Context) {
 	}
 
 	// 更新服务目录
-	if err := s.serviceTreeService.UpdateServiceTree(c, &req); err != nil {
+	ctx := contextx.ToContext(c)
+	if err := s.serviceTreeService.UpdateServiceTree(ctx, &req); err != nil {
 		response.FailWithMessage(c, "更新服务目录失败: "+err.Error())
 		return
 	}
@@ -137,7 +141,8 @@ func (s *ServiceTree) DeleteServiceTree(c *gin.Context) {
 	}
 
 	// 删除服务目录
-	if err := s.serviceTreeService.DeleteServiceTree(c, req.ID); err != nil {
+	ctx := contextx.ToContext(c)
+	if err := s.serviceTreeService.DeleteServiceTree(ctx, req.ID); err != nil {
 		response.FailWithMessage(c, "删除服务目录失败: "+err.Error())
 		return
 	}

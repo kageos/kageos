@@ -608,12 +608,13 @@ export abstract class BaseWidget implements IWidgetSnapshot {
    * 🔥 渲染表格单元格（用于 TableWidget）
    * 子类可以覆盖此方法来自定义表格展示
    * @param value 字段值
+   * @param userInfoMap 用户信息映射（可选，用于批量查询优化）
    * @returns VNode（Vue 虚拟节点）或 字符串
    * 
    * 注意：为了兼容 TableRenderer，如果返回字符串，TableRenderer 会用 span 包裹
    * 子类如果要返回 VNode，可以直接返回 h(...)
    */
-  renderTableCell(value?: FieldValue): any {
+  renderTableCell(value?: FieldValue, userInfoMap?: Map<string, any>): any {
     // 默认实现：使用统一的格式化方法
     return this.formatValueForDisplay(value)
   }
@@ -671,14 +672,17 @@ export abstract class BaseWidget implements IWidgetSnapshot {
    * - 某些组件在详情中可能需要更丰富的展示（如 files 显示文件列表）
    * 
    * @param value 字段值（可选，默认从 formManager 读取）
+   * @param context 上下文信息（function name、记录ID等）
+   * @param userInfoMap 用户信息映射（可选，用于批量查询优化）
    * @returns 渲染结果（VNode 或字符串）
    * 
    * 注意：返回字符串时，TableRenderer 会自动用 span 包裹
    * 子类可以重写此方法返回 VNode 以提供更丰富的展示（如 FilesWidget）
    */
-  renderForDetail(value?: FieldValue): any {
+  renderForDetail(value?: FieldValue, context?: { functionName?: string; recordId?: string | number; userInfoMap?: Map<string, any> }): any {
     // 默认实现：使用统一的格式化方法（与 renderTableCell 一致）
     // 子类可以重写此方法来提供详情专用的渲染逻辑（如返回 VNode）
+    // context 参数用于传递额外的上下文信息（如 function name、记录ID等）
     return this.formatValueForDisplay(value)
   }
 

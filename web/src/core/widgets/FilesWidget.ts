@@ -72,6 +72,9 @@ export interface FilesData {
   files: FileItem[]
   remark: string
   metadata: Record<string, any>
+  upload_user?: string    // 文件上传的用户
+  widget_type?: string    // Widget 类型，值为 "files"
+  data_type?: string      // 数据类型，值为 "struct"
 }
 
 /**
@@ -102,6 +105,9 @@ export class FilesWidget extends BaseWidget {
   private uploadingFiles = ref<UploadingFile[]>([])
   private filesConfig: FilesConfig
   private router: string
+  
+  // 详情上下文（用于打包下载命名）
+  private detailContext: { functionName?: string; recordId?: string | number } = {}
   
   // ✨ 批量complete相关
   private pendingCompleteQueue: BatchUploadCompleteItem[] = []  // 待批量complete的队列
@@ -213,17 +219,49 @@ export class FilesWidget extends BaseWidget {
   /**
    * 更新文件列表
    */
-  private updateFiles(files: FileItem[]): void {
+  private async updateFiles(files: FileItem[]): Promise<void> {
     const currentValue = this.safeGetValue(this.fieldPath)
     const data = (currentValue?.raw as FilesData) || {
       files: [],
       remark: '',
       metadata: {},
+      upload_user: '',
+      widget_type: 'files',  // 固定值
+      data_type: 'struct',   // 固定值
+    }
+
+    // 获取当前用户信息（如果还没有设置）
+    let uploadUser = data.upload_user || ''
+    if (!uploadUser) {
+      try {
+        // 优先从 localStorage 读取用户信息（不需要调用 API）
+        const savedUserStr = localStorage.getItem('user')
+        if (savedUserStr) {
+          const savedUser = JSON.parse(savedUserStr)
+          uploadUser = savedUser.username || ''
+        }
+        
+        // 如果 localStorage 中没有，尝试从 authStore 获取
+        if (!uploadUser) {
+          const { useAuthStore } = await import('@/stores/auth')
+          const authStore = useAuthStore()
+          uploadUser = authStore.userName || authStore.user?.username || ''
+        }
+        
+        if (!uploadUser) {
+          Logger.warn('FilesWidget', '无法获取用户信息：用户未登录或用户信息为空')
+        }
+      } catch (error) {
+        Logger.warn('FilesWidget', '无法获取用户信息', error)
+      }
     }
 
     const newData: FilesData = {
       ...data,
       files,
+      upload_user: uploadUser,
+      widget_type: 'files',  // 固定值
+      data_type: 'struct',   // 固定值
     }
 
     this.safeSetValue(this.fieldPath, {
@@ -584,6 +622,120 @@ export class FilesWidget extends BaseWidget {
   }
 
   /**
+   * 打包下载所有文件
+   */
+  private downloadingAll = ref(false)
+
+  /**
+   * 打包下载所有文件
+   */
+  private async handleDownloadAll(files: FileItem[]): Promise<void> {
+    if (files.length === 0) {
+      ElMessage.warning('没有可下载的文件')
+      return
+    }
+
+    this.downloadingAll.value = true
+    try {
+      // 动态导入 JSZip
+      const JSZip = (await import('jszip')).default
+      const zip = new JSZip()
+
+      ElMessage.info(`开始打包 ${files.length} 个文件...`)
+
+      // 逐个下载文件并添加到zip
+      const token = localStorage.getItem('token') || ''
+      let successCount = 0
+      let failCount = 0
+      
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        try {
+          let downloadURL = file.url
+          
+          // 如果 url 不是完整的 URL，需要构建完整 URL
+          if (!downloadURL || (!downloadURL.startsWith('http://') && !downloadURL.startsWith('https://'))) {
+            downloadURL = `/api/v1/storage/download/${encodeURIComponent(file.url)}`
+          }
+
+          // 下载文件
+          const response = await fetch(downloadURL, {
+            headers: {
+              'X-Token': token,
+            },
+          })
+
+          if (!response.ok) {
+            throw new Error(`下载文件失败: ${response.statusText}`)
+          }
+
+          const blob = await response.blob()
+          
+          // 添加到zip，使用文件名作为路径
+          zip.file(file.name || `file_${i}`, blob)
+          successCount++
+        } catch (error: any) {
+          Logger.error('FilesWidget', `下载文件失败: ${file.name}`, error)
+          failCount++
+        }
+      }
+      
+      if (failCount > 0) {
+        ElMessage.warning(`${failCount} 个文件下载失败，已跳过`)
+      }
+
+      if (successCount === 0) {
+        ElMessage.error('没有文件可以打包')
+        this.downloadingAll.value = false
+        return
+      }
+
+      // 生成zip文件
+      ElMessage.info('正在生成压缩包...')
+      const zipBlob = await zip.generateAsync({ 
+        type: 'blob',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 6 }
+      })
+      
+      // 创建下载链接
+      const url = window.URL.createObjectURL(zipBlob)
+      const link = document.createElement('a')
+      link.href = url
+      
+      // 使用 function name + id + 记录ID命名，如果没有则使用时间戳
+      let zipFileName = 'files'
+      if (this.detailContext.functionName) {
+        zipFileName = this.detailContext.functionName
+      }
+      if (this.detailContext.recordId !== undefined && this.detailContext.recordId !== null) {
+        zipFileName += `_id_${this.detailContext.recordId}`
+      } else {
+        zipFileName += `_${new Date().getTime()}`
+      }
+      link.download = `${zipFileName}.zip`
+      
+      document.body.appendChild(link)
+      link.click()
+      
+      // 清理
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+      
+      if (failCount > 0) {
+        ElMessage.success(`成功打包下载 ${successCount} 个文件，${failCount} 个文件失败`)
+      } else {
+        ElMessage.success(`成功打包下载 ${successCount} 个文件`)
+      }
+    } catch (error: any) {
+      Logger.error('FilesWidget', '打包下载失败', error)
+      ElMessage.error(`打包下载失败: ${error.message}`)
+    } finally {
+      this.downloadingAll.value = false
+    }
+  }
+
+  /**
    * 下载文件
    * ✅ 使用 fetch 下载，确保带上 JWT token
    */
@@ -691,9 +843,15 @@ export class FilesWidget extends BaseWidget {
 
   /**
    * 🔥 渲染详情展示（用于 TableRenderer 详情抽屉）
-   * 使用九宫格布局展示文件，支持点击预览
+   * 使用列表布局展示文件，支持点击预览
+   * @param value 字段值
+   * @param context 上下文信息（function name 和记录ID，用于打包下载命名）
    */
-  renderForDetail(value?: FieldValue): any {
+  renderForDetail(value?: FieldValue, context?: { functionName?: string; recordId?: string | number }): any {
+    // 存储上下文信息（用于打包下载命名）
+    if (context) {
+      this.detailContext = context
+    }
     const currentValue = value || this.safeGetValue(this.fieldPath)
     const data = (currentValue?.raw as FilesData) || { files: [], remark: '', metadata: {} }
     const currentFiles = data.files || []
@@ -701,13 +859,23 @@ export class FilesWidget extends BaseWidget {
     // 🔥 构建子元素数组
     const children: any[] = []
     
-    // 已上传的文件列表 - 九宫格布局
+    // 已上传的文件列表 - 列表布局
     if (currentFiles.length > 0) {
       children.push(
         h('div', { 
-          class: 'files-grid-container',
+          class: 'files-list-container',
           style: {
             marginBottom: '20px',
+          }
+        }, [
+          h('div', {
+            style: {
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '16px',
+              paddingBottom: '8px',
+              borderBottom: '1px solid var(--el-border-color-lighter)',
           }
         }, [
           h('div', { 
@@ -716,74 +884,80 @@ export class FilesWidget extends BaseWidget {
               fontSize: '14px',
               fontWeight: '500',
               color: 'var(--el-text-color-primary)',
-              marginBottom: '16px',
-              paddingBottom: '8px',
-              borderBottom: '1px solid var(--el-border-color-lighter)',
             }
           }, `已上传文件 (${currentFiles.length})`),
-          h('div', {
-            class: 'files-grid',
+            currentFiles.length > 0 && currentFiles.some(f => f.is_uploaded) && h(ElButton, {
+              size: 'small',
+              type: 'primary',
+              icon: Download,
+              loading: this.downloadingAll.value,
+              onClick: () => this.handleDownloadAll(currentFiles.filter(f => f.is_uploaded)),
+            }, {
+              default: () => '打包下载'
+            }),
+          ]),
+            h('div', { 
+            class: 'files-list',
             style: {
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-              gap: '16px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
             }
           }, currentFiles.map((file, index) => {
             const isImage = this.isImageFile(file)
-            const canPreview = file.is_uploaded && file.url
+            const canPreviewInBrowser = this.canPreviewInBrowser(file)
             
-            return h(ElCard, {
+            return h('div', {
               key: file.url || file.name || index,
-              class: 'file-grid-item',
+              class: 'file-list-item',
               style: {
-                cursor: canPreview ? 'pointer' : 'default',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '12px',
+                border: '1px solid var(--el-border-color-lighter)',
+                borderRadius: '8px',
+                backgroundColor: 'var(--el-bg-color)',
+                cursor: canPreviewInBrowser ? 'pointer' : 'default',
                 transition: 'all 0.2s ease',
               },
-              shadow: 'hover',
-              onClick: canPreview ? () => this.handlePreviewInNewWindow(file) : undefined,
-            }, {
-              // 头部：文件名
-              header: () => h('div', {
+              onClick: canPreviewInBrowser ? () => this.handlePreviewInNewWindow(file) : undefined,
+              onMouseenter: (e: MouseEvent) => {
+                const target = e.currentTarget as HTMLElement
+                if (target) {
+                  target.style.backgroundColor = 'var(--el-fill-color-light)'
+                  target.style.borderColor = 'var(--el-color-primary)'
+                }
+              },
+              onMouseleave: (e: MouseEvent) => {
+                const target = e.currentTarget as HTMLElement
+                if (target) {
+                  target.style.backgroundColor = 'var(--el-bg-color)'
+                  target.style.borderColor = 'var(--el-border-color-lighter)'
+                }
+              },
+            }, [
+              // 文件图标/缩略图
+              h('div', { 
                 style: {
-                  fontSize: '13px',
-                  fontWeight: '500',
-                  color: 'var(--el-text-color-primary)',
+                  width: '60px',
+                  height: '60px',
+                  flexShrink: 0,
+                  borderRadius: '6px',
                   overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical',
-                  lineHeight: '1.5',
-                  wordBreak: 'break-word',
-                  padding: '0 4px',
-                },
-                title: file.name,
-              }, file.name),
-              // 内容：图片预览或文件封面
-              default: () => {
-                const coverUrl = this.getFileCoverUrl(file)
-                
-                // 如果是图片且有URL，显示图片预览
-                if (isImage && file.is_uploaded && coverUrl) {
-                  return h('div', {
-                    style: {
-                      width: '100%',
-                      height: '150px',
-                      backgroundColor: 'var(--el-fill-color-light)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      overflow: 'hidden',
-                      borderRadius: '4px',
-                    }
-                  }, [
-                    h(ElImage, {
-                      src: coverUrl,
+                  backgroundColor: 'var(--el-fill-color-light)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }
+              }, [
+                isImage && file.is_uploaded && file.url
+                  ? h(ElImage, {
+                      src: file.url,
                       fit: 'cover',
-                      style: {
+                  style: {
                         width: '100%',
                         height: '100%',
-                        cursor: 'pointer',
                       },
                       previewSrcList: currentFiles
                         .filter(f => this.isImageFile(f) && f.is_uploaded && f.url)
@@ -794,67 +968,83 @@ export class FilesWidget extends BaseWidget {
                         .filter(f => this.isImageFile(f) && f.is_uploaded && f.url)
                         .findIndex(f => f.url === file.url),
                       onClick: (e: Event) => {
-                        // 图片点击时，使用 ElImage 的预览功能，不触发卡片点击
                         e.stopPropagation()
                       }
                     })
-                  ])
-                }
-                
-                // 其他文件类型，显示带颜色的封面图标
-                return h('div', {
-                  style: {
-                    width: '100%',
-                    height: '150px',
-                    borderRadius: '4px',
-                    overflow: 'hidden',
-                  }
-                }, [
-                  this.getFileTypeIcon(file)
-                ])
-              },
-              // 底部：文件大小和下载按钮
-              footer: () => h('div', {
+                  : h(ElIcon, {
+                      size: 32,
+                      style: { color: this.getFileIconColor(file.name) }
+                    }, {
+                      default: () => h(this.getFileIcon(file.name))
+                    })
+              ]),
+              
+              // 文件信息
+              h('div', {
                 style: {
+                    flex: 1,
+                  minWidth: 0,
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '8px',
+                  gap: '4px',
                 }
               }, [
                 h('div', {
                   style: {
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    color: 'var(--el-text-color-primary)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  },
+                  title: file.name,
+                }, file.name),
+                h('div', {
+                  style: {
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
-                    fontSize: '11px',
+                    gap: '12px',
+                    fontSize: '12px',
                     color: 'var(--el-text-color-secondary)',
                   }
                 }, [
                   h('span', this.formatSize(file.size)),
-                  canPreview && h(ElIcon, {
-                    size: 12,
-                    style: { color: 'var(--el-color-primary)' }
+                  canPreviewInBrowser && h(ElTag, {
+                  size: 'small',
+                    type: 'success',
+                    effect: 'plain',
                   }, {
-                    default: () => h(View)
+                    default: () => h('span', [
+                      h(ElIcon, { size: 12, style: { marginRight: '4px' } }, { default: () => h(View) }),
+                      '可预览'
+                    ])
                   }),
                 ]),
+              ]),
+
+              // 操作按钮
+              h('div', { 
+                style: {
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  flexShrink: 0,
+                }
+              }, [
                 file.is_uploaded && h(ElButton, {
                   size: 'small',
                   type: 'primary',
                   icon: Download,
                   onClick: (e: MouseEvent) => {
-                    e.stopPropagation() // 阻止触发卡片点击事件
+                    e.stopPropagation()
                     this.handleDownloadFile(file)
                   },
-                  style: {
-                    width: '100%',
-                    fontSize: '11px',
-                  }
                 }, {
                   default: () => '下载'
                 }),
               ]),
-            })
+            ])
           }))
         ])
       )
@@ -919,6 +1109,66 @@ export class FilesWidget extends BaseWidget {
     const fileName = (file.name || '').toLowerCase()
     return imageExtensions.some(ext => fileName.endsWith(ext))
   }
+
+  /**
+   * 判断文件是否可以在线预览
+   */
+  private canPreviewInBrowser(file: FileItem): boolean {
+    if (!file.is_uploaded || !file.url) return false
+    
+    const fileName = (file.name || '').toLowerCase()
+    const previewableExtensions = [
+      // 图片
+      '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg',
+      // 视频
+      '.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv', '.webm',
+      // 文档
+      '.pdf',
+      // 文本
+      '.txt', '.md', '.html', '.htm', '.css', '.js', '.json', '.xml', '.yaml', '.yml',
+      '.log', '.ini', '.conf', '.sh', '.bat', '.py', '.go', '.java', '.cpp', '.c', '.h',
+      '.vue', '.ts', '.tsx', '.jsx', '.sql'
+    ]
+    return previewableExtensions.some(ext => fileName.endsWith(ext))
+  }
+
+  /**
+   * 获取文件图标组件
+   */
+  private getFileIcon(fileName: string): any {
+    const ext = fileName.split('.').pop()?.toLowerCase() || ''
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) {
+      return Picture
+    }
+    if (['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm'].includes(ext)) {
+      return VideoPlay
+    }
+    if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
+      return Folder
+    }
+    if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'pdf'].includes(ext)) {
+      return Files
+    }
+    return Document
+  }
+
+  /**
+   * 获取文件图标颜色
+   */
+  private getFileIconColor(fileName: string): string {
+    const ext = fileName.split('.').pop()?.toLowerCase() || ''
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) {
+      return '#409EFF'
+    }
+    if (['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm'].includes(ext)) {
+      return '#F56C6C'
+    }
+    if (['pdf'].includes(ext)) {
+      return '#E6A23C'
+    }
+    return '#909399'
+  }
+
 
   /**
    * 获取文件类型图标（带渐变背景的封面）
@@ -1073,7 +1323,7 @@ export class FilesWidget extends BaseWidget {
   }
 
   /**
-   * 在新窗口预览文件（支持PDF、图片等）
+   * 在新窗口预览文件（支持PDF、图片、文本、代码文件等）
    * 对于需要认证的文件，通过添加 token 参数或使用下载接口
    */
   private async handlePreviewInNewWindow(file: FileItem): Promise<void> {
@@ -1090,6 +1340,90 @@ export class FilesWidget extends BaseWidget {
         previewURL = `/api/v1/storage/download/${encodeURIComponent(file.url)}`
       }
 
+      // 对于代码文件和文本文件，需要特殊处理
+      // 浏览器可能无法直接预览，需要先获取内容然后显示
+      const fileName = (file.name || '').toLowerCase()
+      const textFileExts = [
+        // 文本文件
+        '.txt', '.md', '.log', '.ini', '.conf',
+        // 网页文件
+        '.html', '.htm', '.css',
+        // 脚本文件
+        '.js', '.jsx', '.ts', '.tsx', '.vue', '.json', '.xml', '.yaml', '.yml',
+        // 代码文件
+        '.py', '.go', '.java', '.cpp', '.c', '.h', '.cs', '.php', '.rb', '.rs', '.swift', '.kt', '.scala',
+        '.r', '.m', '.pl', '.lua', '.dart', '.ex', '.exs', '.elm', '.clj', '.hs', '.ml', '.fs', '.vb',
+        '.pas', '.ada', '.f', '.f90', '.f95', '.for', '.asm', '.s', '.sx', '.scm', '.lisp', '.cl', '.rkt',
+        '.jl', '.nim', '.zig', '.v', '.cr', '.d', '.gd', '.pde', '.ino',
+        // Shell脚本
+        '.sh', '.bat', '.ps1', '.zsh', '.fish',
+        // 数据库
+        '.sql',
+        // 配置文件
+        '.toml', '.properties', '.env', '.gitignore', '.dockerfile',
+      ]
+      
+      if (textFileExts.some(ext => fileName.endsWith(ext))) {
+        // 对于文本/代码文件，先获取内容，然后在新窗口显示
+        const token = localStorage.getItem('token') || ''
+        const response = await fetch(previewURL, {
+          headers: {
+            'X-Token': token,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error(`加载文件失败: ${response.statusText}`)
+        }
+
+        const text = await response.text()
+        
+        // 创建新窗口并显示内容
+        const newWindow = window.open('', '_blank')
+        if (newWindow) {
+          newWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="UTF-8">
+              <title>${this.escapeHtml(file.name)}</title>
+              <style>
+                * {
+                  margin: 0;
+                  padding: 0;
+                  box-sizing: border-box;
+                }
+                body {
+                  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'Courier New', monospace;
+                  font-size: 14px;
+                  line-height: 1.6;
+                  background: #1e1e1e;
+                  color: #d4d4d4;
+                  padding: 20px;
+                  overflow-x: auto;
+                }
+                pre {
+                  margin: 0;
+                  white-space: pre;
+                  word-wrap: normal;
+                  overflow-x: auto;
+                }
+                code {
+                  font-family: inherit;
+                }
+              </style>
+            </head>
+            <body>
+              <pre><code>${this.escapeHtml(text)}</code></pre>
+            </body>
+            </html>
+          `)
+          newWindow.document.close()
+        }
+        return
+      }
+
+      // 对于其他文件（图片、PDF、视频等），直接在新窗口打开
       // 对于需要认证的文件，添加 token 参数
       if (previewURL.startsWith('/api/')) {
         const token = localStorage.getItem('token') || ''
@@ -1099,12 +1433,21 @@ export class FilesWidget extends BaseWidget {
       }
 
       // 在新窗口打开文件
-      // 浏览器会根据文件类型自动处理（PDF、图片等）
+      // 浏览器会根据文件类型自动处理（PDF、图片、视频等）
       window.open(previewURL, '_blank')
     } catch (error: any) {
       Logger.error('FilesWidget', 'Preview failed', error)
       ElMessage.error(`预览失败: ${error.message}`)
     }
+  }
+
+  /**
+   * HTML 转义，防止 XSS
+   */
+  private escapeHtml(text: string): string {
+    const div = document.createElement('div')
+    div.textContent = text
+    return div.innerHTML
   }
 
   /**
@@ -1538,11 +1881,11 @@ export class FilesWidget extends BaseWidget {
 
     // ✅ 简化显示：只显示文件数量标签
     return h(ElTag, { 
-      size: 'small', 
-      type: 'info',
-      style: { 
+        size: 'small', 
+        type: 'info',
+          style: { 
         fontSize: '12px'
-      }
+            }
     }, {
       default: () => `${files.length} 个文件`
     })
@@ -1569,6 +1912,9 @@ export class FilesWidget extends BaseWidget {
         files: data.files || [],
         remark: data.remark || '',
         metadata: data.metadata || {},
+        upload_user: data.upload_user || '',
+        widget_type: 'files',  // 固定值
+        data_type: 'struct',   // 固定值
       }
     }
     
@@ -1577,6 +1923,9 @@ export class FilesWidget extends BaseWidget {
       files: [],
       remark: '',
       metadata: {},
+      upload_user: '',
+      widget_type: 'files',  // 固定值
+      data_type: 'struct',   // 固定值
     }
   }
 
@@ -1597,6 +1946,9 @@ export class FilesWidget extends BaseWidget {
           files: [],
           remark: '',
           metadata: {},
+          upload_user: '',
+          widget_type: 'files',  // 固定值
+          data_type: 'struct',   // 固定值
         } as FilesData,
         display: '0 个文件',
         meta: {}
@@ -1613,6 +1965,9 @@ export class FilesWidget extends BaseWidget {
           files: rawValue.files || [],
           remark: rawValue.remark || '',
           metadata: rawValue.metadata || {},
+          upload_user: rawValue.upload_user || '',
+          widget_type: 'files',  // 固定值
+          data_type: 'struct',   // 固定值
         }
       } else if (Array.isArray(rawValue)) {
         // 兼容：如果直接是数组，包装成 FilesData
@@ -1621,6 +1976,9 @@ export class FilesWidget extends BaseWidget {
           files: rawValue as FileItem[],
           remark: '',
           metadata: {},
+          upload_user: '',
+          widget_type: 'files',  // 固定值
+          data_type: 'struct',   // 固定值
         }
       } else {
         // 无效数据，返回空结构
@@ -1628,6 +1986,9 @@ export class FilesWidget extends BaseWidget {
           files: [],
           remark: '',
           metadata: {},
+          upload_user: '',
+          widget_type: 'files',  // 固定值
+          data_type: 'struct',   // 固定值
         }
       }
     } else {
@@ -1636,6 +1997,9 @@ export class FilesWidget extends BaseWidget {
         files: [],
         remark: '',
         metadata: {},
+        upload_user: '',
+        widget_type: 'files',  // 固定值
+        data_type: 'struct',   // 固定值
       }
     }
 

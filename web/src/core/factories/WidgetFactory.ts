@@ -17,6 +17,7 @@ import { FormWidget } from '../widgets/FormWidget'
 import { SwitchWidget } from '../widgets/SwitchWidget'
 import { TimestampWidget } from '../widgets/TimestampWidget'
 import { FilesWidget } from '../widgets/FilesWidget'
+import { UserWidget } from '../widgets/UserWidget'
 import { ResponseFormWidget } from '../widgets/ResponseFormWidget'
 import { ResponseTableWidget } from '../widgets/ResponseTableWidget'
 
@@ -55,6 +56,9 @@ export class WidgetFactory {
     
     // 文件上传
     this.registerWidget(WidgetType.FILES, FilesWidget)  // 🔥 文件上传组件
+    
+    // 用户选择
+    this.registerWidget(WidgetType.USER, UserWidget)  // 🔥 用户组件
     
     // 容器组件
     this.registerWidget(WidgetType.TABLE, TableWidget)  // table 表格组件

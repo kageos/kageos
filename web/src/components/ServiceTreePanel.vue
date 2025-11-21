@@ -21,7 +21,7 @@
           class="header-link"
         >
           <el-icon><CopyDocument /></el-icon>
-          一键克隆
+          闪电克隆
         </el-link>
       </div>
     </div>

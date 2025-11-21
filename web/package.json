@@ -17,9 +17,12 @@
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
+    "@monaco-editor/loader": "^1.6.1",
     "@vueuse/core": "^14.0.0",
     "axios": "^1.13.1",
     "element-plus": "^2.11.5",
+    "jszip": "^3.10.1",
+    "monaco-editor": "^0.54.0",
     "pinia": "^3.0.3",
     "pinia-plugin-persistedstate": "^4.5.0",
     "vue": "^3.5.22",

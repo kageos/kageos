@@ -5,6 +5,7 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
 	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/gin-gonic/gin"
@@ -57,7 +58,8 @@ func (f *Function) GetFunction(c *gin.Context) {
 		logger.Infof(c, "GetFunction function_id:%d resp:%+v err:%v", functionID, resp, err)
 	}()
 
-	resp, err = f.functionService.GetFunction(c, functionID)
+	ctx := contextx.ToContext(c)
+	resp, err = f.functionService.GetFunction(ctx, functionID)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -100,7 +102,8 @@ func (f *Function) GetFunctionsByApp(c *gin.Context) {
 		logger.Infof(c, "GetFunctionsByApp app_id:%d resp:%+v err:%v", appID, resp, err)
 	}()
 
-	resp, err = f.functionService.GetFunctionsByApp(c, appID)
+	ctx := contextx.ToContext(c)
+	resp, err = f.functionService.GetFunctionsByApp(ctx, appID)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -136,7 +139,8 @@ func (f *Function) ForkFunctionGroup(c *gin.Context) {
 		logger.Infof(c, "ForkFunctionGroup req:%+v resp:%+v err:%v", req, resp, err)
 	}()
 
-	resp, err = f.functionService.ForkFunctionGroup(c, &req)
+	ctx := contextx.ToContext(c)
+	resp, err = f.functionService.ForkFunctionGroup(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return

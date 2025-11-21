@@ -109,7 +109,7 @@ const docTemplate = `{
         },
         "/api/v1/storage/batch_upload_token": {
             "post": {
-                "description": "批量获取多个文件的上传凭证，支持多种存储方式（presigned_url/form_upload/sdk_upload）",
+                "description": "批量获取多个文件的上传凭证，支持多种存储方式（presigned_url/form_upload/sdk_upload）。如果某个文件未提供 router，将使用默认路由：/{username}/default",
                 "consumes": [
                     "application/json"
                 ],
@@ -421,7 +421,7 @@ const docTemplate = `{
         },
         "/api/v1/storage/upload_token": {
             "post": {
-                "description": "获取文件上传的预签名 URL，文件将按函数路径分类存储",
+                "description": "获取文件上传的预签名 URL，文件将按函数路径分类存储。如果未提供 router，将使用默认路由：/{username}/default",
                 "consumes": [
                     "application/json"
                 ],
@@ -666,8 +666,7 @@ const docTemplate = `{
         "dto.GetUploadTokenReq": {
             "type": "object",
             "required": [
-                "file_name",
-                "router"
+                "file_name"
             ],
             "properties": {
                 "content_type": {
@@ -684,7 +683,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "router": {
-                    "description": "函数路径，例如：luobei/test88888/tools/cashier_desk",
+                    "description": "函数路径，例如：luobei/test88888/tools/cashier_desk（可选，未提供时使用默认路由：/{username}/default）",
                     "type": "string"
                 },
                 "upload_source": {
@@ -773,6 +772,10 @@ const docTemplate = `{
                 },
                 "url": {
                     "description": "预签名 URL 上传（MinIO、COS、OSS、S3）",
+                    "type": "string"
+                },
+                "username": {
+                    "description": "✨ 当前登录用户的用户名",
                     "type": "string"
                 }
             }
@@ -911,7 +914,7 @@ const docTemplate = `{
 var SwaggerInfo = &swag.Spec{
 	Version:          "1.0",
 	Host:             "localhost:9092",
-	BasePath:         "/api/v1",
+	BasePath:         "",
 	Schemes:          []string{},
 	Title:            "AI Agent OS Storage API",
 	Description:      "AI Agent OS 存储服务 API 文档",

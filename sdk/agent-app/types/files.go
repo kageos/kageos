@@ -9,6 +9,8 @@ import (
 type Files struct {
 	Files      []*File                `json:"files"`
 	UploadUser string                 `json:"upload_user"`
+	WidgetType string                 `json:"widget_type"`
+	DataType   string                 `json:"data_type"`
 	Remark     string                 `json:"remark"`
 	Metadata   map[string]interface{} `json:"metadata"`
 }

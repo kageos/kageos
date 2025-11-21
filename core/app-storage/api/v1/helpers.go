@@ -28,6 +28,7 @@ func buildUploadTokenResponse(
 	storageType string,
 	downloadURL string,
 	serverDownloadURL string,
+	username string,
 ) *dto.GetUploadTokenResp {
 	return &dto.GetUploadTokenResp{
 		Key:               key,
@@ -46,6 +47,7 @@ func buildUploadTokenResponse(
 		CDNDomain:         cdnDomain,
 		DownloadURL:       downloadURL,
 		ServerDownloadURL: serverDownloadURL,
+		Username:          username,
 	}
 }
 

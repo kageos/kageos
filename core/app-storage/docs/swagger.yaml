@@ -1,4 +1,3 @@
-basePath: /api/v1
 definitions:
   dto.BatchGetUploadTokenReq:
     properties:
@@ -146,7 +145,7 @@ definitions:
         description: 文件 hash（预留，用于秒传）
         type: string
       router:
-        description: 函数路径，例如：luobei/test88888/tools/cashier_desk
+        description: 函数路径，例如：luobei/test88888/tools/cashier_desk（可选，未提供时使用默认路由：/{username}/default）
         type: string
       upload_source:
         allOf:
@@ -154,7 +153,6 @@ definitions:
         description: ✨ 上传来源：browser（浏览器）或 server（服务端），默认为 browser
     required:
     - file_name
-    - router
     type: object
   dto.GetUploadTokenResp:
     properties:
@@ -211,6 +209,9 @@ definitions:
         type: string
       url:
         description: 预签名 URL 上传（MinIO、COS、OSS、S3）
+        type: string
+      username:
+        description: ✨ 当前登录用户的用户名
         type: string
     type: object
   dto.ListFilesResp:
@@ -371,7 +372,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: 批量获取多个文件的上传凭证，支持多种存储方式（presigned_url/form_upload/sdk_upload）
+      description: 批量获取多个文件的上传凭证，支持多种存储方式（presigned_url/form_upload/sdk_upload）。如果某个文件未提供
+        router，将使用默认路由：/{username}/default
       parameters:
       - description: 批量获取上传凭证请求
         in: body
@@ -576,7 +578,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: 获取文件上传的预签名 URL，文件将按函数路径分类存储
+      description: 获取文件上传的预签名 URL，文件将按函数路径分类存储。如果未提供 router，将使用默认路由：/{username}/default
       parameters:
       - description: 获取上传凭证请求
         in: body

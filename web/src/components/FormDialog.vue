@@ -16,6 +16,7 @@
       :show-reset-button="false"
       :show-debug-button="false"
       :initial-data="props.initialData"
+      :user-info-map="props.userInfoMap"
     />
 
     <template #footer>
@@ -42,6 +43,7 @@ interface Props {
   router: string  // ✨ 函数路由（用于文件上传等）
   initialData?: Record<string, any>  // 初始数据（编辑模式）
   width?: string | number  // 对话框宽度
+  userInfoMap?: Map<string, any>  // 🔥 用户信息映射（用于 UserWidget 批量查询优化）
 }
 
 const props = withDefaults(defineProps<Props>(), {

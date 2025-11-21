@@ -1073,6 +1073,317 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/api/v1/user/info": {
+            "get": {
+                "description": "根据请求header中的username获取当前登录用户信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "用户管理"
+                ],
+                "summary": "获取当前登录用户信息",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "用户信息",
+                        "schema": {
+                            "$ref": "#/definitions/dto.UserInfo"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "未认证",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "用户不存在",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/user/query": {
+            "get": {
+                "description": "根据用户名精确查询用户信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "用户管理"
+                ],
+                "summary": "根据用户名精确查询用户",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "用户名",
+                        "name": "username",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "用户信息",
+                        "schema": {
+                            "$ref": "#/definitions/dto.QueryUserResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "未认证",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "用户不存在",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/user/search_fuzzy": {
+            "get": {
+                "description": "根据关键词模糊查询用户（支持用户名和邮箱）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "用户管理"
+                ],
+                "summary": "模糊查询用户",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "搜索关键词",
+                        "name": "keyword",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "返回数量限制，默认10，最大100",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "用户列表",
+                        "schema": {
+                            "$ref": "#/definitions/dto.SearchUsersFuzzyResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "未认证",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/user/update": {
+            "put": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "更新当前登录用户的昵称、签名、头像、性别等信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "用户管理"
+                ],
+                "summary": "更新用户信息",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "更新用户信息请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateUserReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateUserResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "未认证",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "用户不存在",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/users": {
+            "post": {
+                "description": "根据用户名列表批量获取用户信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "用户管理"
+                ],
+                "summary": "批量获取用户信息",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "批量查询请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.GetUsersByUsernamesReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "用户列表",
+                        "schema": {
+                            "$ref": "#/definitions/dto.GetUsersByUsernamesResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "未认证",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -1622,6 +1933,39 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.GetUsersByUsernamesReq": {
+            "type": "object",
+            "required": [
+                "usernames"
+            ],
+            "properties": {
+                "usernames": {
+                    "description": "用户名列表，最多100个",
+                    "type": "array",
+                    "maxItems": 100,
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "[\"user1\"",
+                        "\"user2\"]"
+                    ]
+                }
+            }
+        },
+        "dto.GetUsersByUsernamesResp": {
+            "type": "object",
+            "properties": {
+                "users": {
+                    "description": "用户列表",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.UserInfo"
+                    }
+                }
+            }
+        },
         "dto.LoginReq": {
             "type": "object",
             "required": [
@@ -1684,6 +2028,19 @@ const docTemplate = `{
         },
         "dto.LogoutResp": {
             "type": "object"
+        },
+        "dto.QueryUserResp": {
+            "type": "object",
+            "properties": {
+                "user": {
+                    "description": "用户信息",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/dto.UserInfo"
+                        }
+                    ]
+                }
+            }
         },
         "dto.RefreshTokenReq": {
             "type": "object",
@@ -1779,6 +2136,18 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.SearchUsersFuzzyResp": {
+            "type": "object",
+            "properties": {
+                "users": {
+                    "description": "用户列表",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.UserInfo"
+                    }
+                }
+            }
+        },
         "dto.SendEmailCodeReq": {
             "type": "object",
             "required": [
@@ -1865,6 +2234,44 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.UpdateUserReq": {
+            "type": "object",
+            "properties": {
+                "avatar": {
+                    "description": "头像URL（可选，传值则更新，不传则不更新）",
+                    "type": "string",
+                    "example": "https://avatar.com/1.jpg"
+                },
+                "gender": {
+                    "description": "性别（可选，传值则更新，不传则不更新）: male(男), female(女), other(其他)",
+                    "type": "string",
+                    "example": "male"
+                },
+                "nickname": {
+                    "description": "昵称（可选，传值则更新，不传则不更新）",
+                    "type": "string",
+                    "example": "北落"
+                },
+                "signature": {
+                    "description": "个人签名/简介（可选，传值则更新，不传则不更新）",
+                    "type": "string",
+                    "example": "这个人很懒，什么都没有留下"
+                }
+            }
+        },
+        "dto.UpdateUserResp": {
+            "type": "object",
+            "properties": {
+                "user": {
+                    "description": "更新后的用户信息",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/dto.UserInfo"
+                        }
+                    ]
+                }
+            }
+        },
         "dto.UserInfo": {
             "type": "object",
             "properties": {
@@ -1888,15 +2295,30 @@ const docTemplate = `{
                     "type": "boolean",
                     "example": true
                 },
+                "gender": {
+                    "description": "性别: male(男), female(女), other(其他), 空字符串表示未设置",
+                    "type": "string",
+                    "example": "male"
+                },
                 "id": {
                     "description": "用户ID",
                     "type": "integer",
                     "example": 1
                 },
+                "nickname": {
+                    "description": "昵称",
+                    "type": "string",
+                    "example": "北落"
+                },
                 "register_type": {
                     "description": "注册方式",
                     "type": "string",
                     "example": "email"
+                },
+                "signature": {
+                    "description": "个人签名/简介",
+                    "type": "string",
+                    "example": "这个人很懒，什么都没有留下"
                 },
                 "status": {
                     "description": "用户状态: pending(待邮箱验证), active(已激活)",
@@ -2001,7 +2423,7 @@ const docTemplate = `{
 var SwaggerInfo = &swag.Spec{
 	Version:          "1.0",
 	Host:             "localhost:9090",
-	BasePath:         "/api/v1",
+	BasePath:         "",
 	Schemes:          []string{},
 	Title:            "AI Agent OS API",
 	Description:      "AI Agent OS 应用管理平台 API 文档",
