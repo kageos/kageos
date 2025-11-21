@@ -254,10 +254,6 @@
     <template v-else-if="mode === 'detail'">
       <div class="detail-files">
         <div v-if="currentFiles.length > 0" class="uploaded-files">
-          <!-- 🔥 预加载上传用户信息 -->
-          <div v-if="uploadUser" style="display: none;">
-            {{ userInfoStore.getUserInfo(uploadUser) }}
-          </div>
           <!-- 🔥 参考旧版本的布局：标题和打包下载按钮 -->
           <div class="detail-files-header">
             <div class="header-left">
