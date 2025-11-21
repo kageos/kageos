@@ -689,10 +689,26 @@ function getFileUploadUserInfo(file: FileItem) {
   }
   
   // 降级到 userInfoStore（同步获取，从缓存中读取）
-  // 使用 store 导出的 userInfoCache computed 属性
-  const cachedUser = userInfoStore.userInfoCache?.get(file.upload_user)
-  if (cachedUser) {
-    return cachedUser
+  // 使用 store 导出的 userInfoCache computed 属性（需要访问 .value）
+  try {
+    const cache = userInfoStore.userInfoCache
+    if (cache && typeof cache === 'object' && 'value' in cache) {
+      const cacheMap = (cache as any).value
+      if (cacheMap instanceof Map) {
+        const cachedUser = cacheMap.get(file.upload_user)
+        if (cachedUser) {
+          return cachedUser
+        }
+      }
+    } else if (cache instanceof Map) {
+      // 如果不是 computed，直接使用
+      const cachedUser = cache.get(file.upload_user)
+      if (cachedUser) {
+        return cachedUser
+      }
+    }
+  } catch (error) {
+    console.warn('[FilesWidget] 获取用户信息失败', error)
   }
   
   return null
