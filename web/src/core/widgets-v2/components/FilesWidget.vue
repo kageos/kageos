@@ -242,10 +242,13 @@
     <!-- 表格单元格模式 -->
     <template v-else-if="mode === 'table-cell'">
       <div v-if="currentFiles.length > 0" class="files-table-cell">
-        <!-- 🔥 只显示文件数量，不显示文件名 -->
-        <el-tag size="small" type="info">
-          {{ currentFiles.length }} 个文件
-        </el-tag>
+        <!-- 🔥 毛玻璃效果的文件数量显示，参考用户组件选中样式 -->
+        <div class="files-count-badge">
+          <el-icon :size="16" class="file-icon">
+            <Document />
+          </el-icon>
+          <span class="files-count-text">{{ currentFiles.length }} 个文件</span>
+        </div>
       </div>
       <span v-else class="empty-text">-</span>
     </template>
@@ -1926,9 +1929,41 @@ function handleFileChange(file: any): void {
 /* 表格单元格模式 */
 .files-table-cell {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 4px;
-  padding: 4px 0;
+}
+
+/* 毛玻璃效果的文件数量徽章 */
+.files-count-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: all 0.2s ease;
+  cursor: default;
+}
+
+.files-count-badge:hover {
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.files-count-badge .file-icon {
+  color: var(--el-color-primary);
+  flex-shrink: 0;
+}
+
+.files-count-text {
+  font-size: 13px;
+  color: var(--el-text-color-primary);
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .file-item {
