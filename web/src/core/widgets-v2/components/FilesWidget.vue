@@ -685,29 +685,16 @@ function getFileUploadUserInfo(file: FileItem) {
   // 🔥 优先从 userInfoMap 中获取（如果是在 TableRenderer 中使用）
   if (props.userInfoMap && props.userInfoMap.has(file.upload_user)) {
     const user = props.userInfoMap.get(file.upload_user)
-    console.log('[FilesWidget] 从 userInfoMap 获取用户信息', file.upload_user, user)
     return user
   }
   
   // 降级到 userInfoStore（同步获取，从缓存中读取）
-  // 注意：getUserInfo 是异步的，但这里我们只从缓存中读取，不触发新的查询
-  try {
-    // 通过反射访问 store 的内部状态（因为 userInfoCache 可能不是公开的）
-    const store = userInfoStore as any
-    const cache = store.userInfoCache?.value || store.userInfoCache
-    if (cache && cache instanceof Map) {
-      const cacheItem = cache.get(file.upload_user)
-      if (cacheItem) {
-        const user = cacheItem.user || cacheItem
-        console.log('[FilesWidget] 从 userInfoStore 缓存获取用户信息', file.upload_user, user)
-        return user
-      }
-    }
-  } catch (error) {
-    console.warn('[FilesWidget] 无法从 userInfoStore 获取用户信息', error)
+  // 使用 store 导出的 userInfoCache computed 属性
+  const cachedUser = userInfoStore.userInfoCache?.get(file.upload_user)
+  if (cachedUser) {
+    return cachedUser
   }
   
-  console.log('[FilesWidget] 未找到用户信息', file.upload_user)
   return null
 }
 
