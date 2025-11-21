@@ -187,6 +187,10 @@
               <span class="user-card-label">昵称：</span>
               <span class="user-card-value">{{ userInfo.nickname }}</span>
             </div>
+            <div v-if="userInfo.signature" class="user-card-item">
+              <span class="user-card-label">签名：</span>
+              <span class="user-card-value user-card-signature">{{ userInfo.signature }}</span>
+            </div>
             <div class="user-card-item">
               <span class="user-card-label">用户名：</span>
               <span class="user-card-value">{{ userInfo.username }}</span>
