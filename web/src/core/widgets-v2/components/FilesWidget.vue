@@ -1080,6 +1080,26 @@ async function handleFileSelect(rawFile: File): Promise<void> {
           fileInfo: uploadResult.fileInfo,
         })
       }
+      // 🔥 获取当前上传用户
+      let currentUploadUser = ''
+      try {
+        // 优先从 localStorage 读取用户信息
+        const savedUserStr = localStorage.getItem('user')
+        if (savedUserStr) {
+          const savedUser = JSON.parse(savedUserStr) as { username?: string }
+          currentUploadUser = savedUser.username || ''
+        }
+        
+        // 如果 localStorage 中没有，尝试从 authStore 获取
+        if (!currentUploadUser) {
+          const { useAuthStore } = await import('@/stores/auth')
+          const authStore = useAuthStore()
+          currentUploadUser = authStore.userName || authStore.user?.username || ''
+        }
+      } catch (error: any) {
+        Logger.warn('[FilesWidget] 无法获取用户信息', error)
+      }
+
       addToCompleteQueue({
         key: uploadResult.fileInfo.key,
         success: true,
@@ -1088,6 +1108,7 @@ async function handleFileSelect(rawFile: File): Promise<void> {
         file_size: uploadResult.fileInfo.file_size,
         content_type: uploadResult.fileInfo.content_type,
         hash: uploadResult.fileInfo.hash || '',
+        upload_user: currentUploadUser,  // 🔥 传递上传用户
       })
     }
   } catch (error: any) {
@@ -1100,6 +1121,24 @@ async function handleFileSelect(rawFile: File): Promise<void> {
     }
 
     if (error.fileInfo) {
+      // 🔥 获取当前上传用户（上传失败时也记录用户信息）
+      let currentUploadUser = ''
+      try {
+        const savedUserStr = localStorage.getItem('user')
+        if (savedUserStr) {
+          const savedUser = JSON.parse(savedUserStr) as { username?: string }
+          currentUploadUser = savedUser.username || ''
+        }
+        
+        if (!currentUploadUser) {
+          const { useAuthStore } = await import('@/stores/auth')
+          const authStore = useAuthStore()
+          currentUploadUser = authStore.userName || authStore.user?.username || ''
+        }
+      } catch (err: any) {
+        Logger.warn('[FilesWidget] 无法获取用户信息', err)
+      }
+
       addToCompleteQueue({
         key: error.fileInfo.key,
         success: false,
@@ -1109,6 +1148,7 @@ async function handleFileSelect(rawFile: File): Promise<void> {
         file_size: error.fileInfo.file_size,
         content_type: error.fileInfo.content_type,
         hash: error.fileInfo.hash,
+        upload_user: currentUploadUser,  // 🔥 传递上传用户
       })
     }
 
