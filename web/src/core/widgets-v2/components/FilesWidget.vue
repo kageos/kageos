@@ -1072,6 +1072,107 @@ async function handleDownloadFile(file: FileItem): Promise<void> {
   }
 }
 
+// 🔥 打包下载所有文件（参考旧版本实现）
+async function handleDownloadAll(): Promise<void> {
+  const uploadedFiles = currentFiles.value.filter(f => f.is_uploaded)
+  
+  if (uploadedFiles.length === 0) {
+    ElMessage.warning('没有可下载的文件')
+    return
+  }
+
+  downloadingAll.value = true
+  try {
+    // 动态导入 JSZip
+    const JSZip = (await import('jszip')).default
+    const zip = new JSZip()
+
+    ElMessage.info(`开始打包 ${uploadedFiles.length} 个文件...`)
+
+    // 逐个下载文件并添加到zip
+    const token = localStorage.getItem('token') || ''
+    let successCount = 0
+    let failCount = 0
+    
+    for (let i = 0; i < uploadedFiles.length; i++) {
+      const file = uploadedFiles[i]
+      try {
+        let downloadURL = file.url
+        
+        // 如果 url 不是完整的 URL，需要构建完整 URL
+        if (!downloadURL || (!downloadURL.startsWith('http://') && !downloadURL.startsWith('https://'))) {
+          downloadURL = `/api/v1/storage/download/${encodeURIComponent(file.url)}`
+        }
+
+        // 下载文件
+        const response = await fetch(downloadURL, {
+          headers: {
+            'X-Token': token,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error(`下载文件失败: ${response.statusText}`)
+        }
+
+        const blob = await response.blob()
+        
+        // 添加到zip，使用文件名作为路径
+        zip.file(file.name || `file_${i}`, blob)
+        successCount++
+      } catch (error: any) {
+        Logger.error('[FilesWidget]', `下载文件失败: ${file.name}`, error)
+        failCount++
+      }
+    }
+    
+    if (failCount > 0) {
+      ElMessage.warning(`${failCount} 个文件下载失败，已跳过`)
+    }
+
+    if (successCount === 0) {
+      ElMessage.error('没有文件可以打包')
+      downloadingAll.value = false
+      return
+    }
+
+    // 生成zip文件
+    ElMessage.info('正在生成压缩包...')
+    const zipBlob = await zip.generateAsync({ 
+      type: 'blob',
+      compression: 'DEFLATE',
+      compressionOptions: { level: 6 }
+    })
+    
+    // 创建下载链接
+    const url = window.URL.createObjectURL(zipBlob)
+    const link = document.createElement('a')
+    link.href = url
+    
+    // 使用时间戳命名
+    const zipFileName = `files_${new Date().getTime()}.zip`
+    link.download = zipFileName
+    
+    document.body.appendChild(link)
+    link.click()
+    
+    // 清理
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    
+    if (failCount > 0) {
+      ElMessage.success(`成功打包下载 ${successCount} 个文件，${failCount} 个文件失败`)
+    } else {
+      ElMessage.success(`成功打包下载 ${successCount} 个文件`)
+    }
+  } catch (error: any) {
+    Logger.error('[FilesWidget]', '打包下载失败', error)
+    ElMessage.error(`打包下载失败: ${error.message}`)
+  } finally {
+    downloadingAll.value = false
+  }
+}
+
 // 更新文件描述
 function handleUpdateDescription(index: number, description: string): void {
   const currentFilesList = currentFiles.value
