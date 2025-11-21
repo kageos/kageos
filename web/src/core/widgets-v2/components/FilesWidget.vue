@@ -654,12 +654,19 @@ const unifiedUploadUserInfo = computed(() => {
 // 🔥 获取文件的上传用户信息（同步版本，用于模板）
 // 使用函数形式，依赖 userInfoMap 和 userInfoStore 的响应式更新
 function getFileUploadUserInfo(file: FileItem) {
-  if (!file.upload_user) return null
+  if (!file.upload_user) {
+    console.log('[FilesWidget] getFileUploadUserInfo: file.upload_user 为空', file)
+    return null
+  }
   
   // 🔥 优先从 userInfoMap 中获取（如果是在 TableRenderer 中使用）
-  if (props.userInfoMap && props.userInfoMap.has(file.upload_user)) {
-    const user = props.userInfoMap.get(file.upload_user)
-    return user
+  if (props.userInfoMap) {
+    console.log('[FilesWidget] 检查 userInfoMap, has:', props.userInfoMap.has(file.upload_user), 'upload_user:', file.upload_user)
+    if (props.userInfoMap.has(file.upload_user)) {
+      const user = props.userInfoMap.get(file.upload_user)
+      console.log('[FilesWidget] 从 userInfoMap 获取用户信息:', file.upload_user, user)
+      return user
+    }
   }
   
   // 降级到 userInfoStore（同步获取，从缓存中读取）
@@ -671,6 +678,7 @@ function getFileUploadUserInfo(file: FileItem) {
     if (cacheMap instanceof Map) {
       const cachedUser = cacheMap.get(file.upload_user)
       if (cachedUser) {
+        console.log('[FilesWidget] 从 userInfoStore 缓存获取用户信息:', file.upload_user, cachedUser)
         return cachedUser
       }
     }
@@ -678,6 +686,7 @@ function getFileUploadUserInfo(file: FileItem) {
     console.warn('[FilesWidget] 获取用户信息失败', error)
   }
   
+  console.log('[FilesWidget] 未找到用户信息，返回 null, upload_user:', file.upload_user)
   return null
 }
 
