@@ -255,6 +255,15 @@ export const useUserInfoStore = defineStore('userInfo', () => {
    * 🔥 降级策略：如果接口慢或失败，先返回过期缓存值，后台异步刷新
    */
   async function batchGetUserInfo(usernames: string[], forceRefresh: boolean = false): Promise<UserInfo[]> {
+    const callStack = new Error().stack
+    console.log(`[UserInfoStore] 🔍 batchGetUserInfo 被调用`, {
+      usernames,
+      count: usernames.length,
+      forceRefresh,
+      timestamp: new Date().toISOString(),
+      callStack: callStack?.split('\n').slice(1, 6).join('\n')
+    })
+    
     if (!usernames?.length) return []
     
     // 去重
@@ -266,6 +275,14 @@ export const useUserInfoStore = defineStore('userInfo', () => {
     
     // 分类用户名
     const { cached, expired, loading, uncached } = classifyUsernames(uniqueUsernames, forceRefresh)
+    
+    console.log(`[UserInfoStore] 🔍 用户分类结果`, {
+      cached: cached.length,
+      expired: expired.length,
+      loading: loading.length,
+      uncached: uncached.length,
+      uncachedUsernames: uncached
+    })
     
     // 🔥 如果有正在加载的用户，等待它们加载完成（但不超过超时时间）
     if (loading.length > 0) {
@@ -317,10 +334,20 @@ export const useUserInfoStore = defineStore('userInfo', () => {
    * 获取并更新用户信息
    */
   async function fetchAndUpdateUsers(usernames: string[]): Promise<UserInfo[]> {
-    console.log(`[UserInfoStore] 批量查询用户信息:`, usernames)
+    const callStack = new Error().stack
+    console.log(`[UserInfoStore] 🔍 fetchAndUpdateUsers 被调用`, {
+      usernames,
+      count: usernames.length,
+      timestamp: new Date().toISOString(),
+      callStack: callStack?.split('\n').slice(1, 6).join('\n')
+    })
+    
     const response = await getUsersByUsernames(usernames)
     const loadedUsers = response.users || []
-    console.log(`[UserInfoStore] 批量查询完成，获取到 ${loadedUsers.length} 个用户`)
+    console.log(`[UserInfoStore] ✅ fetchAndUpdateUsers 完成，获取到 ${loadedUsers.length} 个用户`, {
+      usernames,
+      loadedUsernames: loadedUsers.map(u => u.username)
+    })
     
     const now = Date.now()
     

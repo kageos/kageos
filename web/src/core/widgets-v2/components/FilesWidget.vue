@@ -696,12 +696,27 @@ function getFileUploadUserInfo(file: FileItem) {
 watch(
   () => allUploadUsers.value,
   (usernames: string[]) => {
+    console.log('[FilesWidget] 🔍 watch allUploadUsers 触发', {
+      mode: props.mode,
+      hasUserInfoMap: !!props.userInfoMap,
+      usernames,
+      fieldCode: props.field?.code,
+      timestamp: new Date().toISOString()
+    })
+    
     // 🔥 检查是否在 TableRenderer 中（通过 user-info-map prop 判断）
     // 如果传入了 user-info-map，说明是在表格中，由 TableRenderer 统一处理
     if (usernames.length > 0 && props.mode === 'detail' && !props.userInfoMap) {
+      console.log('[FilesWidget] 🔍 开始批量查询用户信息（独立表单模式）', usernames)
       // 批量加载所有上传用户信息
       userInfoStore.batchGetUserInfo(usernames).catch((error: any) => {
         Logger.error('[FilesWidget] 加载上传用户信息失败', error)
+      })
+    } else {
+      console.log('[FilesWidget] ⏭️ 跳过用户信息查询', {
+        reason: usernames.length === 0 ? '无用户' : 
+                props.mode !== 'detail' ? '非详情模式' : 
+                props.userInfoMap ? '已有 userInfoMap' : '未知原因'
       })
     }
   },
@@ -711,11 +726,26 @@ watch(
 // 🔥 组件挂载时，如果有上传用户，触发加载
 // 注意：如果是在 TableRenderer 中使用，TableRenderer 会统一批量查询用户信息
 onMounted(() => {
+  console.log('[FilesWidget] 🔍 onMounted 触发', {
+    mode: props.mode,
+    hasUserInfoMap: !!props.userInfoMap,
+    allUploadUsers: allUploadUsers.value,
+    fieldCode: props.field?.code,
+    timestamp: new Date().toISOString()
+  })
+  
   // 🔥 检查是否在 TableRenderer 中（通过 user-info-map prop 判断）
   // 如果传入了 user-info-map，说明是在表格中，由 TableRenderer 统一处理
   if (allUploadUsers.value.length > 0 && props.mode === 'detail' && !props.userInfoMap) {
+    console.log('[FilesWidget] 🔍 onMounted 开始批量查询用户信息（独立表单模式）', allUploadUsers.value)
     userInfoStore.batchGetUserInfo(allUploadUsers.value).catch((error: any) => {
       Logger.error('[FilesWidget] 加载上传用户信息失败', error)
+    })
+  } else {
+    console.log('[FilesWidget] ⏭️ onMounted 跳过用户信息查询', {
+      reason: allUploadUsers.value.length === 0 ? '无用户' : 
+              props.mode !== 'detail' ? '非详情模式' : 
+              props.userInfoMap ? '已有 userInfoMap' : '未知原因'
     })
   }
 })

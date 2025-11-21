@@ -342,6 +342,13 @@ const userInfoMap = ref<Map<string, any>>(new Map())
  * 统一收集表格数据和搜索表单中的用户，使用 store 批量查询（自动处理缓存）
  */
 async function batchLoadUserInfo(): Promise<void> {
+  const callStack = new Error().stack
+  console.log('[TableRenderer] 🔍 batchLoadUserInfo 被调用', {
+    timestamp: new Date().toISOString(),
+    tableDataLength: tableData.value?.length || 0,
+    callStack: callStack?.split('\n').slice(1, 4).join('\n')
+  })
+  
   try {
     // 🔥 使用工具函数收集所有用户名
     const allUsernames = collectAllUsernames(
@@ -351,15 +358,17 @@ async function batchLoadUserInfo(): Promise<void> {
       searchableFields.value
     )
     
+    console.log('[TableRenderer] 🔍 收集到的用户名:', allUsernames)
+    
     if (allUsernames.length === 0) {
       userInfoMap.value = new Map()
       return
     }
     
     // 🔥 使用 store 统一批量查询（自动处理缓存和过期）
-    console.log('[TableRenderer] 统一批量查询用户信息，用户名:', allUsernames)
+    console.log('[TableRenderer] 🔍 开始批量查询用户信息，用户名:', allUsernames)
     const users = await userInfoStore.batchGetUserInfo(allUsernames)
-    console.log('[TableRenderer] 统一批量查询完成，获取到', users.length, '个用户')
+    console.log('[TableRenderer] ✅ 批量查询完成，获取到', users.length, '个用户')
     
     // 🔥 构建映射（供表格渲染使用）
     const map = new Map<string, any>()
@@ -371,13 +380,19 @@ async function batchLoadUserInfo(): Promise<void> {
     
     userInfoMap.value = map
   } catch (error) {
-    console.error('[TableRenderer] 批量查询用户信息失败:', error)
+    console.error('[TableRenderer] ❌ 批量查询用户信息失败:', error)
     userInfoMap.value = new Map()
   }
 }
 
 // 监听 tableData 变化，自动批量查询用户信息
-watch(() => tableData.value, () => {
+watch(() => tableData.value, (newData, oldData) => {
+  console.log('[TableRenderer] 🔍 watch tableData 触发', {
+    newLength: newData?.length || 0,
+    oldLength: oldData?.length || 0,
+    timestamp: new Date().toISOString()
+  })
+  
   if (tableData.value && tableData.value.length > 0) {
     batchLoadUserInfo()
   } else {
@@ -395,7 +410,7 @@ watch(() => searchForm.value, () => {
       field.widget?.type === 'user' && searchForm.value[field.code]
     )
     if (hasUserFields) {
-      console.log('[TableRenderer] 搜索表单变化，提前查询用户信息')
+      console.log('[TableRenderer] 🔍 搜索表单变化，提前查询用户信息')
       batchLoadUserInfo()
     }
   })
