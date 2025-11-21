@@ -1842,10 +1842,10 @@ function handleFileChange(file: any): void {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   flex-shrink: 0;
   margin-right: 12px;
-  min-width: 60px;
+  min-width: 80px;
   font-size: 12px;
   color: var(--el-text-color-secondary);
 }
