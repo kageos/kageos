@@ -22,19 +22,27 @@ export function formatTimestamp(timestamp: number | string | null | undefined, f
   // 处理字符串格式的时间戳
   let numTimestamp = typeof timestamp === 'string' ? parseInt(timestamp, 10) : timestamp
   
-  // 🔥 自动判断时间戳是秒级还是毫秒级
+  // 🔥 根据系统规范，统一使用毫秒级时间戳
+  // 但为了兼容性，自动判断时间戳是秒级还是毫秒级
   // 规则：如果时间戳 < 9999999999（约 2001年的秒级时间戳），认为是秒级，需要乘以 1000
   // 否则认为是毫秒级
+  // 注意：如果时间戳 > 9999999999，一定是毫秒级，直接使用
   const SECONDS_THRESHOLD = 9999999999  // 2001-09-09 01:46:40 UTC 的秒级时间戳
+  
+  // 检查是否是秒级时间戳（小于阈值）
   if (numTimestamp > 0 && numTimestamp < SECONDS_THRESHOLD) {
     // 秒级时间戳，转换为毫秒
     numTimestamp = numTimestamp * 1000
   }
+  // 否则认为是毫秒级，直接使用（不做任何转换）
   
   const date = new Date(numTimestamp)
   
   // 检查日期是否有效
-  if (isNaN(date.getTime())) return '-'
+  if (isNaN(date.getTime())) {
+    console.warn('[formatTimestamp] 无效的时间戳:', timestamp, '转换后:', numTimestamp)
+    return '-'
+  }
   
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')

@@ -130,9 +130,14 @@ const internalValue = computed({
         return null
       }
       
-      // 如果是时间戳，转换为 Date 对象
+      // 🔥 如果是时间戳，转换为 Date 对象
+      // 注意：系统统一使用毫秒级时间戳，但为了兼容性，需要判断
       if (typeof value === 'number') {
-        return new Date(value)
+        // 🔥 自动判断时间戳是秒级还是毫秒级
+        // 规则：如果时间戳 < 9999999999，认为是秒级，需要乘以 1000
+        const SECONDS_THRESHOLD = 9999999999
+        const timestamp = value > 0 && value < SECONDS_THRESHOLD ? value * 1000 : value
+        return new Date(timestamp)
       }
       
       // 如果是数组（范围选择）
