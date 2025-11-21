@@ -714,10 +714,23 @@ const handleDialogSubmit = async (data: Record<string, any>): Promise<void> => {
  * @param row 行数据
  * @param index 行索引
  */
-const handleShowDetail = (row: any, index: number): void => {
+const handleShowDetail = async (row: any, index: number): Promise<void> => {
   currentDetailRow.value = row
   currentDetailIndex.value = index
   showDetailDrawer.value = true
+  
+  // 🔥 收集当前行的 files widget 的 upload_user 并查询用户信息
+  const filesUploadUsers = collectFilesUploadUsersFromRow(row, visibleFields.value)
+  if (filesUploadUsers.length > 0) {
+    // 批量查询用户信息（自动处理缓存）
+    const users = await userInfoStore.batchGetUserInfo(filesUploadUsers)
+    // 更新 userInfoMap，供详情中的 FilesWidget 使用
+    users.forEach((user: any) => {
+      if (user.username) {
+        userInfoMap.value.set(user.username, user)
+      }
+    })
+  }
 }
 
 /**
