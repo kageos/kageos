@@ -284,8 +284,6 @@
       </el-popover>
       <div class="user-info">
         <div class="user-name-primary user-name-clickable" @click.stop="handleCopyName">{{ displayName }}</div>
-        <div class="user-username">@{{ userInfo?.username || value?.raw }}</div>
-        <div v-if="userInfo?.email" class="user-email">{{ userInfo.email }}</div>
       </div>
     </div>
   </div>
