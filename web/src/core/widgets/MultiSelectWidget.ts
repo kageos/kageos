@@ -151,7 +151,7 @@ export class MultiSelectWidget extends BaseWidget {
   /**
    * 处理搜索（OnSelectFuzzy 回调）
    * @param query 搜索关键词或值（可以是字符串或数组）
-   * @param isByValue 是否是按值查询（true: by_value, false: by_keyword）
+   * @param isByValue 是否是按值查询（true: by_value/by_values, false: by_keyword）
    */
   private async handleSearch(query: string | any[], isByValue = false): Promise<void> {
     // 如果没有回调，不处理
@@ -170,8 +170,17 @@ export class MultiSelectWidget extends BaseWidget {
     this.loading.value = true
 
     try {
-      // 🔥 构建回调请求体
-      const queryType: 'by_keyword' | 'by_value' = isByValue ? 'by_value' : 'by_keyword'
+      // 🔥 判断查询类型：
+      // - 如果是按值查询且 query 是数组，使用 by_values
+      // - 如果是按值查询且 query 是单个值，使用 by_value
+      // - 否则使用 by_keyword
+      let queryType: 'by_keyword' | 'by_value' | 'by_values'
+      if (isByValue) {
+        queryType = Array.isArray(query) ? 'by_values' : 'by_value'
+      } else {
+        queryType = 'by_keyword'
+      }
+      
       const requestBody = {
         code: this.field.code,
         type: queryType,
