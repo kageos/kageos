@@ -254,9 +254,13 @@
     <template v-else-if="mode === 'detail'">
       <div class="detail-files">
         <div v-if="currentFiles.length > 0" class="uploaded-files">
-          <!-- 🔥 打包下载按钮（如果有已上传的文件） -->
-          <div v-if="currentFiles.some(f => f.is_uploaded)" class="detail-files-header">
+          <!-- 🔥 参考旧版本的布局：标题和打包下载按钮 -->
+          <div class="detail-files-header">
+            <div class="section-title">
+              已上传文件 ({{ currentFiles.length }})
+            </div>
             <el-button
+              v-if="currentFiles.some((f: FileItem) => f.is_uploaded)"
               size="small"
               type="primary"
               :icon="Download"
@@ -267,41 +271,72 @@
             </el-button>
           </div>
           
-          <!-- 🔥 参考旧版本的紧凑列表布局 -->
-          <div
-            v-for="(file, index) in currentFiles"
-            :key="file.url || file.name || index"
-            class="detail-file-item"
-            :class="{ 'file-clickable': isImageFile(file) && file.is_uploaded }"
-            @click="isImageFile(file) && file.is_uploaded ? handlePreviewImage(file) : null"
-          >
-            <el-icon :size="16" class="file-icon">
-              <Document />
-            </el-icon>
-            <span class="file-name" :title="file.name">
-              {{ file.name }}
-            </span>
-            <span class="file-size">{{ formatSize(file.size) }}</span>
-            <el-tag size="small" :type="file.is_uploaded ? 'success' : 'info'">
-              {{ file.is_uploaded ? '已上传' : '本地' }}
-            </el-tag>
-            <div class="file-actions-inline">
-              <el-button
-                v-if="isImageFile(file) && file.is_uploaded"
-                size="small"
-                text
-                :icon="View"
-                @click.stop="handlePreviewImage(file)"
-                title="预览"
-              />
-              <el-button
-                v-if="file.is_uploaded"
-                size="small"
-                text
-                :icon="Download"
-                @click.stop="handleDownloadFile(file)"
-                title="下载"
-              />
+          <!-- 🔥 参考旧版本的卡片式布局 -->
+          <div class="files-list">
+            <div
+              v-for="(file, index) in currentFiles"
+              :key="file.url || file.name || index"
+              class="file-list-item"
+              :class="{ 'file-clickable': canPreviewInBrowser(file) }"
+              @click="canPreviewInBrowser(file) ? handlePreviewInNewWindow(file) : null"
+            >
+              <!-- 文件图标/缩略图（60x60px） -->
+              <div class="file-thumbnail">
+                <el-image
+                  v-if="isImageFile(file) && file.is_uploaded && file.url"
+                  :src="file.url"
+                  fit="cover"
+                  class="thumbnail-image"
+                  :preview-src-list="previewImageList"
+                  :initial-index="getPreviewImageIndex(file)"
+                  preview-teleported
+                  hide-on-click-modal
+                  @click.stop
+                />
+                <el-icon
+                  v-else
+                  :size="32"
+                  :style="{ color: getFileIconColor(file.name) }"
+                  class="thumbnail-icon"
+                >
+                  <component :is="getFileIcon(file.name)" />
+                </el-icon>
+              </div>
+              
+              <!-- 文件信息（垂直布局） -->
+              <div class="file-info">
+                <div class="file-name" :title="file.name">
+                  {{ file.name }}
+                </div>
+                <div class="file-meta">
+                  <span class="file-size">{{ formatSize(file.size) }}</span>
+                  <el-tag
+                    v-if="canPreviewInBrowser(file)"
+                    size="small"
+                    type="success"
+                    effect="plain"
+                    class="preview-tag"
+                  >
+                    <el-icon :size="12" style="margin-right: 4px">
+                      <View />
+                    </el-icon>
+                    可预览
+                  </el-tag>
+                </div>
+              </div>
+              
+              <!-- 操作按钮 -->
+              <div class="file-actions">
+                <el-button
+                  v-if="file.is_uploaded"
+                  size="small"
+                  type="primary"
+                  :icon="Download"
+                  @click.stop="handleDownloadFile(file)"
+                >
+                  下载
+                </el-button>
+              </div>
             </div>
           </div>
         </div>
@@ -425,6 +460,10 @@ import {
   Delete,
   Download,
   View,
+  Picture,
+  VideoPlay,
+  Folder,
+  Files,
 } from '@element-plus/icons-vue'
 import type { WidgetComponentProps } from '../types'
 import { uploadFile, notifyBatchUploadComplete } from '@/utils/upload'
@@ -585,6 +624,88 @@ function isImageFile(file: FileItem): boolean {
   const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.ico']
   const fileName = file.name.toLowerCase()
   return imageExtensions.some(ext => fileName.endsWith(ext))
+}
+
+// 判断文件是否可以在浏览器中预览
+function canPreviewInBrowser(file: FileItem): boolean {
+  if (!file.is_uploaded || !file.url) return false
+  
+  const fileName = (file.name || '').toLowerCase()
+  const previewableExtensions = [
+    // 图片
+    '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg',
+    // 视频
+    '.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv', '.webm',
+    // 文档
+    '.pdf',
+    // 文本
+    '.txt', '.md', '.html', '.htm', '.css', '.js', '.json', '.xml', '.yaml', '.yml',
+    '.log', '.ini', '.conf', '.sh', '.bat', '.py', '.go', '.java', '.cpp', '.c', '.h',
+    '.vue', '.ts', '.tsx', '.jsx', '.sql'
+  ]
+  return previewableExtensions.some(ext => fileName.endsWith(ext))
+}
+
+// 获取文件图标组件
+function getFileIcon(fileName: string): any {
+  const ext = fileName.split('.').pop()?.toLowerCase() || ''
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) {
+    return Picture
+  }
+  if (['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm'].includes(ext)) {
+    return VideoPlay
+  }
+  if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
+    return Folder
+  }
+  if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'pdf'].includes(ext)) {
+    return Files
+  }
+  return Document
+}
+
+// 获取文件图标颜色
+function getFileIconColor(fileName: string): string {
+  const ext = fileName.split('.').pop()?.toLowerCase() || ''
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) {
+    return '#409EFF'
+  }
+  if (['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm'].includes(ext)) {
+    return '#F56C6C'
+  }
+  if (['pdf'].includes(ext)) {
+    return '#E6A23C'
+  }
+  return '#909399'
+}
+
+// 在新窗口预览文件
+function handlePreviewInNewWindow(file: FileItem): void {
+  if (!canPreviewInBrowser(file) || !file.url) {
+    return
+  }
+  
+  // 如果是图片，使用 ElImage 的预览功能（已经在模板中处理）
+  // 其他文件类型，在新窗口打开
+  if (!isImageFile(file)) {
+    const previewURL = file.url.startsWith('http://') || file.url.startsWith('https://')
+      ? file.url
+      : `/api/v1/storage/download/${encodeURIComponent(file.url)}`
+    
+    window.open(previewURL, '_blank')
+  }
+}
+
+// 获取预览图片列表
+const previewImageList = computed(() => {
+  return currentFiles.value
+    .filter((f: FileItem) => isImageFile(f) && f.is_uploaded && f.url)
+    .map((f: FileItem) => f.url || '')
+})
+
+// 获取预览图片的索引
+function getPreviewImageIndex(file: FileItem): number {
+  return previewImageList.value.findIndex((url: string) => url === file.url)
 }
 
 // 获取文件预览URL
@@ -1399,54 +1520,110 @@ function handleFileChange(file: any): void {
   margin-bottom: 8px;
 }
 
-/* 🔥 详情模式下的紧凑文件列表样式 */
-.detail-file-item {
+/* 🔥 详情模式：参考旧版本的卡片式布局 */
+.detail-files-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+}
+
+.files-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.file-list-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
+  gap: 12px;
+  padding: 12px;
   border: 1px solid var(--el-border-color-lighter);
-  border-radius: 4px;
-  margin-bottom: 6px;
+  border-radius: 8px;
   background-color: var(--el-bg-color);
   transition: all 0.2s ease;
 }
 
-.detail-file-item.file-clickable {
+.file-list-item.file-clickable {
   cursor: pointer;
 }
 
-.detail-file-item:hover {
+.file-list-item:hover {
   background-color: var(--el-fill-color-light);
   border-color: var(--el-color-primary);
 }
 
-.detail-file-item .file-icon {
-  color: var(--el-color-primary);
+/* 文件缩略图区域（60x60px） */
+.file-thumbnail {
+  width: 60px;
+  height: 60px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  background-color: var(--el-fill-color-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.thumbnail-image {
+  width: 100%;
+  height: 100%;
+}
+
+.thumbnail-icon {
   flex-shrink: 0;
 }
 
-.detail-file-item .file-name {
+/* 文件信息（垂直布局） */
+.file-info {
   flex: 1;
-  font-size: 13px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.file-info .file-name {
+  font-size: 14px;
+  font-weight: 500;
   color: var(--el-text-color-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  min-width: 0;
 }
 
-.detail-file-item .file-size {
+.file-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   font-size: 12px;
   color: var(--el-text-color-secondary);
+}
+
+.file-meta .file-size {
   flex-shrink: 0;
 }
 
-.detail-file-item .file-actions-inline {
-  display: flex;
-  gap: 4px;
+.preview-tag {
   flex-shrink: 0;
-  margin-left: auto;
+}
+
+/* 操作按钮 */
+.file-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 /* 🔥 表格单元格模式下的简化样式 */
