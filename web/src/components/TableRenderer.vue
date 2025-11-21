@@ -591,6 +591,19 @@ const CellRenderer = defineComponent({
       required: true
     }
   },
+  setup(props: { vnode: any }) {
+    return () => props.vnode
+  }
+})
+
+// 🔥 VNode 渲染组件（用于在模板中渲染 VNode，避免循环引用）
+const CellRenderer = defineComponent({
+  props: {
+    vnode: {
+      type: Object,
+      required: true
+    }
+  },
   setup(props) {
     return () => props.vnode
   }
