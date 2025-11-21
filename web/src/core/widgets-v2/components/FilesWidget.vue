@@ -1855,13 +1855,15 @@ function handleFileChange(file: any): void {
 }
 
 .file-upload-user-name {
-  font-size: 11px;
-  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  color: var(--el-text-color-primary);
   white-space: nowrap;
   text-align: center;
-  max-width: 60px;
+  max-width: 80px;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1.2;
+  display: block;
 }
 
 /* 操作按钮 */
