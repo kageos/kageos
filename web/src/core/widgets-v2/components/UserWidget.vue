@@ -716,41 +716,6 @@ onMounted(() => {
   gap: 8px;
 }
 
-/* 可点击样式 */
-.user-clickable {
-  cursor: pointer;
-  user-select: none;
-  transition: all 0.2s;
-}
-
-.user-clickable:hover {
-  opacity: 0.8;
-  transform: translateY(-1px);
-}
-
-/* 头像可点击样式 */
-.user-avatar-clickable {
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.user-avatar-clickable:hover {
-  opacity: 0.8;
-  transform: scale(1.05);
-}
-
-/* 名称可点击样式 */
-.user-name-clickable {
-  cursor: pointer;
-  user-select: none;
-  transition: all 0.2s;
-  color: var(--el-color-primary);
-}
-
-.user-name-clickable:hover {
-  opacity: 0.8;
-  text-decoration: underline;
-}
 
 /* 用户信息卡片样式 */
 .user-info-card {
@@ -865,6 +830,42 @@ onMounted(() => {
 </style>
 
 <style>
+/* 可点击样式（全局，供 UserWidget.ts 使用） */
+.user-clickable {
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s;
+}
+
+.user-clickable:hover {
+  opacity: 0.8;
+  transform: translateY(-1px);
+}
+
+/* 头像可点击样式 */
+.user-avatar-clickable {
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.user-avatar-clickable:hover {
+  opacity: 0.8;
+  transform: scale(1.05);
+}
+
+/* 名称可点击样式 */
+.user-name-clickable {
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s;
+  color: var(--el-color-primary);
+}
+
+.user-name-clickable:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+
 /* 下拉选项样式 */
 .user-select-dropdown-popper .el-select-dropdown__item {
   height: auto;

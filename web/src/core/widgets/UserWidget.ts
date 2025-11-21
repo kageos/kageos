@@ -344,20 +344,7 @@ export class UserWidget extends BaseWidget {
           reference: () => h(ElAvatar, {
             src: user.avatar,
             size: 24,
-            style: {
-              cursor: 'pointer',
-              transition: 'all 0.2s'
-            },
-            onMouseenter: (e: MouseEvent) => {
-              const target = e.currentTarget as HTMLElement
-              target.style.opacity = '0.8'
-              target.style.transform = 'scale(1.05)'
-            },
-            onMouseleave: (e: MouseEvent) => {
-              const target = e.currentTarget as HTMLElement
-              target.style.opacity = '1'
-              target.style.transform = 'scale(1)'
-            }
+            class: 'user-avatar-clickable'
           }, {
             default: () => user.username?.[0]?.toUpperCase() || 'U'
           }),
@@ -525,24 +512,11 @@ export class UserWidget extends BaseWidget {
           ])
         }),
         h('span', {
+          class: 'user-name-clickable',
           style: {
-            fontSize: '14px',
-            color: 'var(--el-color-primary)',
-            cursor: 'pointer',
-            userSelect: 'none',
-            transition: 'all 0.2s'
+            fontSize: '14px'
           },
-          onClick: handleCopyName,
-          onMouseenter: (e: MouseEvent) => {
-            const target = e.currentTarget as HTMLElement
-            target.style.textDecoration = 'underline'
-            target.style.opacity = '0.8'
-          },
-          onMouseleave: (e: MouseEvent) => {
-            const target = e.currentTarget as HTMLElement
-            target.style.textDecoration = 'none'
-            target.style.opacity = '1'
-          }
+          onClick: handleCopyName
         }, displayName)
       ])
     }
@@ -589,27 +563,14 @@ export class UserWidget extends BaseWidget {
       }
       
       return h('div', {
-        class: 'user-detail',
+        class: 'user-detail user-clickable',
         style: {
           display: 'flex',
           alignItems: 'flex-start',
-          gap: '16px',
-          cursor: 'pointer',
-          userSelect: 'none',
-          transition: 'all 0.2s'
+          gap: '16px'
         },
         title: `点击复制：${copyText}\n邮箱：${user.email || '无'}\n昵称：${user.nickname || '无'}`,
-        onClick: handleCopy,
-        onMouseenter: (e: MouseEvent) => {
-          const target = e.currentTarget as HTMLElement
-          target.style.opacity = '0.8'
-          target.style.transform = 'translateY(-1px)'
-        },
-        onMouseleave: (e: MouseEvent) => {
-          const target = e.currentTarget as HTMLElement
-          target.style.opacity = '1'
-          target.style.transform = 'translateY(0)'
-        }
+        onClick: handleCopy
       }, [
         h(ElAvatar, {
           src: user.avatar,
