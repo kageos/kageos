@@ -358,6 +358,9 @@
                     可预览
               </el-tag>
                 </div>
+                <div v-if="file.upload_ts" class="file-upload-time">
+                  {{ formatTimestamp(file.upload_ts) }}
+                </div>
             </div>
 
               <!-- 操作按钮 -->
@@ -508,6 +511,7 @@ import { useFormDataStore } from '../../stores-v2/formData'
 import { useUserInfoStore } from '@/stores/userInfo'
 import { isCacheExpired } from '@/stores/userInfo/utils'
 import { Logger } from '../../utils/logger'
+import { formatTimestamp } from '@/utils/date'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -1840,6 +1844,12 @@ function handleFileChange(file: any): void {
 
 .preview-tag {
   flex-shrink: 0;
+}
+
+.file-upload-time {
+  font-size: 12px;
+  color: var(--el-text-color-placeholder);
+  margin-top: 2px;
 }
 
 /* 🔥 文件上传用户信息（右侧显示） */
