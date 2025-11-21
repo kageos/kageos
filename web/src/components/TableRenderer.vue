@@ -265,6 +265,7 @@ import { ErrorHandler } from '@/core/utils/ErrorHandler'
 import { convertToFieldValue } from '@/utils/field'
 import { WidgetType } from '@/core/constants/widget'
 import { useUserInfoStore } from '@/stores/userInfo'
+import { collectAllUsernames } from '@/utils/tableUserInfo'
 import FormDialog from './FormDialog.vue'
 import SearchInput from './SearchInput.vue'
 import type { Function as FunctionType, ServiceTree } from '@/types'
@@ -345,54 +346,25 @@ const userInfoMap = ref<Map<string, any>>(new Map())
  */
 async function batchLoadUserInfo(): Promise<void> {
   try {
-    // 1. 识别所有 user 类型的字段
-    const userFields = visibleFields.value.filter((field: FieldConfig) => field.widget?.type === 'user')
-    
-    if (userFields.length === 0) {
-      userInfoMap.value = new Map()
-      return
-    }
-    
-    // 2. 收集表格数据中所有 user 类型字段的值（username）
-    const tableUsernames = new Set<string>()
-    tableData.value.forEach((row: any) => {
-      userFields.forEach((field: FieldConfig) => {
-        const value = row[field.code]
-        if (value !== null && value !== undefined && value !== '') {
-          tableUsernames.add(String(value))
-        }
-      })
-    })
-    
-    // 3. 收集搜索表单中所有 user 类型字段的值（username）
-    const searchUsernames = new Set<string>()
-    searchableFields.value.forEach((field: FieldConfig) => {
-      if (field.widget?.type === 'user' && searchForm.value[field.code]) {
-        const value = searchForm.value[field.code]
-        if (Array.isArray(value)) {
-          value.forEach(v => {
-            if (v) searchUsernames.add(String(v))
-          })
-        } else if (value) {
-          searchUsernames.add(String(value))
-        }
-      }
-    })
-    
-    // 4. 合并所有用户名并去重
-    const allUsernames = [...new Set([...tableUsernames, ...searchUsernames])]
+    // 🔥 使用工具函数收集所有用户名
+    const allUsernames = collectAllUsernames(
+      tableData.value || [],
+      searchForm.value,
+      visibleFields.value,
+      searchableFields.value
+    )
     
     if (allUsernames.length === 0) {
       userInfoMap.value = new Map()
       return
     }
     
-    // 5. 使用 store 统一批量查询（自动处理缓存和过期）
+    // 🔥 使用 store 统一批量查询（自动处理缓存和过期）
     console.log('[TableRenderer] 统一批量查询用户信息，用户名:', allUsernames)
     const users = await userInfoStore.batchGetUserInfo(allUsernames)
     console.log('[TableRenderer] 统一批量查询完成，获取到', users.length, '个用户')
     
-    // 6. 构建映射（供表格渲染使用）
+    // 🔥 构建映射（供表格渲染使用）
     const map = new Map<string, any>()
     users.forEach(user => {
       if (user.username) {
