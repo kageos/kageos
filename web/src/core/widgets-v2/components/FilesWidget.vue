@@ -1190,26 +1190,6 @@ async function flushCompleteQueue(): Promise<void> {
   try {
     const results = await notifyBatchUploadComplete(items)
 
-    // 🔥 获取当前上传用户（在循环外获取，避免重复导入）
-    let currentUploadUser = ''
-    try {
-      // 优先从 localStorage 读取用户信息
-      const savedUserStr = localStorage.getItem('user')
-      if (savedUserStr) {
-        const savedUser = JSON.parse(savedUserStr) as { username?: string }
-        currentUploadUser = savedUser.username || ''
-      }
-      
-      // 如果 localStorage 中没有，尝试从 authStore 获取
-      if (!currentUploadUser) {
-        const { useAuthStore } = await import('@/stores/auth')
-        const authStore = useAuthStore()
-        currentUploadUser = authStore.userName || authStore.user?.username || ''
-      }
-    } catch (error: any) {
-      Logger.warn('[FilesWidget] 无法获取用户信息', error)
-    }
-
     // 🔥 使用 for...of 循环，支持 await
     for (const item of items) {
       const result = results.get(item.key)
@@ -1232,7 +1212,7 @@ async function flushCompleteQueue(): Promise<void> {
             url: result.download_url || '',
             server_url: result.server_download_url || '',
             downloaded: false,
-            upload_user: currentUploadUser,  // 🔥 设置每个文件的上传用户
+            upload_user: item.upload_user || '',  // 🔥 使用从 complete 接口传递的 upload_user
           }
 
           const currentFilesList = currentFiles.value
