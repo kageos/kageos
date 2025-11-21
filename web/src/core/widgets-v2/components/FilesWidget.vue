@@ -1156,7 +1156,7 @@ async function flushCompleteQueue(): Promise<void> {
       // 优先从 localStorage 读取用户信息
       const savedUserStr = localStorage.getItem('user')
       if (savedUserStr) {
-        const savedUser = JSON.parse(savedUserStr)
+        const savedUser = JSON.parse(savedUserStr) as { username?: string }
         currentUploadUser = savedUser.username || ''
       }
       
