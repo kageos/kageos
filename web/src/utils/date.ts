@@ -20,7 +20,17 @@ export function formatTimestamp(timestamp: number | string | null | undefined, f
   if (!timestamp) return '-'
   
   // 处理字符串格式的时间戳
-  const numTimestamp = typeof timestamp === 'string' ? parseInt(timestamp, 10) : timestamp
+  let numTimestamp = typeof timestamp === 'string' ? parseInt(timestamp, 10) : timestamp
+  
+  // 🔥 自动判断时间戳是秒级还是毫秒级
+  // 规则：如果时间戳 < 9999999999（约 2001年的秒级时间戳），认为是秒级，需要乘以 1000
+  // 否则认为是毫秒级
+  const SECONDS_THRESHOLD = 9999999999  // 2001-09-09 01:46:40 UTC 的秒级时间戳
+  if (numTimestamp > 0 && numTimestamp < SECONDS_THRESHOLD) {
+    // 秒级时间戳，转换为毫秒
+    numTimestamp = numTimestamp * 1000
+  }
+  
   const date = new Date(numTimestamp)
   
   // 检查日期是否有效

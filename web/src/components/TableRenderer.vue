@@ -95,11 +95,8 @@
           <template v-if="getCellContent(field, row[field.code]).isString">
             {{ getCellContent(field, row[field.code]).content }}
           </template>
-          <component 
-            v-else-if="getCellContent(field, row[field.code]).isVNode"
-            :is="getCellContent(field, row[field.code]).content"
-          />
-          <span v-else>{{ getCellContent(field, row[field.code]).content }}</span>
+          <!-- 🔥 VNode 直接渲染：使用 render 函数 -->
+          <CellRenderer v-else :vnode="getCellContent(field, row[field.code]).content" />
         </template>
       </el-table-column>
 
@@ -255,7 +252,7 @@
  * - 记录导航（上一个/下一个）
  */
 
-import { computed, ref, watch, h, nextTick, onMounted, onUpdated, onUnmounted, isVNode } from 'vue'
+import { computed, ref, watch, h, nextTick, onMounted, onUpdated, onUnmounted, isVNode, defineComponent } from 'vue'
 import { Search, Refresh, Edit, Delete, Plus, ArrowLeft, ArrowRight, DocumentCopy, Document, Download } from '@element-plus/icons-vue'
 import { ElIcon, ElButton, ElMessage } from 'element-plus'
 import { formatTimestamp } from '@/utils/date'
@@ -585,6 +582,19 @@ const renderTableCell = (field: FieldConfig, rawValue: any): { content: any, isS
 const getCellContent = (field: FieldConfig, rawValue: any): { content: any, isString: boolean } => {
   return renderTableCell(field, rawValue)
 }
+
+// 🔥 VNode 渲染组件（用于在模板中渲染 VNode，避免循环引用）
+const CellRenderer = defineComponent({
+  props: {
+    vnode: {
+      type: Object,
+      required: true
+    }
+  },
+  setup(props) {
+    return () => props.vnode
+  }
+})
 
 // ==================== 详情字段渲染（纯展示模式） ====================
 
