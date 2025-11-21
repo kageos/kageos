@@ -652,40 +652,36 @@ const unifiedUploadUserInfo = computed(() => {
 })
 
 // 🔥 获取文件的上传用户信息（同步版本，用于模板）
-function getFileUploadUserInfo(file: FileItem) {
-  if (!file.upload_user) return null
-  
-  // 🔥 优先从 userInfoMap 中获取（如果是在 TableRenderer 中使用）
-  if (props.userInfoMap && props.userInfoMap.has(file.upload_user)) {
-    const user = props.userInfoMap.get(file.upload_user)
-    return user
-  }
-  
-  // 降级到 userInfoStore（同步获取，从缓存中读取）
-  // 使用 store 导出的 userInfoCache computed 属性（需要访问 .value）
-  try {
-    const cache = userInfoStore.userInfoCache
-    if (cache && typeof cache === 'object' && 'value' in cache) {
-      const cacheMap = (cache as any).value
+// 使用 computed 确保响应式更新
+const getFileUploadUserInfo = computed(() => {
+  return (file: FileItem) => {
+    if (!file.upload_user) return null
+    
+    // 🔥 优先从 userInfoMap 中获取（如果是在 TableRenderer 中使用）
+    if (props.userInfoMap && props.userInfoMap.has(file.upload_user)) {
+      const user = props.userInfoMap.get(file.upload_user)
+      return user
+    }
+    
+    // 降级到 userInfoStore（同步获取，从缓存中读取）
+    // 使用 store 导出的 userInfoCache computed 属性
+    try {
+      const cache = userInfoStore.userInfoCache
+      // userInfoCache 是 computed，需要访问 .value
+      const cacheMap = (cache as any)?.value || cache
       if (cacheMap instanceof Map) {
         const cachedUser = cacheMap.get(file.upload_user)
         if (cachedUser) {
           return cachedUser
         }
       }
-    } else if (cache instanceof Map) {
-      // 如果不是 computed，直接使用
-      const cachedUser = cache.get(file.upload_user)
-      if (cachedUser) {
-        return cachedUser
-      }
+    } catch (error) {
+      console.warn('[FilesWidget] 获取用户信息失败', error)
     }
-  } catch (error) {
-    console.warn('[FilesWidget] 获取用户信息失败', error)
+    
+    return null
   }
-  
-  return null
-}
+})
 
 // 🔥 监听所有上传用户变化，自动加载用户信息
 // 注意：如果是在 TableRenderer 中使用，TableRenderer 会统一批量查询用户信息
