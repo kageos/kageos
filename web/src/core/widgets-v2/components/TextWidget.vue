@@ -27,7 +27,6 @@
     
     <!-- 详情模式 -->
     <div v-else-if="mode === 'detail'" class="detail-text">
-      <div class="detail-label">{{ field.name }}</div>
       <div class="detail-content">
         <div v-if="formattedContent" class="formatted-content" :class="formatClass">
           <pre v-if="isCodeFormat" class="code-content">{{ formattedContent }}</pre>
