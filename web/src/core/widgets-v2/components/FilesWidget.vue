@@ -260,38 +260,31 @@
               <div class="section-title">
                 已上传文件 ({{ currentFiles.length }})
               </div>
-              <!-- 🔥 上传用户信息 -->
-              <!-- 
-                说明：
-                1. upload_user 是 FilesData 级别的，表示整个文件列表的上传用户
-                2. 如果多个文件是同一个用户上传的：显示该用户（正确）
-                3. 如果多个文件是不同用户上传的：当前系统无法区分，因为 upload_user 是文件列表级别的
-                4. 显示优先级：昵称 > 用户名 > 原始字符串
-              -->
-              <div v-if="uploadUser" class="upload-user-info-header">
+              <!-- 🔥 如果所有文件是同一个用户上传的，在标题区域显示 -->
+              <div v-if="isSameUploadUser && unifiedUploadUser" class="upload-user-info-header">
                 <el-avatar
-                  v-if="uploadUserInfo"
-                  :src="uploadUserInfo.avatar"
+                  v-if="unifiedUploadUserInfo"
+                  :src="unifiedUploadUserInfo.avatar"
                   :size="20"
                   class="upload-user-avatar"
                 >
-                  {{ uploadUserInfo.username?.[0]?.toUpperCase() || 'U' }}
+                  {{ unifiedUploadUserInfo.username?.[0]?.toUpperCase() || 'U' }}
                 </el-avatar>
                 <el-avatar
                   v-else
                   :size="20"
                   class="upload-user-avatar"
                 >
-                  {{ uploadUser[0]?.toUpperCase() || 'U' }}
+                  {{ unifiedUploadUser[0]?.toUpperCase() || 'U' }}
                 </el-avatar>
                 <span class="upload-user-name">
-                  <template v-if="uploadUserInfo">
+                  <template v-if="unifiedUploadUserInfo">
                     <!-- 🔥 优先显示昵称，如果没有昵称则显示用户名 -->
-                    上传者：{{ uploadUserInfo.nickname || uploadUserInfo.username || uploadUser }}
+                    上传者：{{ unifiedUploadUserInfo.nickname || unifiedUploadUserInfo.username || unifiedUploadUser }}
                   </template>
                   <template v-else>
                     <!-- 🔥 用户信息加载中，显示原始用户名 -->
-                    上传者：{{ uploadUser }}
+                    上传者：{{ unifiedUploadUser }}
                   </template>
                 </span>
               </div>
@@ -1165,6 +1158,26 @@ async function flushCompleteQueue(): Promise<void> {
         if (uploadingFile && uploadingFile.fileInfo) {
           uploadingFile.downloadURL = result.download_url || ''
 
+          // 🔥 获取当前上传用户
+          let currentUploadUser = ''
+          try {
+            // 优先从 localStorage 读取用户信息
+            const savedUserStr = localStorage.getItem('user')
+            if (savedUserStr) {
+              const savedUser = JSON.parse(savedUserStr)
+              currentUploadUser = savedUser.username || ''
+            }
+            
+            // 如果 localStorage 中没有，尝试从 authStore 获取
+            if (!currentUploadUser) {
+              const { useAuthStore } = await import('@/stores/auth')
+              const authStore = useAuthStore()
+              currentUploadUser = authStore.userName || authStore.user?.username || ''
+            }
+          } catch (error) {
+            Logger.warn('[FilesWidget] 无法获取用户信息', error)
+          }
+
           const newFile: FileItem = {
             name: uploadingFile.name,
             source_name: uploadingFile.name,
@@ -1178,6 +1191,7 @@ async function flushCompleteQueue(): Promise<void> {
             url: result.download_url || '',
             server_url: result.server_download_url || '',
             downloaded: false,
+            upload_user: currentUploadUser,  // 🔥 设置每个文件的上传用户
           }
 
           const currentFilesList = currentFiles.value
