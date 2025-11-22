@@ -662,9 +662,9 @@ const renderDetailField = (field: FieldConfig, rawValue: any): any => {
     // 🔥 从 router 或 currentFunction 获取函数名称
     // router 格式通常是：/user/app/function_name 或 /user/app/group/function_name
     let functionName: string | undefined = undefined
-    if (props.currentFunction?.code) {
-      // 优先使用 currentFunction.code
-      functionName = props.currentFunction.code
+    if (props.currentFunction?.name) {
+      // 优先使用 currentFunction.name
+      functionName = props.currentFunction.name
     } else if (props.functionData?.router) {
       // 从 router 中提取函数名称（取最后一段）
       const routerParts = props.functionData.router.split('/').filter(Boolean)
@@ -680,7 +680,7 @@ const renderDetailField = (field: FieldConfig, rawValue: any): any => {
       idField: idField?.code,
       fieldCode: field.code,
       router: props.functionData?.router,
-      currentFunction: props.currentFunction?.code
+      currentFunctionName: props.currentFunction?.name
     })
     
     return h(WidgetComponent, {
