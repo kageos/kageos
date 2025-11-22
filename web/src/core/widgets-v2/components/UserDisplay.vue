@@ -4,16 +4,20 @@
   - 简单模式：只显示头像和名称（用于列表、详情等）
   - 详细模式：点击头像显示完整用户信息卡片（带 popover）
   
+  显示风格：
+  - horizontal：水平布局，头像在左，名称在右（适用于 table、详情字段等）
+  - vertical：垂直布局，头像在上，名称在下（适用于文件上传用户等）
+  
   使用场景：
-  - Form 输出用户字段
-  - Table 表格中显示用户
-  - 详情中显示用户信息
-  - 文件上传用户显示
+  - Form 输出用户字段（horizontal）
+  - Table 表格中显示用户（horizontal）
+  - 详情中显示用户信息（horizontal）
+  - 文件上传用户显示（vertical）
 -->
 <template>
   <div class="user-display-wrapper">
     <!-- 简单模式：只显示头像和名称 -->
-    <div v-if="mode === 'simple'" class="user-display-simple" :class="sizeClass">
+    <div v-if="mode === 'simple'" class="user-display-simple" :class="[sizeClass, layoutClass]">
       <el-avatar 
         v-if="userInfo" 
         :src="userInfo.avatar" 
@@ -124,6 +128,8 @@ interface Props {
   username?: string | null
   /** 显示模式：simple（简单模式，只显示头像和名称）或 card（详细模式，点击显示卡片） */
   mode?: 'simple' | 'card'
+  /** 显示风格：horizontal（水平布局，头像在左名称在右）或 vertical（垂直布局，头像在上名称在下） */
+  layout?: 'horizontal' | 'vertical'
   /** 头像大小：small(24px) | medium(32px) | large(48px) | 自定义数字 */
   size?: 'small' | 'medium' | 'large' | number
   /** 用户信息 Map（用于从缓存中获取） */
@@ -134,6 +140,7 @@ const props = withDefaults(defineProps<Props>(), {
   userInfo: null,
   username: null,
   mode: 'simple',
+  layout: 'horizontal',
   size: 'medium',
   userInfoMap: null,
 })
@@ -159,6 +166,11 @@ const sizeClass = computed(() => {
     return ''
   }
   return `user-display-${props.size}`
+})
+
+// 计算布局类名
+const layoutClass = computed(() => {
+  return `user-layout-${props.layout}`
 })
 
 // 计算显示名称
@@ -219,8 +231,21 @@ const handleCopyName = (): void => {
 /* 简单模式 */
 .user-display-simple {
   display: flex;
+}
+
+/* 水平布局：头像在左，名称在右 */
+.user-layout-horizontal {
+  flex-direction: row;
   align-items: center;
   gap: 8px;
+}
+
+/* 垂直布局：头像在上，名称在下 */
+.user-layout-vertical {
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
 }
 
 .user-display-simple .user-avatar {
@@ -231,6 +256,17 @@ const handleCopyName = (): void => {
   font-size: 14px;
   color: var(--el-text-color-primary);
   white-space: nowrap;
+}
+
+/* 垂直布局下的名称样式 */
+.user-layout-vertical .user-name {
+  font-size: 12px;
+  text-align: center;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+  display: block;
 }
 
 /* 详细模式 */
