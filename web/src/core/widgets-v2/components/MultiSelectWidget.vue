@@ -17,8 +17,7 @@
       :placeholder="placeholder"
       :multiple-limit="maxCount"
       reserve-keyword
-      collapse-tags
-      :max-collapse-tags="3"
+      :collapse-tags="false"
       popper-class="select-dropdown-popper"
       :popper-options="{
         strategy: 'fixed',
@@ -43,9 +42,22 @@
       @visible-change="handleVisibleChange"
       @remove-tag="handleRemoveTag"
     >
+      <!-- 自定义已选标签，应用颜色配置 -->
+      <template #tag="slotProps">
+        <el-tag
+          :type="getOptionColorType(getTagValueFromSlotProps(slotProps))"
+          :color="getOptionColorValue(getTagValueFromSlotProps(slotProps))"
+          :closable="true"
+          @close="slotProps.deleteTag"
+          class="multiselect-tag"
+        >
+          {{ getTagLabelFromSlotProps(slotProps) }}
+        </el-tag>
+      </template>
+      
       <el-option
         v-for="option in options"
-        :key="option.value"
+        :key="`${option.value}-${option.label}`"
         :label="option.label"
         :value="option.value"
         @click="handleOptionClick"
@@ -58,6 +70,8 @@
         v-for="(value, index) in displayValues"
         :key="index"
         class="tag-item"
+        :type="getOptionColorType(value)"
+        :color="getOptionColorValue(value)"
       >
         {{ getOptionLabel(value) }}
       </el-tag>
@@ -202,18 +216,26 @@ const fieldDataType = computed(() => {
 const selectedValues = computed({
   get: () => {
     const raw = props.value?.raw
+    console.log('[MultiSelectWidget] selectedValues.get - raw:', raw, 'type:', typeof raw)
+    
     if (Array.isArray(raw)) {
+      console.log('[MultiSelectWidget] selectedValues.get - returning array:', raw)
       return raw
     }
     // 🔥 如果是字符串类型，且 raw 是逗号分隔的字符串，需要解析为数组
     if (typeof raw === 'string' && raw) {
       // 检查是否是逗号分隔的字符串（多选值）
       if (raw.includes(',')) {
-        return raw.split(',').map(v => v.trim()).filter(v => v)
+        const result = raw.split(',').map(v => v.trim()).filter(v => v)
+        console.log('[MultiSelectWidget] selectedValues.get - parsed string to array:', result)
+        return result
       }
       // 单个值
-      return [raw]
+      const result = [raw]
+      console.log('[MultiSelectWidget] selectedValues.get - single value to array:', result)
+      return result
     }
+    console.log('[MultiSelectWidget] selectedValues.get - returning empty array')
     return []
   },
   set: (newValues: any[]) => {
@@ -291,8 +313,153 @@ const displayValues = computed(() => {
 
 // 获取选项标签
 function getOptionLabel(value: any): string {
-  const option = options.value.find((opt: any) => opt.value === value)
-  return option ? option.label : String(value)
+  if (value === null || value === undefined) return ''
+  
+  console.log('[MultiSelectWidget] getOptionLabel - value:', value, 'type:', typeof value)
+  console.log('[MultiSelectWidget] getOptionLabel - options.value:', options.value)
+  
+  // 先尝试精确匹配
+  let option = options.value.find((opt: any) => {
+    const match = opt.value === value
+    console.log('[MultiSelectWidget] getOptionLabel - comparing:', opt.value, '===', value, '->', match)
+    return match
+  })
+  
+  // 如果找不到，尝试字符串匹配（去除空格）
+  if (!option && typeof value === 'string') {
+    const trimmedValue = value.trim()
+    console.log('[MultiSelectWidget] getOptionLabel - trying trimmed match:', trimmedValue)
+    option = options.value.find((opt: any) => {
+      const optValue = typeof opt.value === 'string' ? opt.value.trim() : opt.value
+      const match = optValue === trimmedValue
+      console.log('[MultiSelectWidget] getOptionLabel - comparing trimmed:', optValue, '===', trimmedValue, '->', match)
+      return match
+    })
+  }
+  
+  const result = option ? option.label : String(value)
+  console.log('[MultiSelectWidget] getOptionLabel - result:', result)
+  return result
+}
+
+/**
+ * 从 tag 插槽的 item 参数中获取值
+ * item 可能是对象 { value, label } 或直接是值
+ */
+function getTagValue(item: any): any {
+  if (item === null || item === undefined) return null
+  // 如果是对象，取 value 属性
+  if (typeof item === 'object' && item !== null && !Array.isArray(item) && 'value' in item) {
+    return item.value
+  }
+  // 否则直接返回 item（可能是值本身）
+  return item
+}
+
+/**
+ * 从 tag 插槽的 item 参数中获取标签文本
+ * item 可能是对象 { value, label } 或直接是值
+ */
+function getTagLabel(item: any): string {
+  if (item === null || item === undefined) return ''
+  
+  // 如果是对象，优先使用 label，否则通过 value 查找
+  if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
+    // 检查是否有 label 属性
+    if ('label' in item && item.label !== null && item.label !== undefined && item.label !== '') {
+      return String(item.label)
+    }
+    // 如果有 value 属性，通过 value 查找标签
+    if ('value' in item) {
+      const label = getOptionLabel(item.value)
+      if (label) return label
+      // 如果找不到标签，至少显示值本身
+      return String(item.value || '')
+    }
+    // 如果对象没有 value 或 label，尝试直接使用对象本身
+    return String(item)
+  }
+  
+  // 否则直接通过值查找标签
+  const label = getOptionLabel(item)
+  // 如果找到了标签，返回标签；否则至少返回值本身
+  return label || String(item || '')
+}
+
+/**
+ * 从 slotProps 中获取当前标签的值
+ * slotProps 结构: { key: number, data: Array, deleteTag: function, selectDisabled: boolean }
+ * data[key] 是一个对象: { index: number, value: any, currentLabel: string }
+ */
+function getTagValueFromSlotProps(slotProps: any): any {
+  if (!slotProps) return null
+  
+  // 从 data 数组中根据 key 索引获取值
+  const item = slotProps.data?.[slotProps.key]
+  console.log('[MultiSelectWidget] getTagValueFromSlotProps - slotProps:', slotProps)
+  console.log('[MultiSelectWidget] getTagValueFromSlotProps - key:', slotProps.key)
+  console.log('[MultiSelectWidget] getTagValueFromSlotProps - data:', slotProps.data)
+  console.log('[MultiSelectWidget] getTagValueFromSlotProps - item:', item)
+  
+  // item 可能是对象 { index, value, currentLabel } 或直接是值
+  if (item && typeof item === 'object' && 'value' in item) {
+    const value = item.value
+    console.log('[MultiSelectWidget] getTagValueFromSlotProps - extracted value:', value)
+    return value
+  }
+  
+  // 否则直接返回 item（可能是值本身）
+  console.log('[MultiSelectWidget] getTagValueFromSlotProps - returning item as-is:', item)
+  return item
+}
+
+/**
+ * 从 slotProps 中获取当前标签的文本
+ */
+function getTagLabelFromSlotProps(slotProps: any): string {
+  if (!slotProps) return ''
+  
+  const item = slotProps.data?.[slotProps.key]
+  console.log('[MultiSelectWidget] getTagLabelFromSlotProps - item:', item)
+  console.log('[MultiSelectWidget] getTagLabelFromSlotProps - item type:', typeof item)
+  console.log('[MultiSelectWidget] getTagLabelFromSlotProps - item keys:', item ? Object.keys(item) : [])
+  
+  // 如果 item 是对象，尝试提取 currentLabel 或 value
+  if (item && typeof item === 'object' && item !== null) {
+    // 优先使用 currentLabel（Element Plus 提供的标签文本）
+    try {
+      const currentLabel = item.currentLabel
+      if (currentLabel !== null && currentLabel !== undefined && currentLabel !== '') {
+        console.log('[MultiSelectWidget] getTagLabelFromSlotProps - using currentLabel:', currentLabel)
+        return String(currentLabel)
+      }
+    } catch (e) {
+      console.log('[MultiSelectWidget] getTagLabelFromSlotProps - error accessing currentLabel:', e)
+    }
+    
+    // 如果有 value，提取 value 并查找标签
+    try {
+      const value = item.value
+      if (value !== null && value !== undefined) {
+        console.log('[MultiSelectWidget] getTagLabelFromSlotProps - extracted value from item:', value)
+        const label = getOptionLabel(value)
+        console.log('[MultiSelectWidget] getTagLabelFromSlotProps - label from value:', label)
+        return label || String(value || '')
+      }
+    } catch (e) {
+      console.log('[MultiSelectWidget] getTagLabelFromSlotProps - error accessing value:', e)
+    }
+  }
+  
+  // 否则通过 getTagValueFromSlotProps 获取值
+  const value = getTagValueFromSlotProps(slotProps)
+  console.log('[MultiSelectWidget] getTagLabelFromSlotProps - value from getTagValueFromSlotProps:', value)
+  console.log('[MultiSelectWidget] getTagLabelFromSlotProps - options:', options.value)
+  
+  const label = getOptionLabel(value)
+  console.log('[MultiSelectWidget] getTagLabelFromSlotProps - label:', label)
+  
+  return label || String(value || '')
 }
 
 /**
@@ -647,6 +814,32 @@ watch(
 
 .empty-text {
   color: #999;
+}
+
+/* 编辑模式下的自定义标签样式 */
+.multiselect-tag {
+  font-weight: 500;
+  border: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  margin-right: 6px;
+  margin-bottom: 2px;
+}
+
+/* 自定义颜色的 tag，确保文字清晰 */
+.multiselect-tag[style*="background-color"] {
+  color: #fff !important;
+  font-weight: 500;
+}
+
+/* 标准颜色的 tag，增强对比度 */
+.multiselect-tag.el-tag--success,
+.multiselect-tag.el-tag--warning,
+.multiselect-tag.el-tag--danger,
+.multiselect-tag.el-tag--info,
+.multiselect-tag.el-tag--primary {
+  font-weight: 500;
+  border: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 </style>
 
