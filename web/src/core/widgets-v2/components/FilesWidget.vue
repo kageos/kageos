@@ -1475,12 +1475,22 @@ async function handleDownloadAll(): Promise<void> {
     
     // 🔥 使用与旧版本一致的命名规则：函数名称_id_记录ID 或 函数名称_时间戳
     let zipFileName = 'files'
+    
+    // 调试日志
+    console.log('[FilesWidget] 打包下载命名信息:', {
+      functionName: props.functionName,
+      recordId: props.recordId,
+      mode: props.mode
+    })
+    
+    // 🔥 完全按照旧版本的逻辑
     if (props.functionName) {
       zipFileName = props.functionName
     }
     if (props.recordId !== undefined && props.recordId !== null) {
       zipFileName += `_id_${props.recordId}`
     } else {
+      // 如果没有 recordId，追加时间戳（无论是否有 functionName）
       zipFileName += `_${new Date().getTime()}`
     }
     link.download = `${zipFileName}.zip`
