@@ -506,6 +506,8 @@ const props = withDefaults(defineProps<WidgetComponentProps>(), {
     display: '0 个文件',
     meta: {},
   }),
+  functionName: undefined,
+  recordId: undefined,
 })
 
 const formDataStore = useFormDataStore()
@@ -1471,9 +1473,17 @@ async function handleDownloadAll(): Promise<void> {
     const link = document.createElement('a')
     link.href = url
     
-    // 使用时间戳命名
-    const zipFileName = `files_${new Date().getTime()}.zip`
-    link.download = zipFileName
+    // 🔥 使用与旧版本一致的命名规则：函数名称_id_记录ID 或 函数名称_时间戳
+    let zipFileName = 'files'
+    if (props.functionName) {
+      zipFileName = props.functionName
+    }
+    if (props.recordId !== undefined && props.recordId !== null) {
+      zipFileName += `_id_${props.recordId}`
+    } else {
+      zipFileName += `_${new Date().getTime()}`
+    }
+    link.download = `${zipFileName}.zip`
     
     document.body.appendChild(link)
     link.click()

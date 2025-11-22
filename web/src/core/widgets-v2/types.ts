@@ -51,6 +51,12 @@ export interface WidgetComponentProps {
   
   /** 用户信息映射（用于 UserWidget 批量查询优化，避免重复调用接口） */
   userInfoMap?: Map<string, any>
+  
+  /** 函数名称（用于 FilesWidget 打包下载命名） */
+  functionName?: string
+  
+  /** 记录ID（用于 FilesWidget 打包下载命名） */
+  recordId?: string | number
 }
 
 /**
