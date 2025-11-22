@@ -85,6 +85,8 @@
         v-for="(value, index) in displayValues"
         :key="index"
         class="tag-item"
+        :type="getOptionColorType(value)"
+        :color="getOptionColorValue(value)"
       >
         {{ getOptionLabel(value) }}
       </el-tag>
@@ -608,7 +610,8 @@ watch(
   align-items: center;
 }
 
-.table-cell-multiselect .tag-item {
+.table-cell-multiselect .tag-item,
+.detail-multiselect .tag-item {
   font-weight: 500;
   border: none;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
@@ -616,7 +619,8 @@ watch(
 }
 
 /* 自定义颜色的 tag，确保文字清晰 */
-.table-cell-multiselect .tag-item[style*="background-color"] {
+.table-cell-multiselect .tag-item[style*="background-color"],
+.detail-multiselect .tag-item[style*="background-color"] {
   color: #fff !important;
   font-weight: 500;
 }
@@ -626,14 +630,18 @@ watch(
 .table-cell-multiselect .tag-item.el-tag--warning,
 .table-cell-multiselect .tag-item.el-tag--danger,
 .table-cell-multiselect .tag-item.el-tag--info,
-.table-cell-multiselect .tag-item.el-tag--primary {
+.table-cell-multiselect .tag-item.el-tag--primary,
+.detail-multiselect .tag-item.el-tag--success,
+.detail-multiselect .tag-item.el-tag--warning,
+.detail-multiselect .tag-item.el-tag--danger,
+.detail-multiselect .tag-item.el-tag--info,
+.detail-multiselect .tag-item.el-tag--primary {
   font-weight: 500;
   border: none;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
-.response-multiselect .tag-item,
-.detail-multiselect .tag-item {
+.response-multiselect .tag-item {
   margin-right: 4px;
 }
 

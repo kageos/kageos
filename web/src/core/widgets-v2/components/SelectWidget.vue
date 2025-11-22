@@ -78,7 +78,14 @@
     
     <!-- 详情模式 -->
     <div v-else-if="mode === 'detail'" class="detail-value">
-      <div class="detail-content">{{ displayValue }}</div>
+      <el-tag
+        v-if="currentOptionColor"
+        :type="isStandardColor(currentOptionColor) ? currentOptionColor : undefined"
+        :color="!isStandardColor(currentOptionColor) ? currentOptionColor : undefined"
+      >
+        {{ displayValue }}
+      </el-tag>
+      <span v-else class="detail-content">{{ displayValue }}</span>
     </div>
     
     <!-- 搜索模式 -->
@@ -398,6 +405,20 @@ onMounted(() => {
 
 .detail-value {
   margin-bottom: 16px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.detail-value .el-tag {
+  font-weight: 500;
+  border: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* 自定义颜色的 tag，确保文字清晰 */
+.detail-value .el-tag[style*="background-color"] {
+  color: #fff !important;
+  font-weight: 500;
 }
 
 .detail-label {
