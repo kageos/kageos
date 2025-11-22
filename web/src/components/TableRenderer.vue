@@ -352,6 +352,9 @@ const {
   functionData: props.functionData
 })
 
+// 导出 handleSortChange 供模板使用
+const handleSortChange = originalHandleSortChange
+
 // ==================== 详情抽屉状态 ====================
 
 /** 详情抽屉显示状态 */

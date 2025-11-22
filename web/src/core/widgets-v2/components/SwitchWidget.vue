@@ -24,23 +24,26 @@
       {{ displayValue ? activeText : inactiveText }}
     </el-tag>
     
-    <!-- 表格单元格模式 -->
-    <el-tag
+    <!-- 表格单元格模式 - 使用带文字的开关 -->
+    <el-switch
       v-else-if="mode === 'table-cell'"
-      :type="displayValue ? 'success' : 'info'"
-      size="small"
-    >
-      {{ displayValue ? activeText : inactiveText }}
-    </el-tag>
+      :model-value="displayValue"
+      inline-prompt
+      :active-text="activeText"
+      :inactive-text="inactiveText"
+      :disabled="field.widget?.config?.disabled"
+      @change="handleTableCellChange"
+    />
     
-    <!-- 详情模式 -->
-    <div v-else-if="mode === 'detail'" class="detail-value">
-      <div class="detail-content">
-        <el-tag :type="displayValue ? 'success' : 'info'" size="small">
-          {{ displayValue ? activeText : inactiveText }}
-        </el-tag>
-      </div>
-    </div>
+    <!-- 详情模式 - 使用带文字的开关（只读） -->
+    <el-switch
+      v-else-if="mode === 'detail'"
+      :model-value="displayValue"
+      inline-prompt
+      :active-text="activeText"
+      :inactive-text="inactiveText"
+      disabled
+    />
     
     <!-- 搜索模式（不支持） -->
     <span v-else class="not-supported">搜索模式不支持开关组件</span>
@@ -109,6 +112,20 @@ const displayValue = computed(() => {
 
 function handleChange(value: boolean): void {
   // 可以在这里添加验证逻辑
+}
+
+// 表格单元格模式下的变更处理
+function handleTableCellChange(value: boolean): void {
+  if (props.mode === 'table-cell') {
+    const newFieldValue = {
+      raw: value,
+      display: value ? activeText.value : inactiveText.value,
+      meta: {}
+    }
+    
+    formDataStore.setValue(props.fieldPath, newFieldValue)
+    emit('update:modelValue', newFieldValue)
+  }
 }
 </script>
 
