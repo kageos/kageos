@@ -38,8 +38,7 @@ export const DataType = {
   FLOAT: 'float',
   FILES: 'files',
   STRUCT: 'struct',
-  STRUCTS: '[]struct',
-  ARRAY: 'array'  // 通用数组类型
+  STRUCTS: '[]struct'
 } as const
 
 /**
@@ -58,7 +57,6 @@ export function isStringDataType(dataType: string | undefined | null): boolean {
  */
 export function isArrayDataType(dataType: string | undefined | null): boolean {
   return dataType === DataType.STRINGS || 
-         dataType === DataType.ARRAY ||
          dataType === DataType.INTS ||
          dataType === DataType.FLOATS ||
          dataType === DataType.STRUCTS
