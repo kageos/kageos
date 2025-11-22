@@ -262,7 +262,7 @@ const testDataList = ref<FunctionDetail[]>([
         code: 'payment_method',
         name: '支付方式',
         data: { type: 'string' },
-        validation: 'required,oneof=现金,支付宝,微信',
+        validation: 'required,oneof=现金 支付宝 微信',
         widget: {
           type: 'select',
           config: {

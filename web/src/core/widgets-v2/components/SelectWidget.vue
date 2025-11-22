@@ -380,7 +380,20 @@ onMounted(() => {
 }
 
 .table-cell-value {
-  color: var(--el-text-color-regular);
+  display: inline-flex;
+  align-items: center;
+}
+
+.table-cell-value .el-tag {
+  font-weight: 500;
+  border: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* 自定义颜色的 tag，确保文字清晰 */
+.table-cell-value .el-tag[style*="background-color"] {
+  color: #fff !important;
+  font-weight: 500;
 }
 
 .detail-value {
