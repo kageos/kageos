@@ -255,15 +255,6 @@ export const useUserInfoStore = defineStore('userInfo', () => {
    * 🔥 降级策略：如果接口慢或失败，先返回过期缓存值，后台异步刷新
    */
   async function batchGetUserInfo(usernames: string[], forceRefresh: boolean = false): Promise<UserInfo[]> {
-    const callStack = new Error().stack
-    console.log(`[UserInfoStore] 🔍 batchGetUserInfo 被调用`, {
-      usernames,
-      count: usernames.length,
-      forceRefresh,
-      timestamp: new Date().toISOString(),
-      callStack: callStack?.split('\n').slice(1, 6).join('\n')
-    })
-    
     if (!usernames?.length) return []
     
     // 去重
@@ -276,17 +267,8 @@ export const useUserInfoStore = defineStore('userInfo', () => {
     // 分类用户名
     const { cached, expired, loading, uncached } = classifyUsernames(uniqueUsernames, forceRefresh)
     
-    console.log(`[UserInfoStore] 🔍 用户分类结果`, {
-      cached: cached.length,
-      expired: expired.length,
-      loading: loading.length,
-      uncached: uncached.length,
-      uncachedUsernames: uncached
-    })
-    
     // 🔥 如果有正在加载的用户，等待它们加载完成（但不超过超时时间）
     if (loading.length > 0) {
-      console.log(`[UserInfoStore] 等待正在加载的用户:`, loading)
       const loadedUsers = await waitForLoadingUsers(loading)
       cached.push(...loadedUsers)
     }
@@ -308,11 +290,10 @@ export const useUserInfoStore = defineStore('userInfo', () => {
     // 🔥 超时降级：如果接口超过300ms未返回，先返回过期缓存，后台继续刷新
     const timeoutPromise = new Promise<UserInfo[]>((resolve) => {
       setTimeout(() => {
-        console.log(`[UserInfoStore] 接口超时（${USER_INFO_CACHE_CONFIG.API_TIMEOUT}ms），使用过期缓存（降级策略）`)
         resolve(fallbackResult)
         // 后台继续等待接口返回（不阻塞）
         fetchPromise.then(() => {
-          console.log(`[UserInfoStore] 后台刷新完成，更新缓存`)
+          // 后台刷新完成，已自动更新缓存
         }).catch(() => {
           // 刷新失败不影响，继续使用过期缓存
         })
@@ -334,20 +315,8 @@ export const useUserInfoStore = defineStore('userInfo', () => {
    * 获取并更新用户信息
    */
   async function fetchAndUpdateUsers(usernames: string[]): Promise<UserInfo[]> {
-    const callStack = new Error().stack
-    console.log(`[UserInfoStore] 🔍 fetchAndUpdateUsers 被调用`, {
-      usernames,
-      count: usernames.length,
-      timestamp: new Date().toISOString(),
-      callStack: callStack?.split('\n').slice(1, 6).join('\n')
-    })
-    
     const response = await getUsersByUsernames(usernames)
     const loadedUsers = response.users || []
-    console.log(`[UserInfoStore] ✅ fetchAndUpdateUsers 完成，获取到 ${loadedUsers.length} 个用户`, {
-      usernames,
-      loadedUsernames: loadedUsers.map(u => u.username)
-    })
     
     const now = Date.now()
     
