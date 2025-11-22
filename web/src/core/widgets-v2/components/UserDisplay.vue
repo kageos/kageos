@@ -109,7 +109,7 @@
       </el-popover>
       <span 
         class="user-name user-name-clickable" 
-        @click="handleCopyName"
+        @click="handleNameClick"
       >{{ displayName }}</span>
     </span>
   </div>
@@ -191,7 +191,14 @@ const handleAvatarClick = (): void => {
   }
 }
 
-// 复制用户信息
+// 处理名称点击（显示用户信息弹窗，不自动复制）
+const handleNameClick = (): void => {
+  if (props.mode === 'card') {
+    showPopover.value = !showPopover.value
+  }
+}
+
+// 复制用户信息（手动复制，由用户点击按钮触发）
 const handleCopyUserInfo = (): void => {
   if (props.userInfo) {
     const copyText = props.userInfo.nickname 
@@ -210,15 +217,6 @@ const handleCopyUserInfo = (): void => {
       ElMessage.error('复制失败')
     })
   }
-}
-
-// 复制名称
-const handleCopyName = (): void => {
-  navigator.clipboard.writeText(displayName.value).then(() => {
-    ElMessage.success('已复制名称')
-  }).catch(() => {
-    ElMessage.error('复制失败')
-  })
 }
 </script>
 
