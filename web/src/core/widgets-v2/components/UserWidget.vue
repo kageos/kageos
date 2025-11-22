@@ -127,7 +127,7 @@ const userInfo = ref<UserInfo | null>(null)
 const loading = ref(false)
 
 // Popover 显示状态
-const showPopover = ref(false)
+// showPopover 已移除，现在使用 UserDisplay 组件处理
 
 // 防抖定时器
 let searchTimer: ReturnType<typeof setTimeout> | null = null
@@ -392,51 +392,8 @@ watch(() => props.mode, (newMode: string) => {
 })
 
 // 处理用户信息复制
-function handleCopyUserInfo(event?: Event): void {
-  if (event) {
-    event.stopPropagation() // 阻止事件冒泡
-  }
-  if (userInfo.value) {
-    // 复制用户信息：username(昵称) 格式，如果有邮箱也包含
-    const copyText = userInfo.value.nickname 
-      ? `${userInfo.value.username}(${userInfo.value.nickname})`
-      : userInfo.value.username
-    
-    navigator.clipboard.writeText(copyText).then(() => {
-      ElMessage.success('已复制用户信息')
-    }).catch(() => {
-      ElMessage.error('复制失败')
-    })
-  } else {
-    // 如果没有用户信息，尝试复制原始值
-    const rawValue = props.value?.raw
-    if (rawValue) {
-      navigator.clipboard.writeText(String(rawValue)).then(() => {
-        ElMessage.success('已复制')
-      }).catch(() => {
-        ElMessage.error('复制失败')
-      })
-    }
-  }
-}
-
-// 处理名称复制（只复制显示名称）
-function handleCopyName(event: Event): void {
-  event.stopPropagation()
-  event.preventDefault()
-  navigator.clipboard.writeText(displayName.value).then(() => {
-    ElMessage.success('已复制名称')
-  }).catch(() => {
-    ElMessage.error('复制失败')
-  })
-}
-
-// 处理头像点击（显示用户信息弹窗）
-function handleAvatarClick(event: Event): void {
-  event.stopPropagation()
-  event.preventDefault()
-  showPopover.value = !showPopover.value
-}
+// 以下函数已移除，现在使用 UserDisplay 组件处理用户信息展示和复制
+// handleCopyUserInfo, handleCopyName, handleAvatarClick 已由 UserDisplay 组件处理
 
 // 组件挂载时，如果有初始值，加载用户信息
 onMounted(() => {
