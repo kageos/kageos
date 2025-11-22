@@ -171,31 +171,61 @@
       <template #header>
         <div class="drawer-header">
           <span class="drawer-title">记录详情</span>
-          <!-- 导航按钮（上一个/下一个） -->
-          <div class="drawer-navigation" v-if="tableData.length > 1">
-            <el-button
-              size="small"
-              :disabled="currentDetailIndex <= 0"
-              @click="handleNavigate('prev')"
-            >
-              <el-icon><ArrowLeft /></el-icon>
-              上一个
-            </el-button>
-            <span class="nav-info">{{ currentDetailIndex + 1 }} / {{ tableData.length }}</span>
-            <el-button
-              size="small"
-              :disabled="currentDetailIndex >= tableData.length - 1"
-              @click="handleNavigate('next')"
-            >
-              下一个
-              <el-icon><ArrowRight /></el-icon>
-            </el-button>
+          <div class="drawer-header-actions">
+            <!-- 模式切换按钮 -->
+            <div class="drawer-mode-actions">
+              <el-button
+                v-if="detailMode === 'view' && hasUpdateCallback"
+                type="primary"
+                size="small"
+                @click="switchToEditMode"
+              >
+                <el-icon><Edit /></el-icon>
+                编辑
+              </el-button>
+              <el-button
+                v-if="detailMode === 'edit'"
+                size="small"
+                @click="switchToViewMode"
+              >
+                取消
+              </el-button>
+              <el-button
+                v-if="detailMode === 'edit'"
+                type="primary"
+                size="small"
+                :loading="detailSubmitting"
+                @click="handleDetailSave"
+              >
+                保存
+              </el-button>
+            </div>
+            <!-- 导航按钮（上一个/下一个） -->
+            <div class="drawer-navigation" v-if="tableData.length > 1 && detailMode === 'view'">
+              <el-button
+                size="small"
+                :disabled="currentDetailIndex <= 0"
+                @click="handleNavigate('prev')"
+              >
+                <el-icon><ArrowLeft /></el-icon>
+                上一个
+              </el-button>
+              <span class="nav-info">{{ currentDetailIndex + 1 }} / {{ tableData.length }}</span>
+              <el-button
+                size="small"
+                :disabled="currentDetailIndex >= tableData.length - 1"
+                @click="handleNavigate('next')"
+              >
+                下一个
+                <el-icon><ArrowRight /></el-icon>
+              </el-button>
+            </div>
           </div>
         </div>
       </template>
 
-      <!-- 🔥 详情内容：纯展示模式，参考旧版本设计 -->
-      <div class="detail-content" v-if="currentDetailRow">
+      <!-- 🔥 查看模式：纯展示模式，参考旧版本设计 -->
+      <div class="detail-content" v-if="currentDetailRow && detailMode === 'view'">
         <div class="fields-grid">
           <div 
             v-for="field in visibleFields"
@@ -229,6 +259,18 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- 🔥 编辑模式：使用 FormRenderer -->
+      <div class="edit-content" v-else-if="currentDetailRow && detailMode === 'edit'">
+        <FormRenderer
+          ref="detailFormRendererRef"
+          :function-detail="editFunctionDetail"
+          :initial-data="currentDetailRow"
+          :user-info-map="userInfoMap"
+          :show-submit-button="false"
+          :show-reset-button="false"
+        />
       </div>
     </el-drawer>
 
@@ -264,9 +306,10 @@ import { WidgetType } from '@/core/constants/widget'
 import { useUserInfoStore } from '@/stores/userInfo'
 import { collectAllUsernames, collectFilesUploadUsersFromRow } from '@/utils/tableUserInfo'
 import FormDialog from './FormDialog.vue'
+import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
 import SearchInput from './SearchInput.vue'
 import type { Function as FunctionType, ServiceTree } from '@/types'
-import type { FieldConfig, FieldValue } from '@/core/types/field'
+import type { FieldConfig, FieldValue, FunctionDetail } from '@/core/types/field'
 
 interface Props {
   /** 函数配置数据 */
@@ -765,6 +808,7 @@ const handleDialogSubmit = async (data: Record<string, any>): Promise<void> => {
 const handleShowDetail = async (row: any, index: number): Promise<void> => {
   currentDetailRow.value = row
   currentDetailIndex.value = index
+  detailMode.value = 'view'  // 重置为查看模式
   showDetailDrawer.value = true
   
   // 🔥 收集当前行的 files widget 的 upload_user 并查询用户信息
@@ -803,6 +847,7 @@ const handleNavigate = async (direction: 'prev' | 'next'): Promise<void> => {
   currentDetailIndex.value = newIndex
   const row = tableData.value[newIndex]
   currentDetailRow.value = row
+  detailMode.value = 'view'  // 切换记录时，重置为查看模式
   
   // 🔥 收集新行的 files widget 的 upload_user 并查询用户信息
   const filesUploadUsers = collectFilesUploadUsersFromRow(row, visibleFields.value)
