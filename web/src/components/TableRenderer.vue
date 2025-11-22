@@ -658,14 +658,29 @@ const renderDetailField = (field: FieldConfig, rawValue: any): any => {
       return code === 'id' || code === 'ID' || code.endsWith('_id') || code.endsWith('Id')
     })
     const recordId = idField && currentDetailRow.value ? currentDetailRow.value[idField.code] : undefined
-    const functionName = props.functionData?.code || props.functionData?.name
+    
+    // 🔥 从 router 或 currentFunction 获取函数名称
+    // router 格式通常是：/user/app/function_name 或 /user/app/group/function_name
+    let functionName: string | undefined = undefined
+    if (props.currentFunction?.code) {
+      // 优先使用 currentFunction.code
+      functionName = props.currentFunction.code
+    } else if (props.functionData?.router) {
+      // 从 router 中提取函数名称（取最后一段）
+      const routerParts = props.functionData.router.split('/').filter(Boolean)
+      if (routerParts.length > 0) {
+        functionName = routerParts[routerParts.length - 1]
+      }
+    }
     
     // 调试日志
     console.log('[TableRenderer] renderDetailField 传递的命名信息:', {
       functionName,
       recordId,
       idField: idField?.code,
-      fieldCode: field.code
+      fieldCode: field.code,
+      router: props.functionData?.router,
+      currentFunction: props.currentFunction?.code
     })
     
     return h(WidgetComponent, {
