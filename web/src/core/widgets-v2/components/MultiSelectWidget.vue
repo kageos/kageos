@@ -71,6 +71,8 @@
         :key="index"
         class="tag-item"
         size="small"
+        :type="getOptionColorType(value)"
+        :color="getOptionColorValue(value)"
       >
         {{ getOptionLabel(value) }}
       </el-tag>
@@ -117,6 +119,12 @@ const formDataStore = useFormDataStore()
 
 // 配置
 const config = computed(() => props.field.widget?.config || {})
+
+// 选项颜色配置（从 config 中获取）
+const optionColors = computed(() => {
+  return config.value.options_colors || []
+})
+
 const staticOptions = computed(() => {
   const opts = config.value.options || []
   return opts.map((opt: any) => {
@@ -260,6 +268,35 @@ const displayValues = computed(() => {
 function getOptionLabel(value: any): string {
   const option = options.value.find((opt: any) => opt.value === value)
   return option ? option.label : String(value)
+}
+
+// 判断是否是标准颜色类型（Element Plus 的 5 种类型）
+function isStandardColor(color: string): boolean {
+  return ['success', 'warning', 'danger', 'info', 'primary'].includes(color)
+}
+
+// 获取选项的颜色类型（用于 el-tag 的 type 属性）
+function getOptionColorType(value: any): string | undefined {
+  const color = getOptionColor(value)
+  if (!color) return undefined
+  return isStandardColor(color) ? color : undefined
+}
+
+// 获取选项的颜色值（用于 el-tag 的 color 属性，自定义颜色）
+function getOptionColorValue(value: any): string | undefined {
+  const color = getOptionColor(value)
+  if (!color) return undefined
+  return !isStandardColor(color) ? color : undefined
+}
+
+// 获取选项的颜色
+function getOptionColor(value: any): string | null {
+  // 查找当前值在 staticOptions 中的索引
+  const optionIndex = staticOptions.value.findIndex((opt: any) => opt.value === value)
+  if (optionIndex >= 0 && optionIndex < optionColors.value.length) {
+    return optionColors.value[optionIndex]
+  }
+  return null
 }
 
 /**
