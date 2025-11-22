@@ -1,6 +1,12 @@
 /**
  * 多选字段提取器
  * 🔥 处理 multiselect 和 []string 类型字段
+ * 
+ * 支持两种数据类型：
+ * 1. string 类型：返回逗号分隔的字符串格式（如 "紧急,低优先级"）
+ * 2. []string 或其他数组类型：返回数组格式（如 ["紧急", "低优先级"]）
+ * 
+ * 根据 field.data.type 自动决定返回格式，确保与后端字段类型严格对齐
  */
 
 import type { IFieldExtractor, FieldExtractorRegistry } from './FieldExtractor'
@@ -18,7 +24,11 @@ export class MultiSelectFieldExtractor implements IFieldExtractor {
     const raw = value?.raw
     const dataType = field.data?.type || getMultiSelectDefaultDataType()
     
-    // 🔥 根据 field.data.type 决定返回格式
+    /**
+     * 🔥 根据 field.data.type 决定返回格式
+     * - 如果 type 是 string：返回逗号分隔的字符串
+     * - 如果 type 是 []string 或其他数组类型：返回数组
+     */
     if (isStringDataType(dataType)) {
       // 如果类型是 string，返回逗号分隔的字符串
       if (Array.isArray(raw)) {

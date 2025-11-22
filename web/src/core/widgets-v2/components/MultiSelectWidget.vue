@@ -120,7 +120,17 @@ const formDataStore = useFormDataStore()
 // 配置
 const config = computed(() => props.field.widget?.config || {})
 
-// 选项颜色配置（从 config 中获取）
+/**
+ * 🔥 选项颜色配置
+ * 
+ * 支持两种颜色格式：
+ * 1. Element Plus 标准颜色类型：success, warning, danger, info, primary
+ *    使用 el-tag 的 type 属性
+ * 2. 自定义颜色（hex 格式）：如 #FF5722, #4CAF50
+ *    使用 el-tag 的 color 属性
+ * 
+ * options_colors 数组与 options 数组的索引对齐，通过索引获取对应选项的颜色
+ */
 const optionColors = computed(() => {
   return config.value.options_colors || []
 })
@@ -173,7 +183,15 @@ const selectRef = ref<InstanceType<typeof ElSelect> | null>(null)
 // 是否因为选择而需要保持打开
 const shouldKeepOpen = ref(false)
 
-// 字段数据类型（用于决定提交格式）
+/**
+ * 🔥 多选组件支持两种数据类型：
+ * 1. string 类型：提交时使用逗号分隔的字符串格式（如 "紧急,低优先级"）
+ *    适用于后端字段类型为 string，需要存储到数据库的字符串字段
+ * 2. []string 或 array 类型：提交时使用数组格式（如 ["紧急", "低优先级"]）
+ *    适用于后端字段类型为 []string，可以存储数组
+ * 
+ * 根据 field.data.type 自动决定提交格式，确保与后端字段类型严格对齐
+ */
 const fieldDataType = computed(() => {
   return props.field.data?.type || getMultiSelectDefaultDataType()
 })
@@ -216,15 +234,20 @@ const selectedValues = computed({
     // 🔥 计算行内聚合统计（如果有 statistics 配置）
     const rowStatistics = calculateRowStatistics(displayInfos, currentStatistics.value)
     
-    // 🔥 根据 field.data.type 决定 raw 的格式
-    // 如果 type 是 string，提交逗号分隔的字符串；否则提交数组
+    /**
+     * 🔥 根据 field.data.type 决定 raw 的格式
+     * - 如果 type 是 string：提交逗号分隔的字符串（如 "紧急,低优先级"）
+     * - 如果 type 是 []string 或其他数组类型：提交数组（如 ["紧急", "低优先级"]）
+     * 
+     * 这样确保提交的数据格式与后端字段类型严格对齐
+     */
     let rawValue: any
     const dataType = fieldDataType.value
     if (isStringDataType(dataType)) {
       // 提交逗号分隔的字符串
       rawValue = finalValues.length > 0 ? finalValues.join(',') : ''
     } else {
-      // 提交数组（[]string 或 array）
+      // 提交数组（[]string 或其他数组类型）
       rawValue = finalValues
     }
     
@@ -270,26 +293,40 @@ function getOptionLabel(value: any): string {
   return option ? option.label : String(value)
 }
 
-// 判断是否是标准颜色类型（Element Plus 的 5 种类型）
+/**
+ * 判断是否是 Element Plus 标准颜色类型
+ * 标准颜色类型：success, warning, danger, info, primary
+ * 这些颜色使用 el-tag 的 type 属性
+ */
 function isStandardColor(color: string): boolean {
   return ['success', 'warning', 'danger', 'info', 'primary'].includes(color)
 }
 
-// 获取选项的颜色类型（用于 el-tag 的 type 属性）
+/**
+ * 获取选项的颜色类型（用于 el-tag 的 type 属性）
+ * 仅当颜色是标准类型时返回，否则返回 undefined
+ */
 function getOptionColorType(value: any): string | undefined {
   const color = getOptionColor(value)
   if (!color) return undefined
   return isStandardColor(color) ? color : undefined
 }
 
-// 获取选项的颜色值（用于 el-tag 的 color 属性，自定义颜色）
+/**
+ * 获取选项的颜色值（用于 el-tag 的 color 属性，自定义颜色）
+ * 仅当颜色是自定义颜色（hex 格式）时返回，否则返回 undefined
+ */
 function getOptionColorValue(value: any): string | undefined {
   const color = getOptionColor(value)
   if (!color) return undefined
   return !isStandardColor(color) ? color : undefined
 }
 
-// 获取选项的颜色
+/**
+ * 获取选项的颜色
+ * 通过查找选项值在 staticOptions 中的索引，从 optionColors 数组中获取对应颜色
+ * options_colors 数组与 options 数组的索引对齐
+ */
 function getOptionColor(value: any): string | null {
   // 查找当前值在 staticOptions 中的索引
   const optionIndex = staticOptions.value.findIndex((opt: any) => opt.value === value)
