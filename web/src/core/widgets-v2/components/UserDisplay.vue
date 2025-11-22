@@ -152,7 +152,7 @@ const avatarSize = computed(() => {
   if (typeof props.size === 'number') {
     return props.size
   }
-  const sizeMap = {
+  const sizeMap: Record<'small' | 'medium' | 'large', number> = {
     small: 24,
     medium: 32,
     large: 48,
