@@ -197,14 +197,13 @@
         </div>
       </div>
 
-      <!-- 备注 -->
+      <!-- 备注（作为文件列表的补充说明） -->
       <div v-if="!isDisabled" class="files-remark">
-        <div class="section-title">备注（可选）</div>
         <el-input
           v-model="remark"
           type="textarea"
           :rows="2"
-          placeholder="添加备注信息"
+          placeholder="添加文件列表备注（可选）"
           :maxlength="500"
           show-word-limit
           @blur="handleUpdateRemark"
@@ -2021,11 +2020,16 @@ function handleFileChange(file: any): void {
   color: var(--el-text-color-secondary);
 }
 
-/* 备注 */
+/* 备注（作为文件列表的补充说明，不显示为独立字段） */
 .files-remark {
-  margin-top: 20px;
-  padding-top: 20px;
-  border-top: 1px solid var(--el-border-color-lighter);
+  margin-top: 12px;
+  padding-top: 0;
+  border-top: none;
+}
+
+.files-remark :deep(.el-textarea__inner) {
+  font-size: 13px;
+  color: var(--el-text-color-regular);
 }
 
 /* 响应模式 */
