@@ -604,10 +604,36 @@ watch(
 .detail-multiselect {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 6px;
+  align-items: center;
 }
 
-.tag-item {
+.table-cell-multiselect .tag-item {
+  font-weight: 500;
+  border: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  margin: 0;
+}
+
+/* 自定义颜色的 tag，确保文字清晰 */
+.table-cell-multiselect .tag-item[style*="background-color"] {
+  color: #fff !important;
+  font-weight: 500;
+}
+
+/* 标准颜色的 tag，增强对比度 */
+.table-cell-multiselect .tag-item.el-tag--success,
+.table-cell-multiselect .tag-item.el-tag--warning,
+.table-cell-multiselect .tag-item.el-tag--danger,
+.table-cell-multiselect .tag-item.el-tag--info,
+.table-cell-multiselect .tag-item.el-tag--primary {
+  font-weight: 500;
+  border: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.response-multiselect .tag-item,
+.detail-multiselect .tag-item {
   margin-right: 4px;
 }
 
