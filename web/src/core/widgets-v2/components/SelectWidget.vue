@@ -167,32 +167,6 @@ const currentOptionColor = computed(() => {
   return null
 })
 
-// 选项颜色配置（从 config 中获取）
-const optionColors = computed(() => {
-  return props.field.widget?.config?.options_colors || []
-})
-
-// 判断是否是标准颜色类型（Element Plus 的 5 种类型）
-function isStandardColor(color: string): boolean {
-  return ['success', 'warning', 'danger', 'info', 'primary'].includes(color)
-}
-
-// 获取当前选中值的颜色
-const currentOptionColor = computed(() => {
-  const rawValue = props.value?.raw
-  if (rawValue === null || rawValue === undefined || rawValue === '') {
-    return null
-  }
-  
-  // 查找当前值在 options 中的索引
-  const optionIndex = options.value.findIndex(opt => opt.value === rawValue)
-  if (optionIndex >= 0 && optionIndex < optionColors.value.length) {
-    return optionColors.value[optionIndex]
-  }
-  
-  return null
-})
-
 // 加载状态
 const loading = ref(false)
 
