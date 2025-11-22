@@ -652,13 +652,23 @@ const renderDetailField = (field: FieldConfig, rawValue: any): any => {
     // 🔥 使用 h() 渲染组件为 VNode（v2 方式）
     // 传递 mode="detail" 让组件自己决定如何渲染详情
     // 传递 userInfoMap 用于批量查询优化
+    // 传递 functionName 和 recordId 用于 FilesWidget 打包下载命名
+    const idField = visibleFields.value.find(f => {
+      const code = f.code.toLowerCase()
+      return code === 'id' || code === 'ID' || code.endsWith('_id') || code.endsWith('Id')
+    })
+    const recordId = idField && currentDetailRow.value ? currentDetailRow.value[idField.code] : undefined
+    const functionName = props.functionData?.code || props.functionData?.name
+    
     return h(WidgetComponent, {
       field: field,
       value: value,
       'model-value': value,
       'field-path': field.code,
       mode: 'detail',
-      'user-info-map': userInfoMap.value
+      'user-info-map': userInfoMap.value,
+      'function-name': functionName,
+      'record-id': recordId
     })
   } catch (error) {
     // ✅ 使用 ErrorHandler 统一处理错误
