@@ -48,14 +48,19 @@
           v-for="user in userOptions"
           :key="user.username"
           :value="user.username"
-          :label="user.nickname ? `${user.username}(${user.nickname})` : user.username"
+          :label="formatUserDisplayName(user)"
         >
           <div class="user-option">
             <el-avatar :src="user.avatar" :size="24" class="user-avatar">
               {{ user.username?.[0]?.toUpperCase() || 'U' }}
             </el-avatar>
-            <span class="user-name">{{ user.username }}</span>
-            <span v-if="user.nickname" class="user-nickname">({{ user.nickname }})</span>
+            <div class="user-option-info">
+              <div class="user-name-row">
+                <span class="user-name">{{ formatUserDisplayName(user) }}</span>
+                <span v-if="user.email" class="user-email">{{ user.email }}</span>
+              </div>
+              <div v-if="user.signature" class="user-signature">{{ user.signature }}</div>
+            </div>
           </div>
         </el-option>
       </el-select>
@@ -104,6 +109,7 @@ import { ElSelect, ElOption, ElAvatar, ElPopover, ElButton, ElMessage } from 'el
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useFormDataStore } from '../../stores-v2/formData'
 import { searchUsersFuzzy, getUsersByUsernames } from '@/api/user'
+import { formatUserDisplayName } from '@/utils/userInfo'
 import type { UserInfo } from '@/types'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
