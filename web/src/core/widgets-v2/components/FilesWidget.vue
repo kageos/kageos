@@ -1836,9 +1836,12 @@ function handleFileChange(file: any): void {
   gap: 4px;
   margin-top: 4px;
   margin-bottom: 2px;
+  padding: 4px 8px;
+  background: var(--el-fill-color-lighter);
+  border-radius: 4px;
   font-size: 12px;
-  color: var(--el-text-color-secondary);
-  line-height: 1.4;
+  color: var(--el-text-color-regular);
+  line-height: 1.5;
 }
 
 .file-description-text .description-icon {
@@ -1850,7 +1853,6 @@ function handleFileChange(file: any): void {
 .file-description-text .description-content {
   flex: 1;
   word-break: break-word;
-  font-style: italic;
 }
 
 /* 🔥 文件上传用户信息（左侧显示，使用 UserDisplay 组件） */
