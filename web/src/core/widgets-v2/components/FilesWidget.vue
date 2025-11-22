@@ -325,6 +325,13 @@
                 <div class="file-name" :title="file.name">
                 {{ file.name }}
                 </div>
+                <!-- 🔥 文件备注（如果有） -->
+                <div v-if="file.description && file.description.trim()" class="file-description-text">
+                  <el-icon :size="12" class="description-icon">
+                    <Edit />
+                  </el-icon>
+                  <span class="description-content">{{ file.description }}</span>
+                </div>
                 <div class="file-meta">
                   <span class="file-size">{{ formatSize(file.size) }}</span>
                   <el-tag
@@ -1820,6 +1827,30 @@ function handleFileChange(file: any): void {
   font-size: 12px;
   color: var(--el-text-color-placeholder);
   flex-shrink: 0;
+}
+
+/* 🔥 文件备注样式（详情模式） */
+.file-description-text {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  margin-top: 4px;
+  margin-bottom: 2px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.4;
+}
+
+.file-description-text .description-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--el-text-color-placeholder);
+}
+
+.file-description-text .description-content {
+  flex: 1;
+  word-break: break-word;
+  font-style: italic;
 }
 
 /* 🔥 文件上传用户信息（左侧显示，使用 UserDisplay 组件） */
