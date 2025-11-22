@@ -1,6 +1,6 @@
 <!--
   MultiSelectWidget - 多选组件
-  简洁版本，专注于核心功能
+  重写版本，简化逻辑，修复标签显示问题
 -->
 <template>
   <div class="multiselect-widget">
@@ -43,15 +43,18 @@
       @remove-tag="handleRemoveTag"
     >
       <!-- 自定义已选标签，应用颜色配置 -->
-      <template #tag="slotProps">
+      <!-- Element Plus 的 #tag 插槽会替换整个标签区域，需要自己遍历所有选中的值 -->
+      <template #tag>
         <el-tag
-          :type="getOptionColorType(getTagValueFromSlotProps(slotProps))"
-          :color="getOptionColorValue(getTagValueFromSlotProps(slotProps))"
+          v-for="(value, index) in selectedValues"
+          :key="index"
+          :type="getOptionColorType(value)"
+          :color="getOptionColorValue(value)"
           :closable="true"
-          @close="slotProps.deleteTag"
+          @close="handleRemoveValue(value)"
           class="multiselect-tag"
         >
-          {{ getTagLabelFromSlotProps(slotProps) }}
+          {{ getOptionLabel(value) }}
         </el-tag>
       </template>
       
@@ -212,46 +215,42 @@ const fieldDataType = computed(() => {
   return props.field.data?.type || getMultiSelectDefaultDataType()
 })
 
+/**
+ * 解析原始值为数组
+ */
+function parseRawValue(raw: any): string[] {
+  if (Array.isArray(raw)) {
+    return raw.map(v => String(v))
+  }
+  if (typeof raw === 'string' && raw) {
+    if (raw.includes(',')) {
+      return raw.split(',').map(v => v.trim()).filter(v => v)
+    }
+    return [raw]
+  }
+  return []
+}
+
 // 选中的值（数组）
 const selectedValues = computed({
   get: () => {
-    const raw = props.value?.raw
-    console.log('[MultiSelectWidget] selectedValues.get - raw:', raw, 'type:', typeof raw)
-    
-    if (Array.isArray(raw)) {
-      console.log('[MultiSelectWidget] selectedValues.get - returning array:', raw)
-      return raw
-    }
-    // 🔥 如果是字符串类型，且 raw 是逗号分隔的字符串，需要解析为数组
-    if (typeof raw === 'string' && raw) {
-      // 检查是否是逗号分隔的字符串（多选值）
-      if (raw.includes(',')) {
-        const result = raw.split(',').map(v => v.trim()).filter(v => v)
-        console.log('[MultiSelectWidget] selectedValues.get - parsed string to array:', result)
-        return result
-      }
-      // 单个值
-      const result = [raw]
-      console.log('[MultiSelectWidget] selectedValues.get - single value to array:', result)
-      return result
-    }
-    console.log('[MultiSelectWidget] selectedValues.get - returning empty array')
-    return []
+    return parseRawValue(props.value?.raw)
   },
   set: (newValues: any[]) => {
-    let finalValues = newValues
+    let finalValues = newValues.map(v => String(v))
+    
     if (maxCount.value > 0 && finalValues.length > maxCount.value) {
       Logger.warn('MultiSelectWidget', `${props.field.code} 超出数量限制! 限制: ${maxCount.value}, 实际: ${finalValues.length}`)
       finalValues = finalValues.slice(0, maxCount.value)
     }
     
     const displayInfos = finalValues.map((val: any) => {
-      const option = options.value.find((opt: any) => opt.value === val)
+      const option = options.value.find((opt: any) => String(opt.value) === val)
       return option?.displayInfo || null
     })
     
     const displayText = finalValues.map((val: any) => {
-      const option = options.value.find((opt: any) => opt.value === val)
+      const option = options.value.find((opt: any) => String(opt.value) === val)
       return option?.label || String(val)
     }).join(', ')
     
@@ -262,8 +261,6 @@ const selectedValues = computed({
      * 🔥 根据 field.data.type 决定 raw 的格式
      * - 如果 type 是 string：提交逗号分隔的字符串（如 "紧急,低优先级"）
      * - 如果 type 是 []string 或其他数组类型：提交数组（如 ["紧急", "低优先级"]）
-     * 
-     * 这样确保提交的数据格式与后端字段类型严格对齐
      */
     let rawValue: any
     const dataType = fieldDataType.value
@@ -281,7 +278,7 @@ const selectedValues = computed({
       meta: {
         displayInfo: displayInfos,
         statistics: currentStatistics.value,
-        rowStatistics: rowStatistics  // 🔥 保存行内聚合结果
+        rowStatistics: rowStatistics
       }
     }
     
@@ -295,185 +292,47 @@ const currentStatistics = ref<Record<string, any>>({})
 
 // 显示值（用于只读模式）
 const displayValues = computed(() => {
-  const raw = props.value?.raw
-  if (Array.isArray(raw)) {
-    return raw
-  }
-  // 🔥 如果是字符串类型，且 raw 是逗号分隔的字符串，需要解析为数组
-  if (typeof raw === 'string' && raw) {
-    // 检查是否是逗号分隔的字符串（多选值）
-    if (raw.includes(',')) {
-      return raw.split(',').map(v => v.trim()).filter(v => v)
-    }
-    // 单个值
-    return [raw]
-  }
-  return []
+  return parseRawValue(props.value?.raw)
 })
 
 // 获取选项标签
 function getOptionLabel(value: any): string {
   if (value === null || value === undefined) return ''
   
-  console.log('[MultiSelectWidget] getOptionLabel - value:', value, 'type:', typeof value)
-  console.log('[MultiSelectWidget] getOptionLabel - options.value:', options.value)
-  
-  // 先尝试精确匹配
-  let option = options.value.find((opt: any) => {
-    const match = opt.value === value
-    console.log('[MultiSelectWidget] getOptionLabel - comparing:', opt.value, '===', value, '->', match)
-    return match
-  })
-  
-  // 如果找不到，尝试字符串匹配（去除空格）
-  if (!option && typeof value === 'string') {
-    const trimmedValue = value.trim()
-    console.log('[MultiSelectWidget] getOptionLabel - trying trimmed match:', trimmedValue)
-    option = options.value.find((opt: any) => {
-      const optValue = typeof opt.value === 'string' ? opt.value.trim() : opt.value
-      const match = optValue === trimmedValue
-      console.log('[MultiSelectWidget] getOptionLabel - comparing trimmed:', optValue, '===', trimmedValue, '->', match)
-      return match
-    })
-  }
-  
-  const result = option ? option.label : String(value)
-  console.log('[MultiSelectWidget] getOptionLabel - result:', result)
-  return result
+  const valueStr = String(value)
+  const option = options.value.find((opt: any) => String(opt.value) === valueStr)
+  return option ? option.label : valueStr
 }
 
 /**
- * 从 tag 插槽的 item 参数中获取值
- * item 可能是对象 { value, label } 或直接是值
+ * 移除指定值
  */
-function getTagValue(item: any): any {
-  if (item === null || item === undefined) return null
-  // 如果是对象，取 value 属性
-  if (typeof item === 'object' && item !== null && !Array.isArray(item) && 'value' in item) {
-    return item.value
-  }
-  // 否则直接返回 item（可能是值本身）
-  return item
-}
-
-/**
- * 从 tag 插槽的 item 参数中获取标签文本
- * item 可能是对象 { value, label } 或直接是值
- */
-function getTagLabel(item: any): string {
-  if (item === null || item === undefined) return ''
-  
-  // 如果是对象，优先使用 label，否则通过 value 查找
-  if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
-    // 检查是否有 label 属性
-    if ('label' in item && item.label !== null && item.label !== undefined && item.label !== '') {
-      return String(item.label)
-    }
-    // 如果有 value 属性，通过 value 查找标签
-    if ('value' in item) {
-      const label = getOptionLabel(item.value)
-      if (label) return label
-      // 如果找不到标签，至少显示值本身
-      return String(item.value || '')
-    }
-    // 如果对象没有 value 或 label，尝试直接使用对象本身
-    return String(item)
-  }
-  
-  // 否则直接通过值查找标签
-  const label = getOptionLabel(item)
-  // 如果找到了标签，返回标签；否则至少返回值本身
-  return label || String(item || '')
-}
-
-/**
- * 从 slotProps 中获取当前标签的值
- * slotProps 结构: { key: number, data: Array, deleteTag: function, selectDisabled: boolean }
- * data[key] 是一个对象: { index: number, value: any, currentLabel: string }
- */
-function getTagValueFromSlotProps(slotProps: any): any {
-  if (!slotProps) return null
-  
-  // 从 data 数组中根据 key 索引获取值
-  const item = slotProps.data?.[slotProps.key]
-  console.log('[MultiSelectWidget] getTagValueFromSlotProps - slotProps:', slotProps)
-  console.log('[MultiSelectWidget] getTagValueFromSlotProps - key:', slotProps.key)
-  console.log('[MultiSelectWidget] getTagValueFromSlotProps - data:', slotProps.data)
-  console.log('[MultiSelectWidget] getTagValueFromSlotProps - item:', item)
-  
-  // item 可能是对象 { index, value, currentLabel } 或直接是值
-  if (item && typeof item === 'object' && 'value' in item) {
-    const value = item.value
-    console.log('[MultiSelectWidget] getTagValueFromSlotProps - extracted value:', value)
-    return value
-  }
-  
-  // 否则直接返回 item（可能是值本身）
-  console.log('[MultiSelectWidget] getTagValueFromSlotProps - returning item as-is:', item)
-  return item
-}
-
-/**
- * 从 slotProps 中获取当前标签的文本
- */
-function getTagLabelFromSlotProps(slotProps: any): string {
-  if (!slotProps) return ''
-  
-  const item = slotProps.data?.[slotProps.key]
-  console.log('[MultiSelectWidget] getTagLabelFromSlotProps - item:', item)
-  console.log('[MultiSelectWidget] getTagLabelFromSlotProps - item type:', typeof item)
-  console.log('[MultiSelectWidget] getTagLabelFromSlotProps - item keys:', item ? Object.keys(item) : [])
-  
-  // 如果 item 是对象，尝试提取 currentLabel 或 value
-  if (item && typeof item === 'object' && item !== null) {
-    // 优先使用 currentLabel（Element Plus 提供的标签文本）
-    try {
-      const currentLabel = item.currentLabel
-      if (currentLabel !== null && currentLabel !== undefined && currentLabel !== '') {
-        console.log('[MultiSelectWidget] getTagLabelFromSlotProps - using currentLabel:', currentLabel)
-        return String(currentLabel)
-      }
-    } catch (e) {
-      console.log('[MultiSelectWidget] getTagLabelFromSlotProps - error accessing currentLabel:', e)
-    }
-    
-    // 如果有 value，提取 value 并查找标签
-    try {
-      const value = item.value
-      if (value !== null && value !== undefined) {
-        console.log('[MultiSelectWidget] getTagLabelFromSlotProps - extracted value from item:', value)
-        const label = getOptionLabel(value)
-        console.log('[MultiSelectWidget] getTagLabelFromSlotProps - label from value:', label)
-        return label || String(value || '')
-      }
-    } catch (e) {
-      console.log('[MultiSelectWidget] getTagLabelFromSlotProps - error accessing value:', e)
-    }
-  }
-  
-  // 否则通过 getTagValueFromSlotProps 获取值
-  const value = getTagValueFromSlotProps(slotProps)
-  console.log('[MultiSelectWidget] getTagLabelFromSlotProps - value from getTagValueFromSlotProps:', value)
-  console.log('[MultiSelectWidget] getTagLabelFromSlotProps - options:', options.value)
-  
-  const label = getOptionLabel(value)
-  console.log('[MultiSelectWidget] getTagLabelFromSlotProps - label:', label)
-  
-  return label || String(value || '')
+function handleRemoveValue(value: any): void {
+  const newValues = selectedValues.value.filter(v => String(v) !== String(value))
+  selectedValues.value = newValues
 }
 
 /**
  * 判断是否是 Element Plus 标准颜色类型
- * 标准颜色类型：success, warning, danger, info, primary
- * 这些颜色使用 el-tag 的 type 属性
  */
 function isStandardColor(color: string): boolean {
   return ['success', 'warning', 'danger', 'info', 'primary'].includes(color)
 }
 
 /**
+ * 获取选项的颜色
+ */
+function getOptionColor(value: any): string | null {
+  const valueStr = String(value)
+  const optionIndex = staticOptions.value.findIndex((opt: any) => String(opt.value) === valueStr)
+  if (optionIndex >= 0 && optionIndex < optionColors.value.length) {
+    return optionColors.value[optionIndex]
+  }
+  return null
+}
+
+/**
  * 获取选项的颜色类型（用于 el-tag 的 type 属性）
- * 仅当颜色是标准类型时返回，否则返回 undefined
  */
 function getOptionColorType(value: any): string | undefined {
   const color = getOptionColor(value)
@@ -482,8 +341,7 @@ function getOptionColorType(value: any): string | undefined {
 }
 
 /**
- * 获取选项的颜色值（用于 el-tag 的 color 属性，自定义颜色）
- * 仅当颜色是自定义颜色（hex 格式）时返回，否则返回 undefined
+ * 获取选项的颜色值（用于只读模式）
  */
 function getOptionColorValue(value: any): string | undefined {
   const color = getOptionColor(value)
@@ -492,22 +350,7 @@ function getOptionColorValue(value: any): string | undefined {
 }
 
 /**
- * 获取选项的颜色
- * 通过查找选项值在 staticOptions 中的索引，从 optionColors 数组中获取对应颜色
- * options_colors 数组与 options 数组的索引对齐
- */
-function getOptionColor(value: any): string | null {
-  // 查找当前值在 staticOptions 中的索引
-  const optionIndex = staticOptions.value.findIndex((opt: any) => opt.value === value)
-  if (optionIndex >= 0 && optionIndex < optionColors.value.length) {
-    return optionColors.value[optionIndex]
-  }
-  return null
-}
-
-/**
- * 🔥 计算行内聚合统计（MultiSelect 自己的职责）
- * 使用选中的选项的 displayInfo 和 statistics 配置来计算
+ * 🔥 计算行内聚合统计
  */
 function calculateRowStatistics(
   displayInfos: any[],
@@ -517,7 +360,6 @@ function calculateRowStatistics(
     return {}
   }
   
-  // 过滤掉 null 的 displayInfo
   const validDisplayInfos = displayInfos.filter(info => info && typeof info === 'object')
   
   if (validDisplayInfos.length === 0) {
@@ -527,10 +369,8 @@ function calculateRowStatistics(
   const result: Record<string, any> = {}
   
   try {
-    // 遍历统计配置，计算每个统计项
     for (const [label, expression] of Object.entries(statisticsConfig)) {
       try {
-        // 使用表达式解析器计算（使用 displayInfo 数组作为数据源）
         const value = ExpressionParser.evaluate(expression, validDisplayInfos)
         result[label] = value
       } catch (error) {
@@ -564,10 +404,6 @@ async function handleSearch(query: string | any[], isByValue = false): Promise<v
   loading.value = true
 
   try {
-    // 🔥 判断查询类型：
-    // - 如果是按值查询且 query 是数组，使用 by_values
-    // - 如果是按值查询且 query 是单个值，使用 by_value
-    // - 否则使用 by_keyword
     let queryType: 'by_keyword' | 'by_value' | 'by_values'
     if (isByValue) {
       queryType = Array.isArray(query) ? 'by_values' : 'by_value'
@@ -616,35 +452,28 @@ async function handleSearch(query: string | any[], isByValue = false): Promise<v
 
 // 远程搜索方法
 async function remoteMethod(query: string): Promise<void> {
-  // 🔥 搜索时保持下拉框打开状态（不清除 shouldKeepOpen）
-  // 但搜索完成后，如果用户没有继续操作，应该允许关闭
   await handleSearch(query, false)
-  // 搜索完成后，如果下拉框仍然打开，保持 shouldKeepOpen 状态
 }
 
-// 选项点击时触发 - 提前设置标志
+// 选项点击时触发
 function handleOptionClick(): void {
-  // 🔥 提前设置标志，确保在 handleVisibleChange 之前生效
   const currentLength = selectedValues.value.length
   const shouldClose = maxCount.value > 0 && currentLength >= maxCount.value - 1
   if (!shouldClose) {
     shouldKeepOpen.value = true
   } else {
-    // 如果已达到最大数量，清除标志，允许关闭
     shouldKeepOpen.value = false
   }
 }
 
 // 移除标签时触发
 function handleRemoveTag(): void {
-  // 移除标签时也保持打开（因为用户可能想继续选择）
   shouldKeepOpen.value = true
 }
 
 // 下拉框展开时触发
 function handleVisibleChange(visible: boolean): void {
   if (visible) {
-    // 下拉框打开时，根据当前选择数量决定是否需要保持打开
     const currentLength = selectedValues.value.length
     const shouldClose = maxCount.value > 0 && currentLength >= maxCount.value
     if (!shouldClose) {
@@ -653,43 +482,32 @@ function handleVisibleChange(visible: boolean): void {
       shouldKeepOpen.value = false
     }
     
-    // 如果有远程搜索，且选项为空，触发初始搜索
     if (hasRemoteSearch.value) {
       if (dynamicOptions.value.length === 0) {
         handleSearch('', false)
       }
     }
   } else {
-    // 下拉框关闭时
-    // 🔥 关键：只有在选择选项时才保持打开，用户点击外部或按 ESC 时应该关闭
-    // 延迟检查，给用户操作时间（点击选项后可能会触发关闭事件）
     setTimeout(() => {
-      // 如果不需要保持打开，直接清除标志并允许关闭
       if (!shouldKeepOpen.value) {
         return
       }
       
-      // 检查焦点是否还在输入框
       const input = selectRef.value?.$el?.querySelector('input')
       const isInputFocused = document.activeElement === input
       
-      // 如果焦点不在输入框，说明用户想关闭（点击外部或按 ESC），清除标志并允许关闭
       if (!isInputFocused) {
         shouldKeepOpen.value = false
         return
       }
       
-      // 如果是选择后需要保持打开，且焦点还在输入框，阻止关闭
       if (shouldKeepOpen.value && isInputFocused) {
-        // 阻止关闭：通过 DOM 操作重新打开下拉框
         nextTick(() => {
           if (selectRef.value) {
             const selectEl = selectRef.value as any
             const currentInput = (selectEl.$el || selectEl.el || selectEl)?.querySelector?.('input')
             if (currentInput && document.activeElement === currentInput) {
-              // 重新打开下拉框：尝试多种方式
               currentInput.focus()
-              // 方法1：使用 Element Plus Select 的内部方法
               if (selectEl.handleMenuEnter) {
                 selectEl.handleMenuEnter()
               } else if (selectEl.toggleMenu) {
@@ -697,21 +515,17 @@ function handleVisibleChange(visible: boolean): void {
               } else if (selectEl.setSoftFocus) {
                 selectEl.setSoftFocus()
               } else {
-                // 方法2：直接设置 visible 属性（如果存在）
                 if (selectEl.visible !== undefined) {
                   selectEl.visible = true
                 } else {
-                  // 方法3：触发点击事件
                   currentInput.click()
                 }
               }
             } else {
-              // 如果焦点不在输入框，清除标志
               shouldKeepOpen.value = false
             }
           } else {
-            // 如果组件引用不存在，清除标志
-    shouldKeepOpen.value = false
+            shouldKeepOpen.value = false
           }
         })
       }
@@ -719,12 +533,10 @@ function handleVisibleChange(visible: boolean): void {
   }
 }
 
-// 处理值变化 - 阻止下拉框关闭
+// 处理值变化
 function handleChange(values: any[]): void {
-  // 先更新值
   selectedValues.value = values
   
-  // 设置标志
   const shouldClose = maxCount.value > 0 && values.length >= maxCount.value
   if (!shouldClose) {
     shouldKeepOpen.value = true
@@ -748,15 +560,16 @@ watch(
 )
 
 // 初始化：如果有回调接口且有初始值，触发一次 by_value 查询来加载选项
-// 🔥 注意：只在组件初始化时触发，用户选择后不会触发
 const hasInitialized = ref(false)
 watch(
   () => [hasRemoteSearch.value, props.value?.raw],
   ([hasCallback, rawValue]: [boolean, any]) => {
-    // 只在首次初始化时触发，避免用户选择后触发
-    if (!hasInitialized.value && hasCallback && rawValue && Array.isArray(rawValue) && rawValue.length > 0) {
-      hasInitialized.value = true
-      handleSearch(rawValue, true)
+    if (!hasInitialized.value && hasCallback && rawValue) {
+      const values = parseRawValue(rawValue)
+      if (values.length > 0) {
+        hasInitialized.value = true
+        handleSearch(values, true)
+      }
     }
   },
   { immediate: true }
