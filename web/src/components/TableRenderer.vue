@@ -480,11 +480,10 @@ const dataFields = computed(() => {
 
 /**
  * 获取操作列宽度
- * 根据是否有编辑/删除回调动态计算宽度
+ * 根据是否有删除回调动态计算宽度
  */
 const getActionColumnWidth = (): number => {
-  let width = 80
-  if (hasUpdateCallback.value) width += 60
+  let width = 80  // 基础宽度
   if (hasDeleteCallback.value) width += 60
   return width
 }
