@@ -60,8 +60,11 @@
           {{ user.username?.[0]?.toUpperCase() || 'U' }}
         </el-avatar>
         <div class="user-info">
-          <span class="user-name">{{ user.username }}</span>
-          <span v-if="user.nickname" class="user-nickname">({{ user.nickname }})</span>
+          <div class="user-name-row">
+            <span class="user-name">{{ formatUserDisplayName(user) }}</span>
+            <span v-if="user.email" class="user-email">{{ user.email }}</span>
+          </div>
+          <div v-if="user.signature" class="user-signature">{{ user.signature }}</div>
         </div>
         <el-icon v-if="isSelected(user.username)" class="selected-icon">
           <Check />
@@ -504,18 +507,40 @@ onUnmounted(() => {
 .user-info {
   flex: 1;
   display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.user-name-row {
+  display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .user-name {
   font-size: 14px;
   color: var(--el-text-color-primary);
+  font-weight: 500;
+  white-space: nowrap;
 }
 
-.user-nickname {
+.user-email {
   font-size: 12px;
   color: var(--el-text-color-secondary);
+  white-space: nowrap;
+}
+
+.user-signature {
+  font-size: 12px;
+  color: var(--el-text-color-placeholder);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .selected-icon {
