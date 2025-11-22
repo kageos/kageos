@@ -659,9 +659,10 @@ const renderDetailField = (field: FieldConfig, rawValue: any): any => {
     })
     const recordId = idField && currentDetailRow.value ? currentDetailRow.value[idField.code] : undefined
     
-    // 🔥 从 router 或 currentFunction 获取函数名称和 app 名称
+    // 🔥 从 router 或 currentFunction 获取函数名称、user 和 app 名称
     // router 格式通常是：/user/app/function_name 或 /user/app/group/function_name
     let functionName: string | undefined = undefined
+    let userName: string | undefined = undefined
     let appName: string | undefined = undefined
     
     if (props.currentFunction?.name) {
@@ -675,22 +676,29 @@ const renderDetailField = (field: FieldConfig, rawValue: any): any => {
       }
     }
     
-    // 🔥 从 router 中提取 app 名称（通常是第二段，格式：/user/app/...）
+    // 🔥 从 router 中提取 user 和 app 名称（格式：/user/app/...）
     if (props.functionData?.router) {
       const routerParts = props.functionData.router.split('/').filter(Boolean)
+      if (routerParts.length >= 1) {
+        userName = routerParts[0]  // 第一段是 user 名称
+      }
       if (routerParts.length >= 2) {
         appName = routerParts[1]  // 第二段是 app 名称
       }
     }
     
-    // 🔥 如果有 app 名称，在函数名称前面加上
-    if (appName && functionName) {
+    // 🔥 如果有 user 和 app 名称，在函数名称前面加上
+    if (userName && appName && functionName) {
+      functionName = `${userName}_${appName}_${functionName}`
+    } else if (appName && functionName) {
+      // 如果只有 app 名称，也加上
       functionName = `${appName}_${functionName}`
     }
     
     // 调试日志
     console.log('[TableRenderer] renderDetailField 传递的命名信息:', {
       functionName,
+      userName,
       appName,
       recordId,
       idField: idField?.code,
