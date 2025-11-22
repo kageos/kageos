@@ -5,6 +5,7 @@
 
 import type { IFieldExtractor, FieldExtractorRegistry } from './FieldExtractor'
 import type { FieldConfig } from '../../../types/field'
+import { isStringDataType, getMultiSelectDefaultDataType } from '../../../constants/widget'
 
 export class MultiSelectFieldExtractor implements IFieldExtractor {
   extract(
@@ -15,10 +16,10 @@ export class MultiSelectFieldExtractor implements IFieldExtractor {
   ): any {
     const value = getValue(fieldPath)
     const raw = value?.raw
-    const dataType = field.data?.type || '[]string'
+    const dataType = field.data?.type || getMultiSelectDefaultDataType()
     
     // 🔥 根据 field.data.type 决定返回格式
-    if (dataType === 'string') {
+    if (isStringDataType(dataType)) {
       // 如果类型是 string，返回逗号分隔的字符串
       if (Array.isArray(raw)) {
         // 如果 raw 是数组，转换为逗号分隔的字符串
