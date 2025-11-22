@@ -18,6 +18,10 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { executeFunction, tableAddRow, tableUpdateRow, tableDeleteRows } from '@/api/function'
 import { buildSearchParamsString, buildURLSearchParams } from '@/utils/searchParams'
+import { denormalizeSearchValue } from '@/utils/searchValueNormalizer'
+import { parseCommaSeparatedString } from '@/utils/stringUtils'
+import { SearchType } from '@/core/constants/search'
+import { WidgetType } from '@/core/constants/widget'
 import type { Function as FunctionType, SearchParams, TableResponse } from '@/types'
 import type { FieldConfig } from '@/core/types/field'
 
@@ -111,7 +115,7 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
    * 获取 ID 字段的 code
    */
   const getIdFieldCode = (): string | null => {
-    const idField = functionData.response.find(field => field.widget?.type === 'ID')
+    const idField = functionData.response.find(field => field.widget?.type === WidgetType.ID)
     return idField?.code || null
   }
   
@@ -357,7 +361,7 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
     searchableFields.value.forEach(field => {
       const searchType = field.search || ''
       
-      if (searchType.includes('eq')) {
+      if (searchType.includes(SearchType.EQ)) {
         const eqValue = query.eq
         if (eqValue) {
           // 🔥 支持多个字段：field1:value1,field2:value2
@@ -367,18 +371,19 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
             if (part.trim().startsWith(`${field.code}:`)) {
               const value = part.trim().substring(field.code.length + 1)
               if (value) {
-                // 🔥 开关组件：将字符串转换为布尔值（"true" -> true, "false" -> false）
-                if (field.widget?.type === 'switch') {
-                  searchForm.value[field.code] = value === 'true'
-                } else {
-                  searchForm.value[field.code] = value
-                }
+                // 🔥 使用值规范化工具统一处理值转换
+                const denormalizedValue = denormalizeSearchValue(value, {
+                  widgetType: field.widget?.type,
+                  searchType: field.search,
+                  field
+                })
+                searchForm.value[field.code] = denormalizedValue
                 break
               }
             }
           }
         }
-      } else if (searchType.includes('like')) {
+      } else if (searchType.includes(SearchType.LIKE)) {
         const likeValue = query.like
         if (likeValue) {
           // 🔥 支持多个字段：field1:value1,field2:value2
@@ -396,7 +401,7 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
         }
       } 
       // 🔥 必须先检查 contains，再检查 in，因为 "contains" 包含 "in" 子字符串
-      else if (searchType.includes('contains')) {
+      else if (searchType.includes(SearchType.CONTAINS)) {
         // 🔥 contains 类型：用于多选场景，使用 FIND_IN_SET
         const containsValue = query.contains
         if (containsValue) {
@@ -436,9 +441,9 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
             
             if (valueStr) {
               // 🔥 contains 类型：将逗号分隔的字符串转换为数组（用于多选组件显示）
-              const values = valueStr.split(',').map(v => v.trim()).filter(v => v)
+              const values = parseCommaSeparatedString(valueStr)
               // 🔥 多选组件始终使用数组格式
-              if (field.widget?.type === 'multiselect') {
+              if (field.widget?.type === WidgetType.MULTI_SELECT) {
                 searchForm.value[field.code] = values.length > 0 ? values : []
               } else {
                 // 其他类型：如果只有一个值，保持字符串；多个值使用数组
@@ -447,7 +452,7 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
             }
           }
         }
-      } else if (searchType.includes('in')) {
+      } else if (searchType.includes(SearchType.IN)) {
         const inValue = query.in
         if (inValue) {
           // 🔥 支持多个字段：field1:value1,value2,field2:value3,value4
@@ -488,9 +493,9 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
               if (valueStr) {
                 // 🔥 in 类型支持多选，需要将逗号分隔的字符串转换为数组
                 // 注意：如果字段是 user 或 multiselect 类型且 search 包含 'in'，即使只有一个值也要转换为数组
-                const values = valueStr.split(',').map(v => v.trim()).filter(v => v)
+                const values = parseCommaSeparatedString(valueStr)
                 // 🔥 如果字段是 user 或 multiselect 类型，始终使用数组格式（因为 ElSelect 的 multiple 模式需要数组）
-                if ((field.widget?.type === 'user' || field.widget?.type === 'multiselect') && searchType.includes('in')) {
+                if ((field.widget?.type === WidgetType.USER || field.widget?.type === WidgetType.MULTI_SELECT) && searchType.includes(SearchType.IN)) {
                   searchForm.value[field.code] = values.length > 0 ? values : []
                 } else {
                   // 其他类型：如果只有一个值，保持字符串；多个值使用数组
@@ -499,7 +504,7 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
               }
           }
         }
-      } else if (searchType.includes('gte') && searchType.includes('lte')) {
+      } else if (searchType.includes(SearchType.GTE) && searchType.includes(SearchType.LTE)) {
         const gteValue = query.gte
         const lteValue = query.lte
         

@@ -6,6 +6,7 @@
 
 import type { FieldConfig } from '@/core/types/field'
 import type { SearchParams } from '@/types'
+import { SearchType } from '@/core/constants/search'
 
 /**
  * 构建搜索参数字符串（用于 SearchParams，格式：eq=field:value）
@@ -42,7 +43,7 @@ export function buildSearchParamsString(
       }
     }
     // 模糊查询
-    else if (searchType.includes('like')) {
+    else if (searchType.includes(SearchType.LIKE)) {
       // 🔥 如果已有 like 值，追加（支持多个字段）
       const valueStr = String(value).trim()
       if (valueStr) {
@@ -51,7 +52,7 @@ export function buildSearchParamsString(
     }
     // 🔥 包含查询（用于多选场景，使用 FIND_IN_SET）
     // 注意：必须先检查 contains，再检查 in，因为 "contains" 包含 "in" 子字符串
-    else if (searchType.includes('contains')) {
+    else if (searchType.includes(SearchType.CONTAINS)) {
       // 🔥 contains 类型：如果 value 是数组，转换为逗号分隔的字符串
       // 注意：多个字段之间使用逗号 , 分隔，与 in 操作符保持一致
       const valueStr = Array.isArray(value) ? value.join(',') : String(value)
@@ -63,7 +64,7 @@ export function buildSearchParamsString(
       }
     }
     // 包含查询
-    else if (searchType.includes('in')) {
+    else if (searchType.includes(SearchType.IN)) {
       // 🔥 in 类型：如果 value 是数组，转换为逗号分隔的字符串
       const valueStr = Array.isArray(value) ? value.join(',') : String(value)
       // 🔥 确保值不为空
@@ -73,7 +74,7 @@ export function buildSearchParamsString(
       }
     }
     // 范围查询
-    else if (searchType.includes('gte') && searchType.includes('lte')) {
+    else if (searchType.includes(SearchType.GTE) && searchType.includes(SearchType.LTE)) {
       if (typeof value === 'object') {
         if (Array.isArray(value) && value.length === 2) {
           // 日期范围数组
@@ -130,7 +131,7 @@ export function buildURLSearchParams(
       }
     }
     // 模糊查询
-    else if (searchType.includes('like')) {
+    else if (searchType.includes(SearchType.LIKE)) {
       // 🔥 如果已有 like 值，追加（支持多个字段）
       const valueStr = String(value).trim()
       if (valueStr) {
@@ -139,7 +140,7 @@ export function buildURLSearchParams(
     }
     // 🔥 包含查询（用于多选场景，使用 FIND_IN_SET）
     // 注意：必须先检查 contains，再检查 in，因为 "contains" 包含 "in" 子字符串
-    else if (searchType.includes('contains')) {
+    else if (searchType.includes(SearchType.CONTAINS)) {
       // 🔥 contains 类型：如果 value 是数组，转换为逗号分隔的字符串
       // 注意：多个字段之间使用逗号 , 分隔，与 in 操作符保持一致
       const valueStr = Array.isArray(value) ? value.join(',') : String(value)
@@ -151,7 +152,7 @@ export function buildURLSearchParams(
       }
     }
     // 包含查询
-    else if (searchType.includes('in')) {
+    else if (searchType.includes(SearchType.IN)) {
       // 🔥 in 类型：如果 value 是数组，转换为逗号分隔的字符串
       const valueStr = Array.isArray(value) ? value.join(',') : String(value)
       // 🔥 确保值不为空
@@ -161,7 +162,7 @@ export function buildURLSearchParams(
       }
     }
     // 范围查询
-    else if (searchType.includes('gte') && searchType.includes('lte')) {
+    else if (searchType.includes(SearchType.GTE) && searchType.includes(SearchType.LTE)) {
       if (typeof value === 'object') {
         if (Array.isArray(value) && value.length === 2) {
           // 日期范围数组
