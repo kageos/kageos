@@ -123,6 +123,50 @@ const formDataStore = useFormDataStore()
 // 选项列表
 const options = ref<Array<{ label: string; value: any; disabled?: boolean; displayInfo?: string }>>([])
 
+/**
+ * 🔥 选项颜色配置
+ * 
+ * 支持两种颜色格式：
+ * 1. Element Plus 标准颜色类型：success, warning, danger, info, primary
+ *    使用 el-tag 的 type 属性
+ * 2. 自定义颜色（hex 格式）：如 #FF5722, #4CAF50
+ *    使用 el-tag 的 color 属性
+ * 
+ * options_colors 数组与 options 数组的索引对齐，通过索引获取对应选项的颜色
+ */
+const optionColors = computed(() => {
+  return props.field.widget?.config?.options_colors || []
+})
+
+/**
+ * 判断是否是 Element Plus 标准颜色类型
+ * 标准颜色类型：success, warning, danger, info, primary
+ * 这些颜色使用 el-tag 的 type 属性
+ */
+function isStandardColor(color: string): boolean {
+  return ['success', 'warning', 'danger', 'info', 'primary'].includes(color)
+}
+
+/**
+ * 获取当前选中值的颜色
+ * 通过查找当前值在 options 中的索引，从 optionColors 数组中获取对应颜色
+ * options_colors 数组与 options 数组的索引对齐
+ */
+const currentOptionColor = computed(() => {
+  const rawValue = props.value?.raw
+  if (rawValue === null || rawValue === undefined || rawValue === '') {
+    return null
+  }
+  
+  // 查找当前值在 options 中的索引
+  const optionIndex = options.value.findIndex(opt => opt.value === rawValue)
+  if (optionIndex >= 0 && optionIndex < optionColors.value.length) {
+    return optionColors.value[optionIndex]
+  }
+  
+  return null
+})
+
 // 选项颜色配置（从 config 中获取）
 const optionColors = computed(() => {
   return props.field.widget?.config?.options_colors || []
