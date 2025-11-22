@@ -660,6 +660,14 @@ const renderDetailField = (field: FieldConfig, rawValue: any): any => {
     const recordId = idField && currentDetailRow.value ? currentDetailRow.value[idField.code] : undefined
     const functionName = props.functionData?.code || props.functionData?.name
     
+    // 调试日志
+    console.log('[TableRenderer] renderDetailField 传递的命名信息:', {
+      functionName,
+      recordId,
+      idField: idField?.code,
+      fieldCode: field.code
+    })
+    
     return h(WidgetComponent, {
       field: field,
       value: value,
@@ -667,8 +675,8 @@ const renderDetailField = (field: FieldConfig, rawValue: any): any => {
       'field-path': field.code,
       mode: 'detail',
       'user-info-map': userInfoMap.value,
-      'function-name': functionName,
-      'record-id': recordId
+      functionName: functionName,  // 🔥 使用 camelCase，Vue 会自动处理
+      recordId: recordId
     })
   } catch (error) {
     // ✅ 使用 ErrorHandler 统一处理错误
