@@ -54,13 +54,8 @@
             <el-avatar :src="user.avatar" :size="24" class="user-avatar">
               {{ user.username?.[0]?.toUpperCase() || 'U' }}
             </el-avatar>
-            <div class="user-option-info">
-              <div class="user-name-row">
-                <span class="user-name">{{ formatUserDisplayName(user) }}</span>
-                <span v-if="user.email" class="user-email">{{ user.email }}</span>
-              </div>
-              <div v-if="user.signature" class="user-signature">{{ user.signature }}</div>
-            </div>
+            <span class="user-name">{{ formatUserDisplayName(user) }}</span>
+            <span v-if="user.signature" class="user-signature">{{ user.signature }}</span>
           </div>
         </el-option>
       </el-select>
@@ -426,6 +421,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
 }
 
 .user-avatar {
@@ -437,14 +433,22 @@ onMounted(() => {
 }
 
 .user-name {
-  flex: 1;
+  flex: 0 0 auto;
   font-size: 14px;
   color: var(--el-text-color-primary);
+  font-weight: 500;
+  white-space: nowrap;
 }
 
-.user-nickname {
+.user-signature {
+  flex: 1;
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--el-text-color-placeholder);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-left: auto;
 }
 
 /* 选择器包装器 */
