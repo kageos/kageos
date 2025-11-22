@@ -999,6 +999,9 @@ const handleDetailSave = async (): Promise<void> => {
 
 /**
  * 刷新当前详情记录数据
+ * 
+ * 🔥 注意：handleUpdateRow 已经会调用 loadTableData() 刷新表格数据
+ * 所以这里只需要从已刷新的 tableData 中更新当前记录即可，不需要再次调用 loadTableData()
  */
 const refreshCurrentDetailRow = async (): Promise<void> => {
   if (!currentDetailRow.value || !currentDetailRow.value.id) {
@@ -1006,10 +1009,8 @@ const refreshCurrentDetailRow = async (): Promise<void> => {
   }
   
   try {
-    // 重新加载表格数据
-    await loadTableData()
-    
-    // 从最新的表格数据中找到当前记录
+    // 🔥 不需要重新加载表格数据，因为 handleUpdateRow 已经加载过了
+    // 直接从最新的表格数据中找到当前记录
     const updatedRow = tableData.value.find((row: any) => row.id === currentDetailRow.value.id)
     if (updatedRow) {
       currentDetailRow.value = updatedRow
@@ -1017,6 +1018,21 @@ const refreshCurrentDetailRow = async (): Promise<void> => {
       const index = tableData.value.findIndex((row: any) => row.id === currentDetailRow.value.id)
       if (index >= 0) {
         currentDetailIndex.value = index
+      }
+      
+      // 🔥 收集更新后的 files widget 的 upload_user 并查询用户信息
+      const filesUploadUsers = collectFilesUploadUsersFromRow(updatedRow, visibleFields.value)
+      
+      if (filesUploadUsers.length > 0) {
+        // 批量查询用户信息（自动处理缓存）
+        const users = await userInfoStore.batchGetUserInfo(filesUploadUsers)
+        
+        // 更新 userInfoMap，供详情中的 FilesWidget 使用
+        users.forEach((user: any) => {
+          if (user.username) {
+            userInfoMap.value.set(user.username, user)
+          }
+        })
       }
     }
   } catch (error) {
