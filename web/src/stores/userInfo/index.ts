@@ -67,7 +67,6 @@ export const useUserInfoStore = defineStore('userInfo', () => {
           // 将存储的对象转换为 Map
           const map = objectToMap<CacheItem>(data.userInfoCache)
           userInfoCache.value = map
-          console.log(`[UserInfoStore] 从 localStorage 恢复 ${map.size} 个缓存项（包括过期项）`)
         }
       }
     } catch (error) {
