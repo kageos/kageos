@@ -324,7 +324,7 @@
               @click="canPreviewInBrowser(file) ? handlePreviewInNewWindow(file) : null"
             >
               <!-- 🔥 文件上传用户信息（左侧显示，使用 UserDisplay 组件，支持点击查看详情） -->
-              <div v-if="file.upload_user" class="file-upload-user">
+              <div v-if="file.upload_user" class="file-upload-user" @click.stop>
                 <UserDisplay
                   :user-info="getFileUploadUserInfo(file)"
                   :username="file.upload_user"

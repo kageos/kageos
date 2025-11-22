@@ -53,7 +53,7 @@
             :src="userInfo.avatar" 
             :size="avatarSize"
             class="user-avatar user-avatar-clickable"
-            @click="handleAvatarClick"
+            @click.stop="handleAvatarClick"
           >
             {{ userInfo.username?.[0]?.toUpperCase() || 'U' }}
           </el-avatar>
@@ -61,7 +61,7 @@
             v-else 
             :size="avatarSize"
             class="user-avatar user-avatar-clickable"
-            @click="handleAvatarClick"
+            @click.stop="handleAvatarClick"
           >
             {{ displayName?.[0]?.toUpperCase() || 'U' }}
           </el-avatar>
@@ -109,7 +109,7 @@
       </el-popover>
       <span 
         class="user-name user-name-clickable" 
-        @click="handleNameClick"
+        @click.stop="handleNameClick"
       >{{ displayName }}</span>
     </span>
   </div>
