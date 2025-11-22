@@ -1380,6 +1380,10 @@ onUnmounted(() => {
     padding: 20px;
   }
 
+  .edit-content {
+    padding: 20px;
+  }
+
   /* 🔥 字段网格布局 - 参考旧版本 */
   .fields-grid {
     display: grid;
