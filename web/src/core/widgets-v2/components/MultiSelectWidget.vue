@@ -164,6 +164,11 @@ const selectRef = ref<InstanceType<typeof ElSelect> | null>(null)
 // 是否因为选择而需要保持打开
 const shouldKeepOpen = ref(false)
 
+// 字段数据类型（用于决定提交格式）
+const fieldDataType = computed(() => {
+  return props.field.data?.type || '[]string'
+})
+
 // 选中的值（数组）
 const selectedValues = computed({
   get: () => {
@@ -171,7 +176,13 @@ const selectedValues = computed({
     if (Array.isArray(raw)) {
       return raw
     }
+    // 🔥 如果是字符串类型，且 raw 是逗号分隔的字符串，需要解析为数组
     if (typeof raw === 'string' && raw) {
+      // 检查是否是逗号分隔的字符串（多选值）
+      if (raw.includes(',')) {
+        return raw.split(',').map(v => v.trim()).filter(v => v)
+      }
+      // 单个值
       return [raw]
     }
     return []
@@ -196,8 +207,20 @@ const selectedValues = computed({
     // 🔥 计算行内聚合统计（如果有 statistics 配置）
     const rowStatistics = calculateRowStatistics(displayInfos, currentStatistics.value)
     
+    // 🔥 根据 field.data.type 决定 raw 的格式
+    // 如果 type 是 string，提交逗号分隔的字符串；否则提交数组
+    let rawValue: any
+    const dataType = fieldDataType.value
+    if (dataType === 'string') {
+      // 提交逗号分隔的字符串
+      rawValue = finalValues.length > 0 ? finalValues.join(',') : ''
+    } else {
+      // 提交数组（[]string 或 array）
+      rawValue = finalValues
+    }
+    
     const fieldValue = {
-      raw: finalValues,
+      raw: rawValue,
       display: displayText || '未选择',
       meta: {
         displayInfo: displayInfos,
@@ -220,7 +243,13 @@ const displayValues = computed(() => {
   if (Array.isArray(raw)) {
     return raw
   }
+  // 🔥 如果是字符串类型，且 raw 是逗号分隔的字符串，需要解析为数组
   if (typeof raw === 'string' && raw) {
+    // 检查是否是逗号分隔的字符串（多选值）
+    if (raw.includes(',')) {
+      return raw.split(',').map(v => v.trim()).filter(v => v)
+    }
+    // 单个值
     return [raw]
   }
   return []

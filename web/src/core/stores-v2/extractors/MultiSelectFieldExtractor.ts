@@ -15,15 +15,35 @@ export class MultiSelectFieldExtractor implements IFieldExtractor {
   ): any {
     const value = getValue(fieldPath)
     const raw = value?.raw
+    const dataType = field.data?.type || '[]string'
     
-    // 确保返回数组
-    if (Array.isArray(raw)) {
-      return raw
-    } else if (raw !== null && raw !== undefined) {
-      // 兼容旧数据：如果是字符串，转换为数组
-      return [raw]
+    // 🔥 根据 field.data.type 决定返回格式
+    if (dataType === 'string') {
+      // 如果类型是 string，返回逗号分隔的字符串
+      if (Array.isArray(raw)) {
+        // 如果 raw 是数组，转换为逗号分隔的字符串
+        return raw.length > 0 ? raw.join(',') : ''
+      } else if (typeof raw === 'string') {
+        // 如果 raw 已经是字符串，直接返回
+        return raw
+      } else {
+        // 空值返回空字符串
+        return ''
+      }
     } else {
-      return []
+      // 如果类型是 []string 或 array，返回数组
+      if (Array.isArray(raw)) {
+        return raw
+      } else if (typeof raw === 'string' && raw) {
+        // 兼容旧数据：如果是逗号分隔的字符串，转换为数组
+        if (raw.includes(',')) {
+          return raw.split(',').map(v => v.trim()).filter(v => v)
+        }
+        // 单个值
+        return [raw]
+      } else {
+        return []
+      }
     }
   }
 }
