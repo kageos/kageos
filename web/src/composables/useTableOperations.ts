@@ -367,7 +367,12 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
             if (part.trim().startsWith(`${field.code}:`)) {
               const value = part.trim().substring(field.code.length + 1)
               if (value) {
-                searchForm.value[field.code] = value
+                // 🔥 开关组件：将字符串转换为布尔值（"true" -> true, "false" -> false）
+                if (field.widget?.type === 'switch') {
+                  searchForm.value[field.code] = value === 'true'
+                } else {
+                  searchForm.value[field.code] = value
+                }
                 break
               }
             }

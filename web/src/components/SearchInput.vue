@@ -597,6 +597,27 @@ const inputConfig = computed(() => {
       }
     }
     
+    // 🔥 开关组件：使用下拉选择（是/否）
+    // 开关组件通常使用 eq 搜索类型（精确匹配）
+    if (widgetType === 'switch') {
+      // 从配置中获取激活文本和非激活文本
+      const activeText = widgetConfig.activeText || '是'
+      const inactiveText = widgetConfig.inactiveText || '否'
+      
+      return {
+        component: 'ElSelect',
+        props: {
+          placeholder: `请选择${props.field.name}`,
+          clearable: true,
+          style: { width: '200px' },
+          options: [
+            { label: activeText, value: true },
+            { label: inactiveText, value: false }
+          ]
+        }
+      }
+    }
+    
     // 🔥 文本范围搜索（gte/lte，用于文本类型）
     if (searchType.includes('gte') && searchType.includes('lte')) {
       return {
@@ -654,6 +675,19 @@ const inputConfig = computed(() => {
 const handleInputDebounced = debounce((value: any) => {
   // 🔥 清空时 value 可能是 null、undefined 或空字符串，统一转换为 null
   let normalizedValue: any = (value === '' || value === null || value === undefined) ? null : value
+  
+  // 🔥 开关组件：将布尔值转换为字符串（true -> "true", false -> "false"）
+  // 后端 eq 查询需要字符串格式
+  const isSwitchWidget = props.field.widget?.type === 'switch'
+  if (isSwitchWidget && normalizedValue !== null) {
+    if (typeof normalizedValue === 'boolean') {
+      normalizedValue = String(normalizedValue)
+    } else if (normalizedValue === 'true' || normalizedValue === true || normalizedValue === 1 || normalizedValue === '1') {
+      normalizedValue = 'true'
+    } else if (normalizedValue === 'false' || normalizedValue === false || normalizedValue === 0 || normalizedValue === '0') {
+      normalizedValue = 'false'
+    }
+  }
   
   // 🔥 多选组件且搜索类型是 contains：将数组转换为逗号分隔的字符串（用于 FIND_IN_SET 查询）
   // 注意：多选组件只支持 contains 搜索类型
