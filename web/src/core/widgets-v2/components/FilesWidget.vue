@@ -90,69 +90,109 @@
         <div class="section-title">
           已上传文件 ({{ currentFiles.length }}/{{ maxCount }})
         </div>
-        <div
-          v-for="(file, index) in currentFiles"
-          :key="file.url || file.name || index"
-          class="uploaded-file"
-        >
-          <div class="file-header">
-            <el-icon :size="16" class="file-icon">
-              <Document />
-            </el-icon>
-            <span 
-              class="file-name" 
-              :title="file.name"
-              :class="{ 'file-name-clickable': isImageFile(file) && file.is_uploaded }"
-              @click="isImageFile(file) && file.is_uploaded ? handlePreviewImage(file) : null"
-            >
-              {{ file.name }}
-            </span>
-            <span class="file-size">{{ formatSize(file.size) }}</span>
-            <el-tag size="small" :type="file.is_uploaded ? 'success' : 'info'">
-              {{ file.is_uploaded ? '已上传' : '本地' }}
-            </el-tag>
-          </div>
+        <div class="files-list">
+          <div
+            v-for="(file, index) in currentFiles"
+            :key="file.url || file.name || index"
+            class="file-list-item"
+            :class="{ 'file-clickable': canPreviewInBrowser(file) }"
+            @click="canPreviewInBrowser(file) ? handlePreviewInNewWindow(file) : null"
+          >
+            <!-- 文件图标/缩略图（60x60px） -->
+            <div class="file-thumbnail">
+              <el-image
+                v-if="isImageFile(file) && file.is_uploaded && file.url"
+                :src="file.url"
+                fit="cover"
+                class="thumbnail-image"
+                :preview-src-list="previewImageList"
+                :initial-index="getPreviewImageIndex(file)"
+                preview-teleported
+                hide-on-click-modal
+                @click.stop
+              />
+              <el-icon
+                v-else
+                :size="32"
+                :style="{ color: getFileIconColor(file.name) }"
+                class="thumbnail-icon"
+              >
+                <component :is="getFileIcon(file.name)" />
+              </el-icon>
+            </div>
+            
+            <!-- 文件信息（垂直布局） -->
+            <div class="file-info">
+              <div class="file-name" :title="file.name">
+                {{ file.name }}
+              </div>
+              <!-- 🔥 文件备注（如果有，显示；如果没有，显示编辑提示） -->
+              <div v-if="file.description && file.description.trim()" class="file-description-text">
+                <el-icon :size="12" class="description-icon">
+                  <Edit />
+                </el-icon>
+                <span class="description-content">{{ file.description }}</span>
+              </div>
+              <div v-else-if="file.is_uploaded" class="file-description-placeholder">
+                <el-icon :size="12" class="description-icon">
+                  <Edit />
+                </el-icon>
+                <span class="description-hint">点击"添加备注"按钮添加文件备注</span>
+              </div>
+              <div class="file-meta">
+                <span class="file-size">{{ formatSize(file.size) }}</span>
+                <el-tag
+                  v-if="canPreviewInBrowser(file)"
+                  size="small"
+                  type="success"
+                  effect="plain"
+                  class="preview-tag"
+                >
+                  <el-icon :size="12" style="margin-right: 4px">
+                    <View />
+                  </el-icon>
+                  可预览
+                </el-tag>
+                <el-tag size="small" :type="file.is_uploaded ? 'success' : 'info'">
+                  {{ file.is_uploaded ? '已上传' : '本地' }}
+                </el-tag>
+                <span v-if="file.upload_ts" class="file-upload-time">
+                  {{ formatTimestamp(file.upload_ts) }}
+                </span>
+              </div>
+            </div>
 
-          <!-- 文件描述 -->
-          <div v-if="!isDisabled" class="file-description">
-            <el-input
-              v-model="file.description"
-              size="small"
-              placeholder="添加文件描述（可选）"
-              clearable
-              @blur="handleUpdateDescription(index, file.description)"
-            />
-          </div>
-
-          <!-- 操作按钮 -->
-          <div class="file-actions">
-            <el-button
-              v-if="isImageFile(file) && file.is_uploaded"
-              size="small"
-              :icon="View"
-              @click="handlePreviewImage(file)"
-            >
-              预览
-            </el-button>
-            <el-button
-              v-if="file.is_uploaded"
-              size="small"
-              :icon="Download"
-              @click="handleDownloadFile(file)"
-            >
-              下载
-            </el-button>
-            <el-popconfirm
-              v-if="!isDisabled"
-              title="确定删除此文件？"
-              @confirm="handleDeleteFile(index)"
-            >
-              <template #reference>
-                <el-button size="small" type="danger" :icon="Delete">
-                  删除
-                </el-button>
-              </template>
-            </el-popconfirm>
+            <!-- 操作按钮 -->
+            <div class="file-actions">
+              <el-button
+                v-if="isImageFile(file) && file.is_uploaded"
+                size="small"
+                :icon="View"
+                @click.stop="handlePreviewImage(file)"
+              >
+                预览
+              </el-button>
+              <el-button
+                v-if="file.is_uploaded"
+                size="small"
+                type="primary"
+                :icon="Edit"
+                @click.stop="handleEditDescription(index)"
+              >
+                添加备注
+              </el-button>
+              <el-popconfirm
+                v-if="!isDisabled"
+                title="确定删除此文件？"
+                @confirm="handleDeleteFile(index)"
+              >
+                <template #reference>
+                  <el-button size="small" type="danger" :icon="Delete" @click.stop>
+                    删除
+                  </el-button>
+                </template>
+              </el-popconfirm>
+            </div>
           </div>
         </div>
       </div>
@@ -395,6 +435,32 @@
       </div>
     </el-dialog>
 
+    <!-- 🔥 备注编辑对话框 -->
+    <el-dialog
+      v-model="descriptionDialogVisible"
+      title="添加文件备注"
+      width="500px"
+      :close-on-click-modal="true"
+      @close="handleCancelDescription"
+    >
+      <div class="description-dialog-content">
+        <el-input
+          v-model="editingDescription"
+          type="textarea"
+          :rows="4"
+          placeholder="请输入文件备注（可选）"
+          :maxlength="500"
+          show-word-limit
+        />
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="handleCancelDescription">取消</el-button>
+          <el-button type="primary" @click="handleSaveDescription">保存</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
     <!-- 文件详情对话框 -->
     <el-dialog
       v-model="fileDetailVisible"
@@ -491,6 +557,7 @@ import {
   VideoPlay,
   Folder,
   Files,
+  Edit,
 } from '@element-plus/icons-vue'
 import type { WidgetComponentProps } from '../types'
 import { uploadFile, notifyBatchUploadComplete } from '@/utils/upload'
@@ -536,6 +603,11 @@ const pendingCompleteQueue = ref<BatchUploadCompleteItem[]>([])
 const batchCompleteTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 const BATCH_COMPLETE_DELAY = 500
 const BATCH_COMPLETE_MAX_SIZE = 10
+
+// 🔥 备注编辑对话框状态
+const descriptionDialogVisible = ref(false)
+const editingDescriptionIndex = ref<number>(-1)
+const editingDescription = ref<string>('')
 
 // 图片预览相关状态
 const previewVisible = ref(false)
@@ -1502,6 +1574,35 @@ function handleUpdateDescription(index: number, description: string): void {
   }
 }
 
+// 🔥 打开备注编辑对话框
+function handleEditDescription(index: number): void {
+  const currentFilesList = currentFiles.value
+  if (index < 0 || index >= currentFilesList.length) {
+    return
+  }
+  const file = currentFilesList[index]
+  editingDescriptionIndex.value = index
+  editingDescription.value = file.description || ''
+  descriptionDialogVisible.value = true
+}
+
+// 🔥 保存备注
+function handleSaveDescription(): void {
+  if (editingDescriptionIndex.value >= 0) {
+    handleUpdateDescription(editingDescriptionIndex.value, editingDescription.value)
+  }
+  descriptionDialogVisible.value = false
+  editingDescriptionIndex.value = -1
+  editingDescription.value = ''
+}
+
+// 🔥 取消备注编辑
+function handleCancelDescription(): void {
+  descriptionDialogVisible.value = false
+  editingDescriptionIndex.value = -1
+  editingDescription.value = ''
+}
+
 // 更新备注
 function updateRemark(remarkValue: string): void {
   const currentValue = props.value
@@ -1853,6 +1954,33 @@ function handleFileChange(file: any): void {
 .file-description-text .description-content {
   flex: 1;
   word-break: break-word;
+}
+
+/* 🔥 备注占位符样式（edit 模式） */
+.file-description-placeholder {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  margin-top: 4px;
+  margin-bottom: 2px;
+  font-size: 12px;
+  color: var(--el-text-color-placeholder);
+  line-height: 1.5;
+}
+
+.file-description-placeholder .description-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.file-description-placeholder .description-hint {
+  flex: 1;
+  font-style: italic;
+}
+
+/* 🔥 备注编辑对话框样式 */
+.description-dialog-content {
+  padding: 10px 0;
 }
 
 /* 🔥 文件上传用户信息（左侧显示，使用 UserDisplay 组件） */
