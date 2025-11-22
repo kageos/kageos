@@ -102,7 +102,7 @@
 
       <!-- 操作列 -->
       <el-table-column 
-        v-if="hasUpdateCallback || hasDeleteCallback" 
+        v-if="hasDeleteCallback" 
         label="操作" 
         fixed="right" 
         :width="getActionColumnWidth()"
@@ -110,16 +110,6 @@
       >
         <template #default="{ row }">
           <div class="action-buttons">
-            <el-button 
-              v-if="hasUpdateCallback"
-              link 
-              type="primary" 
-              size="small"
-              @click.stop="handleEdit(row)"
-            >
-              <el-icon><Edit /></el-icon>
-              编辑
-            </el-button>
             <el-button 
               v-if="hasDeleteCallback"
               link 
@@ -767,14 +757,17 @@ const handleAdd = (): void => {
 }
 
 /**
- * 编辑记录
- * 打开对话框，模式设为 'update'，加载当前行数据
- * @param row 要编辑的行数据
+ * 编辑记录（已废弃，现在在详情抽屉中直接编辑）
+ * 保留此函数以防其他地方调用，但不再使用
+ * @deprecated 使用详情抽屉中的编辑功能
  */
 const handleEdit = (row: any): void => {
-  dialogMode.value = 'update'
-  currentRow.value = { ...row }
-  dialogVisible.value = true
+  // 现在编辑功能在详情抽屉中，这里不再使用
+  // 如果点击了编辑，直接打开详情抽屉
+  const index = tableData.value.findIndex((r: any) => r.id === row.id)
+  if (index >= 0) {
+    handleShowDetail(row, index)
+  }
 }
 
 /**
