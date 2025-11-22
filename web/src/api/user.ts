@@ -60,14 +60,6 @@ export interface GetUsersByUsernamesResp {
  * @param usernames 用户名列表，最多100个
  */
 export function getUsersByUsernames(usernames: string[]) {
-  const callStack = new Error().stack
-  console.log('[API] 🔍 getUsersByUsernames 被调用', {
-    usernames,
-    count: usernames.length,
-    timestamp: new Date().toISOString(),
-    callStack: callStack?.split('\n').slice(1, 8).join('\n')
-  })
-  
   return post<GetUsersByUsernamesResp>('/api/v1/users', { usernames })
 }
 

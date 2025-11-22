@@ -276,33 +276,22 @@ async function loadUserInfo(username: string | null): Promise<UserInfo | null> {
     return null
   }
   
-  console.log('[UserWidget] 🔍 loadUserInfo 被调用', {
-    username,
-    mode: props.mode,
-    hasUserInfoMap: !!props.userInfoMap,
-    fieldCode: props.field?.code,
-    timestamp: new Date().toISOString()
-  })
-  
   // 🔥 优化：优先从 userInfoMap 中获取（避免重复调用接口）
   if (props.userInfoMap && props.userInfoMap.has(username)) {
     const user = props.userInfoMap.get(username) as UserInfo
     userInfo.value = user
-    console.log('[UserWidget] ✅ 从 userInfoMap 获取用户信息', username)
     return user
   }
   
   // 如果 meta 中已有用户信息，直接使用
   if (props.value?.meta?.userInfo && props.value.meta.userInfo.username === username) {
     userInfo.value = props.value.meta.userInfo
-    console.log('[UserWidget] ✅ 从 meta 获取用户信息', username)
     return props.value.meta.userInfo
   }
   
   // 🔥 在 table-cell 模式下，如果有 userInfoMap，完全依赖它，不主动调用 API
   // TableRenderer 会在渲染前统一批量查询所有用户信息
   if (props.mode === 'table-cell' && props.userInfoMap) {
-    console.log('[UserWidget] ⏭️ table-cell 模式且有 userInfoMap，不主动调用 API', username)
     // 如果 userInfoMap 中没有，说明 TableRenderer 的批量查询还没完成或用户不存在
     // 等待一段时间后再次检查（最多等待 500ms）
     for (let i = 0; i < 5; i++) {
@@ -310,12 +299,10 @@ async function loadUserInfo(username: string | null): Promise<UserInfo | null> {
       if (props.userInfoMap.has(username)) {
         const user = props.userInfoMap.get(username) as UserInfo
         userInfo.value = user
-        console.log('[UserWidget] ✅ 批量查询后从 userInfoMap 获取用户信息', username)
         return user
       }
     }
     // 如果等待后还是没有，说明用户不存在或批量查询失败，返回 null
-    console.log('[UserWidget] ⚠️ table-cell 模式，等待后仍未找到用户信息', username)
     userInfo.value = null
     return null
   }
@@ -327,7 +314,6 @@ async function loadUserInfo(username: string | null): Promise<UserInfo | null> {
     const { useUserInfoStore } = await import('@/stores/userInfo')
     const userInfoStore = useUserInfoStore()
     
-    console.log('[UserWidget] 🔍 调用 userInfoStore.batchGetUserInfo', username)
     const users = await userInfoStore.batchGetUserInfo([username])
     
     if (users && users.length > 0) {
@@ -337,11 +323,9 @@ async function loadUserInfo(username: string | null): Promise<UserInfo | null> {
       if (props.userInfoMap) {
         props.userInfoMap.set(username, user)
       }
-      console.log('[UserWidget] ✅ 获取到用户信息', username)
       return user
     } else {
       userInfo.value = null
-      console.log('[UserWidget] ⚠️ 未找到用户信息', username)
       return null
     }
   } catch (error) {

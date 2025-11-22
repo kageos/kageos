@@ -649,18 +649,12 @@ const unifiedUploadUserInfo = computed(() => {
 // 使用函数形式，依赖 userInfoMap 和 userInfoStore 的响应式更新
 function getFileUploadUserInfo(file: FileItem) {
   if (!file.upload_user) {
-    console.log('[FilesWidget] getFileUploadUserInfo: file.upload_user 为空', file)
     return null
   }
   
   // 🔥 优先从 userInfoMap 中获取（如果是在 TableRenderer 中使用）
-  if (props.userInfoMap) {
-    console.log('[FilesWidget] 检查 userInfoMap, has:', props.userInfoMap.has(file.upload_user), 'upload_user:', file.upload_user)
-    if (props.userInfoMap.has(file.upload_user)) {
-      const user = props.userInfoMap.get(file.upload_user)
-      console.log('[FilesWidget] 从 userInfoMap 获取用户信息:', file.upload_user, user)
-      return user
-    }
+  if (props.userInfoMap && props.userInfoMap.has(file.upload_user)) {
+    return props.userInfoMap.get(file.upload_user)
   }
   
   // 降级到 userInfoStore（同步获取，从缓存中读取）
@@ -672,7 +666,6 @@ function getFileUploadUserInfo(file: FileItem) {
     if (cacheMap instanceof Map) {
       const cachedUser = cacheMap.get(file.upload_user)
       if (cachedUser) {
-        console.log('[FilesWidget] 从 userInfoStore 缓存获取用户信息:', file.upload_user, cachedUser)
         return cachedUser
       }
     }
@@ -680,7 +673,6 @@ function getFileUploadUserInfo(file: FileItem) {
     console.warn('[FilesWidget] 获取用户信息失败', error)
   }
   
-  console.log('[FilesWidget] 未找到用户信息，返回 null, upload_user:', file.upload_user)
   return null
 }
 
@@ -690,27 +682,12 @@ function getFileUploadUserInfo(file: FileItem) {
 watch(
   () => allUploadUsers.value,
   (usernames: string[]) => {
-    console.log('[FilesWidget] 🔍 watch allUploadUsers 触发', {
-      mode: props.mode,
-      hasUserInfoMap: !!props.userInfoMap,
-      usernames,
-      fieldCode: props.field?.code,
-      timestamp: new Date().toISOString()
-    })
-    
     // 🔥 检查是否在 TableRenderer 中（通过 user-info-map prop 判断）
     // 如果传入了 user-info-map，说明是在表格中，由 TableRenderer 统一处理
     if (usernames.length > 0 && props.mode === 'detail' && !props.userInfoMap) {
-      console.log('[FilesWidget] 🔍 开始批量查询用户信息（独立表单模式）', usernames)
       // 批量加载所有上传用户信息
       userInfoStore.batchGetUserInfo(usernames).catch((error: any) => {
         Logger.error('[FilesWidget] 加载上传用户信息失败', error)
-      })
-    } else {
-      console.log('[FilesWidget] ⏭️ 跳过用户信息查询', {
-        reason: usernames.length === 0 ? '无用户' : 
-                props.mode !== 'detail' ? '非详情模式' : 
-                props.userInfoMap ? '已有 userInfoMap' : '未知原因'
       })
     }
   },
@@ -720,26 +697,11 @@ watch(
 // 🔥 组件挂载时，如果有上传用户，触发加载
 // 注意：如果是在 TableRenderer 中使用，TableRenderer 会统一批量查询用户信息
 onMounted(() => {
-  console.log('[FilesWidget] 🔍 onMounted 触发', {
-    mode: props.mode,
-    hasUserInfoMap: !!props.userInfoMap,
-    allUploadUsers: allUploadUsers.value,
-    fieldCode: props.field?.code,
-    timestamp: new Date().toISOString()
-  })
-  
   // 🔥 检查是否在 TableRenderer 中（通过 user-info-map prop 判断）
   // 如果传入了 user-info-map，说明是在表格中，由 TableRenderer 统一处理
   if (allUploadUsers.value.length > 0 && props.mode === 'detail' && !props.userInfoMap) {
-    console.log('[FilesWidget] 🔍 onMounted 开始批量查询用户信息（独立表单模式）', allUploadUsers.value)
     userInfoStore.batchGetUserInfo(allUploadUsers.value).catch((error: any) => {
       Logger.error('[FilesWidget] 加载上传用户信息失败', error)
-    })
-  } else {
-    console.log('[FilesWidget] ⏭️ onMounted 跳过用户信息查询', {
-      reason: allUploadUsers.value.length === 0 ? '无用户' : 
-              props.mode !== 'detail' ? '非详情模式' : 
-              props.userInfoMap ? '已有 userInfoMap' : '未知原因'
     })
   }
 })
@@ -1476,12 +1438,6 @@ async function handleDownloadAll(): Promise<void> {
     // 🔥 使用与旧版本一致的命名规则：函数名称_id_记录ID 或 函数名称_时间戳
     let zipFileName = 'files'
     
-    // 调试日志
-    console.log('[FilesWidget] 打包下载命名信息:', {
-      functionName: props.functionName,
-      recordId: props.recordId,
-      mode: props.mode
-    })
     
     // 🔥 完全按照旧版本的逻辑
     if (props.functionName) {

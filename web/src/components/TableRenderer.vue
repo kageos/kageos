@@ -342,13 +342,6 @@ const userInfoMap = ref<Map<string, any>>(new Map())
  * 统一收集表格数据和搜索表单中的用户，使用 store 批量查询（自动处理缓存）
  */
 async function batchLoadUserInfo(): Promise<void> {
-  const callStack = new Error().stack
-  console.log('[TableRenderer] 🔍 batchLoadUserInfo 被调用', {
-    timestamp: new Date().toISOString(),
-    tableDataLength: tableData.value?.length || 0,
-    callStack: callStack?.split('\n').slice(1, 4).join('\n')
-  })
-  
   try {
     // 🔥 使用工具函数收集所有用户名
     const allUsernames = collectAllUsernames(
@@ -358,17 +351,13 @@ async function batchLoadUserInfo(): Promise<void> {
       searchableFields.value
     )
     
-    console.log('[TableRenderer] 🔍 收集到的用户名:', allUsernames)
-    
     if (allUsernames.length === 0) {
       userInfoMap.value = new Map()
       return
     }
     
     // 🔥 使用 store 统一批量查询（自动处理缓存和过期）
-    console.log('[TableRenderer] 🔍 开始批量查询用户信息，用户名:', allUsernames)
     const users = await userInfoStore.batchGetUserInfo(allUsernames)
-    console.log('[TableRenderer] ✅ 批量查询完成，获取到', users.length, '个用户')
     
     // 🔥 构建映射（供表格渲染使用）
     const map = new Map<string, any>()
@@ -410,7 +399,6 @@ watch(() => searchForm.value, () => {
       field.widget?.type === 'user' && searchForm.value[field.code]
     )
     if (hasUserFields) {
-      console.log('[TableRenderer] 🔍 搜索表单变化，提前查询用户信息')
       batchLoadUserInfo()
     }
   })
@@ -480,7 +468,6 @@ const getColumnWidth = (field: FieldConfig): number => {
  */
 const getSearchValue = (field: FieldConfig): any => {
   const value = searchForm.value[field.code]
-  console.log(`[TableRenderer] getSearchValue ${field.code}:`, value, 'searchForm:', searchForm.value)
   // 🔥 如果值是 undefined，返回 null；否则返回原值（包括空对象、空数组等）
   return value === undefined ? null : value
 }
@@ -695,17 +682,6 @@ const renderDetailField = (field: FieldConfig, rawValue: any): any => {
       functionName = `${appName}_${functionName}`
     }
     
-    // 调试日志
-    console.log('[TableRenderer] renderDetailField 传递的命名信息:', {
-      functionName,
-      userName,
-      appName,
-      recordId,
-      idField: idField?.code,
-      fieldCode: field.code,
-      router: props.functionData?.router,
-      currentFunctionName: props.currentFunction?.name
-    })
     
     return h(WidgetComponent, {
       field: field,
@@ -793,18 +769,15 @@ const handleShowDetail = async (row: any, index: number): Promise<void> => {
   
   // 🔥 收集当前行的 files widget 的 upload_user 并查询用户信息
   const filesUploadUsers = collectFilesUploadUsersFromRow(row, visibleFields.value)
-  console.log('[TableRenderer] handleShowDetail 收集到的上传用户:', filesUploadUsers)
   
   if (filesUploadUsers.length > 0) {
     // 批量查询用户信息（自动处理缓存）
     const users = await userInfoStore.batchGetUserInfo(filesUploadUsers)
-    console.log('[TableRenderer] handleShowDetail 查询到的用户:', users)
     
     // 更新 userInfoMap，供详情中的 FilesWidget 使用
     users.forEach((user: any) => {
       if (user.username) {
         userInfoMap.value.set(user.username, user)
-        console.log('[TableRenderer] 更新 userInfoMap:', user.username, user)
       }
     })
   }
