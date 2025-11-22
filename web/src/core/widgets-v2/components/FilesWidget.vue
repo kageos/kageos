@@ -439,7 +439,7 @@
     <el-dialog
       v-model="descriptionDialogVisible"
       title="添加文件备注"
-      width="500px"
+      width="600px"
       :close-on-click-modal="true"
       @close="handleCancelDescription"
     >
