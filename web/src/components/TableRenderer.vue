@@ -373,6 +373,15 @@ const currentDetailRow = ref<any>(null)
 /** 当前详情的行索引 */
 const currentDetailIndex = ref(-1)
 
+/** 详情模式：查看/编辑 */
+const detailMode = ref<'view' | 'edit'>('view')
+
+/** 详情编辑模式的 FormRenderer 引用 */
+const detailFormRendererRef = ref<InstanceType<typeof FormRenderer>>()
+
+/** 详情编辑提交状态 */
+const detailSubmitting = ref(false)
+
 // ==================== 用户信息批量查询优化 ====================
 
 const userInfoStore = useUserInfoStore()
@@ -898,6 +907,128 @@ const copyFieldValue = (field: FieldConfig, value: any): void => {
     ErrorHandler.handleWidgetError(`TableRenderer.copyFieldValue[${field.code}]`, error, {
       showMessage: true
     })
+  }
+}
+
+// ==================== 详情抽屉编辑模式 ====================
+
+/**
+ * 构建编辑用的 FunctionDetail
+ * 只包含可编辑的字段（根据 table_permission 过滤）
+ */
+const editFunctionDetail = computed<FunctionDetail>(() => {
+  // 过滤字段（只显示可编辑的字段）
+  const editableFields = props.functionData.response.filter((field: FieldConfig) => {
+    const permission = field.table_permission
+    // 编辑模式：显示空、update 权限的字段
+    return !permission || permission === '' || permission === 'update'
+  })
+  
+  return {
+    id: 0,
+    app_id: 0,
+    tree_id: 0,
+    method: 'PUT',  // 编辑使用 PUT 方法
+    router: props.functionData.router,
+    has_config: false,
+    create_tables: '',
+    callbacks: props.functionData.callbacks,
+    template_type: 'form',
+    request: editableFields,  // 使用过滤后的字段
+    response: [],
+    created_at: '',
+    updated_at: '',
+    full_code_path: ''
+  }
+})
+
+/**
+ * 切换到编辑模式
+ */
+const switchToEditMode = (): void => {
+  if (!currentDetailRow.value) {
+    ElMessage.error('记录数据不存在')
+    return
+  }
+  detailMode.value = 'edit'
+  // FormRenderer 会自动使用 initialData 填充数据
+}
+
+/**
+ * 切换回查看模式
+ */
+const switchToViewMode = (): void => {
+  detailMode.value = 'view'
+}
+
+/**
+ * 保存（详情编辑模式）
+ */
+const handleDetailSave = async (): Promise<void> => {
+  if (!detailFormRendererRef.value) {
+    ElMessage.error('表单引用不存在')
+    return
+  }
+  
+  if (!currentDetailRow.value || !currentDetailRow.value.id) {
+    ElMessage.error('记录 ID 不存在')
+    return
+  }
+  
+  try {
+    detailSubmitting.value = true
+    
+    // 1. 准备提交数据
+    const submitData = detailFormRendererRef.value.prepareSubmitDataWithTypeConversion()
+    
+    // 2. 调用更新接口（复用现有的更新逻辑）
+    const success = await handleUpdateRow(currentDetailRow.value.id, submitData)
+    
+    if (success) {
+      // 3. 刷新当前记录数据
+      await refreshCurrentDetailRow()
+      
+      // 4. 切换回查看模式
+      detailMode.value = 'view'
+      
+      ElMessage.success('保存成功')
+    }
+  } catch (error: any) {
+    console.error('保存失败:', error)
+    const errorMessage = error?.response?.data?.msg 
+      || error?.response?.data?.message 
+      || error?.message 
+      || '保存失败'
+    ElMessage.error(errorMessage)
+  } finally {
+    detailSubmitting.value = false
+  }
+}
+
+/**
+ * 刷新当前详情记录数据
+ */
+const refreshCurrentDetailRow = async (): Promise<void> => {
+  if (!currentDetailRow.value || !currentDetailRow.value.id) {
+    return
+  }
+  
+  try {
+    // 重新加载表格数据
+    await loadTableData()
+    
+    // 从最新的表格数据中找到当前记录
+    const updatedRow = tableData.value.find((row: any) => row.id === currentDetailRow.value.id)
+    if (updatedRow) {
+      currentDetailRow.value = updatedRow
+      // 更新索引
+      const index = tableData.value.findIndex((row: any) => row.id === currentDetailRow.value.id)
+      if (index >= 0) {
+        currentDetailIndex.value = index
+      }
+    }
+  } catch (error) {
+    console.error('刷新记录数据失败:', error)
   }
 }
 
