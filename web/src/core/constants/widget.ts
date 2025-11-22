@@ -38,8 +38,39 @@ export const DataType = {
   FLOAT: 'float',
   FILES: 'files',
   STRUCT: 'struct',
-  STRUCTS: '[]struct'
+  STRUCTS: '[]struct',
+  ARRAY: 'array'  // 通用数组类型
 } as const
+
+/**
+ * 判断数据类型是否为字符串类型（用于多选组件的提交格式判断）
+ * @param dataType 字段的 data.type 值
+ * @returns 如果是字符串类型返回 true，否则返回 false
+ */
+export function isStringDataType(dataType: string | undefined | null): boolean {
+  return dataType === DataType.STRING
+}
+
+/**
+ * 判断数据类型是否为数组类型（用于多选组件的提交格式判断）
+ * @param dataType 字段的 data.type 值
+ * @returns 如果是数组类型返回 true，否则返回 false
+ */
+export function isArrayDataType(dataType: string | undefined | null): boolean {
+  return dataType === DataType.STRINGS || 
+         dataType === DataType.ARRAY ||
+         dataType === DataType.INTS ||
+         dataType === DataType.FLOATS ||
+         dataType === DataType.STRUCTS
+}
+
+/**
+ * 获取多选组件的默认数据类型
+ * @returns 默认数据类型（数组类型）
+ */
+export function getMultiSelectDefaultDataType(): string {
+  return DataType.STRINGS
+}
 
 /**
  * Widget 类型别名映射（用于兼容不同的命名）

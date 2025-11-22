@@ -99,6 +99,7 @@ import { selectFuzzy } from '@/api/function'
 import { Logger } from '../../utils/logger'
 import { useFormDataStore } from '../../stores-v2/formData'
 import { ExpressionParser } from '../../utils/ExpressionParser'
+import { isStringDataType, getMultiSelectDefaultDataType } from '../../constants/widget'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -166,7 +167,7 @@ const shouldKeepOpen = ref(false)
 
 // 字段数据类型（用于决定提交格式）
 const fieldDataType = computed(() => {
-  return props.field.data?.type || '[]string'
+  return props.field.data?.type || getMultiSelectDefaultDataType()
 })
 
 // 选中的值（数组）
@@ -211,7 +212,7 @@ const selectedValues = computed({
     // 如果 type 是 string，提交逗号分隔的字符串；否则提交数组
     let rawValue: any
     const dataType = fieldDataType.value
-    if (dataType === 'string') {
+    if (isStringDataType(dataType)) {
       // 提交逗号分隔的字符串
       rawValue = finalValues.length > 0 ? finalValues.join(',') : ''
     } else {
@@ -336,7 +337,7 @@ async function handleSearch(query: string | any[], isByValue = false): Promise<v
       type: queryType,
       value: query,
       request: props.formRenderer?.getSubmitData?.() || {},
-      value_type: props.field.data?.type || '[]string'
+      value_type: props.field.data?.type || getMultiSelectDefaultDataType()
     }
 
     const response = await selectFuzzy(method || 'POST', router, requestBody)
