@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -100,12 +101,28 @@ func getOrInitDB(dbName string) (*gorm.DB, error) {
 		return nil, err
 	}
 
+	// 🔥 创建日志文件，使用数据库文件名来命名日志文件
+	// 例如：luobei_demo_crm_ticket.db -> luobei_demo_crm_ticket.log
+	logFileName := strings.TrimSuffix(filepath.Base(dbName), ".db") + ".log"
+	logFilePath := filepath.Join(dataDir, logFileName)
+	
+	// 打开日志文件（追加模式）
+	logFile, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		logger.Errorf(context.Background(), "打开日志文件失败 %s: %v", logFilePath, err)
+		// 如果打开日志文件失败，使用标准输出作为降级方案
+		logFile = os.Stdout
+	}
+
+	// 🔥 创建多写入器，同时写入文件和控制台
+	multiWriter := io.MultiWriter(logFile, os.Stdout)
+
 	// 设置GORM日志配置
 	gormLogger := gormLogger.New(
-		log.New(os.Stdout, "\r\n", log.LstdFlags),
+		log.New(multiWriter, "\r\n", log.LstdFlags),
 		gormLogger.Config{
 			SlowThreshold:             200 * time.Millisecond,
-			LogLevel:                  gormLogger.Warn,
+			LogLevel:                  gormLogger.Info, // 🔥 改为 Info 级别，记录所有 SQL 语句
 			IgnoreRecordNotFoundError: true,
 			Colorful:                  false,
 		},
@@ -136,6 +153,10 @@ func getOrInitDB(dbName string) (*gorm.DB, error) {
 	sqlDB.SetMaxOpenConns(5)            // 增加连接数，支持多协程
 	sqlDB.SetMaxIdleConns(2)            // 保持一些空闲连接
 	sqlDB.SetConnMaxLifetime(time.Hour) // 连接最长生命周期
+
+	// 🔥 注意：SQLite 不支持 FIND_IN_SET 函数
+	// 我们已经在 query1.go 中使用 SQLite 兼容的方式（instr 函数）来实现相同功能
+	// 所以不需要在这里注册自定义函数
 
 	// 缓存连接
 	dbs[dbName] = db
@@ -174,3 +195,4 @@ func closeAllDatabases() {
 		logger.Infof(context.Background(), "已关闭 %d 个数据库连接", closedCount)
 	}
 }
+

@@ -146,12 +146,14 @@ export enum WidgetType {
 
 // 搜索类型
 export interface SearchParams {
-  eq?: string      // 精确匹配 eq=id:1
-  like?: string    // 模糊匹配 like=title:xxx
-  gte?: string     // 大于等于 gte=created_at:timestamp
-  lte?: string     // 小于等于 lte=created_at:timestamp
-  sorts?: string   // 排序 sorts=category:asc,price:desc（支持多列排序，格式：field:order,field:order）
-  page?: number    // 页码
+  eq?: string       // 精确匹配 eq=id:1
+  like?: string     // 模糊匹配 like=title:xxx
+  in?: string       // 包含查询 in=status:待处理,处理中
+  contains?: string // 包含查询（用于多选场景，使用 FIND_IN_SET）contains=tags:高,中
+  gte?: string      // 大于等于 gte=created_at:timestamp
+  lte?: string      // 小于等于 lte=created_at:timestamp
+  sorts?: string    // 排序 sorts=category:asc,price:desc（支持多列排序，格式：field:order,field:order）
+  page?: number     // 页码
   page_size?: number // 页大小
 }
 

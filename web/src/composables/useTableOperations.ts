@@ -293,7 +293,7 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
     })
     
     // 🔥 清理 URL 中已存在的搜索参数（如果字段已清空，从 URL 中删除）
-    const searchParamKeys = ['eq', 'like', 'in', 'gte', 'lte']
+    const searchParamKeys = ['eq', 'like', 'in', 'contains', 'gte', 'lte']
     const newQuery: Record<string, string> = {}
     
     // 🔥 先复制所有非搜索参数（分页、排序等）
@@ -389,6 +389,59 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
             }
           }
         }
+      } 
+      // 🔥 必须先检查 contains，再检查 in，因为 "contains" 包含 "in" 子字符串
+      else if (searchType.includes('contains')) {
+        // 🔥 contains 类型：用于多选场景，使用 FIND_IN_SET
+        const containsValue = query.contains
+        if (containsValue) {
+          // 🔥 支持多个字段：使用逗号 , 分隔多个字段，与 in 操作符保持一致
+          // 格式：contains=tags:高,中,otherField:value1,value2（与 in 操作符格式一致）
+          const containsStr = String(containsValue)
+          
+          // 🔥 查找当前字段的部分（field:value1,value2,...）
+          // 需要处理字段值中可能包含逗号的情况
+          const fieldPrefix = `${field.code}:`
+          const fieldIndex = containsStr.indexOf(fieldPrefix)
+          
+          if (fieldIndex >= 0) {
+            // 找到字段开始位置
+            const valueStart = fieldIndex + fieldPrefix.length
+            let valueEnd = containsStr.length
+            
+            // 🔥 查找下一个字段的开始位置（下一个 field: 的位置）
+            // 需要找到所有可能的字段名（从 searchableFields 中获取）
+            const allFieldCodes = searchableFields.value.map(f => f.code)
+            let nextFieldIndex = -1
+            
+            for (const otherFieldCode of allFieldCodes) {
+              if (otherFieldCode === field.code) continue
+              const otherFieldPrefix = `${otherFieldCode}:`
+              const index = containsStr.indexOf(otherFieldPrefix, valueStart)
+              if (index >= 0 && (nextFieldIndex < 0 || index < nextFieldIndex)) {
+                nextFieldIndex = index
+              }
+            }
+            
+            if (nextFieldIndex >= 0) {
+              valueEnd = nextFieldIndex
+            }
+            
+            const valueStr = containsStr.substring(valueStart, valueEnd).trim()
+            
+            if (valueStr) {
+              // 🔥 contains 类型：将逗号分隔的字符串转换为数组（用于多选组件显示）
+              const values = valueStr.split(',').map(v => v.trim()).filter(v => v)
+              // 🔥 多选组件始终使用数组格式
+              if (field.widget?.type === 'multiselect') {
+                searchForm.value[field.code] = values.length > 0 ? values : []
+              } else {
+                // 其他类型：如果只有一个值，保持字符串；多个值使用数组
+                searchForm.value[field.code] = values.length > 1 ? values : (values.length === 1 ? values[0] : valueStr)
+              }
+            }
+          }
+        }
       } else if (searchType.includes('in')) {
         const inValue = query.in
         if (inValue) {
@@ -429,16 +482,16 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
             
               if (valueStr) {
                 // 🔥 in 类型支持多选，需要将逗号分隔的字符串转换为数组
-                // 注意：如果字段是 user 类型且 search 包含 'in'，即使只有一个值也要转换为数组
+                // 注意：如果字段是 user 或 multiselect 类型且 search 包含 'in'，即使只有一个值也要转换为数组
                 const values = valueStr.split(',').map(v => v.trim()).filter(v => v)
-                // 🔥 如果字段是 user 类型，始终使用数组格式（因为 ElSelect 的 multiple 模式需要数组）
-                if (field.widget?.type === 'user' && searchType.includes('in')) {
+                // 🔥 如果字段是 user 或 multiselect 类型，始终使用数组格式（因为 ElSelect 的 multiple 模式需要数组）
+                if ((field.widget?.type === 'user' || field.widget?.type === 'multiselect') && searchType.includes('in')) {
                   searchForm.value[field.code] = values.length > 0 ? values : []
                 } else {
                   // 其他类型：如果只有一个值，保持字符串；多个值使用数组
                   searchForm.value[field.code] = values.length > 1 ? values : (values.length === 1 ? values[0] : valueStr)
+                }
               }
-            }
           }
         }
       } else if (searchType.includes('gte') && searchType.includes('lte')) {

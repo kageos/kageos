@@ -49,6 +49,19 @@ export function buildSearchParamsString(
         result.like = result.like ? `${result.like},${field.code}:${valueStr}` : `${field.code}:${valueStr}`
       }
     }
+    // 🔥 包含查询（用于多选场景，使用 FIND_IN_SET）
+    // 注意：必须先检查 contains，再检查 in，因为 "contains" 包含 "in" 子字符串
+    else if (searchType.includes('contains')) {
+      // 🔥 contains 类型：如果 value 是数组，转换为逗号分隔的字符串
+      // 注意：多个字段之间使用逗号 , 分隔，与 in 操作符保持一致
+      const valueStr = Array.isArray(value) ? value.join(',') : String(value)
+      // 🔥 确保值不为空
+      if (valueStr.trim()) {
+        // 🔥 如果已有 contains 值，使用逗号 , 追加（支持多个字段）
+        // 格式：contains=tags:高,中,otherField:value1,value2（与 in 操作符格式一致）
+        result.contains = result.contains ? `${result.contains},${field.code}:${valueStr}` : `${field.code}:${valueStr}`
+      }
+    }
     // 包含查询
     else if (searchType.includes('in')) {
       // 🔥 in 类型：如果 value 是数组，转换为逗号分隔的字符串
@@ -122,6 +135,19 @@ export function buildURLSearchParams(
       const valueStr = String(value).trim()
       if (valueStr) {
         result.like = result.like ? `${result.like},${field.code}:${valueStr}` : `${field.code}:${valueStr}`
+      }
+    }
+    // 🔥 包含查询（用于多选场景，使用 FIND_IN_SET）
+    // 注意：必须先检查 contains，再检查 in，因为 "contains" 包含 "in" 子字符串
+    else if (searchType.includes('contains')) {
+      // 🔥 contains 类型：如果 value 是数组，转换为逗号分隔的字符串
+      // 注意：多个字段之间使用逗号 , 分隔，与 in 操作符保持一致
+      const valueStr = Array.isArray(value) ? value.join(',') : String(value)
+      // 🔥 确保值不为空
+      if (valueStr.trim()) {
+        // 🔥 如果已有 contains 值，使用逗号 , 追加（支持多个字段）
+        // 格式：contains=tags:高,中,otherField:value1,value2（与 in 操作符格式一致）
+        result.contains = result.contains ? `${result.contains},${field.code}:${valueStr}` : `${field.code}:${valueStr}`
       }
     }
     // 包含查询
