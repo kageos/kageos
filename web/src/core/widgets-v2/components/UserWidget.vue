@@ -61,159 +61,27 @@
       </el-select>
     </div>
     
-    <!-- 响应模式（点击头像显示卡片，点击名称复制） -->
-    <span v-else-if="mode === 'response'" class="user-display">
-      <el-popover
-        placement="top"
-        :width="280"
-        :trigger="[]"
-        popper-class="user-info-popover"
-        :teleported="true"
-        v-model:visible="showPopover"
-        ref="popoverRef"
-      >
-        <template #reference>
-          <el-avatar 
-            v-if="userInfo" 
-            :src="userInfo.avatar" 
-            :size="24" 
-            class="user-avatar user-avatar-clickable"
-            @click="handleAvatarClick"
-          >
-            {{ userInfo.username?.[0]?.toUpperCase() || 'U' }}
-          </el-avatar>
-          <el-avatar 
-            v-else 
-            :size="24" 
-            class="user-avatar user-avatar-clickable"
-            @click="handleAvatarClick"
-          >
-            {{ displayName?.[0]?.toUpperCase() || 'U' }}
-          </el-avatar>
-        </template>
-      <div v-if="userInfo" class="user-info-card">
-        <div class="user-card-header">
-          <el-avatar :src="userInfo.avatar" :size="48" class="user-avatar-large">
-            {{ userInfo.username?.[0]?.toUpperCase() || 'U' }}
-          </el-avatar>
-          <div class="user-card-names">
-            <div class="user-card-primary">{{ displayName }}</div>
-            <div class="user-card-username">@{{ userInfo.username }}</div>
-          </div>
-        </div>
-        <div class="user-card-content">
-          <div v-if="userInfo.email" class="user-card-item">
-            <span class="user-card-label">邮箱：</span>
-            <span class="user-card-value">{{ userInfo.email }}</span>
-          </div>
-          <div v-if="userInfo.nickname" class="user-card-item">
-            <span class="user-card-label">昵称：</span>
-            <span class="user-card-value">{{ userInfo.nickname }}</span>
-          </div>
-          <div v-if="userInfo.signature" class="user-card-item">
-            <span class="user-card-label">签名：</span>
-            <span class="user-card-value user-card-signature">{{ userInfo.signature }}</span>
-          </div>
-          <div class="user-card-item">
-            <span class="user-card-label">用户名：</span>
-            <span class="user-card-value">{{ userInfo.username }}</span>
-          </div>
-        </div>
-        <div class="user-card-footer">
-          <el-button size="small" type="primary" @click="handleCopyUserInfo">点击复制</el-button>
-        </div>
-      </div>
-      <div v-else class="user-info-card">
-        <div class="user-card-content">
-          <div class="user-card-item">
-            <span class="user-card-label">用户名：</span>
-            <span class="user-card-value">{{ displayName }}</span>
-          </div>
-        </div>
-      </div>
-      </el-popover>
-      <span 
-        class="user-name user-name-clickable" 
-        @click="handleCopyName"
-      >{{ displayName }}</span>
-    </span>
+    <!-- 响应模式（使用 UserDisplay 组件） -->
+    <UserDisplay
+      v-else-if="mode === 'response'"
+      :user-info="userInfo"
+      :username="value?.raw"
+      mode="card"
+      layout="horizontal"
+      size="small"
+      :user-info-map="userInfoMap"
+    />
     
-    <!-- 表格单元格模式（点击头像显示卡片，点击名称复制） -->
-    <span v-else-if="mode === 'table-cell'" class="user-cell">
-      <el-popover
-        placement="top"
-        :width="280"
-        :trigger="[]"
-        popper-class="user-info-popover"
-        :teleported="true"
-        v-model:visible="showPopover"
-        ref="popoverRef"
-      >
-        <template #reference>
-          <el-avatar 
-            v-if="userInfo" 
-            :src="userInfo.avatar" 
-            :size="24" 
-            class="user-avatar user-avatar-clickable"
-            @click="handleAvatarClick"
-          >
-            {{ userInfo.username?.[0]?.toUpperCase() || 'U' }}
-          </el-avatar>
-          <el-avatar 
-            v-else 
-            :size="24" 
-            class="user-avatar user-avatar-clickable"
-            @click="handleAvatarClick"
-          >
-            {{ displayName?.[0]?.toUpperCase() || 'U' }}
-          </el-avatar>
-        </template>
-        <div v-if="userInfo" class="user-info-card">
-          <div class="user-card-header">
-            <el-avatar :src="userInfo.avatar" :size="48" class="user-avatar-large">
-              {{ userInfo.username?.[0]?.toUpperCase() || 'U' }}
-            </el-avatar>
-            <div class="user-card-names">
-              <div class="user-card-primary">{{ displayName }}</div>
-              <div class="user-card-username">@{{ userInfo.username }}</div>
-            </div>
-          </div>
-          <div class="user-card-content">
-            <div v-if="userInfo.email" class="user-card-item">
-              <span class="user-card-label">邮箱：</span>
-              <span class="user-card-value">{{ userInfo.email }}</span>
-            </div>
-            <div v-if="userInfo.nickname" class="user-card-item">
-              <span class="user-card-label">昵称：</span>
-              <span class="user-card-value">{{ userInfo.nickname }}</span>
-            </div>
-            <div v-if="userInfo.signature" class="user-card-item">
-              <span class="user-card-label">签名：</span>
-              <span class="user-card-value user-card-signature">{{ userInfo.signature }}</span>
-            </div>
-            <div class="user-card-item">
-              <span class="user-card-label">用户名：</span>
-              <span class="user-card-value">{{ userInfo.username }}</span>
-            </div>
-          </div>
-          <div class="user-card-footer">
-            <el-button size="small" type="primary" @click="handleCopyUserInfo">点击复制</el-button>
-          </div>
-        </div>
-        <div v-else class="user-info-card">
-          <div class="user-card-content">
-            <div class="user-card-item">
-              <span class="user-card-label">用户名：</span>
-              <span class="user-card-value">{{ displayName }}</span>
-            </div>
-        </div>
-      </div>
-      </el-popover>
-      <span 
-        class="user-name user-name-clickable" 
-        @click="handleCopyName"
-      >{{ displayName }}</span>
-    </span>
+    <!-- 表格单元格模式（使用 UserDisplay 组件） -->
+    <UserDisplay
+      v-else-if="mode === 'table-cell'"
+      :user-info="userInfo"
+      :username="value?.raw"
+      mode="card"
+      layout="horizontal"
+      size="small"
+      :user-info-map="userInfoMap"
+    />
     
     <!-- 详情模式（点击头像显示卡片，点击名称复制） -->
     <div v-else-if="mode === 'detail'" class="user-detail">
@@ -295,6 +163,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
+import UserDisplay from './UserDisplay.vue'
 import { ElSelect, ElOption, ElAvatar, ElPopover, ElButton, ElMessage } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useFormDataStore } from '../../stores-v2/formData'

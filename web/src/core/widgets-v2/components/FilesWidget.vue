@@ -285,34 +285,16 @@
               :class="{ 'file-clickable': canPreviewInBrowser(file) }"
               @click="canPreviewInBrowser(file) ? handlePreviewInNewWindow(file) : null"
             >
-              <!-- 🔥 文件上传用户信息（左侧显示） -->
+              <!-- 🔥 文件上传用户信息（左侧显示，使用 UserDisplay 组件） -->
               <div v-if="file.upload_user" class="file-upload-user">
-                <el-avatar
-                  v-if="getFileUploadUserInfo(file)"
-                  :src="getFileUploadUserInfo(file)?.avatar"
+                <UserDisplay
+                  :user-info="getFileUploadUserInfo(file)"
+                  :username="file.upload_user"
+                  mode="simple"
+                  layout="vertical"
                   :size="24"
-                  class="file-upload-user-avatar"
-                >
-                  {{ getFileUploadUserInfo(file)?.username?.[0]?.toUpperCase() || 'U' }}
-                </el-avatar>
-                <el-avatar
-                  v-else
-                  :size="24"
-                  class="file-upload-user-avatar"
-                >
-                  {{ file.upload_user[0]?.toUpperCase() || 'U' }}
-                </el-avatar>
-                <span class="file-upload-user-name">
-                  <template v-if="getFileUploadUserInfo(file)">
-                    {{ getFileUploadUserInfo(file)?.nickname 
-                      ? `${getFileUploadUserInfo(file)?.username}(${getFileUploadUserInfo(file)?.nickname})` 
-                      : (getFileUploadUserInfo(file)?.username || file.upload_user) }}
-                  </template>
-                  <template v-else>
-                    <!-- 如果用户信息未加载，至少显示用户名 -->
-                    {{ file.upload_user }}
-                  </template>
-                </span>
+                  :user-info-map="userInfoMap"
+                />
               </div>
 
               <!-- 文件图标/缩略图（60x60px） -->
@@ -512,6 +494,7 @@ import { useUserInfoStore } from '@/stores/userInfo'
 import { isCacheExpired } from '@/stores/userInfo/utils'
 import { Logger } from '../../utils/logger'
 import { formatTimestamp } from '@/utils/date'
+import UserDisplay from './UserDisplay.vue'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -1853,33 +1836,11 @@ function handleFileChange(file: any): void {
   flex-shrink: 0;
 }
 
-/* 🔥 文件上传用户信息（右侧显示） */
+/* 🔥 文件上传用户信息（左侧显示，使用 UserDisplay 组件） */
 .file-upload-user {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
   flex-shrink: 0;
   margin-right: 12px;
   min-width: 80px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-.file-upload-user-avatar {
-  flex-shrink: 0;
-}
-
-.file-upload-user-name {
-  font-size: 12px;
-  color: var(--el-text-color-primary);
-  white-space: nowrap;
-  text-align: center;
-  max-width: 80px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  line-height: 1.2;
-  display: block;
 }
 
 /* 操作按钮 */
