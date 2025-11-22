@@ -1346,6 +1346,18 @@ onUnmounted(() => {
     color: var(--el-text-color-primary);
   }
 
+  .drawer-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .drawer-mode-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
   .drawer-navigation {
     display: flex;
     align-items: center;
