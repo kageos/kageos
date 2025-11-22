@@ -157,7 +157,7 @@ const avatarSize = computed(() => {
     medium: 32,
     large: 48,
   }
-  return sizeMap[props.size]
+  return sizeMap[props.size as 'small' | 'medium' | 'large']
 })
 
 // 计算尺寸类名
