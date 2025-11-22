@@ -483,8 +483,8 @@ const dataFields = computed(() => {
  * 根据是否有删除回调动态计算宽度
  */
 const getActionColumnWidth = (): number => {
-  let width = 80  // 基础宽度
-  if (hasDeleteCallback.value) width += 60
+  let width = 60  // 基础宽度（减小）
+  if (hasDeleteCallback.value) width += 50  // 删除按钮宽度（减小）
   return width
 }
 
