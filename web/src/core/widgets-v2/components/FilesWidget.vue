@@ -270,9 +270,8 @@
         </div>
         <div v-else class="empty-files">暂无文件</div>
 
-        <!-- 备注（只读显示） -->
+        <!-- 备注（只读显示，作为文件列表的补充说明） -->
         <div v-if="remark" class="files-remark">
-          <div class="section-title">备注</div>
           <div class="remark-content">{{ remark }}</div>
         </div>
       </div>
