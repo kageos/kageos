@@ -2,7 +2,7 @@
   <div class="search-input">
     <!-- 🔥 用户搜索组件（自定义组件） -->
     <UserSearchInput
-      v-if="inputConfig.component === 'UserSearchInput'"
+      v-if="inputConfig.component === SearchComponent.USER_SEARCH_INPUT"
       v-model="localValue"
       :placeholder="inputConfig.props?.placeholder"
       :multiple="inputConfig.props?.multiple"
@@ -11,7 +11,7 @@
 
     <!-- 🔥 精确搜索 / 模糊搜索 -->
     <el-input
-      v-else-if="inputConfig.component === 'ElInput'"
+      v-else-if="inputConfig.component === SearchComponent.EL_INPUT"
       v-model="localValue"
       :placeholder="inputConfig.props?.placeholder"
       :clearable="inputConfig.props?.clearable"
@@ -23,7 +23,7 @@
 
     <!-- 🔥 下拉选择 -->
     <el-select
-      v-else-if="inputConfig.component === 'ElSelect'"
+      v-else-if="inputConfig.component === SearchComponent.EL_SELECT"
       v-model="localValue"
       :placeholder="inputConfig.props?.placeholder"
       :clearable="inputConfig.props?.clearable"
@@ -35,7 +35,7 @@
       :popper-class="inputConfig.props?.popperClass"
       :style="inputConfig.props?.style"
       :collapse-tags="inputConfig.props?.multiple"
-      :max-collapse-tags="3"
+      :max-collapse-tags="SearchConfig.MAX_COLLAPSE_TAGS"
       :reserve-keyword="inputConfig.props?.remote && inputConfig.props?.multiple"
       class="user-select-search"
       @change="handleInput"
@@ -89,7 +89,7 @@
     </el-select>
 
     <!-- 🔥 数字范围输入 -->
-    <div v-else-if="inputConfig.component === 'NumberRangeInput'" class="number-range">
+    <div v-else-if="inputConfig.component === SearchComponent.NUMBER_RANGE_INPUT" class="number-range">
       <el-input-number
         v-model="rangeValue.min"
         :placeholder="inputConfig.props?.minPlaceholder"
@@ -99,7 +99,7 @@
         :max="inputConfig.props?.max"
         :clearable="true"
         :controls-position="'right'"
-        :style="{ width: '160px' }"
+        :style="{ width: SearchConfig.DEFAULT_NUMBER_RANGE_WIDTH }"
         @change="handleRangeChange"
       />
       <span class="range-separator">至</span>
@@ -112,14 +112,14 @@
         :max="inputConfig.props?.max"
         :clearable="true"
         :controls-position="'right'"
-        :style="{ width: '160px' }"
+        :style="{ width: SearchConfig.DEFAULT_NUMBER_RANGE_WIDTH }"
         @change="handleRangeChange"
       />
     </div>
 
     <!-- 🔥 日期范围选择 -->
     <el-date-picker
-      v-else-if="inputConfig.component === 'ElDatePicker'"
+      v-else-if="inputConfig.component === SearchComponent.EL_DATE_PICKER"
       v-model="dateRangeValue"
       :type="inputConfig.props?.type"
       :range-separator="inputConfig.props?.rangeSeparator"
@@ -135,12 +135,12 @@
     />
 
     <!-- 🔥 文本范围输入（默认降级） -->
-    <div v-else-if="inputConfig.component === 'RangeInput'" class="text-range">
+    <div v-else-if="inputConfig.component === SearchComponent.RANGE_INPUT" class="text-range">
       <el-input
         v-model="rangeValue.min"
         :placeholder="inputConfig.props?.minPlaceholder"
         clearable
-        style="width: 160px"
+        :style="{ width: SearchConfig.DEFAULT_NUMBER_RANGE_WIDTH }"
         @input="handleRangeChange"
       />
       <span class="range-separator">至</span>
@@ -148,7 +148,7 @@
         v-model="rangeValue.max"
         :placeholder="inputConfig.props?.maxPlaceholder"
         clearable
-        style="width: 160px"
+        :style="{ width: SearchConfig.DEFAULT_NUMBER_RANGE_WIDTH }"
         @input="handleRangeChange"
       />
     </div>
@@ -163,6 +163,11 @@ import UserSearchInput from './UserSearchInput.vue'
 import { widgetComponentFactory } from '@/core/factories-v2'
 import { ErrorHandler } from '@/core/utils/ErrorHandler'
 import { convertToFieldValue } from '@/utils/field'
+import { normalizeSearchValue, denormalizeSearchValue } from '@/utils/searchValueNormalizer'
+import { createSearchComponentConfig } from '@/utils/searchComponentConfig'
+import { SearchConfig, SearchComponent, SearchType } from '@/core/constants/search'
+import { WidgetType } from '@/core/constants/widget'
+import { parseCommaSeparatedString } from '@/utils/stringUtils'
 import type { FieldConfig } from '@/types'
 
 // 防抖函数
@@ -230,7 +235,7 @@ const getUserInfoByValue = (value: any): any => {
 
 // 🔥 提取下拉选项（兼容静态 options 和 remote 模式）
 const selectOptionsComputed = computed(() => {
-  if (inputConfig.value.component !== 'ElSelect') {
+  if (inputConfig.value.component !== SearchComponent.EL_SELECT) {
     return []
   }
   // 如果有静态 options，使用静态 options
@@ -247,7 +252,7 @@ const selectOptionsComputed = computed(() => {
 
 // 🔥 处理 remote-method（如果有）
 const handleRemoteMethod = async (query: string) => {
-  if (inputConfig.value.component !== 'ElSelect' || !inputConfig.value.onRemoteMethod) {
+  if (inputConfig.value.component !== SearchComponent.EL_SELECT || !inputConfig.value.onRemoteMethod) {
     return
   }
   
@@ -265,7 +270,7 @@ const handleRemoteMethod = async (query: string) => {
 
 // 🔥 初始化已选中的值对应的选项（用于 remote 模式回显）
 const initSelectedOptions = async () => {
-  if (inputConfig.value.component !== 'ElSelect') {
+  if (inputConfig.value.component !== SearchComponent.EL_SELECT) {
     return
   }
   
@@ -350,364 +355,42 @@ const initSelectedOptions = async () => {
  * 注意：v2 组件支持 mode="search"，但 SearchInput 需要配置对象
  * 所以这里创建一个适配层，根据 v2 的思路生成配置
  */
+/**
+ * 生成搜索组件配置
+ * 🔥 使用工具函数统一生成配置，遵循单一职责原则
+ */
 const inputConfig = computed(() => {
   try {
-    const widgetType = props.field.widget?.type || 'input'
-    const widgetConfig = props.field.widget?.config || {}
-    const searchType = props.searchType
-    
-    // 🔥 从 widget.config.options 获取选项（兼容字符串数组和对象数组）
-    const getWidgetOptions = (): Array<{ label: string; value: any }> => {
-      const opts = widgetConfig.options || []
-      console.log(`[SearchInput] ${props.field.code} getWidgetOptions - widgetConfig:`, widgetConfig)
-      console.log(`[SearchInput] ${props.field.code} getWidgetOptions - opts:`, opts)
-      if (opts.length === 0) {
-        console.warn(`[SearchInput] ${props.field.code} getWidgetOptions - 选项为空`)
-        return []
-      }
-      // 兼容字符串数组和对象数组
-      let result: Array<{ label: string; value: any }>
-      if (typeof opts[0] === 'string') {
-        result = opts.map((opt: string) => ({ label: opt, value: opt }))
-      } else {
-        result = opts.map((opt: any) => {
-          if (typeof opt === 'object' && opt !== null) {
-            return { label: opt.label || opt.value || String(opt), value: opt.value || opt }
-          }
-          return { label: String(opt), value: opt }
-        })
-      }
-      console.log(`[SearchInput] ${props.field.code} getWidgetOptions - result:`, result)
-      return result
-    }
-    
-    // 🔥 用户组件：根据 searchType 决定使用 UserSearchInput 还是 ElSelect
-    if (widgetType === 'user') {
-      // 如果 search 标签是 "in" 或 "eq"，使用自定义的用户搜索组件
-      if (searchType.includes('in') || searchType.includes('eq')) {
-        return {
-          component: 'UserSearchInput',
-          props: {
-            placeholder: `搜索${props.field.name}`,
-            multiple: searchType.includes('in') // in 支持多选
-          }
-        }
-      }
-      
-      // 如果 search 标签是 "like"，渲染普通文本输入框
-      if (searchType.includes('like')) {
-        return {
-          component: 'ElInput',
-          props: {
-            placeholder: `请输入${props.field.name}`,
-            clearable: true,
-            style: { width: '200px' }
-          }
-        }
-      }
-      
-      // 默认：使用精确搜索（eq），渲染用户选择器
-      return {
-        component: 'ElSelect',
-        props: {
-          placeholder: `请选择${props.field.name}`,
-          clearable: true,
-          filterable: true,
-          remote: true,
-          style: { width: '200px' }
-        },
-        onRemoteMethod: async (query: string) => {
-          if (!query || query.trim() === '') {
-            return []
-          }
-          
-          try {
-            const { searchUsersFuzzy } = await import('@/api/user')
-            const response = await searchUsersFuzzy(query.trim(), 20)
-            const users = response.users || []
-            
-            return users.map((user: any) => ({
-              label: user.nickname ? `${user.username}(${user.nickname})` : user.username,
-              value: user.username
-            }))
-          } catch (error) {
-            console.error('[SearchInput] 搜索用户失败', error)
-            return []
-          }
-        }
-      }
-    }
-    
-    // 🔥 时间戳组件：根据 searchType 决定使用日期范围还是单个日期
-    if (widgetType === 'timestamp') {
-      // 范围搜索（gte/lte）
-      if (searchType.includes('gte') && searchType.includes('lte')) {
-        return {
-          component: 'ElDatePicker',
-          props: {
-            type: 'datetimerange',
-            rangeSeparator: '至',
-            startPlaceholder: `开始${props.field.name}`,
-            endPlaceholder: `结束${props.field.name}`,
-            format: 'YYYY-MM-DD HH:mm:ss',
-            valueFormat: 'x', // 毫秒级时间戳格式
-            clearable: true,
-            style: { width: '400px' },
-            shortcuts: [
-              { text: '今天', value: () => {
-                const start = new Date()
-                start.setHours(0, 0, 0, 0)
-                const end = new Date()
-                end.setHours(23, 59, 59, 999)
-                return [start.getTime(), end.getTime()] // 🔥 毫秒级时间戳
-              }},
-              { text: '昨天', value: () => {
-                const start = new Date()
-                start.setDate(start.getDate() - 1)
-                start.setHours(0, 0, 0, 0)
-                const end = new Date()
-                end.setDate(end.getDate() - 1)
-                end.setHours(23, 59, 59, 999)
-                return [start.getTime(), end.getTime()] // 🔥 毫秒级时间戳
-              }},
-              { text: '最近7天', value: () => {
-                const end = new Date()
-                end.setHours(23, 59, 59, 999)
-                const start = new Date()
-                start.setDate(start.getDate() - 6)
-                start.setHours(0, 0, 0, 0)
-                return [start.getTime(), end.getTime()] // 🔥 毫秒级时间戳
-              }},
-              { text: '最近30天', value: () => {
-                const end = new Date()
-                end.setHours(23, 59, 59, 999)
-                const start = new Date()
-                start.setDate(start.getDate() - 29)
-                start.setHours(0, 0, 0, 0)
-                return [start.getTime(), end.getTime()] // 🔥 毫秒级时间戳
-              }}
-            ]
-          }
-        }
-      }
-      
-      // 单个日期搜索
-      return {
-        component: 'ElDatePicker',
-        props: {
-          type: 'datetime',
-          placeholder: `请选择${props.field.name}`,
-          format: 'YYYY-MM-DD HH:mm:ss',
-          valueFormat: 'X', // 时间戳格式
-          clearable: true,
-          style: { width: '200px' }
-        }
-      }
-    }
-    
-    // 🔥 数字组件：根据 searchType 决定使用范围输入还是单个输入
-    if (widgetType === 'number' || widgetType === 'float') {
-      // 范围搜索（gte/lte）
-      if (searchType.includes('gte') && searchType.includes('lte')) {
-        const precision = widgetType === 'float' ? 2 : 0
-        return {
-          component: 'NumberRangeInput',
-          props: {
-            minPlaceholder: `最小${props.field.name}`,
-            maxPlaceholder: `最大${props.field.name}`,
-            precision: precision,
-            step: widgetType === 'float' ? 0.01 : 1,
-            min: undefined,
-            max: undefined
-          }
-        }
-      }
-      
-      // 单个数字搜索
-      return {
-        component: 'ElInput',
-        props: {
-          placeholder: `请输入${props.field.name}`,
-          clearable: true,
-          style: { width: '200px' }
-        }
-      }
-    }
-    
-    // 🔥 选择组件：根据 searchType 决定使用多选还是单选
-    if (widgetType === 'select') {
-      // 多选搜索（in）
-      if (searchType.includes('in')) {
-        return {
-          component: 'ElSelect',
-          props: {
-            placeholder: `请选择${props.field.name}`,
-            clearable: true,
-            filterable: true,
-            multiple: true,
-            style: { width: '200px' },
-            collapseTags: true,
-            maxCollapseTags: 3,
-            // 🔥 从 widget.config.options 获取静态选项，放在 props 中
-            options: getWidgetOptions()
-          },
-          // 如果有回调，使用回调获取选项
-          // 🔥 搜索场景下，如果有回调但缺少 method/router，使用静态选项
-          // 注意：搜索场景通常不需要调用 selectFuzzy，因为搜索栏的 select 使用静态选项
-          onRemoteMethod: undefined // 搜索场景不使用远程方法
-        }
-      }
-      
-      // 单选搜索（eq）
-      return {
-        component: 'ElSelect',
-        props: {
-          placeholder: `请选择${props.field.name}`,
-          clearable: true,
-          filterable: true,
-          style: { width: '200px' },
-          // 🔥 从 widget.config.options 获取静态选项，放在 props 中
-          options: getWidgetOptions()
-        },
-        // 🔥 搜索场景下，如果有回调但缺少 method/router，使用静态选项
-        // 注意：搜索场景通常不需要调用 selectFuzzy，因为搜索栏的 select 使用静态选项
-        onRemoteMethod: undefined // 搜索场景不使用远程方法
-      }
-    }
-    
-    // 🔥 多选组件：使用多选下拉
-    // 注意：多选组件应该使用 contains 搜索类型（使用 FIND_IN_SET），而不是 like
-    if (widgetType === 'multiselect') {
-      return {
-        component: 'ElSelect',
-        props: {
-          placeholder: `请选择${props.field.name}`,
-          clearable: true,
-          filterable: true,
-          multiple: true,
-          style: { width: '200px' },
-          collapseTags: true,
-          maxCollapseTags: 3,
-          // 🔥 从 widget.config.options 获取静态选项，放在 props 中
-          options: getWidgetOptions()
-        },
-        // 🔥 搜索场景下，如果有回调但缺少 method/router，使用静态选项
-        // 注意：搜索场景通常不需要调用 selectFuzzy，因为搜索栏的 select 使用静态选项
-        onRemoteMethod: undefined // 搜索场景不使用远程方法
-      }
-    }
-    
-    // 🔥 开关组件：使用下拉选择（是/否）
-    // 开关组件通常使用 eq 搜索类型（精确匹配）
-    if (widgetType === 'switch') {
-      // 从配置中获取激活文本和非激活文本
-      const activeText = widgetConfig.activeText || '是'
-      const inactiveText = widgetConfig.inactiveText || '否'
-      
-      return {
-        component: 'ElSelect',
-        props: {
-          placeholder: `请选择${props.field.name}`,
-          clearable: true,
-          style: { width: '200px' },
-          options: [
-            { label: activeText, value: true },
-            { label: inactiveText, value: false }
-          ]
-        }
-      }
-    }
-    
-    // 🔥 文本范围搜索（gte/lte，用于文本类型）
-    if (searchType.includes('gte') && searchType.includes('lte')) {
-      return {
-        component: 'RangeInput',
-        props: {
-          minPlaceholder: `最小${props.field.name}`,
-          maxPlaceholder: `最大${props.field.name}`
-        }
-      }
-    }
-    
-    // 🔥 多选搜索（in，用于文本类型，但不包括 multiselect 组件）
-    // 注意：multiselect 组件只支持 contains，不在这里处理
-    if (searchType.includes('in') && widgetType !== 'multiselect') {
-      return {
-        component: 'ElSelect',
-        props: {
-          placeholder: `请选择${props.field.name}`,
-          clearable: true,
-          filterable: true,
-          multiple: true,
-          style: { width: '200px' },
-          collapseTags: true,
-          maxCollapseTags: 3
-        }
-      }
-    }
-    
-    // 🔥 默认：普通文本输入框（精确搜索 eq 或模糊搜索 like）
-    return {
-      component: 'ElInput',
-      props: {
-        placeholder: `请输入${props.field.name}`,
-        clearable: true,
-        style: { width: '200px' }
-      }
-    }
+    return createSearchComponentConfig(props.field, props.searchType)
   } catch (error) {
     // ✅ 使用 ErrorHandler 统一处理错误
     return ErrorHandler.handleWidgetError('SearchInput.inputConfig', error, {
       showMessage: false,
       fallbackValue: {
-        component: 'ElInput',
+        component: SearchComponent.EL_INPUT,
         props: {
           placeholder: `请输入${props.field.name}`,
           clearable: true,
-          style: { width: '200px' }
+          style: { width: SearchConfig.DEFAULT_INPUT_WIDTH }
         }
       }
     })
   }
 })
 
-// 处理单值输入（带防抖，实时同步URL）
+/**
+ * 处理单值输入（带防抖，实时同步URL）
+ * 🔥 使用值规范化工具统一处理值转换
+ */
 const handleInputDebounced = debounce((value: any) => {
-  // 🔥 清空时 value 可能是 null、undefined 或空字符串，统一转换为 null
-  let normalizedValue: any = (value === '' || value === null || value === undefined) ? null : value
-  
-  // 🔥 开关组件：将布尔值转换为字符串（true -> "true", false -> "false"）
-  // 后端 eq 查询需要字符串格式
-  const isSwitchWidget = props.field.widget?.type === 'switch'
-  if (isSwitchWidget && normalizedValue !== null) {
-    if (typeof normalizedValue === 'boolean') {
-      normalizedValue = String(normalizedValue)
-    } else if (normalizedValue === 'true' || normalizedValue === true || normalizedValue === 1 || normalizedValue === '1') {
-      normalizedValue = 'true'
-    } else if (normalizedValue === 'false' || normalizedValue === false || normalizedValue === 0 || normalizedValue === '0') {
-      normalizedValue = 'false'
-    }
-  }
-  
-  // 🔥 多选组件且搜索类型是 contains：将数组转换为逗号分隔的字符串（用于 FIND_IN_SET 查询）
-  // 注意：多选组件只支持 contains 搜索类型
-  // 注意：直接根据 props 判断，不依赖 inputConfig（因为 inputConfig 可能还没准备好）
-  const isMultiselectContains = props.field.widget?.type === 'multiselect' && props.searchType?.includes('contains')
-  
-  if (isMultiselectContains) {
-    if (Array.isArray(normalizedValue)) {
-      // 数组转换为逗号分隔的字符串
-      normalizedValue = normalizedValue.length > 0 ? normalizedValue.join(',') : null
-    } else if (normalizedValue && typeof normalizedValue === 'string') {
-      // 已经是字符串，保持不变
-    } else {
-      // 其他情况，转换为 null
-      normalizedValue = null
-    }
-  }
+  const normalizedValue = normalizeSearchValue(value, {
+    widgetType: props.field.widget?.type,
+    searchType: props.searchType,
+    field: props.field
+  })
   
   emit('update:modelValue', normalizedValue)
-}, 300)
+}, SearchConfig.DEBOUNCE_DELAY)
 
 const handleInput = (value: any) => {
   // 🔥 标记为内部更新，防止触发 watch
@@ -718,7 +401,7 @@ const handleInput = (value: any) => {
   // 🔥 延迟重置标志，确保 watch 能正确判断（防抖时间 + 一个 tick）
   setTimeout(() => {
     isInternalUpdate.value = false
-  }, 350) // 300ms 防抖 + 50ms 缓冲
+  }, SearchConfig.INTERNAL_UPDATE_DELAY)
 }
 
 // 处理清空事件（ElInput、ElSelect、ElDatePicker 等组件的 clearable）
@@ -757,7 +440,6 @@ const handleDateRangeChange = (value: [number | string | null, number | string |
 watch(() => props.modelValue, (newValue: any, oldValue: any) => {
   // 🔥 如果是内部更新触发的，跳过处理
   if (isInternalUpdate.value) {
-    console.log(`[SearchInput] ${props.field.code} 跳过内部更新`)
     return
   }
   
@@ -765,11 +447,8 @@ watch(() => props.modelValue, (newValue: any, oldValue: any) => {
   const newValueStr = JSON.stringify(newValue)
   const oldValueStr = JSON.stringify(oldValue)
   if (newValueStr === oldValueStr) {
-    console.log(`[SearchInput] ${props.field.code} 值未变化，跳过`)
     return
   }
-  
-  console.log(`[SearchInput] ${props.field.code} modelValue 变化:`, newValue, 'searchType:', props.searchType)
   
   if (props.searchType?.includes('gte') && props.searchType?.includes('lte')) {
     // 🔥 如果是数组格式（时间戳范围），用于 ElDatePicker
@@ -783,7 +462,6 @@ watch(() => props.modelValue, (newValue: any, oldValue: any) => {
         min: newValue[0] || undefined,
         max: newValue[1] || undefined
       }
-      console.log(`[SearchInput] ${props.field.code} 设置日期范围值:`, dateRangeValue.value)
     } else if (newValue && typeof newValue === 'object') {
       // 已经是对象格式（数字范围）
       rangeValue.value = newValue
@@ -796,7 +474,7 @@ watch(() => props.modelValue, (newValue: any, oldValue: any) => {
     // 🔥 对于多选模式（multiple），确保值是数组格式
     // 注意：需要根据 searchType 判断，而不是依赖 inputConfig（因为 inputConfig 可能还没准备好）
     // 注意：多选组件只支持 contains 搜索类型
-    const isMultiselectContains = props.field.widget?.type === 'multiselect' && props.searchType?.includes('contains')
+    const isMultiselectContains = props.field.widget?.type === WidgetType.MULTI_SELECT && props.searchType?.includes(SearchType.CONTAINS)
     
     if (isMultiselectContains) {
       // 多选组件搜索场景（只支持 contains）
@@ -819,7 +497,7 @@ watch(() => props.modelValue, (newValue: any, oldValue: any) => {
       if (currentValueStr !== newValueStr) {
         localValue.value = newLocalValue
       }
-    } else if (inputConfig.value.component === 'ElSelect' && inputConfig.value.props?.multiple) {
+    } else if (inputConfig.value.component === SearchComponent.EL_SELECT && inputConfig.value.props?.multiple) {
       // 其他多选场景（如 user 组件）
       if (newValue === null || newValue === undefined || newValue === '') {
         localValue.value = []
@@ -827,7 +505,7 @@ watch(() => props.modelValue, (newValue: any, oldValue: any) => {
         localValue.value = newValue
       } else if (typeof newValue === 'string') {
         // 字符串转换为数组
-        localValue.value = newValue ? newValue.split(',').map(v => v.trim()).filter(v => v) : []
+        localValue.value = parseCommaSeparatedString(newValue)
       } else {
         localValue.value = [newValue]
       }
@@ -836,7 +514,7 @@ watch(() => props.modelValue, (newValue: any, oldValue: any) => {
     }
     
     // 🔥 当值变化时，如果是 remote 模式的 ElSelect，初始化已选中值的选项
-    if (inputConfig.value.component === 'ElSelect' && 
+    if (inputConfig.value.component === SearchComponent.EL_SELECT && 
         inputConfig.value.props?.remote && 
         localValue.value && 
         (Array.isArray(localValue.value) ? localValue.value.length > 0 : true)) {
@@ -850,7 +528,7 @@ watch(() => props.modelValue, (newValue: any, oldValue: any) => {
 
 // 🔥 监听 inputConfig 变化，初始化已选中值的选项
 watch(() => inputConfig.value, () => {
-  if (inputConfig.value.component === 'ElSelect' && inputConfig.value.props?.remote && localValue.value) {
+  if (inputConfig.value.component === SearchComponent.EL_SELECT && inputConfig.value.props?.remote && localValue.value) {
     initSelectedOptions()
   }
 })
