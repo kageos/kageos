@@ -4,6 +4,14 @@
       <el-card shadow="hover" class="settings-card">
         <template #header>
           <div class="card-header">
+            <el-button
+              link
+              :icon="ArrowLeft"
+              @click="handleBack"
+              class="back-button"
+            >
+              返回
+            </el-button>
             <h2>个人设置</h2>
           </div>
         </template>
@@ -103,6 +111,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElForm } from 'element-plus'
+import { ArrowLeft } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import CommonUpload from '@/components/CommonUpload.vue'
 import type { FormRules } from 'element-plus'
@@ -216,6 +225,11 @@ function handleReset() {
   formRef.value?.clearValidate()
 }
 
+// 返回上一页
+function handleBack() {
+  router.go(-1)
+}
+
 // 组件挂载时初始化
 onMounted(() => {
   // 如果用户未登录，跳转到登录页
@@ -243,11 +257,23 @@ onMounted(() => {
   margin-top: 20px;
 }
 
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.card-header .back-button {
+  margin-left: -8px;
+  padding: 4px 8px;
+}
+
 .card-header h2 {
   margin: 0;
   font-size: 20px;
   font-weight: 600;
   color: var(--el-text-color-primary);
+  flex: 1;
 }
 
 .settings-form {
