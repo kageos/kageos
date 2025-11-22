@@ -64,9 +64,17 @@
     </span>
     
     <!-- 表格单元格模式 -->
-    <span v-else-if="mode === 'table-cell'" class="table-cell-value">
-      {{ displayValue }}
-    </span>
+    <div v-else-if="mode === 'table-cell'" class="table-cell-value">
+      <el-tag
+        v-if="currentOptionColor"
+        :type="isStandardColor(currentOptionColor) ? currentOptionColor : undefined"
+        :color="!isStandardColor(currentOptionColor) ? currentOptionColor : undefined"
+        size="small"
+      >
+        {{ displayValue }}
+      </el-tag>
+      <span v-else>{{ displayValue }}</span>
+    </div>
     
     <!-- 详情模式 -->
     <div v-else-if="mode === 'detail'" class="detail-value">
@@ -96,7 +104,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { ElSelect, ElOption, ElMessage } from 'element-plus'
+import { ElSelect, ElOption, ElMessage, ElTag } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useFormDataStore } from '../../stores-v2/formData'
 import { selectFuzzy } from '@/api/function'
@@ -114,6 +122,32 @@ const formDataStore = useFormDataStore()
 
 // 选项列表
 const options = ref<Array<{ label: string; value: any; disabled?: boolean; displayInfo?: string }>>([])
+
+// 选项颜色配置（从 config 中获取）
+const optionColors = computed(() => {
+  return props.field.widget?.config?.options_colors || []
+})
+
+// 判断是否是标准颜色类型（Element Plus 的 5 种类型）
+function isStandardColor(color: string): boolean {
+  return ['success', 'warning', 'danger', 'info', 'primary'].includes(color)
+}
+
+// 获取当前选中值的颜色
+const currentOptionColor = computed(() => {
+  const rawValue = props.value?.raw
+  if (rawValue === null || rawValue === undefined || rawValue === '') {
+    return null
+  }
+  
+  // 查找当前值在 options 中的索引
+  const optionIndex = options.value.findIndex(opt => opt.value === rawValue)
+  if (optionIndex >= 0 && optionIndex < optionColors.value.length) {
+    return optionColors.value[optionIndex]
+  }
+  
+  return null
+})
 
 // 加载状态
 const loading = ref(false)
