@@ -195,6 +195,9 @@ const emit = defineEmits<Emits>()
 // 本地值（单值）
 const localValue = ref(props.modelValue)
 
+// 🔥 防止循环更新的标志
+const isInternalUpdate = ref(false)
+
 // 日期范围值（用于 ElDatePicker，数组格式 [start, end]）
 const dateRangeValue = ref<[number | string | null, number | string | null] | null>(null)
 
@@ -231,10 +234,14 @@ const selectOptionsComputed = computed(() => {
     return []
   }
   // 如果有静态 options，使用静态 options
-  if (inputConfig.value.props?.options && inputConfig.value.props.options.length > 0) {
-    return inputConfig.value.props.options
+  const staticOptions = inputConfig.value.props?.options
+  console.log(`[SearchInput] ${props.field.code} selectOptionsComputed - inputConfig:`, inputConfig.value)
+  console.log(`[SearchInput] ${props.field.code} selectOptionsComputed - staticOptions:`, staticOptions)
+  if (staticOptions && staticOptions.length > 0) {
+    return staticOptions
   }
   // 否则使用 remote 模式下的动态选项
+  console.log(`[SearchInput] ${props.field.code} selectOptionsComputed - 使用动态选项:`, selectOptions.value)
   return selectOptions.value
 })
 
@@ -346,7 +353,33 @@ const initSelectedOptions = async () => {
 const inputConfig = computed(() => {
   try {
     const widgetType = props.field.widget?.type || 'input'
+    const widgetConfig = props.field.widget?.config || {}
     const searchType = props.searchType
+    
+    // 🔥 从 widget.config.options 获取选项（兼容字符串数组和对象数组）
+    const getWidgetOptions = (): Array<{ label: string; value: any }> => {
+      const opts = widgetConfig.options || []
+      console.log(`[SearchInput] ${props.field.code} getWidgetOptions - widgetConfig:`, widgetConfig)
+      console.log(`[SearchInput] ${props.field.code} getWidgetOptions - opts:`, opts)
+      if (opts.length === 0) {
+        console.warn(`[SearchInput] ${props.field.code} getWidgetOptions - 选项为空`)
+        return []
+      }
+      // 兼容字符串数组和对象数组
+      let result: Array<{ label: string; value: any }>
+      if (typeof opts[0] === 'string') {
+        result = opts.map((opt: string) => ({ label: opt, value: opt }))
+      } else {
+        result = opts.map((opt: any) => {
+          if (typeof opt === 'object' && opt !== null) {
+            return { label: opt.label || opt.value || String(opt), value: opt.value || opt }
+          }
+          return { label: String(opt), value: opt }
+        })
+      }
+      console.log(`[SearchInput] ${props.field.code} getWidgetOptions - result:`, result)
+      return result
+    }
     
     // 🔥 用户组件：根据 searchType 决定使用 UserSearchInput 还是 ElSelect
     if (widgetType === 'user') {
@@ -514,14 +547,14 @@ const inputConfig = computed(() => {
             multiple: true,
             style: { width: '200px' },
             collapseTags: true,
-            maxCollapseTags: 3
+            maxCollapseTags: 3,
+            // 🔥 从 widget.config.options 获取静态选项，放在 props 中
+            options: getWidgetOptions()
           },
           // 如果有回调，使用回调获取选项
           // 🔥 搜索场景下，如果有回调但缺少 method/router，使用静态选项
           // 注意：搜索场景通常不需要调用 selectFuzzy，因为搜索栏的 select 使用静态选项
-          onRemoteMethod: undefined, // 搜索场景不使用远程方法
-          // 如果有静态选项，使用静态选项
-          options: props.field.data?.options || []
+          onRemoteMethod: undefined // 搜索场景不使用远程方法
         }
       }
       
@@ -532,17 +565,18 @@ const inputConfig = computed(() => {
           placeholder: `请选择${props.field.name}`,
           clearable: true,
           filterable: true,
-          style: { width: '200px' }
+          style: { width: '200px' },
+          // 🔥 从 widget.config.options 获取静态选项，放在 props 中
+          options: getWidgetOptions()
         },
         // 🔥 搜索场景下，如果有回调但缺少 method/router，使用静态选项
         // 注意：搜索场景通常不需要调用 selectFuzzy，因为搜索栏的 select 使用静态选项
-        onRemoteMethod: undefined, // 搜索场景不使用远程方法
-        // 如果有静态选项，使用静态选项
-        options: props.field.data?.options || []
+        onRemoteMethod: undefined // 搜索场景不使用远程方法
       }
     }
     
     // 🔥 多选组件：使用多选下拉
+    // 注意：多选组件应该使用 contains 搜索类型（使用 FIND_IN_SET），而不是 like
     if (widgetType === 'multiselect') {
       return {
         component: 'ElSelect',
@@ -553,13 +587,13 @@ const inputConfig = computed(() => {
           multiple: true,
           style: { width: '200px' },
           collapseTags: true,
-          maxCollapseTags: 3
+          maxCollapseTags: 3,
+          // 🔥 从 widget.config.options 获取静态选项，放在 props 中
+          options: getWidgetOptions()
         },
         // 🔥 搜索场景下，如果有回调但缺少 method/router，使用静态选项
         // 注意：搜索场景通常不需要调用 selectFuzzy，因为搜索栏的 select 使用静态选项
-        onRemoteMethod: undefined, // 搜索场景不使用远程方法
-        // 如果有静态选项，使用静态选项
-        options: props.field.data?.options || []
+        onRemoteMethod: undefined // 搜索场景不使用远程方法
       }
     }
     
@@ -574,8 +608,9 @@ const inputConfig = computed(() => {
       }
     }
     
-    // 🔥 多选搜索（in，用于文本类型）
-    if (searchType.includes('in')) {
+    // 🔥 多选搜索（in，用于文本类型，但不包括 multiselect 组件）
+    // 注意：multiselect 组件只支持 contains，不在这里处理
+    if (searchType.includes('in') && widgetType !== 'multiselect') {
       return {
         component: 'ElSelect',
         props: {
@@ -618,14 +653,38 @@ const inputConfig = computed(() => {
 // 处理单值输入（带防抖，实时同步URL）
 const handleInputDebounced = debounce((value: any) => {
   // 🔥 清空时 value 可能是 null、undefined 或空字符串，统一转换为 null
-  const normalizedValue = (value === '' || value === null || value === undefined) ? null : value
+  let normalizedValue: any = (value === '' || value === null || value === undefined) ? null : value
+  
+  // 🔥 多选组件且搜索类型是 contains：将数组转换为逗号分隔的字符串（用于 FIND_IN_SET 查询）
+  // 注意：多选组件只支持 contains 搜索类型
+  // 注意：直接根据 props 判断，不依赖 inputConfig（因为 inputConfig 可能还没准备好）
+  const isMultiselectContains = props.field.widget?.type === 'multiselect' && props.searchType?.includes('contains')
+  
+  if (isMultiselectContains) {
+    if (Array.isArray(normalizedValue)) {
+      // 数组转换为逗号分隔的字符串
+      normalizedValue = normalizedValue.length > 0 ? normalizedValue.join(',') : null
+    } else if (normalizedValue && typeof normalizedValue === 'string') {
+      // 已经是字符串，保持不变
+    } else {
+      // 其他情况，转换为 null
+      normalizedValue = null
+    }
+  }
+  
   emit('update:modelValue', normalizedValue)
 }, 300)
 
 const handleInput = (value: any) => {
+  // 🔥 标记为内部更新，防止触发 watch
+  isInternalUpdate.value = true
   localValue.value = value
   // 🔥 使用防抖，避免频繁更新URL
   handleInputDebounced(value)
+  // 🔥 延迟重置标志，确保 watch 能正确判断（防抖时间 + 一个 tick）
+  setTimeout(() => {
+    isInternalUpdate.value = false
+  }, 350) // 300ms 防抖 + 50ms 缓冲
 }
 
 // 处理清空事件（ElInput、ElSelect、ElDatePicker 等组件的 clearable）
@@ -661,7 +720,21 @@ const handleDateRangeChange = (value: [number | string | null, number | string |
 }
 
 // 监听外部值变化
-watch(() => props.modelValue, (newValue: any) => {
+watch(() => props.modelValue, (newValue: any, oldValue: any) => {
+  // 🔥 如果是内部更新触发的，跳过处理
+  if (isInternalUpdate.value) {
+    console.log(`[SearchInput] ${props.field.code} 跳过内部更新`)
+    return
+  }
+  
+  // 🔥 如果值没有实际变化，跳过处理（避免循环更新）
+  const newValueStr = JSON.stringify(newValue)
+  const oldValueStr = JSON.stringify(oldValue)
+  if (newValueStr === oldValueStr) {
+    console.log(`[SearchInput] ${props.field.code} 值未变化，跳过`)
+    return
+  }
+  
   console.log(`[SearchInput] ${props.field.code} modelValue 变化:`, newValue, 'searchType:', props.searchType)
   
   if (props.searchType?.includes('gte') && props.searchType?.includes('lte')) {
@@ -686,12 +759,53 @@ watch(() => props.modelValue, (newValue: any) => {
       dateRangeValue.value = null
     }
   } else {
-    localValue.value = newValue
+    // 🔥 对于多选模式（multiple），确保值是数组格式
+    // 注意：需要根据 searchType 判断，而不是依赖 inputConfig（因为 inputConfig 可能还没准备好）
+    // 注意：多选组件只支持 contains 搜索类型
+    const isMultiselectContains = props.field.widget?.type === 'multiselect' && props.searchType?.includes('contains')
+    
+    if (isMultiselectContains) {
+      // 多选组件搜索场景（只支持 contains）
+      let newLocalValue: any[] = []
+      if (newValue === null || newValue === undefined || newValue === '') {
+        newLocalValue = []
+      } else if (Array.isArray(newValue)) {
+        newLocalValue = newValue
+      } else if (typeof newValue === 'string') {
+        // 🔥 如果是字符串，可能是逗号分隔的值（用于 contains 搜索），需要转换为数组供 el-select 显示
+        // 多选组件在搜索时使用 contains 条件（FIND_IN_SET），后端存储是逗号分隔的字符串
+        newLocalValue = newValue ? newValue.split(',').map(v => v.trim()).filter(v => v) : []
+      } else {
+        newLocalValue = [newValue]
+      }
+      
+      // 🔥 只有当值真正变化时才更新，避免循环更新
+      const currentValueStr = JSON.stringify(localValue.value)
+      const newValueStr = JSON.stringify(newLocalValue)
+      if (currentValueStr !== newValueStr) {
+        localValue.value = newLocalValue
+      }
+    } else if (inputConfig.value.component === 'ElSelect' && inputConfig.value.props?.multiple) {
+      // 其他多选场景（如 user 组件）
+      if (newValue === null || newValue === undefined || newValue === '') {
+        localValue.value = []
+      } else if (Array.isArray(newValue)) {
+        localValue.value = newValue
+      } else if (typeof newValue === 'string') {
+        // 字符串转换为数组
+        localValue.value = newValue ? newValue.split(',').map(v => v.trim()).filter(v => v) : []
+      } else {
+        localValue.value = [newValue]
+      }
+    } else {
+      localValue.value = newValue
+    }
+    
     // 🔥 当值变化时，如果是 remote 模式的 ElSelect，初始化已选中值的选项
     if (inputConfig.value.component === 'ElSelect' && 
         inputConfig.value.props?.remote && 
-        newValue && 
-        (Array.isArray(newValue) ? newValue.length > 0 : true)) {
+        localValue.value && 
+        (Array.isArray(localValue.value) ? localValue.value.length > 0 : true)) {
       // 延迟执行，确保 inputConfig 已更新
       nextTick(() => {
         initSelectedOptions()

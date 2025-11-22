@@ -26,13 +26,14 @@ type SearchFilterPageReq struct {
 
 	Keyword string `json:"keyword" form:"keyword"`
 	// 查询条件
-	Eq   []string `form:"eq" json:"eq"`     // 格式：field:value
-	Like []string `form:"like" json:"like"` // 格式：field:value
-	In   []string `form:"in" json:"in"`     // 格式：field:value
-	Gt   []string `form:"gt" json:"gt"`     // 格式：field:value
-	Gte  []string `form:"gte" json:"gte"`   // 格式：field:value
-	Lt   []string `form:"lt" json:"lt"`     // 格式：field:value
-	Lte  []string `form:"lte" json:"lte"`   // 格式：field:value
+	Eq       []string `form:"eq" json:"eq"`             // 格式：field:value
+	Like     []string `form:"like" json:"like"`         // 格式：field:value
+	In       []string `form:"in" json:"in"`             // 格式：field:value
+	Contains []string `form:"contains" json:"contains"` // 格式：field:value1,value2（用于多选场景，使用 FIND_IN_SET）
+	Gt       []string `form:"gt" json:"gt"`             // 格式：field:value
+	Gte      []string `form:"gte" json:"gte"`           // 格式：field:value
+	Lt       []string `form:"lt" json:"lt"`             // 格式：field:value
+	Lte      []string `form:"lte" json:"lte"`           // 格式：field:value
 	// 否定查询条件
 	NotEq   []string `form:"not_eq" json:"not_eq"`     // 格式：field:value
 	NotLike []string `form:"not_like" json:"not_like"` // 格式：field:value
@@ -259,6 +260,10 @@ func parseFieldValues(input string) (map[string]string, error) {
 }
 
 // parseInValues 解析IN查询的字段和值
+// 支持两种格式：
+// 1. 单个字段：field:value1,value2
+// 2. 多个字段：field1:value1,value2,field2:value3,value4（使用逗号分隔多个字段，与 in 操作符一致）
+// 注意：通过查找 "field:" 模式来识别字段边界，避免与值中的逗号混淆
 func parseInValues(input string) (map[string][]string, error) {
 	if input == "" {
 		return nil, nil
@@ -266,10 +271,141 @@ func parseInValues(input string) (map[string][]string, error) {
 
 	result := make(map[string][]string)
 
+	// 🔥 向后兼容：如果包含分号，说明是多个字段（旧格式）
+	// 格式：field1:value1,value2;field2:value3,value4
+	if strings.Contains(input, ";") {
+		parts := strings.Split(input, ";")
+		for _, part := range parts {
+			part = strings.TrimSpace(part)
+			if part == "" {
+				continue
+			}
+			// 解析单个字段部分
+			fieldResult, err := parseSingleFieldInValues(part)
+			if err != nil {
+				return nil, err
+			}
+			// 合并到结果中
+			for field, values := range fieldResult {
+				result[field] = append(result[field], values...)
+			}
+		}
+		return result, nil
+	}
+
+	// 🔥 智能解析：通过查找 "field:" 模式来分割多个字段（与 in 操作符一致）
+	// 格式：field1:value1,value2,field2:value3,value4
+	// 通过查找冒号前的内容是否为有效字段名来识别字段边界
+	// 但是，如果只有一个字段，直接使用 parseSingleFieldInValues 更简单高效
+	parts := strings.Split(input, ",")
+
+	// 🔥 先检查是否只有一个字段（格式：field:value1,value2）
+	// 如果第一个部分包含冒号，且冒号前是有效字段名，可能是单个字段
+	if len(parts) > 0 {
+		firstPart := strings.TrimSpace(parts[0])
+		if strings.Contains(firstPart, ":") {
+			colonIndex := strings.Index(firstPart, ":")
+			field := strings.TrimSpace(firstPart[:colonIndex])
+			// 如果第一个部分是有效的字段名，检查后面是否有其他字段
+			if SafeColumn(field) {
+				// 检查后续部分是否包含其他字段（通过查找 "field:" 模式）
+				hasOtherFields := false
+				for i := 1; i < len(parts); i++ {
+					part := strings.TrimSpace(parts[i])
+					if strings.Contains(part, ":") {
+						partColonIndex := strings.Index(part, ":")
+						partField := strings.TrimSpace(part[:partColonIndex])
+						if SafeColumn(partField) {
+							hasOtherFields = true
+							break
+						}
+					}
+				}
+				// 如果没有其他字段，直接使用 parseSingleFieldInValues
+				if !hasOtherFields {
+					return parseSingleFieldInValues(input)
+				}
+			}
+		}
+	}
+
+	// 🔥 多个字段的情况：通过查找 "field:" 模式来分割
+	var currentField string
+	var currentValues []string
+
+	for i, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+
+		// 检查是否包含冒号（可能是新字段的开始）
+		if strings.Contains(part, ":") {
+			// 如果之前有字段，先保存它
+			if currentField != "" && len(currentValues) > 0 {
+				result[currentField] = append(result[currentField], currentValues...)
+				currentValues = []string{}
+			}
+
+			// 解析新字段
+			colonIndex := strings.Index(part, ":")
+			field := strings.TrimSpace(part[:colonIndex])
+			value := strings.TrimSpace(part[colonIndex+1:])
+
+			// 验证字段名是否有效（简单检查：只包含字母、数字、下划线）
+			if SafeColumn(field) {
+				currentField = field
+				if value != "" {
+					currentValues = []string{value}
+				} else {
+					currentValues = []string{}
+				}
+			} else {
+				// 如果不是有效字段名，可能是值的一部分
+				if currentField != "" {
+					currentValues = append(currentValues, part)
+				} else {
+					// 如果没有当前字段，可能是单个字段格式，尝试解析
+					return parseSingleFieldInValues(input)
+				}
+			}
+		} else {
+			// 没有冒号，应该是当前字段的值
+			if currentField != "" {
+				currentValues = append(currentValues, part)
+			} else {
+				// 如果没有当前字段，可能是单个字段格式，尝试解析
+				if i == 0 {
+					// 第一个部分没有冒号，可能是单个字段格式，回退到 parseSingleFieldInValues
+					return parseSingleFieldInValues(input)
+				}
+				return nil, fmt.Errorf("参数格式错误：%s，无法识别字段名", part)
+			}
+		}
+	}
+
+	// 保存最后一个字段
+	if currentField != "" && len(currentValues) > 0 {
+		result[currentField] = append(result[currentField], currentValues...)
+	}
+
+	// 如果成功解析出多个字段，返回结果
+	if len(result) > 0 {
+		return result, nil
+	}
+
+	// 否则，按单个字段格式解析
+	return parseSingleFieldInValues(input)
+}
+
+// parseSingleFieldInValues 解析单个字段的 IN 值
+func parseSingleFieldInValues(input string) (map[string][]string, error) {
+	result := make(map[string][]string)
+
 	// 查找第一个冒号的位置
 	colonIndex := strings.Index(input, ":")
 	if colonIndex == -1 {
-		return nil, fmt.Errorf("参数格式错误：%s，应为 field:value1,value2,value3 格式", input)
+		return nil, fmt.Errorf("参数格式错误：%s，应为 field:value1,value2 格式", input)
 	}
 	// 提取字段名
 	field := strings.TrimSpace(input[:colonIndex])
@@ -418,6 +554,55 @@ func validateAndBuildCondition(db **gorm.DB, inputs []string, operator string, c
 				*db = (*db).Where(SafeColumnName(field)+" NOT IN ?", convertedValues)
 			} else {
 				*db = (*db).Where(SafeColumnName(field)+" NOT IN ?", convertedValues)
+			}
+		}
+		return nil
+	}
+
+	if operator == "contains" {
+		// 🔥 contains 操作符：用于多选场景，使用 MySQL 的 FIND_IN_SET 函数
+		// 格式：field:value1,value2（逗号分隔的多个值）
+		// 生成 SQL: FIND_IN_SET('value1', field) OR FIND_IN_SET('value2', field)
+		allConditions := make(map[string][]string)
+		for _, input := range inputs {
+			conditions, err := parseInValues(input)
+			if err != nil {
+				return err
+			}
+			// 合并相同字段的值
+			for field, values := range conditions {
+				if err := validateField(field, operator, config); err != nil {
+					return err
+				}
+				allConditions[field] = append(allConditions[field], values...)
+			}
+		}
+		// 构建最终的查询条件
+		for field, values := range allConditions {
+			if len(values) == 0 {
+				continue
+			}
+			// 🔥 使用 SQLite 兼容的方式实现 FIND_IN_SET 功能
+			// SQLite 不支持 FIND_IN_SET，使用 LIKE 和边界检查来实现相同功能
+			// 原理：在字段值前后加上逗号，然后检查 ',value,' 是否存在于 ',field_value,'
+			// 例如：',紧急,' LIKE '%,紧急,%' OR ',重要,' LIKE '%,重要,%'
+			// 这样可以精确匹配逗号分隔的值，避免误匹配（如 "高优先级" 不会匹配 "高"）
+			var conditions []string
+			var args []interface{}
+			for _, value := range values {
+				value = strings.TrimSpace(value)
+				if value != "" {
+					// SQLite 兼容方式：使用 LIKE 和边界检查
+					// (',' || field || ',' LIKE '%,' || ? || ',%')
+					// 或者使用 instr 函数：instr(',' || field || ',', ',' || ? || ',') > 0
+					// 使用 instr 更高效
+					conditions = append(conditions, "instr(',' || "+SafeColumnName(field)+" || ',', ',' || ? || ',') > 0")
+					args = append(args, value)
+				}
+			}
+			if len(conditions) > 0 {
+				query := "(" + strings.Join(conditions, " OR ") + ")"
+				*db = (*db).Where(query, args...)
 			}
 		}
 		return nil
@@ -682,6 +867,11 @@ func buildWhereConditions(db **gorm.DB, pageInfo *SearchFilterPageReq, configs .
 		return err
 	}
 
+	// 验证并构建CONTAINS查询条件（用于多选场景）
+	if err := validateAndBuildCondition(db, pageInfo.Contains, "contains", config); err != nil {
+		return err
+	}
+
 	// 验证并构建大于条件
 	if err := validateAndBuildCondition(db, pageInfo.Gt, "gt", config); err != nil {
 		return err
@@ -734,6 +924,11 @@ func buildWhereConditionsWithoutConfig(db **gorm.DB, pageInfo *SearchFilterPageR
 
 	// 构建IN查询条件
 	if err := validateAndBuildCondition(db, pageInfo.In, "in", nil); err != nil {
+		return err
+	}
+
+	// 构建CONTAINS查询条件（用于多选场景）
+	if err := validateAndBuildCondition(db, pageInfo.Contains, "contains", nil); err != nil {
 		return err
 	}
 
