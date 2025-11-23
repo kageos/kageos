@@ -52,6 +52,12 @@
         :disabled="option.disabled"
       >
         <div class="select-option">
+          <!-- 🔥 显示颜色指示器（如果有颜色配置） -->
+          <span
+            v-if="getOptionColor(option.value)"
+            class="option-color-indicator"
+            :style="getOptionColorStyle(option.value)"
+          />
           <span>{{ option.label }}</span>
           <span v-if="option.displayInfo" class="display-info">{{ option.displayInfo }}</span>
         </div>
@@ -70,6 +76,7 @@
         :type="isStandardColor(currentOptionColor) ? currentOptionColor : undefined"
         :color="!isStandardColor(currentOptionColor) ? currentOptionColor : undefined"
         size="small"
+        class="select-tag select-tag-outline"
       >
         {{ displayValue }}
       </el-tag>
@@ -82,6 +89,7 @@
         v-if="currentOptionColor"
         :type="isStandardColor(currentOptionColor) ? currentOptionColor : undefined"
         :color="!isStandardColor(currentOptionColor) ? currentOptionColor : undefined"
+        class="select-tag select-tag-outline"
       >
         {{ displayValue }}
       </el-tag>
@@ -104,7 +112,17 @@
         :key="option.value"
         :label="option.label"
         :value="option.value"
-      />
+      >
+        <!-- 🔥 显示颜色指示器（如果有颜色配置） -->
+        <div class="select-option">
+          <span
+            v-if="getOptionColor(option.value)"
+            class="option-color-indicator"
+            :style="getOptionColorStyle(option.value)"
+          />
+          <span>{{ option.label }}</span>
+        </div>
+      </el-option>
     </el-select>
   </div>
 </template>
