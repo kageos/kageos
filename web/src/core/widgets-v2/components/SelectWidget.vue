@@ -219,10 +219,22 @@ const currentOptionColor = computed(() => {
  * 即使 options 可能包含动态选项，颜色配置仍然基于 staticOptions 的索引
  */
 function getOptionColor(value: any): string | null {
+  const valueStr = String(value)
   // 🔥 在 staticOptions 中查找索引（因为 options_colors 与 staticOptions 对齐）
-  const optionIndex = staticOptions.value.findIndex(opt => opt.value === value)
+  const optionIndex = staticOptions.value.findIndex((opt: any) => String(opt.value) === valueStr)
   if (optionIndex >= 0 && optionIndex < optionColors.value.length) {
-    return optionColors.value[optionIndex]
+    const color = optionColors.value[optionIndex]
+    // 🔥 调试日志：检查颜色配置
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[SelectWidget] getOptionColor - value: ${valueStr}, index: ${optionIndex}, color: ${color}`)
+    }
+    return color
+  }
+  // 🔥 调试日志：未找到颜色
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[SelectWidget] getOptionColor - value: ${valueStr}, not found in staticOptions`)
+    console.log(`[SelectWidget] staticOptions:`, staticOptions.value)
+    console.log(`[SelectWidget] optionColors:`, optionColors.value)
   }
   return null
 }
@@ -235,10 +247,29 @@ function getOptionColorStyle(value: any): Record<string, string> {
   if (!color) return {}
   
   const isStandard = isStandardColor(color)
-  const backgroundColor = isStandard ? undefined : color
+  // 🔥 对于标准颜色，也需要设置背景色（使用 Element Plus 的颜色变量）
+  let backgroundColor = ''
+  if (isStandard) {
+    // 标准颜色使用 CSS 变量
+    const colorMap: Record<string, string> = {
+      success: 'var(--el-color-success)',
+      warning: 'var(--el-color-warning)',
+      danger: 'var(--el-color-danger)',
+      info: 'var(--el-color-info)',
+      primary: 'var(--el-color-primary)'
+    }
+    backgroundColor = colorMap[color] || ''
+  } else {
+    backgroundColor = color
+  }
   
-  return {
-    backgroundColor: backgroundColor || '',
+  // 🔥 调试日志
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[SelectWidget] getOptionColorStyle - value: ${value}, color: ${color}, isStandard: ${isStandard}, backgroundColor: ${backgroundColor}`)
+  }
+  
+  // 🔥 确保 backgroundColor 有值，并且使用 !important 确保样式生效
+  const style: Record<string, string> = {
     marginRight: '8px',
     display: 'inline-block',
     width: '12px',
@@ -253,6 +284,12 @@ function getOptionColorStyle(value: any): Record<string, string> {
     filter: 'brightness(0.95) saturate(0.9)',
     opacity: '0.9'
   }
+  
+  if (backgroundColor) {
+    style.backgroundColor = backgroundColor
+  }
+  
+  return style
 }
 
 // 加载状态
