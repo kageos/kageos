@@ -774,7 +774,13 @@ watch(() => props.modelValue, (newValue: any, oldValue: any) => {
     return
   }
   
-  if (props.searchType?.includes('gte') && props.searchType?.includes('lte')) {
+  // 🔥 检查当前字段是否支持范围搜索（gte/lte）
+  const isRangeSearch = props.searchType?.includes('gte') && props.searchType?.includes('lte')
+  // 🔥 检查当前字段是否使用范围输入组件
+  const isRangeInput = inputConfig.value.component === SearchComponent.NUMBER_RANGE_INPUT || 
+                       inputConfig.value.component === SearchComponent.RANGE_INPUT
+  
+  if (isRangeSearch && isRangeInput) {
     // 🔥 如果是数组格式（时间戳范围），用于 ElDatePicker
     if (Array.isArray(newValue)) {
       dateRangeValue.value = [
@@ -786,12 +792,28 @@ watch(() => props.modelValue, (newValue: any, oldValue: any) => {
         min: newValue[0] || undefined,
         max: newValue[1] || undefined
       }
-    } else if (newValue && typeof newValue === 'object') {
-      // 已经是对象格式（数字范围）
-      rangeValue.value = newValue
+    } else if (newValue && typeof newValue === 'object' && !Array.isArray(newValue)) {
+      // 🔥 已经是对象格式（数字范围），且不是数组
+      // 🔥 只有当 newValue 是范围对象时才更新 rangeValue，避免其他字段的值影响当前字段
+      rangeValue.value = {
+        min: newValue.min !== undefined && newValue.min !== null ? newValue.min : undefined,
+        max: newValue.max !== undefined && newValue.max !== null ? newValue.max : undefined
+      }
       dateRangeValue.value = null
-    } else {
+    } else if (newValue === null || newValue === undefined) {
+      // 🔥 清空值
       rangeValue.value = { min: undefined, max: undefined }
+      dateRangeValue.value = null
+    }
+    // 🔥 如果 newValue 不是范围类型，不更新 rangeValue（避免其他字段的值影响当前字段）
+  } else if (isRangeSearch && inputConfig.value.component === SearchComponent.EL_DATE_PICKER) {
+    // 🔥 日期范围选择器
+    if (Array.isArray(newValue)) {
+      dateRangeValue.value = [
+        newValue[0] || null,
+        newValue[1] || null
+      ]
+    } else {
       dateRangeValue.value = null
     }
   } else {
