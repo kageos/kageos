@@ -54,6 +54,7 @@
       <!-- 
         注意：ID 列默认启用排序，显示默认的 id 降序排序状态
         当用户手动排序其他字段时，id 排序会被移除
+        ⚠️ ID 字段通常非常适合排序，使用智能识别
       -->
       <el-table-column
         v-if="idField"
@@ -62,7 +63,7 @@
         fixed="left"
         width="80"
         class-name="control-column"
-        :sortable="'custom'"
+        :sortable="getSortableConfig(idField)"
       >
         <template #default="{ row, $index }">
           <el-button
@@ -77,12 +78,18 @@
       </el-table-column>
 
       <!-- 数据列（排除ID列） -->
+      <!-- 
+        ⚠️ 使用智能识别判断字段是否适合排序
+        - 文件字段、结构体字段：不支持排序
+        - 大文本字段、多选字段：不推荐排序（默认禁用）
+        - 其他字段：适合排序
+      -->
       <el-table-column
         v-for="field in dataFields"
         :key="field.code"
         :prop="field.code"
         :label="field.name"
-        :sortable="'custom'"
+        :sortable="getSortableConfig(field)"
         :min-width="getColumnWidth(field)"
       >
         <template #default="{ row, $index }">
@@ -295,6 +302,7 @@ import { convertToFieldValue } from '@/utils/field'
 import { WidgetType } from '@/core/constants/widget'
 import { useUserInfoStore } from '@/stores/userInfo'
 import { collectAllUsernames, collectFilesUploadUsersFromRow } from '@/utils/tableUserInfo'
+import { getSortableConfig } from '@/utils/fieldSort'
 import FormDialog from './FormDialog.vue'
 import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
 import SearchInput from './SearchInput.vue'
