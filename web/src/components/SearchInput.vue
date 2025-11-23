@@ -1037,6 +1037,8 @@ watch(() => inputConfig.value, () => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: inline-flex !important;
+  align-items: center;
 }
 </style>
 
