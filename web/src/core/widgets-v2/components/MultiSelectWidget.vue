@@ -62,7 +62,17 @@
         :key="`${option.value}-${option.label}`"
         :label="option.label"
         :value="option.value"
-      />
+      >
+        <!-- 🔥 在下拉选项中显示带颜色的标签 -->
+        <el-tag
+          :type="getOptionColorType(option.value)"
+          :color="getOptionColorValue(option.value)"
+          size="small"
+          class="option-tag"
+        >
+          {{ option.label }}
+        </el-tag>
+      </el-option>
     </el-select>
     
     <!-- 响应模式（只读） -->
