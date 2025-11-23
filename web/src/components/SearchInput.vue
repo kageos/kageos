@@ -40,7 +40,6 @@
       @clear="handleClear"
     >
       <!-- 🔥 自定义标签显示（单选模式，参考多选组件的 #tag 插槽） -->
-      <!-- 🔥 注意：单选模式下 #tag 插槽可能不工作，但尝试使用 -->
       <template #tag>
         <el-tag
           v-if="localValue"
@@ -49,6 +48,7 @@
           :closable="true"
           @close.stop="handleClear"
           class="select-tag-outline"
+          :style="getSelectTagStyle(localValue)"
         >
           {{ getOptionLabel(localValue) }}
         </el-tag>
