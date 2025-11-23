@@ -60,18 +60,20 @@
       <el-option
         v-for="option in options"
         :key="`${option.value}-${option.label}`"
+        :label="option.label"
         :value="option.value"
       >
-        <!-- 🔥 在下拉选项中显示带颜色的标签 -->
-        <!-- 注意：移除 label 属性，使用插槽内容显示，这样才能显示颜色 -->
-        <el-tag
-          :type="getOptionColorType(option.value)"
-          :color="getOptionColorValue(option.value)"
-          size="small"
-          class="option-tag"
-        >
-          {{ option.label }}
-        </el-tag>
+        <!-- 🔥 在下拉选项中显示带颜色的标签（参考 Element Plus 官方示例） -->
+        <div class="flex items-center">
+          <el-tag
+            :type="getOptionColorType(option.value)"
+            :color="getOptionColorValue(option.value)"
+            size="small"
+            class="option-tag"
+            style="margin-right: 8px"
+          />
+          <span>{{ option.label }}</span>
+        </div>
       </el-option>
     </el-select>
     
@@ -677,18 +679,24 @@ watch(
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
-/* 🔥 下拉选项中的标签样式 */
+/* 🔥 下拉选项中的标签样式（参考 Element Plus 官方示例） */
 .option-tag {
-  font-weight: 500;
   border: none;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  aspect-ratio: 1;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  padding: 0;
   margin: 0;
 }
 
-/* 自定义颜色的选项标签，确保文字清晰 */
-.option-tag[style*="background-color"] {
-  color: #fff !important;
-  font-weight: 500;
+/* 选项容器样式 */
+.flex {
+  display: flex;
+}
+
+.items-center {
+  align-items: center;
 }
 </style>
 
