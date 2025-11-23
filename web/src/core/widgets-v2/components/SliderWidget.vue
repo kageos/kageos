@@ -216,11 +216,12 @@ const percentage = computed(() => {
 })
 
 // 自动判断状态颜色（根据百分比）
+// Element Plus 的 el-progress 只支持: "", "success", "exception", "warning"
 const autoStatus = computed(() => {
   const pct = percentage.value
   if (pct > 80) return 'success'
   if (pct >= 50) return 'warning'
-  return 'danger'
+  return 'exception' // Element Plus 中 exception 对应错误/危险状态
 })
 
 // 格式化提示（自动带上单位）
