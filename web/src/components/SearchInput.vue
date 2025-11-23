@@ -22,67 +22,73 @@
     />
 
     <!-- 🔥 下拉选择 -->
-    <!-- 🔥 单选组件：尝试使用 #tag 插槽（参考官方示例） -->
-    <el-select
+    <!-- 🔥 单选组件：使用包装器+覆盖标签（#tag 插槽在单选模式下不工作） -->
+    <div
       v-if="!inputConfig.props?.multiple && isSelectWidget"
-      v-model="localValue"
-      :placeholder="inputConfig.props?.placeholder"
-      :clearable="inputConfig.props?.clearable"
-      :filterable="inputConfig.props?.filterable"
-      :remote="inputConfig.props?.remote"
-      :remote-method="handleRemoteMethod"
-      :loading="selectLoading || inputConfig.props?.loading"
-      :popper-class="inputConfig.props?.popperClass"
-      :style="inputConfig.props?.style"
-      :reserve-keyword="inputConfig.props?.remote"
-      class="user-select-search"
-      @change="handleInput"
-      @clear="handleClear"
+      class="select-single-wrapper"
     >
-      <!-- 🔥 尝试使用 #tag 插槽（参考官方示例，单选模式下可能不工作，但尝试） -->
-      <template #tag>
-        <el-tag
-          v-if="localValue"
-          :type="getOptionColorType(localValue)"
-          :color="getOptionColorValue(localValue)"
-          :closable="true"
-          @close.stop="handleClear"
-          class="select-tag-outline"
-        >
-          {{ getOptionLabel(localValue) }}
-        </el-tag>
-      </template>
-      
-      <el-option
-        v-for="option in selectOptionsComputed"
-        :key="typeof option === 'object' ? option.value : option"
-        :label="typeof option === 'object' ? option.label : option"
-        :value="typeof option === 'object' ? option.value : option"
+      <el-select
+        v-model="localValue"
+        :placeholder="inputConfig.props?.placeholder"
+        :clearable="inputConfig.props?.clearable"
+        :filterable="inputConfig.props?.filterable"
+        :remote="inputConfig.props?.remote"
+        :remote-method="handleRemoteMethod"
+        :loading="selectLoading || inputConfig.props?.loading"
+        :popper-class="inputConfig.props?.popperClass"
+        :style="inputConfig.props?.style"
+        :reserve-keyword="inputConfig.props?.remote"
+        :class="[
+          'user-select-search',
+          {
+            'select-single-hide-selected': localValue && getOptionColor(localValue)
+          }
+        ]"
+        @change="handleInput"
+        @clear="handleClear"
       >
-        <!-- 🔥 如果是用户选择器，显示头像和用户信息 -->
-        <div v-if="option.userInfo" class="user-option">
-          <el-avatar :src="option.userInfo.avatar" :size="24" class="user-avatar">
-            {{ option.userInfo.username?.[0]?.toUpperCase() || 'U' }}
-          </el-avatar>
-          <span class="user-name">{{ option.userInfo.username }}</span>
-          <span v-if="option.userInfo.nickname" class="user-nickname">({{ option.userInfo.nickname }})</span>
-        </div>
-        <!-- 🔥 如果是单选组件，显示带颜色的标签（参考官方示例） -->
-        <div v-else-if="isSelectWidget" class="flex items-center">
-          <el-tag
-            v-if="getOptionColor(typeof option === 'object' ? option.value : option)"
-            :color="getOptionColorValue(typeof option === 'object' ? option.value : option)"
-            size="small"
-            style="margin-right: 8px; border: none; aspect-ratio: 1"
-          />
-          <span :style="{ color: getOptionColorValue(typeof option === 'object' ? option.value : option) || 'inherit' }">
-            {{ typeof option === 'object' ? option.label : option }}
-          </span>
-        </div>
-        <!-- 普通选项 -->
-        <span v-else>{{ typeof option === 'object' ? option.label : option }}</span>
-      </el-option>
-    </el-select>
+        <el-option
+          v-for="option in selectOptionsComputed"
+          :key="typeof option === 'object' ? option.value : option"
+          :label="typeof option === 'object' ? option.label : option"
+          :value="typeof option === 'object' ? option.value : option"
+        >
+          <!-- 🔥 如果是用户选择器，显示头像和用户信息 -->
+          <div v-if="option.userInfo" class="user-option">
+            <el-avatar :src="option.userInfo.avatar" :size="24" class="user-avatar">
+              {{ option.userInfo.username?.[0]?.toUpperCase() || 'U' }}
+            </el-avatar>
+            <span class="user-name">{{ option.userInfo.username }}</span>
+            <span v-if="option.userInfo.nickname" class="user-nickname">({{ option.userInfo.nickname }})</span>
+          </div>
+          <!-- 🔥 如果是单选组件，显示带颜色的标签（参考官方示例） -->
+          <div v-else-if="isSelectWidget" class="flex items-center">
+            <el-tag
+              v-if="getOptionColor(typeof option === 'object' ? option.value : option)"
+              :color="getOptionColorValue(typeof option === 'object' ? option.value : option)"
+              size="small"
+              style="margin-right: 8px; border: none; aspect-ratio: 1"
+            />
+            <span :style="{ color: getOptionColorValue(typeof option === 'object' ? option.value : option) || 'inherit' }">
+              {{ typeof option === 'object' ? option.label : option }}
+            </span>
+          </div>
+          <!-- 普通选项 -->
+          <span v-else>{{ typeof option === 'object' ? option.label : option }}</span>
+        </el-option>
+      </el-select>
+      <!-- 🔥 覆盖标签：显示带颜色的标签（参考多选组件的实现） -->
+      <el-tag
+        v-if="localValue && getOptionColor(localValue)"
+        :type="getOptionColorType(localValue)"
+        :color="getOptionColorValue(localValue)"
+        :closable="true"
+        @close.stop="handleClear"
+        class="select-tag-outline select-single-overlay-tag"
+      >
+        {{ getOptionLabel(localValue) }}
+      </el-tag>
+    </div>
     <!-- 🔥 普通单选组件（没有颜色配置） -->
     <el-select
       v-else-if="inputConfig.component === SearchComponent.EL_SELECT && !inputConfig.props?.multiple"
@@ -1045,6 +1051,41 @@ watch(() => inputConfig.value, () => {
 
 .user-select-dropdown-popper .el-select-dropdown__item:hover {
   background-color: var(--el-fill-color-light);
+}
+
+/* 🔥 单选组件包装器样式 */
+.select-single-wrapper {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+
+/* 🔥 隐藏 el-select 的默认选中值显示（当有颜色配置时） */
+.select-single-hide-selected :deep(.el-select__selected-item) {
+  display: none !important;
+}
+
+.select-single-hide-selected :deep(.el-select__input-wrapper) {
+  display: none !important;
+}
+
+.select-single-hide-selected :deep(.el-select__placeholder) {
+  display: none !important;
+}
+
+/* 🔥 覆盖标签样式（绝对定位在 el-select 上方，参考多选组件的实现） */
+.select-single-overlay-tag {
+  position: absolute !important;
+  left: 8px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  z-index: 10 !important;
+  pointer-events: auto !important;
+  margin: 0 !important;
+  max-width: calc(100% - 40px) !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
 }
 </style>
 
