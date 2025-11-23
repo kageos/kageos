@@ -192,6 +192,45 @@ const currentOptionColor = computed(() => {
   return null
 })
 
+/**
+ * 🔥 获取选项的颜色（用于下拉选项显示）
+ */
+function getOptionColor(value: any): string | null {
+  const optionIndex = options.value.findIndex(opt => opt.value === value)
+  if (optionIndex >= 0 && optionIndex < optionColors.value.length) {
+    return optionColors.value[optionIndex]
+  }
+  return null
+}
+
+/**
+ * 🔥 获取选项的颜色样式对象（用于 span 的 style 绑定）
+ */
+function getOptionColorStyle(value: any): Record<string, string> {
+  const color = getOptionColor(value)
+  if (!color) return {}
+  
+  const isStandard = isStandardColor(color)
+  const backgroundColor = isStandard ? undefined : color
+  
+  return {
+    backgroundColor: backgroundColor || '',
+    marginRight: '8px',
+    display: 'inline-block',
+    width: '12px',
+    height: '12px',
+    minWidth: '12px',
+    minHeight: '12px',
+    borderRadius: '2px',
+    flexShrink: '0',
+    border: 'none',
+    verticalAlign: 'middle',
+    /* 🔥 降低亮度：使用 filter 降低饱和度和亮度 */
+    filter: 'brightness(0.95) saturate(0.9)',
+    opacity: '0.9'
+  }
+}
+
 // 加载状态
 const loading = ref(false)
 
