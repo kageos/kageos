@@ -433,10 +433,14 @@ onMounted(() => {
   gap: 8px;
 }
 
+.option-label {
+  flex: 1;
+}
+
 .display-info {
   font-size: 12px;
   color: var(--el-text-color-secondary);
-  margin-left: 8px;
+  margin-left: auto;
 }
 
 .response-value {
