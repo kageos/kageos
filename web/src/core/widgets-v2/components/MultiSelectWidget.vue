@@ -395,10 +395,26 @@ function getOptionColorStyle(value: any): Record<string, string> {
     console.log(`[MultiSelectWidget] getOptionColorStyle - value: ${value}, colorValue: ${colorValue}, color: ${color}, backgroundColor: ${backgroundColor}`)
   }
   
-  return {
-    backgroundColor: backgroundColor,
+  // 🔥 确保 backgroundColor 有值，并且使用 !important 确保样式生效
+  const style: Record<string, string> = {
     marginRight: '8px'
   }
+  
+  if (backgroundColor) {
+    // 🔥 使用内联样式设置 backgroundColor，确保优先级最高
+    style.backgroundColor = backgroundColor
+    style.display = 'inline-block'
+    style.width = '12px'
+    style.height = '12px'
+    style.minWidth = '12px'
+    style.minHeight = '12px'
+    style.borderRadius = '2px'
+    style.flexShrink = '0'
+    style.border = 'none'
+    style.verticalAlign = 'middle'
+  }
+  
+  return style
 }
 
 /**
