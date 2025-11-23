@@ -675,8 +675,9 @@ watch(
 .detail-multiselect .tag-item {
   font-weight: 500;
   border: none;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
   margin: 0;
+  opacity: 0.9;
 }
 
 /* 自定义颜色的 tag，确保文字清晰 */
@@ -684,6 +685,8 @@ watch(
 .detail-multiselect .tag-item[style*="background-color"] {
   color: #fff !important;
   font-weight: 500;
+  /* 🔥 降低亮度：使用 filter 降低饱和度和亮度 */
+  filter: brightness(0.95) saturate(0.9);
 }
 
 /* 标准颜色的 tag，增强对比度 */
@@ -699,7 +702,8 @@ watch(
 .detail-multiselect .tag-item.el-tag--primary {
   font-weight: 500;
   border: none;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  opacity: 0.9;
 }
 
 .response-multiselect .tag-item {
