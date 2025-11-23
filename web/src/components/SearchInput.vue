@@ -1016,15 +1016,20 @@ watch(() => inputConfig.value, () => {
   display: none !important;
 }
 
+.select-single-hide-tag :deep(.el-select__selected-item) {
+  display: none !important;
+}
+
 /* 🔥 覆盖标签样式（绝对定位在 el-select 上方） */
 .select-single-tag-overlay {
   position: absolute;
-  left: 0;
+  left: 8px;
   top: 50%;
   transform: translateY(-50%);
   z-index: 10;
   pointer-events: auto;
   margin: 0;
+  max-width: calc(100% - 40px);
 }
 </style>
 
