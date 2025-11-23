@@ -34,11 +34,8 @@
       :percentage="percentage"
       :status="autoStatus"
       :stroke-width="6"
-    >
-      <template #default="{ percentage: pct }">
-        {{ formatProgressText(pct) }}
-      </template>
-    </el-progress>
+      :format="formatProgressText"
+    />
     
     <!-- 详情模式：进度条 -->
     <el-progress
@@ -46,11 +43,8 @@
       :percentage="percentage"
       :status="autoStatus"
       :stroke-width="6"
-    >
-      <template #default="{ percentage: pct }">
-        {{ formatProgressText(pct) }}
-      </template>
-    </el-progress>
+      :format="formatProgressText"
+    />
     
     <!-- 搜索模式：范围输入 -->
     <div v-else-if="mode === 'search'" class="slider-search">
