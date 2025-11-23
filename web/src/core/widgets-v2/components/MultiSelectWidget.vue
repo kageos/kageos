@@ -767,6 +767,6 @@ watch(
   flex-shrink: 0 !important;
   border: none !important;
   vertical-align: middle !important;
-  background-color: var(--bg-color, transparent) !important;
+  /* 🔥 注意：background-color 通过内联样式设置，这里不设置，避免覆盖 */
 }
 </style>
