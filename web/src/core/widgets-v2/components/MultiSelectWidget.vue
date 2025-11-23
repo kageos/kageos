@@ -69,7 +69,7 @@
             v-if="getOptionColor(option.value)"
             class="option-color-indicator"
             :style="{
-              backgroundColor: getOptionColorValue(option.value) || (getOptionColorType(option.value) ? undefined : getOptionColor(option.value)),
+              backgroundColor: getOptionColorValue(option.value) || getOptionColor(option.value) || undefined,
               marginRight: '8px'
             }"
           />
@@ -693,12 +693,15 @@ watch(
 
 /* 🔥 下拉选项中的颜色指示器样式（参考 Element Plus 官方示例） */
 .option-color-indicator {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
+  display: inline-block !important;
+  width: 12px !important;
+  height: 12px !important;
+  min-width: 12px !important;
+  min-height: 12px !important;
   border-radius: 2px;
   flex-shrink: 0;
   border: none;
+  vertical-align: middle;
 }
 
 /* 选项容器样式 */
