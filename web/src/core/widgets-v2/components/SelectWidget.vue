@@ -392,6 +392,7 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
 }
 
 .display-info {
@@ -407,6 +408,55 @@ onMounted(() => {
 .table-cell-value {
   display: inline-flex;
   align-items: center;
+}
+
+/* 🔥 单选组件的标签样式：使用空心样式（outline） */
+.select-tag {
+  font-weight: 500;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  opacity: 0.9;
+  transition: opacity 0.2s;
+}
+
+.select-tag:hover {
+  opacity: 1;
+}
+
+/* 🔥 空心样式：使用边框和透明背景 */
+.select-tag-outline {
+  background-color: transparent !important;
+  border: 2px solid currentColor !important;
+}
+
+/* 标准颜色的空心标签 */
+.select-tag-outline.el-tag--success {
+  color: var(--el-color-success) !important;
+  border-color: var(--el-color-success) !important;
+}
+
+.select-tag-outline.el-tag--warning {
+  color: var(--el-color-warning) !important;
+  border-color: var(--el-color-warning) !important;
+}
+
+.select-tag-outline.el-tag--danger {
+  color: var(--el-color-danger) !important;
+  border-color: var(--el-color-danger) !important;
+}
+
+.select-tag-outline.el-tag--info {
+  color: var(--el-color-info) !important;
+  border-color: var(--el-color-info) !important;
+}
+
+.select-tag-outline.el-tag--primary {
+  color: var(--el-color-primary) !important;
+  border-color: var(--el-color-primary) !important;
+}
+
+/* 自定义颜色的空心标签：使用边框颜色 */
+.select-tag-outline[style*="color"] {
+  border-color: currentColor !important;
 }
 
 .table-cell-value .el-tag {
@@ -437,6 +487,22 @@ onMounted(() => {
 .detail-value .el-tag[style*="background-color"] {
   color: #fff !important;
   font-weight: 500;
+}
+
+/* 🔥 下拉选项中的颜色指示器样式 */
+.option-color-indicator {
+  display: inline-block !important;
+  width: 12px !important;
+  height: 12px !important;
+  min-width: 12px !important;
+  min-height: 12px !important;
+  border-radius: 2px !important;
+  flex-shrink: 0 !important;
+  border: none !important;
+  vertical-align: middle !important;
+  /* 🔥 降低亮度：使用 filter 降低饱和度和亮度 */
+  filter: brightness(0.95) saturate(0.9);
+  opacity: 0.9;
 }
 
 .detail-label {
