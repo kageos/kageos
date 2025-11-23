@@ -66,14 +66,13 @@
         <!-- 🔥 在下拉选项中显示带颜色的标签（参考 Element Plus 官方示例） -->
         <div class="flex items-center">
           <el-tag
+            v-if="getOptionColor(option.value)"
             :type="getOptionColorType(option.value)"
             :color="getOptionColorValue(option.value)"
             size="small"
             class="option-tag"
             style="margin-right: 8px"
-          >
-            <!-- 🔥 空内容，仅作为颜色指示器 -->
-          </el-tag>
+          />
           <span>{{ option.label }}</span>
         </div>
       </el-option>
