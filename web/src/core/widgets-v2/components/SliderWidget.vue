@@ -34,8 +34,11 @@
       :percentage="percentage"
       :status="autoStatus"
       :stroke-width="6"
-      :format="formatProgress"
-    />
+    >
+      <template #default="{ percentage: pct }">
+        {{ formatProgressText(pct) }}
+      </template>
+    </el-progress>
     
     <!-- 详情模式：进度条 -->
     <el-progress
@@ -43,8 +46,11 @@
       :percentage="percentage"
       :status="autoStatus"
       :stroke-width="6"
-      :format="formatProgress"
-    />
+    >
+      <template #default="{ percentage: pct }">
+        {{ formatProgressText(pct) }}
+      </template>
+    </el-progress>
     
     <!-- 搜索模式：范围输入 -->
     <div v-else-if="mode === 'search'" class="slider-search">
@@ -232,8 +238,8 @@ const formatTooltipFunc = computed(() => {
 })
 
 // 格式化进度条文本（显示值和百分比）
-// 参考 Element Plus 官方示例：const format = (percentage) => (percentage === 100 ? 'Full' : `${percentage}%`)
-const formatProgress = (percentage: number): string => {
+// 使用函数而不是箭头函数，确保能正确访问 computed 值
+function formatProgressText(percentage: number): string {
   const value = props.value?.raw
   if (value === null || value === undefined) {
     return `${percentage.toFixed(0)}%`
