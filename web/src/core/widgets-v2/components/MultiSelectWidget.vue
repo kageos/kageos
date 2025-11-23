@@ -662,6 +662,20 @@ watch(
   border: none;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
+
+/* 🔥 下拉选项中的标签样式 */
+.option-tag {
+  font-weight: 500;
+  border: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  margin: 0;
+}
+
+/* 自定义颜色的选项标签，确保文字清晰 */
+.option-tag[style*="background-color"] {
+  color: #fff !important;
+  font-weight: 500;
+}
 </style>
 
 <style>
