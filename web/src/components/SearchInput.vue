@@ -86,6 +86,21 @@
         :closable="true"
         @close.stop="handleClear"
         class="select-tag select-tag-outline select-single-tag-overlay"
+        :style="{
+          position: 'absolute',
+          left: '8px',
+          top: '50%',
+          transform: 'translateY(-50%)',
+          zIndex: 15,
+          pointerEvents: 'auto',
+          margin: 0,
+          maxWidth: 'calc(100% - 40px)',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          display: 'inline-flex',
+          alignItems: 'center'
+        }"
       >
         {{ getOptionLabel(localValue) }}
       </el-tag>
