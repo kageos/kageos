@@ -60,6 +60,16 @@ export function createSearchComponentConfig(
     return createSliderComponentConfig(field, searchType, widgetConfig)
   }
 
+  // Rate 组件（范围搜索，类似 Slider）
+  if (widgetType === WidgetType.RATE) {
+    return createRateComponentConfig(field, searchType, widgetConfig)
+  }
+
+  // Color 组件（文本搜索）
+  if (widgetType === WidgetType.COLOR) {
+    return createColorComponentConfig(field, searchType)
+  }
+
   // 文本范围搜索
   if (hasAllSearchTypes(searchType, [SearchType.GTE, SearchType.LTE])) {
     return createRangeInputConfig(field)
@@ -253,6 +263,51 @@ function createSliderComponentConfig(
       step: step,
       precision: precision,
       unit: widgetConfig.unit || ''
+    }
+  }
+}
+
+/**
+ * 创建 Rate 组件配置（范围搜索，类似 Slider）
+ */
+function createRateComponentConfig(
+  field: FieldConfig,
+  searchType: string | undefined,
+  widgetConfig: Record<string, any>
+): ComponentConfig {
+  // Rate 组件默认支持范围搜索（gte/lte）
+  const max = Number(widgetConfig.max) || 5
+  const allowHalf = widgetConfig.allow_half === true || widgetConfig.allow_half === 'true'
+  const step = allowHalf ? 0.5 : 1
+  const precision = allowHalf ? 1 : 0
+
+  return {
+    component: SearchComponent.NUMBER_RANGE_INPUT,
+    props: {
+      minPlaceholder: generatePlaceholder(field.name, 'min'),
+      maxPlaceholder: generatePlaceholder(field.name, 'max'),
+      min: 0,
+      max: max,
+      step: step,
+      precision: precision
+    }
+  }
+}
+
+/**
+ * 创建 Color 组件配置（文本搜索）
+ */
+function createColorComponentConfig(
+  field: FieldConfig,
+  searchType: string | undefined
+): ComponentConfig {
+  // Color 组件使用文本输入搜索
+  return {
+    component: SearchComponent.EL_INPUT,
+    props: {
+      placeholder: generatePlaceholder(field.name, 'search'),
+      clearable: true,
+      style: { width: SearchConfig.DEFAULT_INPUT_WIDTH }
     }
   }
 }

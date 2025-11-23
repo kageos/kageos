@@ -85,7 +85,7 @@
     <el-table
       v-loading="loading"
       :data="tableData"
-      border
+      :stripe="false"
       style="width: 100%"
       class="table-with-fixed-column"
       :key="`table-${Object.keys(sortOrderMap).length}`"
@@ -661,6 +661,18 @@ const getActionColumnWidth = (): number => {
 const getColumnWidth = (field: FieldConfig): number => {
   if (field.widget.type === WidgetType.TIMESTAMP) return 180
   if (field.widget.type === WidgetType.TEXT_AREA) return 300
+  if (field.widget.type === WidgetType.RATE) {
+    // Rate 组件：根据 max 值计算宽度
+    const max = field.widget?.config?.max || 5
+    if (max > 10) {
+      // 圆点样式：更紧凑，但需要显示数字
+      // 每个圆点 4px + 间距 1px = 5px，加上数字约 40px
+      return Math.max(150, max * 5 + 40)
+    } else {
+      // 星星样式：每个星星约 14px + 间距 1px = 15px，加上文字约 60px
+      return Math.max(150, max * 15 + 60)
+    }
+  }
   return 150
 }
 
@@ -1390,7 +1402,49 @@ onUnmounted(() => {
   background-color: var(--el-bg-color) !important;
 }
 
+/* 🔥 移除表格边框（左右竖线） */
+:deep(.el-table) {
+  border: none !important;
+}
+
+:deep(.el-table__inner-wrapper) {
+  border: none !important;
+}
+
+:deep(.el-table__header-wrapper) {
+  border: none !important;
+}
+
+:deep(.el-table__body-wrapper) {
+  border: none !important;
+}
+
+:deep(.el-table th),
+:deep(.el-table td) {
+  border-right: none !important;
+  border-left: none !important;
+}
+
+:deep(.el-table th:first-child),
+:deep(.el-table td:first-child) {
+  border-left: none !important;
+}
+
+:deep(.el-table th:last-child),
+:deep(.el-table td:last-child) {
+  border-right: none !important;
+}
+
 :deep(.el-table__body tr) {
+  background-color: var(--el-bg-color) !important;
+}
+
+/* 🔥 移除斑马纹：确保所有行背景色一致 */
+:deep(.el-table__body tr.el-table__row--striped) {
+  background-color: var(--el-bg-color) !important;
+}
+
+:deep(.el-table__body tr.el-table__row--striped td) {
   background-color: var(--el-bg-color) !important;
 }
 
