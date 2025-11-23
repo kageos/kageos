@@ -52,14 +52,14 @@
         :disabled="option.disabled"
       >
         <div class="select-option">
-          <!-- 🔥 显示颜色指示器（如果有颜色配置） -->
+          <!-- 🔥 显示颜色指示器（如果有颜色配置，放在左侧） -->
           <span
             v-if="getOptionColor(option.value)"
             class="option-color-indicator"
             :style="getOptionColorStyle(option.value)"
           />
-          <span>{{ option.label }}</span>
-          <span v-if="option.displayInfo" class="display-info">{{ option.displayInfo }}</span>
+          <span class="option-label">{{ option.label }}</span>
+          <span v-if="option.displayInfo" class="display-info">{{ option.display-info }}</span>
         </div>
       </el-option>
     </el-select>
@@ -113,14 +113,14 @@
         :label="option.label"
         :value="option.value"
       >
-        <!-- 🔥 显示颜色指示器（如果有颜色配置） -->
+        <!-- 🔥 显示颜色指示器（如果有颜色配置，放在左侧） -->
         <div class="select-option">
           <span
             v-if="getOptionColor(option.value)"
             class="option-color-indicator"
             :style="getOptionColorStyle(option.value)"
           />
-          <span>{{ option.label }}</span>
+          <span class="option-label">{{ option.label }}</span>
         </div>
       </el-option>
     </el-select>
