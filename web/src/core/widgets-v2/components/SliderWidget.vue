@@ -234,7 +234,7 @@ const formatTooltipFunc = computed(() => {
 })
 
 // 格式化进度条文本（显示值和百分比）
-const formatProgress = (percentage: number): string => {
+function formatProgress(percentage: number): string {
   const value = props.value?.raw
   if (value === null || value === undefined) {
     return `${percentage.toFixed(0)}%`
@@ -245,7 +245,11 @@ const formatProgress = (percentage: number): string => {
     return `${percentage.toFixed(0)}%`
   }
   
-  const valueStr = String(numValue)
+  // 根据步长决定小数位数
+  const stepStr = String(step.value)
+  const decimals = stepStr.includes('.') ? stepStr.split('.')[1].length : 0
+  const valueStr = numValue.toFixed(decimals)
+  
   const unitValue = unit.value
   const valueDisplay = unitValue ? `${valueStr}${unitValue}` : valueStr
   return `${valueDisplay} (${percentage.toFixed(0)}%)`
