@@ -71,7 +71,7 @@
         class-name="control-column"
         :sortable="getSortableConfig(idField)"
         :sort-orders="['descending', 'ascending']"
-        :order="getFieldSortOrder(idField.code) || (sorts.length === 0 && !hasManualSort ? 'descending' : null)"
+        :default-sort="getFieldSortOrder(idField.code) || (sorts.length === 0 && !hasManualSort ? 'descending' : null) ? { prop: idField.code, order: getFieldSortOrder(idField.code) || (sorts.length === 0 && !hasManualSort ? 'descending' : null) } : undefined"
       >
         <template #default="{ row, $index }">
           <el-button
@@ -99,7 +99,7 @@
         :label="field.name"
         :sortable="getSortableConfig(field)"
         :sort-orders="['ascending', 'descending']"
-        :order="getFieldSortOrder(field.code)"
+        :default-sort="getFieldSortOrder(field.code) ? { prop: field.code, order: getFieldSortOrder(field.code) } : undefined"
         :min-width="getColumnWidth(field)"
       >
         <template #default="{ row, $index }">
@@ -376,7 +376,17 @@ const {
 // 导出 handleSortChange 供模板使用
 // ⚠️ 关键：Element Plus 的 el-table 在 custom 模式下，排序状态显示需要特殊处理
 // 使用 :key 强制重新渲染整个表格，确保所有列的排序状态正确显示
-const handleSortChange = originalHandleSortChange
+const handleSortChange = (sortInfo: { prop?: string; order?: string }) => {
+  originalHandleSortChange(sortInfo)
+  // ⚠️ 关键：在排序变化后，使用 nextTick 确保 DOM 更新完成
+  // 然后强制更新表格的排序状态显示
+  nextTick(() => {
+    // Element Plus 的 el-table 在 custom 模式下，排序状态是通过 sort-change 事件控制的
+    // 但显示状态需要通过 default-sort 来设置，而 default-sort 只能设置一个
+    // 所以我们使用 :key 强制重新渲染整个表格，确保所有列的排序状态正确显示
+    // 这里不需要额外操作，因为 :key 已经会触发重新渲染
+  })
+}
 
 // ==================== 详情抽屉状态 ====================
 
