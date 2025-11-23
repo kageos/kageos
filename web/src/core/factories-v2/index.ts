@@ -23,6 +23,7 @@ import RadioWidget from '../widgets-v2/components/RadioWidget.vue'
 import TextWidget from '../widgets-v2/components/TextWidget.vue'
 import FilesWidget from '../widgets-v2/components/FilesWidget.vue'
 import TimestampWidget from '../widgets-v2/components/TimestampWidget.vue'
+import SliderWidget from '../widgets-v2/components/SliderWidget.vue'
 import FormWidget from '../widgets-v2/components/FormWidget.vue'
 import TableWidget from '../widgets-v2/components/TableWidget.vue'
 import UserWidget from '../widgets-v2/components/UserWidget.vue'
@@ -51,6 +52,8 @@ export function initializeWidgetComponentFactory(): void {
   widgetComponentFactory.registerRequestComponent(WidgetType.RADIO, RadioWidget)
   
   widgetComponentFactory.registerRequestComponent(WidgetType.TIMESTAMP, TimestampWidget)
+  
+  widgetComponentFactory.registerRequestComponent(WidgetType.SLIDER, SliderWidget)
   
   widgetComponentFactory.registerRequestComponent(WidgetType.FILES, FilesWidget)
   

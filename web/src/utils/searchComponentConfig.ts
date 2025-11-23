@@ -55,6 +55,11 @@ export function createSearchComponentConfig(
     return createSwitchComponentConfig(field, widgetConfig)
   }
 
+  // Slider 组件（范围搜索）
+  if (widgetType === WidgetType.SLIDER) {
+    return createSliderComponentConfig(field, searchType, widgetConfig)
+  }
+
   // 文本范围搜索
   if (hasAllSearchTypes(searchType, [SearchType.GTE, SearchType.LTE])) {
     return createRangeInputConfig(field)
@@ -217,6 +222,37 @@ function createSwitchComponentConfig(field: FieldConfig, widgetConfig: Record<st
         { label: activeText, value: true },
         { label: inactiveText, value: false }
       ]
+    }
+  }
+}
+
+/**
+ * 创建 Slider 组件配置（范围搜索）
+ */
+function createSliderComponentConfig(
+  field: FieldConfig,
+  searchType: string | undefined,
+  widgetConfig: Record<string, any>
+): ComponentConfig {
+  // Slider 组件默认支持范围搜索（gte/lte）
+  const min = Number(widgetConfig.min) || 0
+  const max = Number(widgetConfig.max) || 100
+  const step = Number(widgetConfig.step) || 1
+  
+  // 计算步长的小数位数（用于 input-number 的 precision）
+  const stepStr = String(step)
+  const precision = stepStr.includes('.') ? stepStr.split('.')[1].length : 0
+
+  return {
+    component: SearchComponent.NUMBER_RANGE_INPUT,
+    props: {
+      minPlaceholder: generatePlaceholder(field.name, 'min'),
+      maxPlaceholder: generatePlaceholder(field.name, 'max'),
+      min: min,
+      max: max,
+      step: step,
+      precision: precision,
+      unit: widgetConfig.unit || ''
     }
   }
 }
