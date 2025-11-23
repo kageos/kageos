@@ -78,15 +78,20 @@ export function buildSearchParamsString(
       if (typeof value === 'object') {
         if (Array.isArray(value) && value.length === 2) {
           // 日期范围数组
-          if (value[0]) result.gte = `${field.code}:${value[0]}`
-          if (value[1]) result.lte = `${field.code}:${value[1]}`
+          if (value[0]) {
+            result.gte = result.gte ? `${result.gte},${field.code}:${value[0]}` : `${field.code}:${value[0]}`
+          }
+          if (value[1]) {
+            result.lte = result.lte ? `${result.lte},${field.code}:${value[1]}` : `${field.code}:${value[1]}`
+          }
         } else if (value.min !== undefined || value.max !== undefined) {
           // 数字范围对象
+          // 🔥 支持多个字段，使用逗号分隔（与 eq、like、in 保持一致）
           if (value.min !== undefined && value.min !== null && value.min !== '') {
-            result.gte = `${field.code}:${value.min}`
+            result.gte = result.gte ? `${result.gte},${field.code}:${value.min}` : `${field.code}:${value.min}`
           }
           if (value.max !== undefined && value.max !== null && value.max !== '') {
-            result.lte = `${field.code}:${value.max}`
+            result.lte = result.lte ? `${result.lte},${field.code}:${value.max}` : `${field.code}:${value.max}`
           }
         }
       }
@@ -166,15 +171,20 @@ export function buildURLSearchParams(
       if (typeof value === 'object') {
         if (Array.isArray(value) && value.length === 2) {
           // 日期范围数组
-          if (value[0]) result.gte = `${field.code}:${String(value[0])}`
-          if (value[1]) result.lte = `${field.code}:${String(value[1])}`
+          if (value[0]) {
+            result.gte = result.gte ? `${result.gte},${field.code}:${String(value[0])}` : `${field.code}:${String(value[0])}`
+          }
+          if (value[1]) {
+            result.lte = result.lte ? `${result.lte},${field.code}:${String(value[1])}` : `${field.code}:${String(value[1])}`
+          }
         } else if (value.min !== undefined || value.max !== undefined) {
           // 数字范围对象
+          // 🔥 支持多个字段，使用逗号分隔（与 eq、like、in 保持一致）
           if (value.min !== undefined && value.min !== null && value.min !== '') {
-            result.gte = `${field.code}:${String(value.min)}`
+            result.gte = result.gte ? `${result.gte},${field.code}:${String(value.min)}` : `${field.code}:${String(value.min)}`
           }
           if (value.max !== undefined && value.max !== null && value.max !== '') {
-            result.lte = `${field.code}:${String(value.max)}`
+            result.lte = result.lte ? `${result.lte},${field.code}:${String(value.max)}` : `${field.code}:${String(value.max)}`
           }
         }
       }
