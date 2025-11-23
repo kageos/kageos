@@ -329,12 +329,26 @@ function isStandardColor(color: string): boolean {
 
 /**
  * 获取选项的颜色
+ * 🔥 注意：options_colors 数组与 staticOptions 数组的索引对齐
+ * 即使 options 可能包含 dynamicOptions，颜色配置仍然基于 staticOptions 的索引
  */
 function getOptionColor(value: any): string | null {
   const valueStr = String(value)
+  // 🔥 在 staticOptions 中查找索引（因为 options_colors 与 staticOptions 对齐）
   const optionIndex = staticOptions.value.findIndex((opt: any) => String(opt.value) === valueStr)
   if (optionIndex >= 0 && optionIndex < optionColors.value.length) {
-    return optionColors.value[optionIndex]
+    const color = optionColors.value[optionIndex]
+    // 🔥 调试日志：检查颜色配置
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[MultiSelectWidget] getOptionColor - value: ${valueStr}, index: ${optionIndex}, color: ${color}`)
+    }
+    return color
+  }
+  // 🔥 调试日志：未找到颜色
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[MultiSelectWidget] getOptionColor - value: ${valueStr}, not found in staticOptions`)
+    console.log(`[MultiSelectWidget] staticOptions:`, staticOptions.value)
+    console.log(`[MultiSelectWidget] optionColors:`, optionColors.value)
   }
   return null
 }
