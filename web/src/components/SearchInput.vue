@@ -446,14 +446,24 @@ function getOptionColor(value: any): string | null {
 function getOptionColorType(value: any): string | undefined {
   const color = getOptionColor(value)
   if (!color) return undefined
-  return isStandardColor(color) ? color : undefined
+  const result = isStandardColor(color) ? color : undefined
+  // 🔥 调试日志
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[SearchInput] getOptionColorType - value:', value, 'color:', color, 'isStandard:', isStandardColor(color), 'result:', result)
+  }
+  return result
 }
 
 // 🔥 获取选项的颜色值（用于 el-tag 的 color 属性）
 function getOptionColorValue(value: any): string | undefined {
   const color = getOptionColor(value)
   if (!color) return undefined
-  return !isStandardColor(color) ? color : undefined
+  const result = !isStandardColor(color) ? color : undefined
+  // 🔥 调试日志
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[SearchInput] getOptionColorValue - value:', value, 'color:', color, 'isStandard:', isStandardColor(color), 'result:', result)
+  }
+  return result
 }
 
 // 🔥 获取选项的颜色样式对象（用于 span 的 style 绑定）
