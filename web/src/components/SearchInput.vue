@@ -1060,6 +1060,11 @@ watch(() => inputConfig.value, () => {
 
 .select-single-wrapper :deep(.el-select__wrapper) {
   position: relative;
+  overflow: visible !important;
+}
+
+.select-single-wrapper :deep(.el-select) {
+  overflow: visible !important;
 }
 
 /* 🔥 隐藏 el-select 的默认标签显示 */
