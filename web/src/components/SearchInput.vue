@@ -110,6 +110,15 @@
           />
           <span>{{ typeof option === 'object' ? option.label : option }}</span>
         </div>
+        <!-- 🔥 如果是单选组件，显示带颜色的标签 -->
+        <div v-else-if="isSelectWidget" class="flex items-center">
+          <span
+            v-if="getOptionColor(typeof option === 'object' ? option.value : option)"
+            class="option-color-indicator"
+            :style="getOptionColorStyle(typeof option === 'object' ? option.value : option)"
+          />
+          <span>{{ typeof option === 'object' ? option.label : option }}</span>
+        </div>
         <!-- 普通选项 -->
         <span v-else>{{ typeof option === 'object' ? option.label : option }}</span>
       </el-option>
@@ -253,6 +262,11 @@ const isMultiselectWidget = computed(() => {
   return props.field.widget?.type === WidgetType.MULTI_SELECT
 })
 
+// 🔥 判断是否是单选组件
+const isSelectWidget = computed(() => {
+  return props.field.widget?.type === WidgetType.SELECT
+})
+
 // 🔥 获取选项颜色配置
 const optionColors = computed(() => {
   return props.field.widget?.config?.options_colors || []
@@ -300,12 +314,27 @@ function getOptionColorValue(value: any): string | undefined {
 
 // 🔥 获取选项的颜色样式对象（用于 span 的 style 绑定）
 function getOptionColorStyle(value: any): Record<string, string> {
-  const colorValue = getOptionColorValue(value)
   const color = getOptionColor(value)
-  const backgroundColor = colorValue || color || ''
+  if (!color) return {}
   
-  return {
-    backgroundColor: backgroundColor,
+  const isStandard = isStandardColor(color)
+  // 🔥 对于标准颜色，也需要设置背景色（使用 CSS 变量）
+  let backgroundColor = ''
+  if (isStandard) {
+    // 标准颜色使用 CSS 变量
+    const colorMap: Record<string, string> = {
+      success: 'var(--el-color-success)',
+      warning: 'var(--el-color-warning)',
+      danger: 'var(--el-color-danger)',
+      info: 'var(--el-color-info)',
+      primary: 'var(--el-color-primary)'
+    }
+    backgroundColor = colorMap[color] || ''
+  } else {
+    backgroundColor = color
+  }
+  
+  const style: Record<string, string> = {
     marginRight: '8px',
     display: 'inline-block',
     width: '12px',
@@ -315,8 +344,17 @@ function getOptionColorStyle(value: any): Record<string, string> {
     borderRadius: '2px',
     flexShrink: '0',
     border: 'none',
-    verticalAlign: 'middle'
+    verticalAlign: 'middle',
+    /* 🔥 降低亮度：使用 filter 降低饱和度和亮度 */
+    filter: 'brightness(0.95) saturate(0.9)',
+    opacity: '0.9'
   }
+  
+  if (backgroundColor) {
+    style.backgroundColor = backgroundColor
+  }
+  
+  return style
 }
 
 // 🔥 获取选项标签
