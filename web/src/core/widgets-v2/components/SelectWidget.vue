@@ -149,6 +149,27 @@ const formDataStore = useFormDataStore()
 const options = ref<Array<{ label: string; value: any; disabled?: boolean; displayInfo?: string }>>([])
 
 /**
+ * 🔥 静态选项（从配置中获取，用于颜色索引对齐）
+ * options_colors 数组与静态选项的索引对齐
+ */
+const staticOptions = computed(() => {
+  const configOptions = props.field.widget?.config?.options || []
+  if (Array.isArray(configOptions)) {
+    if (typeof configOptions[0] === 'string') {
+      // 字符串数组
+      return configOptions.map(opt => ({
+        label: opt,
+        value: opt
+      }))
+    } else {
+      // 对象数组
+      return configOptions
+    }
+  }
+  return []
+})
+
+/**
  * 🔥 选项颜色配置
  * 
  * 支持两种颜色格式：
@@ -157,7 +178,7 @@ const options = ref<Array<{ label: string; value: any; disabled?: boolean; displ
  * 2. 自定义颜色（hex 格式）：如 #FF5722, #4CAF50
  *    使用 el-tag 的 color 属性
  * 
- * options_colors 数组与 options 数组的索引对齐，通过索引获取对应选项的颜色
+ * options_colors 数组与 staticOptions 数组的索引对齐，通过索引获取对应选项的颜色
  */
 const optionColors = computed(() => {
   return props.field.widget?.config?.options_colors || []
@@ -194,9 +215,12 @@ const currentOptionColor = computed(() => {
 
 /**
  * 🔥 获取选项的颜色（用于下拉选项显示）
+ * 注意：options_colors 数组与 staticOptions 数组的索引对齐
+ * 即使 options 可能包含动态选项，颜色配置仍然基于 staticOptions 的索引
  */
 function getOptionColor(value: any): string | null {
-  const optionIndex = options.value.findIndex(opt => opt.value === value)
+  // 🔥 在 staticOptions 中查找索引（因为 options_colors 与 staticOptions 对齐）
+  const optionIndex = staticOptions.value.findIndex(opt => opt.value === value)
   if (optionIndex >= 0 && optionIndex < optionColors.value.length) {
     return optionColors.value[optionIndex]
   }
