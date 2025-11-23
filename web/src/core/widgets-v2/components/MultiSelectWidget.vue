@@ -55,10 +55,6 @@
         >
           {{ getOptionLabel(item.value) }}
         </el-tag>
-        <!-- 🔥 调试：检查 item 的值 -->
-        <template v-if="process.env.NODE_ENV === 'development' && item">
-          <!-- 调试信息会在控制台输出 -->
-        </template>
       </template>
       
       <el-option
