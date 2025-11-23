@@ -418,10 +418,24 @@ function isStandardColor(color: string): boolean {
 
 // 🔥 获取选项的颜色
 function getOptionColor(value: any): string | null {
+  if (!value) return null
   const valueStr = String(value)
   const optionIndex = staticOptions.value.findIndex((opt: any) => String(opt.value) === valueStr)
   if (optionIndex >= 0 && optionIndex < optionColors.value.length) {
-    return optionColors.value[optionIndex]
+    const color = optionColors.value[optionIndex]
+    // 🔥 调试日志
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[SearchInput] getOptionColor - value:', valueStr, 'index:', optionIndex, 'color:', color)
+      console.log('[SearchInput] staticOptions:', staticOptions.value)
+      console.log('[SearchInput] optionColors:', optionColors.value)
+    }
+    return color
+  }
+  // 🔥 调试日志
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[SearchInput] getOptionColor - value:', valueStr, 'not found')
+    console.log('[SearchInput] staticOptions:', staticOptions.value)
+    console.log('[SearchInput] optionColors:', optionColors.value)
   }
   return null
 }
