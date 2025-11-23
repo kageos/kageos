@@ -405,25 +405,28 @@ const staticOptions = computed(() => {
 function isStandardColor(color: string): boolean {
   return ['success', 'warning', 'danger', 'info', 'primary'].includes(color)
 }
+
+/**
+ * 获取选项的颜色
+ * 
+ * ⚠️ 关键：通过选项索引匹配颜色
+ * options_colors 数组的索引对应 options 数组的索引
+ * 
+ * @param value - 选项值
+ * @returns 颜色值（标准颜色名或自定义 hex 颜色），如果未找到返回 null
+ */
+function getOptionColor(value: any): string | null {
   if (!value) return null
   const valueStr = String(value)
-  const optionIndex = staticOptions.value.findIndex((opt: any) => String(opt.value) === valueStr)
+  const optionIndex = staticOptions.value.findIndex((opt: any) => {
+    const optValue = typeof opt === 'object' ? opt.value : opt
+    return String(optValue) === valueStr
+  })
+  
   if (optionIndex >= 0 && optionIndex < optionColors.value.length) {
-    const color = optionColors.value[optionIndex]
-    // 🔥 调试日志
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[SearchInput] getOptionColor - value:', valueStr, 'index:', optionIndex, 'color:', color)
-      console.log('[SearchInput] staticOptions:', staticOptions.value)
-      console.log('[SearchInput] optionColors:', optionColors.value)
-    }
-    return color
+    return optionColors.value[optionIndex] || null
   }
-  // 🔥 调试日志
-  if (process.env.NODE_ENV === 'development') {
-    console.log('[SearchInput] getOptionColor - value:', valueStr, 'not found')
-    console.log('[SearchInput] staticOptions:', staticOptions.value)
-    console.log('[SearchInput] optionColors:', optionColors.value)
-  }
+  
   return null
 }
 
