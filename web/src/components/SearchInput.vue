@@ -804,11 +804,10 @@ watch(() => props.modelValue, (newValue: any, oldValue: any) => {
       }
       dateRangeValue.value = null
     } else if (newValue === null || newValue === undefined) {
-      // 🔥 只有当 newValue 明确为 null 或 undefined 时才清空（这是当前字段的值被清空）
-      // 🔥 注意：这里不清空 rangeValue，因为可能是其他字段的值变化导致的
-      // 🔥 只有当用户明确清空当前字段时，才会通过 handleClear 清空 rangeValue
+      // 🔥 当 newValue 为 null 或 undefined 时，初始化 rangeValue 为空值
+      // 🔥 这是当前字段没有值的情况，应该清空 rangeValue
+      rangeValue.value = { min: undefined, max: undefined }
       dateRangeValue.value = null
-      // 🔥 不更新 rangeValue，保持当前值（避免其他字段的值变化影响当前字段）
     }
     // 🔥 如果 newValue 不是范围类型，不更新 rangeValue（避免其他字段的值影响当前字段）
   } else if (isRangeSearch && inputConfig.value.component === SearchComponent.EL_DATE_PICKER) {
