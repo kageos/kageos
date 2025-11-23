@@ -383,6 +383,25 @@ function getOptionColorValue(value: any): string | undefined {
 }
 
 /**
+ * 🔥 获取选项的颜色样式对象（用于 span 的 style 绑定）
+ */
+function getOptionColorStyle(value: any): Record<string, string> {
+  const colorValue = getOptionColorValue(value)
+  const color = getOptionColor(value)
+  const backgroundColor = colorValue || color || ''
+  
+  // 🔥 调试日志
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[MultiSelectWidget] getOptionColorStyle - value: ${value}, colorValue: ${colorValue}, color: ${color}, backgroundColor: ${backgroundColor}`)
+  }
+  
+  return {
+    backgroundColor: backgroundColor,
+    marginRight: '8px'
+  }
+}
+
+/**
  * 🔥 计算行内聚合统计
  */
 function calculateRowStatistics(
