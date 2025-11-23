@@ -719,6 +719,12 @@ watch(
   font-weight: 500;
 }
 
+/* 🔥 确保 el-tag 的 color 属性正确应用（通过内联样式） */
+.multiselect-tag.el-tag {
+  /* 确保自定义颜色能够正确显示 */
+  /* Element Plus 的 el-tag 组件会自动将 color 属性转换为内联样式 */
+}
+
 /* 标准颜色的 tag，增强对比度 */
 .multiselect-tag.el-tag--success,
 .multiselect-tag.el-tag--warning,
