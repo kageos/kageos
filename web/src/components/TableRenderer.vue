@@ -64,6 +64,8 @@
         width="80"
         class-name="control-column"
         :sortable="getSortableConfig(idField)"
+        :sort-orders="['descending', 'ascending']"
+        :default-sort="sorts.length === 0 && !hasManualSort ? { prop: idField.code, order: 'descending' } : (getFieldSortOrder(idField.code) ? { prop: idField.code, order: getFieldSortOrder(idField.code) } : null)"
       >
         <template #default="{ row, $index }">
           <el-button
@@ -352,6 +354,8 @@ const {
   handleReset,
   handleSortChange: originalHandleSortChange,
   getFieldSortOrder,
+  sorts,
+  hasManualSort,
   handleSizeChange,
   handleCurrentChange,
   handleAdd: handleAddRow,
