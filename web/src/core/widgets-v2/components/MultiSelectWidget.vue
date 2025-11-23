@@ -68,10 +68,7 @@
           <span
             v-if="getOptionColor(option.value)"
             class="option-color-indicator"
-            :style="{
-              backgroundColor: getOptionColorValue(option.value) || getOptionColor(option.value) || undefined,
-              marginRight: '8px'
-            }"
+            :style="getOptionColorStyle(option.value)"
           />
           <span>{{ option.label }}</span>
         </div>
