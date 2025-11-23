@@ -48,6 +48,7 @@ export interface TableOperationsReturn {
   sorts: ReturnType<typeof ref<SortItem[]>>
   
   // 计算属性
+  getFieldSortOrder: (fieldCode: string) => 'ascending' | 'descending' | null
   searchableFields: ReturnType<typeof computed<FieldConfig[]>>
   visibleFields: ReturnType<typeof computed<FieldConfig[]>>
   hasAddCallback: ReturnType<typeof computed<boolean>>
@@ -148,6 +149,23 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
   }
   
   // ==================== 计算属性 ====================
+  
+  /**
+   * 获取字段的排序状态（用于 el-table-column 的 sort-orders）
+   * 
+   * ⚠️ 关键：Element Plus 的 el-table 在 custom 模式下，需要手动设置每个列的排序状态
+   * 这样才能正确显示排序标识（箭头）
+   * 
+   * @param fieldCode 字段 code
+   * @returns 排序方向：'ascending' | 'descending' | null（无排序）
+   */
+  const getFieldSortOrder = (fieldCode: string): 'ascending' | 'descending' | null => {
+    const sortItem = sorts.value.find(item => item.field === fieldCode)
+    if (!sortItem) {
+      return null
+    }
+    return sortItem.order === 'asc' ? 'ascending' : 'descending'
+  }
   
   /**
    * 可搜索字段（配置了 search 的字段）
@@ -608,10 +626,12 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
    * - order 为 'descending' 表示降序
    * - order 为 ''（空字符串）或不存在时表示取消排序
    * 
-   * 规则：
-   * 1. 用户手动排序时，移除默认的 id 排序
-   * 2. 支持多字段排序，新字段追加到列表末尾
-   * 3. 同一字段重复排序会更新该字段的排序方向
+   * ⚠️ 关键规则：
+   * 1. id 排序与其他排序互斥：id 是自增的，如果 id 排序在前面，其他排序就无意义了
+   * 2. id 不能在最前面：规定 id 不能作为第一个排序条件
+   * 3. 用户手动排序时，立即移除 id 排序（无论 id 是否在列表中）
+   * 4. 支持多字段排序，新字段追加到列表末尾
+   * 5. 同一字段重复排序会更新该字段的排序方向
    */
   const handleSortChange = (sortInfo: { prop?: string; order?: string }): void => {
     hasManualSort.value = true
@@ -620,10 +640,12 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
       const field = sortInfo.prop
       const order = sortInfo.order === 'ascending' ? 'asc' : 'desc'
       
-      // 如果是第一次手动排序，移除默认的 id 排序
+      // ⚠️ 关键：id 排序与其他排序互斥
+      // id 是自增的，如果 id 排序在前面，其他排序就无意义了
+      // 规定：id 不能在最前面，用户手动排序时，立即移除 id 排序
       const idFieldCode = getIdFieldCode()
       if (idFieldCode) {
-        // 移除 id 排序（用户手动排序时，id 排序会被移除）
+        // 移除 id 排序（无论 id 是否在列表中）
         removeSortByField(idFieldCode)
       }
       
@@ -774,6 +796,7 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
     sorts,
     
     // 计算属性
+    getFieldSortOrder,
     searchableFields,
     visibleFields,
     hasAddCallback,
