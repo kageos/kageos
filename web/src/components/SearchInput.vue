@@ -1046,40 +1046,5 @@ watch(() => inputConfig.value, () => {
 .user-select-dropdown-popper .el-select-dropdown__item:hover {
   background-color: var(--el-fill-color-light);
 }
-
-/* 🔥 单选组件包装器样式 */
-.select-single-wrapper {
-  position: relative;
-  display: inline-block;
-  width: 100%;
-}
-
-/* 🔥 隐藏 el-select 的默认选中值显示 */
-.select-single-hide-selected :deep(.el-select__selected-item) {
-  display: none !important;
-}
-
-.select-single-hide-selected :deep(.el-select__input-wrapper) {
-  display: none !important;
-}
-
-.select-single-hide-selected :deep(.el-select__placeholder) {
-  display: none !important;
-}
-
-/* 🔥 覆盖标签样式（绝对定位在 el-select 上方） */
-.select-single-overlay-tag {
-  position: absolute !important;
-  left: 8px !important;
-  top: 50% !important;
-  transform: translateY(-50%) !important;
-  z-index: 10 !important;
-  pointer-events: auto !important;
-  margin: 0 !important;
-  max-width: calc(100% - 40px) !important;
-  white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-}
 </style>
 
