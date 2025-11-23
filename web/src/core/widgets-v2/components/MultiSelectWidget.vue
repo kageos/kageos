@@ -65,13 +65,13 @@
       >
         <!-- 🔥 在下拉选项中显示带颜色的标签（参考 Element Plus 官方示例） -->
         <div class="flex items-center">
-          <el-tag
+          <span
             v-if="getOptionColor(option.value)"
-            :type="getOptionColorType(option.value)"
-            :color="getOptionColorValue(option.value)"
-            size="small"
-            class="option-tag"
-            style="margin-right: 8px"
+            class="option-color-indicator"
+            :style="{
+              backgroundColor: getOptionColorValue(option.value) || (getOptionColorType(option.value) ? undefined : getOptionColor(option.value)),
+              marginRight: '8px'
+            }"
           />
           <span>{{ option.label }}</span>
         </div>
@@ -691,19 +691,14 @@ watch(
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
-/* 🔥 下拉选项中的标签样式（参考 Element Plus 官方示例） */
-.option-tag {
-  border: none !important;
-  aspect-ratio: 1;
-  width: 12px !important;
-  height: 12px !important;
-  min-width: 12px !important;
-  min-height: 12px !important;
+/* 🔥 下拉选项中的颜色指示器样式（参考 Element Plus 官方示例） */
+.option-color-indicator {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
   border-radius: 2px;
-  padding: 0 !important;
-  margin: 0;
-  display: inline-block !important;
   flex-shrink: 0;
+  border: none;
 }
 
 /* 选项容器样式 */
