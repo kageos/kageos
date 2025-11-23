@@ -40,14 +40,15 @@
       @clear="handleClear"
     >
       <!-- 🔥 自定义标签显示（单选模式，参考多选组件的 #tag 插槽） -->
+      <!-- 🔥 注意：单选模式下 #tag 插槽可能不工作，但尝试使用 -->
       <template #tag>
         <el-tag
-          v-if="localValue && getOptionColor(localValue)"
+          v-if="localValue"
           :type="getOptionColorType(localValue)"
           :color="getOptionColorValue(localValue)"
           :closable="true"
           @close.stop="handleClear"
-          class="select-tag select-tag-outline"
+          class="select-tag-outline"
         >
           {{ getOptionLabel(localValue) }}
         </el-tag>
@@ -437,6 +438,34 @@ function getOptionColorValue(value: any): string | undefined {
     console.log('[SearchInput] getOptionColorValue - value:', value, 'color:', color, 'isStandard:', isStandardColor(color), 'result:', result)
   }
   return result
+}
+
+// 🔥 获取单选标签的样式对象（用于设置边框颜色）
+function getSelectTagStyle(value: any): Record<string, string> {
+  const color = getOptionColor(value)
+  if (!color) return {}
+  
+  const isStandard = isStandardColor(color)
+  const style: Record<string, string> = {}
+  
+  if (isStandard) {
+    // 标准颜色：使用 CSS 变量设置边框颜色
+    const colorMap: Record<string, string> = {
+      success: 'var(--el-color-success)',
+      warning: 'var(--el-color-warning)',
+      danger: 'var(--el-color-danger)',
+      info: 'var(--el-color-info)',
+      primary: 'var(--el-color-primary)'
+    }
+    style.borderColor = colorMap[color] || ''
+    style.color = colorMap[color] || ''
+  } else {
+    // 自定义颜色：直接使用颜色值设置边框颜色
+    style.borderColor = color
+    style.color = color
+  }
+  
+  return style
 }
 
 // 🔥 获取选项的颜色样式对象（用于 span 的 style 绑定）
