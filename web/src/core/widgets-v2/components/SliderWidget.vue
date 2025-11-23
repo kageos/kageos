@@ -34,7 +34,7 @@
       :percentage="percentage"
       :status="autoStatus"
       :stroke-width="6"
-      :format="formatProgressText"
+      :format="(pct) => formatProgressText(pct)"
     />
     
     <!-- 详情模式：进度条 -->
@@ -43,7 +43,7 @@
       :percentage="percentage"
       :status="autoStatus"
       :stroke-width="6"
-      :format="formatProgressText"
+      :format="(pct) => formatProgressText(pct)"
     />
     
     <!-- 搜索模式：范围输入 -->
