@@ -3,23 +3,22 @@ package widget
 import "strconv"
 
 type Slider struct {
-	// 基础参数
-	Min     float64 `json:"min"`      // 最小值（必需）
-	Max     float64 `json:"max"`      // 最大值（必需）
-	Step    float64 `json:"step"`     // 步长（可选，默认1）
-	Default float64 `json:"default"`  // 默认值（可选）
-	Unit    string  `json:"unit"`     // 单位（可选，如：%、元、kg等）
+	// 核心参数（必需）
+	Min float64 `json:"min"` // 最小值（必需）
+	Max float64 `json:"max"` // 最大值（必需）
 
-	// 显示参数
-	ShowInput     bool   `json:"show_input"`      // 是否显示输入框（可选，默认false）
-	ShowStops     bool   `json:"show_stops"`      // 是否显示刻度（可选，默认false）
-	ShowTooltip   bool   `json:"show_tooltip"`    // 是否显示提示（可选，默认true）
-	FormatTooltip string `json:"format_tooltip"`  // 自定义提示格式（可选，如：{value}%）
+	// 可选参数（有合理默认值）
+	Step    float64 `json:"step"`    // 步长（可选，默认1）
+	Default float64 `json:"default"` // 默认值（可选）
+	Unit    string  `json:"unit"`    // 单位（可选，如：%、元、kg等）
 
-	// 输出模式（进度条）参数
-	ShowPercentage bool   `json:"show_percentage"` // 是否显示百分比（可选，默认true）
-	Status         string `json:"status"`          // 状态颜色（可选，success/warning/danger/info）
-	StrokeWidth    int    `json:"stroke_width"`    // 进度条粗细（可选，默认6）
+	// 注意：以下参数都有合理的默认值，前端自动处理，不需要配置
+	// - show_input: 默认 false（简单场景不需要输入框）
+	// - show_stops: 默认 false（简单场景不需要刻度）
+	// - show_tooltip: 默认 true（拖动时显示提示）
+	// - show_percentage: 输出模式默认 true（进度条显示百分比）
+	// - status: 根据值自动判断（>80% success, 50-80% warning, <50% danger）
+	// - stroke_width: 默认 6（进度条粗细）
 }
 
 func (s *Slider) Config() interface{} {
@@ -33,15 +32,12 @@ func (s *Slider) Type() string {
 func newSlider(widgetParsed map[string]string) *Slider {
 	slider := &Slider{
 		// 默认值
-		Min:           0,
-		Max:           100,
-		Step:          1,
-		ShowTooltip:   true,
-		ShowPercentage: true,
-		StrokeWidth:   6,
+		Min:  0,
+		Max:  100,
+		Step: 1,
 	}
 
-	// 从widgetParsed中解析配置
+	// 从widgetParsed中解析配置（只解析核心参数）
 	if min, exists := widgetParsed["min"]; exists {
 		if val, err := strconv.ParseFloat(min, 64); err == nil {
 			slider.Min = val
@@ -64,29 +60,6 @@ func newSlider(widgetParsed map[string]string) *Slider {
 	}
 	if unit, exists := widgetParsed["unit"]; exists {
 		slider.Unit = unit
-	}
-	if showInput, exists := widgetParsed["show_input"]; exists {
-		slider.ShowInput = showInput == "true"
-	}
-	if showStops, exists := widgetParsed["show_stops"]; exists {
-		slider.ShowStops = showStops == "true"
-	}
-	if showTooltip, exists := widgetParsed["show_tooltip"]; exists {
-		slider.ShowTooltip = showTooltip != "false" // 默认true
-	}
-	if formatTooltip, exists := widgetParsed["format_tooltip"]; exists {
-		slider.FormatTooltip = formatTooltip
-	}
-	if showPercentage, exists := widgetParsed["show_percentage"]; exists {
-		slider.ShowPercentage = showPercentage != "false" // 默认true
-	}
-	if status, exists := widgetParsed["status"]; exists {
-		slider.Status = status
-	}
-	if strokeWidth, exists := widgetParsed["stroke_width"]; exists {
-		if val, err := strconv.Atoi(strokeWidth); err == nil {
-			slider.StrokeWidth = val
-		}
 	}
 
 	return slider
