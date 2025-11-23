@@ -1099,19 +1099,19 @@ watch(() => inputConfig.value, () => {
 
 /* 🔥 覆盖标签样式（绝对定位在 el-select 上方） */
 .select-single-tag-overlay {
-  position: absolute;
-  left: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 15 !important;
-  pointer-events: auto;
-  margin: 0;
-  max-width: calc(100% - 40px);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  position: absolute !important;
+  left: 8px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  z-index: 9999 !important;
+  pointer-events: auto !important;
+  margin: 0 !important;
+  max-width: calc(100% - 40px) !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
   display: inline-flex !important;
-  align-items: center;
+  align-items: center !important;
   visibility: visible !important;
   opacity: 1 !important;
 }
