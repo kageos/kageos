@@ -1070,6 +1070,18 @@ watch(() => inputConfig.value, () => {
   display: none !important;
 }
 
+.select-single-hide-tag :deep(.el-select__placeholder) {
+  display: none !important;
+}
+
+.select-single-hide-tag :deep(.el-select__selected-item-wrapper) {
+  display: none !important;
+}
+
+.select-single-hide-tag :deep(.el-select__input-inner) {
+  display: none !important;
+}
+
 /* 🔥 覆盖标签样式（绝对定位在 el-select 上方） */
 .select-single-tag-overlay {
   position: absolute;
