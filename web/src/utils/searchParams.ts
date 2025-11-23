@@ -73,11 +73,14 @@ export function buildSearchParamsString(
         result.in = result.in ? `${result.in},${field.code}:${valueStr}` : `${field.code}:${valueStr}`
       }
     }
-    // 范围查询
+    // 范围查询（gte/lte）
+    // ⚠️ 关键：支持多个字段同时使用范围搜索
+    // URL 格式：gte=progress:50,score:5&lte=progress:80,score:8
+    // 使用逗号分隔多个字段，与 eq、like、in 保持一致
     else if (searchType.includes(SearchType.GTE) && searchType.includes(SearchType.LTE)) {
       if (typeof value === 'object') {
         if (Array.isArray(value) && value.length === 2) {
-          // 日期范围数组
+          // 日期范围数组（时间戳类型）
           if (value[0]) {
             result.gte = result.gte ? `${result.gte},${field.code}:${value[0]}` : `${field.code}:${value[0]}`
           }
@@ -85,8 +88,9 @@ export function buildSearchParamsString(
             result.lte = result.lte ? `${result.lte},${field.code}:${value[1]}` : `${field.code}:${value[1]}`
           }
         } else if (value.min !== undefined || value.max !== undefined) {
-          // 数字范围对象
-          // 🔥 支持多个字段，使用逗号分隔（与 eq、like、in 保持一致）
+          // 数字范围对象（slider 组件）
+          // ⚠️ 重要：使用追加模式，支持多个字段
+          // 如果已有 gte 值，使用逗号追加；否则创建新的
           if (value.min !== undefined && value.min !== null && value.min !== '') {
             result.gte = result.gte ? `${result.gte},${field.code}:${value.min}` : `${field.code}:${value.min}`
           }
@@ -103,6 +107,14 @@ export function buildSearchParamsString(
 
 /**
  * 构建 URL 查询参数（用于 URL，格式：eq=field:value，与后端 API 格式一致）
+ * 
+ * ⚠️ 关键：支持多个字段同时使用相同的搜索类型
+ * URL 格式示例：
+ * - 单个字段：eq=field1:value1
+ * - 多个字段：eq=field1:value1,field2:value2
+ * - 范围搜索：gte=progress:50,score:5&lte=progress:80,score:8
+ * 
+ * 注意：多个字段之间使用逗号 , 分隔，与后端 API 格式一致
  * 
  * @param searchForm 搜索表单数据
  * @param searchableFields 可搜索字段列表
@@ -166,11 +178,14 @@ export function buildURLSearchParams(
         result.in = result.in ? `${result.in},${field.code}:${valueStr}` : `${field.code}:${valueStr}`
       }
     }
-    // 范围查询
+    // 范围查询（gte/lte）
+    // ⚠️ 关键：支持多个字段同时使用范围搜索
+    // URL 格式：gte=progress:50,score:5&lte=progress:80,score:8
+    // 使用逗号分隔多个字段，与 eq、like、in 保持一致
     else if (searchType.includes(SearchType.GTE) && searchType.includes(SearchType.LTE)) {
       if (typeof value === 'object') {
         if (Array.isArray(value) && value.length === 2) {
-          // 日期范围数组
+          // 日期范围数组（时间戳类型）
           if (value[0]) {
             result.gte = result.gte ? `${result.gte},${field.code}:${String(value[0])}` : `${field.code}:${String(value[0])}`
           }
@@ -178,8 +193,9 @@ export function buildURLSearchParams(
             result.lte = result.lte ? `${result.lte},${field.code}:${String(value[1])}` : `${field.code}:${String(value[1])}`
           }
         } else if (value.min !== undefined || value.max !== undefined) {
-          // 数字范围对象
-          // 🔥 支持多个字段，使用逗号分隔（与 eq、like、in 保持一致）
+          // 数字范围对象（slider 组件）
+          // ⚠️ 重要：使用追加模式，支持多个字段
+          // 如果已有 gte 值，使用逗号追加；否则创建新的
           if (value.min !== undefined && value.min !== null && value.min !== '') {
             result.gte = result.gte ? `${result.gte},${field.code}:${String(value.min)}` : `${field.code}:${String(value.min)}`
           }

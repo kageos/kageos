@@ -396,13 +396,15 @@ const staticOptions = computed(() => {
   })
 })
 
-// 🔥 判断是否是 Element Plus 标准颜色类型
+/**
+ * 判断是否是 Element Plus 标准颜色类型
+ * 
+ * 标准颜色：success, warning, danger, info, primary
+ * 自定义颜色：以 # 开头的 hex 颜色（如：#FF9800）
+ */
 function isStandardColor(color: string): boolean {
   return ['success', 'warning', 'danger', 'info', 'primary'].includes(color)
 }
-
-// 🔥 获取选项的颜色
-function getOptionColor(value: any): string | null {
   if (!value) return null
   const valueStr = String(value)
   const optionIndex = staticOptions.value.findIndex((opt: any) => String(opt.value) === valueStr)
@@ -425,28 +427,34 @@ function getOptionColor(value: any): string | null {
   return null
 }
 
-// 🔥 获取选项的颜色类型（用于 el-tag 的 type 属性）
+/**
+ * 获取选项的颜色类型（用于 el-tag 的 type 属性）
+ * 
+ * ⚠️ 注意：只有标准颜色才使用 type 属性
+ * 自定义颜色使用 color 属性
+ * 
+ * @param value - 选项值
+ * @returns 标准颜色类型（success/warning/danger/info/primary），如果不是标准颜色返回 undefined
+ */
 function getOptionColorType(value: any): string | undefined {
   const color = getOptionColor(value)
   if (!color) return undefined
-  const result = isStandardColor(color) ? color : undefined
-  // 🔥 调试日志
-  if (process.env.NODE_ENV === 'development') {
-    console.log('[SearchInput] getOptionColorType - value:', value, 'color:', color, 'isStandard:', isStandardColor(color), 'result:', result)
-  }
-  return result
+  return isStandardColor(color) ? color : undefined
 }
 
-// 🔥 获取选项的颜色值（用于 el-tag 的 color 属性）
+/**
+ * 获取选项的颜色值（用于 el-tag 的 color 属性）
+ * 
+ * ⚠️ 注意：只有自定义颜色才使用 color 属性
+ * 标准颜色使用 type 属性
+ * 
+ * @param value - 选项值
+ * @returns 自定义颜色值（hex 格式，如：#FF9800），如果是标准颜色返回 undefined
+ */
 function getOptionColorValue(value: any): string | undefined {
   const color = getOptionColor(value)
   if (!color) return undefined
-  const result = !isStandardColor(color) ? color : undefined
-  // 🔥 调试日志
-  if (process.env.NODE_ENV === 'development') {
-    console.log('[SearchInput] getOptionColorValue - value:', value, 'color:', color, 'isStandard:', isStandardColor(color), 'result:', result)
-  }
-  return result
+  return !isStandardColor(color) ? color : undefined
 }
 
 // 🔥 获取单选标签的样式对象（用于设置边框颜色）
@@ -557,20 +565,23 @@ const getUserInfoByValue = (value: any): any => {
   return option?.userInfo || null
 }
 
-// 🔥 提取下拉选项（兼容静态 options 和 remote 模式）
+/**
+ * 提取下拉选项（兼容静态 options 和 remote 模式）
+ * 
+ * ⚠️ 优先级：静态 options > remote 动态选项
+ * 静态 options 来自 widget.config.options（后端配置）
+ * 动态选项来自 remote-method（用户搜索）
+ */
 const selectOptionsComputed = computed(() => {
   if (inputConfig.value.component !== SearchComponent.EL_SELECT) {
     return []
   }
   // 如果有静态 options，使用静态 options
   const staticOptions = inputConfig.value.props?.options
-  console.log(`[SearchInput] ${props.field.code} selectOptionsComputed - inputConfig:`, inputConfig.value)
-  console.log(`[SearchInput] ${props.field.code} selectOptionsComputed - staticOptions:`, staticOptions)
   if (staticOptions && staticOptions.length > 0) {
     return staticOptions
   }
   // 否则使用 remote 模式下的动态选项
-  console.log(`[SearchInput] ${props.field.code} selectOptionsComputed - 使用动态选项:`, selectOptions.value)
   return selectOptions.value
 })
 
@@ -737,11 +748,20 @@ const handleClear = () => {
   emit('update:modelValue', null)
 }
 
-// 处理范围输入（NumberRangeInput 和 RangeInput）
+/**
+ * 处理范围输入变化（NumberRangeInput 和 RangeInput）
+ * 
+ * ⚠️ 关键逻辑：
+ * 1. 如果 min 和 max 都为空，传递 null（表示清空搜索条件）
+ * 2. 否则传递 { min, max } 对象（用于构建 URL 参数 gte/lte）
+ * 
+ * 注意：空字符串会被转换为 undefined，避免传递无效值
+ */
 const handleRangeChange = () => {
   const min = rangeValue.value.min
   const max = rangeValue.value.max
-  // 🔥 如果 min 和 max 都为空，传递 null 而不是空对象
+  
+  // 如果 min 和 max 都为空，传递 null 而不是空对象
   if ((min === undefined || min === null || min === '') && 
       (max === undefined || max === null || max === '')) {
     emit('update:modelValue', null)
@@ -774,17 +794,25 @@ watch(() => props.modelValue, (newValue: any, oldValue: any) => {
     return
   }
   
-  // 🔥 检查当前字段是否支持范围搜索（gte/lte）
+  /**
+   * 处理范围搜索（gte/lte）的值更新
+   * 
+   * ⚠️ 关键逻辑：每个 SearchInput 实例都有独立的 rangeValue
+   * 只有当 newValue 是当前字段的范围值时，才更新 rangeValue
+   * 这样可以避免多个 slider 字段之间的值互相影响
+   * 
+   * 判断条件：
+   * 1. 字段支持范围搜索（searchType 包含 gte 和 lte）
+   * 2. 字段是 slider 或使用范围输入组件
+   * 3. newValue 是范围类型（数组或包含 min/max 的对象）
+   */
   const isRangeSearch = props.searchType?.includes('gte') && props.searchType?.includes('lte')
-  // 🔥 检查当前字段的 widget 类型（更可靠的判断方式）
   const isSliderWidget = props.field.widget?.type === WidgetType.SLIDER
-  // 🔥 检查当前字段是否使用范围输入组件
   const isRangeInput = inputConfig.value.component === SearchComponent.NUMBER_RANGE_INPUT || 
                        inputConfig.value.component === SearchComponent.RANGE_INPUT
   
-  // 🔥 只有当字段是 slider 或使用范围输入组件时，才处理范围值
   if ((isSliderWidget || isRangeInput) && isRangeSearch) {
-    // 🔥 如果是数组格式（时间戳范围），用于 ElDatePicker
+    // 数组格式（时间戳范围），用于 ElDatePicker
     if (Array.isArray(newValue)) {
       dateRangeValue.value = [
         newValue[0] || null,
@@ -795,21 +823,24 @@ watch(() => props.modelValue, (newValue: any, oldValue: any) => {
         min: newValue[0] || undefined,
         max: newValue[1] || undefined
       }
-    } else if (newValue && typeof newValue === 'object' && !Array.isArray(newValue) && ('min' in newValue || 'max' in newValue)) {
-      // 🔥 只有当 newValue 是范围对象（包含 min 或 max 属性）时才更新 rangeValue
-      // 🔥 这样可以避免其他字段的值（如字符串、数字等）影响当前字段
+    } 
+    // 对象格式（数字范围），用于 slider 组件
+    // ⚠️ 关键：必须检查 newValue 是否包含 min 或 max 属性
+    // 这样可以避免其他字段的值（如字符串、数字等）影响当前字段
+    else if (newValue && typeof newValue === 'object' && !Array.isArray(newValue) && ('min' in newValue || 'max' in newValue)) {
       rangeValue.value = {
         min: newValue.min !== undefined && newValue.min !== null ? newValue.min : undefined,
         max: newValue.max !== undefined && newValue.max !== null ? newValue.max : undefined
       }
       dateRangeValue.value = null
-    } else if (newValue === null || newValue === undefined) {
-      // 🔥 当 newValue 为 null 或 undefined 时，初始化 rangeValue 为空值
-      // 🔥 这是当前字段没有值的情况，应该清空 rangeValue
+    } 
+    // null 或 undefined：清空当前字段的值
+    else if (newValue === null || newValue === undefined) {
       rangeValue.value = { min: undefined, max: undefined }
       dateRangeValue.value = null
     }
-    // 🔥 如果 newValue 不是范围类型，不更新 rangeValue（避免其他字段的值影响当前字段）
+    // ⚠️ 如果 newValue 不是范围类型，不更新 rangeValue
+    // 这样可以避免其他字段的值影响当前字段（例如：字符串、数字等）
   } else if (isRangeSearch && inputConfig.value.component === SearchComponent.EL_DATE_PICKER) {
     // 🔥 日期范围选择器
     if (Array.isArray(newValue)) {

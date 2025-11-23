@@ -317,9 +317,20 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
   /**
    * 从 URL 恢复状态
    */
+  /**
+   * 从 URL 恢复状态（搜索条件、排序、分页）
+   * 
+   * ⚠️ 关键逻辑：
+   * 1. 解析 URL 参数，恢复搜索表单的值
+   * 2. 支持多个字段同时使用相同的搜索类型（如：多个 slider 字段使用 gte/lte）
+   * 3. 对于范围搜索（gte/lte），需要区分时间戳类型和数字类型
+   * 
+   * URL 格式示例：
+   * - 单个字段：gte=progress:50&lte=progress:80
+   * - 多个字段：gte=progress:50,score:5&lte=progress:80,score:8
+   */
   const restoreFromURL = (): void => {
     const query = route.query
-    console.log('[useTableOperations] restoreFromURL 开始，query:', query)
     
     // 恢复分页
     if (query.page) {
@@ -357,7 +368,6 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
     
     // 恢复搜索（格式：eq=field:value 或 eq=field1:value1,field2:value2, like=field:value, in=field:value, gte=field:value, lte=field:value）
     // 🔥 支持多个字段使用相同搜索类型，格式：field1:value1,field2:value2
-    console.log('[useTableOperations] 开始恢复搜索，searchableFields:', searchableFields.value.length)
     searchableFields.value.forEach(field => {
       const searchType = field.search || ''
       
@@ -537,17 +547,14 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
         if (gte || lte) {
           // 根据字段类型判断是数字范围还是日期范围
           // 🔥 检查 widget.type 或 data.type 是否为 timestamp
+          /**
+           * ⚠️ 关键：区分时间戳类型和数字类型
+           * 时间戳类型：使用数组格式 [start, end]（用于 ElDatePicker）
+           * 数字类型：使用对象格式 { min, max }（用于 slider 组件）
+           */
           const fieldType = field.data?.type
           const widgetType = field.widget?.type
           const isTimestamp = fieldType === 'timestamp' || widgetType === 'timestamp'
-          
-          console.log(`[useTableOperations] 字段 ${field.code} 类型检查:`, {
-            fieldType,
-            widgetType,
-            isTimestamp,
-            gte,
-            lte
-          })
           
           if (isTimestamp) {
             // 🔥 时间戳类型：将字符串转换为数字（ElDatePicker 的 valueFormat='x' 需要毫秒级时间戳）
@@ -567,18 +574,16 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
               lte ? convertTimestamp(lte) : null
             ]
             searchForm.value[field.code] = timestampRange
-            console.log(`[useTableOperations] 恢复时间戳范围 ${field.code}:`, timestampRange, '原始值 gte:', gte, 'lte:', lte)
           } else {
+            // 数字类型（slider 组件）：使用对象格式 { min, max }
             searchForm.value[field.code] = {
               min: gte ? String(gte) : undefined,
               max: lte ? String(lte) : undefined
             }
-            console.log(`[useTableOperations] 恢复数字范围 ${field.code}:`, searchForm.value[field.code])
           }
         }
       }
     })
-    console.log('[useTableOperations] restoreFromURL 完成，searchForm:', JSON.stringify(searchForm.value))
   }
   
   /**
