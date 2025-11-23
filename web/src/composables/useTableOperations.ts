@@ -803,6 +803,7 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
     hasAddCallback,
     hasUpdateCallback,
     hasDeleteCallback,
+    hasManualSort,
     
     // 方法
     loadTableData,
