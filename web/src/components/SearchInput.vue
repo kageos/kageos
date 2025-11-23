@@ -746,15 +746,23 @@ watch(() => inputConfig.value, () => {
 .multiselect-tag {
   font-weight: 500;
   border: none;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
   margin-right: 6px;
   margin-bottom: 2px;
+  opacity: 0.9;
+  transition: opacity 0.2s;
+}
+
+.multiselect-tag:hover {
+  opacity: 1;
 }
 
 /* 自定义颜色的 tag，确保文字清晰 */
 .multiselect-tag[style*="background-color"] {
   color: #fff !important;
   font-weight: 500;
+  /* 🔥 降低亮度：使用 filter 降低饱和度和亮度 */
+  filter: brightness(0.95) saturate(0.9);
 }
 
 /* 🔥 下拉选项中的颜色指示器样式 */
@@ -768,6 +776,9 @@ watch(() => inputConfig.value, () => {
   flex-shrink: 0 !important;
   border: none !important;
   vertical-align: middle !important;
+  /* 🔥 降低亮度：使用 filter 降低饱和度和亮度 */
+  filter: brightness(0.95) saturate(0.9);
+  opacity: 0.9;
 }
 
 /* 选项容器样式 */
