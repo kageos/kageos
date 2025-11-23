@@ -85,7 +85,7 @@
       </el-select>
       <!-- 🔥 显示颜色标签（覆盖在 el-select 上方） -->
       <el-tag
-        v-if="localValue"
+        v-if="localValue && getOptionColor(localValue)"
         :type="getOptionColorType(localValue)"
         :color="getOptionColorValue(localValue)"
         :closable="true"
