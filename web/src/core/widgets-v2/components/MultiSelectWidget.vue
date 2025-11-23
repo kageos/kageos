@@ -739,4 +739,18 @@ watch(
 .select-dropdown-popper .el-select-dropdown {
   z-index: 3001 !important;
 }
+
+/* 🔥 全局样式：确保下拉选项中的颜色指示器正确显示 */
+.select-dropdown-popper .option-color-indicator {
+  display: inline-block !important;
+  width: 12px !important;
+  height: 12px !important;
+  min-width: 12px !important;
+  min-height: 12px !important;
+  border-radius: 2px !important;
+  flex-shrink: 0 !important;
+  border: none !important;
+  vertical-align: middle !important;
+  background-color: var(--bg-color, transparent) !important;
+}
 </style>
