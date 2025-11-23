@@ -543,7 +543,12 @@ function handleOptionClick(): void {
 }
 
 // 移除标签时触发
-function handleRemoveTag(): void {
+function handleRemoveTag(valueToRemove?: any): void {
+  if (valueToRemove !== undefined) {
+    // 🔥 从 selectedValues 中移除指定值
+    const newValues = selectedValues.value.filter(v => String(v) !== String(valueToRemove))
+    selectedValues.value = newValues
+  }
   shouldKeepOpen.value = true
 }
 
