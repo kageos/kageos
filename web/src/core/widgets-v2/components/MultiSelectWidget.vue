@@ -60,10 +60,10 @@
       <el-option
         v-for="option in options"
         :key="`${option.value}-${option.label}`"
-        :label="option.label"
         :value="option.value"
       >
         <!-- 🔥 在下拉选项中显示带颜色的标签 -->
+        <!-- 注意：移除 label 属性，使用插槽内容显示，这样才能显示颜色 -->
         <el-tag
           :type="getOptionColorType(option.value)"
           :color="getOptionColorValue(option.value)"
