@@ -55,6 +55,10 @@
         >
           {{ getOptionLabel(item.value) }}
         </el-tag>
+        <!-- 🔥 调试：检查 item 的值 -->
+        <template v-if="process.env.NODE_ENV === 'development' && item">
+          <!-- 调试信息会在控制台输出 -->
+        </template>
       </template>
       
       <el-option
@@ -369,10 +373,17 @@ function getOptionColorType(value: any): string | undefined {
 
 /**
  * 获取选项的颜色值（用于 el-tag 的 color 属性）
+ * 🔥 注意：el-tag 的 color 属性只接受自定义颜色（hex），标准颜色使用 type 属性
  */
 function getOptionColorValue(value: any): string | undefined {
   const color = getOptionColor(value)
-  if (!color) return undefined
+  if (!color) {
+    // 🔥 调试日志：未找到颜色
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[MultiSelectWidget] getOptionColorValue - value: ${value}, no color found`)
+    }
+    return undefined
+  }
   const isStandard = isStandardColor(color)
   const result = !isStandard ? color : undefined
   // 🔥 调试日志
