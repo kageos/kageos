@@ -979,11 +979,10 @@ watch(() => inputConfig.value, () => {
   opacity: 1;
 }
 
-/* 🔥 空心样式：使用边框和透明背景（单选组件） */
+/* 🔥 单选组件标签样式：使用空心样式（outline） */
 .select-tag-outline {
   background-color: transparent !important;
   border: 2px solid currentColor !important;
-  border: none !important; /* 🔥 参考官方示例，使用无边框样式 */
 }
 
 /* 标准颜色的空心标签 */
