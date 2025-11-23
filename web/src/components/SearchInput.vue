@@ -1020,6 +1020,10 @@ watch(() => inputConfig.value, () => {
   display: none !important;
 }
 
+.select-single-hide-tag :deep(.el-select__caret) {
+  display: block !important;
+}
+
 /* 🔥 覆盖标签样式（绝对定位在 el-select 上方） */
 .select-single-tag-overlay {
   position: absolute;
@@ -1030,6 +1034,9 @@ watch(() => inputConfig.value, () => {
   pointer-events: auto;
   margin: 0;
   max-width: calc(100% - 40px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>
 
