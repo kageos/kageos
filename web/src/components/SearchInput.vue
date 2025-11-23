@@ -85,6 +85,7 @@
         :closable="true"
         @close.stop="handleClear"
         class="select-tag-outline select-single-overlay-tag"
+        :style="getSelectTagStyle(localValue)"
       >
         {{ getOptionLabel(localValue) }}
       </el-tag>
