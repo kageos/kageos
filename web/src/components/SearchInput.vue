@@ -776,11 +776,14 @@ watch(() => props.modelValue, (newValue: any, oldValue: any) => {
   
   // 🔥 检查当前字段是否支持范围搜索（gte/lte）
   const isRangeSearch = props.searchType?.includes('gte') && props.searchType?.includes('lte')
+  // 🔥 检查当前字段的 widget 类型（更可靠的判断方式）
+  const isSliderWidget = props.field.widget?.type === WidgetType.SLIDER
   // 🔥 检查当前字段是否使用范围输入组件
   const isRangeInput = inputConfig.value.component === SearchComponent.NUMBER_RANGE_INPUT || 
                        inputConfig.value.component === SearchComponent.RANGE_INPUT
   
-  if (isRangeSearch && isRangeInput) {
+  // 🔥 只有当字段是 slider 或使用范围输入组件时，才处理范围值
+  if ((isSliderWidget || isRangeInput) && isRangeSearch) {
     // 🔥 如果是数组格式（时间戳范围），用于 ElDatePicker
     if (Array.isArray(newValue)) {
       dateRangeValue.value = [
@@ -792,9 +795,9 @@ watch(() => props.modelValue, (newValue: any, oldValue: any) => {
         min: newValue[0] || undefined,
         max: newValue[1] || undefined
       }
-    } else if (newValue && typeof newValue === 'object' && !Array.isArray(newValue)) {
-      // 🔥 已经是对象格式（数字范围），且不是数组
-      // 🔥 只有当 newValue 是范围对象时才更新 rangeValue，避免其他字段的值影响当前字段
+    } else if (newValue && typeof newValue === 'object' && !Array.isArray(newValue) && ('min' in newValue || 'max' in newValue)) {
+      // 🔥 只有当 newValue 是范围对象（包含 min 或 max 属性）时才更新 rangeValue
+      // 🔥 这样可以避免其他字段的值（如字符串、数字等）影响当前字段
       rangeValue.value = {
         min: newValue.min !== undefined && newValue.min !== null ? newValue.min : undefined,
         max: newValue.max !== undefined && newValue.max !== null ? newValue.max : undefined
