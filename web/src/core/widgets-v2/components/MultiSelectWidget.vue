@@ -694,13 +694,17 @@ watch(
 
 /* 🔥 下拉选项中的标签样式（参考 Element Plus 官方示例） */
 .option-tag {
-  border: none;
+  border: none !important;
   aspect-ratio: 1;
-  width: 12px;
-  height: 12px;
+  width: 12px !important;
+  height: 12px !important;
+  min-width: 12px !important;
+  min-height: 12px !important;
   border-radius: 2px;
-  padding: 0;
+  padding: 0 !important;
   margin: 0;
+  display: inline-block !important;
+  flex-shrink: 0;
 }
 
 /* 选项容器样式 */
