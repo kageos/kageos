@@ -20,6 +20,8 @@ export const WidgetType = {
   RADIO: 'radio',
   MULTI_SELECT: 'multiselect',
   SLIDER: 'slider',
+  RATE: 'rate',
+  COLOR: 'color',
   TABLE: 'table',
   FORM: 'form'
 } as const

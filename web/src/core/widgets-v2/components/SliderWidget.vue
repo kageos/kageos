@@ -18,6 +18,7 @@
       :max="max"
       :step="step"
       :show-tooltip="true"
+      :marks="marks"
       :format-tooltip="formatTooltipFunc"
       :disabled="field.widget?.config?.disabled"
       @change="handleChange"
@@ -147,8 +148,14 @@ const internalValue = computed({
   get: () => {
     if (props.mode === 'edit') {
       const value = props.value?.raw
-      if (value !== null && value !== undefined) {
-        return Number(value)
+      if (value !== null && value !== undefined && value !== '') {
+        const numValue = Number(value)
+        // 🔥 关键：如果转换失败，使用默认值或最小值
+        if (!isNaN(numValue) && isFinite(numValue)) {
+          // 确保值在 min 和 max 范围内
+          const clampedValue = Math.max(min.value, Math.min(max.value, numValue))
+          return clampedValue
+        }
       }
       // 如果没有值且有默认值，返回默认值
       if (defaultValue.value !== undefined) {
@@ -246,6 +253,54 @@ const formatTooltipFunc = computed(() => {
   return (value: number) => {
     return unitValue ? `${value}${unitValue}` : String(value)
   }
+})
+
+/**
+ * 🔥 计算 marks（标记点）
+ * 
+ * 根据 min、max、step 生成标记点，显示值和标记
+ * 标记点包括：最小值、最大值，以及中间的关键点（如果范围不太大）
+ */
+const marks = computed(() => {
+  const marksObj: Record<number, string> = {}
+  const minVal = min.value
+  const maxVal = max.value
+  const stepVal = step.value
+  const unitValue = unit.value
+  
+  // 始终显示最小值和最大值
+  marksObj[minVal] = unitValue ? `${minVal}${unitValue}` : String(minVal)
+  marksObj[maxVal] = unitValue ? `${maxVal}${unitValue}` : String(maxVal)
+  
+  // 计算中间标记点（如果范围不太大，显示更多标记）
+  const range = maxVal - minVal
+  const stepCount = range / stepVal
+  
+  // 如果步数不太多（<= 20），显示所有步长点
+  // 如果步数较多，只显示关键点（每 25% 一个点）
+  if (stepCount <= 20) {
+    // 显示所有步长点
+    for (let i = minVal + stepVal; i < maxVal; i += stepVal) {
+      marksObj[i] = unitValue ? `${i}${unitValue}` : String(i)
+    }
+  } else {
+    // 只显示关键点：25%、50%、75%
+    const quarter1 = Math.round((minVal + range * 0.25) / stepVal) * stepVal
+    const half = Math.round((minVal + range * 0.5) / stepVal) * stepVal
+    const quarter3 = Math.round((minVal + range * 0.75) / stepVal) * stepVal
+    
+    if (quarter1 > minVal && quarter1 < maxVal) {
+      marksObj[quarter1] = unitValue ? `${quarter1}${unitValue}` : String(quarter1)
+    }
+    if (half > minVal && half < maxVal) {
+      marksObj[half] = unitValue ? `${half}${unitValue}` : String(half)
+    }
+    if (quarter3 > minVal && quarter3 < maxVal) {
+      marksObj[quarter3] = unitValue ? `${quarter3}${unitValue}` : String(quarter3)
+    }
+  }
+  
+  return marksObj
 })
 
 /**
@@ -349,7 +404,9 @@ function handleSearchChange(): void {
  * 监听值变化，处理初始化和值恢复
  * 
  * ⚠️ 关键逻辑：
- * 1. 编辑模式：如果字段没有值，使用默认值
+ * 1. 编辑模式：
+ *    - 如果字段没有值，使用默认值
+ *    - 如果值存在但转换失败或超出范围，自动修正
  * 2. 搜索模式：从 value.raw 中恢复 min/max（用于 URL 恢复）
  * 
  * 注意：使用 deep: true 确保能监听到对象内部的变化
@@ -357,10 +414,31 @@ function handleSearchChange(): void {
 watch(
   () => props.value,
   (newValue: any) => {
-    if (props.mode === 'edit' && (!newValue || newValue.raw === null || newValue.raw === undefined)) {
-      // 编辑模式：如果字段没有值，使用默认值
-      if (defaultValue.value !== undefined) {
-        internalValue.value = defaultValue.value
+    if (props.mode === 'edit') {
+      if (!newValue || newValue.raw === null || newValue.raw === undefined || newValue.raw === '') {
+        // 编辑模式：如果字段没有值，使用默认值
+        if (defaultValue.value !== undefined) {
+          internalValue.value = defaultValue.value
+        }
+      } else {
+        // 🔥 关键：如果值存在，确保它能正确显示
+        // 通过设置 internalValue 来触发值的验证和修正
+        const numValue = Number(newValue.raw)
+        if (!isNaN(numValue) && isFinite(numValue)) {
+          // 确保值在范围内
+          const clampedValue = Math.max(min.value, Math.min(max.value, numValue))
+          // 只有当值发生变化时才更新，避免无限循环
+          if (internalValue.value !== clampedValue) {
+            internalValue.value = clampedValue
+          }
+        } else {
+          // 如果值转换失败，使用默认值或最小值
+          if (defaultValue.value !== undefined) {
+            internalValue.value = defaultValue.value
+          } else {
+            internalValue.value = min.value
+          }
+        }
       }
     } else if (props.mode === 'search') {
       // 搜索模式：从 value.raw 中恢复 min/max

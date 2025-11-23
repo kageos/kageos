@@ -16,6 +16,8 @@ const (
 	TypeRadio       = "radio"
 	TypeMultiSelect = "multiselect"
 	TypeSlider      = "slider"
+	TypeRate        = "rate"
+	TypeColor       = "color"
 	TypeTable       = "table"
 	TypeForm        = "form"
 )
@@ -81,6 +83,10 @@ func NewWidget(widgetType string, widgetParsed map[string]string) Widget {
 		return newText(widgetParsed)
 	case TypeSlider:
 		return newSlider(widgetParsed)
+	case TypeRate:
+		return newRate(widgetParsed)
+	case TypeColor:
+		return newColor(widgetParsed)
 	default:
 		// 默认返回Input组件，确保兜底
 		return newInput(widgetParsed)
