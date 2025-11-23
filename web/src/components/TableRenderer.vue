@@ -42,12 +42,17 @@
     </div>
 
     <!-- 表格 -->
+    <!-- 
+      ⚠️ 关键：Element Plus 的 el-table 在 custom 模式下，需要手动控制每个列的排序状态
+      使用 :key 强制重新渲染，确保排序状态正确显示
+    -->
     <el-table
       v-loading="loading"
       :data="tableData"
       border
       style="width: 100%"
       class="table-with-fixed-column"
+      :key="`table-${sorts.map(s => `${s.field}:${s.order}`).join(',')}`"
       @sort-change="handleSortChange"
     >
       <!-- 🔥 控制中心列（ID列改造） -->
@@ -65,7 +70,7 @@
         class-name="control-column"
         :sortable="getSortableConfig(idField)"
         :sort-orders="['descending', 'ascending']"
-        :default-sort="sorts.length === 0 && !hasManualSort ? { prop: idField.code, order: 'descending' } : (getFieldSortOrder(idField.code) ? { prop: idField.code, order: getFieldSortOrder(idField.code) } : null)"
+        :order="getFieldSortOrder(idField.code) || (sorts.length === 0 && !hasManualSort ? 'descending' : null)"
       >
         <template #default="{ row, $index }">
           <el-button
@@ -93,7 +98,7 @@
         :label="field.name"
         :sortable="getSortableConfig(field)"
         :sort-orders="['ascending', 'descending']"
-        :default-sort="getFieldSortOrder(field.code) ? { prop: field.code, order: getFieldSortOrder(field.code) } : null"
+        :order="getFieldSortOrder(field.code)"
         :min-width="getColumnWidth(field)"
       >
         <template #default="{ row, $index }">
