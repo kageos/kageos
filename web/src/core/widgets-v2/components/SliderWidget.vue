@@ -217,8 +217,22 @@ const percentage = computed(() => {
   return Math.round(pct * 100) / 100 // 保留2位小数
 })
 
-// 自动判断状态颜色（根据百分比）
-// Element Plus 的 el-progress 只支持: "", "success", "exception", "warning"
+/**
+ * 自动判断状态颜色（根据百分比）
+ * 
+ * ⚠️ 重要：Element Plus 的 el-progress 只支持以下 status 值：
+ * - ""（空字符串）
+ * - "success"（成功/绿色）
+ * - "exception"（异常/红色，对应 danger）
+ * - "warning"（警告/黄色）
+ * 
+ * 注意：不支持 "danger"，必须使用 "exception"
+ * 
+ * 判断规则：
+ * - > 80%：success（绿色）
+ * - 50-80%：warning（黄色）
+ * - < 50%：exception（红色）
+ */
 const autoStatus = computed(() => {
   const pct = percentage.value
   if (pct > 80) return 'success'
@@ -234,12 +248,25 @@ const formatTooltipFunc = computed(() => {
   }
 })
 
-// 格式化进度条文本（显示值和百分比）
-// 直接使用函数，参考 Element Plus 官方示例
+/**
+ * 格式化进度条文本（显示值和百分比）
+ * 
+ * ⚠️ 重要：此函数必须返回字符串，不能是异步的
+ * 参考 Element Plus 官方示例：const format = (percentage) => (percentage === 100 ? 'Full' : `${percentage}%`)
+ * 
+ * 显示逻辑：
+ * - 如果单位是 %：只显示值（如：50%），避免重复显示百分比
+ * - 如果单位不是 %：显示值和单位，以及百分比（如：8.5分 (85%)）
+ * 
+ * @param percentage - 百分比值（0-100）
+ * @returns 格式化后的文本
+ */
 function formatProgressText(percentage: number): string {
-  // 先验证 percentage 值
+  // 验证 percentage 值（防止无效值导致显示异常）
   if (isNaN(percentage) || !isFinite(percentage)) {
-    console.warn('[SliderWidget] formatProgressText: invalid percentage', percentage)
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('[SliderWidget] formatProgressText: invalid percentage', percentage)
+    }
     return '0%'
   }
   
@@ -253,7 +280,7 @@ function formatProgressText(percentage: number): string {
     return `${percentage.toFixed(0)}%`
   }
   
-  // 根据步长决定小数位数
+  // 根据步长决定小数位数（例如：step=0.1 时，显示 1 位小数）
   const stepStr = String(step.value)
   const decimals = stepStr.includes('.') ? stepStr.split('.')[1].length : 0
   const valueStr = numValue.toFixed(decimals)
@@ -261,26 +288,43 @@ function formatProgressText(percentage: number): string {
   const unitValue = unit.value
   const isPercentageUnit = unitValue === '%' || unitValue === '％'
   
-  // 如果单位本身就是百分比，只显示值，不重复显示百分比
+  // ⚠️ 关键：如果单位本身就是百分比，只显示值，不重复显示百分比
+  // 例如：单位是 %，值是 50，显示 "50%"，而不是 "50% (50%)"
   if (isPercentageUnit) {
     return `${valueStr}%`
   }
   
   // 如果单位不是百分比，显示值和单位，以及百分比
+  // 例如：单位是 "分"，值是 8.5，显示 "8.5分 (85%)"
   const valueDisplay = unitValue ? `${valueStr}${unitValue}` : valueStr
   return `${valueDisplay} (${percentage.toFixed(0)}%)`
 }
 
-// 搜索模式：最小值、最大值
+/**
+ * 搜索模式：最小值、最大值
+ * 
+ * ⚠️ 注意：每个 SliderWidget 实例都有独立的 minValue 和 maxValue
+ * 多个 slider 字段可以同时存在搜索值，互不影响
+ */
 const minValue = ref<number | undefined>(undefined)
 const maxValue = ref<number | undefined>(undefined)
 
-// 处理值变化
+/**
+ * 处理编辑模式的值变化
+ * 注意：值变化已在 internalValue 的 setter 中处理，这里不需要额外逻辑
+ */
 function handleChange(value: number): void {
   // 值变化已在 internalValue 的 setter 中处理
 }
 
-// 处理搜索变化
+/**
+ * 处理搜索模式的值变化
+ * 
+ * ⚠️ 关键：将 min/max 值转换为 { min, max } 对象格式
+ * 这个对象会被传递给父组件，最终转换为 URL 参数：gte=field:min&lte=field:max
+ * 
+ * 如果 min 和 max 都为空，传递 null（表示清空搜索条件）
+ */
 function handleSearchChange(): void {
   const searchValue: any = {}
   if (minValue.value !== undefined && minValue.value !== null) {
@@ -301,17 +345,27 @@ function handleSearchChange(): void {
   emit('update:modelValue', newFieldValue)
 }
 
-// 初始化：如果字段没有值，使用默认值
+/**
+ * 监听值变化，处理初始化和值恢复
+ * 
+ * ⚠️ 关键逻辑：
+ * 1. 编辑模式：如果字段没有值，使用默认值
+ * 2. 搜索模式：从 value.raw 中恢复 min/max（用于 URL 恢复）
+ * 
+ * 注意：使用 deep: true 确保能监听到对象内部的变化
+ */
 watch(
   () => props.value,
   (newValue: any) => {
     if (props.mode === 'edit' && (!newValue || newValue.raw === null || newValue.raw === undefined)) {
+      // 编辑模式：如果字段没有值，使用默认值
       if (defaultValue.value !== undefined) {
         internalValue.value = defaultValue.value
       }
     } else if (props.mode === 'search') {
       // 搜索模式：从 value.raw 中恢复 min/max
-      if (newValue?.raw && typeof newValue.raw === 'object') {
+      // ⚠️ 重要：只有当 newValue.raw 是对象时才恢复，避免其他类型的数据影响
+      if (newValue?.raw && typeof newValue.raw === 'object' && !Array.isArray(newValue.raw)) {
         minValue.value = newValue.raw.min
         maxValue.value = newValue.raw.max
       } else {
