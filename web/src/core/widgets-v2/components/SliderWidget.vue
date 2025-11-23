@@ -232,30 +232,26 @@ const formatTooltipFunc = computed(() => {
 })
 
 // 格式化进度条文本（显示值和百分比）
-function formatProgress(percentage: number): string {
-  try {
-    const value = props.value?.raw
-    if (value === null || value === undefined) {
-      return `${percentage.toFixed(0)}%`
-    }
-    
-    const numValue = Number(value)
-    if (isNaN(numValue)) {
-      return `${percentage.toFixed(0)}%`
-    }
-    
-    // 根据步长决定小数位数
-    const stepStr = String(step.value)
-    const decimals = stepStr.includes('.') ? stepStr.split('.')[1].length : 0
-    const valueStr = numValue.toFixed(decimals)
-    
-    const unitValue = unit.value
-    const valueDisplay = unitValue ? `${valueStr}${unitValue}` : valueStr
-    return `${valueDisplay} (${percentage.toFixed(0)}%)`
-  } catch (error) {
-    console.error('[SliderWidget] formatProgress error:', error)
+// 参考 Element Plus 官方示例：const format = (percentage) => (percentage === 100 ? 'Full' : `${percentage}%`)
+const formatProgress = (percentage: number): string => {
+  const value = props.value?.raw
+  if (value === null || value === undefined) {
     return `${percentage.toFixed(0)}%`
   }
+  
+  const numValue = Number(value)
+  if (isNaN(numValue)) {
+    return `${percentage.toFixed(0)}%`
+  }
+  
+  // 根据步长决定小数位数
+  const stepStr = String(step.value)
+  const decimals = stepStr.includes('.') ? stepStr.split('.')[1].length : 0
+  const valueStr = numValue.toFixed(decimals)
+  
+  const unitValue = unit.value
+  const valueDisplay = unitValue ? `${valueStr}${unitValue}` : valueStr
+  return `${valueDisplay} (${percentage.toFixed(0)}%)`
 }
 
 // 搜索模式：最小值、最大值
