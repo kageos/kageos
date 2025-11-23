@@ -1008,6 +1008,14 @@ watch(() => inputConfig.value, () => {
   width: 100%;
 }
 
+.select-single-wrapper :deep(.el-select) {
+  position: relative;
+}
+
+.select-single-wrapper :deep(.el-select__wrapper) {
+  position: relative;
+}
+
 /* 🔥 隐藏 el-select 的默认标签显示 */
 .select-single-hide-tag :deep(.el-select__tags) {
   display: none !important;
@@ -1023,6 +1031,12 @@ watch(() => inputConfig.value, () => {
 
 .select-single-hide-tag :deep(.el-select__caret) {
   display: block !important;
+  position: relative;
+  z-index: 20;
+}
+
+.select-single-hide-tag :deep(.el-select__input-wrapper) {
+  display: none !important;
 }
 
 /* 🔥 覆盖标签样式（绝对定位在 el-select 上方） */
@@ -1031,7 +1045,7 @@ watch(() => inputConfig.value, () => {
   left: 8px;
   top: 50%;
   transform: translateY(-50%);
-  z-index: 10;
+  z-index: 15 !important;
   pointer-events: auto;
   margin: 0;
   max-width: calc(100% - 40px);
@@ -1040,6 +1054,8 @@ watch(() => inputConfig.value, () => {
   text-overflow: ellipsis;
   display: inline-flex !important;
   align-items: center;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 </style>
 
