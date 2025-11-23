@@ -45,14 +45,16 @@
     <!-- 
       ⚠️ 关键：Element Plus 的 el-table 在 custom 模式下，需要手动控制每个列的排序状态
       使用 :key 强制重新渲染，确保排序状态正确显示
+      使用 ref 来获取表格实例，以便在排序变化后更新排序状态
     -->
     <el-table
+      ref="tableRef"
       v-loading="loading"
       :data="tableData"
       border
       style="width: 100%"
       class="table-with-fixed-column"
-      :key="`table-${sorts.map(s => `${s.field}:${s.order}`).join(',')}`"
+      :key="`table-${sorts.map((s: any) => `${s.field}:${s.order}`).join(',')}`"
       @sort-change="handleSortChange"
     >
       <!-- 🔥 控制中心列（ID列改造） -->
@@ -301,6 +303,7 @@
  */
 
 import { computed, ref, watch, h, nextTick, onMounted, onUpdated, onUnmounted, isVNode, defineComponent } from 'vue'
+import { ElTable } from 'element-plus'
 import { Search, Refresh, Edit, Delete, Plus, ArrowLeft, ArrowRight, DocumentCopy, Document, Download } from '@element-plus/icons-vue'
 import { ElIcon, ElButton, ElMessage } from 'element-plus'
 import { formatTimestamp } from '@/utils/date'
@@ -373,6 +376,8 @@ const {
 })
 
 // 导出 handleSortChange 供模板使用
+// ⚠️ 关键：Element Plus 的 el-table 在 custom 模式下，排序状态显示需要特殊处理
+// 使用 :key 强制重新渲染整个表格，确保所有列的排序状态正确显示
 const handleSortChange = originalHandleSortChange
 
 // ==================== 详情抽屉状态 ====================
