@@ -48,7 +48,6 @@
       使用 ref 来获取表格实例，以便在排序变化后更新排序状态
     -->
     <el-table
-      ref="tableRef"
       v-loading="loading"
       :data="tableData"
       border
