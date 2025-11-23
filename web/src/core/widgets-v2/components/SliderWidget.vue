@@ -232,8 +232,14 @@ const formatTooltipFunc = computed(() => {
 })
 
 // 格式化进度条文本（显示值和百分比）
-// 使用函数而不是箭头函数，确保能正确访问 computed 值
+// 直接使用函数，参考 Element Plus 官方示例
 function formatProgressText(percentage: number): string {
+  // 先验证 percentage 值
+  if (isNaN(percentage) || !isFinite(percentage)) {
+    console.warn('[SliderWidget] formatProgressText: invalid percentage', percentage)
+    return '0%'
+  }
+  
   const value = props.value?.raw
   if (value === null || value === undefined) {
     return `${percentage.toFixed(0)}%`
