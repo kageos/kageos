@@ -454,7 +454,10 @@ onMounted(() => {
 .select-option {
   display: flex;
   align-items: center;
-  gap: 8px;
+}
+
+.select-option > *:not(:last-child) {
+  margin-right: 8px;
 }
 
 .option-label {
