@@ -54,6 +54,7 @@ export interface TableOperationsReturn {
   hasAddCallback: ReturnType<typeof computed<boolean>>
   hasUpdateCallback: ReturnType<typeof computed<boolean>>
   hasDeleteCallback: ReturnType<typeof computed<boolean>>
+  hasManualSort: ReturnType<typeof ref<boolean>>
   
   // 方法
   loadTableData: () => Promise<void>
