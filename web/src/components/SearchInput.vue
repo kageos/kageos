@@ -101,6 +101,15 @@
           <span class="user-name">{{ option.userInfo.username }}</span>
           <span v-if="option.userInfo.nickname" class="user-nickname">({{ option.userInfo.nickname }})</span>
         </div>
+        <!-- 🔥 如果是多选组件，显示带颜色的标签 -->
+        <div v-else-if="isMultiselectWidget" class="flex items-center">
+          <span
+            v-if="getOptionColor(typeof option === 'object' ? option.value : option)"
+            class="option-color-indicator"
+            :style="getOptionColorStyle(typeof option === 'object' ? option.value : option)"
+          />
+          <span>{{ typeof option === 'object' ? option.label : option }}</span>
+        </div>
         <!-- 普通选项 -->
         <span v-else>{{ typeof option === 'object' ? option.label : option }}</span>
       </el-option>
@@ -238,6 +247,100 @@ const selectOptions = ref<Array<{ label: string; value: any }>>([])
 
 // 下拉加载状态
 const selectLoading = ref(false)
+
+// 🔥 判断是否是多选组件
+const isMultiselectWidget = computed(() => {
+  return props.field.widget?.type === WidgetType.MULTI_SELECT
+})
+
+// 🔥 获取选项颜色配置
+const optionColors = computed(() => {
+  return props.field.widget?.config?.options_colors || []
+})
+
+// 🔥 获取静态选项（用于颜色匹配）
+const staticOptions = computed(() => {
+  const opts = props.field.widget?.config?.options || []
+  return opts.map((opt: any) => {
+    if (typeof opt === 'string') {
+      return { label: opt, value: opt }
+    }
+    return opt
+  })
+})
+
+// 🔥 判断是否是 Element Plus 标准颜色类型
+function isStandardColor(color: string): boolean {
+  return ['success', 'warning', 'danger', 'info', 'primary'].includes(color)
+}
+
+// 🔥 获取选项的颜色
+function getOptionColor(value: any): string | null {
+  const valueStr = String(value)
+  const optionIndex = staticOptions.value.findIndex((opt: any) => String(opt.value) === valueStr)
+  if (optionIndex >= 0 && optionIndex < optionColors.value.length) {
+    return optionColors.value[optionIndex]
+  }
+  return null
+}
+
+// 🔥 获取选项的颜色类型（用于 el-tag 的 type 属性）
+function getOptionColorType(value: any): string | undefined {
+  const color = getOptionColor(value)
+  if (!color) return undefined
+  return isStandardColor(color) ? color : undefined
+}
+
+// 🔥 获取选项的颜色值（用于 el-tag 的 color 属性）
+function getOptionColorValue(value: any): string | undefined {
+  const color = getOptionColor(value)
+  if (!color) return undefined
+  return !isStandardColor(color) ? color : undefined
+}
+
+// 🔥 获取选项的颜色样式对象（用于 span 的 style 绑定）
+function getOptionColorStyle(value: any): Record<string, string> {
+  const colorValue = getOptionColorValue(value)
+  const color = getOptionColor(value)
+  const backgroundColor = colorValue || color || ''
+  
+  return {
+    backgroundColor: backgroundColor,
+    marginRight: '8px',
+    display: 'inline-block',
+    width: '12px',
+    height: '12px',
+    minWidth: '12px',
+    minHeight: '12px',
+    borderRadius: '2px',
+    flexShrink: '0',
+    border: 'none',
+    verticalAlign: 'middle'
+  }
+}
+
+// 🔥 获取选项标签
+function getOptionLabel(value: any): string {
+  if (value === null || value === undefined) return ''
+  const valueStr = String(value)
+  const option = selectOptionsComputed.value.find((opt: any) => {
+    const optValue = typeof opt === 'object' ? opt.value : opt
+    return String(optValue) === valueStr
+  })
+  if (option) {
+    return typeof option === 'object' ? option.label : option
+  }
+  return valueStr
+}
+
+// 🔥 移除标签
+function handleRemoveTag(valueToRemove: any): void {
+  if (Array.isArray(localValue.value)) {
+    const newValues = localValue.value.filter(v => String(v) !== String(valueToRemove))
+    localValue.value = newValues
+    handleInput(newValues)
+  }
+}
 
 // 🔥 根据值获取用户信息（用于标签显示）
 const getUserInfoByValue = (value: any): any => {
