@@ -19,6 +19,7 @@ export const WidgetType = {
   CHECKBOX: 'checkbox',
   RADIO: 'radio',
   MULTI_SELECT: 'multiselect',
+  SLIDER: 'slider',
   TABLE: 'table',
   FORM: 'form'
 } as const
