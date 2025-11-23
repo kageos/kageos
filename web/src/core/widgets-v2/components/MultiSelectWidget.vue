@@ -43,17 +43,18 @@
       @remove-tag="handleRemoveTag"
     >
       <!-- 自定义已选标签，应用颜色配置 -->
-      <!-- Element Plus 的 #tag 插槽会替换整个标签区域，需要自己遍历所有选中的值 -->
-      <template #tag="{ item, close }">
+      <!-- 🔥 Element Plus 的 #tag 插槽在 multiple 模式下没有参数，需要自己遍历 v-model 的值 -->
+      <template #tag>
         <el-tag
-          v-if="item"
-          :type="getOptionColorType(item.value)"
-          :color="getOptionColorValue(item.value)"
+          v-for="value in selectedValues"
+          :key="value"
+          :type="getOptionColorType(value)"
+          :color="getOptionColorValue(value)"
           :closable="true"
-          @close.stop="close"
+          @close.stop="handleRemoveTag(value)"
           class="multiselect-tag"
         >
-          {{ getOptionLabel(item.value) }}
+          {{ getOptionLabel(value) }}
         </el-tag>
       </template>
       
