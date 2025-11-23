@@ -741,6 +741,43 @@ watch(() => inputConfig.value, () => {
 .user-tag-close:hover {
   color: var(--el-text-color-primary);
 }
+
+/* 🔥 多选组件标签样式 */
+.multiselect-tag {
+  font-weight: 500;
+  border: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  margin-right: 6px;
+  margin-bottom: 2px;
+}
+
+/* 自定义颜色的 tag，确保文字清晰 */
+.multiselect-tag[style*="background-color"] {
+  color: #fff !important;
+  font-weight: 500;
+}
+
+/* 🔥 下拉选项中的颜色指示器样式 */
+.option-color-indicator {
+  display: inline-block !important;
+  width: 12px !important;
+  height: 12px !important;
+  min-width: 12px !important;
+  min-height: 12px !important;
+  border-radius: 2px !important;
+  flex-shrink: 0 !important;
+  border: none !important;
+  vertical-align: middle !important;
+}
+
+/* 选项容器样式 */
+.flex {
+  display: flex;
+}
+
+.items-center {
+  align-items: center;
+}
 </style>
 
 <style>
