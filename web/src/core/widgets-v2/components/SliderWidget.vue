@@ -33,7 +33,8 @@
       v-else-if="mode === 'table-cell'"
       :percentage="percentage"
       :status="autoStatus"
-      :stroke-width="6"
+      :stroke-width="20"
+      :text-inside="true"
       :format="formatProgressText"
     />
     
@@ -42,7 +43,8 @@
       v-else-if="mode === 'detail'"
       :percentage="percentage"
       :status="autoStatus"
-      :stroke-width="6"
+      :stroke-width="20"
+      :text-inside="true"
       :format="formatProgressText"
     />
     
