@@ -303,6 +303,8 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
     if (finalSorts.length > 0) {
       query.sorts = finalSorts.map(item => `${item.field}:${item.order}`).join(',')
     }
+    // 🔥 关键：如果排序为空，显式标记为删除（后续会从 URL 中移除）
+    // 注意：不设置 query.sorts，这样在后续处理中会从 URL 中删除
     
     // 搜索参数（使用工具函数）
     Object.assign(query, buildURLSearchParams(searchForm.value, searchableFields.value))
@@ -319,14 +321,15 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
     const searchParamKeys = ['eq', 'like', 'in', 'contains', 'gte', 'lte']
     const newQuery: Record<string, string> = {}
     
-    // 🔥 先复制所有非搜索参数（分页、排序等）
+    // 🔥 先复制所有非搜索参数（分页、排序等），但排除 sorts（因为我们要根据当前状态决定是否保留）
     Object.keys(route.query).forEach(key => {
-      if (!searchParamKeys.includes(key)) {
+      if (!searchParamKeys.includes(key) && key !== 'sorts') {
         newQuery[key] = String(route.query[key])
       }
     })
     
-    // 🔥 然后添加新的搜索参数（buildURLSearchParams 已经过滤了空值）
+    // 🔥 然后添加新的参数（包括排序和搜索）
+    // 如果 query 中有 sorts，会添加；如果没有，则不会添加（从而从 URL 中删除）
     Object.assign(newQuery, query)
     
     // 🔥 更新 URL（不触发导航）

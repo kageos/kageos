@@ -41,11 +41,46 @@
       </el-form>
     </div>
 
+    <!-- 🔥 排序信息条：显示当前排序状态 -->
+    <div v-if="displaySorts.length > 0" class="sort-info-bar">
+      <div class="sort-info-content">
+        <span class="sort-label">排序：</span>
+        <div class="sort-items">
+          <!-- 显示所有排序列 -->
+          <template v-for="(sort, index) in displaySorts" :key="sort.field">
+            <el-tag
+              :type="index === 0 ? 'primary' : 'info'"
+              size="small"
+              closable
+              @close="handleRemoveSort(sort.field)"
+              class="sort-tag"
+            >
+              <span class="sort-field-name">{{ getFieldName(sort.field) }}</span>
+              <el-icon class="sort-icon">
+                <ArrowUp v-if="sort.order === 'asc'" />
+                <ArrowDown v-else />
+              </el-icon>
+            </el-tag>
+            <span v-if="index < displaySorts.length - 1" class="sort-separator">></span>
+          </template>
+        </div>
+        <el-button
+          v-if="sorts.length > 0"
+          link
+          type="primary"
+          size="small"
+          @click="handleClearAllSorts"
+          class="clear-all-sorts-btn"
+        >
+          清除所有排序
+        </el-button>
+      </div>
+    </div>
+
     <!-- 表格 -->
     <!-- 
-      ⚠️ 关键：Element Plus 的 el-table 在 custom 模式下，需要手动控制每个列的排序状态
-      使用 :key 强制重新渲染，确保排序状态正确显示
-      使用 ref 来获取表格实例，以便在排序变化后更新排序状态
+      ⚠️ 关键：在 custom 模式下，需要为每个列设置 sort-order 来显示排序状态
+      不要使用 default-sort，因为它会干扰多列排序的显示
     -->
     <el-table
       v-loading="loading"
@@ -53,7 +88,7 @@
       border
       style="width: 100%"
       class="table-with-fixed-column"
-      :key="`table-${sorts.map((s: any) => `${s.field}:${s.order}`).join(',')}`"
+      :key="`table-${Object.keys(sortOrderMap).length}`"
       @sort-change="handleSortChange"
     >
       <!-- 🔥 控制中心列（ID列改造） -->
@@ -70,8 +105,7 @@
         width="80"
         class-name="control-column"
         :sortable="getSortableConfig(idField)"
-        :sort-orders="['descending', 'ascending']"
-        :default-sort="getFieldSortOrder(idField.code) || (sorts.length === 0 && !hasManualSort ? 'descending' : null) ? { prop: idField.code, order: getFieldSortOrder(idField.code) || (sorts.length === 0 && !hasManualSort ? 'descending' : null) } : undefined"
+        :sort-order="sortOrderMap[idField.code] || null"
       >
         <template #default="{ row, $index }">
           <el-button
@@ -98,8 +132,7 @@
         :prop="field.code"
         :label="field.name"
         :sortable="getSortableConfig(field)"
-        :sort-orders="['ascending', 'descending']"
-        :default-sort="getFieldSortOrder(field.code) ? { prop: field.code, order: getFieldSortOrder(field.code) } : undefined"
+        :sort-order="sortOrderMap[field.code] || null"
         :min-width="getColumnWidth(field)"
       >
         <template #default="{ row, $index }">
@@ -302,7 +335,7 @@
  */
 
 import { computed, ref, watch, h, nextTick, onMounted, onUpdated, onUnmounted, isVNode, defineComponent } from 'vue'
-import { Search, Refresh, Edit, Delete, Plus, ArrowLeft, ArrowRight, DocumentCopy, Document, Download } from '@element-plus/icons-vue'
+import { Search, Refresh, Edit, Delete, Plus, ArrowLeft, ArrowRight, DocumentCopy, Document, Download, ArrowUp, ArrowDown } from '@element-plus/icons-vue'
 import { ElIcon, ElButton, ElMessage } from 'element-plus'
 import { formatTimestamp } from '@/utils/date'
 import { useTableOperations } from '@/composables/useTableOperations'
@@ -373,18 +406,115 @@ const {
   functionData: props.functionData
 })
 
+/**
+ * 获取第一个排序配置（用于 el-table 的 default-sort）
+ * 
+ * ⚠️ 关键：Element Plus 的 el-table 的 default-sort 只能在表格级别设置一个
+ * 所以只能显示第一个排序字段的排序标识
+ * 
+ * @returns default-sort 配置对象，如果没有排序则返回 undefined
+ */
+const getFirstSortConfig = () => {
+  if (sorts.value.length === 0) {
+    // 如果没有手动排序，使用默认的 id 降序
+    if (idField.value && !hasManualSort.value) {
+      return {
+        prop: idField.value.code,
+        order: 'descending' as const
+      }
+    }
+    return undefined
+  }
+  
+  // 返回第一个排序字段的配置
+  const firstSort = sorts.value[0]
+  return {
+    prop: firstSort.field,
+    order: (firstSort.order === 'asc' ? 'ascending' : 'descending') as const
+  }
+}
+
 // 导出 handleSortChange 供模板使用
-// ⚠️ 关键：Element Plus 的 el-table 在 custom 模式下，排序状态显示需要特殊处理
-// 使用 :key 强制重新渲染整个表格，确保所有列的排序状态正确显示
-const handleSortChange = (sortInfo: { prop?: string; order?: string }) => {
+// 🔥 包装 handleSortChange，确保在排序变化后 DOM 能正确更新
+const handleSortChange = async (sortInfo: { prop?: string; order?: string }) => {
   originalHandleSortChange(sortInfo)
-  // ⚠️ 关键：在排序变化后，使用 nextTick 确保 DOM 更新完成
-  // 然后强制更新表格的排序状态显示
-  nextTick(() => {
-    // Element Plus 的 el-table 在 custom 模式下，排序状态是通过 sort-change 事件控制的
-    // 但显示状态需要通过 default-sort 来设置，而 default-sort 只能设置一个
-    // 所以我们使用 :key 强制重新渲染整个表格，确保所有列的排序状态正确显示
-    // 这里不需要额外操作，因为 :key 已经会触发重新渲染
+  // 使用 nextTick 确保 DOM 更新
+  await nextTick()
+}
+
+/**
+ * 🔥 排序状态映射（计算属性，确保响应式）
+ * 
+ * 在 custom 模式下，需要为每个列设置 sort-order 来显示排序状态
+ * 使用计算属性确保当 sorts 变化时，所有列的排序状态都会更新
+ * 
+ * ⚠️ 关键：使用对象而不是 Map，确保 Vue 能正确追踪响应式依赖
+ */
+const sortOrderMap = computed<Record<string, 'ascending' | 'descending' | null>>(() => {
+  const map: Record<string, 'ascending' | 'descending' | null> = {}
+  sorts.value.forEach(sort => {
+    map[sort.field] = sort.order === 'asc' ? 'ascending' : 'descending'
+  })
+  return map
+})
+
+/**
+ * 获取字段的排序状态（用于模板）
+ * 
+ * ⚠️ 关键：直接访问计算属性，确保响应式更新
+ * 
+ * @param fieldCode 字段 code
+ * @returns 排序方向：'ascending' | 'descending' | null
+ */
+const getSortOrder = (fieldCode: string): 'ascending' | 'descending' | null => {
+  return sortOrderMap.value[fieldCode] || null
+}
+
+// ==================== 排序信息条相关 ====================
+
+/**
+ * 🔥 显示排序列表（用于排序信息条）
+ * 
+ * 包含所有手动排序的字段，如果没有手动排序且存在 ID 字段，则显示默认的 ID 排序
+ */
+const displaySorts = computed(() => {
+  if (sorts.value.length > 0) {
+    return sorts.value
+  }
+  // 如果没有手动排序且存在 ID 字段，显示默认的 ID 排序
+  if (idField.value && !hasManualSort.value) {
+    return [{ field: idField.value.code, order: 'desc' as const }]
+  }
+  return []
+})
+
+/**
+ * 获取字段名称
+ * @param fieldCode 字段 code
+ * @returns 字段名称
+ */
+const getFieldName = (fieldCode: string): string => {
+  const field = visibleFields.value.find(f => f.code === fieldCode)
+  return field?.name || fieldCode
+}
+
+/**
+ * 移除单个排序
+ * @param fieldCode 字段 code
+ */
+const handleRemoveSort = (fieldCode: string): void => {
+  // 调用 composable 的 handleSortChange，传入空 order 来移除排序
+  originalHandleSortChange({ prop: fieldCode, order: '' })
+}
+
+/**
+ * 清除所有排序
+ */
+const handleClearAllSorts = (): void => {
+  // 逐个移除所有排序
+  const fieldsToRemove = [...sorts.value]
+  fieldsToRemove.forEach(sort => {
+    originalHandleSortChange({ prop: sort.field, order: '' })
   })
 }
 
@@ -1179,6 +1309,68 @@ onUnmounted(() => {
   background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 8px;
+}
+
+/* 🔥 排序信息条样式 */
+.sort-info-bar {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: var(--el-fill-color-light);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+}
+
+.sort-info-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.sort-label {
+  font-size: 14px;
+  color: var(--el-text-color-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.sort-items {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.sort-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: default;
+}
+
+.sort-field-name {
+  font-weight: 500;
+}
+
+.sort-icon {
+  font-size: 12px;
+  margin-left: 2px;
+}
+
+.sort-separator {
+  color: var(--el-text-color-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  margin: 0 4px;
+}
+
+.clear-all-sorts-btn {
+  margin-left: auto;
+  white-space: nowrap;
 }
 
 .search-form {
