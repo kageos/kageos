@@ -59,7 +59,7 @@
             :style="getOptionColorStyle(option.value)"
           />
           <span class="option-label">{{ option.label }}</span>
-          <span v-if="option.displayInfo" class="display-info">{{ option.display-info }}</span>
+          <span v-if="option.displayInfo" class="display-info">{{ option.displayInfo }}</span>
         </div>
       </el-option>
     </el-select>
