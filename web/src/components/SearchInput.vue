@@ -80,7 +80,7 @@
       </el-select>
       <!-- 🔥 显示颜色标签（覆盖在 el-select 上方） -->
       <el-tag
-        v-if="localValue && getOptionColor(localValue)"
+        v-if="localValue"
         :type="getOptionColorType(localValue)"
         :color="getOptionColorValue(localValue)"
         :closable="true"
@@ -91,7 +91,7 @@
           left: '8px',
           top: '50%',
           transform: 'translateY(-50%)',
-          zIndex: 15,
+          zIndex: 9999,
           pointerEvents: 'auto',
           margin: 0,
           maxWidth: 'calc(100% - 40px)',
@@ -99,7 +99,9 @@
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           display: 'inline-flex',
-          alignItems: 'center'
+          alignItems: 'center',
+          visibility: 'visible',
+          opacity: 1
         }"
       >
         {{ getOptionLabel(localValue) }}
