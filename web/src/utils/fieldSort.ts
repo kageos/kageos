@@ -3,12 +3,33 @@
  * 
  * 根据字段的 Widget 类型和 Data Type 智能判断字段是否适合排序
  * 
+ * ⚠️ 核心设计理念：
+ * - 自动识别：无需后端配置，前端自动判断字段是否适合排序
+ * - 准确率高：约 90%+ 的字段可以自动识别
+ * - 灵活可控：对于边界情况，可以通过参数控制是否启用排序
+ * 
  * 判断逻辑（优先级从高到低）：
  * 1. 硬性规则：明确不适合排序的字段类型（files、table、form、struct）
+ *    - 这些字段类型是结构体或容器类型，无法在数据库层面排序
  * 2. 软性规则：不推荐排序的字段类型（text_area、multiselect、数组类型）
+ *    - 这些字段虽然技术上可以排序，但排序意义不大
+ *    - 默认禁用，但可以通过参数启用
  * 3. 默认：其他字段类型适合排序
+ *    - ID、数字、时间戳、选择等字段非常适合排序
  * 
  * 准确率：约 90%+
+ * 
+ * @example
+ * ```typescript
+ * // 文件字段：不支持排序
+ * isFieldSortable({ widget: { type: 'files' } }) // false
+ * 
+ * // 大文本字段：不推荐排序
+ * isFieldSortable({ widget: { type: 'text_area' } }) // 'not-recommended'
+ * 
+ * // 数字字段：适合排序
+ * isFieldSortable({ widget: { type: 'number' } }) // true
+ * ```
  */
 
 import { WidgetType } from '@/core/constants/widget'
