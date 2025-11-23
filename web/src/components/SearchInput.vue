@@ -999,5 +999,32 @@ watch(() => inputConfig.value, () => {
 .user-select-dropdown-popper .el-select-dropdown__item:hover {
   background-color: var(--el-fill-color-light);
 }
+
+/* 🔥 单选组件包装器样式 */
+.select-single-wrapper {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+
+/* 🔥 隐藏 el-select 的默认标签显示 */
+.select-single-hide-tag :deep(.el-select__tags) {
+  display: none !important;
+}
+
+.select-single-hide-tag :deep(.el-select__input) {
+  display: none !important;
+}
+
+/* 🔥 覆盖标签样式（绝对定位在 el-select 上方） */
+.select-single-tag-overlay {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  pointer-events: auto;
+  margin: 0;
+}
 </style>
 
