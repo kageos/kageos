@@ -24,7 +24,7 @@
     <!-- 🔥 下拉选择 -->
     <!-- 🔥 单选组件：使用包装器来显示颜色标签 -->
     <div
-      v-if="!inputConfig.props?.multiple && isSelectWidget && localValue && getOptionColor(localValue)"
+      v-if="!inputConfig.props?.multiple && isSelectWidget"
       class="select-single-wrapper"
     >
       <el-select
@@ -38,7 +38,12 @@
         :popper-class="inputConfig.props?.popperClass"
         :style="inputConfig.props?.style"
         :reserve-keyword="inputConfig.props?.remote"
-        class="user-select-search select-single-hide-tag"
+        :class="[
+          'user-select-search',
+          {
+            'select-single-hide-tag': localValue && getOptionColor(localValue)
+          }
+        ]"
         @change="handleInput"
         @clear="handleClear"
       >
