@@ -90,6 +90,8 @@
         :prop="field.code"
         :label="field.name"
         :sortable="getSortableConfig(field)"
+        :sort-orders="['ascending', 'descending']"
+        :default-sort="getFieldSortOrder(field.code) ? { prop: field.code, order: getFieldSortOrder(field.code) } : null"
         :min-width="getColumnWidth(field)"
       >
         <template #default="{ row, $index }">
@@ -349,6 +351,7 @@ const {
   handleSearch,
   handleReset,
   handleSortChange: originalHandleSortChange,
+  getFieldSortOrder,
   handleSizeChange,
   handleCurrentChange,
   handleAdd: handleAddRow,
