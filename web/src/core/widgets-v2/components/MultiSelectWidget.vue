@@ -71,7 +71,9 @@
             size="small"
             class="option-tag"
             style="margin-right: 8px"
-          />
+          >
+            <!-- 🔥 空内容，仅作为颜色指示器 -->
+          </el-tag>
           <span>{{ option.label }}</span>
         </div>
       </el-option>
@@ -361,16 +363,27 @@ function getOptionColor(value: any): string | null {
 function getOptionColorType(value: any): string | undefined {
   const color = getOptionColor(value)
   if (!color) return undefined
-  return isStandardColor(color) ? color : undefined
+  const isStandard = isStandardColor(color)
+  // 🔥 调试日志
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[MultiSelectWidget] getOptionColorType - value: ${value}, color: ${color}, isStandard: ${isStandard}, result: ${isStandard ? color : undefined}`)
+  }
+  return isStandard ? color : undefined
 }
 
 /**
- * 获取选项的颜色值（用于只读模式）
+ * 获取选项的颜色值（用于 el-tag 的 color 属性）
  */
 function getOptionColorValue(value: any): string | undefined {
   const color = getOptionColor(value)
   if (!color) return undefined
-  return !isStandardColor(color) ? color : undefined
+  const isStandard = isStandardColor(color)
+  const result = !isStandard ? color : undefined
+  // 🔥 调试日志
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[MultiSelectWidget] getOptionColorValue - value: ${value}, color: ${color}, isStandard: ${isStandard}, result: ${result}`)
+  }
+  return result
 }
 
 /**
