@@ -259,6 +259,14 @@ function formatProgressText(percentage: number): string {
   const valueStr = numValue.toFixed(decimals)
   
   const unitValue = unit.value
+  const isPercentageUnit = unitValue === '%' || unitValue === '％'
+  
+  // 如果单位本身就是百分比，只显示值，不重复显示百分比
+  if (isPercentageUnit) {
+    return `${valueStr}%`
+  }
+  
+  // 如果单位不是百分比，显示值和单位，以及百分比
   const valueDisplay = unitValue ? `${valueStr}${unitValue}` : valueStr
   return `${valueDisplay} (${percentage.toFixed(0)}%)`
 }
