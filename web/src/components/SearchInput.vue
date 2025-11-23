@@ -22,8 +22,120 @@
     />
 
     <!-- 🔥 下拉选择 -->
+    <!-- 🔥 单选组件：使用包装器来显示颜色标签 -->
+    <div
+      v-if="!inputConfig.props?.multiple && isSelectWidget && localValue && getOptionColor(localValue)"
+      class="select-single-wrapper"
+    >
+      <el-select
+        v-model="localValue"
+        :placeholder="inputConfig.props?.placeholder"
+        :clearable="inputConfig.props?.clearable"
+        :filterable="inputConfig.props?.filterable"
+        :remote="inputConfig.props?.remote"
+        :remote-method="handleRemoteMethod"
+        :loading="selectLoading || inputConfig.props?.loading"
+        :popper-class="inputConfig.props?.popperClass"
+        :style="inputConfig.props?.style"
+        :reserve-keyword="inputConfig.props?.remote"
+        class="user-select-search select-single-hide-tag"
+        @change="handleInput"
+        @clear="handleClear"
+      >
+        <el-option
+          v-for="option in selectOptionsComputed"
+          :key="typeof option === 'object' ? option.value : option"
+          :label="typeof option === 'object' ? option.label : option"
+          :value="typeof option === 'object' ? option.value : option"
+        >
+          <!-- 🔥 如果是用户选择器，显示头像和用户信息 -->
+          <div v-if="option.userInfo" class="user-option">
+            <el-avatar :src="option.userInfo.avatar" :size="24" class="user-avatar">
+              {{ option.userInfo.username?.[0]?.toUpperCase() || 'U' }}
+            </el-avatar>
+            <span class="user-name">{{ option.userInfo.username }}</span>
+            <span v-if="option.userInfo.nickname" class="user-nickname">({{ option.userInfo.nickname }})</span>
+          </div>
+          <!-- 🔥 如果是多选组件，显示带颜色的标签 -->
+          <div v-else-if="isMultiselectWidget" class="flex items-center">
+            <span
+              v-if="getOptionColor(typeof option === 'object' ? option.value : option)"
+              class="option-color-indicator"
+              :style="getOptionColorStyle(typeof option === 'object' ? option.value : option)"
+            />
+            <span>{{ typeof option === 'object' ? option.label : option }}</span>
+          </div>
+          <!-- 🔥 如果是单选组件，显示带颜色的标签 -->
+          <div v-else-if="isSelectWidget" class="flex items-center">
+            <span
+              v-if="getOptionColor(typeof option === 'object' ? option.value : option)"
+              class="option-color-indicator"
+              :style="getOptionColorStyle(typeof option === 'object' ? option.value : option)"
+            />
+            <span>{{ typeof option === 'object' ? option.label : option }}</span>
+          </div>
+          <!-- 普通选项 -->
+          <span v-else>{{ typeof option === 'object' ? option.label : option }}</span>
+        </el-option>
+      </el-select>
+      <!-- 🔥 显示颜色标签（覆盖在 el-select 上方） -->
+      <el-tag
+        :type="getOptionColorType(localValue)"
+        :color="getOptionColorValue(localValue)"
+        :closable="true"
+        @close.stop="handleClear"
+        class="select-tag select-tag-outline select-single-tag-overlay"
+      >
+        {{ getOptionLabel(localValue) }}
+      </el-tag>
+    </div>
+    <!-- 🔥 普通单选组件（没有颜色配置） -->
     <el-select
-      v-else-if="inputConfig.component === SearchComponent.EL_SELECT"
+      v-else-if="inputConfig.component === SearchComponent.EL_SELECT && !inputConfig.props?.multiple"
+      v-model="localValue"
+      :placeholder="inputConfig.props?.placeholder"
+      :clearable="inputConfig.props?.clearable"
+      :filterable="inputConfig.props?.filterable"
+      :remote="inputConfig.props?.remote"
+      :remote-method="handleRemoteMethod"
+      :loading="selectLoading || inputConfig.props?.loading"
+      :popper-class="inputConfig.props?.popperClass"
+      :style="inputConfig.props?.style"
+      :reserve-keyword="inputConfig.props?.remote"
+      class="user-select-search"
+      @change="handleInput"
+      @clear="handleClear"
+    >
+      <el-option
+        v-for="option in selectOptionsComputed"
+        :key="typeof option === 'object' ? option.value : option"
+        :label="typeof option === 'object' ? option.label : option"
+        :value="typeof option === 'object' ? option.value : option"
+      >
+        <!-- 🔥 如果是用户选择器，显示头像和用户信息 -->
+        <div v-if="option.userInfo" class="user-option">
+          <el-avatar :src="option.userInfo.avatar" :size="24" class="user-avatar">
+            {{ option.userInfo.username?.[0]?.toUpperCase() || 'U' }}
+          </el-avatar>
+          <span class="user-name">{{ option.userInfo.username }}</span>
+          <span v-if="option.userInfo.nickname" class="user-nickname">({{ option.userInfo.nickname }})</span>
+        </div>
+        <!-- 🔥 如果是单选组件，显示带颜色的标签 -->
+        <div v-else-if="isSelectWidget" class="flex items-center">
+          <span
+            v-if="getOptionColor(typeof option === 'object' ? option.value : option)"
+            class="option-color-indicator"
+            :style="getOptionColorStyle(typeof option === 'object' ? option.value : option)"
+          />
+          <span>{{ typeof option === 'object' ? option.label : option }}</span>
+        </div>
+        <!-- 普通选项 -->
+        <span v-else>{{ typeof option === 'object' ? option.label : option }}</span>
+      </el-option>
+    </el-select>
+    <!-- 🔥 多选组件 -->
+    <el-select
+      v-else-if="inputConfig.component === SearchComponent.EL_SELECT && inputConfig.props?.multiple"
       v-model="localValue"
       :placeholder="inputConfig.props?.placeholder"
       :clearable="inputConfig.props?.clearable"
