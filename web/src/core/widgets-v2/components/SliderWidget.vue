@@ -234,15 +234,22 @@ const formatTooltipFunc = computed(() => {
 })
 
 // 格式化进度条文本（显示值和百分比）
-const formatProgress = computed(() => {
-  return (percentage: number) => {
-    const value = props.value?.raw
-    const valueStr = value !== null && value !== undefined ? String(value) : '-'
-    const unitValue = unit.value
-    const valueDisplay = unitValue ? `${valueStr}${unitValue}` : valueStr
-    return `${valueDisplay} (${percentage.toFixed(0)}%)`
+const formatProgress = (percentage: number): string => {
+  const value = props.value?.raw
+  if (value === null || value === undefined) {
+    return `${percentage.toFixed(0)}%`
   }
-})
+  
+  const numValue = Number(value)
+  if (isNaN(numValue)) {
+    return `${percentage.toFixed(0)}%`
+  }
+  
+  const valueStr = String(numValue)
+  const unitValue = unit.value
+  const valueDisplay = unitValue ? `${valueStr}${unitValue}` : valueStr
+  return `${valueDisplay} (${percentage.toFixed(0)}%)`
+}
 
 // 搜索模式：最小值、最大值
 const minValue = ref<number | undefined>(undefined)
