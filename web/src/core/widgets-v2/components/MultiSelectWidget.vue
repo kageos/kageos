@@ -714,15 +714,23 @@ watch(
 .multiselect-tag {
   font-weight: 500;
   border: none;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
   margin-right: 6px;
   margin-bottom: 2px;
+  opacity: 0.9;
+  transition: opacity 0.2s;
+}
+
+.multiselect-tag:hover {
+  opacity: 1;
 }
 
 /* 自定义颜色的 tag，确保文字清晰 */
 .multiselect-tag[style*="background-color"] {
   color: #fff !important;
   font-weight: 500;
+  /* 🔥 降低亮度：使用 filter 降低饱和度 */
+  filter: brightness(0.95) saturate(0.9);
 }
 
 /* 🔥 确保 el-tag 的 color 属性正确应用（通过内联样式） */
@@ -753,6 +761,9 @@ watch(
   flex-shrink: 0;
   border: none;
   vertical-align: middle;
+  /* 🔥 降低亮度：使用 filter 降低饱和度和亮度 */
+  filter: brightness(0.95) saturate(0.9);
+  opacity: 0.9;
 }
 
 /* 选项容器样式 */
