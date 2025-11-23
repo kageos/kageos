@@ -41,32 +41,50 @@
       @change="handleInput"
       @clear="handleClear"
     >
-      <!-- 🔥 自定义标签显示（multiple 模式，使用 user-cell 样式） -->
-      <template v-if="inputConfig.props?.multiple && inputConfig.props?.popperClass === 'user-select-dropdown-popper'" #tag="{ item, close }">
-        <div
-          v-if="item"
-          class="user-cell user-cell-tag"
-        >
-          <el-avatar 
-            v-if="item.value && getUserInfoByValue(item.value)"
-            :src="getUserInfoByValue(item.value)?.avatar" 
-            :size="24" 
-            class="user-avatar"
+      <!-- 🔥 自定义标签显示（multiple 模式） -->
+      <template v-if="inputConfig.props?.multiple" #tag>
+        <!-- 🔥 用户选择器：使用 user-cell 样式 -->
+        <template v-if="inputConfig.props?.popperClass === 'user-select-dropdown-popper'">
+          <div
+            v-for="value in localValue"
+            :key="value"
+            class="user-cell user-cell-tag"
           >
-            {{ getUserInfoByValue(item.value)?.username?.[0]?.toUpperCase() || 'U' }}
-          </el-avatar>
-          <el-avatar 
-            v-else
-            :size="24" 
-            class="user-avatar"
+            <el-avatar 
+              v-if="value && getUserInfoByValue(value)"
+              :src="getUserInfoByValue(value)?.avatar" 
+              :size="24" 
+              class="user-avatar"
+            >
+              {{ getUserInfoByValue(value)?.username?.[0]?.toUpperCase() || 'U' }}
+            </el-avatar>
+            <el-avatar 
+              v-else
+              :size="24" 
+              class="user-avatar"
+            >
+              {{ (getOptionLabel(value) || '')?.[0]?.toUpperCase() || 'U' }}
+            </el-avatar>
+            <span class="user-name">{{ getOptionLabel(value) || '' }}</span>
+            <el-icon class="user-tag-close" @click.stop="handleRemoveTag(value)">
+              <Close />
+            </el-icon>
+          </div>
+        </template>
+        <!-- 🔥 多选组件：使用带颜色的标签 -->
+        <template v-else-if="isMultiselectWidget">
+          <el-tag
+            v-for="value in localValue"
+            :key="value"
+            :type="getOptionColorType(value)"
+            :color="getOptionColorValue(value)"
+            :closable="true"
+            @close.stop="handleRemoveTag(value)"
+            class="multiselect-tag"
           >
-            {{ (item?.label || '')?.[0]?.toUpperCase() || 'U' }}
-          </el-avatar>
-          <span class="user-name">{{ item?.label || '' }}</span>
-          <el-icon class="user-tag-close" @click.stop="close">
-            <Close />
-          </el-icon>
-        </div>
+            {{ getOptionLabel(value) }}
+          </el-tag>
+        </template>
       </template>
       
       <el-option
@@ -157,7 +175,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
-import { ElAvatar, ElIcon } from 'element-plus'
+import { ElAvatar, ElIcon, ElTag } from 'element-plus'
 import { Close } from '@element-plus/icons-vue'
 import UserSearchInput from './UserSearchInput.vue'
 import { widgetComponentFactory } from '@/core/factories-v2'
