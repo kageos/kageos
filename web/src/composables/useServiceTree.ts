@@ -108,14 +108,10 @@ export function useServiceTree() {
     // 跳过 user 和 app，剩下的是服务树路径
     const treePath = pathSegments.slice(2)
     
-    console.log('[useServiceTree] 定位节点，路径:', treePath.join('/'))
-    
     const node = findNodeByPath(serviceTree.value, treePath)
     if (node) {
-      console.log('[useServiceTree] 找到节点:', node.name, node.code)
       currentNode.value = node
     } else {
-      console.log('[useServiceTree] 未找到节点')
       currentNode.value = null
     }
     
