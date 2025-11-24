@@ -32,8 +32,6 @@ export function useTableStatistics(
       const allRows = getAllRowsData()
       const configMap = new Map<string, string>()
       
-      Logger.debug('[useTableStatistics]', '开始收集聚合配置', { rowCount: allRows.length })
-      
       // 遍历所有行，收集每个字段的 statistics 配置
       props.field.children?.forEach((itemField: any) => {
         const fieldCode = itemField.code
@@ -46,16 +44,10 @@ export function useTableStatistics(
           // 如果该字段有 statistics 配置，收集它
           if (itemValue?.meta?.statistics && typeof itemValue.meta.statistics === 'object') {
             const statistics = itemValue.meta.statistics
-            Logger.debug('[useTableStatistics]', `找到 statistics 配置`, { 
-              fieldPath, 
-              fieldCode, 
-              statistics 
-            })
             // 合并所有统计配置（使用第一个遇到的配置，通常所有行的配置应该一致）
             Object.entries(statistics).forEach(([label, expression]) => {
               if (typeof expression === 'string' && !configMap.has(label)) {
                 configMap.set(label, expression)
-                Logger.debug('[useTableStatistics]', `添加统计配置`, { label, expression })
               }
             })
           }
@@ -73,9 +65,6 @@ export function useTableStatistics(
       const oldConfigStr = JSON.stringify(statisticsConfig.value)
       if (configStr !== oldConfigStr) {
         statisticsConfig.value = newConfig
-        Logger.debug('[useTableStatistics]', '聚合配置已更新', newConfig)
-      } else {
-        Logger.debug('[useTableStatistics]', '聚合配置无变化', newConfig)
       }
     } catch (error) {
       Logger.error('[useTableStatistics]', '收集聚合配置失败', error)
@@ -130,16 +119,11 @@ export function useTableStatistics(
   // 🔥 聚合统计结果（使用 computed 自动计算）
   const statisticsResult = computed(() => {
     if (!statisticsConfig.value || Object.keys(statisticsConfig.value).length === 0) {
-      Logger.debug('[useTableStatistics]', '无聚合配置，返回空结果')
       return {}
     }
     
     try {
       const allRows = getAllRowsData()
-      Logger.debug('[useTableStatistics]', '开始计算聚合结果', { 
-        config: statisticsConfig.value, 
-        rowCount: allRows.length 
-      })
       
       const result: Record<string, any> = {}
       
@@ -147,14 +131,12 @@ export function useTableStatistics(
         try {
           const value = ExpressionParser.evaluate(expression, allRows)
           result[label] = value
-          Logger.debug('[useTableStatistics]', `计算成功: ${label} = ${value}`, { expression })
         } catch (error) {
-          Logger.error(`[useTableStatistics] 计算失败: ${label} = ${expression}`, error)
+          Logger.error('useTableStatistics', `计算失败: ${label} = ${expression}`, error)
           result[label] = 0
         }
       }
       
-      Logger.debug('[useTableStatistics]', '聚合计算结果', result)
       return result
     } catch (error) {
       Logger.error('[useTableStatistics] 聚合计算失败', error)

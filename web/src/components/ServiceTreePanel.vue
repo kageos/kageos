@@ -284,16 +284,13 @@ const expandParentNodes = (path: number[]) => {
 // 根据 full_code_path 查找节点并展开
 const findAndExpandByPath = (targetPath: string): ServiceTree | null => {
   if (!treeRef.value || !groupedTreeData.value.length) {
-    console.log('[ServiceTreePanel] findAndExpandByPath: 条件不满足')
     return null
   }
   
   // 规范化路径（移除开头的斜杠，确保格式一致）
   const normalizedPath = targetPath.replace(/^\/+/, '')
-  console.log('[ServiceTreePanel] findAndExpandByPath: 目标路径:', targetPath, '规范化后:', normalizedPath)
   
   const findNode = (nodes: ServiceTree[], path: string, depth = 0): ServiceTree | null => {
-    const indent = '  '.repeat(depth)
     for (const node of nodes) {
       // 规范化节点的 full_code_path（移除开头的斜杠和 __group__ 部分）
       let nodePath = node.full_code_path.replace(/^\/+/, '')
@@ -304,26 +301,19 @@ const findAndExpandByPath = (targetPath: string): ServiceTree | null => {
         nodePath = nodePath.replace(/\/__group__[^/]+$/, '')
       }
       
-      console.log(`${indent}[ServiceTreePanel] 检查节点: ${node.name} (${node.type}), 路径: ${nodePath}, 是否分组: ${isGroup}`)
-      
       // 检查当前节点是否匹配（精确匹配或目录匹配）
       if (nodePath === path || path.startsWith(nodePath + '/')) {
-        console.log(`${indent}[ServiceTreePanel] ✅ 路径匹配!`)
         // 展开当前节点
         const nodeKey = Number(node.id)
         const treeNode = treeRef.value.store.nodesMap[nodeKey]
         if (treeNode) {
           if (!treeNode.expanded) {
             treeNode.expand()
-            console.log(`${indent}[ServiceTreePanel] 展开节点: ${node.name}`)
-          } else {
-            console.log(`${indent}[ServiceTreePanel] 节点已展开: ${node.name}`)
           }
         }
         
         // 如果是精确匹配，返回该节点
         if (nodePath === path) {
-          console.log(`${indent}[ServiceTreePanel] 精确匹配，返回节点: ${node.name}`)
           return node
         }
         
@@ -337,41 +327,28 @@ const findAndExpandByPath = (targetPath: string): ServiceTree | null => {
     return null
   }
   
-  const result = findNode(groupedTreeData.value, normalizedPath)
-  console.log('[ServiceTreePanel] findAndExpandByPath 结果:', result ? result.name : 'null')
-  return result
+  return findNode(groupedTreeData.value, normalizedPath)
 }
 
 // 展开多个路径
 const expandPaths = (paths: string[]) => {
-  console.log('[ServiceTreePanel] expandPaths 被调用，路径列表:', paths)
-  console.log('[ServiceTreePanel] treeRef:', treeRef.value)
-  console.log('[ServiceTreePanel] groupedTreeData 长度:', groupedTreeData.value.length)
-  
   if (!treeRef.value || !groupedTreeData.value.length) {
-    console.log('[ServiceTreePanel] ⚠️ 条件不满足，无法展开')
     return
   }
   
-  paths.forEach((path, index) => {
-    console.log(`[ServiceTreePanel] 处理路径 ${index + 1}/${paths.length}:`, path)
+  paths.forEach((path) => {
     const node = findAndExpandByPath(path)
     if (node) {
-      console.log('[ServiceTreePanel] ✅ 找到节点:', node.name, node.full_code_path)
       // 找到节点后，展开到该节点的所有父节点
       const nodeId = Number(node.id)
       const pathToNode = findPathToNode(groupedTreeData.value, nodeId)
-      console.log('[ServiceTreePanel] 节点路径:', pathToNode)
       if (pathToNode.length > 0) {
         expandParentNodes(pathToNode)
         // 高亮显示该节点
         setTimeout(() => {
           treeRef.value.setCurrentKey(nodeId)
-          console.log('[ServiceTreePanel] 已设置当前节点:', nodeId)
         }, 100)
       }
-    } else {
-      console.log('[ServiceTreePanel] ❌ 未找到节点，路径:', path)
     }
   })
 }
@@ -396,7 +373,6 @@ watch(() => props.currentNodeId, (nodeId) => {
           expandParentNodes(path)
           
           // 选中当前节点
-          console.log('[ServiceTreePanel] 选中节点:', nodeId)
           treeRef.value.setCurrentKey(nodeId)
           
           // 🔥 滚动到选中节点（可见）
