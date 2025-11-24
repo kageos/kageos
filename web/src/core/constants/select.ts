@@ -12,19 +12,6 @@ export const SelectFuzzyQueryType = {
 } as const
 
 /**
- * 数据类型常量（用于类型转换）
- */
-export const FieldDataType = {
-  STRING: 'string',
-  INT: 'int',
-  INTEGER: 'integer',
-  FLOAT: 'float',
-  NUMBER: 'number',
-  BOOL: 'bool',
-  BOOLEAN: 'boolean'
-} as const
-
-/**
  * Element Plus 标准颜色类型
  */
 export const StandardColors = [
