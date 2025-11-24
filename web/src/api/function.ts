@@ -149,7 +149,8 @@ export function selectFuzzy(method: string, router: string, data: {
 }) {
   const url = `/api/v1/callback${router}?_type=OnSelectFuzzy&_function_method=${method.toUpperCase()}`
   
-  Logger.debug('selectFuzzy', 'Select 回调查询', {
+  // Select 回调查询
+  // Logger.debug('selectFuzzy', 'Select 回调查询', {
     originalMethod: method,
     url,
     queryType: data.type,
