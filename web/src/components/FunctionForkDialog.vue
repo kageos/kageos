@@ -16,6 +16,7 @@ import { getAppList } from '@/api/app'
 import { getServiceTree, createServiceTree } from '@/api/service-tree'
 import { forkFunctionGroup } from '@/api/function'
 import { createGroupNode, groupFunctionsByCode, getGroupName } from '@/utils/tree-utils'
+import { Logger } from '@/core/utils/logger'
 import type { App, ServiceTree as ServiceTreeType, CreateServiceTreeRequest } from '@/types'
 
 // 导入工具类
@@ -130,7 +131,7 @@ const loadAppList = async (keyword?: string) => {
     const apps = await getAppList(200, keyword)
     appList.value = apps
   } catch (error) {
-    console.error('加载应用列表失败:', error)
+    Logger.error('FunctionForkDialog', '加载应用列表失败', error)
     ElMessage.error('加载应用列表失败')
     appList.value = []
   } finally {
@@ -148,7 +149,7 @@ const loadSourceServiceTree = async () => {
     sourceServiceTree.value = tree || []
     mappingManager.setSourceTree(sourceServiceTree.value)
   } catch (error) {
-    console.error('加载源服务目录树失败:', error)
+    Logger.error('FunctionForkDialog', '加载源服务目录树失败', error)
     ElMessage.error('加载源服务目录树失败')
     sourceServiceTree.value = []
   } finally {
@@ -163,7 +164,7 @@ const loadTargetServiceTree = async (app: App) => {
     const tree = await getServiceTree(app.user, app.code)
     targetServiceTree.value = tree || []
   } catch (error) {
-    console.error('加载目标服务目录树失败:', error)
+    Logger.error('FunctionForkDialog', '加载目标服务目录树失败', error)
     ElMessage.error('加载目标服务目录树失败')
     targetServiceTree.value = []
   } finally {
@@ -193,43 +194,25 @@ const mappings = ref<ForkMapping[]>([])
 // 更新映射列表（从 MappingManager 同步）
 const updateMappings = () => {
   const newMappings = mappingManager.getAllMappings()
-  console.log('[FunctionForkDialog] 更新映射列表，数量:', newMappings.length, newMappings)
   mappings.value = newMappings
 }
 
 // 转换后的树结构
 // 注意：这些 computed 依赖于 mappings，这样当映射变化时会自动重新计算
 const groupedSourceTree = computed(() => {
-  // 依赖 mappings 以触发重新计算
-  const mappingsCount = mappings.value.length
-  console.log('[FunctionForkDialog] 转换源树，当前映射数量:', mappingsCount)
   return treeTransformer.transformSourceTree(sourceServiceTree.value)
 })
 
 const groupedTargetTree = computed(() => {
   if (!selectedApp.value) return []
-  // 依赖 mappings 以触发重新计算
-  const mappingsCount = mappings.value.length
   const rootPath = `/${selectedApp.value.user}/${selectedApp.value.code}`
-  console.log('[FunctionForkDialog] 转换目标树，当前映射数量:', mappingsCount, 'rootPath:', rootPath)
-  const result = treeTransformer.transformTargetTree(targetServiceTree.value, rootPath)
-  console.log('[FunctionForkDialog] 目标树转换完成，节点数:', result.length)
-  return result
+  return treeTransformer.transformTargetTree(targetServiceTree.value, rootPath)
 })
 
 // 拖拽开始
 const handleDragStart = (node: ServiceTreeType, event: DragEvent) => {
   const isGroup = (node as any).isGroup && node.full_group_code
   const isPackage = node.type === 'package' && !(node as any).isGroup
-  
-  console.log('[FunctionForkDialog] 拖拽开始:', {
-    nodeName: node.name,
-    nodeType: node.type,
-    isGroup,
-    isPackage,
-    fullGroupCode: node.full_group_code,
-    fullCodePath: node.full_code_path
-  })
   
   if (!isGroup && !isPackage) {
     event.preventDefault()
@@ -239,7 +222,6 @@ const handleDragStart = (node: ServiceTreeType, event: DragEvent) => {
   // 验证是否可以拖拽
   const canDrag = dragHandler.canDrag(node)
   if (!canDrag.allowed) {
-    console.log('[FunctionForkDialog] 拖拽被拒绝:', canDrag.reason)
     if (canDrag.reason) {
       ElMessage.warning(canDrag.reason)
     }
@@ -252,12 +234,10 @@ const handleDragStart = (node: ServiceTreeType, event: DragEvent) => {
   
     const data = isGroup ? node.full_group_code : `__package__${node.id}`
   event.dataTransfer?.setData('text/plain', data)
-  console.log('[FunctionForkDialog] 拖拽数据已设置:', data)
 }
 
 // 拖拽结束
 const handleDragEnd = () => {
-  console.log('[FunctionForkDialog] 拖拽结束')
   draggedNode.value = null
   dragOverNode.value = null
   isDragging.value = false
@@ -296,23 +276,7 @@ const handleDragLeave = () => {
 const handleDrop = async (node: ServiceTreeType | null, event: DragEvent) => {
   event.preventDefault()
   
-  console.log('[FunctionForkDialog] 拖拽放置:', {
-    sourceNode: draggedNode.value ? {
-      name: draggedNode.value.name,
-      type: draggedNode.value.type,
-      fullGroupCode: (draggedNode.value as any).full_group_code,
-      fullCodePath: draggedNode.value.full_code_path
-    } : null,
-    targetNode: node ? {
-      name: node.name,
-      type: node.type,
-      fullCodePath: node.full_code_path
-    } : '根目录',
-    selectedApp: selectedApp.value ? `${selectedApp.value.user}/${selectedApp.value.code}` : null
-  })
-  
   if (!draggedNode.value || !selectedApp.value) {
-    console.log('[FunctionForkDialog] 拖拽放置失败: 缺少源节点或目标应用')
     dragOverNode.value = null
     draggedNode.value = null
     return
@@ -324,9 +288,7 @@ const handleDrop = async (node: ServiceTreeType | null, event: DragEvent) => {
   
   if (isSourceGroup) {
     // 处理函数组拖拽
-    console.log('[FunctionForkDialog] 处理函数组拖拽')
     const result = dragHandler.handleGroupDrag(sourceNode, node)
-    console.log('[FunctionForkDialog] 函数组拖拽结果:', result)
     if (result.success) {
       updateMappings() // 更新响应式映射列表
       ElMessage.success(result.message || '已添加映射关系')
@@ -337,16 +299,13 @@ const handleDrop = async (node: ServiceTreeType | null, event: DragEvent) => {
       await new Promise(resolve => setTimeout(resolve, 500))
       await connectionLineManager.updateLines()
       const lines = connectionLineManager.getLines()
-      console.log('[FunctionForkDialog] 连接线更新完成，数量:', lines.length, lines)
       connectionLines.value = lines
     } else if (result.message) {
       ElMessage.warning(result.message)
     }
   } else if (isSourcePackage) {
     // 处理目录拖拽
-    console.log('[FunctionForkDialog] 处理目录拖拽')
     const result = await dragHandler.handleDirectoryDrag(sourceNode, node)
-    console.log('[FunctionForkDialog] 目录拖拽结果:', result)
     if (result.success) {
       updateMappings() // 更新响应式映射列表
       ElMessage.success(result.message || '已添加映射关系')
@@ -357,7 +316,6 @@ const handleDrop = async (node: ServiceTreeType | null, event: DragEvent) => {
       await new Promise(resolve => setTimeout(resolve, 500))
       await connectionLineManager.updateLines()
       const lines = connectionLineManager.getLines()
-      console.log('[FunctionForkDialog] 连接线更新完成，数量:', lines.length, lines)
       connectionLines.value = lines
     } else if (result.message) {
       ElMessage.error(result.message)
@@ -400,14 +358,11 @@ const handleNodeCollapse = () => {
 
 // 删除映射
 const removeMapping = (index: number) => {
-  const mapping = mappings.value[index]
-  console.log('[FunctionForkDialog] 删除映射:', index, mapping)
   mappingManager.removeMappingByIndex(index)
   updateMappings() // 更新响应式映射列表
         nextTick(() => {
     connectionLineManager.updateLines().then(() => {
       const lines = connectionLineManager.getLines()
-      console.log('[FunctionForkDialog] 删除映射后，连接线数量:', lines.length)
       connectionLines.value = lines
     })
   })
@@ -454,7 +409,7 @@ const handleSubmitCreateDirectory = async () => {
     
     await loadTargetServiceTree(selectedApp.value)
   } catch (error: any) {
-    console.error('创建目录失败:', error)
+    Logger.error('FunctionForkDialog', '创建目录失败', error)
     ElMessage.error(error?.message || '创建目录失败')
   } finally {
     creatingDirectory.value = false
@@ -492,12 +447,6 @@ const handleSubmit = async () => {
       ElMessage.warning('没有可提交的函数组映射')
       return
     }
-    
-    console.log('[FunctionForkDialog] 提交的映射:', {
-      totalMappings: mappings.value.length,
-      functionGroupMappings: functionGroupMappings.length,
-      sourceToTargetMap
-    })
     
     const targetApp = { ...selectedApp.value }
     const savedMappings = [...functionGroupMappings]
@@ -560,7 +509,7 @@ const handleSubmit = async () => {
     
     emit('success')
   } catch (error: any) {
-    console.error('Fork 失败:', error)
+    Logger.error('FunctionForkDialog', 'Fork 失败', error)
     // 如果通知存在，关闭它
     if (notification) {
       notification.close()
@@ -617,24 +566,16 @@ const getConnectionPath = (sourceRect: DOMRect, targetRect: DOMRect): string => 
 }
 
 // 监听映射变化，更新连接线和树结构
-watch(mappings, (newMappings, oldMappings) => {
-  console.log('[FunctionForkDialog] 映射列表变化:', {
-    oldCount: oldMappings?.length || 0,
-    newCount: newMappings.length,
-    mappings: newMappings
-  })
-  
+watch(mappings, () => {
   // 如果正在拖动，不更新连接线（避免拖动过程中的抖动）
   if (isDragging.value) {
-    console.log('[FunctionForkDialog] 拖动中，跳过连接线更新')
     return
   }
 
   nextTick(() => {
     connectionLineManager.updateLines().then(() => {
       const lines = connectionLineManager.getLines()
-      console.log('[FunctionForkDialog] 连接线更新完成，数量:', lines.length)
-  connectionLines.value = lines
+      connectionLines.value = lines
     })
   })
 }, { deep: true })
