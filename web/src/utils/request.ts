@@ -55,19 +55,18 @@ service.interceptors.request.use(
         // 普通对象，直接赋值
         (config.headers as any)['X-Token'] = token
       }
-      
-      console.log('[Request] URL:', config.url, 'X-Token:', token.substring(0, 20) + '...')
     } else {
-      console.error('[Request] ❌ No token found!')
-      console.error('[Request] Store token:', authStore.token)
-      console.error('[Request] LocalStorage token:', localStorage.getItem('token'))
-      console.error('[Request] URL:', config.url)
+      Logger.warn('Request', 'No token found', {
+        storeToken: authStore.token,
+        localStorageToken: localStorage.getItem('token'),
+        url: config.url
+      })
     }
 
     return config
   },
   (error) => {
-    console.error('请求拦截器错误:', error)
+    Logger.error('Request', '请求拦截器错误', error)
     return Promise.reject(error)
   }
 )

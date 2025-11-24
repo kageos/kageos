@@ -65,11 +65,6 @@ export function deleteFunction(id: number) {
 export function tableAddRow(method: string, router: string, data: any) {
   const url = `/api/v1/callback${router}?_type=OnTableAddRow&_method=${method.toUpperCase()}`
   
-  console.log('[tableAddRow] 准备新增')
-  console.log('[tableAddRow]   Original Method:', method)
-  console.log('[tableAddRow]   URL:', url)
-  console.log('[tableAddRow]   Body:', data)
-  
   // 统一使用 POST 方法
   return post(url, data)
 }
@@ -78,11 +73,6 @@ export function tableAddRow(method: string, router: string, data: any) {
 // 统一使用 POST 方法，原函数的 method 通过 _method 查询参数传递，参数放在 body 里
 export function tableUpdateRow(method: string, router: string, data: any) {
   const url = `/api/v1/callback${router}?_type=OnTableUpdateRow&_method=${method.toUpperCase()}`
-  
-  console.log('[tableUpdateRow] 准备更新')
-  console.log('[tableUpdateRow]   Original Method:', method)
-  console.log('[tableUpdateRow]   URL:', url)
-  console.log('[tableUpdateRow]   Body:', data)
   
   // 统一使用 POST 方法
   return post(url, data)
@@ -93,12 +83,6 @@ export function tableUpdateRow(method: string, router: string, data: any) {
 export function tableDeleteRows(method: string, router: string, ids: number[]) {
   const url = `/api/v1/callback${router}?_type=OnTableDeleteRows&_method=${method.toUpperCase()}`
   const data = { ids }
-  
-  console.log('[tableDeleteRows] 准备删除')
-  console.log('[tableDeleteRows]   Original Method:', method)
-  console.log('[tableDeleteRows]   URL:', url)
-  console.log('[tableDeleteRows]   Body:', data)
-  console.log('[tableDeleteRows]   IDs:', ids)
   
   // 统一使用 POST 方法
   return post(url, data)
