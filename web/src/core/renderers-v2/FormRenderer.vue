@@ -366,7 +366,7 @@ function getWidgetComponent(type: string) {
   
   const component = widgetComponentFactory.getRequestComponent(type)
   if (!component) {
-    console.warn(`[FormRenderer-v2] 未找到组件: ${type}，使用默认 InputWidget`)
+    Logger.warn('FormRenderer', `未找到组件: ${type}，使用默认 InputWidget`)
     const defaultComponent = widgetComponentFactory.getRequestComponent('input')
     componentCache.set(cacheKey, defaultComponent)
     return defaultComponent
@@ -386,7 +386,7 @@ function getResponseWidgetComponent(type: string) {
   // 优先使用响应组件，如果没有则使用请求组件
   const component = widgetComponentFactory.getResponseComponent(type)
   if (!component) {
-    console.warn(`[FormRenderer-v2] 未找到响应组件: ${type}，使用默认 InputWidget`)
+    Logger.warn('FormRenderer', `未找到响应组件: ${type}，使用默认 InputWidget`)
     const defaultComponent = widgetComponentFactory.getRequestComponent('input')
     componentCache.set(cacheKey, defaultComponent)
     return defaultComponent

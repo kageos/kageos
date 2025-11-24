@@ -578,19 +578,13 @@ async function batchLoadUserInfo(): Promise<void> {
     
     userInfoMap.value = map
   } catch (error) {
-    console.error('[TableRenderer] ❌ 批量查询用户信息失败:', error)
+    Logger.error('TableRenderer', '批量查询用户信息失败', error)
     userInfoMap.value = new Map()
   }
 }
 
 // 监听 tableData 变化，自动批量查询用户信息
-watch(() => tableData.value, (newData, oldData) => {
-  console.log('[TableRenderer] 🔍 watch tableData 触发', {
-    newLength: newData?.length || 0,
-    oldLength: oldData?.length || 0,
-    timestamp: new Date().toISOString()
-  })
-  
+watch(() => tableData.value, () => {
   if (tableData.value && tableData.value.length > 0) {
     batchLoadUserInfo()
   } else {
@@ -1186,7 +1180,7 @@ const handleDetailSave = async (): Promise<void> => {
       ElMessage.success('保存成功')
     }
   } catch (error: any) {
-    console.error('保存失败:', error)
+    Logger.error('TableRenderer', '保存失败', error)
     const errorMessage = error?.response?.data?.msg 
       || error?.response?.data?.message 
       || error?.message 
@@ -1236,7 +1230,7 @@ const refreshCurrentDetailRow = async (): Promise<void> => {
       }
     }
   } catch (error) {
-    console.error('刷新记录数据失败:', error)
+    Logger.error('TableRenderer', '刷新记录数据失败', error)
   }
 }
 

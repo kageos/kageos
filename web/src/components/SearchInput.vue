@@ -285,6 +285,7 @@ import { SearchConfig, SearchComponent, SearchType } from '@/core/constants/sear
 import { WidgetType } from '@/core/constants/widget'
 import { parseCommaSeparatedString } from '@/utils/stringUtils'
 import { isStandardColor, getStandardColorCSSVar, type StandardColorType } from '@/core/constants/select'
+import { Logger } from '@/core/utils/logger'
 import type { FieldConfig } from '@/types'
 
 // 防抖函数
@@ -353,17 +354,6 @@ const isSelectWidget = computed(() => {
 const optionColors = computed(() => {
   // 直接从 field.widget.config 获取 options_colors（无论是 response 还是 request 字段）
   const colors = props.field.widget?.config?.options_colors || []
-  // 🔥 调试日志：检查颜色配置是否正确获取
-  if (props.field.widget?.type === WidgetType.SELECT && colors.length > 0) {
-    console.log('[SearchInput] 选项颜色配置', {
-      fieldCode: props.field.code,
-      fieldName: props.field.name,
-      widgetType: props.field.widget?.type,
-      options: props.field.widget?.config?.options,
-      options_colors: colors,
-      widgetConfig: props.field.widget?.config
-    })
-  }
   return colors
 })
 
@@ -380,15 +370,6 @@ const staticOptions = computed(() => {
       }
       return opt
     })
-    // 🔥 调试日志：检查选项映射
-    if (props.field.widget?.type === WidgetType.SELECT && optionColors.value.length > 0) {
-      console.log('[SearchInput] 静态选项（来自 inputConfig）', {
-        fieldCode: props.field.code,
-        inputConfigOptions,
-        mapped,
-        optionColors: optionColors.value
-      })
-    }
     return mapped
   }
   
@@ -400,15 +381,6 @@ const staticOptions = computed(() => {
     }
     return opt
   })
-  // 🔥 调试日志：检查选项映射
-  if (props.field.widget?.type === WidgetType.SELECT && optionColors.value.length > 0) {
-    console.log('[SearchInput] 静态选项（来自 field.widget.config）', {
-      fieldCode: props.field.code,
-      opts,
-      mapped,
-      optionColors: optionColors.value
-    })
-  }
   return mapped
 })
 
@@ -442,20 +414,6 @@ function getOptionColor(value: any): string | null {
     const optValue = typeof opt === 'object' ? opt.value : opt
     return String(optValue) === valueStr
   })
-  
-  // 🔥 调试日志：检查颜色匹配
-  if (props.field.widget?.type === WidgetType.SELECT && optionIndex >= 0) {
-    console.log('[SearchInput] 颜色匹配', {
-      fieldCode: props.field.code,
-      value: valueStr,
-      optionIndex,
-      staticOptionsLength: staticOptions.value.length,
-      optionColorsLength: optionColors.value.length,
-      matchedColor: optionIndex < optionColors.value.length ? optionColors.value[optionIndex] : null,
-      staticOptions: staticOptions.value,
-      optionColors: optionColors.value
-    })
-  }
   
   if (optionIndex >= 0 && optionIndex < optionColors.value.length) {
     return optionColors.value[optionIndex] || null
@@ -510,17 +468,6 @@ function getSelectTagStyle(value: any): Record<string, string> {
     // 自定义颜色：直接使用颜色值设置边框颜色
     style.borderColor = color
     style.color = color
-  }
-  
-  // 🔥 调试日志：检查样式对象
-  if (props.field.widget?.type === WidgetType.SELECT && color) {
-    console.log('[SearchInput] 标签样式', {
-      fieldCode: props.field.code,
-      value,
-      color,
-      isStandard,
-      style
-    })
   }
   
   return style
@@ -626,7 +573,7 @@ const handleRemoteMethod = async (query: string) => {
     const options = await inputConfig.value.onRemoteMethod(query)
     selectOptions.value = options || []
   } catch (error) {
-    console.error('[SearchInput] Remote method error:', error)
+    Logger.error('SearchInput', 'Remote method error', error)
     selectOptions.value = []
   } finally {
     selectLoading.value = false
@@ -652,7 +599,7 @@ const initSelectedOptions = async () => {
       const options = await inputConfig.value.onInitOptions(currentValue)
       selectOptions.value = options || []
     } catch (error) {
-      console.error('[SearchInput] Init selected options error:', error)
+      Logger.error('SearchInput', 'Init selected options error', error)
       selectOptions.value = []
     } finally {
       selectLoading.value = false
@@ -682,7 +629,7 @@ const initSelectedOptions = async () => {
       const options = (await Promise.all(optionPromises)).filter(Boolean)
       selectOptions.value = options
     } catch (error) {
-      console.error('[SearchInput] Init selected options error:', error)
+      Logger.error('SearchInput', 'Init selected options error', error)
     } finally {
       selectLoading.value = false
     }
@@ -702,7 +649,7 @@ const initSelectedOptions = async () => {
         selectOptions.value = options
       }
     } catch (error) {
-      console.error('[SearchInput] Init selected options error:', error)
+      Logger.error('SearchInput', 'Init selected options error', error)
     } finally {
       selectLoading.value = false
     }

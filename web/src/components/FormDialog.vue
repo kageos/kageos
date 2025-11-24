@@ -43,6 +43,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
+import { Logger } from '@/core/utils/logger'
 import type { FieldConfig, FunctionDetail } from '@/core/types/field'
 
 interface Props {
@@ -116,7 +117,7 @@ const filteredFields = computed(() => {
 const formFunctionDetail = computed<FunctionDetail | null>(() => {
   // 🔥 method 是必需的，如果不存在应该返回 null，让模板不渲染 FormRenderer
   if (!props.method) {
-    console.error(`[FormDialog] method 参数不存在，无法构建 formFunctionDetail。router: ${props.router}`)
+    Logger.error('FormDialog', `method 参数不存在，无法构建 formFunctionDetail。router: ${props.router}`)
     return null
   }
   
@@ -144,7 +145,7 @@ const formFunctionDetail = computed<FunctionDetail | null>(() => {
  */
 const handleSubmit = async () => {
   if (!formRendererRef.value) {
-    console.error('[FormDialog] FormRenderer 引用不存在')
+    Logger.error('FormDialog', 'FormRenderer 引用不存在')
     return
   }
   
@@ -154,13 +155,11 @@ const handleSubmit = async () => {
     // 🔥 调用 FormRenderer 的内部方法准备提交数据
     const submitData = formRendererRef.value.prepareSubmitDataWithTypeConversion()
     
-    console.log('[FormDialog] 提交数据:', submitData)
-    
     // 触发提交事件
     emit('submit', submitData)
     
   } catch (error) {
-    console.error('[FormDialog] 提交失败:', error)
+    Logger.error('FormDialog', '提交失败', error)
     throw error
   } finally {
     submitting.value = false
@@ -178,14 +177,8 @@ const handleClose = () => {
 /**
  * 监听对话框显示状态
  */
-watch(() => props.modelValue, (visible) => {
-  if (visible) {
-    console.log('[FormDialog] 对话框打开', {
-      mode: props.mode,
-      fields: props.fields.length,
-      initialData: props.initialData
-    })
-  }
+watch(() => props.modelValue, () => {
+  // 对话框打开/关闭逻辑
 })
 
 /**
