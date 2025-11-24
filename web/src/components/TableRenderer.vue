@@ -968,7 +968,8 @@ const handleDialogSubmit = async (data: Record<string, any>): Promise<void> => {
   if (dialogMode.value === 'create') {
     success = await handleAddRow(data)
   } else {
-    success = await handleUpdateRow(currentRow.value.id, data)
+    // ⚠️ 关键：传递旧值（currentRow.value），用于对比找出变更的字段
+    success = await handleUpdateRow(currentRow.value.id, data, currentRow.value)
   }
   
   if (success) {
@@ -1160,7 +1161,8 @@ const handleDetailSave = async (): Promise<void> => {
     const submitData = detailFormRendererRef.value.prepareSubmitDataWithTypeConversion()
     
     // 2. 调用更新接口（复用现有的更新逻辑）
-    const success = await handleUpdateRow(currentDetailRow.value.id, submitData)
+    // ⚠️ 关键：传递旧值（currentDetailRow.value），用于对比找出变更的字段
+    const success = await handleUpdateRow(currentDetailRow.value.id, submitData, currentDetailRow.value)
     
     if (success) {
       // 3. 刷新当前记录数据
