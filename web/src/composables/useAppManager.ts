@@ -25,10 +25,9 @@ export function useAppManager() {
       loading.value = true
       const items = await getAppList()
       appList.value = items
-      console.log('[useAppManager] 应用列表加载完成，数量:', items.length)
       return items
     } catch (error) {
-      console.error('[useAppManager] 获取应用列表失败:', error)
+      Logger.error('useAppManager', '获取应用列表失败', error)
       ElMessage.error('获取应用列表失败')
       return []
     } finally {
@@ -53,10 +52,6 @@ export function useAppManager() {
     const [user, appCode] = pathSegments
     const app = appList.value.find((a: App) => a.user === user && a.code === appCode)
     
-    if (app) {
-      console.log('[useAppManager] 从路由解析到应用:', app.user + '/' + app.code)
-    }
-    
     return app || null
   }
 
@@ -64,7 +59,6 @@ export function useAppManager() {
    * 切换应用
    */
   const switchApp = async (app: App, updateRoute = true): Promise<void> => {
-    console.log('[useAppManager] 切换应用:', app.user + '/' + app.code)
     currentApp.value = app
 
     if (updateRoute) {
@@ -90,7 +84,7 @@ export function useAppManager() {
       )
       
       if (!createdApp) {
-        console.error('[useAppManager] 创建应用后未在列表中找到新应用:', resp)
+        Logger.error('useAppManager', '创建应用后未在列表中找到新应用', resp)
         return null
       }
       

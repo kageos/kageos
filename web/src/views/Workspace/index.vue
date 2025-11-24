@@ -410,6 +410,7 @@ import { createServiceTree } from '@/api/service-tree'
 import { useAppManager } from '@/composables/useAppManager'
 import { useServiceTree } from '@/composables/useServiceTree'
 import { useAuthStore } from '@/stores/auth'
+import { Logger } from '@/core/utils/logger'
 import type { ServiceTree, CreateServiceTreeRequest, CreateAppRequest, Function as FunctionType } from '@/types'
 
 const route = useRoute()
@@ -549,19 +550,16 @@ const submitCreateApp = async () => {
 
   try {
     creatingApp.value = true
-    console.log('[Workspace] 创建应用请求:', createAppForm.value)
-    
     const newApp = await handleCreateApp(createAppForm.value)
     
     if (newApp) {
-      console.log('[Workspace] 应用创建成功:', newApp)
       createAppDialogVisible.value = false
       
       // 切换到新创建的应用
       await switchApp(newApp)
     }
   } catch (error: any) {
-    console.error('[Workspace] 创建应用失败:', error)
+    Logger.error('Workspace', '创建应用失败', error)
   } finally {
     creatingApp.value = false
   }
@@ -576,56 +574,40 @@ const handleLocateNode = () => {
     fullPath = currentPath.replace('/workspace/', '').replace(/^\/+|\/+$/g, '')
   }
   
-  console.log('[定位] window.location.pathname:', currentPath)
-  console.log('[定位] 提取的完整路径:', fullPath)
-  
   if (!fullPath) {
-    console.log('[定位] 路径为空，不进行定位')
     currentLocatingPath.value = null
     return
   }
   
   // 如果正在定位同一个路径，跳过
   if (currentLocatingPath.value === fullPath) {
-    console.log('[定位] ⏭️ 正在定位此路径，跳过重复定位')
     return
   }
   
   // 分割路径段
   const pathSegments = fullPath.split('/').filter(Boolean)
-  console.log('[定位] 路径段:', pathSegments)
   
   if (pathSegments.length < 2) {
     // 至少需要 user 和 app
-    console.log('[定位] 路径段不足，需要至少 user 和 app')
     currentLocatingPath.value = null
     return
   }
   
   // 确保当前应用匹配
   const [user, app] = pathSegments
-  console.log('[定位] 解析到的 user:', user, 'app:', app)
-  console.log('[定位] 当前应用:', currentApp.value ? `${currentApp.value.user}/${currentApp.value.code}` : 'null')
   
   if (!currentApp.value) {
-    console.log('[定位] ❌ 当前应用为空，无法定位')
     currentLocatingPath.value = null
     return
   }
   
   if (currentApp.value.user !== user || currentApp.value.code !== app) {
-    console.log('[定位] ❌ 应用不匹配')
-    console.log('[定位]    期望:', `${user}/${app}`)
-    console.log('[定位]    实际:', `${currentApp.value.user}/${currentApp.value.code}`)
     currentLocatingPath.value = null
     return
   }
   
-  console.log('[定位] ✅ 应用匹配成功')
-  
   // 如果路径长度只有2（只有user和app），说明是应用的根路径，不选中任何节点
   if (pathSegments.length === 2) {
-    console.log('[定位] 根路径，不选中任何节点')
     currentFunction.value = null
     showRightSidebar.value = false
     functionDetail.value = null
@@ -635,16 +617,13 @@ const handleLocateNode = () => {
   
   // 查找对应的节点
   const targetPath = `/${pathSegments.join('/')}`
-  console.log('[定位] 目标路径:', targetPath)
   
   // 标记正在定位此路径
   currentLocatingPath.value = fullPath
   
   const findNodeByPath = (nodes: ServiceTree[], targetPath: string): ServiceTree | null => {
     for (const node of nodes) {
-      console.log('[定位] 检查节点:', node.full_code_path, '===', targetPath, '?', node.full_code_path === targetPath)
       if (node.full_code_path === targetPath) {
-        console.log('[定位] ✅ 找到节点:', node)
         return node
       }
       if (node.children && node.children.length > 0) {
@@ -660,10 +639,6 @@ const handleLocateNode = () => {
     // 如果节点相同且已经加载过详情，不重复加载
     const isSameNode = currentFunction.value?.id === targetNode.id
     
-    console.log('[定位] ✅✅✅ 定位成功，设置当前节点:', targetNode.name, targetNode.full_code_path)
-    console.log('[定位] 节点 ID:', targetNode.id, '类型:', targetNode.type)
-    console.log('[定位] 是否相同节点:', isSameNode)
-    
     currentFunction.value = targetNode
     
     if (targetNode.type === 'function') {
@@ -674,33 +649,19 @@ const handleLocateNode = () => {
       if (!isSameNode || !functionDetail.value) {
         // 🔥 优先使用 ref_id，如果没有则使用 full_code_path
         if (targetNode.ref_id && targetNode.ref_id > 0) {
-          console.log('[定位] 加载函数详情, ref_id:', targetNode.ref_id)
           loadFunctionDetail(targetNode.ref_id)
         } else if (targetNode.full_code_path) {
-          console.log('[定位] ref_id 不存在，使用路径加载函数详情:', targetNode.full_code_path)
           loadFunctionDetailByPath(targetNode.full_code_path)
         } else {
-          console.warn('[定位] ⚠️ 节点没有 ref_id 和 full_code_path，无法加载函数详情')
+          Logger.warn('Workspace', '节点没有 ref_id 和 full_code_path，无法加载函数详情')
           ElMessage.warning('无法加载函数详情：节点信息不完整')
         }
-      } else {
-        console.log('[定位] ⏭️ 跳过重复加载函数详情')
       }
     } else {
       showRightSidebar.value = false
       functionDetail.value = null
     }
   } else {
-    console.log('[定位] ❌❌❌ 未找到匹配的节点')
-    console.log('[定位] 目标路径:', targetPath)
-    console.log('[定位] 服务树节点数:', serviceTree.value.length)
-    if (serviceTree.value.length > 0) {
-      console.log('[定位] 服务树内容:', JSON.stringify(serviceTree.value.map((n: ServiceTree) => ({ 
-        name: n.name, 
-        path: n.full_code_path,
-        children: n.children?.length || 0
-      })), null, 2))
-    }
     currentLocatingPath.value = null
   }
 }

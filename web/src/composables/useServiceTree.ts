@@ -6,6 +6,7 @@
 import { ref, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getServiceTree, createServiceTree } from '@/api/service-tree'
+import { Logger } from '@/core/utils/logger'
 import type { App, ServiceTree, CreateServiceTreeRequest } from '@/types'
 
 export function useServiceTree() {
@@ -24,14 +25,12 @@ export function useServiceTree() {
     }
 
     try {
-      console.log('[useServiceTree] 开始加载服务目录树:', app.user + '/' + app.code)
       loading.value = true
       const tree = await getServiceTree(app.user, app.code)
       serviceTree.value = tree || []
-      console.log('[useServiceTree] 服务目录树加载完成，节点数:', serviceTree.value.length)
       return serviceTree.value
     } catch (error) {
-      console.error('[useServiceTree] 获取服务目录树失败:', error)
+      Logger.error('useServiceTree', '获取服务目录树失败', error)
       ElMessage.error('获取服务目录树失败')
       serviceTree.value = []
       return []
@@ -132,7 +131,7 @@ export function useServiceTree() {
       ElMessage.success('创建服务目录成功')
       return true
     } catch (error: any) {
-      console.error('[useServiceTree] 创建服务目录失败:', error)
+      Logger.error('useServiceTree', '创建服务目录失败', error)
       const errorMessage = error?.response?.data?.message || error?.message || '创建服务目录失败'
       ElMessage.error(errorMessage)
       return false
