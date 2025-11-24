@@ -130,7 +130,7 @@ import { Logger } from '../../utils/logger'
 import { useFormDataStore } from '../../stores-v2/formData'
 import { ExpressionParser } from '../../utils/ExpressionParser'
 import { isStringDataType, getMultiSelectDefaultDataType } from '../../constants/widget'
-import { SelectFuzzyQueryType } from '../../constants/select'
+import { SelectFuzzyQueryType, isStandardColor } from '../../constants/select'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -325,9 +325,7 @@ function handleRemoveValue(value: any): void {
 /**
  * 判断是否是 Element Plus 标准颜色类型
  */
-function isStandardColor(color: string): boolean {
-  return ['success', 'warning', 'danger', 'info', 'primary'].includes(color)
-}
+// isStandardColor 已从 constants/select 导入
 
 /**
  * 获取选项的颜色
@@ -339,18 +337,7 @@ function getOptionColor(value: any): string | null {
   // 🔥 在 staticOptions 中查找索引（因为 options_colors 与 staticOptions 对齐）
   const optionIndex = staticOptions.value.findIndex((opt: any) => String(opt.value) === valueStr)
   if (optionIndex >= 0 && optionIndex < optionColors.value.length) {
-    const color = optionColors.value[optionIndex]
-    // 🔥 调试日志：检查颜色配置
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[MultiSelectWidget] getOptionColor - value: ${valueStr}, index: ${optionIndex}, color: ${color}`)
-    }
-    return color
-  }
-  // 🔥 调试日志：未找到颜色
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`[MultiSelectWidget] getOptionColor - value: ${valueStr}, not found in staticOptions`)
-    console.log(`[MultiSelectWidget] staticOptions:`, staticOptions.value)
-    console.log(`[MultiSelectWidget] optionColors:`, optionColors.value)
+    return optionColors.value[optionIndex]
   }
   return null
 }
@@ -362,10 +349,6 @@ function getOptionColorType(value: any): string | undefined {
   const color = getOptionColor(value)
   if (!color) return undefined
   const isStandard = isStandardColor(color)
-  // 🔥 调试日志
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`[MultiSelectWidget] getOptionColorType - value: ${value}, color: ${color}, isStandard: ${isStandard}, result: ${isStandard ? color : undefined}`)
-  }
   return isStandard ? color : undefined
 }
 
@@ -376,19 +359,10 @@ function getOptionColorType(value: any): string | undefined {
 function getOptionColorValue(value: any): string | undefined {
   const color = getOptionColor(value)
   if (!color) {
-    // 🔥 调试日志：未找到颜色
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[MultiSelectWidget] getOptionColorValue - value: ${value}, no color found`)
-    }
     return undefined
   }
   const isStandard = isStandardColor(color)
-  const result = !isStandard ? color : undefined
-  // 🔥 调试日志
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`[MultiSelectWidget] getOptionColorValue - value: ${value}, color: ${color}, isStandard: ${isStandard}, result: ${result}`)
-  }
-  return result
+  return !isStandard ? color : undefined
 }
 
 /**
@@ -398,11 +372,6 @@ function getOptionColorStyle(value: any): Record<string, string> {
   const colorValue = getOptionColorValue(value)
   const color = getOptionColor(value)
   const backgroundColor = colorValue || color || ''
-  
-  // 🔥 调试日志
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`[MultiSelectWidget] getOptionColorStyle - value: ${value}, colorValue: ${colorValue}, color: ${color}, backgroundColor: ${backgroundColor}`)
-  }
   
   // 🔥 确保 backgroundColor 有值，并且使用 !important 确保样式生效
   const style: Record<string, string> = {

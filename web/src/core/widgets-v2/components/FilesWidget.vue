@@ -747,7 +747,7 @@ function getFileUploadUserInfo(file: FileItem) {
       }
     }
   } catch (error) {
-    console.warn('[FilesWidget] 获取用户信息失败', error)
+    Logger.warn('FilesWidget', '获取用户信息失败', error)
   }
   
   return null
@@ -1366,10 +1366,10 @@ async function updateFiles(files: FileItem[]): Promise<void> {
       }
       
       if (!uploadUser) {
-        console.warn('[FilesWidget] 无法获取用户信息：用户未登录或用户信息为空')
+        Logger.warn('FilesWidget', '无法获取用户信息：用户未登录或用户信息为空')
       }
     } catch (error) {
-      console.warn('[FilesWidget] 无法获取用户信息', error)
+      Logger.warn('FilesWidget', '无法获取用户信息', error)
     }
   }
 

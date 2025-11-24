@@ -284,6 +284,7 @@ import { createSearchComponentConfig } from '@/utils/searchComponentConfig'
 import { SearchConfig, SearchComponent, SearchType } from '@/core/constants/search'
 import { WidgetType } from '@/core/constants/widget'
 import { parseCommaSeparatedString } from '@/utils/stringUtils'
+import { isStandardColor, getStandardColorCSSVar, type StandardColorType } from '@/core/constants/select'
 import type { FieldConfig } from '@/types'
 
 // 防抖函数
@@ -417,9 +418,7 @@ const staticOptions = computed(() => {
  * 标准颜色：success, warning, danger, info, primary
  * 自定义颜色：以 # 开头的 hex 颜色（如：#FF9800）
  */
-function isStandardColor(color: string): boolean {
-  return ['success', 'warning', 'danger', 'info', 'primary'].includes(color)
-}
+// isStandardColor 已从 constants/select 导入
 
 /**
  * 获取选项的颜色
@@ -534,20 +533,9 @@ function getOptionColorStyle(value: any): Record<string, string> {
   
   const isStandard = isStandardColor(color)
   // 🔥 对于标准颜色，也需要设置背景色（使用 CSS 变量）
-  let backgroundColor = ''
-  if (isStandard) {
-    // 标准颜色使用 CSS 变量
-    const colorMap: Record<string, string> = {
-      success: 'var(--el-color-success)',
-      warning: 'var(--el-color-warning)',
-      danger: 'var(--el-color-danger)',
-      info: 'var(--el-color-info)',
-      primary: 'var(--el-color-primary)'
-    }
-    backgroundColor = colorMap[color] || ''
-  } else {
-    backgroundColor = color
-  }
+  const backgroundColor = isStandard 
+    ? getStandardColorCSSVar(color as StandardColorType) 
+    : color
   
   const style: Record<string, string> = {
     marginRight: '8px',

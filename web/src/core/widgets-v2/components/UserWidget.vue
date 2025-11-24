@@ -107,6 +107,7 @@ import { searchUsersFuzzy, getUsersByUsernames } from '@/api/user'
 import { formatUserDisplayName } from '@/utils/userInfo'
 import type { UserInfo } from '@/types'
 import { useAuthStore } from '@/stores/auth'
+import { Logger } from '../../utils/logger'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -332,7 +333,7 @@ async function loadUserInfo(username: string | null): Promise<UserInfo | null> {
     }
   } catch (error) {
     // 查询用户信息失败，静默处理
-    console.error('[UserWidget] ❌ 查询用户信息失败', username, error)
+    Logger.error(COMPONENT_NAME, '查询用户信息失败', { username, error })
     userInfo.value = null
     return null
   }
