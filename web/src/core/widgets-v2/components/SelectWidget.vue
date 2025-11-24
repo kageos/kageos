@@ -132,6 +132,11 @@ import { ElSelect, ElOption, ElMessage, ElTag } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useFormDataStore } from '../../stores-v2/formData'
 import { selectFuzzy } from '@/api/function'
+import { Logger } from '../../utils/logger'
+import { SelectFuzzyQueryType, isStandardColor, getStandardColorCSSVar, type StandardColorType } from '../../constants/select'
+import { convertValueToType } from '../utils/valueConverter'
+
+const COMPONENT_NAME = 'SelectWidget'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -183,14 +188,7 @@ const optionColors = computed(() => {
   return props.field.widget?.config?.options_colors || []
 })
 
-/**
- * 判断是否是 Element Plus 标准颜色类型
- * 标准颜色类型：success, warning, danger, info, primary
- * 这些颜色使用 el-tag 的 type 属性
- */
-function isStandardColor(color: string): boolean {
-  return ['success', 'warning', 'danger', 'info', 'primary'].includes(color)
-}
+// isStandardColor 已从 constants/select 导入
 
 /**
  * 获取当前选中值的颜色
@@ -223,18 +221,14 @@ function getOptionColor(value: any): string | null {
   const optionIndex = staticOptions.value.findIndex((opt: any) => String(opt.value) === valueStr)
   if (optionIndex >= 0 && optionIndex < optionColors.value.length) {
     const color = optionColors.value[optionIndex]
-    // 🔥 调试日志：检查颜色配置
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[SelectWidget] getOptionColor - value: ${valueStr}, index: ${optionIndex}, color: ${color}`)
-    }
+    Logger.debug(COMPONENT_NAME, `getOptionColor - value: ${valueStr}, index: ${optionIndex}, color: ${color}`)
     return color
   }
   // 🔥 调试日志：未找到颜色
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`[SelectWidget] getOptionColor - value: ${valueStr}, not found in staticOptions`)
-    console.log(`[SelectWidget] staticOptions:`, staticOptions.value)
-    console.log(`[SelectWidget] optionColors:`, optionColors.value)
-  }
+  Logger.debug(COMPONENT_NAME, `getOptionColor - value: ${valueStr}, not found in staticOptions`, {
+    staticOptions: staticOptions.value,
+    optionColors: optionColors.value
+  })
   return null
 }
 
@@ -247,25 +241,11 @@ function getOptionColorStyle(value: any): Record<string, string> {
   
   const isStandard = isStandardColor(color)
   // 🔥 对于标准颜色，也需要设置背景色（使用 Element Plus 的颜色变量）
-  let backgroundColor = ''
-  if (isStandard) {
-    // 标准颜色使用 CSS 变量
-    const colorMap: Record<string, string> = {
-      success: 'var(--el-color-success)',
-      warning: 'var(--el-color-warning)',
-      danger: 'var(--el-color-danger)',
-      info: 'var(--el-color-info)',
-      primary: 'var(--el-color-primary)'
-    }
-    backgroundColor = colorMap[color] || ''
-  } else {
-    backgroundColor = color
-  }
+  const backgroundColor = isStandard 
+    ? getStandardColorCSSVar(color as StandardColorType) 
+    : color
   
-  // 🔥 调试日志
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`[SelectWidget] getOptionColorStyle - value: ${value}, color: ${color}, isStandard: ${isStandard}, backgroundColor: ${backgroundColor}`)
-  }
+  Logger.debug(COMPONENT_NAME, `getOptionColorStyle - value: ${value}, color: ${color}, isStandard: ${isStandard}, backgroundColor: ${backgroundColor}`)
   
   // 🔥 确保 backgroundColor 有值，并且使用 !important 确保样式生效
   const style: Record<string, string> = {
@@ -434,42 +414,18 @@ async function handleSearch(query: string | number, isByValue: boolean): Promise
   
   try {
     // 🔥 类型转换：根据 value_type 将字符串转换为正确的类型
-    let convertedValue: any = query
     const valueType = props.field.data?.type || 'string'
+    let convertedValue: any = query
     
     // 🔥 如果 query 已经是数字类型，不需要转换
     if (isByValue && typeof query === 'string' && valueType !== 'string') {
-      // by_value 时需要根据 value_type 进行类型转换
-      switch (valueType) {
-        case 'int':
-        case 'integer':
-          convertedValue = parseInt(query, 10)
-          if (isNaN(convertedValue)) {
-            console.warn(`[SelectWidget] 无法将 "${query}" 转换为整数`)
-            convertedValue = query
-          }
-          break
-        case 'float':
-        case 'number':
-          convertedValue = parseFloat(query)
-          if (isNaN(convertedValue)) {
-            console.warn(`[SelectWidget] 无法将 "${query}" 转换为浮点数`)
-            convertedValue = query
-          }
-          break
-        case 'bool':
-        case 'boolean':
-          convertedValue = query === 'true' || query === '1' || query === 1 || query === true
-          break
-        default:
-          // string 类型保持原样
-          convertedValue = query
-      }
+      // 使用统一的类型转换工具函数
+      convertedValue = convertValueToType(query, valueType, COMPONENT_NAME)
     }
     
     const requestBody = {
       code: props.field.code,
-      type: isByValue ? 'by_value' : 'by_keyword',
+      type: isByValue ? SelectFuzzyQueryType.BY_VALUE : SelectFuzzyQueryType.BY_KEYWORD,
       value: convertedValue, // 🔥 使用转换后的值
       request: props.formRenderer.getSubmitData(),
       value_type: valueType
@@ -516,13 +472,13 @@ async function handleSearch(query: string | number, isByValue: boolean): Promise
         if (matchedOption) {
           // 🔥 更新 detailDisplayValue，这样 displayValue 计算属性就能显示正确的标签
           detailDisplayValue.value = matchedOption.label
-          console.log('[SelectWidget] 详情模式回调成功，更新 detailDisplayValue:', {
+          Logger.debug(COMPONENT_NAME, '详情模式回调成功，更新 detailDisplayValue', {
             raw: props.value.raw,
             label: matchedOption.label,
             detailDisplayValue: detailDisplayValue.value
           })
         } else {
-          console.warn('[SelectWidget] 详情模式回调成功，但未找到匹配的选项:', {
+          Logger.warn(COMPONENT_NAME, '详情模式回调成功，但未找到匹配的选项', {
             raw: props.value.raw,
             options: options.value
           })
@@ -532,7 +488,7 @@ async function handleSearch(query: string | number, isByValue: boolean): Promise
       options.value = []
     }
   } catch (error: any) {
-    console.error('[SelectWidget] 回调失败', error)
+    Logger.error(COMPONENT_NAME, '回调失败', error)
     ElMessage.error(error?.message || '查询失败')
     options.value = []
   } finally {

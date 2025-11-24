@@ -130,6 +130,7 @@ import { Logger } from '../../utils/logger'
 import { useFormDataStore } from '../../stores-v2/formData'
 import { ExpressionParser } from '../../utils/ExpressionParser'
 import { isStringDataType, getMultiSelectDefaultDataType } from '../../constants/widget'
+import { SelectFuzzyQueryType } from '../../constants/select'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -482,9 +483,9 @@ async function handleSearch(query: string | any[], isByValue = false): Promise<v
   try {
     let queryType: 'by_keyword' | 'by_value' | 'by_values'
     if (isByValue) {
-      queryType = Array.isArray(query) ? 'by_values' : 'by_value'
+      queryType = Array.isArray(query) ? SelectFuzzyQueryType.BY_VALUES : SelectFuzzyQueryType.BY_VALUE
     } else {
-      queryType = 'by_keyword'
+      queryType = SelectFuzzyQueryType.BY_KEYWORD
     }
     
     const requestBody = {

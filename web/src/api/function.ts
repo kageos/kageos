@@ -153,6 +153,9 @@ export function tableDeleteRows(method: string, router: string, ids: number[]) {
  *   value_type: 'int'
  * })
  */
+import { SelectFuzzyQueryType } from '@/core/constants/select'
+import { Logger } from '@/core/utils/logger'
+
 export function selectFuzzy(method: string, router: string, data: {
   code: string
   type: 'by_keyword' | 'by_value' | 'by_values'
@@ -162,13 +165,14 @@ export function selectFuzzy(method: string, router: string, data: {
 }) {
   const url = `/api/v1/callback${router}?_type=OnSelectFuzzy&_function_method=${method.toUpperCase()}`
   
-  console.log('[selectFuzzy] Select 回调查询')
-  console.log('[selectFuzzy]   Original Method:', method)
-  console.log('[selectFuzzy]   URL:', url)
-  console.log('[selectFuzzy]   Query Type:', data.type)
-  console.log('[selectFuzzy]   Field Code:', data.code)
-  console.log('[selectFuzzy]   Search Value:', data.value)
-  console.log('[selectFuzzy]   Full Request Body:', data)
+  Logger.debug('selectFuzzy', 'Select 回调查询', {
+    originalMethod: method,
+    url,
+    queryType: data.type,
+    fieldCode: data.code,
+    searchValue: data.value,
+    requestBody: data
+  })
   
   // 统一使用 POST 方法
   return post(url, data)
