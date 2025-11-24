@@ -2,6 +2,7 @@ import axios from 'axios'
 import type { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
+import { Logger } from '@/core/utils/logger'
 import router from '@/router'
 import type { ApiResponse } from '@/types'
 
