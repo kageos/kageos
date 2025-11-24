@@ -358,10 +358,8 @@ watch(() => props.currentNodeId, (nodeId) => {
   if (nodeId && treeRef.value && groupedTreeData.value.length > 0) {
     // 🔥 使用 nextTick 确保 DOM 已渲染
     nextTick(() => {
-      console.log('[ServiceTreePanel] 定位到节点:', nodeId)
       // 查找路径（使用分组后的数据）
       const path = findPathToNode(groupedTreeData.value, nodeId)
-      console.log('[ServiceTreePanel] 节点路径:', path)
       
       if (path.length > 0) {
         // 🔥 展开所有父节点
