@@ -143,6 +143,7 @@ import type { ReactiveFormDataManager } from '../managers/ReactiveFormDataManage
 import type { FormRendererContext } from '../types/widget'
 import type { ValidationResult } from '../validation/types'
 import { getWidgetDefaultValue } from '../widgets-v2/composables/useWidgetDefaultValue'
+import { useAuthStore } from '@/stores/auth'
 
 const props = withDefaults(defineProps<{
   functionDetail: FunctionDetail
@@ -650,7 +651,8 @@ function shouldShowFieldInForm(
 // 获取字段默认值
 // 🔥 遵循依赖倒置原则：调用组件自己的默认值获取方法
 function getFieldDefaultValue(field: FieldConfig): FieldValue {
-  return getWidgetDefaultValue(field)
+  // 🔥 提供 getAuthStore 函数，用于解析 $me 动态变量
+  return getWidgetDefaultValue(field, undefined, () => useAuthStore())
 }
 
 // 初始化表单

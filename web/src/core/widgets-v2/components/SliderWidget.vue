@@ -416,9 +416,9 @@ watch(
   (newValue: any) => {
     if (props.mode === 'edit') {
       if (!newValue || newValue.raw === null || newValue.raw === undefined || newValue.raw === '') {
-        // 编辑模式：如果字段没有值，使用默认值
-        if (defaultValue.value !== undefined) {
-          internalValue.value = defaultValue.value
+      // 编辑模式：如果字段没有值，使用默认值
+      if (defaultValue.value !== undefined) {
+        internalValue.value = defaultValue.value
         }
       } else {
         // 🔥 关键：如果值存在，确保它能正确显示

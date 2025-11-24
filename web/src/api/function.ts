@@ -107,7 +107,7 @@ export function tableDeleteRows(method: string, router: string, ids: number[]) {
 /**
  * Select 回调操作 - 模糊查询选项
  * 
- * @param method 原函数的 HTTP 方法（GET/POST 等）
+ * @param method 原函数的 HTTP 方法（GET/POST 等），用于标识回调所属的函数
  * @param router 函数路由（如 /luobei/test999/tools/cashier_desk）
  * @param data 回调数据
  * @param data.code 字段代码（如 product_id）
@@ -134,18 +134,19 @@ export function tableDeleteRows(method: string, router: string, ids: number[]) {
  * 
  * @example
  * // 用户输入搜索（by_keyword）
- * selectFuzzy('POST', '/luobei/test999/tools/cashier', {
- *   code: 'product_id',
+ * // 注意：method 参数是原函数的 HTTP 方法，不是回调请求的 HTTP 方法
+ * selectFuzzy('GET', '/luobei/demo/crm/meeting_room_booking_list', {
+ *   code: 'room_id',
  *   type: 'by_keyword',
- *   value: '薯条',
- *   request: { member_id: 1 },
+ *   value: '会议室',
+ *   request: {},
  *   value_type: 'int'
  * })
  * 
  * @example
  * // 根据值查询（by_value）- 用于编辑回显
- * selectFuzzy('POST', '/luobei/test999/tools/cashier', {
- *   code: 'product_id',
+ * selectFuzzy('GET', '/luobei/demo/crm/meeting_room_booking_list', {
+ *   code: 'room_id',
  *   type: 'by_value',
  *   value: 1,
  *   request: {},
@@ -159,7 +160,7 @@ export function selectFuzzy(method: string, router: string, data: {
   request: Record<string, any>
   value_type: string
 }) {
-  const url = `/api/v1/callback${router}?_type=OnSelectFuzzy&_method=${method.toUpperCase()}`
+  const url = `/api/v1/callback${router}?_type=OnSelectFuzzy&_function_method=${method.toUpperCase()}`
   
   console.log('[selectFuzzy] Select 回调查询')
   console.log('[selectFuzzy]   Original Method:', method)

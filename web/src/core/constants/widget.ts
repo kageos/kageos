@@ -22,6 +22,7 @@ export const WidgetType = {
   SLIDER: 'slider',
   RATE: 'rate',
   COLOR: 'color',
+  RICH_TEXT: 'richtext',
   TABLE: 'table',
   FORM: 'form'
 } as const

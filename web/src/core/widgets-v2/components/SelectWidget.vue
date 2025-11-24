@@ -42,7 +42,6 @@
         ]
       }"
       @change="handleChange"
-      @focus="handleFocus"
     >
       <el-option
         v-for="option in options"
@@ -469,13 +468,8 @@ function handleChange(value: any): void {
   }
 }
 
-// 处理聚焦
-function handleFocus(): void {
-  // 如果还没有选项且有回调接口，触发一次搜索
-  if (options.value.length === 0 && hasCallback.value) {
-    handleSearch('', false)
-  }
-}
+// 处理聚焦（已移除，因为 Element Plus 的 remote-method 会在聚焦时自动触发）
+// 如果同时使用 handleFocus 和 remote-method，会导致重复回调
 
 // 初始化
 onMounted(() => {

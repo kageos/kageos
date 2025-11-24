@@ -18,6 +18,7 @@ const (
 	TypeSlider      = "slider"
 	TypeRate        = "rate"
 	TypeColor       = "color"
+	TypeRichText    = "richtext"
 	TypeTable       = "table"
 	TypeForm        = "form"
 )
@@ -87,6 +88,8 @@ func NewWidget(widgetType string, widgetParsed map[string]string) Widget {
 		return newRate(widgetParsed)
 	case TypeColor:
 		return newColor(widgetParsed)
+	case TypeRichText:
+		return newRichText(widgetParsed)
 	default:
 		// 默认返回Input组件，确保兜底
 		return newInput(widgetParsed)

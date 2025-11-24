@@ -14,6 +14,7 @@ declare module 'vue' {
   export interface GlobalComponents {
     AppSwitcher: typeof import('./src/components/AppSwitcher.vue')['default']
     CommonUpload: typeof import('./src/components/CommonUpload.vue')['default']
+    ElAlert: typeof import('element-plus/es')['ElAlert']
     ElAvatar: typeof import('element-plus/es')['ElAvatar']
     ElButton: typeof import('element-plus/es')['ElButton']
     ElCard: typeof import('element-plus/es')['ElCard']
@@ -78,6 +79,7 @@ declare module 'vue' {
 declare global {
   const AppSwitcher: typeof import('./src/components/AppSwitcher.vue')['default']
   const CommonUpload: typeof import('./src/components/CommonUpload.vue')['default']
+  const ElAlert: typeof import('element-plus/es')['ElAlert']
   const ElAvatar: typeof import('element-plus/es')['ElAvatar']
   const ElButton: typeof import('element-plus/es')['ElButton']
   const ElCard: typeof import('element-plus/es')['ElCard']

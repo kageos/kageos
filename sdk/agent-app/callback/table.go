@@ -25,8 +25,9 @@ func (c *OnTableDeleteRowsReq) GetIds() []int {
 type OnTableDeleteRowsResp struct {
 }
 type OnTableUpdateRowReq struct {
-	ID      int                    `json:"id"`
-	Updates map[string]interface{} `json:"updates"`
+	ID        int                    `json:"id"`
+	Updates   map[string]interface{} `json:"updates"`
+	OldValues map[string]interface{} `json:"old_values"`
 }
 
 func (c *OnTableUpdateRowReq) GetId() int {
