@@ -275,9 +275,6 @@ const getResponseFieldValue = (fieldCode: string): FieldValue => {
   // 🔥 注意：Pinia store 返回的 ref 需要直接访问 .value
   const responseData = responseDataStore.data?.value ?? responseDataStore.data
   
-  // 🔥 添加日志以便调试
-  Logger.debug('[FormRenderer-v2]', `getResponseFieldValue: fieldCode=${fieldCode}, trigger=${trigger}, responseData=`, responseData)
-  
   if (!responseData) {
     return {
       raw: null,
@@ -287,8 +284,6 @@ const getResponseFieldValue = (fieldCode: string): FieldValue => {
   }
   
   const rawValue = responseData[fieldCode]
-  
-  Logger.debug('[FormRenderer-v2]', `getResponseFieldValue: rawValue=`, rawValue)
   
   if (rawValue === null || rawValue === undefined) {
     return {
@@ -309,7 +304,6 @@ const getResponseFieldValue = (fieldCode: string): FieldValue => {
 const responseFieldValues = computed(() => {
   // 如果组件未挂载，返回空值，避免在卸载时访问数据
   if (!isMounted.value || !responseDataStore) {
-    Logger.debug('[FormRenderer-v2]', 'responseFieldValues: 组件未挂载或 store 不存在')
     return {}
   }
   
@@ -318,8 +312,6 @@ const responseFieldValues = computed(() => {
     const trigger = responseDataStore.renderTrigger
     // 🔥 注意：Pinia store 返回的 ref 需要直接访问 .value
     const responseData = responseDataStore.data?.value ?? responseDataStore.data
-    
-    Logger.debug('[FormRenderer-v2]', `responseFieldValues computed: trigger=${trigger}, hasData=${!!responseData}`)
     
     const values: Record<string, FieldValue> = {}
     
@@ -335,8 +327,6 @@ const responseFieldValues = computed(() => {
       
       const rawValue = responseData[field.code]
       
-      Logger.debug('[FormRenderer-v2]', `responseFieldValues: field=${field.code}, rawValue=`, rawValue)
-      
       values[field.code] = {
         raw: rawValue ?? null,
         display: rawValue !== null && rawValue !== undefined 
@@ -346,10 +336,9 @@ const responseFieldValues = computed(() => {
       }
     })
     
-    Logger.debug('[FormRenderer-v2]', 'responseFieldValues 计算结果:', values)
     return values
   } catch (error) {
-    Logger.warn('[FormRenderer-v2]', 'responseFieldValues computed 错误:', error)
+    Logger.warn('FormRenderer', 'responseFieldValues computed 错误', error)
     return {}
   }
 })

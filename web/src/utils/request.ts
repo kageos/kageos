@@ -84,12 +84,11 @@ service.interceptors.response.use(
       return data
     }
 
-    // 业务错误 - 输出详细错误信息
-    console.error('[Request] 业务错误:', {
+    // 业务错误 - 记录错误信息
+    Logger.error('Request', '业务错误', {
       code,
       message,
       msg: (response.data as any).msg,
-      data,
       url: response.config.url,
       method: response.config.method
     })
@@ -156,9 +155,6 @@ service.interceptors.response.use(
 export function get<T = any>(url: string, params?: any, useBody: boolean = false): Promise<T> {
   if (useBody) {
     // 特殊场景：GET 请求带 body（用于回调接口）
-    console.log('[Request GET with Body] URL:', url)
-    console.log('[Request GET with Body] Data:', params)
-    
     return service.request({
       url,
       method: 'GET',
@@ -180,10 +176,6 @@ export function get<T = any>(url: string, params?: any, useBody: boolean = false
         }
       })
     }
-    console.log('[Request GET] URL:', url)
-    console.log('[Request GET] Original Params:', params)
-    console.log('[Request GET] Cleaned Params:', cleanParams)
-    console.log('[Request GET] Sorts:', cleanParams.sorts)
     return service.get(url, { params: cleanParams })
   }
 }
