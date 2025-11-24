@@ -903,6 +903,17 @@ const renderDetailField = (field: FieldConfig, rawValue: any): any => {
     }
     
     
+    // 🔥 为详情模式创建 formRendererContext（用于 OnSelectFuzzy 回调）
+    // 在详情模式下，SelectWidget 等组件可能需要触发回调来获取选项标签
+    const detailFormRendererContext = {
+      getFunctionMethod: () => props.functionData.method,
+      getFunctionRouter: () => props.functionData.router,
+      getSubmitData: () => ({}), // 详情模式下不需要提交数据
+      registerWidget: () => {},
+      unregisterWidget: () => {},
+      getFieldError: () => undefined
+    }
+    
     return h(WidgetComponent, {
       field: field,
       value: value,
@@ -910,6 +921,7 @@ const renderDetailField = (field: FieldConfig, rawValue: any): any => {
       'field-path': field.code,
       mode: 'detail',
       'user-info-map': userInfoMap.value,
+      'form-renderer': detailFormRendererContext, // 🔥 传递 formRenderer，让 SelectWidget 可以触发回调
       functionName: functionName,  // 🔥 使用 camelCase，Vue 会自动处理
       recordId: recordId
     })

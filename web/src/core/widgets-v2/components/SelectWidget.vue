@@ -127,7 +127,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { ElSelect, ElOption, ElMessage, ElTag } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useFormDataStore } from '../../stores-v2/formData'
@@ -329,6 +329,9 @@ const internalValue = computed({
   }
 })
 
+// 🔥 详情模式下通过回调获取的显示值（用于存储）
+const detailDisplayValue = ref<string | null>(null)
+
 // 显示值
 const displayValue = computed(() => {
   const value = props.value
@@ -336,6 +339,34 @@ const displayValue = computed(() => {
     return '-'
   }
   
+  // 🔥 在详情模式下，优先使用 detailDisplayValue（通过回调获取的）
+  // 如果 value.display 为空或等于 raw（说明没有有意义的显示值），则使用 detailDisplayValue
+  if (props.mode === 'detail') {
+    // 如果 detailDisplayValue 有值（通过回调获取的），优先使用
+    if (detailDisplayValue.value) {
+      return detailDisplayValue.value
+    }
+    // 如果 value.display 为空或等于 raw，说明没有有意义的显示值，尝试从 options 中查找
+    if ((!value.display || value.display === '' || String(value.display) === String(value.raw)) && value.raw !== null && value.raw !== undefined && value.raw !== '') {
+      const matchedOption = options.value.find((opt: any) => {
+        // 支持多种类型比较
+        return opt.value === value.raw || String(opt.value) === String(value.raw)
+      })
+      if (matchedOption) {
+        return matchedOption.label
+      }
+      // 如果找不到匹配的选项，返回 raw 值（作为后备）
+      return String(value.raw)
+    }
+    // 如果 value.display 有值且不等于 raw，使用 value.display
+    if (value.display && String(value.display) !== String(value.raw)) {
+      return value.display
+    }
+    // 如果 value.display 为空，返回 raw 值
+    return value.raw !== null && value.raw !== undefined ? String(value.raw) : '-'
+  }
+  
+  // 🔥 非详情模式下，优先使用 value.display
   if (value.display) {
     return value.display
   }
@@ -364,10 +395,17 @@ function initOptions(): void {
     }
   }
   
-  // 如果有回调接口且有初始值，触发一次搜索
-  if (hasCallback.value && props.value?.raw) {
-    handleSearch('', true) // by_value
+  // 🔥 如果有回调接口且有初始值，触发一次搜索（包括详情模式）
+  // 详情模式下也需要触发回调，通过 by_value 查询来获取选项标签
+  // ⚠️ 注意：详情模式下由 watch 处理，这里只处理非详情模式
+  if (hasCallback.value && props.value?.raw && props.mode !== 'detail') {
+    if (props.formRenderer) {
+      handleSearch(props.value.raw, true) // by_value
+    }
   }
+  
+  // 🔥 详情模式下，如果已经有 formRenderer，由 watch 处理
+  // 如果没有 formRenderer，等待 watch 检测到 formRenderer 后再触发
 }
 
 // 处理远程搜索
@@ -380,7 +418,7 @@ async function handleRemoteSearch(query: string): Promise<void> {
 }
 
 // 处理搜索
-async function handleSearch(query: string, isByValue: boolean): Promise<void> {
+async function handleSearch(query: string | number, isByValue: boolean): Promise<void> {
   if (!hasCallback.value || !props.formRenderer) {
     return
   }
@@ -395,12 +433,46 @@ async function handleSearch(query: string, isByValue: boolean): Promise<void> {
   loading.value = true
   
   try {
+    // 🔥 类型转换：根据 value_type 将字符串转换为正确的类型
+    let convertedValue: any = query
+    const valueType = props.field.data?.type || 'string'
+    
+    // 🔥 如果 query 已经是数字类型，不需要转换
+    if (isByValue && typeof query === 'string' && valueType !== 'string') {
+      // by_value 时需要根据 value_type 进行类型转换
+      switch (valueType) {
+        case 'int':
+        case 'integer':
+          convertedValue = parseInt(query, 10)
+          if (isNaN(convertedValue)) {
+            console.warn(`[SelectWidget] 无法将 "${query}" 转换为整数`)
+            convertedValue = query
+          }
+          break
+        case 'float':
+        case 'number':
+          convertedValue = parseFloat(query)
+          if (isNaN(convertedValue)) {
+            console.warn(`[SelectWidget] 无法将 "${query}" 转换为浮点数`)
+            convertedValue = query
+          }
+          break
+        case 'bool':
+        case 'boolean':
+          convertedValue = query === 'true' || query === '1' || query === 1 || query === true
+          break
+        default:
+          // string 类型保持原样
+          convertedValue = query
+      }
+    }
+    
     const requestBody = {
       code: props.field.code,
       type: isByValue ? 'by_value' : 'by_keyword',
-      value: query,
+      value: convertedValue, // 🔥 使用转换后的值
       request: props.formRenderer.getSubmitData(),
-      value_type: props.field.data?.type || 'string'
+      value_type: valueType
     }
     
     const response = await selectFuzzy(method, router, requestBody)
@@ -434,6 +506,28 @@ async function handleSearch(query: string, isByValue: boolean): Promise<void> {
         disabled: false,
         displayInfo: item.display_info
       }))
+      
+      // 🔥 如果是在详情模式下通过 by_value 查询，找到匹配的选项并更新显示值
+      if (isByValue && props.mode === 'detail' && props.value?.raw) {
+        const matchedOption = options.value.find((opt: any) => {
+          // 支持多种类型比较
+          return opt.value === props.value.raw || String(opt.value) === String(props.value.raw)
+        })
+        if (matchedOption) {
+          // 🔥 更新 detailDisplayValue，这样 displayValue 计算属性就能显示正确的标签
+          detailDisplayValue.value = matchedOption.label
+          console.log('[SelectWidget] 详情模式回调成功，更新 detailDisplayValue:', {
+            raw: props.value.raw,
+            label: matchedOption.label,
+            detailDisplayValue: detailDisplayValue.value
+          })
+        } else {
+          console.warn('[SelectWidget] 详情模式回调成功，但未找到匹配的选项:', {
+            raw: props.value.raw,
+            options: options.value
+          })
+        }
+      }
     } else {
       options.value = []
     }
@@ -474,7 +568,56 @@ function handleChange(value: any): void {
 // 初始化
 onMounted(() => {
   initOptions()
+  
+  // 🔥 详情模式下，如果已经有 formRenderer 和值，立即触发一次回调
+  // 因为 watch 可能在组件挂载时 formRenderer 还没传递过来
+  if (props.mode === 'detail' && hasCallback.value && props.value?.raw && props.formRenderer) {
+    nextTick(() => {
+      if (!isSearching.value && props.value?.raw !== lastSearchedValue.value) {
+        isSearching.value = true
+        lastSearchedValue.value = props.value.raw
+        detailDisplayValue.value = null
+        handleSearch(props.value.raw, true).finally(() => {
+          isSearching.value = false
+        })
+      }
+    })
+  }
 })
+
+// 🔥 监听 value 和 formRenderer 变化，在详情模式下如果值变化了，重新触发回调获取标签
+// 使用一个标志来防止重复调用
+const isSearching = ref(false)
+const lastSearchedValue = ref<any>(null)
+
+watch(
+  () => [props.value?.raw, props.formRenderer, props.mode],
+  ([newRaw, formRenderer, mode], oldValues) => {
+    // 🔥 处理首次执行时 oldValues 为 undefined 的情况
+    const [oldRaw, oldFormRenderer, oldMode] = oldValues || [undefined, undefined, undefined]
+    
+    // 只在详情模式下，且有回调接口，且有值，且有 formRenderer 时触发
+    if (
+      mode === 'detail' && 
+      hasCallback.value && 
+      newRaw !== null && 
+      newRaw !== undefined && 
+      formRenderer &&
+      !isSearching.value &&
+      // 🔥 关键：如果值或 formRenderer 发生了变化，或者还没有搜索过这个值，就触发
+      (newRaw !== lastSearchedValue.value || formRenderer !== oldFormRenderer || mode !== oldMode)
+    ) {
+      isSearching.value = true
+      lastSearchedValue.value = newRaw
+      // 重置 detailDisplayValue，等待回调返回后更新
+      detailDisplayValue.value = null
+      handleSearch(newRaw, true).finally(() => {
+        isSearching.value = false
+      })
+    }
+  },
+  { immediate: true } // 🔥 立即执行一次，确保在组件挂载时就能触发
+)
 </script>
 
 <style scoped>
