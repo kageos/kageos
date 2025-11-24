@@ -477,6 +477,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { Logger } from '../../utils/logger'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import { Link } from '@tiptap/extension-link'
@@ -774,7 +775,7 @@ const editor = useEditor({
               }
             }
           } catch (error: any) {
-            console.error('[RichTextWidget] 粘贴文件上传失败:', error)
+            Logger.error('RichTextWidget', '粘贴文件上传失败', error)
             ElMessage.error(`上传 ${file.name} 失败: ${error?.message || '未知错误'}`)
           }
         }
@@ -852,7 +853,7 @@ const editor = useEditor({
             }
           }
         } catch (error: any) {
-          console.error('[RichTextWidget] 拖拽文件上传失败:', error)
+          Logger.error('RichTextWidget', '拖拽文件上传失败', error)
           ElMessage.error(`上传 ${file.name} 失败: ${error?.message || '未知错误'}`)
         }
       }
@@ -922,7 +923,7 @@ function handleFileUploadChange(url: string | null): void {
       fileSize: 0 // 文件大小无法从 URL 中获取，显示为 0
     }
   } catch (error) {
-    console.warn('[RichTextWidget] 解析文件信息失败:', error)
+    Logger.warn('RichTextWidget', '解析文件信息失败', error)
     uploadedFileInfo.value = {
       fileName: '未知文件',
       fileType: '未知',
@@ -939,7 +940,7 @@ function handleFileUploadSuccess(url: string): void {
 
 // 文件上传失败
 function handleFileUploadError(error: Error): void {
-  console.error('[RichTextWidget] 文件上传失败:', error)
+  Logger.error('RichTextWidget', '文件上传失败', error)
   uploadedFileInfo.value = null
 }
 

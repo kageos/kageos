@@ -79,6 +79,7 @@ import { computed, ref, watch } from 'vue'
 import { ElSlider, ElProgress, ElInputNumber } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useFormDataStore } from '../../stores-v2/formData'
+import { Logger } from '../../utils/logger'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -319,9 +320,7 @@ const marks = computed(() => {
 function formatProgressText(percentage: number): string {
   // 验证 percentage 值（防止无效值导致显示异常）
   if (isNaN(percentage) || !isFinite(percentage)) {
-    if (process.env.NODE_ENV === 'development') {
-      console.warn('[SliderWidget] formatProgressText: invalid percentage', percentage)
-    }
+    Logger.warn('SliderWidget', 'formatProgressText: invalid percentage', percentage)
     return '0%'
   }
   

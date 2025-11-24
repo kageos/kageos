@@ -136,8 +136,6 @@ import { Logger } from '../../utils/logger'
 import { SelectFuzzyQueryType, isStandardColor, getStandardColorCSSVar, type StandardColorType } from '../../constants/select'
 import { convertValueToType } from '../utils/valueConverter'
 
-const COMPONENT_NAME = 'SelectWidget'
-
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
     raw: null,
@@ -220,15 +218,8 @@ function getOptionColor(value: any): string | null {
   // 🔥 在 staticOptions 中查找索引（因为 options_colors 与 staticOptions 对齐）
   const optionIndex = staticOptions.value.findIndex((opt: any) => String(opt.value) === valueStr)
   if (optionIndex >= 0 && optionIndex < optionColors.value.length) {
-    const color = optionColors.value[optionIndex]
-    Logger.debug(COMPONENT_NAME, `getOptionColor - value: ${valueStr}, index: ${optionIndex}, color: ${color}`)
-    return color
+    return optionColors.value[optionIndex]
   }
-  // 🔥 调试日志：未找到颜色
-  Logger.debug(COMPONENT_NAME, `getOptionColor - value: ${valueStr}, not found in staticOptions`, {
-    staticOptions: staticOptions.value,
-    optionColors: optionColors.value
-  })
   return null
 }
 
@@ -244,8 +235,6 @@ function getOptionColorStyle(value: any): Record<string, string> {
   const backgroundColor = isStandard 
     ? getStandardColorCSSVar(color as StandardColorType) 
     : color
-  
-  Logger.debug(COMPONENT_NAME, `getOptionColorStyle - value: ${value}, color: ${color}, isStandard: ${isStandard}, backgroundColor: ${backgroundColor}`)
   
   // 🔥 确保 backgroundColor 有值，并且使用 !important 确保样式生效
   const style: Record<string, string> = {
@@ -472,23 +461,13 @@ async function handleSearch(query: string | number, isByValue: boolean): Promise
         if (matchedOption) {
           // 🔥 更新 detailDisplayValue，这样 displayValue 计算属性就能显示正确的标签
           detailDisplayValue.value = matchedOption.label
-          Logger.debug(COMPONENT_NAME, '详情模式回调成功，更新 detailDisplayValue', {
-            raw: props.value.raw,
-            label: matchedOption.label,
-            detailDisplayValue: detailDisplayValue.value
-          })
-        } else {
-          Logger.warn(COMPONENT_NAME, '详情模式回调成功，但未找到匹配的选项', {
-            raw: props.value.raw,
-            options: options.value
-          })
         }
       }
     } else {
       options.value = []
     }
   } catch (error: any) {
-    Logger.error(COMPONENT_NAME, '回调失败', error)
+    Logger.error('SelectWidget', '回调失败', error)
     ElMessage.error(error?.message || '查询失败')
     options.value = []
   } finally {

@@ -197,6 +197,7 @@ import { FieldValue, type FieldConfig } from '../../types/field'
 import { useFormDataStore } from '../../stores-v2/formData'
 import type { ValidationEngine, ValidationResult } from '../../validation/types'
 import { validateFieldValue, validateTableWidgetNestedFields, type WidgetValidationContext } from '../composables/useWidgetValidation'
+import { Logger } from '../../utils/logger'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -228,13 +229,6 @@ const hasStatistics = computed(() => {
   const result = statistics.statisticsResult.value
   const hasConfig = config && Object.keys(config).length > 0
   const hasResult = result && typeof result === 'object' && Object.keys(result).length > 0
-  console.log('[TableWidget] hasStatistics 检查', { 
-    hasConfig, 
-    hasResult, 
-    configKeys: config ? Object.keys(config) : [],
-    resultKeys: result ? Object.keys(result) : [],
-    result 
-  })
   return hasConfig && hasResult
 })
 
@@ -408,7 +402,7 @@ function handleSave(index: number): void {
       formDataStore.setValue(fieldPath, fieldValue)
     })
   } catch (error) {
-    console.error('[TableWidget] handleSave 错误:', error)
+    Logger.error('TableWidget', 'handleSave 错误', error)
     throw error
   }
 }
