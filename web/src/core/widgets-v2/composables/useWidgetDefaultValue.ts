@@ -11,6 +11,7 @@
 import { computed } from 'vue'
 import type { FieldConfig, FieldValue } from '../types/field'
 import { DataType } from '../../constants/widget'
+import { resolveDynamicDefaultValue } from '../utils/dynamicDefaultValue'
 
 /**
  * 获取字段的默认值
@@ -18,17 +19,23 @@ import { DataType } from '../../constants/widget'
  * 
  * @param field 字段配置
  * @param customConverter 自定义转换函数（可选，用于组件特定的转换逻辑）
+ * @param getAuthStore 获取 authStore 的函数（可选，用于解析 $me）
  * @returns 默认的 FieldValue
  */
 export function getWidgetDefaultValue(
   field: FieldConfig,
-  customConverter?: (defaultValue: any, field: FieldConfig) => any
+  customConverter?: (defaultValue: any, field: FieldConfig) => any,
+  getAuthStore?: () => any
 ): FieldValue {
   // 1. 优先使用 widget.config.default
   const config = field.widget?.config
   if (config && typeof config === 'object' && 'default' in config) {
-    const defaultValue = (config as Record<string, any>).default
+    let defaultValue = (config as Record<string, any>).default
     if (defaultValue !== undefined && defaultValue !== null && defaultValue !== '') {
+      // 🔥 解析动态变量（如 $me, $now, $today 等）
+      const widgetType = field.widget?.type || ''
+      defaultValue = resolveDynamicDefaultValue(defaultValue, widgetType, getAuthStore)
+      
       // 使用自定义转换函数（如果提供），否则使用默认转换
       const convertedValue = customConverter
         ? customConverter(defaultValue, field)

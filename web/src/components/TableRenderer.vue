@@ -195,6 +195,7 @@
       :fields="props.functionData.response"
       :mode="dialogMode"
       :router="props.functionData.router"
+      :method="props.functionData.method"
       :initial-data="currentRow"
       :user-info-map="userInfoMap"
       @submit="handleDialogSubmit"
@@ -1094,11 +1095,18 @@ const editFunctionDetail = computed<FunctionDetail>(() => {
     return !permission || permission === '' || permission === 'update'
   })
   
+  // 🔥 method 是必需的，如果不存在应该抛出错误，而不是使用默认值
+  if (!props.functionData.method) {
+    throw new Error(`[TableRenderer] functionData.method 不存在，无法构建 editFunctionDetail。router: ${props.functionData.router}`)
+  }
+  
   return {
     id: 0,
     app_id: 0,
     tree_id: 0,
-    method: 'PUT',  // 编辑使用 PUT 方法
+    // 🔥 使用原函数的 method（GET），而不是编辑操作的 method（PUT）
+    // 这样 OnSelectFuzzy 回调才能正确获取到原函数的 method
+    method: props.functionData.method,
     router: props.functionData.router,
     has_config: false,
     create_tables: '',

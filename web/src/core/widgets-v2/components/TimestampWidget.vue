@@ -76,6 +76,9 @@ const format = computed(() => {
 })
 
 // 值格式（默认返回时间戳毫秒）
+// 注意：当 valueFormat 为 'x' 时，Element Plus 返回数字（毫秒时间戳）
+// 当 valueFormat 为字符串格式时，Element Plus 返回字符串
+// 但是 v-model 绑定的值始终是 Date 对象（Element Plus 内部处理）
 const valueFormat = computed(() => {
   return props.field.widget?.config?.valueFormat || 'x'
 })
@@ -87,25 +90,168 @@ const shortcuts = computed(() => {
     return undefined
   }
   
-  // 简单的快捷选择（可以根据需要扩展）
+  const now = new Date()
+  
+  // 丰富的快捷选择选项
   return [
+    // ========== 基础时间 ==========
     {
-      text: '今天',
-      value: () => new Date()
+      text: '现在',
+      value: () => new Date(now)
     },
     {
-      text: '昨天',
+      text: '今天',
       value: () => {
-        const date = new Date()
-        date.setTime(date.getTime() - 3600 * 1000 * 24)
+        const date = new Date(now)
+        date.setHours(0, 0, 0, 0)
         return date
       }
     },
     {
-      text: '一周前',
+      text: '明天',
       value: () => {
-        const date = new Date()
-        date.setTime(date.getTime() - 3600 * 1000 * 24 * 7)
+        const date = new Date(now)
+        date.setDate(date.getDate() + 1)
+        date.setHours(0, 0, 0, 0)
+        return date
+      }
+    },
+    {
+      text: '昨天',
+      value: () => {
+        const date = new Date(now)
+        date.setDate(date.getDate() - 1)
+        date.setHours(0, 0, 0, 0)
+        return date
+      }
+    },
+    // ========== 相对时间（此刻） ==========
+    {
+      text: '昨天此刻',
+      value: () => new Date(now.getTime() - 24 * 60 * 60 * 1000)
+    },
+    {
+      text: '明天此刻',
+      value: () => new Date(now.getTime() + 24 * 60 * 60 * 1000)
+    },
+    // ========== 相对时间（小时） ==========
+    {
+      text: '一小时后',
+      value: () => new Date(now.getTime() + 1 * 60 * 60 * 1000)
+    },
+    {
+      text: '两小时后',
+      value: () => new Date(now.getTime() + 2 * 60 * 60 * 1000)
+    },
+    {
+      text: '三小时后',
+      value: () => new Date(now.getTime() + 3 * 60 * 60 * 1000)
+    },
+    {
+      text: '六小时后',
+      value: () => new Date(now.getTime() + 6 * 60 * 60 * 1000)
+    },
+    {
+      text: '十二小时后',
+      value: () => new Date(now.getTime() + 12 * 60 * 60 * 1000)
+    },
+    {
+      text: '一小时前',
+      value: () => new Date(now.getTime() - 1 * 60 * 60 * 1000)
+    },
+    {
+      text: '两小时前',
+      value: () => new Date(now.getTime() - 2 * 60 * 60 * 1000)
+    },
+    {
+      text: '三小时前',
+      value: () => new Date(now.getTime() - 3 * 60 * 60 * 1000)
+    },
+    // ========== 相对时间（天） ==========
+    {
+      text: '一天后',
+      value: () => new Date(now.getTime() + 24 * 60 * 60 * 1000)
+    },
+    {
+      text: '两天后',
+      value: () => new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000)
+    },
+    {
+      text: '三天后',
+      value: () => new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
+    },
+    {
+      text: '一周后',
+      value: () => new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+    },
+    {
+      text: '一个月后',
+      value: () => new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
+    },
+    {
+      text: '一天前',
+      value: () => new Date(now.getTime() - 24 * 60 * 60 * 1000)
+    },
+    {
+      text: '两天前',
+      value: () => new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000)
+    },
+    {
+      text: '一周前',
+      value: () => new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    },
+    {
+      text: '一个月前',
+      value: () => new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+    },
+    // ========== 相对时间（周） ==========
+    {
+      text: '下周一',
+      value: () => {
+        const date = new Date(now)
+        const daysUntilNextMonday = (8 - now.getDay()) % 7 || 7
+        date.setDate(now.getDate() + daysUntilNextMonday)
+        date.setHours(0, 0, 0, 0)
+        return date
+      }
+    },
+    {
+      text: '上周一',
+      value: () => {
+        const date = new Date(now)
+        const daysSinceLastMonday = (now.getDay() + 6) % 7
+        date.setDate(now.getDate() - daysSinceLastMonday - 7)
+        date.setHours(0, 0, 0, 0)
+        return date
+      }
+    },
+    // ========== 相对时间（月） ==========
+    {
+      text: '下个月',
+      value: () => {
+        const date = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+        return date
+      }
+    },
+    {
+      text: '上个月',
+      value: () => {
+        const date = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+        return date
+      }
+    },
+    // ========== 相对时间（年） ==========
+    {
+      text: '明年',
+      value: () => {
+        const date = new Date(now.getFullYear() + 1, 0, 1)
+        return date
+      }
+    },
+    {
+      text: '去年',
+      value: () => {
+        const date = new Date(now.getFullYear() - 1, 0, 1)
         return date
       }
     }
@@ -144,16 +290,48 @@ const internalValue = computed({
     }
     return null
   },
-  set: (newValue: Date | [Date, Date] | null) => {
+  set: (newValue: Date | [Date, Date] | number | [number, number] | string | [string, string] | null) => {
     if (props.mode === 'edit') {
       let rawValue: number | [number, number] | null = null
       
-      if (newValue === null) {
+      if (newValue === null || newValue === undefined) {
         rawValue = null
       } else if (Array.isArray(newValue)) {
-        rawValue = newValue.map(v => v.getTime())
+        // 范围选择：处理数组
+        rawValue = newValue.map(v => {
+          if (v instanceof Date) {
+            return v.getTime()
+          } else if (typeof v === 'number') {
+            return v
+          } else if (typeof v === 'string') {
+            // 字符串可能是时间戳字符串或日期字符串
+            const num = Number(v)
+            if (!isNaN(num)) {
+              return num
+            }
+            // 尝试解析日期字符串
+            return new Date(v).getTime()
+          }
+          throw new Error(`[TimestampWidget] 无法转换值: ${v}`)
+        }) as [number, number]
       } else {
+        // 单个值
+        if (newValue instanceof Date) {
         rawValue = newValue.getTime()
+        } else if (typeof newValue === 'number') {
+          rawValue = newValue
+        } else if (typeof newValue === 'string') {
+          // 字符串可能是时间戳字符串或日期字符串
+          const num = Number(newValue)
+          if (!isNaN(num)) {
+            rawValue = num
+          } else {
+            // 尝试解析日期字符串
+            rawValue = new Date(newValue).getTime()
+          }
+        } else {
+          throw new Error(`[TimestampWidget] 无法转换值类型: ${typeof newValue}, 值: ${newValue}`)
+        }
       }
       
       const newFieldValue = {

@@ -2,11 +2,12 @@ package v1
 
 import (
 	"encoding/json"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"io"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
 	"github.com/ai-agent-os/ai-agent-os/dto"
@@ -228,7 +229,12 @@ func (a *App) CallbackApp(c *gin.Context) {
 
 	// 从路径参数获取 app, router
 	router := c.Param("router")
-	method := c.Query("_method")
+	// 获取原函数的 HTTP 方法（用于标识回调所属的函数）
+	// 优先使用 _function_method（更清晰的参数名），兼容旧的 _method 参数
+	method := c.Query("_function_method")
+	if method == "" {
+		method = c.Query("_method") // 向后兼容旧版本
+	}
 	callbackType := c.Query("_type")
 	split := strings.Split(strings.Trim(router, "/"), "/")
 	user := split[0]

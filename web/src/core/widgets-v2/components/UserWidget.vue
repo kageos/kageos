@@ -106,6 +106,7 @@ import { useFormDataStore } from '../../stores-v2/formData'
 import { searchUsersFuzzy, getUsersByUsernames } from '@/api/user'
 import { formatUserDisplayName } from '@/utils/userInfo'
 import type { UserInfo } from '@/types'
+import { useAuthStore } from '@/stores/auth'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -381,7 +382,46 @@ watch(() => props.mode, (newMode: string) => {
 // handleCopyUserInfo, handleCopyName, handleAvatarClick 已由 UserDisplay 组件处理
 
 // 组件挂载时，如果有初始值，加载用户信息
+// 🔥 同时检查是否有动态默认值（如 $me）
 onMounted(() => {
+      // 🔥 检查是否有动态默认值需要设置（$me）
+      // 注意：如果 value.raw 是 null、undefined、空字符串，或者是 $me 字符串，都应该设置默认值
+      if (props.mode === 'edit') {
+        const currentRaw = props.value?.raw
+        const shouldSetDefault = !currentRaw || currentRaw === '' || currentRaw === '$me'
+        
+        if (shouldSetDefault) {
+          const config = props.field.widget?.config
+          if (config && typeof config === 'object' && 'default' in config) {
+            const defaultValue = (config as Record<string, any>).default
+            if (typeof defaultValue === 'string' && defaultValue === '$me') {
+              // 动态默认值：$me（当前登录用户）
+              const authStore = useAuthStore()
+              const currentUsername = authStore.user?.username
+              if (currentUsername) {
+                const newFieldValue = {
+                  raw: currentUsername,
+                  display: currentUsername,
+                  meta: {}
+                }
+                formDataStore.setValue(props.fieldPath, newFieldValue)
+                emit('update:modelValue', newFieldValue)
+                // 加载用户信息到 userOptions
+                loadUserInfo(currentUsername).then(() => {
+                  if (userInfo.value) {
+                    const existingUser = userOptions.value.find((u: UserInfo) => u.username === currentUsername)
+                    if (!existingUser) {
+                      userOptions.value.push(userInfo.value)
+                    }
+                  }
+                })
+                return
+              }
+            }
+          }
+        }
+      }
+  
   if (props.value?.raw) {
     if (props.mode === 'edit' || props.mode === 'search') {
       // 编辑模式：如果有初始值，需要加载用户信息到 userOptions 中以便显示

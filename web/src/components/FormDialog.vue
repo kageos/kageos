@@ -7,8 +7,9 @@
     @close="handleClose"
   >
     <!-- 🔥 使用新的 FormRenderer 替代所有渲染逻辑 -->
+    <template v-if="dialogVisible">
     <FormRenderer
-      v-if="dialogVisible"
+        v-if="formFunctionDetail"
       ref="formRendererRef"
       :function-detail="formFunctionDetail"
       :show-submit-button="false"
@@ -18,6 +19,15 @@
       :initial-data="props.initialData"
       :user-info-map="props.userInfoMap"
     />
+      <div v-else class="error-message">
+        <el-alert
+          type="error"
+          :title="`无法构建表单：method 参数不存在。router: ${props.router}`"
+          :closable="false"
+          show-icon
+        />
+      </div>
+    </template>
 
     <template #footer>
       <span class="dialog-footer">
@@ -41,6 +51,7 @@ interface Props {
   fields: FieldConfig[]  // 表单字段
   mode: 'create' | 'update'  // 模式：新增或编辑
   router: string  // ✨ 函数路由（用于文件上传等）
+  method?: string  // 🔥 原函数的 HTTP 方法（用于 OnSelectFuzzy 回调）
   initialData?: Record<string, any>  // 初始数据（编辑模式）
   width?: string | number  // 对话框宽度
   userInfoMap?: Map<string, any>  // 🔥 用户信息映射（用于 UserWidget 批量查询优化）
@@ -102,11 +113,19 @@ const filteredFields = computed(() => {
 /**
  * 🔥 将 fields 包装成 FunctionDetail 格式，供 FormRenderer 使用
  */
-const formFunctionDetail = computed<FunctionDetail>(() => ({
+const formFunctionDetail = computed<FunctionDetail | null>(() => {
+  // 🔥 method 是必需的，如果不存在应该返回 null，让模板不渲染 FormRenderer
+  if (!props.method) {
+    console.error(`[FormDialog] method 参数不存在，无法构建 formFunctionDetail。router: ${props.router}`)
+    return null
+  }
+  
+  return {
   id: 0,
   app_id: 0,
   tree_id: 0,
-  method: 'POST',
+    // 🔥 使用原函数的 method，这样 OnSelectFuzzy 回调才能正确获取到原函数的 method
+    method: props.method,
   router: props.router,  // ✨ 使用传入的 router
   has_config: false,
   create_tables: '',
@@ -117,7 +136,8 @@ const formFunctionDetail = computed<FunctionDetail>(() => ({
   created_at: '',
   updated_at: '',
   full_code_path: ''
-}))
+  }
+})
 
 /**
  * 提交表单
@@ -182,5 +202,9 @@ defineExpose({
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.error-message {
+  padding: 20px;
 }
 </style>

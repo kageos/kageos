@@ -70,6 +70,11 @@ export function createSearchComponentConfig(
     return createColorComponentConfig(field, searchType)
   }
 
+  // RichText 组件（文本搜索，搜索 HTML 内容）
+  if (widgetType === WidgetType.RICH_TEXT) {
+    return createDefaultInputConfig(field)
+  }
+
   // 文本范围搜索
   if (hasAllSearchTypes(searchType, [SearchType.GTE, SearchType.LTE])) {
     return createRangeInputConfig(field)

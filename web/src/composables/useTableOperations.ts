@@ -169,10 +169,140 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
   }
   
   /**
-   * 可搜索字段（配置了 search 的字段）
+   * 可搜索字段（用于搜索表单显示）
+   * 
+   * ==================== 搜索设计说明 ====================
+   * 
+   * 【核心概念】
+   * - response 字段：针对这个接口的主表的字段
+   *   - 这些字段直接存储在主表中（如 `crm_meeting_room_booking` 表的 `subject`、`booker` 等）
+   *   - 必须明确指定 `search` 标签值（如 `"like"`、`"in"`、`"eq"` 等）才会显示在搜索表单中
+   *   - 搜索时转换为 URL 查询参数格式：`like=remark:测试`、`in=status:待处理,处理中` 等
+   *   - 如果 `search` 是空字符串 `""` 或 `"-"`，则不会显示在搜索表单中
+   * 
+   * - request 字段：非这张表的参数（扩展字段）
+   *   - 这些字段不在主表中，可能是：
+   *     * 计算字段（如 `status`，根据时间实时计算，不存储在数据库）
+   *     * 外表字段（如 `room_name`，来自关联表 `crm_meeting_room`，需要通过 JOIN 或子查询获取）
+   *     * 其他扩展字段（用于搜索但不在主表中的字段）
+   *   - 本身就是用于搜索的表单参数，不需要 `search` 标签（但可以设置 `search: "-"` 明确表示不支持搜索）
+   *   - 搜索时直接作为 `k=v` 形式：`status=进行中`、`room_name=会议室A` 等
+   *   - 如果 `search` 是 `"-"`，则不会显示在搜索表单中
+   * 
+   * 【合并策略】
+   * 1. 从 response 中获取所有可搜索字段（主表字段，必须有明确的 search 标签值）
+   * 2. 从 request 中获取所有字段（扩展字段，用于搜索，不需要 search 标签）
+   * 3. 智能合并：如果同一个字段在两个地方都存在，保留 response 的 search 信息，使用 request 的其他配置
+   * 
+   * 【示例】
+   * - response 中的 `subject` 字段：`search: "like"` → 显示在搜索表单，搜索时转换为 `like=subject:测试`
+   * - response 中的 `status` 字段：`search: "-"` → 不显示在搜索表单（明确表示不支持搜索）
+   * - request 中的 `room_name` 字段：`search: ""` → 显示在搜索表单，搜索时转换为 `room_name=会议室A`
+   * - request 中的 `status` 字段：`search: "-"` → 不显示在搜索表单（明确表示不支持搜索）
    */
   const searchableFields = computed(() => {
-    return functionData.response.filter(field => field.search)
+    // 从 response 中获取可搜索字段（主表字段，必须有明确的 search 标签值）
+    // ⚠️ 关键：response 字段必须明确指定 search 值（不能是空字符串、"-"、null、undefined）
+    // 只有 search 有明确值（如 "in"、"like"、"eq" 等）的字段才会显示在搜索表单中
+    const responseSearchableFields = Array.isArray(functionData.response) 
+      ? functionData.response.filter(field => {
+          const search = field.search
+          // 必须有值，且不是 "-"（明确表示不支持搜索），且不是空字符串
+          return search && search !== '-' && search !== '' && search.trim() !== ''
+        })
+      : []
+    
+    // 从 request 中获取所有字段（表单参数，用于搜索，不需要 search 标签）
+    // ⚠️ 关键：request 字段本身就是用于搜索的表单参数，不需要 search 标签
+    const requestFields = functionData.request
+    const requestAllFields = Array.isArray(requestFields)
+      ? requestFields  // 获取所有 request 字段（都是用于搜索的表单参数）
+      : []
+    
+    // 合并：使用 Map 去重，如果同一个字段在两个地方都存在，智能合并
+    // ⚠️ 关键：保留 response 字段的 search 信息（如果 request 字段没有 search）
+    // 但使用 request 字段的其他配置（如 widget.config，因为可能更完整）
+    const fieldMap = new Map<string, FieldConfig>()
+    
+    // 先添加 response 字段
+    responseSearchableFields.forEach(field => {
+      fieldMap.set(field.code, field)
+    })
+    
+    // 再添加 request 字段，智能合并
+    // ⚠️ 关键：排除 search 为 "-" 的字段（明确表示不支持搜索）
+    requestAllFields.forEach(field => {
+      // 如果 request 字段的 search 是 "-"，跳过（不显示在搜索表单中）
+      if (field.search === '-') {
+        return
+      }
+      
+      const existingField = fieldMap.get(field.code)
+      if (existingField) {
+        // 如果字段已存在（在 response 中），智能合并：
+        // 1. 保留 response 的 search 信息（如果 request 没有 search 或 search 是 ""）
+        // 2. 使用 request 的其他配置（widget.config 等，因为可能更完整）
+        const mergedField: FieldConfig = {
+          ...field,  // 使用 request 字段作为基础
+          // 优先使用 request 的 search，但如果 request 的 search 是 "" 或 "-"，则使用 response 的
+          search: (field.search && field.search !== '-' && field.search !== '') 
+            ? field.search 
+            : (existingField.search || null),
+        }
+        fieldMap.set(field.code, mergedField)
+      } else {
+        // 如果字段不存在，直接添加
+        fieldMap.set(field.code, field)
+      }
+    })
+    
+    // 返回合并后的字段列表
+    return Array.from(fieldMap.values())
+  })
+
+  /**
+   * 可搜索字段（来自 response，用于 URL 查询参数）
+   * 
+   * 【说明】
+   * - response 字段：针对这个接口的主表的字段
+   * - 这些字段会转换为 URL 查询参数格式：`like=remark:测试`、`in=status:待处理,处理中` 等
+   * - 必须明确指定 search 值（不能是空字符串、"-"、null、undefined）
+   * 
+   * 【示例】
+   * - `subject` 字段：`search: "like"` → 转换为 `like=subject:测试`
+   * - `booker` 字段：`search: "in"` → 转换为 `in=booker:user1,user2`
+   */
+  const responseSearchableFields = computed(() => {
+    // ⚠️ 关键：确保 response 是数组，且 search 有明确值
+    return Array.isArray(functionData.response)
+      ? functionData.response.filter(field => {
+          const search = field.search
+          // 必须有值，且不是 "-"（明确表示不支持搜索），且不是空字符串
+          return search && search !== '-' && search !== '' && search.trim() !== ''
+        })
+      : []
+  })
+
+  /**
+   * 可搜索字段（来自 request，用于请求体）
+   * 
+   * 【说明】
+   * - request 字段：非这张表的参数（扩展字段，如计算字段、外表字段等）
+   * - 这些字段会直接作为 `k=v` 形式：`{"room_name": "测试", "status": "进行中"}`
+   * - 本身就是用于搜索的表单参数，不需要 search 标签
+   * 
+   * 【注意】
+   * - 此 computed 主要用于区分 request 和 response 字段的处理方式
+   * - 实际使用中，request 字段的处理在 `buildSearchParams` 和 `syncToURL` 中直接遍历所有 request 字段
+   */
+  const requestSearchableFields = computed(() => {
+    // ⚠️ 关键：functionData.request 的类型是 any，需要确保它是数组
+    // ⚠️ 注意：这里只过滤有 search 标签的字段，但实际上 request 字段不需要 search 标签
+    // 此 computed 主要用于向后兼容，实际逻辑在 buildSearchParams 中直接遍历所有 request 字段
+    const requestFields = functionData.request
+    return Array.isArray(requestFields)
+      ? requestFields.filter(field => field.search && field.search !== '-')
+      : []
   })
   
   /**
@@ -222,14 +352,69 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
   /**
    * 构建搜索参数
    * 
-   * 将搜索表单数据转换为后端需要的 SearchParams 格式
-   * 支持：精确匹配(eq)、模糊查询(like)、包含查询(in)、范围查询(gte/lte)
+   * ==================== 搜索参数构建说明 ====================
+   * 
+   * 【response 字段处理】
+   * - 针对这个接口的主表的字段
+   * - 转换为 URL 查询参数格式：`like=remark:测试`、`in=status:待处理,处理中` 等
+   * - 使用 search 标签定义的格式（如 `"like"`、`"in"`、`"eq"` 等）
+   * 
+   * 【request 字段处理】
+   * - 非这张表的参数（扩展字段，如计算字段、外表字段等）
+   * - 直接作为 `k=v` 形式：`room_name=测试`、`status=进行中`
+   * - 不管有没有 search 标签，都作为查询参数或请求体字段
+   * 
+   * 【请求格式示例】
+   * - GET 请求：`?like=remark:测试&room_name=测试&status=进行中&sorts=id:desc`
+   * - POST 请求：请求体包含 `{"like": "remark:测试", "room_name": "测试", "status": "进行中", "sorts": "id:desc"}`
+   * 
+   * 【支持的搜索类型】
+   * - 精确匹配(eq)：`eq=id:123`
+   * - 模糊查询(like)：`like=subject:测试`
+   * - 包含查询(in)：`in=status:待处理,处理中`
+   * - 范围查询(gte/lte)：`gte=start_time:1234567890&lte=end_time:1234567890`
    */
-  const buildSearchParams = (): SearchParams => {
-    const params: SearchParams = {
+  const buildSearchParams = (): SearchParams & Record<string, any> => {
+    // ⚠️ 关键：如果同一个字段同时在 request 和 response 中，优先使用 request 的处理方式（k=v 形式）
+    // 1. 获取所有 request 字段的 code，用于排除
+    const requestFields = functionData.request
+    const requestFieldCodes = new Set<string>()
+    if (Array.isArray(requestFields)) {
+      requestFields.forEach(field => {
+        requestFieldCodes.add(field.code)
+      })
+    }
+    
+    // 2. 构建 response 字段的搜索参数（URL 查询参数格式，如 `like=remark:测试`）
+    // ⚠️ 关键：排除所有 request 字段，避免重复处理
+    const responseFieldsForParams = responseSearchableFields.value.filter(
+      field => !requestFieldCodes.has(field.code)
+    )
+    const responseParams = buildSearchParamsString(searchForm.value, responseFieldsForParams)
+    
+    // 3. 构建 request 字段的搜索参数（直接作为 `k=v` 形式，如 `room_name=测试`）
+    // ⚠️ 关键：request 字段不管有没有 search 标签，都直接作为 k=v 形式
+    const requestParams: Record<string, any> = {}
+    if (Array.isArray(requestFields)) {
+      requestFields.forEach(field => {
+        const value = searchForm.value[field.code]
+        // 检查值是否为空（包括空数组、空字符串、null、undefined）
+        if (value !== null && value !== undefined && 
+            !(Array.isArray(value) && value.length === 0) && 
+            !(typeof value === 'string' && value.trim() === '')) {
+          requestParams[field.code] = value
+        }
+      })
+    }
+    
+    // 4. 合并所有参数
+    // 注意：使用 `SearchParams & Record<string, any>` 类型，允许添加任意字段（request 字段）
+    // ⚠️ 关键：request 字段会覆盖 response 字段的处理结果（如果同一个字段在两个地方都存在）
+    const params: SearchParams & Record<string, any> = {
       page: currentPage.value,
       page_size: pageSize.value,
-      ...buildSearchParamsString(searchForm.value, searchableFields.value)
+      ...responseParams,  // response 字段的搜索参数（URL 查询参数格式，如 `like=remark:测试`）
+      ...requestParams    // request 字段的搜索参数（直接作为 `k=v` 形式，如 `room_name=测试`）
     }
     
     // 排序（格式：sorts=field1:order1,field2:order2）
@@ -283,6 +468,19 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
   
   /**
    * 同步状态到 URL
+   * 
+   * ==================== URL 同步说明 ====================
+   * 
+   * 【response 字段】
+   * - 针对这个接口的主表的字段
+   * - 转换为 URL 查询参数格式：`like=remark:测试`、`in=status:待处理,处理中` 等
+   * 
+   * 【request 字段】
+   * - 非这张表的参数（扩展字段，如计算字段、外表字段等）
+   * - 直接作为 `k=v` 形式：`room_name=测试`、`status=进行中`
+   * 
+   * 【URL 格式示例】
+   * `?page=1&page_size=20&like=subject:测试&room_name=会议室A&status=进行中&sorts=id:desc`
    */
   const syncToURL = (): void => {
     const query: Record<string, string> = {}
@@ -306,8 +504,49 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
     // 🔥 关键：如果排序为空，显式标记为删除（后续会从 URL 中移除）
     // 注意：不设置 query.sorts，这样在后续处理中会从 URL 中删除
     
-    // 搜索参数（使用工具函数）
-    Object.assign(query, buildURLSearchParams(searchForm.value, searchableFields.value))
+    // ==================== 搜索参数同步到 URL ====================
+    // 
+    // 【response 字段处理】
+    // - 针对这个接口的主表的字段
+    // - 使用 buildURLSearchParams 处理，产生 `like=remark:测试` 格式
+    // 
+    // 【request 字段处理】
+    // - 非这张表的参数（扩展字段，如计算字段、外表字段等）
+    // - 直接作为 `k=v` 形式，产生 `status=进行中` 格式
+    // 
+    // ⚠️ 重要：如果同一个字段同时在 request 和 response 中，优先使用 request 的处理方式（k=v 形式）
+    
+    // 1. 获取所有 request 字段的 code，用于排除
+    const requestFields = functionData.request
+    const requestFieldCodes = new Set<string>()
+    if (Array.isArray(requestFields)) {
+      requestFields.forEach(field => {
+        requestFieldCodes.add(field.code)
+      })
+    }
+    
+    // 2. response 字段的搜索参数（URL 查询参数格式，如 `like=remark:测试`）
+    // ⚠️ 关键：排除所有 request 字段，避免重复处理
+    const responseFieldsForURL = responseSearchableFields.value.filter(
+      field => !requestFieldCodes.has(field.code)
+    )
+    Object.assign(query, buildURLSearchParams(searchForm.value, responseFieldsForURL))
+    
+    // 3. request 字段的搜索参数（直接作为 `k=v` 形式，如 `status=进行中`）
+    // ⚠️ 关键：request 字段会覆盖 response 字段的处理结果（如果同一个字段在两个地方都存在）
+    if (Array.isArray(requestFields)) {
+      requestFields.forEach(field => {
+        const value = searchForm.value[field.code]
+        // 检查值是否为空（包括空数组、空字符串、null、undefined）
+        if (value !== null && value !== undefined && 
+            !(Array.isArray(value) && value.length === 0) && 
+            !(typeof value === 'string' && value.trim() === '')) {
+          // 直接作为 k=v 形式添加到 URL 查询参数
+          // ⚠️ 这会覆盖 response 字段的处理结果（如果同一个字段在两个地方都存在）
+          query[field.code] = Array.isArray(value) ? value.join(',') : String(value)
+        }
+      })
+    }
     
     // 🔥 清理空值参数（确保不会生成 field: 这样的空参数）
     Object.keys(query).forEach(key => {
@@ -321,15 +560,21 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
     const searchParamKeys = ['eq', 'like', 'in', 'contains', 'gte', 'lte']
     const newQuery: Record<string, string> = {}
     
-    // 🔥 先复制所有非搜索参数（分页、排序等），但排除 sorts（因为我们要根据当前状态决定是否保留）
+    // ⚠️ 注意：requestFieldCodes 已经在上面声明过了，这里直接使用
+    
+    // 🔥 先复制所有非搜索参数（分页、排序等），但排除：
+    // 1. searchParamKeys（response 字段的搜索参数，如 eq, like, in 等）
+    // 2. sorts（因为我们要根据当前状态决定是否保留）
+    // 3. request 字段（因为我们要根据当前状态决定是否保留，如果已清空则删除）
     Object.keys(route.query).forEach(key => {
-      if (!searchParamKeys.includes(key) && key !== 'sorts') {
+      if (!searchParamKeys.includes(key) && key !== 'sorts' && !requestFieldCodes.has(key)) {
         newQuery[key] = String(route.query[key])
       }
     })
     
     // 🔥 然后添加新的参数（包括排序和搜索）
     // 如果 query 中有 sorts，会添加；如果没有，则不会添加（从而从 URL 中删除）
+    // 如果 query 中有 request 字段，会添加；如果没有，则不会添加（从而从 URL 中删除）
     Object.assign(newQuery, query)
     
     // 🔥 更新 URL（不触发导航）
@@ -388,9 +633,33 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
       }
     }
     
-    // 恢复搜索（格式：eq=field:value 或 eq=field1:value1,field2:value2, like=field:value, in=field:value, gte=field:value, lte=field:value）
+    // ==================== 从 URL 恢复搜索条件 ====================
+    // 
+    // 【response 字段恢复】
+    // - 针对这个接口的主表的字段
+    // - 从 URL 查询参数中解析：`like=remark:测试` → 恢复为 `searchForm.remark = "测试"`
+    // - 支持多个字段同时使用相同的搜索类型：`like=subject:测试,remark:备注`
+    // 
+    // 【request 字段恢复】
+    // - 非这张表的参数（扩展字段，如计算字段、外表字段等）
+    // - 直接从 URL 查询参数中读取：`room_name=测试` → 恢复为 `searchForm.room_name = "测试"`
+    
+    // 1. 恢复 request 字段（直接从 URL 查询参数中读取，k=v 形式）
+    const requestFields = functionData.request
+    if (Array.isArray(requestFields)) {
+      requestFields.forEach(field => {
+        const value = query[field.code]
+        if (value !== undefined && value !== null && value !== '') {
+          // 直接使用 URL 中的值
+          searchForm.value[field.code] = String(value)
+        }
+      })
+    }
+    
+    // 2. 恢复 response 字段（从 URL 查询参数中解析，格式：eq=field:value, like=field:value 等）
+    // 格式：eq=field:value 或 eq=field1:value1,field2:value2, like=field:value, in=field:value, gte=field:value, lte=field:value
     // 🔥 支持多个字段使用相同搜索类型，格式：field1:value1,field2:value2
-    searchableFields.value.forEach(field => {
+    responseSearchableFields.value.forEach(field => {
       const searchType = field.search || ''
       
       if (searchType.includes(SearchType.EQ)) {
@@ -731,7 +1000,12 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
       await loadTableData()
       return true
     } catch (error: any) {
-      ElMessage.error(error.message || '新增失败')
+      // 🔥 优先使用后端返回的错误信息
+      const errorMessage = error?.response?.data?.msg 
+        || error?.response?.data?.message 
+        || error?.message 
+        || '新增失败'
+      ElMessage.error(errorMessage)
       return false
     }
   }
@@ -753,7 +1027,12 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
       await loadTableData()
       return true
     } catch (error: any) {
-      ElMessage.error(error.message || '更新失败')
+      // 🔥 优先使用后端返回的错误信息
+      const errorMessage = error?.response?.data?.msg 
+        || error?.response?.data?.message 
+        || error?.message 
+        || '更新失败'
+      ElMessage.error(errorMessage)
       return false
     }
   }
@@ -781,7 +1060,12 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
       return true
     } catch (error: any) {
       if (error !== 'cancel') {
-        ElMessage.error(error.message || '删除失败')
+        // 🔥 优先使用后端返回的错误信息
+        const errorMessage = error?.response?.data?.msg 
+          || error?.response?.data?.message 
+          || error?.message 
+          || '删除失败'
+        ElMessage.error(errorMessage)
       }
       return false
     }

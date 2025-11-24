@@ -75,7 +75,9 @@ service.interceptors.request.use(
 // 响应拦截器
 service.interceptors.response.use(
   (response: AxiosResponse<ApiResponse>) => {
-    const { code, message, data } = response.data
+    const { code, data } = response.data
+    // 🔥 后端可能返回 msg 或 message，优先使用 msg
+    const message = (response.data as any).msg || (response.data as any).message
 
     // 请求成功
     if (code === 0) {
@@ -86,12 +88,14 @@ service.interceptors.response.use(
     console.error('[Request] 业务错误:', {
       code,
       message,
+      msg: (response.data as any).msg,
       data,
       url: response.config.url,
       method: response.config.method
     })
     
-    ElMessage.error(message || '请求失败')
+    // 🔥 不在这里显示错误消息，让调用方自己处理（避免重复提示）
+    // ElMessage.error(message || '请求失败')
     // 🔥 保留完整的错误信息，包括 response 对象
     const error = new Error(message || '请求失败') as any
     error.response = response
