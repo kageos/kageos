@@ -264,7 +264,9 @@ func (a *App) CallbackRouter(ctx *Context, resp response.Response) error {
 			return errors.New("invalid type of TableTemplate")
 		}
 		var onTableReq callback.OnTableUpdateRowReq
-		err := json.Unmarshal(ctx.body, &onTableReq.Updates)
+		// ⚠️ 关键：现在解析整个结构，包括 id、updates、old_values
+		// 前端传递格式：{"id": 2, "updates": {"name": "802"}, "old_values": {"name": "801"}}
+		err := json.Unmarshal(ctx.body, &onTableReq)
 		if err != nil {
 			return err
 		}

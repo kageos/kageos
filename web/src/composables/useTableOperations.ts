@@ -20,6 +20,7 @@ import { executeFunction, tableAddRow, tableUpdateRow, tableDeleteRows } from '@
 import { buildSearchParamsString, buildURLSearchParams } from '@/utils/searchParams'
 import { denormalizeSearchValue } from '@/utils/searchValueNormalizer'
 import { parseCommaSeparatedString } from '@/utils/stringUtils'
+import { getChangedFields } from '@/utils/objectDiff'
 import { SearchType } from '@/core/constants/search'
 import { WidgetType } from '@/core/constants/widget'
 import type { Function as FunctionType, SearchParams, TableResponse } from '@/types'
@@ -65,7 +66,7 @@ export interface TableOperationsReturn {
   handleSizeChange: (size: number) => void
   handleCurrentChange: (page: number) => void
   handleAdd: (data: Record<string, any>) => Promise<boolean>
-  handleUpdate: (id: number, data: Record<string, any>) => Promise<boolean>
+  handleUpdate: (id: number, data: Record<string, any>, oldData?: Record<string, any>) => Promise<boolean>
   handleDelete: (id: number) => Promise<boolean>
   buildSearchParams: () => SearchParams
   restoreFromURL: () => void
@@ -1013,15 +1014,34 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
   /**
    * 更新记录
    * @param id 记录 ID
-   * @param data 更新的数据
+   * @param data 更新的数据（新值）
+   * @param oldData 旧数据（用于对比，找出变更的字段）
    * @returns 是否成功
    */
-  const handleUpdate = async (id: number, data: Record<string, any>): Promise<boolean> => {
+  const handleUpdate = async (id: number, data: Record<string, any>, oldData?: Record<string, any>): Promise<boolean> => {
     try {
-      const updateData = {
-        id,
-        ...data
+      // ⚠️ 关键：如果提供了 oldData，只传递变更的字段
+      // 格式：{"id": 2, "updates": {"name": "802"}, "old_values": {"name": "801"}}
+      let updateData: Record<string, any>
+      
+      if (oldData) {
+        // 对比旧值和新值，找出变更的字段
+        const { updates, oldValues } = getChangedFields(oldData, data)
+        
+        updateData = {
+          id,              // ID 单独传递（用于明确标识要更新的记录）
+          updates,         // 只包含变更的字段（可以包含 id，但 GORM 会自动忽略 id）
+          old_values: oldValues  // 变更字段的旧值（用于审计）
+        }
+      } else {
+        // 向后兼容：如果没有提供 oldData，传递全量数据（旧版本行为）
+        // 注意：这种情况下，Updates 可能包含 id，后端会处理
+        updateData = {
+          id,
+          ...data
+        }
       }
+      
       await tableUpdateRow(functionData.method, functionData.router, updateData)
       ElMessage.success('更新成功')
       await loadTableData()
