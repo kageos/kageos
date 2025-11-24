@@ -3,6 +3,7 @@ package callback
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
 )
@@ -85,6 +86,41 @@ func (c *OnTableUpdateRowReq) GetOldValues() map[string]interface{} {
 		return make(map[string]interface{})
 	}
 	return c.OldValues
+}
+
+// BindUpdates 将 Updates map 绑定到目标结构体
+//
+// ⚠️ 重要说明：
+//   - Updates 只包含此次更新中变更的字段，未更新的字段不在 Updates 中
+//   - 绑定后，目标结构体中只有更新的字段有值，未更新的字段为零值
+//   - 如果需要访问未更新的字段，应该从数据库中查询当前记录
+//
+// 使用 JSON 序列化/反序列化的方式，确保类型正确转换
+//
+// 示例：
+//   var updateFields CrmMeetingRoom
+//   if err := req.BindUpdates(&updateFields); err != nil {
+//       return nil, err
+//   }
+//   // 此时 updateFields 中只有更新的字段有值，例如：
+//   // 如果只更新了 name，则 updateFields.Name 有值，其他字段为零值
+func (c *OnTableUpdateRowReq) BindUpdates(target interface{}) error {
+	if c.Updates == nil || len(c.Updates) == 0 {
+		return nil
+	}
+	
+	// 将 map 序列化为 JSON
+	jsonData, err := json.Marshal(c.Updates)
+	if err != nil {
+		return fmt.Errorf("序列化 updates 失败: %w", err)
+	}
+	
+	// 反序列化到目标结构体
+	if err := json.Unmarshal(jsonData, target); err != nil {
+		return fmt.Errorf("反序列化到目标结构体失败: %w", err)
+	}
+	
+	return nil
 }
 
 type OnTableUpdateRowResp struct {
