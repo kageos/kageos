@@ -100,7 +100,9 @@
             :value="responseFieldValues[field.code] || { raw: null, display: '', meta: {} }"
             :model-value="responseFieldValues[field.code] || { raw: null, display: '', meta: {} }"
             :field-path="field.code"
-            mode="response"
+            :form-renderer="formRendererContext"
+            :user-info-map="userInfoMap"
+            :mode="field.widget?.type === 'files' ? 'detail' : 'response'"
           />
           <div v-else class="widget-error">
             响应组件未找到: {{ field.widget?.type || 'input' }}
