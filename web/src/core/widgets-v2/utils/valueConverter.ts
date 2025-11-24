@@ -5,7 +5,7 @@
  * 遵循单一职责原则，统一处理类型转换逻辑
  */
 
-import { FieldDataType } from '../../constants/select'
+import { DataType } from '../../constants/widget'
 import { Logger } from '../../utils/logger'
 
 /**
@@ -27,14 +27,14 @@ export function convertValueToType(
   }
 
   // 如果目标类型是字符串，直接返回
-  if (targetType === FieldDataType.STRING) {
+  if (targetType === DataType.STRING) {
     return value
   }
 
   try {
     switch (targetType) {
-      case FieldDataType.INT:
-      case FieldDataType.INTEGER:
+      case DataType.INT:
+      case 'integer': // 兼容 integer 别名
         const intValue = parseInt(value, 10)
         if (isNaN(intValue)) {
           Logger.warn(componentName, `无法将 "${value}" 转换为整数`)
@@ -42,8 +42,8 @@ export function convertValueToType(
         }
         return intValue
 
-      case FieldDataType.FLOAT:
-      case FieldDataType.NUMBER:
+      case DataType.FLOAT:
+      case 'number': // 兼容 number 别名
         const floatValue = parseFloat(value)
         if (isNaN(floatValue)) {
           Logger.warn(componentName, `无法将 "${value}" 转换为浮点数`)
@@ -51,8 +51,8 @@ export function convertValueToType(
         }
         return floatValue
 
-      case FieldDataType.BOOL:
-      case FieldDataType.BOOLEAN:
+      case DataType.BOOL:
+      case 'boolean': // 兼容 boolean 别名
         return value === 'true' || value === '1' || value === 1 || value === true
 
       default:
