@@ -12,6 +12,9 @@ export interface UserInfo {
   email: string
   register_type: string
   avatar: string
+  nickname?: string           // 昵称
+  signature?: string          // 个人签名/简介
+  gender?: string            // 性别: 'male' | 'female' | 'other' | ''
   email_verified: boolean
   status: string
   created_at: string
@@ -48,6 +51,13 @@ export interface CreateAppRequest {
   name: string
 }
 
+// 创建应用响应（后端实际返回的结构）
+export interface CreateAppResponse {
+  user: string
+  app: string  // 对应 App 的 code 字段
+  app_dir: string
+}
+
 // 服务目录相关类型
 export interface ServiceTree {
   id: number
@@ -60,7 +70,7 @@ export interface ServiceTree {
   app_id: number
   ref_id: number
   full_code_path: string
-  group_code?: string  // 组标识（相同 group_code 的函数属于同一组）
+  full_group_code?: string  // 完整函数组代码：{full_path}/{group_code}，与 source_code.full_group_code 对齐
   group_name?: string  // 组名称（用于展示，不参与路由）
   created_at: string
   updated_at: string
@@ -136,12 +146,14 @@ export enum WidgetType {
 
 // 搜索类型
 export interface SearchParams {
-  eq?: string      // 精确匹配 eq=id:1
-  like?: string    // 模糊匹配 like=title:xxx
-  gte?: string     // 大于等于 gte=created_at:timestamp
-  lte?: string     // 小于等于 lte=created_at:timestamp
-  sorts?: string   // 排序 sorts=category:asc,price:desc（支持多列排序，格式：field:order,field:order）
-  page?: number    // 页码
+  eq?: string       // 精确匹配 eq=id:1
+  like?: string     // 模糊匹配 like=title:xxx
+  in?: string       // 包含查询 in=status:待处理,处理中
+  contains?: string // 包含查询（用于多选场景，使用 FIND_IN_SET）contains=tags:高,中
+  gte?: string      // 大于等于 gte=created_at:timestamp
+  lte?: string      // 小于等于 lte=created_at:timestamp
+  sorts?: string    // 排序 sorts=category:asc,price:desc（支持多列排序，格式：field:order,field:order）
+  page?: number     // 页码
   page_size?: number // 页大小
 }
 
@@ -170,4 +182,14 @@ export interface WSMessage {
   type: string
   data: any
   timestamp: number
+}
+
+// Fork 函数组相关类型
+export interface ForkFunctionGroupRequest {
+  source_to_target_map: Record<string, string>  // key=函数组的full_group_code，value=服务目录的full_code_path
+  target_app_id: number  // 目标应用 ID
+}
+
+export interface ForkFunctionGroupResponse {
+  message: string  // 响应消息
 }

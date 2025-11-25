@@ -33,7 +33,7 @@ func NewStorage(storageService *service.StorageService) *Storage {
 
 // GetUploadToken 获取上传凭证
 // @Summary 获取上传凭证
-// @Description 获取文件上传的预签名 URL，文件将按函数路径分类存储
+// @Description 获取文件上传的预签名 URL，文件将按函数路径分类存储。如果未提供 router，将使用默认路由：/{username}/default
 // @Tags 存储管理
 // @Accept json
 // @Produce json
@@ -56,11 +56,28 @@ func (s *Storage) GetUploadToken(c *gin.Context) {
 		return
 	}
 
+	// 获取当前登录用户的用户名
+	username := contextx.GetRequestUser(c)
+
+	// 如果未提供 Router，使用默认路由：/{username}/default
+	router := req.Router
+	if router == "" {
+		if username == "" {
+			response.FailWithMessage(c, "未提供路由且无法获取用户信息")
+			return
+		}
+		router = fmt.Sprintf("%s/default", username)
+		logger.Infof(c, "Router not provided, using default router: %s", router)
+	}
+
 	// 设置默认上传来源
 	uploadSource := getDefaultUploadSource(req.UploadSource)
 
+	// 将 gin.Context 转换为标准 context.Context
+	ctx := contextx.ToContext(c)
+
 	// 生成上传凭证
-	creds, key, expire, err := s.storageService.GenerateUploadToken(c.Request.Context(), req.Router, req.FileName, req.ContentType, req.FileSize, uploadSource)
+	creds, key, expire, err := s.storageService.GenerateUploadToken(ctx, router, req.FileName, req.ContentType, req.FileSize, uploadSource)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -73,7 +90,7 @@ func (s *Storage) GetUploadToken(c *gin.Context) {
 	storageType := s.storageService.GetStorageType()
 
 	// 构建预期的下载URL
-	downloadURL, serverDownloadURL, _, err := s.storageService.GetFileURLs(c.Request.Context(), key)
+	downloadURL, serverDownloadURL, _, err := s.storageService.GetFileURLs(ctx, key)
 	if err != nil {
 		logger.Errorf(c, "Failed to generate download URLs: %v", err)
 		// 下载URL生成失败不影响上传，设置为空
@@ -82,7 +99,7 @@ func (s *Storage) GetUploadToken(c *gin.Context) {
 	}
 
 	// 构建响应
-	resp = buildUploadTokenResponse(creds, key, expire, cdnDomain, storageType, downloadURL, serverDownloadURL)
+	resp = buildUploadTokenResponse(creds, key, expire, cdnDomain, storageType, downloadURL, serverDownloadURL, username)
 	resp.Bucket = s.storageService.GetBucketName()
 
 	response.OkWithData(c, resp)
@@ -90,7 +107,7 @@ func (s *Storage) GetUploadToken(c *gin.Context) {
 
 // BatchGetUploadToken 批量获取上传凭证
 // @Summary 批量获取上传凭证
-// @Description 批量获取多个文件的上传凭证，支持多种存储方式（presigned_url/form_upload/sdk_upload）
+// @Description 批量获取多个文件的上传凭证，支持多种存储方式（presigned_url/form_upload/sdk_upload）。如果某个文件未提供 router，将使用默认路由：/{username}/default
 // @Tags 存储管理
 // @Accept json
 // @Produce json
@@ -106,8 +123,18 @@ func (s *Storage) BatchGetUploadToken(c *gin.Context) {
 		return
 	}
 
+	// 获取当前登录用户的用户名
+	username := contextx.GetRequestUser(c)
+	if username == "" {
+		response.FailWithMessage(c, "无法获取用户信息")
+		return
+	}
+
 	// 设置默认上传来源
 	defaultUploadSource := getDefaultUploadSource(req.UploadSource)
+
+	// 将 gin.Context 转换为标准 context.Context
+	ctx := contextx.ToContext(c)
 
 	// 批量生成上传凭证
 	tokens := make([]dto.GetUploadTokenResp, 0, len(req.Files))
@@ -118,8 +145,15 @@ func (s *Storage) BatchGetUploadToken(c *gin.Context) {
 			uploadSource = defaultUploadSource
 		}
 
+		// 如果未提供 Router，使用默认路由：/{username}/default
+		router := fileReq.Router
+		if router == "" {
+			router = fmt.Sprintf("%s/default", username)
+			logger.Infof(c, "Router not provided for file %s, using default router: %s", fileReq.FileName, router)
+		}
+
 		// 生成上传凭证
-		creds, key, expire, err := s.storageService.GenerateUploadToken(c.Request.Context(), fileReq.Router, fileReq.FileName, fileReq.ContentType, fileReq.FileSize, uploadSource)
+		creds, key, expire, err := s.storageService.GenerateUploadToken(ctx, router, fileReq.FileName, fileReq.ContentType, fileReq.FileSize, uploadSource)
 		if err != nil {
 			// 单个文件失败，记录错误但继续处理其他文件
 			logger.Errorf(c, "Failed to generate upload token for file %s: %v", fileReq.FileName, err)
@@ -131,7 +165,7 @@ func (s *Storage) BatchGetUploadToken(c *gin.Context) {
 		storageType := s.storageService.GetStorageType()
 
 		// 构建预期的下载URL
-		downloadURL, serverDownloadURL, _, err := s.storageService.GetFileURLs(c.Request.Context(), key)
+		downloadURL, serverDownloadURL, _, err := s.storageService.GetFileURLs(ctx, key)
 		if err != nil {
 			logger.Errorf(c, "Failed to generate download URLs for key %s: %v", key, err)
 			// 下载URL生成失败不影响上传，设置为空
@@ -140,7 +174,7 @@ func (s *Storage) BatchGetUploadToken(c *gin.Context) {
 		}
 
 		// 构建响应
-		token := buildUploadTokenResponse(creds, key, expire, cdnDomain, storageType, downloadURL, serverDownloadURL)
+		token := buildUploadTokenResponse(creds, key, expire, cdnDomain, storageType, downloadURL, serverDownloadURL, username)
 		token.Bucket = s.storageService.GetBucketName()
 		tokens = append(tokens, *token)
 	}
@@ -168,6 +202,9 @@ func (s *Storage) UploadComplete(c *gin.Context) {
 		return
 	}
 
+	// 将 gin.Context 转换为标准 context.Context
+	ctx := contextx.ToContext(c)
+
 	// 只有上传成功时才创建记录
 	var downloadURL string
 	var serverDownloadURL string
@@ -177,7 +214,7 @@ func (s *Storage) UploadComplete(c *gin.Context) {
 		requestUser := contextx.GetRequestUser(c)
 		if err := createUploadRecord(
 			s.storageService,
-			c.Request.Context(),
+			ctx,
 			req.Key,
 			req.Router,
 			req.FileName,
@@ -193,7 +230,7 @@ func (s *Storage) UploadComplete(c *gin.Context) {
 		// 构建下载URL
 		var expire time.Time
 		var err error
-		downloadURL, serverDownloadURL, expire, err = s.storageService.GetFileURLs(c.Request.Context(), req.Key)
+		downloadURL, serverDownloadURL, expire, err = s.storageService.GetFileURLs(ctx, req.Key)
 		if err != nil {
 			logger.Errorf(c, "Failed to generate download URLs: %v", err)
 			downloadURL = ""
@@ -244,6 +281,9 @@ func (s *Storage) BatchUploadComplete(c *gin.Context) {
 		return
 	}
 
+	// 将 gin.Context 转换为标准 context.Context
+	ctx := contextx.ToContext(c)
+
 	// 获取用户信息
 	requestUser := contextx.GetRequestUser(c)
 
@@ -254,7 +294,7 @@ func (s *Storage) BatchUploadComplete(c *gin.Context) {
 			// 只有上传成功时才创建记录
 			if err := createUploadRecord(
 				s.storageService,
-				c.Request.Context(),
+				ctx,
 				item.Key,
 				item.Router,
 				item.FileName,
@@ -273,7 +313,7 @@ func (s *Storage) BatchUploadComplete(c *gin.Context) {
 			}
 
 			// 构建下载URL
-			downloadURL, serverDownloadURL, _, err := s.storageService.GetFileURLs(c.Request.Context(), item.Key)
+			downloadURL, serverDownloadURL, _, err := s.storageService.GetFileURLs(ctx, item.Key)
 			if err != nil {
 				logger.Errorf(c, "Failed to generate download URLs for key %s: %v", item.Key, err)
 				downloadURL = ""
@@ -325,8 +365,11 @@ func (s *Storage) GetFileURL(c *gin.Context) {
 		return
 	}
 
+	// 将 gin.Context 转换为标准 context.Context
+	ctx := contextx.ToContext(c)
+
 	// 获取文件信息
-	info, err := s.storageService.GetFileInfo(c.Request.Context(), key)
+	info, err := s.storageService.GetFileInfo(ctx, key)
 	if err != nil {
 		response.FailWithMessage(c, "文件不存在或无法访问")
 		return
@@ -365,7 +408,7 @@ func (s *Storage) GetFileURL(c *gin.Context) {
 
 	// 直接代理文件下载（流式传输）
 	bucket := s.storageService.GetBucketName()
-	reader, err := s.storageService.GetStorage().DownloadObject(c.Request.Context(), bucket, key)
+	reader, err := s.storageService.GetStorage().DownloadObject(ctx, bucket, key)
 	if err != nil {
 		logger.Errorf(c, "Failed to download file: %v", err)
 		response.FailWithMessage(c, "下载文件失败")
@@ -407,7 +450,10 @@ func (s *Storage) DeleteFile(c *gin.Context) {
 		return
 	}
 
-	err := s.storageService.DeleteFile(c.Request.Context(), key)
+	// 将 gin.Context 转换为标准 context.Context
+	ctx := contextx.ToContext(c)
+
+	err := s.storageService.DeleteFile(ctx, key)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -436,7 +482,10 @@ func (s *Storage) GetFileInfo(c *gin.Context) {
 		return
 	}
 
-	info, err := s.storageService.GetFileInfo(c.Request.Context(), key)
+	// 将 gin.Context 转换为标准 context.Context
+	ctx := contextx.ToContext(c)
+
+	info, err := s.storageService.GetFileInfo(ctx, key)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -471,7 +520,10 @@ func (s *Storage) GetStorageStats(c *gin.Context) {
 		return
 	}
 
-	fileCount, totalSize, err := s.storageService.GetStorageStats(c.Request.Context(), req.Router)
+	// 将 gin.Context 转换为标准 context.Context
+	ctx := contextx.ToContext(c)
+
+	fileCount, totalSize, err := s.storageService.GetStorageStats(ctx, req.Router)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -508,7 +560,10 @@ func (s *Storage) ListFiles(c *gin.Context) {
 		return
 	}
 
-	files, err := s.storageService.ListFilesByRouter(c.Request.Context(), req.Router)
+	// 将 gin.Context 转换为标准 context.Context
+	ctx := contextx.ToContext(c)
+
+	files, err := s.storageService.ListFilesByRouter(ctx, req.Router)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -541,7 +596,10 @@ func (s *Storage) DeleteFilesByRouter(c *gin.Context) {
 		return
 	}
 
-	deletedCount, err := s.storageService.DeleteFilesByRouter(c.Request.Context(), req.Router)
+	// 将 gin.Context 转换为标准 context.Context
+	ctx := contextx.ToContext(c)
+
+	deletedCount, err := s.storageService.DeleteFilesByRouter(ctx, req.Router)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return

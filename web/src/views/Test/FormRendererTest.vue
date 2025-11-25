@@ -20,7 +20,7 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElPageHeader, ElDivider, ElButton, ElMessage } from 'element-plus'
-import FormRenderer from '@/core/renderers/FormRenderer.vue'
+import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
 import type { FunctionDetail } from '@/core/types/field'
 
 const router = useRouter()
@@ -262,7 +262,7 @@ const testDataList = ref<FunctionDetail[]>([
         code: 'payment_method',
         name: '支付方式',
         data: { type: 'string' },
-        validation: 'required,oneof=现金,支付宝,微信',
+        validation: 'required,oneof=现金 支付宝 微信',
         widget: {
           type: 'select',
           config: {

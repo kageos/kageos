@@ -2,13 +2,19 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { login as loginApi, logout as logoutApi, getUserInfo, refreshToken } from '@/api/auth'
+import { updateUser as updateUserApi, type UpdateUserReq } from '@/api/user'
 import type { UserInfo, LoginRequest } from '@/types'
 import router from '@/router'
 
 export const useAuthStore = defineStore('auth', () => {
   // 状态
   const token = ref<string>(localStorage.getItem('token') || '')
-  const user = ref<UserInfo | null>(null)
+  
+  // 从 localStorage 读取用户信息
+  const savedUserStr = localStorage.getItem('user')
+  const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null
+  const user = ref<UserInfo | null>(savedUser)
+  
   const isLoading = ref(false)
 
   // 计算属性
@@ -25,8 +31,9 @@ export const useAuthStore = defineStore('auth', () => {
       token.value = response.token
       user.value = response.user
 
-      // 保存token到localStorage
+      // 保存token和用户信息到localStorage
       localStorage.setItem('token', response.token)
+      localStorage.setItem('user', JSON.stringify(response.user))
 
       ElMessage.success('登录成功')
 
@@ -53,6 +60,7 @@ export const useAuthStore = defineStore('auth', () => {
       token.value = ''
       user.value = null
       localStorage.removeItem('token')
+      localStorage.removeItem('user')
 
       ElMessage.success('已退出登录')
 
@@ -68,6 +76,8 @@ export const useAuthStore = defineStore('auth', () => {
 
       const userInfo = await getUserInfo()
       user.value = userInfo
+      // 保存用户信息到localStorage
+      localStorage.setItem('user', JSON.stringify(userInfo))
       return userInfo
     } catch (error) {
       console.error('获取用户信息失败:', error)
@@ -113,6 +123,22 @@ export const useAuthStore = defineStore('auth', () => {
     // 只有在需要时才获取用户信息
   }
 
+  // 更新用户信息
+  async function updateUser(data: UpdateUserReq) {
+    try {
+      const response = await updateUserApi(data)
+      user.value = response.user
+      // 更新 localStorage
+      localStorage.setItem('user', JSON.stringify(response.user))
+      ElMessage.success('更新成功')
+      return response.user
+    } catch (error) {
+      console.error('更新用户信息失败:', error)
+      ElMessage.error('更新用户信息失败')
+      throw error
+    }
+  }
+
   return {
     // 状态
     token,
@@ -130,6 +156,7 @@ export const useAuthStore = defineStore('auth', () => {
     fetchUserInfo,
     refreshUserToken,
     checkAuthStatus,
-    initAuth
+    initAuth,
+    updateUser
   }
 })

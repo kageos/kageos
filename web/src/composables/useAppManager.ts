@@ -25,10 +25,9 @@ export function useAppManager() {
       loading.value = true
       const items = await getAppList()
       appList.value = items
-      console.log('[useAppManager] 应用列表加载完成，数量:', items.length)
       return items
     } catch (error) {
-      console.error('[useAppManager] 获取应用列表失败:', error)
+      Logger.error('useAppManager', '获取应用列表失败', error)
       ElMessage.error('获取应用列表失败')
       return []
     } finally {
@@ -53,10 +52,6 @@ export function useAppManager() {
     const [user, appCode] = pathSegments
     const app = appList.value.find((a: App) => a.user === user && a.code === appCode)
     
-    if (app) {
-      console.log('[useAppManager] 从路由解析到应用:', app.user + '/' + app.code)
-    }
-    
     return app || null
   }
 
@@ -64,7 +59,6 @@ export function useAppManager() {
    * 切换应用
    */
   const switchApp = async (app: App, updateRoute = true): Promise<void> => {
-    console.log('[useAppManager] 切换应用:', app.user + '/' + app.code)
     currentApp.value = app
 
     if (updateRoute) {
@@ -77,13 +71,24 @@ export function useAppManager() {
    */
   const handleCreateApp = async (form: CreateAppRequest): Promise<App | null> => {
     try {
-      const newApp = await createApp(form)
+      const resp = await createApp(form)
       ElMessage.success('应用创建成功')
       
       // 刷新应用列表
       await loadAppList()
       
-      return newApp
+      // 从刷新后的应用列表中查找新创建的应用
+      // 后端返回的 resp 结构是 { user, app, app_dir }，其中 app 对应前端的 code
+      const createdApp = appList.value.find(
+        (a: App) => a.user === resp.user && a.code === resp.app
+      )
+      
+      if (!createdApp) {
+        Logger.error('useAppManager', '创建应用后未在列表中找到新应用', resp)
+        return null
+      }
+      
+      return createdApp
     } catch (error: any) {
       const errorMessage = error?.response?.data?.message || '创建应用失败'
       ElMessage.error(errorMessage)

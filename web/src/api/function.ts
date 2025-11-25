@@ -65,11 +65,6 @@ export function deleteFunction(id: number) {
 export function tableAddRow(method: string, router: string, data: any) {
   const url = `/api/v1/callback${router}?_type=OnTableAddRow&_method=${method.toUpperCase()}`
   
-  console.log('[tableAddRow] 准备新增')
-  console.log('[tableAddRow]   Original Method:', method)
-  console.log('[tableAddRow]   URL:', url)
-  console.log('[tableAddRow]   Body:', data)
-  
   // 统一使用 POST 方法
   return post(url, data)
 }
@@ -78,11 +73,6 @@ export function tableAddRow(method: string, router: string, data: any) {
 // 统一使用 POST 方法，原函数的 method 通过 _method 查询参数传递，参数放在 body 里
 export function tableUpdateRow(method: string, router: string, data: any) {
   const url = `/api/v1/callback${router}?_type=OnTableUpdateRow&_method=${method.toUpperCase()}`
-  
-  console.log('[tableUpdateRow] 准备更新')
-  console.log('[tableUpdateRow]   Original Method:', method)
-  console.log('[tableUpdateRow]   URL:', url)
-  console.log('[tableUpdateRow]   Body:', data)
   
   // 统一使用 POST 方法
   return post(url, data)
@@ -94,12 +84,6 @@ export function tableDeleteRows(method: string, router: string, ids: number[]) {
   const url = `/api/v1/callback${router}?_type=OnTableDeleteRows&_method=${method.toUpperCase()}`
   const data = { ids }
   
-  console.log('[tableDeleteRows] 准备删除')
-  console.log('[tableDeleteRows]   Original Method:', method)
-  console.log('[tableDeleteRows]   URL:', url)
-  console.log('[tableDeleteRows]   Body:', data)
-  console.log('[tableDeleteRows]   IDs:', ids)
-  
   // 统一使用 POST 方法
   return post(url, data)
 }
@@ -107,13 +91,14 @@ export function tableDeleteRows(method: string, router: string, ids: number[]) {
 /**
  * Select 回调操作 - 模糊查询选项
  * 
- * @param method 原函数的 HTTP 方法（GET/POST 等）
+ * @param method 原函数的 HTTP 方法（GET/POST 等），用于标识回调所属的函数
  * @param router 函数路由（如 /luobei/test999/tools/cashier_desk）
  * @param data 回调数据
  * @param data.code 字段代码（如 product_id）
- * @param data.type 查询类型：'by_keyword' | 'by_value'
+ * @param data.type 查询类型：'by_keyword' | 'by_value' | 'by_values'
  *   - by_keyword: 根据用户输入的关键字模糊搜索（默认）
- *   - by_value: 根据字段的实际值查询（用于回显、URL 恢复等场景）
+ *   - by_value: 根据字段的实际值查询（用于回显、URL 恢复等场景，单个值）
+ *   - by_values: 根据字段的实际值查询（用于多选回显，数组值）
  * @param data.value 查询值（关键字或实际值）
  * @param data.request 当前表单的所有字段值
  * @param data.value_type 字段类型（int/string/float 等）
@@ -133,40 +118,36 @@ export function tableDeleteRows(method: string, router: string, ids: number[]) {
  * 
  * @example
  * // 用户输入搜索（by_keyword）
- * selectFuzzy('POST', '/luobei/test999/tools/cashier', {
- *   code: 'product_id',
+ * // 注意：method 参数是原函数的 HTTP 方法，不是回调请求的 HTTP 方法
+ * selectFuzzy('GET', '/luobei/demo/crm/meeting_room_booking_list', {
+ *   code: 'room_id',
  *   type: 'by_keyword',
- *   value: '薯条',
- *   request: { member_id: 1 },
+ *   value: '会议室',
+ *   request: {},
  *   value_type: 'int'
  * })
  * 
  * @example
  * // 根据值查询（by_value）- 用于编辑回显
- * selectFuzzy('POST', '/luobei/test999/tools/cashier', {
- *   code: 'product_id',
+ * selectFuzzy('GET', '/luobei/demo/crm/meeting_room_booking_list', {
+ *   code: 'room_id',
  *   type: 'by_value',
  *   value: 1,
  *   request: {},
  *   value_type: 'int'
  * })
  */
+import { SelectFuzzyQueryType } from '@/core/constants/select'
+import { Logger } from '@/core/utils/logger'
+
 export function selectFuzzy(method: string, router: string, data: {
   code: string
-  type: 'by_keyword' | 'by_value'
+  type: 'by_keyword' | 'by_value' | 'by_values'
   value: any
   request: Record<string, any>
   value_type: string
 }) {
-  const url = `/api/v1/callback${router}?_type=OnSelectFuzzy&_method=${method.toUpperCase()}`
-  
-  console.log('[selectFuzzy] Select 回调查询')
-  console.log('[selectFuzzy]   Original Method:', method)
-  console.log('[selectFuzzy]   URL:', url)
-  console.log('[selectFuzzy]   Query Type:', data.type)
-  console.log('[selectFuzzy]   Field Code:', data.code)
-  console.log('[selectFuzzy]   Search Value:', data.value)
-  console.log('[selectFuzzy]   Full Request Body:', data)
+  const url = `/api/v1/callback${router}?_type=OnSelectFuzzy&_function_method=${method.toUpperCase()}`
   
   // 统一使用 POST 方法
   return post(url, data)
@@ -184,4 +165,12 @@ export function importData(router: string, formData: FormData) {
       'Content-Type': 'multipart/form-data'
     }
   })
+}
+
+// Fork 函数组（支持批量）
+export function forkFunctionGroup(data: {
+  source_to_target_map: Record<string, string>
+  target_app_id: number
+}) {
+  return post<{ message: string }>('/api/v1/function/fork', data)
 }

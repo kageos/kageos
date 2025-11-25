@@ -28,12 +28,14 @@ type Demo struct {
 	Description string `json:"description" gorm:"column:description" widget:"name:问题描述;type:text_area" validate:"required,min=10"`
 
 	// 框架标签：widget:"name:优先级;type:select;options:低,中,高;default:中" - 下拉选择组件（默认值为"中"）
-	// 框架标签：validate:"required,oneof=低,中,高" - 必填字段，值必须是选项之一
-	Priority string `json:"priority" gorm:"column:priority" widget:"name:优先级;type:select;options:低,中,高;default:中" validate:"required,oneof=低,中,高"`
+	// 框架标签：validate:"required,oneof=低 中 高" - 必填字段，值必须是选项之一
+	// 注意：oneof 使用空格分隔选项，如果选项值包含空格，需要用单引号括起来，例如：oneof='选项 1' '选项 2'
+	Priority string `json:"priority" gorm:"column:priority" widget:"name:优先级;type:select;options:低,中,高;default:中" validate:"required,oneof=低 中 高"`
 
 	// 框架标签：widget:"name:工单状态;type:select;options:待处理,处理中,已完成,已关闭;default:待处理" - 下拉选择组件（默认状态为"待处理"）
-	// 框架标签：validate:"required,oneof=待处理,处理中,已完成,已关闭" - 值必须是有效状态
-	Status string `json:"status" gorm:"column:status"  widget:"name:工单状态;type:select;options:待处理,处理中,已完成,已关闭;default:待处理" validate:"required,oneof=待处理,处理中,已完成,已关闭"`
+	// 框架标签：validate:"required,oneof=待处理 处理中 已完成 已关闭" - 值必须是有效状态
+	// 注意：oneof 使用空格分隔选项，如果选项值包含空格，需要用单引号括起来，例如：oneof='选项 1' '选项 2'
+	Status string `json:"status" gorm:"column:status"  widget:"name:工单状态;type:select;options:待处理,处理中,已完成,已关闭;default:待处理" validate:"required,oneof=待处理 处理中 已完成 已关闭"`
 
 	// 框架标签：validate:"required,min=11,max=20" - 必填字段，长度11-20字符
 	Phone string `json:"phone" gorm:"column:phone" widget:"name:联系电话;type:input" validate:"required,min=11,max=20"`

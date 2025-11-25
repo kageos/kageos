@@ -1,11 +1,12 @@
 package widget
 
 type MultiSelect struct {
-	Options     []string `json:"options"`     // 选项列表
-	Placeholder string   `json:"placeholder"` // 占位符文本
-	Default     []string `json:"default"`     // 默认选中的值（多个，逗号分隔）
-	MaxCount    int      `json:"max_count"`   // 最大选择数量，0表示不限制
-	Creatable   bool     `json:"creatable"`   // 是否支持创建新选项
+	Options       []string `json:"options"`        // 选项列表
+	OptionsColors []string `json:"options_colors"` //选项的颜色，支持warning，info，success，danger，primary 还支持自定义颜色例如：#FF9800 橙色，#9C27B0 紫色，每个颜色都可以可以重复，
+	Placeholder   string   `json:"placeholder"`    // 占位符文本
+	Default       []string `json:"default"`        // 默认选中的值（多个，逗号分隔）
+	MaxCount      int      `json:"max_count"`      // 最大选择数量，0表示不限制
+	Creatable     bool     `json:"creatable"`      // 是否支持创建新选项
 }
 
 func (m *MultiSelect) Config() interface{} {
@@ -43,6 +44,10 @@ func newMultiSelect(widgetParsed map[string]string) *MultiSelect {
 	}
 	if creatable, exists := widgetParsed["creatable"]; exists {
 		multiSelect.Creatable = creatable == "true"
+	}
+	if optionsColors, exists := widgetParsed["options_colors"]; exists {
+		// 解析逗号分隔的颜色选项
+		multiSelect.OptionsColors = parseOptions(optionsColors)
 	}
 
 	return multiSelect

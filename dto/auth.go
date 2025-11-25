@@ -44,6 +44,9 @@ type UserInfo struct {
 	Email         string `json:"email" example:"beiluo@example.com"`        // 邮箱
 	RegisterType  string `json:"register_type" example:"email"`             // 注册方式
 	Avatar        string `json:"avatar" example:"https://avatar.com/1.jpg"` // 头像
+	Nickname      string `json:"nickname" example:"北落"`                   // 昵称
+	Signature     string `json:"signature" example:"这个人很懒，什么都没有留下"` // 个人签名/简介
+	Gender        string `json:"gender" example:"male"`                     // 性别: male(男), female(女), other(其他), 空字符串表示未设置
 	EmailVerified bool   `json:"email_verified" example:"true"`             // 邮箱是否已验证
 	Status        string `json:"status" example:"active"`                   // 用户状态: pending(待邮箱验证), active(已激活)
 	CreatedAt     string `json:"created_at" example:"2024-01-01T00:00:00Z"` // 创建时间

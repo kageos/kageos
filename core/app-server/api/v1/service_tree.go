@@ -3,6 +3,7 @@ package v1
 import (
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
 	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
 	"github.com/gin-gonic/gin"
 )
@@ -40,7 +41,8 @@ func (s *ServiceTree) CreateServiceTree(c *gin.Context) {
 	}
 
 	// 创建服务目录
-	resp, err := s.serviceTreeService.CreateServiceTree(c, &req)
+	ctx := contextx.ToContext(c)
+	resp, err := s.serviceTreeService.CreateServiceTree(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, "创建服务目录失败: "+err.Error())
 		return
@@ -51,7 +53,7 @@ func (s *ServiceTree) CreateServiceTree(c *gin.Context) {
 
 // GetServiceTree 获取服务目录树
 // @Summary 获取服务目录树
-// @Description 获取指定应用的服务目录树形结构
+// @Description 获取指定应用的服务目录树形结构，支持按类型过滤（如只显示 package 类型的节点）
 // @Tags 服务目录
 // @Accept json
 // @Produce json
@@ -59,6 +61,7 @@ func (s *ServiceTree) CreateServiceTree(c *gin.Context) {
 // @Param X-Token header string true "JWT Token"
 // @Param user query string true "用户名"
 // @Param app query string true "应用名"
+// @Param type query string false "节点类型过滤（可选），如：package（只显示服务目录/包）、function（只显示函数/文件）"
 // @Success 200 {object} []dto.GetServiceTreeResp
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 401 {string} string "未授权"
@@ -67,14 +70,16 @@ func (s *ServiceTree) CreateServiceTree(c *gin.Context) {
 func (s *ServiceTree) GetServiceTree(c *gin.Context) {
 	user := c.Query("user")
 	app := c.Query("app")
+	nodeType := c.Query("type")
 
 	if user == "" || app == "" {
 		response.FailWithMessage(c, "用户和应用名不能为空")
 		return
 	}
 
-	// 获取服务目录树
-	trees, err := s.serviceTreeService.GetServiceTree(c, user, app)
+	// 获取服务目录树（支持类型过滤）
+	ctx := contextx.ToContext(c)
+	trees, err := s.serviceTreeService.GetServiceTree(ctx, user, app, nodeType)
 	if err != nil {
 		response.FailWithMessage(c, "获取服务目录失败: "+err.Error())
 		return
@@ -105,7 +110,8 @@ func (s *ServiceTree) UpdateServiceTree(c *gin.Context) {
 	}
 
 	// 更新服务目录
-	if err := s.serviceTreeService.UpdateServiceTree(c, &req); err != nil {
+	ctx := contextx.ToContext(c)
+	if err := s.serviceTreeService.UpdateServiceTree(ctx, &req); err != nil {
 		response.FailWithMessage(c, "更新服务目录失败: "+err.Error())
 		return
 	}
@@ -135,7 +141,8 @@ func (s *ServiceTree) DeleteServiceTree(c *gin.Context) {
 	}
 
 	// 删除服务目录
-	if err := s.serviceTreeService.DeleteServiceTree(c, req.ID); err != nil {
+	ctx := contextx.ToContext(c)
+	if err := s.serviceTreeService.DeleteServiceTree(ctx, req.ID); err != nil {
 		response.FailWithMessage(c, "删除服务目录失败: "+err.Error())
 		return
 	}

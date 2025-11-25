@@ -6,6 +6,7 @@
 import { ref, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getServiceTree, createServiceTree } from '@/api/service-tree'
+import { Logger } from '@/core/utils/logger'
 import type { App, ServiceTree, CreateServiceTreeRequest } from '@/types'
 
 export function useServiceTree() {
@@ -24,14 +25,12 @@ export function useServiceTree() {
     }
 
     try {
-      console.log('[useServiceTree] 开始加载服务目录树:', app.user + '/' + app.code)
       loading.value = true
       const tree = await getServiceTree(app.user, app.code)
       serviceTree.value = tree || []
-      console.log('[useServiceTree] 服务目录树加载完成，节点数:', serviceTree.value.length)
       return serviceTree.value
     } catch (error) {
-      console.error('[useServiceTree] 获取服务目录树失败:', error)
+      Logger.error('useServiceTree', '获取服务目录树失败', error)
       ElMessage.error('获取服务目录树失败')
       serviceTree.value = []
       return []
@@ -70,6 +69,24 @@ export function useServiceTree() {
   }
 
   /**
+   * 根据 tree_id 查找节点（递归）
+   */
+  const findNodeById = (tree: ServiceTree[], treeId: number): ServiceTree | null => {
+    for (const node of tree) {
+      if (node.id === treeId) {
+        return node
+      }
+      if (node.children && node.children.length > 0) {
+        const found = findNodeById(node.children, treeId)
+        if (found) {
+          return found
+        }
+      }
+    }
+    return null
+  }
+
+  /**
    * 根据路由路径定位节点
    */
   const locateNodeByRoute = (routePath?: string): ServiceTree | null => {
@@ -91,14 +108,10 @@ export function useServiceTree() {
     // 跳过 user 和 app，剩下的是服务树路径
     const treePath = pathSegments.slice(2)
     
-    console.log('[useServiceTree] 定位节点，路径:', treePath.join('/'))
-    
     const node = findNodeByPath(serviceTree.value, treePath)
     if (node) {
-      console.log('[useServiceTree] 找到节点:', node.name, node.code)
       currentNode.value = node
     } else {
-      console.log('[useServiceTree] 未找到节点')
       currentNode.value = null
     }
     
@@ -114,7 +127,7 @@ export function useServiceTree() {
       ElMessage.success('创建服务目录成功')
       return true
     } catch (error: any) {
-      console.error('[useServiceTree] 创建服务目录失败:', error)
+      Logger.error('useServiceTree', '创建服务目录失败', error)
       const errorMessage = error?.response?.data?.message || error?.message || '创建服务目录失败'
       ElMessage.error(errorMessage)
       return false
@@ -138,6 +151,7 @@ export function useServiceTree() {
     // 方法
     loadServiceTree,
     findNodeByPath,
+    findNodeById,
     locateNodeByRoute,
     handleCreateDirectory,
     clear

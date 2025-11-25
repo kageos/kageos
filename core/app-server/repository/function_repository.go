@@ -27,21 +27,26 @@ func (r *FunctionRepository) UpdateFunctions(functions []*model.Function) error 
 		return nil
 	}
 
-	for _, function := range functions {
-		err := r.db.Model(&model.Function{}).
-			Where("app_id = ? AND method = ? AND router = ?", function.AppID, function.Method, function.Router).
-			Updates(map[string]interface{}{
+		for _, function := range functions {
+			updates := map[string]interface{}{
 				"request":       function.Request,
 				"response":      function.Response,
 				"has_config":    function.HasConfig,
 				"create_tables": function.CreateTables,
 				"callbacks":     function.Callbacks,
 				"template_type": function.TemplateType,
-			}).Error
-		if err != nil {
-			return err
+			}
+			// 如果 SourceCodeID 不为 nil，也更新它
+			if function.SourceCodeID != nil && *function.SourceCodeID > 0 {
+				updates["source_code_id"] = *function.SourceCodeID
+			}
+			err := r.db.Model(&model.Function{}).
+				Where("app_id = ? AND method = ? AND router = ?", function.AppID, function.Method, function.Router).
+				Updates(updates).Error
+			if err != nil {
+				return err
+			}
 		}
-	}
 	return nil
 }
 
@@ -96,4 +101,18 @@ func (r *FunctionRepository) GetFunctionByKey(appID int64, method, router string
 		return nil, err
 	}
 	return &function, nil
+}
+
+// UpdateSourceCodeID 更新函数的 SourceCodeID
+func (r *FunctionRepository) UpdateSourceCodeID(functionID int64, sourceCodeID int64) error {
+	return r.db.Model(&model.Function{}).
+		Where("id = ?", functionID).
+		Update("source_code_id", sourceCodeID).Error
+}
+
+// GetBySourceCodeID 根据 SourceCodeID 获取所有函数
+func (r *FunctionRepository) GetBySourceCodeID(sourceCodeID int64) ([]*model.Function, error) {
+	var functions []*model.Function
+	err := r.db.Where("source_code_id = ?", sourceCodeID).Find(&functions).Error
+	return functions, err
 }

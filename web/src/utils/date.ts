@@ -5,7 +5,7 @@
 /**
  * 格式化时间戳
  * 
- * @param timestamp 时间戳（毫秒或秒）
+ * @param timestamp 时间戳（毫秒级，系统统一使用毫秒级时间戳）
  * @param format 格式字符串，支持：
  *   - 'YYYY-MM-DD HH:mm:ss' - 完整日期时间
  *   - 'YYYY-MM-DD' - 仅日期
@@ -19,12 +19,15 @@
 export function formatTimestamp(timestamp: number | string | null | undefined, format = 'YYYY-MM-DD HH:mm:ss'): string {
   if (!timestamp) return '-'
   
-  // 处理字符串格式的时间戳
+  // 🔥 系统统一使用毫秒级时间戳，直接使用，不做任何转换
   const numTimestamp = typeof timestamp === 'string' ? parseInt(timestamp, 10) : timestamp
   const date = new Date(numTimestamp)
   
   // 检查日期是否有效
-  if (isNaN(date.getTime())) return '-'
+  if (isNaN(date.getTime())) {
+    console.warn('[formatTimestamp] 无效的时间戳:', timestamp)
+    return '-'
+  }
   
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')

@@ -1,20 +1,26 @@
 /**
  * Widget 相关类型定义
+ * 
+ * 🔥 重构说明：
+ * - 移除了对旧版本 BaseWidget 的依赖
+ * - FormRendererContext 接口保持兼容，但 registerWidget/unregisterWidget 已不再实际使用（v2 系统）
  */
 
 import type { FieldConfig, FieldValue } from './field'
 import type { ReactiveFormDataManager } from '../managers/ReactiveFormDataManager'
-import type { BaseWidget } from '../widgets/BaseWidget'
 
 /**
  * FormRenderer 上下文接口
  * 提供给 Widget 的 FormRenderer 能力
+ * 
+ * 注意：v2 系统中 registerWidget/unregisterWidget 已不再实际使用
+ * 保留这些方法是为了类型兼容性
  */
 export interface FormRendererContext {
-  /** 注册 Widget 实例 */
-  registerWidget: (fieldPath: string, widget: BaseWidget) => void
+  /** 注册 Widget 实例（v2 系统中已不再使用，保留仅为兼容性） */
+  registerWidget: (fieldPath: string, widget: any) => void
   
-  /** 注销 Widget 实例 */
+  /** 注销 Widget 实例（v2 系统中已不再使用，保留仅为兼容性） */
   unregisterWidget: (fieldPath: string) => void
   
   /** 获取函数的 HTTP 方法 */
@@ -25,6 +31,9 @@ export interface FormRendererContext {
   
   /** 获取完整的提交数据（递归收集） */
   getSubmitData: () => Record<string, any>
+  
+  /** 获取字段错误（v2 系统新增） */
+  getFieldError?: (fieldPath: string) => string | null
 }
 
 /**
@@ -76,10 +85,13 @@ export interface WidgetStaticMethods {
  * MarkRaw 后的 Widget 类型
  * Vue 的 markRaw 会移除响应式，但类型系统无法正确推断
  * 使用此类型可以安全地访问 Widget 的方法
+ * 
+ * 注意：此类型主要用于旧版本 Widget 系统，v2 系统不再使用
  */
-export type MarkRawWidget = BaseWidget & {
+export type MarkRawWidget = {
   render: () => any
   getValue: () => FieldValue
   getRawValueForSubmit: () => any
   renderTableCell?: (value?: FieldValue) => any
+  [key: string]: any  // 允许其他方法
 }

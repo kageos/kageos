@@ -1,35 +1,211 @@
 <template>
   <div class="search-input">
+    <!-- 🔥 用户搜索组件（自定义组件） -->
+    <UserSearchInput
+      v-if="inputConfig.component === SearchComponent.USER_SEARCH_INPUT"
+      v-model="localValue"
+      :placeholder="inputConfig.props?.placeholder"
+      :multiple="inputConfig.props?.multiple"
+      @update:modelValue="handleInput"
+    />
+
     <!-- 🔥 精确搜索 / 模糊搜索 -->
     <el-input
-      v-if="inputConfig.component === 'ElInput'"
+      v-else-if="inputConfig.component === SearchComponent.EL_INPUT"
       v-model="localValue"
       :placeholder="inputConfig.props?.placeholder"
       :clearable="inputConfig.props?.clearable"
       :disabled="inputConfig.props?.disabled"
       :style="inputConfig.props?.style"
       @input="handleInput"
+      @clear="handleClear"
     />
 
     <!-- 🔥 下拉选择 -->
+    <!-- 🔥 单选组件：简化实现，不显示颜色，避免重叠问题 -->
     <el-select
-      v-else-if="inputConfig.component === 'ElSelect'"
+      v-if="!inputConfig.props?.multiple && isSelectWidget"
       v-model="localValue"
       :placeholder="inputConfig.props?.placeholder"
       :clearable="inputConfig.props?.clearable"
+      :filterable="inputConfig.props?.filterable"
+      :remote="inputConfig.props?.remote"
+      :remote-method="handleRemoteMethod"
+      :loading="selectLoading || inputConfig.props?.loading"
+      :popper-class="inputConfig.props?.popperClass"
       :style="inputConfig.props?.style"
+      :reserve-keyword="inputConfig.props?.remote"
+      class="user-select-search"
       @change="handleInput"
+      @clear="handleClear"
     >
       <el-option
-        v-for="option in selectOptions"
+        v-for="option in selectOptionsComputed"
         :key="typeof option === 'object' ? option.value : option"
         :label="typeof option === 'object' ? option.label : option"
         :value="typeof option === 'object' ? option.value : option"
-      />
+      >
+        <!-- 🔥 如果是用户选择器，显示头像和用户信息 -->
+        <div v-if="option.userInfo" class="user-option">
+          <el-avatar :src="option.userInfo.avatar" :size="24" class="user-avatar">
+            {{ option.userInfo.username?.[0]?.toUpperCase() || 'U' }}
+          </el-avatar>
+          <span class="user-name">{{ option.userInfo.username }}</span>
+          <span v-if="option.userInfo.nickname" class="user-nickname">({{ option.userInfo.nickname }})</span>
+        </div>
+        <!-- 普通选项 -->
+        <span v-else>{{ typeof option === 'object' ? option.label : option }}</span>
+      </el-option>
+    </el-select>
+    <!-- 🔥 普通单选组件（没有颜色配置） -->
+    <el-select
+      v-else-if="inputConfig.component === SearchComponent.EL_SELECT && !inputConfig.props?.multiple"
+      v-model="localValue"
+      :placeholder="inputConfig.props?.placeholder"
+      :clearable="inputConfig.props?.clearable"
+      :filterable="inputConfig.props?.filterable"
+      :remote="inputConfig.props?.remote"
+      :remote-method="handleRemoteMethod"
+      :loading="selectLoading || inputConfig.props?.loading"
+      :popper-class="inputConfig.props?.popperClass"
+      :style="inputConfig.props?.style"
+      :reserve-keyword="inputConfig.props?.remote"
+      class="user-select-search"
+      @change="handleInput"
+      @clear="handleClear"
+    >
+      <el-option
+        v-for="option in selectOptionsComputed"
+        :key="typeof option === 'object' ? option.value : option"
+        :label="typeof option === 'object' ? option.label : option"
+        :value="typeof option === 'object' ? option.value : option"
+      >
+        <!-- 🔥 如果是用户选择器，显示头像和用户信息 -->
+        <div v-if="option.userInfo" class="user-option">
+          <el-avatar :src="option.userInfo.avatar" :size="24" class="user-avatar">
+            {{ option.userInfo.username?.[0]?.toUpperCase() || 'U' }}
+          </el-avatar>
+          <span class="user-name">{{ option.userInfo.username }}</span>
+          <span v-if="option.userInfo.nickname" class="user-nickname">({{ option.userInfo.nickname }})</span>
+        </div>
+        <!-- 🔥 如果是单选组件，显示带颜色的标签 -->
+        <div v-else-if="isSelectWidget" class="flex items-center">
+          <span
+            v-if="getOptionColor(typeof option === 'object' ? option.value : option)"
+            class="option-color-indicator"
+            :style="getOptionColorStyle(typeof option === 'object' ? option.value : option)"
+          />
+          <span>{{ typeof option === 'object' ? option.label : option }}</span>
+        </div>
+        <!-- 普通选项 -->
+        <span v-else>{{ typeof option === 'object' ? option.label : option }}</span>
+      </el-option>
+    </el-select>
+    <!-- 🔥 多选组件 -->
+    <el-select
+      v-else-if="inputConfig.component === SearchComponent.EL_SELECT && inputConfig.props?.multiple"
+      v-model="localValue"
+      :placeholder="inputConfig.props?.placeholder"
+      :clearable="inputConfig.props?.clearable"
+      :filterable="inputConfig.props?.filterable"
+      :remote="inputConfig.props?.remote"
+      :remote-method="handleRemoteMethod"
+      :multiple="inputConfig.props?.multiple"
+      :loading="selectLoading || inputConfig.props?.loading"
+      :popper-class="inputConfig.props?.popperClass"
+      :style="inputConfig.props?.style"
+      :collapse-tags="inputConfig.props?.multiple"
+      :max-collapse-tags="SearchConfig.MAX_COLLAPSE_TAGS"
+      :reserve-keyword="inputConfig.props?.remote && inputConfig.props?.multiple"
+      class="user-select-search"
+      @change="handleInput"
+      @clear="handleClear"
+    >
+      <!-- 🔥 自定义标签显示（multiple 模式） -->
+      <template v-if="inputConfig.props?.multiple" #tag>
+        <!-- 🔥 用户选择器：使用 user-cell 样式 -->
+        <template v-if="inputConfig.props?.popperClass === 'user-select-dropdown-popper'">
+          <div
+            v-for="value in localValue"
+            :key="value"
+            class="user-cell user-cell-tag"
+          >
+            <el-avatar 
+              v-if="value && getUserInfoByValue(value)"
+              :src="getUserInfoByValue(value)?.avatar" 
+              :size="24" 
+              class="user-avatar"
+            >
+              {{ getUserInfoByValue(value)?.username?.[0]?.toUpperCase() || 'U' }}
+            </el-avatar>
+            <el-avatar 
+              v-else
+              :size="24" 
+              class="user-avatar"
+            >
+              {{ (getOptionLabel(value) || '')?.[0]?.toUpperCase() || 'U' }}
+            </el-avatar>
+            <span class="user-name">{{ getOptionLabel(value) || '' }}</span>
+            <el-icon class="user-tag-close" @click.stop="handleRemoveTag(value)">
+              <Close />
+            </el-icon>
+          </div>
+        </template>
+        <!-- 🔥 多选组件：使用带颜色的标签 -->
+        <template v-else-if="isMultiselectWidget">
+          <el-tag
+            v-for="value in localValue"
+            :key="value"
+            :type="getOptionColorType(value)"
+            :color="getOptionColorValue(value)"
+            :closable="true"
+            @close.stop="handleRemoveTag(value)"
+            class="multiselect-tag"
+          >
+            {{ getOptionLabel(value) }}
+          </el-tag>
+        </template>
+      </template>
+      
+      <el-option
+        v-for="option in selectOptionsComputed"
+        :key="typeof option === 'object' ? option.value : option"
+        :label="typeof option === 'object' ? option.label : option"
+        :value="typeof option === 'object' ? option.value : option"
+      >
+        <!-- 🔥 如果是用户选择器，显示头像和用户信息 -->
+        <div v-if="option.userInfo" class="user-option">
+          <el-avatar :src="option.userInfo.avatar" :size="24" class="user-avatar">
+            {{ option.userInfo.username?.[0]?.toUpperCase() || 'U' }}
+          </el-avatar>
+          <span class="user-name">{{ option.userInfo.username }}</span>
+          <span v-if="option.userInfo.nickname" class="user-nickname">({{ option.userInfo.nickname }})</span>
+        </div>
+        <!-- 🔥 如果是多选组件，显示带颜色的标签 -->
+        <div v-else-if="isMultiselectWidget" class="flex items-center">
+          <span
+            v-if="getOptionColor(typeof option === 'object' ? option.value : option)"
+            class="option-color-indicator"
+            :style="getOptionColorStyle(typeof option === 'object' ? option.value : option)"
+          />
+          <span>{{ typeof option === 'object' ? option.label : option }}</span>
+        </div>
+        <!-- 🔥 如果是单选组件，显示带颜色的标签 -->
+        <div v-else-if="isSelectWidget" class="flex items-center">
+          <span
+            v-if="getOptionColor(typeof option === 'object' ? option.value : option)"
+            class="option-color-indicator"
+            :style="getOptionColorStyle(typeof option === 'object' ? option.value : option)"
+          />
+          <span>{{ typeof option === 'object' ? option.label : option }}</span>
+        </div>
+        <!-- 普通选项 -->
+        <span v-else>{{ typeof option === 'object' ? option.label : option }}</span>
+      </el-option>
     </el-select>
 
     <!-- 🔥 数字范围输入 -->
-    <div v-else-if="inputConfig.component === 'NumberRangeInput'" class="number-range">
+    <div v-else-if="inputConfig.component === SearchComponent.NUMBER_RANGE_INPUT" class="number-range">
       <el-input-number
         v-model="rangeValue.min"
         :placeholder="inputConfig.props?.minPlaceholder"
@@ -39,7 +215,7 @@
         :max="inputConfig.props?.max"
         :clearable="true"
         :controls-position="'right'"
-        :style="{ width: '160px' }"
+        :style="{ width: SearchConfig.DEFAULT_NUMBER_RANGE_WIDTH }"
         @change="handleRangeChange"
       />
       <span class="range-separator">至</span>
@@ -52,15 +228,15 @@
         :max="inputConfig.props?.max"
         :clearable="true"
         :controls-position="'right'"
-        :style="{ width: '160px' }"
+        :style="{ width: SearchConfig.DEFAULT_NUMBER_RANGE_WIDTH }"
         @change="handleRangeChange"
       />
     </div>
 
     <!-- 🔥 日期范围选择 -->
     <el-date-picker
-      v-else-if="inputConfig.component === 'ElDatePicker'"
-      v-model="localValue"
+      v-else-if="inputConfig.component === SearchComponent.EL_DATE_PICKER"
+      v-model="dateRangeValue"
       :type="inputConfig.props?.type"
       :range-separator="inputConfig.props?.rangeSeparator"
       :start-placeholder="inputConfig.props?.startPlaceholder"
@@ -70,16 +246,17 @@
       :shortcuts="inputConfig.props?.shortcuts"
       :clearable="inputConfig.props?.clearable"
       :style="inputConfig.props?.style"
-      @change="handleInput"
+      @change="handleDateRangeChange"
+      @clear="handleClear"
     />
 
     <!-- 🔥 文本范围输入（默认降级） -->
-    <div v-else-if="inputConfig.component === 'RangeInput'" class="text-range">
+    <div v-else-if="inputConfig.component === SearchComponent.RANGE_INPUT" class="text-range">
       <el-input
         v-model="rangeValue.min"
         :placeholder="inputConfig.props?.minPlaceholder"
         clearable
-        style="width: 160px"
+        :style="{ width: SearchConfig.DEFAULT_NUMBER_RANGE_WIDTH }"
         @input="handleRangeChange"
       />
       <span class="range-separator">至</span>
@@ -87,7 +264,7 @@
         v-model="rangeValue.max"
         :placeholder="inputConfig.props?.maxPlaceholder"
         clearable
-        style="width: 160px"
+        :style="{ width: SearchConfig.DEFAULT_NUMBER_RANGE_WIDTH }"
         @input="handleRangeChange"
       />
     </div>
@@ -95,15 +272,40 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import { WidgetBuilder } from '@/core/factories/WidgetBuilder'
+import { ref, computed, watch, nextTick } from 'vue'
+import { ElAvatar, ElIcon, ElTag } from 'element-plus'
+import { Close } from '@element-plus/icons-vue'
+import UserSearchInput from './UserSearchInput.vue'
+import { widgetComponentFactory } from '@/core/factories-v2'
 import { ErrorHandler } from '@/core/utils/ErrorHandler'
+import { convertToFieldValue } from '@/utils/field'
+import { normalizeSearchValue, denormalizeSearchValue } from '@/utils/searchValueNormalizer'
+import { createSearchComponentConfig } from '@/utils/searchComponentConfig'
+import { SearchConfig, SearchComponent, SearchType } from '@/core/constants/search'
+import { WidgetType } from '@/core/constants/widget'
+import { parseCommaSeparatedString } from '@/utils/stringUtils'
+import { isStandardColor, getStandardColorCSSVar, type StandardColorType } from '@/core/constants/select'
+import { Logger } from '@/core/utils/logger'
 import type { FieldConfig } from '@/types'
+
+// 防抖函数
+function debounce<T extends (...args: any[]) => any>(func: T, wait: number): T {
+  let timeout: ReturnType<typeof setTimeout> | null = null
+  return ((...args: any[]) => {
+    if (timeout) clearTimeout(timeout)
+    timeout = setTimeout(() => {
+      func(...args)
+    }, wait)
+  }) as T
+}
 
 interface Props {
   field: FieldConfig
   searchType: string
   modelValue: any
+  // 🔥 用于 selectFuzzy 回调（可选）
+  functionMethod?: string
+  functionRouter?: string
 }
 
 interface Emits {
@@ -116,78 +318,603 @@ const emit = defineEmits<Emits>()
 // 本地值（单值）
 const localValue = ref(props.modelValue)
 
-// 范围值（最小值、最大值）
-const rangeValue = ref({
-  min: undefined as any,
-  max: undefined as any
+// 🔥 防止循环更新的标志
+const isInternalUpdate = ref(false)
+
+// 日期范围值（用于 ElDatePicker，数组格式 [start, end]）
+const dateRangeValue = ref<[number | string | null, number | string | null] | null>(null)
+
+// 范围值（最小值、最大值，用于 NumberRangeInput 和 RangeInput）
+// 🔥 对于时间戳类型，可能是数组 [start, end]，对于数字类型，可能是对象 { min, max }
+const rangeValue = ref<any>({
+  min: undefined,
+  max: undefined
 })
 
-// 初始化范围值
-if (props.searchType?.includes('gte') && props.searchType?.includes('lte')) {
-  if (props.modelValue) {
-    rangeValue.value = props.modelValue
+// 初始化范围值（在 watch 中处理，这里不需要初始化）
+
+// 下拉选项列表（用于 remote 模式）
+const selectOptions = ref<Array<{ label: string; value: any }>>([])
+
+// 下拉加载状态
+const selectLoading = ref(false)
+
+// 🔥 判断是否是多选组件
+const isMultiselectWidget = computed(() => {
+  return props.field.widget?.type === WidgetType.MULTI_SELECT
+})
+
+// 🔥 判断是否是单选组件
+const isSelectWidget = computed(() => {
+  return props.field.widget?.type === WidgetType.SELECT
+})
+
+// 🔥 获取选项颜色配置
+// ⚠️ 关键：直接从 field.widget.config.options_colors 获取，确保能正确获取到 request 字段的颜色配置
+const optionColors = computed(() => {
+  // 直接从 field.widget.config 获取 options_colors（无论是 response 还是 request 字段）
+  const colors = props.field.widget?.config?.options_colors || []
+  return colors
+})
+
+// 🔥 获取静态选项（用于颜色匹配）
+// ⚠️ 关键：优先使用 inputConfig 中的 options（来自 createSearchComponentConfig），
+// 如果没有则使用 field.widget.config.options（原始配置）
+const staticOptions = computed(() => {
+  // 优先使用 inputConfig 中的 options（搜索组件配置中的选项）
+  const inputConfigOptions = inputConfig.value.props?.options
+  if (inputConfigOptions && Array.isArray(inputConfigOptions) && inputConfigOptions.length > 0) {
+    const mapped = inputConfigOptions.map((opt: any) => {
+      if (typeof opt === 'string') {
+        return { label: opt, value: opt }
+      }
+      return opt
+    })
+    return mapped
+  }
+  
+  // 回退到使用 field.widget.config.options（原始配置）
+  const opts = props.field.widget?.config?.options || []
+  const mapped = opts.map((opt: any) => {
+    if (typeof opt === 'string') {
+      return { label: opt, value: opt }
+    }
+    return opt
+  })
+  return mapped
+})
+
+/**
+ * 判断是否是 Element Plus 标准颜色类型
+ * 
+ * 标准颜色：success, warning, danger, info, primary
+ * 自定义颜色：以 # 开头的 hex 颜色（如：#FF9800）
+ */
+// isStandardColor 已从 constants/select 导入
+
+/**
+ * 获取选项的颜色
+ * 
+ * ⚠️ 关键：通过选项索引匹配颜色
+ * options_colors 数组的索引对应 options 数组的索引
+ * 
+ * ⚠️ 重要：使用 staticOptions（与 selectOptionsComputed 使用相同的选项源）进行匹配
+ * 确保颜色配置能正确应用到搜索表单中的选项
+ * 
+ * @param value - 选项值
+ * @returns 颜色值（标准颜色名或自定义 hex 颜色），如果未找到返回 null
+ */
+function getOptionColor(value: any): string | null {
+  if (!value) return null
+  if (!optionColors.value || optionColors.value.length === 0) return null
+  
+  const valueStr = String(value)
+  // ⚠️ 关键：使用 staticOptions（与 selectOptionsComputed 使用相同的选项源）进行匹配
+  const optionIndex = staticOptions.value.findIndex((opt: any) => {
+    const optValue = typeof opt === 'object' ? opt.value : opt
+    return String(optValue) === valueStr
+  })
+  
+  if (optionIndex >= 0 && optionIndex < optionColors.value.length) {
+    return optionColors.value[optionIndex] || null
+  }
+  
+  return null
+}
+
+/**
+ * 获取选项的颜色类型（用于 el-tag 的 type 属性）
+ * 
+ * ⚠️ 注意：只有标准颜色才使用 type 属性
+ * 自定义颜色使用 color 属性
+ * 
+ * @param value - 选项值
+ * @returns 标准颜色类型（success/warning/danger/info/primary），如果不是标准颜色返回 undefined
+ */
+function getOptionColorType(value: any): string | undefined {
+  const color = getOptionColor(value)
+  if (!color) return undefined
+  return isStandardColor(color) ? color : undefined
+}
+
+/**
+ * 获取选项的颜色值（用于 el-tag 的 color 属性）
+ * 
+ * ⚠️ 注意：只有自定义颜色才使用 color 属性
+ * 标准颜色使用 type 属性
+ * 
+ * @param value - 选项值
+ * @returns 自定义颜色值（hex 格式，如：#FF9800），如果是标准颜色返回 undefined
+ */
+function getOptionColorValue(value: any): string | undefined {
+  const color = getOptionColor(value)
+  if (!color) return undefined
+  return !isStandardColor(color) ? color : undefined
+}
+
+// 🔥 获取单选标签的样式对象（用于设置边框颜色）
+// ⚠️ 注意：对于标准颜色，使用 el-tag 的 type 属性，不需要设置 style
+// 对于自定义颜色，才需要设置 style
+function getSelectTagStyle(value: any): Record<string, string> {
+  const color = getOptionColor(value)
+  if (!color) return {}
+  
+  const isStandard = isStandardColor(color)
+  const style: Record<string, string> = {}
+  
+  // ⚠️ 关键：对于标准颜色，不需要设置 style，使用 el-tag 的 type 属性即可
+  // 对于自定义颜色，才需要设置 style
+  if (!isStandard) {
+    // 自定义颜色：直接使用颜色值设置边框颜色
+    style.borderColor = color
+    style.color = color
+  }
+  
+  return style
+}
+
+// 🔥 获取选项的颜色样式对象（用于 span 的 style 绑定）
+function getOptionColorStyle(value: any): Record<string, string> {
+  const color = getOptionColor(value)
+  if (!color) return {}
+  
+  const isStandard = isStandardColor(color)
+  // 🔥 对于标准颜色，也需要设置背景色（使用 CSS 变量）
+  const backgroundColor = isStandard 
+    ? getStandardColorCSSVar(color as StandardColorType) 
+    : color
+  
+  const style: Record<string, string> = {
+    marginRight: '8px',
+    display: 'inline-block',
+    width: '12px',
+    height: '12px',
+    minWidth: '12px',
+    minHeight: '12px',
+    borderRadius: '2px',
+    flexShrink: '0',
+    border: 'none',
+    verticalAlign: 'middle',
+    /* 🔥 降低亮度：使用 filter 降低饱和度和亮度 */
+    filter: 'brightness(0.95) saturate(0.9)',
+    opacity: '0.9'
+  }
+  
+  if (backgroundColor) {
+    style.backgroundColor = backgroundColor
+  }
+  
+  return style
+}
+
+// 🔥 获取选项标签
+function getOptionLabel(value: any): string {
+  if (value === null || value === undefined) return ''
+  const valueStr = String(value)
+  const option = selectOptionsComputed.value.find((opt: any) => {
+    const optValue = typeof opt === 'object' ? opt.value : opt
+    return String(optValue) === valueStr
+  })
+  if (option) {
+    return typeof option === 'object' ? option.label : option
+  }
+  return valueStr
+}
+
+// 🔥 移除标签
+function handleRemoveTag(valueToRemove: any): void {
+  if (Array.isArray(localValue.value)) {
+    const newValues = localValue.value.filter(v => String(v) !== String(valueToRemove))
+    localValue.value = newValues
+    handleInput(newValues)
   }
 }
 
-// 🔥 提取下拉选项
-const selectOptions = computed(() => {
-  if (inputConfig.value.component !== 'ElSelect') {
+// 🔥 根据值获取用户信息（用于标签显示）
+const getUserInfoByValue = (value: any): any => {
+  if (!value) return null
+  if (!selectOptions.value || !Array.isArray(selectOptions.value)) return null
+  const option = selectOptions.value.find((opt: any) => {
+    if (!opt) return false
+    const optValue = typeof opt === 'object' ? opt.value : opt
+    return String(optValue) === String(value)
+  })
+  return option?.userInfo || null
+}
+
+/**
+ * 提取下拉选项（兼容静态 options 和 remote 模式）
+ * 
+ * ⚠️ 优先级：静态 options > remote 动态选项
+ * 静态 options 来自 widget.config.options（后端配置）
+ * 动态选项来自 remote-method（用户搜索）
+ */
+const selectOptionsComputed = computed(() => {
+  if (inputConfig.value.component !== SearchComponent.EL_SELECT) {
     return []
   }
-  return inputConfig.value.props?.options || []
+  // 如果有静态 options，使用静态 options
+  const staticOptions = inputConfig.value.props?.options
+  if (staticOptions && staticOptions.length > 0) {
+    return staticOptions
+  }
+  // 否则使用 remote 模式下的动态选项
+  return selectOptions.value
 })
 
-// 🔥 通过 Widget 获取搜索输入配置
+// 🔥 处理 remote-method（如果有）
+const handleRemoteMethod = async (query: string) => {
+  if (inputConfig.value.component !== SearchComponent.EL_SELECT || !inputConfig.value.onRemoteMethod) {
+    return
+  }
+  
+  selectLoading.value = true
+  try {
+    const options = await inputConfig.value.onRemoteMethod(query)
+    selectOptions.value = options || []
+  } catch (error) {
+    Logger.error('SearchInput', 'Remote method error', error)
+    selectOptions.value = []
+  } finally {
+    selectLoading.value = false
+  }
+}
+
+// 🔥 初始化已选中的值对应的选项（用于 remote 模式回显）
+const initSelectedOptions = async () => {
+  if (inputConfig.value.component !== SearchComponent.EL_SELECT) {
+    return
+  }
+  
+  // 获取当前已选中的值
+  const currentValue = localValue.value
+  if (!currentValue) {
+    return
+  }
+  
+  // 🔥 优先使用 onInitOptions（如果存在），用于批量查询已选中值
+  if (inputConfig.value.onInitOptions) {
+    selectLoading.value = true
+    try {
+      const options = await inputConfig.value.onInitOptions(currentValue)
+      selectOptions.value = options || []
+    } catch (error) {
+      Logger.error('SearchInput', 'Init selected options error', error)
+      selectOptions.value = []
+    } finally {
+      selectLoading.value = false
+    }
+    return
+  }
+  
+  // 🔥 如果没有 onInitOptions，回退到使用 onRemoteMethod（逐个查询）
+  if (!inputConfig.value.onRemoteMethod) {
+    return
+  }
+  
+  // 如果是数组（multiple 模式），需要为每个值查询选项
+  if (Array.isArray(currentValue) && currentValue.length > 0) {
+    selectLoading.value = true
+    try {
+      // 为每个已选中的值查询对应的选项
+      const optionPromises = currentValue.map(async (val: any) => {
+        if (!val) return null
+        const options = await inputConfig.value.onRemoteMethod(String(val))
+        return options?.find((opt: any) => {
+          const optValue = typeof opt === 'object' ? opt.value : opt
+          return String(optValue) === String(val)
+        })
+      })
+      
+      const options = (await Promise.all(optionPromises)).filter(Boolean)
+      selectOptions.value = options
+    } catch (error) {
+      Logger.error('SearchInput', 'Init selected options error', error)
+    } finally {
+      selectLoading.value = false
+    }
+  } else if (typeof currentValue === 'string' && currentValue.trim()) {
+    // 单个值，直接查询
+    selectLoading.value = true
+    try {
+      const options = await inputConfig.value.onRemoteMethod(String(currentValue))
+      // 确保当前值在选项中
+      const currentOption = options?.find((opt: any) => {
+        const optValue = typeof opt === 'object' ? opt.value : opt
+        return String(optValue) === String(currentValue)
+      })
+      if (currentOption) {
+        selectOptions.value = [currentOption]
+      } else if (options && options.length > 0) {
+        selectOptions.value = options
+      }
+    } catch (error) {
+      Logger.error('SearchInput', 'Init selected options error', error)
+    } finally {
+      selectLoading.value = false
+    }
+  }
+}
+
+/**
+ * 🔥 通过 widgets-v2 获取搜索输入配置（重构版本）
+ * 
+ * 重构说明：
+ * - 按照 v2 的设计思路重新实现
+ * - 根据 field.widget.type 和 searchType 生成配置
+ * - 兼容现有的 SearchInput 逻辑（配置对象方式）
+ * 
+ * 注意：v2 组件支持 mode="search"，但 SearchInput 需要配置对象
+ * 所以这里创建一个适配层，根据 v2 的思路生成配置
+ */
+/**
+ * 生成搜索组件配置
+ * 🔥 使用工具函数统一生成配置，遵循单一职责原则
+ */
 const inputConfig = computed(() => {
   try {
-    // ✅ 使用 WidgetBuilder 创建临时 Widget（formManager 为 null）
-    const tempWidget = WidgetBuilder.createTemporary({
-      field: props.field
-    })
-    
-    // 🔥 调用 Widget 的 renderSearchInput 方法
-    return (tempWidget as any).renderSearchInput(props.searchType)
+    return createSearchComponentConfig(props.field, props.searchType)
   } catch (error) {
     // ✅ 使用 ErrorHandler 统一处理错误
     return ErrorHandler.handleWidgetError('SearchInput.inputConfig', error, {
       showMessage: false,
       fallbackValue: {
-        component: 'ElInput',
+        component: SearchComponent.EL_INPUT,
         props: {
           placeholder: `请输入${props.field.name}`,
           clearable: true,
-          style: { width: '200px' }
+          style: { width: SearchConfig.DEFAULT_INPUT_WIDTH }
         }
       }
     })
   }
 })
 
-// 处理单值输入
+/**
+ * 处理单值输入（带防抖，实时同步URL）
+ * 🔥 使用值规范化工具统一处理值转换
+ */
+const handleInputDebounced = debounce((value: any) => {
+  const normalizedValue = normalizeSearchValue(value, {
+    widgetType: props.field.widget?.type,
+    searchType: props.searchType,
+    field: props.field
+  })
+  
+  emit('update:modelValue', normalizedValue)
+}, SearchConfig.DEBOUNCE_DELAY)
+
 const handleInput = (value: any) => {
+  // 🔥 标记为内部更新，防止触发 watch
+  isInternalUpdate.value = true
   localValue.value = value
+  // 🔥 使用防抖，避免频繁更新URL
+  handleInputDebounced(value)
+  // 🔥 延迟重置标志，确保 watch 能正确判断（防抖时间 + 一个 tick）
+  setTimeout(() => {
+    isInternalUpdate.value = false
+  }, SearchConfig.INTERNAL_UPDATE_DELAY)
+}
+
+// 处理清空事件（ElInput、ElSelect、ElDatePicker 等组件的 clearable）
+const handleClear = () => {
+  localValue.value = null
+  dateRangeValue.value = null
+  rangeValue.value = { min: undefined, max: undefined }
+  // 🔥 清空时立即触发更新，不使用防抖
+  emit('update:modelValue', null)
+}
+
+/**
+ * 处理范围输入变化（NumberRangeInput 和 RangeInput）
+ * 
+ * ⚠️ 关键逻辑：
+ * 1. 如果 min 和 max 都为空，传递 null（表示清空搜索条件）
+ * 2. 否则传递 { min, max } 对象（用于构建 URL 参数 gte/lte）
+ * 
+ * 注意：空字符串会被转换为 undefined，避免传递无效值
+ */
+const handleRangeChange = () => {
+  const min = rangeValue.value.min
+  const max = rangeValue.value.max
+  
+  // 如果 min 和 max 都为空，传递 null 而不是空对象
+  if ((min === undefined || min === null || min === '') && 
+      (max === undefined || max === null || max === '')) {
+    emit('update:modelValue', null)
+  } else {
+    emit('update:modelValue', {
+      min: min === '' ? undefined : min,
+      max: max === '' ? undefined : max
+    })
+  }
+}
+
+// 处理日期范围输入（ElDatePicker）
+const handleDateRangeChange = (value: [number | string | null, number | string | null] | null) => {
+  dateRangeValue.value = value
+  // 🔥 ElDatePicker 返回数组格式 [start, end]，直接传递给父组件
   emit('update:modelValue', value)
 }
 
-// 处理范围输入
-const handleRangeChange = () => {
-  emit('update:modelValue', {
-    min: rangeValue.value.min,
-    max: rangeValue.value.max
-  })
-}
-
 // 监听外部值变化
-watch(() => props.modelValue, (newValue) => {
-  if (props.searchType?.includes('gte') && props.searchType?.includes('lte')) {
-    rangeValue.value = newValue || { min: undefined, max: undefined }
+watch(() => props.modelValue, (newValue: any, oldValue: any) => {
+  // 🔥 如果是内部更新触发的，跳过处理
+  if (isInternalUpdate.value) {
+    return
+  }
+  
+  // 🔥 如果值没有实际变化，跳过处理（避免循环更新）
+  const newValueStr = JSON.stringify(newValue)
+  const oldValueStr = JSON.stringify(oldValue)
+  if (newValueStr === oldValueStr) {
+    return
+  }
+  
+  /**
+   * 处理范围搜索（gte/lte）的值更新
+   * 
+   * ⚠️ 关键逻辑：每个 SearchInput 实例都有独立的 rangeValue
+   * 只有当 newValue 是当前字段的范围值时，才更新 rangeValue
+   * 这样可以避免多个 slider 字段之间的值互相影响
+   * 
+   * 判断条件：
+   * 1. 字段支持范围搜索（searchType 包含 gte 和 lte）
+   * 2. 字段是 slider 或使用范围输入组件
+   * 3. newValue 是范围类型（数组或包含 min/max 的对象）
+   */
+  const isRangeSearch = props.searchType?.includes('gte') && props.searchType?.includes('lte')
+  const isSliderWidget = props.field.widget?.type === WidgetType.SLIDER
+  const isRangeInput = inputConfig.value.component === SearchComponent.NUMBER_RANGE_INPUT || 
+                       inputConfig.value.component === SearchComponent.RANGE_INPUT
+  
+  if ((isSliderWidget || isRangeInput) && isRangeSearch) {
+    // 数组格式（时间戳范围），用于 ElDatePicker
+    if (Array.isArray(newValue)) {
+      dateRangeValue.value = [
+        newValue[0] || null,
+        newValue[1] || null
+      ]
+      // 同时设置 rangeValue 用于其他范围输入组件
+      rangeValue.value = {
+        min: newValue[0] || undefined,
+        max: newValue[1] || undefined
+      }
+    } 
+    // 对象格式（数字范围），用于 slider 组件
+    // ⚠️ 关键：必须检查 newValue 是否包含 min 或 max 属性
+    // 这样可以避免其他字段的值（如字符串、数字等）影响当前字段
+    else if (newValue && typeof newValue === 'object' && !Array.isArray(newValue) && ('min' in newValue || 'max' in newValue)) {
+      rangeValue.value = {
+        min: newValue.min !== undefined && newValue.min !== null ? newValue.min : undefined,
+        max: newValue.max !== undefined && newValue.max !== null ? newValue.max : undefined
+      }
+      dateRangeValue.value = null
+    } 
+    // null 或 undefined：清空当前字段的值
+    else if (newValue === null || newValue === undefined) {
+      rangeValue.value = { min: undefined, max: undefined }
+      dateRangeValue.value = null
+    }
+    // ⚠️ 如果 newValue 不是范围类型，不更新 rangeValue
+    // 这样可以避免其他字段的值影响当前字段（例如：字符串、数字等）
+  } else if (isRangeSearch && inputConfig.value.component === SearchComponent.EL_DATE_PICKER) {
+    // 🔥 日期范围选择器
+    if (Array.isArray(newValue)) {
+      dateRangeValue.value = [
+        newValue[0] || null,
+        newValue[1] || null
+      ]
+    } else {
+      dateRangeValue.value = null
+    }
   } else {
-    localValue.value = newValue
+    // 🔥 对于多选模式（multiple），确保值是数组格式
+    // 注意：需要根据 searchType 判断，而不是依赖 inputConfig（因为 inputConfig 可能还没准备好）
+    // 注意：多选组件只支持 contains 搜索类型
+    const isMultiselectContains = props.field.widget?.type === WidgetType.MULTI_SELECT && props.searchType?.includes(SearchType.CONTAINS)
+    
+    if (isMultiselectContains) {
+      // 多选组件搜索场景（只支持 contains）
+      let newLocalValue: any[] = []
+      if (newValue === null || newValue === undefined || newValue === '') {
+        newLocalValue = []
+      } else if (Array.isArray(newValue)) {
+        newLocalValue = newValue
+      } else if (typeof newValue === 'string') {
+        // 🔥 如果是字符串，可能是逗号分隔的值（用于 contains 搜索），需要转换为数组供 el-select 显示
+        // 多选组件在搜索时使用 contains 条件（FIND_IN_SET），后端存储是逗号分隔的字符串
+        newLocalValue = newValue ? newValue.split(',').map(v => v.trim()).filter(v => v) : []
+      } else {
+        newLocalValue = [newValue]
+      }
+      
+      // 🔥 只有当值真正变化时才更新，避免循环更新
+      const currentValueStr = JSON.stringify(localValue.value)
+      const newValueStr = JSON.stringify(newLocalValue)
+      if (currentValueStr !== newValueStr) {
+        localValue.value = newLocalValue
+      }
+    } else if (inputConfig.value.component === SearchComponent.EL_SELECT && inputConfig.value.props?.multiple) {
+      // 其他多选场景（如 user 组件）
+      if (newValue === null || newValue === undefined || newValue === '') {
+        localValue.value = []
+      } else if (Array.isArray(newValue)) {
+        localValue.value = newValue
+      } else if (typeof newValue === 'string') {
+        // 字符串转换为数组
+        localValue.value = parseCommaSeparatedString(newValue)
+      } else {
+        localValue.value = [newValue]
+      }
+    } else {
+      localValue.value = newValue
+    }
+    
+    // 🔥 当值变化时，如果是 remote 模式的 ElSelect，初始化已选中值的选项
+    if (inputConfig.value.component === SearchComponent.EL_SELECT && 
+        inputConfig.value.props?.remote && 
+        localValue.value && 
+        (Array.isArray(localValue.value) ? localValue.value.length > 0 : true)) {
+      // 延迟执行，确保 inputConfig 已更新
+      nextTick(() => {
+        initSelectedOptions()
+      })
+    }
+  }
+}, { immediate: true })
+
+// 🔥 监听 inputConfig 变化，初始化已选中值的选项
+watch(() => inputConfig.value, () => {
+  if (inputConfig.value.component === SearchComponent.EL_SELECT && inputConfig.value.props?.remote && localValue.value) {
+    initSelectedOptions()
   }
 })
 </script>
 
 <style scoped>
+/* 🔥 用户选择器选项样式（与 UserWidget 保持一致） */
+.user-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-avatar {
+  flex-shrink: 0;
+}
+
+.user-name {
+  flex: 1;
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+}
+
+.user-nickname {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
 .search-input {
   display: inline-flex;
   align-items: center;
@@ -204,5 +931,161 @@ watch(() => props.modelValue, (newValue) => {
   color: var(--el-text-color-secondary);
   font-size: 14px;
 }
+
+/* 🔥 用户选择器选中后的标签样式（multiple 模式，使用 user-cell 样式） */
+.user-select-search :deep(.el-select__tags) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.user-cell-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  padding-right: 20px;
+}
+
+.user-cell-tag .user-avatar {
+  flex-shrink: 0;
+  width: 24px !important;
+  height: 24px !important;
+}
+
+.user-cell-tag .user-name {
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+  white-space: nowrap;
+}
+
+.user-tag-close {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  color: var(--el-text-color-secondary);
+  transition: color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.user-tag-close:hover {
+  color: var(--el-text-color-primary);
+}
+
+/* 🔥 多选组件标签样式 */
+.multiselect-tag {
+  font-weight: 500;
+  border: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  margin-right: 6px;
+  margin-bottom: 2px;
+  opacity: 0.9;
+  transition: opacity 0.2s;
+}
+
+.multiselect-tag:hover {
+  opacity: 1;
+}
+
+/* 自定义颜色的 tag，确保文字清晰 */
+.multiselect-tag[style*="background-color"] {
+  color: #fff !important;
+  font-weight: 500;
+  /* 🔥 降低亮度：使用 filter 降低饱和度和亮度 */
+  filter: brightness(0.95) saturate(0.9);
+}
+
+/* 🔥 单选组件的标签样式：使用空心样式（outline） */
+.select-tag {
+  font-weight: 500;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  opacity: 0.9;
+  transition: opacity 0.2s;
+}
+
+.select-tag:hover {
+  opacity: 1;
+}
+
+/* 🔥 单选组件标签样式：使用空心样式（outline） */
+.select-tag-outline {
+  background-color: transparent !important;
+  border: 2px solid currentColor !important;
+}
+
+/* 标准颜色的空心标签 */
+.select-tag-outline.el-tag--success {
+  color: var(--el-color-success) !important;
+  border-color: var(--el-color-success) !important;
+}
+
+.select-tag-outline.el-tag--warning {
+  color: var(--el-color-warning) !important;
+  border-color: var(--el-color-warning) !important;
+}
+
+.select-tag-outline.el-tag--danger {
+  color: var(--el-color-danger) !important;
+  border-color: var(--el-color-danger) !important;
+}
+
+.select-tag-outline.el-tag--info {
+  color: var(--el-color-info) !important;
+  border-color: var(--el-color-info) !important;
+}
+
+.select-tag-outline.el-tag--primary {
+  color: var(--el-color-primary) !important;
+  border-color: var(--el-color-primary) !important;
+}
+
+/* 自定义颜色的空心标签：使用边框颜色 */
+.select-tag-outline[style*="color"] {
+  border-color: currentColor !important;
+}
+
+/* 🔥 下拉选项中的颜色指示器样式 */
+.option-color-indicator {
+  display: inline-block !important;
+  width: 12px !important;
+  height: 12px !important;
+  min-width: 12px !important;
+  min-height: 12px !important;
+  border-radius: 2px !important;
+  flex-shrink: 0 !important;
+  border: none !important;
+  vertical-align: middle !important;
+  /* 🔥 降低亮度：使用 filter 降低饱和度和亮度 */
+  filter: brightness(0.95) saturate(0.9);
+  opacity: 0.9;
+}
+
+/* 选项容器样式 */
+.flex {
+  display: flex;
+}
+
+.items-center {
+  align-items: center;
+}
+</style>
+
+<style>
+/* 🔥 用户选择器下拉框样式（全局样式，与 UserWidget 保持一致） */
+.user-select-dropdown-popper .el-select-dropdown__item {
+  padding: 8px 12px;
+}
+
+.user-select-dropdown-popper .el-select-dropdown__item:hover {
+  background-color: var(--el-fill-color-light);
+}
+
 </style>
 

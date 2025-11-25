@@ -7,7 +7,6 @@
         "version": "1.0"
     },
     "host": "localhost:9092",
-    "basePath": "/api/v1",
     "paths": {
         "/api/v1/storage/batch_delete": {
             "post": {
@@ -38,6 +37,98 @@
                         "description": "删除成功",
                         "schema": {
                             "$ref": "#/definitions/dto.DeleteFilesByRouterResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/storage/batch_upload_complete": {
+            "post": {
+                "description": "批量通知后端创建上传记录（仅在上传成功时记录）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "存储管理"
+                ],
+                "summary": "批量上传完成通知",
+                "parameters": [
+                    {
+                        "description": "批量上传完成请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.BatchUploadCompleteReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "通知成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BatchUploadCompleteResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/storage/batch_upload_token": {
+            "post": {
+                "description": "批量获取多个文件的上传凭证，支持多种存储方式（presigned_url/form_upload/sdk_upload）。如果某个文件未提供 router，将使用默认路由：/{username}/default",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "存储管理"
+                ],
+                "summary": "批量获取上传凭证",
+                "parameters": [
+                    {
+                        "description": "批量获取上传凭证请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.BatchGetUploadTokenReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BatchGetUploadTokenResp"
                         }
                     },
                     "400": {
@@ -277,7 +368,7 @@
         },
         "/api/v1/storage/upload_complete": {
             "post": {
-                "description": "前端上传完成后，通知后端更新上传记录状态",
+                "description": "前端上传完成后，通知后端创建上传记录（仅在上传成功时记录）",
                 "consumes": [
                     "application/json"
                 ],
@@ -323,7 +414,7 @@
         },
         "/api/v1/storage/upload_token": {
             "post": {
-                "description": "获取文件上传的预签名 URL，文件将按函数路径分类存储",
+                "description": "获取文件上传的预签名 URL，文件将按函数路径分类存储。如果未提供 router，将使用默认路由：/{username}/default",
                 "consumes": [
                     "application/json"
                 ],
@@ -369,6 +460,141 @@
         }
     },
     "definitions": {
+        "dto.BatchGetUploadTokenReq": {
+            "type": "object",
+            "required": [
+                "files"
+            ],
+            "properties": {
+                "files": {
+                    "description": "文件列表（最多100个）",
+                    "type": "array",
+                    "maxItems": 100,
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/dto.GetUploadTokenReq"
+                    }
+                },
+                "upload_source": {
+                    "description": "✨ 上传来源：browser（浏览器）或 server（服务端），默认为 browser",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/dto.UploadSource"
+                        }
+                    ]
+                }
+            }
+        },
+        "dto.BatchGetUploadTokenResp": {
+            "type": "object",
+            "properties": {
+                "tokens": {
+                    "description": "上传凭证列表",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.GetUploadTokenResp"
+                    }
+                }
+            }
+        },
+        "dto.BatchUploadCompleteItem": {
+            "type": "object",
+            "required": [
+                "key"
+            ],
+            "properties": {
+                "content_type": {
+                    "description": "✨ 文件类型（上传成功后需要，用于记录）",
+                    "type": "string"
+                },
+                "error": {
+                    "description": "错误信息（如果失败）",
+                    "type": "string"
+                },
+                "file_name": {
+                    "description": "✨ 文件名（上传成功后需要，用于记录）",
+                    "type": "string"
+                },
+                "file_size": {
+                    "description": "✨ 文件大小（上传成功后需要，用于记录）",
+                    "type": "integer"
+                },
+                "hash": {
+                    "description": "✨ 文件hash（可选，用于秒传）",
+                    "type": "string"
+                },
+                "key": {
+                    "description": "文件 Key",
+                    "type": "string"
+                },
+                "router": {
+                    "description": "✨ 函数路径（上传成功后需要，用于记录）",
+                    "type": "string"
+                },
+                "success": {
+                    "description": "是否成功",
+                    "type": "boolean"
+                }
+            }
+        },
+        "dto.BatchUploadCompleteReq": {
+            "type": "object",
+            "required": [
+                "items"
+            ],
+            "properties": {
+                "items": {
+                    "description": "上传结果列表（最多100个）",
+                    "type": "array",
+                    "maxItems": 100,
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/dto.BatchUploadCompleteItem"
+                    }
+                }
+            }
+        },
+        "dto.BatchUploadCompleteResp": {
+            "type": "object",
+            "properties": {
+                "results": {
+                    "description": "处理结果列表",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.BatchUploadCompleteResult"
+                    }
+                }
+            }
+        },
+        "dto.BatchUploadCompleteResult": {
+            "type": "object",
+            "properties": {
+                "download_url": {
+                    "description": "✨ 外部访问的下载地址（前端使用）",
+                    "type": "string"
+                },
+                "error": {
+                    "description": "错误信息（如果失败）",
+                    "type": "string"
+                },
+                "hash": {
+                    "description": "✨ 文件hash（用于文件缓存去重）",
+                    "type": "string"
+                },
+                "key": {
+                    "description": "文件 Key",
+                    "type": "string"
+                },
+                "server_download_url": {
+                    "description": "✨ 内部访问的下载地址（服务端使用）",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "状态：completed/failed",
+                    "type": "string"
+                }
+            }
+        },
         "dto.DeleteFilesByRouterReq": {
             "type": "object",
             "required": [
@@ -433,8 +659,7 @@
         "dto.GetUploadTokenReq": {
             "type": "object",
             "required": [
-                "file_name",
-                "router"
+                "file_name"
             ],
             "properties": {
                 "content_type": {
@@ -451,8 +676,16 @@
                     "type": "string"
                 },
                 "router": {
-                    "description": "函数路径，例如：luobei/test88888/tools/cashier_desk",
+                    "description": "函数路径，例如：luobei/test88888/tools/cashier_desk（可选，未提供时使用默认路由：/{username}/default）",
                     "type": "string"
+                },
+                "upload_source": {
+                    "description": "✨ 上传来源：browser（浏览器）或 server（服务端），默认为 browser",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/dto.UploadSource"
+                        }
+                    ]
                 }
             }
         },
@@ -465,6 +698,10 @@
                 },
                 "cdn_domain": {
                     "description": "CDN 域名（可选，用于下载访问）",
+                    "type": "string"
+                },
+                "download_url": {
+                    "description": "✨ 预期的下载地址（在获取token时预先构建，上传成功后可直接使用）",
                     "type": "string"
                 },
                 "expire": {
@@ -506,6 +743,14 @@
                     "type": "object",
                     "additionalProperties": true
                 },
+                "server_download_url": {
+                    "description": "✨ 内部访问的下载地址（服务端/SDK使用）",
+                    "type": "string"
+                },
+                "server_url": {
+                    "description": "✨ 内部访问的预签名 URL（服务端/SDK使用）",
+                    "type": "string"
+                },
                 "storage": {
                     "description": "✨ 存储引擎（minio/qiniu/tencentcos/aliyunoss/awss3）",
                     "type": "string"
@@ -520,6 +765,10 @@
                 },
                 "url": {
                     "description": "预签名 URL 上传（MinIO、COS、OSS、S3）",
+                    "type": "string"
+                },
+                "username": {
+                    "description": "✨ 当前登录用户的用户名",
                     "type": "string"
                 }
             }
@@ -547,12 +796,32 @@
                 "key"
             ],
             "properties": {
+                "content_type": {
+                    "description": "✨ 文件类型（上传成功后需要，用于记录）",
+                    "type": "string"
+                },
                 "error": {
                     "description": "错误信息（如果失败）",
                     "type": "string"
                 },
+                "file_name": {
+                    "description": "✨ 文件名（上传成功后需要，用于记录）",
+                    "type": "string"
+                },
+                "file_size": {
+                    "description": "✨ 文件大小（上传成功后需要，用于记录）",
+                    "type": "integer"
+                },
+                "hash": {
+                    "description": "✨ 文件hash（可选，用于秒传）",
+                    "type": "string"
+                },
                 "key": {
                     "description": "文件 Key",
+                    "type": "string"
+                },
+                "router": {
+                    "description": "✨ 函数路径（上传成功后需要，用于记录）",
                     "type": "string"
                 },
                 "success": {
@@ -565,7 +834,7 @@
             "type": "object",
             "properties": {
                 "download_url": {
-                    "description": "✨ 下载 URL（上传成功后返回，方便直接下载）",
+                    "description": "✨ 外部访问的下载地址（前端使用）",
                     "type": "string"
                 },
                 "expire": {
@@ -574,6 +843,10 @@
                 },
                 "message": {
                     "description": "消息",
+                    "type": "string"
+                },
+                "server_download_url": {
+                    "description": "✨ 内部访问的下载地址（服务端使用）",
                     "type": "string"
                 }
             }
@@ -599,6 +872,25 @@
                 "UploadMethodPresignedURL",
                 "UploadMethodFormUpload",
                 "UploadMethodSDKUpload"
+            ]
+        },
+        "dto.UploadSource": {
+            "type": "string",
+            "enum": [
+                "browser",
+                "server"
+            ],
+            "x-enum-comments": {
+                "UploadSourceBrowser": "浏览器上传",
+                "UploadSourceServer": "服务端上传（容器内SDK）"
+            },
+            "x-enum-descriptions": [
+                "浏览器上传",
+                "服务端上传（容器内SDK）"
+            ],
+            "x-enum-varnames": [
+                "UploadSourceBrowser",
+                "UploadSourceServer"
             ]
         }
     },

@@ -2,6 +2,7 @@ package callback
 
 import (
 	"fmt"
+	"github.com/ai-agent-os/ai-agent-os/pkg/jsonx"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
 )
 
@@ -32,11 +33,47 @@ func (r *OnSelectFuzzyReq) Keyword() string {
 func (r *OnSelectFuzzyReq) IsByValue() bool {
 	return r.Type == "by_value"
 }
+func (r *OnSelectFuzzyReq) IsByValues() bool {
+	return r.Type == "by_values"
+}
+func (r *OnSelectFuzzyReq) IsByKeyword() bool {
+	return r.Type == "by_keyword"
+}
 
 func (r *OnSelectFuzzyReq) GetValue() interface{} {
 	if r.ValueType == widget.TypeNumber {
 		return int(r.Value.(float64))
 	}
+	return r.Value
+}
+
+func (r *OnSelectFuzzyReq) GetValues() interface{} {
+
+	switch r.ValueType {
+	case widget.DataTypeFloat, widget.DataTypeFloats:
+		switch r.Value.(type) {
+		case []interface{}:
+			var floats []float64
+			jsonx.Convert(r.Value, &floats)
+			return floats
+		}
+	case widget.DataTypeInt, widget.DataTypeInts:
+		switch r.Value.(type) {
+		case []interface{}:
+			var ints []int
+			jsonx.Convert(r.Value, &ints)
+			return ints
+		}
+
+	case widget.DataTypeString, widget.DataTypeStrings:
+		switch r.Value.(type) {
+		case []interface{}:
+			var strs []string
+			jsonx.Convert(r.Value, &strs)
+			return strs
+		}
+	}
+
 	return r.Value
 }
 

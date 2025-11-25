@@ -2,11 +2,12 @@ package v1
 
 import (
 	"encoding/json"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"io"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
 	"github.com/ai-agent-os/ai-agent-os/dto"
@@ -53,7 +54,10 @@ func (a *App) CreateApp(c *gin.Context) {
 		return
 	}
 	req.User = contextx.GetRequestUser(c)
-	app, err := a.appService.CreateApp(c, &req)
+	// 将 gin.Context 转换为标准 context.Context，解析 header 并放入 context.Value
+	// 这样即使内部使用 context.WithValue，也能通过 context.Value 获取到值
+	ctx := contextx.ToContext(c)
+	app, err := a.appService.CreateApp(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -77,7 +81,7 @@ func (a *App) UpdateApp(c *gin.Context) {
 	var err error
 
 	// 从JWT Token获取用户信息
-	user := contextx.GetUserInfo(c)
+	user := contextx.GetRequestUser(c)
 	if user == "" {
 		response.FailWithMessage(c, "无法获取用户信息")
 		return
@@ -101,7 +105,8 @@ func (a *App) UpdateApp(c *gin.Context) {
 		logger.Infof(c, "UpdateApp req:%+v resp:%+v err:%v", req, resp, err)
 	}()
 
-	resp, err = a.appService.UpdateApp(c, req)
+	ctx := contextx.ToContext(c)
+	resp, err = a.appService.UpdateApp(ctx, req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -172,7 +177,8 @@ func (a *App) RequestApp(c *gin.Context) {
 	req.UrlQuery = c.Request.URL.RawQuery
 
 	// 调用服务层
-	resp, err = a.appService.RequestApp(c, &req)
+	ctx := contextx.ToContext(c)
+	resp, err = a.appService.RequestApp(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -223,7 +229,12 @@ func (a *App) CallbackApp(c *gin.Context) {
 
 	// 从路径参数获取 app, router
 	router := c.Param("router")
-	method := c.Query("_method")
+	// 获取原函数的 HTTP 方法（用于标识回调所属的函数）
+	// 优先使用 _function_method（更清晰的参数名），兼容旧的 _method 参数
+	method := c.Query("_function_method")
+	if method == "" {
+		method = c.Query("_method") // 向后兼容旧版本
+	}
 	callbackType := c.Query("_type")
 	split := strings.Split(strings.Trim(router, "/"), "/")
 	user := split[0]
@@ -273,7 +284,8 @@ func (a *App) CallbackApp(c *gin.Context) {
 	req.Body = marshal
 
 	// 调用服务层
-	resp, err = a.appService.RequestApp(c, &req)
+	ctx := contextx.ToContext(c)
+	resp, err = a.appService.RequestApp(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -310,7 +322,7 @@ func (a *App) DeleteApp(c *gin.Context) {
 	var err error
 
 	// 从JWT Token获取用户信息
-	user := contextx.GetUserInfo(c)
+	user := contextx.GetRequestUser(c)
 	if user == "" {
 		response.FailWithMessage(c, "无法获取用户信息")
 		return
@@ -334,7 +346,8 @@ func (a *App) DeleteApp(c *gin.Context) {
 		logger.Infof(c, "DeleteApp req:%+v resp:%+v err:%v", req, resp, err)
 	}()
 
-	resp, err = a.appService.DeleteApp(c, req)
+	ctx := contextx.ToContext(c)
+	resp, err = a.appService.DeleteApp(ctx, req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -344,7 +357,7 @@ func (a *App) DeleteApp(c *gin.Context) {
 
 // GetApps 获取应用列表
 // @Summary 获取应用列表
-// @Description 获取当前用户的所有应用列表（支持分页）
+// @Description 获取当前用户的所有应用列表（支持分页和搜索）
 // @Tags 应用管理
 // @Accept json
 // @Produce json
@@ -352,6 +365,7 @@ func (a *App) DeleteApp(c *gin.Context) {
 // @Param X-Token header string true "JWT Token"
 // @Param page query int false "页码，默认为1" default(1)
 // @Param page_size query int false "每页数量，默认为10" default(10)
+// @Param search query string false "搜索关键词（支持按应用名称或代码搜索）"
 // @Success 200 {object} dto.GetAppsResp "获取成功"
 // @Failure 401 {string} string "未授权"
 // @Failure 500 {string} string "服务器内部错误"
@@ -365,15 +379,16 @@ func (a *App) GetApps(c *gin.Context) {
 	}()
 
 	// 从JWT Token获取用户信息
-	user := contextx.GetUserInfo(c)
+	user := contextx.GetRequestUser(c)
 	if user == "" {
 		response.FailWithMessage(c, "无法获取用户信息")
 		return
 	}
 
-	// 从查询参数获取分页信息
+	// 从查询参数获取分页信息和搜索关键词
 	page := c.DefaultQuery("page", "1")
 	pageSize := c.DefaultQuery("page_size", "10")
+	search := c.Query("search")
 
 	// 构建请求对象
 	req = dto.GetAppsReq{
@@ -381,10 +396,12 @@ func (a *App) GetApps(c *gin.Context) {
 			Page:     parseIntWithDefault(page, 1),
 			PageSize: parseIntWithDefault(pageSize, 10),
 		},
-		User: user,
+		User:   user,
+		Search: search,
 	}
 
-	resp, err = a.appService.GetApps(c, &req)
+	ctx := contextx.ToContext(c)
+	resp, err = a.appService.GetApps(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return

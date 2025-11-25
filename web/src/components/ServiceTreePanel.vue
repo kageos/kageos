@@ -2,16 +2,28 @@
   <div class="service-tree-panel" v-loading="loading">
     <div class="tree-header">
       <h3>服务目录</h3>
-      <el-button
+      <div class="header-actions">
+        <el-link
         v-if="!loading"
         type="primary"
-        size="small"
+          :underline="false"
         @click="$emit('create-directory')"
-        class="create-btn"
+          class="header-link"
       >
         <el-icon><Plus /></el-icon>
         创建目录
-      </el-button>
+        </el-link>
+        <el-link
+          v-if="!loading"
+          type="primary"
+          :underline="false"
+          @click="handleForkButtonClick"
+          class="header-link"
+        >
+          <el-icon><CopyDocument /></el-icon>
+          闪电克隆
+        </el-link>
+      </div>
     </div>
     
     <div class="tree-content">
@@ -45,9 +57,8 @@
               <span class="node-label">{{ node.label }}</span>
             </template>
             
-            <!-- 更多操作按钮 - 鼠标悬停时显示（分组节点不显示） -->
+            <!-- 更多操作按钮 - 鼠标悬停时显示 -->
             <el-dropdown
-              v-if="!(data as any).isGroup"
               trigger="click"
               @click.stop
               class="node-more-actions"
@@ -59,7 +70,7 @@
               <template #dropdown>
                 <el-dropdown-menu>
                   <!-- 仅对package类型显示创建子目录选项 -->
-                  <el-dropdown-item v-if="data.type === 'package'" command="create-directory">
+                  <el-dropdown-item v-if="!(data as any).isGroup && data.type === 'package'" command="create-directory">
                     <el-icon><Plus /></el-icon>
                     添加服务目录
                   </el-dropdown-item>
@@ -88,20 +99,23 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick, computed } from 'vue'
-import { Folder, FolderOpened, Plus, MoreFilled, Link } from '@element-plus/icons-vue'
-import { ElTag } from 'element-plus'
+import { Folder, FolderOpened, Plus, MoreFilled, Link, CopyDocument } from '@element-plus/icons-vue'
+import { ElTag, ElLink } from 'element-plus'
+import { generateGroupId, createGroupNode, groupFunctionsByCode, getGroupName, type ExtendedServiceTree } from '@/utils/tree-utils'
 import type { ServiceTree } from '@/types'
 
 interface Props {
   treeData: ServiceTree[]
   loading?: boolean
   currentNodeId?: number | string | null
+  currentFunction?: ServiceTree | null  // 当前选中的节点（用于判断是否可以克隆）
 }
 
 interface Emits {
   (e: 'node-click', node: ServiceTree): void
   (e: 'create-directory', parentNode?: ServiceTree): void
   (e: 'copy-link', node: ServiceTree): void
+  (e: 'fork-group', node: ServiceTree | null): void  // Fork 函数组（可以为 null，表示打开对话框让用户选择）
 }
 
 const props = defineProps<Props>()
@@ -112,7 +126,7 @@ const treeRef = ref()
 
 /**
  * 🔥 按组分组处理服务树数据
- * 将相同 group_code 的函数分组显示，组名使用 group_name
+ * 将相同 full_group_code 的函数分组显示，组名使用 group_name
  */
 const groupedTreeData = computed(() => {
   const processNode = (node: ServiceTree): ServiceTree => {
@@ -122,16 +136,16 @@ const groupedTreeData = computed(() => {
       const functions = node.children.filter(child => child.type === 'function')
       const packages = node.children.filter(child => child.type === 'package')
       
-      // 按 group_code 分组函数
+      // 按 full_group_code 分组函数
       const groupedFunctions = new Map<string, ServiceTree[]>()
       const ungroupedFunctions: ServiceTree[] = []
       
       functions.forEach(func => {
-        if (func.group_code && func.group_code.trim() !== '') {
-          if (!groupedFunctions.has(func.group_code)) {
-            groupedFunctions.set(func.group_code, [])
+        if (func.full_group_code && func.full_group_code.trim() !== '') {
+          if (!groupedFunctions.has(func.full_group_code)) {
+            groupedFunctions.set(func.full_group_code, [])
           }
-          groupedFunctions.get(func.group_code)!.push(func)
+          groupedFunctions.get(func.full_group_code)!.push(func)
         } else {
           ungroupedFunctions.push(func)
         }
@@ -147,40 +161,10 @@ const groupedTreeData = computed(() => {
       
       // 2. 添加分组后的函数
       groupedFunctions.forEach((funcs, groupCode) => {
-        // 获取组名（使用第一个函数的 group_name）
-        const groupName = funcs[0]?.group_name || groupCode
-        
-        // 创建分组节点（虚拟节点，用于展示组名）
-        // 生成唯一的负数 ID（避免与真实节点冲突）
-        // 使用简单的字符串哈希算法生成稳定的 ID
-        let hash = 0
-        for (let i = 0; i < groupCode.length; i++) {
-          const char = groupCode.charCodeAt(i)
-          hash = ((hash << 5) - hash) + char
-          hash = hash & hash // 转换为 32 位整数
-        }
-        const groupId = -Math.abs(hash || Date.now())
-        
-        const groupNode: ServiceTree = {
-          id: groupId,
-          name: groupName,
-          code: `__group__${groupCode}`,
-          parent_id: node.id,
-          type: 'package', // 使用 package 类型以便显示文件夹图标
-          description: '',
-          tags: '',
-          app_id: node.app_id,
-          ref_id: 0,
-          full_code_path: `${node.full_code_path}/__group__${groupCode}`,
-          group_code: groupCode,
-          group_name: groupName,
-          created_at: '',
-          updated_at: '',
-          children: funcs.map(func => processNode(func)),
-          // 标记为分组节点
-          isGroup: true
-        } as ServiceTree & { isGroup?: boolean }
-        
+        const groupName = getGroupName(funcs, groupCode)
+        const groupNode = createGroupNode(groupCode, groupName, node, true)
+        // 函数组下包含函数节点
+        groupNode.children = funcs.map(func => processNode(func))
         newChildren.push(groupNode)
       })
       
@@ -203,10 +187,7 @@ const groupedTreeData = computed(() => {
 })
 
 const handleNodeClick = (data: ServiceTree) => {
-  // 🔥 分组节点不可点击（只是用于展示分组）
-  if ((data as any).isGroup) {
-    return
-  }
+  // 允许点击函数组节点，这样可以在顶部显示克隆按钮
   emit('node-click', data)
 }
 
@@ -215,7 +196,24 @@ const handleNodeAction = (command: string, data: ServiceTree) => {
     emit('create-directory', data)
   } else if (command === 'copy-link') {
     emit('copy-link', data)
+  } else if (command === 'fork') {
+    emit('fork-group', data)
   }
+}
+
+// 处理克隆按钮点击（直接打开克隆对话框，不需要选中节点）
+const handleForkButtonClick = () => {
+  // 如果有选中的函数组节点，使用它；否则传递 null，让对话框自己处理
+  if (props.currentFunction) {
+    const data = props.currentFunction as any
+    // 如果当前选中的是函数组节点，直接使用它
+    if (data.isGroup && data.full_group_code) {
+      emit('fork-group', props.currentFunction)
+      return
+    }
+  }
+  // 否则传递 null，打开对话框让用户选择要克隆的函数组
+  emit('fork-group', null)
 }
 
 // 获取节点图标样式类
@@ -283,15 +281,85 @@ const expandParentNodes = (path: number[]) => {
   })
 }
 
+// 根据 full_code_path 查找节点并展开
+const findAndExpandByPath = (targetPath: string): ServiceTree | null => {
+  if (!treeRef.value || !groupedTreeData.value.length) {
+    return null
+  }
+  
+  // 规范化路径（移除开头的斜杠，确保格式一致）
+  const normalizedPath = targetPath.replace(/^\/+/, '')
+  
+  const findNode = (nodes: ServiceTree[], path: string, depth = 0): ServiceTree | null => {
+    for (const node of nodes) {
+      // 规范化节点的 full_code_path（移除开头的斜杠和 __group__ 部分）
+      let nodePath = node.full_code_path.replace(/^\/+/, '')
+      const isGroup = (node as any).isGroup
+      
+      // 如果是分组节点，移除 __group__ 部分来匹配目录路径
+      if (isGroup) {
+        nodePath = nodePath.replace(/\/__group__[^/]+$/, '')
+      }
+      
+      // 检查当前节点是否匹配（精确匹配或目录匹配）
+      if (nodePath === path || path.startsWith(nodePath + '/')) {
+        // 展开当前节点
+        const nodeKey = Number(node.id)
+        const treeNode = treeRef.value.store.nodesMap[nodeKey]
+        if (treeNode) {
+          if (!treeNode.expanded) {
+            treeNode.expand()
+          }
+        }
+        
+        // 如果是精确匹配，返回该节点
+        if (nodePath === path) {
+          return node
+        }
+        
+        // 如果是目录匹配，继续在子节点中查找
+        if (node.children && node.children.length > 0) {
+          const found = findNode(node.children, path, depth + 1)
+          if (found) return found
+        }
+      }
+    }
+    return null
+  }
+  
+  return findNode(groupedTreeData.value, normalizedPath)
+}
+
+// 展开多个路径
+const expandPaths = (paths: string[]) => {
+  if (!treeRef.value || !groupedTreeData.value.length) {
+    return
+  }
+  
+  paths.forEach((path) => {
+    const node = findAndExpandByPath(path)
+    if (node) {
+      // 找到节点后，展开到该节点的所有父节点
+      const nodeId = Number(node.id)
+      const pathToNode = findPathToNode(groupedTreeData.value, nodeId)
+      if (pathToNode.length > 0) {
+        expandParentNodes(pathToNode)
+        // 高亮显示该节点
+        setTimeout(() => {
+          treeRef.value.setCurrentKey(nodeId)
+        }, 100)
+      }
+    }
+  })
+}
+
 // 监听 currentNodeId 变化，自动展开并选中节点
 watch(() => props.currentNodeId, (nodeId) => {
   if (nodeId && treeRef.value && groupedTreeData.value.length > 0) {
     // 🔥 使用 nextTick 确保 DOM 已渲染
     nextTick(() => {
-      console.log('[ServiceTreePanel] 定位到节点:', nodeId)
       // 查找路径（使用分组后的数据）
       const path = findPathToNode(groupedTreeData.value, nodeId)
-      console.log('[ServiceTreePanel] 节点路径:', path)
       
       if (path.length > 0) {
         // 🔥 展开所有父节点
@@ -303,7 +371,6 @@ watch(() => props.currentNodeId, (nodeId) => {
           expandParentNodes(path)
           
           // 选中当前节点
-          console.log('[ServiceTreePanel] 选中节点:', nodeId)
           treeRef.value.setCurrentKey(nodeId)
           
           // 🔥 滚动到选中节点（可见）
@@ -336,6 +403,12 @@ watch(() => groupedTreeData.value, (newTreeData) => {
     })
   }
 })
+
+// 暴露方法给父组件
+defineExpose({
+  treeRef,
+  expandPaths
+})
 </script>
 
 <style scoped>
@@ -361,10 +434,27 @@ watch(() => groupedTreeData.value, (newTreeData) => {
     color: var(--el-text-color-primary);
   }
   
-  .create-btn {
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  
+  .header-link {
     display: inline-flex;
     align-items: center;
     gap: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    
+    &:hover {
+      opacity: 0.8;
+    }
+    
+    .el-icon {
+      font-size: 14px;
+    }
   }
 }
 
