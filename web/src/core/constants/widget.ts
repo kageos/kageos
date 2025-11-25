@@ -24,7 +24,8 @@ export const WidgetType = {
   COLOR: 'color',
   RICH_TEXT: 'richtext',
   TABLE: 'table',
-  FORM: 'form'
+  FORM: 'form',
+  LINK: 'link'
 } as const
 
 /**

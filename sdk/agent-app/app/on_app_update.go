@@ -143,15 +143,10 @@ func (a *App) getApiKey(api *ApiInfo) string {
 	return fmt.Sprintf("%s:%s", api.Method, api.Router)
 }
 
-// 执行API差异对比
-func (a *App) diffApi() (add []*ApiInfo, update []*ApiInfo, delete []*ApiInfo, err error) {
+// 执行API差异对比（使用已获取的 currentApis，避免重复调用 getApis）
+func (a *App) diffApiWithCurrentApis(currentApis []*ApiInfo) (add []*ApiInfo, update []*ApiInfo, delete []*ApiInfo, err error) {
 	logger.Infof(context.Background(), "=== Starting API diff analysis ===")
 
-	// 获取当前版本的API
-	currentApis, _, err := a.getApis()
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to get current apis: %w", err)
-	}
 	logger.Infof(context.Background(), "Found %d current APIs", len(currentApis))
 
 	// 加载上一版本的API
@@ -238,6 +233,16 @@ func (a *App) diffApi() (add []*ApiInfo, update []*ApiInfo, delete []*ApiInfo, e
 	}
 
 	return add, update, delete, nil
+}
+
+// 执行API差异对比（兼容旧接口，内部调用 diffApiWithCurrentApis）
+func (a *App) diffApi() (add []*ApiInfo, update []*ApiInfo, delete []*ApiInfo, err error) {
+	// 获取当前版本的API
+	currentApis, _, err := a.getApis()
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to get current apis: %w", err)
+	}
+	return a.diffApiWithCurrentApis(currentApis)
 }
 
 // 获取当前所有API信息
@@ -371,7 +376,7 @@ func (a *App) onAppUpdate(msg *nats.Msg) {
 		logger.Warnf(context.Background(), "OnAppUpdate: No reply subject, cannot respond")
 		return
 	}
-	// 1. 获取当前所有API
+	// 1. 获取当前所有API（只调用一次，避免重复遍历和文件读取）
 	currentApis, _, err := a.getApis()
 	if err != nil {
 		// 发送错误响应
@@ -408,8 +413,8 @@ func (a *App) onAppUpdate(msg *nats.Msg) {
 		return
 	}
 
-	// 3. 执行API差异对比
-	add, update, delete, err := a.diffApi()
+	// 3. 执行API差异对比（传入已获取的 currentApis，避免重复调用 getApis）
+	add, update, delete, err := a.diffApiWithCurrentApis(currentApis)
 	if err != nil {
 		// 发送错误响应
 		a.sendErrorResponse(msg, fmt.Sprintf("Failed to diff APIs: %v", err))
@@ -424,7 +429,7 @@ func (a *App) onAppUpdate(msg *nats.Msg) {
 	}
 
 	for _, aa := range add {
-		router, err := a.getRouter(aa.Router, aa.Method)
+		router, err := a.getRoute(aa.Router)
 		if err != nil {
 			a.sendErrorResponse(msg, fmt.Sprintf("Failed to get router: %v", err))
 			return

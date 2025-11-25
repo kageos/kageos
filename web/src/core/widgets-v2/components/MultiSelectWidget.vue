@@ -122,15 +122,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, nextTick, withDefaults } from 'vue'
+import { computed, ref, watch, nextTick, onMounted, withDefaults } from 'vue'
 import { ElSelect, ElOption, ElTag } from 'element-plus'
 import type { WidgetComponentProps } from '../types'
 import { selectFuzzy } from '@/api/function'
 import { Logger } from '../../utils/logger'
 import { useFormDataStore } from '../../stores-v2/formData'
 import { ExpressionParser } from '../../utils/ExpressionParser'
-import { isStringDataType, getMultiSelectDefaultDataType } from '../../constants/widget'
+import { isStringDataType, getMultiSelectDefaultDataType, DataType } from '../../constants/widget'
 import { SelectFuzzyQueryType, isStandardColor } from '../../constants/select'
+import { convertValueToType } from '../utils/valueConverter'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -247,19 +248,23 @@ const selectedValues = computed({
     return parseRawValue(props.value?.raw)
   },
   set: (newValues: any[]) => {
-    let finalValues = newValues.map(v => String(v))
+    // 先转换为字符串数组用于内部处理（查找 options、显示等）
+    let stringValues = newValues.map(v => String(v))
     
-    if (maxCount.value > 0 && finalValues.length > maxCount.value) {
-      Logger.warn('MultiSelectWidget', `${props.field.code} 超出数量限制! 限制: ${maxCount.value}, 实际: ${finalValues.length}`)
-      finalValues = finalValues.slice(0, maxCount.value)
+    // 🔥 去重：移除重复的值
+    stringValues = Array.from(new Set(stringValues))
+    
+    if (maxCount.value > 0 && stringValues.length > maxCount.value) {
+      Logger.warn('MultiSelectWidget', `${props.field.code} 超出数量限制! 限制: ${maxCount.value}, 实际: ${stringValues.length}`)
+      stringValues = stringValues.slice(0, maxCount.value)
     }
     
-    const displayInfos = finalValues.map((val: any) => {
+    const displayInfos = stringValues.map((val: any) => {
       const option = options.value.find((opt: any) => String(opt.value) === val)
       return option?.displayInfo || null
     })
     
-    const displayText = finalValues.map((val: any) => {
+    const displayText = stringValues.map((val: any) => {
       const option = options.value.find((opt: any) => String(opt.value) === val)
       return option?.label || String(val)
     }).join(', ')
@@ -268,18 +273,42 @@ const selectedValues = computed({
     const rowStatistics = calculateRowStatistics(displayInfos, currentStatistics.value)
     
     /**
-     * 🔥 根据 field.data.type 决定 raw 的格式
+     * 🔥 根据 field.data.type 决定 raw 的格式和类型
      * - 如果 type 是 string：提交逗号分隔的字符串（如 "紧急,低优先级"）
-     * - 如果 type 是 []string 或其他数组类型：提交数组（如 ["紧急", "低优先级"]）
+     * - 如果 type 是 []string：提交字符串数组（如 ["紧急", "低优先级"]）
+     * - 如果 type 是 []int：提交整数数组（如 [1, 2]）
+     * - 如果 type 是 []float：提交浮点数数组（如 [1.5, 2.3]）
      */
     let rawValue: any
     const dataType = fieldDataType.value
+    
     if (isStringDataType(dataType)) {
       // 提交逗号分隔的字符串
-      rawValue = finalValues.length > 0 ? finalValues.join(',') : ''
+      rawValue = stringValues.length > 0 ? stringValues.join(',') : ''
     } else {
-      // 提交数组（[]string 或其他数组类型）
-      rawValue = finalValues
+      // 提交数组，需要根据数组元素类型进行转换
+      if (dataType.startsWith('[]')) {
+        const elementType = dataType.slice(2) // 去掉 '[]' 前缀，得到元素类型
+        rawValue = stringValues.map((val: string) => {
+          // 根据元素类型转换
+          if (elementType === 'int' || elementType === 'integer') {
+            const intVal = parseInt(val, 10)
+            return isNaN(intVal) ? val : intVal
+          } else if (elementType === 'float' || elementType === 'number') {
+            const floatVal = parseFloat(val)
+            return isNaN(floatVal) ? val : floatVal
+          } else if (elementType === 'bool' || elementType === 'boolean') {
+            const strVal = String(val)
+            return strVal === 'true' || strVal === '1' || (typeof val === 'boolean' && val === true)
+          } else {
+            // 默认保持字符串
+            return val
+          }
+        })
+      } else {
+        // 未知的数组类型，保持字符串数组
+        rawValue = stringValues
+      }
     }
     
     const fieldValue = {
@@ -310,15 +339,27 @@ function getOptionLabel(value: any): string {
   if (value === null || value === undefined) return ''
   
   const valueStr = String(value)
+  
+  // 1. 优先从 options 中查找
   const option = options.value.find((opt: any) => String(opt.value) === valueStr)
-  return option ? option.label : valueStr
+  if (option) {
+    return option.label
+  }
+  
+  // 2. 如果 options 中没有，尝试从 props.value.display 中解析
+  // 注意：display 是逗号分隔的字符串，我们需要知道每个值对应的 label
+  // 由于 display 是聚合的，我们无法直接解析单个值的 label
+  // 所以这里还是返回 valueStr，但会在初始化时通过 by_values 查询来加载 labels
+  
+  // 3. 如果还没有，返回 valueStr（作为后备）
+  return valueStr
 }
 
 /**
  * 移除指定值
  */
 function handleRemoveValue(value: any): void {
-  const newValues = selectedValues.value.filter(v => String(v) !== String(value))
+  const newValues = selectedValues.value.filter((v: any) => String(v) !== String(value))
   selectedValues.value = newValues
 }
 
@@ -419,12 +460,12 @@ function calculateRowStatistics(
       try {
         const value = ExpressionParser.evaluate(expression, validDisplayInfos)
         result[label] = value
-      } catch (error) {
+      } catch (error: any) {
         Logger.error(`[MultiSelectWidget] 行内聚合计算失败: ${label} = ${expression}`, error)
         result[label] = 0
       }
     }
-  } catch (error) {
+  } catch (error: any) {
     Logger.error('[MultiSelectWidget] 行内聚合计算失败', error)
   }
   
@@ -457,10 +498,31 @@ async function handleSearch(query: string | any[], isByValue = false): Promise<v
       queryType = SelectFuzzyQueryType.BY_KEYWORD
     }
     
+    // 🔥 对于 by_values 查询，需要确保传递的值类型正确
+    // 如果 field.data.type 是 []int，query 应该是整数数组
+    let queryValue: any = query
+    if (isByValue && Array.isArray(query)) {
+      const dataType = props.field.data?.type || getMultiSelectDefaultDataType()
+      if (dataType.startsWith('[]')) {
+        const elementType = dataType.slice(2)
+        if (elementType === 'int' || elementType === 'integer') {
+          queryValue = query.map((v: any) => {
+            const intVal = parseInt(String(v), 10)
+            return isNaN(intVal) ? v : intVal
+          })
+        } else if (elementType === 'float' || elementType === 'number') {
+          queryValue = query.map((v: any) => {
+            const floatVal = parseFloat(String(v))
+            return isNaN(floatVal) ? v : floatVal
+          })
+        }
+      }
+    }
+    
     const requestBody = {
       code: props.field.code,
       type: queryType,
-      value: query,
+      value: queryValue,
       request: props.formRenderer?.getSubmitData?.() || {},
       value_type: props.field.data?.type || getMultiSelectDefaultDataType()
     }
@@ -516,7 +578,7 @@ function handleOptionClick(): void {
 function handleRemoveTag(valueToRemove?: any): void {
   if (valueToRemove !== undefined) {
     // 🔥 从 selectedValues 中移除指定值
-    const newValues = selectedValues.value.filter(v => String(v) !== String(valueToRemove))
+    const newValues = selectedValues.value.filter((v: any) => String(v) !== String(valueToRemove))
     selectedValues.value = newValues
   }
   shouldKeepOpen.value = true
@@ -610,16 +672,41 @@ watch(
   { immediate: true }
 )
 
-// 初始化：如果有回调接口且有初始值，触发一次 by_value 查询来加载选项
+// 初始化：如果有回调接口且有初始值，触发一次 by_values 查询来加载选项
 const hasInitialized = ref(false)
+const lastSearchedValues = ref<string[]>([])
+
+// 在 onMounted 中处理，确保 formRenderer 已经传递过来
+onMounted(() => {
+  // 🔥 如果有回调接口且有初始值，立即触发一次回调
+  // 因为 watch 可能在组件挂载时 formRenderer 还没传递过来
+  if (hasRemoteSearch.value && props.value?.raw && props.formRenderer) {
+    nextTick(() => {
+      const values = parseRawValue(props.value?.raw)
+      if (values.length > 0 && !hasInitialized.value) {
+        hasInitialized.value = true
+        lastSearchedValues.value = values
+        handleSearch(values, true)
+      }
+    })
+  }
+})
+
+// 监听 formRenderer 和 value 变化，确保在 formRenderer 准备好后触发回调
 watch(
-  () => [hasRemoteSearch.value, props.value?.raw],
-  ([hasCallback, rawValue]: [boolean, any]) => {
-    if (!hasInitialized.value && hasCallback && rawValue) {
+  () => [hasRemoteSearch.value, props.value?.raw, props.formRenderer],
+  ([hasCallback, rawValue, formRenderer]: [boolean, any, any]) => {
+    if (!hasInitialized.value && hasCallback && rawValue && formRenderer) {
       const values = parseRawValue(rawValue)
       if (values.length > 0) {
-        hasInitialized.value = true
-        handleSearch(values, true)
+        // 检查是否已经搜索过这些值
+        const valuesStr = values.sort().join(',')
+        const lastSearchedStr = lastSearchedValues.value.sort().join(',')
+        if (valuesStr !== lastSearchedStr) {
+          hasInitialized.value = true
+          lastSearchedValues.value = values
+          handleSearch(values, true)
+        }
       }
     }
   },
@@ -708,10 +795,7 @@ watch(
 }
 
 /* 🔥 确保 el-tag 的 color 属性正确应用（通过内联样式） */
-.multiselect-tag.el-tag {
-  /* 确保自定义颜色能够正确显示 */
-  /* Element Plus 的 el-tag 组件会自动将 color 属性转换为内联样式 */
-}
+/* Element Plus 的 el-tag 组件会自动将 color 属性转换为内联样式 */
 
 /* 标准颜色的 tag，增强对比度 */
 .multiselect-tag.el-tag--success,
