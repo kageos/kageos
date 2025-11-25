@@ -12,56 +12,33 @@
 <template>
   <div class="select-widget">
     <!-- 编辑模式 -->
-    <el-select
-      v-if="mode === 'edit'"
-      v-model="internalValue"
-      :disabled="field.widget?.config?.disabled"
-      :placeholder="field.desc || `请选择${field.name}`"
-      :clearable="true"
-      :filterable="isFilterable"
-      :loading="loading"
-      :remote="hasCallback"
-      :remote-method="handleRemoteSearch"
-      popper-class="select-dropdown-popper"
-      :popper-options="{
-        strategy: 'fixed',
-        modifiers: [
-          {
-            name: 'computeStyles',
-            options: {
-              adaptive: false,
-              roundOffsets: false
-            }
-          },
-          {
-            name: 'offset',
-            options: {
-              offset: [0, 4]
-            }
-          }
-        ]
-      }"
-      @change="handleChange"
-    >
-      <el-option
-        v-for="option in options"
-        :key="option.value"
-        :label="option.label"
-        :value="option.value"
-        :disabled="option.disabled"
-      >
-        <div class="select-option">
-          <!-- 🔥 显示颜色指示器（如果有颜色配置，放在左侧） -->
-          <span
-            v-if="getOptionColor(option.value)"
-            class="option-color-indicator"
-            :style="getOptionColorStyle(option.value)"
-          />
-          <span class="option-label">{{ option.label }}</span>
-          <span v-if="option.displayInfo" class="display-info">{{ option.displayInfo }}</span>
+    <div v-if="mode === 'edit'" class="edit-select">
+      <!-- 显示当前选中值和 display_info -->
+      <div class="select-container" @click="openDialog">
+        <div class="select-content">
+          <div class="select-main">
+            <span class="select-label">{{ displayValue || (field.desc || `请选择${field.name}`) }}</span>
+            <el-icon class="input-icon"><ArrowDown /></el-icon>
+          </div>
+          <div v-if="displayInfoText" class="display-info-text">
+            {{ displayInfoText }}
+          </div>
         </div>
-      </el-option>
-    </el-select>
+      </div>
+      
+      <!-- 模糊搜索对话框（单选模式） -->
+      <FuzzySearchDialog
+        v-model="dialogVisible"
+        :title="`选择${field.name}`"
+        :placeholder="field.desc || `请输入搜索关键词`"
+        :suggestions="dialogSuggestions"
+        :loading="loading"
+        :is-multiselect="false"
+        :get-item-color="getOptionColor"
+        @search="handleDialogSearch"
+        @select="handleDialogSelect"
+      />
+    </div>
     
     <!-- 响应模式（只读） -->
     <span v-else-if="mode === 'response'" class="response-value">
@@ -96,39 +73,40 @@
     </div>
     
     <!-- 搜索模式 -->
-    <el-select
-      v-else-if="mode === 'search'"
-      v-model="internalValue"
-      :placeholder="`搜索${field.name}`"
-      :clearable="true"
-      :filterable="isFilterable"
-      :loading="loading"
-      :remote="hasCallback"
-      :remote-method="handleRemoteSearch"
-    >
-      <el-option
-        v-for="option in options"
-        :key="option.value"
-        :label="option.label"
-        :value="option.value"
-      >
-        <!-- 🔥 显示颜色指示器（如果有颜色配置，放在左侧） -->
-        <div class="select-option">
-          <span
-            v-if="getOptionColor(option.value)"
-            class="option-color-indicator"
-            :style="getOptionColorStyle(option.value)"
-          />
-          <span class="option-label">{{ option.label }}</span>
+    <div v-else-if="mode === 'search'" class="search-select">
+      <div class="select-container" @click="openDialog">
+        <div class="select-content">
+          <div class="select-main">
+            <span class="select-label">{{ displayValue || `搜索${field.name}` }}</span>
+            <el-icon class="input-icon"><ArrowDown /></el-icon>
+          </div>
+          <div v-if="displayInfoText" class="display-info-text">
+            {{ displayInfoText }}
+          </div>
         </div>
-      </el-option>
-    </el-select>
+      </div>
+      
+      <!-- 模糊搜索对话框（单选模式） -->
+      <FuzzySearchDialog
+        v-model="dialogVisible"
+        :title="`选择${field.name}`"
+        :placeholder="`请输入搜索关键词`"
+        :suggestions="dialogSuggestions"
+        :loading="loading"
+        :is-multiselect="false"
+        :get-item-color="getOptionColor"
+        @search="handleDialogSearch"
+        @select="handleDialogSelect"
+      />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
-import { ElSelect, ElOption, ElMessage, ElTag } from 'element-plus'
+import { ref, computed, onMounted, watch, nextTick, withDefaults } from 'vue'
+import { ElInput, ElMessage, ElTag, ElIcon } from 'element-plus'
+import { ArrowDown } from '@element-plus/icons-vue'
+import FuzzySearchDialog from './FuzzySearchDialog.vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useFormDataStore } from '../../stores-v2/formData'
 import { selectFuzzy } from '@/api/function'
@@ -268,6 +246,12 @@ const hasCallback = computed(() => {
   return props.field.callbacks?.includes('OnSelectFuzzy') || false
 })
 
+// 对话框相关状态
+const dialogVisible = ref(false)
+const dialogSuggestions = ref<Array<{ label: string; value: any; displayInfo?: any; icon?: string }>>([])
+
+// 🔥 SelectWidget 是纯单选组件，不需要多选相关逻辑
+
 // 是否可搜索
 const isFilterable = computed(() => {
   return props.field.widget?.config?.filterable !== false
@@ -291,7 +275,6 @@ const internalValue = computed({
           displayInfo: selectedOption?.displayInfo
         }
       }
-      
       formDataStore.setValue(props.fieldPath, newFieldValue)
       emit('update:modelValue', newFieldValue)
     }
@@ -300,6 +283,78 @@ const internalValue = computed({
 
 // 🔥 详情模式下通过回调获取的显示值（用于存储）
 const detailDisplayValue = ref<string | null>(null)
+
+// 获取 display_info 的显示文本
+const displayInfoText = computed(() => {
+  const value = props.value
+  if (!value || !value.raw) {
+    return ''
+  }
+  
+  // 🔥 优先从 meta.displayInfo 获取（这是保存的值）
+  if (value.meta?.displayInfo) {
+    const info = value.meta.displayInfo
+    // 如果是数组（多选的情况），取第一个
+    if (Array.isArray(info) && info.length > 0) {
+      const firstInfo = info[0]
+      if (firstInfo && typeof firstInfo === 'object') {
+        const infoItems: string[] = []
+        Object.entries(firstInfo).forEach(([key, val]) => {
+          if (val !== null && val !== undefined && val !== '') {
+            infoItems.push(`${key}: ${val}`)
+          }
+        })
+        if (infoItems.length > 0) {
+          // 限制显示数量，避免过长
+          if (infoItems.length > 5) {
+            return infoItems.slice(0, 5).join(' | ') + ' ...'
+          }
+          return infoItems.join(' | ')
+        }
+      }
+    } else if (typeof info === 'object' && info !== null) {
+      // 如果是对象（单选的情况）
+      const infoItems: string[] = []
+      Object.entries(info).forEach(([key, val]) => {
+        if (val !== null && val !== undefined && val !== '') {
+          infoItems.push(`${key}: ${val}`)
+        }
+      })
+      if (infoItems.length > 0) {
+        // 限制显示数量，避免过长
+        if (infoItems.length > 5) {
+          return infoItems.slice(0, 5).join(' | ') + ' ...'
+        }
+        return infoItems.join(' | ')
+      }
+    }
+  }
+  
+  // 🔥 如果 meta 中没有，从 options 中查找
+  const selectedOption = options.value.find((opt: any) => {
+    return opt.value === value.raw || String(opt.value) === String(value.raw)
+  })
+  
+  if (selectedOption?.displayInfo) {
+    const info = selectedOption.displayInfo
+    if (typeof info === 'object' && info !== null) {
+      const infoItems: string[] = []
+      Object.entries(info).forEach(([key, val]) => {
+        if (val !== null && val !== undefined && val !== '') {
+          infoItems.push(`${key}: ${val}`)
+        }
+      })
+      if (infoItems.length > 0) {
+        if (infoItems.length > 5) {
+          return infoItems.slice(0, 5).join(' | ') + ' ...'
+        }
+        return infoItems.join(' | ')
+      }
+    }
+  }
+  
+  return ''
+})
 
 // 显示值
 const displayValue = computed(() => {
@@ -377,13 +432,102 @@ function initOptions(): void {
   // 如果没有 formRenderer，等待 watch 检测到 formRenderer 后再触发
 }
 
-// 处理远程搜索
+// 处理远程搜索（保留用于兼容）
 async function handleRemoteSearch(query: string): Promise<void> {
   if (!hasCallback.value) {
     return
   }
   
   await handleSearch(query, false) // by_keyword
+}
+
+// 打开对话框
+async function openDialog(): Promise<void> {
+  dialogVisible.value = true
+  // 如果有回调接口
+  if (hasCallback.value) {
+    // 🔥 如果已有值，通过 by_value 搜索获取对应的选项和 label
+    if (props.value?.raw !== null && props.value?.raw !== undefined && props.value?.raw !== '') {
+      await handleSearch(props.value.raw, true) // by_value 搜索
+    } else {
+      // 没有值，触发空搜索加载初始选项
+      await handleDialogSearch('')
+    }
+  } else {
+    // 静态选项，直接使用
+    dialogSuggestions.value = options.value.map((opt: any) => ({
+      label: opt.label,
+      value: opt.value,
+      displayInfo: opt.displayInfo,
+      display_info: opt.displayInfo, // 同时提供两种格式，确保兼容
+      icon: opt.icon
+    }))
+  }
+}
+
+// 处理对话框搜索
+async function handleDialogSearch(keyword: string): Promise<void> {
+  if (hasCallback.value) {
+    await handleSearch(keyword, false)
+    // 更新对话框建议列表
+    dialogSuggestions.value = options.value.map((opt: any) => ({
+      label: opt.label,
+      value: opt.value,
+      displayInfo: opt.displayInfo,
+      display_info: opt.displayInfo, // 同时提供两种格式，确保兼容
+      icon: opt.icon
+    }))
+  } else {
+    // 静态选项，本地过滤
+    const filtered = staticOptions.value.filter((opt: any) => {
+      const label = typeof opt === 'string' ? opt : opt.label
+      return label.toLowerCase().includes(keyword.toLowerCase())
+    })
+    dialogSuggestions.value = filtered.map((opt: any) => {
+      if (typeof opt === 'string') {
+        return { label: opt, value: opt }
+      }
+      return {
+        label: opt.label,
+        value: opt.value,
+        displayInfo: opt.displayInfo,
+        display_info: opt.displayInfo, // 同时提供两种格式，确保兼容
+        icon: opt.icon
+      }
+    })
+  }
+}
+
+// 处理对话框选择（单选模式）
+function handleDialogSelect(item: { value: any; label?: string; displayInfo?: any }): void {
+  // 🔥 更新 options，确保选择的项的 displayInfo 被保存
+  const existingOption = options.value.find((opt: any) => String(opt.value) === String(item.value))
+  if (!existingOption) {
+    // 如果 options 中没有，添加进去
+    options.value.push({
+      label: item.label || String(item.value),
+      value: item.value,
+      displayInfo: item.displayInfo
+    })
+  } else if (item.displayInfo && !existingOption.displayInfo) {
+    // 如果 options 中有但没有 displayInfo，更新它
+    existingOption.displayInfo = item.displayInfo
+  }
+  
+  const selectedOption = options.value.find((opt: any) => String(opt.value) === String(item.value))
+  const newFieldValue = {
+    raw: item.value,
+    display: item.label || selectedOption?.label || String(item.value),
+    meta: {
+      displayInfo: item.displayInfo || selectedOption?.displayInfo
+    }
+  }
+  
+  formDataStore.setValue(props.fieldPath, newFieldValue)
+  emit('update:modelValue', newFieldValue)
+  
+  // 🔥 关闭对话框
+  dialogVisible.value = false
 }
 
 // 处理搜索
@@ -444,23 +588,41 @@ async function handleSearch(query: string | number, isByValue: boolean): Promise
       }
     }
     
+    // 🔥 SelectWidget 是单选组件，不需要处理 max_selections
+    // max_selections 只在 MultiSelectWidget（多选组件）里有意义
+    
     if (response.items && Array.isArray(response.items)) {
       options.value = response.items.map((item: any) => ({
         label: item.label || String(item.value),
         value: item.value,
         disabled: false,
-        displayInfo: item.display_info
+        displayInfo: item.display_info || item.displayInfo
       }))
       
-      // 🔥 如果是在详情模式下通过 by_value 查询，找到匹配的选项并更新显示值
-      if (isByValue && props.mode === 'detail' && props.value?.raw) {
+      // 🔥 如果是通过 by_value 查询，找到匹配的选项并更新显示值
+      if (isByValue && props.value?.raw) {
         const matchedOption = options.value.find((opt: any) => {
           // 支持多种类型比较
           return opt.value === props.value.raw || String(opt.value) === String(props.value.raw)
         })
         if (matchedOption) {
-          // 🔥 更新 detailDisplayValue，这样 displayValue 计算属性就能显示正确的标签
-          detailDisplayValue.value = matchedOption.label
+          // 🔥 在详情模式下，更新 detailDisplayValue
+          if (props.mode === 'detail') {
+            detailDisplayValue.value = matchedOption.label
+          }
+          // 🔥 在编辑模式下，如果 value.display 为空或等于 raw，更新 display 值
+          if (props.mode === 'edit' && (!props.value.display || String(props.value.display) === String(props.value.raw))) {
+            const newFieldValue = {
+              raw: props.value.raw,
+              display: matchedOption.label,
+              meta: {
+                ...props.value.meta,
+                displayInfo: matchedOption.displayInfo
+              }
+            }
+            formDataStore.setValue(props.fieldPath, newFieldValue)
+            emit('update:modelValue', newFieldValue)
+          }
         }
       }
     } else {
@@ -504,14 +666,16 @@ function handleChange(value: any): void {
 onMounted(() => {
   initOptions()
   
-  // 🔥 详情模式下，如果已经有 formRenderer 和值，立即触发一次回调
-  // 因为 watch 可能在组件挂载时 formRenderer 还没传递过来
-  if (props.mode === 'detail' && hasCallback.value && props.value?.raw && props.formRenderer) {
+  // 🔥 如果有回调接口且有初始值（可能来自 URL 参数），触发一次 by_value 搜索
+  // 这包括编辑模式和详情模式
+  if (hasCallback.value && props.value?.raw && props.formRenderer) {
     nextTick(() => {
       if (!isSearching.value && props.value?.raw !== lastSearchedValue.value) {
         isSearching.value = true
         lastSearchedValue.value = props.value.raw
-        detailDisplayValue.value = null
+        if (props.mode === 'detail') {
+          detailDisplayValue.value = null
+        }
         handleSearch(props.value.raw, true).finally(() => {
           isSearching.value = false
         })
@@ -520,7 +684,7 @@ onMounted(() => {
   }
 })
 
-// 🔥 监听 value 和 formRenderer 变化，在详情模式下如果值变化了，重新触发回调获取标签
+// 🔥 监听 value 和 formRenderer 变化，如果值变化了，重新触发回调获取标签
 // 使用一个标志来防止重复调用
 const isSearching = ref(false)
 const lastSearchedValue = ref<any>(null)
@@ -531,9 +695,9 @@ watch(
     // 🔥 处理首次执行时 oldValues 为 undefined 的情况
     const [oldRaw, oldFormRenderer, oldMode] = oldValues || [undefined, undefined, undefined]
     
-    // 只在详情模式下，且有回调接口，且有值，且有 formRenderer 时触发
+    // 🔥 如果有回调接口，且有值，且有 formRenderer 时触发（适用于所有模式）
+    // 这包括编辑模式（URL 参数）和详情模式
     if (
-      mode === 'detail' && 
       hasCallback.value && 
       newRaw !== null && 
       newRaw !== undefined && 
@@ -544,8 +708,11 @@ watch(
     ) {
       isSearching.value = true
       lastSearchedValue.value = newRaw
-      // 重置 detailDisplayValue，等待回调返回后更新
-      detailDisplayValue.value = null
+      // 重置 detailDisplayValue（仅详情模式需要）
+      if (mode === 'detail') {
+        detailDisplayValue.value = null
+      }
+      // 🔥 通过 by_value 搜索获取对应的 label 和 displayInfo
       handleSearch(newRaw, true).finally(() => {
         isSearching.value = false
       })
@@ -558,6 +725,77 @@ watch(
 <style scoped>
 .select-widget {
   width: 100%;
+}
+
+.edit-select,
+.search-select {
+  width: 100%;
+}
+
+.select-container {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 6px;
+  background-color: var(--el-bg-color);
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.select-container:hover {
+  border-color: var(--el-color-primary);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.select-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.select-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.select-label {
+  flex: 1;
+  color: var(--el-text-color-primary);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.select-label:empty::before {
+  content: attr(data-placeholder);
+  color: var(--el-text-color-placeholder);
+}
+
+.display-info-text {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.input-icon {
+  color: var(--el-text-color-placeholder);
+  transition: all 0.2s;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.select-container:hover .input-icon {
+  color: var(--el-color-primary);
+  transform: translateY(1px);
 }
 
 .select-option {
@@ -630,6 +868,58 @@ watch(
 .select-tag-outline.el-tag--primary {
   color: var(--el-color-primary) !important;
   border-color: var(--el-color-primary) !important;
+}
+
+/* 🔥 多选模式样式（从 MultiSelectWidget 复制） */
+.edit-multiselect {
+  width: 100%;
+}
+
+.selected-tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 4px 8px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
+  background-color: var(--el-fill-color-blank);
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.selected-tags-container:hover {
+  border-color: var(--el-color-primary);
+}
+
+.tags-wrapper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.input-wrapper {
+  flex: 1;
+  min-width: 120px;
+  position: relative;
+}
+
+.multiselect-input {
+  width: 100%;
+}
+
+.multiselect-tag {
+  margin: 0;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 自定义颜色的空心标签：使用边框颜色 */

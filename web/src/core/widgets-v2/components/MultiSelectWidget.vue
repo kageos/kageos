@@ -5,76 +5,56 @@
 <template>
   <div class="multiselect-widget">
     <!-- 编辑模式 -->
-    <el-select
-      v-if="mode === 'edit'"
-      ref="selectRef"
-      v-model="selectedValues"
-      multiple
-      filterable
-      :remote="hasRemoteSearch"
-      :remote-method="remoteMethod"
-      :loading="loading"
-      :placeholder="placeholder"
-      :multiple-limit="maxCount"
-      reserve-keyword
-      :collapse-tags="false"
-      popper-class="select-dropdown-popper"
-      :popper-options="{
-        strategy: 'fixed',
-        modifiers: [
-          {
-            name: 'computeStyles',
-            options: {
-              adaptive: false,
-              roundOffsets: false
-            }
-          },
-          {
-            name: 'offset',
-            options: {
-              offset: [0, 4]
-            }
-          }
-        ]
-      }"
-      clearable
-      @change="handleChange"
-      @visible-change="handleVisibleChange"
-      @remove-tag="handleRemoveTag"
-    >
-      <!-- 自定义已选标签，应用颜色配置 -->
-      <!-- 🔥 Element Plus 的 #tag 插槽在 multiple 模式下没有参数，需要自己遍历 v-model 的值 -->
-      <template #tag>
-        <el-tag
-          v-for="value in selectedValues"
+    <div v-if="mode === 'edit'" class="edit-multiselect">
+      <!-- 参考单选的展示效果，使用条目式显示 -->
+      <div class="select-container" @click="openDialog">
+        <div class="select-content">
+          <!-- 显示已选条目 -->
+          <div v-if="selectedValues.length > 0" class="selected-items-list">
+            <div
+              v-for="(value, index) in selectedValues"
           :key="value"
-          :type="getOptionColorType(value)"
-          :color="getOptionColorValue(value)"
-          :closable="true"
-          @close.stop="handleRemoveTag(value)"
-          class="multiselect-tag"
-        >
-          {{ getOptionLabel(value) }}
-        </el-tag>
-      </template>
-      
-      <el-option
-        v-for="option in options"
-        :key="`${option.value}-${option.label}`"
-        :label="option.label"
-        :value="option.value"
-      >
-        <!-- 🔥 在下拉选项中显示带颜色的标签（参考 Element Plus 官方示例） -->
-        <div class="flex items-center">
-          <span
-            v-if="getOptionColor(option.value)"
-            class="option-color-indicator"
-            :style="getOptionColorStyle(option.value)"
-          />
-          <span>{{ option.label }}</span>
+              class="selected-item"
+            >
+              <div class="item-main">
+                <span class="item-label">{{ getOptionLabel(value) }}</span>
+                <el-icon class="item-close-icon" @click.stop="handleRemoveTag(value)">
+                  <Close />
+                </el-icon>
+              </div>
+              <div v-if="getItemDisplayInfo(value)" class="item-display-info">
+                {{ getItemDisplayInfo(value) }}
+              </div>
+            </div>
+          </div>
+          <!-- 显示占位符 -->
+          <div v-else class="select-main">
+            <span class="select-label">{{ placeholder }}</span>
+            <el-icon class="input-icon"><ArrowDown /></el-icon>
+          </div>
+          <!-- 显示总体 display_info -->
+          <div v-if="selectedValues.length > 0 && displayInfoText" class="display-info-text">
+            {{ displayInfoText }}
+          </div>
         </div>
-      </el-option>
-    </el-select>
+      </div>
+      
+      <!-- 模糊搜索对话框 -->
+      <FuzzySearchDialog
+        v-model="dialogVisible"
+        :title="`选择${props.field.name}`"
+        :placeholder="placeholder"
+        :suggestions="dialogSuggestions"
+        :loading="loading"
+        :is-multiselect="true"
+        :max-selections="maxCount"
+        :selected-values="selectedValues"
+        :get-item-color="getOptionColor"
+        @search="handleDialogSearch"
+        @select-multiple="handleDialogSelectMultiple"
+        @select-all="handleDialogSelectAll"
+      />
+        </div>
     
     <!-- 响应模式（只读） -->
     <div v-else-if="mode === 'response'" class="response-multiselect">
@@ -123,7 +103,9 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, nextTick, onMounted, withDefaults } from 'vue'
-import { ElSelect, ElOption, ElTag } from 'element-plus'
+import { ElInput, ElTag, ElIcon } from 'element-plus'
+import { ArrowDown, Close } from '@element-plus/icons-vue'
+import FuzzySearchDialog from './FuzzySearchDialog.vue'
 import type { WidgetComponentProps } from '../types'
 import { selectFuzzy } from '@/api/function'
 import { Logger } from '../../utils/logger'
@@ -187,7 +169,12 @@ const options = computed(() => {
 })
 
 const placeholder = computed(() => {
-  return config.value.placeholder || `请选择${props.field.name}`
+  const basePlaceholder = config.value.placeholder || `请选择${props.field.name}`
+  // 🔥 如果有限制，在 placeholder 中显示最多可选数量
+  if (maxCount.value > 0) {
+    return `${basePlaceholder}（最多可选${maxCount.value}个）`
+  }
+  return basePlaceholder
 })
 
 // 动态最大选择数量（从回调接口获取）
@@ -207,11 +194,9 @@ const hasRemoteSearch = computed(() => {
 // 加载状态
 const loading = ref(false)
 
-// 下拉框引用
-const selectRef = ref<InstanceType<typeof ElSelect> | null>(null)
-
-// 是否因为选择而需要保持打开
-const shouldKeepOpen = ref(false)
+// 对话框相关状态
+const dialogVisible = ref(false)
+const dialogSuggestions = ref<Array<{ label: string; value: any; displayInfo?: any; icon?: string }>>([])
 
 /**
  * 🔥 多选组件支持两种数据类型：
@@ -333,6 +318,94 @@ const currentStatistics = ref<Record<string, any>>({})
 const displayValues = computed(() => {
   return parseRawValue(props.value?.raw)
 })
+
+// 获取 display_info 的显示文本（用于输入框下方显示）
+const displayInfoText = computed(() => {
+  if (selectedValues.value.length === 0) {
+    return ''
+  }
+  
+  // 🔥 优先从 props.value.meta.displayInfo 获取（这是保存的值）
+  const metaDisplayInfos = props.value?.meta?.displayInfo
+  if (metaDisplayInfos && Array.isArray(metaDisplayInfos) && metaDisplayInfos.length > 0) {
+    const infoItems: string[] = []
+    metaDisplayInfos.forEach((info: any) => {
+      if (info && typeof info === 'object') {
+        Object.entries(info).forEach(([key, value]) => {
+          if (value !== null && value !== undefined && value !== '') {
+            const item = `${key}: ${value}`
+            if (!infoItems.includes(item)) {
+              infoItems.push(item)
+            }
+          }
+        })
+      }
+    })
+    
+    if (infoItems.length > 0) {
+      // 限制显示数量，避免过长
+      if (infoItems.length > 5) {
+        return infoItems.slice(0, 5).join(' | ') + ' ...'
+      }
+      return infoItems.join(' | ')
+    }
+  }
+  
+  // 🔥 如果 meta 中没有，尝试从 options 中查找
+  const displayInfos = selectedValues.value.map((val: any) => {
+    const option = options.value.find((opt: any) => String(opt.value) === String(val))
+    return option?.displayInfo || null
+  }).filter((info: any) => info && typeof info === 'object')
+  
+  if (displayInfos.length === 0) {
+    return ''
+  }
+  
+  // 提取所有 display_info 的键值对，格式化为文本
+  const infoItems: string[] = []
+  displayInfos.forEach((info: any) => {
+    if (info && typeof info === 'object') {
+      Object.entries(info).forEach(([key, value]) => {
+        if (value !== null && value !== undefined && value !== '') {
+          const item = `${key}: ${value}`
+          if (!infoItems.includes(item)) {
+            infoItems.push(item)
+          }
+        }
+      })
+    }
+  })
+  
+  // 限制显示数量，避免过长
+  if (infoItems.length > 5) {
+    return infoItems.slice(0, 5).join(' | ') + ' ...'
+  }
+  
+  return infoItems.join(' | ')
+})
+
+// 获取单个条目的 display_info 文本
+function getItemDisplayInfo(value: any): string {
+  const valueStr = String(value)
+  // 从 options 中查找
+  const option = options.value.find((opt: any) => String(opt.value) === valueStr)
+  if (option?.displayInfo && typeof option.displayInfo === 'object') {
+    const infoItems: string[] = []
+    Object.entries(option.displayInfo).forEach(([key, val]) => {
+      if (val !== null && val !== undefined && val !== '') {
+        infoItems.push(`${key}: ${val}`)
+      }
+    })
+    if (infoItems.length > 0) {
+      // 限制显示数量，避免过长
+      if (infoItems.length > 3) {
+        return infoItems.slice(0, 3).join(' | ') + ' ...'
+      }
+      return infoItems.join(' | ')
+    }
+  }
+  return ''
+}
 
 // 获取选项标签
 function getOptionLabel(value: any): string {
@@ -558,20 +631,122 @@ async function handleSearch(query: string | any[], isByValue = false): Promise<v
   }
 }
 
-// 远程搜索方法
+// 远程搜索方法（保留用于兼容）
 async function remoteMethod(query: string): Promise<void> {
   await handleSearch(query, false)
 }
 
-// 选项点击时触发
-function handleOptionClick(): void {
-  const currentLength = selectedValues.value.length
-  const shouldClose = maxCount.value > 0 && currentLength >= maxCount.value - 1
-  if (!shouldClose) {
-    shouldKeepOpen.value = true
+// 打开对话框
+async function openDialog(): Promise<void> {
+  dialogVisible.value = true
+  // 如果有远程搜索，触发一次空搜索加载初始选项
+  if (hasRemoteSearch.value) {
+    await handleDialogSearch('')
   } else {
-    shouldKeepOpen.value = false
+    // 静态选项，直接使用
+    dialogSuggestions.value = options.value.map((opt: any) => ({
+      label: opt.label,
+      value: opt.value,
+      displayInfo: opt.displayInfo,
+      display_info: opt.displayInfo, // 同时提供两种格式，确保兼容
+      icon: opt.icon
+    }))
   }
+}
+
+// 处理对话框搜索
+async function handleDialogSearch(keyword: string): Promise<void> {
+  if (hasRemoteSearch.value) {
+    await handleSearch(keyword, false)
+    // 更新对话框建议列表
+    dialogSuggestions.value = options.value.map((opt: any) => ({
+      label: opt.label,
+      value: opt.value,
+      displayInfo: opt.displayInfo,
+      display_info: opt.displayInfo, // 同时提供两种格式，确保兼容
+      icon: opt.icon
+    }))
+    } else {
+    // 静态选项，本地过滤
+    const filtered = staticOptions.value.filter((opt: any) => {
+      const label = typeof opt === 'string' ? opt : opt.label
+      return label.toLowerCase().includes(keyword.toLowerCase())
+    })
+    dialogSuggestions.value = filtered.map((opt: any) => {
+      if (typeof opt === 'string') {
+        return { label: opt, value: opt }
+      }
+      return {
+        label: opt.label,
+        value: opt.value,
+        displayInfo: opt.displayInfo,
+        display_info: opt.displayInfo, // 同时提供两种格式，确保兼容
+        icon: opt.icon
+      }
+    })
+  }
+}
+
+// 处理对话框多选确认
+function handleDialogSelectMultiple(items: Array<{ value: any; label?: string; displayInfo?: any }>): void {
+  const newValues = items.map(item => item.value)
+  // 合并已选值和新增值，去重
+  const allValues = Array.from(new Set([...selectedValues.value, ...newValues]))
+  
+  // 🔥 更新 options，确保新选择的项的 displayInfo 被保存
+  items.forEach(item => {
+    const existingOption = options.value.find((opt: any) => String(opt.value) === String(item.value))
+    if (!existingOption) {
+      // 如果 options 中没有，添加进去
+      options.value.push({
+        label: item.label || String(item.value),
+        value: item.value,
+        displayInfo: item.displayInfo
+      })
+    } else if (item.displayInfo && !existingOption.displayInfo) {
+      // 如果 options 中有但没有 displayInfo，更新它
+      existingOption.displayInfo = item.displayInfo
+    }
+  })
+  
+  // 应用数量限制
+  if (maxCount.value > 0 && allValues.length > maxCount.value) {
+    const limitedValues = allValues.slice(0, maxCount.value)
+    selectedValues.value = limitedValues
+              } else {
+    selectedValues.value = allValues
+  }
+}
+
+// 处理对话框全选
+function handleDialogSelectAll(items: Array<{ value: any; label?: string; displayInfo?: any }>): void {
+  const newValues = items.map(item => item.value)
+  // 合并已选值和全选值，去重
+  const allValues = Array.from(new Set([...selectedValues.value, ...newValues]))
+  
+  // 🔥 更新 options，确保全选的项的 displayInfo 被保存
+  items.forEach(item => {
+    const existingOption = options.value.find((opt: any) => String(opt.value) === String(item.value))
+    if (!existingOption) {
+      // 如果 options 中没有，添加进去
+      options.value.push({
+        label: item.label || String(item.value),
+        value: item.value,
+        displayInfo: item.displayInfo
+      })
+    } else if (item.displayInfo && !existingOption.displayInfo) {
+      // 如果 options 中有但没有 displayInfo，更新它
+      existingOption.displayInfo = item.displayInfo
+    }
+  })
+  
+  // 应用数量限制
+  if (maxCount.value > 0 && allValues.length > maxCount.value) {
+    const limitedValues = allValues.slice(0, maxCount.value)
+    selectedValues.value = limitedValues
+          } else {
+    selectedValues.value = allValues
+          }
 }
 
 // 移除标签时触发
@@ -581,81 +756,11 @@ function handleRemoveTag(valueToRemove?: any): void {
     const newValues = selectedValues.value.filter((v: any) => String(v) !== String(valueToRemove))
     selectedValues.value = newValues
   }
-  shouldKeepOpen.value = true
 }
 
-// 下拉框展开时触发
-function handleVisibleChange(visible: boolean): void {
-  if (visible) {
-    const currentLength = selectedValues.value.length
-    const shouldClose = maxCount.value > 0 && currentLength >= maxCount.value
-    if (!shouldClose) {
-      shouldKeepOpen.value = true
-    } else {
-      shouldKeepOpen.value = false
-    }
-    
-    if (hasRemoteSearch.value) {
-      if (dynamicOptions.value.length === 0) {
-        handleSearch('', false)
-      }
-    }
-  } else {
-    setTimeout(() => {
-      if (!shouldKeepOpen.value) {
-        return
-      }
-      
-      const input = selectRef.value?.$el?.querySelector('input')
-      const isInputFocused = document.activeElement === input
-      
-      if (!isInputFocused) {
-        shouldKeepOpen.value = false
-        return
-      }
-      
-      if (shouldKeepOpen.value && isInputFocused) {
-        nextTick(() => {
-          if (selectRef.value) {
-            const selectEl = selectRef.value as any
-            const currentInput = (selectEl.$el || selectEl.el || selectEl)?.querySelector?.('input')
-            if (currentInput && document.activeElement === currentInput) {
-              currentInput.focus()
-              if (selectEl.handleMenuEnter) {
-                selectEl.handleMenuEnter()
-              } else if (selectEl.toggleMenu) {
-                selectEl.toggleMenu()
-              } else if (selectEl.setSoftFocus) {
-                selectEl.setSoftFocus()
-              } else {
-                if (selectEl.visible !== undefined) {
-                  selectEl.visible = true
-                } else {
-                  currentInput.click()
-                }
-              }
-            } else {
-              shouldKeepOpen.value = false
-            }
-          } else {
-            shouldKeepOpen.value = false
-          }
-        })
-      }
-    }, 100)
-  }
-}
-
-// 处理值变化
+// 处理值变化（保留用于兼容）
 function handleChange(values: any[]): void {
   selectedValues.value = values
-  
-  const shouldClose = maxCount.value > 0 && values.length >= maxCount.value
-  if (!shouldClose) {
-    shouldKeepOpen.value = true
-  } else {
-    shouldKeepOpen.value = false
-  }
 }
 
 // 初始化：如果字段没有值，使用默认值
@@ -719,6 +824,129 @@ watch(
   width: 100%;
 }
 
+.edit-multiselect {
+  width: 100%;
+}
+
+/* 🔥 参考单选的样式，使用相同的容器样式 */
+.select-container {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 6px;
+  background-color: var(--el-bg-color);
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.select-container:hover {
+  border-color: var(--el-color-primary);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.select-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.select-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 24px;
+}
+
+.select-label {
+  flex: 1;
+  color: var(--el-text-color-placeholder);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* 条目列表样式 */
+.selected-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.selected-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  background-color: var(--el-fill-color-lighter);
+  border-radius: 4px;
+  border: 1px solid var(--el-border-color-lighter);
+  transition: all 0.2s;
+}
+
+.selected-item:hover {
+  background-color: var(--el-fill-color-light);
+  border-color: var(--el-border-color);
+}
+
+.item-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.item-label {
+  flex: 1;
+  color: var(--el-text-color-primary);
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+.item-close-icon {
+  color: var(--el-text-color-placeholder);
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.item-close-icon:hover {
+  color: var(--el-color-danger);
+  transform: scale(1.1);
+}
+
+.item-display-info {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.4;
+  padding-left: 4px;
+}
+
+.display-info-text {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.input-icon {
+  color: var(--el-text-color-placeholder);
+  transition: all 0.2s;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.select-container:hover .input-icon {
+  color: var(--el-color-primary);
+  transform: translateY(1px);
+}
+
 .response-multiselect,
 .table-cell-multiselect,
 .detail-multiselect {
@@ -771,19 +999,23 @@ watch(
   color: #999;
 }
 
-/* 编辑模式下的自定义标签样式 */
+/* 编辑模式下的自定义标签样式 - 参考单选的标签样式 */
 .multiselect-tag {
   font-weight: 500;
   border: none;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-  margin-right: 6px;
-  margin-bottom: 2px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  margin: 0;
   opacity: 0.9;
-  transition: opacity 0.2s;
+  transition: all 0.2s;
+  font-size: 12px;
+  padding: 2px 8px;
+  height: 22px;
+  line-height: 1.5;
 }
 
 .multiselect-tag:hover {
   opacity: 1;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
 }
 
 /* 自定义颜色的 tag，确保文字清晰 */
