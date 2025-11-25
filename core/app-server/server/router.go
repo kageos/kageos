@@ -59,4 +59,19 @@ func (s *Server) setupRoutes() {
 	functionHandler := v1.NewFunction(s.functionService)
 	function.GET("/get", functionHandler.GetFunction)
 	function.GET("/list", functionHandler.GetFunctionsByApp)
+	function.POST("/fork", functionHandler.ForkFunctionGroup)
+
+	// 用户管理路由（需要JWT验证）
+	user := apiV1.Group("/user")
+	user.Use(middleware2.JWTAuth()) // 用户管理需要JWT认证
+	userHandler := v1.NewUser(s.userService)
+	user.GET("/info", userHandler.GetUserInfo)
+	user.GET("/query", userHandler.QueryUser)
+	user.GET("/search_fuzzy", userHandler.SearchUsersFuzzy)
+	user.PUT("/update", userHandler.UpdateUser)
+	
+	// 批量获取用户（需要JWT验证）
+	users := apiV1.Group("/users")
+	users.Use(middleware2.JWTAuth())
+	users.POST("", userHandler.GetUsersByUsernames)
 }

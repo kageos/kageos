@@ -13,7 +13,7 @@ type GetUploadTokenReq struct {
 	FileName     string       `json:"file_name" binding:"required"`
 	ContentType  string       `json:"content_type"`
 	FileSize     int64        `json:"file_size"`
-	Router       string       `json:"router" binding:"required"` // 函数路径，例如：luobei/test88888/tools/cashier_desk
+	Router       string       `json:"router,omitempty"`          // 函数路径，例如：luobei/test88888/tools/cashier_desk（可选，未提供时使用默认路由：/{username}/default）
 	Hash         string       `json:"hash,omitempty"`            // 文件 hash（预留，用于秒传）
 	UploadSource UploadSource `json:"upload_source,omitempty"`   // ✨ 上传来源：browser（浏览器）或 server（服务端），默认为 browser
 }
@@ -35,6 +35,7 @@ type GetUploadTokenResp struct {
 	Expire  string       `json:"expire"`            // 过期时间
 	Method  UploadMethod `json:"method"`            // 上传方式 ✨ 新增
 	Storage string       `json:"storage,omitempty"` // ✨ 存储引擎（minio/qiniu/tencentcos/aliyunoss/awss3）
+	Username string      `json:"username,omitempty"` // ✨ 当前登录用户的用户名
 
 	// 预签名 URL 上传（MinIO、COS、OSS、S3）
 	URL      string            `json:"url,omitempty"`       // ✨ 外部访问的预签名 URL（前端使用）

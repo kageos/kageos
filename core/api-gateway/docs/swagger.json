@@ -11,7 +11,7 @@
     "paths": {
         "/api/v1/config": {
             "get": {
-                "description": "返回所有服务的访问地址（通过网关）",
+                "description": "返回所有服务的访问地址（通过网关和直接地址）",
                 "produces": [
                     "application/json"
                 ],
@@ -23,12 +23,48 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/v1.ServiceConfigResponse"
                         }
                     }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "v1.Service": {
+            "type": "object",
+            "properties": {
+                "direct_url": {
+                    "description": "直接地址（用于 SDK 内部调用，绕过网关）",
+                    "type": "string"
+                },
+                "path": {
+                    "description": "路径前缀",
+                    "type": "string"
+                },
+                "url": {
+                    "description": "通过网关的地址",
+                    "type": "string"
+                }
+            }
+        },
+        "v1.ServiceConfigResponse": {
+            "type": "object",
+            "properties": {
+                "gateway": {
+                    "description": "网关地址",
+                    "type": "string"
+                },
+                "services": {
+                    "description": "服务配置",
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/v1.Service"
+                    }
+                },
+                "version": {
+                    "description": "版本",
+                    "type": "string"
                 }
             }
         }

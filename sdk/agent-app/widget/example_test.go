@@ -21,8 +21,8 @@ func ExampleDecodeTable() {
 		DeletedAt   string `json:"deleted_at" gorm:"column:deleted_at" widget:"-"` // 隐藏字段
 		Title       string `json:"title" gorm:"column:title" widget:"name:工单标题;type:input" search:"like" validate:"required,min=2,max=200"`
 		Description string `json:"description" gorm:"column:description" widget:"name:问题描述;type:text_area" validate:"required,min=10"`
-		Priority    string `json:"priority" gorm:"column:priority" widget:"name:优先级;type:select;options:低,中,高;default:中" validate:"required,oneof=低,中,高"`
-		Status      string `json:"status" gorm:"column:status" widget:"name:工单状态;type:select;options:待处理,处理中,已完成,已关闭;default:待处理" validate:"required,oneof=待处理,处理中,已完成,已关闭"`
+		Priority    string `json:"priority" gorm:"column:priority" widget:"name:优先级;type:select;options:低,中,高;default:中" validate:"required,oneof=低 中 高"`
+		Status      string `json:"status" gorm:"column:status" widget:"name:工单状态;type:select;options:待处理,处理中,已完成,已关闭;default:待处理" validate:"required,oneof=待处理 处理中 已完成 已关闭"`
 		Phone       string `json:"phone" gorm:"column:phone" widget:"name:联系电话;type:input" validate:"required,min=11,max=20"`
 		CreateBy    string `json:"create_by" gorm:"column:create_by" widget:"name:创建用户;type:user" permission:"read"`
 	}

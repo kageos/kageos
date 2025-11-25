@@ -1,12 +1,13 @@
 package model
 
 import (
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
 	"testing"
 )
 
 func TestApiInfoBindingMethods(t *testing.T) {
 	// 创建测试用的ApiInfo对象
-	apiInfo := &ApiInfo{
+	apiInfo := &app.ApiInfo{
 		Code:         "createUser",
 		Name:         "创建用户",
 		Desc:         "创建新用户",
@@ -63,7 +64,7 @@ func TestApiInfoBindingMethods(t *testing.T) {
 
 func TestApiInfoEdgeCases(t *testing.T) {
 	// 测试空路径
-	apiInfo1 := &ApiInfo{
+	apiInfo1 := &app.ApiInfo{
 		FullCodePath: "",
 		User:         "testuser",
 		App:          "testapp",
@@ -82,7 +83,7 @@ func TestApiInfoEdgeCases(t *testing.T) {
 	}
 
 	// 测试只有应用级别的路径
-	apiInfo2 := &ApiInfo{
+	apiInfo2 := &app.ApiInfo{
 		FullCodePath: "/testuser/testapp",
 		User:         "testuser",
 		App:          "testapp",
@@ -98,7 +99,7 @@ func TestApiInfoEdgeCases(t *testing.T) {
 	}
 
 	// 测试一级路径
-	apiInfo3 := &ApiInfo{
+	apiInfo3 := &app.ApiInfo{
 		FullCodePath: "/testuser/testapp/api",
 		User:         "testuser",
 		App:          "testapp",
@@ -122,7 +123,7 @@ func TestApiInfoEdgeCases(t *testing.T) {
 }
 
 func TestApiInfoBuildFullNamePath(t *testing.T) {
-	apiInfo := &ApiInfo{
+	apiInfo := &app.ApiInfo{
 		User:   "testuser",
 		App:    "testapp",
 		Router: "/api/user/create",

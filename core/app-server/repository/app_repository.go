@@ -76,13 +76,22 @@ func (r *AppRepository) GetAppsByUser(user string) ([]*model.App, error) {
 	return apps, nil
 }
 
-// GetAppsByUserWithPage 根据用户获取分页应用列表
-func (r *AppRepository) GetAppsByUserWithPage(user string, page, pageSize int) ([]*model.App, int64, error) {
+// GetAppsByUserWithPage 根据用户获取分页应用列表（支持搜索）
+func (r *AppRepository) GetAppsByUserWithPage(user string, page, pageSize int, search string) ([]*model.App, int64, error) {
 	var apps []*model.App
 	var totalCount int64
 
+	// 构建查询条件
+	query := r.db.Model(&model.App{}).Where("user = ?", user)
+
+	// 如果有关键词，添加搜索条件（按名称或代码搜索）
+	if search != "" {
+		searchPattern := "%" + search + "%"
+		query = query.Where("name LIKE ? OR code LIKE ?", searchPattern, searchPattern)
+	}
+
 	// 获取总数
-	err := r.db.Model(&model.App{}).Where("user = ?", user).Count(&totalCount).Error
+	err := query.Count(&totalCount).Error
 	if err != nil {
 		return nil, 0, err
 	}
@@ -91,7 +100,7 @@ func (r *AppRepository) GetAppsByUserWithPage(user string, page, pageSize int) (
 	offset := (page - 1) * pageSize
 
 	// 获取分页数据
-	err = r.db.Where("user = ?", user).Offset(offset).Limit(pageSize).Find(&apps).Error
+	err = query.Offset(offset).Limit(pageSize).Find(&apps).Error
 	if err != nil {
 		return nil, 0, err
 	}

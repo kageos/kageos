@@ -4,12 +4,15 @@
       <!-- 左侧服务目录树 -->
       <div class="left-sidebar">
         <ServiceTreePanel
+          ref="serviceTreePanelRef"
           :tree-data="serviceTree"
           :loading="loadingTree"
           :current-node-id="currentFunction?.id || null"
+          :current-function="currentFunction"
           @node-click="handleNodeClick"
           @create-directory="handleCreateDirectory"
           @copy-link="handleCopyLink"
+          @fork-group="handleForkGroup"
         />
       </div>
 
@@ -28,6 +31,55 @@
           <div class="right-section">
             <!-- 主题切换按钮 -->
             <ThemeToggle />
+            
+            <!-- 用户菜单 -->
+            <el-dropdown
+              v-if="isAuthenticated"
+              trigger="click"
+              placement="bottom-end"
+              @command="handleUserCommand"
+              class="user-menu-dropdown"
+            >
+              <div class="user-info">
+                <el-avatar
+                  :size="32"
+                  :src="userAvatar"
+                  class="user-avatar"
+                >
+                  <el-icon><User /></el-icon>
+                </el-avatar>
+                <span class="user-name">{{ userName || '用户' }}</span>
+                <el-icon class="dropdown-icon"><ArrowDown /></el-icon>
+              </div>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item disabled>
+                    <div class="user-menu-header">
+                      <div class="user-menu-name">{{ userName || '用户' }}</div>
+                      <div class="user-menu-email">{{ userEmail || '' }}</div>
+                    </div>
+                  </el-dropdown-item>
+                  <el-dropdown-item command="settings">
+                    <el-icon><Setting /></el-icon>
+                    <span>个人设置</span>
+                  </el-dropdown-item>
+                  <el-dropdown-item divided command="logout">
+                    <el-icon><SwitchButton /></el-icon>
+                    <span>退出登录</span>
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+            
+            <!-- 未登录时显示登录按钮 -->
+            <el-button
+              v-else
+              type="primary"
+              @click="handleLogin"
+              class="login-button"
+            >
+              登录
+            </el-button>
           </div>
         </div>
 
@@ -107,6 +159,7 @@
             <TableRenderer
               v-if="functionDetail.template_type === 'table'"
               :function-data="functionDetail"
+              :current-function="currentFunction"
             />
             
             <!-- Form类型：显示 FormRenderer（新架构） -->
@@ -329,27 +382,42 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- Fork 函数组对话框 -->
+    <FunctionForkDialog
+      v-model="forkDialogVisible"
+      :source-full-group-code="forkSourceGroupCode || undefined"
+      :source-group-name="forkSourceGroupName || undefined"
+      :current-app="currentApp || undefined"
+      @success="handleForkSuccess"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, ArrowRight, Grid, InfoFilled, Folder } from '@element-plus/icons-vue'
-import { ElMessage, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon } from 'element-plus'
+import { ArrowLeft, ArrowRight, Grid, InfoFilled, Folder, User, ArrowDown, SwitchButton, Setting } from '@element-plus/icons-vue'
+import { ElMessage, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon, ElAvatar, ElDropdown, ElDropdownMenu, ElDropdownItem } from 'element-plus'
 import ServiceTreePanel from '@/components/ServiceTreePanel.vue'
 import TableRenderer from '@/components/TableRenderer.vue'
-import FormRenderer from '@/core/renderers/FormRenderer.vue'
+import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
 import AppSwitcher from '@/components/AppSwitcher.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
+import FunctionForkDialog from '@/components/FunctionForkDialog.vue'
 import { getFunctionDetail, getFunctionByPath } from '@/api/function'
 import { createServiceTree } from '@/api/service-tree'
 import { useAppManager } from '@/composables/useAppManager'
 import { useServiceTree } from '@/composables/useServiceTree'
+import { useAuthStore } from '@/stores/auth'
+import { Logger } from '@/core/utils/logger'
 import type { ServiceTree, CreateServiceTreeRequest, CreateAppRequest, Function as FunctionType } from '@/types'
 
 const route = useRoute()
 const router = useRouter()
+
+// 用户认证
+const authStore = useAuthStore()
 
 // 🔥 使用 Composables（组件化逻辑）
 const {
@@ -372,6 +440,9 @@ const {
   locateNodeByRoute,
   handleCreateDirectory: createDirectory
 } = useServiceTree()
+// ServiceTreePanel 的引用
+const serviceTreePanelRef = ref<InstanceType<typeof ServiceTreePanel> | null>(null)
+
 // 加载状态
 const loading = ref(false)
 // 函数详情数据
@@ -443,6 +514,8 @@ const switchApp = async (app: any, preserveRoute = false) => {
   // 🔥 定位节点并加载函数详情（使用 handleLocateNode，它会加载函数详情）
   nextTick(() => {
     handleLocateNode()
+    // 应用切换完成、服务树加载完成后，检查 forked 参数
+    checkAndExpandForkedPaths()
   })
 }
 
@@ -477,19 +550,16 @@ const submitCreateApp = async () => {
 
   try {
     creatingApp.value = true
-    console.log('[Workspace] 创建应用请求:', createAppForm.value)
-    
     const newApp = await handleCreateApp(createAppForm.value)
     
     if (newApp) {
-      console.log('[Workspace] 应用创建成功:', newApp)
       createAppDialogVisible.value = false
       
       // 切换到新创建的应用
       await switchApp(newApp)
     }
   } catch (error: any) {
-    console.error('[Workspace] 创建应用失败:', error)
+    Logger.error('Workspace', '创建应用失败', error)
   } finally {
     creatingApp.value = false
   }
@@ -504,56 +574,40 @@ const handleLocateNode = () => {
     fullPath = currentPath.replace('/workspace/', '').replace(/^\/+|\/+$/g, '')
   }
   
-  console.log('[定位] window.location.pathname:', currentPath)
-  console.log('[定位] 提取的完整路径:', fullPath)
-  
   if (!fullPath) {
-    console.log('[定位] 路径为空，不进行定位')
     currentLocatingPath.value = null
     return
   }
   
   // 如果正在定位同一个路径，跳过
   if (currentLocatingPath.value === fullPath) {
-    console.log('[定位] ⏭️ 正在定位此路径，跳过重复定位')
     return
   }
   
   // 分割路径段
   const pathSegments = fullPath.split('/').filter(Boolean)
-  console.log('[定位] 路径段:', pathSegments)
   
   if (pathSegments.length < 2) {
     // 至少需要 user 和 app
-    console.log('[定位] 路径段不足，需要至少 user 和 app')
     currentLocatingPath.value = null
     return
   }
   
   // 确保当前应用匹配
   const [user, app] = pathSegments
-  console.log('[定位] 解析到的 user:', user, 'app:', app)
-  console.log('[定位] 当前应用:', currentApp.value ? `${currentApp.value.user}/${currentApp.value.code}` : 'null')
   
   if (!currentApp.value) {
-    console.log('[定位] ❌ 当前应用为空，无法定位')
     currentLocatingPath.value = null
     return
   }
   
   if (currentApp.value.user !== user || currentApp.value.code !== app) {
-    console.log('[定位] ❌ 应用不匹配')
-    console.log('[定位]    期望:', `${user}/${app}`)
-    console.log('[定位]    实际:', `${currentApp.value.user}/${currentApp.value.code}`)
     currentLocatingPath.value = null
     return
   }
   
-  console.log('[定位] ✅ 应用匹配成功')
-  
   // 如果路径长度只有2（只有user和app），说明是应用的根路径，不选中任何节点
   if (pathSegments.length === 2) {
-    console.log('[定位] 根路径，不选中任何节点')
     currentFunction.value = null
     showRightSidebar.value = false
     functionDetail.value = null
@@ -563,16 +617,13 @@ const handleLocateNode = () => {
   
   // 查找对应的节点
   const targetPath = `/${pathSegments.join('/')}`
-  console.log('[定位] 目标路径:', targetPath)
   
   // 标记正在定位此路径
   currentLocatingPath.value = fullPath
   
   const findNodeByPath = (nodes: ServiceTree[], targetPath: string): ServiceTree | null => {
     for (const node of nodes) {
-      console.log('[定位] 检查节点:', node.full_code_path, '===', targetPath, '?', node.full_code_path === targetPath)
       if (node.full_code_path === targetPath) {
-        console.log('[定位] ✅ 找到节点:', node)
         return node
       }
       if (node.children && node.children.length > 0) {
@@ -588,10 +639,6 @@ const handleLocateNode = () => {
     // 如果节点相同且已经加载过详情，不重复加载
     const isSameNode = currentFunction.value?.id === targetNode.id
     
-    console.log('[定位] ✅✅✅ 定位成功，设置当前节点:', targetNode.name, targetNode.full_code_path)
-    console.log('[定位] 节点 ID:', targetNode.id, '类型:', targetNode.type)
-    console.log('[定位] 是否相同节点:', isSameNode)
-    
     currentFunction.value = targetNode
     
     if (targetNode.type === 'function') {
@@ -602,54 +649,120 @@ const handleLocateNode = () => {
       if (!isSameNode || !functionDetail.value) {
         // 🔥 优先使用 ref_id，如果没有则使用 full_code_path
         if (targetNode.ref_id && targetNode.ref_id > 0) {
-          console.log('[定位] 加载函数详情, ref_id:', targetNode.ref_id)
           loadFunctionDetail(targetNode.ref_id)
         } else if (targetNode.full_code_path) {
-          console.log('[定位] ref_id 不存在，使用路径加载函数详情:', targetNode.full_code_path)
           loadFunctionDetailByPath(targetNode.full_code_path)
         } else {
-          console.warn('[定位] ⚠️ 节点没有 ref_id 和 full_code_path，无法加载函数详情')
+          Logger.warn('Workspace', '节点没有 ref_id 和 full_code_path，无法加载函数详情')
           ElMessage.warning('无法加载函数详情：节点信息不完整')
         }
-      } else {
-        console.log('[定位] ⏭️ 跳过重复加载函数详情')
       }
     } else {
       showRightSidebar.value = false
       functionDetail.value = null
     }
   } else {
-    console.log('[定位] ❌❌❌ 未找到匹配的节点')
-    console.log('[定位] 目标路径:', targetPath)
-    console.log('[定位] 服务树节点数:', serviceTree.value.length)
-    if (serviceTree.value.length > 0) {
-      console.log('[定位] 服务树内容:', JSON.stringify(serviceTree.value.map((n: ServiceTree) => ({ 
-        name: n.name, 
-        path: n.full_code_path,
-        children: n.children?.length || 0
-      })), null, 2))
-    }
     currentLocatingPath.value = null
   }
 }
 
 // 监听刷新服务目录树事件
-const handleRefreshServiceTree = () => {
+const handleRefreshServiceTree = async () => {
   if (currentApp.value) {
-    window.dispatchEvent(new CustomEvent('refresh-service-tree'))
+    console.log('[Workspace] 刷新服务目录树:', currentApp.value.user + '/' + currentApp.value.code)
+    // 重新加载服务树数据
+    await loadServiceTreeData(currentApp.value)
+    // 刷新后重新定位节点
+    nextTick(() => {
+      handleLocateNode()
+    })
+  }
+}
+
+// 检查并展开 forked 路径
+const checkAndExpandForkedPaths = () => {
+  const forkedParam = route.query.forked as string
+  console.log('[Workspace] 检查 forked 参数:', forkedParam)
+  console.log('[Workspace] 当前应用:', currentApp.value ? `${currentApp.value.user}/${currentApp.value.code}` : 'null')
+  console.log('[Workspace] serviceTree 长度:', serviceTree.value.length)
+  console.log('[Workspace] serviceTreePanelRef:', serviceTreePanelRef.value)
+  
+  // 检查当前应用是否匹配 URL 中的应用
+  const pathSegments = route.path.replace('/workspace/', '').split('/').filter(Boolean)
+  if (pathSegments.length >= 2) {
+    const [urlUser, urlApp] = pathSegments
+    if (currentApp.value && (currentApp.value.user !== urlUser || currentApp.value.code !== urlApp)) {
+      console.log('[Workspace] ⚠️ 应用不匹配，等待应用切换完成')
+      console.log('[Workspace]    URL 应用:', `${urlUser}/${urlApp}`)
+      console.log('[Workspace]    当前应用:', `${currentApp.value.user}/${currentApp.value.code}`)
+      return // 应用不匹配，不展开
+    }
+  }
+  
+  if (forkedParam && serviceTree.value.length > 0 && serviceTreePanelRef.value && currentApp.value) {
+    const forkedPaths = decodeURIComponent(forkedParam).split(',').filter(Boolean)
+    console.log('[Workspace] 解析后的路径列表:', forkedPaths)
+    
+    // 验证路径是否属于当前应用
+    const validPaths = forkedPaths.filter(path => {
+      const pathMatch = path.match(/^\/([^/]+)\/([^/]+)/)
+      if (pathMatch) {
+        const [, pathUser, pathApp] = pathMatch
+        const isValid = pathUser === currentApp.value?.user && pathApp === currentApp.value?.code
+        if (!isValid) {
+          console.log('[Workspace] ⚠️ 路径不属于当前应用，跳过:', path)
+        }
+        return isValid
+      }
+      return false
+    })
+    
+    if (validPaths.length > 0) {
+      console.log('[Workspace] 有效路径列表:', validPaths)
+      nextTick(() => {
+        setTimeout(() => {
+          if (serviceTreePanelRef.value && serviceTreePanelRef.value.expandPaths) {
+            console.log('[Workspace] 调用 expandPaths')
+            serviceTreePanelRef.value.expandPaths(validPaths)
+          } else {
+            console.log('[Workspace] ⚠️ serviceTreePanelRef 或 expandPaths 不存在')
+          }
+        }, 500) // 延迟确保树完全渲染
+      })
+    } else {
+      console.log('[Workspace] ⚠️ 没有有效的路径可以展开')
+    }
   }
 }
 
 // 监听路由变化
-watch(() => route.fullPath, () => {
+watch(() => route.fullPath, async () => {
   console.log('[Workspace] ========== 路由变化 ==========')
   console.log('[Workspace] 新路由:', route.fullPath)
   console.log('[Workspace] 当前应用:', currentApp.value ? `${currentApp.value.user}/${currentApp.value.code}` : 'null')
   console.log('[Workspace] 服务树节点数:', serviceTree.value.length)
+  
+  // 从路由解析应用
+  const app = parseAppFromRoute()
+  if (app) {
+    // 如果应用不匹配，需要切换应用
+    if (!currentApp.value || currentApp.value.id !== app.id) {
+      console.log('[Workspace] 路由变化检测到应用不匹配，切换应用')
+      console.log('[Workspace]    URL 应用:', `${app.user}/${app.code}`)
+      console.log('[Workspace]    当前应用:', currentApp.value ? `${currentApp.value.user}/${currentApp.value.code}` : 'null')
+      // 切换应用（保留路由，因为路由已经变化了）
+      await switchApp(app, true)
+      // switchApp 完成后会自动检查 forked 参数
+      return
+    }
+  }
+  
   if (serviceTree.value.length > 0 && currentApp.value) {
     nextTick(() => {
       console.log('[Workspace] 路由变化后开始定位节点')
       handleLocateNode()  // 🔥 使用 handleLocateNode，它会加载函数详情
+      // 注意：不在这里检查 forked 参数，因为应用可能还没切换完成
+      // forked 参数会在应用切换完成、服务树加载完成后检查
     })
   } else {
     console.log('[Workspace] ⚠️ 路由变化但条件不满足，不定位节点')
@@ -667,11 +780,43 @@ watch(currentApp, () => {
     nextTick(() => {
       console.log('[Workspace] 应用变化后开始定位节点')
       handleLocateNode()  // 🔥 使用 handleLocateNode，它会加载函数详情
+      // 检查 forked 参数
+      checkAndExpandForkedPaths()
     })
   } else {
     console.log('[Workspace] ⚠️ 应用变化但条件不满足，不定位节点')
   }
 })
+
+// 监听服务树变化，检查 forked 参数
+watch(() => serviceTree.value.length, (newLength: number) => {
+  if (newLength > 0 && currentApp.value && route.query.forked) {
+    console.log('[Workspace] 服务树加载完成，检查 forked 参数')
+    checkAndExpandForkedPaths()
+  }
+})
+
+// 监听应用切换事件（从 MainLayout 或其他组件发送）
+const handleAppSwitched = async (event: CustomEvent) => {
+  const app = event.detail?.app
+  if (app && appList.value.length > 0) {
+    console.log('[Workspace] ========== 收到 app-switched 事件 ==========')
+    console.log('[Workspace] 目标应用:', app.user + '/' + app.code)
+    
+    // 从应用列表中找到对应的应用对象（确保使用最新的应用数据）
+    const targetApp = appList.value.find((a: App) => a.id === app.id || (a.user === app.user && a.code === app.code))
+    if (targetApp) {
+      console.log('[Workspace] 找到目标应用，切换应用')
+      // 使用 switchApp 方法切换应用（这会更新 currentApp 并加载服务树）
+      await switchApp(targetApp, true) // preserveRoute = true，因为路由已经跳转了
+    } else {
+      console.log('[Workspace] ⚠️ 未找到目标应用，尝试使用事件中的应用对象')
+      // 如果找不到，直接使用事件中的应用对象
+      await switchToApp(app, false) // 不更新路由，因为路由已经跳转了
+      await loadServiceTreeData(app)
+    }
+  }
+}
 
 // 加载函数详情（通过 ref_id）
 const loadFunctionDetail = async (refId: number) => {
@@ -752,6 +897,41 @@ const toggleRightSidebar = () => {
   showRightSidebar.value = !showRightSidebar.value
 }
 
+// 用户相关
+const isAuthenticated = computed(() => authStore.isAuthenticated)
+const userEmail = computed(() => authStore.userEmail || authStore.user?.email || '')
+const userAvatar = computed(() => authStore.user?.avatar || '')
+
+// 用户显示名称：username(昵称) 或 username
+const userName = computed(() => {
+  const user = authStore.user
+  if (!user) return '用户'
+  const username = user.username || ''
+  const nickname = user.nickname || ''
+  if (nickname) {
+    return `${username}(${nickname})`
+  }
+  return username
+})
+
+// 处理用户菜单命令
+const handleUserCommand = async (command: string) => {
+  if (command === 'logout') {
+    try {
+      await authStore.logout()
+    } catch (error) {
+      console.error('登出失败:', error)
+    }
+  } else if (command === 'settings') {
+    router.push('/user/settings')
+  }
+}
+
+// 跳转到登录页
+const handleLogin = () => {
+  router.push('/login')
+}
+
 // 返回列表
 const backToList = () => {
   router.push({ query: { ...route.query, tab: 'run' } })
@@ -789,6 +969,37 @@ const handleCopyLink = (node: ServiceTree) => {
   }).catch(() => {
     ElMessage.error('复制链接失败')
   })
+}
+
+// Fork 函数组
+const forkDialogVisible = ref(false)
+const forkSourceGroupCode = ref('')
+const forkSourceGroupName = ref('')
+
+const handleForkGroup = (node: ServiceTree | null) => {
+  // 如果传入了节点，使用它；否则打开对话框让用户选择
+  if (node) {
+    if (!node.full_group_code) {
+      ElMessage.warning('该节点没有函数组代码，无法克隆')
+      return
+    }
+    forkSourceGroupCode.value = node.full_group_code
+    forkSourceGroupName.value = node.group_name || node.name || ''
+  } else {
+    // 没有传入节点，清空预设值，让用户在对话框中选择
+    forkSourceGroupCode.value = ''
+    forkSourceGroupName.value = ''
+  }
+  forkDialogVisible.value = true
+}
+
+// Fork 成功后的回调
+const handleForkSuccess = () => {
+  // 刷新服务目录树
+  if (currentApp.value) {
+    loadServiceTreeData(currentApp.value)
+  }
+  ElMessage.success('克隆完成！请刷新页面查看新功能')
 }
 
 // 提交创建目录
@@ -864,6 +1075,8 @@ onMounted(() => {
   
   // 保留刷新服务树事件（用于其他地方触发刷新）
   window.addEventListener('refresh-service-tree', handleRefreshServiceTree as EventListener)
+  // 监听应用切换事件
+  window.addEventListener('app-switched', handleAppSwitched as EventListener)
   
   // 组件挂载后，检查是否需要定位节点
   // 使用 setTimeout 确保所有初始化事件都已处理
@@ -872,6 +1085,9 @@ onMounted(() => {
     console.log('[Workspace] 当前应用:', currentApp.value ? `${currentApp.value.user}/${currentApp.value.code}` : 'null')
     console.log('[Workspace] 服务树节点数:', serviceTree.value.length)
     console.log('[Workspace] 当前路径:', window.location.pathname)
+    
+    // 检查 URL 参数中是否有新克隆的路径
+    checkAndExpandForkedPaths()
     
     // 如果有服务树和应用，尝试定位
     if (serviceTree.value.length > 0 && currentApp.value) {
@@ -887,6 +1103,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('refresh-service-tree', handleRefreshServiceTree as EventListener)
+  window.removeEventListener('app-switched', handleAppSwitched as EventListener)
 })
 </script>
 
@@ -949,6 +1166,74 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+/* 用户菜单 */
+.user-menu-dropdown {
+  cursor: pointer;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  transition: background-color 0.2s;
+}
+
+.user-info:hover {
+  background-color: var(--el-fill-color-light);
+}
+
+.user-avatar {
+  flex-shrink: 0;
+}
+
+.user-name {
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dropdown-icon {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  transition: transform 0.2s;
+}
+
+.user-menu-dropdown.is-open .dropdown-icon {
+  transform: rotate(180deg);
+}
+
+.login-button {
+  font-size: 14px;
+}
+
+/* 用户菜单下拉项 */
+.user-menu-header {
+  padding: 4px 0;
+  min-width: 160px;
+}
+
+.user-menu-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+  margin-bottom: 4px;
+}
+
+.user-menu-email {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.el-dropdown-menu__item[disabled] {
+  cursor: default;
+  opacity: 1;
 }
 
 /* 右侧边栏控制按钮 */

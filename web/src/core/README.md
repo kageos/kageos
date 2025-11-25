@@ -1,4 +1,4 @@
-# 新版渲染引擎
+# 渲染引擎
 
 ## 目录结构
 
@@ -7,26 +7,39 @@ core/
 ├── types/              # 类型定义
 │   ├── field.ts       # 字段相关类型
 │   └── widget.ts      # Widget 相关类型
-├── widgets/           # Widget 组件
-│   ├── BaseWidget.ts  # 基类
-│   └── InputWidget.ts # 输入框组件
+├── widgets-v2/        # Widget 组件（Vue 组件版本）
+│   ├── components/    # 所有 Widget 组件
+│   └── composables/   # Widget 相关的 composables
+├── factories-v2/      # 工厂（Vue 组件版本）
+│   └── WidgetComponentFactory.ts  # Widget 组件工厂
 ├── managers/          # 管理器
 │   └── ReactiveFormDataManager.ts  # 表单数据管理器
-├── factories/         # 工厂
-│   └── WidgetFactory.ts  # Widget 工厂
-└── renderers/         # 渲染器
-    └── FormRenderer.vue  # 表单渲染器（新架构）
+└── renderers-v2/      # 渲染器（Vue 组件版本）
+    └── FormRenderer.vue  # 表单渲染器
 ```
 
 ## 已实现功能
 
 ### 1. 基础架构
-- ✅ `BaseWidget` 基类：提供快照、渲染等基础功能
-- ✅ `WidgetFactory` 工厂：根据类型动态创建 Widget
+- ✅ `WidgetComponentFactory` 工厂：根据类型动态获取 Vue 组件
 - ✅ `ReactiveFormDataManager` 管理器：管理表单数据
+- ✅ 所有 Widget 已迁移到 Vue 组件版本（widgets-v2）
 
-### 2. 组件
-- ✅ `InputWidget`：输入框组件
+### 2. Widget 组件（widgets-v2）
+- ✅ `InputWidget`：文本输入
+- ✅ `NumberWidget`：整数输入
+- ✅ `FloatWidget`：浮点数输入
+- ✅ `TextAreaWidget`：多行文本
+- ✅ `SelectWidget`：下拉选择（单选）
+- ✅ `MultiSelectWidget`：下拉选择（多选）
+- ✅ `CheckboxWidget`：复选框
+- ✅ `RadioWidget`：单选框
+- ✅ `SwitchWidget`：开关
+- ✅ `TimestampWidget`：时间戳
+- ✅ `FilesWidget`：文件上传
+- ✅ `UserWidget`：用户选择
+- ✅ `TableWidget`：表格（嵌套）
+- ✅ `FormWidget`：表单（嵌套）
 
 ### 3. 渲染器
 - ✅ `FormRenderer`：表单渲染器，支持嵌套结构、回调、聚合等完整功能
@@ -81,7 +94,7 @@ http://localhost:5173/test/form-renderer
 </template>
 
 <script setup lang="ts">
-import FormRenderer from '@/core/renderers/FormRenderer.vue'
+import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
 import type { FunctionDetail } from '@/core/types/field'
 
 const functionDetail: FunctionDetail = {
@@ -105,38 +118,29 @@ const functionDetail: FunctionDetail = {
 
 ## 架构特点
 
-1. **OOP 设计**：使用类和继承，代码清晰易维护
-2. **平铺结构**：所有 Widget 平铺存储，通过 field_path 标识
-3. **工厂模式**：动态创建组件，易扩展
-4. **快照机制**：支持表单状态的保存和恢复
-5. **响应式管理**：基于 Vue 3 响应式系统
+1. **Vue 组件化**：所有 Widget 都是 Vue 3 组件，使用 Composition API
+2. **工厂模式**：通过 `WidgetComponentFactory` 动态获取组件
+3. **响应式管理**：基于 Vue 3 响应式系统和 Pinia Store
+4. **类型安全**：完整的 TypeScript 类型定义
+5. **可扩展性**：新增 Widget 只需在 `widgets-v2/components/` 中添加组件并注册到工厂
 
-## 注意事项
+## 使用场景
 
-1. 当前只实现了 `InputWidget`，其他组件待开发
-2. 表单验证暂未实现
-3. 嵌套结构（List、Struct）暂未实现
-4. 回调系统暂未实现
+### 1. 表单渲染（FormRenderer）
+- 使用 `widgets-v2/components/*.vue` 组件
+- 支持编辑模式（edit）、响应模式（response）
 
-## 调试
+### 2. 表格渲染（TableRenderer）
+- 使用 `widgets-v2/components/*.vue` 组件
+- 支持表格单元格模式（table-cell）、详情模式（detail）
 
-### 控制台输出
+### 3. 搜索输入（SearchInput）
+- 使用 `widgets-v2/components/*.vue` 组件
+- 支持搜索模式（search）
 
-所有 Widget 和 Manager 都有详细的控制台日志，格式如下：
+## 迁移说明
 
-```
-[BaseWidget] 创建 Widget: username, depth: 0
-[ReactiveFormDataManager] 初始化字段: username
-[FormRenderer] 注册 Widget: username
-```
+旧版本的 `widgets/` 目录和 `factories/WidgetBuilder.ts`、`factories/WidgetFactory.ts` 已完全移除。
 
-### 调试按钮
-
-点击"调试输出"按钮可以查看：
-- 函数详情
-- 字段列表
-- 所有字段路径
-- 提交数据
-- 已注册的 Widget
-- 已注册的 Widget 类型
+所有功能已迁移到 `widgets-v2/` 和 `factories-v2/`。
 

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"gorm.io/gorm"
 
@@ -12,6 +14,22 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
+
+// extractVersionNum 从版本号字符串中提取数字部分（如 "v1" -> 1, "v20" -> 20）
+func extractVersionNumForServiceTree(version string) int {
+	if version == "" {
+		return 0
+	}
+	// 去掉 "v" 前缀
+	version = strings.TrimPrefix(version, "v")
+	version = strings.TrimPrefix(version, "V")
+	// 提取数字部分
+	num, err := strconv.Atoi(version)
+	if err != nil {
+		return 0
+	}
+	return num
+}
 
 type ServiceTreeService struct {
 	serviceTreeRepo *repository.ServiceTreeRepository
@@ -58,16 +76,21 @@ func (s *ServiceTreeService) CreateServiceTree(ctx context.Context, req *dto.Cre
 		return nil, fmt.Errorf("directory %s already exists", req.Code)
 	}
 
+	// 提取当前版本号数字
+	currentVersionNum := extractVersionNumForServiceTree(app.Version)
+
 	// 创建服务目录记录
 	serviceTree := &model.ServiceTree{
-		Name:         req.Name,
-		Code:         req.Code,
-		ParentID:     req.ParentID,
-		Type:         model.ServiceTreeTypePackage,
-		Description:  req.Description,
-		Tags:         req.Tags,
-		AppID:        app.ID,
-		FullCodePath: fullCodePath,
+		Name:            req.Name,
+		Code:            req.Code,
+		ParentID:        req.ParentID,
+		Type:            model.ServiceTreeTypePackage,
+		Description:     req.Description,
+		Tags:            req.Tags,
+		AppID:           app.ID,
+		FullCodePath:    fullCodePath,
+		AddVersionNum:   currentVersionNum, // 设置添加版本号
+		UpdateVersionNum: 0,               // 新增节点，更新版本号为0
 	}
 
 	// 保存到数据库
@@ -101,15 +124,20 @@ func (s *ServiceTreeService) CreateServiceTree(ctx context.Context, req *dto.Cre
 }
 
 // GetServiceTree 获取服务目录
-func (s *ServiceTreeService) GetServiceTree(ctx context.Context, user, app string) ([]*dto.GetServiceTreeResp, error) {
+func (s *ServiceTreeService) GetServiceTree(ctx context.Context, user, app string, nodeType string) ([]*dto.GetServiceTreeResp, error) {
 	// 获取应用信息
 	appModel, err := s.appRepo.GetAppByUserName(user, app)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get app: %w", err)
 	}
 
-	// 构建树形结构
-	trees, err := s.serviceTreeRepo.BuildServiceTree(appModel.ID)
+	// 构建树形结构（如果指定了类型，则只返回该类型的节点）
+	var trees []*model.ServiceTree
+	if nodeType != "" {
+		trees, err = s.serviceTreeRepo.BuildServiceTreeByType(appModel.ID, nodeType)
+	} else {
+		trees, err = s.serviceTreeRepo.BuildServiceTree(appModel.ID)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to build service tree: %w", err)
 	}
@@ -184,12 +212,12 @@ func (s *ServiceTreeService) convertToGetServiceTreeResp(tree *model.ServiceTree
 	resp := &dto.GetServiceTreeResp{
 		ID:           tree.ID,
 		Name:         tree.Name,
-		Code:         tree.Code,
-		ParentID:     tree.ParentID,
-		RefID:        tree.RefID,
-		Type:         tree.Type,
-		GroupCode:    tree.GroupCode,
-		GroupName:    tree.GroupName,
+		Code:          tree.Code,
+		ParentID:      tree.ParentID,
+		RefID:         tree.RefID,
+		Type:          tree.Type,
+		FullGroupCode: tree.FullGroupCode,
+		GroupName:     tree.GroupName,
 		Description:  tree.Description,
 		Tags:         tree.Tags,
 		AppID:        tree.AppID,

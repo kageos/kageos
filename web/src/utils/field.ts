@@ -4,7 +4,6 @@
 
 import type { FieldConfig, FieldValue } from '@/core/types/field'
 import { formatTimestamp } from './date'
-import { widgetFactory } from '@/core/factories/WidgetFactory'
 import { WidgetType } from '@/core/constants/widget'
 
 /**
@@ -12,8 +11,10 @@ import { WidgetType } from '@/core/constants/widget'
  * 
  * 用于 TableRenderer 等场景，需要将后端返回的原始数据转换为统一的 FieldValue 格式
  * 
- * 🔥 优先使用 Widget 的 loadFromRawData 静态方法（如果存在）
- * 这样可以确保每个组件负责自己的数据转换逻辑
+ * 🔥 重构说明：
+ * - 移除了对旧版本 widgetFactory 的依赖
+ * - 直接根据 widget.type 进行转换，不依赖 Widget 类
+ * - 保持与 v2 组件兼容的数据格式
  * 
  * @param rawValue 原始值（来自后端）
  * @param field 字段配置
@@ -29,20 +30,6 @@ export function convertToFieldValue(rawValue: any, field: FieldConfig): FieldVal
     return rawValue as FieldValue
   }
   
-  // ✅ 优先使用 Widget 的 loadFromRawData 静态方法（如果存在）
-  const widgetType = field.widget?.type || WidgetType.INPUT
-  const WidgetClass = widgetFactory.getWidgetClass(widgetType)
-  
-  // 检查 Widget 是否有 loadFromRawData 静态方法
-  if (WidgetClass && typeof (WidgetClass as any).loadFromRawData === 'function') {
-    try {
-      return (WidgetClass as any).loadFromRawData(rawValue, field)
-    } catch (error) {
-      console.warn(`[convertToFieldValue] Widget.loadFromRawData failed for ${widgetType}:`, error)
-      // 继续使用默认逻辑
-    }
-  }
-  
   // 空值处理
   if (rawValue === null || rawValue === undefined) {
     return {
@@ -52,17 +39,38 @@ export function convertToFieldValue(rawValue: any, field: FieldConfig): FieldVal
     }
   }
   
-  // 根据字段类型格式化 display
+  const widgetType = field.widget?.type || WidgetType.INPUT
+  
+  // 根据 widget 类型进行转换
   let display = String(rawValue)
   
   // 时间戳类型：格式化日期
-  if (field.widget?.type === WidgetType.TIMESTAMP) {
+  if (widgetType === WidgetType.TIMESTAMP) {
     display = formatTimestamp(rawValue, field.widget.config?.format)
   }
   
   // 数组类型：连接为字符串
-  if (Array.isArray(rawValue)) {
+  else if (Array.isArray(rawValue)) {
     display = rawValue.join(', ')
+  }
+  
+  // 布尔类型：转换为中文显示
+  else if (typeof rawValue === 'boolean') {
+    display = rawValue ? '是' : '否'
+  }
+  
+  // 数字类型：保持原样（v2 组件会自己格式化）
+  else if (typeof rawValue === 'number') {
+    display = String(rawValue)
+  }
+  
+  // 对象类型：转换为 JSON 字符串（用于调试）
+  else if (typeof rawValue === 'object') {
+    try {
+      display = JSON.stringify(rawValue)
+    } catch {
+      display = String(rawValue)
+    }
   }
   
   return {

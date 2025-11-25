@@ -13,15 +13,16 @@ import (
 	"github.com/go-playground/form/v4"
 )
 
-func newCallbackContext() *Context {
+func newCallbackContext(info *routerInfo) *Context {
 	msgInfo := trace.Msg{
 		User:    env.User,
 		App:     env.App,
 		Version: env.Version,
 	}
 	return &Context{
-		msg:   &msgInfo,
-		token: "", // 回调context可能没有token
+		msg:        &msgInfo,
+		routerInfo: info,
+		token:      "", // 回调context可能没有token
 	}
 }
 func (a *App) NewContext(ctx context.Context, req *dto.RequestAppReq) (*Context, error) {
@@ -50,10 +51,11 @@ func (a *App) NewContext(ctx context.Context, req *dto.RequestAppReq) (*Context,
 
 type Context struct {
 	context.Context
-	msg      *trace.Msg
-	body     []byte
-	urlQuery string
-	token    string // ✨ Token（用于调用存储服务等）
+	msg        *trace.Msg
+	body       []byte
+	urlQuery   string
+	token      string      // ✨ Token（用于调用存储服务等）
+	routerInfo *routerInfo // 当前请求对应的路由信息（包含 PackagePath）
 }
 
 func (c *Context) ShouldBind(req interface{}) error {

@@ -20,6 +20,22 @@ func isInternalRequest(c *gin.Context) bool {
 // JWTAuth JWT认证中间件（支持内网免验证）
 func JWTAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// ✨ 优先从header获取username（网关已解析token并设置到header）
+		// 如果网关已经解析了token，直接使用header中的username，无需重复解析
+		requestUser := c.GetHeader("X-Request-User")
+		if requestUser == "" {
+			requestUser = c.GetHeader("X-Username") // 备用
+		}
+		if requestUser != "" {
+			// 网关已解析token，直接使用header中的username
+			c.Set("request_user", requestUser)
+			c.Set("user", requestUser) // 保持向后兼容
+			logger.Infof(c, "[JWTAuth] User authenticated from header: %s", requestUser)
+			c.Next()
+			return
+		}
+
+		// 如果header中没有username，尝试解析token（向后兼容）
 		// 从X-Token头获取Token
 		token := c.GetHeader("X-Token")
 

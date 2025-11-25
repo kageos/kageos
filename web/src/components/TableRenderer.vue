@@ -17,7 +17,13 @@
               :field="field"
               :search-type="field.search"
               :model-value="getSearchValue(field)"
-              @update:model-value="(value: any) => updateSearchValue(field, value)"
+              @update:model-value="(value: any) => {
+                // 🔥 判断是否清空：值为 null 或空字符串，且之前有值
+                const isClearing = (value === null || value === '') && 
+                                   searchForm.value && 
+                                   searchForm.value[field.code] !== undefined
+                updateSearchValue(field, value, isClearing)
+              }"
             />
           </el-form-item>
         </template>
@@ -35,19 +41,61 @@
       </el-form>
     </div>
 
+    <!-- 🔥 排序信息条：显示当前排序状态 -->
+    <div v-if="displaySorts.length > 0" class="sort-info-bar">
+      <div class="sort-info-content">
+        <span class="sort-label">排序：</span>
+        <div class="sort-items">
+          <!-- 显示所有排序列 -->
+          <template v-for="(sort, index) in displaySorts" :key="sort.field">
+            <el-tag
+              :type="index === 0 ? 'primary' : 'info'"
+              size="small"
+              closable
+              @close="handleRemoveSort(sort.field)"
+              class="sort-tag"
+            >
+              <span class="sort-field-name">{{ getFieldName(sort.field) }}</span>
+              <el-icon class="sort-icon">
+                <ArrowUp v-if="sort.order === 'asc'" />
+                <ArrowDown v-else />
+              </el-icon>
+            </el-tag>
+            <span v-if="index < displaySorts.length - 1" class="sort-separator">></span>
+          </template>
+        </div>
+        <el-button
+          v-if="sorts.length > 0"
+          link
+          type="primary"
+          size="small"
+          @click="handleClearAllSorts"
+          class="clear-all-sorts-btn"
+        >
+          清除所有排序
+        </el-button>
+      </div>
+    </div>
+
     <!-- 表格 -->
+    <!-- 
+      ⚠️ 关键：在 custom 模式下，需要为每个列设置 sort-order 来显示排序状态
+      不要使用 default-sort，因为它会干扰多列排序的显示
+    -->
     <el-table
       v-loading="loading"
       :data="tableData"
-      border
+      :stripe="false"
       style="width: 100%"
       class="table-with-fixed-column"
+      :key="`table-${Object.keys(sortOrderMap).length}`"
       @sort-change="handleSortChange"
     >
       <!-- 🔥 控制中心列（ID列改造） -->
       <!-- 
         注意：ID 列默认启用排序，显示默认的 id 降序排序状态
         当用户手动排序其他字段时，id 排序会被移除
+        ⚠️ ID 字段通常非常适合排序，使用智能识别
       -->
       <el-table-column
         v-if="idField"
@@ -56,7 +104,8 @@
         fixed="left"
         width="80"
         class-name="control-column"
-        :sortable="'custom'"
+        :sortable="getSortableConfig(idField)"
+        :sort-order="sortOrderMap[idField.code] || null"
       >
         <template #default="{ row, $index }">
           <el-button
@@ -71,12 +120,19 @@
       </el-table-column>
 
       <!-- 数据列（排除ID列） -->
+      <!-- 
+        ⚠️ 使用智能识别判断字段是否适合排序
+        - 文件字段、结构体字段：不支持排序
+        - 大文本字段、多选字段：不推荐排序（默认禁用）
+        - 其他字段：适合排序
+      -->
       <el-table-column
         v-for="field in dataFields"
         :key="field.code"
         :prop="field.code"
         :label="field.name"
-        :sortable="'custom'"
+        :sortable="getSortableConfig(field)"
+        :sort-order="sortOrderMap[field.code] || null"
         :min-width="getColumnWidth(field)"
       >
         <template #default="{ row, $index }">
@@ -89,16 +145,14 @@
           <template v-if="getCellContent(field, row[field.code]).isString">
             {{ getCellContent(field, row[field.code]).content }}
           </template>
-          <component 
-            v-else
-            :is="getCellContent(field, row[field.code]).content"
-          />
+          <!-- 🔥 VNode 直接渲染：使用 render 函数 -->
+          <CellRenderer v-else :vnode="getCellContent(field, row[field.code]).content" />
         </template>
       </el-table-column>
 
       <!-- 操作列 -->
       <el-table-column 
-        v-if="hasUpdateCallback || hasDeleteCallback" 
+        v-if="hasDeleteCallback" 
         label="操作" 
         fixed="right" 
         :width="getActionColumnWidth()"
@@ -106,16 +160,6 @@
       >
         <template #default="{ row }">
           <div class="action-buttons">
-            <el-button 
-              v-if="hasUpdateCallback"
-              link 
-              type="primary" 
-              size="small"
-              @click.stop="handleEdit(row)"
-            >
-              <el-icon><Edit /></el-icon>
-              编辑
-            </el-button>
             <el-button 
               v-if="hasDeleteCallback"
               link 
@@ -151,7 +195,9 @@
       :fields="props.functionData.response"
       :mode="dialogMode"
       :router="props.functionData.router"
+      :method="props.functionData.method"
       :initial-data="currentRow"
+      :user-info-map="userInfoMap"
       @submit="handleDialogSubmit"
     />
 
@@ -166,31 +212,61 @@
       <template #header>
         <div class="drawer-header">
           <span class="drawer-title">记录详情</span>
-          <!-- 导航按钮（上一个/下一个） -->
-          <div class="drawer-navigation" v-if="tableData.length > 1">
-            <el-button
-              size="small"
-              :disabled="currentDetailIndex <= 0"
-              @click="handleNavigate('prev')"
-            >
-              <el-icon><ArrowLeft /></el-icon>
-              上一个
-            </el-button>
-            <span class="nav-info">{{ currentDetailIndex + 1 }} / {{ tableData.length }}</span>
-            <el-button
-              size="small"
-              :disabled="currentDetailIndex >= tableData.length - 1"
-              @click="handleNavigate('next')"
-            >
-              下一个
-              <el-icon><ArrowRight /></el-icon>
-            </el-button>
+          <div class="drawer-header-actions">
+            <!-- 模式切换按钮 -->
+            <div class="drawer-mode-actions">
+              <el-button
+                v-if="detailMode === 'view' && hasUpdateCallback"
+                type="primary"
+                size="small"
+                @click="switchToEditMode"
+              >
+                <el-icon><Edit /></el-icon>
+                编辑
+              </el-button>
+              <el-button
+                v-if="detailMode === 'edit'"
+                size="small"
+                @click="switchToViewMode"
+              >
+                取消
+              </el-button>
+              <el-button
+                v-if="detailMode === 'edit'"
+                type="primary"
+                size="small"
+                :loading="detailSubmitting"
+                @click="handleDetailSave"
+              >
+                保存
+              </el-button>
+            </div>
+            <!-- 导航按钮（上一个/下一个） -->
+            <div class="drawer-navigation" v-if="tableData.length > 1 && detailMode === 'view'">
+              <el-button
+                size="small"
+                :disabled="currentDetailIndex <= 0"
+                @click="handleNavigate('prev')"
+              >
+                <el-icon><ArrowLeft /></el-icon>
+                上一个
+              </el-button>
+              <span class="nav-info">{{ currentDetailIndex + 1 }} / {{ tableData.length }}</span>
+              <el-button
+                size="small"
+                :disabled="currentDetailIndex >= tableData.length - 1"
+                @click="handleNavigate('next')"
+              >
+                下一个
+                <el-icon><ArrowRight /></el-icon>
+              </el-button>
+            </div>
           </div>
         </div>
       </template>
 
-      <!-- 🔥 详情内容：纯展示模式，参考旧版本设计 -->
-      <div class="detail-content" v-if="currentDetailRow">
+      <!-- 🔥 查看模式：纯展示模式，参考旧版本设计 -->
+      <div class="detail-content" v-if="currentDetailRow && detailMode === 'view'">
         <div class="fields-grid">
           <div 
             v-for="field in visibleFields"
@@ -225,7 +301,20 @@
           </div>
         </div>
       </div>
+
+      <!-- 🔥 编辑模式：使用 FormRenderer -->
+      <div class="edit-content" v-else-if="currentDetailRow && detailMode === 'edit'">
+        <FormRenderer
+          ref="detailFormRendererRef"
+          :function-detail="editFunctionDetail"
+          :initial-data="currentDetailRow"
+          :user-info-map="userInfoMap"
+          :show-submit-button="false"
+          :show-reset-button="false"
+        />
+      </div>
     </el-drawer>
+
   </div>
 </template>
 
@@ -246,23 +335,30 @@
  * - 记录导航（上一个/下一个）
  */
 
-import { computed, ref, watch, h, nextTick, onMounted, onUpdated } from 'vue'
-import { Search, Refresh, Edit, Delete, Plus, ArrowLeft, ArrowRight, DocumentCopy, Document, Download } from '@element-plus/icons-vue'
+import { computed, ref, watch, h, nextTick, onMounted, onUpdated, onUnmounted, isVNode, defineComponent } from 'vue'
+import { Search, Refresh, Edit, Delete, Plus, ArrowLeft, ArrowRight, DocumentCopy, Document, Download, ArrowUp, ArrowDown } from '@element-plus/icons-vue'
 import { ElIcon, ElButton, ElMessage } from 'element-plus'
 import { formatTimestamp } from '@/utils/date'
 import { useTableOperations } from '@/composables/useTableOperations'
-import { WidgetBuilder } from '@/core/factories/WidgetBuilder'
+import { widgetComponentFactory } from '@/core/factories-v2'
 import { ErrorHandler } from '@/core/utils/ErrorHandler'
+import { Logger } from '@/core/utils/logger'
 import { convertToFieldValue } from '@/utils/field'
 import { WidgetType } from '@/core/constants/widget'
+import { useUserInfoStore } from '@/stores/userInfo'
+import { collectAllUsernames, collectFilesUploadUsersFromRow } from '@/utils/tableUserInfo'
+import { getSortableConfig } from '@/utils/fieldSort'
 import FormDialog from './FormDialog.vue'
+import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
 import SearchInput from './SearchInput.vue'
-import type { Function as FunctionType } from '@/types'
-import type { FieldConfig, FieldValue } from '@/core/types/field'
+import type { Function as FunctionType, ServiceTree } from '@/types'
+import type { FieldConfig, FieldValue, FunctionDetail } from '@/core/types/field'
 
 interface Props {
   /** 函数配置数据 */
   functionData: FunctionType
+  /** 当前函数节点（来自 ServiceTree） */
+  currentFunction?: ServiceTree
 }
 
 const props = defineProps<Props>()
@@ -298,14 +394,131 @@ const {
   handleSearch,
   handleReset,
   handleSortChange: originalHandleSortChange,
+  getFieldSortOrder,
+  sorts,
+  hasManualSort,
   handleSizeChange,
   handleCurrentChange,
   handleAdd: handleAddRow,
   handleUpdate: handleUpdateRow,
-  handleDelete: handleDeleteRow
+  handleDelete: handleDeleteRow,
+  restoreFromURL,
+  syncToURL
 } = useTableOperations({
   functionData: props.functionData
 })
+
+/**
+ * 获取第一个排序配置（用于 el-table 的 default-sort）
+ * 
+ * ⚠️ 关键：Element Plus 的 el-table 的 default-sort 只能在表格级别设置一个
+ * 所以只能显示第一个排序字段的排序标识
+ * 
+ * @returns default-sort 配置对象，如果没有排序则返回 undefined
+ */
+const getFirstSortConfig = () => {
+  if (sorts.value.length === 0) {
+    // 如果没有手动排序，使用默认的 id 降序
+    if (idField.value && !hasManualSort.value) {
+      return {
+        prop: idField.value.code,
+        order: 'descending' as const
+      }
+    }
+    return undefined
+  }
+  
+  // 返回第一个排序字段的配置
+  const firstSort = sorts.value[0]
+  return {
+    prop: firstSort.field,
+    order: (firstSort.order === 'asc' ? 'ascending' : 'descending') as const
+  }
+}
+
+// 导出 handleSortChange 供模板使用
+// 🔥 包装 handleSortChange，确保在排序变化后 DOM 能正确更新
+const handleSortChange = async (sortInfo: { prop?: string; order?: string }) => {
+  originalHandleSortChange(sortInfo)
+  // 使用 nextTick 确保 DOM 更新
+  await nextTick()
+}
+
+/**
+ * 🔥 排序状态映射（计算属性，确保响应式）
+ * 
+ * 在 custom 模式下，需要为每个列设置 sort-order 来显示排序状态
+ * 使用计算属性确保当 sorts 变化时，所有列的排序状态都会更新
+ * 
+ * ⚠️ 关键：使用对象而不是 Map，确保 Vue 能正确追踪响应式依赖
+ */
+const sortOrderMap = computed<Record<string, 'ascending' | 'descending' | null>>(() => {
+  const map: Record<string, 'ascending' | 'descending' | null> = {}
+  sorts.value.forEach(sort => {
+    map[sort.field] = sort.order === 'asc' ? 'ascending' : 'descending'
+  })
+  return map
+})
+
+/**
+ * 获取字段的排序状态（用于模板）
+ * 
+ * ⚠️ 关键：直接访问计算属性，确保响应式更新
+ * 
+ * @param fieldCode 字段 code
+ * @returns 排序方向：'ascending' | 'descending' | null
+ */
+const getSortOrder = (fieldCode: string): 'ascending' | 'descending' | null => {
+  return sortOrderMap.value[fieldCode] || null
+}
+
+// ==================== 排序信息条相关 ====================
+
+/**
+ * 🔥 显示排序列表（用于排序信息条）
+ * 
+ * 包含所有手动排序的字段，如果没有手动排序且存在 ID 字段，则显示默认的 ID 排序
+ */
+const displaySorts = computed(() => {
+  if (sorts.value.length > 0) {
+    return sorts.value
+  }
+  // 如果没有手动排序且存在 ID 字段，显示默认的 ID 排序
+  if (idField.value && !hasManualSort.value) {
+    return [{ field: idField.value.code, order: 'desc' as const }]
+  }
+  return []
+})
+
+/**
+ * 获取字段名称
+ * @param fieldCode 字段 code
+ * @returns 字段名称
+ */
+const getFieldName = (fieldCode: string): string => {
+  const field = visibleFields.value.find(f => f.code === fieldCode)
+  return field?.name || fieldCode
+}
+
+/**
+ * 移除单个排序
+ * @param fieldCode 字段 code
+ */
+const handleRemoveSort = (fieldCode: string): void => {
+  // 调用 composable 的 handleSortChange，传入空 order 来移除排序
+  originalHandleSortChange({ prop: fieldCode, order: '' })
+}
+
+/**
+ * 清除所有排序
+ */
+const handleClearAllSorts = (): void => {
+  // 逐个移除所有排序
+  const fieldsToRemove = [...sorts.value]
+  fieldsToRemove.forEach(sort => {
+    originalHandleSortChange({ prop: sort.field, order: '' })
+  })
+}
 
 // ==================== 详情抽屉状态 ====================
 
@@ -317,6 +530,83 @@ const currentDetailRow = ref<any>(null)
 
 /** 当前详情的行索引 */
 const currentDetailIndex = ref(-1)
+
+/** 详情模式：查看/编辑 */
+const detailMode = ref<'view' | 'edit'>('view')
+
+/** 详情编辑模式的 FormRenderer 引用 */
+const detailFormRendererRef = ref<InstanceType<typeof FormRenderer>>()
+
+/** 详情编辑提交状态 */
+const detailSubmitting = ref(false)
+
+// ==================== 用户信息批量查询优化 ====================
+
+const userInfoStore = useUserInfoStore()
+
+/** 用户信息映射（username -> UserInfo） */
+const userInfoMap = ref<Map<string, any>>(new Map())
+
+/**
+ * 🔥 批量查询用户信息
+ * 统一收集表格数据和搜索表单中的用户，使用 store 批量查询（自动处理缓存）
+ */
+async function batchLoadUserInfo(): Promise<void> {
+  try {
+    // 🔥 使用工具函数收集所有用户名
+    const allUsernames = collectAllUsernames(
+      tableData.value || [],
+      searchForm.value,
+      visibleFields.value,
+      searchableFields.value
+    )
+    
+    if (allUsernames.length === 0) {
+      userInfoMap.value = new Map()
+      return
+    }
+    
+    // 🔥 使用 store 统一批量查询（自动处理缓存和过期）
+    const users = await userInfoStore.batchGetUserInfo(allUsernames)
+    
+    // 🔥 构建映射（供表格渲染使用）
+    const map = new Map<string, any>()
+    users.forEach(user => {
+        if (user.username) {
+          map.set(user.username, user)
+        }
+      })
+    
+    userInfoMap.value = map
+  } catch (error) {
+    Logger.error('TableRenderer', '批量查询用户信息失败', error)
+    userInfoMap.value = new Map()
+  }
+}
+
+// 监听 tableData 变化，自动批量查询用户信息
+watch(() => tableData.value, () => {
+  if (tableData.value && tableData.value.length > 0) {
+    batchLoadUserInfo()
+  } else {
+    userInfoMap.value = new Map()
+  }
+}, { immediate: true, deep: false })
+
+// 🔥 监听搜索表单变化，提前查询搜索表单中的用户信息
+// 这样可以确保搜索表单中的用户信息在 UserSearchInput 初始化前就已经查询完成
+// 避免 UserSearchInput 重复查询
+watch(() => searchForm.value, () => {
+  // 延迟执行，避免在 searchForm 初始化时立即触发
+  nextTick(() => {
+    const hasUserFields = searchableFields.value.some((field: FieldConfig) => 
+      field.widget?.type === 'user' && searchForm.value[field.code]
+    )
+    if (hasUserFields) {
+      batchLoadUserInfo()
+    }
+  })
+}, { deep: true, immediate: false })
 
 // ==================== 对话框相关 ====================
 
@@ -352,12 +642,11 @@ const dataFields = computed(() => {
 
 /**
  * 获取操作列宽度
- * 根据是否有编辑/删除回调动态计算宽度
+ * 根据是否有删除回调动态计算宽度
  */
 const getActionColumnWidth = (): number => {
-  let width = 80
-  if (hasUpdateCallback.value) width += 60
-  if (hasDeleteCallback.value) width += 60
+  let width = 60  // 基础宽度（减小）
+  if (hasDeleteCallback.value) width += 50  // 删除按钮宽度（减小）
   return width
 }
 
@@ -368,6 +657,18 @@ const getActionColumnWidth = (): number => {
 const getColumnWidth = (field: FieldConfig): number => {
   if (field.widget.type === WidgetType.TIMESTAMP) return 180
   if (field.widget.type === WidgetType.TEXT_AREA) return 300
+  if (field.widget.type === WidgetType.RATE) {
+    // Rate 组件：根据 max 值计算宽度
+    const max = field.widget?.config?.max || 5
+    if (max > 10) {
+      // 圆点样式：更紧凑，但需要显示数字
+      // 每个圆点 4px + 间距 1px = 5px，加上数字约 40px
+      return Math.max(150, max * 5 + 40)
+    } else {
+      // 星星样式：每个星星约 14px + 间距 1px = 15px，加上文字约 60px
+      return Math.max(150, max * 15 + 60)
+    }
+  }
   return 150
 }
 
@@ -381,16 +682,32 @@ const getColumnWidth = (field: FieldConfig): number => {
  * @returns 搜索值
  */
 const getSearchValue = (field: FieldConfig): any => {
-  return searchForm.value[field.code] || null
+  const value = searchForm.value[field.code]
+  // 🔥 如果值是 undefined，返回 null；否则返回原值（包括空对象、空数组等）
+  return value === undefined ? null : value
 }
 
 /**
  * 更新搜索值
  * @param field 字段配置
  * @param value 新的搜索值
+ * @param shouldSearch 是否自动搜索（默认 false，清空时设为 true）
  */
-const updateSearchValue = (field: FieldConfig, value: any): void => {
-  searchForm.value[field.code] = value
+const updateSearchValue = (field: FieldConfig, value: any, shouldSearch: boolean = false): void => {
+  // 🔥 如果值为空（空数组、空字符串、null、undefined），删除该字段
+  if (value === null || value === undefined || 
+      (Array.isArray(value) && value.length === 0) || 
+      (typeof value === 'string' && value.trim() === '')) {
+    delete searchForm.value[field.code]
+  } else {
+    searchForm.value[field.code] = value
+  }
+  // 🔥 更新搜索值后，同步到 URL
+  syncToURL()
+  // 🔥 如果需要自动搜索（清空时），触发搜索
+  if (shouldSearch) {
+    loadTableData()
+  }
 }
 
 // ==================== 表格单元格渲染（组件自治） ====================
@@ -418,33 +735,50 @@ const updateSearchValue = (field: FieldConfig, value: any): void => {
  *   ])
  * }
  */
+/**
+ * 🔥 渲染表格单元格（使用 widgets-v2）
+ * 
+ * 重构说明：
+ * - 按照 v2 的设计思路重新实现
+ * - 使用 widgetComponentFactory 获取组件
+ * - 使用 h() 渲染组件为 VNode
+ * - 统一返回 VNode（不再需要区分字符串和 VNode）
+ */
 const renderTableCell = (field: FieldConfig, rawValue: any): { content: any, isString: boolean } => {
   try {
     // 🔥 将原始值转换为 FieldValue 格式
     const value = convertToFieldValue(rawValue, field)
     
-    // 🔥 将 field 转换为 core 类型的 FieldConfig（类型兼容）
-    const coreField: FieldConfig = {
-      ...field,
-      widget: field.widget || { type: 'input', config: {} },
-      data: field.data || {}
-    } as FieldConfig
+    // 🔥 使用 widgetComponentFactory 获取组件（v2 方式）
+    const WidgetComponent = widgetComponentFactory.getRequestComponent(
+      field.widget?.type || 'input'
+    )
     
-    // 🔥 创建临时 Widget（不需要 formManager）
-    const tempWidget = WidgetBuilder.createTemporary({
-      field: coreField,
-      value: value
+    if (!WidgetComponent) {
+      // 如果组件未找到，返回 fallback
+      const fallbackValue = rawValue !== null && rawValue !== undefined ? String(rawValue) : '-'
+      return {
+        content: fallbackValue,
+        isString: true
+      }
+    }
+    
+    // 🔥 使用 h() 渲染组件为 VNode（v2 方式）
+    // 传递 mode="table-cell" 让组件自己决定如何渲染
+    // 传递 userInfoMap 用于批量查询优化
+    const vnode = h(WidgetComponent, {
+      field: field,
+      value: value,
+      'model-value': value,
+      'field-path': field.code,
+      mode: 'table-cell',
+      'user-info-map': userInfoMap.value
     })
     
-    // 🔥 调用 Widget 的 renderTableCell() 方法（组件自治）
-    // 每个 Widget 可以重写此方法来自定义表格展示
-    const result = tempWidget.renderTableCell(value)
-    
-    // 🔥 统一返回格式：区分字符串和 VNode
-    const isString = typeof result === 'string'
+    // 🔥 统一返回 VNode（v2 组件统一返回 VNode）
     return {
-      content: result,
-      isString
+      content: vnode,
+      isString: false
     }
   } catch (error) {
     // ✅ 使用 ErrorHandler 统一处理错误
@@ -466,6 +800,19 @@ const getCellContent = (field: FieldConfig, rawValue: any): { content: any, isSt
   return renderTableCell(field, rawValue)
 }
 
+// 🔥 VNode 渲染组件（用于在模板中渲染 VNode，避免循环引用）
+const CellRenderer = defineComponent({
+  props: {
+    vnode: {
+      type: Object,
+      required: true
+    }
+  },
+  setup(props: { vnode: any }) {
+    return () => props.vnode
+  }
+})
+
 // ==================== 详情字段渲染（纯展示模式） ====================
 
 /**
@@ -480,26 +827,99 @@ const getCellContent = (field: FieldConfig, rawValue: any): { content: any, isSt
  * @param rawValue 原始值（来自后端）
  * @returns 渲染结果（VNode 或字符串）
  */
+/**
+ * 🔥 渲染详情字段（使用 widgets-v2）
+ * 
+ * 重构说明：
+ * - 按照 v2 的设计思路重新实现
+ * - 使用 widgetComponentFactory 获取组件
+ * - 使用 h() 渲染组件为 VNode
+ * - 统一返回 VNode（v2 组件统一返回 VNode）
+ */
 const renderDetailField = (field: FieldConfig, rawValue: any): any => {
   try {
     // 🔥 将原始值转换为 FieldValue 格式
     const value = convertToFieldValue(rawValue, field)
     
-    // 🔥 创建临时 Widget（用于详情展示）
-    const widget = WidgetBuilder.createTemporary({
-      field: field,
-      value: value
-    })
+    // 🔥 使用 widgetComponentFactory 获取组件（v2 方式）
+    const WidgetComponent = widgetComponentFactory.getRequestComponent(
+      field.widget?.type || 'input'
+    )
     
-    // 🔥 调用 Widget 的 renderForDetail() 方法（组件自治）
-    const result = widget.renderForDetail(value)
-    
-    // 🔥 如果返回的是字符串，需要包装成 VNode
-    if (typeof result === 'string') {
-      return h('span', result)
+    if (!WidgetComponent) {
+      // 如果组件未找到，返回 fallback
+      return h('span', rawValue !== null && rawValue !== undefined ? String(rawValue) : '-')
     }
     
-    return result
+    // 🔥 使用 h() 渲染组件为 VNode（v2 方式）
+    // 传递 mode="detail" 让组件自己决定如何渲染详情
+    // 传递 userInfoMap 用于批量查询优化
+    // 传递 functionName 和 recordId 用于 FilesWidget 打包下载命名
+    const idField = visibleFields.value.find(f => {
+      const code = f.code.toLowerCase()
+      return code === 'id' || code === 'ID' || code.endsWith('_id') || code.endsWith('Id')
+    })
+    const recordId = idField && currentDetailRow.value ? currentDetailRow.value[idField.code] : undefined
+    
+    // 🔥 从 router 或 currentFunction 获取函数名称、user 和 app 名称
+    // router 格式通常是：/user/app/function_name 或 /user/app/group/function_name
+    let functionName: string | undefined = undefined
+    let userName: string | undefined = undefined
+    let appName: string | undefined = undefined
+    
+    if (props.currentFunction?.name) {
+      // 优先使用 currentFunction.name
+      functionName = props.currentFunction.name
+    } else if (props.functionData?.router) {
+      // 从 router 中提取函数名称（取最后一段）
+      const routerParts = props.functionData.router.split('/').filter(Boolean)
+      if (routerParts.length > 0) {
+        functionName = routerParts[routerParts.length - 1]
+      }
+    }
+    
+    // 🔥 从 router 中提取 user 和 app 名称（格式：/user/app/...）
+    if (props.functionData?.router) {
+      const routerParts = props.functionData.router.split('/').filter(Boolean)
+      if (routerParts.length >= 1) {
+        userName = routerParts[0]  // 第一段是 user 名称
+      }
+      if (routerParts.length >= 2) {
+        appName = routerParts[1]  // 第二段是 app 名称
+      }
+    }
+    
+    // 🔥 如果有 user 和 app 名称，在函数名称前面加上
+    if (userName && appName && functionName) {
+      functionName = `${userName}_${appName}_${functionName}`
+    } else if (appName && functionName) {
+      // 如果只有 app 名称，也加上
+      functionName = `${appName}_${functionName}`
+    }
+    
+    
+    // 🔥 为详情模式创建 formRendererContext（用于 OnSelectFuzzy 回调）
+    // 在详情模式下，SelectWidget 等组件可能需要触发回调来获取选项标签
+    const detailFormRendererContext = {
+      getFunctionMethod: () => props.functionData.method,
+      getFunctionRouter: () => props.functionData.router,
+      getSubmitData: () => ({}), // 详情模式下不需要提交数据
+      registerWidget: () => {},
+      unregisterWidget: () => {},
+      getFieldError: () => undefined
+    }
+    
+    return h(WidgetComponent, {
+      field: field,
+      value: value,
+      'model-value': value,
+      'field-path': field.code,
+      mode: 'detail',
+      'user-info-map': userInfoMap.value,
+      'form-renderer': detailFormRendererContext, // 🔥 传递 formRenderer，让 SelectWidget 可以触发回调
+      functionName: functionName,  // 🔥 使用 camelCase，Vue 会自动处理
+      recordId: recordId
+    })
   } catch (error) {
     // ✅ 使用 ErrorHandler 统一处理错误
     return ErrorHandler.handleWidgetError(`TableRenderer.renderDetailField[${field.code}]`, error, {
@@ -522,14 +942,17 @@ const handleAdd = (): void => {
 }
 
 /**
- * 编辑记录
- * 打开对话框，模式设为 'update'，加载当前行数据
- * @param row 要编辑的行数据
+ * 编辑记录（已废弃，现在在详情抽屉中直接编辑）
+ * 保留此函数以防其他地方调用，但不再使用
+ * @deprecated 使用详情抽屉中的编辑功能
  */
 const handleEdit = (row: any): void => {
-  dialogMode.value = 'update'
-  currentRow.value = { ...row }
-  dialogVisible.value = true
+  // 现在编辑功能在详情抽屉中，这里不再使用
+  // 如果点击了编辑，直接打开详情抽屉
+  const index = tableData.value.findIndex((r: any) => r.id === row.id)
+  if (index >= 0) {
+    handleShowDetail(row, index)
+  }
 }
 
 /**
@@ -552,7 +975,8 @@ const handleDialogSubmit = async (data: Record<string, any>): Promise<void> => {
   if (dialogMode.value === 'create') {
     success = await handleAddRow(data)
   } else {
-    success = await handleUpdateRow(currentRow.value.id, data)
+    // ⚠️ 关键：传递旧值（currentRow.value），用于对比找出变更的字段
+    success = await handleUpdateRow(currentRow.value.id, data, currentRow.value)
   }
   
   if (success) {
@@ -569,10 +993,26 @@ const handleDialogSubmit = async (data: Record<string, any>): Promise<void> => {
  * @param row 行数据
  * @param index 行索引
  */
-const handleShowDetail = (row: any, index: number): void => {
+const handleShowDetail = async (row: any, index: number): Promise<void> => {
   currentDetailRow.value = row
   currentDetailIndex.value = index
+  detailMode.value = 'view'  // 重置为查看模式
   showDetailDrawer.value = true
+  
+  // 🔥 收集当前行的 files widget 的 upload_user 并查询用户信息
+  const filesUploadUsers = collectFilesUploadUsersFromRow(row, visibleFields.value)
+  
+  if (filesUploadUsers.length > 0) {
+    // 批量查询用户信息（自动处理缓存）
+    const users = await userInfoStore.batchGetUserInfo(filesUploadUsers)
+    
+    // 更新 userInfoMap，供详情中的 FilesWidget 使用
+    users.forEach((user: any) => {
+      if (user.username) {
+        userInfoMap.value.set(user.username, user)
+      }
+    })
+  }
 }
 
 /**
@@ -580,24 +1020,44 @@ const handleShowDetail = (row: any, index: number): void => {
  * 在详情抽屉中切换记录
  * @param direction 导航方向
  */
-const handleNavigate = (direction: 'prev' | 'next'): void => {
+const handleNavigate = async (direction: 'prev' | 'next'): Promise<void> => {
   if (!tableData.value || tableData.value.length === 0) return
 
-  if (direction === 'prev' && currentDetailIndex.value > 0) {
-    currentDetailIndex.value--
-    currentDetailRow.value = tableData.value[currentDetailIndex.value]
-  } else if (direction === 'next' && currentDetailIndex.value < tableData.value.length - 1) {
-    currentDetailIndex.value++
-    currentDetailRow.value = tableData.value[currentDetailIndex.value]
+  let newIndex = currentDetailIndex.value
+  if (direction === 'prev' && newIndex > 0) {
+    newIndex--
+  } else if (direction === 'next' && newIndex < tableData.value.length - 1) {
+    newIndex++
+  } else {
+    return
+  }
+
+  currentDetailIndex.value = newIndex
+  const row = tableData.value[newIndex]
+  currentDetailRow.value = row
+  detailMode.value = 'view'  // 切换记录时，重置为查看模式
+  
+  // 🔥 收集新行的 files widget 的 upload_user 并查询用户信息
+  const filesUploadUsers = collectFilesUploadUsersFromRow(row, visibleFields.value)
+  if (filesUploadUsers.length > 0) {
+    // 批量查询用户信息（自动处理缓存）
+    const users = await userInfoStore.batchGetUserInfo(filesUploadUsers)
+    // 更新 userInfoMap，供详情中的 FilesWidget 使用
+    users.forEach((user: any) => {
+      if (user.username) {
+        userInfoMap.value.set(user.username, user)
+      }
+    })
   }
 }
 
 /**
- * 🔥 复制字段值到剪贴板（遵循组件自治原则）
+ * 🔥 复制字段值到剪贴板（简化实现）
  * 
- * 设计原则：
- * - 遵循组件自治：每个 Widget 自己决定复制什么内容
- * - 统一使用 widget.getCopyText() 方法
+ * 重构说明：
+ * - v2 组件没有统一的 getCopyText 方法
+ * - 简化实现：直接使用 value.display 或 value.raw
+ * - 如果后续需要更复杂的复制逻辑，可以在组件内部处理
  * 
  * @param field 字段配置
  * @param value 字段值（原始值）
@@ -607,14 +1067,14 @@ const copyFieldValue = (field: FieldConfig, value: any): void => {
     // 🔥 将原始值转换为 FieldValue 格式
     const fieldValue = convertToFieldValue(value, field)
     
-    // 🔥 创建临时 Widget（用于复制功能）
-    const widget = WidgetBuilder.createTemporary({
-      field: field,
-      value: fieldValue
-    })
+    // 🔥 简化实现：优先使用 display，否则使用 raw
+    // v2 组件没有统一的 getCopyText 方法，每个组件自己处理复制逻辑
+    const textToCopy = fieldValue?.display || (fieldValue?.raw !== null && fieldValue?.raw !== undefined ? String(fieldValue.raw) : '')
     
-    // 🔥 调用 Widget 的 getCopyText() 方法（组件自治）
-    const textToCopy = widget.getCopyText()
+    if (!textToCopy) {
+      ElMessage.warning('没有可复制的内容')
+      return
+    }
     
     navigator.clipboard.writeText(textToCopy).then(() => {
       ElMessage.success(`已复制 ${field.name}`)
@@ -622,7 +1082,156 @@ const copyFieldValue = (field: FieldConfig, value: any): void => {
       ElMessage.error('复制失败')
     })
   } catch (error) {
-    ElMessage.error('复制失败')
+    // ✅ 使用 ErrorHandler 统一处理错误
+    ErrorHandler.handleWidgetError(`TableRenderer.copyFieldValue[${field.code}]`, error, {
+      showMessage: true
+    })
+  }
+}
+
+// ==================== 详情抽屉编辑模式 ====================
+
+/**
+ * 构建编辑用的 FunctionDetail
+ * 只包含可编辑的字段（根据 table_permission 过滤）
+ */
+const editFunctionDetail = computed<FunctionDetail>(() => {
+  // 过滤字段（只显示可编辑的字段）
+  const editableFields = props.functionData.response.filter((field: FieldConfig) => {
+    const permission = field.table_permission
+    // 编辑模式：显示空、update 权限的字段
+    return !permission || permission === '' || permission === 'update'
+  })
+  
+  // 🔥 method 是必需的，如果不存在应该抛出错误，而不是使用默认值
+  if (!props.functionData.method) {
+    throw new Error(`[TableRenderer] functionData.method 不存在，无法构建 editFunctionDetail。router: ${props.functionData.router}`)
+  }
+  
+  return {
+    id: 0,
+    app_id: 0,
+    tree_id: 0,
+    // 🔥 使用原函数的 method（GET），而不是编辑操作的 method（PUT）
+    // 这样 OnSelectFuzzy 回调才能正确获取到原函数的 method
+    method: props.functionData.method,
+    router: props.functionData.router,
+    has_config: false,
+    create_tables: '',
+    callbacks: props.functionData.callbacks,
+    template_type: 'form',
+    request: editableFields,  // 使用过滤后的字段
+    response: [],
+    created_at: '',
+    updated_at: '',
+    full_code_path: ''
+  }
+})
+
+/**
+ * 切换到编辑模式
+ */
+const switchToEditMode = (): void => {
+  if (!currentDetailRow.value) {
+    ElMessage.error('记录数据不存在')
+    return
+  }
+  detailMode.value = 'edit'
+  // FormRenderer 会自动使用 initialData 填充数据
+}
+
+/**
+ * 切换回查看模式
+ */
+const switchToViewMode = (): void => {
+  detailMode.value = 'view'
+}
+
+/**
+ * 保存（详情编辑模式）
+ */
+const handleDetailSave = async (): Promise<void> => {
+  if (!detailFormRendererRef.value) {
+    ElMessage.error('表单引用不存在')
+    return
+  }
+  
+  if (!currentDetailRow.value || !currentDetailRow.value.id) {
+    ElMessage.error('记录 ID 不存在')
+    return
+  }
+  
+  try {
+    detailSubmitting.value = true
+    
+    // 1. 准备提交数据
+    const submitData = detailFormRendererRef.value.prepareSubmitDataWithTypeConversion()
+    
+    // 2. 调用更新接口（复用现有的更新逻辑）
+    // ⚠️ 关键：传递旧值（currentDetailRow.value），用于对比找出变更的字段
+    const success = await handleUpdateRow(currentDetailRow.value.id, submitData, currentDetailRow.value)
+    
+    if (success) {
+      // 3. 刷新当前记录数据
+      await refreshCurrentDetailRow()
+      
+      // 4. 切换回查看模式
+      detailMode.value = 'view'
+      
+      ElMessage.success('保存成功')
+    }
+  } catch (error: any) {
+    Logger.error('TableRenderer', '保存失败', error)
+    const errorMessage = error?.response?.data?.msg 
+      || error?.response?.data?.message 
+      || error?.message 
+      || '保存失败'
+    ElMessage.error(errorMessage)
+  } finally {
+    detailSubmitting.value = false
+  }
+}
+
+/**
+ * 刷新当前详情记录数据
+ * 
+ * 🔥 注意：handleUpdateRow 已经会调用 loadTableData() 刷新表格数据
+ * 所以这里只需要从已刷新的 tableData 中更新当前记录即可，不需要再次调用 loadTableData()
+ */
+const refreshCurrentDetailRow = async (): Promise<void> => {
+  if (!currentDetailRow.value || !currentDetailRow.value.id) {
+    return
+  }
+  
+  try {
+    // 🔥 不需要重新加载表格数据，因为 handleUpdateRow 已经加载过了
+    // 直接从最新的表格数据中找到当前记录
+    const updatedRow = tableData.value.find((row: any) => row.id === currentDetailRow.value.id)
+    if (updatedRow) {
+      currentDetailRow.value = updatedRow
+      // 更新索引
+      const index = tableData.value.findIndex((row: any) => row.id === currentDetailRow.value.id)
+      if (index >= 0) {
+        currentDetailIndex.value = index
+      }
+      
+      // 🔥 收集更新后的 files widget 的 upload_user 并查询用户信息
+      const filesUploadUsers = collectFilesUploadUsersFromRow(updatedRow, visibleFields.value)
+      
+      if (filesUploadUsers.length > 0) {
+        // 批量查询用户信息（自动处理缓存）
+        const users = await userInfoStore.batchGetUserInfo(filesUploadUsers)
+        
+        // 更新 userInfoMap，供详情中的 FilesWidget 使用
+        users.forEach((user: any) => {
+          if (user.username) {
+            userInfoMap.value.set(user.username, user)
+          }
+        })
+      }
+    }
+  } catch (error) {
+    Logger.error('TableRenderer', '刷新记录数据失败', error)
   }
 }
 
@@ -631,12 +1240,18 @@ const copyFieldValue = (field: FieldConfig, value: any): void => {
 /**
  * 监听函数配置变化
  * 当函数配置更新时，重新加载数据
+ * 
+ * 🔥 注意：不设置 immediate: true，因为 useTableOperations 的 initialize() 已经会在初始化时调用 loadTableData()
+ * 如果设置 immediate: true，会导致初始化时调用两次 loadTableData()
  */
 watch(() => props.functionData, () => {
+  // 🔥 清空搜索表单，但保留 URL 中的搜索参数（restoreFromURL 会恢复）
   searchForm.value = {}
   currentPage.value = 1
+  // 🔥 从 URL 恢复状态（包括搜索参数）
+  restoreFromURL()
   loadTableData()
-}, { immediate: true })
+})
 
 // ==================== 修复 fixed 列按钮点击问题 ====================
 
@@ -676,6 +1291,11 @@ onMounted(() => {
 onUpdated(() => {
   fixFixedColumnClick()
 })
+
+onUnmounted(() => {
+  // 移除事件监听
+  window.removeEventListener('resize', fixFixedColumnClick)
+})
 </script>
 
 <style scoped>
@@ -685,6 +1305,23 @@ onUpdated(() => {
   position: relative;
   z-index: 1;
   overflow: visible;
+}
+
+/* 文件表格单元格样式 */
+:deep(.files-table-cell-wrapper) {
+  position: relative;
+}
+
+:deep(.files-table-cell) {
+  min-width: 0;
+}
+
+:deep(.file-item-clickable) {
+  user-select: none;
+}
+
+:deep(.file-item-clickable:hover) {
+  background-color: var(--el-fill-color) !important;
 }
 
 .toolbar {
@@ -701,6 +1338,68 @@ onUpdated(() => {
   background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 8px;
+}
+
+/* 🔥 排序信息条样式 */
+.sort-info-bar {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: var(--el-fill-color-light);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+}
+
+.sort-info-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.sort-label {
+  font-size: 14px;
+  color: var(--el-text-color-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.sort-items {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.sort-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: default;
+}
+
+.sort-field-name {
+  font-weight: 500;
+}
+
+.sort-icon {
+  font-size: 12px;
+  margin-left: 2px;
+}
+
+.sort-separator {
+  color: var(--el-text-color-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  margin: 0 4px;
+}
+
+.clear-all-sorts-btn {
+  margin-left: auto;
+  white-space: nowrap;
 }
 
 .search-form {
@@ -720,7 +1419,49 @@ onUpdated(() => {
   background-color: var(--el-bg-color) !important;
 }
 
+/* 🔥 移除表格边框（左右竖线） */
+:deep(.el-table) {
+  border: none !important;
+}
+
+:deep(.el-table__inner-wrapper) {
+  border: none !important;
+}
+
+:deep(.el-table__header-wrapper) {
+  border: none !important;
+}
+
+:deep(.el-table__body-wrapper) {
+  border: none !important;
+}
+
+:deep(.el-table th),
+:deep(.el-table td) {
+  border-right: none !important;
+  border-left: none !important;
+}
+
+:deep(.el-table th:first-child),
+:deep(.el-table td:first-child) {
+  border-left: none !important;
+}
+
+:deep(.el-table th:last-child),
+:deep(.el-table td:last-child) {
+  border-right: none !important;
+}
+
 :deep(.el-table__body tr) {
+  background-color: var(--el-bg-color) !important;
+}
+
+/* 🔥 移除斑马纹：确保所有行背景色一致 */
+:deep(.el-table__body tr.el-table__row--striped) {
+  background-color: var(--el-bg-color) !important;
+}
+
+:deep(.el-table__body tr.el-table__row--striped td) {
   background-color: var(--el-bg-color) !important;
 }
 
@@ -912,6 +1653,18 @@ onUpdated(() => {
     color: var(--el-text-color-primary);
   }
 
+  .drawer-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .drawer-mode-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
   .drawer-navigation {
     display: flex;
     align-items: center;
@@ -934,21 +1687,25 @@ onUpdated(() => {
     padding: 20px;
   }
 
+  .edit-content {
+    padding: 20px;
+  }
+
   /* 🔥 字段网格布局 - 参考旧版本 */
   .fields-grid {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 8px;
+    gap: 4px;
   }
 
   .field-row {
     display: grid;
     grid-template-columns: 140px 1fr;
     gap: 12px;
-    padding: 12px 16px;
+    padding: 8px 12px;
     border-bottom: 1px solid var(--el-border-color-extra-light);
     align-items: start;
-    min-height: 40px;
+    min-height: auto;
     transition: all 0.2s ease;
     border-radius: 4px;
     background: transparent;

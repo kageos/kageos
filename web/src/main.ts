@@ -13,6 +13,7 @@ import App from './App.vue'
 import router from './router'
 import { useAuthStore } from './stores/auth'
 import { useThemeStore } from './stores/theme'
+import { useUserInfoStore } from './stores/userInfo'
 
 const app = createApp(App)
 const pinia = createPinia()
@@ -35,5 +36,19 @@ authStore.initAuth()
 // 初始化主题
 const themeStore = useThemeStore()
 themeStore.initTheme()
+
+// 🔥 开发环境：将 stores 挂载到 window 对象，方便在控制台调试
+if (import.meta.env.DEV) {
+  const userInfoStore = useUserInfoStore()
+  ;(window as any).__stores__ = {
+    authStore,
+    themeStore,
+    userInfoStore
+  }
+  console.log('[Dev] Stores 已挂载到 window.__stores__，可以在控制台访问：')
+  console.log('  - window.__stores__.userInfoStore.getCacheStats()')
+  console.log('  - window.__stores__.userInfoStore.clearCache()')
+  console.log('  - window.__stores__.userInfoStore.refreshCache()')
+}
 
 app.mount('#app')

@@ -7,8 +7,9 @@
     @close="handleClose"
   >
     <!-- 🔥 使用新的 FormRenderer 替代所有渲染逻辑 -->
+    <template v-if="dialogVisible">
     <FormRenderer
-      v-if="dialogVisible"
+        v-if="formFunctionDetail"
       ref="formRendererRef"
       :function-detail="formFunctionDetail"
       :show-submit-button="false"
@@ -16,7 +17,17 @@
       :show-reset-button="false"
       :show-debug-button="false"
       :initial-data="props.initialData"
+      :user-info-map="props.userInfoMap"
     />
+      <div v-else class="error-message">
+        <el-alert
+          type="error"
+          :title="`无法构建表单：method 参数不存在。router: ${props.router}`"
+          :closable="false"
+          show-icon
+        />
+      </div>
+    </template>
 
     <template #footer>
       <span class="dialog-footer">
@@ -31,7 +42,8 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import FormRenderer from '@/core/renderers/FormRenderer.vue'
+import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
+import { Logger } from '@/core/utils/logger'
 import type { FieldConfig, FunctionDetail } from '@/core/types/field'
 
 interface Props {
@@ -40,12 +52,14 @@ interface Props {
   fields: FieldConfig[]  // 表单字段
   mode: 'create' | 'update'  // 模式：新增或编辑
   router: string  // ✨ 函数路由（用于文件上传等）
+  method?: string  // 🔥 原函数的 HTTP 方法（用于 OnSelectFuzzy 回调）
   initialData?: Record<string, any>  // 初始数据（编辑模式）
   width?: string | number  // 对话框宽度
+  userInfoMap?: Map<string, any>  // 🔥 用户信息映射（用于 UserWidget 批量查询优化）
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  width: '600px',
+  width: '900px',
   initialData: () => ({}),
   router: ''
 })
@@ -100,11 +114,19 @@ const filteredFields = computed(() => {
 /**
  * 🔥 将 fields 包装成 FunctionDetail 格式，供 FormRenderer 使用
  */
-const formFunctionDetail = computed<FunctionDetail>(() => ({
+const formFunctionDetail = computed<FunctionDetail | null>(() => {
+  // 🔥 method 是必需的，如果不存在应该返回 null，让模板不渲染 FormRenderer
+  if (!props.method) {
+    Logger.error('FormDialog', `method 参数不存在，无法构建 formFunctionDetail。router: ${props.router}`)
+    return null
+  }
+  
+  return {
   id: 0,
   app_id: 0,
   tree_id: 0,
-  method: 'POST',
+    // 🔥 使用原函数的 method，这样 OnSelectFuzzy 回调才能正确获取到原函数的 method
+    method: props.method,
   router: props.router,  // ✨ 使用传入的 router
   has_config: false,
   create_tables: '',
@@ -115,14 +137,15 @@ const formFunctionDetail = computed<FunctionDetail>(() => ({
   created_at: '',
   updated_at: '',
   full_code_path: ''
-}))
+  }
+})
 
 /**
  * 提交表单
  */
 const handleSubmit = async () => {
   if (!formRendererRef.value) {
-    console.error('[FormDialog] FormRenderer 引用不存在')
+    Logger.error('FormDialog', 'FormRenderer 引用不存在')
     return
   }
   
@@ -132,13 +155,11 @@ const handleSubmit = async () => {
     // 🔥 调用 FormRenderer 的内部方法准备提交数据
     const submitData = formRendererRef.value.prepareSubmitDataWithTypeConversion()
     
-    console.log('[FormDialog] 提交数据:', submitData)
-    
     // 触发提交事件
     emit('submit', submitData)
     
   } catch (error) {
-    console.error('[FormDialog] 提交失败:', error)
+    Logger.error('FormDialog', '提交失败', error)
     throw error
   } finally {
     submitting.value = false
@@ -156,14 +177,8 @@ const handleClose = () => {
 /**
  * 监听对话框显示状态
  */
-watch(() => props.modelValue, (visible) => {
-  if (visible) {
-    console.log('[FormDialog] 对话框打开', {
-      mode: props.mode,
-      fields: props.fields.length,
-      initialData: props.initialData
-    })
-  }
+watch(() => props.modelValue, () => {
+  // 对话框打开/关闭逻辑
 })
 
 /**
@@ -180,5 +195,9 @@ defineExpose({
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.error-message {
+  padding: 20px;
 }
 </style>

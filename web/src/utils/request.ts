@@ -2,6 +2,7 @@ import axios from 'axios'
 import type { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
+import { Logger } from '@/core/utils/logger'
 import router from '@/router'
 import type { ApiResponse } from '@/types'
 
@@ -55,19 +56,18 @@ service.interceptors.request.use(
         // 普通对象，直接赋值
         (config.headers as any)['X-Token'] = token
       }
-      
-      console.log('[Request] URL:', config.url, 'X-Token:', token.substring(0, 20) + '...')
     } else {
-      console.error('[Request] ❌ No token found!')
-      console.error('[Request] Store token:', authStore.token)
-      console.error('[Request] LocalStorage token:', localStorage.getItem('token'))
-      console.error('[Request] URL:', config.url)
+      Logger.warn('Request', 'No token found', {
+        storeToken: authStore.token,
+        localStorageToken: localStorage.getItem('token'),
+        url: config.url
+      })
     }
 
     return config
   },
   (error) => {
-    console.error('请求拦截器错误:', error)
+    Logger.error('Request', '请求拦截器错误', error)
     return Promise.reject(error)
   }
 )
@@ -75,16 +75,30 @@ service.interceptors.request.use(
 // 响应拦截器
 service.interceptors.response.use(
   (response: AxiosResponse<ApiResponse>) => {
-    const { code, message, data } = response.data
+    const { code, data } = response.data
+    // 🔥 后端可能返回 msg 或 message，优先使用 msg
+    const message = (response.data as any).msg || (response.data as any).message
 
     // 请求成功
     if (code === 0) {
       return data
     }
 
-    // 业务错误
-    ElMessage.error(message || '请求失败')
-    return Promise.reject(new Error(message || '请求失败'))
+    // 业务错误 - 记录错误信息
+    Logger.error('Request', '业务错误', {
+      code,
+      message,
+      msg: (response.data as any).msg,
+      url: response.config.url,
+      method: response.config.method
+    })
+    
+    // 🔥 不在这里显示错误消息，让调用方自己处理（避免重复提示）
+    // ElMessage.error(message || '请求失败')
+    // 🔥 保留完整的错误信息，包括 response 对象
+    const error = new Error(message || '请求失败') as any
+    error.response = response
+    return Promise.reject(error)
   },
   async (error) => {
     const { response } = error
@@ -141,9 +155,6 @@ service.interceptors.response.use(
 export function get<T = any>(url: string, params?: any, useBody: boolean = false): Promise<T> {
   if (useBody) {
     // 特殊场景：GET 请求带 body（用于回调接口）
-    console.log('[Request GET with Body] URL:', url)
-    console.log('[Request GET with Body] Data:', params)
-    
     return service.request({
       url,
       method: 'GET',
@@ -165,10 +176,6 @@ export function get<T = any>(url: string, params?: any, useBody: boolean = false
         }
       })
     }
-    console.log('[Request GET] URL:', url)
-    console.log('[Request GET] Original Params:', params)
-    console.log('[Request GET] Cleaned Params:', cleanParams)
-    console.log('[Request GET] Sorts:', cleanParams.sorts)
     return service.get(url, { params: cleanParams })
   }
 }

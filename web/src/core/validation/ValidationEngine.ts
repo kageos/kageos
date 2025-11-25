@@ -154,9 +154,10 @@ export class ValidationEngine {
           }
       } else {
         // 普通带参数规则：min=2, max=20, oneof=选项1 选项2
-        // 注意：oneof 的值可能是空格分隔的选项列表
+        // 注意：oneof 使用空格分隔选项，如果选项值包含空格，需要用单引号括起来
+        // 例如：oneof=cat dog bird 或 oneof='small size' 'medium size'
         if (typeTrimmed === 'oneof') {
-          // oneof 的值：空格分隔的选项列表
+          // oneof 的值：空格分隔的选项列表（支持单引号括起来的选项）
           rules.push({ 
             type: typeTrimmed, 
             value: valueTrimmed  // 保持原样，由 OneOfValidator 解析

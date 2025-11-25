@@ -37,6 +37,7 @@ type Server struct {
 	appManageService    *service.AppManageService
 	appDiscoveryService *service.AppDiscoveryService
 	serviceTreeService  *service.ServiceTreeService
+	forkService         *service.ForkService
 
 	// HTTP 健康检查服务器
 	httpServer *http.Server
@@ -201,6 +202,9 @@ func (s *Server) initServices(ctx context.Context) error {
 		return fmt.Errorf("failed to start app discovery service: %w", err)
 	}
 
+	// 初始化 Fork 服务（需要在 AppManageService 之前）
+	s.forkService = service.NewForkService(&s.cfg.AppManage)
+
 	// 初始化应用管理服务
 	wd, _ := os.Getwd()
 	s.appManageService = service.NewAppManageService(
@@ -211,6 +215,7 @@ func (s *Server) initServices(ctx context.Context) error {
 		appRepo,
 		s.appDiscoveryService,
 		s.natsConn,
+		s.forkService, // 传入 Fork 服务
 	)
 
 	// 启动 QPS 跟踪器清理任务
