@@ -25,7 +25,8 @@ export const WidgetType = {
   RICH_TEXT: 'richtext',
   TABLE: 'table',
   FORM: 'form',
-  LINK: 'link'
+  LINK: 'link',
+  PROGRESS: 'progress'
 } as const
 
 /**

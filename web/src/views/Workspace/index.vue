@@ -166,6 +166,7 @@
             <div v-else-if="functionDetail.template_type === 'form'" class="form-container">
               <FormRenderer
                 :function-detail="functionDetail"
+                :initial-data="formInitialData"
               />
             </div>
             
@@ -465,6 +466,41 @@ const showRightSidebar = ref(false)
 const activeTab = computed(() => (route.query.tab as string) || 'run')
 // 是否正在加载函数
 const isLoadingFunction = ref(false)
+
+// 🔥 从 URL 查询参数中提取表单初始数据
+const formInitialData = computed(() => {
+  const initialData: Record<string, any> = {}
+  const query = route.query
+  
+  // 遍历所有查询参数，如果字段在 request 中，添加到 initialData
+  if (functionDetail.value?.request) {
+    functionDetail.value.request.forEach((field: any) => {
+      const fieldCode = field.code
+      if (query[fieldCode] !== undefined && query[fieldCode] !== null && query[fieldCode] !== '') {
+        const value = query[fieldCode]
+        // 🔥 类型转换：根据字段类型转换值
+        if (field.data?.type === 'int' || field.data?.type === 'integer') {
+          const intValue = parseInt(String(value), 10)
+          if (!isNaN(intValue)) {
+            initialData[fieldCode] = intValue
+          }
+        } else if (field.data?.type === 'float' || field.data?.type === 'number') {
+          const floatValue = parseFloat(String(value))
+          if (!isNaN(floatValue)) {
+            initialData[fieldCode] = floatValue
+          }
+        } else if (field.data?.type === 'bool' || field.data?.type === 'boolean') {
+          initialData[fieldCode] = value === 'true' || value === '1' || value === 1 || value === true
+        } else {
+          initialData[fieldCode] = value
+        }
+      }
+    })
+  }
+  
+  return initialData
+})
+
 // 创建目录对话框
 const createDirectoryDialogVisible = ref(false)
 const creatingDirectory = ref(false)

@@ -23,7 +23,7 @@
       :link="mode === 'table-cell'"
       :plain="mode === 'detail'"
       class="link-button"
-      @click="handleClick"
+      @click.prevent="handleClick"
     >
       <el-icon v-if="linkConfig.icon" class="link-icon"><component :is="linkConfig.icon" /></el-icon>
       <el-icon v-else-if="isExternalLink" class="link-icon external-icon"><TopRight /></el-icon>
@@ -34,12 +34,12 @@
     <!-- 响应模式：作为链接显示 -->
     <el-link
       v-else-if="resolvedUrl"
-      :href="resolvedUrl"
+      :href="linkConfig.target === '_blank' ? resolvedUrl : undefined"
       :target="linkConfig.target || '_self'"
       :type="linkConfig.type || 'primary'"
       :underline="true"
       class="link-response"
-      @click="handleClick"
+      @click.prevent="handleClick"
     >
       <el-icon v-if="linkConfig.icon" class="link-icon"><component :is="linkConfig.icon" /></el-icon>
       <el-icon v-else-if="isExternalLink" class="link-icon external-icon"><TopRight /></el-icon>
@@ -87,16 +87,20 @@ const resolvedUrl = computed(() => {
   const url = parsedLink.value.url
   if (!url) return ''
   
-  // 如果是绝对路径（以 / 开头），且不是 /workspace 开头，添加 /workspace 前缀
-  if (url.startsWith('/') && !url.startsWith('/workspace/')) {
-    // 去掉开头的 /，然后加上 /workspace/
-    const pathWithoutSlash = url.substring(1)
-    return `/workspace/${pathWithoutSlash}`
-  }
-  
   // 如果是外链（包含 http:// 或 https://），直接使用
   if (url.startsWith('http://') || url.startsWith('https://')) {
     return url
+  }
+  
+  // 如果已经是完整路径（包含 /workspace），直接使用
+  if (url.startsWith('/workspace/')) {
+    return url
+  }
+  
+  // 如果是绝对路径（以 / 开头），添加 /workspace 前缀
+  if (url.startsWith('/')) {
+    const pathWithoutSlash = url.substring(1)
+    return `/workspace/${pathWithoutSlash}`
   }
   
   // 相对路径，需要转换为完整路径
@@ -136,6 +140,9 @@ const isExternalLink = computed(() => {
 
 // 处理点击事件
 const handleClick = (e: Event) => {
+  e.preventDefault()
+  e.stopPropagation()
+  
   const url = resolvedUrl.value
   if (!url) return
   
@@ -144,19 +151,28 @@ const handleClick = (e: Event) => {
     window.open(url, '_blank')
   } else {
     // 当前窗口跳转
-    // 需要将 URL 转换为路由路径
-    const routePath = convertUrlToRoute(url)
-    if (routePath.startsWith('http://') || routePath.startsWith('https://')) {
+    // resolvedUrl 已经处理了 /workspace 前缀，直接使用
+    if (url.startsWith('http://') || url.startsWith('https://')) {
       // 外链，直接打开
-      window.open(routePath, '_blank')
+      window.open(url, '_blank')
     } else {
-      router.push(routePath)
+      // 内部链接，直接使用 resolvedUrl（已经包含 /workspace 前缀）
+      router.push(url)
     }
   }
 }
 
 // 构建完整路径
 function buildFullPath(relativePath: string): string {
+  // 如果已经是绝对路径（以 / 开头），直接添加 /workspace 前缀
+  if (relativePath.startsWith('/')) {
+    if (relativePath.startsWith('/workspace/')) {
+      return relativePath
+    }
+    const pathWithoutSlash = relativePath.substring(1)
+    return `/workspace/${pathWithoutSlash}`
+  }
+  
   // 解析相对路径：function_name?query
   const [functionPath, query] = relativePath.split('?')
   
@@ -165,8 +181,8 @@ function buildFullPath(relativePath: string): string {
   const pathParts = currentRoute.path.split('/').filter(Boolean)
   
   if (pathParts.length < 3) {
-    // 如果路径格式不正确，返回原路径
-    return relativePath
+    // 如果路径格式不正确，尝试添加 /workspace 前缀
+    return `/workspace/${relativePath}`
   }
   
   const user = pathParts[1]
@@ -179,7 +195,7 @@ function buildFullPath(relativePath: string): string {
 
 // 将 URL 转换为路由路径
 function convertUrlToRoute(url: string): string {
-  // 如果已经是完整路径，直接使用
+  // 如果已经是完整路径（包含 /workspace），直接使用
   if (url.startsWith('/workspace/')) {
     return url
   }
@@ -189,7 +205,13 @@ function convertUrlToRoute(url: string): string {
     return url
   }
   
-  // 否则使用 buildFullPath
+  // 如果是绝对路径（以 / 开头），添加 /workspace 前缀
+  if (url.startsWith('/')) {
+    const pathWithoutSlash = url.substring(1)
+    return `/workspace/${pathWithoutSlash}`
+  }
+  
+  // 否则使用 buildFullPath（相对路径）
   return buildFullPath(url)
 }
 </script>

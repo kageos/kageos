@@ -273,6 +273,13 @@ func (s *MinIOStorage) EnsureBucket(ctx context.Context, bucket, region string) 
 	// 先测试连接，列出所有bucket来验证权限
 	_, err := s.client.ListBuckets(ctx)
 	if err != nil {
+		errMsg := err.Error()
+		// 检查是否是时间同步问题
+		if strings.Contains(errMsg, "difference between the request time") ||
+			strings.Contains(errMsg, "time is too large") ||
+			strings.Contains(errMsg, "RequestTimeTooSkewed") {
+			return fmt.Errorf("时间同步错误：客户端与MinIO服务器的时间差过大（通常超过15分钟）。请检查系统时间是否正确，如果使用容器部署，请确保容器时间与宿主机同步: %w", err)
+		}
 		return fmt.Errorf("无法连接到MinIO或权限不足，请检查access_key和secret_key配置: %w", err)
 	}
 

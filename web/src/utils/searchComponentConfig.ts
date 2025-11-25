@@ -21,11 +21,15 @@ export interface ComponentConfig {
  * 创建搜索组件配置
  * @param field 字段配置
  * @param searchType 搜索类型
+ * @param functionMethod 函数 HTTP 方法（用于 OnSelectFuzzy 回调）
+ * @param functionRouter 函数路由（用于 OnSelectFuzzy 回调）
  * @returns 组件配置
  */
 export function createSearchComponentConfig(
   field: FieldConfig,
-  searchType: string | undefined
+  searchType: string | undefined,
+  functionMethod?: string,
+  functionRouter?: string
 ): ComponentConfig {
   const widgetType = field.widget?.type || WidgetType.INPUT
   const widgetConfig = field.widget?.config || {}
@@ -42,7 +46,7 @@ export function createSearchComponentConfig(
 
   // 选择组件
   if (widgetType === WidgetType.SELECT) {
-    return createSelectComponentConfig(field, searchType, widgetConfig)
+    return createSelectComponentConfig(field, searchType, widgetConfig, functionMethod, functionRouter)
   }
 
   // 多选组件
@@ -165,9 +169,24 @@ function createTimestampComponentConfig(field: FieldConfig, searchType: string |
 function createSelectComponentConfig(
   field: FieldConfig,
   searchType: string | undefined,
-  widgetConfig: Record<string, any>
+  widgetConfig: Record<string, any>,
+  functionMethod?: string,
+  functionRouter?: string
 ): ComponentConfig {
   const options = getWidgetOptions(widgetConfig)
+  
+  // 🔥 检查是否有 OnSelectFuzzy 回调
+  const hasCallback = field.callbacks?.includes('OnSelectFuzzy') || false
+  
+  // 🔥 创建 onRemoteMethod（用于 by_keyword 搜索）
+  const onRemoteMethod = hasCallback && functionMethod && functionRouter
+    ? createSelectFuzzyRemoteMethod(field, functionMethod, functionRouter)
+    : undefined
+  
+  // 🔥 创建 onInitOptions（用于 by_value 搜索，初始化已选中的值）
+  const onInitOptions = hasCallback && functionMethod && functionRouter
+    ? createSelectFuzzyInitOptions(field, functionMethod, functionRouter)
+    : undefined
 
   // 多选搜索（in）
   if (hasSearchType(searchType, SearchType.IN)) {
@@ -178,11 +197,14 @@ function createSelectComponentConfig(
         clearable: true,
         filterable: true,
         multiple: true,
+        remote: hasCallback, // 🔥 如果有回调，启用 remote 模式
         style: { width: SearchConfig.DEFAULT_INPUT_WIDTH },
         collapseTags: true,
         maxCollapseTags: SearchConfig.MAX_COLLAPSE_TAGS,
         options
-      }
+      },
+      onRemoteMethod,
+      onInitOptions
     }
   }
 
@@ -193,9 +215,12 @@ function createSelectComponentConfig(
       placeholder: generatePlaceholder(field.name, 'select'),
       clearable: true,
       filterable: true,
+      remote: hasCallback, // 🔥 如果有回调，启用 remote 模式
       style: { width: SearchConfig.DEFAULT_INPUT_WIDTH },
       options
-    }
+    },
+    onRemoteMethod,
+    onInitOptions
   }
 }
 
@@ -406,6 +431,132 @@ function createUserRemoteMethod(): (query: string) => Promise<Array<{ label: str
       }))
     } catch (error) {
       console.error('[SearchInput] 搜索用户失败', error)
+      return []
+    }
+  }
+}
+
+/**
+ * 创建 OnSelectFuzzy 回调的远程搜索方法（by_keyword）
+ */
+function createSelectFuzzyRemoteMethod(
+  field: FieldConfig,
+  functionMethod: string,
+  functionRouter: string
+): (query: string) => Promise<Array<{ label: string; value: any }>> {
+  return async (query: string) => {
+    if (!query || query.trim() === '') {
+      return []
+    }
+
+    try {
+      const { selectFuzzy } = await import('@/api/function')
+      const { SelectFuzzyQueryType } = await import('@/core/constants/select')
+      
+      const valueType = field.data?.type || 'string'
+      const response = await selectFuzzy(functionMethod, functionRouter, {
+        code: field.code,
+        type: SelectFuzzyQueryType.BY_KEYWORD,
+        value: query.trim(),
+        request: {}, // 搜索模式下，request 为空
+        value_type: valueType
+      })
+
+      if (response.error_msg) {
+        console.error('[SearchInput] OnSelectFuzzy 回调错误:', response.error_msg)
+        return []
+      }
+
+      // 转换响应格式
+      const items = response.items || []
+      return items.map((item: any) => ({
+        label: item.label || String(item.value),
+        value: item.value
+      }))
+    } catch (error) {
+      console.error('[SearchInput] OnSelectFuzzy 回调失败', error)
+      return []
+    }
+  }
+}
+
+/**
+ * 创建 OnSelectFuzzy 回调的初始化选项方法（by_value）
+ */
+function createSelectFuzzyInitOptions(
+  field: FieldConfig,
+  functionMethod: string,
+  functionRouter: string
+): (value: any) => Promise<Array<{ label: string; value: any }>> {
+  return async (value: any) => {
+    if (!value || (Array.isArray(value) && value.length === 0)) {
+      return []
+    }
+
+    try {
+      const { selectFuzzy } = await import('@/api/function')
+      const { SelectFuzzyQueryType } = await import('@/core/constants/select')
+      
+      const valueType = field.data?.type || 'string'
+      
+      // 🔥 判断是单个值还是多个值
+      const isArray = Array.isArray(value)
+      const values = isArray ? value : [value]
+      
+      // 🔥 类型转换：根据 value_type 将字符串转换为正确的类型
+      let convertedValues: any[] = []
+      for (const val of values) {
+        let convertedValue: any = val
+        // 🔥 处理字符串类型的值（可能来自 URL 参数）
+        if (typeof val === 'string' && valueType !== 'string') {
+          if (valueType === 'int' || valueType === 'integer') {
+            convertedValue = parseInt(val, 10)
+            if (isNaN(convertedValue)) {
+              continue
+            }
+          } else if (valueType === 'float' || valueType === 'number') {
+            convertedValue = parseFloat(val)
+            if (isNaN(convertedValue)) {
+              continue
+            }
+          }
+        }
+        convertedValues.push(convertedValue)
+      }
+      
+      if (convertedValues.length === 0) {
+        return []
+      }
+      
+      // 🔥 如果只有一个值，使用 by_value；如果有多个值，使用 by_values
+      const queryType = convertedValues.length === 1 
+        ? SelectFuzzyQueryType.BY_VALUE 
+        : SelectFuzzyQueryType.BY_VALUES
+      const queryValue = convertedValues.length === 1 
+        ? convertedValues[0] 
+        : convertedValues
+      
+      const response = await selectFuzzy(functionMethod, functionRouter, {
+        code: field.code,
+        type: queryType,
+        value: queryValue,
+        request: {}, // 搜索模式下，request 为空
+        value_type: valueType
+      })
+
+      if (response.error_msg) {
+        console.error('[SearchInput] OnSelectFuzzy 回调错误:', response.error_msg)
+        return []
+      }
+
+      // 转换响应格式
+      const items = response.items || []
+      return items.map((item: any) => ({
+        label: item.label || String(item.value),
+        value: item.value
+      }))
+    } catch (error) {
+      console.error('[SearchInput] OnSelectFuzzy 回调失败', error)
       return []
     }
   }

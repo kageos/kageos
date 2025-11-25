@@ -22,6 +22,7 @@ const (
 	TypeTable       = "table"
 	TypeForm        = "form"
 	TypeLink        = "link"
+	TypeProgress    = "progress"
 )
 
 // 数据类型
@@ -89,6 +90,8 @@ func NewWidget(widgetType string, widgetParsed map[string]string) Widget {
 		return newRichText(widgetParsed)
 	case TypeLink:
 		return newLink(widgetParsed)
+	case TypeProgress:
+		return newProgress(widgetParsed)
 	default:
 		// 默认返回Input组件，确保兜底
 		return newInput(widgetParsed)

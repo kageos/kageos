@@ -17,6 +17,8 @@
               :field="field"
               :search-type="field.search"
               :model-value="getSearchValue(field)"
+              :function-method="functionData.method"
+              :function-router="functionData.router"
               @update:model-value="(value: any) => {
                 // 🔥 判断是否清空：值为 null 或空字符串，且之前有值
                 const isClearing = (value === null || value === '') && 
@@ -512,18 +514,45 @@ const handleLinkClick = (fieldCode: string, row: any) => {
   const linkConfig = linkField.widget?.config || {}
   const target = linkConfig.target || '_self'
   
-  // 处理站内跳转
-  let routePath = actualUrl
-  if (actualUrl.startsWith('/') && !actualUrl.startsWith('/workspace/')) {
+  // 🔥 处理 URL，添加 /workspace 前缀（参考 LinkWidget 的逻辑）
+  let resolvedUrl = actualUrl
+  
+  // 如果是外链，直接使用
+  if (actualUrl.startsWith('http://') || actualUrl.startsWith('https://')) {
+    resolvedUrl = actualUrl
+  }
+  // 如果已经是完整路径（包含 /workspace），直接使用
+  else if (actualUrl.startsWith('/workspace/')) {
+    resolvedUrl = actualUrl
+  }
+  // 如果是绝对路径（以 / 开头），添加 /workspace 前缀
+  else if (actualUrl.startsWith('/')) {
     const pathWithoutSlash = actualUrl.substring(1)
-    routePath = `/workspace/${pathWithoutSlash}`
+    resolvedUrl = `/workspace/${pathWithoutSlash}`
+  }
+  // 相对路径，需要转换为完整路径
+  else {
+    // 从当前路由获取 user 和 app
+    const currentRoute = router.currentRoute.value
+    const pathParts = currentRoute.path.split('/').filter(Boolean)
+    
+    if (pathParts.length >= 3) {
+      const user = pathParts[1]
+      const app = pathParts[2]
+      const [functionPath, query] = actualUrl.split('?')
+      const fullPath = `/workspace/${user}/${app}/${functionPath}`
+      resolvedUrl = query ? `${fullPath}?${query}` : fullPath
+    } else {
+      // 如果路径格式不正确，尝试添加 /workspace 前缀
+      resolvedUrl = `/workspace/${actualUrl}`
+    }
   }
   
   // 根据 target 决定打开方式
   if (target === '_blank' || actualUrl.startsWith('http://') || actualUrl.startsWith('https://')) {
-    window.open(actualUrl, '_blank')
+    window.open(resolvedUrl, '_blank')
   } else {
-    router.push(routePath)
+    router.push(resolvedUrl)
   }
 }
 

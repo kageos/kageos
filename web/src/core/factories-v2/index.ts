@@ -31,6 +31,7 @@ import FormWidget from '../widgets-v2/components/FormWidget.vue'
 import TableWidget from '../widgets-v2/components/TableWidget.vue'
 import UserWidget from '../widgets-v2/components/UserWidget.vue'
 import LinkWidget from '../widgets-v2/components/LinkWidget.vue'
+import ProgressWidget from '../widgets-v2/components/ProgressWidget.vue'
 
 /**
  * 初始化组件工厂
@@ -72,6 +73,10 @@ export function initializeWidgetComponentFactory(): void {
   // 链接组件
   widgetComponentFactory.registerRequestComponent(WidgetType.LINK, LinkWidget)
   widgetComponentFactory.registerResponseComponent(WidgetType.LINK, LinkWidget)
+  
+  // 进度条组件（主要用于响应模式展示）
+  widgetComponentFactory.registerRequestComponent(WidgetType.PROGRESS, ProgressWidget)
+  widgetComponentFactory.registerResponseComponent(WidgetType.PROGRESS, ProgressWidget)
   
   // 响应参数组件（Text 主要用于响应模式）
   widgetComponentFactory.registerResponseComponent(WidgetType.TEXT, TextWidget)
