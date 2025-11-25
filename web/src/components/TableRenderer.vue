@@ -152,7 +152,7 @@
 
       <!-- 操作列 -->
       <el-table-column 
-        v-if="hasDeleteCallback" 
+        v-if="hasDeleteCallback || linkFields.length > 0" 
         label="操作" 
         fixed="right" 
         :width="getActionColumnWidth()"
@@ -160,11 +160,54 @@
       >
         <template #default="{ row }">
           <div class="action-buttons">
+            <!-- 链接区域：只有 1 个链接时直接显示，超过 1 个时使用下拉菜单 -->
+            <template v-if="linkFields.length === 1">
+              <LinkWidget
+                :field="linkFields[0]"
+                :value="convertToFieldValue(row[linkFields[0].code], linkFields[0])"
+                :field-path="linkFields[0].code"
+                mode="table-cell"
+                class="action-link"
+              />
+            </template>
+            
+            <!-- 多个链接下拉菜单（超过 1 个时显示） -->
+            <el-dropdown
+              v-else-if="linkFields.length > 1"
+              trigger="click"
+              placement="bottom-end"
+              @command="(fieldCode: string) => handleLinkClick(fieldCode, row)"
+            >
+              <el-button link type="primary" size="small" class="more-links-btn">
+                <el-icon><More /></el-icon>
+                链接
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item
+                    v-for="linkField in linkFields"
+                    :key="linkField.code"
+                    :command="linkField.code"
+                  >
+                    <div class="dropdown-link-content">
+                      <el-icon v-if="linkField.widget?.config?.icon" class="link-icon">
+                        <component :is="linkField.widget.config.icon" />
+                      </el-icon>
+                      <el-icon v-else class="link-icon internal-icon"><Right /></el-icon>
+                      <span>{{ getLinkText(linkField, row[linkField.code]) }}</span>
+                    </div>
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+            
+            <!-- 删除按钮 -->
             <el-button 
               v-if="hasDeleteCallback"
               link 
               type="danger" 
               size="small"
+              class="delete-btn"
               @click.stop="handleDelete(row)"
             >
               <el-icon><Delete /></el-icon>
@@ -267,9 +310,25 @@
 
       <!-- 🔥 查看模式：纯展示模式，参考旧版本设计 -->
       <div class="detail-content" v-if="currentDetailRow && detailMode === 'view'">
+        <!-- 链接操作区域 -->
+        <div v-if="linkFields.length > 0" class="detail-links-section">
+          <div class="links-section-title">相关链接</div>
+          <div class="links-section-content">
+            <LinkWidget
+              v-for="linkField in linkFields"
+              :key="linkField.code"
+              :field="linkField"
+              :value="convertToFieldValue(currentDetailRow[linkField.code], linkField)"
+              :field-path="linkField.code"
+              mode="detail"
+              class="detail-link-item"
+            />
+          </div>
+        </div>
+        
         <div class="fields-grid">
           <div 
-            v-for="field in visibleFields"
+            v-for="field in visibleFields.filter(f => f.widget?.type !== 'link')"
             :key="field.code"
             class="field-row"
           >
@@ -336,8 +395,8 @@
  */
 
 import { computed, ref, watch, h, nextTick, onMounted, onUpdated, onUnmounted, isVNode, defineComponent } from 'vue'
-import { Search, Refresh, Edit, Delete, Plus, ArrowLeft, ArrowRight, DocumentCopy, Document, Download, ArrowUp, ArrowDown } from '@element-plus/icons-vue'
-import { ElIcon, ElButton, ElMessage } from 'element-plus'
+import { Search, Refresh, Edit, Delete, Plus, ArrowLeft, ArrowRight, DocumentCopy, Document, Download, ArrowUp, ArrowDown, More } from '@element-plus/icons-vue'
+import { ElIcon, ElButton, ElMessage, ElDropdown, ElDropdownMenu, ElDropdownItem } from 'element-plus'
 import { formatTimestamp } from '@/utils/date'
 import { useTableOperations } from '@/composables/useTableOperations'
 import { widgetComponentFactory } from '@/core/factories-v2'
@@ -348,11 +407,15 @@ import { WidgetType } from '@/core/constants/widget'
 import { useUserInfoStore } from '@/stores/userInfo'
 import { collectAllUsernames, collectFilesUploadUsersFromRow } from '@/utils/tableUserInfo'
 import { getSortableConfig } from '@/utils/fieldSort'
+import { useRouter } from 'vue-router'
 import FormDialog from './FormDialog.vue'
 import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
 import SearchInput from './SearchInput.vue'
+import LinkWidget from '@/core/widgets-v2/components/LinkWidget.vue'
 import type { Function as FunctionType, ServiceTree } from '@/types'
 import type { FieldConfig, FieldValue, FunctionDetail } from '@/core/types/field'
+
+const router = useRouter()
 
 interface Props {
   /** 函数配置数据 */
@@ -407,6 +470,64 @@ const {
 } = useTableOperations({
   functionData: props.functionData
 })
+
+// ==================== 链接处理 ====================
+
+/**
+ * 获取链接文本（用于下拉菜单显示）
+ */
+const getLinkText = (linkField: FieldConfig, rawValue: any): string => {
+  const value = convertToFieldValue(rawValue, linkField)
+  const url = value?.raw || ''
+  if (!url) return linkField.name || '链接'
+  
+  // 解析 "[text]url" 格式
+  const match = url.match(/^\[([^\]]+)\](.+)$/)
+  if (match) {
+    return match[1]  // 返回文本部分
+  }
+  
+  // 如果没有文本，使用字段名称或配置的 text
+  return linkField.widget?.config?.text || linkField.name || '链接'
+}
+
+/**
+ * 处理链接点击（用于下拉菜单）
+ * 当链接数量超过 2 个时，多余的链接通过下拉菜单触发
+ */
+const handleLinkClick = (fieldCode: string, row: any) => {
+  const linkField = linkFields.value.find(f => f.code === fieldCode)
+  if (!linkField) return
+  
+  // 获取链接值
+  const value = convertToFieldValue(row[fieldCode], linkField)
+  const url = value?.raw || ''
+  if (!url) return
+  
+  // 解析 "[text]url" 格式
+  const match = url.match(/^\[([^\]]+)\](.+)$/)
+  const actualUrl = match ? match[2] : url
+  
+  // 获取链接配置
+  const linkConfig = linkField.widget?.config || {}
+  const target = linkConfig.target || '_self'
+  
+  // 处理站内跳转
+  let routePath = actualUrl
+  if (actualUrl.startsWith('/') && !actualUrl.startsWith('/workspace/')) {
+    const pathWithoutSlash = actualUrl.substring(1)
+    routePath = `/workspace/${pathWithoutSlash}`
+  }
+  
+  // 根据 target 决定打开方式
+  if (target === '_blank' || actualUrl.startsWith('http://') || actualUrl.startsWith('https://')) {
+    window.open(actualUrl, '_blank')
+  } else {
+    router.push(routePath)
+  }
+}
+
+// ==================== 排序相关 ====================
 
 /**
  * 获取第一个排序配置（用于 el-table 的 default-sort）
@@ -632,10 +753,19 @@ const idField = computed(() => {
 })
 
 /**
- * 数据字段（排除ID列，ID列已单独作为控制中心列）
+ * Link 字段（用于操作区域）
+ */
+const linkFields = computed(() => {
+  return visibleFields.value.filter((field: FieldConfig) => field.widget?.type === 'link')
+})
+
+/**
+ * 数据字段（排除ID列和Link列，ID列已单独作为控制中心列，Link列在操作区域显示）
  */
 const dataFields = computed(() => {
-  return visibleFields.value.filter((field: FieldConfig) => field.widget?.type !== 'ID')
+  return visibleFields.value.filter((field: FieldConfig) => 
+    field.widget?.type !== 'ID' && field.widget?.type !== 'link'
+  )
 })
 
 // ==================== UI 辅助方法 ====================
@@ -644,10 +774,26 @@ const dataFields = computed(() => {
  * 获取操作列宽度
  * 根据是否有删除回调动态计算宽度
  */
+/**
+ * 获取操作列宽度
+ * 根据是否有删除回调和链接字段动态计算宽度
+ * 🔥 超过 1 个链接时使用下拉菜单，减少操作列宽度
+ */
 const getActionColumnWidth = (): number => {
-  let width = 60  // 基础宽度（减小）
-  if (hasDeleteCallback.value) width += 50  // 删除按钮宽度（减小）
-  return width
+  let width = 60  // 基础宽度
+  if (hasDeleteCallback.value) width += 60  // 删除按钮宽度（确保"删除"文字完整显示）
+  
+  // 🔥 只有 1 个链接时直接显示，超过 1 个时使用下拉菜单
+  if (linkFields.value.length === 1) {
+    // 单个链接约 80px（文本 + 图标 + 间距）
+    width += 80
+  } else if (linkFields.value.length > 1) {
+    // 多个链接使用下拉菜单，只需要一个按钮宽度
+    width += 50  // 下拉菜单按钮宽度（"链接"按钮）
+  }
+  
+  // 限制最大宽度，防止变形，但确保删除按钮能完整显示
+  return Math.min(Math.max(width, 140), 200)  // 最小 140px，最大 200px（减少最大宽度）
 }
 
 /**
@@ -1508,7 +1654,76 @@ onUnmounted(() => {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: nowrap;  /* 🔥 禁止换行，防止行高增加 */
   pointer-events: auto;
+  width: 100%;  /* 使用 100% 宽度，确保内容完整显示 */
+  min-width: 0;  /* 允许 flex 子元素收缩 */
+}
+
+.action-link {
+  flex-shrink: 0;
+  white-space: nowrap;  /* 防止文本换行 */
+}
+
+.more-links-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.delete-btn {
+  flex-shrink: 0;  /* 🔥 防止删除按钮被压缩 */
+  white-space: nowrap;  /* 防止文字换行 */
+  min-width: fit-content;  /* 确保按钮内容完整显示 */
+}
+
+.dropdown-link-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.dropdown-link-content .link-icon {
+  font-size: 14px;
+  color: var(--el-color-primary);
+}
+
+/* 详情页面链接区域 */
+.detail-links-section {
+  margin-bottom: 24px;
+  padding: 16px;
+  background-color: var(--el-fill-color-lighter);
+  border-radius: 8px;
+  border: 1px solid var(--el-border-color-light);
+}
+
+.links-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.links-section-title::before {
+  content: '';
+  width: 3px;
+  height: 16px;
+  background-color: var(--el-color-primary);
+  border-radius: 2px;
+}
+
+.links-section-content {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.detail-link-item {
+  flex-shrink: 0;
 }
 
 /* 确保 fixed 列的操作按钮可以点击 */
@@ -1555,11 +1770,7 @@ onUnmounted(() => {
   pointer-events: auto !important;
 }
 
-.action-buttons {
-  position: relative !important;
-  z-index: 2004 !important;
-  pointer-events: auto !important;
-}
+/* action-buttons 样式已在上面定义，这里不需要重复 */
 
 :deep(.el-table__fixed-right .action-buttons) {
   z-index: 2004 !important;

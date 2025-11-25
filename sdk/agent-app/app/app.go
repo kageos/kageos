@@ -8,7 +8,6 @@ import (
 	_ "net/http/pprof" // 导入 pprof
 	"os"
 	"runtime"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -72,19 +71,45 @@ const (
 func (a *App) registerRouter(method string, router string, handler HandleFunc, templater Templater) {
 	// 系统路由（如 /_callback）没有 package 路径，传递 nil options
 	// 只有通过 RouterGroup 注册的路由才会有 PackagePath
-	register(router, method, handler, templater, nil)
+	// 使用统一的 addRoute 方法
+	if err := a.addRoute(router, method, handler, templater, nil); err != nil {
+		logger.Errorf(context.Background(), "Failed to register router %s %s: %v", method, router, err)
+		panic(err) // 注册失败时 panic，避免静默失败
+	}
 }
 
-func (a *App) getRouter(router string, method string) (*routerInfo, error) {
-	trim := strings.Trim(router, "/")
-	key := fmt.Sprintf("%s.%s", trim, method)
+// addRoute 添加路由（统一设置路由的方法）
+// 检查 URL 唯一性，如果已存在则返回错误
+func (a *App) addRoute(router string, method string, handleFunc HandleFunc, templater Templater, options *RegisterOptions) error {
+	key := routerKey(router)
+	
+	// 检查 URL 唯一性
+	if existing, exists := a.routerInfo[key]; exists {
+		return fmt.Errorf("路由 %s 已存在，不允许重复注册。已存在的路由信息: Router=%s, Method=%s", 
+			router, existing.Router, existing.Method)
+	}
+	
+	a.routerInfo[key] = &routerInfo{
+		HandleFunc: handleFunc,
+		Router:     router,
+		Method:     method,
+		Options:    options,
+		Template:   templater,
+	}
+	return nil
+}
+
+// getRoute 获取路由（统一获取路由的方法）
+// router: 路由路径（不包含 method）
+func (a *App) getRoute(router string) (*routerInfo, error) {
+	key := routerKey(router)
 	info, ok := a.routerInfo[key]
 	if ok {
 		return info, nil
 	}
 
 	logger.Infof(a, "Router %s not found routerInfo:%+v ", key, a.routerInfo)
-	return nil, fmt.Errorf("router %s not found", key)
+	return nil, fmt.Errorf("router %s not found", router)
 }
 
 // Subjects NATS 主题（重构后）

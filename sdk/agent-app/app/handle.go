@@ -105,7 +105,7 @@ func (a *App) handle(req *dto.RequestAppReq) (resp *dto.RequestAppResp, err erro
 	// result := handleBusinessLogic(req.Method, req.Body, req.UrlQuery)
 
 	logger.Infof(ctx, "Handle req:%+v", req)
-	router, err := a.getRouter(newContext.msg.Router, newContext.msg.Method)
+	router, err := a.getRoute(newContext.msg.Router)
 	if err != nil {
 		logger.Errorf(ctx, err.Error())
 		// 发送响应（带上 trace_id）
