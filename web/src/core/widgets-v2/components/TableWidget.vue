@@ -60,20 +60,8 @@
               - parent-mode="mode"：传递父级模式（这里是 'edit'），让嵌套组件知道上下文
               - 嵌套组件会根据 parentMode 判断：如果是 'edit'，抽屉中使用 edit 模式（可编辑）
             -->
-            <template v-if="itemField.widget?.type === 'form' || itemField.widget?.type === 'table'">
-              <component
-                :is="getWidgetComponent(itemField.widget?.type)"
-                :field="itemField"
-                :value="getRowFieldValue($index, itemField.code)"
-                :model-value="getRowFieldValue($index, itemField.code)"
-                @update:model-value="(v) => updateRowFieldValue($index, itemField.code, v)"
-                :field-path="`${fieldPath}[${$index}].${itemField.code}`"
-                :form-manager="formManager"
-                :form-renderer="formRenderer"
-                mode="table-cell"
-                :parent-mode="mode"
-                :depth="(depth || 0) + 1"
-              />
+            <template v-if="isNestedContainerField(itemField)">
+              <component v-bind="renderNestedFieldInTableCell(itemField, $index, getRowFieldValue, updateRowFieldValue)" />
             </template>
             <!-- 其他类型字段：编辑状态直接编辑，显示状态简化显示 -->
             <template v-else>
@@ -178,9 +166,9 @@
                   - parent-mode="mode"：传递父级模式（这里是 'response'），让嵌套组件知道上下文
                   - 嵌套组件会根据 parentMode 判断：如果是 'response'，抽屉中使用 response 模式（只读）
                 -->
-                <template v-if="itemField.widget?.type === 'form' || itemField.widget?.type === 'table'">
+                <template v-if="isNestedContainerField(itemField)">
                   <component
-                    :is="getWidgetComponent(itemField.widget?.type)"
+                    :is="getWidgetComponent(itemField.widget?.type || 'input')"
                     :field="itemField"
                     :value="getResponseRowFieldValue($index, itemField.code)"
                     :model-value="getResponseRowFieldValue($index, itemField.code)"
@@ -262,7 +250,7 @@
         link
         type="primary"
         size="small"
-        @click="tableCellMode.showDrawer.value = true"
+        @click="tableCellMode.openDrawer()"
         class="table-cell-button"
       >
         <span>{{ displayValue }}</span>
@@ -275,9 +263,9 @@
       <el-drawer
         v-model="tableCellMode.showDrawer.value"
         :title="field.name"
-        size="70%"
+        :size="DRAWER_CONFIG.size"
         destroy-on-close
-        :z-index="3000"
+        :z-index="DRAWER_CONFIG.zIndex"
         append-to-body
       >
         <template #default>
@@ -298,7 +286,7 @@
               :field-path="fieldPath"
               :form-manager="formManager"
               :form-renderer="formRenderer"
-              :mode="drawerMode"
+              :mode="tableCellMode.drawerMode.value"
               :depth="(depth || 0) + 1"
             />
           </div>
@@ -310,9 +298,9 @@
           - 编辑上下文：显示确认按钮，用户可以保存修改
           - 响应上下文：不显示确认按钮，因为数据是只读的
         -->
-        <template #footer v-if="isInEditContext">
+        <template #footer v-if="tableCellMode.isInEditContext.value">
           <div class="drawer-footer">
-            <el-button @click="tableCellMode.showDrawer.value = false">取消</el-button>
+            <el-button @click="tableCellMode.closeDrawer()">取消</el-button>
             <el-button type="primary" @click="handleTableCellConfirm">确认</el-button>
           </div>
         </template>
@@ -329,6 +317,7 @@ import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useTableWidget } from '../composables/useTableWidget'
 import { useTableEditMode } from '../composables/useTableEditMode'
 import { useTableResponseMode } from '../composables/useTableResponseMode'
+import { useTableCellMode } from '../composables/useTableCellMode'
 import { widgetComponentFactory } from '../../factories-v2'
 import { FieldValue, type FieldConfig } from '../../types/field'
 import { useFormDataStore } from '../../stores-v2/formData'
@@ -337,6 +326,12 @@ import { validateFieldValue, validateTableWidgetNestedFields, type WidgetValidat
 import { Logger } from '../../utils/logger'
 import { renderTableCell } from '../../utils/tableCellRenderer'
 import FieldStatistics from './FieldStatistics.vue'
+
+// 抽屉配置常量
+const DRAWER_CONFIG = {
+  size: '70%',
+  zIndex: 3000
+} as const
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -352,57 +347,8 @@ const { tableData, itemFields, getRowFieldValue, updateRowFieldValue, getAllRows
 const editMode = useTableEditMode(props)
 const responseMode = useTableResponseMode()
 
-// table-cell 模式的状态管理
-const tableCellMode = {
-  showDrawer: ref(false)
-}
-
-/**
- * 🔥 判断 table-cell 模式是在编辑上下文还是响应上下文中使用
- * 
- * 设计思路：
- * - table-cell 模式本身不区分编辑/响应，它只是一个显示模式（简化显示 + 抽屉）
- * - 但是抽屉中的内容需要根据上下文决定是编辑还是只读
- * - 通过 parentMode 显式传递父级模式，避免间接判断导致的错误
- * 
- * 判断逻辑（优先级从高到低）：
- * 1. parentMode === 'edit' → 编辑上下文 → 抽屉使用 edit 模式（可编辑，有确认按钮）
- * 2. parentMode === 'response' → 响应上下文 → 抽屉使用 response 模式（只读，无确认按钮）
- * 3. 如果没有 parentMode，使用备用判断（formManager 或 formDataStore）
- * 
- * 预期行为：
- * - 在 TableWidget 的 edit 模式下，嵌套字段传递 parent-mode="edit"
- * - 在 TableWidget 的 response 模式下，嵌套字段传递 parent-mode="response"
- * - 嵌套组件根据 parentMode 决定抽屉中的渲染模式
- */
-const isInEditContext = computed(() => {
-  // 优先判断：如果 parentMode 是 'edit'，说明是在编辑模式中
-  if (props.parentMode === 'edit') {
-    return true
-  }
-  // 优先判断：如果 parentMode 是 'response'，说明是在响应模式中
-  if (props.parentMode === 'response') {
-    return false
-  }
-  // 备用判断：如果没有 parentMode，使用 formManager 或 formDataStore 判断
-  // （这种情况应该很少出现，因为我们在调用时都会传递 parentMode）
-  if (props.formManager) {
-    return true
-  }
-  const value = formDataStore.getValue(props.fieldPath)
-  return value !== null && value !== undefined && value.raw !== null && value.raw !== undefined
-})
-
-/**
- * 🔥 table-cell 模式抽屉中使用的模式（根据上下文决定）
- * 
- * 预期行为：
- * - 编辑上下文：使用 edit 模式，支持编辑，显示确认按钮
- * - 响应上下文：使用 response 模式，只读展示，不显示确认按钮
- */
-const drawerMode = computed(() => {
-  return isInEditContext.value ? 'edit' : 'response'
-})
+// table-cell 模式的公共逻辑
+const tableCellMode = useTableCellMode(props)
 
 // 获取 formDataStore
 const formDataStore = useFormDataStore()
@@ -583,7 +529,7 @@ const displayValue = computed(() => {
 // 处理 table-cell 模式的确认按钮
 function handleTableCellConfirm(): void {
   // 关闭抽屉即可，数据已经通过 update:modelValue 事件更新
-  tableCellMode.showDrawer.value = false
+  tableCellMode.closeDrawer()
 }
 
 
@@ -608,6 +554,43 @@ function getColumnWidth(field: any): number {
 // 获取组件
 function getWidgetComponent(type: string) {
   return widgetComponentFactory.getRequestComponent(type)
+}
+
+/**
+ * 判断字段是否为嵌套容器类型（form 或 table）
+ */
+function isNestedContainerField(field: FieldConfig): boolean {
+  return field.widget?.type === 'form' || field.widget?.type === 'table'
+}
+
+/**
+ * 渲染嵌套字段（form/table）在表格单元格中
+ * 
+ * @param itemField 字段配置
+ * @param rowIndex 行索引
+ * @param getValue 获取字段值的函数
+ * @param updateValue 更新字段值的函数
+ * @returns 组件配置对象
+ */
+function renderNestedFieldInTableCell(
+  itemField: FieldConfig,
+  rowIndex: number,
+  getValue: (index: number, code: string) => any,
+  updateValue: (index: number, code: string, value: any) => void
+) {
+  return {
+    is: getWidgetComponent(itemField.widget?.type || 'input'),
+    field: itemField,
+    value: getValue(rowIndex, itemField.code),
+    'model-value': getValue(rowIndex, itemField.code),
+    'onUpdate:model-value': (v: any) => updateValue(rowIndex, itemField.code, v),
+    'field-path': `${fieldPath}[${rowIndex}].${itemField.code}`,
+    'form-manager': formManager,
+    'form-renderer': formRenderer,
+    mode: 'table-cell',
+    'parent-mode': mode,
+    depth: (depth || 0) + 1
+  }
 }
 
 // 保存行
@@ -725,16 +708,14 @@ function updateFieldErrors(
   }
 }
 
-// 处理导入
+// 处理导入（待实现）
 function handleImport(): void {
-  // TODO: 实现导入功能
-  console.log('导入功能待实现')
+  Logger.warn('TableWidget', '导入功能待实现')
 }
 
-// 处理导出
+// 处理导出（待实现）
 function handleExport(): void {
-  // TODO: 实现导出功能
-  console.log('导出功能待实现')
+  Logger.warn('TableWidget', '导出功能待实现')
 }
 
 // 🔥 暴露验证方法给父组件
