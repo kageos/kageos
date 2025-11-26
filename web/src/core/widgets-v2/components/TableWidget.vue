@@ -43,11 +43,11 @@
           :min-width="getColumnWidth(itemField)"
         >
           <template #default="{ row, $index }">
-            <!-- 🔥 对于 form 类型字段，在编辑和显示状态下都使用简化显示 + 抽屉 -->
+            <!-- 🔥 对于 form 和 table 类型字段，在编辑和显示状态下都使用简化显示 + 抽屉 -->
             <!-- 这样可以避免表格列过宽，保持布局整洁 -->
-            <template v-if="itemField.widget?.type === 'form'">
+            <template v-if="itemField.widget?.type === 'form' || itemField.widget?.type === 'table'">
               <component
-                :is="getWidgetComponent('form')"
+                :is="getWidgetComponent(itemField.widget?.type)"
                 :field="itemField"
                 :value="getRowFieldValue($index, itemField.code)"
                 :model-value="getRowFieldValue($index, itemField.code)"
@@ -189,19 +189,62 @@
       </el-drawer>
     </template>
     
-    <!-- 表格单元格模式 -->
+    <!-- 表格单元格模式（简化显示 + 详情抽屉） -->
     <template v-else-if="mode === 'table-cell'">
-      <span class="table-cell-value">
-        {{ displayValue }}
-      </span>
+      <el-button
+        link
+        type="primary"
+        size="small"
+        @click="tableCellMode.showDrawer.value = true"
+        class="table-cell-button"
+      >
+        <span>{{ displayValue }}</span>
+        <el-icon style="margin-left: 4px">
+          <View />
+        </el-icon>
+      </el-button>
+      
+      <!-- 详情抽屉（支持编辑） -->
+      <el-drawer
+        v-model="tableCellMode.showDrawer.value"
+        :title="field.name"
+        size="70%"
+        destroy-on-close
+        :z-index="3000"
+        append-to-body
+      >
+        <template #default>
+          <div class="table-detail-content">
+            <!-- 🔥 抽屉中使用 edit 模式的渲染逻辑，确保可以编辑 -->
+            <component
+              :is="getWidgetComponent('table')"
+              :field="field"
+              :value="value"
+              :model-value="value"
+              @update:model-value="(v) => emit('update:modelValue', v)"
+              :field-path="fieldPath"
+              :form-manager="formManager"
+              :form-renderer="formRenderer"
+              mode="edit"
+              :depth="(depth || 0) + 1"
+            />
+          </div>
+        </template>
+        <template #footer>
+          <div class="drawer-footer">
+            <el-button @click="tableCellMode.showDrawer.value = false">取消</el-button>
+            <el-button type="primary" @click="handleTableCellConfirm">确认</el-button>
+          </div>
+        </template>
+      </el-drawer>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent } from 'vue'
+import { computed, defineComponent, ref } from 'vue'
 import { ElTable, ElTableColumn, ElButton, ElDrawer, ElCard, ElIcon } from 'element-plus'
-import { Upload, Download } from '@element-plus/icons-vue'
+import { Upload, Download, View } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useTableWidget } from '../composables/useTableWidget'
 import { useTableEditMode } from '../composables/useTableEditMode'
@@ -228,6 +271,11 @@ const emit = defineEmits<WidgetComponentEmits>()
 const { tableData, itemFields, getRowFieldValue, updateRowFieldValue, getAllRowsData } = useTableWidget(props)
 const editMode = useTableEditMode(props)
 const responseMode = useTableResponseMode()
+
+// table-cell 模式的状态管理
+const tableCellMode = {
+  showDrawer: ref(false)
+}
 
 // 获取 formDataStore
 const formDataStore = useFormDataStore()
@@ -380,20 +428,16 @@ const CellRenderer = defineComponent({
 const displayValue = computed(() => {
   const value = props.value
   if (!value) {
-    return '-'
-  }
-  
-  if (value.display) {
-    return value.display
+    return '共 0 条记录'
   }
   
   const raw = value.raw
   if (raw === null || raw === undefined || raw === '') {
-    return '-'
+    return '共 0 条记录'
   }
   
   if (Array.isArray(raw)) {
-    return `共 ${raw.length} 条`
+    return `共 ${raw.length} 条记录`
   }
   
   // 避免序列化循环引用的对象
@@ -402,12 +446,18 @@ const displayValue = computed(() => {
       return JSON.stringify(raw)
     } catch (e) {
       // 如果序列化失败（循环引用），返回简单描述
-      return `[对象]`
+      return `共 0 条记录`
     }
   }
   
   return String(raw)
 })
+
+// 处理 table-cell 模式的确认按钮
+function handleTableCellConfirm(): void {
+  // 关闭抽屉即可，数据已经通过 update:modelValue 事件更新
+  tableCellMode.showDrawer.value = false
+}
 
 
 // 获取列宽
@@ -624,6 +674,28 @@ defineExpose({
 
 .table-cell-value {
   color: var(--el-text-color-regular);
+}
+
+.table-cell-button {
+  padding: 0;
+  height: auto;
+  font-size: 14px;
+}
+
+/* 详情抽屉内容 */
+.table-detail-content {
+  padding: 16px 0;
+  /* 确保下拉菜单可以正常显示 */
+  overflow: visible;
+  position: relative;
+}
+
+.drawer-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px;
+  border-top: 1px solid var(--el-border-color-lighter);
 }
 
 .detail-field {
