@@ -61,7 +61,19 @@
               - 嵌套组件会根据 parentMode 判断：如果是 'edit'，抽屉中使用 edit 模式（可编辑）
             -->
             <template v-if="isNestedContainerField(itemField)">
-              <component v-bind="renderNestedFieldInTableCell(itemField, $index, getRowFieldValue, updateRowFieldValue)" />
+              <component
+                :is="getWidgetComponent(itemField.widget?.type)"
+                :field="itemField"
+                :value="getRowFieldValue($index, itemField.code)"
+                :model-value="getRowFieldValue($index, itemField.code)"
+                @update:model-value="(v) => updateRowFieldValue($index, itemField.code, v)"
+                :field-path="`${fieldPath}[${$index}].${itemField.code}`"
+                :form-manager="formManager"
+                :form-renderer="formRenderer"
+                mode="table-cell"
+                :parent-mode="mode"
+                :depth="(depth || 0) + 1"
+              />
             </template>
             <!-- 其他类型字段：编辑状态直接编辑，显示状态简化显示 -->
             <template v-else>
@@ -561,36 +573,6 @@ function getWidgetComponent(type: string) {
  */
 function isNestedContainerField(field: FieldConfig): boolean {
   return field.widget?.type === 'form' || field.widget?.type === 'table'
-}
-
-/**
- * 渲染嵌套字段（form/table）在表格单元格中
- * 
- * @param itemField 字段配置
- * @param rowIndex 行索引
- * @param getValue 获取字段值的函数
- * @param updateValue 更新字段值的函数
- * @returns 组件配置对象
- */
-function renderNestedFieldInTableCell(
-  itemField: FieldConfig,
-  rowIndex: number,
-  getValue: (index: number, code: string) => any,
-  updateValue: (index: number, code: string, value: any) => void
-) {
-  return {
-    is: getWidgetComponent(itemField.widget?.type || 'input'),
-    field: itemField,
-    value: getValue(rowIndex, itemField.code),
-    'model-value': getValue(rowIndex, itemField.code),
-    'onUpdate:model-value': (v: any) => updateValue(rowIndex, itemField.code, v),
-    'field-path': `${fieldPath}[${rowIndex}].${itemField.code}`,
-    'form-manager': formManager,
-    'form-renderer': formRenderer,
-    mode: 'table-cell',
-    'parent-mode': mode,
-    depth: (depth || 0) + 1
-  }
 }
 
 // 保存行
