@@ -57,8 +57,8 @@ func Fail(c *gin.Context) {
 	Result(ERROR, map[string]interface{}{}, "操作失败", c)
 }
 
-func FailWithMessage(c *gin.Context, message string) {
-	Result(ERROR, map[string]interface{}{}, message, c)
+func FailWithMessage(c *gin.Context, message string, metadata ...map[string]interface{}) {
+	Result(ERROR, map[string]interface{}{}, message, c, metadata...)
 }
 
 func NoAuth(c *gin.Context, message string) {

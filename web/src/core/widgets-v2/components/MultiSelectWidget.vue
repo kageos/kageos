@@ -522,16 +522,16 @@ function calculateRowStatistics(
   
   const validDisplayInfos = displayInfos.filter(info => info && typeof info === 'object')
   
-  if (validDisplayInfos.length === 0) {
-    return {}
-  }
+  // 🔥 对于 selected() 函数，使用第一个选中项的 DisplayInfo
+  const firstSelectedItem = validDisplayInfos.length > 0 ? validDisplayInfos[0] : null
   
   const result: Record<string, any> = {}
   
   try {
     for (const [label, expression] of Object.entries(statisticsConfig)) {
       try {
-        const value = ExpressionParser.evaluate(expression, validDisplayInfos)
+        // 🔥 传递 selectedItem 参数，用于 selected() 函数
+        const value = ExpressionParser.evaluate(expression, validDisplayInfos, firstSelectedItem)
         result[label] = value
       } catch (error: any) {
         Logger.error(`[MultiSelectWidget] 行内聚合计算失败: ${label} = ${expression}`, error)
@@ -825,6 +825,8 @@ watch(
 }
 
 .edit-multiselect {
+  position: relative;
+  z-index: 1;
   width: 100%;
 }
 

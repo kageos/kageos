@@ -14,10 +14,25 @@
   <div class="table-widget">
     <!-- 编辑模式 -->
     <template v-if="mode === 'edit'">
-      <div class="table-widget-container">
-        <div class="table-widget-header">
-          <span class="table-title">{{ field.name }}</span>
-        </div>
+      <el-card
+        shadow="hover"
+        class="table-card"
+      >
+        <template #header>
+          <div class="table-card-header">
+            <span class="table-title">{{ field.name }}</span>
+            <div class="table-header-actions">
+              <el-button size="small" @click="handleImport">
+                <el-icon><Upload /></el-icon>
+                导入
+              </el-button>
+              <el-button size="small" @click="handleExport">
+                <el-icon><Download /></el-icon>
+                导出
+              </el-button>
+            </div>
+          </div>
+        </template>
         <div class="table-widget-content">
           <el-table :data="editMode.tableData.value" :stripe="false" class="table-widget-table">
         <el-table-column
@@ -97,19 +112,16 @@
         <el-button type="primary" @click="editMode.startAdding()">新增</el-button>
       </div>
       
-      <!-- 聚合统计 -->
-      <div v-if="hasStatistics" class="statistics">
-        <div
-          v-for="(value, label) in statisticsResultDisplay"
-          :key="label"
-          class="statistics-item"
-        >
-          <span class="statistics-label">{{ label }}:</span>
-          <span class="statistics-value">{{ formatStatisticsValue(value) }}</span>
+      <!-- 🔥 当前编辑行的字段统计信息（显示在表格下方） -->
+      <!-- 🔥 使用所有行的数据来计算统计（表格场景） -->
+      <FieldStatistics
+        v-if="editingRowStatistics && Object.keys(editingRowStatistics).length > 0"
+        :field="field"
+        :value="getAllRowsData()"
+        :statistics="editingRowStatistics"
+      />
         </div>
-      </div>
-        </div>
-      </div>
+      </el-card>
     </template>
     
     <!-- 响应模式（只读） -->
@@ -183,12 +195,12 @@
 
 <script setup lang="ts">
 import { computed, defineComponent } from 'vue'
-import { ElTable, ElTableColumn, ElButton, ElDrawer } from 'element-plus'
+import { ElTable, ElTableColumn, ElButton, ElDrawer, ElCard, ElIcon } from 'element-plus'
+import { Upload, Download } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useTableWidget } from '../composables/useTableWidget'
 import { useTableEditMode } from '../composables/useTableEditMode'
 import { useTableResponseMode } from '../composables/useTableResponseMode'
-import { useTableStatistics } from '../composables/useTableStatistics'
 import { widgetComponentFactory } from '../../factories-v2'
 import { FieldValue, type FieldConfig } from '../../types/field'
 import { useFormDataStore } from '../../stores-v2/formData'
@@ -196,6 +208,7 @@ import type { ValidationEngine, ValidationResult } from '../../validation/types'
 import { validateFieldValue, validateTableWidgetNestedFields, type WidgetValidationContext } from '../composables/useWidgetValidation'
 import { Logger } from '../../utils/logger'
 import { renderTableCell } from '../../utils/tableCellRenderer'
+import FieldStatistics from './FieldStatistics.vue'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -210,24 +223,93 @@ const emit = defineEmits<WidgetComponentEmits>()
 const { tableData, itemFields, getRowFieldValue, updateRowFieldValue, getAllRowsData } = useTableWidget(props)
 const editMode = useTableEditMode(props)
 const responseMode = useTableResponseMode()
-const statistics = useTableStatistics(props, getAllRowsData)
 
 // 获取 formDataStore
 const formDataStore = useFormDataStore()
 
-// 聚合结果（用于模板显示，确保正确解包）
-const statisticsResultDisplay = computed(() => {
-  const result = statistics.statisticsResult.value
-  return result || {}
+// 🔥 当前编辑行的字段统计信息（用于显示在表格下方）
+// 收集当前编辑行所有字段的 statistics 配置，合并成一个对象
+// 🔥 注意：保存后 editingIndex 会变成 null，但我们需要继续显示统计信息
+// 所以需要检查是否有保存后的行数据
+const editingRowStatistics = computed(() => {
+  // 🔥 优先使用当前编辑行的数据
+  let targetIndex = editMode.editingIndex.value
+  
+  // 如果不在编辑状态，尝试使用最后保存的行（通常是最后一行）
+  if (targetIndex === null || targetIndex === undefined) {
+    // 检查是否有数据行
+    if (tableData.value.length > 0) {
+      // 使用最后一行（通常是刚保存的）
+      targetIndex = tableData.value.length - 1
+    } else {
+      return {}
+    }
+  }
+  
+  // 收集当前编辑行所有字段的 statistics 配置
+  const rowStatistics: Record<string, string> = {}
+  
+  itemFields.value.forEach((itemField: any) => {
+    const fieldPath = `${props.fieldPath}[${targetIndex}].${itemField.code}`
+    const itemValue = formDataStore.getValue(fieldPath)
+    
+    // 如果该字段有 statistics 配置，收集它
+    if (itemValue?.meta?.statistics && typeof itemValue.meta.statistics === 'object') {
+      Object.entries(itemValue.meta.statistics).forEach(([label, expression]) => {
+        if (typeof expression === 'string') {
+          rowStatistics[label] = expression
+        }
+      })
+    }
+  })
+  
+  return rowStatistics
 })
 
-// 是否有聚合统计（用于模板条件判断）
-const hasStatistics = computed(() => {
-  const config = statistics.statisticsConfig.value
-  const result = statistics.statisticsResult.value
-  const hasConfig = config && Object.keys(config).length > 0
-  const hasResult = result && typeof result === 'object' && Object.keys(result).length > 0
-  return hasConfig && hasResult
+// 🔥 当前编辑行的字段值（用于 FieldStatistics 组件）
+// 构建一个包含所有字段 displayInfo 的对象，用于 FieldStatistics 计算
+// 🔥 注意：保存后 editingIndex 会变成 null，但我们需要继续显示统计信息
+// 所以需要检查是否有保存后的行数据
+const editingRowFieldValue = computed(() => {
+  // 🔥 优先使用当前编辑行的数据
+  let targetIndex = editMode.editingIndex.value
+  
+  // 如果不在编辑状态，尝试使用最后保存的行（通常是最后一行）
+  if (targetIndex === null || targetIndex === undefined) {
+    // 检查是否有数据行
+    if (tableData.value.length > 0) {
+      // 使用最后一行（通常是刚保存的）
+      targetIndex = tableData.value.length - 1
+    } else {
+      return null
+    }
+  }
+  
+  // 🔥 构建一个包含所有字段 displayInfo 的对象
+  // FieldStatistics 期望 value 是一个对象，包含 meta.displayInfo 或直接是 displayInfo
+  const rowData: Record<string, any> = {
+    meta: {
+      displayInfo: {}
+    }
+  }
+  
+  itemFields.value.forEach((itemField: any) => {
+    const fieldPath = `${props.fieldPath}[${targetIndex}].${itemField.code}`
+    const itemValue = formDataStore.getValue(fieldPath)
+    
+    // 🔥 合并 displayInfo（来自 Select 回调）
+    // FieldStatistics 会从 value.meta.displayInfo 中查找
+    if (itemValue?.meta?.displayInfo && typeof itemValue.meta.displayInfo === 'object') {
+      Object.assign(rowData.meta.displayInfo, itemValue.meta.displayInfo)
+    }
+  })
+  
+  // 如果没有任何 displayInfo，返回 null
+  if (Object.keys(rowData.meta.displayInfo).length === 0) {
+    return null
+  }
+  
+  return rowData
 })
 
 // 响应模式下的表格数据（从 props.value.raw 读取）
@@ -322,40 +404,6 @@ const displayValue = computed(() => {
   return String(raw)
 })
 
-// 格式化统计值（避免循环引用和 computed ref）
-function formatStatisticsValue(value: any): string {
-  if (value === null || value === undefined) {
-    return '-'
-  }
-  
-  // 如果是 computed ref，获取其值
-  if (value && typeof value === 'object' && '__v_isRef' in value && 'value' in value) {
-    return formatStatisticsValue(value.value)
-  }
-  
-  // 如果是基本类型，直接返回
-  if (typeof value !== 'object') {
-    return String(value)
-  }
-  
-  // 如果是数组
-  if (Array.isArray(value)) {
-    return `[${value.length} 项]`
-  }
-  
-  // 如果是对象，尝试序列化
-  try {
-    const str = JSON.stringify(value)
-    // 如果序列化结果太长，截断
-    if (str.length > 100) {
-      return str.substring(0, 100) + '...'
-    }
-    return str
-  } catch (e) {
-    // 如果序列化失败（循环引用），返回简单描述
-    return `[对象]`
-  }
-}
 
 // 获取列宽
 function getColumnWidth(field: any): number {
@@ -419,11 +467,17 @@ function handleSave(index: number): void {
       const fieldPath = `${props.fieldPath}[${finalIndex}].${itemField.code}`
       const rawValue = rowData[itemField.code]
       
-      // 确保 formDataStore 中有正确的值
+      // 🔥 获取保存前的值，保留 meta 信息（displayInfo、statistics 等）
+      const previousValue = getRowFieldValue(index, itemField.code)
+      const previousMeta = previousValue?.meta || {}
+      
+      // 确保 formDataStore 中有正确的值，并保留 meta 信息
       const fieldValue: FieldValue = {
         raw: rawValue,
         display: rawValue !== null && rawValue !== undefined ? String(rawValue) : '',
-        meta: {}
+        meta: {
+          ...previousMeta, // 🔥 保留原有的 meta 信息（displayInfo、statistics 等）
+        }
       }
       formDataStore.setValue(fieldPath, fieldValue)
     })
@@ -489,6 +543,18 @@ function updateFieldErrors(
   }
 }
 
+// 处理导入
+function handleImport(): void {
+  // TODO: 实现导入功能
+  console.log('导入功能待实现')
+}
+
+// 处理导出
+function handleExport(): void {
+  // TODO: 实现导出功能
+  console.log('导出功能待实现')
+}
+
 // 🔥 暴露验证方法给父组件
 defineExpose({
   validate
@@ -500,32 +566,36 @@ defineExpose({
   width: 100%;
 }
 
+/* 🔥 表格卡片样式（参考 FormWidget） */
+.table-card {
+  width: 100%;
+}
+
+.table-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.table-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.table-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.table-widget-content {
+  width: 100%;
+}
+
 .table-actions {
   margin-top: 16px;
 }
 
-.statistics {
-  margin-top: 16px;
-  padding: 12px;
-  background: var(--el-bg-color-page);
-  border-radius: 4px;
-}
-
-.statistics-item {
-  display: inline-block;
-  margin-right: 24px;
-  margin-bottom: 8px;
-}
-
-.statistics-label {
-  font-weight: 500;
-  color: var(--el-text-color-primary);
-  margin-right: 8px;
-}
-
-.statistics-value {
-  color: var(--el-text-color-regular);
-}
 
 .table-cell-value {
   color: var(--el-text-color-regular);
@@ -598,6 +668,63 @@ defineExpose({
 
 :deep(.table-widget-table .el-table__body tr:hover > td) {
   background-color: var(--el-fill-color-light) !important;
+}
+
+/* 🔥 确保表格的所有列（包括 fixed 列）不会遮挡对话框 */
+/* 🔥 使用极低的 z-index，确保对话框（z-index: 10000）始终在上方 */
+:deep(.el-table__fixed-right),
+:deep(.el-table__fixed-left) {
+  z-index: 0 !important;
+}
+
+:deep(.el-table__fixed-right .el-table__fixed-body-wrapper),
+:deep(.el-table__fixed-left .el-table__fixed-body-wrapper) {
+  z-index: 0 !important;
+}
+
+/* 🔥 确保表格单元格内容不会遮挡对话框 */
+:deep(.el-table__body-wrapper),
+:deep(.el-table__header-wrapper) {
+  z-index: 0 !important;
+}
+
+:deep(.el-table__body tr),
+:deep(.el-table__body td),
+:deep(.el-table__header tr),
+:deep(.el-table__header th) {
+  z-index: 0 !important;
+  position: relative;
+}
+
+/* 🔥 确保表格单元格内的组件不会遮挡对话框 */
+:deep(.el-table__body td > *),
+:deep(.el-table__body td .el-input),
+:deep(.el-table__body td .el-select),
+:deep(.el-table__body td .el-button) {
+  z-index: 0 !important;
+  position: relative;
+}
+
+/* 🔥 确保编辑状态下的组件不会遮挡对话框 */
+:deep(.el-table__body td .select-widget),
+:deep(.el-table__body td .edit-select),
+:deep(.el-table__body td .select-container),
+:deep(.el-table__body td .multi-select-widget),
+:deep(.el-table__body td .number-widget),
+:deep(.el-table__body td .input-widget),
+:deep(.el-table__body td .float-widget) {
+  z-index: 0 !important;
+  position: relative;
+}
+
+/* 🔥 确保编辑状态下的组件内的所有子元素也不会遮挡对话框 */
+:deep(.el-table__body td .select-widget *),
+:deep(.el-table__body td .edit-select *),
+:deep(.el-table__body td .multi-select-widget *),
+:deep(.el-table__body td .number-widget *),
+:deep(.el-table__body td .input-widget *),
+:deep(.el-table__body td .float-widget *) {
+  z-index: 0 !important;
 }
 </style>
 

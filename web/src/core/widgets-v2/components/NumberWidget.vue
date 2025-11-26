@@ -6,18 +6,20 @@
 <template>
   <div class="number-widget">
     <!-- 编辑模式 -->
-    <el-input-number
-      v-if="mode === 'edit'"
-      v-model="internalValue"
-      :disabled="field.widget?.config?.disabled"
-      :placeholder="field.desc || `请输入${field.name}`"
-      :min="minValue"
-      :max="maxValue"
-      :step="1"
-      :precision="0"
-      :controls="true"
-      @blur="handleBlur"
-    />
+    <div v-if="mode === 'edit'" class="number-input-wrapper">
+      <el-input-number
+        v-model="internalValue"
+        :disabled="field.widget?.config?.disabled"
+        :placeholder="field.desc || `请输入${field.name}`"
+        :min="minValue"
+        :max="maxValue"
+        :step="stepValue"
+        :precision="0"
+        :controls="true"
+        @blur="handleBlur"
+      />
+      <span v-if="unit" class="unit-text">{{ unit }}</span>
+    </div>
     
     <!-- 响应模式（只读） -->
     <span v-else-if="mode === 'response'" class="response-value">
@@ -35,21 +37,23 @@
     </div>
     
     <!-- 搜索模式 -->
-    <el-input-number
-      v-else-if="mode === 'search'"
-      v-model="internalValue"
-      :placeholder="`搜索${field.name}`"
-      :min="minValue"
-      :max="maxValue"
-      :step="1"
-      :precision="0"
-      :controls="true"
-    />
+    <div v-else-if="mode === 'search'" class="number-input-wrapper">
+      <el-input-number
+        v-model="internalValue"
+        :placeholder="`搜索${field.name}`"
+        :min="minValue"
+        :max="maxValue"
+        :step="stepValue"
+        :precision="0"
+        :controls="true"
+      />
+      <span v-if="unit" class="unit-text">{{ unit }}</span>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { ElInputNumber } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useFormDataStore } from '../../stores-v2/formData'
@@ -64,6 +68,28 @@ const props = withDefaults(defineProps<WidgetComponentProps>(), {
 const emit = defineEmits<WidgetComponentEmits>()
 
 const formDataStore = useFormDataStore()
+
+// 获取配置
+const config = computed(() => props.field.widget?.config || {})
+
+// 步长（从配置中读取，默认为 1）
+const stepValue = computed(() => {
+  const step = config.value.step
+  if (step !== undefined && step !== null) {
+    const num = Number(step)
+    return isNaN(num) ? 1 : num
+  }
+  return 1
+})
+
+// 单位（从配置中读取）
+const unit = computed(() => config.value.unit || '')
+
+// 默认值（从配置中读取）
+const defaultValue = computed(() => {
+  const def = config.value.default
+  return def !== undefined ? Number(def) : undefined
+})
 
 // 最小值/最大值（从验证规则中提取）
 const minValue = computed(() => {
@@ -82,16 +108,27 @@ const maxValue = computed(() => {
 const internalValue = computed({
   get: () => {
     if (props.mode === 'edit' || props.mode === 'search') {
+      // 优先使用当前值
       const value = props.value?.raw
-      return value !== null && value !== undefined ? Number(value) : undefined
+      if (value !== null && value !== undefined) {
+        return Number(value)
+      }
+      // 如果没有值，使用默认值
+      if (defaultValue.value !== undefined) {
+        return defaultValue.value
+      }
+      return undefined
     }
     return undefined
   },
   set: (newValue: number | undefined) => {
     if (props.mode === 'edit') {
+      const formatted = newValue !== undefined ? String(newValue) : ''
+      const display = unit.value ? `${formatted} ${unit.value}` : formatted
+      
       const newFieldValue = {
         raw: newValue ?? null,
-        display: newValue !== undefined ? String(newValue) : '',
+        display: display,
         meta: {}
       }
       
@@ -101,15 +138,11 @@ const internalValue = computed({
   }
 })
 
-// 显示值
+// 显示值（包含单位）
 const displayValue = computed(() => {
   const value = props.value
   if (!value) {
     return '-'
-  }
-  
-  if (value.display) {
-    return value.display
   }
   
   const raw = value.raw
@@ -117,7 +150,18 @@ const displayValue = computed(() => {
     return '-'
   }
   
-  return String(raw)
+  const formatted = String(raw)
+  return unit.value ? `${formatted} ${unit.value}` : formatted
+})
+
+// 初始化默认值
+onMounted(() => {
+  if (props.mode === 'edit' && defaultValue.value !== undefined) {
+    const currentValue = props.value?.raw
+    if (currentValue === null || currentValue === undefined) {
+      internalValue.value = defaultValue.value
+    }
+  }
 })
 
 function handleBlur(): void {
@@ -128,6 +172,18 @@ function handleBlur(): void {
 <style scoped>
 .number-widget {
   width: 100%;
+}
+
+.number-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.unit-text {
+  color: var(--el-text-color-secondary);
+  font-size: 14px;
+  white-space: nowrap;
 }
 
 .response-value {
