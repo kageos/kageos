@@ -145,7 +145,8 @@
               :min-width="getColumnWidth(itemField)"
             >
               <template #default="{ row, $index }">
-                <!-- 🔥 对于 form 和 table 类型字段，直接使用组件渲染（支持嵌套） -->
+                <!-- 🔥 对于 form 和 table 类型字段，使用 table-cell 模式显示（简化显示 + 详情抽屉） -->
+                <!-- 这样可以避免表格列过宽，保持布局整洁 -->
                 <template v-if="itemField.widget?.type === 'form' || itemField.widget?.type === 'table'">
                   <component
                     :is="getWidgetComponent(itemField.widget?.type)"
@@ -155,7 +156,7 @@
                     :field-path="`${fieldPath}[${$index}].${itemField.code}`"
                     :form-manager="formManager"
                     :form-renderer="formRenderer"
-                    mode="response"
+                    mode="table-cell"
                     :depth="(depth || 0) + 1"
                   />
                 </template>
@@ -231,7 +232,7 @@
       >
         <template #default>
           <div class="table-detail-content">
-            <!-- 🔥 抽屉中使用 edit 模式的渲染逻辑，确保可以编辑 -->
+            <!-- 🔥 抽屉中根据上下文使用 edit 或 response 模式的渲染逻辑 -->
             <component
               :is="getWidgetComponent('table')"
               :field="field"
@@ -241,12 +242,12 @@
               :field-path="fieldPath"
               :form-manager="formManager"
               :form-renderer="formRenderer"
-              mode="edit"
+              :mode="drawerMode"
               :depth="(depth || 0) + 1"
             />
           </div>
         </template>
-        <template #footer>
+        <template #footer v-if="isInEditContext">
           <div class="drawer-footer">
             <el-button @click="tableCellMode.showDrawer.value = false">取消</el-button>
             <el-button type="primary" @click="handleTableCellConfirm">确认</el-button>
@@ -292,6 +293,18 @@ const responseMode = useTableResponseMode()
 const tableCellMode = {
   showDrawer: ref(false)
 }
+
+// 🔥 判断 table-cell 模式是在编辑上下文还是响应上下文中使用
+// 如果 formDataStore 中有这个字段的值，说明是在编辑模式中；否则是在响应模式中
+const isInEditContext = computed(() => {
+  const value = formDataStore.getValue(props.fieldPath)
+  return value !== null && value !== undefined && value.raw !== null && value.raw !== undefined
+})
+
+// 🔥 table-cell 模式抽屉中使用的模式（根据上下文决定）
+const drawerMode = computed(() => {
+  return isInEditContext.value ? 'edit' : 'response'
+})
 
 // 获取 formDataStore
 const formDataStore = useFormDataStore()
