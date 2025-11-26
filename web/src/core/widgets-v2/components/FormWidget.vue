@@ -125,7 +125,7 @@
                 :label="subField.name"
                 :required="isFieldRequired(subField)"
               >
-                <!-- 🔥 递归渲染子组件，使用与正常编辑模式完全相同的逻辑 -->
+                <!-- 🔥 递归渲染子组件，根据上下文使用 edit 或 response 模式 -->
                 <component
                   :is="getWidgetComponent(subField.widget?.type || 'input')"
                   :field="subField"
@@ -135,14 +135,14 @@
                   :field-path="`${fieldPath}.${subField.code}`"
                   :form-manager="formManager"
                   :form-renderer="formRenderer"
-                  mode="edit"
+                  :mode="drawerMode"
                   :depth="(depth || 0) + 1"
                 />
               </el-form-item>
             </el-form>
           </div>
         </template>
-        <template #footer>
+        <template #footer v-if="isInEditContext">
           <div class="drawer-footer">
             <el-button @click="showDetailDrawer = false">取消</el-button>
             <el-button type="primary" @click="handleFormCellConfirm">确认</el-button>
@@ -185,6 +185,7 @@ import { widgetComponentFactory } from '../../factories-v2'
 import type { FieldConfig } from '../../types/field'
 import type { ValidationEngine, ValidationResult } from '../../validation/types'
 import { validateFieldValue, validateFormWidgetNestedFields, type WidgetValidationContext } from '../composables/useWidgetValidation'
+import { useFormDataStore } from '../../stores-v2/formData'
 
 const props = defineProps<WidgetComponentProps>()
 
@@ -201,6 +202,19 @@ const fieldCount = computed(() => {
     return Object.keys(raw).length
   }
   return visibleSubFields.value.length
+})
+
+// 🔥 判断 table-cell 模式是在编辑上下文还是响应上下文中使用
+// 如果 formDataStore 中有这个字段的值，说明是在编辑模式中；否则是在响应模式中
+const isInEditContext = computed(() => {
+  const formDataStore = useFormDataStore()
+  const value = formDataStore.getValue(props.fieldPath)
+  return value !== null && value !== undefined && value.raw !== null && value.raw !== undefined
+})
+
+// 🔥 table-cell 模式抽屉中使用的模式（根据上下文决定）
+const drawerMode = computed(() => {
+  return isInEditContext.value ? 'edit' : 'response'
 })
 
 // 处理 table-cell 模式的确认按钮
