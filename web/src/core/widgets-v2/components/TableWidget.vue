@@ -126,10 +126,15 @@
     
     <!-- 响应模式（只读） -->
     <template v-else-if="mode === 'response'">
-      <div class="table-widget-container response-table-container">
-        <div class="table-widget-header">
-          <span class="table-title">{{ field.name }}</span>
-        </div>
+      <el-card
+        shadow="never"
+        class="table-card response-table-card"
+      >
+        <template #header>
+          <div class="table-card-header">
+            <span class="table-title">{{ field.name }}</span>
+          </div>
+        </template>
         <div class="table-widget-content">
           <el-table :data="responseTableData" :stripe="false" class="table-widget-table">
             <el-table-column
@@ -150,7 +155,7 @@
             </el-table-column>
           </el-table>
         </div>
-      </div>
+      </el-card>
       
       <!-- 详情抽屉 -->
       <el-drawer
@@ -566,19 +571,30 @@ defineExpose({
   width: 100%;
 }
 
-/* 🔥 表格卡片样式（参考 FormWidget） */
+/* 🔥 表格卡片样式（参考 FormWidget，保持样式一致） */
 .table-card {
   width: 100%;
+  margin-bottom: 24px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.table-card:last-child {
+  margin-bottom: 0;
 }
 
 .table-card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
 }
 
 .table-title {
-  font-size: 16px;
   font-weight: 600;
   color: var(--el-text-color-primary);
 }
@@ -586,14 +602,23 @@ defineExpose({
 .table-header-actions {
   display: flex;
   gap: 8px;
+  align-items: center;
 }
 
 .table-widget-content {
   width: 100%;
+  padding: 0;
+}
+
+/* 响应模式表格卡片样式 */
+.response-table-card {
+  background-color: var(--el-bg-color-page);
 }
 
 .table-actions {
   margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--el-border-color-extra-light);
 }
 
 

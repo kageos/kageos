@@ -353,23 +353,25 @@ const displayValue = computed(() => {
     return '-'
   }
   
-  if (value.display) {
-    return value.display
-  }
-  
   const raw = value.raw
   if (raw === null || raw === undefined) {
     return '-'
   }
   
-  // 格式化时间戳
+  // 🔥 优先使用 raw 值进行格式化，确保时间戳字段始终被正确格式化
+  // 即使 value.display 已经有值，也要重新格式化（因为可能是之前转换错误的值）
   if (typeof raw === 'number') {
     // 🔥 formatTimestamp 会自动判断秒级/毫秒级，直接调用即可
     return formatTimestamp(raw, props.field.widget?.config?.format)
   }
   
   if (Array.isArray(raw)) {
-    return raw.map(v => formatTimestamp(v)).join(' 至 ')
+    return raw.map(v => formatTimestamp(v, props.field.widget?.config?.format)).join(' 至 ')
+  }
+  
+  // 如果 raw 不是数字，尝试使用 display 值
+  if (value.display) {
+    return value.display
   }
   
   return String(raw)

@@ -146,6 +146,7 @@ import type { FormRendererContext } from '../types/widget'
 import type { ValidationResult } from '../validation/types'
 import { getWidgetDefaultValue } from '../widgets-v2/composables/useWidgetDefaultValue'
 import { useAuthStore } from '@/stores/auth'
+import { convertToFieldValue } from '@/utils/field'
 
 const props = withDefaults(defineProps<{
   functionDetail: FunctionDetail
@@ -329,13 +330,9 @@ const responseFieldValues = computed(() => {
       
       const rawValue = responseData[field.code]
       
-      values[field.code] = {
-        raw: rawValue ?? null,
-        display: rawValue !== null && rawValue !== undefined 
-          ? (typeof rawValue === 'object' ? JSON.stringify(rawValue) : String(rawValue))
-          : '',
-        meta: {}
-      }
+      // 🔥 使用 convertToFieldValue 来正确转换字段值（特别是时间戳字段）
+      // 这样可以确保时间戳字段被正确格式化为日期字符串
+      values[field.code] = convertToFieldValue(rawValue, field)
     })
     
     return values
