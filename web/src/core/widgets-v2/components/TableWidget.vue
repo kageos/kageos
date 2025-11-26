@@ -19,7 +19,7 @@
           <span class="table-title">{{ field.name }}</span>
         </div>
         <div class="table-widget-content">
-          <el-table :data="editMode.tableData.value" border>
+          <el-table :data="editMode.tableData.value" :stripe="false" class="table-widget-table">
         <el-table-column
           v-for="itemField in itemFields"
           :key="itemField.code"
@@ -119,7 +119,7 @@
           <span class="table-title">{{ field.name }}</span>
         </div>
         <div class="table-widget-content">
-          <el-table :data="responseTableData" border>
+          <el-table :data="responseTableData" :stripe="false" class="table-widget-table">
             <el-table-column
               v-for="itemField in itemFields"
               :key="itemField.code"
@@ -128,15 +128,12 @@
               :min-width="getColumnWidth(itemField)"
             >
               <template #default="{ row, $index }">
-                <component
-                  :is="getWidgetComponent(itemField.widget?.type || 'input')"
-                  :field="itemField"
-                  :value="getResponseRowFieldValue($index, itemField.code)"
-                  :model-value="getResponseRowFieldValue($index, itemField.code)"
-                  :field-path="`${fieldPath}[${$index}].${itemField.code}`"
-                  mode="table-cell"
-                  :depth="(depth || 0) + 1"
-                />
+                <!-- 🔥 使用共享的渲染函数（与 TableRenderer 一致） -->
+                <template v-if="getCellContent(itemField, row[itemField.code]).isString">
+                  {{ getCellContent(itemField, row[itemField.code]).content }}
+                </template>
+                <!-- 🔥 VNode 直接渲染：使用 render 函数 -->
+                <CellRenderer v-else :vnode="getCellContent(itemField, row[itemField.code]).content" />
               </template>
             </el-table-column>
           </el-table>
@@ -185,7 +182,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, defineComponent } from 'vue'
 import { ElTable, ElTableColumn, ElButton, ElDrawer } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useTableWidget } from '../composables/useTableWidget'
@@ -198,6 +195,7 @@ import { useFormDataStore } from '../../stores-v2/formData'
 import type { ValidationEngine, ValidationResult } from '../../validation/types'
 import { validateFieldValue, validateTableWidgetNestedFields, type WidgetValidationContext } from '../composables/useWidgetValidation'
 import { Logger } from '../../utils/logger'
+import { renderTableCell } from '../../utils/tableCellRenderer'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -262,6 +260,34 @@ function getResponseRowFieldValue(rowIndex: number, fieldCode: string): FieldVal
     meta: {}
   }
 }
+
+/**
+ * 🔥 获取表格单元格内容（用于模板，与 TableRenderer 一致）
+ * 
+ * 使用共享的渲染函数，确保渲染逻辑一致
+ */
+function getCellContent(field: FieldConfig, rawValue: any): { content: any, isString: boolean } {
+  return renderTableCell(field, rawValue, {
+    mode: 'table-cell',
+    userInfoMap: props.userInfoMap || new Map(),
+    fieldPath: field.code,
+    formRenderer: props.formRenderer,
+    formManager: props.formManager
+  })
+}
+
+// 🔥 VNode 渲染组件（用于在模板中渲染 VNode，避免循环引用）
+const CellRenderer = defineComponent({
+  props: {
+    vnode: {
+      type: Object,
+      required: true
+    }
+  },
+  setup(props: { vnode: any }) {
+    return () => props.vnode
+  }
+})
 
 // 显示值（用于 table-cell 模式）
 const displayValue = computed(() => {
@@ -517,6 +543,61 @@ defineExpose({
 
 .field-value {
   color: var(--el-text-color-regular);
+}
+
+/* 🔥 表格样式（与 TableRenderer 一致，移除边框和斑马纹） */
+:deep(.table-widget-table) {
+  background-color: var(--el-bg-color) !important;
+}
+
+/* 🔥 移除表格边框（左右竖线） */
+:deep(.table-widget-table) {
+  border: none !important;
+}
+
+:deep(.table-widget-table .el-table__inner-wrapper) {
+  border: none !important;
+}
+
+:deep(.table-widget-table .el-table__header-wrapper) {
+  border: none !important;
+}
+
+:deep(.table-widget-table .el-table__body-wrapper) {
+  border: none !important;
+}
+
+:deep(.table-widget-table th),
+:deep(.table-widget-table td) {
+  border-right: none !important;
+  border-left: none !important;
+}
+
+:deep(.table-widget-table th:first-child),
+:deep(.table-widget-table td:first-child) {
+  border-left: none !important;
+}
+
+:deep(.table-widget-table th:last-child),
+:deep(.table-widget-table td:last-child) {
+  border-right: none !important;
+}
+
+:deep(.table-widget-table .el-table__body tr) {
+  background-color: var(--el-bg-color) !important;
+}
+
+/* 🔥 移除斑马纹：确保所有行背景色一致 */
+:deep(.table-widget-table .el-table__body tr.el-table__row--striped) {
+  background-color: var(--el-bg-color) !important;
+}
+
+:deep(.table-widget-table .el-table__body tr.el-table__row--striped td) {
+  background-color: var(--el-bg-color) !important;
+}
+
+:deep(.table-widget-table .el-table__body tr:hover > td) {
+  background-color: var(--el-fill-color-light) !important;
 }
 </style>
 
