@@ -142,6 +142,12 @@
             </el-form>
           </div>
         </template>
+        <template #footer>
+          <div class="drawer-footer">
+            <el-button @click="showDetailDrawer = false">取消</el-button>
+            <el-button type="primary" @click="handleFormCellConfirm">确认</el-button>
+          </div>
+        </template>
       </el-drawer>
     </template>
     
@@ -196,6 +202,12 @@ const fieldCount = computed(() => {
   }
   return visibleSubFields.value.length
 })
+
+// 处理 table-cell 模式的确认按钮
+function handleFormCellConfirm(): void {
+  // 关闭抽屉即可，数据已经通过 update:modelValue 事件更新
+  showDetailDrawer.value = false
+}
 
 // 表单数据（用于 el-form 绑定）
 const formData = computed(() => {
@@ -374,6 +386,14 @@ defineExpose({
   /* 确保下拉菜单可以正常显示 */
   overflow: visible;
   position: relative;
+}
+
+.drawer-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px;
+  border-top: 1px solid var(--el-border-color-lighter);
 }
 
 .detail-field {
