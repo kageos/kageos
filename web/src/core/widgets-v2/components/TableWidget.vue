@@ -145,12 +145,28 @@
               :min-width="getColumnWidth(itemField)"
             >
               <template #default="{ row, $index }">
-                <!-- 🔥 使用共享的渲染函数（与 TableRenderer 一致） -->
-                <template v-if="getCellContent(itemField, row[itemField.code]).isString">
-                  {{ getCellContent(itemField, row[itemField.code]).content }}
+                <!-- 🔥 对于 form 和 table 类型字段，直接使用组件渲染（支持嵌套） -->
+                <template v-if="itemField.widget?.type === 'form' || itemField.widget?.type === 'table'">
+                  <component
+                    :is="getWidgetComponent(itemField.widget?.type)"
+                    :field="itemField"
+                    :value="getResponseRowFieldValue($index, itemField.code)"
+                    :model-value="getResponseRowFieldValue($index, itemField.code)"
+                    :field-path="`${fieldPath}[${$index}].${itemField.code}`"
+                    :form-manager="formManager"
+                    :form-renderer="formRenderer"
+                    mode="response"
+                    :depth="(depth || 0) + 1"
+                  />
                 </template>
-                <!-- 🔥 VNode 直接渲染：使用 render 函数 -->
-                <CellRenderer v-else :vnode="getCellContent(itemField, row[itemField.code]).content" />
+                <!-- 🔥 其他类型字段：使用共享的渲染函数（与 TableRenderer 一致） -->
+                <template v-else>
+                  <template v-if="getCellContent(itemField, row[itemField.code]).isString">
+                    {{ getCellContent(itemField, row[itemField.code]).content }}
+                  </template>
+                  <!-- 🔥 VNode 直接渲染：使用 render 函数 -->
+                  <CellRenderer v-else :vnode="getCellContent(itemField, row[itemField.code]).content" />
+                </template>
               </template>
             </el-table-column>
           </el-table>
