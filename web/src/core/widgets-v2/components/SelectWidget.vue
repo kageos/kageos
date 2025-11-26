@@ -26,6 +26,15 @@
         </div>
       </div>
       
+      <!-- 🔥 显示 Statistics 统计信息（使用 FieldStatistics 组件） -->
+      <!-- 🔥 在表格内部（depth > 0）时不显示，避免撑大表格单元格，统计信息会在表格下方统一显示 -->
+      <FieldStatistics
+        v-if="currentStatistics && Object.keys(currentStatistics).length > 0 && props.value?.raw && (props.depth || 0) === 0"
+        :field="field"
+        :value="props.value"
+        :statistics="currentStatistics"
+      />
+      
       <!-- 模糊搜索对话框（单选模式） -->
       <FuzzySearchDialog
         v-model="dialogVisible"
@@ -86,6 +95,15 @@
         </div>
       </div>
       
+      <!-- 🔥 显示 Statistics 统计信息（使用 FieldStatistics 组件） -->
+      <!-- 🔥 在表格内部（depth > 0）时不显示，避免撑大表格单元格，统计信息会在表格下方统一显示 -->
+      <FieldStatistics
+        v-if="currentStatistics && Object.keys(currentStatistics).length > 0 && props.value?.raw && (props.depth || 0) === 0"
+        :field="field"
+        :value="props.value"
+        :statistics="currentStatistics"
+      />
+      
       <!-- 模糊搜索对话框（单选模式） -->
       <FuzzySearchDialog
         v-model="dialogVisible"
@@ -107,6 +125,7 @@ import { ref, computed, onMounted, watch, nextTick, withDefaults } from 'vue'
 import { ElInput, ElMessage, ElTag, ElIcon } from 'element-plus'
 import { ArrowDown } from '@element-plus/icons-vue'
 import FuzzySearchDialog from './FuzzySearchDialog.vue'
+import FieldStatistics from './FieldStatistics.vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useFormDataStore } from '../../stores-v2/formData'
 import { selectFuzzy } from '@/api/function'
@@ -519,7 +538,8 @@ function handleDialogSelect(item: { value: any; label?: string; displayInfo?: an
     raw: item.value,
     display: item.label || selectedOption?.label || String(item.value),
     meta: {
-      displayInfo: item.displayInfo || selectedOption?.displayInfo
+      displayInfo: item.displayInfo || selectedOption?.displayInfo,
+      statistics: currentStatistics.value  // 🔥 保存 statistics 配置
     }
   }
   
@@ -730,6 +750,8 @@ watch(
 .edit-select,
 .search-select {
   width: 100%;
+  position: relative;
+  z-index: 1;
 }
 
 .select-container {

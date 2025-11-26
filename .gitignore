@@ -26,3 +26,6 @@ temp/
 plan/
 note/
 /test
+.cursor/
+.claude/
+blueprint/
