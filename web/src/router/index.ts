@@ -46,6 +46,17 @@ const router = createRouter({
       }
     },
 
+    // 首页 - 官网
+    {
+      path: '/',
+      name: 'home',
+      component: () => import('../views/Home.vue'),
+      meta: {
+        title: '首页',
+        requireAuth: false
+      }
+    },
+
     // 首页 - workspace页面（支持路径参数）
     {
       path: '/workspace',
@@ -64,13 +75,6 @@ const router = createRouter({
         title: '工作空间',
         requireAuth: true
       }
-    },
-    
-    
-    // 重定向根路径到workspace
-    {
-      path: '/',
-      redirect: '/workspace'
     },
 
     // 404页面

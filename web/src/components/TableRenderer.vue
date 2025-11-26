@@ -397,7 +397,7 @@
  */
 
 import { computed, ref, watch, h, nextTick, onMounted, onUpdated, onUnmounted, isVNode, defineComponent } from 'vue'
-import { Search, Refresh, Edit, Delete, Plus, ArrowLeft, ArrowRight, DocumentCopy, Document, Download, ArrowUp, ArrowDown, More } from '@element-plus/icons-vue'
+import { Search, Refresh, Edit, Delete, Plus, ArrowLeft, ArrowRight, DocumentCopy, Document, Download, ArrowUp, ArrowDown, More, Right } from '@element-plus/icons-vue'
 import { ElIcon, ElButton, ElMessage, ElDropdown, ElDropdownMenu, ElDropdownItem } from 'element-plus'
 import { formatTimestamp } from '@/utils/date'
 import { useTableOperations } from '@/composables/useTableOperations'
@@ -411,6 +411,7 @@ import { collectAllUsernames, collectFilesUploadUsersFromRow } from '@/utils/tab
 import { getSortableConfig } from '@/utils/fieldSort'
 import { useRouter } from 'vue-router'
 import FormDialog from './FormDialog.vue'
+import { renderTableCell } from '@/core/utils/tableCellRenderer'
 import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
 import SearchInput from './SearchInput.vue'
 import LinkWidget from '@/core/widgets-v2/components/LinkWidget.vue'
@@ -888,91 +889,26 @@ const updateSearchValue = (field: FieldConfig, value: any, shouldSearch: boolean
 // ==================== 表格单元格渲染（组件自治） ====================
 
 /**
- * 🔥 渲染表格单元格
+ * 🔥 获取表格单元格内容（用于模板）
  * 
- * 使用 Widget 的 renderTableCell() 方法，实现组件自治
+ * 使用共享的 renderTableCell 函数，确保与 TableWidget 渲染逻辑一致
  * 
  * 设计优势：
  * - 符合依赖倒置原则：TableRenderer 依赖 Widget 抽象接口
- * - 扩展性强：新增组件只需实现 renderTableCell()，无需修改 TableRenderer
+ * - 扩展性强：新增组件只需实现 table-cell 模式，无需修改 TableRenderer
  * - 展示一致：组件自己决定如何展示，如 FileWidget 显示文件图标、MultiSelectWidget 显示标签
+ * - 代码复用：与 TableWidget 使用相同的渲染逻辑，减少重复代码
  * 
  * @param field 字段配置
  * @param rawValue 原始值（来自后端）
  * @returns { content: string | VNode, isString: boolean } - 统一返回格式，方便模板处理
- * 
- * @example
- * // FileWidget 可以这样实现：
- * renderTableCell(value: FieldValue) {
- *   return h('div', [
- *     h(ElIcon, { File }),
- *     h('span', `共 ${files.length} 个文件`)
- *   ])
- * }
- */
-/**
- * 🔥 渲染表格单元格（使用 widgets-v2）
- * 
- * 重构说明：
- * - 按照 v2 的设计思路重新实现
- * - 使用 widgetComponentFactory 获取组件
- * - 使用 h() 渲染组件为 VNode
- * - 统一返回 VNode（不再需要区分字符串和 VNode）
- */
-const renderTableCell = (field: FieldConfig, rawValue: any): { content: any, isString: boolean } => {
-  try {
-    // 🔥 将原始值转换为 FieldValue 格式
-    const value = convertToFieldValue(rawValue, field)
-    
-    // 🔥 使用 widgetComponentFactory 获取组件（v2 方式）
-    const WidgetComponent = widgetComponentFactory.getRequestComponent(
-      field.widget?.type || 'input'
-    )
-    
-    if (!WidgetComponent) {
-      // 如果组件未找到，返回 fallback
-      const fallbackValue = rawValue !== null && rawValue !== undefined ? String(rawValue) : '-'
-      return {
-        content: fallbackValue,
-        isString: true
-      }
-    }
-    
-    // 🔥 使用 h() 渲染组件为 VNode（v2 方式）
-    // 传递 mode="table-cell" 让组件自己决定如何渲染
-    // 传递 userInfoMap 用于批量查询优化
-    const vnode = h(WidgetComponent, {
-      field: field,
-      value: value,
-      'model-value': value,
-      'field-path': field.code,
-      mode: 'table-cell',
-      'user-info-map': userInfoMap.value
-    })
-    
-    // 🔥 统一返回 VNode（v2 组件统一返回 VNode）
-    return {
-      content: vnode,
-      isString: false
-    }
-  } catch (error) {
-    // ✅ 使用 ErrorHandler 统一处理错误
-    const fallbackValue = rawValue !== null && rawValue !== undefined ? String(rawValue) : '-'
-    return {
-      content: fallbackValue,
-      isString: true
-    }
-  }
-}
-
-/**
- * 🔥 获取表格单元格内容（用于模板）
- * 
- * 这是一个包装函数，用于统一处理字符串和 VNode 返回值
- * 返回格式：{ content, isString }
  */
 const getCellContent = (field: FieldConfig, rawValue: any): { content: any, isString: boolean } => {
-  return renderTableCell(field, rawValue)
+  return renderTableCell(field, rawValue, {
+    mode: 'table-cell',
+    userInfoMap: userInfoMap.value,
+    fieldPath: field.code
+  })
 }
 
 // 🔥 VNode 渲染组件（用于在模板中渲染 VNode，避免循环引用）
@@ -1305,12 +1241,18 @@ const editFunctionDetail = computed<FunctionDetail>(() => {
 
 /**
  * 切换到编辑模式
+ * 
+ * ⚠️ 注意：
+ * - `currentDetailRow` 会作为 `initialData` 传递给 `FormRenderer`
+ * - `FormRenderer` 会监听 `initialData` 的变化并重新初始化表单
+ * - 条件渲染会从 `initialData` 中获取值，确保依赖字段能正确显示
  */
 const switchToEditMode = (): void => {
   if (!currentDetailRow.value) {
     ElMessage.error('记录数据不存在')
     return
   }
+  
   detailMode.value = 'edit'
   // FormRenderer 会自动使用 initialData 填充数据
 }

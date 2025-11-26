@@ -614,7 +614,32 @@ const formRendererContext: FormRendererContext = {
   getFieldError: (fieldPath: string) => getFieldError(fieldPath)
 } as any
 
-// 条件渲染评估（适配 formDataStore）
+/**
+ * 条件渲染评估（适配 formDataStore）
+ * 
+ * ⚠️ 重要：条件渲染初始化时的值获取问题
+ * 
+ * 问题场景：
+ * - 字段 A 有验证规则 `required_if=FieldB value`，表示只有当 FieldB 等于 value 时才显示
+ * - 在表单初始化时，`requestFields` computed 会计算哪些字段应该显示
+ * - 但此时 `formDataStore` 还是空的，导致条件渲染无法获取 FieldB 的值
+ * - 结果：字段 A 被错误地过滤掉，即使 initialData 中有 FieldB 的值
+ * 
+ * 典型案例：
+ * - `max_selections` 字段有规则 `required_if=VoteType 多选`
+ * - 初始化时，`vote_type` 的值在 `initialData` 中（值为 "多选"）
+ * - 但 `formDataStore` 中还没有值，导致条件渲染判断失败
+ * - `max_selections` 被过滤，无法显示和初始化
+ * 
+ * 解决方案：
+ * - 在条件渲染时，如果 `formDataStore` 中没有值，尝试从 `initialData` 中获取
+ * - 这样可以确保在初始化时，条件渲染能正确判断字段是否应该显示
+ * 
+ * @param field 字段配置
+ * @param formDataStore 表单数据 store
+ * @param allFields 所有字段配置
+ * @returns 是否应该显示该字段
+ */
 function shouldShowFieldInForm(
   field: FieldConfig,
   formDataStore: ReturnType<typeof useFormDataStore>,
@@ -623,13 +648,44 @@ function shouldShowFieldInForm(
   // 创建一个适配器，将 formDataStore 转换为 ReactiveFormDataManager 接口
   const formManagerAdapter = {
     getValue: (fieldPath: string) => {
-      const value = formDataStore.getValue(fieldPath)
+      let value = formDataStore.getValue(fieldPath)
+      
+      // ⚠️ 关键修复：如果 formDataStore 中没有值，且 initialData 中有值，使用 initialData 的值
+      // 这样可以确保在初始化时，条件渲染能正确判断字段是否应该显示
+      // 例如：max_selections 字段依赖 vote_type 的值，在初始化时需要从 initialData 中获取 vote_type
+      if ((!value || value.raw === null || value.raw === undefined) && 
+          props.initialData && 
+          props.initialData.hasOwnProperty(fieldPath) &&
+          props.initialData[fieldPath] !== undefined) {
+        const rawValue = props.initialData[fieldPath]
+        value = {
+          raw: rawValue,
+          display: typeof rawValue === 'object' ? JSON.stringify(rawValue) : String(rawValue),
+          meta: {}
+        }
+      }
+      
       return value
     },
     getAllValues: () => {
       const allValues: Record<string, FieldValue> = {}
       allFields.forEach(f => {
-        allValues[f.code] = formDataStore.getValue(f.code)
+        let value = formDataStore.getValue(f.code)
+        
+        // ⚠️ 关键修复：同上，确保 getAllValues 也能从 initialData 中获取值
+        if ((!value || value.raw === null || value.raw === undefined) && 
+            props.initialData && 
+            props.initialData.hasOwnProperty(f.code) &&
+            props.initialData[f.code] !== undefined) {
+          const rawValue = props.initialData[f.code]
+          value = {
+            raw: rawValue,
+            display: typeof rawValue === 'object' ? JSON.stringify(rawValue) : String(rawValue),
+            meta: {}
+          }
+        }
+        
+        allValues[f.code] = value
       })
       return allValues
     }
@@ -646,24 +702,38 @@ function getFieldDefaultValue(field: FieldConfig): FieldValue {
   return getWidgetDefaultValue(field, undefined, () => useAuthStore())
 }
 
-// 初始化表单
+/**
+ * 初始化表单
+ * 
+ * ⚠️ 注意：字段初始化顺序很重要
+ * - `requestFields` 是一个 computed，会根据条件渲染规则过滤字段
+ * - 条件渲染依赖其他字段的值（如 `required_if=FieldB value`）
+ * - 在初始化时，`shouldShowFieldInForm` 会从 `initialData` 中获取值用于条件判断
+ * - 这样可以确保依赖字段（如 `vote_type`）的值能被正确读取，从而显示被依赖的字段（如 `max_selections`）
+ */
 function initializeForm(): void {
   // 清空数据
   formDataStore.clear()
   responseDataStore.clear()
   
   // 初始化字段值
+  // ⚠️ 注意：requestFields 已经通过条件渲染过滤，只包含应该显示的字段
+  // 条件渲染在 shouldShowFieldInForm 中会从 initialData 获取值，确保正确判断
   requestFields.value.forEach((field: FieldConfig) => {
     const fieldCode = field.code
     
     // 如果有初始数据，使用初始数据
-    if (props.initialData && fieldCode in props.initialData) {
+    // 使用 hasOwnProperty 确保字段存在且值不为 undefined
+    if (props.initialData && 
+        props.initialData.hasOwnProperty(fieldCode) && 
+        props.initialData[fieldCode] !== undefined) {
       const initialRawValue = props.initialData[fieldCode]
       const fieldValue: FieldValue = {
         raw: initialRawValue,
         display: typeof initialRawValue === 'object' ? JSON.stringify(initialRawValue) : String(initialRawValue),
         meta: {}
       }
+      
       formDataStore.setValue(fieldCode, fieldValue)
     } else {
       // 使用默认值（从字段配置中获取）
@@ -817,6 +887,41 @@ watch(
     }
   },
   { flush: 'post' } // 在 DOM 更新后执行
+)
+
+/**
+ * 监听 initialData 变化，当初始数据变化时重新初始化表单
+ * 
+ * ⚠️ 使用场景：
+ * - 从查看模式切换到编辑模式时，`initialData` 会变化
+ * - 如果 `FormRenderer` 已经挂载，需要重新初始化表单以填充新数据
+ * - 例如：在 TableRenderer 的详情抽屉中，点击"编辑"按钮时
+ * 
+ * ⚠️ 注意：
+ * - 只在组件已挂载时重新初始化（避免在初始化时重复初始化）
+ * - 使用深度比较避免不必要的重新初始化
+ */
+watch(
+  () => props.initialData,
+  async (newData, oldData) => {
+    // 只在组件已挂载时重新初始化（避免在初始化时重复初始化）
+    if (!isMounted.value) {
+      return
+    }
+    
+    // 判断 initialData 是否真的变化了（避免不必要的重新初始化）
+    // 使用 JSON.stringify 进行深度比较（对于简单对象足够）
+    const newDataStr = JSON.stringify(newData || {})
+    const oldDataStr = JSON.stringify(oldData || {})
+    if (newDataStr === oldDataStr) {
+      return
+    }
+    
+    // initialData 变化，重新初始化表单
+    await nextTick()
+    initializeForm()
+  },
+  { deep: true, flush: 'post' } // 深度监听，在 DOM 更新后执行
 )
 
 // 生命周期
