@@ -111,7 +111,7 @@
         link
         type="primary"
         size="small"
-        @click="showDetailDrawer = true"
+        @click="tableCellMode.openDrawer()"
         class="form-field-button"
       >
         <span>共 {{ fieldCount }} 个字段</span>
@@ -122,11 +122,11 @@
       
       <!-- 详情抽屉（根据上下文支持编辑或只读） -->
       <el-drawer
-        v-model="showDetailDrawer"
+        v-model="tableCellMode.showDrawer.value"
         :title="field.name"
-        size="60%"
+        :size="DRAWER_CONFIG.size"
         destroy-on-close
-        :z-index="3000"
+        :z-index="DRAWER_CONFIG.zIndex"
         append-to-body
       >
         <template #default>
@@ -157,7 +157,7 @@
                   :field-path="`${fieldPath}.${subField.code}`"
                   :form-manager="formManager"
                   :form-renderer="formRenderer"
-                  :mode="drawerMode"
+                  :mode="tableCellMode.drawerMode.value"
                   :depth="(depth || 0) + 1"
                 />
               </el-form-item>
@@ -171,9 +171,9 @@
           - 编辑上下文：显示确认按钮，用户可以保存修改
           - 响应上下文：不显示确认按钮，因为数据是只读的
         -->
-        <template #footer v-if="isInEditContext">
+        <template #footer v-if="tableCellMode.isInEditContext.value">
           <div class="drawer-footer">
-            <el-button @click="showDetailDrawer = false">取消</el-button>
+            <el-button @click="tableCellMode.closeDrawer()">取消</el-button>
             <el-button type="primary" @click="handleFormCellConfirm">确认</el-button>
           </div>
         </template>
@@ -210,19 +210,25 @@ import { ElForm, ElFormItem, ElButton, ElDrawer, ElIcon, ElCard } from 'element-
 import { View } from '@element-plus/icons-vue'
 import type { WidgetComponentProps } from '../types'
 import { useFormWidget } from '../composables/useFormWidget'
+import { useTableCellMode } from '../composables/useTableCellMode'
 import { widgetComponentFactory } from '../../factories-v2'
 import type { FieldConfig } from '../../types/field'
 import type { ValidationEngine, ValidationResult } from '../../validation/types'
 import { validateFieldValue, validateFormWidgetNestedFields, type WidgetValidationContext } from '../composables/useWidgetValidation'
-import { useFormDataStore } from '../../stores-v2/formData'
+
+// 抽屉配置常量
+const DRAWER_CONFIG = {
+  size: '60%',
+  zIndex: 3000
+} as const
 
 const props = defineProps<WidgetComponentProps>()
 
 // 使用组合式函数
 const { visibleSubFields, getSubFieldValue, updateSubFieldValue } = useFormWidget(props)
 
-// 详情抽屉状态（用于 table-cell 模式）
-const showDetailDrawer = ref(false)
+// table-cell 模式的公共逻辑
+const tableCellMode = useTableCellMode(props)
 
 // 字段数量（用于 table-cell 模式显示）
 const fieldCount = computed(() => {
@@ -233,58 +239,10 @@ const fieldCount = computed(() => {
   return visibleSubFields.value.length
 })
 
-/**
- * 🔥 判断 table-cell 模式是在编辑上下文还是响应上下文中使用
- * 
- * 设计思路：
- * - table-cell 模式本身不区分编辑/响应，它只是一个显示模式（简化显示 + 抽屉）
- * - 但是抽屉中的内容需要根据上下文决定是编辑还是只读
- * - 通过 parentMode 显式传递父级模式，避免间接判断导致的错误
- * 
- * 判断逻辑（优先级从高到低）：
- * 1. parentMode === 'edit' → 编辑上下文 → 抽屉使用 edit 模式（可编辑，有确认按钮）
- * 2. parentMode === 'response' → 响应上下文 → 抽屉使用 response 模式（只读，无确认按钮）
- * 3. 如果没有 parentMode，使用备用判断（formManager 或 formDataStore）
- * 
- * 预期行为：
- * - 在 TableWidget 的 edit 模式下，嵌套字段传递 parent-mode="edit"
- * - 在 TableWidget 的 response 模式下，嵌套字段传递 parent-mode="response"
- * - 嵌套组件根据 parentMode 决定抽屉中的渲染模式
- */
-const isInEditContext = computed(() => {
-  // 优先判断：如果 parentMode 是 'edit'，说明是在编辑模式中
-  if (props.parentMode === 'edit') {
-    return true
-  }
-  // 优先判断：如果 parentMode 是 'response'，说明是在响应模式中
-  if (props.parentMode === 'response') {
-    return false
-  }
-  // 备用判断：如果没有 parentMode，使用 formManager 或 formDataStore 判断
-  // （这种情况应该很少出现，因为我们在调用时都会传递 parentMode）
-  if (props.formManager) {
-    return true
-  }
-  const formDataStore = useFormDataStore()
-  const value = formDataStore.getValue(props.fieldPath)
-  return value !== null && value !== undefined && value.raw !== null && value.raw !== undefined
-})
-
-/**
- * 🔥 table-cell 模式抽屉中使用的模式（根据上下文决定）
- * 
- * 预期行为：
- * - 编辑上下文：使用 edit 模式，支持编辑，显示确认按钮
- * - 响应上下文：使用 response 模式，只读展示，不显示确认按钮
- */
-const drawerMode = computed(() => {
-  return isInEditContext.value ? 'edit' : 'response'
-})
-
 // 处理 table-cell 模式的确认按钮
 function handleFormCellConfirm(): void {
   // 关闭抽屉即可，数据已经通过 update:modelValue 事件更新
-  showDetailDrawer.value = false
+  tableCellMode.closeDrawer()
 }
 
 // 表单数据（用于 el-form 绑定）
