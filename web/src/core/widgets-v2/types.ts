@@ -57,6 +57,9 @@ export interface WidgetComponentProps {
   
   /** 记录ID（用于 FilesWidget 打包下载命名） */
   recordId?: string | number
+  
+  /** 父级模式（用于 table-cell 模式判断上下文） */
+  parentMode?: WidgetMode
 }
 
 /**
