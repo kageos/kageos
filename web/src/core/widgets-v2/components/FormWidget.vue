@@ -205,14 +205,20 @@ const fieldCount = computed(() => {
 })
 
 // 🔥 判断 table-cell 模式是在编辑上下文还是响应上下文中使用
-// formManager 只在编辑模式下传递，response 模式下不传递
-// 如果 formManager 存在，说明是在编辑模式中
+// 直接通过 parentMode 来判断，如果 parentMode 是 'edit'，说明是在编辑模式中
 const isInEditContext = computed(() => {
-  // 如果 formManager 存在，说明是在编辑模式中
+  // 如果 parentMode 是 'edit'，说明是在编辑模式中
+  if (props.parentMode === 'edit') {
+    return true
+  }
+  // 如果 parentMode 是 'response'，说明是在响应模式中
+  if (props.parentMode === 'response') {
+    return false
+  }
+  // 如果没有 parentMode，使用备用判断（formManager 或 formDataStore）
   if (props.formManager) {
     return true
   }
-  // 否则检查 formDataStore 中是否有这个字段的值（作为备用判断）
   const formDataStore = useFormDataStore()
   const value = formDataStore.getValue(props.fieldPath)
   return value !== null && value !== undefined && value.raw !== null && value.raw !== undefined
