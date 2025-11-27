@@ -6,11 +6,12 @@
         :key="index"
         :span="getStatisticSpan(statisticsData.length)"
       >
-        <!-- 数值型：横向一行展示（标题 + 数值 [+ 后缀]） -->
-        <div v-if="typeof stat.value === 'number'" class="field-statistic inline-statistic">
-          <span class="statistic-title">{{ stat.label }}</span>
-          <span class="statistic-value">{{ formatNumber(stat.value, stat.precision) }}</span>
-          <span v-if="stat.suffix" class="statistic-suffix">{{ stat.suffix }}</span>
+        <!-- 数值型：上下展示（标题在上，数值在下） -->
+        <div v-if="typeof stat.value === 'number'" class="field-statistic number-statistic">
+          <div class="statistic-title">{{ stat.label }}</div>
+          <div class="statistic-value">
+            {{ formatNumber(stat.value, stat.precision) }}<span v-if="stat.suffix" class="statistic-suffix">{{ stat.suffix }}</span>
+          </div>
         </div>
         <!-- 纯展示型数据（字符串） -->
         <div v-else class="field-statistic display-statistic">
@@ -161,27 +162,24 @@ const getStatisticSpan = (count: number) => {
   text-align: center;
 }
 
-/* 横向布局（标题与数值一行显示） */
-.inline-statistic {
-  display: inline-flex;
-  align-items: baseline;
-  justify-content: center;
-  gap: 8px;
-  width: 100%;
+/* 数值型统计：上下布局（标题在上，数值在下） */
+.number-statistic {
+  text-align: center;
 }
 
-.inline-statistic .statistic-title {
+.number-statistic .statistic-title {
   font-size: 13px;
   color: var(--el-text-color-regular);
+  margin-bottom: 8px;
 }
 
-.inline-statistic .statistic-value {
-  font-size: 20px;
+.number-statistic .statistic-value {
+  font-size: 24px;
   font-weight: 600;
   color: var(--el-color-primary);
 }
 
-.inline-statistic .statistic-suffix {
+.number-statistic .statistic-suffix {
   font-size: 14px;
   color: var(--el-text-color-secondary);
   margin-left: 4px;
