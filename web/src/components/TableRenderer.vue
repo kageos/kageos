@@ -1426,7 +1426,26 @@ onUnmounted(() => {
   background: var(--el-bg-color);
   position: relative;
   z-index: 1;
-  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  /* 🔥 不设置固定高度，让内容自然流动，支持整体滚动 */
+  width: 100%;
+  /* 🔥 移除高度限制，让内容可以超出容器 */
+}
+
+/* 🔥 表格容器：在小屏幕下，让整个页面滚动而不是表格内部滚动 */
+.table-renderer :deep(.el-table) {
+  /* 移除 flex: 1，让表格根据内容自适应 */
+}
+
+.table-renderer :deep(.el-table__inner-wrapper) {
+  /* 移除 flex 限制 */
+}
+
+.table-renderer :deep(.el-table__body-wrapper) {
+  /* 🔥 移除内部滚动，让整个页面滚动 */
+  overflow: visible !important;
+  max-height: none !important;
 }
 
 /* 文件表格单元格样式 */
@@ -1556,6 +1575,8 @@ onUnmounted(() => {
 
 :deep(.el-table__body-wrapper) {
   border: none !important;
+  max-height: calc(100vh - 400px); /* 🔥 设置最大高度，超出时滚动 */
+  overflow-y: auto !important;
 }
 
 :deep(.el-table th),
@@ -1765,7 +1786,7 @@ onUnmounted(() => {
   z-index: 1 !important;
   position: relative;
   pointer-events: auto !important;
-  /* 确保主体内容不会覆盖 fixed 列区域 */
+  /* 🔥 移除滚动限制，让整个页面滚动 */
   overflow: visible !important;
 }
 

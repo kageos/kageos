@@ -189,17 +189,19 @@
         
         <!-- 标签页内容区域（使用 keep-alive 缓存） -->
         <div v-if="workspaceTabs.length > 0" class="tabs-content-wrapper">
-          <keep-alive :include="['TableRenderer', 'FormRenderer']">
-            <component
-              :is="getTabComponent(activeTab)"
-              v-if="activeTab && tabFunctionDetails[activeTab.id]"
-              :key="`tab-${activeTab.id}`"
-              v-bind="getTabComponentProps(activeTab)"
-            />
-            <div v-else-if="activeTab" class="loading-container" v-loading="true" element-loading-text="正在加载函数详情...">
-              <div style="height: 400px;"></div>
-            </div>
-          </keep-alive>
+          <div class="tab-content">
+            <keep-alive :include="['TableRenderer', 'FormRenderer']">
+              <component
+                :is="getTabComponent(activeTab)"
+                v-if="activeTab && tabFunctionDetails[activeTab.id]"
+                :key="`tab-${activeTab.id}`"
+                v-bind="getTabComponentProps(activeTab)"
+              />
+              <div v-else-if="activeTab" class="loading-container" v-loading="true" element-loading-text="正在加载函数详情...">
+                <div style="height: 400px;"></div>
+              </div>
+            </keep-alive>
+          </div>
         </div>
         
         <!-- 没有标签页时显示原有内容 -->
@@ -1756,14 +1758,18 @@ onUnmounted(() => {
 
 .tabs-content-wrapper {
   flex: 1;
-  overflow: hidden;
+  overflow: hidden; /* 🔥 外层容器隐藏溢出，内层处理滚动 */
   display: flex;
   flex-direction: column;
+  min-height: 0; /* 🔥 关键：允许 flex 子元素缩小 */
 }
 
 .tab-content {
   flex: 1;
-  overflow: auto;
-  height: 100%;
+  overflow-y: auto !important; /* 🔥 强制允许垂直滚动，让搜索框和数据区一起滚动 */
+  overflow-x: hidden;
+  min-height: 0; /* 🔥 关键：允许 flex 子元素缩小 */
+  height: 0; /* 🔥 关键：配合 flex: 1 和 min-height: 0，让滚动容器正确计算高度 */
+  -webkit-overflow-scrolling: touch; /* 🔥 iOS 平滑滚动 */
 }
 </style>
