@@ -1434,14 +1434,6 @@ onUnmounted(() => {
 }
 
 /* 🔥 表格容器：在小屏幕下，让整个页面滚动而不是表格内部滚动 */
-.table-renderer :deep(.el-table) {
-  /* 移除 flex: 1，让表格根据内容自适应 */
-}
-
-.table-renderer :deep(.el-table__inner-wrapper) {
-  /* 移除 flex 限制 */
-}
-
 .table-renderer :deep(.el-table__body-wrapper) {
   /* 🔥 移除内部滚动，让整个页面滚动 */
   overflow: visible !important;
@@ -1555,13 +1547,9 @@ onUnmounted(() => {
   justify-content: flex-end;
 }
 
-/* 确保表格单元格背景色正确 */
+/* 🔥 表格基础样式：背景色和边框 */
 :deep(.el-table) {
   background-color: var(--el-bg-color) !important;
-}
-
-/* 🔥 移除表格边框（左右竖线） */
-:deep(.el-table) {
   border: none !important;
 }
 
@@ -1573,10 +1561,10 @@ onUnmounted(() => {
   border: none !important;
 }
 
+/* 🔥 表格 body-wrapper 的边框样式（滚动由外层容器处理） */
 :deep(.el-table__body-wrapper) {
   border: none !important;
-  max-height: calc(100vh - 400px); /* 🔥 设置最大高度，超出时滚动 */
-  overflow-y: auto !important;
+  /* 注意：滚动由外层 .tab-content 容器处理，这里不设置滚动 */
 }
 
 :deep(.el-table th),
@@ -1781,13 +1769,13 @@ onUnmounted(() => {
   cursor: pointer !important;
 }
 
-/* 关键：确保表格主体内容不会遮挡 fixed 列 */
+/* 🔥 表格主体样式：确保不会遮挡 fixed 列，并支持整体滚动 */
 :deep(.el-table__body-wrapper) {
   z-index: 1 !important;
   position: relative;
   pointer-events: auto !important;
-  /* 🔥 移除滚动限制，让整个页面滚动 */
-  overflow: visible !important;
+  overflow: visible !important; /* 滚动由外层容器处理 */
+  clip-path: none !important; /* 在 fixed 列区域，让点击事件穿透 */
 }
 
 :deep(.el-table__body) {
@@ -1805,13 +1793,7 @@ onUnmounted(() => {
   z-index: 1 !important;
 }
 
-/* 关键修复：当窗口缩小时，确保 fixed 列区域的表格主体单元格不拦截点击 */
-:deep(.el-table__body-wrapper) {
-  /* 在 fixed 列区域，让点击事件穿透 */
-  clip-path: none !important;
-}
-
-/* 确保表格整体容器不会遮挡 */
+/* 🔥 表格容器样式：确保不会遮挡 fixed 列 */
 :deep(.el-table) {
   position: relative;
   z-index: 1;
@@ -1822,6 +1804,7 @@ onUnmounted(() => {
   position: relative;
   z-index: 1;
   overflow: visible !important;
+  border: none !important;
 }
 
 /* 确保滚动条不会遮挡 */
