@@ -562,7 +562,7 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
     // 1. searchParamKeys（response 字段的搜索参数，如 eq, like, in 等）
     // 2. sorts（因为我们要根据当前状态决定是否保留）
     // 3. request 字段（因为我们要根据当前状态决定是否保留，如果已清空则删除）
-    // 4. 🔥 保留以 _ 开头的参数（前端状态参数，如 _detail_id），这些参数不会被删除
+    // 4. 🔥 保留以 _ 开头的参数（前端状态参数，如 _detail_id, _detail_function_id），这些参数不会被删除
     Object.keys(route.query).forEach(key => {
       // 🔥 保留以 _ 开头的参数（前端状态参数）
       if (key.startsWith('_')) {
