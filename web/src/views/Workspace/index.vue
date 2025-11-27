@@ -749,6 +749,24 @@ const handleLocateNode = () => {
     // 如果节点相同且已经加载过详情，不重复加载
     const isSameNode = currentFunction.value?.id === targetNode.id
     
+    // 🔥 检查是否已经有标签页加载了此函数的详情
+    const matchingTab = workspaceTabs.value.find(tab => {
+      if (tab.function?.id === targetNode.id) {
+        return true
+      }
+      if (tab.function?.full_code_path === targetNode.full_code_path) {
+        return true
+      }
+      return false
+    })
+    
+    // 如果标签页已经加载了详情，直接使用标签页的详情，不重复加载
+    if (matchingTab && tabFunctionDetails.value[matchingTab.id]) {
+      currentFunction.value = targetNode
+      functionDetail.value = tabFunctionDetails.value[matchingTab.id]
+      return
+    }
+    
     currentFunction.value = targetNode
     
     if (targetNode.type === 'function') {
@@ -756,7 +774,14 @@ const handleLocateNode = () => {
       // showRightSidebar.value = true
       // 如果是函数类型，需要加载函数详情
       // 只有在节点不同，或者还没有加载过详情时才加载
-      if (!isSameNode || !functionDetail.value) {
+      // 🔥 额外检查：如果 functionDetail 已经存在且匹配，不需要再加载
+      const hasMatchingDetail = functionDetail.value && (
+        (functionDetail.value.id && targetNode.ref_id && functionDetail.value.id === targetNode.ref_id) ||
+        (functionDetail.value.router && targetNode.full_code_path && 
+         functionDetail.value.router.includes(targetNode.full_code_path.replace(/^\//, '')))
+      )
+      
+      if (!isSameNode || !functionDetail.value || !hasMatchingDetail) {
         // 🔥 优先使用 ref_id，如果没有则使用 full_code_path
         if (targetNode.ref_id && targetNode.ref_id > 0) {
           loadFunctionDetail(targetNode.ref_id)
@@ -766,6 +791,8 @@ const handleLocateNode = () => {
           Logger.warn('Workspace', '节点没有 ref_id 和 full_code_path，无法加载函数详情')
           ElMessage.warning('无法加载函数详情：节点信息不完整')
         }
+      } else {
+        console.log('[Workspace] 函数详情已存在且匹配，跳过重复加载')
       }
     } else {
       showRightSidebar.value = false
@@ -1042,6 +1069,22 @@ const loadTabFunctionDetail = async (tab: import('@/composables/useWorkspaceTabs
   if (!tab.function) return
   
   const node = tab.function
+  
+  // 🔥 检查是否已经通过其他方式加载了相同的函数详情（避免重复调用接口）
+  if (functionDetail.value) {
+    // 检查 functionDetail 是否匹配当前标签的函数
+    const isMatching = (functionDetail.value.id && node.ref_id && functionDetail.value.id === node.ref_id) ||
+                       (functionDetail.value.router && node.full_code_path && 
+                        functionDetail.value.router.includes(node.full_code_path.replace(/^\//, '')))
+    
+    if (isMatching) {
+      // 如果已加载的详情匹配，直接使用，不需要再调用接口
+      console.log('[Workspace] 函数详情已通过其他方式加载，直接使用缓存')
+      tabFunctionDetails.value[tab.id] = functionDetail.value
+      return
+    }
+  }
+  
   try {
     let detail: FunctionType | null = null
     if (node.ref_id && node.ref_id > 0) {
@@ -1344,7 +1387,7 @@ onMounted(() => {
   
   // 组件挂载后，检查是否需要定位节点
   // 使用 setTimeout 确保所有初始化事件都已处理
-  setTimeout(() => {
+  setTimeout(async () => {
     console.log('[Workspace] 组件挂载后检查状态')
     console.log('[Workspace] 当前应用:', currentApp.value ? `${currentApp.value.user}/${currentApp.value.code}` : 'null')
     console.log('[Workspace] 服务树节点数:', serviceTree.value.length)
@@ -1354,19 +1397,28 @@ onMounted(() => {
     if (activeTabId.value && workspaceTabs.value.length > 0) {
       const tab = workspaceTabs.value.find(t => t.id === activeTabId.value)
       if (tab && !tabFunctionDetails.value[tab.id]) {
-        loadTabFunctionDetail(tab)
+        await loadTabFunctionDetail(tab)
       }
     }
     
     // 检查 URL 参数中是否有新克隆的路径
     checkAndExpandForkedPaths()
     
-    // 如果有服务树和应用，尝试定位
-    if (serviceTree.value.length > 0 && currentApp.value) {
+    // 🔥 如果有标签页且已加载详情，不需要再调用 handleLocateNode（避免重复加载）
+    const hasTabWithDetail = activeTabId.value && 
+                             workspaceTabs.value.some(tab => 
+                               tab.id === activeTabId.value && 
+                               tabFunctionDetails.value[tab.id]
+                             )
+    
+    // 如果有服务树和应用，且没有标签页详情，尝试定位
+    if (serviceTree.value.length > 0 && currentApp.value && !hasTabWithDetail) {
       console.log('[Workspace] 条件满足，开始定位节点')
       nextTick(() => {
         handleLocateNode()  // 🔥 使用 handleLocateNode，它会加载函数详情
       })
+    } else if (hasTabWithDetail) {
+      console.log('[Workspace] 标签页已加载详情，跳过节点定位（避免重复加载）')
     } else {
       console.log('[Workspace] 条件不满足，等待事件')
     }
