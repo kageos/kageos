@@ -850,6 +850,9 @@ watch(() => route.fullPath, async () => {
   console.log('[Workspace] 当前应用:', currentApp.value ? `${currentApp.value.user}/${currentApp.value.code}` : 'null')
   console.log('[Workspace] 服务树节点数:', serviceTree.value.length)
   
+  // 🔥 如果是标签页切换导致的路由变化，先同步标签状态
+  // syncTabFromRoute 会在 useWorkspaceTabs 中自动调用，这里不需要手动调用
+  
   // 从路由解析应用
   const app = parseAppFromRoute()
   if (app) {
@@ -863,6 +866,14 @@ watch(() => route.fullPath, async () => {
       // switchApp 完成后会自动检查 forked 参数
       return
     }
+  }
+  
+  // 🔥 如果是标签页切换，且标签已存在，不需要重新定位节点
+  // 因为标签切换时已经加载了函数详情
+  const matchingTab = workspaceTabs.value.find(tab => tab.path === route.path)
+  if (matchingTab && tabFunctionDetails.value[matchingTab.id]) {
+    console.log('[Workspace] 路由变化是标签页切换，跳过节点定位')
+    return
   }
   
   if (serviceTree.value.length > 0 && currentApp.value) {
@@ -1082,8 +1093,8 @@ const getTabComponentProps = (tab: import('@/composables/useWorkspaceTabs').Work
   return {}
 }
 
-// 🔥 监听标签切换，自动加载函数详情（必须在 loadTabFunctionDetail 定义之后）
-watch(activeTabId, async (newTabId) => {
+// 🔥 监听标签切换，自动加载函数详情并更新路由（必须在 loadTabFunctionDetail 定义之后）
+watch(activeTabId, async (newTabId, oldTabId) => {
   if (!newTabId) {
     currentFunction.value = null
     functionDetail.value = null
@@ -1092,6 +1103,11 @@ watch(activeTabId, async (newTabId) => {
   
   const tab = workspaceTabs.value.find(t => t.id === newTabId)
   if (tab) {
+    // 🔥 如果路由和标签路径不一致，更新路由
+    if (route.path !== tab.path) {
+      router.push(tab.path)
+    }
+    
     // 如果标签有缓存的函数节点，直接使用
     if (tab.function) {
       currentFunction.value = tab.function
