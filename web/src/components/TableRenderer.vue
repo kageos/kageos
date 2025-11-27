@@ -727,11 +727,11 @@ async function batchLoadUserInfo(): Promise<void> {
     
     // 🔥 构建映射（供表格渲染使用）
     const map = new Map<string, any>()
-    users.forEach(user => {
-        if (user.username) {
-          map.set(user.username, user)
-        }
-      })
+    for (const user of users) {
+      if (user.username) {
+        map.set(user.username, user)
+      }
+    }
     
     userInfoMap.value = map
   } catch (error) {
@@ -1123,11 +1123,11 @@ const handleShowDetail = async (row: any, index: number): Promise<void> => {
     const users = await userInfoStore.batchGetUserInfo(filesUploadUsers)
     
     // 更新 userInfoMap，供详情中的 FilesWidget 使用
-    users.forEach((user: any) => {
+    for (const user of users) {
       if (user.username) {
         userInfoMap.value.set(user.username, user)
       }
-    })
+    }
   }
 }
 
@@ -1159,11 +1159,11 @@ const handleNavigate = async (direction: 'prev' | 'next'): Promise<void> => {
     // 批量查询用户信息（自动处理缓存）
     const users = await userInfoStore.batchGetUserInfo(filesUploadUsers)
     // 更新 userInfoMap，供详情中的 FilesWidget 使用
-    users.forEach((user: any) => {
+    for (const user of users) {
       if (user.username) {
         userInfoMap.value.set(user.username, user)
       }
-    })
+    }
   }
 }
 
@@ -1327,12 +1327,21 @@ const refreshCurrentDetailRow = async (): Promise<void> => {
   
   try {
     // 🔥 不需要重新加载表格数据，因为 handleUpdateRow 已经加载过了
-    // 直接从最新的表格数据中找到当前记录
-    const updatedRow = tableData.value.find((row: any) => row.id === currentDetailRow.value.id)
+    // 直接从最新的表格数据中找到当前记录（优化：一次遍历同时获取 row 和 index）
+    const rowId = currentDetailRow.value.id
+    let updatedRow: any = null
+    let index = -1
+    
+    for (let i = 0; i < tableData.value.length; i++) {
+      if (tableData.value[i].id === rowId) {
+        updatedRow = tableData.value[i]
+        index = i
+        break
+      }
+    }
+    
     if (updatedRow) {
       currentDetailRow.value = updatedRow
-      // 更新索引
-      const index = tableData.value.findIndex((row: any) => row.id === currentDetailRow.value.id)
       if (index >= 0) {
         currentDetailIndex.value = index
       }
@@ -1345,11 +1354,11 @@ const refreshCurrentDetailRow = async (): Promise<void> => {
         const users = await userInfoStore.batchGetUserInfo(filesUploadUsers)
         
         // 更新 userInfoMap，供详情中的 FilesWidget 使用
-        users.forEach((user: any) => {
+        for (const user of users) {
           if (user.username) {
             userInfoMap.value.set(user.username, user)
           }
-        })
+        }
       }
     }
   } catch (error) {
