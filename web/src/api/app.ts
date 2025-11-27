@@ -4,6 +4,7 @@ import type { App, CreateAppRequest, CreateAppResponse } from '@/types'
 // 获取应用列表
 export function getAppList(pageSize: number = 200, search?: string) {
   // 后端返回的是分页数据结构: { page, page_size, total_count, items: App[] }
+  // ⚠️ 注意：响应拦截器已经提取了 data 字段，所以 res 就是分页对象本身
   const params: Record<string, any> = {
     page_size: pageSize,
     page: 1
@@ -16,7 +17,19 @@ export function getAppList(pageSize: number = 200, search?: string) {
     page_size: number
     total_count: number
     items: App[]
-  }>('/api/v1/app/list', params).then(res => res.items || [])
+  }>('/api/v1/app/list', params).then(res => {
+    // ⚠️ 响应拦截器返回的是 data 对象，所以 res 就是分页对象
+    // 需要检查 res 是否有 items 字段
+    if (res && typeof res === 'object' && 'items' in res) {
+      return (res as any).items || []
+    }
+    // 如果 res 本身就是数组，直接返回
+    if (Array.isArray(res)) {
+      return res
+    }
+    // 否则返回空数组
+    return []
+  })
 }
 
 // 创建应用
