@@ -1133,12 +1133,41 @@ const handleShowDetail = async (row: any, index: number): Promise<void> => {
     }
   }
   
-  // 🔥 更新 URL，添加 _detail_id 参数（用于分享和刷新后恢复状态）
+  // 🔥 更新 URL，添加 _detail_id 和 _detail_function_id 参数（用于分享和刷新后恢复状态）
+  // 只有在 URL 中没有相同的 _detail_id 时才更新，避免循环触发
   if (idField.value && row[idField.value.code]) {
-    const detailId = row[idField.value.code]
-    const query = { ...router.currentRoute.value.query }
-    query._detail_id = String(detailId)
-    router.replace({ query })
+    const detailId = String(row[idField.value.code])
+    const currentDetailId = String(router.currentRoute.value.query._detail_id || '')
+    const currentFunctionId = props.functionData.id
+    const currentDetailFunctionId = String(router.currentRoute.value.query._detail_function_id || '')
+    
+    Logger.debug('TableRenderer', '[handleShowDetail] 更新 URL', { 
+      detailId, 
+      currentDetailId, 
+      currentDetailFunctionId,
+      isRestoringDetail,
+      functionDataId: currentFunctionId,
+      currentFunctionDataId
+    })
+    
+    // 🔥 关键：只有在不是恢复过程中，且 URL 中没有相同的 _detail_id 时才更新
+    if (currentDetailId !== detailId && !isRestoringDetail) {
+      // 🔥 更新当前表格的 ID，确保 _detail_id 属于当前表格
+      if (currentFunctionDataId !== currentFunctionId) {
+        Logger.debug('TableRenderer', `[handleShowDetail] 更新 currentFunctionDataId: ${currentFunctionDataId} -> ${currentFunctionId}`)
+        currentFunctionDataId = currentFunctionId
+      }
+      
+      const query = { ...router.currentRoute.value.query }
+      query._detail_id = detailId
+      query._detail_function_id = String(currentFunctionId)  // 🔥 同时存储 functionDataId
+      Logger.debug('TableRenderer', `[handleShowDetail] 添加 _detail_id 和 _detail_function_id 到 URL: ${detailId}, ${currentFunctionId}`)
+      router.replace({ query })
+    } else {
+      Logger.debug('TableRenderer', '[handleShowDetail] 跳过更新 URL', { 
+        reason: currentDetailId === detailId ? 'URL 中已有相同的 _detail_id' : '正在恢复中'
+      })
+    }
   }
 }
 
@@ -1177,11 +1206,13 @@ const handleNavigate = async (direction: 'prev' | 'next'): Promise<void> => {
     }
   }
   
-  // 🔥 更新 URL，更新 _detail_id 参数
+  // 🔥 更新 URL，更新 _detail_id 和 _detail_function_id 参数
   if (idField.value && row[idField.value.code]) {
-    const detailId = row[idField.value.code]
+    const detailId = String(row[idField.value.code])
+    const currentFunctionId = props.functionData.id
     const query = { ...router.currentRoute.value.query }
-    query._detail_id = String(detailId)
+    query._detail_id = detailId
+    query._detail_function_id = String(currentFunctionId)  // 🔥 同时更新 functionDataId
     router.replace({ query })
   }
 }
@@ -1500,56 +1531,271 @@ const fixFixedColumnClick = () => {
  * 处理详情抽屉关闭
  * 移除 URL 中的 _detail_id 参数
  */
+// 🔥 防止循环调用的标志
+let isClosingDetail = false
+let isRestoringDetail = false
+// 🔥 当前表格的 functionData ID，用于判断 _detail_id 是否属于当前表格
+let currentFunctionDataId: number | null = null
+
+/**
+ * 处理详情抽屉关闭
+ * 清理详情状态和 URL 参数
+ */
 const handleDetailDrawerClose = (): void => {
+  // 防止重复调用
+  if (isClosingDetail) {
+    Logger.debug('TableRenderer', '[handleDetailDrawerClose] 正在关闭中，跳过')
+    return
+  }
+  isClosingDetail = true
+  Logger.debug('TableRenderer', '[handleDetailDrawerClose] 开始关闭详情抽屉')
+  
+  // 清空详情数据
+  currentDetailRow.value = null
+  currentDetailIndex.value = -1
+  detailMode.value = 'view'
+  
+  // 清理 URL 中的 _detail_id 和 _detail_function_id 参数
   const query = { ...router.currentRoute.value.query }
+  let hasChanges = false
   if (query._detail_id) {
+    Logger.debug('TableRenderer', `[handleDetailDrawerClose] 清理 URL 中的 _detail_id: ${query._detail_id}`)
     delete query._detail_id
-    router.replace({ query })
+    hasChanges = true
+  }
+  if (query._detail_function_id) {
+    Logger.debug('TableRenderer', `[handleDetailDrawerClose] 清理 URL 中的 _detail_function_id: ${query._detail_function_id}`)
+    delete query._detail_function_id
+    hasChanges = true
+  }
+  
+  if (hasChanges) {
+    router.replace({ query }).finally(() => {
+      isClosingDetail = false
+      Logger.debug('TableRenderer', '[handleDetailDrawerClose] 关闭完成')
+    })
+  } else {
+    isClosingDetail = false
+    Logger.debug('TableRenderer', '[handleDetailDrawerClose] URL 中没有 _detail_id，直接完成')
   }
 }
+
+// 🔥 监听 showDetailDrawer 变化，确保关闭时清理状态
+// 这样可以处理点击外侧关闭、ESC 键关闭等情况
+watch(showDetailDrawer, (newValue, oldValue) => {
+  // 当抽屉从打开变为关闭时，清理状态
+  if (oldValue === true && newValue === false && !isClosingDetail) {
+    handleDetailDrawerClose()
+  }
+})
 
 /**
  * 从 URL 恢复详情状态
  * 如果 URL 中有 _detail_id 参数，自动打开对应的详情
  */
 const restoreDetailFromURL = async (): Promise<void> => {
+  // 防止循环调用
+  if (isRestoringDetail || isClosingDetail) {
+    Logger.debug('TableRenderer', '[restoreDetailFromURL] 正在恢复中或关闭中，跳过', { isRestoringDetail, isClosingDetail })
+    return
+  }
+  
   const query = router.currentRoute.value.query
   const detailId = query._detail_id
+  const detailFunctionId = query._detail_function_id  // 🔥 获取 _detail_id 对应的 functionDataId
+  
+  Logger.debug('TableRenderer', '[restoreDetailFromURL] 开始恢复', { 
+    detailId, 
+    detailFunctionId,
+    currentFunctionDataId, 
+    functionDataId: props.functionData.id,
+    hasIdField: !!idField.value 
+  })
   
   if (!detailId || !idField.value) {
+    Logger.debug('TableRenderer', '[restoreDetailFromURL] 没有 detailId 或 idField，跳过')
     return
+  }
+  
+  // 🔥 关键：检查 _detail_id 是否属于当前表格
+  const currentFunctionId = props.functionData.id
+  
+  // 🔥 如果 URL 中有 _detail_function_id，且与当前 functionData.id 不匹配，说明这个 _detail_id 不属于当前表格
+  if (detailFunctionId && String(detailFunctionId) !== String(currentFunctionId)) {
+    Logger.debug('TableRenderer', `[restoreDetailFromURL] _detail_function_id 不匹配（${detailFunctionId} != ${currentFunctionId}），跳过恢复旧的 _detail_id`)
+    // 清理不属于当前表格的 _detail_id
+    const queryToClean = { ...router.currentRoute.value.query }
+    if (queryToClean._detail_id) {
+      delete queryToClean._detail_id
+    }
+    if (queryToClean._detail_function_id) {
+      delete queryToClean._detail_function_id
+    }
+    router.replace({ query: queryToClean })
+    return
+  }
+  
+  // 🔥 如果 currentFunctionDataId 与当前 functionData.id 不匹配，说明切换了表格
+  // 此时旧的 _detail_id 不应该恢复，应该清理
+  if (currentFunctionDataId !== null && currentFunctionDataId !== currentFunctionId) {
+    Logger.debug('TableRenderer', `[restoreDetailFromURL] functionData.id 不匹配（currentFunctionDataId: ${currentFunctionDataId}, functionDataId: ${currentFunctionId}），跳过恢复旧的 _detail_id`)
+    // 更新 currentFunctionDataId 为新的表格 ID
+    currentFunctionDataId = currentFunctionId
+    // 清理不属于当前表格的 _detail_id
+    const queryToClean = { ...router.currentRoute.value.query }
+    if (queryToClean._detail_id) {
+      delete queryToClean._detail_id
+    }
+    if (queryToClean._detail_function_id) {
+      delete queryToClean._detail_function_id
+    }
+    router.replace({ query: queryToClean })
+    return
+  }
+  
+  // 🔥 更新 currentFunctionDataId（如果还是 null，说明是首次加载）
+  if (currentFunctionDataId === null) {
+    Logger.debug('TableRenderer', `[restoreDetailFromURL] 首次加载，设置 currentFunctionDataId: ${currentFunctionId}`)
+    currentFunctionDataId = currentFunctionId
   }
   
   // 如果详情已经打开，且是同一个记录，不需要重复打开
   if (showDetailDrawer.value && currentDetailRow.value) {
     const currentId = currentDetailRow.value[idField.value.code]
     if (String(currentId) === String(detailId)) {
+      Logger.debug('TableRenderer', `[restoreDetailFromURL] 详情已打开且是同一记录（ID: ${detailId}），跳过`)
       return
     }
   }
   
   // 等待表格数据加载完成
   if (!tableData.value || tableData.value.length === 0) {
-    // 如果数据还没加载，等待数据加载完成后再尝试
+    Logger.debug('TableRenderer', '[restoreDetailFromURL] 表格数据未加载，跳过')
     return
   }
   
-  // 查找对应的记录
-  const detailIdStr = String(detailId)
-  const rowIndex = tableData.value.findIndex((row: any) => {
-    const rowId = row[idField.value!.code]
-    return String(rowId) === detailIdStr
-  })
+  isRestoringDetail = true
   
-  if (rowIndex >= 0) {
-    const row = tableData.value[rowIndex]
-    await handleShowDetail(row, rowIndex)
-  } else {
-    // 如果当前页没有找到，可能是分页问题
-    // 这里先不处理，因为用户可能在其他页，或者记录已被删除
-    Logger.warn('TableRenderer', `未找到 ID 为 ${detailId} 的记录（可能在其他页或已被删除）`)
+  try {
+    // 查找对应的记录
+    const detailIdStr = String(detailId)
+    const rowIndex = tableData.value.findIndex((row: any) => {
+      const rowId = row[idField.value!.code]
+      return String(rowId) === detailIdStr
+    })
+    
+    Logger.debug('TableRenderer', `[restoreDetailFromURL] 查找记录`, { detailIdStr, rowIndex })
+    
+    if (rowIndex >= 0) {
+      const row = tableData.value[rowIndex]
+      const rowId = row[idField.value!.code]
+      Logger.debug('TableRenderer', `[restoreDetailFromURL] 找到记录，打开详情`, { rowIndex, rowId })
+      
+      // 🔥 关键：验证找到的记录 ID 是否真的匹配
+      // 如果 rowId 与 detailId 不匹配，说明这个 _detail_id 不属于当前表格，应该清理
+      if (String(rowId) !== detailIdStr) {
+        Logger.warn('TableRenderer', `[restoreDetailFromURL] 找到的记录 ID 不匹配（期望: ${detailIdStr}, 实际: ${rowId}），清理 _detail_id`)
+        // 清理不属于当前表格的 _detail_id
+        const queryToClean = { ...router.currentRoute.value.query }
+        if (queryToClean._detail_id) {
+          delete queryToClean._detail_id
+          router.replace({ query: queryToClean })
+        }
+        return
+      }
+      
+      // 🔥 直接设置状态，不更新 URL（避免循环）
+      currentDetailRow.value = row
+      currentDetailIndex.value = rowIndex
+      detailMode.value = 'view'
+      showDetailDrawer.value = true
+      
+      // 收集用户信息
+      const filesUploadUsers = collectFilesUploadUsersFromRow(row, visibleFields.value)
+      if (filesUploadUsers.length > 0) {
+        const users = await userInfoStore.batchGetUserInfo(filesUploadUsers)
+        for (const user of users) {
+          if (user.username) {
+            userInfoMap.value.set(user.username, user)
+          }
+        }
+      }
+    } else {
+      // 如果当前页没有找到，可能是分页问题，或者这个 _detail_id 不属于当前表格
+      Logger.warn('TableRenderer', `未找到 ID 为 ${detailId} 的记录（可能在其他页、已被删除或不属于当前表格）`)
+      // 🔥 清理 URL 中的 _detail_id 和 _detail_function_id，因为找不到对应的记录
+      const queryToClean = { ...router.currentRoute.value.query }
+      let hasChanges = false
+      if (queryToClean._detail_id) {
+        Logger.debug('TableRenderer', `[restoreDetailFromURL] 清理找不到记录的 _detail_id: ${queryToClean._detail_id}`)
+        delete queryToClean._detail_id
+        hasChanges = true
+      }
+      if (queryToClean._detail_function_id) {
+        delete queryToClean._detail_function_id
+        hasChanges = true
+      }
+      if (hasChanges) {
+        router.replace({ query: queryToClean })
+      }
+    }
+  } finally {
+    isRestoringDetail = false
+    Logger.debug('TableRenderer', '[restoreDetailFromURL] 恢复完成')
   }
 }
+
+// 🔥 监听 functionData 变化，切换表格时清空详情状态
+watch(() => props.functionData, (newFunctionData, oldFunctionData) => {
+  const oldId = oldFunctionData?.id
+  const newId = newFunctionData?.id
+  
+  Logger.debug('TableRenderer', '[watch functionData] 表格切换', { 
+    oldId, 
+    newId, 
+    oldRouter: oldFunctionData?.router,
+    newRouter: newFunctionData?.router,
+    currentFunctionDataId
+  })
+  
+  // 🔥 关键：如果表格 ID 真的变化了，才清理状态
+  // 如果 oldId 和 newId 相同，说明是同一个表格重新渲染，不需要清理
+  if (oldId !== undefined && newId !== undefined && oldId !== newId) {
+    Logger.debug('TableRenderer', `[watch functionData] 表格 ID 变化（${oldId} -> ${newId}），清理详情状态`)
+    
+    // 更新当前表格的 ID（立即更新，确保后续检查正确）
+    currentFunctionDataId = newId || null
+    
+    // 切换表格时，清空详情状态
+    currentDetailRow.value = null
+    currentDetailIndex.value = -1
+    detailMode.value = 'view'
+    showDetailDrawer.value = false
+    
+    // 清理 URL 中的 _detail_id 和 _detail_function_id 参数（因为这是上一个表格的详情 ID）
+    const query = { ...router.currentRoute.value.query }
+    let hasChanges = false
+    if (query._detail_id) {
+      Logger.debug('TableRenderer', `[watch functionData] 清理旧的 _detail_id: ${query._detail_id}`)
+      delete query._detail_id
+      hasChanges = true
+    }
+    if (query._detail_function_id) {
+      Logger.debug('TableRenderer', `[watch functionData] 清理旧的 _detail_function_id: ${query._detail_function_id}`)
+      delete query._detail_function_id
+      hasChanges = true
+    }
+    if (hasChanges) {
+      router.replace({ query })
+    }
+  } else {
+    // 如果是首次加载或同一个表格，只更新 currentFunctionDataId（如果还是 null 或需要更新）
+    if (newId !== undefined && (currentFunctionDataId === null || currentFunctionDataId !== newId)) {
+      Logger.debug('TableRenderer', `[watch functionData] 更新 currentFunctionDataId: ${currentFunctionDataId} -> ${newId}`)
+      currentFunctionDataId = newId
+    }
+  }
+}, { deep: true, immediate: true })
 
 // 🔥 监听表格数据变化，当数据加载完成且 URL 中有 _detail_id 时，自动打开详情
 watch(() => [tableData.value, router.currentRoute.value.query._detail_id], () => {
@@ -1565,6 +1811,13 @@ onMounted(() => {
   fixFixedColumnClick()
   // 监听窗口大小变化
   window.addEventListener('resize', fixFixedColumnClick)
+  
+  // 🔥 初始化当前表格的 ID
+  currentFunctionDataId = props.functionData.id || null
+  Logger.debug('TableRenderer', '[onMounted] 初始化', { 
+    functionDataId: props.functionData.id,
+    currentFunctionDataId 
+  })
   
   // 🔥 从 URL 恢复详情状态（延迟执行，确保表格数据已加载）
   nextTick(() => {
@@ -2141,3 +2394,4 @@ onUnmounted(() => {
   }
 }
 </style>
+
