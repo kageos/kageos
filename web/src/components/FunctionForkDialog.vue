@@ -10,14 +10,14 @@
  */
 
 import { ref, computed, watch, h, nextTick, onMounted, onUnmounted } from 'vue'
-import { ElDialog, ElSelect, ElOption, ElButton, ElMessage, ElNotification, ElTag, ElEmpty, ElTree, ElForm, ElFormItem, ElDropdown, ElDropdownMenu, ElDropdownItem, ElInput } from 'element-plus'
+import { ElDialog, ElButton, ElMessage, ElNotification, ElTag, ElEmpty, ElTree, ElForm, ElFormItem, ElDropdown, ElDropdownMenu, ElDropdownItem, ElInput } from 'element-plus'
 import { Delete, ArrowRight, Folder, FolderOpened, Plus, MoreFilled, Loading } from '@element-plus/icons-vue'
-import { getAppList } from '@/api/app'
 import { getServiceTree, createServiceTree } from '@/api/service-tree'
 import { forkFunctionGroup } from '@/api/function'
 import { createGroupNode, groupFunctionsByCode, getGroupName } from '@/utils/tree-utils'
 import { Logger } from '@/core/utils/logger'
 import type { App, ServiceTree as ServiceTreeType, CreateServiceTreeRequest } from '@/types'
+import AppSelector from './AppSelector.vue'
 
 // 导入工具类
 import { MappingManager, type ForkMapping } from '@/utils/fork-dialog/MappingManager'
@@ -75,9 +75,8 @@ const sourceAppInfo = computed(() => {
 // 源函数组代码（用于高亮显示）
 const sourceFullGroupCode = computed(() => props.sourceFullGroupCode)
 
-// 应用列表
-const appList = ref<App[]>([])
-const loadingApps = ref(false)
+// 应用选择器
+const showAppSelector = ref(false)
 const selectedApp = ref<App | null>(null)
 
 // 服务目录树
@@ -125,18 +124,25 @@ const creatingDirectory = ref(false)
 const currentParentNode = ref<ServiceTreeType | null>(null)
 
 // 加载应用列表
-const loadAppList = async (keyword?: string) => {
-  try {
-    loadingApps.value = true
-    const apps = await getAppList(200, keyword)
-    appList.value = apps
-  } catch (error) {
-    Logger.error('FunctionForkDialog', '加载应用列表失败', error)
-    ElMessage.error('加载应用列表失败')
-    appList.value = []
-  } finally {
-    loadingApps.value = false
+// 处理应用选择
+const handleAppSelect = (app: App) => {
+  selectedApp.value = app
+  dragHandler.setTargetApp(app)
+  
+  if (app) {
+    loadTargetServiceTree(app).then(() => {
+      nextTick().then(() => {
+        connectionLineManager.updateLines().then(() => {
+          connectionLines.value = connectionLineManager.getLines()
+        })
+      })
+    })
+  } else {
+    targetServiceTree.value = []
+    connectionLines.value = []
   }
+  
+  Logger.info('FunctionForkDialog', '应用已选择', { app: app?.name, appCode: app?.code })
 }
 
 // 加载源服务目录树
@@ -172,21 +178,6 @@ const loadTargetServiceTree = async (app: App) => {
   }
 }
 
-// 选择目标应用
-const handleSelectApp = async (app: App | null) => {
-  selectedApp.value = app
-  dragHandler.setTargetApp(app)
-  
-  if (app) {
-    await loadTargetServiceTree(app)
-    await nextTick()
-    connectionLineManager.updateLines().then(() => {
-      connectionLines.value = connectionLineManager.getLines()
-    })
-  } else {
-    targetServiceTree.value = []
-  }
-}
 
 // 映射关系列表（响应式）
 const mappings = ref<ForkMapping[]>([])
@@ -583,18 +574,16 @@ watch(mappings, () => {
 // 监听对话框打开
 watch(dialogVisible, (visible: boolean) => {
   if (visible) {
-    loadAppList()
     loadSourceServiceTree()
     resetForm()
-              }
-            })
+  }
+})
 
 // 生命周期
 onMounted(() => {
   if (dialogVisible.value) {
-    loadAppList()
     loadSourceServiceTree()
-          }
+  }
 })
 
 onUnmounted(() => {
@@ -615,22 +604,21 @@ onUnmounted(() => {
     <div class="fork-dialog-content">
       <!-- 顶部：选择目标应用 -->
       <div class="target-app-selector">
-        <ElSelect
-          v-model="selectedApp"
-          placeholder="请选择目标应用"
-          filterable
-          :loading="loadingApps"
+        <ElButton
+          type="primary"
+          :icon="selectedApp ? FolderOpened : Plus"
+          @click="showAppSelector = true"
           style="width: 100%"
-          @change="handleSelectApp"
         >
-          <ElOption
-            v-for="app in appList"
-            :key="app.id"
-            :label="`${app.name} (${app.code})`"
-            :value="app"
-          />
-        </ElSelect>
+          {{ selectedApp ? `${selectedApp.name} (${selectedApp.code})` : '选择目标应用' }}
+        </ElButton>
       </div>
+      
+      <!-- 应用选择器弹窗 -->
+      <AppSelector
+        v-model="showAppSelector"
+        @select="handleAppSelect"
+      />
 
       <!-- 左右分栏布局 -->
       <div class="fork-layout" v-if="sourceAppInfo" ref="forkLayoutRef">
