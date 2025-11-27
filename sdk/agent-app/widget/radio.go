@@ -1,8 +1,8 @@
 package widget
 
 type Radio struct {
-	Options []string `json:"options"` // 选项列表
-	Default string   `json:"default"` // 默认选中项
+	Options []string `json:"options,omitempty"` // 选项列表
+	Default string   `json:"default,omitempty"` // 默认选中项
 }
 
 func (r *Radio) Config() interface{} {
