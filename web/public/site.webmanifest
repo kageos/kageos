@@ -1,7 +1,7 @@
 {
   "name": "AI Agent OS",
   "short_name": "AI Agent",
-  "description": "AI Agent 开发和管理平台",
+  "description": "下一代软件开发与运行平台",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
