@@ -265,6 +265,28 @@ function updateFieldValue(fieldCode: string, value: FieldValue): void {
   if (field) {
     validateField(field)
     
+    // 🔥 处理字段依赖：当字段值变化时，清空所有依赖该字段的其他字段
+    // 例如：当 topic_id 变化时，自动清空 option_ids（因为选项列表会变化）
+    requestFields.value.forEach(otherField => {
+      // 🔥 安全检查：确保 otherField 存在且有 code 和 depend_on 属性
+      if (!otherField || !otherField.code || !otherField.depend_on) {
+        return
+      }
+      
+      if (otherField.depend_on === fieldCode) {
+        Logger.debug('FormRenderer', `字段 ${otherField.code} 依赖 ${fieldCode}，清空其值`)
+        formDataStore.setValue(otherField.code, {
+          raw: null,
+          display: '',
+          meta: {}
+        })
+        // 同时清空该字段的验证错误（fieldErrors 是 Map，使用 delete 方法）
+        if (fieldErrors.has(otherField.code)) {
+          fieldErrors.delete(otherField.code)
+        }
+      }
+    })
+    
     // 🔥 同时验证所有其他字段（因为条件验证可能依赖多个字段）
     // 例如：字段A的值改变时，可能影响字段B的 required_if 验证
     requestFields.value.forEach(otherField => {
@@ -965,6 +987,7 @@ defineExpose({
 <style scoped>
 .form-renderer-v2 {
   width: 100%;
+  padding: 20px;
 }
 
 .section-title {
