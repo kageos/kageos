@@ -487,6 +487,7 @@ func (c *Context) batchUploadFiles(filePaths []string) *types.Files {
 
 	for i := range successFiles {
 		successFiles[i].UploadUser = c.msg.RequestUser
+		successFiles[i].UploadTs = time.Now().UnixMilli()
 	}
 	// 8. 构建返回结果
 	return &types.Files{

@@ -18,8 +18,8 @@ type RunFunctionResp struct {
 	BizError interface{}
 
 	// AutoSearchFilterPaged 参数（延迟到 Build 时执行）
-	autoPagedDB      *gorm.DB
-	autoPagedModel   interface{}
+	autoPagedDB       *gorm.DB
+	autoPagedModel    interface{}
 	autoPagedPageInfo *query.SearchFilterPageReq
 }
 
@@ -45,16 +45,28 @@ func (t *RunFunctionResp) AutoSearchFilterPaged(dbAndWhere *gorm.DB, model inter
 	return t
 }
 
+type BizErr struct {
+	Msg string `json:"msg"`
+}
+
+func (e *BizErr) Error() string {
+	return e.Msg
+}
+
 func (r *RunFunctionResp) Build() error {
+	if r.BizError != nil {
+		return &BizErr{Msg: fmt.Sprintf("%v", r.BizError)}
+	}
+
 	if r.Type == "form" {
 		return nil
 	}
-	
+
 	// 如果是 table 类型且有自动分页参数，执行查询
 	if r.Type == "table" && r.autoPagedDB != nil && r.autoPagedModel != nil {
 		return r.executeAutoSearchFilterPaged()
 	}
-	
+
 	return nil
 }
 
