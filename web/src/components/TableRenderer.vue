@@ -255,6 +255,7 @@
       class="detail-drawer"
       :append-to-body="true"
       :modal="true"
+      @close="handleDetailDrawerClose"
     >
       <template #header>
         <div class="drawer-header">
@@ -1131,6 +1132,14 @@ const handleShowDetail = async (row: any, index: number): Promise<void> => {
       }
     }
   }
+  
+  // 🔥 更新 URL，添加 _detail_id 参数（用于分享和刷新后恢复状态）
+  if (idField.value && row[idField.value.code]) {
+    const detailId = row[idField.value.code]
+    const query = { ...router.currentRoute.value.query }
+    query._detail_id = String(detailId)
+    router.replace({ query })
+  }
 }
 
 /**
@@ -1166,6 +1175,14 @@ const handleNavigate = async (direction: 'prev' | 'next'): Promise<void> => {
         userInfoMap.value.set(user.username, user)
       }
     }
+  }
+  
+  // 🔥 更新 URL，更新 _detail_id 参数
+  if (idField.value && row[idField.value.code]) {
+    const detailId = row[idField.value.code]
+    const query = { ...router.currentRoute.value.query }
+    query._detail_id = String(detailId)
+    router.replace({ query })
   }
 }
 
@@ -1479,10 +1496,82 @@ const fixFixedColumnClick = () => {
   })
 }
 
+/**
+ * 处理详情抽屉关闭
+ * 移除 URL 中的 _detail_id 参数
+ */
+const handleDetailDrawerClose = (): void => {
+  const query = { ...router.currentRoute.value.query }
+  if (query._detail_id) {
+    delete query._detail_id
+    router.replace({ query })
+  }
+}
+
+/**
+ * 从 URL 恢复详情状态
+ * 如果 URL 中有 _detail_id 参数，自动打开对应的详情
+ */
+const restoreDetailFromURL = async (): Promise<void> => {
+  const query = router.currentRoute.value.query
+  const detailId = query._detail_id
+  
+  if (!detailId || !idField.value) {
+    return
+  }
+  
+  // 如果详情已经打开，且是同一个记录，不需要重复打开
+  if (showDetailDrawer.value && currentDetailRow.value) {
+    const currentId = currentDetailRow.value[idField.value.code]
+    if (String(currentId) === String(detailId)) {
+      return
+    }
+  }
+  
+  // 等待表格数据加载完成
+  if (!tableData.value || tableData.value.length === 0) {
+    // 如果数据还没加载，等待数据加载完成后再尝试
+    return
+  }
+  
+  // 查找对应的记录
+  const detailIdStr = String(detailId)
+  const rowIndex = tableData.value.findIndex((row: any) => {
+    const rowId = row[idField.value!.code]
+    return String(rowId) === detailIdStr
+  })
+  
+  if (rowIndex >= 0) {
+    const row = tableData.value[rowIndex]
+    await handleShowDetail(row, rowIndex)
+  } else {
+    // 如果当前页没有找到，可能是分页问题
+    // 这里先不处理，因为用户可能在其他页，或者记录已被删除
+    Logger.warn('TableRenderer', `未找到 ID 为 ${detailId} 的记录（可能在其他页或已被删除）`)
+  }
+}
+
+// 🔥 监听表格数据变化，当数据加载完成且 URL 中有 _detail_id 时，自动打开详情
+watch(() => [tableData.value, router.currentRoute.value.query._detail_id], () => {
+  if (tableData.value && tableData.value.length > 0 && router.currentRoute.value.query._detail_id) {
+    // 延迟执行，确保数据已完全渲染
+    nextTick(() => {
+      restoreDetailFromURL()
+    })
+  }
+}, { deep: true })
+
 onMounted(() => {
   fixFixedColumnClick()
   // 监听窗口大小变化
   window.addEventListener('resize', fixFixedColumnClick)
+  
+  // 🔥 从 URL 恢复详情状态（延迟执行，确保表格数据已加载）
+  nextTick(() => {
+    setTimeout(() => {
+      restoreDetailFromURL()
+    }, 500)
+  })
 })
 
 onUpdated(() => {
