@@ -716,6 +716,9 @@ function handleDialogSelectMultiple(items: Array<{ value: any; label?: string; d
               } else {
     selectedValues.value = allValues
   }
+  
+  // 🔥 关闭对话框
+  dialogVisible.value = false
 }
 
 // 处理对话框全选
@@ -747,6 +750,9 @@ function handleDialogSelectAll(items: Array<{ value: any; label?: string; displa
           } else {
     selectedValues.value = allValues
           }
+  
+  // 🔥 关闭对话框
+  dialogVisible.value = false
 }
 
 // 移除标签时触发

@@ -122,6 +122,7 @@ export interface FieldConfig {
   callbacks?: any
   permission?: string | null
   validation?: string
+  depend_on?: string  // 🔥 依赖的字段 code，当依赖字段值变化时，该字段会被清空
 }
 
 // 组件配置类型

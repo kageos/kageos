@@ -298,6 +298,7 @@ func ConvertTagsToField(tags *FieldTags) *Field {
 		Validation:      tags.Validate,
 		TablePermission: tags.Permission,
 		Data:            &FieldData{},
+		DependOn:        tags.WidgetParsed["depend_on"], // 从widget标签中获取依赖字段
 	}
 	if tags.Callback != "" {
 		field.Callbacks = strings.Split(tags.Callback, ",")

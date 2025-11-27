@@ -30,6 +30,7 @@ export interface FieldConfig {
   callbacks?: string[]  // 字段级别的回调，如 ['OnSelectFuzzy']
   table_permission?: string  // 'read', 'update', 'create', '' (全部权限)
   field_name?: string  // 🔥 Go 字段名（用于验证规则中的字段引用，如 required_if=MemberType vip）
+  depend_on?: string  // 🔥 依赖的字段 code，当依赖字段值变化时，该字段会被清空
   
   // 🔥 嵌套字段（后端返回的是 "children"，用于 list/struct 类型）
   children?: FieldConfig[]
