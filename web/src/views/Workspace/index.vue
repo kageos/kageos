@@ -495,6 +495,8 @@ const {
   activeTabId,
   activeTab,
   addOrActivateTab,
+  addCreateTab,
+  addEditTab,
   switchTab,
   closeTab,
   closeOtherTabs,

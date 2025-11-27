@@ -13,15 +13,23 @@ import { useRoute, useRouter } from 'vue-router'
 import type { ServiceTree } from '@/types'
 
 /**
+ * 标签页类型
+ */
+export type TabType = 'list' | 'create' | 'edit'
+
+/**
  * 标签页数据结构
  */
 export interface WorkspaceTab {
   id: string  // 唯一标识（使用 full_code_path 或 id）
   name: string  // 标签显示名称
   path: string  // 路由路径（如：/workspace/user/app/path）
+  type: TabType  // 标签类型：list（列表）、create（新增）、edit（编辑）
   functionId?: number  // 函数ID（如果有）
   fullCodePath?: string  // 完整代码路径
   function?: ServiceTree  // 函数节点信息（可选，用于缓存）
+  rowId?: number  // 编辑时的行ID（仅 edit 类型）
+  initialData?: Record<string, any>  // 编辑时的初始数据（仅 edit 类型）
 }
 
 const STORAGE_KEY = 'workspace-tabs'
@@ -76,15 +84,28 @@ export function useWorkspaceTabs() {
   /**
    * 根据节点创建标签
    */
-  function createTabFromNode(node: ServiceTree): WorkspaceTab {
+  function createTabFromNode(node: ServiceTree, type: TabType = 'list'): WorkspaceTab {
     const fullCodePath = node.full_code_path || ''
     const path = fullCodePath.startsWith('/') ? fullCodePath.substring(1) : fullCodePath
     const workspacePath = `/workspace/${path}`
     
+    // 根据类型生成不同的 ID 和名称
+    let tabId = fullCodePath || `node-${node.id}`
+    let tabName = node.name || node.code || '未命名'
+    
+    if (type === 'create') {
+      tabId = `${tabId}-create`
+      tabName = `新增 - ${tabName}`
+    } else if (type === 'edit') {
+      tabId = `${tabId}-edit`
+      tabName = `编辑 - ${tabName}`
+    }
+    
     return {
-      id: fullCodePath || `node-${node.id}`,
-      name: node.name || node.code || '未命名',
+      id: tabId,
+      name: tabName,
       path: workspacePath,
+      type: type,
       functionId: node.ref_id || node.id,
       fullCodePath: fullCodePath,
       function: node
@@ -92,7 +113,7 @@ export function useWorkspaceTabs() {
   }
 
   /**
-   * 添加或激活标签
+   * 添加或激活标签（列表模式）
    */
   function addOrActivateTab(node: ServiceTree) {
     if (node.type !== 'function') {
@@ -103,8 +124,8 @@ export function useWorkspaceTabs() {
     const fullCodePath = node.full_code_path || ''
     const tabId = fullCodePath || `node-${node.id}`
     
-    // 检查标签是否已存在
-    const existingTab = tabs.value.find(tab => tab.id === tabId)
+    // 检查标签是否已存在（只检查 list 类型的标签）
+    const existingTab = tabs.value.find(tab => tab.id === tabId && tab.type === 'list')
     
     if (existingTab) {
       // 标签已存在，激活它
@@ -115,11 +136,93 @@ export function useWorkspaceTabs() {
       }
     } else {
       // 创建新标签
-      const newTab = createTabFromNode(node)
+      const newTab = createTabFromNode(node, 'list')
       
       // 如果标签数量超过限制，删除最旧的标签
       if (tabs.value.length >= MAX_TABS) {
         tabs.value.shift()  // 删除第一个（最旧的）
+      }
+      
+      tabs.value.push(newTab)
+      activeTabId.value = tabId
+      
+      // 更新路由
+      router.push(newTab.path)
+    }
+    
+    saveTabs()
+  }
+
+  /**
+   * 添加新增标签
+   */
+  function addCreateTab(node: ServiceTree) {
+    if (node.type !== 'function') {
+      return
+    }
+
+    const fullCodePath = node.full_code_path || ''
+    const tabId = `${fullCodePath || `node-${node.id}`}-create`
+    
+    // 检查是否已存在新增标签
+    const existingTab = tabs.value.find(tab => tab.id === tabId)
+    
+    if (existingTab) {
+      // 已存在，激活它
+      activeTabId.value = tabId
+      if (existingTab.path !== route.path) {
+        router.push(existingTab.path)
+      }
+    } else {
+      // 创建新标签
+      const newTab = createTabFromNode(node, 'create')
+      
+      // 如果标签数量超过限制，删除最旧的标签
+      if (tabs.value.length >= MAX_TABS) {
+        tabs.value.shift()
+      }
+      
+      tabs.value.push(newTab)
+      activeTabId.value = tabId
+      
+      // 更新路由
+      router.push(newTab.path)
+    }
+    
+    saveTabs()
+  }
+
+  /**
+   * 添加编辑标签
+   */
+  function addEditTab(node: ServiceTree, rowId: number, initialData?: Record<string, any>) {
+    if (node.type !== 'function') {
+      return
+    }
+
+    const fullCodePath = node.full_code_path || ''
+    const tabId = `${fullCodePath || `node-${node.id}`}-edit-${rowId}`
+    
+    // 检查是否已存在编辑标签（同一个记录的编辑标签）
+    const existingTab = tabs.value.find(tab => tab.id === tabId)
+    
+    if (existingTab) {
+      // 已存在，激活它
+      activeTabId.value = tabId
+      if (existingTab.path !== route.path) {
+        router.push(existingTab.path)
+      }
+    } else {
+      // 创建新标签
+      const newTab = createTabFromNode(node, 'edit')
+      newTab.id = tabId
+      newTab.name = `编辑 - ${newTab.function?.name || '未命名'}`
+      newTab.rowId = rowId
+      newTab.initialData = initialData
+      
+      // 如果标签数量超过限制，删除最旧的标签
+      if (tabs.value.length >= MAX_TABS) {
+        tabs.value.shift()
       }
       
       tabs.value.push(newTab)
@@ -256,6 +359,8 @@ export function useWorkspaceTabs() {
     activeTabId,
     activeTab,
     addOrActivateTab,
+    addCreateTab,
+    addEditTab,
     switchTab,
     closeTab,
     closeOtherTabs,
