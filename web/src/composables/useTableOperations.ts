@@ -15,7 +15,7 @@
 
 import { ref, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import { executeFunction, tableAddRow, tableUpdateRow, tableDeleteRows } from '@/api/function'
 import { buildSearchParamsString, buildURLSearchParams } from '@/utils/searchParams'
 import { denormalizeSearchValue } from '@/utils/searchValueNormalizer'
@@ -1042,7 +1042,14 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
   const handleAdd = async (data: Record<string, any>): Promise<boolean> => {
     try {
       await tableAddRow(functionData.method, functionData.router, data)
-      ElMessage.success('新增成功')
+      // 🔥 使用 ElNotification 显示更漂亮的提示
+      ElNotification({
+        title: '新增成功',
+        message: '记录已成功添加',
+        type: 'success',
+        duration: 3000,
+        position: 'top-right'
+      })
       await loadTableData()
       return true
     } catch (error: any) {
@@ -1088,7 +1095,7 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
       }
       
       await tableUpdateRow(functionData.method, functionData.router, updateData)
-      ElMessage.success('更新成功')
+      // 🔥 不显示成功提示，因为 Notification 组件已经显示更漂亮的提示了
       await loadTableData()
       return true
     } catch (error: any) {

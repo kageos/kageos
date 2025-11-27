@@ -406,7 +406,7 @@ defineOptions({
 
 import { computed, ref, watch, h, nextTick, onMounted, onUpdated, onUnmounted, isVNode, defineComponent } from 'vue'
 import { Search, Refresh, Edit, Delete, Plus, ArrowLeft, ArrowRight, DocumentCopy, Document, Download, ArrowUp, ArrowDown, More, Right } from '@element-plus/icons-vue'
-import { ElIcon, ElButton, ElMessage, ElDropdown, ElDropdownMenu, ElDropdownItem } from 'element-plus'
+import { ElIcon, ElButton, ElMessage, ElNotification, ElDropdown, ElDropdownMenu, ElDropdownItem } from 'element-plus'
 import { formatTimestamp } from '@/utils/date'
 import { useTableOperations } from '@/composables/useTableOperations'
 import { widgetComponentFactory } from '@/core/factories-v2'
@@ -1347,10 +1347,11 @@ const handleDetailSave = async (): Promise<void> => {
       // 3. 刷新当前记录数据
       await refreshCurrentDetailRow()
       
-      // 4. 切换回查看模式
+      // 4. 关闭抽屉（保存成功后关闭）
+      showDetailDrawer.value = false
       detailMode.value = 'view'
       
-      ElMessage.success('保存成功')
+      // 🔥 不显示成功通知，因为 Notification 组件已经显示更漂亮的提示了
     }
   } catch (error: any) {
     Logger.error('TableRenderer', '保存失败', error)
@@ -1358,7 +1359,14 @@ const handleDetailSave = async (): Promise<void> => {
       || error?.response?.data?.message 
       || error?.message 
       || '保存失败'
-    ElMessage.error(errorMessage)
+    // 🔥 使用 ElNotification 替代 ElMessage，确保显示在抽屉上方（z-index 更高）
+    ElNotification({
+      title: '保存失败',
+      message: errorMessage,
+      type: 'error',
+      duration: 5000,
+      position: 'top-right'
+    })
   } finally {
     detailSubmitting.value = false
   }
@@ -2242,11 +2250,11 @@ onUnmounted(() => {
 
 /* 🔥 详情抽屉样式 - 参考旧版本设计 */
 .detail-drawer {
-  /* 🔥 确保抽屉显示在 tab 页面之上 */
-  z-index: 3000 !important;
+  /* 🔥 确保抽屉显示在 tab 页面之上，但低于 ElMessage 和 ElNotification */
+  z-index: 2999 !important;
   
   :deep(.el-drawer) {
-    z-index: 3000 !important;
+    z-index: 2999 !important;
   }
   
   :deep(.el-drawer__header) {
@@ -2394,4 +2402,5 @@ onUnmounted(() => {
   }
 }
 </style>
+
 
