@@ -1,8 +1,8 @@
 package widget
 
 type Checkbox struct {
-	Options []string `json:"options"` // 选项列表
-	Default []string `json:"default"` // 默认选中项（逗号分隔）
+	Options []string `json:"options,omitempty"` // 选项列表
+	Default []string `json:"default,omitempty"` // 默认选中项（逗号分隔）
 }
 
 func (c *Checkbox) Config() interface{} {

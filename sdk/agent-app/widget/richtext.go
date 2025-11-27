@@ -4,7 +4,7 @@ import "strconv"
 
 type RichText struct {
 	// 可选参数（有合理默认值）
-	Height int `json:"height"` // 编辑器高度（单位：px，默认300）
+	Height int `json:"height,omitempty"` // 编辑器高度（单位：px，默认300）
 }
 
 func (r *RichText) Config() interface{} {

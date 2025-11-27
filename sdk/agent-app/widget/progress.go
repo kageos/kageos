@@ -3,9 +3,9 @@ package widget
 import "strconv"
 
 type Progress struct {
-	Min  float64 `json:"min"`  // 最小值，默认 0
-	Max  float64 `json:"max"`  // 最大值，默认 100
-	Unit string  `json:"unit"` // 单位（如：%、人、次等），默认 %
+	Min  float64 `json:"min,omitempty"`  // 最小值，默认 0
+	Max  float64 `json:"max,omitempty"`  // 最大值，默认 100
+	Unit string  `json:"unit,omitempty"` // 单位（如：%、人、次等），默认 %
 }
 
 func (p *Progress) Config() interface{} {

@@ -2,7 +2,7 @@ package widget
 
 // Text 这个参数一般在输出参数中用
 type Text struct {
-	Format string `json:"format"` //json，yaml，xml，markdown，html，csv 等等
+	Format string `json:"format,omitempty"` // json，yaml，xml，markdown，html，csv 等等
 }
 
 func (t *Text) Config() interface{} {
