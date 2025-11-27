@@ -56,10 +56,12 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Link, Right, TopRight } from '@element-plus/icons-vue'
+import { useAppEnvironment } from '@/composables/useAppEnvironment'
 import type { WidgetComponentProps } from '../types'
 
 const props = defineProps<WidgetComponentProps>()
 const router = useRouter()
+const { shouldOpenInCurrentWindow, isStandalone } = useAppEnvironment()
 
 // 解析 URL 和文本（后端可能返回 "[text]url" 格式）
 const parsedLink = computed(() => {
@@ -146,18 +148,25 @@ const handleClick = (e: Event) => {
   const url = resolvedUrl.value
   if (!url) return
   
-  // 如果是新窗口打开
-  if (linkConfig.value.target === '_blank') {
+  const target = linkConfig.value.target || '_self'
+  
+  // 判断是否是外链
+  const isExternal = url.startsWith('http://') || url.startsWith('https://')
+  
+  // ⚠️ 关键：在 PWA/桌面环境中，即使配置了 _blank，内部链接也应该在当前窗口打开
+  // 因为新窗口打开会跳转到浏览器，破坏用户体验
+  // 外链仍然使用新窗口打开（因为无法使用路由导航）
+  if (isExternal) {
+    // 外链：始终使用新窗口打开（无论是浏览器还是 PWA 环境）
     window.open(url, '_blank')
   } else {
-    // 当前窗口跳转
-    // resolvedUrl 已经处理了 /workspace 前缀，直接使用
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      // 外链，直接打开
-      window.open(url, '_blank')
-    } else {
-      // 内部链接，直接使用 resolvedUrl（已经包含 /workspace 前缀）
+    // 内部链接
+    if (shouldOpenInCurrentWindow(target)) {
+      // 在当前窗口打开（使用路由导航）
       router.push(url)
+    } else {
+      // 新窗口打开（仅在浏览器环境中，PWA 环境会被 shouldOpenInCurrentWindow 拦截）
+      window.open(url, '_blank')
     }
   }
 }
