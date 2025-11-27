@@ -253,6 +253,8 @@
       direction="rtl"
       size="900px"
       class="detail-drawer"
+      :append-to-body="true"
+      :modal="true"
     >
       <template #header>
         <div class="drawer-header">
@@ -1376,12 +1378,76 @@ const refreshCurrentDetailRow = async (): Promise<void> => {
  * 如果设置 immediate: true，会导致初始化时调用两次 loadTableData()
  */
 watch(() => props.functionData, () => {
-  // 🔥 清空搜索表单，但保留 URL 中的搜索参数（restoreFromURL 会恢复）
-  searchForm.value = {}
+  // 🔥 清空搜索表单，确保没有残留值
+  // 先清空所有属性，避免对象引用残留
+  Object.keys(searchForm.value).forEach(key => {
+    delete searchForm.value[key]
+  })
   currentPage.value = 1
-  // 🔥 从 URL 恢复状态（包括搜索参数）
-  restoreFromURL()
-  loadTableData()
+  
+  // 🔥 清理 URL 中不属于当前函数的搜索参数
+  // 获取当前函数的所有字段 code
+  const currentFieldCodes = new Set<string>()
+  if (Array.isArray(props.functionData.request)) {
+    props.functionData.request.forEach((field: FieldConfig) => {
+      currentFieldCodes.add(field.code)
+    })
+  }
+  if (Array.isArray(props.functionData.response)) {
+    props.functionData.response.forEach((field: FieldConfig) => {
+      currentFieldCodes.add(field.code)
+    })
+  }
+  
+  // 清理 URL 中不属于当前函数的参数
+  const query = router.currentRoute.value.query
+  const searchParamKeys = ['eq', 'like', 'in', 'contains', 'gte', 'lte']
+  const newQuery: Record<string, string> = {}
+  
+  // 只保留属于当前函数的参数和通用参数（page, page_size, sorts）
+  Object.keys(query).forEach(key => {
+    if (key === 'page' || key === 'page_size' || key === 'sorts') {
+      // 保留分页和排序参数
+      newQuery[key] = String(query[key])
+    } else if (searchParamKeys.includes(key)) {
+      // 对于搜索参数（eq, like, in 等），需要解析并过滤字段
+      const value = String(query[key])
+      const parts = value.split(',')
+      const filteredParts: string[] = []
+      
+      for (const part of parts) {
+        const colonIndex = part.indexOf(':')
+        if (colonIndex > 0) {
+          const fieldCode = part.substring(0, colonIndex).trim()
+          if (currentFieldCodes.has(fieldCode)) {
+            filteredParts.push(part.trim())
+          }
+        }
+      }
+      
+      if (filteredParts.length > 0) {
+        newQuery[key] = filteredParts.join(',')
+      }
+    } else if (currentFieldCodes.has(key)) {
+      // 保留属于当前函数的 request 字段参数
+      newQuery[key] = String(query[key])
+    }
+    // 其他参数（不属于当前函数的）都会被忽略
+  })
+  
+  // 更新 URL（清理不属于当前函数的参数）
+  if (Object.keys(newQuery).length !== Object.keys(query).length || 
+      Object.keys(newQuery).some(key => query[key] !== newQuery[key])) {
+    router.replace({ query: newQuery }).then(() => {
+      // 🔥 URL 更新后，从 URL 恢复状态（只恢复属于当前函数的参数）
+      restoreFromURL()
+      loadTableData()
+    })
+  } else {
+    // 🔥 如果 URL 没有变化，直接恢复状态
+    restoreFromURL()
+    loadTableData()
+  }
 })
 
 // ==================== 修复 fixed 列按钮点击问题 ====================
@@ -1834,6 +1900,13 @@ onUnmounted(() => {
 
 /* 🔥 详情抽屉样式 - 参考旧版本设计 */
 .detail-drawer {
+  /* 🔥 确保抽屉显示在 tab 页面之上 */
+  z-index: 3000 !important;
+  
+  :deep(.el-drawer) {
+    z-index: 3000 !important;
+  }
+  
   :deep(.el-drawer__header) {
     margin-bottom: 0;
     padding: 20px;

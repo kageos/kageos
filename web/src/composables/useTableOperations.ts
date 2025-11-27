@@ -592,6 +592,7 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
    * 1. 解析 URL 参数，恢复搜索表单的值
    * 2. 支持多个字段同时使用相同的搜索类型（如：多个 slider 字段使用 gte/lte）
    * 3. 对于范围搜索（gte/lte），需要区分时间戳类型和数字类型
+   * 4. 🔥 只恢复属于当前函数的字段，避免数据污染
    * 
    * URL 格式示例：
    * - 单个字段：gte=progress:50&lte=progress:80
@@ -599,6 +600,22 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
    */
   const restoreFromURL = (): void => {
     const query = route.query
+    
+    // 🔥 获取当前函数的所有字段 code，用于验证 URL 参数是否属于当前函数
+    const currentRequestFieldCodes = new Set<string>()
+    const currentResponseFieldCodes = new Set<string>()
+    
+    if (Array.isArray(functionData.request)) {
+      functionData.request.forEach(field => {
+        currentRequestFieldCodes.add(field.code)
+      })
+    }
+    
+    if (Array.isArray(functionData.response)) {
+      functionData.response.forEach(field => {
+        currentResponseFieldCodes.add(field.code)
+      })
+    }
     
     // 恢复分页
     if (query.page) {
@@ -614,7 +631,7 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
       }
     }
     
-    // 恢复排序
+    // 恢复排序（只恢复属于当前函数的字段）
     if (query.sorts) {
       const sortsString = String(query.sorts)
       const sortItems: SortItem[] = []
@@ -623,7 +640,9 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
         if (parts.length === 2) {
           const field = parts[0] || ''
           const order = parts[1] as 'asc' | 'desc'
-          if (field && (order === 'asc' || order === 'desc')) {
+          // 🔥 只恢复属于当前函数的字段
+          if (field && (order === 'asc' || order === 'desc') && 
+              (currentRequestFieldCodes.has(field) || currentResponseFieldCodes.has(field))) {
             sortItems.push({ field, order })
           }
         }
@@ -646,9 +665,14 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
     // - 直接从 URL 查询参数中读取：`room_name=测试` → 恢复为 `searchForm.room_name = "测试"`
     
     // 1. 恢复 request 字段（直接从 URL 查询参数中读取，k=v 形式）
+    // 🔥 只恢复属于当前函数的字段
     const requestFields = functionData.request
     if (Array.isArray(requestFields)) {
       requestFields.forEach(field => {
+        // 🔥 验证字段是否属于当前函数（双重检查，确保安全）
+        if (!currentRequestFieldCodes.has(field.code)) {
+          return
+        }
         const value = query[field.code]
         if (value !== undefined && value !== null && value !== '') {
           // 直接使用 URL 中的值
@@ -660,7 +684,13 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
     // 2. 恢复 response 字段（从 URL 查询参数中解析，格式：eq=field:value, like=field:value 等）
     // 格式：eq=field:value 或 eq=field1:value1,field2:value2, like=field:value, in=field:value, gte=field:value, lte=field:value
     // 🔥 支持多个字段使用相同搜索类型，格式：field1:value1,field2:value2
+    // 🔥 只恢复属于当前函数的字段，避免数据污染
     responseSearchableFields.value.forEach(field => {
+      // 🔥 验证字段是否属于当前函数（双重检查，确保安全）
+      if (!currentResponseFieldCodes.has(field.code)) {
+        return
+      }
+      
       const searchType = field.search || ''
       
       if (searchType.includes(SearchType.EQ)) {

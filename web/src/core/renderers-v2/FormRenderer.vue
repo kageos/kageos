@@ -135,7 +135,7 @@ defineOptions({
 })
 
 import { ref, computed, onMounted, onBeforeUnmount, onUnmounted, nextTick, watch, reactive } from 'vue'
-import { ElForm, ElFormItem, ElButton, ElCard, ElMessage, ElIcon, ElTag } from 'element-plus'
+import { ElForm, ElFormItem, ElButton, ElCard, ElMessage, ElMessageBox, ElIcon, ElTag } from 'element-plus'
 import { Promotion, RefreshLeft } from '@element-plus/icons-vue'
 import type { FieldConfig, FunctionDetail, FieldValue } from '../types/field'
 import { useFormDataStore } from '../stores-v2/formData'
@@ -768,7 +768,24 @@ async function handleSubmit(): Promise<void> {
     return
   }
   
-  // 验证通过，开始提交
+  // 🔥 显示确认框，防止误触
+  try {
+    await ElMessageBox.confirm(
+      '确定要提交表单吗？',
+      '确认提交',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+        center: true
+      }
+    )
+  } catch {
+    // 用户取消提交
+    return
+  }
+  
+  // 验证通过，用户确认提交，开始提交
   
   submitting.value = true
   
