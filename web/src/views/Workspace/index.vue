@@ -29,6 +29,21 @@
           
           <!-- 右侧：工具按钮 -->
           <div class="right-section">
+            <!-- PWA 安装按钮 -->
+            <el-tooltip
+              v-if="showInstallButton"
+              content="下载到桌面"
+              placement="bottom"
+            >
+              <el-button
+                circle
+                @click="handleInstall"
+                class="install-button"
+              >
+                <el-icon><Download /></el-icon>
+              </el-button>
+            </el-tooltip>
+            
             <!-- 主题切换按钮 -->
             <ThemeToggle />
             
@@ -398,8 +413,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, ArrowRight, Grid, InfoFilled, Folder, User, ArrowDown, SwitchButton, Setting } from '@element-plus/icons-vue'
-import { ElMessage, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon, ElAvatar, ElDropdown, ElDropdownMenu, ElDropdownItem } from 'element-plus'
+import { ArrowLeft, ArrowRight, Grid, InfoFilled, Folder, User, ArrowDown, SwitchButton, Setting, Download } from '@element-plus/icons-vue'
+import { ElMessage, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon, ElAvatar, ElDropdown, ElDropdownMenu, ElDropdownItem, ElTooltip } from 'element-plus'
 import ServiceTreePanel from '@/components/ServiceTreePanel.vue'
 import TableRenderer from '@/components/TableRenderer.vue'
 import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
@@ -410,6 +425,7 @@ import { getFunctionDetail, getFunctionByPath } from '@/api/function'
 import { createServiceTree } from '@/api/service-tree'
 import { useAppManager } from '@/composables/useAppManager'
 import { useServiceTree } from '@/composables/useServiceTree'
+import { usePWAInstall } from '@/composables/usePWAInstall'
 import { useAuthStore } from '@/stores/auth'
 import { Logger } from '@/core/utils/logger'
 import type { ServiceTree, CreateServiceTreeRequest, CreateAppRequest, Function as FunctionType } from '@/types'
@@ -441,6 +457,10 @@ const {
   locateNodeByRoute,
   handleCreateDirectory: createDirectory
 } = useServiceTree()
+
+// PWA 安装功能
+const { showInstallButton, install: installPWA } = usePWAInstall()
+
 // ServiceTreePanel 的引用
 const serviceTreePanelRef = ref<InstanceType<typeof ServiceTreePanel> | null>(null)
 
@@ -966,6 +986,16 @@ const handleUserCommand = async (command: string) => {
 // 跳转到登录页
 const handleLogin = () => {
   router.push('/login')
+}
+
+// 处理PWA安装
+const handleInstall = async () => {
+  const success = await installPWA()
+  if (success) {
+    ElMessage.success('应用已成功安装到桌面')
+  } else {
+    ElMessage.info('安装已取消')
+  }
 }
 
 // 返回列表
