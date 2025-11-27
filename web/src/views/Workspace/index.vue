@@ -852,6 +852,20 @@ watch(() => serviceTree.value.length, (newLength: number) => {
   }
 })
 
+// 🔥 监听当前函数变化，更新页面标题
+watch(() => currentFunction.value, (newFunction) => {
+  if (newFunction && newFunction.name) {
+    // 如果有当前函数，使用函数名称作为标题
+    document.title = `${newFunction.name} - AI Agent OS`
+  } else if (currentApp.value) {
+    // 如果没有当前函数但有应用，使用应用名称
+    document.title = `${currentApp.value.name} - AI Agent OS`
+  } else {
+    // 默认标题
+    document.title = '工作空间 - AI Agent OS'
+  }
+}, { immediate: true })
+
 // 监听应用切换事件（从 MainLayout 或其他组件发送）
 const handleAppSwitched = async (event: CustomEvent) => {
   const app = event.detail?.app
