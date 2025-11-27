@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+  <text x="8" y="11" 
+        font-family="SF Mono, Monaco, Inconsolata, Roboto Mono, monospace" 
+        font-size="10" 
+        font-weight="600" 
+        font-style="italic"
+        text-anchor="middle" 
+        fill="#6366f1">fx</text>
+</svg> 
