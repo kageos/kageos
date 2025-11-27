@@ -139,7 +139,11 @@ export function useWorkspaceTabs() {
     const tab = tabs.value.find(t => t.id === tabId)
     if (tab) {
       activeTabId.value = tabId
-      router.push(tab.path)
+      // 🔥 使用 replace 而不是 push，避免在历史记录中留下太多记录
+      // 但如果当前路由和标签路由不同，才更新路由
+      if (route.path !== tab.path) {
+        router.push(tab.path)
+      }
       saveTabs()
     }
   }
