@@ -13,7 +13,7 @@
  * - 类型安全：完整的 TypeScript 类型定义
  */
 
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { executeFunction, tableAddRow, tableUpdateRow, tableDeleteRows } from '@/api/function'
@@ -486,15 +486,11 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
   const syncToURL = (): void => {
     const query: Record<string, string> = {}
     
-    // 分页参数
-    if (currentPage.value > 1) {
-      query.page = String(currentPage.value)
-    }
-    if (pageSize.value !== 20) {
-      query.page_size = String(pageSize.value)
-    }
+    // 🔥 分页参数：始终添加到 URL，即使是默认值也要添加，方便分享和恢复状态
+    query.page = String(currentPage.value)
+    query.page_size = String(pageSize.value)
     
-    // 排序参数
+    // 🔥 排序参数：始终添加到 URL（如果有排序的话）
     const finalSorts = sorts.value.length > 0 
       ? sorts.value 
       : (hasManualSort.value ? [] : buildDefaultSorts())
@@ -502,8 +498,7 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
     if (finalSorts.length > 0) {
       query.sorts = finalSorts.map(item => `${item.field}:${item.order}`).join(',')
     }
-    // 🔥 关键：如果排序为空，显式标记为删除（后续会从 URL 中移除）
-    // 注意：不设置 query.sorts，这样在后续处理中会从 URL 中删除
+    // 🔥 关键：如果排序为空，不设置 query.sorts，这样在后续处理中会从 URL 中删除
     
     // ==================== 搜索参数同步到 URL ====================
     // 
@@ -567,8 +562,12 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
     // 1. searchParamKeys（response 字段的搜索参数，如 eq, like, in 等）
     // 2. sorts（因为我们要根据当前状态决定是否保留）
     // 3. request 字段（因为我们要根据当前状态决定是否保留，如果已清空则删除）
+    // 4. 🔥 保留以 _ 开头的参数（前端状态参数，如 _detail_id），这些参数不会被删除
     Object.keys(route.query).forEach(key => {
-      if (!searchParamKeys.includes(key) && key !== 'sorts' && !requestFieldCodes.has(key)) {
+      // 🔥 保留以 _ 开头的参数（前端状态参数）
+      if (key.startsWith('_')) {
+        newQuery[key] = String(route.query[key])
+      } else if (!searchParamKeys.includes(key) && key !== 'sorts' && !requestFieldCodes.has(key)) {
         newQuery[key] = String(route.query[key])
       }
     })
@@ -1001,6 +1000,8 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
         sorts.value = defaultSorts
       }
     }
+    // 🔥 初始化后同步状态到 URL（确保即使 URL 是干净的，也会将当前状态同步到 URL）
+    syncToURL()
     // 🔥 初始化后加载数据
     loadTableData()
   }
@@ -1010,10 +1011,24 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
   
   // 监听 URL 变化，恢复状态（避免循环更新）
   let isRestoringFromURL = false
+  let isSyncingToURL = false
   watch(() => route.query, () => {
+    // 🔥 如果正在同步到 URL，跳过（避免循环）
+    if (isSyncingToURL) return
+    // 🔥 如果正在从 URL 恢复，跳过（避免循环）
     if (isRestoringFromURL) return
+    
     isRestoringFromURL = true
     restoreFromURL()
+    // 🔥 如果 URL 是干净的（没有查询参数），恢复默认状态后同步到 URL
+    const hasQueryParams = Object.keys(route.query).length > 0
+    if (!hasQueryParams) {
+      isSyncingToURL = true
+      nextTick(() => {
+        syncToURL()
+        isSyncingToURL = false
+      })
+    }
     loadTableData().finally(() => {
       isRestoringFromURL = false
     })
