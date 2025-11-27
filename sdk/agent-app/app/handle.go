@@ -117,7 +117,17 @@ func (a *App) handle(req *dto.RequestAppReq) (resp *dto.RequestAppResp, err erro
 
 	var res response.RunFunctionResp
 	err = handleFunc(newContext, &res)
+	appResp := dto.RequestAppResp{Result: res.Data(), TraceId: newContext.msg.TraceId}
 	if err != nil {
+		v, ok := err.(*response.BizErr)
+		if ok {
+			//appResp := dto.RequestAppResp{Result: res.Data(), TraceId: newContext.msg.TraceId}
+			if res.BizError != nil {
+				appResp.ErrCode = -1
+				appResp.Error = fmt.Sprintf("%v", v.Error())
+			}
+			return &appResp, nil
+		}
 		//todo
 		logger.Errorf(ctx, "handleFunc err:%s", err.Error())
 		return &dto.RequestAppResp{Result: nil, ErrCode: 1, Error: err.Error(), TraceId: newContext.msg.TraceId}, err
@@ -128,10 +138,6 @@ func (a *App) handle(req *dto.RequestAppReq) (resp *dto.RequestAppResp, err erro
 	if newContext.msg.Method == "exit" {
 		a.Close()
 	}
-	appResp := dto.RequestAppResp{Result: res.Data(), TraceId: newContext.msg.TraceId}
-	if res.BizError != nil {
-		appResp.ErrCode = -1
-		appResp.Error = fmt.Sprintf("%v", res.BizError)
-	}
+
 	return &appResp, nil
 }

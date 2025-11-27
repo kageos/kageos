@@ -380,6 +380,11 @@
 </template>
 
 <script setup lang="ts">
+// 设置组件名称，用于 keep-alive 缓存
+defineOptions({
+  name: 'TableRenderer'
+})
+
 /**
  * TableRenderer - 表格渲染器组件
  * 

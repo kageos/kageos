@@ -12,6 +12,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AppSelector: typeof import('./src/components/AppSelector.vue')['default']
     AppSwitcher: typeof import('./src/components/AppSwitcher.vue')['default']
     CommonUpload: typeof import('./src/components/CommonUpload.vue')['default']
     ElAlert: typeof import('element-plus/es')['ElAlert']
@@ -83,6 +84,7 @@ declare module 'vue' {
 
 // For TSX support
 declare global {
+  const AppSelector: typeof import('./src/components/AppSelector.vue')['default']
   const AppSwitcher: typeof import('./src/components/AppSwitcher.vue')['default']
   const CommonUpload: typeof import('./src/components/CommonUpload.vue')['default']
   const ElAlert: typeof import('element-plus/es')['ElAlert']

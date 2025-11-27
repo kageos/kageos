@@ -129,6 +129,11 @@
 </template>
 
 <script setup lang="ts">
+// 设置组件名称，用于 keep-alive 缓存
+defineOptions({
+  name: 'FormRenderer'
+})
+
 import { ref, computed, onMounted, onBeforeUnmount, onUnmounted, nextTick, watch, reactive } from 'vue'
 import { ElForm, ElFormItem, ElButton, ElCard, ElMessage, ElIcon, ElTag } from 'element-plus'
 import { Promotion, RefreshLeft } from '@element-plus/icons-vue'

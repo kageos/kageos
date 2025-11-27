@@ -98,6 +98,26 @@
           </div>
         </div>
 
+        <!-- 标签页区域 -->
+        <div v-if="workspaceTabs.length > 0" class="workspace-tabs-container">
+          <el-tabs
+            v-model="activeTabId"
+            type="card"
+            editable
+            class="workspace-tabs"
+            @tab-click="handleTabClick"
+            @edit="handleTabsEdit"
+          >
+            <el-tab-pane
+              v-for="tab in workspaceTabs"
+              :key="tab.id"
+              :label="tab.name"
+              :name="tab.id"
+              :closable="workspaceTabs.length > 1"
+            />
+          </el-tabs>
+        </div>
+
         <!-- 右侧边栏控制按钮 -->
         <div class="sidebar-controls" v-if="currentFunction">
           <div class="right-controls">
@@ -131,7 +151,7 @@
         </div>
         
         <!-- 根据状态显示不同内容 -->
-        <template v-else-if="activeTab === 'create' && currentFunction">
+        <template v-else-if="queryTab === 'create' && currentFunction">
           <!-- Create Tab：新增页面 -->
           <div class="form-page">
             <div class="form-page-header">
@@ -149,7 +169,7 @@
           </div>
         </template>
         
-        <template v-else-if="activeTab === 'edit' && currentFunction">
+        <template v-else-if="queryTab === 'edit' && currentFunction">
           <!-- Edit Tab：编辑页面 -->
           <div class="form-page">
             <div class="form-page-header">
@@ -167,6 +187,22 @@
           </div>
         </template>
         
+        <!-- 标签页内容区域（使用 keep-alive 缓存） -->
+        <div v-if="workspaceTabs.length > 0" class="tabs-content-wrapper">
+          <keep-alive :include="['TableRenderer', 'FormRenderer']">
+            <component
+              :is="getTabComponent(activeTab)"
+              v-if="activeTab && tabFunctionDetails[activeTab.id]"
+              :key="`tab-${activeTab.id}`"
+              v-bind="getTabComponentProps(activeTab)"
+            />
+            <div v-else-if="activeTab" class="loading-container" v-loading="true" element-loading-text="正在加载函数详情...">
+              <div style="height: 400px;"></div>
+            </div>
+          </keep-alive>
+        </div>
+        
+        <!-- 没有标签页时显示原有内容 -->
         <template v-else-if="currentFunction && currentFunction.type === 'function' && functionDetail">
           <!-- Function 类型：显示函数渲染器 -->
           <div class="function-renderer-content">
@@ -414,7 +450,8 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, ArrowRight, Grid, InfoFilled, Folder, User, ArrowDown, SwitchButton, Setting, Download } from '@element-plus/icons-vue'
-import { ElMessage, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon, ElAvatar, ElDropdown, ElDropdownMenu, ElDropdownItem, ElTooltip } from 'element-plus'
+import { ElMessage, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon, ElAvatar, ElDropdown, ElDropdownMenu, ElDropdownItem, ElTooltip, ElTabs, ElTabPane } from 'element-plus'
+import type { TabPaneName } from 'element-plus'
 import ServiceTreePanel from '@/components/ServiceTreePanel.vue'
 import TableRenderer from '@/components/TableRenderer.vue'
 import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
@@ -426,6 +463,7 @@ import { createServiceTree } from '@/api/service-tree'
 import { useAppManager } from '@/composables/useAppManager'
 import { useServiceTree } from '@/composables/useServiceTree'
 import { usePWAInstall } from '@/composables/usePWAInstall'
+import { useWorkspaceTabs } from '@/composables/useWorkspaceTabs'
 import { useAuthStore } from '@/stores/auth'
 import { Logger } from '@/core/utils/logger'
 import type { ServiceTree, CreateServiceTreeRequest, CreateAppRequest, Function as FunctionType } from '@/types'
@@ -449,6 +487,18 @@ const {
   handleDeleteApp
 } = useAppManager()
 
+// 标签页管理
+const {
+  tabs: workspaceTabs,
+  activeTabId,
+  activeTab,
+  addOrActivateTab,
+  switchTab,
+  closeTab,
+  closeOtherTabs,
+  closeAllTabs
+} = useWorkspaceTabs()
+
 const {
   serviceTree,
   loading: loadingTree,
@@ -470,6 +520,8 @@ const loading = ref(false)
 const functionDetail = ref<FunctionType | null>(null)
 // 正在加载函数详情
 const loadingFunctionDetail = ref(false)
+// 标签页对应的函数详情缓存（key: tab.id, value: FunctionDetail）
+const tabFunctionDetails = ref<Record<string, FunctionType>>({})
 
 // 创建应用对话框
 const createAppDialogVisible = ref(false)
@@ -482,8 +534,8 @@ const createAppForm = ref<CreateAppRequest>({
 const currentLocatingPath = ref<string | null>(null)
 // 右侧边栏显示状态
 const showRightSidebar = ref(false)
-// 当前激活的Tab
-const activeTab = computed(() => (route.query.tab as string) || 'run')
+// 当前激活的Tab（用于路由查询参数，控制 create/edit 等模式）
+const queryTab = computed(() => (route.query.tab as string) || 'run')
 // 是否正在加载函数
 const isLoadingFunction = ref(false)
 
@@ -852,6 +904,7 @@ watch(() => serviceTree.value.length, (newLength: number) => {
   }
 })
 
+
 // 🔥 监听当前函数变化，更新页面标题
 watch(() => currentFunction.value, (newFunction) => {
   if (newFunction && newFunction.name) {
@@ -929,38 +982,151 @@ const loadFunctionDetailByPath = async (fullCodePath: string) => {
 // 处理服务目录节点点击
 const handleNodeClick = async (node: ServiceTree) => {
   console.log('点击节点:', node)
-  currentFunction.value = node
-  
-  // 更新路由到当前节点的路径
-  if (node.full_code_path) {
-    // full_code_path格式: /user/app/path...
-    // 去掉开头的 /，作为路由路径
-    const path = node.full_code_path.substring(1)
-    router.push(`/workspace/${path}`)
-  }
   
   if (node.type === 'function') {
-    // 如果是函数，加载函数详情，但默认不展开右侧边栏
-    // showRightSidebar.value = true  // 注释掉，让用户需要时手动展开
-    isLoadingFunction.value = true
-    
-    // 🔥 加载函数详情（优先使用 ref_id，否则使用路径）
-    if (node.ref_id && node.ref_id > 0) {
-      await loadFunctionDetail(node.ref_id)
-    } else if (node.full_code_path) {
-      await loadFunctionDetailByPath(node.full_code_path)
-    } else {
-      console.warn('[Workspace] ⚠️ 节点没有 ref_id 和 full_code_path，无法加载函数详情')
-      ElMessage.warning('无法加载函数详情：节点信息不完整')
+    // 🔥 如果是函数，添加到标签页或激活已有标签
+    addOrActivateTab(node)
+    // 加载函数详情到缓存
+    const tab = workspaceTabs.value.find(t => t.id === (node.full_code_path || `node-${node.id}`))
+    if (tab) {
+      await loadTabFunctionDetail(tab)
     }
-    
-    isLoadingFunction.value = false
   } else {
-    // 如果是包，隐藏右侧边栏，清空函数详情
+    // 如果是包，不添加标签，直接更新路由
+    currentFunction.value = node
+    if (node.full_code_path) {
+      const path = node.full_code_path.substring(1)
+      router.push(`/workspace/${path}`)
+    }
     showRightSidebar.value = false
     functionDetail.value = null
   }
 }
+
+// 处理标签页点击
+const handleTabClick = (tab: any) => {
+  if (tab.name) {
+    switchTab(tab.name as string)
+  }
+}
+
+// 处理标签页编辑（添加/删除）
+const handleTabsEdit = (targetName: TabPaneName | undefined, action: 'remove' | 'add') => {
+  if (action === 'remove' && targetName) {
+    closeTab(targetName as string)
+    // 清理对应的函数详情缓存
+    delete tabFunctionDetails.value[targetName as string]
+  }
+}
+
+// 加载标签对应的函数详情
+const loadTabFunctionDetail = async (tab: import('@/composables/useWorkspaceTabs').WorkspaceTab) => {
+  if (tabFunctionDetails.value[tab.id]) {
+    // 已缓存，直接返回
+    return
+  }
+  
+  if (!tab.function) return
+  
+  const node = tab.function
+  try {
+    let detail: FunctionType | null = null
+    if (node.ref_id && node.ref_id > 0) {
+      detail = await getFunctionDetail(node.ref_id)
+    } else if (node.full_code_path) {
+      detail = await getFunctionByPath(node.full_code_path)
+    }
+    
+    if (detail) {
+      tabFunctionDetails.value[tab.id] = detail
+    }
+  } catch (error: any) {
+    console.error('[Workspace] 加载标签函数详情失败:', error)
+    ElMessage.error(error?.response?.data?.message || error?.message || '加载函数详情失败')
+  }
+}
+
+// 获取标签页对应的组件
+const getTabComponent = (tab: import('@/composables/useWorkspaceTabs').WorkspaceTab | null) => {
+  if (!tab || !tabFunctionDetails.value[tab.id]) {
+    return null
+  }
+  
+  const detail = tabFunctionDetails.value[tab.id]
+  if (detail.template_type === 'table') {
+    return TableRenderer
+  } else if (detail.template_type === 'form') {
+    return FormRenderer
+  }
+  return null
+}
+
+// 获取标签页组件的 props
+const getTabComponentProps = (tab: import('@/composables/useWorkspaceTabs').WorkspaceTab | null) => {
+  if (!tab || !tabFunctionDetails.value[tab.id]) {
+    return {}
+  }
+  
+  const detail = tabFunctionDetails.value[tab.id]
+  if (detail.template_type === 'table') {
+    return {
+      functionData: detail,
+      currentFunction: tab.function
+    }
+  } else if (detail.template_type === 'form') {
+    return {
+      functionDetail: detail,
+      initialData: {}
+    }
+  }
+  return {}
+}
+
+// 🔥 监听标签切换，自动加载函数详情（必须在 loadTabFunctionDetail 定义之后）
+watch(activeTabId, async (newTabId) => {
+  if (!newTabId) {
+    currentFunction.value = null
+    functionDetail.value = null
+    return
+  }
+  
+  const tab = workspaceTabs.value.find(t => t.id === newTabId)
+  if (tab) {
+    // 如果标签有缓存的函数节点，直接使用
+    if (tab.function) {
+      currentFunction.value = tab.function
+    } else {
+      // 如果没有缓存的函数节点，需要从服务树中查找
+      const findNodeByPath = (nodes: ServiceTree[], targetPath: string): ServiceTree | null => {
+        for (const node of nodes) {
+          if (node.full_code_path === targetPath) {
+            return node
+          }
+          if (node.children && node.children.length > 0) {
+            const found = findNodeByPath(node.children, targetPath)
+            if (found) return found
+          }
+        }
+        return null
+      }
+      
+      if (tab.fullCodePath) {
+        const node = findNodeByPath(serviceTree.value, tab.fullCodePath)
+        if (node) {
+          tab.function = node
+          currentFunction.value = node
+        }
+      }
+    }
+    
+    // 加载函数详情（如果还没有缓存）
+    await loadTabFunctionDetail(tab)
+    // 同步到 functionDetail（用于兼容没有标签页的情况）
+    if (tabFunctionDetails.value[tab.id]) {
+      functionDetail.value = tabFunctionDetails.value[tab.id]
+    }
+  }
+}, { immediate: false }) // 改为 false，避免初始化时执行
 
 // 切换右侧边栏
 const toggleRightSidebar = () => {
@@ -1165,6 +1331,14 @@ onMounted(() => {
     console.log('[Workspace] 当前应用:', currentApp.value ? `${currentApp.value.user}/${currentApp.value.code}` : 'null')
     console.log('[Workspace] 服务树节点数:', serviceTree.value.length)
     console.log('[Workspace] 当前路径:', window.location.pathname)
+    
+    // 🔥 如果有激活的标签，确保加载函数详情
+    if (activeTabId.value && workspaceTabs.value.length > 0) {
+      const tab = workspaceTabs.value.find(t => t.id === activeTabId.value)
+      if (tab && !tabFunctionDetails.value[tab.id]) {
+        loadTabFunctionDetail(tab)
+      }
+    }
     
     // 检查 URL 参数中是否有新克隆的路径
     checkAndExpandForkedPaths()
@@ -1552,5 +1726,28 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+/* 标签页样式 */
+.workspace-tabs-container {
+  border-bottom: 1px solid var(--el-border-color-light);
+  background: var(--el-bg-color);
+}
+
+.workspace-tabs {
+  margin: 0;
+}
+
+.tabs-content-wrapper {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.tab-content {
+  flex: 1;
+  overflow: auto;
+  height: 100%;
 }
 </style>
