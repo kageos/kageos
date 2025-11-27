@@ -103,8 +103,8 @@ router.beforeEach(async (to, from, next) => {
     hasToken: !!authStore.token
   })
 
-  // 设置页面标题
-  if (to.meta?.title) {
+  // 设置页面标题（Workspace页面会通过watch动态更新，这里只设置默认标题）
+  if (to.meta?.title && !to.path.startsWith('/workspace')) {
     document.title = `${to.meta.title} - ${import.meta.env.VITE_APP_TITLE || 'AI Agent OS'}`
   }
 
