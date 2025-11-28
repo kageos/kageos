@@ -127,7 +127,7 @@ const isFieldRequired = (field: FieldConfig): boolean => {
   return hasAnyRequiredRule(field.validation || '')
 }
 
-const handleFieldUpdate = (fieldCode: string, value: FieldValue): void {
+const handleFieldUpdate = (fieldCode: string, value: FieldValue): void => {
   applicationService.updateFieldValue(fieldCode, value)
 }
 
