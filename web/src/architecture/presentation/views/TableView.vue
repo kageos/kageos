@@ -79,6 +79,14 @@
             编辑
           </el-button>
           <el-button
+            type="info"
+            link
+            size="small"
+            @click="handleDetail(row)"
+          >
+            详情
+          </el-button>
+          <el-button
             v-if="hasDeleteCallback"
             type="danger"
             size="small"
@@ -217,6 +225,10 @@ const handleAdd = async (): Promise<void> => {
 const handleEdit = async (row: TableRow): Promise<void> => {
   // TODO: 打开编辑对话框
   console.log('编辑', row)
+}
+
+const handleDetail = (row: TableRow): void => {
+  eventBus.emit('table:detail-row', { row })
 }
 
 const handleDelete = async (row: TableRow): Promise<void> => {

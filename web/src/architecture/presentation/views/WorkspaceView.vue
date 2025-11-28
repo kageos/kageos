@@ -116,13 +116,39 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- 详情抽屉 -->
+    <el-drawer
+      v-model="detailDrawerVisible"
+      :title="detailDrawerTitle"
+      size="50%"
+      destroy-on-close
+    >
+      <div v-if="detailRowData" class="detail-content">
+        <!-- 复用 FormView 但使用 detail 模式 -->
+        <!-- 这里我们需要一个能渲染详情的组件，可以使用 WidgetComponent 遍历 response 字段 -->
+        <el-form label-width="120px">
+          <el-form-item
+            v-for="field in detailFields"
+            :key="field.code"
+            :label="field.name"
+          >
+            <WidgetComponent
+              :field="field"
+              :value="getDetailFieldValue(field.code)"
+              mode="detail"
+            />
+          </el-form-item>
+        </el-form>
+      </div>
+    </el-drawer>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, watch, ref, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon, ElTabs, ElTabPane } from 'element-plus'
+import { ElMessage, ElMessageBox, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon, ElTabs, ElTabPane, ElDrawer } from 'element-plus'
 import { InfoFilled } from '@element-plus/icons-vue'
 import { eventBus, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
@@ -131,11 +157,11 @@ import ServiceTreePanel from '@/components/ServiceTreePanel.vue'
 import AppSwitcher from '@/components/AppSwitcher.vue'
 import FormView from './FormView.vue'
 import TableView from './TableView.vue'
+import WidgetComponent from '../widgets/WidgetComponent.vue'
 import type { ServiceTree, App } from '../../domain/services/WorkspaceDomainService'
 import type { FunctionDetail } from '../../domain/interfaces/IFunctionLoader'
 import type { App as AppType, CreateAppRequest, ServiceTree as ServiceTreeType } from '@/types'
-
-const route = useRoute()
+import type { FieldConfig, FieldValue } from '../../domain/types'
 const router = useRouter()
 
 // 依赖注入（使用 ServiceFactory 简化）
@@ -252,6 +278,35 @@ const currentFunctionDetail = computed<FunctionDetail | null>(() => {
   if (!node) return null
   return stateManager.getFunctionDetail(node)
 })
+
+const detailDrawerVisible = ref(false)
+const detailDrawerTitle = ref('详情')
+const detailRowData = ref<Record<string, any> | null>(null)
+const detailFields = ref<FieldConfig[]>([])
+
+// 监听表格详情事件
+onMounted(() => {
+  eventBus.on('table:detail-row', ({ row }: { row: Record<string, any> }) => {
+    if (!currentFunctionDetail.value) return
+    
+    detailRowData.value = row
+    detailDrawerTitle.value = currentFunctionDetail.value.name || '详情'
+    // 使用响应参数作为详情字段
+    detailFields.value = (currentFunctionDetail.value.response || []) as FieldConfig[]
+    detailDrawerVisible.value = true
+  })
+})
+
+// 获取详情字段值
+const getDetailFieldValue = (fieldCode: string): FieldValue => {
+  if (!detailRowData.value) return { raw: null, display: '', meta: {} }
+  const value = detailRowData.value[fieldCode]
+  return { 
+    raw: value, 
+    display: typeof value === 'object' ? JSON.stringify(value) : String(value ?? ''), 
+    meta: {} 
+  }
+}
 
 // 应用列表管理
 const appList = ref<AppType[]>([])
