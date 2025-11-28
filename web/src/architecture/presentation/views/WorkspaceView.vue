@@ -176,11 +176,28 @@ const handleNodeClick = (node: ServiceTreeType) => {
 const loadAppList = async (): Promise<void> => {
   try {
     loadingApps.value = true
-    const items = await apiClient.get<AppType[]>('/api/v1/app/list')
-    appList.value = items || []
+    const response = await apiClient.get<any>('/api/v1/app/list', {
+      page_size: 200,
+      page: 1
+    })
+    
+    // API 返回的是分页对象 { page, page_size, total_count, items: App[] }
+    // 需要提取 items 数组
+    if (response && typeof response === 'object') {
+      if (Array.isArray(response)) {
+        appList.value = response
+      } else if ('items' in response && Array.isArray(response.items)) {
+        appList.value = response.items
+      } else {
+        appList.value = []
+      }
+    } else {
+      appList.value = []
+    }
   } catch (error) {
     console.error('[WorkspaceView] 加载应用列表失败', error)
     ElMessage.error('加载应用列表失败')
+    appList.value = []
   } finally {
     loadingApps.value = false
   }
@@ -195,11 +212,11 @@ const handleSwitchApp = async (app: AppType): Promise<void> => {
     name: app.name
   }
   
-  // 更新路由
-  await router.push(`/workspace-v2/${app.user}/${app.code}`)
-  
   // 切换应用（这会触发服务树加载）
   await applicationService.triggerAppSwitch(appForService)
+  
+  // 更新路由（切换应用后再更新路由，避免路由变化触发重复加载）
+  await router.push(`/workspace-v2/${app.user}/${app.code}`)
 }
 
 // 显示创建应用对话框
