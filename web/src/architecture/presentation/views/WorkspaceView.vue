@@ -217,15 +217,6 @@ const handleSwitchApp = async (app: AppType): Promise<void> => {
     return
   }
 
-  // 🔥 检查是否正在切换到同一个应用
-  if (String(pendingAppId.value) === String(targetAppId)) {
-    console.log('[WorkspaceView] 正在切换到该应用，无需重复触发')
-    return
-  }
-  
-  // 记录正在切换的应用 ID
-  pendingAppId.value = targetAppId
-  
   try {
     const appForService: App = {
       id: app.id,
@@ -244,9 +235,7 @@ const handleSwitchApp = async (app: AppType): Promise<void> => {
     }
   } catch (error) {
     console.error('[WorkspaceView] 切换应用失败', error)
-    pendingAppId.value = null // 失败时重置
   }
-  // 注意：成功时不重置 pendingAppId，直到收到 appSwitched 事件或 serviceTreeLoaded 事件确认切换完成
 }
 
 // 显示创建应用对话框
