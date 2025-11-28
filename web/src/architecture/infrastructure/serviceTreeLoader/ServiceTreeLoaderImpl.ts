@@ -47,18 +47,34 @@ export class ServiceTreeLoaderImpl implements IServiceTreeLoader {
     // 创建新的加载 Promise
     const loadPromise = (async () => {
       try {
+        console.log('[ServiceTreeLoader] 开始加载服务目录树:', app.user, app.code)
         // 注意：API 路径是 /api/v1/service_tree（下划线），不是 /api/v1/service-tree/list
-        const tree = await this.apiClient.get<ServiceTree[]>('/api/v1/service_tree', {
+        const response = await this.apiClient.get<any>('/api/v1/service_tree', {
           user: app.user,
           app: app.code
         })
-        return tree || []
+        
+        console.log('[ServiceTreeLoader] API 响应:', response)
+        
+        // 处理响应数据：可能是数组，也可能是分页对象
+        let tree: ServiceTree[] = []
+        if (Array.isArray(response)) {
+          tree = response
+        } else if (response && typeof response === 'object' && 'items' in response) {
+          tree = response.items || []
+        } else if (response && typeof response === 'object' && 'data' in response) {
+          tree = Array.isArray(response.data) ? response.data : []
+        }
+        
+        console.log('[ServiceTreeLoader] 解析后的服务目录树，节点数:', tree.length)
+        return tree
       } catch (error) {
         console.error('[ServiceTreeLoader] 加载服务目录树失败', error)
         return []
       } finally {
         // 加载完成后，从 Map 中移除
         this.loadingPromises.delete(cacheKey)
+        console.log('[ServiceTreeLoader] 清理加载 Promise:', cacheKey)
       }
     })()
 
