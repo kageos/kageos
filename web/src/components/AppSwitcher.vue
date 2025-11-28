@@ -77,7 +77,7 @@
                   v-for="app in appList" 
                   :key="app.id" 
                   class="app-item"
-                  :class="{ 'is-active': app.id === currentApp.id }"
+                  :class="{ 'is-active': currentApp && app.id === currentApp.id }"
                   @click="handleSwitchApp(app)"
                 >
                   <div class="item-avatar">
