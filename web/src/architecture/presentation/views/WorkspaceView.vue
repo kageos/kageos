@@ -121,8 +121,11 @@
     <el-drawer
       v-model="detailDrawerVisible"
       :title="detailDrawerTitle"
-      size="50%"
+      size="40%"
       destroy-on-close
+      :modal="true"
+      :close-on-click-modal="true"
+      class="detail-drawer"
     >
       <div v-if="detailRowData" class="detail-content">
         <!-- 复用 FormView 但使用 detail 模式 -->
@@ -701,12 +704,19 @@ onUnmounted(() => {
   overflow: auto;
 }
 
-.empty-state {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.detail-drawer :deep(.el-drawer__header) {
+  margin-bottom: 0;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.detail-drawer :deep(.el-drawer__body) {
+  padding: 20px;
+  overflow: auto;
+}
+
+.detail-content {
   height: 100%;
-  color: var(--el-text-color-secondary);
 }
 </style>
 
