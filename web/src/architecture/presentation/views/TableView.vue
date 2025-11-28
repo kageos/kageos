@@ -48,7 +48,6 @@
       :data="tableData"
       v-loading="loading"
       style="width: 100%"
-      border
       @sort-change="handleSortChange"
     >
       <el-table-column
@@ -285,24 +284,38 @@ onUnmounted(() => {
   flex: 1;
   overflow: auto;
   --el-table-border-color: var(--el-border-color-lighter);
+  --el-table-border: none; /* 移除所有边框变量 */
 }
 
+/* 移除外层边框 */
 :deep(.el-table__inner-wrapper::before) {
-  display: none; /* 移除底部边框 */
+  display: none;
 }
 
+:deep(.el-table__border-left-patch) {
+  display: none;
+}
+
+/* 移除所有边框 */
 :deep(.el-table--border) {
-  border-right: none;
+  border: none;
 }
 
 :deep(.el-table--border .el-table__cell) {
   border-right: none;
 }
 
+/* 仅保留行底部分隔线 */
+:deep(.el-table td.el-table__cell),
+:deep(.el-table th.el-table__cell.is-leaf) {
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
 :deep(.el-table__header th.el-table__cell) {
   background-color: var(--el-fill-color-light);
   color: var(--el-text-color-primary);
   font-weight: 600;
+  border-top: none;
 }
 
 .el-pagination {
