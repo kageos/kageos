@@ -123,7 +123,7 @@
       :title="detailDrawerTitle"
       size="40%"
       destroy-on-close
-      :modal="true"
+      :modal="false"
       :close-on-click-modal="true"
       class="detail-drawer"
     >
