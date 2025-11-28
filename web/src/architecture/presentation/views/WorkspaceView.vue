@@ -154,6 +154,9 @@ const currentFunctionDetail = computed<FunctionDetail | null>(() => {
 const appList = ref<AppType[]>([])
 const loadingApps = ref(false)
 
+// 🔥 防止路由变化时重复加载的标志位
+const isSwitchingApp = ref(false)
+
 // 创建应用对话框
 const createAppDialogVisible = ref(false)
 const creatingApp = ref(false)
@@ -213,21 +216,31 @@ const handleSwitchApp = async (app: AppType): Promise<void> => {
     return
   }
   
-  const appForService: App = {
-    id: app.id,
-    user: app.user,
-    code: app.code,
-    name: app.name
-  }
+  // 🔥 设置标志位，防止路由变化时重复加载
+  isSwitchingApp.value = true
   
-  // 切换应用（这会触发服务树加载）
-  await applicationService.triggerAppSwitch(appForService)
-  
-  // 更新路由（切换应用后再更新路由，避免路由变化触发重复加载）
-  // 🔥 检查路由是否已经是目标路由，避免不必要的路由更新
-  const targetPath = `/workspace-v2/${app.user}/${app.code}`
-  if (route.path !== targetPath) {
-    await router.push(targetPath)
+  try {
+    const appForService: App = {
+      id: app.id,
+      user: app.user,
+      code: app.code,
+      name: app.name
+    }
+    
+    // 切换应用（这会触发服务树加载）
+    await applicationService.triggerAppSwitch(appForService)
+    
+    // 更新路由（切换应用后再更新路由，避免路由变化触发重复加载）
+    // 🔥 检查路由是否已经是目标路由，避免不必要的路由更新
+    const targetPath = `/workspace-v2/${app.user}/${app.code}`
+    if (route.path !== targetPath) {
+      await router.push(targetPath)
+    }
+  } finally {
+    // 🔥 延迟重置标志位，确保路由变化监听能正确判断
+    setTimeout(() => {
+      isSwitchingApp.value = false
+    }, 100)
   }
 }
 
@@ -324,6 +337,12 @@ const handleDeleteApp = async (app: AppType): Promise<void> => {
 
 // 从路由解析应用并加载
 const loadAppFromRoute = async () => {
+  // 🔥 如果正在切换应用，跳过路由加载，避免重复触发
+  if (isSwitchingApp.value) {
+    console.log('[WorkspaceView] 正在切换应用，跳过路由加载')
+    return
+  }
+  
   // 支持 /workspace-v2 和 /workspace 两种路径
   const fullPath = route.path
     .replace('/workspace-v2/', '')
@@ -375,16 +394,27 @@ const loadAppFromRoute = async () => {
       name: app.name
     }
     
-    // 切换应用（这会触发服务树加载）
-    await applicationService.triggerAppSwitch(appForService)
+    // 🔥 设置标志位，防止重复触发
+    isSwitchingApp.value = true
     
-    // 如果路径中有更多段，尝试定位节点
-    if (pathSegments.length > 2) {
-      const functionPath = pathSegments.slice(2).join('/')
-      // TODO: 根据路径定位节点
+    try {
+      // 切换应用（这会触发服务树加载）
+      await applicationService.triggerAppSwitch(appForService)
+      
+      // 如果路径中有更多段，尝试定位节点
+      if (pathSegments.length > 2) {
+        const functionPath = pathSegments.slice(2).join('/')
+        // TODO: 根据路径定位节点
+      }
+    } finally {
+      // 🔥 延迟重置标志位
+      setTimeout(() => {
+        isSwitchingApp.value = false
+      }, 100)
     }
   } catch (error) {
     console.error('[WorkspaceView] 加载应用失败', error)
+    isSwitchingApp.value = false
   }
 }
 
