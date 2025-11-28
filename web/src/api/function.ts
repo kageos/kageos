@@ -1,5 +1,6 @@
 import { get, post, put, del } from '@/utils/request'
-import type { Function, FieldConfig, SearchParams, TableResponse } from '@/types'
+import type { Function, SearchParams, TableResponse } from '@/types'
+import type { FieldConfig } from '@/core/types/field'
 
 // 获取函数详情
 export function getFunctionDetail(functionId: number) {

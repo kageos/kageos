@@ -87,11 +87,27 @@ export interface CreateServiceTreeRequest {
   tags?: string
 }
 
+// 🔥 统一类型系统：从 core/types/field 重新导出 Widget 相关类型
+// 保持向后兼容，旧代码可以继续使用 @/types 导入
+export type { 
+  FieldConfig, 
+  WidgetConfig, 
+  FieldValue,
+  FieldMeta,
+  FunctionDetail,
+  WidgetMode,
+  ValidationRule,
+  PermissionConfig
+} from '@/core/types/field'
+
+// 导出 WidgetTypes 命名空间（推荐新代码使用）
+export { WidgetTypes } from '@/core/types/field'
+
 // 函数相关类型
 export interface Function {
   id: number
   request: any
-  response: FieldConfig[]
+  response: FieldConfig[]  // 🔥 使用统一的 FieldConfig 类型
   app_id: number
   tree_id: number
   method: string
@@ -102,33 +118,6 @@ export interface Function {
   template_type: string
   created_at: string
   updated_at: string
-}
-
-// 字段配置类型
-export interface FieldConfig {
-  code: string
-  name: string
-  data: {
-    type: string
-    format?: string
-    source?: string
-    example?: string
-    default_value?: string
-  }
-  desc?: string
-  search?: string | null
-  table_permission?: string | null
-  widget: WidgetConfig
-  callbacks?: any
-  permission?: string | null
-  validation?: string
-  depend_on?: string  // 🔥 依赖的字段 code，当依赖字段值变化时，该字段会被清空
-}
-
-// 组件配置类型
-export interface WidgetConfig {
-  type: string
-  config: Record<string, any>
 }
 
 // 组件类型枚举

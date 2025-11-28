@@ -106,8 +106,13 @@ export class TableApplicationService {
   /**
    * 更新行（供外部调用）
    */
-  async updateRow(functionDetail: FunctionDetail, id: number | string, data: Record<string, any>): Promise<any> {
-    const result = await this.domainService.updateRow(functionDetail, id, data)
+  async updateRow(
+    functionDetail: FunctionDetail,
+    id: number | string,
+    data: Record<string, any>,
+    oldData?: Record<string, any>
+  ): Promise<any> {
+    const result = await this.domainService.updateRow(functionDetail, id, data, oldData)
     // 重新加载数据
     await this.loadData(functionDetail)
     return result

@@ -196,7 +196,7 @@ const handleSelectUser = (user: UserInfo) => {
     isInternalUpdate.value = true
     // 更新 modelValue（确保是数组格式）
     const usernames = extractUsernames(selectedUsers.value)
-    console.log('[UserSearchInput] handleSelectUser 更新 modelValue:', usernames)
+    // console.log('[UserSearchInput] handleSelectUser 更新 modelValue:', usernames) // 🔥 调试日志已注释
     emit('update:modelValue', props.multiple ? usernames : (usernames.length > 0 ? usernames[0] : null))
     // 🔥 重置内部更新标记（延迟一点，确保 watch 不会触发）
     setTimeout(() => {
@@ -291,27 +291,27 @@ const initSelectedUsers = async () => {
     return
   }
   
-  console.log('[UserSearchInput] initSelectedUsers usernames:', usernames)
+  // console.log('[UserSearchInput] initSelectedUsers usernames:', usernames) // 🔥 调试日志已注释
 
   // 🔥 检查当前 selectedUsers 是否已经包含了所有需要的用户（按顺序）
   const currentUsernames = extractUsernames(selectedUsers.value)
   
   // 如果用户名列表相同（顺序和内容），直接返回
   if (isUsernameListEqual(usernames, currentUsernames)) {
-    console.log('[UserSearchInput] initSelectedUsers 无需更新')
+    // console.log('[UserSearchInput] initSelectedUsers 无需更新') // 🔥 调试日志已注释
     return
   }
 
   try {
     // 🔥 只加载缺失的用户
     const missingUsernames = usernames.filter(u => !currentUsernames.includes(u))
-    console.log('[UserSearchInput] initSelectedUsers missingUsernames:', missingUsernames)
+    // console.log('[UserSearchInput] initSelectedUsers missingUsernames:', missingUsernames) // 🔥 调试日志已注释
     
     // 🔥 使用 store 批量查询（自动处理缓存和过期）
     if (missingUsernames.length > 0) {
-      console.log('[UserSearchInput] 查询缺失的用户信息:', missingUsernames)
+      // console.log('[UserSearchInput] 查询缺失的用户信息:', missingUsernames) // 🔥 调试日志已注释
       const loadedUsers = await userInfoStore.batchGetUserInfo(missingUsernames)
-      console.log('[UserSearchInput] 查询完成，获取到', loadedUsers.length, '个用户')
+      // console.log('[UserSearchInput] 查询完成，获取到', loadedUsers.length, '个用户') // 🔥 调试日志已注释
       
       // 🔥 合并已有用户和新加载的用户
       const userMap = buildUserMap([...selectedUsers.value, ...loadedUsers])
@@ -319,7 +319,7 @@ const initSelectedUsers = async () => {
       // 🔥 按照 usernames 的顺序重新组织 selectedUsers
       selectedUsers.value = reorderUsersByUsernames(usernames, userMap, true)
       
-      console.log('[UserSearchInput] initSelectedUsers 最终 selectedUsers:', extractUsernames(selectedUsers.value))
+      // console.log('[UserSearchInput] initSelectedUsers 最终 selectedUsers:', extractUsernames(selectedUsers.value)) // 🔥 调试日志已注释
     } else {
       // 🔥 如果没有缺失的用户，只需要移除和重排序
       const userMap = buildUserMap(selectedUsers.value)
@@ -336,7 +336,7 @@ const initSelectedUsers = async () => {
 watch(() => props.modelValue, async (newValue, oldValue) => {
   // 🔥 如果是内部更新，不需要重新加载
   if (isInternalUpdate.value) {
-    console.log('[UserSearchInput] watch 跳过内部更新')
+    // console.log('[UserSearchInput] watch 跳过内部更新') // 🔥 调试日志已注释
     return
   }
   
@@ -344,12 +344,12 @@ watch(() => props.modelValue, async (newValue, oldValue) => {
   const newValueStr = JSON.stringify(newValue)
   const oldValueStr = JSON.stringify(oldValue)
   if (newValueStr !== oldValueStr) {
-    console.log('[UserSearchInput] watch modelValue 变化:', {
-      oldValue,
-      newValue,
-      oldValueStr,
-      newValueStr
-    })
+    // console.log('[UserSearchInput] watch modelValue 变化:', { // 🔥 调试日志已注释
+    //   oldValue,
+    //   newValue,
+    //   oldValueStr,
+    //   newValueStr
+    // })
     // 🔥 延迟初始化，等待 TableRenderer 的批量查询完成（如果存在）
     // 这样可以避免重复查询，因为 TableRenderer 会统一收集所有用户并批量查询
     // 使用 nextTick 确保在下一个事件循环中执行，给 TableRenderer 的 batchLoadUserInfo 优先执行的机会

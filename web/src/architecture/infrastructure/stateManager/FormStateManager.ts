@@ -22,6 +22,7 @@ export interface FormState {
   data: Map<string, FieldValue>
   errors: Map<string, any[]>
   submitting: boolean
+  response: Record<string, any> | null // 🔥 新增：响应数据
 }
 
 /**
@@ -32,12 +33,15 @@ export class FormStateManager extends StateManagerImpl<FormState> implements ISt
   private errors = reactive<Map<string, any[]>>(new Map())
   private submitting = reactive({ value: false })
 
+  private response = reactive<{ value: Record<string, any> | null }>({ value: null })
+
   constructor() {
     // 1. 先调用 super 传递初始空状态
     super({
       data: new Map(),
       errors: new Map(),
-      submitting: false
+      submitting: false,
+      response: null
     })
 
     // 2. 初始化 store 和其他属性
@@ -51,7 +55,8 @@ export class FormStateManager extends StateManagerImpl<FormState> implements ISt
       return {
         data: this.formStore.data,
         errors: this.errors,
-        submitting: this.submitting.value
+        submitting: this.submitting.value,
+        response: this.response.value
       }
     })
 
@@ -68,7 +73,8 @@ export class FormStateManager extends StateManagerImpl<FormState> implements ISt
     const newState: FormState = {
       data: this.formStore.data,
       errors: this.errors,
-      submitting: this.submitting.value
+      submitting: this.submitting.value,
+      response: this.response.value
     }
     this.setState(newState)
   }
@@ -116,6 +122,21 @@ export class FormStateManager extends StateManagerImpl<FormState> implements ISt
    */
   getSubmitData(fields: any[]): Record<string, any> {
     return this.formStore.getSubmitData(fields)
+  }
+
+  /**
+   * 设置响应数据
+   */
+  setResponse(response: Record<string, any> | null): void {
+    this.response.value = response
+    this.updateState()
+  }
+
+  /**
+   * 获取响应数据
+   */
+  getResponse(): Record<string, any> | null {
+    return this.response.value
   }
 
 }

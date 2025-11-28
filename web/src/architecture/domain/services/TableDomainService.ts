@@ -16,7 +16,13 @@ import type { IApiClient } from '../interfaces/IApiClient'
 import type { IStateManager } from '../interfaces/IStateManager'
 import type { IEventBus } from '../interfaces/IEventBus'
 import { TableEvent } from '../interfaces/IEventBus'
-import type { FunctionDetail } from '../types'
+import type { FunctionDetail, FieldConfig } from '../types'
+import { getChangedFields } from '@/utils/objectDiff'
+import { buildSearchParamsString } from '@/utils/searchParams'
+import { denormalizeSearchValue } from '@/utils/searchValueNormalizer'
+import { parseCommaSeparatedString } from '@/utils/stringUtils'
+import { SearchType } from '@/core/constants/search'
+import { WidgetType } from '@/core/constants/widget'
 
 /**
  * 表格数据项类型
@@ -55,13 +61,24 @@ export interface SortParams {
 }
 
 /**
+ * 排序项类型
+ */
+export interface SortItem {
+  field: string
+  order: 'asc' | 'desc'
+}
+
+/**
  * 表格状态
  */
 export interface TableState {
   data: TableRow[]
   loading: boolean
   searchParams: SearchParams
+  searchForm: Record<string, any> // 🔥 新增：搜索表单数据（用于 UI 绑定）
   sortParams: SortParams | null
+  sorts: SortItem[] // 🔥 新增：排序列表（支持多列排序）
+  hasManualSort: boolean // 🔥 新增：是否手动排序
   pagination: {
     currentPage: number
     pageSize: number
@@ -202,21 +219,8 @@ export class TableDomainService {
    * 新增行
    */
   async addRow(functionDetail: FunctionDetail, data: Record<string, any>): Promise<TableRow> {
-    const url = `/api/v1/callback${functionDetail.router}`
-    const method = functionDetail.method?.toUpperCase() || 'POST'
-    
-    let response: TableRow
-    if (method === 'GET') {
-      response = await this.apiClient.get<TableRow>(url, {
-        _type: 'OnTableAddRow',
-        ...data
-      })
-    } else {
-      response = await this.apiClient.post<TableRow>(url, {
-        _type: 'OnTableAddRow',
-        ...data
-      })
-    }
+    const url = this.buildCallbackUrl(functionDetail.router, 'OnTableAddRow', functionDetail.method)
+    const response = await this.apiClient.post<TableRow>(url, data)
 
     // 触发事件
     this.eventBus.emit(TableEvent.rowAdded, { row: response })
@@ -227,24 +231,15 @@ export class TableDomainService {
   /**
    * 更新行
    */
-  async updateRow(functionDetail: FunctionDetail, id: number | string, data: Record<string, any>): Promise<TableRow> {
-    const url = `/api/v1/callback${functionDetail.router}`
-    const method = functionDetail.method?.toUpperCase() || 'PUT'
-    
-    let response: TableRow
-    if (method === 'GET') {
-      response = await this.apiClient.get<TableRow>(url, {
-        _type: 'OnTableUpdateRow',
-        id,
-        ...data
-      })
-    } else {
-      response = await this.apiClient.post<TableRow>(url, {
-        _type: 'OnTableUpdateRow',
-        id,
-        ...data
-      })
-    }
+  async updateRow(
+    functionDetail: FunctionDetail,
+    id: number | string,
+    data: Record<string, any>,
+    oldData?: Record<string, any>
+  ): Promise<TableRow> {
+    const url = this.buildCallbackUrl(functionDetail.router, 'OnTableUpdateRow', functionDetail.method)
+    const payload = this.buildUpdatePayload(id, data, oldData)
+    const response = await this.apiClient.post<TableRow>(url, payload)
 
     // 触发事件
     this.eventBus.emit(TableEvent.rowUpdated, { id, row: response })
@@ -256,20 +251,8 @@ export class TableDomainService {
    * 删除行
    */
   async deleteRow(functionDetail: FunctionDetail, id: number | string): Promise<void> {
-    const url = `/api/v1/callback${functionDetail.router}`
-    const method = functionDetail.method?.toUpperCase() || 'DELETE'
-    
-    if (method === 'GET') {
-      await this.apiClient.get(url, {
-        _type: 'OnTableDeleteRows',
-        ids: [id]
-      })
-    } else {
-      await this.apiClient.post(url, {
-        _type: 'OnTableDeleteRows',
-        ids: [id]
-      })
-    }
+    const url = this.buildCallbackUrl(functionDetail.router, 'OnTableDeleteRows', functionDetail.method)
+    await this.apiClient.post(url, { ids: [id] })
 
     // 触发事件
     this.eventBus.emit(TableEvent.rowDeleted, { ids: [id] })
@@ -294,6 +277,362 @@ export class TableDomainService {
    */
   getPagination() {
     return this.stateManager.getState().pagination
+  }
+
+  /**
+   * 获取可搜索字段（遵循依赖倒置原则，业务逻辑在 Domain Layer）
+   */
+  getSearchableFields(functionDetail: FunctionDetail): FieldConfig[] {
+    const response = Array.isArray(functionDetail.response) ? functionDetail.response : []
+    const request = Array.isArray(functionDetail.request) ? functionDetail.request : []
+    
+    // 从 response 中获取可搜索字段（主表字段，必须有明确的 search 标签值）
+    const responseSearchableFields = response.filter((field: FieldConfig) => {
+      const search = field.search
+      return search && search !== '-' && search !== '' && search.trim() !== ''
+    })
+    
+    // 从 request 中获取所有字段（扩展字段，用于搜索，不需要 search 标签）
+    const requestAllFields = request.filter((field: FieldConfig) => {
+      return field.search !== '-' // 排除明确表示不支持搜索的字段
+    })
+    
+    // 合并：使用 Map 去重
+    const fieldMap = new Map<string, FieldConfig>()
+    responseSearchableFields.forEach((field: FieldConfig) => {
+      fieldMap.set(field.code, field)
+    })
+    requestAllFields.forEach((field: FieldConfig) => {
+      const existingField = fieldMap.get(field.code)
+      if (existingField) {
+        // 智能合并
+        const mergedField: FieldConfig = {
+          ...field,
+          search: (field.search && field.search !== '-' && field.search !== '') 
+            ? field.search 
+            : (existingField.search || undefined),
+        }
+        fieldMap.set(field.code, mergedField)
+      } else {
+        fieldMap.set(field.code, field)
+      }
+    })
+    
+    return Array.from(fieldMap.values())
+  }
+
+  /**
+   * 从 URL 恢复状态（遵循依赖倒置原则，业务逻辑在 Domain Layer）
+   * 
+   * @param functionDetail 函数详情
+   * @param query URL 查询参数
+   * @returns 恢复后的状态 { searchForm, sorts, pagination }
+   */
+  restoreFromURL(
+    functionDetail: FunctionDetail,
+    query: Record<string, string | string[]>
+  ): {
+    searchForm: Record<string, any>
+    sorts: Array<{ field: string; order: 'asc' | 'desc' }>
+    pagination: { page: number; pageSize: number }
+  } {
+    
+    const searchForm: Record<string, any> = {}
+    const sorts: Array<{ field: string; order: 'asc' | 'desc' }> = []
+    
+    // 获取当前函数的所有字段 code
+    const requestFields = Array.isArray(functionDetail.request) ? functionDetail.request : []
+    const responseFields = Array.isArray(functionDetail.response) ? functionDetail.response : []
+    
+    const currentRequestFieldCodes = new Set<string>()
+    const currentResponseFieldCodes = new Set<string>()
+    
+    requestFields.forEach((field: FieldConfig) => {
+      currentRequestFieldCodes.add(field.code)
+    })
+    responseFields.forEach((field: FieldConfig) => {
+      currentResponseFieldCodes.add(field.code)
+    })
+    
+    // 恢复分页
+    let page = 1
+    let pageSize = 20
+    if (query.page) {
+      const pageNum = parseInt(String(query.page), 10)
+      if (!isNaN(pageNum) && pageNum > 0) {
+        page = pageNum
+      }
+    }
+    if (query.page_size) {
+      const size = parseInt(String(query.page_size), 10)
+      if (!isNaN(size) && size > 0) {
+        pageSize = size
+      }
+    }
+    
+    // 恢复排序
+    if (query.sorts) {
+      const sortsString = String(query.sorts)
+      sortsString.split(',').forEach((sortStr: string) => {
+        const parts = sortStr.trim().split(':')
+        if (parts.length === 2) {
+          const field = parts[0] || ''
+          const order = parts[1] as 'asc' | 'desc'
+          if (field && (order === 'asc' || order === 'desc') && 
+              (currentRequestFieldCodes.has(field) || currentResponseFieldCodes.has(field))) {
+            sorts.push({ field, order })
+          }
+        }
+      })
+    }
+    
+    // 恢复搜索条件（request 字段）
+    requestFields.forEach((field: FieldConfig) => {
+      if (!currentRequestFieldCodes.has(field.code)) return
+      const value = query[field.code]
+      if (value !== undefined && value !== null && value !== '') {
+        searchForm[field.code] = String(value)
+      }
+    })
+    
+    // 恢复搜索条件（response 字段）
+    const responseSearchableFields = responseFields.filter((field: FieldConfig) => {
+      const search = field.search
+      return search && search !== '-' && search !== '' && search.trim() !== ''
+    })
+    
+    const searchableFields = this.getSearchableFields(functionDetail)
+    
+    responseSearchableFields.forEach((field: FieldConfig) => {
+      if (!currentResponseFieldCodes.has(field.code)) return
+      
+      const searchType = field.search || ''
+      
+      if (searchType.includes(SearchType.EQ)) {
+        const eqValue = query.eq
+        if (eqValue) {
+          const eqStr = String(eqValue)
+          const parts = eqStr.split(',')
+          for (const part of parts) {
+            if (part.trim().startsWith(`${field.code}:`)) {
+              const value = part.trim().substring(field.code.length + 1)
+              if (value) {
+                const denormalizedValue = denormalizeSearchValue(value, {
+                  widgetType: field.widget?.type,
+                  searchType: field.search,
+                  field
+                })
+                searchForm[field.code] = denormalizedValue
+                break
+              }
+            }
+          }
+        }
+      } else if (searchType.includes(SearchType.LIKE)) {
+        const likeValue = query.like
+        if (likeValue) {
+          const likeStr = String(likeValue)
+          const parts = likeStr.split(',')
+          for (const part of parts) {
+            if (part.trim().startsWith(`${field.code}:`)) {
+              const value = part.trim().substring(field.code.length + 1)
+              if (value) {
+                searchForm[field.code] = value
+                break
+              }
+            }
+          }
+        }
+      } else if (searchType.includes(SearchType.CONTAINS)) {
+        const containsValue = query.contains
+        if (containsValue) {
+          const containsStr = String(containsValue)
+          const fieldPrefix = `${field.code}:`
+          const fieldIndex = containsStr.indexOf(fieldPrefix)
+          if (fieldIndex >= 0) {
+            const valueStart = fieldIndex + fieldPrefix.length
+            let valueEnd = containsStr.length
+            const allFieldCodes = searchableFields.map((f: FieldConfig) => f.code)
+            let nextFieldIndex = -1
+            for (const otherFieldCode of allFieldCodes) {
+              if (otherFieldCode === field.code) continue
+              const otherFieldPrefix = `${otherFieldCode}:`
+              const index = containsStr.indexOf(otherFieldPrefix, valueStart)
+              if (index >= 0 && (nextFieldIndex < 0 || index < nextFieldIndex)) {
+                nextFieldIndex = index
+              }
+            }
+            if (nextFieldIndex >= 0) {
+              valueEnd = nextFieldIndex
+            }
+            const valueStr = containsStr.substring(valueStart, valueEnd).trim()
+            if (valueStr) {
+              const values = parseCommaSeparatedString(valueStr)
+              if (field.widget?.type === WidgetType.MULTI_SELECT) {
+                searchForm[field.code] = values.length > 0 ? values : []
+              } else {
+                searchForm[field.code] = values.length > 1 ? values : (values.length === 1 ? values[0] : valueStr)
+              }
+            }
+          }
+        }
+      } else if (searchType.includes(SearchType.IN)) {
+        const inValue = query.in
+        if (inValue) {
+          const inStr = String(inValue)
+          const fieldPrefix = `${field.code}:`
+          const fieldIndex = inStr.indexOf(fieldPrefix)
+          if (fieldIndex >= 0) {
+            const valueStart = fieldIndex + fieldPrefix.length
+            let valueEnd = inStr.length
+            const allFieldCodes = searchableFields.map((f: FieldConfig) => f.code)
+            let nextFieldIndex = -1
+            for (const otherFieldCode of allFieldCodes) {
+              if (otherFieldCode === field.code) continue
+              const otherFieldPrefix = `${otherFieldCode}:`
+              const index = inStr.indexOf(otherFieldPrefix, valueStart)
+              if (index >= 0 && (nextFieldIndex < 0 || index < nextFieldIndex)) {
+                nextFieldIndex = index
+              }
+            }
+            if (nextFieldIndex >= 0) {
+              valueEnd = nextFieldIndex
+            }
+            const valueStr = inStr.substring(valueStart, valueEnd).trim()
+            if (valueStr) {
+              const values = parseCommaSeparatedString(valueStr)
+              if ((field.widget?.type === WidgetType.USER || field.widget?.type === WidgetType.MULTI_SELECT) && searchType.includes(SearchType.IN)) {
+                searchForm[field.code] = values.length > 0 ? values : []
+              } else {
+                searchForm[field.code] = values.length > 1 ? values : (values.length === 1 ? values[0] : valueStr)
+              }
+            }
+          }
+        }
+      } else if (searchType.includes(SearchType.GTE) && searchType.includes(SearchType.LTE)) {
+        const gteValue = query.gte
+        const lteValue = query.lte
+        let gte: string | null = null
+        if (gteValue) {
+          const gteStr = String(gteValue)
+          const parts = gteStr.split(',')
+          for (const part of parts) {
+            if (part.trim().startsWith(`${field.code}:`)) {
+              gte = part.trim().substring(field.code.length + 1)
+              break
+            }
+          }
+        }
+        let lte: string | null = null
+        if (lteValue) {
+          const lteStr = String(lteValue)
+          const parts = lteStr.split(',')
+          for (const part of parts) {
+            if (part.trim().startsWith(`${field.code}:`)) {
+              lte = part.trim().substring(field.code.length + 1)
+              break
+            }
+          }
+        }
+        if (gte || lte) {
+          const fieldType = field.data?.type
+          const widgetType = field.widget?.type
+          const isTimestamp = fieldType === 'timestamp' || widgetType === 'timestamp'
+          if (isTimestamp) {
+            const SECONDS_THRESHOLD = 9999999999
+            const convertTimestamp = (ts: string | null): number | null => {
+              if (!ts) return null
+              const num = Number(ts)
+              if (num > 0 && num < SECONDS_THRESHOLD) {
+                return num * 1000
+              }
+              return num
+            }
+            const timestampRange = [
+              gte ? convertTimestamp(gte) : null,
+              lte ? convertTimestamp(lte) : null
+            ]
+            searchForm[field.code] = timestampRange
+          } else {
+            searchForm[field.code] = {
+              min: gte ? String(gte) : undefined,
+              max: lte ? String(lte) : undefined
+            }
+          }
+        }
+      }
+    })
+    
+    return {
+      searchForm,
+      sorts,
+      pagination: { page, pageSize }
+    }
+  }
+
+  /**
+   * 构建搜索参数（遵循依赖倒置原则，业务逻辑在 Domain Layer）
+   */
+  buildSearchParams(functionDetail: FunctionDetail, searchForm: Record<string, any>): SearchParams {
+    const searchParams: SearchParams = {}
+    
+    // response 字段的搜索参数
+    const response = Array.isArray(functionDetail.response) ? functionDetail.response : []
+    const request = Array.isArray(functionDetail.request) ? functionDetail.request : []
+    
+    const responseFields = response.filter((field: FieldConfig) => {
+      const search = field.search
+      return search && search !== '-' && search !== '' && search.trim() !== ''
+    })
+    
+    const requestFieldCodes = new Set<string>()
+    request.forEach((field: FieldConfig) => {
+      requestFieldCodes.add(field.code)
+    })
+    
+    const responseFieldsForParams = responseFields.filter(
+      (field: FieldConfig) => !requestFieldCodes.has(field.code)
+    )
+    
+    // 使用工具函数构建 response 字段的搜索参数
+    Object.assign(searchParams, buildSearchParamsString(searchForm, responseFieldsForParams))
+    
+    // request 字段的搜索参数
+    request.forEach((field: FieldConfig) => {
+      const value = searchForm[field.code]
+      if (value !== null && value !== undefined && 
+          !(Array.isArray(value) && value.length === 0) && 
+          !(typeof value === 'string' && value.trim() === '')) {
+        searchParams[field.code] = value
+      }
+    })
+    
+    return searchParams
+  }
+
+  private buildCallbackUrl(router: string, type: string, method?: string): string {
+    const functionMethod = method?.toUpperCase() || 'GET'
+    return `/api/v1/callback${router}?_type=${type}&_method=${functionMethod}`
+  }
+
+  private buildUpdatePayload(
+    id: number | string,
+    newData: Record<string, any>,
+    oldData?: Record<string, any>
+  ): Record<string, any> {
+    if (oldData) {
+      const { updates, oldValues } = getChangedFields(oldData, newData)
+      return {
+        id,
+        updates,
+        old_values: oldValues
+      }
+    }
+
+    return {
+      id,
+      ...newData
+    }
   }
 }
 

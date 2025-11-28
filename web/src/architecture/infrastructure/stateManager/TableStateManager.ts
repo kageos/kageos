@@ -21,7 +21,10 @@ export class TableStateManager extends StateManagerImpl<TableState> implements I
       data: [],
       loading: false,
       searchParams: {},
+      searchForm: {}, // 🔥 新增：搜索表单数据
       sortParams: null,
+      sorts: [], // 🔥 新增：排序列表
+      hasManualSort: false, // 🔥 新增：是否手动排序
       pagination: {
         currentPage: 1,
         pageSize: 20,

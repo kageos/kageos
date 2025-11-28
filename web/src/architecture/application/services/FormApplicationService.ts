@@ -85,6 +85,16 @@ export class FormApplicationService {
         response = await this.apiClient.post(url, submitData)
       }
 
+      // 🔥 保存响应数据到状态管理器
+      const stateManager = this.domainService.getStateManager()
+      if (stateManager && typeof (stateManager as any).setResponse === 'function') {
+        // 处理响应数据：如果 response 不是对象，包装成对象
+        const responseData = response && typeof response === 'object' 
+          ? response 
+          : { result: response }
+        ;(stateManager as any).setResponse(responseData)
+      }
+
       // 触发事件
       this.eventBus.emit(FormEvent.submitted, { functionDetail, response })
       this.eventBus.emit(FormEvent.responseReceived, { response })
@@ -117,7 +127,14 @@ export class FormApplicationService {
     fields.forEach(field => {
       const value = state.data.get(field.code)
       if (value) {
+        // 🔥 调试日志：检查 raw 值是否存在
+        if (value.raw === null || value.raw === undefined) {
+          console.warn('[FormApplicationService] getSubmitData 发现空值:', { fieldCode: field.code, value })
+        }
         result[field.code] = value.raw
+      } else {
+        // 🔥 调试日志：字段没有值
+        console.warn('[FormApplicationService] getSubmitData 字段没有值:', { fieldCode: field.code })
       }
     })
     

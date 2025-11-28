@@ -42,43 +42,52 @@
           :current-node-id="currentFunction?.id || null"
           :current-function="currentFunction"
           @node-click="handleNodeClick"
+          @create-directory="handleCreateDirectory"
+          @fork-group="handleForkGroup"
+          @copy-link="handleCopyLink"
         />
       </div>
 
       <!-- 中间函数渲染区域 -->
       <div class="function-renderer">
-        <el-tabs
-          v-if="tabs.length > 0"
-          v-model="activeTabId"
-          type="card"
-          closable
-          class="workspace-tabs"
-          @tab-remove="handleTabRemove"
-        >
-          <el-tab-pane
-            v-for="tab in tabs"
-            :key="tab.id"
-            :label="tab.title"
-            :name="tab.id"
+        <!-- 标签页区域 -->
+        <div v-if="tabs.length > 0" class="workspace-tabs-container">
+          <el-tabs
+            v-model="activeTabId"
+            type="card"
+            editable
+            class="workspace-tabs"
+            @tab-click="handleTabClick"
+            @edit="handleTabsEdit"
           >
-            <!-- 只渲染当前激活的 Tab 内容，确保切换时状态被保存后销毁/重建 -->
-            <div v-if="activeTabId === tab.id" class="tab-content">
-              <FormView
-                v-if="currentFunctionDetail?.template_type === 'form'"
-                :key="`form-${tab.id}`"
-                :function-detail="currentFunctionDetail"
-              />
-              <TableView
-                v-else-if="currentFunctionDetail?.template_type === 'table'"
-                :key="`table-${tab.id}`"
-                :function-detail="currentFunctionDetail"
-              />
-              <div v-else class="empty-state">
-                <p>加载中...</p>
-              </div>
+            <el-tab-pane
+              v-for="tab in tabs"
+              :key="tab.id"
+              :label="tab.title"
+              :name="tab.id"
+              :closable="tabs.length > 1"
+            />
+          </el-tabs>
+        </div>
+        
+        <!-- Tab 内容区域 -->
+        <div v-if="tabs.length > 0" class="tabs-content-wrapper">
+          <div class="tab-content">
+            <FormView
+              v-if="currentFunctionDetail?.template_type === 'form'"
+              :key="`form-${activeTabId}`"
+              :function-detail="currentFunctionDetail"
+            />
+            <TableView
+              v-else-if="currentFunctionDetail?.template_type === 'table'"
+              :key="`table-${activeTabId}`"
+              :function-detail="currentFunctionDetail"
+            />
+            <div v-else class="empty-state">
+              <p>加载中...</p>
             </div>
-          </el-tab-pane>
-        </el-tabs>
+          </div>
+        </div>
         <div v-else class="empty-state">
           <p>请在左侧选择功能</p>
         </div>
@@ -146,7 +155,7 @@
     <el-drawer
       v-model="detailDrawerVisible"
       :title="detailDrawerTitle"
-      size="40%"
+      size="50%"
       destroy-on-close
       :modal="true"
       :close-on-click-modal="true"
@@ -156,55 +165,115 @@
       <template #header>
         <div class="drawer-header">
           <span class="drawer-title">{{ detailDrawerTitle }}</span>
-          <div class="drawer-actions" v-if="detailDrawerMode === 'read' && currentFunctionDetail?.callbacks?.includes('OnTableUpdateRow')">
-            <el-button 
-              type="primary" 
-              link
-              @click="toggleDrawerMode('edit')"
-            >
-              <el-icon class="el-icon--left"><Edit /></el-icon>
-              编辑
-            </el-button>
+          <div class="drawer-header-actions">
+            <!-- 模式切换按钮 -->
+            <div class="drawer-mode-actions">
+              <el-button
+                v-if="detailDrawerMode === 'read' && currentFunctionDetail?.callbacks?.includes('OnTableUpdateRow')"
+                type="primary"
+                size="small"
+                @click="toggleDrawerMode('edit')"
+              >
+                <el-icon><Edit /></el-icon>
+                编辑
+              </el-button>
+              <el-button
+                v-if="detailDrawerMode === 'edit'"
+                size="small"
+                @click="toggleDrawerMode('read')"
+              >
+                取消
+              </el-button>
+              <el-button
+                v-if="detailDrawerMode === 'edit'"
+                type="primary"
+                size="small"
+                :loading="drawerSubmitting"
+                @click="submitDrawerEdit"
+              >
+                保存
+              </el-button>
+            </div>
+            <!-- 导航按钮（上一个/下一个） -->
+            <div class="drawer-navigation" v-if="detailTableData && detailTableData.length > 1 && detailDrawerMode === 'read'">
+              <el-button
+                size="small"
+                :disabled="currentDetailIndex <= 0"
+                @click="handleNavigateDetail('prev')"
+              >
+                <el-icon><ArrowLeft /></el-icon>
+                上一个
+              </el-button>
+              <span class="nav-info">{{ (currentDetailIndex >= 0 ? currentDetailIndex + 1 : 0) }} / {{ detailTableData.length }}</span>
+              <el-button
+                size="small"
+                :disabled="currentDetailIndex >= detailTableData.length - 1"
+                @click="handleNavigateDetail('next')"
+              >
+                下一个
+                <el-icon><ArrowRight /></el-icon>
+              </el-button>
+            </div>
           </div>
         </div>
       </template>
 
       <div class="detail-content">
-        <!-- 详情模式 -->
-        <el-form v-if="detailDrawerMode === 'read'" label-width="120px">
-          <el-form-item
-            v-for="field in detailFields"
-            :key="field.code"
-            :label="field.name"
-          >
-            <WidgetComponent
-              :field="field"
-              :value="getDetailFieldValue(field.code)"
-              mode="detail"
-            />
-          </el-form-item>
-        </el-form>
+        <!-- 详情模式 - 使用更美观的布局（参考旧版本） -->
+        <div v-if="detailDrawerMode === 'read'">
+          <!-- 链接操作区域（参考旧版本，收集所有 link 字段显示在顶部） -->
+          <div v-if="detailLinkFields.length > 0" class="detail-links-section">
+            <div class="links-section-title">相关链接</div>
+            <div class="links-section-content">
+              <LinkWidget
+                v-for="linkField in detailLinkFields"
+                :key="linkField.code"
+                :field="linkField"
+                :value="getDetailFieldValue(linkField.code)"
+                :field-path="linkField.code"
+                mode="detail"
+                class="detail-link-item"
+              />
+            </div>
+          </div>
+          
+          <!-- 字段网格（排除 link 字段） -->
+          <div class="detail-fields-grid">
+            <div
+              v-for="field in detailFields.filter(f => f.widget?.type !== WidgetType.LINK)"
+              :key="field.code"
+              class="detail-field-row"
+            >
+              <div class="detail-field-label">
+                {{ field.name }}
+              </div>
+              <div class="detail-field-value">
+                <WidgetComponent
+                  :field="field"
+                  :value="getDetailFieldValue(field.code)"
+                  mode="detail"
+                  :user-info-map="detailUserInfoMap"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
 
-        <!-- 编辑模式 -->
-        <el-form 
-          v-else 
-          label-width="120px"
-          v-loading="drawerSubmitting"
-        >
-          <el-form-item
-            v-for="field in editFields"
-            :key="field.code"
-            :label="field.name"
-            :required="isFieldRequired(field)"
-          >
-            <WidgetComponent
-              :field="field"
-              :value="getEditFieldValue(field.code)"
-              @update:model-value="(v) => updateEditField(field.code, v)"
-              mode="edit"
-            />
-          </el-form-item>
-        </el-form>
+        <!-- 编辑模式（复用 FormRenderer，与旧版本一致） -->
+        <div v-else class="edit-form-wrapper" v-loading="drawerSubmitting">
+          <FormRenderer
+            v-if="editFunctionDetail"
+            ref="detailFormRendererRef"
+            :key="`detail-edit-${detailRowData?.id || ''}-${detailDrawerMode}`"
+            :function-detail="editFunctionDetail"
+            :initial-data="detailRowData || {}"
+            :show-submit-button="false"
+            :show-reset-button="false"
+            :show-share-button="false"
+            :show-debug-button="false"
+          />
+          <el-empty v-else description="无法构建编辑表单" />
+        </div>
       </div>
 
       <template #footer>
@@ -219,14 +288,85 @@
         </div>
       </template>
     </el-drawer>
+
+    <!-- 创建服务目录对话框 -->
+    <el-dialog
+      v-model="createDirectoryDialogVisible"
+      :title="currentParentNode ? `在「${currentParentNode.name || currentParentNode.code}」下创建服务目录` : '创建服务目录'"
+      width="520px"
+      :close-on-click-modal="false"
+      @close="resetCreateDirectoryForm"
+    >
+      <el-form :model="createDirectoryForm" label-width="90px">
+        <el-form-item label="目录名称" required>
+          <el-input
+            v-model="createDirectoryForm.name"
+            placeholder="请输入目录名称（如：用户管理）"
+            maxlength="50"
+            show-word-limit
+            clearable
+          />
+        </el-form-item>
+        <el-form-item label="目录代码" required>
+          <el-input
+            v-model="createDirectoryForm.code"
+            placeholder="请输入目录代码，如：user"
+            maxlength="50"
+            show-word-limit
+            clearable
+            @input="createDirectoryForm.code = createDirectoryForm.code.toLowerCase()"
+          />
+          <div class="form-tip">
+            <el-icon><InfoFilled /></el-icon>
+            目录代码只能包含小写字母、数字和下划线
+          </div>
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input
+            v-model="createDirectoryForm.description"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入目录描述（可选）"
+            maxlength="200"
+            show-word-limit
+          />
+        </el-form-item>
+        <el-form-item label="标签">
+          <el-input
+            v-model="createDirectoryForm.tags"
+            placeholder="请输入标签，多个标签用逗号分隔（可选）"
+            maxlength="100"
+            clearable
+          />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="createDirectoryDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="handleSubmitCreateDirectory" :loading="creatingDirectory">
+            创建
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <!-- Fork 函数组对话框 -->
+    <FunctionForkDialog
+      v-model="forkDialogVisible"
+      :source-full-group-code="forkSourceGroupCode || undefined"
+      :source-group-name="forkSourceGroupName || undefined"
+      :current-app="currentApp || undefined"
+      @success="handleForkSuccess"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, watch, ref, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon, ElTabs, ElTabPane, ElDrawer, ElDropdown, ElDropdownMenu, ElDropdownItem, ElAvatar } from 'element-plus'
-import { InfoFilled, ArrowDown, Edit } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox, ElNotification, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon, ElTabs, ElTabPane, ElDrawer, ElDropdown, ElDropdownMenu, ElDropdownItem, ElAvatar, ElEmpty } from 'element-plus'
+import { InfoFilled, ArrowDown, Edit, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { eventBus, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import { apiClient } from '../../infrastructure/apiClient'
@@ -234,12 +374,18 @@ import { useAuthStore } from '@/stores/auth'
 import ServiceTreePanel from '@/components/ServiceTreePanel.vue'
 import AppSwitcher from '@/components/AppSwitcher.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
+import FunctionForkDialog from '@/components/FunctionForkDialog.vue'
 import FormView from './FormView.vue'
 import TableView from './TableView.vue'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
+import LinkWidget from '@/core/widgets-v2/components/LinkWidget.vue'
+import { WidgetType } from '@/core/constants/widget'
+import { convertToFieldValue } from '@/utils/field'
+import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
+import { createServiceTree } from '@/api/service-tree'
 import type { ServiceTree, App } from '../../domain/services/WorkspaceDomainService'
 import type { FunctionDetail } from '../../domain/interfaces/IFunctionLoader'
-import type { App as AppType, CreateAppRequest, ServiceTree as ServiceTreeType } from '@/types'
+import type { App as AppType, CreateAppRequest, ServiceTree as ServiceTreeType, CreateServiceTreeRequest } from '@/types'
 import type { FieldConfig, FieldValue } from '../../domain/types'
 
 const route = useRoute()
@@ -250,6 +396,8 @@ const authStore = useAuthStore()
 const stateManager = serviceFactory.getWorkspaceStateManager()
 const domainService = serviceFactory.getWorkspaceDomainService()
 const applicationService = serviceFactory.getWorkspaceApplicationService()
+const tableApplicationService = serviceFactory.getTableApplicationService()
+const tableStateManager = serviceFactory.getTableStateManager()
 
 // 从状态管理器获取状态
 const serviceTree = computed(() => stateManager.getServiceTree())
@@ -292,9 +440,18 @@ const handleLogout = async () => {
   }
 }
 
-// Tab 关闭处理
-const handleTabRemove = (targetName: string) => {
-  applicationService.closeTab(targetName)
+// Tab 点击处理
+const handleTabClick = (tab: any) => {
+  if (tab.name) {
+    applicationService.activateTab(tab.name as string)
+  }
+}
+
+// Tab 编辑处理（添加/删除）
+const handleTabsEdit = (targetName: string | undefined, action: 'remove' | 'add') => {
+  if (action === 'remove' && targetName) {
+    applicationService.closeTab(targetName)
+  }
 }
 
 // 状态保存与恢复
@@ -337,20 +494,10 @@ watch(() => stateManager.getState().activeTabId, async (newId, oldId) => {
           serviceFactory.getTableStateManager().setState(newTab.data)
        }
     } else {
-      // 如果没有数据，可能是新打开的（由 functionLoaded 初始化）
-      // 或者是切换到一个未初始化的 Tab（需要清空残留数据）
-      // 建议清空，以防万一
-      if (newTab?.node) {
-         const detail = stateManager.getFunctionDetail(newTab.node)
-         if (detail?.template_type === 'form') {
-             // 清空 FormState
-             serviceFactory.getFormStateManager().setState({
-               data: new Map(),
-               errors: new Map(),
-               submitting: false
-             })
-         }
-      }
+      // 🔥 如果没有保存的数据，不要清空 FormState
+      // 因为 FormView 会在 onMounted 时根据 URL 参数初始化表单
+      // 如果这里清空了，会导致 URL 参数被覆盖
+      // 让 FormView 自己处理初始化逻辑
     }
     
     // 更新路由参数（如果需要）
@@ -385,12 +532,50 @@ const currentApp = computed<AppType | null>(() => {
 })
 
 const currentFunctionDetail = computed<FunctionDetail | null>(() => {
+  const tabsCount = tabs.value.length
+  const activeTabIdValue = activeTabId.value
+  
+  // 🔥 如果没有标签页，不返回 functionDetail，避免渲染旧的组件
+  if (tabsCount === 0) {
+    console.log('[WorkspaceView] currentFunctionDetail: 没有标签页，返回 null')
+    return null
+  }
+  
   const node = currentFunction.value
-  if (!node) return null
-  return stateManager.getFunctionDetail(node)
+  if (!node) {
+    console.log('[WorkspaceView] currentFunctionDetail: 没有当前函数节点，返回 null')
+    return null
+  }
+  
+  // 🔥 检查当前函数是否属于当前激活的 tab
+  const activeTab = tabs.value.find(t => t.id === activeTabIdValue)
+  if (activeTab && activeTab.node) {
+    const activeTabNode = activeTab.node
+    // 检查 node 是否匹配当前激活的 tab
+    const nodeId = node.full_code_path || String(node.id)
+    const activeTabNodeId = activeTab.node.full_code_path || String(activeTab.node.id)
+    if (nodeId !== activeTabNodeId) {
+      // 如果不匹配，返回 null，避免渲染错误的组件
+      console.log('[WorkspaceView] currentFunctionDetail: 节点不匹配当前激活的 tab', {
+        nodeId,
+        activeTabNodeId,
+        activeTabId: activeTabIdValue
+      })
+      return null
+    }
+  }
+  
+  const detail = stateManager.getFunctionDetail(node)
+  console.log('[WorkspaceView] currentFunctionDetail: 返回详情', {
+    functionId: detail?.id,
+    router: detail?.router,
+    templateType: detail?.template_type,
+    activeTabId: activeTabIdValue,
+    tabsCount
+  })
+  
+  return detail
 })
-
-import { hasAnyRequiredRule } from '@/core/utils/validationUtils'
 
 // ...
 
@@ -398,106 +583,301 @@ const detailDrawerVisible = ref(false)
 const detailDrawerTitle = ref('详情')
 const detailRowData = ref<Record<string, any> | null>(null)
 const detailFields = ref<FieldConfig[]>([])
-// 新增：抽屉模式（read/edit）
+const detailOriginalRow = ref<Record<string, any> | null>(null)
 const detailDrawerMode = ref<'read' | 'edit'>('read')
-// 新增：编辑表单数据
-const editFormData = ref<Record<string, any>>({})
-// 新增：编辑提交状态
 const drawerSubmitting = ref(false)
+const detailFormRendererRef = ref<InstanceType<typeof FormRenderer> | null>(null)
+// 🔥 详情抽屉的用户信息映射（用于 UserWidget 批量查询优化）
+const detailUserInfoMap = ref<Map<string, any>>(new Map())
+// 🔥 详情抽屉的表格数据和索引（用于上一条下一条导航）
+const detailTableData = ref<any[]>([])
+const currentDetailIndex = ref<number>(-1)
 
-// 计算编辑字段：使用 response 字段，根据 table_permission 过滤
-const editFields = computed(() => {
-  if (!currentFunctionDetail.value) return []
-  // 旧版本逻辑：使用 response 字段
-  const fields = (currentFunctionDetail.value.response || []) as FieldConfig[]
-  
-  // 权限过滤逻辑：
-  // 1. table_permission 为空：显示
-  // 2. table_permission == 'update'：显示
-  // 3. table_permission == 'read' 或 'create'：隐藏
-  return fields.filter(field => {
-    const p = field.table_permission
-    return !p || p === '' || p === 'update'
-  })
+/**
+ * 详情页的 Link 字段（用于顶部链接区域显示）
+ */
+const detailLinkFields = computed(() => {
+  return detailFields.value.filter((field: FieldConfig) => field.widget?.type === WidgetType.LINK)
 })
 
-// 监听表格详情事件
+// 创建目录相关
+const createDirectoryDialogVisible = ref(false)
+const creatingDirectory = ref(false)
+const currentParentNode = ref<ServiceTreeType | null>(null)
+const createDirectoryForm = ref<CreateServiceTreeRequest>({
+  user: '',
+  app: '',
+  name: '',
+  code: '',
+  parent_id: 0,
+  description: '',
+  tags: ''
+})
+
+// Fork 函数组相关
+const forkDialogVisible = ref(false)
+const forkSourceGroupCode = ref('')
+const forkSourceGroupName = ref('')
+
+const editFunctionDetail = computed<FunctionDetail | null>(() => {
+  const current = currentFunctionDetail.value
+  if (!current) return null
+  const fields = (current.response || []) as FieldConfig[]
+  const editableFields = fields.filter(field => {
+    const permission = field.table_permission
+    return !permission || permission === '' || permission === 'update'
+  })
+  return {
+    ...current,
+    template_type: 'form',
+    request: editableFields,
+    response: []
+  }
+})
+
+// 监听 Tab 打开/激活事件，更新路由
 onMounted(() => {
-  eventBus.on('table:detail-row', ({ row }: { row: Record<string, any> }) => {
+  eventBus.on(WorkspaceEvent.tabOpened, ({ tab, shouldUpdateRoute }: { tab: any, shouldUpdateRoute?: boolean }) => {
+    if (shouldUpdateRoute && tab.path) {
+      // 🔥 更新路由到新打开的 Tab
+      const path = tab.path.startsWith('/') ? tab.path : `/${tab.path}`
+      const targetPath = `/workspace-v2${path}`
+      router.push(targetPath).catch(() => {})
+    }
+  })
+
+  eventBus.on(WorkspaceEvent.tabActivated, ({ tab, shouldUpdateRoute }: { tab: any, shouldUpdateRoute?: boolean }) => {
+    if (shouldUpdateRoute && tab.path) {
+      // 🔥 更新路由到激活的 Tab
+      const path = tab.path.startsWith('/') ? tab.path : `/${tab.path}`
+      const targetPath = `/workspace-v2${path}`
+      // 🔥 检查当前路由是否已经是目标路由，避免重复导航
+      if (route.path !== targetPath) {
+        router.push(targetPath).catch(() => {})
+      }
+    }
+  })
+
+  // 🔥 监听节点点击事件，直接更新路由（作为备用方案，确保路由更新）
+  eventBus.on(WorkspaceEvent.nodeClicked, ({ node }: { node: any }) => {
+    if (node && node.type === 'function' && node.full_code_path) {
+      const targetPath = `/workspace-v2${node.full_code_path}`
+      // 🔥 检查当前路由是否已经是目标路由，避免重复导航
+      if (route.path !== targetPath) {
+        router.push(targetPath).catch(() => {})
+      }
+    }
+  })
+
+  // 监听表格详情事件
+  eventBus.on('table:detail-row', async ({ row, index, tableData }: { row: Record<string, any>, index?: number, tableData?: any[] }) => {
     if (!currentFunctionDetail.value) return
     
     detailRowData.value = row
+    detailOriginalRow.value = JSON.parse(JSON.stringify(row))
     detailDrawerTitle.value = currentFunctionDetail.value.name || '详情'
     detailFields.value = (currentFunctionDetail.value.response || []) as FieldConfig[]
     
+    // 🔥 保存表格数据和索引（用于上一条下一条导航）
+    if (tableData && Array.isArray(tableData) && tableData.length > 0) {
+      detailTableData.value = tableData
+      if (typeof index === 'number' && index >= 0) {
+        currentDetailIndex.value = index
+      } else {
+        // 如果没有传递 index，尝试从 tableData 中查找
+        const idField = detailFields.value.find(f => f.code === 'id' || f.widget?.type === 'number')
+        if (idField && row[idField.code]) {
+          const foundIndex = tableData.findIndex((r: any) => r[idField.code] === row[idField.code])
+          currentDetailIndex.value = foundIndex >= 0 ? foundIndex : -1
+        } else {
+          // 如果没有 id 字段，尝试通过对象匹配
+          const foundIndex = tableData.findIndex((r: any) => JSON.stringify(r) === JSON.stringify(row))
+          currentDetailIndex.value = foundIndex >= 0 ? foundIndex : -1
+        }
+      }
+    } else {
+      // 如果没有传递 tableData，尝试从 StateManager 获取
+      try {
+        const tableStateManager = serviceFactory.getTableStateManager()
+        // 🔥 注意：TableStateManager 使用 data 字段存储表格数据，不是 tableData
+        const tableData = tableStateManager.getData() || []
+        if (tableData && Array.isArray(tableData) && tableData.length > 0) {
+          detailTableData.value = tableData
+          const idField = detailFields.value.find(f => f.code === 'id' || f.widget?.type === 'number')
+          if (idField && row[idField.code]) {
+            const foundIndex = tableData.findIndex((r: any) => r[idField.code] === row[idField.code])
+            currentDetailIndex.value = foundIndex >= 0 ? foundIndex : -1
+          } else {
+            // 如果没有 id 字段，尝试通过对象匹配
+            const foundIndex = tableData.findIndex((r: any) => JSON.stringify(r) === JSON.stringify(row))
+            currentDetailIndex.value = foundIndex >= 0 ? foundIndex : -1
+          }
+        } else {
+          detailTableData.value = []
+          currentDetailIndex.value = -1
+          console.warn('[WorkspaceView] StateManager 中没有表格数据')
+        }
+      } catch (error) {
+        console.error('[WorkspaceView] 获取表格数据失败', error)
+        detailTableData.value = []
+        currentDetailIndex.value = -1
+      }
+    }
+    
+    // 🔥 收集详情中的用户字段，批量查询用户信息
+    const userFields = detailFields.value.filter(f => f.widget?.type === 'user')
+    if (userFields.length > 0) {
+      const usernames: string[] = []
+      userFields.forEach(field => {
+        const value = row[field.code]
+        if (value) {
+          if (Array.isArray(value)) {
+            usernames.push(...value.map(v => String(v)))
+          } else {
+            usernames.push(String(value))
+          }
+        }
+      })
+      
+      if (usernames.length > 0) {
+        try {
+          const { useUserInfoStore } = await import('@/stores/userInfo')
+          const userInfoStore = useUserInfoStore()
+          const users = await userInfoStore.batchGetUserInfo([...new Set(usernames)])
+          // 更新到 detailUserInfoMap
+          detailUserInfoMap.value = new Map()
+          users.forEach(user => {
+            detailUserInfoMap.value.set(user.username, user)
+          })
+        } catch (error) {
+          console.error('[WorkspaceView] 加载详情用户信息失败', error)
+        }
+      }
+    }
+    
     // 重置为只读模式
     detailDrawerMode.value = 'read'
-    editFormData.value = {}
-    
     detailDrawerVisible.value = true
   })
 })
 
 // 切换抽屉模式
 const toggleDrawerMode = (mode: 'read' | 'edit') => {
+  if (mode === 'edit' && (!editFunctionDetail.value || !detailRowData.value)) {
+    ElNotification.warning({
+      title: '提示',
+      message: '无法进入编辑模式'
+    })
+    return
+  }
   detailDrawerMode.value = mode
-  if (mode === 'edit' && detailRowData.value) {
-    // 进入编辑模式，初始化表单数据（深拷贝）
-    editFormData.value = JSON.parse(JSON.stringify(detailRowData.value))
+}
+
+// 导航详情（上一个/下一个）
+const handleNavigateDetail = async (direction: 'prev' | 'next') => {
+  if (detailTableData.value.length === 0) return
+
+  let newIndex = currentDetailIndex.value
+  if (direction === 'prev' && newIndex > 0) {
+    newIndex--
+  } else if (direction === 'next' && newIndex < detailTableData.value.length - 1) {
+    newIndex++
+  } else {
+    return
+  }
+
+  currentDetailIndex.value = newIndex
+  const row = detailTableData.value[newIndex]
+  detailRowData.value = row
+  detailOriginalRow.value = JSON.parse(JSON.stringify(row))
+  detailDrawerMode.value = 'read'  // 切换记录时，重置为查看模式
+  
+  // 🔥 收集新行的用户字段并查询用户信息
+  const userFields = detailFields.value.filter(f => f.widget?.type === 'user')
+  if (userFields.length > 0) {
+    const usernames: string[] = []
+    userFields.forEach(field => {
+      const value = row[field.code]
+      if (value) {
+        if (Array.isArray(value)) {
+          usernames.push(...value.map(v => String(v)))
+        } else {
+          usernames.push(String(value))
+        }
+      }
+    })
+    
+    if (usernames.length > 0) {
+      try {
+        const { useUserInfoStore } = await import('@/stores/userInfo')
+        const userInfoStore = useUserInfoStore()
+        const users = await userInfoStore.batchGetUserInfo([...new Set(usernames)])
+        // 更新到 detailUserInfoMap
+        detailUserInfoMap.value = new Map()
+        users.forEach(user => {
+          detailUserInfoMap.value.set(user.username, user)
+        })
+      } catch (error) {
+        console.error('[WorkspaceView] 加载详情用户信息失败', error)
+      }
+    }
   }
 }
 
-// 获取编辑字段值
-const getEditFieldValue = (fieldCode: string): FieldValue => {
-  const value = editFormData.value[fieldCode]
-  return { 
-    raw: value, 
-    display: typeof value === 'object' ? JSON.stringify(value) : String(value ?? ''), 
-    meta: {} 
-  }
-}
-
-// 更新编辑字段值
-const updateEditField = (fieldCode: string, value: FieldValue) => {
-  editFormData.value[fieldCode] = value.raw
-}
-
-// 判断字段是否必填
-const isFieldRequired = (field: FieldConfig): boolean => {
-  return hasAnyRequiredRule(field.validation || '')
-}
-
-// 提交编辑
+// 提交编辑（复用 FormRenderer 逻辑）
 const submitDrawerEdit = async () => {
-  if (!currentFunctionDetail.value || !detailRowData.value) return
+  if (!currentFunctionDetail.value || !detailRowData.value || !detailFormRendererRef.value) {
+    ElMessage.error('编辑表单未准备就绪')
+    return
+  }
   
   try {
     drawerSubmitting.value = true
-    // 调用 Application Service 更新数据
-    // 注意：这里我们需要直接调用 Service，或者通过 EventBus 通知
-    // 为了保持架构一致性，最好通过 applicationService
-    // 这里的 applicationService 是 WorkspaceApplicationService，它可能没有 updateRow 方法
-    // 我们需要 TableApplicationService，但这里注入比较麻烦
-    // 临时方案：通过 EventBus 触发 update，并等待结果（但这需要异步处理）
-    // 更好方案：使用 ServiceFactory 获取 TableApplicationService
-    
-    const tableService = serviceFactory.getTableApplicationService()
-    await tableService.updateRow(
-      currentFunctionDetail.value, 
-      detailRowData.value.id, 
-      editFormData.value
+    const submitData = detailFormRendererRef.value.prepareSubmitDataWithTypeConversion()
+    const oldValues = detailOriginalRow.value
+      ? JSON.parse(JSON.stringify(detailOriginalRow.value))
+      : undefined
+    const updatedRow = await tableApplicationService.updateRow(
+      currentFunctionDetail.value,
+      detailRowData.value.id,
+      submitData,
+      oldValues
     )
-    
-    ElMessage.success('更新成功')
-    // 更新本地数据
-    detailRowData.value = { ...detailRowData.value, ...editFormData.value }
-    // 切回只读模式
-    toggleDrawerMode('read')
+    if (updatedRow) {
+      detailRowData.value = { ...updatedRow }
+      detailOriginalRow.value = JSON.parse(JSON.stringify(updatedRow))
+      await refreshDetailRowData()
+      ElNotification.success({
+        title: '成功',
+        message: '更新成功'
+      })
+      detailDrawerMode.value = 'read'
+      detailDrawerVisible.value = false
+    }
   } catch (error: any) {
     console.error('更新失败:', error)
-    ElMessage.error(error?.message || '更新失败')
+    ElNotification.error({
+      title: '错误',
+      message: error?.response?.data?.message || error?.message || '更新失败'
+    })
   } finally {
     drawerSubmitting.value = false
+  }
+}
+
+const refreshDetailRowData = async (): Promise<void> => {
+  if (!detailRowData.value) return
+  const currentId = detailRowData.value.id
+  if (currentId === undefined || currentId === null) return
+  const state = tableStateManager?.getState?.()
+  const tableData = state?.tableData
+  if (!Array.isArray(tableData)) {
+    return
+  }
+  const updatedRow = tableData.find((row: any) => String(row.id) === String(currentId))
+  if (updatedRow) {
+    detailRowData.value = { ...updatedRow }
+    detailOriginalRow.value = JSON.parse(JSON.stringify(updatedRow))
   }
 }
 
@@ -542,6 +922,164 @@ const handleNodeClick = (node: ServiceTreeType) => {
   applicationService.triggerNodeClick(serviceTree)
 }
 
+// 处理创建目录
+const handleCreateDirectory = (parentNode?: ServiceTreeType) => {
+  if (!currentApp.value) {
+    ElNotification.warning({
+      title: '提示',
+      message: '请先选择一个应用'
+    })
+    return
+  }
+  currentParentNode.value = parentNode || null
+  createDirectoryForm.value = {
+    user: currentApp.value.user,
+    app: currentApp.value.code,
+    name: '',
+    code: '',
+    parent_id: parentNode ? Number(parentNode.id) : 0,
+    description: '',
+    tags: ''
+  }
+  createDirectoryDialogVisible.value = true
+}
+
+// 重置创建目录表单
+const resetCreateDirectoryForm = () => {
+  createDirectoryForm.value = {
+    user: currentApp.value?.user || '',
+    app: currentApp.value?.code || '',
+    name: '',
+    code: '',
+    parent_id: 0,
+    description: '',
+    tags: ''
+  }
+  currentParentNode.value = null
+}
+
+// 提交创建目录
+const handleSubmitCreateDirectory = async () => {
+  if (!currentApp.value) {
+    ElNotification.warning({
+      title: '提示',
+      message: '请先选择一个应用'
+    })
+    return
+  }
+  
+  if (!createDirectoryForm.value.name || !createDirectoryForm.value.code) {
+    ElNotification.warning({
+      title: '提示',
+      message: '请输入目录名称和代码'
+    })
+    return
+  }
+  
+  // 验证代码格式
+  if (!/^[a-z0-9_]+$/.test(createDirectoryForm.value.code)) {
+    ElNotification.warning({
+      title: '提示',
+      message: '目录代码只能包含小写字母、数字和下划线'
+    })
+    return
+  }
+
+  try {
+    creatingDirectory.value = true
+    const requestData: CreateServiceTreeRequest = {
+      user: currentApp.value.user,
+      app: currentApp.value.code,
+      name: createDirectoryForm.value.name,
+      code: createDirectoryForm.value.code,
+      parent_id: createDirectoryForm.value.parent_id || 0,
+      description: createDirectoryForm.value.description || '',
+      tags: createDirectoryForm.value.tags || ''
+    }
+    
+    await createServiceTree(requestData)
+    ElNotification.success({
+      title: '成功',
+      message: '创建服务目录成功'
+    })
+    createDirectoryDialogVisible.value = false
+    resetCreateDirectoryForm()
+    
+    // 🔥 刷新服务目录树
+    if (currentApp.value) {
+      await applicationService.triggerAppSwitch({
+        id: currentApp.value.id,
+        user: currentApp.value.user,
+        code: currentApp.value.code,
+        name: currentApp.value.name
+      })
+    }
+  } catch (error: any) {
+    console.error('[WorkspaceView] 创建服务目录失败', error)
+    const errorMessage = error?.response?.data?.msg || error?.response?.data?.message || error?.message || '创建服务目录失败'
+    ElNotification.error({
+      title: '错误',
+      message: errorMessage
+    })
+  } finally {
+    creatingDirectory.value = false
+  }
+}
+
+// 处理 Fork 函数组
+const handleForkGroup = (node: ServiceTreeType | null) => {
+  // 如果传入了节点，使用它；否则打开对话框让用户选择
+  if (node) {
+    if (!node.full_group_code) {
+      ElNotification.warning({
+        title: '提示',
+        message: '该节点没有函数组代码，无法克隆'
+      })
+      return
+    }
+    forkSourceGroupCode.value = node.full_group_code
+    forkSourceGroupName.value = node.group_name || node.name || ''
+  } else {
+    // 没有传入节点，清空预设值，让用户在对话框中选择
+    forkSourceGroupCode.value = ''
+    forkSourceGroupName.value = ''
+  }
+  forkDialogVisible.value = true
+}
+
+// Fork 成功后的回调
+const handleForkSuccess = () => {
+  // 刷新服务目录树
+  if (currentApp.value) {
+    applicationService.triggerAppSwitch({
+      id: currentApp.value.id,
+      user: currentApp.value.user,
+      code: currentApp.value.code,
+      name: currentApp.value.name
+    })
+  }
+  ElNotification.success({
+    title: '成功',
+    message: '克隆完成！请刷新页面查看新功能'
+  })
+}
+
+// 处理复制链接
+const handleCopyLink = (node: ServiceTreeType) => {
+  const link = `${window.location.origin}/workspace-v2${node.full_code_path}`
+  navigator.clipboard.writeText(link).then(() => {
+    ElNotification.success({
+      title: '成功',
+      message: '链接已复制到剪贴板'
+    })
+  }).catch(() => {
+    ElNotification.error({
+      title: '错误',
+      message: '复制链接失败'
+    })
+  })
+}
+
 // 加载应用列表
 const loadAppList = async (): Promise<void> => {
   try {
@@ -566,7 +1104,10 @@ const loadAppList = async (): Promise<void> => {
     }
   } catch (error) {
     console.error('[WorkspaceView] 加载应用列表失败', error)
-    ElMessage.error('加载应用列表失败')
+    ElNotification.error({
+      title: '错误',
+      message: '加载应用列表失败'
+    })
     appList.value = []
   } finally {
     loadingApps.value = false
@@ -622,14 +1163,20 @@ const resetCreateAppForm = (): void => {
 // 提交创建应用
 const submitCreateApp = async (): Promise<void> => {
   if (!createAppForm.value.name || !createAppForm.value.code) {
-    ElMessage.warning('请填写应用名称和应用代码')
+    ElNotification.warning({
+      title: '提示',
+      message: '请填写应用名称和应用代码'
+    })
     return
   }
 
   try {
     creatingApp.value = true
     await apiClient.post('/api/v1/app/create', createAppForm.value)
-    ElMessage.success('应用创建成功')
+    ElNotification.success({
+      title: '成功',
+      message: '应用创建成功'
+    })
     createAppDialogVisible.value = false
     
     // 刷新应用列表
@@ -644,7 +1191,10 @@ const submitCreateApp = async (): Promise<void> => {
     }
   } catch (error: any) {
     const errorMessage = error?.response?.data?.message || '创建应用失败'
-    ElMessage.error(errorMessage)
+    ElNotification.error({
+      title: '错误',
+      message: errorMessage
+    })
   } finally {
     creatingApp.value = false
   }
@@ -654,10 +1204,16 @@ const submitCreateApp = async (): Promise<void> => {
 const handleUpdateApp = async (app: AppType): Promise<void> => {
   try {
     await apiClient.post(`/api/v1/app/update/${app.code}`, {})
-    ElMessage.success('应用更新成功')
+    ElNotification.success({
+      title: '成功',
+      message: '应用更新成功'
+    })
   } catch (error: any) {
     const errorMessage = error?.response?.data?.message || '更新应用失败'
-    ElMessage.error(errorMessage)
+    ElNotification.error({
+      title: '错误',
+      message: errorMessage
+    })
   }
 }
 
@@ -675,7 +1231,10 @@ const handleDeleteApp = async (app: AppType): Promise<void> => {
     )
     
     await apiClient.delete(`/api/v1/app/delete/${app.code}`)
-    ElMessage.success('应用删除成功')
+    ElNotification.success({
+      title: '成功',
+      message: '应用删除成功'
+    })
     
     // 刷新应用列表
     await loadAppList()
@@ -691,7 +1250,10 @@ const handleDeleteApp = async (app: AppType): Promise<void> => {
   } catch (error: any) {
     if (error !== 'cancel') {
       const errorMessage = error?.response?.data?.message || '删除应用失败'
-      ElMessage.error(errorMessage)
+      ElNotification.error({
+        title: '错误',
+        message: errorMessage
+      })
     }
   }
 }
@@ -714,13 +1276,27 @@ const findNodeByPath = (tree: ServiceTreeType[], path: string): ServiceTreeType 
   return null
 }
 
+// 防重复调用保护
+let isLoadingAppFromRoute = false
+let lastProcessedPath = ''
+
 // 从路由解析应用并加载
 const loadAppFromRoute = async () => {
+  // 🔥 防止重复调用
+  if (isLoadingAppFromRoute) {
+    return
+  }
+  
   // 支持 /workspace-v2 和 /workspace 两种路径
   const fullPath = route.path
     .replace('/workspace-v2/', '')
     .replace('/workspace/', '')
     .replace(/^\/+|\/+$/g, '')
+  
+  // 🔥 如果路径没有变化，不重复处理
+  if (fullPath === lastProcessedPath) {
+    return
+  }
   
   if (!fullPath) {
     return
@@ -734,6 +1310,8 @@ const loadAppFromRoute = async () => {
   const [user, appCode] = pathSegments
   
   try {
+    isLoadingAppFromRoute = true
+    
     // 确保应用列表已加载
     if (appList.value.length === 0) {
       await loadAppList()
@@ -819,8 +1397,13 @@ const loadAppFromRoute = async () => {
          tryOpenTab()
       }
     }
+    
+    // 🔥 记录已处理的路径
+    lastProcessedPath = fullPath
   } catch (error) {
     console.error('[WorkspaceView] 加载应用失败', error)
+  } finally {
+    isLoadingAppFromRoute = false
   }
 }
 
@@ -853,10 +1436,17 @@ onMounted(async () => {
   await loadAppFromRoute()
 })
 
-// 监听路由变化
+// 监听路由变化（添加防抖，避免频繁调用）
+let routeWatchTimer: ReturnType<typeof setTimeout> | null = null
 watch(() => route.path, async () => {
-  await loadAppFromRoute()
-})
+  // 🔥 防抖：如果路径相同，不重复处理
+  if (routeWatchTimer) {
+    clearTimeout(routeWatchTimer)
+  }
+  routeWatchTimer = setTimeout(() => {
+    loadAppFromRoute()
+  }, 100) // 100ms 防抖
+}, { immediate: false })
 
 onUnmounted(() => {
   if (unsubscribeFunctionLoaded) {
@@ -920,27 +1510,31 @@ onUnmounted(() => {
   overflow: hidden; /* 防止双滚动条 */
 }
 
+/* 标签页样式 */
+.workspace-tabs-container {
+  border-bottom: 1px solid var(--el-border-color-light);
+  background: var(--el-bg-color);
+}
+
 .workspace-tabs {
-  height: 100%;
+  margin: 0;
+}
+
+.tabs-content-wrapper {
+  flex: 1;
+  overflow: hidden; /* 🔥 外层容器隐藏溢出，内层处理滚动 */
   display: flex;
   flex-direction: column;
-}
-
-.workspace-tabs :deep(.el-tabs__header) {
-  margin: 0;
-  background-color: var(--el-bg-color-overlay);
-  border-bottom: 1px solid var(--el-border-color-light);
-}
-
-.workspace-tabs :deep(.el-tabs__content) {
-  flex: 1;
-  overflow: auto;
-  padding: 0;
+  min-height: 0; /* 🔥 关键：允许 flex 子元素缩小 */
 }
 
 .tab-content {
-  height: 100%;
-  overflow: auto;
+  flex: 1;
+  overflow-y: auto !important; /* 🔥 强制允许垂直滚动，让搜索框和数据区一起滚动 */
+  overflow-x: hidden;
+  min-height: 0; /* 🔥 关键：允许 flex 子元素缩小 */
+  height: 0; /* 🔥 关键：配合 flex: 1 和 min-height: 0，让滚动容器正确计算高度 */
+  -webkit-overflow-scrolling: touch; /* 🔥 iOS 平滑滚动 */
 }
 
 .left-sidebar {
@@ -950,8 +1544,53 @@ onUnmounted(() => {
 
 .function-renderer {
   flex: 1;
-  padding: 20px;
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.drawer-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.drawer-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.drawer-mode-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.drawer-navigation {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.drawer-navigation .nav-info {
+  font-size: 14px;
+  color: var(--el-text-color-secondary);
+  min-width: 60px;
+  text-align: center;
+  background: var(--el-fill-color-light);
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--el-border-color-lighter);
+  font-weight: 500;
 }
 
 .drawer-header {
@@ -968,6 +1607,36 @@ onUnmounted(() => {
   color: var(--el-text-color-primary);
 }
 
+.drawer-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.drawer-mode-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.drawer-navigation {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.drawer-navigation .nav-info {
+  font-size: 14px;
+  color: var(--el-text-color-secondary);
+  min-width: 60px;
+  text-align: center;
+  background: var(--el-fill-color-light);
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--el-border-color-lighter);
+  font-weight: 500;
+}
+
 .detail-drawer :deep(.el-drawer__header) {
   margin-bottom: 0;
   padding: 16px 20px;
@@ -981,6 +1650,84 @@ onUnmounted(() => {
 
 .detail-content {
   height: 100%;
+}
+
+/* 🔥 详情字段网格布局 - 参考旧版本设计，更美观 */
+.detail-fields-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+}
+
+.detail-field-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--el-border-color-extra-light);
+  align-items: start;
+  min-height: auto;
+  transition: all 0.2s ease;
+  border-radius: 4px;
+  background: transparent;
+}
+
+.detail-field-row:hover {
+  background: var(--el-fill-color-light);
+  border-color: var(--el-border-color);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+}
+
+.detail-field-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--el-text-color-secondary);
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.detail-field-value {
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+  word-break: break-word;
+  line-height: 1.6;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 24px;
+  /* 🔥 确保子组件可以接收点击事件 */
+  pointer-events: auto;
+  position: relative;
+  z-index: 1;
+}
+
+/* 🔥 详情页链接区域（参考旧版本设计） */
+.detail-links-section {
+  margin-bottom: 24px;
+  padding: 16px;
+  background: var(--el-fill-color-lighter);
+  border-radius: 8px;
+  border: 1px solid var(--el-border-color-lighter);
+}
+
+.links-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  margin-bottom: 12px;
+}
+
+.links-section-content {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.detail-link-item {
+  flex-shrink: 0;
 }
 
 .drawer-footer {

@@ -466,8 +466,17 @@ async function handleRemoteSearch(query: string): Promise<void> {
 // 打开对话框
 async function openDialog(): Promise<void> {
   dialogVisible.value = true
+  
   // 如果有回调接口
   if (hasCallback.value) {
+    // 🔥 检查 formRenderer 是否存在
+    if (!props.formRenderer) {
+      console.warn('[SelectWidget] openDialog: formRenderer 不存在，无法触发回调', {
+        fieldCode: props.field.code
+      })
+      return
+    }
+    
     // 🔥 如果已有值，通过 by_value 搜索获取对应的选项和 label
     if (props.value?.raw !== null && props.value?.raw !== undefined && props.value?.raw !== '') {
       await handleSearch(props.value.raw, true) // by_value 搜索
@@ -490,7 +499,17 @@ async function openDialog(): Promise<void> {
 // 处理对话框搜索
 async function handleDialogSearch(keyword: string): Promise<void> {
   if (hasCallback.value) {
+    // 🔥 检查 formRenderer 是否存在
+    if (!props.formRenderer) {
+      console.warn('[SelectWidget] handleDialogSearch: formRenderer 不存在，无法触发回调', {
+        fieldCode: props.field.code,
+        keyword
+      })
+      return
+    }
+    
     await handleSearch(keyword, false)
+    
     // 更新对话框建议列表
     dialogSuggestions.value = options.value.map((opt: any) => ({
       label: opt.label,
@@ -546,8 +565,17 @@ function handleDialogSelect(item: { value: any; label?: string; displayInfo?: an
     }
   }
   
+  // 🔥 确保值被正确保存到 formDataStore
   formDataStore.setValue(props.fieldPath, newFieldValue)
+  
+  // 🔥 同时触发 emit，确保 FormView 也能收到更新
   emit('update:modelValue', newFieldValue)
+  
+  // 🔥 调试日志：检查值是否正确保存
+  const savedValue = formDataStore.getValue(props.fieldPath)
+  if (savedValue?.raw !== item.value) {
+    Logger.warn('SelectWidget', `值保存失败: fieldPath=${props.fieldPath}, expected=${item.value}, actual=${savedValue?.raw}`)
+  }
   
   // 🔥 关闭对话框
   dialogVisible.value = false
@@ -563,8 +591,10 @@ async function handleSearch(query: string | number, isByValue: boolean): Promise
   const router = props.formRenderer.getFunctionRouter()
   
   if (!router) {
+    console.warn('[SelectWidget] 无法获取函数路由，取消回调', { fieldCode: props.field.code, router })
     return
   }
+  
   
   loading.value = true
   
@@ -711,6 +741,50 @@ onMounted(() => {
 // 使用一个标志来防止重复调用
 const isSearching = ref(false)
 const lastSearchedValue = ref<any>(null)
+const lastSearchedRouter = ref<string | null>(null) // 🔥 记录上次搜索使用的 router
+
+// 🔥 触发搜索的辅助函数（避免重复代码）
+const triggerSearchIfNeeded = (rawValue: any, formRenderer: any, mode: string) => {
+  if (!hasCallback.value || !formRenderer) {
+    return false
+  }
+  
+  const currentRouter = formRenderer.getFunctionRouter?.()
+  if (!currentRouter) {
+    return false
+  }
+  
+  // 🔥 如果 router 变化了，重置搜索状态
+  if (currentRouter !== lastSearchedRouter.value) {
+    lastSearchedValue.value = null
+    lastSearchedRouter.value = currentRouter
+  }
+  
+  // 🔥 检查是否需要触发搜索
+  const shouldTrigger = 
+    rawValue !== null && 
+    rawValue !== undefined && 
+    !isSearching.value &&
+    // 🔥 关键：如果值变化了，或者 router 变化了，或者还没有搜索过这个值，就触发
+    (rawValue !== lastSearchedValue.value || currentRouter !== lastSearchedRouter.value)
+  
+  if (shouldTrigger) {
+    isSearching.value = true
+    lastSearchedValue.value = rawValue
+    lastSearchedRouter.value = currentRouter
+    // 重置 detailDisplayValue（仅详情模式需要）
+    if (mode === 'detail') {
+      detailDisplayValue.value = null
+    }
+    // 🔥 通过 by_value 搜索获取对应的 label 和 displayInfo
+    handleSearch(rawValue, true).finally(() => {
+      isSearching.value = false
+    })
+    return true
+  }
+  
+  return false
+}
 
 watch(
   () => [props.value?.raw, props.formRenderer, props.mode],
@@ -718,28 +792,21 @@ watch(
     // 🔥 处理首次执行时 oldValues 为 undefined 的情况
     const [oldRaw, oldFormRenderer, oldMode] = oldValues || [undefined, undefined, undefined]
     
-    // 🔥 如果有回调接口，且有值，且有 formRenderer 时触发（适用于所有模式）
-    // 这包括编辑模式（URL 参数）和详情模式
-    if (
-      hasCallback.value && 
-      newRaw !== null && 
-      newRaw !== undefined && 
-      formRenderer &&
-      !isSearching.value &&
-      // 🔥 关键：如果值或 formRenderer 发生了变化，或者还没有搜索过这个值，就触发
-      (newRaw !== lastSearchedValue.value || formRenderer !== oldFormRenderer || mode !== oldMode)
-    ) {
-      isSearching.value = true
-      lastSearchedValue.value = newRaw
-      // 重置 detailDisplayValue（仅详情模式需要）
-      if (mode === 'detail') {
-        detailDisplayValue.value = null
+    // 🔥 如果 formRenderer 还没有准备好，等待它准备好
+    if (!formRenderer) {
+      // 🔥 如果值已经变化了，但 formRenderer 还没准备好，使用 nextTick 等待
+      if (newRaw !== null && newRaw !== undefined && newRaw !== oldRaw) {
+        nextTick(() => {
+          if (props.formRenderer) {
+            triggerSearchIfNeeded(newRaw, props.formRenderer, mode)
+          }
+        })
       }
-      // 🔥 通过 by_value 搜索获取对应的 label 和 displayInfo
-      handleSearch(newRaw, true).finally(() => {
-        isSearching.value = false
-      })
+      return
     }
+    
+    // 🔥 触发搜索（如果条件满足）
+    triggerSearchIfNeeded(newRaw, formRenderer, mode)
   },
   { immediate: true } // 🔥 立即执行一次，确保在组件挂载时就能触发
 )
