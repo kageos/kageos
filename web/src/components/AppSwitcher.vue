@@ -118,6 +118,14 @@
                 </div>
               </div>
             </el-scrollbar>
+            <div v-else class="empty-app-list">
+              <el-empty description="暂无应用" :image-size="80">
+                <el-button type="primary" @click="$emit('create-app')">
+                  <el-icon><Plus /></el-icon>
+                  创建应用
+                </el-button>
+              </el-empty>
+            </div>
           </div>
           
           <!-- 底部操作 -->
