@@ -162,6 +162,8 @@ import type { ServiceTree, App } from '../../domain/services/WorkspaceDomainServ
 import type { FunctionDetail } from '../../domain/interfaces/IFunctionLoader'
 import type { App as AppType, CreateAppRequest, ServiceTree as ServiceTreeType } from '@/types'
 import type { FieldConfig, FieldValue } from '../../domain/types'
+
+const route = useRoute()
 const router = useRouter()
 
 // 依赖注入（使用 ServiceFactory 简化）
