@@ -234,5 +234,12 @@ export class FormDomainService {
       submitting: false
     })
   }
+
+  /**
+   * 获取状态管理器（供 Application Service 使用）
+   */
+  getStateManager(): IStateManager<FormState> {
+    return this.stateManager
+  }
 }
 

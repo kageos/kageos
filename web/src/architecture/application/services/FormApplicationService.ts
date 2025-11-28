@@ -76,10 +76,10 @@ export class FormApplicationService {
     this.domainService.setSubmitting(true)
 
     try {
-      // 获取提交数据
-      // TODO: 这里需要从 StateManager 获取数据
-      // 为了简化，暂时返回空对象
-      const submitData: Record<string, any> = {}
+      // 获取提交数据（从 StateManager）
+      // 注意：这里需要访问 FormStateManager 的 getSubmitData 方法
+      // 为了保持依赖倒置，我们通过 Domain Service 获取
+      const submitData = this.getSubmitData(fields)
 
       // 调用 API
       const url = `/api/v1/run${functionDetail.router}`
@@ -101,6 +101,34 @@ export class FormApplicationService {
       // 重置提交状态
       this.domainService.setSubmitting(false)
     }
+  }
+
+  /**
+   * 获取提交数据（内部方法）
+   * 注意：这里需要访问 StateManager，但为了保持依赖倒置，
+   * 我们通过 Domain Service 的状态管理器获取
+   */
+  private getSubmitData(fields: FieldConfig[]): Record<string, any> {
+    // 从 Domain Service 获取状态管理器
+    const stateManager = this.domainService.getStateManager()
+    
+    // 如果 StateManager 有 getSubmitData 方法（FormStateManager 特有），使用它
+    if (stateManager && typeof (stateManager as any).getSubmitData === 'function') {
+      return (stateManager as any).getSubmitData(fields)
+    }
+    
+    // 否则，从状态中手动提取数据
+    const state = stateManager.getState()
+    const result: Record<string, any> = {}
+    
+    fields.forEach(field => {
+      const value = state.data.get(field.code)
+      if (value) {
+        result[field.code] = value.raw
+      }
+    })
+    
+    return result
   }
 
   /**
