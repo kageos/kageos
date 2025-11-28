@@ -205,6 +205,13 @@ const loadAppList = async (): Promise<void> => {
 
 // 切换应用
 const handleSwitchApp = async (app: AppType): Promise<void> => {
+  // 🔥 检查当前应用是否已经是目标应用，避免重复切换
+  const currentAppState = currentApp.value
+  if (currentAppState && currentAppState.id === app.id) {
+    // 当前应用已经是目标应用，不需要切换
+    return
+  }
+  
   const appForService: App = {
     id: app.id,
     user: app.user,
@@ -216,7 +223,11 @@ const handleSwitchApp = async (app: AppType): Promise<void> => {
   await applicationService.triggerAppSwitch(appForService)
   
   // 更新路由（切换应用后再更新路由，避免路由变化触发重复加载）
-  await router.push(`/workspace-v2/${app.user}/${app.code}`)
+  // 🔥 检查路由是否已经是目标路由，避免不必要的路由更新
+  const targetPath = `/workspace-v2/${app.user}/${app.code}`
+  if (route.path !== targetPath) {
+    await router.push(targetPath)
+  }
 }
 
 // 显示创建应用对话框
@@ -338,24 +349,38 @@ const loadAppFromRoute = async () => {
     // 从已加载的应用列表中查找
     const app = appList.value.find((a: AppType) => a.user === user && a.code === appCode)
     
-    if (app) {
-      const appForService: App = {
-        id: app.id,
-        user: app.user,
-        code: app.code,
-        name: app.name
-      }
-      
-      // 切换应用（这会触发服务树加载）
-      await applicationService.triggerAppSwitch(appForService)
-      
-      // 如果路径中有更多段，尝试定位节点
+    if (!app) {
+      console.warn('[WorkspaceView] 未找到应用:', user, appCode)
+      return
+    }
+    
+    // 🔥 检查当前应用是否已经是目标应用，避免重复切换
+    const currentAppState = currentApp.value
+    if (currentAppState && currentAppState.id === app.id) {
+      // 当前应用已经是目标应用，不需要切换
+      // 但是可能需要根据路径定位节点
       if (pathSegments.length > 2) {
         const functionPath = pathSegments.slice(2).join('/')
         // TODO: 根据路径定位节点
       }
-    } else {
-      console.warn('[WorkspaceView] 未找到应用:', user, appCode)
+      return
+    }
+    
+    // 需要切换应用
+    const appForService: App = {
+      id: app.id,
+      user: app.user,
+      code: app.code,
+      name: app.name
+    }
+    
+    // 切换应用（这会触发服务树加载）
+    await applicationService.triggerAppSwitch(appForService)
+    
+    // 如果路径中有更多段，尝试定位节点
+    if (pathSegments.length > 2) {
+      const functionPath = pathSegments.slice(2).join('/')
+      // TODO: 根据路径定位节点
     }
   } catch (error) {
     console.error('[WorkspaceView] 加载应用失败', error)
