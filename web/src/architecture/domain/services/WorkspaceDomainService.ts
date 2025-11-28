@@ -99,6 +99,8 @@ export class WorkspaceDomainService {
 
   /**
    * 切换应用
+   * 注意：这个方法不应该触发 appSwitched 事件，因为事件应该在 Application Service 层触发
+   * 这个方法只负责更新状态
    */
   async switchApp(app: App): Promise<void> {
     const state = this.stateManager.getState()
@@ -111,8 +113,8 @@ export class WorkspaceDomainService {
       serviceTree: [] // 清空服务树，等待重新加载
     })
 
-    // 触发事件
-    this.eventBus.emit(WorkspaceEvent.appSwitched, { app })
+    // 🔥 不在这里触发 appSwitched 事件，避免循环触发
+    // 事件应该在 Application Service 层统一管理
   }
 
   /**

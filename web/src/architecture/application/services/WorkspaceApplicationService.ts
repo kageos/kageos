@@ -60,7 +60,14 @@ export class WorkspaceApplicationService {
    * 处理应用切换
    */
   async handleAppSwitch(app: App): Promise<void> {
-    // 切换应用
+    // 🔥 检查当前应用是否已经是目标应用，避免重复切换
+    const currentApp = this.domainService.getCurrentApp()
+    if (currentApp && currentApp.id === app.id) {
+      // 当前应用已经是目标应用，不需要切换
+      return
+    }
+    
+    // 切换应用（只更新状态，不触发事件）
     await this.domainService.switchApp(app)
     
     // 加载服务目录树
