@@ -70,8 +70,8 @@
           </div>
 
           <!-- 应用列表 -->
-          <div v-else-if="appList.length > 0" class="app-list">
-            <el-scrollbar max-height="300px" class="app-scrollbar">
+          <div v-else class="app-list">
+            <el-scrollbar v-if="appList.length > 0" max-height="300px" class="app-scrollbar">
               <div class="app-items">
                 <div 
                   v-for="app in appList" 
