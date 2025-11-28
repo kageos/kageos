@@ -33,13 +33,6 @@ export class TableApplicationService {
    * 设置事件处理器
    */
   private setupEventHandlers(): void {
-    // 监听函数加载完成事件
-    this.eventBus.on(WorkspaceEvent.functionLoaded, async (payload: { detail: FunctionDetail }) => {
-      if (payload.detail.template_type === 'table') {
-        await this.handleFunctionLoaded(payload.detail)
-      }
-    })
-
     // 监听搜索变化事件
     this.eventBus.on(TableEvent.searchChanged, async (payload: { searchParams: SearchParams }) => {
       // 可以在这里添加额外的业务逻辑

@@ -34,13 +34,6 @@ export class FormApplicationService {
    * 设置事件处理器
    */
   private setupEventHandlers(): void {
-    // 监听函数加载完成事件
-    this.eventBus.on(WorkspaceEvent.functionLoaded, async (payload: { detail: FunctionDetail }) => {
-      if (payload.detail.template_type === 'form') {
-        await this.handleFunctionLoaded(payload.detail)
-      }
-    })
-
     // 监听字段值更新事件（可以在这里添加额外的业务逻辑）
     this.eventBus.on(FormEvent.fieldValueUpdated, (payload: { fieldCode: string, value: any }) => {
       // 可以在这里添加额外的业务逻辑
