@@ -89,9 +89,13 @@ const applicationService = serviceFactory.getFormApplicationService()
 const formData = computed(() => {
   const state = stateManager.getState()
   const data: Record<string, any> = {}
-  state.data.forEach((value, key) => {
-    data[key] = value.raw
-  })
+  if (state.data) {
+    state.data.forEach((value, key) => {
+      if (value) {
+        data[key] = value.raw
+      }
+    })
+  }
   return data
 })
 
