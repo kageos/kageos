@@ -154,8 +154,8 @@ const currentFunctionDetail = computed<FunctionDetail | null>(() => {
 const appList = ref<AppType[]>([])
 const loadingApps = ref(false)
 
-// 🔥 防止路由变化时重复加载的标志位
-const isSwitchingApp = ref(false)
+// 🔥 正在切换的目标应用 ID，用于解决路由和状态更新的竞态问题
+const pendingAppId = ref<number | string | null>(null)
 
 // 创建应用对话框
 const createAppDialogVisible = ref(false)
@@ -209,15 +209,23 @@ const loadAppList = async (): Promise<void> => {
 
 // 切换应用
 const handleSwitchApp = async (app: AppType): Promise<void> => {
+  const targetAppId = app.id
+  
   // 🔥 检查当前应用是否已经是目标应用，避免重复切换
   const currentAppState = currentApp.value
-  if (currentAppState && currentAppState.id === app.id) {
-    // 当前应用已经是目标应用，不需要切换
+  if (currentAppState && String(currentAppState.id) === String(targetAppId)) {
+    console.log('[WorkspaceView] 当前应用已经是目标应用，无需切换')
+    return
+  }
+
+  // 🔥 检查是否正在切换到同一个应用
+  if (String(pendingAppId.value) === String(targetAppId)) {
+    console.log('[WorkspaceView] 正在切换到该应用，无需重复触发')
     return
   }
   
-  // 🔥 设置标志位，防止路由变化时重复加载
-  isSwitchingApp.value = true
+  // 记录正在切换的应用 ID
+  pendingAppId.value = targetAppId
   
   try {
     const appForService: App = {
@@ -230,18 +238,16 @@ const handleSwitchApp = async (app: AppType): Promise<void> => {
     // 切换应用（这会触发服务树加载）
     await applicationService.triggerAppSwitch(appForService)
     
-    // 更新路由（切换应用后再更新路由，避免路由变化触发重复加载）
-    // 🔥 检查路由是否已经是目标路由，避免不必要的路由更新
+    // 更新路由
     const targetPath = `/workspace-v2/${app.user}/${app.code}`
     if (route.path !== targetPath) {
       await router.push(targetPath)
     }
-  } finally {
-    // 🔥 延迟重置标志位，确保路由变化监听能正确判断
-    setTimeout(() => {
-      isSwitchingApp.value = false
-    }, 100)
+  } catch (error) {
+    console.error('[WorkspaceView] 切换应用失败', error)
+    pendingAppId.value = null // 失败时重置
   }
+  // 注意：成功时不重置 pendingAppId，直到收到 appSwitched 事件或 serviceTreeLoaded 事件确认切换完成
 }
 
 // 显示创建应用对话框
@@ -337,12 +343,6 @@ const handleDeleteApp = async (app: AppType): Promise<void> => {
 
 // 从路由解析应用并加载
 const loadAppFromRoute = async () => {
-  // 🔥 如果正在切换应用，跳过路由加载，避免重复触发
-  if (isSwitchingApp.value) {
-    console.log('[WorkspaceView] 正在切换应用，跳过路由加载')
-    return
-  }
-  
   // 支持 /workspace-v2 和 /workspace 两种路径
   const fullPath = route.path
     .replace('/workspace-v2/', '')
@@ -374,31 +374,36 @@ const loadAppFromRoute = async () => {
       return
     }
     
-    // 🔥 检查当前应用是否已经是目标应用，避免重复切换
+    const targetAppId = app.id
+
+    // 🔥 检查当前应用是否已经是目标应用
     const currentAppState = currentApp.value
-    if (currentAppState && currentAppState.id === app.id) {
-      // 当前应用已经是目标应用，不需要切换
-      // 但是可能需要根据路径定位节点
+    if (currentAppState && String(currentAppState.id) === String(targetAppId)) {
+      // 即使应用相同，也可能需要处理子路径（定位节点）
       if (pathSegments.length > 2) {
-        const functionPath = pathSegments.slice(2).join('/')
         // TODO: 根据路径定位节点
       }
       return
     }
-    
-    // 需要切换应用
-    const appForService: App = {
-      id: app.id,
-      user: app.user,
-      code: app.code,
-      name: app.name
+
+    // 🔥 检查是否正在切换到该应用
+    if (String(pendingAppId.value) === String(targetAppId)) {
+      console.log('[WorkspaceView] 路由变化检测：正在切换到该应用，跳过')
+      return
     }
     
-    // 🔥 设置标志位，防止重复触发
-    isSwitchingApp.value = true
+    // 需要切换应用
+    pendingAppId.value = targetAppId
     
     try {
-      // 切换应用（这会触发服务树加载）
+      const appForService: App = {
+        id: app.id,
+        user: app.user,
+        code: app.code,
+        name: app.name
+      }
+      
+      // 切换应用
       await applicationService.triggerAppSwitch(appForService)
       
       // 如果路径中有更多段，尝试定位节点
@@ -406,15 +411,12 @@ const loadAppFromRoute = async () => {
         const functionPath = pathSegments.slice(2).join('/')
         // TODO: 根据路径定位节点
       }
-    } finally {
-      // 🔥 延迟重置标志位
-      setTimeout(() => {
-        isSwitchingApp.value = false
-      }, 100)
+    } catch (error) {
+      console.error('[WorkspaceView] 路由加载应用失败', error)
+      pendingAppId.value = null
     }
   } catch (error) {
     console.error('[WorkspaceView] 加载应用失败', error)
-    isSwitchingApp.value = false
   }
 }
 
@@ -434,20 +436,27 @@ onMounted(async () => {
     // 状态已通过 StateManager 自动更新
     console.log('[WorkspaceView] 收到 serviceTreeLoaded 事件，节点数:', payload.tree?.length || 0)
     loadingTree.value = false
+    pendingAppId.value = null // 加载完成，重置 pending 状态
   })
   
   // 监听应用切换事件，开始加载服务树
   unsubscribeAppSwitched = eventBus.on(WorkspaceEvent.appSwitched, (payload: { app: any }) => {
-    console.log('[WorkspaceView] 收到 appSwitched 事件，开始加载服务树:', payload.app?.user, payload.app?.code)
+    console.log('[WorkspaceView] 收到 appSwitched 事件，目标应用:', payload.app?.user, payload.app?.code, 'ID:', payload.app?.id)
+    console.log('[WorkspaceView] 当前状态 - currentApp:', currentApp.value?.id, 'pendingAppId:', pendingAppId.value)
     
-    // 🔥 检查当前应用是否已经是目标应用，避免重复设置加载状态
+    // 🔥 检查当前应用是否已经是目标应用
     const currentAppState = currentApp.value
-    if (currentAppState && currentAppState.id === payload.app?.id) {
-      console.log('[WorkspaceView] 当前应用已经是目标应用，跳过设置加载状态')
+    if (currentAppState && String(currentAppState.id) === String(payload.app?.id)) {
+      console.log('[WorkspaceView] appSwitched: 当前应用已经是目标应用，跳过设置 loading')
       return
     }
     
+    // 设置加载状态
     loadingTree.value = true
+    // 确保 pendingAppId 被设置（如果是外部触发的切换）
+    if (payload.app?.id) {
+      pendingAppId.value = payload.app.id
+    }
   })
 
   // 加载应用列表
