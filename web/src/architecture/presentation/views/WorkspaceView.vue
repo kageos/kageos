@@ -37,9 +37,8 @@
     </div>
 
     <!-- 应用切换器（底部固定） -->
-    <!-- 即使 currentApp 为 null 也显示，让用户可以选择应用 -->
+    <!-- 始终显示，即使应用列表为空，让用户可以创建应用 -->
     <AppSwitcher
-      v-if="appList.length > 0 || loadingApps"
       :current-app="currentApp"
       :app-list="appList"
       :loading-apps="loadingApps"
