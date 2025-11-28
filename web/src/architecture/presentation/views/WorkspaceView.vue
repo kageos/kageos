@@ -14,7 +14,9 @@
     <div class="left-sidebar">
       <ServiceTreePanel
         :tree-data="serviceTree"
-        :current-node="currentFunction"
+        :loading="loading"
+        :current-node-id="currentFunction?.id || null"
+        :current-function="currentFunction"
         @node-click="handleNodeClick"
       />
     </div>
@@ -37,18 +39,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { eventBus, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
+import { apiClient } from '../../infrastructure/apiClient'
 import ServiceTreePanel from '@/components/ServiceTreePanel.vue'
 import FormView from './FormView.vue'
 import TableView from './TableView.vue'
-import type { ServiceTree } from '../../domain/services/WorkspaceDomainService'
+import type { ServiceTree, App } from '../../domain/services/WorkspaceDomainService'
 import type { FunctionDetail } from '../../domain/interfaces/IFunctionLoader'
+import type { App as AppType } from '@/types'
+
+const route = useRoute()
 
 // 依赖注入（使用 ServiceFactory 简化）
-import { serviceFactory } from '../../infrastructure/factories'
-
 const stateManager = serviceFactory.getWorkspaceStateManager()
 const domainService = serviceFactory.getWorkspaceDomainService()
 const applicationService = serviceFactory.getWorkspaceApplicationService()
@@ -56,31 +61,94 @@ const applicationService = serviceFactory.getWorkspaceApplicationService()
 // 从状态管理器获取状态
 const serviceTree = computed(() => stateManager.getServiceTree())
 const currentFunction = computed(() => stateManager.getCurrentFunction())
+const currentApp = computed(() => stateManager.getCurrentApp())
 const currentFunctionDetail = computed<FunctionDetail | null>(() => {
   const node = currentFunction.value
   if (!node) return null
   return stateManager.getFunctionDetail(node)
 })
 
+// 加载状态
+const loading = computed(() => false) // TODO: 从状态管理器获取
+
 // 事件处理
-const handleNodeClick = (node: ServiceTree) => {
-  applicationService.triggerNodeClick(node)
+const handleNodeClick = (node: ServiceTreeType) => {
+  // 转换为新架构的 ServiceTree 类型
+  const serviceTree: ServiceTree = node as any
+  applicationService.triggerNodeClick(serviceTree)
+}
+
+// 从路由解析应用并加载
+const loadAppFromRoute = async () => {
+  const fullPath = route.path.replace('/workspace/', '').replace(/^\/+|\/+$/g, '')
+  if (!fullPath) {
+    return
+  }
+
+  const pathSegments = fullPath.split('/').filter(Boolean)
+  if (pathSegments.length < 2) {
+    return
+  }
+
+  const [user, appCode] = pathSegments
+  
+  try {
+    // 加载应用列表
+    const appList = await apiClient.get<AppType[]>('/api/v1/app/list')
+    const app = appList.find((a: AppType) => a.user === user && a.code === appCode)
+    
+    if (app) {
+      const appForService: App = {
+        id: app.id,
+        user: app.user,
+        code: app.code,
+        name: app.name
+      }
+      
+      // 切换应用
+      await applicationService.triggerAppSwitch(appForService)
+      
+      // 如果路径中有更多段，尝试定位节点
+      if (pathSegments.length > 2) {
+        const functionPath = pathSegments.slice(2).join('/')
+        // TODO: 根据路径定位节点
+      }
+    }
+  } catch (error) {
+    console.error('[WorkspaceView] 加载应用失败', error)
+  }
 }
 
 // 生命周期
 let unsubscribeFunctionLoaded: (() => void) | null = null
+let unsubscribeServiceTreeLoaded: (() => void) | null = null
 
-onMounted(() => {
-  // 监听函数加载完成事件，更新 UI
+onMounted(async () => {
+  // 监听函数加载完成事件
   unsubscribeFunctionLoaded = eventBus.on(WorkspaceEvent.functionLoaded, () => {
-    // 状态已通过 StateManager 自动更新，这里可以添加额外的 UI 更新逻辑
+    // 状态已通过 StateManager 自动更新
   })
+
+  // 监听服务树加载完成事件
+  unsubscribeServiceTreeLoaded = eventBus.on(WorkspaceEvent.serviceTreeLoaded, () => {
+    // 状态已通过 StateManager 自动更新
+  })
+
+  // 从路由加载应用
+  await loadAppFromRoute()
+})
+
+// 监听路由变化
+watch(() => route.path, async () => {
+  await loadAppFromRoute()
 })
 
 onUnmounted(() => {
-  // 取消事件监听
   if (unsubscribeFunctionLoaded) {
     unsubscribeFunctionLoaded()
+  }
+  if (unsubscribeServiceTreeLoaded) {
+    unsubscribeServiceTreeLoaded()
   }
 })
 </script>

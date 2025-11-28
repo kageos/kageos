@@ -22,10 +22,12 @@ import { TableDomainService } from '../../domain/services/TableDomainService'
 import { WorkspaceApplicationService } from '../../application/services/WorkspaceApplicationService'
 import { FormApplicationService } from '../../application/services/FormApplicationService'
 import { TableApplicationService } from '../../application/services/TableApplicationService'
+import { serviceTreeLoader } from '../serviceTreeLoader'
 import type { IEventBus } from '../../domain/interfaces/IEventBus'
 import type { IApiClient } from '../../domain/interfaces/IApiClient'
 import type { ICacheManager } from '../../domain/interfaces/ICacheManager'
 import type { IFunctionLoader } from '../../domain/interfaces/IFunctionLoader'
+import type { IServiceTreeLoader } from '../serviceTreeLoader/ServiceTreeLoaderImpl'
 
 /**
  * 服务工厂配置
@@ -45,6 +47,7 @@ export class ServiceFactory {
   private apiClient: IApiClient
   private cacheManager: ICacheManager
   private functionLoader: IFunctionLoader
+  private serviceTreeLoader: IServiceTreeLoader
 
   // Domain Services
   private workspaceDomainService?: WorkspaceDomainService
@@ -66,6 +69,7 @@ export class ServiceFactory {
     this.apiClient = config?.apiClient || apiClient
     this.cacheManager = config?.cacheManager || cacheManager
     this.functionLoader = config?.functionLoader || functionLoader
+    this.serviceTreeLoader = serviceTreeLoader
   }
 
   /**
@@ -107,7 +111,8 @@ export class ServiceFactory {
       this.workspaceDomainService = new WorkspaceDomainService(
         this.functionLoader,
         stateManager,
-        this.eventBus
+        this.eventBus,
+        this.serviceTreeLoader
       )
     }
     return this.workspaceDomainService

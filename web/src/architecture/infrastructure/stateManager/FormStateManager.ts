@@ -50,8 +50,20 @@ export class FormStateManager extends StateManagerImpl<FormState> implements ISt
 
     // 监听 Pinia Store 的变化，同步到 StateManager
     watch(() => this.formStore.data, () => {
-      this.notifySubscribers()
+      this.updateState()
     }, { deep: true })
+  }
+
+  /**
+   * 更新状态并通知订阅者
+   */
+  private updateState(): void {
+    const newState: FormState = {
+      data: this.formStore.data,
+      errors: this.errors,
+      submitting: this.submitting.value
+    }
+    this.setState(newState)
   }
 
   /**
@@ -73,7 +85,7 @@ export class FormStateManager extends StateManagerImpl<FormState> implements ISt
    */
   setError(fieldCode: string, errors: any[]): void {
     this.errors.set(fieldCode, errors)
-    this.notifySubscribers()
+    this.updateState()
   }
 
   /**
@@ -81,7 +93,7 @@ export class FormStateManager extends StateManagerImpl<FormState> implements ISt
    */
   clearError(fieldCode: string): void {
     this.errors.delete(fieldCode)
-    this.notifySubscribers()
+    this.updateState()
   }
 
   /**
@@ -89,7 +101,7 @@ export class FormStateManager extends StateManagerImpl<FormState> implements ISt
    */
   setSubmitting(submitting: boolean): void {
     this.submitting.value = submitting
-    this.notifySubscribers()
+    this.updateState()
   }
 
   /**
@@ -99,18 +111,5 @@ export class FormStateManager extends StateManagerImpl<FormState> implements ISt
     return this.formStore.getSubmitData(fields)
   }
 
-  /**
-   * 通知订阅者（重写以支持响应式更新）
-   */
-  private notifySubscribers(): void {
-    const state = this.getState()
-    this.subscribers.forEach(callback => {
-      try {
-        callback(state)
-      } catch (error) {
-        console.error('[FormStateManager] 订阅者回调执行失败', error)
-      }
-    })
-  }
 }
 
