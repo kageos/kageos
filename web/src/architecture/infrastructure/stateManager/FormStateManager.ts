@@ -28,16 +28,23 @@ export interface FormState {
  * 表单状态管理实现
  */
 export class FormStateManager extends StateManagerImpl<FormState> implements IStateManager<FormState> {
-  private formStore = useFormDataStore()
+  private formStore: ReturnType<typeof useFormDataStore>
   private errors = reactive<Map<string, any[]>>(new Map())
   private submitting = reactive({ value: false })
 
   constructor() {
+    // 1. 先调用 super 传递初始空状态
     super({
-      data: this.formStore.data, // 直接使用 Pinia Store 的响应式 Map
-      errors: this.errors,
-      submitting: this.submitting.value
+      data: new Map(),
+      errors: new Map(),
+      submitting: false
     })
+
+    // 2. 初始化 store 和其他属性
+    this.formStore = useFormDataStore()
+    
+    // 3. 立即同步真实状态
+    this.updateState()
 
     // 设置 watch，监听 Pinia Store 的变化
     this.setWatch(() => {
