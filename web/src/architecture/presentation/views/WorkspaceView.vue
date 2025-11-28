@@ -165,9 +165,8 @@ const createAppForm = ref<CreateAppRequest>({
   name: ''
 })
 
-// 加载状态
-const loadingTree = ref(false)
-const loading = computed(() => loadingTree.value)
+// 转换 loadingTree 为 boolean (避免 computed 类型问题)
+// const loading = computed(() => !!loadingTree.value) // 移除这行，直接使用 loadingTree
 
 // 事件处理
 const handleNodeClick = (node: ServiceTreeType) => {
