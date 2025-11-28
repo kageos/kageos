@@ -115,11 +115,44 @@
       @size-change="handleSizeChange"
       @current-change="handleCurrentChange"
     />
+
+    <!-- 编辑对话框 -->
+    <el-dialog
+      v-model="editDialogVisible"
+      title="编辑"
+      width="600px"
+      :close-on-click-modal="false"
+      destroy-on-close
+    >
+      <el-form :model="editFormData" label-width="100px">
+        <el-form-item
+          v-for="field in editFields"
+          :key="field.code"
+          :label="field.name"
+        >
+          <WidgetComponent
+            :field="field"
+            :value="getEditFieldValue(field.code)"
+            @update:model-value="(v) => updateEditField(field.code, v)"
+            mode="edit"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="editDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitEdit" :loading="editFormLoading">
+            确认
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { eventBus, TableEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
@@ -147,6 +180,12 @@ const total = ref(0)
 // 搜索表单
 const searchForm = ref<Record<string, any>>({})
 
+// 编辑表单状态
+const editDialogVisible = ref(false)
+const editFormLoading = ref(false)
+const currentEditRowId = ref<string | number | null>(null)
+const editFormData = ref<Record<string, any>>({})
+
 // 字段配置
 const responseFields = computed(() => (props.functionDetail.response || []) as FieldConfig[])
 const searchableFields = computed(() => {
@@ -157,6 +196,12 @@ const visibleFields = computed(() => {
     const permission = field.table_permission || ''
     return permission === '' || permission === 'read'
   })
+})
+
+// 编辑字段：默认使用响应字段作为编辑字段
+// 实际项目中可能需要从 FunctionDetail 中获取专门的 update_fields
+const editFields = computed(() => {
+  return responseFields.value
 })
 
 // 回调判断
@@ -230,8 +275,49 @@ const handleAdd = async (): Promise<void> => {
 }
 
 const handleEdit = async (row: TableRow): Promise<void> => {
-  // TODO: 打开编辑对话框
-  console.log('编辑', row)
+  currentEditRowId.value = row.id
+  // 深拷贝行数据到编辑表单
+  // 注意：这里简化处理，直接使用行数据作为 raw value
+  const formData: Record<string, any> = {}
+  // 确保响应式丢失，使用 JSON 序列化/反序列化进行深拷贝
+  const rowClone = JSON.parse(JSON.stringify(row))
+  for (const key in rowClone) {
+    formData[key] = rowClone[key]
+  }
+  editFormData.value = formData
+  editDialogVisible.value = true
+}
+
+const getEditFieldValue = (fieldCode: string): FieldValue => {
+  const value = editFormData.value[fieldCode]
+  // 尝试从 editFields 中找到对应的字段配置来获取更多元数据（如果有）
+  // 这里简化处理
+  return { 
+    raw: value, 
+    display: typeof value === 'object' ? JSON.stringify(value) : String(value ?? ''), 
+    meta: {} 
+  }
+}
+
+const updateEditField = (fieldCode: string, value: FieldValue): void => {
+  editFormData.value[fieldCode] = value.raw
+}
+
+const submitEdit = async (): Promise<void> => {
+  if (!currentEditRowId.value) return
+  
+  try {
+    editFormLoading.value = true
+    await applicationService.updateRow(props.functionDetail, currentEditRowId.value, editFormData.value)
+    ElMessage.success('更新成功')
+    editDialogVisible.value = false
+  } catch (error: any) {
+    console.error('更新失败:', error)
+    const msg = error?.response?.data?.message || '更新失败'
+    ElMessage.error(msg)
+  } finally {
+    editFormLoading.value = false
+  }
 }
 
 const handleDetail = (row: TableRow): void => {
@@ -239,14 +325,27 @@ const handleDetail = (row: TableRow): void => {
 }
 
 const handleDelete = async (row: TableRow): Promise<void> => {
-  // TODO: 确认删除
-  const id = row.id
-  await applicationService.deleteRow(props.functionDetail, id)
+  try {
+    await ElMessageBox.confirm('确定要删除该行数据吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    const id = row.id
+    await applicationService.deleteRow(props.functionDetail, id)
+    ElMessage.success('删除成功')
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除失败:', error)
+      ElMessage.error('删除失败')
+    }
+  }
 }
 
 // 生命周期
 let unsubscribeFunctionLoaded: (() => void) | null = null
 let unsubscribeDataLoaded: (() => void) | null = null
+let unsubscribeEditRow: (() => void) | null = null
 
 onMounted(() => {
   // 初始加载数据
@@ -267,6 +366,11 @@ onMounted(() => {
     currentPage.value = payload.pagination?.current_page || 1
     pageSize.value = payload.pagination?.page_size || 20
   })
+
+  // 监听从详情页发起的编辑事件
+  unsubscribeEditRow = eventBus.on('table:edit-row', ({ row }: { row: TableRow }) => {
+    handleEdit(row)
+  })
 })
 
 onUnmounted(() => {
@@ -275,6 +379,9 @@ onUnmounted(() => {
   }
   if (unsubscribeDataLoaded) {
     unsubscribeDataLoaded()
+  }
+  if (unsubscribeEditRow) {
+    unsubscribeEditRow()
   }
 })
 </script>
