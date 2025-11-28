@@ -1,5 +1,5 @@
 <template>
-  <div class="app-switcher" v-if="currentApp">
+  <div class="app-switcher">
     <div class="app-container">
       <el-dropdown 
         trigger="click" 
@@ -8,7 +8,7 @@
         @visible-change="handleVisibleChange"
         popper-class="app-dropdown-popper"
       >
-        <div class="app-current">
+        <div class="app-current" v-if="currentApp">
           <div class="app-avatar">
             <div class="app-icon" :style="{ backgroundColor: getAppColor(currentApp) }">
               {{ getAppInitial(currentApp.name || currentApp.code) }}
@@ -20,6 +20,25 @@
             <div class="app-path">
               <el-icon class="path-icon"><FolderOpened /></el-icon>
               <span>{{ currentApp.user }}/{{ currentApp.code }}</span>
+            </div>
+          </div>
+          <div class="expand-section">
+            <el-icon class="expand-icon">
+              <ArrowUp />
+            </el-icon>
+          </div>
+        </div>
+        <div class="app-current" v-else>
+          <div class="app-avatar">
+            <div class="app-icon" style="background-color: #909399;">
+              ?
+            </div>
+          </div>
+          <div class="app-info">
+            <div class="app-name">请选择应用</div>
+            <div class="app-path">
+              <el-icon class="path-icon"><FolderOpened /></el-icon>
+              <span>点击选择应用</span>
             </div>
           </div>
           <div class="expand-section">
@@ -51,7 +70,7 @@
           </div>
 
           <!-- 应用列表 -->
-          <div v-else class="app-list">
+          <div v-else-if="appList.length > 0" class="app-list">
             <el-scrollbar max-height="300px" class="app-scrollbar">
               <div class="app-items">
                 <div 
@@ -92,7 +111,7 @@
                     >
                       <el-icon><Delete /></el-icon>
                     </el-button>
-                    <div v-if="app.id === currentApp.id" class="check-badge">
+                    <div v-if="currentApp && app.id === currentApp.id" class="check-badge">
                       <el-icon class="check-icon"><Check /></el-icon>
                     </div>
                   </div>

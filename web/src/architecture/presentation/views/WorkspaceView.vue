@@ -37,7 +37,9 @@
     </div>
 
     <!-- 应用切换器（底部固定） -->
+    <!-- 即使 currentApp 为 null 也显示，让用户可以选择应用 -->
     <AppSwitcher
+      v-if="appList.length > 0 || loadingApps"
       :current-app="currentApp"
       :app-list="appList"
       :loading-apps="loadingApps"
@@ -121,7 +123,28 @@ const applicationService = serviceFactory.getWorkspaceApplicationService()
 // 从状态管理器获取状态
 const serviceTree = computed(() => stateManager.getServiceTree())
 const currentFunction = computed(() => stateManager.getCurrentFunction())
-const currentApp = computed(() => stateManager.getCurrentApp())
+const currentAppFromState = computed(() => stateManager.getCurrentApp())
+
+// 将 App 类型转换为 AppType 类型（用于 AppSwitcher）
+const currentApp = computed<AppType | null>(() => {
+  const app = currentAppFromState.value
+  if (!app) return null
+  // 从 appList 中查找对应的应用（确保使用最新的应用数据）
+  const foundApp = appList.value.find((a: AppType) => a.id === app.id || (a.user === app.user && a.code === app.code))
+  return foundApp || {
+    id: app.id,
+    user: app.user,
+    code: app.code,
+    name: app.name,
+    nats_id: 0,
+    host_id: 0,
+    status: 'enabled' as const,
+    version: '',
+    created_at: '',
+    updated_at: ''
+  }
+})
+
 const currentFunctionDetail = computed<FunctionDetail | null>(() => {
   const node = currentFunction.value
   if (!node) return null
