@@ -198,15 +198,18 @@ const visibleFields = computed(() => {
   })
 })
 
-// 编辑字段：使用请求字段（request）作为编辑字段
+// 编辑字段：使用 response 字段，根据 table_permission 过滤
 const editFields = computed(() => {
-  // 优先使用 request 字段作为编辑字段
-  const fields = props.functionDetail.request || []
+  const fields = (props.functionDetail.response || []) as FieldConfig[]
   
-  // 过滤掉只读字段（如果有权限配置）
-  // TODO: 实现更细粒度的权限过滤
-  
-  return fields
+  // 权限过滤逻辑：
+  // 1. table_permission 为空：显示
+  // 2. table_permission == 'update'：显示
+  // 3. table_permission == 'read' 或 'create'：隐藏
+  return fields.filter(field => {
+    const p = field.table_permission
+    return !p || p === '' || p === 'update'
+  })
 })
 
 // 回调判断
