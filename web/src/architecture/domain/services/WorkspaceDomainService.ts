@@ -27,6 +27,13 @@ import type { App, ServiceTree } from '@/types'
 export type { App, ServiceTree }
 
 /**
+ * 服务目录树加载器接口
+ */
+export interface IServiceTreeLoader {
+  load(app: App): Promise<ServiceTree[]>
+}
+
+/**
  * 工作空间状态
  */
 export interface WorkspaceState {
@@ -43,7 +50,8 @@ export class WorkspaceDomainService {
   constructor(
     private functionLoader: IFunctionLoader,
     private stateManager: IStateManager<WorkspaceState>,
-    private eventBus: IEventBus
+    private eventBus: IEventBus,
+    private serviceTreeLoader?: IServiceTreeLoader
   ) {}
 
   /**
@@ -109,17 +117,17 @@ export class WorkspaceDomainService {
 
   /**
    * 加载服务目录树
-   * 注意：这里需要调用 API，但为了保持 Domain Layer 的纯净，
-   * 实际的 API 调用应该在 Infrastructure Layer 实现
-   * 这里只是定义业务逻辑，实际实现需要注入 ServiceTreeLoader
    */
   async loadServiceTree(app: App): Promise<ServiceTree[]> {
-    // TODO: 这里需要注入 ServiceTreeLoader 接口
-    // 为了简化，暂时返回空数组
-    // 实际实现应该在 Infrastructure Layer 提供 ServiceTreeLoader
-    
+    if (!this.serviceTreeLoader) {
+      console.warn('[WorkspaceDomainService] ServiceTreeLoader 未注入，无法加载服务目录树')
+      return []
+    }
+
     const state = this.stateManager.getState()
-    const tree: ServiceTree[] = [] // 实际应该从 ServiceTreeLoader 加载
+    
+    // 从 ServiceTreeLoader 加载服务目录树
+    const tree = await this.serviceTreeLoader.load(app)
     
     // 更新状态
     this.stateManager.setState({

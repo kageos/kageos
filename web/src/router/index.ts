@@ -77,6 +77,26 @@ const router = createRouter({
       }
     },
 
+    // 🔥 新架构 workspace 页面（用于测试和对比）
+    {
+      path: '/workspace-v2',
+      name: 'workspace-v2',
+      component: () => import('../architecture/presentation/views/WorkspaceView.vue'),
+      meta: {
+        title: '工作空间（新架构）',
+        requireAuth: true
+      }
+    },
+    {
+      path: '/workspace-v2/:path+',
+      name: 'workspace-v2-path',
+      component: () => import('../architecture/presentation/views/WorkspaceView.vue'),
+      meta: {
+        title: '工作空间（新架构）',
+        requireAuth: true
+      }
+    },
+
     // 404页面
     {
       path: '/:pathMatch(.*)*',
