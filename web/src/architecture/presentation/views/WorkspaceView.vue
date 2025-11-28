@@ -80,7 +80,12 @@ const handleNodeClick = (node: ServiceTreeType) => {
 
 // 从路由解析应用并加载
 const loadAppFromRoute = async () => {
-  const fullPath = route.path.replace('/workspace/', '').replace(/^\/+|\/+$/g, '')
+  // 支持 /workspace-v2 和 /workspace 两种路径
+  const fullPath = route.path
+    .replace('/workspace-v2/', '')
+    .replace('/workspace/', '')
+    .replace(/^\/+|\/+$/g, '')
+  
   if (!fullPath) {
     return
   }
