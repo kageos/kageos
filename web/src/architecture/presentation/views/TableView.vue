@@ -342,10 +342,15 @@ onUnmounted(() => {
   cursor: pointer;
   text-decoration: none;
   font-weight: 500;
+  /* 增加点击区域 */
+  display: inline-block;
+  padding: 2px 4px;
+  border-radius: 4px;
 }
 
 .link-text:hover {
   text-decoration: underline;
+  background-color: var(--el-color-primary-light-9);
 }
 
 .el-pagination {
