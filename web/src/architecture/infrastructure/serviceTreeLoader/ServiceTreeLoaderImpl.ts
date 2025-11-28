@@ -33,7 +33,8 @@ export class ServiceTreeLoaderImpl implements IServiceTreeLoader {
     }
 
     try {
-      const tree = await this.apiClient.get<ServiceTree[]>('/api/v1/service-tree/list', {
+      // 注意：API 路径是 /api/v1/service_tree（下划线），不是 /api/v1/service-tree/list
+      const tree = await this.apiClient.get<ServiceTree[]>('/api/v1/service_tree', {
         user: app.user,
         app: app.code
       })
