@@ -405,10 +405,20 @@ const editFormData = ref<Record<string, any>>({})
 // 新增：编辑提交状态
 const drawerSubmitting = ref(false)
 
-// 计算编辑字段：优先使用 request 字段
+// 计算编辑字段：使用 response 字段，根据 table_permission 过滤
 const editFields = computed(() => {
   if (!currentFunctionDetail.value) return []
-  return (currentFunctionDetail.value.request || []) as FieldConfig[]
+  // 旧版本逻辑：使用 response 字段
+  const fields = (currentFunctionDetail.value.response || []) as FieldConfig[]
+  
+  // 权限过滤逻辑：
+  // 1. table_permission 为空：显示
+  // 2. table_permission == 'update'：显示
+  // 3. table_permission == 'read' 或 'create'：隐藏
+  return fields.filter(field => {
+    const p = field.table_permission
+    return !p || p === '' || p === 'update'
+  })
 })
 
 // 监听表格详情事件
