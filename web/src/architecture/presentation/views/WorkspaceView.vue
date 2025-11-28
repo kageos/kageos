@@ -123,7 +123,7 @@
       :title="detailDrawerTitle"
       size="40%"
       destroy-on-close
-      :modal="false"
+      :modal="true"
       :close-on-click-modal="true"
       class="detail-drawer"
     >
@@ -144,6 +144,19 @@
           </el-form-item>
         </el-form>
       </div>
+      <template #footer>
+        <div class="drawer-footer">
+          <el-button @click="detailDrawerVisible = false">关闭</el-button>
+          <!-- 只有当表格配置中有 Update 回调时才显示编辑按钮 -->
+          <el-button 
+            v-if="currentFunctionDetail?.callbacks?.includes('OnTableUpdateRow')" 
+            type="primary" 
+            @click="handleDrawerEdit"
+          >
+            编辑
+          </el-button>
+        </div>
+      </template>
     </el-drawer>
   </div>
 </template>
@@ -310,6 +323,19 @@ const getDetailFieldValue = (fieldCode: string): FieldValue => {
     raw: value, 
     display: typeof value === 'object' ? JSON.stringify(value) : String(value ?? ''), 
     meta: {} 
+  }
+}
+
+// 在详情抽屉中点击编辑
+const handleDrawerEdit = () => {
+  if (detailRowData.value) {
+    // 先关闭详情抽屉，避免遮挡（或者根据需求保留）
+    detailDrawerVisible.value = false
+    // 触发表格的编辑逻辑
+    // 由于编辑逻辑目前在 TableView 中，我们通过 EventBus 通知
+    // 注意：这需要 TableView 监听此事件，或者我们将编辑逻辑提升到 Workspace 或 Application Service
+    // 这里简单起见，我们发送一个事件让 TableView 处理
+    eventBus.emit('table:edit-row', { row: detailRowData.value })
   }
 }
 
@@ -717,6 +743,12 @@ onUnmounted(() => {
 
 .detail-content {
   height: 100%;
+}
+
+.drawer-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 10px;
 }
 </style>
 
