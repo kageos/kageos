@@ -66,13 +66,26 @@ export class FormDomainService {
     fields.forEach(field => {
       const fieldCode = field.code
       
+      // 🔥 优先级：initialData > 已有值 > 默认值
+      // 这样可以保留用户已输入的值，同时支持 URL 参数覆盖
       if (initialData && initialData.hasOwnProperty(fieldCode)) {
+        // 优先使用 initialData（URL 参数）
         const rawValue = initialData[fieldCode]
         newData.set(fieldCode, {
           raw: rawValue,
           display: typeof rawValue === 'object' ? JSON.stringify(rawValue) : String(rawValue),
           meta: {}
         })
+      } else if (state.data && state.data.has(fieldCode)) {
+        // 保留已有值（如果 initialData 中没有该字段）
+        const existingValue = state.data.get(fieldCode)
+        if (existingValue) {
+          newData.set(fieldCode, existingValue)
+        } else {
+          // 使用默认值
+          const defaultValue = this.getDefaultValue(field)
+          newData.set(fieldCode, defaultValue)
+        }
       } else {
         // 使用默认值
         const defaultValue = this.getDefaultValue(field)
@@ -228,10 +241,17 @@ export class FormDomainService {
    * 清空表单
    */
   clearForm(): void {
+    const stateManager = this.stateManager as any
+    // 清空响应数据
+    if (stateManager && typeof stateManager.setResponse === 'function') {
+      stateManager.setResponse(null)
+    }
+    
     this.stateManager.setState({
       data: new Map(),
       errors: new Map(),
-      submitting: false
+      submitting: false,
+      response: null
     })
   }
 

@@ -102,7 +102,7 @@
             :field-path="field.code"
             :form-renderer="formRendererContext"
             :user-info-map="userInfoMap"
-            :mode="field.widget?.type === 'files' ? 'detail' : 'response'"
+            mode="response"
           />
           <div v-else class="widget-error">
             响应组件未找到: {{ field.widget?.type || 'input' }}

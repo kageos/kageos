@@ -634,11 +634,21 @@ const htmlContent = computed(() => {
 })
 
 // TipTap 编辑器（使用完整工具栏，最高级模式）
+// 🔥 修复：StarterKit 已经包含了 link, code, codeBlock, dropCursor, gapCursor
+// 需要排除它们，使用自定义配置的版本
 const editor = useEditor({
   extensions: [
-    StarterKit,
+    StarterKit.configure({
+      // 排除 StarterKit 中已包含的扩展，使用自定义配置的版本
+      link: false,
+      code: false,
+      codeBlock: false,
+      dropcursor: false,
+      gapcursor: false,
+      underline: false, // 🔥 排除 underline，使用自定义的 Underline
+    }),
     Underline,
-    Code,
+    Code, // 单独添加，使用默认配置
     CodeBlock.configure({
       HTMLAttributes: {
         class: 'rich-text-code-block'
@@ -659,8 +669,8 @@ const editor = useEditor({
     Placeholder.configure({
       placeholder: '请输入内容...'
     }),
-    Dropcursor,
-    Gapcursor,
+    Dropcursor, // 单独添加
+    Gapcursor, // 单独添加
     Link.configure({
       openOnClick: false,
       HTMLAttributes: {

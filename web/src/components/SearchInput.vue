@@ -286,7 +286,7 @@ import { WidgetType } from '@/core/constants/widget'
 import { parseCommaSeparatedString } from '@/utils/stringUtils'
 import { isStandardColor, getStandardColorCSSVar, type StandardColorType } from '@/core/constants/select'
 import { Logger } from '@/core/utils/logger'
-import type { FieldConfig } from '@/types'
+import type { FieldConfig } from '@/core/types/field'
 
 // 防抖函数
 function debounce<T extends (...args: any[]) => any>(func: T, wait: number): T {

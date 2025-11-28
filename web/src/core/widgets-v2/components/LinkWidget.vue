@@ -18,9 +18,9 @@
     <!-- 表格/详情模式：作为按钮显示（在操作区域） -->
     <el-button
       v-else-if="resolvedUrl && (mode === 'table-cell' || mode === 'detail')"
-      :type="linkConfig.type || 'primary'"
+      :type="linkConfig.type === 'link' ? 'primary' : (linkConfig.type || 'primary')"
       size="small"
-      :link="mode === 'table-cell'"
+      :link="mode === 'table-cell' || linkConfig.type === 'link'"
       :plain="mode === 'detail'"
       class="link-button"
       @click.prevent="handleClick"
@@ -84,7 +84,7 @@ const parsedLink = computed(() => {
   }
 })
 
-// 解析后的 URL（处理站内跳转，添加 /workspace 前缀）
+// 解析后的 URL（处理站内跳转，添加 /workspace-v2 前缀）
 const resolvedUrl = computed(() => {
   const url = parsedLink.value.url
   if (!url) return ''
@@ -94,15 +94,19 @@ const resolvedUrl = computed(() => {
     return url
   }
   
-  // 如果已经是完整路径（包含 /workspace），直接使用
+  // 🔥 如果已经是完整路径（包含 /workspace 或 /workspace-v2），转换为 /workspace-v2
   if (url.startsWith('/workspace/')) {
+    // 将 /workspace 替换为 /workspace-v2
+    return url.replace('/workspace/', '/workspace-v2/')
+  }
+  if (url.startsWith('/workspace-v2/')) {
     return url
   }
   
-  // 如果是绝对路径（以 / 开头），添加 /workspace 前缀
+  // 如果是绝对路径（以 / 开头），添加 /workspace-v2 前缀
   if (url.startsWith('/')) {
     const pathWithoutSlash = url.substring(1)
-    return `/workspace/${pathWithoutSlash}`
+    return `/workspace-v2/${pathWithoutSlash}`
   }
   
   // 相对路径，需要转换为完整路径
@@ -173,13 +177,17 @@ const handleClick = (e: Event) => {
 
 // 构建完整路径
 function buildFullPath(relativePath: string): string {
-  // 如果已经是绝对路径（以 / 开头），直接添加 /workspace 前缀
+  // 如果已经是绝对路径（以 / 开头），直接添加 /workspace-v2 前缀
   if (relativePath.startsWith('/')) {
-    if (relativePath.startsWith('/workspace/')) {
+    if (relativePath.startsWith('/workspace-v2/')) {
       return relativePath
     }
+    // 🔥 如果是 /workspace 路径，转换为 /workspace-v2
+    if (relativePath.startsWith('/workspace/')) {
+      return relativePath.replace('/workspace/', '/workspace-v2/')
+    }
     const pathWithoutSlash = relativePath.substring(1)
-    return `/workspace/${pathWithoutSlash}`
+    return `/workspace-v2/${pathWithoutSlash}`
   }
   
   // 解析相对路径：function_name?query
@@ -190,22 +198,26 @@ function buildFullPath(relativePath: string): string {
   const pathParts = currentRoute.path.split('/').filter(Boolean)
   
   if (pathParts.length < 3) {
-    // 如果路径格式不正确，尝试添加 /workspace 前缀
-    return `/workspace/${relativePath}`
+    // 如果路径格式不正确，尝试添加 /workspace-v2 前缀
+    return `/workspace-v2/${relativePath}`
   }
   
+  // 🔥 支持 /workspace-v2 和 /workspace 两种路径
   const user = pathParts[1]
   const app = pathParts[2]
   
-  // 构建完整路径
-  const fullPath = `/workspace/${user}/${app}/${functionPath}`
+  // 构建完整路径（使用 /workspace-v2）
+  const fullPath = `/workspace-v2/${user}/${app}/${functionPath}`
   return query ? `${fullPath}?${query}` : fullPath
 }
 
 // 将 URL 转换为路由路径
 function convertUrlToRoute(url: string): string {
-  // 如果已经是完整路径（包含 /workspace），直接使用
+  // 🔥 如果已经是完整路径（包含 /workspace 或 /workspace-v2），转换为 /workspace-v2
   if (url.startsWith('/workspace/')) {
+    return url.replace('/workspace/', '/workspace-v2/')
+  }
+  if (url.startsWith('/workspace-v2/')) {
     return url
   }
   
@@ -214,10 +226,10 @@ function convertUrlToRoute(url: string): string {
     return url
   }
   
-  // 如果是绝对路径（以 / 开头），添加 /workspace 前缀
+  // 如果是绝对路径（以 / 开头），添加 /workspace-v2 前缀
   if (url.startsWith('/')) {
     const pathWithoutSlash = url.substring(1)
-    return `/workspace/${pathWithoutSlash}`
+    return `/workspace-v2/${pathWithoutSlash}`
   }
   
   // 否则使用 buildFullPath（相对路径）

@@ -45,13 +45,22 @@ export class WorkspaceApplicationService {
 
   /**
    * 处理节点点击
+   * 🔥 修复：如果 Tab 已存在，不重新加载函数详情（避免重复加载）
    */
   async handleNodeClick(node: ServiceTree): Promise<void> {
     if (node.type === 'function') {
-      // 加载函数详情
-      await this.domainService.loadFunction(node)
-      // 🔥 打开新标签页
-      this.domainService.openTab(node)
+      const state = this.domainService['stateManager'].getState()
+      const tabId = node.full_code_path || String(node.id)
+      const existingTab = state.tabs.find(t => t.id === tabId)
+      
+      if (existingTab) {
+        // 🔥 Tab 已存在，只激活，不重新加载函数详情（避免重复加载）
+        this.domainService.activateTab(tabId)
+      } else {
+        // Tab 不存在，加载函数详情并创建新 Tab
+        const detail = await this.domainService.loadFunction(node)
+        this.domainService.openTab(node, detail)
+      }
     } else {
       // 目录节点，只设置当前函数，不加载详情
       this.domainService.setCurrentFunction(node)

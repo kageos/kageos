@@ -27,31 +27,51 @@
       >
         <WidgetComponent
           :field="field"
-          :value="getFieldValue(field.code)"
-          @update:model-value="(v) => handleFieldUpdate(field.code, v)"
+          :value="fieldValues[field.code]"
+          :field-path="field.code"
+          :form-renderer="formRendererContext"
+          :function-method="props.functionDetail.method || 'GET'"
+          :function-router="props.functionDetail.router || ''"
+          @update:model-value="(v: FieldValue) => handleFieldUpdate(field.code, v)"
         />
       </el-form-item>
     </el-form>
 
-    <!-- 提交按钮 -->
-    <div class="form-actions">
-      <el-button
-        type="primary"
-        size="large"
-        @click="handleSubmit"
-        :loading="submitting"
-      >
-        提交
-      </el-button>
-      <el-button size="large" @click="handleReset">
-        重置
-      </el-button>
+    <!-- 提交按钮（参考旧版本：提交按钮全宽） -->
+    <div class="form-actions-section">
+      <div class="form-actions-row">
+        <el-button
+          type="primary"
+          size="large"
+          @click="handleSubmit"
+          :loading="submitting"
+          class="submit-button-full-width"
+        >
+          <el-icon><Promotion /></el-icon>
+          提交
+        </el-button>
+        <el-button size="large" @click="handleReset">
+          <el-icon><RefreshLeft /></el-icon>
+          重置
+        </el-button>
+      </div>
     </div>
 
-    <!-- 响应参数展示 -->
-    <div v-if="hasResponseData" class="response-section">
-      <div class="section-title">响应参数</div>
-      <el-form label-width="100px">
+    <!-- 响应参数展示（参考旧版本：提交前就显示，显示"等待提交"标签） -->
+    <div v-if="responseFields.length > 0" class="response-section">
+      <div class="section-title">
+        响应参数
+        <el-tag v-if="!hasResponseData" type="info" size="small" style="margin-left: 12px">
+          等待提交
+        </el-tag>
+        <el-tag v-else type="success" size="small" style="margin-left: 12px">
+          已返回
+        </el-tag>
+      </div>
+      <el-form 
+        label-width="100px"
+        :class="{ 'is-empty': !hasResponseData }"
+      >
         <el-form-item
           v-for="field in responseFields"
           :key="field.code"
@@ -59,7 +79,8 @@
         >
           <WidgetComponent
             :field="field"
-            :value="getResponseFieldValue(field.code)"
+            :value="responseFieldValues[field.code]"
+            :field-path="field.code"
             mode="response"
           />
         </el-form-item>
@@ -69,7 +90,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, watch, ref, nextTick } from 'vue'
+import { useRoute } from 'vue-router'
+import { Promotion, RefreshLeft } from '@element-plus/icons-vue'
+import { ElIcon, ElTag, ElNotification } from 'element-plus'
 import { eventBus, FormEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
@@ -79,6 +103,9 @@ import { hasAnyRequiredRule } from '@/core/utils/validationUtils'
 const props = defineProps<{
   functionDetail: FunctionDetail
 }>()
+
+// 路由
+const route = useRoute()
 
 // 依赖注入（使用 ServiceFactory 简化）
 const stateManager = serviceFactory.getFormStateManager()
@@ -102,19 +129,112 @@ const formData = computed(() => {
 const requestFields = computed(() => (props.functionDetail.request || []) as FieldConfig[])
 const responseFields = computed(() => (props.functionDetail.response || []) as FieldConfig[])
 
+// 🔥 从 URL 查询参数中提取表单初始数据（参考旧版本实现）
+const formInitialData = computed(() => {
+  const initialData: Record<string, any> = {}
+  const query = route.query
+  
+  // 遍历所有查询参数，如果字段在 request 中，添加到 initialData
+  if (props.functionDetail?.request) {
+    props.functionDetail.request.forEach((field: FieldConfig) => {
+      const fieldCode = field.code
+      const queryValue = query[fieldCode]
+      
+      // 🔥 处理数组类型的查询参数（取第一个值）
+      const value = Array.isArray(queryValue) ? queryValue[0] : queryValue
+      
+      if (value !== undefined && value !== null && value !== '') {
+        // 🔥 类型转换：根据字段类型转换值（参考旧版本）
+        if (field.data?.type === 'int' || field.data?.type === 'integer') {
+          const intValue = parseInt(String(value), 10)
+          if (!isNaN(intValue)) {
+            initialData[fieldCode] = intValue
+          }
+        } else if (field.data?.type === 'float' || field.data?.type === 'number') {
+          const floatValue = parseFloat(String(value))
+          if (!isNaN(floatValue)) {
+            initialData[fieldCode] = floatValue
+          }
+        } else if (field.data?.type === 'bool' || field.data?.type === 'boolean') {
+          const strValue = String(value)
+          initialData[fieldCode] = strValue === 'true' || strValue === '1'
+        } else {
+          initialData[fieldCode] = value
+        }
+      }
+    })
+  }
+  
+  return initialData
+})
+
+// 🔥 为所有字段创建响应式的值 Map
+const fieldValues = computed(() => {
+  const state = stateManager.getState()
+  const values: Record<string, FieldValue> = {}
+  requestFields.value.forEach((field: FieldConfig) => {
+    values[field.code] = state.data.get(field.code) || { raw: null, display: '', meta: {} }
+  })
+  return values
+})
+
 const submitting = computed(() => {
   const state = stateManager.getState()
   return state.submitting
 })
 
+// 🔥 为所有响应字段创建响应式的值 Map
+const responseFieldValues = computed(() => {
+  const state = stateManager.getState()
+  const values: Record<string, FieldValue> = {}
+  responseFields.value.forEach((field: FieldConfig) => {
+    const rawValue = state.response?.[field.code]
+    values[field.code] = {
+      raw: rawValue !== undefined ? rawValue : null,
+      display: rawValue !== null && rawValue !== undefined 
+        ? (typeof rawValue === 'object' ? JSON.stringify(rawValue) : String(rawValue))
+        : '',
+      meta: {}
+    }
+  })
+  return values
+})
+
 const hasResponseData = computed(() => {
-  // TODO: 从状态管理器获取响应数据
-  return false
+  const state = stateManager.getState()
+  return state.response !== null && state.response !== undefined
+})
+
+// 🔥 FormRenderer 上下文（用于 OnSelectFuzzy 回调）
+// 注意：使用 computed 确保响应式更新，并且每次访问都返回新的对象（但方法引用稳定）
+const formRendererContext = computed(() => {
+  return {
+    getFunctionMethod: () => props.functionDetail.method || 'GET',
+    getFunctionRouter: () => props.functionDetail.router || '',
+    getSubmitData: () => {
+      const state = stateManager.getState()
+      const data: Record<string, any> = {}
+      if (state.data) {
+        state.data.forEach((value, key) => {
+          if (value) {
+            data[key] = value.raw
+          }
+        })
+      }
+      return data
+    },
+    registerWidget: () => {},
+    unregisterWidget: () => {},
+    getFieldError: (fieldPath: string) => {
+      const errors = domainService.getFieldError(fieldPath)
+      return errors[0]?.message || null
+    }
+  }
 })
 
 // 方法
 const getFieldValue = (fieldCode: string): FieldValue => {
-  return domainService.getFieldValue(fieldCode)
+  return fieldValues.value[fieldCode] || { raw: null, display: '', meta: {} }
 }
 
 const getFieldError = (fieldCode: string): string => {
@@ -123,31 +243,66 @@ const getFieldError = (fieldCode: string): string => {
 }
 
 const getResponseFieldValue = (fieldCode: string): FieldValue => {
-  // TODO: 从响应数据中获取
-  return { raw: null, display: '', meta: {} }
+  return responseFieldValues.value[fieldCode] || { raw: null, display: '', meta: {} }
 }
 
 const isFieldRequired = (field: FieldConfig): boolean => {
-  return hasAnyRequiredRule(field.validation || '')
+  return hasAnyRequiredRule(field)
 }
 
 const handleFieldUpdate = (fieldCode: string, value: FieldValue): void => {
+  // 🔥 调试日志：检查值是否正确传递
+  if (!value || value.raw === null || value.raw === undefined) {
+    console.warn('[FormView] handleFieldUpdate 收到空值:', { fieldCode, value })
+  }
   applicationService.updateFieldValue(fieldCode, value)
 }
 
 const handleSubmit = async (): Promise<void> => {
   try {
     await applicationService.submitForm(props.functionDetail)
+    
+    // 🔥 如果执行到这里，说明 API 调用成功（request.ts 的响应拦截器在 code !== 0 时会 reject）
+    // request.ts 在 code === 0 时返回 data，所以这里 response 是 data 部分
+    // 显示成功通知
+    ElNotification.success({
+      title: '提交成功',
+      message: '操作成功',
+      duration: 3000
+    })
   } catch (error: any) {
     console.error('表单提交失败:', error)
-    // TODO: 显示错误提示
+    
+    // 🔥 从错误对象中提取错误消息
+    // request.ts 的响应拦截器在 code !== 0 时会 reject，并创建错误对象
+    // 错误对象包含 response 属性，其中包含完整的响应数据
+    let errorMessage = '提交失败，请稍后重试'
+    
+    // 尝试从 error.response.data 中获取错误消息（request.ts 第 99-101 行）
+    if (error?.response?.data) {
+      const responseData = error.response.data
+      // 优先使用 msg，其次使用 message
+      errorMessage = responseData.msg || responseData.message || errorMessage
+    } else if (error?.message) {
+      // 如果错误对象本身有 message（request.ts 第 99 行创建的）
+      errorMessage = error.message
+    }
+    
+    ElNotification.error({
+      title: '提交失败',
+      message: errorMessage,
+      duration: 3000
+    })
   }
 }
 
 const handleReset = (): void => {
   applicationService.clearForm()
   // 重新初始化表单
-  applicationService.initializeForm(requestFields.value)
+  const fields = requestFields.value
+  if (fields.length > 0) {
+    applicationService.initializeForm(fields)
+  }
 }
 
 // 生命周期
@@ -155,10 +310,36 @@ let unsubscribeFunctionLoaded: (() => void) | null = null
 let unsubscribeFormInitialized: (() => void) | null = null
 
 onMounted(() => {
+  // 🔥 初始化表单（参考旧版本：在挂载时立即初始化，并传递 URL 参数作为初始数据）
+  if (requestFields.value.length > 0) {
+    const initialData = formInitialData.value
+    console.log('[FormView] onMounted 初始化表单', {
+      functionId: props.functionDetail.id,
+      router: props.functionDetail.router,
+      initialDataKeys: Object.keys(initialData),
+      initialData
+    })
+    applicationService.initializeForm(requestFields.value, initialData)
+  }
+
   // 监听函数加载完成事件
   unsubscribeFunctionLoaded = eventBus.on(WorkspaceEvent.functionLoaded, (payload: { detail: FunctionDetail }) => {
-    if (payload.detail.template_type === 'form') {
-      // Application Service 会自动处理
+    if (payload.detail.template_type === 'form' && payload.detail.id === props.functionDetail.id) {
+      // 🔥 使用 nextTick 确保 formInitialData 已经更新（因为它依赖于 route.query）
+      nextTick(() => {
+        // 重新初始化表单（传递 URL 参数作为初始数据）
+        const fields = (payload.detail.request || []) as FieldConfig[]
+        if (fields.length > 0) {
+          const initialData = formInitialData.value
+          console.log('[FormView] functionLoaded 事件，重新初始化表单', {
+            functionId: payload.detail.id,
+            router: payload.detail.router,
+            initialDataKeys: Object.keys(initialData),
+            initialData
+          })
+          applicationService.initializeForm(fields, initialData)
+        }
+      })
     }
   })
 
@@ -167,6 +348,68 @@ onMounted(() => {
     // 表单已初始化，可以渲染
   })
 })
+
+  // 🔥 监听 functionDetail 变化，重新初始化表单
+  // 注意：只在 functionDetail 真正变化时（id 或 router 变化）才重新初始化
+  // 如果只是 URL 参数变化，不应该触发这个 watch
+  watch(() => props.functionDetail, (newDetail: FunctionDetail, oldDetail?: FunctionDetail) => {
+    // 🔥 只在 functionDetail 的 id 或 router 真正变化时重新初始化
+    // 如果只是其他属性变化（如字段配置），不应该重新初始化
+    if (newDetail.id !== oldDetail?.id || newDetail.router !== oldDetail?.router) {
+      const fields = (newDetail.request || []) as FieldConfig[]
+      if (fields.length > 0) {
+        // 🔥 使用 nextTick 确保 formInitialData 已经更新（因为它依赖于 route.query）
+        nextTick(() => {
+          // 🔥 重新初始化时，传递 URL 参数作为初始数据，确保 URL 参数不会被清空
+          const initialData = formInitialData.value
+          console.log('[FormView] functionDetail 变化，重新初始化表单', {
+            functionId: newDetail.id,
+            router: newDetail.router,
+            initialDataKeys: Object.keys(initialData),
+            initialData
+          })
+          applicationService.initializeForm(fields, initialData)
+        })
+      }
+    }
+  }, { deep: false }) // 🔥 改为 shallow watch，避免深度监听导致不必要的触发
+
+  // 🔥 监听 URL 查询参数变化，更新表单字段值（用于处理链接跳转）
+  // 注意：只更新 URL 参数中的字段，保留其他字段的值
+  watch(() => route.query, (newQuery: any, oldQuery: any) => {
+    // 只在查询参数真正变化时更新
+    const newQueryStr = JSON.stringify(newQuery)
+    const oldQueryStr = JSON.stringify(oldQuery)
+    if (newQueryStr !== oldQueryStr && requestFields.value.length > 0) {
+      // 🔥 使用 nextTick 确保在 functionDetail watch 之后执行，避免被覆盖
+      nextTick(() => {
+        // 🔥 只更新 URL 参数中的字段，保留其他字段的值
+        const initialData = formInitialData.value
+        console.log('[FormView] URL 查询参数变化，更新表单字段', {
+          newQuery,
+          oldQuery,
+          initialDataKeys: Object.keys(initialData),
+          initialData
+        })
+        if (Object.keys(initialData).length > 0) {
+          // 只更新 URL 参数中存在的字段
+          Object.keys(initialData).forEach(fieldCode => {
+            const field = requestFields.value.find((f: FieldConfig) => f.code === fieldCode)
+            if (field) {
+              const rawValue = initialData[fieldCode]
+              const fieldValue: FieldValue = {
+                raw: rawValue,
+                display: typeof rawValue === 'object' ? JSON.stringify(rawValue) : String(rawValue),
+                meta: {}
+              }
+              console.log('[FormView] 更新字段值', { fieldCode, fieldValue })
+              applicationService.updateFieldValue(fieldCode, fieldValue)
+            }
+          })
+        }
+      })
+    }
+  }, { deep: true })
 
 onUnmounted(() => {
   if (unsubscribeFunctionLoaded) {
@@ -196,10 +439,27 @@ onUnmounted(() => {
   gap: 10px;
 }
 
+.form-actions-section {
+  margin-top: 20px;
+}
+
+.form-actions-row {
+  display: flex;
+  gap: 12px;
+}
+
+.submit-button-full-width {
+  flex: 1;
+}
+
 .response-section {
   margin-top: 40px;
   padding-top: 20px;
   border-top: 1px solid var(--el-border-color);
+}
+
+.response-section .is-empty {
+  opacity: 0.6;
 }
 </style>
 

@@ -6,76 +6,131 @@
   - 纯 UI 展示，不包含业务逻辑
   - 通过事件与 Application Layer 通信
   - 从 StateManager 获取状态并渲染
+  - URL 参数同步（搜索、排序、分页）
+  - 排序信息条显示
 -->
 
 <template>
   <div class="table-view">
     <!-- 工具栏 -->
-    <div class="toolbar">
-      <el-button
-        v-if="hasAddCallback"
-        type="primary"
-        @click="handleAdd"
-      >
+    <div class="toolbar" v-if="hasAddCallback">
+      <el-button type="primary" @click="handleAdd" :icon="Plus">
         新增
       </el-button>
     </div>
 
     <!-- 搜索栏 -->
-    <div v-if="searchableFields.length > 0" class="search-section">
-      <el-form :model="searchForm" inline>
-        <el-form-item
-          v-for="field in searchableFields"
-          :key="field.code"
-          :label="field.name"
-        >
-          <WidgetComponent
-            :field="field"
-            :value="getSearchFieldValue(field.code)"
-            @update:model-value="(v) => updateSearchField(field.code, v)"
-            mode="search"
-          />
-        </el-form-item>
+    <div v-if="searchableFields.length > 0" class="search-bar">
+      <el-form :inline="true" :model="searchForm" class="search-form">
+        <template v-for="field in searchableFields" :key="field.code">
+          <el-form-item :label="field.name">
+            <SearchInput
+              :field="field"
+              :search-type="field.search || ''"
+              :model-value="getSearchValue(field)"
+              :function-method="props.functionDetail.method || 'GET'"
+              :function-router="props.functionDetail.router"
+              @update:model-value="(value: any) => {
+                const isClearing = (value === null || value === '') && 
+                                   searchForm && 
+                                   searchForm[field.code] !== undefined
+                updateSearchValue(field, value, isClearing)
+              }"
+            />
+          </el-form-item>
+        </template>
+
         <el-form-item>
-          <el-button type="primary" @click="handleSearch">搜索</el-button>
-          <el-button @click="handleReset">重置</el-button>
+          <el-button type="primary" @click="handleSearch">
+            <el-icon><Search /></el-icon>
+            搜索
+          </el-button>
+          <el-button @click="handleReset">
+            <el-icon><Refresh /></el-icon>
+            重置
+          </el-button>
         </el-form-item>
       </el-form>
     </div>
 
+    <!-- 🔥 排序信息条：显示当前排序状态 -->
+    <div v-if="displaySorts.length > 0" class="sort-info-bar">
+      <div class="sort-info-content">
+        <span class="sort-label">排序：</span>
+        <div class="sort-items">
+          <template v-for="(sort, index) in displaySorts" :key="sort.field">
+            <el-tag
+              :type="index === 0 ? 'primary' : 'info'"
+              size="small"
+              closable
+              @close="handleRemoveSort(sort.field)"
+              class="sort-tag"
+            >
+              <span class="sort-field-name">{{ getFieldName(sort.field) }}</span>
+              <el-icon class="sort-icon">
+                <ArrowUp v-if="sort.order === 'asc'" />
+                <ArrowDown v-else />
+              </el-icon>
+            </el-tag>
+            <span v-if="index < displaySorts.length - 1" class="sort-separator">></span>
+          </template>
+        </div>
+        <el-button
+          v-if="sorts.length > 0"
+          link
+          type="primary"
+          size="small"
+          @click="handleClearAllSorts"
+          class="clear-all-sorts-btn"
+        >
+          清除所有排序
+        </el-button>
+      </div>
+    </div>
+
     <!-- 表格 -->
     <el-table
-      :data="tableData"
       v-loading="loading"
+      :data="tableData"
+      :stripe="false"
       style="width: 100%"
+      class="table-with-fixed-column"
       @sort-change="handleSortChange"
     >
+      <!-- 🔥 控制中心列（ID列） -->
       <el-table-column
-        v-for="field in visibleFields"
-        :key="field.code"
-        :prop="field.code"
-        :label="field.name"
-        min-width="150"
-        :sortable="field.search ? 'custom' : false"
-        show-overflow-tooltip
+        v-if="idField"
+        :prop="idField.code"
+        label=""
+        fixed="left"
+        width="80"
+        class-name="control-column"
+        :sortable="getSortableConfig(idField)"
+        :sort-order="sortOrderMap[idField.code] || null"
       >
         <template #default="{ row }">
-          <!-- 如果是 id 列或配置了 is_link，渲染为链接 -->
           <span 
-            v-if="field.code === 'id' || field.is_link"
             class="link-text"
             @click.stop="handleDetail(row)"
           >
-            <WidgetComponent
-              :field="field"
-              :value="getRowFieldValue(row, field.code)"
-              mode="table-cell"
-              :row-data="row"
-            />
+            #{{ row[idField.code] }}
           </span>
-          <!-- 否则正常渲染 -->
+        </template>
+      </el-table-column>
+
+      <!-- 数据列（排除ID列） -->
+      <el-table-column
+        v-for="field in dataFields"
+        :key="field.code"
+        :prop="field.code"
+        :label="field.name"
+        :sortable="getSortableConfig(field)"
+        :sort-order="sortOrderMap[field.code] || null"
+        :min-width="getColumnWidth(field)"
+        show-overflow-tooltip
+      >
+        <template #default="{ row }">
           <WidgetComponent
-            v-else
             :field="field"
             :value="getRowFieldValue(row, field.code)"
             mode="table-cell"
@@ -83,253 +138,706 @@
           />
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="150" fixed="right">
+
+      <!-- 操作列 -->
+      <el-table-column 
+        v-if="hasDeleteCallback || linkFields.length > 0" 
+        label="操作" 
+        fixed="right" 
+        :width="getActionColumnWidth()"
+        class-name="action-column"
+      >
         <template #default="{ row }">
-          <el-button
-            v-if="hasUpdateCallback"
-            type="primary"
-            size="small"
-            @click="handleEdit(row)"
-          >
-            编辑
-          </el-button>
-          <el-button
-            v-if="hasDeleteCallback"
-            type="danger"
-            size="small"
-            @click="handleDelete(row)"
-          >
-            删除
-          </el-button>
+          <div class="action-buttons">
+            <!-- 链接区域：只有 1 个链接时直接显示，超过 1 个时使用下拉菜单 -->
+            <template v-if="linkFields.length === 1">
+              <LinkWidget
+                :field="linkFields[0]"
+                :value="convertToFieldValue(row[linkFields[0].code], linkFields[0])"
+                :field-path="linkFields[0].code"
+                mode="table-cell"
+                class="action-link"
+              />
+            </template>
+            
+            <!-- 多个链接下拉菜单（超过 1 个时显示） -->
+            <el-dropdown
+              v-else-if="linkFields.length > 1"
+              trigger="click"
+              placement="bottom-end"
+              @command="(fieldCode: string) => handleLinkClick(fieldCode, row)"
+            >
+              <el-button link type="primary" size="small" class="more-links-btn">
+                <el-icon><More /></el-icon>
+                更多
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item
+                    v-for="linkField in linkFields"
+                    :key="linkField.code"
+                    :command="linkField.code"
+                  >
+                    <div class="dropdown-link-content">
+                      <el-icon v-if="linkField.widget?.config?.icon" class="link-icon">
+                        <component :is="linkField.widget.config.icon" />
+                      </el-icon>
+                      <el-icon v-else class="link-icon internal-icon"><Right /></el-icon>
+                      <span>{{ getLinkText(linkField, row[linkField.code]) }}</span>
+                    </div>
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+            
+            <!-- 删除按钮 -->
+            <el-button 
+              v-if="hasDeleteCallback"
+              link 
+              type="danger" 
+              size="small"
+              class="delete-btn"
+              @click.stop="handleDelete(row)"
+            >
+              <el-icon><Delete /></el-icon>
+              删除
+            </el-button>
+          </div>
         </template>
       </el-table-column>
     </el-table>
 
     <!-- 分页 -->
-    <el-pagination
-      v-model:current-page="currentPage"
-      v-model:page-size="pageSize"
-      :total="total"
-      :page-sizes="[10, 20, 50, 100]"
-      layout="total, sizes, prev, pager, next, jumper"
-      @size-change="handleSizeChange"
-      @current-change="handleCurrentChange"
-    />
+    <div class="pagination-wrapper">
+      <el-pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :page-sizes="[10, 20, 50, 100]"
+        :total="total"
+        layout="total, sizes, prev, pager, next, jumper"
+        @size-change="handleSizeChange"
+        @current-change="handleCurrentChange"
+      />
+    </div>
 
-    <!-- 编辑对话框 -->
-    <el-dialog
-      v-model="editDialogVisible"
-      title="编辑"
-      width="600px"
-      :close-on-click-modal="false"
-      destroy-on-close
-    >
-      <el-form :model="editFormData" label-width="100px">
-        <el-form-item
-          v-for="field in editFields"
-          :key="field.code"
-          :label="field.name"
-        >
-          <WidgetComponent
-            :field="field"
-            :value="getEditFieldValue(field.code)"
-            @update:model-value="(v) => updateEditField(field.code, v)"
-            mode="edit"
-          />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="editDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submitEdit" :loading="editFormLoading">
-            确认
-          </el-button>
-        </span>
-      </template>
-    </el-dialog>
+    <FormDialog
+      v-if="hasAddCallback"
+      v-model="createDialogVisible"
+      title="新增"
+      :fields="props.functionDetail.response || []"
+      mode="create"
+      :router="props.functionDetail.router"
+      :method="props.functionDetail.method || 'POST'"
+      @submit="handleCreateSubmit"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox, ElIcon } from 'element-plus'
+import { Search, Refresh, Delete, Plus, ArrowUp, ArrowDown, More, Right } from '@element-plus/icons-vue'
 import { eventBus, TableEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
-import WidgetComponent from '../widgets/WidgetComponent.vue'
+import WidgetComponent from '../../presentation/widgets/WidgetComponent.vue'
+import SearchInput from '@/components/SearchInput.vue'
+import FormDialog from '@/components/FormDialog.vue'
+import { getSortableConfig } from '@/utils/fieldSort'
+import { buildURLSearchParams } from '@/utils/searchParams'
+import { WidgetType } from '@/core/constants/widget'
+import { useTableInitialization } from '../composables/useTableInitialization'
+import { convertToFieldValue } from '@/utils/field'
+import LinkWidget from '@/core/widgets-v2/components/LinkWidget.vue'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
-import type { TableRow, SearchParams, SortParams } from '../../domain/services/TableDomainService'
+import type { TableRow, SearchParams, SortParams, SortItem } from '../../domain/services/TableDomainService'
 
 const props = defineProps<{
   functionDetail: FunctionDetail
 }>()
 
-// 依赖注入（使用 ServiceFactory 简化）
+const route = useRoute()
+const router = useRouter()
+
+// 依赖注入
 const stateManager = serviceFactory.getTableStateManager()
 const domainService = serviceFactory.getTableDomainService()
 const applicationService = serviceFactory.getTableApplicationService()
 
-// 从状态管理器获取状态
-const tableData = computed(() => domainService.getData())
-const loading = computed(() => domainService.isLoading())
-const pagination = computed(() => domainService.getPagination())
-
-const currentPage = ref(1)
-const pageSize = ref(20)
-const total = ref(0)
-
-// 搜索表单
-const searchForm = ref<Record<string, any>>({})
-
-// 编辑表单状态
-const editDialogVisible = ref(false)
-const editFormLoading = ref(false)
-const currentEditRowId = ref<string | number | null>(null)
-const editFormData = ref<Record<string, any>>({})
-
-// 字段配置
-const responseFields = computed(() => (props.functionDetail.response || []) as FieldConfig[])
-const searchableFields = computed(() => {
-  return responseFields.value.filter(field => field.search)
+// 🔥 从状态管理器获取状态（统一状态管理）
+const tableData = computed(() => stateManager.getData())
+const loading = computed(() => stateManager.isLoading())
+const pagination = computed(() => stateManager.getPagination())
+const searchForm = computed({
+  get: () => stateManager.getState().searchForm,
+  set: (value) => {
+    const state = stateManager.getState()
+    stateManager.setState({ ...state, searchForm: value })
+  }
 })
+const sorts = computed({
+  get: () => stateManager.getState().sorts,
+  set: (value) => {
+    const state = stateManager.getState()
+    stateManager.setState({ ...state, sorts: value })
+  }
+})
+const hasManualSort = computed({
+  get: () => stateManager.getState().hasManualSort,
+  set: (value) => {
+    const state = stateManager.getState()
+    stateManager.setState({ ...state, hasManualSort: value })
+  }
+})
+
+// 分页相关（从 StateManager 获取）
+const currentPage = computed({
+  get: () => pagination.value.currentPage,
+  set: (val) => {
+    const state = stateManager.getState()
+    stateManager.setState({
+      ...state,
+      pagination: { ...state.pagination, currentPage: val }
+    })
+  }
+})
+const pageSize = computed({
+  get: () => pagination.value.pageSize,
+  set: (val) => {
+    const state = stateManager.getState()
+    stateManager.setState({
+      ...state,
+      pagination: { ...state.pagination, pageSize: val }
+    })
+  }
+})
+const total = computed(() => pagination.value.total)
+
+// 创建对话框
+const createDialogVisible = ref(false)
+
+// ==================== 字段计算属性 ====================
+
+/**
+ * ID 字段（用于控制中心列）
+ */
+const idField = computed(() => {
+  return (props.functionDetail.response || []).find((field: FieldConfig) => field.widget?.type === WidgetType.ID)
+})
+
+/**
+ * 可搜索字段（从 Domain Service 获取，遵循依赖倒置原则）
+ */
+const searchableFields = computed(() => {
+  return domainService.getSearchableFields(props.functionDetail)
+})
+
+/**
+ * 可见字段（根据 table_permission 过滤）
+ */
 const visibleFields = computed(() => {
-  return responseFields.value.filter(field => {
+  return (props.functionDetail.response || []).filter((field: FieldConfig) => {
     const permission = field.table_permission || ''
     return permission === '' || permission === 'read'
   })
 })
 
-// 编辑字段：使用 response 字段，根据 table_permission 过滤
-const editFields = computed(() => {
-  const fields = (props.functionDetail.response || []) as FieldConfig[]
-  
-  // 权限过滤逻辑：
-  // 1. table_permission 为空：显示
-  // 2. table_permission == 'update'：显示
-  // 3. table_permission == 'read' 或 'create'：隐藏
-  return fields.filter(field => {
-    const p = field.table_permission
-    return !p || p === '' || p === 'update'
-  })
+/**
+ * Link 字段（用于操作列显示）
+ */
+const linkFields = computed(() => {
+  return visibleFields.value.filter((field: FieldConfig) => field.widget?.type === WidgetType.LINK)
 })
 
-// 回调判断
-const hasAddCallback = computed(() => {
-  return props.functionDetail.callbacks?.includes('OnTableAddRow') || false
-})
-const hasUpdateCallback = computed(() => {
-  return props.functionDetail.callbacks?.includes('OnTableUpdateRow') || false
-})
-const hasDeleteCallback = computed(() => {
-  return props.functionDetail.callbacks?.includes('OnTableDeleteRows') || false
+/**
+ * 数据字段（排除ID列和Link列，Link列在操作区域显示）
+ */
+const dataFields = computed(() => {
+  return visibleFields.value.filter((field: FieldConfig) => 
+    field.widget?.type !== WidgetType.ID && field.widget?.type !== WidgetType.LINK
+  )
 })
 
-// 方法
-const getSearchFieldValue = (fieldCode: string): FieldValue => {
-  const value = searchForm.value[fieldCode]
-  return value ? { raw: value, display: String(value), meta: {} } : { raw: null, display: '', meta: {} }
+// ==================== 排序相关 ====================
+
+/**
+ * 获取 ID 字段的 code
+ */
+const getIdFieldCode = (): string | null => {
+  return idField.value?.code || null
 }
 
-const updateSearchField = (fieldCode: string, value: FieldValue): void => {
-  if (value) {
-    searchForm.value[fieldCode] = value.raw
+/**
+ * 构建默认排序（id 降序）
+ */
+const buildDefaultSorts = (): SortItem[] => {
+  const idFieldCode = getIdFieldCode()
+  if (idFieldCode) {
+    return [{ field: idFieldCode, order: 'desc' }]
+  }
+  return []
+}
+
+/**
+ * 排序状态映射（用于 el-table-column 的 sort-order）
+ */
+const sortOrderMap = computed<Record<string, 'ascending' | 'descending' | null>>(() => {
+  const map: Record<string, 'ascending' | 'descending' | null> = {}
+    sorts.value.forEach((sort: SortItem) => {
+      map[sort.field] = sort.order === 'asc' ? 'ascending' : 'descending'
+    })
+  // 如果没有手动排序且存在 ID 字段，显示默认的 ID 排序
+  if (sorts.value.length === 0 && !hasManualSort.value && idField.value) {
+    map[idField.value.code] = 'descending'
+  }
+  return map
+})
+
+/**
+ * 显示排序列表（用于排序信息条）
+ */
+const displaySorts = computed(() => {
+  if (sorts.value.length > 0) {
+    return sorts.value
+  }
+  // 如果没有手动排序且存在 ID 字段，显示默认的 ID 排序
+  if (idField.value && !hasManualSort.value) {
+    return [{ field: idField.value.code, order: 'desc' as const }]
+  }
+  return []
+})
+
+/**
+ * 获取字段名称
+ */
+const getFieldName = (fieldCode: string): string => {
+  const field = visibleFields.value.find((f: FieldConfig) => f.code === fieldCode)
+  return field?.name || fieldCode
+}
+
+/**
+ * 移除单个排序
+ */
+const handleRemoveSort = (fieldCode: string): void => {
+    sorts.value = sorts.value.filter((item: SortItem) => item.field !== fieldCode)
+  if (sorts.value.length === 0) {
+    hasManualSort.value = false
+  }
+  syncToURL()
+  loadTableData()
+}
+
+/**
+ * 清除所有排序
+ */
+const handleClearAllSorts = (): void => {
+  sorts.value = []
+  hasManualSort.value = false
+  syncToURL()
+  loadTableData()
+}
+
+/**
+ * 排序变化
+ */
+const handleSortChange = (sortInfo: { prop?: string; order?: string }): void => {
+  const currentState = stateManager.getState()
+  let newSorts = [...currentState.sorts]
+  
+  if (sortInfo && sortInfo.prop && sortInfo.order && sortInfo.order !== '') {
+    const field = sortInfo.prop
+    const order = sortInfo.order === 'ascending' ? 'asc' : 'desc'
+    
+    // id 排序与其他排序互斥
+    const idFieldCode = getIdFieldCode()
+    if (idFieldCode) {
+      newSorts = newSorts.filter((item: SortItem) => item.field !== idFieldCode)
+    }
+    
+    // 添加或更新排序项
+    const existingIndex = newSorts.findIndex((item: SortItem) => item.field === field)
+    if (existingIndex >= 0) {
+      newSorts[existingIndex].order = order
+    } else {
+      newSorts.push({ field, order })
+    }
   } else {
-    searchForm.value[fieldCode] = null
+    // 取消该字段的排序
+    if (sortInfo.prop) {
+      newSorts = newSorts.filter((item: SortItem) => item.field !== sortInfo.prop)
+    }
+  }
+  
+  stateManager.setState({
+    ...currentState,
+    sorts: newSorts,
+    hasManualSort: true
+  })
+  
+  syncToURL()
+  loadTableData()
+}
+
+// ==================== 搜索相关 ====================
+
+/**
+ * 获取搜索值
+ */
+const getSearchValue = (field: FieldConfig): any => {
+  const value = searchForm.value[field.code]
+  return value === undefined ? null : value
+}
+
+/**
+ * 更新搜索值
+ */
+const updateSearchValue = (field: FieldConfig, value: any, shouldSearch: boolean = false): void => {
+  const currentState = stateManager.getState()
+  const newSearchForm = { ...currentState.searchForm }
+  
+  if (value === null || value === undefined || 
+      (Array.isArray(value) && value.length === 0) || 
+      (typeof value === 'string' && value.trim() === '')) {
+    delete newSearchForm[field.code]
+  } else {
+    newSearchForm[field.code] = value
+  }
+  
+  stateManager.setState({ ...currentState, searchForm: newSearchForm })
+  syncToURL()
+  if (shouldSearch) {
+    loadTableData()
   }
 }
+
+/**
+ * 搜索
+ */
+const handleSearch = (): void => {
+  const currentState = stateManager.getState()
+  stateManager.setState({
+    ...currentState,
+    pagination: {
+      ...currentState.pagination,
+      currentPage: 1
+    }
+  })
+  syncToURL()
+  loadTableData()
+}
+
+/**
+ * 重置搜索
+ */
+const handleReset = (): void => {
+  const currentState = stateManager.getState()
+  stateManager.setState({
+    ...currentState,
+    searchForm: {},
+    sorts: [],
+    hasManualSort: false,
+    pagination: {
+      ...currentState.pagination,
+      currentPage: 1
+    }
+  })
+  syncToURL()
+  loadTableData()
+}
+
+// ==================== URL 同步 ====================
+
+/**
+ * 同步状态到 URL
+ */
+const syncToURL = (): void => {
+  const query: Record<string, string> = {}
+  
+  // 分页参数
+  const currentState = stateManager.getState()
+  query.page = String(currentState.pagination.currentPage)
+  query.page_size = String(currentState.pagination.pageSize)
+  
+  // 排序参数
+  const finalSorts = currentState.sorts.length > 0 
+    ? currentState.sorts 
+    : (currentState.hasManualSort ? [] : buildDefaultSorts())
+  
+  if (finalSorts.length > 0) {
+    query.sorts = finalSorts.map((item: SortItem) => `${item.field}:${item.order}`).join(',')
+  }
+  
+  // 搜索参数（response 字段）
+  const responseFields = (props.functionDetail.response || []).filter((field: FieldConfig) => {
+    const search = field.search
+    return search && search !== '-' && search !== '' && search.trim() !== ''
+  })
+  const requestFields = Array.isArray(props.functionDetail.request) ? props.functionDetail.request : []
+  const requestFieldCodes = new Set<string>()
+  requestFields.forEach((field: FieldConfig) => {
+    requestFieldCodes.add(field.code)
+  })
+  
+  const responseFieldsForURL = responseFields.filter(
+    (field: FieldConfig) => !requestFieldCodes.has(field.code)
+  )
+  Object.assign(query, buildURLSearchParams(searchForm.value, responseFieldsForURL))
+  
+  // 搜索参数（request 字段）
+  requestFields.forEach((field: FieldConfig) => {
+    const value = searchForm.value[field.code]
+    if (value !== null && value !== undefined && 
+        !(Array.isArray(value) && value.length === 0) && 
+        !(typeof value === 'string' && value.trim() === '')) {
+      query[field.code] = Array.isArray(value) ? value.join(',') : String(value)
+    }
+  })
+  
+  // 清理空值参数
+  Object.keys(query).forEach(key => {
+    const value = query[key]
+    if (!value || (typeof value === 'string' && (value.endsWith(':') || value.trim() === ''))) {
+      delete query[key]
+    }
+  })
+  
+  // 保留以 _ 开头的参数（前端状态参数）
+  const newQuery: Record<string, string> = {}
+  const searchParamKeys = ['eq', 'like', 'in', 'contains', 'gte', 'lte']
+  Object.keys(route.query).forEach(key => {
+    if (key.startsWith('_')) {
+      newQuery[key] = String(route.query[key])
+    } else if (!searchParamKeys.includes(key) && key !== 'sorts' && !requestFieldCodes.has(key)) {
+      newQuery[key] = String(route.query[key])
+    }
+  })
+  
+  Object.assign(newQuery, query)
+  router.replace({ query: newQuery })
+}
+
+// 🔥 restoreFromURL 已移至 useTableInitialization composable
+
+// ==================== 数据加载 ====================
+
+// 🔥 组件挂载状态（用于防止卸载后继续加载数据）
+const isMounted = ref(false)
+
+/**
+ * 加载表格数据
+ */
+const loadTableData = async (): Promise<void> => {
+  const functionId = props.functionDetail.id
+  const router = props.functionDetail.router
+  
+  console.log('[TableView] loadTableData 开始', {
+    functionId,
+    router,
+    isMounted: isMounted.value,
+    componentKey: `table-${props.functionDetail.id}`
+  })
+  
+  // 🔥 检查组件是否还在挂载状态，如果已卸载，不加载数据
+  if (!isMounted.value) {
+    console.warn('[TableView] 组件已卸载，取消数据加载', { functionId, router })
+    return
+  }
+  
+  // 构建搜索参数
+  const searchParams: SearchParams = {}
+  
+  // 🔥 从 StateManager 获取状态
+  const currentState = stateManager.getState()
+  
+  // 使用 Domain Service 构建搜索参数（遵循依赖倒置原则）
+  const builtSearchParams = domainService.buildSearchParams(props.functionDetail, currentState.searchForm)
+  Object.assign(searchParams, builtSearchParams)
+  
+  // 排序参数
+  const finalSorts = currentState.sorts.length > 0 
+    ? currentState.sorts 
+    : (currentState.hasManualSort ? [] : buildDefaultSorts())
+  
+  const sortParams: SortParams | undefined = finalSorts.length > 0 ? {
+    field: finalSorts[0].field,
+    order: finalSorts[0].order
+  } : undefined
+  
+  // 分页参数
+  const pagination = {
+    page: currentState.pagination.currentPage,
+    pageSize: currentState.pagination.pageSize
+  }
+  
+  // 🔥 再次检查组件是否还在挂载状态（可能在异步操作期间卸载了）
+  if (!isMounted.value) {
+    console.warn('[TableView] 组件在异步操作期间已卸载，取消数据加载', { functionId, router })
+    return
+  }
+  
+  console.log('[TableView] 调用 applicationService.loadData', {
+    functionId,
+    router,
+    searchParams,
+    sortParams,
+    pagination
+  })
+  
+  await applicationService.loadData(props.functionDetail, searchParams, sortParams, pagination)
+  
+  console.log('[TableView] loadTableData 完成', { functionId, router })
+}
+
+// ==================== 其他方法 ====================
 
 const getRowFieldValue = (row: TableRow, fieldCode: string): FieldValue => {
   const value = row[fieldCode]
   return value ? { raw: value, display: String(value), meta: {} } : { raw: null, display: '', meta: {} }
 }
 
-const handleSearch = (): void => {
-  const searchParams: SearchParams = { ...searchForm.value }
-  applicationService.updateSearchParams(searchParams)
-  applicationService.loadData(props.functionDetail, searchParams)
-}
-
-const handleReset = (): void => {
-  searchForm.value = {}
-  applicationService.updateSearchParams({})
-  applicationService.loadData(props.functionDetail)
-}
-
-const handleSortChange = ({ prop, order }: { prop?: string, order?: string }): void => {
-  if (prop && order) {
-    const sortParams: SortParams = {
-      field: prop,
-      order: order === 'ascending' ? 'asc' : 'desc'
-    }
-    applicationService.updateSortParams(sortParams)
-    applicationService.loadData(props.functionDetail, undefined, sortParams)
-  }
-}
-
-const handleSizeChange = (size: number): void => {
-  pageSize.value = size
-  applicationService.updatePagination(currentPage.value, size)
-  applicationService.loadData(props.functionDetail, undefined, undefined, { page: currentPage.value, pageSize: size })
-}
-
-const handleCurrentChange = (page: number): void => {
-  currentPage.value = page
-  applicationService.updatePagination(page, pageSize.value)
-  applicationService.loadData(props.functionDetail, undefined, undefined, { page, pageSize: pageSize.value })
-}
-
-const handleAdd = async (): Promise<void> => {
-  // TODO: 打开新增对话框
-  console.log('新增')
-}
-
-const handleEdit = async (row: TableRow): Promise<void> => {
-  currentEditRowId.value = row.id
-  // 深拷贝行数据到编辑表单
-  // 注意：这里简化处理，直接使用行数据作为 raw value
-  const formData: Record<string, any> = {}
-  // 确保响应式丢失，使用 JSON 序列化/反序列化进行深拷贝
-  const rowClone = JSON.parse(JSON.stringify(row))
-  for (const key in rowClone) {
-    formData[key] = rowClone[key]
-  }
-  editFormData.value = formData
-  editDialogVisible.value = true
-}
-
-const getEditFieldValue = (fieldCode: string): FieldValue => {
-  const value = editFormData.value[fieldCode]
-  // 尝试从 editFields 中找到对应的字段配置来获取更多元数据（如果有）
-  // 这里简化处理
-  return { 
-    raw: value, 
-    display: typeof value === 'object' ? JSON.stringify(value) : String(value ?? ''), 
-    meta: {} 
-  }
-}
-
-const updateEditField = (fieldCode: string, value: FieldValue): void => {
-  editFormData.value[fieldCode] = value.raw
-}
-
-const submitEdit = async (): Promise<void> => {
-  if (!currentEditRowId.value) return
+/**
+ * 获取操作列宽度
+ * 根据是否有删除回调和链接字段动态计算宽度
+ */
+const getActionColumnWidth = (): number => {
+  let width = 60  // 基础宽度
+  if (hasDeleteCallback.value) width += 60  // 删除按钮宽度
   
+  // 只有 1 个链接时直接显示，超过 1 个时使用下拉菜单
+  if (linkFields.value.length === 1) {
+    width += 80  // 单个链接约 80px
+  } else if (linkFields.value.length > 1) {
+    width += 50  // 下拉菜单按钮宽度
+  }
+  
+  return Math.min(Math.max(width, 140), 200)  // 最小 140px，最大 200px
+}
+
+/**
+ * 获取链接文本（从链接值中提取）
+ */
+const getLinkText = (linkField: FieldConfig, rawValue: any): string => {
+  const value = convertToFieldValue(rawValue, linkField)
+  const url = value?.raw || ''
+  if (!url) return linkField.name || '链接'
+  
+  // 解析 "[text]url" 格式
+  const match = url.match(/^\[([^\]]+)\](.+)$/)
+  if (match) {
+    return match[1]  // 返回文本部分
+  }
+  
+  // 如果没有文本，使用字段名称或配置的 text
+  return linkField.widget?.config?.text || linkField.name || '链接'
+}
+
+/**
+ * 处理链接点击（用于下拉菜单）
+ */
+const handleLinkClick = (fieldCode: string, row: any) => {
+  const linkField = linkFields.value.find(f => f.code === fieldCode)
+  if (!linkField) return
+  
+  // 获取链接值
+  const value = convertToFieldValue(row[fieldCode], linkField)
+  const url = value?.raw || ''
+  if (!url) return
+  
+  // 解析 "[text]url" 格式
+  const match = url.match(/^\[([^\]]+)\](.+)$/)
+  const actualUrl = match ? match[2] : url
+  
+  // 获取链接配置
+  const linkConfig = linkField.widget?.config || {}
+  const target = linkConfig.target || '_self'
+  
+  // 处理 URL，添加 /workspace-v2 前缀
+  let resolvedUrl = actualUrl
+  
+  // 如果是外链，直接使用
+  if (actualUrl.startsWith('http://') || actualUrl.startsWith('https://')) {
+    resolvedUrl = actualUrl
+  }
+  // 如果已经是完整路径（包含 /workspace 或 /workspace-v2），转换为 /workspace-v2
+  else if (actualUrl.startsWith('/workspace/')) {
+    resolvedUrl = actualUrl.replace('/workspace/', '/workspace-v2/')
+  }
+  else if (actualUrl.startsWith('/workspace-v2/')) {
+    resolvedUrl = actualUrl
+  }
+  // 如果是绝对路径（以 / 开头），添加 /workspace-v2 前缀
+  else if (actualUrl.startsWith('/')) {
+    const pathWithoutSlash = actualUrl.substring(1)
+    resolvedUrl = `/workspace-v2/${pathWithoutSlash}`
+  }
+  // 相对路径，需要转换为完整路径
+  else {
+    const currentRoute = router.currentRoute.value
+    const pathParts = currentRoute.path.split('/').filter(Boolean)
+    if (pathParts.length >= 3) {
+      const user = pathParts[1]
+      const app = pathParts[2]
+      const [functionPath, query] = actualUrl.split('?')
+      const fullPath = `/workspace-v2/${user}/${app}/${functionPath}`
+      resolvedUrl = query ? `${fullPath}?${query}` : fullPath
+    } else {
+      resolvedUrl = `/workspace-v2/${actualUrl}`
+    }
+  }
+  
+  // 判断是否是外链
+  const isExternal = resolvedUrl.startsWith('http://') || resolvedUrl.startsWith('https://')
+  
+  // 处理跳转
+  if (isExternal) {
+    window.open(resolvedUrl, '_blank')
+  } else {
+    if (target === '_blank') {
+      window.open(resolvedUrl, '_blank')
+    } else {
+      router.push(resolvedUrl)
+    }
+  }
+}
+
+const getColumnWidth = (field: FieldConfig): number => {
+  if (field.widget?.type === WidgetType.TIMESTAMP) return 180
+  if (field.widget?.type === WidgetType.TEXT_AREA) return 300
+  return 150
+}
+
+const handleAdd = (): void => {
+  createDialogVisible.value = true
+}
+
+const handleCreateSubmit = async (data: Record<string, any>): Promise<void> => {
   try {
-    editFormLoading.value = true
-    await applicationService.updateRow(props.functionDetail, currentEditRowId.value, editFormData.value)
-    ElMessage.success('更新成功')
-    editDialogVisible.value = false
+    await applicationService.addRow(props.functionDetail, data)
+    ElMessage.success('新增成功')
+    createDialogVisible.value = false
   } catch (error: any) {
-    console.error('更新失败:', error)
-    const msg = error?.response?.data?.message || '更新失败'
+    console.error('新增失败:', error)
+    const msg = error?.response?.data?.message || '新增失败'
     ElMessage.error(msg)
-  } finally {
-    editFormLoading.value = false
   }
 }
 
 const handleDetail = (row: TableRow): void => {
-  eventBus.emit('table:detail-row', { row })
+  // 🔥 获取当前表格数据和索引
+  // 注意：TableStateManager 使用 data 字段存储表格数据，不是 tableData
+  const tableData = stateManager.getData() || []
+  const index = tableData.findIndex((r: any) => {
+    // 尝试通过 id 字段匹配
+    if (r.id && row.id && r.id === row.id) return true
+    // 如果没有 id，尝试通过所有字段匹配
+    return JSON.stringify(r) === JSON.stringify(row)
+  })
+  
+  eventBus.emit('table:detail-row', { 
+    row, 
+    index: index >= 0 ? index : undefined,
+    tableData: tableData.length > 0 ? tableData : undefined
+  })
 }
 
 const handleDelete = async (row: TableRow): Promise<void> => {
@@ -350,46 +858,123 @@ const handleDelete = async (row: TableRow): Promise<void> => {
   }
 }
 
-// 生命周期
-let unsubscribeFunctionLoaded: (() => void) | null = null
-let unsubscribeDataLoaded: (() => void) | null = null
-let unsubscribeEditRow: (() => void) | null = null
-
-onMounted(() => {
-  // 初始加载数据
-  if (props.functionDetail) {
-    applicationService.loadData(props.functionDetail)
-  }
-
-  // 监听函数加载完成事件
-  unsubscribeFunctionLoaded = eventBus.on(WorkspaceEvent.functionLoaded, (payload: { detail: FunctionDetail }) => {
-    if (payload.detail.template_type === 'table') {
-      // Application Service 会自动处理
+const handleSizeChange = (size: number): void => {
+  const currentState = stateManager.getState()
+  stateManager.setState({
+    ...currentState,
+    pagination: {
+      ...currentState.pagination,
+      pageSize: size,
+      currentPage: 1
     }
   })
+  syncToURL()
+  loadTableData()
+}
 
+const handleCurrentChange = (page: number): void => {
+  const currentState = stateManager.getState()
+  stateManager.setState({
+    ...currentState,
+    pagination: {
+      ...currentState.pagination,
+      currentPage: page
+    }
+  })
+  syncToURL()
+  loadTableData()
+}
+
+// ==================== 回调判断 ====================
+
+const hasAddCallback = computed(() => {
+  return props.functionDetail.callbacks?.includes('OnTableAddRow') || false
+})
+
+const hasDeleteCallback = computed(() => {
+  return props.functionDetail.callbacks?.includes('OnTableDeleteRows') || false
+})
+
+// ==================== 生命周期 ====================
+
+let unsubscribeDataLoaded: (() => void) | null = null
+
+// 🔥 使用 composable 统一管理初始化逻辑
+const { initializeTable } = useTableInitialization({
+  functionDetail: computed(() => props.functionDetail),
+  domainService,
+  applicationService,
+  stateManager,
+  searchForm,
+  sorts,
+  hasManualSort,
+  buildDefaultSorts,
+  syncToURL,
+  loadTableData,
+  isMounted // 🔥 传递挂载状态，用于防止卸载后继续加载数据
+})
+
+onMounted(async () => {
+  const functionId = props.functionDetail.id
+  const router = props.functionDetail.router
+  
+  console.log('[TableView] onMounted', {
+    functionId,
+    router,
+    componentKey: `table-${functionId}`
+  })
+  
+  // 🔥 设置挂载状态
+  isMounted.value = true
+  
+  // 初始化表格
+  console.log('[TableView] 开始初始化表格', { functionId, router })
+  await initializeTable()
+  console.log('[TableView] 表格初始化完成', { functionId, router })
+  
   // 监听数据加载完成事件
   unsubscribeDataLoaded = eventBus.on(TableEvent.dataLoaded, (payload: { data: TableRow[], pagination?: any }) => {
-    total.value = payload.pagination?.total_count || 0
-    currentPage.value = payload.pagination?.current_page || 1
-    pageSize.value = payload.pagination?.page_size || 20
-  })
-
-  // 监听从详情页发起的编辑事件
-  unsubscribeEditRow = eventBus.on('table:edit-row', ({ row }: { row: TableRow }) => {
-    handleEdit(row)
+    // 🔥 检查组件是否还在挂载状态
+    if (!isMounted.value) {
+      console.warn('[TableView] 组件已卸载，忽略 dataLoaded 事件', { functionId, router })
+      return
+    }
+    
+    console.log('[TableView] 收到 dataLoaded 事件', {
+      functionId,
+      router,
+      dataCount: payload.data?.length || 0,
+      pagination: payload.pagination
+    })
+    
+    // 🔥 通过 StateManager 更新分页信息，而不是直接写入 computed
+    const currentState = stateManager.getState()
+    stateManager.setState({
+      ...currentState,
+      pagination: {
+        currentPage: payload.pagination?.current_page || currentState.pagination.currentPage,
+        pageSize: payload.pagination?.page_size || currentState.pagination.pageSize,
+        total: payload.pagination?.total_count || 0
+      }
+    })
   })
 })
 
 onUnmounted(() => {
-  if (unsubscribeFunctionLoaded) {
-    unsubscribeFunctionLoaded()
-  }
+  const functionId = props.functionDetail.id
+  const router = props.functionDetail.router
+  
+  console.log('[TableView] onUnmounted', {
+    functionId,
+    router,
+    componentKey: `table-${functionId}`
+  })
+  
+  // 🔥 设置卸载状态，防止继续加载数据
+  isMounted.value = false
+  
   if (unsubscribeDataLoaded) {
     unsubscribeDataLoaded()
-  }
-  if (unsubscribeEditRow) {
-    unsubscribeEditRow()
   }
 })
 </script>
@@ -397,52 +982,154 @@ onUnmounted(() => {
 <style scoped>
 .table-view {
   padding: 20px;
-  height: 100%;
+  background: var(--el-bg-color);
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
+  width: 100%;
 }
 
 .toolbar {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
 }
 
-.search-section {
+.search-bar {
   margin-bottom: 20px;
   padding: 20px;
-  background: var(--el-bg-color-page);
-  border-radius: 4px;
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
 }
 
-/* 🔥 修复表格右边框 */
-.el-table {
+/* 🔥 排序信息条样式 */
+.sort-info-bar {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: var(--el-fill-color-light);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+}
+
+.sort-info-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.sort-label {
+  font-size: 14px;
+  color: var(--el-text-color-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.sort-items {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.sort-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: default;
+}
+
+.sort-field-name {
+  font-weight: 500;
+}
+
+.sort-icon {
+  font-size: 12px;
+  margin-left: 2px;
+}
+
+.sort-separator {
+  color: var(--el-text-color-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  margin: 0 4px;
+}
+
+.clear-all-sorts-btn {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.search-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.pagination-wrapper {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* 🔥 表格基础样式 */
+:deep(.el-table) {
+  background-color: var(--el-bg-color) !important;
+  border: none !important;
   flex: 1;
   overflow: auto;
-  --el-table-border-color: var(--el-border-color-lighter);
-  --el-table-border: none; /* 移除所有边框变量 */
 }
 
-/* 移除外层边框 */
-:deep(.el-table__inner-wrapper::before) {
-  display: none;
+:deep(.el-table__inner-wrapper) {
+  border: none !important;
 }
 
-:deep(.el-table__border-left-patch) {
-  display: none;
+:deep(.el-table__header-wrapper) {
+  border: none !important;
 }
 
-/* 移除所有边框 */
-:deep(.el-table--border) {
-  border: none;
+:deep(.el-table__body-wrapper) {
+  border: none !important;
 }
 
-:deep(.el-table--border .el-table__cell) {
-  border-right: none;
+:deep(.el-table th),
+:deep(.el-table td) {
+  border-right: none !important;
+  border-left: none !important;
 }
 
-/* 仅保留行底部分隔线 */
-:deep(.el-table td.el-table__cell),
-:deep(.el-table th.el-table__cell.is-leaf) {
-  border-bottom: 1px solid var(--el-border-color-lighter);
+:deep(.el-table th:first-child),
+:deep(.el-table td:first-child) {
+  border-left: none !important;
+}
+
+:deep(.el-table th:last-child),
+:deep(.el-table td:last-child) {
+  border-right: none !important;
+}
+
+:deep(.el-table__body tr) {
+  background-color: var(--el-bg-color) !important;
+}
+
+:deep(.el-table__body tr.el-table__row--striped) {
+  background-color: var(--el-bg-color) !important;
+}
+
+:deep(.el-table__body tr.el-table__row--striped td) {
+  background-color: var(--el-bg-color) !important;
+}
+
+:deep(.el-table__body tr:hover > td) {
+  background-color: var(--el-fill-color-light) !important;
 }
 
 :deep(.el-table__header th.el-table__cell) {
@@ -452,12 +1139,16 @@ onUnmounted(() => {
   border-top: none;
 }
 
+:deep(.el-table td.el-table__cell),
+:deep(.el-table th.el-table__cell.is-leaf) {
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
 .link-text {
   color: var(--el-color-primary);
   cursor: pointer;
   text-decoration: none;
   font-weight: 500;
-  /* 增加点击区域 */
   display: inline-block;
   padding: 2px 4px;
   border-radius: 4px;
@@ -468,9 +1159,38 @@ onUnmounted(() => {
   background-color: var(--el-color-primary-light-9);
 }
 
-.el-pagination {
-  margin-top: 20px;
+.action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   justify-content: flex-end;
 }
-</style>
 
+.action-link {
+  margin: 0;
+}
+
+.more-links-btn {
+  margin: 0;
+}
+
+.dropdown-link-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.link-icon {
+  font-size: 14px;
+}
+
+.internal-icon {
+  color: var(--el-color-primary);
+}
+
+.delete-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+  min-width: fit-content;
+}
+</style>

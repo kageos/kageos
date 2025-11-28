@@ -116,34 +116,45 @@ export class WorkspaceDomainService {
 
   /**
    * 打开 Tab（如果已存在则激活，否则创建）
+   * 🔥 修复：如果 Tab 已存在，只激活，不重新加载函数详情
    */
-  openTab(node: ServiceTree): void {
+  openTab(node: ServiceTree, detail?: FunctionDetail): void {
     const state = this.stateManager.getState()
-    const path = node.full_code_path || String(node.id)
+    const tabId = node.full_code_path || String(node.id)
     
     // 检查是否已存在
-    const existingTab = state.tabs.find(t => t.path === path)
+    const existingTab = state.tabs.find(t => t.id === tabId)
     if (existingTab) {
-      this.activateTab(existingTab.id)
+      // 🔥 Tab 已存在，只激活，不重新加载函数详情（避免重复加载）
+      this.activateTab(tabId)
       return
     }
 
-    // 创建新 Tab
+    // 🔥 创建新 Tab（使用传入的 detail 或从缓存中获取）
+    const functionDetail = detail || this.getFunctionDetail(node)
+    
     const newTab: WorkspaceTab = {
-      id: `tab-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      title: node.name,
-      type: 'function',
-      path: path,
-      closable: true,
+      id: tabId,
+      title: node.name || node.code,
+      path: node.full_code_path || String(node.id),
       node: node
+    }
+    
+    const newFunctionDetails = new Map(state.functionDetails)
+    if (functionDetail) {
+      newFunctionDetails.set(tabId, functionDetail)
     }
 
     this.stateManager.setState({
       ...state,
       tabs: [...state.tabs, newTab],
-      activeTabId: newTab.id,
-      currentFunction: node // 同步更新 currentFunction
+      activeTabId: tabId,
+      currentFunction: node,
+      functionDetails: newFunctionDetails
     })
+
+    // 🔥 触发路由更新事件（让 Presentation Layer 更新路由）
+    this.eventBus.emit(WorkspaceEvent.tabOpened, { tab: newTab, shouldUpdateRoute: true })
   }
 
   /**
@@ -158,6 +169,9 @@ export class WorkspaceDomainService {
         activeTabId: tabId,
         currentFunction: tab.node || null
       })
+
+      // 🔥 触发路由更新事件（让 Presentation Layer 更新路由）
+      this.eventBus.emit(WorkspaceEvent.tabActivated, { tab, shouldUpdateRoute: true })
     }
   }
 

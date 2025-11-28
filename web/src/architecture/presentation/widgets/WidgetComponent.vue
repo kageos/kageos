@@ -19,6 +19,10 @@
     :field-path="fieldPath"
     :mode="mode"
     :row-data="rowData"
+    :form-renderer="formRenderer"
+    :function-method="functionMethod"
+    :function-router="functionRouter"
+    :user-info-map="userInfoMap"
   />
   <div v-else class="widget-error">
     组件未找到: {{ field.widget?.type || 'input' }}
@@ -37,15 +41,33 @@ const props = withDefaults(defineProps<{
   mode?: WidgetMode
   fieldPath?: string
   rowData?: any
+  formRenderer?: any // 🔥 新增：FormRenderer 上下文（用于 OnSelectFuzzy 回调）
+  functionMethod?: string // 🔥 新增：函数 HTTP 方法（用于 OnSelectFuzzy 回调）
+  functionRouter?: string // 🔥 新增：函数路由（用于 OnSelectFuzzy 回调）
+  userInfoMap?: Map<string, any> // 🔥 新增：用户信息映射（用于 UserWidget 批量查询优化）
 }>(), {
   mode: 'edit',
   fieldPath: '',
-  value: () => ({ raw: null, display: '', meta: {} })
+  value: () => ({ raw: null, display: '', meta: {} }),
+  userInfoMap: () => new Map()
 })
 
 const emit = defineEmits<{
   'update:modelValue': [value: FieldValue]
 }>()
+
+// 🔥 调试日志：只在 formRenderer 缺失且需要时警告（response 模式不需要 formRenderer）
+if (import.meta.env.DEV) {
+  watch(() => props.formRenderer, (formRenderer) => {
+    // 只在 edit 模式且没有 formRenderer 时警告（response 模式不需要）
+    if (!formRenderer && props.mode === 'edit' && props.field.callbacks?.includes('OnSelectFuzzy')) {
+      console.warn('[WidgetComponent] formRenderer 未传递（OnSelectFuzzy 字段需要）', {
+        fieldCode: props.field.code,
+        mode: props.mode
+      })
+    }
+  }, { immediate: true })
+}
 
 // 获取 Widget 组件
 const widgetComponent = computed(() => {

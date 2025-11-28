@@ -523,21 +523,24 @@ const handleLinkClick = (fieldCode: string, row: any) => {
   const linkConfig = linkField.widget?.config || {}
   const target = linkConfig.target || '_self'
   
-  // 🔥 处理 URL，添加 /workspace 前缀（参考 LinkWidget 的逻辑）
+  // 🔥 处理 URL，添加 /workspace-v2 前缀（参考 LinkWidget 的逻辑）
   let resolvedUrl = actualUrl
   
   // 如果是外链，直接使用
   if (actualUrl.startsWith('http://') || actualUrl.startsWith('https://')) {
     resolvedUrl = actualUrl
   }
-  // 如果已经是完整路径（包含 /workspace），直接使用
+  // 🔥 如果已经是完整路径（包含 /workspace 或 /workspace-v2），转换为 /workspace-v2
   else if (actualUrl.startsWith('/workspace/')) {
+    resolvedUrl = actualUrl.replace('/workspace/', '/workspace-v2/')
+  }
+  else if (actualUrl.startsWith('/workspace-v2/')) {
     resolvedUrl = actualUrl
   }
-  // 如果是绝对路径（以 / 开头），添加 /workspace 前缀
+  // 如果是绝对路径（以 / 开头），添加 /workspace-v2 前缀
   else if (actualUrl.startsWith('/')) {
     const pathWithoutSlash = actualUrl.substring(1)
-    resolvedUrl = `/workspace/${pathWithoutSlash}`
+    resolvedUrl = `/workspace-v2/${pathWithoutSlash}`
   }
   // 相对路径，需要转换为完整路径
   else {
@@ -549,7 +552,8 @@ const handleLinkClick = (fieldCode: string, row: any) => {
       const user = pathParts[1]
       const app = pathParts[2]
       const [functionPath, query] = actualUrl.split('?')
-      const fullPath = `/workspace/${user}/${app}/${functionPath}`
+      // 🔥 使用 /workspace-v2 前缀
+      const fullPath = `/workspace-v2/${user}/${app}/${functionPath}`
       resolvedUrl = query ? `${fullPath}?${query}` : fullPath
     } else {
       // 如果路径格式不正确，尝试添加 /workspace 前缀
