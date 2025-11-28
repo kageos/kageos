@@ -24,7 +24,9 @@ export class WorkspaceStateManager extends StateManagerImpl<WorkspaceState> impl
       currentFunction: null,
       serviceTree: [],
       functionDetails: new Map(),
-      loading: false // 🔥 默认 loading 为 false
+      loading: false, // 🔥 默认 loading 为 false
+      tabs: [], // 🔥 默认空 Tabs
+      activeTabId: null // 🔥 默认无激活 Tab
     }
 
     super({

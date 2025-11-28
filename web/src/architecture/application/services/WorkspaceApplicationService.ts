@@ -50,10 +50,26 @@ export class WorkspaceApplicationService {
     if (node.type === 'function') {
       // 加载函数详情
       await this.domainService.loadFunction(node)
+      // 🔥 打开新标签页
+      this.domainService.openTab(node)
     } else {
       // 目录节点，只设置当前函数，不加载详情
       this.domainService.setCurrentFunction(node)
     }
+  }
+
+  /**
+   * 激活标签页（供 Presentation Layer 调用）
+   */
+  activateTab(tabId: string): void {
+    this.domainService.activateTab(tabId)
+  }
+
+  /**
+   * 关闭标签页（供 Presentation Layer 调用）
+   */
+  closeTab(tabId: string): void {
+    this.domainService.closeTab(tabId)
   }
 
   /**

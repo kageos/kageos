@@ -74,15 +74,17 @@ const internalValue = computed({
     return ''
   },
   set: (newValue: string) => {
-    if (props.mode === 'edit') {
+    if (props.mode === 'edit' || props.mode === 'search') {
       const newFieldValue = {
         raw: newValue,
         display: newValue,
         meta: {}
       }
       
-      // 同步到 Store
-      formDataStore.setValue(props.fieldPath, newFieldValue)
+      if (props.mode === 'edit') {
+        // 同步到 Store (仅编辑模式)
+        formDataStore.setValue(props.fieldPath, newFieldValue)
+      }
       
       // 触发 v-model 更新
       emit('update:modelValue', newFieldValue)

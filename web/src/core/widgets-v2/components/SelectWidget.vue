@@ -285,7 +285,7 @@ const internalValue = computed({
     return null
   },
   set: (newValue: any) => {
-    if (props.mode === 'edit') {
+    if (props.mode === 'edit' || props.mode === 'search') {
       const selectedOption = options.value.find(opt => opt.value === newValue)
       const newFieldValue = {
         raw: newValue,
@@ -294,7 +294,10 @@ const internalValue = computed({
           displayInfo: selectedOption?.displayInfo
         }
       }
-      formDataStore.setValue(props.fieldPath, newFieldValue)
+      
+      if (props.mode === 'edit') {
+        formDataStore.setValue(props.fieldPath, newFieldValue)
+      }
       emit('update:modelValue', newFieldValue)
     }
   }
@@ -573,7 +576,7 @@ async function handleSearch(query: string | number, isByValue: boolean): Promise
     // 🔥 如果 query 已经是数字类型，不需要转换
     if (isByValue && typeof query === 'string' && valueType !== 'string') {
       // 使用统一的类型转换工具函数
-      convertedValue = convertValueToType(query, valueType, COMPONENT_NAME)
+      convertedValue = convertValueToType(query, valueType, 'SelectWidget')
     }
     
     const requestBody = {

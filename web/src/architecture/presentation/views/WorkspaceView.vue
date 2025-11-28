@@ -23,16 +23,40 @@
 
     <!-- 中间函数渲染区域 -->
     <div class="function-renderer">
-      <FormView
-        v-if="currentFunctionDetail?.template_type === 'form'"
-        :function-detail="currentFunctionDetail"
-      />
-      <TableView
-        v-else-if="currentFunctionDetail?.template_type === 'table'"
-        :function-detail="currentFunctionDetail"
-      />
+      <el-tabs
+        v-if="tabs.length > 0"
+        v-model="activeTabId"
+        type="card"
+        closable
+        class="workspace-tabs"
+        @tab-remove="handleTabRemove"
+      >
+        <el-tab-pane
+          v-for="tab in tabs"
+          :key="tab.id"
+          :label="tab.title"
+          :name="tab.id"
+        >
+          <!-- 只渲染当前激活的 Tab 内容，确保切换时状态被保存后销毁/重建 -->
+          <div v-if="activeTabId === tab.id" class="tab-content">
+            <FormView
+              v-if="currentFunctionDetail?.template_type === 'form'"
+              :key="`form-${tab.id}`"
+              :function-detail="currentFunctionDetail"
+            />
+            <TableView
+              v-else-if="currentFunctionDetail?.template_type === 'table'"
+              :key="`table-${tab.id}`"
+              :function-detail="currentFunctionDetail"
+            />
+            <div v-else class="empty-state">
+              <p>加载中...</p>
+            </div>
+          </div>
+        </el-tab-pane>
+      </el-tabs>
       <div v-else class="empty-state">
-        <p>请选择一个函数</p>
+        <p>请在左侧选择功能</p>
       </div>
     </div>
 
@@ -96,9 +120,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, watch, ref } from 'vue'
+import { computed, onMounted, onUnmounted, watch, ref, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon } from 'element-plus'
+import { ElMessage, ElMessageBox, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon, ElTabs, ElTabPane } from 'element-plus'
 import { InfoFilled } from '@element-plus/icons-vue'
 import { eventBus, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
@@ -123,6 +147,85 @@ const applicationService = serviceFactory.getWorkspaceApplicationService()
 const serviceTree = computed(() => stateManager.getServiceTree())
 const currentFunction = computed(() => stateManager.getCurrentFunction())
 const currentAppFromState = computed(() => stateManager.getCurrentApp())
+const tabs = computed(() => stateManager.getState().tabs)
+const activeTabId = computed({
+  get: () => stateManager.getState().activeTabId || '',
+  set: (val) => {
+    if (val) applicationService.activateTab(val)
+  }
+})
+
+// Tab 关闭处理
+const handleTabRemove = (targetName: string) => {
+  applicationService.closeTab(targetName)
+}
+
+// 状态保存与恢复
+watch(() => stateManager.getState().activeTabId, async (newId, oldId) => {
+  // 1. 保存旧 Tab 数据
+  if (oldId) {
+    const oldTab = tabs.value.find(t => t.id === oldId)
+    if (oldTab && oldTab.node) {
+       const detail = stateManager.getFunctionDetail(oldTab.node)
+       if (detail?.template_type === 'form') {
+         // 深度克隆，避免引用问题
+         const currentState = serviceFactory.getFormStateManager().getState()
+         oldTab.data = JSON.parse(JSON.stringify({
+           data: Array.from(currentState.data.entries()), // Map 转 Array 以便序列化
+           errors: Array.from(currentState.errors.entries()),
+           submitting: currentState.submitting
+         }))
+       } else if (detail?.template_type === 'table') {
+         const currentState = serviceFactory.getTableStateManager().getState()
+         oldTab.data = JSON.parse(JSON.stringify(currentState))
+       }
+    }
+  }
+
+  // 2. 恢复新 Tab 数据
+  if (newId) {
+    const newTab = tabs.value.find(t => t.id === newId)
+    if (newTab && newTab.data && newTab.node) {
+       const detail = stateManager.getFunctionDetail(newTab.node)
+       if (detail?.template_type === 'form') {
+          // 恢复 Form 数据
+          const savedState = newTab.data
+          serviceFactory.getFormStateManager().setState({
+            data: new Map(savedState.data),
+            errors: new Map(savedState.errors),
+            submitting: savedState.submitting
+          })
+       } else if (detail?.template_type === 'table') {
+          // 恢复 Table 数据
+          serviceFactory.getTableStateManager().setState(newTab.data)
+       }
+    } else {
+      // 如果没有数据，可能是新打开的（由 functionLoaded 初始化）
+      // 或者是切换到一个未初始化的 Tab（需要清空残留数据）
+      // 建议清空，以防万一
+      if (newTab?.node) {
+         const detail = stateManager.getFunctionDetail(newTab.node)
+         if (detail?.template_type === 'form') {
+             // 清空 FormState
+             serviceFactory.getFormStateManager().setState({
+               data: new Map(),
+               errors: new Map(),
+               submitting: false
+             })
+         }
+      }
+    }
+    
+    // 更新路由参数（如果需要）
+    if (newTab) {
+      const path = `/workspace-v2${newTab.path.startsWith('/') ? '' : '/'}${newTab.path}`
+      if (route.path !== path) {
+        // 使用 replace 避免产生大量历史记录
+        router.replace(path).catch(() => {})
+      }
+    }
+  }
+})
 
 // 将 App 类型转换为 AppType 类型（用于 AppSwitcher）
 const currentApp = computed<AppType | null>(() => {
@@ -329,6 +432,24 @@ const handleDeleteApp = async (app: AppType): Promise<void> => {
   }
 }
 
+// 递归查找节点
+const findNodeByPath = (tree: ServiceTreeType[], path: string): ServiceTreeType | null => {
+  for (const node of tree) {
+    // 移除路径开头的斜杠进行比较
+    const nodePath = (node.full_code_path || '').replace(/^\/+/, '')
+    const targetPath = path.replace(/^\/+/, '')
+    
+    if (nodePath === targetPath && node.type === 'function') {
+      return node
+    }
+    if (node.children && node.children.length > 0) {
+      const found = findNodeByPath(node.children, path)
+      if (found) return found
+    }
+  }
+  return null
+}
+
 // 从路由解析应用并加载
 const loadAppFromRoute = async () => {
   // 支持 /workspace-v2 和 /workspace 两种路径
@@ -363,45 +484,76 @@ const loadAppFromRoute = async () => {
     }
     
     const targetAppId = app.id
+    let appSwitched = false
 
     // 🔥 检查当前应用是否已经是目标应用
     const currentAppState = currentApp.value
-    if (currentAppState && String(currentAppState.id) === String(targetAppId)) {
-      // 即使应用相同，也可能需要处理子路径（定位节点）
-      if (pathSegments.length > 2) {
-        // TODO: 根据路径定位节点
-      }
-      return
+    if (!currentAppState || String(currentAppState.id) !== String(targetAppId)) {
+        // 需要切换应用
+        if (String(pendingAppId.value) !== String(targetAppId)) {
+           pendingAppId.value = targetAppId
+           try {
+             const appForService: App = {
+               id: app.id,
+               user: app.user,
+               code: app.code,
+               name: app.name
+             }
+             await applicationService.triggerAppSwitch(appForService)
+             appSwitched = true
+           } catch (error) {
+             console.error('[WorkspaceView] 路由加载应用失败', error)
+             pendingAppId.value = null
+             return
+           }
+        }
     }
 
-    // 🔥 检查是否正在切换到该应用
-    if (String(pendingAppId.value) === String(targetAppId)) {
-      console.log('[WorkspaceView] 路由变化检测：正在切换到该应用，跳过')
-      return
-    }
-    
-    // 需要切换应用
-    pendingAppId.value = targetAppId
-    
-    try {
-      const appForService: App = {
-        id: app.id,
-        user: app.user,
-        code: app.code,
-        name: app.name
-      }
+    // 处理子路径（打开 Tab）
+    if (pathSegments.length > 2) {
+      const functionPath = '/' + pathSegments.join('/') // 构造完整路径，如 /luobei/demo/crm/list
       
-      // 切换应用
-      await applicationService.triggerAppSwitch(appForService)
+      // 如果刚刚切换了应用，需要等待服务树加载完成
+      // 由于 appSwitched 事件是异步的，我们这里轮询检查 serviceTree 是否有值
+      // 或者简单地等待一下（不是最优雅，但在 View 层简单有效）
+      // 更好的方式是 watch serviceTree，但这会变得复杂
       
-      // 如果路径中有更多段，尝试定位节点
-      if (pathSegments.length > 2) {
-        const functionPath = pathSegments.slice(2).join('/')
-        // TODO: 根据路径定位节点
+      // 尝试查找节点
+      const tryOpenTab = () => {
+         const tree = serviceTree.value
+         if (tree && tree.length > 0) {
+            const node = findNodeByPath(tree as ServiceTreeType[], functionPath)
+            if (node) {
+               // 转换为新架构类型
+               const serviceNode: ServiceTree = node as any
+               // 如果当前没有激活这个 Tab，才去点击
+               if (activeTabId.value !== serviceNode.full_code_path && activeTabId.value !== String(serviceNode.id)) {
+                  // 检查是否存在该路径的 Tab
+                  const existingTab = tabs.value.find(t => t.path === serviceNode.full_code_path || t.path === String(serviceNode.id))
+                  if (existingTab) {
+                     applicationService.activateTab(existingTab.id)
+                  } else {
+                     applicationService.triggerNodeClick(serviceNode)
+                  }
+               }
+            }
+         }
       }
-    } catch (error) {
-      console.error('[WorkspaceView] 路由加载应用失败', error)
-      pendingAppId.value = null
+
+      if (appSwitched) {
+         // 等待服务树加载（通过 watch serviceTree 或者 简单的 timeout）
+         // 这里使用简单的重试机制
+         let retries = 0
+         const interval = setInterval(() => {
+            if (serviceTree.value.length > 0 || retries > 10) {
+               clearInterval(interval)
+               tryOpenTab()
+            }
+            retries++
+         }, 200)
+      } else {
+         tryOpenTab()
+      }
     }
   } catch (error) {
     console.error('[WorkspaceView] 加载应用失败', error)
@@ -456,6 +608,29 @@ onUnmounted(() => {
 .workspace-view {
   display: flex;
   height: 100%;
+}
+
+.workspace-tabs {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.workspace-tabs :deep(.el-tabs__header) {
+  margin: 0;
+  background-color: var(--el-bg-color-overlay);
+  border-bottom: 1px solid var(--el-border-color-light);
+}
+
+.workspace-tabs :deep(.el-tabs__content) {
+  flex: 1;
+  overflow: auto;
+  padding: 0;
+}
+
+.tab-content {
+  height: 100%;
+  overflow: auto;
 }
 
 .left-sidebar {
