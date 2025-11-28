@@ -423,28 +423,11 @@ onMounted(async () => {
   unsubscribeServiceTreeLoaded = eventBus.on(WorkspaceEvent.serviceTreeLoaded, (payload: { app: any, tree: any[] }) => {
     // 状态已通过 StateManager 自动更新
     console.log('[WorkspaceView] 收到 serviceTreeLoaded 事件，节点数:', payload.tree?.length || 0)
-    loadingTree.value = false
-    pendingAppId.value = null // 加载完成，重置 pending 状态
   })
   
   // 监听应用切换事件，开始加载服务树
   unsubscribeAppSwitched = eventBus.on(WorkspaceEvent.appSwitched, (payload: { app: any }) => {
     console.log('[WorkspaceView] 收到 appSwitched 事件，目标应用:', payload.app?.user, payload.app?.code, 'ID:', payload.app?.id)
-    console.log('[WorkspaceView] 当前状态 - currentApp:', currentApp.value?.id, 'pendingAppId:', pendingAppId.value)
-    
-    // 🔥 检查当前应用是否已经是目标应用
-    const currentAppState = currentApp.value
-    if (currentAppState && String(currentAppState.id) === String(payload.app?.id)) {
-      console.log('[WorkspaceView] appSwitched: 当前应用已经是目标应用，跳过设置 loading')
-      return
-    }
-    
-    // 设置加载状态
-    loadingTree.value = true
-    // 确保 pendingAppId 被设置（如果是外部触发的切换）
-    if (payload.app?.id) {
-      pendingAppId.value = payload.app.id
-    }
   })
 
   // 加载应用列表
