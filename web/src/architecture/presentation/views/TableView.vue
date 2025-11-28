@@ -47,6 +47,9 @@
     <el-table
       :data="tableData"
       v-loading="loading"
+      style="width: 100%"
+      border
+      stripe
       @sort-change="handleSortChange"
     >
       <el-table-column
@@ -54,7 +57,9 @@
         :key="field.code"
         :prop="field.code"
         :label="field.name"
+        min-width="150"
         :sortable="field.search ? 'custom' : false"
+        show-overflow-tooltip
       >
         <template #default="{ row }">
           <WidgetComponent
@@ -159,7 +164,11 @@ const getSearchFieldValue = (fieldCode: string): FieldValue => {
 }
 
 const updateSearchField = (fieldCode: string, value: FieldValue): void => {
-  searchForm.value[fieldCode] = value.raw
+  if (value) {
+    searchForm.value[fieldCode] = value.raw
+  } else {
+    searchForm.value[fieldCode] = null
+  }
 }
 
 const getRowFieldValue = (row: TableRow, fieldCode: string): FieldValue => {
@@ -251,6 +260,9 @@ onUnmounted(() => {
 <style scoped>
 .table-view {
   padding: 20px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .toolbar {
@@ -262,6 +274,16 @@ onUnmounted(() => {
   padding: 20px;
   background: var(--el-bg-color-page);
   border-radius: 4px;
+}
+
+.el-table {
+  flex: 1;
+  overflow: auto;
+}
+
+.el-pagination {
+  margin-top: 20px;
+  justify-content: flex-end;
 }
 </style>
 
