@@ -151,11 +151,27 @@
       :modal="true"
       :close-on-click-modal="true"
       class="detail-drawer"
+      :show-close="true"
     >
-      <div v-if="detailRowData" class="detail-content">
-        <!-- 复用 FormView 但使用 detail 模式 -->
-        <!-- 这里我们需要一个能渲染详情的组件，可以使用 WidgetComponent 遍历 response 字段 -->
-        <el-form label-width="120px">
+      <template #header>
+        <div class="drawer-header">
+          <span class="drawer-title">{{ detailDrawerTitle }}</span>
+          <div class="drawer-actions" v-if="detailDrawerMode === 'read' && currentFunctionDetail?.callbacks?.includes('OnTableUpdateRow')">
+            <el-button 
+              type="primary" 
+              link
+              @click="toggleDrawerMode('edit')"
+            >
+              <el-icon class="el-icon--left"><Edit /></el-icon>
+              编辑
+            </el-button>
+          </div>
+        </div>
+      </template>
+
+      <div class="detail-content">
+        <!-- 详情模式 -->
+        <el-form v-if="detailDrawerMode === 'read'" label-width="120px">
           <el-form-item
             v-for="field in detailFields"
             :key="field.code"
@@ -168,18 +184,38 @@
             />
           </el-form-item>
         </el-form>
+
+        <!-- 编辑模式 -->
+        <el-form 
+          v-else 
+          label-width="120px"
+          v-loading="drawerSubmitting"
+        >
+          <el-form-item
+            v-for="field in editFields"
+            :key="field.code"
+            :label="field.name"
+            :required="isFieldRequired(field)"
+          >
+            <WidgetComponent
+              :field="field"
+              :value="getEditFieldValue(field.code)"
+              @update:model-value="(v) => updateEditField(field.code, v)"
+              mode="edit"
+            />
+          </el-form-item>
+        </el-form>
       </div>
+
       <template #footer>
         <div class="drawer-footer">
-          <el-button @click="detailDrawerVisible = false">关闭</el-button>
-          <!-- 只有当表格配置中有 Update 回调时才显示编辑按钮 -->
-          <el-button 
-            v-if="currentFunctionDetail?.callbacks?.includes('OnTableUpdateRow')" 
-            type="primary" 
-            @click="handleDrawerEdit"
-          >
-            编辑
-          </el-button>
+          <template v-if="detailDrawerMode === 'read'">
+            <el-button @click="detailDrawerVisible = false">关闭</el-button>
+          </template>
+          <template v-else>
+            <el-button @click="toggleDrawerMode('read')">取消</el-button>
+            <el-button type="primary" @click="submitDrawerEdit" :loading="drawerSubmitting">保存</el-button>
+          </template>
         </div>
       </template>
     </el-drawer>
@@ -190,7 +226,7 @@
 import { computed, onMounted, onUnmounted, watch, ref, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon, ElTabs, ElTabPane, ElDrawer, ElDropdown, ElDropdownMenu, ElDropdownItem, ElAvatar } from 'element-plus'
-import { InfoFilled, ArrowDown } from '@element-plus/icons-vue'
+import { InfoFilled, ArrowDown, Edit } from '@element-plus/icons-vue'
 import { eventBus, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import { apiClient } from '../../infrastructure/apiClient'
@@ -354,10 +390,26 @@ const currentFunctionDetail = computed<FunctionDetail | null>(() => {
   return stateManager.getFunctionDetail(node)
 })
 
+import { hasAnyRequiredRule } from '@/core/utils/validationUtils'
+
+// ...
+
 const detailDrawerVisible = ref(false)
 const detailDrawerTitle = ref('详情')
 const detailRowData = ref<Record<string, any> | null>(null)
 const detailFields = ref<FieldConfig[]>([])
+// 新增：抽屉模式（read/edit）
+const detailDrawerMode = ref<'read' | 'edit'>('read')
+// 新增：编辑表单数据
+const editFormData = ref<Record<string, any>>({})
+// 新增：编辑提交状态
+const drawerSubmitting = ref(false)
+
+// 计算编辑字段：优先使用 request 字段
+const editFields = computed(() => {
+  if (!currentFunctionDetail.value) return []
+  return (currentFunctionDetail.value.request || []) as FieldConfig[]
+})
 
 // 监听表格详情事件
 onMounted(() => {
@@ -366,11 +418,78 @@ onMounted(() => {
     
     detailRowData.value = row
     detailDrawerTitle.value = currentFunctionDetail.value.name || '详情'
-    // 使用响应参数作为详情字段
     detailFields.value = (currentFunctionDetail.value.response || []) as FieldConfig[]
+    
+    // 重置为只读模式
+    detailDrawerMode.value = 'read'
+    editFormData.value = {}
+    
     detailDrawerVisible.value = true
   })
 })
+
+// 切换抽屉模式
+const toggleDrawerMode = (mode: 'read' | 'edit') => {
+  detailDrawerMode.value = mode
+  if (mode === 'edit' && detailRowData.value) {
+    // 进入编辑模式，初始化表单数据（深拷贝）
+    editFormData.value = JSON.parse(JSON.stringify(detailRowData.value))
+  }
+}
+
+// 获取编辑字段值
+const getEditFieldValue = (fieldCode: string): FieldValue => {
+  const value = editFormData.value[fieldCode]
+  return { 
+    raw: value, 
+    display: typeof value === 'object' ? JSON.stringify(value) : String(value ?? ''), 
+    meta: {} 
+  }
+}
+
+// 更新编辑字段值
+const updateEditField = (fieldCode: string, value: FieldValue) => {
+  editFormData.value[fieldCode] = value.raw
+}
+
+// 判断字段是否必填
+const isFieldRequired = (field: FieldConfig): boolean => {
+  return hasAnyRequiredRule(field.validation || '')
+}
+
+// 提交编辑
+const submitDrawerEdit = async () => {
+  if (!currentFunctionDetail.value || !detailRowData.value) return
+  
+  try {
+    drawerSubmitting.value = true
+    // 调用 Application Service 更新数据
+    // 注意：这里我们需要直接调用 Service，或者通过 EventBus 通知
+    // 为了保持架构一致性，最好通过 applicationService
+    // 这里的 applicationService 是 WorkspaceApplicationService，它可能没有 updateRow 方法
+    // 我们需要 TableApplicationService，但这里注入比较麻烦
+    // 临时方案：通过 EventBus 触发 update，并等待结果（但这需要异步处理）
+    // 更好方案：使用 ServiceFactory 获取 TableApplicationService
+    
+    const tableService = serviceFactory.getTableApplicationService()
+    await tableService.updateRow(
+      currentFunctionDetail.value, 
+      detailRowData.value.id, 
+      editFormData.value
+    )
+    
+    ElMessage.success('更新成功')
+    // 更新本地数据
+    detailRowData.value = { ...detailRowData.value, ...editFormData.value }
+    // 切回只读模式
+    toggleDrawerMode('read')
+  } catch (error: any) {
+    console.error('更新失败:', error)
+    ElMessage.error(error?.message || '更新失败')
+  } finally {
+    drawerSubmitting.value = false
+  }
+}
 
 // 获取详情字段值
 const getDetailFieldValue = (fieldCode: string): FieldValue => {
@@ -385,15 +504,7 @@ const getDetailFieldValue = (fieldCode: string): FieldValue => {
 
 // 在详情抽屉中点击编辑
 const handleDrawerEdit = () => {
-  if (detailRowData.value) {
-    // 先关闭详情抽屉，避免遮挡（或者根据需求保留）
-    detailDrawerVisible.value = false
-    // 触发表格的编辑逻辑
-    // 由于编辑逻辑目前在 TableView 中，我们通过 EventBus 通知
-    // 注意：这需要 TableView 监听此事件，或者我们将编辑逻辑提升到 Workspace 或 Application Service
-    // 这里简单起见，我们发送一个事件让 TableView 处理
-    eventBus.emit('table:edit-row', { row: detailRowData.value })
-  }
+  // 已废弃，改用 toggleDrawerMode('edit')
 }
 
 // 应用列表管理
@@ -831,6 +942,20 @@ onUnmounted(() => {
   flex: 1;
   padding: 20px;
   overflow: auto;
+}
+
+.drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding-right: 20px;
+}
+
+.drawer-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
 }
 
 .detail-drawer :deep(.el-drawer__header) {

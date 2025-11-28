@@ -198,10 +198,15 @@ const visibleFields = computed(() => {
   })
 })
 
-// 编辑字段：默认使用响应字段作为编辑字段
-// 实际项目中可能需要从 FunctionDetail 中获取专门的 update_fields
+// 编辑字段：使用请求字段（request）作为编辑字段
 const editFields = computed(() => {
-  return responseFields.value
+  // 优先使用 request 字段作为编辑字段
+  const fields = props.functionDetail.request || []
+  
+  // 过滤掉只读字段（如果有权限配置）
+  // TODO: 实现更细粒度的权限过滤
+  
+  return fields
 })
 
 // 回调判断
