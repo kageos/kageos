@@ -1095,7 +1095,14 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
       }
       
       await tableUpdateRow(functionData.method, functionData.router, updateData)
-      // 🔥 不显示成功提示，因为 Notification 组件已经显示更漂亮的提示了
+      // 🔥 使用 ElNotification 显示更漂亮的提示
+      ElNotification({
+        title: '更新成功',
+        message: '记录已成功更新',
+        type: 'success',
+        duration: 3000,
+        position: 'top-right'
+      })
       await loadTableData()
       return true
     } catch (error: any) {
@@ -1104,7 +1111,14 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
         || error?.response?.data?.message 
         || error?.message 
         || '更新失败'
-      ElMessage.error(errorMessage)
+      // 🔥 使用 ElNotification 显示更漂亮的错误提示
+      ElNotification({
+        title: '更新失败',
+        message: errorMessage,
+        type: 'error',
+        duration: 5000,
+        position: 'top-right'
+      })
       return false
     }
   }
