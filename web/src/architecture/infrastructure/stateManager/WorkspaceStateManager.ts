@@ -23,7 +23,8 @@ export class WorkspaceStateManager extends StateManagerImpl<WorkspaceState> impl
       currentApp: null,
       currentFunction: null,
       serviceTree: [],
-      functionDetails: new Map()
+      functionDetails: new Map(),
+      loading: false // 🔥 默认 loading 为 false
     }
 
     super({
@@ -63,6 +64,10 @@ export class WorkspaceStateManager extends StateManagerImpl<WorkspaceState> impl
     const state = this.getState()
     const key = node.ref_id ? `id:${node.ref_id}` : `path:${node.full_code_path}`
     return state.functionDetails.get(key) || null
+  }
+
+  isLoading(): boolean {
+    return this.getState().loading
   }
 }
 

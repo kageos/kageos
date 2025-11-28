@@ -41,6 +41,7 @@ export interface WorkspaceState {
   currentFunction: ServiceTree | null
   serviceTree: ServiceTree[]
   functionDetails: Map<string, FunctionDetail>
+  loading: boolean // 🔥 添加 loading 状态，统一管理加载状态
 }
 
 /**
@@ -105,12 +106,13 @@ export class WorkspaceDomainService {
   async switchApp(app: App): Promise<void> {
     const state = this.stateManager.getState()
     
-    // 更新状态
+    // 更新状态：设置当前应用，清空服务树，设置 loading 为 true
     this.stateManager.setState({
       ...state,
       currentApp: app,
       currentFunction: null,
-      serviceTree: [] // 清空服务树，等待重新加载
+      serviceTree: [], // 清空服务树，等待重新加载
+      loading: true    // 🔥 开始加载
     })
 
     // 🔥 不在这里触发 appSwitched 事件，避免循环触发
@@ -139,7 +141,8 @@ export class WorkspaceDomainService {
       // 更新状态
       this.stateManager.setState({
         ...state,
-        serviceTree: tree || []
+        serviceTree: tree || [],
+        loading: false // 🔥 加载完成
       })
 
       // 触发事件
@@ -150,6 +153,15 @@ export class WorkspaceDomainService {
       return tree || []
     } catch (error) {
       console.error('[WorkspaceDomainService] 加载服务目录树失败', error)
+      
+      // 更新状态：即使失败也要重置 loading
+      const state = this.stateManager.getState()
+      this.stateManager.setState({
+        ...state,
+        serviceTree: [],
+        loading: false // 🔥 加载失败，结束 loading
+      })
+      
       // 即使失败也要触发事件，确保 loading 状态能正确更新
       this.eventBus.emit(WorkspaceEvent.serviceTreeLoaded, { app, tree: [] })
       return []
@@ -192,10 +204,8 @@ export class WorkspaceDomainService {
   /**
    * 获取函数详情（从缓存）
    */
-  getFunctionDetail(node: ServiceTree): FunctionDetail | null {
-    const state = this.stateManager.getState()
-    const key = node.ref_id ? `id:${node.ref_id}` : `path:${node.full_code_path}`
-    return state.functionDetails.get(key) || null
+  isLoading(): boolean {
+    return this.stateManager.getState().loading
   }
 }
 
