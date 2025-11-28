@@ -391,6 +391,7 @@ const loadAppFromRoute = async () => {
 // 生命周期
 let unsubscribeFunctionLoaded: (() => void) | null = null
 let unsubscribeServiceTreeLoaded: (() => void) | null = null
+let unsubscribeAppSwitched: (() => void) | null = null
 
 onMounted(async () => {
   // 监听函数加载完成事件
@@ -405,7 +406,7 @@ onMounted(async () => {
   })
   
   // 监听应用切换事件，开始加载服务树
-  const unsubscribeAppSwitched = eventBus.on(WorkspaceEvent.appSwitched, () => {
+  unsubscribeAppSwitched = eventBus.on(WorkspaceEvent.appSwitched, () => {
     loadingTree.value = true
   })
 
