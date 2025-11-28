@@ -439,6 +439,14 @@ onMounted(async () => {
   // 监听应用切换事件，开始加载服务树
   unsubscribeAppSwitched = eventBus.on(WorkspaceEvent.appSwitched, (payload: { app: any }) => {
     console.log('[WorkspaceView] 收到 appSwitched 事件，开始加载服务树:', payload.app?.user, payload.app?.code)
+    
+    // 🔥 检查当前应用是否已经是目标应用，避免重复设置加载状态
+    const currentAppState = currentApp.value
+    if (currentAppState && currentAppState.id === payload.app?.id) {
+      console.log('[WorkspaceView] 当前应用已经是目标应用，跳过设置加载状态')
+      return
+    }
+    
     loadingTree.value = true
   })
 
