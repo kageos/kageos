@@ -280,9 +280,29 @@ onUnmounted(() => {
   border-radius: 4px;
 }
 
+/* 🔥 修复表格右边框 */
 .el-table {
   flex: 1;
   overflow: auto;
+  --el-table-border-color: var(--el-border-color-lighter);
+}
+
+:deep(.el-table__inner-wrapper::before) {
+  display: none; /* 移除底部边框 */
+}
+
+:deep(.el-table--border) {
+  border-right: none;
+}
+
+:deep(.el-table--border .el-table__cell) {
+  border-right: none;
+}
+
+:deep(.el-table__header th.el-table__cell) {
+  background-color: var(--el-fill-color-light);
+  color: var(--el-text-color-primary);
+  font-weight: 600;
 }
 
 .el-pagination {
