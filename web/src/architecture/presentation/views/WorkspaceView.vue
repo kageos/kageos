@@ -9,54 +9,79 @@
 -->
 
 <template>
-  <div class="workspace-view">
-    <!-- 左侧服务目录树 -->
-    <div class="left-sidebar">
-      <ServiceTreePanel
-        :tree-data="serviceTree"
-        :loading="loading"
-        :current-node-id="currentFunction?.id || null"
-        :current-function="currentFunction"
-        @node-click="handleNodeClick"
-      />
+  <div class="workspace-container">
+    <!-- 顶部导航栏 -->
+    <div class="workspace-header">
+      <div class="header-left">
+        <div class="logo">AI Agent OS</div>
+      </div>
+      <div class="header-right">
+        <ThemeToggle />
+        <el-dropdown @command="handleUserCommand">
+          <span class="user-profile">
+            <el-avatar :size="32" :src="userAvatar || undefined">{{ userInitials }}</el-avatar>
+            <span class="username">{{ userName }}</span>
+            <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+          </span>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="settings">个人设置</el-dropdown-item>
+              <el-dropdown-item divided command="logout">退出登录</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </div>
     </div>
 
-    <!-- 中间函数渲染区域 -->
-    <div class="function-renderer">
-      <el-tabs
-        v-if="tabs.length > 0"
-        v-model="activeTabId"
-        type="card"
-        closable
-        class="workspace-tabs"
-        @tab-remove="handleTabRemove"
-      >
-        <el-tab-pane
-          v-for="tab in tabs"
-          :key="tab.id"
-          :label="tab.title"
-          :name="tab.id"
+    <div class="workspace-view">
+      <!-- 左侧服务目录树 -->
+      <div class="left-sidebar">
+        <ServiceTreePanel
+          :tree-data="serviceTree"
+          :loading="loading"
+          :current-node-id="currentFunction?.id || null"
+          :current-function="currentFunction"
+          @node-click="handleNodeClick"
+        />
+      </div>
+
+      <!-- 中间函数渲染区域 -->
+      <div class="function-renderer">
+        <el-tabs
+          v-if="tabs.length > 0"
+          v-model="activeTabId"
+          type="card"
+          closable
+          class="workspace-tabs"
+          @tab-remove="handleTabRemove"
         >
-          <!-- 只渲染当前激活的 Tab 内容，确保切换时状态被保存后销毁/重建 -->
-          <div v-if="activeTabId === tab.id" class="tab-content">
-            <FormView
-              v-if="currentFunctionDetail?.template_type === 'form'"
-              :key="`form-${tab.id}`"
-              :function-detail="currentFunctionDetail"
-            />
-            <TableView
-              v-else-if="currentFunctionDetail?.template_type === 'table'"
-              :key="`table-${tab.id}`"
-              :function-detail="currentFunctionDetail"
-            />
-            <div v-else class="empty-state">
-              <p>加载中...</p>
+          <el-tab-pane
+            v-for="tab in tabs"
+            :key="tab.id"
+            :label="tab.title"
+            :name="tab.id"
+          >
+            <!-- 只渲染当前激活的 Tab 内容，确保切换时状态被保存后销毁/重建 -->
+            <div v-if="activeTabId === tab.id" class="tab-content">
+              <FormView
+                v-if="currentFunctionDetail?.template_type === 'form'"
+                :key="`form-${tab.id}`"
+                :function-detail="currentFunctionDetail"
+              />
+              <TableView
+                v-else-if="currentFunctionDetail?.template_type === 'table'"
+                :key="`table-${tab.id}`"
+                :function-detail="currentFunctionDetail"
+              />
+              <div v-else class="empty-state">
+                <p>加载中...</p>
+              </div>
             </div>
-          </div>
-        </el-tab-pane>
-      </el-tabs>
-      <div v-else class="empty-state">
-        <p>请在左侧选择功能</p>
+          </el-tab-pane>
+        </el-tabs>
+        <div v-else class="empty-state">
+          <p>请在左侧选择功能</p>
+        </div>
       </div>
     </div>
 
@@ -164,13 +189,15 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, watch, ref, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon, ElTabs, ElTabPane, ElDrawer } from 'element-plus'
-import { InfoFilled } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon, ElTabs, ElTabPane, ElDrawer, ElDropdown, ElDropdownMenu, ElDropdownItem, ElAvatar } from 'element-plus'
+import { InfoFilled, ArrowDown } from '@element-plus/icons-vue'
 import { eventBus, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import { apiClient } from '../../infrastructure/apiClient'
+import { useAuthStore } from '@/stores/auth'
 import ServiceTreePanel from '@/components/ServiceTreePanel.vue'
 import AppSwitcher from '@/components/AppSwitcher.vue'
+import ThemeToggle from '@/components/ThemeToggle.vue'
 import FormView from './FormView.vue'
 import TableView from './TableView.vue'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
@@ -181,6 +208,7 @@ import type { FieldConfig, FieldValue } from '../../domain/types'
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 
 // 依赖注入（使用 ServiceFactory 简化）
 const stateManager = serviceFactory.getWorkspaceStateManager()
@@ -198,6 +226,35 @@ const activeTabId = computed({
     if (val) applicationService.activateTab(val)
   }
 })
+
+// 用户相关
+const userName = computed(() => authStore.userName || 'User')
+const userAvatar = computed(() => authStore.user?.avatar || '')
+const userInitials = computed(() => {
+  const name = userName.value
+  return name ? name.substring(0, 2).toUpperCase() : 'US'
+})
+
+const handleUserCommand = (command: string) => {
+  if (command === 'logout') {
+    handleLogout()
+  } else if (command === 'settings') {
+    router.push('/user/settings')
+  }
+}
+
+const handleLogout = async () => {
+  try {
+    await ElMessageBox.confirm('确定要退出登录吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    await authStore.logout()
+  } catch (error) {
+    // 忽略取消操作
+  }
+}
 
 // Tab 关闭处理
 const handleTabRemove = (targetName: string) => {
@@ -687,13 +744,59 @@ onUnmounted(() => {
   if (unsubscribeServiceTreeLoaded) {
     unsubscribeServiceTreeLoaded()
   }
+  if (unsubscribeAppSwitched) {
+    unsubscribeAppSwitched()
+  }
 })
 </script>
 
 <style scoped>
+.workspace-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.workspace-header {
+  height: 48px;
+  border-bottom: 1px solid var(--el-border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  background-color: var(--el-bg-color);
+  flex-shrink: 0;
+}
+
+.header-left .logo {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.user-profile {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  gap: 8px;
+}
+
+.username {
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+}
+
 .workspace-view {
   display: flex;
-  height: 100%;
+  flex: 1;
+  overflow: hidden; /* 防止双滚动条 */
 }
 
 .workspace-tabs {
@@ -751,4 +854,3 @@ onUnmounted(() => {
   padding-top: 10px;
 }
 </style>
-
