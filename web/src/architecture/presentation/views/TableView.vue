@@ -102,11 +102,8 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue'
-import { TableApplicationService } from '../../application/services/TableApplicationService'
-import { TableDomainService } from '../../domain/services/TableDomainService'
-import { TableStateManager } from '../../infrastructure/stateManager/TableStateManager'
 import { eventBus, TableEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
-import { apiClient } from '../../infrastructure/apiClient'
+import { serviceFactory } from '../../infrastructure/factories'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
 import type { TableRow, SearchParams, SortParams } from '../../domain/services/TableDomainService'
@@ -115,10 +112,12 @@ const props = defineProps<{
   functionDetail: FunctionDetail
 }>()
 
-// 依赖注入
-const stateManager = new TableStateManager()
-const domainService = new TableDomainService(apiClient, stateManager, eventBus)
-const applicationService = new TableApplicationService(domainService, eventBus)
+// 依赖注入（使用 ServiceFactory 简化）
+import { serviceFactory } from '../../infrastructure/factories'
+
+const stateManager = serviceFactory.getTableStateManager()
+const domainService = serviceFactory.getTableDomainService()
+const applicationService = serviceFactory.getTableApplicationService()
 
 // 从状态管理器获取状态
 const tableData = computed(() => domainService.getData())

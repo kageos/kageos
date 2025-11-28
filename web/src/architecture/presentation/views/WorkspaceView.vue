@@ -38,21 +38,20 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue'
-import { WorkspaceApplicationService } from '../../application/services/WorkspaceApplicationService'
-import { WorkspaceDomainService } from '../../domain/services/WorkspaceDomainService'
-import { WorkspaceStateManager } from '../../infrastructure/stateManager/WorkspaceStateManager'
-import { functionLoader } from '../../infrastructure/functionLoader'
 import { eventBus, WorkspaceEvent } from '../../infrastructure/eventBus'
+import { serviceFactory } from '../../infrastructure/factories'
 import ServiceTreePanel from '@/components/ServiceTreePanel.vue'
 import FormView from './FormView.vue'
 import TableView from './TableView.vue'
 import type { ServiceTree } from '../../domain/services/WorkspaceDomainService'
 import type { FunctionDetail } from '../../domain/interfaces/IFunctionLoader'
 
-// 依赖注入（在实际项目中可以使用依赖注入容器）
-const stateManager = new WorkspaceStateManager()
-const domainService = new WorkspaceDomainService(functionLoader, stateManager, eventBus)
-const applicationService = new WorkspaceApplicationService(domainService, eventBus)
+// 依赖注入（使用 ServiceFactory 简化）
+import { serviceFactory } from '../../infrastructure/factories'
+
+const stateManager = serviceFactory.getWorkspaceStateManager()
+const domainService = serviceFactory.getWorkspaceDomainService()
+const applicationService = serviceFactory.getWorkspaceApplicationService()
 
 // 从状态管理器获取状态
 const serviceTree = computed(() => stateManager.getServiceTree())

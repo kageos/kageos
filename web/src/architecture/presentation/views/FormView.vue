@@ -70,11 +70,8 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue'
-import { FormApplicationService } from '../../application/services/FormApplicationService'
-import { FormDomainService } from '../../domain/services/FormDomainService'
-import { FormStateManager } from '../../infrastructure/stateManager/FormStateManager'
 import { eventBus, FormEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
-import { apiClient } from '../../infrastructure/apiClient'
+import { serviceFactory } from '../../infrastructure/factories'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
 import { hasAnyRequiredRule } from '@/core/utils/validationUtils'
@@ -83,10 +80,12 @@ const props = defineProps<{
   functionDetail: FunctionDetail
 }>()
 
-// 依赖注入
-const stateManager = new FormStateManager()
-const domainService = new FormDomainService(stateManager, eventBus)
-const applicationService = new FormApplicationService(domainService, eventBus, apiClient)
+// 依赖注入（使用 ServiceFactory 简化）
+import { serviceFactory } from '../../infrastructure/factories'
+
+const stateManager = serviceFactory.getFormStateManager()
+const domainService = serviceFactory.getFormDomainService()
+const applicationService = serviceFactory.getFormApplicationService()
 
 // 从状态管理器获取状态
 const formData = computed(() => {
