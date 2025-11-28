@@ -49,7 +49,6 @@
       v-loading="loading"
       style="width: 100%"
       border
-      stripe
       @sort-change="handleSortChange"
     >
       <el-table-column
@@ -232,6 +231,11 @@ let unsubscribeFunctionLoaded: (() => void) | null = null
 let unsubscribeDataLoaded: (() => void) | null = null
 
 onMounted(() => {
+  // 初始加载数据
+  if (props.functionDetail) {
+    applicationService.loadData(props.functionDetail)
+  }
+
   // 监听函数加载完成事件
   unsubscribeFunctionLoaded = eventBus.on(WorkspaceEvent.functionLoaded, (payload: { detail: FunctionDetail }) => {
     if (payload.detail.template_type === 'table') {

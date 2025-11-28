@@ -34,6 +34,20 @@ export interface IServiceTreeLoader {
 }
 
 /**
+ * 工作空间 Tab
+ */
+export interface WorkspaceTab {
+  id: string
+  title: string
+  type: 'function' | 'welcome' | 'settings'
+  path: string
+  icon?: string
+  closable: boolean
+  node?: ServiceTree // 关联的服务树节点
+  data?: any // 保存的状态
+}
+
+/**
  * 工作空间状态
  */
 export interface WorkspaceState {
@@ -42,6 +56,8 @@ export interface WorkspaceState {
   serviceTree: ServiceTree[]
   functionDetails: Map<string, FunctionDetail>
   loading: boolean // 🔥 添加 loading 状态，统一管理加载状态
+  tabs: WorkspaceTab[] // 🔥 多标签页支持
+  activeTabId: string | null // 🔥 当前激活的 Tab ID
 }
 
 /**
@@ -96,6 +112,87 @@ export class WorkspaceDomainService {
     this.eventBus.emit(WorkspaceEvent.functionLoaded, { node, detail })
 
     return detail
+  }
+
+  /**
+   * 打开 Tab（如果已存在则激活，否则创建）
+   */
+  openTab(node: ServiceTree): void {
+    const state = this.stateManager.getState()
+    const path = node.full_code_path || String(node.id)
+    
+    // 检查是否已存在
+    const existingTab = state.tabs.find(t => t.path === path)
+    if (existingTab) {
+      this.activateTab(existingTab.id)
+      return
+    }
+
+    // 创建新 Tab
+    const newTab: WorkspaceTab = {
+      id: `tab-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      title: node.name,
+      type: 'function',
+      path: path,
+      closable: true,
+      node: node
+    }
+
+    this.stateManager.setState({
+      ...state,
+      tabs: [...state.tabs, newTab],
+      activeTabId: newTab.id,
+      currentFunction: node // 同步更新 currentFunction
+    })
+  }
+
+  /**
+   * 激活 Tab
+   */
+  activateTab(tabId: string): void {
+    const state = this.stateManager.getState()
+    const tab = state.tabs.find(t => t.id === tabId)
+    if (tab) {
+      this.stateManager.setState({
+        ...state,
+        activeTabId: tabId,
+        currentFunction: tab.node || null
+      })
+    }
+  }
+
+  /**
+   * 关闭 Tab
+   */
+  closeTab(tabId: string): void {
+    const state = this.stateManager.getState()
+    const tabIndex = state.tabs.findIndex(t => t.id === tabId)
+    if (tabIndex === -1) return
+
+    const newTabs = state.tabs.filter(t => t.id !== tabId)
+    let newActiveId = state.activeTabId
+    let newCurrentFunction = state.currentFunction
+
+    // 如果关闭的是当前激活的 Tab
+    if (tabId === state.activeTabId) {
+      if (newTabs.length > 0) {
+        // 激活相邻的 Tab（优先右侧，如果没有则左侧）
+        // 注意：filter 后的索引可能发生变化
+        const nextTab = newTabs[Math.min(tabIndex, newTabs.length - 1)]
+        newActiveId = nextTab.id
+        newCurrentFunction = nextTab.node || null
+      } else {
+        newActiveId = null
+        newCurrentFunction = null
+      }
+    }
+
+    this.stateManager.setState({
+      ...state,
+      tabs: newTabs,
+      activeTabId: newActiveId,
+      currentFunction: newCurrentFunction
+    })
   }
 
   /**
