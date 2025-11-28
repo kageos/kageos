@@ -9,34 +9,40 @@
  * - 可以轻松替换为其他实现（如 Vuex、Zustand 等）
  */
 
-import { watch, type WatchStopHandle } from 'vue'
+import { watch, type WatchStopHandle, shallowRef, triggerRef, unref } from 'vue'
 import type { IStateManager } from '../../domain/interfaces/IStateManager'
 
 /**
- * 状态管理实现（基于响应式对象）
+ * 状态管理实现（基于 Vue shallowRef）
  */
 export class StateManagerImpl<T> implements IStateManager<T> {
-  private state: T
+  // 使用 shallowRef 包装状态，使其具有响应式，但避免深层转换的性能开销
+  // 我们的状态更新通常是整个替换或顶层属性替换
+  private stateRef: any 
+  
   private subscribers: Set<(state: T) => void> = new Set()
   private watchStopHandle: WatchStopHandle | null = null
 
   constructor(initialState: T) {
-    this.state = initialState
+    this.stateRef = shallowRef(initialState)
   }
 
   /**
    * 获取当前状态
+   * 注意：在 Vue 组件的 setup/render 函数中调用此方法会建立响应式依赖
    */
   getState(): T {
-    return this.state
+    return this.stateRef.value
   }
 
   /**
    * 设置状态
    */
   setState(newState: T): void {
-    this.state = newState
-    // 通知所有订阅者
+    // 更新 ref 的值，触发 Vue 的响应式更新
+    this.stateRef.value = newState
+    
+    // 通知手动订阅者（非 Vue 组件）
     this.notifySubscribers()
   }
 
