@@ -330,9 +330,13 @@ const loadAppFromRoute = async () => {
   const [user, appCode] = pathSegments
   
   try {
-    // 加载应用列表
-    const appList = await apiClient.get<AppType[]>('/api/v1/app/list')
-    const app = appList.find((a: AppType) => a.user === user && a.code === appCode)
+    // 确保应用列表已加载
+    if (appList.value.length === 0) {
+      await loadAppList()
+    }
+    
+    // 从已加载的应用列表中查找
+    const app = appList.value.find((a: AppType) => a.user === user && a.code === appCode)
     
     if (app) {
       const appForService: App = {
@@ -342,7 +346,7 @@ const loadAppFromRoute = async () => {
         name: app.name
       }
       
-      // 切换应用
+      // 切换应用（这会触发服务树加载）
       await applicationService.triggerAppSwitch(appForService)
       
       // 如果路径中有更多段，尝试定位节点
@@ -350,6 +354,8 @@ const loadAppFromRoute = async () => {
         const functionPath = pathSegments.slice(2).join('/')
         // TODO: 根据路径定位节点
       }
+    } else {
+      console.warn('[WorkspaceView] 未找到应用:', user, appCode)
     }
   } catch (error) {
     console.error('[WorkspaceView] 加载应用失败', error)
