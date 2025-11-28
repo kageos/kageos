@@ -60,7 +60,22 @@
         show-overflow-tooltip
       >
         <template #default="{ row }">
+          <!-- 如果是 id 列或配置了 is_link，渲染为链接 -->
+          <span 
+            v-if="field.code === 'id' || field.is_link"
+            class="link-text"
+            @click.stop="handleDetail(row)"
+          >
+            <WidgetComponent
+              :field="field"
+              :value="getRowFieldValue(row, field.code)"
+              mode="table-cell"
+              :row-data="row"
+            />
+          </span>
+          <!-- 否则正常渲染 -->
           <WidgetComponent
+            v-else
             :field="field"
             :value="getRowFieldValue(row, field.code)"
             mode="table-cell"
@@ -77,14 +92,6 @@
             @click="handleEdit(row)"
           >
             编辑
-          </el-button>
-          <el-button
-            type="info"
-            link
-            size="small"
-            @click="handleDetail(row)"
-          >
-            详情
           </el-button>
           <el-button
             v-if="hasDeleteCallback"
@@ -328,6 +335,17 @@ onUnmounted(() => {
   color: var(--el-text-color-primary);
   font-weight: 600;
   border-top: none;
+}
+
+.link-text {
+  color: var(--el-color-primary);
+  cursor: pointer;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.link-text:hover {
+  text-decoration: underline;
 }
 
 .el-pagination {
