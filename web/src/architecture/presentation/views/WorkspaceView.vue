@@ -97,7 +97,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, watch, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon } from 'element-plus'
+import { ElMessage, ElMessageBox, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon } from 'element-plus'
 import { InfoFilled } from '@element-plus/icons-vue'
 import { eventBus, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
