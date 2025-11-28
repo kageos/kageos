@@ -400,13 +400,15 @@ onMounted(async () => {
   })
 
   // 监听服务树加载完成事件
-  unsubscribeServiceTreeLoaded = eventBus.on(WorkspaceEvent.serviceTreeLoaded, () => {
+  unsubscribeServiceTreeLoaded = eventBus.on(WorkspaceEvent.serviceTreeLoaded, (payload: { app: any, tree: any[] }) => {
     // 状态已通过 StateManager 自动更新
+    console.log('[WorkspaceView] 收到 serviceTreeLoaded 事件，节点数:', payload.tree?.length || 0)
     loadingTree.value = false
   })
   
   // 监听应用切换事件，开始加载服务树
-  unsubscribeAppSwitched = eventBus.on(WorkspaceEvent.appSwitched, () => {
+  unsubscribeAppSwitched = eventBus.on(WorkspaceEvent.appSwitched, (payload: { app: any }) => {
+    console.log('[WorkspaceView] 收到 appSwitched 事件，开始加载服务树:', payload.app?.user, payload.app?.code)
     loadingTree.value = true
   })
 
