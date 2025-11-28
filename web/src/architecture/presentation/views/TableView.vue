@@ -113,8 +113,6 @@ const props = defineProps<{
 }>()
 
 // 依赖注入（使用 ServiceFactory 简化）
-import { serviceFactory } from '../../infrastructure/factories'
-
 const stateManager = serviceFactory.getTableStateManager()
 const domainService = serviceFactory.getTableDomainService()
 const applicationService = serviceFactory.getTableApplicationService()

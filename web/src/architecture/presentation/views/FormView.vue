@@ -81,8 +81,6 @@ const props = defineProps<{
 }>()
 
 // 依赖注入（使用 ServiceFactory 简化）
-import { serviceFactory } from '../../infrastructure/factories'
-
 const stateManager = serviceFactory.getFormStateManager()
 const domainService = serviceFactory.getFormDomainService()
 const applicationService = serviceFactory.getFormApplicationService()
