@@ -163,7 +163,8 @@ const createAppForm = ref<CreateAppRequest>({
 })
 
 // 加载状态
-const loading = computed(() => false) // TODO: 从状态管理器获取
+const loadingTree = ref(false)
+const loading = computed(() => loadingTree.value)
 
 // 事件处理
 const handleNodeClick = (node: ServiceTreeType) => {
@@ -400,6 +401,12 @@ onMounted(async () => {
   // 监听服务树加载完成事件
   unsubscribeServiceTreeLoaded = eventBus.on(WorkspaceEvent.serviceTreeLoaded, () => {
     // 状态已通过 StateManager 自动更新
+    loadingTree.value = false
+  })
+  
+  // 监听应用切换事件，开始加载服务树
+  const unsubscribeAppSwitched = eventBus.on(WorkspaceEvent.appSwitched, () => {
+    loadingTree.value = true
   })
 
   // 加载应用列表
