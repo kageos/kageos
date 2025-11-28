@@ -618,6 +618,28 @@ const editorHeight = computed(() => {
   return 300 // 默认300px
 })
 
+// 🔥 清理 HTML，移除可能导致资源加载的标签（避免 ERR_CONNECTION_REFUSED 错误）
+// 这个方法会移除 img、video、audio、iframe 等标签，但保留文本内容
+function sanitizeHtmlForDisplay(html: string): string {
+  if (!html) return ''
+  
+  // 移除可能导致资源加载的标签，并用占位符替换
+  return html
+    // 移除 img 标签（保留 alt 文本作为占位符）
+    .replace(/<img[^>]*alt=["']([^"']*)["'][^>]*>/gi, (match, alt) => alt ? `<span class="image-placeholder">[图片: ${alt}]</span>` : '<span class="image-placeholder">[图片]</span>')
+    .replace(/<img[^>]*>/gi, '<span class="image-placeholder">[图片]</span>')
+    // 移除 video 标签
+    .replace(/<video[^>]*>.*?<\/video>/gi, '<span class="video-placeholder">[视频]</span>')
+    // 移除 audio 标签
+    .replace(/<audio[^>]*>.*?<\/audio>/gi, '<span class="audio-placeholder">[音频]</span>')
+    // 移除 iframe 标签
+    .replace(/<iframe[^>]*>.*?<\/iframe>/gi, '<span class="iframe-placeholder">[嵌入内容]</span>')
+    // 移除 script 标签
+    .replace(/<script[^>]*>.*?<\/script>/gi, '')
+    // 移除 style 标签
+    .replace(/<style[^>]*>.*?<\/style>/gi, '')
+}
+
 // HTML 内容（用于显示）
 const htmlContent = computed(() => {
   const fieldValue = props.value || (props as any).modelValue
@@ -630,7 +652,16 @@ const htmlContent = computed(() => {
     return ''
   }
   
-  return String(raw)
+  const html = String(raw)
+  
+  // 🔥 对于非编辑模式，清理 HTML 以避免触发资源加载
+  // 编辑模式下保留原始 HTML（因为用户可能需要编辑）
+  if (props.mode === 'edit') {
+    return html
+  }
+  
+  // 其他模式（response、detail、table-cell 等）清理 HTML
+  return sanitizeHtmlForDisplay(html)
 })
 
 // TipTap 编辑器（使用完整工具栏，最高级模式）
@@ -1059,13 +1090,37 @@ onBeforeUnmount(() => {
     editor.value.destroy()
   }
 })
-
 // 去除 HTML 标签（用于表格单元格显示）
 function stripHtml(html: string): string {
   if (!html) return ''
-  const tmp = document.createElement('DIV')
-  tmp.innerHTML = html
-  return tmp.textContent || tmp.innerText || ''
+  
+  // 🔥 先过滤掉可能导致资源加载的标签（如 img、video、audio 等）
+  // 这样可以避免浏览器尝试加载不存在的资源（如 localhost:63342 的 markdown 预览资源）
+  let cleanedHtml = html
+    // 移除 img 标签
+    .replace(/<img[^>]*>/gi, '')
+    // 移除 video 标签
+    .replace(/<video[^>]*>.*?<\/video>/gi, '')
+    // 移除 audio 标签
+    .replace(/<audio[^>]*>.*?<\/audio>/gi, '')
+    // 移除 iframe 标签
+    .replace(/<iframe[^>]*>.*?<\/iframe>/gi, '')
+    // 移除 script 标签
+    .replace(/<script[^>]*>.*?<\/script>/gi, '')
+    // 移除 style 标签
+    .replace(/<style[^>]*>.*?<\/style>/gi, '')
+  
+  // 使用 DOMParser 来安全地解析 HTML（不会触发资源加载）
+  try {
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(cleanedHtml, 'text/html')
+    return doc.body.textContent || doc.body.innerText || ''
+  } catch (error) {
+    // 如果 DOMParser 失败，使用传统方法（但先清理了资源标签）
+    const tmp = document.createElement('DIV')
+    tmp.innerHTML = cleanedHtml
+    return tmp.textContent || tmp.innerText || ''
+  }
 }
 
 // 搜索模式
