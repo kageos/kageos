@@ -234,9 +234,19 @@ export class FormDomainService {
     // 验证所有字段
     fields.forEach(field => {
       const value = state.data.get(field.code) || { raw: null, display: '', meta: {} }
+      
+      console.log(`[FormDomainService] 验证字段 ${field.code}`, {
+        fieldCode: field.code,
+        widgetType: field.widget?.type,
+        validation: field.validation,
+        value: value,
+        raw: value?.raw
+      })
+      
       if (field.validation) {
         const fieldErrors = this.validationEngine!.validateField(field, value, fields)
         if (fieldErrors.length > 0) {
+          console.log(`[FormDomainService] 字段 ${field.code} 验证失败`, fieldErrors)
           errors.set(field.code, fieldErrors)
         }
       }
