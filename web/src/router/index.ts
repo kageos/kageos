@@ -57,11 +57,11 @@ const router = createRouter({
       }
     },
 
-    // 首页 - workspace页面（支持路径参数）
+    // 工作空间页面（新架构）
     {
       path: '/workspace',
       name: 'workspace',
-      component: () => import('../views/Workspace/index.vue'),
+      component: () => import('../architecture/presentation/views/WorkspaceView.vue'),
       meta: {
         title: '工作空间',
         requireAuth: true
@@ -70,29 +70,9 @@ const router = createRouter({
     {
       path: '/workspace/:path+',
       name: 'workspace-path',
-      component: () => import('../views/Workspace/index.vue'),
+      component: () => import('../architecture/presentation/views/WorkspaceView.vue'),
       meta: {
         title: '工作空间',
-        requireAuth: true
-      }
-    },
-
-    // 🔥 新架构 workspace 页面（用于测试和对比）
-    {
-      path: '/workspace-v2',
-      name: 'workspace-v2',
-      component: () => import('../architecture/presentation/views/WorkspaceView.vue'),
-      meta: {
-        title: '工作空间（新架构）',
-        requireAuth: true
-      }
-    },
-    {
-      path: '/workspace-v2/:path+',
-      name: 'workspace-v2-path',
-      component: () => import('../architecture/presentation/views/WorkspaceView.vue'),
-      meta: {
-        title: '工作空间（新架构）',
         requireAuth: true
       }
     },

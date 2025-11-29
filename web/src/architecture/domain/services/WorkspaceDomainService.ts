@@ -16,6 +16,7 @@
 import type { IFunctionLoader, FunctionDetail } from '../interfaces/IFunctionLoader'
 import type { IStateManager } from '../interfaces/IStateManager'
 import type { IEventBus } from '../interfaces/IEventBus'
+import type { IServiceTreeLoader } from '../interfaces/IServiceTreeLoader'
 import { WorkspaceEvent } from '../interfaces/IEventBus'
 
 /**
@@ -25,13 +26,6 @@ import type { App, ServiceTree } from '@/types'
 
 // 重新导出，方便使用
 export type { App, ServiceTree }
-
-/**
- * 服务目录树加载器接口
- */
-export interface IServiceTreeLoader {
-  load(app: App): Promise<ServiceTree[]>
-}
 
 /**
  * 工作空间 Tab
@@ -317,6 +311,21 @@ export class WorkspaceDomainService {
    */
   isLoading(): boolean {
     return this.stateManager.getState().loading
+  }
+
+  /**
+   * 获取状态管理器（供 Application Layer 使用，遵循依赖倒置原则）
+   */
+  getStateManager(): IStateManager<WorkspaceState> {
+    return this.stateManager
+  }
+
+  /**
+   * 检查 Tab 是否存在
+   */
+  hasTab(tabId: string): boolean {
+    const state = this.stateManager.getState()
+    return state.tabs.some(t => t.id === tabId)
   }
 }
 

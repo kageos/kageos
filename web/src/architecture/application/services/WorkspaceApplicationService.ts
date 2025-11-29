@@ -45,16 +45,15 @@ export class WorkspaceApplicationService {
 
   /**
    * 处理节点点击
-   * 🔥 修复：如果 Tab 已存在，不重新加载函数详情（避免重复加载）
+   * 如果 Tab 已存在，不重新加载函数详情（避免重复加载）
    */
   async handleNodeClick(node: ServiceTree): Promise<void> {
     if (node.type === 'function') {
-      const state = this.domainService['stateManager'].getState()
       const tabId = node.full_code_path || String(node.id)
-      const existingTab = state.tabs.find(t => t.id === tabId)
       
-      if (existingTab) {
-        // 🔥 Tab 已存在，只激活，不重新加载函数详情（避免重复加载）
+      // 使用 Domain Service 的方法检查 Tab 是否存在（遵循依赖倒置原则）
+      if (this.domainService.hasTab(tabId)) {
+        // Tab 已存在，只激活，不重新加载函数详情（避免重复加载）
         this.domainService.activateTab(tabId)
       } else {
         // Tab 不存在，加载函数详情并创建新 Tab

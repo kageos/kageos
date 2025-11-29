@@ -13,3 +13,5 @@ export type { IFunctionLoader, FunctionDetail } from './IFunctionLoader'
 
 export type { ICacheManager } from './ICacheManager'
 
+export type { IServiceTreeLoader } from './IServiceTreeLoader'
+

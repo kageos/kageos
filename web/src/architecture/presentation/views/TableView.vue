@@ -1,6 +1,6 @@
 <!--
   TableView - 表格视图
-  🔥 新架构的展示层组件
+  新架构的展示层组件
   
   职责：
   - 纯 UI 展示，不包含业务逻辑
@@ -248,6 +248,7 @@ import { buildURLSearchParams } from '@/utils/searchParams'
 import { WidgetType } from '@/core/constants/widget'
 import { useTableInitialization } from '../composables/useTableInitialization'
 import { convertToFieldValue } from '@/utils/field'
+import { resolveWorkspaceUrl } from '@/utils/route'
 import LinkWidget from '@/core/widgets-v2/components/LinkWidget.vue'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
 import type { TableRow, SearchParams, SortParams, SortItem } from '../../domain/services/TableDomainService'
@@ -751,39 +752,8 @@ const handleLinkClick = (fieldCode: string, row: any) => {
   const linkConfig = linkField.widget?.config || {}
   const target = linkConfig.target || '_self'
   
-  // 处理 URL，添加 /workspace-v2 前缀
-  let resolvedUrl = actualUrl
-  
-  // 如果是外链，直接使用
-  if (actualUrl.startsWith('http://') || actualUrl.startsWith('https://')) {
-    resolvedUrl = actualUrl
-  }
-  // 如果已经是完整路径（包含 /workspace 或 /workspace-v2），转换为 /workspace-v2
-  else if (actualUrl.startsWith('/workspace/')) {
-    resolvedUrl = actualUrl.replace('/workspace/', '/workspace-v2/')
-  }
-  else if (actualUrl.startsWith('/workspace-v2/')) {
-    resolvedUrl = actualUrl
-  }
-  // 如果是绝对路径（以 / 开头），添加 /workspace-v2 前缀
-  else if (actualUrl.startsWith('/')) {
-    const pathWithoutSlash = actualUrl.substring(1)
-    resolvedUrl = `/workspace-v2/${pathWithoutSlash}`
-  }
-  // 相对路径，需要转换为完整路径
-  else {
-    const currentRoute = router.currentRoute.value
-    const pathParts = currentRoute.path.split('/').filter(Boolean)
-    if (pathParts.length >= 3) {
-      const user = pathParts[1]
-      const app = pathParts[2]
-      const [functionPath, query] = actualUrl.split('?')
-      const fullPath = `/workspace-v2/${user}/${app}/${functionPath}`
-      resolvedUrl = query ? `${fullPath}?${query}` : fullPath
-    } else {
-      resolvedUrl = `/workspace-v2/${actualUrl}`
-    }
-  }
+  // 处理 URL，添加 /workspace 前缀
+  const resolvedUrl = resolveWorkspaceUrl(actualUrl, router.currentRoute.value)
   
   // 判断是否是外链
   const isExternal = resolvedUrl.startsWith('http://') || resolvedUrl.startsWith('https://')

@@ -12,6 +12,7 @@
  * - 不包含业务逻辑，只负责流程编排
  */
 
+import { Logger } from '@/core/utils/logger'
 import { FormDomainService } from '../../domain/services/FormDomainService'
 import type { IEventBus } from '../../domain/interfaces/IEventBus'
 import { WorkspaceEvent, FormEvent } from '../../domain/interfaces/IEventBus'
@@ -108,37 +109,11 @@ export class FormApplicationService {
 
   /**
    * 获取提交数据（内部方法）
-   * 注意：这里需要访问 StateManager，但为了保持依赖倒置，
-   * 我们通过 Domain Service 的状态管理器获取
+   * 遵循依赖倒置原则：通过 Domain Service 获取提交数据，而不是直接访问 StateManager
    */
   private getSubmitData(fields: FieldConfig[]): Record<string, any> {
-    // 从 Domain Service 获取状态管理器
-    const stateManager = this.domainService.getStateManager()
-    
-    // 如果 StateManager 有 getSubmitData 方法（FormStateManager 特有），使用它
-    if (stateManager && typeof (stateManager as any).getSubmitData === 'function') {
-      return (stateManager as any).getSubmitData(fields)
-    }
-    
-    // 否则，从状态中手动提取数据
-    const state = stateManager.getState()
-    const result: Record<string, any> = {}
-    
-    fields.forEach(field => {
-      const value = state.data.get(field.code)
-      if (value) {
-        // 🔥 调试日志：检查 raw 值是否存在
-        if (value.raw === null || value.raw === undefined) {
-          console.warn('[FormApplicationService] getSubmitData 发现空值:', { fieldCode: field.code, value })
-        }
-        result[field.code] = value.raw
-      } else {
-        // 🔥 调试日志：字段没有值
-        console.warn('[FormApplicationService] getSubmitData 字段没有值:', { fieldCode: field.code })
-      }
-    })
-    
-    return result
+    // 使用 Domain Service 的方法获取提交数据（遵循依赖倒置原则）
+    return this.domainService.getSubmitData(fields)
   }
 
   /**

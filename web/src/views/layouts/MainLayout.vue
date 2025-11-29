@@ -3,6 +3,8 @@ import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { InfoFilled } from '@element-plus/icons-vue'
+import { extractWorkspacePath } from '@/utils/route'
+import { Logger } from '@/core/utils/logger'
 import { getAppList, createApp, updateApp, deleteApp } from '@/api'
 import { getServiceTree } from '@/api/service-tree'
 import type { App, CreateAppRequest } from '@/types'
@@ -37,27 +39,27 @@ const parseAppFromRoute = () => {
   let fullPath = ''
   
   const currentPath = window.location.pathname
-  console.log('[MainLayout] window.location.pathname:', currentPath)
+  Logger.debug('MainLayout', 'window.location.pathname', currentPath)
   
   if (currentPath.startsWith('/workspace/')) {
     // 从完整路径中提取 workspace 之后的部分
-    fullPath = currentPath.replace('/workspace/', '').replace(/^\/+|\/+$/g, '')
+    fullPath = extractWorkspacePath(currentPath)
   } else {
     // 回退方案：尝试从 route.path 或 route.fullPath 获取
     if (route.path.startsWith('/workspace/')) {
-      fullPath = route.path.replace('/workspace/', '').replace(/^\/+|\/+$/g, '')
+      fullPath = extractWorkspacePath(route.path)
     } else if (route.fullPath && route.fullPath.startsWith('/workspace/')) {
-      fullPath = route.fullPath.split('?')[0].replace('/workspace/', '').replace(/^\/+|\/+$/g, '')
+      fullPath = extractWorkspacePath(route.fullPath.split('?')[0])
     }
   }
   
-  console.log('[MainLayout] route.path:', route.path)
-  console.log('[MainLayout] route.fullPath:', route.fullPath)
-  console.log('[MainLayout] route.params.path:', route.params.path)
-  console.log('[MainLayout] 提取的完整路径:', fullPath)
+  Logger.debug('MainLayout', 'route.path', route.path)
+  Logger.debug('MainLayout', 'route.fullPath', route.fullPath)
+  Logger.debug('MainLayout', 'route.params.path', route.params.path)
+  Logger.debug('MainLayout', '提取的完整路径', fullPath)
   
   if (!fullPath) {
-    console.log('[MainLayout] 路径为空')
+    Logger.debug('MainLayout', '路径为空')
     return null
   }
   

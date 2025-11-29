@@ -1,6 +1,6 @@
 <!--
   WidgetComponent - Widget 组件包装器
-  🔥 新架构的展示层组件
+  新架构的展示层组件
   
   职责：
   - 根据字段类型动态加载 Widget 组件
@@ -30,7 +30,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
+import { Logger } from '@/core/utils/logger'
 import { widgetComponentFactory } from '@/core/factories-v2'
 import type { FieldConfig, FieldValue } from '../../domain/types'
 import type { WidgetMode } from '@/core/widgets-v2/types'
@@ -41,10 +42,10 @@ const props = withDefaults(defineProps<{
   mode?: WidgetMode
   fieldPath?: string
   rowData?: any
-  formRenderer?: any // 🔥 新增：FormRenderer 上下文（用于 OnSelectFuzzy 回调）
-  functionMethod?: string // 🔥 新增：函数 HTTP 方法（用于 OnSelectFuzzy 回调）
-  functionRouter?: string // 🔥 新增：函数路由（用于 OnSelectFuzzy 回调）
-  userInfoMap?: Map<string, any> // 🔥 新增：用户信息映射（用于 UserWidget 批量查询优化）
+  formRenderer?: any // FormRenderer 上下文（用于 OnSelectFuzzy 回调）
+  functionMethod?: string // 函数 HTTP 方法（用于 OnSelectFuzzy 回调）
+  functionRouter?: string // 函数路由（用于 OnSelectFuzzy 回调）
+  userInfoMap?: Map<string, any> // 用户信息映射（用于 UserWidget 批量查询优化）
 }>(), {
   mode: 'edit',
   fieldPath: '',
@@ -56,12 +57,12 @@ const emit = defineEmits<{
   'update:modelValue': [value: FieldValue]
 }>()
 
-// 🔥 调试日志：只在 formRenderer 缺失且需要时警告（response 模式不需要 formRenderer）
+// 调试日志：只在 formRenderer 缺失且需要时警告（response 模式不需要 formRenderer）
 if (import.meta.env.DEV) {
   watch(() => props.formRenderer, (formRenderer) => {
     // 只在 edit 模式且没有 formRenderer 时警告（response 模式不需要）
     if (!formRenderer && props.mode === 'edit' && props.field.callbacks?.includes('OnSelectFuzzy')) {
-      console.warn('[WidgetComponent] formRenderer 未传递（OnSelectFuzzy 字段需要）', {
+      Logger.warn('WidgetComponent', 'formRenderer 未传递（OnSelectFuzzy 字段需要）', {
         fieldCode: props.field.code,
         mode: props.mode
       })

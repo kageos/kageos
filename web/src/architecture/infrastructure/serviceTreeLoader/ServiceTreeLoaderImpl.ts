@@ -8,15 +8,10 @@
  * - 可以缓存服务树数据
  */
 
+import { Logger } from '@/core/utils/logger'
 import type { IApiClient } from '../../domain/interfaces/IApiClient'
+import type { IServiceTreeLoader } from '../../domain/interfaces/IServiceTreeLoader'
 import type { App, ServiceTree } from '@/types'
-
-/**
- * 服务目录树加载器接口
- */
-export interface IServiceTreeLoader {
-  load(app: App): Promise<ServiceTree[]>
-}
 
 /**
  * 服务目录树加载器实现
@@ -34,27 +29,27 @@ export class ServiceTreeLoaderImpl implements IServiceTreeLoader {
       return []
     }
 
-    // 🔥 生成缓存键，用于去重
+    // 生成缓存键，用于去重
     const cacheKey = `${app.user}/${app.code}`
     
-    // 🔥 如果正在加载，返回同一个 Promise，避免重复请求
+    // 如果正在加载，返回同一个 Promise，避免重复请求
     const existingPromise = this.loadingPromises.get(cacheKey)
     if (existingPromise) {
-      console.log('[ServiceTreeLoader] 检测到重复请求，返回已存在的 Promise:', cacheKey)
+      Logger.debug('ServiceTreeLoader', '检测到重复请求，返回已存在的 Promise', cacheKey)
       return existingPromise
     }
 
     // 创建新的加载 Promise
     const loadPromise = (async () => {
       try {
-        console.log('[ServiceTreeLoader] 开始加载服务目录树:', app.user, app.code)
+        Logger.debug('ServiceTreeLoader', '开始加载服务目录树', app.user, app.code)
         // 注意：API 路径是 /api/v1/service_tree（下划线），不是 /api/v1/service-tree/list
         const response = await this.apiClient.get<any>('/api/v1/service_tree', {
           user: app.user,
           app: app.code
         })
         
-        console.log('[ServiceTreeLoader] API 响应:', response)
+        Logger.debug('ServiceTreeLoader', 'API 响应', response)
         
         // 处理响应数据：可能是数组，也可能是分页对象
         let tree: ServiceTree[] = []
@@ -66,15 +61,15 @@ export class ServiceTreeLoaderImpl implements IServiceTreeLoader {
           tree = Array.isArray(response.data) ? response.data : []
         }
         
-        console.log('[ServiceTreeLoader] 解析后的服务目录树，节点数:', tree.length)
+        Logger.debug('ServiceTreeLoader', '解析后的服务目录树，节点数', tree.length)
         return tree
       } catch (error) {
-        console.error('[ServiceTreeLoader] 加载服务目录树失败', error)
+        Logger.error('ServiceTreeLoader', '加载服务目录树失败', error)
         return []
       } finally {
         // 加载完成后，从 Map 中移除
         this.loadingPromises.delete(cacheKey)
-        console.log('[ServiceTreeLoader] 清理加载 Promise:', cacheKey)
+        Logger.debug('ServiceTreeLoader', '清理加载 Promise', cacheKey)
       }
     })()
 

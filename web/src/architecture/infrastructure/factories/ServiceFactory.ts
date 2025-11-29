@@ -27,7 +27,7 @@ import type { IEventBus } from '../../domain/interfaces/IEventBus'
 import type { IApiClient } from '../../domain/interfaces/IApiClient'
 import type { ICacheManager } from '../../domain/interfaces/ICacheManager'
 import type { IFunctionLoader } from '../../domain/interfaces/IFunctionLoader'
-import type { IServiceTreeLoader } from '../serviceTreeLoader/ServiceTreeLoaderImpl'
+import type { IServiceTreeLoader } from '../../domain/interfaces/IServiceTreeLoader'
 
 /**
  * 服务工厂配置
