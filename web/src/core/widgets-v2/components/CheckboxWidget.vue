@@ -84,6 +84,7 @@ import { computed, ref, watch } from 'vue'
 import { ElCheckbox, ElCheckboxGroup, ElTag } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useFormDataStore } from '../../stores-v2/formData'
+import { createFieldValue } from '../utils/createFieldValue'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -145,11 +146,12 @@ const selectedValues = computed({
         return option?.label || String(val)
       }).join(', ')
       
-      const fieldValue = {
-        raw: newValues,
-        display: displayText || '未选择',
-        meta: {}
-      }
+      // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
+      const fieldValue = createFieldValue(
+        props.field,
+        newValues,
+        displayText || '未选择'
+      )
       
       formDataStore.setValue(props.fieldPath, fieldValue)
       emit('update:modelValue', fieldValue)
