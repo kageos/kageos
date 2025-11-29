@@ -106,6 +106,7 @@ import { useFormDataStore } from '../../stores-v2/formData'
 import { formatUserDisplayName } from '@/utils/userInfo'
 import type { UserInfo } from '@/types'
 import { Logger } from '../../utils/logger'
+import { createFieldValue } from '../utils/createFieldValue'
 
 const COMPONENT_NAME = 'UserWidget'
 
@@ -133,13 +134,15 @@ function handleOpenDialog(): void {
 
 // 处理用户选择
 function handleUserSelected(user: UserInfo): void {
-  const newFieldValue = {
-    raw: user.username, // 提交时只提交 username
-    display: formatUserDisplayName(user),
-    meta: {
+  // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
+  const newFieldValue = createFieldValue(
+    props.field,
+    user.username, // 提交时只提交 username
+    formatUserDisplayName(user),
+    {
       userInfo: user
     }
-  }
+  )
   
   formDataStore.setValue(props.fieldPath, newFieldValue)
   emit('update:modelValue', newFieldValue)
@@ -418,11 +421,12 @@ onMounted(async () => {
           const authStore = useAuthStore()
           const currentUsername = authStore.user?.username
           if (currentUsername) {
-            const newFieldValue = {
-              raw: currentUsername,
-              display: currentUsername,
-              meta: {}
-            }
+            // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
+            const newFieldValue = createFieldValue(
+              props.field,
+              currentUsername,
+              currentUsername
+            )
             formDataStore.setValue(props.fieldPath, newFieldValue)
             emit('update:modelValue', newFieldValue)
             // 加载用户信息

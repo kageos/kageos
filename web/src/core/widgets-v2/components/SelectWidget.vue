@@ -559,14 +559,16 @@ function handleDialogSelect(item: { value: any; label?: string; displayInfo?: an
   }
   
   const selectedOption = options.value.find((opt: any) => String(opt.value) === String(item.value))
-  const newFieldValue = {
-    raw: item.value,
-    display: item.label || selectedOption?.label || String(item.value),
-    meta: {
+  // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
+  const newFieldValue = createFieldValue(
+    props.field,
+    item.value,
+    item.label || selectedOption?.label || String(item.value),
+    {
       displayInfo: item.displayInfo || selectedOption?.displayInfo,
       statistics: currentStatistics.value  // 🔥 保存 statistics 配置
     }
-  }
+  )
   
   // 🔥 确保值被正确保存到 formDataStore
   formDataStore.setValue(props.fieldPath, newFieldValue)
@@ -633,13 +635,16 @@ async function handleSearch(query: string | number, isByValue: boolean): Promise
       currentStatistics.value = response.statistics
       // 如果当前已有选中值，立即更新 meta.statistics
       if (props.value?.raw) {
-        const newFieldValue = {
-          ...props.value,
-          meta: {
+        // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
+        const newFieldValue = createFieldValue(
+          props.field,
+          props.value.raw,
+          props.value.display || String(props.value.raw),
+          {
             ...props.value.meta,
             statistics: currentStatistics.value
           }
-        }
+        )
         formDataStore.setValue(props.fieldPath, newFieldValue)
       }
     }
@@ -668,14 +673,16 @@ async function handleSearch(query: string | number, isByValue: boolean): Promise
           }
           // 🔥 在编辑模式下，如果 value.display 为空或等于 raw，更新 display 值
           if (props.mode === 'edit' && (!props.value.display || String(props.value.display) === String(props.value.raw))) {
-            const newFieldValue = {
-              raw: props.value.raw,
-              display: matchedOption.label,
-              meta: {
+            // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
+            const newFieldValue = createFieldValue(
+              props.field,
+              props.value.raw,
+              matchedOption.label,
+              {
                 ...props.value.meta,
                 displayInfo: matchedOption.displayInfo
               }
-            }
+            )
             formDataStore.setValue(props.fieldPath, newFieldValue)
             emit('update:modelValue', newFieldValue)
           }
@@ -701,14 +708,16 @@ function handleChange(value: any): void {
   // 值变化时，保存 displayInfo 和 statistics
   const selectedOption = options.value.find(opt => opt.value === value)
   if (selectedOption) {
-    const newFieldValue = {
-      raw: value,
-      display: selectedOption.label,
-      meta: {
+    // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
+    const newFieldValue = createFieldValue(
+      props.field,
+      value,
+      selectedOption.label,
+      {
         displayInfo: selectedOption.displayInfo,
         statistics: currentStatistics.value  // 🔥 保存 statistics 配置
       }
-    }
+    )
     
     formDataStore.setValue(props.fieldPath, newFieldValue)
     emit('update:modelValue', newFieldValue)

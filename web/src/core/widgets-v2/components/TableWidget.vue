@@ -333,6 +333,7 @@ import { useTableCellMode } from '../composables/useTableCellMode'
 import { widgetComponentFactory } from '../../factories-v2'
 import { FieldValue, type FieldConfig } from '../../types/field'
 import { useFormDataStore } from '../../stores-v2/formData'
+import { createEmptyFieldValue, createFieldValue } from '../utils/createFieldValue'
 import type { ValidationEngine, ValidationResult } from '../../validation/types'
 import { validateFieldValue, validateTableWidgetNestedFields, type WidgetValidationContext } from '../composables/useWidgetValidation'
 import { Logger } from '../../utils/logger'
@@ -460,25 +461,35 @@ const responseTableData = computed(() => {
 
 // 响应模式下获取行的字段值（从 row 数据直接读取）
 function getResponseRowFieldValue(rowIndex: number, fieldCode: string): FieldValue {
+  // 🔥 查找对应的 itemField
+  const itemField = itemFields.value.find(f => f.code === fieldCode)
+  
   if (props.mode !== 'response') {
-    return { raw: null, display: '', meta: {} }
+    // 🔥 使用 createEmptyFieldValue 确保结构一致
+    return itemField ? createEmptyFieldValue(itemField) : createEmptyFieldValue(props.field)
   }
   
   const tableData = responseTableData.value
   if (!tableData || rowIndex < 0 || rowIndex >= tableData.length) {
-    return { raw: null, display: '', meta: {} }
+    // 🔥 使用 createEmptyFieldValue 确保结构一致
+    return itemField ? createEmptyFieldValue(itemField) : createEmptyFieldValue(props.field)
   }
   
   const row = tableData[rowIndex]
   const rawValue = row?.[fieldCode]
   
-  return {
-    raw: rawValue ?? null,
-    display: rawValue !== null && rawValue !== undefined 
-      ? (typeof rawValue === 'object' ? JSON.stringify(rawValue) : String(rawValue))
-      : '',
-    meta: {}
-  }
+  // 🔥 查找对应的 itemField，使用 createFieldValue
+  const itemField = itemFields.value.find(f => f.code === fieldCode) || props.field
+  const display = rawValue !== null && rawValue !== undefined 
+    ? (typeof rawValue === 'object' ? JSON.stringify(rawValue) : String(rawValue))
+    : ''
+  
+  // 🔥 使用 createFieldValue 确保结构一致
+  return createFieldValue(
+    itemField,
+    rawValue ?? null,
+    display
+  )
 }
 
 /**

@@ -60,6 +60,7 @@ import { computed, watch } from 'vue'
 import { ElRadio, ElRadioGroup } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useFormDataStore } from '../../stores-v2/formData'
+import { createFieldValue } from '../utils/createFieldValue'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -114,11 +115,12 @@ const selectedValue = computed({
   set: (newValue: any) => {
     if (props.mode === 'edit' || props.mode === 'search') {
       const selectedOption = options.value.find((opt: any) => opt.value === newValue)
-      const fieldValue = {
-        raw: newValue,
-        display: selectedOption?.label || String(newValue),
-        meta: {}
-      }
+      // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
+      const fieldValue = createFieldValue(
+        props.field,
+        newValue,
+        selectedOption?.label || String(newValue)
+      )
       
       formDataStore.setValue(props.fieldPath, fieldValue)
       emit('update:modelValue', fieldValue)

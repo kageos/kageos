@@ -52,6 +52,7 @@ import { computed } from 'vue'
 import { ElDatePicker } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useFormDataStore } from '../../stores-v2/formData'
+import { createFieldValue } from '../utils/createFieldValue'
 import { formatTimestamp } from '@/utils/date'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
@@ -334,11 +335,12 @@ const internalValue = computed({
         }
       }
       
-      const newFieldValue = {
-        raw: rawValue,
-        display: formatTimestamp(rawValue as number),
-        meta: {}
-      }
+      // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
+      const newFieldValue = createFieldValue(
+        props.field,
+        rawValue,
+        formatTimestamp(rawValue as number)
+      )
       
       formDataStore.setValue(props.fieldPath, newFieldValue)
       emit('update:modelValue', newFieldValue)

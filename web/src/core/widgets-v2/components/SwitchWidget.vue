@@ -55,6 +55,7 @@ import { computed } from 'vue'
 import { ElSwitch, ElTag } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useFormDataStore } from '../../stores-v2/formData'
+import { createFieldValue } from '../utils/createFieldValue'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -87,11 +88,12 @@ const internalValue = computed({
   },
   set: (newValue: boolean) => {
     if (props.mode === 'edit') {
-      const newFieldValue = {
-        raw: newValue,
-        display: newValue ? activeText.value : inactiveText.value,
-        meta: {}
-      }
+      // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
+      const newFieldValue = createFieldValue(
+        props.field,
+        newValue,
+        newValue ? activeText.value : inactiveText.value
+      )
       
       formDataStore.setValue(props.fieldPath, newFieldValue)
       emit('update:modelValue', newFieldValue)
@@ -117,11 +119,12 @@ function handleChange(value: boolean): void {
 // 表格单元格模式下的变更处理
 function handleTableCellChange(value: boolean): void {
   if (props.mode === 'table-cell') {
-    const newFieldValue = {
-      raw: value,
-      display: value ? activeText.value : inactiveText.value,
-      meta: {}
-    }
+    // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
+    const newFieldValue = createFieldValue(
+      props.field,
+      value,
+      value ? activeText.value : inactiveText.value
+    )
     
     formDataStore.setValue(props.fieldPath, newFieldValue)
     emit('update:modelValue', newFieldValue)

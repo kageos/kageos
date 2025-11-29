@@ -524,6 +524,7 @@ import {
 } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useFormDataStore } from '../../stores-v2/formData'
+import { createFieldValue } from '../utils/createFieldValue'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -904,11 +905,12 @@ const editor = useEditor({
   },
   onUpdate: ({ editor }) => {
     const html = editor.getHTML()
-    const newFieldValue = {
-      raw: html,
-      display: stripHtml(html), // 显示时去除 HTML 标签
-      meta: {}
-    }
+    // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
+    const newFieldValue = createFieldValue(
+      props.field,
+      html,
+      stripHtml(html) // 显示时去除 HTML 标签
+    )
     
     formDataStore.setValue(props.fieldPath, newFieldValue)
     emit('update:modelValue', newFieldValue)
