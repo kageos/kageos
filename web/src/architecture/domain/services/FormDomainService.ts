@@ -272,20 +272,17 @@ export class FormDomainService {
 
   /**
    * 获取提交数据（供 Application Layer 使用，遵循依赖倒置原则）
-   * 从状态中提取所有字段的 raw 值
+   * 🔥 委托给 StateManager，使用 FieldExtractorRegistry 进行递归提取
    */
   getSubmitData(fields: FieldConfig[]): Record<string, any> {
-    const state = this.stateManager.getState()
-    const result: Record<string, any> = {}
+    // 🔥 委托给 FormStateManager.getSubmitData()，它会使用 FieldExtractorRegistry
+    const stateManager = this.stateManager as any
+    if (stateManager && typeof stateManager.getSubmitData === 'function') {
+      return stateManager.getSubmitData(fields)
+    }
     
-    fields.forEach(field => {
-      const value = state.data.get(field.code)
-      if (value) {
-        result[field.code] = value.raw
-      }
-    })
-    
-    return result
+    Logger.warn('FormDomainService', 'stateManager.getSubmitData 方法不存在，返回空对象')
+    return {}
   }
 
   /**
