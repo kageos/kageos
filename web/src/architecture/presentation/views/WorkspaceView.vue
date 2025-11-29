@@ -37,6 +37,7 @@
       <!-- 左侧服务目录树 -->
       <div class="left-sidebar">
         <ServiceTreePanel
+          ref="serviceTreePanelRef"
           :tree-data="serviceTree"
           :loading="loading"
           :current-node-id="currentFunction?.id || null"
@@ -70,8 +71,59 @@
           </el-tabs>
         </div>
         
-        <!-- Tab 内容区域 -->
-        <div v-if="tabs.length > 0" class="tabs-content-wrapper">
+        <!-- 🔥 Create/Edit 模式：根据 queryTab 显示独立页面 -->
+        <template v-if="queryTab === 'create' && currentFunction && currentFunctionDetail">
+          <div class="form-page">
+            <div class="form-page-header">
+              <el-button @click="backToList" :icon="ArrowLeft">返回列表</el-button>
+              <h2 class="form-page-title">新增数据</h2>
+            </div>
+            <div class="form-page-content">
+              <FormView
+                v-if="currentFunctionDetail.template_type === 'form'"
+                :key="`form-create-${currentFunction.id}`"
+                :function-detail="currentFunctionDetail"
+              />
+              <div v-else class="empty-state">
+                <p>该函数不支持新增操作</p>
+              </div>
+            </div>
+            <div class="form-page-footer">
+              <el-button @click="backToList">取消</el-button>
+              <el-button type="primary" @click="handleCreateSubmit">提交</el-button>
+            </div>
+          </div>
+        </template>
+        
+        <template v-else-if="queryTab === 'edit' && currentFunction && currentFunctionDetail">
+          <div class="form-page">
+            <div class="form-page-header">
+              <el-button @click="backToList" :icon="ArrowLeft">返回列表</el-button>
+              <h2 class="form-page-title">编辑数据</h2>
+            </div>
+            <div class="form-page-content">
+              <FormView
+                v-if="currentFunctionDetail.template_type === 'form'"
+                :key="`form-edit-${currentFunction.id}-${editRowId}`"
+                :function-detail="editFunctionDetail"
+                :initial-data="editInitialData"
+              />
+              <div v-else class="empty-state">
+                <p>该函数不支持编辑操作</p>
+              </div>
+            </div>
+            <div class="form-page-footer">
+              <el-button @click="backToList">取消</el-button>
+              <el-button type="primary" @click="handleEditSubmit">保存</el-button>
+            </div>
+          </div>
+        </template>
+        
+        <!-- 🔥 Detail 模式：显示详情抽屉（通过 URL 参数打开） -->
+        <!-- 注意：detail 模式使用抽屉显示，不需要单独的页面 -->
+        
+        <!-- Tab 内容区域（正常模式） -->
+        <div v-else-if="tabs.length > 0" class="tabs-content-wrapper">
           <div class="tab-content">
             <FormView
               v-if="currentFunctionDetail?.template_type === 'form'"
@@ -161,6 +213,7 @@
       :close-on-click-modal="true"
       class="detail-drawer"
       :show-close="true"
+      @close="handleDetailDrawerClose"
     >
       <template #header>
         <div class="drawer-header">
@@ -364,7 +417,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, watch, ref, nextTick } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter, type LocationQueryValue } from 'vue-router'
 import { ElMessage, ElMessageBox, ElNotification, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon, ElTabs, ElTabPane, ElDrawer, ElDropdown, ElDropdownMenu, ElDropdownItem, ElAvatar, ElEmpty } from 'element-plus'
 import { InfoFilled, ArrowDown, Edit, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { eventBus, WorkspaceEvent } from '../../infrastructure/eventBus'
@@ -375,6 +428,7 @@ import ServiceTreePanel from '@/components/ServiceTreePanel.vue'
 import AppSwitcher from '@/components/AppSwitcher.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import FunctionForkDialog from '@/components/FunctionForkDialog.vue'
+import type { ServiceTreePanel as ServiceTreePanelType } from '@/components/ServiceTreePanel.vue'
 import FormView from './FormView.vue'
 import TableView from './TableView.vue'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
@@ -593,6 +647,70 @@ const detailUserInfoMap = ref<Map<string, any>>(new Map())
 const detailTableData = ref<any[]>([])
 const currentDetailIndex = ref<number>(-1)
 
+// 🔥 queryTab：当前激活的Tab模式（用于路由查询参数，控制 create/edit 等模式）
+// 🔥 使用 _tab 作为系统参数，避免与后端参数冲突
+const queryTab = computed(() => (route.query._tab as string) || 'run')
+
+// 🔥 编辑模式相关
+const editRowId = computed(() => {
+  const id = route.query.id || route.query._id
+  return id ? Number(id) : null
+})
+
+// 🔥 详情模式相关
+const detailRowId = computed(() => {
+  // 🔥 使用 _id 作为系统参数，避免与后端参数冲突
+  const id = route.query._id
+  return id ? Number(id) : null
+})
+
+// 🔥 编辑模式的初始数据（从 URL 参数提取）
+const editInitialData = computed(() => {
+  const initialData: Record<string, any> = {}
+  const query = route.query
+  
+  // 如果有 id 参数，添加到 initialData
+  if (editRowId.value) {
+    const idField = currentFunctionDetail.value?.request?.find((f: FieldConfig) => 
+      f.code.toLowerCase() === 'id' || f.widget?.type === 'number'
+    )
+    if (idField) {
+      initialData[idField.code] = editRowId.value
+    }
+  }
+  
+  // 遍历所有查询参数，如果字段在 request 中，添加到 initialData
+  if (currentFunctionDetail.value?.request) {
+    currentFunctionDetail.value.request.forEach((field: FieldConfig) => {
+      const fieldCode = field.code
+      // 跳过 _ 开头的参数（系统参数）
+      if (fieldCode.startsWith('_')) return
+      
+      if (query[fieldCode] !== undefined && query[fieldCode] !== null && query[fieldCode] !== '') {
+        const value = query[fieldCode]
+        // 🔥 类型转换：根据字段类型转换值
+        if (field.data?.type === 'int' || field.data?.type === 'integer') {
+          const intValue = parseInt(String(value), 10)
+          if (!isNaN(intValue)) {
+            initialData[fieldCode] = intValue
+          }
+        } else if (field.data?.type === 'float' || field.data?.type === 'number') {
+          const floatValue = parseFloat(String(value))
+          if (!isNaN(floatValue)) {
+            initialData[fieldCode] = floatValue
+          }
+        } else if (field.data?.type === 'bool' || field.data?.type === 'boolean') {
+          initialData[fieldCode] = value === 'true' || value === '1' || value === 1 || value === true
+        } else {
+          initialData[fieldCode] = value
+        }
+      }
+    })
+  }
+  
+  return initialData
+})
+
 /**
  * 详情页的 Link 字段（用于顶部链接区域显示）
  */
@@ -619,20 +737,35 @@ const forkDialogVisible = ref(false)
 const forkSourceGroupCode = ref('')
 const forkSourceGroupName = ref('')
 
+// ServiceTreePanel 引用（用于展开路径）
+const serviceTreePanelRef = ref<InstanceType<typeof ServiceTreePanel> | null>(null)
+
+// 🔥 编辑模式的函数详情（从 response 字段中筛选可编辑的字段）
 const editFunctionDetail = computed<FunctionDetail | null>(() => {
   const current = currentFunctionDetail.value
   if (!current) return null
-  const fields = (current.response || []) as FieldConfig[]
-  const editableFields = fields.filter(field => {
-    const permission = field.table_permission
-    return !permission || permission === '' || permission === 'update'
-  })
-  return {
-    ...current,
-    template_type: 'form',
-    request: editableFields,
-    response: []
+  
+  // 如果是 table 类型，从 response 字段中筛选可编辑的字段
+  if (current.template_type === 'table') {
+    const fields = (current.response || []) as FieldConfig[]
+    const editableFields = fields.filter(field => {
+      const permission = field.table_permission
+      return !permission || permission === '' || permission === 'update'
+    })
+    return {
+      ...current,
+      template_type: 'form',
+      request: editableFields,
+      response: []
+    }
   }
+  
+  // 如果是 form 类型，直接使用 request 字段
+  if (current.template_type === 'form') {
+    return current
+  }
+  
+  return null
 })
 
 // 监听 Tab 打开/激活事件，更新路由
@@ -677,6 +810,16 @@ onMounted(() => {
     detailOriginalRow.value = JSON.parse(JSON.stringify(row))
     detailDrawerTitle.value = currentFunctionDetail.value.name || '详情'
     detailFields.value = (currentFunctionDetail.value.response || []) as FieldConfig[]
+    
+    // 🔥 更新 URL 为 ?_tab=detail&_id=xxx（用于分享）
+    // 🔥 使用 _tab 和 _id 作为系统参数，避免与后端参数冲突
+    if (currentFunction.value) {
+      const id = row.id || row._id
+      if (id) {
+        const query = { ...route.query, _tab: 'detail', _id: String(id) }
+        router.replace({ query }).catch(() => {})
+      }
+    }
     
     // 🔥 保存表格数据和索引（用于上一条下一条导航）
     if (tableData && Array.isArray(tableData) && tableData.length > 0) {
@@ -759,6 +902,134 @@ onMounted(() => {
     detailDrawerMode.value = 'read'
     detailDrawerVisible.value = true
   })
+  
+  // 🔥 监听 URL 参数变化，自动打开详情抽屉（用于分享链接）
+  // 🔥 使用 _tab 和 _id 作为系统参数，避免与后端参数冲突
+  watch([() => route.query._tab, () => route.query._id, currentFunctionDetail], async ([tab, id, detail]: [any, any, any]) => {
+    if (tab === 'detail' && id && detail && detail.template_type === 'table') {
+      // 确保函数详情已加载
+      if (!currentFunction.value) {
+        console.log('[WorkspaceView] tab=detail 但当前函数不存在，等待函数加载')
+        return
+      }
+      
+      const rowId = Number(id)
+      if (isNaN(rowId)) {
+        console.warn('[WorkspaceView] tab=detail 但 id 无效:', id)
+        return
+      }
+      
+      // 从表格数据中查找对应 id 的记录
+      try {
+        const tableStateManager = serviceFactory.getTableStateManager()
+        let tableData = tableStateManager.getData() || []
+        
+        // 尝试通过 id 字段查找
+        let targetRow = tableData.find((r: any) => r.id === rowId || r._id === rowId)
+        
+        // 如果当前页没有找到，尝试通过搜索 id 来加载数据
+        if (!targetRow) {
+          console.log('[WorkspaceView] 当前页没有找到 id 为', rowId, '的记录，尝试通过搜索加载')
+          
+          // 先等待表格数据加载完成（如果表格正在加载）
+          let retries = 0
+          while (tableData.length === 0 && retries < 10) {
+            await nextTick()
+            await new Promise(resolve => setTimeout(resolve, 300))
+            tableData = tableStateManager.getData() || []
+            targetRow = tableData.find((r: any) => r.id === rowId || r._id === rowId)
+            if (targetRow) break
+            retries++
+          }
+          
+          // 如果还是没有找到，尝试通过搜索 id 来加载
+          if (!targetRow && currentFunctionDetail.value) {
+            console.log('[WorkspaceView] 通过搜索 id 字段加载数据')
+            try {
+              const tableApplicationService = serviceFactory.getTableApplicationService()
+              // 🔥 通过搜索 id 字段来加载数据
+              // 查找 id 字段
+              const idField = currentFunctionDetail.value.response?.find((f: FieldConfig) => 
+                f.code === 'id' || f.code.toLowerCase() === 'id'
+              )
+              
+              if (idField) {
+                // 设置搜索条件为 id = rowId
+                const searchParams: Record<string, any> = {}
+                searchParams[idField.code] = rowId
+                
+                // 加载数据（使用搜索参数）
+                await tableApplicationService.loadData(
+                  currentFunctionDetail.value,
+                  searchParams, // 搜索参数
+                  undefined, // 排序参数
+                  { page: 1, pageSize: 20 } // 分页参数
+                )
+                
+                // 重新获取数据
+                tableData = tableStateManager.getData() || []
+                targetRow = tableData.find((r: any) => r.id === rowId || r._id === rowId)
+              }
+            } catch (error) {
+              console.error('[WorkspaceView] 通过搜索加载数据失败', error)
+            }
+          }
+        }
+        
+        if (targetRow) {
+          // 找到记录，打开详情抽屉
+          const index = tableData.findIndex((r: any) => r.id === rowId || r._id === rowId)
+          detailRowData.value = targetRow
+          detailOriginalRow.value = JSON.parse(JSON.stringify(targetRow))
+          detailDrawerTitle.value = detail.name || '详情'
+          detailFields.value = (detail.response || []) as FieldConfig[]
+          detailTableData.value = tableData
+          currentDetailIndex.value = index >= 0 ? index : -1
+          
+          // 收集用户字段信息
+          const userFields = detailFields.value.filter(f => f.widget?.type === 'user')
+          if (userFields.length > 0) {
+            const usernames: string[] = []
+            userFields.forEach(field => {
+              const value = targetRow[field.code]
+              if (value) {
+                if (Array.isArray(value)) {
+                  usernames.push(...value.map(v => String(v)))
+                } else {
+                  usernames.push(String(value))
+                }
+              }
+            })
+            
+            if (usernames.length > 0) {
+              try {
+                const { useUserInfoStore } = await import('@/stores/userInfo')
+                const userInfoStore = useUserInfoStore()
+                const users = await userInfoStore.batchGetUserInfo([...new Set(usernames)])
+                detailUserInfoMap.value = new Map()
+                users.forEach(user => {
+                  detailUserInfoMap.value.set(user.username, user)
+                })
+              } catch (error) {
+                console.error('[WorkspaceView] 加载详情用户信息失败', error)
+              }
+            }
+          }
+          
+          detailDrawerMode.value = 'read'
+          detailDrawerVisible.value = true
+        } else {
+          console.warn('[WorkspaceView] 未找到 id 为', rowId, '的记录')
+          ElNotification.warning({
+            title: '提示',
+            message: `未找到 id 为 ${rowId} 的记录，可能不在当前页`
+          })
+        }
+      } catch (error) {
+        console.error('[WorkspaceView] 打开详情失败', error)
+      }
+    }
+  }, { immediate: false })
 })
 
 // 切换抽屉模式
@@ -1064,6 +1335,64 @@ const handleForkSuccess = () => {
   })
 }
 
+// 🔥 检查并展开 forked 路径
+const checkAndExpandForkedPaths = () => {
+  const forkedParam = route.query._forked as string
+  if (!forkedParam) return
+  
+  console.log('[WorkspaceView] 检查 forked 参数:', forkedParam)
+  console.log('[WorkspaceView] 当前应用:', currentApp.value ? `${currentApp.value.user}/${currentApp.value.code}` : 'null')
+  console.log('[WorkspaceView] serviceTree 长度:', serviceTree.value.length)
+  console.log('[WorkspaceView] serviceTreePanelRef:', serviceTreePanelRef.value)
+  
+  // 检查当前应用是否匹配 URL 中的应用
+  const pathSegments = route.path.replace('/workspace-v2/', '').replace('/workspace/', '').split('/').filter(Boolean)
+  if (pathSegments.length >= 2) {
+    const [urlUser, urlApp] = pathSegments
+    if (currentApp.value && (currentApp.value.user !== urlUser || currentApp.value.code !== urlApp)) {
+      console.log('[WorkspaceView] ⚠️ 应用不匹配，等待应用切换完成')
+      console.log('[WorkspaceView]    URL 应用:', `${urlUser}/${urlApp}`)
+      console.log('[WorkspaceView]    当前应用:', `${currentApp.value.user}/${currentApp.value.code}`)
+      return // 应用不匹配，不展开
+    }
+  }
+  
+  if (forkedParam && serviceTree.value.length > 0 && serviceTreePanelRef.value && currentApp.value) {
+    const forkedPaths = decodeURIComponent(forkedParam).split(',').filter(Boolean)
+    console.log('[WorkspaceView] 解析后的路径列表:', forkedPaths)
+    
+    // 验证路径是否属于当前应用
+    const validPaths = forkedPaths.filter(path => {
+      const pathMatch = path.match(/^\/([^/]+)\/([^/]+)/)
+      if (pathMatch) {
+        const [, pathUser, pathApp] = pathMatch
+        const isValid = pathUser === currentApp.value?.user && pathApp === currentApp.value?.code
+        if (!isValid) {
+          console.log('[WorkspaceView] ⚠️ 路径不属于当前应用，跳过:', path)
+        }
+        return isValid
+      }
+      return false
+    })
+    
+    if (validPaths.length > 0) {
+      console.log('[WorkspaceView] 有效路径列表:', validPaths)
+      nextTick(() => {
+        setTimeout(() => {
+          if (serviceTreePanelRef.value && serviceTreePanelRef.value.expandPaths) {
+            console.log('[WorkspaceView] 调用 expandPaths')
+            serviceTreePanelRef.value.expandPaths(validPaths)
+          } else {
+            console.log('[WorkspaceView] ⚠️ serviceTreePanelRef 或 expandPaths 不存在')
+          }
+        }, 500) // 延迟确保树完全渲染
+      })
+    } else {
+      console.log('[WorkspaceView] ⚠️ 没有有效的路径可以展开')
+    }
+  }
+}
+
 // 处理复制链接
 const handleCopyLink = (node: ServiceTreeType) => {
   const link = `${window.location.origin}/workspace-v2${node.full_code_path}`
@@ -1077,6 +1406,50 @@ const handleCopyLink = (node: ServiceTreeType) => {
       title: '错误',
       message: '复制链接失败'
     })
+  })
+}
+
+// 🔥 返回列表（从 create/edit 模式返回）
+const backToList = () => {
+  if (!currentFunction.value) return
+  
+  // 移除系统参数，保留其他参数
+  const query = { ...route.query }
+  delete query._tab
+  delete query._id
+  
+  const path = `/workspace-v2${currentFunction.value.full_code_path || ''}`
+  router.push({ path, query }).catch(() => {})
+}
+
+// 🔥 处理详情抽屉关闭（移除 URL 参数）
+const handleDetailDrawerClose = () => {
+  // 如果当前 URL 有 _tab=detail 参数，移除它
+  if (route.query._tab === 'detail') {
+    const query = { ...route.query }
+    delete query._tab
+    delete query._id
+    router.replace({ query }).catch(() => {})
+  }
+}
+
+// 🔥 处理新增提交（通过 FormView 的提交按钮，这里只是占位）
+const handleCreateSubmit = async () => {
+  // FormView 内部已经有提交逻辑，这里不需要额外处理
+  // 如果需要，可以通过 ref 或事件总线来触发 FormView 的提交
+  ElNotification.info({
+    title: '提示',
+    message: '请使用表单内的提交按钮提交数据'
+  })
+}
+
+// 🔥 处理编辑提交（通过 FormView 的提交按钮，这里只是占位）
+const handleEditSubmit = async () => {
+  // FormView 内部已经有提交逻辑，这里不需要额外处理
+  // 如果需要，可以通过 ref 或事件总线来触发 FormView 的提交
+  ElNotification.info({
+    title: '提示',
+    message: '请使用表单内的提交按钮提交数据'
   })
 }
 
@@ -1355,9 +1728,59 @@ const loadAppFromRoute = async () => {
     if (pathSegments.length > 2) {
       const functionPath = '/' + pathSegments.join('/') // 构造完整路径，如 /luobei/demo/crm/list
       
+    // 🔥 检查是否有 _tab 参数（create/edit/detail 模式）
+    // 🔥 使用 _tab 作为系统参数，避免与后端参数冲突
+    const tabParam = route.query._tab as string
+    if (tabParam === 'create' || tabParam === 'edit' || tabParam === 'detail') {
+        // create/edit 模式不需要打开 Tab，直接加载函数详情
+        // 尝试查找节点并加载函数详情
+        const tryLoadFunction = () => {
+          const tree = serviceTree.value
+          if (tree && tree.length > 0) {
+            const node = findNodeByPath(tree as ServiceTreeType[], functionPath)
+            if (node) {
+              const serviceNode: ServiceTree = node as any
+              // 设置当前函数，但不打开 Tab
+              applicationService.handleNodeClick(serviceNode)
+            }
+          }
+        }
+        
+        if (appSwitched) {
+          let retries = 0
+          const interval = setInterval(() => {
+            if (serviceTree.value.length > 0 || retries > 10) {
+              clearInterval(interval)
+              tryLoadFunction()
+            }
+            retries++
+          }, 200)
+        } else {
+          tryLoadFunction()
+        }
+        
+        // 🔥 检查 _forked 参数，自动展开路径
+        if (route.query._forked) {
+          nextTick(() => {
+            checkAndExpandForkedPaths()
+          })
+        }
+        
+        // 🔥 记录已处理的路径
+        lastProcessedPath = fullPath
+        return // create/edit 模式不打开 Tab
+      }
+      
       // 如果刚刚切换了应用，需要等待服务树加载完成
       // 由于 appSwitched 事件是异步的，我们这里轮询检查 serviceTree 是否有值
       // 或者简单地等待一下（不是最优雅，但在 View 层简单有效）
+      // 🔥 检查 _forked 参数，自动展开路径
+      if (route.query._forked) {
+        nextTick(() => {
+          checkAndExpandForkedPaths()
+        })
+      }
+      
       // 更好的方式是 watch serviceTree，但这会变得复杂
       
       // 尝试查找节点
@@ -1438,6 +1861,83 @@ onMounted(async () => {
 
 // 监听路由变化（添加防抖，避免频繁调用）
 let routeWatchTimer: ReturnType<typeof setTimeout> | null = null
+// 🔥 监听服务树变化，检查 _forked 参数
+watch(() => serviceTree.value.length, (newLength: number) => {
+  if (newLength > 0 && currentApp.value && route.query._forked) {
+    console.log('[WorkspaceView] 服务树加载完成，检查 _forked 参数')
+    checkAndExpandForkedPaths()
+  }
+})
+
+// 🔥 监听当前应用变化，检查 _forked 参数
+watch(currentApp, () => {
+  if (serviceTree.value.length > 0 && currentApp.value && route.query._forked) {
+    console.log('[WorkspaceView] 应用变化，检查 _forked 参数')
+    nextTick(() => {
+      checkAndExpandForkedPaths()
+    })
+  }
+})
+
+// 🔥 监听 queryTab 变化，处理 create/edit/detail 模式
+watch(queryTab, async (newTab: string, oldTab: string) => {
+  if (newTab === 'create' || newTab === 'edit') {
+    // create/edit 模式需要确保函数详情已加载
+    if (!currentFunction.value) {
+      console.log('[WorkspaceView] queryTab 变化但当前函数不存在，等待函数加载')
+      return
+    }
+    
+    // 如果函数详情未加载，触发加载
+    if (!currentFunctionDetail.value) {
+      console.log('[WorkspaceView] queryTab 变化，加载函数详情')
+      await applicationService.handleNodeClick(currentFunction.value)
+    }
+  } else if (newTab === 'detail') {
+    // detail 模式需要确保函数详情已加载，并且表格数据已加载
+    if (!currentFunction.value) {
+      console.log('[WorkspaceView] queryTab=detail 但当前函数不存在，等待函数加载')
+      return
+    }
+    
+    // 如果函数详情未加载，触发加载
+    if (!currentFunctionDetail.value) {
+      console.log('[WorkspaceView] queryTab=detail，加载函数详情')
+      await applicationService.handleNodeClick(currentFunction.value)
+    }
+    
+    // detail 模式会在另一个 watch 中处理（监听 route.query.id）
+  }
+}, { immediate: false })
+
+// 🔥 监听路由 query 变化，处理 _tab 参数
+watch(() => route.query._tab, async (newTab: any) => {
+  if (newTab === 'create' || newTab === 'edit') {
+    // 确保当前函数和函数详情已加载
+    if (!currentFunction.value) {
+      console.log('[WorkspaceView] tab 参数变化但当前函数不存在')
+      return
+    }
+    
+    if (!currentFunctionDetail.value) {
+      console.log('[WorkspaceView] tab 参数变化，加载函数详情')
+      await applicationService.handleNodeClick(currentFunction.value)
+    }
+  } else if (newTab === 'detail') {
+    // detail 模式会在另一个 watch 中处理（监听 route.query.id）
+    // 这里只需要确保函数详情已加载
+    if (!currentFunction.value) {
+      console.log('[WorkspaceView] tab=detail 但当前函数不存在')
+      return
+    }
+    
+    if (!currentFunctionDetail.value) {
+      console.log('[WorkspaceView] tab=detail，加载函数详情')
+      await applicationService.handleNodeClick(currentFunction.value)
+    }
+  }
+}, { immediate: false })
+
 watch(() => route.path, async () => {
   // 🔥 防抖：如果路径相同，不重复处理
   if (routeWatchTimer) {
@@ -1514,6 +2014,8 @@ onUnmounted(() => {
 .workspace-tabs-container {
   border-bottom: 1px solid var(--el-border-color-light);
   background: var(--el-bg-color);
+  position: relative;
+  z-index: 1; /* 🔥 确保标签页在弹窗下方 */
 }
 
 .workspace-tabs {

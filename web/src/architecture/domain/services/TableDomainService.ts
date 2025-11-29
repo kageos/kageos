@@ -122,7 +122,12 @@ export class TableDomainService {
       }
 
       // 添加排序参数
-      if (sortParams || state.sortParams) {
+      // 🔥 优先使用 state.sorts（支持多列排序），如果没有则使用 sortParams（单个排序）
+      if (state.sorts && state.sorts.length > 0) {
+        // 支持多列排序：sorts=field1:order1,field2:order2
+        params.sorts = state.sorts.map(item => `${item.field}:${item.order}`).join(',')
+      } else if (sortParams || state.sortParams) {
+        // 兼容单个排序参数
         const sort = sortParams || state.sortParams!
         params.sorts = `${sort.field}:${sort.order}`
       }

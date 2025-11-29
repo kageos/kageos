@@ -446,20 +446,35 @@ const handleSubmit = async () => {
     let notification: any = null
     notification = ElNotification({
       title: '闪电克隆中',
-      message: h('div', { style: 'line-height: 1.6;' }, [
-        h('p', { style: 'margin: 0 0 8px 0; color: #303133;' }, `正在克隆 ${savedMappings.length} 个函数组...`),
-        h('p', { style: 'margin: 0 0 12px 0; color: #909399; font-size: 12px;' }, '克隆操作正在后台执行，请稍候'),
-        h('div', { style: 'margin-top: 8px; display: flex; align-items: center;' }, [
+      message: h('div', { 
+        class: 'fork-notification-content',
+        style: 'line-height: 1.6;' 
+      }, [
+        h('p', { 
+          class: 'fork-notification-text',
+          style: 'margin: 0 0 8px 0; font-size: 14px; font-weight: 500;' 
+        }, `正在克隆 ${savedMappings.length} 个函数组...`),
+        h('p', { 
+          class: 'fork-notification-text',
+          style: 'margin: 0 0 12px 0; font-size: 13px; line-height: 1.5;' 
+        }, '克隆操作正在后台执行，请稍候'),
+        h('div', { 
+          style: 'margin-top: 8px; display: flex; align-items: center;' 
+        }, [
           h('el-icon', { 
-            style: 'animation: spin 1s linear infinite; display: inline-block; margin-right: 8px;' 
+            style: 'animation: spin 1s linear infinite; display: inline-block; margin-right: 8px; color: #409EFF;' 
           }, () => h(Loading)),
-          h('span', { style: 'color: #909399; font-size: 12px;' }, '处理中...')
+          h('span', { 
+            class: 'fork-notification-text',
+            style: 'font-size: 13px; font-weight: 500;' 
+          }, '处理中...')
         ])
       ]),
       type: 'info',
       duration: 0, // 不自动关闭
       position: 'top-right',
-      showClose: false
+      showClose: false,
+      customClass: 'fork-progress-notification'
     })
     
     await forkFunctionGroup({
@@ -472,24 +487,41 @@ const handleSubmit = async () => {
     
     if (targetApp && targetApp.user && targetApp.code) {
       // 显示"克隆成功"的通知，包含跳转按钮
+      // 🔥 判断当前是否在新版本路由，决定跳转到哪个版本
+      const isV2Route = window.location.pathname.startsWith('/workspace-v2')
+      const basePath = isV2Route ? '/workspace-v2' : '/workspace'
+      
       ElNotification({
         title: '克隆成功',
-        message: h('div', { style: 'line-height: 1.6;' }, [
-          h('p', { style: 'margin: 0 0 8px 0; color: #303133;' }, `成功提交 ${savedMappings.length} 个函数组的克隆任务`),
-          h('p', { style: 'margin: 0 0 12px 0; color: #909399; font-size: 12px;' }, '克隆操作正在后台执行，完成后即可使用'),
+        message: h('div', { 
+          style: 'line-height: 1.6; color: #303133; background: transparent;' 
+        }, [
+          h('p', { 
+            style: 'margin: 0 0 8px 0; color: #303133; font-size: 14px; font-weight: 500;' 
+          }, `成功提交 ${savedMappings.length} 个函数组的克隆任务`),
+          h('p', { 
+            style: 'margin: 0 0 12px 0; color: #606266; font-size: 13px; line-height: 1.5;' 
+          }, '克隆操作正在后台执行，完成后即可使用'),
           h(ElButton, {
             type: 'primary',
             size: 'small',
+            style: 'margin-top: 4px;',
             onClick: () => {
               const forkedPaths = savedMappings.map((m: ForkMapping) => m.target).join(',')
-              const url = `/workspace/${targetApp.user}/${targetApp.code}${forkedPaths ? `?forked=${encodeURIComponent(forkedPaths)}` : ''}`
-              window.open(url, '_blank')
+              const url = `${basePath}/${targetApp.user}/${targetApp.code}${forkedPaths ? `?_forked=${encodeURIComponent(forkedPaths)}` : ''}`
+              // 🔥 如果在新版本路由，在当前窗口跳转；否则在新窗口打开
+              if (isV2Route) {
+                window.location.href = url
+              } else {
+                window.open(url, '_blank')
+              }
             }
           }, () => `跳转到 ${targetApp.name || targetApp.code}`)
         ]),
         type: 'success',
         duration: 0, // 不自动关闭，让用户点击跳转
-        position: 'top-right'
+        position: 'top-right',
+        customClass: 'fork-success-notification'
       })
     }
     
@@ -1333,5 +1365,58 @@ onUnmounted(() => {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+/* 🔥 克隆通知样式优化，确保文字清晰可见 */
+:deep(.fork-progress-notification),
+:deep(.fork-success-notification) {
+  background-color: var(--el-bg-color) !important;
+  border: 1px solid var(--el-border-color-light) !important;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1) !important;
+}
+
+:deep(.fork-progress-notification .el-notification__title),
+:deep(.fork-success-notification .el-notification__title) {
+  color: #303133 !important;
+  font-weight: 600 !important;
+  font-size: 16px !important;
+}
+
+:deep(.fork-progress-notification .el-notification__content),
+:deep(.fork-success-notification .el-notification__content) {
+  color: #303133 !important;
+}
+
+/* 🔥 强制设置通知内容中的所有文字为深色，确保清晰可见 */
+:deep(.fork-progress-notification .fork-notification-content),
+:deep(.fork-success-notification .fork-notification-content) {
+  color: #303133 !important;
+}
+
+:deep(.fork-progress-notification .fork-notification-text),
+:deep(.fork-success-notification .fork-notification-text) {
+  color: #303133 !important;
+}
+
+:deep(.fork-progress-notification .el-notification__content p),
+:deep(.fork-success-notification .el-notification__content p) {
+  color: #303133 !important;
+  margin: 0 !important;
+}
+
+:deep(.fork-progress-notification .el-notification__content span),
+:deep(.fork-success-notification .el-notification__content span) {
+  color: #303133 !important;
+}
+
+/* 🔥 确保通知内容中的所有文字都是深色，清晰可见 - 使用更强制的方式 */
+:deep(.fork-progress-notification .el-notification__content *),
+:deep(.fork-success-notification .el-notification__content *) {
+  color: #303133 !important;
+}
+
+:deep(.fork-progress-notification .fork-notification-content *),
+:deep(.fork-success-notification .fork-notification-content *) {
+  color: #303133 !important;
 }
 </style>
