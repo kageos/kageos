@@ -114,6 +114,7 @@ import { ExpressionParser } from '../../utils/ExpressionParser'
 import { isStringDataType, getMultiSelectDefaultDataType, DataType } from '../../constants/widget'
 import { SelectFuzzyQueryType, isStandardColor } from '../../constants/select'
 import { convertValueToType } from '../utils/valueConverter'
+import { createFieldValue } from '../utils/createFieldValue'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -296,16 +297,17 @@ const selectedValues = computed({
       }
     }
     
-    const fieldValue = {
-      raw: rawValue,
-      display: displayText || '未选择',
-      meta: {
+    // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
+    const fieldValue = createFieldValue(
+      props.field,
+      rawValue,
+      displayText || '未选择',
+      {
         displayInfo: displayInfos,
         statistics: currentStatistics.value,
-        rowStatistics: rowStatistics,
-        dataType: dataType  // 🔥 保存类型信息，用于 Debug 和后续处理
+        rowStatistics: rowStatistics
       }
-    }
+    )
     
     formDataStore.setValue(props.fieldPath, fieldValue)
     emit('update:modelValue', fieldValue)

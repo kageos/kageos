@@ -22,7 +22,8 @@ export class MultiSelectFieldExtractor implements IFieldExtractor {
   ): any {
     const value = getValue(fieldPath)
     const raw = value?.raw
-    const dataType = field.data?.type || getMultiSelectDefaultDataType()
+    // 🔥 优先使用 value.dataType（通用字段），如果没有则从 field.data.type 获取
+    const dataType = value?.dataType || field.data?.type || getMultiSelectDefaultDataType()
     
     /**
      * 🔥 根据 field.data.type 决定返回格式
