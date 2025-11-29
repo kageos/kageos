@@ -461,25 +461,23 @@ const responseTableData = computed(() => {
 
 // 响应模式下获取行的字段值（从 row 数据直接读取）
 function getResponseRowFieldValue(rowIndex: number, fieldCode: string): FieldValue {
-  // 🔥 查找对应的 itemField
-  const itemField = itemFields.value.find(f => f.code === fieldCode)
+  // 🔥 查找对应的 itemField（优先使用 itemField，如果没有则使用 props.field）
+  const itemField = itemFields.value.find(f => f.code === fieldCode) || props.field
   
   if (props.mode !== 'response') {
     // 🔥 使用 createEmptyFieldValue 确保结构一致
-    return itemField ? createEmptyFieldValue(itemField) : createEmptyFieldValue(props.field)
+    return createEmptyFieldValue(itemField)
   }
   
   const tableData = responseTableData.value
   if (!tableData || rowIndex < 0 || rowIndex >= tableData.length) {
     // 🔥 使用 createEmptyFieldValue 确保结构一致
-    return itemField ? createEmptyFieldValue(itemField) : createEmptyFieldValue(props.field)
+    return createEmptyFieldValue(itemField)
   }
   
   const row = tableData[rowIndex]
   const rawValue = row?.[fieldCode]
   
-  // 🔥 查找对应的 itemField，使用 createFieldValue
-  const itemField = itemFields.value.find(f => f.code === fieldCode) || props.field
   const display = rawValue !== null && rawValue !== undefined 
     ? (typeof rawValue === 'object' ? JSON.stringify(rawValue) : String(rawValue))
     : ''
