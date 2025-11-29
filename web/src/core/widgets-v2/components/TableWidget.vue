@@ -41,6 +41,7 @@
           :prop="itemField.code"
           :label="itemField.name"
           :min-width="getColumnWidth(itemField)"
+          :align="getColumnAlign(itemField)"
         >
           <template #default="{ row, $index }">
             <!-- 
@@ -159,6 +160,7 @@
               :prop="itemField.code"
               :label="itemField.name"
               :min-width="getColumnWidth(itemField)"
+              :align="getColumnAlign(itemField)"
             >
               <template #default="{ row, $index }">
                 <!-- 
@@ -570,6 +572,32 @@ function getColumnWidth(field: any): number {
   }
   
   return 150
+}
+
+// 获取列对齐方式
+function getColumnAlign(field: any): 'left' | 'center' | 'right' {
+  // 🔥 优先使用字段配置中的对齐方式
+  const configAlign = field.widget?.config?.align
+  if (configAlign === 'left' || configAlign === 'center' || configAlign === 'right') {
+    return configAlign
+  }
+  
+  // 🔥 根据字段类型自动决定对齐方式
+  const type = field.widget?.type || 'input'
+  const dataType = field.data?.type || ''
+  
+  // 数字类型：右对齐（符合阅读习惯）
+  if (type === 'number' || type === 'float' || dataType === 'int' || dataType === 'float' || dataType === 'number') {
+    return 'right'
+  }
+  
+  // 开关、评分等：居中
+  if (type === 'switch' || type === 'rate' || type === 'progress') {
+    return 'center'
+  }
+  
+  // 默认：左对齐（文本类型）
+  return 'left'
 }
 
 // 获取组件
