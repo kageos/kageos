@@ -73,16 +73,30 @@ export namespace WidgetTypes {
 
   /**
    * FieldValue 数据结构
+   * 
+   * 🔥 通用字段设计：
+   * - raw: 原始值（提交给后端）
+   * - display: 显示值（前端展示）
+   * - dataType: 数据类型（field.data.type，用于提交前判断和转换）
+   * - widgetType: 组件类型（field.widget.type，用于提交前判断和转换）
+   * - meta: 元数据（组件特定的扩展信息）
+   * 
+   * 设计原则：
+   * - dataType 和 widgetType 是通用字段，所有组件都应该设置
+   * - 方便后续在提交前做类型判断和转换
+   * - 避免特殊逻辑，支持未来更复杂的场景
    */
   export interface FieldValue {
     raw: any  // 原始值（提交给后端）
-    display: string  // 显示值
+    display: string  // 显示值（前端展示）
+    dataType?: string  // 🔥 数据类型（field.data.type，如 'string', '[]string', 'int', 'float' 等）
+    widgetType?: string  // 🔥 组件类型（field.widget.type，如 'text', 'select', 'multiselect', 'table' 等）
     meta?: {
       displayInfo?: any  // Select/MultiSelect 的详细信息
       rowStatistics?: Record<string, any>  // MultiSelect 行内聚合
       listStatistics?: Record<string, any>  // List 层聚合
-      dataType?: string
       fromCallback?: boolean
+      [key: string]: any  // 其他组件特定的元数据
     }
   }
 
