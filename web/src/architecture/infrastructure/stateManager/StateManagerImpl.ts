@@ -10,6 +10,7 @@
  */
 
 import { watch, type WatchStopHandle, shallowRef, triggerRef, unref } from 'vue'
+import { Logger } from '@/core/utils/logger'
 import type { IStateManager } from '../../domain/interfaces/IStateManager'
 
 /**
@@ -81,7 +82,7 @@ export class StateManagerImpl<T> implements IStateManager<T> {
       try {
         callback(this.state)
       } catch (error) {
-        console.error('[StateManager] 订阅者回调执行失败', error)
+        Logger.error('StateManager', '订阅者回调执行失败', error)
       }
     })
   }

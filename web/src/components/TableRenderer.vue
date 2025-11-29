@@ -313,7 +313,7 @@
         </div>
       </template>
 
-      <!-- 🔥 查看模式：纯展示模式，参考旧版本设计 -->
+      <!-- 查看模式：纯展示模式 -->
       <div class="detail-content" v-if="currentDetailRow && detailMode === 'view'">
         <!-- 链接操作区域 -->
         <div v-if="linkFields.length > 0" class="detail-links-section">
@@ -413,6 +413,7 @@ import { widgetComponentFactory } from '@/core/factories-v2'
 import { ErrorHandler } from '@/core/utils/ErrorHandler'
 import { Logger } from '@/core/utils/logger'
 import { convertToFieldValue } from '@/utils/field'
+import { resolveWorkspaceUrl } from '@/utils/route'
 import { WidgetType } from '@/core/constants/widget'
 import { useUserInfoStore } from '@/stores/userInfo'
 import { collectAllUsernames, collectFilesUploadUsersFromRow } from '@/utils/tableUserInfo'
@@ -523,43 +524,8 @@ const handleLinkClick = (fieldCode: string, row: any) => {
   const linkConfig = linkField.widget?.config || {}
   const target = linkConfig.target || '_self'
   
-  // 🔥 处理 URL，添加 /workspace-v2 前缀（参考 LinkWidget 的逻辑）
-  let resolvedUrl = actualUrl
-  
-  // 如果是外链，直接使用
-  if (actualUrl.startsWith('http://') || actualUrl.startsWith('https://')) {
-    resolvedUrl = actualUrl
-  }
-  // 🔥 如果已经是完整路径（包含 /workspace 或 /workspace-v2），转换为 /workspace-v2
-  else if (actualUrl.startsWith('/workspace/')) {
-    resolvedUrl = actualUrl.replace('/workspace/', '/workspace-v2/')
-  }
-  else if (actualUrl.startsWith('/workspace-v2/')) {
-    resolvedUrl = actualUrl
-  }
-  // 如果是绝对路径（以 / 开头），添加 /workspace-v2 前缀
-  else if (actualUrl.startsWith('/')) {
-    const pathWithoutSlash = actualUrl.substring(1)
-    resolvedUrl = `/workspace-v2/${pathWithoutSlash}`
-  }
-  // 相对路径，需要转换为完整路径
-  else {
-    // 从当前路由获取 user 和 app
-    const currentRoute = router.currentRoute.value
-    const pathParts = currentRoute.path.split('/').filter(Boolean)
-    
-    if (pathParts.length >= 3) {
-      const user = pathParts[1]
-      const app = pathParts[2]
-      const [functionPath, query] = actualUrl.split('?')
-      // 🔥 使用 /workspace-v2 前缀
-      const fullPath = `/workspace-v2/${user}/${app}/${functionPath}`
-      resolvedUrl = query ? `${fullPath}?${query}` : fullPath
-    } else {
-      // 如果路径格式不正确，尝试添加 /workspace 前缀
-      resolvedUrl = `/workspace/${actualUrl}`
-    }
-  }
+  // 处理 URL，添加 /workspace 前缀
+  const resolvedUrl = resolveWorkspaceUrl(actualUrl, router.currentRoute.value)
   
   // 根据 target 决定打开方式
   if (target === '_blank' || actualUrl.startsWith('http://') || actualUrl.startsWith('https://')) {
@@ -2252,7 +2218,7 @@ onUnmounted(() => {
   pointer-events: none !important;
 }
 
-/* 🔥 详情抽屉样式 - 参考旧版本设计 */
+/* 详情抽屉样式 */
 .detail-drawer {
   /* 🔥 确保抽屉显示在 tab 页面之上，但低于 ElMessage 和 ElNotification */
   z-index: 2999 !important;
@@ -2318,7 +2284,7 @@ onUnmounted(() => {
     padding: 20px;
   }
 
-  /* 🔥 字段网格布局 - 参考旧版本 */
+  /* 字段网格布局 */
   .fields-grid {
     display: grid;
     grid-template-columns: 1fr;

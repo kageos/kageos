@@ -17,6 +17,8 @@ import type { IStateManager } from '../interfaces/IStateManager'
 import type { IEventBus } from '../interfaces/IEventBus'
 import { FormEvent } from '../interfaces/IEventBus'
 import type { FieldConfig, FieldValue } from '../types'
+import { ValidationEngine, createDefaultValidatorRegistry } from '@/core/validation'
+import type { ReactiveFormDataManager } from '@/core/managers/ReactiveFormDataManager'
 
 /**
  * 验证结果类型（简化，实际应该从 validation 导入）
@@ -37,9 +39,29 @@ export interface FormState {
 }
 
 /**
+ * FormStateManager 适配器（用于 ValidationEngine）
+ * 将 IStateManager 适配为 ValidationEngine 需要的接口
+ * 
+ * ValidationEngine 只需要 formManager.getValue() 方法，用于条件验证
+ */
+class FormStateManagerAdapter {
+  constructor(private stateManager: IStateManager<FormState>) {}
+  
+  /**
+   * 获取字段值（ValidationEngine 主要使用此方法，用于条件验证）
+   */
+  getValue(fieldPath: string): FieldValue {
+    const state = this.stateManager.getState()
+    return state.data.get(fieldPath) || { raw: null, display: '', meta: {} }
+  }
+}
+
+/**
  * 表单领域服务
  */
 export class FormDomainService {
+  private validationEngine: ValidationEngine | null = null
+  
   constructor(
     private stateManager: IStateManager<FormState>,
     private eventBus: IEventBus,
@@ -185,16 +207,27 @@ export class FormDomainService {
     const state = this.stateManager.getState()
     const errors = new Map<string, ValidationResult[]>()
 
+    // 初始化验证引擎（如果还没有初始化或字段配置变化）
+    if (!this.validationEngine || this.fields !== fields) {
+      const registry = createDefaultValidatorRegistry()
+      const formManagerAdapter = new FormStateManagerAdapter(this.stateManager)
+      // 类型断言：适配器实现了 ValidationEngine 需要的接口
+      this.validationEngine = new ValidationEngine(
+        registry,
+        formManagerAdapter as any as ReactiveFormDataManager,
+        fields
+      )
+      this.fields = fields
+    }
+
     // 验证所有字段
     fields.forEach(field => {
-      const value = state.data.get(field.code)
-      if (value && field.validation) {
-        // TODO: 这里应该调用验证引擎
-        // 为了简化，暂时不实现具体验证逻辑
-        // const fieldErrors = validationEngine.validateField(field, value, fields)
-        // if (fieldErrors.length > 0) {
-        //   errors.set(field.code, fieldErrors)
-        // }
+      const value = state.data.get(field.code) || { raw: null, display: '', meta: {} }
+      if (field.validation) {
+        const fieldErrors = this.validationEngine!.validateField(field, value, fields)
+        if (fieldErrors.length > 0) {
+          errors.set(field.code, fieldErrors)
+        }
       }
     })
 
@@ -224,6 +257,24 @@ export class FormDomainService {
   getFieldError(fieldCode: string): ValidationResult[] {
     const state = this.stateManager.getState()
     return state.errors.get(fieldCode) || []
+  }
+
+  /**
+   * 获取提交数据（供 Application Layer 使用，遵循依赖倒置原则）
+   * 从状态中提取所有字段的 raw 值
+   */
+  getSubmitData(fields: FieldConfig[]): Record<string, any> {
+    const state = this.stateManager.getState()
+    const result: Record<string, any> = {}
+    
+    fields.forEach(field => {
+      const value = state.data.get(field.code)
+      if (value) {
+        result[field.code] = value.raw
+      }
+    })
+    
+    return result
   }
 
   /**

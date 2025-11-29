@@ -15,6 +15,8 @@
 
 import { ref, watch, nextTick, type Ref, type ComputedRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { extractWorkspacePath } from '@/utils/route'
+import { Logger } from '@/core/utils/logger'
 import type { FunctionDetail } from '../../domain/types'
 import type { TableDomainService, SortItem } from '../../domain/services/TableDomainService'
 import type { TableApplicationService } from '../../application/services/TableApplicationService'
@@ -32,7 +34,7 @@ export interface UseTableInitializationOptions {
   buildDefaultSorts: () => SortItem[]
   syncToURL: () => void
   loadTableData: () => Promise<void>
-  isMounted?: Ref<boolean> // 🔥 组件挂载状态（可选，用于防止卸载后继续加载数据）
+  isMounted?: Ref<boolean> // 组件挂载状态（可选，用于防止卸载后继续加载数据）
 }
 
 export function useTableInitialization(options: UseTableInitializationOptions) {
@@ -106,7 +108,7 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     const functionId = functionDetailValue?.id
     const router = functionDetailValue?.router
     
-    console.log('[useTableInitialization] initializeTable 开始', {
+    Logger.debug('useTableInitialization', 'initializeTable 开始', {
       functionId,
       router,
       isInitializing: isInitializing.value,
@@ -114,13 +116,13 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     })
     
     if (isInitializing.value) {
-      console.warn('[useTableInitialization] 正在初始化中，跳过', { functionId, router })
+      Logger.warn('useTableInitialization', '正在初始化中，跳过', { functionId, router })
       return
     }
     
     // 🔥 检查组件是否还在挂载状态
     if (isMounted && !isMounted.value) {
-      console.warn('[useTableInitialization] 组件已卸载，跳过初始化', { functionId, router })
+      Logger.warn('useTableInitialization', '组件已卸载，跳过初始化', { functionId, router })
       return
     }
     
@@ -160,17 +162,17 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
 
       // 🔥 再次检查组件是否还在挂载状态
       if (isMounted && !isMounted.value) {
-        console.warn('[useTableInitialization] 组件在初始化过程中已卸载，取消加载数据', { functionId, router })
+        Logger.warn('useTableInitialization', '组件在初始化过程中已卸载，取消加载数据', { functionId, router })
         return
       }
 
       // 加载数据
-      console.log('[useTableInitialization] 开始加载数据', { functionId, router })
+      Logger.debug('useTableInitialization', '开始加载数据', { functionId, router })
       await loadTableData()
-      console.log('[useTableInitialization] 数据加载完成', { functionId, router })
+      Logger.debug('useTableInitialization', '数据加载完成', { functionId, router })
     } finally {
       isInitializing.value = false
-      console.log('[useTableInitialization] initializeTable 完成', { functionId, router })
+      Logger.debug('useTableInitialization', 'initializeTable 完成', { functionId, router })
     }
   }
 
@@ -182,13 +184,13 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     const functionId = functionDetailValue?.id
     const router = functionDetailValue?.router
     
-    // 🔥 检查当前路由是否匹配当前函数的 router
+    // 检查当前路由是否匹配当前函数的 router
     // 如果路由已经切换到其他函数，这个 watch 不应该处理
-    const currentPath = route.path.replace('/workspace-v2', '').replace('/workspace', '')
+    const currentPath = extractWorkspacePath(route.path)
     const expectedPath = router || ''
     const pathMatches = currentPath === expectedPath || currentPath.startsWith(expectedPath + '?')
     
-    console.log('[useTableInitialization] URL query 变化', {
+    Logger.debug('useTableInitialization', 'URL query 变化', {
       functionId,
       router,
       currentPath,
@@ -204,7 +206,7 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     
     // 🔥 如果路由不匹配当前函数，直接返回（可能是其他函数的路由变化）
     if (!pathMatches) {
-      console.log('[useTableInitialization] 路由不匹配当前函数，忽略 URL 变化', {
+      Logger.debug('useTableInitialization', '路由不匹配当前函数，忽略 URL 变化', {
         functionId,
         router,
         currentPath,
@@ -215,12 +217,12 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     
     // 🔥 检查组件是否还在挂载状态
     if (isMounted && !isMounted.value) {
-      console.warn('[useTableInitialization] 组件已卸载，忽略 URL 变化', { functionId, router })
+      Logger.warn('useTableInitialization', '组件已卸载，忽略 URL 变化', { functionId, router })
       return
     }
     
     if (isSyncingToURL.value || isRestoringFromURL.value || isInitializing.value) {
-      console.log('[useTableInitialization] 正在同步或初始化中，忽略 URL 变化', {
+      Logger.debug('useTableInitialization', '正在同步或初始化中，忽略 URL 变化', {
         functionId,
         router,
         isSyncingToURL: isSyncingToURL.value,
@@ -243,15 +245,15 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
       
       // 🔥 再次检查组件是否还在挂载状态和路由是否匹配
       if (isMounted && !isMounted.value) {
-        console.warn('[useTableInitialization] 组件在 URL 恢复过程中已卸载，取消加载数据', { functionId, router })
+        Logger.warn('useTableInitialization', '组件在 URL 恢复过程中已卸载，取消加载数据', { functionId, router })
         return
       }
       
-      // 🔥 再次检查路由是否匹配（可能在异步操作期间路由又变化了）
-      const currentPathAfterRestore = route.path.replace('/workspace-v2', '').replace('/workspace', '')
+      // 再次检查路由是否匹配（可能在异步操作期间路由又变化了）
+      const currentPathAfterRestore = extractWorkspacePath(route.path)
       const pathMatchesAfterRestore = currentPathAfterRestore === expectedPath || currentPathAfterRestore.startsWith(expectedPath + '?')
       if (!pathMatchesAfterRestore) {
-        console.log('[useTableInitialization] 路由在恢复过程中已变化，取消加载数据', {
+        Logger.debug('useTableInitialization', '路由在恢复过程中已变化，取消加载数据', {
           functionId,
           router,
           currentPathAfterRestore,
@@ -260,7 +262,7 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
         return
       }
       
-      console.log('[useTableInitialization] URL 变化后开始加载数据', { functionId, router })
+      Logger.debug('useTableInitialization', 'URL 变化后开始加载数据', { functionId, router })
       await loadTableData()
     } finally {
       isRestoringFromURL.value = false

@@ -272,9 +272,9 @@
       </template>
 
       <div class="detail-content">
-        <!-- 详情模式 - 使用更美观的布局（参考旧版本） -->
+        <!-- 详情模式 - 使用更美观的布局 -->
         <div v-if="detailDrawerMode === 'read'">
-          <!-- 链接操作区域（参考旧版本，收集所有 link 字段显示在顶部） -->
+          <!-- 链接操作区域：收集所有 link 字段显示在顶部 -->
           <div v-if="detailLinkFields.length > 0" class="detail-links-section">
             <div class="links-section-title">相关链接</div>
             <div class="links-section-content">
@@ -418,6 +418,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, watch, ref, nextTick } from 'vue'
 import { useRoute, useRouter, type LocationQueryValue } from 'vue-router'
+import { extractWorkspacePath } from '@/utils/route'
 import { ElMessage, ElMessageBox, ElNotification, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon, ElTabs, ElTabPane, ElDrawer, ElDropdown, ElDropdownMenu, ElDropdownItem, ElAvatar, ElEmpty } from 'element-plus'
 import { InfoFilled, ArrowDown, Edit, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { eventBus, WorkspaceEvent } from '../../infrastructure/eventBus'
@@ -556,7 +557,7 @@ watch(() => stateManager.getState().activeTabId, async (newId, oldId) => {
     
     // 更新路由参数（如果需要）
     if (newTab) {
-      const path = `/workspace-v2${newTab.path.startsWith('/') ? '' : '/'}${newTab.path}`
+      const path = `/workspace${newTab.path.startsWith('/') ? '' : '/'}${newTab.path}`
       if (route.path !== path) {
         // 使用 replace 避免产生大量历史记录
         router.replace(path).catch(() => {})
@@ -774,7 +775,7 @@ onMounted(() => {
     if (shouldUpdateRoute && tab.path) {
       // 🔥 更新路由到新打开的 Tab
       const path = tab.path.startsWith('/') ? tab.path : `/${tab.path}`
-      const targetPath = `/workspace-v2${path}`
+      const targetPath = `/workspace${path}`
       router.push(targetPath).catch(() => {})
     }
   })
@@ -783,7 +784,7 @@ onMounted(() => {
     if (shouldUpdateRoute && tab.path) {
       // 🔥 更新路由到激活的 Tab
       const path = tab.path.startsWith('/') ? tab.path : `/${tab.path}`
-      const targetPath = `/workspace-v2${path}`
+      const targetPath = `/workspace${path}`
       // 🔥 检查当前路由是否已经是目标路由，避免重复导航
       if (route.path !== targetPath) {
         router.push(targetPath).catch(() => {})
@@ -794,7 +795,7 @@ onMounted(() => {
   // 🔥 监听节点点击事件，直接更新路由（作为备用方案，确保路由更新）
   eventBus.on(WorkspaceEvent.nodeClicked, ({ node }: { node: any }) => {
     if (node && node.type === 'function' && node.full_code_path) {
-      const targetPath = `/workspace-v2${node.full_code_path}`
+      const targetPath = `/workspace${node.full_code_path}`
       // 🔥 检查当前路由是否已经是目标路由，避免重复导航
       if (route.path !== targetPath) {
         router.push(targetPath).catch(() => {})
@@ -1346,7 +1347,7 @@ const checkAndExpandForkedPaths = () => {
   console.log('[WorkspaceView] serviceTreePanelRef:', serviceTreePanelRef.value)
   
   // 检查当前应用是否匹配 URL 中的应用
-  const pathSegments = route.path.replace('/workspace-v2/', '').replace('/workspace/', '').split('/').filter(Boolean)
+  const pathSegments = extractWorkspacePath(route.path).split('/').filter(Boolean)
   if (pathSegments.length >= 2) {
     const [urlUser, urlApp] = pathSegments
     if (currentApp.value && (currentApp.value.user !== urlUser || currentApp.value.code !== urlApp)) {
@@ -1395,7 +1396,7 @@ const checkAndExpandForkedPaths = () => {
 
 // 处理复制链接
 const handleCopyLink = (node: ServiceTreeType) => {
-  const link = `${window.location.origin}/workspace-v2${node.full_code_path}`
+  const link = `${window.location.origin}/workspace${node.full_code_path}`
   navigator.clipboard.writeText(link).then(() => {
     ElNotification.success({
       title: '成功',
@@ -1418,7 +1419,7 @@ const backToList = () => {
   delete query._tab
   delete query._id
   
-  const path = `/workspace-v2${currentFunction.value.full_code_path || ''}`
+  const path = `/workspace${currentFunction.value.full_code_path || ''}`
   router.push({ path, query }).catch(() => {})
 }
 
@@ -1510,7 +1511,7 @@ const handleSwitchApp = async (app: AppType): Promise<void> => {
     await applicationService.triggerAppSwitch(appForService)
     
     // 更新路由
-    const targetPath = `/workspace-v2/${app.user}/${app.code}`
+    const targetPath = `/workspace/${app.user}/${app.code}`
     if (route.path !== targetPath) {
       await router.push(targetPath)
     }
@@ -1617,7 +1618,7 @@ const handleDeleteApp = async (app: AppType): Promise<void> => {
       if (appList.value.length > 0) {
         await handleSwitchApp(appList.value[0])
       } else {
-        await router.push('/workspace-v2')
+        await router.push('/workspace')
       }
     }
   } catch (error: any) {
@@ -1660,11 +1661,8 @@ const loadAppFromRoute = async () => {
     return
   }
   
-  // 支持 /workspace-v2 和 /workspace 两种路径
-  const fullPath = route.path
-    .replace('/workspace-v2/', '')
-    .replace('/workspace/', '')
-    .replace(/^\/+|\/+$/g, '')
+  // 提取路径
+  const fullPath = extractWorkspacePath(route.path)
   
   // 🔥 如果路径没有变化，不重复处理
   if (fullPath === lastProcessedPath) {
@@ -2154,7 +2152,7 @@ onUnmounted(() => {
   height: 100%;
 }
 
-/* 🔥 详情字段网格布局 - 参考旧版本设计，更美观 */
+/* 详情字段网格布局 */
 .detail-fields-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -2206,7 +2204,7 @@ onUnmounted(() => {
   z-index: 1;
 }
 
-/* 🔥 详情页链接区域（参考旧版本设计） */
+/* 详情页链接区域 */
 .detail-links-section {
   margin-bottom: 24px;
   padding: 16px;

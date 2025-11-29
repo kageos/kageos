@@ -487,9 +487,8 @@ const handleSubmit = async () => {
     
     if (targetApp && targetApp.user && targetApp.code) {
       // 显示"克隆成功"的通知，包含跳转按钮
-      // 🔥 判断当前是否在新版本路由，决定跳转到哪个版本
-      const isV2Route = window.location.pathname.startsWith('/workspace-v2')
-      const basePath = isV2Route ? '/workspace-v2' : '/workspace'
+      // 使用统一的工作空间路径
+      const basePath = '/workspace'
       
       ElNotification({
         title: '克隆成功',

@@ -162,17 +162,16 @@ async function handleFileSelect(file: any) {
     ElMessage.success('上传成功')
     emit('success', key, rawFile.name)
     
-    // 2 秒后隐藏进度条
-    setTimeout(() => {
-      uploading.value = false
-      uploadDomain.value = ''
-    }, 2000)
+    // 上传成功后立即隐藏进度条（用户已看到成功提示）
+    uploading.value = false
+    uploadDomain.value = ''
     
   } catch (err: any) {
     uploadStatus.value = 'exception'
     ElMessage.error(`上传失败: ${err.message}`)
     emit('error', err)
     uploading.value = false
+    uploadDomain.value = ''
   }
 }
 

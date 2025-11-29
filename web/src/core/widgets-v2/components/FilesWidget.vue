@@ -1169,12 +1169,11 @@ async function handleFileSelect(rawFile: File): Promise<void> {
       uploadingFile.status = 'error'
       uploadingFile.error = '上传已取消'
       ElMessage.warning('上传已取消')
-      setTimeout(() => {
-        const index = uploadingFiles.value.findIndex((f: UploadingFile) => f.uid === uid)
-        if (index !== -1) {
-          uploadingFiles.value.splice(index, 1)
-        }
-      }, 2000)
+      // 立即移除上传中的文件（用户已看到取消提示）
+      const index = uploadingFiles.value.findIndex((f: UploadingFile) => f.uid === uid)
+      if (index !== -1) {
+        uploadingFiles.value.splice(index, 1)
+      }
     }
   }
 
@@ -1359,12 +1358,11 @@ async function flushCompleteQueue(): Promise<void> {
           const currentFilesList = currentFiles.value
           updateFiles([...currentFilesList, newFile])
 
-          setTimeout(() => {
-            const index = uploadingFiles.value.findIndex((f: UploadingFile) => f.uid === uploadingFile.uid)
-            if (index !== -1) {
-              uploadingFiles.value.splice(index, 1)
-            }
-          }, 2000)
+          // 立即移除上传中的文件（文件已添加到列表，用户已看到成功提示）
+          const index = uploadingFiles.value.findIndex((f: UploadingFile) => f.uid === uploadingFile.uid)
+          if (index !== -1) {
+            uploadingFiles.value.splice(index, 1)
+          }
         }
       } else if (!item.success || (result && result.status === 'failed')) {
         if (uploadingFile) {

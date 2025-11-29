@@ -1,6 +1,6 @@
 <!--
   FormView - 表单视图
-  🔥 新架构的展示层组件
+  新架构的展示层组件
   
   职责：
   - 纯 UI 展示，不包含业务逻辑
@@ -37,7 +37,7 @@
       </el-form-item>
     </el-form>
 
-    <!-- 提交按钮（参考旧版本：提交按钮全宽） -->
+    <!-- 提交按钮 -->
     <div class="form-actions-section">
       <div class="form-actions-row">
         <el-button
@@ -57,7 +57,7 @@
       </div>
     </div>
 
-    <!-- 响应参数展示（参考旧版本：提交前就显示，显示"等待提交"标签） -->
+    <!-- 响应参数展示：提交前就显示，显示"等待提交"标签 -->
     <div v-if="responseFields.length > 0" class="response-section">
       <div class="section-title">
         响应参数
@@ -129,7 +129,7 @@ const formData = computed(() => {
 const requestFields = computed(() => (props.functionDetail.request || []) as FieldConfig[])
 const responseFields = computed(() => (props.functionDetail.response || []) as FieldConfig[])
 
-// 🔥 从 URL 查询参数中提取表单初始数据（参考旧版本实现）
+// 从 URL 查询参数中提取表单初始数据
 const formInitialData = computed(() => {
   const initialData: Record<string, any> = {}
   const query = route.query
@@ -144,7 +144,7 @@ const formInitialData = computed(() => {
       const value = Array.isArray(queryValue) ? queryValue[0] : queryValue
       
       if (value !== undefined && value !== null && value !== '') {
-        // 🔥 类型转换：根据字段类型转换值（参考旧版本）
+        // 类型转换：根据字段类型转换值
         if (field.data?.type === 'int' || field.data?.type === 'integer') {
           const intValue = parseInt(String(value), 10)
           if (!isNaN(intValue)) {
@@ -205,7 +205,7 @@ const hasResponseData = computed(() => {
   return state.response !== null && state.response !== undefined
 })
 
-// 🔥 FormRenderer 上下文（用于 OnSelectFuzzy 回调）
+// FormRenderer 上下文（用于 OnSelectFuzzy 回调）
 // 注意：使用 computed 确保响应式更新，并且每次访问都返回新的对象（但方法引用稳定）
 const formRendererContext = computed(() => {
   return {
@@ -310,7 +310,7 @@ let unsubscribeFunctionLoaded: (() => void) | null = null
 let unsubscribeFormInitialized: (() => void) | null = null
 
 onMounted(() => {
-  // 🔥 初始化表单（参考旧版本：在挂载时立即初始化，并传递 URL 参数作为初始数据）
+  // 初始化表单：在挂载时立即初始化，并传递 URL 参数作为初始数据
   if (requestFields.value.length > 0) {
     const initialData = formInitialData.value
     console.log('[FormView] onMounted 初始化表单', {

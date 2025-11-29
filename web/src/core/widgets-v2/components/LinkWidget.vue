@@ -57,6 +57,7 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Link, Right, TopRight } from '@element-plus/icons-vue'
 import { useAppEnvironment } from '@/composables/useAppEnvironment'
+import { resolveWorkspaceUrl } from '@/utils/route'
 import type { WidgetComponentProps } from '../types'
 
 const props = defineProps<WidgetComponentProps>()
@@ -84,33 +85,14 @@ const parsedLink = computed(() => {
   }
 })
 
-// 解析后的 URL（处理站内跳转，添加 /workspace-v2 前缀）
+import { resolveWorkspaceUrl } from '@/utils/route'
+
+// 解析后的 URL（处理站内跳转，添加 /workspace 前缀）
 const resolvedUrl = computed(() => {
   const url = parsedLink.value.url
   if (!url) return ''
   
-  // 如果是外链（包含 http:// 或 https://），直接使用
-  if (url.startsWith('http://') || url.startsWith('https://')) {
-    return url
-  }
-  
-  // 🔥 如果已经是完整路径（包含 /workspace 或 /workspace-v2），转换为 /workspace-v2
-  if (url.startsWith('/workspace/')) {
-    // 将 /workspace 替换为 /workspace-v2
-    return url.replace('/workspace/', '/workspace-v2/')
-  }
-  if (url.startsWith('/workspace-v2/')) {
-    return url
-  }
-  
-  // 如果是绝对路径（以 / 开头），添加 /workspace-v2 前缀
-  if (url.startsWith('/')) {
-    const pathWithoutSlash = url.substring(1)
-    return `/workspace-v2/${pathWithoutSlash}`
-  }
-  
-  // 相对路径，需要转换为完整路径
-  return buildFullPath(url)
+  return resolveWorkspaceUrl(url, router.currentRoute.value)
 })
 
 // 链接文本
@@ -175,65 +157,9 @@ const handleClick = (e: Event) => {
   }
 }
 
-// 构建完整路径
-function buildFullPath(relativePath: string): string {
-  // 如果已经是绝对路径（以 / 开头），直接添加 /workspace-v2 前缀
-  if (relativePath.startsWith('/')) {
-    if (relativePath.startsWith('/workspace-v2/')) {
-      return relativePath
-    }
-    // 🔥 如果是 /workspace 路径，转换为 /workspace-v2
-    if (relativePath.startsWith('/workspace/')) {
-      return relativePath.replace('/workspace/', '/workspace-v2/')
-    }
-    const pathWithoutSlash = relativePath.substring(1)
-    return `/workspace-v2/${pathWithoutSlash}`
-  }
-  
-  // 解析相对路径：function_name?query
-  const [functionPath, query] = relativePath.split('?')
-  
-  // 从当前路由获取 user 和 app
-  const currentRoute = router.currentRoute.value
-  const pathParts = currentRoute.path.split('/').filter(Boolean)
-  
-  if (pathParts.length < 3) {
-    // 如果路径格式不正确，尝试添加 /workspace-v2 前缀
-    return `/workspace-v2/${relativePath}`
-  }
-  
-  // 🔥 支持 /workspace-v2 和 /workspace 两种路径
-  const user = pathParts[1]
-  const app = pathParts[2]
-  
-  // 构建完整路径（使用 /workspace-v2）
-  const fullPath = `/workspace-v2/${user}/${app}/${functionPath}`
-  return query ? `${fullPath}?${query}` : fullPath
-}
-
-// 将 URL 转换为路由路径
+// 将 URL 转换为路由路径（使用统一的工具函数）
 function convertUrlToRoute(url: string): string {
-  // 🔥 如果已经是完整路径（包含 /workspace 或 /workspace-v2），转换为 /workspace-v2
-  if (url.startsWith('/workspace/')) {
-    return url.replace('/workspace/', '/workspace-v2/')
-  }
-  if (url.startsWith('/workspace-v2/')) {
-    return url
-  }
-  
-  // 如果是外链，直接返回
-  if (url.startsWith('http://') || url.startsWith('https://')) {
-    return url
-  }
-  
-  // 如果是绝对路径（以 / 开头），添加 /workspace-v2 前缀
-  if (url.startsWith('/')) {
-    const pathWithoutSlash = url.substring(1)
-    return `/workspace-v2/${pathWithoutSlash}`
-  }
-  
-  // 否则使用 buildFullPath（相对路径）
-  return buildFullPath(url)
+  return resolveWorkspaceUrl(url, router.currentRoute.value)
 }
 </script>
 

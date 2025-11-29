@@ -9,6 +9,7 @@
  * - 可以轻松替换为其他实现（如 WebSocket 事件总线）
  */
 
+import { Logger } from '@/core/utils/logger'
 import type { IEventBus } from '../../domain/interfaces/IEventBus'
 
 /**
@@ -27,7 +28,7 @@ export class EventBusImpl implements IEventBus {
         try {
           handler(payload)
         } catch (error) {
-          console.error(`[EventBus] 事件处理函数执行失败: ${event}`, error)
+          Logger.error('EventBus', `事件处理函数执行失败: ${event}`, error)
         }
       })
     }
