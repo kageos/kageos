@@ -196,7 +196,18 @@ export class FormDomainService {
       }
     }
 
-    // 返回空值
+    // 🔥 根据字段类型返回合适的默认值
+    // table 类型字段：默认值是空数组
+    if (field.widget?.type === 'table') {
+      return { raw: [], display: '', meta: {} }
+    }
+    
+    // form 类型字段：默认值是空对象
+    if (field.widget?.type === 'form') {
+      return { raw: {}, display: '', meta: {} }
+    }
+
+    // 其他字段：返回 null
     return { raw: null, display: '', meta: {} }
   }
 
