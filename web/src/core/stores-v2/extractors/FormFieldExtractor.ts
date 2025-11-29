@@ -13,17 +13,10 @@ export class FormFieldExtractor implements IFieldExtractor {
     getValue: (path: string) => any,
     extractorRegistry: FieldExtractorRegistry
   ): any {
-    console.log('[FormFieldExtractor] extract 开始', {
-      fieldPath,
-      fieldCode: field.code,
-      subFieldsCount: field.children?.length || 0
-    })
-    
     const value = getValue(fieldPath)
     const subFields = field.children || []
     
     if (!subFields.length) {
-      console.log('[FormFieldExtractor] 没有子字段，返回 null')
       return null
     }
     
@@ -38,16 +31,9 @@ export class FormFieldExtractor implements IFieldExtractor {
       const subFieldPath = `${fieldPath}.${subField.code}`
       const subValue = getValue(subFieldPath)
       
-      console.log(`[FormFieldExtractor] 处理子字段 ${subField.code}`, {
-        subFieldPath,
-        hasValue: !!subValue,
-        widgetType: subField.widget?.type
-      })
-      
       if (subValue) {
         // 从 store 中提取
         const extracted = extractorRegistry.extractField(subField, subFieldPath, getValue)
-        console.log(`[FormFieldExtractor] 子字段 ${subField.code} 提取结果:`, extracted)
         
         // 🔥 即使提取的值是 undefined，也要添加到结果中（对于嵌套结构，需要保持结构完整）
         if (extracted !== undefined) {
@@ -83,11 +69,6 @@ export class FormFieldExtractor implements IFieldExtractor {
         }
         // 对于基础字段，不添加到 formData 中（undefined 会被忽略）
       }
-    })
-    
-    console.log('[FormFieldExtractor] extract 完成', {
-      fieldPath,
-      formData
     })
     
     return formData
