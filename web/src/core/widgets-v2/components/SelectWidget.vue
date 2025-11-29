@@ -128,6 +128,7 @@ import FuzzySearchDialog from './FuzzySearchDialog.vue'
 import FieldStatistics from './FieldStatistics.vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useFormDataStore } from '../../stores-v2/formData'
+import { createFieldValue } from '../utils/createFieldValue'
 import { selectFuzzy } from '@/api/function'
 import { Logger } from '../../utils/logger'
 import { SelectFuzzyQueryType, isStandardColor, getStandardColorCSSVar, type StandardColorType } from '../../constants/select'
@@ -287,13 +288,15 @@ const internalValue = computed({
   set: (newValue: any) => {
     if (props.mode === 'edit' || props.mode === 'search') {
       const selectedOption = options.value.find(opt => opt.value === newValue)
-      const newFieldValue = {
-        raw: newValue,
-        display: selectedOption?.label || String(newValue),
-        meta: {
+      // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
+      const newFieldValue = createFieldValue(
+        props.field,
+        newValue,
+        selectedOption?.label || String(newValue),
+        {
           displayInfo: selectedOption?.displayInfo
         }
-      }
+      )
       
       if (props.mode === 'edit') {
         formDataStore.setValue(props.fieldPath, newFieldValue)
