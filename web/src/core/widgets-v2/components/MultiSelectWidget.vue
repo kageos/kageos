@@ -302,7 +302,8 @@ const selectedValues = computed({
       meta: {
         displayInfo: displayInfos,
         statistics: currentStatistics.value,
-        rowStatistics: rowStatistics
+        rowStatistics: rowStatistics,
+        dataType: dataType  // 🔥 保存类型信息，用于 Debug 和后续处理
       }
     }
     
