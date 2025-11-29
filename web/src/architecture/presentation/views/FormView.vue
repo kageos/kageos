@@ -54,6 +54,10 @@
           <el-icon><RefreshLeft /></el-icon>
           重置
         </el-button>
+        <el-button size="large" @click="showDebugDialog = true" type="info">
+          <el-icon><View /></el-icon>
+          Debug
+        </el-button>
       </div>
     </div>
 
@@ -86,14 +90,99 @@
         </el-form-item>
       </el-form>
     </div>
+
+    <!-- Debug 弹窗 -->
+    <el-dialog
+      v-model="showDebugDialog"
+      title="Debug - 请求和响应数据"
+      width="80%"
+      :close-on-click-modal="false"
+    >
+      <el-tabs v-model="debugActiveTab">
+        <!-- 请求参数 -->
+        <el-tab-pane label="请求参数" name="request">
+          <div class="debug-section">
+            <div class="debug-header">
+              <span class="debug-label">提交数据（实时）</span>
+              <el-button
+                size="small"
+                type="primary"
+                @click="copyToClipboard(debugRequestData)"
+              >
+                <el-icon><DocumentCopy /></el-icon>
+                复制
+              </el-button>
+            </div>
+            <el-input
+              v-model="debugRequestData"
+              type="textarea"
+              :rows="20"
+              readonly
+              class="debug-json-input"
+            />
+          </div>
+        </el-tab-pane>
+
+        <!-- 响应参数 -->
+        <el-tab-pane label="响应参数" name="response">
+          <div class="debug-section">
+            <div class="debug-header">
+              <span class="debug-label">响应数据</span>
+              <el-button
+                v-if="debugResponseData"
+                size="small"
+                type="primary"
+                @click="copyToClipboard(debugResponseData)"
+              >
+                <el-icon><DocumentCopy /></el-icon>
+                复制
+              </el-button>
+            </div>
+            <el-input
+              v-if="debugResponseData"
+              v-model="debugResponseData"
+              type="textarea"
+              :rows="20"
+              readonly
+              class="debug-json-input"
+            />
+            <el-empty v-else description="暂无响应数据，请先提交表单" />
+          </div>
+        </el-tab-pane>
+
+        <!-- 原始状态 -->
+        <el-tab-pane label="原始状态" name="raw">
+          <div class="debug-section">
+            <div class="debug-header">
+              <span class="debug-label">FormDataStore 原始数据</span>
+              <el-button
+                size="small"
+                type="primary"
+                @click="copyToClipboard(debugRawData)"
+              >
+                <el-icon><DocumentCopy /></el-icon>
+                复制
+              </el-button>
+            </div>
+            <el-input
+              v-model="debugRawData"
+              type="textarea"
+              :rows="20"
+              readonly
+              class="debug-json-input"
+            />
+          </div>
+        </el-tab-pane>
+      </el-tabs>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, watch, ref, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
-import { Promotion, RefreshLeft } from '@element-plus/icons-vue'
-import { ElIcon, ElTag, ElNotification } from 'element-plus'
+import { Promotion, RefreshLeft, View, DocumentCopy } from '@element-plus/icons-vue'
+import { ElIcon, ElTag, ElNotification, ElMessage } from 'element-plus'
 import { eventBus, FormEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
@@ -204,6 +293,63 @@ const hasResponseData = computed(() => {
   const state = stateManager.getState()
   return state.response !== null && state.response !== undefined
 })
+
+// Debug 相关
+const showDebugDialog = ref(false)
+const debugActiveTab = ref('request')
+
+// 实时获取提交数据（用于 Debug）
+const debugRequestData = computed(() => {
+  try {
+    const submitData = domainService.getSubmitData(requestFields.value)
+    return JSON.stringify(submitData, null, 2)
+  } catch (error) {
+    console.error('[FormView] 获取提交数据失败', error)
+    return JSON.stringify({ error: '获取提交数据失败' }, null, 2)
+  }
+})
+
+// 获取响应数据（用于 Debug）
+const debugResponseData = computed(() => {
+  const state = stateManager.getState()
+  if (state.response) {
+    try {
+      return JSON.stringify(state.response, null, 2)
+    } catch (error) {
+      return JSON.stringify({ error: '格式化响应数据失败' }, null, 2)
+    }
+  }
+  return ''
+})
+
+// 获取原始状态数据（用于 Debug）
+const debugRawData = computed(() => {
+  const state = stateManager.getState()
+  try {
+    const rawData: Record<string, any> = {}
+    state.data.forEach((value, key) => {
+      rawData[key] = {
+        raw: value.raw,
+        display: value.display,
+        meta: value.meta
+      }
+    })
+    return JSON.stringify(rawData, null, 2)
+  } catch (error) {
+    return JSON.stringify({ error: '格式化原始数据失败' }, null, 2)
+  }
+})
+
+// 复制到剪贴板
+const copyToClipboard = async (text: string): Promise<void> => {
+  try {
+    await navigator.clipboard.writeText(text)
+    ElMessage.success('已复制到剪贴板')
+  } catch (error) {
+    console.error('复制失败', error)
+    ElMessage.error('复制失败，请手动复制')
+  }
+}
 
 // FormRenderer 上下文（用于 OnSelectFuzzy 回调）
 // 注意：使用 computed 确保响应式更新，并且每次访问都返回新的对象（但方法引用稳定）
@@ -424,6 +570,42 @@ onUnmounted(() => {
 <style scoped>
 .form-view {
   padding: 20px;
+}
+
+/* Debug 弹窗样式 */
+.debug-section {
+  margin-bottom: 20px;
+}
+
+.debug-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.debug-label {
+  font-weight: 600;
+  color: #606266;
+}
+
+.debug-json-input {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.debug-json-input :deep(.el-textarea__inner) {
+  background-color: #f5f7fa;
+  border: 1px solid #dcdfe6;
+  color: #303133;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
+  resize: none;
+}
+
+.debug-json-input :deep(.el-textarea__inner):focus {
+  border-color: #409eff;
+  background-color: #fff;
 }
 
 .section-title {
