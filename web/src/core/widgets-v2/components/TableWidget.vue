@@ -595,35 +595,30 @@ function handleSave(index: number): void {
       // 确保 formDataStore 中有这个值
       formDataStore.setValue(fieldPath, fieldValue)
       
-      // 收集到 rowData 中
+      // 收集到 rowData 中（只保存 raw 值）
       rowData[itemField.code] = fieldValue.raw ?? null
     })
     
     // 保存行（这会更新 tableData，从而更新 formDataStore 中的整个数组）
-    // 在 saveRow 之前保存状态，因为 saveRow 会调用 cancelEditing() 重置状态
-    const wasAdding = editMode.isAdding.value
-    const currentLength = tableData.value.length
-    
     editMode.saveRow(rowData)
     
     // 保存后，再次确保 formDataStore 中每个字段路径的值都是最新的
-    // 如果是新增，索引会变成数组的最后一个索引
-    const finalIndex = wasAdding ? currentLength : index
+    // 🔥 无论新增还是编辑，都使用 index（因为 saveRow 已经把数据保存到正确位置了）
+    const finalIndex = index
     
     itemFields.value.forEach(itemField => {
       const fieldPath = `${props.fieldPath}[${finalIndex}].${itemField.code}`
       const rawValue = rowData[itemField.code]
       
-      // 🔥 获取保存前的值，保留 meta 信息（displayInfo、statistics 等）
-      const previousValue = getRowFieldValue(index, itemField.code)
-      const previousMeta = previousValue?.meta || {}
+      // 🔥 获取当前的值，保留 meta 和 display 信息
+      const currentValue = formDataStore.getValue(fieldPath)
       
-      // 确保 formDataStore 中有正确的值，并保留 meta 信息
+      // 确保 formDataStore 中有正确的值，并保留 display 和 meta 信息
       const fieldValue: FieldValue = {
         raw: rawValue,
-        display: rawValue !== null && rawValue !== undefined ? String(rawValue) : '',
+        display: currentValue?.display || (rawValue !== null && rawValue !== undefined ? String(rawValue) : ''),
         meta: {
-          ...previousMeta, // 🔥 保留原有的 meta 信息（displayInfo、statistics 等）
+          ...(currentValue?.meta || {}), // 🔥 保留原有的 meta 信息（displayInfo、statistics 等）
         }
       }
       formDataStore.setValue(fieldPath, fieldValue)

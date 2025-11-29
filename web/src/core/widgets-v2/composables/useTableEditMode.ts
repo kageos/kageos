@@ -99,15 +99,21 @@ export function useTableEditMode(props: WidgetComponentProps) {
     const currentData = [...tableData.value]
     
     if (isAdding.value) {
-      // 新增
-      currentData.push(rowData)
+      // 新增模式：替换当前编辑的空行（而不是 push 新行）
+      if (editingIndex.value !== null) {
+        currentData[editingIndex.value] = rowData
+      }
     } else if (editingIndex.value !== null) {
-      // 编辑
+      // 编辑模式：直接替换
       currentData[editingIndex.value] = rowData
     }
     
     tableData.value = currentData
-    cancelEditing()
+    
+    // 🔥 直接重置编辑状态，不调用 cancelEditing()
+    // 因为 cancelEditing() 会删除新增的空行，但我们已经保存了数据
+    editingIndex.value = null
+    isAdding.value = false
   }
   
   // 删除行

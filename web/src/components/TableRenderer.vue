@@ -255,6 +255,7 @@
       class="detail-drawer"
       :append-to-body="true"
       :modal="true"
+      :z-index="2999"
       @close="handleDetailDrawerClose"
     >
       <template #header>
@@ -2222,6 +2223,14 @@ onUnmounted(() => {
 .detail-drawer {
   /* 🔥 确保抽屉显示在 tab 页面之上，但低于 ElMessage 和 ElNotification */
   z-index: 2999 !important;
+  
+  :deep(.el-drawer__wrapper) {
+    z-index: 2999 !important;
+  }
+  
+  :deep(.el-overlay) {
+    z-index: 2998 !important;
+  }
   
   :deep(.el-drawer) {
     z-index: 2999 !important;
