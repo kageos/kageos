@@ -57,6 +57,7 @@ import { computed, onMounted } from 'vue'
 import { ElInputNumber } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useFormDataStore } from '../../stores-v2/formData'
+import { createFieldValue } from '../utils/createFieldValue'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -126,11 +127,12 @@ const internalValue = computed({
       const formatted = newValue !== undefined ? String(newValue) : ''
       const display = unit.value ? `${formatted} ${unit.value}` : formatted
       
-      const newFieldValue = {
-        raw: newValue ?? null,
-        display: display,
-        meta: {}
-      }
+      // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
+      const newFieldValue = createFieldValue(
+        props.field,
+        newValue ?? null,
+        display
+      )
       
       formDataStore.setValue(props.fieldPath, newFieldValue)
       emit('update:modelValue', newFieldValue)
