@@ -54,29 +54,15 @@ export const useFormDataStore = defineStore('formData-v2', () => {
    * @returns 提交数据对象
    */
   function getSubmitData(fields: FieldConfig[], basePath: string = ''): Record<string, any> {
-    console.log('[FormDataStore] getSubmitData 开始', {
-      fieldsCount: fields.length,
-      basePath,
-      fieldCodes: fields.map(f => f.code)
-    })
-    
     const result: Record<string, any> = {}
     
     fields.forEach(field => {
       const fieldPath = basePath ? `${basePath}.${field.code}` : field.code
       
-      console.log(`[FormDataStore] 提取字段 ${field.code}`, {
-        fieldPath,
-        widgetType: field.widget?.type,
-        hasChildren: !!field.children
-      })
-      
       // 🔥 使用提取器注册表提取字段值（即使字段不存在也会尝试从原始数据中提取）
       const extractedValue = extractorRegistry.extractField(field, fieldPath, (path: string) => {
         return data.get(path)
       })
-      
-      console.log(`[FormDataStore] 字段 ${field.code} 提取结果:`, extractedValue)
       
       // 🔥 对于 form 和 table 类型，即使提取的值是空对象或空数组，也要添加到结果中
       // 对于其他类型，只有当提取的值不为 undefined 时才添加
@@ -90,8 +76,6 @@ export const useFormDataStore = defineStore('formData-v2', () => {
         result[field.code] = []
       }
     })
-    
-    console.log('[FormDataStore] getSubmitData 完成', result)
     
     return result
   }
