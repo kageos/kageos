@@ -328,10 +328,15 @@ const debugRawData = computed(() => {
   try {
     const rawData: Record<string, any> = {}
     state.data.forEach((value, key) => {
+      // 🔥 查找字段配置，获取 data.type 信息
+      const field = findFieldByCode(key, requestFields.value)
       rawData[key] = {
         raw: value.raw,
         display: value.display,
-        meta: value.meta
+        meta: value.meta,
+        // 🔥 添加类型信息（优先使用 meta.dataType，其次使用 field.data.type）
+        dataType: value.meta?.dataType || field?.data?.type || 'unknown',
+        widgetType: field?.widget?.type || 'unknown'
       }
     })
     return JSON.stringify(rawData, null, 2)
@@ -339,6 +344,20 @@ const debugRawData = computed(() => {
     return JSON.stringify({ error: '格式化原始数据失败' }, null, 2)
   }
 })
+
+// 递归查找字段配置
+function findFieldByCode(code: string, fields: FieldConfig[]): FieldConfig | null {
+  for (const field of fields) {
+    if (field.code === code) {
+      return field
+    }
+    if (field.children) {
+      const found = findFieldByCode(code, field.children)
+      if (found) return found
+    }
+  }
+  return null
+}
 
 // 复制到剪贴板
 const copyToClipboard = async (text: string): Promise<void> => {
