@@ -136,10 +136,24 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
         urlQuery: route.query
       })
       
-      // 🔥 步骤 3：如果路径匹配且 URL 中有参数，先恢复状态（link 跳转场景）
-      // 如果路径不匹配，说明是函数切换，不应该恢复 URL 参数（避免状态污染）
-      if (pathMatches && Object.keys(route.query).length > 0) {
-        Logger.debug('useTableInitialization', '路径匹配且 URL 中有参数，恢复状态（link 跳转）', {
+      // 🔥 步骤 3：决定是否从 URL 恢复参数
+      // 优先级：Tab 保存的状态 > URL 参数
+      // - 如果 Tab 有保存的状态（searchForm 不为空），说明是 Tab 切换，使用 Tab 的状态，不从 URL 恢复
+      // - 如果 Tab 没有保存的状态（searchForm 为空），且 URL 有参数，说明是 link 跳转，从 URL 恢复
+      const hasTabState = currentState.searchForm && Object.keys(currentState.searchForm).length > 0
+      const hasURLParams = pathMatches && Object.keys(route.query).length > 0
+      
+      if (hasTabState) {
+        // Tab 有保存的状态，优先使用 Tab 的状态（Tab 切换场景）
+        Logger.debug('useTableInitialization', 'Tab 有保存的状态，使用 Tab 状态，不从 URL 恢复', {
+          functionId,
+          router,
+          searchFormKeys: Object.keys(currentState.searchForm || {}),
+          urlQuery: route.query
+        })
+      } else if (hasURLParams) {
+        // Tab 没有保存的状态，且 URL 有参数，从 URL 恢复（link 跳转场景）
+        Logger.debug('useTableInitialization', 'Tab 无保存状态，URL 有参数，从 URL 恢复（link 跳转）', {
           functionId,
           router,
           urlQuery: route.query
