@@ -149,6 +149,9 @@ export function useWorkspaceTabs() {
       
       // 1. 保存旧 Tab 数据
       if (oldId) {
+        // 🔥 等待一个 tick，确保状态已经更新（比如用户刚选择了"处理中"，状态可能还在更新中）
+        await nextTick()
+        
         const oldTab = tabs.value.find(t => t.id === oldId)
         if (oldTab && oldTab.node) {
           const detail = stateManager.getFunctionDetail(oldTab.node)
@@ -179,6 +182,7 @@ export function useWorkspaceTabs() {
             console.log('[useWorkspaceTabs] 保存 Tab 数据', {
               tabId: oldId,
               searchForm: oldTab.data.searchForm,
+              searchFormKeys: Object.keys(oldTab.data.searchForm || {}),
               sorts: oldTab.data.sorts,
               pagination: oldTab.data.pagination,
               hasData: !!(oldTab.data.data && oldTab.data.data.length > 0)
