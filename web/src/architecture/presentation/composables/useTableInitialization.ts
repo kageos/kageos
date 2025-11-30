@@ -151,7 +151,9 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
         // 这样可以保持切换时的状态，切换回去时恢复切换前的参数
         const currentState = stateManager.getState()
         const activeTabId = currentState.activeTabId
-        const activeTab = currentState.tabs.find(t => t.id === activeTabId)
+        // 🔥 安全检查：确保 tabs 存在且是数组
+        const tabs = Array.isArray(currentState.tabs) ? currentState.tabs : []
+        const activeTab = activeTabId ? tabs.find(t => t.id === activeTabId) : null
         
         if (activeTab && activeTab.data && activeTab.data.searchForm !== undefined) {
           // Tab 有保存的数据，恢复 Tab 的状态（包括搜索参数）
