@@ -5,7 +5,7 @@
       <div class="header-actions">
         <el-link
         v-if="!loading"
-        type="default"
+        type="primary"
           :underline="false"
         @click="$emit('create-directory')"
           class="header-link"
@@ -15,7 +15,7 @@
         </el-link>
         <el-link
           v-if="!loading"
-          type="default"
+          type="primary"
           :underline="false"
           @click="handleForkButtonClick"
           class="header-link"
@@ -446,11 +446,10 @@ defineExpose({
     gap: 4px;
     font-size: 14px;
     cursor: pointer;
-    transition: all 0.2s;
-    color: var(--el-text-color-regular);
+    transition: opacity 0.2s;
     
     &:hover {
-      color: var(--el-text-color-primary);
+      opacity: 0.8;
     }
     
     .el-icon {
