@@ -99,9 +99,13 @@ export function useWorkspaceTabs() {
         stateNeedsSync
       })
       
-      // 始终更新路由（清除 query 参数并触发路由变化）
-      // 即使路径相同，也更新路由以确保 query 参数被清除
-      router.replace({ path: targetPath, query: {} }).then(() => {
+      // 🔥 强制触发路由更新：先添加临时参数，然后清除，确保路由变化被触发
+      // 这样可以确保即使路径相同，也能触发路由变化
+      const tempQuery = { _refresh: Date.now().toString() }
+      router.replace({ path: targetPath, query: tempQuery }).then(() => {
+        // 立即清除临时参数，触发路由变化
+        return router.replace({ path: targetPath, query: {} })
+      }).then(() => {
         // 如果路径相同且没有 query 参数，Vue Router 可能不会触发路由变化
         // 此时需要检查状态是否同步，如果不同步则手动激活 Tab
         if (pathMatches && !hasQueryParams && stateNeedsSync) {
