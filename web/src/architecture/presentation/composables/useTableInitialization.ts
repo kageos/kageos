@@ -178,8 +178,8 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
           // 🔥 安全检查：确保 tabs 存在且是数组
           const tabs = Array.isArray(workspaceState.tabs) ? workspaceState.tabs : []
           const activeTab = activeTabId ? tabs.find(t => t.id === activeTabId) : null
-        
-        if (activeTab && activeTab.data && activeTab.data.searchForm !== undefined) {
+          
+          if (activeTab && activeTab.data && activeTab.data.searchForm !== undefined) {
           // Tab 有保存的数据，恢复 Tab 的状态（包括搜索参数）
           console.log('[useTableInitialization] 从 Tab 保存的数据恢复状态', {
             tabId: activeTabId,
