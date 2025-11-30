@@ -806,18 +806,14 @@ onMounted(() => {
         pathChanged: route.path !== targetPath
       })
       
-      // 🔥 只在路径确实需要变化时才更新路由
-      if (route.path !== targetPath || route.query._tab) {
-        // 使用 push 确保浏览器地址栏更新
-        router.push({ path: targetPath, query: {} }).catch((err) => {
-          // 忽略导航重复错误
-          if (!err.message.includes('Avoided redundant navigation')) {
-            console.error('[WorkspaceView] tabActivated 路由更新失败', err)
-          }
-        })
-      } else {
-        console.log('[WorkspaceView] tabActivated 路由已是目标路径，跳过更新')
-      }
+      // 🔥 强制更新路由，确保浏览器地址栏更新
+      // 使用 push 而不是 replace，确保历史记录和地址栏正确更新
+      router.push({ path: targetPath, query: {} }).catch((err) => {
+        // 忽略导航重复错误
+        if (!err.message?.includes('Avoided redundant navigation')) {
+          console.error('[WorkspaceView] tabActivated 路由更新失败', err)
+        }
+      })
     } else {
       console.warn('[WorkspaceView] tabActivated 跳过路由更新', { 
         shouldUpdateRoute, 
