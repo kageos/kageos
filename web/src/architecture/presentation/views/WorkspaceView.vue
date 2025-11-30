@@ -561,39 +561,9 @@ watch(() => stateManager.getState().activeTabId, async (newId, oldId) => {
       // 让 FormView 自己处理初始化逻辑
     }
     
-    // 更新路由参数（如果需要）
     // 🔥 注意：路由更新主要通过事件监听器（WorkspaceEvent.tabActivated）处理
-    // 这里作为备用方案，确保路由更新
-    if (newTab && newTab.path) {
-      const path = newTab.path.startsWith('/') ? newTab.path : `/${newTab.path}`
-      const targetPath = `/workspace${path}`
-      // 🔥 检查当前路由是否已经是目标路由，避免重复导航
-      // 同时检查 query 参数，如果有 _tab 参数需要清除
-      const currentPath = route.path
-      const hasQueryTab = !!route.query._tab
-      const needsUpdate = currentPath !== targetPath || hasQueryTab
-      
-      console.log('[WorkspaceView] watch activeTabId 路由更新检查', {
-        newTabPath: newTab.path,
-        path,
-        targetPath,
-        currentPath,
-        hasQueryTab,
-        needsUpdate
-      })
-      
-      if (needsUpdate) {
-        console.log('[WorkspaceView] watch activeTabId 执行路由更新', { from: currentPath, to: targetPath })
-        // 使用 replace 避免产生大量历史记录，并清除 query 参数
-        router.replace({ path: targetPath, query: {} }).catch((err) => {
-          console.error('[WorkspaceView] watch activeTabId 路由更新失败', err)
-        })
-      } else {
-        console.log('[WorkspaceView] watch activeTabId 路由无需更新', { currentPath, targetPath })
-      }
-    } else {
-      console.warn('[WorkspaceView] watch activeTabId newTab 或 path 不存在', { newTab })
-    }
+    // watch 中不再更新路由，避免重复更新和时序问题
+    // 路由更新由 tabActivated 事件统一处理
   }
 })
 
@@ -824,30 +794,18 @@ onMounted(() => {
       // 🔥 更新路由到激活的 Tab
       const path = tab.path.startsWith('/') ? tab.path : `/${tab.path}`
       const targetPath = `/workspace${path}`
-      // 🔥 检查当前路由是否已经是目标路由，避免重复导航
-      // 同时检查 query 参数，如果有 _tab 参数需要清除
-      const currentPath = route.path
-      const hasQueryTab = !!route.query._tab
-      const needsUpdate = currentPath !== targetPath || hasQueryTab
       
-      console.log('[WorkspaceView] tabActivated 路由更新检查', {
-        tabPath: tab.path,
-        path,
-        targetPath,
-        currentPath,
-        hasQueryTab,
-        needsUpdate
+      // 🔥 直接更新路由，不依赖 route.path 的当前值（因为可能是异步的）
+      // 使用 replace 避免产生大量历史记录，并清除 query 参数
+      console.log('[WorkspaceView] tabActivated 执行路由更新', { 
+        from: route.path, 
+        to: targetPath,
+        hasQueryTab: !!route.query._tab
       })
       
-      if (needsUpdate) {
-        console.log('[WorkspaceView] tabActivated 执行路由更新', { from: currentPath, to: targetPath })
-        // 使用 replace 避免产生大量历史记录，并清除 query 参数
-        router.replace({ path: targetPath, query: {} }).catch((err) => {
-          console.error('[WorkspaceView] tabActivated 路由更新失败', err)
-        })
-      } else {
-        console.log('[WorkspaceView] tabActivated 路由无需更新', { currentPath, targetPath })
-      }
+      router.replace({ path: targetPath, query: {} }).catch((err) => {
+        console.error('[WorkspaceView] tabActivated 路由更新失败', err)
+      })
     } else {
       console.warn('[WorkspaceView] tabActivated 跳过路由更新', { 
         shouldUpdateRoute, 
