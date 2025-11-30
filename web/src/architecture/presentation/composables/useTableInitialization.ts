@@ -64,7 +64,9 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
    * 从 URL 恢复状态
    */
   const restoreFromURL = (): void => {
-    if (isRestoringFromURL.value) return
+    // 🔥 注意：在初始化时允许调用 restoreFromURL，因为需要从 URL 恢复状态
+    // 只有在 watch 中调用时才需要检查 isRestoringFromURL，避免循环调用
+    // if (isRestoringFromURL.value) return
 
     const query = route.query
 
@@ -129,15 +131,25 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     isInitializing.value = true
 
     try {
-      // 🔥 清空搜索表单（通过 StateManager）
-      const currentState = stateManager.getState()
-      stateManager.setState({
-        ...currentState,
-        searchForm: {}
-      })
-
-      // 从 URL 恢复状态
+      // 🔥 从 URL 恢复状态（优先从 URL 恢复，如果 URL 中没有参数，会恢复默认状态）
+      // 注意：不清空搜索表单，而是从 URL 恢复，这样可以保留 URL 中的搜索条件
       restoreFromURL()
+      
+      // 🔥 如果 URL 中没有 query 参数，清空搜索表单（Tab 切换时应该重置状态）
+      const hasQueryParams = Object.keys(route.query).length > 0
+      if (!hasQueryParams) {
+        const currentState = stateManager.getState()
+        stateManager.setState({
+          ...currentState,
+          searchForm: {},
+          sorts: [],
+          hasManualSort: false,
+          pagination: {
+            ...currentState.pagination,
+            currentPage: 1
+          }
+        })
+      }
 
       // 如果 URL 中没有排序且没有手动排序，使用默认排序
       const currentStateAfterRestore = stateManager.getState()
@@ -238,6 +250,7 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
       restoreFromURL()
       const hasQueryParams = Object.keys(route.query).length > 0
       if (!hasQueryParams) {
+        // URL 中没有 query 参数，同步默认状态到 URL
         isSyncingToURL.value = true
         await nextTick()
         syncToURL()
