@@ -16,7 +16,7 @@ import type { TableApplicationService } from '../../../application/services/Tabl
 import type { IStateManager } from '../../../domain/interfaces/IStateManager'
 import type { TableState } from '../../../domain/services/TableDomainService'
 import { Logger } from '@/core/utils/logger'
-import { extractWorkspacePath } from '@/utils/pathUtils'
+import { extractWorkspacePath } from '@/utils/route'
 
 export interface UseTableInitializationOptions {
   functionDetail: FunctionDetail | { value: FunctionDetail }
