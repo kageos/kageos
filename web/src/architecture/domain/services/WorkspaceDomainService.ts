@@ -326,6 +326,15 @@ export class WorkspaceDomainService {
   /**
    * 获取函数详情（从缓存）
    */
+  getFunctionDetail(node: ServiceTree): FunctionDetail | null {
+    const state = this.stateManager.getState()
+    const key = node.ref_id ? `id:${node.ref_id}` : `path:${node.full_code_path}`
+    return state.functionDetails.get(key) || null
+  }
+
+  /**
+   * 检查是否正在加载
+   */
   isLoading(): boolean {
     return this.stateManager.getState().loading
   }
