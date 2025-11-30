@@ -99,16 +99,40 @@ export function useWorkspaceTabs() {
         stateNeedsSync
       })
       
-      // 🔥 强制触发路由更新：先添加临时参数，然后清除，确保路由变化被触发
-      // 这样可以确保即使路径相同，也能触发路由变化
+      // 🔥 保留分页和排序参数，只清除搜索参数（与服务目录切换保持一致）
+      // 这样可以保留 page、page_size、sorts 等参数，只清除搜索条件
+      const currentQuery = router.currentRoute.value.query
+      const preservedQuery: Record<string, string> = {}
+      
+      // 保留分页参数
+      if (currentQuery.page) {
+        preservedQuery.page = String(currentQuery.page)
+      }
+      if (currentQuery.page_size) {
+        preservedQuery.page_size = String(currentQuery.page_size)
+      }
+      
+      // 保留排序参数
+      if (currentQuery.sorts) {
+        preservedQuery.sorts = String(currentQuery.sorts)
+      }
+      
+      // 保留以 _ 开头的参数（前端状态参数）
+      Object.keys(currentQuery).forEach(key => {
+        if (key.startsWith('_')) {
+          preservedQuery[key] = String(currentQuery[key])
+        }
+      })
+      
+      // 🔥 强制触发路由更新：先添加临时参数，然后更新为保留的参数，确保路由变化被触发
       const tempQuery = { _refresh: Date.now().toString() }
       router.replace({ path: targetPath, query: tempQuery }).then(() => {
-        // 立即清除临时参数，触发路由变化
-        return router.replace({ path: targetPath, query: {} })
+        // 更新为保留的参数，触发路由变化
+        return router.replace({ path: targetPath, query: preservedQuery })
       }).then(() => {
         // 如果路径相同且没有 query 参数，Vue Router 可能不会触发路由变化
         // 此时需要检查状态是否同步，如果不同步则手动激活 Tab
-        if (pathMatches && !hasQueryParams && stateNeedsSync) {
+        if (pathMatches && Object.keys(preservedQuery).length === 0 && stateNeedsSync) {
           console.log('[useWorkspaceTabs] handleTabClick: 路径相同且无 query 参数但状态不同步，手动激活 Tab', { 
             tabId, 
             currentActiveTabId 

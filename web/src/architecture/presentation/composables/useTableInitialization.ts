@@ -146,31 +146,54 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
           isSyncingToURL.value = false
         }
       } else {
-        // 🔥 URL 中没有 query 参数（Tab 切换时），重置状态为默认值
-        const currentState = stateManager.getState()
-        const defaultSorts = buildDefaultSorts()
-        stateManager.setState({
-          ...currentState,
-          searchForm: {},
-          sorts: defaultSorts.length > 0 ? defaultSorts : [],
-          hasManualSort: false,
-          pagination: {
-            ...currentState.pagination,
-            currentPage: 1
-          }
-        })
+        // 🔥 URL 中没有 query 参数（Tab 切换时），从 URL 恢复状态
+        // 注意：Tab 切换时，URL 中可能保留了分页和排序参数（page, page_size, sorts）
+        // 所以先尝试从 URL 恢复，如果没有则使用默认值
+        const hasPageParams = route.query.page || route.query.page_size
+        const hasSortParams = route.query.sorts
         
-        // 🔥 同步状态到 URL（确保 URL 参数和接口请求参数对齐）
-        // URL 中的参数 = 接口请求的参数（包括分页、排序、搜索等）
-        // 即使搜索条件为空，也要同步，确保 URL 和状态一致
-        // 注意：使用 nextTick 确保在路由更新之后执行，避免时序问题
-        if (!isSyncingToURL.value) {
-          isSyncingToURL.value = true
-          await nextTick()
-          // 🔥 确保路由更新：即使路径相同，也要更新 query 以触发路由变化
-          syncToURL() // 完整同步所有参数（分页、排序、搜索）
-          await nextTick() // 等待路由更新完成
-          isSyncingToURL.value = false
+        if (hasPageParams || hasSortParams) {
+          // URL 中有分页或排序参数，从 URL 恢复状态
+          restoreFromURL()
+          
+          // 清空搜索表单（Tab 切换时应该清空搜索条件）
+          const currentState = stateManager.getState()
+          stateManager.setState({
+            ...currentState,
+            searchForm: {}
+          })
+          
+          // 同步状态到 URL（确保 URL 参数和接口请求参数对齐）
+          if (!isSyncingToURL.value) {
+            isSyncingToURL.value = true
+            await nextTick()
+            syncToURL() // 完整同步所有参数（分页、排序、搜索）
+            await nextTick()
+            isSyncingToURL.value = false
+          }
+        } else {
+          // URL 中没有任何参数，重置状态为默认值
+          const currentState = stateManager.getState()
+          const defaultSorts = buildDefaultSorts()
+          stateManager.setState({
+            ...currentState,
+            searchForm: {},
+            sorts: defaultSorts.length > 0 ? defaultSorts : [],
+            hasManualSort: false,
+            pagination: {
+              ...currentState.pagination,
+              currentPage: 1
+            }
+          })
+          
+          // 同步状态到 URL（确保 URL 参数和接口请求参数对齐）
+          if (!isSyncingToURL.value) {
+            isSyncingToURL.value = true
+            await nextTick()
+            syncToURL() // 完整同步所有参数（分页、排序、搜索）
+            await nextTick()
+            isSyncingToURL.value = false
+          }
         }
       }
 
