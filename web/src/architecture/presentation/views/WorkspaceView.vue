@@ -795,6 +795,9 @@ onMounted(() => {
       const path = tab.path.startsWith('/') ? tab.path : `/${tab.path}`
       const targetPath = `/workspace${path}`
       
+      // 🔥 标记这是 tab 切换导致的路由更新，避免 loadAppFromRoute 重置路由
+      isTabSwitchRouteUpdate = true
+      
       // 🔥 直接更新路由，不依赖 route.path 的当前值（因为可能是异步的）
       // 使用 replace 避免产生大量历史记录，并清除 query 参数
       console.log('[WorkspaceView] tabActivated 执行路由更新', { 
@@ -803,8 +806,14 @@ onMounted(() => {
         hasQueryTab: !!route.query._tab
       })
       
-      router.replace({ path: targetPath, query: {} }).catch((err) => {
+      router.replace({ path: targetPath, query: {} }).then(() => {
+        // 路由更新完成后，延迟重置标志（给 loadAppFromRoute 的 watch 时间）
+        setTimeout(() => {
+          isTabSwitchRouteUpdate = false
+        }, 200)
+      }).catch((err) => {
         console.error('[WorkspaceView] tabActivated 路由更新失败', err)
+        isTabSwitchRouteUpdate = false
       })
     } else {
       console.warn('[WorkspaceView] tabActivated 跳过路由更新', { 
@@ -1677,10 +1686,20 @@ const findNodeByPath = (tree: ServiceTreeType[], path: string): ServiceTreeType 
 let isLoadingAppFromRoute = false
 let lastProcessedPath = ''
 
+// 🔥 标记是否是 tab 切换导致的路由更新（避免 loadAppFromRoute 重置路由）
+let isTabSwitchRouteUpdate = false
+
 // 从路由解析应用并加载
 const loadAppFromRoute = async () => {
   // 🔥 防止重复调用
   if (isLoadingAppFromRoute) {
+    return
+  }
+  
+  // 🔥 如果是 tab 切换导致的路由更新，不处理（避免重置路由）
+  if (isTabSwitchRouteUpdate) {
+    console.log('[WorkspaceView] loadAppFromRoute 跳过：这是 tab 切换导致的路由更新')
+    isTabSwitchRouteUpdate = false // 重置标志
     return
   }
   
