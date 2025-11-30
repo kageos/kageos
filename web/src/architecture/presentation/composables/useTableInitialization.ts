@@ -173,11 +173,16 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
           
           // 🔥 恢复 Tab 保存的状态（包括搜索参数、排序、分页）
           // 注意：完全替换状态，确保所有字段都被正确恢复
+          const finalSorts = activeTab.data.sorts || []
           stateManager.setState({
             searchForm: activeTab.data.searchForm || {},
             searchParams: activeTab.data.searchParams || {},
-            sorts: activeTab.data.sorts || [],
+            sorts: finalSorts,
             hasManualSort: activeTab.data.hasManualSort || false,
+            sortParams: finalSorts.length > 0 ? {
+              field: finalSorts[0].field,
+              order: finalSorts[0].order
+            } : null,
             pagination: activeTab.data.pagination || {
               currentPage: 1,
               pageSize: 20,
