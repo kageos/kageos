@@ -604,17 +604,27 @@ const syncToURL = (): void => {
     }
   })
   
-  // 保留以 _ 开头的参数（前端状态参数）
+  // 🔥 保留 URL 中的现有参数（除了 table 相关的参数）
+  // 这样可以保留 link 组件跳转时携带的参数（如 eq=topic_id:1, topic_id=4 等）
   const newQuery: Record<string, string> = {}
-  const searchParamKeys = ['eq', 'like', 'in', 'contains', 'gte', 'lte']
+  const tableParamKeys = ['page', 'page_size', 'sorts', 'eq', 'like', 'in', 'contains', 'gte', 'lte']
+  
+  // 先保留所有非 table 相关的参数（包括 link 跳转携带的参数）
   Object.keys(route.query).forEach(key => {
-    if (key.startsWith('_')) {
-      newQuery[key] = String(route.query[key])
-    } else if (!searchParamKeys.includes(key) && key !== 'sorts' && !requestFieldCodes.has(key)) {
-      newQuery[key] = String(route.query[key])
+    const value = route.query[key]
+    if (value !== null && value !== undefined) {
+      // 保留以 _ 开头的参数（前端状态参数）
+      if (key.startsWith('_')) {
+        newQuery[key] = String(value)
+      }
+      // 保留不在 tableParamKeys 中的参数（这些可能是 link 跳转携带的参数，如 topic_id=4）
+      else if (!tableParamKeys.includes(key) && !requestFieldCodes.has(key)) {
+        newQuery[key] = String(value)
+      }
     }
   })
   
+  // 然后合并新的 table 参数（会覆盖同名的参数）
   Object.assign(newQuery, query)
   
   // 🔥 确保路由更新：如果路径相同，使用 replace 更新 query；如果路径不同，使用 replace 更新 path 和 query
