@@ -36,7 +36,6 @@
           :tabs="tabs"
           :active-tab-id="activeTabId"
           @update:active-tab-id="(val: string) => activeTabId = val"
-          @tab-click="handleTabClick"
           @tab-edit="handleTabsEdit"
         />
         
@@ -459,8 +458,8 @@ const {
 })
 
 
-// 🔥 Tab 点击处理（使用 Composable）
-const handleTabClick = tabsHandleTabClick
+// 🔥 Tab 点击处理已移除（直接使用 v-model，避免双重触发）
+// const handleTabClick = tabsHandleTabClick
 
 
 // 🔥 queryTab：当前激活的Tab模式（用于路由查询参数，控制 create/edit 等模式）
