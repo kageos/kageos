@@ -32,7 +32,7 @@ export interface UseTableInitializationOptions {
   sorts: ComputedRef<SortItem[]>
   hasManualSort: ComputedRef<boolean>
   buildDefaultSorts: () => SortItem[]
-  syncToURL: (onlyPaginationAndSort?: boolean) => void
+  syncToURL: () => void
   loadTableData: () => Promise<void>
   isMounted?: Ref<boolean> // 组件挂载状态（可选，用于防止卸载后继续加载数据）
 }
@@ -160,12 +160,13 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
           }
         })
         
-        // 🔥 只同步分页和排序参数到 URL，不添加搜索参数
-        // 这样可以保持 URL 相对干净，同时保留必要的分页和排序信息
+        // 🔥 同步状态到 URL（确保 URL 参数和接口请求参数对齐）
+        // URL 中的参数 = 接口请求的参数（包括分页、排序、搜索等）
+        // 即使搜索条件为空，也要同步，确保 URL 和状态一致
         if (!isSyncingToURL.value) {
           isSyncingToURL.value = true
           await nextTick()
-          syncToURL(true) // 只同步分页和排序
+          syncToURL() // 完整同步所有参数（分页、排序、搜索）
           isSyncingToURL.value = false
         }
       }
