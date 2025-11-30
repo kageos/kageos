@@ -94,22 +94,19 @@
         <!-- Tab 内容区域（正常模式） -->
         <div v-else-if="tabs.length > 0" class="tabs-content-wrapper">
           <div class="tab-content">
-            <!-- 🔥 使用 keep-alive 缓存组件，避免切换 Tab 时重新请求 -->
-            <KeepAlive>
-              <FormView
-                v-if="currentFunctionDetail?.template_type === 'form'"
-                :key="`form-${activeTabId}`"
-                :function-detail="currentFunctionDetail"
-              />
-              <TableView
-                v-else-if="currentFunctionDetail?.template_type === 'table'"
-                :key="`table-${activeTabId}`"
-                :function-detail="currentFunctionDetail"
-              />
-              <div v-else class="empty-state">
-                <p>加载中...</p>
-              </div>
-            </KeepAlive>
+            <FormView
+              v-if="currentFunctionDetail?.template_type === 'form'"
+              :key="`form-${activeTabId}`"
+              :function-detail="currentFunctionDetail"
+            />
+            <TableView
+              v-else-if="currentFunctionDetail?.template_type === 'table'"
+              :key="`table-${activeTabId}`"
+              :function-detail="currentFunctionDetail"
+            />
+            <div v-else class="empty-state">
+              <p>加载中...</p>
+            </div>
           </div>
         </div>
         <div v-else class="empty-state">
@@ -563,12 +560,28 @@ const handleNodeClick = (node: ServiceTreeType) => {
   if (serviceTree.type === 'function' && serviceTree.full_code_path) {
     const targetPath = `/workspace${serviceTree.full_code_path}`
     if (route.path !== targetPath) {
-      // 路由不同，更新路由，路由变化会触发 syncRouteToTab → loadAppFromRoute → triggerNodeClick
-      router.replace({ path: targetPath, query: {} }).catch(() => {})
+      // 路由不同，更新路由，保留当前 URL 的 query 参数（分页、排序、搜索等）
+      // 🔥 服务目录切换时保留 URL 参数，这样切换回去时能恢复之前的状态
+      const currentQuery = route.query
+      const preservedQuery: Record<string, string | string[]> = {}
+      
+      // 保留所有参数（分页、排序、搜索等）
+      Object.keys(currentQuery).forEach(key => {
+        const value = currentQuery[key]
+        if (value !== null && value !== undefined) {
+          if (Array.isArray(value)) {
+            preservedQuery[key] = value.filter(v => v !== null).map(v => String(v))
+          } else {
+            preservedQuery[key] = String(value)
+          }
+        }
+      })
+      
+      router.replace({ path: targetPath, query: preservedQuery }).catch(() => {})
     } else {
       // 路由已匹配，直接触发节点点击加载详情（避免路由更新循环）
-  applicationService.triggerNodeClick(serviceTree)
-}
+      applicationService.triggerNodeClick(serviceTree)
+    }
   } else {
     // 目录节点，不更新路由，只设置当前函数
     applicationService.triggerNodeClick(serviceTree)
