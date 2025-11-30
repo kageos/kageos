@@ -131,18 +131,20 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     isInitializing.value = true
 
     try {
-      // 🔥 从 URL 恢复状态（优先从 URL 恢复，如果 URL 中没有参数，会恢复默认状态）
-      // 注意：不清空搜索表单，而是从 URL 恢复，这样可以保留 URL 中的搜索条件
-      restoreFromURL()
-      
-      // 🔥 如果 URL 中没有 query 参数，清空搜索表单（Tab 切换时应该重置状态）
+      // 🔥 检查 URL 中是否有 query 参数
       const hasQueryParams = Object.keys(route.query).length > 0
-      if (!hasQueryParams) {
+      
+      if (hasQueryParams) {
+        // URL 中有 query 参数，从 URL 恢复状态
+        restoreFromURL()
+      } else {
+        // 🔥 URL 中没有 query 参数（Tab 切换时），重置状态为默认值
         const currentState = stateManager.getState()
+        const defaultSorts = buildDefaultSorts()
         stateManager.setState({
           ...currentState,
           searchForm: {},
-          sorts: [],
+          sorts: defaultSorts.length > 0 ? defaultSorts : [],
           hasManualSort: false,
           pagination: {
             ...currentState.pagination,
@@ -151,20 +153,8 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
         })
       }
 
-      // 如果 URL 中没有排序且没有手动排序，使用默认排序
-      const currentStateAfterRestore = stateManager.getState()
-      if (currentStateAfterRestore.sorts.length === 0 && !currentStateAfterRestore.hasManualSort) {
-        const defaultSorts = buildDefaultSorts()
-        if (defaultSorts.length > 0) {
-          stateManager.setState({
-            ...currentStateAfterRestore,
-            sorts: defaultSorts,
-            hasManualSort: false
-          })
-        }
-      }
-
-      // 同步状态到 URL
+      // 同步状态到 URL（只有在 URL 中没有 query 参数时才同步，避免覆盖 URL 参数）
+      // 注意：即使状态被重置，也要同步到 URL，确保 URL 和状态一致
       if (!isSyncingToURL.value) {
         isSyncingToURL.value = true
         await nextTick()
