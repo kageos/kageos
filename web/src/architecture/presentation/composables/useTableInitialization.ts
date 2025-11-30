@@ -147,19 +147,41 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
           isSyncingToURL.value = false
         }
       } else {
-        // 🔥 URL 中没有 query 参数（Tab 切换时），优先检查 TableStateManager 是否已有恢复的状态
-        // 注意：setupTabDataWatch 会在 Tab 切换时恢复 TableStateManager 的状态
-        // 所以这里应该检查 TableStateManager 的状态，而不是从 WorkspaceStateManager 的 tabs 读取
-        const currentState = stateManager.getState()
-        const hasRestoredState = currentState.searchForm && Object.keys(currentState.searchForm).length > 0
+        // 🔥 URL 中没有 query 参数（Tab 切换时），从 Tab 的保存数据恢复状态
+        // 注意：每个函数的状态是独立的，不应该从 TableStateManager 读取，因为可能还保留着上一个函数的状态
+        const workspaceStateManager = serviceFactory.getWorkspaceStateManager()
+        const workspaceState = workspaceStateManager.getState()
+        const activeTabId = workspaceState.activeTabId
+        // 🔥 安全检查：确保 tabs 存在且是数组
+        const tabs = Array.isArray(workspaceState.tabs) ? workspaceState.tabs : []
+        const activeTab = activeTabId ? tabs.find(t => t.id === activeTabId) : null
         
-        if (hasRestoredState) {
-          // 🔥 TableStateManager 已有恢复的状态（从 Tab 保存的数据恢复的）
-          // 直接使用这个状态，并同步到 URL
-          Logger.debug('useTableInitialization', 'TableStateManager 已有恢复的状态，同步到 URL', {
-            searchForm: currentState.searchForm,
-            sorts: currentState.sorts,
-            pagination: currentState.pagination
+        if (activeTab && activeTab.data && activeTab.data.searchForm !== undefined) {
+          // Tab 有保存的数据，恢复 Tab 的状态（包括搜索参数）
+          // 🔥 注意：每个函数的状态是独立的，只恢复当前 Tab 的状态
+          Logger.debug('useTableInitialization', '从 Tab 保存的数据恢复状态', {
+            tabId: activeTabId,
+            hasSearchForm: !!activeTab.data.searchForm,
+            hasSorts: !!activeTab.data.sorts,
+            hasPagination: !!activeTab.data.pagination,
+            hasCachedData: !!(activeTab.data.data && activeTab.data.data.length > 0)
+          })
+          
+          const currentState = stateManager.getState()
+          
+          // 恢复 Tab 保存的状态（包括搜索参数、排序、分页）
+          stateManager.setState({
+            ...currentState,
+            searchForm: activeTab.data.searchForm || {},
+            sorts: activeTab.data.sorts || [],
+            hasManualSort: activeTab.data.hasManualSort || false,
+            pagination: activeTab.data.pagination || {
+              ...currentState.pagination,
+              currentPage: 1
+            },
+            // 🔥 如果有缓存的数据，也恢复数据，避免重新调用接口
+            data: activeTab.data.data || [],
+            loading: false
           })
           
           // 同步状态到 URL（确保 URL 参数和接口请求参数对齐）
@@ -171,83 +193,27 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
             isSyncingToURL.value = false
           }
         } else {
-          // TableStateManager 没有恢复的状态，检查是否有保存的 Tab 数据
-          const workspaceStateManager = serviceFactory.getWorkspaceStateManager()
-          const workspaceState = workspaceStateManager.getState()
-          const activeTabId = workspaceState.activeTabId
-          // 🔥 安全检查：确保 tabs 存在且是数组
-          const tabs = Array.isArray(workspaceState.tabs) ? workspaceState.tabs : []
-          const activeTab = activeTabId ? tabs.find(t => t.id === activeTabId) : null
+          // Tab 没有保存的数据，重置状态为默认值
+          const currentState = stateManager.getState()
+          const defaultSorts = buildDefaultSorts()
+          stateManager.setState({
+            ...currentState,
+            searchForm: {},
+            sorts: defaultSorts.length > 0 ? defaultSorts : [],
+            hasManualSort: false,
+            pagination: {
+              ...currentState.pagination,
+              currentPage: 1
+            }
+          })
           
-          if (activeTab && activeTab.data && activeTab.data.searchForm !== undefined) {
-            // Tab 有保存的数据，恢复 Tab 的状态（包括搜索参数）
-            console.log('[useTableInitialization] 从 Tab 保存的数据恢复状态', {
-              tabId: activeTabId,
-              hasSearchForm: !!activeTab.data.searchForm,
-              hasSorts: !!activeTab.data.sorts,
-              hasPagination: !!activeTab.data.pagination
-            })
-            
-            // 恢复 Tab 保存的状态
-            stateManager.setState({
-              ...currentState,
-              searchForm: activeTab.data.searchForm || {},
-              sorts: activeTab.data.sorts || [],
-              hasManualSort: activeTab.data.hasManualSort || false,
-              pagination: activeTab.data.pagination || {
-                ...currentState.pagination,
-                currentPage: 1
-              }
-            })
-            
-            // 同步状态到 URL（确保 URL 参数和接口请求参数对齐）
-            if (!isSyncingToURL.value) {
-              isSyncingToURL.value = true
-              await nextTick()
-              syncToURL() // 完整同步所有参数（分页、排序、搜索）
-              await nextTick()
-              isSyncingToURL.value = false
-            }
-          } else {
-            // Tab 没有保存的数据，从 URL 恢复状态（如果 URL 中有参数）
-            // 或者重置为默认值（如果 URL 中没有任何参数）
-            const hasAnyParams = Object.keys(route.query).length > 0
-            
-            if (hasAnyParams) {
-              // URL 中有参数，从 URL 恢复状态
-              restoreFromURL()
-              
-              // 同步状态到 URL（确保 URL 参数和接口请求参数对齐）
-              if (!isSyncingToURL.value) {
-                isSyncingToURL.value = true
-                await nextTick()
-                syncToURL()
-                await nextTick()
-                isSyncingToURL.value = false
-              }
-            } else {
-              // URL 中没有任何参数，重置状态为默认值
-              const defaultSorts = buildDefaultSorts()
-              stateManager.setState({
-                ...currentState,
-                searchForm: {},
-                sorts: defaultSorts.length > 0 ? defaultSorts : [],
-                hasManualSort: false,
-                pagination: {
-                  ...currentState.pagination,
-                  currentPage: 1
-                }
-              })
-              
-              // 同步状态到 URL（确保 URL 参数和接口请求参数对齐）
-              if (!isSyncingToURL.value) {
-                isSyncingToURL.value = true
-                await nextTick()
-                syncToURL()
-                await nextTick()
-                isSyncingToURL.value = false
-              }
-            }
+          // 同步状态到 URL（确保 URL 参数和接口请求参数对齐）
+          if (!isSyncingToURL.value) {
+            isSyncingToURL.value = true
+            await nextTick()
+            syncToURL()
+            await nextTick()
+            isSyncingToURL.value = false
           }
         }
       }
@@ -258,10 +224,23 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
         return
       }
 
-      // 加载数据
-      Logger.debug('useTableInitialization', '开始加载数据', { functionId, router })
-      await loadTableData()
-      Logger.debug('useTableInitialization', '数据加载完成', { functionId, router })
+      // 🔥 检查是否有缓存的数据，如果有就不重新调用接口
+      const currentState = stateManager.getState()
+      const hasCachedData = currentState.data && currentState.data.length > 0
+      
+      if (hasCachedData) {
+        // 有缓存的数据，直接使用，不重新调用接口
+        Logger.debug('useTableInitialization', '使用缓存的数据，不重新调用接口', {
+          functionId,
+          router,
+          dataCount: currentState.data.length
+        })
+      } else {
+        // 没有缓存的数据，需要加载数据
+        Logger.debug('useTableInitialization', '开始加载数据', { functionId, router })
+        await loadTableData()
+        Logger.debug('useTableInitialization', '数据加载完成', { functionId, router })
+      }
     } finally {
       isInitializing.value = false
       Logger.debug('useTableInitialization', 'initializeTable 完成', { functionId, router })
