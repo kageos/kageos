@@ -33,53 +33,7 @@ export function useWorkspaceTabs() {
     }
   })
 
-  // 🔥 保存当前 Tab 的状态到 localStorage（单独函数，可以在多处调用）
-  const saveCurrentTabState = () => {
-    const currentActiveTabId = activeTabId.value
-    if (!currentActiveTabId) return
-    
-    const currentTab = tabs.value.find(t => t.id === currentActiveTabId)
-    if (!currentTab || !currentTab.node) return
-    
-    const detail = stateManager.getFunctionDetail(currentTab.node)
-    if (!detail) return
-    
-    if (detail.template_type === 'form') {
-      const currentState = serviceFactoryInstance.getFormStateManager().getState()
-      currentTab.data = {
-        data: Array.from(currentState.data.entries()),
-        errors: Array.from(currentState.errors.entries()),
-        submitting: currentState.submitting
-      }
-    } else if (detail.template_type === 'table') {
-      const tableStateManager = serviceFactoryInstance.getTableStateManager()
-      const currentState = tableStateManager.getState()
-      
-      currentTab.data = {
-        searchForm: { ...currentState.searchForm },
-        searchParams: { ...currentState.searchParams },
-        sorts: [...currentState.sorts],
-        hasManualSort: currentState.hasManualSort,
-        pagination: { ...currentState.pagination },
-        data: [...currentState.data],
-        loading: false,
-        sortParams: currentState.sortParams
-      }
-      
-      console.log('[useWorkspaceTabs] 保存当前 Tab 状态', {
-        tabId: currentActiveTabId,
-        searchForm: currentTab.data.searchForm,
-        searchFormKeys: Object.keys(currentTab.data.searchForm || {}),
-        sorts: currentTab.data.sorts,
-        pagination: currentTab.data.pagination
-      })
-    }
-    
-    // 保存到 localStorage
-    saveTabsToLocalStorage()
-  }
-
-  // Tab 点击处理：保存当前状态，切换路由，恢复目标状态
+  // Tab 点击处理：直接切换路由，保存和恢复由 watch activeTabId 统一处理
   const handleTabClick = (tab: any) => {
     let tabId: string | undefined
     
@@ -114,31 +68,15 @@ export function useWorkspaceTabs() {
       return
     }
     
-    const currentActiveTabId = activeTabId.value
-    
     console.log('[useWorkspaceTabs] handleTabClick: 处理 Tab 点击', {
       tabId,
-      currentActiveTabId,
-      needSwitch: currentActiveTabId !== tabId
+      currentActiveTabId: activeTabId.value
     })
     
-    // 🔥 步骤1：保存当前 Tab 的状态
-    if (currentActiveTabId && currentActiveTabId !== tabId) {
-      saveCurrentTabState()
-    }
-    
-    // 🔥 步骤2：切换到目标 Tab（路由优先）
+    // 🔥 直接切换路由，保存和恢复由 watch activeTabId 统一处理
     const tabPath = targetTab.path.startsWith('/') ? targetTab.path : `/${targetTab.path}`
     const targetPath = `/workspace${tabPath}`
     
-    console.log('[useWorkspaceTabs] handleTabClick: 切换到目标 Tab', {
-      tabId,
-      targetPath,
-      hasSavedData: !!targetTab.data
-    })
-    
-    // 🔥 步骤3：更新路由（不带 query，状态通过 watch activeTabId 恢复）
-    // 清空 query 确保路由变化能触发 initializeTable
     router.replace({ path: targetPath, query: {} }).catch((err) => {
       console.error('[useWorkspaceTabs] handleTabClick: 路由更新失败', err)
     })
@@ -156,10 +94,46 @@ export function useWorkspaceTabs() {
     watch(() => stateManager.getState().activeTabId, (newId, oldId) => {
       console.log('[useWorkspaceTabs] watch activeTabId 触发', { oldId, newId })
       
-      // 🔥 注意：保存逻辑已移至 handleTabClick，这里只负责恢复
-      // 不在这里保存的原因：watch 触发时，TableStateManager 的状态可能已被新 Tab 覆盖
-
-      // 2. 恢复新 Tab 数据
+      // 🔥 步骤 1：同步保存旧 Tab 的状态（必须在恢复新 Tab 之前）
+      if (oldId) {
+        const oldTab = tabs.value.find(t => t.id === oldId)
+        if (oldTab && oldTab.node) {
+          const detail = stateManager.getFunctionDetail(oldTab.node)
+          if (detail?.template_type === 'table') {
+            // 从 TableStateManager 获取当前状态并保存
+            const tableStateManager = serviceFactoryInstance.getTableStateManager()
+            const currentState = tableStateManager.getState()
+            
+            oldTab.data = {
+              searchForm: { ...currentState.searchForm },
+              searchParams: { ...currentState.searchParams },
+              sorts: [...currentState.sorts],
+              hasManualSort: currentState.hasManualSort,
+              pagination: { ...currentState.pagination },
+              data: [...currentState.data],
+              loading: false,
+              sortParams: currentState.sortParams
+            }
+            
+            console.log('[useWorkspaceTabs] 保存旧 Tab 状态', {
+              tabId: oldId,
+              searchForm: oldTab.data.searchForm,
+              searchFormKeys: Object.keys(oldTab.data.searchForm || {}),
+              sorts: oldTab.data.sorts,
+              pagination: oldTab.data.pagination
+            })
+          } else if (detail?.template_type === 'form') {
+            const currentState = serviceFactoryInstance.getFormStateManager().getState()
+            oldTab.data = {
+              data: Array.from(currentState.data.entries()),
+              errors: Array.from(currentState.errors.entries()),
+              submitting: currentState.submitting
+            }
+          }
+        }
+      }
+      
+      // 🔥 步骤 2：立即恢复新 Tab 的状态（在 TableView.onMounted 之前）
       if (newId) {
         const newTab = tabs.value.find(t => t.id === newId)
         if (newTab) {
@@ -174,22 +148,10 @@ export function useWorkspaceTabs() {
                 errors: new Map(savedState.errors),
                 submitting: savedState.submitting
               })
+              console.log('[useWorkspaceTabs] 恢复 Form 状态', { tabId: newId })
             } else if (detail?.template_type === 'table') {
-              // 🔥 恢复 Table 数据：确保完全替换状态，避免残留上一个Tab的状态
+              // 🔥 立即恢复到 TableStateManager
               const savedState = newTab.data
-              console.log('[useWorkspaceTabs] 恢复 Tab 数据', {
-                tabId: newId,
-                savedState,
-                hasSearchForm: !!savedState.searchForm,
-                searchForm: savedState.searchForm,
-                hasSorts: !!savedState.sorts,
-                sorts: savedState.sorts,
-                hasPagination: !!savedState.pagination,
-                pagination: savedState.pagination,
-                hasData: !!(savedState.data && savedState.data.length > 0)
-              })
-              
-              // 🔥 确保所有字段都被正确恢复，包括 searchForm
               serviceFactoryInstance.getTableStateManager().setState({
                 searchForm: savedState.searchForm || {},
                 searchParams: savedState.searchParams || {},
@@ -201,23 +163,25 @@ export function useWorkspaceTabs() {
                   total: 0
                 },
                 data: savedState.data || [],
-                loading: false
+                loading: false,
+                sortParams: savedState.sortParams || null
               })
               
-              console.log('[useWorkspaceTabs] Tab 数据恢复完成', {
+              console.log('[useWorkspaceTabs] 恢复 Table 状态', {
                 tabId: newId,
-                restoredState: serviceFactoryInstance.getTableStateManager().getState(),
-                searchForm: serviceFactoryInstance.getTableStateManager().getState().searchForm
+                searchForm: savedState.searchForm,
+                searchFormKeys: Object.keys(savedState.searchForm || {}),
+                sorts: savedState.sorts,
+                pagination: savedState.pagination
               })
             }
           } else {
-            // 🔥 Tab 没有保存的数据，清空状态，确保不会残留上一个Tab的状态
+            // 🔥 新 Tab 没有保存的数据，重置为默认状态
             const newTabNode = newTab?.node
             if (newTabNode) {
               const detail = stateManager.getFunctionDetail(newTabNode)
               if (detail?.template_type === 'table') {
-                // 清空 Table 状态，避免残留上一个Tab的状态
-                const defaultState = {
+                serviceFactoryInstance.getTableStateManager().setState({
                   data: [],
                   loading: false,
                   searchParams: {},
@@ -230,8 +194,8 @@ export function useWorkspaceTabs() {
                     pageSize: 20,
                     total: 0
                   }
-                }
-                serviceFactoryInstance.getTableStateManager().setState(defaultState)
+                })
+                console.log('[useWorkspaceTabs] 新 Tab 没有保存数据，重置状态', { tabId: newId })
               }
             }
           }
