@@ -64,7 +64,8 @@ const handleTabsEdit = (targetName: string | undefined, action: 'remove' | 'add'
 .workspace-tabs-container {
   background: var(--el-bg-color);
   border-bottom: 1px solid var(--el-border-color-lighter);
-  padding: 0 16px;
+  padding: 0 20px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
 .workspace-tabs {
@@ -79,26 +80,120 @@ const handleTabsEdit = (targetName: string | undefined, action: 'remove' | 'add'
     }
   }
 
+  :deep(.el-tabs__nav) {
+    border: none;
+  }
+
   :deep(.el-tabs__item) {
-    height: 40px;
-    line-height: 40px;
-    padding: 0 16px;
+    height: 44px;
+    line-height: 44px;
+    padding: 0 20px;
+    margin-right: 8px;
     border: 1px solid var(--el-border-color-lighter);
     border-bottom: none;
-    border-radius: 4px 4px 0 0;
-    margin-right: 4px;
+    border-radius: 8px 8px 0 0;
     background: var(--el-fill-color-lighter);
-    transition: all 0.2s;
+    color: var(--el-text-color-regular);
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
 
+    // 添加微妙的阴影
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+
+    // 悬停效果
     &:hover {
       background: var(--el-fill-color-light);
+      color: var(--el-text-color-primary);
+      transform: translateY(-1px);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+      border-color: var(--el-border-color);
     }
 
+    // 激活状态
     &.is-active {
       background: var(--el-bg-color);
+      color: var(--el-color-primary);
       border-color: var(--el-border-color);
       border-bottom-color: var(--el-bg-color);
       z-index: 1;
+      box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.04);
+      transform: translateY(0);
+
+      // 激活状态下的底部指示线
+      &::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: var(--el-color-primary);
+        border-radius: 2px 2px 0 0;
+      }
+
+      // 激活状态下的背景渐变
+      &::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: linear-gradient(90deg, 
+          var(--el-color-primary-light-3) 0%, 
+          var(--el-color-primary) 50%, 
+          var(--el-color-primary-light-3) 100%);
+        opacity: 0.3;
+      }
+    }
+
+    // 关闭按钮样式优化
+    :deep(.el-icon-close) {
+      width: 16px;
+      height: 16px;
+      line-height: 16px;
+      border-radius: 50%;
+      transition: all 0.2s;
+      margin-left: 8px;
+      font-size: 12px;
+      
+      &:hover {
+        background-color: var(--el-color-danger-light-8);
+        color: var(--el-color-danger);
+        transform: scale(1.1);
+      }
+    }
+
+    // 非激活状态的关闭按钮颜色
+    &:not(.is-active) :deep(.el-icon-close) {
+      color: var(--el-text-color-placeholder);
+      
+      &:hover {
+        background-color: var(--el-fill-color-dark);
+        color: var(--el-text-color-primary);
+      }
+    }
+  }
+
+  // 添加按钮样式优化
+  :deep(.el-tabs__new-tab) {
+    height: 44px;
+    line-height: 44px;
+    padding: 0 12px;
+    margin-left: 8px;
+    border: 1px dashed var(--el-border-color-lighter);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--el-text-color-secondary);
+    transition: all 0.2s;
+
+    &:hover {
+      border-color: var(--el-color-primary);
+      color: var(--el-color-primary);
+      background: var(--el-color-primary-light-9);
     }
   }
 }
