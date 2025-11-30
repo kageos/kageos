@@ -465,6 +465,7 @@ defineExpose({
   flex: 1;
   overflow-y: auto;
   padding: 8px;
+  padding-bottom: 100px; /* ✅ 为左下角 AppSwitcher 留出空间，避免底部内容被遮挡 */
   display: flex;
   flex-direction: column;
 }
