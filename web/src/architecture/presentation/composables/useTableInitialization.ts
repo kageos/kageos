@@ -113,7 +113,21 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     isInitializing.value = true
 
     try {
-      // 🔥 步骤 1：从 TableStateManager 获取状态（已由 watch activeTabId 恢复）
+      // 🔥 步骤 1：先检查 URL 中是否有查询参数（可能是 link 跳转携带的）
+      // 如果有，先恢复状态，然后再同步（这样可以保留 link 跳转的参数）
+      const hasURLParams = Object.keys(route.query).length > 0
+      if (hasURLParams) {
+        // URL 中有参数，先恢复状态（这样可以保留 link 跳转的参数，如 eq=topic_id:1）
+        Logger.debug('useTableInitialization', 'URL 中有参数，先恢复状态', {
+          functionId,
+          router,
+          urlQuery: route.query
+        })
+        restoreFromURL()
+        await nextTick()
+      }
+      
+      // 🔥 步骤 2：从 TableStateManager 获取状态（已由 watch activeTabId 恢复或从 URL 恢复）
       const currentState = stateManager.getState()
       
       Logger.debug('useTableInitialization', '开始初始化', {
@@ -122,14 +136,15 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
         searchForm: currentState.searchForm,
         searchFormKeys: Object.keys(currentState.searchForm || {}),
         sorts: currentState.sorts,
-        pagination: currentState.pagination
+        pagination: currentState.pagination,
+        urlQuery: route.query
       })
       
-      // 🔥 步骤 2：同步状态到 URL
+      // 🔥 步骤 3：同步状态到 URL（会保留 link 跳转携带的非 table 参数）
       if (!isSyncingToURL.value) {
         isSyncingToURL.value = true
         await nextTick()
-        syncToURL() // 完整同步所有参数（分页、排序、搜索）
+        syncToURL() // 完整同步所有参数（分页、排序、搜索），但会保留 link 跳转的参数
         await nextTick()
         isSyncingToURL.value = false
       }
