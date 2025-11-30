@@ -180,35 +180,35 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
           const activeTab = activeTabId ? tabs.find(t => t.id === activeTabId) : null
           
           if (activeTab && activeTab.data && activeTab.data.searchForm !== undefined) {
-          // Tab 有保存的数据，恢复 Tab 的状态（包括搜索参数）
-          console.log('[useTableInitialization] 从 Tab 保存的数据恢复状态', {
-            tabId: activeTabId,
-            hasSearchForm: !!activeTab.data.searchForm,
-            hasSorts: !!activeTab.data.sorts,
-            hasPagination: !!activeTab.data.pagination
-          })
-          
-          // 恢复 Tab 保存的状态
-          stateManager.setState({
-            ...currentState,
-            searchForm: activeTab.data.searchForm || {},
-            sorts: activeTab.data.sorts || [],
-            hasManualSort: activeTab.data.hasManualSort || false,
-            pagination: activeTab.data.pagination || {
-              ...currentState.pagination,
-              currentPage: 1
+            // Tab 有保存的数据，恢复 Tab 的状态（包括搜索参数）
+            console.log('[useTableInitialization] 从 Tab 保存的数据恢复状态', {
+              tabId: activeTabId,
+              hasSearchForm: !!activeTab.data.searchForm,
+              hasSorts: !!activeTab.data.sorts,
+              hasPagination: !!activeTab.data.pagination
+            })
+            
+            // 恢复 Tab 保存的状态
+            stateManager.setState({
+              ...currentState,
+              searchForm: activeTab.data.searchForm || {},
+              sorts: activeTab.data.sorts || [],
+              hasManualSort: activeTab.data.hasManualSort || false,
+              pagination: activeTab.data.pagination || {
+                ...currentState.pagination,
+                currentPage: 1
+              }
+            })
+            
+            // 同步状态到 URL（确保 URL 参数和接口请求参数对齐）
+            if (!isSyncingToURL.value) {
+              isSyncingToURL.value = true
+              await nextTick()
+              syncToURL() // 完整同步所有参数（分页、排序、搜索）
+              await nextTick()
+              isSyncingToURL.value = false
             }
-          })
-          
-          // 同步状态到 URL（确保 URL 参数和接口请求参数对齐）
-          if (!isSyncingToURL.value) {
-            isSyncingToURL.value = true
-            await nextTick()
-            syncToURL() // 完整同步所有参数（分页、排序、搜索）
-            await nextTick()
-            isSyncingToURL.value = false
-          }
-        } else {
+          } else {
           // Tab 没有保存的数据，从 URL 恢复状态（如果 URL 中有参数）
           // 或者重置为默认值（如果 URL 中没有任何参数）
           const hasAnyParams = Object.keys(route.query).length > 0
