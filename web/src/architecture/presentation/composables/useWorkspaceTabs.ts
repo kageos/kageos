@@ -83,21 +83,37 @@ export function useWorkspaceTabs() {
       })
       
       // 🔥 路由优先策略：始终更新路由，路由变化会触发 syncRouteToTab → 激活 Tab
-      // 即使路径相同，也更新路由以清除 query 参数并触发路由变化
-      console.log('[useWorkspaceTabs] handleTabClick: 更新路由', {
+      const pathMatches = currentPath === targetPath
+      const currentActiveTabId = activeTabId.value
+      const stateNeedsSync = currentActiveTabId !== tabId
+      
+      console.log('[useWorkspaceTabs] handleTabClick: 处理 Tab 点击', {
         tabId,
         targetPath,
         currentPath,
-        pathMatches: currentPath === targetPath
+        pathMatches,
+        currentActiveTabId,
+        stateNeedsSync
       })
       
-      // 始终更新路由（即使路径相同，也会清除 query 参数并触发路由变化）
-      router.replace({ path: targetPath, query: {} }).catch((err) => {
+      // 始终更新路由（清除 query 参数并触发路由变化）
+      router.replace({ path: targetPath, query: {} }).then(() => {
+        // 如果路径相同且状态需要同步，Vue Router 可能不会触发路由变化
+        // 此时需要手动激活 Tab 以确保状态同步
+        if (pathMatches && stateNeedsSync) {
+          console.log('[useWorkspaceTabs] handleTabClick: 路径相同但状态不同步，手动激活 Tab', { 
+            tabId, 
+            currentActiveTabId 
+          })
+          // 手动激活 Tab 以确保状态同步
+          applicationService.activateTab(tabId)
+        }
+      }).catch((err) => {
         console.error('[useWorkspaceTabs] handleTabClick: 路由更新失败', err)
       })
       
       // 注意：路由更新会触发 watch route.path → syncRouteToTab → activateTab
-      // 所以这里不需要手动调用 activateTab
+      // 但如果路径相同，watch 可能不会触发，所以上面做了手动处理
     } else {
       console.warn('[useWorkspaceTabs] handleTabClick: 未找到对应的 tab', {
         tabId,
