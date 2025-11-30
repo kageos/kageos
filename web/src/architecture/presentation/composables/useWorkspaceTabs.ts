@@ -29,7 +29,28 @@ export function useWorkspaceTabs() {
   const activeTabId = computed({
     get: () => stateManager.getState().activeTabId || '',
     set: (val) => {
-      if (val) applicationService.activateTab(val)
+      if (!val) return
+      
+      // 🔥 如果是当前激活的 Tab，忽略（避免重复切换）
+      if (val === stateManager.getState().activeTabId) {
+        console.log('[useWorkspaceTabs] activeTabId setter: 已是当前 Tab，忽略', { tabId: val })
+        return
+      }
+      
+      console.log('[useWorkspaceTabs] activeTabId setter: 切换 Tab', {
+        from: stateManager.getState().activeTabId,
+        to: val
+      })
+      
+      // 🔥 先更新路由，路由变化会触发 syncRouteToTab → activateTab
+      const targetTab = tabs.value.find(t => t.id === val)
+      if (targetTab && targetTab.path) {
+        const tabPath = targetTab.path.startsWith('/') ? targetTab.path : `/${targetTab.path}`
+        const targetPath = `/workspace${tabPath}`
+        router.replace({ path: targetPath, query: {} }).catch((err) => {
+          console.error('[useWorkspaceTabs] activeTabId setter: 路由更新失败', err)
+        })
+      }
     }
   })
 
