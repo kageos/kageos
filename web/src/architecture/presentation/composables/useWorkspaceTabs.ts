@@ -33,23 +33,15 @@ export function useWorkspaceTabs() {
     }
   })
 
-  // Tab 点击处理：只更新路由，路由变化会触发 Tab 状态更新
-  const handleTabClick = async (tab: any) => {
-    // Element Plus 的 tab-click 事件传递的参数可能是：
-    // 1. TabsPaneContext 对象（可能是 Proxy），包含 name 属性
-    // 2. 或者直接是 tabId (字符串)
-    // 3. 或者是包含 paneName 属性的对象
-    
+  // Tab 点击处理：保存状态并更新路由
+  const handleTabClick = (tab: any) => {
     let tabId: string | undefined
     
     // 尝试多种方式提取 tabId
     if (typeof tab === 'string') {
       tabId = tab
     } else if (tab && typeof tab === 'object') {
-      // 尝试从对象中提取 name 或 paneName
       tabId = tab.name || tab.paneName || (tab as any)?.props?.name
-      
-      // 如果还是找不到，尝试直接访问 Proxy 对象的属性
       if (!tabId && 'name' in tab) {
         try {
           tabId = String(tab.name)
@@ -77,51 +69,31 @@ export function useWorkspaceTabs() {
       
       console.log('[useWorkspaceTabs] handleTabClick: 处理 Tab 点击', {
         tabId,
-        tabPath: targetTab.path,
         targetPath,
         currentPath,
         currentActiveTabId
       })
       
-      // 🔥 切换前先保存当前 Tab 的状态（从 URL 参数或 TableStateManager）
+      // 🔥 切换前先保存当前 Tab 的状态（同步执行，确保在任何状态被覆盖前保存）
       if (currentActiveTabId && currentActiveTabId !== tabId) {
         const currentTab = tabs.value.find(t => t.id === currentActiveTabId)
         if (currentTab && currentTab.node) {
           const detail = stateManager.getFunctionDetail(currentTab.node)
           if (detail?.template_type === 'table') {
-            // 🔥 从 URL 参数或 TableStateManager 获取完整状态并保存
-            const currentQuery = router.currentRoute.value.query
             const tableStateManager = serviceFactoryInstance.getTableStateManager()
             const currentState = tableStateManager.getState()
             
-            // 优先使用 URL 参数（因为 URL 参数是完整的），如果没有则使用 TableStateManager 的状态
-            let searchForm = currentState.searchForm || {}
-            let sorts = currentState.sorts || []
-            let pagination = currentState.pagination || { currentPage: 1, pageSize: 20, total: 0 }
-            
-            // 如果 URL 有参数，从 URL 恢复状态（更准确）
-            if (Object.keys(currentQuery).length > 0) {
-              const tableDomainService = serviceFactoryInstance.getTableDomainService()
-              const restored = tableDomainService.restoreFromURL(detail, currentQuery as Record<string, string | string[]>)
-              searchForm = restored.searchForm
-              sorts = restored.sorts
-              pagination = {
-                currentPage: restored.pagination.page,
-                pageSize: restored.pagination.pageSize,
-                total: currentState.pagination?.total || 0
-              }
+            // 🔥 保存当前 Tab 的完整状态
+            currentTab.data = {
+              searchForm: { ...currentState.searchForm },
+              searchParams: { ...currentState.searchParams },
+              sorts: [...currentState.sorts],
+              hasManualSort: currentState.hasManualSort,
+              pagination: { ...currentState.pagination },
+              data: [...currentState.data],
+              loading: false,
+              sortParams: currentState.sortParams
             }
-            
-            // 保存当前 Tab 的状态
-            currentTab.data = JSON.parse(JSON.stringify({
-              searchForm: searchForm,
-              searchParams: currentState.searchParams || {},
-              sorts: sorts,
-              hasManualSort: sorts.length > 0,
-              pagination: pagination,
-              data: currentState.data || [],
-              loading: false
-            }))
             
             console.log('[useWorkspaceTabs] handleTabClick: 保存当前 Tab 状态', {
               tabId: currentActiveTabId,
@@ -135,33 +107,24 @@ export function useWorkspaceTabs() {
       }
       
       // 🔥 路由优先策略：始终更新路由以清除 query 参数并触发路由变化
-      // 路由变化会触发 syncRouteToTab → activateTab
       const pathMatches = currentPath === targetPath
       const stateNeedsSync = currentActiveTabId !== tabId
       
       // 🔥 强制触发路由更新：先添加临时参数，然后清空，确保路由变化被触发
       const tempQuery = { _refresh: Date.now().toString() }
       router.replace({ path: targetPath, query: tempQuery }).then(() => {
-        // 清空 URL 参数，触发路由变化
-        // Tab 的状态会从 Tab 的保存数据中恢复（通过 setupTabDataWatch）
         return router.replace({ path: targetPath, query: {} })
       }).then(() => {
-        // 如果路径相同且没有 query 参数，Vue Router 可能不会触发路由变化
-        // 此时需要检查状态是否同步，如果不同步则手动激活 Tab
         if (pathMatches && stateNeedsSync) {
           console.log('[useWorkspaceTabs] handleTabClick: 路径相同但状态不同步，手动激活 Tab', {
             tabId,
             currentActiveTabId
           })
-          // 手动激活 Tab 以确保状态同步
           applicationService.activateTab(tabId)
         }
       }).catch((err) => {
         console.error('[useWorkspaceTabs] handleTabClick: 路由更新失败', err)
       })
-
-      // 注意：路由更新会触发 watch route.path → syncRouteToTab → activateTab
-      // 但如果路径相同且无 query 参数，watch 可能不会触发，所以上面做了手动处理
     } else {
       console.warn('[useWorkspaceTabs] handleTabClick: 未找到对应的 tab', {
         tabId,
