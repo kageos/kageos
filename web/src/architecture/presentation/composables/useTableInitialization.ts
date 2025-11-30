@@ -137,8 +137,17 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
       if (hasQueryParams) {
         // URL 中有 query 参数，从 URL 恢复状态
         restoreFromURL()
+        
+        // 同步状态到 URL（确保 URL 和状态一致）
+        if (!isSyncingToURL.value) {
+          isSyncingToURL.value = true
+          await nextTick()
+          syncToURL()
+          isSyncingToURL.value = false
+        }
       } else {
         // 🔥 URL 中没有 query 参数（Tab 切换时），重置状态为默认值
+        // 注意：不调用 syncToURL()，保持 URL 干净，避免添加不必要的 query 参数
         const currentState = stateManager.getState()
         const defaultSorts = buildDefaultSorts()
         stateManager.setState({
@@ -151,15 +160,8 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
             currentPage: 1
           }
         })
-      }
-
-      // 同步状态到 URL（只有在 URL 中没有 query 参数时才同步，避免覆盖 URL 参数）
-      // 注意：即使状态被重置，也要同步到 URL，确保 URL 和状态一致
-      if (!isSyncingToURL.value) {
-        isSyncingToURL.value = true
-        await nextTick()
-        syncToURL()
-        isSyncingToURL.value = false
+        // 🔥 不调用 syncToURL()，让 URL 保持干净
+        // 只有当用户操作（搜索、排序、分页）时，才会通过 syncToURL() 同步到 URL
       }
 
       // 🔥 再次检查组件是否还在挂载状态
