@@ -497,8 +497,12 @@ const handleLogout = async () => {
 
 // Tab 点击处理
 const handleTabClick = (tab: any) => {
+  console.log('[WorkspaceView] handleTabClick 开始', { tabName: tab.name, tab })
   if (tab.name) {
+    console.log('[WorkspaceView] handleTabClick 调用 activateTab', { tabId: tab.name })
     applicationService.activateTab(tab.name as string)
+  } else {
+    console.warn('[WorkspaceView] handleTabClick tab.name 为空', { tab })
   }
 }
 
@@ -511,6 +515,8 @@ const handleTabsEdit = (targetName: string | undefined, action: 'remove' | 'add'
 
 // 状态保存与恢复
 watch(() => stateManager.getState().activeTabId, async (newId, oldId) => {
+  console.log('[WorkspaceView] watch activeTabId 触发', { oldId, newId, currentRoute: route.path, currentQuery: route.query })
+  
   // 1. 保存旧 Tab 数据
   if (oldId) {
     const oldTab = tabs.value.find(t => t.id === oldId)
@@ -564,12 +570,29 @@ watch(() => stateManager.getState().activeTabId, async (newId, oldId) => {
       // 🔥 检查当前路由是否已经是目标路由，避免重复导航
       // 同时检查 query 参数，如果有 _tab 参数需要清除
       const currentPath = route.path
-      const needsUpdate = currentPath !== targetPath || route.query._tab
+      const hasQueryTab = !!route.query._tab
+      const needsUpdate = currentPath !== targetPath || hasQueryTab
+      
+      console.log('[WorkspaceView] watch activeTabId 路由更新检查', {
+        newTabPath: newTab.path,
+        path,
+        targetPath,
+        currentPath,
+        hasQueryTab,
+        needsUpdate
+      })
       
       if (needsUpdate) {
+        console.log('[WorkspaceView] watch activeTabId 执行路由更新', { from: currentPath, to: targetPath })
         // 使用 replace 避免产生大量历史记录，并清除 query 参数
-        router.replace({ path: targetPath, query: {} }).catch(() => {})
+        router.replace({ path: targetPath, query: {} }).catch((err) => {
+          console.error('[WorkspaceView] watch activeTabId 路由更新失败', err)
+        })
+      } else {
+        console.log('[WorkspaceView] watch activeTabId 路由无需更新', { currentPath, targetPath })
       }
+    } else {
+      console.warn('[WorkspaceView] watch activeTabId newTab 或 path 不存在', { newTab })
     }
   }
 })
@@ -789,6 +812,14 @@ onMounted(() => {
   })
 
   eventBus.on(WorkspaceEvent.tabActivated, ({ tab, shouldUpdateRoute }: { tab: any, shouldUpdateRoute?: boolean }) => {
+    console.log('[WorkspaceView] tabActivated 事件触发', { 
+      tab, 
+      shouldUpdateRoute, 
+      tabPath: tab?.path,
+      currentRoute: route.path,
+      currentQuery: route.query
+    })
+    
     if (shouldUpdateRoute && tab && tab.path) {
       // 🔥 更新路由到激活的 Tab
       const path = tab.path.startsWith('/') ? tab.path : `/${tab.path}`
@@ -796,12 +827,33 @@ onMounted(() => {
       // 🔥 检查当前路由是否已经是目标路由，避免重复导航
       // 同时检查 query 参数，如果有 _tab 参数需要清除
       const currentPath = route.path
-      const needsUpdate = currentPath !== targetPath || route.query._tab
+      const hasQueryTab = !!route.query._tab
+      const needsUpdate = currentPath !== targetPath || hasQueryTab
+      
+      console.log('[WorkspaceView] tabActivated 路由更新检查', {
+        tabPath: tab.path,
+        path,
+        targetPath,
+        currentPath,
+        hasQueryTab,
+        needsUpdate
+      })
       
       if (needsUpdate) {
+        console.log('[WorkspaceView] tabActivated 执行路由更新', { from: currentPath, to: targetPath })
         // 使用 replace 避免产生大量历史记录，并清除 query 参数
-        router.replace({ path: targetPath, query: {} }).catch(() => {})
+        router.replace({ path: targetPath, query: {} }).catch((err) => {
+          console.error('[WorkspaceView] tabActivated 路由更新失败', err)
+        })
+      } else {
+        console.log('[WorkspaceView] tabActivated 路由无需更新', { currentPath, targetPath })
       }
+    } else {
+      console.warn('[WorkspaceView] tabActivated 跳过路由更新', { 
+        shouldUpdateRoute, 
+        hasTab: !!tab, 
+        hasPath: !!tab?.path 
+      })
     }
   })
 

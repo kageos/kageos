@@ -155,9 +155,23 @@ export class WorkspaceDomainService {
    * 激活 Tab
    */
   activateTab(tabId: string): void {
+    console.log('[WorkspaceDomainService] activateTab 开始', { tabId })
     const state = this.stateManager.getState()
     const tab = state.tabs.find(t => t.id === tabId)
+    console.log('[WorkspaceDomainService] activateTab 查找 tab', { 
+      tabId, 
+      found: !!tab, 
+      tabPath: tab?.path,
+      tabsCount: state.tabs.length,
+      allTabIds: state.tabs.map(t => t.id)
+    })
+    
     if (tab) {
+      console.log('[WorkspaceDomainService] activateTab 更新状态并触发事件', { 
+        tabId, 
+        tabPath: tab.path,
+        tabTitle: tab.title
+      })
       this.stateManager.setState({
         ...state,
         activeTabId: tabId,
@@ -166,6 +180,9 @@ export class WorkspaceDomainService {
 
       // 🔥 触发路由更新事件（让 Presentation Layer 更新路由）
       this.eventBus.emit(WorkspaceEvent.tabActivated, { tab, shouldUpdateRoute: true })
+      console.log('[WorkspaceDomainService] activateTab 事件已触发', { tabId, tabPath: tab.path })
+    } else {
+      console.warn('[WorkspaceDomainService] activateTab tab 不存在', { tabId, availableTabs: state.tabs.map(t => ({ id: t.id, title: t.title })) })
     }
   }
 

@@ -70,6 +70,7 @@ export class WorkspaceApplicationService {
    * 激活标签页（供 Presentation Layer 调用）
    */
   activateTab(tabId: string): void {
+    console.log('[WorkspaceApplicationService] activateTab 调用', { tabId })
     this.domainService.activateTab(tabId)
   }
 
