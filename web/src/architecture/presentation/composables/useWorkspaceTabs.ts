@@ -134,14 +134,15 @@ export function useWorkspaceTabs() {
       }
       
       // 🔥 步骤 2：立即恢复新 Tab 的状态（在 TableView.onMounted 之前）
+      // 🔥 重要：必须先清空状态，再恢复，避免状态污染
       if (newId) {
         const newTab = tabs.value.find(t => t.id === newId)
-        if (newTab) {
-          // 2.1 恢复 Tab 数据（如果有保存的数据）
-          if (newTab.data && newTab.node) {
-            const detail = stateManager.getFunctionDetail(newTab.node)
-            if (detail?.template_type === 'form') {
-              // 恢复 Form 数据
+        if (newTab && newTab.node) {
+          const detail = stateManager.getFunctionDetail(newTab.node)
+          
+          if (detail?.template_type === 'form') {
+            // 恢复 Form 数据
+            if (newTab.data) {
               const savedState = newTab.data
               serviceFactoryInstance.getFormStateManager().setState({
                 data: new Map(savedState.data),
@@ -149,8 +150,19 @@ export function useWorkspaceTabs() {
                 submitting: savedState.submitting
               })
               console.log('[useWorkspaceTabs] 恢复 Form 状态', { tabId: newId })
-            } else if (detail?.template_type === 'table') {
-              // 🔥 立即恢复到 TableStateManager
+            } else {
+              // 新 Tab 没有保存的数据，重置为默认状态
+              serviceFactoryInstance.getFormStateManager().setState({
+                data: new Map(),
+                errors: new Map(),
+                submitting: false
+              })
+              console.log('[useWorkspaceTabs] 新 Form Tab，重置状态', { tabId: newId })
+            }
+          } else if (detail?.template_type === 'table') {
+            // 🔥 Table 类型：必须先清空状态，再恢复
+            if (newTab.data) {
+              // 有保存的数据，恢复到 TableStateManager
               const savedState = newTab.data
               serviceFactoryInstance.getTableStateManager().setState({
                 searchForm: savedState.searchForm || {},
@@ -174,29 +186,23 @@ export function useWorkspaceTabs() {
                 sorts: savedState.sorts,
                 pagination: savedState.pagination
               })
-            }
-          } else {
-            // 🔥 新 Tab 没有保存的数据，重置为默认状态
-            const newTabNode = newTab?.node
-            if (newTabNode) {
-              const detail = stateManager.getFunctionDetail(newTabNode)
-              if (detail?.template_type === 'table') {
-                serviceFactoryInstance.getTableStateManager().setState({
-                  data: [],
-                  loading: false,
-                  searchParams: {},
-                  searchForm: {},
-                  sortParams: null,
-                  sorts: [],
-                  hasManualSort: false,
-                  pagination: {
-                    currentPage: 1,
-                    pageSize: 20,
-                    total: 0
-                  }
-                })
-                console.log('[useWorkspaceTabs] 新 Tab 没有保存数据，重置状态', { tabId: newId })
-              }
+            } else {
+              // 🔥 新 Tab 没有保存的数据，必须重置为默认状态（避免状态污染）
+              serviceFactoryInstance.getTableStateManager().setState({
+                data: [],
+                loading: false,
+                searchParams: {},
+                searchForm: {},
+                sortParams: null,
+                sorts: [],
+                hasManualSort: false,
+                pagination: {
+                  currentPage: 1,
+                  pageSize: 20,
+                  total: 0
+                }
+              })
+              console.log('[useWorkspaceTabs] 新 Table Tab，重置状态', { tabId: newId })
             }
           }
           
