@@ -15,8 +15,8 @@ import type { TableDomainService, SortItem } from '../../../domain/services/Tabl
 import type { TableApplicationService } from '../../../application/services/TableApplicationService'
 import type { IStateManager } from '../../../domain/interfaces/IStateManager'
 import type { TableState } from '../../../domain/services/TableDomainService'
-import { Logger } from '../../../utils/logger'
-import { extractWorkspacePath } from '../../../utils/pathUtils'
+import { Logger } from '@/core/utils/logger'
+import { extractWorkspacePath } from '@/utils/pathUtils'
 
 export interface UseTableInitializationOptions {
   functionDetail: FunctionDetail | { value: FunctionDetail }
