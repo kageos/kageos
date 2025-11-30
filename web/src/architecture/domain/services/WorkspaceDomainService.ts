@@ -204,9 +204,10 @@ export class WorkspaceDomainService {
       currentFunction: tab.node || null
     })
 
-    // 🔥 触发路由更新事件（让 Presentation Layer 更新路由）
-    this.eventBus.emit(WorkspaceEvent.tabActivated, { tab, shouldUpdateRoute: true })
-    console.log('[WorkspaceDomainService] activateTab 事件已触发', { tabId, tabPath: tab.path })
+    // 🔥 注意：不再触发 tabActivated 事件来更新路由
+    // 路由应该由 handleTabClick 直接更新（路由优先策略）
+    // 这样可以与服务目录切换的逻辑保持一致
+    console.log('[WorkspaceDomainService] activateTab 状态已更新', { tabId, tabPath: tab.path })
   }
 
   /**

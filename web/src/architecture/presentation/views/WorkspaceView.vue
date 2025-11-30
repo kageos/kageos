@@ -531,44 +531,16 @@ const forkSourceGroupName = ref('')
 // ServiceTreePanel 引用（用于展开路径）
 const serviceTreePanelRef = ref<InstanceType<typeof ServiceTreePanel> | null>(null)
 
-// 监听 Tab 打开/激活事件（使用 Composable）
-let unsubscribeTabActivated: (() => void) | null = null
-
 onMounted(() => {
   // 🔥 监听表格详情事件（使用 Composable）
   eventBus.on('table:detail-row', async ({ row, index, tableData }: { row: Record<string, any>, index?: number, tableData?: any[] }) => {
     await openDetailDrawer(row, index, tableData)
   })
   
-  // 🔥 监听 Tab 激活事件，更新路由
-  unsubscribeTabActivated = eventBus.on(WorkspaceEvent.tabActivated, ({ tab, shouldUpdateRoute }: { tab: any, shouldUpdateRoute?: boolean }) => {
-    if (shouldUpdateRoute && tab && tab.path) {
-      const tabPath = tab.path.startsWith('/') ? tab.path : `/${tab.path}`
-      const targetPath = `/workspace${tabPath}`
-      const currentPath = router.currentRoute.value.path
-      
-      if (currentPath !== targetPath) {
-        console.log('[WorkspaceView] tabActivated 事件：更新路由', {
-          tabId: tab.id,
-          tabPath: tab.path,
-          targetPath,
-          currentPath,
-          shouldUpdateRoute
-        })
-        
-        router.replace({ path: targetPath, query: {} }).catch((err) => {
-          console.error('[WorkspaceView] tabActivated 事件：路由更新失败', err)
-        })
-      } else {
-        // 路由已匹配，不需要更新
-        console.log('[WorkspaceView] tabActivated 事件：路由已匹配，无需更新', {
-          tabId: tab.id,
-          tabPath: tab.path,
-          currentPath
-        })
-      }
-    }
-  })
+  // 🔥 注意：不再监听 tabActivated 事件来更新路由
+  // 路由应该由 handleTabClick 直接更新（路由优先策略）
+  // tabActivated 事件只用于状态同步，不用于路由更新
+  // 这样可以与服务目录切换的逻辑保持一致
   
   // 🔥 设置 URL 监听（使用 Composable）
   setupUrlWatch()
@@ -865,9 +837,6 @@ onUnmounted(() => {
   }
   if (unsubscribeAppSwitched) {
     unsubscribeAppSwitched()
-  }
-  if (unsubscribeTabActivated) {
-    unsubscribeTabActivated()
   }
 })
 </script>
