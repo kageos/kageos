@@ -34,7 +34,7 @@ export function useWorkspaceTabs() {
   })
 
   // Tab 点击处理：只更新路由，路由变化会触发 Tab 状态更新
-  const handleTabClick = (tab: any) => {
+  const handleTabClick = async (tab: any) => {
     // Element Plus 的 tab-click 事件传递的参数可能是：
     // 1. TabsPaneContext 对象（可能是 Proxy），包含 name 属性
     // 2. 或者直接是 tabId (字符串)
@@ -73,36 +73,71 @@ export function useWorkspaceTabs() {
       const tabPath = targetTab.path.startsWith('/') ? targetTab.path : `/${targetTab.path}`
       const targetPath = `/workspace${tabPath}`
       const currentPath = router.currentRoute.value.path
+      const currentActiveTabId = activeTabId.value
       
       console.log('[useWorkspaceTabs] handleTabClick: 处理 Tab 点击', {
         tabId,
         tabPath: targetTab.path,
         targetPath,
         currentPath,
-        pathMatches: currentPath === targetPath
+        currentActiveTabId
       })
+      
+      // 🔥 切换前先保存当前 Tab 的状态（从 URL 参数或 TableStateManager）
+      if (currentActiveTabId && currentActiveTabId !== tabId) {
+        const currentTab = tabs.value.find(t => t.id === currentActiveTabId)
+        if (currentTab && currentTab.node) {
+          const detail = stateManager.getFunctionDetail(currentTab.node)
+          if (detail?.template_type === 'table') {
+            // 🔥 从 URL 参数或 TableStateManager 获取完整状态并保存
+            const currentQuery = router.currentRoute.value.query
+            const tableStateManager = serviceFactoryInstance.getTableStateManager()
+            const currentState = tableStateManager.getState()
+            
+            // 优先使用 URL 参数（因为 URL 参数是完整的），如果没有则使用 TableStateManager 的状态
+            let searchForm = currentState.searchForm || {}
+            let sorts = currentState.sorts || []
+            let pagination = currentState.pagination || { currentPage: 1, pageSize: 20, total: 0 }
+            
+            // 如果 URL 有参数，从 URL 恢复状态（更准确）
+            if (Object.keys(currentQuery).length > 0) {
+              const tableDomainService = serviceFactoryInstance.getTableDomainService()
+              const restored = tableDomainService.restoreFromURL(detail, currentQuery as Record<string, string | string[]>)
+              searchForm = restored.searchForm
+              sorts = restored.sorts
+              pagination = {
+                currentPage: restored.pagination.page,
+                pageSize: restored.pagination.pageSize,
+                total: currentState.pagination?.total || 0
+              }
+            }
+            
+            // 保存当前 Tab 的状态
+            currentTab.data = JSON.parse(JSON.stringify({
+              searchForm: searchForm,
+              searchParams: currentState.searchParams || {},
+              sorts: sorts,
+              hasManualSort: sorts.length > 0,
+              pagination: pagination,
+              data: currentState.data || [],
+              loading: false
+            }))
+            
+            console.log('[useWorkspaceTabs] handleTabClick: 保存当前 Tab 状态', {
+              tabId: currentActiveTabId,
+              searchForm: currentTab.data.searchForm,
+              searchFormKeys: Object.keys(currentTab.data.searchForm || {}),
+              sorts: currentTab.data.sorts,
+              pagination: currentTab.data.pagination
+            })
+          }
+        }
+      }
       
       // 🔥 路由优先策略：始终更新路由以清除 query 参数并触发路由变化
       // 路由变化会触发 syncRouteToTab → activateTab
       const pathMatches = currentPath === targetPath
-      const hasQueryParams = Object.keys(router.currentRoute.value.query).length > 0
-      const currentActiveTabId = activeTabId.value
       const stateNeedsSync = currentActiveTabId !== tabId
-      
-      console.log('[useWorkspaceTabs] handleTabClick: 处理 Tab 点击', {
-        tabId,
-        targetPath,
-        currentPath,
-        pathMatches,
-        hasQueryParams,
-        currentActiveTabId,
-        stateNeedsSync
-      })
-      
-      // 🔥 Tab 切换时：清空 URL 参数，然后从 Tab 的保存数据恢复状态
-      // 这是 Tab 的核心功能：保持切换时的状态，切换回去时恢复切换前的参数
-      // 注意：不保留当前 URL 的参数，因为那些是当前 Tab 的参数，不是目标 Tab 的参数
-      // 目标 Tab 的状态应该从 Tab 的保存数据中恢复，而不是从当前 URL 中恢复
       
       // 🔥 强制触发路由更新：先添加临时参数，然后清空，确保路由变化被触发
       const tempQuery = { _refresh: Date.now().toString() }
@@ -114,9 +149,9 @@ export function useWorkspaceTabs() {
         // 如果路径相同且没有 query 参数，Vue Router 可能不会触发路由变化
         // 此时需要检查状态是否同步，如果不同步则手动激活 Tab
         if (pathMatches && stateNeedsSync) {
-          console.log('[useWorkspaceTabs] handleTabClick: 路径相同但状态不同步，手动激活 Tab', { 
-            tabId, 
-            currentActiveTabId 
+          console.log('[useWorkspaceTabs] handleTabClick: 路径相同但状态不同步，手动激活 Tab', {
+            tabId,
+            currentActiveTabId
           })
           // 手动激活 Tab 以确保状态同步
           applicationService.activateTab(tabId)
@@ -124,7 +159,7 @@ export function useWorkspaceTabs() {
       }).catch((err) => {
         console.error('[useWorkspaceTabs] handleTabClick: 路由更新失败', err)
       })
-      
+
       // 注意：路由更新会触发 watch route.path → syncRouteToTab → activateTab
       // 但如果路径相同且无 query 参数，watch 可能不会触发，所以上面做了手动处理
     } else {
