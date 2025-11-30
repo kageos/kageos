@@ -266,8 +266,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, watch, ref, nextTick } from 'vue'
-import { useRoute, useRouter, type LocationQueryValue } from 'vue-router'
-import { extractWorkspacePath } from '@/utils/route'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElNotification, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon } from 'element-plus'
 import { InfoFilled, ArrowLeft } from '@element-plus/icons-vue'
 import { eventBus, WorkspaceEvent } from '../../infrastructure/eventBus'
@@ -281,7 +280,6 @@ import TableView from './TableView.vue'
 import WorkspaceHeader from './components/WorkspaceHeader.vue'
 import WorkspaceTabs from './components/WorkspaceTabs.vue'
 import WorkspaceDetailDrawer from './components/WorkspaceDetailDrawer.vue'
-import { WidgetType } from '@/core/constants/widget'
 import type { ServiceTree, App } from '../../domain/services/WorkspaceDomainService'
 import type { FunctionDetail } from '../../domain/interfaces/IFunctionLoader'
 import type { App as AppType, ServiceTree as ServiceTreeType } from '@/types'
@@ -435,22 +433,6 @@ const {
   currentFunctionDetail: () => currentFunctionDetail.value,
   currentFunction: () => currentFunction.value
 })
-
-// 🔥 详情页的 Link 字段（用于顶部链接区域显示）
-const detailLinkFields = computed(() => {
-  return detailFields.value.filter((f: FieldConfig) => f.widget?.type === WidgetType.LINK)
-})
-
-// 获取详情字段值
-const getDetailFieldValue = (fieldCode: string): FieldValue => {
-  if (!detailRowData.value) return { raw: null, display: '', meta: {} }
-  const value = detailRowData.value[fieldCode]
-  return { 
-    raw: value, 
-    display: typeof value === 'object' ? JSON.stringify(value) : String(value ?? ''), 
-    meta: {} 
-  }
-}
 
 const {
   syncRouteToTab,
@@ -864,57 +846,10 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-.workspace-header {
-  height: 48px;
-  border-bottom: 1px solid var(--el-border-color);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 20px;
-  background-color: var(--el-bg-color);
-  flex-shrink: 0;
-}
-
-.header-left .logo {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.user-profile {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  gap: 8px;
-}
-
-.username {
-  font-size: 14px;
-  color: var(--el-text-color-primary);
-}
-
 .workspace-view {
   display: flex;
   flex: 1;
   overflow: hidden; /* 防止双滚动条 */
-}
-
-/* 标签页样式 */
-.workspace-tabs-container {
-  border-bottom: 1px solid var(--el-border-color-light);
-  background: var(--el-bg-color);
-  position: relative;
-  z-index: 1; /* 🔥 确保标签页在弹窗下方 */
-}
-
-.workspace-tabs {
-  margin: 0;
 }
 
 .tabs-content-wrapper {
@@ -945,192 +880,6 @@ onUnmounted(() => {
   flex-direction: column;
   overflow: hidden;
   min-height: 0;
-}
-
-.drawer-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;
-}
-
-.drawer-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-}
-
-.drawer-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.drawer-mode-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.drawer-navigation {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.drawer-navigation .nav-info {
-  font-size: 14px;
-  color: var(--el-text-color-secondary);
-  min-width: 60px;
-  text-align: center;
-  background: var(--el-fill-color-light);
-  padding: 6px 12px;
-  border-radius: 4px;
-  border: 1px solid var(--el-border-color-lighter);
-  font-weight: 500;
-}
-
-.drawer-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;
-  padding-right: 20px;
-}
-
-.drawer-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-}
-
-.drawer-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.drawer-mode-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.drawer-navigation {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.drawer-navigation .nav-info {
-  font-size: 14px;
-  color: var(--el-text-color-secondary);
-  min-width: 60px;
-  text-align: center;
-  background: var(--el-fill-color-light);
-  padding: 6px 12px;
-  border-radius: 4px;
-  border: 1px solid var(--el-border-color-lighter);
-  font-weight: 500;
-}
-
-.detail-drawer :deep(.el-drawer__header) {
-  margin-bottom: 0;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-}
-
-.detail-drawer :deep(.el-drawer__body) {
-  padding: 20px;
-  overflow: auto;
-}
-
-.detail-content {
-  height: 100%;
-}
-
-/* 详情字段网格布局 */
-.detail-fields-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 4px;
-}
-
-.detail-field-row {
-  display: grid;
-  grid-template-columns: 140px 1fr;
-  gap: 12px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--el-border-color-extra-light);
-  align-items: start;
-  min-height: auto;
-  transition: all 0.2s ease;
-  border-radius: 4px;
-  background: transparent;
-}
-
-.detail-field-row:hover {
-  background: var(--el-fill-color-light);
-  border-color: var(--el-border-color);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
-}
-
-.detail-field-label {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--el-text-color-secondary);
-  display: flex;
-  align-items: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.detail-field-value {
-  font-size: 14px;
-  color: var(--el-text-color-primary);
-  word-break: break-word;
-  line-height: 1.6;
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  min-height: 24px;
-  /* 🔥 确保子组件可以接收点击事件 */
-  pointer-events: auto;
-  position: relative;
-  z-index: 1;
-}
-
-/* 详情页链接区域 */
-.detail-links-section {
-  margin-bottom: 24px;
-  padding: 16px;
-  background: var(--el-fill-color-lighter);
-  border-radius: 8px;
-  border: 1px solid var(--el-border-color-lighter);
-}
-
-.links-section-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-  margin-bottom: 12px;
-}
-
-.links-section-content {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.detail-link-item {
-  flex-shrink: 0;
-}
-
-.drawer-footer {
-  display: flex;
-  justify-content: flex-end;
-  padding-top: 10px;
 }
 
 /* 新增/编辑页面样式 */
