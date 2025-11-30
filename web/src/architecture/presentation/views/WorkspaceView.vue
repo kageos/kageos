@@ -532,11 +532,35 @@ const forkSourceGroupName = ref('')
 const serviceTreePanelRef = ref<InstanceType<typeof ServiceTreePanel> | null>(null)
 
 // 监听 Tab 打开/激活事件（使用 Composable）
-onMounted(() => {
+let unsubscribeTabActivated: (() => void) | null = null
 
+onMounted(() => {
   // 🔥 监听表格详情事件（使用 Composable）
   eventBus.on('table:detail-row', async ({ row, index, tableData }: { row: Record<string, any>, index?: number, tableData?: any[] }) => {
     await openDetailDrawer(row, index, tableData)
+  })
+  
+  // 🔥 监听 Tab 激活事件，更新路由
+  unsubscribeTabActivated = eventBus.on(WorkspaceEvent.tabActivated, ({ tab, shouldUpdateRoute }: { tab: any, shouldUpdateRoute?: boolean }) => {
+    if (shouldUpdateRoute && tab && tab.path) {
+      const tabPath = tab.path.startsWith('/') ? tab.path : `/${tab.path}`
+      const targetPath = `/workspace${tabPath}`
+      const currentPath = router.currentRoute.value.path
+      
+      console.log('[WorkspaceView] tabActivated 事件：更新路由', {
+        tabId: tab.id,
+        tabPath: tab.path,
+        targetPath,
+        currentPath,
+        shouldUpdateRoute
+      })
+      
+      if (currentPath !== targetPath) {
+        router.replace({ path: targetPath, query: {} }).catch((err) => {
+          console.error('[WorkspaceView] tabActivated 事件：路由更新失败', err)
+        })
+      }
+    }
   })
   
   // 🔥 设置 URL 监听（使用 Composable）
@@ -834,6 +858,9 @@ onUnmounted(() => {
   }
   if (unsubscribeAppSwitched) {
     unsubscribeAppSwitched()
+  }
+  if (unsubscribeTabActivated) {
+    unsubscribeTabActivated()
   }
 })
 </script>

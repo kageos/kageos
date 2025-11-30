@@ -52,7 +52,9 @@ export enum WorkspaceEvent {
   appSwitched = 'workspace:app-switched',           // 应用切换
   serviceTreeLoaded = 'workspace:service-tree-loaded', // 服务树加载完成
   functionLoaded = 'workspace:function-loaded',     // 函数加载完成
-  tabSwitched = 'workspace:tab-switched'            // 标签切换
+  tabSwitched = 'workspace:tab-switched',           // 标签切换
+  tabOpened = 'workspace:tab-opened',               // 标签打开
+  tabActivated = 'workspace:tab-activated'         // 标签激活
 }
 
 export enum FormEvent {
