@@ -148,23 +148,50 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
         }
       } else {
         // 🔥 URL 中没有 query 参数（Tab 切换或服务目录切换时）
-        // setupTabDataWatch 已经恢复了状态到 TableStateManager，直接使用即可
+        // 优先从 Tab 的保存数据恢复状态（setupTabDataWatch 可能还没执行完）
+        const workspaceStateManager = serviceFactory.getWorkspaceStateManager()
+        const workspaceState = workspaceStateManager.getState()
+        const activeTabId = workspaceState.activeTabId
+        const tabs = Array.isArray(workspaceState.tabs) ? workspaceState.tabs : []
+        const activeTab = activeTabId ? tabs.find(t => t.id === activeTabId) : null
+        
         const currentState = stateManager.getState()
         
-        // 🔥 检查 TableStateManager 中是否有恢复的状态（setupTabDataWatch 恢复的）
-        // 如果有 searchForm 且有值，说明状态已经恢复，直接使用
-        const hasRestoredState = currentState.searchForm && Object.keys(currentState.searchForm).length > 0
-        
-        if (hasRestoredState) {
-          // 🔥 TableStateManager 已有恢复的状态（setupTabDataWatch 恢复的）
-          // 直接使用这个状态，并同步到 URL
-          Logger.debug('useTableInitialization', 'TableStateManager 已有恢复的状态，同步到 URL', {
-            functionId: functionDetailValue?.id,
-            router: functionDetailValue?.router,
-            searchForm: currentState.searchForm,
-            sorts: currentState.sorts,
-            pagination: currentState.pagination,
-            hasCachedData: !!(currentState.data && currentState.data.length > 0)
+        // 🔥 优先从 Tab 的保存数据恢复状态（确保状态正确）
+        if (activeTab && activeTab.data && activeTab.data.searchForm !== undefined) {
+          // 🔥 Tab 有保存的数据，恢复 Tab 的状态（包括搜索参数）
+          Logger.debug('useTableInitialization', '从 Tab 保存的数据恢复状态', {
+            tabId: activeTabId,
+            hasSearchForm: !!activeTab.data.searchForm,
+            searchForm: activeTab.data.searchForm,
+            hasSorts: !!activeTab.data.sorts,
+            sorts: activeTab.data.sorts,
+            hasPagination: !!activeTab.data.pagination,
+            pagination: activeTab.data.pagination,
+            hasCachedData: !!(activeTab.data.data && activeTab.data.data.length > 0)
+          })
+          
+          // 🔥 恢复 Tab 保存的状态（包括搜索参数、排序、分页）
+          // 注意：完全替换状态，确保所有字段都被正确恢复
+          stateManager.setState({
+            searchForm: activeTab.data.searchForm || {},
+            searchParams: activeTab.data.searchParams || {},
+            sorts: activeTab.data.sorts || [],
+            hasManualSort: activeTab.data.hasManualSort || false,
+            pagination: activeTab.data.pagination || {
+              currentPage: 1,
+              pageSize: 20,
+              total: 0
+            },
+            // 🔥 如果有缓存的数据，也恢复数据，避免重新调用接口
+            data: activeTab.data.data || [],
+            loading: false
+          })
+          
+          Logger.debug('useTableInitialization', 'Tab 状态恢复完成', {
+            tabId: activeTabId,
+            restoredState: stateManager.getState(),
+            searchForm: stateManager.getState().searchForm
           })
           
           // 同步状态到 URL（确保 URL 参数和接口请求参数对齐）
@@ -176,37 +203,20 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
             isSyncingToURL.value = false
           }
         } else {
-          // 🔥 TableStateManager 没有恢复的状态，可能是新 Tab 或状态未恢复
-          // 尝试从 Tab 的保存数据恢复状态
-          const workspaceStateManager = serviceFactory.getWorkspaceStateManager()
-          const workspaceState = workspaceStateManager.getState()
-          const activeTabId = workspaceState.activeTabId
-          const tabs = Array.isArray(workspaceState.tabs) ? workspaceState.tabs : []
-          const activeTab = activeTabId ? tabs.find(t => t.id === activeTabId) : null
+          // 🔥 Tab 没有保存的数据，检查 TableStateManager 中是否有恢复的状态
+          // 如果有 searchForm 且有值，说明状态已经恢复（setupTabDataWatch 恢复的）
+          const hasRestoredState = currentState.searchForm && Object.keys(currentState.searchForm).length > 0
           
-          if (activeTab && activeTab.data && activeTab.data.searchForm !== undefined) {
-            // 🔥 Tab 有保存的数据，恢复 Tab 的状态（包括搜索参数）
-            Logger.debug('useTableInitialization', '从 Tab 保存的数据恢复状态', {
-              tabId: activeTabId,
-              hasSearchForm: !!activeTab.data.searchForm,
-              hasSorts: !!activeTab.data.sorts,
-              hasPagination: !!activeTab.data.pagination,
-              hasCachedData: !!(activeTab.data.data && activeTab.data.data.length > 0)
-            })
-            
-            // 恢复 Tab 保存的状态（包括搜索参数、排序、分页）
-            stateManager.setState({
-              ...currentState,
-              searchForm: activeTab.data.searchForm || {},
-              sorts: activeTab.data.sorts || [],
-              hasManualSort: activeTab.data.hasManualSort || false,
-              pagination: activeTab.data.pagination || {
-                ...currentState.pagination,
-                currentPage: 1
-              },
-              // 🔥 如果有缓存的数据，也恢复数据，避免重新调用接口
-              data: activeTab.data.data || [],
-              loading: false
+          if (hasRestoredState) {
+            // 🔥 TableStateManager 已有恢复的状态（setupTabDataWatch 恢复的）
+            // 直接使用这个状态，并同步到 URL
+            Logger.debug('useTableInitialization', 'TableStateManager 已有恢复的状态，同步到 URL', {
+              functionId: functionDetailValue?.id,
+              router: functionDetailValue?.router,
+              searchForm: currentState.searchForm,
+              sorts: currentState.sorts,
+              pagination: currentState.pagination,
+              hasCachedData: !!(currentState.data && currentState.data.length > 0)
             })
             
             // 同步状态到 URL（确保 URL 参数和接口请求参数对齐）
@@ -218,7 +228,8 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
               isSyncingToURL.value = false
             }
           } else {
-            // 🔥 Tab 没有保存的数据，清空状态，避免残留上一个函数的状态
+            // 🔥 Tab 没有保存的数据，且 TableStateManager 也没有恢复的状态
+            // 清空状态，避免残留上一个函数的状态
             const defaultSorts = buildDefaultSorts()
             stateManager.setState({
               ...currentState,
