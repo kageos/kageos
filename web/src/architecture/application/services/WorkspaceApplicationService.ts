@@ -45,7 +45,7 @@ export class WorkspaceApplicationService {
 
   /**
    * 处理节点点击
-   * 如果 Tab 已存在，不重新加载函数详情（避免重复加载）
+   * 如果 Tab 已存在但函数详情未加载，也会加载函数详情（刷新时需要）
    */
   async handleNodeClick(node: ServiceTree): Promise<void> {
     if (node.type === 'function') {
@@ -53,8 +53,17 @@ export class WorkspaceApplicationService {
       
       // 使用 Domain Service 的方法检查 Tab 是否存在（遵循依赖倒置原则）
       if (this.domainService.hasTab(tabId)) {
-        // Tab 已存在，只激活，不重新加载函数详情（避免重复加载）
-        this.domainService.activateTab(tabId)
+        // Tab 已存在，检查函数详情是否已加载
+        const detail = this.domainService.getFunctionDetail(node)
+        if (detail) {
+          // 函数详情已加载，只激活 Tab
+          this.domainService.activateTab(tabId)
+        } else {
+          // Tab 已存在但函数详情未加载（刷新时的情况），加载函数详情
+          const loadedDetail = await this.domainService.loadFunction(node)
+          // 加载完成后激活 Tab（确保 currentFunction 和 functionDetails 已更新）
+          this.domainService.activateTab(tabId)
+        }
       } else {
         // Tab 不存在，加载函数详情并创建新 Tab
         const detail = await this.domainService.loadFunction(node)
