@@ -2300,4 +2300,45 @@ onUnmounted(() => {
   justify-content: flex-end;
   padding-top: 10px;
 }
+
+/* 新增/编辑页面样式 */
+.form-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.form-page-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.form-page-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.form-page-content {
+  flex: 1;
+  min-height: 0;
+}
+
+.form-page-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
 </style>
