@@ -187,7 +187,8 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     // 检查当前路由是否匹配当前函数的 router
     // 如果路由已经切换到其他函数，这个 watch 不应该处理
     const currentPath = extractWorkspacePath(route.path)
-    const expectedPath = router || ''
+    // 🔥 统一路径格式：移除前导斜杠，确保格式一致
+    const expectedPath = (router || '').replace(/^\/+/, '')
     const pathMatches = currentPath === expectedPath || currentPath.startsWith(expectedPath + '?')
     
     Logger.debug('useTableInitialization', 'URL query 变化', {
