@@ -32,7 +32,7 @@ export interface UseTableInitializationOptions {
   sorts: ComputedRef<SortItem[]>
   hasManualSort: ComputedRef<boolean>
   buildDefaultSorts: () => SortItem[]
-  syncToURL: () => void
+  syncToURL: (onlyPaginationAndSort?: boolean) => void
   loadTableData: () => Promise<void>
   isMounted?: Ref<boolean> // 组件挂载状态（可选，用于防止卸载后继续加载数据）
 }
