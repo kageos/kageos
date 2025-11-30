@@ -293,7 +293,7 @@
           <!-- 字段网格（排除 link 字段） -->
           <div class="detail-fields-grid">
             <div
-              v-for="field in detailFields.filter(f => f.widget?.type !== WidgetType.LINK)"
+              v-for="field in detailFields.filter((f: FieldConfig) => f.widget?.type !== WidgetType.LINK)"
               :key="field.code"
               class="detail-field-row"
             >
@@ -423,7 +423,6 @@ import { ElMessage, ElMessageBox, ElNotification, ElDialog, ElForm, ElFormItem, 
 import { InfoFilled, ArrowDown, Edit, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { eventBus, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
-import { apiClient } from '../../infrastructure/apiClient'
 import { useAuthStore } from '@/stores/auth'
 import ServiceTreePanel from '@/components/ServiceTreePanel.vue'
 import AppSwitcher from '@/components/AppSwitcher.vue'
@@ -435,13 +434,18 @@ import TableView from './TableView.vue'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
 import LinkWidget from '@/core/widgets-v2/components/LinkWidget.vue'
 import { WidgetType } from '@/core/constants/widget'
-import { convertToFieldValue } from '@/utils/field'
 import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
-import { createServiceTree } from '@/api/service-tree'
 import type { ServiceTree, App } from '../../domain/services/WorkspaceDomainService'
 import type { FunctionDetail } from '../../domain/interfaces/IFunctionLoader'
-import type { App as AppType, CreateAppRequest, ServiceTree as ServiceTreeType, CreateServiceTreeRequest } from '@/types'
+import type { App as AppType, ServiceTree as ServiceTreeType } from '@/types'
 import type { FieldConfig, FieldValue } from '../../domain/types'
+// 🔥 导入 Composable
+import { useWorkspaceTabs } from '../composables/useWorkspaceTabs'
+import { useWorkspaceRouting } from '../composables/useWorkspaceRouting'
+import { useWorkspaceDetail } from '../composables/useWorkspaceDetail'
+import { useWorkspaceApp } from '../composables/useWorkspaceApp'
+import { useWorkspaceServiceTree } from '../composables/useWorkspaceServiceTree'
+import { findNodeByPath } from '../utils/workspaceUtils'
 
 const route = useRoute()
 const router = useRouter()
@@ -449,25 +453,165 @@ const authStore = useAuthStore()
 
 // 依赖注入（使用 ServiceFactory 简化）
 const stateManager = serviceFactory.getWorkspaceStateManager()
-const domainService = serviceFactory.getWorkspaceDomainService()
 const applicationService = serviceFactory.getWorkspaceApplicationService()
-const tableApplicationService = serviceFactory.getTableApplicationService()
-const tableStateManager = serviceFactory.getTableStateManager()
 
 // 从状态管理器获取状态
 const serviceTree = computed(() => stateManager.getServiceTree())
 const currentFunction = computed(() => stateManager.getCurrentFunction())
 const currentAppFromState = computed(() => stateManager.getCurrentApp())
-const tabs = computed(() => {
-  const stateTabs = stateManager.getState().tabs
-  // 确保返回数组
-  return Array.isArray(stateTabs) ? stateTabs : []
-})
-const activeTabId = computed({
-  get: () => stateManager.getState().activeTabId || '',
-  set: (val) => {
-    if (val) applicationService.activateTab(val)
+
+// 🔥 初始化 Composable
+const {
+  tabs,
+  activeTabId,
+  handleTabClick: tabsHandleTabClick,
+  handleTabsEdit,
+  restoreTabsFromStorage,
+  restoreTabsNodes: tabsRestoreTabsNodes,
+  setupTabDataWatch,
+  setupAutoSave
+} = useWorkspaceTabs()
+
+const currentApp = computed<AppType | null>(() => {
+  const app = currentAppFromState.value
+  if (!app) return null
+  // 从 appList 中查找对应的应用（确保使用最新的应用数据）
+  const foundApp = appList.value.find((a: AppType) => a.id === app.id || (a.user === app.user && a.code === app.code))
+  return foundApp || {
+    id: app.id,
+    user: app.user,
+    code: app.code,
+    name: app.name,
+    nats_id: 0,
+    host_id: 0,
+    status: 'enabled' as const,
+    version: '',
+    created_at: '',
+    updated_at: ''
   }
+})
+
+const {
+  appList,
+  loadingApps,
+  createAppDialogVisible,
+  creatingApp,
+  createAppForm,
+  loadAppList,
+  handleSwitchApp: appHandleSwitchApp,
+  showCreateAppDialog,
+  resetCreateAppForm,
+  submitCreateApp: appSubmitCreateApp,
+  handleUpdateApp,
+  handleDeleteApp: appHandleDeleteApp
+} = useWorkspaceApp()
+
+const {
+  createDirectoryDialogVisible,
+  creatingDirectory,
+  currentParentNode,
+  createDirectoryForm,
+  handleCreateDirectory: serviceTreeHandleCreateDirectory,
+  resetCreateDirectoryForm,
+  handleSubmitCreateDirectory: serviceTreeHandleSubmitCreateDirectory,
+  expandCurrentRoutePath: serviceTreeExpandCurrentRoutePath,
+  checkAndExpandForkedPaths: serviceTreeCheckAndExpandForkedPaths,
+  handleCopyLink
+} = useWorkspaceServiceTree()
+
+const currentFunctionDetail = computed<FunctionDetail | null>(() => {
+  const tabsCount = tabs.value.length
+  const activeTabIdValue = activeTabId.value
+  
+  // 🔥 如果没有标签页，不返回 functionDetail，避免渲染旧的组件
+  if (tabsCount === 0) {
+    console.log('[WorkspaceView] currentFunctionDetail: 没有标签页，返回 null')
+    return null
+  }
+  
+  const node = currentFunction.value
+  if (!node) {
+    console.log('[WorkspaceView] currentFunctionDetail: 没有当前函数节点，返回 null')
+    return null
+  }
+  
+  // 🔥 检查当前函数是否属于当前激活的 tab
+  const activeTab = tabs.value.find((t: any) => t.id === activeTabIdValue)
+  if (activeTab && activeTab.node) {
+    const activeTabNode = activeTab.node
+    // 检查 node 是否匹配当前激活的 tab
+    const nodeId = node.full_code_path || String(node.id)
+    const activeTabNodeId = activeTab.node.full_code_path || String(activeTab.node.id)
+    if (nodeId !== activeTabNodeId) {
+      // 如果不匹配，返回 null，避免渲染错误的组件
+      console.log('[WorkspaceView] currentFunctionDetail: 节点不匹配当前激活的 tab', {
+        nodeId,
+        activeTabNodeId,
+        activeTabId: activeTabIdValue
+      })
+      return null
+    }
+  }
+  
+  const detail = stateManager.getFunctionDetail(node)
+  console.log('[WorkspaceView] currentFunctionDetail: 返回详情', {
+    functionId: detail?.id,
+    router: detail?.router,
+    templateType: detail?.template_type,
+    activeTabId: activeTabIdValue,
+    tabsCount
+  })
+  
+  return detail
+})
+
+const {
+  detailDrawerVisible,
+  detailDrawerTitle,
+  detailRowData,
+  detailFields,
+  detailOriginalRow,
+  detailDrawerMode,
+  drawerSubmitting,
+  detailFormRendererRef,
+  detailUserInfoMap,
+  detailTableData,
+  currentDetailIndex,
+  editFunctionDetail,
+  toggleDrawerMode,
+  handleNavigateDetail,
+  submitDrawerEdit,
+  getDetailFieldValue,
+  handleDetailDrawerClose,
+  openDetailDrawer,
+  setupUrlWatch
+} = useWorkspaceDetail({
+  currentFunctionDetail: () => currentFunctionDetail.value,
+  currentFunction: () => currentFunction.value
+})
+
+const {
+  syncRouteToTab,
+  loadAppFromRoute: routingLoadAppFromRoute,
+  setupRouteWatch
+} = useWorkspaceRouting({
+  tabs: () => tabs.value,
+  activeTabId: () => activeTabId.value,
+  serviceTree: () => serviceTree.value,
+  currentApp: () => currentApp.value,
+  appList: () => appList.value,
+  loadAppList,
+  findNodeByPath,
+  checkAndExpandForkedPaths: () => serviceTreeCheckAndExpandForkedPaths(
+    () => serviceTree.value,
+    () => serviceTreePanelRef.value,
+    () => currentApp.value
+  ),
+  expandCurrentRoutePath: () => serviceTreeExpandCurrentRoutePath(
+    () => serviceTree.value,
+    () => serviceTreePanelRef.value,
+    () => currentApp.value
+  )
 })
 
 // 用户相关
@@ -499,197 +643,16 @@ const handleLogout = async () => {
   }
 }
 
-// Tab 点击处理：只更新路由，路由变化会触发 Tab 状态更新
-const handleTabClick = (tab: any) => {
-  if (tab.name) {
-    const targetTab = tabs.value.find(t => t.id === tab.name)
-    if (targetTab && targetTab.path) {
-      const tabPath = targetTab.path.startsWith('/') ? targetTab.path : `/${targetTab.path}`
-      const targetPath = `/workspace${tabPath}`
-      
-      // 只更新路由，不调用 activateTab
-      // 路由变化会触发 watch route.path → syncRouteToTab → 激活 Tab
-      if (route.path !== targetPath) {
-        router.replace({ path: targetPath, query: {} }).catch(() => {})
-      }
-    }
-  }
-}
+// 🔥 Tab 点击处理（使用 Composable）
+const handleTabClick = tabsHandleTabClick
 
-// Tab 编辑处理（添加/删除）
-const handleTabsEdit = (targetName: string | undefined, action: 'remove' | 'add') => {
-  if (action === 'remove' && targetName) {
-    applicationService.closeTab(targetName)
-  }
-}
-
-// 状态保存与恢复
-watch(() => stateManager.getState().activeTabId, async (newId, oldId) => {
-  console.log('[WorkspaceView] watch activeTabId 触发', { oldId, newId, currentRoute: route.path, currentQuery: route.query })
-  
-  // 1. 保存旧 Tab 数据
-  if (oldId) {
-    const oldTab = tabs.value.find(t => t.id === oldId)
-    if (oldTab && oldTab.node) {
-       const detail = stateManager.getFunctionDetail(oldTab.node)
-       if (detail?.template_type === 'form') {
-         // 深度克隆，避免引用问题
-         const currentState = serviceFactory.getFormStateManager().getState()
-         oldTab.data = JSON.parse(JSON.stringify({
-           data: Array.from(currentState.data.entries()), // Map 转 Array 以便序列化
-           errors: Array.from(currentState.errors.entries()),
-           submitting: currentState.submitting
-         }))
-       } else if (detail?.template_type === 'table') {
-         const currentState = serviceFactory.getTableStateManager().getState()
-         oldTab.data = JSON.parse(JSON.stringify(currentState))
-       }
-    }
-  }
-
-  // 2. 恢复新 Tab 数据
-  if (newId) {
-    const newTab = tabs.value.find(t => t.id === newId)
-    if (newTab) {
-      // 2.1 恢复 Tab 数据（如果有保存的数据）
-      if (newTab.data && newTab.node) {
-        const detail = stateManager.getFunctionDetail(newTab.node)
-        if (detail?.template_type === 'form') {
-          // 恢复 Form 数据
-          const savedState = newTab.data
-          serviceFactory.getFormStateManager().setState({
-            data: new Map(savedState.data),
-            errors: new Map(savedState.errors),
-            submitting: savedState.submitting
-          })
-        } else if (detail?.template_type === 'table') {
-          // 恢复 Table 数据
-          serviceFactory.getTableStateManager().setState(newTab.data)
-        }
-      }
-      
-      // 2.2 检查函数详情是否已加载（刷新后切换 Tab 时可能需要加载）
-      if (newTab.node && newTab.node.type === 'function') {
-        const detail = stateManager.getFunctionDetail(newTab.node)
-        if (!detail) {
-          console.log('[WorkspaceView] watch activeTabId: Tab 切换但函数详情未加载，加载详情', {
-            tabId: newId,
-            path: newTab.path,
-            nodeId: newTab.node.id,
-            nodePath: newTab.node.full_code_path
-          })
-          // 使用 handleNodeClick 加载函数详情
-          applicationService.handleNodeClick(newTab.node)
-        }
-      }
-    } else {
-      // 🔥 如果没有保存的数据，不要清空 FormState
-      // 因为 FormView 会在 onMounted 时根据 URL 参数初始化表单
-      // 如果这里清空了，会导致 URL 参数被覆盖
-      // 让 FormView 自己处理初始化逻辑
-    }
-    
-    // 🔥 watch activeTabId 只处理数据保存和恢复，不处理路由
-    // 路由更新由 handleTabClick 和 watch route.path 处理
-  }
-})
-
-// 将 App 类型转换为 AppType 类型（用于 AppSwitcher）
-const currentApp = computed<AppType | null>(() => {
-  const app = currentAppFromState.value
-  if (!app) return null
-  // 从 appList 中查找对应的应用（确保使用最新的应用数据）
-  const foundApp = appList.value.find((a: AppType) => a.id === app.id || (a.user === app.user && a.code === app.code))
-  return foundApp || {
-    id: app.id,
-    user: app.user,
-    code: app.code,
-    name: app.name,
-    nats_id: 0,
-    host_id: 0,
-    status: 'enabled' as const,
-    version: '',
-    created_at: '',
-    updated_at: ''
-  }
-})
-
-const currentFunctionDetail = computed<FunctionDetail | null>(() => {
-  const tabsCount = tabs.value.length
-  const activeTabIdValue = activeTabId.value
-  
-  // 🔥 如果没有标签页，不返回 functionDetail，避免渲染旧的组件
-  if (tabsCount === 0) {
-    console.log('[WorkspaceView] currentFunctionDetail: 没有标签页，返回 null')
-    return null
-  }
-  
-  const node = currentFunction.value
-  if (!node) {
-    console.log('[WorkspaceView] currentFunctionDetail: 没有当前函数节点，返回 null')
-    return null
-  }
-  
-  // 🔥 检查当前函数是否属于当前激活的 tab
-  const activeTab = tabs.value.find(t => t.id === activeTabIdValue)
-  if (activeTab && activeTab.node) {
-    const activeTabNode = activeTab.node
-    // 检查 node 是否匹配当前激活的 tab
-    const nodeId = node.full_code_path || String(node.id)
-    const activeTabNodeId = activeTab.node.full_code_path || String(activeTab.node.id)
-    if (nodeId !== activeTabNodeId) {
-      // 如果不匹配，返回 null，避免渲染错误的组件
-      console.log('[WorkspaceView] currentFunctionDetail: 节点不匹配当前激活的 tab', {
-        nodeId,
-        activeTabNodeId,
-        activeTabId: activeTabIdValue
-      })
-      return null
-    }
-  }
-  
-  const detail = stateManager.getFunctionDetail(node)
-  console.log('[WorkspaceView] currentFunctionDetail: 返回详情', {
-    functionId: detail?.id,
-    router: detail?.router,
-    templateType: detail?.template_type,
-    activeTabId: activeTabIdValue,
-    tabsCount
-  })
-  
-  return detail
-})
-
-// ...
-
-const detailDrawerVisible = ref(false)
-const detailDrawerTitle = ref('详情')
-const detailRowData = ref<Record<string, any> | null>(null)
-const detailFields = ref<FieldConfig[]>([])
-const detailOriginalRow = ref<Record<string, any> | null>(null)
-const detailDrawerMode = ref<'read' | 'edit'>('read')
-const drawerSubmitting = ref(false)
-const detailFormRendererRef = ref<InstanceType<typeof FormRenderer> | null>(null)
-// 🔥 详情抽屉的用户信息映射（用于 UserWidget 批量查询优化）
-const detailUserInfoMap = ref<Map<string, any>>(new Map())
-// 🔥 详情抽屉的表格数据和索引（用于上一条下一条导航）
-const detailTableData = ref<any[]>([])
-const currentDetailIndex = ref<number>(-1)
 
 // 🔥 queryTab：当前激活的Tab模式（用于路由查询参数，控制 create/edit 等模式）
-// 🔥 使用 _tab 作为系统参数，避免与后端参数冲突
 const queryTab = computed(() => (route.query._tab as string) || 'run')
 
 // 🔥 编辑模式相关
 const editRowId = computed(() => {
   const id = route.query.id || route.query._id
-  return id ? Number(id) : null
-})
-
-// 🔥 详情模式相关
-const detailRowId = computed(() => {
-  // 🔥 使用 _id 作为系统参数，避免与后端参数冲突
-  const id = route.query._id
   return id ? Number(id) : null
 })
 
@@ -729,7 +692,9 @@ const editInitialData = computed(() => {
             initialData[fieldCode] = floatValue
           }
         } else if (field.data?.type === 'bool' || field.data?.type === 'boolean') {
-          initialData[fieldCode] = value === 'true' || value === '1' || value === 1 || value === true
+          const strValue = String(value)
+          const numValue = typeof value === 'number' ? value : Number(strValue)
+          initialData[fieldCode] = strValue === 'true' || strValue === '1' || numValue === 1 || value === true
         } else {
           initialData[fieldCode] = value
         }
@@ -747,19 +712,6 @@ const detailLinkFields = computed(() => {
   return detailFields.value.filter((field: FieldConfig) => field.widget?.type === WidgetType.LINK)
 })
 
-// 创建目录相关
-const createDirectoryDialogVisible = ref(false)
-const creatingDirectory = ref(false)
-const currentParentNode = ref<ServiceTreeType | null>(null)
-const createDirectoryForm = ref<CreateServiceTreeRequest>({
-  user: '',
-  app: '',
-  name: '',
-  code: '',
-  parent_id: 0,
-  description: '',
-  tags: ''
-})
 
 // Fork 函数组相关
 const forkDialogVisible = ref(false)
@@ -769,435 +721,22 @@ const forkSourceGroupName = ref('')
 // ServiceTreePanel 引用（用于展开路径）
 const serviceTreePanelRef = ref<InstanceType<typeof ServiceTreePanel> | null>(null)
 
-// 🔥 编辑模式的函数详情（从 response 字段中筛选可编辑的字段）
-const editFunctionDetail = computed<FunctionDetail | null>(() => {
-  const current = currentFunctionDetail.value
-  if (!current) return null
-  
-  // 如果是 table 类型，从 response 字段中筛选可编辑的字段
-  if (current.template_type === 'table') {
-    const fields = (current.response || []) as FieldConfig[]
-    const editableFields = fields.filter(field => {
-      const permission = field.table_permission
-      return !permission || permission === '' || permission === 'update'
-    })
-    return {
-      ...current,
-      template_type: 'form',
-      request: editableFields,
-      response: []
-    }
-  }
-  
-  // 如果是 form 类型，直接使用 request 字段
-  if (current.template_type === 'form') {
-    return current
-  }
-  
-  return null
-})
-
-// 监听 Tab 打开/激活事件，更新路由
+// 监听 Tab 打开/激活事件（使用 Composable）
 onMounted(() => {
-  // 🔥 移除所有事件监听器中的路由更新逻辑
-  // 路由更新统一由 handleTabClick 和 watch route.path 处理，避免时序问题和逻辑分散
-  eventBus.on(WorkspaceEvent.tabOpened, ({ tab }: { tab: any }) => {
-    // 只用于日志记录，不更新路由
-  })
 
-  eventBus.on(WorkspaceEvent.tabActivated, ({ tab }: { tab: any }) => {
-    // 只用于日志记录，不更新路由
-    // 注意：路由更新由 handleTabClick 和 watch route.path 处理
-  })
-
-  eventBus.on(WorkspaceEvent.nodeClicked, ({ node }: { node: any }) => {
-    // 只用于日志记录，不更新路由
-    // 注意：路由更新由 handleNodeClick 中的逻辑处理
-  })
-
-  // 监听表格详情事件
+  // 🔥 监听表格详情事件（使用 Composable）
   eventBus.on('table:detail-row', async ({ row, index, tableData }: { row: Record<string, any>, index?: number, tableData?: any[] }) => {
-    if (!currentFunctionDetail.value) return
-    
-    detailRowData.value = row
-    detailOriginalRow.value = JSON.parse(JSON.stringify(row))
-    detailDrawerTitle.value = currentFunctionDetail.value.name || '详情'
-    detailFields.value = (currentFunctionDetail.value.response || []) as FieldConfig[]
-    
-    // 🔥 更新 URL 为 ?_tab=detail&_id=xxx（用于分享）
-    // 🔥 使用 _tab 和 _id 作为系统参数，避免与后端参数冲突
-    if (currentFunction.value) {
-      const id = row.id || row._id
-      if (id) {
-        const query = { ...route.query, _tab: 'detail', _id: String(id) }
-        router.replace({ query }).catch(() => {})
-      }
-    }
-    
-    // 🔥 保存表格数据和索引（用于上一条下一条导航）
-    if (tableData && Array.isArray(tableData) && tableData.length > 0) {
-      detailTableData.value = tableData
-      if (typeof index === 'number' && index >= 0) {
-        currentDetailIndex.value = index
-      } else {
-        // 如果没有传递 index，尝试从 tableData 中查找
-        const idField = detailFields.value.find(f => f.code === 'id' || f.widget?.type === 'number')
-        if (idField && row[idField.code]) {
-          const foundIndex = tableData.findIndex((r: any) => r[idField.code] === row[idField.code])
-          currentDetailIndex.value = foundIndex >= 0 ? foundIndex : -1
-        } else {
-          // 如果没有 id 字段，尝试通过对象匹配
-          const foundIndex = tableData.findIndex((r: any) => JSON.stringify(r) === JSON.stringify(row))
-          currentDetailIndex.value = foundIndex >= 0 ? foundIndex : -1
-        }
-      }
-    } else {
-      // 如果没有传递 tableData，尝试从 StateManager 获取
-      try {
-        const tableStateManager = serviceFactory.getTableStateManager()
-        // 🔥 注意：TableStateManager 使用 data 字段存储表格数据，不是 tableData
-        const tableData = tableStateManager.getData() || []
-        if (tableData && Array.isArray(tableData) && tableData.length > 0) {
-          detailTableData.value = tableData
-          const idField = detailFields.value.find(f => f.code === 'id' || f.widget?.type === 'number')
-          if (idField && row[idField.code]) {
-            const foundIndex = tableData.findIndex((r: any) => r[idField.code] === row[idField.code])
-            currentDetailIndex.value = foundIndex >= 0 ? foundIndex : -1
-          } else {
-            // 如果没有 id 字段，尝试通过对象匹配
-            const foundIndex = tableData.findIndex((r: any) => JSON.stringify(r) === JSON.stringify(row))
-            currentDetailIndex.value = foundIndex >= 0 ? foundIndex : -1
-          }
-        } else {
-          detailTableData.value = []
-          currentDetailIndex.value = -1
-          console.warn('[WorkspaceView] StateManager 中没有表格数据')
-        }
-      } catch (error) {
-        console.error('[WorkspaceView] 获取表格数据失败', error)
-        detailTableData.value = []
-        currentDetailIndex.value = -1
-      }
-    }
-    
-    // 🔥 收集详情中的用户字段，批量查询用户信息
-    const userFields = detailFields.value.filter(f => f.widget?.type === 'user')
-    if (userFields.length > 0) {
-      const usernames: string[] = []
-      userFields.forEach(field => {
-        const value = row[field.code]
-        if (value) {
-          if (Array.isArray(value)) {
-            usernames.push(...value.map(v => String(v)))
-          } else {
-            usernames.push(String(value))
-          }
-        }
-      })
-      
-      if (usernames.length > 0) {
-        try {
-          const { useUserInfoStore } = await import('@/stores/userInfo')
-          const userInfoStore = useUserInfoStore()
-          const users = await userInfoStore.batchGetUserInfo([...new Set(usernames)])
-          // 更新到 detailUserInfoMap
-          detailUserInfoMap.value = new Map()
-          users.forEach(user => {
-            detailUserInfoMap.value.set(user.username, user)
-          })
-        } catch (error) {
-          console.error('[WorkspaceView] 加载详情用户信息失败', error)
-        }
-      }
-    }
-    
-    // 重置为只读模式
-    detailDrawerMode.value = 'read'
-    detailDrawerVisible.value = true
+    await openDetailDrawer(row, index, tableData)
   })
   
-  // 🔥 监听 URL 参数变化，自动打开详情抽屉（用于分享链接）
-  // 🔥 使用 _tab 和 _id 作为系统参数，避免与后端参数冲突
-  watch([() => route.query._tab, () => route.query._id, currentFunctionDetail], async ([tab, id, detail]: [any, any, any]) => {
-    if (tab === 'detail' && id && detail && detail.template_type === 'table') {
-      // 确保函数详情已加载
-      if (!currentFunction.value) {
-        console.log('[WorkspaceView] tab=detail 但当前函数不存在，等待函数加载')
-        return
-      }
-      
-      const rowId = Number(id)
-      if (isNaN(rowId)) {
-        console.warn('[WorkspaceView] tab=detail 但 id 无效:', id)
-        return
-      }
-      
-      // 从表格数据中查找对应 id 的记录
-      try {
-        const tableStateManager = serviceFactory.getTableStateManager()
-        let tableData = tableStateManager.getData() || []
-        
-        // 尝试通过 id 字段查找
-        let targetRow = tableData.find((r: any) => r.id === rowId || r._id === rowId)
-        
-        // 如果当前页没有找到，尝试通过搜索 id 来加载数据
-        if (!targetRow) {
-          console.log('[WorkspaceView] 当前页没有找到 id 为', rowId, '的记录，尝试通过搜索加载')
-          
-          // 先等待表格数据加载完成（如果表格正在加载）
-          let retries = 0
-          while (tableData.length === 0 && retries < 10) {
-            await nextTick()
-            await new Promise(resolve => setTimeout(resolve, 300))
-            tableData = tableStateManager.getData() || []
-            targetRow = tableData.find((r: any) => r.id === rowId || r._id === rowId)
-            if (targetRow) break
-            retries++
-          }
-          
-          // 如果还是没有找到，尝试通过搜索 id 来加载
-          if (!targetRow && currentFunctionDetail.value) {
-            console.log('[WorkspaceView] 通过搜索 id 字段加载数据')
-            try {
-              const tableApplicationService = serviceFactory.getTableApplicationService()
-              // 🔥 通过搜索 id 字段来加载数据
-              // 查找 id 字段
-              const idField = currentFunctionDetail.value.response?.find((f: FieldConfig) => 
-                f.code === 'id' || f.code.toLowerCase() === 'id'
-              )
-              
-              if (idField) {
-                // 设置搜索条件为 id = rowId
-                const searchParams: Record<string, any> = {}
-                searchParams[idField.code] = rowId
-                
-                // 加载数据（使用搜索参数）
-                await tableApplicationService.loadData(
-                  currentFunctionDetail.value,
-                  searchParams, // 搜索参数
-                  undefined, // 排序参数
-                  { page: 1, pageSize: 20 } // 分页参数
-                )
-                
-                // 重新获取数据
-                tableData = tableStateManager.getData() || []
-                targetRow = tableData.find((r: any) => r.id === rowId || r._id === rowId)
-              }
-            } catch (error) {
-              console.error('[WorkspaceView] 通过搜索加载数据失败', error)
-            }
-          }
-        }
-        
-        if (targetRow) {
-          // 找到记录，打开详情抽屉
-          const index = tableData.findIndex((r: any) => r.id === rowId || r._id === rowId)
-          detailRowData.value = targetRow
-          detailOriginalRow.value = JSON.parse(JSON.stringify(targetRow))
-          detailDrawerTitle.value = detail.name || '详情'
-          detailFields.value = (detail.response || []) as FieldConfig[]
-          detailTableData.value = tableData
-          currentDetailIndex.value = index >= 0 ? index : -1
-          
-          // 收集用户字段信息
-          const userFields = detailFields.value.filter(f => f.widget?.type === 'user')
-          if (userFields.length > 0) {
-            const usernames: string[] = []
-            userFields.forEach(field => {
-              const value = targetRow[field.code]
-              if (value) {
-                if (Array.isArray(value)) {
-                  usernames.push(...value.map(v => String(v)))
-                } else {
-                  usernames.push(String(value))
-                }
-              }
-            })
-            
-            if (usernames.length > 0) {
-              try {
-                const { useUserInfoStore } = await import('@/stores/userInfo')
-                const userInfoStore = useUserInfoStore()
-                const users = await userInfoStore.batchGetUserInfo([...new Set(usernames)])
-                detailUserInfoMap.value = new Map()
-                users.forEach(user => {
-                  detailUserInfoMap.value.set(user.username, user)
-                })
-              } catch (error) {
-                console.error('[WorkspaceView] 加载详情用户信息失败', error)
-              }
-            }
-          }
-          
-          detailDrawerMode.value = 'read'
-          detailDrawerVisible.value = true
-        } else {
-          console.warn('[WorkspaceView] 未找到 id 为', rowId, '的记录')
-          ElNotification.warning({
-            title: '提示',
-            message: `未找到 id 为 ${rowId} 的记录，可能不在当前页`
-          })
-        }
-      } catch (error) {
-        console.error('[WorkspaceView] 打开详情失败', error)
-      }
-    }
-  }, { immediate: false })
+  // 🔥 设置 URL 监听（使用 Composable）
+  setupUrlWatch()
 })
 
-// 切换抽屉模式
-const toggleDrawerMode = (mode: 'read' | 'edit') => {
-  if (mode === 'edit' && (!editFunctionDetail.value || !detailRowData.value)) {
-    ElNotification.warning({
-      title: '提示',
-      message: '无法进入编辑模式'
-    })
-    return
-  }
-  detailDrawerMode.value = mode
-}
 
-// 导航详情（上一个/下一个）
-const handleNavigateDetail = async (direction: 'prev' | 'next') => {
-  if (detailTableData.value.length === 0) return
-
-  let newIndex = currentDetailIndex.value
-  if (direction === 'prev' && newIndex > 0) {
-    newIndex--
-  } else if (direction === 'next' && newIndex < detailTableData.value.length - 1) {
-    newIndex++
-  } else {
-    return
-  }
-
-  currentDetailIndex.value = newIndex
-  const row = detailTableData.value[newIndex]
-  detailRowData.value = row
-  detailOriginalRow.value = JSON.parse(JSON.stringify(row))
-  detailDrawerMode.value = 'read'  // 切换记录时，重置为查看模式
-  
-  // 🔥 收集新行的用户字段并查询用户信息
-  const userFields = detailFields.value.filter(f => f.widget?.type === 'user')
-  if (userFields.length > 0) {
-    const usernames: string[] = []
-    userFields.forEach(field => {
-      const value = row[field.code]
-      if (value) {
-        if (Array.isArray(value)) {
-          usernames.push(...value.map(v => String(v)))
-        } else {
-          usernames.push(String(value))
-        }
-      }
-    })
-    
-    if (usernames.length > 0) {
-      try {
-        const { useUserInfoStore } = await import('@/stores/userInfo')
-        const userInfoStore = useUserInfoStore()
-        const users = await userInfoStore.batchGetUserInfo([...new Set(usernames)])
-        // 更新到 detailUserInfoMap
-        detailUserInfoMap.value = new Map()
-        users.forEach(user => {
-          detailUserInfoMap.value.set(user.username, user)
-        })
-      } catch (error) {
-        console.error('[WorkspaceView] 加载详情用户信息失败', error)
-      }
-    }
-  }
-}
-
-// 提交编辑（复用 FormRenderer 逻辑）
-const submitDrawerEdit = async () => {
-  if (!currentFunctionDetail.value || !detailRowData.value || !detailFormRendererRef.value) {
-    ElMessage.error('编辑表单未准备就绪')
-    return
-  }
-  
-  try {
-    drawerSubmitting.value = true
-    const submitData = detailFormRendererRef.value.prepareSubmitDataWithTypeConversion()
-    const oldValues = detailOriginalRow.value
-      ? JSON.parse(JSON.stringify(detailOriginalRow.value))
-      : undefined
-    const updatedRow = await tableApplicationService.updateRow(
-      currentFunctionDetail.value,
-      detailRowData.value.id,
-      submitData,
-      oldValues
-    )
-    if (updatedRow) {
-      detailRowData.value = { ...updatedRow }
-      detailOriginalRow.value = JSON.parse(JSON.stringify(updatedRow))
-      await refreshDetailRowData()
-      ElNotification.success({
-        title: '成功',
-        message: '更新成功'
-      })
-      detailDrawerMode.value = 'read'
-      detailDrawerVisible.value = false
-    }
-  } catch (error: any) {
-    console.error('更新失败:', error)
-    ElNotification.error({
-      title: '错误',
-      message: error?.response?.data?.message || error?.message || '更新失败'
-    })
-  } finally {
-    drawerSubmitting.value = false
-  }
-}
-
-const refreshDetailRowData = async (): Promise<void> => {
-  if (!detailRowData.value) return
-  const currentId = detailRowData.value.id
-  if (currentId === undefined || currentId === null) return
-  const state = tableStateManager?.getState?.()
-  const tableData = state?.tableData
-  if (!Array.isArray(tableData)) {
-    return
-  }
-  const updatedRow = tableData.find((row: any) => String(row.id) === String(currentId))
-  if (updatedRow) {
-    detailRowData.value = { ...updatedRow }
-    detailOriginalRow.value = JSON.parse(JSON.stringify(updatedRow))
-  }
-}
-
-// 获取详情字段值
-const getDetailFieldValue = (fieldCode: string): FieldValue => {
-  if (!detailRowData.value) return { raw: null, display: '', meta: {} }
-  const value = detailRowData.value[fieldCode]
-  return { 
-    raw: value, 
-    display: typeof value === 'object' ? JSON.stringify(value) : String(value ?? ''), 
-    meta: {} 
-  }
-}
-
-// 在详情抽屉中点击编辑
-const handleDrawerEdit = () => {
-  // 已废弃，改用 toggleDrawerMode('edit')
-}
-
-// 应用列表管理
-const appList = ref<AppType[]>([])
-const loadingApps = ref(false)
-
-// 🔥 正在切换的目标应用 ID，用于解决路由和状态更新的竞态问题
-const pendingAppId = ref<number | string | null>(null)
-
-// 创建应用对话框
-const createAppDialogVisible = ref(false)
-const creatingApp = ref(false)
-const createAppForm = ref<CreateAppRequest>({
-  code: '',
-  name: ''
-})
 
 // 转换 loadingTree 为 boolean (避免 computed 类型问题)
-const loading = computed(() => stateManager.isLoading()) // 🔥 修复 loading 定义
+const loading = computed(() => stateManager.isLoading())
 
 // 事件处理
 const handleNodeClick = (node: ServiceTreeType) => {
@@ -1212,116 +751,21 @@ const handleNodeClick = (node: ServiceTreeType) => {
       router.replace({ path: targetPath, query: {} }).catch(() => {})
     } else {
       // 路由已匹配，直接触发节点点击加载详情（避免路由更新循环）
-      applicationService.triggerNodeClick(serviceTree)
-    }
+  applicationService.triggerNodeClick(serviceTree)
+}
   } else {
     // 目录节点，不更新路由，只设置当前函数
     applicationService.triggerNodeClick(serviceTree)
   }
 }
 
-// 处理创建目录
+// 🔥 处理创建目录（使用 Composable）
 const handleCreateDirectory = (parentNode?: ServiceTreeType) => {
-  if (!currentApp.value) {
-    ElNotification.warning({
-      title: '提示',
-      message: '请先选择一个应用'
-    })
-    return
-  }
-  currentParentNode.value = parentNode || null
-  createDirectoryForm.value = {
-    user: currentApp.value.user,
-    app: currentApp.value.code,
-    name: '',
-    code: '',
-    parent_id: parentNode ? Number(parentNode.id) : 0,
-    description: '',
-    tags: ''
-  }
-  createDirectoryDialogVisible.value = true
+  serviceTreeHandleCreateDirectory(parentNode || null, () => currentApp.value)
 }
 
-// 重置创建目录表单
-const resetCreateDirectoryForm = () => {
-  createDirectoryForm.value = {
-    user: currentApp.value?.user || '',
-    app: currentApp.value?.code || '',
-    name: '',
-    code: '',
-    parent_id: 0,
-    description: '',
-    tags: ''
-  }
-  currentParentNode.value = null
-}
-
-// 提交创建目录
 const handleSubmitCreateDirectory = async () => {
-  if (!currentApp.value) {
-    ElNotification.warning({
-      title: '提示',
-      message: '请先选择一个应用'
-    })
-    return
-  }
-  
-  if (!createDirectoryForm.value.name || !createDirectoryForm.value.code) {
-    ElNotification.warning({
-      title: '提示',
-      message: '请输入目录名称和代码'
-    })
-    return
-  }
-  
-  // 验证代码格式
-  if (!/^[a-z0-9_]+$/.test(createDirectoryForm.value.code)) {
-    ElNotification.warning({
-      title: '提示',
-      message: '目录代码只能包含小写字母、数字和下划线'
-    })
-    return
-  }
-
-  try {
-    creatingDirectory.value = true
-    const requestData: CreateServiceTreeRequest = {
-      user: currentApp.value.user,
-      app: currentApp.value.code,
-      name: createDirectoryForm.value.name,
-      code: createDirectoryForm.value.code,
-      parent_id: createDirectoryForm.value.parent_id || 0,
-      description: createDirectoryForm.value.description || '',
-      tags: createDirectoryForm.value.tags || ''
-    }
-    
-    await createServiceTree(requestData)
-    ElNotification.success({
-      title: '成功',
-      message: '创建服务目录成功'
-    })
-    createDirectoryDialogVisible.value = false
-    resetCreateDirectoryForm()
-    
-    // 🔥 刷新服务目录树
-    if (currentApp.value) {
-      await applicationService.triggerAppSwitch({
-        id: currentApp.value.id,
-        user: currentApp.value.user,
-        code: currentApp.value.code,
-        name: currentApp.value.name
-      })
-    }
-  } catch (error: any) {
-    console.error('[WorkspaceView] 创建服务目录失败', error)
-    const errorMessage = error?.response?.data?.msg || error?.response?.data?.message || error?.message || '创建服务目录失败'
-    ElNotification.error({
-      title: '错误',
-      message: errorMessage
-    })
-  } finally {
-    creatingDirectory.value = false
-  }
+  await serviceTreeHandleSubmitCreateDirectory(() => currentApp.value)
 }
 
 // 处理 Fork 函数组
@@ -1349,12 +793,19 @@ const handleForkGroup = (node: ServiceTreeType | null) => {
 const handleForkSuccess = () => {
   // 刷新服务目录树
   if (currentApp.value) {
-    applicationService.triggerAppSwitch({
+    const appForService: App = {
       id: currentApp.value.id,
       user: currentApp.value.user,
       code: currentApp.value.code,
-      name: currentApp.value.name
-    })
+      name: currentApp.value.name,
+      nats_id: currentApp.value.nats_id || 0,
+      host_id: currentApp.value.host_id || 0,
+      status: currentApp.value.status || 'enabled',
+      version: currentApp.value.version || '',
+      created_at: currentApp.value.created_at || '',
+      updated_at: currentApp.value.updated_at || ''
+    }
+    applicationService.triggerAppSwitch(appForService)
   }
   ElNotification.success({
     title: '成功',
@@ -1362,101 +813,22 @@ const handleForkSuccess = () => {
   })
 }
 
-// 🔥 展开当前路由对应的路径（刷新时自动展开）
+// 🔥 展开当前路由对应的路径（使用 Composable）
 const expandCurrentRoutePath = () => {
-  if (serviceTree.value.length === 0 || !serviceTreePanelRef.value || !currentApp.value) {
-    return
-  }
-  
-  const fullPath = extractWorkspacePath(route.path)
-  if (!fullPath) return
-  
-  const pathSegments = fullPath.split('/').filter(Boolean)
-  if (pathSegments.length < 3) return // 至少需要 user/app/function
-  
-  const functionPath = '/' + pathSegments.join('/')
-  
-  nextTick(() => {
-    setTimeout(() => {
-      if (serviceTreePanelRef.value && serviceTreePanelRef.value.expandPaths) {
-        serviceTreePanelRef.value.expandPaths([functionPath])
-      }
-    }, 300)
-  })
+  serviceTreeExpandCurrentRoutePath(
+    () => serviceTree.value,
+    () => serviceTreePanelRef.value,
+    () => currentApp.value
+  )
 }
 
-// 🔥 检查并展开 forked 路径
+// 🔥 检查并展开 forked 路径（使用 Composable）
 const checkAndExpandForkedPaths = () => {
-  const forkedParam = route.query._forked as string
-  if (!forkedParam) return
-  
-  console.log('[WorkspaceView] 检查 forked 参数:', forkedParam)
-  console.log('[WorkspaceView] 当前应用:', currentApp.value ? `${currentApp.value.user}/${currentApp.value.code}` : 'null')
-  console.log('[WorkspaceView] serviceTree 长度:', serviceTree.value.length)
-  console.log('[WorkspaceView] serviceTreePanelRef:', serviceTreePanelRef.value)
-  
-  // 检查当前应用是否匹配 URL 中的应用
-  const pathSegments = extractWorkspacePath(route.path).split('/').filter(Boolean)
-  if (pathSegments.length >= 2) {
-    const [urlUser, urlApp] = pathSegments
-    if (currentApp.value && (currentApp.value.user !== urlUser || currentApp.value.code !== urlApp)) {
-      console.log('[WorkspaceView] ⚠️ 应用不匹配，等待应用切换完成')
-      console.log('[WorkspaceView]    URL 应用:', `${urlUser}/${urlApp}`)
-      console.log('[WorkspaceView]    当前应用:', `${currentApp.value.user}/${currentApp.value.code}`)
-      return // 应用不匹配，不展开
-    }
-  }
-  
-  if (forkedParam && serviceTree.value.length > 0 && serviceTreePanelRef.value && currentApp.value) {
-    const forkedPaths = decodeURIComponent(forkedParam).split(',').filter(Boolean)
-    console.log('[WorkspaceView] 解析后的路径列表:', forkedPaths)
-    
-    // 验证路径是否属于当前应用
-    const validPaths = forkedPaths.filter(path => {
-      const pathMatch = path.match(/^\/([^/]+)\/([^/]+)/)
-      if (pathMatch) {
-        const [, pathUser, pathApp] = pathMatch
-        const isValid = pathUser === currentApp.value?.user && pathApp === currentApp.value?.code
-        if (!isValid) {
-          console.log('[WorkspaceView] ⚠️ 路径不属于当前应用，跳过:', path)
-        }
-        return isValid
-      }
-      return false
-    })
-    
-    if (validPaths.length > 0) {
-      console.log('[WorkspaceView] 有效路径列表:', validPaths)
-      nextTick(() => {
-        setTimeout(() => {
-          if (serviceTreePanelRef.value && serviceTreePanelRef.value.expandPaths) {
-            console.log('[WorkspaceView] 调用 expandPaths')
-            serviceTreePanelRef.value.expandPaths(validPaths)
-          } else {
-            console.log('[WorkspaceView] ⚠️ serviceTreePanelRef 或 expandPaths 不存在')
-          }
-        }, 500) // 延迟确保树完全渲染
-      })
-    } else {
-      console.log('[WorkspaceView] ⚠️ 没有有效的路径可以展开')
-    }
-  }
-}
-
-// 处理复制链接
-const handleCopyLink = (node: ServiceTreeType) => {
-  const link = `${window.location.origin}/workspace${node.full_code_path}`
-  navigator.clipboard.writeText(link).then(() => {
-    ElNotification.success({
-      title: '成功',
-      message: '链接已复制到剪贴板'
-    })
-  }).catch(() => {
-    ElNotification.error({
-      title: '错误',
-      message: '复制链接失败'
-    })
-  })
+  serviceTreeCheckAndExpandForkedPaths(
+    () => serviceTree.value,
+    () => serviceTreePanelRef.value,
+    () => currentApp.value
+  )
 }
 
 // 🔥 返回列表（从 create/edit 模式返回）
@@ -1472,16 +844,6 @@ const backToList = () => {
   router.push({ path, query }).catch(() => {})
 }
 
-// 🔥 处理详情抽屉关闭（移除 URL 参数）
-const handleDetailDrawerClose = () => {
-  // 如果当前 URL 有 _tab=detail 参数，移除它
-  if (route.query._tab === 'detail') {
-    const query = { ...route.query }
-    delete query._tab
-    delete query._id
-    router.replace({ query }).catch(() => {})
-  }
-}
 
 // 🔥 处理新增提交（通过 FormView 的提交按钮，这里只是占位）
 const handleCreateSubmit = async () => {
@@ -1503,601 +865,39 @@ const handleEditSubmit = async () => {
   })
 }
 
-// 加载应用列表
-const loadAppList = async (): Promise<void> => {
-  try {
-    loadingApps.value = true
-    const response = await apiClient.get<any>('/api/v1/app/list', {
-      page_size: 200,
-      page: 1
-    })
-    
-    // API 返回的是分页对象 { page, page_size, total_count, items: App[] }
-    // 需要提取 items 数组
-    if (response && typeof response === 'object') {
-      if (Array.isArray(response)) {
-        appList.value = response
-      } else if ('items' in response && Array.isArray(response.items)) {
-        appList.value = response.items
-      } else {
-        appList.value = []
-      }
-    } else {
-      appList.value = []
-    }
-  } catch (error) {
-    console.error('[WorkspaceView] 加载应用列表失败', error)
-    ElNotification.error({
-      title: '错误',
-      message: '加载应用列表失败'
-    })
-    appList.value = []
-  } finally {
-    loadingApps.value = false
-  }
-}
-
-// 切换应用
+// 🔥 切换应用（使用 Composable）
 const handleSwitchApp = async (app: AppType): Promise<void> => {
-  const targetAppId = app.id
-  
-  // 🔥 检查当前应用是否已经是目标应用，避免重复切换
-  const currentAppState = currentApp.value
-  if (currentAppState && String(currentAppState.id) === String(targetAppId)) {
-    console.log('[WorkspaceView] 当前应用已经是目标应用，无需切换')
-    return
-  }
-
-  try {
-    const appForService: App = {
-      id: app.id,
-      user: app.user,
-      code: app.code,
-      name: app.name
-    }
-    
-    // 切换应用（这会触发服务树加载）
-    await applicationService.triggerAppSwitch(appForService)
-    
-    // 更新路由
-    const targetPath = `/workspace/${app.user}/${app.code}`
-    if (route.path !== targetPath) {
-      await router.push(targetPath)
-    }
-  } catch (error) {
-    console.error('[WorkspaceView] 切换应用失败', error)
-  }
+  await appHandleSwitchApp(app, () => currentApp.value)
 }
 
-// 显示创建应用对话框
-const showCreateAppDialog = (): void => {
-  resetCreateAppForm()
-  createAppDialogVisible.value = true
-}
-
-// 重置创建应用表单
-const resetCreateAppForm = (): void => {
-  createAppForm.value = {
-    code: '',
-    name: ''
-  }
-}
-
-// 提交创建应用
+// 🔥 提交创建应用（使用 Composable）
 const submitCreateApp = async (): Promise<void> => {
-  if (!createAppForm.value.name || !createAppForm.value.code) {
-    ElNotification.warning({
-      title: '提示',
-      message: '请填写应用名称和应用代码'
-    })
-    return
-  }
-
-  try {
-    creatingApp.value = true
-    await apiClient.post('/api/v1/app/create', createAppForm.value)
-    ElNotification.success({
-      title: '成功',
-      message: '应用创建成功'
-    })
-    createAppDialogVisible.value = false
-    
-    // 刷新应用列表
-    await loadAppList()
-    
-    // 如果应用列表中有新创建的应用，自动切换
-    const newApp = appList.value.find(
-      (a: AppType) => a.code === createAppForm.value.code
-    )
-    if (newApp) {
-      await handleSwitchApp(newApp)
-    }
-  } catch (error: any) {
-    const errorMessage = error?.response?.data?.message || '创建应用失败'
-    ElNotification.error({
-      title: '错误',
-      message: errorMessage
-    })
-  } finally {
-    creatingApp.value = false
-  }
+  await appSubmitCreateApp(() => currentApp.value)
 }
 
-// 更新应用（重新编译）
-const handleUpdateApp = async (app: AppType): Promise<void> => {
-  try {
-    await apiClient.post(`/api/v1/app/update/${app.code}`, {})
-    ElNotification.success({
-      title: '成功',
-      message: '应用更新成功'
-    })
-  } catch (error: any) {
-    const errorMessage = error?.response?.data?.message || '更新应用失败'
-    ElNotification.error({
-      title: '错误',
-      message: errorMessage
-    })
-  }
-}
-
-// 删除应用
+// 🔥 删除应用（使用 Composable）
 const handleDeleteApp = async (app: AppType): Promise<void> => {
-  try {
-    await ElMessageBox.confirm(
-      `确定要删除应用 "${app.name}" 吗？此操作不可恢复。`,
-      '确认删除',
-      {
-        confirmButtonText: '删除',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
-    
-    await apiClient.delete(`/api/v1/app/delete/${app.code}`)
-    ElNotification.success({
-      title: '成功',
-      message: '应用删除成功'
-    })
-    
-    // 刷新应用列表
-    await loadAppList()
-    
-    // 如果删除的是当前应用，切换到第一个应用或清空
-    if (currentApp.value && currentApp.value.id === app.id) {
-      if (appList.value.length > 0) {
-        await handleSwitchApp(appList.value[0])
-      } else {
-        await router.push('/workspace')
-      }
-    }
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      const errorMessage = error?.response?.data?.message || '删除应用失败'
-      ElNotification.error({
-        title: '错误',
-        message: errorMessage
-      })
-    }
-  }
+  await appHandleDeleteApp(app, () => currentApp.value)
 }
 
-// 递归查找节点
-const findNodeByPath = (tree: ServiceTreeType[], path: string): ServiceTreeType | null => {
-  for (const node of tree) {
-    // 移除路径开头的斜杠进行比较
-    const nodePath = (node.full_code_path || '').replace(/^\/+/, '')
-    const targetPath = path.replace(/^\/+/, '')
-    
-    if (nodePath === targetPath && node.type === 'function') {
-      return node
-    }
-    if (node.children && node.children.length > 0) {
-      const found = findNodeByPath(node.children, path)
-      if (found) return found
-    }
-  }
-  return null
-}
-
-// 防重复调用保护
-let isLoadingAppFromRoute = false
-// 🔥 标志位：是否正在从路由同步到 Tab（避免循环更新）
-let isSyncingRouteToTab = false
-
-// 🔥 从路由同步到 Tab 状态（路由变化时调用）
-const syncRouteToTab = async () => {
-  const fullPath = extractWorkspacePath(route.path)
-  
-  if (!fullPath) {
-    // 空路径，不处理
-    return
-  }
-  
-  // 解析路径，找到对应的 Tab
-  const targetTab = tabs.value.find(t => {
-    const tabPath = t.path?.replace(/^\//, '') || ''
-    const routePath = fullPath?.replace(/^\//, '') || ''
-    return tabPath === routePath
-  })
-  
-  if (targetTab) {
-    // Tab 已存在，激活它（不触发路由更新）
-    if (activeTabId.value !== targetTab.id) {
-      isSyncingRouteToTab = true
-      applicationService.activateTab(targetTab.id)
-      isSyncingRouteToTab = false
-    }
-    
-    // 🔥 检查函数详情是否已加载（刷新后切换 Tab 时可能需要加载）
-    if (targetTab.node && targetTab.node.type === 'function') {
-      const detail = stateManager.getFunctionDetail(targetTab.node)
-      if (!detail) {
-        console.log('[WorkspaceView] syncRouteToTab: Tab 已存在但函数详情未加载，加载详情', {
-          tabId: targetTab.id,
-          path: targetTab.path,
-          nodeId: targetTab.node.id,
-          nodePath: targetTab.node.full_code_path
-        })
-        // 使用 handleNodeClick 加载函数详情
-        applicationService.handleNodeClick(targetTab.node)
-      }
-    }
-  } else {
-    // Tab 不存在，从路由打开新 Tab
-    // 注意：这里需要确保服务树已加载，否则无法找到节点
-    if (serviceTree.value.length > 0) {
-      await loadAppFromRoute()
-    } else {
-      // 服务树未加载，等待加载完成后再处理
-      // 这个情况应该很少见，因为路由变化通常是在服务树加载后
-      console.warn('[WorkspaceView] syncRouteToTab: 服务树未加载，等待加载完成')
-    }
-  }
-}
-
-// 从路由解析应用并加载（主要用于刷新时）
-const loadAppFromRoute = async () => {
-  // 🔥 防止重复调用
-  if (isLoadingAppFromRoute) {
-    return
-  }
-  
-  // 提取路径
-  const fullPath = extractWorkspacePath(route.path)
-  
-  if (!fullPath) {
-    return
-  }
-
-  const pathSegments = fullPath.split('/').filter(Boolean)
-  if (pathSegments.length < 2) {
-    return
-  }
-
-  const [user, appCode] = pathSegments
-  
-  try {
-    isLoadingAppFromRoute = true
-    
-    // 确保应用列表已加载
-    if (appList.value.length === 0) {
-      await loadAppList()
-    }
-    
-    // 从已加载的应用列表中查找
-    const app = appList.value.find((a: AppType) => a.user === user && a.code === appCode)
-    
-    if (!app) {
-      console.warn('[WorkspaceView] 未找到应用:', user, appCode)
-      return
-    }
-    
-    const targetAppId = app.id
-    let appSwitched = false
-
-    // 🔥 检查当前应用是否已经是目标应用
-    const currentAppState = currentApp.value
-    if (!currentAppState || String(currentAppState.id) !== String(targetAppId)) {
-        // 需要切换应用
-        if (String(pendingAppId.value) !== String(targetAppId)) {
-           pendingAppId.value = targetAppId
-           try {
-             const appForService: App = {
-               id: app.id,
-               user: app.user,
-               code: app.code,
-               name: app.name
-             }
-             await applicationService.triggerAppSwitch(appForService)
-             appSwitched = true
-           } catch (error) {
-             console.error('[WorkspaceView] 路由加载应用失败', error)
-             pendingAppId.value = null
-             return
-           }
-        }
-    }
-
-    // 处理子路径（打开 Tab）
-    if (pathSegments.length > 2) {
-      const functionPath = '/' + pathSegments.join('/') // 构造完整路径，如 /luobei/demo/crm/list
-      
-    // 🔥 检查是否有 _tab 参数（create/edit/detail 模式）
-    // 🔥 使用 _tab 作为系统参数，避免与后端参数冲突
-    const tabParam = route.query._tab as string
-    if (tabParam === 'create' || tabParam === 'edit' || tabParam === 'detail') {
-        // create/edit 模式不需要打开 Tab，直接加载函数详情
-        // 尝试查找节点并加载函数详情
-        const tryLoadFunction = () => {
-          const tree = serviceTree.value
-          if (tree && tree.length > 0) {
-            const node = findNodeByPath(tree as ServiceTreeType[], functionPath)
-            if (node) {
-              const serviceNode: ServiceTree = node as any
-              // 设置当前函数，但不打开 Tab
-              applicationService.handleNodeClick(serviceNode)
-            }
-          }
-        }
-        
-        if (appSwitched) {
-          let retries = 0
-          const interval = setInterval(() => {
-            if (serviceTree.value.length > 0 || retries > 10) {
-              clearInterval(interval)
-              tryLoadFunction()
-            }
-            retries++
-          }, 200)
-        } else {
-          tryLoadFunction()
-        }
-        
-        // 🔥 检查 _forked 参数，自动展开路径
-        if (route.query._forked) {
-          nextTick(() => {
-            checkAndExpandForkedPaths()
-          })
-        }
-        
-        return // create/edit 模式不打开 Tab
-      }
-      
-      // 如果刚刚切换了应用，需要等待服务树加载完成
-      // 由于 appSwitched 事件是异步的，我们这里轮询检查 serviceTree 是否有值
-      // 或者简单地等待一下（不是最优雅，但在 View 层简单有效）
-      // 🔥 检查 _forked 参数，自动展开路径
-      if (route.query._forked) {
-        nextTick(() => {
-          checkAndExpandForkedPaths()
-        })
-      }
-      
-      // 更好的方式是 watch serviceTree，但这会变得复杂
-      
-      // 尝试查找节点并打开/激活 Tab
-      const tryOpenTab = () => {
-        const tree = serviceTree.value
-        if (tree && tree.length > 0) {
-          const node = findNodeByPath(tree as ServiceTreeType[], functionPath)
-          if (node) {
-            const serviceNode: ServiceTree = node as any
-            
-            // 检查 Tab 是否存在（确保 tabs 是数组）
-            const tabsArray = Array.isArray(tabs.value) ? tabs.value : []
-            const existingTab = tabsArray.find(t => 
-              t.path === serviceNode.full_code_path || t.path === String(serviceNode.id)
-            )
-            
-            if (existingTab) {
-              // Tab 已存在，激活它（不触发路由更新）
-              if (activeTabId.value !== existingTab.id) {
-                isSyncingRouteToTab = true
-                applicationService.activateTab(existingTab.id)
-                isSyncingRouteToTab = false
-              }
-              
-              // 🔥 无论是否激活，都检查函数详情是否已加载（刷新时可能需要重新加载）
-              if (existingTab.node && existingTab.node.type === 'function') {
-                const detail = stateManager.getFunctionDetail(existingTab.node)
-                if (!detail) {
-                  console.log('[WorkspaceView] Tab 已存在但函数详情未加载，加载详情', { 
-                    tabId: existingTab.id, 
-                    path: existingTab.path,
-                    nodeId: existingTab.node.id,
-                    nodePath: existingTab.node.full_code_path
-                  })
-                  // 使用 handleNodeClick 加载函数详情
-                  applicationService.handleNodeClick(existingTab.node)
-                } else {
-                  console.log('[WorkspaceView] Tab 已存在且函数详情已加载', { 
-                    tabId: existingTab.id, 
-                    detailId: detail.id 
-                  })
-                }
-              } else if (!existingTab.node) {
-                console.warn('[WorkspaceView] Tab 已存在但没有 node 信息', { 
-                  tabId: existingTab.id, 
-                  path: existingTab.path 
-                })
-              }
-            } else {
-              // Tab 不存在，打开新 Tab
-              applicationService.triggerNodeClick(serviceNode)
-            }
-          }
-        }
-      }
-
-      // 等待服务树加载
-      if (appSwitched) {
-        let retries = 0
-        const interval = setInterval(() => {
-          if (serviceTree.value.length > 0 || retries > 10) {
-            clearInterval(interval)
-            tryOpenTab()
-          }
-          retries++
-        }, 200)
-      } else {
-        tryOpenTab()
-      }
-      
-      // 展开目录树
-      if (route.query._forked) {
-        nextTick(() => {
-          checkAndExpandForkedPaths()
-        })
-      } else {
-        expandCurrentRoutePath()
-      }
-    }
-  } catch (error) {
-    console.error('[WorkspaceView] 加载应用失败', error)
-  } finally {
-    isLoadingAppFromRoute = false
-  }
-}
 
 // 生命周期
 let unsubscribeFunctionLoaded: (() => void) | null = null
 let unsubscribeServiceTreeLoaded: (() => void) | null = null
 let unsubscribeAppSwitched: (() => void) | null = null
 
-// 🔥 从 localStorage 恢复 Tabs
-const restoreTabsFromStorage = () => {
-  try {
-    const savedTabs = localStorage.getItem('workspace-tabs')
-    const savedActiveTabId = localStorage.getItem('workspace-activeTabId')
-    
-    if (savedTabs) {
-      const tabs = JSON.parse(savedTabs)
-      const state = stateManager.getState()
-      
-      // 确保 tabs 是数组
-      const tabsArray = Array.isArray(tabs) ? tabs : []
-      
-      // 恢复 tabs（注意：node 信息需要后续重新关联）
-      stateManager.setState({
-        ...state,
-        tabs: tabsArray,
-        activeTabId: savedActiveTabId || null
-      })
-      
-      console.log('[WorkspaceView] 从 localStorage 恢复 tabs', { 
-        tabsCount: tabsArray.length, 
-        activeTabId: savedActiveTabId 
-      })
-    }
-  } catch (error) {
-    console.error('[WorkspaceView] 恢复 tabs 失败', error)
-  }
-}
-
-// 🔥 保存 Tabs 到 localStorage
-const saveTabsToStorage = () => {
-  try {
-    const state = stateManager.getState()
-    
-    // 确保 tabs 是数组
-    if (!Array.isArray(state.tabs)) {
-      console.warn('[WorkspaceView] state.tabs 不是数组，跳过保存', { tabs: state.tabs })
-      return
-    }
-    
-    const tabsToSave = state.tabs.map(tab => ({
-      id: tab.id,
-      title: tab.title,
-      path: tab.path,
-      data: tab.data
-      // 注意：不保存 node，因为 node 是对象引用，刷新后需要重新关联
-    }))
-    
-    localStorage.setItem('workspace-tabs', JSON.stringify(tabsToSave))
-    localStorage.setItem('workspace-activeTabId', state.activeTabId || '')
-    
-    console.log('[WorkspaceView] 保存 tabs 到 localStorage', { 
-      tabsCount: tabsToSave.length, 
-      activeTabId: state.activeTabId 
-    })
-  } catch (error) {
-    console.error('[WorkspaceView] 保存 tabs 失败', error)
-  }
-}
-
-// 🔥 重新关联 tabs 的 node 信息（服务树加载后调用）
+// 🔥 重新关联 tabs 的 node 信息（使用 Composable）
 const restoreTabsNodes = () => {
-  const state = stateManager.getState()
-  const tree = serviceTree.value
-  
-  if (tree.length === 0) return
-  
-  // 确保 tabs 是数组
-  if (!Array.isArray(state.tabs)) {
-    console.warn('[WorkspaceView] state.tabs 不是数组，跳过重新关联 node', { tabs: state.tabs })
-    return
-  }
-  
-  let hasChanges = false
-  const updatedTabs = state.tabs.map(tab => {
-    if (tab.node) {
-      // 已有 node，不需要更新
-      return tab
-    }
-    
-    // 根据 path 查找对应的 node
-    const node = findNodeByPath(tree as ServiceTreeType[], tab.path)
-    if (node) {
-      hasChanges = true
-      return {
-        ...tab,
-        node: node as any
-      }
-    }
-    
-    return tab
-  })
-  
-  if (hasChanges) {
-    stateManager.setState({
-      ...state,
-      tabs: updatedTabs
-    })
-    console.log('[WorkspaceView] 重新关联 tabs 的 node 信息', { tabsCount: updatedTabs.length })
-    
-    // 🔥 重新关联 node 后，检查当前激活的 tab 是否需要加载函数详情
-    nextTick(() => {
-      const currentState = stateManager.getState()
-      const activeTabId = currentState.activeTabId
-      if (activeTabId) {
-        const activeTab = updatedTabs.find(t => t.id === activeTabId)
-        if (activeTab && activeTab.node && activeTab.node.type === 'function') {
-          // 检查函数详情是否已加载
-          const detail = stateManager.getFunctionDetail(activeTab.node)
-          if (!detail) {
-            console.log('[WorkspaceView] 恢复 tab 后，加载函数详情', { 
-              tabId: activeTabId, 
-              path: activeTab.path,
-              nodeId: activeTab.node.id,
-              nodePath: activeTab.node.full_code_path
-            })
-            // 使用 handleNodeClick 加载函数详情
-            applicationService.handleNodeClick(activeTab.node)
-          } else {
-            console.log('[WorkspaceView] 恢复 tab 后，函数详情已存在', { 
-              tabId: activeTabId, 
-              detailId: detail.id 
-            })
-          }
-        }
-      }
-    })
-  }
+  tabsRestoreTabsNodes(serviceTree.value, findNodeByPath)
 }
 
 onMounted(async () => {
   // 🔥 首先从 localStorage 恢复 tabs
   restoreTabsFromStorage()
+  
+  // 🔥 设置 Tab 数据监听和自动保存
+  setupTabDataWatch()
+  setupAutoSave()
   
   // 监听函数加载完成事件
   unsubscribeFunctionLoaded = eventBus.on(WorkspaceEvent.functionLoaded, () => {
@@ -2124,16 +924,12 @@ onMounted(async () => {
   await loadAppList()
 
   // 从路由加载应用（会激活对应的 Tab）
-  await loadAppFromRoute()
+  await routingLoadAppFromRoute()
   
-  // 🔥 监听 tabs 和 activeTabId 变化，自动保存到 localStorage
-  watch(() => [stateManager.getState().tabs, stateManager.getState().activeTabId], () => {
-    saveTabsToStorage()
-  }, { deep: true })
+  // 🔥 设置路由监听
+  setupRouteWatch()
 })
 
-// 监听路由变化（添加防抖，避免频繁调用）
-let routeWatchTimer: ReturnType<typeof setTimeout> | null = null
 // 🔥 监听服务树变化，重新关联 tabs 的 node 并展开目录树
 watch(() => serviceTree.value.length, (newLength: number) => {
   if (newLength > 0 && currentApp.value) {
@@ -2142,10 +938,10 @@ watch(() => serviceTree.value.length, (newLength: number) => {
     
     // 展开目录树
     if (route.query._forked) {
-      checkAndExpandForkedPaths()
+    checkAndExpandForkedPaths()
     } else {
       expandCurrentRoutePath()
-    }
+  }
   }
 }, { immediate: true })
 
@@ -2218,15 +1014,6 @@ watch(() => route.query._tab, async (newTab: any) => {
   }
 }, { immediate: false })
 
-watch(() => route.path, async () => {
-  // 🔥 防抖：避免频繁调用
-  if (routeWatchTimer) {
-    clearTimeout(routeWatchTimer)
-  }
-  routeWatchTimer = setTimeout(() => {
-    syncRouteToTab()
-  }, 50) // 50ms 防抖，足够快但避免频繁调用
-}, { immediate: false })
 
 onUnmounted(() => {
   if (unsubscribeFunctionLoaded) {
