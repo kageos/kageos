@@ -82,8 +82,10 @@ export function useWorkspaceTabs() {
         pathMatches: currentPath === targetPath
       })
       
-      // 🔥 路由优先策略：始终更新路由，路由变化会触发 syncRouteToTab → 激活 Tab
+      // 🔥 路由优先策略：始终更新路由以清除 query 参数并触发路由变化
+      // 路由变化会触发 syncRouteToTab → activateTab
       const pathMatches = currentPath === targetPath
+      const hasQueryParams = Object.keys(router.currentRoute.value.query).length > 0
       const currentActiveTabId = activeTabId.value
       const stateNeedsSync = currentActiveTabId !== tabId
       
@@ -92,16 +94,18 @@ export function useWorkspaceTabs() {
         targetPath,
         currentPath,
         pathMatches,
+        hasQueryParams,
         currentActiveTabId,
         stateNeedsSync
       })
       
       // 始终更新路由（清除 query 参数并触发路由变化）
+      // 即使路径相同，也更新路由以确保 query 参数被清除
       router.replace({ path: targetPath, query: {} }).then(() => {
-        // 如果路径相同且状态需要同步，Vue Router 可能不会触发路由变化
-        // 此时需要手动激活 Tab 以确保状态同步
-        if (pathMatches && stateNeedsSync) {
-          console.log('[useWorkspaceTabs] handleTabClick: 路径相同但状态不同步，手动激活 Tab', { 
+        // 如果路径相同且没有 query 参数，Vue Router 可能不会触发路由变化
+        // 此时需要检查状态是否同步，如果不同步则手动激活 Tab
+        if (pathMatches && !hasQueryParams && stateNeedsSync) {
+          console.log('[useWorkspaceTabs] handleTabClick: 路径相同且无 query 参数但状态不同步，手动激活 Tab', { 
             tabId, 
             currentActiveTabId 
           })
@@ -113,7 +117,7 @@ export function useWorkspaceTabs() {
       })
       
       // 注意：路由更新会触发 watch route.path → syncRouteToTab → activateTab
-      // 但如果路径相同，watch 可能不会触发，所以上面做了手动处理
+      // 但如果路径相同且无 query 参数，watch 可能不会触发，所以上面做了手动处理
     } else {
       console.warn('[useWorkspaceTabs] handleTabClick: 未找到对应的 tab', {
         tabId,
