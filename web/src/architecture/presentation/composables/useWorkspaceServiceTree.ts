@@ -14,6 +14,7 @@ import { ElNotification } from 'element-plus'
 import { serviceFactory } from '../../infrastructure/factories'
 import { createServiceTree } from '@/api/service-tree'
 import type { ServiceTree as ServiceTreeType, CreateServiceTreeRequest } from '@/types'
+import type { App } from '../../domain/services/WorkspaceDomainService'
 import ServiceTreePanel from '@/components/ServiceTreePanel.vue'
 
 export function useWorkspaceServiceTree() {

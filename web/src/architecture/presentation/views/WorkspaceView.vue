@@ -11,27 +11,7 @@
 <template>
   <div class="workspace-container">
     <!-- 顶部导航栏 -->
-    <div class="workspace-header">
-      <div class="header-left">
-        <div class="logo">AI Agent OS</div>
-      </div>
-      <div class="header-right">
-        <ThemeToggle />
-        <el-dropdown @command="handleUserCommand">
-          <span class="user-profile">
-            <el-avatar :size="32" :src="userAvatar || undefined">{{ userInitials }}</el-avatar>
-            <span class="username">{{ userName }}</span>
-            <el-icon class="el-icon--right"><ArrowDown /></el-icon>
-          </span>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item command="settings">个人设置</el-dropdown-item>
-              <el-dropdown-item divided command="logout">退出登录</el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
-      </div>
-    </div>
+    <WorkspaceHeader />
 
     <div class="workspace-view">
       <!-- 左侧服务目录树 -->
@@ -52,24 +32,13 @@
       <!-- 中间函数渲染区域 -->
       <div class="function-renderer">
         <!-- 标签页区域 -->
-        <div v-if="tabs.length > 0" class="workspace-tabs-container">
-          <el-tabs
-            v-model="activeTabId"
-            type="card"
-            editable
-            class="workspace-tabs"
-            @tab-click="handleTabClick"
-            @edit="handleTabsEdit"
-          >
-            <el-tab-pane
-              v-for="tab in tabs"
-              :key="tab.id"
-              :label="tab.title"
-              :name="tab.id"
-              :closable="tabs.length > 1"
-            />
-          </el-tabs>
-        </div>
+        <WorkspaceTabs
+          :tabs="tabs"
+          :active-tab-id="activeTabId"
+          @update:active-tab-id="(val: string) => activeTabId = val"
+          @tab-click="handleTabClick"
+          @tab-edit="handleTabsEdit"
+        />
         
         <!-- 🔥 Create/Edit 模式：根据 queryTab 显示独立页面 -->
         <template v-if="queryTab === 'create' && currentFunction && currentFunctionDetail">
@@ -204,143 +173,23 @@
     </el-dialog>
 
     <!-- 详情抽屉 -->
-    <el-drawer
-      v-model="detailDrawerVisible"
+    <WorkspaceDetailDrawer
+      v-model:visible="detailDrawerVisible"
+      v-model:mode="detailDrawerMode"
       :title="detailDrawerTitle"
-      size="50%"
-      destroy-on-close
-      :modal="true"
-      :close-on-click-modal="true"
-      class="detail-drawer"
-      :show-close="true"
+      :fields="detailFields"
+      :row-data="detailRowData"
+      :table-data="detailTableData"
+      :current-index="currentDetailIndex"
+      :can-edit="currentFunctionDetail?.callbacks?.includes('OnTableUpdateRow') || false"
+      :edit-function-detail="editFunctionDetail"
+      :user-info-map="detailUserInfoMap"
+      :submitting="drawerSubmitting"
+      ref="detailDrawerRef"
+      @navigate="handleNavigateDetail"
+      @submit="() => submitDrawerEdit(detailDrawerRef?.formRendererRef)"
       @close="handleDetailDrawerClose"
-    >
-      <template #header>
-        <div class="drawer-header">
-          <span class="drawer-title">{{ detailDrawerTitle }}</span>
-          <div class="drawer-header-actions">
-            <!-- 模式切换按钮 -->
-            <div class="drawer-mode-actions">
-              <el-button
-                v-if="detailDrawerMode === 'read' && currentFunctionDetail?.callbacks?.includes('OnTableUpdateRow')"
-                type="primary"
-                size="small"
-                @click="toggleDrawerMode('edit')"
-              >
-                <el-icon><Edit /></el-icon>
-                编辑
-              </el-button>
-              <el-button
-                v-if="detailDrawerMode === 'edit'"
-                size="small"
-                @click="toggleDrawerMode('read')"
-              >
-                取消
-              </el-button>
-              <el-button
-                v-if="detailDrawerMode === 'edit'"
-                type="primary"
-                size="small"
-                :loading="drawerSubmitting"
-                @click="submitDrawerEdit"
-              >
-                保存
-              </el-button>
-            </div>
-            <!-- 导航按钮（上一个/下一个） -->
-            <div class="drawer-navigation" v-if="detailTableData && detailTableData.length > 1 && detailDrawerMode === 'read'">
-              <el-button
-                size="small"
-                :disabled="currentDetailIndex <= 0"
-                @click="handleNavigateDetail('prev')"
-              >
-                <el-icon><ArrowLeft /></el-icon>
-                上一个
-              </el-button>
-              <span class="nav-info">{{ (currentDetailIndex >= 0 ? currentDetailIndex + 1 : 0) }} / {{ detailTableData.length }}</span>
-              <el-button
-                size="small"
-                :disabled="currentDetailIndex >= detailTableData.length - 1"
-                @click="handleNavigateDetail('next')"
-              >
-                下一个
-                <el-icon><ArrowRight /></el-icon>
-              </el-button>
-            </div>
-          </div>
-        </div>
-      </template>
-
-      <div class="detail-content">
-        <!-- 详情模式 - 使用更美观的布局 -->
-        <div v-if="detailDrawerMode === 'read'">
-          <!-- 链接操作区域：收集所有 link 字段显示在顶部 -->
-          <div v-if="detailLinkFields.length > 0" class="detail-links-section">
-            <div class="links-section-title">相关链接</div>
-            <div class="links-section-content">
-              <LinkWidget
-                v-for="linkField in detailLinkFields"
-                :key="linkField.code"
-                :field="linkField"
-                :value="getDetailFieldValue(linkField.code)"
-                :field-path="linkField.code"
-                mode="detail"
-                class="detail-link-item"
-              />
-            </div>
-          </div>
-          
-          <!-- 字段网格（排除 link 字段） -->
-          <div class="detail-fields-grid">
-            <div
-              v-for="field in detailFields.filter((f: FieldConfig) => f.widget?.type !== WidgetType.LINK)"
-              :key="field.code"
-              class="detail-field-row"
-            >
-              <div class="detail-field-label">
-                {{ field.name }}
-              </div>
-              <div class="detail-field-value">
-                <WidgetComponent
-                  :field="field"
-                  :value="getDetailFieldValue(field.code)"
-                  mode="detail"
-                  :user-info-map="detailUserInfoMap"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 编辑模式（复用 FormRenderer，与旧版本一致） -->
-        <div v-else class="edit-form-wrapper" v-loading="drawerSubmitting">
-          <FormRenderer
-            v-if="editFunctionDetail"
-            ref="detailFormRendererRef"
-            :key="`detail-edit-${detailRowData?.id || ''}-${detailDrawerMode}`"
-            :function-detail="editFunctionDetail"
-            :initial-data="detailRowData || {}"
-            :show-submit-button="false"
-            :show-reset-button="false"
-            :show-share-button="false"
-            :show-debug-button="false"
-          />
-          <el-empty v-else description="无法构建编辑表单" />
-        </div>
-      </div>
-
-      <template #footer>
-        <div class="drawer-footer">
-          <template v-if="detailDrawerMode === 'read'">
-            <el-button @click="detailDrawerVisible = false">关闭</el-button>
-          </template>
-          <template v-else>
-            <el-button @click="toggleDrawerMode('read')">取消</el-button>
-            <el-button type="primary" @click="submitDrawerEdit" :loading="drawerSubmitting">保存</el-button>
-          </template>
-        </div>
-      </template>
-    </el-drawer>
+    />
 
     <!-- 创建服务目录对话框 -->
     <el-dialog
@@ -419,22 +268,20 @@
 import { computed, onMounted, onUnmounted, watch, ref, nextTick } from 'vue'
 import { useRoute, useRouter, type LocationQueryValue } from 'vue-router'
 import { extractWorkspacePath } from '@/utils/route'
-import { ElMessage, ElMessageBox, ElNotification, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon, ElTabs, ElTabPane, ElDrawer, ElDropdown, ElDropdownMenu, ElDropdownItem, ElAvatar, ElEmpty } from 'element-plus'
-import { InfoFilled, ArrowDown, Edit, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox, ElNotification, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon } from 'element-plus'
+import { InfoFilled, ArrowLeft } from '@element-plus/icons-vue'
 import { eventBus, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import { useAuthStore } from '@/stores/auth'
 import ServiceTreePanel from '@/components/ServiceTreePanel.vue'
 import AppSwitcher from '@/components/AppSwitcher.vue'
-import ThemeToggle from '@/components/ThemeToggle.vue'
 import FunctionForkDialog from '@/components/FunctionForkDialog.vue'
-import type { ServiceTreePanel as ServiceTreePanelType } from '@/components/ServiceTreePanel.vue'
 import FormView from './FormView.vue'
 import TableView from './TableView.vue'
-import WidgetComponent from '../widgets/WidgetComponent.vue'
-import LinkWidget from '@/core/widgets-v2/components/LinkWidget.vue'
+import WorkspaceHeader from './components/WorkspaceHeader.vue'
+import WorkspaceTabs from './components/WorkspaceTabs.vue'
+import WorkspaceDetailDrawer from './components/WorkspaceDetailDrawer.vue'
 import { WidgetType } from '@/core/constants/widget'
-import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
 import type { ServiceTree, App } from '../../domain/services/WorkspaceDomainService'
 import type { FunctionDetail } from '../../domain/interfaces/IFunctionLoader'
 import type { App as AppType, ServiceTree as ServiceTreeType } from '@/types'
@@ -581,7 +428,6 @@ const {
   toggleDrawerMode,
   handleNavigateDetail,
   submitDrawerEdit,
-  getDetailFieldValue,
   handleDetailDrawerClose,
   openDetailDrawer,
   setupUrlWatch
@@ -589,6 +435,22 @@ const {
   currentFunctionDetail: () => currentFunctionDetail.value,
   currentFunction: () => currentFunction.value
 })
+
+// 🔥 详情页的 Link 字段（用于顶部链接区域显示）
+const detailLinkFields = computed(() => {
+  return detailFields.value.filter((f: FieldConfig) => f.widget?.type === WidgetType.LINK)
+})
+
+// 获取详情字段值
+const getDetailFieldValue = (fieldCode: string): FieldValue => {
+  if (!detailRowData.value) return { raw: null, display: '', meta: {} }
+  const value = detailRowData.value[fieldCode]
+  return { 
+    raw: value, 
+    display: typeof value === 'object' ? JSON.stringify(value) : String(value ?? ''), 
+    meta: {} 
+  }
+}
 
 const {
   syncRouteToTab,
@@ -614,34 +476,6 @@ const {
   )
 })
 
-// 用户相关
-const userName = computed(() => authStore.userName || 'User')
-const userAvatar = computed(() => authStore.user?.avatar || '')
-const userInitials = computed(() => {
-  const name = userName.value
-  return name ? name.substring(0, 2).toUpperCase() : 'US'
-})
-
-const handleUserCommand = (command: string) => {
-  if (command === 'logout') {
-    handleLogout()
-  } else if (command === 'settings') {
-    router.push('/user/settings')
-  }
-}
-
-const handleLogout = async () => {
-  try {
-    await ElMessageBox.confirm('确定要退出登录吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
-    await authStore.logout()
-  } catch (error) {
-    // 忽略取消操作
-  }
-}
 
 // 🔥 Tab 点击处理（使用 Composable）
 const handleTabClick = tabsHandleTabClick
@@ -694,7 +528,8 @@ const editInitialData = computed(() => {
         } else if (field.data?.type === 'bool' || field.data?.type === 'boolean') {
           const strValue = String(value)
           const numValue = typeof value === 'number' ? value : Number(strValue)
-          initialData[fieldCode] = strValue === 'true' || strValue === '1' || numValue === 1 || value === true
+          const boolValue = typeof value === 'boolean' ? value : false
+          initialData[fieldCode] = strValue === 'true' || strValue === '1' || numValue === 1 || boolValue
         } else {
           initialData[fieldCode] = value
         }
@@ -703,13 +538,6 @@ const editInitialData = computed(() => {
   }
   
   return initialData
-})
-
-/**
- * 详情页的 Link 字段（用于顶部链接区域显示）
- */
-const detailLinkFields = computed(() => {
-  return detailFields.value.filter((field: FieldConfig) => field.widget?.type === WidgetType.LINK)
 })
 
 
