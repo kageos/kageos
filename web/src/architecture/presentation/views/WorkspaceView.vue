@@ -1691,10 +1691,27 @@ const loadAppFromRoute = async () => {
   // 提取路径
   const fullPath = extractWorkspacePath(route.path)
   
-  // 🔥 如果路径没有变化，不重复处理（tab 切换时会提前设置 lastProcessedPath）
+  // 🔥 如果路径没有变化，不重复处理
   if (fullPath === lastProcessedPath) {
     console.log('[WorkspaceView] loadAppFromRoute 跳过：路径已处理', { fullPath, lastProcessedPath })
     return
+  }
+  
+  // 🔥 关键：检查当前激活的 tab 是否与路由匹配
+  // 如果匹配，说明这是 tab 切换导致的路由变化，不需要再处理
+  const activeTab = tabs.value.find(t => t.id === activeTabId.value)
+  if (activeTab) {
+    const activeTabPath = activeTab.path?.replace(/^\//, '') || ''
+    const routePathNormalized = fullPath?.replace(/^\//, '') || ''
+    if (activeTabPath === routePathNormalized) {
+      console.log('[WorkspaceView] loadAppFromRoute 跳过：当前 tab 已匹配路由', { 
+        activeTabPath, 
+        routePathNormalized,
+        activeTabId: activeTabId.value
+      })
+      lastProcessedPath = fullPath // 更新已处理路径
+      return
+    }
   }
   
   if (!fullPath) {
