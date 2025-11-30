@@ -99,28 +99,21 @@ export function useWorkspaceTabs() {
         stateNeedsSync
       })
       
-      // 🔥 保留分页和排序参数，只清除搜索参数（与服务目录切换保持一致）
-      // 这样可以保留 page、page_size、sorts 等参数，只清除搜索条件
+      // 🔥 Tab 切换时：保留所有参数（包括搜索参数），确保切换回去时能恢复之前的状态
+      // 这是 Tab 的核心功能：保持切换时的状态，切换回去时恢复切换前的参数
       const currentQuery = router.currentRoute.value.query
       const preservedQuery: Record<string, string> = {}
       
-      // 保留分页参数
-      if (currentQuery.page) {
-        preservedQuery.page = String(currentQuery.page)
-      }
-      if (currentQuery.page_size) {
-        preservedQuery.page_size = String(currentQuery.page_size)
-      }
-      
-      // 保留排序参数
-      if (currentQuery.sorts) {
-        preservedQuery.sorts = String(currentQuery.sorts)
-      }
-      
-      // 保留以 _ 开头的参数（前端状态参数）
+      // 🔥 保留所有参数（分页、排序、搜索等），确保 Tab 切换时状态不丢失
       Object.keys(currentQuery).forEach(key => {
-        if (key.startsWith('_')) {
-          preservedQuery[key] = String(currentQuery[key])
+        const value = currentQuery[key]
+        if (value !== null && value !== undefined) {
+          if (Array.isArray(value)) {
+            // 数组参数：取第一个值（Vue Router 的 query 可能是数组）
+            preservedQuery[key] = String(value[0])
+          } else {
+            preservedQuery[key] = String(value)
+          }
         }
       })
       

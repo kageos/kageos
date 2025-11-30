@@ -146,41 +146,29 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
           isSyncingToURL.value = false
         }
       } else {
-        // 🔥 URL 中没有 query 参数（Tab 切换时），从 URL 恢复状态
-        // 注意：Tab 切换时，URL 中可能保留了分页和排序参数（page, page_size, sorts）
-        // 所以先尝试从 URL 恢复，如果没有则使用默认值
-        const hasPageParams = route.query.page || route.query.page_size
-        const hasSortParams = route.query.sorts
+        // 🔥 URL 中没有 query 参数（Tab 切换时），检查是否有保存的 Tab 数据
+        // Tab 切换时，应该从 Tab 的保存数据中恢复状态，而不是重置为默认值
+        // 这样可以保持切换时的状态，切换回去时恢复切换前的参数
+        const currentState = stateManager.getState()
+        const activeTabId = currentState.activeTabId
+        const activeTab = currentState.tabs.find(t => t.id === activeTabId)
         
-        if (hasPageParams || hasSortParams) {
-          // URL 中有分页或排序参数，从 URL 恢复状态
-          restoreFromURL()
-          
-          // 清空搜索表单（Tab 切换时应该清空搜索条件）
-          const currentState = stateManager.getState()
-          stateManager.setState({
-            ...currentState,
-            searchForm: {}
+        if (activeTab && activeTab.data && activeTab.data.searchForm !== undefined) {
+          // Tab 有保存的数据，恢复 Tab 的状态（包括搜索参数）
+          console.log('[useTableInitialization] 从 Tab 保存的数据恢复状态', {
+            tabId: activeTabId,
+            hasSearchForm: !!activeTab.data.searchForm,
+            hasSorts: !!activeTab.data.sorts,
+            hasPagination: !!activeTab.data.pagination
           })
           
-          // 同步状态到 URL（确保 URL 参数和接口请求参数对齐）
-          if (!isSyncingToURL.value) {
-            isSyncingToURL.value = true
-            await nextTick()
-            syncToURL() // 完整同步所有参数（分页、排序、搜索）
-            await nextTick()
-            isSyncingToURL.value = false
-          }
-        } else {
-          // URL 中没有任何参数，重置状态为默认值
-          const currentState = stateManager.getState()
-          const defaultSorts = buildDefaultSorts()
+          // 恢复 Tab 保存的状态
           stateManager.setState({
             ...currentState,
-            searchForm: {},
-            sorts: defaultSorts.length > 0 ? defaultSorts : [],
-            hasManualSort: false,
-            pagination: {
+            searchForm: activeTab.data.searchForm || {},
+            sorts: activeTab.data.sorts || [],
+            hasManualSort: activeTab.data.hasManualSort || false,
+            pagination: activeTab.data.pagination || {
               ...currentState.pagination,
               currentPage: 1
             }
@@ -193,6 +181,46 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
             syncToURL() // 完整同步所有参数（分页、排序、搜索）
             await nextTick()
             isSyncingToURL.value = false
+          }
+        } else {
+          // Tab 没有保存的数据，从 URL 恢复状态（如果 URL 中有参数）
+          // 或者重置为默认值（如果 URL 中没有任何参数）
+          const hasAnyParams = Object.keys(route.query).length > 0
+          
+          if (hasAnyParams) {
+            // URL 中有参数，从 URL 恢复状态
+            restoreFromURL()
+            
+            // 同步状态到 URL（确保 URL 参数和接口请求参数对齐）
+            if (!isSyncingToURL.value) {
+              isSyncingToURL.value = true
+              await nextTick()
+              syncToURL()
+              await nextTick()
+              isSyncingToURL.value = false
+            }
+          } else {
+            // URL 中没有任何参数，重置状态为默认值
+            const defaultSorts = buildDefaultSorts()
+            stateManager.setState({
+              ...currentState,
+              searchForm: {},
+              sorts: defaultSorts.length > 0 ? defaultSorts : [],
+              hasManualSort: false,
+              pagination: {
+                ...currentState.pagination,
+                currentPage: 1
+              }
+            })
+            
+            // 同步状态到 URL（确保 URL 参数和接口请求参数对齐）
+            if (!isSyncingToURL.value) {
+              isSyncingToURL.value = true
+              await nextTick()
+              syncToURL()
+              await nextTick()
+              isSyncingToURL.value = false
+            }
           }
         }
       }
