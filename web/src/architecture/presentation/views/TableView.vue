@@ -554,6 +554,16 @@ const handleReset = (): void => {
  * URL 中的参数 = 接口请求的参数（包括分页、排序、搜索等）
  */
 const syncToURL = (): void => {
+  // 🔥 检查当前函数类型，如果是 form 函数，不应该调用 syncToURL
+  // 这可以防止路由切换时，form 函数的 URL 被添加 table 参数
+  if (props.functionDetail.template_type !== 'table') {
+    console.warn('[TableView] syncToURL: 当前函数不是 table 类型，跳过', {
+      functionId: props.functionDetail.id,
+      templateType: props.functionDetail.template_type
+    })
+    return
+  }
+  
   const query: Record<string, string> = {}
   
   // 分页参数
