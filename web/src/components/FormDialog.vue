@@ -60,7 +60,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  width: '900px',
+  width: '1200px',
   initialData: () => ({}),
   router: ''
 })
