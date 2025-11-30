@@ -446,14 +446,17 @@ defineExpose({
     gap: 4px;
     font-size: 14px;
     cursor: pointer;
-    transition: opacity 0.2s;
+    transition: all 0.2s;
+    color: #6366f1 !important; /* ✅ 与服务目录 fx 图标颜色一致（indigo-500） */
     
     &:hover {
-      opacity: 0.8;
+      color: #4f46e5 !important; /* indigo-600，更深的紫色 */
+      opacity: 1;
     }
     
     .el-icon {
       font-size: 14px;
+      color: inherit;
     }
   }
 }
