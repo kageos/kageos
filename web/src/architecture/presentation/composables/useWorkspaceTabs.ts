@@ -99,34 +99,22 @@ export function useWorkspaceTabs() {
         stateNeedsSync
       })
       
-      // 🔥 Tab 切换时：保留所有参数（包括搜索参数），确保切换回去时能恢复之前的状态
+      // 🔥 Tab 切换时：清空 URL 参数，然后从 Tab 的保存数据恢复状态
       // 这是 Tab 的核心功能：保持切换时的状态，切换回去时恢复切换前的参数
-      const currentQuery = router.currentRoute.value.query
-      const preservedQuery: Record<string, string> = {}
+      // 注意：不保留当前 URL 的参数，因为那些是当前 Tab 的参数，不是目标 Tab 的参数
+      // 目标 Tab 的状态应该从 Tab 的保存数据中恢复，而不是从当前 URL 中恢复
       
-      // 🔥 保留所有参数（分页、排序、搜索等），确保 Tab 切换时状态不丢失
-      Object.keys(currentQuery).forEach(key => {
-        const value = currentQuery[key]
-        if (value !== null && value !== undefined) {
-          if (Array.isArray(value)) {
-            // 数组参数：取第一个值（Vue Router 的 query 可能是数组）
-            preservedQuery[key] = String(value[0])
-          } else {
-            preservedQuery[key] = String(value)
-          }
-        }
-      })
-      
-      // 🔥 强制触发路由更新：先添加临时参数，然后更新为保留的参数，确保路由变化被触发
+      // 🔥 强制触发路由更新：先添加临时参数，然后清空，确保路由变化被触发
       const tempQuery = { _refresh: Date.now().toString() }
       router.replace({ path: targetPath, query: tempQuery }).then(() => {
-        // 更新为保留的参数，触发路由变化
-        return router.replace({ path: targetPath, query: preservedQuery })
+        // 清空 URL 参数，触发路由变化
+        // Tab 的状态会从 Tab 的保存数据中恢复（通过 setupTabDataWatch）
+        return router.replace({ path: targetPath, query: {} })
       }).then(() => {
         // 如果路径相同且没有 query 参数，Vue Router 可能不会触发路由变化
         // 此时需要检查状态是否同步，如果不同步则手动激活 Tab
-        if (pathMatches && Object.keys(preservedQuery).length === 0 && stateNeedsSync) {
-          console.log('[useWorkspaceTabs] handleTabClick: 路径相同且无 query 参数但状态不同步，手动激活 Tab', { 
+        if (pathMatches && stateNeedsSync) {
+          console.log('[useWorkspaceTabs] handleTabClick: 路径相同但状态不同步，手动激活 Tab', { 
             tabId, 
             currentActiveTabId 
           })
