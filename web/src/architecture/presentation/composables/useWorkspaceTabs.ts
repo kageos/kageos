@@ -162,7 +162,27 @@ export function useWorkspaceTabs() {
             }))
           } else if (detail?.template_type === 'table') {
             const currentState = serviceFactoryInstance.getTableStateManager().getState()
-            oldTab.data = JSON.parse(JSON.stringify(currentState))
+            // 🔥 保存 Table 状态，确保所有字段都被保存，包括 searchForm
+            oldTab.data = JSON.parse(JSON.stringify({
+              searchForm: currentState.searchForm || {},
+              searchParams: currentState.searchParams || {},
+              sorts: currentState.sorts || [],
+              hasManualSort: currentState.hasManualSort || false,
+              pagination: currentState.pagination || {
+                currentPage: 1,
+                pageSize: 20,
+                total: 0
+              },
+              data: currentState.data || [],
+              loading: false
+            }))
+            console.log('[useWorkspaceTabs] 保存 Tab 数据', {
+              tabId: oldId,
+              searchForm: oldTab.data.searchForm,
+              sorts: oldTab.data.sorts,
+              pagination: oldTab.data.pagination,
+              hasData: !!(oldTab.data.data && oldTab.data.data.length > 0)
+            })
           }
         }
       }
@@ -185,10 +205,22 @@ export function useWorkspaceTabs() {
             } else if (detail?.template_type === 'table') {
               // 🔥 恢复 Table 数据：确保完全替换状态，避免残留上一个Tab的状态
               const savedState = newTab.data
+              console.log('[useWorkspaceTabs] 恢复 Tab 数据', {
+                tabId: newId,
+                savedState,
+                hasSearchForm: !!savedState.searchForm,
+                searchForm: savedState.searchForm,
+                hasSorts: !!savedState.sorts,
+                sorts: savedState.sorts,
+                hasPagination: !!savedState.pagination,
+                pagination: savedState.pagination,
+                hasData: !!(savedState.data && savedState.data.length > 0)
+              })
+              
+              // 🔥 确保所有字段都被正确恢复，包括 searchForm
               serviceFactoryInstance.getTableStateManager().setState({
-                ...savedState,
-                // 确保所有字段都被正确恢复，包括 searchForm
                 searchForm: savedState.searchForm || {},
+                searchParams: savedState.searchParams || {},
                 sorts: savedState.sorts || [],
                 hasManualSort: savedState.hasManualSort || false,
                 pagination: savedState.pagination || {
@@ -198,6 +230,12 @@ export function useWorkspaceTabs() {
                 },
                 data: savedState.data || [],
                 loading: false
+              })
+              
+              console.log('[useWorkspaceTabs] Tab 数据恢复完成', {
+                tabId: newId,
+                restoredState: serviceFactoryInstance.getTableStateManager().getState(),
+                searchForm: serviceFactoryInstance.getTableStateManager().getState().searchForm
               })
             }
           } else {
