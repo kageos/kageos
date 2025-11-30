@@ -183,8 +183,46 @@ export function useWorkspaceTabs() {
                 submitting: savedState.submitting
               })
             } else if (detail?.template_type === 'table') {
-              // 恢复 Table 数据
-              serviceFactoryInstance.getTableStateManager().setState(newTab.data)
+              // 🔥 恢复 Table 数据：确保完全替换状态，避免残留上一个Tab的状态
+              const savedState = newTab.data
+              serviceFactoryInstance.getTableStateManager().setState({
+                ...savedState,
+                // 确保所有字段都被正确恢复，包括 searchForm
+                searchForm: savedState.searchForm || {},
+                sorts: savedState.sorts || [],
+                hasManualSort: savedState.hasManualSort || false,
+                pagination: savedState.pagination || {
+                  currentPage: 1,
+                  pageSize: 20,
+                  total: 0
+                },
+                data: savedState.data || [],
+                loading: false
+              })
+            }
+          } else {
+            // 🔥 Tab 没有保存的数据，清空状态，确保不会残留上一个Tab的状态
+            const newTabNode = newTab?.node
+            if (newTabNode) {
+              const detail = stateManager.getFunctionDetail(newTabNode)
+              if (detail?.template_type === 'table') {
+                // 清空 Table 状态，避免残留上一个Tab的状态
+                const defaultState = {
+                  data: [],
+                  loading: false,
+                  searchParams: {},
+                  searchForm: {},
+                  sortParams: null,
+                  sorts: [],
+                  hasManualSort: false,
+                  pagination: {
+                    currentPage: 1,
+                    pageSize: 20,
+                    total: 0
+                  }
+                }
+                serviceFactoryInstance.getTableStateManager().setState(defaultState)
+              }
             }
           }
           
