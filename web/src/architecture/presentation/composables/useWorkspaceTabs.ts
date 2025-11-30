@@ -35,19 +35,42 @@ export function useWorkspaceTabs() {
 
   // Tab 点击处理：只更新路由，路由变化会触发 Tab 状态更新
   const handleTabClick = (tab: any) => {
-    if (tab.name) {
-      const targetTab = tabs.value.find(t => t.id === tab.name)
+    // Element Plus 的 tab-click 事件传递的参数可能是：
+    // 1. TabsPaneContext 对象，包含 name 属性
+    // 2. 或者直接是 tabId (字符串)
+    const tabId = tab?.name || tab
+    
+    if (tabId) {
+      const targetTab = tabs.value.find(t => t.id === tabId)
       if (targetTab && targetTab.path) {
         const tabPath = targetTab.path.startsWith('/') ? targetTab.path : `/${targetTab.path}`
         const targetPath = `/workspace${tabPath}`
+        
+        console.log('[useWorkspaceTabs] handleTabClick: 更新路由', {
+          tabId,
+          tabPath: targetTab.path,
+          targetPath,
+          currentPath: router.currentRoute.value.path
+        })
         
         // 只更新路由，不调用 activateTab
         // 路由变化会触发 watch route.path → syncRouteToTab → 激活 Tab
         const currentPath = router.currentRoute.value.path
         if (currentPath !== targetPath) {
-          router.replace({ path: targetPath, query: {} }).catch(() => {})
+          router.replace({ path: targetPath, query: {} }).catch((err) => {
+            console.error('[useWorkspaceTabs] handleTabClick: 路由更新失败', err)
+          })
+        } else {
+          console.log('[useWorkspaceTabs] handleTabClick: 路由已匹配，无需更新')
         }
+      } else {
+        console.warn('[useWorkspaceTabs] handleTabClick: 未找到对应的 tab', {
+          tabId,
+          availableTabs: tabs.value.map(t => ({ id: t.id, path: t.path }))
+        })
       }
+    } else {
+      console.warn('[useWorkspaceTabs] handleTabClick: tabId 为空', { tab })
     }
   }
 
