@@ -148,7 +148,7 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
         }
       } else {
         // 🔥 URL 中没有 query 参数（Tab 切换或服务目录切换时）
-        // 优先从 Tab 的保存数据恢复状态（setupTabDataWatch 可能还没执行完）
+        // 简化逻辑：从 Tab 的保存数据恢复状态，然后重新调用接口获取数据
         const workspaceStateManager = serviceFactory.getWorkspaceStateManager()
         const workspaceState = workspaceStateManager.getState()
         const activeTabId = workspaceState.activeTabId
@@ -157,7 +157,7 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
         
         const currentState = stateManager.getState()
         
-        // 🔥 优先从 Tab 的保存数据恢复状态（确保状态正确）
+        // 🔥 从 Tab 的保存数据恢复状态（如果有）
         if (activeTab && activeTab.data && activeTab.data.searchForm !== undefined) {
           // 🔥 Tab 有保存的数据，恢复 Tab 的状态（包括搜索参数）
           Logger.debug('useTableInitialization', '从 Tab 保存的数据恢复状态', {
@@ -167,12 +167,10 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
             hasSorts: !!activeTab.data.sorts,
             sorts: activeTab.data.sorts,
             hasPagination: !!activeTab.data.pagination,
-            pagination: activeTab.data.pagination,
-            hasCachedData: !!(activeTab.data.data && activeTab.data.data.length > 0)
+            pagination: activeTab.data.pagination
           })
           
           // 🔥 恢复 Tab 保存的状态（包括搜索参数、排序、分页）
-          // 注意：完全替换状态，确保所有字段都被正确恢复
           const finalSorts = activeTab.data.sorts || []
           stateManager.setState({
             searchForm: activeTab.data.searchForm || {},
@@ -188,15 +186,8 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
               pageSize: 20,
               total: 0
             },
-            // 🔥 如果有缓存的数据，也恢复数据，避免重新调用接口
-            data: activeTab.data.data || [],
+            data: [], // 🔥 清空数据，强制重新加载
             loading: false
-          })
-          
-          Logger.debug('useTableInitialization', 'Tab 状态恢复完成', {
-            tabId: activeTabId,
-            restoredState: stateManager.getState(),
-            searchForm: stateManager.getState().searchForm
           })
           
           // 同步状态到 URL（确保 URL 参数和接口请求参数对齐）
@@ -208,80 +199,42 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
             isSyncingToURL.value = false
           }
         } else {
-          // 🔥 Tab 没有保存的数据，检查 TableStateManager 中是否有恢复的状态
-          // 如果有 searchForm 且有值，说明状态已经恢复（setupTabDataWatch 恢复的）
-          const hasRestoredState = currentState.searchForm && Object.keys(currentState.searchForm).length > 0
+          // 🔥 Tab 没有保存的数据，清空状态，避免残留上一个函数的状态
+          const defaultSorts = buildDefaultSorts()
+          stateManager.setState({
+            ...currentState,
+            searchForm: {}, // 🔥 清空搜索表单，避免状态污染
+            sorts: defaultSorts.length > 0 ? defaultSorts : [],
+            hasManualSort: false,
+            pagination: {
+              ...currentState.pagination,
+              currentPage: 1
+            },
+            data: [], // 🔥 清空数据，强制重新加载
+            loading: false
+          })
           
-          if (hasRestoredState) {
-            // 🔥 TableStateManager 已有恢复的状态（setupTabDataWatch 恢复的）
-            // 直接使用这个状态，并同步到 URL
-            Logger.debug('useTableInitialization', 'TableStateManager 已有恢复的状态，同步到 URL', {
-              functionId: functionDetailValue?.id,
-              router: functionDetailValue?.router,
-              searchForm: currentState.searchForm,
-              sorts: currentState.sorts,
-              pagination: currentState.pagination,
-              hasCachedData: !!(currentState.data && currentState.data.length > 0)
-            })
-            
-            // 同步状态到 URL（确保 URL 参数和接口请求参数对齐）
-            if (!isSyncingToURL.value) {
-              isSyncingToURL.value = true
-              await nextTick()
-              syncToURL() // 完整同步所有参数（分页、排序、搜索）
-              await nextTick()
-              isSyncingToURL.value = false
-            }
-          } else {
-            // 🔥 Tab 没有保存的数据，且 TableStateManager 也没有恢复的状态
-            // 清空状态，避免残留上一个函数的状态
-            const defaultSorts = buildDefaultSorts()
-            stateManager.setState({
-              ...currentState,
-              searchForm: {}, // 🔥 清空搜索表单，避免状态污染
-              sorts: defaultSorts.length > 0 ? defaultSorts : [],
-              hasManualSort: false,
-              pagination: {
-                ...currentState.pagination,
-                currentPage: 1
-              }
-            })
-            
-            // 同步状态到 URL（确保 URL 参数和接口请求参数对齐）
-            if (!isSyncingToURL.value) {
-              isSyncingToURL.value = true
-              await nextTick()
-              syncToURL()
-              await nextTick()
-              isSyncingToURL.value = false
-            }
+          // 同步状态到 URL（确保 URL 参数和接口请求参数对齐）
+          if (!isSyncingToURL.value) {
+            isSyncingToURL.value = true
+            await nextTick()
+            syncToURL()
+            await nextTick()
+            isSyncingToURL.value = false
           }
         }
       }
 
-      // 🔥 再次检查组件是否还在挂载状态
-      if (isMounted && !isMounted.value) {
-        Logger.warn('useTableInitialization', '组件在初始化过程中已卸载，取消加载数据', { functionId, router })
-        return
-      }
+            // 🔥 再次检查组件是否还在挂载状态
+            if (isMounted && !isMounted.value) {
+              Logger.warn('useTableInitialization', '组件在初始化过程中已卸载，取消加载数据', { functionId, router })
+              return
+            }
 
-      // 🔥 检查是否有缓存的数据，如果有就不重新调用接口
-      const currentState = stateManager.getState()
-      const hasCachedData = currentState.data && currentState.data.length > 0
-      
-      if (hasCachedData) {
-        // 有缓存的数据，直接使用，不重新调用接口
-        Logger.debug('useTableInitialization', '使用缓存的数据，不重新调用接口', {
-          functionId,
-          router,
-          dataCount: currentState.data.length
-        })
-      } else {
-        // 没有缓存的数据，需要加载数据
-        Logger.debug('useTableInitialization', '开始加载数据', { functionId, router })
-        await loadTableData()
-        Logger.debug('useTableInitialization', '数据加载完成', { functionId, router })
-      }
+            // 🔥 简化逻辑：每次初始化都重新调用接口获取数据
+            Logger.debug('useTableInitialization', '开始加载数据', { functionId, router })
+            await loadTableData()
+            Logger.debug('useTableInitialization', '数据加载完成', { functionId, router })
     } finally {
       isInitializing.value = false
       Logger.debug('useTableInitialization', 'initializeTable 完成', { functionId, router })
