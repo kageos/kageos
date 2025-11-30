@@ -115,7 +115,7 @@ const handleTabsEdit = (targetName: string | undefined, action: 'remove' | 'add'
     // 激活状态
     &.is-active {
       background: var(--el-bg-color);
-      color: var(--el-color-primary);
+      color: #6366f1; /* ✅ 与服务目录 fx 图标颜色一致（indigo-500） */
       border-color: var(--el-border-color);
       border-bottom-color: var(--el-bg-color);
       z-index: 1;
@@ -130,7 +130,7 @@ const handleTabsEdit = (targetName: string | undefined, action: 'remove' | 'add'
         left: 0;
         right: 0;
         height: 2px;
-        background: var(--el-color-primary);
+        background: #6366f1; /* ✅ 与服务目录 fx 图标颜色一致 */
         border-radius: 2px 2px 0 0;
       }
 
@@ -143,9 +143,9 @@ const handleTabsEdit = (targetName: string | undefined, action: 'remove' | 'add'
         right: 0;
         height: 2px;
         background: linear-gradient(90deg, 
-          var(--el-color-primary-light-3) 0%, 
-          var(--el-color-primary) 50%, 
-          var(--el-color-primary-light-3) 100%);
+          rgba(99, 102, 241, 0.3) 0%, 
+          #6366f1 50%, 
+          rgba(99, 102, 241, 0.3) 100%);
         opacity: 0.3;
       }
     }
@@ -191,9 +191,9 @@ const handleTabsEdit = (targetName: string | undefined, action: 'remove' | 'add'
     transition: all 0.2s;
 
     &:hover {
-      border-color: var(--el-color-primary);
-      color: var(--el-color-primary);
-      background: var(--el-color-primary-light-9);
+      border-color: #6366f1; /* ✅ 与服务目录 fx 图标颜色一致 */
+      color: #6366f1;
+      background: rgba(99, 102, 241, 0.08); /* indigo-500 的浅色背景 */
     }
   }
 }
