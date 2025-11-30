@@ -163,10 +163,13 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
         // 🔥 同步状态到 URL（确保 URL 参数和接口请求参数对齐）
         // URL 中的参数 = 接口请求的参数（包括分页、排序、搜索等）
         // 即使搜索条件为空，也要同步，确保 URL 和状态一致
+        // 注意：使用 nextTick 确保在路由更新之后执行，避免时序问题
         if (!isSyncingToURL.value) {
           isSyncingToURL.value = true
           await nextTick()
+          // 🔥 确保路由更新：即使路径相同，也要更新 query 以触发路由变化
           syncToURL() // 完整同步所有参数（分页、排序、搜索）
+          await nextTick() // 等待路由更新完成
           isSyncingToURL.value = false
         }
       }

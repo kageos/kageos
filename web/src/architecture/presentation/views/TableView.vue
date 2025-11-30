@@ -616,7 +616,16 @@ const syncToURL = (): void => {
   })
   
   Object.assign(newQuery, query)
-  router.replace({ query: newQuery })
+  
+  // 🔥 确保路由更新：如果路径相同，使用 replace 更新 query；如果路径不同，使用 replace 更新 path 和 query
+  // 这样可以确保 URL 刷新，即使路径相同也能触发路由变化
+  const currentPath = route.path
+  router.replace({ 
+    path: currentPath, 
+    query: newQuery 
+  }).catch((err) => {
+    console.error('[TableView] syncToURL 路由更新失败', err)
+  })
 }
 
 // 🔥 restoreFromURL 已移至 useTableInitialization composable
