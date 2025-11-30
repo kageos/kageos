@@ -209,43 +209,44 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
               isSyncingToURL.value = false
             }
           } else {
-          // Tab 没有保存的数据，从 URL 恢复状态（如果 URL 中有参数）
-          // 或者重置为默认值（如果 URL 中没有任何参数）
-          const hasAnyParams = Object.keys(route.query).length > 0
-          
-          if (hasAnyParams) {
-            // URL 中有参数，从 URL 恢复状态
-            restoreFromURL()
+            // Tab 没有保存的数据，从 URL 恢复状态（如果 URL 中有参数）
+            // 或者重置为默认值（如果 URL 中没有任何参数）
+            const hasAnyParams = Object.keys(route.query).length > 0
             
-            // 同步状态到 URL（确保 URL 参数和接口请求参数对齐）
-            if (!isSyncingToURL.value) {
-              isSyncingToURL.value = true
-              await nextTick()
-              syncToURL()
-              await nextTick()
-              isSyncingToURL.value = false
-            }
-          } else {
-            // URL 中没有任何参数，重置状态为默认值
-            const defaultSorts = buildDefaultSorts()
-            stateManager.setState({
-              ...currentState,
-              searchForm: {},
-              sorts: defaultSorts.length > 0 ? defaultSorts : [],
-              hasManualSort: false,
-              pagination: {
-                ...currentState.pagination,
-                currentPage: 1
+            if (hasAnyParams) {
+              // URL 中有参数，从 URL 恢复状态
+              restoreFromURL()
+              
+              // 同步状态到 URL（确保 URL 参数和接口请求参数对齐）
+              if (!isSyncingToURL.value) {
+                isSyncingToURL.value = true
+                await nextTick()
+                syncToURL()
+                await nextTick()
+                isSyncingToURL.value = false
               }
-            })
-            
-            // 同步状态到 URL（确保 URL 参数和接口请求参数对齐）
-            if (!isSyncingToURL.value) {
-              isSyncingToURL.value = true
-              await nextTick()
-              syncToURL()
-              await nextTick()
-              isSyncingToURL.value = false
+            } else {
+              // URL 中没有任何参数，重置状态为默认值
+              const defaultSorts = buildDefaultSorts()
+              stateManager.setState({
+                ...currentState,
+                searchForm: {},
+                sorts: defaultSorts.length > 0 ? defaultSorts : [],
+                hasManualSort: false,
+                pagination: {
+                  ...currentState.pagination,
+                  currentPage: 1
+                }
+              })
+              
+              // 同步状态到 URL（确保 URL 参数和接口请求参数对齐）
+              if (!isSyncingToURL.value) {
+                isSyncingToURL.value = true
+                await nextTick()
+                syncToURL()
+                await nextTick()
+                isSyncingToURL.value = false
+              }
             }
           }
         }
