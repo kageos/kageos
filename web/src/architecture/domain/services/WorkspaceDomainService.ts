@@ -166,24 +166,47 @@ export class WorkspaceDomainService {
       allTabIds: state.tabs.map(t => t.id)
     })
     
-    if (tab) {
-      console.log('[WorkspaceDomainService] activateTab 更新状态并触发事件', { 
-        tabId, 
-        tabPath: tab.path,
-        tabTitle: tab.title
-      })
-      this.stateManager.setState({
-        ...state,
-        activeTabId: tabId,
-        currentFunction: tab.node || null
-      })
-
-      // 🔥 触发路由更新事件（让 Presentation Layer 更新路由）
-      this.eventBus.emit(WorkspaceEvent.tabActivated, { tab, shouldUpdateRoute: true })
-      console.log('[WorkspaceDomainService] activateTab 事件已触发', { tabId, tabPath: tab.path })
-    } else {
+    if (!tab) {
       console.warn('[WorkspaceDomainService] activateTab tab 不存在', { tabId, availableTabs: state.tabs.map(t => ({ id: t.id, title: t.title })) })
+      return
     }
+    
+    // 🔥 检查状态是否已同步，避免不必要的更新
+    const currentActiveTabId = state.activeTabId
+    const currentFunctionId = state.currentFunction?.id
+    const targetFunctionId = tab.node?.id
+    
+    const isStateSynced = currentActiveTabId === tabId && 
+                          ((!currentFunctionId && !targetFunctionId) || currentFunctionId === targetFunctionId)
+    
+    if (isStateSynced) {
+      console.log('[WorkspaceDomainService] activateTab: 状态已同步，无需更新', {
+        tabId,
+        currentActiveTabId,
+        currentFunctionId,
+        targetFunctionId
+      })
+      return
+    }
+    
+    console.log('[WorkspaceDomainService] activateTab 更新状态并触发事件', { 
+      tabId, 
+      tabPath: tab.path,
+      tabTitle: tab.title,
+      currentActiveTabId,
+      currentFunctionId,
+      targetFunctionId
+    })
+    
+    this.stateManager.setState({
+      ...state,
+      activeTabId: tabId,
+      currentFunction: tab.node || null
+    })
+
+    // 🔥 触发路由更新事件（让 Presentation Layer 更新路由）
+    this.eventBus.emit(WorkspaceEvent.tabActivated, { tab, shouldUpdateRoute: true })
+    console.log('[WorkspaceDomainService] activateTab 事件已触发', { tabId, tabPath: tab.path })
   }
 
   /**

@@ -85,15 +85,23 @@ export function useWorkspaceTabs() {
       // 只更新路由，不调用 activateTab
       // 路由变化会触发 watch route.path → syncRouteToTab → 激活 Tab
       if (currentPath !== targetPath) {
+        // 路由不匹配，更新路由
         router.replace({ path: targetPath, query: {} }).catch((err) => {
           console.error('[useWorkspaceTabs] handleTabClick: 路由更新失败', err)
         })
       } else {
-        // 路由已匹配，但可能 Tab 状态不同步，确保 Tab 被激活
-        console.log('[useWorkspaceTabs] handleTabClick: 路由已匹配，确保 Tab 激活', { tabId })
-        if (activeTabId.value !== tabId) {
-          // Tab 状态不同步，激活 Tab（但不触发路由更新，避免循环）
+        // 路由已匹配，检查 Tab 状态是否同步
+        const currentActiveTabId = activeTabId.value
+        if (currentActiveTabId !== tabId) {
+          // Tab 状态不同步，激活 Tab（会触发 tabActivated 事件，但路由已匹配不会更新）
+          console.log('[useWorkspaceTabs] handleTabClick: 路由已匹配但 Tab 状态不同步，同步状态', { 
+            tabId, 
+            currentActiveTabId 
+          })
           applicationService.activateTab(tabId)
+        } else {
+          // 路由已匹配且 Tab 状态已同步，无需任何操作
+          console.log('[useWorkspaceTabs] handleTabClick: 路由已匹配且 Tab 状态已同步，无需操作', { tabId })
         }
       }
     } else {
