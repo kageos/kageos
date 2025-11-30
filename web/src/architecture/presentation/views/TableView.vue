@@ -550,9 +550,10 @@ const handleReset = (): void => {
 
 /**
  * 同步状态到 URL
- * @param onlyPaginationAndSort 如果为 true，只同步分页和排序参数，不添加搜索参数（用于 Tab 切换时）
+ * 🔥 重要：URL 参数必须和接口请求参数完全对齐
+ * URL 中的参数 = 接口请求的参数（包括分页、排序、搜索等）
  */
-const syncToURL = (onlyPaginationAndSort = false): void => {
+const syncToURL = (): void => {
   const query: Record<string, string> = {}
   
   // 分页参数
@@ -569,34 +570,31 @@ const syncToURL = (onlyPaginationAndSort = false): void => {
     query.sorts = finalSorts.map((item: SortItem) => `${item.field}:${item.order}`).join(',')
   }
   
-  // 如果不是只同步分页和排序，才添加搜索参数
-  if (!onlyPaginationAndSort) {
-    // 搜索参数（response 字段）
-    const responseFields = (props.functionDetail.response || []).filter((field: FieldConfig) => {
-      const search = field.search
-      return search && search !== '-' && search !== '' && search.trim() !== ''
-    })
-    const requestFields = Array.isArray(props.functionDetail.request) ? props.functionDetail.request : []
-    const requestFieldCodes = new Set<string>()
-    requestFields.forEach((field: FieldConfig) => {
-      requestFieldCodes.add(field.code)
-    })
-    
-    const responseFieldsForURL = responseFields.filter(
-      (field: FieldConfig) => !requestFieldCodes.has(field.code)
-    )
-    Object.assign(query, buildURLSearchParams(searchForm.value, responseFieldsForURL))
-    
-    // 搜索参数（request 字段）
-    requestFields.forEach((field: FieldConfig) => {
-      const value = searchForm.value[field.code]
-      if (value !== null && value !== undefined && 
-          !(Array.isArray(value) && value.length === 0) && 
-          !(typeof value === 'string' && value.trim() === '')) {
-        query[field.code] = Array.isArray(value) ? value.join(',') : String(value)
-      }
-    })
-  }
+  // 搜索参数（response 字段）
+  const responseFields = (props.functionDetail.response || []).filter((field: FieldConfig) => {
+    const search = field.search
+    return search && search !== '-' && search !== '' && search.trim() !== ''
+  })
+  const requestFields = Array.isArray(props.functionDetail.request) ? props.functionDetail.request : []
+  const requestFieldCodes = new Set<string>()
+  requestFields.forEach((field: FieldConfig) => {
+    requestFieldCodes.add(field.code)
+  })
+  
+  const responseFieldsForURL = responseFields.filter(
+    (field: FieldConfig) => !requestFieldCodes.has(field.code)
+  )
+  Object.assign(query, buildURLSearchParams(searchForm.value, responseFieldsForURL))
+  
+  // 搜索参数（request 字段）
+  requestFields.forEach((field: FieldConfig) => {
+    const value = searchForm.value[field.code]
+    if (value !== null && value !== undefined && 
+        !(Array.isArray(value) && value.length === 0) && 
+        !(typeof value === 'string' && value.trim() === '')) {
+      query[field.code] = Array.isArray(value) ? value.join(',') : String(value)
+    }
+  })
   
   // 清理空值参数
   Object.keys(query).forEach(key => {
@@ -608,29 +606,14 @@ const syncToURL = (onlyPaginationAndSort = false): void => {
   
   // 保留以 _ 开头的参数（前端状态参数）
   const newQuery: Record<string, string> = {}
-  if (!onlyPaginationAndSort) {
-    const searchParamKeys = ['eq', 'like', 'in', 'contains', 'gte', 'lte']
-    const requestFields = Array.isArray(props.functionDetail.request) ? props.functionDetail.request : []
-    const requestFieldCodes = new Set<string>()
-    requestFields.forEach((field: FieldConfig) => {
-      requestFieldCodes.add(field.code)
-    })
-    
-    Object.keys(route.query).forEach(key => {
-      if (key.startsWith('_')) {
-        newQuery[key] = String(route.query[key])
-      } else if (!searchParamKeys.includes(key) && key !== 'sorts' && !requestFieldCodes.has(key)) {
-        newQuery[key] = String(route.query[key])
-      }
-    })
-  } else {
-    // 只保留以 _ 开头的参数
-    Object.keys(route.query).forEach(key => {
-      if (key.startsWith('_')) {
-        newQuery[key] = String(route.query[key])
-      }
-    })
-  }
+  const searchParamKeys = ['eq', 'like', 'in', 'contains', 'gte', 'lte']
+  Object.keys(route.query).forEach(key => {
+    if (key.startsWith('_')) {
+      newQuery[key] = String(route.query[key])
+    } else if (!searchParamKeys.includes(key) && key !== 'sorts' && !requestFieldCodes.has(key)) {
+      newQuery[key] = String(route.query[key])
+    }
+  })
   
   Object.assign(newQuery, query)
   router.replace({ query: newQuery })
