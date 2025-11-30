@@ -284,7 +284,8 @@ export function useWorkspaceRouting(options: {
   // 设置路由监听
   const setupRouteWatch = () => {
     let routeWatchTimer: ReturnType<typeof setTimeout> | null = null
-    watch(() => route.path, async () => {
+    // 🔥 同时监听 path 和 query，确保 Tab 切换时即使路径相同也能触发更新
+    watch(() => [route.path, route.query], async () => {
       // 防抖：避免频繁调用
       if (routeWatchTimer) {
         clearTimeout(routeWatchTimer)
