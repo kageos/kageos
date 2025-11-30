@@ -150,6 +150,8 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
         // 🔥 URL 中没有 query 参数（Tab 切换时），优先检查 TableStateManager 是否已有恢复的状态
         // 注意：setupTabDataWatch 会在 activeTabId 变化时恢复 Tab 数据到 TableStateManager
         // 所以这里应该先检查 TableStateManager 的状态，如果已经恢复就直接使用
+        // 🔥 使用 nextTick 确保 setupTabDataWatch 已经恢复状态
+        await nextTick()
         const currentState = stateManager.getState()
         const hasRestoredState = currentState.searchForm && Object.keys(currentState.searchForm).length > 0
         

@@ -94,19 +94,22 @@
         <!-- Tab 内容区域（正常模式） -->
         <div v-else-if="tabs.length > 0" class="tabs-content-wrapper">
           <div class="tab-content">
-            <FormView
-              v-if="currentFunctionDetail?.template_type === 'form'"
-              :key="`form-${activeTabId}`"
-              :function-detail="currentFunctionDetail"
-            />
-            <TableView
-              v-else-if="currentFunctionDetail?.template_type === 'table'"
-              :key="`table-${activeTabId}`"
-              :function-detail="currentFunctionDetail"
-            />
-            <div v-else class="empty-state">
-              <p>加载中...</p>
-            </div>
+            <!-- 🔥 使用 keep-alive 缓存组件，避免切换 Tab 时重新请求 -->
+            <KeepAlive>
+              <FormView
+                v-if="currentFunctionDetail?.template_type === 'form'"
+                :key="`form-${activeTabId}`"
+                :function-detail="currentFunctionDetail"
+              />
+              <TableView
+                v-else-if="currentFunctionDetail?.template_type === 'table'"
+                :key="`table-${activeTabId}`"
+                :function-detail="currentFunctionDetail"
+              />
+              <div v-else class="empty-state">
+                <p>加载中...</p>
+              </div>
+            </KeepAlive>
           </div>
         </div>
         <div v-else class="empty-state">
