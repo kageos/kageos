@@ -3,26 +3,26 @@
     <div class="tree-header">
       <h3>服务目录</h3>
       <div class="header-actions">
-        <el-button
+        <el-link
           v-if="!loading"
           type="primary"
-          size="small"
+          :underline="false"
           @click="$emit('create-directory')"
-          class="header-button"
+          class="header-link"
         >
           <el-icon><Plus /></el-icon>
           创建目录
-        </el-button>
-        <el-button
+        </el-link>
+        <el-link
           v-if="!loading"
           type="primary"
-          size="small"
+          :underline="false"
           @click="handleForkButtonClick"
-          class="header-button"
+          class="header-link"
         >
           <el-icon><CopyDocument /></el-icon>
           闪电克隆
-        </el-button>
+        </el-link>
       </div>
     </div>
     
@@ -100,7 +100,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed } from 'vue'
 import { Folder, FolderOpened, Plus, MoreFilled, Link, CopyDocument } from '@element-plus/icons-vue'
-import { ElTag } from 'element-plus'
+import { ElTag, ElLink } from 'element-plus'
 import { generateGroupId, createGroupNode, groupFunctionsByCode, getGroupName, type ExtendedServiceTree } from '@/utils/tree-utils'
 import type { ServiceTree } from '@/types'
 
@@ -440,10 +440,21 @@ defineExpose({
     gap: 16px;
   }
   
-  .header-button {
+  .header-link {
     display: inline-flex;
     align-items: center;
     gap: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    
+    &:hover {
+      opacity: 0.8;
+    }
+    
+    .el-icon {
+      font-size: 14px;
+    }
   }
 }
 
