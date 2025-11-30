@@ -33,11 +33,56 @@ export function useWorkspaceTabs() {
     }
   })
 
-  // Tab 点击处理：保存状态并更新路由
+  // 🔥 保存当前 Tab 的状态到 localStorage（单独函数，可以在多处调用）
+  const saveCurrentTabState = () => {
+    const currentActiveTabId = activeTabId.value
+    if (!currentActiveTabId) return
+    
+    const currentTab = tabs.value.find(t => t.id === currentActiveTabId)
+    if (!currentTab || !currentTab.node) return
+    
+    const detail = stateManager.getFunctionDetail(currentTab.node)
+    if (!detail) return
+    
+    if (detail.template_type === 'form') {
+      const currentState = serviceFactoryInstance.getFormStateManager().getState()
+      currentTab.data = {
+        data: Array.from(currentState.data.entries()),
+        errors: Array.from(currentState.errors.entries()),
+        submitting: currentState.submitting
+      }
+    } else if (detail.template_type === 'table') {
+      const tableStateManager = serviceFactoryInstance.getTableStateManager()
+      const currentState = tableStateManager.getState()
+      
+      currentTab.data = {
+        searchForm: { ...currentState.searchForm },
+        searchParams: { ...currentState.searchParams },
+        sorts: [...currentState.sorts],
+        hasManualSort: currentState.hasManualSort,
+        pagination: { ...currentState.pagination },
+        data: [...currentState.data],
+        loading: false,
+        sortParams: currentState.sortParams
+      }
+      
+      console.log('[useWorkspaceTabs] 保存当前 Tab 状态', {
+        tabId: currentActiveTabId,
+        searchForm: currentTab.data.searchForm,
+        searchFormKeys: Object.keys(currentTab.data.searchForm || {}),
+        sorts: currentTab.data.sorts,
+        pagination: currentTab.data.pagination
+      })
+    }
+    
+    // 保存到 localStorage
+    saveTabsToLocalStorage()
+  }
+
+  // Tab 点击处理：保存当前状态，切换路由，恢复目标状态
   const handleTabClick = (tab: any) => {
     let tabId: string | undefined
     
-    // 尝试多种方式提取 tabId
     if (typeof tab === 'string') {
       tabId = tab
     } else if (tab && typeof tab === 'object') {
@@ -61,76 +106,42 @@ export function useWorkspaceTabs() {
     }
     
     const targetTab = tabs.value.find(t => t.id === tabId)
-    if (targetTab && targetTab.path) {
-      const tabPath = targetTab.path.startsWith('/') ? targetTab.path : `/${targetTab.path}`
-      const targetPath = `/workspace${tabPath}`
-      const currentPath = router.currentRoute.value.path
-      const currentActiveTabId = activeTabId.value
-      
-      console.log('[useWorkspaceTabs] handleTabClick: 处理 Tab 点击', {
-        tabId,
-        targetPath,
-        currentPath,
-        currentActiveTabId
-      })
-      
-      // 🔥 切换前先保存当前 Tab 的状态（同步执行，确保在任何状态被覆盖前保存）
-      if (currentActiveTabId && currentActiveTabId !== tabId) {
-        const currentTab = tabs.value.find(t => t.id === currentActiveTabId)
-        if (currentTab && currentTab.node) {
-          const detail = stateManager.getFunctionDetail(currentTab.node)
-          if (detail?.template_type === 'table') {
-            const tableStateManager = serviceFactoryInstance.getTableStateManager()
-            const currentState = tableStateManager.getState()
-            
-            // 🔥 保存当前 Tab 的完整状态
-            currentTab.data = {
-              searchForm: { ...currentState.searchForm },
-              searchParams: { ...currentState.searchParams },
-              sorts: [...currentState.sorts],
-              hasManualSort: currentState.hasManualSort,
-              pagination: { ...currentState.pagination },
-              data: [...currentState.data],
-              loading: false,
-              sortParams: currentState.sortParams
-            }
-            
-            console.log('[useWorkspaceTabs] handleTabClick: 保存当前 Tab 状态', {
-              tabId: currentActiveTabId,
-              searchForm: currentTab.data.searchForm,
-              searchFormKeys: Object.keys(currentTab.data.searchForm || {}),
-              sorts: currentTab.data.sorts,
-              pagination: currentTab.data.pagination
-            })
-          }
-        }
-      }
-      
-      // 🔥 路由优先策略：始终更新路由以清除 query 参数并触发路由变化
-      const pathMatches = currentPath === targetPath
-      const stateNeedsSync = currentActiveTabId !== tabId
-      
-      // 🔥 强制触发路由更新：先添加临时参数，然后清空，确保路由变化被触发
-      const tempQuery = { _refresh: Date.now().toString() }
-      router.replace({ path: targetPath, query: tempQuery }).then(() => {
-        return router.replace({ path: targetPath, query: {} })
-      }).then(() => {
-        if (pathMatches && stateNeedsSync) {
-          console.log('[useWorkspaceTabs] handleTabClick: 路径相同但状态不同步，手动激活 Tab', {
-            tabId,
-            currentActiveTabId
-          })
-          applicationService.activateTab(tabId)
-        }
-      }).catch((err) => {
-        console.error('[useWorkspaceTabs] handleTabClick: 路由更新失败', err)
-      })
-    } else {
+    if (!targetTab || !targetTab.path) {
       console.warn('[useWorkspaceTabs] handleTabClick: 未找到对应的 tab', {
         tabId,
         availableTabs: tabs.value.map(t => ({ id: t.id, path: t.path }))
       })
+      return
     }
+    
+    const currentActiveTabId = activeTabId.value
+    
+    console.log('[useWorkspaceTabs] handleTabClick: 处理 Tab 点击', {
+      tabId,
+      currentActiveTabId,
+      needSwitch: currentActiveTabId !== tabId
+    })
+    
+    // 🔥 步骤1：保存当前 Tab 的状态
+    if (currentActiveTabId && currentActiveTabId !== tabId) {
+      saveCurrentTabState()
+    }
+    
+    // 🔥 步骤2：切换到目标 Tab（路由优先）
+    const tabPath = targetTab.path.startsWith('/') ? targetTab.path : `/${targetTab.path}`
+    const targetPath = `/workspace${tabPath}`
+    
+    console.log('[useWorkspaceTabs] handleTabClick: 切换到目标 Tab', {
+      tabId,
+      targetPath,
+      hasSavedData: !!targetTab.data
+    })
+    
+    // 🔥 步骤3：更新路由（不带 query，状态通过 watch activeTabId 恢复）
+    // 清空 query 确保路由变化能触发 initializeTable
+    router.replace({ path: targetPath, query: {} }).catch((err) => {
+      console.error('[useWorkspaceTabs] handleTabClick: 路由更新失败', err)
+    })
   }
 
   // Tab 编辑处理（添加/删除）
