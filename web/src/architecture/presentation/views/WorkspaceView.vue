@@ -547,17 +547,24 @@ onMounted(() => {
       const targetPath = `/workspace${tabPath}`
       const currentPath = router.currentRoute.value.path
       
-      console.log('[WorkspaceView] tabActivated 事件：更新路由', {
-        tabId: tab.id,
-        tabPath: tab.path,
-        targetPath,
-        currentPath,
-        shouldUpdateRoute
-      })
-      
       if (currentPath !== targetPath) {
+        console.log('[WorkspaceView] tabActivated 事件：更新路由', {
+          tabId: tab.id,
+          tabPath: tab.path,
+          targetPath,
+          currentPath,
+          shouldUpdateRoute
+        })
+        
         router.replace({ path: targetPath, query: {} }).catch((err) => {
           console.error('[WorkspaceView] tabActivated 事件：路由更新失败', err)
+        })
+      } else {
+        // 路由已匹配，不需要更新
+        console.log('[WorkspaceView] tabActivated 事件：路由已匹配，无需更新', {
+          tabId: tab.id,
+          tabPath: tab.path,
+          currentPath
         })
       }
     }
