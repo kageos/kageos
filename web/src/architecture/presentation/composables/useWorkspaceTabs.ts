@@ -182,11 +182,8 @@ export function useWorkspaceTabs() {
     watch(() => stateManager.getState().activeTabId, async (newId, oldId) => {
       console.log('[useWorkspaceTabs] watch activeTabId 触发', { oldId, newId })
       
-      // 1. 保存旧 Tab 数据
+      // 1. 保存旧 Tab 数据（在恢复新 Tab 之前，确保状态完整）
       if (oldId) {
-        // 🔥 等待一个 tick，确保状态已经更新（比如用户刚选择了"处理中"，状态可能还在更新中）
-        await nextTick()
-        
         const oldTab = tabs.value.find(t => t.id === oldId)
         if (oldTab && oldTab.node) {
           const detail = stateManager.getFunctionDetail(oldTab.node)
@@ -199,18 +196,39 @@ export function useWorkspaceTabs() {
               submitting: currentState.submitting
             }))
           } else if (detail?.template_type === 'table') {
-            const currentState = serviceFactoryInstance.getTableStateManager().getState()
+            // 🔥 优先从 URL 参数获取状态（因为 URL 参数是完整的），如果没有则使用 TableStateManager 的状态
+            const currentQuery = router.currentRoute.value.query
+            const tableStateManager = serviceFactoryInstance.getTableStateManager()
+            const currentState = tableStateManager.getState()
+            
+            let searchForm = currentState.searchForm || {}
+            let sorts = currentState.sorts || []
+            let pagination = currentState.pagination || { currentPage: 1, pageSize: 20, total: 0 }
+            
+            // 🔥 如果 URL 有参数，从 URL 恢复状态（更准确）
+            if (Object.keys(currentQuery).length > 0) {
+              const tableDomainService = serviceFactoryInstance.getTableDomainService()
+              try {
+                const restored = tableDomainService.restoreFromURL(detail, currentQuery as Record<string, string | string[]>)
+                searchForm = restored.searchForm
+                sorts = restored.sorts
+                pagination = {
+                  currentPage: restored.pagination.page,
+                  pageSize: restored.pagination.pageSize,
+                  total: currentState.pagination?.total || 0
+                }
+              } catch (e) {
+                console.warn('[useWorkspaceTabs] 从 URL 恢复状态失败，使用 TableStateManager 的状态', e)
+              }
+            }
+            
             // 🔥 保存 Table 状态，确保所有字段都被保存，包括 searchForm
             oldTab.data = JSON.parse(JSON.stringify({
-              searchForm: currentState.searchForm || {},
+              searchForm: searchForm,
               searchParams: currentState.searchParams || {},
-              sorts: currentState.sorts || [],
-              hasManualSort: currentState.hasManualSort || false,
-              pagination: currentState.pagination || {
-                currentPage: 1,
-                pageSize: 20,
-                total: 0
-              },
+              sorts: sorts,
+              hasManualSort: sorts.length > 0,
+              pagination: pagination,
               data: currentState.data || [],
               loading: false
             }))
@@ -220,7 +238,8 @@ export function useWorkspaceTabs() {
               searchFormKeys: Object.keys(oldTab.data.searchForm || {}),
               sorts: oldTab.data.sorts,
               pagination: oldTab.data.pagination,
-              hasData: !!(oldTab.data.data && oldTab.data.data.length > 0)
+              hasData: !!(oldTab.data.data && oldTab.data.data.length > 0),
+              fromURL: Object.keys(currentQuery).length > 0
             })
           }
         }
