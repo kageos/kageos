@@ -113,26 +113,22 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     isInitializing.value = true
 
     try {
-      // 🔥 步骤 1：先检查 URL 中是否有查询参数（可能是 link 跳转携带的）
-      // 如果有，先恢复状态，然后再同步（这样可以保留 link 跳转的参数）
-      const hasURLParams = Object.keys(route.query).length > 0
-      if (hasURLParams) {
-        // URL 中有参数，先恢复状态（这样可以保留 link 跳转的参数，如 eq=topic_id:1）
-        Logger.debug('useTableInitialization', 'URL 中有参数，先恢复状态', {
-          functionId,
-          router,
-          urlQuery: route.query
-        })
-        restoreFromURL()
-        await nextTick()
-      }
+      // 🔥 步骤 1：检查是否是 link 跳转（通过检查 URL 路径是否匹配当前函数）
+      // 如果路径匹配，说明是 link 跳转，应该恢复 URL 参数
+      // 如果路径不匹配，说明是函数切换，应该清空上一个函数的参数
+      const currentPath = extractWorkspacePath(route.path)
+      const expectedPath = (router || '').replace(/^\/+/, '')
+      const pathMatches = currentPath === expectedPath || currentPath.startsWith(expectedPath + '?')
       
-      // 🔥 步骤 2：从 TableStateManager 获取状态（已由 watch activeTabId 恢复或从 URL 恢复）
+      // 🔥 步骤 2：从 TableStateManager 获取状态（已由 watch activeTabId 恢复）
       const currentState = stateManager.getState()
       
       Logger.debug('useTableInitialization', '开始初始化', {
         functionId,
         router,
+        currentPath,
+        expectedPath,
+        pathMatches,
         searchForm: currentState.searchForm,
         searchFormKeys: Object.keys(currentState.searchForm || {}),
         sorts: currentState.sorts,
@@ -140,7 +136,26 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
         urlQuery: route.query
       })
       
-      // 🔥 步骤 3：同步状态到 URL（会保留 link 跳转携带的非 table 参数）
+      // 🔥 步骤 3：如果路径匹配且 URL 中有参数，先恢复状态（link 跳转场景）
+      // 如果路径不匹配，说明是函数切换，不应该恢复 URL 参数（避免状态污染）
+      if (pathMatches && Object.keys(route.query).length > 0) {
+        Logger.debug('useTableInitialization', '路径匹配且 URL 中有参数，恢复状态（link 跳转）', {
+          functionId,
+          router,
+          urlQuery: route.query
+        })
+        restoreFromURL()
+        await nextTick()
+      } else if (!pathMatches) {
+        Logger.debug('useTableInitialization', '路径不匹配，函数切换场景，不恢复 URL 参数', {
+          functionId,
+          router,
+          currentPath,
+          expectedPath
+        })
+      }
+      
+      // 🔥 步骤 4：同步状态到 URL（会保留 link 跳转携带的非 table 参数）
       if (!isSyncingToURL.value) {
         isSyncingToURL.value = true
         await nextTick()
