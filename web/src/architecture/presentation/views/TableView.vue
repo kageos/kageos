@@ -606,6 +606,7 @@ const syncToURL = (): void => {
   
   // 🔥 保留 URL 中的现有参数（除了 table 相关的参数）
   // 这样可以保留 link 组件跳转时携带的参数（如 eq=topic_id:1, topic_id=4 等）
+  // 但是，如果 searchForm 中没有对应的值，说明这些参数不属于当前函数，不应该保留
   const newQuery: Record<string, string> = {}
   const tableParamKeys = ['page', 'page_size', 'sorts']
   const searchParamKeys = ['eq', 'like', 'in', 'contains', 'gte', 'lte']
@@ -618,11 +619,18 @@ const syncToURL = (): void => {
       if (key.startsWith('_')) {
         newQuery[key] = String(value)
       }
-      // 保留搜索参数：如果 query 中没有对应的搜索参数，保留 URL 中的值（link 跳转携带的）
+      // 保留搜索参数：只有当 query 中没有对应的搜索参数，且 searchForm 中有对应的值时，才保留 URL 中的值
+      // 这样可以避免函数切换时保留上一个函数的搜索参数
       else if (searchParamKeys.includes(key)) {
-        // 如果 query 中没有这个搜索参数，保留 URL 中的值
+        // 如果 query 中没有这个搜索参数，检查 searchForm 中是否有对应的值
+        // 如果有，说明是 link 跳转携带的参数，应该保留
+        // 如果没有，说明是上一个函数的参数，不应该保留
         if (!(key in query)) {
-          newQuery[key] = String(value)
+          // 检查 searchForm 中是否有对应的值（通过检查 searchParams 或 searchForm）
+          const hasSearchValue = currentState.searchParams && Object.keys(currentState.searchParams).length > 0
+          if (hasSearchValue) {
+            newQuery[key] = String(value)
+          }
         }
       }
       // 保留不在 tableParamKeys 和 searchParamKeys 中的参数（这些可能是 link 跳转携带的参数，如 topic_id=4）
