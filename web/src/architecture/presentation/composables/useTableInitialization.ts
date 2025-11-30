@@ -147,14 +147,37 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
           isSyncingToURL.value = false
         }
       } else {
-        // 🔥 URL 中没有 query 参数（Tab 切换时），检查是否有保存的 Tab 数据
-        // Tab 切换时，应该从 Tab 的保存数据中恢复状态，而不是重置为默认值
-        // 这样可以保持切换时的状态，切换回去时恢复切换前的参数
+        // 🔥 URL 中没有 query 参数（Tab 切换时），优先检查 TableStateManager 是否已有恢复的状态
+        // 注意：setupTabDataWatch 会在 Tab 切换时恢复 TableStateManager 的状态
+        // 所以这里应该检查 TableStateManager 的状态，而不是从 WorkspaceStateManager 的 tabs 读取
         const currentState = stateManager.getState()
-        const activeTabId = currentState.activeTabId
-        // 🔥 安全检查：确保 tabs 存在且是数组
-        const tabs = Array.isArray(currentState.tabs) ? currentState.tabs : []
-        const activeTab = activeTabId ? tabs.find(t => t.id === activeTabId) : null
+        const hasRestoredState = currentState.searchForm && Object.keys(currentState.searchForm).length > 0
+        
+        if (hasRestoredState) {
+          // 🔥 TableStateManager 已有恢复的状态（从 Tab 保存的数据恢复的）
+          // 直接使用这个状态，并同步到 URL
+          Logger.debug('useTableInitialization', 'TableStateManager 已有恢复的状态，同步到 URL', {
+            searchForm: currentState.searchForm,
+            sorts: currentState.sorts,
+            pagination: currentState.pagination
+          })
+          
+          // 同步状态到 URL（确保 URL 参数和接口请求参数对齐）
+          if (!isSyncingToURL.value) {
+            isSyncingToURL.value = true
+            await nextTick()
+            syncToURL() // 完整同步所有参数（分页、排序、搜索）
+            await nextTick()
+            isSyncingToURL.value = false
+          }
+        } else {
+          // TableStateManager 没有恢复的状态，检查是否有保存的 Tab 数据
+          const workspaceStateManager = serviceFactory.getWorkspaceStateManager()
+          const workspaceState = workspaceStateManager.getState()
+          const activeTabId = workspaceState.activeTabId
+          // 🔥 安全检查：确保 tabs 存在且是数组
+          const tabs = Array.isArray(workspaceState.tabs) ? workspaceState.tabs : []
+          const activeTab = activeTabId ? tabs.find(t => t.id === activeTabId) : null
         
         if (activeTab && activeTab.data && activeTab.data.searchForm !== undefined) {
           // Tab 有保存的数据，恢复 Tab 的状态（包括搜索参数）
