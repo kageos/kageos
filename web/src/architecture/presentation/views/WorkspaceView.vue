@@ -792,28 +792,23 @@ onMounted(() => {
     
     if (shouldUpdateRoute && tab && tab.path) {
       // 🔥 更新路由到激活的 Tab
-      const path = tab.path.startsWith('/') ? tab.path : `/${tab.path}`
-      const targetPath = `/workspace${path}`
+      const tabPath = tab.path.startsWith('/') ? tab.path : `/${tab.path}`
+      const targetPath = `/workspace${tabPath}`
       
-      // 🔥 标记这是 tab 切换导致的路由更新，避免 loadAppFromRoute 重置路由
-      isTabSwitchRouteUpdate = true
+      // 🔥 关键：提前设置 lastProcessedPath，这样 loadAppFromRoute 就会跳过处理
+      // 不再依赖 setTimeout 或标志，直接告诉 loadAppFromRoute 这个路径已经处理过了
+      const pathWithoutWorkspace = tabPath.replace(/^\//, '')
+      lastProcessedPath = pathWithoutWorkspace
       
-      // 🔥 直接更新路由，不依赖 route.path 的当前值（因为可能是异步的）
-      // 使用 replace 避免产生大量历史记录，并清除 query 参数
       console.log('[WorkspaceView] tabActivated 执行路由更新', { 
         from: route.path, 
         to: targetPath,
-        hasQueryTab: !!route.query._tab
+        lastProcessedPath: pathWithoutWorkspace
       })
       
-      router.replace({ path: targetPath, query: {} }).then(() => {
-        // 路由更新完成后，延迟重置标志（给 loadAppFromRoute 的 watch 时间）
-        setTimeout(() => {
-          isTabSwitchRouteUpdate = false
-        }, 200)
-      }).catch((err) => {
+      // 使用 replace 避免产生大量历史记录，并清除 query 参数
+      router.replace({ path: targetPath, query: {} }).catch((err) => {
         console.error('[WorkspaceView] tabActivated 路由更新失败', err)
-        isTabSwitchRouteUpdate = false
       })
     } else {
       console.warn('[WorkspaceView] tabActivated 跳过路由更新', { 
@@ -1686,9 +1681,6 @@ const findNodeByPath = (tree: ServiceTreeType[], path: string): ServiceTreeType 
 let isLoadingAppFromRoute = false
 let lastProcessedPath = ''
 
-// 🔥 标记是否是 tab 切换导致的路由更新（避免 loadAppFromRoute 重置路由）
-let isTabSwitchRouteUpdate = false
-
 // 从路由解析应用并加载
 const loadAppFromRoute = async () => {
   // 🔥 防止重复调用
@@ -1696,18 +1688,12 @@ const loadAppFromRoute = async () => {
     return
   }
   
-  // 🔥 如果是 tab 切换导致的路由更新，不处理（避免重置路由）
-  if (isTabSwitchRouteUpdate) {
-    console.log('[WorkspaceView] loadAppFromRoute 跳过：这是 tab 切换导致的路由更新')
-    isTabSwitchRouteUpdate = false // 重置标志
-    return
-  }
-  
   // 提取路径
   const fullPath = extractWorkspacePath(route.path)
   
-  // 🔥 如果路径没有变化，不重复处理
+  // 🔥 如果路径没有变化，不重复处理（tab 切换时会提前设置 lastProcessedPath）
   if (fullPath === lastProcessedPath) {
+    console.log('[WorkspaceView] loadAppFromRoute 跳过：路径已处理', { fullPath, lastProcessedPath })
     return
   }
   
