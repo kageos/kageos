@@ -162,6 +162,41 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
         // 🔥 等待状态更新完成，确保 restoreFromURL 的状态已经应用到 stateManager
         await nextTick()
         await nextTick() // 多等待一个 tick，确保状态完全更新
+        
+        // 🔥 重新获取状态，确保读取到最新值
+        const restoredState = stateManager.getState()
+        Logger.debug('useTableInitialization', '恢复后的状态', {
+          functionId,
+          router,
+          searchForm: restoredState.searchForm,
+          searchFormKeys: Object.keys(restoredState.searchForm || {}),
+          searchParams: restoredState.searchParams,
+          searchParamsKeys: Object.keys(restoredState.searchParams || {})
+        })
+        
+        // 🔥 link 跳转场景：URL 已经有参数，不需要再同步到 URL（避免覆盖）
+        // 只有在 URL 参数不完整时才同步（比如只有搜索参数，没有分页参数）
+        const hasPaginationParams = route.query.page && route.query.page_size
+        if (!hasPaginationParams) {
+          // URL 中没有分页参数，需要同步默认分页参数
+          Logger.debug('useTableInitialization', 'URL 中缺少分页参数，同步默认参数', {
+            functionId,
+            router
+          })
+          if (!isSyncingToURL.value) {
+            isSyncingToURL.value = true
+            await nextTick()
+            syncToURL() // 只同步分页和排序参数，保留 URL 中的搜索参数
+            await nextTick()
+            isSyncingToURL.value = false
+          }
+        } else {
+          Logger.debug('useTableInitialization', 'URL 参数完整，不需要同步', {
+            functionId,
+            router,
+            urlQuery: route.query
+          })
+        }
       } else if (!pathMatches) {
         Logger.debug('useTableInitialization', '路径不匹配，函数切换场景，不恢复 URL 参数', {
           functionId,
@@ -169,15 +204,15 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
           currentPath,
           expectedPath
         })
-      }
-      
-      // 🔥 步骤 4：同步状态到 URL（会保留 link 跳转携带的非 table 参数）
-      if (!isSyncingToURL.value) {
-        isSyncingToURL.value = true
-        await nextTick()
-        syncToURL() // 完整同步所有参数（分页、排序、搜索），但会保留 link 跳转的参数
-        await nextTick()
-        isSyncingToURL.value = false
+      } else {
+        // 🔥 Tab 切换场景：Tab 有保存的状态，需要同步到 URL
+        if (!isSyncingToURL.value) {
+          isSyncingToURL.value = true
+          await nextTick()
+          syncToURL() // 完整同步所有参数（分页、排序、搜索）
+          await nextTick()
+          isSyncingToURL.value = false
+        }
       }
       
       // 🔥 步骤 3：加载数据
@@ -202,6 +237,17 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     const functionDetailValue = 'value' in functionDetail ? functionDetail.value : functionDetail
     const functionId = functionDetailValue?.id
     const router = functionDetailValue?.router
+
+    // 🔥 检查当前函数类型，如果是 form 函数，不应该处理 URL 变化
+    // 这可以防止 form 函数的 URL 被添加 table 参数
+    if (functionDetailValue?.template_type !== 'table') {
+      Logger.debug('useTableInitialization', '当前函数不是 table 类型，忽略 URL 变化', {
+        functionId,
+        router,
+        templateType: functionDetailValue?.template_type
+      })
+      return
+    }
 
     // 检查当前路由是否匹配当前函数的 router
     // 如果路由已经切换到其他函数，这个 watch 不应该处理
