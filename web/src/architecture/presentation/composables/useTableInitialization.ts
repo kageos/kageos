@@ -159,7 +159,9 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
           urlQuery: route.query
         })
         restoreFromURL()
+        // 🔥 等待状态更新完成，确保 restoreFromURL 的状态已经应用到 stateManager
         await nextTick()
+        await nextTick() // 多等待一个 tick，确保状态完全更新
       } else if (!pathMatches) {
         Logger.debug('useTableInitialization', '路径不匹配，函数切换场景，不恢复 URL 参数', {
           functionId,
