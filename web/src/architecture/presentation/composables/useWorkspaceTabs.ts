@@ -145,49 +145,8 @@ export function useWorkspaceTabs() {
     watch(() => stateManager.getState().activeTabId, (newId, oldId) => {
       console.log('[useWorkspaceTabs] watch activeTabId 触发', { oldId, newId })
       
-      // 1. 保存旧 Tab 数据（同步执行，不要 await，确保在状态被覆盖前保存）
-      if (oldId) {
-        const oldTab = tabs.value.find(t => t.id === oldId)
-        if (oldTab && oldTab.node) {
-          const detail = stateManager.getFunctionDetail(oldTab.node)
-          if (detail?.template_type === 'form') {
-            // 深度克隆，避免引用问题
-            const currentState = serviceFactoryInstance.getFormStateManager().getState()
-            oldTab.data = JSON.parse(JSON.stringify({
-              data: Array.from(currentState.data.entries()), // Map 转 Array 以便序列化
-              errors: Array.from(currentState.errors.entries()),
-              submitting: currentState.submitting
-            }))
-          } else if (detail?.template_type === 'table') {
-            // 🔥 直接从 TableStateManager 保存状态（不要从 URL，URL 可能已被清空）
-            const tableStateManager = serviceFactoryInstance.getTableStateManager()
-            const currentState = tableStateManager.getState()
-            
-            // 🔥 保存 Table 状态，确保所有字段都被保存，包括 searchForm
-            oldTab.data = JSON.parse(JSON.stringify({
-              searchForm: currentState.searchForm || {},
-              searchParams: currentState.searchParams || {},
-              sorts: currentState.sorts || [],
-              hasManualSort: currentState.hasManualSort || false,
-              pagination: currentState.pagination || {
-                currentPage: 1,
-                pageSize: 20,
-                total: 0
-              },
-              data: currentState.data || [],
-              loading: false
-            }))
-            console.log('[useWorkspaceTabs] 保存 Tab 数据', {
-              tabId: oldId,
-              searchForm: oldTab.data.searchForm,
-              searchFormKeys: Object.keys(oldTab.data.searchForm || {}),
-              sorts: oldTab.data.sorts,
-              pagination: oldTab.data.pagination,
-              hasData: !!(oldTab.data.data && oldTab.data.data.length > 0)
-            })
-          }
-        }
-      }
+      // 🔥 注意：保存逻辑已移至 handleTabClick，这里只负责恢复
+      // 不在这里保存的原因：watch 触发时，TableStateManager 的状态可能已被新 Tab 覆盖
 
       // 2. 恢复新 Tab 数据
       if (newId) {
