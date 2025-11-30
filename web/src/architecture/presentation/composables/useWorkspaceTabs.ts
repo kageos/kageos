@@ -59,6 +59,12 @@ export function useWorkspaceTabs() {
       return
     }
     
+    // 🔥 如果点击的是当前激活的 Tab，忽略（避免重复切换）
+    if (tabId === activeTabId.value) {
+      console.log('[useWorkspaceTabs] handleTabClick: 点击的是当前 Tab，忽略', { tabId })
+      return
+    }
+    
     const targetTab = tabs.value.find(t => t.id === tabId)
     if (!targetTab || !targetTab.path) {
       console.warn('[useWorkspaceTabs] handleTabClick: 未找到对应的 tab', {
