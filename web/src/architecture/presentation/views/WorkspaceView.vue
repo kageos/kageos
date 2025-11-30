@@ -560,21 +560,26 @@ const handleNodeClick = (node: ServiceTreeType) => {
   if (serviceTree.type === 'function' && serviceTree.full_code_path) {
     const targetPath = `/workspace${serviceTree.full_code_path}`
     if (route.path !== targetPath) {
-      // 路由不同，更新路由，保留当前 URL 的 query 参数（分页、排序、搜索等）
-      // 🔥 服务目录切换时保留 URL 参数，这样切换回去时能恢复之前的状态
+      // 路由不同，更新路由，只保留分页和排序参数，清除搜索参数
+      // 🔥 服务目录切换时只保留分页和排序参数，清除搜索参数，避免状态污染
       const currentQuery = route.query
       const preservedQuery: Record<string, string | string[]> = {}
       
-      // 保留所有参数（分页、排序、搜索等）
+      // 只保留分页和排序参数
+      const paramsToPreserve = ['page', 'page_size', 'sorts']
       Object.keys(currentQuery).forEach(key => {
-        const value = currentQuery[key]
-        if (value !== null && value !== undefined) {
-          if (Array.isArray(value)) {
-            preservedQuery[key] = value.filter(v => v !== null).map(v => String(v))
-          } else {
-            preservedQuery[key] = String(value)
+        // 保留分页和排序参数，以及以 _ 开头的参数（前端状态参数）
+        if (paramsToPreserve.includes(key) || key.startsWith('_')) {
+          const value = currentQuery[key]
+          if (value !== null && value !== undefined) {
+            if (Array.isArray(value)) {
+              preservedQuery[key] = value.filter(v => v !== null).map(v => String(v))
+            } else {
+              preservedQuery[key] = String(value)
+            }
           }
         }
+        // 搜索参数（eq, like, in, contains, gte, lte 等）不保留，避免状态污染
       })
       
       router.replace({ path: targetPath, query: preservedQuery }).catch(() => {})
