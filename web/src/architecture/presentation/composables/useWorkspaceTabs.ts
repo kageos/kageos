@@ -147,6 +147,15 @@ export function useWorkspaceTabs() {
         if (newTab && newTab.node) {
           const detail = stateManager.getFunctionDetail(newTab.node)
           
+          // 🔥 调试日志：检查 newTab.data 的状态
+          console.log('[useWorkspaceTabs] 准备恢复新 Tab 状态', {
+            tabId: newId,
+            tabTitle: newTab.title,
+            hasData: !!newTab.data,
+            dataKeys: newTab.data ? Object.keys(newTab.data) : [],
+            searchFormInData: newTab.data?.searchForm ? JSON.parse(JSON.stringify(newTab.data.searchForm)) : null
+          })
+          
           if (detail?.template_type === 'form') {
             // 恢复 Form 数据
             if (newTab.data) {
@@ -168,8 +177,8 @@ export function useWorkspaceTabs() {
             }
           } else if (detail?.template_type === 'table') {
             // 🔥 Table 类型：必须先清空状态，再恢复
-            if (newTab.data) {
-              // 有保存的数据，恢复到 TableStateManager
+            if (newTab.data && newTab.data.searchForm !== undefined) {
+              // 🔥 检查是否有有效的保存数据（searchForm 不为 undefined）
               const savedState = newTab.data
               serviceFactoryInstance.getTableStateManager().setState({
                 searchForm: savedState.searchForm || {},
@@ -189,13 +198,13 @@ export function useWorkspaceTabs() {
               console.log('[useWorkspaceTabs] 恢复 Table 状态', {
                 tabId: newId,
                 tabTitle: newTab.title,
-                searchForm: JSON.parse(JSON.stringify(savedState.searchForm)),
+                searchForm: JSON.parse(JSON.stringify(savedState.searchForm || {})),
                 searchFormKeys: Object.keys(savedState.searchForm || {}),
-                sorts: JSON.parse(JSON.stringify(savedState.sorts)),
-                pagination: JSON.parse(JSON.stringify(savedState.pagination))
+                sorts: JSON.parse(JSON.stringify(savedState.sorts || [])),
+                pagination: JSON.parse(JSON.stringify(savedState.pagination || {}))
               })
             } else {
-              // 🔥 新 Tab 没有保存的数据，必须重置为默认状态（避免状态污染）
+              // 🔥 新 Tab 没有有效的保存数据，必须重置为默认状态（避免状态污染）
               serviceFactoryInstance.getTableStateManager().setState({
                 data: [],
                 loading: false,
@@ -210,9 +219,11 @@ export function useWorkspaceTabs() {
                   total: 0
                 }
               })
-              console.log('[useWorkspaceTabs] 新 Table Tab，重置状态', { 
+              console.log('[useWorkspaceTabs] 新 Table Tab 或无有效数据，重置状态', { 
                 tabId: newId,
-                tabTitle: newTab.title
+                tabTitle: newTab.title,
+                hasData: !!newTab.data,
+                hasSearchForm: newTab.data?.searchForm !== undefined
               })
             }
           }
