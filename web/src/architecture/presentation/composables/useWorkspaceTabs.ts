@@ -124,11 +124,10 @@ export function useWorkspaceTabs() {
             console.log('[useWorkspaceTabs] 保存旧 Tab 状态', {
               tabId: oldId,
               tabTitle: oldTab.title,
-              searchForm: oldTab.data.searchForm,
+              searchForm: JSON.parse(JSON.stringify(oldTab.data.searchForm)),
               searchFormKeys: Object.keys(oldTab.data.searchForm || {}),
-              sorts: oldTab.data.sorts,
-              pagination: oldTab.data.pagination,
-              fullState: oldTab.data
+              sorts: JSON.parse(JSON.stringify(oldTab.data.sorts)),
+              pagination: JSON.parse(JSON.stringify(oldTab.data.pagination))
             })
           } else if (detail?.template_type === 'form') {
             const currentState = serviceFactoryInstance.getFormStateManager().getState()
@@ -190,11 +189,10 @@ export function useWorkspaceTabs() {
               console.log('[useWorkspaceTabs] 恢复 Table 状态', {
                 tabId: newId,
                 tabTitle: newTab.title,
-                searchForm: savedState.searchForm,
+                searchForm: JSON.parse(JSON.stringify(savedState.searchForm)),
                 searchFormKeys: Object.keys(savedState.searchForm || {}),
-                sorts: savedState.sorts,
-                pagination: savedState.pagination,
-                fullState: savedState
+                sorts: JSON.parse(JSON.stringify(savedState.sorts)),
+                pagination: JSON.parse(JSON.stringify(savedState.pagination))
               })
             } else {
               // 🔥 新 Tab 没有保存的数据，必须重置为默认状态（避免状态污染）
