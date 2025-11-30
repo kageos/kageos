@@ -10,6 +10,7 @@
  */
 
 import { ref, computed, watch, h, nextTick, onMounted, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElDialog, ElButton, ElMessage, ElNotification, ElTag, ElEmpty, ElTree, ElForm, ElFormItem, ElDropdown, ElDropdownMenu, ElDropdownItem, ElInput } from 'element-plus'
 import { Delete, ArrowRight, Folder, FolderOpened, Plus, MoreFilled, Loading } from '@element-plus/icons-vue'
 import { getServiceTree, createServiceTree } from '@/api/service-tree'
@@ -41,6 +42,12 @@ interface Emits {
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
+const route = useRoute()
+
+// 🔥 判断是否在新版本路由（统一使用 /workspace）
+const isV2Route = computed(() => {
+  return route.path.startsWith('/workspace')
+})
 
 // 对话框显示状态
 const dialogVisible = computed({
@@ -509,7 +516,7 @@ const handleSubmit = async () => {
               const forkedPaths = savedMappings.map((m: ForkMapping) => m.target).join(',')
               const url = `${basePath}/${targetApp.user}/${targetApp.code}${forkedPaths ? `?_forked=${encodeURIComponent(forkedPaths)}` : ''}`
               // 🔥 如果在新版本路由，在当前窗口跳转；否则在新窗口打开
-              if (isV2Route) {
+              if (isV2Route.value) {
                 window.location.href = url
               } else {
                 window.open(url, '_blank')
