@@ -607,7 +607,8 @@ const syncToURL = (): void => {
   // 🔥 保留 URL 中的现有参数（除了 table 相关的参数）
   // 这样可以保留 link 组件跳转时携带的参数（如 eq=topic_id:1, topic_id=4 等）
   const newQuery: Record<string, string> = {}
-  const tableParamKeys = ['page', 'page_size', 'sorts', 'eq', 'like', 'in', 'contains', 'gte', 'lte']
+  const tableParamKeys = ['page', 'page_size', 'sorts']
+  const searchParamKeys = ['eq', 'like', 'in', 'contains', 'gte', 'lte']
   
   // 先保留所有非 table 相关的参数（包括 link 跳转携带的参数）
   Object.keys(route.query).forEach(key => {
@@ -617,7 +618,14 @@ const syncToURL = (): void => {
       if (key.startsWith('_')) {
         newQuery[key] = String(value)
       }
-      // 保留不在 tableParamKeys 中的参数（这些可能是 link 跳转携带的参数，如 topic_id=4）
+      // 保留搜索参数：如果 query 中没有对应的搜索参数，保留 URL 中的值（link 跳转携带的）
+      else if (searchParamKeys.includes(key)) {
+        // 如果 query 中没有这个搜索参数，保留 URL 中的值
+        if (!(key in query)) {
+          newQuery[key] = String(value)
+        }
+      }
+      // 保留不在 tableParamKeys 和 searchParamKeys 中的参数（这些可能是 link 跳转携带的参数，如 topic_id=4）
       else if (!tableParamKeys.includes(key) && !requestFieldCodes.has(key)) {
         newQuery[key] = String(value)
       }
