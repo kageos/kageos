@@ -92,7 +92,7 @@ const handleLogout = async () => {
 .logo {
   font-size: 20px;
   font-weight: 600;
-  color: var(--el-text-color-primary);
+  color: #6366f1; /* ✅ 与服务目录 fx 图标颜色一致（indigo-500） */
 }
 
 .header-right {
