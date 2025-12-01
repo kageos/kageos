@@ -133,8 +133,8 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
         // Tab 没有保存的状态，且 URL 有参数，从 URL 恢复（link 跳转场景）
         restoreFromURL()
         // 🔥 等待状态更新完成，确保 restoreFromURL 的状态已经应用到 stateManager
+        // 注意：stateManager.setState() 是同步的，但 Vue 的响应式更新是异步的，需要一个 tick
         await nextTick()
-        await nextTick() // 多等待一个 tick，确保状态完全更新
         
         // 🔥 link 跳转场景：URL 已经有参数，不需要再同步到 URL（避免覆盖）
         // 只有在 URL 参数不完整时才同步（比如只有搜索参数，没有分页参数）
@@ -143,8 +143,8 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
           // URL 中没有分页参数，需要同步默认分页参数
           if (!isSyncingToURL.value) {
             isSyncingToURL.value = true
-            await nextTick()
             syncToURL() // 只同步分页和排序参数，保留 URL 中的搜索参数
+            // syncToURL() 是同步的，路由更新是异步的，Vue Router 会自动处理
             await nextTick()
             isSyncingToURL.value = false
           }
@@ -153,8 +153,8 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
         // 🔥 Tab 切换场景：Tab 有保存的状态，需要同步到 URL
         if (!isSyncingToURL.value) {
           isSyncingToURL.value = true
-          await nextTick()
           syncToURL() // 完整同步所有参数（分页、排序、搜索）
+          // syncToURL() 是同步的，路由更新是异步的，Vue Router 会自动处理
           await nextTick()
           isSyncingToURL.value = false
         }
