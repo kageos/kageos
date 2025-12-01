@@ -30,7 +30,7 @@ func (ctx *Context) BuildFunctionUrl(
 }
 
 // BuildFunctionUrlWithText 构建跳转 URL（带文本信息）
-// 返回格式：如果提供了 text，返回 "[text]url"，否则只返回 url
+// 返回格式：JSON 格式 {"type":"table","name":"文本","url":"/path"}
 func (ctx *Context) BuildFunctionUrlWithText(
 	target string, // 函数路径（如 "meeting_room_list"）或外链（如 "www.baidu.com"）
 	params interface{}, // 结构体参数（函数跳转）或 nil（外链跳转）
@@ -40,11 +40,8 @@ func (ctx *Context) BuildFunctionUrlWithText(
 	if isExternalLink(target) {
 		// 外链模式：直接处理字符串
 		url := normalizeExternalLink(target)
-		// 外链不支持 JSON 格式，保持旧格式 "[text]url" 或 "url"
-		if text != "" {
-			return fmt.Sprintf("[%s]%s", text, url), nil
-		}
-		return url, nil
+		// 外链也返回 JSON 格式（type 为空）
+		return buildLinkValueJSON("", text, url)
 	}
 
 	// 2. 提取函数路径（去掉可能存在的查询参数）
@@ -242,18 +239,14 @@ func normalizeExternalLink(link string) string {
 }
 
 // buildLinkValueJSON 构建 Link 值的 JSON 格式
-// 如果 text 为空，返回纯 URL（保持向后兼容）
-// 如果 text 不为空，返回 JSON 格式：{"type":"table","name":"文本","url":"/path"}
+// 统一返回 JSON 格式：{"type":"table","name":"文本","url":"/path"}
+// 如果 templateType 为空字符串，表示外链（type 字段为空）
+// 如果 text 为空，name 字段为空字符串
 func buildLinkValueJSON(templateType TemplateType, text string, url string) (string, error) {
-	// 如果没有提供 text，返回纯 URL（保持向后兼容，用于不需要显示文本的场景）
-	if text == "" {
-		return url, nil
-	}
-
 	// 构建 JSON 格式
 	linkValue := LinkValue{
-		Type: string(templateType), // "table" 或 "form"
-		Name: text,
+		Type: string(templateType), // "table" 或 "form" 或 ""（外链）
+		Name: text,                 // 链接文本，可能为空
 		URL:  url,
 	}
 

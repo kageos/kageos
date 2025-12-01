@@ -811,27 +811,19 @@ const handleLinkClick = (fieldCode: string, row: any) => {
   const raw = value?.raw || ''
   if (!raw) return
   
-  // 解析链接值（支持新格式 JSON 和旧格式 "[text]url"）
+  // 解析 JSON 格式的链接值
   let actualUrl = raw
   let linkType: 'table' | 'form' | undefined = undefined
   
-  // 尝试解析 JSON 格式（新格式）
   try {
     const jsonValue = JSON.parse(raw)
     if (jsonValue && typeof jsonValue === 'object' && jsonValue.url) {
       actualUrl = jsonValue.url
-      linkType = jsonValue.type  // 'table' 或 'form'
+      linkType = jsonValue.type  // 'table' 或 'form' 或 undefined（外链）
     }
-  } catch {
-    // 不是 JSON，继续解析旧格式
-  }
-  
-  // 解析旧格式 "[text]url"
-  if (actualUrl === raw) {
-    const match = raw.match(/^\[([^\]]+)\](.+)$/)
-    if (match) {
-      actualUrl = match[2]
-    }
+  } catch (error) {
+    // JSON 解析失败，使用原始值作为 URL
+    console.error('[TableView] 解析 link 值失败:', error, raw)
   }
   
   // 获取链接配置

@@ -71,41 +71,29 @@ interface LinkValue {
   url: string              // 链接 URL
 }
 
-// 解析 URL 和文本（支持新格式 JSON 和旧格式 "[text]url"）
+// 解析 URL 和文本（JSON 格式）
 const parsedLink = computed(() => {
   const raw = props.value?.raw || ''
   if (!raw) return { text: '', url: '', type: undefined }
   
-  // 尝试解析 JSON 格式（新格式）
+  // 解析 JSON 格式
   try {
     const jsonValue = JSON.parse(raw) as LinkValue
     if (jsonValue && typeof jsonValue === 'object' && jsonValue.url) {
       return {
         text: jsonValue.name || '',
         url: jsonValue.url,
-        type: jsonValue.type  // 'table' 或 'form'
+        type: jsonValue.type  // 'table' 或 'form' 或 undefined（外链）
       }
     }
-  } catch {
-    // 不是 JSON，继续解析旧格式
+  } catch (error) {
+    // JSON 解析失败，返回空值
+    console.error('[LinkWidget] 解析 link 值失败:', error, raw)
+    return { text: '', url: raw, type: undefined }
   }
   
-  // 解析旧格式 "[text]url"
-  const match = raw.match(/^\[([^\]]+)\](.+)$/)
-  if (match) {
-    return {
-      text: match[1],
-      url: match[2],
-      type: undefined  // 旧格式没有类型信息
-    }
-  }
-  
-  // 纯 URL（没有文本信息）
-  return {
-    text: '',
-    url: raw,
-    type: undefined
-  }
+  // 如果 JSON 解析成功但格式不正确，返回空值
+  return { text: '', url: '', type: undefined }
 })
 
 import { resolveWorkspaceUrl } from '@/utils/route'
