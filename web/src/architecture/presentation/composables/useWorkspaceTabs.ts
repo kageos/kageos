@@ -33,23 +33,15 @@ export function useWorkspaceTabs() {
       
       // 🔥 如果是当前激活的 Tab，忽略（避免重复切换）
       if (val === stateManager.getState().activeTabId) {
-        console.log('[useWorkspaceTabs] activeTabId setter: 已是当前 Tab，忽略', { tabId: val })
         return
       }
-      
-      console.log('[useWorkspaceTabs] activeTabId setter: 切换 Tab', {
-        from: stateManager.getState().activeTabId,
-        to: val
-      })
       
       // 🔥 先更新路由，路由变化会触发 syncRouteToTab → activateTab
       const targetTab = tabs.value.find(t => t.id === val)
       if (targetTab && targetTab.path) {
         const tabPath = targetTab.path.startsWith('/') ? targetTab.path : `/${targetTab.path}`
         const targetPath = `/workspace${tabPath}`
-        router.replace({ path: targetPath, query: {} }).catch((err) => {
-          console.error('[useWorkspaceTabs] activeTabId setter: 路由更新失败', err)
-        })
+        router.replace({ path: targetPath, query: {} }).catch(() => {})
       }
     }
   })
@@ -72,41 +64,24 @@ export function useWorkspaceTabs() {
     }
     
     if (!tabId) {
-      console.warn('[useWorkspaceTabs] handleTabClick: 无法提取 tabId', { 
-        tab,
-        tabType: typeof tab,
-        tabKeys: tab && typeof tab === 'object' ? Object.keys(tab) : []
-      })
       return
     }
     
     // 🔥 如果点击的是当前激活的 Tab，忽略（避免重复切换）
     if (tabId === activeTabId.value) {
-      console.log('[useWorkspaceTabs] handleTabClick: 点击的是当前 Tab，忽略', { tabId })
       return
     }
     
     const targetTab = tabs.value.find(t => t.id === tabId)
     if (!targetTab || !targetTab.path) {
-      console.warn('[useWorkspaceTabs] handleTabClick: 未找到对应的 tab', {
-        tabId,
-        availableTabs: tabs.value.map(t => ({ id: t.id, path: t.path }))
-      })
       return
     }
-    
-    console.log('[useWorkspaceTabs] handleTabClick: 处理 Tab 点击', {
-      tabId,
-      currentActiveTabId: activeTabId.value
-    })
     
     // 🔥 直接切换路由，保存和恢复由 watch activeTabId 统一处理
     const tabPath = targetTab.path.startsWith('/') ? targetTab.path : `/${targetTab.path}`
     const targetPath = `/workspace${tabPath}`
     
-    router.replace({ path: targetPath, query: {} }).catch((err) => {
-      console.error('[useWorkspaceTabs] handleTabClick: 路由更新失败', err)
-    })
+    router.replace({ path: targetPath, query: {} }).catch(() => {})
   }
 
   // Tab 编辑处理（添加/删除）
@@ -119,8 +94,6 @@ export function useWorkspaceTabs() {
   // Tab 数据保存/恢复（watch activeTabId）
   const setupTabDataWatch = () => {
     watch(() => stateManager.getState().activeTabId, (newId, oldId) => {
-      console.log('[useWorkspaceTabs] watch activeTabId 触发', { oldId, newId })
-      
       // 🔥 步骤 1：同步保存旧 Tab 的状态（必须在恢复新 Tab 之前）
       if (oldId) {
         const oldTab = tabs.value.find(t => t.id === oldId)
@@ -141,15 +114,6 @@ export function useWorkspaceTabs() {
               loading: false,
               sortParams: currentState.sortParams
             }
-            
-            console.log('[useWorkspaceTabs] 保存旧 Tab 状态', {
-              tabId: oldId,
-              tabTitle: oldTab.title,
-              searchForm: JSON.parse(JSON.stringify(oldTab.data.searchForm)),
-              searchFormKeys: Object.keys(oldTab.data.searchForm || {}),
-              sorts: JSON.parse(JSON.stringify(oldTab.data.sorts)),
-              pagination: JSON.parse(JSON.stringify(oldTab.data.pagination))
-            })
           } else if (detail?.template_type === 'form') {
             const currentState = serviceFactoryInstance.getFormStateManager().getState()
             oldTab.data = {
@@ -168,15 +132,6 @@ export function useWorkspaceTabs() {
         if (newTab && newTab.node) {
           const detail = stateManager.getFunctionDetail(newTab.node)
           
-          // 🔥 调试日志：检查 newTab.data 的状态
-          console.log('[useWorkspaceTabs] 准备恢复新 Tab 状态', {
-            tabId: newId,
-            tabTitle: newTab.title,
-            hasData: !!newTab.data,
-            dataKeys: newTab.data ? Object.keys(newTab.data) : [],
-            searchFormInData: newTab.data?.searchForm ? JSON.parse(JSON.stringify(newTab.data.searchForm)) : null
-          })
-          
           if (detail?.template_type === 'form') {
             // 恢复 Form 数据
             if (newTab.data) {
@@ -186,7 +141,6 @@ export function useWorkspaceTabs() {
                 errors: new Map(savedState.errors),
                 submitting: savedState.submitting
               })
-              console.log('[useWorkspaceTabs] 恢复 Form 状态', { tabId: newId })
             } else {
               // 新 Tab 没有保存的数据，重置为默认状态
               serviceFactoryInstance.getFormStateManager().setState({
@@ -194,7 +148,6 @@ export function useWorkspaceTabs() {
                 errors: new Map(),
                 submitting: false
               })
-              console.log('[useWorkspaceTabs] 新 Form Tab，重置状态', { tabId: newId })
             }
           } else if (detail?.template_type === 'table') {
             // 🔥 Table 类型：必须先清空状态，再恢复
@@ -215,15 +168,6 @@ export function useWorkspaceTabs() {
                 loading: false,
                 sortParams: savedState.sortParams || null
               })
-              
-              console.log('[useWorkspaceTabs] 恢复 Table 状态', {
-                tabId: newId,
-                tabTitle: newTab.title,
-                searchForm: JSON.parse(JSON.stringify(savedState.searchForm || {})),
-                searchFormKeys: Object.keys(savedState.searchForm || {}),
-                sorts: JSON.parse(JSON.stringify(savedState.sorts || [])),
-                pagination: JSON.parse(JSON.stringify(savedState.pagination || {}))
-              })
             } else {
               // 🔥 新 Tab 没有有效的保存数据，必须重置为默认状态（避免状态污染）
               serviceFactoryInstance.getTableStateManager().setState({
@@ -240,12 +184,6 @@ export function useWorkspaceTabs() {
                   total: 0
                 }
               })
-              console.log('[useWorkspaceTabs] 新 Table Tab 或无有效数据，重置状态', { 
-                tabId: newId,
-                tabTitle: newTab.title,
-                hasData: !!newTab.data,
-                hasSearchForm: newTab.data?.searchForm !== undefined
-              })
             }
           }
           
@@ -253,12 +191,6 @@ export function useWorkspaceTabs() {
           if (newTab.node && newTab.node.type === 'function') {
             const detail = stateManager.getFunctionDetail(newTab.node)
             if (!detail) {
-              console.log('[useWorkspaceTabs] Tab 切换但函数详情未加载，加载详情', {
-                tabId: newId,
-                path: newTab.path,
-                nodeId: newTab.node.id,
-                nodePath: newTab.node.full_code_path
-              })
               // 使用 handleNodeClick 加载函数详情
               applicationService.handleNodeClick(newTab.node)
             }
@@ -287,14 +219,9 @@ export function useWorkspaceTabs() {
           tabs: tabsArray,
           activeTabId: savedActiveTabId || null
         })
-        
-        console.log('[useWorkspaceTabs] 从 localStorage 恢复 tabs', { 
-          tabsCount: tabsArray.length, 
-          activeTabId: savedActiveTabId 
-        })
       }
     } catch (error) {
-      console.error('[useWorkspaceTabs] 恢复 tabs 失败', error)
+      // 静默失败
     }
   }
 
@@ -305,7 +232,6 @@ export function useWorkspaceTabs() {
       
       // 确保 tabs 是数组
       if (!Array.isArray(state.tabs)) {
-        console.warn('[useWorkspaceTabs] state.tabs 不是数组，跳过保存', { tabs: state.tabs })
         return
       }
       
@@ -319,13 +245,8 @@ export function useWorkspaceTabs() {
       
       localStorage.setItem('workspace-tabs', JSON.stringify(tabsToSave))
       localStorage.setItem('workspace-activeTabId', state.activeTabId || '')
-      
-      console.log('[useWorkspaceTabs] 保存 tabs 到 localStorage', { 
-        tabsCount: tabsToSave.length, 
-        activeTabId: state.activeTabId 
-      })
     } catch (error) {
-      console.error('[useWorkspaceTabs] 保存 tabs 失败', error)
+      // 静默失败
     }
   }
 
@@ -344,7 +265,6 @@ export function useWorkspaceTabs() {
     
     // 确保 tabs 是数组
     if (!Array.isArray(state.tabs)) {
-      console.warn('[useWorkspaceTabs] state.tabs 不是数组，跳过重新关联 node', { tabs: state.tabs })
       return
     }
     
@@ -373,7 +293,6 @@ export function useWorkspaceTabs() {
         ...state,
         tabs: updatedTabs
       })
-      console.log('[useWorkspaceTabs] 重新关联 tabs 的 node 信息', { tabsCount: updatedTabs.length })
       
       // 重新关联 node 后，检查当前激活的 tab 是否需要加载函数详情
       nextTick(() => {
@@ -385,19 +304,8 @@ export function useWorkspaceTabs() {
             // 检查函数详情是否已加载
             const detail = stateManager.getFunctionDetail(activeTab.node)
             if (!detail) {
-              console.log('[useWorkspaceTabs] 恢复 tab 后，加载函数详情', { 
-                tabId: activeTabId, 
-                path: activeTab.path,
-                nodeId: activeTab.node.id,
-                nodePath: activeTab.node.full_code_path
-              })
               // 使用 handleNodeClick 加载函数详情
               applicationService.handleNodeClick(activeTab.node)
-            } else {
-              console.log('[useWorkspaceTabs] 恢复 tab 后，函数详情已存在', { 
-                tabId: activeTabId, 
-                detailId: detail.id 
-              })
             }
           }
         }

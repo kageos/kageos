@@ -15,7 +15,6 @@ import type { TableDomainService, SortItem } from '../../../domain/services/Tabl
 import type { TableApplicationService } from '../../../application/services/TableApplicationService'
 import type { IStateManager } from '../../../domain/interfaces/IStateManager'
 import type { TableState } from '../../../domain/services/TableDomainService'
-import { Logger } from '@/core/utils/logger'
 import { extractWorkspacePath } from '@/utils/route'
 
 export interface UseTableInitializationOptions {
@@ -101,12 +100,10 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     const router = functionDetailValue?.router
 
     if (isInitializing.value) {
-      Logger.warn('useTableInitialization', '正在初始化中，跳过', { functionId, router })
       return
     }
 
     if (isMounted && !isMounted.value) {
-      Logger.warn('useTableInitialization', '组件已卸载，跳过初始化', { functionId, router })
       return
     }
 
@@ -123,19 +120,6 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
       // 🔥 步骤 2：从 TableStateManager 获取状态（已由 watch activeTabId 恢复）
       const currentState = stateManager.getState()
       
-      Logger.debug('useTableInitialization', '开始初始化', {
-        functionId,
-        router,
-        currentPath,
-        expectedPath,
-        pathMatches,
-        searchForm: currentState.searchForm,
-        searchFormKeys: Object.keys(currentState.searchForm || {}),
-        sorts: currentState.sorts,
-        pagination: currentState.pagination,
-        urlQuery: route.query
-      })
-      
       // 🔥 步骤 3：决定是否从 URL 恢复参数
       // 优先级：Tab 保存的状态 > URL 参数
       // - 如果 Tab 有保存的状态（searchForm 不为空），说明是 Tab 切换，使用 Tab 的状态，不从 URL 恢复
@@ -145,44 +129,18 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
       
       if (hasTabState) {
         // Tab 有保存的状态，优先使用 Tab 的状态（Tab 切换场景）
-        Logger.debug('useTableInitialization', 'Tab 有保存的状态，使用 Tab 状态，不从 URL 恢复', {
-          functionId,
-          router,
-          searchFormKeys: Object.keys(currentState.searchForm || {}),
-          urlQuery: route.query
-        })
       } else if (hasURLParams) {
         // Tab 没有保存的状态，且 URL 有参数，从 URL 恢复（link 跳转场景）
-        Logger.debug('useTableInitialization', 'Tab 无保存状态，URL 有参数，从 URL 恢复（link 跳转）', {
-          functionId,
-          router,
-          urlQuery: route.query
-        })
         restoreFromURL()
         // 🔥 等待状态更新完成，确保 restoreFromURL 的状态已经应用到 stateManager
         await nextTick()
         await nextTick() // 多等待一个 tick，确保状态完全更新
-        
-        // 🔥 重新获取状态，确保读取到最新值
-        const restoredState = stateManager.getState()
-        Logger.debug('useTableInitialization', '恢复后的状态', {
-          functionId,
-          router,
-          searchForm: restoredState.searchForm,
-          searchFormKeys: Object.keys(restoredState.searchForm || {}),
-          searchParams: restoredState.searchParams,
-          searchParamsKeys: Object.keys(restoredState.searchParams || {})
-        })
         
         // 🔥 link 跳转场景：URL 已经有参数，不需要再同步到 URL（避免覆盖）
         // 只有在 URL 参数不完整时才同步（比如只有搜索参数，没有分页参数）
         const hasPaginationParams = route.query.page && route.query.page_size
         if (!hasPaginationParams) {
           // URL 中没有分页参数，需要同步默认分页参数
-          Logger.debug('useTableInitialization', 'URL 中缺少分页参数，同步默认参数', {
-            functionId,
-            router
-          })
           if (!isSyncingToURL.value) {
             isSyncingToURL.value = true
             await nextTick()
@@ -190,20 +148,7 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
             await nextTick()
             isSyncingToURL.value = false
           }
-        } else {
-          Logger.debug('useTableInitialization', 'URL 参数完整，不需要同步', {
-            functionId,
-            router,
-            urlQuery: route.query
-          })
         }
-      } else if (!pathMatches) {
-        Logger.debug('useTableInitialization', '路径不匹配，函数切换场景，不恢复 URL 参数', {
-          functionId,
-          router,
-          currentPath,
-          expectedPath
-        })
       } else {
         // 🔥 Tab 切换场景：Tab 有保存的状态，需要同步到 URL
         if (!isSyncingToURL.value) {
@@ -217,16 +162,12 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
       
       // 🔥 步骤 3：加载数据
       if (isMounted && !isMounted.value) {
-        Logger.warn('useTableInitialization', '组件在初始化过程中已卸载，取消加载数据', { functionId, router })
         return
       }
       
-      Logger.debug('useTableInitialization', '开始加载数据', { functionId, router })
       await loadTableData()
-      Logger.debug('useTableInitialization', '数据加载完成', { functionId, router })
     } finally {
       isInitializing.value = false
-      Logger.debug('useTableInitialization', 'initializeTable 完成', { functionId, router })
     }
   }
 
@@ -241,11 +182,6 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     // 🔥 检查当前函数类型，如果是 form 函数，不应该处理 URL 变化
     // 这可以防止 form 函数的 URL 被添加 table 参数
     if (functionDetailValue?.template_type !== 'table') {
-      Logger.debug('useTableInitialization', '当前函数不是 table 类型，忽略 URL 变化', {
-        functionId,
-        router,
-        templateType: functionDetailValue?.template_type
-      })
       return
     }
 
@@ -256,45 +192,17 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     const expectedPath = (router || '').replace(/^\/+/, '')
     const pathMatches = currentPath === expectedPath || currentPath.startsWith(expectedPath + '?')
 
-    Logger.debug('useTableInitialization', 'URL query 变化', {
-      functionId,
-      router,
-      currentPath,
-      expectedPath,
-      pathMatches,
-      newQuery,
-      oldQuery,
-      isMounted: isMounted?.value,
-      isSyncingToURL: isSyncingToURL.value,
-      isRestoringFromURL: isRestoringFromURL.value,
-      isInitializing: isInitializing.value
-    })
-
     // 🔥 如果路由不匹配当前函数，直接返回（可能是其他函数的路由变化）
     if (!pathMatches) {
-      Logger.debug('useTableInitialization', '路由不匹配当前函数，忽略 URL 变化', {
-        functionId,
-        router,
-        currentPath,
-        expectedPath
-      })
       return
     }
 
     // 🔥 检查组件是否还在挂载状态
     if (isMounted && !isMounted.value) {
-      Logger.warn('useTableInitialization', '组件已卸载，忽略 URL 变化', { functionId, router })
       return
     }
 
     if (isSyncingToURL.value || isRestoringFromURL.value || isInitializing.value) {
-      Logger.debug('useTableInitialization', '正在同步或初始化中，忽略 URL 变化', {
-        functionId,
-        router,
-        isSyncingToURL: isSyncingToURL.value,
-        isRestoringFromURL: isRestoringFromURL.value,
-        isInitializing: isInitializing.value
-      })
       return
     }
 
@@ -304,7 +212,6 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
 
       // 🔥 再次检查组件是否还在挂载状态
       if (isMounted && !isMounted.value) {
-        Logger.warn('useTableInitialization', '组件在 URL 恢复过程中已卸载，取消加载数据', { functionId, router })
         return
       }
 
@@ -312,16 +219,9 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
       const currentPathAfterRestore = extractWorkspacePath(route.path)
       const pathMatchesAfterRestore = currentPathAfterRestore === expectedPath || currentPathAfterRestore.startsWith(expectedPath + '?')
       if (!pathMatchesAfterRestore) {
-        Logger.debug('useTableInitialization', '路由在恢复过程中已变化，取消加载数据', {
-          functionId,
-          router,
-          currentPathAfterRestore,
-          expectedPath
-        })
         return
       }
 
-      Logger.debug('useTableInitialization', 'URL 变化后开始加载数据', { functionId, router })
       await loadTableData()
     } finally {
       isRestoringFromURL.value = false

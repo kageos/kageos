@@ -304,7 +304,6 @@ const debugRequestData = computed(() => {
     const submitData = domainService.getSubmitData(requestFields.value)
     return JSON.stringify(submitData, null, 2)
   } catch (error) {
-    console.error('[FormView] 获取提交数据失败', error)
     return JSON.stringify({ error: '获取提交数据失败' }, null, 2)
   }
 })
@@ -349,7 +348,6 @@ const copyToClipboard = async (text: string): Promise<void> => {
     await navigator.clipboard.writeText(text)
     ElMessage.success('已复制到剪贴板')
   } catch (error) {
-    console.error('复制失败', error)
     ElMessage.error('复制失败，请手动复制')
   }
 }
@@ -402,7 +400,7 @@ const isFieldRequired = (field: FieldConfig): boolean => {
 const handleFieldUpdate = (fieldCode: string, value: FieldValue): void => {
   // 🔥 调试日志：检查值是否正确传递
   if (!value || value.raw === null || value.raw === undefined) {
-    console.warn('[FormView] handleFieldUpdate 收到空值:', { fieldCode, value })
+    // 空值处理
   }
   applicationService.updateFieldValue(fieldCode, value)
 }
@@ -420,8 +418,6 @@ const handleSubmit = async (): Promise<void> => {
       duration: 3000
     })
   } catch (error: any) {
-    console.error('表单提交失败:', error)
-    
     // 🔥 从错误对象中提取错误消息
     // request.ts 的响应拦截器在 code !== 0 时会 reject，并创建错误对象
     // 错误对象包含 response 属性，其中包含完整的响应数据
@@ -462,12 +458,6 @@ onMounted(() => {
   // 初始化表单：在挂载时立即初始化，并传递 URL 参数作为初始数据
   if (requestFields.value.length > 0) {
     const initialData = formInitialData.value
-    console.log('[FormView] onMounted 初始化表单', {
-      functionId: props.functionDetail.id,
-      router: props.functionDetail.router,
-      initialDataKeys: Object.keys(initialData),
-      initialData
-    })
     applicationService.initializeForm(requestFields.value, initialData)
   }
 
@@ -480,12 +470,6 @@ onMounted(() => {
         const fields = (payload.detail.request || []) as FieldConfig[]
         if (fields.length > 0) {
           const initialData = formInitialData.value
-          console.log('[FormView] functionLoaded 事件，重新初始化表单', {
-            functionId: payload.detail.id,
-            router: payload.detail.router,
-            initialDataKeys: Object.keys(initialData),
-            initialData
-          })
           applicationService.initializeForm(fields, initialData)
         }
       })
@@ -551,7 +535,6 @@ onMounted(() => {
                 display: typeof rawValue === 'object' ? JSON.stringify(rawValue) : String(rawValue),
                 meta: {}
               }
-              console.log('[FormView] 更新字段值', { fieldCode, fieldValue })
               applicationService.updateFieldValue(fieldCode, fieldValue)
             }
           })
