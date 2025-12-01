@@ -402,11 +402,24 @@ const appList = computed(() => props.appList)
   }
 
   &.is-active {
-    background: var(--el-color-primary-light-9);
+    background: #6366f1;
+    border-left: 3px solid #4f46e5;
     
     .item-title {
-      color: var(--el-color-primary);
+      color: white;
       font-weight: 600;
+    }
+    
+    .item-path {
+      color: rgba(255, 255, 255, 0.8);
+      
+      .path-icon {
+        color: rgba(255, 255, 255, 0.8);
+      }
+    }
+    
+    .item-icon {
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
     }
   }
 }
