@@ -48,7 +48,7 @@
             </div>
             <div class="form-page-content">
               <FormView
-                v-if="currentFunctionDetail.template_type === 'form'"
+                v-if="currentFunctionDetail.template_type === FUNCTION_TYPE.FORM"
                 :key="`form-create-${currentFunction.id}`"
                 :function-detail="currentFunctionDetail"
               />
@@ -71,7 +71,7 @@
             </div>
             <div class="form-page-content">
               <FormView
-                v-if="currentFunctionDetail.template_type === 'form'"
+                v-if="currentFunctionDetail.template_type === FUNCTION_TYPE.FORM"
                 :key="`form-edit-${currentFunction.id}-${editRowId}`"
                 :function-detail="editFunctionDetail"
                 :initial-data="editInitialData"
@@ -94,12 +94,12 @@
         <div v-else-if="tabs.length > 0" class="tabs-content-wrapper">
           <div class="tab-content">
             <FormView
-              v-if="currentFunctionDetail?.template_type === 'form'"
+              v-if="currentFunctionDetail?.template_type === FUNCTION_TYPE.FORM"
               :key="`form-${activeTabId}`"
               :function-detail="currentFunctionDetail"
             />
             <TableView
-              v-else-if="currentFunctionDetail?.template_type === 'table'"
+              v-else-if="currentFunctionDetail?.template_type === FUNCTION_TYPE.TABLE"
               :key="`table-${activeTabId}`"
               :function-detail="currentFunctionDetail"
             />
