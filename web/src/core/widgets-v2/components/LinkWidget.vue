@@ -122,13 +122,10 @@ const handleClick = (e: Event) => {
   
   const target = linkConfig.value.target || '_self'
   
-  // 判断是否是外链
-  const isExternal = url.startsWith('http://') || url.startsWith('https://')
-  
   // ⚠️ 关键：在 PWA/桌面环境中，即使配置了 _blank，内部链接也应该在当前窗口打开
   // 因为新窗口打开会跳转到浏览器，破坏用户体验
   // 外链仍然使用新窗口打开（因为无法使用路由导航）
-  if (isExternal) {
+  if (isExternalLink.value) {
     // 外链：始终使用新窗口打开（无论是浏览器还是 PWA 环境）
     window.open(url, '_blank')
   } else {
@@ -144,11 +141,6 @@ const handleClick = (e: Event) => {
       window.open(url, '_blank')
     }
   }
-}
-
-// 将 URL 转换为路由路径（使用统一的工具函数）
-function convertUrlToRoute(url: string): string {
-  return resolveWorkspaceUrl(url, router.currentRoute.value)
 }
 </script>
 
