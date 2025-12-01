@@ -290,6 +290,7 @@ import { useWorkspaceDetail } from '../composables/useWorkspaceDetail'
 import { useWorkspaceApp } from '../composables/useWorkspaceApp'
 import { useWorkspaceServiceTree } from '../composables/useWorkspaceServiceTree'
 import { findNodeByPath } from '../utils/workspaceUtils'
+import { preserveQueryParamsForTable, preserveQueryParamsForForm } from '@/utils/queryParams'
 
 const route = useRoute()
 const router = useRouter()
@@ -561,42 +562,9 @@ const handleNodeClick = (node: ServiceTreeType) => {
       }
       
       // 🔥 如果是 table 函数，保留分页和排序参数；如果是 form 函数，不保留这些参数
-      const currentQuery = route.query
-      const preservedQuery: Record<string, string | string[]> = {}
-      
-      if (isTableFunction) {
-        // table 函数：只保留分页和排序参数，清除搜索参数
-        const paramsToPreserve = ['page', 'page_size', 'sorts']
-        Object.keys(currentQuery).forEach(key => {
-          // 保留分页和排序参数，以及以 _ 开头的参数（前端状态参数）
-          if (paramsToPreserve.includes(key) || key.startsWith('_')) {
-            const value = currentQuery[key]
-            if (value !== null && value !== undefined) {
-              if (Array.isArray(value)) {
-                preservedQuery[key] = value.filter(v => v !== null).map(v => String(v))
-              } else {
-                preservedQuery[key] = String(value)
-              }
-            }
-          }
-          // 搜索参数（eq, like, in, contains, gte, lte 等）不保留，避免状态污染
-        })
-      } else {
-        // form 函数：只保留以 _ 开头的参数（前端状态参数），不保留 table 相关参数
-        Object.keys(currentQuery).forEach(key => {
-          if (key.startsWith('_')) {
-            const value = currentQuery[key]
-            if (value !== null && value !== undefined) {
-              if (Array.isArray(value)) {
-                preservedQuery[key] = value.filter(v => v !== null).map(v => String(v))
-              } else {
-                preservedQuery[key] = String(value)
-              }
-            }
-          }
-          // table 相关参数（page, page_size, sorts）和搜索参数都不保留
-        })
-      }
+      const preservedQuery = isTableFunction
+        ? preserveQueryParamsForTable(route.query)
+        : preserveQueryParamsForForm(route.query)
       
       router.replace({ path: targetPath, query: preservedQuery }).catch(() => {})
     } else {
