@@ -12,7 +12,7 @@ import { deepClone } from '@/utils/clone'
 import { useRoute, useRouter } from 'vue-router'
 import { ElNotification, ElMessage } from 'element-plus'
 import { serviceFactory } from '../../infrastructure/factories'
-import { FUNCTION_TYPE } from '@/utils/functionTypes'
+import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
 import type { FieldConfig, FieldValue } from '../../domain/types'
 import type { FunctionDetail } from '../../domain/interfaces/IFunctionLoader'
@@ -46,7 +46,7 @@ export function useWorkspaceDetail(options: {
     if (!current) return null
     
     // 如果是 table 类型，从 response 字段中筛选可编辑的字段
-    if (current.template_type === FUNCTION_TYPE.TABLE) {
+    if (current.template_type === TEMPLATE_TYPE.TABLE) {
       const fields = (current.response || []) as FieldConfig[]
       const editableFields = fields.filter(field => {
         const permission = field.table_permission
@@ -61,7 +61,7 @@ export function useWorkspaceDetail(options: {
     }
     
     // 如果是 form 类型，直接使用 request 字段
-    if (current.template_type === FUNCTION_TYPE.FORM) {
+    if (current.template_type === TEMPLATE_TYPE.FORM) {
       return current
     }
     
@@ -312,7 +312,7 @@ export function useWorkspaceDetail(options: {
   // 设置 URL 参数监听（用于分享链接）
   const setupUrlWatch = () => {
     watch([() => route.query._tab, () => route.query._id, options.currentFunctionDetail], async ([tab, id, detail]: [any, any, any]) => {
-      if (tab === 'detail' && id && detail && detail.template_type === FUNCTION_TYPE.TABLE) {
+      if (tab === 'detail' && id && detail && detail.template_type === TEMPLATE_TYPE.TABLE) {
         // 确保函数详情已加载
         if (!options.currentFunction()) {
           return

@@ -48,7 +48,7 @@
             </div>
             <div class="form-page-content">
               <FormView
-                v-if="currentFunctionDetail.template_type === FUNCTION_TYPE.FORM"
+                v-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.FORM"
                 :key="`form-create-${currentFunction.id}`"
                 :function-detail="currentFunctionDetail"
               />
@@ -71,7 +71,7 @@
             </div>
             <div class="form-page-content">
               <FormView
-                v-if="currentFunctionDetail.template_type === FUNCTION_TYPE.FORM"
+                v-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.FORM"
                 :key="`form-edit-${currentFunction.id}-${editRowId}`"
                 :function-detail="editFunctionDetail"
                 :initial-data="editInitialData"
@@ -94,12 +94,12 @@
         <div v-else-if="tabs.length > 0" class="tabs-content-wrapper">
           <div class="tab-content">
             <FormView
-              v-if="currentFunctionDetail?.template_type === FUNCTION_TYPE.FORM"
+              v-if="currentFunctionDetail?.template_type === TEMPLATE_TYPE.FORM"
               :key="`form-${activeTabId}`"
               :function-detail="currentFunctionDetail"
             />
             <TableView
-              v-else-if="currentFunctionDetail?.template_type === FUNCTION_TYPE.TABLE"
+              v-else-if="currentFunctionDetail?.template_type === TEMPLATE_TYPE.TABLE"
               :key="`table-${activeTabId}`"
               :function-detail="currentFunctionDetail"
             />
@@ -291,7 +291,7 @@ import { useWorkspaceApp } from '../composables/useWorkspaceApp'
 import { useWorkspaceServiceTree } from '../composables/useWorkspaceServiceTree'
 import { findNodeByPath } from '../utils/workspaceUtils'
 import { preserveQueryParamsForTable, preserveQueryParamsForForm } from '@/utils/queryParams'
-import { FUNCTION_TYPE } from '@/utils/functionTypes'
+import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 
 const route = useRoute()
 const router = useRouter()
@@ -557,7 +557,7 @@ const handleNodeClick = (node: ServiceTreeType) => {
       let isTableFunction = false
       if (existingTab && existingTab.node) {
         const detail = stateManager.getFunctionDetail(existingTab.node)
-        if (detail && detail.template_type === FUNCTION_TYPE.TABLE) {
+        if (detail && detail.template_type === TEMPLATE_TYPE.TABLE) {
           isTableFunction = true
         }
       }
