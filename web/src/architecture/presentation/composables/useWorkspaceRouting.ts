@@ -209,14 +209,12 @@ export function useWorkspaceRouting(options: {
           const serviceNode: ServiceTree = node as any
           
           // 🔥 处理 _link_type 参数（来自 link 跳转）
-          // 根据 link 类型决定是否保留 table 参数，然后清除临时参数
+          // link 跳转时，URL 中的参数是用户明确指定的（来自 link 值），应该全部保留
+          // 只清除 _link_type 临时参数，其他参数都保留
           const linkType = route.query._link_type as string
           if (linkType === 'table' || linkType === 'form') {
-            const currentQuery = { ...route.query }
-            delete currentQuery._link_type  // 清除临时参数
-            const preservedQuery = linkType === 'table'
-              ? preserveQueryParamsForTable(currentQuery)
-              : preserveQueryParamsForForm(currentQuery)
+            const preservedQuery = { ...route.query }
+            delete preservedQuery._link_type  // 只清除临时参数，保留其他所有参数
             
             // 更新路由，清除 _link_type 参数
             router.replace({ 
