@@ -559,27 +559,58 @@ const handleNodeClick = (node: ServiceTreeType) => {
   if (serviceTree.type === 'function' && serviceTree.full_code_path) {
     const targetPath = `/workspace${serviceTree.full_code_path}`
     if (route.path !== targetPath) {
-      // 路由不同，更新路由，只保留分页和排序参数，清除搜索参数
-      // 🔥 服务目录切换时只保留分页和排序参数，清除搜索参数，避免状态污染
+      // 🔥 检查目标函数是否已有 Tab，如果有，检查是否是 table 类型
+      const tabsArray = Array.isArray(tabs.value) ? tabs.value : []
+      const existingTab = tabsArray.find(t => 
+        t.path === serviceTree.full_code_path || t.path === String(serviceTree.id)
+      )
+      
+      // 🔥 检查目标函数是否是 table 类型
+      let isTableFunction = false
+      if (existingTab && existingTab.node) {
+        const detail = stateManager.getFunctionDetail(existingTab.node)
+        if (detail && detail.template_type === 'table') {
+          isTableFunction = true
+        }
+      }
+      
+      // 🔥 如果是 table 函数，保留分页和排序参数；如果是 form 函数，不保留这些参数
       const currentQuery = route.query
       const preservedQuery: Record<string, string | string[]> = {}
       
-      // 只保留分页和排序参数
-      const paramsToPreserve = ['page', 'page_size', 'sorts']
-      Object.keys(currentQuery).forEach(key => {
-        // 保留分页和排序参数，以及以 _ 开头的参数（前端状态参数）
-        if (paramsToPreserve.includes(key) || key.startsWith('_')) {
-          const value = currentQuery[key]
-          if (value !== null && value !== undefined) {
-            if (Array.isArray(value)) {
-              preservedQuery[key] = value.filter(v => v !== null).map(v => String(v))
-            } else {
-              preservedQuery[key] = String(value)
+      if (isTableFunction) {
+        // table 函数：只保留分页和排序参数，清除搜索参数
+        const paramsToPreserve = ['page', 'page_size', 'sorts']
+        Object.keys(currentQuery).forEach(key => {
+          // 保留分页和排序参数，以及以 _ 开头的参数（前端状态参数）
+          if (paramsToPreserve.includes(key) || key.startsWith('_')) {
+            const value = currentQuery[key]
+            if (value !== null && value !== undefined) {
+              if (Array.isArray(value)) {
+                preservedQuery[key] = value.filter(v => v !== null).map(v => String(v))
+              } else {
+                preservedQuery[key] = String(value)
+              }
             }
           }
-        }
-        // 搜索参数（eq, like, in, contains, gte, lte 等）不保留，避免状态污染
-      })
+          // 搜索参数（eq, like, in, contains, gte, lte 等）不保留，避免状态污染
+        })
+      } else {
+        // form 函数：只保留以 _ 开头的参数（前端状态参数），不保留 table 相关参数
+        Object.keys(currentQuery).forEach(key => {
+          if (key.startsWith('_')) {
+            const value = currentQuery[key]
+            if (value !== null && value !== undefined) {
+              if (Array.isArray(value)) {
+                preservedQuery[key] = value.filter(v => v !== null).map(v => String(v))
+              } else {
+                preservedQuery[key] = String(value)
+              }
+            }
+          }
+          // table 相关参数（page, page_size, sorts）和搜索参数都不保留
+        })
+      }
       
       router.replace({ path: targetPath, query: preservedQuery }).catch(() => {})
     } else {
