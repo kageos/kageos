@@ -92,6 +92,74 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
   }
 
   /**
+   * 检查路径是否匹配当前函数
+   */
+  const checkPathMatch = (router: string): boolean => {
+    const currentPath = extractWorkspacePath(route.path)
+    const expectedPath = (router || '').replace(/^\/+/, '')
+    return currentPath === expectedPath || currentPath.startsWith(expectedPath + '?')
+  }
+
+  /**
+   * 从 URL 恢复状态并同步到 URL（如果需要）
+   */
+  const restoreFromURLAndSync = async (): Promise<void> => {
+    restoreFromURL()
+    // 🔥 等待状态更新完成，确保 restoreFromURL 的状态已经应用到 stateManager
+    // 注意：stateManager.setState() 是同步的，但 Vue 的响应式更新是异步的，需要一个 tick
+    await nextTick()
+    
+    // 🔥 link 跳转场景：URL 已经有参数，不需要再同步到 URL（避免覆盖）
+    // 只有在 URL 参数不完整时才同步（比如只有搜索参数，没有分页参数）
+    const hasPaginationParams = route.query.page && route.query.page_size
+    if (!hasPaginationParams) {
+      // URL 中没有分页参数，需要同步默认分页参数
+      if (!isSyncingToURL.value) {
+        isSyncingToURL.value = true
+        syncToURL() // 只同步分页和排序参数，保留 URL 中的搜索参数
+        // syncToURL() 是同步的，路由更新是异步的，Vue Router 会自动处理
+        await nextTick()
+        isSyncingToURL.value = false
+      }
+    }
+  }
+
+  /**
+   * 同步 Tab 状态到 URL
+   */
+  const syncTabStateToURL = async (): Promise<void> => {
+    if (!isSyncingToURL.value) {
+      isSyncingToURL.value = true
+      syncToURL() // 完整同步所有参数（分页、排序、搜索）
+      // syncToURL() 是同步的，路由更新是异步的，Vue Router 会自动处理
+      await nextTick()
+      isSyncingToURL.value = false
+    }
+  }
+
+  /**
+   * 决定恢复策略并执行
+   */
+  const decideRestoreStrategy = async (router: string): Promise<void> => {
+    const currentState = stateManager.getState()
+    const pathMatches = checkPathMatch(router)
+    const hasTabState = currentState.searchForm && Object.keys(currentState.searchForm).length > 0
+    const hasURLParams = pathMatches && Object.keys(route.query).length > 0
+    
+    if (hasTabState) {
+      // Tab 有保存的状态，优先使用 Tab 的状态（Tab 切换场景）
+      // 需要同步到 URL
+      await syncTabStateToURL()
+    } else if (hasURLParams) {
+      // Tab 没有保存的状态，且 URL 有参数，从 URL 恢复（link 跳转场景）
+      await restoreFromURLAndSync()
+    } else {
+      // Tab 切换场景：Tab 有保存的状态，需要同步到 URL
+      await syncTabStateToURL()
+    }
+  }
+
+  /**
    * 初始化表格（统一入口）
    */
   const initializeTable = async (): Promise<void> => {
@@ -110,57 +178,13 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     isInitializing.value = true
 
     try {
-      // 🔥 步骤 1：检查是否是 link 跳转（通过检查 URL 路径是否匹配当前函数）
-      // 如果路径匹配，说明是 link 跳转，应该恢复 URL 参数
-      // 如果路径不匹配，说明是函数切换，应该清空上一个函数的参数
-      const currentPath = extractWorkspacePath(route.path)
-      const expectedPath = (router || '').replace(/^\/+/, '')
-      const pathMatches = currentPath === expectedPath || currentPath.startsWith(expectedPath + '?')
-      
-      // 🔥 步骤 2：从 TableStateManager 获取状态（已由 watch activeTabId 恢复）
-      const currentState = stateManager.getState()
-      
-      // 🔥 步骤 3：决定是否从 URL 恢复参数
+      // 🔥 步骤 1：决定恢复策略并执行
       // 优先级：Tab 保存的状态 > URL 参数
       // - 如果 Tab 有保存的状态（searchForm 不为空），说明是 Tab 切换，使用 Tab 的状态，不从 URL 恢复
       // - 如果 Tab 没有保存的状态（searchForm 为空），且 URL 有参数，说明是 link 跳转，从 URL 恢复
-      const hasTabState = currentState.searchForm && Object.keys(currentState.searchForm).length > 0
-      const hasURLParams = pathMatches && Object.keys(route.query).length > 0
+      await decideRestoreStrategy(router || '')
       
-      if (hasTabState) {
-        // Tab 有保存的状态，优先使用 Tab 的状态（Tab 切换场景）
-      } else if (hasURLParams) {
-        // Tab 没有保存的状态，且 URL 有参数，从 URL 恢复（link 跳转场景）
-        restoreFromURL()
-        // 🔥 等待状态更新完成，确保 restoreFromURL 的状态已经应用到 stateManager
-        // 注意：stateManager.setState() 是同步的，但 Vue 的响应式更新是异步的，需要一个 tick
-        await nextTick()
-        
-        // 🔥 link 跳转场景：URL 已经有参数，不需要再同步到 URL（避免覆盖）
-        // 只有在 URL 参数不完整时才同步（比如只有搜索参数，没有分页参数）
-        const hasPaginationParams = route.query.page && route.query.page_size
-        if (!hasPaginationParams) {
-          // URL 中没有分页参数，需要同步默认分页参数
-          if (!isSyncingToURL.value) {
-            isSyncingToURL.value = true
-            syncToURL() // 只同步分页和排序参数，保留 URL 中的搜索参数
-            // syncToURL() 是同步的，路由更新是异步的，Vue Router 会自动处理
-            await nextTick()
-            isSyncingToURL.value = false
-          }
-        }
-      } else {
-        // 🔥 Tab 切换场景：Tab 有保存的状态，需要同步到 URL
-        if (!isSyncingToURL.value) {
-          isSyncingToURL.value = true
-          syncToURL() // 完整同步所有参数（分页、排序、搜索）
-          // syncToURL() 是同步的，路由更新是异步的，Vue Router 会自动处理
-          await nextTick()
-          isSyncingToURL.value = false
-        }
-      }
-      
-      // 🔥 步骤 3：加载数据
+      // 🔥 步骤 2：加载数据
       if (isMounted && !isMounted.value) {
         return
       }
