@@ -812,26 +812,14 @@ const handleLinkClick = (fieldCode: string, row: any) => {
   if (!raw) return
   
   // 解析 JSON 格式的链接值
-  let actualUrl = raw
-  let linkType: 'table' | 'form' | undefined = undefined
-  
-  try {
-    const jsonValue = JSON.parse(raw)
-    if (jsonValue && typeof jsonValue === 'object' && jsonValue.url) {
-      actualUrl = jsonValue.url
-      linkType = jsonValue.type  // 'table' 或 'form' 或 undefined（外链）
-    }
-  } catch (error) {
-    // JSON 解析失败，使用原始值作为 URL
-    console.error('[TableView] 解析 link 值失败:', error, raw)
-  }
+  const parsedLink = parseLinkValue(raw)
   
   // 获取链接配置
   const linkConfig = linkField.widget?.config || {}
   const target = linkConfig.target || '_self'
   
   // 处理 URL，添加 /workspace 前缀
-  const resolvedUrl = resolveWorkspaceUrl(actualUrl, router.currentRoute.value)
+  const resolvedUrl = resolveWorkspaceUrl(parsedLink.url, router.currentRoute.value)
   
   // 判断是否是外链
   const isExternal = resolvedUrl.startsWith('http://') || resolvedUrl.startsWith('https://')
@@ -840,18 +828,9 @@ const handleLinkClick = (fieldCode: string, row: any) => {
   if (isExternal) {
     window.open(resolvedUrl, '_blank')
   } else {
-    // 🔥 如果 link 值中有 type 信息，通过 query 参数传递（临时方案）
+    // 🔥 如果 link 值中有 type 信息，通过 query 参数传递
     // 这样 useWorkspaceRouting 可以根据这个参数决定是否保留 table 参数
-    let finalUrl = resolvedUrl
-    if (linkType) {
-      try {
-        const urlObj = new URL(resolvedUrl, window.location.origin)
-        urlObj.searchParams.set('_link_type', linkType)
-        finalUrl = urlObj.pathname + urlObj.search
-      } catch {
-        // URL 解析失败，使用原始 URL
-      }
-    }
+    const finalUrl = addLinkTypeToUrl(resolvedUrl, parsedLink.type)
     
     if (target === '_blank') {
       window.open(finalUrl, '_blank')
