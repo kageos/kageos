@@ -495,7 +495,7 @@ onMounted(() => {
         nextTick(() => {
           // 🔥 重新初始化时，传递 URL 参数作为初始数据，确保 URL 参数不会被清空
           const initialData = formInitialData.value
-          console.log('[FormView] functionDetail 变化，重新初始化表单', {
+          // 重新初始化表单
             functionId: newDetail.id,
             router: newDetail.router,
             initialDataKeys: Object.keys(initialData),
@@ -518,7 +518,7 @@ onMounted(() => {
       nextTick(() => {
         // 🔥 只更新 URL 参数中的字段，保留其他字段的值
         const initialData = formInitialData.value
-        console.log('[FormView] URL 查询参数变化，更新表单字段', {
+        // URL 查询参数变化，更新表单字段
           newQuery,
           oldQuery,
           initialDataKeys: Object.keys(initialData),
