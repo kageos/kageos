@@ -152,7 +152,7 @@ export function useWorkspaceDetail(options: {
       )
       if (updatedRow) {
         detailRowData.value = { ...updatedRow }
-        detailOriginalRow.value = JSON.parse(JSON.stringify(updatedRow))
+        detailOriginalRow.value = deepClone(updatedRow)
         await refreshDetailRowData()
         ElNotification.success({
           title: '成功',
@@ -184,7 +184,7 @@ export function useWorkspaceDetail(options: {
     const updatedRow = tableData.find((row: any) => String(row.id) === String(currentId))
     if (updatedRow) {
       detailRowData.value = { ...updatedRow }
-      detailOriginalRow.value = JSON.parse(JSON.stringify(updatedRow))
+      detailOriginalRow.value = deepClone(updatedRow)
     }
   }
 
@@ -379,7 +379,7 @@ export function useWorkspaceDetail(options: {
             // 找到记录，打开详情抽屉
             const index = tableData.findIndex((r: any) => r.id === rowId || r._id === rowId)
             detailRowData.value = targetRow
-            detailOriginalRow.value = JSON.parse(JSON.stringify(targetRow))
+            detailOriginalRow.value = deepClone(targetRow)
             detailDrawerTitle.value = detail.name || '详情'
             detailFields.value = (detail.response || []) as FieldConfig[]
             detailTableData.value = tableData
