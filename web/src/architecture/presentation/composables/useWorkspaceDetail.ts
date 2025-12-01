@@ -408,8 +408,8 @@ export function useWorkspaceDetail(options: {
                   users.forEach(user => {
                     detailUserInfoMap.value.set(user.username, user)
                   })
-                } catch (error) {
-                  console.error('[useWorkspaceDetail] 加载详情用户信息失败', error)
+                  } catch (error) {
+                  // 静默失败
                 }
               }
             }
