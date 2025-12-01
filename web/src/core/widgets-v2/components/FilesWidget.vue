@@ -262,11 +262,6 @@
                   :src="file.url"
                   fit="cover"
                   class="thumbnail-image"
-                  :preview-src-list="previewImageList"
-                  :initial-index="getPreviewImageIndex(file)"
-                  preview-teleported
-                  hide-on-click-modal
-                  @click.stop
                 />
                 <el-icon
                   v-else
@@ -399,11 +394,6 @@
                   :src="file.url"
                   fit="cover"
                   class="thumbnail-image"
-                  :preview-src-list="previewImageList"
-                  :initial-index="getPreviewImageIndex(file)"
-                  preview-teleported
-                  hide-on-click-modal
-                  @click.stop
                 />
                 <el-icon
                   v-else
@@ -945,15 +935,12 @@ function handlePreviewInNewWindow(file: FileItem): void {
     return
   }
   
-  // 如果是图片，使用 ElImage 的预览功能（已经在模板中处理）
-  // 其他文件类型，在新窗口打开
-  if (!isImageFile(file)) {
-    const previewURL = file.url.startsWith('http://') || file.url.startsWith('https://')
-      ? file.url
-      : `/api/v1/storage/download/${encodeURIComponent(file.url)}`
-    
-    window.open(previewURL, '_blank')
-  }
+  // 🔥 所有可预览的文件（包括图片和视频）都在新窗口打开，避免抽屉遮挡预览器
+  const previewURL = file.url.startsWith('http://') || file.url.startsWith('https://')
+    ? file.url
+    : `/api/v1/storage/download/${encodeURIComponent(file.url)}`
+  
+  window.open(previewURL, '_blank')
 }
 
 // 获取预览图片列表
