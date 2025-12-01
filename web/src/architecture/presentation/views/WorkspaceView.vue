@@ -369,13 +369,11 @@ const currentFunctionDetail = computed<FunctionDetail | null>(() => {
   
   // 🔥 如果没有标签页，不返回 functionDetail，避免渲染旧的组件
   if (tabsCount === 0) {
-    console.log('[WorkspaceView] currentFunctionDetail: 没有标签页，返回 null')
     return null
   }
   
   const node = currentFunction.value
   if (!node) {
-    console.log('[WorkspaceView] currentFunctionDetail: 没有当前函数节点，返回 null')
     return null
   }
   
@@ -388,23 +386,11 @@ const currentFunctionDetail = computed<FunctionDetail | null>(() => {
     const activeTabNodeId = activeTab.node.full_code_path || String(activeTab.node.id)
     if (nodeId !== activeTabNodeId) {
       // 如果不匹配，返回 null，避免渲染错误的组件
-      console.log('[WorkspaceView] currentFunctionDetail: 节点不匹配当前激活的 tab', {
-        nodeId,
-        activeTabNodeId,
-        activeTabId: activeTabIdValue
-      })
       return null
     }
   }
   
   const detail = stateManager.getFunctionDetail(node)
-  console.log('[WorkspaceView] currentFunctionDetail: 返回详情', {
-    functionId: detail?.id,
-    router: detail?.router,
-    templateType: detail?.template_type,
-    activeTabId: activeTabIdValue,
-    tabsCount
-  })
   
   return detail
 })
@@ -771,8 +757,6 @@ onMounted(async () => {
   // 监听服务树加载完成事件
   unsubscribeServiceTreeLoaded = eventBus.on(WorkspaceEvent.serviceTreeLoaded, (payload: { app: any, tree: any[] }) => {
     // 状态已通过 StateManager 自动更新
-    console.log('[WorkspaceView] 收到 serviceTreeLoaded 事件，节点数:', payload.tree?.length || 0)
-    
     // 🔥 服务树加载后，重新关联 tabs 的 node 信息
     nextTick(() => {
       restoreTabsNodes()
@@ -781,7 +765,7 @@ onMounted(async () => {
   
   // 监听应用切换事件，开始加载服务树
   unsubscribeAppSwitched = eventBus.on(WorkspaceEvent.appSwitched, (payload: { app: any }) => {
-    console.log('[WorkspaceView] 收到 appSwitched 事件，目标应用:', payload.app?.user, payload.app?.code, 'ID:', payload.app?.id)
+    // 应用切换事件处理
   })
 
   // 加载应用列表
@@ -812,7 +796,6 @@ watch(() => serviceTree.value.length, (newLength: number) => {
 // 🔥 监听当前应用变化，检查 _forked 参数
 watch(currentApp, () => {
   if (serviceTree.value.length > 0 && currentApp.value && route.query._forked) {
-    console.log('[WorkspaceView] 应用变化，检查 _forked 参数')
     nextTick(() => {
       checkAndExpandForkedPaths()
     })
@@ -824,25 +807,21 @@ watch(queryTab, async (newTab: string, oldTab: string) => {
   if (newTab === 'create' || newTab === 'edit') {
     // create/edit 模式需要确保函数详情已加载
     if (!currentFunction.value) {
-      console.log('[WorkspaceView] queryTab 变化但当前函数不存在，等待函数加载')
       return
     }
     
     // 如果函数详情未加载，触发加载
     if (!currentFunctionDetail.value) {
-      console.log('[WorkspaceView] queryTab 变化，加载函数详情')
       await applicationService.handleNodeClick(currentFunction.value)
     }
   } else if (newTab === 'detail') {
     // detail 模式需要确保函数详情已加载，并且表格数据已加载
     if (!currentFunction.value) {
-      console.log('[WorkspaceView] queryTab=detail 但当前函数不存在，等待函数加载')
       return
     }
     
     // 如果函数详情未加载，触发加载
     if (!currentFunctionDetail.value) {
-      console.log('[WorkspaceView] queryTab=detail，加载函数详情')
       await applicationService.handleNodeClick(currentFunction.value)
     }
     
@@ -855,24 +834,20 @@ watch(() => route.query._tab, async (newTab: any) => {
   if (newTab === 'create' || newTab === 'edit') {
     // 确保当前函数和函数详情已加载
     if (!currentFunction.value) {
-      console.log('[WorkspaceView] tab 参数变化但当前函数不存在')
       return
     }
     
     if (!currentFunctionDetail.value) {
-      console.log('[WorkspaceView] tab 参数变化，加载函数详情')
       await applicationService.handleNodeClick(currentFunction.value)
     }
   } else if (newTab === 'detail') {
     // detail 模式会在另一个 watch 中处理（监听 route.query.id）
     // 这里只需要确保函数详情已加载
     if (!currentFunction.value) {
-      console.log('[WorkspaceView] tab=detail 但当前函数不存在')
       return
     }
     
     if (!currentFunctionDetail.value) {
-      console.log('[WorkspaceView] tab=detail，加载函数详情')
       await applicationService.handleNodeClick(currentFunction.value)
     }
   }
