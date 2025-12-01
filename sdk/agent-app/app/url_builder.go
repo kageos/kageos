@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"reflect"
@@ -8,6 +9,13 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/query"
 )
+
+// LinkValue Link 组件的值结构（JSON 格式）
+type LinkValue struct {
+	Type string `json:"type"` // "table" 或 "form"
+	Name string `json:"name"` // 链接文本
+	URL  string `json:"url"`  // 链接 URL
+}
 
 // BuildFunctionUrl 构建跳转 URL（支持函数跳转和外链）
 // 支持两种模式：
@@ -32,7 +40,7 @@ func (ctx *Context) BuildFunctionUrlWithText(
 	if isExternalLink(target) {
 		// 外链模式：直接处理字符串
 		url := normalizeExternalLink(target)
-		// 如果提供了 text，返回 "[text]url" 格式
+		// 外链不支持 JSON 格式，保持旧格式 "[text]url" 或 "url"
 		if text != "" {
 			return fmt.Sprintf("[%s]%s", text, url), nil
 		}
@@ -128,23 +136,15 @@ func (ctx *Context) BuildFunctionUrlWithText(
 		// 重新构建 URL
 		finalUrl := fmt.Sprintf("%s?%s", basePath, values.Encode())
 
-		// 如果提供了 text，返回 "[text]url" 格式
-		if text != "" {
-			return fmt.Sprintf("[%s]%s", text, finalUrl), nil
-		}
-
-		return finalUrl, nil
+		// 返回 JSON 格式（包含函数类型信息）
+		return buildLinkValueJSON(template.TemplateType(), text, finalUrl)
 	}
 
 	// 没有查询参数，直接返回 basePath
 	finalUrl := basePath
 
-	// 如果提供了 text，返回 "[text]url" 格式
-	if text != "" {
-		return fmt.Sprintf("[%s]%s", text, finalUrl), nil
-	}
-
-	return finalUrl, nil
+	// 返回 JSON 格式（包含函数类型信息）
+	return buildLinkValueJSON(template.TemplateType(), text, finalUrl)
 }
 
 // StructToFormParams 将结构体转换为 Form 函数的参数格式（k=v）
@@ -239,4 +239,29 @@ func normalizeExternalLink(link string) string {
 
 	// 如果没有协议，默认添加 https://
 	return "https://" + link
+}
+
+// buildLinkValueJSON 构建 Link 值的 JSON 格式
+// 如果 text 为空，返回纯 URL（保持向后兼容）
+// 如果 text 不为空，返回 JSON 格式：{"type":"table","name":"文本","url":"/path"}
+func buildLinkValueJSON(templateType TemplateType, text string, url string) (string, error) {
+	// 如果没有提供 text，返回纯 URL（保持向后兼容，用于不需要显示文本的场景）
+	if text == "" {
+		return url, nil
+	}
+
+	// 构建 JSON 格式
+	linkValue := LinkValue{
+		Type: string(templateType), // "table" 或 "form"
+		Name: text,
+		URL:  url,
+	}
+
+	// 序列化为 JSON 字符串
+	jsonBytes, err := json.Marshal(linkValue)
+	if err != nil {
+		return "", fmt.Errorf("序列化 link 值失败: %w", err)
+	}
+
+	return string(jsonBytes), nil
 }

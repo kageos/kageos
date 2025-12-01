@@ -64,24 +64,47 @@ const props = defineProps<WidgetComponentProps>()
 const router = useRouter()
 const { shouldOpenInCurrentWindow, isStandalone } = useAppEnvironment()
 
-// 解析 URL 和文本（后端可能返回 "[text]url" 格式）
+// Link 值结构（JSON 格式）
+interface LinkValue {
+  type?: 'table' | 'form'  // 函数类型（可选，兼容旧格式）
+  name?: string            // 链接文本
+  url: string              // 链接 URL
+}
+
+// 解析 URL 和文本（支持新格式 JSON 和旧格式 "[text]url"）
 const parsedLink = computed(() => {
-  const url = props.value?.raw || ''
-  if (!url) return { text: '', url: '' }
+  const raw = props.value?.raw || ''
+  if (!raw) return { text: '', url: '', type: undefined }
   
-  // 解析 "[text]url" 格式
-  const match = url.match(/^\[([^\]]+)\](.+)$/)
+  // 尝试解析 JSON 格式（新格式）
+  try {
+    const jsonValue = JSON.parse(raw) as LinkValue
+    if (jsonValue && typeof jsonValue === 'object' && jsonValue.url) {
+      return {
+        text: jsonValue.name || '',
+        url: jsonValue.url,
+        type: jsonValue.type  // 'table' 或 'form'
+      }
+    }
+  } catch {
+    // 不是 JSON，继续解析旧格式
+  }
+  
+  // 解析旧格式 "[text]url"
+  const match = raw.match(/^\[([^\]]+)\](.+)$/)
   if (match) {
     return {
       text: match[1],
-      url: match[2]
+      url: match[2],
+      type: undefined  // 旧格式没有类型信息
     }
   }
   
-  // 没有文本信息，使用原始 URL
+  // 纯 URL（没有文本信息）
   return {
     text: '',
-    url: url
+    url: raw,
+    type: undefined
   }
 })
 
@@ -149,7 +172,20 @@ const handleClick = (e: Event) => {
     // 内部链接
     if (shouldOpenInCurrentWindow(target)) {
       // 在当前窗口打开（使用路由导航）
-      router.push(url)
+      // 🔥 如果 link 值中有 type 信息，通过 query 参数传递（临时方案）
+      // 这样 useWorkspaceRouting 可以根据这个参数决定是否保留 table 参数
+      if (parsedLink.value.type) {
+        try {
+          const urlObj = new URL(url, window.location.origin)
+          urlObj.searchParams.set('_link_type', parsedLink.value.type)
+          router.push(urlObj.pathname + urlObj.search)
+        } catch {
+          // URL 解析失败，使用原始 URL
+          router.push(url)
+        }
+      } else {
+        router.push(url)
+      }
     } else {
       // 新窗口打开（仅在浏览器环境中，PWA 环境会被 shouldOpenInCurrentWindow 拦截）
       window.open(url, '_blank')
