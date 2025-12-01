@@ -557,10 +557,6 @@ const syncToURL = (): void => {
   // 🔥 检查当前函数类型，如果是 form 函数，不应该调用 syncToURL
   // 这可以防止路由切换时，form 函数的 URL 被添加 table 参数
   if (props.functionDetail.template_type !== 'table') {
-    console.warn('[TableView] syncToURL: 当前函数不是 table 类型，跳过', {
-      functionId: props.functionDetail.id,
-      templateType: props.functionDetail.template_type
-    })
     return
   }
   
@@ -655,9 +651,7 @@ const syncToURL = (): void => {
   router.replace({ 
     path: currentPath, 
     query: newQuery 
-  }).catch((err) => {
-    console.error('[TableView] syncToURL 路由更新失败', err)
-  })
+  }).catch(() => {})
 }
 
 // 🔥 restoreFromURL 已移至 useTableInitialization composable
@@ -674,16 +668,8 @@ const loadTableData = async (): Promise<void> => {
   const functionId = props.functionDetail.id
   const router = props.functionDetail.router
   
-  console.log('[TableView] loadTableData 开始', {
-    functionId,
-    router,
-    isMounted: isMounted.value,
-    componentKey: `table-${props.functionDetail.id}`
-  })
-  
   // 🔥 检查组件是否还在挂载状态，如果已卸载，不加载数据
   if (!isMounted.value) {
-    console.warn('[TableView] 组件已卸载，取消数据加载', { functionId, router })
     return
   }
   
@@ -715,21 +701,10 @@ const loadTableData = async (): Promise<void> => {
   
   // 🔥 再次检查组件是否还在挂载状态（可能在异步操作期间卸载了）
   if (!isMounted.value) {
-    console.warn('[TableView] 组件在异步操作期间已卸载，取消数据加载', { functionId, router })
     return
   }
   
-  console.log('[TableView] 调用 applicationService.loadData', {
-    functionId,
-    router,
-    searchParams,
-    sortParams,
-    pagination
-  })
-  
   await applicationService.loadData(props.functionDetail, searchParams, sortParams, pagination)
-  
-  console.log('[TableView] loadTableData 完成', { functionId, router })
 }
 
 // ==================== 其他方法 ====================
@@ -829,7 +804,6 @@ const handleCreateSubmit = async (data: Record<string, any>): Promise<void> => {
     ElMessage.success('新增成功')
     createDialogVisible.value = false
   } catch (error: any) {
-    console.error('新增失败:', error)
     const msg = error?.response?.data?.message || '新增失败'
     ElMessage.error(msg)
   }
@@ -865,7 +839,6 @@ const handleDelete = async (row: TableRow): Promise<void> => {
     ElMessage.success('删除成功')
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('删除失败:', error)
       ElMessage.error('删除失败')
     }
   }
@@ -931,34 +904,18 @@ onMounted(async () => {
   const functionId = props.functionDetail.id
   const router = props.functionDetail.router
   
-  console.log('[TableView] onMounted', {
-    functionId,
-    router,
-    componentKey: `table-${functionId}`
-  })
-  
   // 🔥 设置挂载状态
   isMounted.value = true
   
   // 初始化表格
-  console.log('[TableView] 开始初始化表格', { functionId, router })
   await initializeTable()
-  console.log('[TableView] 表格初始化完成', { functionId, router })
   
   // 监听数据加载完成事件
   unsubscribeDataLoaded = eventBus.on(TableEvent.dataLoaded, (payload: { data: TableRow[], pagination?: any }) => {
     // 🔥 检查组件是否还在挂载状态
     if (!isMounted.value) {
-      console.warn('[TableView] 组件已卸载，忽略 dataLoaded 事件', { functionId, router })
       return
     }
-    
-    console.log('[TableView] 收到 dataLoaded 事件', {
-      functionId,
-      router,
-      dataCount: payload.data?.length || 0,
-      pagination: payload.pagination
-    })
     
     // 🔥 通过 StateManager 更新分页信息，而不是直接写入 computed
     const currentState = stateManager.getState()
@@ -976,12 +933,6 @@ onMounted(async () => {
 onUnmounted(() => {
   const functionId = props.functionDetail.id
   const router = props.functionDetail.router
-  
-  console.log('[TableView] onUnmounted', {
-    functionId,
-    router,
-    componentKey: `table-${functionId}`
-  })
   
   // 🔥 设置卸载状态，防止继续加载数据
   isMounted.value = false
