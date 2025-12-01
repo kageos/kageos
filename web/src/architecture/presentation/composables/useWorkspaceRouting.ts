@@ -189,40 +189,50 @@ export function useWorkspaceRouting(options: {
         }
         
         // 尝试查找节点并打开/激活 Tab
+        // 使用早期返回优化条件判断
         const tryOpenTab = () => {
           const tree = options.serviceTree()
-          if (tree && tree.length > 0) {
-            const node = options.findNodeByPath(tree, functionPath)
-            if (node) {
-              const serviceNode: ServiceTree = node as any
-              
-              // 检查 Tab 是否存在
-              const tabsArray = Array.isArray(options.tabs()) ? options.tabs() : []
-              const existingTab = tabsArray.find(t => 
-                t.path === serviceNode.full_code_path || t.path === String(serviceNode.id)
-              )
-              
-              if (existingTab) {
-                // Tab 已存在，激活它（不触发路由更新）
-                if (options.activeTabId() !== existingTab.id) {
-                  isSyncingRouteToTab = true
-                  applicationService.activateTab(existingTab.id)
-                  isSyncingRouteToTab = false
-                }
-                
-                // 无论是否激活，都检查函数详情是否已加载
-                if (existingTab.node && existingTab.node.type === 'function') {
-                  const detail = stateManager.getFunctionDetail(existingTab.node)
-                  if (!detail) {
-                    applicationService.handleNodeClick(existingTab.node)
-                  }
-                }
-              } else {
-                // Tab 不存在，打开新 Tab
-                applicationService.triggerNodeClick(serviceNode)
+          
+          // 早期返回：服务树为空
+          if (!tree || tree.length === 0) {
+            return
+          }
+          
+          const node = options.findNodeByPath(tree, functionPath)
+          
+          // 早期返回：节点不存在
+          if (!node) {
+            return
+          }
+          
+          const serviceNode: ServiceTree = node as any
+          
+          // 检查 Tab 是否存在
+          const tabsArray = Array.isArray(options.tabs()) ? options.tabs() : []
+          const existingTab = tabsArray.find(t => 
+            t.path === serviceNode.full_code_path || t.path === String(serviceNode.id)
+          )
+          
+          if (existingTab) {
+            // Tab 已存在，激活它（不触发路由更新）
+            if (options.activeTabId() !== existingTab.id) {
+              isSyncingRouteToTab = true
+              applicationService.activateTab(existingTab.id)
+              isSyncingRouteToTab = false
+            }
+            
+            // 无论是否激活，都检查函数详情是否已加载
+            if (existingTab.node && existingTab.node.type === 'function') {
+              const detail = stateManager.getFunctionDetail(existingTab.node)
+              if (!detail) {
+                applicationService.handleNodeClick(existingTab.node)
               }
             }
+            return
           }
+          
+          // Tab 不存在，打开新 Tab
+          applicationService.triggerNodeClick(serviceNode)
         }
 
         // 等待服务树加载
