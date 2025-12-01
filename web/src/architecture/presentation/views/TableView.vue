@@ -632,16 +632,12 @@ const syncToURL = (): void => {
       // 保留搜索参数：只有当 query 中没有对应的搜索参数，且 searchForm 中有对应的值时，才保留 URL 中的值
       // 这样可以避免函数切换时保留上一个函数的搜索参数
       else if (searchParamKeys.includes(key)) {
-        // 如果 query 中没有这个搜索参数，检查 searchForm 中是否有对应的值
-        // 如果有，说明是 link 跳转携带的参数，应该保留
-        // 如果没有，说明是上一个函数的参数，不应该保留
-        if (!(key in query)) {
-          // 检查 searchForm 中是否有对应的值（通过检查 searchParams 或 searchForm）
-          const hasSearchValue = currentState.searchParams && Object.keys(currentState.searchParams).length > 0
-          if (hasSearchValue) {
-            newQuery[key] = String(value)
-          }
-        }
+        // 如果 query 中没有这个搜索参数，说明 searchForm 中没有对应的值
+        // 这种情况下，不应该保留 URL 中的这个参数（因为用户已经清除了搜索条件）
+        // 只有当 query 中有这个参数时，才保留（说明 searchForm 中有对应的值）
+        // 注意：这里不需要额外检查，因为如果 query 中有这个参数，会在后面的 Object.assign 中覆盖
+        // 如果 query 中没有这个参数，说明 searchForm 中没有对应的值，不应该保留 URL 中的旧参数
+        // 所以这里什么都不做，让旧的搜索参数被清除
       }
       // 保留不在 tableParamKeys 和 searchParamKeys 中的参数（这些可能是 link 跳转携带的参数，如 topic_id=4）
       else if (!tableParamKeys.includes(key) && !requestFieldCodes.has(key)) {
