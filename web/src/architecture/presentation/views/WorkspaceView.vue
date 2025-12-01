@@ -554,6 +554,8 @@ const handleNodeClick = (node: ServiceTreeType) => {
       )
       
       // 🔥 检查目标函数是否是 table 类型
+      // 注意：如果 Tab 不存在或详情未加载，默认按 form 函数处理（不保留 table 参数）
+      // 这样可以避免 link 跳转到 form 函数时自动添加 page、page_size、sorts 等参数
       let isTableFunction = false
       if (existingTab && existingTab.node) {
         const detail = stateManager.getFunctionDetail(existingTab.node)
@@ -563,6 +565,7 @@ const handleNodeClick = (node: ServiceTreeType) => {
       }
       
       // 🔥 如果是 table 函数，保留分页和排序参数；如果是 form 函数，不保留这些参数
+      // form 函数不需要 page、page_size、sorts 等参数，必须清除
       const preservedQuery = isTableFunction
         ? preserveQueryParamsForTable(route.query)
         : preserveQueryParamsForForm(route.query)
