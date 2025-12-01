@@ -10,6 +10,7 @@
 import { watch, ref, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { extractWorkspacePath } from '@/utils/route'
+import { preserveQueryParamsForTable, preserveQueryParamsForForm } from '@/utils/queryParams'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { ServiceTree, App } from '../../domain/services/WorkspaceDomainService'
 import type { App as AppType, ServiceTree as ServiceTreeType } from '@/types'

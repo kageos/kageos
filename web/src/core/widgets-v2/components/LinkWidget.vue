@@ -58,42 +58,17 @@ import { useRouter } from 'vue-router'
 import { Link, Right, TopRight } from '@element-plus/icons-vue'
 import { useAppEnvironment } from '@/composables/useAppEnvironment'
 import { resolveWorkspaceUrl } from '@/utils/route'
+import { parseLinkValue, addLinkTypeToUrl } from '@/utils/linkNavigation'
 import type { WidgetComponentProps } from '../types'
 
 const props = defineProps<WidgetComponentProps>()
 const router = useRouter()
 const { shouldOpenInCurrentWindow, isStandalone } = useAppEnvironment()
 
-// Link 值结构（JSON 格式）
-interface LinkValue {
-  type?: 'table' | 'form'  // 函数类型（可选，兼容旧格式）
-  name?: string            // 链接文本
-  url: string              // 链接 URL
-}
-
-// 解析 URL 和文本（JSON 格式）
+// 解析 Link 值（JSON 格式）
 const parsedLink = computed(() => {
   const raw = props.value?.raw || ''
-  if (!raw) return { text: '', url: '', type: undefined }
-  
-  // 解析 JSON 格式
-  try {
-    const jsonValue = JSON.parse(raw) as LinkValue
-    if (jsonValue && typeof jsonValue === 'object' && jsonValue.url) {
-      return {
-        text: jsonValue.name || '',
-        url: jsonValue.url,
-        type: jsonValue.type  // 'table' 或 'form' 或 undefined（外链）
-      }
-    }
-  } catch (error) {
-    // JSON 解析失败，返回空值
-    console.error('[LinkWidget] 解析 link 值失败:', error, raw)
-    return { text: '', url: raw, type: undefined }
-  }
-  
-  // 如果 JSON 解析成功但格式不正确，返回空值
-  return { text: '', url: '', type: undefined }
+  return parseLinkValue(raw)
 })
 
 import { resolveWorkspaceUrl } from '@/utils/route'
@@ -109,8 +84,8 @@ const resolvedUrl = computed(() => {
 // 链接文本
 const linkText = computed(() => {
   // 优先使用解析出的文本，其次使用 widget 配置的 text，最后使用字段名称
-  if (parsedLink.value.text) {
-    return parsedLink.value.text
+  if (parsedLink.value.name) {
+    return parsedLink.value.name
   }
   return props.field.widget?.text || props.value?.display || props.field.name || '链接'
 })
@@ -160,20 +135,10 @@ const handleClick = (e: Event) => {
     // 内部链接
     if (shouldOpenInCurrentWindow(target)) {
       // 在当前窗口打开（使用路由导航）
-      // 🔥 如果 link 值中有 type 信息，通过 query 参数传递（临时方案）
+      // 🔥 如果 link 值中有 type 信息，通过 query 参数传递
       // 这样 useWorkspaceRouting 可以根据这个参数决定是否保留 table 参数
-      if (parsedLink.value.type) {
-        try {
-          const urlObj = new URL(url, window.location.origin)
-          urlObj.searchParams.set('_link_type', parsedLink.value.type)
-          router.push(urlObj.pathname + urlObj.search)
-        } catch {
-          // URL 解析失败，使用原始 URL
-          router.push(url)
-        }
-      } else {
-        router.push(url)
-      }
+      const finalUrl = addLinkTypeToUrl(url, parsedLink.value.type)
+      router.push(finalUrl)
     } else {
       // 新窗口打开（仅在浏览器环境中，PWA 环境会被 shouldOpenInCurrentWindow 拦截）
       window.open(url, '_blank')
