@@ -58,17 +58,7 @@ const emit = defineEmits<{
 }>()
 
 // 调试日志：只在 formRenderer 缺失且需要时警告（response 模式不需要 formRenderer）
-if (import.meta.env.DEV) {
-  watch(() => props.formRenderer, (formRenderer) => {
-    // 只在 edit 模式且没有 formRenderer 时警告（response 模式不需要）
-    if (!formRenderer && props.mode === 'edit' && props.field.callbacks?.includes('OnSelectFuzzy')) {
-      Logger.warn('WidgetComponent', 'formRenderer 未传递（OnSelectFuzzy 字段需要）', {
-        fieldCode: props.field.code,
-        mode: props.mode
-      })
-    }
-  }, { immediate: true })
-}
+// 已移除调试日志
 
 // 获取 Widget 组件
 const widgetComponent = computed(() => {

@@ -62,12 +62,6 @@ export function useWorkspaceRouting(options: {
       if (targetTab.node && targetTab.node.type === 'function') {
         const detail = stateManager.getFunctionDetail(targetTab.node)
         if (!detail) {
-          console.log('[useWorkspaceRouting] syncRouteToTab: Tab 已存在但函数详情未加载，加载详情', {
-            tabId: targetTab.id,
-            path: targetTab.path,
-            nodeId: targetTab.node.id,
-            nodePath: targetTab.node.full_code_path
-          })
           // 使用 handleNodeClick 加载函数详情
           applicationService.handleNodeClick(targetTab.node)
         }
@@ -77,9 +71,6 @@ export function useWorkspaceRouting(options: {
       // 注意：这里需要确保服务树已加载，否则无法找到节点
       if (options.serviceTree().length > 0) {
         await loadAppFromRoute()
-      } else {
-        // 服务树未加载，等待加载完成后再处理
-        console.warn('[useWorkspaceRouting] syncRouteToTab: 服务树未加载，等待加载完成')
       }
     }
   }
@@ -117,7 +108,6 @@ export function useWorkspaceRouting(options: {
       const app = options.appList().find((a: AppType) => a.user === user && a.code === appCode)
       
       if (!app) {
-        console.warn('[useWorkspaceRouting] 未找到应用:', user, appCode)
         return
       }
       
@@ -141,7 +131,7 @@ export function useWorkspaceRouting(options: {
             await applicationService.triggerAppSwitch(appForService)
             appSwitched = true
           } catch (error) {
-            console.error('[useWorkspaceRouting] 路由加载应用失败', error)
+            // 静默失败
             pendingAppId.value = null
             return
           }
@@ -224,24 +214,8 @@ export function useWorkspaceRouting(options: {
                 if (existingTab.node && existingTab.node.type === 'function') {
                   const detail = stateManager.getFunctionDetail(existingTab.node)
                   if (!detail) {
-                    console.log('[useWorkspaceRouting] Tab 已存在但函数详情未加载，加载详情', { 
-                      tabId: existingTab.id, 
-                      path: existingTab.path,
-                      nodeId: existingTab.node.id,
-                      nodePath: existingTab.node.full_code_path
-                    })
                     applicationService.handleNodeClick(existingTab.node)
-                  } else {
-                    console.log('[useWorkspaceRouting] Tab 已存在且函数详情已加载', { 
-                      tabId: existingTab.id, 
-                      detailId: detail.id 
-                    })
                   }
-                } else if (!existingTab.node) {
-                  console.warn('[useWorkspaceRouting] Tab 已存在但没有 node 信息', { 
-                    tabId: existingTab.id, 
-                    path: existingTab.path 
-                  })
                 }
               } else {
                 // Tab 不存在，打开新 Tab
@@ -275,7 +249,7 @@ export function useWorkspaceRouting(options: {
         }
       }
     } catch (error) {
-      console.error('[useWorkspaceRouting] 加载应用失败', error)
+      // 静默失败
     } finally {
       isLoadingAppFromRoute = false
     }

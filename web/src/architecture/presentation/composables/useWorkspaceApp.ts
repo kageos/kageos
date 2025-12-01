@@ -56,7 +56,6 @@ export function useWorkspaceApp() {
         appList.value = []
       }
     } catch (error) {
-      console.error('[useWorkspaceApp] 加载应用列表失败', error)
       ElNotification.error({
         title: '错误',
         message: '加载应用列表失败'
@@ -74,7 +73,6 @@ export function useWorkspaceApp() {
     // 检查当前应用是否已经是目标应用，避免重复切换
     const currentAppState = currentApp()
     if (currentAppState && String(currentAppState.id) === String(targetAppId)) {
-      console.log('[useWorkspaceApp] 当前应用已经是目标应用，无需切换')
       return
     }
 
@@ -95,7 +93,7 @@ export function useWorkspaceApp() {
         await router.push(targetPath)
       }
     } catch (error) {
-      console.error('[useWorkspaceApp] 切换应用失败', error)
+      // 静默失败
     }
   }
 

@@ -136,7 +136,6 @@ export function useWorkspaceServiceTree() {
         await applicationService.triggerAppSwitch(appForService)
       }
     } catch (error: any) {
-      console.error('[useWorkspaceServiceTree] 创建服务目录失败', error)
       const errorMessage = error?.response?.data?.msg || error?.response?.data?.message || error?.message || '创建服务目录失败'
       ElNotification.error({
         title: '错误',
@@ -183,26 +182,17 @@ export function useWorkspaceServiceTree() {
     const forkedParam = route.query._forked as string
     if (!forkedParam) return
     
-    console.log('[useWorkspaceServiceTree] 检查 forked 参数:', forkedParam)
-    console.log('[useWorkspaceServiceTree] 当前应用:', currentApp() ? `${currentApp().user}/${currentApp().code}` : 'null')
-    console.log('[useWorkspaceServiceTree] serviceTree 长度:', serviceTree().length)
-    console.log('[useWorkspaceServiceTree] serviceTreePanelRef:', serviceTreePanelRef())
-    
     // 检查当前应用是否匹配 URL 中的应用
     const pathSegments = extractWorkspacePath(route.path).split('/').filter(Boolean)
     if (pathSegments.length >= 2) {
       const [urlUser, urlApp] = pathSegments
       if (currentApp() && (currentApp().user !== urlUser || currentApp().code !== urlApp)) {
-        console.log('[useWorkspaceServiceTree] ⚠️ 应用不匹配，等待应用切换完成')
-        console.log('[useWorkspaceServiceTree]    URL 应用:', `${urlUser}/${urlApp}`)
-        console.log('[useWorkspaceServiceTree]    当前应用:', `${currentApp().user}/${currentApp().code}`)
         return // 应用不匹配，不展开
       }
     }
     
     if (forkedParam && serviceTree().length > 0 && serviceTreePanelRef() && currentApp()) {
       const forkedPaths = decodeURIComponent(forkedParam).split(',').filter(Boolean)
-      console.log('[useWorkspaceServiceTree] 解析后的路径列表:', forkedPaths)
       
       // 验证路径是否属于当前应用
       const validPaths = forkedPaths.filter(path => {
@@ -210,28 +200,19 @@ export function useWorkspaceServiceTree() {
         if (pathMatch) {
           const [, pathUser, pathApp] = pathMatch
           const isValid = pathUser === currentApp()?.user && pathApp === currentApp()?.code
-          if (!isValid) {
-            console.log('[useWorkspaceServiceTree] ⚠️ 路径不属于当前应用，跳过:', path)
-          }
           return isValid
         }
         return false
       })
       
       if (validPaths.length > 0) {
-        console.log('[useWorkspaceServiceTree] 有效路径列表:', validPaths)
         nextTick(() => {
           setTimeout(() => {
             if (serviceTreePanelRef() && serviceTreePanelRef()!.expandPaths) {
-              console.log('[useWorkspaceServiceTree] 调用 expandPaths')
               serviceTreePanelRef()!.expandPaths(validPaths)
-            } else {
-              console.log('[useWorkspaceServiceTree] ⚠️ serviceTreePanelRef 或 expandPaths 不存在')
             }
           }, 500) // 延迟确保树完全渲染
         })
-      } else {
-        console.log('[useWorkspaceServiceTree] ⚠️ 没有有效的路径可以展开')
       }
     }
   }
