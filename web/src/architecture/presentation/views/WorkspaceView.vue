@@ -547,28 +547,38 @@ const handleNodeClick = (node: ServiceTreeType) => {
   if (serviceTree.type === 'function' && serviceTree.full_code_path) {
     const targetPath = `/workspace${serviceTree.full_code_path}`
     if (route.path !== targetPath) {
-      // 🔥 检查目标函数是否已有 Tab，如果有，检查是否是 table 类型
+      // 🔥 检查目标函数是否是 table 类型
+      // 优先级：link 值中的 type > Tab 详情 > 默认 form
       const tabsArray = Array.isArray(tabs.value) ? tabs.value : []
       const existingTab = tabsArray.find(t => 
         t.path === serviceTree.full_code_path || t.path === String(serviceTree.id)
       )
       
-      // 🔥 检查目标函数是否是 table 类型
-      // 注意：如果 Tab 不存在或详情未加载，默认按 form 函数处理（不保留 table 参数）
-      // 这样可以避免 link 跳转到 form 函数时自动添加 page、page_size、sorts 等参数
+      // 优先级 1：检查 URL 中是否有 _link_type 参数（来自 link 跳转）
       let isTableFunction = false
-      if (existingTab && existingTab.node) {
-        const detail = stateManager.getFunctionDetail(existingTab.node)
-        if (detail && detail.template_type === TEMPLATE_TYPE.TABLE) {
-          isTableFunction = true
+      const linkType = route.query._link_type as string
+      if (linkType === 'table' || linkType === 'form') {
+        isTableFunction = linkType === 'table'
+      } else {
+        // 优先级 2：检查 Tab 详情
+        if (existingTab && existingTab.node) {
+          const detail = stateManager.getFunctionDetail(existingTab.node)
+          if (detail && detail.template_type === TEMPLATE_TYPE.TABLE) {
+            isTableFunction = true
+          }
         }
+        // 优先级 3：默认按 form 函数处理（不保留 table 参数）
+        // 这样可以避免 link 跳转到 form 函数时自动添加 page、page_size、sorts 等参数
       }
       
       // 🔥 如果是 table 函数，保留分页和排序参数；如果是 form 函数，不保留这些参数
       // form 函数不需要 page、page_size、sorts 等参数，必须清除
+      // 注意：清除 _link_type 参数（这是临时参数，不应该保留在 URL 中）
+      const currentQuery = { ...route.query }
+      delete currentQuery._link_type
       const preservedQuery = isTableFunction
-        ? preserveQueryParamsForTable(route.query)
-        : preserveQueryParamsForForm(route.query)
+        ? preserveQueryParamsForTable(currentQuery)
+        : preserveQueryParamsForForm(currentQuery)
       
       router.replace({ path: targetPath, query: preservedQuery }).catch(() => {})
     } else {
