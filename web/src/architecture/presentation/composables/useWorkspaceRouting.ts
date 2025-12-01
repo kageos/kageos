@@ -208,11 +208,10 @@ export function useWorkspaceRouting(options: {
           
           const serviceNode: ServiceTree = node as any
           
-          // 🔥 检查 URL 中是否有 _link_type 参数（来自 link 跳转）
-          // 如果有，需要先处理参数保留逻辑，清除 _link_type 参数
+          // 🔥 处理 _link_type 参数（来自 link 跳转）
+          // 根据 link 类型决定是否保留 table 参数，然后清除临时参数
           const linkType = route.query._link_type as string
           if (linkType === 'table' || linkType === 'form') {
-            // 根据 link 类型决定是否保留 table 参数
             const currentQuery = { ...route.query }
             delete currentQuery._link_type  // 清除临时参数
             const preservedQuery = linkType === 'table'
