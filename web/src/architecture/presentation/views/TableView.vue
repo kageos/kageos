@@ -627,6 +627,7 @@ const buildTableQueryParams = (): Record<string, string> => {
 /**
  * 保留 URL 中的现有参数（除了 table 相关的参数）
  * 这样可以保留 link 组件跳转时携带的参数（如 eq=topic_id:1, topic_id=4 等）
+ * 使用早期返回优化条件判断
  */
 const preserveExistingParams = (requestFieldCodes: Set<string>): Record<string, string> => {
   const newQuery: Record<string, string> = {}
@@ -636,25 +637,28 @@ const preserveExistingParams = (requestFieldCodes: Set<string>): Record<string, 
   // 先保留所有非 table 相关的参数（包括 link 跳转携带的参数）
   Object.keys(route.query).forEach(key => {
     const value = route.query[key]
-    if (value !== null && value !== undefined) {
-      // 保留以 _ 开头的参数（前端状态参数）
-      if (key.startsWith('_')) {
-        newQuery[key] = String(value)
-      }
-      // 保留搜索参数：只有当 query 中没有对应的搜索参数，且 searchForm 中有对应的值时，才保留 URL 中的值
-      // 这样可以避免函数切换时保留上一个函数的搜索参数
-      else if (searchParamKeys.includes(key)) {
-        // 如果 query 中没有这个搜索参数，说明 searchForm 中没有对应的值
-        // 这种情况下，不应该保留 URL 中的这个参数（因为用户已经清除了搜索条件）
-        // 只有当 query 中有这个参数时，才保留（说明 searchForm 中有对应的值）
-        // 注意：这里不需要额外检查，因为如果 query 中有这个参数，会在后面的 Object.assign 中覆盖
-        // 如果 query 中没有这个参数，说明 searchForm 中没有对应的值，不应该保留 URL 中的旧参数
-        // 所以这里什么都不做，让旧的搜索参数被清除
-      }
-      // 保留不在 tableParamKeys 和 searchParamKeys 中的参数（这些可能是 link 跳转携带的参数，如 topic_id=4）
-      else if (!tableParamKeys.includes(key) && !requestFieldCodes.has(key)) {
-        newQuery[key] = String(value)
-      }
+    
+    // 早期返回：跳过空值
+    if (value === null || value === undefined) {
+      return
+    }
+
+    // 保留以 _ 开头的参数（前端状态参数）
+    if (key.startsWith('_')) {
+      newQuery[key] = String(value)
+      return
+    }
+    
+    // 跳过搜索参数：如果 searchForm 中没有对应的值，不应该保留 URL 中的旧参数
+    // 这样可以避免函数切换时保留上一个函数的搜索参数
+    if (searchParamKeys.includes(key)) {
+      // 搜索参数会在 buildTableQueryParams 中处理，这里跳过
+      return
+    }
+    
+    // 保留不在 tableParamKeys 和 searchParamKeys 中的参数（这些可能是 link 跳转携带的参数，如 topic_id=4）
+    if (!tableParamKeys.includes(key) && !requestFieldCodes.has(key)) {
+      newQuery[key] = String(value)
     }
   })
   
