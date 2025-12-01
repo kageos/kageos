@@ -140,6 +140,7 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
 
   /**
    * 决定恢复策略并执行
+   * 使用早期返回优化条件判断
    */
   const decideRestoreStrategy = async (router: string): Promise<void> => {
     const currentState = stateManager.getState()
@@ -147,17 +148,20 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     const hasTabState = currentState.searchForm && Object.keys(currentState.searchForm).length > 0
     const hasURLParams = pathMatches && Object.keys(route.query).length > 0
     
+    // 优先级 1：Tab 有保存的状态，优先使用 Tab 的状态（Tab 切换场景）
     if (hasTabState) {
-      // Tab 有保存的状态，优先使用 Tab 的状态（Tab 切换场景）
-      // 需要同步到 URL
       await syncTabStateToURL()
-    } else if (hasURLParams) {
-      // Tab 没有保存的状态，且 URL 有参数，从 URL 恢复（link 跳转场景）
-      await restoreFromURLAndSync()
-    } else {
-      // Tab 切换场景：Tab 有保存的状态，需要同步到 URL
-      await syncTabStateToURL()
+      return
     }
+    
+    // 优先级 2：Tab 没有保存的状态，且 URL 有参数，从 URL 恢复（link 跳转场景）
+    if (hasURLParams) {
+      await restoreFromURLAndSync()
+      return
+    }
+    
+    // 默认：同步 Tab 状态到 URL（即使没有状态，也需要同步默认参数）
+    await syncTabStateToURL()
   }
 
   /**

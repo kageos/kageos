@@ -589,19 +589,36 @@ const buildTableQueryParams = (): Record<string, string> => {
   // 搜索参数（request 字段）
   requestFields.forEach((field: FieldConfig) => {
     const value = searchForm.value[field.code]
-    if (value !== null && value !== undefined && 
-        !(Array.isArray(value) && value.length === 0) && 
-        !(typeof value === 'string' && value.trim() === '')) {
-      query[field.code] = Array.isArray(value) ? value.join(',') : String(value)
+    
+    // 早期返回：跳过空值
+    if (value === null || value === undefined) {
+      return
     }
+    
+    // 早期返回：跳过空数组
+    if (Array.isArray(value) && value.length === 0) {
+      return
+    }
+    
+    // 早期返回：跳过空字符串
+    if (typeof value === 'string' && value.trim() === '') {
+      return
+    }
+    
+    query[field.code] = Array.isArray(value) ? value.join(',') : String(value)
   })
   
   // 清理空值参数
   Object.keys(query).forEach(key => {
     const value = query[key]
-    if (!value || (typeof value === 'string' && (value.endsWith(':') || value.trim() === ''))) {
-      delete query[key]
+    
+    // 早期返回：保留有效值
+    if (value && typeof value === 'string' && !value.endsWith(':') && value.trim() !== '') {
+      return
     }
+    
+    // 删除空值或无效值
+    delete query[key]
   })
   
   return query
