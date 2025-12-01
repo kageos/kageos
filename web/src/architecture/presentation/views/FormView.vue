@@ -495,12 +495,6 @@ onMounted(() => {
         nextTick(() => {
           // 🔥 重新初始化时，传递 URL 参数作为初始数据，确保 URL 参数不会被清空
           const initialData = formInitialData.value
-          // 重新初始化表单
-            functionId: newDetail.id,
-            router: newDetail.router,
-            initialDataKeys: Object.keys(initialData),
-            initialData
-          })
           applicationService.initializeForm(fields, initialData)
         })
       }
