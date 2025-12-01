@@ -123,7 +123,7 @@ export function useWorkspaceDetail(options: {
             detailUserInfoMap.value.set(user.username, user)
           })
         } catch (error) {
-          console.error('[useWorkspaceDetail] 加载详情用户信息失败', error)
+          // 静默失败
         }
       }
     }
@@ -161,7 +161,6 @@ export function useWorkspaceDetail(options: {
         detailDrawerVisible.value = false
       }
     } catch (error: any) {
-      console.error('更新失败:', error)
       ElNotification.error({
         title: '错误',
         message: error?.response?.data?.message || error?.message || '更新失败'
@@ -265,10 +264,8 @@ export function useWorkspaceDetail(options: {
         } else {
           detailTableData.value = []
           currentDetailIndex.value = -1
-          console.warn('[useWorkspaceDetail] StateManager 中没有表格数据')
         }
       } catch (error) {
-        console.error('[useWorkspaceDetail] 获取表格数据失败', error)
         detailTableData.value = []
         currentDetailIndex.value = -1
       }
@@ -300,7 +297,7 @@ export function useWorkspaceDetail(options: {
             detailUserInfoMap.value.set(user.username, user)
           })
         } catch (error) {
-          console.error('[useWorkspaceDetail] 加载详情用户信息失败', error)
+          // 静默失败
         }
       }
     }
@@ -316,13 +313,11 @@ export function useWorkspaceDetail(options: {
       if (tab === 'detail' && id && detail && detail.template_type === 'table') {
         // 确保函数详情已加载
         if (!options.currentFunction()) {
-          console.log('[useWorkspaceDetail] tab=detail 但当前函数不存在，等待函数加载')
           return
         }
         
         const rowId = Number(id)
         if (isNaN(rowId)) {
-          console.warn('[useWorkspaceDetail] tab=detail 但 id 无效:', id)
           return
         }
         
@@ -336,8 +331,6 @@ export function useWorkspaceDetail(options: {
           
           // 如果当前页没有找到，尝试通过搜索 id 来加载数据
           if (!targetRow) {
-            console.log('[useWorkspaceDetail] 当前页没有找到 id 为', rowId, '的记录，尝试通过搜索加载')
-            
             // 先等待表格数据加载完成（如果表格正在加载）
             let retries = 0
             while (tableData.length === 0 && retries < 10) {
@@ -351,7 +344,6 @@ export function useWorkspaceDetail(options: {
             
             // 如果还是没有找到，尝试通过搜索 id 来加载
             if (!targetRow && options.currentFunctionDetail()) {
-              console.log('[useWorkspaceDetail] 通过搜索 id 字段加载数据')
               try {
                 const tableApplicationService = serviceFactory.getTableApplicationService()
                 // 通过搜索 id 字段来加载数据
@@ -377,7 +369,7 @@ export function useWorkspaceDetail(options: {
                   targetRow = tableData.find((r: any) => r.id === rowId || r._id === rowId)
                 }
               } catch (error) {
-                console.error('[useWorkspaceDetail] 通过搜索加载数据失败', error)
+                // 静默失败
               }
             }
           }
@@ -425,14 +417,13 @@ export function useWorkspaceDetail(options: {
             detailDrawerMode.value = 'read'
             detailDrawerVisible.value = true
           } else {
-            console.warn('[useWorkspaceDetail] 未找到 id 为', rowId, '的记录')
             ElNotification.warning({
               title: '提示',
               message: `未找到 id 为 ${rowId} 的记录，可能不在当前页`
             })
           }
         } catch (error) {
-          console.error('[useWorkspaceDetail] 打开详情失败', error)
+          // 静默失败
         }
       }
     }, { immediate: false })
