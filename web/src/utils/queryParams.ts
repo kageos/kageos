@@ -2,6 +2,8 @@
  * URL 查询参数工具函数
  */
 
+import { TABLE_PARAM_KEYS, SEARCH_PARAM_KEYS } from './urlParams'
+
 /**
  * 保留查询参数
  * @param currentQuery 当前路由的查询参数
@@ -25,8 +27,8 @@ export function preserveQueryParams(
   } = options
 
   const preservedQuery: Record<string, string | string[]> = {}
-  const tableParamKeys = ['page', 'page_size', 'sorts']
-  const searchParamKeys = ['eq', 'like', 'in', 'contains', 'gte', 'lte']
+  const tableParamKeys = TABLE_PARAM_KEYS
+  const searchParamKeys = SEARCH_PARAM_KEYS
 
   Object.keys(currentQuery).forEach(key => {
     const value = currentQuery[key]

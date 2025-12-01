@@ -13,6 +13,7 @@ import { useRouter } from 'vue-router'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { ServiceTree } from '../../domain/services/WorkspaceDomainService'
 import type { ServiceTree as ServiceTreeType } from '@/types'
+import { FUNCTION_TYPE } from '@/utils/functionTypes'
 
 export function useWorkspaceTabs() {
   const router = useRouter()
@@ -97,7 +98,7 @@ export function useWorkspaceTabs() {
     if (!oldTab || !oldTab.node) return
 
     const detail = stateManager.getFunctionDetail(oldTab.node)
-    if (detail?.template_type === 'table') {
+    if (detail?.template_type === FUNCTION_TYPE.TABLE) {
       // 从 TableStateManager 获取当前状态并保存
       const tableStateManager = serviceFactoryInstance.getTableStateManager()
       const currentState = tableStateManager.getState()
@@ -112,7 +113,7 @@ export function useWorkspaceTabs() {
         loading: false,
         sortParams: currentState.sortParams
       }
-    } else if (detail?.template_type === 'form') {
+    } else if (detail?.template_type === FUNCTION_TYPE.FORM) {
       const currentState = serviceFactoryInstance.getFormStateManager().getState()
       oldTab.data = {
         data: Array.from(currentState.data.entries()),
@@ -184,9 +185,9 @@ export function useWorkspaceTabs() {
 
     const detail = stateManager.getFunctionDetail(newTab.node)
     
-    if (detail?.template_type === 'form') {
+    if (detail?.template_type === FUNCTION_TYPE.FORM) {
       restoreFormState(newTab.data)
-    } else if (detail?.template_type === 'table') {
+    } else if (detail?.template_type === FUNCTION_TYPE.TABLE) {
       restoreTableState(newTab.data)
     }
     
