@@ -549,21 +549,13 @@ const handleReset = (): void => {
 // ==================== URL 同步 ====================
 
 /**
- * 同步状态到 URL
- * 🔥 重要：URL 参数必须和接口请求参数完全对齐
- * URL 中的参数 = 接口请求的参数（包括分页、排序、搜索等）
+ * 构建表格查询参数（分页、排序、搜索）
  */
-const syncToURL = (): void => {
-  // 🔥 检查当前函数类型，如果是 form 函数，不应该调用 syncToURL
-  // 这可以防止路由切换时，form 函数的 URL 被添加 table 参数
-  if (props.functionDetail.template_type !== 'table') {
-    return
-  }
-  
+const buildTableQueryParams = (): Record<string, string> => {
   const query: Record<string, string> = {}
+  const currentState = stateManager.getState()
   
   // 分页参数
-  const currentState = stateManager.getState()
   query.page = String(currentState.pagination.currentPage)
   query.page_size = String(currentState.pagination.pageSize)
   
@@ -610,9 +602,14 @@ const syncToURL = (): void => {
     }
   })
   
-  // 🔥 保留 URL 中的现有参数（除了 table 相关的参数）
-  // 这样可以保留 link 组件跳转时携带的参数（如 eq=topic_id:1, topic_id=4 等）
-  // 但是，如果 searchForm 中没有对应的值，说明这些参数不属于当前函数，不应该保留
+  return query
+}
+
+/**
+ * 保留 URL 中的现有参数（除了 table 相关的参数）
+ * 这样可以保留 link 组件跳转时携带的参数（如 eq=topic_id:1, topic_id=4 等）
+ */
+const preserveExistingParams = (requestFieldCodes: Set<string>): Record<string, string> => {
   const newQuery: Record<string, string> = {}
   const tableParamKeys = ['page', 'page_size', 'sorts']
   const searchParamKeys = ['eq', 'like', 'in', 'contains', 'gte', 'lte']
@@ -642,7 +639,33 @@ const syncToURL = (): void => {
     }
   })
   
-  // 然后合并新的 table 参数（会覆盖同名的参数）
+  return newQuery
+}
+
+/**
+ * 同步状态到 URL
+ * 🔥 重要：URL 参数必须和接口请求参数完全对齐
+ * URL 中的参数 = 接口请求的参数（包括分页、排序、搜索等）
+ */
+const syncToURL = (): void => {
+  // 🔥 检查当前函数类型，如果是 form 函数，不应该调用 syncToURL
+  // 这可以防止路由切换时，form 函数的 URL 被添加 table 参数
+  if (props.functionDetail.template_type !== 'table') {
+    return
+  }
+  
+  // 构建表格查询参数
+  const query = buildTableQueryParams()
+  
+  // 获取 request 字段代码集合（用于过滤）
+  const requestFields = Array.isArray(props.functionDetail.request) ? props.functionDetail.request : []
+  const requestFieldCodes = new Set<string>()
+  requestFields.forEach((field: FieldConfig) => {
+    requestFieldCodes.add(field.code)
+  })
+  
+  // 保留现有参数并合并新的 table 参数
+  const newQuery = preserveExistingParams(requestFieldCodes)
   Object.assign(newQuery, query)
   
   // 🔥 确保路由更新：如果路径相同，使用 replace 更新 query；如果路径不同，使用 replace 更新 path 和 query
