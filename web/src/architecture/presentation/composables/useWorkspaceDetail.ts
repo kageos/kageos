@@ -8,6 +8,7 @@
  */
 
 import { ref, computed, watch, nextTick } from 'vue'
+import { deepClone } from '@/utils/clone'
 import { useRoute, useRouter } from 'vue-router'
 import { ElNotification, ElMessage } from 'element-plus'
 import { serviceFactory } from '../../infrastructure/factories'
@@ -94,7 +95,7 @@ export function useWorkspaceDetail(options: {
     currentDetailIndex.value = newIndex
     const row = detailTableData.value[newIndex]
     detailRowData.value = row
-    detailOriginalRow.value = JSON.parse(JSON.stringify(row))
+    detailOriginalRow.value = deepClone(row)
     detailDrawerMode.value = 'read'  // 切换记录时，重置为查看模式
     
     // 收集新行的用户字段并查询用户信息
@@ -141,7 +142,7 @@ export function useWorkspaceDetail(options: {
       drawerSubmitting.value = true
       const submitData = detailFormRendererRef.value.prepareSubmitDataWithTypeConversion()
       const oldValues = detailOriginalRow.value
-        ? JSON.parse(JSON.stringify(detailOriginalRow.value))
+        ? deepClone(detailOriginalRow.value)
         : undefined
       const updatedRow = await tableApplicationService.updateRow(
         currentDetail,
@@ -215,7 +216,7 @@ export function useWorkspaceDetail(options: {
     if (!currentDetail) return
     
     detailRowData.value = row
-    detailOriginalRow.value = JSON.parse(JSON.stringify(row))
+    detailOriginalRow.value = deepClone(row)
     detailDrawerTitle.value = currentDetail.name || '详情'
     detailFields.value = (currentDetail.response || []) as FieldConfig[]
     
