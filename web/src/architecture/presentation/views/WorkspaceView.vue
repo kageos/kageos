@@ -291,6 +291,7 @@ import { useWorkspaceApp } from '../composables/useWorkspaceApp'
 import { useWorkspaceServiceTree } from '../composables/useWorkspaceServiceTree'
 import { findNodeByPath } from '../utils/workspaceUtils'
 import { preserveQueryParamsForTable, preserveQueryParamsForForm } from '@/utils/queryParams'
+import { FUNCTION_TYPE } from '@/utils/functionTypes'
 
 const route = useRoute()
 const router = useRouter()
@@ -556,7 +557,7 @@ const handleNodeClick = (node: ServiceTreeType) => {
       let isTableFunction = false
       if (existingTab && existingTab.node) {
         const detail = stateManager.getFunctionDetail(existingTab.node)
-        if (detail && detail.template_type === 'table') {
+        if (detail && detail.template_type === FUNCTION_TYPE.TABLE) {
           isTableFunction = true
         }
       }

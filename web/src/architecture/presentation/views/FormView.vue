@@ -186,6 +186,7 @@ import { ElIcon, ElTag, ElNotification, ElMessage } from 'element-plus'
 import { eventBus, FormEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
+import { FUNCTION_TYPE } from '@/utils/functionTypes'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
 import { hasAnyRequiredRule } from '@/core/utils/validationUtils'
 
@@ -463,7 +464,7 @@ onMounted(() => {
 
   // 监听函数加载完成事件
   unsubscribeFunctionLoaded = eventBus.on(WorkspaceEvent.functionLoaded, (payload: { detail: FunctionDetail }) => {
-    if (payload.detail.template_type === 'form' && payload.detail.id === props.functionDetail.id) {
+    if (payload.detail.template_type === FUNCTION_TYPE.FORM && payload.detail.id === props.functionDetail.id) {
       // 🔥 使用 nextTick 确保 formInitialData 已经更新（因为它依赖于 route.query）
       nextTick(() => {
         // 重新初始化表单（传递 URL 参数作为初始数据）

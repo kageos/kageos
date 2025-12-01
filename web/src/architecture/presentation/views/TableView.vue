@@ -250,6 +250,8 @@ import { useTableInitialization } from '../composables/useTableInitialization'
 import { convertToFieldValue } from '@/utils/field'
 import { resolveWorkspaceUrl } from '@/utils/route'
 import LinkWidget from '@/core/widgets-v2/components/LinkWidget.vue'
+import { TABLE_PARAM_KEYS, SEARCH_PARAM_KEYS } from '@/utils/urlParams'
+import { FUNCTION_TYPE } from '@/utils/functionTypes'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
 import type { TableRow, SearchParams, SortParams, SortItem } from '../../domain/services/TableDomainService'
 
@@ -611,8 +613,8 @@ const buildTableQueryParams = (): Record<string, string> => {
  */
 const preserveExistingParams = (requestFieldCodes: Set<string>): Record<string, string> => {
   const newQuery: Record<string, string> = {}
-  const tableParamKeys = ['page', 'page_size', 'sorts']
-  const searchParamKeys = ['eq', 'like', 'in', 'contains', 'gte', 'lte']
+  const tableParamKeys = TABLE_PARAM_KEYS
+  const searchParamKeys = SEARCH_PARAM_KEYS
   
   // 先保留所有非 table 相关的参数（包括 link 跳转携带的参数）
   Object.keys(route.query).forEach(key => {
@@ -650,7 +652,7 @@ const preserveExistingParams = (requestFieldCodes: Set<string>): Record<string, 
 const syncToURL = (): void => {
   // 🔥 检查当前函数类型，如果是 form 函数，不应该调用 syncToURL
   // 这可以防止路由切换时，form 函数的 URL 被添加 table 参数
-  if (props.functionDetail.template_type !== 'table') {
+  if (props.functionDetail.template_type !== FUNCTION_TYPE.TABLE) {
     return
   }
   
