@@ -232,6 +232,9 @@ export function useWorkspaceRouting(options: {
           }
           
           // Tab 不存在，打开新 Tab
+          // 🔥 注意：triggerNodeClick 会触发 handleNodeClick，handleNodeClick 会根据函数类型
+          // 决定是否保留 table 参数。如果目标函数是 form 类型，会使用 preserveQueryParamsForForm
+          // 清除 page、page_size、sorts 等参数
           applicationService.triggerNodeClick(serviceNode)
         }
 
