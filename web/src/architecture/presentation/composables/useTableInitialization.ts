@@ -16,7 +16,7 @@ import type { TableApplicationService } from '../../../application/services/Tabl
 import type { IStateManager } from '../../../domain/interfaces/IStateManager'
 import type { TableState } from '../../../domain/services/TableDomainService'
 import { extractWorkspacePath } from '@/utils/route'
-import { FUNCTION_TYPE } from '@/utils/functionTypes'
+import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 
 export interface UseTableInitializationOptions {
   functionDetail: FunctionDetail | { value: FunctionDetail }
@@ -210,7 +210,7 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
 
     // 🔥 检查当前函数类型，如果是 form 函数，不应该处理 URL 变化
     // 这可以防止 form 函数的 URL 被添加 table 参数
-    if (functionDetailValue?.template_type !== FUNCTION_TYPE.TABLE) {
+    if (functionDetailValue?.template_type !== TEMPLATE_TYPE.TABLE) {
       return
     }
 

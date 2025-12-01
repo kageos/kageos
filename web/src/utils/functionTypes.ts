@@ -1,11 +1,11 @@
 /**
- * 函数类型常量
+ * 函数模板类型常量
  */
 
 /**
- * 函数模板类型
+ * 函数模板类型（与后端返回的 template_type 字段对齐）
  */
-export const FUNCTION_TYPE = {
+export const TEMPLATE_TYPE = {
   TABLE: 'table',
   FORM: 'form'
 } as const
@@ -13,5 +13,5 @@ export const FUNCTION_TYPE = {
 /**
  * 函数模板类型值
  */
-export type FunctionType = typeof FUNCTION_TYPE[keyof typeof FUNCTION_TYPE]
+export type TemplateType = typeof TEMPLATE_TYPE[keyof typeof TEMPLATE_TYPE]
 

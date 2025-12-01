@@ -251,7 +251,7 @@ import { convertToFieldValue } from '@/utils/field'
 import { resolveWorkspaceUrl } from '@/utils/route'
 import LinkWidget from '@/core/widgets-v2/components/LinkWidget.vue'
 import { TABLE_PARAM_KEYS, SEARCH_PARAM_KEYS } from '@/utils/urlParams'
-import { FUNCTION_TYPE } from '@/utils/functionTypes'
+import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
 import type { TableRow, SearchParams, SortParams, SortItem } from '../../domain/services/TableDomainService'
 
@@ -649,10 +649,13 @@ const preserveExistingParams = (requestFieldCodes: Set<string>): Record<string, 
       return
     }
     
-    // 跳过搜索参数：如果 searchForm 中没有对应的值，不应该保留 URL 中的旧参数
-    // 这样可以避免函数切换时保留上一个函数的搜索参数
+    // 🔥 跳过搜索参数：搜索参数的作用域是函数级别的
+    // 旧参数的作用域只能在那个函数，一旦切换函数，必须换成那个函数的搜索参数
+    // 切换函数时，必须清除上一个函数的搜索参数，只使用当前函数的 searchForm 中的参数
+    // 这样可以避免函数切换时保留上一个函数的搜索参数，防止状态污染
     if (searchParamKeys.includes(key)) {
-      // 搜索参数会在 buildTableQueryParams 中处理，这里跳过
+      // 搜索参数完全由当前函数的 searchForm 决定，不从 URL 中保留旧参数
+      // 搜索参数会在 buildTableQueryParams 中根据当前函数的 searchForm 重新构建
       return
     }
     
@@ -673,7 +676,7 @@ const preserveExistingParams = (requestFieldCodes: Set<string>): Record<string, 
 const syncToURL = (): void => {
   // 🔥 检查当前函数类型，如果是 form 函数，不应该调用 syncToURL
   // 这可以防止路由切换时，form 函数的 URL 被添加 table 参数
-  if (props.functionDetail.template_type !== FUNCTION_TYPE.TABLE) {
+  if (props.functionDetail.template_type !== TEMPLATE_TYPE.TABLE) {
     return
   }
   
