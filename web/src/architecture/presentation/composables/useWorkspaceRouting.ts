@@ -208,6 +208,24 @@ export function useWorkspaceRouting(options: {
           
           const serviceNode: ServiceTree = node as any
           
+          // 🔥 检查 URL 中是否有 _link_type 参数（来自 link 跳转）
+          // 如果有，需要先处理参数保留逻辑，清除 _link_type 参数
+          const linkType = route.query._link_type as string
+          if (linkType === 'table' || linkType === 'form') {
+            // 根据 link 类型决定是否保留 table 参数
+            const currentQuery = { ...route.query }
+            delete currentQuery._link_type  // 清除临时参数
+            const preservedQuery = linkType === 'table'
+              ? preserveQueryParamsForTable(currentQuery)
+              : preserveQueryParamsForForm(currentQuery)
+            
+            // 更新路由，清除 _link_type 参数
+            router.replace({ 
+              path: route.path, 
+              query: preservedQuery 
+            }).catch(() => {})
+          }
+          
           // 检查 Tab 是否存在
           const tabsArray = Array.isArray(options.tabs()) ? options.tabs() : []
           const existingTab = tabsArray.find(t => 
@@ -233,9 +251,6 @@ export function useWorkspaceRouting(options: {
           }
           
           // Tab 不存在，打开新 Tab
-          // 🔥 注意：triggerNodeClick 会触发 handleNodeClick，handleNodeClick 会根据函数类型
-          // 决定是否保留 table 参数。如果目标函数是 form 类型，会使用 preserveQueryParamsForForm
-          // 清除 page、page_size、sorts 等参数
           applicationService.triggerNodeClick(serviceNode)
         }
 
