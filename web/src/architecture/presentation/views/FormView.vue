@@ -512,12 +512,6 @@ onMounted(() => {
       nextTick(() => {
         // 🔥 只更新 URL 参数中的字段，保留其他字段的值
         const initialData = formInitialData.value
-        // URL 查询参数变化，更新表单字段
-          newQuery,
-          oldQuery,
-          initialDataKeys: Object.keys(initialData),
-          initialData
-        })
         if (Object.keys(initialData).length > 0) {
           // 只更新 URL 参数中存在的字段
           Object.keys(initialData).forEach(fieldCode => {
