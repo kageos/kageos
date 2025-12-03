@@ -848,14 +848,40 @@ const handleLinkClick = (fieldCode: string, row: any) => {
   if (isExternal) {
     window.open(resolvedUrl, '_blank')
   } else {
-    // 🔥 如果 link 值中有 type 信息，通过 query 参数传递
-    // 这样 useWorkspaceRouting 可以根据这个参数决定是否保留 table 参数
+    // 🔥 阶段3：改为事件驱动，通过 RouteManager 统一处理路由更新
+    // 如果 link 值中有 type 信息，通过 query 参数传递
     const finalUrl = addLinkTypeToUrl(resolvedUrl, parsedLink.type)
     
     if (target === '_blank') {
       window.open(finalUrl, '_blank')
     } else {
-      router.push(finalUrl)
+      // 🔥 阶段3：改为事件驱动，通过 RouteManager 统一处理路由更新
+      // 解析 URL，提取 path 和 query
+      // 注意：finalUrl 可能是相对路径（如 /workspace/xxx?param=value）
+      let path = finalUrl
+      const query: Record<string, string> = {}
+      
+      // 检查是否有查询参数
+      const queryIndex = finalUrl.indexOf('?')
+      if (queryIndex >= 0) {
+        path = finalUrl.substring(0, queryIndex)
+        const queryString = finalUrl.substring(queryIndex + 1)
+        const params = new URLSearchParams(queryString)
+        params.forEach((value, key) => {
+          query[key] = value
+        })
+      }
+      
+      // 🔥 发出路由更新请求事件
+      eventBus.emit(RouteEvent.updateRequested, {
+        path,
+        query,
+        replace: false,  // link 跳转使用 push，保留历史记录
+        preserveParams: {
+          linkNavigation: true  // link 跳转：保留所有参数
+        },
+        source: 'table-link-click'
+      })
     }
   }
 }

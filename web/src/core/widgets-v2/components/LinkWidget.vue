@@ -59,6 +59,7 @@ import { Link, Right, TopRight } from '@element-plus/icons-vue'
 import { useAppEnvironment } from '@/composables/useAppEnvironment'
 import { resolveWorkspaceUrl } from '@/utils/route'
 import { parseLinkValue, addLinkTypeToUrl } from '@/utils/linkNavigation'
+import { eventBus, RouteEvent } from '../../../architecture/infrastructure/eventBus'
 import type { WidgetComponentProps } from '../types'
 
 const props = defineProps<WidgetComponentProps>()
@@ -132,10 +133,36 @@ const handleClick = (e: Event) => {
     // 内部链接
     if (shouldOpenInCurrentWindow(target)) {
       // 在当前窗口打开（使用路由导航）
-      // 🔥 如果 link 值中有 type 信息，通过 query 参数传递
-      // 这样 useWorkspaceRouting 可以根据这个参数决定是否保留 table 参数
+      // 🔥 阶段3：改为事件驱动，通过 RouteManager 统一处理路由更新
+      // 如果 link 值中有 type 信息，通过 query 参数传递
       const finalUrl = addLinkTypeToUrl(url, parsedLink.value.type)
-      router.push(finalUrl)
+      
+      // 解析 URL，提取 path 和 query
+      // 注意：finalUrl 可能是相对路径（如 /workspace/xxx?param=value）
+      let path = finalUrl
+      const query: Record<string, string> = {}
+      
+      // 检查是否有查询参数
+      const queryIndex = finalUrl.indexOf('?')
+      if (queryIndex >= 0) {
+        path = finalUrl.substring(0, queryIndex)
+        const queryString = finalUrl.substring(queryIndex + 1)
+        const params = new URLSearchParams(queryString)
+        params.forEach((value, key) => {
+          query[key] = value
+        })
+      }
+      
+      // 🔥 发出路由更新请求事件
+      eventBus.emit(RouteEvent.updateRequested, {
+        path,
+        query,
+        replace: false,  // link 跳转使用 push，保留历史记录
+        preserveParams: {
+          linkNavigation: true  // link 跳转：保留所有参数
+        },
+        source: 'link-widget'
+      })
     } else {
       // 新窗口打开（仅在浏览器环境中，PWA 环境会被 shouldOpenInCurrentWindow 拦截）
       window.open(url, '_blank')

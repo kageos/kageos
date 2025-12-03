@@ -11,6 +11,7 @@
 import { computed, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { serviceFactory } from '../../infrastructure/factories'
+import { eventBus, WorkspaceEvent, RouteEvent } from '../../infrastructure/eventBus'
 import type { ServiceTree } from '../../domain/services/WorkspaceDomainService'
 import type { ServiceTree as ServiceTreeType } from '@/types'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
@@ -37,12 +38,30 @@ export function useWorkspaceTabs() {
         return
       }
       
-      // 🔥 先更新路由，路由变化会触发 syncRouteToTab → activateTab
+      // 🔥 阶段3：改为事件驱动，通过 RouteManager 统一处理路由更新
+      // 先发出 Tab 切换事件，RouteManager 会处理路由更新
+      const oldTabId = stateManager.getState().activeTabId
+      const newTabId = val
+      
+      // 发出 Tab 切换事件（RouteManager 会监听并处理路由更新）
+      eventBus.emit(WorkspaceEvent.tabSwitching, { oldTabId, newTabId })
+      
+      // 然后更新路由（RouteManager 会处理）
       const targetTab = tabs.value.find(t => t.id === val)
       if (targetTab && targetTab.path) {
         const tabPath = targetTab.path.startsWith('/') ? targetTab.path : `/${targetTab.path}`
         const targetPath = `/workspace${tabPath}`
-        router.replace({ path: targetPath, query: {} }).catch(() => {})
+        
+        // 🔥 发出路由更新请求事件
+        eventBus.emit(RouteEvent.updateRequested, {
+          path: targetPath,
+          query: {},
+          replace: true,
+          preserveParams: {
+            linkNavigation: false
+          },
+          source: 'tab-switch-activeTabId'
+        })
       }
     }
   })
@@ -78,11 +97,28 @@ export function useWorkspaceTabs() {
       return
     }
     
-    // 🔥 直接切换路由，保存和恢复由 watch activeTabId 统一处理
+    // 🔥 阶段3：改为事件驱动，通过 RouteManager 统一处理路由更新
+    // 先发出 Tab 切换事件，RouteManager 会处理路由更新
+    const oldTabId = activeTabId.value
+    const newTabId = tabId
+    
+    // 发出 Tab 切换事件（RouteManager 会监听并处理路由更新）
+    eventBus.emit(WorkspaceEvent.tabSwitching, { oldTabId, newTabId })
+    
+    // 然后更新路由（RouteManager 会处理）
     const tabPath = targetTab.path.startsWith('/') ? targetTab.path : `/${targetTab.path}`
     const targetPath = `/workspace${tabPath}`
     
-    router.replace({ path: targetPath, query: {} }).catch(() => {})
+    // 🔥 发出路由更新请求事件
+    eventBus.emit(RouteEvent.updateRequested, {
+      path: targetPath,
+      query: {},
+      replace: true,
+      preserveParams: {
+        linkNavigation: false
+      },
+      source: 'tab-click'
+    })
   }
 
   // Tab 编辑处理（添加/删除）
