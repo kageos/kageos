@@ -689,16 +689,35 @@ const checkAndExpandForkedPaths = () => {
 }
 
 // 🔥 返回列表（从 create/edit 模式返回）
+// 🔥 阶段4：改为事件驱动，通过 RouteManager 统一处理路由更新
 const backToList = () => {
   if (!currentFunction.value) return
   
   // 移除系统参数，保留其他参数
-  const query = { ...route.query }
-  delete query._tab
-  delete query._id
+  const query: Record<string, string | string[]> = {}
+  Object.keys(route.query).forEach(key => {
+    if (key !== '_tab' && key !== '_id') {
+      const value = route.query[key]
+      if (value !== null && value !== undefined) {
+        query[key] = Array.isArray(value) 
+          ? value.filter(v => v !== null).map(v => String(v))
+          : String(value)
+      }
+    }
+  })
   
   const path = `/workspace${currentFunction.value.full_code_path || ''}`
-  router.push({ path, query }).catch(() => {})
+  
+  // 🔥 发出路由更新请求事件
+  eventBus.emit(RouteEvent.updateRequested, {
+    path,
+    query,
+    replace: false,  // 返回列表使用 push，保留历史记录
+    preserveParams: {
+      state: true  // 保留状态参数
+    },
+    source: 'back-to-list'
+  })
 }
 
 

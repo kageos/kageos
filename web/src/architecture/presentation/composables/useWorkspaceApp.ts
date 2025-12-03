@@ -12,6 +12,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElNotification, ElMessageBox } from 'element-plus'
 import { apiClient } from '../../infrastructure/apiClient'
 import { serviceFactory } from '../../infrastructure/factories'
+import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
 import type { App } from '../../domain/services/WorkspaceDomainService'
 import type { App as AppType, CreateAppRequest } from '@/types'
 
@@ -87,10 +88,17 @@ export function useWorkspaceApp() {
       // 切换应用（这会触发服务树加载）
       await applicationService.triggerAppSwitch(appForService)
       
+      // 🔥 阶段4：改为事件驱动，通过 RouteManager 统一处理路由更新
       // 更新路由
       const targetPath = `/workspace/${app.user}/${app.code}`
       if (route.path !== targetPath) {
-        await router.push(targetPath)
+        eventBus.emit(RouteEvent.updateRequested, {
+          path: targetPath,
+          query: {},
+          replace: false,  // 应用切换使用 push，保留历史记录
+          preserveParams: {},
+          source: 'app-switch'
+        })
       }
     } catch (error) {
       // 静默失败
@@ -191,12 +199,19 @@ export function useWorkspaceApp() {
       await loadAppList()
       
       // 如果删除的是当前应用，切换到第一个应用或清空
+      // 🔥 阶段4：改为事件驱动，通过 RouteManager 统一处理路由更新
       const currentAppState = currentApp()
       if (currentAppState && currentAppState.id === app.id) {
         if (appList.value.length > 0) {
           await handleSwitchApp(appList.value[0], currentApp)
         } else {
-          await router.push('/workspace')
+          eventBus.emit(RouteEvent.updateRequested, {
+            path: '/workspace',
+            query: {},
+            replace: false,
+            preserveParams: {},
+            source: 'app-delete-empty'
+          })
         }
       }
     } catch (error: any) {
