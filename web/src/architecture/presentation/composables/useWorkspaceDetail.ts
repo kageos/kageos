@@ -482,7 +482,7 @@ export function useWorkspaceDetail(options: {
           // 静默失败
         }
       }
-    }, { immediate: false })
+    })
   }
 
   return {
