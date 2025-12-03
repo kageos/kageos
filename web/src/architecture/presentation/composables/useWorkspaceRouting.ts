@@ -37,6 +37,7 @@ export function useWorkspaceRouting(options: {
   let isLoadingAppFromRoute = false
   let isSyncingRouteToTab = false
   let lastSavedTabId: string | null = null // 🔥 记录上次保存的 Tab ID，防止重复保存
+  let lastProcessedUpdateCompleted: { path: string, source: string } | null = null // 🔥 记录上次处理的 updateCompleted 事件，防止重复处理
 
   // 从路由同步到 Tab 状态（路由变化时调用）
   const syncRouteToTab = async () => {
@@ -382,9 +383,30 @@ export function useWorkspaceRouting(options: {
           payload.source === 'tab-switch' || 
           payload.source === 'tab-switch-activeTabId' || 
           payload.source === 'tab-click') {
+        // 🔥 防重复处理：如果已经处理过相同的 updateCompleted 事件，跳过
+        const eventKey = `${payload.source}:${payload.path}`
+        if (lastProcessedUpdateCompleted && 
+            lastProcessedUpdateCompleted.path === payload.path && 
+            lastProcessedUpdateCompleted.source === payload.source) {
+          Logger.debug('useWorkspaceRouting', '跳过重复的 updateCompleted 事件', { 
+            source: payload.source, 
+            path: payload.path 
+          })
+          return
+        }
+        lastProcessedUpdateCompleted = { path: payload.path, source: payload.source }
+        
         // 使用 nextTick 确保路由已经更新完成
         await nextTick()
         syncRouteToTab()
+        
+        // 🔥 清除记录，允许下次处理（使用 setTimeout 延迟清除，避免快速连续触发）
+        setTimeout(() => {
+          if (lastProcessedUpdateCompleted?.path === payload.path && 
+              lastProcessedUpdateCompleted?.source === payload.source) {
+            lastProcessedUpdateCompleted = null
+          }
+        }, 100)
       }
     })
   }
