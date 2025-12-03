@@ -41,6 +41,7 @@ export function useWorkspaceRouting(options: {
   const syncRouteToTab = async () => {
     // 🔥 防重复调用保护
     if (isSyncingRouteToTab) {
+      Logger.debug('useWorkspaceRouting', 'syncRouteToTab 正在执行，跳过重复调用', { path: route.path })
       return
     }
     
@@ -51,6 +52,7 @@ export function useWorkspaceRouting(options: {
       return
     }
     
+    Logger.debug('useWorkspaceRouting', 'syncRouteToTab 开始执行', { path: route.path, fullPath })
     isSyncingRouteToTab = true
     
     try {
@@ -121,6 +123,7 @@ export function useWorkspaceRouting(options: {
       }
     } finally {
       isSyncingRouteToTab = false
+      Logger.debug('useWorkspaceRouting', 'syncRouteToTab 执行完成', { path: route.path })
     }
   }
 
