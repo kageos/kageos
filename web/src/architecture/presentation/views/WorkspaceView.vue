@@ -540,28 +540,9 @@ onMounted(() => {
 const loading = computed(() => stateManager.isLoading())
 
 // 事件处理
-// 🔥 防重复调用保护
-let isHandlingNodeClick = false
-let lastClickedNodePath: string | null = null
-
 const handleNodeClick = (node: ServiceTreeType) => {
   // 转换为新架构的 ServiceTree 类型
   const serviceTree: ServiceTree = node as any
-  
-  // 🔥 防重复调用保护：如果正在处理同一个节点的点击，跳过
-  const nodePath = serviceTree.full_code_path || String(serviceTree.id)
-  if (isHandlingNodeClick && lastClickedNodePath === nodePath) {
-    console.log('[WorkspaceView] 跳过重复的节点点击', { nodePath })
-    return
-  }
-  
-  isHandlingNodeClick = true
-  lastClickedNodePath = nodePath
-  
-  // 延迟重置，避免快速连续点击
-  setTimeout(() => {
-    isHandlingNodeClick = false
-  }, 300)
   
   // 🔥 路由优先策略：先更新路由，路由变化会触发 Tab 状态更新
   if (serviceTree.type === 'function' && serviceTree.full_code_path) {
@@ -792,6 +773,12 @@ let routeManager: RouteManager | null = null
 onMounted(async () => {
   // 🔥 首先从 localStorage 恢复 tabs
   restoreTabsFromStorage()
+  
+  // 🔥 如果已存在 routeManager，先销毁（避免热更新时重复创建）
+  if (routeManager) {
+    routeManager.destroy()
+    routeManager = null
+  }
   
   // 🔥 初始化 RouteManager（阶段1：只监听，不处理更新请求）
   routeManager = new RouteManager(
