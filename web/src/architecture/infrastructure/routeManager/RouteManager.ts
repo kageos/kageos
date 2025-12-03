@@ -151,10 +151,33 @@ export class RouteManager {
   private handleTabSwitch(oldTabId: string, newTabId: string): void {
     this.log('Tab 切换', { oldTabId, newTabId })
     
-    // 1. 保存当前 Tab 的路由状态
+    // 1. 🔥 保存旧 Tab 的路由状态
+    // 注意：此时 getCurrentTabId() 可能已经返回 newTabId（因为 activateTab 已经更新了状态）
+    // 所以，我们需要先获取旧 Tab 的路由状态（如果已保存），或者使用当前路由
+    // 但是，如果当前路由对应的 Tab 不是 oldTabId，说明路由已经更新了，我们需要使用当前路由
     const currentRoute = this.getCurrentRoute()
-    this.tabStateManager.saveTabRouteState(oldTabId, currentRoute)
-    this.log('保存 Tab 路由状态', { tabId: oldTabId, route: currentRoute })
+    const currentTabId = this.getCurrentTabId()
+    
+    // 🔥 如果当前 Tab ID 已经是 newTabId，说明 activateTab 已经更新了状态
+    // 此时，我们需要使用当前路由作为 oldTabId 的状态（因为路由还没有更新）
+    // 但是，如果路由已经更新了，我们需要使用当前路由
+    if (currentTabId === newTabId) {
+      // 当前 Tab ID 已经是 newTabId，说明 activateTab 已经更新了状态
+      // 此时，当前路由应该还是旧 Tab 的路由（因为路由更新是异步的）
+      // 所以，我们可以使用当前路由作为 oldTabId 的状态
+      this.tabStateManager.saveTabRouteState(oldTabId, currentRoute)
+      this.log('保存 Tab 路由状态（activateTab 已更新状态）', { tabId: oldTabId, route: currentRoute })
+    } else if (currentTabId === oldTabId) {
+      // 当前 Tab ID 还是 oldTabId，说明状态还没有更新
+      // 直接使用当前路由作为 oldTabId 的状态
+      this.tabStateManager.saveTabRouteState(oldTabId, currentRoute)
+      this.log('保存 Tab 路由状态', { tabId: oldTabId, route: currentRoute })
+    } else {
+      // 当前 Tab ID 既不是 oldTabId 也不是 newTabId，说明状态已经更新到其他 Tab
+      // 这种情况下，我们无法确定 oldTabId 的路由状态，只能使用当前路由
+      this.tabStateManager.saveTabRouteState(oldTabId, currentRoute)
+      this.log('保存 Tab 路由状态（状态已更新到其他 Tab）', { tabId: oldTabId, route: currentRoute, currentTabId })
+    }
     
     // 2. 恢复目标 Tab 的路由状态
     const targetRouteState = this.tabStateManager.getTabRouteState(newTabId)
