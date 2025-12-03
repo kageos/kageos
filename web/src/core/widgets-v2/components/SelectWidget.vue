@@ -746,15 +746,25 @@ const registerFormInitializedListener = () => {
       fieldCode: props.field.code,
       hasCallback: hasCallback.value,
       rawValue: props.value?.raw,
-      functionId: props.formRenderer?.getFunctionDetail?.()?.id
+      formRenderer: !!props.formRenderer,
+      getFunctionDetail: !!props.formRenderer?.getFunctionDetail,
+      functionDetail: props.formRenderer?.getFunctionDetail?.(),
+      functionId: props.formRenderer?.getFunctionDetail?.()?.id,
+      lastSearchedValue: lastSearchedValue.value,
+      lastSearchedRouter: lastSearchedRouter.value,
+      lastSearchedFunctionId: lastSearchedFunctionId.value
     })
     // 如果当前字段有 OnSelectFuzzy 回调，且有值，触发搜索获取 label
     if (hasCallback.value && props.value?.raw !== null && props.value?.raw !== undefined && props.formRenderer) {
       nextTick(() => {
         if (props.formRenderer && !isSearching.value && props.value?.raw !== lastSearchedValue.value) {
-          console.log('[SelectWidget] 触发 triggerSearchIfNeeded', { 
+          console.log('[SelectWidget] 触发 triggerSearchIfNeeded (FormEvent.initialized)', { 
             fieldCode: props.field.code,
-            rawValue: props.value?.raw
+            rawValue: props.value?.raw,
+            functionId: props.formRenderer?.getFunctionDetail?.()?.id,
+            lastSearchedValue: lastSearchedValue.value,
+            lastSearchedRouter: lastSearchedRouter.value,
+            lastSearchedFunctionId: lastSearchedFunctionId.value
           })
           triggerSearchIfNeeded(props.value.raw, props.formRenderer, props.mode)
         }
@@ -794,6 +804,9 @@ onActivated(() => {
     fieldCode: props.field.code,
     hasCallback: hasCallback.value,
     rawValue: props.value?.raw,
+    formRenderer: !!props.formRenderer,
+    getFunctionDetail: !!props.formRenderer?.getFunctionDetail,
+    functionDetail: props.formRenderer?.getFunctionDetail?.(),
     functionId: props.formRenderer?.getFunctionDetail?.()?.id
   })
   registerFormInitializedListener()
@@ -821,20 +834,53 @@ const lastSearchedFunctionId = ref<number | null>(null) // 🔥 记录上次搜�
 
 // 🔥 触发搜索的辅助函数（避免重复代码）
 const triggerSearchIfNeeded = (rawValue: any, formRenderer: any, mode: string) => {
+  console.log('[SelectWidget] triggerSearchIfNeeded 开始', {
+    fieldCode: props.field.code,
+    rawValue,
+    hasCallback: hasCallback.value,
+    formRenderer: !!formRenderer
+  })
+  
   if (!hasCallback.value || !formRenderer) {
+    console.log('[SelectWidget] triggerSearchIfNeeded 跳过：无回调或无 formRenderer', {
+      fieldCode: props.field.code,
+      hasCallback: hasCallback.value,
+      formRenderer: !!formRenderer
+    })
     return false
   }
   
   const currentRouter = formRenderer.getFunctionRouter?.()
   if (!currentRouter) {
+    console.log('[SelectWidget] triggerSearchIfNeeded 跳过：无 currentRouter', {
+      fieldCode: props.field.code
+    })
     return false
   }
   
   // 🔥 获取当前函数 ID（用于 keep-alive 场景下的防重复调用）
   const currentFunctionId = formRenderer.getFunctionDetail?.()?.id || null
   
+  console.log('[SelectWidget] triggerSearchIfNeeded 当前状态', {
+    fieldCode: props.field.code,
+    rawValue,
+    currentRouter,
+    currentFunctionId,
+    lastSearchedValue: lastSearchedValue.value,
+    lastSearchedRouter: lastSearchedRouter.value,
+    lastSearchedFunctionId: lastSearchedFunctionId.value,
+    isSearching: isSearching.value
+  })
+  
   // 🔥 如果 router 或 functionId 变化了，重置搜索状态
   if (currentRouter !== lastSearchedRouter.value || currentFunctionId !== lastSearchedFunctionId.value) {
+    console.log('[SelectWidget] triggerSearchIfNeeded 重置搜索状态（router 或 functionId 变化）', {
+      fieldCode: props.field.code,
+      currentRouter,
+      lastSearchedRouter: lastSearchedRouter.value,
+      currentFunctionId,
+      lastSearchedFunctionId: lastSearchedFunctionId.value
+    })
     lastSearchedValue.value = null
     lastSearchedRouter.value = currentRouter
     lastSearchedFunctionId.value = currentFunctionId
@@ -851,7 +897,25 @@ const triggerSearchIfNeeded = (rawValue: any, formRenderer: any, mode: string) =
      currentRouter !== lastSearchedRouter.value || 
      currentFunctionId !== lastSearchedFunctionId.value)
   
+  console.log('[SelectWidget] triggerSearchIfNeeded 判断结果', {
+    fieldCode: props.field.code,
+    shouldTrigger,
+    reasons: {
+      hasValue: rawValue !== null && rawValue !== undefined,
+      notSearching: !isSearching.value,
+      valueChanged: rawValue !== lastSearchedValue.value,
+      routerChanged: currentRouter !== lastSearchedRouter.value,
+      functionIdChanged: currentFunctionId !== lastSearchedFunctionId.value
+    }
+  })
+  
   if (shouldTrigger) {
+    console.log('[SelectWidget] triggerSearchIfNeeded ✅ 触发搜索', {
+      fieldCode: props.field.code,
+      rawValue,
+      currentRouter,
+      currentFunctionId
+    })
     isSearching.value = true
     lastSearchedValue.value = rawValue
     lastSearchedRouter.value = currentRouter
@@ -862,11 +926,25 @@ const triggerSearchIfNeeded = (rawValue: any, formRenderer: any, mode: string) =
     }
     // 🔥 通过 by_value 搜索获取对应的 label 和 displayInfo
     handleSearch(rawValue, true).finally(() => {
+      console.log('[SelectWidget] triggerSearchIfNeeded 搜索完成', {
+        fieldCode: props.field.code,
+        rawValue,
+        currentFunctionId
+      })
       isSearching.value = false
     })
     return true
   }
   
+  console.log('[SelectWidget] triggerSearchIfNeeded ❌ 跳过搜索（防重复）', {
+    fieldCode: props.field.code,
+    rawValue,
+    lastSearchedValue: lastSearchedValue.value,
+    currentRouter,
+    lastSearchedRouter: lastSearchedRouter.value,
+    currentFunctionId,
+    lastSearchedFunctionId: lastSearchedFunctionId.value
+  })
   return false
 }
 
