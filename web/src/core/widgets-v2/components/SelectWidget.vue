@@ -732,12 +732,15 @@ function handleChange(value: any): void {
 // 🔥 事件监听器（用于在表单初始化完成后统一处理）
 let unsubscribeFormInitialized: (() => void) | null = null
 
-// 初始化
-onMounted(() => {
-  initOptions()
+// 🔥 注册监听器的函数（避免重复代码）
+const registerFormInitializedListener = () => {
+  // 🔥 先取消注册旧的监听器（避免 keep-alive 场景下重复注册）
+  if (unsubscribeFormInitialized) {
+    unsubscribeFormInitialized()
+    unsubscribeFormInitialized = null
+  }
   
-  // 🔥 使用事件驱动：监听表单初始化完成事件
-  // 这样可以确保在表单完全初始化、formRenderer 准备好后再触发搜索
+  // 注册新的监听器
   unsubscribeFormInitialized = eventBus.on(FormEvent.initialized, () => {
     // 如果当前字段有 OnSelectFuzzy 回调，且有值，触发搜索获取 label
     if (hasCallback.value && props.value?.raw !== null && props.value?.raw !== undefined && props.formRenderer) {
@@ -748,6 +751,20 @@ onMounted(() => {
       })
     }
   })
+}
+
+// 🔥 取消注册监听器的函数
+const unregisterFormInitializedListener = () => {
+  if (unsubscribeFormInitialized) {
+    unsubscribeFormInitialized()
+    unsubscribeFormInitialized = null
+  }
+}
+
+// 初始化
+onMounted(() => {
+  initOptions()
+  registerFormInitializedListener()
   
   // 🔥 如果已经有值了，也尝试触发一次（处理表单已经初始化完成的情况）
   if (hasCallback.value && props.value?.raw && props.formRenderer) {
@@ -759,10 +776,18 @@ onMounted(() => {
   }
 })
 
+// 🔥 keep-alive 场景：组件激活时重新注册监听器
+onActivated(() => {
+  registerFormInitializedListener()
+})
+
+// 🔥 keep-alive 场景：组件失活时取消注册监听器
+onDeactivated(() => {
+  unregisterFormInitializedListener()
+})
+
 onUnmounted(() => {
-  if (unsubscribeFormInitialized) {
-    unsubscribeFormInitialized()
-  }
+  unregisterFormInitializedListener()
 })
 
 // 🔥 监听 value 和 formRenderer 变化，如果值变化了，重新触发回调获取标签
