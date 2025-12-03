@@ -7,7 +7,7 @@ import type { IEventBus } from '../../domain/interfaces/IEventBus'
 
 // 导出接口
 export type { IEventBus } from '../../domain/interfaces/IEventBus'
-export { WorkspaceEvent, FormEvent, TableEvent } from '../../domain/interfaces/IEventBus'
+export { WorkspaceEvent, FormEvent, TableEvent, RouteEvent } from '../../domain/interfaces/IEventBus'
 
 // 导出实现
 export { EventBusImpl }
