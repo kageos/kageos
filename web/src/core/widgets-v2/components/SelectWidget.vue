@@ -770,6 +770,7 @@ onUnmounted(() => {
 const isSearching = ref(false)
 const lastSearchedValue = ref<any>(null)
 const lastSearchedRouter = ref<string | null>(null) // 🔥 记录上次搜索使用的 router
+const lastSearchedFunctionId = ref<number | null>(null) // 🔥 记录上次搜索使用的函数 ID
 
 // 🔥 触发搜索的辅助函数（避免重复代码）
 const triggerSearchIfNeeded = (rawValue: any, formRenderer: any, mode: string) => {
@@ -782,24 +783,32 @@ const triggerSearchIfNeeded = (rawValue: any, formRenderer: any, mode: string) =
     return false
   }
   
-  // 🔥 如果 router 变化了，重置搜索状态
-  if (currentRouter !== lastSearchedRouter.value) {
+  // 🔥 获取当前函数 ID（用于 keep-alive 场景下的防重复调用）
+  const currentFunctionId = formRenderer.getFunctionDetail?.()?.id || null
+  
+  // 🔥 如果 router 或 functionId 变化了，重置搜索状态
+  if (currentRouter !== lastSearchedRouter.value || currentFunctionId !== lastSearchedFunctionId.value) {
     lastSearchedValue.value = null
     lastSearchedRouter.value = currentRouter
+    lastSearchedFunctionId.value = currentFunctionId
   }
   
   // 🔥 检查是否需要触发搜索
+  // keep-alive 场景下：如果函数 ID 相同、值相同、router 相同，说明已经搜索过，不需要重复调用
   const shouldTrigger = 
     rawValue !== null && 
     rawValue !== undefined && 
     !isSearching.value &&
-    // 🔥 关键：如果值变化了，或者 router 变化了，或者还没有搜索过这个值，就触发
-    (rawValue !== lastSearchedValue.value || currentRouter !== lastSearchedRouter.value)
+    // 🔥 关键：如果值变化了，或者 router 变化了，或者 functionId 变化了，或者还没有搜索过这个值，就触发
+    (rawValue !== lastSearchedValue.value || 
+     currentRouter !== lastSearchedRouter.value || 
+     currentFunctionId !== lastSearchedFunctionId.value)
   
   if (shouldTrigger) {
     isSearching.value = true
     lastSearchedValue.value = rawValue
     lastSearchedRouter.value = currentRouter
+    lastSearchedFunctionId.value = currentFunctionId
     // 重置 detailDisplayValue（仅详情模式需要）
     if (mode === 'detail') {
       detailDisplayValue.value = null
