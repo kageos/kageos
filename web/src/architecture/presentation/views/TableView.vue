@@ -31,10 +31,10 @@
               :function-method="props.functionDetail.method || 'GET'"
               :function-router="props.functionDetail.router"
               @update:model-value="(value: any) => {
-                const isClearing = (value === null || value === '') && 
-                                   searchForm && 
-                                   searchForm[field.code] !== undefined
-                updateSearchValue(field, value, isClearing)
+                // 🔥 修复：用户选择选项时应该立即触发搜索（无论选择还是清空）
+                // 之前的逻辑是 isClearing 时才搜索，这是完全错误的
+                // 正确的逻辑是：任何值变化都应该立即触发搜索
+                updateSearchValue(field, value, true)
               }"
             />
           </el-form-item>
