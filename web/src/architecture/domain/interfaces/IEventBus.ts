@@ -52,9 +52,11 @@ export enum WorkspaceEvent {
   appSwitched = 'workspace:app-switched',           // 应用切换
   serviceTreeLoaded = 'workspace:service-tree-loaded', // 服务树加载完成
   functionLoaded = 'workspace:function-loaded',     // 函数加载完成
-  tabSwitched = 'workspace:tab-switched',           // 标签切换
+  tabSwitched = 'workspace:tab-switched',           // 标签切换（已废弃，保留兼容性）
   tabOpened = 'workspace:tab-opened',               // 标签打开
-  tabActivated = 'workspace:tab-activated'         // 标签激活
+  tabActivated = 'workspace:tab-activated',        // 标签激活
+  tabSwitching = 'workspace:tab-switching',        // Tab 切换中（保存旧 Tab 状态，恢复新 Tab 路由）
+  tabSwitchedComplete = 'workspace:tab-switched-complete' // Tab 切换完成（路由已恢复，组件已激活）
 }
 
 export enum FormEvent {
@@ -73,5 +75,16 @@ export enum TableEvent {
   rowAdded = 'table:row-added',                     // 行新增
   rowUpdated = 'table:row-updated',                // 行更新
   rowDeleted = 'table:row-deleted'                 // 行删除
+}
+
+export enum RouteEvent {
+  // 路由更新请求事件
+  updateRequested = 'route:update-requested',        // 请求更新路由
+  updateCompleted = 'route:update-completed',        // 路由更新完成
+  
+  // 路由变化事件（由路由管理器监听 Vue Router 变化后发出）
+  pathChanged = 'route:path-changed',                // 路径变化
+  queryChanged = 'route:query-changed',              // 查询参数变化
+  routeChanged = 'route:route-changed'               // 路由变化（path + query）
 }
 

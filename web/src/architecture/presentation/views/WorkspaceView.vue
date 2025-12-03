@@ -270,6 +270,7 @@ import { ElMessage, ElMessageBox, ElNotification, ElDialog, ElForm, ElFormItem, 
 import { InfoFilled, ArrowLeft } from '@element-plus/icons-vue'
 import { eventBus, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
+import { RouteManager } from '../../infrastructure/routeManager'
 import { useAuthStore } from '@/stores/auth'
 import ServiceTreePanel from '@/components/ServiceTreePanel.vue'
 import AppSwitcher from '@/components/AppSwitcher.vue'
@@ -734,9 +735,25 @@ const restoreTabsNodes = () => {
   tabsRestoreTabsNodes(serviceTree.value, findNodeByPath)
 }
 
+// 🔥 初始化 RouteManager（路由管理器）
+let routeManager: RouteManager | null = null
+
 onMounted(async () => {
   // 🔥 首先从 localStorage 恢复 tabs
   restoreTabsFromStorage()
+  
+  // 🔥 初始化 RouteManager（阶段1：只监听，不处理更新请求）
+  routeManager = new RouteManager(
+    router,
+    route,
+    eventBus,
+    () => activeTabId.value || null  // 获取当前 Tab ID
+  )
+  
+  // 🔥 开发环境下启用调试日志
+  if (import.meta.env.DEV) {
+    routeManager.setDebugLog(true)
+  }
   
   // 🔥 设置 Tab 数据监听和自动保存
   setupTabDataWatch()
