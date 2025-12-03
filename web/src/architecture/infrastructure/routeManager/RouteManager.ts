@@ -225,6 +225,19 @@ export class RouteManager {
    * 处理路由更新请求
    */
   private async handleUpdateRequest(request: RouteUpdateRequest): Promise<void> {
+    // 🔥 sync-route-to-tab-save-state 是特殊请求，只用于保存 Tab 路由状态，不实际更新路由
+    if ((request as any).source === 'sync-route-to-tab-save-state') {
+      const tabId = (request as any).meta?.tabId
+      if (tabId) {
+        this.tabStateManager.saveTabRouteState(tabId, {
+          path: this.route.path,
+          query: { ...this.route.query }
+        })
+        this.log('保存 Tab 路由状态（sync-route-to-tab）', { tabId, route: { path: this.route.path, query: this.route.query } })
+      }
+      return
+    }
+    
     if (this.isUpdating) {
       this.log('路由更新中，跳过重复请求', { source: request.source })
       return
