@@ -187,6 +187,14 @@ export class RouteManager {
       const expectedPath = `/workspace${newTabId}`
       const isPathValid = targetRouteState.path === expectedPath || targetRouteState.path.startsWith(expectedPath + '?')
       
+      this.log('检查恢复的 Tab 路由状态', { 
+        tabId: newTabId, 
+        savedPath: targetRouteState.path, 
+        expectedPath,
+        isPathValid,
+        savedQuery: targetRouteState.query
+      })
+      
       if (isPathValid) {
         this.log('恢复 Tab 路由状态', { tabId: newTabId, route: targetRouteState })
         
@@ -204,7 +212,7 @@ export class RouteManager {
         } as RouteUpdateRequest & { meta?: { newTabId: string } })
       } else {
         // 路径不匹配，说明保存的状态是错误的，使用 Tab 的默认路径
-        this.log('恢复的 Tab 路由状态路径不匹配，使用默认路径', { 
+        this.log('恢复的 Tab 路由状态路径不匹配，删除错误状态并使用默认路径', { 
           tabId: newTabId, 
           savedPath: targetRouteState.path, 
           expectedPath 
