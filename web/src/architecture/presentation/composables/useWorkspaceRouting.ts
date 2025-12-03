@@ -66,8 +66,18 @@ export function useWorkspaceRouting(options: {
       
       if (targetTab) {
         // Tab 已存在，激活它（不触发路由更新）
-        if (options.activeTabId() !== targetTab.id) {
+        // 🔥 只有在 Tab ID 不同时才激活，避免重复调用
+        const currentActiveTabId = options.activeTabId()
+        if (currentActiveTabId !== targetTab.id) {
+          Logger.debug('useWorkspaceRouting', '激活 Tab', { 
+            currentActiveTabId, 
+            targetTabId: targetTab.id 
+          })
           applicationService.activateTab(targetTab.id)
+        } else {
+          Logger.debug('useWorkspaceRouting', 'Tab 已激活，跳过', { 
+            tabId: targetTab.id 
+          })
         }
         
         // 🔥 Tab 激活后，保存 Tab 的路由状态（用于 workspace-node-click 场景）
