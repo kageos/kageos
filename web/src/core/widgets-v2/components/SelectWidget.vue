@@ -797,9 +797,13 @@ onMounted(() => {
   }
 })
 
+// 🔥 keep-alive 场景：跟踪组件激活状态
+const isComponentActive = ref(true) // 默认激活（首次挂载时）
+
 // 🔥 keep-alive 场景：组件激活时注册监听器
 // 注意：首次挂载时也会触发 onActivated，所以不需要在 onMounted 中注册
 onActivated(() => {
+  isComponentActive.value = true // 🔥 标记为激活
   console.log('[SelectWidget] onActivated - 注册监听器', { 
     fieldCode: props.field.code,
     hasCallback: hasCallback.value,
@@ -814,6 +818,7 @@ onActivated(() => {
 
 // 🔥 keep-alive 场景：组件失活时取消注册监听器
 onDeactivated(() => {
+  isComponentActive.value = false // 🔥 标记为失活
   console.log('[SelectWidget] onDeactivated - 取消注册监听器', { 
     fieldCode: props.field.code,
     functionId: props.formRenderer?.getFunctionDetail?.()?.id
@@ -838,8 +843,18 @@ const triggerSearchIfNeeded = (rawValue: any, formRenderer: any, mode: string) =
     fieldCode: props.field.code,
     rawValue,
     hasCallback: hasCallback.value,
-    formRenderer: !!formRenderer
+    formRenderer: !!formRenderer,
+    isComponentActive: isComponentActive.value
   })
+  
+  // 🔥 关键：如果组件失活，跳过搜索（keep-alive 场景）
+  if (!isComponentActive.value) {
+    console.log('[SelectWidget] triggerSearchIfNeeded 跳过：组件已失活', {
+      fieldCode: props.field.code,
+      rawValue
+    })
+    return false
+  }
   
   if (!hasCallback.value || !formRenderer) {
     console.log('[SelectWidget] triggerSearchIfNeeded 跳过：无回调或无 formRenderer', {
@@ -949,12 +964,20 @@ const triggerSearchIfNeeded = (rawValue: any, formRenderer: any, mode: string) =
 }
 
 
-// 🔥 保留一个简单的 watch 来处理值变化（仅在 formRenderer 已准备好时）
+// 🔥 保留一个简单的 watch 来处理值变化（仅在 formRenderer 已准备好且组件激活时）
 watch(
   () => props.value?.raw,
   (newRaw, oldRaw) => {
-    // 只在 formRenderer 已准备好且值真正变化时触发
-    if (props.formRenderer && newRaw !== null && newRaw !== undefined && newRaw !== oldRaw) {
+    console.log('[SelectWidget] watch props.value?.raw 触发', {
+      fieldCode: props.field.code,
+      newRaw,
+      oldRaw,
+      isComponentActive: isComponentActive.value,
+      formRenderer: !!props.formRenderer
+    })
+    // 只在 formRenderer 已准备好且值真正变化且组件激活时触发
+    // 注意：triggerSearchIfNeeded 内部也会检查 isComponentActive，这里是双重保险
+    if (isComponentActive.value && props.formRenderer && newRaw !== null && newRaw !== undefined && newRaw !== oldRaw) {
       triggerSearchIfNeeded(newRaw, props.formRenderer, props.mode)
     }
   }
