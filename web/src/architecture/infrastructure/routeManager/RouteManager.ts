@@ -249,10 +249,11 @@ export class RouteManager {
     
     // 🔥 如果 request.query 已经包含了完整的查询参数（如 TableView 的 syncToURL），
     // 则直接使用，不再应用参数保留策略
+    // 注意：TableView 的 syncToURL 已经通过 preserveExistingParams 计算好了完整的 newQuery
     if (request.query && Object.keys(request.query).length > 0) {
-      // 检查是否是 link 跳转，如果是，需要保留 _link_type 之外的所有参数
+      // 检查是否是 link 跳转
       if (preserve.linkNavigation) {
-        this.log('link 跳转：保留所有参数（除了 _link_type）')
+        this.log('link 跳转：保留所有参数（除了 _link_type），然后合并新参数')
         const result: Record<string, string | string[]> = {}
         // 先保留当前路由的所有参数（除了 _link_type）
         Object.keys(currentQuery).forEach(key => {
@@ -266,11 +267,13 @@ export class RouteManager {
           }
         })
         // 然后合并新参数（覆盖旧参数）
+        // 注意：request.query 已经包含了完整的参数（包括 preserveExistingParams 的结果）
         Object.assign(result, this.normalizeQuery(request.query))
         return result
       } else {
         // 非 link 跳转：直接使用 request.query（已经包含了 preserveExistingParams 的结果）
-        this.log('使用完整的查询参数（已包含参数保留逻辑）')
+        // 注意：TableView 的 syncToURL 已经通过 preserveExistingParams 计算好了完整的 newQuery
+        this.log('使用完整的查询参数（已包含参数保留逻辑）', { query: request.query })
         return this.normalizeQuery(request.query)
       }
     }
