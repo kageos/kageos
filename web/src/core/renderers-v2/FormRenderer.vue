@@ -633,11 +633,10 @@ const formRendererContext: FormRendererContext = {
   unregisterWidget: () => {},
   getFunctionMethod: () => props.functionDetail.method,
   getFunctionRouter: () => props.functionDetail.router,
-  getFunctionDetail: () => props.functionDetail, // 🔥 添加获取函数详情的方法，用于 keep-alive 场景下的防重复调用
+  getFunctionDetail: () => props.functionDetail, // 🔥 获取函数详情（用于 keep-alive 场景下的防重复调用）
   getSubmitData: () => formDataStore.getSubmitData(requestFields.value),
-  // 添加获取字段错误的方法，供嵌套 Widget 使用
-  getFieldError: (fieldPath: string) => getFieldError(fieldPath)
-} as any
+  getFieldError: (fieldPath: string) => getFieldError(fieldPath) // 🔥 获取字段错误
+}
 
 /**
  * 条件渲染评估（适配 formDataStore）
