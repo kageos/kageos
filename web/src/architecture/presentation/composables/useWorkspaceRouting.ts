@@ -60,6 +60,26 @@ export function useWorkspaceRouting(options: {
         isSyncingRouteToTab = false
       }
       
+      // 🔥 Tab 激活后，保存 Tab 的路由状态（用于 workspace-node-click 场景）
+      // 因为 workspace-node-click 时，路由更新完成时 Tab 可能还没有激活
+      // 所以在这里保存，确保保存的是正确的 Tab ID
+      await nextTick() // 等待 activateTab 完成
+      const currentTabId = options.activeTabId()
+      if (currentTabId === targetTab.id) {
+        // 确保 Tab 已经激活，再保存路由状态
+        // 通过事件通知 RouteManager 保存路由状态
+        eventBus.emit(RouteEvent.updateRequested, {
+          path: route.path,
+          query: route.query,
+          replace: false, // 不实际更新路由，只是触发保存
+          preserveParams: {
+            state: true
+          },
+          source: 'sync-route-to-tab-save-state',
+          meta: { tabId: targetTab.id } // 传递 Tab ID，确保保存到正确的 Tab
+        } as any)
+      }
+      
       // 🔥 Tab 切换时，即使 Tab 已经激活，也需要确保函数详情已加载
       // 因为 Tab 切换时，路由已经更新了，函数界面需要刷新
       if (targetTab.node && targetTab.node.type === 'function') {
