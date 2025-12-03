@@ -35,6 +35,9 @@ export interface FormRendererContext {
   /** 获取函数的路由 */
   getFunctionRouter: () => string
   
+  /** 获取函数详情（用于 keep-alive 场景下的防重复调用） */
+  getFunctionDetail?: () => any
+  
   /** 获取完整的提交数据（递归收集） */
   getSubmitData: () => Record<string, any>
   
