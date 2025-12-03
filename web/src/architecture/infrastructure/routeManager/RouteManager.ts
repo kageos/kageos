@@ -162,16 +162,22 @@ export class RouteManager {
       this.log('恢复 Tab 路由状态', { tabId: newTabId, route: targetRouteState })
       
       // 发出路由更新请求，恢复目标 Tab 的路由状态
+      // 🔥 传递 newTabId 作为元数据，用于在路由更新完成后保存新 Tab 的路由状态
       this.requestUpdate({
         path: targetRouteState.path,
         query: targetRouteState.query,
         source: 'tab-switch',
         preserveParams: {
           linkNavigation: false  // Tab 切换不是 link 跳转，使用目标 Tab 保存的状态
-        }
-      })
+        },
+        // 🔥 传递 newTabId，用于在路由更新完成后保存新 Tab 的路由状态
+        meta: { newTabId }
+      } as RouteUpdateRequest & { meta?: { newTabId: string } })
     } else {
       this.log('Tab 没有保存的路由状态，使用默认路由', { tabId: newTabId })
+      // 🔥 即使没有保存的状态，也需要传递 newTabId，用于在路由更新完成后保存新 Tab 的路由状态
+      // 但是，如果没有保存的状态，我们需要从 targetTab 获取默认路径
+      // 这里暂时不处理，因为 useWorkspaceTabs 会发出另一个路由更新请求
     }
   }
   
@@ -208,15 +214,29 @@ export class RouteManager {
         await this.router.push({ path: targetPath, query: newQuery })
       }
       
-      // 3. 🔥 更新当前 Tab 的路由状态（Tab 切换时不需要更新，因为已经恢复了）
-      const currentTabId = this.getCurrentTabId()
-      if (currentTabId && request.source !== 'tab-switch') {
+      // 3. 🔥 更新当前 Tab 的路由状态
+      // Tab 切换时，使用 request.meta.newTabId（如果存在）来保存新 Tab 的路由状态
+      // 否则，使用 getCurrentTabId() 获取当前 Tab ID
+      if (request.source === 'tab-switch') {
+        // Tab 切换时，使用 request.meta.newTabId 保存新 Tab 的路由状态
+        const newTabId = (request as any).meta?.newTabId
+        if (newTabId) {
+          this.tabStateManager.saveTabRouteState(newTabId, {
+            path: targetPath,
+            query: newQuery
+          })
+          this.log('更新 Tab 路由状态（Tab 切换）', { tabId: newTabId, route: { path: targetPath, query: newQuery } })
+        }
+      } else {
         // 用户操作、link 跳转等需要更新 Tab 的路由状态
-        this.tabStateManager.saveTabRouteState(currentTabId, {
-          path: targetPath,
-          query: newQuery
-        })
-        this.log('更新 Tab 路由状态', { tabId: currentTabId, route: { path: targetPath, query: newQuery } })
+        const currentTabId = this.getCurrentTabId()
+        if (currentTabId) {
+          this.tabStateManager.saveTabRouteState(currentTabId, {
+            path: targetPath,
+            query: newQuery
+          })
+          this.log('更新 Tab 路由状态', { tabId: currentTabId, route: { path: targetPath, query: newQuery } })
+        }
       }
       
       // 4. 发出更新完成事件
