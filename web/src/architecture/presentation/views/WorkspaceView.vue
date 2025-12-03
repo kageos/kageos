@@ -551,7 +551,7 @@ const handleNodeClick = (node: ServiceTreeType) => {
       // 优先级：Tab 详情 > 默认 form
       // 注意：_link_type 参数已在 useWorkspaceRouting 中处理，这里不需要再处理
       const tabsArray = Array.isArray(tabs.value) ? tabs.value : []
-      const existingTab = tabsArray.find(t => 
+      const existingTab = tabsArray.find((t: any) => 
         t.path === serviceTree.full_code_path || t.path === String(serviceTree.id)
       )
       
@@ -563,14 +563,33 @@ const handleNodeClick = (node: ServiceTreeType) => {
           isTableFunction = true
         }
       }
-      // 默认按 form 函数处理（不保留 table 参数）
-      // 这样可以避免 link 跳转到 form 函数时自动添加 page、page_size、sorts 等参数
       
-      // 🔥 如果是 table 函数，保留分页和排序参数；如果是 form 函数，不保留这些参数
-      // form 函数不需要 page、page_size、sorts 等参数，必须清除
-      const preservedQuery = isTableFunction
-        ? preserveQueryParamsForTable(route.query)
-        : preserveQueryParamsForForm(route.query)
+      // 🔥 检查是否是 link 跳转（通过 _link_type 参数）
+      // link 跳转时，URL 中的参数是用户明确指定的（来自 link 值），应该全部保留
+      const isLinkNavigation = route.query._link_type === 'table' || route.query._link_type === 'form'
+      
+      let preservedQuery: Record<string, string | string[]>
+      if (isLinkNavigation) {
+        // 🔥 link 跳转：保留所有参数（除了 _link_type 临时参数）
+        preservedQuery = {}
+        Object.keys(route.query).forEach(key => {
+          if (key !== '_link_type') {
+            const value = route.query[key]
+            if (value !== null && value !== undefined) {
+              preservedQuery[key] = Array.isArray(value) 
+                ? value.filter(v => v !== null).map(v => String(v))
+                : String(value)
+            }
+          }
+        })
+      } else {
+        // 普通跳转：根据函数类型保留相应参数
+        // 如果是 table 函数，保留分页和排序参数；如果是 form 函数，不保留这些参数
+        // form 函数不需要 page、page_size、sorts 等参数，必须清除
+        preservedQuery = isTableFunction
+          ? preserveQueryParamsForTable(route.query)
+          : preserveQueryParamsForForm(route.query)
+      }
       
       router.replace({ path: targetPath, query: preservedQuery }).catch(() => {})
     } else {

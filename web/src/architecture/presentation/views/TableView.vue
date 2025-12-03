@@ -635,6 +635,10 @@ const preserveExistingParams = (requestFieldCodes: Set<string>): Record<string, 
   const tableParamKeys = TABLE_PARAM_KEYS
   const searchParamKeys = SEARCH_PARAM_KEYS
   
+  // 🔥 检查是否是 link 跳转（通过 _link_type 参数）
+  // link 跳转时，URL 中的参数是用户明确指定的（来自 link 值），应该全部保留
+  const isLinkNavigation = route.query._link_type === 'table' || route.query._link_type === 'form'
+  
   // 先保留所有非 table 相关的参数（包括 link 跳转携带的参数）
   Object.keys(route.query).forEach(key => {
     const value = route.query[key]
@@ -644,19 +648,25 @@ const preserveExistingParams = (requestFieldCodes: Set<string>): Record<string, 
       return
     }
 
-    // 保留以 _ 开头的参数（前端状态参数）
+    // 保留以 _ 开头的参数（前端状态参数），但清除 _link_type（临时参数）
     if (key.startsWith('_')) {
-      newQuery[key] = String(value)
+      if (key !== '_link_type') {
+        newQuery[key] = String(value)
+      }
       return
     }
     
-    // 🔥 跳过搜索参数：搜索参数的作用域是函数级别的
-    // 旧参数的作用域只能在那个函数，一旦切换函数，必须换成那个函数的搜索参数
-    // 切换函数时，必须清除上一个函数的搜索参数，只使用当前函数的 searchForm 中的参数
-    // 这样可以避免函数切换时保留上一个函数的搜索参数，防止状态污染
+    // 🔥 link 跳转时：保留所有搜索参数（因为这是用户明确指定的）
+    // 非 link 跳转时：跳过搜索参数，搜索参数的作用域是函数级别的
     if (searchParamKeys.includes(key)) {
-      // 搜索参数完全由当前函数的 searchForm 决定，不从 URL 中保留旧参数
-      // 搜索参数会在 buildTableQueryParams 中根据当前函数的 searchForm 重新构建
+      if (isLinkNavigation) {
+        // link 跳转：保留搜索参数
+        newQuery[key] = String(value)
+      } else {
+        // 非 link 跳转：搜索参数完全由当前函数的 searchForm 决定，不从 URL 中保留旧参数
+        // 搜索参数会在 buildTableQueryParams 中根据当前函数的 searchForm 重新构建
+        return
+      }
       return
     }
     

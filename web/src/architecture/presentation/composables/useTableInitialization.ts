@@ -148,13 +148,23 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     const hasTabState = currentState.searchForm && Object.keys(currentState.searchForm).length > 0
     const hasURLParams = pathMatches && Object.keys(route.query).length > 0
     
-    // 优先级 1：Tab 有保存的状态，优先使用 Tab 的状态（Tab 切换场景）
+    // 🔥 检查是否是 link 跳转（通过 _link_type 参数）
+    // link 跳转时，URL 中的参数是用户明确指定的（来自 link 值），应该优先从 URL 恢复
+    const isLinkNavigation = route.query._link_type === 'table' || route.query._link_type === 'form'
+    
+    // 优先级 1：如果是 link 跳转，优先从 URL 恢复（即使 Tab 有状态也要覆盖）
+    if (isLinkNavigation && hasURLParams) {
+      await restoreFromURLAndSync()
+      return
+    }
+    
+    // 优先级 2：Tab 有保存的状态，优先使用 Tab 的状态（Tab 切换场景）
     if (hasTabState) {
       await syncTabStateToURL()
       return
     }
     
-    // 优先级 2：Tab 没有保存的状态，且 URL 有参数，从 URL 恢复（link 跳转场景）
+    // 优先级 3：Tab 没有保存的状态，且 URL 有参数，从 URL 恢复（link 跳转场景）
     if (hasURLParams) {
       await restoreFromURLAndSync()
       return
