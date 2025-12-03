@@ -8,7 +8,7 @@
  * 🔥 统一类型系统：使用 WidgetTypes 命名空间
  */
 
-import type { WidgetTypes } from './field'
+import type { WidgetTypes, FunctionDetail } from './field'
 
 // 🔥 向后兼容：导出类型别名
 export type FieldConfig = WidgetTypes.FieldConfig
@@ -36,7 +36,7 @@ export interface FormRendererContext {
   getFunctionRouter: () => string
   
   /** 获取函数详情（用于 keep-alive 场景下的防重复调用） */
-  getFunctionDetail?: () => any
+  getFunctionDetail?: () => FunctionDetail
   
   /** 获取完整的提交数据（递归收集） */
   getSubmitData: () => Record<string, any>
