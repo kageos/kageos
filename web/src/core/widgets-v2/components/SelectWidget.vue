@@ -742,10 +742,20 @@ const registerFormInitializedListener = () => {
   
   // 注册新的监听器
   unsubscribeFormInitialized = eventBus.on(FormEvent.initialized, () => {
+    console.log('[SelectWidget] FormEvent.initialized 收到', { 
+      fieldCode: props.field.code,
+      hasCallback: hasCallback.value,
+      rawValue: props.value?.raw,
+      functionId: props.formRenderer?.getFunctionDetail?.()?.id
+    })
     // 如果当前字段有 OnSelectFuzzy 回调，且有值，触发搜索获取 label
     if (hasCallback.value && props.value?.raw !== null && props.value?.raw !== undefined && props.formRenderer) {
       nextTick(() => {
         if (props.formRenderer && !isSearching.value && props.value?.raw !== lastSearchedValue.value) {
+          console.log('[SelectWidget] 触发 triggerSearchIfNeeded', { 
+            fieldCode: props.field.code,
+            rawValue: props.value?.raw
+          })
           triggerSearchIfNeeded(props.value.raw, props.formRenderer, props.mode)
         }
       })
@@ -764,7 +774,8 @@ const unregisterFormInitializedListener = () => {
 // 初始化
 onMounted(() => {
   initOptions()
-  registerFormInitializedListener()
+  // 🔥 不在 onMounted 中注册监听器，因为 onActivated 会被调用
+  // registerFormInitializedListener()
   
   // 🔥 如果已经有值了，也尝试触发一次（处理表单已经初始化完成的情况）
   if (hasCallback.value && props.value?.raw && props.formRenderer) {
@@ -776,13 +787,24 @@ onMounted(() => {
   }
 })
 
-// 🔥 keep-alive 场景：组件激活时重新注册监听器
+// 🔥 keep-alive 场景：组件激活时注册监听器
+// 注意：首次挂载时也会触发 onActivated，所以不需要在 onMounted 中注册
 onActivated(() => {
+  console.log('[SelectWidget] onActivated - 注册监听器', { 
+    fieldCode: props.field.code,
+    hasCallback: hasCallback.value,
+    rawValue: props.value?.raw,
+    functionId: props.formRenderer?.getFunctionDetail?.()?.id
+  })
   registerFormInitializedListener()
 })
 
 // 🔥 keep-alive 场景：组件失活时取消注册监听器
 onDeactivated(() => {
+  console.log('[SelectWidget] onDeactivated - 取消注册监听器', { 
+    fieldCode: props.field.code,
+    functionId: props.formRenderer?.getFunctionDetail?.()?.id
+  })
   unregisterFormInitializedListener()
 })
 
