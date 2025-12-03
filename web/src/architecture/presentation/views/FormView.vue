@@ -463,8 +463,16 @@ onMounted(() => {
   }
 
   // 监听函数加载完成事件
+  let lastInitializedFunctionId: number | null = null // 🔥 记录上次初始化的函数 ID，防止重复初始化
   unsubscribeFunctionLoaded = eventBus.on(WorkspaceEvent.functionLoaded, (payload: { detail: FunctionDetail }) => {
     if (payload.detail.template_type === TEMPLATE_TYPE.FORM && payload.detail.id === props.functionDetail.id) {
+      // 🔥 防重复初始化：如果已经初始化过这个函数，跳过
+      if (lastInitializedFunctionId === payload.detail.id) {
+        Logger.debug('FormView', '跳过重复的 functionLoaded 事件', { functionId: payload.detail.id })
+        return
+      }
+      lastInitializedFunctionId = payload.detail.id
+      
       // 🔥 使用 nextTick 确保 formInitialData 已经更新（因为它依赖于 route.query）
       nextTick(() => {
         // 重新初始化表单（传递 URL 参数作为初始数据）
