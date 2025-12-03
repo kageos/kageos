@@ -366,7 +366,6 @@ export function useWorkspaceDetail(options: {
         
         // 继续原有的逻辑（从 watch 中复制）
         if (tab === 'detail' && id && detail && detail.template_type === TEMPLATE_TYPE.TABLE) {
-      if (tab === 'detail' && id && detail && detail.template_type === TEMPLATE_TYPE.TABLE) {
         // 确保函数详情已加载
         if (!options.currentFunction()) {
           return
