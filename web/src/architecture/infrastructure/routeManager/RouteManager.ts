@@ -182,20 +182,37 @@ export class RouteManager {
     // 2. 恢复目标 Tab 的路由状态
     const targetRouteState = this.tabStateManager.getTabRouteState(newTabId)
     if (targetRouteState) {
-      this.log('恢复 Tab 路由状态', { tabId: newTabId, route: targetRouteState })
+      // 🔥 验证：确保恢复的路由状态路径与 newTabId 对应的 Tab 路径匹配
+      // 如果路径不匹配，说明保存的状态是错误的，应该使用 Tab 的默认路径
+      const expectedPath = `/workspace${newTabId}`
+      const isPathValid = targetRouteState.path === expectedPath || targetRouteState.path.startsWith(expectedPath + '?')
       
-      // 发出路由更新请求，恢复目标 Tab 的路由状态
-      // 🔥 传递 newTabId 作为元数据，用于在路由更新完成后保存新 Tab 的路由状态
-      this.requestUpdate({
-        path: targetRouteState.path,
-        query: targetRouteState.query,
-        source: 'tab-switch',
-        preserveParams: {
-          linkNavigation: false  // Tab 切换不是 link 跳转，使用目标 Tab 保存的状态
-        },
-        // 🔥 传递 newTabId，用于在路由更新完成后保存新 Tab 的路由状态
-        meta: { newTabId }
-      } as RouteUpdateRequest & { meta?: { newTabId: string } })
+      if (isPathValid) {
+        this.log('恢复 Tab 路由状态', { tabId: newTabId, route: targetRouteState })
+        
+        // 发出路由更新请求，恢复目标 Tab 的路由状态
+        // 🔥 传递 newTabId 作为元数据，用于在路由更新完成后保存新 Tab 的路由状态
+        this.requestUpdate({
+          path: targetRouteState.path,
+          query: targetRouteState.query,
+          source: 'tab-switch',
+          preserveParams: {
+            linkNavigation: false  // Tab 切换不是 link 跳转，使用目标 Tab 保存的状态
+          },
+          // 🔥 传递 newTabId，用于在路由更新完成后保存新 Tab 的路由状态
+          meta: { newTabId }
+        } as RouteUpdateRequest & { meta?: { newTabId: string } })
+      } else {
+        // 路径不匹配，说明保存的状态是错误的，使用 Tab 的默认路径
+        this.log('恢复的 Tab 路由状态路径不匹配，使用默认路径', { 
+          tabId: newTabId, 
+          savedPath: targetRouteState.path, 
+          expectedPath 
+        })
+        // 删除错误的状态
+        this.tabStateManager.deleteTabRouteState(newTabId)
+        // 使用默认路径（由 useWorkspaceTabs 处理）
+      }
     } else {
       this.log('Tab 没有保存的路由状态，使用默认路由', { tabId: newTabId })
       // 🔥 即使没有保存的状态，也需要传递 newTabId，用于在路由更新完成后保存新 Tab 的路由状态
@@ -244,6 +261,10 @@ export class RouteManager {
         // Tab 切换时，使用 request.meta.newTabId 保存新 Tab 的路由状态
         const newTabId = (request as any).meta?.newTabId
         if (newTabId) {
+          // 🔥 验证：确保保存的路由状态与 newTabId 对应的 Tab 路径匹配
+          // 如果 targetPath 不匹配 newTabId 对应的 Tab 路径，说明恢复的状态是错误的，不应该保存
+          // 但是，由于 targetPath 是从恢复的状态中获取的，所以应该是匹配的
+          // 这里我们直接保存，因为 targetPath 就是从 targetRouteState 中获取的
           this.tabStateManager.saveTabRouteState(newTabId, {
             path: targetPath,
             query: newQuery
@@ -254,6 +275,10 @@ export class RouteManager {
         // 用户操作、link 跳转等需要更新 Tab 的路由状态
         const currentTabId = this.getCurrentTabId()
         if (currentTabId) {
+          // 🔥 验证：确保保存的路由状态与 currentTabId 对应的 Tab 路径匹配
+          // 如果 targetPath 不匹配 currentTabId 对应的 Tab 路径，说明路由状态不一致，不应该保存
+          // 但是，由于这些操作通常是直接更新路由的，所以应该是匹配的
+          // 这里我们直接保存
           this.tabStateManager.saveTabRouteState(currentTabId, {
             path: targetPath,
             query: newQuery
