@@ -742,7 +742,7 @@ const registerFormInitializedListener = () => {
   
   // 注册新的监听器
   unsubscribeFormInitialized = eventBus.on(FormEvent.initialized, () => {
-    Logger.debug('SelectWidget', 'FormEvent.initialized 收到', { 
+    console.log('[SelectWidget] FormEvent.initialized 收到', { 
       fieldCode: props.field.code,
       hasCallback: hasCallback.value,
       rawValue: props.value?.raw,
@@ -752,7 +752,7 @@ const registerFormInitializedListener = () => {
     if (hasCallback.value && props.value?.raw !== null && props.value?.raw !== undefined && props.formRenderer) {
       nextTick(() => {
         if (props.formRenderer && !isSearching.value && props.value?.raw !== lastSearchedValue.value) {
-          Logger.debug('SelectWidget', '触发 triggerSearchIfNeeded', { 
+          console.log('[SelectWidget] 触发 triggerSearchIfNeeded', { 
             fieldCode: props.field.code,
             rawValue: props.value?.raw
           })
@@ -790,7 +790,7 @@ onMounted(() => {
 // 🔥 keep-alive 场景：组件激活时注册监听器
 // 注意：首次挂载时也会触发 onActivated，所以不需要在 onMounted 中注册
 onActivated(() => {
-  Logger.debug('SelectWidget', 'onActivated - 注册监听器', { 
+  console.log('[SelectWidget] onActivated - 注册监听器', { 
     fieldCode: props.field.code,
     hasCallback: hasCallback.value,
     rawValue: props.value?.raw,
@@ -801,7 +801,7 @@ onActivated(() => {
 
 // 🔥 keep-alive 场景：组件失活时取消注册监听器
 onDeactivated(() => {
-  Logger.debug('SelectWidget', 'onDeactivated - 取消注册监听器', { 
+  console.log('[SelectWidget] onDeactivated - 取消注册监听器', { 
     fieldCode: props.field.code,
     functionId: props.formRenderer?.getFunctionDetail?.()?.id
   })
