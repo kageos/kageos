@@ -982,6 +982,7 @@ const hasDeleteCallback = computed(() => {
 // ==================== 生命周期 ====================
 
 let unsubscribeDataLoaded: (() => void) | null = null
+let unsubscribeFunctionLoaded: (() => void) | null = null
 
 // 🔥 使用 composable 统一管理初始化逻辑
 const { initializeTable, setupQueryWatch } = useTableInitialization({
@@ -1029,6 +1030,16 @@ onMounted(async () => {
       }
     })
   })
+  
+  // 🔥 监听函数加载完成事件（Tab 切换时触发）
+  unsubscribeFunctionLoaded = eventBus.on(WorkspaceEvent.functionLoaded, async (payload: { detail: FunctionDetail }) => {
+    if (payload.detail.template_type === TEMPLATE_TYPE.TABLE && payload.detail.id === props.functionDetail.id) {
+      // 🔥 Tab 切换时，重新初始化表格，确保界面刷新
+      if (isMounted.value) {
+        await initializeTable()
+      }
+    }
+  })
 })
 
 onUnmounted(() => {
@@ -1040,6 +1051,9 @@ onUnmounted(() => {
   
   if (unsubscribeDataLoaded) {
     unsubscribeDataLoaded()
+  }
+  if (unsubscribeFunctionLoaded) {
+    unsubscribeFunctionLoaded()
   }
 })
 </script>
