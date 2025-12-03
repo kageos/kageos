@@ -121,7 +121,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, nextTick, withDefaults } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick, withDefaults } from 'vue'
 import { ElInput, ElMessage, ElTag, ElIcon } from 'element-plus'
 import { ArrowDown } from '@element-plus/icons-vue'
 import FuzzySearchDialog from './FuzzySearchDialog.vue'
@@ -133,6 +133,8 @@ import { selectFuzzy } from '@/api/function'
 import { Logger } from '../../utils/logger'
 import { SelectFuzzyQueryType, isStandardColor, getStandardColorCSSVar, type StandardColorType } from '../../constants/select'
 import { convertValueToType } from '../utils/valueConverter'
+// 🔥 使用事件驱动：监听表单初始化完成事件，统一处理 OnSelectFuzzy 字段
+import { eventBus, FormEvent } from '../../../architecture/infrastructure/eventBus'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -727,25 +729,39 @@ function handleChange(value: any): void {
 // 处理聚焦（已移除，因为 Element Plus 的 remote-method 会在聚焦时自动触发）
 // 如果同时使用 handleFocus 和 remote-method，会导致重复回调
 
+// 🔥 事件监听器（用于在表单初始化完成后统一处理）
+let unsubscribeFormInitialized: (() => void) | null = null
+
 // 初始化
 onMounted(() => {
   initOptions()
   
-  // 🔥 如果有回调接口且有初始值（可能来自 URL 参数），触发一次 by_value 搜索
-  // 这包括编辑模式和详情模式
+  // 🔥 使用事件驱动：监听表单初始化完成事件
+  // 这样可以确保在表单完全初始化、formRenderer 准备好后再触发搜索
+  unsubscribeFormInitialized = eventBus.on(FormEvent.initialized, () => {
+    // 如果当前字段有 OnSelectFuzzy 回调，且有值，触发搜索获取 label
+    if (hasCallback.value && props.value?.raw !== null && props.value?.raw !== undefined && props.formRenderer) {
+      nextTick(() => {
+        if (props.formRenderer && !isSearching.value && props.value?.raw !== lastSearchedValue.value) {
+          triggerSearchIfNeeded(props.value.raw, props.formRenderer, props.mode)
+        }
+      })
+    }
+  })
+  
+  // 🔥 如果已经有值了，也尝试触发一次（处理表单已经初始化完成的情况）
   if (hasCallback.value && props.value?.raw && props.formRenderer) {
     nextTick(() => {
-      if (!isSearching.value && props.value?.raw !== lastSearchedValue.value) {
-        isSearching.value = true
-        lastSearchedValue.value = props.value.raw
-        if (props.mode === 'detail') {
-          detailDisplayValue.value = null
-        }
-        handleSearch(props.value.raw, true).finally(() => {
-          isSearching.value = false
-        })
+      if (props.formRenderer && !isSearching.value && props.value?.raw !== lastSearchedValue.value) {
+        triggerSearchIfNeeded(props.value.raw, props.formRenderer, props.mode)
       }
     })
+  }
+})
+
+onUnmounted(() => {
+  if (unsubscribeFormInitialized) {
+    unsubscribeFormInitialized()
   }
 })
 
@@ -798,29 +814,16 @@ const triggerSearchIfNeeded = (rawValue: any, formRenderer: any, mode: string) =
   return false
 }
 
+
+// 🔥 保留一个简单的 watch 来处理值变化（仅在 formRenderer 已准备好时）
 watch(
-  () => [props.value?.raw, props.formRenderer, props.mode],
-  ([newRaw, formRenderer, mode], oldValues) => {
-    // 🔥 处理首次执行时 oldValues 为 undefined 的情况
-    const [oldRaw, oldFormRenderer, oldMode] = oldValues || [undefined, undefined, undefined]
-    
-    // 🔥 如果 formRenderer 还没有准备好，等待它准备好
-    if (!formRenderer) {
-      // 🔥 如果值已经变化了，但 formRenderer 还没准备好，使用 nextTick 等待
-      if (newRaw !== null && newRaw !== undefined && newRaw !== oldRaw) {
-        nextTick(() => {
-          if (props.formRenderer) {
-            triggerSearchIfNeeded(newRaw, props.formRenderer, mode)
-          }
-        })
-      }
-      return
+  () => props.value?.raw,
+  (newRaw, oldRaw) => {
+    // 只在 formRenderer 已准备好且值真正变化时触发
+    if (props.formRenderer && newRaw !== null && newRaw !== undefined && newRaw !== oldRaw) {
+      triggerSearchIfNeeded(newRaw, props.formRenderer, props.mode)
     }
-    
-    // 🔥 触发搜索（如果条件满足）
-    triggerSearchIfNeeded(newRaw, formRenderer, mode)
-  },
-  { immediate: true } // 🔥 立即执行一次，确保在组件挂载时就能触发
+  }
 )
 </script>
 

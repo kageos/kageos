@@ -502,35 +502,9 @@ onMounted(() => {
     }
   }, { deep: false }) // 🔥 改为 shallow watch，避免深度监听导致不必要的触发
 
-  // 🔥 监听 URL 查询参数变化，更新表单字段值（用于处理链接跳转）
-  // 注意：只更新 URL 参数中的字段，保留其他字段的值
-  watch(() => route.query, (newQuery: any, oldQuery: any) => {
-    // 只在查询参数真正变化时更新
-    const newQueryStr = JSON.stringify(newQuery)
-    const oldQueryStr = JSON.stringify(oldQuery)
-    if (newQueryStr !== oldQueryStr && requestFields.value.length > 0) {
-      // 🔥 使用 nextTick 确保在 functionDetail watch 之后执行，避免被覆盖
-      nextTick(() => {
-        // 🔥 只更新 URL 参数中的字段，保留其他字段的值
-        const initialData = formInitialData.value
-        if (Object.keys(initialData).length > 0) {
-          // 只更新 URL 参数中存在的字段
-          Object.keys(initialData).forEach(fieldCode => {
-            const field = requestFields.value.find((f: FieldConfig) => f.code === fieldCode)
-            if (field) {
-              const rawValue = initialData[fieldCode]
-              const fieldValue: FieldValue = {
-                raw: rawValue,
-                display: typeof rawValue === 'object' ? JSON.stringify(rawValue) : String(rawValue),
-                meta: {}
-              }
-              applicationService.updateFieldValue(fieldCode, fieldValue)
-            }
-          })
-        }
-      })
-    }
-  }, { deep: true })
+  // 🔥 移除 watch route.query，改为在表单初始化时统一处理 URL 参数
+  // 这样可以避免时序问题，确保表单完全初始化后再处理 URL 参数
+  // URL 参数会在 initializeForm 时通过 initialData 传递，FormDomainService 会正确处理
 
 onUnmounted(() => {
   if (unsubscribeFunctionLoaded) {

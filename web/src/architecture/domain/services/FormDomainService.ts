@@ -93,9 +93,13 @@ export class FormDomainService {
       if (initialData && initialData.hasOwnProperty(fieldCode)) {
         // 优先使用 initialData（URL 参数）
         const rawValue = initialData[fieldCode]
+        // 🔥 对于有 OnSelectFuzzy 回调的字段，display 暂时设置为空字符串
+        // 让 SelectWidget 的 watch 自动调用 by_value 来获取 label
+        // 这样可以避免显示 raw 值（如 4）而不是 label
+        const hasOnSelectFuzzy = field.callbacks?.includes('OnSelectFuzzy') || false
         newData.set(fieldCode, {
           raw: rawValue,
-          display: typeof rawValue === 'object' ? JSON.stringify(rawValue) : String(rawValue),
+          display: hasOnSelectFuzzy ? '' : (typeof rawValue === 'object' ? JSON.stringify(rawValue) : String(rawValue)),
           meta: {}
         })
       } else if (state.data && state.data.has(fieldCode)) {
