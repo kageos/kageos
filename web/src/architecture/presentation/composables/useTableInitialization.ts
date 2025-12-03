@@ -10,13 +10,14 @@
 
 import { ref, watch, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
-import type { FunctionDetail } from '../../../domain/types'
-import type { TableDomainService, SortItem } from '../../../domain/services/TableDomainService'
-import type { TableApplicationService } from '../../../application/services/TableApplicationService'
-import type { IStateManager } from '../../../domain/interfaces/IStateManager'
-import type { TableState } from '../../../domain/services/TableDomainService'
+import type { FunctionDetail } from '../../domain/types'
+import type { TableDomainService, SortItem } from '../../domain/services/TableDomainService'
+import type { TableApplicationService } from '../../application/services/TableApplicationService'
+import type { IStateManager } from '../../domain/interfaces/IStateManager'
+import type { TableState } from '../../domain/services/TableDomainService'
 import { extractWorkspacePath } from '@/utils/route'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
+import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
 
 export interface UseTableInitializationOptions {
   functionDetail: FunctionDetail | { value: FunctionDetail }
@@ -211,65 +212,66 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
   }
 
   /**
-   * 监听 URL 变化
+   * 监听 URL 变化（用户操作浏览器前进/后退时）
+   * 🔥 阶段4：改为监听 RouteEvent.queryChanged 事件，而不是直接 watch route.query
+   * 这样可以避免程序触发的路由更新导致循环
    */
-  watch(() => route.query, async (newQuery: any, oldQuery: any) => {
-    const functionDetailValue = 'value' in functionDetail ? functionDetail.value : functionDetail
-    const functionId = functionDetailValue?.id
-    const router = functionDetailValue?.router
+  const setupQueryWatch = () => {
+    eventBus.on(RouteEvent.queryChanged, async (payload: { query: any, oldQuery: any, source: string }) => {
+      // 🔥 只处理用户操作（浏览器前进/后退）或外部变化，不处理程序触发的更新
+      if (payload.source === 'router-change') {
+        const functionDetailValue = 'value' in functionDetail ? functionDetail.value : functionDetail
+        const router = functionDetailValue?.router
 
-    // 🔥 检查当前函数类型，如果是 form 函数，不应该处理 URL 变化
-    // 这可以防止 form 函数的 URL 被添加 table 参数
-    if (functionDetailValue?.template_type !== TEMPLATE_TYPE.TABLE) {
-      return
-    }
+        // 🔥 检查当前函数类型，如果是 form 函数，不应该处理 URL 变化
+        if (functionDetailValue?.template_type !== TEMPLATE_TYPE.TABLE) {
+          return
+        }
 
-    // 检查当前路由是否匹配当前函数的 router
-    // 如果路由已经切换到其他函数，这个 watch 不应该处理
-    const currentPath = extractWorkspacePath(route.path)
-    // 🔥 统一路径格式：移除前导斜杠，确保格式一致
-    const expectedPath = (router || '').replace(/^\/+/, '')
-    const pathMatches = currentPath === expectedPath || currentPath.startsWith(expectedPath + '?')
+        // 检查当前路由是否匹配当前函数的 router
+        const currentPath = extractWorkspacePath(route.path)
+        const expectedPath = (router || '').replace(/^\/+/, '')
+        const pathMatches = currentPath === expectedPath || currentPath.startsWith(expectedPath + '?')
 
-    // 🔥 如果路由不匹配当前函数，直接返回（可能是其他函数的路由变化）
-    if (!pathMatches) {
-      return
-    }
+        if (!pathMatches) {
+          return
+        }
 
-    // 🔥 检查组件是否还在挂载状态
-    if (isMounted && !isMounted.value) {
-      return
-    }
+        // 🔥 检查组件是否还在挂载状态
+        if (isMounted && !isMounted.value) {
+          return
+        }
 
-    if (isSyncingToURL.value || isRestoringFromURL.value || isInitializing.value) {
-      return
-    }
+        if (isSyncingToURL.value || isRestoringFromURL.value || isInitializing.value) {
+          return
+        }
 
-    isRestoringFromURL.value = true
-    try {
-      restoreFromURL()
+        isRestoringFromURL.value = true
+        try {
+          restoreFromURL()
 
-      // 🔥 再次检查组件是否还在挂载状态
-      if (isMounted && !isMounted.value) {
-        return
+          if (isMounted && !isMounted.value) {
+            return
+          }
+
+          const currentPathAfterRestore = extractWorkspacePath(route.path)
+          const pathMatchesAfterRestore = currentPathAfterRestore === expectedPath || currentPathAfterRestore.startsWith(expectedPath + '?')
+          if (!pathMatchesAfterRestore) {
+            return
+          }
+
+          await loadTableData()
+        } finally {
+          isRestoringFromURL.value = false
+        }
       }
-
-      // 再次检查路由是否匹配（可能在异步操作期间路由又变化了）
-      const currentPathAfterRestore = extractWorkspacePath(route.path)
-      const pathMatchesAfterRestore = currentPathAfterRestore === expectedPath || currentPathAfterRestore.startsWith(expectedPath + '?')
-      if (!pathMatchesAfterRestore) {
-        return
-      }
-
-      await loadTableData()
-    } finally {
-      isRestoringFromURL.value = false
-    }
-  }, { deep: true })
+    })
+  }
 
   return {
     initializeTable,
     isInitializing,
-    restoreFromURL
+    restoreFromURL,
+    setupQueryWatch  // 🔥 阶段4：导出 setupQueryWatch，需要在组件中调用
   }
 }

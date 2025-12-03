@@ -298,18 +298,16 @@ export function useWorkspaceRouting(options: {
   }
 
   // 设置路由监听
+  // 🔥 阶段4：改为监听 RouteEvent.routeChanged 事件，而不是直接 watch route
+  // 这样可以避免程序触发的路由更新导致循环，并且不需要防抖
   const setupRouteWatch = () => {
-    let routeWatchTimer: ReturnType<typeof setTimeout> | null = null
-    // 🔥 同时监听 path 和 query，确保 Tab 切换时即使路径相同也能触发更新
-    watch(() => [route.path, route.query], async () => {
-      // 防抖：避免频繁调用
-      if (routeWatchTimer) {
-        clearTimeout(routeWatchTimer)
-      }
-      routeWatchTimer = setTimeout(() => {
+    eventBus.on(RouteEvent.routeChanged, async (payload: { path: string, query: any, source: string }) => {
+      // 🔥 只处理用户操作（浏览器前进/后退）或外部变化，不处理程序触发的更新
+      // 注意：程序触发的更新不会发出事件（RouteManager.isUpdating 为 true 时）
+      if (payload.source === 'router-change') {
         syncRouteToTab()
-      }, 50) // 50ms 防抖，足够快但避免频繁调用
-    }, { immediate: false })
+      }
+    })
   }
 
   return {

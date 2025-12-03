@@ -984,7 +984,7 @@ const hasDeleteCallback = computed(() => {
 let unsubscribeDataLoaded: (() => void) | null = null
 
 // 🔥 使用 composable 统一管理初始化逻辑
-const { initializeTable } = useTableInitialization({
+const { initializeTable, setupQueryWatch } = useTableInitialization({
   functionDetail: computed(() => props.functionDetail),
   domainService,
   applicationService,
@@ -1004,6 +1004,9 @@ onMounted(async () => {
   
   // 🔥 设置挂载状态
   isMounted.value = true
+  
+  // 🔥 阶段4：设置 URL 变化监听（监听 RouteEvent.queryChanged）
+  setupQueryWatch()
   
   // 初始化表格
   await initializeTable()
