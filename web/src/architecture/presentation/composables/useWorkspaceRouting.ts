@@ -68,15 +68,18 @@ export function useWorkspaceRouting(options: {
       if (currentTabId === targetTab.id) {
         // 确保 Tab 已经激活，再保存路由状态
         // 通过事件通知 RouteManager 保存路由状态
+        // 🔥 使用当前路由的 path 和 query，确保保存的是正确的路由状态
+        const currentPath = route.path
+        const currentQuery = { ...route.query }
         eventBus.emit(RouteEvent.updateRequested, {
-          path: route.path,
-          query: route.query,
+          path: currentPath,
+          query: currentQuery,
           replace: false, // 不实际更新路由，只是触发保存
           preserveParams: {
             state: true
           },
           source: 'sync-route-to-tab-save-state',
-          meta: { tabId: targetTab.id } // 传递 Tab ID，确保保存到正确的 Tab
+          meta: { tabId: targetTab.id, path: currentPath, query: currentQuery } // 🔥 传递 Tab ID 和路由状态，确保保存正确
         } as any)
       }
       

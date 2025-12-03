@@ -228,12 +228,24 @@ export class RouteManager {
     // 🔥 sync-route-to-tab-save-state 是特殊请求，只用于保存 Tab 路由状态，不实际更新路由
     if ((request as any).source === 'sync-route-to-tab-save-state') {
       const tabId = (request as any).meta?.tabId
+      const savedPath = (request as any).meta?.path
+      const savedQuery = (request as any).meta?.query
       if (tabId) {
-        this.tabStateManager.saveTabRouteState(tabId, {
-          path: this.route.path,
-          query: { ...this.route.query }
+        // 🔥 使用传递过来的 path 和 query，而不是当前路由的 path 和 query
+        // 因为当前路由可能已经更新了（如果用户快速切换）
+        const routeState = {
+          path: savedPath || this.route.path,
+          query: savedQuery || { ...this.route.query }
+        }
+        this.tabStateManager.saveTabRouteState(tabId, routeState)
+        this.log('保存 Tab 路由状态（sync-route-to-tab）', { 
+          tabId, 
+          route: routeState,
+          savedPath,
+          savedQuery,
+          currentPath: this.route.path,
+          currentQuery: this.route.query
         })
-        this.log('保存 Tab 路由状态（sync-route-to-tab）', { tabId, route: { path: this.route.path, query: this.route.query } })
       }
       return
     }
