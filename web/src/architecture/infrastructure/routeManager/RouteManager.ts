@@ -158,6 +158,14 @@ export class RouteManager {
     const currentRoute = this.getCurrentRoute()
     const currentTabId = this.getCurrentTabId()
     
+    this.log('保存旧 Tab 路由状态 - 当前状态', { 
+      oldTabId, 
+      newTabId, 
+      currentTabId, 
+      currentPath: currentRoute.path,
+      currentQuery: currentRoute.query
+    })
+    
     // 🔥 如果当前 Tab ID 已经是 newTabId，说明 activateTab 已经更新了状态
     // 此时，我们需要使用当前路由作为 oldTabId 的状态（因为路由还没有更新）
     // 但是，如果路由已经更新了，我们需要使用当前路由
