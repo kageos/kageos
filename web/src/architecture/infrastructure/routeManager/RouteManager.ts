@@ -256,6 +256,7 @@ export class RouteManager {
       
       // 3. 🔥 更新当前 Tab 的路由状态
       // Tab 切换时，使用 request.meta.newTabId（如果存在）来保存新 Tab 的路由状态
+      // workspace-node-click 时，等待 syncRouteToTab 完成后再保存（通过 RouteEvent.updateCompleted 事件）
       // 否则，使用 getCurrentTabId() 获取当前 Tab ID
       if (request.source === 'tab-switch') {
         // Tab 切换时，使用 request.meta.newTabId 保存新 Tab 的路由状态
@@ -271,6 +272,11 @@ export class RouteManager {
           })
           this.log('更新 Tab 路由状态（Tab 切换）', { tabId: newTabId, route: { path: targetPath, query: newQuery } })
         }
+      } else if (request.source === 'workspace-node-click') {
+        // 🔥 workspace-node-click 时，不立即保存 Tab 路由状态
+        // 因为此时 Tab 可能还没有激活，getCurrentTabId() 返回的是旧 Tab ID
+        // 路由状态会在 syncRouteToTab 完成后，通过 RouteEvent.updateCompleted 事件保存
+        this.log('workspace-node-click：等待 syncRouteToTab 完成后再保存 Tab 路由状态')
       } else {
         // 用户操作、link 跳转等需要更新 Tab 的路由状态
         const currentTabId = this.getCurrentTabId()
