@@ -231,9 +231,18 @@ export class RouteManager {
       }
     } else {
       this.log('Tab 没有保存的路由状态，使用默认路由', { tabId: newTabId })
-      // 🔥 即使没有保存的状态，也需要传递 newTabId，用于在路由更新完成后保存新 Tab 的路由状态
-      // 但是，如果没有保存的状态，我们需要从 targetTab 获取默认路径
-      // 这里暂时不处理，因为 useWorkspaceTabs 会发出另一个路由更新请求
+      // 🔥 即使没有保存的状态，也需要发出路由更新请求（使用默认路径）
+      // 这样，useWorkspaceTabs 就不需要再发出 tab-click 请求了
+      const defaultPath = `/workspace${newTabId}`
+      this.requestUpdate({
+        path: defaultPath,
+        query: {},
+        source: 'tab-switch',
+        preserveParams: {
+          linkNavigation: false
+        },
+        meta: { newTabId }
+      } as RouteUpdateRequest & { meta?: { newTabId: string } })
     }
   }
   
