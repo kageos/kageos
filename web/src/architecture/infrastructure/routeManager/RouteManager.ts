@@ -131,9 +131,18 @@ export class RouteManager {
    * 监听路由更新请求
    */
   private setupUpdateListener(): void {
-    this.eventBus.on(RouteEvent.updateRequested, async (request: RouteUpdateRequest) => {
-      await this.handleUpdateRequest(request)
-    })
+    // 🔥 先取消注册旧的监听器（避免热更新时重复注册）
+    this.eventBus.off(RouteEvent.updateRequested, this.handleUpdateRequest)
+    // 注册新的监听器
+    this.eventBus.on(RouteEvent.updateRequested, this.handleUpdateRequest.bind(this))
+  }
+  
+  /**
+   * 清理监听器
+   */
+  destroy(): void {
+    this.eventBus.off(RouteEvent.updateRequested, this.handleUpdateRequest)
+    this.log('RouteManager 已销毁')
   }
   
   /**
