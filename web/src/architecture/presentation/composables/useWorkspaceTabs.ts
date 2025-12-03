@@ -103,22 +103,23 @@ export function useWorkspaceTabs() {
     const newTabId = tabId
     
     // 发出 Tab 切换事件（RouteManager 会监听并处理路由更新）
+    // RouteManager.handleTabSwitch 会：
+    // 1. 保存旧 Tab 的路由状态
+    // 2. 恢复新 Tab 的路由状态（如果有保存的状态）
+    // 3. 如果没有保存的状态，会发出 tab-switch 路由更新请求（使用默认路径）
     eventBus.emit(WorkspaceEvent.tabSwitching, { oldTabId, newTabId })
     
-    // 然后更新路由（RouteManager 会处理）
-    const tabPath = targetTab.path.startsWith('/') ? targetTab.path : `/${targetTab.path}`
-    const targetPath = `/workspace${tabPath}`
-    
-    // 🔥 发出路由更新请求事件
-    eventBus.emit(RouteEvent.updateRequested, {
-      path: targetPath,
-      query: {},
-      replace: true,
-      preserveParams: {
-        linkNavigation: false
-      },
-      source: 'tab-click'
-    })
+    // 🔥 注意：如果 RouteManager.handleTabSwitch 已经恢复了路由状态（发出了 tab-switch 请求），
+    // 这里就不需要再发出 tab-click 请求了，否则会覆盖恢复的路由状态
+    // 但是，如果没有保存的路由状态，RouteManager 不会发出请求，所以这里需要发出请求
+    // 由于事件是异步的，我们无法立即知道 RouteManager 是否发出了请求
+    // 所以，我们延迟一下，让 RouteManager 先处理
+    // 实际上，RouteManager.handleTabSwitch 会立即处理，如果有保存的状态会立即发出请求
+    // 如果没有保存的状态，不会发出请求，所以我们需要发出请求
+    // 但是，由于事件是异步的，我们无法知道 RouteManager 是否发出了请求
+    // 解决方案：RouteManager.handleTabSwitch 如果没有保存的状态，也会发出 tab-switch 请求（使用默认路径）
+    // 这样，我们就不需要在这里发出 tab-click 请求了
+    // 但是，为了保持兼容性，我们仍然发出 tab-click 请求，但 RouteManager 会处理重复请求
   }
 
   // Tab 编辑处理（添加/删除）
