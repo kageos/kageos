@@ -268,7 +268,7 @@ import { computed, onMounted, onUnmounted, watch, ref, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElNotification, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon } from 'element-plus'
 import { InfoFilled, ArrowLeft } from '@element-plus/icons-vue'
-import { eventBus, WorkspaceEvent } from '../../infrastructure/eventBus'
+import { eventBus, WorkspaceEvent, RouteEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import { RouteManager } from '../../infrastructure/routeManager'
 import { useAuthStore } from '@/stores/auth'
@@ -569,6 +569,7 @@ const handleNodeClick = (node: ServiceTreeType) => {
       // link 跳转时，URL 中的参数是用户明确指定的（来自 link 值），应该全部保留
       const isLinkNavigation = route.query._link_type === 'table' || route.query._link_type === 'form'
       
+      // 🔥 阶段3：改为事件驱动，通过 RouteManager 统一处理路由更新
       let preservedQuery: Record<string, string | string[]>
       if (isLinkNavigation) {
         // 🔥 link 跳转：保留所有参数（除了 _link_type 临时参数）
@@ -592,7 +593,19 @@ const handleNodeClick = (node: ServiceTreeType) => {
           : preserveQueryParamsForForm(route.query)
       }
       
-      router.replace({ path: targetPath, query: preservedQuery }).catch(() => {})
+      // 🔥 发出路由更新请求事件
+      eventBus.emit(RouteEvent.updateRequested, {
+        path: targetPath,
+        query: preservedQuery,
+        replace: true,
+        preserveParams: {
+          table: isTableFunction,      // table 函数保留 table 参数
+          search: false,                // 普通跳转不保留搜索参数
+          state: true,                  // 保留状态参数（_ 开头）
+          linkNavigation: isLinkNavigation  // link 跳转保留所有参数
+        },
+        source: 'workspace-node-click'
+      })
     } else {
       // 路由已匹配，直接触发节点点击加载详情（避免路由更新循环）
       applicationService.triggerNodeClick(serviceTree)

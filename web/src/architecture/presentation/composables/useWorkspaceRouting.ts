@@ -12,6 +12,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { extractWorkspacePath } from '@/utils/route'
 import { preserveQueryParamsForTable, preserveQueryParamsForForm } from '@/utils/queryParams'
 import { serviceFactory } from '../../infrastructure/factories'
+import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
 import type { ServiceTree, App } from '../../domain/services/WorkspaceDomainService'
 import type { App as AppType, ServiceTree as ServiceTreeType } from '@/types'
 
@@ -211,16 +212,31 @@ export function useWorkspaceRouting(options: {
           // 🔥 处理 _link_type 参数（来自 link 跳转）
           // link 跳转时，URL 中的参数是用户明确指定的（来自 link 值），应该全部保留
           // 只清除 _link_type 临时参数，其他参数都保留
+          // 🔥 阶段3：改为事件驱动，通过 RouteManager 统一处理路由更新
           const linkType = route.query._link_type as string
           if (linkType === 'table' || linkType === 'form') {
-            const preservedQuery = { ...route.query }
-            delete preservedQuery._link_type  // 只清除临时参数，保留其他所有参数
+            const preservedQuery: Record<string, string | string[]> = {}
+            Object.keys(route.query).forEach(key => {
+              if (key !== '_link_type') {
+                const value = route.query[key]
+                if (value !== null && value !== undefined) {
+                  preservedQuery[key] = Array.isArray(value) 
+                    ? value.filter(v => v !== null).map(v => String(v))
+                    : String(value)
+                }
+              }
+            })
             
-            // 更新路由，清除 _link_type 参数
-            router.replace({ 
-              path: route.path, 
-              query: preservedQuery 
-            }).catch(() => {})
+            // 🔥 发出路由更新请求事件
+            eventBus.emit(RouteEvent.updateRequested, {
+              path: route.path,
+              query: preservedQuery,
+              replace: true,
+              preserveParams: {
+                linkNavigation: false  // 清除 _link_type 后，不再是 link 跳转
+              },
+              source: 'workspace-routing-clear-link-type'
+            })
           }
           
           // 检查 Tab 是否存在

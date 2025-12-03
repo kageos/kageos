@@ -203,11 +203,29 @@ export function useWorkspaceDetail(options: {
   // 处理详情抽屉关闭（移除 URL 参数）
   const handleDetailDrawerClose = () => {
     // 如果当前 URL 有 _tab=detail 参数，移除它
+    // 🔥 阶段3：改为事件驱动，通过 RouteManager 统一处理路由更新
     if (route.query._tab === 'detail') {
-      const query = { ...route.query }
-      delete query._tab
-      delete query._id
-      router.replace({ query }).catch(() => {})
+      const query: Record<string, string | string[]> = {}
+      Object.keys(route.query).forEach(key => {
+        if (key !== '_tab' && key !== '_id') {
+          const value = route.query[key]
+          if (value !== null && value !== undefined) {
+            query[key] = Array.isArray(value) 
+              ? value.filter(v => v !== null).map(v => String(v))
+              : String(value)
+          }
+        }
+      })
+      
+      // 🔥 发出路由更新请求事件
+      eventBus.emit(RouteEvent.updateRequested, {
+        query,
+        replace: true,
+        preserveParams: {
+          state: true  // 保留其他状态参数
+        },
+        source: 'detail-drawer-close'
+      })
     }
   }
 
@@ -222,11 +240,33 @@ export function useWorkspaceDetail(options: {
     detailFields.value = (currentDetail.response || []) as FieldConfig[]
     
     // 更新 URL 为 ?_tab=detail&_id=xxx（用于分享）
+    // 🔥 阶段3：改为事件驱动，通过 RouteManager 统一处理路由更新
     if (options.currentFunction()) {
       const id = row.id || row._id
       if (id) {
-        const query = { ...route.query, _tab: 'detail', _id: String(id) }
-        router.replace({ query }).catch(() => {})
+        const query: Record<string, string | string[]> = {}
+        // 保留现有参数
+        Object.keys(route.query).forEach(key => {
+          const value = route.query[key]
+          if (value !== null && value !== undefined) {
+            query[key] = Array.isArray(value) 
+              ? value.filter(v => v !== null).map(v => String(v))
+              : String(value)
+          }
+        })
+        // 添加详情参数
+        query._tab = 'detail'
+        query._id = String(id)
+        
+        // 🔥 发出路由更新请求事件
+        eventBus.emit(RouteEvent.updateRequested, {
+          query,
+          replace: true,
+          preserveParams: {
+            state: true  // 保留状态参数
+          },
+          source: 'detail-drawer-open'
+        })
       }
     }
     
