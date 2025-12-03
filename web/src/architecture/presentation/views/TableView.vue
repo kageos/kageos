@@ -238,7 +238,7 @@ import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElIcon } from 'element-plus'
 import { Search, Refresh, Delete, Plus, ArrowUp, ArrowDown, More, Right } from '@element-plus/icons-vue'
-import { eventBus, TableEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
+import { eventBus, TableEvent, WorkspaceEvent, RouteEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import WidgetComponent from '../../presentation/widgets/WidgetComponent.vue'
 import SearchInput from '@/components/SearchInput.vue'
@@ -683,6 +683,8 @@ const preserveExistingParams = (requestFieldCodes: Set<string>): Record<string, 
  * 同步状态到 URL
  * 🔥 重要：URL 参数必须和接口请求参数完全对齐
  * URL 中的参数 = 接口请求的参数（包括分页、排序、搜索等）
+ * 
+ * 🔥 阶段2：改为事件驱动，通过 RouteManager 统一处理路由更新
  */
 const syncToURL = (): void => {
   // 🔥 检查当前函数类型，如果是 form 函数，不应该调用 syncToURL
@@ -705,13 +707,20 @@ const syncToURL = (): void => {
   const newQuery = preserveExistingParams(requestFieldCodes)
   Object.assign(newQuery, query)
   
-  // 🔥 确保路由更新：如果路径相同，使用 replace 更新 query；如果路径不同，使用 replace 更新 path 和 query
-  // 这样可以确保 URL 刷新，即使路径相同也能触发路由变化
-  const currentPath = route.path
-  router.replace({ 
-    path: currentPath, 
-    query: newQuery 
-  }).catch(() => {})
+  // 🔥 阶段2：改为发出事件，通过 RouteManager 统一处理路由更新
+  // 检查是否是 link 跳转（通过 _link_type 参数）
+  const isLinkNavigation = route.query._link_type === 'table' || route.query._link_type === 'form'
+  
+  eventBus.emit(RouteEvent.updateRequested, {
+    query: newQuery,
+    preserveParams: {
+      table: true,        // 保留 table 参数（page, page_size, sorts）
+      search: true,       // 保留搜索参数（eq, like, in 等）
+      state: true,        // 保留状态参数（_ 开头）
+      linkNavigation: isLinkNavigation  // 如果是 link 跳转，保留所有参数
+    },
+    source: 'table-sync'
+  })
 }
 
 // 🔥 restoreFromURL 已移至 useTableInitialization composable
