@@ -351,8 +351,21 @@ export function useWorkspaceDetail(options: {
   }
 
   // 设置 URL 参数监听（用于分享链接）
+  // 🔥 阶段4：改为监听 RouteEvent.queryChanged 事件，而不是直接 watch route.query
+  // 这样可以避免程序触发的路由更新导致循环
   const setupUrlWatch = () => {
-    watch([() => route.query._tab, () => route.query._id, options.currentFunctionDetail], async ([tab, id, detail]: [any, any, any]) => {
+    eventBus.on(RouteEvent.queryChanged, async (payload: { query: any, oldQuery: any, source: string }) => {
+      // 🔥 只处理用户操作（浏览器前进/后退）或外部变化，不处理程序触发的更新
+      if (payload.source === 'router-change') {
+        const tab = payload.query._tab
+        const id = payload.query._id
+        const detail = options.currentFunctionDetail()
+        
+        // 使用 nextTick 确保 detail 已更新
+        await nextTick()
+        
+        // 继续原有的逻辑（从 watch 中复制）
+        if (tab === 'detail' && id && detail && detail.template_type === TEMPLATE_TYPE.TABLE) {
       if (tab === 'detail' && id && detail && detail.template_type === TEMPLATE_TYPE.TABLE) {
         // 确保函数详情已加载
         if (!options.currentFunction()) {
