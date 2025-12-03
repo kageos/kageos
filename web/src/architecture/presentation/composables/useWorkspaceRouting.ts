@@ -60,12 +60,20 @@ export function useWorkspaceRouting(options: {
         isSyncingRouteToTab = false
       }
       
-      // 检查函数详情是否已加载（刷新后切换 Tab 时可能需要加载）
+      // 🔥 Tab 切换时，即使 Tab 已经激活，也需要确保函数详情已加载
+      // 因为 Tab 切换时，路由已经更新了，函数界面需要刷新
       if (targetTab.node && targetTab.node.type === 'function') {
         const detail = stateManager.getFunctionDetail(targetTab.node)
         if (!detail) {
           // 使用 handleNodeClick 加载函数详情
           applicationService.handleNodeClick(targetTab.node)
+        } else {
+          // 🔥 函数详情已加载，但 Tab 切换时路由已更新，需要触发函数界面刷新
+          // 发出函数加载完成事件，让 FormView/TableView 重新初始化
+          eventBus.emit(WorkspaceEvent.functionLoaded, {
+            function: targetTab.node,
+            detail: detail
+          })
         }
       }
     } else {
@@ -311,12 +319,12 @@ export function useWorkspaceRouting(options: {
     })
     
     // 🔥 监听路由更新完成事件（程序触发的更新）
-    // 当来源是 workspace-node-click 时，需要主动触发 syncRouteToTab 来创建/激活 Tab
+    // 当来源是 workspace-node-click 或 tab-switch 时，需要主动触发 syncRouteToTab
     // 因为程序触发的路由更新不会发出 routeChanged 事件
     eventBus.on(RouteEvent.updateCompleted, async (payload: { path: string, query: any, source: string }) => {
-      // 只处理 workspace-node-click 来源的更新
-      // 因为这种更新需要创建/激活 Tab，但不会触发 routeChanged 事件
-      if (payload.source === 'workspace-node-click') {
+      // 处理 workspace-node-click：需要创建/激活 Tab
+      // 处理 tab-switch：需要刷新函数界面（确保函数详情已加载）
+      if (payload.source === 'workspace-node-click' || payload.source === 'tab-switch') {
         // 使用 nextTick 确保路由已经更新完成
         await nextTick()
         syncRouteToTab()
