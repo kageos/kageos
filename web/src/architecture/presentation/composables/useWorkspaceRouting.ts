@@ -301,10 +301,24 @@ export function useWorkspaceRouting(options: {
   // 🔥 阶段4：改为监听 RouteEvent.routeChanged 事件，而不是直接 watch route
   // 这样可以避免程序触发的路由更新导致循环，并且不需要防抖
   const setupRouteWatch = () => {
+    // 监听路由变化（用户操作：浏览器前进/后退）
     eventBus.on(RouteEvent.routeChanged, async (payload: { path: string, query: any, source: string }) => {
       // 🔥 只处理用户操作（浏览器前进/后退）或外部变化，不处理程序触发的更新
       // 注意：程序触发的更新不会发出事件（RouteManager.isUpdating 为 true 时）
       if (payload.source === 'router-change') {
+        syncRouteToTab()
+      }
+    })
+    
+    // 🔥 监听路由更新完成事件（程序触发的更新）
+    // 当来源是 workspace-node-click 时，需要主动触发 syncRouteToTab 来创建/激活 Tab
+    // 因为程序触发的路由更新不会发出 routeChanged 事件
+    eventBus.on(RouteEvent.updateCompleted, async (payload: { path: string, query: any, source: string }) => {
+      // 只处理 workspace-node-click 来源的更新
+      // 因为这种更新需要创建/激活 Tab，但不会触发 routeChanged 事件
+      if (payload.source === 'workspace-node-click') {
+        // 使用 nextTick 确保路由已经更新完成
+        await nextTick()
         syncRouteToTab()
       }
     })
