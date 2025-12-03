@@ -13,6 +13,7 @@ import { extractWorkspacePath } from '@/utils/route'
 import { preserveQueryParamsForTable, preserveQueryParamsForForm } from '@/utils/queryParams'
 import { serviceFactory } from '../../infrastructure/factories'
 import { eventBus, RouteEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
+import { Logger } from '@/core/utils/logger'
 import type { ServiceTree, App } from '../../domain/services/WorkspaceDomainService'
 import type { App as AppType, ServiceTree as ServiceTreeType } from '@/types'
 
