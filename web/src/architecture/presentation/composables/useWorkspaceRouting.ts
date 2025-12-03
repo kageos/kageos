@@ -319,12 +319,16 @@ export function useWorkspaceRouting(options: {
     })
     
     // 🔥 监听路由更新完成事件（程序触发的更新）
-    // 当来源是 workspace-node-click 或 tab-switch 时，需要主动触发 syncRouteToTab
+    // 当来源是 workspace-node-click 或 tab 切换相关时，需要主动触发 syncRouteToTab
     // 因为程序触发的路由更新不会发出 routeChanged 事件
     eventBus.on(RouteEvent.updateCompleted, async (payload: { path: string, query: any, source: string }) => {
       // 处理 workspace-node-click：需要创建/激活 Tab
-      // 处理 tab-switch：需要刷新函数界面（确保函数详情已加载）
-      if (payload.source === 'workspace-node-click' || payload.source === 'tab-switch') {
+      // 处理 tab 切换相关：需要刷新函数界面（确保函数详情已加载）
+      // 注意：tab-switch 是 RouteManager.handleTabSwitch 发出的，tab-switch-activeTabId 和 tab-click 是 useWorkspaceTabs 发出的
+      if (payload.source === 'workspace-node-click' || 
+          payload.source === 'tab-switch' || 
+          payload.source === 'tab-switch-activeTabId' || 
+          payload.source === 'tab-click') {
         // 使用 nextTick 确保路由已经更新完成
         await nextTick()
         syncRouteToTab()
