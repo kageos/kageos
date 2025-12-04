@@ -59,7 +59,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, watch, ref, onUnmounted } from 'vue'
 import { ElAvatar, ElMessage } from 'element-plus'
 import type { UserInfo } from '@/types'
 import { formatUserDisplayName } from '@/utils/userInfo'
@@ -91,20 +91,68 @@ const props = withDefaults(defineProps<Props>(), {
 
 const userInfoStore = useUserInfoStore()
 
-// 🔥 用户信息（从 props 或 store 中获取）
-const actualUserInfo = computed(() => {
+// 🔥 使用 ref 存储用户信息，确保响应式更新
+// 问题：Vue 无法追踪 Map 内部的变化，所以使用 ref 来存储用户信息
+const cachedUserInfo = ref<UserInfo | null>(null)
+
+// 🔥 更新缓存的用户信息
+const updateCachedUserInfo = () => {
   if (props.userInfo) {
-    return props.userInfo
+    cachedUserInfo.value = props.userInfo
+    return
   }
   if (props.username && props.userInfoMap && props.userInfoMap.has(props.username)) {
-    return props.userInfoMap.get(props.username) || null
+    cachedUserInfo.value = props.userInfoMap.get(props.username) || null
+    return
   }
-  return null
+  cachedUserInfo.value = null
+}
+
+// 🔥 用户信息（从缓存的 ref 中获取）
+const actualUserInfo = computed(() => {
+  return cachedUserInfo.value
 })
+
+// 🔥 监听 userInfo 和 username 变化，更新缓存的用户信息
+watch([() => props.userInfo, () => props.username], () => {
+  updateCachedUserInfo()
+}, { immediate: true })
+
+// 🔥 监听 userInfoMap 的变化（通过轮询检查 Map 内容）
+// 注意：Vue 无法直接追踪 Map 内部的变化，所以使用轮询来检查
+// 这是一个 workaround，但性能影响很小（只在有 username 且没有用户信息时检查）
+let mapCheckInterval: number | null = null
+watch(() => [props.username, props.userInfoMap], ([newUsername, newUserInfoMap]) => {
+  // 清除旧的定时器
+  if (mapCheckInterval !== null) {
+    clearInterval(mapCheckInterval)
+    mapCheckInterval = null
+  }
+  
+  // 立即检查一次
+  updateCachedUserInfo()
+  
+  // 如果还没有用户信息，且 userInfoMap 存在，设置定时器定期检查
+  // 最多检查 10 次，每次 200ms（总共 2 秒）
+  if (newUsername && newUserInfoMap && !cachedUserInfo.value) {
+    let checkCount = 0
+    mapCheckInterval = window.setInterval(() => {
+      checkCount++
+      updateCachedUserInfo()
+      // 如果已经获取到用户信息，或者检查次数达到上限，停止检查
+      if (cachedUserInfo.value || checkCount >= 10) {
+        if (mapCheckInterval !== null) {
+          clearInterval(mapCheckInterval)
+          mapCheckInterval = null
+        }
+      }
+    }, 200)
+  }
+}, { immediate: true })
 
 // 🔥 监听 username 变化，自动加载用户信息
 watch(() => props.username, async (newUsername) => {
-  if (newUsername && !actualUserInfo.value) {
+  if (newUsername && !cachedUserInfo.value) {
     // 如果 userInfoMap 中没有，尝试从 store 加载
     if (!props.userInfoMap || !props.userInfoMap.has(newUsername)) {
       try {
@@ -114,6 +162,8 @@ watch(() => props.username, async (newUsername) => {
           if (props.userInfoMap) {
             props.userInfoMap.set(newUsername, users[0])
           }
+          // 🔥 手动更新缓存
+          cachedUserInfo.value = users[0]
         }
       } catch (error) {
         console.error('[UserDisplay] 加载用户信息失败', error)
@@ -121,6 +171,14 @@ watch(() => props.username, async (newUsername) => {
     }
   }
 }, { immediate: true })
+
+// 🔥 组件卸载时清除定时器
+onUnmounted(() => {
+  if (mapCheckInterval !== null) {
+    clearInterval(mapCheckInterval)
+    mapCheckInterval = null
+  }
+})
 
 // 计算头像大小
 const avatarSize = computed(() => {
