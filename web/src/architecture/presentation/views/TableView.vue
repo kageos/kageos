@@ -734,6 +734,11 @@ const preserveExistingParams = (requestFieldCodes: Set<string>): Record<string, 
   // link 跳转时，URL 中的参数是用户明确指定的（来自 link 值），应该全部保留
   const isLinkNavigation = route.query._link_type === 'table' || route.query._link_type === 'form'
   
+  // 🔥 检查 URL 中是否有搜索参数（即使 _link_type 已被清除，如果有搜索参数，说明可能是 link 跳转）
+  // 第一次跳转时，_link_type 可能已被 useWorkspaceRouting 清除，但搜索参数还在
+  const hasSearchParams = searchParamKeys.some((key: string) => route.query[key] !== null && route.query[key] !== undefined)
+  const shouldPreserveSearchParams = isLinkNavigation || hasSearchParams
+  
   // 先保留所有非 table 相关的参数（包括 link 跳转携带的参数）
   Object.keys(route.query).forEach(key => {
     const value = route.query[key]
@@ -752,10 +757,11 @@ const preserveExistingParams = (requestFieldCodes: Set<string>): Record<string, 
     }
     
     // 🔥 link 跳转时：保留所有搜索参数（因为这是用户明确指定的）
+    // 🔥 修复：即使 _link_type 已被清除，如果 URL 中有搜索参数，也要保留（可能是第一次跳转）
     // 非 link 跳转时：跳过搜索参数，搜索参数的作用域是函数级别的
-    if (searchParamKeys.includes(key)) {
-      if (isLinkNavigation) {
-        // link 跳转：保留搜索参数
+    if (searchParamKeys.includes(key as any)) {
+      if (shouldPreserveSearchParams) {
+        // link 跳转或 URL 中有搜索参数：保留搜索参数
         newQuery[key] = String(value)
       } else {
         // 非 link 跳转：搜索参数完全由当前函数的 searchForm 决定，不从 URL 中保留旧参数
@@ -766,7 +772,7 @@ const preserveExistingParams = (requestFieldCodes: Set<string>): Record<string, 
     }
     
     // 保留不在 tableParamKeys 和 searchParamKeys 中的参数（这些可能是 link 跳转携带的参数，如 topic_id=4）
-    if (!tableParamKeys.includes(key) && !requestFieldCodes.has(key)) {
+    if (!tableParamKeys.includes(key as any) && !requestFieldCodes.has(key)) {
       newQuery[key] = String(value)
     }
   })

@@ -115,8 +115,13 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     
     // 🔥 link 跳转场景：URL 已经有参数，不需要再同步到 URL（避免覆盖）
     // 只有在 URL 参数不完整时才同步（比如只有搜索参数，没有分页参数）
+    // 🔥 修复：检查是否是 link 跳转，如果是 link 跳转，即使没有分页参数，也不要同步
+    // 因为 link 跳转时，URL 中的参数是用户明确指定的，不应该被覆盖
+    const isLinkNavigation = route.query._link_type === 'table' || route.query._link_type === 'form'
     const hasPaginationParams = route.query.page && route.query.page_size
-    if (!hasPaginationParams) {
+    
+    // 🔥 只有在非 link 跳转且没有分页参数时，才同步默认分页参数
+    if (!isLinkNavigation && !hasPaginationParams) {
       // URL 中没有分页参数，需要同步默认分页参数
       if (!isSyncingToURL.value) {
         isSyncingToURL.value = true

@@ -149,11 +149,13 @@ const handleClick = (e: Event) => {
         const queryString = finalUrl.substring(queryIndex + 1)
         const params = new URLSearchParams(queryString)
         params.forEach((value, key) => {
+          // 🔥 URLSearchParams 会自动解码 URL 编码的参数值（如 id%3A2 -> id:2）
           query[key] = value
         })
       }
       
       // 🔥 发出路由更新请求事件
+      // 注意：query 中的参数来自 link URL，应该优先使用，不会被当前路由的参数覆盖
       eventBus.emit(RouteEvent.updateRequested, {
         path,
         query,
