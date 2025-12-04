@@ -59,7 +59,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch, ref, onUnmounted } from 'vue'
+import { computed, watch, ref } from 'vue'
 import { ElAvatar, ElMessage } from 'element-plus'
 import type { UserInfo } from '@/types'
 import { formatUserDisplayName } from '@/utils/userInfo'
@@ -76,8 +76,6 @@ interface Props {
   layout?: 'horizontal' | 'vertical'
   /** 头像大小：small(24px) | medium(32px) | large(48px) | 自定义数字 */
   size?: 'small' | 'medium' | 'large' | number
-  /** 用户信息 Map（用于从缓存中获取） */
-  userInfoMap?: Map<string, UserInfo> | null
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -86,7 +84,6 @@ const props = withDefaults(defineProps<Props>(), {
   mode: 'simple',
   layout: 'horizontal',
   size: 'medium',
-  userInfoMap: null,
 })
 
 const userInfoStore = useUserInfoStore()
@@ -96,15 +93,26 @@ const userInfoStore = useUserInfoStore()
 const cachedUserInfo = ref<UserInfo | null>(null)
 
 // 🔥 更新缓存的用户信息
-const updateCachedUserInfo = () => {
+const updateCachedUserInfo = async () => {
+  // 优先使用 props.userInfo
   if (props.userInfo) {
     cachedUserInfo.value = props.userInfo
     return
   }
-  if (props.username && props.userInfoMap && props.userInfoMap.has(props.username)) {
-    cachedUserInfo.value = props.userInfoMap.get(props.username) || null
+  
+  // 如果有 username，从 store 中获取（预加载已完成，store 中肯定有缓存）
+  if (props.username) {
+    try {
+      // 🔥 直接从 store 读取（预加载已完成，这里只是从缓存中读取，不会调用接口）
+      const user = await userInfoStore.getUserInfo(props.username)
+      cachedUserInfo.value = user
+    } catch (error) {
+      console.error('[UserDisplay] 从 store 加载用户信息失败', error)
+      cachedUserInfo.value = null
+    }
     return
   }
+  
   cachedUserInfo.value = null
 }
 
@@ -113,72 +121,10 @@ const actualUserInfo = computed(() => {
   return cachedUserInfo.value
 })
 
-// 🔥 监听 userInfo 和 username 变化，更新缓存的用户信息
+// 🔥 监听 userInfo 和 username 的变化，更新缓存的用户信息
 watch([() => props.userInfo, () => props.username], () => {
   updateCachedUserInfo()
-}, { immediate: true })
-
-// 🔥 监听 userInfoMap 的变化（通过轮询检查 Map 内容）
-// 注意：Vue 无法直接追踪 Map 内部的变化，所以使用轮询来检查
-// 这是一个 workaround，但性能影响很小（只在有 username 且没有用户信息时检查）
-let mapCheckInterval: number | null = null
-watch(() => [props.username, props.userInfoMap], ([newUsername, newUserInfoMap]) => {
-  // 清除旧的定时器
-  if (mapCheckInterval !== null) {
-    clearInterval(mapCheckInterval)
-    mapCheckInterval = null
-  }
-  
-  // 立即检查一次
-  updateCachedUserInfo()
-  
-  // 如果还没有用户信息，且 userInfoMap 存在，设置定时器定期检查
-  // 最多检查 10 次，每次 200ms（总共 2 秒）
-  if (newUsername && newUserInfoMap && !cachedUserInfo.value) {
-    let checkCount = 0
-    mapCheckInterval = window.setInterval(() => {
-      checkCount++
-      updateCachedUserInfo()
-      // 如果已经获取到用户信息，或者检查次数达到上限，停止检查
-      if (cachedUserInfo.value || checkCount >= 10) {
-        if (mapCheckInterval !== null) {
-          clearInterval(mapCheckInterval)
-          mapCheckInterval = null
-        }
-      }
-    }, 200)
-  }
-}, { immediate: true })
-
-// 🔥 监听 username 变化，自动加载用户信息
-watch(() => props.username, async (newUsername) => {
-  if (newUsername && !cachedUserInfo.value) {
-    // 如果 userInfoMap 中没有，尝试从 store 加载
-    if (!props.userInfoMap || !props.userInfoMap.has(newUsername)) {
-      try {
-        const users = await userInfoStore.batchGetUserInfo([newUsername])
-        if (users && users.length > 0) {
-          // 更新到 userInfoMap（如果存在）
-          if (props.userInfoMap) {
-            props.userInfoMap.set(newUsername, users[0])
-          }
-          // 🔥 手动更新缓存
-          cachedUserInfo.value = users[0]
-        }
-      } catch (error) {
-        console.error('[UserDisplay] 加载用户信息失败', error)
-      }
-    }
-  }
-}, { immediate: true })
-
-// 🔥 组件卸载时清除定时器
-onUnmounted(() => {
-  if (mapCheckInterval !== null) {
-    clearInterval(mapCheckInterval)
-    mapCheckInterval = null
-  }
-})
+}, { immediate: true, deep: false })
 
 // 计算头像大小
 const avatarSize = computed(() => {

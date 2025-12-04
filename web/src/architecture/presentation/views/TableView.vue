@@ -253,8 +253,10 @@ import { parseLinkValue, addLinkTypeToUrl } from '@/utils/linkNavigation'
 import LinkWidget from '@/core/widgets-v2/components/LinkWidget.vue'
 import { TABLE_PARAM_KEYS, SEARCH_PARAM_KEYS } from '@/utils/urlParams'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
+import { useUserInfoStore } from '@/stores/userInfo'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
 import type { TableRow, SearchParams, SortParams, SortItem } from '../../domain/services/TableDomainService'
+import type { UserInfo } from '@/types'
 
 const props = defineProps<{
   functionDetail: FunctionDetail
@@ -319,6 +321,99 @@ const total = computed(() => pagination.value.total)
 
 // 创建对话框
 const createDialogVisible = ref(false)
+
+// ==================== 用户信息预加载 ====================
+
+const userInfoStore = useUserInfoStore()
+
+// 🔥 移除 userInfoMap，UserDisplay 组件直接从 userInfoStore 读取（预加载已完成，store 中肯定有缓存）
+
+/**
+ * 🔥 预加载用户信息（时机 1：搜索表单中的用户信息）
+ * 在数据加载前预加载，确保搜索表单渲染时已有用户信息
+ */
+async function preloadUserInfoFromSearchForm(functionDetail: FunctionDetail, searchFormData: Record<string, any>): Promise<void> {
+  try {
+    // 1. 识别所有用户字段（request + response）
+    // 🔥 确保 request 和 response 是数组
+    const requestFields = Array.isArray(functionDetail.request) ? functionDetail.request : []
+    const responseFields = Array.isArray(functionDetail.response) ? functionDetail.response : []
+    
+    const userFields = [
+      ...requestFields.filter(f => f.widget?.type === 'user'),
+      ...responseFields.filter(f => f.widget?.type === 'user')
+    ]
+    
+    if (userFields.length === 0) {
+      return
+    }
+    
+    // 2. 从搜索表单中收集所有用户名
+    const usernames = new Set<string>()
+    userFields.forEach(field => {
+      const value = searchFormData[field.code]
+      if (value) {
+        // 处理数组（如 in=create_by:luobei,zhangsan）
+        if (Array.isArray(value)) {
+          value.forEach(v => {
+            if (v) usernames.add(String(v))
+          })
+        } else {
+          // 处理字符串（如 creator=liubeiluo）
+          usernames.add(String(value))
+        }
+      }
+    })
+    
+    if (usernames.size === 0) {
+      return
+    }
+    
+    // 3. 批量查询用户信息（使用 batchGetUserInfo，自动处理过期数据）
+    // 🔥 预加载到 store 缓存即可，UserDisplay 组件会直接从 store 读取
+    await userInfoStore.batchGetUserInfo([...usernames])
+  } catch (error) {
+    console.error('[TableView] 预加载搜索表单中的用户信息失败', error)
+  }
+}
+
+/**
+ * 🔥 预加载用户信息（时机 2：表格数据中的用户信息）
+ * 在数据加载后预加载，确保表格渲染时已有用户信息
+ */
+async function preloadUserInfoFromTableData(functionDetail: FunctionDetail, tableDataArray: TableRow[]): Promise<void> {
+  try {
+    // 1. 识别所有用户字段（response 字段）
+    // 🔥 确保 response 是数组
+    const responseFields = Array.isArray(functionDetail.response) ? functionDetail.response : []
+    const userFields = responseFields.filter(f => f.widget?.type === 'user')
+    
+    if (userFields.length === 0 || !tableDataArray || tableDataArray.length === 0) {
+      return
+    }
+    
+    // 2. 从表格数据中收集所有用户名
+    const usernames = new Set<string>()
+    tableDataArray.forEach(row => {
+      userFields.forEach(field => {
+        const value = row[field.code]
+        if (value !== null && value !== undefined && value !== '') {
+          usernames.add(String(value))
+        }
+      })
+    })
+    
+    if (usernames.size === 0) {
+      return
+    }
+    
+    // 3. 批量查询用户信息（使用 batchGetUserInfo，自动处理过期数据）
+    // 🔥 预加载到 store 缓存即可，UserDisplay 组件会直接从 store 读取
+    await userInfoStore.batchGetUserInfo([...usernames])
+  } catch (error) {
+    console.error('[TableView] 预加载表格数据中的用户信息失败', error)
+  }
+}
 
 // ==================== 字段计算属性 ====================
 
@@ -996,7 +1091,8 @@ const { initializeTable, setupQueryWatch } = useTableInitialization({
   buildDefaultSorts,
   syncToURL,
   loadTableData,
-  isMounted // 🔥 传递挂载状态，用于防止卸载后继续加载数据
+  isMounted, // 🔥 传递挂载状态，用于防止卸载后继续加载数据
+  preloadUserInfoFromSearchForm // 🔥 时机 1：预加载搜索表单中的用户信息
 })
 
 onMounted(async () => {
@@ -1013,7 +1109,7 @@ onMounted(async () => {
   await initializeTable()
   
   // 监听数据加载完成事件
-  unsubscribeDataLoaded = eventBus.on(TableEvent.dataLoaded, (payload: { data: TableRow[], pagination?: any }) => {
+  unsubscribeDataLoaded = eventBus.on(TableEvent.dataLoaded, async (payload: { data: TableRow[], pagination?: any }) => {
     // 🔥 检查组件是否还在挂载状态
     if (!isMounted.value) {
       return
@@ -1030,6 +1126,10 @@ onMounted(async () => {
       }
     })
   })
+  
+  // 🔥 移除用户信息预加载完成事件的监听
+  // 预加载已经在 TableDomainService.loadData 中通过 preloadUserInfoCallback 完成了
+  // 用户信息已在 store 缓存中，UserDisplay 组件会直接从 store 读取
   
   // 🔥 监听函数加载完成事件（Tab 切换时触发）
   unsubscribeFunctionLoaded = eventBus.on(WorkspaceEvent.functionLoaded, async (payload: { detail: FunctionDetail }) => {
