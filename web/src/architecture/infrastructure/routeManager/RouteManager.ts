@@ -386,11 +386,25 @@ export class RouteManager {
     if (request.query && Object.keys(request.query).length > 0) {
       // 检查是否是 link 跳转
       if (preserve.linkNavigation) {
-        this.log('link 跳转：保留参数（除了 _link_type 和 table 参数），然后合并新参数')
+        this.log('link 跳转：优先使用 request.query 中的参数（来自 link URL），然后保留当前路由的非 table 参数')
         const result: Record<string, string | string[]> = {}
-        // 先保留当前路由的参数（除了 _link_type 和 table 参数）
-        // 🔥 修复：link 跳转到 form 函数时，不应该保留 table 参数（page, page_size, sorts）
+        
+        // 🔥 修复：link 跳转时，优先使用 request.query 中的参数（这些参数来自 link URL，是用户明确指定的）
+        // 先处理 request.query 中的参数（清除 table 参数）
+        const normalizedQuery = this.normalizeQuery(request.query)
+        Object.keys(normalizedQuery).forEach(key => {
+          if (!TABLE_PARAM_KEYS.includes(key as any)) {
+            result[key] = normalizedQuery[key]
+          }
+        })
+        
+        // 然后保留当前路由的参数（除了 _link_type、table 参数和已在 request.query 中的参数）
+        // 🔥 这样确保 link URL 中的参数优先级最高，不会被当前路由的参数覆盖
         Object.keys(currentQuery).forEach(key => {
+          // 跳过已在 request.query 中的参数（避免覆盖 link URL 中的参数）
+          if (normalizedQuery.hasOwnProperty(key)) {
+            return
+          }
           if (key !== '_link_type' && !TABLE_PARAM_KEYS.includes(key as any)) {
             const value = currentQuery[key]
             if (value !== null && value !== undefined) {
@@ -400,14 +414,8 @@ export class RouteManager {
             }
           }
         })
-        // 然后合并新参数（覆盖旧参数）
-        // 🔥 修复：合并 request.query 时，也要清除其中的 table 参数
-        const normalizedQuery = this.normalizeQuery(request.query)
-        Object.keys(normalizedQuery).forEach(key => {
-          if (!TABLE_PARAM_KEYS.includes(key as any)) {
-            result[key] = normalizedQuery[key]
-          }
-        })
+        
+        this.log('link 跳转：最终查询参数', { query: result })
         return result
       } else {
         // 非 link 跳转：直接使用 request.query（已经包含了 preserveExistingParams 的结果）
