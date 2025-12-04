@@ -350,137 +350,169 @@ export function useWorkspaceDetail(options: {
     detailDrawerVisible.value = true
   }
 
+  // 打开详情抽屉的辅助函数（从 URL 参数）
+  const openDetailFromUrl = async (query: any) => {
+    const tab = query._tab
+    const id = query._id
+    const detail = options.currentFunctionDetail()
+    
+    // 使用 nextTick 确保 detail 已更新
+    await nextTick()
+    
+    // 继续原有的逻辑（从 watch 中复制）
+    if (tab === 'detail' && id && detail && detail.template_type === TEMPLATE_TYPE.TABLE) {
+      // 确保函数详情已加载
+      if (!options.currentFunction()) {
+        return
+      }
+      
+      const rowId = Number(id)
+      if (isNaN(rowId)) {
+        return
+      }
+      
+      // 从表格数据中查找对应 id 的记录
+      try {
+        const tableStateManager = serviceFactory.getTableStateManager()
+        let tableData = tableStateManager.getData() || []
+        
+        // 尝试通过 id 字段查找
+        let targetRow = tableData.find((r: any) => r.id === rowId || r._id === rowId)
+        
+        // 如果当前页没有找到，尝试通过搜索 id 来加载数据
+        if (!targetRow) {
+          // 先等待表格数据加载完成（如果表格正在加载）
+          let retries = 0
+          while (tableData.length === 0 && retries < 10) {
+            await nextTick()
+            await new Promise(resolve => setTimeout(resolve, 300))
+            tableData = tableStateManager.getData() || []
+            targetRow = tableData.find((r: any) => r.id === rowId || r._id === rowId)
+            if (targetRow) break
+            retries++
+          }
+          
+          // 如果还是没有找到，尝试通过搜索 id 来加载
+          if (!targetRow && options.currentFunctionDetail()) {
+            try {
+              const tableApplicationService = serviceFactory.getTableApplicationService()
+              // 通过搜索 id 字段来加载数据
+              const idField = options.currentFunctionDetail()?.response?.find((f: FieldConfig) => 
+                f.code === 'id' || f.code.toLowerCase() === 'id'
+              )
+              
+              if (idField) {
+                // 设置搜索条件为 id = rowId
+                const searchParams: Record<string, any> = {}
+                searchParams[idField.code] = rowId
+                
+                // 加载数据（使用搜索参数）
+                await tableApplicationService.loadData(
+                  options.currentFunctionDetail()!,
+                  searchParams, // 搜索参数
+                  undefined, // 排序参数
+                  { page: 1, pageSize: 20 } // 分页参数
+                )
+                
+                // 重新获取数据
+                tableData = tableStateManager.getData() || []
+                targetRow = tableData.find((r: any) => r.id === rowId || r._id === rowId)
+              }
+            } catch (error) {
+              // 静默失败
+            }
+          }
+        }
+        
+        if (targetRow) {
+          // 找到记录，打开详情抽屉
+          const index = tableData.findIndex((r: any) => r.id === rowId || r._id === rowId)
+          detailRowData.value = targetRow
+          detailOriginalRow.value = deepClone(targetRow)
+          detailDrawerTitle.value = detail.name || '详情'
+          detailFields.value = (detail.response || []) as FieldConfig[]
+          detailTableData.value = tableData
+          currentDetailIndex.value = index >= 0 ? index : -1
+          
+          // 收集用户字段信息
+          const userFields = detailFields.value.filter(f => f.widget?.type === 'user')
+          if (userFields.length > 0) {
+            const usernames: string[] = []
+            userFields.forEach(field => {
+              const value = targetRow[field.code]
+              if (value) {
+                if (Array.isArray(value)) {
+                  usernames.push(...value.map(v => String(v)))
+                } else {
+                  usernames.push(String(value))
+                }
+              }
+            })
+            
+            if (usernames.length > 0) {
+              try {
+                const { useUserInfoStore } = await import('@/stores/userInfo')
+                const userInfoStore = useUserInfoStore()
+                const users = await userInfoStore.batchGetUserInfo([...new Set(usernames)])
+                detailUserInfoMap.value = new Map()
+                users.forEach(user => {
+                  detailUserInfoMap.value.set(user.username, user)
+                })
+              } catch (error) {
+                // 静默失败
+              }
+            }
+          }
+          
+          detailDrawerMode.value = 'read'
+          detailDrawerVisible.value = true
+        } else {
+          ElNotification.warning({
+            title: '提示',
+            message: `未找到 id 为 ${rowId} 的记录，可能不在当前页`
+          })
+        }
+      } catch (error) {
+        // 静默失败
+      }
+    }
+  }
+
   // 设置 URL 参数监听（用于分享链接）
   // 🔥 阶段4：改为监听 RouteEvent.queryChanged 事件，而不是直接 watch route.query
   // 这样可以避免程序触发的路由更新导致循环
   const setupUrlWatch = () => {
+    // 🔥 初始化时检查 URL 参数（页面刷新场景）
+    // 如果 URL 中已经有 _tab=detail&_id=xxx，等待函数详情和表格数据加载完成后打开详情
+    if (route.query._tab === 'detail' && route.query._id) {
+      // 等待函数详情加载完成
+      const checkAndOpen = async () => {
+        let retries = 0
+        while (retries < 20) { // 最多等待 10 秒
+          await nextTick()
+          await new Promise(resolve => setTimeout(resolve, 500))
+          
+          const detail = options.currentFunctionDetail()
+          const currentFunction = options.currentFunction()
+          
+          // 如果函数详情已加载，尝试打开详情
+          if (detail && currentFunction && detail.template_type === TEMPLATE_TYPE.TABLE) {
+            await openDetailFromUrl(route.query)
+            break
+          }
+          
+          retries++
+        }
+      }
+      
+      checkAndOpen()
+    }
+    
+    // 监听 URL 参数变化（浏览器前进/后退场景）
     eventBus.on(RouteEvent.queryChanged, async (payload: { query: any, oldQuery: any, source: string }) => {
       // 🔥 只处理用户操作（浏览器前进/后退）或外部变化，不处理程序触发的更新
       if (payload.source === 'router-change') {
-        const tab = payload.query._tab
-        const id = payload.query._id
-        const detail = options.currentFunctionDetail()
-        
-        // 使用 nextTick 确保 detail 已更新
-        await nextTick()
-        
-        // 继续原有的逻辑（从 watch 中复制）
-        if (tab === 'detail' && id && detail && detail.template_type === TEMPLATE_TYPE.TABLE) {
-          // 确保函数详情已加载
-          if (!options.currentFunction()) {
-            return
-          }
-          
-          const rowId = Number(id)
-          if (isNaN(rowId)) {
-            return
-          }
-          
-          // 从表格数据中查找对应 id 的记录
-          try {
-            const tableStateManager = serviceFactory.getTableStateManager()
-            let tableData = tableStateManager.getData() || []
-            
-            // 尝试通过 id 字段查找
-            let targetRow = tableData.find((r: any) => r.id === rowId || r._id === rowId)
-            
-            // 如果当前页没有找到，尝试通过搜索 id 来加载数据
-            if (!targetRow) {
-              // 先等待表格数据加载完成（如果表格正在加载）
-              let retries = 0
-              while (tableData.length === 0 && retries < 10) {
-                await nextTick()
-                await new Promise(resolve => setTimeout(resolve, 300))
-                tableData = tableStateManager.getData() || []
-                targetRow = tableData.find((r: any) => r.id === rowId || r._id === rowId)
-                if (targetRow) break
-                retries++
-              }
-              
-              // 如果还是没有找到，尝试通过搜索 id 来加载
-              if (!targetRow && options.currentFunctionDetail()) {
-                try {
-                  const tableApplicationService = serviceFactory.getTableApplicationService()
-                  // 通过搜索 id 字段来加载数据
-                  const idField = options.currentFunctionDetail()?.response?.find((f: FieldConfig) => 
-                    f.code === 'id' || f.code.toLowerCase() === 'id'
-                  )
-                  
-                  if (idField) {
-                    // 设置搜索条件为 id = rowId
-                    const searchParams: Record<string, any> = {}
-                    searchParams[idField.code] = rowId
-                    
-                    // 加载数据（使用搜索参数）
-                    await tableApplicationService.loadData(
-                      options.currentFunctionDetail()!,
-                      searchParams, // 搜索参数
-                      undefined, // 排序参数
-                      { page: 1, pageSize: 20 } // 分页参数
-                    )
-                    
-                    // 重新获取数据
-                    tableData = tableStateManager.getData() || []
-                    targetRow = tableData.find((r: any) => r.id === rowId || r._id === rowId)
-                  }
-                } catch (error) {
-                  // 静默失败
-                }
-              }
-            }
-            
-            if (targetRow) {
-              // 找到记录，打开详情抽屉
-              const index = tableData.findIndex((r: any) => r.id === rowId || r._id === rowId)
-              detailRowData.value = targetRow
-              detailOriginalRow.value = deepClone(targetRow)
-              detailDrawerTitle.value = detail.name || '详情'
-              detailFields.value = (detail.response || []) as FieldConfig[]
-              detailTableData.value = tableData
-              currentDetailIndex.value = index >= 0 ? index : -1
-              
-              // 收集用户字段信息
-              const userFields = detailFields.value.filter(f => f.widget?.type === 'user')
-              if (userFields.length > 0) {
-                const usernames: string[] = []
-                userFields.forEach(field => {
-                  const value = targetRow[field.code]
-                  if (value) {
-                    if (Array.isArray(value)) {
-                      usernames.push(...value.map(v => String(v)))
-                    } else {
-                      usernames.push(String(value))
-                    }
-                  }
-                })
-                
-                if (usernames.length > 0) {
-                  try {
-                    const { useUserInfoStore } = await import('@/stores/userInfo')
-                    const userInfoStore = useUserInfoStore()
-                    const users = await userInfoStore.batchGetUserInfo([...new Set(usernames)])
-                    detailUserInfoMap.value = new Map()
-                    users.forEach(user => {
-                      detailUserInfoMap.value.set(user.username, user)
-                    })
-                  } catch (error) {
-                    // 静默失败
-                  }
-                }
-              }
-              
-              detailDrawerMode.value = 'read'
-              detailDrawerVisible.value = true
-            } else {
-              ElNotification.warning({
-                title: '提示',
-                message: `未找到 id 为 ${rowId} 的记录，可能不在当前页`
-              })
-            }
-          } catch (error) {
-            // 静默失败
-          }
-        }
+        await openDetailFromUrl(payload.query)
       }
     })
   }
