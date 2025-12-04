@@ -386,11 +386,12 @@ export class RouteManager {
     if (request.query && Object.keys(request.query).length > 0) {
       // 检查是否是 link 跳转
       if (preserve.linkNavigation) {
-        this.log('link 跳转：保留所有参数（除了 _link_type），然后合并新参数')
+        this.log('link 跳转：保留参数（除了 _link_type 和 table 参数），然后合并新参数')
         const result: Record<string, string | string[]> = {}
-        // 先保留当前路由的所有参数（除了 _link_type）
+        // 先保留当前路由的参数（除了 _link_type 和 table 参数）
+        // 🔥 修复：link 跳转到 form 函数时，不应该保留 table 参数（page, page_size, sorts）
         Object.keys(currentQuery).forEach(key => {
-          if (key !== '_link_type') {
+          if (key !== '_link_type' && !TABLE_PARAM_KEYS.includes(key as any)) {
             const value = currentQuery[key]
             if (value !== null && value !== undefined) {
               result[key] = Array.isArray(value) 
@@ -414,11 +415,12 @@ export class RouteManager {
     // 🔥 如果 request.query 为空或未提供，则根据 preserveParams 策略从当前路由中保留参数
     const newQuery: Record<string, string | string[]> = {}
     
-    // link 跳转：保留所有参数（除了临时参数）
+    // link 跳转：保留参数（除了临时参数和 table 参数）
+    // 🔥 修复：link 跳转到 form 函数时，不应该保留 table 参数（page, page_size, sorts）
     if (preserve.linkNavigation) {
-      this.log('link 跳转：保留所有参数')
+      this.log('link 跳转：保留参数（除了 _link_type 和 table 参数）')
       Object.keys(currentQuery).forEach(key => {
-        if (key !== '_link_type') {
+        if (key !== '_link_type' && !TABLE_PARAM_KEYS.includes(key as any)) {
           const value = currentQuery[key]
           if (value !== null && value !== undefined) {
             newQuery[key] = Array.isArray(value) 
