@@ -87,14 +87,28 @@ export interface TableState {
 }
 
 /**
+ * 用户信息预加载回调函数类型
+ */
+export type PreloadUserInfoCallback = (functionDetail: FunctionDetail, tableData: TableRow[]) => Promise<void>
+
+/**
  * 表格领域服务
  */
 export class TableDomainService {
+  private preloadUserInfoCallback?: PreloadUserInfoCallback
+
   constructor(
     private apiClient: IApiClient,
     private stateManager: IStateManager<TableState>,
     private eventBus: IEventBus
   ) {}
+
+  /**
+   * 设置用户信息预加载回调函数
+   */
+  setPreloadUserInfoCallback(callback: PreloadUserInfoCallback): void {
+    this.preloadUserInfoCallback = callback
+  }
 
   /**
    * 加载表格数据
@@ -141,6 +155,12 @@ export class TableDomainService {
         response = await this.apiClient.get<TableResponse>(url, params)
       } else {
         response = await this.apiClient.post<TableResponse>(url, params)
+      }
+
+      // 🔥 在更新状态之前，预加载用户信息到 store 缓存
+      // 这样渲染时，UserDisplay 组件调用 getUserInfo 或 batchGetUserInfo 都能命中缓存
+      if (this.preloadUserInfoCallback) {
+        await this.preloadUserInfoCallback(functionDetail, response.items || [])
       }
 
       // 更新状态

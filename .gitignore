@@ -24,7 +24,7 @@ configs/*.json
 
 temp/
 plan/
-note/
+/note
 /test
 .cursor/
 .claude/

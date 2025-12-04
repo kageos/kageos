@@ -31,6 +31,8 @@ export interface UseTableInitializationOptions {
   syncToURL: () => void
   loadTableData: () => Promise<void>
   isMounted?: { value: boolean }
+  /** 🔥 时机 1：预加载搜索表单中的用户信息（在 decideRestoreStrategy 完成后调用） */
+  preloadUserInfoFromSearchForm?: (functionDetail: FunctionDetail, searchForm: Record<string, any>) => Promise<void>
 }
 
 export function useTableInitialization(options: UseTableInitializationOptions) {
@@ -40,7 +42,8 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     stateManager,
     syncToURL,
     loadTableData,
-    isMounted
+    isMounted,
+    preloadUserInfoFromSearchForm
   } = options
 
   const route = useRoute()
@@ -78,7 +81,6 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     stateManager.setState({
       ...currentState,
       searchForm: restored.searchForm,
-      searchParams: restored.searchParams, // 确保 searchParams 也被恢复
       sorts: restored.sorts,
       hasManualSort: restored.sorts.length > 0,
       sortParams: restored.sorts.length > 0 ? {
@@ -199,6 +201,13 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
       // - 如果 Tab 有保存的状态（searchForm 不为空），说明是 Tab 切换，使用 Tab 的状态，不从 URL 恢复
       // - 如果 Tab 没有保存的状态（searchForm 为空），且 URL 有参数，说明是 link 跳转，从 URL 恢复
       await decideRestoreStrategy(router || '')
+      
+      // 🔥 时机 1：预加载搜索表单中的用户信息
+      // 此时 searchForm 已经包含了从 URL 解析出来的所有搜索条件（如 in=create_by:luobei）
+      if (preloadUserInfoFromSearchForm) {
+        const currentState = stateManager.getState()
+        await preloadUserInfoFromSearchForm(functionDetailValue, currentState.searchForm)
+      }
       
       // 🔥 步骤 2：加载数据
       if (isMounted && !isMounted.value) {

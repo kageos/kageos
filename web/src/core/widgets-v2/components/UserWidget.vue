@@ -67,7 +67,6 @@
       mode="card"
       layout="horizontal"
       size="small"
-      :user-info-map="userInfoMap"
     />
     
     <!-- 表格单元格模式（使用 UserDisplay 组件） -->
@@ -78,7 +77,6 @@
       mode="card"
       layout="horizontal"
       size="small"
-      :user-info-map="userInfoMap"
     />
     
     <!-- 详情模式（使用 UserDisplay 组件） -->
@@ -89,7 +87,6 @@
         mode="card"
         layout="horizontal"
         size="large"
-        :user-info-map="userInfoMap"
       />
     </div>
   </div>
@@ -312,40 +309,14 @@ async function loadUserInfo(username: string | null): Promise<UserInfo | null> {
     return null
   }
   
-  // 🔥 优化：优先从 userInfoMap 中获取（避免重复调用接口）
-  if (props.userInfoMap && props.userInfoMap.has(username)) {
-    const user = props.userInfoMap.get(username) as UserInfo
-    userInfo.value = user
-    return user
-  }
-  
   // 如果 meta 中已有用户信息，直接使用
   if (props.value?.meta?.userInfo && props.value.meta.userInfo.username === username) {
     userInfo.value = props.value.meta.userInfo
     return props.value.meta.userInfo
   }
   
-  // 🔥 在 table-cell 模式下，如果有 userInfoMap，完全依赖它，不主动调用 API
-  // TableRenderer 会在渲染前统一批量查询所有用户信息
-  if (props.mode === 'table-cell' && props.userInfoMap) {
-    // 如果 userInfoMap 中没有，说明 TableRenderer 的批量查询还没完成或用户不存在
-    // 等待一段时间后再次检查（最多等待 500ms）
-    for (let i = 0; i < 5; i++) {
-      await new Promise(resolve => setTimeout(resolve, 100))
-      if (props.userInfoMap.has(username)) {
-        const user = props.userInfoMap.get(username) as UserInfo
-        userInfo.value = user
-        return user
-      }
-    }
-    // 如果等待后还是没有，说明用户不存在或批量查询失败，返回 null
-    userInfo.value = null
-    return null
-  }
-  
   // 🔥 使用 userInfoStore 批量查询（自动处理缓存和去重）
-  // 注意：在 table-cell 模式下，如果 userInfoMap 存在，应该已经由 TableRenderer 统一查询
-  // 这里只处理独立表单页面或其他模式的情况
+  // 预加载已完成，store 中肯定有缓存，这里只是从缓存中读取
   try {
     const { useUserInfoStore } = await import('@/stores/userInfo')
     const userInfoStore = useUserInfoStore()
@@ -355,10 +326,6 @@ async function loadUserInfo(username: string | null): Promise<UserInfo | null> {
     if (users && users.length > 0) {
       const user = users[0] as UserInfo
       userInfo.value = user
-      // 🔥 如果 userInfoMap 存在，也更新到 map 中（缓存）
-      if (props.userInfoMap) {
-        props.userInfoMap.set(username, user)
-      }
       return user
     } else {
       userInfo.value = null

@@ -13,16 +13,16 @@
       <div class="logo">AI Agent OS</div>
     </div>
     <div class="header-right">
-      <!-- 🔥 开发工具：清理缓存按钮 -->
+      <!-- 🔥 开发工具：Debug 弹窗按钮 -->
       <el-button
         v-if="isDevelopment"
         type="info"
         size="small"
         :icon="Delete"
-        @click="handleClearCache"
-        title="清理路由缓存（开发工具）"
+        @click="showDebugDialog = true"
+        title="开发调试工具"
       >
-        清理缓存
+        Debug
       </el-button>
       <ThemeToggle />
       <el-dropdown @command="handleUserCommand">
@@ -39,17 +39,19 @@
         </template>
       </el-dropdown>
     </div>
+
+    <!-- Debug 弹窗 -->
+    <DebugDialog v-model="showDebugDialog" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessageBox, ElMessage } from 'element-plus'
 import { ArrowDown, Delete } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import ThemeToggle from '@/components/ThemeToggle.vue'
-import { functionLoader } from '../../infrastructure/functionLoader'
+import DebugDialog from './DebugDialog.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -83,35 +85,13 @@ const handleLogout = async () => {
   }
 }
 
-// 🔥 开发工具：清理缓存
+// 🔥 开发工具：Debug 弹窗
 const isDevelopment = computed(() => {
   // 检查是否是开发环境（可以通过环境变量或 URL 参数判断）
   return import.meta.env.DEV || window.location.search.includes('dev=true')
 })
 
-const handleClearCache = async () => {
-  try {
-    await ElMessageBox.confirm(
-      '确定要清理所有路由缓存吗？这将清除函数详情缓存，需要重新加载。',
-      '清理缓存',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
-    
-    // 清理函数加载器缓存
-    functionLoader.clearCache()
-    
-    ElMessage.success('缓存已清理')
-    
-    // 刷新当前页面以重新加载数据
-    window.location.reload()
-  } catch (error) {
-    // 忽略取消操作
-  }
-}
+const showDebugDialog = ref(false)
 </script>
 
 <style scoped lang="scss">

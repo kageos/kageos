@@ -44,5 +44,11 @@ export interface ICacheManager {
    * @returns boolean
    */
   has(key: string): boolean
+
+  /**
+   * 获取所有缓存键（用于调试）
+   * @returns string[]
+   */
+  getKeys?(): string[]
 }
 
