@@ -401,8 +401,13 @@ export class RouteManager {
           }
         })
         // 然后合并新参数（覆盖旧参数）
-        // 注意：request.query 已经包含了完整的参数（包括 preserveExistingParams 的结果）
-        Object.assign(result, this.normalizeQuery(request.query))
+        // 🔥 修复：合并 request.query 时，也要清除其中的 table 参数
+        const normalizedQuery = this.normalizeQuery(request.query)
+        Object.keys(normalizedQuery).forEach(key => {
+          if (!TABLE_PARAM_KEYS.includes(key as any)) {
+            result[key] = normalizedQuery[key]
+          }
+        })
         return result
       } else {
         // 非 link 跳转：直接使用 request.query（已经包含了 preserveExistingParams 的结果）
