@@ -245,6 +245,19 @@ export class WorkspaceDomainService {
   }
 
   /**
+   * 清空所有 Tab
+   */
+  closeAllTabs(): void {
+    const state = this.stateManager.getState()
+    this.stateManager.setState({
+      ...state,
+      tabs: [],
+      activeTabId: null,
+      currentFunction: null
+    })
+  }
+
+  /**
    * 切换应用
    * 注意：这个方法不应该触发 appSwitched 事件，因为事件应该在 Application Service 层触发
    * 这个方法只负责更新状态

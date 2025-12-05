@@ -91,6 +91,13 @@ export class WorkspaceApplicationService {
   }
 
   /**
+   * 清空所有标签页（供 Presentation Layer 调用）
+   */
+  closeAllTabs(): void {
+    this.domainService.closeAllTabs()
+  }
+
+  /**
    * 处理应用切换
    */
   async handleAppSwitch(app: App): Promise<void> {

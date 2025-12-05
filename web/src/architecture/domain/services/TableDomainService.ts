@@ -87,15 +87,41 @@ export interface TableState {
 }
 
 /**
- * 用户信息预加载回调函数类型
+ * 表格数据加载生命周期钩子接口
+ * 🔥 类似 GORM 的 Before/After 钩子，提供清晰的生命周期回调
+ * 
+ * 生命周期阶段：BeforeRender（渲染前）
+ * - 执行时机：数据加载完成后、状态更新前、界面渲染前
+ * - 目的：在渲染前预加载关联数据（用户信息、部门信息等），避免渲染时再发起请求
+ * 
+ * 执行流程：
+ * 1. 调用 API 加载表格数据
+ * 2. 🔥 BeforeRender 钩子执行（预加载关联数据）
+ * 3. 更新状态（触发 Vue 响应式更新）
+ * 4. 界面渲染（此时关联数据已在缓存中）
+ * 
+ * 使用场景：
+ * - 用户信息预加载
+ * - 部门信息预加载
+ * - 其他关联数据预加载
+ * 
+ * 执行顺序：按照 priority 从小到大执行（priority 越小越早执行）
  */
-export type PreloadUserInfoCallback = (functionDetail: FunctionDetail, tableData: TableRow[]) => Promise<void>
+export interface TableDataHook {
+  /** 钩子名称（用于调试和日志） */
+  name: string
+  /** 优先级（越小越早执行，建议范围：0-1000） */
+  priority: number
+  /** 执行钩子的函数 */
+  execute: (functionDetail: FunctionDetail, tableData: TableRow[]) => Promise<void>
+}
 
 /**
  * 表格领域服务
  */
 export class TableDomainService {
-  private preloadUserInfoCallback?: PreloadUserInfoCallback
+  /** 🔥 BeforeRender 钩子列表（按优先级排序） */
+  private beforeRenderHooks: TableDataHook[] = []
 
   constructor(
     private apiClient: IApiClient,
@@ -104,10 +130,46 @@ export class TableDomainService {
   ) {}
 
   /**
-   * 设置用户信息预加载回调函数
+   * 🔥 注册 BeforeRender 钩子（渲染前执行）
+   * 
+   * 执行时机：数据加载完成后、状态更新前、界面渲染前
+   * 目的：在渲染前预加载关联数据，避免渲染时再发起请求
+   * 
+   * @param hook 生命周期钩子
+   * 
+   * 示例：
+   * ```typescript
+   * domainService.beforeRender({
+   *   name: 'preload-user-info',
+   *   priority: 100,
+   *   execute: async (functionDetail, tableData) => {
+   *     // 预加载用户信息
+   *   }
+   * })
+   * ```
    */
-  setPreloadUserInfoCallback(callback: PreloadUserInfoCallback): void {
-    this.preloadUserInfoCallback = callback
+  beforeRender(hook: TableDataHook): void {
+    // 移除同名的旧钩子（允许更新）
+    this.beforeRenderHooks = this.beforeRenderHooks.filter(h => h.name !== hook.name)
+    // 添加新钩子
+    this.beforeRenderHooks.push(hook)
+    // 按优先级排序
+    this.beforeRenderHooks.sort((a, b) => a.priority - b.priority)
+  }
+
+  /**
+   * 🔥 移除 BeforeRender 钩子
+   * @param name 钩子名称
+   */
+  removeBeforeRenderHook(name: string): void {
+    this.beforeRenderHooks = this.beforeRenderHooks.filter(h => h.name !== name)
+  }
+
+  /**
+   * 🔥 获取所有 BeforeRender 钩子（用于调试）
+   */
+  getBeforeRenderHooks(): TableDataHook[] {
+    return [...this.beforeRenderHooks]
   }
 
   /**
@@ -157,10 +219,16 @@ export class TableDomainService {
         response = await this.apiClient.post<TableResponse>(url, params)
       }
 
-      // 🔥 在更新状态之前，预加载用户信息到 store 缓存
-      // 这样渲染时，UserDisplay 组件调用 getUserInfo 或 batchGetUserInfo 都能命中缓存
-      if (this.preloadUserInfoCallback) {
-        await this.preloadUserInfoCallback(functionDetail, response.items || [])
+      // 🔥 BeforeRender: 在数据加载完成后、状态更新前、界面渲染前执行所有钩子
+      // 这样渲染时，所有关联数据（用户信息、部门信息等）都已经在缓存中
+      // 按照优先级顺序执行
+      for (const hook of this.beforeRenderHooks) {
+        try {
+          await hook.execute(functionDetail, response.items || [])
+        } catch (error) {
+          // 单个钩子失败不影响其他钩子执行
+          console.error(`[TableDomainService] BeforeRender 钩子 ${hook.name} 执行失败`, error)
+        }
       }
 
       // 更新状态

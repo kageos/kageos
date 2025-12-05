@@ -386,16 +386,47 @@ export class RouteManager {
     if (request.query && Object.keys(request.query).length > 0) {
       // 检查是否是 link 跳转
       if (preserve.linkNavigation) {
+        // 🔥 特殊处理：workspace-routing-clear-link-type 请求的 query 已经包含了所有参数（除了 _link_type）
+        // 直接使用 request.query，不需要再从 currentQuery 中合并参数
+        if (request.source === 'workspace-routing-clear-link-type') {
+          this.log('link 跳转（清除 _link_type）：直接使用 request.query，不合并当前路由参数', { 
+            requestQuery: request.query 
+          })
+          // 只过滤 table 参数，保留其他所有参数（包括 eq、in 等搜索参数）
+          const result: Record<string, string | string[]> = {}
+          const normalizedQuery = this.normalizeQuery(request.query)
+          Object.keys(normalizedQuery).forEach(key => {
+            if (!TABLE_PARAM_KEYS.includes(key as any)) {
+              const value = normalizedQuery[key]
+              if (value !== undefined && value !== null && value !== '') {
+                result[key] = value
+              }
+            }
+          })
+          this.log('link 跳转（清除 _link_type）：最终查询参数', { query: result })
+          return result
+        }
+        
         this.log('link 跳转：优先使用 request.query 中的参数（来自 link URL），然后保留当前路由的非 table 参数')
         const result: Record<string, string | string[]> = {}
         
         // 🔥 修复：link 跳转时，优先使用 request.query 中的参数（这些参数来自 link URL，是用户明确指定的）
-        // 先处理 request.query 中的参数（清除 table 参数）
+        // 先处理 request.query 中的参数（保留所有参数，包括 eq、in 等搜索参数，只清除 table 参数）
         const normalizedQuery = this.normalizeQuery(request.query)
         Object.keys(normalizedQuery).forEach(key => {
+          // 🔥 只过滤 table 参数（page, page_size, sorts），保留所有其他参数（包括 eq、in 等搜索参数）
           if (!TABLE_PARAM_KEYS.includes(key as any)) {
-            result[key] = normalizedQuery[key]
+            const value = normalizedQuery[key]
+            if (value !== undefined && value !== null && value !== '') {
+              result[key] = value
+            }
           }
+        })
+        
+        this.log('link 跳转：处理 request.query 后的结果', { 
+          requestQuery: request.query, 
+          normalizedQuery, 
+          result: { ...result } 
         })
         
         // 然后保留当前路由的参数（除了 _link_type、table 参数和已在 request.query 中的参数）
@@ -465,7 +496,7 @@ export class RouteManager {
         shouldPreserve = true
       }
       // 保留自定义参数
-      else if (preserve.custom?.includes(key)) {
+      else if (preserve.custom && preserve.custom.includes(key)) {
         shouldPreserve = true
       }
       

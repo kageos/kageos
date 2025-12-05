@@ -9,27 +9,42 @@
 
 <template>
   <div v-if="tabs.length > 0" class="workspace-tabs-container">
-    <el-tabs
-      v-model="activeTabId"
-      type="card"
-      editable
-      class="workspace-tabs"
-      @tab-click="handleTabClick"
-      @edit="handleTabsEdit"
-    >
-      <el-tab-pane
-        v-for="tab in tabs"
-        :key="tab.id"
-        :label="tab.title"
-        :name="tab.id"
-        :closable="tabs.length > 1"
+    <div class="workspace-tabs-wrapper">
+      <el-tabs
+        v-model="activeTabId"
+        type="card"
+        editable
+        class="workspace-tabs"
+        @tab-click="handleTabClick"
+        @edit="handleTabsEdit"
+      >
+        <el-tab-pane
+          v-for="tab in tabs"
+          :key="tab.id"
+          :label="tab.title"
+          :name="tab.id"
+          :closable="tabs.length > 1"
+        />
+      </el-tabs>
+      <!-- 清空所有 Tab 按钮 -->
+      <el-button
+        v-if="tabs.length > 0"
+        type="danger"
+        :icon="Close"
+        circle
+        size="small"
+        class="clear-all-tabs-btn"
+        title="清空所有标签页"
+        @click="handleClearAllClick"
       />
-    </el-tabs>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Close } from '@element-plus/icons-vue'
+import { ElMessageBox } from 'element-plus'
 import type { WorkspaceTab } from '../../domain/services/WorkspaceDomainService'
 
 interface Props {
@@ -41,6 +56,7 @@ interface Emits {
   (e: 'update:activeTabId', value: string): void
   (e: 'tab-click', tab: any): void
   (e: 'tab-edit', targetName: string | undefined, action: 'remove' | 'add'): void
+  (e: 'clear-all-tabs'): void
 }
 
 const props = defineProps<Props>()
@@ -58,6 +74,24 @@ const handleTabClick = (tab: any) => {
 const handleTabsEdit = (targetName: string | undefined, action: 'remove' | 'add') => {
   emit('tab-edit', targetName, action)
 }
+
+const handleClearAllClick = async () => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要清空所有 ${props.tabs.length} 个标签页吗？`,
+      '清空所有标签页',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+        center: true
+      }
+    )
+    emit('clear-all-tabs')
+  } catch {
+    // 用户取消，不做任何操作
+  }
+}
 </script>
 
 <style scoped lang="scss">
@@ -66,6 +100,31 @@ const handleTabsEdit = (targetName: string | undefined, action: 'remove' | 'add'
   border-bottom: 1px solid var(--el-border-color-lighter);
   padding: 0 20px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  position: relative;
+}
+
+.workspace-tabs-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+}
+
+.clear-all-tabs-btn {
+  flex-shrink: 0;
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  background: var(--el-bg-color);
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
+}
+
+.workspace-tabs {
+  flex: 1;
+  min-width: 0; // 🔥 关键：允许 flex 子元素缩小，触发横向滚动
+  overflow: hidden; // 🔥 隐藏溢出，让 el-tabs 内部处理滚动
 }
 
 .workspace-tabs {
@@ -78,10 +137,20 @@ const handleTabsEdit = (targetName: string | undefined, action: 'remove' | 'add'
     &::after {
       display: none;
     }
+    // 🔥 确保 Tab 栏可以横向滚动
+    overflow-x: auto;
+    overflow-y: hidden;
+    // 🔥 隐藏滚动条（可选，如果需要可以显示）
+    // scrollbar-width: thin;
+    // &::-webkit-scrollbar {
+    //   height: 4px;
+    // }
   }
 
   :deep(.el-tabs__nav) {
     border: none;
+    // 🔥 确保 nav 不会换行
+    white-space: nowrap;
   }
 
   :deep(.el-tabs__item) {
