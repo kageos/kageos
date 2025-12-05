@@ -29,19 +29,34 @@ export class TableApplicationService {
     private eventBus: IEventBus
   ) {
     this.setupEventHandlers()
-    this.setupPreloadCallback()
+    this.setupPreloadHooks() // 🔥 设置预加载钩子
   }
 
   /**
-   * 设置用户信息预加载回调
+   * 🔥 设置所有 BeforeRender 钩子
+   * 可以在这里注册多个不同类型的预加载逻辑
+   * 
+   * 生命周期：BeforeRender（渲染前执行）
+   * - 执行时机：数据加载完成后、状态更新前、界面渲染前
+   * - 目的：在渲染前预加载关联数据，避免渲染时再发起请求
    */
-  private setupPreloadCallback(): void {
-    this.domainService.setPreloadUserInfoCallback(
-      (functionDetail: FunctionDetail, tableData: TableRow[]) => {
-        return this.preloadUserInfoFromTableData(functionDetail, tableData)
-      }
-    )
+  private setupPreloadHooks(): void {
+    // 注册用户信息预加载钩子
+    this.domainService.beforeRender({
+      name: 'preload-user-info',
+      priority: 100, // 优先级，越小越早执行
+      execute: this.preloadUserInfoFromTableData.bind(this)
+    })
+
+    // 🔥 扩展点：后续可以注册其他类型的预加载钩子
+    // 例如：
+    // this.domainService.beforeRender({
+    //   name: 'preload-department-info',
+    //   priority: 200,
+    //   execute: this.preloadDepartmentInfo.bind(this)
+    // })
   }
+
 
   /**
    * 设置事件处理器
@@ -83,8 +98,7 @@ export class TableApplicationService {
     sortParams?: SortParams,
     pagination?: { page: number, pageSize: number }
   ): Promise<void> {
-    // 🔥 调用 domainService.loadData，预加载回调会在更新状态之前自动执行
-    // 预加载已经在 TableDomainService.loadData 中通过 preloadUserInfoCallback 完成了
+    // 🔥 调用 domainService.loadData，BeforeRender 钩子会在更新状态之前自动执行
     await this.domainService.loadData(functionDetail, searchParams, sortParams, pagination)
   }
 

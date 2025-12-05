@@ -37,6 +37,7 @@
           :active-tab-id="activeTabId"
           @update:active-tab-id="(val: string) => activeTabId = val"
           @tab-edit="handleTabsEdit"
+          @clear-all-tabs="handleClearAllTabs"
         />
         
         <!-- 🔥 Create/Edit 模式：根据 queryTab 显示独立页面 -->
@@ -316,6 +317,7 @@ const {
   activeTabId,
   handleTabClick: tabsHandleTabClick,
   handleTabsEdit,
+  handleClearAllTabs,
   restoreTabsFromStorage,
   restoreTabsNodes: tabsRestoreTabsNodes,
   setupTabDataWatch,

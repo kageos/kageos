@@ -129,6 +129,14 @@ export function useWorkspaceTabs() {
     }
   }
 
+  // 清空所有 Tab
+  const handleClearAllTabs = (): void => {
+    if (tabs.value.length === 0) {
+      return
+    }
+    applicationService.closeAllTabs()
+  }
+
   // 保存旧 Tab 的状态
   const saveOldTabState = (oldId: string) => {
     const oldTab = tabs.value.find(t => t.id === oldId)
@@ -375,6 +383,7 @@ export function useWorkspaceTabs() {
     // 方法
     handleTabClick,
     handleTabsEdit,
+    handleClearAllTabs,
     restoreTabsFromStorage,
     saveTabsToStorage,
     restoreTabsNodes,

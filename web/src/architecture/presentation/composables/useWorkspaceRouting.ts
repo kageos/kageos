@@ -254,7 +254,7 @@ export function useWorkspaceRouting(options: {
         
         // 尝试查找节点并打开/激活 Tab
         // 使用早期返回优化条件判断
-        const tryOpenTab = () => {
+        const tryOpenTab = async () => {
           const tree = options.serviceTree()
           
           // 早期返回：服务树为空
@@ -271,35 +271,8 @@ export function useWorkspaceRouting(options: {
           
           const serviceNode: ServiceTree = node as any
           
-          // 🔥 处理 _link_type 参数（来自 link 跳转）
-          // link 跳转时，URL 中的参数是用户明确指定的（来自 link 值），应该全部保留
-          // 只清除 _link_type 临时参数，其他参数都保留
-          // 🔥 阶段3：改为事件驱动，通过 RouteManager 统一处理路由更新
-          const linkType = route.query._link_type as string
-          if (linkType === 'table' || linkType === 'form') {
-            const preservedQuery: Record<string, string | string[]> = {}
-            Object.keys(route.query).forEach(key => {
-              if (key !== '_link_type') {
-                const value = route.query[key]
-                if (value !== null && value !== undefined) {
-                  preservedQuery[key] = Array.isArray(value) 
-                    ? value.filter(v => v !== null).map(v => String(v))
-                    : String(value)
-                }
-              }
-            })
-            
-            // 🔥 发出路由更新请求事件
-            eventBus.emit(RouteEvent.updateRequested, {
-              path: route.path,
-              query: preservedQuery,
-              replace: true,
-              preserveParams: {
-                linkNavigation: false  // 清除 _link_type 后，不再是 link 跳转
-              },
-              source: 'workspace-routing-clear-link-type'
-            })
-          }
+          // 🔥 注意：_link_type 参数的处理已移至 setupRouteWatch 中的 link-widget updateCompleted 事件监听
+          // 这里不再处理 _link_type，避免在路由更新完成前就清除参数
           
           // 检查 Tab 是否存在
           const tabsArray = Array.isArray(options.tabs()) ? options.tabs() : []
@@ -332,15 +305,15 @@ export function useWorkspaceRouting(options: {
         // 等待服务树加载
         if (appSwitched) {
           let retries = 0
-          const interval = setInterval(() => {
+          const interval = setInterval(async () => {
             if (options.serviceTree().length > 0 || retries > 10) {
               clearInterval(interval)
-              tryOpenTab()
+              await tryOpenTab()
             }
             retries++
           }, 200)
         } else {
-          tryOpenTab()
+          await tryOpenTab()
         }
         
         // 展开目录树
@@ -376,6 +349,43 @@ export function useWorkspaceRouting(options: {
     // 当来源是 workspace-node-click 或 tab 切换相关时，需要主动触发 syncRouteToTab
     // 因为程序触发的路由更新不会发出 routeChanged 事件
     eventBus.on(RouteEvent.updateCompleted, async (payload: { path: string, query: any, source: string }) => {
+      // 🔥 处理 link-widget：清除 _link_type 参数
+      if (payload.source === 'link-widget') {
+        // link 跳转完成后，清除 _link_type 临时参数
+        // 使用 payload.query（来自 RouteManager 的 updateCompleted 事件），确保包含所有 link 跳转的参数
+        const preservedQuery: Record<string, string | string[]> = {}
+        Object.keys(payload.query).forEach(key => {
+          if (key !== '_link_type') {
+            const value = payload.query[key]
+            if (value !== null && value !== undefined) {
+              preservedQuery[key] = Array.isArray(value) 
+                ? value.filter(v => v !== null).map(v => String(v))
+                : String(value)
+            }
+          }
+        })
+        
+        Logger.debug('useWorkspaceRouting', 'link-widget 完成，准备清除 _link_type', {
+          originalQuery: payload.query,
+          preservedQuery,
+          path: payload.path
+        })
+        
+        // 🔥 发出路由更新请求，清除 _link_type
+        // 🔥 关键：使用 preservedQuery（已经包含了所有 link 跳转的参数，除了 _link_type）
+        // 并且设置 linkNavigation: true，确保 RouteManager 不会覆盖这些参数
+        eventBus.emit(RouteEvent.updateRequested, {
+          path: payload.path,
+          query: preservedQuery,  // 🔥 这里已经包含了 eq、in 等所有参数
+          replace: true,
+          preserveParams: {
+            linkNavigation: true  // 保持 linkNavigation: true，确保 RouteManager 不会覆盖 preservedQuery 中的参数
+          },
+          source: 'workspace-routing-clear-link-type'
+        })
+        return
+      }
+      
       // 处理 workspace-node-click：需要创建/激活 Tab
       // 处理 tab 切换相关：需要刷新函数界面（确保函数详情已加载）
       // 注意：tab-switch 是 RouteManager.handleTabSwitch 发出的，tab-switch-activeTabId 和 tab-click 是 useWorkspaceTabs 发出的
