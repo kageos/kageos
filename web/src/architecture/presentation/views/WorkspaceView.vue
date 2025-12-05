@@ -131,28 +131,28 @@
       @load-apps="loadAppList"
     />
 
-    <!-- 创建应用对话框 -->
+    <!-- 创建工作空间对话框 -->
     <el-dialog
       v-model="createAppDialogVisible"
-      title="创建新应用"
-      width="520px"
+      title="创建新工作空间"
+      width="800px"
       :close-on-click-modal="false"
       @close="resetCreateAppForm"
     >
       <el-form :model="createAppForm" label-width="90px">
-        <el-form-item label="应用名称" required>
+        <el-form-item label="名称" required>
           <el-input
             v-model="createAppForm.name"
-            placeholder="请输入应用名称（如：客户管理系统）"
+            placeholder="请输入名称（如：清北大学、首都市政府、xxx图书馆、xxx医院、xxx银行、xxx科技公司）"
             maxlength="100"
             show-word-limit
             clearable
           />
         </el-form-item>
-        <el-form-item label="应用代码" required>
+        <el-form-item label="英文标识" required>
           <el-input
             v-model="createAppForm.code"
-            placeholder="请输入应用代码（如：crm）"
+            placeholder="请输入英文标识（如：tsinghua、pku_gsm）"
             maxlength="50"
             show-word-limit
             clearable
@@ -160,7 +160,7 @@
           />
           <div class="form-tip">
             <el-icon><InfoFilled /></el-icon>
-            应用代码只能包含小写字母、数字和下划线，长度 2-50 个字符
+            英文标识只能包含小写字母、数字和下划线，长度 2-50 个字符
           </div>
         </el-form-item>
       </el-form>

@@ -1,10 +1,10 @@
 /**
- * useWorkspaceApp - 应用管理 Composable
+ * useWorkspaceApp - 工作空间管理 Composable
  * 
  * 职责：
- * - 应用列表加载
- * - 应用切换
- * - 应用 CRUD 操作
+ * - 工作空间列表加载
+ * - 工作空间切换
+ * - 工作空间 CRUD 操作
  */
 
 import { ref } from 'vue'
@@ -21,12 +21,12 @@ export function useWorkspaceApp() {
   const router = useRouter()
   const applicationService = serviceFactory.getWorkspaceApplicationService()
 
-  // 应用列表状态
+  // 工作空间列表状态
   const appList = ref<AppType[]>([])
   const loadingApps = ref(false)
   const pendingAppId = ref<number | string | null>(null)
 
-  // 创建应用对话框状态
+  // 创建工作空间对话框状态
   const createAppDialogVisible = ref(false)
   const creatingApp = ref(false)
   const createAppForm = ref<CreateAppRequest>({
@@ -34,7 +34,7 @@ export function useWorkspaceApp() {
     name: ''
   })
 
-  // 加载应用列表
+  // 加载工作空间列表
   const loadAppList = async (): Promise<void> => {
     try {
       loadingApps.value = true
@@ -59,7 +59,7 @@ export function useWorkspaceApp() {
     } catch (error) {
       ElNotification.error({
         title: '错误',
-        message: '加载应用列表失败'
+        message: '加载工作空间列表失败'
       })
       appList.value = []
     } finally {
@@ -67,7 +67,7 @@ export function useWorkspaceApp() {
     }
   }
 
-  // 切换应用
+  // 切换工作空间
   const handleSwitchApp = async (app: AppType, currentApp: () => AppType | null): Promise<void> => {
     const targetAppId = app.id
     
@@ -85,7 +85,7 @@ export function useWorkspaceApp() {
         name: app.name
       }
       
-      // 切换应用（这会触发服务树加载）
+      // 切换工作空间（这会触发服务目录树加载）
       await applicationService.triggerAppSwitch(appForService)
       
       // 🔥 阶段4：改为事件驱动，通过 RouteManager 统一处理路由更新
@@ -95,7 +95,7 @@ export function useWorkspaceApp() {
         eventBus.emit(RouteEvent.updateRequested, {
           path: targetPath,
           query: {},
-          replace: false,  // 应用切换使用 push，保留历史记录
+          replace: false,  // 工作空间切换使用 push，保留历史记录
           preserveParams: {},
           source: 'app-switch'
         })
@@ -105,13 +105,13 @@ export function useWorkspaceApp() {
     }
   }
 
-  // 显示创建应用对话框
+  // 显示创建工作空间对话框
   const showCreateAppDialog = (): void => {
     resetCreateAppForm()
     createAppDialogVisible.value = true
   }
 
-  // 重置创建应用表单
+  // 重置创建工作空间表单
   const resetCreateAppForm = (): void => {
     createAppForm.value = {
       code: '',
@@ -119,12 +119,12 @@ export function useWorkspaceApp() {
     }
   }
 
-  // 提交创建应用
+  // 提交创建工作空间
   const submitCreateApp = async (currentApp: () => AppType | null): Promise<void> => {
     if (!createAppForm.value.name || !createAppForm.value.code) {
       ElNotification.warning({
         title: '提示',
-        message: '请填写应用名称和应用代码'
+        message: '请填写名称和英文标识'
       })
       return
     }
@@ -134,14 +134,14 @@ export function useWorkspaceApp() {
       await apiClient.post('/api/v1/app/create', createAppForm.value)
       ElNotification.success({
         title: '成功',
-        message: '应用创建成功'
+        message: '工作空间创建成功'
       })
       createAppDialogVisible.value = false
       
-      // 刷新应用列表
+      // 刷新工作空间列表
       await loadAppList()
       
-      // 如果应用列表中有新创建的应用，自动切换
+      // 如果工作空间列表中有新创建的工作空间，自动切换
       const newApp = appList.value.find(
         (a: AppType) => a.code === createAppForm.value.code
       )
@@ -149,7 +149,7 @@ export function useWorkspaceApp() {
         await handleSwitchApp(newApp, currentApp)
       }
     } catch (error: any) {
-      const errorMessage = error?.response?.data?.message || '创建应用失败'
+      const errorMessage = error?.response?.data?.message || '创建工作空间失败'
       ElNotification.error({
         title: '错误',
         message: errorMessage
@@ -159,16 +159,16 @@ export function useWorkspaceApp() {
     }
   }
 
-  // 更新应用（重新编译）
+  // 更新工作空间（重新编译）
   const handleUpdateApp = async (app: AppType): Promise<void> => {
     try {
       await apiClient.post(`/api/v1/app/update/${app.code}`, {})
       ElNotification.success({
         title: '成功',
-        message: '应用更新成功'
+        message: '工作空间更新成功'
       })
     } catch (error: any) {
-      const errorMessage = error?.response?.data?.message || '更新应用失败'
+      const errorMessage = error?.response?.data?.message || '更新工作空间失败'
       ElNotification.error({
         title: '错误',
         message: errorMessage
@@ -176,11 +176,11 @@ export function useWorkspaceApp() {
     }
   }
 
-  // 删除应用
+  // 删除工作空间
   const handleDeleteApp = async (app: AppType, currentApp: () => AppType | null): Promise<void> => {
     try {
       await ElMessageBox.confirm(
-        `确定要删除应用 "${app.name}" 吗？此操作不可恢复。`,
+        `确定要删除工作空间 "${app.name}" 吗？此操作不可恢复。`,
         '确认删除',
         {
           confirmButtonText: '删除',
@@ -192,13 +192,13 @@ export function useWorkspaceApp() {
       await apiClient.delete(`/api/v1/app/delete/${app.code}`)
       ElNotification.success({
         title: '成功',
-        message: '应用删除成功'
+        message: '工作空间删除成功'
       })
       
-      // 刷新应用列表
+      // 刷新工作空间列表
       await loadAppList()
       
-      // 如果删除的是当前应用，切换到第一个应用或清空
+      // 如果删除的是当前工作空间，切换到第一个工作空间或清空
       // 🔥 阶段4：改为事件驱动，通过 RouteManager 统一处理路由更新
       const currentAppState = currentApp()
       if (currentAppState && currentAppState.id === app.id) {
@@ -216,7 +216,7 @@ export function useWorkspaceApp() {
       }
     } catch (error: any) {
       if (error !== 'cancel') {
-        const errorMessage = error?.response?.data?.message || '删除应用失败'
+        const errorMessage = error?.response?.data?.message || '删除工作空间失败'
         ElNotification.error({
           title: '错误',
           message: errorMessage

@@ -23,6 +23,8 @@
     :function-method="functionMethod"
     :function-router="functionRouter"
     :user-info-map="userInfoMap"
+    :function-name="functionName"
+    :record-id="recordId"
   />
   <div v-else class="widget-error">
     组件未找到: {{ field.widget?.type || 'input' }}
@@ -46,11 +48,15 @@ const props = withDefaults(defineProps<{
   functionMethod?: string // 函数 HTTP 方法（用于 OnSelectFuzzy 回调）
   functionRouter?: string // 函数路由（用于 OnSelectFuzzy 回调）
   userInfoMap?: Map<string, any> // 用户信息映射（用于 UserWidget 批量查询优化）
+  functionName?: string // 函数名称（用于 FilesWidget 打包下载命名）
+  recordId?: string | number // 记录ID（用于 FilesWidget 打包下载命名）
 }>(), {
   mode: 'edit',
   fieldPath: '',
   value: () => ({ raw: null, display: '', meta: {} }),
-  userInfoMap: () => new Map()
+  userInfoMap: () => new Map(),
+  functionName: undefined,
+  recordId: undefined
 })
 
 const emit = defineEmits<{

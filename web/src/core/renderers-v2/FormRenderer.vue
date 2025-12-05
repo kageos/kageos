@@ -41,6 +41,8 @@
           :form-manager="formManager"
           :form-renderer="formRendererContext"
           :user-info-map="userInfoMap"
+          :function-name="functionName"
+          :record-id="recordId"
           mode="edit"
         />
         <div v-else class="widget-error">
@@ -102,6 +104,8 @@
             :field-path="field.code"
             :form-renderer="formRendererContext"
             :user-info-map="userInfoMap"
+            :function-name="functionName"
+            :record-id="recordId"
             mode="response"
           />
           <div v-else class="widget-error">
@@ -172,6 +176,58 @@ const responseDataStore = useResponseDataStore()
 
 // 🔥 用户信息映射（从 props 获取，如果没有则使用空 Map）
 const userInfoMap = computed(() => props.userInfoMap || new Map())
+
+// 🔥 从 functionDetail.router 提取函数名称（用于 FilesWidget 打包下载命名）
+const functionName = computed(() => {
+  if (!props.functionDetail?.router) {
+    return undefined
+  }
+  
+  // router 格式通常是：/user/app/function_name 或 /user/app/group/function_name
+  const routerParts = props.functionDetail.router.split('/').filter(Boolean)
+  if (routerParts.length === 0) {
+    return undefined
+  }
+  
+  // 提取函数名称（最后一段）
+  let funcName = routerParts[routerParts.length - 1]
+  
+  // 提取 user 和 app 名称（格式：/user/app/...）
+  if (routerParts.length >= 2) {
+    const userName = routerParts[0]  // 第一段是 user 名称
+    const appName = routerParts[1]    // 第二段是 app 名称
+    
+    // 如果有 user 和 app 名称，在函数名称前面加上
+    if (userName && appName && funcName) {
+      funcName = `${userName}_${appName}_${funcName}`
+    } else if (appName && funcName) {
+      // 如果只有 app 名称，也加上
+      funcName = `${appName}_${funcName}`
+    }
+  }
+  
+  return funcName
+})
+
+// 🔥 从 initialData 提取 recordId（用于 FilesWidget 打包下载命名）
+const recordId = computed(() => {
+  if (!props.initialData) {
+    return undefined
+  }
+  
+  // 尝试从 initialData 中获取 id 字段（可能是 id、ID、record_id 等）
+  const idField = Object.keys(props.initialData).find(key => {
+    const lowerKey = key.toLowerCase()
+    return lowerKey === 'id' || lowerKey.endsWith('_id') || lowerKey.endsWith('id')
+  })
+  
+  if (idField) {
+    const idValue = props.initialData[idField]
+    return idValue !== null && idValue !== undefined ? idValue : undefined
+  }
+  
+  return undefined
+})
 
 // 表单引用
 const formRef = ref()

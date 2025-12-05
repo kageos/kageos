@@ -1557,7 +1557,6 @@ async function handleDownloadAll(): Promise<void> {
     // 🔥 使用与旧版本一致的命名规则：函数名称_id_记录ID 或 函数名称_时间戳
     let zipFileName = 'files'
     
-    
     // 🔥 完全按照旧版本的逻辑
     if (props.functionName) {
       zipFileName = props.functionName
