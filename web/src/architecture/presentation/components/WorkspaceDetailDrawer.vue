@@ -110,6 +110,8 @@
                 :value="getFieldValue(field.code)"
                 mode="detail"
                 :user-info-map="userInfoMap"
+                :function-name="functionName"
+                :record-id="recordId"
               />
             </div>
           </div>
@@ -211,6 +213,58 @@ const getFieldValue = (fieldCode: string): FieldValue => {
     meta: {} 
   }
 }
+
+// 🔥 从 editFunctionDetail.router 提取函数名称（用于 FilesWidget 打包下载命名）
+const functionName = computed(() => {
+  if (!props.editFunctionDetail?.router) {
+    return undefined
+  }
+  
+  // router 格式通常是：/user/app/function_name 或 /user/app/group/function_name
+  const routerParts = props.editFunctionDetail.router.split('/').filter(Boolean)
+  if (routerParts.length === 0) {
+    return undefined
+  }
+  
+  // 提取函数名称（最后一段）
+  let funcName = routerParts[routerParts.length - 1]
+  
+  // 提取 user 和 app 名称（格式：/user/app/...）
+  if (routerParts.length >= 2) {
+    const userName = routerParts[0]  // 第一段是 user 名称
+    const appName = routerParts[1]    // 第二段是 app 名称
+    
+    // 如果有 user 和 app 名称，在函数名称前面加上
+    if (userName && appName && funcName) {
+      funcName = `${userName}_${appName}_${funcName}`
+    } else if (appName && funcName) {
+      // 如果只有 app 名称，也加上
+      funcName = `${appName}_${funcName}`
+    }
+  }
+  
+  return funcName
+})
+
+// 🔥 从 rowData 提取 recordId（用于 FilesWidget 打包下载命名）
+const recordId = computed(() => {
+  if (!props.rowData) {
+    return undefined
+  }
+  
+  // 尝试从 rowData 中获取 id 字段（可能是 id、ID、record_id 等）
+  const idField = Object.keys(props.rowData).find(key => {
+    const lowerKey = key.toLowerCase()
+    return lowerKey === 'id' || lowerKey.endsWith('_id') || lowerKey.endsWith('id')
+  })
+  
+  if (idField) {
+    const idValue = props.rowData[idField]
+    return idValue !== null && idValue !== undefined ? idValue : undefined
+  }
+  
+  return undefined
+})
 
 const handleToggleMode = (newMode: 'read' | 'edit') => {
   emit('update:mode', newMode)
@@ -380,5 +434,6 @@ defineExpose({
   min-height: 400px;
 }
 </style>
+
 
 

@@ -42,6 +42,7 @@
           :label="itemField.name"
           :min-width="getColumnWidth(itemField)"
           :align="getColumnAlign(itemField)"
+          header-align="left"
         >
           <template #default="{ row, $index }">
             <!-- 
@@ -110,7 +111,7 @@
         </el-table-column>
         
         <!-- 操作列 -->
-        <el-table-column label="操作" width="150" fixed="right">
+        <el-table-column label="操作" width="150" fixed="right" header-align="left">
           <template #default="{ $index }">
             <template v-if="editMode.editingIndex.value === $index">
               <el-button size="small" @click="handleSave($index)">保存</el-button>
@@ -161,6 +162,7 @@
               :label="itemField.name"
               :min-width="getColumnWidth(itemField)"
               :align="getColumnAlign(itemField)"
+              header-align="left"
             >
               <template #default="{ row, $index }">
                 <!-- 
@@ -582,21 +584,7 @@ function getColumnAlign(field: any): 'left' | 'center' | 'right' {
     return configAlign
   }
   
-  // 🔥 根据字段类型自动决定对齐方式
-  const type = field.widget?.type || 'input'
-  const dataType = field.data?.type || ''
-  
-  // 数字类型：右对齐（符合阅读习惯）
-  if (type === 'number' || type === 'float' || dataType === 'int' || dataType === 'float' || dataType === 'number') {
-    return 'right'
-  }
-  
-  // 开关、评分等：居中
-  if (type === 'switch' || type === 'rate' || type === 'progress') {
-    return 'center'
-  }
-  
-  // 默认：左对齐（文本类型）
+  // 🔥 所有列统一左对齐
   return 'left'
 }
 
@@ -913,6 +901,18 @@ defineExpose({
 :deep(.el-table__header th) {
   z-index: 0 !important;
   position: relative;
+}
+
+/* 🔥 强制所有单元格内容左对齐 */
+:deep(.table-widget-table .el-table__body td),
+:deep(.table-widget-table .el-table__body td .cell) {
+  text-align: left !important;
+}
+
+:deep(.table-widget-table .el-table__body td .cell) {
+  display: flex !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
 }
 
 /* 🔥 确保表格单元格内的组件不会遮挡对话框 */

@@ -39,6 +39,11 @@ export default defineConfig({
         target: 'http://localhost:9090',  // 网关地址
         changeOrigin: true,
       },
+      // Hub API 也通过网关代理
+      '/hub': {
+        target: 'http://localhost:9090',  // 网关地址（网关会转发到 Hub 服务）
+        changeOrigin: true,
+      },
     },
   },
 })

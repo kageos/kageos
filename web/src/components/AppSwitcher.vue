@@ -35,10 +35,10 @@
             </div>
           </div>
           <div class="app-info">
-            <div class="app-name">请选择应用</div>
+            <div class="app-name">请选择工作空间</div>
             <div class="app-path">
               <el-icon class="path-icon"><FolderOpened /></el-icon>
-              <span>点击选择应用</span>
+              <span>点击选择工作空间</span>
             </div>
           </div>
           <div class="expand-section">
@@ -55,9 +55,9 @@
             <div class="header-content">
               <div class="header-title">
                 <el-icon class="header-icon"><Grid /></el-icon>
-                应用列表
+                工作空间列表
               </div>
-              <div class="header-subtitle">选择或管理你的应用</div>
+              <div class="header-subtitle">选择或管理你的工作空间</div>
             </div>
           </div>
           
@@ -65,11 +65,11 @@
           <div v-if="loadingApps" class="loading-state">
             <div class="loading-content">
               <el-icon class="loading-icon"><Loading /></el-icon>
-              <span class="loading-text">正在加载应用列表...</span>
+              <span class="loading-text">正在加载工作空间列表...</span>
             </div>
           </div>
 
-          <!-- 应用列表 -->
+          <!-- 工作空间列表 -->
           <div v-else class="app-list">
             <el-scrollbar v-if="appList.length > 0" max-height="300px" class="app-scrollbar">
               <div class="app-items">
@@ -97,7 +97,7 @@
                       link
                       size="small"
                       class="update-btn"
-                      title="重新编译应用"
+                      title="重新编译工作空间"
                       @click="(e) => handleUpdateApp(app, e)"
                     >
                       <el-icon><RefreshRight /></el-icon>
@@ -106,7 +106,7 @@
                       link
                       size="small"
                       class="delete-btn"
-                      title="删除应用"
+                      title="删除工作空间"
                       @click="(e) => handleDeleteApp(app, e)"
                     >
                       <el-icon><Delete /></el-icon>
@@ -119,10 +119,10 @@
               </div>
             </el-scrollbar>
             <div v-else class="empty-app-list">
-              <el-empty description="暂无应用" :image-size="80">
+              <el-empty description="暂无工作空间" :image-size="80">
                 <el-button type="primary" @click="$emit('create-app')">
                   <el-icon><Plus /></el-icon>
-                  创建应用
+                  创建工作空间
                 </el-button>
               </el-empty>
             </div>
@@ -136,7 +136,7 @@
               @click="$emit('create-app')"
             >
               <el-icon class="create-icon"><Plus /></el-icon>
-              创建新应用
+              创建新工作空间
             </el-button>
           </div>
         </div>

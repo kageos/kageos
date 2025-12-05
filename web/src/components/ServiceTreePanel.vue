@@ -46,7 +46,7 @@
                 <FolderOpened />
               </el-icon>
               <span class="node-label group-label">{{ node.label }}</span>
-              <el-tag type="info" size="small" class="group-tag">组</el-tag>
+              <el-tag type="info" size="small" class="group-tag">业务系统</el-tag>
             </template>
             <!-- 普通节点 -->
             <template v-else>
@@ -115,7 +115,7 @@ interface Emits {
   (e: 'node-click', node: ServiceTree): void
   (e: 'create-directory', parentNode?: ServiceTree): void
   (e: 'copy-link', node: ServiceTree): void
-  (e: 'fork-group', node: ServiceTree | null): void  // Fork 函数组（可以为 null，表示打开对话框让用户选择）
+  (e: 'fork-group', node: ServiceTree | null): void  // Fork 业务系统（可以为 null，表示打开对话框让用户选择）
 }
 
 const props = defineProps<Props>()
@@ -163,7 +163,7 @@ const groupedTreeData = computed(() => {
       groupedFunctions.forEach((funcs, groupCode) => {
         const groupName = getGroupName(funcs, groupCode)
         const groupNode = createGroupNode(groupCode, groupName, node, true)
-        // 函数组下包含函数节点
+        // 业务系统下包含函数节点
         groupNode.children = funcs.map(func => processNode(func))
         newChildren.push(groupNode)
       })
@@ -206,13 +206,13 @@ const handleForkButtonClick = () => {
   // 如果有选中的函数组节点，使用它；否则传递 null，让对话框自己处理
   if (props.currentFunction) {
     const data = props.currentFunction as any
-    // 如果当前选中的是函数组节点，直接使用它
+    // 如果当前选中的是业务系统节点，直接使用它
     if (data.isGroup && data.full_group_code) {
       emit('fork-group', props.currentFunction)
       return
     }
   }
-  // 否则传递 null，打开对话框让用户选择要克隆的函数组
+  // 否则传递 null，打开对话框让用户选择要克隆的业务系统
   emit('fork-group', null)
 }
 
