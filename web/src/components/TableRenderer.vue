@@ -370,6 +370,7 @@
       <!-- 🔥 编辑模式：使用 FormRenderer -->
       <div class="edit-content" v-else-if="currentDetailRow && detailMode === 'edit'">
         <FormRenderer
+          v-if="editFunctionDetail"
           ref="detailFormRendererRef"
           :function-detail="editFunctionDetail"
           :initial-data="currentDetailRow"
@@ -377,6 +378,7 @@
           :show-submit-button="false"
           :show-reset-button="false"
         />
+        <el-empty v-else description="无法构建编辑表单" />
       </div>
     </el-drawer>
 
@@ -1273,14 +1275,29 @@ const editFunctionDetail = computed<FunctionDetail>(() => {
  * - `FormRenderer` 会监听 `initialData` 的变化并重新初始化表单
  * - 条件渲染会从 `initialData` 中获取值，确保依赖字段能正确显示
  */
-const switchToEditMode = (): void => {
+const switchToEditMode = async (): Promise<void> => {
   if (!currentDetailRow.value) {
     ElMessage.error('记录数据不存在')
     return
   }
   
   detailMode.value = 'edit'
-  // FormRenderer 会自动使用 initialData 填充数据
+  
+  // 等待 FormRenderer 初始化完成
+  await nextTick()
+  
+  // 再次等待，确保 FormRenderer 完全准备好
+  let retries = 0
+  while (retries < 10 && !detailFormRendererRef.value) {
+    await nextTick()
+    await new Promise(resolve => setTimeout(resolve, 50))
+    retries++
+  }
+  
+  if (!detailFormRendererRef.value) {
+    ElMessage.error('编辑表单未准备就绪，请稍后重试')
+    detailMode.value = 'view'
+  }
 }
 
 /**

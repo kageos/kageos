@@ -106,7 +106,7 @@ func (r *ServiceTreeRepository) BuildServiceTreeByType(appID int64, nodeType str
 func (r *ServiceTreeRepository) BuildServiceTreeByVersion(appID int64, versionNum int) ([]*model.ServiceTree, error) {
 	// 查询符合条件的节点：add_version_num <= versionNum 且 (update_version_num = 0 或 update_version_num <= versionNum)
 	var allTrees []*model.ServiceTree
-	err := r.db.Where("app_id = ? AND add_version_num <= ? AND (update_version_num = 0 OR update_version_num <= ?)", 
+	err := r.db.Where("app_id = ? AND add_version_num <= ? AND (update_version_num = 0 OR update_version_num <= ?)",
 		appID, versionNum, versionNum).
 		Order("created_at ASC").
 		Find(&allTrees).Error
@@ -231,4 +231,15 @@ func (r *ServiceTreeRepository) GetByID(parentId int64) (*model.ServiceTree, err
 		return nil, err
 	}
 	return &tree, nil
+}
+
+// GetServiceTreesByFullGroupCode 根据完整函数组代码获取服务目录列表（同一个函数组下可能有多个函数，每个函数一条记录）
+func (r *ServiceTreeRepository) GetServiceTreesByFullGroupCode(fullGroupCode string) ([]*model.ServiceTree, error) {
+	var serviceTrees []*model.ServiceTree
+	err := r.db.Where("full_group_code = ? AND type = ?", fullGroupCode, model.ServiceTreeTypeFunction).
+		Find(&serviceTrees).Error
+	if err != nil {
+		return nil, err
+	}
+	return serviceTrees, nil
 }

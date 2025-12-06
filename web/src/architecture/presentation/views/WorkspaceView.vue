@@ -26,6 +26,7 @@
           @create-directory="handleCreateDirectory"
           @fork-group="handleForkGroup"
           @copy-link="handleCopyLink"
+          @publish-to-hub="handlePublishToHub"
         />
       </div>
 
@@ -190,7 +191,7 @@
       :submitting="drawerSubmitting"
       ref="detailDrawerRef"
       @navigate="handleNavigateDetail"
-      @submit="() => submitDrawerEdit(detailDrawerRef?.formRendererRef)"
+      @submit="(formRendererRef) => submitDrawerEdit(formRendererRef)"
       @close="handleDetailDrawerClose"
     />
 
@@ -264,6 +265,14 @@
       :current-app="currentApp || undefined"
       @success="handleForkSuccess"
     />
+
+    <!-- 发布到应用中心对话框 -->
+    <PublishToHubDialog
+      v-model="publishToHubDialogVisible"
+      :selected-node="publishSelectedNode"
+      :current-app="currentApp || undefined"
+      @success="handlePublishSuccess"
+    />
   </div>
 </template>
 
@@ -279,6 +288,7 @@ import { useAuthStore } from '@/stores/auth'
 import ServiceTreePanel from '@/components/ServiceTreePanel.vue'
 import AppSwitcher from '@/components/AppSwitcher.vue'
 import FunctionForkDialog from '@/components/FunctionForkDialog.vue'
+import PublishToHubDialog from '@/components/PublishToHubDialog.vue'
 import FormView from './FormView.vue'
 import TableView from './TableView.vue'
 import WorkspaceHeader from '../components/WorkspaceHeader.vue'
@@ -521,6 +531,10 @@ const forkDialogVisible = ref(false)
 const forkSourceGroupCode = ref('')
 const forkSourceGroupName = ref('')
 
+// 发布到应用中心对话框
+const publishToHubDialogVisible = ref(false)
+const publishSelectedNode = ref<ServiceTreeType | null>(null)
+
 // ServiceTreePanel 引用（用于展开路径）
 const serviceTreePanelRef = ref<InstanceType<typeof ServiceTreePanel> | null>(null)
 
@@ -649,6 +663,18 @@ const handleForkGroup = (node: ServiceTreeType | null) => {
     forkSourceGroupName.value = ''
   }
   forkDialogVisible.value = true
+}
+
+// 处理发布到应用中心
+const handlePublishToHub = (node: ServiceTreeType) => {
+  publishSelectedNode.value = node
+  publishToHubDialogVisible.value = true
+}
+
+// 发布成功后的回调
+const handlePublishSuccess = () => {
+  // 可以在这里添加刷新逻辑，例如刷新服务目录树
+  ElMessage.success('发布成功！')
 }
 
 // Fork 成功后的回调

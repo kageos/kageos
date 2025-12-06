@@ -619,26 +619,21 @@ const editorHeight = computed(() => {
   return 300 // 默认300px
 })
 
-// 🔥 清理 HTML，移除可能导致资源加载的标签（避免 ERR_CONNECTION_REFUSED 错误）
-// 这个方法会移除 img、video、audio、iframe 等标签，但保留文本内容
+// 🔥 清理 HTML，移除危险标签，但保留图片和视频等媒体内容
+// 这个方法会移除 script、style 等危险标签，但保留 img、video、audio 等媒体标签
 function sanitizeHtmlForDisplay(html: string): string {
   if (!html) return ''
   
-  // 移除可能导致资源加载的标签，并用占位符替换
+  // 只移除危险标签，保留媒体内容
   return html
-    // 移除 img 标签（保留 alt 文本作为占位符）
-    .replace(/<img[^>]*alt=["']([^"']*)["'][^>]*>/gi, (match, alt) => alt ? `<span class="image-placeholder">[图片: ${alt}]</span>` : '<span class="image-placeholder">[图片]</span>')
-    .replace(/<img[^>]*>/gi, '<span class="image-placeholder">[图片]</span>')
-    // 移除 video 标签
-    .replace(/<video[^>]*>.*?<\/video>/gi, '<span class="video-placeholder">[视频]</span>')
-    // 移除 audio 标签
-    .replace(/<audio[^>]*>.*?<\/audio>/gi, '<span class="audio-placeholder">[音频]</span>')
-    // 移除 iframe 标签
-    .replace(/<iframe[^>]*>.*?<\/iframe>/gi, '<span class="iframe-placeholder">[嵌入内容]</span>')
-    // 移除 script 标签
+    // 移除 script 标签（安全考虑）
     .replace(/<script[^>]*>.*?<\/script>/gi, '')
-    // 移除 style 标签
+    // 移除 style 标签（避免样式冲突）
     .replace(/<style[^>]*>.*?<\/style>/gi, '')
+    // 移除 iframe 标签（安全考虑，避免 XSS）
+    .replace(/<iframe[^>]*>.*?<\/iframe>/gi, '<span class="iframe-placeholder">[嵌入内容]</span>')
+    // 🔥 保留 img、video、audio 标签，让它们正常显示
+    // 图片和视频标签会被保留，浏览器会自动处理加载
 }
 
 // HTML 内容（用于显示）
@@ -1473,6 +1468,20 @@ watch(
   height: auto;
   border-radius: 4px;
   margin: 8px 0;
+  display: block;
+  /* 图片加载失败时的占位符 */
+  background-color: var(--el-fill-color-lighter);
+  /* 图片加载错误处理 */
+  object-fit: contain;
+}
+
+.html-content :deep(img[src=""]) {
+  display: none;
+}
+
+/* 图片加载失败时的样式 */
+.html-content :deep(img:not([src])) {
+  display: none;
 }
 
 .table-cell-value {

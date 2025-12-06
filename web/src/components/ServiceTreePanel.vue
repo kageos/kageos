@@ -74,6 +74,11 @@
                     <el-icon><Plus /></el-icon>
                     添加服务目录
                   </el-dropdown-item>
+                  <!-- 仅对函数组（业务系统）显示发布到应用中心选项 -->
+                  <el-dropdown-item v-if="(data as any).isGroup && (data as any).full_group_code" command="publish-to-hub" divided>
+                    <el-icon><Upload /></el-icon>
+                    发布到应用中心
+                  </el-dropdown-item>
                   <el-dropdown-item command="copy-link">
                     <el-icon><Link /></el-icon>
                     复制链接
@@ -99,7 +104,7 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick, computed } from 'vue'
-import { Folder, FolderOpened, Plus, MoreFilled, Link, CopyDocument } from '@element-plus/icons-vue'
+import { Folder, FolderOpened, Plus, MoreFilled, Link, CopyDocument, Upload } from '@element-plus/icons-vue'
 import { ElTag, ElLink } from 'element-plus'
 import { generateGroupId, createGroupNode, groupFunctionsByCode, getGroupName, type ExtendedServiceTree } from '@/utils/tree-utils'
 import type { ServiceTree } from '@/types'
@@ -116,6 +121,7 @@ interface Emits {
   (e: 'create-directory', parentNode?: ServiceTree): void
   (e: 'copy-link', node: ServiceTree): void
   (e: 'fork-group', node: ServiceTree | null): void  // Fork 业务系统（可以为 null，表示打开对话框让用户选择）
+  (e: 'publish-to-hub', node: ServiceTree): void   // 发布到应用中心
 }
 
 const props = defineProps<Props>()
@@ -198,6 +204,8 @@ const handleNodeAction = (command: string, data: ServiceTree) => {
     emit('copy-link', data)
   } else if (command === 'fork') {
     emit('fork-group', data)
+  } else if (command === 'publish-to-hub') {
+    emit('publish-to-hub', data)
   }
 }
 

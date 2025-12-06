@@ -46,6 +46,7 @@
               type="primary"
               size="small"
               :loading="submitting"
+              :disabled="!isFormRendererReady"
               @click="handleSubmit"
             >
               保存
@@ -121,7 +122,7 @@
       <!-- 编辑模式（复用 FormRenderer） -->
       <div v-else class="edit-form-wrapper" v-loading="submitting">
         <FormRenderer
-          v-if="editFunctionDetail"
+          v-if="editFunctionDetail && mode === 'edit'"
           ref="formRendererRef"
           :key="`detail-edit-${rowData?.id || ''}-${mode}`"
           :function-detail="editFunctionDetail"
@@ -131,27 +132,25 @@
           :show-share-button="false"
           :show-debug-button="false"
         />
-        <el-empty v-else description="无法构建编辑表单" />
+        <el-empty v-else-if="!editFunctionDetail" description="无法构建编辑表单" />
+        <div v-else class="form-loading">
+          <el-skeleton :rows="5" animated />
+        </div>
       </div>
     </div>
 
     <template #footer>
       <div class="drawer-footer">
-        <template v-if="mode === 'read'">
-          <el-button @click="handleClose">关闭</el-button>
-        </template>
-        <template v-else>
-          <el-button @click="handleToggleMode('read')">取消</el-button>
-          <el-button type="primary" @click="handleSubmit" :loading="submitting">保存</el-button>
-        </template>
+        <el-button @click="handleClose">关闭</el-button>
       </div>
     </template>
   </el-drawer>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick, watch } from 'vue'
 import { Edit, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
 import LinkWidget from '@/core/widgets-v2/components/LinkWidget.vue'
@@ -177,7 +176,7 @@ interface Emits {
   (e: 'update:visible', value: boolean): void
   (e: 'update:mode', value: 'read' | 'edit'): void
   (e: 'navigate', direction: 'prev' | 'next'): void
-  (e: 'submit'): void
+  (e: 'submit', formRendererRef: InstanceType<typeof FormRenderer>): void
   (e: 'close'): void
 }
 
@@ -193,6 +192,22 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<Emits>()
 
 const formRendererRef = ref<InstanceType<typeof FormRenderer> | null>(null)
+const isFormRendererReady = ref(false)
+
+// 监听 formRendererRef 的变化
+watch(formRendererRef, (newVal) => {
+  isFormRendererReady.value = !!newVal
+}, { immediate: true })
+
+// 监听 mode 变化，重置 ready 状态
+watch(() => props.mode, (newMode) => {
+  if (newMode === 'edit') {
+    // 重置 ready 状态，等待 watch(formRendererRef) 自动更新
+    isFormRendererReady.value = false
+  } else {
+    isFormRendererReady.value = false
+  }
+})
 
 const visible = computed({
   get: () => props.visible,
@@ -275,7 +290,14 @@ const handleNavigate = (direction: 'prev' | 'next') => {
 }
 
 const handleSubmit = () => {
-  emit('submit')
+  // 直接检查 isFormRendererReady，这个状态由 watch(formRendererRef) 自动维护
+  if (!isFormRendererReady.value || !formRendererRef.value) {
+    ElMessage.warning('编辑表单正在初始化，请稍后再试')
+    return
+  }
+  
+  // 直接传递 formRendererRef 给父组件
+  emit('submit', formRendererRef.value)
 }
 
 const handleClose = () => {
