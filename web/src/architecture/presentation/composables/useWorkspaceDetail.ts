@@ -133,16 +133,19 @@ export function useWorkspaceDetail(options: {
   }
 
   // 提交编辑
-  const submitDrawerEdit = async () => {
+  const submitDrawerEdit = async (formRendererRef?: InstanceType<typeof FormRenderer> | null) => {
     const currentDetail = options.currentFunctionDetail()
-    if (!currentDetail || !detailRowData.value || !detailFormRendererRef.value) {
+    // 🔥 优先使用传入的 formRendererRef，如果没有则使用 detailFormRendererRef
+    const rendererRef = formRendererRef || detailFormRendererRef.value
+    
+    if (!currentDetail || !detailRowData.value || !rendererRef) {
       ElMessage.error('编辑表单未准备就绪')
       return
     }
     
     try {
       drawerSubmitting.value = true
-      const submitData = detailFormRendererRef.value.prepareSubmitDataWithTypeConversion()
+      const submitData = rendererRef.prepareSubmitDataWithTypeConversion()
       const oldValues = detailOriginalRow.value
         ? deepClone(detailOriginalRow.value)
         : undefined

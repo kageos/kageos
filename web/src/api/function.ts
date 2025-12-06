@@ -175,3 +175,41 @@ export function forkFunctionGroup(data: {
 }) {
   return post<{ message: string }>('/api/v1/function/fork', data)
 }
+
+/**
+ * 获取函数组信息（用于 Hub 发布）
+ * @param fullGroupCode 完整函数组代码，例如：/luobei/testgroup/tools/tools_cashier
+ */
+export interface FunctionInfo {
+  id: number
+  app_id: number
+  tree_id: number
+  method: string
+  router: string
+  has_config: boolean
+  create_tables: string
+  callbacks: string
+  template_type: string
+  created_at: string
+  updated_at: string
+  name: string        // 函数名称
+  description: string // 函数描述
+}
+
+export interface GetFunctionGroupInfoResp {
+  source_code: string        // 源代码
+  description: string        // 描述信息（通常为空，由用户在 Hub 填写）
+  full_group_code: string    // 完整函数组代码
+  group_code: string         // 函数组代码
+  group_name: string         // 函数组名称
+  full_path: string          // 完整路径
+  version: string            // 版本号
+  app_id: number            // 应用ID
+  app_name: string           // 应用名称
+  function_count: number    // 函数数量
+  functions: FunctionInfo[]  // 函数列表（用于 Hub 展示功能列表）
+}
+
+export function getFunctionGroupInfo(fullGroupCode: string) {
+  return get<GetFunctionGroupInfoResp>('/api/v1/function/group-info', { full_group_code: fullGroupCode })
+}
