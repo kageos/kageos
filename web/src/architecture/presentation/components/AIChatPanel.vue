@@ -150,13 +150,17 @@ import type { UploadFile } from 'element-plus'
 interface Props {
   agentId: number | null
   treeId: number | null // 服务目录ID（TreeID）
+  package?: string // Package 名称
   currentNodeName?: string
+  existingFiles?: string[] // 当前 package 下已存在的文件名（不含 .go 后缀）
 }
 
 const props = withDefaults(defineProps<Props>(), {
   agentId: null,
   treeId: null,
-  currentNodeName: ''
+  package: '',
+  currentNodeName: '',
+  existingFiles: () => []
 })
 
 const emit = defineEmits<{
@@ -368,7 +372,9 @@ async function handleSend() {
     const res = await agentApi.functionGenChat({
       agent_id: selectedAgentId.value,
       tree_id: props.treeId,
+      package: props.package || '', // 传递 Package 名称
       session_id: sessionId.value || '', // 首次为空，后端自动生成
+      existing_files: props.existingFiles || [], // 传递已存在的文件名
       message: {
         content: userMessage || '',
         files: files.map(f => ({

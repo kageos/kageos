@@ -205,6 +205,9 @@ func (s *Server) initServices(ctx context.Context) error {
 	// 初始化 Fork 服务（需要在 AppManageService 之前）
 	s.forkService = service.NewForkService(&s.cfg.AppManage)
 
+	// 初始化创建函数服务（需要在 AppManageService 之前）
+	createFunctionService := service.NewCreateFunctionService(&s.cfg.AppManage)
+
 	// 初始化应用管理服务
 	wd, _ := os.Getwd()
 	s.appManageService = service.NewAppManageService(
@@ -216,6 +219,7 @@ func (s *Server) initServices(ctx context.Context) error {
 		s.appDiscoveryService,
 		s.natsConn,
 		s.forkService, // 传入 Fork 服务
+		createFunctionService, // 传入创建函数服务
 	)
 
 	// 启动 QPS 跟踪器清理任务

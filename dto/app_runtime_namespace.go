@@ -61,11 +61,26 @@ func (r *RequestAppResp) IsError() bool {
 	return r.ErrCode != 0
 }
 
+// CreateFunctionInfo 创建函数信息
+type CreateFunctionInfo struct {
+	Package    string `json:"package"`     // 目标 package 路径（如 "crm" 或 "plugins/cashier"）
+	GroupCode  string `json:"group_code"`  // 函数组代码（文件名，不含 .go）
+	SourceCode string `json:"source_code"` // 源代码内容
+}
+
+// CreateFunctionsResp 创建函数响应
+type CreateFunctionsResp struct {
+	Success      bool     `json:"success" example:"true"`   // 是否成功
+	Message      string   `json:"message" example:"文件创建成功"` // 响应消息
+	WrittenFiles []string `json:"written_files"`            // 已写入的文件路径列表（用于失败时回滚）
+}
+
 // UpdateAppReq 更新应用请求
 type UpdateAppReq struct {
-	User         string             `json:"user" swaggerignore:"true"`              // 用户名
-	App          string             `json:"app" binding:"required" example:"myapp"` // 应用名
-	ForkPackages []*ForkPackageInfo `json:"fork_packages,omitempty"`                // 可选的 Fork 包列表（如果有，先执行 fork 再更新）
+	User            string                `json:"user" swaggerignore:"true"`              // 用户名
+	App             string                `json:"app" binding:"required" example:"myapp"` // 应用名
+	ForkPackages    []*ForkPackageInfo    `json:"fork_packages,omitempty"`                // 可选的 Fork 包列表（如果有，先执行 fork 再更新）
+	CreateFunctions []*CreateFunctionInfo  `json:"create_functions,omitempty"`             // 可选的新建函数列表（如果有，先执行创建函数再更新）
 }
 
 // UpdateAppResp 更新应用响应

@@ -268,6 +268,38 @@ func (st *ServiceTree) GetDisplayName() string {
 	return st.Code
 }
 
+// GetPackagePathForFileCreation 获取用于文件创建的 package 路径
+// 封装路径操作，方便维护
+// 对于 package 类型的节点，返回其路径（去掉应用前缀）
+// 对于 function 类型的节点，返回其所在的 package 路径
+func (st *ServiceTree) GetPackagePathForFileCreation() string {
+	// GetBasePath() 返回相对于应用根目录的路径，例如 "/crm" 或 "/plugins/cashier"
+	basePath := st.GetBasePath()
+	
+	var packagePath string
+	if st.IsFunction() {
+		// 对于 function 节点，需要获取其所在的 package 路径
+		// 去掉路径的最后一部分（function 名称）
+		pathParts := strings.Split(strings.Trim(basePath, "/"), "/")
+		if len(pathParts) > 1 {
+			packagePath = strings.Join(pathParts[:len(pathParts)-1], "/")
+		} else {
+			// 如果只有一层，说明 function 直接在应用根目录下，package 为空
+			packagePath = ""
+		}
+	} else {
+		// 对于 package 节点，直接使用 basePath（去掉开头的 "/"）
+		packagePath = strings.TrimPrefix(basePath, "/")
+	}
+	
+	if packagePath == "" {
+		// 如果是根节点或 function 直接在应用根目录下，使用 code 作为 package
+		packagePath = st.Code
+	}
+	
+	return packagePath
+}
+
 // GetTagsSlice 将Tags字符串转换为切片
 func (st *ServiceTree) GetTagsSlice() []string {
 	if st.Tags == "" {

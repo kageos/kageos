@@ -24,3 +24,37 @@ export function findNodeByPath(tree: ServiceTreeType[], path: string): ServiceTr
   return null
 }
 
+/**
+ * 根据 ID 递归查找节点
+ */
+export function findNodeById(tree: ServiceTreeType[], id: number): ServiceTreeType | null {
+  for (const node of tree) {
+    if (node.id === id) {
+      return node
+    }
+    if (node.children && node.children.length > 0) {
+      const found = findNodeById(node.children, id)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+/**
+ * 获取节点的直接子节点（只收集一级子节点，type 为 'function' 的）
+ * 返回这些子节点的 code（文件名，去掉 .go 后缀）
+ */
+export function getDirectChildFunctionCodes(node: ServiceTreeType | null): string[] {
+  if (!node || !node.children || node.children.length === 0) {
+    return []
+  }
+  
+  return node.children
+    .filter(child => child.type === 'function' && child.code)
+    .map(child => {
+      // 去掉 .go 后缀（如果有）
+      const code = child.code
+      return code.endsWith('.go') ? code.slice(0, -3) : code
+    })
+}
+
