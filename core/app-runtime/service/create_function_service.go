@@ -8,6 +8,7 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
+	"github.com/ai-agent-os/ai-agent-os/pkg/gofmt"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
 
@@ -48,8 +49,17 @@ func (s *CreateFunctionService) CreateFunctions(ctx context.Context, user, app s
 		// 构建目标文件路径
 		targetFilePath := filepath.Join(packageDir, funcInfo.GroupCode+".go")
 
-		// 写入文件（代码已经正确，不需要替换 package）
-		if err := os.WriteFile(targetFilePath, []byte(funcInfo.SourceCode), 0644); err != nil {
+		// 修复 Go 代码的 import 语句（防止编译不通过）
+		fixedCode, err := gofmt.FixGoImport(targetFilePath, []byte(funcInfo.SourceCode))
+		if err != nil {
+			logger.Errorf(ctx, "[CreateFunctionService] 修复 import 失败: file=%s, error=%v", targetFilePath, err)
+			// 修复失败时删除已写入的文件
+			s.rollbackFiles(ctx, writtenFiles)
+			return nil, fmt.Errorf("修复 import 失败 %s/%s: %w", funcInfo.Package, funcInfo.GroupCode, err)
+		}
+
+		// 写入文件（使用修复后的代码）
+		if err := os.WriteFile(targetFilePath, []byte(fixedCode), 0644); err != nil {
 			logger.Errorf(ctx, "[CreateFunctionService] 写入文件失败: file=%s, error=%v", targetFilePath, err)
 			// 失败时删除已写入的文件
 			s.rollbackFiles(ctx, writtenFiles)

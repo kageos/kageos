@@ -314,6 +314,13 @@ func (s *AgentChatService) FunctionGenChat(ctx context.Context, req *dto.Functio
 			return nil, err
 		}
 
+		// 6.2.1 检查插件返回的错误（插件处理失败，不应调用 LLM）
+		if pluginResp.Error != "" {
+			logger.Errorf(ctx, "[FunctionGenChat] Plugin 处理失败 - AgentID: %d, Error: %s, TraceID: %s",
+				agent.ID, pluginResp.Error, traceId)
+			return nil, fmt.Errorf("插件处理失败: %s", pluginResp.Error)
+		}
+
 		logger.Infof(ctx, "[FunctionGenChat] Plugin 调用成功 - AgentID: %d, DataLength: %d, TraceID: %s",
 			agent.ID, len(pluginResp.Data), traceId)
 
@@ -472,8 +479,13 @@ func (s *AgentChatService) FunctionGenChat(ctx context.Context, req *dto.Functio
 			// 继续执行，不中断流程
 		}
 
-		// 更新记录
-		if err := s.functionGenRepo.UpdateCode(record.ID, resp.Content, model.FunctionGenStatusCompleted); err != nil {
+		// 从 LLM 响应中提取代码（可能包含 Markdown 代码块）
+		extractedCode := extractCodeFromMarkdown(resp.Content)
+		logger.Infof(asyncCtx, "[FunctionGen] 代码提取完成 - 原始长度: %d, 提取后长度: %d, RecordID: %d, TraceID: %s",
+			len(resp.Content), len(extractedCode), record.ID, traceId)
+
+		// 更新记录（保存提取后的代码）
+		if err := s.functionGenRepo.UpdateCode(record.ID, extractedCode, model.FunctionGenStatusCompleted); err != nil {
 			logger.Errorf(asyncCtx, "[FunctionGen] 更新记录失败: %v, RecordID: %d, TraceID: %s",
 				err, record.ID, traceId)
 			// 继续执行，不中断流程
@@ -489,7 +501,7 @@ func (s *AgentChatService) FunctionGenChat(ctx context.Context, req *dto.Functio
 			AgentID:  req.AgentID,
 			TreeID:   req.TreeID,
 			User:     user,
-			Code:     resp.Content,
+			Code:     extractedCode, // 使用提取后的代码
 		}
 
 		// 发布结果到 NATS
@@ -514,4 +526,57 @@ func (s *AgentChatService) FunctionGenChat(ctx context.Context, req *dto.Functio
 		RecordID:  record.ID,
 		Status:    model.FunctionGenStatusGenerating,
 	}, nil
+}
+
+// extractCodeFromMarkdown 从 Markdown 代码块中提取代码
+// 支持格式：
+// 1. ```go\n代码\n```
+// 2. ```\n代码\n```
+// 3. 如果找不到代码块，返回原始内容
+func extractCodeFromMarkdown(content string) string {
+	// 查找 ```go 或 ``` 开头的代码块
+	lines := strings.Split(content, "\n")
+	
+	var codeBlocks []string
+	var inCodeBlock bool
+	var codeBlockStart int
+	
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		
+		// 检查是否是代码块开始标记
+		if strings.HasPrefix(trimmed, "```") {
+			if inCodeBlock {
+				// 代码块结束，提取内容
+				if i > codeBlockStart {
+					codeBlock := strings.Join(lines[codeBlockStart+1:i], "\n")
+					codeBlocks = append(codeBlocks, codeBlock)
+				}
+				inCodeBlock = false
+			} else {
+				// 代码块开始
+				inCodeBlock = true
+				codeBlockStart = i
+			}
+			continue
+		}
+	}
+	
+	// 如果代码块没有正确关闭，也提取已收集的内容
+	if inCodeBlock && codeBlockStart < len(lines)-1 {
+		codeBlock := strings.Join(lines[codeBlockStart+1:], "\n")
+		codeBlocks = append(codeBlocks, codeBlock)
+	}
+	
+	// 如果有代码块，返回第一个（通常只有一个）
+	if len(codeBlocks) > 0 {
+		extracted := strings.TrimSpace(codeBlocks[0])
+		// 如果提取的代码不为空，返回它
+		if extracted != "" {
+			return extracted
+		}
+	}
+	
+	// 如果没有找到代码块或代码块为空，返回原始内容（作为 fallback）
+	return content
 }

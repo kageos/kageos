@@ -10,6 +10,7 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
+	"github.com/ai-agent-os/ai-agent-os/pkg/gofmt"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
 
@@ -57,8 +58,17 @@ func (s *ForkService) ForkFunctionGroup(ctx context.Context, req *dto.ForkFuncti
 			// 构建目标文件路径
 			targetFilePath := filepath.Join(packageDir, file.GroupCode+".go")
 
-			// 写入文件
-			if err := os.WriteFile(targetFilePath, []byte(processedCode), 0644); err != nil {
+			// 修复 Go 代码的 import 语句（防止编译不通过）
+			fixedCode, err := gofmt.FixGoImport(targetFilePath, []byte(processedCode))
+			if err != nil {
+				logger.Errorf(ctx, "[ForkService] 修复 import 失败: file=%s, error=%v", targetFilePath, err)
+				// 修复失败时删除已写入的文件
+				s.rollbackFiles(ctx, writtenFiles)
+				return nil, fmt.Errorf("修复 import 失败 %s/%s: %w", pkgInfo.Package, file.GroupCode, err)
+			}
+
+			// 写入文件（使用修复后的代码）
+			if err := os.WriteFile(targetFilePath, []byte(fixedCode), 0644); err != nil {
 				logger.Errorf(ctx, "[ForkService] 写入文件失败: file=%s, error=%v", targetFilePath, err)
 				// 失败时删除已写入的文件
 				s.rollbackFiles(ctx, writtenFiles)
