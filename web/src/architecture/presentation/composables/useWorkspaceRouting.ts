@@ -206,10 +206,10 @@ export function useWorkspaceRouting(options: {
       if (pathSegments.length > 2) {
         const functionPath = '/' + pathSegments.join('/') // 构造完整路径，如 /luobei/demo/crm/list
         
-        // 检查是否有 _tab 参数（create/edit/detail 模式）
+        // 检查是否有 _tab 参数（create/edit/detail/OnTableAddRow 模式）
         const tabParam = route.query._tab as string
-        if (tabParam === 'create' || tabParam === 'edit' || tabParam === 'detail') {
-          // create/edit 模式不需要打开 Tab，直接加载函数详情
+        if (tabParam === 'create' || tabParam === 'edit' || tabParam === 'detail' || tabParam === 'OnTableAddRow') {
+          // create/edit/detail/OnTableAddRow 模式不需要打开 Tab，直接加载函数详情
           const tryLoadFunction = () => {
             const tree = options.serviceTree()
             if (tree && tree.length > 0) {
@@ -242,7 +242,7 @@ export function useWorkspaceRouting(options: {
             })
           }
           
-          return // create/edit 模式不打开 Tab
+          return // create/edit/detail/OnTableAddRow 模式不打开 Tab
         }
         
         // 检查 _forked 参数，自动展开路径
