@@ -228,7 +228,9 @@
       mode="create"
       :router="props.functionDetail.router"
       :method="props.functionDetail.method || 'POST'"
+      :initial-data="createFormInitialData"
       @submit="handleCreateSubmit"
+      @close="handleCreateDialogClose"
     />
   </div>
 </template>
@@ -321,6 +323,50 @@ const total = computed(() => pagination.value.total)
 
 // 创建对话框
 const createDialogVisible = ref(false)
+
+// 从 URL 查询参数中提取新增表单的初始数据
+const createFormInitialData = computed(() => {
+  const initialData: Record<string, any> = {}
+  const query = route.query
+  
+  // 只有存在 _tab=OnTableAddRow 参数时才提取初始数据
+  if (query._tab !== 'OnTableAddRow') {
+    return initialData
+  }
+  
+  // 遍历所有查询参数，如果字段在 response 中，添加到 initialData
+  if (props.functionDetail?.response) {
+    props.functionDetail.response.forEach((field: FieldConfig) => {
+      const fieldCode = field.code
+      const queryValue = query[fieldCode]
+      
+      // 🔥 处理数组类型的查询参数（取第一个值）
+      const value = Array.isArray(queryValue) ? queryValue[0] : queryValue
+      
+      if (value !== undefined && value !== null && value !== '') {
+        // 类型转换：根据字段类型转换值
+        if (field.data?.type === 'int' || field.data?.type === 'integer') {
+          const intValue = parseInt(String(value), 10)
+          if (!isNaN(intValue)) {
+            initialData[fieldCode] = intValue
+          }
+        } else if (field.data?.type === 'float' || field.data?.type === 'number') {
+          const floatValue = parseFloat(String(value))
+          if (!isNaN(floatValue)) {
+            initialData[fieldCode] = floatValue
+          }
+        } else if (field.data?.type === 'bool' || field.data?.type === 'boolean') {
+          const strValue = String(value)
+          initialData[fieldCode] = strValue === 'true' || strValue === '1'
+        } else {
+          initialData[fieldCode] = value
+        }
+      }
+    })
+  }
+  
+  return initialData
+})
 
 // ==================== 用户信息预加载 ====================
 
@@ -995,9 +1041,28 @@ const handleCreateSubmit = async (data: Record<string, any>): Promise<void> => {
     await applicationService.addRow(props.functionDetail, data)
     ElMessage.success('新增成功')
     createDialogVisible.value = false
+    // 清理 URL 中的 _tab 参数
+    handleCreateDialogClose()
   } catch (error: any) {
     const msg = error?.response?.data?.message || '新增失败'
     ElMessage.error(msg)
+  }
+}
+
+// 关闭新增对话框时清理 URL 中的 _tab 参数
+const handleCreateDialogClose = (): void => {
+  const query = { ...route.query }
+  if (query._tab === 'OnTableAddRow') {
+    delete query._tab
+    // 清理所有表单字段参数（保留其他参数如搜索、分页等）
+    if (props.functionDetail?.response) {
+      props.functionDetail.response.forEach((field: FieldConfig) => {
+        if (query[field.code]) {
+          delete query[field.code]
+        }
+      })
+    }
+    router.replace({ query })
   }
 }
 
@@ -1139,6 +1204,34 @@ onMounted(async () => {
       }
     }
   })
+  
+  // 🔥 监听 URL 中的 _tab=OnTableAddRow 参数，如果存在则打开新增弹窗
+  // 等待表格初始化完成后再检查，确保函数详情已加载
+  nextTick(() => {
+    restoreAddDialogFromURL()
+  })
+})
+
+// 从 URL 恢复新增弹窗
+const restoreAddDialogFromURL = (): void => {
+  const query = route.query
+  const tabParam = query._tab as string
+  
+  // 检查是否存在 _tab=OnTableAddRow 参数
+  if (tabParam === 'OnTableAddRow' && hasAddCallback.value) {
+    // 打开新增弹窗
+    createDialogVisible.value = true
+  }
+}
+
+// 监听路由变化，如果 _tab=OnTableAddRow 则打开新增弹窗
+watch(() => route.query._tab, (newTab: string | string[] | undefined) => {
+  if (newTab === 'OnTableAddRow' && hasAddCallback.value && isMounted.value) {
+    createDialogVisible.value = true
+  } else if (newTab !== 'OnTableAddRow' && createDialogVisible.value) {
+    // 如果 _tab 参数被移除，关闭弹窗
+    createDialogVisible.value = false
+  }
 })
 
 onUnmounted(() => {
