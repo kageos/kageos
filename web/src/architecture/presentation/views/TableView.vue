@@ -1166,6 +1166,7 @@ const hasDeleteCallback = computed(() => {
 
 let unsubscribeDataLoaded: (() => void) | null = null
 let unsubscribeFunctionLoaded: (() => void) | null = null
+let unsubscribeQueryChanged: (() => void) | null = null
 
 // 🔥 使用 composable 统一管理初始化逻辑
 const { initializeTable, setupQueryWatch } = useTableInitialization({
@@ -1229,34 +1230,44 @@ onMounted(async () => {
     }
   })
   
-  // 🔥 监听 URL 中的 _tab=OnTableAddRow 参数，如果存在则打开新增弹窗
-  // 等待表格初始化完成后再检查，确保函数详情已加载
-  nextTick(() => {
-    restoreAddDialogFromURL()
-  })
+  // 🔥 设置新增弹窗 URL 监听（监听 RouteEvent.queryChanged）
+  setupAddDialogUrlWatch()
 })
 
 // 从 URL 恢复新增弹窗
-const restoreAddDialogFromURL = (): void => {
-  const query = route.query
+const restoreAddDialogFromURL = (query: any): void => {
   const tabParam = query._tab as string
   
   // 检查是否存在 _tab=OnTableAddRow 参数
-  if (tabParam === 'OnTableAddRow' && hasAddCallback.value) {
+  if (tabParam === 'OnTableAddRow' && hasAddCallback.value && isMounted.value) {
     // 打开新增弹窗
     createDialogVisible.value = true
+  } else if (tabParam !== 'OnTableAddRow' && createDialogVisible.value) {
+    // 如果 _tab 参数被移除或改变，关闭弹窗
+    createDialogVisible.value = false
   }
 }
 
-// 监听路由变化，如果 _tab=OnTableAddRow 则打开新增弹窗
-watch(() => route.query._tab, (newTab: string | string[] | undefined) => {
-  if (newTab === 'OnTableAddRow' && hasAddCallback.value && isMounted.value) {
-    createDialogVisible.value = true
-  } else if (newTab !== 'OnTableAddRow' && createDialogVisible.value) {
-    // 如果 _tab 参数被移除，关闭弹窗
-    createDialogVisible.value = false
+// 设置 URL 参数监听（用于分享链接和直接跳转）
+// 🔥 阶段4：改为监听 RouteEvent.queryChanged 事件，而不是直接 watch route.query
+// 这样可以避免程序触发的路由更新导致循环
+const setupAddDialogUrlWatch = () => {
+  // 🔥 初始化时检查 URL 参数（页面刷新场景）
+  // 如果 URL 中已经有 _tab=OnTableAddRow，打开新增弹窗
+  if (route.query._tab === 'OnTableAddRow') {
+    nextTick(() => {
+      restoreAddDialogFromURL(route.query)
+    })
   }
-})
+  
+  // 监听 URL 参数变化（浏览器前进/后退场景）
+  unsubscribeQueryChanged = eventBus.on(RouteEvent.queryChanged, async (payload: { query: any, oldQuery: any, source: string }) => {
+    // 🔥 只处理用户操作（浏览器前进/后退）或外部变化，不处理程序触发的更新
+    if (payload.source === 'router-change') {
+      restoreAddDialogFromURL(payload.query)
+    }
+  })
+}
 
 onUnmounted(() => {
   const functionId = props.functionDetail.id
@@ -1270,6 +1281,9 @@ onUnmounted(() => {
   }
   if (unsubscribeFunctionLoaded) {
     unsubscribeFunctionLoaded()
+  }
+  if (unsubscribeQueryChanged) {
+    unsubscribeQueryChanged()
   }
 })
 </script>
@@ -1488,3 +1502,4 @@ onUnmounted(() => {
   min-width: fit-content;
 }
 </style>
+
