@@ -16,6 +16,7 @@
       :value-format="valueFormat"
       :clearable="true"
       :shortcuts="shortcuts"
+      popper-class="timestamp-picker-popper"
       @change="handleChange"
     />
     
@@ -43,6 +44,7 @@
       :value-format="valueFormat"
       :clearable="true"
       :shortcuts="shortcuts"
+      popper-class="timestamp-picker-popper"
     />
   </div>
 </template>
@@ -410,6 +412,30 @@ function handleChange(value: Date | [Date, Date] | null): void {
 
 .detail-content {
   color: var(--el-text-color-regular);
+}
+</style>
+
+<style>
+/* 全局样式：确保时间选择器弹窗在对话框上方显示（FormDialog 的 z-index 是 3001） */
+.timestamp-picker-popper {
+  z-index: 3002 !important;
+}
+
+.timestamp-picker-popper.el-picker__popper {
+  z-index: 3002 !important;
+}
+
+.timestamp-picker-popper .el-picker__popper {
+  z-index: 3002 !important;
+}
+
+/* 确保 DatePicker 的所有弹窗元素都在对话框上方 */
+.timestamp-picker-popper.el-date-picker {
+  z-index: 3002 !important;
+}
+
+.timestamp-picker-popper .el-date-picker {
+  z-index: 3002 !important;
 }
 </style>
 

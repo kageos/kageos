@@ -107,11 +107,12 @@ func (st *ServiceTree) GetBreadcrumbs() []string {
 }
 
 // GetAppPrefix 获取应用前缀路径
+// 注意：使用 App.Code 而不是 App.Name，因为 FullCodePath 是基于 Code 构建的
 func (st *ServiceTree) GetAppPrefix() string {
 	if st.App == nil {
 		return ""
 	}
-	return fmt.Sprintf("/%s/%s", st.App.User, st.App.Name)
+	return fmt.Sprintf("/%s/%s", st.App.User, st.App.Code)
 }
 
 // GetBasePath 获取基础路径（不含用户应用前缀的部分）
@@ -270,17 +271,29 @@ func (st *ServiceTree) GetDisplayName() string {
 
 // GetPackagePathForFileCreation 获取用于文件创建的 package 路径
 // 封装路径操作，方便维护
-// 对于 package 类型的节点，返回其路径（去掉应用前缀）
+// 对于 package 类型的节点，返回其路径（去掉应用前缀，去掉开头的斜杠）
 // 对于 function 类型的节点，返回其所在的 package 路径
+// 返回格式：例如 "crm" 或 "plugins/cashier"，不包含 user 和 app 名称
 func (st *ServiceTree) GetPackagePathForFileCreation() string {
-	// GetBasePath() 返回相对于应用根目录的路径，例如 "/crm" 或 "/plugins/cashier"
-	basePath := st.GetBasePath()
+	// 获取应用前缀，例如 "/luobei/demo"
+	appPrefix := st.GetAppPrefix()
+	
+	// 从 FullCodePath 中去掉应用前缀
+	// FullCodePath 格式："/luobei/demo/crm" 或 "/luobei/demo/plugins/cashier"
+	// 去掉前缀后："/crm" 或 "/plugins/cashier"
+	fullPath := st.FullCodePath
+	if appPrefix != "" && strings.HasPrefix(fullPath, appPrefix) {
+		fullPath = strings.TrimPrefix(fullPath, appPrefix)
+	}
+	
+	// 去掉开头的斜杠，得到 "crm" 或 "plugins/cashier"
+	basePath := strings.TrimPrefix(fullPath, "/")
 	
 	var packagePath string
 	if st.IsFunction() {
 		// 对于 function 节点，需要获取其所在的 package 路径
 		// 去掉路径的最后一部分（function 名称）
-		pathParts := strings.Split(strings.Trim(basePath, "/"), "/")
+		pathParts := strings.Split(basePath, "/")
 		if len(pathParts) > 1 {
 			packagePath = strings.Join(pathParts[:len(pathParts)-1], "/")
 		} else {
@@ -288,8 +301,8 @@ func (st *ServiceTree) GetPackagePathForFileCreation() string {
 			packagePath = ""
 		}
 	} else {
-		// 对于 package 节点，直接使用 basePath（去掉开头的 "/"）
-		packagePath = strings.TrimPrefix(basePath, "/")
+		// 对于 package 节点，直接使用 basePath
+		packagePath = basePath
 	}
 	
 	if packagePath == "" {

@@ -81,6 +81,26 @@ func (c *OnTableUpdateRowReq) GetUpdates() map[string]interface{} {
 	return c.Updates
 }
 
+// IsFieldUpdated 判断指定字段是否在此次更新中被变更
+//
+// 这是一个快捷方法，用于替代 `if _, hasField := updates["field"]; hasField` 的写法
+//
+// 示例：
+//
+//	if req.IsFieldUpdated("quantity") {
+//	    // quantity 字段在此次更新中被变更
+//	}
+//	if req.IsFieldUpdated("unit_price") {
+//	    // unit_price 字段在此次更新中被变更
+//	}
+func (c *OnTableUpdateRowReq) IsFieldUpdated(fieldName string) bool {
+	if c.Updates == nil {
+		return false
+	}
+	_, exists := c.Updates[fieldName]
+	return exists
+}
+
 // GetOldValues 获取旧值（用于审计）
 func (c *OnTableUpdateRowReq) GetOldValues() map[string]interface{} {
 	if c.OldValues == nil {

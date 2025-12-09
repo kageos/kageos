@@ -73,5 +73,6 @@ type PluginRunReq struct {
 
 // PluginRunResp 插件执行响应
 type PluginRunResp struct {
-	Data string `json:"data" example:"工单标题,问题描述,优先级,工单状态\n工单1,描述1,低,待处理"` // 处理后的数据（格式化后的文本，供LLM理解）
+	Data  string `json:"data" example:"工单标题,问题描述,优先级,工单状态\n工单1,描述1,低,待处理"` // 处理后的数据（格式化后的文本，供LLM理解）
+	Error string `json:"error,omitempty" example:"文件解析失败: 读取 CSV 行失败"`              // 错误信息（如果有），如果设置了此字段，表示插件处理失败，不应调用 LLM
 }

@@ -42,19 +42,40 @@ export function findNodeById(tree: ServiceTreeType[], id: number): ServiceTreeTy
 
 /**
  * 获取节点的直接子节点（只收集一级子节点，type 为 'function' 的）
- * 返回这些子节点的 code（文件名，去掉 .go 后缀）
+ * 返回这些子节点的 group_code（从 full_group_code 中提取最后一段）
+ * 
+ * 注意：多个 function 节点可能共享同一个 full_group_code，所以需要对结果去重
+ * 
+ * 例如：
+ * - full_group_code: "/luobei/demo/crm/crm_ticket" → 返回 "crm_ticket"
+ * - full_group_code: "/luobei/demo/crm/crm_meeting_room" → 返回 "crm_meeting_room"
  */
 export function getDirectChildFunctionCodes(node: ServiceTreeType | null): string[] {
   if (!node || !node.children || node.children.length === 0) {
     return []
   }
   
-  return node.children
-    .filter(child => child.type === 'function' && child.code)
+  const codes = node.children
+    .filter(child => child.type === 'function')
     .map(child => {
-      // 去掉 .go 后缀（如果有）
-      const code = child.code
-      return code.endsWith('.go') ? code.slice(0, -3) : code
+      // 优先使用 full_group_code，提取最后一段
+      if (child.full_group_code) {
+        // 去掉开头的斜杠，按斜杠分割，取最后一段
+        const parts = child.full_group_code.replace(/^\/+/, '').split('/')
+        return parts[parts.length - 1] || ''
+      }
+      
+      // 回退到使用 code 字段（去掉 .go 后缀）
+      if (child.code) {
+        const code = child.code
+        return code.endsWith('.go') ? code.slice(0, -3) : code
+      }
+      
+      return ''
     })
+    .filter(code => code !== '') // 过滤掉空字符串
+  
+  // 使用 Set 去重，然后转回数组
+  return Array.from(new Set(codes))
 }
 

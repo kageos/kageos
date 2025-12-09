@@ -13,8 +13,8 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
+	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
 	"github.com/gin-gonic/gin"
 	"github.com/nats-io/nats.go"
 	"gorm.io/driver/mysql"
@@ -386,40 +386,97 @@ func (s *Server) handleFunctionGenResult(msg *nats.Msg) {
 	// 2. 从 ServiceTree 中提取 package 路径（使用 model 方法）
 	packagePath := serviceTree.GetPackagePathForFileCreation()
 
-	// 3. 从生成的代码中解析 group_code（文件名）
+	// 3. 从 LLM 响应中提取代码（可能包含 Markdown 代码块）
+	extractedCode := s.extractCodeFromMarkdown(result.Code)
+	logger.Infof(ctx, "[Server] 代码提取完成 - 原始长度: %d, 提取后长度: %d", len(result.Code), len(extractedCode))
+
+	// 4. 从生成的代码中解析 group_code（文件名）
 	// 优先从代码中的 GroupCode 字段提取，其次从文件名注释，最后从结构体名称推断
-	groupCode := s.extractGroupCodeFromCode(result.Code)
+	groupCode := s.extractGroupCodeFromCode(extractedCode)
 	if groupCode == "" {
 		logger.Errorf(ctx, "[Server] 无法从代码中提取 group_code，使用 ServiceTree.Code 作为 fallback: %s", serviceTree.Code)
 		groupCode = serviceTree.Code
 	}
-	
+
 	logger.Infof(ctx, "[Server] 提取信息: Package=%s, GroupCode=%s", packagePath, groupCode)
 
-	// 3. 构建 CreateFunctionInfo
+	// 5. 构建 CreateFunctionInfo
 	createFunction := &dto.CreateFunctionInfo{
 		Package:    packagePath,
 		GroupCode:  groupCode,
-		SourceCode: result.Code,
+		SourceCode: extractedCode, // 使用提取后的代码
 	}
 
-	// 4. 调用 UpdateApp，传入 CreateFunctions
+	// 4. 调用 AppService.UpdateApp，传入 CreateFunctions
 	updateReq := &dto.UpdateAppReq{
 		User:            result.User,
 		App:             serviceTree.App.Code,
 		CreateFunctions: []*dto.CreateFunctionInfo{createFunction},
 	}
 
-	logger.Infof(ctx, "[Server] 调用 UpdateApp: User=%s, App=%s, Package=%s, GroupCode=%s",
+	logger.Infof(ctx, "[Server] 调用 AppService.UpdateApp: User=%s, App=%s, Package=%s, GroupCode=%s",
 		updateReq.User, updateReq.App, packagePath, groupCode)
 
-	_, err = s.appRuntime.UpdateApp(ctx, serviceTree.App.HostID, updateReq)
+	_, err = s.appService.UpdateApp(ctx, updateReq)
 	if err != nil {
-		logger.Errorf(ctx, "[Server] UpdateApp 失败: error=%v", err)
+		logger.Errorf(ctx, "[Server] AppService.UpdateApp 失败: error=%v", err)
 		return
 	}
 
 	logger.Infof(ctx, "[Server] 函数创建成功: Package=%s, GroupCode=%s", packagePath, groupCode)
+}
+
+// extractCodeFromMarkdown 从 Markdown 代码块中提取代码
+// 支持格式：
+// 1. ```go\n代码\n```
+// 2. ```\n代码\n```
+// 3. 如果找不到代码块，返回原始内容
+func (s *Server) extractCodeFromMarkdown(content string) string {
+	// 查找 ```go 或 ``` 开头的代码块
+	lines := strings.Split(content, "\n")
+
+	var codeBlocks []string
+	var inCodeBlock bool
+	var codeBlockStart int
+
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// 检查是否是代码块开始标记
+		if strings.HasPrefix(trimmed, "```") {
+			if inCodeBlock {
+				// 代码块结束，提取内容
+				if i > codeBlockStart {
+					codeBlock := strings.Join(lines[codeBlockStart+1:i], "\n")
+					codeBlocks = append(codeBlocks, codeBlock)
+				}
+				inCodeBlock = false
+			} else {
+				// 代码块开始
+				inCodeBlock = true
+				codeBlockStart = i
+			}
+			continue
+		}
+	}
+
+	// 如果代码块没有正确关闭，也提取已收集的内容
+	if inCodeBlock && codeBlockStart < len(lines)-1 {
+		codeBlock := strings.Join(lines[codeBlockStart+1:], "\n")
+		codeBlocks = append(codeBlocks, codeBlock)
+	}
+
+	// 如果有代码块，返回第一个（通常只有一个）
+	if len(codeBlocks) > 0 {
+		extracted := strings.TrimSpace(codeBlocks[0])
+		// 如果提取的代码不为空，返回它
+		if extracted != "" {
+			return extracted
+		}
+	}
+
+	// 如果没有找到代码块或代码块为空，返回原始内容（作为 fallback）
+	return content
 }
 
 // extractGroupCodeFromCode 从生成的代码中提取 group_code
@@ -429,7 +486,7 @@ func (s *Server) handleFunctionGenResult(msg *nats.Msg) {
 // 3. 从结构体名称推断：type CrmTicket struct -> crm_ticket
 func (s *Server) extractGroupCodeFromCode(code string) string {
 	lines := strings.Split(code, "\n")
-	
+
 	// 1. 优先从 RouterGroup 定义中的 GroupCode 字段提取
 	// 格式：GroupCode: "crm_ticket", 或 GroupCode: "crm_ticket" //注释
 	for i, line := range lines {
@@ -474,7 +531,7 @@ func (s *Server) extractGroupCodeFromCode(code string) string {
 			}
 		}
 	}
-	
+
 	// 2. 从注释中提取文件名
 	// 格式：//<文件名>crm_ticket.go</文件名>
 	for _, line := range lines {
@@ -493,7 +550,7 @@ func (s *Server) extractGroupCodeFromCode(code string) string {
 			}
 		}
 	}
-	
+
 	// 3. 从结构体名称推断
 	// 查找第一个 type 定义，例如：type CrmTicket struct
 	for _, line := range lines {
@@ -509,7 +566,7 @@ func (s *Server) extractGroupCodeFromCode(code string) string {
 			}
 		}
 	}
-	
+
 	// 如果都找不到，返回空字符串（由调用方处理 fallback）
 	return ""
 }
@@ -520,7 +577,7 @@ func (s *Server) camelToSnake(camel string) string {
 	if camel == "" {
 		return ""
 	}
-	
+
 	var result strings.Builder
 	for i, r := range camel {
 		if i > 0 && r >= 'A' && r <= 'Z' {
@@ -528,6 +585,6 @@ func (s *Server) camelToSnake(camel string) string {
 		}
 		result.WriteRune(r)
 	}
-	
+
 	return strings.ToLower(result.String())
 }
