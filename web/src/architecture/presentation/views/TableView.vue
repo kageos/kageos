@@ -1034,6 +1034,30 @@ const getColumnWidth = (field: FieldConfig): number => {
 
 const handleAdd = (): void => {
   createDialogVisible.value = true
+  
+  // 更新 URL 为 ?_tab=OnTableAddRow（用于分享和直接跳转）
+  const query: Record<string, string | string[]> = {}
+  // 保留现有参数
+  Object.keys(route.query).forEach(key => {
+    const value = route.query[key]
+    if (value !== null && value !== undefined) {
+      query[key] = Array.isArray(value) 
+        ? value.filter(v => v !== null).map(v => String(v))
+        : String(value)
+    }
+  })
+  // 添加新增弹窗参数
+  query._tab = 'OnTableAddRow'
+  
+  // 🔥 发出路由更新请求事件
+  eventBus.emit(RouteEvent.updateRequested, {
+    query,
+    replace: true,
+    preserveParams: {
+      state: true  // 保留状态参数
+    },
+    source: 'add-dialog-open'
+  })
 }
 
 const handleCreateSubmit = async (data: Record<string, any>): Promise<void> => {
