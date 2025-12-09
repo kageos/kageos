@@ -49,7 +49,6 @@ func (ctx *Context) BuildFunctionUrlWithText(
 	functionPath := target
 	var existingQuery string
 	var hasTabParam bool
-	var tabValue string
 	if idx := strings.Index(target, "?"); idx >= 0 {
 		functionPath = target[:idx]
 		existingQuery = target[idx+1:]
@@ -59,7 +58,6 @@ func (ctx *Context) BuildFunctionUrlWithText(
 		if err == nil {
 			if tabVals, ok := existingValues["_tab"]; ok && len(tabVals) > 0 {
 				hasTabParam = true
-				tabValue = tabVals[0]
 			}
 		}
 	}
