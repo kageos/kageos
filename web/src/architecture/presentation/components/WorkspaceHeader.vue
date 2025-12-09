@@ -24,6 +24,25 @@
       >
         Debug
       </el-button>
+      
+      <!-- Hub 和 Agent 路由链接 -->
+      <el-button
+        type="primary"
+        size="small"
+        @click="navigateToHub"
+        title="应用中心"
+      >
+        应用中心
+      </el-button>
+      <el-button
+        type="primary"
+        size="small"
+        @click="navigateToAgent"
+        title="智能体管理"
+      >
+        智能体管理
+      </el-button>
+      
       <ThemeToggle />
       <el-dropdown @command="handleUserCommand">
         <span class="user-profile">
@@ -49,9 +68,11 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowDown, Delete } from '@element-plus/icons-vue'
+import { ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import DebugDialog from './DebugDialog.vue'
+import { navigateToHub as navigateToHubUtil } from '@/utils/hub-navigation'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -92,6 +113,16 @@ const isDevelopment = computed(() => {
 })
 
 const showDebugDialog = ref(false)
+
+// 导航到 Hub
+const navigateToHub = () => {
+  navigateToHubUtil('/')
+}
+
+// 导航到 Agent
+const navigateToAgent = () => {
+  router.push('/agent')
+}
 </script>
 
 <style scoped lang="scss">

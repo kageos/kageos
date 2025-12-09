@@ -13,6 +13,7 @@ type OnTableAddRowReq struct {
 }
 
 type OnTableAddRowResp struct {
+	Data interface{} `json:"data"`
 }
 
 type OnTableDeleteRowsReq struct {
@@ -71,7 +72,7 @@ func (c *OnTableUpdateRowReq) GetUpdates() map[string]interface{} {
 			}
 		}
 	}
-	
+
 	// ⚠️ 不再移除 id 字段，因为：
 	// 1. 保持数据结构一致性（所有变更字段都在 Updates 中）
 	// 2. GORM 的 Updates 方法会自动忽略 id 字段，不会真正更新 id
@@ -98,28 +99,29 @@ func (c *OnTableUpdateRowReq) GetOldValues() map[string]interface{} {
 // 使用 JSON 序列化/反序列化的方式，确保类型正确转换
 //
 // 示例：
-//   var updateFields CrmMeetingRoom
-//   if err := req.BindUpdates(&updateFields); err != nil {
-//       return nil, err
-//   }
-//   // 此时 updateFields 中只有更新的字段有值，例如：
-//   // 如果只更新了 name，则 updateFields.Name 有值，其他字段为零值
+//
+//	var updateFields CrmMeetingRoom
+//	if err := req.BindUpdates(&updateFields); err != nil {
+//	    return nil, err
+//	}
+//	// 此时 updateFields 中只有更新的字段有值，例如：
+//	// 如果只更新了 name，则 updateFields.Name 有值，其他字段为零值
 func (c *OnTableUpdateRowReq) BindUpdates(target interface{}) error {
 	if c.Updates == nil || len(c.Updates) == 0 {
 		return nil
 	}
-	
+
 	// 将 map 序列化为 JSON
 	jsonData, err := json.Marshal(c.Updates)
 	if err != nil {
 		return fmt.Errorf("序列化 updates 失败: %w", err)
 	}
-	
+
 	// 反序列化到目标结构体
 	if err := json.Unmarshal(jsonData, target); err != nil {
 		return fmt.Errorf("反序列化到目标结构体失败: %w", err)
 	}
-	
+
 	return nil
 }
 

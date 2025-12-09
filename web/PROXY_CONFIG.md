@@ -193,7 +193,7 @@ curl -X POST http://localhost:5173/api/v1/storage/upload_token \
   -H "Content-Type: application/json" \
   -H "X-Token: your-token" \
   -d '{
-    "router": "luobei/test88888/tools/cashier_desk",
+    "router": "luobei/test88888/plugins/cashier_desk",
     "file_name": "test.pdf",
     "file_size": 1024,
     "content_type": "application/pdf"
@@ -205,7 +205,7 @@ curl -X POST http://localhost:5173/api/v1/storage/upload_token \
 #   "data": {
 #     "method": "presigned_url",
 #     "url": "http://localhost:9000/ai-agent-os/luobei/.../test.pdf?...",
-#     "key": "luobei/test88888/tools/cashier_desk/2024/11/test.pdf",
+#     "key": "luobei/test88888/plugins/cashier_desk/2024/11/test.pdf",
 #     "bucket": "ai-agent-os",
 #     "expire": "2024-11-04T13:00:00Z"
 #   }

@@ -1,0 +1,154 @@
+package repository
+
+import (
+	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
+	"gorm.io/gorm"
+)
+
+// FunctionGenRepository 函数生成记录数据访问层
+type FunctionGenRepository struct {
+	db *gorm.DB
+}
+
+// NewFunctionGenRepository 创建函数生成记录 Repository
+func NewFunctionGenRepository(db *gorm.DB) *FunctionGenRepository {
+	return &FunctionGenRepository{db: db}
+}
+
+// Create 创建函数生成记录
+func (r *FunctionGenRepository) Create(record *model.FunctionGenRecord) error {
+	return r.db.Create(record).Error
+}
+
+// GetByID 根据 ID 获取记录
+func (r *FunctionGenRepository) GetByID(id int64) (*model.FunctionGenRecord, error) {
+	var record model.FunctionGenRecord
+	if err := r.db.Where("id = ?", id).First(&record).Error; err != nil {
+		return nil, err
+	}
+	return &record, nil
+}
+
+// GetBySessionID 根据 SessionID 获取记录（最新的）
+func (r *FunctionGenRepository) GetBySessionID(sessionID string) (*model.FunctionGenRecord, error) {
+	var record model.FunctionGenRecord
+	if err := r.db.
+		Where("session_id = ?", sessionID).
+		Order("created_at DESC").
+		First(&record).Error; err != nil {
+		return nil, err
+	}
+	return &record, nil
+}
+
+// ListByTreeID 根据 TreeID 获取记录列表
+func (r *FunctionGenRepository) ListByTreeID(treeID int64, offset, limit int) ([]*model.FunctionGenRecord, int64, error) {
+	var records []*model.FunctionGenRecord
+	var total int64
+
+	query := r.db.Model(&model.FunctionGenRecord{}).Where("tree_id = ?", treeID)
+
+	// 获取总数
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 获取列表
+	if err := query.
+		Offset(offset).
+		Limit(limit).
+		Order("created_at DESC").
+		Find(&records).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return records, total, nil
+}
+
+// ListByAgentID 根据 AgentID 获取记录列表
+func (r *FunctionGenRepository) ListByAgentID(agentID int64, offset, limit int) ([]*model.FunctionGenRecord, int64, error) {
+	var records []*model.FunctionGenRecord
+	var total int64
+
+	query := r.db.Model(&model.FunctionGenRecord{}).Where("agent_id = ?", agentID)
+
+	// 获取总数
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 获取列表
+	if err := query.
+		Offset(offset).
+		Limit(limit).
+		Order("created_at DESC").
+		Find(&records).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return records, total, nil
+}
+
+// ListByStatus 根据状态获取记录列表
+func (r *FunctionGenRepository) ListByStatus(status string, offset, limit int) ([]*model.FunctionGenRecord, int64, error) {
+	var records []*model.FunctionGenRecord
+	var total int64
+
+	query := r.db.Model(&model.FunctionGenRecord{}).Where("status = ?", status)
+
+	// 获取总数
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 获取列表
+	if err := query.
+		Offset(offset).
+		Limit(limit).
+		Order("created_at ASC"). // 按创建时间升序，优先处理较早的记录
+		Find(&records).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return records, total, nil
+}
+
+// Update 更新记录
+func (r *FunctionGenRepository) Update(record *model.FunctionGenRecord) error {
+	return r.db.Save(record).Error
+}
+
+// UpdateStatus 更新状态
+func (r *FunctionGenRepository) UpdateStatus(id int64, status, errorMsg string) error {
+	updates := map[string]interface{}{
+		"status": status,
+	}
+	if errorMsg != "" {
+		updates["error_msg"] = errorMsg
+	}
+	return r.db.Model(&model.FunctionGenRecord{}).
+		Where("id = ?", id).
+		Updates(updates).Error
+}
+
+// UpdateCode 更新代码和状态
+func (r *FunctionGenRepository) UpdateCode(id int64, code string, status string) error {
+	updates := map[string]interface{}{
+		"code":   code,
+		"status": status,
+	}
+	return r.db.Model(&model.FunctionGenRecord{}).
+		Where("id = ?", id).
+		Updates(updates).Error
+}
+
+// Delete 删除记录（根据 ID）
+func (r *FunctionGenRepository) Delete(id int64) error {
+	return r.db.Where("id = ?", id).Delete(&model.FunctionGenRecord{}).Error
+}
+
+// DeleteBySessionID 根据 SessionID 删除所有记录
+func (r *FunctionGenRepository) DeleteBySessionID(sessionID string) error {
+	return r.db.Where("session_id = ?", sessionID).Delete(&model.FunctionGenRecord{}).Error
+}
+

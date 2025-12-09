@@ -389,7 +389,7 @@ const file = e.target.files[0]
 ```typescript
 POST /api/v1/storage/upload_token
 {
-  "router": "luobei/test88888/tools/cashier_desk",
+  "router": "luobei/test88888/plugins/cashier_desk",
   "file_name": "invoice.pdf",
   "file_size": 102400
 }
@@ -402,7 +402,7 @@ POST /api/v1/storage/upload_token
 ```json
 {
   "method": "presigned_url",  // ✅ 告诉前端使用预签名 URL
-  "key": "luobei/test88888/tools/cashier_desk/2025/11/03/xxx.pdf",
+  "key": "luobei/test88888/plugins/cashier_desk/2025/11/03/xxx.pdf",
   "bucket": "ai-agent-os",
   "url": "http://localhost:9000/ai-agent-os/xxx.pdf?X-Amz-Signature=...",
   "headers": {
@@ -416,7 +416,7 @@ POST /api/v1/storage/upload_token
 ```json
 {
   "method": "form_upload",  // ✅ 告诉前端使用表单上传
-  "key": "luobei/test88888/tools/cashier_desk/2025/11/03/xxx.pdf",
+  "key": "luobei/test88888/plugins/cashier_desk/2025/11/03/xxx.pdf",
   "post_url": "https://up-z2.qiniup.com",
   "form_data": {
     "token": "qiniu_token_xxx",

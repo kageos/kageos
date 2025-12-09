@@ -67,7 +67,7 @@ prefix := "luobei/test88888/"
 
 ```go
 // 列举函数的所有文件
-prefix := "luobei/test88888/tools/cashier_desk/"
+prefix := "luobei/test88888/plugins/cashier_desk/"
 ```
 
 ### 4. 存储统计

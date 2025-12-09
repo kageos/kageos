@@ -92,7 +92,17 @@
         <!-- 🔥 Detail 模式：显示详情抽屉（通过 URL 参数打开） -->
         <!-- 注意：detail 模式使用抽屉显示，不需要单独的页面 -->
         
-        <!-- Tab 内容区域（正常模式） -->
+        <!-- 🔥 点击目录节点时显示 AI 对话框 -->
+        <div v-else-if="currentFunction && currentFunction.type === 'package'" class="ai-chat-wrapper">
+          <AIChatPanel
+            :agent-id="defaultAgentId"
+            :tree-id="currentFunction.id"
+            :current-node-name="currentFunction.name"
+            @close="handleCloseAIChat"
+          />
+        </div>
+        
+        <!-- Tab 内容区域（正常模式 - 函数节点） -->
         <div v-else-if="tabs.length > 0" class="tabs-content-wrapper">
           <div class="tab-content">
             <!-- 🔥 使用 keep-alive 缓存 Tab 内容，提升性能并保持状态 -->
@@ -114,7 +124,7 @@
           </div>
         </div>
         <div v-else class="empty-state">
-          <p>请在左侧选择功能</p>
+          <p>请在左侧选择功能或目录</p>
         </div>
       </div>
     </div>
@@ -201,7 +211,7 @@
       :title="currentParentNode ? `在「${currentParentNode.name || currentParentNode.code}」下创建服务目录` : '创建服务目录'"
       width="520px"
       :close-on-click-modal="false"
-      @close="resetCreateDirectoryForm"
+      @close="handleCloseCreateDirectoryDialog"
     >
       <el-form :model="createDirectoryForm" label-width="90px">
         <el-form-item label="目录名称" required>
@@ -250,7 +260,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="createDirectoryDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="handleSubmitCreateDirectory" :loading="creatingDirectory">
+          <el-button type="primary" @click="() => handleSubmitCreateDirectory(() => currentApp.value)" :loading="creatingDirectory">
             创建
           </el-button>
         </span>
@@ -294,6 +304,7 @@ import TableView from './TableView.vue'
 import WorkspaceHeader from '../components/WorkspaceHeader.vue'
 import WorkspaceTabs from '../components/WorkspaceTabs.vue'
 import WorkspaceDetailDrawer from '../components/WorkspaceDetailDrawer.vue'
+import AIChatPanel from '../components/AIChatPanel.vue'
 import type { ServiceTree, App } from '../../domain/services/WorkspaceDomainService'
 import type { FunctionDetail } from '../../domain/interfaces/IFunctionLoader'
 import type { App as AppType, ServiceTree as ServiceTreeType } from '@/types'
@@ -307,6 +318,7 @@ import { useWorkspaceServiceTree } from '../composables/useWorkspaceServiceTree'
 import { findNodeByPath } from '../utils/workspaceUtils'
 import { preserveQueryParamsForTable, preserveQueryParamsForForm } from '@/utils/queryParams'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
+import { getAgentList, type AgentInfo } from '@/api/agent'
 
 const route = useRoute()
 const router = useRouter()
@@ -538,6 +550,34 @@ const publishSelectedNode = ref<ServiceTreeType | null>(null)
 // ServiceTreePanel 引用（用于展开路径）
 const serviceTreePanelRef = ref<InstanceType<typeof ServiceTreePanel> | null>(null)
 
+// AI 对话框相关
+const defaultAgentId = ref<number | null>(null)
+
+// 加载默认智能体
+async function loadDefaultAgent() {
+  try {
+    const res = await getAgentList({
+      enabled: true,
+      page: 1,
+      page_size: 1
+    })
+    // 响应拦截器已经返回了 data，所以 res 就是 { agents: [], total: 0 }
+    if (res.agents && res.agents.length > 0) {
+      defaultAgentId.value = res.agents[0].id
+    }
+  } catch (error: any) {
+    console.error('加载默认智能体失败:', error)
+  }
+}
+
+// 关闭 AI 对话框
+function handleCloseAIChat() {
+  // 清空当前函数，回到初始状态
+  if (currentFunction.value) {
+    applicationService.triggerNodeClick(null as any)
+  }
+}
+
 onMounted(() => {
   // 🔥 监听表格详情事件（使用 Composable）
   eventBus.on('table:detail-row', async ({ row, index, tableData }: { row: Record<string, any>, index?: number, tableData?: any[] }) => {
@@ -642,6 +682,11 @@ const handleCreateDirectory = (parentNode?: ServiceTreeType) => {
 
 const handleSubmitCreateDirectory = async () => {
   await serviceTreeHandleSubmitCreateDirectory(() => currentApp.value)
+}
+
+// 处理关闭创建目录对话框
+const handleCloseCreateDirectoryDialog = () => {
+  resetCreateDirectoryForm(() => currentApp.value)
 }
 
 // 处理 Fork 函数组
@@ -850,6 +895,9 @@ onMounted(async () => {
   // 加载应用列表
   await loadAppList()
 
+  // 加载默认智能体
+  await loadDefaultAgent()
+
   // 从路由加载应用（会激活对应的 Tab）
   await routingLoadAppFromRoute()
   
@@ -983,6 +1031,14 @@ onUnmounted(() => {
 }
 
 .function-renderer {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.ai-chat-wrapper {
   flex: 1;
   display: flex;
   flex-direction: column;

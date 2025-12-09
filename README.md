@@ -303,7 +303,7 @@ npm run dev
 ## 🔗 相关项目
 
 - [SDK](sdk/agent-app) - 函数开发工具包
-- [CLI](tools/agent-cli)（待创建）- 命令行工具
+- [CLI](plugins/agent-cli)（待创建）- 命令行工具
 - [Hub](https://hub.ai-agent-os.com)（待上线）- 函数市场
 
 ---

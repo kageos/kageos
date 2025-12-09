@@ -18,7 +18,7 @@ type routerInfo struct {
 }
 
 // BuildSourceCodeFilePath 构建源代码文件路径（用于 SourceCode 表的 Code 字段）
-// 返回格式：{full_path}/{group_code}，例如：/luobei/testgroup/tools/tools_cashier
+// 返回格式：{full_path}/{group_code}，例如：/luobei/testgroup/plugins/tools_cashier
 // full_path 是 package 的完整路径（包含 user/app 前缀）
 // group_code 是函数组代码
 func (a *routerInfo) BuildSourceCodeFilePath() string {
@@ -31,14 +31,14 @@ func (a *routerInfo) BuildSourceCodeFilePath() string {
 	user := env.User
 	app := env.App
 
-	// PackagePath 是 package 路径，例如：tools 或 crm/ticket（不包含前导斜杠）
+	// PackagePath 是 package 路径，例如：plugins 或 crm/ticket（不包含前导斜杠）
 	packagePath := strings.Trim(a.Options.PackagePath, "/")
 
 	// GroupCode 是函数组代码，例如：tools_cashier 或 crm_ticket
 	groupCode := a.Options.RouterGroup.GroupCode
 
 	// 构建完整路径：/{user}/{app}/{package_path}/{group_code}
-	// 例如：/luobei/testgroup/tools/tools_cashier
+	// 例如：/luobei/testgroup/plugins/tools_cashier
 	if packagePath == "" {
 		return fmt.Sprintf("/%s/%s/%s", user, app, groupCode)
 	}

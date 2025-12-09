@@ -258,7 +258,7 @@ async function handleUpload(file) {
   try {
     // ✅ 调用统一上传函数
     const key = await uploadFile(
-      'luobei/test88888/tools/cashier_desk',
+      'luobei/test88888/plugins/cashier_desk',
       file,
       (progress) => {
         // ✅ 实时更新进度（浏览器原生提供）

@@ -145,7 +145,7 @@ definitions:
         description: 文件 hash（预留，用于秒传）
         type: string
       router:
-        description: 函数路径，例如：luobei/test88888/tools/cashier_desk（可选，未提供时使用默认路由：/{username}/default）
+        description: 函数路径，例如：luobei/test88888/plugins/cashier_desk（可选，未提供时使用默认路由：/{username}/default）
         type: string
       upload_source:
         allOf:
@@ -521,7 +521,7 @@ paths:
       - application/json
       description: 获取某个函数路径下的文件数量和总大小
       parameters:
-      - description: 函数路径，例如：luobei/test88888/tools/cashier_desk
+      - description: 函数路径，例如：luobei/test88888/plugins/cashier_desk
         in: query
         name: router
         required: true

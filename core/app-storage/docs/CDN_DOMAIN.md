@@ -46,7 +46,7 @@ type Config interface {
 
 ```json
 {
-  "key": "luobei/test88888/tools/cashier_desk/2025/11/03/xxx.pdf",
+  "key": "luobei/test88888/plugins/cashier_desk/2025/11/03/xxx.pdf",
   "bucket": "ai-agent-os",
   "method": "presigned_url",
   "url": "http://localhost:9000/ai-agent-os/xxx.pdf?X-Amz-Signature=...",
@@ -220,14 +220,14 @@ const fileURL = cdnDomain
 const response = await fetch('/api/v1/storage/upload_token', {
   method: 'POST',
   body: JSON.stringify({
-    router: 'luobei/test88888/tools/cashier_desk',
+    router: 'luobei/test88888/plugins/cashier_desk',
     file_name: 'invoice.pdf',
     file_size: 102400
   })
 })
 
 const { key, cdn_domain, url } = await response.json()
-// key: "luobei/test88888/tools/cashier_desk/2025/11/03/xxx.pdf"
+// key: "luobei/test88888/plugins/cashier_desk/2025/11/03/xxx.pdf"
 // cdn_domain: "https://cdn.example.com"
 // url: "http://localhost:9000/...?X-Amz-Signature=..."（预签名上传 URL）
 ```

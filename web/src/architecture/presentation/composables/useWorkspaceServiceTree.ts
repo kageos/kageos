@@ -58,10 +58,18 @@ export function useWorkspaceServiceTree() {
   }
 
   // 重置创建目录表单
-  const resetCreateDirectoryForm = (currentApp: () => any) => {
+  const resetCreateDirectoryForm = (currentApp?: (() => any) | any) => {
+    // 处理 currentApp 可能是函数或值的情况
+    let app: any = null
+    if (typeof currentApp === 'function') {
+      app = currentApp()
+    } else if (currentApp) {
+      app = currentApp
+    }
+    
     createDirectoryForm.value = {
-      user: currentApp()?.user || '',
-      app: currentApp()?.code || '',
+      user: app?.user || '',
+      app: app?.code || '',
       name: '',
       code: '',
       parent_id: 0,

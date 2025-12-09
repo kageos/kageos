@@ -23,7 +23,7 @@ curl -X POST "$BASE_URL/upload_token" \
   -H "Content-Type: application/json" \
   -H "X-Token: $JWT_TOKEN" \
   -d '{
-    "router": "luobei/test88888/tools/cashier_desk",
+    "router": "luobei/test88888/plugins/cashier_desk",
     "file_name": "invoice.pdf",
     "content_type": "application/pdf",
     "file_size": 102400
@@ -37,7 +37,7 @@ curl -X POST "$BASE_URL/upload_token" \
   "code": 0,
   "data": {
     "url": "http://localhost:9000/ai-agent-os/luobei/test88888/tools/cashier_desk/2025/11/03/550e8400-e29b-41d4-a716-446655440000.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&...",
-    "key": "luobei/test88888/tools/cashier_desk/2025/11/03/550e8400-e29b-41d4-a716-446655440000.pdf",
+    "key": "luobei/test88888/plugins/cashier_desk/2025/11/03/550e8400-e29b-41d4-a716-446655440000.pdf",
     "method": "PUT",
     "expire": "2025-11-03 22:48:00",
     "headers": {
@@ -56,7 +56,7 @@ UPLOAD_URL=$(curl -s -X POST "$BASE_URL/upload_token" \
   -H "Content-Type: application/json" \
   -H "X-Token: $JWT_TOKEN" \
   -d '{
-    "router": "luobei/test88888/tools/cashier_desk",
+    "router": "luobei/test88888/plugins/cashier_desk",
     "file_name": "test.txt",
     "content_type": "text/plain",
     "file_size": 100
@@ -109,11 +109,11 @@ curl -X GET "$BASE_URL/files?router=luobei/test88888/tools/cashier_desk" \
 {
   "code": 0,
   "data": {
-    "router": "luobei/test88888/tools/cashier_desk",
+    "router": "luobei/test88888/plugins/cashier_desk",
     "files": [
-      "luobei/test88888/tools/cashier_desk/2025/11/03/xxx.pdf",
-      "luobei/test88888/tools/cashier_desk/2025/11/03/yyy.jpg",
-      "luobei/test88888/tools/cashier_desk/2025/11/04/zzz.png"
+      "luobei/test88888/plugins/cashier_desk/2025/11/03/xxx.pdf",
+      "luobei/test88888/plugins/cashier_desk/2025/11/03/yyy.jpg",
+      "luobei/test88888/plugins/cashier_desk/2025/11/04/zzz.png"
     ],
     "count": 3
   }
@@ -133,7 +133,7 @@ curl -X GET "$BASE_URL/stats?router=luobei/test88888/tools/cashier_desk" \
 {
   "code": 0,
   "data": {
-    "router": "luobei/test88888/tools/cashier_desk",
+    "router": "luobei/test88888/plugins/cashier_desk",
     "file_count": 15,
     "total_size": 2048576,
     "size_human": "2.0 MB"
@@ -165,7 +165,7 @@ curl -X POST "$BASE_URL/batch_delete" \
   -H "Content-Type: application/json" \
   -H "X-Token: $JWT_TOKEN" \
   -d '{
-    "router": "luobei/test88888/tools/cashier_desk"
+    "router": "luobei/test88888/plugins/cashier_desk"
   }'
 ```
 
@@ -175,7 +175,7 @@ curl -X POST "$BASE_URL/batch_delete" \
 {
   "code": 0,
   "data": {
-    "router": "luobei/test88888/tools/cashier_desk",
+    "router": "luobei/test88888/plugins/cashier_desk",
     "deleted_count": 15
   }
 }
@@ -275,7 +275,7 @@ async function uploadFile(router: string, file: File) {
 
 // 使用示例
 const file = event.target.files[0];
-const router = 'luobei/test88888/tools/cashier_desk';
+const router = 'luobei/test88888/plugins/cashier_desk';
 const fileKey = await uploadFile(router, file);
 console.log('File uploaded:', fileKey);
 ```
