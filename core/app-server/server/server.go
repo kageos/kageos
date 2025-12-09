@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
@@ -353,7 +354,7 @@ func (s *Server) handleFunctionGenResult(msg *nats.Msg) {
 		return
 	}
 
-	// 打印日志（先保证流程通了）
+	// 打印日志
 	logger.Infof(ctx, "[Server] Received function generation result:")
 	logger.Infof(ctx, "[Server]   RecordID: %d", result.RecordID)
 	logger.Infof(ctx, "[Server]   AgentID: %d", result.AgentID)
@@ -363,8 +364,170 @@ func (s *Server) handleFunctionGenResult(msg *nats.Msg) {
 	logger.Infof(ctx, "[Server]   TraceID: %s", traceID)
 	logger.Infof(ctx, "[Server]   RequestUser: %s", requestUser)
 
-	// TODO: 后续添加解析代码和创建函数的逻辑
-	// 1. 解析生成的代码
-	// 2. 在指定的服务目录（TreeID）下创建函数
-	// 3. 更新应用状态
+	// 1. 根据 TreeID 获取 ServiceTree（需要预加载 App）
+	serviceTreeRepo := repository.NewServiceTreeRepository(s.db)
+	serviceTree, err := serviceTreeRepo.GetByID(result.TreeID)
+	if err != nil {
+		logger.Errorf(ctx, "[Server] 获取 ServiceTree 失败: TreeID=%d, error=%v", result.TreeID, err)
+		return
+	}
+
+	// 预加载 App 信息（如果还没有加载）
+	if serviceTree.App == nil {
+		appRepo := repository.NewAppRepository(s.db)
+		app, err := appRepo.GetAppByID(serviceTree.AppID)
+		if err != nil {
+			logger.Errorf(ctx, "[Server] 获取 App 失败: AppID=%d, error=%v", serviceTree.AppID, err)
+			return
+		}
+		serviceTree.App = app
+	}
+
+	// 2. 从 ServiceTree 中提取 package 路径（使用 model 方法）
+	packagePath := serviceTree.GetPackagePathForFileCreation()
+
+	// 3. 从生成的代码中解析 group_code（文件名）
+	// 优先从代码中的 GroupCode 字段提取，其次从文件名注释，最后从结构体名称推断
+	groupCode := s.extractGroupCodeFromCode(result.Code)
+	if groupCode == "" {
+		logger.Errorf(ctx, "[Server] 无法从代码中提取 group_code，使用 ServiceTree.Code 作为 fallback: %s", serviceTree.Code)
+		groupCode = serviceTree.Code
+	}
+	
+	logger.Infof(ctx, "[Server] 提取信息: Package=%s, GroupCode=%s", packagePath, groupCode)
+
+	// 3. 构建 CreateFunctionInfo
+	createFunction := &dto.CreateFunctionInfo{
+		Package:    packagePath,
+		GroupCode:  groupCode,
+		SourceCode: result.Code,
+	}
+
+	// 4. 调用 UpdateApp，传入 CreateFunctions
+	updateReq := &dto.UpdateAppReq{
+		User:            result.User,
+		App:             serviceTree.App.Code,
+		CreateFunctions: []*dto.CreateFunctionInfo{createFunction},
+	}
+
+	logger.Infof(ctx, "[Server] 调用 UpdateApp: User=%s, App=%s, Package=%s, GroupCode=%s",
+		updateReq.User, updateReq.App, packagePath, groupCode)
+
+	_, err = s.appRuntime.UpdateApp(ctx, serviceTree.App.HostID, updateReq)
+	if err != nil {
+		logger.Errorf(ctx, "[Server] UpdateApp 失败: error=%v", err)
+		return
+	}
+
+	logger.Infof(ctx, "[Server] 函数创建成功: Package=%s, GroupCode=%s", packagePath, groupCode)
+}
+
+// extractGroupCodeFromCode 从生成的代码中提取 group_code
+// 提取优先级：
+// 1. 从 RouterGroup 定义中的 GroupCode 字段提取：GroupCode: "crm_ticket"
+// 2. 从注释中提取文件名：//<文件名>crm_ticket.go</文件名>
+// 3. 从结构体名称推断：type CrmTicket struct -> crm_ticket
+func (s *Server) extractGroupCodeFromCode(code string) string {
+	lines := strings.Split(code, "\n")
+	
+	// 1. 优先从 RouterGroup 定义中的 GroupCode 字段提取
+	// 格式：GroupCode: "crm_ticket", 或 GroupCode: "crm_ticket" //注释
+	for i, line := range lines {
+		line = strings.TrimSpace(line)
+		// 查找包含 GroupCode: 的行
+		if strings.Contains(line, "GroupCode:") {
+			// 提取引号中的值
+			start := strings.Index(line, `"`)
+			if start != -1 {
+				end := strings.Index(line[start+1:], `"`)
+				if end != -1 {
+					groupCode := strings.TrimSpace(line[start+1 : start+1+end])
+					if groupCode != "" {
+						return groupCode
+					}
+				}
+			}
+			// 如果没找到引号，尝试查找单引号
+			start = strings.Index(line, `'`)
+			if start != -1 {
+				end := strings.Index(line[start+1:], `'`)
+				if end != -1 {
+					groupCode := strings.TrimSpace(line[start+1 : start+1+end])
+					if groupCode != "" {
+						return groupCode
+					}
+				}
+			}
+			// 如果当前行没有找到，检查下一行（可能是多行定义）
+			if i+1 < len(lines) {
+				nextLine := strings.TrimSpace(lines[i+1])
+				start := strings.Index(nextLine, `"`)
+				if start != -1 {
+					end := strings.Index(nextLine[start+1:], `"`)
+					if end != -1 {
+						groupCode := strings.TrimSpace(nextLine[start+1 : start+1+end])
+						if groupCode != "" {
+							return groupCode
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	// 2. 从注释中提取文件名
+	// 格式：//<文件名>crm_ticket.go</文件名>
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.Contains(line, "<文件名>") && strings.Contains(line, "</文件名>") {
+			// 提取文件名
+			start := strings.Index(line, "<文件名>") + len("<文件名>")
+			end := strings.Index(line, "</文件名>")
+			if start < end {
+				fileName := strings.TrimSpace(line[start:end])
+				// 去掉 .go 后缀
+				if strings.HasSuffix(fileName, ".go") {
+					fileName = fileName[:len(fileName)-3]
+				}
+				return fileName
+			}
+		}
+	}
+	
+	// 3. 从结构体名称推断
+	// 查找第一个 type 定义，例如：type CrmTicket struct
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "type ") && strings.Contains(line, " struct") {
+			// 提取结构体名称，例如：type CrmTicket struct -> CrmTicket
+			parts := strings.Fields(line)
+			if len(parts) >= 2 {
+				structName := parts[1]
+				// 将大驼峰转换为小写下划线：CrmTicket -> crm_ticket
+				groupCode := s.camelToSnake(structName)
+				return groupCode
+			}
+		}
+	}
+	
+	// 如果都找不到，返回空字符串（由调用方处理 fallback）
+	return ""
+}
+
+// camelToSnake 将大驼峰转换为小写下划线
+// 例如：CrmTicket -> crm_ticket, ToolsCashier -> tools_cashier
+func (s *Server) camelToSnake(camel string) string {
+	if camel == "" {
+		return ""
+	}
+	
+	var result strings.Builder
+	for i, r := range camel {
+		if i > 0 && r >= 'A' && r <= 'Z' {
+			result.WriteByte('_')
+		}
+		result.WriteRune(r)
+	}
+	
+	return strings.ToLower(result.String())
 }

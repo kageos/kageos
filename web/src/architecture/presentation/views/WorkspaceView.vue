@@ -97,7 +97,9 @@
           <AIChatPanel
             :agent-id="defaultAgentId"
             :tree-id="currentFunction.id"
+            :package="currentFunction.code"
             :current-node-name="currentFunction.name"
+            :existing-files="existingFilesInPackage"
             @close="handleCloseAIChat"
           />
         </div>
@@ -315,7 +317,7 @@ import { useWorkspaceRouting } from '../composables/useWorkspaceRouting'
 import { useWorkspaceDetail } from '../composables/useWorkspaceDetail'
 import { useWorkspaceApp } from '../composables/useWorkspaceApp'
 import { useWorkspaceServiceTree } from '../composables/useWorkspaceServiceTree'
-import { findNodeByPath } from '../utils/workspaceUtils'
+import { findNodeByPath, findNodeById, getDirectChildFunctionCodes } from '../utils/workspaceUtils'
 import { preserveQueryParamsForTable, preserveQueryParamsForForm } from '@/utils/queryParams'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { getAgentList, type AgentInfo } from '@/api/agent'
@@ -552,6 +554,22 @@ const serviceTreePanelRef = ref<InstanceType<typeof ServiceTreePanel> | null>(nu
 
 // AI 对话框相关
 const defaultAgentId = ref<number | null>(null)
+
+// 获取当前 package 下的子节点文件名（用于确保生成的文件名唯一）
+const existingFilesInPackage = computed(() => {
+  if (!currentFunction.value || currentFunction.value.type !== 'package') {
+    return []
+  }
+  
+  // 从 serviceTree 中查找当前节点
+  const currentNode = findNodeById(serviceTree.value, currentFunction.value.id)
+  if (!currentNode) {
+    return []
+  }
+  
+  // 获取直接子节点（只收集一级子节点，type 为 'function' 的）
+  return getDirectChildFunctionCodes(currentNode)
+})
 
 // 加载默认智能体
 async function loadDefaultAgent() {
