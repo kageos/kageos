@@ -98,7 +98,7 @@ POST /api/v1/storage/check_file
 {
   "hash": "sha256-hash-of-file",
   "size": 1024000,
-  "router": "luobei/test88888/tools/cashier_desk",
+  "router": "luobei/test88888/plugins/cashier_desk",
   "file_name": "invoice.pdf"
 }
 
@@ -107,7 +107,7 @@ POST /api/v1/storage/check_file
   "code": 0,
   "data": {
     "exists": true,
-    "key": "luobei/test88888/tools/cashier_desk/2025/11/03/xxx.pdf",
+    "key": "luobei/test88888/plugins/cashier_desk/2025/11/03/xxx.pdf",
     "message": "文件秒传成功"
   }
 }

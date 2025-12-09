@@ -39,7 +39,7 @@
  * Select 回调操作 - 模糊查询选项
  * 
  * @param method 原函数的 HTTP 方法（GET/POST 等）
- * @param router 函数路由（如 /luobei/test999/tools/cashier_desk）
+ * @param router 函数路由（如 /luobei/test999/plugins/cashier_desk）
  * @param data 回调数据
  *   - code: 字段代码
  *   - type: 'by_keyword' | 'by_value'
@@ -216,7 +216,7 @@ private handleChange(value: any): void {
 ### 请求（by_keyword）
 
 ```bash
-POST /api/v1/callback/luobei/test999/tools/cashier_desk?_type=OnSelectFuzzy&_method=POST
+POST /api/v1/callback/luobei/test999/plugins/cashier_desk?_type=OnSelectFuzzy&_method=POST
 Content-Type: application/json
 X-Token: eyJhbGciOiJIUzI1NiIs...
 

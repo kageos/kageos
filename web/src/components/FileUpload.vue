@@ -26,8 +26,8 @@
         <span class="file-size">{{ formatSize(uploadedSize) }} / {{ formatSize(totalSize) }}</span>
       </div>
 
-      <el-progress 
-        :percentage="uploadPercent" 
+      <el-progress
+        :percentage="uploadPercent"
         :status="uploadStatus"
         :stroke-width="12"
       />
@@ -37,16 +37,16 @@
           <el-icon><link /></el-icon>
           <span>上传到: {{ uploadDomain }}</span>
         </div>
-        
+
         <div class="upload-speed" v-if="uploadPercent < 100">
           <span>速度: {{ uploadSpeed }}</span>
         </div>
-        
+
         <div class="upload-status" v-else-if="uploadStatus === 'success'">
           <el-icon><check /></el-icon>
           <span class="success">上传成功</span>
         </div>
-        
+
         <div class="upload-status" v-else-if="uploadStatus === 'exception'">
           <el-icon><close /></el-icon>
           <span class="error">上传失败</span>
@@ -54,8 +54,8 @@
       </div>
 
       <!-- 取消按钮 -->
-      <el-button 
-        v-if="uploadPercent < 100" 
+      <el-button
+        v-if="uploadPercent < 100"
         @click="cancelUpload"
         type="danger"
         size="small"
@@ -81,7 +81,7 @@ import { uploadFile } from '@/utils/upload'
 import type { UploadProgress } from '@/utils/upload/types'
 
 const props = defineProps<{
-  router: string  // 函数路径，例如：luobei/test88888/tools/cashier_desk
+  router: string  // 函数路径，例如：luobei/test88888/plugins/cashier_desk
 }>()
 
 const emit = defineEmits<{
@@ -103,10 +103,10 @@ const currentUploader = ref<{ cancel: () => void } | null>(null)
 // 计算上传速度
 const uploadSpeed = computed(() => {
   if (!startTime.value || uploadedSize.value === 0) return '0 KB/s'
-  
+
   const elapsed = (Date.now() - startTime.value) / 1000  // 秒
   const speed = uploadedSize.value / elapsed  // 字节/秒
-  
+
   if (speed < 1024) return `${speed.toFixed(0)} B/s`
   if (speed < 1024 * 1024) return `${(speed / 1024).toFixed(2)} KB/s`
   return `${(speed / (1024 * 1024)).toFixed(2)} MB/s`
@@ -114,7 +114,7 @@ const uploadSpeed = computed(() => {
 
 /**
  * 处理文件选择
- * 
+ *
  * 流程：
  * 1. 用户拖文件/选择文件
  * 2. 调用 uploadFile() → 内部会先请求后端获取上传凭证（包含域名）
@@ -125,7 +125,7 @@ const uploadSpeed = computed(() => {
 async function handleFileSelect(file: any) {
   const rawFile = file.raw
   if (!rawFile) return
-  
+
   fileName.value = rawFile.name
   totalSize.value = rawFile.size
   uploading.value = true
@@ -134,7 +134,7 @@ async function handleFileSelect(file: any) {
   uploadStatus.value = undefined
   uploadDomain.value = ''  // 重置域名
   startTime.value = Date.now()
-  
+
   try {
     // ✨ 关键：调用 uploadFile，内部会先请求后端获取上传凭证（包含域名）
     // uploadFile() 的流程：
@@ -150,22 +150,22 @@ async function handleFileSelect(file: any) {
         uploadPercent.value = progress.percent
         uploadedSize.value = progress.loaded
         totalSize.value = progress.total
-        
+
         // ✨ 从进度回调中获取上传域名（如果上传器返回了）
         if (progress.uploadDomain) {
           uploadDomain.value = progress.uploadDomain
         }
       }
     )
-    
+
     uploadStatus.value = 'success'
     ElMessage.success('上传成功')
     emit('success', key, rawFile.name)
-    
+
     // 上传成功后立即隐藏进度条（用户已看到成功提示）
     uploading.value = false
     uploadDomain.value = ''
-    
+
   } catch (err: any) {
     uploadStatus.value = 'exception'
     ElMessage.error(`上传失败: ${err.message}`)

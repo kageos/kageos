@@ -369,20 +369,20 @@ func (a *AppService) createFunctionNode(appID int64, parentID int64, api *dto.Ap
 
 	// 构建 FullGroupCode：{full_path}/{group_code}
 	fullGroupCode := fmt.Sprintf("%s/%s", api.GetParentFullCodePath(), api.FunctionGroupCode)
-	
+
 	// 创建新的function节点，预加载完整的app对象
 	serviceTree := &model.ServiceTree{
-		AppID:           appID,
+		AppID:            appID,
 		ParentID:         parentID,
-		FullGroupCode:   fullGroupCode, // 完整函数组代码：{full_path}/{group_code}，与 source_code.full_group_code 对齐
-		GroupName:       api.FunctionGroupName,
-		Type:            model.ServiceTreeTypeFunction,
-		Code:            api.Code, // API的code作为ServiceTree的code
-		Name:            api.Name, // API的name作为ServiceTree的name
-		Description:     api.Desc,
-		RefID:           functionID,        // 指向Function记录的ID
-		FullCodePath:    api.FullCodePath,  // 直接使用api.FullCodePath，不需要重新计算
-		AddVersionNum:   currentVersionNum, // 设置添加版本号
+		FullGroupCode:    fullGroupCode, // 完整函数组代码：{full_path}/{group_code}，与 source_code.full_group_code 对齐
+		GroupName:        api.FunctionGroupName,
+		Type:             model.ServiceTreeTypeFunction,
+		Code:             api.Code, // API的code作为ServiceTree的code
+		Name:             api.Name, // API的name作为ServiceTree的name
+		Description:      api.Desc,
+		RefID:            functionID,        // 指向Function记录的ID
+		FullCodePath:     api.FullCodePath,  // 直接使用api.FullCodePath，不需要重新计算
+		AddVersionNum:    currentVersionNum, // 设置添加版本号
 		UpdateVersionNum: 0,                 // 新增节点，更新版本号为0
 	}
 
@@ -484,7 +484,7 @@ func (a *AppService) updateServiceTreesForAPIs(ctx context.Context, appID int64,
 
 		// 构建 FullGroupCode：{full_path}/{group_code}
 		fullGroupCode := fmt.Sprintf("%s/%s", api.GetParentFullCodePath(), api.FunctionGroupCode)
-		
+
 		// 更新节点信息并设置更新版本号
 		existingTree.RefID = functions[i].ID
 		existingTree.Name = api.Name
@@ -554,13 +554,13 @@ func (a *AppService) deleteFunctionsForAPIs(ctx context.Context, appID int64, ap
 // 同一个函数组（GroupCode）下的所有函数共享同一个 SourceCode 记录
 func (a *AppService) saveSourceCodeForAPIs(ctx context.Context, appID int64, version string, apis []*dto.ApiInfo, functions []*model.Function) error {
 	logger.Infof(ctx, "[saveSourceCodeForAPIs] 开始保存源代码: appID=%d, version=%s, apiCount=%d", appID, version, len(apis))
-	
+
 	// 按函数组分组（GroupCode）
 	groupMap := make(map[string]*struct {
-		apis      []*dto.ApiInfo
-		functions []*model.Function
-		fullPath  string
-		groupCode string
+		apis       []*dto.ApiInfo
+		functions  []*model.Function
+		fullPath   string
+		groupCode  string
 		sourceCode string
 	})
 
@@ -575,11 +575,11 @@ func (a *AppService) saveSourceCodeForAPIs(ctx context.Context, appID int64, ver
 		// 计算 fullPath（package 的完整路径）
 		// 从 SourceCodeFilePath 中提取，格式为：/{user}/{app}/{package_path}/{group_code}
 		// 我们需要提取到 package_path 部分
-		fullPath := api.GetParentFullCodePath() // 例如：/luobei/testgroup/tools
-		
-		logger.Infof(ctx, "[saveSourceCodeForAPIs] 处理API: method=%s, router=%s, groupCode=%s, fullPath=%s, sourceCodeLength=%d", 
+		fullPath := api.GetParentFullCodePath() // 例如：/luobei/testgroup/plugins
+
+		logger.Infof(ctx, "[saveSourceCodeForAPIs] 处理API: method=%s, router=%s, groupCode=%s, fullPath=%s, sourceCodeLength=%d",
 			api.Method, api.Router, groupCode, fullPath, len(api.SourceCode))
-		
+
 		// 如果 groupMap 中还没有这个函数组，创建新的
 		if _, exists := groupMap[groupCode]; !exists {
 			groupMap[groupCode] = &struct {
@@ -595,18 +595,18 @@ func (a *AppService) saveSourceCodeForAPIs(ctx context.Context, appID int64, ver
 				groupCode:  groupCode,
 				sourceCode: api.SourceCode, // 使用第一个API的源代码
 			}
-			logger.Infof(ctx, "[saveSourceCodeForAPIs] 创建新的函数组: groupCode=%s, fullPath=%s, sourceCodeLength=%d", 
+			logger.Infof(ctx, "[saveSourceCodeForAPIs] 创建新的函数组: groupCode=%s, fullPath=%s, sourceCodeLength=%d",
 				groupCode, fullPath, len(api.SourceCode))
 		}
 
 		// 添加到对应的函数组
 		groupMap[groupCode].apis = append(groupMap[groupCode].apis, api)
 		groupMap[groupCode].functions = append(groupMap[groupCode].functions, functions[i])
-		
+
 		// 如果当前API的源代码不为空，更新源代码（同一个函数组应该使用相同的源代码）
 		if api.SourceCode != "" {
 			groupMap[groupCode].sourceCode = api.SourceCode
-			logger.Infof(ctx, "[saveSourceCodeForAPIs] 更新函数组源代码: groupCode=%s, sourceCodeLength=%d", 
+			logger.Infof(ctx, "[saveSourceCodeForAPIs] 更新函数组源代码: groupCode=%s, sourceCodeLength=%d",
 				groupCode, len(api.SourceCode))
 		}
 	}
@@ -622,7 +622,7 @@ func (a *AppService) saveSourceCodeForAPIs(ctx context.Context, appID int64, ver
 
 		// 构建 FullGroupCode：{full_path}/{group_code}
 		fullGroupCode := fmt.Sprintf("%s/%s", group.fullPath, groupCode)
-		logger.Infof(ctx, "[saveSourceCodeForAPIs] 准备保存源代码: fullGroupCode=%s, groupCode=%s, fullPath=%s, contentLength=%d, functionCount=%d", 
+		logger.Infof(ctx, "[saveSourceCodeForAPIs] 准备保存源代码: fullGroupCode=%s, groupCode=%s, fullPath=%s, contentLength=%d, functionCount=%d",
 			fullGroupCode, groupCode, group.fullPath, len(group.sourceCode), len(group.functions))
 
 		// 创建或更新 SourceCode 记录
@@ -642,14 +642,14 @@ func (a *AppService) saveSourceCodeForAPIs(ctx context.Context, appID int64, ver
 			return fmt.Errorf("保存源代码失败（函数组: %s）: %w", groupCode, err)
 		}
 
-		logger.Infof(ctx, "[saveSourceCodeForAPIs] 源代码保存成功: ID=%d, fullGroupCode=%s, contentLength=%d", 
+		logger.Infof(ctx, "[saveSourceCodeForAPIs] 源代码保存成功: ID=%d, fullGroupCode=%s, contentLength=%d",
 			savedSourceCode.ID, fullGroupCode, len(savedSourceCode.Content))
 
 		// 设置所有函数的 SourceCodeID（在创建/更新 Function 之前）
 		for _, function := range group.functions {
 			sourceCodeID := savedSourceCode.ID
 			function.SourceCodeID = &sourceCodeID
-			logger.Infof(ctx, "[saveSourceCodeForAPIs] 设置 Function SourceCodeID: functionID=%d, sourceCodeID=%d, method=%s, router=%s", 
+			logger.Infof(ctx, "[saveSourceCodeForAPIs] 设置 Function SourceCodeID: functionID=%d, sourceCodeID=%d, method=%s, router=%s",
 				function.ID, sourceCodeID, function.Method, function.Router)
 		}
 	}

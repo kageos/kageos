@@ -46,6 +46,53 @@ const router = createRouter({
       }
     },
 
+    // Agent-Server 管理页面
+    {
+      path: '/agent',
+      name: 'agent-index',
+      component: () => import('../views/Agent/index.vue'),
+      meta: {
+        title: 'Agent-Server 管理',
+        requireAuth: true
+      }
+    },
+    {
+      path: '/agent/agents',
+      name: 'agent-management',
+      component: () => import('../views/Agent/AgentManagement.vue'),
+      meta: {
+        title: '智能体管理',
+        requireAuth: true
+      }
+    },
+    {
+      path: '/agent/knowledge',
+      name: 'knowledge-management',
+      component: () => import('../views/Agent/KnowledgeManagement.vue'),
+      meta: {
+        title: '知识库管理',
+        requireAuth: true
+      }
+    },
+    {
+      path: '/agent/knowledge/:id',
+      name: 'knowledge-detail',
+      component: () => import('../views/Agent/KnowledgeDetail.vue'),
+      meta: {
+        title: '知识库详情',
+        requireAuth: true
+      }
+    },
+    {
+      path: '/agent/llm',
+      name: 'llm-management',
+      component: () => import('../views/Agent/LLMManagement.vue'),
+      meta: {
+        title: 'LLM 管理',
+        requireAuth: true
+      }
+    },
+
     // 首页 - 官网
     {
       path: '/',

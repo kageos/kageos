@@ -1,6 +1,6 @@
 /**
  * Hub API 客户端
- * 
+ *
  * Hub 是 AI-Agent-OS 的应用市场，提供应用发布、浏览、克隆等功能。
  */
 
@@ -11,8 +11,8 @@ import { post, get } from '@/utils/request'
  * 函数组源代码
  */
 export interface PackageSourceCode {
-  package: string           // 函数组路径，如：tools/cashier
-  full_group_code: string   // 完整函数组代码，如：/luobei/demo/tools/cashier
+  package: string           // 函数组路径，如：plugins/cashier
+  full_group_code: string   // 完整函数组代码，如：/luobei/demo/plugins/cashier
   source_code: string       // Go 源代码内容
   functions?: FunctionInfo[] // 函数列表（功能列表）
 }

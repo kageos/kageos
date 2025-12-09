@@ -192,9 +192,9 @@ const rules = {
     { required: true, message: '请输入应用名称', trigger: 'blur' }
   ],
   description: [
-    { 
-      required: true, 
-      message: '请输入应用描述', 
+    {
+      required: true,
+      message: '请输入应用描述',
       trigger: 'blur',
       validator: (rule: any, value: string, callback: Function) => {
         // 富文本编辑器返回的是 HTML，需要检查是否有实际内容
@@ -223,7 +223,7 @@ const initForm = async () => {
   }
 
   const node = props.selectedNode as any
-  
+
   // 检查是否是函数组节点
   if (!node.isGroup || !node.full_group_code) {
     ElMessage.warning('请选择业务系统（函数组）节点')
@@ -234,7 +234,7 @@ const initForm = async () => {
   try {
     // 获取函数组信息
     const groupInfo = await getFunctionGroupInfo(node.full_group_code)
-    
+
     // 初始化表单数据
     form.value = {
       name: groupInfo.group_name || node.name || '',
@@ -290,7 +290,7 @@ const handleSubmit = async () => {
       // 组装请求数据
       const packages: PackageSourceCode[] = selectedPackages.value.map(pkg => {
         // 从 full_group_code 提取 package 路径
-        // 例如：/luobei/testgroup/tools/tools_cashier -> tools/tools_cashier
+        // 例如：/luobei/testgroup/plugins/tools_cashier -> plugins/tools_cashier
         const parts = pkg.full_group_code.split('/').filter(Boolean)
         const packagePath = parts.slice(2).join('/') // 跳过 user 和 app
 
@@ -320,7 +320,7 @@ const handleSubmit = async () => {
       const response = await publishHubApp(requestData)
 
       ElMessage.success('发布成功！')
-      
+
       // 提供跳转到 Hub 的选项
       try {
         await ElMessageBox.confirm(
@@ -332,7 +332,7 @@ const handleSubmit = async () => {
             type: 'success'
           }
         )
-        
+
         // 用户确认，跳转到 Hub 应用详情页
         const { navigateToHubAppDetail } = await import('@/utils/hub-navigation')
         navigateToHubAppDetail(response.hub_app_id)

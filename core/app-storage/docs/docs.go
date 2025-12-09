@@ -345,7 +345,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "函数路径，例如：luobei/test88888/tools/cashier_desk",
+                        "description": "函数路径，例如：luobei/test88888/plugins/cashier_desk",
                         "name": "router",
                         "in": "query",
                         "required": true
@@ -683,7 +683,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "router": {
-                    "description": "函数路径，例如：luobei/test88888/tools/cashier_desk（可选，未提供时使用默认路由：/{username}/default）",
+                    "description": "函数路径，例如：luobei/test88888/plugins/cashier_desk（可选，未提供时使用默认路由：/{username}/default）",
                     "type": "string"
                 },
                 "upload_source": {

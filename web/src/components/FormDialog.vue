@@ -4,7 +4,8 @@
     :title="title"
     :width="width"
     :close-on-click-modal="false"
-    :z-index="3000"
+    :z-index="3001"
+    :append-to-body="true"
     @close="handleClose"
   >
     <!-- 🔥 使用新的 FormRenderer 替代所有渲染逻辑 -->

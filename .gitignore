@@ -26,6 +26,7 @@ temp/
 plan/
 /note
 /test
+/plugins
 .cursor/
 .claude/
 blueprint/

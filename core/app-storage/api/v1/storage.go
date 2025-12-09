@@ -508,7 +508,7 @@ func (s *Storage) GetFileInfo(c *gin.Context) {
 // @Tags 存储管理
 // @Accept json
 // @Produce json
-// @Param router query string true "函数路径，例如：luobei/test88888/tools/cashier_desk"
+// @Param router query string true "函数路径，例如：luobei/test88888/plugins/cashier_desk"
 // @Success 200 {object} dto.GetStorageStatsResp "获取成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"

@@ -41,7 +41,7 @@ func (c *Context) GetGormDB() *gorm.DB {
 
 	if c.routerInfo != nil && c.routerInfo.Options != nil {
 		// 根据 PackagePath 构建数据库名称
-		// 例如：/tools -> tools.db, /crm/ticket -> crm_ticket.db
+		// 例如：/plugins -> plugins.db, /crm/ticket -> crm_ticket.db
 		dbName = c.routerInfo.Options.GetDBName(c.msg.User, c.msg.App)
 	} else {
 		// 兼容旧代码，使用默认数据库名称
@@ -105,7 +105,7 @@ func getOrInitDB(dbName string) (*gorm.DB, error) {
 	// 例如：luobei_demo_crm_ticket.db -> luobei_demo_crm_ticket.log
 	logFileName := strings.TrimSuffix(filepath.Base(dbName), ".db") + ".log"
 	logFilePath := filepath.Join(dataDir, logFileName)
-	
+
 	// 打开日志文件（追加模式）
 	logFile, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
@@ -195,4 +195,3 @@ func closeAllDatabases() {
 		logger.Infof(context.Background(), "已关闭 %d 个数据库连接", closedCount)
 	}
 }
-

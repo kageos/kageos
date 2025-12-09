@@ -2,14 +2,17 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
+	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
 	"github.com/gin-gonic/gin"
 	"github.com/nats-io/nats.go"
@@ -41,6 +44,9 @@ type Server struct {
 	// 上游服务
 	natsService *service.NatsService
 
+	// NATS 订阅
+	functionGenSub *nats.Subscription
+
 	// 上下文
 	ctx context.Context
 }
@@ -71,6 +77,11 @@ func NewServer(cfg *config.AppServerConfig) (*Server, error) {
 		return nil, fmt.Errorf("failed to init router: %w", err)
 	}
 
+	// 初始化 NATS 订阅
+	if err := s.initNATSSubscriptions(ctx); err != nil {
+		return nil, fmt.Errorf("failed to init NATS subscriptions: %w", err)
+	}
+
 	return s, nil
 }
 
@@ -89,12 +100,22 @@ func (s *Server) Start(ctx context.Context) error {
 	}()
 
 	logger.Infof(ctx, "[Server] App-server started successfully")
+	logger.Infof(ctx, "[Server] NATS subscriptions are active")
 	return nil
 }
 
 // Stop 停止服务器（优雅关闭）
 func (s *Server) Stop(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Stopping app-server...")
+
+	// 关闭 NATS 订阅
+	if s.functionGenSub != nil {
+		if err := s.functionGenSub.Unsubscribe(); err != nil {
+			logger.Warnf(ctx, "[Server] Failed to unsubscribe function gen: %v", err)
+		} else {
+			logger.Infof(ctx, "[Server] Function gen subscription closed")
+		}
+	}
 
 	// 关闭 AppRuntime 服务（包括 NATS 订阅）
 	if s.appRuntime != nil {
@@ -291,4 +312,59 @@ func (s *Server) GetAppService() *service.AppService {
 // GetAuthService 获取认证服务
 func (s *Server) GetAuthService() *service.AuthService {
 	return s.authService
+}
+
+// initNATSSubscriptions 初始化 NATS 订阅
+func (s *Server) initNATSSubscriptions(ctx context.Context) error {
+	logger.Infof(ctx, "[Server] Initializing NATS subscriptions...")
+
+	// 订阅 agent-server 的函数生成结果主题
+	subject := subjects.GetAgentServerFunctionGenSubject()
+	sub, err := s.natsConn.Subscribe(subject, s.handleFunctionGenResult)
+	if err != nil {
+		return fmt.Errorf("failed to subscribe to %s: %w", subject, err)
+	}
+	s.functionGenSub = sub
+	logger.Infof(ctx, "[Server] Subscribed to %s", subject)
+
+	return nil
+}
+
+// handleFunctionGenResult 处理函数生成结果消息
+func (s *Server) handleFunctionGenResult(msg *nats.Msg) {
+	ctx := context.Background()
+
+	// 从消息 header 中获取 trace_id 和 user
+	traceID := msg.Header.Get("X-Trace-Id")
+	requestUser := msg.Header.Get("X-Request-User")
+
+	// 如果有 trace_id，设置到 context 中
+	if traceID != "" {
+		ctx = context.WithValue(ctx, "trace_id", traceID)
+	}
+	if requestUser != "" {
+		ctx = context.WithValue(ctx, "request_user", requestUser)
+	}
+
+	// 解析消息体
+	var result dto.FunctionGenResult
+	if err := json.Unmarshal(msg.Data, &result); err != nil {
+		logger.Errorf(ctx, "[Server] Failed to unmarshal function gen result: %v, Data: %s", err, string(msg.Data))
+		return
+	}
+
+	// 打印日志（先保证流程通了）
+	logger.Infof(ctx, "[Server] Received function generation result:")
+	logger.Infof(ctx, "[Server]   RecordID: %d", result.RecordID)
+	logger.Infof(ctx, "[Server]   AgentID: %d", result.AgentID)
+	logger.Infof(ctx, "[Server]   TreeID: %d", result.TreeID)
+	logger.Infof(ctx, "[Server]   User: %s", result.User)
+	logger.Infof(ctx, "[Server]   Code length: %d bytes", len(result.Code))
+	logger.Infof(ctx, "[Server]   TraceID: %s", traceID)
+	logger.Infof(ctx, "[Server]   RequestUser: %s", requestUser)
+
+	// TODO: 后续添加解析代码和创建函数的逻辑
+	// 1. 解析生成的代码
+	// 2. 在指定的服务目录（TreeID）下创建函数
+	// 3. 更新应用状态
 }
