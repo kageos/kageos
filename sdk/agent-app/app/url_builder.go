@@ -44,11 +44,24 @@ func (ctx *Context) BuildFunctionUrlWithText(
 		return buildLinkValueJSON("", text, url)
 	}
 
-	// 2. 提取函数路径（去掉可能存在的查询参数）
-	// 如果 target 是 "meeting_room_list?eq=id:1"，需要先提取 "meeting_room_list"
+	// 2. 提取函数路径和检查是否存在 _tab 参数
+	// 如果 target 是 "meeting_room_list?eq=id:1&_tab=OnTableAddRow"，需要先提取 "meeting_room_list"
 	functionPath := target
+	var existingQuery string
+	var hasTabParam bool
+	var tabValue string
 	if idx := strings.Index(target, "?"); idx >= 0 {
 		functionPath = target[:idx]
+		existingQuery = target[idx+1:]
+		
+		// 检查是否存在 _tab 参数
+		existingValues, err := url.ParseQuery(existingQuery)
+		if err == nil {
+			if tabVals, ok := existingValues["_tab"]; ok && len(tabVals) > 0 {
+				hasTabParam = true
+				tabValue = tabVals[0]
+			}
+		}
 	}
 
 	// 3. 函数跳转模式：获取目标函数的模板信息
@@ -58,25 +71,36 @@ func (ctx *Context) BuildFunctionUrlWithText(
 	}
 
 	// 4. 根据模板类型判断是 Table 还是 Form，转换 params 为查询字符串
+	// 如果存在 _tab 参数（如 _tab=OnTableAddRow），则按照 Form 格式构建参数（k=v）
 	var newQueryString string
 	if params != nil {
-		switch template.TemplateType() {
-		case TemplateTypeTable:
-			// Table 函数：根据 search 标签转换为 search 格式
-			// 使用 AutoCrudTable 的 Model（包含 search 标签）
-			newQueryString, err = query.StructToTableParams(params)
-			if err != nil {
-				return "", fmt.Errorf("转换 Table 参数失败: %w", err)
-			}
-		case TemplateTypeForm:
-			// Form 函数：转换为 k=v 格式
-			// 使用 Request 结构体
+		// 如果存在 _tab 参数，强制使用 Form 格式（k=v）
+		if hasTabParam {
+			// 使用 Form 格式：转换为 k=v 格式
 			newQueryString, err = StructToFormParams(params)
 			if err != nil {
 				return "", fmt.Errorf("转换 Form 参数失败: %w", err)
 			}
-		default:
-			return "", fmt.Errorf("不支持的模板类型")
+		} else {
+			// 根据模板类型决定参数格式
+			switch template.TemplateType() {
+			case TemplateTypeTable:
+				// Table 函数：根据 search 标签转换为 search 格式
+				// 使用 AutoCrudTable 的 Model（包含 search 标签）
+				newQueryString, err = query.StructToTableParams(params)
+				if err != nil {
+					return "", fmt.Errorf("转换 Table 参数失败: %w", err)
+				}
+			case TemplateTypeForm:
+				// Form 函数：转换为 k=v 格式
+				// 使用 Request 结构体
+				newQueryString, err = StructToFormParams(params)
+				if err != nil {
+					return "", fmt.Errorf("转换 Form 参数失败: %w", err)
+				}
+			default:
+				return "", fmt.Errorf("不支持的模板类型")
+			}
 		}
 	}
 
@@ -96,11 +120,8 @@ func (ctx *Context) BuildFunctionUrlWithText(
 	basePath = fmt.Sprintf("/%s/%s%s", ctx.msg.User, ctx.msg.App, basePath) //前面补充租户和app信息
 
 	// 6. 处理 target 中可能已存在的查询参数和 params 转换后的参数
-	// 如果 target 已经包含参数（如 "meeting_room_list?eq=id:1"），需要合并参数
-	var existingQuery string
-	if idx := strings.Index(target, "?"); idx >= 0 {
-		existingQuery = target[idx+1:]
-	}
+	// 如果 target 已经包含参数（如 "meeting_room_list?eq=id:1&_tab=OnTableAddRow"），需要合并参数
+	// 注意：existingQuery 已经在步骤 2 中提取了
 
 	// 合并查询参数
 	if existingQuery != "" || newQueryString != "" {
@@ -112,7 +133,7 @@ func (ctx *Context) BuildFunctionUrlWithText(
 			if err != nil {
 				return "", fmt.Errorf("解析现有查询参数失败: %w", err)
 			}
-			// 将现有参数添加到 values
+			// 将现有参数添加到 values（包括 _tab 参数）
 			for key, vals := range existingValues {
 				values[key] = vals
 			}
