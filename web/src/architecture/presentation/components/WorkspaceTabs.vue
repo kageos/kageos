@@ -116,7 +116,6 @@ const handleClearAllClick = async () => {
   right: 0;
   top: 50%;
   transform: translateY(-50%);
-  z-index: 10;
   background: var(--el-bg-color);
   box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
 }
@@ -187,7 +186,6 @@ const handleClearAllClick = async () => {
       color: #6366f1; /* ✅ 与服务目录 fx 图标颜色一致（indigo-500） */
       border-color: var(--el-border-color);
       border-bottom-color: var(--el-bg-color);
-      z-index: 1;
       box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.04);
       transform: translateY(0);
 

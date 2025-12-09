@@ -235,14 +235,6 @@ html.dark {
     }
   }
   
-  // 🔥 确保下拉菜单在抽屉中正常显示
-  .select-dropdown-popper {
-    z-index: 3001 !important;
-    
-    .el-select-dropdown {
-      z-index: 3001 !important;
-    }
-  }
   
   // 按钮组件 - 完全照抄旧版本的hover效果
   .el-button {

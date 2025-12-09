@@ -481,7 +481,6 @@ onUnmounted(() => {
   box-shadow: var(--el-box-shadow-light);
   max-height: 300px;
   overflow-y: auto;
-  z-index: 2000;
 }
 
 .user-search-option {

@@ -993,7 +993,6 @@ watch(
 .search-select {
   width: 100%;
   position: relative;
-  z-index: 1;
 }
 
 .select-container {
@@ -1248,14 +1247,4 @@ watch(
 }
 </style>
 
-<style>
-/* 全局样式：确保下拉菜单在抽屉中正常显示 */
-.select-dropdown-popper {
-  z-index: 3001 !important;
-}
-
-.select-dropdown-popper .el-select-dropdown {
-  z-index: 3001 !important;
-}
-</style>
 

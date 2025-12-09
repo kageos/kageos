@@ -677,7 +677,6 @@ onMounted(async () => {
 /* 全局样式：用户信息弹出框 */
 .user-info-popover {
   padding: 0 !important;
-  z-index: 3000 !important;
 }
 
 .user-info-popover .el-popover__reference {
