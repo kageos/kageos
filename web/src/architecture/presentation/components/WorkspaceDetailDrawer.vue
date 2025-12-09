@@ -417,7 +417,6 @@ defineExpose({
   min-height: 24px;
   pointer-events: auto;
   position: relative;
-  z-index: 1;
 }
 
 /* 详情页链接区域 */

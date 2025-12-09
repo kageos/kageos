@@ -281,7 +281,6 @@
         :title="field.name"
         :size="DRAWER_CONFIG.size"
         destroy-on-close
-        :z-index="DRAWER_CONFIG.zIndex"
         append-to-body
       >
         <template #default>
@@ -346,8 +345,7 @@ import FieldStatistics from './FieldStatistics.vue'
 
 // 抽屉配置常量
 const DRAWER_CONFIG = {
-  size: '70%',
-  zIndex: 3000
+  size: '70%'
 } as const
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
@@ -877,31 +875,6 @@ defineExpose({
   background-color: var(--el-fill-color-light) !important;
 }
 
-/* 🔥 确保表格的所有列（包括 fixed 列）不会遮挡对话框 */
-/* 🔥 使用极低的 z-index，确保对话框（z-index: 10000）始终在上方 */
-:deep(.el-table__fixed-right),
-:deep(.el-table__fixed-left) {
-  z-index: 0 !important;
-}
-
-:deep(.el-table__fixed-right .el-table__fixed-body-wrapper),
-:deep(.el-table__fixed-left .el-table__fixed-body-wrapper) {
-  z-index: 0 !important;
-}
-
-/* 🔥 确保表格单元格内容不会遮挡对话框 */
-:deep(.el-table__body-wrapper),
-:deep(.el-table__header-wrapper) {
-  z-index: 0 !important;
-}
-
-:deep(.el-table__body tr),
-:deep(.el-table__body td),
-:deep(.el-table__header tr),
-:deep(.el-table__header th) {
-  z-index: 0 !important;
-  position: relative;
-}
 
 /* 🔥 强制所有单元格内容左对齐 */
 :deep(.table-widget-table .el-table__body td),
@@ -915,35 +888,5 @@ defineExpose({
   align-items: center !important;
 }
 
-/* 🔥 确保表格单元格内的组件不会遮挡对话框 */
-:deep(.el-table__body td > *),
-:deep(.el-table__body td .el-input),
-:deep(.el-table__body td .el-select),
-:deep(.el-table__body td .el-button) {
-  z-index: 0 !important;
-  position: relative;
-}
-
-/* 🔥 确保编辑状态下的组件不会遮挡对话框 */
-:deep(.el-table__body td .select-widget),
-:deep(.el-table__body td .edit-select),
-:deep(.el-table__body td .select-container),
-:deep(.el-table__body td .multi-select-widget),
-:deep(.el-table__body td .number-widget),
-:deep(.el-table__body td .input-widget),
-:deep(.el-table__body td .float-widget) {
-  z-index: 0 !important;
-  position: relative;
-}
-
-/* 🔥 确保编辑状态下的组件内的所有子元素也不会遮挡对话框 */
-:deep(.el-table__body td .select-widget *),
-:deep(.el-table__body td .edit-select *),
-:deep(.el-table__body td .multi-select-widget *),
-:deep(.el-table__body td .number-widget *),
-:deep(.el-table__body td .input-widget *),
-:deep(.el-table__body td .float-widget *) {
-  z-index: 0 !important;
-}
 </style>
 

@@ -4,7 +4,6 @@
     :title="title"
     :width="width"
     :close-on-click-modal="false"
-    :z-index="3001"
     :append-to-body="true"
     @close="handleClose"
   >

@@ -255,7 +255,6 @@
       class="detail-drawer"
       :append-to-body="true"
       :modal="true"
-      :z-index="2999"
       @close="handleDetailDrawerClose"
     >
       <template #header>
@@ -1838,7 +1837,6 @@ onUnmounted(() => {
   padding: 20px;
   background: var(--el-bg-color);
   position: relative;
-  z-index: 1;
   display: flex;
   flex-direction: column;
   /* 🔥 不设置固定高度，让内容自然流动，支持整体滚动 */
@@ -2037,18 +2035,15 @@ onUnmounted(() => {
 /* 🔥 操作列样式 - 修复 fixed 列按钮点击问题 */
 :deep(.action-column) {
   position: relative;
-  z-index: 10;
 }
 
 :deep(.action-column .cell) {
   position: relative;
-  z-index: 10;
   pointer-events: auto;
 }
 
 .action-buttons {
   position: relative;
-  z-index: 11;
   display: flex;
   gap: 8px;
   align-items: center;
@@ -2238,20 +2233,6 @@ onUnmounted(() => {
 
 /* 详情抽屉样式 */
 .detail-drawer {
-  /* 🔥 确保抽屉显示在 tab 页面之上，但低于 ElMessage 和 ElNotification */
-  z-index: 2999 !important;
-  
-  :deep(.el-drawer__wrapper) {
-    z-index: 2999 !important;
-  }
-  
-  :deep(.el-overlay) {
-    z-index: 2998 !important;
-  }
-  
-  :deep(.el-drawer) {
-    z-index: 2999 !important;
-  }
   
   :deep(.el-drawer__header) {
     margin-bottom: 0;

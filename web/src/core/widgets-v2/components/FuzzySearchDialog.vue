@@ -5,7 +5,6 @@
     width="600px"
     :close-on-click-modal="false"
     :close-on-press-escape="true"
-    :z-index="10000"
     append-to-body
     @close="handleClose"
   >
@@ -643,48 +642,4 @@ watch(visible, (newVisible) => {
 .suggestions-list::-webkit-scrollbar-thumb:hover {
   background: var(--el-border-color-dark);
 }
-
-/* 🔥 确保对话框显示在表格上方（包括 fixed 列和所有单元格内容） */
-/* 🔥 使用 :deep() 选择器，因为对话框已经 append-to-body */
-:deep(.el-dialog__wrapper) {
-  z-index: 10000 !important;
-}
-
-:deep(.el-overlay) {
-  z-index: 9999 !important;
-}
-
-:deep(.el-dialog) {
-  z-index: 10000 !important;
-}
-
-:deep(.el-dialog__body),
-:deep(.el-dialog__header),
-:deep(.el-dialog__footer) {
-  z-index: 10001 !important;
-  position: relative;
-}
 </style>
-
-<!-- 🔥 全局样式：确保对话框在所有表格上方 -->
-<style>
-.el-dialog__wrapper {
-  z-index: 10000 !important;
-}
-
-.el-overlay {
-  z-index: 9999 !important;
-}
-
-.el-dialog {
-  z-index: 10000 !important;
-}
-
-.el-dialog__body,
-.el-dialog__header,
-.el-dialog__footer {
-  z-index: 10001 !important;
-  position: relative;
-}
-</style>
-

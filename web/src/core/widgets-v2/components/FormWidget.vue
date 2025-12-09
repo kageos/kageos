@@ -440,15 +440,6 @@ defineExpose({
   width: 100%;
 }
 
-/* 确保抽屉内的下拉菜单可以正常显示 */
-:deep(.el-select-dropdown) {
-  z-index: 3001 !important;
-}
-
-:deep(.el-popper) {
-  z-index: 3001 !important;
-}
-
 /* 确保抽屉本身不会遮挡下拉菜单 */
 :deep(.el-drawer__body) {
   overflow: visible !important;
@@ -456,14 +447,5 @@ defineExpose({
 
 :deep(.el-drawer) {
   overflow: visible !important;
-}
-
-/* 全局样式：确保下拉菜单在抽屉中正常显示 */
-:deep(.select-dropdown-popper) {
-  z-index: 3001 !important;
-}
-
-:deep(.select-dropdown-popper .el-select-dropdown) {
-  z-index: 3001 !important;
 }
 </style>

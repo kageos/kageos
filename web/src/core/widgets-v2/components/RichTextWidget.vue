@@ -1241,7 +1241,6 @@ watch(
   height: 32px;
   opacity: 0;
   cursor: pointer;
-  z-index: 1;
 }
 
 .color-picker-button {

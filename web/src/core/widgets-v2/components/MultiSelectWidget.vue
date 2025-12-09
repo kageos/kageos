@@ -835,7 +835,6 @@ watch(
 
 .edit-multiselect {
   position: relative;
-  z-index: 1;
   width: 100%;
 }
 
@@ -1078,15 +1077,6 @@ watch(
 </style>
 
 <style>
-/* 全局样式：确保下拉菜单在抽屉中正常显示 */
-.select-dropdown-popper {
-  z-index: 3001 !important;
-}
-
-.select-dropdown-popper .el-select-dropdown {
-  z-index: 3001 !important;
-}
-
 /* 🔥 全局样式：确保下拉选项中的颜色指示器正确显示 */
 .select-dropdown-popper .option-color-indicator {
   display: inline-block !important;
