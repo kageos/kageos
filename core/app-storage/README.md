@@ -93,7 +93,7 @@ Content-Type: application/json
   "code": 0,
   "data": {
     "url": "http://localhost:9000/ai-agent-os/luobei/test88888/tools/cashier_desk/2025/01/03/xxx.jpg?X-Amz-...",
-    "key": "luobei/test88888/tools/cashier_desk/2025/01/03/xxx.jpg",
+    "key": "luobei/test88888/plugins/cashier_desk/2025/01/03/xxx.jpg",
     "method": "PUT",
     "expire": "2025-01-03 15:30:00",
     "headers": {
@@ -117,7 +117,7 @@ curl -X PUT "上面返回的 url" \
 ### 3. 获取下载链接
 
 ```bash
-GET /api/v1/storage/download/luobei/test88888/tools/cashier_desk/2025/01/03/xxx.jpg
+GET /api/v1/storage/download/luobei/test88888/plugins/cashier_desk/2025/01/03/xxx.jpg
 ```
 
 **说明**：下载链接自动包含 HTTP 缓存头（`Cache-Control: max-age=31536000`），浏览器会缓存 1 年，实现秒下载。
@@ -125,19 +125,19 @@ GET /api/v1/storage/download/luobei/test88888/tools/cashier_desk/2025/01/03/xxx.
 ### 4. 删除文件
 
 ```bash
-DELETE /api/v1/storage/files/luobei/test88888/tools/cashier_desk/2025/01/03/xxx.jpg
+DELETE /api/v1/storage/files/luobei/test88888/plugins/cashier_desk/2025/01/03/xxx.jpg
 ```
 
 ### 5. 获取文件信息
 
 ```bash
-GET /api/v1/storage/files/luobei/test88888/tools/cashier_desk/2025/01/03/xxx.jpg/info
+GET /api/v1/storage/files/luobei/test88888/plugins/cashier_desk/2025/01/03/xxx.jpg/info
 ```
 
 ### 6. 获取存储统计（按函数）
 
 ```bash
-GET /api/v1/storage/stats?router=luobei/test88888/tools/cashier_desk
+GET /api/v1/storage/stats?router=luobei/test88888/plugins/cashier_desk
 ```
 
 响应：
@@ -146,7 +146,7 @@ GET /api/v1/storage/stats?router=luobei/test88888/tools/cashier_desk
 {
   "code": 0,
   "data": {
-    "router": "luobei/test88888/tools/cashier_desk",
+    "router": "luobei/test88888/plugins/cashier_desk",
     "file_count": 15,
     "total_size": 2048576,
     "size_human": "2.0 MB"
@@ -157,7 +157,7 @@ GET /api/v1/storage/stats?router=luobei/test88888/tools/cashier_desk
 ### 7. 列举函数下的所有文件
 
 ```bash
-GET /api/v1/storage/files?router=luobei/test88888/tools/cashier_desk
+GET /api/v1/storage/files?router=luobei/test88888/plugins/cashier_desk
 ```
 
 ### 8. 批量删除函数下的所有文件（危险操作）

@@ -2,15 +2,19 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
+	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
+	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
 	"github.com/gin-gonic/gin"
 	"github.com/nats-io/nats.go"
 	"gorm.io/driver/mysql"
@@ -40,6 +44,9 @@ type Server struct {
 
 	// 上游服务
 	natsService *service.NatsService
+
+	// NATS 订阅
+	functionGenSub *nats.Subscription
 
 	// 上下文
 	ctx context.Context
@@ -71,6 +78,11 @@ func NewServer(cfg *config.AppServerConfig) (*Server, error) {
 		return nil, fmt.Errorf("failed to init router: %w", err)
 	}
 
+	// 初始化 NATS 订阅
+	if err := s.initNATSSubscriptions(ctx); err != nil {
+		return nil, fmt.Errorf("failed to init NATS subscriptions: %w", err)
+	}
+
 	return s, nil
 }
 
@@ -89,12 +101,22 @@ func (s *Server) Start(ctx context.Context) error {
 	}()
 
 	logger.Infof(ctx, "[Server] App-server started successfully")
+	logger.Infof(ctx, "[Server] NATS subscriptions are active")
 	return nil
 }
 
 // Stop 停止服务器（优雅关闭）
 func (s *Server) Stop(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Stopping app-server...")
+
+	// 关闭 NATS 订阅
+	if s.functionGenSub != nil {
+		if err := s.functionGenSub.Unsubscribe(); err != nil {
+			logger.Warnf(ctx, "[Server] Failed to unsubscribe function gen: %v", err)
+		} else {
+			logger.Infof(ctx, "[Server] Function gen subscription closed")
+		}
+	}
 
 	// 关闭 AppRuntime 服务（包括 NATS 订阅）
 	if s.appRuntime != nil {
@@ -291,4 +313,278 @@ func (s *Server) GetAppService() *service.AppService {
 // GetAuthService 获取认证服务
 func (s *Server) GetAuthService() *service.AuthService {
 	return s.authService
+}
+
+// initNATSSubscriptions 初始化 NATS 订阅
+func (s *Server) initNATSSubscriptions(ctx context.Context) error {
+	logger.Infof(ctx, "[Server] Initializing NATS subscriptions...")
+
+	// 订阅 agent-server 的函数生成结果主题
+	subject := subjects.GetAgentServerFunctionGenSubject()
+	sub, err := s.natsConn.Subscribe(subject, s.handleFunctionGenResult)
+	if err != nil {
+		return fmt.Errorf("failed to subscribe to %s: %w", subject, err)
+	}
+	s.functionGenSub = sub
+	logger.Infof(ctx, "[Server] Subscribed to %s", subject)
+
+	return nil
+}
+
+// handleFunctionGenResult 处理函数生成结果消息
+func (s *Server) handleFunctionGenResult(msg *nats.Msg) {
+	ctx := context.Background()
+
+	// 从消息 header 中获取 trace_id 和 user
+	traceID := msg.Header.Get("X-Trace-Id")
+	requestUser := msg.Header.Get("X-Request-User")
+
+	// 如果有 trace_id，设置到 context 中
+	if traceID != "" {
+		ctx = context.WithValue(ctx, "trace_id", traceID)
+	}
+	if requestUser != "" {
+		ctx = context.WithValue(ctx, "request_user", requestUser)
+	}
+
+	// 解析消息体
+	var result dto.FunctionGenResult
+	if err := json.Unmarshal(msg.Data, &result); err != nil {
+		logger.Errorf(ctx, "[Server] Failed to unmarshal function gen result: %v, Data: %s", err, string(msg.Data))
+		return
+	}
+
+	// 打印日志
+	logger.Infof(ctx, "[Server] Received function generation result:")
+	logger.Infof(ctx, "[Server]   RecordID: %d", result.RecordID)
+	logger.Infof(ctx, "[Server]   AgentID: %d", result.AgentID)
+	logger.Infof(ctx, "[Server]   TreeID: %d", result.TreeID)
+	logger.Infof(ctx, "[Server]   User: %s", result.User)
+	logger.Infof(ctx, "[Server]   Code length: %d bytes", len(result.Code))
+	logger.Infof(ctx, "[Server]   TraceID: %s", traceID)
+	logger.Infof(ctx, "[Server]   RequestUser: %s", requestUser)
+
+	// 1. 根据 TreeID 获取 ServiceTree（需要预加载 App）
+	serviceTreeRepo := repository.NewServiceTreeRepository(s.db)
+	serviceTree, err := serviceTreeRepo.GetByID(result.TreeID)
+	if err != nil {
+		logger.Errorf(ctx, "[Server] 获取 ServiceTree 失败: TreeID=%d, error=%v", result.TreeID, err)
+		return
+	}
+
+	// 预加载 App 信息（如果还没有加载）
+	if serviceTree.App == nil {
+		appRepo := repository.NewAppRepository(s.db)
+		app, err := appRepo.GetAppByID(serviceTree.AppID)
+		if err != nil {
+			logger.Errorf(ctx, "[Server] 获取 App 失败: AppID=%d, error=%v", serviceTree.AppID, err)
+			return
+		}
+		serviceTree.App = app
+	}
+
+	// 2. 从 ServiceTree 中提取 package 路径（使用 model 方法）
+	packagePath := serviceTree.GetPackagePathForFileCreation()
+
+	// 3. 从 LLM 响应中提取代码（可能包含 Markdown 代码块）
+	extractedCode := s.extractCodeFromMarkdown(result.Code)
+	logger.Infof(ctx, "[Server] 代码提取完成 - 原始长度: %d, 提取后长度: %d", len(result.Code), len(extractedCode))
+
+	// 4. 从生成的代码中解析 group_code（文件名）
+	// 优先从代码中的 GroupCode 字段提取，其次从文件名注释，最后从结构体名称推断
+	groupCode := s.extractGroupCodeFromCode(extractedCode)
+	if groupCode == "" {
+		logger.Errorf(ctx, "[Server] 无法从代码中提取 group_code，使用 ServiceTree.Code 作为 fallback: %s", serviceTree.Code)
+		groupCode = serviceTree.Code
+	}
+
+	logger.Infof(ctx, "[Server] 提取信息: Package=%s, GroupCode=%s", packagePath, groupCode)
+
+	// 5. 构建 CreateFunctionInfo
+	createFunction := &dto.CreateFunctionInfo{
+		Package:    packagePath,
+		GroupCode:  groupCode,
+		SourceCode: extractedCode, // 使用提取后的代码
+	}
+
+	// 4. 调用 AppService.UpdateApp，传入 CreateFunctions
+	updateReq := &dto.UpdateAppReq{
+		User:            result.User,
+		App:             serviceTree.App.Code,
+		CreateFunctions: []*dto.CreateFunctionInfo{createFunction},
+	}
+
+	logger.Infof(ctx, "[Server] 调用 AppService.UpdateApp: User=%s, App=%s, Package=%s, GroupCode=%s",
+		updateReq.User, updateReq.App, packagePath, groupCode)
+
+	_, err = s.appService.UpdateApp(ctx, updateReq)
+	if err != nil {
+		logger.Errorf(ctx, "[Server] AppService.UpdateApp 失败: error=%v", err)
+		return
+	}
+
+	logger.Infof(ctx, "[Server] 函数创建成功: Package=%s, GroupCode=%s", packagePath, groupCode)
+}
+
+// extractCodeFromMarkdown 从 Markdown 代码块中提取代码
+// 支持格式：
+// 1. ```go\n代码\n```
+// 2. ```\n代码\n```
+// 3. 如果找不到代码块，返回原始内容
+func (s *Server) extractCodeFromMarkdown(content string) string {
+	// 查找 ```go 或 ``` 开头的代码块
+	lines := strings.Split(content, "\n")
+
+	var codeBlocks []string
+	var inCodeBlock bool
+	var codeBlockStart int
+
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// 检查是否是代码块开始标记
+		if strings.HasPrefix(trimmed, "```") {
+			if inCodeBlock {
+				// 代码块结束，提取内容
+				if i > codeBlockStart {
+					codeBlock := strings.Join(lines[codeBlockStart+1:i], "\n")
+					codeBlocks = append(codeBlocks, codeBlock)
+				}
+				inCodeBlock = false
+			} else {
+				// 代码块开始
+				inCodeBlock = true
+				codeBlockStart = i
+			}
+			continue
+		}
+	}
+
+	// 如果代码块没有正确关闭，也提取已收集的内容
+	if inCodeBlock && codeBlockStart < len(lines)-1 {
+		codeBlock := strings.Join(lines[codeBlockStart+1:], "\n")
+		codeBlocks = append(codeBlocks, codeBlock)
+	}
+
+	// 如果有代码块，返回第一个（通常只有一个）
+	if len(codeBlocks) > 0 {
+		extracted := strings.TrimSpace(codeBlocks[0])
+		// 如果提取的代码不为空，返回它
+		if extracted != "" {
+			return extracted
+		}
+	}
+
+	// 如果没有找到代码块或代码块为空，返回原始内容（作为 fallback）
+	return content
+}
+
+// extractGroupCodeFromCode 从生成的代码中提取 group_code
+// 提取优先级：
+// 1. 从 RouterGroup 定义中的 GroupCode 字段提取：GroupCode: "crm_ticket"
+// 2. 从注释中提取文件名：//<文件名>crm_ticket.go</文件名>
+// 3. 从结构体名称推断：type CrmTicket struct -> crm_ticket
+func (s *Server) extractGroupCodeFromCode(code string) string {
+	lines := strings.Split(code, "\n")
+
+	// 1. 优先从 RouterGroup 定义中的 GroupCode 字段提取
+	// 格式：GroupCode: "crm_ticket", 或 GroupCode: "crm_ticket" //注释
+	for i, line := range lines {
+		line = strings.TrimSpace(line)
+		// 查找包含 GroupCode: 的行
+		if strings.Contains(line, "GroupCode:") {
+			// 提取引号中的值
+			start := strings.Index(line, `"`)
+			if start != -1 {
+				end := strings.Index(line[start+1:], `"`)
+				if end != -1 {
+					groupCode := strings.TrimSpace(line[start+1 : start+1+end])
+					if groupCode != "" {
+						return groupCode
+					}
+				}
+			}
+			// 如果没找到引号，尝试查找单引号
+			start = strings.Index(line, `'`)
+			if start != -1 {
+				end := strings.Index(line[start+1:], `'`)
+				if end != -1 {
+					groupCode := strings.TrimSpace(line[start+1 : start+1+end])
+					if groupCode != "" {
+						return groupCode
+					}
+				}
+			}
+			// 如果当前行没有找到，检查下一行（可能是多行定义）
+			if i+1 < len(lines) {
+				nextLine := strings.TrimSpace(lines[i+1])
+				start := strings.Index(nextLine, `"`)
+				if start != -1 {
+					end := strings.Index(nextLine[start+1:], `"`)
+					if end != -1 {
+						groupCode := strings.TrimSpace(nextLine[start+1 : start+1+end])
+						if groupCode != "" {
+							return groupCode
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// 2. 从注释中提取文件名
+	// 格式：//<文件名>crm_ticket.go</文件名>
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.Contains(line, "<文件名>") && strings.Contains(line, "</文件名>") {
+			// 提取文件名
+			start := strings.Index(line, "<文件名>") + len("<文件名>")
+			end := strings.Index(line, "</文件名>")
+			if start < end {
+				fileName := strings.TrimSpace(line[start:end])
+				// 去掉 .go 后缀
+				if strings.HasSuffix(fileName, ".go") {
+					fileName = fileName[:len(fileName)-3]
+				}
+				return fileName
+			}
+		}
+	}
+
+	// 3. 从结构体名称推断
+	// 查找第一个 type 定义，例如：type CrmTicket struct
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "type ") && strings.Contains(line, " struct") {
+			// 提取结构体名称，例如：type CrmTicket struct -> CrmTicket
+			parts := strings.Fields(line)
+			if len(parts) >= 2 {
+				structName := parts[1]
+				// 将大驼峰转换为小写下划线：CrmTicket -> crm_ticket
+				groupCode := s.camelToSnake(structName)
+				return groupCode
+			}
+		}
+	}
+
+	// 如果都找不到，返回空字符串（由调用方处理 fallback）
+	return ""
+}
+
+// camelToSnake 将大驼峰转换为小写下划线
+// 例如：CrmTicket -> crm_ticket, ToolsCashier -> tools_cashier
+func (s *Server) camelToSnake(camel string) string {
+	if camel == "" {
+		return ""
+	}
+
+	var result strings.Builder
+	for i, r := range camel {
+		if i > 0 && r >= 'A' && r <= 'Z' {
+			result.WriteByte('_')
+		}
+		result.WriteRune(r)
+	}
+
+	return strings.ToLower(result.String())
 }

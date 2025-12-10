@@ -12,56 +12,42 @@
 <template>
   <div class="select-widget">
     <!-- 编辑模式 -->
-    <el-select
-      v-if="mode === 'edit'"
-      v-model="internalValue"
-      :disabled="field.widget?.config?.disabled"
-      :placeholder="field.desc || `请选择${field.name}`"
-      :clearable="true"
-      :filterable="isFilterable"
-      :loading="loading"
-      :remote="hasCallback"
-      :remote-method="handleRemoteSearch"
-      popper-class="select-dropdown-popper"
-      :popper-options="{
-        strategy: 'fixed',
-        modifiers: [
-          {
-            name: 'computeStyles',
-            options: {
-              adaptive: false,
-              roundOffsets: false
-            }
-          },
-          {
-            name: 'offset',
-            options: {
-              offset: [0, 4]
-            }
-          }
-        ]
-      }"
-      @change="handleChange"
-    >
-      <el-option
-        v-for="option in options"
-        :key="option.value"
-        :label="option.label"
-        :value="option.value"
-        :disabled="option.disabled"
-      >
-        <div class="select-option">
-          <!-- 🔥 显示颜色指示器（如果有颜色配置，放在左侧） -->
-          <span
-            v-if="getOptionColor(option.value)"
-            class="option-color-indicator"
-            :style="getOptionColorStyle(option.value)"
-          />
-          <span class="option-label">{{ option.label }}</span>
-          <span v-if="option.displayInfo" class="display-info">{{ option.displayInfo }}</span>
+    <div v-if="mode === 'edit'" class="edit-select">
+      <!-- 显示当前选中值和 display_info -->
+      <div class="select-container" @click="openDialog">
+        <div class="select-content">
+          <div class="select-main">
+            <span class="select-label">{{ displayValue || (field.desc || `请选择${field.name}`) }}</span>
+            <el-icon class="input-icon"><ArrowDown /></el-icon>
+          </div>
+          <div v-if="displayInfoText" class="display-info-text">
+            {{ displayInfoText }}
+          </div>
         </div>
-      </el-option>
-    </el-select>
+      </div>
+      
+      <!-- 🔥 显示 Statistics 统计信息（使用 FieldStatistics 组件） -->
+      <!-- 🔥 在表格内部（depth > 0）时不显示，避免撑大表格单元格，统计信息会在表格下方统一显示 -->
+      <FieldStatistics
+        v-if="currentStatistics && Object.keys(currentStatistics).length > 0 && props.value?.raw && (props.depth || 0) === 0"
+        :field="field"
+        :value="props.value"
+        :statistics="currentStatistics"
+      />
+      
+      <!-- 模糊搜索对话框（单选模式） -->
+      <FuzzySearchDialog
+        v-model="dialogVisible"
+        :title="`选择${field.name}`"
+        :placeholder="field.desc || `请输入搜索关键词`"
+        :suggestions="dialogSuggestions"
+        :loading="loading"
+        :is-multiselect="false"
+        :get-item-color="getOptionColor"
+        @search="handleDialogSearch"
+        @select="handleDialogSelect"
+      />
+    </div>
     
     <!-- 响应模式（只读） -->
     <span v-else-if="mode === 'response'" class="response-value">
@@ -96,45 +82,59 @@
     </div>
     
     <!-- 搜索模式 -->
-    <el-select
-      v-else-if="mode === 'search'"
-      v-model="internalValue"
-      :placeholder="`搜索${field.name}`"
-      :clearable="true"
-      :filterable="isFilterable"
-      :loading="loading"
-      :remote="hasCallback"
-      :remote-method="handleRemoteSearch"
-    >
-      <el-option
-        v-for="option in options"
-        :key="option.value"
-        :label="option.label"
-        :value="option.value"
-      >
-        <!-- 🔥 显示颜色指示器（如果有颜色配置，放在左侧） -->
-        <div class="select-option">
-          <span
-            v-if="getOptionColor(option.value)"
-            class="option-color-indicator"
-            :style="getOptionColorStyle(option.value)"
-          />
-          <span class="option-label">{{ option.label }}</span>
+    <div v-else-if="mode === 'search'" class="search-select">
+      <div class="select-container" @click="openDialog">
+        <div class="select-content">
+          <div class="select-main">
+            <span class="select-label">{{ displayValue || `搜索${field.name}` }}</span>
+            <el-icon class="input-icon"><ArrowDown /></el-icon>
+          </div>
+          <div v-if="displayInfoText" class="display-info-text">
+            {{ displayInfoText }}
+          </div>
         </div>
-      </el-option>
-    </el-select>
+      </div>
+      
+      <!-- 🔥 显示 Statistics 统计信息（使用 FieldStatistics 组件） -->
+      <!-- 🔥 在表格内部（depth > 0）时不显示，避免撑大表格单元格，统计信息会在表格下方统一显示 -->
+      <FieldStatistics
+        v-if="currentStatistics && Object.keys(currentStatistics).length > 0 && props.value?.raw && (props.depth || 0) === 0"
+        :field="field"
+        :value="props.value"
+        :statistics="currentStatistics"
+      />
+      
+      <!-- 模糊搜索对话框（单选模式） -->
+      <FuzzySearchDialog
+        v-model="dialogVisible"
+        :title="`选择${field.name}`"
+        :placeholder="`请输入搜索关键词`"
+        :suggestions="dialogSuggestions"
+        :loading="loading"
+        :is-multiselect="false"
+        :get-item-color="getOptionColor"
+        @search="handleDialogSearch"
+        @select="handleDialogSelect"
+      />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
-import { ElSelect, ElOption, ElMessage, ElTag } from 'element-plus'
+import { ref, computed, onMounted, onUnmounted, onActivated, onDeactivated, watch, nextTick, withDefaults } from 'vue'
+import { ElInput, ElMessage, ElTag, ElIcon } from 'element-plus'
+import { ArrowDown } from '@element-plus/icons-vue'
+import FuzzySearchDialog from './FuzzySearchDialog.vue'
+import FieldStatistics from './FieldStatistics.vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useFormDataStore } from '../../stores-v2/formData'
+import { createFieldValue } from '../utils/createFieldValue'
 import { selectFuzzy } from '@/api/function'
 import { Logger } from '../../utils/logger'
 import { SelectFuzzyQueryType, isStandardColor, getStandardColorCSSVar, type StandardColorType } from '../../constants/select'
 import { convertValueToType } from '../utils/valueConverter'
+// 🔥 使用事件驱动：监听表单初始化完成事件，统一处理 OnSelectFuzzy 字段
+import { eventBus, FormEvent } from '../../../architecture/infrastructure/eventBus'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -268,6 +268,12 @@ const hasCallback = computed(() => {
   return props.field.callbacks?.includes('OnSelectFuzzy') || false
 })
 
+// 对话框相关状态
+const dialogVisible = ref(false)
+const dialogSuggestions = ref<Array<{ label: string; value: any; displayInfo?: any; icon?: string }>>([])
+
+// 🔥 SelectWidget 是纯单选组件，不需要多选相关逻辑
+
 // 是否可搜索
 const isFilterable = computed(() => {
   return props.field.widget?.config?.filterable !== false
@@ -282,17 +288,21 @@ const internalValue = computed({
     return null
   },
   set: (newValue: any) => {
-    if (props.mode === 'edit') {
+    if (props.mode === 'edit' || props.mode === 'search') {
       const selectedOption = options.value.find(opt => opt.value === newValue)
-      const newFieldValue = {
-        raw: newValue,
-        display: selectedOption?.label || String(newValue),
-        meta: {
+      // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
+      const newFieldValue = createFieldValue(
+        props.field,
+        newValue,
+        selectedOption?.label || String(newValue),
+        {
           displayInfo: selectedOption?.displayInfo
         }
-      }
+      )
       
-      formDataStore.setValue(props.fieldPath, newFieldValue)
+      if (props.mode === 'edit') {
+        formDataStore.setValue(props.fieldPath, newFieldValue)
+      }
       emit('update:modelValue', newFieldValue)
     }
   }
@@ -300,6 +310,78 @@ const internalValue = computed({
 
 // 🔥 详情模式下通过回调获取的显示值（用于存储）
 const detailDisplayValue = ref<string | null>(null)
+
+// 获取 display_info 的显示文本
+const displayInfoText = computed(() => {
+  const value = props.value
+  if (!value || !value.raw) {
+    return ''
+  }
+  
+  // 🔥 优先从 meta.displayInfo 获取（这是保存的值）
+  if (value.meta?.displayInfo) {
+    const info = value.meta.displayInfo
+    // 如果是数组（多选的情况），取第一个
+    if (Array.isArray(info) && info.length > 0) {
+      const firstInfo = info[0]
+      if (firstInfo && typeof firstInfo === 'object') {
+        const infoItems: string[] = []
+        Object.entries(firstInfo).forEach(([key, val]) => {
+          if (val !== null && val !== undefined && val !== '') {
+            infoItems.push(`${key}: ${val}`)
+          }
+        })
+        if (infoItems.length > 0) {
+          // 限制显示数量，避免过长
+          if (infoItems.length > 5) {
+            return infoItems.slice(0, 5).join(' | ') + ' ...'
+          }
+          return infoItems.join(' | ')
+        }
+      }
+    } else if (typeof info === 'object' && info !== null) {
+      // 如果是对象（单选的情况）
+      const infoItems: string[] = []
+      Object.entries(info).forEach(([key, val]) => {
+        if (val !== null && val !== undefined && val !== '') {
+          infoItems.push(`${key}: ${val}`)
+        }
+      })
+      if (infoItems.length > 0) {
+        // 限制显示数量，避免过长
+        if (infoItems.length > 5) {
+          return infoItems.slice(0, 5).join(' | ') + ' ...'
+        }
+        return infoItems.join(' | ')
+      }
+    }
+  }
+  
+  // 🔥 如果 meta 中没有，从 options 中查找
+  const selectedOption = options.value.find((opt: any) => {
+    return opt.value === value.raw || String(opt.value) === String(value.raw)
+  })
+  
+  if (selectedOption?.displayInfo) {
+    const info = selectedOption.displayInfo
+    if (typeof info === 'object' && info !== null) {
+      const infoItems: string[] = []
+      Object.entries(info).forEach(([key, val]) => {
+        if (val !== null && val !== undefined && val !== '') {
+          infoItems.push(`${key}: ${val}`)
+        }
+      })
+      if (infoItems.length > 0) {
+        if (infoItems.length > 5) {
+          return infoItems.slice(0, 5).join(' | ') + ' ...'
+        }
+        return infoItems.join(' | ')
+      }
+    }
+  }
+  
+  return ''
+})
 
 // 显示值
 const displayValue = computed(() => {
@@ -377,13 +459,133 @@ function initOptions(): void {
   // 如果没有 formRenderer，等待 watch 检测到 formRenderer 后再触发
 }
 
-// 处理远程搜索
+// 处理远程搜索（保留用于兼容）
 async function handleRemoteSearch(query: string): Promise<void> {
   if (!hasCallback.value) {
     return
   }
   
   await handleSearch(query, false) // by_keyword
+}
+
+// 打开对话框
+async function openDialog(): Promise<void> {
+  dialogVisible.value = true
+  
+  // 如果有回调接口
+  if (hasCallback.value) {
+    // 🔥 检查 formRenderer 是否存在
+    if (!props.formRenderer) {
+      console.warn('[SelectWidget] openDialog: formRenderer 不存在，无法触发回调', {
+        fieldCode: props.field.code
+      })
+      return
+    }
+    
+    // 🔥 如果已有值，通过 by_value 搜索获取对应的选项和 label
+    if (props.value?.raw !== null && props.value?.raw !== undefined && props.value?.raw !== '') {
+      await handleSearch(props.value.raw, true) // by_value 搜索
+    } else {
+      // 没有值，触发空搜索加载初始选项
+      await handleDialogSearch('')
+    }
+  } else {
+    // 静态选项，直接使用
+    dialogSuggestions.value = options.value.map((opt: any) => ({
+      label: opt.label,
+      value: opt.value,
+      displayInfo: opt.displayInfo,
+      display_info: opt.displayInfo, // 同时提供两种格式，确保兼容
+      icon: opt.icon
+    }))
+  }
+}
+
+// 处理对话框搜索
+async function handleDialogSearch(keyword: string): Promise<void> {
+  if (hasCallback.value) {
+    // 🔥 检查 formRenderer 是否存在
+    if (!props.formRenderer) {
+      console.warn('[SelectWidget] handleDialogSearch: formRenderer 不存在，无法触发回调', {
+        fieldCode: props.field.code,
+        keyword
+      })
+      return
+    }
+    
+    await handleSearch(keyword, false)
+    
+    // 更新对话框建议列表
+    dialogSuggestions.value = options.value.map((opt: any) => ({
+      label: opt.label,
+      value: opt.value,
+      displayInfo: opt.displayInfo,
+      display_info: opt.displayInfo, // 同时提供两种格式，确保兼容
+      icon: opt.icon
+    }))
+  } else {
+    // 静态选项，本地过滤
+    const filtered = staticOptions.value.filter((opt: any) => {
+      const label = typeof opt === 'string' ? opt : opt.label
+      return label.toLowerCase().includes(keyword.toLowerCase())
+    })
+    dialogSuggestions.value = filtered.map((opt: any) => {
+      if (typeof opt === 'string') {
+        return { label: opt, value: opt }
+      }
+      return {
+        label: opt.label,
+        value: opt.value,
+        displayInfo: opt.displayInfo,
+        display_info: opt.displayInfo, // 同时提供两种格式，确保兼容
+        icon: opt.icon
+      }
+    })
+  }
+}
+
+// 处理对话框选择（单选模式）
+function handleDialogSelect(item: { value: any; label?: string; displayInfo?: any }): void {
+  // 🔥 更新 options，确保选择的项的 displayInfo 被保存
+  const existingOption = options.value.find((opt: any) => String(opt.value) === String(item.value))
+  if (!existingOption) {
+    // 如果 options 中没有，添加进去
+    options.value.push({
+      label: item.label || String(item.value),
+      value: item.value,
+      displayInfo: item.displayInfo
+    })
+  } else if (item.displayInfo && !existingOption.displayInfo) {
+    // 如果 options 中有但没有 displayInfo，更新它
+    existingOption.displayInfo = item.displayInfo
+  }
+  
+  const selectedOption = options.value.find((opt: any) => String(opt.value) === String(item.value))
+  // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
+  const newFieldValue = createFieldValue(
+    props.field,
+    item.value,
+    item.label || selectedOption?.label || String(item.value),
+    {
+      displayInfo: item.displayInfo || selectedOption?.displayInfo,
+      statistics: currentStatistics.value  // 🔥 保存 statistics 配置
+    }
+  )
+  
+  // 🔥 确保值被正确保存到 formDataStore
+  formDataStore.setValue(props.fieldPath, newFieldValue)
+  
+  // 🔥 同时触发 emit，确保 FormView 也能收到更新
+  emit('update:modelValue', newFieldValue)
+  
+  // 🔥 调试日志：检查值是否正确保存
+  const savedValue = formDataStore.getValue(props.fieldPath)
+  if (savedValue?.raw !== item.value) {
+    Logger.warn('SelectWidget', `值保存失败: fieldPath=${props.fieldPath}, expected=${item.value}, actual=${savedValue?.raw}`)
+  }
+  
+  // 🔥 关闭对话框
+  dialogVisible.value = false
 }
 
 // 处理搜索
@@ -396,8 +598,10 @@ async function handleSearch(query: string | number, isByValue: boolean): Promise
   const router = props.formRenderer.getFunctionRouter()
   
   if (!router) {
+    console.warn('[SelectWidget] 无法获取函数路由，取消回调', { fieldCode: props.field.code, router })
     return
   }
+  
   
   loading.value = true
   
@@ -409,7 +613,7 @@ async function handleSearch(query: string | number, isByValue: boolean): Promise
     // 🔥 如果 query 已经是数字类型，不需要转换
     if (isByValue && typeof query === 'string' && valueType !== 'string') {
       // 使用统一的类型转换工具函数
-      convertedValue = convertValueToType(query, valueType, COMPONENT_NAME)
+      convertedValue = convertValueToType(query, valueType, 'SelectWidget')
     }
     
     const requestBody = {
@@ -433,34 +637,57 @@ async function handleSearch(query: string | number, isByValue: boolean): Promise
       currentStatistics.value = response.statistics
       // 如果当前已有选中值，立即更新 meta.statistics
       if (props.value?.raw) {
-        const newFieldValue = {
-          ...props.value,
-          meta: {
+        // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
+        const newFieldValue = createFieldValue(
+          props.field,
+          props.value.raw,
+          props.value.display || String(props.value.raw),
+          {
             ...props.value.meta,
             statistics: currentStatistics.value
           }
-        }
+        )
         formDataStore.setValue(props.fieldPath, newFieldValue)
       }
     }
+    
+    // 🔥 SelectWidget 是单选组件，不需要处理 max_selections
+    // max_selections 只在 MultiSelectWidget（多选组件）里有意义
     
     if (response.items && Array.isArray(response.items)) {
       options.value = response.items.map((item: any) => ({
         label: item.label || String(item.value),
         value: item.value,
         disabled: false,
-        displayInfo: item.display_info
+        displayInfo: item.display_info || item.displayInfo
       }))
       
-      // 🔥 如果是在详情模式下通过 by_value 查询，找到匹配的选项并更新显示值
-      if (isByValue && props.mode === 'detail' && props.value?.raw) {
+      // 🔥 如果是通过 by_value 查询，找到匹配的选项并更新显示值
+      if (isByValue && props.value?.raw) {
         const matchedOption = options.value.find((opt: any) => {
           // 支持多种类型比较
           return opt.value === props.value.raw || String(opt.value) === String(props.value.raw)
         })
         if (matchedOption) {
-          // 🔥 更新 detailDisplayValue，这样 displayValue 计算属性就能显示正确的标签
-          detailDisplayValue.value = matchedOption.label
+          // 🔥 在详情模式下，更新 detailDisplayValue
+          if (props.mode === 'detail') {
+            detailDisplayValue.value = matchedOption.label
+          }
+          // 🔥 在编辑模式下，如果 value.display 为空或等于 raw，更新 display 值
+          if (props.mode === 'edit' && (!props.value.display || String(props.value.display) === String(props.value.raw))) {
+            // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
+            const newFieldValue = createFieldValue(
+              props.field,
+              props.value.raw,
+              matchedOption.label,
+              {
+                ...props.value.meta,
+                displayInfo: matchedOption.displayInfo
+              }
+            )
+            formDataStore.setValue(props.fieldPath, newFieldValue)
+            emit('update:modelValue', newFieldValue)
+          }
         }
       }
     } else {
@@ -483,14 +710,16 @@ function handleChange(value: any): void {
   // 值变化时，保存 displayInfo 和 statistics
   const selectedOption = options.value.find(opt => opt.value === value)
   if (selectedOption) {
-    const newFieldValue = {
-      raw: value,
-      display: selectedOption.label,
-      meta: {
+    // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
+    const newFieldValue = createFieldValue(
+      props.field,
+      value,
+      selectedOption.label,
+      {
         displayInfo: selectedOption.displayInfo,
         statistics: currentStatistics.value  // 🔥 保存 statistics 配置
       }
-    }
+    )
     
     formDataStore.setValue(props.fieldPath, newFieldValue)
     emit('update:modelValue', newFieldValue)
@@ -500,64 +729,336 @@ function handleChange(value: any): void {
 // 处理聚焦（已移除，因为 Element Plus 的 remote-method 会在聚焦时自动触发）
 // 如果同时使用 handleFocus 和 remote-method，会导致重复回调
 
+// 🔥 事件监听器（用于在表单初始化完成后统一处理）
+let unsubscribeFormInitialized: (() => void) | null = null
+
+// 🔥 注册监听器的函数（避免重复代码）
+const registerFormInitializedListener = () => {
+  // 🔥 先取消注册旧的监听器（避免 keep-alive 场景下重复注册）
+  if (unsubscribeFormInitialized) {
+    unsubscribeFormInitialized()
+    unsubscribeFormInitialized = null
+  }
+  
+  // 注册新的监听器
+  unsubscribeFormInitialized = eventBus.on(FormEvent.initialized, () => {
+    Logger.debug('[SelectWidget]', 'FormEvent.initialized 收到', { 
+      fieldCode: props.field.code,
+      hasCallback: hasCallback.value,
+      rawValue: props.value?.raw,
+      formRenderer: !!props.formRenderer,
+      getFunctionDetail: !!props.formRenderer?.getFunctionDetail,
+      functionDetail: props.formRenderer?.getFunctionDetail?.(),
+      functionId: props.formRenderer?.getFunctionDetail?.()?.id,
+      lastSearchedValue: lastSearchedValue.value,
+      lastSearchedRouter: lastSearchedRouter.value,
+      lastSearchedFunctionId: lastSearchedFunctionId.value
+    })
+    // 如果当前字段有 OnSelectFuzzy 回调，且有值，触发搜索获取 label
+    if (hasCallback.value && props.value?.raw !== null && props.value?.raw !== undefined && props.formRenderer) {
+      nextTick(() => {
+        if (props.formRenderer && !isSearching.value && props.value?.raw !== lastSearchedValue.value) {
+          Logger.debug('[SelectWidget]', '触发 triggerSearchIfNeeded (FormEvent.initialized)', { 
+            fieldCode: props.field.code,
+            rawValue: props.value?.raw,
+            functionId: props.formRenderer?.getFunctionDetail?.()?.id,
+            lastSearchedValue: lastSearchedValue.value,
+            lastSearchedRouter: lastSearchedRouter.value,
+            lastSearchedFunctionId: lastSearchedFunctionId.value
+          })
+          triggerSearchIfNeeded(props.value.raw, props.formRenderer, props.mode)
+        }
+      })
+    }
+  })
+}
+
+// 🔥 取消注册监听器的函数
+const unregisterFormInitializedListener = () => {
+  if (unsubscribeFormInitialized) {
+    unsubscribeFormInitialized()
+    unsubscribeFormInitialized = null
+  }
+}
+
 // 初始化
 onMounted(() => {
   initOptions()
+  // 🔥 不在 onMounted 中注册监听器，因为 onActivated 会被调用
+  // registerFormInitializedListener()
   
-  // 🔥 详情模式下，如果已经有 formRenderer 和值，立即触发一次回调
-  // 因为 watch 可能在组件挂载时 formRenderer 还没传递过来
-  if (props.mode === 'detail' && hasCallback.value && props.value?.raw && props.formRenderer) {
+  // 🔥 如果已经有值了，也尝试触发一次（处理表单已经初始化完成的情况）
+  if (hasCallback.value && props.value?.raw && props.formRenderer) {
     nextTick(() => {
-      if (!isSearching.value && props.value?.raw !== lastSearchedValue.value) {
-        isSearching.value = true
-        lastSearchedValue.value = props.value.raw
-        detailDisplayValue.value = null
-        handleSearch(props.value.raw, true).finally(() => {
-          isSearching.value = false
-        })
+      if (props.formRenderer && !isSearching.value && props.value?.raw !== lastSearchedValue.value) {
+        triggerSearchIfNeeded(props.value.raw, props.formRenderer, props.mode)
       }
     })
   }
 })
 
-// 🔥 监听 value 和 formRenderer 变化，在详情模式下如果值变化了，重新触发回调获取标签
+// 🔥 keep-alive 场景：跟踪组件激活状态
+const isComponentActive = ref(true) // 默认激活（首次挂载时）
+
+// 🔥 keep-alive 场景：组件激活时注册监听器
+// 注意：首次挂载时也会触发 onActivated，所以不需要在 onMounted 中注册
+onActivated(() => {
+  isComponentActive.value = true // 🔥 标记为激活
+  Logger.debug('[SelectWidget]', 'onActivated - 注册监听器', { 
+    fieldCode: props.field.code,
+    hasCallback: hasCallback.value,
+    rawValue: props.value?.raw,
+    formRenderer: !!props.formRenderer,
+    getFunctionDetail: !!props.formRenderer?.getFunctionDetail,
+    functionDetail: props.formRenderer?.getFunctionDetail?.(),
+    functionId: props.formRenderer?.getFunctionDetail?.()?.id
+  })
+  registerFormInitializedListener()
+})
+
+// 🔥 keep-alive 场景：组件失活时取消注册监听器
+onDeactivated(() => {
+  isComponentActive.value = false // 🔥 标记为失活
+  Logger.debug('[SelectWidget]', 'onDeactivated - 取消注册监听器', { 
+    fieldCode: props.field.code,
+    functionId: props.formRenderer?.getFunctionDetail?.()?.id
+  })
+  unregisterFormInitializedListener()
+})
+
+onUnmounted(() => {
+  unregisterFormInitializedListener()
+})
+
+// 🔥 监听 value 和 formRenderer 变化，如果值变化了，重新触发回调获取标签
 // 使用一个标志来防止重复调用
 const isSearching = ref(false)
 const lastSearchedValue = ref<any>(null)
+const lastSearchedRouter = ref<string | null>(null) // 🔥 记录上次搜索使用的 router
+const lastSearchedFunctionId = ref<number | null>(null) // 🔥 记录上次搜索使用的函数 ID
 
-watch(
-  () => [props.value?.raw, props.formRenderer, props.mode],
-  ([newRaw, formRenderer, mode], oldValues) => {
-    // 🔥 处理首次执行时 oldValues 为 undefined 的情况
-    const [oldRaw, oldFormRenderer, oldMode] = oldValues || [undefined, undefined, undefined]
-    
-    // 只在详情模式下，且有回调接口，且有值，且有 formRenderer 时触发
-    if (
-      mode === 'detail' && 
-      hasCallback.value && 
-      newRaw !== null && 
-      newRaw !== undefined && 
-      formRenderer &&
-      !isSearching.value &&
-      // 🔥 关键：如果值或 formRenderer 发生了变化，或者还没有搜索过这个值，就触发
-      (newRaw !== lastSearchedValue.value || formRenderer !== oldFormRenderer || mode !== oldMode)
-    ) {
-      isSearching.value = true
-      lastSearchedValue.value = newRaw
-      // 重置 detailDisplayValue，等待回调返回后更新
-      detailDisplayValue.value = null
-      handleSearch(newRaw, true).finally(() => {
-        isSearching.value = false
-      })
+// 🔥 触发搜索的辅助函数（避免重复代码）
+const triggerSearchIfNeeded = (rawValue: any, formRenderer: any, mode: string) => {
+  Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded 开始', {
+    fieldCode: props.field.code,
+    rawValue,
+    hasCallback: hasCallback.value,
+    formRenderer: !!formRenderer,
+    isComponentActive: isComponentActive.value
+  })
+  
+  // 🔥 关键：如果组件失活，跳过搜索（keep-alive 场景）
+  if (!isComponentActive.value) {
+    Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded 跳过：组件已失活', {
+      fieldCode: props.field.code,
+      rawValue
+    })
+    return false
+  }
+  
+  if (!hasCallback.value || !formRenderer) {
+    Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded 跳过：无回调或无 formRenderer', {
+      fieldCode: props.field.code,
+      hasCallback: hasCallback.value,
+      formRenderer: !!formRenderer
+    })
+    return false
+  }
+  
+  const currentRouter = formRenderer.getFunctionRouter?.()
+  if (!currentRouter) {
+    Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded 跳过：无 currentRouter', {
+      fieldCode: props.field.code
+    })
+    return false
+  }
+  
+  // 🔥 获取当前函数 ID（用于 keep-alive 场景下的防重复调用）
+  const currentFunctionId = formRenderer.getFunctionDetail?.()?.id || null
+  
+  Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded 当前状态', {
+    fieldCode: props.field.code,
+    rawValue,
+    currentRouter,
+    currentFunctionId,
+    lastSearchedValue: lastSearchedValue.value,
+    lastSearchedRouter: lastSearchedRouter.value,
+    lastSearchedFunctionId: lastSearchedFunctionId.value,
+    isSearching: isSearching.value
+  })
+  
+  // 🔥 如果 router 或 functionId 变化了，重置搜索状态
+  if (currentRouter !== lastSearchedRouter.value || currentFunctionId !== lastSearchedFunctionId.value) {
+    Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded 重置搜索状态（router 或 functionId 变化）', {
+      fieldCode: props.field.code,
+      currentRouter,
+      lastSearchedRouter: lastSearchedRouter.value,
+      currentFunctionId,
+      lastSearchedFunctionId: lastSearchedFunctionId.value
+    })
+    lastSearchedValue.value = null
+    lastSearchedRouter.value = currentRouter
+    lastSearchedFunctionId.value = currentFunctionId
+  }
+  
+  // 🔥 检查是否需要触发搜索
+  // keep-alive 场景下：如果函数 ID 相同、值相同、router 相同，说明已经搜索过，不需要重复调用
+  const shouldTrigger = 
+    rawValue !== null && 
+    rawValue !== undefined && 
+    !isSearching.value &&
+    // 🔥 关键：如果值变化了，或者 router 变化了，或者 functionId 变化了，或者还没有搜索过这个值，就触发
+    (rawValue !== lastSearchedValue.value || 
+     currentRouter !== lastSearchedRouter.value || 
+     currentFunctionId !== lastSearchedFunctionId.value)
+  
+  Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded 判断结果', {
+    fieldCode: props.field.code,
+    shouldTrigger,
+    reasons: {
+      hasValue: rawValue !== null && rawValue !== undefined,
+      notSearching: !isSearching.value,
+      valueChanged: rawValue !== lastSearchedValue.value,
+      routerChanged: currentRouter !== lastSearchedRouter.value,
+      functionIdChanged: currentFunctionId !== lastSearchedFunctionId.value
     }
-  },
-  { immediate: true } // 🔥 立即执行一次，确保在组件挂载时就能触发
+  })
+  
+  if (shouldTrigger) {
+    Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded ✅ 触发搜索', {
+      fieldCode: props.field.code,
+      rawValue,
+      currentRouter,
+      currentFunctionId
+    })
+    isSearching.value = true
+    lastSearchedValue.value = rawValue
+    lastSearchedRouter.value = currentRouter
+    lastSearchedFunctionId.value = currentFunctionId
+    // 重置 detailDisplayValue（仅详情模式需要）
+    if (mode === 'detail') {
+      detailDisplayValue.value = null
+    }
+    // 🔥 通过 by_value 搜索获取对应的 label 和 displayInfo
+    handleSearch(rawValue, true).finally(() => {
+      Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded 搜索完成', {
+        fieldCode: props.field.code,
+        rawValue,
+        currentFunctionId
+      })
+      isSearching.value = false
+    })
+    return true
+  }
+  
+  Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded ❌ 跳过搜索（防重复）', {
+    fieldCode: props.field.code,
+    rawValue,
+    lastSearchedValue: lastSearchedValue.value,
+    currentRouter,
+    lastSearchedRouter: lastSearchedRouter.value,
+    currentFunctionId,
+    lastSearchedFunctionId: lastSearchedFunctionId.value
+  })
+  return false
+}
+
+
+// 🔥 保留一个简单的 watch 来处理值变化（仅在 formRenderer 已准备好且组件激活时）
+watch(
+  () => props.value?.raw,
+  (newRaw, oldRaw) => {
+    Logger.debug('[SelectWidget]', 'watch props.value?.raw 触发', {
+      fieldCode: props.field.code,
+      newRaw,
+      oldRaw,
+      isComponentActive: isComponentActive.value,
+      formRenderer: !!props.formRenderer
+    })
+    // 只在 formRenderer 已准备好且值真正变化且组件激活时触发
+    // 注意：triggerSearchIfNeeded 内部也会检查 isComponentActive，这里是双重保险
+    if (isComponentActive.value && props.formRenderer && newRaw !== null && newRaw !== undefined && newRaw !== oldRaw) {
+      triggerSearchIfNeeded(newRaw, props.formRenderer, props.mode)
+    }
+  }
 )
 </script>
 
 <style scoped>
 .select-widget {
   width: 100%;
+}
+
+.edit-select,
+.search-select {
+  width: 100%;
+  position: relative;
+}
+
+.select-container {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 6px;
+  background-color: var(--el-bg-color);
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.select-container:hover {
+  border-color: var(--el-color-primary);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.select-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.select-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.select-label {
+  flex: 1;
+  color: var(--el-text-color-primary);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.select-label:empty::before {
+  content: attr(data-placeholder);
+  color: var(--el-text-color-placeholder);
+}
+
+.display-info-text {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.input-icon {
+  color: var(--el-text-color-placeholder);
+  transition: all 0.2s;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.select-container:hover .input-icon {
+  color: var(--el-color-primary);
+  transform: translateY(1px);
 }
 
 .select-option {
@@ -632,6 +1133,58 @@ watch(
   border-color: var(--el-color-primary) !important;
 }
 
+/* 🔥 多选模式样式（从 MultiSelectWidget 复制） */
+.edit-multiselect {
+  width: 100%;
+}
+
+.selected-tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 4px 8px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
+  background-color: var(--el-fill-color-blank);
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.selected-tags-container:hover {
+  border-color: var(--el-color-primary);
+}
+
+.tags-wrapper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.input-wrapper {
+  flex: 1;
+  min-width: 120px;
+  position: relative;
+}
+
+.multiselect-input {
+  width: 100%;
+}
+
+.multiselect-tag {
+  margin: 0;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* 自定义颜色的空心标签：使用边框颜色 */
 .select-tag-outline[style*="color"] {
   border-color: currentColor !important;
@@ -694,14 +1247,4 @@ watch(
 }
 </style>
 
-<style>
-/* 全局样式：确保下拉菜单在抽屉中正常显示 */
-.select-dropdown-popper {
-  z-index: 3001 !important;
-}
-
-.select-dropdown-popper .el-select-dropdown {
-  z-index: 3001 !important;
-}
-</style>
 

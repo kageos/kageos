@@ -1,0 +1,1191 @@
+definitions:
+  dto.AgentCreateReq:
+    properties:
+      agent_type:
+        description: knowledge_only, api_call
+        example: api_call
+        type: string
+      api_path:
+        description: 仅接口调用类型需要
+        example: http://excel-generator:8080/api/v1/process
+        type: string
+      author:
+        example: beiluo
+        type: string
+      chat_type:
+        example: chat-task
+        type: string
+      description:
+        example: 基于Excel文件生成管理系统
+        type: string
+      knowledge_base_id:
+        example: 1
+        type: integer
+      metadata:
+        example: '{}'
+        type: string
+      name:
+        example: Excel生成智能体
+        type: string
+      timeout:
+        example: 30
+        type: integer
+    required:
+    - agent_type
+    - chat_type
+    - knowledge_base_id
+    - name
+    type: object
+  dto.AgentCreateResp:
+    properties:
+      id:
+        example: 1
+        type: integer
+    type: object
+  dto.AgentDeleteReq:
+    properties:
+      id:
+        example: 1
+        type: integer
+    required:
+    - id
+    type: object
+  dto.AgentDisableReq:
+    properties:
+      id:
+        example: 1
+        type: integer
+    required:
+    - id
+    type: object
+  dto.AgentEnableReq:
+    properties:
+      id:
+        example: 1
+        type: integer
+    required:
+    - id
+    type: object
+  dto.AgentGetResp:
+    properties:
+      agent_type:
+        description: knowledge_only, api_call
+        example: api_call
+        type: string
+      api_path:
+        example: http://excel-generator:8080/api/v1/process
+        type: string
+      author:
+        example: beiluo
+        type: string
+      chat_type:
+        example: chat-task
+        type: string
+      created_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      description:
+        example: 基于Excel文件生成管理系统
+        type: string
+      enabled:
+        example: true
+        type: boolean
+      id:
+        example: 1
+        type: integer
+      knowledge_base_id:
+        example: 1
+        type: integer
+      metadata:
+        example: '{}'
+        type: string
+      name:
+        example: Excel生成智能体
+        type: string
+      timeout:
+        example: 30
+        type: integer
+      updated_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+    type: object
+  dto.AgentInfo:
+    properties:
+      agent_type:
+        description: knowledge_only, api_call
+        example: api_call
+        type: string
+      api_path:
+        example: http://excel-generator:8080/api/v1/process
+        type: string
+      author:
+        example: beiluo
+        type: string
+      chat_type:
+        example: chat-task
+        type: string
+      created_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      description:
+        example: 基于Excel文件生成管理系统
+        type: string
+      enabled:
+        example: true
+        type: boolean
+      id:
+        example: 1
+        type: integer
+      knowledge_base_id:
+        example: 1
+        type: integer
+      metadata:
+        example: '{}'
+        type: string
+      name:
+        example: Excel生成智能体
+        type: string
+      timeout:
+        example: 30
+        type: integer
+      updated_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+    type: object
+  dto.AgentListResp:
+    properties:
+      agents:
+        items:
+          $ref: '#/definitions/dto.AgentInfo'
+        type: array
+      total:
+        example: 100
+        type: integer
+    type: object
+  dto.AgentUpdateReq:
+    properties:
+      agent_type:
+        example: api_call
+        type: string
+      api_path:
+        example: http://excel-generator:8080/api/v1/process
+        type: string
+      author:
+        example: beiluo
+        type: string
+      chat_type:
+        example: chat-task
+        type: string
+      description:
+        example: 基于Excel文件生成管理系统
+        type: string
+      id:
+        example: 1
+        type: integer
+      knowledge_base_id:
+        example: 1
+        type: integer
+      metadata:
+        example: '{}'
+        type: string
+      name:
+        example: Excel生成智能体
+        type: string
+      timeout:
+        example: 30
+        type: integer
+    required:
+    - agent_type
+    - chat_type
+    - id
+    - knowledge_base_id
+    - name
+    type: object
+  dto.AgentUpdateResp:
+    properties:
+      id:
+        example: 1
+        type: integer
+    type: object
+  dto.DocumentInfo:
+    properties:
+      content:
+        example: Excel是一个电子表格软件...
+        type: string
+      created_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      doc_id:
+        example: doc_001
+        type: string
+      file_size:
+        example: 1024
+        type: integer
+      file_type:
+        example: pdf
+        type: string
+      id:
+        example: 1
+        type: integer
+      knowledge_base_id:
+        example: 1
+        type: integer
+      status:
+        description: processing/completed/failed
+        example: completed
+        type: string
+      title:
+        example: Excel使用指南
+        type: string
+      updated_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      user:
+        example: admin
+        type: string
+    type: object
+  dto.KnowledgeAddDocumentReq:
+    properties:
+      content:
+        example: Excel是一个电子表格软件...
+        type: string
+      file_type:
+        description: pdf/txt/doc/md
+        example: pdf
+        type: string
+      knowledge_base_id:
+        example: 1
+        type: integer
+      title:
+        example: Excel使用指南
+        type: string
+    required:
+    - content
+    - knowledge_base_id
+    - title
+    type: object
+  dto.KnowledgeAddDocumentResp:
+    properties:
+      doc_id:
+        example: doc_001
+        type: string
+    type: object
+  dto.KnowledgeCreateReq:
+    properties:
+      description:
+        example: Excel相关的知识库
+        type: string
+      name:
+        example: Excel知识库
+        type: string
+      status:
+        description: active/inactive
+        example: active
+        type: string
+    required:
+    - name
+    type: object
+  dto.KnowledgeCreateResp:
+    properties:
+      id:
+        example: 1
+        type: integer
+    type: object
+  dto.KnowledgeGetResp:
+    properties:
+      content_hash:
+        example: abc123...
+        type: string
+      created_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      description:
+        example: Excel相关的知识库
+        type: string
+      document_count:
+        example: 10
+        type: integer
+      id:
+        example: 1
+        type: integer
+      name:
+        example: Excel知识库
+        type: string
+      status:
+        description: active/inactive
+        example: active
+        type: string
+      updated_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      user:
+        example: admin
+        type: string
+    type: object
+  dto.KnowledgeInfo:
+    properties:
+      content_hash:
+        example: abc123...
+        type: string
+      created_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      description:
+        example: Excel相关的知识库
+        type: string
+      document_count:
+        example: 10
+        type: integer
+      id:
+        example: 1
+        type: integer
+      name:
+        example: Excel知识库
+        type: string
+      status:
+        description: active/inactive
+        example: active
+        type: string
+      updated_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      user:
+        example: admin
+        type: string
+    type: object
+  dto.KnowledgeListDocumentsResp:
+    properties:
+      documents:
+        items:
+          $ref: '#/definitions/dto.DocumentInfo'
+        type: array
+      total:
+        example: 100
+        type: integer
+    type: object
+  dto.KnowledgeListResp:
+    properties:
+      knowledge_bases:
+        items:
+          $ref: '#/definitions/dto.KnowledgeInfo'
+        type: array
+      total:
+        example: 100
+        type: integer
+    type: object
+  dto.KnowledgeUpdateReq:
+    properties:
+      description:
+        example: Excel相关的知识库
+        type: string
+      id:
+        example: 1
+        type: integer
+      name:
+        example: Excel知识库
+        type: string
+      status:
+        description: active/inactive
+        example: active
+        type: string
+    required:
+    - id
+    - name
+    type: object
+  dto.KnowledgeUpdateResp:
+    properties:
+      id:
+        example: 1
+        type: integer
+    type: object
+  dto.LLMCreateReq:
+    properties:
+      api_base:
+        example: https://api.openai.com/v1
+        type: string
+      api_key:
+        example: sk-xxx
+        type: string
+      extra_config:
+        example: '{}'
+        type: string
+      is_default:
+        example: false
+        type: boolean
+      max_tokens:
+        example: 4000
+        type: integer
+      model:
+        example: gpt-4
+        type: string
+      name:
+        example: OpenAI GPT-4
+        type: string
+      provider:
+        example: openai
+        type: string
+      timeout:
+        example: 120
+        type: integer
+    required:
+    - model
+    - name
+    - provider
+    type: object
+  dto.LLMCreateResp:
+    properties:
+      id:
+        example: 1
+        type: integer
+    type: object
+  dto.LLMGetDefaultResp:
+    properties:
+      api_base:
+        example: https://api.openai.com/v1
+        type: string
+      created_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      extra_config:
+        example: '{}'
+        type: string
+      id:
+        example: 1
+        type: integer
+      is_default:
+        example: true
+        type: boolean
+      max_tokens:
+        example: 4000
+        type: integer
+      model:
+        example: gpt-4
+        type: string
+      name:
+        example: OpenAI GPT-4
+        type: string
+      provider:
+        description: openai, claude, local, etc.
+        example: openai
+        type: string
+      timeout:
+        example: 120
+        type: integer
+      updated_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+    type: object
+  dto.LLMGetResp:
+    properties:
+      api_base:
+        example: https://api.openai.com/v1
+        type: string
+      created_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      extra_config:
+        example: '{}'
+        type: string
+      id:
+        example: 1
+        type: integer
+      is_default:
+        example: true
+        type: boolean
+      max_tokens:
+        example: 4000
+        type: integer
+      model:
+        example: gpt-4
+        type: string
+      name:
+        example: OpenAI GPT-4
+        type: string
+      provider:
+        description: openai, claude, local, etc.
+        example: openai
+        type: string
+      timeout:
+        example: 120
+        type: integer
+      updated_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+    type: object
+  dto.LLMInfo:
+    properties:
+      api_base:
+        example: https://api.openai.com/v1
+        type: string
+      created_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      extra_config:
+        example: '{}'
+        type: string
+      id:
+        example: 1
+        type: integer
+      is_default:
+        example: true
+        type: boolean
+      max_tokens:
+        example: 4000
+        type: integer
+      model:
+        example: gpt-4
+        type: string
+      name:
+        example: OpenAI GPT-4
+        type: string
+      provider:
+        description: openai, claude, local, etc.
+        example: openai
+        type: string
+      timeout:
+        example: 120
+        type: integer
+      updated_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+    type: object
+  dto.LLMListResp:
+    properties:
+      configs:
+        items:
+          $ref: '#/definitions/dto.LLMInfo'
+        type: array
+      total:
+        example: 100
+        type: integer
+    type: object
+  dto.LLMUpdateReq:
+    properties:
+      api_base:
+        example: https://api.openai.com/v1
+        type: string
+      api_key:
+        example: sk-xxx
+        type: string
+      extra_config:
+        example: '{}'
+        type: string
+      id:
+        example: 1
+        type: integer
+      is_default:
+        example: false
+        type: boolean
+      max_tokens:
+        example: 4000
+        type: integer
+      model:
+        example: gpt-4
+        type: string
+      name:
+        example: OpenAI GPT-4
+        type: string
+      provider:
+        example: openai
+        type: string
+      timeout:
+        example: 120
+        type: integer
+    required:
+    - id
+    - model
+    - name
+    - provider
+    type: object
+  dto.LLMUpdateResp:
+    properties:
+      id:
+        example: 1
+        type: integer
+    type: object
+externalDocs:
+  description: OpenAPI
+  url: https://swagger.io/resources/open-api/
+host: localhost:9095
+info:
+  contact:
+    email: support@swagger.io
+    name: API Support
+    url: http://www.swagger.io/support
+  description: Agent-Server 代码生成服务 API 文档
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: Agent-Server API
+  version: "1.0"
+paths:
+  /api/v1/agent/agents/create:
+    post:
+      consumes:
+      - application/json
+      description: 创建新的智能体
+      parameters:
+      - description: 创建智能体请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.AgentCreateReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 创建成功
+          schema:
+            $ref: '#/definitions/dto.AgentCreateResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 创建智能体
+      tags:
+      - 智能体管理
+  /api/v1/agent/agents/delete:
+    post:
+      consumes:
+      - application/json
+      description: 删除智能体
+      parameters:
+      - description: 删除智能体请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.AgentDeleteReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 删除智能体
+      tags:
+      - 智能体管理
+  /api/v1/agent/agents/disable:
+    post:
+      consumes:
+      - application/json
+      description: 禁用智能体
+      parameters:
+      - description: 禁用智能体请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.AgentDisableReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 禁用成功
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 禁用智能体
+      tags:
+      - 智能体管理
+  /api/v1/agent/agents/enable:
+    post:
+      consumes:
+      - application/json
+      description: 启用智能体
+      parameters:
+      - description: 启用智能体请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.AgentEnableReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 启用成功
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 启用智能体
+      tags:
+      - 智能体管理
+  /api/v1/agent/agents/get:
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取智能体详细信息
+      parameters:
+      - description: 智能体ID
+        in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            $ref: '#/definitions/dto.AgentGetResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 获取智能体详情
+      tags:
+      - 智能体管理
+  /api/v1/agent/agents/list:
+    get:
+      consumes:
+      - application/json
+      description: 获取所有可用智能体列表（前端调用）
+      parameters:
+      - description: 智能体类型
+        enum:
+        - knowledge_only
+        - api_call
+        in: query
+        name: agent_type
+        type: string
+      - description: 是否启用
+        in: query
+        name: enabled
+        type: boolean
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        required: true
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: page_size
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            $ref: '#/definitions/dto.AgentListResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 获取智能体列表
+      tags:
+      - 智能体管理
+  /api/v1/agent/agents/update:
+    post:
+      consumes:
+      - application/json
+      description: 更新智能体信息
+      parameters:
+      - description: 更新智能体请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.AgentUpdateReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/dto.AgentUpdateResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 更新智能体
+      tags:
+      - 智能体管理
+  /api/v1/agent/knowledge/add_document:
+    post:
+      consumes:
+      - application/json
+      description: 向知识库添加文档
+      parameters:
+      - description: 添加文档请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.KnowledgeAddDocumentReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 添加成功
+          schema:
+            $ref: '#/definitions/dto.KnowledgeAddDocumentResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 添加文档
+      tags:
+      - 知识库管理
+  /api/v1/agent/knowledge/create:
+    post:
+      consumes:
+      - application/json
+      description: 创建新的知识库
+      parameters:
+      - description: 创建知识库请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.KnowledgeCreateReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 创建成功
+          schema:
+            $ref: '#/definitions/dto.KnowledgeCreateResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 创建知识库
+      tags:
+      - 知识库管理
+  /api/v1/agent/knowledge/delete:
+    post:
+      consumes:
+      - application/json
+      description: 删除知识库
+      parameters:
+      - description: 知识库ID
+        in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 删除知识库
+      tags:
+      - 知识库管理
+  /api/v1/agent/knowledge/get:
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取知识库详细信息
+      parameters:
+      - description: 知识库ID
+        in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            $ref: '#/definitions/dto.KnowledgeGetResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 获取知识库详情
+      tags:
+      - 知识库管理
+  /api/v1/agent/knowledge/list:
+    get:
+      consumes:
+      - application/json
+      description: 获取所有知识库列表
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        required: true
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: page_size
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            $ref: '#/definitions/dto.KnowledgeListResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 获取知识库列表
+      tags:
+      - 知识库管理
+  /api/v1/agent/knowledge/list_documents:
+    get:
+      consumes:
+      - application/json
+      description: 获取知识库的文档列表
+      parameters:
+      - description: 知识库ID
+        in: query
+        name: knowledge_base_id
+        required: true
+        type: integer
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        required: true
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: page_size
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            $ref: '#/definitions/dto.KnowledgeListDocumentsResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 获取文档列表
+      tags:
+      - 知识库管理
+  /api/v1/agent/knowledge/update:
+    post:
+      consumes:
+      - application/json
+      description: 更新知识库信息
+      parameters:
+      - description: 更新知识库请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.KnowledgeUpdateReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/dto.KnowledgeUpdateResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 更新知识库
+      tags:
+      - 知识库管理
+  /api/v1/agent/llm/create:
+    post:
+      consumes:
+      - application/json
+      description: 创建新的LLM配置
+      parameters:
+      - description: 创建LLM配置请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.LLMCreateReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 创建成功
+          schema:
+            $ref: '#/definitions/dto.LLMCreateResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 创建LLM配置
+      tags:
+      - LLM管理
+  /api/v1/agent/llm/delete:
+    post:
+      consumes:
+      - application/json
+      description: 删除LLM配置
+      parameters:
+      - description: LLM配置ID
+        in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 删除LLM配置
+      tags:
+      - LLM管理
+  /api/v1/agent/llm/get:
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取LLM配置详细信息
+      parameters:
+      - description: LLM配置ID
+        in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            $ref: '#/definitions/dto.LLMGetResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 获取LLM配置详情
+      tags:
+      - LLM管理
+  /api/v1/agent/llm/get_default:
+    get:
+      consumes:
+      - application/json
+      description: 获取默认的LLM配置
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            $ref: '#/definitions/dto.LLMGetDefaultResp'
+        "400":
+          description: 未设置默认配置
+          schema:
+            type: string
+      summary: 获取默认LLM配置
+      tags:
+      - LLM管理
+  /api/v1/agent/llm/list:
+    get:
+      consumes:
+      - application/json
+      description: 获取所有LLM配置列表
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        required: true
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: page_size
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            $ref: '#/definitions/dto.LLMListResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 获取LLM配置列表
+      tags:
+      - LLM管理
+  /api/v1/agent/llm/set_default:
+    post:
+      consumes:
+      - application/json
+      description: 设置默认的LLM配置
+      parameters:
+      - description: LLM配置ID
+        in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 设置成功
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 设置默认LLM配置
+      tags:
+      - LLM管理
+  /api/v1/agent/llm/update:
+    post:
+      consumes:
+      - application/json
+      description: 更新LLM配置信息
+      parameters:
+      - description: 更新LLM配置请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.LLMUpdateReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/dto.LLMUpdateResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 更新LLM配置
+      tags:
+      - LLM管理
+securityDefinitions:
+  ApiKeyAuth:
+    in: header
+    name: X-Token
+    type: apiKey
+  BasicAuth:
+    type: basic
+swagger: "2.0"

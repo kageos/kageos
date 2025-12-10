@@ -179,22 +179,24 @@ func (a *App) RequestApp(c *gin.Context) {
 	// 调用服务层
 	ctx := contextx.ToContext(c)
 	resp, err = a.appService.RequestApp(ctx, &req)
-	if err != nil {
-		response.FailWithMessage(c, err.Error())
-		return
-	}
-
-	// 如果应用返回了错误，也通过错误返回
-	if resp.Error != "" {
-		response.FailWithMessage(c, resp.Error)
-		return
-	}
 	mill := time.Since(now).Milliseconds()
 	metadata := make(map[string]interface{})
 	metadata["trace_id"] = req.TraceId
 	metadata["app"] = req.App
-	metadata["version"] = resp.Version
+	if resp != nil {
+		metadata["version"] = resp.Version
+	}
 	metadata["total_cost_mill"] = mill
+	if err != nil {
+		response.FailWithMessage(c, err.Error(), metadata)
+		return
+	}
+
+	// 如果应用返回了错误，也通过错误返回
+	if resp.Error != "" { //无论业务错误还是系统错误都返回，通过返回的code区分，>0系统错误，<0业务错误
+		response.Result(resp.ErrCode, nil, resp.Error, c, metadata)
+		return
+	}
 
 	response.OkWithData(c, resp.Result, metadata)
 }

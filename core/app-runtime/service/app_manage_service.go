@@ -59,15 +59,16 @@ type CloseNotification struct {
 
 // AppManageService 应用管理服务 - 负责应用的增删改查
 type AppManageService struct {
-	builder             *builder.Builder
-	config              *appconfig.AppManageServiceConfig
-	runtimeConfig       *appconfig.AppRuntimeConfig // 运行时完整配置（用于获取网关地址等）
-	containerService    ContainerOperator           // 容器服务依赖
-	appRepo             *repository.AppRepository   // 应用数据访问层
-	appDiscoveryService *AppDiscoveryService        // 应用发现服务，用于获取运行状态
-	natsConn            *nats.Conn                  // NATS 连接，用于发送关闭命令
-	QPSTracker          *QPSTracker                 // QPS 跟踪器
-	forkService         *ForkService                // Fork 服务
+	builder               *builder.Builder
+	config                *appconfig.AppManageServiceConfig
+	runtimeConfig         *appconfig.AppRuntimeConfig // 运行时完整配置（用于获取网关地址等）
+	containerService      ContainerOperator           // 容器服务依赖
+	appRepo               *repository.AppRepository   // 应用数据访问层
+	appDiscoveryService   *AppDiscoveryService        // 应用发现服务，用于获取运行状态
+	natsConn              *nats.Conn                  // NATS 连接，用于发送关闭命令
+	QPSTracker            *QPSTracker                 // QPS 跟踪器
+	forkService           *ForkService                // Fork 服务
+	createFunctionService *CreateFunctionService      // 创建函数服务
 
 	// 启动等待器 - 用于等待应用启动完成通知
 	startupWaiters   map[string]chan *StartupNotification // key: user/app/version
@@ -155,20 +156,21 @@ func (s *AppManageService) notifyStartupWaiter(user, app, version string, notifi
 }
 
 // NewAppManageService 创建应用管理服务（依赖注入）
-func NewAppManageService(builder *builder.Builder, config *appconfig.AppManageServiceConfig, runtimeConfig *appconfig.AppRuntimeConfig, containerService ContainerOperator, appRepo *repository.AppRepository, appDiscoveryService *AppDiscoveryService, natsConn *nats.Conn, forkService *ForkService) *AppManageService {
+func NewAppManageService(builder *builder.Builder, config *appconfig.AppManageServiceConfig, runtimeConfig *appconfig.AppRuntimeConfig, containerService ContainerOperator, appRepo *repository.AppRepository, appDiscoveryService *AppDiscoveryService, natsConn *nats.Conn, forkService *ForkService, createFunctionService *CreateFunctionService) *AppManageService {
 	return &AppManageService{
-		builder:             builder,
-		config:              config,
-		runtimeConfig:       runtimeConfig,
-		containerService:    containerService,
-		appRepo:             appRepo,
-		appDiscoveryService: appDiscoveryService,
-		natsConn:            natsConn,
-		QPSTracker:          NewQPSTracker(60*time.Second, 10*time.Second), // 60秒窗口，10秒检查间隔
-		forkService:         forkService,
-		startupWaiters:      make(map[string]chan *StartupNotification),
-		closeWaiters:        make(map[string]chan *CloseNotification),
-		cleanupDone:         make(chan struct{}),
+		builder:               builder,
+		config:                config,
+		runtimeConfig:         runtimeConfig,
+		containerService:      containerService,
+		appRepo:               appRepo,
+		appDiscoveryService:   appDiscoveryService,
+		natsConn:              natsConn,
+		QPSTracker:            NewQPSTracker(60*time.Second, 10*time.Second), // 60秒窗口，10秒检查间隔
+		forkService:           forkService,
+		createFunctionService: createFunctionService,
+		startupWaiters:        make(map[string]chan *StartupNotification),
+		closeWaiters:          make(map[string]chan *CloseNotification),
+		cleanupDone:           make(chan struct{}),
 	}
 }
 
@@ -440,14 +442,39 @@ func (s *AppManageService) DeleteApp(ctx context.Context, user, app string) erro
 }
 
 // UpdateApp 更新应用（重新编译并重启容器）
+// 如果提供了 CreateFunctions，先执行创建函数操作
 // 如果提供了 ForkPackages，先执行 fork 操作，再执行更新
-func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, forkPackages []*sharedDto.ForkPackageInfo) (*dto.UpdateAppResp, error) {
+func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, forkPackages []*sharedDto.ForkPackageInfo, createFunctions []*sharedDto.CreateFunctionInfo) (*dto.UpdateAppResp, error) {
 
 	logStr := strings.Builder{}
 	logStr.WriteString(fmt.Sprintf("[UpdateApp] Starting update: %s/%s\t", user, app))
 
-	// 0. 如果有 ForkPackages，先执行 fork 操作
+	// 0. 如果有 CreateFunctions，先执行创建函数操作
 	var writtenFiles []string
+	if len(createFunctions) > 0 {
+		logger.Infof(ctx, "[UpdateApp] 检测到 CreateFunctions，先执行创建函数操作: functionCount=%d", len(createFunctions))
+
+		createResp, err := s.createFunctionService.CreateFunctions(ctx, user, app, createFunctions)
+		if err != nil {
+			logger.Errorf(ctx, "[UpdateApp] 创建函数失败: error=%v", err)
+			return nil, fmt.Errorf("创建函数失败: %w", err)
+		}
+
+		if !createResp.Success {
+			logger.Errorf(ctx, "[UpdateApp] 创建函数失败: %s", createResp.Message)
+			// 创建函数失败时，删除已写入的文件（如果有）
+			if len(createResp.WrittenFiles) > 0 {
+				s.createFunctionService.rollbackFiles(ctx, createResp.WrittenFiles)
+			}
+			return nil, fmt.Errorf("创建函数失败: %s", createResp.Message)
+		}
+
+		writtenFiles = createResp.WrittenFiles
+		logger.Infof(ctx, "[UpdateApp] 创建函数成功: fileCount=%d", len(writtenFiles))
+	}
+
+	// 1. 如果有 ForkPackages，执行 fork 操作
+	var forkWrittenFiles []string
 	if len(forkPackages) > 0 {
 		logger.Infof(ctx, "[UpdateApp] 检测到 ForkPackages，先执行 fork 操作: packageCount=%d", len(forkPackages))
 
@@ -472,8 +499,9 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, fork
 			return nil, fmt.Errorf("fork 操作失败: %s", forkResp.Message)
 		}
 
-		writtenFiles = forkResp.WrittenFiles
-		logger.Infof(ctx, "[UpdateApp] Fork 操作成功: fileCount=%d", len(writtenFiles))
+		forkWrittenFiles = forkResp.WrittenFiles
+		writtenFiles = append(writtenFiles, forkWrittenFiles...)
+		logger.Infof(ctx, "[UpdateApp] Fork 操作成功: fileCount=%d", len(forkWrittenFiles))
 	}
 
 	// 1. 获取当前版本
@@ -518,10 +546,30 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, fork
 
 	buildResult, err := s.BuildApp(ctx, user, app, buildOpts)
 	if err != nil {
-		// 编译失败时，如果有 fork 的文件，删除它们
+		// 编译失败时，如果有创建的文件或 fork 的文件，删除它们
 		if len(writtenFiles) > 0 {
-			logger.Warnf(ctx, "[UpdateApp] 编译失败，开始回滚已 fork 的文件: fileCount=%d", len(writtenFiles))
-			s.rollbackForkFiles(ctx, user, app, writtenFiles)
+			logger.Warnf(ctx, "[UpdateApp] 编译失败，开始回滚已创建的文件: fileCount=%d", len(writtenFiles))
+			// 区分回滚：先回滚 fork 的文件，再回滚创建的文件
+			if len(forkWrittenFiles) > 0 {
+				s.rollbackForkFiles(ctx, user, app, forkWrittenFiles)
+			}
+			// 回滚创建的函数文件
+			createFunctionFiles := make([]string, 0)
+			for _, file := range writtenFiles {
+				isForkFile := false
+				for _, forkFile := range forkWrittenFiles {
+					if file == forkFile {
+						isForkFile = true
+						break
+					}
+				}
+				if !isForkFile {
+					createFunctionFiles = append(createFunctionFiles, file)
+				}
+			}
+			if len(createFunctionFiles) > 0 {
+				s.rollbackCreateFunctionFiles(ctx, user, app, createFunctionFiles)
+			}
 		}
 		return nil, fmt.Errorf("failed to build app: %w", err)
 	}
@@ -632,6 +680,29 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, fork
 	}
 
 	return result, nil
+}
+
+// rollbackCreateFunctionFiles 回滚已创建的函数文件（内部方法，失败时调用）
+func (s *AppManageService) rollbackCreateFunctionFiles(ctx context.Context, user, app string, filePaths []string) {
+	logger.Warnf(ctx, "[UpdateApp] 开始回滚已创建的函数文件: fileCount=%d", len(filePaths))
+
+	appDir := filepath.Join(s.config.AppDir.BasePath, user, app)
+
+	deletedCount := 0
+	for _, relPath := range filePaths {
+		filePath := filepath.Join(appDir, relPath)
+		if err := os.Remove(filePath); err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			logger.Errorf(ctx, "[UpdateApp] 删除文件失败: file=%s, error=%v", filePath, err)
+		} else {
+			deletedCount++
+			logger.Infof(ctx, "[UpdateApp] 已删除文件: %s", filePath)
+		}
+	}
+
+	logger.Infof(ctx, "[UpdateApp] 函数文件回滚完成: deletedCount=%d, totalCount=%d", deletedCount, len(filePaths))
 }
 
 // rollbackForkFiles 回滚已 Fork 的文件（内部方法，失败时调用）

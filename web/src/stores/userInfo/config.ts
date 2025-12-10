@@ -2,8 +2,8 @@
  * 用户信息缓存配置
  */
 export const USER_INFO_CACHE_CONFIG = {
-  /** 缓存过期时间（毫秒），默认5分钟 */
-  CACHE_EXPIRY_TIME: 5 * 60 * 1000,
+  /** 缓存过期时间（毫秒），默认30分钟 */
+  CACHE_EXPIRY_TIME: 30 * 60 * 1000,
   
   /** 降级策略：接口超时时间（毫秒），超过此时间使用过期缓存 */
   API_TIMEOUT: 300,

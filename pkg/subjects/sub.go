@@ -139,3 +139,29 @@ func BuildRuntime2AppShutdownSubject(user, app, version string) string {
 func GetRuntime2AppShutdownSubject() string {
 	return "runtime.app.shutdown.*.*.*"
 }
+
+// ==================== Agent Server 相关主题 ====================
+
+// BuildAgentMsgSubject 构建 agent 消息主题（用于 MsgSubject 字段）
+// 格式：agent.{chat_type}.{user}.{id}
+func BuildAgentMsgSubject(chatType, user string, agentID int64) string {
+	return fmt.Sprintf("agent.%s.%s.%d", chatType, user, agentID)
+}
+
+// BuildAgentPluginSubject 构建 agent plugin 调用主题（别名，保持兼容）
+// 格式：agent.{chat_type}.{user}.{id}
+func BuildAgentPluginSubject(chatType, user string, agentID int64) string {
+	return BuildAgentMsgSubject(chatType, user, agentID)
+}
+
+// BuildAgentPluginRunSubject 构建 agent plugin 执行主题
+// 格式：agent.{chat_type}.{user}.{id}.run
+func BuildAgentPluginRunSubject(chatType, user string, agentID int64) string {
+	return fmt.Sprintf("agent.%s.%s.%d.run", chatType, user, agentID)
+}
+
+// GetAgentServerFunctionGenSubject 获取 agent-server 函数生成结果队列主题
+// 格式：agent_server.function_gen
+func GetAgentServerFunctionGenSubject() string {
+	return "agent_server.function_gen"
+}

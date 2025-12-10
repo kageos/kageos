@@ -7,58 +7,56 @@
 
 <template>
   <div class="user-widget">
-    <!-- 编辑模式：用户选择器 -->
+    <!-- 编辑模式：用户选择器（使用弹窗搜索） -->
     <div v-if="mode === 'edit' || mode === 'search'" class="user-select-wrapper">
-      <!-- 选中后的显示（自定义显示） -->
-      <div v-if="selectedUserForDisplay" class="user-select-display">
+      <!-- 选中后的显示 -->
+      <div
+        v-if="selectedUserForDisplay"
+        class="user-select-display"
+        :class="{ 'is-disabled': field.widget?.config?.disabled }"
+        @click="!field.widget?.config?.disabled && handleOpenDialog()"
+      >
         <el-avatar 
           v-if="selectedUserForDisplay.avatar" 
           :src="selectedUserForDisplay.avatar" 
-          :size="20" 
+          :size="24" 
           class="user-avatar-small"
         >
           {{ selectedUserForDisplay.username?.[0]?.toUpperCase() || 'U' }}
         </el-avatar>
         <el-avatar 
           v-else
-          :size="20" 
+          :size="24" 
           class="user-avatar-small"
         >
           {{ selectedUserForDisplay.username?.[0]?.toUpperCase() || 'U' }}
         </el-avatar>
         <span class="user-display-text">
-          {{ selectedUserForDisplay.nickname ? `${selectedUserForDisplay.username}(${selectedUserForDisplay.nickname})` : selectedUserForDisplay.username }}
+          {{ formatUserDisplayName(selectedUserForDisplay) }}
         </span>
+        <el-icon v-if="!field.widget?.config?.disabled" class="edit-icon">
+          <Edit />
+        </el-icon>
       </div>
-      <el-select
-        v-model="internalValue"
+      <!-- 未选中时显示按钮 -->
+      <el-button
+        v-else
         :disabled="field.widget?.config?.disabled"
         :placeholder="field.desc || `请选择${field.name}`"
-        :clearable="true"
-        :filterable="true"
-        :loading="loading"
-        :remote="true"
-        :remote-method="handleRemoteSearch"
-        popper-class="user-select-dropdown-popper"
-        class="user-select-hidden-label"
-        @change="handleChange"
-        @focus="handleFocus"
+        @click="handleOpenDialog()"
       >
-        <el-option
-          v-for="user in userOptions"
-          :key="user.username"
-          :value="user.username"
-          :label="formatUserDisplayName(user)"
-        >
-          <div class="user-option">
-            <el-avatar :src="user.avatar" :size="24" class="user-avatar">
-              {{ user.username?.[0]?.toUpperCase() || 'U' }}
-            </el-avatar>
-            <span class="user-name">{{ formatUserDisplayName(user) }}</span>
-            <span v-if="user.signature" class="user-signature">{{ user.signature }}</span>
-          </div>
-        </el-option>
-      </el-select>
+        <el-icon><User /></el-icon>
+        {{ field.desc || `请选择${field.name}` }}
+      </el-button>
+      
+      <!-- 用户搜索弹窗 -->
+      <UserSearchDialog
+        v-model="dialogVisible"
+        :title="`选择${field.name || '用户'}`"
+        :placeholder="field.desc || '请输入用户名或邮箱搜索'"
+        :initial-username="value?.raw"
+        @confirm="handleUserSelected"
+      />
     </div>
     
     <!-- 响应模式（使用 UserDisplay 组件） -->
@@ -69,7 +67,6 @@
       mode="card"
       layout="horizontal"
       size="small"
-      :user-info-map="userInfoMap"
     />
     
     <!-- 表格单元格模式（使用 UserDisplay 组件） -->
@@ -80,7 +77,6 @@
       mode="card"
       layout="horizontal"
       size="small"
-      :user-info-map="userInfoMap"
     />
     
     <!-- 详情模式（使用 UserDisplay 组件） -->
@@ -91,7 +87,6 @@
         mode="card"
         layout="horizontal"
         size="large"
-        :user-info-map="userInfoMap"
       />
     </div>
   </div>
@@ -100,14 +95,17 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import UserDisplay from './UserDisplay.vue'
-import { ElSelect, ElOption, ElAvatar, ElPopover, ElButton, ElMessage } from 'element-plus'
+import UserSearchDialog from './UserSearchDialog.vue'
+import { ElAvatar, ElButton, ElIcon } from 'element-plus'
+import { User, Edit } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useFormDataStore } from '../../stores-v2/formData'
-import { searchUsersFuzzy, getUsersByUsernames } from '@/api/user'
 import { formatUserDisplayName } from '@/utils/userInfo'
 import type { UserInfo } from '@/types'
-import { useAuthStore } from '@/stores/auth'
 import { Logger } from '../../utils/logger'
+import { createFieldValue } from '../utils/createFieldValue'
+
+const COMPONENT_NAME = 'UserWidget'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -120,45 +118,35 @@ const emit = defineEmits<WidgetComponentEmits>()
 
 const formDataStore = useFormDataStore()
 
-// 用户选项列表（用于选择器）
-const userOptions = ref<UserInfo[]>([])
+// 弹窗显示状态
+const dialogVisible = ref(false)
 
 // 当前用户信息（用于显示）
 const userInfo = ref<UserInfo | null>(null)
 
-// 加载状态
-const loading = ref(false)
+// 处理打开弹窗
+function handleOpenDialog(): void {
+  dialogVisible.value = true
+}
 
-// Popover 显示状态
-// showPopover 已移除，现在使用 UserDisplay 组件处理
-
-// 防抖定时器
-let searchTimer: ReturnType<typeof setTimeout> | null = null
-
-// 内部值（用于 v-model）
-const internalValue = computed({
-  get: () => {
-    if (props.mode === 'edit' || props.mode === 'search') {
-      return props.value?.raw ?? null
+// 处理用户选择
+function handleUserSelected(user: UserInfo): void {
+  // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
+  const newFieldValue = createFieldValue(
+    props.field,
+    user.username, // 提交时只提交 username
+    formatUserDisplayName(user),
+    {
+      userInfo: user
     }
-    return null
-  },
-  set: (newValue: any) => {
-    if (props.mode === 'edit') {
-      const selectedUser = userOptions.value.find((u: UserInfo) => u.username === newValue)
-      const newFieldValue = {
-        raw: newValue, // 提交时只提交 username
-        display: selectedUser?.nickname ? `${selectedUser.username}(${selectedUser.nickname})` : (selectedUser?.username || String(newValue)),
-        meta: {
-          userInfo: selectedUser
-        }
-      }
-      
-      formDataStore.setValue(props.fieldPath, newFieldValue)
-      emit('update:modelValue', newFieldValue)
-    }
-  }
-})
+  )
+  
+  formDataStore.setValue(props.fieldPath, newFieldValue)
+  emit('update:modelValue', newFieldValue)
+  
+  // 更新 userInfo 用于显示
+  userInfo.value = user
+}
 
 // 显示名称：username(昵称) 或 username
 const displayName = computed(() => {
@@ -174,43 +162,27 @@ const displayName = computed(() => {
   return '-'
 })
 
-// 选中用户（用于选择器显示）
+// 选中用户（用于显示）
 const selectedUserForDisplay = computed(() => {
   if (props.mode === 'edit' || props.mode === 'search') {
-    const currentValue = internalValue.value
+    const currentValue = props.value?.raw
     if (currentValue) {
       // 🔥 优化：优先从 userInfoMap 中获取（避免重复调用接口）
       if (props.userInfoMap && props.userInfoMap.has(currentValue)) {
         const user = props.userInfoMap.get(currentValue) as UserInfo
-        // 同时添加到 userOptions 中，以便后续使用
-        if (!userOptions.value.find((u: UserInfo) => u.username === currentValue)) {
-          userOptions.value.push(user)
-        }
+        userInfo.value = user
         return user
       }
       
-      // 优先从 userOptions 中查找
-      let user = userOptions.value.find((u: UserInfo) => u.username === currentValue)
-      if (user) {
-        return user
-      }
-      // 如果 userOptions 中没有，尝试从 meta 中获取
+      // 从 meta 中获取
       if (props.value?.meta?.userInfo && props.value.meta.userInfo.username === currentValue) {
-        user = props.value.meta.userInfo
-        // 同时添加到 userOptions 中，以便后续使用
-        if (!userOptions.value.find((u: UserInfo) => u.username === currentValue)) {
-          userOptions.value.push(user)
-        }
-        return user
+        userInfo.value = props.value.meta.userInfo
+        return props.value.meta.userInfo
       }
-      // 如果都没有，尝试从 userInfo 中获取（可能是刚加载的）
+      
+      // 从 userInfo 中获取（可能是刚加载的）
       if (userInfo.value && userInfo.value.username === currentValue) {
-        user = userInfo.value
-        // 同时添加到 userOptions 中
-        if (!userOptions.value.find((u: UserInfo) => u.username === currentValue)) {
-          userOptions.value.push(user)
-        }
-        return user
+        return userInfo.value
       }
     }
   }
@@ -232,9 +204,47 @@ function handleRemoteSearch(query: string): void {
     try {
       loading.value = true
       const response = await searchUsersFuzzy(query.trim(), 20)
-      userOptions.value = response.users || []
+      // 🔥 调试日志：检查响应数据
+      Logger.debug('UserWidget', '搜索用户响应', { query, response, users: response.users })
+      
+      // 🔥 确保正确提取 users 数组
+      // 注意：request.ts 的响应拦截器已经解包了 data，所以 response 直接就是 data
+      // searchUsersFuzzy 的返回类型是 SearchUsersFuzzyResp = { users: UserInfo[] }
+      // 所以 response 应该是 { users: UserInfo[] }
+      let users: UserInfo[] = []
+      if (response && typeof response === 'object') {
+        if (Array.isArray(response)) {
+          // 如果 response 直接是数组（不应该发生，但兼容处理）
+          users = response
+        } else if (response.users && Array.isArray(response.users)) {
+          // 标准情况：response 是 { users: [...] }
+          users = response.users
+        } else if (response.data && response.data.users && Array.isArray(response.data.users)) {
+          // 兼容处理：response 是 { data: { users: [...] } }
+          users = response.data.users
+        }
+      }
+      
+      // 🔥 强制更新：使用 nextTick 确保 Vue 响应式更新
+      userOptions.value = []
+      await nextTick()
+      // 🔥 强制更新：使用 nextTick 确保 Vue 响应式更新
+      userOptions.value = []
+      await nextTick()
+      userOptions.value = users
+      
+      // 🔥 调试日志：检查更新后的选项
+      Logger.debug(COMPONENT_NAME, '搜索用户完成', { 
+        query, 
+        responseType: typeof response,
+        responseKeys: response ? Object.keys(response) : [],
+        usersCount: users.length,
+        userOptionsCount: userOptions.value.length,
+        firstUser: users[0]?.username || 'none'
+      })
     } catch (error) {
       // 搜索用户失败，静默处理
+      Logger.error('UserWidget', '搜索用户失败', { query, error })
       userOptions.value = []
     } finally {
       loading.value = false
@@ -269,7 +279,27 @@ function handleFocus(): void {
   if (props.value?.raw && userOptions.value.length === 0) {
     // 如果有值但没有选项，尝试搜索
     handleRemoteSearch(String(props.value.raw))
+  } else if (!props.value?.raw) {
+    // 如果没有值，清空选项列表，等待用户输入
+    userOptions.value = []
   }
+}
+
+// 处理下拉框显示/隐藏
+function handleVisibleChange(visible: boolean): void {
+  if (visible) {
+    // 下拉框打开时，如果有值但没有选项，尝试加载
+    if (props.value?.raw && userOptions.value.length === 0) {
+      handleRemoteSearch(String(props.value.raw))
+    }
+  }
+}
+
+// 处理清空选择
+function handleClear(): void {
+  // 清空时，保留 userOptions（不清空搜索结果）
+  // 这样用户再次打开下拉框时，还能看到之前的搜索结果
+  // 清空操作已经在 el-select 的 v-model 中自动处理了
 }
 
 // 加载用户信息（用于显示）
@@ -279,40 +309,14 @@ async function loadUserInfo(username: string | null): Promise<UserInfo | null> {
     return null
   }
   
-  // 🔥 优化：优先从 userInfoMap 中获取（避免重复调用接口）
-  if (props.userInfoMap && props.userInfoMap.has(username)) {
-    const user = props.userInfoMap.get(username) as UserInfo
-    userInfo.value = user
-    return user
-  }
-  
   // 如果 meta 中已有用户信息，直接使用
   if (props.value?.meta?.userInfo && props.value.meta.userInfo.username === username) {
     userInfo.value = props.value.meta.userInfo
     return props.value.meta.userInfo
   }
   
-  // 🔥 在 table-cell 模式下，如果有 userInfoMap，完全依赖它，不主动调用 API
-  // TableRenderer 会在渲染前统一批量查询所有用户信息
-  if (props.mode === 'table-cell' && props.userInfoMap) {
-    // 如果 userInfoMap 中没有，说明 TableRenderer 的批量查询还没完成或用户不存在
-    // 等待一段时间后再次检查（最多等待 500ms）
-    for (let i = 0; i < 5; i++) {
-      await new Promise(resolve => setTimeout(resolve, 100))
-      if (props.userInfoMap.has(username)) {
-        const user = props.userInfoMap.get(username) as UserInfo
-        userInfo.value = user
-        return user
-      }
-    }
-    // 如果等待后还是没有，说明用户不存在或批量查询失败，返回 null
-    userInfo.value = null
-    return null
-  }
-  
   // 🔥 使用 userInfoStore 批量查询（自动处理缓存和去重）
-  // 注意：在 table-cell 模式下，如果 userInfoMap 存在，应该已经由 TableRenderer 统一查询
-  // 这里只处理独立表单页面或其他模式的情况
+  // 预加载已完成，store 中肯定有缓存，这里只是从缓存中读取
   try {
     const { useUserInfoStore } = await import('@/stores/userInfo')
     const userInfoStore = useUserInfoStore()
@@ -322,10 +326,6 @@ async function loadUserInfo(username: string | null): Promise<UserInfo | null> {
     if (users && users.length > 0) {
       const user = users[0] as UserInfo
       userInfo.value = user
-      // 🔥 如果 userInfoMap 存在，也更新到 map 中（缓存）
-      if (props.userInfoMap) {
-        props.userInfoMap.set(username, user)
-      }
       return user
     } else {
       userInfo.value = null
@@ -342,29 +342,16 @@ async function loadUserInfo(username: string | null): Promise<UserInfo | null> {
 // 监听值变化，加载用户信息
 watch(() => props.value?.raw, (newValue: any) => {
   if (props.mode === 'edit' || props.mode === 'search') {
-    // 编辑模式：如果有值，确保 userOptions 中包含该用户
+    // 编辑模式：如果有值，加载用户信息用于显示
     if (newValue) {
-      const username = String(newValue)
-      const existingUser = userOptions.value.find((u: UserInfo) => u.username === username)
-      if (!existingUser) {
-        // 如果 meta 中有用户信息，直接添加
-        if (props.value?.meta?.userInfo && props.value.meta.userInfo.username === username) {
-          userOptions.value.push(props.value.meta.userInfo)
-        } else {
-          // 否则加载用户信息
-          loadUserInfo(username).then((user) => {
-            if (user && !userOptions.value.find((u: UserInfo) => u.username === username)) {
-              userOptions.value.push(user)
-            }
-          })
-        }
-      }
+      loadUserInfo(String(newValue))
+    } else {
+      userInfo.value = null
     }
   } else {
     // 显示模式：加载用户信息用于显示
     if (newValue) {
-      loadUserInfo(String(newValue)).then((user) => {
-      })
+      loadUserInfo(String(newValue))
     } else {
       userInfo.value = null
     }
@@ -384,70 +371,43 @@ watch(() => props.mode, (newMode: string) => {
 
 // 组件挂载时，如果有初始值，加载用户信息
 // 🔥 同时检查是否有动态默认值（如 $me）
-onMounted(() => {
-      // 🔥 检查是否有动态默认值需要设置（$me）
-      // 注意：如果 value.raw 是 null、undefined、空字符串，或者是 $me 字符串，都应该设置默认值
-      if (props.mode === 'edit') {
-        const currentRaw = props.value?.raw
-        const shouldSetDefault = !currentRaw || currentRaw === '' || currentRaw === '$me'
-        
-        if (shouldSetDefault) {
-          const config = props.field.widget?.config
-          if (config && typeof config === 'object' && 'default' in config) {
-            const defaultValue = (config as Record<string, any>).default
-            if (typeof defaultValue === 'string' && defaultValue === '$me') {
-              // 动态默认值：$me（当前登录用户）
-              const authStore = useAuthStore()
-              const currentUsername = authStore.user?.username
-              if (currentUsername) {
-                const newFieldValue = {
-                  raw: currentUsername,
-                  display: currentUsername,
-                  meta: {}
-                }
-                formDataStore.setValue(props.fieldPath, newFieldValue)
-                emit('update:modelValue', newFieldValue)
-                // 加载用户信息到 userOptions
-                loadUserInfo(currentUsername).then(() => {
-                  if (userInfo.value) {
-                    const existingUser = userOptions.value.find((u: UserInfo) => u.username === currentUsername)
-                    if (!existingUser) {
-                      userOptions.value.push(userInfo.value)
-                    }
-                  }
-                })
-                return
-              }
-            }
+onMounted(async () => {
+  // 🔥 检查是否有动态默认值需要设置（$me）
+  // 注意：如果 value.raw 是 null、undefined、空字符串，或者是 $me 字符串，都应该设置默认值
+  if (props.mode === 'edit') {
+    const currentRaw = props.value?.raw
+    const shouldSetDefault = !currentRaw || currentRaw === '' || currentRaw === '$me'
+    
+    if (shouldSetDefault) {
+      const config = props.field.widget?.config
+      if (config && typeof config === 'object' && 'default' in config) {
+        const defaultValue = (config as Record<string, any>).default
+        if (typeof defaultValue === 'string' && defaultValue === '$me') {
+          // 动态默认值：$me（当前登录用户）
+          const { useAuthStore } = await import('@/stores/auth')
+          const authStore = useAuthStore()
+          const currentUsername = authStore.user?.username
+          if (currentUsername) {
+            // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
+            const newFieldValue = createFieldValue(
+              props.field,
+              currentUsername,
+              currentUsername
+            )
+            formDataStore.setValue(props.fieldPath, newFieldValue)
+            emit('update:modelValue', newFieldValue)
+            // 加载用户信息
+            loadUserInfo(currentUsername)
+            return
           }
         }
       }
-  
-  if (props.value?.raw) {
-    if (props.mode === 'edit' || props.mode === 'search') {
-      // 编辑模式：如果有初始值，需要加载用户信息到 userOptions 中以便显示
-      const username = String(props.value.raw)
-      // 如果 meta 中有用户信息，直接添加到 userOptions
-      if (props.value?.meta?.userInfo) {
-        const existingUser = userOptions.value.find((u: UserInfo) => u.username === username)
-        if (!existingUser) {
-          userOptions.value.push(props.value.meta.userInfo)
-        }
-      } else {
-        // 如果没有，尝试搜索加载
-        loadUserInfo(username).then(() => {
-          if (userInfo.value) {
-            const existingUser = userOptions.value.find((u: UserInfo) => u.username === username)
-            if (!existingUser) {
-              userOptions.value.push(userInfo.value)
-            }
-          }
-        })
-      }
-    } else {
-      // 显示模式：加载用户信息用于显示
-      loadUserInfo(String(props.value.raw))
     }
+  }
+
+  if (props.value?.raw) {
+    // 加载用户信息用于显示
+    loadUserInfo(String(props.value.raw))
   }
 })
 </script>
@@ -498,20 +458,27 @@ onMounted(() => {
   width: 100%;
 }
 
-/* 选中后的显示（覆盖在 select 上方） */
+/* 选中后的显示（可点击） */
 .user-select-display {
-  position: absolute;
-  top: 1px;
-  left: 11px;
-  right: 30px;
-  height: calc(100% - 2px);
   display: flex;
   align-items: center;
-  gap: 6px;
-  pointer-events: none;
-  z-index: 10;
-  background: var(--el-bg-color);
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--el-border-color);
   border-radius: 4px;
+  background-color: var(--el-bg-color);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.user-select-display:hover:not(.is-disabled) {
+  border-color: var(--el-color-primary);
+  background-color: var(--el-fill-color-light);
+}
+
+.user-select-display.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .user-select-display .user-avatar-small {
@@ -519,6 +486,7 @@ onMounted(() => {
 }
 
 .user-select-display .user-display-text {
+  flex: 1;
   font-size: 14px;
   color: var(--el-text-color-primary);
   white-space: nowrap;
@@ -526,25 +494,15 @@ onMounted(() => {
   text-overflow: ellipsis;
 }
 
-/* 隐藏 select 的默认 label 显示 */
-.user-select-hidden-label :deep(.el-input__inner) {
-  color: transparent !important;
-  caret-color: transparent;
+.user-select-display .edit-icon {
+  flex-shrink: 0;
+  color: var(--el-text-color-secondary);
+  font-size: 16px;
+  transition: color 0.2s;
 }
 
-.user-select-hidden-label :deep(.el-select__caret) {
-  z-index: 2;
-  position: relative;
-}
-
-.user-select-hidden-label :deep(.el-select__tags) {
-  display: none !important;
-}
-
-/* 当 select 聚焦时，隐藏自定义显示 */
-.user-select-wrapper:has(.el-select.is-focus) .user-select-display,
-.user-select-wrapper:has(.el-select__wrapper.is-focus) .user-select-display {
-  display: none;
+.user-select-display:hover:not(.is-disabled) .edit-icon {
+  color: var(--el-color-primary);
 }
 
 /* 显示模式样式 */
@@ -719,7 +677,6 @@ onMounted(() => {
 /* 全局样式：用户信息弹出框 */
 .user-info-popover {
   padding: 0 !important;
-  z-index: 3000 !important;
 }
 
 .user-info-popover .el-popover__reference {

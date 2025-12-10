@@ -47,4 +47,24 @@ type FunctionInfo struct {
 	TemplateType string `json:"template_type" example:"default"`           // 模板类型
 	CreatedAt    string `json:"created_at" example:"2024-01-01T00:00:00Z"` // 创建时间
 	UpdatedAt    string `json:"updated_at" example:"2024-01-01T00:00:00Z"` // 更新时间
+	Name         string `json:"name" example:"工单管理"`                       // 函数名称（从 ServiceTree 获取）
+	Description  string `json:"description" example:"用于管理工单的创建、更新、删除等功能"`  // 函数描述（从 ServiceTree 获取）
+}
+
+// GetFunctionGroupInfoResp 获取函数组信息响应（用于 Hub 发布）
+type GetFunctionGroupInfoResp struct {
+	// 核心数据（用于 clone）
+	SourceCode  string `json:"source_code" example:"package main..."` // 源代码（无状态，用于 clone）
+	Description string `json:"description" example:"收银相关的工具函数"`       // 描述信息
+
+	// 快照信息（方便排查问题）
+	FullGroupCode string         `json:"full_group_code" example:"/luobei/testgroup/plugins/tools_cashier"` // 完整函数组代码
+	GroupCode     string         `json:"group_code" example:"tools_cashier"`                                // 函数组代码
+	GroupName     string         `json:"group_name" example:"收银工具"`                                         // 函数组名称
+	FullPath      string         `json:"full_path" example:"/luobei/testgroup/plugins"`                     // 完整路径
+	Version       string         `json:"version" example:"v1"`                                              // 版本号
+	AppID         int64          `json:"app_id" example:"123"`                                              // 应用ID
+	AppName       string         `json:"app_name" example:"testgroup"`                                      // 应用名称
+	FunctionCount int            `json:"function_count" example:"3"`                                        // 函数数量（快照）
+	Functions     []FunctionInfo `json:"functions"`                                                         // 函数列表（用于 Hub 展示功能列表）
 }

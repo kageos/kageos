@@ -235,14 +235,6 @@ html.dark {
     }
   }
   
-  // 🔥 确保下拉菜单在抽屉中正常显示
-  .select-dropdown-popper {
-    z-index: 3001 !important;
-    
-    .el-select-dropdown {
-      z-index: 3001 !important;
-    }
-  }
   
   // 按钮组件 - 完全照抄旧版本的hover效果
   .el-button {
@@ -664,4 +656,45 @@ html.dark {
 
 html.light {
   color-scheme: light;
+}
+
+/* 🔥 全局样式：确保图片预览器显示在抽屉上方 */
+/* Element Plus 图片预览器 z-index 设置 - 必须高于 Drawer (2999) */
+.el-image-viewer__wrapper {
+  z-index: 3000 !important;
+}
+
+.el-image-viewer__mask {
+  z-index: 3000 !important;
+}
+
+.el-image-viewer__canvas {
+  z-index: 3001 !important;
+}
+
+.el-image-viewer__actions {
+  z-index: 3002 !important;
+}
+
+.el-image-viewer__close {
+  z-index: 3002 !important;
+}
+
+/* 确保预览器的遮罩层也高于抽屉 */
+.el-image-viewer__mask.el-overlay {
+  z-index: 3000 !important;
+}
+
+/* 确保预览器容器高于所有抽屉相关元素 */
+.el-image-viewer__wrapper.el-overlay {
+  z-index: 3000 !important;
+}
+
+/* 覆盖所有可能的图片预览器相关元素（使用 body > 选择器提高优先级） */
+body > .el-image-viewer__wrapper {
+  z-index: 3000 !important;
+}
+
+body > .el-image-viewer__mask {
+  z-index: 3000 !important;
 }

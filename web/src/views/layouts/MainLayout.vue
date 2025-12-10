@@ -3,6 +3,8 @@ import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { InfoFilled } from '@element-plus/icons-vue'
+import { extractWorkspacePath } from '@/utils/route'
+import { Logger } from '@/core/utils/logger'
 import { getAppList, createApp, updateApp, deleteApp } from '@/api'
 import { getServiceTree } from '@/api/service-tree'
 import type { App, CreateAppRequest } from '@/types'
@@ -37,27 +39,27 @@ const parseAppFromRoute = () => {
   let fullPath = ''
   
   const currentPath = window.location.pathname
-  console.log('[MainLayout] window.location.pathname:', currentPath)
+  Logger.debug('MainLayout', 'window.location.pathname', currentPath)
   
   if (currentPath.startsWith('/workspace/')) {
     // 从完整路径中提取 workspace 之后的部分
-    fullPath = currentPath.replace('/workspace/', '').replace(/^\/+|\/+$/g, '')
+    fullPath = extractWorkspacePath(currentPath)
   } else {
     // 回退方案：尝试从 route.path 或 route.fullPath 获取
     if (route.path.startsWith('/workspace/')) {
-      fullPath = route.path.replace('/workspace/', '').replace(/^\/+|\/+$/g, '')
+      fullPath = extractWorkspacePath(route.path)
     } else if (route.fullPath && route.fullPath.startsWith('/workspace/')) {
-      fullPath = route.fullPath.split('?')[0].replace('/workspace/', '').replace(/^\/+|\/+$/g, '')
+      fullPath = extractWorkspacePath(route.fullPath.split('?')[0])
     }
   }
   
-  console.log('[MainLayout] route.path:', route.path)
-  console.log('[MainLayout] route.fullPath:', route.fullPath)
-  console.log('[MainLayout] route.params.path:', route.params.path)
-  console.log('[MainLayout] 提取的完整路径:', fullPath)
+  Logger.debug('MainLayout', 'route.path', route.path)
+  Logger.debug('MainLayout', 'route.fullPath', route.fullPath)
+  Logger.debug('MainLayout', 'route.params.path', route.params.path)
+  Logger.debug('MainLayout', '提取的完整路径', fullPath)
   
   if (!fullPath) {
-    console.log('[MainLayout] 路径为空')
+    Logger.debug('MainLayout', '路径为空')
     return null
   }
   
@@ -109,7 +111,7 @@ const fetchAppList = async () => {
     }
   } catch (error) {
     console.error('获取应用列表失败:', error)
-    ElMessage.error('获取应用列表失败')
+    ElMessage.error('获取工作空间列表失败')
   } finally {
     loadingApps.value = false
   }
@@ -208,19 +210,19 @@ const handleCreateApp = () => {
 const handleSubmitCreateApp = async () => {
   // 表单验证
   if (!createAppForm.value.name || !createAppForm.value.code) {
-    ElMessage.warning('请输入应用名称和代码')
+    ElMessage.warning('请输入名称和英文标识')
     return
   }
   
   // 验证代码格式（只能包含小写字母、数字和下划线）
   if (!/^[a-z0-9_]+$/.test(createAppForm.value.code)) {
-    ElMessage.warning('应用代码只能包含小写字母、数字和下划线')
+    ElMessage.warning('英文标识只能包含小写字母、数字和下划线')
     return
   }
   
   // 验证代码长度
   if (createAppForm.value.code.length < 2 || createAppForm.value.code.length > 50) {
-    ElMessage.warning('应用代码长度必须在 2-50 个字符之间')
+    ElMessage.warning('英文标识长度必须在 2-50 个字符之间')
     return
   }
 
@@ -229,7 +231,7 @@ const handleSubmitCreateApp = async () => {
     console.log('[MainLayout] 创建应用请求:', createAppForm.value)
     const newApp = await createApp(createAppForm.value)
     console.log('[MainLayout] 应用创建成功:', newApp)
-    ElMessage.success('应用创建成功')
+    ElMessage.success('工作空间创建成功')
     createAppDialogVisible.value = false
     
     // 刷新应用列表
@@ -248,7 +250,8 @@ const handleSubmitCreateApp = async () => {
     }
   } catch (error: any) {
     console.error('[MainLayout] 创建应用失败:', error)
-    const errorMessage = error?.response?.data?.message || error?.message || '创建应用失败'
+    // 🔥 统一使用 msg 字段
+    const errorMessage = error?.response?.data?.msg || error?.message || '创建工作空间失败'
     ElMessage.error(errorMessage)
   } finally {
     creatingApp.value = false
@@ -287,7 +290,7 @@ const handleUpdateApp = async (app: App) => {
     console.log('[MainLayout] 开始更新应用:', app.code)
     // 使用 ElMessage.info 显示加载提示，并设置较长的持续时间
     const loadingMessage = ElMessage({
-      message: '正在重新编译应用...',
+      message: '正在重新编译工作空间...',
       type: 'info',
       duration: 0, // 不自动关闭
       showClose: false
@@ -309,7 +312,8 @@ const handleUpdateApp = async (app: App) => {
     }
   } catch (error: any) {
     console.error('[MainLayout] 更新应用失败:', error)
-    const errorMessage = error?.response?.data?.message || error?.message || '更新应用失败'
+      // 🔥 统一使用 msg 字段
+      const errorMessage = error?.response?.data?.msg || error?.message || '更新应用失败'
     ElMessage.error(errorMessage)
   }
 }
@@ -367,7 +371,8 @@ const handleDeleteApp = async (app: App) => {
       return
     }
     console.error('[MainLayout] 删除应用失败:', error)
-    const errorMessage = error?.response?.data?.message || error?.message || '删除应用失败'
+      // 🔥 统一使用 msg 字段
+      const errorMessage = error?.response?.data?.msg || error?.message || '删除应用失败'
     ElMessage.error(errorMessage)
   }
 }
@@ -410,11 +415,11 @@ onUnmounted(() => {
       @load-apps="fetchAppList"
     />
 
-    <!-- 创建应用对话框 -->
+    <!-- 创建工作空间对话框 -->
     <el-dialog
       v-model="createAppDialogVisible"
-      title="创建新应用"
-      width="520px"
+      title="创建新工作空间"
+      width="800px"
       :close-on-click-modal="false"
       @close="() => {
         createAppForm = {
@@ -424,19 +429,19 @@ onUnmounted(() => {
       }"
     >
       <el-form :model="createAppForm" label-width="90px">
-        <el-form-item label="应用名称" required>
+        <el-form-item label="名称" required>
           <el-input
             v-model="createAppForm.name"
-            placeholder="请输入应用名称（如：客户管理系统）"
+            placeholder="请输入名称（如：清北大学、首都市政府、xxx图书馆、xxx医院、xxx银行、xxx科技公司）"
             maxlength="100"
             show-word-limit
             clearable
           />
         </el-form-item>
-        <el-form-item label="应用代码" required>
+        <el-form-item label="英文标识" required>
           <el-input
             v-model="createAppForm.code"
-            placeholder="请输入应用代码（如：crm）"
+            placeholder="请输入英文标识（如：tsinghua、pku_gsm）"
             maxlength="50"
             show-word-limit
             clearable
@@ -444,7 +449,7 @@ onUnmounted(() => {
           />
           <div class="form-tip">
             <el-icon><InfoFilled /></el-icon>
-            应用代码只能包含小写字母、数字和下划线，长度 2-50 个字符
+            英文标识只能包含小写字母、数字和下划线，长度 2-50 个字符
           </div>
         </el-form-item>
       </el-form>

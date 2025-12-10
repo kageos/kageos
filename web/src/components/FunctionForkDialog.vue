@@ -10,14 +10,15 @@
  */
 
 import { ref, computed, watch, h, nextTick, onMounted, onUnmounted } from 'vue'
-import { ElDialog, ElSelect, ElOption, ElButton, ElMessage, ElNotification, ElTag, ElEmpty, ElTree, ElForm, ElFormItem, ElDropdown, ElDropdownMenu, ElDropdownItem, ElInput } from 'element-plus'
+import { useRoute } from 'vue-router'
+import { ElDialog, ElButton, ElMessage, ElNotification, ElTag, ElEmpty, ElTree, ElForm, ElFormItem, ElDropdown, ElDropdownMenu, ElDropdownItem, ElInput } from 'element-plus'
 import { Delete, ArrowRight, Folder, FolderOpened, Plus, MoreFilled, Loading } from '@element-plus/icons-vue'
-import { getAppList } from '@/api/app'
 import { getServiceTree, createServiceTree } from '@/api/service-tree'
 import { forkFunctionGroup } from '@/api/function'
 import { createGroupNode, groupFunctionsByCode, getGroupName } from '@/utils/tree-utils'
 import { Logger } from '@/core/utils/logger'
 import type { App, ServiceTree as ServiceTreeType, CreateServiceTreeRequest } from '@/types'
+import AppSelector from './AppSelector.vue'
 
 // 导入工具类
 import { MappingManager, type ForkMapping } from '@/utils/fork-dialog/MappingManager'
@@ -41,6 +42,12 @@ interface Emits {
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
+const route = useRoute()
+
+// 🔥 判断是否在新版本路由（统一使用 /workspace）
+const isV2Route = computed(() => {
+  return route.path.startsWith('/workspace')
+})
 
 // 对话框显示状态
 const dialogVisible = computed({
@@ -75,9 +82,8 @@ const sourceAppInfo = computed(() => {
 // 源函数组代码（用于高亮显示）
 const sourceFullGroupCode = computed(() => props.sourceFullGroupCode)
 
-// 应用列表
-const appList = ref<App[]>([])
-const loadingApps = ref(false)
+// 应用选择器
+const showAppSelector = ref(false)
 const selectedApp = ref<App | null>(null)
 
 // 服务目录树
@@ -125,18 +131,25 @@ const creatingDirectory = ref(false)
 const currentParentNode = ref<ServiceTreeType | null>(null)
 
 // 加载应用列表
-const loadAppList = async (keyword?: string) => {
-  try {
-    loadingApps.value = true
-    const apps = await getAppList(200, keyword)
-    appList.value = apps
-  } catch (error) {
-    Logger.error('FunctionForkDialog', '加载应用列表失败', error)
-    ElMessage.error('加载应用列表失败')
-    appList.value = []
-  } finally {
-    loadingApps.value = false
+// 处理应用选择
+const handleAppSelect = (app: App) => {
+  selectedApp.value = app
+  dragHandler.setTargetApp(app)
+  
+  if (app) {
+    loadTargetServiceTree(app).then(() => {
+      nextTick().then(() => {
+        connectionLineManager.updateLines().then(() => {
+          connectionLines.value = connectionLineManager.getLines()
+        })
+      })
+    })
+  } else {
+    targetServiceTree.value = []
+    connectionLines.value = []
   }
+  
+  Logger.info('FunctionForkDialog', '应用已选择', { app: app?.name, appCode: app?.code })
 }
 
 // 加载源服务目录树
@@ -172,21 +185,6 @@ const loadTargetServiceTree = async (app: App) => {
   }
 }
 
-// 选择目标应用
-const handleSelectApp = async (app: App | null) => {
-  selectedApp.value = app
-  dragHandler.setTargetApp(app)
-  
-  if (app) {
-    await loadTargetServiceTree(app)
-    await nextTick()
-    connectionLineManager.updateLines().then(() => {
-      connectionLines.value = connectionLineManager.getLines()
-    })
-  } else {
-    targetServiceTree.value = []
-  }
-}
 
 // 映射关系列表（响应式）
 const mappings = ref<ForkMapping[]>([])
@@ -455,20 +453,35 @@ const handleSubmit = async () => {
     let notification: any = null
     notification = ElNotification({
       title: '闪电克隆中',
-      message: h('div', { style: 'line-height: 1.6;' }, [
-        h('p', { style: 'margin: 0 0 8px 0; color: #303133;' }, `正在克隆 ${savedMappings.length} 个函数组...`),
-        h('p', { style: 'margin: 0 0 12px 0; color: #909399; font-size: 12px;' }, '克隆操作正在后台执行，请稍候'),
-        h('div', { style: 'margin-top: 8px; display: flex; align-items: center;' }, [
+      message: h('div', { 
+        class: 'fork-notification-content',
+        style: 'line-height: 1.6;' 
+      }, [
+        h('p', { 
+          class: 'fork-notification-text',
+          style: 'margin: 0 0 8px 0; font-size: 14px; font-weight: 500;' 
+        }, `正在克隆 ${savedMappings.length} 个函数组...`),
+        h('p', { 
+          class: 'fork-notification-text',
+          style: 'margin: 0 0 12px 0; font-size: 13px; line-height: 1.5;' 
+        }, '克隆操作正在后台执行，请稍候'),
+        h('div', { 
+          style: 'margin-top: 8px; display: flex; align-items: center;' 
+        }, [
           h('el-icon', { 
-            style: 'animation: spin 1s linear infinite; display: inline-block; margin-right: 8px;' 
+            style: 'animation: spin 1s linear infinite; display: inline-block; margin-right: 8px; color: #409EFF;' 
           }, () => h(Loading)),
-          h('span', { style: 'color: #909399; font-size: 12px;' }, '处理中...')
+          h('span', { 
+            class: 'fork-notification-text',
+            style: 'font-size: 13px; font-weight: 500;' 
+          }, '处理中...')
         ])
       ]),
       type: 'info',
       duration: 0, // 不自动关闭
       position: 'top-right',
-      showClose: false
+      showClose: false,
+      customClass: 'fork-progress-notification'
     })
     
     await forkFunctionGroup({
@@ -481,24 +494,40 @@ const handleSubmit = async () => {
     
     if (targetApp && targetApp.user && targetApp.code) {
       // 显示"克隆成功"的通知，包含跳转按钮
+      // 使用统一的工作空间路径
+      const basePath = '/workspace'
+      
       ElNotification({
         title: '克隆成功',
-        message: h('div', { style: 'line-height: 1.6;' }, [
-          h('p', { style: 'margin: 0 0 8px 0; color: #303133;' }, `成功提交 ${savedMappings.length} 个函数组的克隆任务`),
-          h('p', { style: 'margin: 0 0 12px 0; color: #909399; font-size: 12px;' }, '克隆操作正在后台执行，完成后即可使用'),
+        message: h('div', { 
+          style: 'line-height: 1.6; color: #303133; background: transparent;' 
+        }, [
+          h('p', { 
+            style: 'margin: 0 0 8px 0; color: #303133; font-size: 14px; font-weight: 500;' 
+          }, `成功提交 ${savedMappings.length} 个函数组的克隆任务`),
+          h('p', { 
+            style: 'margin: 0 0 12px 0; color: #606266; font-size: 13px; line-height: 1.5;' 
+          }, '克隆操作正在后台执行，完成后即可使用'),
           h(ElButton, {
             type: 'primary',
             size: 'small',
+            style: 'margin-top: 4px;',
             onClick: () => {
               const forkedPaths = savedMappings.map((m: ForkMapping) => m.target).join(',')
-              const url = `/workspace/${targetApp.user}/${targetApp.code}${forkedPaths ? `?forked=${encodeURIComponent(forkedPaths)}` : ''}`
-              window.open(url, '_blank')
+              const url = `${basePath}/${targetApp.user}/${targetApp.code}${forkedPaths ? `?_forked=${encodeURIComponent(forkedPaths)}` : ''}`
+              // 🔥 如果在新版本路由，在当前窗口跳转；否则在新窗口打开
+              if (isV2Route.value) {
+                window.location.href = url
+              } else {
+                window.open(url, '_blank')
+              }
             }
           }, () => `跳转到 ${targetApp.name || targetApp.code}`)
         ]),
         type: 'success',
         duration: 0, // 不自动关闭，让用户点击跳转
-        position: 'top-right'
+        position: 'top-right',
+        customClass: 'fork-success-notification'
       })
     }
     
@@ -583,18 +612,16 @@ watch(mappings, () => {
 // 监听对话框打开
 watch(dialogVisible, (visible: boolean) => {
   if (visible) {
-    loadAppList()
     loadSourceServiceTree()
     resetForm()
-              }
-            })
+  }
+})
 
 // 生命周期
 onMounted(() => {
   if (dialogVisible.value) {
-    loadAppList()
     loadSourceServiceTree()
-          }
+  }
 })
 
 onUnmounted(() => {
@@ -615,22 +642,21 @@ onUnmounted(() => {
     <div class="fork-dialog-content">
       <!-- 顶部：选择目标应用 -->
       <div class="target-app-selector">
-        <ElSelect
-          v-model="selectedApp"
-          placeholder="请选择目标应用"
-          filterable
-          :loading="loadingApps"
+        <ElButton
+          type="primary"
+          :icon="selectedApp ? FolderOpened : Plus"
+          @click="showAppSelector = true"
           style="width: 100%"
-          @change="handleSelectApp"
         >
-          <ElOption
-            v-for="app in appList"
-            :key="app.id"
-            :label="`${app.name} (${app.code})`"
-            :value="app"
-          />
-        </ElSelect>
+          {{ selectedApp ? `${selectedApp.name} (${selectedApp.code})` : '选择目标应用' }}
+        </ElButton>
       </div>
+      
+      <!-- 应用选择器弹窗 -->
+      <AppSelector
+        v-model="showAppSelector"
+        @select="handleAppSelect"
+      />
 
       <!-- 左右分栏布局 -->
       <div class="fork-layout" v-if="sourceAppInfo" ref="forkLayoutRef">
@@ -999,7 +1025,6 @@ onUnmounted(() => {
   top: 0;
   left: 0;
   pointer-events: none;
-  z-index: 10;
   overflow: visible;
 }
 
@@ -1345,5 +1370,58 @@ onUnmounted(() => {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+/* 🔥 克隆通知样式优化，确保文字清晰可见 */
+:deep(.fork-progress-notification),
+:deep(.fork-success-notification) {
+  background-color: var(--el-bg-color) !important;
+  border: 1px solid var(--el-border-color-light) !important;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1) !important;
+}
+
+:deep(.fork-progress-notification .el-notification__title),
+:deep(.fork-success-notification .el-notification__title) {
+  color: #303133 !important;
+  font-weight: 600 !important;
+  font-size: 16px !important;
+}
+
+:deep(.fork-progress-notification .el-notification__content),
+:deep(.fork-success-notification .el-notification__content) {
+  color: #303133 !important;
+}
+
+/* 🔥 强制设置通知内容中的所有文字为深色，确保清晰可见 */
+:deep(.fork-progress-notification .fork-notification-content),
+:deep(.fork-success-notification .fork-notification-content) {
+  color: #303133 !important;
+}
+
+:deep(.fork-progress-notification .fork-notification-text),
+:deep(.fork-success-notification .fork-notification-text) {
+  color: #303133 !important;
+}
+
+:deep(.fork-progress-notification .el-notification__content p),
+:deep(.fork-success-notification .el-notification__content p) {
+  color: #303133 !important;
+  margin: 0 !important;
+}
+
+:deep(.fork-progress-notification .el-notification__content span),
+:deep(.fork-success-notification .el-notification__content span) {
+  color: #303133 !important;
+}
+
+/* 🔥 确保通知内容中的所有文字都是深色，清晰可见 - 使用更强制的方式 */
+:deep(.fork-progress-notification .el-notification__content *),
+:deep(.fork-success-notification .el-notification__content *) {
+  color: #303133 !important;
+}
+
+:deep(.fork-progress-notification .fork-notification-content *),
+:deep(.fork-success-notification .fork-notification-content *) {
+  color: #303133 !important;
 }
 </style>

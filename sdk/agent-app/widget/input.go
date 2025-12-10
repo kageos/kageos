@@ -1,11 +1,11 @@
 package widget
 
 type Input struct {
-	Placeholder string `json:"placeholder"` // 占位符文本
-	Password    bool   `json:"password"`    //密码框框
-	Prepend     string `json:"prepend"`     //前置
-	Append      string `json:"append"`      //后置
-	Default     string `json:"default"`     //默认值
+	Placeholder string `json:"placeholder,omitempty"` // 占位符文本
+	Password    bool   `json:"password,omitempty"`    // 密码框
+	Prepend     string `json:"prepend,omitempty"`     // 前置
+	Append      string `json:"append,omitempty"`      // 后置
+	Default     string `json:"default,omitempty"`     // 默认值
 }
 
 func (i *Input) Config() interface{} {

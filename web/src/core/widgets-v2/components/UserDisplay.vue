@@ -2,7 +2,7 @@
   UserDisplay - 通用用户展示组件
   功能：
   - 简单模式：只显示头像和名称（用于列表、详情等）
-  - 详细模式：点击头像显示完整用户信息卡片（带 popover）
+  - 详细模式：点击头像显示完整用户信息卡片（使用 el-tooltip，简单直接）
   
   显示风格：
   - horizontal：水平布局，头像在左，名称在右（适用于 table、详情字段等）
@@ -19,12 +19,12 @@
     <!-- 简单模式：只显示头像和名称 -->
     <div v-if="mode === 'simple'" class="user-display-simple" :class="[sizeClass, layoutClass]">
       <el-avatar 
-        v-if="userInfo" 
-        :src="userInfo.avatar" 
+        v-if="actualUserInfo" 
+        :src="actualUserInfo.avatar" 
         :size="avatarSize"
         class="user-avatar"
       >
-        {{ userInfo.username?.[0]?.toUpperCase() || 'U' }}
+        {{ actualUserInfo.username?.[0]?.toUpperCase() || 'U' }}
       </el-avatar>
       <el-avatar 
         v-else 
@@ -36,104 +36,46 @@
       <span class="user-name">{{ displayName }}</span>
     </div>
     
-    <!-- 详细模式：点击头像显示完整信息卡片 -->
-    <span v-else-if="mode === 'card'" class="user-display-card">
-      <el-popover
-        placement="top"
-        :width="280"
-        :trigger="[]"
-        popper-class="user-info-popover"
-        :teleported="true"
-        v-model:visible="showPopover"
-        ref="popoverRef"
+    <!-- 详细模式：暂时只显示头像和名称（弹窗功能已移除，后续再加） -->
+    <div v-else-if="mode === 'card'" class="user-display-simple" :class="[sizeClass, layoutClass]">
+      <el-avatar 
+        v-if="actualUserInfo" 
+        :src="actualUserInfo.avatar" 
+        :size="avatarSize"
+        class="user-avatar"
       >
-        <template #reference>
-          <el-avatar 
-            v-if="userInfo" 
-            :src="userInfo.avatar" 
-            :size="avatarSize"
-            class="user-avatar user-avatar-clickable"
-            @click.stop="handleAvatarClick"
-          >
-            {{ userInfo.username?.[0]?.toUpperCase() || 'U' }}
-          </el-avatar>
-          <el-avatar 
-            v-else 
-            :size="avatarSize"
-            class="user-avatar user-avatar-clickable"
-            @click.stop="handleAvatarClick"
-          >
-            {{ displayName?.[0]?.toUpperCase() || 'U' }}
-          </el-avatar>
-        </template>
-        <div v-if="userInfo" class="user-info-card">
-          <div class="user-card-header">
-            <el-avatar :src="userInfo.avatar" :size="48" class="user-avatar-large">
-              {{ userInfo.username?.[0]?.toUpperCase() || 'U' }}
-            </el-avatar>
-            <div class="user-card-names">
-              <div class="user-card-primary">{{ displayName }}</div>
-              <div class="user-card-username">@{{ userInfo.username }}</div>
-            </div>
-          </div>
-          <div class="user-card-content">
-            <div v-if="userInfo.email" class="user-card-item">
-              <span class="user-card-label">邮箱：</span>
-              <span class="user-card-value">{{ userInfo.email }}</span>
-            </div>
-            <div v-if="userInfo.nickname" class="user-card-item">
-              <span class="user-card-label">昵称：</span>
-              <span class="user-card-value">{{ userInfo.nickname }}</span>
-            </div>
-            <div v-if="userInfo.signature" class="user-card-item">
-              <span class="user-card-label">签名：</span>
-              <span class="user-card-value user-card-signature">{{ userInfo.signature }}</span>
-            </div>
-            <div class="user-card-item">
-              <span class="user-card-label">用户名：</span>
-              <span class="user-card-value">{{ userInfo.username }}</span>
-            </div>
-          </div>
-          <div class="user-card-footer">
-            <el-button size="small" type="primary" @click="handleCopyUserInfo">点击复制</el-button>
-          </div>
-        </div>
-        <div v-else class="user-info-card">
-          <div class="user-card-content">
-            <div class="user-card-item">
-              <span class="user-card-label">用户名：</span>
-              <span class="user-card-value">{{ displayName }}</span>
-            </div>
-          </div>
-        </div>
-      </el-popover>
-      <span 
-        class="user-name user-name-clickable" 
-        @click.stop="handleNameClick"
-      >{{ displayName }}</span>
-    </span>
+        {{ actualUserInfo.username?.[0]?.toUpperCase() || 'U' }}
+      </el-avatar>
+      <el-avatar 
+        v-else 
+        :size="avatarSize"
+        class="user-avatar"
+      >
+        {{ displayName?.[0]?.toUpperCase() || 'U' }}
+      </el-avatar>
+      <span class="user-name">{{ displayName }}</span>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { ElAvatar, ElPopover, ElButton, ElMessage } from 'element-plus'
+import { computed, watch, ref } from 'vue'
+import { ElAvatar, ElMessage } from 'element-plus'
 import type { UserInfo } from '@/types'
 import { formatUserDisplayName } from '@/utils/userInfo'
+import { useUserInfoStore } from '@/stores/userInfo'
 
 interface Props {
   /** 用户信息对象 */
   userInfo?: UserInfo | null
   /** 用户名（当 userInfo 不存在时使用） */
   username?: string | null
-  /** 显示模式：simple（简单模式，只显示头像和名称）或 card（详细模式，点击显示卡片） */
+  /** 显示模式：simple（简单模式，只显示头像和名称）或 card（详细模式，hover 显示卡片） */
   mode?: 'simple' | 'card'
   /** 显示风格：horizontal（水平布局，头像在左名称在右）或 vertical（垂直布局，头像在上名称在下） */
   layout?: 'horizontal' | 'vertical'
   /** 头像大小：small(24px) | medium(32px) | large(48px) | 自定义数字 */
   size?: 'small' | 'medium' | 'large' | number
-  /** 用户信息 Map（用于从缓存中获取） */
-  userInfoMap?: Map<string, UserInfo> | null
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -142,10 +84,47 @@ const props = withDefaults(defineProps<Props>(), {
   mode: 'simple',
   layout: 'horizontal',
   size: 'medium',
-  userInfoMap: null,
 })
 
-const showPopover = ref(false)
+const userInfoStore = useUserInfoStore()
+
+// 🔥 使用 ref 存储用户信息，确保响应式更新
+// 问题：Vue 无法追踪 Map 内部的变化，所以使用 ref 来存储用户信息
+const cachedUserInfo = ref<UserInfo | null>(null)
+
+// 🔥 更新缓存的用户信息
+const updateCachedUserInfo = async () => {
+  // 优先使用 props.userInfo
+  if (props.userInfo) {
+    cachedUserInfo.value = props.userInfo
+    return
+  }
+  
+  // 如果有 username，从 store 中获取（预加载已完成，store 中肯定有缓存）
+  if (props.username) {
+    try {
+      // 🔥 直接从 store 读取（预加载已完成，这里只是从缓存中读取，不会调用接口）
+      const user = await userInfoStore.getUserInfo(props.username)
+      cachedUserInfo.value = user
+    } catch (error) {
+      console.error('[UserDisplay] 从 store 加载用户信息失败', error)
+      cachedUserInfo.value = null
+    }
+    return
+  }
+  
+  cachedUserInfo.value = null
+}
+
+// 🔥 用户信息（从缓存的 ref 中获取）
+const actualUserInfo = computed(() => {
+  return cachedUserInfo.value
+})
+
+// 🔥 监听 userInfo 和 username 的变化，更新缓存的用户信息
+watch([() => props.userInfo, () => props.username], () => {
+  updateCachedUserInfo()
+}, { immediate: true, deep: false })
 
 // 计算头像大小
 const avatarSize = computed(() => {
@@ -175,8 +154,9 @@ const layoutClass = computed(() => {
 
 // 计算显示名称
 const displayName = computed(() => {
-  if (props.userInfo) {
-    return formatUserDisplayName(props.userInfo)
+  const user = actualUserInfo.value
+  if (user) {
+    return formatUserDisplayName(user)
   }
   if (props.username) {
     return props.username
@@ -184,26 +164,14 @@ const displayName = computed(() => {
   return '-'
 })
 
-// 处理头像点击（显示用户信息弹窗）
-const handleAvatarClick = (): void => {
-  if (props.mode === 'card') {
-    showPopover.value = !showPopover.value
-  }
-}
-
-// 处理名称点击（显示用户信息弹窗，不自动复制）
-const handleNameClick = (): void => {
-  if (props.mode === 'card') {
-    showPopover.value = !showPopover.value
-  }
-}
-
 // 复制用户信息（手动复制，由用户点击按钮触发）
+// 注意：弹窗功能已移除，此函数暂时保留供后续使用
 const handleCopyUserInfo = (): void => {
-  if (props.userInfo) {
-    const copyText = props.userInfo.nickname 
-      ? `${props.userInfo.username}(${props.userInfo.nickname})`
-      : props.userInfo.username
+  const user = actualUserInfo.value
+  if (user) {
+    const copyText = user.nickname 
+      ? `${user.username}(${user.nickname})`
+      : user.username
     
     navigator.clipboard.writeText(copyText).then(() => {
       ElMessage.success('已复制用户信息')
@@ -267,130 +235,7 @@ const handleCopyUserInfo = (): void => {
   display: block;
 }
 
-/* 详细模式 */
-.user-display-card {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
 .user-avatar {
   flex-shrink: 0;
 }
-
-.user-avatar-clickable {
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.user-avatar-clickable:hover {
-  opacity: 0.8;
-  transform: scale(1.05);
-}
-
-.user-name {
-  font-size: 14px;
-  color: var(--el-text-color-primary);
-}
-
-.user-name-clickable {
-  cursor: pointer;
-  user-select: none;
-}
-
-.user-name-clickable:hover {
-  color: var(--el-color-primary);
-}
-
-/* 用户信息卡片样式 */
-.user-info-card {
-  padding: 0;
-}
-
-.user-card-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-}
-
-.user-avatar-large {
-  flex-shrink: 0;
-}
-
-.user-card-names {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.user-card-primary {
-  font-size: 16px;
-  font-weight: 500;
-  color: var(--el-text-color-primary);
-}
-
-.user-card-username {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-.user-card-content {
-  padding: 12px 16px;
-}
-
-.user-card-item {
-  display: flex;
-  align-items: center;
-  margin-bottom: 8px;
-  font-size: 14px;
-}
-
-.user-card-item:has(.user-card-signature) {
-  align-items: flex-start;
-}
-
-.user-card-item:last-child {
-  margin-bottom: 0;
-}
-
-.user-card-label {
-  color: var(--el-text-color-secondary);
-  margin-right: 8px;
-  min-width: 60px;
-}
-
-.user-card-value {
-  color: var(--el-text-color-primary);
-  flex: 1;
-  word-break: break-all;
-}
-
-.user-card-signature {
-  word-break: break-word;
-  white-space: pre-wrap;
-  line-height: 1.5;
-}
-
-.user-card-footer {
-  padding: 12px 16px;
-  border-top: 1px solid var(--el-border-color-lighter);
-  text-align: center;
-}
 </style>
-
-<style>
-/* 全局样式：用户信息弹窗 */
-.user-info-popover {
-  padding: 0 !important;
-  z-index: 3000 !important;
-}
-
-.user-info-popover .el-popover__reference {
-  display: inline-flex;
-  align-items: center;
-}
-</style>
-

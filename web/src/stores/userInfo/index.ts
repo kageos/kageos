@@ -4,7 +4,7 @@
  * 功能：
  * - 统一管理所有用户信息的查询和缓存
  * - 避免重复查询相同的用户信息
- * - 支持缓存过期机制（默认5分钟）
+ * - 支持缓存过期机制（默认30分钟）
  * - 支持手动刷新缓存
  * - 🔥 支持持久化到 localStorage（刷新后缓存仍然有效）
  * 
@@ -420,6 +420,46 @@ export const useUserInfoStore = defineStore('userInfo', () => {
       loading: loadingUsernames.value.size
     }
   }
+
+  /**
+   * 🔥 获取缓存详情列表（用于调试）
+   */
+  function getCacheDetails() {
+    const details: Array<{
+      username: string
+      nickname: string
+      isExpired: boolean
+      cachedTime: number
+      expiredTime: number
+      age: number
+    }> = []
+    
+    const now = Date.now()
+    userInfoCache.value.forEach((cacheItem, username) => {
+      const isExpired = isCacheExpired(cacheItem)
+      const expiredTime = cacheItem.timestamp + USER_INFO_CACHE_CONFIG.CACHE_EXPIRY_TIME
+      const age = now - cacheItem.timestamp
+      
+      details.push({
+        username,
+        nickname: cacheItem.user?.nickname || '',
+        isExpired,
+        cachedTime: cacheItem.timestamp,
+        expiredTime,
+        age
+      })
+    })
+    
+    // 按过期状态和用户名排序（过期在前，然后按用户名排序）
+    details.sort((a, b) => {
+      if (a.isExpired !== b.isExpired) {
+        return a.isExpired ? -1 : 1
+      }
+      return a.username.localeCompare(b.username)
+    })
+    
+    return details
+  }
   
   // 🔥 初始化：从 localStorage 恢复缓存
   restoreCacheFromStorage()
@@ -438,7 +478,8 @@ export const useUserInfoStore = defineStore('userInfo', () => {
     refreshCache,
     clearCache,
     clearUserCache,
-    getCacheStats
+    getCacheStats,
+    getCacheDetails // 🔥 导出缓存详情方法
   }
 }, {
   // 🔥 启用持久化，将缓存保存到 localStorage

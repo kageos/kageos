@@ -57,7 +57,8 @@ const handleRegister = async () => {
     await router.push('/login')
   } catch (error: any) {
     console.error('注册失败:', error)
-    const message = error?.response?.data?.message || error?.message || '注册失败，请重试'
+    // 🔥 统一使用 msg 字段
+    const message = error?.response?.data?.msg || error?.message || '注册失败，请重试'
     ElMessage.error(message)
   } finally {
     loading.value = false
@@ -91,7 +92,8 @@ const sendVerificationCode = async () => {
     }, 1000)
   } catch (error: any) {
     console.error('发送验证码失败:', error)
-    const message = error?.response?.data?.message || error?.message || '发送验证码失败，请重试'
+    // 🔥 统一使用 msg 字段
+    const message = error?.response?.data?.msg || error?.message || '发送验证码失败，请重试'
     ElMessage.error(message)
   } finally {
     sendingCode.value = false

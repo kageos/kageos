@@ -143,7 +143,7 @@ async function handleFileChange(e: Event) {
   uploadPercent.value = 0
   
   try {
-    const router = 'luobei/test88888/tools/cashier_desk'
+    const router = 'luobei/test88888/plugins/cashier_desk'
     const key = await uploadFileWithProgress(router, file, (percent) => {
       uploadPercent.value = percent
     })

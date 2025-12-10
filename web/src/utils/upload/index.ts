@@ -211,8 +211,9 @@ async function getUploadCredentials(router: string, file: File): Promise<UploadC
   const response = await res.json()
   
   // ✅ 先检查业务错误（code !== 0 表示后端返回了错误）
+  // 🔥 统一使用 msg 字段
   if (response.code !== undefined && response.code !== 0) {
-    const errorMsg = response.msg || response.message || '上传失败'
+    const errorMsg = response.msg || '上传失败'
     throw new Error(errorMsg)
   }
   

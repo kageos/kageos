@@ -46,9 +46,9 @@ package widget
 //   - 如果字段已有值（编辑模式），不会覆盖已有值
 //   - 只有在字段为空时，才会使用默认值
 type Timestamp struct {
-	Format   string `json:"format"`   // 日期格式，如 YYYY-MM-DD HH:mm:ss
-	Disabled bool   `json:"disabled"` // 是否禁用
-	Default  string `json:"default"`  // 默认值，支持动态变量 $now、$today、$tomorrow、$yesterday
+	Format   string `json:"format,omitempty"`   // 日期格式，如 YYYY-MM-DD HH:mm:ss
+	Disabled bool   `json:"disabled,omitempty"` // 是否禁用
+	Default  string `json:"default,omitempty"`  // 默认值，支持动态变量 $now、$today、$tomorrow、$yesterday
 }
 
 func (t *Timestamp) Config() interface{} {

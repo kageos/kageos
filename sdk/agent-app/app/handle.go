@@ -105,7 +105,7 @@ func (a *App) handle(req *dto.RequestAppReq) (resp *dto.RequestAppResp, err erro
 	// result := handleBusinessLogic(req.Method, req.Body, req.UrlQuery)
 
 	logger.Infof(ctx, "Handle req:%+v", req)
-	router, err := a.getRouter(newContext.msg.Router, newContext.msg.Method)
+	router, err := a.getRoute(newContext.msg.Router)
 	if err != nil {
 		logger.Errorf(ctx, err.Error())
 		// 发送响应（带上 trace_id）
@@ -117,9 +117,20 @@ func (a *App) handle(req *dto.RequestAppReq) (resp *dto.RequestAppResp, err erro
 
 	var res response.RunFunctionResp
 	err = handleFunc(newContext, &res)
+	appResp := dto.RequestAppResp{Result: res.Data(), TraceId: newContext.msg.TraceId}
 	if err != nil {
+		v, ok := err.(*response.BizErr)
+		if ok {
+			//appResp := dto.RequestAppResp{Result: res.Data(), TraceId: newContext.msg.TraceId}
+			if res.BizError != nil {
+				appResp.ErrCode = -1
+				appResp.Error = fmt.Sprintf("%v", v.Error())
+			}
+			return &appResp, nil
+		}
+		//todo
 		logger.Errorf(ctx, "handleFunc err:%s", err.Error())
-		return &dto.RequestAppResp{Result: nil, Error: err.Error(), TraceId: newContext.msg.TraceId}, err
+		return &dto.RequestAppResp{Result: nil, ErrCode: 1, Error: err.Error(), TraceId: newContext.msg.TraceId}, err
 	}
 	logger.Infof(ctx, "handleFunc req:%+v", req)
 
@@ -127,5 +138,6 @@ func (a *App) handle(req *dto.RequestAppReq) (resp *dto.RequestAppResp, err erro
 	if newContext.msg.Method == "exit" {
 		a.Close()
 	}
-	return &dto.RequestAppResp{Result: res.Data(), TraceId: newContext.msg.TraceId}, nil
+
+	return &appResp, nil
 }

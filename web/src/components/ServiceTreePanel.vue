@@ -4,14 +4,14 @@
       <h3>服务目录</h3>
       <div class="header-actions">
         <el-link
-        v-if="!loading"
-        type="primary"
+          v-if="!loading"
+          type="primary"
           :underline="false"
-        @click="$emit('create-directory')"
+          @click="$emit('create-directory')"
           class="header-link"
-      >
-        <el-icon><Plus /></el-icon>
-        创建目录
+        >
+          <el-icon><Plus /></el-icon>
+          创建目录
         </el-link>
         <el-link
           v-if="!loading"
@@ -46,7 +46,7 @@
                 <FolderOpened />
               </el-icon>
               <span class="node-label group-label">{{ node.label }}</span>
-              <el-tag type="info" size="small" class="group-tag">组</el-tag>
+              <el-tag type="info" size="small" class="group-tag">业务系统</el-tag>
             </template>
             <!-- 普通节点 -->
             <template v-else>
@@ -74,6 +74,11 @@
                     <el-icon><Plus /></el-icon>
                     添加服务目录
                   </el-dropdown-item>
+                  <!-- 仅对函数组（业务系统）显示发布到应用中心选项 -->
+                  <el-dropdown-item v-if="(data as any).isGroup && (data as any).full_group_code" command="publish-to-hub" divided>
+                    <el-icon><Upload /></el-icon>
+                    发布到应用中心
+                  </el-dropdown-item>
                   <el-dropdown-item command="copy-link">
                     <el-icon><Link /></el-icon>
                     复制链接
@@ -99,7 +104,7 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick, computed } from 'vue'
-import { Folder, FolderOpened, Plus, MoreFilled, Link, CopyDocument } from '@element-plus/icons-vue'
+import { Folder, FolderOpened, Plus, MoreFilled, Link, CopyDocument, Upload } from '@element-plus/icons-vue'
 import { ElTag, ElLink } from 'element-plus'
 import { generateGroupId, createGroupNode, groupFunctionsByCode, getGroupName, type ExtendedServiceTree } from '@/utils/tree-utils'
 import type { ServiceTree } from '@/types'
@@ -115,7 +120,8 @@ interface Emits {
   (e: 'node-click', node: ServiceTree): void
   (e: 'create-directory', parentNode?: ServiceTree): void
   (e: 'copy-link', node: ServiceTree): void
-  (e: 'fork-group', node: ServiceTree | null): void  // Fork 函数组（可以为 null，表示打开对话框让用户选择）
+  (e: 'fork-group', node: ServiceTree | null): void  // Fork 业务系统（可以为 null，表示打开对话框让用户选择）
+  (e: 'publish-to-hub', node: ServiceTree): void   // 发布到应用中心
 }
 
 const props = defineProps<Props>()
@@ -163,7 +169,7 @@ const groupedTreeData = computed(() => {
       groupedFunctions.forEach((funcs, groupCode) => {
         const groupName = getGroupName(funcs, groupCode)
         const groupNode = createGroupNode(groupCode, groupName, node, true)
-        // 函数组下包含函数节点
+        // 业务系统下包含函数节点
         groupNode.children = funcs.map(func => processNode(func))
         newChildren.push(groupNode)
       })
@@ -198,6 +204,8 @@ const handleNodeAction = (command: string, data: ServiceTree) => {
     emit('copy-link', data)
   } else if (command === 'fork') {
     emit('fork-group', data)
+  } else if (command === 'publish-to-hub') {
+    emit('publish-to-hub', data)
   }
 }
 
@@ -206,13 +214,13 @@ const handleForkButtonClick = () => {
   // 如果有选中的函数组节点，使用它；否则传递 null，让对话框自己处理
   if (props.currentFunction) {
     const data = props.currentFunction as any
-    // 如果当前选中的是函数组节点，直接使用它
+    // 如果当前选中的是业务系统节点，直接使用它
     if (data.isGroup && data.full_group_code) {
       emit('fork-group', props.currentFunction)
       return
     }
   }
-  // 否则传递 null，打开对话框让用户选择要克隆的函数组
+  // 否则传递 null，打开对话框让用户选择要克隆的业务系统
   emit('fork-group', null)
 }
 
@@ -446,14 +454,17 @@ defineExpose({
     gap: 4px;
     font-size: 14px;
     cursor: pointer;
-    transition: opacity 0.2s;
+    transition: all 0.2s;
+    color: #6366f1 !important; /* ✅ 与服务目录 fx 图标颜色一致（indigo-500） */
     
     &:hover {
-      opacity: 0.8;
+      color: #4f46e5 !important; /* indigo-600，更深的紫色 */
+      opacity: 1;
     }
     
     .el-icon {
       font-size: 14px;
+      color: inherit;
     }
   }
 }
@@ -462,6 +473,7 @@ defineExpose({
   flex: 1;
   overflow-y: auto;
   padding: 8px;
+  padding-bottom: 100px; /* ✅ 为左下角 AppSwitcher 留出空间，避免底部内容被遮挡 */
   display: flex;
   flex-direction: column;
 }

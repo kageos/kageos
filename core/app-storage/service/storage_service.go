@@ -155,7 +155,7 @@ func (s *StorageService) getDefaultBucket() string {
 
 // generateFileKey 生成文件存储路径
 // 格式：{router}/{date}/{uuid}.{ext}
-// 例如：luobei/test88888/tools/cashier_desk/2025/01/03/xxx-xxx.jpg
+// 例如：luobei/test88888/plugins/cashier_desk/2025/01/03/xxx-xxx.jpg
 func (s *StorageService) generateFileKey(router string, filename string) string {
 	// 清理 router 前后的斜杠
 	router = filepath.Clean(router)

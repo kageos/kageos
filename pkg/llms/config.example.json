@@ -1,0 +1,30 @@
+{
+  "providers": {
+    "deepseek": {
+      "api_key": "your-deepseek-api-key-here",
+      "base_url": "https://api.deepseek.com/v1/chat/completions",
+      "timeout": 60
+    },
+    "qwen": {
+      "api_key": "your-qwen-api-key-here",
+      "base_url": "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation",
+      "timeout": 60
+    },
+    "kimi": {
+      "api_key": "your-kimi-api-key-here",
+      "base_url": "https://api.moonshot.cn/v1/chat/completions",
+      "timeout": 600
+    },
+    "glm": {
+      "api_key": "your-glm-api-key-here",
+      "base_url": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+      "timeout": 60
+    }
+  },
+  "default": "deepseek"
+}
+
+
+
+
+

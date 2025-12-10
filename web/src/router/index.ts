@@ -46,11 +46,69 @@ const router = createRouter({
       }
     },
 
-    // 首页 - workspace页面（支持路径参数）
+    // Agent-Server 管理页面
+    {
+      path: '/agent',
+      name: 'agent-index',
+      component: () => import('../views/Agent/index.vue'),
+      meta: {
+        title: 'Agent-Server 管理',
+        requireAuth: true
+      }
+    },
+    {
+      path: '/agent/agents',
+      name: 'agent-management',
+      component: () => import('../views/Agent/AgentManagement.vue'),
+      meta: {
+        title: '智能体管理',
+        requireAuth: true
+      }
+    },
+    {
+      path: '/agent/knowledge',
+      name: 'knowledge-management',
+      component: () => import('../views/Agent/KnowledgeManagement.vue'),
+      meta: {
+        title: '知识库管理',
+        requireAuth: true
+      }
+    },
+    {
+      path: '/agent/knowledge/:id',
+      name: 'knowledge-detail',
+      component: () => import('../views/Agent/KnowledgeDetail.vue'),
+      meta: {
+        title: '知识库详情',
+        requireAuth: true
+      }
+    },
+    {
+      path: '/agent/llm',
+      name: 'llm-management',
+      component: () => import('../views/Agent/LLMManagement.vue'),
+      meta: {
+        title: 'LLM 管理',
+        requireAuth: true
+      }
+    },
+
+    // 首页 - 官网
+    {
+      path: '/',
+      name: 'home',
+      component: () => import('../views/Home.vue'),
+      meta: {
+        title: '首页',
+        requireAuth: false
+      }
+    },
+
+    // 工作空间页面（新架构）
     {
       path: '/workspace',
       name: 'workspace',
-      component: () => import('../views/Workspace/index.vue'),
+      component: () => import('../architecture/presentation/views/WorkspaceView.vue'),
       meta: {
         title: '工作空间',
         requireAuth: true
@@ -59,18 +117,11 @@ const router = createRouter({
     {
       path: '/workspace/:path+',
       name: 'workspace-path',
-      component: () => import('../views/Workspace/index.vue'),
+      component: () => import('../architecture/presentation/views/WorkspaceView.vue'),
       meta: {
         title: '工作空间',
         requireAuth: true
       }
-    },
-    
-    
-    // 重定向根路径到workspace
-    {
-      path: '/',
-      redirect: '/workspace'
     },
 
     // 404页面
@@ -99,8 +150,8 @@ router.beforeEach(async (to, from, next) => {
     hasToken: !!authStore.token
   })
 
-  // 设置页面标题
-  if (to.meta?.title) {
+  // 设置页面标题（Workspace页面会通过watch动态更新，这里只设置默认标题）
+  if (to.meta?.title && !to.path.startsWith('/workspace')) {
     document.title = `${to.meta.title} - ${import.meta.env.VITE_APP_TITLE || 'AI Agent OS'}`
   }
 

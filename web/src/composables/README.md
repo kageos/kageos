@@ -9,59 +9,55 @@
 
 ## 已实现的 Composables
 
-### useAppManager
-负责应用管理的所有逻辑：
-- 应用列表加载
-- 应用切换
-- 应用创建、更新、删除
-- 从路由解析应用
+### usePWAInstall
+负责 PWA 安装功能：
+- 监听 beforeinstallprompt 事件
+- 提供安装提示和安装方法
+- 检测是否已安装
 
 **使用示例**：
 ```typescript
-import { useAppManager } from '@/composables/useAppManager'
+import { usePWAInstall } from '@/composables/usePWAInstall'
 
-const {
-  currentApp,
-  appList,
-  loading,
-  loadAppList,
-  switchApp,
-  handleCreateApp,
-  handleUpdateApp,
-  handleDeleteApp
-} = useAppManager()
+const { showInstallButton, install } = usePWAInstall()
 
-// 加载应用列表
-await loadAppList()
+// 显示安装按钮
+if (showInstallButton.value) {
+  // 显示安装按钮
+}
 
-// 切换应用
-await switchApp(app, true)
+// 安装 PWA
+await install()
 ```
 
-### useServiceTree
-负责服务目录树管理：
-- 服务树加载
-- 节点查找和定位
-- 目录创建
+### useTableOperations
+负责表格操作：
+- 搜索、排序、分页
+- 行选择
+- 批量操作
 
 **使用示例**：
 ```typescript
-import { useServiceTree } from '@/composables/useServiceTree'
+import { useTableOperations } from '@/composables/useTableOperations'
 
 const {
-  serviceTree,
-  loading,
-  currentNode,
-  loadServiceTree,
-  locateNodeByRoute,
-  handleCreateDirectory
-} = useServiceTree()
+  searchForm,
+  handleSearch,
+  handleReset,
+  // ... 其他操作
+} = useTableOperations()
+```
 
-// 加载服务树
-await loadServiceTree(app)
+### useAppEnvironment
+负责应用环境管理：
+- 环境变量管理
+- 环境切换
 
-// 定位节点
-const node = locateNodeByRoute('/workspace/user/app/crm/ticket')
+**使用示例**：
+```typescript
+import { useAppEnvironment } from '@/composables/useAppEnvironment'
+
+const { currentEnvironment, switchEnvironment } = useAppEnvironment()
 ```
 
 ## 组件职责划分
@@ -128,21 +124,26 @@ const node = locateNodeByRoute('/workspace/user/app/crm/ticket')
 </script>
 ```
 
-**新版本**（组件化）：
+**新版本**（新架构）：
 ```vue
 <template>
-  <!-- 100 行模板 -->
+  <!-- 纯 UI 展示 -->
 </template>
 
 <script setup>
-import { useAppManager } from '@/composables/useAppManager'
-import { useServiceTree } from '@/composables/useServiceTree'
+import { serviceFactory } from '@/architecture/infrastructure/factories'
+import { eventBus } from '@/architecture/infrastructure/eventBus'
 
-// 30 行逻辑（只负责组合 Composables）
-const { currentApp, switchApp } = useAppManager()
-const { serviceTree, loadServiceTree } = useServiceTree()
+// 使用新架构的服务
+const applicationService = serviceFactory.getWorkspaceApplicationService()
+const stateManager = serviceFactory.getWorkspaceStateManager()
+
+// 从状态管理器获取状态
+const serviceTree = computed(() => stateManager.getServiceTree())
 </script>
 ```
+
+**注意**：旧版本的 `useAppManager`、`useServiceTree`、`useWorkspaceTabs` 已迁移到新架构，不再使用 Composables 模式。
 
 ## 最佳实践
 

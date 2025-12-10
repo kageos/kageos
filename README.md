@@ -52,6 +52,102 @@ AI-Agent-OS 是一个革命性的 AI 原生操作系统，它让软件开发从"
 
 ---
 
+## 🤖 大模型开发者指南
+
+> **重要**：本项目高度依赖大模型生成代码。如果你是 AI 助手，请按以下顺序阅读文档，理解项目后再生成代码。
+
+### 📋 第一步：快速理解项目（5分钟）
+
+**目标**：理解项目是什么、解决什么问题、核心架构
+
+1. **📖 [项目概述](blueprint/README.md#项目概述)** - 项目是什么、解决什么问题、核心价值
+   - 如果 `blueprint/` 目录还没有文档，请先阅读本 README 的"项目愿景"和"核心特性"章节
+   
+2. **🏗️ [系统架构](blueprint/README.md#系统架构)** - 整体架构图、核心组件、技术栈
+   - 参考本 README 的"系统架构"章节
+   - 核心组件：Web 渲染引擎、App Server、App Runtime、LLM Coder
+
+3. **💡 [核心概念](blueprint/README.md#核心概念)** - 应用、服务目录、函数、模板等核心概念
+   - **应用（App）**：一个 Go 项目，代表一个工作空间
+   - **服务目录（Service Tree）**：一个 Go package，类似菜单分组
+   - **函数（Function）**：一个 Go 文件，代表一个业务系统
+   - **模板（Template）**：TableTemplate、FormTemplate、ToolTemplate
+
+### 🔥 第二步：代码生成必读（10分钟）
+
+**目标**：掌握如何生成符合项目规范的代码
+
+4. **📝 [代码生成规范](blueprint/05-代码生成规范.md)** - **最重要**：如何生成符合规范的代码
+   - SDK 使用规范
+   - 模板类型选择（TableTemplate、FormTemplate、ToolTemplate）
+   - 字段定义规范（GORM 标签、widget 标签、validate 标签）
+   - 回调函数编写（OnTableAddRow、OnTableUpdateRows、OnSelectFuzzy）
+   - **如果该文档不存在，请参考 `note/已归档-无需再看/prds/01系统设计.md` 中的完整示例**
+
+5. **🛠️ [SDK使用指南](blueprint/06-SDK使用指南.md)** - SDK API 详解、模板类型、回调系统
+   - SDK 位置：`sdk/agent-app/`
+   - 核心包：`app`、`callback`、`response`、`widget`
+   - **如果该文档不存在，请查看 `sdk/agent-app/` 目录下的代码和注释**
+
+6. **📚 代码示例** - 完整的代码生成示例
+   - 参考：`note/已归档-无需再看/prds/01系统设计.md` 中的 `crm_ticket.go` 完整示例
+   - 参考：`namespace/luobei/demo/code/api/` 目录下的实际代码
+
+### 📚 第三步：深入理解（按需阅读）
+
+**目标**：理解数据流、前端渲染、部署运行
+
+- **[数据流](blueprint/04-数据流.md)** - 请求流程、数据流转、前后端交互
+- **[前端渲染引擎](blueprint/07-前端渲染引擎.md)** - Widget 系统、FormRenderer、TableRenderer
+- **[部署与运行](blueprint/08-部署与运行.md)** - 容器化、多租户、资源管理
+
+### 📖 文档导航
+
+**项目文档组织规范**（详见 `.cursor/rules/项目规范.mdc`）：
+
+- **📋 [项目蓝图](blueprint/README.md)** - **推荐从这里开始**：完整的技术架构和业务能力
+  - 如果 `blueprint/` 目录为空，请先阅读本 README 和 `note/已归档-无需再看/prds/01系统设计.md`
+  
+- **🔧 [技术文档](docs/)** - 按模块分类的技术文档
+  - 后端：`core/app-server/`、`core/app-runtime/`、`core/api-gateway/`、`core/app-storage/`
+  - 前端：`web/docs/`、`web/src/core/`
+  - SDK：`sdk/agent-app/`
+  
+- **📝 [临时分析](note/临时分析/)** - 功能分析和重构方案
+  - 命名规范：`01xxx设计方案.md`、`02xxx重构方案.md`
+  
+- **✅ [待办事项](note/todos/)** - 待办功能列表
+  - 命名规范：`01-xxx.todo.md`、`02-xxx.doing.md`、`03-xxx.done.md`
+
+### 🎯 代码生成检查清单
+
+生成代码前，请确保：
+
+- [ ] 理解了项目核心概念（应用、服务目录、函数、模板）
+- [ ] 选择了正确的模板类型（TableTemplate、FormTemplate、ToolTemplate）
+- [ ] 所有字段都有 `widget` 标签定义前端组件
+- [ ] 时间字段使用毫秒级时间戳：`gorm:"autoCreateTime:milli"`
+- [ ] 用户字段使用 `type:user`：`widget:"name:创建用户;type:user" permission:"read"`
+- [ ] 验证规则使用 `validate` 标签：`validate:"required,min=2,max=200"`
+- [ ] 回调函数正确处理错误并返回
+- [ ] 代码注释清晰，说明业务逻辑
+
+### 💡 快速参考
+
+**核心文件位置**：
+- SDK 代码：`sdk/agent-app/`
+- 示例代码：`namespace/luobei/demo/code/api/`
+- 系统设计：`note/已归档-无需再看/prds/01系统设计.md`
+- 项目规范：`.cursor/rules/项目规范.mdc`
+
+**关键概念速查**：
+- 一个**应用** = 一个 Go 项目 = 一个工作空间
+- 一个**服务目录** = 一个 Go package = 一个菜单分组
+- 一个**函数** = 一个 Go 文件 = 一个业务系统
+- **模板类型**：TableTemplate（CRUD）、FormTemplate（表单）、ToolTemplate（工具）
+
+---
+
 ## 🚀 快速开始
 
 ### 环境要求
@@ -207,7 +303,7 @@ npm run dev
 ## 🔗 相关项目
 
 - [SDK](sdk/agent-app) - 函数开发工具包
-- [CLI](tools/agent-cli)（待创建）- 命令行工具
+- [CLI](plugins/agent-cli)（待创建）- 命令行工具
 - [Hub](https://hub.ai-agent-os.com)（待上线）- 函数市场
 
 ---

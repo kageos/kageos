@@ -24,5 +24,11 @@ configs/*.json
 
 temp/
 plan/
-note/
+/note
 /test
+/plugins
+.cursor/
+.claude/
+blueprint/
+
+hub/

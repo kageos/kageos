@@ -21,6 +21,8 @@ const (
 	TypeRichText    = "richtext"
 	TypeTable       = "table"
 	TypeForm        = "form"
+	TypeLink        = "link"
+	TypeProgress    = "progress"
 )
 
 // 数据类型
@@ -35,12 +37,8 @@ const (
 	DataTypeStrings = "[]string"
 	DataTypeInts    = "[]int"
 	DataTypeFloats  = "[]float"
-	// DataTypeTimestamp 时间类型
-	DataTypeTimestamp = "timestamp"
 	// DataTypeFloat 浮点数类型
 	DataTypeFloat = "float"
-	// DataTypeFiles 文件类型
-	DataTypeFiles = "files"
 	// DataTypeStruct 结构体类型
 	DataTypeStruct = "struct"
 	// DataTypeStructs 结构体数组类型
@@ -90,6 +88,10 @@ func NewWidget(widgetType string, widgetParsed map[string]string) Widget {
 		return newColor(widgetParsed)
 	case TypeRichText:
 		return newRichText(widgetParsed)
+	case TypeLink:
+		return newLink(widgetParsed)
+	case TypeProgress:
+		return newProgress(widgetParsed)
 	default:
 		// 默认返回Input组件，确保兜底
 		return newInput(widgetParsed)

@@ -87,13 +87,31 @@
       </div>
     </el-card>
     
-    <!-- 表格单元格模式（简化显示 + 详情抽屉） -->
+    <!-- 
+      🔥 表格单元格模式（简化显示 + 详情抽屉）
+      
+      使用场景：
+      - 在表格单元格中显示嵌套的 form 字段
+      - 避免表格列过宽，保持布局整洁
+      
+      渲染逻辑：
+      1. 显示简化信息：根据字段数量显示 "共xx个字段"
+      2. 点击按钮：打开抽屉查看完整内容
+      3. 抽屉模式：根据 parentMode 决定使用 edit 还是 response 模式
+         - parentMode='edit' → 抽屉使用 edit 模式（可编辑，有确认按钮）
+         - parentMode='response' → 抽屉使用 response 模式（只读，无确认按钮）
+      
+      预期行为：
+      - 表格单元格中只显示简化信息，不占用过多空间
+      - 点击后可以在抽屉中查看和编辑完整内容
+      - 编辑模式下可以修改数据，响应模式下只能查看
+    -->
     <template v-else-if="mode === 'table-cell'">
       <el-button
         link
         type="primary"
         size="small"
-        @click="showDetailDrawer = true"
+        @click="tableCellMode.openDrawer()"
         class="form-field-button"
       >
         <span>共 {{ fieldCount }} 个字段</span>
@@ -102,19 +120,17 @@
         </el-icon>
       </el-button>
       
-      <!-- 详情抽屉（支持编辑和查看） -->
+      <!-- 详情抽屉（根据上下文支持编辑或只读） -->
       <el-drawer
-        v-model="showDetailDrawer"
+        v-model="tableCellMode.showDrawer.value"
         :title="field.name"
-        size="60%"
+        :size="DRAWER_CONFIG.size"
         destroy-on-close
-        :z-index="3000"
+        :z-index="DRAWER_CONFIG.zIndex"
         append-to-body
       >
         <template #default>
           <div class="form-detail-content">
-            <!-- 🔥 抽屉中使用与正常编辑模式完全一致的渲染逻辑 -->
-            <!-- 直接使用 edit 模式的渲染方式，确保逻辑一致 -->
             <el-form
               :model="formData"
               label-width="120px"
@@ -125,7 +141,13 @@
                 :label="subField.name"
                 :required="isFieldRequired(subField)"
               >
-                <!-- 🔥 递归渲染子组件，使用与正常编辑模式完全相同的逻辑 -->
+                <!-- 
+                  🔥 递归渲染子组件，根据上下文使用 edit 或 response 模式
+                  
+                  drawerMode 的值由 isInEditContext 决定：
+                  - 编辑上下文：drawerMode = 'edit' → 可编辑，支持数据修改
+                  - 响应上下文：drawerMode = 'response' → 只读，仅展示数据
+                -->
                 <component
                   :is="getWidgetComponent(subField.widget?.type || 'input')"
                   :field="subField"
@@ -135,11 +157,24 @@
                   :field-path="`${fieldPath}.${subField.code}`"
                   :form-manager="formManager"
                   :form-renderer="formRenderer"
-                  mode="edit"
+                  :mode="tableCellMode.drawerMode.value"
                   :depth="(depth || 0) + 1"
                 />
               </el-form-item>
             </el-form>
+          </div>
+        </template>
+        <!-- 
+          🔥 确认按钮只在编辑上下文中显示
+          
+          预期行为：
+          - 编辑上下文：显示确认按钮，用户可以保存修改
+          - 响应上下文：不显示确认按钮，因为数据是只读的
+        -->
+        <template #footer v-if="tableCellMode.isInEditContext.value">
+          <div class="drawer-footer">
+            <el-button @click="tableCellMode.closeDrawer()">取消</el-button>
+            <el-button type="primary" @click="handleFormCellConfirm">确认</el-button>
           </div>
         </template>
       </el-drawer>
@@ -175,18 +210,25 @@ import { ElForm, ElFormItem, ElButton, ElDrawer, ElIcon, ElCard } from 'element-
 import { View } from '@element-plus/icons-vue'
 import type { WidgetComponentProps } from '../types'
 import { useFormWidget } from '../composables/useFormWidget'
+import { useTableCellMode } from '../composables/useTableCellMode'
 import { widgetComponentFactory } from '../../factories-v2'
 import type { FieldConfig } from '../../types/field'
 import type { ValidationEngine, ValidationResult } from '../../validation/types'
 import { validateFieldValue, validateFormWidgetNestedFields, type WidgetValidationContext } from '../composables/useWidgetValidation'
+
+// 抽屉配置常量
+const DRAWER_CONFIG = {
+  size: '60%',
+  zIndex: 3000
+} as const
 
 const props = defineProps<WidgetComponentProps>()
 
 // 使用组合式函数
 const { visibleSubFields, getSubFieldValue, updateSubFieldValue } = useFormWidget(props)
 
-// 详情抽屉状态（用于 table-cell 模式）
-const showDetailDrawer = ref(false)
+// table-cell 模式的公共逻辑
+const tableCellMode = useTableCellMode(props)
 
 // 字段数量（用于 table-cell 模式显示）
 const fieldCount = computed(() => {
@@ -196,6 +238,12 @@ const fieldCount = computed(() => {
   }
   return visibleSubFields.value.length
 })
+
+// 处理 table-cell 模式的确认按钮
+function handleFormCellConfirm(): void {
+  // 关闭抽屉即可，数据已经通过 update:modelValue 事件更新
+  tableCellMode.closeDrawer()
+}
 
 // 表单数据（用于 el-form 绑定）
 const formData = computed(() => {
@@ -376,21 +424,20 @@ defineExpose({
   position: relative;
 }
 
+.drawer-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+
 .detail-field {
   margin-bottom: 24px;
 }
 
 .detail-form {
   width: 100%;
-}
-
-/* 确保抽屉内的下拉菜单可以正常显示 */
-:deep(.el-select-dropdown) {
-  z-index: 3001 !important;
-}
-
-:deep(.el-popper) {
-  z-index: 3001 !important;
 }
 
 /* 确保抽屉本身不会遮挡下拉菜单 */
@@ -400,14 +447,5 @@ defineExpose({
 
 :deep(.el-drawer) {
   overflow: visible !important;
-}
-
-/* 全局样式：确保下拉菜单在抽屉中正常显示 */
-:deep(.select-dropdown-popper) {
-  z-index: 3001 !important;
-}
-
-:deep(.select-dropdown-popper .el-select-dropdown) {
-  z-index: 3001 !important;
 }
 </style>
