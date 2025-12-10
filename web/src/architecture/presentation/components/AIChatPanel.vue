@@ -197,6 +197,69 @@ const agentLoading = ref(false)
 // 会话ID（首次为空，后端自动生成）
 const sessionId = ref<string>('')
 
+// 🔥 获取当前目录的存储 key（用于 localStorage）
+const getStorageKey = (): string => {
+  if (!props.treeId || !props.package) {
+    return ''
+  }
+  return `ai_chat_${props.treeId}_${props.package}`
+}
+
+// 🔥 从 localStorage 加载会话记录
+const loadSessionFromStorage = (): void => {
+  const storageKey = getStorageKey()
+  if (!storageKey) {
+    return
+  }
+  
+  try {
+    const stored = localStorage.getItem(storageKey)
+    if (stored) {
+      const data = JSON.parse(stored)
+      if (data.sessionId) {
+        sessionId.value = data.sessionId
+      }
+      if (data.messages && Array.isArray(data.messages) && data.messages.length > 0) {
+        messages.value = data.messages
+        // 滚动到底部
+        nextTick(() => {
+          scrollToBottom()
+        })
+        return // 如果有历史消息，不显示欢迎消息
+      }
+    }
+  } catch (error) {
+    console.error('[AIChatPanel] 加载会话记录失败:', error)
+  }
+  
+  // 如果没有历史消息，显示欢迎消息
+  if (messages.value.length === 0) {
+    if (props.currentNodeName) {
+      addMessage('assistant', `你好！我是 AI 助手，可以帮助你处理「${props.currentNodeName}」相关的问题。有什么可以帮助你的吗？`)
+    } else {
+      addMessage('assistant', '你好！我是 AI 助手，有什么可以帮助你的吗？')
+    }
+  }
+}
+
+// 🔥 保存会话记录到 localStorage
+const saveSessionToStorage = (): void => {
+  const storageKey = getStorageKey()
+  if (!storageKey) {
+    return
+  }
+  
+  try {
+    const data = {
+      sessionId: sessionId.value,
+      messages: messages.value
+    }
+    localStorage.setItem(storageKey, JSON.stringify(data))
+  } catch (error) {
+    console.error('[AIChatPanel] 保存会话记录失败:', error)
+  }
+}
+
 // 加载智能体列表
 async function loadAgents() {
   agentLoading.value = true
@@ -239,32 +302,37 @@ function handleAgentChange() {
 onMounted(async () => {
   await loadAgents()
   
-  if (props.currentNodeName) {
-    addMessage('assistant', `你好！我是 AI 助手，可以帮助你处理「${props.currentNodeName}」相关的问题。有什么可以帮助你的吗？`)
-  } else {
-    addMessage('assistant', '你好！我是 AI 助手，有什么可以帮助你的吗？')
-  }
+  // 🔥 加载会话记录（如果有）
+  loadSessionFromStorage()
 })
 
-// 🔥 监听目录切换，重置会话状态
+// 🔥 监听目录切换，恢复会话记录
 watch(
   () => [props.treeId, props.package, props.currentNodeName],
   ([newTreeId, newPackage, newNodeName], [oldTreeId, oldPackage, oldNodeName]) => {
-    // 如果 treeId 或 package 变化，说明切换了目录，需要重置会话
+    // 如果 treeId 或 package 变化，说明切换了目录
     if (newTreeId !== oldTreeId || newPackage !== oldPackage) {
-      // 清空消息
+      // 先保存旧目录的会话记录
+      if (oldTreeId && oldPackage) {
+        const oldStorageKey = `ai_chat_${oldTreeId}_${oldPackage}`
+        try {
+          const oldData = {
+            sessionId: sessionId.value,
+            messages: messages.value
+          }
+          localStorage.setItem(oldStorageKey, JSON.stringify(oldData))
+        } catch (error) {
+          console.error('[AIChatPanel] 保存旧目录会话记录失败:', error)
+        }
+      }
+      
+      // 清空当前状态
       messages.value = []
-      // 重置会话ID
       sessionId.value = ''
-      // 清空上传的文件
       uploadedFiles.value = []
       
-      // 更新欢迎消息以反映新的目录名称
-      if (newNodeName) {
-        addMessage('assistant', `你好！我是 AI 助手，可以帮助你处理「${newNodeName}」相关的问题。有什么可以帮助你的吗？`)
-      } else {
-        addMessage('assistant', '你好！我是 AI 助手，有什么可以帮助你的吗？')
-      }
+      // 加载新目录的会话记录
+      loadSessionFromStorage()
     } else if (newNodeName !== oldNodeName) {
       // 如果只是目录名称变化（但 treeId 和 package 没变），更新欢迎消息
       // 这种情况比较少见，但为了完整性还是处理一下
@@ -272,6 +340,7 @@ watch(
         messages.value[0].content = newNodeName
           ? `你好！我是 AI 助手，可以帮助你处理「${newNodeName}」相关的问题。有什么可以帮助你的吗？`
           : '你好！我是 AI 助手，有什么可以帮助你的吗？'
+        saveSessionToStorage()
       }
     }
   }
@@ -307,6 +376,9 @@ function addMessage(role: 'user' | 'assistant', content: string, files?: ChatFil
     files,
     timestamp: Date.now()
   })
+  
+  // 🔥 保存会话记录到 localStorage
+  saveSessionToStorage()
 }
 
 // 处理文件选择（el-upload 组件）
@@ -434,6 +506,9 @@ async function handleSend() {
 
     // 添加 AI 回复
     addMessage('assistant', res.content || '抱歉，AI 没有返回内容')
+    
+    // 🔥 保存会话记录到 localStorage
+    saveSessionToStorage()
   } catch (error: any) {
     ElMessage.error(error.message || '发送消息失败')
     // 移除用户消息（因为发送失败）
