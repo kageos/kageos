@@ -7,6 +7,7 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/repository"
+	"github.com/ai-agent-os/ai-agent-os/core/agent-server/utils"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"gorm.io/gorm"
 )
@@ -69,12 +70,13 @@ func (s *LLMService) GetDefaultLLMConfig(ctx context.Context) (*model.LLMConfig,
 }
 
 // ListLLMConfigs 获取 LLM 配置列表
-func (s *LLMService) ListLLMConfigs(ctx context.Context, page, pageSize int) ([]*model.LLMConfig, int64, error) {
+func (s *LLMService) ListLLMConfigs(ctx context.Context, scope string, page, pageSize int) ([]*model.LLMConfig, int64, error) {
+	currentUser := contextx.GetRequestUser(ctx)
 	offset := (page - 1) * pageSize
 	if pageSize <= 0 {
 		pageSize = 10
 	}
-	return s.repo.List(offset, pageSize)
+	return s.repo.List(scope, currentUser, offset, pageSize)
 }
 
 // CreateLLMConfig 创建 LLM 配置
@@ -107,6 +109,11 @@ func (s *LLMService) CreateLLMConfig(ctx context.Context, cfg *model.LLMConfig) 
 	}
 	cfg.ExtraConfig = normalizedExtraConfig
 
+	// 设置默认管理员（如果为空，设置为创建用户）
+	if cfg.Admin == "" {
+		cfg.Admin = user
+	}
+
 	// 先创建配置
 	if err := s.repo.Create(cfg); err != nil {
 		return err
@@ -127,6 +134,19 @@ func (s *LLMService) UpdateLLMConfig(ctx context.Context, cfg *model.LLMConfig) 
 	// 获取用户信息
 	user := contextx.GetRequestUser(ctx)
 	cfg.UpdatedBy = user
+
+	// 检查权限：只有管理员可以修改资源
+	existing, err := s.repo.GetByID(cfg.ID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return fmt.Errorf("LLM配置不存在")
+		}
+		return fmt.Errorf("获取LLM配置失败: %w", err)
+	}
+
+	if !utils.IsAdmin(existing.Admin, user) {
+		return fmt.Errorf("无权限：只有管理员可以修改此资源")
+	}
 
 	// 验证必填字段
 	if cfg.Name == "" {
@@ -163,6 +183,20 @@ func (s *LLMService) UpdateLLMConfig(ctx context.Context, cfg *model.LLMConfig) 
 
 // DeleteLLMConfig 删除 LLM 配置
 func (s *LLMService) DeleteLLMConfig(ctx context.Context, id int64) error {
+	// 检查权限：只有管理员可以删除资源
+	user := contextx.GetRequestUser(ctx)
+	existing, err := s.repo.GetByID(id)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return fmt.Errorf("LLM配置不存在")
+		}
+		return fmt.Errorf("获取LLM配置失败: %w", err)
+	}
+
+	if !utils.IsAdmin(existing.Admin, user) {
+		return fmt.Errorf("无权限：只有管理员可以删除此资源")
+	}
+
 	return s.repo.Delete(id)
 }
 

@@ -18,35 +18,48 @@
         </div>
       </template>
 
-      <!-- 表格 -->
-      <el-table
-        v-loading="loading"
-        :data="tableData"
-        style="width: 100%"
-        stripe
-      >
-        <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="name" label="名称" min-width="150" />
-        <el-table-column prop="status" label="状态" width="100">
-          <template #default="{ row }">
-            <el-tag v-if="row.status === 'active'" type="success">激活</el-tag>
-            <el-tag v-else type="info">停用</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="document_count" label="文档数" width="100" />
-        <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
-        <el-table-column label="操作" width="250" fixed="right">
-          <template #default="{ row }">
-            <el-button size="small" @click="handleEdit(row)">编辑</el-button>
-            <el-button size="small" type="primary" @click="handleViewDetail(row)">
-              进入
-            </el-button>
-            <el-button size="small" type="danger" @click="handleDelete(row)">
-              删除
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <!-- 标签页：我的/市场 -->
+      <el-tabs v-model="activeTab" @tab-change="handleTabChange" class="scope-tabs">
+        <el-tab-pane label="我的知识库" name="mine" />
+        <el-tab-pane label="知识库市场" name="market" />
+      </el-tabs>
+      <el-divider />
+
+      <!-- 统计卡片区 -->
+      <div class="stats-section">
+        <StatCard
+          :icon="Document"
+          label="总数"
+          :value="stats.total"
+          icon-color="var(--el-color-primary)"
+        />
+        <StatCard
+          :icon="CircleCheck"
+          label="激活"
+          :value="stats.active"
+          icon-color="var(--el-color-success)"
+        />
+        <StatCard
+          :icon="Document"
+          label="文档总数"
+          :value="stats.totalDocuments"
+          icon-color="var(--el-color-info)"
+        />
+      </div>
+
+      <!-- 卡片列表 -->
+      <div v-loading="loading" class="cards-container">
+        <KnowledgeCard
+          v-for="knowledge in tableData"
+          :key="knowledge.id"
+          :knowledge="knowledge"
+          :agents="agentsByKnowledge.get(knowledge.id) || []"
+          @enter="handleViewDetail"
+          @edit="handleEdit"
+          @delete="handleDelete"
+        />
+        <el-empty v-if="!loading && tableData.length === 0" description="暂无数据" />
+      </div>
 
       <!-- 分页 -->
       <div class="pagination-container">
@@ -93,6 +106,21 @@
             placeholder="请输入描述"
           />
         </el-form-item>
+        <el-form-item label="可见性">
+          <el-radio-group v-model="formData.visibility">
+            <el-radio :label="0">公开（所有人可见）</el-radio>
+            <el-radio :label="1">私有（仅管理员可见）</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="管理员">
+          <el-input
+            v-model="formData.admin"
+            placeholder="管理员列表（逗号分隔，如：user1,user2）"
+          />
+          <div style="margin-top: 8px; font-size: 12px; color: #909399;">
+            提示：多个管理员用逗号分隔，留空则默认为创建用户
+          </div>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
@@ -109,16 +137,20 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElForm } from 'element-plus'
-import { ArrowLeft, Plus } from '@element-plus/icons-vue'
+import { ArrowLeft, Plus, Document, CircleCheck } from '@element-plus/icons-vue'
+import StatCard from '@/components/Agent/StatCard.vue'
+import KnowledgeCard from '@/components/Agent/KnowledgeCard.vue'
 import {
   getKnowledgeList,
   createKnowledge,
   updateKnowledge,
   deleteKnowledge,
+  getAgentList,
   type KnowledgeInfo,
   type KnowledgeListReq,
   type KnowledgeCreateReq,
-  type KnowledgeUpdateReq
+  type KnowledgeUpdateReq,
+  type AgentInfo
 } from '@/api/agent'
 import type { FormRules } from 'element-plus'
 
@@ -128,11 +160,25 @@ const router = useRouter()
 const loading = ref(false)
 const tableData = ref<KnowledgeInfo[]>([])
 
+// 每个知识库对应的智能体列表（key: knowledge_id, value: AgentInfo[]）
+const agentsByKnowledge = ref<Map<number, AgentInfo[]>>(new Map())
+
+// 标签页
+const activeTab = ref<'mine' | 'market'>('mine')
+
 // 分页
 const pagination = reactive({
   page: 1,
   page_size: 10,
   total: 0
+})
+
+// 统计信息
+const stats = computed(() => {
+  const total = tableData.value.length
+  const active = tableData.value.filter(kb => kb.status === 'active').length
+  const totalDocuments = tableData.value.reduce((sum, kb) => sum + (kb.document_count || 0), 0)
+  return { total, active, totalDocuments }
 })
 
 // 对话框
@@ -145,7 +191,9 @@ const submitting = ref(false)
 const formData = reactive<KnowledgeCreateReq & { id?: number }>({
   name: '',
   description: '',
-  status: 'active'
+  status: 'active',
+  visibility: 0, // 默认公开
+  admin: '' // 默认空，后端会自动设置为创建用户
 })
 
 
@@ -155,23 +203,60 @@ const rules: FormRules = {
 }
 
 
+// 标签页切换处理
+function handleTabChange(tabName: string) {
+  activeTab.value = tabName as 'mine' | 'market'
+  pagination.page = 1 // 切换标签页时重置页码
+  loadData()
+}
+
 // 加载数据
 async function loadData() {
   loading.value = true
   try {
     const params: KnowledgeListReq = {
       page: pagination.page,
-      page_size: pagination.page_size
+      page_size: pagination.page_size,
+      scope: activeTab.value // 添加 scope 参数
     }
     const res = await getKnowledgeList(params)
     // 响应拦截器已经返回了 data，所以 res 就是 { knowledge_bases: [], total: 0 }
     tableData.value = res.knowledge_bases || []
     pagination.total = res.total || 0
+    
+    // 为每个知识库加载使用它的智能体列表
+    await loadAgentsForKnowledgeBases()
   } catch (error: any) {
     ElMessage.error(error.message || '获取列表失败')
   } finally {
     loading.value = false
   }
+}
+
+// 获取使用指定知识库的智能体列表
+async function getAgentsByKnowledgeBase(knowledgeBaseId: number): Promise<AgentInfo[]> {
+  try {
+    const res = await getAgentList({
+      page: 1,
+      page_size: 1000, // 通常不会太多
+      knowledge_base_id: knowledgeBaseId
+    })
+    return res.agents || []
+  } catch (error: any) {
+    console.error('加载智能体列表失败:', error)
+    return []
+  }
+}
+
+// 为所有知识库加载使用它们的智能体列表
+async function loadAgentsForKnowledgeBases() {
+  agentsByKnowledge.value.clear()
+  // 并行加载所有知识库的智能体列表
+  const promises = tableData.value.map(async (knowledge) => {
+    const agents = await getAgentsByKnowledgeBase(knowledge.id)
+    agentsByKnowledge.value.set(knowledge.id, agents)
+  })
+  await Promise.all(promises)
 }
 
 // 分页变化
@@ -192,17 +277,30 @@ function handleCreate() {
 
 // 编辑
 function handleEdit(row: KnowledgeInfo) {
+  // 检查权限：只有管理员可以编辑
+  if (!row.is_admin) {
+    ElMessage.warning('无权限：只有管理员可以编辑此资源')
+    return
+  }
+  
   dialogTitle.value = '编辑知识库'
-  formData.id = row.id
   formData.id = row.id
   formData.name = row.name
   formData.description = row.description || ''
   formData.status = row.status || 'active'
+  formData.visibility = row.visibility ?? 0
+  formData.admin = row.admin || ''
   dialogVisible.value = true
 }
 
 // 删除
 async function handleDelete(row: KnowledgeInfo) {
+  // 检查权限：只有管理员可以删除
+  if (!row.is_admin) {
+    ElMessage.warning('无权限：只有管理员可以删除此资源')
+    return
+  }
+  
   try {
     await ElMessageBox.confirm(`确定要删除知识库"${row.name}"吗？`, '提示', {
       confirmButtonText: '确定',
@@ -236,9 +334,12 @@ async function handleSubmit() {
     if (formData.id) {
       // 更新
       const updateData: KnowledgeUpdateReq = {
+        id: formData.id,
         name: formData.name,
         description: formData.description,
-        status: formData.status
+        status: formData.status,
+        visibility: formData.visibility ?? 0,
+        admin: formData.admin || ''
       }
       await updateKnowledge(updateData)
       ElMessage.success('更新成功')
@@ -249,7 +350,9 @@ async function handleSubmit() {
       const createData: KnowledgeCreateReq = {
         name: formData.name,
         description: formData.description,
-        status: formData.status
+        status: formData.status,
+        visibility: formData.visibility ?? 0,
+        admin: formData.admin || ''
       }
       await createKnowledge(createData)
       ElMessage.success('创建成功')
@@ -312,8 +415,26 @@ onMounted(() => {
   font-weight: 600;
 }
 
+.scope-tabs {
+  margin-bottom: 20px;
+}
+
 .back-button {
   padding: 0;
+}
+
+.stats-section {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.cards-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 20px;
+  margin-bottom: 20px;
 }
 
 .pagination-container {

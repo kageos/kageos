@@ -2,6 +2,7 @@ package repository
 
 import (
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
+	"github.com/ai-agent-os/ai-agent-os/dto"
 	"gorm.io/gorm"
 )
 
@@ -35,32 +36,61 @@ func (r *AgentRepository) GetByID(id int64) (*model.Agent, error) {
 }
 
 // List 获取智能体列表
-func (r *AgentRepository) List(agentType string, enabled *bool, offset, limit int) ([]*model.Agent, int64, error) {
+func (r *AgentRepository) List(req dto.AgentListReq, currentUser string) ([]*model.Agent, int64, error) {
 	var agents []*model.Agent
 	var total int64
 
-	query := r.db.Model(&model.Agent{})
-
-	if agentType != "" {
-		query = query.Where("agent_type = ?", agentType)
+	offset := (req.Page - 1) * req.PageSize
+	if req.PageSize <= 0 {
+		req.PageSize = 10
 	}
 
-	if enabled != nil {
-		query = query.Where("enabled = ?", *enabled)
+	dbQuery := r.db.Model(&model.Agent{})
+
+	// 权限过滤：根据 scope 参数
+	if req.Scope == "mine" {
+		// 我的：显示当前用户是管理员的资源（公开+私有）
+		// 使用 FIND_IN_SET 函数（MySQL）
+		dbQuery = dbQuery.Where("FIND_IN_SET(?, admin) > 0", currentUser)
+	} else if req.Scope == "market" {
+		// 市场：显示所有公开的资源
+		dbQuery = dbQuery.Where("visibility = ?", 0)
+	}
+	// 默认：显示所有（向后兼容，或根据需求调整）
+
+	if req.AgentType != "" {
+		dbQuery = dbQuery.Where("agent_type = ?", req.AgentType)
+	}
+
+	if req.Enabled != nil {
+		dbQuery = dbQuery.Where("enabled = ?", *req.Enabled)
+	}
+
+	if req.KnowledgeBaseID != nil && *req.KnowledgeBaseID > 0 {
+		dbQuery = dbQuery.Where("knowledge_base_id = ?", *req.KnowledgeBaseID)
+	}
+
+	if req.LLMConfigID != nil {
+		// 如果 llmConfigID 为 0，表示查询使用默认LLM的智能体
+		dbQuery = dbQuery.Where("llm_config_id = ?", *req.LLMConfigID)
+	}
+
+	if req.PluginID != nil && *req.PluginID > 0 {
+		dbQuery = dbQuery.Where("plugin_id = ?", *req.PluginID)
 	}
 
 	// 获取总数
-	if err := query.Count(&total).Error; err != nil {
+	if err := dbQuery.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
 	// 获取列表（预加载关联数据）
-	if err := query.
+	if err := dbQuery.
 		Preload("Plugin").
 		Preload("KnowledgeBase").
 		Preload("LLMConfig").
 		Offset(offset).
-		Limit(limit).
+		Limit(req.PageSize).
 		Order("id DESC").
 		Find(&agents).Error; err != nil {
 		return nil, 0, err

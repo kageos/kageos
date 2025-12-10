@@ -5,6 +5,7 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/service"
+	"github.com/ai-agent-os/ai-agent-os/core/agent-server/utils"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
@@ -48,7 +49,8 @@ func (h *Knowledge) List(c *gin.Context) {
 	}()
 
 	ctx := contextx.ToContext(c)
-	kbs, total, err := h.service.ListKnowledgeBases(ctx, req.Page, req.PageSize)
+	currentUser := contextx.GetRequestUser(ctx)
+	kbs, total, err := h.service.ListKnowledgeBases(ctx, req.Scope, req.Page, req.PageSize)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -65,6 +67,9 @@ func (h *Knowledge) List(c *gin.Context) {
 			DocumentCount: kb.DocumentCount,
 			ContentHash:   kb.ContentHash,
 			User:          kb.User,
+			Visibility:    kb.Visibility,
+			Admin:         kb.Admin,
+			IsAdmin:       utils.IsAdmin(kb.Admin, currentUser),
 			CreatedAt:     time.Time(kb.CreatedAt).Format("2006-01-02T15:04:05Z"),
 			UpdatedAt:     time.Time(kb.UpdatedAt).Format("2006-01-02T15:04:05Z"),
 		})

@@ -18,43 +18,49 @@
         </div>
       </template>
 
-      <!-- 表格 -->
-      <el-table
-        v-loading="loading"
-        :data="tableData"
-        style="width: 100%"
-        stripe
-      >
-        <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="name" label="名称" min-width="150" />
-        <el-table-column prop="provider" label="提供商" width="120" />
-        <el-table-column prop="model" label="模型" min-width="150" />
-        <el-table-column prop="api_base" label="API 地址" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="timeout" label="超时（秒）" width="100" />
-        <el-table-column prop="max_tokens" label="最大 Token" width="120" />
-        <el-table-column prop="is_default" label="默认" width="80">
-          <template #default="{ row }">
-            <el-tag v-if="row.is_default" type="success">是</el-tag>
-            <span v-else>-</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
-          <template #default="{ row }">
-            <el-button size="small" @click="handleEdit(row)">编辑</el-button>
-            <el-button
-              v-if="!row.is_default"
-              size="small"
-              type="primary"
-              @click="handleSetDefault(row)"
-            >
-              设为默认
-            </el-button>
-            <el-button size="small" type="danger" @click="handleDelete(row)">
-              删除
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <!-- 标签页：我的/市场 -->
+      <el-tabs v-model="activeTab" @tab-change="handleTabChange" class="scope-tabs">
+        <el-tab-pane label="我的 LLM 配置" name="mine" />
+        <el-tab-pane label="LLM 配置市场" name="market" />
+      </el-tabs>
+      <el-divider />
+
+      <!-- 统计卡片区 -->
+      <div class="stats-section">
+        <StatCard
+          :icon="Cpu"
+          label="总数"
+          :value="stats.total"
+          icon-color="var(--el-color-primary)"
+        />
+        <StatCard
+          :icon="CircleCheck"
+          label="默认配置"
+          :value="stats.default"
+          icon-color="var(--el-color-success)"
+        />
+        <StatCard
+          :icon="Shop"
+          label="提供商数"
+          :value="stats.providers"
+          icon-color="var(--el-color-info)"
+        />
+      </div>
+
+      <!-- 卡片列表 -->
+      <div v-loading="loading" class="cards-container">
+        <LLMCard
+          v-for="llm in tableData"
+          :key="llm.id"
+          :llm="llm"
+          :agents="agentsByLLM.get(llm.id) || []"
+          @detail="handleDetail"
+          @edit="handleEdit"
+          @set-default="handleSetDefault"
+          @delete="handleDelete"
+        />
+        <el-empty v-if="!loading && tableData.length === 0" description="暂无数据" />
+      </div>
 
       <!-- 分页 -->
       <div class="pagination-container">
@@ -154,6 +160,21 @@
         <el-form-item label="设为默认">
           <el-switch v-model="formData.is_default" />
         </el-form-item>
+        <el-form-item label="可见性">
+          <el-radio-group v-model="formData.visibility">
+            <el-radio :label="0">公开（所有人可见）</el-radio>
+            <el-radio :label="1">私有（仅管理员可见）</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="管理员">
+          <el-input
+            v-model="formData.admin"
+            placeholder="管理员列表（逗号分隔，如：user1,user2）"
+          />
+          <div style="margin-top: 8px; font-size: 12px; color: #909399;">
+            提示：多个管理员用逗号分隔，留空则默认为创建用户
+          </div>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
@@ -189,11 +210,25 @@ const router = useRouter()
 const loading = ref(false)
 const tableData = ref<LLMInfo[]>([])
 
+// 每个LLM对应的智能体列表（key: llm_id, value: AgentInfo[]）
+const agentsByLLM = ref<Map<number, AgentInfo[]>>(new Map())
+
+// 标签页
+const activeTab = ref<'mine' | 'market'>('mine')
+
 // 分页
 const pagination = reactive({
   page: 1,
   page_size: 10,
   total: 0
+})
+
+// 统计信息
+const stats = computed(() => {
+  const total = tableData.value.length
+  const defaultCount = tableData.value.filter(llm => llm.is_default).length
+  const providers = new Set(tableData.value.map(llm => llm.provider)).size
+  return { total, default: defaultCount, providers }
 })
 
 // 对话框
@@ -212,7 +247,9 @@ const formData = reactive<LLMCreateReq & { id?: number }>({
   timeout: 120,
   max_tokens: 4000,
   extra_config: '',
-  is_default: false
+  is_default: false,
+  visibility: 0, // 默认公开
+  admin: '' // 默认空，后端会自动设置为创建用户
 })
 
 // 表单验证规则
@@ -222,23 +259,60 @@ const rules: FormRules = {
   model: [{ required: true, message: '请输入模型名称', trigger: 'blur' }]
 }
 
+// 标签页切换处理
+function handleTabChange(tabName: string) {
+  activeTab.value = tabName as 'mine' | 'market'
+  pagination.page = 1 // 切换标签页时重置页码
+  loadData()
+}
+
 // 加载数据
 async function loadData() {
   loading.value = true
   try {
     const params: LLMListReq = {
       page: pagination.page,
-      page_size: pagination.page_size
+      page_size: pagination.page_size,
+      scope: activeTab.value // 添加 scope 参数
     }
     const res = await getLLMList(params)
     // 响应拦截器已经返回了 data，所以 res 就是 { configs: [], total: 0 }
     tableData.value = res.configs || []
     pagination.total = res.total || 0
+    
+    // 为每个LLM加载使用它的智能体列表
+    await loadAgentsForLLMs()
   } catch (error: any) {
     ElMessage.error(error.message || '获取列表失败')
   } finally {
     loading.value = false
   }
+}
+
+// 获取使用指定LLM配置的智能体列表
+async function getAgentsByLLMConfig(llmConfigId: number): Promise<AgentInfo[]> {
+  try {
+    const res = await getAgentList({
+      page: 1,
+      page_size: 1000, // 通常不会太多
+      llm_config_id: llmConfigId
+    })
+    return res.agents || []
+  } catch (error: any) {
+    console.error('加载智能体列表失败:', error)
+    return []
+  }
+}
+
+// 为所有LLM加载使用它们的智能体列表
+async function loadAgentsForLLMs() {
+  agentsByLLM.value.clear()
+  // 并行加载所有LLM的智能体列表
+  const promises = tableData.value.map(async (llm) => {
+    const agents = await getAgentsByLLMConfig(llm.id)
+    agentsByLLM.value.set(llm.id, agents)
+  })
+  await Promise.all(promises)
 }
 
 // 分页变化
@@ -259,6 +333,12 @@ function handleCreate() {
 
 // 编辑
 function handleEdit(row: LLMInfo) {
+  // 检查权限：只有管理员可以编辑
+  if (!row.is_admin) {
+    ElMessage.warning('无权限：只有管理员可以编辑此资源')
+    return
+  }
+  
   dialogTitle.value = '编辑 LLM 配置'
   formData.id = row.id
   formData.name = row.name
@@ -270,11 +350,19 @@ function handleEdit(row: LLMInfo) {
   formData.max_tokens = row.max_tokens
   formData.extra_config = row.extra_config || ''
   formData.is_default = row.is_default
+  formData.visibility = row.visibility ?? 0
+  formData.admin = row.admin || ''
   dialogVisible.value = true
 }
 
 // 删除
 async function handleDelete(row: LLMInfo) {
+  // 检查权限：只有管理员可以删除
+  if (!row.is_admin) {
+    ElMessage.warning('无权限：只有管理员可以删除此资源')
+    return
+  }
+  
   try {
     await ElMessageBox.confirm(`确定要删除 LLM 配置"${row.name}"吗？`, '提示', {
       confirmButtonText: '确定',
@@ -291,8 +379,20 @@ async function handleDelete(row: LLMInfo) {
   }
 }
 
+// 详情
+function handleDetail(row: LLMInfo) {
+  // TODO: 实现详情查看
+  ElMessage.info('详情功能待实现')
+}
+
 // 设为默认
 async function handleSetDefault(row: LLMInfo) {
+  // 检查权限：只有管理员可以设置默认
+  if (!row.is_admin) {
+    ElMessage.warning('无权限：只有管理员可以设置默认配置')
+    return
+  }
+  
   try {
     await ElMessageBox.confirm(`确定要将"${row.name}"设为默认 LLM 配置吗？`, '提示', {
       confirmButtonText: '确定',
@@ -329,7 +429,9 @@ async function handleSubmit() {
         timeout: formData.timeout,
         max_tokens: formData.max_tokens,
         extra_config: formData.extra_config,
-        is_default: formData.is_default
+        is_default: formData.is_default,
+        visibility: formData.visibility ?? 0,
+        admin: formData.admin || ''
       }
       await updateLLM(updateData)
       ElMessage.success('更新成功')
@@ -346,7 +448,9 @@ async function handleSubmit() {
         timeout: formData.timeout,
         max_tokens: formData.max_tokens,
         extra_config: formData.extra_config,
-        is_default: formData.is_default
+        is_default: formData.is_default,
+        visibility: formData.visibility ?? 0,
+        admin: formData.admin || ''
       }
       await createLLM(createData)
       ElMessage.success('创建成功')
@@ -374,6 +478,8 @@ function resetForm() {
   formData.max_tokens = 4000
   formData.extra_config = ''
   formData.is_default = false
+  formData.visibility = 0
+  formData.admin = ''
   formRef.value?.clearValidate()
 }
 
@@ -415,8 +521,26 @@ onMounted(() => {
   font-weight: 600;
 }
 
+.scope-tabs {
+  margin-bottom: 20px;
+}
+
 .back-button {
   padding: 0;
+}
+
+.stats-section {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.cards-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 20px;
+  margin-bottom: 20px;
 }
 
 .pagination-container {

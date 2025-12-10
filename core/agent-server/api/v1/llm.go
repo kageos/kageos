@@ -5,6 +5,7 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/service"
+	"github.com/ai-agent-os/ai-agent-os/core/agent-server/utils"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
@@ -48,7 +49,8 @@ func (h *LLM) List(c *gin.Context) {
 	}()
 
 	ctx := contextx.ToContext(c)
-	configs, total, err := h.service.ListLLMConfigs(ctx, req.Page, req.PageSize)
+	currentUser := contextx.GetRequestUser(ctx)
+	configs, total, err := h.service.ListLLMConfigs(ctx, req.Scope, req.Page, req.PageSize)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -71,6 +73,9 @@ func (h *LLM) List(c *gin.Context) {
 			MaxTokens:   cfg.MaxTokens,
 			ExtraConfig: extraConfig,
 			IsDefault:   cfg.IsDefault,
+			Visibility:  cfg.Visibility,
+			Admin:       cfg.Admin,
+			IsAdmin:     utils.IsAdmin(cfg.Admin, currentUser),
 			CreatedAt:   time.Time(cfg.CreatedAt).Format("2006-01-02T15:04:05Z"),
 			UpdatedAt:   time.Time(cfg.UpdatedAt).Format("2006-01-02T15:04:05Z"),
 		})
