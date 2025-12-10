@@ -924,14 +924,11 @@ async function handleSubmit(): Promise<void> {
       data: error?.response?.data,
       status: error?.response?.status,
       code: error?.response?.data?.code,
-      msg: error?.response?.data?.msg || error?.response?.data?.message
+      msg: error?.response?.data?.msg
     })
     
-    // 显示更详细的错误信息
-    const errorMessage = error?.response?.data?.msg 
-      || error?.response?.data?.message 
-      || error?.message 
-      || '提交失败'
+    // 🔥 统一使用 msg 字段
+    const errorMessage = error?.response?.data?.msg || error?.message || '提交失败'
     ElMessage.error(errorMessage)
   } finally {
     submitting.value = false

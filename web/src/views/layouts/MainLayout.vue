@@ -250,7 +250,8 @@ const handleSubmitCreateApp = async () => {
     }
   } catch (error: any) {
     console.error('[MainLayout] 创建应用失败:', error)
-    const errorMessage = error?.response?.data?.message || error?.message || '创建工作空间失败'
+    // 🔥 统一使用 msg 字段
+    const errorMessage = error?.response?.data?.msg || error?.message || '创建工作空间失败'
     ElMessage.error(errorMessage)
   } finally {
     creatingApp.value = false
@@ -311,7 +312,8 @@ const handleUpdateApp = async (app: App) => {
     }
   } catch (error: any) {
     console.error('[MainLayout] 更新应用失败:', error)
-    const errorMessage = error?.response?.data?.message || error?.message || '更新应用失败'
+      // 🔥 统一使用 msg 字段
+      const errorMessage = error?.response?.data?.msg || error?.message || '更新应用失败'
     ElMessage.error(errorMessage)
   }
 }
@@ -369,7 +371,8 @@ const handleDeleteApp = async (app: App) => {
       return
     }
     console.error('[MainLayout] 删除应用失败:', error)
-    const errorMessage = error?.response?.data?.message || error?.message || '删除应用失败'
+      // 🔥 统一使用 msg 字段
+      const errorMessage = error?.response?.data?.msg || error?.message || '删除应用失败'
     ElMessage.error(errorMessage)
   }
 }

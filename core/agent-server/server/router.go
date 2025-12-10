@@ -65,4 +65,6 @@ func (s *Server) setupRoutes() {
 	// 智能体聊天路由（按 chat_type 区分）
 	agentChatHandler := v1.NewAgentChat(s.agentChatService)
 	agent.POST("/chat/function_gen", agentChatHandler.FunctionGenChat) // 智能体聊天 - 函数生成类型
+	agent.GET("/chat/sessions", agentChatHandler.ListSessions)          // 获取会话列表
+	agent.GET("/chat/messages", agentChatHandler.ListMessages)            // 获取消息列表
 }

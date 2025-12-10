@@ -2,6 +2,8 @@ package model
 
 import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
+	"strconv"
+	"strings"
 )
 
 type App struct {
@@ -39,10 +41,16 @@ func (a *App) IsDisabled() bool {
 	return a.Status == "disabled"
 }
 
-// GetDisplayName 获取显示名称
-func (a *App) GetDisplayName() string {
-	if a.Code != "" {
-		return a.Code
+func (a *App) GetVersionNumber() int {
+
+	version := a.Version
+	// 去掉 "v" 前缀
+	version = strings.TrimPrefix(version, "v")
+	version = strings.TrimPrefix(version, "V")
+	// 提取数字部分
+	num, err := strconv.Atoi(version)
+	if err != nil {
+		return 0
 	}
-	return a.User + "-app"
+	return num
 }

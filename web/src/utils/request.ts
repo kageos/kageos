@@ -76,8 +76,8 @@ service.interceptors.request.use(
 service.interceptors.response.use(
   (response: AxiosResponse<ApiResponse>) => {
     const { code, data } = response.data
-    // 🔥 后端可能返回 msg 或 message，优先使用 msg
-    const message = (response.data as any).msg || (response.data as any).message
+    // 🔥 统一使用 msg 字段
+    const msg = (response.data as any).msg || '请求失败'
 
     // 请求成功
     if (code === 0) {
@@ -87,16 +87,15 @@ service.interceptors.response.use(
     // 业务错误 - 记录错误信息
     Logger.error('Request', '业务错误', {
       code,
-      message,
-      msg: (response.data as any).msg,
+      msg,
       url: response.config.url,
       method: response.config.method
     })
     
     // 🔥 不在这里显示错误消息，让调用方自己处理（避免重复提示）
-    // ElMessage.error(message || '请求失败')
+    // ElMessage.error(msg || '请求失败')
     // 🔥 保留完整的错误信息，包括 response 对象
-    const error = new Error(message || '请求失败') as any
+    const error = new Error(msg) as any
     error.response = response
     return Promise.reject(error)
   },
@@ -136,7 +135,7 @@ service.interceptors.response.use(
           break
 
         default:
-          ElMessage.error(data?.message || '网络错误')
+          ElMessage.error(data?.msg || '网络错误')
       }
     } else if (error.code === 'ECONNABORTED') {
       ElMessage.error('请求超时，请检查网络连接')

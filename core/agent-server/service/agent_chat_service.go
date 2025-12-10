@@ -157,3 +157,32 @@ func (s *AgentChatService) Chat(ctx context.Context, agentID int64, messages []l
 
 	return resp, nil
 }
+
+// ListSessions 获取会话列表
+func (s *AgentChatService) ListSessions(ctx context.Context, treeID int64, page, pageSize int) ([]*model.AgentChatSession, int64, error) {
+	if s.sessionRepo == nil {
+		return nil, 0, fmt.Errorf("会话Repository未初始化")
+	}
+
+	offset := (page - 1) * pageSize
+	sessions, total, err := s.sessionRepo.ListByTreeID(treeID, offset, pageSize)
+	if err != nil {
+		return nil, 0, fmt.Errorf("获取会话列表失败: %w", err)
+	}
+
+	return sessions, total, nil
+}
+
+// ListMessages 获取消息列表
+func (s *AgentChatService) ListMessages(ctx context.Context, sessionID string) ([]*model.AgentChatMessage, error) {
+	if s.messageRepo == nil {
+		return nil, fmt.Errorf("消息Repository未初始化")
+	}
+
+	messages, err := s.messageRepo.ListBySessionID(sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("获取消息列表失败: %w", err)
+	}
+
+	return messages, nil
+}

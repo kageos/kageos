@@ -341,14 +341,13 @@ func (a *AppService) createFunctionNode(appID int64, parentID int64, api *dto.Ap
 		if err != nil {
 			return fmt.Errorf("获取应用信息失败: %w", err)
 		}
-		currentVersionNum := extractVersionNum(app.Version)
 
 		// 如果节点是新增的（AddVersionNum为0），设置添加版本号
 		if existingNode.AddVersionNum == 0 {
-			existingNode.AddVersionNum = currentVersionNum
+			existingNode.AddVersionNum = app.GetVersionNumber()
 		} else {
 			// 如果节点已存在，更新更新版本号
-			existingNode.UpdateVersionNum = currentVersionNum
+			existingNode.UpdateVersionNum = app.GetVersionNumber()
 		}
 
 		// 更新节点信息
@@ -365,25 +364,23 @@ func (a *AppService) createFunctionNode(appID int64, parentID int64, api *dto.Ap
 	if err != nil {
 		return fmt.Errorf("获取应用信息失败: %w", err)
 	}
-	currentVersionNum := extractVersionNum(app.Version)
 
 	// 构建 FullGroupCode：{full_path}/{group_code}
-	fullGroupCode := fmt.Sprintf("%s/%s", api.GetParentFullCodePath(), api.FunctionGroupCode)
-
 	// 创建新的function节点，预加载完整的app对象
 	serviceTree := &model.ServiceTree{
 		AppID:            appID,
 		ParentID:         parentID,
-		FullGroupCode:    fullGroupCode, // 完整函数组代码：{full_path}/{group_code}，与 source_code.full_group_code 对齐
+		FullGroupCode:    api.BuildFullGroupCode(), // 完整函数组代码：{full_path}/{group_code}，与 source_code.full_group_code 对齐
 		GroupName:        api.FunctionGroupName,
 		Type:             model.ServiceTreeTypeFunction,
 		Code:             api.Code, // API的code作为ServiceTree的code
 		Name:             api.Name, // API的name作为ServiceTree的name
 		Description:      api.Desc,
-		RefID:            functionID,        // 指向Function记录的ID
-		FullCodePath:     api.FullCodePath,  // 直接使用api.FullCodePath，不需要重新计算
-		AddVersionNum:    currentVersionNum, // 设置添加版本号
-		UpdateVersionNum: 0,                 // 新增节点，更新版本号为0
+		TemplateType:     api.TemplateType,
+		RefID:            functionID,             // 指向Function记录的ID
+		FullCodePath:     api.FullCodePath,       // 直接使用api.FullCodePath，不需要重新计算
+		AddVersionNum:    app.GetVersionNumber(), // 设置添加版本号
+		UpdateVersionNum: 0,                      // 新增节点，更新版本号为0
 	}
 
 	if len(api.Tags) > 0 {

@@ -425,11 +425,11 @@ const handleSubmit = async (): Promise<void> => {
     // 错误对象包含 response 属性，其中包含完整的响应数据
     let errorMessage = '提交失败，请稍后重试'
     
+    // 🔥 统一使用 msg 字段
     // 尝试从 error.response.data 中获取错误消息（request.ts 第 99-101 行）
     if (error?.response?.data) {
       const responseData = error.response.data
-      // 优先使用 msg，其次使用 message
-      errorMessage = responseData.msg || responseData.message || errorMessage
+      errorMessage = responseData.msg || errorMessage
     } else if (error?.message) {
       // 如果错误对象本身有 message（request.ts 第 99 行创建的）
       errorMessage = error.message

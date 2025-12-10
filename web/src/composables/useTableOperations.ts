@@ -1053,11 +1053,8 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
       await loadTableData()
       return true
     } catch (error: any) {
-      // 🔥 优先使用后端返回的错误信息
-      const errorMessage = error?.response?.data?.msg 
-        || error?.response?.data?.message 
-        || error?.message 
-        || '新增失败'
+      // 🔥 统一使用 msg 字段
+      const errorMessage = error?.response?.data?.msg || error?.message || '新增失败'
       ElMessage.error(errorMessage)
       return false
     }
@@ -1106,11 +1103,8 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
       await loadTableData()
       return true
     } catch (error: any) {
-      // 🔥 优先使用后端返回的错误信息
-      const errorMessage = error?.response?.data?.msg 
-        || error?.response?.data?.message 
-        || error?.message 
-        || '更新失败'
+      // 🔥 统一使用 msg 字段
+      const errorMessage = error?.response?.data?.msg || error?.message || '更新失败'
       // 🔥 使用 ElNotification 显示更漂亮的错误提示
       ElNotification({
         title: '更新失败',
@@ -1153,11 +1147,8 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
       return true
     } catch (error: any) {
       if (error !== 'cancel') {
-        // 🔥 优先使用后端返回的错误信息
-        const errorMessage = error?.response?.data?.msg 
-          || error?.response?.data?.message 
-          || error?.message 
-          || '删除失败'
+        // 🔥 统一使用 msg 字段
+        const errorMessage = error?.response?.data?.msg || error?.message || '删除失败'
         // 🔥 使用 ElNotification 显示更漂亮的错误提示
         ElNotification({
           title: '删除失败',

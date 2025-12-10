@@ -27,6 +27,7 @@ type ServiceTree struct {
 	GroupName     string `json:"group_name"`
 	RefID         int64  `json:"ref_id" gorm:"default:0"`                   // 引用ID：指向真实资源的ID，如果是package类型指向package的ID，如果是function类型指向function的ID
 	App           *App   `json:"app" gorm:"foreignKey:AppID;references:ID"` // 预加载的完整应用对象
+	TemplateType  string `json:"template_type"`                             //函数的类型
 	//下面字段是数据库
 	FullCodePath     string         `json:"full_code_path"`     // /$user/$app/plugins/pdf 这种
 	AddVersionNum    int            `json:"add_version_num"`    // 添加版本号（数字部分，如 v1 -> 1），用于版本回滚时过滤
@@ -277,7 +278,7 @@ func (st *ServiceTree) GetDisplayName() string {
 func (st *ServiceTree) GetPackagePathForFileCreation() string {
 	// 获取应用前缀，例如 "/luobei/demo"
 	appPrefix := st.GetAppPrefix()
-	
+
 	// 从 FullCodePath 中去掉应用前缀
 	// FullCodePath 格式："/luobei/demo/crm" 或 "/luobei/demo/plugins/cashier"
 	// 去掉前缀后："/crm" 或 "/plugins/cashier"
@@ -285,10 +286,10 @@ func (st *ServiceTree) GetPackagePathForFileCreation() string {
 	if appPrefix != "" && strings.HasPrefix(fullPath, appPrefix) {
 		fullPath = strings.TrimPrefix(fullPath, appPrefix)
 	}
-	
+
 	// 去掉开头的斜杠，得到 "crm" 或 "plugins/cashier"
 	basePath := strings.TrimPrefix(fullPath, "/")
-	
+
 	var packagePath string
 	if st.IsFunction() {
 		// 对于 function 节点，需要获取其所在的 package 路径
@@ -304,12 +305,12 @@ func (st *ServiceTree) GetPackagePathForFileCreation() string {
 		// 对于 package 节点，直接使用 basePath
 		packagePath = basePath
 	}
-	
+
 	if packagePath == "" {
 		// 如果是根节点或 function 直接在应用根目录下，使用 code 作为 package
 		packagePath = st.Code
 	}
-	
+
 	return packagePath
 }
 
