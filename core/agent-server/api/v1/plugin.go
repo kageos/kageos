@@ -5,6 +5,7 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/service"
+	"github.com/ai-agent-os/ai-agent-os/core/agent-server/utils"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
@@ -54,9 +55,10 @@ func (h *Plugin) List(c *gin.Context) {
 	}()
 
 	ctx := contextx.ToContext(c)
+	currentUser := contextx.GetRequestUser(ctx)
 	enabled := req.Enabled
 
-	plugins, total, err := h.service.ListPlugins(ctx, enabled, req.Page, req.PageSize)
+	plugins, total, err := h.service.ListPlugins(ctx, req.Scope, enabled, req.Page, req.PageSize)
 	if err != nil {
 		return
 	}
@@ -74,6 +76,9 @@ func (h *Plugin) List(c *gin.Context) {
 			NatsHost:    h.cfg.GetNatsHost(),
 			Config:      plugin.Config,
 			User:        plugin.User,
+			Visibility:  plugin.Visibility,
+			Admin:       plugin.Admin,
+			IsAdmin:     utils.IsAdmin(plugin.Admin, currentUser),
 			CreatedAt:   time.Time(plugin.CreatedAt).Format("2006-01-02T15:04:05Z"),
 			UpdatedAt:   time.Time(plugin.UpdatedAt).Format("2006-01-02T15:04:05Z"),
 		})

@@ -2,8 +2,9 @@ package dto
 
 // KnowledgeListReq 获取知识库列表请求
 type KnowledgeListReq struct {
-	Page     int `json:"page" form:"page" binding:"required" example:"1"`
-	PageSize int `json:"page_size" form:"page_size" binding:"required" example:"10"`
+	Scope    string `json:"scope" form:"scope"` // mine: 我的, market: 市场
+	Page     int    `json:"page" form:"page" binding:"required" example:"1"`
+	PageSize int    `json:"page_size" form:"page_size" binding:"required" example:"10"`
 }
 
 // KnowledgeInfo 知识库信息
@@ -14,7 +15,10 @@ type KnowledgeInfo struct {
 	Status        string `json:"status" example:"active"` // active/inactive
 	DocumentCount int    `json:"document_count" example:"10"`
 	ContentHash   string `json:"content_hash" example:"abc123..."`
-	User          string `json:"user" example:"admin"`
+	User          string `json:"user" example:"admin"` // 保留用于向后兼容
+	Visibility    int    `json:"visibility" example:"0"` // 0: 公开, 1: 私有
+	Admin         string `json:"admin" example:"user1,user2"` // 管理员列表（逗号分隔）
+	IsAdmin       bool   `json:"is_admin" example:"true"` // 当前用户是否是管理员
 	CreatedAt     string `json:"created_at" example:"2024-01-01T00:00:00Z"`
 	UpdatedAt     string `json:"updated_at" example:"2024-01-01T00:00:00Z"`
 }
@@ -40,6 +44,8 @@ type KnowledgeCreateReq struct {
 	Name        string `json:"name" binding:"required" example:"Excel知识库"`
 	Description string `json:"description" example:"Excel相关的知识库"`
 	Status      string `json:"status" example:"active"` // active/inactive
+	Visibility  int    `json:"visibility" example:"0"` // 0: 公开, 1: 私有（默认0）
+	Admin       string `json:"admin" example:"user1,user2"` // 管理员列表（逗号分隔，默认创建用户）
 }
 
 // KnowledgeCreateResp 创建知识库响应
@@ -53,6 +59,8 @@ type KnowledgeUpdateReq struct {
 	Name        string `json:"name" binding:"required" example:"Excel知识库"`
 	Description string `json:"description" example:"Excel相关的知识库"`
 	Status      string `json:"status" example:"active"` // active/inactive
+	Visibility  int    `json:"visibility" example:"0"` // 0: 公开, 1: 私有
+	Admin       string `json:"admin" example:"user1,user2"` // 管理员列表（逗号分隔）
 }
 
 // KnowledgeUpdateResp 更新知识库响应

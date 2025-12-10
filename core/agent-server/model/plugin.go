@@ -24,7 +24,11 @@ type Plugin struct {
 	// 例如：{"timeout": 30, "max_file_size": 10485760}
 	Config *string `gorm:"type:json;comment:插件配置" json:"config"`
 
-	User string `gorm:"type:varchar(128);not null;index;comment:创建用户" json:"user"`
+	User string `gorm:"type:varchar(128);not null;index;comment:创建用户" json:"user"` // 保留用于向后兼容
+
+	// 权限控制
+	Visibility int    `gorm:"type:tinyint;default:0;index;comment:可见性(0:公开,1:私有)" json:"visibility"` // 0: 公开, 1: 私有
+	Admin      string `gorm:"type:varchar(512);not null;index;comment:管理员列表(逗号分隔)" json:"admin"`      // 管理员列表，逗号分隔，如："user1,user2,user3"
 }
 
 // TableName 指定表名
@@ -32,8 +36,17 @@ func (Plugin) TableName() string {
 	return "plugins"
 }
 
-// AfterCreate GORM 钩子：创建后自动生成 NATS 主题
+// AfterCreate GORM 钩子：创建后自动生成 NATS 主题和设置默认管理员
 func (p *Plugin) AfterCreate(tx *gorm.DB) error {
+	// 1. 设置默认管理员（如果为空，设置为创建用户）
+	if p.Admin == "" {
+		p.Admin = p.CreatedBy
+		if err := tx.Model(p).Update("admin", p.Admin).Error; err != nil {
+			return err
+		}
+	}
+
+	// 2. 生成 NATS 主题
 	if p.Subject == "" {
 		p.Subject = subjects.BuildPluginSubject(p.CreatedBy, p.ID)
 		// 更新数据库

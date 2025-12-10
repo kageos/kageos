@@ -18,6 +18,13 @@
         </div>
       </template>
 
+      <!-- 标签页：我的/市场 -->
+      <el-tabs v-model="activeTab" @tab-change="handleTabChange" class="scope-tabs">
+        <el-tab-pane label="我的插件" name="mine" />
+        <el-tab-pane label="插件市场" name="market" />
+      </el-tabs>
+      <el-divider />
+
       <!-- 筛选条件 -->
       <div class="filter-section">
         <el-form :inline="true" :model="filterForm" class="filter-form">
@@ -41,51 +48,42 @@
         </el-form>
       </div>
 
-      <!-- 表格 -->
-      <el-table
-        v-loading="loading"
-        :data="tableData"
-        style="width: 100%"
-        stripe
-      >
-        <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="name" label="名称" min-width="150" />
-        <el-table-column prop="code" label="代码" min-width="150" />
-        <el-table-column prop="user" label="创建用户" width="120" />
-        <el-table-column prop="enabled" label="状态" width="100">
-          <template #default="{ row }">
-            <el-tag v-if="row.enabled" type="success">已启用</el-tag>
-            <el-tag v-else type="danger">已禁用</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="subject" label="NATS 主题" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
-        <el-table-column label="操作" width="250" fixed="right">
-          <template #default="{ row }">
-            <el-button size="small" type="info" @click="handleDetail(row)">详情</el-button>
-            <el-button size="small" @click="handleEdit(row)">编辑</el-button>
-            <el-button
-              v-if="row.enabled"
-              size="small"
-              type="warning"
-              @click="handleDisable(row)"
-            >
-              禁用
-            </el-button>
-            <el-button
-              v-else
-              size="small"
-              type="success"
-              @click="handleEnable(row)"
-            >
-              启用
-            </el-button>
-            <el-button size="small" type="danger" @click="handleDelete(row)">
-              删除
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <!-- 统计卡片区 -->
+      <div class="stats-section">
+        <StatCard
+          :icon="Connection"
+          label="总数"
+          :value="stats.total"
+          icon-color="var(--el-color-primary)"
+        />
+        <StatCard
+          :icon="CircleCheck"
+          label="已启用"
+          :value="stats.enabled"
+          icon-color="var(--el-color-success)"
+        />
+        <StatCard
+          :icon="Operation"
+          label="使用中"
+          :value="stats.inUse"
+          icon-color="var(--el-color-warning)"
+        />
+      </div>
+
+      <!-- 卡片列表 -->
+      <div v-loading="loading" class="cards-container">
+        <PluginCard
+          v-for="plugin in tableData"
+          :key="plugin.id"
+          :plugin="plugin"
+          :agents="agentsByPlugin.get(plugin.id) || []"
+          @detail="handleDetail"
+          @edit="handleEdit"
+          @toggle="handleToggle"
+          @delete="handleDelete"
+        />
+        <el-empty v-if="!loading && tableData.length === 0" description="暂无数据" />
+      </div>
 
       <!-- 分页 -->
       <div class="pagination-container">
@@ -117,7 +115,12 @@
           <el-tag v-if="detailData.enabled" type="success">已启用</el-tag>
           <el-tag v-else type="danger">已禁用</el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="创建用户">{{ detailData.user }}</el-descriptions-item>
+        <el-descriptions-item label="可见性">
+          <el-tag :type="detailData.visibility === 0 ? 'success' : 'info'">
+            {{ detailData.visibility === 0 ? '公开' : '私有' }}
+          </el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="管理员">{{ detailData.admin || '-' }}</el-descriptions-item>
         <el-descriptions-item label="NATS 服务器地址" :span="2">
           <el-input
             :value="detailData.nats_host || '未配置'"
@@ -217,6 +220,21 @@
         <el-form-item label="启用状态">
           <el-switch v-model="formData.enabled" />
         </el-form-item>
+        <el-form-item label="可见性">
+          <el-radio-group v-model="formData.visibility">
+            <el-radio :label="0">公开（所有人可见）</el-radio>
+            <el-radio :label="1">私有（仅管理员可见）</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="管理员">
+          <el-input
+            v-model="formData.admin"
+            placeholder="管理员列表（逗号分隔，如：user1,user2）"
+          />
+          <div style="margin-top: 8px; font-size: 12px; color: #909399;">
+            提示：多个管理员用逗号分隔，留空则默认为创建用户
+          </div>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
@@ -229,7 +247,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElForm } from 'element-plus'
 import { ArrowLeft, Plus, Search, Refresh, DocumentCopy } from '@element-plus/icons-vue'
@@ -241,10 +259,12 @@ import {
   deletePlugin,
   enablePlugin,
   disablePlugin,
+  getAgentList,
   type PluginInfo,
   type PluginListReq,
   type PluginCreateReq,
-  type PluginUpdateReq
+  type PluginUpdateReq,
+  type AgentInfo
 } from '@/api/agent'
 import { useAuthStore } from '@/stores/auth'
 import type { FormRules } from 'element-plus'
@@ -256,11 +276,32 @@ const authStore = useAuthStore()
 const loading = ref(false)
 const tableData = ref<PluginInfo[]>([])
 
+// 每个插件对应的智能体列表（key: plugin_id, value: AgentInfo[]）
+const agentsByPlugin = ref<Map<number, AgentInfo[]>>(new Map())
+
+// 标签页
+const activeTab = ref<'mine' | 'market'>('mine')
+
 // 分页
 const pagination = reactive({
   page: 1,
   page_size: 10,
   total: 0
+})
+
+// 统计信息
+const stats = computed(() => {
+  const total = tableData.value.length
+  const enabled = tableData.value.filter((p: PluginInfo) => p.enabled).length
+  // 计算使用中的插件数量（被至少一个智能体使用）
+  const inUsePlugins = new Set<number>()
+  agentsByPlugin.value.forEach((agents: AgentInfo[], pluginId: number) => {
+    if (agents.length > 0) {
+      inUsePlugins.add(pluginId)
+    }
+  })
+  const inUse = inUsePlugins.size
+  return { total, enabled, inUse }
 })
 
 // 筛选条件
@@ -300,6 +341,13 @@ const rules: FormRules = {
   ]
 }
 
+// 标签页切换处理
+function handleTabChange(tabName: string) {
+  activeTab.value = tabName as 'mine' | 'market'
+  pagination.page = 1 // 切换标签页时重置页码
+  loadData()
+}
+
 // 加载数据
 async function loadData() {
   loading.value = true
@@ -307,17 +355,47 @@ async function loadData() {
     const params: PluginListReq = {
       page: pagination.page,
       page_size: pagination.page_size,
+      scope: activeTab.value, // 添加 scope 参数
       ...filterForm
     }
     const res = await getPluginList(params)
     // 响应拦截器已经返回了 data，所以 res 就是 PluginListResp
     tableData.value = res.plugins || []
     pagination.total = res.total || 0
+    
+    // 为每个插件加载使用它的智能体列表
+    await loadAgentsForPlugins()
   } catch (error: any) {
     ElMessage.error(error.message || '获取列表失败')
   } finally {
     loading.value = false
   }
+}
+
+// 获取使用指定插件的智能体列表
+async function getAgentsByPlugin(pluginId: number): Promise<AgentInfo[]> {
+  try {
+    const res = await getAgentList({
+      page: 1,
+      page_size: 1000, // 通常不会太多
+      plugin_id: pluginId
+    })
+    return res.agents || []
+  } catch (error: any) {
+    console.error('加载智能体列表失败:', error)
+    return []
+  }
+}
+
+// 为所有插件加载使用它们的智能体列表
+async function loadAgentsForPlugins() {
+  agentsByPlugin.value.clear()
+  // 并行加载所有插件的智能体列表
+  const promises = tableData.value.map(async (plugin: PluginInfo) => {
+    const agents = await getAgentsByPlugin(plugin.id)
+    agentsByPlugin.value.set(plugin.id, agents)
+  })
+  await Promise.all(promises)
 }
 
 // 分页变化
@@ -373,6 +451,12 @@ function handleCreate() {
 
 // 编辑
 function handleEdit(row: PluginInfo) {
+  // 检查权限：只有管理员可以编辑
+  if (!row.is_admin) {
+    ElMessage.warning('无权限：只有管理员可以编辑此资源')
+    return
+  }
+  
   dialogTitle.value = '编辑插件'
   formData.id = row.id
   formData.name = row.name
@@ -380,11 +464,19 @@ function handleEdit(row: PluginInfo) {
   formData.description = row.description || ''
   formData.enabled = row.enabled
   formData.config = row.config || null
+  formData.visibility = row.visibility ?? 0
+  formData.admin = row.admin || ''
   dialogVisible.value = true
 }
 
 // 删除
 async function handleDelete(row: PluginInfo) {
+  // 检查权限：只有管理员可以删除
+  if (!row.is_admin) {
+    ElMessage.warning('无权限：只有管理员可以删除此资源')
+    return
+  }
+  
   try {
     await ElMessageBox.confirm(`确定要删除插件"${row.name}"吗？`, '提示', {
       confirmButtonText: '确定',
@@ -401,31 +493,33 @@ async function handleDelete(row: PluginInfo) {
   }
 }
 
-// 启用
-async function handleEnable(row: PluginInfo) {
-  try {
-    await enablePlugin({ id: row.id })
-    ElMessage.success('启用成功')
-    loadData()
-  } catch (error: any) {
-    ElMessage.error(error.message || '启用失败')
+// 切换启用/禁用状态
+async function handleToggle(row: PluginInfo) {
+  // 检查权限：只有管理员可以启用/禁用
+  if (!row.is_admin) {
+    ElMessage.warning('无权限：只有管理员可以启用/禁用此资源')
+    return
   }
-}
-
-// 禁用
-async function handleDisable(row: PluginInfo) {
+  
   try {
-    await ElMessageBox.confirm(`确定要禁用插件"${row.name}"吗？`, '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
-    await disablePlugin({ id: row.id })
-    ElMessage.success('禁用成功')
+    if (row.enabled) {
+      // 禁用
+      await ElMessageBox.confirm(`确定要禁用插件"${row.name}"吗？`, '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      })
+      await disablePlugin({ id: row.id })
+      ElMessage.success('禁用成功')
+    } else {
+      // 启用
+      await enablePlugin({ id: row.id })
+      ElMessage.success('启用成功')
+    }
     loadData()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error(error.message || '禁用失败')
+      ElMessage.error(error.message || '操作失败')
     }
   }
 }
@@ -445,7 +539,9 @@ async function handleSubmit() {
         code: formData.code,
         description: formData.description || '',
         enabled: formData.enabled,
-        config: formData.config
+        config: formData.config,
+        visibility: formData.visibility ?? 0,
+        admin: formData.admin || ''
       }
       await updatePlugin(formData.id, updateData)
       ElMessage.success('更新成功')
@@ -458,7 +554,9 @@ async function handleSubmit() {
         code: formData.code,
         description: formData.description || '',
         enabled: formData.enabled,
-        config: formData.config
+        config: formData.config,
+        visibility: formData.visibility ?? 0,
+        admin: formData.admin || ''
       }
       await createPlugin(createData)
       ElMessage.success('创建成功')
@@ -482,6 +580,8 @@ function resetForm() {
   formData.description = ''
   formData.enabled = true
   formData.config = null
+  formData.visibility = 0
+  formData.admin = ''
   formRef.value?.clearValidate()
 }
 
@@ -527,12 +627,30 @@ onMounted(() => {
   padding: 0;
 }
 
+.scope-tabs {
+  margin-bottom: 20px;
+}
+
 .filter-section {
   margin-bottom: 20px;
 }
 
 .filter-form {
   margin: 0;
+}
+
+.stats-section {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.cards-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 20px;
+  margin-bottom: 20px;
 }
 
 .pagination-container {

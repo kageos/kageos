@@ -31,11 +31,21 @@ func (r *KnowledgeRepository) GetByID(id int64) (*model.KnowledgeBase, error) {
 
 
 // List 获取知识库列表
-func (r *KnowledgeRepository) List(offset, limit int) ([]*model.KnowledgeBase, int64, error) {
+func (r *KnowledgeRepository) List(scope string, currentUser string, offset, limit int) ([]*model.KnowledgeBase, int64, error) {
 	var kbs []*model.KnowledgeBase
 	var total int64
 
 	query := r.db.Model(&model.KnowledgeBase{})
+
+	// 权限过滤：根据 scope 参数
+	if scope == "mine" {
+		// 我的：显示当前用户是管理员的资源（公开+私有）
+		query = query.Where("FIND_IN_SET(?, admin) > 0", currentUser)
+	} else if scope == "market" {
+		// 市场：显示所有公开的资源
+		query = query.Where("visibility = ?", 0)
+	}
+	// 默认：显示所有（向后兼容，或根据需求调整）
 
 	// 获取总数
 	if err := query.Count(&total).Error; err != nil {

@@ -29,11 +29,15 @@ export interface AgentInfo {
   system_prompt_template?: string // System Prompt模板，支持{knowledge}变量
   timeout: number
   plugin_id?: number | null // 插件ID（仅 plugin 类型需要）
+  plugin?: PluginInfo // 预加载的插件信息
   knowledge_base_id: number
   knowledge_base?: KnowledgeBaseInfo // 预加载的知识库信息
   llm_config_id: number // LLM配置ID，如果为0则使用默认LLM
   llm_config?: LLMConfigInfo // 预加载的LLM配置信息
   metadata: string
+  visibility: number // 0: 公开, 1: 私有
+  admin: string // 管理员列表（逗号分隔）
+  is_admin: boolean // 当前用户是否是管理员
   created_at: string
   updated_at: string
 }
@@ -41,6 +45,10 @@ export interface AgentInfo {
 export interface AgentListReq {
   agent_type?: 'knowledge_only' | 'plugins'
   enabled?: boolean
+  knowledge_base_id?: number // 按知识库ID过滤（可选）
+  llm_config_id?: number // 按LLM配置ID过滤（可选，0表示默认LLM）
+  plugin_id?: number // 按插件ID过滤（可选）
+  scope?: 'mine' | 'market' // mine: 我的, market: 市场
   page: number
   page_size: number
 }
@@ -75,6 +83,8 @@ export interface AgentCreateReq {
   knowledge_base_id: number
   llm_config_id?: number // LLM配置ID，如果为0或不提供则使用默认LLM
   metadata?: string
+  visibility?: number // 0: 公开, 1: 私有（默认0）
+  admin?: string // 管理员列表（逗号分隔，默认创建用户）
 }
 
 export interface AgentCreateResp {
@@ -96,6 +106,8 @@ export interface AgentUpdateReq {
   knowledge_base_id: number
   llm_config_id?: number // LLM配置ID，如果为0或不提供则使用默认LLM
   metadata?: string
+  visibility?: number // 0: 公开, 1: 私有
+  admin?: string // 管理员列表（逗号分隔）
 }
 
 export interface AgentUpdateResp {
@@ -176,12 +188,16 @@ export interface KnowledgeInfo {
   status: string
   document_count: number
   content_hash: string
-  user: string
+  user: string // 保留用于向后兼容
+  visibility: number // 0: 公开, 1: 私有
+  admin: string // 管理员列表（逗号分隔）
+  is_admin: boolean // 当前用户是否是管理员
   created_at: string
   updated_at: string
 }
 
 export interface KnowledgeListReq {
+  scope?: 'mine' | 'market' // mine: 我的, market: 市场
   page: number
   page_size: number
 }
@@ -209,6 +225,8 @@ export interface KnowledgeCreateReq {
   name: string
   description?: string
   status?: string
+  visibility?: number // 0: 公开, 1: 私有（默认0）
+  admin?: string // 管理员列表（逗号分隔，默认创建用户）
 }
 
 export interface KnowledgeCreateResp {
@@ -224,6 +242,8 @@ export interface KnowledgeUpdateReq {
   name: string
   description?: string
   status?: string
+  visibility?: number // 0: 公开, 1: 私有
+  admin?: string // 管理员列表（逗号分隔）
 }
 
 export interface KnowledgeUpdateResp {
@@ -573,11 +593,15 @@ export interface LLMInfo {
   max_tokens: number
   extra_config: string
   is_default: boolean
+  visibility: number // 0: 公开, 1: 私有
+  admin: string // 管理员列表（逗号分隔）
+  is_admin: boolean // 当前用户是否是管理员
   created_at: string
   updated_at: string
 }
 
 export interface LLMListReq {
+  scope?: 'mine' | 'market' // mine: 我的, market: 市场
   page: number
   page_size: number
 }
@@ -617,6 +641,8 @@ export interface LLMCreateReq {
   max_tokens?: number
   extra_config?: string
   is_default?: boolean
+  visibility?: number // 0: 公开, 1: 私有（默认0）
+  admin?: string // 管理员列表（逗号分隔，默认创建用户）
 }
 
 export interface LLMCreateResp {
@@ -638,6 +664,8 @@ export interface LLMUpdateReq {
   max_tokens?: number
   extra_config?: string
   is_default?: boolean
+  visibility?: number // 0: 公开, 1: 私有
+  admin?: string // 管理员列表（逗号分隔）
 }
 
 export interface LLMUpdateResp {
@@ -716,13 +744,17 @@ export interface PluginInfo {
   subject: string // NATS主题，自动生成
   nats_host: string // NATS 服务器地址
   config?: string | null // 插件配置（JSON）
-  user: string // 创建用户
+  user: string // 创建用户（保留用于向后兼容）
+  visibility: number // 0: 公开, 1: 私有
+  admin: string // 管理员列表（逗号分隔）
+  is_admin: boolean // 当前用户是否是管理员
   created_at: string
   updated_at: string
 }
 
 export interface PluginListReq {
   enabled?: boolean
+  scope?: 'mine' | 'market' // mine: 我的, market: 市场
   page: number
   page_size: number
 }
@@ -744,6 +776,8 @@ export interface PluginCreateReq {
   description?: string
   enabled?: boolean
   config?: string | null // 插件配置（JSON）
+  visibility?: number // 0: 公开, 1: 私有（默认0）
+  admin?: string // 管理员列表（逗号分隔，默认创建用户）
 }
 
 export interface PluginCreateResp {
@@ -758,6 +792,8 @@ export interface PluginUpdateReq {
   description?: string
   enabled?: boolean
   config?: string | null // 插件配置（JSON）
+  visibility?: number // 0: 公开, 1: 私有
+  admin?: string // 管理员列表（逗号分隔）
 }
 
 export interface PluginUpdateResp {

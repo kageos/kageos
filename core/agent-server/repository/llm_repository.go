@@ -39,11 +39,21 @@ func (r *LLMRepository) GetDefault() (*model.LLMConfig, error) {
 }
 
 // List 获取 LLM 配置列表
-func (r *LLMRepository) List(offset, limit int) ([]*model.LLMConfig, int64, error) {
+func (r *LLMRepository) List(scope string, currentUser string, offset, limit int) ([]*model.LLMConfig, int64, error) {
 	var configs []*model.LLMConfig
 	var total int64
 
 	query := r.db.Model(&model.LLMConfig{})
+
+	// 权限过滤：根据 scope 参数
+	if scope == "mine" {
+		// 我的：显示当前用户是管理员的资源（公开+私有）
+		query = query.Where("FIND_IN_SET(?, admin) > 0", currentUser)
+	} else if scope == "market" {
+		// 市场：显示所有公开的资源
+		query = query.Where("visibility = ?", 0)
+	}
+	// 默认：显示所有（向后兼容，或根据需求调整）
 
 	// 获取总数
 	if err := query.Count(&total).Error; err != nil {

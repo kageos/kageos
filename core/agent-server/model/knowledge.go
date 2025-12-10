@@ -2,6 +2,7 @@ package model
 
 import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
+	"gorm.io/gorm"
 )
 
 // KnowledgeBase 知识库模型
@@ -12,12 +13,26 @@ type KnowledgeBase struct {
 	Status        string `gorm:"column:status;comment:状态(active/inactive)" json:"status"`
 	DocumentCount int    `gorm:"column:document_count;comment:文档数量" json:"document_count"`
 	ContentHash   string `gorm:"column:content_hash;type:varchar(64);comment:知识库内容哈希值" json:"content_hash"`
-	User          string `gorm:"column:user;comment:创建用户" json:"user"`
+	User          string `gorm:"column:user;comment:创建用户" json:"user"` // 保留用于向后兼容
+
+	// 权限控制
+	Visibility int    `gorm:"type:tinyint;default:0;index;comment:可见性(0:公开,1:私有)" json:"visibility"` // 0: 公开, 1: 私有
+	Admin      string `gorm:"type:varchar(512);not null;index;comment:管理员列表(逗号分隔)" json:"admin"`     // 管理员列表，逗号分隔，如："user1,user2,user3"
 }
 
 // TableName 指定表名
 func (KnowledgeBase) TableName() string {
 	return "knowledge_bases"
+}
+
+// AfterCreate GORM 钩子：设置默认管理员
+func (kb *KnowledgeBase) AfterCreate(tx *gorm.DB) error {
+	// 设置默认管理员（如果为空，设置为创建用户）
+	if kb.Admin == "" {
+		kb.Admin = kb.CreatedBy
+		return tx.Model(kb).Update("admin", kb.Admin).Error
+	}
+	return nil
 }
 
 // KnowledgeDocument 知识库文档模型
@@ -56,4 +71,3 @@ type KnowledgeChunk struct {
 func (KnowledgeChunk) TableName() string {
 	return "knowledge_chunks"
 }
-

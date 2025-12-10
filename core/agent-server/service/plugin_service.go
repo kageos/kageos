@@ -6,6 +6,7 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/repository"
+	"github.com/ai-agent-os/ai-agent-os/core/agent-server/utils"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
 	"gorm.io/gorm"
@@ -59,6 +60,11 @@ func (s *PluginService) CreatePlugin(ctx context.Context, plugin *model.Plugin) 
 	}
 	plugin.Config = normalizedConfig
 
+	// 设置默认管理员（如果为空，设置为创建用户）
+	if plugin.Admin == "" {
+		plugin.Admin = user
+	}
+
 	// 创建插件（AfterCreate 钩子会自动生成 NATS 主题）
 	err = s.repo.Create(plugin)
 	if err != nil {
@@ -80,6 +86,19 @@ func (s *PluginService) UpdatePlugin(ctx context.Context, plugin *model.Plugin) 
 	user := contextx.GetRequestUser(ctx)
 	plugin.UpdatedBy = user
 
+	// 检查权限：只有管理员可以修改资源
+	existing, err := s.repo.GetByID(plugin.ID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return fmt.Errorf("插件不存在")
+		}
+		return fmt.Errorf("获取插件失败: %w", err)
+	}
+
+	if !utils.IsAdmin(existing.Admin, user) {
+		return fmt.Errorf("无权限：只有管理员可以修改此资源")
+	}
+
 	// 验证必填字段
 	if plugin.Name == "" {
 		return fmt.Errorf("插件名称不能为空")
@@ -89,7 +108,7 @@ func (s *PluginService) UpdatePlugin(ctx context.Context, plugin *model.Plugin) 
 	}
 
 	// 检查 Code 是否与其他插件冲突（排除自己）
-	existing, err := s.repo.GetByCode(plugin.Code)
+	existing, err = s.repo.GetByCode(plugin.Code)
 	if err != nil && err != gorm.ErrRecordNotFound {
 		return fmt.Errorf("检查插件代码失败: %w", err)
 	}
@@ -122,23 +141,65 @@ func (s *PluginService) GetPlugin(ctx context.Context, id int64) (*model.Plugin,
 }
 
 // ListPlugins 获取插件列表
-func (s *PluginService) ListPlugins(ctx context.Context, enabled *bool, page, pageSize int) ([]*model.Plugin, int64, error) {
+func (s *PluginService) ListPlugins(ctx context.Context, scope string, enabled *bool, page, pageSize int) ([]*model.Plugin, int64, error) {
+	currentUser := contextx.GetRequestUser(ctx)
 	offset := (page - 1) * pageSize
-	return s.repo.List(enabled, offset, pageSize)
+	return s.repo.List(scope, currentUser, enabled, offset, pageSize)
 }
 
 // DeletePlugin 删除插件
 func (s *PluginService) DeletePlugin(ctx context.Context, id int64) error {
+	// 检查权限：只有管理员可以删除资源
+	user := contextx.GetRequestUser(ctx)
+	existing, err := s.repo.GetByID(id)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return fmt.Errorf("插件不存在")
+		}
+		return fmt.Errorf("获取插件失败: %w", err)
+	}
+
+	if !utils.IsAdmin(existing.Admin, user) {
+		return fmt.Errorf("无权限：只有管理员可以删除此资源")
+	}
+
 	return s.repo.Delete(id)
 }
 
 // EnablePlugin 启用插件
 func (s *PluginService) EnablePlugin(ctx context.Context, id int64) error {
+	// 检查权限：只有管理员可以启用资源
+	user := contextx.GetRequestUser(ctx)
+	existing, err := s.repo.GetByID(id)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return fmt.Errorf("插件不存在")
+		}
+		return fmt.Errorf("获取插件失败: %w", err)
+	}
+
+	if !utils.IsAdmin(existing.Admin, user) {
+		return fmt.Errorf("无权限：只有管理员可以启用此资源")
+	}
+
 	return s.repo.Enable(id)
 }
 
 // DisablePlugin 禁用插件
 func (s *PluginService) DisablePlugin(ctx context.Context, id int64) error {
+	// 检查权限：只有管理员可以禁用资源
+	user := contextx.GetRequestUser(ctx)
+	existing, err := s.repo.GetByID(id)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return fmt.Errorf("插件不存在")
+		}
+		return fmt.Errorf("获取插件失败: %w", err)
+	}
+
+	if !utils.IsAdmin(existing.Admin, user) {
+		return fmt.Errorf("无权限：只有管理员可以禁用此资源")
+	}
+
 	return s.repo.Disable(id)
 }
-

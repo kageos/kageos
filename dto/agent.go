@@ -2,10 +2,14 @@ package dto
 
 // AgentListReq 获取智能体列表请求
 type AgentListReq struct {
-	AgentType string `json:"agent_type" form:"agent_type"` // knowledge_only, plugin
-	Enabled   *bool  `json:"enabled" form:"enabled"`       // true, false
-	Page      int    `json:"page" form:"page" binding:"required" example:"1"`
-	PageSize  int    `json:"page_size" form:"page_size" binding:"required" example:"10"`
+	AgentType        string `json:"agent_type" form:"agent_type"`                    // knowledge_only, plugin
+	Enabled          *bool  `json:"enabled" form:"enabled"`                          // true, false
+	KnowledgeBaseID  *int64 `json:"knowledge_base_id" form:"knowledge_base_id"`      // 按知识库ID过滤（可选）
+	LLMConfigID      *int64 `json:"llm_config_id" form:"llm_config_id"`              // 按LLM配置ID过滤（可选，0表示默认LLM）
+	PluginID         *int64 `json:"plugin_id" form:"plugin_id"`                     // 按插件ID过滤（可选）
+	Scope            string `json:"scope" form:"scope"`                              // mine: 我的, market: 市场
+	Page             int    `json:"page" form:"page" binding:"required" example:"1"`
+	PageSize         int    `json:"page_size" form:"page_size" binding:"required" example:"10"`
 }
 
 // AgentInfo 智能体信息
@@ -19,12 +23,16 @@ type AgentInfo struct {
 	Description     string             `json:"description" example:"基于Excel文件生成管理系统"`
 	Timeout         int                `json:"timeout" example:"30"`
 	PluginID        *int64             `json:"plugin_id" example:"1"`                                        // 插件ID（仅 plugin 类型需要）
+	Plugin          *PluginInfo        `json:"plugin,omitempty"`                                            // 预加载的插件信息
 	KnowledgeBaseID     int64              `json:"knowledge_base_id" example:"1"`
 	KnowledgeBase       *KnowledgeBaseInfo `json:"knowledge_base,omitempty"`  // 预加载的知识库信息
 	LLMConfigID         int64              `json:"llm_config_id" example:"1"` // LLM配置ID，如果为0则使用默认LLM
 	LLMConfig           *LLMConfigInfo     `json:"llm_config,omitempty"`      // 预加载的LLM配置信息
 	SystemPromptTemplate string            `json:"system_prompt_template" example:"你是一个专业的代码生成助手。以下是相关的知识库内容，请参考这些内容来生成代码：\n{knowledge}"` // System Prompt模板，支持{knowledge}变量
 	Metadata            string             `json:"metadata" example:"{}"`
+	Visibility          int                `json:"visibility" example:"0"` // 0: 公开, 1: 私有
+	Admin               string             `json:"admin" example:"user1,user2"` // 管理员列表（逗号分隔）
+	IsAdmin             bool               `json:"is_admin" example:"true"` // 当前用户是否是管理员（前端计算或后端返回）
 	CreatedAt       string             `json:"created_at" example:"2024-01-01T00:00:00Z"`
 	UpdatedAt       string             `json:"updated_at" example:"2024-01-01T00:00:00Z"`
 }
@@ -76,6 +84,8 @@ type AgentCreateReq struct {
 	LLMConfigID         int64  `json:"llm_config_id" example:"1"` // LLM配置ID，如果为0则使用默认LLM
 	SystemPromptTemplate string `json:"system_prompt_template" example:"你是一个专业的代码生成助手。以下是相关的知识库内容，请参考这些内容来生成代码：\n{knowledge}"` // System Prompt模板，支持{knowledge}变量
 	Metadata            string `json:"metadata" example:"{}"`
+	Visibility          int    `json:"visibility" example:"0"` // 0: 公开, 1: 私有（默认0）
+	Admin               string `json:"admin" example:"user1,user2"` // 管理员列表（逗号分隔，默认创建用户）
 }
 
 // AgentCreateResp 创建智能体响应
@@ -97,6 +107,8 @@ type AgentUpdateReq struct {
 	LLMConfigID         int64  `json:"llm_config_id" example:"1"` // LLM配置ID，如果为0则使用默认LLM
 	SystemPromptTemplate string `json:"system_prompt_template" example:"你是一个专业的代码生成助手。以下是相关的知识库内容，请参考这些内容来生成代码：\n{knowledge}"` // System Prompt模板，支持{knowledge}变量
 	Metadata            string `json:"metadata" example:"{}"`
+	Visibility          int    `json:"visibility" example:"0"` // 0: 公开, 1: 私有
+	Admin               string `json:"admin" example:"user1,user2"` // 管理员列表（逗号分隔）
 }
 
 // AgentUpdateResp 更新智能体响应

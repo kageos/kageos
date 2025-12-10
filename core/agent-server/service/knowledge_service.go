@@ -6,6 +6,7 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/repository"
+	"github.com/ai-agent-os/ai-agent-os/core/agent-server/utils"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -35,12 +36,13 @@ func (s *KnowledgeService) GetKnowledgeBase(ctx context.Context, id int64) (*mod
 
 
 // ListKnowledgeBases 获取知识库列表
-func (s *KnowledgeService) ListKnowledgeBases(ctx context.Context, page, pageSize int) ([]*model.KnowledgeBase, int64, error) {
+func (s *KnowledgeService) ListKnowledgeBases(ctx context.Context, scope string, page, pageSize int) ([]*model.KnowledgeBase, int64, error) {
+	currentUser := contextx.GetRequestUser(ctx)
 	offset := (page - 1) * pageSize
 	if pageSize <= 0 {
 		pageSize = 10
 	}
-	return s.repo.List(offset, pageSize)
+	return s.repo.List(scope, currentUser, offset, pageSize)
 }
 
 // CreateKnowledgeBase 创建知识库
@@ -64,6 +66,11 @@ func (s *KnowledgeService) CreateKnowledgeBase(ctx context.Context, kb *model.Kn
 		kb.DocumentCount = 0
 	}
 
+	// 设置默认管理员（如果为空，设置为创建用户）
+	if kb.Admin == "" {
+		kb.Admin = user
+	}
+
 	return s.repo.Create(kb)
 }
 
@@ -72,6 +79,19 @@ func (s *KnowledgeService) UpdateKnowledgeBase(ctx context.Context, kb *model.Kn
 	// 获取用户信息
 	user := contextx.GetRequestUser(ctx)
 	kb.UpdatedBy = user
+
+	// 检查权限：只有管理员可以修改资源
+	existing, err := s.repo.GetByID(kb.ID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return fmt.Errorf("知识库不存在")
+		}
+		return fmt.Errorf("获取知识库失败: %w", err)
+	}
+
+	if !utils.IsAdmin(existing.Admin, user) {
+		return fmt.Errorf("无权限：只有管理员可以修改此资源")
+	}
 
 	// 验证必填字段
 	if kb.Name == "" {
@@ -83,6 +103,20 @@ func (s *KnowledgeService) UpdateKnowledgeBase(ctx context.Context, kb *model.Kn
 
 // DeleteKnowledgeBase 删除知识库（根据 ID，保留兼容）
 func (s *KnowledgeService) DeleteKnowledgeBase(ctx context.Context, id int64) error {
+	// 检查权限：只有管理员可以删除资源
+	user := contextx.GetRequestUser(ctx)
+	existing, err := s.repo.GetByID(id)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return fmt.Errorf("知识库不存在")
+		}
+		return fmt.Errorf("获取知识库失败: %w", err)
+	}
+
+	if !utils.IsAdmin(existing.Admin, user) {
+		return fmt.Errorf("无权限：只有管理员可以删除此资源")
+	}
+
 	return s.repo.Delete(id)
 }
 

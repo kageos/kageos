@@ -43,6 +43,10 @@ type Agent struct {
 
 	// 元数据（JSON，允许为 NULL）
 	Metadata *string `gorm:"type:json" json:"metadata"`
+
+	// 权限控制
+	Visibility int    `gorm:"type:tinyint;default:0;index;comment:可见性(0:公开,1:私有)" json:"visibility"` // 0: 公开, 1: 私有
+	Admin      string `gorm:"type:varchar(512);not null;index;comment:管理员列表(逗号分隔)" json:"admin"`      // 管理员列表，逗号分隔，如："user1,user2,user3"
 }
 
 // TableName 指定表名
@@ -50,8 +54,17 @@ func (Agent) TableName() string {
 	return "agents"
 }
 
-// AfterCreate GORM 钩子：创建后自动生成消息主题（已废弃，新架构使用 Plugin.Subject）
+// AfterCreate GORM 钩子：创建后自动生成消息主题和设置默认管理员
 func (a *Agent) AfterCreate(tx *gorm.DB) error {
+	// 1. 设置默认管理员（如果为空，设置为创建用户）
+	if a.Admin == "" {
+		a.Admin = a.CreatedBy
+		if err := tx.Model(a).Update("admin", a.Admin).Error; err != nil {
+			return err
+		}
+	}
+
+	// 2. 生成消息主题（已废弃，新架构使用 Plugin.Subject）
 	// 注意：新架构中，plugin 类型的智能体应该关联 Plugin，使用 Plugin.Subject
 	// 此钩子保留用于向后兼容，如果 Agent 没有关联 Plugin，则使用旧的逻辑
 	if a.AgentType == "plugin" && a.MsgSubject == "" && (a.PluginID == nil || *a.PluginID == 0) {

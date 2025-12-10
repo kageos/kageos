@@ -2,8 +2,9 @@ package dto
 
 // LLMListReq 获取LLM配置列表请求
 type LLMListReq struct {
-	Page     int `json:"page" form:"page" binding:"required" example:"1"`
-	PageSize int `json:"page_size" form:"page_size" binding:"required" example:"10"`
+	Scope    string `json:"scope" form:"scope"` // mine: 我的, market: 市场
+	Page     int    `json:"page" form:"page" binding:"required" example:"1"`
+	PageSize int    `json:"page_size" form:"page_size" binding:"required" example:"10"`
 }
 
 // LLMInfo LLM配置信息
@@ -17,6 +18,9 @@ type LLMInfo struct {
 	MaxTokens   int    `json:"max_tokens" example:"4000"`
 	ExtraConfig string `json:"extra_config" example:"{}"`
 	IsDefault   bool   `json:"is_default" example:"true"`
+	Visibility  int    `json:"visibility" example:"0"` // 0: 公开, 1: 私有
+	Admin       string `json:"admin" example:"user1,user2"` // 管理员列表（逗号分隔）
+	IsAdmin     bool   `json:"is_admin" example:"true"` // 当前用户是否是管理员
 	CreatedAt   string `json:"created_at" example:"2024-01-01T00:00:00Z"`
 	UpdatedAt   string `json:"updated_at" example:"2024-01-01T00:00:00Z"`
 }
@@ -53,6 +57,8 @@ type LLMCreateReq struct {
 	MaxTokens   int     `json:"max_tokens" example:"4000"`
 	ExtraConfig *string `json:"extra_config" example:"{}"`
 	IsDefault   bool    `json:"is_default" example:"false"`
+	Visibility  int     `json:"visibility" example:"0"` // 0: 公开, 1: 私有（默认0）
+	Admin       string  `json:"admin" example:"user1,user2"` // 管理员列表（逗号分隔，默认创建用户）
 }
 
 // LLMCreateResp 创建LLM配置响应
@@ -72,6 +78,8 @@ type LLMUpdateReq struct {
 	MaxTokens   int    `json:"max_tokens" example:"4000"`
 	ExtraConfig string `json:"extra_config" example:"{}"`
 	IsDefault   bool   `json:"is_default" example:"false"`
+	Visibility  int    `json:"visibility" example:"0"` // 0: 公开, 1: 私有
+	Admin       string `json:"admin" example:"user1,user2"` // 管理员列表（逗号分隔）
 }
 
 // LLMUpdateResp 更新LLM配置响应
