@@ -687,8 +687,33 @@ const handleNodeClick = (node: ServiceTreeType) => {
       // 路由已匹配，直接触发节点点击加载详情（避免路由更新循环）
       applicationService.triggerNodeClick(serviceTree)
     }
+  } else if (serviceTree.type === 'package') {
+    // 目录节点，更新路由到目录路径
+    if (serviceTree.full_code_path && currentApp.value) {
+      const targetPath = `/workspace${serviceTree.full_code_path}`
+      if (route.path !== targetPath) {
+        // 🔥 发出路由更新请求事件
+        eventBus.emit(RouteEvent.updateRequested, {
+          path: targetPath,
+          query: {}, // 目录节点清空所有查询参数
+          replace: true,
+          preserveParams: {
+            state: false,  // 目录节点不保留状态参数
+            table: false,
+            search: false
+          },
+          source: 'workspace-node-click'
+        })
+      } else {
+        // 路由已匹配，直接触发节点点击（避免路由更新循环）
+        applicationService.triggerNodeClick(serviceTree)
+      }
+    } else {
+      // 没有 full_code_path 或没有当前应用，只设置当前函数
+      applicationService.triggerNodeClick(serviceTree)
+    }
   } else {
-    // 目录节点，不更新路由，只设置当前函数
+    // 其他类型节点，只设置当前函数
     applicationService.triggerNodeClick(serviceTree)
   }
 }
