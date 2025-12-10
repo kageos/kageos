@@ -148,11 +148,10 @@ func (s *AgentChatService) FunctionGenChat(ctx context.Context, req *dto.Functio
 	if req.SessionID == "" {
 		// 创建新会话
 		sessionID = uuid.New().String()
-		logger.Infof(ctx, "[FunctionGenChat] 创建新会话 - SessionID: %s, TreeID: %d, AgentID: %d, TraceID: %s",
-			sessionID, req.TreeID, req.AgentID, traceId)
+		logger.Infof(ctx, "[FunctionGenChat] 创建新会话 - SessionID: %s, TreeID: %d, TraceID: %s",
+			sessionID, req.TreeID, traceId)
 		session := &model.AgentChatSession{
 			TreeID:    req.TreeID,
-			AgentID:   req.AgentID,
 			SessionID: sessionID,
 			Title:     "", // 可以后续根据第一条消息自动生成
 			User:      user,
@@ -180,10 +179,11 @@ func (s *AgentChatService) FunctionGenChat(ctx context.Context, req *dto.Functio
 	}
 
 	// 3. 保存用户消息
-	logger.Debugf(ctx, "[FunctionGenChat] 保存用户消息 - SessionID: %s, ContentLength: %d, FilesCount: %d, TraceID: %s",
-		sessionID, len(req.Message.Content), len(req.Message.Files), traceId)
+	logger.Debugf(ctx, "[FunctionGenChat] 保存用户消息 - SessionID: %s, AgentID: %d, ContentLength: %d, FilesCount: %d, TraceID: %s",
+		sessionID, req.AgentID, len(req.Message.Content), len(req.Message.Files), traceId)
 	userMessage := &model.AgentChatMessage{
 		SessionID: sessionID,
+		AgentID:   req.AgentID, // 记录处理该消息的智能体ID
 		Role:      "user",
 		Content:   req.Message.Content,
 		User:      user,
@@ -467,6 +467,7 @@ func (s *AgentChatService) FunctionGenChat(ctx context.Context, req *dto.Functio
 		// 保存 assistant 消息
 		assistantMsg := &model.AgentChatMessage{
 			SessionID: sessionID,
+			AgentID:   req.AgentID, // 记录处理该消息的智能体ID
 			Role:      "assistant",
 			Content:   resp.Content,
 			User:      user,

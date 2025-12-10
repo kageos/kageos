@@ -159,12 +159,9 @@ export class ErrorHandler {
     // 3. error.message (JS 错误)
     // 4. 默认消息
     
+    // 🔥 统一使用 msg 字段
     if (error?.response?.data?.msg) {
       return error.response.data.msg
-    }
-    
-    if (error?.response?.data?.message) {
-      return error.response.data.message
     }
     
     if (error?.message) {

@@ -169,7 +169,8 @@ export function useWorkspaceDetail(options: {
     } catch (error: any) {
       ElNotification.error({
         title: '错误',
-        message: error?.response?.data?.message || error?.message || '更新失败'
+        // 🔥 统一使用 msg 字段
+        message: error?.response?.data?.msg || error?.message || '更新失败'
       })
     } finally {
       drawerSubmitting.value = false

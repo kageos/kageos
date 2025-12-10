@@ -1,39 +1,87 @@
 <template>
   <div class="ai-chat-panel">
-    <div class="chat-header">
-      <h3>AI 助手</h3>
-      <div class="header-actions">
-        <el-select
-          v-model="selectedAgentId"
-          placeholder="选择智能体"
-          filterable
-          :loading="agentLoading"
-          style="width: 200px; margin-right: 8px;"
-          @change="handleAgentChange"
-        >
-          <el-option
-            v-for="agent in agentOptions"
-            :key="agent.id"
-            :label="agent.name"
-            :value="agent.id"
-          >
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span>{{ agent.name }}</span>
-              <el-tag size="small" :type="agent.agent_type === 'plugin' ? 'warning' : 'success'" style="margin-left: 8px;">
-                {{ agent.agent_type === 'plugin' ? '插件' : '知识库' }}
-              </el-tag>
-            </div>
-          </el-option>
-        </el-select>
+    <!-- 会话列表侧边栏 -->
+    <div class="session-sidebar">
+      <div class="sidebar-header">
+        <h4>会话列表</h4>
         <el-button
-          link
-          :icon="Close"
-          @click="$emit('close')"
-          class="close-button"
-          title="关闭"
-        />
+          type="primary"
+          :icon="Plus"
+          size="small"
+          @click.stop="handleNewSession"
+          title="新建会话"
+        >
+          新建
+        </el-button>
+      </div>
+      <div class="session-list" v-loading="loadingSessions">
+        <!-- 新建会话提示项（当没有选中会话时显示） -->
+        <div
+          v-if="!sessionId"
+          class="session-item new-session-item"
+        >
+          <div class="session-title">
+            <el-icon><Plus /></el-icon>
+            <span>新会话</span>
+          </div>
+          <div class="session-time">准备开始</div>
+        </div>
+        
+        <div
+          v-for="session in sessionList"
+          :key="session.session_id"
+          :class="['session-item', { active: session.session_id === sessionId }]"
+          @click="handleSelectSession(session.session_id)"
+        >
+          <div class="session-title">
+            {{ session.title || '未命名会话' }}
+          </div>
+          <div class="session-time">
+            {{ formatSessionTime(session.updated_at) }}
+          </div>
+        </div>
+        <div v-if="sessionList.length === 0 && !loadingSessions && sessionId" class="empty-sessions">
+          暂无会话，点击"新建"创建会话
+        </div>
       </div>
     </div>
+
+    <!-- 主聊天区域 -->
+    <div class="chat-main">
+      <div class="chat-header">
+        <h3>AI 助手</h3>
+        <div class="header-actions">
+          <el-select
+            v-model="selectedAgentId"
+            placeholder="选择智能体"
+            filterable
+            :loading="agentLoading"
+            style="width: 200px; margin-right: 8px;"
+            @change="handleAgentChange"
+          >
+            <el-option
+              v-for="agent in agentOptions"
+              :key="agent.id"
+              :label="agent.name"
+              :value="agent.id"
+            >
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span>{{ agent.name }}</span>
+                <el-tag size="small" :type="agent.agent_type === 'plugin' ? 'warning' : 'success'" style="margin-left: 8px;">
+                  {{ agent.agent_type === 'plugin' ? '插件' : '知识库' }}
+                </el-tag>
+              </div>
+            </el-option>
+          </el-select>
+          <el-button
+            link
+            :icon="Close"
+            @click="$emit('close')"
+            class="close-button"
+            title="关闭"
+          />
+        </div>
+      </div>
 
     <div class="chat-messages" ref="messagesContainerRef">
       <div
@@ -135,17 +183,19 @@
         <el-button @click="handleClear">清空</el-button>
       </div>
     </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, nextTick, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Close, User, Loading, ChatRound, Upload, Document } from '@element-plus/icons-vue'
+import { Close, User, Loading, ChatRound, Upload, Document, Plus } from '@element-plus/icons-vue'
 import * as agentApi from '@/api/agent'
-import type { AgentInfo } from '@/api/agent'
+import type { AgentInfo, ChatSessionInfo } from '@/api/agent'
 import { uploadFile, notifyUploadComplete } from '@/utils/upload'
 import type { UploadFile } from 'element-plus'
+import { marked } from 'marked'
 
 interface Props {
   agentId: number | null
@@ -196,69 +246,11 @@ const agentLoading = ref(false)
 
 // 会话ID（首次为空，后端自动生成）
 const sessionId = ref<string>('')
+const loadingSession = ref(false)
 
-// 🔥 获取当前目录的存储 key（用于 localStorage）
-const getStorageKey = (): string => {
-  if (!props.treeId || !props.package) {
-    return ''
-  }
-  return `ai_chat_${props.treeId}_${props.package}`
-}
-
-// 🔥 从 localStorage 加载会话记录
-const loadSessionFromStorage = (): void => {
-  const storageKey = getStorageKey()
-  if (!storageKey) {
-    return
-  }
-  
-  try {
-    const stored = localStorage.getItem(storageKey)
-    if (stored) {
-      const data = JSON.parse(stored)
-      if (data.sessionId) {
-        sessionId.value = data.sessionId
-      }
-      if (data.messages && Array.isArray(data.messages) && data.messages.length > 0) {
-        messages.value = data.messages
-        // 滚动到底部
-        nextTick(() => {
-          scrollToBottom()
-        })
-        return // 如果有历史消息，不显示欢迎消息
-      }
-    }
-  } catch (error) {
-    console.error('[AIChatPanel] 加载会话记录失败:', error)
-  }
-  
-  // 如果没有历史消息，显示欢迎消息
-  if (messages.value.length === 0) {
-    if (props.currentNodeName) {
-      addMessage('assistant', `你好！我是 AI 助手，可以帮助你处理「${props.currentNodeName}」相关的问题。有什么可以帮助你的吗？`)
-    } else {
-      addMessage('assistant', '你好！我是 AI 助手，有什么可以帮助你的吗？')
-    }
-  }
-}
-
-// 🔥 保存会话记录到 localStorage
-const saveSessionToStorage = (): void => {
-  const storageKey = getStorageKey()
-  if (!storageKey) {
-    return
-  }
-  
-  try {
-    const data = {
-      sessionId: sessionId.value,
-      messages: messages.value
-    }
-    localStorage.setItem(storageKey, JSON.stringify(data))
-  } catch (error) {
-    console.error('[AIChatPanel] 保存会话记录失败:', error)
-  }
-}
+// 会话列表相关
+const sessionList = ref<ChatSessionInfo[]>([])
+const loadingSessions = ref(false)
 
 // 加载智能体列表
 async function loadAgents() {
@@ -286,53 +278,191 @@ async function loadAgents() {
   }
 }
 
-// 智能体变化处理
-function handleAgentChange() {
+// 加载会话列表
+async function loadSessionList() {
+  if (!props.treeId) {
+    sessionList.value = []
+    return
+  }
+
+  loadingSessions.value = true
+  try {
+    const res = await agentApi.getChatSessionList({
+      tree_id: props.treeId,
+      page: 1,
+      page_size: 50 // 加载最近50个会话
+    })
+    sessionList.value = res.sessions || []
+  } catch (error: any) {
+    console.error('[AIChatPanel] 加载会话列表失败:', error)
+    ElMessage.error(error.message || '加载会话列表失败')
+  } finally {
+    loadingSessions.value = false
+  }
+}
+
+// 加载指定会话的消息
+async function loadSessionMessages(targetSessionId: string) {
+  loadingSession.value = true
+  try {
+    const messageRes = await agentApi.getChatMessageList({
+      session_id: targetSessionId
+    })
+
+    if (messageRes.messages && messageRes.messages.length > 0) {
+      // 转换消息格式
+      messages.value = messageRes.messages.map(msg => {
+        let files: ChatFile[] | undefined
+        if (msg.files) {
+          try {
+            const filesData = JSON.parse(msg.files)
+            files = Array.isArray(filesData) ? filesData.map((f: any) => ({
+              url: f.url || '',
+              remark: f.remark || ''
+            })) : undefined
+          } catch (e) {
+            console.error('[AIChatPanel] 解析文件列表失败:', e)
+          }
+        }
+        return {
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+          files,
+          timestamp: new Date(msg.created_at).getTime()
+        }
+      })
+
+      // 滚动到底部
+      nextTick(() => {
+        scrollToBottom()
+      })
+    } else {
+      // 如果没有消息，显示欢迎消息
+      messages.value = []
+      if (props.currentNodeName) {
+        addMessage('assistant', `你好！我是 AI 助手，可以帮助你处理「${props.currentNodeName}」相关的问题。有什么可以帮助你的吗？`)
+      } else {
+        addMessage('assistant', '你好！我是 AI 助手，有什么可以帮助你的吗？')
+      }
+    }
+  } catch (error: any) {
+    console.error('[AIChatPanel] 加载会话消息失败:', error)
+    ElMessage.error(error.message || '加载会话消息失败')
+    // 加载失败时显示欢迎消息
+    messages.value = []
+    if (props.currentNodeName) {
+      addMessage('assistant', `你好！我是 AI 助手，可以帮助你处理「${props.currentNodeName}」相关的问题。有什么可以帮助你的吗？`)
+    } else {
+      addMessage('assistant', '你好！我是 AI 助手，有什么可以帮助你的吗？')
+    }
+  } finally {
+    loadingSession.value = false
+  }
+}
+
+// 从后端加载会话和消息
+async function loadSessionFromBackend() {
+  if (!props.treeId) {
+    // 如果没有 treeId，显示欢迎消息
+    if (messages.value.length === 0) {
+      if (props.currentNodeName) {
+        addMessage('assistant', `你好！我是 AI 助手，可以帮助你处理「${props.currentNodeName}」相关的问题。有什么可以帮助你的吗？`)
+      } else {
+        addMessage('assistant', '你好！我是 AI 助手，有什么可以帮助你的吗？')
+      }
+    }
+    return
+  }
+
+  // 先加载会话列表
+  await loadSessionList()
+
+  // 如果有会话列表，加载最新的会话
+  if (sessionList.value.length > 0) {
+    const latestSession = sessionList.value[0]
+    sessionId.value = latestSession.session_id
+    await loadSessionMessages(latestSession.session_id)
+  } else {
+    // 如果没有会话，显示欢迎消息
+    sessionId.value = ''
+    messages.value = []
+    if (props.currentNodeName) {
+      addMessage('assistant', `你好！我是 AI 助手，可以帮助你处理「${props.currentNodeName}」相关的问题。有什么可以帮助你的吗？`)
+    } else {
+      addMessage('assistant', '你好！我是 AI 助手，有什么可以帮助你的吗？')
+    }
+  }
+}
+
+// 新建会话
+function handleNewSession() {
+  console.log('[AIChatPanel] 新建会话被点击, treeId:', props.treeId)
+  
+  if (!props.treeId) {
+    ElMessage.warning('缺少服务目录ID，无法创建会话')
+    return
+  }
+  
+  // 清空当前会话ID，表示新建会话
+  sessionId.value = ''
   messages.value = []
-  sessionId.value = '' // 切换智能体时重置会话ID
   uploadedFiles.value = []
+  
+  // 显示欢迎消息
   if (props.currentNodeName) {
     addMessage('assistant', `你好！我是 AI 助手，可以帮助你处理「${props.currentNodeName}」相关的问题。有什么可以帮助你的吗？`)
   } else {
     addMessage('assistant', '你好！我是 AI 助手，有什么可以帮助你的吗？')
   }
+  
+  // 滚动到底部
+  nextTick(() => {
+    scrollToBottom()
+  })
+  
+  ElMessage.success('已创建新会话，发送第一条消息后将自动保存')
+}
+
+// 选择会话
+async function handleSelectSession(targetSessionId: string) {
+  if (targetSessionId === sessionId.value) {
+    return // 已经是当前会话，不需要切换
+  }
+  
+  sessionId.value = targetSessionId
+  await loadSessionMessages(targetSessionId)
+}
+
+// 智能体变化处理
+async function handleAgentChange() {
+  messages.value = []
+  sessionId.value = '' // 切换智能体时重置会话ID
+  uploadedFiles.value = []
+  // 从后端加载新智能体的会话记录
+  await loadSessionFromBackend()
 }
 
 // 初始化欢迎消息
 onMounted(async () => {
   await loadAgents()
   
-  // 🔥 加载会话记录（如果有）
-  loadSessionFromStorage()
+  // 从后端加载会话记录（如果有）
+  await loadSessionFromBackend()
 })
 
-// 🔥 监听目录切换，恢复会话记录
+// 监听目录切换，恢复会话记录
 watch(
-  () => [props.treeId, props.package, props.currentNodeName],
-  ([newTreeId, newPackage, newNodeName], [oldTreeId, oldPackage, oldNodeName]) => {
-    // 如果 treeId 或 package 变化，说明切换了目录
-    if (newTreeId !== oldTreeId || newPackage !== oldPackage) {
-      // 先保存旧目录的会话记录
-      if (oldTreeId && oldPackage) {
-        const oldStorageKey = `ai_chat_${oldTreeId}_${oldPackage}`
-        try {
-          const oldData = {
-            sessionId: sessionId.value,
-            messages: messages.value
-          }
-          localStorage.setItem(oldStorageKey, JSON.stringify(oldData))
-        } catch (error) {
-          console.error('[AIChatPanel] 保存旧目录会话记录失败:', error)
-        }
-      }
-      
+  () => [props.treeId, props.package, props.currentNodeName, selectedAgentId.value],
+  async ([newTreeId, newPackage, newNodeName, newAgentId], [oldTreeId, oldPackage, oldNodeName, oldAgentId]) => {
+    // 如果 treeId、package 或 agentId 变化，说明切换了目录或智能体
+    if (newTreeId !== oldTreeId || newPackage !== oldPackage || newAgentId !== oldAgentId) {
       // 清空当前状态
       messages.value = []
       sessionId.value = ''
       uploadedFiles.value = []
       
-      // 加载新目录的会话记录
-      loadSessionFromStorage()
+      // 从后端加载新目录/智能体的会话记录（会同时加载会话列表和消息）
+      await loadSessionFromBackend()
     } else if (newNodeName !== oldNodeName) {
       // 如果只是目录名称变化（但 treeId 和 package 没变），更新欢迎消息
       // 这种情况比较少见，但为了完整性还是处理一下
@@ -340,7 +470,6 @@ watch(
         messages.value[0].content = newNodeName
           ? `你好！我是 AI 助手，可以帮助你处理「${newNodeName}」相关的问题。有什么可以帮助你的吗？`
           : '你好！我是 AI 助手，有什么可以帮助你的吗？'
-        saveSessionToStorage()
       }
     }
   }
@@ -376,9 +505,7 @@ function addMessage(role: 'user' | 'assistant', content: string, files?: ChatFil
     files,
     timestamp: Date.now()
   })
-  
-  // 🔥 保存会话记录到 localStorage
-  saveSessionToStorage()
+  // 注意：消息已由后端保存，不需要前端保存
 }
 
 // 处理文件选择（el-upload 组件）
@@ -502,13 +629,13 @@ async function handleSend() {
     // 更新会话ID（首次创建时返回）
     if (res.session_id) {
       sessionId.value = res.session_id
+      // 如果创建了新会话，刷新会话列表
+      await loadSessionList()
     }
 
     // 添加 AI 回复
     addMessage('assistant', res.content || '抱歉，AI 没有返回内容')
-    
-    // 🔥 保存会话记录到 localStorage
-    saveSessionToStorage()
+    // 注意：消息已由后端保存，不需要前端保存
   } catch (error: any) {
     ElMessage.error(error.message || '发送消息失败')
     // 移除用户消息（因为发送失败）
@@ -535,13 +662,31 @@ function handleClear() {
   }
 }
 
+// 配置 marked 选项
+marked.setOptions({
+  breaks: true, // 支持换行
+  gfm: true, // 支持 GitHub Flavored Markdown
+  headerIds: false, // 不生成 header IDs
+  mangle: false // 不混淆邮箱地址
+})
+
 // 格式化消息内容（支持 Markdown）
 function formatMessage(content: string): string {
-  return content
-    .replace(/\n/g, '<br>')
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/`(.*?)`/g, '<code>$1</code>')
+  if (!content) return ''
+  
+  try {
+    // 使用 marked 渲染 Markdown
+    const html = marked.parse(content) as string
+    return html
+  } catch (error) {
+    console.error('[AIChatPanel] Markdown 渲染失败:', error)
+    // 如果渲染失败，返回转义后的原始内容
+    return content
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n/g, '<br>')
+  }
 }
 
 // 格式化时间
@@ -569,6 +714,30 @@ function formatTime(timestamp: number): string {
   }
 }
 
+// 格式化会话时间
+function formatSessionTime(timeStr: string): string {
+  const date = new Date(timeStr)
+  const now = new Date()
+  const diff = now.getTime() - date.getTime()
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+
+  if (days === 0) {
+    return date.toLocaleTimeString('zh-CN', {
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  } else if (days === 1) {
+    return '昨天'
+  } else if (days < 7) {
+    return `${days}天前`
+  } else {
+    return date.toLocaleDateString('zh-CN', {
+      month: 'short',
+      day: 'numeric'
+    })
+  }
+}
+
 // 滚动到底部
 function scrollToBottom() {
   if (messagesContainerRef.value) {
@@ -580,10 +749,99 @@ function scrollToBottom() {
 <style scoped>
 .ai-chat-panel {
   display: flex;
-  flex-direction: column;
   height: 100%;
   background: var(--el-bg-color);
   border-left: 1px solid var(--el-border-color);
+}
+
+.session-sidebar {
+  width: 240px;
+  border-right: 1px solid var(--el-border-color);
+  display: flex;
+  flex-direction: column;
+  background: var(--el-fill-color-lighter);
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--el-border-color);
+}
+
+.sidebar-header h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.session-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.session-item {
+  padding: 12px;
+  margin-bottom: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color);
+}
+
+.session-item:hover {
+  background: var(--el-fill-color-light);
+}
+
+.session-item.active {
+  background: var(--el-color-primary-light-9);
+  border-color: var(--el-color-primary);
+}
+
+.session-item.new-session-item {
+  background: var(--el-color-primary-light-9);
+  border-color: var(--el-color-primary);
+  border-style: dashed;
+}
+
+.session-item.new-session-item .session-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--el-color-primary);
+  font-weight: 600;
+}
+
+.session-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-time {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.empty-sessions {
+  padding: 20px;
+  text-align: center;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.chat-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .chat-header {
@@ -661,15 +919,140 @@ function scrollToBottom() {
   background: var(--el-fill-color-lighter);
 }
 
+/* Markdown 样式 */
 .message-text :deep(code) {
   background: rgba(0, 0, 0, 0.1);
-  padding: 2px 4px;
+  padding: 2px 6px;
   border-radius: 3px;
   font-family: 'Courier New', monospace;
+  font-size: 0.9em;
 }
 
 .message-item.user .message-text :deep(code) {
   background: rgba(255, 255, 255, 0.2);
+}
+
+.message-text :deep(pre) {
+  background: rgba(0, 0, 0, 0.05);
+  padding: 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 8px 0;
+  border: 1px solid var(--el-border-color);
+}
+
+.message-item.user .message-text :deep(pre) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.message-text :deep(pre code) {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  font-size: 0.9em;
+  line-height: 1.5;
+}
+
+.message-text :deep(h1),
+.message-text :deep(h2),
+.message-text :deep(h3),
+.message-text :deep(h4),
+.message-text :deep(h5),
+.message-text :deep(h6) {
+  margin: 16px 0 8px 0;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.message-text :deep(h1) {
+  font-size: 1.5em;
+  border-bottom: 2px solid var(--el-border-color);
+  padding-bottom: 8px;
+}
+
+.message-text :deep(h2) {
+  font-size: 1.3em;
+  border-bottom: 1px solid var(--el-border-color);
+  padding-bottom: 6px;
+}
+
+.message-text :deep(h3) {
+  font-size: 1.1em;
+}
+
+.message-text :deep(p) {
+  margin: 8px 0;
+  line-height: 1.6;
+}
+
+.message-text :deep(ul),
+.message-text :deep(ol) {
+  margin: 8px 0;
+  padding-left: 24px;
+}
+
+.message-text :deep(li) {
+  margin: 4px 0;
+  line-height: 1.6;
+}
+
+.message-text :deep(blockquote) {
+  margin: 8px 0;
+  padding: 8px 16px;
+  border-left: 4px solid var(--el-color-primary);
+  background: var(--el-fill-color-lighter);
+  border-radius: 4px;
+}
+
+.message-item.user .message-text :deep(blockquote) {
+  background: rgba(255, 255, 255, 0.1);
+  border-left-color: rgba(255, 255, 255, 0.5);
+}
+
+.message-text :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 0.9em;
+}
+
+.message-text :deep(th),
+.message-text :deep(td) {
+  border: 1px solid var(--el-border-color);
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.message-text :deep(th) {
+  background: var(--el-fill-color-light);
+  font-weight: 600;
+}
+
+.message-text :deep(a) {
+  color: var(--el-color-primary);
+  text-decoration: none;
+}
+
+.message-text :deep(a:hover) {
+  text-decoration: underline;
+}
+
+.message-item.user .message-text :deep(a) {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.message-text :deep(hr) {
+  border: none;
+  border-top: 1px solid var(--el-border-color);
+  margin: 16px 0;
+}
+
+.message-text :deep(img) {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  margin: 8px 0;
 }
 
 .message-files {

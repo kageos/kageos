@@ -76,3 +76,49 @@ type PluginRunResp struct {
 	Data  string `json:"data" example:"工单标题,问题描述,优先级,工单状态\n工单1,描述1,低,待处理"` // 处理后的数据（格式化后的文本，供LLM理解）
 	Error string `json:"error,omitempty" example:"文件解析失败: 读取 CSV 行失败"`              // 错误信息（如果有），如果设置了此字段，表示插件处理失败，不应调用 LLM
 }
+
+// ChatSessionListReq 获取会话列表请求
+type ChatSessionListReq struct {
+	TreeID   int64 `json:"tree_id" form:"tree_id" binding:"required" example:"629"`     // 服务目录ID
+	Page     int   `json:"page" form:"page" binding:"required" example:"1"`            // 页码
+	PageSize int   `json:"page_size" form:"page_size" binding:"required" example:"10"` // 每页数量
+}
+
+// ChatSessionInfo 会话信息
+type ChatSessionInfo struct {
+	ID        int64  `json:"id" example:"1"`                           // 会话ID
+	TreeID    int64  `json:"tree_id" example:"629"`                     // 服务目录ID
+	SessionID string `json:"session_id" example:"550e8400-e29b-41d4-a716-446655440000"` // 会话ID（UUID）
+	Title     string `json:"title" example:"会话标题"`                    // 会话标题
+	User      string `json:"user" example:"beiluo"`                     // 创建用户
+	CreatedAt string `json:"created_at" example:"2006-01-02T15:04:05Z"` // 创建时间
+	UpdatedAt string `json:"updated_at" example:"2006-01-02T15:04:05Z"` // 更新时间
+}
+
+// ChatSessionListResp 获取会话列表响应
+type ChatSessionListResp struct {
+	Sessions []ChatSessionInfo `json:"sessions"` // 会话列表
+	Total    int64             `json:"total" example:"100"` // 总数
+}
+
+// ChatMessageListReq 获取消息列表请求
+type ChatMessageListReq struct {
+	SessionID string `json:"session_id" form:"session_id" binding:"required" example:"550e8400-e29b-41d4-a716-446655440000"` // 会话ID
+}
+
+// ChatMessageInfo 消息信息
+type ChatMessageInfo struct {
+	ID        int64  `json:"id" example:"1"`                           // 消息ID
+	SessionID string `json:"session_id" example:"550e8400-e29b-41d4-a716-446655440000"` // 会话ID
+	AgentID   int64  `json:"agent_id" example:"1"`                     // 处理该消息的智能体ID
+	Role      string `json:"role" example:"user"`                      // 消息角色：user/assistant/system
+	Content   string `json:"content" example:"你好"`                     // 消息内容
+	Files     string `json:"files,omitempty" example:"[{\"url\":\"...\",\"remark\":\"...\"}]"` // 文件列表（JSON字符串，可选）
+	User      string `json:"user" example:"beiluo"`                    // 创建用户
+	CreatedAt string `json:"created_at" example:"2006-01-02T15:04:05Z"` // 创建时间
+}
+
+// ChatMessageListResp 获取消息列表响应
+type ChatMessageListResp struct {
+	Messages []ChatMessageInfo `json:"messages"` // 消息列表（按创建时间升序）
+}

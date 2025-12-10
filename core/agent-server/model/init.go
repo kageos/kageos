@@ -13,7 +13,6 @@ func InitTables(db *gorm.DB) error {
 		&KnowledgeDocument{},
 		&KnowledgeChunk{},
 		&LLMConfig{},
-		&CodeGenConfig{},
 		&Task{},
 		&AgentChatSession{},
 		&AgentChatMessage{},
@@ -24,4 +23,3 @@ func InitTables(db *gorm.DB) error {
 
 	return nil
 }
-

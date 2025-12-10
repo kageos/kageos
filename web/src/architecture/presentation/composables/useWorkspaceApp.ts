@@ -149,7 +149,8 @@ export function useWorkspaceApp() {
         await handleSwitchApp(newApp, currentApp)
       }
     } catch (error: any) {
-      const errorMessage = error?.response?.data?.message || '创建工作空间失败'
+      // 🔥 统一使用 msg 字段
+      const errorMessage = error?.response?.data?.msg || '创建工作空间失败'
       ElNotification.error({
         title: '错误',
         message: errorMessage
@@ -168,7 +169,8 @@ export function useWorkspaceApp() {
         message: '工作空间更新成功'
       })
     } catch (error: any) {
-      const errorMessage = error?.response?.data?.message || '更新工作空间失败'
+      // 🔥 统一使用 msg 字段
+      const errorMessage = error?.response?.data?.msg || '更新工作空间失败'
       ElNotification.error({
         title: '错误',
         message: errorMessage
@@ -216,7 +218,8 @@ export function useWorkspaceApp() {
       }
     } catch (error: any) {
       if (error !== 'cancel') {
-        const errorMessage = error?.response?.data?.message || '删除工作空间失败'
+        // 🔥 统一使用 msg 字段
+        const errorMessage = error?.response?.data?.msg || '删除工作空间失败'
         ElNotification.error({
           title: '错误',
           message: errorMessage

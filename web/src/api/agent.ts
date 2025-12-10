@@ -500,6 +500,66 @@ export function agentChat(data: AgentChatReq) {
   })
 }
 
+// ==================== 会话和消息相关 ====================
+
+export interface ChatSessionInfo {
+  id: number
+  tree_id: number
+  session_id: string
+  title: string
+  user: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ChatSessionListReq {
+  tree_id: number
+  page: number
+  page_size: number
+}
+
+export interface ChatSessionListResp {
+  sessions: ChatSessionInfo[]
+  total: number
+}
+
+/**
+ * 获取会话列表
+ */
+export function getChatSessionList(params: ChatSessionListReq) {
+  return axiosInstance.get<ChatSessionListResp>('/api/v1/agent/chat/sessions', {
+    params
+  })
+}
+
+export interface ChatMessageInfo {
+  id: number
+  session_id: string
+  agent_id: number // 处理该消息的智能体ID
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  files?: string // JSON 字符串，格式：[{"url":"...","remark":"..."}]
+  user: string
+  created_at: string
+}
+
+export interface ChatMessageListReq {
+  session_id: string
+}
+
+export interface ChatMessageListResp {
+  messages: ChatMessageInfo[]
+}
+
+/**
+ * 获取消息列表
+ */
+export function getChatMessageList(params: ChatMessageListReq) {
+  return axiosInstance.get<ChatMessageListResp>('/api/v1/agent/chat/messages', {
+    params
+  })
+}
+
 // ==================== LLM 相关 ====================
 
 export interface LLMInfo {

@@ -1342,10 +1342,8 @@ const handleDetailSave = async (): Promise<void> => {
     }
   } catch (error: any) {
     Logger.error('TableRenderer', '保存失败', error)
-    const errorMessage = error?.response?.data?.msg 
-      || error?.response?.data?.message 
-      || error?.message 
-      || '保存失败'
+    // 🔥 统一使用 msg 字段
+    const errorMessage = error?.response?.data?.msg || error?.message || '保存失败'
     // 🔥 使用 ElNotification 替代 ElMessage，确保显示在抽屉上方（z-index 更高）
     ElNotification({
       title: '保存失败',

@@ -45,7 +45,8 @@ const handleLogin = async () => {
     await router.push('/')
   } catch (error: any) {
     console.error('登录失败:', error)
-    const message = error?.response?.data?.message || error?.message || '登录失败，请检查用户名和密码'
+    // 🔥 统一使用 msg 字段
+    const message = error?.response?.data?.msg || error?.message || '登录失败，请检查用户名和密码'
     ElMessage.error(message)
   } finally {
     loading.value = false

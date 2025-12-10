@@ -53,30 +53,6 @@ func (r *ChatSessionRepository) ListByTreeID(treeID int64, offset, limit int) ([
 	return sessions, total, nil
 }
 
-// ListByTreeIDAndAgentID 根据 TreeID 和 AgentID 获取会话列表
-func (r *ChatSessionRepository) ListByTreeIDAndAgentID(treeID, agentID int64, offset, limit int) ([]*model.AgentChatSession, int64, error) {
-	var sessions []*model.AgentChatSession
-	var total int64
-
-	query := r.db.Model(&model.AgentChatSession{}).
-		Where("tree_id = ? AND agent_id = ?", treeID, agentID)
-
-	// 获取总数
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-
-	// 获取列表
-	if err := query.
-		Offset(offset).
-		Limit(limit).
-		Order("created_at DESC").
-		Find(&sessions).Error; err != nil {
-		return nil, 0, err
-	}
-
-	return sessions, total, nil
-}
 
 // Update 更新会话
 func (r *ChatSessionRepository) Update(session *model.AgentChatSession) error {

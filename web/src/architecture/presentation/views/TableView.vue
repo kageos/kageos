@@ -1068,8 +1068,10 @@ const handleCreateSubmit = async (data: Record<string, any>): Promise<void> => {
     // 清理 URL 中的 _tab 参数
     handleCreateDialogClose()
   } catch (error: any) {
-    const msg = error?.response?.data?.message || '新增失败'
-    ElMessage.error(msg)
+    // 🔥 统一使用 msg 字段
+    // 根据 request.ts 的响应拦截器，当 code !== 0 时，会创建 Error 对象并附加 response
+    const errorMessage = error?.response?.data?.msg || error?.message || '新增失败'
+    ElMessage.error(errorMessage)
   }
 }
 

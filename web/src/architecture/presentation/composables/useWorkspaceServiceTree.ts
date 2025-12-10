@@ -144,7 +144,8 @@ export function useWorkspaceServiceTree() {
         await applicationService.triggerAppSwitch(appForService)
       }
     } catch (error: any) {
-      const errorMessage = error?.response?.data?.msg || error?.response?.data?.message || error?.message || '创建服务目录失败'
+      // 🔥 统一使用 msg 字段
+      const errorMessage = error?.response?.data?.msg || error?.message || '创建服务目录失败'
       ElNotification.error({
         title: '错误',
         message: errorMessage
