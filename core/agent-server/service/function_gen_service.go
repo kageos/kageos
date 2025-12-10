@@ -36,17 +36,51 @@ func NewFunctionGenService(natsConn *nats.Conn, cfg *config.AgentServerConfig) *
 }
 
 // RunPlugin 执行插件处理
-// agent: 智能体信息（包含 ChatType、CreatedBy、ID 等信息）
+// agent: 智能体信息（包含 Plugin 关联）
 // req: 插件执行请求（包含用户消息和文件列表）
 func (s *FunctionGenService) RunPlugin(ctx context.Context, agent *model.Agent, req *dto.PluginRunReq) (*dto.PluginRunResp, error) {
 	traceId := contextx.GetTraceId(ctx)
 
-	// 1. 构建插件主题
-	pluginSubject := subjects.BuildAgentPluginRunSubject(agent.ChatType, agent.CreatedBy, agent.ID)
-	logger.Infof(ctx, "[FunctionGenService] 开始调用 Plugin - Subject: %s, AgentID: %d, MessageLength: %d, FilesCount: %d, TraceID: %s",
-		pluginSubject, agent.ID, len(req.Message), len(req.Files), traceId)
+	// 1. 验证插件类型
+	if agent.AgentType != "plugin" {
+		return nil, fmt.Errorf("智能体类型不是 plugin，无法调用插件")
+	}
 
-	// 2. 调用插件（使用 NATS Request/Reply 模式）
+	// 2. 获取插件信息
+	if agent.PluginID == nil || *agent.PluginID == 0 {
+		// 向后兼容：如果没有关联插件，使用旧的逻辑
+		pluginSubject := subjects.BuildAgentPluginRunSubject(agent.ChatType, agent.CreatedBy, agent.ID)
+		logger.Warnf(ctx, "[FunctionGenService] 智能体未关联插件，使用旧的插件主题 - Subject: %s, AgentID: %d, TraceID: %s",
+			pluginSubject, agent.ID, traceId)
+		return s.callPlugin(ctx, pluginSubject, agent.ID, req, traceId)
+	}
+
+	// 3. 验证插件是否已预加载
+	if agent.Plugin == nil {
+		return nil, fmt.Errorf("插件信息未预加载，请确保 AgentRepository.GetByID 预加载了 Plugin")
+	}
+
+	plugin := agent.Plugin
+	if !plugin.Enabled {
+		return nil, fmt.Errorf("插件已禁用: PluginID=%d", plugin.ID)
+	}
+
+	// 4. 使用插件的主题
+	pluginSubject := plugin.Subject
+	if pluginSubject == "" {
+		return nil, fmt.Errorf("插件主题为空: PluginID=%d", plugin.ID)
+	}
+
+	logger.Infof(ctx, "[FunctionGenService] 开始调用 Plugin - Subject: %s, PluginID: %d, AgentID: %d, MessageLength: %d, FilesCount: %d, TraceID: %s",
+		pluginSubject, plugin.ID, agent.ID, len(req.Message), len(req.Files), traceId)
+
+	return s.callPlugin(ctx, pluginSubject, agent.ID, req, traceId)
+}
+
+// callPlugin 调用插件的通用方法
+func (s *FunctionGenService) callPlugin(ctx context.Context, pluginSubject string, agentID int64, req *dto.PluginRunReq, traceId string) (*dto.PluginRunResp, error) {
+
+	// 调用插件（使用 NATS Request/Reply 模式）
 	var pluginResp dto.PluginRunResp
 	timeout := time.Duration(s.cfg.GetNatsTimeout()) * time.Second
 	logger.Debugf(ctx, "[FunctionGenService] 发送 NATS 请求 - Subject: %s, Timeout: %v, TraceID: %s",
@@ -58,12 +92,12 @@ func (s *FunctionGenService) RunPlugin(ctx context.Context, agent *model.Agent, 
 
 	if err != nil {
 		logger.Errorf(ctx, "[FunctionGenService] 调用插件失败 - Subject: %s, AgentID: %d, Duration: %v, TraceID: %s, Error: %v",
-			pluginSubject, agent.ID, duration, traceId, err)
+			pluginSubject, agentID, duration, traceId, err)
 		return nil, fmt.Errorf("调用 plugin 失败: %w", err)
 	}
 
 	logger.Infof(ctx, "[FunctionGenService] 插件执行成功 - Subject: %s, AgentID: %d, DataLength: %d, Duration: %v, TraceID: %s",
-		pluginSubject, agent.ID, len(pluginResp.Data), duration, traceId)
+		pluginSubject, agentID, len(pluginResp.Data), duration, traceId)
 
 	return &pluginResp, nil
 }
@@ -289,9 +323,10 @@ func (s *AgentChatService) FunctionGenChat(ctx context.Context, req *dto.Functio
 
 	// 5.4 处理 plugin 类型智能体（在构建用户消息之前）
 	var userContent string
+	var pluginResp *dto.PluginRunResp // 保存插件响应，用于后续记录 Metadata
 	if agent.AgentType == "plugin" {
-		logger.Infof(ctx, "[FunctionGenChat] 调用 Plugin - AgentID: %d, MsgSubject: %s, MessageLength: %d, FilesCount: %d, TraceID: %s",
-			agent.ID, agent.MsgSubject, len(req.Message.Content), len(req.Message.Files), traceId)
+		logger.Infof(ctx, "[FunctionGenChat] 调用 Plugin - AgentID: %d, MessageLength: %d, FilesCount: %d, TraceID: %s",
+			agent.ID, len(req.Message.Content), len(req.Message.Files), traceId)
 		// 6.1 构建 plugin 请求
 		pluginFiles := make([]dto.PluginFile, 0, len(req.Message.Files))
 		for _, f := range req.Message.Files {
@@ -306,11 +341,11 @@ func (s *AgentChatService) FunctionGenChat(ctx context.Context, req *dto.Functio
 		}
 
 		// 6.2 调用 plugin 处理文件/输入
-		logger.Debugf(ctx, "[FunctionGenChat] 开始调用 Plugin - Subject: %s, TraceID: %s", agent.MsgSubject, traceId)
-		pluginResp, err := s.functionGenService.RunPlugin(ctx, agent, pluginReq)
+		var err error
+		pluginResp, err = s.functionGenService.RunPlugin(ctx, agent, pluginReq)
 		if err != nil {
-			logger.Errorf(ctx, "[FunctionGenChat] Plugin 调用失败 - AgentID: %d, Subject: %s, TraceID: %s, Error: %v",
-				agent.ID, agent.MsgSubject, traceId, err)
+			logger.Errorf(ctx, "[FunctionGenChat] Plugin 调用失败 - AgentID: %d, TraceID: %s, Error: %v",
+				agent.ID, traceId, err)
 			return nil, err
 		}
 
@@ -415,11 +450,12 @@ func (s *AgentChatService) FunctionGenChat(ctx context.Context, req *dto.Functio
 		chatReq.Temperature = temperature
 	}
 
-	// 8. 创建 function_gen 记录（异步处理）
-	logger.Infof(ctx, "[FunctionGenChat] 创建生成记录 - SessionID: %s, AgentID: %d, TreeID: %d, TraceID: %s",
-		sessionID, req.AgentID, req.TreeID, traceId)
+	// 8. 创建 function_gen 记录（包含 MessageID 和 Metadata）
+	logger.Infof(ctx, "[FunctionGenChat] 创建生成记录 - SessionID: %s, MessageID: %d, AgentID: %d, TreeID: %d, TraceID: %s",
+		sessionID, userMessage.ID, req.AgentID, req.TreeID, traceId)
 	record := &model.FunctionGenRecord{
 		SessionID: sessionID,
+		MessageID: userMessage.ID, // 关联到用户消息
 		AgentID:   req.AgentID,
 		TreeID:    req.TreeID,
 		Status:    model.FunctionGenStatusGenerating,
@@ -427,11 +463,25 @@ func (s *AgentChatService) FunctionGenChat(ctx context.Context, req *dto.Functio
 	}
 	record.CreatedBy = user
 	record.UpdatedBy = user
+
+	// 设置元数据（记录生成过程）
+	metadata := map[string]interface{}{
+		"user_message": req.Message.Content,
+		"files":        req.Message.Files,
+	}
+	if pluginResp != nil {
+		metadata["plugin_data"] = pluginResp.Data
+	}
+	if err := record.SetMetadata(metadata); err != nil {
+		logger.Errorf(ctx, "[FunctionGenChat] 设置元数据失败 - SessionID: %s, TraceID: %s, Error: %v", sessionID, traceId, err)
+		return nil, fmt.Errorf("设置元数据失败: %w", err)
+	}
+
 	if err := s.functionGenRepo.Create(record); err != nil {
 		logger.Errorf(ctx, "[FunctionGenChat] 创建生成记录失败 - SessionID: %s, TraceID: %s, Error: %v", sessionID, traceId, err)
 		return nil, fmt.Errorf("创建生成记录失败: %w", err)
 	}
-	logger.Infof(ctx, "[FunctionGenChat] 生成记录创建成功 - RecordID: %d, SessionID: %s, TraceID: %s", record.ID, sessionID, traceId)
+	logger.Infof(ctx, "[FunctionGenChat] 生成记录创建成功 - RecordID: %d, MessageID: %d, SessionID: %s, TraceID: %s", record.ID, userMessage.ID, sessionID, traceId)
 
 	// 9. 调用 LLM（异步处理，先返回）
 	logger.Infof(ctx, "[FunctionGenChat] 启动异步 LLM 调用 - RecordID: %d, MessagesCount: %d, TraceID: %s",
@@ -498,11 +548,12 @@ func (s *AgentChatService) FunctionGenChat(ctx context.Context, req *dto.Functio
 
 		// 10. 将结果写入 NATS 队列（供 app-server 消费）
 		resultData := &dto.FunctionGenResult{
-			RecordID: record.ID,
-			AgentID:  req.AgentID,
-			TreeID:   req.TreeID,
-			User:     user,
-			Code:     extractedCode, // 使用提取后的代码
+			RecordID:  record.ID,
+			MessageID: record.MessageID, // 消息ID
+			AgentID:   req.AgentID,
+			TreeID:    req.TreeID,
+			User:      user,
+			Code:      extractedCode, // 使用提取后的代码
 		}
 
 		// 发布结果到 NATS

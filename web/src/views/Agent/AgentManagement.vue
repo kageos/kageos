@@ -157,68 +157,6 @@
           <span v-else-if="detailData.llm_config_id === 0">使用默认 LLM</span>
           <span v-else>ID: {{ detailData.llm_config_id }}</span>
         </el-descriptions-item>
-        <el-descriptions-item 
-          v-if="detailData.agent_type === 'plugin'"
-          label="NATS 服务器地址" 
-          :span="2"
-        >
-          <el-input 
-            :value="detailData.nats_host || '未配置'" 
-            readonly
-            style="width: 100%"
-          >
-            <template #append>
-              <el-button 
-                :icon="DocumentCopy" 
-                @click="handleCopyMsgSubject(detailData.nats_host || '')"
-                :disabled="!detailData.nats_host"
-              >
-                复制
-              </el-button>
-            </template>
-          </el-input>
-        </el-descriptions-item>
-        <el-descriptions-item 
-          v-if="detailData.agent_type === 'plugin'"
-          label="插件主题" 
-          :span="2"
-        >
-          <el-input 
-            :value="detailData.msg_subject || '未生成'" 
-            readonly
-            style="width: 100%"
-          >
-            <template #append>
-              <el-button 
-                :icon="DocumentCopy" 
-                @click="handleCopyMsgSubject(detailData.msg_subject || '')"
-                :disabled="!detailData.msg_subject"
-              >
-                复制
-              </el-button>
-            </template>
-          </el-input>
-        </el-descriptions-item>
-        <el-descriptions-item 
-          v-if="detailData.agent_type === 'plugin' && detailData.msg_subject"
-          label="完整主题地址" 
-          :span="2"
-        >
-          <el-input 
-            :value="`${detailData.msg_subject}.run`" 
-            readonly
-            style="width: 100%"
-          >
-            <template #append>
-              <el-button 
-                :icon="DocumentCopy" 
-                @click="handleCopyMsgSubject(`${detailData.msg_subject}.run`)"
-              >
-                复制
-              </el-button>
-            </template>
-          </el-input>
-        </el-descriptions-item>
         <el-descriptions-item label="系统提示词模板" :span="2">
           <el-input
             :value="detailData.system_prompt_template || '未设置，使用默认模板'"
@@ -261,7 +199,39 @@
             <el-option label="插件调用类型" value="plugin" />
           </el-select>
         </el-form-item>
-        <!-- 接口地址字段已移除：插件类型智能体的 NATS 主题由后端自动生成 -->
+        <el-form-item
+          v-if="formData.agent_type === 'plugin'"
+          label="插件"
+          prop="plugin_id"
+        >
+          <el-select
+            v-model="formData.plugin_id"
+            filterable
+            :loading="pluginLoading"
+            placeholder="请选择插件（必填）"
+            style="width: 100%"
+            clearable
+            @focus="handlePluginSelectFocus"
+          >
+            <el-option
+              v-for="plugin in pluginOptions"
+              :key="plugin.id"
+              :label="plugin.name"
+              :value="plugin.id"
+              :disabled="!plugin.enabled"
+            >
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span>{{ plugin.name }}</span>
+                <el-tag size="small" :type="plugin.enabled ? 'success' : 'danger'" style="margin-left: 8px;">
+                  {{ plugin.enabled ? '已启用' : '已禁用' }}
+                </el-tag>
+              </div>
+            </el-option>
+          </el-select>
+          <div style="margin-top: 8px; font-size: 12px; color: #909399;">
+            提示：插件类型智能体必须关联一个已启用的插件
+          </div>
+        </el-form-item>
         <el-form-item label="LLM 配置">
           <el-select
             v-model="formData.llm_config_id"
@@ -374,12 +344,14 @@ import {
   disableAgent,
   getKnowledgeList,
   getLLMList,
+  getPluginList,
   type AgentInfo,
   type AgentListReq,
   type AgentCreateReq,
   type AgentUpdateReq,
   type KnowledgeInfo,
-  type LLMInfo
+  type LLMInfo,
+  type PluginInfo
 } from '@/api/agent'
 import type { FormRules } from 'element-plus'
 
@@ -419,6 +391,7 @@ const formData = reactive<AgentCreateReq & { id?: number }>({
   chat_type: 'function_gen', // 默认值
   description: '',
   timeout: 30,
+  plugin_id: null, // 插件ID（仅 plugin 类型需要）
   knowledge_base_id: 0,
   llm_config_id: 0, // 0 表示使用默认 LLM
   metadata: ''
@@ -431,6 +404,10 @@ const knowledgeBaseOptions = ref<KnowledgeInfo[]>([])
 // LLM 配置
 const llmOptions = ref<LLMInfo[]>([])
 const llmLoading = ref(false)
+
+// 插件配置
+const pluginOptions = ref<PluginInfo[]>([])
+const pluginLoading = ref(false)
 
 // 搜索知识库
 async function searchKnowledgeBases(keyword: string) {
@@ -488,7 +465,53 @@ async function loadAllKnowledgeBases() {
 const rules: FormRules = {
   name: [{ required: true, message: '请输入智能体名称', trigger: 'blur' }],
   agent_type: [{ required: true, message: '请选择智能体类型', trigger: 'change' }],
+  plugin_id: [
+    {
+      validator: (rule: any, value: any, callback: any) => {
+        if (formData.agent_type === 'plugin' && (!value || value === 0)) {
+          callback(new Error('插件类型智能体必须选择插件'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'change'
+    }
+  ],
   knowledge_base_id: [{ required: true, message: '请选择知识库', trigger: 'change' }]
+}
+
+// 加载插件列表
+async function loadPlugins() {
+  pluginLoading.value = true
+  try {
+    const res = await getPluginList({
+      page: 1,
+      page_size: 1000, // 加载所有
+      enabled: true // 只加载已启用的插件
+    })
+    pluginOptions.value = res.plugins || []
+  } catch (error: any) {
+    console.error('加载插件列表失败:', error)
+    ElMessage.error(error.message || '加载插件列表失败')
+    pluginOptions.value = []
+  } finally {
+    pluginLoading.value = false
+  }
+}
+
+// 插件选择器获得焦点时加载插件列表
+async function handlePluginSelectFocus() {
+  if (pluginOptions.value.length === 0) {
+    await loadPlugins()
+  }
+}
+
+// 智能体类型变化时的处理
+function handleAgentTypeChange() {
+  // 如果切换到非 plugin 类型，清空 plugin_id
+  if (formData.agent_type !== 'plugin') {
+    formData.plugin_id = null
+  }
 }
 
 // 加载数据（同时提取知识库和 LLM 选项）
@@ -669,9 +692,15 @@ async function handleEdit(row: AgentInfo) {
   formData.description = row.description
   formData.system_prompt_template = row.system_prompt_template || ''
   formData.timeout = row.timeout
+  formData.plugin_id = row.plugin_id || null
   formData.knowledge_base_id = row.knowledge_base_id
   formData.llm_config_id = row.llm_config_id || 0
   formData.metadata = row.metadata || ''
+  
+  // 如果是 plugin 类型，确保插件列表已加载
+  if (row.agent_type === 'plugin' && pluginOptions.value.length === 0) {
+    await loadPlugins()
+  }
   
   dialogVisible.value = true
 }
@@ -723,11 +752,6 @@ async function handleDisable(row: AgentInfo) {
   }
 }
 
-// 智能体类型变化
-function handleAgentTypeChange() {
-  // 插件类型智能体的 NATS 主题由后端自动生成，无需前端处理
-}
-
 // 提交表单
 async function handleSubmit() {
   if (!formRef.value) return
@@ -746,6 +770,7 @@ async function handleSubmit() {
         description: formData.description,
         system_prompt_template: formData.system_prompt_template || '',
         timeout: formData.timeout,
+        plugin_id: formData.agent_type === 'plugin' ? formData.plugin_id : null,
         knowledge_base_id: formData.knowledge_base_id,
         llm_config_id: formData.llm_config_id || 0,
         metadata: formData.metadata
@@ -763,6 +788,7 @@ async function handleSubmit() {
         description: formData.description,
         system_prompt_template: formData.system_prompt_template || '',
         timeout: formData.timeout,
+        plugin_id: formData.agent_type === 'plugin' ? formData.plugin_id : null,
         knowledge_base_id: formData.knowledge_base_id,
         llm_config_id: formData.llm_config_id || 0,
         metadata: formData.metadata
@@ -790,6 +816,7 @@ function resetForm() {
   formData.description = ''
   formData.system_prompt_template = ''
   formData.timeout = 30
+  formData.plugin_id = null
   formData.knowledge_base_id = 0
   formData.llm_config_id = 0
   formData.metadata = ''

@@ -24,6 +24,7 @@ func (r *AgentRepository) Create(agent *model.Agent) error {
 func (r *AgentRepository) GetByID(id int64) (*model.Agent, error) {
 	var agent model.Agent
 	if err := r.db.
+		Preload("Plugin").
 		Preload("KnowledgeBase").
 		Preload("LLMConfig").
 		Where("id = ?", id).
@@ -55,6 +56,7 @@ func (r *AgentRepository) List(agentType string, enabled *bool, offset, limit in
 
 	// 获取列表（预加载关联数据）
 	if err := query.
+		Preload("Plugin").
 		Preload("KnowledgeBase").
 		Preload("LLMConfig").
 		Offset(offset).

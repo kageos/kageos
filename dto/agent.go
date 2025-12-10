@@ -18,8 +18,7 @@ type AgentInfo struct {
 	Author          string             `json:"author" example:"beiluo"`
 	Description     string             `json:"description" example:"基于Excel文件生成管理系统"`
 	Timeout         int                `json:"timeout" example:"30"`
-	MsgSubject      string             `json:"msg_subject" example:"agent.beiluo.1.function_gen"`             // 消息主题，仅插件调用类型，自动生成
-	NatsHost        string             `json:"nats_host" example:"nats://127.0.0.1:4223"`                      // NATS 服务器地址
+	PluginID        *int64             `json:"plugin_id" example:"1"`                                        // 插件ID（仅 plugin 类型需要）
 	KnowledgeBaseID     int64              `json:"knowledge_base_id" example:"1"`
 	KnowledgeBase       *KnowledgeBaseInfo `json:"knowledge_base,omitempty"`  // 预加载的知识库信息
 	LLMConfigID         int64              `json:"llm_config_id" example:"1"` // LLM配置ID，如果为0则使用默认LLM
@@ -72,6 +71,7 @@ type AgentCreateReq struct {
 	Author          string `json:"author" example:"beiluo"`
 	Description     string `json:"description" example:"基于Excel文件生成管理系统"`
 	Timeout         int    `json:"timeout" example:"30"`
+	PluginID        *int64 `json:"plugin_id" example:"1"` // 插件ID（仅 plugin 类型需要）
 	KnowledgeBaseID     int64  `json:"knowledge_base_id" binding:"required" example:"1"`
 	LLMConfigID         int64  `json:"llm_config_id" example:"1"` // LLM配置ID，如果为0则使用默认LLM
 	SystemPromptTemplate string `json:"system_prompt_template" example:"你是一个专业的代码生成助手。以下是相关的知识库内容，请参考这些内容来生成代码：\n{knowledge}"` // System Prompt模板，支持{knowledge}变量
@@ -87,11 +87,12 @@ type AgentCreateResp struct {
 type AgentUpdateReq struct {
 	ID              int64  `json:"id" binding:"required" example:"1"`
 	Name            string `json:"name" binding:"required" example:"Excel生成智能体"`
-	AgentType       string `json:"agent_type" binding:"required" example:"plugins"`
+	AgentType       string `json:"agent_type" binding:"required" example:"plugin"`
 	ChatType        string `json:"chat_type" binding:"required" example:"function_gen"`
 	Author          string `json:"author" example:"beiluo"`
 	Description     string `json:"description" example:"基于Excel文件生成管理系统"`
 	Timeout         int    `json:"timeout" example:"30"`
+	PluginID        *int64 `json:"plugin_id" example:"1"` // 插件ID（仅 plugin 类型需要）
 	KnowledgeBaseID     int64  `json:"knowledge_base_id" binding:"required" example:"1"`
 	LLMConfigID         int64  `json:"llm_config_id" example:"1"` // LLM配置ID，如果为0则使用默认LLM
 	SystemPromptTemplate string `json:"system_prompt_template" example:"你是一个专业的代码生成助手。以下是相关的知识库内容，请参考这些内容来生成代码：\n{knowledge}"` // System Prompt模板，支持{knowledge}变量

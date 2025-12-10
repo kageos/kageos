@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -9,9 +10,11 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/service"
+	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
+	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
 	"github.com/gin-gonic/gin"
 	"github.com/nats-io/nats.go"
 	"gorm.io/driver/mysql"
@@ -30,12 +33,16 @@ type Server struct {
 	natsConn   *nats.Conn // NATS 连接，用于 plugin 调用
 
 	// Repository
-	agentRepo       *repository.AgentRepository
-	knowledgeRepo   *repository.KnowledgeRepository
-	llmRepo         *repository.LLMRepository
+	agentRepo              *repository.AgentRepository
+	pluginRepo             *repository.PluginRepository
+	knowledgeRepo          *repository.KnowledgeRepository
+	llmRepo                *repository.LLMRepository
+	functionGenRepo        *repository.FunctionGenRepository
+	functionGroupAgentRepo *repository.FunctionGroupAgentRepository
 
 	// 服务
 	agentService     *service.AgentService
+	pluginService    *service.PluginService
 	knowledgeService *service.KnowledgeService
 	llmService       *service.LLMService
 	agentChatService *service.AgentChatService
@@ -68,6 +75,11 @@ func NewServer(cfg *config.AgentServerConfig) (*Server, error) {
 
 	if err := s.initRouter(ctx); err != nil {
 		return nil, fmt.Errorf("failed to init router: %w", err)
+	}
+
+	// 初始化 NATS 订阅（包括回调订阅）
+	if err := s.initNATSSubscriptions(ctx); err != nil {
+		return nil, fmt.Errorf("failed to init NATS subscriptions: %w", err)
 	}
 
 	return s, nil
@@ -226,18 +238,21 @@ func (s *Server) initServices(ctx context.Context) error {
 
 	// 初始化 Repository
 	s.agentRepo = repository.NewAgentRepository(s.db)
+	s.pluginRepo = repository.NewPluginRepository(s.db)
 	s.knowledgeRepo = repository.NewKnowledgeRepository(s.db)
 	s.llmRepo = repository.NewLLMRepository(s.db)
 	sessionRepo := repository.NewChatSessionRepository(s.db)
 	messageRepo := repository.NewChatMessageRepository(s.db)
-	functionGenRepo := repository.NewFunctionGenRepository(s.db)
+	s.functionGenRepo = repository.NewFunctionGenRepository(s.db)
+	s.functionGroupAgentRepo = repository.NewFunctionGroupAgentRepository(s.db)
 
 	// 初始化 Service
-	s.agentService = service.NewAgentService(s.agentRepo, s.knowledgeRepo)
+	s.agentService = service.NewAgentService(s.agentRepo, s.pluginRepo, s.knowledgeRepo)
+	s.pluginService = service.NewPluginService(s.pluginRepo)
 	s.knowledgeService = service.NewKnowledgeService(s.knowledgeRepo)
 	s.llmService = service.NewLLMService(s.llmRepo)
 	s.agentChatService = service.NewAgentChatService(s.agentRepo, s.llmRepo, s.knowledgeRepo, s.natsConn, s.cfg)
-	s.agentChatService.SetRepositories(sessionRepo, messageRepo, functionGenRepo)
+	s.agentChatService.SetRepositories(sessionRepo, messageRepo, s.functionGenRepo)
 
 	logger.Infof(ctx, "[Server] Services initialized successfully")
 	return nil
@@ -274,5 +289,95 @@ func (s *Server) healthHandler(c *gin.Context) {
 // GetDB 获取数据库连接
 func (s *Server) GetDB() *gorm.DB {
 	return s.db
+}
+
+// initNATSSubscriptions 初始化 NATS 订阅
+func (s *Server) initNATSSubscriptions(ctx context.Context) error {
+	logger.Infof(ctx, "[Server] Initializing NATS subscriptions...")
+
+	// 订阅函数生成回调主题（app-server -> agent-server）
+	callbackSubject := subjects.GetAgentServerFunctionGenCallbackSubject()
+	_, err := s.natsConn.Subscribe(callbackSubject, func(msg *nats.Msg) {
+		s.handleFunctionGenCallback(msg)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to subscribe to %s: %w", callbackSubject, err)
+	}
+	logger.Infof(ctx, "[Server] Subscribed to callback subject: %s", callbackSubject)
+
+	return nil
+}
+
+// handleFunctionGenCallback 处理函数生成回调消息
+func (s *Server) handleFunctionGenCallback(msg *nats.Msg) {
+	ctx := context.Background()
+
+	// 从 header 获取 trace_id 和 user
+	traceID := msg.Header.Get("X-Trace-Id")
+	requestUser := msg.Header.Get("X-Request-User")
+	if traceID != "" {
+		ctx = context.WithValue(ctx, "trace_id", traceID)
+	}
+	if requestUser != "" {
+		ctx = context.WithValue(ctx, "request_user", requestUser)
+	}
+
+	// 解析回调消息
+	var callback dto.FunctionGenCallback
+	if err := json.Unmarshal(msg.Data, &callback); err != nil {
+		logger.Errorf(ctx, "[Server] 解析回调消息失败: %v", err)
+		return
+	}
+
+	logger.Infof(ctx, "[Server] 收到回调消息 - RecordID: %d, MessageID: %d, Success: %v, FullGroupCodes: %v, AppCode: %s",
+		callback.RecordID, callback.MessageID, callback.Success, callback.FullGroupCodes, callback.AppCode)
+
+	// 1. 更新 FunctionGenRecord
+	record, err := s.functionGenRepo.GetByID(callback.RecordID)
+	if err != nil {
+		logger.Errorf(ctx, "[Server] 获取生成记录失败: %v", err)
+		return
+	}
+
+	// 更新 FullGroupCodes
+	if err := record.SetFullGroupCodes(callback.FullGroupCodes); err != nil {
+		logger.Errorf(ctx, "[Server] 设置 FullGroupCodes 失败: %v", err)
+		return
+	}
+
+	// 更新状态
+	if callback.Success {
+		record.Status = model.FunctionGenStatusCompleted
+	} else {
+		record.Status = model.FunctionGenStatusFailed
+		record.ErrorMsg = callback.Error
+	}
+
+	if err := s.functionGenRepo.Update(record); err != nil {
+		logger.Errorf(ctx, "[Server] 更新生成记录失败: %v", err)
+		return
+	}
+
+	// 2. 创建 FunctionGroupAgent 关联记录
+	for _, fullGroupCode := range callback.FullGroupCodes {
+		fga := &model.FunctionGroupAgent{
+			FullGroupCode: fullGroupCode,
+			AgentID:       record.AgentID,
+			RecordID:     record.ID,
+			AppID:        callback.AppID,
+			AppCode:      callback.AppCode,
+			User:         record.User,
+		}
+		fga.CreatedBy = record.User
+		fga.UpdatedBy = record.User
+
+		if err := s.functionGroupAgentRepo.Create(fga); err != nil {
+			logger.Errorf(ctx, "[Server] 创建关联记录失败: fullGroupCode=%s, error=%v", fullGroupCode, err)
+			// 继续处理其他记录，不中断
+		}
+	}
+
+	logger.Infof(ctx, "[Server] 回调处理完成 - RecordID: %d, FullGroupCodesCount: %d",
+		callback.RecordID, len(callback.FullGroupCodes))
 }
 

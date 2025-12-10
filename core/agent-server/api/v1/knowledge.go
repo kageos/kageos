@@ -217,7 +217,7 @@ func (h *Knowledge) Update(c *gin.Context) {
 // @Tags 知识库管理
 // @Accept json
 // @Produce json
-// @Param id query int true "知识库ID"
+// @Param request body dto.KnowledgeDeleteReq true "删除知识库请求"
 // @Success 200 "删除成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Router /api/v1/agent/knowledge/delete [post]
@@ -225,7 +225,7 @@ func (h *Knowledge) Delete(c *gin.Context) {
 	var req dto.KnowledgeDeleteReq
 	var err error
 
-	if err := c.ShouldBindQuery(&req); err != nil {
+	if err := c.ShouldBindJSON(&req); err != nil {
 		response.FailWithMessage(c, "参数错误: "+err.Error())
 		return
 	}

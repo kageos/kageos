@@ -52,11 +52,12 @@ type Usage struct {
 
 // FunctionGenResult 函数生成结果（用于 NATS 消息队列，供 app-server 消费）
 type FunctionGenResult struct {
-	RecordID int64  `json:"record_id" example:"1"`                                       // function_gen 记录ID
-	AgentID  int64  `json:"agent_id" example:"1"`                                        // 智能体ID
-	TreeID   int64  `json:"tree_id" example:"629"`                                       // 服务目录ID
-	User     string `json:"user" example:"beiluo"`                                       // 用户标识
-	Code     string `json:"code" example:"package main\n\nfunc main() {\n\t// 生成的代码\n}"` // 生成的代码内容
+	RecordID  int64  `json:"record_id" example:"1"`                                       // function_gen 记录ID
+	MessageID int64  `json:"message_id" example:"1"`                                      // 消息ID（关联到 AgentChatMessage.ID）
+	AgentID   int64  `json:"agent_id" example:"1"`                                        // 智能体ID
+	TreeID    int64  `json:"tree_id" example:"629"`                                       // 服务目录ID
+	User      string `json:"user" example:"beiluo"`                                       // 用户标识
+	Code      string `json:"code" example:"package main\n\nfunc main() {\n\t// 生成的代码\n}"` // 生成的代码内容
 }
 
 // PluginFile 插件文件信息
@@ -121,4 +122,15 @@ type ChatMessageInfo struct {
 // ChatMessageListResp 获取消息列表响应
 type ChatMessageListResp struct {
 	Messages []ChatMessageInfo `json:"messages"` // 消息列表（按创建时间升序）
+}
+
+// FunctionGenCallback 函数生成回调（app-server -> agent-server）
+type FunctionGenCallback struct {
+	RecordID       int64    `json:"record_id"`        // 生成记录ID
+	MessageID      int64    `json:"message_id"`       // 消息ID
+	Success        bool     `json:"success"`           // 是否成功
+	FullGroupCodes []string `json:"full_group_codes"`  // 生成的函数组代码列表
+	AppID          int64    `json:"app_id"`           // 应用ID
+	AppCode        string   `json:"app_code"`         // 应用代码（冗余存储，提高查询效率）
+	Error          string   `json:"error,omitempty"`   // 错误信息（如果失败）
 }

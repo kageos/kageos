@@ -57,6 +57,20 @@
             <p>管理大模型配置，支持多种 LLM 提供商</p>
           </div>
         </el-card>
+
+        <el-card
+          shadow="hover"
+          class="menu-card"
+          @click="navigateTo('/agent/plugins')"
+        >
+          <div class="menu-content">
+            <el-icon :size="48" class="menu-icon">
+              <Connection />
+            </el-icon>
+            <h3>插件管理</h3>
+            <p>管理插件配置，支持插件复用和独立管理</p>
+          </div>
+        </el-card>
       </div>
     </el-card>
   </div>
@@ -64,7 +78,7 @@
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import { ArrowLeft, Operation, Document, Cpu } from '@element-plus/icons-vue'
+import { ArrowLeft, Operation, Document, Cpu, Connection } from '@element-plus/icons-vue'
 
 const router = useRouter()
 
