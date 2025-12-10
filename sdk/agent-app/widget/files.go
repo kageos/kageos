@@ -10,16 +10,16 @@ type Files struct {
 	// 4. 混合使用：.pdf,image/*,video/*,application/zip
 	// 示例：accept:.pdf,.doc,.docx,image/*,video/*
 	// 为空则不限制类型
-	Accept string `json:"accept"`
+	Accept string `json:"accept,omitempty"`
 
 	// MaxSize 单个文件最大大小，支持单位：B, KB, MB, GB
 	// 示例：max_size:10MB, max_size:1024KB, max_size:1GB
 	// 为空则使用系统默认值
-	MaxSize string `json:"max_size"`
+	MaxSize string `json:"max_size,omitempty"`
 
 	// MaxCount 最大上传文件数量，默认为 5
 	// 示例：max_count:10
-	MaxCount int `json:"max_count"`
+	MaxCount int `json:"max_count,omitempty"`
 }
 
 func (i *Files) Config() interface{} {

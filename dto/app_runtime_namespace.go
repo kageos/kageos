@@ -54,13 +54,33 @@ type RequestAppResp struct {
 	Version string      `json:"version" example:"v1"`
 	Result  interface{} `json:"result,omitempty"`                       // 结果
 	Error   string      `json:"error,omitempty" example:"应用内部错误"` // 错误信息
+	ErrCode int         `json:"err_code" example:"0"`                   //0 是正常，>0 是系统错误，<0 是业务错误，业务错误用户自己处理，系统错误需要考虑用ai来分析代码是哪里出了问题
+}
+
+func (r *RequestAppResp) IsError() bool {
+	return r.ErrCode != 0
+}
+
+// CreateFunctionInfo 创建函数信息
+type CreateFunctionInfo struct {
+	Package    string `json:"package"`     // 目标 package 路径（如 "crm" 或 "plugins/cashier"）
+	GroupCode  string `json:"group_code"`  // 函数组代码（文件名，不含 .go）
+	SourceCode string `json:"source_code"` // 源代码内容
+}
+
+// CreateFunctionsResp 创建函数响应
+type CreateFunctionsResp struct {
+	Success      bool     `json:"success" example:"true"`         // 是否成功
+	Message      string   `json:"message" example:"文件创建成功"` // 响应消息
+	WrittenFiles []string `json:"written_files"`                  // 已写入的文件路径列表（用于失败时回滚）
 }
 
 // UpdateAppReq 更新应用请求
 type UpdateAppReq struct {
-	User         string             `json:"user" swaggerignore:"true"`              // 用户名
-	App          string             `json:"app" binding:"required" example:"myapp"` // 应用名
-	ForkPackages []*ForkPackageInfo `json:"fork_packages,omitempty"`                // 可选的 Fork 包列表（如果有，先执行 fork 再更新）
+	User            string                `json:"user" swaggerignore:"true"`              // 用户名
+	App             string                `json:"app" binding:"required" example:"myapp"` // 应用名
+	ForkPackages    []*ForkPackageInfo    `json:"fork_packages,omitempty"`                // 可选的 Fork 包列表（如果有，先执行 fork 再更新）
+	CreateFunctions []*CreateFunctionInfo `json:"create_functions,omitempty"`             // 可选的新建函数列表（如果有，先执行创建函数再更新）
 }
 
 // UpdateAppResp 更新应用响应
@@ -77,6 +97,15 @@ type DiffData struct {
 	Add    []*ApiInfo `json:"add"`    // 新增的API
 	Update []*ApiInfo `json:"update"` // 修改的API
 	Delete []*ApiInfo `json:"delete"` // 删除的API
+}
+
+// GetAddFullGroupCodes 获取此次变更新增的group code，一个group code 表示新增了一个文件，新增了一个业务系统
+func (d *DiffData) GetAddFullGroupCodes() []string {
+	codes := make([]string, 0)
+	for _, info := range d.Add {
+		codes = append(codes, info.BuildFullGroupCode())
+	}
+	return codes
 }
 
 func (a *ApiInfo) BuildFullCodePath() string {
@@ -183,6 +212,11 @@ type ApiInfo struct {
 	CreateTableModels  []interface{} `json:"-"`
 }
 
+// BuildFullGroupCode 完整函数组代码：{full_path}/{group_code}，与 source_code.full_group_code 对齐
+func (a *ApiInfo) BuildFullGroupCode() string {
+	return fmt.Sprintf("%s/%s", a.GetParentFullCodePath(), a.FunctionGroupCode)
+}
+
 // DeleteAppReq 删除应用请求
 type DeleteAppReq struct {
 	User string `json:"user" binding:"required" example:"beiluo"` // 租户名
@@ -198,8 +232,8 @@ type DeleteAppResp struct {
 // GetAppsReq 获取应用列表请求
 type GetAppsReq struct {
 	PageInfoReq
-	User   string `json:"user" swaggerignore:"true"`   // 租户名（从JWT Token获取）
-	Search string `json:"search" form:"search"`        // 搜索关键词（支持按应用名称或代码搜索）
+	User   string `json:"user" swaggerignore:"true"` // 租户名（从JWT Token获取）
+	Search string `json:"search" form:"search"`      // 搜索关键词（支持按应用名称或代码搜索）
 }
 
 // GetAppsResp 获取应用列表响应

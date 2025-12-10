@@ -1,0 +1,28 @@
+{
+  "name": "AI Agent OS",
+  "short_name": "AI Agent",
+  "description": "下一代软件开发与运行平台",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#6366f1",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon-32x32.svg",
+      "sizes": "32x32",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/favicon-16x16.svg",
+      "sizes": "16x16",
+      "type": "image/svg+xml"
+    }
+  ]
+}
+

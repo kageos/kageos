@@ -21,7 +21,8 @@ export class TableFieldExtractor implements IFieldExtractor {
     const itemFields = field.children || []
     const tableData = value.raw as any[]
     
-    return tableData.map((row, index) => {
+    // 提取所有行数据
+    const extractedRows = tableData.map((row, index) => {
       const rowData: Record<string, any> = {}
       
       itemFields.forEach(itemField => {
@@ -41,6 +42,11 @@ export class TableFieldExtractor implements IFieldExtractor {
       })
       
       return rowData
+    })
+    
+    // 🔥 过滤掉空行（所有字段都为 null/undefined 的行）
+    return extractedRows.filter(row => {
+      return Object.values(row).some(value => value !== null && value !== undefined)
     })
   }
   

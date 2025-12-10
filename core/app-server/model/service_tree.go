@@ -16,19 +16,20 @@ const (
 // 例如我有个tools的app，然后，我有个excel的package（目录对应go的package），然后下面有多个function（go文件）
 type ServiceTree struct {
 	models.Base
-	Name        string `json:"name"`
-	Code        string `json:"code"`
-	ParentID    int64  `json:"parent_id" gorm:"default:0"`
-	Type        string `json:"type"` // 节点类型: package(服务目录/包), function(函数/文件), api(API接口), service(服务), module(模块)
-	Description string `json:"description,omitempty"`
-	Tags        string `json:"tags"`
-	AppID          int64  `json:"app_id"`
-	FullGroupCode  string `json:"full_group_code" gorm:"type:varchar(500);comment:完整函数组代码：{full_path}/{group_code}"` // 完整函数组代码：{full_path}/{group_code}，与 source_code.full_group_code 对齐
-	GroupName      string `json:"group_name"`
-	RefID       int64  `json:"ref_id" gorm:"default:0"`                   // 引用ID：指向真实资源的ID，如果是package类型指向package的ID，如果是function类型指向function的ID
-	App         *App   `json:"app" gorm:"foreignKey:AppID;references:ID"` // 预加载的完整应用对象
+	Name          string `json:"name"`
+	Code          string `json:"code"`
+	ParentID      int64  `json:"parent_id" gorm:"default:0"`
+	Type          string `json:"type"` // 节点类型: package(服务目录/包), function(函数/文件), api(API接口), service(服务), module(模块)
+	Description   string `json:"description,omitempty"`
+	Tags          string `json:"tags"`
+	AppID         int64  `json:"app_id"`
+	FullGroupCode string `json:"full_group_code" gorm:"type:varchar(500);comment:完整函数组代码：{full_path}/{group_code}"` // 完整函数组代码：{full_path}/{group_code}，与 source_code.full_group_code 对齐
+	GroupName     string `json:"group_name"`
+	RefID         int64  `json:"ref_id" gorm:"default:0"`                   // 引用ID：指向真实资源的ID，如果是package类型指向package的ID，如果是function类型指向function的ID
+	App           *App   `json:"app" gorm:"foreignKey:AppID;references:ID"` // 预加载的完整应用对象
+	TemplateType  string `json:"template_type"`                             //函数的类型
 	//下面字段是数据库
-	FullCodePath     string         `json:"full_code_path"`     // /$user/$app/tools/pdf 这种
+	FullCodePath     string         `json:"full_code_path"`     // /$user/$app/plugins/pdf 这种
 	AddVersionNum    int            `json:"add_version_num"`    // 添加版本号（数字部分，如 v1 -> 1），用于版本回滚时过滤
 	UpdateVersionNum int            `json:"update_version_num"` // 更新版本号（数字部分，如 v2 -> 2），用于版本回滚时过滤
 	Children         []*ServiceTree `json:"children" gorm:"-"`
@@ -107,11 +108,12 @@ func (st *ServiceTree) GetBreadcrumbs() []string {
 }
 
 // GetAppPrefix 获取应用前缀路径
+// 注意：使用 App.Code 而不是 App.Name，因为 FullCodePath 是基于 Code 构建的
 func (st *ServiceTree) GetAppPrefix() string {
 	if st.App == nil {
 		return ""
 	}
-	return fmt.Sprintf("/%s/%s", st.App.User, st.App.Name)
+	return fmt.Sprintf("/%s/%s", st.App.User, st.App.Code)
 }
 
 // GetBasePath 获取基础路径（不含用户应用前缀的部分）
@@ -266,6 +268,50 @@ func (st *ServiceTree) GetDisplayName() string {
 		return st.Name
 	}
 	return st.Code
+}
+
+// GetPackagePathForFileCreation 获取用于文件创建的 package 路径
+// 封装路径操作，方便维护
+// 对于 package 类型的节点，返回其路径（去掉应用前缀，去掉开头的斜杠）
+// 对于 function 类型的节点，返回其所在的 package 路径
+// 返回格式：例如 "crm" 或 "plugins/cashier"，不包含 user 和 app 名称
+func (st *ServiceTree) GetPackagePathForFileCreation() string {
+	// 获取应用前缀，例如 "/luobei/demo"
+	appPrefix := st.GetAppPrefix()
+
+	// 从 FullCodePath 中去掉应用前缀
+	// FullCodePath 格式："/luobei/demo/crm" 或 "/luobei/demo/plugins/cashier"
+	// 去掉前缀后："/crm" 或 "/plugins/cashier"
+	fullPath := st.FullCodePath
+	if appPrefix != "" && strings.HasPrefix(fullPath, appPrefix) {
+		fullPath = strings.TrimPrefix(fullPath, appPrefix)
+	}
+
+	// 去掉开头的斜杠，得到 "crm" 或 "plugins/cashier"
+	basePath := strings.TrimPrefix(fullPath, "/")
+
+	var packagePath string
+	if st.IsFunction() {
+		// 对于 function 节点，需要获取其所在的 package 路径
+		// 去掉路径的最后一部分（function 名称）
+		pathParts := strings.Split(basePath, "/")
+		if len(pathParts) > 1 {
+			packagePath = strings.Join(pathParts[:len(pathParts)-1], "/")
+		} else {
+			// 如果只有一层，说明 function 直接在应用根目录下，package 为空
+			packagePath = ""
+		}
+	} else {
+		// 对于 package 节点，直接使用 basePath
+		packagePath = basePath
+	}
+
+	if packagePath == "" {
+		// 如果是根节点或 function 直接在应用根目录下，使用 code 作为 package
+		packagePath = st.Code
+	}
+
+	return packagePath
 }
 
 // GetTagsSlice 将Tags字符串转换为切片

@@ -1,5 +1,5 @@
 <template>
-  <div class="app-switcher" v-if="currentApp">
+  <div class="app-switcher">
     <div class="app-container">
       <el-dropdown 
         trigger="click" 
@@ -8,7 +8,7 @@
         @visible-change="handleVisibleChange"
         popper-class="app-dropdown-popper"
       >
-        <div class="app-current">
+        <div class="app-current" v-if="currentApp">
           <div class="app-avatar">
             <div class="app-icon" :style="{ backgroundColor: getAppColor(currentApp) }">
               {{ getAppInitial(currentApp.name || currentApp.code) }}
@@ -28,6 +28,25 @@
             </el-icon>
           </div>
         </div>
+        <div class="app-current" v-else>
+          <div class="app-avatar">
+            <div class="app-icon" style="background-color: #909399;">
+              ?
+            </div>
+          </div>
+          <div class="app-info">
+            <div class="app-name">请选择工作空间</div>
+            <div class="app-path">
+              <el-icon class="path-icon"><FolderOpened /></el-icon>
+              <span>点击选择工作空间</span>
+            </div>
+          </div>
+          <div class="expand-section">
+            <el-icon class="expand-icon">
+              <ArrowUp />
+            </el-icon>
+          </div>
+        </div>
       
       <template #dropdown>
         <div class="app-dropdown">
@@ -36,9 +55,9 @@
             <div class="header-content">
               <div class="header-title">
                 <el-icon class="header-icon"><Grid /></el-icon>
-                应用列表
+                工作空间列表
               </div>
-              <div class="header-subtitle">选择或管理你的应用</div>
+              <div class="header-subtitle">选择或管理你的工作空间</div>
             </div>
           </div>
           
@@ -46,19 +65,19 @@
           <div v-if="loadingApps" class="loading-state">
             <div class="loading-content">
               <el-icon class="loading-icon"><Loading /></el-icon>
-              <span class="loading-text">正在加载应用列表...</span>
+              <span class="loading-text">正在加载工作空间列表...</span>
             </div>
           </div>
 
-          <!-- 应用列表 -->
+          <!-- 工作空间列表 -->
           <div v-else class="app-list">
-            <el-scrollbar max-height="300px" class="app-scrollbar">
+            <el-scrollbar v-if="appList.length > 0" max-height="300px" class="app-scrollbar">
               <div class="app-items">
                 <div 
                   v-for="app in appList" 
                   :key="app.id" 
                   class="app-item"
-                  :class="{ 'is-active': app.id === currentApp.id }"
+                  :class="{ 'is-active': currentApp && app.id === currentApp.id }"
                   @click="handleSwitchApp(app)"
                 >
                   <div class="item-avatar">
@@ -78,7 +97,7 @@
                       link
                       size="small"
                       class="update-btn"
-                      title="重新编译应用"
+                      title="重新编译工作空间"
                       @click="(e) => handleUpdateApp(app, e)"
                     >
                       <el-icon><RefreshRight /></el-icon>
@@ -87,18 +106,26 @@
                       link
                       size="small"
                       class="delete-btn"
-                      title="删除应用"
+                      title="删除工作空间"
                       @click="(e) => handleDeleteApp(app, e)"
                     >
                       <el-icon><Delete /></el-icon>
                     </el-button>
-                    <div v-if="app.id === currentApp.id" class="check-badge">
+                    <div v-if="currentApp && app.id === currentApp.id" class="check-badge">
                       <el-icon class="check-icon"><Check /></el-icon>
                     </div>
                   </div>
                 </div>
               </div>
             </el-scrollbar>
+            <div v-else class="empty-app-list">
+              <el-empty description="暂无工作空间" :image-size="80">
+                <el-button type="primary" @click="$emit('create-app')">
+                  <el-icon><Plus /></el-icon>
+                  创建工作空间
+                </el-button>
+              </el-empty>
+            </div>
           </div>
           
           <!-- 底部操作 -->
@@ -109,7 +136,7 @@
               @click="$emit('create-app')"
             >
               <el-icon class="create-icon"><Plus /></el-icon>
-              创建新应用
+              创建新工作空间
             </el-button>
           </div>
         </div>
@@ -375,11 +402,24 @@ const appList = computed(() => props.appList)
   }
 
   &.is-active {
-    background: var(--el-color-primary-light-9);
+    background: #6366f1;
+    border-left: 3px solid #4f46e5;
     
     .item-title {
-      color: var(--el-color-primary);
+      color: white;
       font-weight: 600;
+    }
+    
+    .item-path {
+      color: rgba(255, 255, 255, 0.8);
+      
+      .path-icon {
+        color: rgba(255, 255, 255, 0.8);
+      }
+    }
+    
+    .item-icon {
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
     }
   }
 }

@@ -524,6 +524,7 @@ import {
 } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useFormDataStore } from '../../stores-v2/formData'
+import { createFieldValue } from '../utils/createFieldValue'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -618,6 +619,23 @@ const editorHeight = computed(() => {
   return 300 // 默认300px
 })
 
+// 🔥 清理 HTML，移除危险标签，但保留图片和视频等媒体内容
+// 这个方法会移除 script、style 等危险标签，但保留 img、video、audio 等媒体标签
+function sanitizeHtmlForDisplay(html: string): string {
+  if (!html) return ''
+  
+  // 只移除危险标签，保留媒体内容
+  return html
+    // 移除 script 标签（安全考虑）
+    .replace(/<script[^>]*>.*?<\/script>/gi, '')
+    // 移除 style 标签（避免样式冲突）
+    .replace(/<style[^>]*>.*?<\/style>/gi, '')
+    // 移除 iframe 标签（安全考虑，避免 XSS）
+    .replace(/<iframe[^>]*>.*?<\/iframe>/gi, '<span class="iframe-placeholder">[嵌入内容]</span>')
+    // 🔥 保留 img、video、audio 标签，让它们正常显示
+    // 图片和视频标签会被保留，浏览器会自动处理加载
+}
+
 // HTML 内容（用于显示）
 const htmlContent = computed(() => {
   const fieldValue = props.value || (props as any).modelValue
@@ -630,15 +648,34 @@ const htmlContent = computed(() => {
     return ''
   }
   
-  return String(raw)
+  const html = String(raw)
+  
+  // 🔥 对于非编辑模式，清理 HTML 以避免触发资源加载
+  // 编辑模式下保留原始 HTML（因为用户可能需要编辑）
+  if (props.mode === 'edit') {
+    return html
+  }
+  
+  // 其他模式（response、detail、table-cell 等）清理 HTML
+  return sanitizeHtmlForDisplay(html)
 })
 
 // TipTap 编辑器（使用完整工具栏，最高级模式）
+// 🔥 修复：StarterKit 已经包含了 link, code, codeBlock, dropCursor, gapCursor
+// 需要排除它们，使用自定义配置的版本
 const editor = useEditor({
   extensions: [
-    StarterKit,
+    StarterKit.configure({
+      // 排除 StarterKit 中已包含的扩展，使用自定义配置的版本
+      link: false,
+      code: false,
+      codeBlock: false,
+      dropcursor: false,
+      gapcursor: false,
+      underline: false, // 🔥 排除 underline，使用自定义的 Underline
+    }),
     Underline,
-    Code,
+    Code, // 单独添加，使用默认配置
     CodeBlock.configure({
       HTMLAttributes: {
         class: 'rich-text-code-block'
@@ -659,8 +696,8 @@ const editor = useEditor({
     Placeholder.configure({
       placeholder: '请输入内容...'
     }),
-    Dropcursor,
-    Gapcursor,
+    Dropcursor, // 单独添加
+    Gapcursor, // 单独添加
     Link.configure({
       openOnClick: false,
       HTMLAttributes: {
@@ -863,11 +900,12 @@ const editor = useEditor({
   },
   onUpdate: ({ editor }) => {
     const html = editor.getHTML()
-    const newFieldValue = {
-      raw: html,
-      display: stripHtml(html), // 显示时去除 HTML 标签
-      meta: {}
-    }
+    // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
+    const newFieldValue = createFieldValue(
+      props.field,
+      html,
+      stripHtml(html) // 显示时去除 HTML 标签
+    )
     
     formDataStore.setValue(props.fieldPath, newFieldValue)
     emit('update:modelValue', newFieldValue)
@@ -1049,13 +1087,37 @@ onBeforeUnmount(() => {
     editor.value.destroy()
   }
 })
-
 // 去除 HTML 标签（用于表格单元格显示）
 function stripHtml(html: string): string {
   if (!html) return ''
-  const tmp = document.createElement('DIV')
-  tmp.innerHTML = html
-  return tmp.textContent || tmp.innerText || ''
+  
+  // 🔥 先过滤掉可能导致资源加载的标签（如 img、video、audio 等）
+  // 这样可以避免浏览器尝试加载不存在的资源（如 localhost:63342 的 markdown 预览资源）
+  let cleanedHtml = html
+    // 移除 img 标签
+    .replace(/<img[^>]*>/gi, '')
+    // 移除 video 标签
+    .replace(/<video[^>]*>.*?<\/video>/gi, '')
+    // 移除 audio 标签
+    .replace(/<audio[^>]*>.*?<\/audio>/gi, '')
+    // 移除 iframe 标签
+    .replace(/<iframe[^>]*>.*?<\/iframe>/gi, '')
+    // 移除 script 标签
+    .replace(/<script[^>]*>.*?<\/script>/gi, '')
+    // 移除 style 标签
+    .replace(/<style[^>]*>.*?<\/style>/gi, '')
+  
+  // 使用 DOMParser 来安全地解析 HTML（不会触发资源加载）
+  try {
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(cleanedHtml, 'text/html')
+    return doc.body.textContent || doc.body.innerText || ''
+  } catch (error) {
+    // 如果 DOMParser 失败，使用传统方法（但先清理了资源标签）
+    const tmp = document.createElement('DIV')
+    tmp.innerHTML = cleanedHtml
+    return tmp.textContent || tmp.innerText || ''
+  }
 }
 
 // 搜索模式
@@ -1179,7 +1241,6 @@ watch(
   height: 32px;
   opacity: 0;
   cursor: pointer;
-  z-index: 1;
 }
 
 .color-picker-button {
@@ -1406,6 +1467,20 @@ watch(
   height: auto;
   border-radius: 4px;
   margin: 8px 0;
+  display: block;
+  /* 图片加载失败时的占位符 */
+  background-color: var(--el-fill-color-lighter);
+  /* 图片加载错误处理 */
+  object-fit: contain;
+}
+
+.html-content :deep(img[src=""]) {
+  display: none;
+}
+
+/* 图片加载失败时的样式 */
+.html-content :deep(img:not([src])) {
+  display: none;
 }
 
 .table-cell-value {

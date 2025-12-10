@@ -70,7 +70,9 @@ func (c *FS) ResponseFiles(filePaths []string) *types.Files {
 	return c.ctx.batchUploadFiles(files)
 }
 
-func (c *FS) GetOutDir() string {
+// GetTraceOutputDir 获取基于 TraceId 的唯一输出目录
+// 注意：此目录已经基于 TraceId 生成，是唯一的，文件名无需再包含 TraceId
+func (c *FS) GetTraceOutputDir() string {
 	return filepath.Join("/app/workplace/output", c.ctx.msg.TraceId)
 }
 
@@ -163,9 +165,9 @@ func (c *FS) DownloadFiles(files *types.Files) *types.Files {
 	return files
 }
 
-// RemoveAll 删除下载到本地的所有文件
+// RemoveFiles 删除下载到本地的所有文件
 // 根据TraceId删除对应的下载目录，并释放文件缓存引用
-func (c *FS) RemoveAll(files *types.Files) {
+func (c *FS) RemoveFiles(files *types.Files) {
 	if files == nil || len(files.Files) == 0 {
 		return
 	}
@@ -186,9 +188,9 @@ func (c *FS) RemoveAll(files *types.Files) {
 	}
 	downloadDir := filepath.Join("/app/workplace/uploads", traceID)
 	if err := os.RemoveAll(downloadDir); err != nil {
-		logger.Errorf(c.ctx, "[RemoveAll] 删除下载目录失败: %v", err)
+		logger.Errorf(c.ctx, "[RemoveFiles] 删除下载目录失败: %v", err)
 	} else {
-		logger.Infof(c.ctx, "[RemoveAll] 已删除下载目录: %s", downloadDir)
+		logger.Infof(c.ctx, "[RemoveFiles] 已删除下载目录: %s", downloadDir)
 	}
 }
 
@@ -487,6 +489,7 @@ func (c *Context) batchUploadFiles(filePaths []string) *types.Files {
 
 	for i := range successFiles {
 		successFiles[i].UploadUser = c.msg.RequestUser
+		successFiles[i].UploadTs = time.Now().UnixMilli()
 	}
 	// 8. 构建返回结果
 	return &types.Files{

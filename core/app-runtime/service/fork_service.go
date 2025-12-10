@@ -10,6 +10,7 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
+	"github.com/ai-agent-os/ai-agent-os/pkg/gofmt"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
 
@@ -28,7 +29,7 @@ func NewForkService(config *config.AppManageServiceConfig) *ForkService {
 // ForkFunctionGroup 批量 Fork 函数组（写入文件系统）
 // 一次调用处理多个 package，每个 package 有自己的文件列表
 func (s *ForkService) ForkFunctionGroup(ctx context.Context, req *dto.ForkFunctionGroupRuntimeReq) (*dto.ForkFunctionGroupRuntimeResp, error) {
-	logger.Infof(ctx, "[ForkService] 开始批量 Fork 函数组: target=%s/%s, packageCount=%d", 
+	logger.Infof(ctx, "[ForkService] 开始批量 Fork 函数组: target=%s/%s, packageCount=%d",
 		req.TargetUser, req.TargetApp, len(req.Packages))
 
 	// 构建应用目录路径
@@ -57,8 +58,17 @@ func (s *ForkService) ForkFunctionGroup(ctx context.Context, req *dto.ForkFuncti
 			// 构建目标文件路径
 			targetFilePath := filepath.Join(packageDir, file.GroupCode+".go")
 
-			// 写入文件
-			if err := os.WriteFile(targetFilePath, []byte(processedCode), 0644); err != nil {
+			// 修复 Go 代码的 import 语句（防止编译不通过）
+			fixedCode, err := gofmt.FixGoImport(targetFilePath, []byte(processedCode))
+			if err != nil {
+				logger.Errorf(ctx, "[ForkService] 修复 import 失败: file=%s, error=%v", targetFilePath, err)
+				// 修复失败时删除已写入的文件
+				s.rollbackFiles(ctx, writtenFiles)
+				return nil, fmt.Errorf("修复 import 失败 %s/%s: %w", pkgInfo.Package, file.GroupCode, err)
+			}
+
+			// 写入文件（使用修复后的代码）
+			if err := os.WriteFile(targetFilePath, []byte(fixedCode), 0644); err != nil {
 				logger.Errorf(ctx, "[ForkService] 写入文件失败: file=%s, error=%v", targetFilePath, err)
 				// 失败时删除已写入的文件
 				s.rollbackFiles(ctx, writtenFiles)
@@ -109,7 +119,7 @@ func (s *ForkService) rollbackFiles(ctx context.Context, files []string) {
 }
 
 // replacePackageName 替换源代码中的 package 声明
-// sourcePackage 和 targetPackage 可能是多级路径（如 tools/cashier），但 Go 的 package 声明只能是单个标识符
+// sourcePackage 和 targetPackage 可能是多级路径（如 plugins/cashier），但 Go 的 package 声明只能是单个标识符
 // 所以需要从路径中提取最后一部分作为 package 名称
 func (s *ForkService) replacePackageName(sourceCode string, sourcePackage string, targetPackage string) string {
 	// 从路径中提取最后一部分作为 package 名称
@@ -144,6 +154,3 @@ func (s *ForkService) replacePackageName(sourceCode string, sourcePackage string
 
 	return processed
 }
-
-
-

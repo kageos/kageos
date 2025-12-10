@@ -4,9 +4,15 @@
  * 🔥 重构说明：
  * - 移除了对旧版本 BaseWidget 的依赖
  * - FormRendererContext 接口保持兼容，但 registerWidget/unregisterWidget 已不再实际使用（v2 系统）
+ * 
+ * 🔥 统一类型系统：使用 WidgetTypes 命名空间
  */
 
-import type { FieldConfig, FieldValue } from './field'
+import type { WidgetTypes, FunctionDetail } from './field'
+
+// 🔥 向后兼容：导出类型别名
+export type FieldConfig = WidgetTypes.FieldConfig
+export type FieldValue = WidgetTypes.FieldValue
 import type { ReactiveFormDataManager } from '../managers/ReactiveFormDataManager'
 
 /**
@@ -29,6 +35,9 @@ export interface FormRendererContext {
   /** 获取函数的路由 */
   getFunctionRouter: () => string
   
+  /** 获取函数详情（用于 keep-alive 场景下的防重复调用） */
+  getFunctionDetail?: () => FunctionDetail
+  
   /** 获取完整的提交数据（递归收集） */
   getSubmitData: () => Record<string, any>
   
@@ -45,10 +54,10 @@ export interface FormRendererContext {
  * - 标准 Widget：用于表单编辑，formManager 和 formRenderer 必需
  */
 export interface WidgetRenderProps {
-  field: FieldConfig
+  field: WidgetTypes.FieldConfig
   currentFieldPath: string
-  value: FieldValue
-  onChange: (newValue: FieldValue) => void
+  value: WidgetTypes.FieldValue
+  onChange: (newValue: WidgetTypes.FieldValue) => void
   formManager: ReactiveFormDataManager | null  // ✅ 明确可以为 null
   formRenderer: FormRendererContext | null
   depth?: number
@@ -78,7 +87,7 @@ export interface WidgetStaticMethods {
    * 从原始数据加载为 FieldValue 格式
    * 用于处理后端返回的原始数据，转换为前端使用的 FieldValue 格式
    */
-  loadFromRawData?(rawValue: any, field: FieldConfig): FieldValue
+  loadFromRawData?(rawValue: any, field: WidgetTypes.FieldConfig): WidgetTypes.FieldValue
 }
 
 /**
@@ -90,8 +99,8 @@ export interface WidgetStaticMethods {
  */
 export type MarkRawWidget = {
   render: () => any
-  getValue: () => FieldValue
+  getValue: () => WidgetTypes.FieldValue
   getRawValueForSubmit: () => any
-  renderTableCell?: (value?: FieldValue) => any
+  renderTableCell?: (value?: WidgetTypes.FieldValue) => any
   [key: string]: any  // 允许其他方法
 }

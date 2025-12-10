@@ -3,9 +3,9 @@ package widget
 import "strconv"
 
 type Number struct {
-	Step    string `json:"step"`    // 步长（点击增减按钮的步进值）
-	Default int    `json:"default"` // 默认值
-	Unit    string `json:"unit"`    // 单位（如：件、个、元、kg等）
+	Step    string `json:"step,omitempty"`    // 步长（点击增减按钮的步进值）
+	Default int    `json:"default,omitempty"` // 默认值
+	Unit    string `json:"unit,omitempty"`    // 单位（如：件、个、元、kg等）
 }
 
 func (n *Number) Config() interface{} {

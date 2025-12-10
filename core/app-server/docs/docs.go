@@ -1685,8 +1685,8 @@ const docTemplate = `{
                         "type": "string"
                     },
                     "example": {
-                        "/luobei/app_a/tools/tools_cashier": "/luobei/app_b/a1",
-                        "/luobei/app_a/tools/tools_excel": "/luobei/app_b/b1"
+                        "/luobei/app_a/plugins/tools_cashier": "/luobei/app_b/a1",
+                        "/luobei/app_a/plugins/tools_excel": "/luobei/app_b/b1"
                     }
                 },
                 "target_app_id": {

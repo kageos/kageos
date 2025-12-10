@@ -1,7 +1,7 @@
 /**
  * 表格用户信息收集工具函数
  */
-import type { FieldConfig } from '@/types'
+import type { FieldConfig } from '@/core/types/field'
 
 /**
  * 从表格数据中收集用户名

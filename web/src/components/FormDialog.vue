@@ -4,6 +4,7 @@
     :title="title"
     :width="width"
     :close-on-click-modal="false"
+    :append-to-body="true"
     @close="handleClose"
   >
     <!-- 🔥 使用新的 FormRenderer 替代所有渲染逻辑 -->
@@ -59,7 +60,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  width: '900px',
+  width: '1200px',
   initialData: () => ({}),
   router: ''
 })

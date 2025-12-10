@@ -14,25 +14,57 @@
   <div class="table-widget">
     <!-- 编辑模式 -->
     <template v-if="mode === 'edit'">
-      <div class="table-widget-container">
-        <div class="table-widget-header">
-          <span class="table-title">{{ field.name }}</span>
-        </div>
+      <el-card
+        shadow="hover"
+        class="table-card"
+      >
+        <template #header>
+          <div class="table-card-header">
+            <span class="table-title">{{ field.name }}</span>
+            <div class="table-header-actions">
+              <el-button size="small" @click="handleImport">
+                <el-icon><Upload /></el-icon>
+                导入
+              </el-button>
+              <el-button size="small" @click="handleExport">
+                <el-icon><Download /></el-icon>
+                导出
+              </el-button>
+            </div>
+          </div>
+        </template>
         <div class="table-widget-content">
-          <el-table :data="editMode.tableData.value" border>
+          <el-table :data="editMode.tableData.value" :stripe="false" class="table-widget-table">
         <el-table-column
           v-for="itemField in itemFields"
           :key="itemField.code"
           :prop="itemField.code"
           :label="itemField.name"
           :min-width="getColumnWidth(itemField)"
+          :align="getColumnAlign(itemField)"
+          header-align="left"
         >
           <template #default="{ row, $index }">
-            <!-- 🔥 对于 form 类型字段，在编辑和显示状态下都使用简化显示 + 抽屉 -->
-            <!-- 这样可以避免表格列过宽，保持布局整洁 -->
-            <template v-if="itemField.widget?.type === 'form'">
+            <!-- 
+              🔥 嵌套字段渲染策略（edit 模式）
+              
+              问题：在表格单元格中直接渲染嵌套的 form/table 字段会导致：
+              - 表格列过宽，布局混乱
+              - 嵌套表格/表单占用大量空间，影响用户体验
+              
+              解决方案：
+              - 对于 form 和 table 类型字段，统一使用 table-cell 模式显示
+              - table-cell 模式会显示为简化形式（"共xx个字段"、"共xx条记录"）
+              - 点击后打开抽屉，在抽屉中使用 edit 模式渲染完整内容，支持编辑
+              
+              关键点：
+              - mode="table-cell"：使用表格单元格模式，显示简化信息
+              - parent-mode="mode"：传递父级模式（这里是 'edit'），让嵌套组件知道上下文
+              - 嵌套组件会根据 parentMode 判断：如果是 'edit'，抽屉中使用 edit 模式（可编辑）
+            -->
+            <template v-if="isNestedContainerField(itemField)">
               <component
-                :is="getWidgetComponent('form')"
+                :is="getWidgetComponent(itemField.widget?.type)"
                 :field="itemField"
                 :value="getRowFieldValue($index, itemField.code)"
                 :model-value="getRowFieldValue($index, itemField.code)"
@@ -41,6 +73,7 @@
                 :form-manager="formManager"
                 :form-renderer="formRenderer"
                 mode="table-cell"
+                :parent-mode="mode"
                 :depth="(depth || 0) + 1"
               />
             </template>
@@ -78,7 +111,7 @@
         </el-table-column>
         
         <!-- 操作列 -->
-        <el-table-column label="操作" width="150" fixed="right">
+        <el-table-column label="操作" width="150" fixed="right" header-align="left">
           <template #default="{ $index }">
             <template v-if="editMode.editingIndex.value === $index">
               <el-button size="small" @click="handleSave($index)">保存</el-button>
@@ -97,51 +130,85 @@
         <el-button type="primary" @click="editMode.startAdding()">新增</el-button>
       </div>
       
-      <!-- 聚合统计 -->
-      <div v-if="hasStatistics" class="statistics">
-        <div
-          v-for="(value, label) in statisticsResultDisplay"
-          :key="label"
-          class="statistics-item"
-        >
-          <span class="statistics-label">{{ label }}:</span>
-          <span class="statistics-value">{{ formatStatisticsValue(value) }}</span>
+      <!-- 🔥 当前编辑行的字段统计信息（显示在表格下方） -->
+      <!-- 🔥 使用所有行的数据来计算统计（表格场景） -->
+      <FieldStatistics
+        v-if="editingRowStatistics && Object.keys(editingRowStatistics).length > 0"
+        :field="field"
+        :value="getAllRowsData()"
+        :statistics="editingRowStatistics"
+      />
         </div>
-      </div>
-        </div>
-      </div>
+      </el-card>
     </template>
     
     <!-- 响应模式（只读） -->
     <template v-else-if="mode === 'response'">
-      <div class="table-widget-container response-table-container">
-        <div class="table-widget-header">
-          <span class="table-title">{{ field.name }}</span>
-        </div>
+      <el-card
+        shadow="never"
+        class="table-card response-table-card"
+      >
+        <template #header>
+          <div class="table-card-header">
+            <span class="table-title">{{ field.name }}</span>
+          </div>
+        </template>
         <div class="table-widget-content">
-          <el-table :data="responseTableData" border>
+          <el-table :data="responseTableData" :stripe="false" class="table-widget-table">
             <el-table-column
               v-for="itemField in itemFields"
               :key="itemField.code"
               :prop="itemField.code"
               :label="itemField.name"
               :min-width="getColumnWidth(itemField)"
+              :align="getColumnAlign(itemField)"
+              header-align="left"
             >
               <template #default="{ row, $index }">
-                <component
-                  :is="getWidgetComponent(itemField.widget?.type || 'input')"
-                  :field="itemField"
-                  :value="getResponseRowFieldValue($index, itemField.code)"
-                  :model-value="getResponseRowFieldValue($index, itemField.code)"
-                  :field-path="`${fieldPath}[${$index}].${itemField.code}`"
-                  mode="table-cell"
-                  :depth="(depth || 0) + 1"
-                />
+                <!-- 
+                  🔥 嵌套字段渲染策略（response 模式）
+                  
+                  问题：在响应数据的表格中，嵌套的 form/table 字段如果直接渲染完整内容，会导致：
+                  - 表格被撑爆，布局混乱
+                  - 数据展示不清晰，难以阅读
+                  
+                  解决方案：
+                  - 对于 form 和 table 类型字段，统一使用 table-cell 模式显示
+                  - table-cell 模式会显示为简化形式（"共xx个字段"、"共xx条记录"）
+                  - 点击后打开抽屉，在抽屉中使用 response 模式渲染完整内容，只读展示
+                  
+                  关键点：
+                  - mode="table-cell"：使用表格单元格模式，显示简化信息
+                  - parent-mode="mode"：传递父级模式（这里是 'response'），让嵌套组件知道上下文
+                  - 嵌套组件会根据 parentMode 判断：如果是 'response'，抽屉中使用 response 模式（只读）
+                -->
+                <template v-if="isNestedContainerField(itemField)">
+                  <component
+                    :is="getWidgetComponent(itemField.widget?.type || 'input')"
+                    :field="itemField"
+                    :value="getResponseRowFieldValue($index, itemField.code)"
+                    :model-value="getResponseRowFieldValue($index, itemField.code)"
+                    :field-path="`${fieldPath}[${$index}].${itemField.code}`"
+                    :form-manager="formManager"
+                    :form-renderer="formRenderer"
+                    mode="table-cell"
+                    :parent-mode="mode"
+                    :depth="(depth || 0) + 1"
+                  />
+                </template>
+                <!-- 🔥 其他类型字段：使用共享的渲染函数（与 TableRenderer 一致） -->
+                <template v-else>
+                  <template v-if="getCellContent(itemField, row[itemField.code]).isString">
+                    {{ getCellContent(itemField, row[itemField.code]).content }}
+                  </template>
+                  <!-- 🔥 VNode 直接渲染：使用 render 函数 -->
+                  <CellRenderer v-else :vnode="getCellContent(itemField, row[itemField.code]).content" />
+                </template>
               </template>
             </el-table-column>
           </el-table>
         </div>
-      </div>
+      </el-card>
       
       <!-- 详情抽屉 -->
       <el-drawer
@@ -175,29 +242,111 @@
       </el-drawer>
     </template>
     
-    <!-- 表格单元格模式 -->
+    <!-- 
+      🔥 表格单元格模式（简化显示 + 详情抽屉）
+      
+      使用场景：
+      - 在表格单元格中显示嵌套的 table 字段
+      - 避免表格列过宽，保持布局整洁
+      
+      渲染逻辑：
+      1. 显示简化信息：根据数据量显示 "共xx条记录"
+      2. 点击按钮：打开抽屉查看完整内容
+      3. 抽屉模式：根据 parentMode 决定使用 edit 还是 response 模式
+         - parentMode='edit' → 抽屉使用 edit 模式（可编辑，有确认按钮）
+         - parentMode='response' → 抽屉使用 response 模式（只读，无确认按钮）
+      
+      预期行为：
+      - 表格单元格中只显示简化信息，不占用过多空间
+      - 点击后可以在抽屉中查看和编辑完整内容
+      - 编辑模式下可以修改数据，响应模式下只能查看
+    -->
     <template v-else-if="mode === 'table-cell'">
-      <span class="table-cell-value">
-        {{ displayValue }}
-      </span>
+      <el-button
+        link
+        type="primary"
+        size="small"
+        @click="tableCellMode.openDrawer()"
+        class="table-cell-button"
+      >
+        <span>{{ displayValue }}</span>
+        <el-icon style="margin-left: 4px">
+          <View />
+        </el-icon>
+      </el-button>
+      
+      <!-- 详情抽屉（根据上下文支持编辑或只读） -->
+      <el-drawer
+        v-model="tableCellMode.showDrawer.value"
+        :title="field.name"
+        :size="DRAWER_CONFIG.size"
+        destroy-on-close
+        append-to-body
+      >
+        <template #default>
+          <div class="table-detail-content">
+            <!-- 
+              🔥 抽屉中根据上下文使用 edit 或 response 模式的渲染逻辑
+              
+              drawerMode 的值由 isInEditContext 决定：
+              - 编辑上下文：drawerMode = 'edit' → 可编辑，支持数据修改
+              - 响应上下文：drawerMode = 'response' → 只读，仅展示数据
+            -->
+            <component
+              :is="getWidgetComponent('table')"
+              :field="field"
+              :value="value"
+              :model-value="value"
+              @update:model-value="(v) => emit('update:modelValue', v)"
+              :field-path="fieldPath"
+              :form-manager="formManager"
+              :form-renderer="formRenderer"
+              :mode="tableCellMode.drawerMode.value"
+              :depth="(depth || 0) + 1"
+            />
+          </div>
+        </template>
+        <!-- 
+          🔥 确认按钮只在编辑上下文中显示
+          
+          预期行为：
+          - 编辑上下文：显示确认按钮，用户可以保存修改
+          - 响应上下文：不显示确认按钮，因为数据是只读的
+        -->
+        <template #footer v-if="tableCellMode.isInEditContext.value">
+          <div class="drawer-footer">
+            <el-button @click="tableCellMode.closeDrawer()">取消</el-button>
+            <el-button type="primary" @click="handleTableCellConfirm">确认</el-button>
+          </div>
+        </template>
+      </el-drawer>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { ElTable, ElTableColumn, ElButton, ElDrawer } from 'element-plus'
+import { computed, defineComponent, ref } from 'vue'
+import { ElTable, ElTableColumn, ElButton, ElDrawer, ElCard, ElIcon } from 'element-plus'
+import { Upload, Download, View } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useTableWidget } from '../composables/useTableWidget'
 import { useTableEditMode } from '../composables/useTableEditMode'
 import { useTableResponseMode } from '../composables/useTableResponseMode'
-import { useTableStatistics } from '../composables/useTableStatistics'
+import { useTableCellMode } from '../composables/useTableCellMode'
 import { widgetComponentFactory } from '../../factories-v2'
 import { FieldValue, type FieldConfig } from '../../types/field'
 import { useFormDataStore } from '../../stores-v2/formData'
+import { createEmptyFieldValue, createFieldValue } from '../utils/createFieldValue'
 import type { ValidationEngine, ValidationResult } from '../../validation/types'
 import { validateFieldValue, validateTableWidgetNestedFields, type WidgetValidationContext } from '../composables/useWidgetValidation'
 import { Logger } from '../../utils/logger'
+import { renderTableCell } from '../../utils/tableCellRenderer'
+import FieldStatistics from './FieldStatistics.vue'
+
+// 抽屉配置常量
+const DRAWER_CONFIG = {
+  size: '70%'
+} as const
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -212,24 +361,96 @@ const emit = defineEmits<WidgetComponentEmits>()
 const { tableData, itemFields, getRowFieldValue, updateRowFieldValue, getAllRowsData } = useTableWidget(props)
 const editMode = useTableEditMode(props)
 const responseMode = useTableResponseMode()
-const statistics = useTableStatistics(props, getAllRowsData)
+
+// table-cell 模式的公共逻辑
+const tableCellMode = useTableCellMode(props)
 
 // 获取 formDataStore
 const formDataStore = useFormDataStore()
 
-// 聚合结果（用于模板显示，确保正确解包）
-const statisticsResultDisplay = computed(() => {
-  const result = statistics.statisticsResult.value
-  return result || {}
+// 🔥 当前编辑行的字段统计信息（用于显示在表格下方）
+// 收集当前编辑行所有字段的 statistics 配置，合并成一个对象
+// 🔥 注意：保存后 editingIndex 会变成 null，但我们需要继续显示统计信息
+// 所以需要检查是否有保存后的行数据
+const editingRowStatistics = computed(() => {
+  // 🔥 优先使用当前编辑行的数据
+  let targetIndex = editMode.editingIndex.value
+  
+  // 如果不在编辑状态，尝试使用最后保存的行（通常是最后一行）
+  if (targetIndex === null || targetIndex === undefined) {
+    // 检查是否有数据行
+    if (tableData.value.length > 0) {
+      // 使用最后一行（通常是刚保存的）
+      targetIndex = tableData.value.length - 1
+    } else {
+      return {}
+    }
+  }
+  
+  // 收集当前编辑行所有字段的 statistics 配置
+  const rowStatistics: Record<string, string> = {}
+  
+  itemFields.value.forEach((itemField: any) => {
+    const fieldPath = `${props.fieldPath}[${targetIndex}].${itemField.code}`
+    const itemValue = formDataStore.getValue(fieldPath)
+    
+    // 如果该字段有 statistics 配置，收集它
+    if (itemValue?.meta?.statistics && typeof itemValue.meta.statistics === 'object') {
+      Object.entries(itemValue.meta.statistics).forEach(([label, expression]) => {
+        if (typeof expression === 'string') {
+          rowStatistics[label] = expression
+        }
+      })
+    }
+  })
+  
+  return rowStatistics
 })
 
-// 是否有聚合统计（用于模板条件判断）
-const hasStatistics = computed(() => {
-  const config = statistics.statisticsConfig.value
-  const result = statistics.statisticsResult.value
-  const hasConfig = config && Object.keys(config).length > 0
-  const hasResult = result && typeof result === 'object' && Object.keys(result).length > 0
-  return hasConfig && hasResult
+// 🔥 当前编辑行的字段值（用于 FieldStatistics 组件）
+// 构建一个包含所有字段 displayInfo 的对象，用于 FieldStatistics 计算
+// 🔥 注意：保存后 editingIndex 会变成 null，但我们需要继续显示统计信息
+// 所以需要检查是否有保存后的行数据
+const editingRowFieldValue = computed(() => {
+  // 🔥 优先使用当前编辑行的数据
+  let targetIndex = editMode.editingIndex.value
+  
+  // 如果不在编辑状态，尝试使用最后保存的行（通常是最后一行）
+  if (targetIndex === null || targetIndex === undefined) {
+    // 检查是否有数据行
+    if (tableData.value.length > 0) {
+      // 使用最后一行（通常是刚保存的）
+      targetIndex = tableData.value.length - 1
+    } else {
+      return null
+    }
+  }
+  
+  // 🔥 构建一个包含所有字段 displayInfo 的对象
+  // FieldStatistics 期望 value 是一个对象，包含 meta.displayInfo 或直接是 displayInfo
+  const rowData: Record<string, any> = {
+    meta: {
+      displayInfo: {}
+    }
+  }
+  
+  itemFields.value.forEach((itemField: any) => {
+    const fieldPath = `${props.fieldPath}[${targetIndex}].${itemField.code}`
+    const itemValue = formDataStore.getValue(fieldPath)
+    
+    // 🔥 合并 displayInfo（来自 Select 回调）
+    // FieldStatistics 会从 value.meta.displayInfo 中查找
+    if (itemValue?.meta?.displayInfo && typeof itemValue.meta.displayInfo === 'object') {
+      Object.assign(rowData.meta.displayInfo, itemValue.meta.displayInfo)
+    }
+  })
+  
+  // 如果没有任何 displayInfo，返回 null
+  if (Object.keys(rowData.meta.displayInfo).length === 0) {
+    return null
+  }
+  
+  return rowData
 })
 
 // 响应模式下的表格数据（从 props.value.raw 读取）
@@ -242,45 +463,77 @@ const responseTableData = computed(() => {
 
 // 响应模式下获取行的字段值（从 row 数据直接读取）
 function getResponseRowFieldValue(rowIndex: number, fieldCode: string): FieldValue {
+  // 🔥 查找对应的 itemField（优先使用 itemField，如果没有则使用 props.field）
+  const itemField = itemFields.value.find(f => f.code === fieldCode) || props.field
+  
   if (props.mode !== 'response') {
-    return { raw: null, display: '', meta: {} }
+    // 🔥 使用 createEmptyFieldValue 确保结构一致
+    return createEmptyFieldValue(itemField)
   }
   
   const tableData = responseTableData.value
   if (!tableData || rowIndex < 0 || rowIndex >= tableData.length) {
-    return { raw: null, display: '', meta: {} }
+    // 🔥 使用 createEmptyFieldValue 确保结构一致
+    return createEmptyFieldValue(itemField)
   }
   
   const row = tableData[rowIndex]
   const rawValue = row?.[fieldCode]
   
-  return {
-    raw: rawValue ?? null,
-    display: rawValue !== null && rawValue !== undefined 
-      ? (typeof rawValue === 'object' ? JSON.stringify(rawValue) : String(rawValue))
-      : '',
-    meta: {}
-  }
+  const display = rawValue !== null && rawValue !== undefined 
+    ? (typeof rawValue === 'object' ? JSON.stringify(rawValue) : String(rawValue))
+    : ''
+  
+  // 🔥 使用 createFieldValue 确保结构一致
+  return createFieldValue(
+    itemField,
+    rawValue ?? null,
+    display
+  )
 }
+
+/**
+ * 🔥 获取表格单元格内容（用于模板，与 TableRenderer 一致）
+ * 
+ * 使用共享的渲染函数，确保渲染逻辑一致
+ */
+function getCellContent(field: FieldConfig, rawValue: any): { content: any, isString: boolean } {
+  return renderTableCell(field, rawValue, {
+    mode: 'table-cell',
+    userInfoMap: props.userInfoMap || new Map(),
+    fieldPath: field.code,
+    formRenderer: props.formRenderer,
+    formManager: props.formManager
+  })
+}
+
+// 🔥 VNode 渲染组件（用于在模板中渲染 VNode，避免循环引用）
+const CellRenderer = defineComponent({
+  props: {
+    vnode: {
+      type: Object,
+      required: true
+    }
+  },
+  setup(props: { vnode: any }) {
+    return () => props.vnode
+  }
+})
 
 // 显示值（用于 table-cell 模式）
 const displayValue = computed(() => {
   const value = props.value
   if (!value) {
-    return '-'
-  }
-  
-  if (value.display) {
-    return value.display
+    return '共 0 条记录'
   }
   
   const raw = value.raw
   if (raw === null || raw === undefined || raw === '') {
-    return '-'
+    return '共 0 条记录'
   }
   
   if (Array.isArray(raw)) {
-    return `共 ${raw.length} 条`
+    return `共 ${raw.length} 条记录`
   }
   
   // 避免序列化循环引用的对象
@@ -289,47 +542,19 @@ const displayValue = computed(() => {
       return JSON.stringify(raw)
     } catch (e) {
       // 如果序列化失败（循环引用），返回简单描述
-      return `[对象]`
+      return `共 0 条记录`
     }
   }
   
   return String(raw)
 })
 
-// 格式化统计值（避免循环引用和 computed ref）
-function formatStatisticsValue(value: any): string {
-  if (value === null || value === undefined) {
-    return '-'
-  }
-  
-  // 如果是 computed ref，获取其值
-  if (value && typeof value === 'object' && '__v_isRef' in value && 'value' in value) {
-    return formatStatisticsValue(value.value)
-  }
-  
-  // 如果是基本类型，直接返回
-  if (typeof value !== 'object') {
-    return String(value)
-  }
-  
-  // 如果是数组
-  if (Array.isArray(value)) {
-    return `[${value.length} 项]`
-  }
-  
-  // 如果是对象，尝试序列化
-  try {
-    const str = JSON.stringify(value)
-    // 如果序列化结果太长，截断
-    if (str.length > 100) {
-      return str.substring(0, 100) + '...'
-    }
-    return str
-  } catch (e) {
-    // 如果序列化失败（循环引用），返回简单描述
-    return `[对象]`
-  }
+// 处理 table-cell 模式的确认按钮
+function handleTableCellConfirm(): void {
+  // 关闭抽屉即可，数据已经通过 update:modelValue 事件更新
+  tableCellMode.closeDrawer()
 }
+
 
 // 获取列宽
 function getColumnWidth(field: any): number {
@@ -349,9 +574,28 @@ function getColumnWidth(field: any): number {
   return 150
 }
 
+// 获取列对齐方式
+function getColumnAlign(field: any): 'left' | 'center' | 'right' {
+  // 🔥 优先使用字段配置中的对齐方式
+  const configAlign = field.widget?.config?.align
+  if (configAlign === 'left' || configAlign === 'center' || configAlign === 'right') {
+    return configAlign
+  }
+  
+  // 🔥 所有列统一左对齐
+  return 'left'
+}
+
 // 获取组件
 function getWidgetComponent(type: string) {
   return widgetComponentFactory.getRequestComponent(type)
+}
+
+/**
+ * 判断字段是否为嵌套容器类型（form 或 table）
+ */
+function isNestedContainerField(field: FieldConfig): boolean {
+  return field.widget?.type === 'form' || field.widget?.type === 'table'
 }
 
 // 保存行
@@ -374,30 +618,31 @@ function handleSave(index: number): void {
       // 确保 formDataStore 中有这个值
       formDataStore.setValue(fieldPath, fieldValue)
       
-      // 收集到 rowData 中
+      // 收集到 rowData 中（只保存 raw 值）
       rowData[itemField.code] = fieldValue.raw ?? null
     })
     
     // 保存行（这会更新 tableData，从而更新 formDataStore 中的整个数组）
-    // 在 saveRow 之前保存状态，因为 saveRow 会调用 cancelEditing() 重置状态
-    const wasAdding = editMode.isAdding.value
-    const currentLength = tableData.value.length
-    
     editMode.saveRow(rowData)
     
     // 保存后，再次确保 formDataStore 中每个字段路径的值都是最新的
-    // 如果是新增，索引会变成数组的最后一个索引
-    const finalIndex = wasAdding ? currentLength : index
+    // 🔥 无论新增还是编辑，都使用 index（因为 saveRow 已经把数据保存到正确位置了）
+    const finalIndex = index
     
     itemFields.value.forEach(itemField => {
       const fieldPath = `${props.fieldPath}[${finalIndex}].${itemField.code}`
       const rawValue = rowData[itemField.code]
       
-      // 确保 formDataStore 中有正确的值
+      // 🔥 获取当前的值，保留 meta 和 display 信息
+      const currentValue = formDataStore.getValue(fieldPath)
+      
+      // 确保 formDataStore 中有正确的值，并保留 display 和 meta 信息
       const fieldValue: FieldValue = {
         raw: rawValue,
-        display: rawValue !== null && rawValue !== undefined ? String(rawValue) : '',
-        meta: {}
+        display: currentValue?.display || (rawValue !== null && rawValue !== undefined ? String(rawValue) : ''),
+        meta: {
+          ...(currentValue?.meta || {}), // 🔥 保留原有的 meta 信息（displayInfo、statistics 等）
+        }
       }
       formDataStore.setValue(fieldPath, fieldValue)
     })
@@ -463,6 +708,16 @@ function updateFieldErrors(
   }
 }
 
+// 处理导入（待实现）
+function handleImport(): void {
+  Logger.warn('TableWidget', '导入功能待实现')
+}
+
+// 处理导出（待实现）
+function handleExport(): void {
+  Logger.warn('TableWidget', '导出功能待实现')
+}
+
 // 🔥 暴露验证方法给父组件
 defineExpose({
   validate
@@ -474,35 +729,81 @@ defineExpose({
   width: 100%;
 }
 
+/* 🔥 表格卡片样式（参考 FormWidget，保持样式一致） */
+.table-card {
+  width: 100%;
+  margin-bottom: 24px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.table-card:last-child {
+  margin-bottom: 0;
+}
+
+.table-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.table-title {
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.table-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.table-widget-content {
+  width: 100%;
+  padding: 0;
+}
+
+/* 响应模式表格卡片样式 */
+.response-table-card {
+  background-color: var(--el-bg-color-page);
+}
+
 .table-actions {
   margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--el-border-color-extra-light);
 }
 
-.statistics {
-  margin-top: 16px;
-  padding: 12px;
-  background: var(--el-bg-color-page);
-  border-radius: 4px;
-}
-
-.statistics-item {
-  display: inline-block;
-  margin-right: 24px;
-  margin-bottom: 8px;
-}
-
-.statistics-label {
-  font-weight: 500;
-  color: var(--el-text-color-primary);
-  margin-right: 8px;
-}
-
-.statistics-value {
-  color: var(--el-text-color-regular);
-}
 
 .table-cell-value {
   color: var(--el-text-color-regular);
+}
+
+.table-cell-button {
+  padding: 0;
+  height: auto;
+  font-size: 14px;
+}
+
+/* 详情抽屉内容 */
+.table-detail-content {
+  padding: 16px 0;
+  /* 确保下拉菜单可以正常显示 */
+  overflow: visible;
+  position: relative;
+}
+
+.drawer-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px;
+  border-top: 1px solid var(--el-border-color-lighter);
 }
 
 .detail-field {
@@ -518,5 +819,74 @@ defineExpose({
 .field-value {
   color: var(--el-text-color-regular);
 }
+
+/* 🔥 表格样式（与 TableRenderer 一致，移除边框和斑马纹） */
+:deep(.table-widget-table) {
+  background-color: var(--el-bg-color) !important;
+}
+
+/* 🔥 移除表格边框（左右竖线） */
+:deep(.table-widget-table) {
+  border: none !important;
+}
+
+:deep(.table-widget-table .el-table__inner-wrapper) {
+  border: none !important;
+}
+
+:deep(.table-widget-table .el-table__header-wrapper) {
+  border: none !important;
+}
+
+:deep(.table-widget-table .el-table__body-wrapper) {
+  border: none !important;
+}
+
+:deep(.table-widget-table th),
+:deep(.table-widget-table td) {
+  border-right: none !important;
+  border-left: none !important;
+}
+
+:deep(.table-widget-table th:first-child),
+:deep(.table-widget-table td:first-child) {
+  border-left: none !important;
+}
+
+:deep(.table-widget-table th:last-child),
+:deep(.table-widget-table td:last-child) {
+  border-right: none !important;
+}
+
+:deep(.table-widget-table .el-table__body tr) {
+  background-color: var(--el-bg-color) !important;
+}
+
+/* 🔥 移除斑马纹：确保所有行背景色一致 */
+:deep(.table-widget-table .el-table__body tr.el-table__row--striped) {
+  background-color: var(--el-bg-color) !important;
+}
+
+:deep(.table-widget-table .el-table__body tr.el-table__row--striped td) {
+  background-color: var(--el-bg-color) !important;
+}
+
+:deep(.table-widget-table .el-table__body tr:hover > td) {
+  background-color: var(--el-fill-color-light) !important;
+}
+
+
+/* 🔥 强制所有单元格内容左对齐 */
+:deep(.table-widget-table .el-table__body td),
+:deep(.table-widget-table .el-table__body td .cell) {
+  text-align: left !important;
+}
+
+:deep(.table-widget-table .el-table__body td .cell) {
+  display: flex !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+}
+
 </style>
 

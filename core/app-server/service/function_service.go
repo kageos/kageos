@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
@@ -226,4 +227,110 @@ func (f *FunctionService) ForkFunctionGroup(ctx context.Context, req *dto.ForkFu
 	return &dto.ForkFunctionGroupResp{
 		Message: fmt.Sprintf("成功 Fork %d 个函数组到 %d 个目标目录", totalFileCount, len(targetPackageFiles)),
 	}, nil
+}
+
+// GetFunctionGroupInfo 获取函数组信息（用于 Hub 发布）
+func (f *FunctionService) GetFunctionGroupInfo(ctx context.Context, fullGroupCode string) (*dto.GetFunctionGroupInfoResp, error) {
+	// 1. 获取源代码
+	sourceCode, err := f.sourceCodeRepo.GetByFullGroupCode(fullGroupCode)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("函数组不存在: %s", fullGroupCode)
+		}
+		return nil, fmt.Errorf("获取源代码失败: %w", err)
+	}
+
+	// 2. 获取 ServiceTree 信息（用于获取 group_name 和函数名称/描述）
+	// 注意：同一个 full_group_code 下可能有多个函数，每个函数一条 ServiceTree 记录
+	// 它们共享相同的 group_name，但每个函数的 description 是不同的
+	// 函数组没有统一的描述，所以 description 返回空字符串，让用户在 Hub 上自己填写
+	serviceTrees, err := f.serviceTreeRepo.GetServiceTreesByFullGroupCode(fullGroupCode)
+	var groupName string
+	if err == nil && len(serviceTrees) > 0 {
+		// 取第一条的 group_name（同一个函数组下的 group_name 应该相同）
+		if serviceTrees[0].GroupName != "" {
+			groupName = serviceTrees[0].GroupName
+		} else if serviceTrees[0].Name != "" {
+			groupName = serviceTrees[0].Name
+		}
+	} else if err != nil {
+		// ServiceTree 不存在不影响，使用默认值
+		logger.Warnf(ctx, "[FunctionService] 获取 ServiceTree 失败: fullGroupCode=%s, error=%v", fullGroupCode, err)
+		serviceTrees = []*model.ServiceTree{} // 确保不为 nil
+	}
+
+	// 3. 获取函数列表（快照）
+	functions, err := f.functionRepo.GetBySourceCodeID(sourceCode.ID)
+	if err != nil {
+		logger.Warnf(ctx, "[FunctionService] 获取函数列表失败: sourceCodeID=%d, error=%v", sourceCode.ID, err)
+		functions = []*model.Function{} // 确保不为 nil
+	}
+
+	// 4. 获取应用信息
+	app, err := f.appRepo.GetAppByID(sourceCode.AppID)
+	if err != nil {
+		logger.Warnf(ctx, "[FunctionService] 获取应用信息失败: appID=%d, error=%v", sourceCode.AppID, err)
+	}
+
+	// 5. 建立 ServiceTree RefID -> ServiceTree 的映射（用于获取函数名称和描述）
+	// ServiceTree 的 RefID 指向 Function.ID，type = 'function'
+	serviceTreeMap := make(map[int64]*model.ServiceTree)
+	if len(serviceTrees) > 0 {
+		for _, st := range serviceTrees {
+			if st.RefID > 0 {
+				serviceTreeMap[st.RefID] = st
+			}
+		}
+	}
+
+	// 6. 转换为 FunctionInfo 列表
+	functionInfos := make([]dto.FunctionInfo, len(functions))
+	for i, function := range functions {
+		var functionName, functionDescription string
+		if st, exists := serviceTreeMap[function.ID]; exists {
+			functionName = st.Name
+			functionDescription = st.Description
+		}
+		
+		functionInfos[i] = dto.FunctionInfo{
+			ID:           function.ID,
+			AppID:        function.AppID,
+			TreeID:       function.TreeID,
+			Method:       function.Method,
+			Router:       function.Router,
+			HasConfig:    function.HasConfig,
+			CreateTables: function.CreateTables,
+			Callbacks:    function.Callbacks,
+			TemplateType: function.TemplateType,
+			CreatedAt:    time.Time(function.CreatedAt).Format("2006-01-02T15:04:05Z"),
+			UpdatedAt:    time.Time(function.UpdatedAt).Format("2006-01-02T15:04:05Z"),
+			Name:         functionName,        // 函数名称
+			Description:  functionDescription, // 函数描述
+		}
+	}
+
+	// 7. 组装响应数据
+	resp := &dto.GetFunctionGroupInfoResp{
+		// 核心数据
+		SourceCode:  sourceCode.Content,
+		Description: "", // 函数组没有统一的描述（每个函数的描述不同），返回空字符串，让用户在 Hub 上自己填写
+		// 快照信息
+		FullGroupCode: sourceCode.FullGroupCode,
+		GroupCode:     sourceCode.GroupCode,
+		GroupName:     groupName, // 从 ServiceTree 获取 group_name
+		FullPath:      sourceCode.FullPath,
+		Version:       sourceCode.Version,
+		AppID:         sourceCode.AppID,
+		AppName:       "",
+		FunctionCount: len(functions),
+		Functions:     functionInfos, // 函数列表
+	}
+
+	// 从 App 获取应用名称
+	if app != nil {
+		resp.AppName = app.Code
+	}
+
+	logger.Infof(ctx, "[FunctionService] GetFunctionGroupInfo success: fullGroupCode=%s, functionCount=%d", fullGroupCode, resp.FunctionCount)
+	return resp, nil
 }

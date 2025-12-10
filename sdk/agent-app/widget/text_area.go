@@ -1,8 +1,8 @@
 package widget
 
 type TextArea struct {
-	Placeholder string `json:"placeholder"` // 占位符文本
-	Default     string `json:"default"`     //默认值
+	Placeholder string `json:"placeholder,omitempty"` // 占位符文本
+	Default     string `json:"default,omitempty"`     // 默认值
 }
 
 func (t *TextArea) Config() interface{} {

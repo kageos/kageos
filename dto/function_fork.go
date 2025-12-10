@@ -5,8 +5,8 @@ package dto
 // value: 服务目录的 full_code_path（目标服务目录的完整代码路径，格式：/{user}/{app}/{package_path}）
 // 例如：a fork到a1目录，b fork到b1目录
 type ForkFunctionGroupReq struct {
-	SourceToTargetMap map[string]string `json:"source_to_target_map" binding:"required" example:"/luobei/app_a/tools/tools_cashier:/luobei/app_b/a1,/luobei/app_a/tools/tools_excel:/luobei/app_b/b1"` // 源到目标的映射：key=函数组的full_group_code，value=服务目录的full_code_path
-	TargetAppID       int64             `json:"target_app_id" binding:"required" example:"123"`                                                                                                        // 目标应用 ID
+	SourceToTargetMap map[string]string `json:"source_to_target_map" binding:"required" example:"/luobei/app_a/plugins/tools_cashier:/luobei/app_b/a1,/luobei/app_a/plugins/tools_excel:/luobei/app_b/b1"` // 源到目标的映射：key=函数组的full_group_code，value=服务目录的full_code_path
+	TargetAppID       int64             `json:"target_app_id" binding:"required" example:"123"`                                                                                                            // 目标应用 ID
 }
 
 // ForkFunctionGroupResp Fork 函数组响应（API 层，简化版）
@@ -24,7 +24,7 @@ type ForkFunctionGroupRuntimeReq struct {
 
 // ForkPackageInfo Fork 的 package 信息
 type ForkPackageInfo struct {
-	Package string                   `json:"package"` // 目标 package 代码（支持多级，如 tools/cashier）
+	Package string                   `json:"package"` // 目标 package 代码（支持多级，如 plugins/cashier）
 	Files   []*ForkFunctionGroupFile `json:"files"`   // 该 package 下的文件列表
 }
 
@@ -37,8 +37,7 @@ type ForkFunctionGroupFile struct {
 
 // ForkFunctionGroupRuntimeResp Fork 函数组运行时响应（app-runtime，简化版）
 type ForkFunctionGroupRuntimeResp struct {
-	Success      bool     `json:"success" example:"true"`         // 是否成功
-	Message      string   `json:"message" example:"文件写入成功"`  // 响应消息
-	WrittenFiles []string `json:"written_files"`                  // 已写入的文件路径列表（用于失败时回滚）
+	Success      bool     `json:"success" example:"true"`   // 是否成功
+	Message      string   `json:"message" example:"文件写入成功"` // 响应消息
+	WrittenFiles []string `json:"written_files"`            // 已写入的文件路径列表（用于失败时回滚）
 }
-

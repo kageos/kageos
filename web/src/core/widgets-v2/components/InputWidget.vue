@@ -52,6 +52,7 @@ import { computed } from 'vue'
 import { ElInput } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useFormDataStore } from '../../stores-v2/formData'
+import { createFieldValue } from '../utils/createFieldValue'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -74,15 +75,18 @@ const internalValue = computed({
     return ''
   },
   set: (newValue: string) => {
-    if (props.mode === 'edit') {
-      const newFieldValue = {
-        raw: newValue,
-        display: newValue,
-        meta: {}
-      }
+    if (props.mode === 'edit' || props.mode === 'search') {
+      // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
+      const newFieldValue = createFieldValue(
+        props.field,
+        newValue,
+        newValue
+      )
       
-      // 同步到 Store
-      formDataStore.setValue(props.fieldPath, newFieldValue)
+      if (props.mode === 'edit') {
+        // 同步到 Store (仅编辑模式)
+        formDataStore.setValue(props.fieldPath, newFieldValue)
+      }
       
       // 触发 v-model 更新
       emit('update:modelValue', newFieldValue)

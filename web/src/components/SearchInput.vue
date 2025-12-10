@@ -25,7 +25,7 @@
     <!-- 🔥 单选组件：简化实现，不显示颜色，避免重叠问题 -->
     <el-select
       v-if="!inputConfig.props?.multiple && isSelectWidget"
-      v-model="localValue"
+      v-model="selectValue"
       :placeholder="inputConfig.props?.placeholder"
       :clearable="inputConfig.props?.clearable"
       :filterable="inputConfig.props?.filterable"
@@ -60,7 +60,7 @@
     <!-- 🔥 普通单选组件（没有颜色配置） -->
     <el-select
       v-else-if="inputConfig.component === SearchComponent.EL_SELECT && !inputConfig.props?.multiple"
-      v-model="localValue"
+      v-model="selectValue"
       :placeholder="inputConfig.props?.placeholder"
       :clearable="inputConfig.props?.clearable"
       :filterable="inputConfig.props?.filterable"
@@ -104,7 +104,7 @@
     <!-- 🔥 多选组件 -->
     <el-select
       v-else-if="inputConfig.component === SearchComponent.EL_SELECT && inputConfig.props?.multiple"
-      v-model="localValue"
+      v-model="selectValue"
       :placeholder="inputConfig.props?.placeholder"
       :clearable="inputConfig.props?.clearable"
       :filterable="inputConfig.props?.filterable"
@@ -272,7 +272,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, onMounted } from 'vue'
 import { ElAvatar, ElIcon, ElTag } from 'element-plus'
 import { Close } from '@element-plus/icons-vue'
 import UserSearchInput from './UserSearchInput.vue'
@@ -286,7 +286,7 @@ import { WidgetType } from '@/core/constants/widget'
 import { parseCommaSeparatedString } from '@/utils/stringUtils'
 import { isStandardColor, getStandardColorCSSVar, type StandardColorType } from '@/core/constants/select'
 import { Logger } from '@/core/utils/logger'
-import type { FieldConfig } from '@/types'
+import type { FieldConfig } from '@/core/types/field'
 
 // 防抖函数
 function debounce<T extends (...args: any[]) => any>(func: T, wait: number): T {
@@ -317,6 +317,23 @@ const emit = defineEmits<Emits>()
 
 // 本地值（单值）
 const localValue = ref(props.modelValue)
+
+// 🔥 用于控制是否显示值（在 remote 模式下，等选项加载完成后再显示）
+const shouldShowValue = ref(true)
+
+// 🔥 计算属性：用于 el-select 的 v-model（避免使用三元表达式）
+const selectValue = computed({
+  get: () => {
+    if (!shouldShowValue.value) {
+      // 单选返回 null，多选返回 []
+      return inputConfig.value.props?.multiple ? [] : null
+    }
+    return localValue.value
+  },
+  set: (val: any) => {
+    localValue.value = val
+  }
+})
 
 // 🔥 防止循环更新的标志
 const isInternalUpdate = ref(false)
@@ -594,13 +611,75 @@ const initSelectedOptions = async () => {
   
   // 🔥 优先使用 onInitOptions（如果存在），用于批量查询已选中值
   if (inputConfig.value.onInitOptions) {
+    // 🔥 立即设置 loading 状态，并隐藏值，避免显示原始值
     selectLoading.value = true
+    shouldShowValue.value = false
+    // 🔥 在下一个 tick 执行，确保 el-select 已经渲染并显示 loading 状态
+    await nextTick()
     try {
-      const options = await inputConfig.value.onInitOptions(currentValue)
+      // 🔥 处理值：提取所有值（数组或逗号分隔的字符串）
+      let queryValues: any[] = []
+      if (Array.isArray(currentValue) && currentValue.length > 0) {
+        // 数组：使用所有值
+        queryValues = currentValue
+      } else if (typeof currentValue === 'string' && currentValue.includes(',')) {
+        // 逗号分隔的字符串：分割为数组
+        queryValues = currentValue.split(',').map(s => s.trim()).filter(s => s)
+      } else if (currentValue !== null && currentValue !== undefined && currentValue !== '') {
+        // 单个值：转换为数组
+        queryValues = [currentValue]
+      }
+      
+      if (queryValues.length === 0) {
+        shouldShowValue.value = true
+        return
+      }
+      
+      // 🔥 如果只有一个值，使用单个值查询；如果有多个值，使用数组查询（by_values）
+      const options = await inputConfig.value.onInitOptions(queryValues.length === 1 ? queryValues[0] : queryValues)
       selectOptions.value = options || []
+      
+      // 🔥 确保 localValue 的类型与选项中的 value 类型一致（用于 el-select 匹配）
+      if (options && options.length > 0) {
+        // 🔥 如果是多选模式，需要匹配所有值；如果是单选模式，只匹配第一个值
+        const isMultiple = inputConfig.value.props?.multiple || false
+        
+        if (isMultiple) {
+          // 多选模式：更新为匹配的值数组
+          const matchedValues: any[] = []
+          queryValues.forEach(queryVal => {
+            const matchedOption = options.find((opt: any) => {
+              const optValue = typeof opt === 'object' ? opt.value : opt
+              return optValue === queryVal || String(optValue) === String(queryVal)
+            })
+            if (matchedOption) {
+              const matchedValue = typeof matchedOption === 'object' ? matchedOption.value : matchedOption
+              matchedValues.push(matchedValue)
+            }
+          })
+          if (matchedValues.length > 0) {
+            localValue.value = matchedValues
+          }
+        } else {
+          // 单选模式：只匹配第一个值
+          const queryValue = queryValues[0]
+          const matchedOption = options.find((opt: any) => {
+            const optValue = typeof opt === 'object' ? opt.value : opt
+            return optValue === queryValue || String(optValue) === String(queryValue)
+          })
+          if (matchedOption) {
+            const matchedValue = typeof matchedOption === 'object' ? matchedOption.value : matchedOption
+            localValue.value = matchedValue
+          }
+        }
+      }
+      
+      // 🔥 选项加载完成，允许显示值
+      shouldShowValue.value = true
     } catch (error) {
       Logger.error('SearchInput', 'Init selected options error', error)
       selectOptions.value = []
+      shouldShowValue.value = true
     } finally {
       selectLoading.value = false
     }
@@ -673,7 +752,12 @@ const initSelectedOptions = async () => {
  */
 const inputConfig = computed(() => {
   try {
-    return createSearchComponentConfig(props.field, props.searchType)
+    return createSearchComponentConfig(
+      props.field,
+      props.searchType,
+      props.functionMethod,
+      props.functionRouter
+    )
   } catch (error) {
     // ✅ 使用 ErrorHandler 统一处理错误
     return ErrorHandler.handleWidgetError('SearchInput.inputConfig', error, {
@@ -876,18 +960,54 @@ watch(() => props.modelValue, (newValue: any, oldValue: any) => {
         inputConfig.value.props?.remote && 
         localValue.value && 
         (Array.isArray(localValue.value) ? localValue.value.length > 0 : true)) {
+      // 🔥 如果有 onInitOptions，先隐藏值，等选项加载完成后再显示
+      if (inputConfig.value.onInitOptions) {
+        shouldShowValue.value = false
+      }
       // 延迟执行，确保 inputConfig 已更新
       nextTick(() => {
         initSelectedOptions()
       })
+    } else {
+      // 🔥 如果不是 remote 模式或没有值，允许显示值
+      shouldShowValue.value = true
     }
   }
 }, { immediate: true })
 
 // 🔥 监听 inputConfig 变化，初始化已选中值的选项
-watch(() => inputConfig.value, () => {
-  if (inputConfig.value.component === SearchComponent.EL_SELECT && inputConfig.value.props?.remote && localValue.value) {
-    initSelectedOptions()
+watch(() => inputConfig.value, (newConfig, oldConfig) => {
+  // 🔥 只有当 inputConfig 真正变化时才触发（避免初始化时重复调用）
+  if (newConfig === oldConfig) {
+    return
+  }
+  if (newConfig.component === SearchComponent.EL_SELECT && 
+      newConfig.props?.remote && 
+      localValue.value && 
+      (Array.isArray(localValue.value) ? localValue.value.length > 0 : true)) {
+    nextTick(() => {
+      initSelectedOptions()
+    })
+  }
+}, { immediate: false })
+
+// 🔥 组件挂载时，如果已有值且是 remote 模式，立即触发初始化（避免先显示原始值）
+onMounted(() => {
+  if (inputConfig.value.component === SearchComponent.EL_SELECT && 
+      inputConfig.value.props?.remote && 
+      localValue.value && 
+      (Array.isArray(localValue.value) ? localValue.value.length > 0 : true)) {
+    // 🔥 如果有 onInitOptions，先隐藏值，等选项加载完成后再显示
+    if (inputConfig.value.onInitOptions) {
+      shouldShowValue.value = false
+    }
+    // 立即触发初始化，不等待 watch
+    nextTick(() => {
+      initSelectedOptions()
+    })
+  } else {
+    // 🔥 如果不是 remote 模式或没有值，允许显示值
+    shouldShowValue.value = true
   }
 })
 </script>

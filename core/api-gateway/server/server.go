@@ -140,6 +140,7 @@ func (s *Server) initRouter(ctx context.Context) error {
 	s.httpServer.Use(gin.Recovery())
 	s.httpServer.Use(middleware2.Cors())
 	s.httpServer.Use(middleware2.WithTraceId())
+	s.httpServer.Use(middleware2.AccessLog()) // 访问日志中间件，记录所有请求（包括 agent-server）
 
 	// 设置路由
 	s.setupRoutes()

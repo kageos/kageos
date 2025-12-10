@@ -6,6 +6,7 @@
  * 1. 基础聚合：sum(字段), count(字段), avg(字段), min(字段), max(字段)
  * 2. 乘法聚合：sum(字段1,*字段2), sum(字段1,*字段2,*系数)
  * 3. List层聚合：list_sum(字段), list_avg(字段), list_count()
+ * 4. 选中项字段值：value(字段) → 显示当前选中项的某个字段值（动态值）
  * 
  * 示例：
  * - sum(价格) → 计算所有行的价格总和
@@ -13,6 +14,7 @@
  * - sum(价格,*数量,*0.9) → 计算所有行的 价格*数量*0.9 的总和
  * - avg(价格) → 计算所有行的价格平均值
  * - list_sum(用户总价) → 对所有行的"用户总价"字段求和（用于 MultiSelect 二层聚合）
+ * - value(余额) → 显示当前选中项的"余额"字段值（从 DisplayInfo 中获取）
  */
 
 import { Logger } from './logger'
@@ -20,17 +22,14 @@ import { Logger } from './logger'
 export class ExpressionParser {
   /**
    * 计算表达式
-   * @param expression 表达式字符串，如 "sum(价格)", "sum(价格,*数量)"
+   * @param expression 表达式字符串，如 "sum(价格)", "sum(价格,*数量)", "selected(价格)"
    * @param data 数据数组，每个元素是一个对象
+   * @param selectedItem 当前选中项（用于 selected() 函数），可选
    * @returns 计算结果
    */
-  static evaluate(expression: string, data: any[]): any {
+  static evaluate(expression: string, data: any[], selectedItem?: any): any {
     if (!expression) {
       return ''
-    }
-    
-    if (!data || data.length === 0) {
-      return 0
     }
 
     // 解析表达式：函数名(参数1,参数2,...)
@@ -42,6 +41,15 @@ export class ExpressionParser {
 
     const [, funcName, argsStr] = match
     
+    // 🔥 特殊处理：value() 函数需要从选中项中获取值
+    if (funcName === 'value') {
+      return this.evaluateValue(argsStr.trim(), selectedItem)
+    }
+    
+    // 对于聚合函数，需要数据数组
+    if (!data || data.length === 0) {
+      return 0
+    }
     
     // 判断是 List 层聚合还是行内聚合
     if (funcName.startsWith('list_')) {
@@ -257,6 +265,49 @@ export class ExpressionParser {
     }
     
     return null
+  }
+
+  /**
+   * 计算选中项的字段值（value() 函数，动态值）
+   * @param fieldName 字段名（来自 DisplayInfo 的 key）
+   * @param selectedItem 当前选中项（包含 DisplayInfo）
+   * @returns 字段值，如果不存在则返回空字符串
+   */
+  private static evaluateValue(fieldName: string, selectedItem?: any): any {
+    if (!selectedItem || !fieldName) {
+      return ''
+    }
+    
+    // 🔥 从选中项的 DisplayInfo 中获取字段值
+    // selectedItem 可能是：
+    // 1. 直接是 DisplayInfo 对象：{ "价格": 100, "库存": 50 }
+    // 2. 包含 displayInfo 属性的对象：{ displayInfo: { "价格": 100, "库存": 50 } }
+    // 3. 包含 display_info 属性的对象：{ display_info: { "价格": 100, "库存": 50 } }
+    
+    let displayInfo: any = null
+    
+    if (selectedItem.displayInfo) {
+      displayInfo = selectedItem.displayInfo
+    } else if (selectedItem.display_info) {
+      displayInfo = selectedItem.display_info
+    } else if (typeof selectedItem === 'object' && !Array.isArray(selectedItem)) {
+      // 如果 selectedItem 本身就是 DisplayInfo 对象
+      displayInfo = selectedItem
+    }
+    
+    if (!displayInfo || typeof displayInfo !== 'object') {
+      return ''
+    }
+    
+    // 从 DisplayInfo 中获取字段值
+    const value = displayInfo[fieldName]
+    
+    // 如果值为 null、undefined 或空字符串，返回空字符串
+    if (value === null || value === undefined || value === '') {
+      return ''
+    }
+    
+    return value
   }
 
   /**

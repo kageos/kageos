@@ -41,6 +41,8 @@
           :form-manager="formManager"
           :form-renderer="formRendererContext"
           :user-info-map="userInfoMap"
+          :function-name="functionName"
+          :record-id="recordId"
           mode="edit"
         />
         <div v-else class="widget-error">
@@ -102,7 +104,9 @@
             :field-path="field.code"
             :form-renderer="formRendererContext"
             :user-info-map="userInfoMap"
-            :mode="field.widget?.type === 'files' ? 'detail' : 'response'"
+            :function-name="functionName"
+            :record-id="recordId"
+            mode="response"
           />
           <div v-else class="widget-error">
             响应组件未找到: {{ field.widget?.type || 'input' }}
@@ -129,8 +133,13 @@
 </template>
 
 <script setup lang="ts">
+// 设置组件名称，用于 keep-alive 缓存
+defineOptions({
+  name: 'FormRenderer'
+})
+
 import { ref, computed, onMounted, onBeforeUnmount, onUnmounted, nextTick, watch, reactive } from 'vue'
-import { ElForm, ElFormItem, ElButton, ElCard, ElMessage, ElIcon, ElTag } from 'element-plus'
+import { ElForm, ElFormItem, ElButton, ElCard, ElMessage, ElMessageBox, ElIcon, ElTag } from 'element-plus'
 import { Promotion, RefreshLeft } from '@element-plus/icons-vue'
 import type { FieldConfig, FunctionDetail, FieldValue } from '../types/field'
 import { useFormDataStore } from '../stores-v2/formData'
@@ -146,6 +155,7 @@ import type { FormRendererContext } from '../types/widget'
 import type { ValidationResult } from '../validation/types'
 import { getWidgetDefaultValue } from '../widgets-v2/composables/useWidgetDefaultValue'
 import { useAuthStore } from '@/stores/auth'
+import { convertToFieldValue } from '@/utils/field'
 
 const props = withDefaults(defineProps<{
   functionDetail: FunctionDetail
@@ -166,6 +176,58 @@ const responseDataStore = useResponseDataStore()
 
 // 🔥 用户信息映射（从 props 获取，如果没有则使用空 Map）
 const userInfoMap = computed(() => props.userInfoMap || new Map())
+
+// 🔥 从 functionDetail.router 提取函数名称（用于 FilesWidget 打包下载命名）
+const functionName = computed(() => {
+  if (!props.functionDetail?.router) {
+    return undefined
+  }
+  
+  // router 格式通常是：/user/app/function_name 或 /user/app/group/function_name
+  const routerParts = props.functionDetail.router.split('/').filter(Boolean)
+  if (routerParts.length === 0) {
+    return undefined
+  }
+  
+  // 提取函数名称（最后一段）
+  let funcName = routerParts[routerParts.length - 1]
+  
+  // 提取 user 和 app 名称（格式：/user/app/...）
+  if (routerParts.length >= 2) {
+    const userName = routerParts[0]  // 第一段是 user 名称
+    const appName = routerParts[1]    // 第二段是 app 名称
+    
+    // 如果有 user 和 app 名称，在函数名称前面加上
+    if (userName && appName && funcName) {
+      funcName = `${userName}_${appName}_${funcName}`
+    } else if (appName && funcName) {
+      // 如果只有 app 名称，也加上
+      funcName = `${appName}_${funcName}`
+    }
+  }
+  
+  return funcName
+})
+
+// 🔥 从 initialData 提取 recordId（用于 FilesWidget 打包下载命名）
+const recordId = computed(() => {
+  if (!props.initialData) {
+    return undefined
+  }
+  
+  // 尝试从 initialData 中获取 id 字段（可能是 id、ID、record_id 等）
+  const idField = Object.keys(props.initialData).find(key => {
+    const lowerKey = key.toLowerCase()
+    return lowerKey === 'id' || lowerKey.endsWith('_id') || lowerKey.endsWith('id')
+  })
+  
+  if (idField) {
+    const idValue = props.initialData[idField]
+    return idValue !== null && idValue !== undefined ? idValue : undefined
+  }
+  
+  return undefined
+})
 
 // 表单引用
 const formRef = ref()
@@ -259,6 +321,28 @@ function updateFieldValue(fieldCode: string, value: FieldValue): void {
   if (field) {
     validateField(field)
     
+    // 🔥 处理字段依赖：当字段值变化时，清空所有依赖该字段的其他字段
+    // 例如：当 topic_id 变化时，自动清空 option_ids（因为选项列表会变化）
+    requestFields.value.forEach(otherField => {
+      // 🔥 安全检查：确保 otherField 存在且有 code 和 depend_on 属性
+      if (!otherField || !otherField.code || !otherField.depend_on) {
+        return
+      }
+      
+      if (otherField.depend_on === fieldCode) {
+        Logger.debug('FormRenderer', `字段 ${otherField.code} 依赖 ${fieldCode}，清空其值`)
+        formDataStore.setValue(otherField.code, {
+          raw: null,
+          display: '',
+          meta: {}
+        })
+        // 同时清空该字段的验证错误（fieldErrors 是 Map，使用 delete 方法）
+        if (fieldErrors.has(otherField.code)) {
+          fieldErrors.delete(otherField.code)
+        }
+      }
+    })
+    
     // 🔥 同时验证所有其他字段（因为条件验证可能依赖多个字段）
     // 例如：字段A的值改变时，可能影响字段B的 required_if 验证
     requestFields.value.forEach(otherField => {
@@ -329,13 +413,9 @@ const responseFieldValues = computed(() => {
       
       const rawValue = responseData[field.code]
       
-      values[field.code] = {
-        raw: rawValue ?? null,
-        display: rawValue !== null && rawValue !== undefined 
-          ? (typeof rawValue === 'object' ? JSON.stringify(rawValue) : String(rawValue))
-          : '',
-        meta: {}
-      }
+      // 🔥 使用 convertToFieldValue 来正确转换字段值（特别是时间戳字段）
+      // 这样可以确保时间戳字段被正确格式化为日期字符串
+      values[field.code] = convertToFieldValue(rawValue, field)
     })
     
     return values
@@ -609,12 +689,37 @@ const formRendererContext: FormRendererContext = {
   unregisterWidget: () => {},
   getFunctionMethod: () => props.functionDetail.method,
   getFunctionRouter: () => props.functionDetail.router,
+  getFunctionDetail: () => props.functionDetail, // 🔥 获取函数详情（用于 keep-alive 场景下的防重复调用）
   getSubmitData: () => formDataStore.getSubmitData(requestFields.value),
-  // 添加获取字段错误的方法，供嵌套 Widget 使用
-  getFieldError: (fieldPath: string) => getFieldError(fieldPath)
-} as any
+  getFieldError: (fieldPath: string) => getFieldError(fieldPath) // 🔥 获取字段错误
+}
 
-// 条件渲染评估（适配 formDataStore）
+/**
+ * 条件渲染评估（适配 formDataStore）
+ * 
+ * ⚠️ 重要：条件渲染初始化时的值获取问题
+ * 
+ * 问题场景：
+ * - 字段 A 有验证规则 `required_if=FieldB value`，表示只有当 FieldB 等于 value 时才显示
+ * - 在表单初始化时，`requestFields` computed 会计算哪些字段应该显示
+ * - 但此时 `formDataStore` 还是空的，导致条件渲染无法获取 FieldB 的值
+ * - 结果：字段 A 被错误地过滤掉，即使 initialData 中有 FieldB 的值
+ * 
+ * 典型案例：
+ * - `max_selections` 字段有规则 `required_if=VoteType 多选`
+ * - 初始化时，`vote_type` 的值在 `initialData` 中（值为 "多选"）
+ * - 但 `formDataStore` 中还没有值，导致条件渲染判断失败
+ * - `max_selections` 被过滤，无法显示和初始化
+ * 
+ * 解决方案：
+ * - 在条件渲染时，如果 `formDataStore` 中没有值，尝试从 `initialData` 中获取
+ * - 这样可以确保在初始化时，条件渲染能正确判断字段是否应该显示
+ * 
+ * @param field 字段配置
+ * @param formDataStore 表单数据 store
+ * @param allFields 所有字段配置
+ * @returns 是否应该显示该字段
+ */
 function shouldShowFieldInForm(
   field: FieldConfig,
   formDataStore: ReturnType<typeof useFormDataStore>,
@@ -623,13 +728,44 @@ function shouldShowFieldInForm(
   // 创建一个适配器，将 formDataStore 转换为 ReactiveFormDataManager 接口
   const formManagerAdapter = {
     getValue: (fieldPath: string) => {
-      const value = formDataStore.getValue(fieldPath)
+      let value = formDataStore.getValue(fieldPath)
+      
+      // ⚠️ 关键修复：如果 formDataStore 中没有值，且 initialData 中有值，使用 initialData 的值
+      // 这样可以确保在初始化时，条件渲染能正确判断字段是否应该显示
+      // 例如：max_selections 字段依赖 vote_type 的值，在初始化时需要从 initialData 中获取 vote_type
+      if ((!value || value.raw === null || value.raw === undefined) && 
+          props.initialData && 
+          props.initialData.hasOwnProperty(fieldPath) &&
+          props.initialData[fieldPath] !== undefined) {
+        const rawValue = props.initialData[fieldPath]
+        value = {
+          raw: rawValue,
+          display: typeof rawValue === 'object' ? JSON.stringify(rawValue) : String(rawValue),
+          meta: {}
+        }
+      }
+      
       return value
     },
     getAllValues: () => {
       const allValues: Record<string, FieldValue> = {}
       allFields.forEach(f => {
-        allValues[f.code] = formDataStore.getValue(f.code)
+        let value = formDataStore.getValue(f.code)
+        
+        // ⚠️ 关键修复：同上，确保 getAllValues 也能从 initialData 中获取值
+        if ((!value || value.raw === null || value.raw === undefined) && 
+            props.initialData && 
+            props.initialData.hasOwnProperty(f.code) &&
+            props.initialData[f.code] !== undefined) {
+          const rawValue = props.initialData[f.code]
+          value = {
+            raw: rawValue,
+            display: typeof rawValue === 'object' ? JSON.stringify(rawValue) : String(rawValue),
+            meta: {}
+          }
+        }
+        
+        allValues[f.code] = value
       })
       return allValues
     }
@@ -646,24 +782,38 @@ function getFieldDefaultValue(field: FieldConfig): FieldValue {
   return getWidgetDefaultValue(field, undefined, () => useAuthStore())
 }
 
-// 初始化表单
+/**
+ * 初始化表单
+ * 
+ * ⚠️ 注意：字段初始化顺序很重要
+ * - `requestFields` 是一个 computed，会根据条件渲染规则过滤字段
+ * - 条件渲染依赖其他字段的值（如 `required_if=FieldB value`）
+ * - 在初始化时，`shouldShowFieldInForm` 会从 `initialData` 中获取值用于条件判断
+ * - 这样可以确保依赖字段（如 `vote_type`）的值能被正确读取，从而显示被依赖的字段（如 `max_selections`）
+ */
 function initializeForm(): void {
   // 清空数据
   formDataStore.clear()
   responseDataStore.clear()
   
   // 初始化字段值
+  // ⚠️ 注意：requestFields 已经通过条件渲染过滤，只包含应该显示的字段
+  // 条件渲染在 shouldShowFieldInForm 中会从 initialData 获取值，确保正确判断
   requestFields.value.forEach((field: FieldConfig) => {
     const fieldCode = field.code
     
     // 如果有初始数据，使用初始数据
-    if (props.initialData && fieldCode in props.initialData) {
+    // 使用 hasOwnProperty 确保字段存在且值不为 undefined
+    if (props.initialData && 
+        props.initialData.hasOwnProperty(fieldCode) && 
+        props.initialData[fieldCode] !== undefined) {
       const initialRawValue = props.initialData[fieldCode]
       const fieldValue: FieldValue = {
         raw: initialRawValue,
         display: typeof initialRawValue === 'object' ? JSON.stringify(initialRawValue) : String(initialRawValue),
         meta: {}
       }
+      
       formDataStore.setValue(fieldCode, fieldValue)
     } else {
       // 使用默认值（从字段配置中获取）
@@ -696,7 +846,24 @@ async function handleSubmit(): Promise<void> {
     return
   }
   
-  // 验证通过，开始提交
+  // 🔥 显示确认框，防止误触
+  try {
+    await ElMessageBox.confirm(
+      '确定要提交表单吗？',
+      '确认提交',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+        center: true
+      }
+    )
+  } catch {
+    // 用户取消提交
+    return
+  }
+  
+  // 验证通过，用户确认提交，开始提交
   
   submitting.value = true
   
@@ -757,14 +924,11 @@ async function handleSubmit(): Promise<void> {
       data: error?.response?.data,
       status: error?.response?.status,
       code: error?.response?.data?.code,
-      msg: error?.response?.data?.msg || error?.response?.data?.message
+      msg: error?.response?.data?.msg
     })
     
-    // 显示更详细的错误信息
-    const errorMessage = error?.response?.data?.msg 
-      || error?.response?.data?.message 
-      || error?.message 
-      || '提交失败'
+    // 🔥 统一使用 msg 字段
+    const errorMessage = error?.response?.data?.msg || error?.message || '提交失败'
     ElMessage.error(errorMessage)
   } finally {
     submitting.value = false
@@ -819,6 +983,41 @@ watch(
   { flush: 'post' } // 在 DOM 更新后执行
 )
 
+/**
+ * 监听 initialData 变化，当初始数据变化时重新初始化表单
+ * 
+ * ⚠️ 使用场景：
+ * - 从查看模式切换到编辑模式时，`initialData` 会变化
+ * - 如果 `FormRenderer` 已经挂载，需要重新初始化表单以填充新数据
+ * - 例如：在 TableRenderer 的详情抽屉中，点击"编辑"按钮时
+ * 
+ * ⚠️ 注意：
+ * - 只在组件已挂载时重新初始化（避免在初始化时重复初始化）
+ * - 使用深度比较避免不必要的重新初始化
+ */
+watch(
+  () => props.initialData,
+  async (newData, oldData) => {
+    // 只在组件已挂载时重新初始化（避免在初始化时重复初始化）
+    if (!isMounted.value) {
+      return
+    }
+    
+    // 判断 initialData 是否真的变化了（避免不必要的重新初始化）
+    // 使用 JSON.stringify 进行深度比较（对于简单对象足够）
+    const newDataStr = JSON.stringify(newData || {})
+    const oldDataStr = JSON.stringify(oldData || {})
+    if (newDataStr === oldDataStr) {
+      return
+    }
+    
+    // initialData 变化，重新初始化表单
+    await nextTick()
+    initializeForm()
+  },
+  { deep: true, flush: 'post' } // 深度监听，在 DOM 更新后执行
+)
+
 // 生命周期
 onMounted(async () => {
   // 延迟挂载，确保 DOM 已准备好
@@ -841,6 +1040,7 @@ defineExpose({
 <style scoped>
 .form-renderer-v2 {
   width: 100%;
+  padding: 20px;
 }
 
 .section-title {

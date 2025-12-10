@@ -17,6 +17,8 @@
               :field="field"
               :search-type="field.search"
               :model-value="getSearchValue(field)"
+              :function-method="functionData.method"
+              :function-router="functionData.router"
               @update:model-value="(value: any) => {
                 // 🔥 判断是否清空：值为 null 或空字符串，且之前有值
                 const isClearing = (value === null || value === '') && 
@@ -152,7 +154,7 @@
 
       <!-- 操作列 -->
       <el-table-column 
-        v-if="hasDeleteCallback" 
+        v-if="hasDeleteCallback || linkFields.length > 0" 
         label="操作" 
         fixed="right" 
         :width="getActionColumnWidth()"
@@ -160,11 +162,54 @@
       >
         <template #default="{ row }">
           <div class="action-buttons">
+            <!-- 链接区域：只有 1 个链接时直接显示，超过 1 个时使用下拉菜单 -->
+            <template v-if="linkFields.length === 1">
+              <LinkWidget
+                :field="linkFields[0]"
+                :value="convertToFieldValue(row[linkFields[0].code], linkFields[0])"
+                :field-path="linkFields[0].code"
+                mode="table-cell"
+                class="action-link"
+              />
+            </template>
+            
+            <!-- 多个链接下拉菜单（超过 1 个时显示） -->
+            <el-dropdown
+              v-else-if="linkFields.length > 1"
+              trigger="click"
+              placement="bottom-end"
+              @command="(fieldCode: string) => handleLinkClick(fieldCode, row)"
+            >
+              <el-button link type="primary" size="small" class="more-links-btn">
+                <el-icon><More /></el-icon>
+                链接
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item
+                    v-for="linkField in linkFields"
+                    :key="linkField.code"
+                    :command="linkField.code"
+                  >
+                    <div class="dropdown-link-content">
+                      <el-icon v-if="linkField.widget?.config?.icon" class="link-icon">
+                        <component :is="linkField.widget.config.icon" />
+                      </el-icon>
+                      <el-icon v-else class="link-icon internal-icon"><Right /></el-icon>
+                      <span>{{ getLinkText(linkField, row[linkField.code]) }}</span>
+                    </div>
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+            
+            <!-- 删除按钮 -->
             <el-button 
               v-if="hasDeleteCallback"
               link 
               type="danger" 
               size="small"
+              class="delete-btn"
               @click.stop="handleDelete(row)"
             >
               <el-icon><Delete /></el-icon>
@@ -208,6 +253,9 @@
       direction="rtl"
       size="900px"
       class="detail-drawer"
+      :append-to-body="true"
+      :modal="true"
+      @close="handleDetailDrawerClose"
     >
       <template #header>
         <div class="drawer-header">
@@ -265,11 +313,27 @@
         </div>
       </template>
 
-      <!-- 🔥 查看模式：纯展示模式，参考旧版本设计 -->
+      <!-- 查看模式：纯展示模式 -->
       <div class="detail-content" v-if="currentDetailRow && detailMode === 'view'">
+        <!-- 链接操作区域 -->
+        <div v-if="linkFields.length > 0" class="detail-links-section">
+          <div class="links-section-title">相关链接</div>
+          <div class="links-section-content">
+            <LinkWidget
+              v-for="linkField in linkFields"
+              :key="linkField.code"
+              :field="linkField"
+              :value="convertToFieldValue(currentDetailRow[linkField.code], linkField)"
+              :field-path="linkField.code"
+              mode="detail"
+              class="detail-link-item"
+            />
+          </div>
+        </div>
+        
         <div class="fields-grid">
           <div 
-            v-for="field in visibleFields"
+            v-for="field in visibleFields.filter(f => f.widget?.type !== 'link')"
             :key="field.code"
             class="field-row"
           >
@@ -305,6 +369,7 @@
       <!-- 🔥 编辑模式：使用 FormRenderer -->
       <div class="edit-content" v-else-if="currentDetailRow && detailMode === 'edit'">
         <FormRenderer
+          v-if="editFunctionDetail"
           ref="detailFormRendererRef"
           :function-detail="editFunctionDetail"
           :initial-data="currentDetailRow"
@@ -312,6 +377,7 @@
           :show-submit-button="false"
           :show-reset-button="false"
         />
+        <el-empty v-else description="无法构建编辑表单" />
       </div>
     </el-drawer>
 
@@ -319,6 +385,11 @@
 </template>
 
 <script setup lang="ts">
+// 设置组件名称，用于 keep-alive 缓存
+defineOptions({
+  name: 'TableRenderer'
+})
+
 /**
  * TableRenderer - 表格渲染器组件
  * 
@@ -336,23 +407,29 @@
  */
 
 import { computed, ref, watch, h, nextTick, onMounted, onUpdated, onUnmounted, isVNode, defineComponent } from 'vue'
-import { Search, Refresh, Edit, Delete, Plus, ArrowLeft, ArrowRight, DocumentCopy, Document, Download, ArrowUp, ArrowDown } from '@element-plus/icons-vue'
-import { ElIcon, ElButton, ElMessage } from 'element-plus'
+import { Search, Refresh, Edit, Delete, Plus, ArrowLeft, ArrowRight, DocumentCopy, Document, Download, ArrowUp, ArrowDown, More, Right } from '@element-plus/icons-vue'
+import { ElIcon, ElButton, ElMessage, ElNotification, ElDropdown, ElDropdownMenu, ElDropdownItem } from 'element-plus'
 import { formatTimestamp } from '@/utils/date'
 import { useTableOperations } from '@/composables/useTableOperations'
 import { widgetComponentFactory } from '@/core/factories-v2'
 import { ErrorHandler } from '@/core/utils/ErrorHandler'
 import { Logger } from '@/core/utils/logger'
 import { convertToFieldValue } from '@/utils/field'
+import { resolveWorkspaceUrl } from '@/utils/route'
 import { WidgetType } from '@/core/constants/widget'
 import { useUserInfoStore } from '@/stores/userInfo'
 import { collectAllUsernames, collectFilesUploadUsersFromRow } from '@/utils/tableUserInfo'
 import { getSortableConfig } from '@/utils/fieldSort'
+import { useRouter } from 'vue-router'
 import FormDialog from './FormDialog.vue'
+import { renderTableCell } from '@/core/utils/tableCellRenderer'
 import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
 import SearchInput from './SearchInput.vue'
+import LinkWidget from '@/core/widgets-v2/components/LinkWidget.vue'
 import type { Function as FunctionType, ServiceTree } from '@/types'
 import type { FieldConfig, FieldValue, FunctionDetail } from '@/core/types/field'
+
+const router = useRouter()
 
 interface Props {
   /** 函数配置数据 */
@@ -407,6 +484,60 @@ const {
 } = useTableOperations({
   functionData: props.functionData
 })
+
+// ==================== 链接处理 ====================
+
+/**
+ * 获取链接文本（用于下拉菜单显示）
+ */
+const getLinkText = (linkField: FieldConfig, rawValue: any): string => {
+  const value = convertToFieldValue(rawValue, linkField)
+  const url = value?.raw || ''
+  if (!url) return linkField.name || '链接'
+  
+  // 解析 "[text]url" 格式
+  const match = url.match(/^\[([^\]]+)\](.+)$/)
+  if (match) {
+    return match[1]  // 返回文本部分
+  }
+  
+  // 如果没有文本，使用字段名称或配置的 text
+  return linkField.widget?.config?.text || linkField.name || '链接'
+}
+
+/**
+ * 处理链接点击（用于下拉菜单）
+ * 当链接数量超过 2 个时，多余的链接通过下拉菜单触发
+ */
+const handleLinkClick = (fieldCode: string, row: any) => {
+  const linkField = linkFields.value.find(f => f.code === fieldCode)
+  if (!linkField) return
+  
+  // 获取链接值
+  const value = convertToFieldValue(row[fieldCode], linkField)
+  const url = value?.raw || ''
+  if (!url) return
+  
+  // 解析 "[text]url" 格式
+  const match = url.match(/^\[([^\]]+)\](.+)$/)
+  const actualUrl = match ? match[2] : url
+  
+  // 获取链接配置
+  const linkConfig = linkField.widget?.config || {}
+  const target = linkConfig.target || '_self'
+  
+  // 处理 URL，添加 /workspace 前缀
+  const resolvedUrl = resolveWorkspaceUrl(actualUrl, router.currentRoute.value)
+  
+  // 根据 target 决定打开方式
+  if (target === '_blank' || actualUrl.startsWith('http://') || actualUrl.startsWith('https://')) {
+    window.open(resolvedUrl, '_blank')
+  } else {
+    router.push(resolvedUrl)
+  }
+}
+
+// ==================== 排序相关 ====================
 
 /**
  * 获取第一个排序配置（用于 el-table 的 default-sort）
@@ -571,11 +702,11 @@ async function batchLoadUserInfo(): Promise<void> {
     
     // 🔥 构建映射（供表格渲染使用）
     const map = new Map<string, any>()
-    users.forEach(user => {
-        if (user.username) {
-          map.set(user.username, user)
-        }
-      })
+    for (const user of users) {
+      if (user.username) {
+        map.set(user.username, user)
+      }
+    }
     
     userInfoMap.value = map
   } catch (error) {
@@ -632,10 +763,19 @@ const idField = computed(() => {
 })
 
 /**
- * 数据字段（排除ID列，ID列已单独作为控制中心列）
+ * Link 字段（用于操作区域）
+ */
+const linkFields = computed(() => {
+  return visibleFields.value.filter((field: FieldConfig) => field.widget?.type === 'link')
+})
+
+/**
+ * 数据字段（排除ID列和Link列，ID列已单独作为控制中心列，Link列在操作区域显示）
  */
 const dataFields = computed(() => {
-  return visibleFields.value.filter((field: FieldConfig) => field.widget?.type !== 'ID')
+  return visibleFields.value.filter((field: FieldConfig) => 
+    field.widget?.type !== 'ID' && field.widget?.type !== 'link'
+  )
 })
 
 // ==================== UI 辅助方法 ====================
@@ -644,10 +784,26 @@ const dataFields = computed(() => {
  * 获取操作列宽度
  * 根据是否有删除回调动态计算宽度
  */
+/**
+ * 获取操作列宽度
+ * 根据是否有删除回调和链接字段动态计算宽度
+ * 🔥 超过 1 个链接时使用下拉菜单，减少操作列宽度
+ */
 const getActionColumnWidth = (): number => {
-  let width = 60  // 基础宽度（减小）
-  if (hasDeleteCallback.value) width += 50  // 删除按钮宽度（减小）
-  return width
+  let width = 60  // 基础宽度
+  if (hasDeleteCallback.value) width += 60  // 删除按钮宽度（确保"删除"文字完整显示）
+  
+  // 🔥 只有 1 个链接时直接显示，超过 1 个时使用下拉菜单
+  if (linkFields.value.length === 1) {
+    // 单个链接约 80px（文本 + 图标 + 间距）
+    width += 80
+  } else if (linkFields.value.length > 1) {
+    // 多个链接使用下拉菜单，只需要一个按钮宽度
+    width += 50  // 下拉菜单按钮宽度（"链接"按钮）
+  }
+  
+  // 限制最大宽度，防止变形，但确保删除按钮能完整显示
+  return Math.min(Math.max(width, 140), 200)  // 最小 140px，最大 200px（减少最大宽度）
 }
 
 /**
@@ -713,91 +869,26 @@ const updateSearchValue = (field: FieldConfig, value: any, shouldSearch: boolean
 // ==================== 表格单元格渲染（组件自治） ====================
 
 /**
- * 🔥 渲染表格单元格
+ * 🔥 获取表格单元格内容（用于模板）
  * 
- * 使用 Widget 的 renderTableCell() 方法，实现组件自治
+ * 使用共享的 renderTableCell 函数，确保与 TableWidget 渲染逻辑一致
  * 
  * 设计优势：
  * - 符合依赖倒置原则：TableRenderer 依赖 Widget 抽象接口
- * - 扩展性强：新增组件只需实现 renderTableCell()，无需修改 TableRenderer
+ * - 扩展性强：新增组件只需实现 table-cell 模式，无需修改 TableRenderer
  * - 展示一致：组件自己决定如何展示，如 FileWidget 显示文件图标、MultiSelectWidget 显示标签
+ * - 代码复用：与 TableWidget 使用相同的渲染逻辑，减少重复代码
  * 
  * @param field 字段配置
  * @param rawValue 原始值（来自后端）
  * @returns { content: string | VNode, isString: boolean } - 统一返回格式，方便模板处理
- * 
- * @example
- * // FileWidget 可以这样实现：
- * renderTableCell(value: FieldValue) {
- *   return h('div', [
- *     h(ElIcon, { File }),
- *     h('span', `共 ${files.length} 个文件`)
- *   ])
- * }
- */
-/**
- * 🔥 渲染表格单元格（使用 widgets-v2）
- * 
- * 重构说明：
- * - 按照 v2 的设计思路重新实现
- * - 使用 widgetComponentFactory 获取组件
- * - 使用 h() 渲染组件为 VNode
- * - 统一返回 VNode（不再需要区分字符串和 VNode）
- */
-const renderTableCell = (field: FieldConfig, rawValue: any): { content: any, isString: boolean } => {
-  try {
-    // 🔥 将原始值转换为 FieldValue 格式
-    const value = convertToFieldValue(rawValue, field)
-    
-    // 🔥 使用 widgetComponentFactory 获取组件（v2 方式）
-    const WidgetComponent = widgetComponentFactory.getRequestComponent(
-      field.widget?.type || 'input'
-    )
-    
-    if (!WidgetComponent) {
-      // 如果组件未找到，返回 fallback
-      const fallbackValue = rawValue !== null && rawValue !== undefined ? String(rawValue) : '-'
-      return {
-        content: fallbackValue,
-        isString: true
-      }
-    }
-    
-    // 🔥 使用 h() 渲染组件为 VNode（v2 方式）
-    // 传递 mode="table-cell" 让组件自己决定如何渲染
-    // 传递 userInfoMap 用于批量查询优化
-    const vnode = h(WidgetComponent, {
-      field: field,
-      value: value,
-      'model-value': value,
-      'field-path': field.code,
-      mode: 'table-cell',
-      'user-info-map': userInfoMap.value
-    })
-    
-    // 🔥 统一返回 VNode（v2 组件统一返回 VNode）
-    return {
-      content: vnode,
-      isString: false
-    }
-  } catch (error) {
-    // ✅ 使用 ErrorHandler 统一处理错误
-    const fallbackValue = rawValue !== null && rawValue !== undefined ? String(rawValue) : '-'
-    return {
-      content: fallbackValue,
-      isString: true
-    }
-  }
-}
-
-/**
- * 🔥 获取表格单元格内容（用于模板）
- * 
- * 这是一个包装函数，用于统一处理字符串和 VNode 返回值
- * 返回格式：{ content, isString }
  */
 const getCellContent = (field: FieldConfig, rawValue: any): { content: any, isString: boolean } => {
-  return renderTableCell(field, rawValue)
+  return renderTableCell(field, rawValue, {
+    mode: 'table-cell',
+    userInfoMap: userInfoMap.value,
+    fieldPath: field.code
+  })
 }
 
 // 🔥 VNode 渲染组件（用于在模板中渲染 VNode，避免循环引用）
@@ -1007,11 +1098,48 @@ const handleShowDetail = async (row: any, index: number): Promise<void> => {
     const users = await userInfoStore.batchGetUserInfo(filesUploadUsers)
     
     // 更新 userInfoMap，供详情中的 FilesWidget 使用
-    users.forEach((user: any) => {
+    for (const user of users) {
       if (user.username) {
         userInfoMap.value.set(user.username, user)
       }
+    }
+  }
+  
+  // 🔥 更新 URL，添加 _detail_id 和 _detail_function_id 参数（用于分享和刷新后恢复状态）
+  // 只有在 URL 中没有相同的 _detail_id 时才更新，避免循环触发
+  if (idField.value && row[idField.value.code]) {
+    const detailId = String(row[idField.value.code])
+    const currentDetailId = String(router.currentRoute.value.query._detail_id || '')
+    const currentFunctionId = props.functionData.id
+    const currentDetailFunctionId = String(router.currentRoute.value.query._detail_function_id || '')
+    
+    Logger.debug('TableRenderer', '[handleShowDetail] 更新 URL', { 
+      detailId, 
+      currentDetailId, 
+      currentDetailFunctionId,
+      isRestoringDetail,
+      functionDataId: currentFunctionId,
+      currentFunctionDataId
     })
+    
+    // 🔥 关键：只有在不是恢复过程中，且 URL 中没有相同的 _detail_id 时才更新
+    if (currentDetailId !== detailId && !isRestoringDetail) {
+      // 🔥 更新当前表格的 ID，确保 _detail_id 属于当前表格
+      if (currentFunctionDataId !== currentFunctionId) {
+        Logger.debug('TableRenderer', `[handleShowDetail] 更新 currentFunctionDataId: ${currentFunctionDataId} -> ${currentFunctionId}`)
+        currentFunctionDataId = currentFunctionId
+      }
+      
+      const query = { ...router.currentRoute.value.query }
+      query._detail_id = detailId
+      query._detail_function_id = String(currentFunctionId)  // 🔥 同时存储 functionDataId
+      Logger.debug('TableRenderer', `[handleShowDetail] 添加 _detail_id 和 _detail_function_id 到 URL: ${detailId}, ${currentFunctionId}`)
+      router.replace({ query })
+    } else {
+      Logger.debug('TableRenderer', '[handleShowDetail] 跳过更新 URL', { 
+        reason: currentDetailId === detailId ? 'URL 中已有相同的 _detail_id' : '正在恢复中'
+      })
+    }
   }
 }
 
@@ -1043,11 +1171,21 @@ const handleNavigate = async (direction: 'prev' | 'next'): Promise<void> => {
     // 批量查询用户信息（自动处理缓存）
     const users = await userInfoStore.batchGetUserInfo(filesUploadUsers)
     // 更新 userInfoMap，供详情中的 FilesWidget 使用
-    users.forEach((user: any) => {
+    for (const user of users) {
       if (user.username) {
         userInfoMap.value.set(user.username, user)
       }
-    })
+    }
+  }
+  
+  // 🔥 更新 URL，更新 _detail_id 和 _detail_function_id 参数
+  if (idField.value && row[idField.value.code]) {
+    const detailId = String(row[idField.value.code])
+    const currentFunctionId = props.functionData.id
+    const query = { ...router.currentRoute.value.query }
+    query._detail_id = detailId
+    query._detail_function_id = String(currentFunctionId)  // 🔥 同时更新 functionDataId
+    router.replace({ query })
   }
 }
 
@@ -1130,14 +1268,35 @@ const editFunctionDetail = computed<FunctionDetail>(() => {
 
 /**
  * 切换到编辑模式
+ * 
+ * ⚠️ 注意：
+ * - `currentDetailRow` 会作为 `initialData` 传递给 `FormRenderer`
+ * - `FormRenderer` 会监听 `initialData` 的变化并重新初始化表单
+ * - 条件渲染会从 `initialData` 中获取值，确保依赖字段能正确显示
  */
-const switchToEditMode = (): void => {
+const switchToEditMode = async (): Promise<void> => {
   if (!currentDetailRow.value) {
     ElMessage.error('记录数据不存在')
     return
   }
+  
   detailMode.value = 'edit'
-  // FormRenderer 会自动使用 initialData 填充数据
+  
+  // 等待 FormRenderer 初始化完成
+  await nextTick()
+  
+  // 再次等待，确保 FormRenderer 完全准备好
+  let retries = 0
+  while (retries < 10 && !detailFormRendererRef.value) {
+    await nextTick()
+    await new Promise(resolve => setTimeout(resolve, 50))
+    retries++
+  }
+  
+  if (!detailFormRendererRef.value) {
+    ElMessage.error('编辑表单未准备就绪，请稍后重试')
+    detailMode.value = 'view'
+  }
 }
 
 /**
@@ -1175,18 +1334,24 @@ const handleDetailSave = async (): Promise<void> => {
       // 3. 刷新当前记录数据
       await refreshCurrentDetailRow()
       
-      // 4. 切换回查看模式
+      // 4. 关闭抽屉（保存成功后关闭）
+      showDetailDrawer.value = false
       detailMode.value = 'view'
       
-      ElMessage.success('保存成功')
+      // 🔥 不显示成功通知，因为 Notification 组件已经显示更漂亮的提示了
     }
   } catch (error: any) {
     Logger.error('TableRenderer', '保存失败', error)
-    const errorMessage = error?.response?.data?.msg 
-      || error?.response?.data?.message 
-      || error?.message 
-      || '保存失败'
-    ElMessage.error(errorMessage)
+    // 🔥 统一使用 msg 字段
+    const errorMessage = error?.response?.data?.msg || error?.message || '保存失败'
+    // 🔥 使用 ElNotification 替代 ElMessage，确保显示在抽屉上方（z-index 更高）
+    ElNotification({
+      title: '保存失败',
+      message: errorMessage,
+      type: 'error',
+      duration: 5000,
+      position: 'top-right'
+    })
   } finally {
     detailSubmitting.value = false
   }
@@ -1205,12 +1370,21 @@ const refreshCurrentDetailRow = async (): Promise<void> => {
   
   try {
     // 🔥 不需要重新加载表格数据，因为 handleUpdateRow 已经加载过了
-    // 直接从最新的表格数据中找到当前记录
-    const updatedRow = tableData.value.find((row: any) => row.id === currentDetailRow.value.id)
+    // 直接从最新的表格数据中找到当前记录（优化：一次遍历同时获取 row 和 index）
+    const rowId = currentDetailRow.value.id
+    let updatedRow: any = null
+    let index = -1
+    
+    for (let i = 0; i < tableData.value.length; i++) {
+      if (tableData.value[i].id === rowId) {
+        updatedRow = tableData.value[i]
+        index = i
+        break
+      }
+    }
+    
     if (updatedRow) {
       currentDetailRow.value = updatedRow
-      // 更新索引
-      const index = tableData.value.findIndex((row: any) => row.id === currentDetailRow.value.id)
       if (index >= 0) {
         currentDetailIndex.value = index
       }
@@ -1223,11 +1397,11 @@ const refreshCurrentDetailRow = async (): Promise<void> => {
         const users = await userInfoStore.batchGetUserInfo(filesUploadUsers)
         
         // 更新 userInfoMap，供详情中的 FilesWidget 使用
-        users.forEach((user: any) => {
+        for (const user of users) {
           if (user.username) {
             userInfoMap.value.set(user.username, user)
           }
-        })
+        }
       }
     }
   } catch (error) {
@@ -1245,12 +1419,76 @@ const refreshCurrentDetailRow = async (): Promise<void> => {
  * 如果设置 immediate: true，会导致初始化时调用两次 loadTableData()
  */
 watch(() => props.functionData, () => {
-  // 🔥 清空搜索表单，但保留 URL 中的搜索参数（restoreFromURL 会恢复）
-  searchForm.value = {}
+  // 🔥 清空搜索表单，确保没有残留值
+  // 先清空所有属性，避免对象引用残留
+  Object.keys(searchForm.value).forEach(key => {
+    delete searchForm.value[key]
+  })
   currentPage.value = 1
-  // 🔥 从 URL 恢复状态（包括搜索参数）
-  restoreFromURL()
-  loadTableData()
+  
+  // 🔥 清理 URL 中不属于当前函数的搜索参数
+  // 获取当前函数的所有字段 code
+  const currentFieldCodes = new Set<string>()
+  if (Array.isArray(props.functionData.request)) {
+    props.functionData.request.forEach((field: FieldConfig) => {
+      currentFieldCodes.add(field.code)
+    })
+  }
+  if (Array.isArray(props.functionData.response)) {
+    props.functionData.response.forEach((field: FieldConfig) => {
+      currentFieldCodes.add(field.code)
+    })
+  }
+  
+  // 清理 URL 中不属于当前函数的参数
+  const query = router.currentRoute.value.query
+  const searchParamKeys = ['eq', 'like', 'in', 'contains', 'gte', 'lte']
+  const newQuery: Record<string, string> = {}
+  
+  // 只保留属于当前函数的参数和通用参数（page, page_size, sorts）
+  Object.keys(query).forEach(key => {
+    if (key === 'page' || key === 'page_size' || key === 'sorts') {
+      // 保留分页和排序参数
+      newQuery[key] = String(query[key])
+    } else if (searchParamKeys.includes(key)) {
+      // 对于搜索参数（eq, like, in 等），需要解析并过滤字段
+      const value = String(query[key])
+      const parts = value.split(',')
+      const filteredParts: string[] = []
+      
+      for (const part of parts) {
+        const colonIndex = part.indexOf(':')
+        if (colonIndex > 0) {
+          const fieldCode = part.substring(0, colonIndex).trim()
+          if (currentFieldCodes.has(fieldCode)) {
+            filteredParts.push(part.trim())
+          }
+        }
+      }
+      
+      if (filteredParts.length > 0) {
+        newQuery[key] = filteredParts.join(',')
+      }
+    } else if (currentFieldCodes.has(key)) {
+      // 保留属于当前函数的 request 字段参数
+      newQuery[key] = String(query[key])
+    }
+    // 其他参数（不属于当前函数的）都会被忽略
+  })
+  
+  // 更新 URL（清理不属于当前函数的参数）
+  if (Object.keys(newQuery).length !== Object.keys(query).length || 
+      Object.keys(newQuery).some(key => query[key] !== newQuery[key])) {
+    router.replace({ query: newQuery }).then(() => {
+      // 🔥 URL 更新后，从 URL 恢复状态（只恢复属于当前函数的参数）
+      restoreFromURL()
+      loadTableData()
+    })
+  } else {
+    // 🔥 如果 URL 没有变化，直接恢复状态
+    restoreFromURL()
+    loadTableData()
+  }
 })
 
 // ==================== 修复 fixed 列按钮点击问题 ====================
@@ -1282,10 +1520,304 @@ const fixFixedColumnClick = () => {
   })
 }
 
+/**
+ * 处理详情抽屉关闭
+ * 移除 URL 中的 _detail_id 参数
+ */
+// 🔥 防止循环调用的标志
+let isClosingDetail = false
+let isRestoringDetail = false
+// 🔥 当前表格的 functionData ID，用于判断 _detail_id 是否属于当前表格
+let currentFunctionDataId: number | null = null
+
+/**
+ * 处理详情抽屉关闭
+ * 清理详情状态和 URL 参数
+ */
+const handleDetailDrawerClose = (): void => {
+  // 防止重复调用
+  if (isClosingDetail) {
+    Logger.debug('TableRenderer', '[handleDetailDrawerClose] 正在关闭中，跳过')
+    return
+  }
+  isClosingDetail = true
+  Logger.debug('TableRenderer', '[handleDetailDrawerClose] 开始关闭详情抽屉')
+  
+  // 清空详情数据
+  currentDetailRow.value = null
+  currentDetailIndex.value = -1
+  detailMode.value = 'view'
+  
+  // 清理 URL 中的 _detail_id 和 _detail_function_id 参数
+  const query = { ...router.currentRoute.value.query }
+  let hasChanges = false
+  if (query._detail_id) {
+    Logger.debug('TableRenderer', `[handleDetailDrawerClose] 清理 URL 中的 _detail_id: ${query._detail_id}`)
+    delete query._detail_id
+    hasChanges = true
+  }
+  if (query._detail_function_id) {
+    Logger.debug('TableRenderer', `[handleDetailDrawerClose] 清理 URL 中的 _detail_function_id: ${query._detail_function_id}`)
+    delete query._detail_function_id
+    hasChanges = true
+  }
+  
+  if (hasChanges) {
+    router.replace({ query }).finally(() => {
+      isClosingDetail = false
+      Logger.debug('TableRenderer', '[handleDetailDrawerClose] 关闭完成')
+    })
+  } else {
+    isClosingDetail = false
+    Logger.debug('TableRenderer', '[handleDetailDrawerClose] URL 中没有 _detail_id，直接完成')
+  }
+}
+
+// 🔥 监听 showDetailDrawer 变化，确保关闭时清理状态
+// 这样可以处理点击外侧关闭、ESC 键关闭等情况
+watch(showDetailDrawer, (newValue, oldValue) => {
+  // 当抽屉从打开变为关闭时，清理状态
+  if (oldValue === true && newValue === false && !isClosingDetail) {
+    handleDetailDrawerClose()
+  }
+})
+
+/**
+ * 从 URL 恢复详情状态
+ * 如果 URL 中有 _detail_id 参数，自动打开对应的详情
+ */
+const restoreDetailFromURL = async (): Promise<void> => {
+  // 防止循环调用
+  if (isRestoringDetail || isClosingDetail) {
+    Logger.debug('TableRenderer', '[restoreDetailFromURL] 正在恢复中或关闭中，跳过', { isRestoringDetail, isClosingDetail })
+    return
+  }
+  
+  const query = router.currentRoute.value.query
+  const detailId = query._detail_id
+  const detailFunctionId = query._detail_function_id  // 🔥 获取 _detail_id 对应的 functionDataId
+  
+  Logger.debug('TableRenderer', '[restoreDetailFromURL] 开始恢复', { 
+    detailId, 
+    detailFunctionId,
+    currentFunctionDataId, 
+    functionDataId: props.functionData.id,
+    hasIdField: !!idField.value 
+  })
+  
+  if (!detailId || !idField.value) {
+    Logger.debug('TableRenderer', '[restoreDetailFromURL] 没有 detailId 或 idField，跳过')
+    return
+  }
+  
+  // 🔥 关键：检查 _detail_id 是否属于当前表格
+  const currentFunctionId = props.functionData.id
+  
+  // 🔥 如果 URL 中有 _detail_function_id，且与当前 functionData.id 不匹配，说明这个 _detail_id 不属于当前表格
+  if (detailFunctionId && String(detailFunctionId) !== String(currentFunctionId)) {
+    Logger.debug('TableRenderer', `[restoreDetailFromURL] _detail_function_id 不匹配（${detailFunctionId} != ${currentFunctionId}），跳过恢复旧的 _detail_id`)
+    // 清理不属于当前表格的 _detail_id
+    const queryToClean = { ...router.currentRoute.value.query }
+    if (queryToClean._detail_id) {
+      delete queryToClean._detail_id
+    }
+    if (queryToClean._detail_function_id) {
+      delete queryToClean._detail_function_id
+    }
+    router.replace({ query: queryToClean })
+    return
+  }
+  
+  // 🔥 如果 currentFunctionDataId 与当前 functionData.id 不匹配，说明切换了表格
+  // 此时旧的 _detail_id 不应该恢复，应该清理
+  if (currentFunctionDataId !== null && currentFunctionDataId !== currentFunctionId) {
+    Logger.debug('TableRenderer', `[restoreDetailFromURL] functionData.id 不匹配（currentFunctionDataId: ${currentFunctionDataId}, functionDataId: ${currentFunctionId}），跳过恢复旧的 _detail_id`)
+    // 更新 currentFunctionDataId 为新的表格 ID
+    currentFunctionDataId = currentFunctionId
+    // 清理不属于当前表格的 _detail_id
+    const queryToClean = { ...router.currentRoute.value.query }
+    if (queryToClean._detail_id) {
+      delete queryToClean._detail_id
+    }
+    if (queryToClean._detail_function_id) {
+      delete queryToClean._detail_function_id
+    }
+    router.replace({ query: queryToClean })
+    return
+  }
+  
+  // 🔥 更新 currentFunctionDataId（如果还是 null，说明是首次加载）
+  if (currentFunctionDataId === null) {
+    Logger.debug('TableRenderer', `[restoreDetailFromURL] 首次加载，设置 currentFunctionDataId: ${currentFunctionId}`)
+    currentFunctionDataId = currentFunctionId
+  }
+  
+  // 如果详情已经打开，且是同一个记录，不需要重复打开
+  if (showDetailDrawer.value && currentDetailRow.value) {
+    const currentId = currentDetailRow.value[idField.value.code]
+    if (String(currentId) === String(detailId)) {
+      Logger.debug('TableRenderer', `[restoreDetailFromURL] 详情已打开且是同一记录（ID: ${detailId}），跳过`)
+      return
+    }
+  }
+  
+  // 等待表格数据加载完成
+  if (!tableData.value || tableData.value.length === 0) {
+    Logger.debug('TableRenderer', '[restoreDetailFromURL] 表格数据未加载，跳过')
+    return
+  }
+  
+  isRestoringDetail = true
+  
+  try {
+    // 查找对应的记录
+    const detailIdStr = String(detailId)
+    const rowIndex = tableData.value.findIndex((row: any) => {
+      const rowId = row[idField.value!.code]
+      return String(rowId) === detailIdStr
+    })
+    
+    Logger.debug('TableRenderer', `[restoreDetailFromURL] 查找记录`, { detailIdStr, rowIndex })
+    
+    if (rowIndex >= 0) {
+      const row = tableData.value[rowIndex]
+      const rowId = row[idField.value!.code]
+      Logger.debug('TableRenderer', `[restoreDetailFromURL] 找到记录，打开详情`, { rowIndex, rowId })
+      
+      // 🔥 关键：验证找到的记录 ID 是否真的匹配
+      // 如果 rowId 与 detailId 不匹配，说明这个 _detail_id 不属于当前表格，应该清理
+      if (String(rowId) !== detailIdStr) {
+        Logger.warn('TableRenderer', `[restoreDetailFromURL] 找到的记录 ID 不匹配（期望: ${detailIdStr}, 实际: ${rowId}），清理 _detail_id`)
+        // 清理不属于当前表格的 _detail_id
+        const queryToClean = { ...router.currentRoute.value.query }
+        if (queryToClean._detail_id) {
+          delete queryToClean._detail_id
+          router.replace({ query: queryToClean })
+        }
+        return
+      }
+      
+      // 🔥 直接设置状态，不更新 URL（避免循环）
+      currentDetailRow.value = row
+      currentDetailIndex.value = rowIndex
+      detailMode.value = 'view'
+      showDetailDrawer.value = true
+      
+      // 收集用户信息
+      const filesUploadUsers = collectFilesUploadUsersFromRow(row, visibleFields.value)
+      if (filesUploadUsers.length > 0) {
+        const users = await userInfoStore.batchGetUserInfo(filesUploadUsers)
+        for (const user of users) {
+          if (user.username) {
+            userInfoMap.value.set(user.username, user)
+          }
+        }
+      }
+    } else {
+      // 如果当前页没有找到，可能是分页问题，或者这个 _detail_id 不属于当前表格
+      Logger.warn('TableRenderer', `未找到 ID 为 ${detailId} 的记录（可能在其他页、已被删除或不属于当前表格）`)
+      // 🔥 清理 URL 中的 _detail_id 和 _detail_function_id，因为找不到对应的记录
+      const queryToClean = { ...router.currentRoute.value.query }
+      let hasChanges = false
+      if (queryToClean._detail_id) {
+        Logger.debug('TableRenderer', `[restoreDetailFromURL] 清理找不到记录的 _detail_id: ${queryToClean._detail_id}`)
+        delete queryToClean._detail_id
+        hasChanges = true
+      }
+      if (queryToClean._detail_function_id) {
+        delete queryToClean._detail_function_id
+        hasChanges = true
+      }
+      if (hasChanges) {
+        router.replace({ query: queryToClean })
+      }
+    }
+  } finally {
+    isRestoringDetail = false
+    Logger.debug('TableRenderer', '[restoreDetailFromURL] 恢复完成')
+  }
+}
+
+// 🔥 监听 functionData 变化，切换表格时清空详情状态
+watch(() => props.functionData, (newFunctionData, oldFunctionData) => {
+  const oldId = oldFunctionData?.id
+  const newId = newFunctionData?.id
+  
+  Logger.debug('TableRenderer', '[watch functionData] 表格切换', { 
+    oldId, 
+    newId, 
+    oldRouter: oldFunctionData?.router,
+    newRouter: newFunctionData?.router,
+    currentFunctionDataId
+  })
+  
+  // 🔥 关键：如果表格 ID 真的变化了，才清理状态
+  // 如果 oldId 和 newId 相同，说明是同一个表格重新渲染，不需要清理
+  if (oldId !== undefined && newId !== undefined && oldId !== newId) {
+    Logger.debug('TableRenderer', `[watch functionData] 表格 ID 变化（${oldId} -> ${newId}），清理详情状态`)
+    
+    // 更新当前表格的 ID（立即更新，确保后续检查正确）
+    currentFunctionDataId = newId || null
+    
+    // 切换表格时，清空详情状态
+    currentDetailRow.value = null
+    currentDetailIndex.value = -1
+    detailMode.value = 'view'
+    showDetailDrawer.value = false
+    
+    // 清理 URL 中的 _detail_id 和 _detail_function_id 参数（因为这是上一个表格的详情 ID）
+    const query = { ...router.currentRoute.value.query }
+    let hasChanges = false
+    if (query._detail_id) {
+      Logger.debug('TableRenderer', `[watch functionData] 清理旧的 _detail_id: ${query._detail_id}`)
+      delete query._detail_id
+      hasChanges = true
+    }
+    if (query._detail_function_id) {
+      Logger.debug('TableRenderer', `[watch functionData] 清理旧的 _detail_function_id: ${query._detail_function_id}`)
+      delete query._detail_function_id
+      hasChanges = true
+    }
+    if (hasChanges) {
+      router.replace({ query })
+    }
+  } else {
+    // 如果是首次加载或同一个表格，只更新 currentFunctionDataId（如果还是 null 或需要更新）
+    if (newId !== undefined && (currentFunctionDataId === null || currentFunctionDataId !== newId)) {
+      Logger.debug('TableRenderer', `[watch functionData] 更新 currentFunctionDataId: ${currentFunctionDataId} -> ${newId}`)
+      currentFunctionDataId = newId
+    }
+  }
+}, { deep: true, immediate: true })
+
+// 🔥 监听表格数据变化，当数据加载完成且 URL 中有 _detail_id 时，自动打开详情
+watch(() => [tableData.value, router.currentRoute.value.query._detail_id], () => {
+  if (tableData.value && tableData.value.length > 0 && router.currentRoute.value.query._detail_id) {
+    // 延迟执行，确保数据已完全渲染
+    nextTick(() => {
+      restoreDetailFromURL()
+    })
+  }
+}, { deep: true })
+
 onMounted(() => {
   fixFixedColumnClick()
   // 监听窗口大小变化
   window.addEventListener('resize', fixFixedColumnClick)
+  
+  // 🔥 初始化当前表格的 ID
+  currentFunctionDataId = props.functionData.id || null
+  Logger.debug('TableRenderer', '[onMounted] 初始化', { 
+    functionDataId: props.functionData.id,
+    currentFunctionDataId 
+  })
+  
+  // 🔥 从 URL 恢复详情状态（延迟执行，确保表格数据已加载）
+  nextTick(() => {
+    setTimeout(() => {
+      restoreDetailFromURL()
+    }, 500)
+  })
 })
 
 onUpdated(() => {
@@ -1303,8 +1835,18 @@ onUnmounted(() => {
   padding: 20px;
   background: var(--el-bg-color);
   position: relative;
-  z-index: 1;
-  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  /* 🔥 不设置固定高度，让内容自然流动，支持整体滚动 */
+  width: 100%;
+  /* 🔥 移除高度限制，让内容可以超出容器 */
+}
+
+/* 🔥 表格容器：在小屏幕下，让整个页面滚动而不是表格内部滚动 */
+.table-renderer :deep(.el-table__body-wrapper) {
+  /* 🔥 移除内部滚动，让整个页面滚动 */
+  overflow: visible !important;
+  max-height: none !important;
 }
 
 /* 文件表格单元格样式 */
@@ -1414,13 +1956,9 @@ onUnmounted(() => {
   justify-content: flex-end;
 }
 
-/* 确保表格单元格背景色正确 */
+/* 🔥 表格基础样式：背景色和边框 */
 :deep(.el-table) {
   background-color: var(--el-bg-color) !important;
-}
-
-/* 🔥 移除表格边框（左右竖线） */
-:deep(.el-table) {
   border: none !important;
 }
 
@@ -1432,8 +1970,10 @@ onUnmounted(() => {
   border: none !important;
 }
 
+/* 🔥 表格 body-wrapper 的边框样式（滚动由外层容器处理） */
 :deep(.el-table__body-wrapper) {
   border: none !important;
+  /* 注意：滚动由外层 .tab-content 容器处理，这里不设置滚动 */
 }
 
 :deep(.el-table th),
@@ -1493,22 +2033,88 @@ onUnmounted(() => {
 /* 🔥 操作列样式 - 修复 fixed 列按钮点击问题 */
 :deep(.action-column) {
   position: relative;
-  z-index: 10;
 }
 
 :deep(.action-column .cell) {
   position: relative;
-  z-index: 10;
   pointer-events: auto;
 }
 
 .action-buttons {
   position: relative;
-  z-index: 11;
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: nowrap;  /* 🔥 禁止换行，防止行高增加 */
   pointer-events: auto;
+  width: 100%;  /* 使用 100% 宽度，确保内容完整显示 */
+  min-width: 0;  /* 允许 flex 子元素收缩 */
+}
+
+.action-link {
+  flex-shrink: 0;
+  white-space: nowrap;  /* 防止文本换行 */
+}
+
+.more-links-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.delete-btn {
+  flex-shrink: 0;  /* 🔥 防止删除按钮被压缩 */
+  white-space: nowrap;  /* 防止文字换行 */
+  min-width: fit-content;  /* 确保按钮内容完整显示 */
+}
+
+.dropdown-link-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.dropdown-link-content .link-icon {
+  font-size: 14px;
+  color: var(--el-color-primary);
+}
+
+/* 详情页面链接区域 */
+.detail-links-section {
+  margin-bottom: 24px;
+  padding: 16px;
+  background-color: var(--el-fill-color-lighter);
+  border-radius: 8px;
+  border: 1px solid var(--el-border-color-light);
+}
+
+.links-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.links-section-title::before {
+  content: '';
+  width: 3px;
+  height: 16px;
+  background-color: var(--el-color-primary);
+  border-radius: 2px;
+}
+
+.links-section-content {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.detail-link-item {
+  flex-shrink: 0;
 }
 
 /* 确保 fixed 列的操作按钮可以点击 */
@@ -1555,11 +2161,7 @@ onUnmounted(() => {
   pointer-events: auto !important;
 }
 
-.action-buttons {
-  position: relative !important;
-  z-index: 2004 !important;
-  pointer-events: auto !important;
-}
+/* action-buttons 样式已在上面定义，这里不需要重复 */
 
 :deep(.el-table__fixed-right .action-buttons) {
   z-index: 2004 !important;
@@ -1573,13 +2175,13 @@ onUnmounted(() => {
   cursor: pointer !important;
 }
 
-/* 关键：确保表格主体内容不会遮挡 fixed 列 */
+/* 🔥 表格主体样式：确保不会遮挡 fixed 列，并支持整体滚动 */
 :deep(.el-table__body-wrapper) {
   z-index: 1 !important;
   position: relative;
   pointer-events: auto !important;
-  /* 确保主体内容不会覆盖 fixed 列区域 */
-  overflow: visible !important;
+  overflow: visible !important; /* 滚动由外层容器处理 */
+  clip-path: none !important; /* 在 fixed 列区域，让点击事件穿透 */
 }
 
 :deep(.el-table__body) {
@@ -1597,13 +2199,7 @@ onUnmounted(() => {
   z-index: 1 !important;
 }
 
-/* 关键修复：当窗口缩小时，确保 fixed 列区域的表格主体单元格不拦截点击 */
-:deep(.el-table__body-wrapper) {
-  /* 在 fixed 列区域，让点击事件穿透 */
-  clip-path: none !important;
-}
-
-/* 确保表格整体容器不会遮挡 */
+/* 🔥 表格容器样式：确保不会遮挡 fixed 列 */
 :deep(.el-table) {
   position: relative;
   z-index: 1;
@@ -1614,6 +2210,7 @@ onUnmounted(() => {
   position: relative;
   z-index: 1;
   overflow: visible !important;
+  border: none !important;
 }
 
 /* 确保滚动条不会遮挡 */
@@ -1632,8 +2229,9 @@ onUnmounted(() => {
   pointer-events: none !important;
 }
 
-/* 🔥 详情抽屉样式 - 参考旧版本设计 */
+/* 详情抽屉样式 */
 .detail-drawer {
+  
   :deep(.el-drawer__header) {
     margin-bottom: 0;
     padding: 20px;
@@ -1691,7 +2289,7 @@ onUnmounted(() => {
     padding: 20px;
   }
 
-  /* 🔥 字段网格布局 - 参考旧版本 */
+  /* 字段网格布局 */
   .fields-grid {
     display: grid;
     grid-template-columns: 1fr;
@@ -1779,3 +2377,5 @@ onUnmounted(() => {
   }
 }
 </style>
+
+

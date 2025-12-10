@@ -34,6 +34,7 @@ export class FormFieldExtractor implements IFieldExtractor {
       if (subValue) {
         // 从 store 中提取
         const extracted = extractorRegistry.extractField(subField, subFieldPath, getValue)
+        
         // 🔥 即使提取的值是 undefined，也要添加到结果中（对于嵌套结构，需要保持结构完整）
         if (extracted !== undefined) {
           formData[subField.code] = extracted

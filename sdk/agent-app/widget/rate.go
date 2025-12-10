@@ -4,12 +4,12 @@ import "strconv"
 
 type Rate struct {
 	// 核心参数（必需）
-	Max int `json:"max"` // 最大星级（默认5）
+	Max int `json:"max,omitempty"` // 最大星级（默认5）
 
 	// 可选参数（有合理默认值）
-	AllowHalf bool     `json:"allow_half"` // 是否允许半星（默认false）
-	Default   float64  `json:"default"`    // 默认评分（可选）
-	Texts     []string `json:"texts"`      // 自定义文字数组（可选，如：["很差", "差", "一般", "好", "很好"]）
+	AllowHalf bool     `json:"allow_half,omitempty"` // 是否允许半星（默认false）
+	Default   float64  `json:"default,omitempty"`    // 默认评分（可选）
+	Texts     []string `json:"texts,omitempty"`      // 自定义文字数组（可选，如：["很差", "差", "一般", "好", "很好"]）
 	// 注意：如果配置了 texts，会自动显示文字；如果没有配置 texts，则不显示文字
 }
 

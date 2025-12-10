@@ -1,15 +1,22 @@
 /**
  * Widget 组件类型定义
  * 🔥 完全新增，不依赖旧代码
+ * 
+ * 🔥 统一类型系统：使用 WidgetTypes 命名空间
  */
 
-import type { FieldConfig, FieldValue } from '../../types/field'
+import type { WidgetTypes } from '../../types/field'
 import type { ReactiveFormDataManager, FormRendererContext } from '../types/widget'
 
 /**
  * Widget 渲染模式
+ * 🔥 从 WidgetTypes 命名空间导入
  */
-export type WidgetMode = 'edit' | 'response' | 'table-cell' | 'detail' | 'search'
+export type WidgetMode = WidgetTypes.WidgetMode
+
+// 🔥 向后兼容：导出类型别名
+export type FieldConfig = WidgetTypes.FieldConfig
+export type FieldValue = WidgetTypes.FieldValue
 
 /**
  * Widget 组件 Props 接口
@@ -18,13 +25,13 @@ export type WidgetMode = 'edit' | 'response' | 'table-cell' | 'detail' | 'search
 export interface WidgetComponentProps {
   // ========== 必需属性 ==========
   /** 字段配置 */
-  field: FieldConfig
+  field: WidgetTypes.FieldConfig
   
   /** 字段值 */
-  value: FieldValue
+  value: WidgetTypes.FieldValue
   
   /** 场景模式 */
-  mode: WidgetMode
+  mode: WidgetTypes.WidgetMode
   
   /** 字段路径（如：'name', 'products[0].name'） */
   fieldPath: string
@@ -57,6 +64,9 @@ export interface WidgetComponentProps {
   
   /** 记录ID（用于 FilesWidget 打包下载命名） */
   recordId?: string | number
+  
+  /** 父级模式（用于 table-cell 模式判断上下文） */
+  parentMode?: WidgetTypes.WidgetMode
 }
 
 /**
@@ -64,7 +74,7 @@ export interface WidgetComponentProps {
  */
 export interface WidgetComponentEmits {
   /** 更新字段值 */
-  'update:modelValue': [value: FieldValue]
+  'update:modelValue': [value: WidgetTypes.FieldValue]
   
   /** 统计更新（用于 TableWidget） */
   'statistics:updated'?: [statistics: Record<string, any>]

@@ -2,9 +2,9 @@ package widget
 
 type Color struct {
 	// 可选参数（有合理默认值）
-	Format  string `json:"format"`  // 颜色格式：hex, rgb, rgba（默认hex）
-	Default string `json:"default"` // 默认颜色（可选，如：#409EFF）
-	ShowAlpha bool `json:"show_alpha"` // 是否显示透明度选择器（默认false，仅在format为rgba时有效）
+	Format    string `json:"format,omitempty"`    // 颜色格式：hex, rgb, rgba（默认hex）
+	Default   string `json:"default,omitempty"`  // 默认颜色（可选，如：#409EFF）
+	ShowAlpha bool   `json:"show_alpha,omitempty"` // 是否显示透明度选择器（默认false，仅在format为rgba时有效）
 }
 
 func (c *Color) Config() interface{} {

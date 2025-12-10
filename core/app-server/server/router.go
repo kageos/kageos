@@ -59,6 +59,7 @@ func (s *Server) setupRoutes() {
 	functionHandler := v1.NewFunction(s.functionService)
 	function.GET("/get", functionHandler.GetFunction)
 	function.GET("/list", functionHandler.GetFunctionsByApp)
+	function.GET("/group-info", functionHandler.GetFunctionGroupInfo) // 获取函数组信息（用于 Hub 发布）
 	function.POST("/fork", functionHandler.ForkFunctionGroup)
 
 	// 用户管理路由（需要JWT验证）

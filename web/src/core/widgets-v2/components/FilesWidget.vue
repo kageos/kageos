@@ -211,66 +211,118 @@
       </div>
     </template>
 
-    <!-- 响应模式（只读） -->
+    <!-- 响应模式（只读，使用 detail 模式的 UI 效果） -->
     <template v-else-if="mode === 'response'">
-      <div class="response-files">
-        <!-- 已上传的文件列表 -->
+      <div class="detail-files">
         <div v-if="currentFiles.length > 0" class="uploaded-files">
-          <div class="section-title">
-            已上传文件 ({{ currentFiles.length }})
+          <!-- 🔥 参考旧版本的布局：标题和打包下载按钮 -->
+          <div class="detail-files-header">
+            <div class="header-left">
+              <div class="section-title">
+                已上传文件 ({{ currentFiles.length }})
+              </div>
+            </div>
+            <el-button
+              v-if="currentFiles.some((f: FileItem) => f.is_uploaded)"
+              size="small"
+              type="primary"
+              :icon="Download"
+              :loading="downloadingAll"
+              @click="handleDownloadAll"
+            >
+              打包下载
+            </el-button>
           </div>
-          <div
+          
+          <!-- 🔥 参考旧版本的卡片式布局 -->
+          <div class="files-list">
+            <div
             v-for="(file, index) in currentFiles"
             :key="file.url || file.name || index"
-            class="uploaded-file"
-          >
-            <div class="file-header">
-              <el-icon :size="16" class="file-icon">
-                <Document />
-              </el-icon>
-              <span 
-                class="file-name" 
-                :title="file.name"
-                :class="{ 'file-name-clickable': isImageFile(file) && file.is_uploaded }"
-                @click="isImageFile(file) && file.is_uploaded ? handlePreviewImage(file) : null"
-              >
+              class="file-list-item"
+              :class="{ 'file-clickable': canPreviewInBrowser(file) }"
+              @click="canPreviewInBrowser(file) ? handlePreviewInNewWindow(file) : null"
+            >
+              <!-- 🔥 文件上传用户信息（左侧显示，使用 UserDisplay 组件，支持点击查看详情） -->
+              <div v-if="file.upload_user" class="file-upload-user" @click.stop>
+                <UserDisplay
+                  :user-info="getFileUploadUserInfo(file)"
+                  :username="file.upload_user"
+                  mode="card"
+                  layout="vertical"
+                  :size="24"
+                  :user-info-map="userInfoMap"
+                />
+              </div>
+
+              <!-- 文件图标/缩略图（60x60px） -->
+              <div class="file-thumbnail">
+                <el-image
+                  v-if="isImageFile(file) && file.is_uploaded && file.url"
+                  :src="file.url"
+                  fit="cover"
+                  class="thumbnail-image"
+                />
+                <el-icon
+                  v-else
+                  :size="32"
+                  :style="{ color: getFileIconColor(file.name) }"
+                  class="thumbnail-icon"
+                >
+                  <component :is="getFileIcon(file.name)" />
+                </el-icon>
+              </div>
+              
+              <!-- 文件信息（垂直布局） -->
+              <div class="file-info">
+                <div class="file-name" :title="file.name">
                 {{ file.name }}
-              </span>
-              <span class="file-size">{{ formatSize(file.size) }}</span>
-              <el-tag size="small" :type="file.is_uploaded ? 'success' : 'info'">
-                {{ file.is_uploaded ? '已上传' : '本地' }}
-              </el-tag>
+                </div>
+                <!-- 🔥 文件备注（如果有） -->
+                <div v-if="file.description && file.description.trim()" class="file-description-text">
+                  <el-icon :size="12" class="description-icon">
+                    <Edit />
+                  </el-icon>
+                  <span class="description-content">{{ file.description }}</span>
+                </div>
+                <div class="file-meta">
+                  <span class="file-size">{{ formatSize(file.size) }}</span>
+                  <el-tag
+                    v-if="canPreviewInBrowser(file)"
+                    size="small"
+                    type="success"
+                    effect="plain"
+                    class="preview-tag"
+                  >
+                    <el-icon :size="12" style="margin-right: 4px">
+                      <View />
+                    </el-icon>
+                    可预览
+                  </el-tag>
+                  <span v-if="file.upload_ts" class="file-upload-time">
+                    {{ formatTimestamp(file.upload_ts) }}
+                  </span>
+                </div>
             </div>
 
-            <!-- 文件描述（只读显示） -->
-            <div v-if="file.description" class="file-description">
-              {{ file.description }}
-            </div>
-
-            <!-- 操作按钮（只显示下载和预览） -->
+              <!-- 操作按钮 -->
             <div class="file-actions">
-              <el-button
-                v-if="isImageFile(file) && file.is_uploaded"
-                size="small"
-                :icon="View"
-                @click="handlePreviewImage(file)"
-              >
-                预览
-              </el-button>
               <el-button
                 v-if="file.is_uploaded"
                 size="small"
+                  type="primary"
                 :icon="Download"
-                @click="handleDownloadFile(file)"
+                  @click.stop="handleDownloadFile(file)"
               >
                 下载
               </el-button>
+              </div>
             </div>
           </div>
         </div>
         <div v-else class="empty-files">暂无文件</div>
 
-        <!-- 备注（只读显示，作为文件列表的补充说明） -->
+        <!-- 🔥 备注部分不显示标题，因为 FormRenderer 已经显示了字段名 -->
         <div v-if="remark" class="files-remark">
           <div class="remark-content">{{ remark }}</div>
         </div>
@@ -342,11 +394,6 @@
                   :src="file.url"
                   fit="cover"
                   class="thumbnail-image"
-                  :preview-src-list="previewImageList"
-                  :initial-index="getPreviewImageIndex(file)"
-                  preview-teleported
-                  hide-on-click-modal
-                  @click.stop
                 />
                 <el-icon
                   v-else
@@ -888,15 +935,12 @@ function handlePreviewInNewWindow(file: FileItem): void {
     return
   }
   
-  // 如果是图片，使用 ElImage 的预览功能（已经在模板中处理）
-  // 其他文件类型，在新窗口打开
-  if (!isImageFile(file)) {
-    const previewURL = file.url.startsWith('http://') || file.url.startsWith('https://')
-      ? file.url
-      : `/api/v1/storage/download/${encodeURIComponent(file.url)}`
-    
-    window.open(previewURL, '_blank')
-  }
+  // 🔥 所有可预览的文件（包括图片和视频）都在新窗口打开，避免抽屉遮挡预览器
+  const previewURL = file.url.startsWith('http://') || file.url.startsWith('https://')
+    ? file.url
+    : `/api/v1/storage/download/${encodeURIComponent(file.url)}`
+  
+  window.open(previewURL, '_blank')
 }
 
 // 获取预览图片列表
@@ -1112,12 +1156,11 @@ async function handleFileSelect(rawFile: File): Promise<void> {
       uploadingFile.status = 'error'
       uploadingFile.error = '上传已取消'
       ElMessage.warning('上传已取消')
-      setTimeout(() => {
-        const index = uploadingFiles.value.findIndex((f: UploadingFile) => f.uid === uid)
-        if (index !== -1) {
-          uploadingFiles.value.splice(index, 1)
-        }
-      }, 2000)
+      // 立即移除上传中的文件（用户已看到取消提示）
+      const index = uploadingFiles.value.findIndex((f: UploadingFile) => f.uid === uid)
+      if (index !== -1) {
+        uploadingFiles.value.splice(index, 1)
+      }
     }
   }
 
@@ -1302,12 +1345,11 @@ async function flushCompleteQueue(): Promise<void> {
           const currentFilesList = currentFiles.value
           updateFiles([...currentFilesList, newFile])
 
-          setTimeout(() => {
-            const index = uploadingFiles.value.findIndex((f: UploadingFile) => f.uid === uploadingFile.uid)
-            if (index !== -1) {
-              uploadingFiles.value.splice(index, 1)
-            }
-          }, 2000)
+          // 立即移除上传中的文件（文件已添加到列表，用户已看到成功提示）
+          const index = uploadingFiles.value.findIndex((f: UploadingFile) => f.uid === uploadingFile.uid)
+          if (index !== -1) {
+            uploadingFiles.value.splice(index, 1)
+          }
         }
       } else if (!item.success || (result && result.status === 'failed')) {
         if (uploadingFile) {
@@ -1514,7 +1556,6 @@ async function handleDownloadAll(): Promise<void> {
     
     // 🔥 使用与旧版本一致的命名规则：函数名称_id_记录ID 或 函数名称_时间戳
     let zipFileName = 'files'
-    
     
     // 🔥 完全按照旧版本的逻辑
     if (props.functionName) {

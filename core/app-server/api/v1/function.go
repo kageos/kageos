@@ -147,3 +147,42 @@ func (f *Function) ForkFunctionGroup(c *gin.Context) {
 	}
 	response.OkWithData(c, resp)
 }
+
+// GetFunctionGroupInfo 获取函数组信息（用于 Hub 发布）
+// @Summary 获取函数组信息
+// @Description 根据完整函数组代码获取函数组信息，包括源代码和描述，用于 Hub 发布
+// @Tags 函数管理
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Param full_group_code query string true "完整函数组代码，格式：/{user}/{app}/{package_path}/{group_code}"
+// @Success 200 {object} dto.GetFunctionGroupInfoResp "获取成功"
+// @Failure 400 {string} string "请求参数错误"
+// @Failure 401 {string} string "未授权"
+// @Failure 404 {string} string "函数组不存在"
+// @Failure 500 {string} string "服务器内部错误"
+// @Router /api/v1/function/group-info [get]
+func (f *Function) GetFunctionGroupInfo(c *gin.Context) {
+	var resp *dto.GetFunctionGroupInfoResp
+	var err error
+
+	// 从 query 参数获取完整函数组代码
+	fullGroupCode := c.Query("full_group_code")
+	if fullGroupCode == "" {
+		response.FailWithMessage(c, "缺少 full_group_code 参数")
+		return
+	}
+
+	defer func() {
+		logger.Infof(c, "GetFunctionGroupInfo full_group_code:%s resp:%+v err:%v", fullGroupCode, resp, err)
+	}()
+
+	ctx := contextx.ToContext(c)
+	resp, err = f.functionService.GetFunctionGroupInfo(ctx, fullGroupCode)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.OkWithData(c, resp)
+}

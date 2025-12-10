@@ -17,7 +17,7 @@ package widget
 //   - default 参数支持动态变量（以 $ 开头）
 //   - 如果用户未登录，$me 会返回 null
 type User struct {
-	Default string `json:"default"` // 默认值，支持动态变量 $me（当前登录用户）
+	Default string `json:"default,omitempty"` // 默认值，支持动态变量 $me（当前登录用户）
 }
 
 func (u *User) Config() interface{} {

@@ -13,9 +13,9 @@
  * - 类型安全：完整的 TypeScript 类型定义
  */
 
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import { executeFunction, tableAddRow, tableUpdateRow, tableDeleteRows } from '@/api/function'
 import { buildSearchParamsString, buildURLSearchParams } from '@/utils/searchParams'
 import { denormalizeSearchValue } from '@/utils/searchValueNormalizer'
@@ -486,15 +486,11 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
   const syncToURL = (): void => {
     const query: Record<string, string> = {}
     
-    // 分页参数
-    if (currentPage.value > 1) {
-      query.page = String(currentPage.value)
-    }
-    if (pageSize.value !== 20) {
-      query.page_size = String(pageSize.value)
-    }
+    // 🔥 分页参数：始终添加到 URL，即使是默认值也要添加，方便分享和恢复状态
+    query.page = String(currentPage.value)
+    query.page_size = String(pageSize.value)
     
-    // 排序参数
+    // 🔥 排序参数：始终添加到 URL（如果有排序的话）
     const finalSorts = sorts.value.length > 0 
       ? sorts.value 
       : (hasManualSort.value ? [] : buildDefaultSorts())
@@ -502,8 +498,7 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
     if (finalSorts.length > 0) {
       query.sorts = finalSorts.map(item => `${item.field}:${item.order}`).join(',')
     }
-    // 🔥 关键：如果排序为空，显式标记为删除（后续会从 URL 中移除）
-    // 注意：不设置 query.sorts，这样在后续处理中会从 URL 中删除
+    // 🔥 关键：如果排序为空，不设置 query.sorts，这样在后续处理中会从 URL 中删除
     
     // ==================== 搜索参数同步到 URL ====================
     // 
@@ -567,8 +562,12 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
     // 1. searchParamKeys（response 字段的搜索参数，如 eq, like, in 等）
     // 2. sorts（因为我们要根据当前状态决定是否保留）
     // 3. request 字段（因为我们要根据当前状态决定是否保留，如果已清空则删除）
+    // 4. 🔥 保留以 _ 开头的参数（前端状态参数，如 _detail_id, _detail_function_id），这些参数不会被删除
     Object.keys(route.query).forEach(key => {
-      if (!searchParamKeys.includes(key) && key !== 'sorts' && !requestFieldCodes.has(key)) {
+      // 🔥 保留以 _ 开头的参数（前端状态参数）
+      if (key.startsWith('_')) {
+        newQuery[key] = String(route.query[key])
+      } else if (!searchParamKeys.includes(key) && key !== 'sorts' && !requestFieldCodes.has(key)) {
         newQuery[key] = String(route.query[key])
       }
     })
@@ -592,6 +591,7 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
    * 1. 解析 URL 参数，恢复搜索表单的值
    * 2. 支持多个字段同时使用相同的搜索类型（如：多个 slider 字段使用 gte/lte）
    * 3. 对于范围搜索（gte/lte），需要区分时间戳类型和数字类型
+   * 4. 🔥 只恢复属于当前函数的字段，避免数据污染
    * 
    * URL 格式示例：
    * - 单个字段：gte=progress:50&lte=progress:80
@@ -599,6 +599,22 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
    */
   const restoreFromURL = (): void => {
     const query = route.query
+    
+    // 🔥 获取当前函数的所有字段 code，用于验证 URL 参数是否属于当前函数
+    const currentRequestFieldCodes = new Set<string>()
+    const currentResponseFieldCodes = new Set<string>()
+    
+    if (Array.isArray(functionData.request)) {
+      functionData.request.forEach(field => {
+        currentRequestFieldCodes.add(field.code)
+      })
+    }
+    
+    if (Array.isArray(functionData.response)) {
+      functionData.response.forEach(field => {
+        currentResponseFieldCodes.add(field.code)
+      })
+    }
     
     // 恢复分页
     if (query.page) {
@@ -614,7 +630,7 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
       }
     }
     
-    // 恢复排序
+    // 恢复排序（只恢复属于当前函数的字段）
     if (query.sorts) {
       const sortsString = String(query.sorts)
       const sortItems: SortItem[] = []
@@ -623,7 +639,9 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
         if (parts.length === 2) {
           const field = parts[0] || ''
           const order = parts[1] as 'asc' | 'desc'
-          if (field && (order === 'asc' || order === 'desc')) {
+          // 🔥 只恢复属于当前函数的字段
+          if (field && (order === 'asc' || order === 'desc') && 
+              (currentRequestFieldCodes.has(field) || currentResponseFieldCodes.has(field))) {
             sortItems.push({ field, order })
           }
         }
@@ -646,9 +664,14 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
     // - 直接从 URL 查询参数中读取：`room_name=测试` → 恢复为 `searchForm.room_name = "测试"`
     
     // 1. 恢复 request 字段（直接从 URL 查询参数中读取，k=v 形式）
+    // 🔥 只恢复属于当前函数的字段
     const requestFields = functionData.request
     if (Array.isArray(requestFields)) {
       requestFields.forEach(field => {
+        // 🔥 验证字段是否属于当前函数（双重检查，确保安全）
+        if (!currentRequestFieldCodes.has(field.code)) {
+          return
+        }
         const value = query[field.code]
         if (value !== undefined && value !== null && value !== '') {
           // 直接使用 URL 中的值
@@ -660,7 +683,13 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
     // 2. 恢复 response 字段（从 URL 查询参数中解析，格式：eq=field:value, like=field:value 等）
     // 格式：eq=field:value 或 eq=field1:value1,field2:value2, like=field:value, in=field:value, gte=field:value, lte=field:value
     // 🔥 支持多个字段使用相同搜索类型，格式：field1:value1,field2:value2
+    // 🔥 只恢复属于当前函数的字段，避免数据污染
     responseSearchableFields.value.forEach(field => {
+      // 🔥 验证字段是否属于当前函数（双重检查，确保安全）
+      if (!currentResponseFieldCodes.has(field.code)) {
+        return
+      }
+      
       const searchType = field.search || ''
       
       if (searchType.includes(SearchType.EQ)) {
@@ -971,6 +1000,8 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
         sorts.value = defaultSorts
       }
     }
+    // 🔥 初始化后同步状态到 URL（确保即使 URL 是干净的，也会将当前状态同步到 URL）
+    syncToURL()
     // 🔥 初始化后加载数据
     loadTableData()
   }
@@ -980,10 +1011,24 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
   
   // 监听 URL 变化，恢复状态（避免循环更新）
   let isRestoringFromURL = false
+  let isSyncingToURL = false
   watch(() => route.query, () => {
+    // 🔥 如果正在同步到 URL，跳过（避免循环）
+    if (isSyncingToURL) return
+    // 🔥 如果正在从 URL 恢复，跳过（避免循环）
     if (isRestoringFromURL) return
+    
     isRestoringFromURL = true
     restoreFromURL()
+    // 🔥 如果 URL 是干净的（没有查询参数），恢复默认状态后同步到 URL
+    const hasQueryParams = Object.keys(route.query).length > 0
+    if (!hasQueryParams) {
+      isSyncingToURL = true
+      nextTick(() => {
+        syncToURL()
+        isSyncingToURL = false
+      })
+    }
     loadTableData().finally(() => {
       isRestoringFromURL = false
     })
@@ -997,15 +1042,19 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
   const handleAdd = async (data: Record<string, any>): Promise<boolean> => {
     try {
       await tableAddRow(functionData.method, functionData.router, data)
-      ElMessage.success('新增成功')
+      // 🔥 使用 ElNotification 显示更漂亮的提示
+      ElNotification({
+        title: '新增成功',
+        message: '记录已成功添加',
+        type: 'success',
+        duration: 3000,
+        position: 'top-right'
+      })
       await loadTableData()
       return true
     } catch (error: any) {
-      // 🔥 优先使用后端返回的错误信息
-      const errorMessage = error?.response?.data?.msg 
-        || error?.response?.data?.message 
-        || error?.message 
-        || '新增失败'
+      // 🔥 统一使用 msg 字段
+      const errorMessage = error?.response?.data?.msg || error?.message || '新增失败'
       ElMessage.error(errorMessage)
       return false
     }
@@ -1043,16 +1092,27 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
       }
       
       await tableUpdateRow(functionData.method, functionData.router, updateData)
-      ElMessage.success('更新成功')
+      // 🔥 使用 ElNotification 显示更漂亮的提示
+      ElNotification({
+        title: '更新成功',
+        message: '记录已成功更新',
+        type: 'success',
+        duration: 3000,
+        position: 'top-right'
+      })
       await loadTableData()
       return true
     } catch (error: any) {
-      // 🔥 优先使用后端返回的错误信息
-      const errorMessage = error?.response?.data?.msg 
-        || error?.response?.data?.message 
-        || error?.message 
-        || '更新失败'
-      ElMessage.error(errorMessage)
+      // 🔥 统一使用 msg 字段
+      const errorMessage = error?.response?.data?.msg || error?.message || '更新失败'
+      // 🔥 使用 ElNotification 显示更漂亮的错误提示
+      ElNotification({
+        title: '更新失败',
+        message: errorMessage,
+        type: 'error',
+        duration: 5000,
+        position: 'top-right'
+      })
       return false
     }
   }
@@ -1075,17 +1135,28 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
       )
       
       await tableDeleteRows(functionData.method, functionData.router, [id])
-      ElMessage.success('删除成功')
+      // 🔥 使用 ElNotification 显示更漂亮的提示
+      ElNotification({
+        title: '删除成功',
+        message: '记录已成功删除',
+        type: 'success',
+        duration: 3000,
+        position: 'top-right'
+      })
       await loadTableData()
       return true
     } catch (error: any) {
       if (error !== 'cancel') {
-        // 🔥 优先使用后端返回的错误信息
-        const errorMessage = error?.response?.data?.msg 
-          || error?.response?.data?.message 
-          || error?.message 
-          || '删除失败'
-        ElMessage.error(errorMessage)
+        // 🔥 统一使用 msg 字段
+        const errorMessage = error?.response?.data?.msg || error?.message || '删除失败'
+        // 🔥 使用 ElNotification 显示更漂亮的错误提示
+        ElNotification({
+          title: '删除失败',
+          message: errorMessage,
+          type: 'error',
+          duration: 5000,
+          position: 'top-right'
+        })
       }
       return false
     }
