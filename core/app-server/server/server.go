@@ -417,13 +417,60 @@ func (s *Server) handleFunctionGenResult(msg *nats.Msg) {
 	logger.Infof(ctx, "[Server] 调用 AppService.UpdateApp: User=%s, App=%s, Package=%s, GroupCode=%s",
 		updateReq.User, updateReq.App, packagePath, groupCode)
 
-	_, err = s.appService.UpdateApp(ctx, updateReq)
+	updateResp, err := s.appService.UpdateApp(ctx, updateReq)
 	if err != nil {
 		logger.Errorf(ctx, "[Server] AppService.UpdateApp 失败: error=%v", err)
 		return
 	}
 
 	logger.Infof(ctx, "[Server] 函数创建成功: Package=%s, GroupCode=%s", packagePath, groupCode)
+
+	// 6. 获取新增的 FullGroupCodes
+	fullGroupCodes := make([]string, 0)
+	if updateResp.Diff != nil {
+		fullGroupCodes = updateResp.Diff.GetAddFullGroupCodes()
+		logger.Infof(ctx, "[Server] 获取新增函数组代码 - Count: %d, FullGroupCodes: %v", len(fullGroupCodes), fullGroupCodes)
+	}
+
+	// 7. 发送回调消息给 agent-server
+	if len(fullGroupCodes) > 0 {
+		callbackData := &dto.FunctionGenCallback{
+			RecordID:       result.RecordID,
+			MessageID:      result.MessageID,
+			Success:        true,
+			FullGroupCodes: fullGroupCodes,
+			AppID:          serviceTree.App.ID,
+			AppCode:        serviceTree.App.Code,
+			Error:          "",
+		}
+
+		// 通过 NATS 发送回调
+		callbackSubject := subjects.GetAgentServerFunctionGenCallbackSubject()
+		callbackJSON, err := json.Marshal(callbackData)
+		if err != nil {
+			logger.Errorf(ctx, "[Server] 序列化回调消息失败: error=%v", err)
+			return
+		}
+
+		callbackMsg := nats.NewMsg(callbackSubject)
+		callbackMsg.Data = callbackJSON
+		if traceID != "" {
+			callbackMsg.Header.Set("X-Trace-Id", traceID)
+		}
+		if requestUser != "" {
+			callbackMsg.Header.Set("X-Request-User", requestUser)
+		}
+
+		if err := s.natsConn.PublishMsg(callbackMsg); err != nil {
+			logger.Errorf(ctx, "[Server] 发送回调消息失败: error=%v", err)
+			// 不中断流程，记录日志即可
+		} else {
+			logger.Infof(ctx, "[Server] 回调消息已发送 - RecordID: %d, MessageID: %d, FullGroupCodes: %v, AppCode: %s",
+				result.RecordID, result.MessageID, fullGroupCodes, serviceTree.App.Code)
+		}
+	} else {
+		logger.Warnf(ctx, "[Server] 没有新增的函数组代码，跳过回调 - RecordID: %d", result.RecordID)
+	}
 }
 
 // extractCodeFromMarkdown 从 Markdown 代码块中提取代码

@@ -154,14 +154,27 @@ func BuildAgentPluginSubject(chatType, user string, agentID int64) string {
 	return BuildAgentMsgSubject(chatType, user, agentID)
 }
 
-// BuildAgentPluginRunSubject 构建 agent plugin 执行主题
+// BuildAgentPluginRunSubject 构建 agent plugin 执行主题（已废弃，使用 Plugin.Subject）
 // 格式：agent.{chat_type}.{user}.{id}.run
+// 注意：新架构中应该使用 Plugin.Subject，此函数保留用于向后兼容
 func BuildAgentPluginRunSubject(chatType, user string, agentID int64) string {
 	return fmt.Sprintf("agent.%s.%s.%d.run", chatType, user, agentID)
+}
+
+// BuildPluginSubject 构建插件主题
+// 格式：plugins.{user}.{plugin_id}
+func BuildPluginSubject(user string, pluginID int64) string {
+	return fmt.Sprintf("plugins.%s.%d", user, pluginID)
 }
 
 // GetAgentServerFunctionGenSubject 获取 agent-server 函数生成结果队列主题
 // 格式：agent_server.function_gen
 func GetAgentServerFunctionGenSubject() string {
 	return "agent_server.function_gen"
+}
+
+// GetAgentServerFunctionGenCallbackSubject 获取 agent-server 函数生成回调主题（app-server -> agent-server）
+// 格式：agent_server.function_gen.callback
+func GetAgentServerFunctionGenCallbackSubject() string {
+	return "agent_server.function_gen.callback"
 }

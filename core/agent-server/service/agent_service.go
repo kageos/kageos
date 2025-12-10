@@ -8,7 +8,6 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
 	"gorm.io/gorm"
 )
 
@@ -38,13 +37,15 @@ func normalizeMetadata(metadata string) (*string, error) {
 // AgentService 智能体服务
 type AgentService struct {
 	repo            *repository.AgentRepository
+	pluginRepo      *repository.PluginRepository
 	knowledgeRepo   *repository.KnowledgeRepository
 }
 
 // NewAgentService 创建智能体服务
-func NewAgentService(repo *repository.AgentRepository, knowledgeRepo *repository.KnowledgeRepository) *AgentService {
+func NewAgentService(repo *repository.AgentRepository, pluginRepo *repository.PluginRepository, knowledgeRepo *repository.KnowledgeRepository) *AgentService {
 	return &AgentService{
 		repo:          repo,
+		pluginRepo:    pluginRepo,
 		knowledgeRepo: knowledgeRepo,
 	}
 }
@@ -112,18 +113,11 @@ func (s *AgentService) CreateAgent(ctx context.Context, agent *model.Agent) erro
 	}
 	agent.Metadata = normalizedMetadata
 
-	// 创建智能体（AfterCreate 钩子会自动生成 NATS 主题）
+	// 创建智能体
+	// 注意：新架构中，plugin 类型的智能体使用 Plugin.Subject，不再需要 MsgSubject
 	err = s.repo.Create(agent)
 	if err != nil {
 		return err
-	}
-
-	// 如果创建成功且是插件调用类型，确保消息主题已生成
-	// （AfterCreate 钩子应该已经处理，这里作为兜底）
-	if agent.AgentType == "plugin" && agent.MsgSubject == "" {
-		// 使用 subjects 包统一生成消息主题
-		agent.MsgSubject = subjects.BuildAgentMsgSubject(agent.ChatType, agent.CreatedBy, agent.ID)
-		return s.repo.Update(agent)
 	}
 
 	return nil
@@ -158,6 +152,25 @@ func (s *AgentService) UpdateAgent(ctx context.Context, agent *model.Agent) erro
 		return fmt.Errorf("验证知识库失败: %w", err)
 	}
 
+	// 如果是 plugin 类型，验证插件是否存在
+	if agent.AgentType == "plugin" {
+		if agent.PluginID == nil || *agent.PluginID == 0 {
+			return fmt.Errorf("插件类型智能体必须关联插件")
+		}
+		_, err := s.pluginRepo.GetByID(*agent.PluginID)
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return fmt.Errorf("插件不存在")
+			}
+			return fmt.Errorf("验证插件失败: %w", err)
+		}
+		// 新架构中，plugin 类型使用 Plugin.Subject，不需要 MsgSubject
+		agent.MsgSubject = ""
+	} else {
+		// 非 plugin 类型，清空 PluginID 和 MsgSubject
+		agent.PluginID = nil
+		agent.MsgSubject = ""
+	}
 
 	// 规范化 metadata 字段
 	metadataStr := ""
@@ -169,21 +182,6 @@ func (s *AgentService) UpdateAgent(ctx context.Context, agent *model.Agent) erro
 		return err
 	}
 	agent.Metadata = normalizedMetadata
-
-	// 如果是插件调用类型且消息主题为空，自动生成
-	if agent.AgentType == "plugin" && agent.MsgSubject == "" {
-		// 使用 subjects 包统一生成消息主题
-		agent.MsgSubject = subjects.BuildAgentMsgSubject(agent.ChatType, agent.CreatedBy, agent.ID)
-	} else if agent.AgentType == "plugin" && agent.MsgSubject != "" {
-		// 如果 chat_type 或创建用户发生变化，重新生成消息主题
-		expectedSubject := subjects.BuildAgentMsgSubject(agent.ChatType, agent.CreatedBy, agent.ID)
-		if agent.MsgSubject != expectedSubject {
-			agent.MsgSubject = expectedSubject
-		}
-	} else if agent.AgentType != "plugin" {
-		// 如果不是插件调用类型，清空消息主题
-		agent.MsgSubject = ""
-	}
 
 	return s.repo.Update(agent)
 }

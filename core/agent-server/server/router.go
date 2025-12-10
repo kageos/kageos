@@ -62,6 +62,17 @@ func (s *Server) setupRoutes() {
 	llm.POST("/delete", llmHandler.Delete)         // 删除LLM配置
 	llm.POST("/set_default", llmHandler.SetDefault) // 设置默认LLM配置
 
+	// 插件管理路由
+	plugins := agent.Group("/plugins")
+	pluginHandler := v1.NewPlugin(s.pluginService, s.cfg)
+	plugins.GET("/list", pluginHandler.List)              // 获取插件列表
+	plugins.GET("/:id", pluginHandler.Get)                // 获取插件详情
+	plugins.POST("", pluginHandler.Create)                // 创建插件
+	plugins.PUT("/:id", pluginHandler.Update)             // 更新插件
+	plugins.DELETE("/:id", pluginHandler.Delete)          // 删除插件
+	plugins.POST("/:id/enable", pluginHandler.Enable)     // 启用插件
+	plugins.POST("/:id/disable", pluginHandler.Disable)    // 禁用插件
+
 	// 智能体聊天路由（按 chat_type 区分）
 	agentChatHandler := v1.NewAgentChat(s.agentChatService)
 	agent.POST("/chat/function_gen", agentChatHandler.FunctionGenChat) // 智能体聊天 - 函数生成类型

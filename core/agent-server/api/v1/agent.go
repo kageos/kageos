@@ -98,8 +98,7 @@ func (h *Agent) List(c *gin.Context) {
 			Enabled:              agent.Enabled,
 			Description:          agent.Description,
 			Timeout:              agent.Timeout,
-			MsgSubject:           agent.MsgSubject,
-			NatsHost:             h.cfg.GetNatsHost(),
+			PluginID:             agent.PluginID,
 			KnowledgeBaseID:      agent.KnowledgeBaseID,
 			KnowledgeBase:        kbInfo,
 			LLMConfigID:          agent.LLMConfigID,
@@ -187,8 +186,7 @@ func (h *Agent) Get(c *gin.Context) {
 			Enabled:              agent.Enabled,
 			Description:          agent.Description,
 			Timeout:              agent.Timeout,
-			MsgSubject:           agent.MsgSubject,
-			NatsHost:             h.cfg.GetNatsHost(),
+			PluginID:             agent.PluginID,
 			KnowledgeBaseID:      agent.KnowledgeBaseID,
 			KnowledgeBase:        kbInfo,
 			LLMConfigID:          agent.LLMConfigID,
@@ -237,6 +235,7 @@ func (h *Agent) Create(c *gin.Context) {
 		ChatType:             req.ChatType,
 		Description:          req.Description,
 		Timeout:              req.Timeout,
+		PluginID:             req.PluginID,
 		KnowledgeBaseID:      req.KnowledgeBaseID,
 		LLMConfigID:          req.LLMConfigID,
 		SystemPromptTemplate: req.SystemPromptTemplate,
@@ -292,6 +291,7 @@ func (h *Agent) Update(c *gin.Context) {
 	agent.ChatType = req.ChatType
 	agent.Description = req.Description
 	agent.Timeout = req.Timeout
+	agent.PluginID = req.PluginID
 	agent.KnowledgeBaseID = req.KnowledgeBaseID
 	agent.LLMConfigID = req.LLMConfigID
 	agent.SystemPromptTemplate = req.SystemPromptTemplate
