@@ -271,6 +271,12 @@ export function useWorkspaceRouting(options: {
           
           const serviceNode: ServiceTree = node as any
           
+          // 🔥 如果是目录节点，只设置当前函数，不打开 Tab
+          if (serviceNode.type === 'package') {
+            applicationService.triggerNodeClick(serviceNode)
+            return
+          }
+          
           // 🔥 注意：_link_type 参数的处理已移至 setupRouteWatch 中的 link-widget updateCompleted 事件监听
           // 这里不再处理 _link_type，避免在路由更新完成前就清除参数
           
