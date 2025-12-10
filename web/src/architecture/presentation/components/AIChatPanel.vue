@@ -246,6 +246,49 @@ onMounted(async () => {
   }
 })
 
+// 🔥 监听目录切换，重置会话状态
+watch(
+  () => [props.treeId, props.package, props.currentNodeName],
+  ([newTreeId, newPackage, newNodeName], [oldTreeId, oldPackage, oldNodeName]) => {
+    // 如果 treeId 或 package 变化，说明切换了目录，需要重置会话
+    if (newTreeId !== oldTreeId || newPackage !== oldPackage) {
+      // 清空消息
+      messages.value = []
+      // 重置会话ID
+      sessionId.value = ''
+      // 清空上传的文件
+      uploadedFiles.value = []
+      
+      // 更新欢迎消息以反映新的目录名称
+      if (newNodeName) {
+        addMessage('assistant', `你好！我是 AI 助手，可以帮助你处理「${newNodeName}」相关的问题。有什么可以帮助你的吗？`)
+      } else {
+        addMessage('assistant', '你好！我是 AI 助手，有什么可以帮助你的吗？')
+      }
+    } else if (newNodeName !== oldNodeName) {
+      // 如果只是目录名称变化（但 treeId 和 package 没变），更新欢迎消息
+      // 这种情况比较少见，但为了完整性还是处理一下
+      if (messages.value.length > 0 && messages.value[0].role === 'assistant') {
+        messages.value[0].content = newNodeName
+          ? `你好！我是 AI 助手，可以帮助你处理「${newNodeName}」相关的问题。有什么可以帮助你的吗？`
+          : '你好！我是 AI 助手，有什么可以帮助你的吗？'
+      }
+    }
+  }
+)
+
+// 🔥 监听 agentId prop 变化，更新选中的智能体
+watch(
+  () => props.agentId,
+  (newAgentId) => {
+    if (newAgentId && newAgentId !== selectedAgentId.value) {
+      selectedAgentId.value = newAgentId
+      // 切换智能体时重置会话
+      handleAgentChange()
+    }
+  }
+)
+
 // 监听消息变化，自动滚动到底部
 watch(
   () => messages.value.length,
