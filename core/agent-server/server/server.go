@@ -345,13 +345,16 @@ func (s *Server) handleFunctionGenCallback(msg *nats.Msg) {
 		return
 	}
 
-	// 更新状态
+	// 更新状态和耗时
 	if callback.Success {
 		record.Status = model.FunctionGenStatusCompleted
 	} else {
 		record.Status = model.FunctionGenStatusFailed
 		record.ErrorMsg = callback.Error
 	}
+	
+	// 计算耗时（从创建时间到当前时间的秒数）
+	record.Duration = int(time.Since(time.Time(record.CreatedAt)).Seconds())
 
 	if err := s.functionGenRepo.Update(record); err != nil {
 		logger.Errorf(ctx, "[Server] 更新生成记录失败: %v", err)

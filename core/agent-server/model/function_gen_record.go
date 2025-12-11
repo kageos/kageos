@@ -26,6 +26,9 @@ type FunctionGenRecord struct {
 	// 例如：{"user_message": "生成一个工单系统", "files": [{"url": "...", "remark": "..."}], "plugin_data": "..."}
 	Metadata *string `gorm:"type:json;comment:生成过程元数据" json:"metadata"`
 	
+	// 生成耗时（秒，从创建记录到完成/失败的时间）
+	Duration int `gorm:"type:int;default:0;comment:生成耗时(秒)" json:"duration"`
+	
 	User string `gorm:"type:varchar(128);not null;index;comment:创建用户" json:"user"`
 }
 

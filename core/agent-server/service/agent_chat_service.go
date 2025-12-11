@@ -149,6 +149,12 @@ func (s *AgentChatService) Chat(ctx context.Context, agentID int64, messages []l
 		chatReq.Temperature = temperature
 	}
 
+	// 如果配置了 UseThinking，设置到请求中
+	if llmConfig.UseThinking {
+		useThinking := true
+		chatReq.UseThinking = &useThinking
+	}
+
 	// 9. 调用 LLM
 	resp, err := client.Chat(ctx, chatReq)
 	if err != nil {

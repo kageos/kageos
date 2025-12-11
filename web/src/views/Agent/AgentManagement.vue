@@ -97,6 +97,7 @@
           @edit="handleEdit"
           @toggle="handleToggle"
           @delete="handleDelete"
+          @copy="handleCopy"
         />
         <el-empty v-if="!loading && tableData.length === 0" description="暂无数据" />
       </div>
@@ -729,6 +730,33 @@ async function handleEdit(row: AgentInfo) {
   dialogTitle.value = '编辑智能体'
   formData.id = row.id
   formData.name = row.name
+  formData.agent_type = row.agent_type
+  formData.chat_type = row.chat_type || 'function_gen'
+  formData.description = row.description
+  formData.system_prompt_template = row.system_prompt_template || ''
+  formData.timeout = row.timeout
+  formData.plugin_id = row.plugin_id || null
+  formData.knowledge_base_id = row.knowledge_base_id
+  formData.llm_config_id = row.llm_config_id || 0
+  formData.metadata = row.metadata || ''
+  formData.visibility = row.visibility ?? 0
+  formData.admin = row.admin || ''
+  
+  // 如果是 plugin 类型，确保插件列表已加载
+  if (row.agent_type === 'plugin' && pluginOptions.value.length === 0) {
+    await loadPlugins()
+  }
+  
+  dialogVisible.value = true
+}
+
+// 复制
+async function handleCopy(row: AgentInfo) {
+  dialogTitle.value = '复制智能体'
+  // 清空ID，表示新增
+  formData.id = undefined
+  // 复制数据，名称添加"副本"后缀
+  formData.name = `${row.name} 副本`
   formData.agent_type = row.agent_type
   formData.chat_type = row.chat_type || 'function_gen'
   formData.description = row.description

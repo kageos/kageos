@@ -17,6 +17,7 @@ type LLMInfo struct {
 	Timeout     int    `json:"timeout" example:"120"`
 	MaxTokens   int    `json:"max_tokens" example:"4000"`
 	ExtraConfig string `json:"extra_config" example:"{}"`
+	UseThinking bool   `json:"use_thinking" example:"false"` // 是否使用思考模式（GLM特有功能）
 	IsDefault   bool   `json:"is_default" example:"true"`
 	Visibility  int    `json:"visibility" example:"0"` // 0: 公开, 1: 私有
 	Admin       string `json:"admin" example:"user1,user2"` // 管理员列表（逗号分隔）
@@ -56,6 +57,7 @@ type LLMCreateReq struct {
 	Timeout     int     `json:"timeout" example:"120"`
 	MaxTokens   int     `json:"max_tokens" example:"4000"`
 	ExtraConfig *string `json:"extra_config" example:"{}"`
+	UseThinking bool    `json:"use_thinking" example:"false"` // 是否使用思考模式（GLM特有功能）
 	IsDefault   bool    `json:"is_default" example:"false"`
 	Visibility  int     `json:"visibility" example:"0"` // 0: 公开, 1: 私有（默认0）
 	Admin       string  `json:"admin" example:"user1,user2"` // 管理员列表（逗号分隔，默认创建用户）
@@ -77,6 +79,7 @@ type LLMUpdateReq struct {
 	Timeout     int    `json:"timeout" example:"120"`
 	MaxTokens   int    `json:"max_tokens" example:"4000"`
 	ExtraConfig string `json:"extra_config" example:"{}"`
+	UseThinking bool   `json:"use_thinking" example:"false"` // 是否使用思考模式（GLM特有功能）
 	IsDefault   bool   `json:"is_default" example:"false"`
 	Visibility  int    `json:"visibility" example:"0"` // 0: 公开, 1: 私有
 	Admin       string `json:"admin" example:"user1,user2"` // 管理员列表（逗号分隔）

@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
@@ -49,7 +50,35 @@ func (h *Agent) List(c *gin.Context) {
 	}
 
 	defer func() {
-		logger.Infof(c, "Agent.List req:%+v resp:%+v err:%v", req, resp, err)
+		// 优化日志：不打印 SystemPromptTemplate 等大字段的完整内容
+		var safeResp interface{}
+		if resp != nil && resp.Agents != nil {
+			// 创建一个安全的响应副本，只记录关键信息
+			safeAgents := make([]map[string]interface{}, 0, len(resp.Agents))
+			for _, agent := range resp.Agents {
+				safeAgent := map[string]interface{}{
+					"ID":              agent.ID,
+					"Name":            agent.Name,
+					"AgentType":       agent.AgentType,
+					"ChatType":        agent.ChatType,
+					"Enabled":         agent.Enabled,
+					"Description":     agent.Description,
+					"Timeout":         agent.Timeout,
+					"KnowledgeBaseID": agent.KnowledgeBaseID,
+					"LLMConfigID":      agent.LLMConfigID,
+					"PluginID":        agent.PluginID,
+					"SystemPromptTemplate": fmt.Sprintf("<len:%d>", len(agent.SystemPromptTemplate)),
+				}
+				safeAgents = append(safeAgents, safeAgent)
+			}
+			safeResp = map[string]interface{}{
+				"Agents": safeAgents,
+				"Total":  resp.Total,
+			}
+		} else {
+			safeResp = resp
+		}
+		logger.Infof(c, "Agent.List req:%+v resp:%+v err:%v", req, safeResp, err)
 	}()
 
 	ctx := contextx.ToContext(c)
@@ -126,6 +155,7 @@ func (h *Agent) List(c *gin.Context) {
 			LLMConfig:            llmInfo,
 			SystemPromptTemplate: agent.SystemPromptTemplate,
 			Metadata:             metadata,
+			Logo:                 agent.Logo,
 			Visibility:            agent.Visibility,
 			Admin:                agent.Admin,
 			IsAdmin:               utils.IsAdmin(agent.Admin, currentUser),
@@ -236,6 +266,7 @@ func (h *Agent) Get(c *gin.Context) {
 			LLMConfig:            llmInfo,
 			SystemPromptTemplate: agent.SystemPromptTemplate,
 			Metadata:             metadata,
+			Logo:                 agent.Logo,
 			CreatedAt:            time.Time(agent.CreatedAt).Format("2006-01-02T15:04:05Z"),
 			UpdatedAt:            time.Time(agent.UpdatedAt).Format("2006-01-02T15:04:05Z"),
 		},

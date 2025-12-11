@@ -87,13 +87,15 @@ type ChatSessionListReq struct {
 
 // ChatSessionInfo 会话信息
 type ChatSessionInfo struct {
-	ID        int64  `json:"id" example:"1"`                           // 会话ID
-	TreeID    int64  `json:"tree_id" example:"629"`                     // 服务目录ID
-	SessionID string `json:"session_id" example:"550e8400-e29b-41d4-a716-446655440000"` // 会话ID（UUID）
-	Title     string `json:"title" example:"会话标题"`                    // 会话标题
-	User      string `json:"user" example:"beiluo"`                     // 创建用户
-	CreatedAt string `json:"created_at" example:"2006-01-02T15:04:05Z"` // 创建时间
-	UpdatedAt string `json:"updated_at" example:"2006-01-02T15:04:05Z"` // 更新时间
+	ID        int64      `json:"id" example:"1"`                           // 会话ID
+	TreeID    int64      `json:"tree_id" example:"629"`                     // 服务目录ID
+	SessionID string     `json:"session_id" example:"550e8400-e29b-41d4-a716-446655440000"` // 会话ID（UUID）
+	AgentID   int64      `json:"agent_id" example:"1"`                     // 关联的智能体ID
+	Agent     *AgentInfo `json:"agent,omitempty"`                          // 关联的智能体信息（可选）
+	Title     string     `json:"title" example:"会话标题"`                    // 会话标题
+	User      string     `json:"user" example:"beiluo"`                     // 创建用户
+	CreatedAt string     `json:"created_at" example:"2006-01-02T15:04:05Z"` // 创建时间
+	UpdatedAt string     `json:"updated_at" example:"2006-01-02T15:04:05Z"` // 更新时间
 }
 
 // ChatSessionListResp 获取会话列表响应

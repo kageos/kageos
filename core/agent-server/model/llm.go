@@ -16,6 +16,7 @@ type LLMConfig struct {
 	Timeout    int    `gorm:"default:120" json:"timeout"`     // 超时时间（秒）
 	MaxTokens  int    `gorm:"default:4000" json:"max_tokens"` // 最大 token 数
 	ExtraConfig *string `gorm:"type:json" json:"extra_config"`  // JSON 额外配置
+	UseThinking bool   `gorm:"default:false;comment:是否使用思考模式" json:"use_thinking"` // 是否使用思考模式（GLM特有功能）
 	IsDefault  bool   `gorm:"default:false;index" json:"is_default"`
 
 	// 权限控制

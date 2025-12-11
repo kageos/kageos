@@ -29,7 +29,7 @@ func (r *ChatSessionRepository) GetBySessionID(sessionID string) (*model.AgentCh
 	return &session, nil
 }
 
-// ListByTreeID 根据 TreeID 获取会话列表
+// ListByTreeID 根据 TreeID 获取会话列表（包含智能体信息）
 func (r *ChatSessionRepository) ListByTreeID(treeID int64, offset, limit int) ([]*model.AgentChatSession, int64, error) {
 	var sessions []*model.AgentChatSession
 	var total int64
@@ -41,8 +41,9 @@ func (r *ChatSessionRepository) ListByTreeID(treeID int64, offset, limit int) ([
 		return nil, 0, err
 	}
 
-	// 获取列表
+	// 获取列表（预加载智能体信息）
 	if err := query.
+		Preload("Agent"). // 预加载智能体信息
 		Offset(offset).
 		Limit(limit).
 		Order("created_at DESC").

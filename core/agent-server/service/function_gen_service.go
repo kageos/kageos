@@ -187,7 +187,8 @@ func (s *AgentChatService) FunctionGenChat(ctx context.Context, req *dto.Functio
 		session := &model.AgentChatSession{
 			TreeID:    req.TreeID,
 			SessionID: sessionID,
-			Title:     "", // 可以后续根据第一条消息自动生成
+			AgentID:   req.AgentID, // 关联智能体ID
+			Title:     "",          // 可以后续根据第一条消息自动生成
 			User:      user,
 		}
 		session.CreatedBy = user
@@ -196,7 +197,7 @@ func (s *AgentChatService) FunctionGenChat(ctx context.Context, req *dto.Functio
 			logger.Errorf(ctx, "[FunctionGenChat] 创建会话失败 - SessionID: %s, TraceID: %s, Error: %v", sessionID, traceId, err)
 			return nil, fmt.Errorf("创建会话失败: %w", err)
 		}
-		logger.Infof(ctx, "[FunctionGenChat] 会话创建成功 - SessionID: %s, TraceID: %s", sessionID, traceId)
+		logger.Infof(ctx, "[FunctionGenChat] 会话创建成功 - SessionID: %s, AgentID: %d, TraceID: %s", sessionID, req.AgentID, traceId)
 	} else {
 		// 使用现有会话
 		sessionID = req.SessionID
@@ -242,6 +243,31 @@ func (s *AgentChatService) FunctionGenChat(ctx context.Context, req *dto.Functio
 	if err := s.messageRepo.Create(userMessage); err != nil {
 		logger.Errorf(ctx, "[FunctionGenChat] 保存用户消息失败 - SessionID: %s, TraceID: %s, Error: %v", sessionID, traceId, err)
 		return nil, fmt.Errorf("保存用户消息失败: %w", err)
+	}
+
+	// 3.1 如果是新会话且标题为空，使用第一条用户消息作为标题
+	if req.SessionID == "" {
+		// 获取会话
+		session, err := s.sessionRepo.GetBySessionID(sessionID)
+		if err == nil && session != nil && session.Title == "" {
+			// 生成标题：取用户消息的前50个字符
+			title := req.Message.Content
+			if len(title) > 50 {
+				title = title[:50] + "..."
+			}
+			// 去除换行和多余空格
+			title = strings.TrimSpace(strings.ReplaceAll(title, "\n", " "))
+			if title == "" {
+				title = "新会话"
+			}
+			session.Title = title
+			session.UpdatedBy = user
+			if err := s.sessionRepo.Update(session); err != nil {
+				logger.Warnf(ctx, "[FunctionGenChat] 更新会话标题失败 - SessionID: %s, Title: %s, TraceID: %s, Error: %v", sessionID, title, traceId, err)
+			} else {
+				logger.Infof(ctx, "[FunctionGenChat] 会话标题已生成 - SessionID: %s, Title: %s, TraceID: %s", sessionID, title, traceId)
+			}
+		}
 	}
 
 	// 4. 加载历史消息
@@ -448,6 +474,11 @@ func (s *AgentChatService) FunctionGenChat(ctx context.Context, req *dto.Functio
 	}
 	if temperature, ok := extraConfig["temperature"].(float64); ok {
 		chatReq.Temperature = temperature
+	}
+	// 如果配置了 UseThinking，设置到请求中
+	if llmConfig.UseThinking {
+		useThinking := true
+		chatReq.UseThinking = &useThinking
 	}
 
 	// 8. 创建 function_gen 记录（包含 MessageID 和 Metadata）

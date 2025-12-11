@@ -30,6 +30,7 @@ type AgentInfo struct {
 	LLMConfig           *LLMConfigInfo     `json:"llm_config,omitempty"`      // 预加载的LLM配置信息
 	SystemPromptTemplate string            `json:"system_prompt_template" example:"你是一个专业的代码生成助手。以下是相关的知识库内容，请参考这些内容来生成代码：\n{knowledge}"` // System Prompt模板，支持{knowledge}变量
 	Metadata            string             `json:"metadata" example:"{}"`
+	Logo                string             `json:"logo,omitempty" example:"https://example.com/logo.png"` // 智能体 Logo URL（可选）
 	Visibility          int                `json:"visibility" example:"0"` // 0: 公开, 1: 私有
 	Admin               string             `json:"admin" example:"user1,user2"` // 管理员列表（逗号分隔）
 	IsAdmin             bool               `json:"is_admin" example:"true"` // 当前用户是否是管理员（前端计算或后端返回）
