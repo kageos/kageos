@@ -35,6 +35,7 @@ export interface AgentInfo {
   llm_config_id: number // LLM配置ID，如果为0则使用默认LLM
   llm_config?: LLMConfigInfo // 预加载的LLM配置信息
   metadata: string
+  logo?: string // 智能体 Logo URL（可选）
   visibility: number // 0: 公开, 1: 私有
   admin: string // 管理员列表（逗号分隔）
   is_admin: boolean // 当前用户是否是管理员
@@ -527,6 +528,8 @@ export interface ChatSessionInfo {
   id: number
   tree_id: number
   session_id: string
+  agent_id: number // 关联的智能体ID
+  agent?: AgentInfo // 关联的智能体信息（可选）
   title: string
   user: string
   created_at: string
@@ -592,6 +595,7 @@ export interface LLMInfo {
   timeout: number
   max_tokens: number
   extra_config: string
+  use_thinking: boolean // 是否使用思考模式（GLM特有功能）
   is_default: boolean
   visibility: number // 0: 公开, 1: 私有
   admin: string // 管理员列表（逗号分隔）
@@ -640,6 +644,7 @@ export interface LLMCreateReq {
   timeout?: number
   max_tokens?: number
   extra_config?: string
+  use_thinking?: boolean // 是否使用思考模式（GLM特有功能）
   is_default?: boolean
   visibility?: number // 0: 公开, 1: 私有（默认0）
   admin?: string // 管理员列表（逗号分隔，默认创建用户）
@@ -663,6 +668,7 @@ export interface LLMUpdateReq {
   timeout?: number
   max_tokens?: number
   extra_config?: string
+  use_thinking?: boolean // 是否使用思考模式（GLM特有功能）
   is_default?: boolean
   visibility?: number // 0: 公开, 1: 私有
   admin?: string // 管理员列表（逗号分隔）

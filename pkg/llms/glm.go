@@ -160,7 +160,7 @@ func (g *GLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, 
 		apiReq.MaxTokens = 4096
 	}
 	if apiReq.Temperature == 0 {
-		apiReq.Temperature = 0.6
+		apiReq.Temperature = 0.1
 	}
 
 	// 根据请求参数控制思考模式
@@ -206,10 +206,10 @@ func (g *GLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, 
 		httpReq.Header.Set("User-Agent", g.Options.UserAgent)
 	}
 
-	// 启用日志记录
+	// 启用日志记录（优化：不打印完整请求体，只记录长度）
 	if g.Options != nil && g.Options.EnableLogging {
-		fmt.Printf("[GLM] 请求体: %s\n", string(jsonData))
-		logger.Errorf(ctx, "[GLM] 发送请求到:%s 请求体: %s\n", g.BaseURL, string(jsonData))
+		requestLen := len(jsonData)
+		logger.Infof(ctx, "[GLM] 发送请求到: %s, 请求体长度: %d", g.BaseURL, requestLen)
 	}
 
 	logger.Infof(ctx, "[GLM] 发送HTTP请求到: %s, API Key长度: %d", g.BaseURL, len(g.APIKey))
@@ -226,13 +226,13 @@ func (g *GLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, 
 		return nil, fmt.Errorf("解析响应失败: %v", err)
 	}
 
-	// 记录响应日志
-	jsonData, err = json.Marshal(apiResp)
-	if err != nil {
-		logger.Errorf(ctx, "[GLM] body 序列化失败")
-		return nil, err
+	// 记录响应日志（优化：不打印完整内容，只记录关键信息和长度）
+	if len(apiResp.Choices) > 0 && apiResp.Choices[0].Message.Content != "" {
+		contentLen := len(apiResp.Choices[0].Message.Content)
+		logger.Infof(ctx, "[GLM] 响应成功 - ContentLength: %d, Usage: %+v", contentLen, apiResp.Usage)
+	} else {
+		logger.Infof(ctx, "[GLM] 响应 - ChoicesCount: %d, Usage: %+v", len(apiResp.Choices), apiResp.Usage)
 	}
-	logger.Infof(ctx, "[GLM] body : %s", string(jsonData))
 
 	// 检查错误
 	if apiResp.Error != nil {
@@ -259,10 +259,9 @@ func (g *GLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, 
 		}
 	}
 
-	// 启用日志记录
+	// 启用日志记录（优化：不打印完整内容）
 	if g.Options != nil && g.Options.EnableLogging {
-		fmt.Printf("[GLM] 响应成功，内容长度: %d\n", len(content))
-		logger.Infof(ctx, "[GLM] 响应成功，:%s 内容长度: %d\n", string(content), len(content))
+		logger.Infof(ctx, "[GLM] 响应成功，内容长度: %d", len(content))
 	}
 
 	return &ChatResponse{
@@ -335,10 +334,10 @@ func (g *GLMClient) ChatWithThinking(ctx context.Context, req *ChatRequest, enab
 		httpReq.Header.Set("User-Agent", g.Options.UserAgent)
 	}
 
-	// 启用日志记录
+	// 启用日志记录（优化：不打印完整请求体，只记录长度）
 	if g.Options != nil && g.Options.EnableLogging {
-		fmt.Printf("[GLM] 思考模式请求体: %s\n", string(jsonData))
-		logger.Errorf(ctx, "[GLM] 发送思考模式请求到:%s 请求体: %s\n", g.BaseURL, string(jsonData))
+		requestLen := len(jsonData)
+		logger.Infof(ctx, "[GLM] 发送思考模式请求到: %s, 请求体长度: %d", g.BaseURL, requestLen)
 	}
 
 	resp, err := httpClient.Do(httpReq)
@@ -353,13 +352,13 @@ func (g *GLMClient) ChatWithThinking(ctx context.Context, req *ChatRequest, enab
 		return nil, fmt.Errorf("解析响应失败: %v", err)
 	}
 
-	// 记录响应日志
-	jsonData, err = json.Marshal(apiResp)
-	if err != nil {
-		logger.Errorf(ctx, "[GLM] 思考模式body 序列化失败")
-		return nil, err
+	// 记录响应日志（优化：不打印完整内容，只记录关键信息和长度）
+	if len(apiResp.Choices) > 0 && apiResp.Choices[0].Message.Content != "" {
+		contentLen := len(apiResp.Choices[0].Message.Content)
+		logger.Infof(ctx, "[GLM] 思考模式响应成功 - ContentLength: %d, Usage: %+v", contentLen, apiResp.Usage)
+	} else {
+		logger.Infof(ctx, "[GLM] 思考模式响应 - ChoicesCount: %d, Usage: %+v", len(apiResp.Choices), apiResp.Usage)
 	}
-	logger.Infof(ctx, "[GLM] 思考模式body : %s", string(jsonData))
 
 	// 检查错误
 	if apiResp.Error != nil {
@@ -386,10 +385,9 @@ func (g *GLMClient) ChatWithThinking(ctx context.Context, req *ChatRequest, enab
 		}
 	}
 
-	// 启用日志记录
+	// 启用日志记录（优化：不打印完整内容）
 	if g.Options != nil && g.Options.EnableLogging {
-		fmt.Printf("[GLM] 思考模式响应成功，内容长度: %d\n", len(content))
-		logger.Infof(ctx, "[GLM] 思考模式响应成功，:%s 内容长度: %d\n", string(content), len(content))
+		logger.Infof(ctx, "[GLM] 思考模式响应成功，内容长度: %d", len(content))
 	}
 
 	return &ChatResponse{
@@ -527,7 +525,13 @@ func (g *GLMClient) ChatStream(ctx context.Context, req *ChatRequest) (<-chan *S
 		if resp.StatusCode != http.StatusOK {
 			// 读取响应体获取详细错误信息
 			body, _ := io.ReadAll(resp.Body)
-			logger.Errorf(ctx, "[GLM] HTTP请求失败，状态码: %d, 响应体: %s", resp.StatusCode, string(body))
+			// 优化：错误响应体可能很大，只记录长度和前200字符
+			bodyStr := string(body)
+			if len(bodyStr) > 200 {
+				logger.Errorf(ctx, "[GLM] HTTP请求失败，状态码: %d, 响应体长度: %d, 前200字符: %s", resp.StatusCode, len(bodyStr), bodyStr[:200])
+			} else {
+				logger.Errorf(ctx, "[GLM] HTTP请求失败，状态码: %d, 响应体: %s", resp.StatusCode, bodyStr)
+			}
 			chunkChan <- &StreamChunk{
 				Error: fmt.Sprintf("HTTP请求失败，状态码: %d", resp.StatusCode),
 				Done:  true,

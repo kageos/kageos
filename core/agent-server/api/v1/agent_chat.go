@@ -104,15 +104,35 @@ func (h *AgentChat) ListSessions(c *gin.Context) {
 	// 转换为响应格式
 	sessionInfos := make([]dto.ChatSessionInfo, 0, len(sessions))
 	for _, session := range sessions {
-		sessionInfos = append(sessionInfos, dto.ChatSessionInfo{
+		sessionInfo := dto.ChatSessionInfo{
 			ID:        session.ID,
 			TreeID:    session.TreeID,
 			SessionID: session.SessionID,
+			AgentID:   session.AgentID,
 			Title:     session.Title,
 			User:      session.User,
-			CreatedAt: time.Time(session.CreatedAt).Format("2006-01-02T15:04:05Z"),
-			UpdatedAt: time.Time(session.UpdatedAt).Format("2006-01-02T15:04:05Z"),
-		})
+			CreatedAt: time.Time(session.CreatedAt).Format(time.DateTime),
+			UpdatedAt: time.Time(session.UpdatedAt).Format(time.DateTime),
+		}
+		
+		// 如果预加载了智能体信息，转换为 DTO
+		if session.Agent != nil {
+			agentInfo := &dto.AgentInfo{
+				ID:              session.Agent.ID,
+				Name:            session.Agent.Name,
+				AgentType:       session.Agent.AgentType,
+				ChatType:        session.Agent.ChatType,
+				Enabled:         session.Agent.Enabled,
+				Description:     session.Agent.Description,
+				Timeout:         session.Agent.Timeout,
+				KnowledgeBaseID: session.Agent.KnowledgeBaseID,
+				LLMConfigID:     session.Agent.LLMConfigID,
+				Logo:            session.Agent.Logo,
+			}
+			sessionInfo.Agent = agentInfo
+		}
+		
+		sessionInfos = append(sessionInfos, sessionInfo)
 	}
 
 	resp = &dto.ChatSessionListResp{
@@ -165,7 +185,7 @@ func (h *AgentChat) ListMessages(c *gin.Context) {
 			Content:   msg.Content,
 			Files:     filesStr,
 			User:      msg.User,
-			CreatedAt: time.Time(msg.CreatedAt).Format("2006-01-02T15:04:05Z"),
+			CreatedAt: time.Time(msg.CreatedAt).Format(time.DateTime),
 		})
 	}
 

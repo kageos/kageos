@@ -47,6 +47,9 @@ type Agent struct {
 	// 权限控制
 	Visibility int    `gorm:"type:tinyint;default:0;index;comment:可见性(0:公开,1:私有)" json:"visibility"` // 0: 公开, 1: 私有
 	Admin      string `gorm:"type:varchar(512);not null;index;comment:管理员列表(逗号分隔)" json:"admin"`      // 管理员列表，逗号分隔，如："user1,user2,user3"
+
+	// Logo（可选，如果为空则使用默认生成的 Logo）
+	Logo string `gorm:"type:varchar(512);comment:智能体Logo URL" json:"logo"`
 }
 
 // TableName 指定表名

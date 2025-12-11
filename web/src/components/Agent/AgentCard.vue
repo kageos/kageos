@@ -98,6 +98,13 @@
           启用
         </el-button>
         <el-button 
+          size="small" 
+          type="info"
+          @click="handleCopy"
+        >
+          复制
+        </el-button>
+        <el-button 
           v-if="agent.is_admin" 
           size="small" 
           type="danger" 
@@ -165,6 +172,10 @@ function handleToggle() {
 
 function handleDelete() {
   emit('delete', props.agent)
+}
+
+function handleCopy() {
+  emit('copy', props.agent)
 }
 </script>
 

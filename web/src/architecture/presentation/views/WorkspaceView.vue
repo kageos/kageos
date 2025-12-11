@@ -92,16 +92,21 @@
         <!-- 🔥 Detail 模式：显示详情抽屉（通过 URL 参数打开） -->
         <!-- 注意：detail 模式使用抽屉显示，不需要单独的页面 -->
         
-        <!-- 🔥 点击目录节点时显示 AI 对话框 -->
-        <div v-else-if="currentFunction && currentFunction.type === 'package'" class="ai-chat-wrapper">
+        <!-- 🔥 点击目录节点时根据选择的智能体显示不同的聊天面板 -->
+        <div v-else-if="currentFunction && currentFunction.type === 'package' && selectedAgent" class="ai-chat-wrapper">
+          <!-- 根据 chat_type 选择不同的渲染方式 -->
           <AIChatPanel
-            :agent-id="defaultAgentId"
+            v-if="selectedAgent.chat_type === 'function_gen'"
+            ref="aiChatPanelRef"
+            :agent-id="selectedAgent.id"
             :tree-id="currentFunction.id"
             :package="currentFunction.code"
             :current-node-name="currentFunction.name"
             :existing-files="existingFilesInPackage"
             @close="handleCloseAIChat"
           />
+          <!-- 可以在这里添加其他 chat_type 的渲染组件 -->
+          <!-- 例如：<TaskChatPanel v-else-if="selectedAgent.chat_type === 'chat-task'" ... /> -->
         </div>
         
         <!-- Tab 内容区域（正常模式 - 函数节点） -->
@@ -130,6 +135,15 @@
         </div>
       </div>
     </div>
+
+    <!-- 智能体选择对话框 -->
+    <AgentSelectDialog
+      v-model="agentSelectDialogVisible"
+      :tree-id="currentFunction?.id || null"
+      :package="currentFunction?.code || ''"
+      :current-node-name="currentFunction?.name || ''"
+      @confirm="handleAgentSelect"
+    />
 
     <!-- 应用切换器（底部固定） -->
     <!-- 始终显示，即使应用列表为空，让用户可以创建应用 -->
@@ -307,6 +321,7 @@ import WorkspaceHeader from '../components/WorkspaceHeader.vue'
 import WorkspaceTabs from '../components/WorkspaceTabs.vue'
 import WorkspaceDetailDrawer from '../components/WorkspaceDetailDrawer.vue'
 import AIChatPanel from '../components/AIChatPanel.vue'
+import AgentSelectDialog from '@/components/Agent/AgentSelectDialog.vue'
 import type { ServiceTree, App } from '../../domain/services/WorkspaceDomainService'
 import type { FunctionDetail } from '../../domain/interfaces/IFunctionLoader'
 import type { App as AppType, ServiceTree as ServiceTreeType } from '@/types'
@@ -554,6 +569,50 @@ const serviceTreePanelRef = ref<InstanceType<typeof ServiceTreePanel> | null>(nu
 
 // AI 对话框相关
 const defaultAgentId = ref<number | null>(null)
+const agentSelectDialogVisible = ref(false)
+const selectedAgent = ref<AgentInfo | null>(null)
+const aiChatPanelRef = ref<InstanceType<typeof AIChatPanel> | null>(null)
+
+// 处理智能体选择
+function handleAgentSelect(agent: AgentInfo) {
+  selectedAgent.value = agent
+  agentSelectDialogVisible.value = false
+  
+  // 选择智能体后，通知 AIChatPanel 创建新会话
+  // 使用 nextTick 确保组件已渲染
+  nextTick(() => {
+    if (aiChatPanelRef.value && typeof (aiChatPanelRef.value as any).handleAgentSelect === 'function') {
+      (aiChatPanelRef.value as any).handleAgentSelect(agent)
+    }
+  })
+  
+  // 如果路由不匹配，更新路由
+  if (currentFunction.value?.full_code_path && currentApp.value) {
+    const targetPath = `/workspace${currentFunction.value.full_code_path}`
+    if (route.path !== targetPath) {
+      eventBus.emit(RouteEvent.updateRequested, {
+        path: targetPath,
+        query: {},
+        replace: true,
+        preserveParams: {
+          state: false,
+          table: false,
+          search: false
+        },
+        source: 'agent-select'
+      })
+    }
+  }
+}
+
+// 关闭 AI 聊天面板
+function handleCloseAIChat() {
+  selectedAgent.value = null
+  // 如果当前是目录节点，清除当前函数选择
+  if (currentFunction.value?.type === 'package') {
+    applicationService.triggerNodeClick(null as any)
+  }
+}
 
 // 获取当前 package 下的子节点文件名（用于确保生成的文件名唯一）
 const existingFilesInPackage = computed(() => {
@@ -588,13 +647,6 @@ async function loadDefaultAgent() {
   }
 }
 
-// 关闭 AI 对话框
-function handleCloseAIChat() {
-  // 清空当前函数，回到初始状态
-  if (currentFunction.value) {
-    applicationService.triggerNodeClick(null as any)
-  }
-}
 
 onMounted(() => {
   // 🔥 监听表格详情事件（使用 Composable）
@@ -688,30 +740,11 @@ const handleNodeClick = (node: ServiceTreeType) => {
       applicationService.triggerNodeClick(serviceTree)
     }
   } else if (serviceTree.type === 'package') {
-    // 目录节点，更新路由到目录路径
-    if (serviceTree.full_code_path && currentApp.value) {
-      const targetPath = `/workspace${serviceTree.full_code_path}`
-      if (route.path !== targetPath) {
-        // 🔥 发出路由更新请求事件
-        eventBus.emit(RouteEvent.updateRequested, {
-          path: targetPath,
-          query: {}, // 目录节点清空所有查询参数
-          replace: true,
-          preserveParams: {
-            state: false,  // 目录节点不保留状态参数
-            table: false,
-            search: false
-          },
-          source: 'workspace-node-click'
-        })
-      } else {
-        // 路由已匹配，直接触发节点点击（避免路由更新循环）
-        applicationService.triggerNodeClick(serviceTree)
-      }
-    } else {
-      // 没有 full_code_path 或没有当前应用，只设置当前函数
-      applicationService.triggerNodeClick(serviceTree)
-    }
+    // 目录节点：先显示智能体选择对话框
+    // 设置当前函数（用于对话框显示上下文信息）
+    applicationService.triggerNodeClick(serviceTree)
+    // 显示智能体选择对话框
+    agentSelectDialogVisible.value = true
   } else {
     // 其他类型节点，只设置当前函数
     applicationService.triggerNodeClick(serviceTree)

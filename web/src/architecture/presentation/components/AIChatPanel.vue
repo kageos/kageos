@@ -20,11 +20,34 @@
           v-if="!sessionId"
           class="session-item new-session-item"
         >
-          <div class="session-title">
-            <el-icon><Plus /></el-icon>
-            <span>新会话</span>
+          <div class="session-content">
+            <div class="session-title">
+              <el-icon><Plus /></el-icon>
+              <span>新会话</span>
+            </div>
+            <div class="session-meta">
+              <div class="session-times">
+                <div class="session-time-item">
+                  <span class="time-label">创建:</span>
+                  <span class="time-value">{{ formatFullTime(new Date().toISOString()) }}</span>
+                </div>
+                <div class="session-time-item">
+                  <span class="time-label">更新:</span>
+                  <span class="time-value">{{ formatFullTime(new Date().toISOString()) }}</span>
+                </div>
+              </div>
+              <div v-if="currentAgent" class="session-agent-info">
+                <el-avatar
+                  :size="16"
+                  :src="getAgentLogo(currentAgent)"
+                  class="session-agent-mini-logo"
+                >
+                  <span class="agent-logo-text-mini">{{ getAgentLogoText(currentAgent) }}</span>
+                </el-avatar>
+                <span class="session-agent-name">{{ currentAgent.name }}</span>
+              </div>
+            </div>
           </div>
-          <div class="session-time">准备开始</div>
         </div>
         
         <div
@@ -33,11 +56,32 @@
           :class="['session-item', { active: session.session_id === sessionId }]"
           @click="handleSelectSession(session.session_id)"
         >
-          <div class="session-title">
-            {{ session.title || '未命名会话' }}
-          </div>
-          <div class="session-time">
-            {{ formatSessionTime(session.updated_at) }}
+          <div class="session-content">
+            <div class="session-title">
+              {{ session.title || '未命名会话' }}
+            </div>
+            <div class="session-meta">
+              <div class="session-times">
+                <div class="session-time-item">
+                  <span class="time-label">创建:</span>
+                  <span class="time-value">{{ formatFullTime(session.created_at) }}</span>
+                </div>
+                <div class="session-time-item">
+                  <span class="time-label">更新:</span>
+                  <span class="time-value">{{ formatFullTime(session.updated_at) }}</span>
+                </div>
+              </div>
+              <div v-if="session.agent" class="session-agent-info">
+                <el-avatar
+                  :size="16"
+                  :src="getAgentLogo(session.agent)"
+                  class="session-agent-mini-logo"
+                >
+                  <span class="agent-logo-text-mini">{{ getAgentLogoText(session.agent) }}</span>
+                </el-avatar>
+                <span class="session-agent-name">{{ session.agent.name }}</span>
+              </div>
+            </div>
           </div>
         </div>
         <div v-if="sessionList.length === 0 && !loadingSessions && sessionId" class="empty-sessions">
@@ -184,11 +228,20 @@
       </div>
     </div>
     </div>
+
+    <!-- 智能体选择对话框 -->
+    <AgentSelectDialog
+      v-model="agentSelectDialogVisible"
+      :tree-id="treeId"
+      :package="package"
+      :current-node-name="currentNodeName"
+      @confirm="handleAgentSelect"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted } from 'vue'
+import { ref, watch, nextTick, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Close, User, Loading, ChatRound, Upload, Document, Plus } from '@element-plus/icons-vue'
 import * as agentApi from '@/api/agent'
@@ -196,6 +249,7 @@ import type { AgentInfo, ChatSessionInfo } from '@/api/agent'
 import { uploadFile, notifyUploadComplete } from '@/utils/upload'
 import type { UploadFile } from 'element-plus'
 import { marked } from 'marked'
+import AgentSelectDialog from '@/components/Agent/AgentSelectDialog.vue'
 
 interface Props {
   agentId: number | null
@@ -244,13 +298,64 @@ const selectedAgentId = ref<number | null>(props.agentId)
 const agentOptions = ref<AgentInfo[]>([])
 const agentLoading = ref(false)
 
+// 当前选中的智能体信息
+const currentAgent = computed(() => {
+  if (!selectedAgentId.value) return null
+  return agentOptions.value.find(agent => agent.id === selectedAgentId.value) || null
+})
+
 // 会话ID（首次为空，后端自动生成）
 const sessionId = ref<string>('')
 const loadingSession = ref(false)
+// 正在加载的会话ID（用于防止竞态条件）
+const pendingSessionId = ref<string | null>(null)
+// 防抖定时器（用于防止过于频繁的切换）
+let switchDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
 // 会话列表相关
 const sessionList = ref<ChatSessionInfo[]>([])
 const loadingSessions = ref(false)
+
+// 智能体选择对话框
+const agentSelectDialogVisible = ref(false)
+
+// 获取智能体 Logo（如果有则使用，否则使用默认生成的）
+function getAgentLogo(agent: AgentInfo): string {
+  if (agent.logo) {
+    return agent.logo
+  }
+  // 生成默认 Logo（使用智能体 ID 生成唯一颜色）
+  return generateDefaultLogo(agent.id, agent.name)
+}
+
+// 生成默认 Logo URL（使用智能体 ID 生成唯一颜色）
+function generateDefaultLogo(agentId: number, agentName: string): string {
+  // 使用智能体 ID 生成一个稳定的颜色
+  const colors = [
+    '#409EFF', '#67C23A', '#E6A23C', '#F56C6C', '#909399',
+    '#606266', '#303133', '#409EFF', '#67C23A', '#E6A23C'
+  ]
+  const colorIndex = agentId % colors.length
+  const color = colors[colorIndex]
+  
+  // 生成 SVG data URL
+  const svg = `
+    <svg width="48" height="48" xmlns="http://www.w3.org/2000/svg">
+      <rect width="48" height="48" fill="${color}" rx="8"/>
+      <text x="24" y="32" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="white" text-anchor="middle">${getAgentLogoText({ id: agentId, name: agentName } as AgentInfo)}</text>
+    </svg>
+  `.trim()
+  
+  return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`
+}
+
+// 获取智能体 Logo 文本（取名称首字符）
+function getAgentLogoText(agent: AgentInfo): string {
+  if (!agent.name) return 'A'
+  // 取第一个字符（支持中文）
+  const firstChar = agent.name.charAt(0)
+  return firstChar.toUpperCase()
+}
 
 // 加载智能体列表
 async function loadAgents() {
@@ -303,11 +408,24 @@ async function loadSessionList() {
 
 // 加载指定会话的消息
 async function loadSessionMessages(targetSessionId: string) {
-  loadingSession.value = true
+  // 检查是否已经被其他请求覆盖（通过 pendingSessionId 判断）
+  // 注意：这里只检查 pendingSessionId，不检查 sessionId，因为 sessionId 在 handleSelectSession 中已经被立即设置了
+  if (pendingSessionId.value !== targetSessionId) {
+    console.log('[AIChatPanel] 加载请求已被新的请求覆盖，放弃加载:', targetSessionId)
+    return
+  }
+  
   try {
     const messageRes = await agentApi.getChatMessageList({
       session_id: targetSessionId
     })
+
+    // 再次检查是否仍然是要加载的会话（只检查 pendingSessionId，因为这是唯一能判断请求是否被覆盖的标识）
+    // 注意：不检查 sessionId，因为 sessionId 在 handleSelectSession 中已经被立即设置为最新的会话ID
+    if (pendingSessionId.value !== targetSessionId) {
+      console.log('[AIChatPanel] 加载消息过程中会话已切换，放弃加载结果:', targetSessionId)
+      return
+    }
 
     if (messageRes.messages && messageRes.messages.length > 0) {
       // 转换消息格式
@@ -328,7 +446,7 @@ async function loadSessionMessages(targetSessionId: string) {
           role: msg.role as 'user' | 'assistant',
           content: msg.content,
           files,
-          timestamp: new Date(msg.created_at).getTime()
+          timestamp: parseDateTime(msg.created_at)
         }
       })
 
@@ -337,7 +455,7 @@ async function loadSessionMessages(targetSessionId: string) {
         scrollToBottom()
       })
     } else {
-      // 如果没有消息，显示欢迎消息
+      // 如果没有消息，显示欢迎消息（但保持 sessionId）
       messages.value = []
       if (props.currentNodeName) {
         addMessage('assistant', `你好！我是 AI 助手，可以帮助你处理「${props.currentNodeName}」相关的问题。有什么可以帮助你的吗？`)
@@ -347,16 +465,18 @@ async function loadSessionMessages(targetSessionId: string) {
     }
   } catch (error: any) {
     console.error('[AIChatPanel] 加载会话消息失败:', error)
+    // 检查是否仍然是要加载的会话（只检查 pendingSessionId）
+    if (pendingSessionId.value !== targetSessionId) {
+      return
+    }
     ElMessage.error(error.message || '加载会话消息失败')
-    // 加载失败时显示欢迎消息
+    // 加载失败时显示欢迎消息（但保持 sessionId）
     messages.value = []
     if (props.currentNodeName) {
       addMessage('assistant', `你好！我是 AI 助手，可以帮助你处理「${props.currentNodeName}」相关的问题。有什么可以帮助你的吗？`)
     } else {
       addMessage('assistant', '你好！我是 AI 助手，有什么可以帮助你的吗？')
     }
-  } finally {
-    loadingSession.value = false
   }
 }
 
@@ -403,16 +523,30 @@ function handleNewSession() {
     return
   }
   
+  // 弹出智能体选择对话框
+  agentSelectDialogVisible.value = true
+}
+
+// 处理智能体选择（从外部选择智能体时调用）
+function handleAgentSelect(agent: AgentInfo) {
+  console.log('[AIChatPanel] 选择智能体:', agent)
+  
+  // 设置选中的智能体
+  selectedAgentId.value = agent.id
+  
   // 清空当前会话ID，表示新建会话
   sessionId.value = ''
   messages.value = []
   uploadedFiles.value = []
   
+  // 刷新会话列表（确保显示最新的会话）
+  loadSessionList()
+  
   // 显示欢迎消息
   if (props.currentNodeName) {
-    addMessage('assistant', `你好！我是 AI 助手，可以帮助你处理「${props.currentNodeName}」相关的问题。有什么可以帮助你的吗？`)
+    addMessage('assistant', `你好！我是 ${agent.name}，可以帮助你处理「${props.currentNodeName}」相关的问题。有什么可以帮助你的吗？`)
   } else {
-    addMessage('assistant', '你好！我是 AI 助手，有什么可以帮助你的吗？')
+    addMessage('assistant', `你好！我是 ${agent.name}，有什么可以帮助你的吗？`)
   }
   
   // 滚动到底部
@@ -425,12 +559,64 @@ function handleNewSession() {
 
 // 选择会话
 async function handleSelectSession(targetSessionId: string) {
-  if (targetSessionId === sessionId.value) {
-    return // 已经是当前会话，不需要切换
+  // 如果点击的是当前会话，直接返回（不重新加载）
+  if (targetSessionId === sessionId.value && !loadingSession.value) {
+    console.log('[AIChatPanel] 已经是当前会话，无需切换')
+    return
   }
   
+  // 清除之前的防抖定时器（如果有）
+  if (switchDebounceTimer) {
+    clearTimeout(switchDebounceTimer)
+    switchDebounceTimer = null
+  }
+  
+  console.log('[AIChatPanel] 切换会话:', targetSessionId, '当前会话:', sessionId.value)
+  
+  // 立即更新 UI 状态（不等待防抖）
+  // 查找会话信息，设置对应的智能体
+  const session = sessionList.value.find(s => s.session_id === targetSessionId)
+  if (session && session.agent_id) {
+    selectedAgentId.value = session.agent_id
+  }
+  
+  // 先设置会话ID（立即更新，确保UI状态正确）
   sessionId.value = targetSessionId
-  await loadSessionMessages(targetSessionId)
+  // 清空当前消息，准备加载新会话的消息
+  messages.value = []
+  uploadedFiles.value = []
+  
+  // 使用防抖：如果用户在短时间内多次点击，只执行最后一次加载
+  // 但是 UI 状态（sessionId、messages）会立即更新，确保用户体验流畅
+  switchDebounceTimer = setTimeout(async () => {
+    const currentTargetSessionId = targetSessionId
+    switchDebounceTimer = null
+    
+    // 检查是否仍然是要加载的会话（防止在防抖期间被新的点击覆盖）
+    if (sessionId.value !== currentTargetSessionId) {
+      console.log('[AIChatPanel] 防抖期间会话已切换，放弃加载:', currentTargetSessionId)
+      return
+    }
+    
+    // 设置加载状态和待加载的会话ID（防止并发请求）
+    loadingSession.value = true
+    pendingSessionId.value = currentTargetSessionId
+    
+    // 加载会话消息
+    try {
+      await loadSessionMessages(currentTargetSessionId)
+    } catch (error) {
+      console.error('[AIChatPanel] 加载会话消息失败:', currentTargetSessionId, error)
+      // 加载失败时，保持当前会话ID不变
+    } finally {
+      // 只有当前待加载的会话ID仍然是 currentTargetSessionId 时，才清除加载状态
+      // 这样可以防止旧的请求覆盖新的状态
+      if (pendingSessionId.value === currentTargetSessionId) {
+        loadingSession.value = false
+        pendingSessionId.value = null
+      }
+    }
+  }, 150) // 150ms 防抖，如果用户在 150ms 内多次点击，只执行最后一次加载
 }
 
 // 智能体变化处理
@@ -689,48 +875,106 @@ function formatMessage(content: string): string {
   }
 }
 
-// 格式化时间
+// 解析时间字符串（支持多种格式：DateTime、RFC3339等）
+function parseDateTime(timeStr: string): number {
+  if (!timeStr) return Date.now()
+  
+  // 尝试解析多种格式
+  // 格式1: "2006-01-02 15:04:05" (time.DateTime)
+  // 格式2: "2006-01-02T15:04:05Z" (RFC3339 UTC)
+  // 格式3: "2006-01-02T15:04:05+08:00" (RFC3339 with timezone)
+  
+  let date: Date
+  
+  // 如果包含 T 和 Z，是 RFC3339 格式
+  if (timeStr.includes('T') && (timeStr.includes('Z') || timeStr.match(/[+-]\d{2}:\d{2}$/))) {
+    date = new Date(timeStr)
+  } else if (timeStr.includes(' ')) {
+    // 如果是 "2006-01-02 15:04:05" 格式，需要转换为 ISO 格式
+    // 将空格替换为 T，并添加 Z（假设是 UTC，或者使用本地时区）
+    // 注意：如果后端返回的是本地时间，这里可能需要调整
+    const isoStr = timeStr.replace(' ', 'T') + 'Z'
+    date = new Date(isoStr)
+  } else {
+    date = new Date(timeStr)
+  }
+  
+  if (isNaN(date.getTime())) {
+    console.error('[parseDateTime] 无效的时间字符串:', timeStr)
+    return Date.now()
+  }
+  
+  return date.getTime()
+}
+
+// 格式化完整时间（显示到秒）
+function formatFullTime(timeStr: string): string {
+  if (!timeStr) return '-'
+  
+  const timestamp = parseDateTime(timeStr)
+  const date = new Date(timestamp)
+  
+  if (isNaN(date.getTime())) {
+    console.error('[formatFullTime] 无效的时间字符串:', timeStr)
+    return '-'
+  }
+  
+  // 格式：YYYY-MM-DD HH:mm:ss
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  const seconds = String(date.getSeconds()).padStart(2, '0')
+  
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+}
+
+// 格式化时间（用于消息显示，显示到秒）
 function formatTime(timestamp: number): string {
   const date = new Date(timestamp)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  const seconds = Math.floor(diff / 1000)
-  const minutes = Math.floor(seconds / 60)
-  const hours = Math.floor(minutes / 60)
-
-  if (seconds < 60) {
-    return '刚刚'
-  } else if (minutes < 60) {
-    return `${minutes}分钟前`
-  } else if (hours < 24) {
-    return `${hours}小时前`
-  } else {
-    return date.toLocaleString('zh-CN', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
-  }
+  
+  // 格式：YYYY-MM-DD HH:mm:ss
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  const seconds = String(date.getSeconds()).padStart(2, '0')
+  
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
 }
 
 // 格式化会话时间
 function formatSessionTime(timeStr: string): string {
-  const date = new Date(timeStr)
+  if (!timeStr) return '-'
+  
+  // 解析时间字符串（支持多种格式）
+  const timestamp = parseDateTime(timeStr)
+  const date = new Date(timestamp)
+  
+  // 检查日期是否有效
+  if (isNaN(date.getTime())) {
+    console.error('[formatSessionTime] 无效的时间字符串:', timeStr)
+    return '-'
+  }
+  
   const now = new Date()
   const diff = now.getTime() - date.getTime()
   const days = Math.floor(diff / (1000 * 60 * 60 * 24))
 
   if (days === 0) {
+    // 今天：显示时间
     return date.toLocaleTimeString('zh-CN', {
       hour: '2-digit',
       minute: '2-digit'
     })
   } else if (days === 1) {
     return '昨天'
-  } else if (days < 7) {
+  } else if (days < 7 && days > 0) {
     return `${days}天前`
   } else {
+    // 超过7天或负数（未来时间）：显示日期
     return date.toLocaleDateString('zh-CN', {
       month: 'short',
       day: 'numeric'
@@ -744,6 +988,11 @@ function scrollToBottom() {
     messagesContainerRef.value.scrollTop = messagesContainerRef.value.scrollHeight
   }
 }
+
+// 暴露方法给父组件调用
+defineExpose({
+  handleAgentSelect
+})
 </script>
 
 <style scoped>
@@ -797,22 +1046,72 @@ function scrollToBottom() {
 }
 
 .session-item.active {
-  background: var(--el-color-primary-light-9);
+  background: var(--el-fill-color-lighter);
   border-color: var(--el-color-primary);
+  border-left-width: 3px;
+  border-left-color: var(--el-color-primary);
+  
+  .session-title {
+    color: var(--el-text-color-primary);
+    font-weight: 600;
+  }
+  
+  .session-meta {
+    color: var(--el-text-color-regular);
+    
+    .session-agent-info {
+      background: var(--el-color-primary-light-8);
+      border-color: var(--el-color-primary-light-6);
+    }
+    
+    .session-agent-name {
+      color: var(--el-color-primary);
+      font-weight: 600;
+    }
+    
+    /* .session-time 已移除，使用 .session-times 替代 */
+  }
 }
 
 .session-item.new-session-item {
-  background: var(--el-color-primary-light-9);
+  background: var(--el-bg-color);
   border-color: var(--el-color-primary);
   border-style: dashed;
+  border-width: 2px;
+  
+  .session-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--el-text-color-primary);
+    font-weight: 600;
+  }
+  
+  .session-meta {
+    /* .session-time 已移除，使用 .session-times 替代 */
+  }
 }
 
-.session-item.new-session-item .session-title {
+.session-header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  color: var(--el-color-primary);
-  font-weight: 600;
+  gap: 12px;
+}
+
+.session-agent-logo {
+  flex-shrink: 0;
+  border: 2px solid var(--el-border-color-lighter);
+  
+  .agent-logo-text {
+    font-size: 14px;
+    font-weight: bold;
+    color: white;
+  }
+}
+
+.session-content {
+  width: 100%;
+  min-width: 0;
 }
 
 .session-title {
@@ -825,9 +1124,79 @@ function scrollToBottom() {
   white-space: nowrap;
 }
 
-.session-time {
+.session-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   font-size: 12px;
   color: var(--el-text-color-secondary);
+  margin-top: 4px;
+  width: 100%;
+}
+
+.session-times {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+}
+
+.session-time-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.time-label {
+  color: var(--el-text-color-placeholder);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.time-value {
+  color: var(--el-text-color-secondary);
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+  font-size: 11px;
+}
+
+.session-agent-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  background: var(--el-color-primary-light-9);
+  border-radius: 4px;
+  border: 1px solid var(--el-color-primary-light-7);
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+.session-agent-mini-logo {
+  flex-shrink: 0;
+  border: 1px solid var(--el-border-color-lighter);
+  
+  .agent-logo-text-mini {
+    font-size: 10px;
+    font-weight: bold;
+    color: white;
+  }
+}
+
+.session-agent-name {
+  color: var(--el-color-primary);
+  font-weight: 600;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.session-time {
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+  font-weight: 500;
+  align-self: flex-end;
+  flex-shrink: 0;
 }
 
 .empty-sessions {
@@ -1085,9 +1454,11 @@ function scrollToBottom() {
 }
 
 .message-time {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--el-text-color-secondary);
   margin-top: 4px;
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+  opacity: 0.8;
 }
 
 .chat-input {

@@ -128,8 +128,10 @@ func (q *QwenClient) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse,
 		return nil, fmt.Errorf("序列化请求失败: %v", err)
 	}
 
+	// 启用日志记录（优化：不打印完整请求体，只记录长度）
 	if q.Options != nil && q.Options.EnableLogging {
-		logger.Infof(ctx, "[千问] 发送请求到: %s, 请求体: %s", q.BaseURL, string(jsonData))
+		requestLen := len(jsonData)
+		logger.Infof(ctx, "[千问] 发送请求到: %s, 请求体长度: %d", q.BaseURL, requestLen)
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", q.BaseURL, bytes.NewBuffer(jsonData))
@@ -282,8 +284,10 @@ func (q *QwenClient) ChatStream(ctx context.Context, req *ChatRequest) (<-chan *
 			return
 		}
 
+		// 启用日志记录（优化：不打印完整请求体，只记录长度）
 		if q.Options != nil && q.Options.EnableLogging {
-			logger.Infof(ctx, "[千问] 发送流式请求到: %s, 请求体: %s", q.BaseURL, string(jsonData))
+			requestLen := len(jsonData)
+			logger.Infof(ctx, "[千问] 发送流式请求到: %s, 请求体长度: %d", q.BaseURL, requestLen)
 		}
 
 		// 创建HTTP请求

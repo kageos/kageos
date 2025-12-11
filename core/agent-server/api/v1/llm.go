@@ -72,6 +72,7 @@ func (h *LLM) List(c *gin.Context) {
 			Timeout:     cfg.Timeout,
 			MaxTokens:   cfg.MaxTokens,
 			ExtraConfig: extraConfig,
+			UseThinking: cfg.UseThinking,
 			IsDefault:   cfg.IsDefault,
 			Visibility:  cfg.Visibility,
 			Admin:       cfg.Admin,
@@ -133,6 +134,7 @@ func (h *LLM) Get(c *gin.Context) {
 			Timeout:     cfg.Timeout,
 			MaxTokens:   cfg.MaxTokens,
 			ExtraConfig: extraConfig,
+			UseThinking: cfg.UseThinking,
 			IsDefault:   cfg.IsDefault,
 			CreatedAt:   time.Time(cfg.CreatedAt).Format("2006-01-02T15:04:05Z"),
 			UpdatedAt:   time.Time(cfg.UpdatedAt).Format("2006-01-02T15:04:05Z"),
@@ -179,6 +181,7 @@ func (h *LLM) GetDefault(c *gin.Context) {
 			Timeout:     cfg.Timeout,
 			MaxTokens:   cfg.MaxTokens,
 			ExtraConfig: extraConfig,
+			UseThinking: cfg.UseThinking,
 			IsDefault:   cfg.IsDefault,
 			CreatedAt:   time.Time(cfg.CreatedAt).Format("2006-01-02T15:04:05Z"),
 			UpdatedAt:   time.Time(cfg.UpdatedAt).Format("2006-01-02T15:04:05Z"),
@@ -221,6 +224,7 @@ func (h *LLM) Create(c *gin.Context) {
 		Timeout:     req.Timeout,
 		MaxTokens:   req.MaxTokens,
 		ExtraConfig: req.ExtraConfig,
+		UseThinking: req.UseThinking,
 		IsDefault:   req.IsDefault,
 	}
 
@@ -280,6 +284,7 @@ func (h *LLM) Update(c *gin.Context) {
 	} else {
 		cfg.ExtraConfig = nil
 	}
+	cfg.UseThinking = req.UseThinking
 	cfg.IsDefault = req.IsDefault
 
 	if err := h.service.UpdateLLMConfig(ctx, cfg); err != nil {

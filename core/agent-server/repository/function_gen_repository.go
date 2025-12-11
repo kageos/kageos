@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"time"
+
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
 	"gorm.io/gorm"
 )
@@ -118,10 +120,20 @@ func (r *FunctionGenRepository) Update(record *model.FunctionGenRecord) error {
 	return r.db.Save(record).Error
 }
 
-// UpdateStatus 更新状态
+// UpdateStatus 更新状态（自动计算耗时）
 func (r *FunctionGenRepository) UpdateStatus(id int64, status, errorMsg string) error {
+	// 获取记录以计算耗时
+	var record model.FunctionGenRecord
+	if err := r.db.Where("id = ?", id).First(&record).Error; err != nil {
+		return err
+	}
+	
+	// 计算耗时（从创建时间到当前时间的秒数）
+	duration := int(time.Since(time.Time(record.CreatedAt)).Seconds())
+	
 	updates := map[string]interface{}{
-		"status": status,
+		"status":   status,
+		"duration": duration,
 	}
 	if errorMsg != "" {
 		updates["error_msg"] = errorMsg
@@ -131,11 +143,21 @@ func (r *FunctionGenRepository) UpdateStatus(id int64, status, errorMsg string) 
 		Updates(updates).Error
 }
 
-// UpdateCode 更新代码和状态
+// UpdateCode 更新代码和状态（自动计算耗时）
 func (r *FunctionGenRepository) UpdateCode(id int64, code string, status string) error {
+	// 获取记录以计算耗时
+	var record model.FunctionGenRecord
+	if err := r.db.Where("id = ?", id).First(&record).Error; err != nil {
+		return err
+	}
+	
+	// 计算耗时（从创建时间到当前时间的秒数）
+	duration := int(time.Since(time.Time(record.CreatedAt)).Seconds())
+	
 	updates := map[string]interface{}{
-		"code":   code,
-		"status": status,
+		"code":     code,
+		"status":   status,
+		"duration": duration,
 	}
 	return r.db.Model(&model.FunctionGenRecord{}).
 		Where("id = ?", id).

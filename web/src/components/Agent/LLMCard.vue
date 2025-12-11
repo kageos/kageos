@@ -98,6 +98,13 @@
           设为默认
         </el-button>
         <el-button 
+          size="small" 
+          type="info"
+          @click="handleCopy"
+        >
+          复制
+        </el-button>
+        <el-button 
           v-if="llm.is_admin" 
           size="small" 
           type="danger" 
@@ -148,6 +155,10 @@ function handleSetDefault() {
 
 function handleDelete() {
   emit('delete', props.llm)
+}
+
+function handleCopy() {
+  emit('copy', props.llm)
 }
 </script>
 

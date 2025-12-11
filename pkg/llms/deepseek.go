@@ -170,10 +170,10 @@ func (d *DeepSeekClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespo
 		httpReq.Header.Set("User-Agent", d.Options.UserAgent)
 	}
 
-	// 启用日志记录
+	// 启用日志记录（优化：不打印完整请求体，只记录长度）
 	if d.Options != nil && d.Options.EnableLogging {
-		fmt.Printf("[DeepSeek] 请求体: %s\n", string(jsonData))
-		logger.Errorf(ctx, "[DeepSeek] 发送请求到:%s 请求体: %s\n", d.BaseURL, string(jsonData))
+		requestLen := len(jsonData)
+		logger.Infof(ctx, "[DeepSeek] 发送请求到: %s, 请求体长度: %d", d.BaseURL, requestLen)
 	}
 
 	resp, err := httpClient.Do(httpReq)
@@ -188,13 +188,13 @@ func (d *DeepSeekClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespo
 		return nil, fmt.Errorf("解析响应失败: %v", err)
 	}
 
-	// 记录响应日志
-	jsonData, err = json.Marshal(apiResp)
-	if err != nil {
-		logger.Errorf(ctx, "[DeepSeek] body 序列化失败")
-		return nil, err
+	// 记录响应日志（优化：不打印完整内容，只记录关键信息和长度）
+	if len(apiResp.Choices) > 0 && apiResp.Choices[0].Message.Content != "" {
+		contentLen := len(apiResp.Choices[0].Message.Content)
+		logger.Infof(ctx, "[DeepSeek] 响应成功 - ContentLength: %d, Usage: %+v", contentLen, apiResp.Usage)
+	} else {
+		logger.Infof(ctx, "[DeepSeek] 响应 - ChoicesCount: %d, Usage: %+v", len(apiResp.Choices), apiResp.Usage)
 	}
-	logger.Infof(ctx, "[DeepSeek] body : %s", string(jsonData))
 
 	// 检查错误
 	if apiResp.Error != nil {
@@ -221,10 +221,9 @@ func (d *DeepSeekClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespo
 		}
 	}
 
-	// 启用日志记录
+	// 启用日志记录（优化：不打印完整内容）
 	if d.Options != nil && d.Options.EnableLogging {
-		fmt.Printf("[DeepSeek] 响应成功，内容长度: %d\n", len(content))
-		logger.Infof(ctx, "[DeepSeek] 响应成功，:%s 内容长度: %d\n", string(content), len(content))
+		logger.Infof(ctx, "[DeepSeek] 响应成功，内容长度: %d", len(content))
 	}
 
 	return &ChatResponse{

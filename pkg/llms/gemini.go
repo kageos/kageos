@@ -169,8 +169,10 @@ func (c *GeminiClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespons
 		return nil, fmt.Errorf("序列化请求失败: %v", err)
 	}
 
+	// 启用日志记录（优化：不打印完整请求体，只记录长度）
 	if c.Options != nil && c.Options.EnableLogging {
-		logger.Infof(ctx, "[Gemini] 发送请求到: %s, 请求体: %s", apiURL, string(jsonData))
+		requestLen := len(jsonData)
+		logger.Infof(ctx, "[Gemini] 发送请求到: %s, 请求体长度: %d", apiURL, requestLen)
 	}
 
 	// 创建HTTP请求

@@ -58,6 +58,7 @@
           @edit="handleEdit"
           @set-default="handleSetDefault"
           @delete="handleDelete"
+          @copy="handleCopy"
         />
         <el-empty v-if="!loading && tableData.length === 0" description="暂无数据" />
       </div>
@@ -96,22 +97,18 @@
         <el-form-item label="提供商" prop="provider">
           <el-select
             v-model="formData.provider"
-            placeholder="请选择或输入提供商"
+            placeholder="请选择提供商"
             filterable
-            allow-create
-            default-first-option
             style="width: 100%"
           >
-            <el-option label="OpenAI" value="openai" />
-            <el-option label="Claude" value="claude" />
-            <el-option label="GLM" value="glm" />
             <el-option label="DeepSeek" value="deepseek" />
             <el-option label="千问" value="qwen" />
-            <el-option label="Kimi" value="kimi" />
+            <el-option label="千问3-Coder" value="qwen3-coder" />
             <el-option label="豆包" value="doubao" />
+            <el-option label="Kimi" value="kimi" />
+            <el-option label="Claude" value="claude" />
             <el-option label="Gemini" value="gemini" />
-            <el-option label="本地模型" value="local" />
-            <el-option label="其他" value="other" />
+            <el-option label="GLM" value="glm" />
           </el-select>
         </el-form-item>
         <el-form-item label="模型" prop="model">
@@ -157,6 +154,12 @@
             placeholder='请输入JSON格式的额外配置，如：{"temperature": 0.7}'
           />
         </el-form-item>
+        <el-form-item label="使用思考模式">
+          <el-switch v-model="formData.use_thinking" />
+          <div style="margin-top: 8px; font-size: 12px; color: #909399;">
+            提示：启用思考模式可以让模型在回答前进行深度思考（GLM特有功能）
+          </div>
+        </el-form-item>
         <el-form-item label="设为默认">
           <el-switch v-model="formData.is_default" />
         </el-form-item>
@@ -187,7 +190,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElForm } from 'element-plus'
 import { ArrowLeft, Plus } from '@element-plus/icons-vue'
@@ -197,10 +200,12 @@ import {
   updateLLM,
   deleteLLM,
   setDefaultLLM,
+  getAgentList,
   type LLMInfo,
   type LLMListReq,
   type LLMCreateReq,
-  type LLMUpdateReq
+  type LLMUpdateReq,
+  type AgentInfo
 } from '@/api/agent'
 import type { FormRules } from 'element-plus'
 
@@ -247,6 +252,7 @@ const formData = reactive<LLMCreateReq & { id?: number }>({
   timeout: 120,
   max_tokens: 4000,
   extra_config: '',
+  use_thinking: false, // 默认不使用思考模式
   is_default: false,
   visibility: 0, // 默认公开
   admin: '' // 默认空，后端会自动设置为创建用户
@@ -297,9 +303,12 @@ async function getAgentsByLLMConfig(llmConfigId: number): Promise<AgentInfo[]> {
       page_size: 1000, // 通常不会太多
       llm_config_id: llmConfigId
     })
-    return res.agents || []
+    // 响应拦截器已经返回了 data，所以 res 就是 { agents: [], total: 0 }
+    const agents = res.agents || []
+    console.log(`[LLMManagement] LLM ID ${llmConfigId} 关联的智能体数量:`, agents.length, agents)
+    return agents
   } catch (error: any) {
-    console.error('加载智能体列表失败:', error)
+    console.error(`[LLMManagement] 加载 LLM ID ${llmConfigId} 的智能体列表失败:`, error)
     return []
   }
 }
@@ -307,12 +316,15 @@ async function getAgentsByLLMConfig(llmConfigId: number): Promise<AgentInfo[]> {
 // 为所有LLM加载使用它们的智能体列表
 async function loadAgentsForLLMs() {
   agentsByLLM.value.clear()
+  console.log('[LLMManagement] 开始加载所有LLM的智能体列表，LLM数量:', tableData.value.length)
   // 并行加载所有LLM的智能体列表
   const promises = tableData.value.map(async (llm) => {
     const agents = await getAgentsByLLMConfig(llm.id)
     agentsByLLM.value.set(llm.id, agents)
+    console.log(`[LLMManagement] LLM "${llm.name}" (ID: ${llm.id}) 关联了 ${agents.length} 个智能体`)
   })
   await Promise.all(promises)
+  console.log('[LLMManagement] 所有LLM的智能体列表加载完成，agentsByLLM:', Array.from(agentsByLLM.value.entries()))
 }
 
 // 分页变化
@@ -349,7 +361,29 @@ function handleEdit(row: LLMInfo) {
   formData.timeout = row.timeout
   formData.max_tokens = row.max_tokens
   formData.extra_config = row.extra_config || ''
+  formData.use_thinking = row.use_thinking ?? false
   formData.is_default = row.is_default
+  formData.visibility = row.visibility ?? 0
+  formData.admin = row.admin || ''
+  dialogVisible.value = true
+}
+
+// 复制
+function handleCopy(row: LLMInfo) {
+  dialogTitle.value = '复制 LLM 配置'
+  // 清空ID，表示新增
+  formData.id = undefined
+  // 复制数据，名称添加"副本"后缀，并取消默认设置
+  formData.name = `${row.name} 副本`
+  formData.provider = row.provider
+  formData.model = row.model
+  formData.api_key = '' // API Key 不复制，需要重新输入
+  formData.api_base = row.api_base
+  formData.timeout = row.timeout
+  formData.max_tokens = row.max_tokens
+  formData.extra_config = row.extra_config || ''
+  formData.use_thinking = row.use_thinking ?? false
+  formData.is_default = false // 复制的配置不设为默认
   formData.visibility = row.visibility ?? 0
   formData.admin = row.admin || ''
   dialogVisible.value = true
@@ -429,6 +463,7 @@ async function handleSubmit() {
         timeout: formData.timeout,
         max_tokens: formData.max_tokens,
         extra_config: formData.extra_config,
+        use_thinking: formData.use_thinking ?? false,
         is_default: formData.is_default,
         visibility: formData.visibility ?? 0,
         admin: formData.admin || ''
@@ -448,6 +483,7 @@ async function handleSubmit() {
         timeout: formData.timeout,
         max_tokens: formData.max_tokens,
         extra_config: formData.extra_config,
+        use_thinking: formData.use_thinking ?? false,
         is_default: formData.is_default,
         visibility: formData.visibility ?? 0,
         admin: formData.admin || ''
@@ -477,6 +513,7 @@ function resetForm() {
   formData.timeout = 120
   formData.max_tokens = 4000
   formData.extra_config = ''
+  formData.use_thinking = false
   formData.is_default = false
   formData.visibility = 0
   formData.admin = ''
