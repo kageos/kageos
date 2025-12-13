@@ -178,3 +178,11 @@ func GetAgentServerFunctionGenSubject() string {
 func GetAgentServerFunctionGenCallbackSubject() string {
 	return "agent_server.function_gen.callback"
 }
+
+// ==================== Control Service 相关主题 ====================
+
+// GetControlLicenseKeySubject 获取 Control Service License 密钥分发主题
+// 格式：control.license.key
+func GetControlLicenseKeySubject() string {
+	return "control.license.key"
+}

@@ -1,0 +1,25 @@
+{
+  "license": {
+    "id": "license-example-001",
+    "edition": "enterprise",
+    "issued_at": "2025-01-01T00:00:00Z",
+    "expires_at": "2026-01-01T00:00:00Z",
+    "customer": "Example Company",
+    "max_apps": 100,
+    "max_users": 50,
+    "features": {
+      "operate_log": true,
+      "workflow": true,
+      "approval": true,
+      "comment": true,
+      "rbac": true,
+      "scheduled_task": false,
+      "recycle_bin": true,
+      "change_log": true,
+      "notification": true,
+      "config_management": false,
+      "quick_link": true
+    }
+  },
+  "signature": "THIS_IS_AN_EXAMPLE_SIGNATURE_PLEASE_REPLACE_WITH_REAL_RSA_SIGNATURE"
+}
