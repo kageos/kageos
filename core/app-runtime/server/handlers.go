@@ -151,8 +151,15 @@ func (s *Server) handleAppDelete(msg *nats.Msg) {
 	logger.Infof(ctx, "[handleAppDelete] *** EXIT *** App deleted successfully: %s/%s", tenantUser, msgInfo.Data.App)
 }
 
-// handleFunctionServerRequest 处理来自 app-server 的请求
+// handleFunctionServerRequest 异步处理来自 app-server 的请求
 func (s *Server) handleFunctionServerRequest(msg *nats.Msg) {
+	// ✅ 立即启动 goroutine 处理，避免阻塞 NATS 订阅
+	// 这样即使处理时间较长，也不会阻塞其他消息的处理
+	go s.handleFunctionServerRequestSync(msg)
+}
+
+// handleFunctionServerRequestSync 同步处理来自 app-server 的请求（实际处理逻辑）
+func (s *Server) handleFunctionServerRequestSync(msg *nats.Msg) {
 	ctx := context.Background()
 
 	// 获取请求信息
