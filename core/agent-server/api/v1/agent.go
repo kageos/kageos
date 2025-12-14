@@ -150,12 +150,15 @@ func (h *Agent) List(c *gin.Context) {
 			PluginID:             agent.PluginID,
 			Plugin:               pluginInfo,
 			KnowledgeBaseID:      agent.KnowledgeBaseID,
+			GenerationCount:      agent.GenerationCount,
 			KnowledgeBase:        kbInfo,
 			LLMConfigID:          agent.LLMConfigID,
 			LLMConfig:            llmInfo,
 			SystemPromptTemplate: agent.SystemPromptTemplate,
 			Metadata:             metadata,
 			Logo:                 agent.Logo,
+			Greeting:             agent.Greeting,
+			GreetingType:         agent.GreetingType,
 			Visibility:            agent.Visibility,
 			Admin:                agent.Admin,
 			IsAdmin:               utils.IsAdmin(agent.Admin, currentUser),
@@ -196,6 +199,7 @@ func (h *Agent) Get(c *gin.Context) {
 	}()
 
 	ctx := contextx.ToContext(c)
+	currentUser := contextx.GetRequestUser(ctx)
 	agent, err := h.service.GetAgent(ctx, req.ID)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
@@ -267,6 +271,12 @@ func (h *Agent) Get(c *gin.Context) {
 			SystemPromptTemplate: agent.SystemPromptTemplate,
 			Metadata:             metadata,
 			Logo:                 agent.Logo,
+			Greeting:             agent.Greeting,
+			GreetingType:         agent.GreetingType,
+			GenerationCount:      agent.GenerationCount,
+			Visibility:           agent.Visibility,
+			Admin:                agent.Admin,
+			IsAdmin:              utils.IsAdmin(agent.Admin, currentUser),
 			CreatedAt:            time.Time(agent.CreatedAt).Format("2006-01-02T15:04:05Z"),
 			UpdatedAt:            time.Time(agent.UpdatedAt).Format("2006-01-02T15:04:05Z"),
 		},
@@ -314,6 +324,11 @@ func (h *Agent) Create(c *gin.Context) {
 		LLMConfigID:          req.LLMConfigID,
 		SystemPromptTemplate: req.SystemPromptTemplate,
 		Metadata:             metadata,
+		Logo:                 req.Logo,
+		Greeting:             req.Greeting,
+		GreetingType:         req.GreetingType,
+		Visibility:           req.Visibility,
+		Admin:                req.Admin,
 		Enabled:              true, // 默认启用
 	}
 
@@ -369,6 +384,11 @@ func (h *Agent) Update(c *gin.Context) {
 	agent.KnowledgeBaseID = req.KnowledgeBaseID
 	agent.LLMConfigID = req.LLMConfigID
 	agent.SystemPromptTemplate = req.SystemPromptTemplate
+	agent.Logo = req.Logo
+	agent.Greeting = req.Greeting
+	agent.GreetingType = req.GreetingType
+	agent.Visibility = req.Visibility
+	agent.Admin = req.Admin
 	if req.Metadata != "" {
 		metadata := req.Metadata
 		agent.Metadata = &metadata

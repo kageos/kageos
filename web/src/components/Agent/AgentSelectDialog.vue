@@ -2,9 +2,10 @@
   <el-dialog
     v-model="visible"
     title="选择智能体"
-    width="600px"
+    width="90%"
     :close-on-click-modal="false"
     @close="handleClose"
+    class="agent-select-dialog-wrapper"
   >
     <div v-loading="loading" class="agent-select-dialog">
       <!-- 筛选条件 -->
@@ -258,6 +259,18 @@ watch(visible, (newValue) => {
 })
 </script>
 
+<style lang="scss">
+.agent-select-dialog-wrapper {
+  .el-dialog {
+    max-width: 1400px;
+  }
+  
+  .el-dialog__body {
+    padding: 20px;
+  }
+}
+</style>
+
 <style scoped lang="scss">
 .agent-select-dialog {
   .filter-section {
@@ -272,9 +285,9 @@ watch(visible, (newValue) => {
 
   .agent-cards {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
     gap: 16px;
-    max-height: 500px;
+    max-height: 600px;
     overflow-y: auto;
     padding: 8px;
   }
@@ -298,32 +311,32 @@ watch(visible, (newValue) => {
 
     &.selected {
       border-color: var(--el-color-primary);
-      background-color: var(--el-color-primary);
-      box-shadow: 0 4px 16px rgba(64, 158, 255, 0.3);
+      background-color: var(--el-color-primary-light-9);
+      box-shadow: 0 0 0 2px var(--el-color-primary-light-7);
       
       .agent-name {
-        color: white;
+        color: var(--el-color-primary);
+        font-weight: 700;
       }
       
       .agent-description {
-        color: rgba(255, 255, 255, 0.9);
+        color: var(--el-text-color-regular);
       }
       
       .agent-info {
-        color: rgba(255, 255, 255, 0.8);
-        border-top-color: rgba(255, 255, 255, 0.2);
+        color: var(--el-text-color-secondary);
+        border-top-color: var(--el-border-color-lighter);
       }
       
       .agent-tags {
         :deep(.el-tag) {
-          background-color: rgba(255, 255, 255, 0.2);
-          border-color: rgba(255, 255, 255, 0.3);
-          color: white;
+          background-color: var(--el-color-primary-light-8);
+          border-color: var(--el-color-primary-light-6);
         }
       }
       
       .selected-icon {
-        color: white;
+        color: var(--el-color-primary);
       }
     }
 

@@ -299,6 +299,15 @@
             提示：使用 {knowledge} 变量会自动替换为知识库内容
           </div>
         </el-form-item>
+        <el-form-item label="开场白">
+          <RichTextEditor
+            v-model="formData.greeting"
+            placeholder="请输入开场白内容，用于显示智能体的使用教程等（可选）"
+          />
+          <div style="margin-top: 8px; font-size: 12px; color: #909399;">
+            提示：开场白会在用户选择智能体时显示，使用富文本编辑器编辑，自动保存为 HTML 格式
+          </div>
+        </el-form-item>
         <el-form-item label="超时时间（秒）">
           <el-input-number
             v-model="formData.timeout"
@@ -349,6 +358,7 @@ import { ElMessage, ElMessageBox, ElForm } from 'element-plus'
 import { ArrowLeft, Plus, Search, Refresh, DocumentCopy, Operation, CircleCheck, Document, Connection } from '@element-plus/icons-vue'
 import StatCard from '@/components/Agent/StatCard.vue'
 import AgentCard from '@/components/Agent/AgentCard.vue'
+import RichTextEditor from '@/components/RichTextEditor.vue'
 import {
   getAgentList,
   getAgent,
@@ -739,6 +749,8 @@ async function handleEdit(row: AgentInfo) {
   formData.knowledge_base_id = row.knowledge_base_id
   formData.llm_config_id = row.llm_config_id || 0
   formData.metadata = row.metadata || ''
+  formData.greeting = row.greeting || ''
+  formData.greeting_type = (row.greeting_type as 'text' | 'md' | 'html') || 'text'
   formData.visibility = row.visibility ?? 0
   formData.admin = row.admin || ''
   
@@ -766,6 +778,8 @@ async function handleCopy(row: AgentInfo) {
   formData.knowledge_base_id = row.knowledge_base_id
   formData.llm_config_id = row.llm_config_id || 0
   formData.metadata = row.metadata || ''
+  formData.greeting = row.greeting || ''
+  formData.greeting_type = (row.greeting_type as 'text' | 'md' | 'html') || 'text'
   formData.visibility = row.visibility ?? 0
   formData.admin = row.admin || ''
   
@@ -854,6 +868,8 @@ async function handleSubmit() {
         knowledge_base_id: formData.knowledge_base_id,
         llm_config_id: formData.llm_config_id || 0,
         metadata: formData.metadata,
+        greeting: formData.greeting || '',
+        greeting_type: formData.greeting ? 'html' : 'text', // 使用富文本编辑器时，自动设置为 html
         visibility: formData.visibility ?? 0,
         admin: formData.admin || ''
       }
@@ -874,6 +890,8 @@ async function handleSubmit() {
         knowledge_base_id: formData.knowledge_base_id,
         llm_config_id: formData.llm_config_id || 0,
         metadata: formData.metadata,
+        greeting: formData.greeting || '',
+        greeting_type: formData.greeting ? 'html' : 'text', // 使用富文本编辑器时，自动设置为 html
         visibility: formData.visibility ?? 0,
         admin: formData.admin || ''
       }
@@ -904,6 +922,8 @@ function resetForm() {
   formData.knowledge_base_id = 0
   formData.llm_config_id = 0
   formData.metadata = ''
+  formData.greeting = ''
+  formData.greeting_type = 'text'
   formData.visibility = 0
   formData.admin = ''
   formRef.value?.clearValidate()

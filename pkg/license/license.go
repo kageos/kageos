@@ -2,8 +2,46 @@ package license
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 	"time"
 )
+
+// FlexibleTime 时间类型，统一使用 DateTime 格式（2006-01-02 15:04:05）
+// 说明：
+//   - 配置文件使用 DateTime 格式，保持一致性
+//   - 不需要支持 RFC3339 等格式，简化代码
+//   - DateTime 格式更易读，符合中文习惯
+type FlexibleTime struct {
+	time.Time
+}
+
+// UnmarshalJSON 自定义 JSON 解析，使用 DateTime 格式（与配置文件保持一致）
+func (ft *FlexibleTime) UnmarshalJSON(data []byte) error {
+	// 去除引号
+	str := strings.Trim(string(data), `"`)
+	if str == "" || str == "null" {
+		ft.Time = time.Time{}
+		return nil
+	}
+
+	// 只支持 DateTime 格式：2006-01-02 15:04:05（与配置文件格式一致）
+	var err error
+	if ft.Time, err = time.Parse(time.DateTime, str); err != nil {
+		return fmt.Errorf("failed to parse time %q as DateTime format (2006-01-02 15:04:05): %w", str, err)
+	}
+
+	return nil
+}
+
+// MarshalJSON 自定义 JSON 序列化，使用 DateTime 格式（与配置文件保持一致）
+func (ft FlexibleTime) MarshalJSON() ([]byte, error) {
+	if ft.Time.IsZero() {
+		return []byte("null"), nil
+	}
+	// 使用 DateTime 格式：2006-01-02 15:04:05（与配置文件格式一致）
+	return json.Marshal(ft.Time.Format(time.DateTime))
+}
 
 // License License 文件结构
 // 设计说明：
@@ -22,9 +60,7 @@ import (
 //       "max_apps": 100,
 //       "max_users": 50,
 //       "features": {
-//         "operate_log": true,
-//         "workflow": true,
-//         "approval": false
+//         "operate_log": true
 //       },
 //       "hardware_id": "optional-hardware-binding"
 //     },
@@ -32,13 +68,16 @@ import (
 //   }
 type License struct {
 	// License 基本信息
-	ID        string    `json:"id"`         // License ID
-	Edition   string    `json:"edition"`    // 版本：community, professional, enterprise, flagship
-	IssuedAt  time.Time `json:"issued_at"`  // 签发时间
-	ExpiresAt time.Time `json:"expires_at"` // 过期时间（零值表示永久）
+	ID        string       `json:"id"`         // License ID
+	Edition   string       `json:"edition"`     // 版本：community, professional, enterprise, flagship
+	IssuedAt  FlexibleTime `json:"issued_at"`  // 签发时间
+	ExpiresAt FlexibleTime `json:"expires_at"` // 过期时间（零值表示永久）
 
 	// 客户信息
 	Customer string `json:"customer"` // 客户名称
+
+	// 描述信息
+	Description string `json:"description,omitempty"` // License 描述（可选，用于展示）
 
 	// 资源限制
 	MaxApps int `json:"max_apps"` // 最大应用数量（0 表示无限制）
@@ -56,39 +95,10 @@ type License struct {
 
 // Features 功能开关
 // 定义所有企业功能的开关
+// 注意：目前只保留 operate_log，后续新增功能时再加
 type Features struct {
 	// 操作日志
 	OperateLog bool `json:"operate_log"` // 操作日志功能
-
-	// 工作流
-	Workflow bool `json:"workflow"` // 工作流功能
-
-	// 审批流程
-	Approval bool `json:"approval"` // 审批流程功能
-
-	// 评论系统
-	Comment bool `json:"comment"` // 评论功能
-
-	// 权限管理
-	RBAC bool `json:"rbac"` // 基于角色的访问控制
-
-	// 定时任务
-	ScheduledTask bool `json:"scheduled_task"` // 定时任务功能
-
-	// 回收站
-	RecycleBin bool `json:"recycle_bin"` // 回收站功能
-
-	// 变更日志
-	ChangeLog bool `json:"change_log"` // 变更日志功能
-
-	// 通知中心
-	Notification bool `json:"notification"` // 通知中心功能
-
-	// 配置管理
-	ConfigManagement bool `json:"config_management"` // 配置管理功能
-
-	// 快链
-	QuickLink bool `json:"quick_link"` // 快链功能
 }
 
 // LicenseFile License 文件结构（包含签名）
@@ -110,7 +120,7 @@ const (
 // IsValid 检查 License 是否有效
 func (l *License) IsValid() bool {
 	// 检查是否过期
-	if !l.ExpiresAt.IsZero() && time.Now().After(l.ExpiresAt) {
+	if !l.ExpiresAt.IsZero() && time.Now().After(l.ExpiresAt.Time) {
 		return false
 	}
 	return true
@@ -125,29 +135,16 @@ func (l *License) HasFeature(featureName string) bool {
 	switch featureName {
 	case "operate_log":
 		return l.Features.OperateLog
-	case "workflow":
-		return l.Features.Workflow
-	case "approval":
-		return l.Features.Approval
-	case "comment":
-		return l.Features.Comment
-	case "rbac":
-		return l.Features.RBAC
-	case "scheduled_task":
-		return l.Features.ScheduledTask
-	case "recycle_bin":
-		return l.Features.RecycleBin
-	case "change_log":
-		return l.Features.ChangeLog
-	case "notification":
-		return l.Features.Notification
-	case "config_management":
-		return l.Features.ConfigManagement
-	case "quick_link":
-		return l.Features.QuickLink
 	default:
 		return false
 	}
+}
+
+// HasOperateLogFeature 检查是否有操作日志功能
+// 返回：
+//   - bool: 是否有操作日志功能
+func (l *License) HasOperateLogFeature() bool {
+	return l.HasFeature("operate_log")
 }
 
 // GetEdition 获取版本类型
@@ -189,6 +186,8 @@ const (
 )
 
 // ToJSON 将 License 转换为 JSON（用于签名）
+// 注意：必须与签名工具中的序列化方式完全一致
 func (l *License) ToJSON() ([]byte, error) {
+	// 使用紧凑格式（无缩进），确保与签名时一致
 	return json.Marshal(l)
 }

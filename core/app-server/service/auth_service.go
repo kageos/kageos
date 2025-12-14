@@ -8,6 +8,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	appconfig "github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
+	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -36,6 +37,17 @@ func NewAuthService(userRepo *repository.UserRepository, hostRepo *repository.Ho
 
 // RegisterUser 注册用户
 func (s *AuthService) RegisterUser(username, email, password string) (int64, error) {
+	// ⭐ 检查用户数量限制
+	userCount, err := s.userRepo.CountUsers()
+	if err != nil {
+		logger.Warnf(nil, "[AuthService] Failed to count users: %v", err)
+	} else {
+		licenseMgr := license.GetManager()
+		if err := licenseMgr.CheckUserLimit(int(userCount)); err != nil {
+			return 0, err
+		}
+	}
+
 	// 检查用户名是否已存在
 	existingUser, err := s.userRepo.GetUserByUsername(username)
 	if err == nil && existingUser != nil {

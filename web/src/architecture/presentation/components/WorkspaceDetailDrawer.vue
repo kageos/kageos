@@ -117,6 +117,13 @@
             </div>
           </div>
         </div>
+
+        <!-- 操作日志区域 -->
+        <OperateLogSection
+          :full-code-path="fullCodePath"
+          :row-id="rowId"
+          :function-detail="currentFunctionDetail || editFunctionDetail"
+        />
       </div>
 
       <!-- 编辑模式（复用 FormRenderer） -->
@@ -154,6 +161,7 @@ import { ElMessage } from 'element-plus'
 import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
 import LinkWidget from '@/core/widgets-v2/components/LinkWidget.vue'
+import OperateLogSection from '@/components/OperateLogSection.vue'
 import { WidgetType } from '@/core/constants/widget'
 import type { FieldConfig, FieldValue } from '../../domain/types'
 import type { FunctionDetail } from '../../domain/interfaces/IFunctionLoader'
@@ -168,8 +176,10 @@ interface Props {
   currentIndex?: number
   canEdit?: boolean
   editFunctionDetail?: FunctionDetail | null
+  currentFunctionDetail?: FunctionDetail | null  // 原始的 functionDetail（未修改的，用于操作日志）
   userInfoMap?: Map<string, any>
   submitting?: boolean
+  currentFunction?: any  // ServiceTree 节点，包含 full_code_path
 }
 
 interface Emits {
@@ -185,8 +195,10 @@ const props = withDefaults(defineProps<Props>(), {
   currentIndex: -1,
   canEdit: false,
   editFunctionDetail: null,
+  currentFunctionDetail: null,
   userInfoMap: () => new Map(),
-  submitting: false
+  submitting: false,
+  currentFunction: null
 })
 
 const emit = defineEmits<Emits>()
@@ -279,6 +291,45 @@ const recordId = computed(() => {
   }
   
   return undefined
+})
+
+/**
+ * 获取 full_code_path（用于操作日志查询）
+ * 优先使用 currentFunction.full_code_path，否则从 editFunctionDetail.router 构建
+ */
+const fullCodePath = computed(() => {
+  if (props.currentFunction?.full_code_path) {
+    return props.currentFunction.full_code_path
+  }
+  if (props.editFunctionDetail?.full_code_path) {
+    return props.editFunctionDetail.full_code_path
+  }
+  // 从 router 构建：/user/app/router -> /user/app/router
+  if (props.editFunctionDetail?.router) {
+    return props.editFunctionDetail.router
+  }
+  return ''
+})
+
+/**
+ * 获取 row_id（用于操作日志查询）
+ */
+const rowId = computed(() => {
+  if (!props.rowData) {
+    return 0
+  }
+  // 尝试从 rowData 中获取 id 字段
+  const idField = Object.keys(props.rowData).find(key => {
+    const lowerKey = key.toLowerCase()
+    return lowerKey === 'id' || lowerKey.endsWith('_id') || lowerKey.endsWith('id')
+  })
+  
+  if (idField) {
+    const idValue = props.rowData[idField]
+    return idValue !== null && idValue !== undefined ? Number(idValue) : 0
+  }
+  
+  return 0
 })
 
 const handleToggleMode = (newMode: 'read' | 'edit') => {

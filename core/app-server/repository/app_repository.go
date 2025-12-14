@@ -38,6 +38,20 @@ func (r *AppRepository) ExistsAppNameForUser(user, name string) (bool, error) {
 	return count > 0, nil
 }
 
+// CountApps 统计应用总数
+func (r *AppRepository) CountApps() (int64, error) {
+	var count int64
+	err := r.db.Model(&model.App{}).Count(&count).Error
+	return count, err
+}
+
+// CountAppsByUser 统计指定用户的应用数量
+func (r *AppRepository) CountAppsByUser(user string) (int64, error) {
+	var count int64
+	err := r.db.Model(&model.App{}).Where("user = ?", user).Count(&count).Error
+	return count, err
+}
+
 // UpdateApp 更新应用
 func (r *AppRepository) UpdateApp(app *model.App) error {
 	return r.db.Save(app).Error

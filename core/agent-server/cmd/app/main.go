@@ -31,58 +31,27 @@ import (
 	"syscall"
 
 	_ "github.com/ai-agent-os/ai-agent-os/core/agent-server/docs"
-	"github.com/ai-agent-os/ai-agent-os/core/agent-server/server"
-	"github.com/ai-agent-os/ai-agent-os/pkg/config"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/core/agent-server/runner"
 )
 
 func main() {
 	ctx := context.Background()
 
-	// 获取配置
-	cfg := config.GetAgentServerConfig()
-
-	// 初始化日志系统
-	logConfig := logger.Config{
-		Level:      cfg.GetLogLevel(),
-		Filename:   "./logs/agent-server.log",
-		MaxSize:    100,
-		MaxBackups: 3,
-		MaxAge:     7,
-		Compress:   true,
-		IsDev:      cfg.IsDebug(),
-	}
-
-	if err := logger.Init(logConfig); err != nil {
-		fmt.Printf("Failed to initialize logger: %v\n", err)
-		os.Exit(1)
-	}
-
-	logger.Infof(ctx, "Logger initialized - Service: agent-server, File: %s", logConfig.Filename)
-
-	// 创建并启动服务器
-	srv, err := server.NewServer(cfg)
-	if err != nil {
-		logger.Errorf(ctx, "Failed to create server: %v", err)
-		os.Exit(1)
-	}
-
-	if err := srv.Start(ctx); err != nil {
-		logger.Errorf(ctx, "Failed to start server: %v", err)
-		os.Exit(1)
-	}
-
-	// 等待信号
+	// 创建停止通道（独立启动时使用信号）
+	stopCh := make(chan struct{})
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-	<-sigChan
 
-	logger.Infof(ctx, "Shutting down agent-server...")
+	// 在 goroutine 中监听信号
+	go func() {
+		<-sigChan
+		fmt.Println("Received signal, shutting down...")
+		close(stopCh)
+	}()
 
-	// 优雅关闭服务器
-	if err := srv.Stop(ctx); err != nil {
-		logger.Errorf(ctx, "Error during shutdown: %v", err)
+	// 调用 Main 函数
+	if err := runner.Main(ctx, stopCh); err != nil {
+		fmt.Printf("Agent-server error: %v\n", err)
+		os.Exit(1)
 	}
-
-	logger.Infof(ctx, "Agent-server stopped")
 }

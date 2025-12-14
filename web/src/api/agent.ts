@@ -36,6 +36,9 @@ export interface AgentInfo {
   llm_config?: LLMConfigInfo // 预加载的LLM配置信息
   metadata: string
   logo?: string // 智能体 Logo URL（可选）
+  greeting?: string // 开场白内容（可选）
+  greeting_type?: 'text' | 'md' | 'html' // 开场白格式类型：text, md, html
+  generation_count: number // 生成次数统计
   visibility: number // 0: 公开, 1: 私有
   admin: string // 管理员列表（逗号分隔）
   is_admin: boolean // 当前用户是否是管理员
@@ -84,6 +87,8 @@ export interface AgentCreateReq {
   knowledge_base_id: number
   llm_config_id?: number // LLM配置ID，如果为0或不提供则使用默认LLM
   metadata?: string
+  greeting?: string // 开场白内容（可选）
+  greeting_type?: 'text' | 'md' | 'html' // 开场白格式类型：text, md, html（默认text）
   visibility?: number // 0: 公开, 1: 私有（默认0）
   admin?: string // 管理员列表（逗号分隔，默认创建用户）
 }
@@ -107,6 +112,8 @@ export interface AgentUpdateReq {
   knowledge_base_id: number
   llm_config_id?: number // LLM配置ID，如果为0或不提供则使用默认LLM
   metadata?: string
+  greeting?: string // 开场白内容（可选）
+  greeting_type?: 'text' | 'md' | 'html' // 开场白格式类型：text, md, html（默认text）
   visibility?: number // 0: 公开, 1: 私有
   admin?: string // 管理员列表（逗号分隔）
 }

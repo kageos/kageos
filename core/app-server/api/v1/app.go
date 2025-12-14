@@ -287,6 +287,67 @@ func (a *App) CallbackApp(c *gin.Context) {
 
 	// 调用服务层
 	ctx := contextx.ToContext(c)
+
+	// 如果是 Table 回调，记录 Table 操作日志
+	if callbackType == "OnTableAddRow" || callbackType == "OnTableUpdateRow" || callbackType == "OnTableDeleteRows" {
+		var bodyData map[string]interface{}
+		if err := json.Unmarshal(all, &bodyData); err == nil {
+			logReq := &dto.RecordTableOperateLogReq{
+				TenantUser:  user,            // 租户用户（app 的所有者，从路径解析）
+				RequestUser: req.RequestUser, // 请求用户（实际执行操作的用户）
+				App:         app,
+				Router:      strings.Join(realRouter, "/"),
+				Action:      callbackType,
+				IPAddress:   c.ClientIP(),
+				UserAgent:   c.GetHeader("User-Agent"),
+				TraceID:     req.TraceId,
+			}
+
+			switch callbackType {
+			case "OnTableAddRow":
+				// 新增操作：记录 body
+				logReq.Body = all
+
+			case "OnTableUpdateRow":
+				// 更新操作：优先从查询参数获取 _row_id，如果没有则从 body 中获取 id
+				if rowIDStr := c.Query("_row_id"); rowIDStr != "" {
+					if id, err := strconv.ParseInt(rowIDStr, 10, 64); err == nil {
+						logReq.RowID = id
+					}
+				} else if id, ok := bodyData["id"].(float64); ok {
+					logReq.RowID = int64(id)
+				}
+
+				// 获取 updates 和 old_values
+				if updatesData, ok := bodyData["updates"].(map[string]interface{}); ok {
+					logReq.Updates, _ = json.Marshal(updatesData)
+				}
+				if oldValuesData, ok := bodyData["old_values"].(map[string]interface{}); ok {
+					logReq.OldValues, _ = json.Marshal(oldValuesData)
+				}
+
+			case "OnTableDeleteRows":
+				// 删除操作：获取 ids 列表
+				if ids, ok := bodyData["ids"].([]interface{}); ok {
+					rowIDs := make([]int64, 0, len(ids))
+					for _, id := range ids {
+						if idFloat, ok := id.(float64); ok {
+							rowIDs = append(rowIDs, int64(idFloat))
+						}
+					}
+					logReq.RowIDs = rowIDs
+				}
+			}
+
+			// 异步记录，不阻塞主流程
+			go func() {
+				if err := a.appService.RecordTableOperateLog(ctx, logReq); err != nil {
+					logger.Warnf(ctx, "[CallbackApp] 记录 Table 操作日志失败: %v", err)
+				}
+			}()
+		}
+	}
+
 	resp, err = a.appService.RequestApp(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())

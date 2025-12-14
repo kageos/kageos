@@ -32,7 +32,13 @@ type Config struct {
 }
 
 // Init 初始化日志系统
+// 注意：如果日志系统已经初始化，会跳过本次初始化（避免统一入口时重复初始化）
 func Init(cfg Config) error {
+	// 如果已经初始化，跳过（避免统一入口时各服务重复初始化）
+	if initialized {
+		return nil
+	}
+
 	// 确保日志目录存在
 	logDir := filepath.Dir(cfg.Filename)
 	if err := os.MkdirAll(logDir, 0755); err != nil {
@@ -128,6 +134,11 @@ func Init(cfg Config) error {
 	initialized = true
 
 	return nil
+}
+
+// IsInitialized 检查日志系统是否已初始化
+func IsInitialized() bool {
+	return initialized
 }
 
 // ensureInitialized 确保日志系统已初始化，如果没有则自动初始化

@@ -18,74 +18,65 @@
         <!-- 新建会话提示项（当没有选中会话时显示） -->
         <div
           v-if="!sessionId"
-          class="session-item new-session-item"
+          class="session-card new-session-card"
         >
-          <div class="session-content">
-            <div class="session-title">
-              <el-icon><Plus /></el-icon>
-              <span>新会话</span>
-            </div>
-            <div class="session-meta">
-              <div class="session-times">
-                <div class="session-time-item">
-                  <span class="time-label">创建:</span>
-                  <span class="time-value">{{ formatFullTime(new Date().toISOString()) }}</span>
-                </div>
-                <div class="session-time-item">
-                  <span class="time-label">更新:</span>
-                  <span class="time-value">{{ formatFullTime(new Date().toISOString()) }}</span>
-                </div>
-              </div>
-              <div v-if="currentAgent" class="session-agent-info">
-                <el-avatar
-                  :size="16"
-                  :src="getAgentLogo(currentAgent)"
-                  class="session-agent-mini-logo"
-                >
-                  <span class="agent-logo-text-mini">{{ getAgentLogoText(currentAgent) }}</span>
-                </el-avatar>
-                <span class="session-agent-name">{{ currentAgent.name }}</span>
-              </div>
-            </div>
+          <div class="session-card-header">
+            <el-icon class="new-icon"><Plus /></el-icon>
+            <span class="session-card-title">新会话</span>
+          </div>
+          <div v-if="currentAgent" class="session-card-agent">
+            <el-avatar
+              :size="20"
+              :src="getAgentLogo(currentAgent)"
+            >
+              <span class="agent-logo-text">{{ getAgentLogoText(currentAgent) }}</span>
+            </el-avatar>
+            <span class="agent-name">{{ currentAgent.name }}</span>
+          </div>
+          <div class="session-card-time">
+            <span>{{ formatRelativeTime(new Date()) }}</span>
           </div>
         </div>
         
+        <!-- 会话列表项 -->
         <div
           v-for="session in sessionList"
           :key="session.session_id"
-          :class="['session-item', { active: session.session_id === sessionId }]"
+          :class="['session-card', { 
+            active: session.session_id === sessionId,
+            loading: loadingSession && pendingSessionId === session.session_id
+          }]"
           @click="handleSelectSession(session.session_id)"
         >
-          <div class="session-content">
-            <div class="session-title">
-              {{ session.title || '未命名会话' }}
-            </div>
-            <div class="session-meta">
-              <div class="session-times">
-                <div class="session-time-item">
-                  <span class="time-label">创建:</span>
-                  <span class="time-value">{{ formatFullTime(session.created_at) }}</span>
-                </div>
-                <div class="session-time-item">
-                  <span class="time-label">更新:</span>
-                  <span class="time-value">{{ formatFullTime(session.updated_at) }}</span>
-                </div>
-              </div>
-              <div v-if="session.agent" class="session-agent-info">
-                <el-avatar
-                  :size="16"
-                  :src="getAgentLogo(session.agent)"
-                  class="session-agent-mini-logo"
-                >
-                  <span class="agent-logo-text-mini">{{ getAgentLogoText(session.agent) }}</span>
-                </el-avatar>
-                <span class="session-agent-name">{{ session.agent.name }}</span>
-              </div>
+          <div class="session-card-header">
+            <div class="session-card-title-wrapper">
+              <span class="session-card-title">{{ session.title || '未命名会话' }}</span>
+              <el-icon v-if="loadingSession && pendingSessionId === session.session_id" class="loading-icon">
+                <Loading />
+              </el-icon>
             </div>
           </div>
+          
+          <div v-if="session.agent" class="session-card-agent">
+            <el-avatar
+              :size="20"
+              :src="getAgentLogo(session.agent)"
+            >
+              <span class="agent-logo-text">{{ getAgentLogoText(session.agent) }}</span>
+            </el-avatar>
+            <span class="agent-name">{{ session.agent.name }}</span>
+          </div>
+          
+          <div class="session-card-time">
+            <span>{{ formatRelativeTime(session.updated_at) }}</span>
+          </div>
         </div>
+        
+        <!-- 空状态 -->
         <div v-if="sessionList.length === 0 && !loadingSessions && sessionId" class="empty-sessions">
-          暂无会话，点击"新建"创建会话
+          <el-empty description="暂无会话" :image-size="80">
+            <el-button type="primary" size="small" @click="handleNewSession">创建新会话</el-button>
+          </el-empty>
         </div>
       </div>
     </div>
@@ -93,30 +84,37 @@
     <!-- 主聊天区域 -->
     <div class="chat-main">
       <div class="chat-header">
-        <h3>AI 助手</h3>
-        <div class="header-actions">
-          <el-select
-            v-model="selectedAgentId"
-            placeholder="选择智能体"
-            filterable
-            :loading="agentLoading"
-            style="width: 200px; margin-right: 8px;"
-            @change="handleAgentChange"
-          >
-            <el-option
-              v-for="agent in agentOptions"
-              :key="agent.id"
-              :label="agent.name"
-              :value="agent.id"
+        <div class="header-left"></div>
+        <div class="header-center">
+          <div v-if="currentSessionAgent" class="header-agent-info">
+            <el-avatar
+              :size="28"
+              :src="getAgentLogo(currentSessionAgent)"
+              class="header-agent-avatar"
             >
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span>{{ agent.name }}</span>
-                <el-tag size="small" :type="agent.agent_type === 'plugin' ? 'warning' : 'success'" style="margin-left: 8px;">
-                  {{ agent.agent_type === 'plugin' ? '插件' : '知识库' }}
+              <span class="header-agent-logo-text">{{ getAgentLogoText(currentSessionAgent) }}</span>
+            </el-avatar>
+            <div class="header-agent-details">
+              <div class="header-agent-name-row">
+                <span class="header-agent-name">{{ currentSessionAgent.name }}</span>
+                <el-tag 
+                  size="small" 
+                  :type="currentSessionAgent.agent_type === 'plugin' ? 'warning' : 'success'"
+                  class="header-agent-tag"
+                >
+                  {{ currentSessionAgent.agent_type === 'plugin' ? '插件' : '知识库' }}
                 </el-tag>
               </div>
-            </el-option>
-          </el-select>
+              <div v-if="currentSessionAgent.description" class="header-agent-description">
+                {{ currentSessionAgent.description }}
+              </div>
+            </div>
+          </div>
+          <div v-else class="header-agent-info">
+            <span class="header-agent-name-placeholder">请选择智能体开始对话</span>
+          </div>
+        </div>
+        <div class="header-right">
           <el-button
             link
             :icon="Close"
@@ -142,7 +140,29 @@
           </el-avatar>
         </div>
         <div class="message-content">
-          <div class="message-text" v-html="formatMessage(message.content)"></div>
+          <div 
+            :class="['message-text', { 
+              'is-greeting': message.isGreeting,
+              'is-collapsed': message.isGreeting && !message.isExpanded && needsExpand(message),
+              'needs-expand': message.isGreeting && needsExpand(message)
+            }]"
+            v-html="message.isHtml ? message.content : formatMessage(message.content)"
+          ></div>
+          <!-- 开场白展开/收起按钮 -->
+          <div v-if="message.isGreeting && needsExpand(message)" class="greeting-expand">
+            <el-button
+              text
+              type="primary"
+              size="small"
+              @click="toggleGreetingExpand(index)"
+            >
+              {{ message.isExpanded ? '收起' : '展开' }}
+              <el-icon>
+                <ArrowDown v-if="!message.isExpanded" />
+                <ArrowUp v-else />
+              </el-icon>
+            </el-button>
+          </div>
           <!-- 显示文件列表 -->
           <div v-if="message.files && message.files.length > 0" class="message-files">
             <div v-for="(file, fileIndex) in message.files" :key="fileIndex" class="file-item">
@@ -243,7 +263,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Close, User, Loading, ChatRound, Upload, Document, Plus } from '@element-plus/icons-vue'
+import { Close, User, Loading, ChatRound, Upload, Document, Plus, ArrowDown, ArrowUp } from '@element-plus/icons-vue'
 import * as agentApi from '@/api/agent'
 import type { AgentInfo, ChatSessionInfo } from '@/api/agent'
 import { uploadFile, notifyUploadComplete } from '@/utils/upload'
@@ -281,6 +301,9 @@ interface ChatMessage {
   content: string
   files?: ChatFile[]
   timestamp: number
+  isHtml?: boolean // 标记内容是否为 HTML 格式（用于开场白等）
+  isGreeting?: boolean // 标记是否为开场白
+  isExpanded?: boolean // 标记是否已展开（用于开场白）
 }
 
 const messages = ref<ChatMessage[]>([])
@@ -298,19 +321,30 @@ const selectedAgentId = ref<number | null>(props.agentId)
 const agentOptions = ref<AgentInfo[]>([])
 const agentLoading = ref(false)
 
-// 当前选中的智能体信息
+// 当前选中的智能体信息（用于新建会话时显示）
 const currentAgent = computed(() => {
   if (!selectedAgentId.value) return null
   return agentOptions.value.find(agent => agent.id === selectedAgentId.value) || null
 })
 
+// 当前会话的智能体信息（用于header显示）
+const currentSessionAgent = computed(() => {
+  if (!sessionId.value) {
+    // 如果没有会话，显示当前选中的智能体（新建会话时）
+    return currentAgent.value
+  }
+  // 如果有会话，从会话列表中查找对应的智能体
+  const session = sessionList.value.find(s => s.session_id === sessionId.value)
+  return session?.agent || null
+})
+
 // 会话ID（首次为空，后端自动生成）
 const sessionId = ref<string>('')
 const loadingSession = ref(false)
-// 正在加载的会话ID（用于防止竞态条件）
+// 正在加载的会话ID（用于显示加载状态）
 const pendingSessionId = ref<string | null>(null)
-// 防抖定时器（用于防止过于频繁的切换）
-let switchDebounceTimer: ReturnType<typeof setTimeout> | null = null
+// 请求取消控制器（用于取消正在进行的请求）
+let currentAbortController: AbortController | null = null
 
 // 会话列表相关
 const sessionList = ref<ChatSessionInfo[]>([])
@@ -407,23 +441,19 @@ async function loadSessionList() {
 }
 
 // 加载指定会话的消息
-async function loadSessionMessages(targetSessionId: string) {
-  // 检查是否已经被其他请求覆盖（通过 pendingSessionId 判断）
-  // 注意：这里只检查 pendingSessionId，不检查 sessionId，因为 sessionId 在 handleSelectSession 中已经被立即设置了
-  if (pendingSessionId.value !== targetSessionId) {
-    console.log('[AIChatPanel] 加载请求已被新的请求覆盖，放弃加载:', targetSessionId)
-    return
-  }
-  
+async function loadSessionMessages(targetSessionId: string, signal?: AbortSignal) {
   try {
     const messageRes = await agentApi.getChatMessageList({
       session_id: targetSessionId
     })
 
-    // 再次检查是否仍然是要加载的会话（只检查 pendingSessionId，因为这是唯一能判断请求是否被覆盖的标识）
-    // 注意：不检查 sessionId，因为 sessionId 在 handleSelectSession 中已经被立即设置为最新的会话ID
-    if (pendingSessionId.value !== targetSessionId) {
-      console.log('[AIChatPanel] 加载消息过程中会话已切换，放弃加载结果:', targetSessionId)
+    // 检查请求是否已被取消
+    if (signal?.aborted) {
+      return
+    }
+
+    // 检查是否仍然是要加载的会话
+    if (sessionId.value !== targetSessionId) {
       return
     }
 
@@ -446,7 +476,10 @@ async function loadSessionMessages(targetSessionId: string) {
           role: msg.role as 'user' | 'assistant',
           content: msg.content,
           files,
-          timestamp: parseDateTime(msg.created_at)
+          timestamp: parseDateTime(msg.created_at),
+          isHtml: false,
+          isGreeting: false,
+          isExpanded: false
         }
       })
 
@@ -455,33 +488,70 @@ async function loadSessionMessages(targetSessionId: string) {
         scrollToBottom()
       })
     } else {
-      // 如果没有消息，显示欢迎消息（但保持 sessionId）
+      // 如果没有消息，显示欢迎消息（优先使用智能体的开场白）
       messages.value = []
-      if (props.currentNodeName) {
-        addMessage('assistant', `你好！我是 AI 助手，可以帮助你处理「${props.currentNodeName}」相关的问题。有什么可以帮助你的吗？`)
+      const agent = sessionList.value.find(s => s.session_id === targetSessionId)?.agent
+      if (agent?.greeting) {
+        // 如果有开场白，根据格式类型渲染
+        const greetingHtml = renderGreeting(agent.greeting, agent.greeting_type)
+        addMessage('assistant', greetingHtml, undefined, agent.greeting_type === 'html', true)
       } else {
-        addMessage('assistant', '你好！我是 AI 助手，有什么可以帮助你的吗？')
+        // 如果没有开场白，使用默认欢迎消息
+        const agentName = agent?.name || 'AI 助手'
+        if (props.currentNodeName) {
+          addMessage('assistant', `你好！我是 ${agentName}，可以帮助你处理「${props.currentNodeName}」相关的问题。有什么可以帮助你的吗？`)
+        } else {
+          addMessage('assistant', `你好！我是 ${agentName}，有什么可以帮助你的吗？`)
+        }
       }
     }
   } catch (error: any) {
-    console.error('[AIChatPanel] 加载会话消息失败:', error)
-    // 检查是否仍然是要加载的会话（只检查 pendingSessionId）
-    if (pendingSessionId.value !== targetSessionId) {
+    // 如果请求被取消，不显示错误
+    if (signal?.aborted) {
       return
     }
+    
+    // 检查是否仍然是要加载的会话
+    if (sessionId.value !== targetSessionId) {
+      return
+    }
+    
+    console.error('[AIChatPanel] 加载会话消息失败:', error)
     ElMessage.error(error.message || '加载会话消息失败')
-    // 加载失败时显示欢迎消息（但保持 sessionId）
+    
+    // 加载失败时显示欢迎消息（优先使用智能体的开场白）
     messages.value = []
-    if (props.currentNodeName) {
-      addMessage('assistant', `你好！我是 AI 助手，可以帮助你处理「${props.currentNodeName}」相关的问题。有什么可以帮助你的吗？`)
+    const agent = sessionList.value.find(s => s.session_id === targetSessionId)?.agent
+    if (agent?.greeting) {
+      // 如果有开场白，根据格式类型渲染
+      const greetingHtml = renderGreeting(agent.greeting, agent.greeting_type)
+      addMessage('assistant', greetingHtml, undefined, agent.greeting_type === 'html', true)
     } else {
-      addMessage('assistant', '你好！我是 AI 助手，有什么可以帮助你的吗？')
+      // 如果没有开场白，使用默认欢迎消息
+      const agentName = agent?.name || 'AI 助手'
+      if (props.currentNodeName) {
+        addMessage('assistant', `你好！我是 ${agentName}，可以帮助你处理「${props.currentNodeName}」相关的问题。有什么可以帮助你的吗？`)
+      } else {
+        addMessage('assistant', `你好！我是 ${agentName}，有什么可以帮助你的吗？`)
+      }
     }
   }
 }
 
 // 从后端加载会话和消息
 async function loadSessionFromBackend() {
+  // 如果正在创建新会话，不加载旧会话
+  if (isCreatingNewSession.value) {
+    console.log('[AIChatPanel] 正在创建新会话，跳过加载旧会话')
+    return
+  }
+  
+  // 如果 sessionId 为空且消息列表不为空，说明正在创建新会话，不加载旧会话
+  if (!sessionId.value && messages.value.length > 0) {
+    console.log('[AIChatPanel] 检测到新会话状态，跳过加载旧会话')
+    return
+  }
+  
   if (!props.treeId) {
     // 如果没有 treeId，显示欢迎消息
     if (messages.value.length === 0) {
@@ -497,12 +567,25 @@ async function loadSessionFromBackend() {
   // 先加载会话列表
   await loadSessionList()
 
-  // 如果有会话列表，加载最新的会话
-  if (sessionList.value.length > 0) {
+  // 如果正在创建新会话，不加载旧会话
+  if (isCreatingNewSession.value) {
+    console.log('[AIChatPanel] 加载会话列表后检测到正在创建新会话，跳过加载旧会话')
+    return
+  }
+
+  // 如果有会话列表且 sessionId 为空，加载最新的会话
+  if (sessionList.value.length > 0 && !sessionId.value) {
     const latestSession = sessionList.value[0]
     sessionId.value = latestSession.session_id
-    await loadSessionMessages(latestSession.session_id)
-  } else {
+    loadingSession.value = true
+    pendingSessionId.value = latestSession.session_id
+    try {
+      await loadSessionMessages(latestSession.session_id)
+    } finally {
+      loadingSession.value = false
+      pendingSessionId.value = null
+    }
+  } else if (sessionList.value.length === 0) {
     // 如果没有会话，显示欢迎消息
     sessionId.value = ''
     messages.value = []
@@ -529,7 +612,10 @@ function handleNewSession() {
 
 // 处理智能体选择（从外部选择智能体时调用）
 function handleAgentSelect(agent: AgentInfo) {
-  console.log('[AIChatPanel] 选择智能体:', agent)
+  console.log('[AIChatPanel] 选择智能体，创建新会话:', agent)
+  
+  // 设置创建新会话标志，防止 watch 监听器加载旧会话
+  isCreatingNewSession.value = true
   
   // 设置选中的智能体
   selectedAgentId.value = agent.id
@@ -542,11 +628,18 @@ function handleAgentSelect(agent: AgentInfo) {
   // 刷新会话列表（确保显示最新的会话）
   loadSessionList()
   
-  // 显示欢迎消息
-  if (props.currentNodeName) {
-    addMessage('assistant', `你好！我是 ${agent.name}，可以帮助你处理「${props.currentNodeName}」相关的问题。有什么可以帮助你的吗？`)
+  // 显示欢迎消息（优先使用智能体的开场白）
+  if (agent.greeting) {
+    // 如果有开场白，根据格式类型渲染
+    const greetingHtml = renderGreeting(agent.greeting, agent.greeting_type)
+    addMessage('assistant', greetingHtml, undefined, agent.greeting_type === 'html')
   } else {
-    addMessage('assistant', `你好！我是 ${agent.name}，有什么可以帮助你的吗？`)
+    // 如果没有开场白，使用默认欢迎消息
+    if (props.currentNodeName) {
+      addMessage('assistant', `你好！我是 ${agent.name}，可以帮助你处理「${props.currentNodeName}」相关的问题。有什么可以帮助你的吗？`)
+    } else {
+      addMessage('assistant', `你好！我是 ${agent.name}，有什么可以帮助你的吗？`)
+    }
   }
   
   // 滚动到底部
@@ -554,79 +647,86 @@ function handleAgentSelect(agent: AgentInfo) {
     scrollToBottom()
   })
   
+  // 延迟清除创建新会话标志，确保不会被 loadSessionFromBackend 覆盖
+  setTimeout(() => {
+    isCreatingNewSession.value = false
+  }, 500)
+  
   ElMessage.success('已创建新会话，发送第一条消息后将自动保存')
 }
+
+// 是否正在手动切换会话（用于防止 watch 监听器触发）
+const isManualSwitching = ref(false)
+// 是否正在创建新会话（用于防止 watch 监听器加载旧会话）
+const isCreatingNewSession = ref(false)
 
 // 选择会话
 async function handleSelectSession(targetSessionId: string) {
   // 如果点击的是当前会话，直接返回（不重新加载）
   if (targetSessionId === sessionId.value && !loadingSession.value) {
-    console.log('[AIChatPanel] 已经是当前会话，无需切换')
     return
   }
   
-  // 清除之前的防抖定时器（如果有）
-  if (switchDebounceTimer) {
-    clearTimeout(switchDebounceTimer)
-    switchDebounceTimer = null
+  // 取消之前的请求（如果有）
+  if (currentAbortController) {
+    currentAbortController.abort()
+    currentAbortController = null
   }
   
-  console.log('[AIChatPanel] 切换会话:', targetSessionId, '当前会话:', sessionId.value)
+  // 设置手动切换标志，防止 watch 监听器触发
+  isManualSwitching.value = true
   
-  // 立即更新 UI 状态（不等待防抖）
   // 查找会话信息，设置对应的智能体
   const session = sessionList.value.find(s => s.session_id === targetSessionId)
   if (session && session.agent_id) {
     selectedAgentId.value = session.agent_id
   }
   
-  // 先设置会话ID（立即更新，确保UI状态正确）
+  // 立即更新会话ID和UI状态
   sessionId.value = targetSessionId
-  // 清空当前消息，准备加载新会话的消息
   messages.value = []
   uploadedFiles.value = []
   
-  // 使用防抖：如果用户在短时间内多次点击，只执行最后一次加载
-  // 但是 UI 状态（sessionId、messages）会立即更新，确保用户体验流畅
-  switchDebounceTimer = setTimeout(async () => {
-    const currentTargetSessionId = targetSessionId
-    switchDebounceTimer = null
-    
-    // 检查是否仍然是要加载的会话（防止在防抖期间被新的点击覆盖）
-    if (sessionId.value !== currentTargetSessionId) {
-      console.log('[AIChatPanel] 防抖期间会话已切换，放弃加载:', currentTargetSessionId)
+  // 创建新的 AbortController
+  const abortController = new AbortController()
+  currentAbortController = abortController
+  
+  // 设置加载状态
+  loadingSession.value = true
+  pendingSessionId.value = targetSessionId
+  
+  try {
+    // 加载会话消息
+    await loadSessionMessages(targetSessionId, abortController.signal)
+  } catch (error: any) {
+    // 如果请求被取消，不显示错误
+    if (abortController.signal.aborted) {
       return
     }
-    
-    // 设置加载状态和待加载的会话ID（防止并发请求）
-    loadingSession.value = true
-    pendingSessionId.value = currentTargetSessionId
-    
-    // 加载会话消息
-    try {
-      await loadSessionMessages(currentTargetSessionId)
-    } catch (error) {
-      console.error('[AIChatPanel] 加载会话消息失败:', currentTargetSessionId, error)
-      // 加载失败时，保持当前会话ID不变
-    } finally {
-      // 只有当前待加载的会话ID仍然是 currentTargetSessionId 时，才清除加载状态
-      // 这样可以防止旧的请求覆盖新的状态
-      if (pendingSessionId.value === currentTargetSessionId) {
-        loadingSession.value = false
-        pendingSessionId.value = null
-      }
+    console.error('[AIChatPanel] 加载会话消息失败:', error)
+  } finally {
+    // 只有当前请求没有被取消时，才清除加载状态
+    if (!abortController.signal.aborted && sessionId.value === targetSessionId) {
+      loadingSession.value = false
+      pendingSessionId.value = null
     }
-  }, 150) // 150ms 防抖，如果用户在 150ms 内多次点击，只执行最后一次加载
+    // 如果这是当前请求，清除引用
+    if (currentAbortController === abortController) {
+      currentAbortController = null
+    }
+    // 清除手动切换标志
+    isManualSwitching.value = false
+  }
 }
 
-// 智能体变化处理
-async function handleAgentChange() {
-  messages.value = []
-  sessionId.value = '' // 切换智能体时重置会话ID
-  uploadedFiles.value = []
-  // 从后端加载新智能体的会话记录
-  await loadSessionFromBackend()
-}
+// 智能体变化处理（已移除，智能体选择通过新建会话实现）
+// async function handleAgentChange() {
+//   messages.value = []
+//   sessionId.value = '' // 切换智能体时重置会话ID
+//   uploadedFiles.value = []
+//   // 从后端加载新智能体的会话记录
+//   await loadSessionFromBackend()
+// }
 
 // 初始化欢迎消息
 onMounted(async () => {
@@ -640,6 +740,16 @@ onMounted(async () => {
 watch(
   () => [props.treeId, props.package, props.currentNodeName, selectedAgentId.value],
   async ([newTreeId, newPackage, newNodeName, newAgentId], [oldTreeId, oldPackage, oldNodeName, oldAgentId]) => {
+    // 如果正在手动切换会话，不触发自动加载
+    if (isManualSwitching.value) {
+      return
+    }
+    
+    // 如果正在创建新会话，不触发自动加载（避免加载旧会话）
+    if (isCreatingNewSession.value) {
+      return
+    }
+    
     // 如果 treeId、package 或 agentId 变化，说明切换了目录或智能体
     if (newTreeId !== oldTreeId || newPackage !== oldPackage || newAgentId !== oldAgentId) {
       // 清空当前状态
@@ -661,17 +771,17 @@ watch(
   }
 )
 
-// 🔥 监听 agentId prop 变化，更新选中的智能体
-watch(
-  () => props.agentId,
-  (newAgentId) => {
-    if (newAgentId && newAgentId !== selectedAgentId.value) {
-      selectedAgentId.value = newAgentId
-      // 切换智能体时重置会话
-      handleAgentChange()
-    }
-  }
-)
+// 🔥 监听 agentId prop 变化，更新选中的智能体（已移除，智能体选择通过新建会话实现）
+// watch(
+//   () => props.agentId,
+//   (newAgentId) => {
+//     if (newAgentId && newAgentId !== selectedAgentId.value) {
+//       selectedAgentId.value = newAgentId
+//       // 切换智能体时重置会话
+//       handleAgentChange()
+//     }
+//   }
+// )
 
 // 监听消息变化，自动滚动到底部
 watch(
@@ -684,12 +794,15 @@ watch(
 )
 
 // 添加消息
-function addMessage(role: 'user' | 'assistant', content: string, files?: ChatFile[]) {
+function addMessage(role: 'user' | 'assistant', content: string, files?: ChatFile[], isHtml: boolean = false, isGreeting: boolean = false) {
   messages.value.push({
     role,
     content,
     files,
-    timestamp: Date.now()
+    timestamp: Date.now(),
+    isHtml,
+    isGreeting,
+    isExpanded: false // 开场白默认收起
   })
   // 注意：消息已由后端保存，不需要前端保存
 }
@@ -875,26 +988,92 @@ function formatMessage(content: string): string {
   }
 }
 
+// 根据格式类型渲染开场白
+function renderGreeting(greeting: string, greetingType?: string): string {
+  if (!greeting) return ''
+  
+  const type = greetingType || 'text'
+  
+  switch (type) {
+    case 'md':
+      try {
+        return marked.parse(greeting) as string
+      } catch (error) {
+        console.error('[AIChatPanel] Markdown 渲染失败:', error)
+        return greeting.replace(/\n/g, '<br>')
+      }
+    case 'html':
+      return greeting
+    case 'text':
+    default:
+      // 普通文本，转义 HTML 并保留换行
+      return greeting
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\n/g, '<br>')
+  }
+}
+
+// 获取智能体的开场白（如果有）
+function getAgentGreeting(agent: AgentInfo | null): string {
+  if (!agent || !agent.greeting) {
+    return ''
+  }
+  return renderGreeting(agent.greeting, agent.greeting_type)
+}
+
+// 判断开场白是否需要展开按钮（内容超过一定高度）
+function needsExpand(message: ChatMessage): boolean {
+  if (!message.isGreeting) return false
+  // 简单判断：如果内容长度超过 500 字符，或者包含多个段落，可能需要展开
+  return message.content.length > 500 || (message.content.match(/<p>|<\/p>|<div>|<\/div>/g)?.length || 0) > 3
+}
+
+// 切换开场白展开/收起状态
+function toggleGreetingExpand(index: number) {
+  if (messages.value[index]) {
+    messages.value[index].isExpanded = !messages.value[index].isExpanded
+  }
+}
+
 // 解析时间字符串（支持多种格式：DateTime、RFC3339等）
 function parseDateTime(timeStr: string): number {
   if (!timeStr) return Date.now()
   
   // 尝试解析多种格式
-  // 格式1: "2006-01-02 15:04:05" (time.DateTime)
+  // 格式1: "2006-01-02 15:04:05" (time.DateTime，本地时间格式)
   // 格式2: "2006-01-02T15:04:05Z" (RFC3339 UTC)
   // 格式3: "2006-01-02T15:04:05+08:00" (RFC3339 with timezone)
   
   let date: Date
   
-  // 如果包含 T 和 Z，是 RFC3339 格式
+  // 如果包含 T 和 Z 或时区信息，是 RFC3339 格式
   if (timeStr.includes('T') && (timeStr.includes('Z') || timeStr.match(/[+-]\d{2}:\d{2}$/))) {
     date = new Date(timeStr)
   } else if (timeStr.includes(' ')) {
-    // 如果是 "2006-01-02 15:04:05" 格式，需要转换为 ISO 格式
-    // 将空格替换为 T，并添加 Z（假设是 UTC，或者使用本地时区）
-    // 注意：如果后端返回的是本地时间，这里可能需要调整
-    const isoStr = timeStr.replace(' ', 'T') + 'Z'
-    date = new Date(isoStr)
+    // 如果是 "2006-01-02 15:04:05" 格式，后端返回的是本地时间（没有时区信息）
+    // 需要手动解析为本地时间，而不是当作 UTC 时间
+    // 格式：YYYY-MM-DD HH:mm:ss
+    const parts = timeStr.split(' ')
+    if (parts.length === 2) {
+      const datePart = parts[0]?.split('-') || []
+      const timePart = parts[1]?.split(':') || []
+      if (datePart.length === 3 && timePart.length >= 2) {
+        const year = parseInt(datePart[0] || '0', 10)
+        const month = parseInt(datePart[1] || '1', 10) - 1 // 月份从 0 开始
+        const day = parseInt(datePart[2] || '1', 10)
+        const hours = parseInt(timePart[0] || '0', 10)
+        const minutes = parseInt(timePart[1] || '0', 10)
+        const seconds = timePart.length > 2 ? parseInt(timePart[2] || '0', 10) : 0
+        // 使用本地时间创建 Date 对象
+        date = new Date(year, month, day, hours, minutes, seconds)
+      } else {
+        date = new Date(timeStr)
+      }
+    } else {
+      date = new Date(timeStr)
+    }
   } else {
     date = new Date(timeStr)
   }
@@ -945,37 +1124,46 @@ function formatTime(timestamp: number): string {
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
 }
 
-// 格式化会话时间
-function formatSessionTime(timeStr: string): string {
-  if (!timeStr) return '-'
-  
-  // 解析时间字符串（支持多种格式）
-  const timestamp = parseDateTime(timeStr)
-  const date = new Date(timestamp)
-  
-  // 检查日期是否有效
-  if (isNaN(date.getTime())) {
-    console.error('[formatSessionTime] 无效的时间字符串:', timeStr)
-    return '-'
+// 格式化相对时间（用于会话列表显示）
+function formatRelativeTime(timeStr: string | Date): string {
+  let date: Date
+  if (timeStr instanceof Date) {
+    date = timeStr
+  } else {
+    if (!timeStr) return '-'
+    const timestamp = parseDateTime(timeStr)
+    date = new Date(timestamp)
+    if (isNaN(date.getTime())) {
+      return '-'
+    }
   }
   
   const now = new Date()
   const diff = now.getTime() - date.getTime()
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+  const seconds = Math.floor(diff / 1000)
+  const minutes = Math.floor(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+  const days = Math.floor(hours / 24)
 
-  if (days === 0) {
-    // 今天：显示时间
-    return date.toLocaleTimeString('zh-CN', {
-      hour: '2-digit',
-      minute: '2-digit'
-    })
+  if (seconds < 60) {
+    return '刚刚'
+  } else if (minutes < 60) {
+    return `${minutes}分钟前`
+  } else if (hours < 24) {
+    return `${hours}小时前`
   } else if (days === 1) {
     return '昨天'
-  } else if (days < 7 && days > 0) {
+  } else if (days < 7) {
     return `${days}天前`
+  } else if (days < 30) {
+    const weeks = Math.floor(days / 7)
+    return `${weeks}周前`
+  } else if (days < 365) {
+    const months = Math.floor(days / 30)
+    return `${months}个月前`
   } else {
-    // 超过7天或负数（未来时间）：显示日期
     return date.toLocaleDateString('zh-CN', {
+      year: 'numeric',
       month: 'short',
       day: 'numeric'
     })
@@ -1004,206 +1192,216 @@ defineExpose({
 }
 
 .session-sidebar {
-  width: 240px;
+  width: 280px;
   border-right: 1px solid var(--el-border-color);
   display: flex;
   flex-direction: column;
-  background: var(--el-fill-color-lighter);
+  background: var(--el-bg-color-page);
 }
 
 .sidebar-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--el-border-color);
+  padding: 16px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  background: var(--el-bg-color);
 }
 
 .sidebar-header h4 {
   margin: 0;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
+  color: var(--el-text-color-primary);
 }
 
 .session-list {
   flex: 1;
   overflow-y: auto;
-  padding: 8px;
-}
-
-.session-item {
   padding: 12px;
-  margin-bottom: 8px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.session-item:hover {
+/* 会话卡片样式 */
+.session-card {
+  padding: 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-lighter);
+  position: relative;
+}
+
+.session-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  background: var(--el-color-primary);
+  transition: width 0.2s ease;
+  border-radius: 8px 0 0 8px;
+}
+
+.session-card:hover {
+  background: var(--el-fill-color-light);
+  border-color: var(--el-border-color);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.session-card.active {
+  background: var(--el-bg-color);
+  border-color: var(--el-color-primary-light-7);
+  box-shadow: none;
+}
+
+.session-card.active::before {
+  width: 0;
+}
+
+.session-card.loading {
+  opacity: 0.7;
+}
+
+.session-card.new-session-card {
+  border-style: solid;
+  border-width: 1px;
+  border-color: var(--el-color-primary-light-7);
+  background: var(--el-bg-color);
+}
+
+.session-card.new-session-card:hover {
+  border-color: var(--el-color-primary);
   background: var(--el-fill-color-light);
 }
 
-.session-item.active {
+.session-card.new-session-card .session-card-title {
+  color: var(--el-text-color-primary);
+  font-weight: 600;
+}
+
+.session-card.new-session-card .session-card-agent {
   background: var(--el-fill-color-lighter);
-  border-color: var(--el-color-primary);
-  border-left-width: 3px;
-  border-left-color: var(--el-color-primary);
-  
-  .session-title {
-    color: var(--el-text-color-primary);
-    font-weight: 600;
-  }
-  
-  .session-meta {
-    color: var(--el-text-color-regular);
-    
-    .session-agent-info {
-      background: var(--el-color-primary-light-8);
-      border-color: var(--el-color-primary-light-6);
-    }
-    
-    .session-agent-name {
-      color: var(--el-color-primary);
-      font-weight: 600;
-    }
-    
-    /* .session-time 已移除，使用 .session-times 替代 */
-  }
+  border: 1px solid var(--el-border-color-lighter);
 }
 
-.session-item.new-session-item {
-  background: var(--el-bg-color);
-  border-color: var(--el-color-primary);
-  border-style: dashed;
-  border-width: 2px;
-  
-  .session-title {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    color: var(--el-text-color-primary);
-    font-weight: 600;
-  }
-  
-  .session-meta {
-    /* .session-time 已移除，使用 .session-times 替代 */
-  }
+.session-card.new-session-card .agent-name {
+  color: var(--el-text-color-regular);
 }
 
-.session-header {
+.session-card.new-session-card .session-card-time {
+  color: var(--el-text-color-placeholder);
+}
+
+/* 会话卡片头部 */
+.session-card-header {
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 10px;
 }
 
-.session-agent-logo {
-  flex-shrink: 0;
-  border: 2px solid var(--el-border-color-lighter);
-  
-  .agent-logo-text {
-    font-size: 14px;
-    font-weight: bold;
-    color: white;
-  }
-}
-
-.session-content {
-  width: 100%;
+.session-card-title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
   min-width: 0;
 }
 
-.session-title {
+.session-card-title {
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--el-text-color-primary);
-  margin-bottom: 4px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
 }
 
-.session-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  margin-top: 4px;
-  width: 100%;
+.session-card.active .session-card-title {
+  color: var(--el-text-color-primary);
+  font-weight: 600;
 }
 
-.session-times {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  width: 100%;
+.new-icon {
+  color: var(--el-color-primary);
+  font-size: 16px;
 }
 
-.session-time-item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  line-height: 1.4;
+.loading-icon {
+  color: var(--el-color-primary);
+  animation: rotate 1s linear infinite;
 }
 
-.time-label {
-  color: var(--el-text-color-placeholder);
-  font-weight: 500;
-  flex-shrink: 0;
-}
-
-.time-value {
-  color: var(--el-text-color-secondary);
-  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
-  font-size: 11px;
-}
-
-.session-agent-info {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 6px;
-  background: var(--el-color-primary-light-9);
-  border-radius: 4px;
-  border: 1px solid var(--el-color-primary-light-7);
-  flex-shrink: 0;
-  margin-top: 4px;
-}
-
-.session-agent-mini-logo {
-  flex-shrink: 0;
-  border: 1px solid var(--el-border-color-lighter);
-  
-  .agent-logo-text-mini {
-    font-size: 10px;
-    font-weight: bold;
-    color: white;
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
   }
 }
 
-.session-agent-name {
-  color: var(--el-color-primary);
-  font-weight: 600;
-  white-space: nowrap;
-  font-size: 11px;
+/* 智能体信息 */
+.session-card-agent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 6px 8px;
+  background: var(--el-fill-color-lighter);
+  border-radius: 6px;
 }
 
-.session-time {
-  color: var(--el-text-color-secondary);
-  white-space: nowrap;
+.session-card.active .session-card-agent {
+  background: var(--el-fill-color-lighter);
+  border: none;
+}
+
+.agent-logo-text {
+  font-size: 12px;
+  font-weight: bold;
+  color: white;
+}
+
+.agent-name {
+  font-size: 12px;
   font-weight: 500;
-  align-self: flex-end;
-  flex-shrink: 0;
+  color: var(--el-text-color-regular);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.session-card.active .agent-name {
+  color: var(--el-text-color-regular);
+  font-weight: 500;
+}
+
+/* 时间显示 */
+.session-card-time {
+  font-size: 11px;
+  color: var(--el-text-color-placeholder);
+  margin-top: 4px;
+}
+
+.session-card.active .session-card-time {
+  color: var(--el-text-color-placeholder);
 }
 
 .empty-sessions {
-  padding: 20px;
-  text-align: center;
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
 }
 
 .chat-main {
@@ -1217,20 +1415,97 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px;
+  padding: 16px 20px;
   border-bottom: 1px solid var(--el-border-color);
+  background: var(--el-bg-color);
 }
 
-.chat-header h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
+.header-left {
+  flex: 1;
+  min-width: 0;
 }
 
-.header-actions {
+.header-center {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.header-agent-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: var(--el-fill-color-lighter);
+  border-radius: 20px;
+  border: 1px solid var(--el-border-color-lighter);
+}
+
+.header-agent-avatar {
+  flex-shrink: 0;
+  border: 2px solid var(--el-color-primary-light-7);
+}
+
+.header-agent-logo-text {
+  font-size: 14px;
+  font-weight: bold;
+  color: white;
+}
+
+.header-agent-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-left: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.header-agent-name-row {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.header-agent-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  line-height: 1.4;
+}
+
+.header-agent-description {
+  font-size: 12px;
+  color: var(--el-text-color-regular);
+  line-height: 1.5;
+  margin-top: 2px;
+  /* 限制最多显示2行，超出部分用省略号 */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 500px;
+}
+
+.header-agent-tag {
+  flex-shrink: 0;
+}
+
+.header-agent-name-placeholder {
+  font-size: 14px;
+  color: var(--el-text-color-placeholder);
+  font-style: italic;
+}
+
+.header-right {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
 }
 
 .close-button {
@@ -1277,6 +1552,7 @@ defineExpose({
   background: var(--el-fill-color-light);
   word-wrap: break-word;
   line-height: 1.5;
+  max-width: 100%;
 }
 
 .message-item.user .message-text {
@@ -1422,6 +1698,39 @@ defineExpose({
   height: auto;
   border-radius: 4px;
   margin: 8px 0;
+}
+
+/* 开场白样式 */
+.message-text.is-greeting {
+  max-width: 600px; /* 限制开场白宽度 */
+}
+
+.message-text.is-greeting.is-collapsed {
+  max-height: 200px; /* 默认最大高度 */
+  overflow: hidden;
+  position: relative;
+}
+
+/* 如果开场白内容很短，不需要限制高度 */
+.message-text.is-greeting:not(.needs-expand).is-collapsed {
+  max-height: none;
+  overflow: visible;
+}
+
+.message-text.is-greeting.is-collapsed::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: linear-gradient(to bottom, transparent, var(--el-fill-color-light));
+  pointer-events: none;
+}
+
+.greeting-expand {
+  margin-top: 8px;
+  text-align: center;
 }
 
 .message-files {

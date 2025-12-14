@@ -333,7 +333,7 @@
         
         <div class="fields-grid">
           <div 
-            v-for="field in visibleFields.filter(f => f.widget?.type !== 'link')"
+            v-for="field in visibleFields.filter((f: FieldConfig) => f.widget?.type !== 'link')"
             :key="field.code"
             class="field-row"
           >
@@ -364,6 +364,13 @@
             </div>
           </div>
         </div>
+
+        <!-- 操作日志区域 -->
+        <OperateLogSection
+          :full-code-path="getFullCodePath"
+          :row-id="getCurrentRowId"
+          :function-detail="props.functionData"
+        />
       </div>
 
       <!-- 🔥 编辑模式：使用 FormRenderer -->
@@ -421,11 +428,13 @@ import { useUserInfoStore } from '@/stores/userInfo'
 import { collectAllUsernames, collectFilesUploadUsersFromRow } from '@/utils/tableUserInfo'
 import { getSortableConfig } from '@/utils/fieldSort'
 import { useRouter } from 'vue-router'
+import { TABLE_PARAM_KEYS, SEARCH_PARAM_KEYS } from '@/utils/urlParams'
 import FormDialog from './FormDialog.vue'
 import { renderTableCell } from '@/core/utils/tableCellRenderer'
 import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
 import SearchInput from './SearchInput.vue'
 import LinkWidget from '@/core/widgets-v2/components/LinkWidget.vue'
+import OperateLogSection from './OperateLogSection.vue'
 import type { Function as FunctionType, ServiceTree } from '@/types'
 import type { FieldConfig, FieldValue, FunctionDetail } from '@/core/types/field'
 
@@ -510,7 +519,7 @@ const getLinkText = (linkField: FieldConfig, rawValue: any): string => {
  * 当链接数量超过 2 个时，多余的链接通过下拉菜单触发
  */
 const handleLinkClick = (fieldCode: string, row: any) => {
-  const linkField = linkFields.value.find(f => f.code === fieldCode)
+  const linkField = linkFields.value.find((f: FieldConfig) => f.code === fieldCode)
   if (!linkField) return
   
   // 获取链接值
@@ -563,7 +572,7 @@ const getFirstSortConfig = () => {
   const firstSort = sorts.value[0]
   return {
     prop: firstSort.field,
-    order: (firstSort.order === 'asc' ? 'ascending' : 'descending') as const
+    order: (firstSort.order === 'asc' ? 'ascending' : 'descending') as 'ascending' | 'descending'
   }
 }
 
@@ -585,7 +594,7 @@ const handleSortChange = async (sortInfo: { prop?: string; order?: string }) => 
  */
 const sortOrderMap = computed<Record<string, 'ascending' | 'descending' | null>>(() => {
   const map: Record<string, 'ascending' | 'descending' | null> = {}
-  sorts.value.forEach(sort => {
+  sorts.value.forEach((sort: { field: string; order: 'asc' | 'desc' }) => {
     map[sort.field] = sort.order === 'asc' ? 'ascending' : 'descending'
   })
   return map
@@ -627,7 +636,7 @@ const displaySorts = computed(() => {
  * @returns 字段名称
  */
 const getFieldName = (fieldCode: string): string => {
-  const field = visibleFields.value.find(f => f.code === fieldCode)
+  const field = visibleFields.value.find((f: FieldConfig) => f.code === fieldCode)
   return field?.name || fieldCode
 }
 
@@ -667,6 +676,37 @@ const detailMode = ref<'view' | 'edit'>('view')
 
 /** 详情编辑模式的 FormRenderer 引用 */
 const detailFormRendererRef = ref<InstanceType<typeof FormRenderer>>()
+
+// ==================== 操作日志相关 ====================
+
+/**
+ * 获取 full_code_path
+ * 优先使用 currentFunction.full_code_path，否则从 functionData.router 构建
+ */
+const getFullCodePath = computed(() => {
+  if (props.currentFunction?.full_code_path) {
+    return props.currentFunction.full_code_path
+  }
+  if (props.functionData?.full_code_path) {
+    return props.functionData.full_code_path
+  }
+  // 从 router 构建：/user/app/router -> /user/app/router
+  if (props.functionData?.router) {
+    return props.functionData.router
+  }
+  return ''
+})
+
+/**
+ * 获取当前行的 row_id
+ */
+const getCurrentRowId = computed(() => {
+  if (!currentDetailRow.value || !idField.value) {
+    return 0
+  }
+  const rowId = currentDetailRow.value[idField.value.code]
+  return rowId ? Number(rowId) : 0
+})
 
 /** 详情编辑提交状态 */
 const detailSubmitting = ref(false)
@@ -946,7 +986,7 @@ const renderDetailField = (field: FieldConfig, rawValue: any): any => {
     // 传递 mode="detail" 让组件自己决定如何渲染详情
     // 传递 userInfoMap 用于批量查询优化
     // 传递 functionName 和 recordId 用于 FilesWidget 打包下载命名
-    const idField = visibleFields.value.find(f => {
+    const idField = visibleFields.value.find((f: FieldConfig) => {
       const code = f.code.toLowerCase()
       return code === 'id' || code === 'ID' || code.endsWith('_id') || code.endsWith('Id')
     })
@@ -1104,6 +1144,7 @@ const handleShowDetail = async (row: any, index: number): Promise<void> => {
       }
     }
   }
+
   
   // 🔥 更新 URL，添加 _detail_id 和 _detail_function_id 参数（用于分享和刷新后恢复状态）
   // 只有在 URL 中没有相同的 _detail_id 时才更新，避免循环触发
@@ -1113,32 +1154,17 @@ const handleShowDetail = async (row: any, index: number): Promise<void> => {
     const currentFunctionId = props.functionData.id
     const currentDetailFunctionId = String(router.currentRoute.value.query._detail_function_id || '')
     
-    Logger.debug('TableRenderer', '[handleShowDetail] 更新 URL', { 
-      detailId, 
-      currentDetailId, 
-      currentDetailFunctionId,
-      isRestoringDetail,
-      functionDataId: currentFunctionId,
-      currentFunctionDataId
-    })
-    
     // 🔥 关键：只有在不是恢复过程中，且 URL 中没有相同的 _detail_id 时才更新
     if (currentDetailId !== detailId && !isRestoringDetail) {
       // 🔥 更新当前表格的 ID，确保 _detail_id 属于当前表格
       if (currentFunctionDataId !== currentFunctionId) {
-        Logger.debug('TableRenderer', `[handleShowDetail] 更新 currentFunctionDataId: ${currentFunctionDataId} -> ${currentFunctionId}`)
         currentFunctionDataId = currentFunctionId
       }
       
       const query = { ...router.currentRoute.value.query }
       query._detail_id = detailId
       query._detail_function_id = String(currentFunctionId)  // 🔥 同时存储 functionDataId
-      Logger.debug('TableRenderer', `[handleShowDetail] 添加 _detail_id 和 _detail_function_id 到 URL: ${detailId}, ${currentFunctionId}`)
       router.replace({ query })
-    } else {
-      Logger.debug('TableRenderer', '[handleShowDetail] 跳过更新 URL', { 
-        reason: currentDetailId === detailId ? 'URL 中已有相同的 _detail_id' : '正在恢复中'
-      })
     }
   }
 }
@@ -1442,15 +1468,14 @@ watch(() => props.functionData, () => {
   
   // 清理 URL 中不属于当前函数的参数
   const query = router.currentRoute.value.query
-  const searchParamKeys = ['eq', 'like', 'in', 'contains', 'gte', 'lte']
   const newQuery: Record<string, string> = {}
   
   // 只保留属于当前函数的参数和通用参数（page, page_size, sorts）
   Object.keys(query).forEach(key => {
-    if (key === 'page' || key === 'page_size' || key === 'sorts') {
+    if (TABLE_PARAM_KEYS.includes(key as any)) {
       // 保留分页和排序参数
       newQuery[key] = String(query[key])
-    } else if (searchParamKeys.includes(key)) {
+    } else if (SEARCH_PARAM_KEYS.includes(key as any)) {
       // 对于搜索参数（eq, like, in 等），需要解析并过滤字段
       const value = String(query[key])
       const parts = value.split(',')
@@ -1537,11 +1562,9 @@ let currentFunctionDataId: number | null = null
 const handleDetailDrawerClose = (): void => {
   // 防止重复调用
   if (isClosingDetail) {
-    Logger.debug('TableRenderer', '[handleDetailDrawerClose] 正在关闭中，跳过')
     return
   }
   isClosingDetail = true
-  Logger.debug('TableRenderer', '[handleDetailDrawerClose] 开始关闭详情抽屉')
   
   // 清空详情数据
   currentDetailRow.value = null
@@ -1552,12 +1575,10 @@ const handleDetailDrawerClose = (): void => {
   const query = { ...router.currentRoute.value.query }
   let hasChanges = false
   if (query._detail_id) {
-    Logger.debug('TableRenderer', `[handleDetailDrawerClose] 清理 URL 中的 _detail_id: ${query._detail_id}`)
     delete query._detail_id
     hasChanges = true
   }
   if (query._detail_function_id) {
-    Logger.debug('TableRenderer', `[handleDetailDrawerClose] 清理 URL 中的 _detail_function_id: ${query._detail_function_id}`)
     delete query._detail_function_id
     hasChanges = true
   }
@@ -1565,17 +1586,15 @@ const handleDetailDrawerClose = (): void => {
   if (hasChanges) {
     router.replace({ query }).finally(() => {
       isClosingDetail = false
-      Logger.debug('TableRenderer', '[handleDetailDrawerClose] 关闭完成')
     })
   } else {
     isClosingDetail = false
-    Logger.debug('TableRenderer', '[handleDetailDrawerClose] URL 中没有 _detail_id，直接完成')
   }
 }
 
 // 🔥 监听 showDetailDrawer 变化，确保关闭时清理状态
 // 这样可以处理点击外侧关闭、ESC 键关闭等情况
-watch(showDetailDrawer, (newValue, oldValue) => {
+watch(showDetailDrawer, (newValue: boolean, oldValue: boolean) => {
   // 当抽屉从打开变为关闭时，清理状态
   if (oldValue === true && newValue === false && !isClosingDetail) {
     handleDetailDrawerClose()
@@ -1589,7 +1608,6 @@ watch(showDetailDrawer, (newValue, oldValue) => {
 const restoreDetailFromURL = async (): Promise<void> => {
   // 防止循环调用
   if (isRestoringDetail || isClosingDetail) {
-    Logger.debug('TableRenderer', '[restoreDetailFromURL] 正在恢复中或关闭中，跳过', { isRestoringDetail, isClosingDetail })
     return
   }
   
@@ -1597,16 +1615,7 @@ const restoreDetailFromURL = async (): Promise<void> => {
   const detailId = query._detail_id
   const detailFunctionId = query._detail_function_id  // 🔥 获取 _detail_id 对应的 functionDataId
   
-  Logger.debug('TableRenderer', '[restoreDetailFromURL] 开始恢复', { 
-    detailId, 
-    detailFunctionId,
-    currentFunctionDataId, 
-    functionDataId: props.functionData.id,
-    hasIdField: !!idField.value 
-  })
-  
   if (!detailId || !idField.value) {
-    Logger.debug('TableRenderer', '[restoreDetailFromURL] 没有 detailId 或 idField，跳过')
     return
   }
   
@@ -1615,7 +1624,6 @@ const restoreDetailFromURL = async (): Promise<void> => {
   
   // 🔥 如果 URL 中有 _detail_function_id，且与当前 functionData.id 不匹配，说明这个 _detail_id 不属于当前表格
   if (detailFunctionId && String(detailFunctionId) !== String(currentFunctionId)) {
-    Logger.debug('TableRenderer', `[restoreDetailFromURL] _detail_function_id 不匹配（${detailFunctionId} != ${currentFunctionId}），跳过恢复旧的 _detail_id`)
     // 清理不属于当前表格的 _detail_id
     const queryToClean = { ...router.currentRoute.value.query }
     if (queryToClean._detail_id) {
@@ -1631,7 +1639,6 @@ const restoreDetailFromURL = async (): Promise<void> => {
   // 🔥 如果 currentFunctionDataId 与当前 functionData.id 不匹配，说明切换了表格
   // 此时旧的 _detail_id 不应该恢复，应该清理
   if (currentFunctionDataId !== null && currentFunctionDataId !== currentFunctionId) {
-    Logger.debug('TableRenderer', `[restoreDetailFromURL] functionData.id 不匹配（currentFunctionDataId: ${currentFunctionDataId}, functionDataId: ${currentFunctionId}），跳过恢复旧的 _detail_id`)
     // 更新 currentFunctionDataId 为新的表格 ID
     currentFunctionDataId = currentFunctionId
     // 清理不属于当前表格的 _detail_id
@@ -1648,7 +1655,6 @@ const restoreDetailFromURL = async (): Promise<void> => {
   
   // 🔥 更新 currentFunctionDataId（如果还是 null，说明是首次加载）
   if (currentFunctionDataId === null) {
-    Logger.debug('TableRenderer', `[restoreDetailFromURL] 首次加载，设置 currentFunctionDataId: ${currentFunctionId}`)
     currentFunctionDataId = currentFunctionId
   }
   
@@ -1656,14 +1662,12 @@ const restoreDetailFromURL = async (): Promise<void> => {
   if (showDetailDrawer.value && currentDetailRow.value) {
     const currentId = currentDetailRow.value[idField.value.code]
     if (String(currentId) === String(detailId)) {
-      Logger.debug('TableRenderer', `[restoreDetailFromURL] 详情已打开且是同一记录（ID: ${detailId}），跳过`)
       return
     }
   }
   
   // 等待表格数据加载完成
   if (!tableData.value || tableData.value.length === 0) {
-    Logger.debug('TableRenderer', '[restoreDetailFromURL] 表格数据未加载，跳过')
     return
   }
   
@@ -1677,17 +1681,14 @@ const restoreDetailFromURL = async (): Promise<void> => {
       return String(rowId) === detailIdStr
     })
     
-    Logger.debug('TableRenderer', `[restoreDetailFromURL] 查找记录`, { detailIdStr, rowIndex })
-    
     if (rowIndex >= 0) {
       const row = tableData.value[rowIndex]
       const rowId = row[idField.value!.code]
-      Logger.debug('TableRenderer', `[restoreDetailFromURL] 找到记录，打开详情`, { rowIndex, rowId })
       
       // 🔥 关键：验证找到的记录 ID 是否真的匹配
       // 如果 rowId 与 detailId 不匹配，说明这个 _detail_id 不属于当前表格，应该清理
       if (String(rowId) !== detailIdStr) {
-        Logger.warn('TableRenderer', `[restoreDetailFromURL] 找到的记录 ID 不匹配（期望: ${detailIdStr}, 实际: ${rowId}），清理 _detail_id`)
+        Logger.warn('TableRenderer', `找到的记录 ID 不匹配（期望: ${detailIdStr}, 实际: ${rowId}），清理 _detail_id`)
         // 清理不属于当前表格的 _detail_id
         const queryToClean = { ...router.currentRoute.value.query }
         if (queryToClean._detail_id) {
@@ -1720,7 +1721,6 @@ const restoreDetailFromURL = async (): Promise<void> => {
       const queryToClean = { ...router.currentRoute.value.query }
       let hasChanges = false
       if (queryToClean._detail_id) {
-        Logger.debug('TableRenderer', `[restoreDetailFromURL] 清理找不到记录的 _detail_id: ${queryToClean._detail_id}`)
         delete queryToClean._detail_id
         hasChanges = true
       }
@@ -1734,28 +1734,17 @@ const restoreDetailFromURL = async (): Promise<void> => {
     }
   } finally {
     isRestoringDetail = false
-    Logger.debug('TableRenderer', '[restoreDetailFromURL] 恢复完成')
   }
 }
 
 // 🔥 监听 functionData 变化，切换表格时清空详情状态
-watch(() => props.functionData, (newFunctionData, oldFunctionData) => {
+watch(() => props.functionData, (newFunctionData: FunctionType, oldFunctionData?: FunctionType) => {
   const oldId = oldFunctionData?.id
   const newId = newFunctionData?.id
-  
-  Logger.debug('TableRenderer', '[watch functionData] 表格切换', { 
-    oldId, 
-    newId, 
-    oldRouter: oldFunctionData?.router,
-    newRouter: newFunctionData?.router,
-    currentFunctionDataId
-  })
   
   // 🔥 关键：如果表格 ID 真的变化了，才清理状态
   // 如果 oldId 和 newId 相同，说明是同一个表格重新渲染，不需要清理
   if (oldId !== undefined && newId !== undefined && oldId !== newId) {
-    Logger.debug('TableRenderer', `[watch functionData] 表格 ID 变化（${oldId} -> ${newId}），清理详情状态`)
-    
     // 更新当前表格的 ID（立即更新，确保后续检查正确）
     currentFunctionDataId = newId || null
     
@@ -1769,12 +1758,10 @@ watch(() => props.functionData, (newFunctionData, oldFunctionData) => {
     const query = { ...router.currentRoute.value.query }
     let hasChanges = false
     if (query._detail_id) {
-      Logger.debug('TableRenderer', `[watch functionData] 清理旧的 _detail_id: ${query._detail_id}`)
       delete query._detail_id
       hasChanges = true
     }
     if (query._detail_function_id) {
-      Logger.debug('TableRenderer', `[watch functionData] 清理旧的 _detail_function_id: ${query._detail_function_id}`)
       delete query._detail_function_id
       hasChanges = true
     }
@@ -1784,7 +1771,6 @@ watch(() => props.functionData, (newFunctionData, oldFunctionData) => {
   } else {
     // 如果是首次加载或同一个表格，只更新 currentFunctionDataId（如果还是 null 或需要更新）
     if (newId !== undefined && (currentFunctionDataId === null || currentFunctionDataId !== newId)) {
-      Logger.debug('TableRenderer', `[watch functionData] 更新 currentFunctionDataId: ${currentFunctionDataId} -> ${newId}`)
       currentFunctionDataId = newId
     }
   }
@@ -1807,10 +1793,6 @@ onMounted(() => {
   
   // 🔥 初始化当前表格的 ID
   currentFunctionDataId = props.functionData.id || null
-  Logger.debug('TableRenderer', '[onMounted] 初始化', { 
-    functionDataId: props.functionData.id,
-    currentFunctionDataId 
-  })
   
   // 🔥 从 URL 恢复详情状态（延迟执行，确保表格数据已加载）
   nextTick(() => {
