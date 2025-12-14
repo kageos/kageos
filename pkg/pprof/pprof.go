@@ -10,8 +10,15 @@ import (
 // RegisterPprofRoutes 为 gin 引擎注册 pprof 路由
 // 仅在开发环境或配置启用时使用
 func RegisterPprofRoutes(router *gin.Engine) {
+	RegisterPprofRoutesWithPrefix(router, "/debug/pprof")
+}
+
+// RegisterPprofRoutesWithPrefix 为 gin 引擎注册 pprof 路由（带前缀）
+// serviceName: 服务名称，用于区分不同服务的 pprof 端点
+// 例如：RegisterPprofRoutesWithPrefix(router, "/debug/pprof/app-server")
+func RegisterPprofRoutesWithPrefix(router *gin.Engine, prefix string) {
 	// 创建 pprof 路由组
-	pprofGroup := router.Group("/debug/pprof")
+	pprofGroup := router.Group(prefix)
 	{
 		// 主页面：显示所有可用的 profile
 		pprofGroup.GET("/", gin.WrapH(http.HandlerFunc(pprof.Index)))

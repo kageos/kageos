@@ -8,7 +8,7 @@
 
 ### 1. 启动服务
 
-使用统一入口启动所有服务：
+使用统一入口启动所有服务（推荐，所有服务在同一个进程）：
 
 ```bash
 go run core/cmd/main/main.go
@@ -22,10 +22,23 @@ go run core/app-server/cmd/app/main.go
 
 ### 2. 访问 pprof 端点
 
+**重要**：由于多个微服务都编译到同一个进程里，pprof 数据是**全局共享**的。但每个服务都有自己的 HTTP 服务器和端口，可以通过不同端口访问 pprof。
+
 服务启动后，可以通过以下 URL 访问 pprof：
 
-- **app-server**: `http://localhost:9090/debug/pprof/`
-- **api-gateway**: `http://localhost:5173/debug/pprof/`
+| 服务 | 端口 | pprof URL |
+|------|------|-----------|
+| **api-gateway** | 5173 | `http://localhost:5173/debug/pprof/` |
+| **app-server** | 9090 | `http://localhost:9090/debug/pprof/` |
+| **agent-server** | 9092 | `http://localhost:9092/debug/pprof/` |
+| **app-storage** | 9093 | `http://localhost:9093/debug/pprof/` |
+| **control-service** | 9094 | `http://localhost:9094/debug/pprof/` |
+| **app-runtime** | 无 HTTP 服务器 | 通过 app-server 的 pprof 查看 |
+
+**注意**：
+- 虽然可以通过不同端口访问，但 pprof 数据是**全局共享**的（因为都在同一个进程）
+- 所有服务的性能数据都会包含在同一个 profile 中
+- 可以通过函数名和调用栈来区分不同服务的代码
 
 ## 📊 可用的 Profile 类型
 
@@ -158,9 +171,9 @@ go tool trace trace.out
 
 ## 🔍 实际使用场景
 
-### 场景 1：分析压力测试期间的性能瓶颈
+### 场景 1：分析压力测试期间的性能瓶颈（多服务场景）
 
-1. **启动服务**：
+1. **启动服务**（统一入口，所有服务在同一个进程）：
    ```bash
    go run core/cmd/main/main.go
    ```
@@ -173,14 +186,32 @@ go tool trace trace.out
 
 3. **采集 CPU profile**（在压力测试期间）：
    ```bash
+   # 可以通过任意服务的端口访问（数据是全局共享的）
+   # 推荐使用 api-gateway（因为压力测试会经过它）
    go tool pprof http://localhost:5173/debug/pprof/profile?seconds=30
+   
+   # 或者使用 app-server（因为它是核心服务）
+   go tool pprof http://localhost:9090/debug/pprof/profile?seconds=30
    ```
 
-4. **分析结果**：
+4. **分析结果**（区分不同服务的代码）：
    ```
    (pprof) top10
-   (pprof) list <函数名>
-   (pprof) web
+   # 查看占用 CPU 最多的函数，可以通过函数名和包路径区分服务：
+   # - core/api-gateway/...  -> api-gateway 服务
+   # - core/app-server/...    -> app-server 服务
+   # - core/app-runtime/...    -> app-runtime 服务（没有 HTTP 服务器，但会被调用）
+   # - core/agent-server/...  -> agent-server 服务
+   
+   (pprof) list <函数名>  # 查看具体代码
+   (pprof) web           # 生成调用图
+   ```
+
+5. **过滤特定服务的性能数据**：
+   ```
+   # 在 pprof 交互式界面中，可以使用正则表达式过滤
+   (pprof) top -cum | grep "core/app-server"
+   (pprof) top -cum | grep "core/app-runtime"
    ```
 
 ### 场景 2：分析内存泄漏
@@ -226,12 +257,33 @@ go tool trace trace.out
 | `top` | 显示占用资源最多的函数 |
 | `top10` | 显示前 10 个 |
 | `top -cum` | 按累计值排序 |
+| `top -cum \| grep "core/app-server"` | 只显示 app-server 相关的函数 |
 | `list <函数名>` | 查看函数的具体代码和资源占用 |
 | `web` | 生成调用图（需要 graphviz） |
 | `svg` | 生成 SVG 格式的调用图 |
 | `png` | 生成 PNG 格式的调用图 |
 | `help` | 显示帮助信息 |
 | `exit` 或 `quit` | 退出 |
+
+### 多服务场景下的过滤技巧
+
+由于所有服务在同一个进程，可以使用以下方法区分不同服务的性能数据：
+
+```bash
+# 1. 使用 grep 过滤特定服务的函数
+go tool pprof http://localhost:5173/debug/pprof/heap
+(pprof) top -cum | grep "core/app-server"
+(pprof) top -cum | grep "core/app-runtime"
+(pprof) top -cum | grep "core/api-gateway"
+
+# 2. 使用 focus 命令聚焦特定包
+(pprof) focus core/app-server
+(pprof) top10
+
+# 3. 使用 ignore 命令忽略特定包
+(pprof) ignore core/api-gateway
+(pprof) top10
+```
 
 ### 命令行参数
 

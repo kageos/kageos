@@ -2,8 +2,8 @@ package server
 
 import (
 	v1 "github.com/ai-agent-os/ai-agent-os/core/app-server/api/v1"
-	"github.com/ai-agent-os/ai-agent-os/pkg/pprof"
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
+	"github.com/ai-agent-os/ai-agent-os/pkg/pprof"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )

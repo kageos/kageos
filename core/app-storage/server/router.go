@@ -2,6 +2,7 @@ package server
 
 import (
 	v1 "github.com/ai-agent-os/ai-agent-os/core/app-storage/api/v1"
+	"github.com/ai-agent-os/ai-agent-os/pkg/pprof"
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -11,6 +12,9 @@ import (
 func (s *Server) setupRoutes() {
 	// 健康检查
 	s.httpServer.GET("/health", s.healthHandler)
+
+	// 注册 pprof 路由（性能分析）
+	pprof.RegisterPprofRoutes(s.httpServer)
 
 	// Swagger 文档路由
 	s.httpServer.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
