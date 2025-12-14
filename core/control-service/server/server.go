@@ -11,6 +11,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/pkg/msgx"
+	"github.com/ai-agent-os/ai-agent-os/pkg/pprof"
 	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
 	"github.com/gin-gonic/gin"
 	"github.com/nats-io/nats.go"
@@ -144,6 +145,9 @@ func (s *Server) initRouter(ctx context.Context) error {
 	s.httpServer = gin.New()
 	s.httpServer.Use(gin.Recovery())
 	s.httpServer.Use(gin.Logger())
+
+	// 注册 pprof 路由（性能分析）
+	pprof.RegisterPprofRoutes(s.httpServer)
 
 	// 注册 API 路由
 	api := s.httpServer.Group("/api/v1")
