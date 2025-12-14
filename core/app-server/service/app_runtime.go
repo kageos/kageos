@@ -174,8 +174,15 @@ func (a *AppRuntime) initSubscriptions() {
 	}
 }
 
-// HandleApp2FunctionServerResponse 处理应用返回的响应
+// HandleApp2FunctionServerResponse 异步处理应用返回的响应
 func (a *AppRuntime) HandleApp2FunctionServerResponse(msg *nats.Msg) {
+	// ✅ 立即启动 goroutine 处理，避免阻塞 NATS 订阅
+	// 虽然处理很快，但高并发时同步处理可能成为瓶颈
+	go a.handleApp2FunctionServerResponseSync(msg)
+}
+
+// handleApp2FunctionServerResponseSync 同步处理应用返回的响应（实际处理逻辑）
+func (a *AppRuntime) handleApp2FunctionServerResponseSync(msg *nats.Msg) {
 	// 解析响应
 	var resp dto.RequestAppResp
 	if err := json.Unmarshal(msg.Data, &resp); err != nil {
