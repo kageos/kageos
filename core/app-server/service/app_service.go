@@ -234,27 +234,28 @@ func (a *AppService) RecordTableOperateLog(ctx context.Context, req *dto.RecordT
 
 	// 根据操作类型处理不同的记录逻辑
 	switch req.Action {
-	case "OnTableAddRow":
-		// 新增操作：记录 body（新增的数据）
-		log := &model.TableOperateLog{
-			TenantUser:  req.TenantUser,
-			RequestUser: req.RequestUser,
-			Action:      req.Action,
-			IPAddress:   req.IPAddress,
-			UserAgent:   req.UserAgent,
-			App:         req.App,
-			FullCodePath: fullCodePath,
-			RowID:       0, // 新增时还没有 row_id
-			Updates:     req.Body, // 新增的数据作为 updates
-			OldValues:   nil,      // 新增时没有旧值
-			TraceID:     req.TraceID,
-			Version:     app.Version,
-		}
-		go func() {
-			if err := a.operateLogRepo.CreateTableOperateLog(log); err != nil {
-				logger.Warnf(ctx, "[RecordTableOperateLog] 记录 Table 新增操作日志失败: %v", err)
-			}
-		}()
+	// case "OnTableAddRow":
+	// 	// 新增操作：记录 body（新增的数据）
+	// 	// ⚠️ 已注释：OnTableAddRow 不记录操作日志（主要是新增记录，不需要记录）
+	// 	log := &model.TableOperateLog{
+	// 		TenantUser:  req.TenantUser,
+	// 		RequestUser: req.RequestUser,
+	// 		Action:      req.Action,
+	// 		IPAddress:   req.IPAddress,
+	// 		UserAgent:   req.UserAgent,
+	// 		App:         req.App,
+	// 		FullCodePath: fullCodePath,
+	// 		RowID:       0, // 新增时还没有 row_id
+	// 		Updates:     req.Body, // 新增的数据作为 updates
+	// 		OldValues:   nil,      // 新增时没有旧值
+	// 		TraceID:     req.TraceID,
+	// 		Version:     app.Version,
+	// 	}
+	// 	go func() {
+	// 		if err := a.operateLogRepo.CreateTableOperateLog(log); err != nil {
+	// 			logger.Warnf(ctx, "[RecordTableOperateLog] 记录 Table 新增操作日志失败: %v", err)
+	// 		}
+	// 	}()
 
 	case "OnTableUpdateRow":
 		// 更新操作：记录 updates 和 old_values

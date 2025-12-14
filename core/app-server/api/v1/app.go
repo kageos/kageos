@@ -275,7 +275,8 @@ func (a *App) CallbackApp(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 
 	// 如果是 Table 回调，记录 Table 操作日志
-	if callbackType == "OnTableAddRow" || callbackType == "OnTableUpdateRow" || callbackType == "OnTableDeleteRows" {
+	// ⚠️ 注意：OnTableAddRow 不记录操作日志（主要是新增记录，不需要记录）
+	if callbackType == "OnTableUpdateRow" || callbackType == "OnTableDeleteRows" {
 		var bodyData map[string]interface{}
 		if err := json.Unmarshal(all, &bodyData); err == nil {
 			logReq := &dto.RecordTableOperateLogReq{
@@ -290,9 +291,10 @@ func (a *App) CallbackApp(c *gin.Context) {
 			}
 
 			switch callbackType {
-			case "OnTableAddRow":
-				// 新增操作：记录 body
-				logReq.Body = all
+			// case "OnTableAddRow":
+			// 	// 新增操作：记录 body
+			// 	// ⚠️ 已注释：OnTableAddRow 不记录操作日志（主要是新增记录，不需要记录）
+			// 	logReq.Body = all
 
 			case "OnTableUpdateRow":
 				// 更新操作：优先从查询参数获取 _row_id，如果没有则从 body 中获取 id
