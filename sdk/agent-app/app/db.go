@@ -140,8 +140,19 @@ func getOrInitDB(dbName string) (*gorm.DB, error) {
 		return nil, err
 	}
 
-	// 设置SQLite优化参数（恢复 WAL 模式以提升并发读写性能）
-	db.Exec("PRAGMA journal_mode=WAL;PRAGMA temp_store=MEMORY;PRAGMA synchronous=NORMAL;")
+	// 设置SQLite优化参数（提升并发读写性能）
+	// WAL 模式：提升并发读写性能
+	db.Exec("PRAGMA journal_mode=WAL;")
+	// 临时存储到内存：提升性能
+	db.Exec("PRAGMA temp_store=MEMORY;")
+	// 同步模式：NORMAL 平衡性能和安全性
+	db.Exec("PRAGMA synchronous=NORMAL;")
+	// ✅ 优化：设置忙等待超时 5 秒，减少 "database is locked" 错误
+	db.Exec("PRAGMA busy_timeout=5000;")
+	// ✅ 优化：设置缓存大小 64MB，提升查询性能（负值表示 KB）
+	db.Exec("PRAGMA cache_size=-64000;")
+	// ✅ 优化：限制 WAL 日志文件大小 64MB，防止日志文件无限增长
+	db.Exec("PRAGMA journal_size_limit=67108864;")
 
 	// 设置连接池参数
 	sqlDB, err := db.DB()
@@ -150,9 +161,16 @@ func getOrInitDB(dbName string) (*gorm.DB, error) {
 		return nil, err
 	}
 
-	sqlDB.SetMaxOpenConns(5)            // 增加连接数，支持多协程
-	sqlDB.SetMaxIdleConns(2)            // 保持一些空闲连接
-	sqlDB.SetConnMaxLifetime(time.Hour) // 连接最长生命周期
+	// ✅ 优化：增加连接池大小，支持更高并发
+	// SQLite 是文件数据库，并发能力有限，建议不超过 20
+	maxOpenConns := 10
+	maxIdleConns := 5
+	sqlDB.SetMaxOpenConns(maxOpenConns)        // ✅ 从 5 增加到 10，支持更高并发
+	sqlDB.SetMaxIdleConns(maxIdleConns)        // ✅ 从 2 增加到 5，保持更多空闲连接
+	sqlDB.SetConnMaxLifetime(time.Hour)        // 连接最长生命周期 1 小时（合理）
+
+	logger.Infof(context.Background(), "数据库连接池已配置: MaxOpenConns=%d, MaxIdleConns=%d, MaxLifetime=%v",
+		maxOpenConns, maxIdleConns, time.Hour)
 
 	// 🔥 注意：SQLite 不支持 FIND_IN_SET 函数
 	// 我们已经在 query1.go 中使用 SQLite 兼容的方式（instr 函数）来实现相同功能
