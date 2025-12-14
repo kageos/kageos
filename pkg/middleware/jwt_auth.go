@@ -30,7 +30,6 @@ func JWTAuth() gin.HandlerFunc {
 			// 网关已解析token，直接使用header中的username
 			c.Set("request_user", requestUser)
 			c.Set("user", requestUser) // 保持向后兼容
-			logger.Infof(c, "[JWTAuth] User authenticated from header: %s", requestUser)
 			c.Next()
 			return
 		}
@@ -59,7 +58,6 @@ func JWTAuth() gin.HandlerFunc {
 			c.Set("user", claims.Username)         // 保持向后兼容
 			c.Set("token", token)                  // ✅ 保存 token 到 context，供透传使用
 
-			logger.Infof(c, "[JWTAuth] User authenticated: %s (ID: %d)", claims.Username, claims.UserID)
 			c.Next()
 			return
 		}
@@ -78,7 +76,6 @@ func JWTAuth() gin.HandlerFunc {
 			c.Set("request_user", requestUser)
 			c.Set("user", requestUser) // 保持向后兼容
 
-			logger.Infof(c, "[JWTAuth] Internal request authenticated: %s (IP: %s)", requestUser, c.ClientIP())
 			c.Next()
 			return
 		}

@@ -187,19 +187,10 @@ func (a *AppService) RequestApp(ctx context.Context, req *dto.RequestAppReq) (*d
 //   - 升级后能看到完整的历史数据，提升升级体验
 //   - 通过查看权限控制来区分社区版和企业版，而不是通过记录策略
 func (a *AppService) recordOperateLog(ctx context.Context, req *dto.RequestAppReq, action string) {
-	// 获取 License 管理器
-	licenseMgr := license.GetManager()
-	isEnterprise := licenseMgr.HasOperateLogFeature()
-
 	// 无论社区版还是企业版，都记录完整的操作日志（存储方式相同）
 	// 区别仅在于查看权限：
 	//   - 社区版：记录了日志，但无法查看（operate_log 查询接口会进行企业版鉴权）
 	//   - 企业版：记录了日志，可以查看（通过企业版鉴权）
-	if isEnterprise {
-		logger.Infof(ctx, "[RequestApp] 企业版：记录操作日志（可查看）")
-	} else {
-		logger.Infof(ctx, "[RequestApp] 社区版：记录操作日志（不可查看，升级后可查看历史）")
-	}
 
 	// 获取请求用户信息
 	requestUser := contextx.GetRequestUser(ctx)
@@ -225,12 +216,6 @@ func (a *AppService) recordOperateLog(ctx context.Context, req *dto.RequestAppRe
 	go func() {
 		if _, err := operateLogger.CreateOperateLogger(operateLogReq); err != nil {
 			logger.Warnf(ctx, "[RequestApp] 记录操作日志失败: %v", err)
-		} else {
-			if isEnterprise {
-				logger.Infof(ctx, "[RequestApp] 操作日志记录成功（企业版）: user=%s, app=%s/%s", requestUser, req.User, req.App)
-			} else {
-				logger.Infof(ctx, "[RequestApp] 操作日志记录成功（社区版，仅记录）: user=%s, app=%s/%s", requestUser, req.User, req.App)
-			}
 		}
 	}()
 }
@@ -268,8 +253,6 @@ func (a *AppService) RecordTableOperateLog(ctx context.Context, req *dto.RecordT
 		go func() {
 			if err := a.operateLogRepo.CreateTableOperateLog(log); err != nil {
 				logger.Warnf(ctx, "[RecordTableOperateLog] 记录 Table 新增操作日志失败: %v", err)
-			} else {
-				logger.Infof(ctx, "[RecordTableOperateLog] Table 新增操作日志记录成功: tenant_user=%s, request_user=%s, app=%s, full_code_path=%s", req.TenantUser, req.RequestUser, req.App, fullCodePath)
 			}
 		}()
 
@@ -292,8 +275,6 @@ func (a *AppService) RecordTableOperateLog(ctx context.Context, req *dto.RecordT
 		go func() {
 			if err := a.operateLogRepo.CreateTableOperateLog(log); err != nil {
 				logger.Warnf(ctx, "[RecordTableOperateLog] 记录 Table 更新操作日志失败: %v", err)
-			} else {
-				logger.Infof(ctx, "[RecordTableOperateLog] Table 更新操作日志记录成功: tenant_user=%s, request_user=%s, app=%s, full_code_path=%s, row_id=%d", req.TenantUser, req.RequestUser, req.App, fullCodePath, req.RowID)
 			}
 		}()
 
@@ -317,8 +298,6 @@ func (a *AppService) RecordTableOperateLog(ctx context.Context, req *dto.RecordT
 			go func(id int64) {
 				if err := a.operateLogRepo.CreateTableOperateLog(log); err != nil {
 					logger.Warnf(ctx, "[RecordTableOperateLog] 记录 Table 删除操作日志失败: %v", err)
-				} else {
-					logger.Infof(ctx, "[RecordTableOperateLog] Table 删除操作日志记录成功: tenant_user=%s, request_user=%s, app=%s, full_code_path=%s, row_id=%d", req.TenantUser, req.RequestUser, req.App, fullCodePath, id)
 				}
 			}(rowID)
 		}
@@ -720,7 +699,6 @@ func (a *AppService) deleteFunctionsForAPIs(ctx context.Context, appID int64, ap
 // saveSourceCodeForAPIs 保存源代码（按函数组分组）
 // 同一个函数组（GroupCode）下的所有函数共享同一个 SourceCode 记录
 func (a *AppService) saveSourceCodeForAPIs(ctx context.Context, appID int64, version string, apis []*dto.ApiInfo, functions []*model.Function) error {
-	logger.Infof(ctx, "[saveSourceCodeForAPIs] 开始保存源代码: appID=%d, version=%s, apiCount=%d", appID, version, len(apis))
 
 	// 按函数组分组（GroupCode）
 	groupMap := make(map[string]*struct {
@@ -744,9 +722,6 @@ func (a *AppService) saveSourceCodeForAPIs(ctx context.Context, appID int64, ver
 		// 我们需要提取到 package_path 部分
 		fullPath := api.GetParentFullCodePath() // 例如：/luobei/testgroup/plugins
 
-		logger.Infof(ctx, "[saveSourceCodeForAPIs] 处理API: method=%s, router=%s, groupCode=%s, fullPath=%s, sourceCodeLength=%d",
-			api.Method, api.Router, groupCode, fullPath, len(api.SourceCode))
-
 		// 如果 groupMap 中还没有这个函数组，创建新的
 		if _, exists := groupMap[groupCode]; !exists {
 			groupMap[groupCode] = &struct {
@@ -762,8 +737,6 @@ func (a *AppService) saveSourceCodeForAPIs(ctx context.Context, appID int64, ver
 				groupCode:  groupCode,
 				sourceCode: api.SourceCode, // 使用第一个API的源代码
 			}
-			logger.Infof(ctx, "[saveSourceCodeForAPIs] 创建新的函数组: groupCode=%s, fullPath=%s, sourceCodeLength=%d",
-				groupCode, fullPath, len(api.SourceCode))
 		}
 
 		// 添加到对应的函数组
@@ -773,12 +746,8 @@ func (a *AppService) saveSourceCodeForAPIs(ctx context.Context, appID int64, ver
 		// 如果当前API的源代码不为空，更新源代码（同一个函数组应该使用相同的源代码）
 		if api.SourceCode != "" {
 			groupMap[groupCode].sourceCode = api.SourceCode
-			logger.Infof(ctx, "[saveSourceCodeForAPIs] 更新函数组源代码: groupCode=%s, sourceCodeLength=%d",
-				groupCode, len(api.SourceCode))
 		}
 	}
-
-	logger.Infof(ctx, "[saveSourceCodeForAPIs] 函数组分组完成: groupCount=%d", len(groupMap))
 
 	// 为每个函数组保存或更新 SourceCode 记录
 	for groupCode, group := range groupMap {
@@ -789,8 +758,6 @@ func (a *AppService) saveSourceCodeForAPIs(ctx context.Context, appID int64, ver
 
 		// 构建 FullGroupCode：{full_path}/{group_code}
 		fullGroupCode := fmt.Sprintf("%s/%s", group.fullPath, groupCode)
-		logger.Infof(ctx, "[saveSourceCodeForAPIs] 准备保存源代码: fullGroupCode=%s, groupCode=%s, fullPath=%s, contentLength=%d, functionCount=%d",
-			fullGroupCode, groupCode, group.fullPath, len(group.sourceCode), len(group.functions))
 
 		// 创建或更新 SourceCode 记录
 		sourceCode := &model.SourceCode{
@@ -802,26 +769,19 @@ func (a *AppService) saveSourceCodeForAPIs(ctx context.Context, appID int64, ver
 			Version:       version,
 		}
 
-		logger.Infof(ctx, "[saveSourceCodeForAPIs] 调用 GetOrCreate: fullGroupCode=%s, appID=%d, version=%s", fullGroupCode, appID, version)
 		savedSourceCode, err := a.sourceCodeRepo.GetOrCreate(sourceCode)
 		if err != nil {
 			logger.Errorf(ctx, "[saveSourceCodeForAPIs] 保存源代码失败: fullGroupCode=%s, error=%v", fullGroupCode, err)
 			return fmt.Errorf("保存源代码失败（函数组: %s）: %w", groupCode, err)
 		}
 
-		logger.Infof(ctx, "[saveSourceCodeForAPIs] 源代码保存成功: ID=%d, fullGroupCode=%s, contentLength=%d",
-			savedSourceCode.ID, fullGroupCode, len(savedSourceCode.Content))
-
 		// 设置所有函数的 SourceCodeID（在创建/更新 Function 之前）
 		for _, function := range group.functions {
 			sourceCodeID := savedSourceCode.ID
 			function.SourceCodeID = &sourceCodeID
-			logger.Infof(ctx, "[saveSourceCodeForAPIs] 设置 Function SourceCodeID: functionID=%d, sourceCodeID=%d, method=%s, router=%s",
-				function.ID, sourceCodeID, function.Method, function.Router)
 		}
 	}
 
-	logger.Infof(ctx, "[saveSourceCodeForAPIs] 源代码保存完成: appID=%d, version=%s", appID, version)
 	return nil
 }
 
