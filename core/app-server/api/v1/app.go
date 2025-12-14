@@ -43,11 +43,7 @@ func NewApp(appService *service.AppService) *App {
 // @Router /api/v1/app/create [post]
 func (a *App) CreateApp(c *gin.Context) {
 	var req dto.CreateAppReq
-	var resp dto.CreateAppResp
 	var err error
-	defer func() {
-		logger.Infof(c, "CreateApp req:%+v resp:%+v err:%v", req, resp, err)
-	}()
 	err = c.ShouldBindJSON(&req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
@@ -101,10 +97,6 @@ func (a *App) UpdateApp(c *gin.Context) {
 		App:  app,
 	}
 
-	defer func() {
-		logger.Infof(c, "UpdateApp req:%+v resp:%+v err:%v", req, resp, err)
-	}()
-
 	ctx := contextx.ToContext(c)
 	resp, err = a.appService.UpdateApp(ctx, req)
 	if err != nil {
@@ -132,9 +124,6 @@ func (a *App) RequestApp(c *gin.Context) {
 	var req dto.RequestAppReq
 	var resp *dto.RequestAppResp
 	var err error
-	defer func() {
-		logger.Infof(c, "RequestApp req:%+v resp:%+v err:%v", req, resp, err)
-	}()
 
 	now := time.Now()
 
@@ -223,9 +212,6 @@ func (a *App) CallbackApp(c *gin.Context) {
 	var req dto.RequestAppReq
 	var resp *dto.RequestAppResp
 	var err error
-	defer func() {
-		logger.Infof(c, "RequestApp req:%+v resp:%+v err:%v", req, resp, err)
-	}()
 
 	now := time.Now()
 
@@ -405,10 +391,6 @@ func (a *App) DeleteApp(c *gin.Context) {
 		App:  app,
 	}
 
-	defer func() {
-		logger.Infof(c, "DeleteApp req:%+v resp:%+v err:%v", req, resp, err)
-	}()
-
 	ctx := contextx.ToContext(c)
 	resp, err = a.appService.DeleteApp(ctx, req)
 	if err != nil {
@@ -437,9 +419,6 @@ func (a *App) GetApps(c *gin.Context) {
 	var req dto.GetAppsReq
 	var resp *dto.GetAppsResp
 	var err error
-	defer func() {
-		logger.Infof(c, "GetApps req:%+v resp:%+v err:%v", req, resp, err)
-	}()
 
 	// 从JWT Token获取用户信息
 	user := contextx.GetRequestUser(c)

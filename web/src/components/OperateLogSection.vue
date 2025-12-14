@@ -8,71 +8,67 @@
         <span class="operate-log-title">操作日志</span>
       </div>
       <div v-loading="loading" class="operate-log-content">
-        <el-table
-          v-if="logs.length > 0"
-          :data="logs"
-          stripe
-          size="small"
-          style="width: 100%"
-        >
-          <el-table-column prop="action" label="操作" width="120">
-            <template #default="{ row }">
-              <el-tag :type="getActionTagType(row.action)" size="small">
-                {{ getActionLabel(row.action) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="request_user" label="操作人" width="150">
-            <template #default="{ row }">
-              <UserDisplay
-                :user-info="getUserInfo(row.request_user)"
-                :username="row.request_user"
-                mode="card"
-                layout="horizontal"
-                size="small"
-              />
-            </template>
-          </el-table-column>
-              <el-table-column prop="created_at" label="操作时间" width="180">
-                <template #default="{ row }">
-                  {{ formatDateTime(row.created_at) }}
-                </template>
-              </el-table-column>
-              <el-table-column prop="updates" label="变更内容" min-width="300">
-                <template #default="{ row }">
-                  <div v-if="row.action === 'OnTableUpdateRow' && row.updates" class="update-content">
-                    <div v-for="(value, key) in parseJSON(row.updates)" :key="key" class="update-item">
-                      <div class="update-item-row">
-                        <!-- 左侧：字段名称 -->
-                        <div class="update-field-label">{{ getFieldName(key) }}</div>
-                        <!-- 中间：上下排列的值 -->
-                        <div class="update-values-col">
-                          <!-- 新值（修改后的值）- 在上面 -->
-                          <div class="update-value-new">
-                            <div class="value-label">新值</div>
-                            <div class="value-content">
-                              <component :is="renderFieldValue(key, value)" />
-                            </div>
-                          </div>
-                          <!-- 原值（修改前的值）- 在下面 -->
-                          <div v-if="row.old_values && parseJSON(row.old_values)[key] !== undefined" class="update-value-old">
-                            <div class="value-label">原值</div>
-                            <div class="value-content">
-                              <component :is="renderFieldValue(key, parseJSON(row.old_values)[key])" />
-                            </div>
-                          </div>
+        <!-- 🔥 卡片列表形式，不再使用表格 -->
+        <div v-if="logs.length > 0" class="operate-log-cards">
+          <div v-for="(log, index) in logs" :key="index" class="operate-log-card">
+            <!-- 卡片头部：操作类型、操作人、操作时间 -->
+            <div class="card-header">
+              <div class="card-header-left">
+                <el-tag :type="getActionTagType(log.action)" size="small" class="action-tag">
+                  {{ getActionLabel(log.action) }}
+                </el-tag>
+                <UserDisplay
+                  :user-info="getUserInfo(log.request_user)"
+                  :username="log.request_user"
+                  mode="card"
+                  layout="horizontal"
+                  size="small"
+                  class="user-display"
+                />
+              </div>
+              <div class="card-header-right">
+                <div class="card-time-wrapper">
+                  <span class="card-time-relative">{{ formatRelativeTime(log.created_at) }}</span>
+                  <span class="card-time-absolute">{{ formatDateTime(log.created_at) }}</span>
+                </div>
+              </div>
+            </div>
+            
+            <!-- 卡片内容：变更内容 -->
+            <div class="card-body">
+              <div v-if="log.action === 'OnTableUpdateRow' && log.updates" class="update-content">
+                <div v-for="(value, key) in parseJSON(log.updates)" :key="key" class="update-item">
+                  <!-- 🔥 上中下布局：上面字段名称，中间组件，下面时间和用户 -->
+                  <div class="update-item-vertical">
+                    <!-- 上面：字段名称 -->
+                    <div class="update-field-label-top">{{ getFieldName(key) }}</div>
+                    
+                    <!-- 中间：组件（更新后和更新前） -->
+                    <div class="update-values-middle">
+                      <!-- 更新后的值 -->
+                      <div class="update-value-new">
+                        <div class="value-label">更新后</div>
+                        <div class="value-content">
+                          <component :is="renderFieldValue(key, value)" />
                         </div>
-                        <!-- 右侧：上箭头 -->
-                        <div class="update-arrow">
-                          <el-icon><ArrowUp /></el-icon>
+                      </div>
+                      <!-- 更新前的值 -->
+                      <div v-if="log.old_values && parseJSON(log.old_values)[key] !== undefined" class="update-value-old">
+                        <div class="value-label">更新前</div>
+                        <div class="value-content">
+                          <component :is="renderFieldValue(key, parseJSON(log.old_values)[key])" />
                         </div>
                       </div>
                     </div>
                   </div>
-                  <span v-else class="text-muted">-</span>
-                </template>
-              </el-table-column>
-        </el-table>
+                </div>
+              </div>
+              <div v-else class="no-updates">
+                <span class="text-muted">-</span>
+              </div>
+            </div>
+          </div>
+        </div>
         <el-empty v-else description="暂无操作日志" :image-size="80" />
       </div>
     </template>
@@ -98,8 +94,8 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, h } from 'vue'
-import { Clock, ArrowUp } from '@element-plus/icons-vue'
-import { ElIcon, ElTable, ElTableColumn, ElEmpty, ElTag, ElCard, ElDivider, ElButton, ElMessage } from 'element-plus'
+import { Clock } from '@element-plus/icons-vue'
+import { ElIcon, ElEmpty, ElTag, ElCard, ElDivider, ElButton, ElMessage } from 'element-plus'
 import { formatTimestamp } from '@/utils/date'
 import { useLicenseStore } from '@/stores/license'
 import { getTableOperateLogs, type TableOperateLog } from '@/api/operateLog'
@@ -144,6 +140,63 @@ const formatDateTime = (dateTime: string | number | null | undefined): string =>
   
   // 如果是数字（时间戳），使用 formatTimestamp
   return formatTimestamp(dateTime)
+}
+
+/**
+ * 格式化相对时间（如：5分钟前、2天前）
+ */
+const formatRelativeTime = (dateTime: string | number | null | undefined): string => {
+  if (!dateTime) return '-'
+  
+  // 转换为时间戳（毫秒）
+  let timestamp: number
+  if (typeof dateTime === 'string') {
+    // 检查是否是时间戳字符串
+    if (/^\d+$/.test(dateTime)) {
+      timestamp = Number(dateTime)
+    } else {
+      // 是日期时间字符串，转换为时间戳
+      timestamp = new Date(dateTime).getTime()
+    }
+  } else {
+    timestamp = dateTime
+  }
+  
+  // 检查时间戳是否有效
+  if (isNaN(timestamp)) {
+    return '-'
+  }
+  
+  const now = Date.now()
+  const diff = now - timestamp
+  
+  // 如果时间在未来，返回绝对时间
+  if (diff < 0) {
+    return formatDateTime(dateTime)
+  }
+  
+  // 计算时间差
+  const seconds = Math.floor(diff / 1000)
+  const minutes = Math.floor(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+  const days = Math.floor(hours / 24)
+  const months = Math.floor(days / 30)
+  const years = Math.floor(days / 365)
+  
+  // 根据时间差返回相对时间
+  if (seconds < 60) {
+    return '刚刚'
+  } else if (minutes < 60) {
+    return `${minutes}分钟前`
+  } else if (hours < 24) {
+    return `${hours}小时前`
+  } else if (days < 30) {
+    return `${days}天前`
+  } else if (months < 12) {
+    return `${months}个月前`
+  } else {
+    return `${years}年前`
+  }
 }
 
 const licenseStore = useLicenseStore()
@@ -229,7 +282,7 @@ const loadUserInfos = async () => {
   
   // 收集所有唯一的用户名
   const usernames = new Set<string>()
-  logs.value.forEach(log => {
+  logs.value.forEach((log: TableOperateLog) => {
     if (log.request_user) {
       usernames.add(log.request_user)
     }
@@ -246,7 +299,7 @@ const loadUserInfos = async () => {
     
     // 更新用户信息映射
     userInfoMap.value = new Map()
-    users.forEach(user => {
+    users.forEach((user: any) => {
       userInfoMap.value.set(user.username, user)
     })
   } catch (error) {
@@ -481,6 +534,89 @@ watch(
   margin-top: 12px;
 }
 
+/* 🔥 卡片列表样式 */
+.operate-log-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.operate-log-card {
+  background-color: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+}
+
+.operate-log-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-color: var(--el-border-color);
+}
+
+/* 卡片头部 */
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.card-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.action-tag {
+  flex-shrink: 0;
+}
+
+.user-display {
+  flex: 1;
+  min-width: 0;
+}
+
+.card-header-right {
+  flex-shrink: 0;
+  margin-left: 12px;
+}
+
+.card-time-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.card-time-relative {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--el-color-primary);
+  white-space: nowrap;
+}
+
+.card-time-absolute {
+  font-size: 12px;
+  color: var(--el-text-color-placeholder);
+  white-space: nowrap;
+}
+
+/* 卡片内容 */
+.card-body {
+  width: 100%;
+}
+
+.no-updates {
+  padding: 8px 0;
+  text-align: center;
+}
+
 .update-content {
   display: flex;
   flex-direction: column;
@@ -488,68 +624,102 @@ watch(
 }
 
 .update-item {
-  padding: 8px;
+  padding: 12px;
   background-color: var(--el-fill-color-lighter);
-  border-radius: 4px;
-}
-
-.update-item-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.update-field-label {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--el-text-color-primary);
-  min-width: 80px;
-  flex-shrink: 0;
-  padding-top: 4px;
-}
-
-.update-values-col {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-}
-
-.update-value-new,
-.update-value-old {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 6px 8px;
-  border-radius: 4px;
-  background-color: var(--el-fill-color-lighter);
+  border-radius: 6px;
+  margin-bottom: 8px;
   border: 1px solid var(--el-border-color-lighter);
 }
 
+/* 🔥 上中下布局 */
+.update-item-vertical {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+/* 上面：字段名称 */
+.update-field-label-top {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+/* 中间：组件（新值和原值） */
+.update-values-middle {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+}
+
+.update-value-new {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  /* 🔥 新值：微微的绿色背景 */
+  background-color: rgba(103, 194, 58, 0.08);
+  border: 1px solid rgba(103, 194, 58, 0.2);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.update-value-old {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  /* 🔥 旧值：微微的红色背景 */
+  background-color: rgba(245, 108, 108, 0.08);
+  border: 1px solid rgba(245, 108, 108, 0.2);
+  width: 100%;
+  box-sizing: border-box;
+}
+
 .value-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--el-text-color-secondary);
-  margin-bottom: 2px;
+  margin-bottom: 4px;
 }
 
 .value-content {
   flex: 1;
   min-width: 0;
-  font-size: 12px;
+  width: 100%;
+  font-size: 13px;
+  word-break: break-word;
 }
 
-.update-arrow {
+/* 下面：时间和操作用户 */
+.update-meta-bottom {
   display: flex;
-  justify-content: center;
   align-items: center;
-  color: var(--el-color-primary);
-  font-size: 18px;
-  font-weight: 600;
-  flex-shrink: 0;
-  padding-top: 4px;
-  min-width: 24px;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--el-border-color-lighter);
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.update-time {
+  white-space: nowrap;
+}
+
+.update-separator {
+  color: var(--el-text-color-placeholder);
+}
+
+.update-user {
+  flex: 1;
+  min-width: 0;
 }
 
 .text-fallback {
