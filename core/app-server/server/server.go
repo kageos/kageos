@@ -306,6 +306,33 @@ func (s *Server) initDatabase(ctx context.Context) error {
 		return fmt.Errorf("unsupported database type: %s", dbCfg.Type)
 	}
 
+	// ✅ 配置数据库连接池（解决 "Too many connections" 问题）
+	sqlDB, err := s.db.DB()
+	if err != nil {
+		return fmt.Errorf("failed to get underlying sql.DB: %w", err)
+	}
+
+	// 从配置读取连接池参数，如果没有配置则使用默认值
+	maxOpenConns := dbCfg.MaxOpenConns
+	if maxOpenConns <= 0 {
+		maxOpenConns = 100 // 默认值
+	}
+	maxIdleConns := dbCfg.MaxIdleConns
+	if maxIdleConns <= 0 {
+		maxIdleConns = 10 // 默认值
+	}
+	maxLifetime := time.Duration(dbCfg.MaxLifetime) * time.Second
+	if maxLifetime <= 0 {
+		maxLifetime = 300 * time.Second // 默认 5 分钟
+	}
+
+	sqlDB.SetMaxOpenConns(maxOpenConns)        // 最大打开连接数
+	sqlDB.SetMaxIdleConns(maxIdleConns)        // 最大空闲连接数
+	sqlDB.SetConnMaxLifetime(maxLifetime)     // 连接最大生命周期
+
+	logger.Infof(ctx, "[Server] Database connection pool configured: MaxOpenConns=%d, MaxIdleConns=%d, MaxLifetime=%v",
+		maxOpenConns, maxIdleConns, maxLifetime)
+
 	// 自动迁移表结构
 	if err := model.InitTables(s.db); err != nil {
 		return fmt.Errorf("failed to migrate database: %w", err)
