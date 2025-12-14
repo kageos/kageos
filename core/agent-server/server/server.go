@@ -40,6 +40,8 @@ type Server struct {
 	llmRepo                *repository.LLMRepository
 	functionGenRepo        *repository.FunctionGenRepository
 	functionGroupAgentRepo *repository.FunctionGroupAgentRepository
+	sessionRepo            *repository.ChatSessionRepository
+	messageRepo            *repository.ChatMessageRepository
 
 	// 服务
 	agentService     *service.AgentService
@@ -306,6 +308,8 @@ func (s *Server) initServices(ctx context.Context) error {
 	s.llmRepo = repository.NewLLMRepository(s.db)
 	sessionRepo := repository.NewChatSessionRepository(s.db)
 	messageRepo := repository.NewChatMessageRepository(s.db)
+	s.sessionRepo = sessionRepo
+	s.messageRepo = messageRepo
 	s.functionGenRepo = repository.NewFunctionGenRepository(s.db)
 	s.functionGroupAgentRepo = repository.NewFunctionGroupAgentRepository(s.db)
 
@@ -443,6 +447,66 @@ func (s *Server) handleFunctionGenCallback(msg *nats.Msg) {
 		}
 	}
 
-	logger.Infof(ctx, "[Server] 回调处理完成 - RecordID: %d, FullGroupCodesCount: %d",
-		callback.RecordID, len(callback.FullGroupCodes))
+	// 3. 如果成功，推送系统消息并更新会话状态
+	if callback.Success && len(callback.FullGroupCodes) > 0 {
+		// 获取会话
+		session, err := s.sessionRepo.GetBySessionID(record.SessionID)
+		if err != nil {
+			logger.Errorf(ctx, "[Server] 获取会话失败: SessionID=%s, error=%v", record.SessionID, err)
+		} else {
+			// 构建系统消息内容（包含生成的函数组地址）
+			var contentBuilder strings.Builder
+			contentBuilder.WriteString("✅ 代码生成完成！\n\n")
+			contentBuilder.WriteString("生成的函数组地址：\n")
+			for i, fullGroupCode := range callback.FullGroupCodes {
+				// 使用 Markdown 格式的链接，前端可以解析为可点击的链接
+				contentBuilder.WriteString(fmt.Sprintf("%d. [%s](%s)\n", i+1, fullGroupCode, fullGroupCode))
+			}
+			contentBuilder.WriteString("\n点击函数组地址可以跳转到对应位置。")
+
+			// 创建系统消息
+			systemMsg := &model.AgentChatMessage{
+				SessionID: record.SessionID,
+				AgentID:   record.AgentID,
+				Role:      "system",
+				Content:   contentBuilder.String(),
+				User:      record.User,
+			}
+			systemMsg.CreatedBy = record.User
+			systemMsg.UpdatedBy = record.User
+
+			if err := s.messageRepo.Create(systemMsg); err != nil {
+				logger.Errorf(ctx, "[Server] 创建系统消息失败: SessionID=%s, error=%v", record.SessionID, err)
+			} else {
+				logger.Infof(ctx, "[Server] 系统消息已推送 - SessionID=%s, FullGroupCodesCount=%d", record.SessionID, len(callback.FullGroupCodes))
+			}
+
+			// 更新会话状态为 done
+			session.Status = model.ChatSessionStatusDone
+			session.UpdatedBy = record.User
+			if err := s.sessionRepo.Update(session); err != nil {
+				logger.Errorf(ctx, "[Server] 更新会话状态失败: SessionID=%s, error=%v", record.SessionID, err)
+			} else {
+				logger.Infof(ctx, "[Server] 会话状态已更新为 done - SessionID=%s", record.SessionID)
+			}
+		}
+	} else if !callback.Success {
+		// 如果失败，也更新会话状态为 active（允许重试）
+		session, err := s.sessionRepo.GetBySessionID(record.SessionID)
+		if err != nil {
+			logger.Errorf(ctx, "[Server] 获取会话失败: SessionID=%s, error=%v", record.SessionID, err)
+		} else {
+			// 失败时恢复为 active 状态，允许用户重试
+			session.Status = model.ChatSessionStatusActive
+			session.UpdatedBy = record.User
+			if err := s.sessionRepo.Update(session); err != nil {
+				logger.Errorf(ctx, "[Server] 更新会话状态失败: SessionID=%s, error=%v", record.SessionID, err)
+			} else {
+				logger.Infof(ctx, "[Server] 会话状态已恢复为 active（允许重试） - SessionID=%s", record.SessionID)
+			}
+		}
+	}
+
+	logger.Infof(ctx, "[Server] 回调处理完成 - RecordID: %d, FullGroupCodesCount: %d, Success: %v",
+		callback.RecordID, len(callback.FullGroupCodes), callback.Success)
 }

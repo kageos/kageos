@@ -67,62 +67,75 @@
 
     <!-- 查看模式：纯展示模式 -->
     <div class="detail-content" v-if="currentDetailRow && detailMode === 'view'">
-      <!-- 链接操作区域 -->
-      <div v-if="linkFields.length > 0" class="detail-links-section">
-        <div class="links-section-title">相关链接</div>
-        <div class="links-section-content">
-          <LinkWidget
-            v-for="linkField in linkFields"
-            :key="linkField.code"
-            :field="linkField"
-            :value="convertToFieldValue(currentDetailRow[linkField.code], linkField)"
-            :field-path="linkField.code"
-            mode="detail"
-            class="detail-link-item"
-          />
-        </div>
-      </div>
-      
-      <div class="fields-grid">
-        <div 
-          v-for="field in visibleFields.filter((f: FieldConfig) => f.widget?.type !== 'link')"
-          :key="field.code"
-          class="field-row"
-        >
-          <div class="field-label">
-            {{ field.name }}
-          </div>
-          <div class="field-value">
-            <!-- 复制按钮（hover 时显示） -->
-            <div class="field-actions">
-              <el-button 
-                type="primary" 
-                size="small" 
-                text 
-                @click="copyFieldValue(field, currentDetailRow[field.code])"
-                class="copy-btn"
-                :title="`复制${field.name}`"
-              >
-                <el-icon><DocumentCopy /></el-icon>
-              </el-button>
+      <el-tabs v-model="activeTab" @tab-change="handleTabChange" class="detail-tabs">
+        <!-- 详情 tab -->
+        <el-tab-pane label="详情" name="detail">
+          <div class="tab-content">
+            <!-- 链接操作区域 -->
+            <div v-if="linkFields.length > 0" class="detail-links-section">
+              <div class="links-section-title">相关链接</div>
+              <div class="links-section-content">
+                <LinkWidget
+                  v-for="linkField in linkFields"
+                  :key="linkField.code"
+                  :field="linkField"
+                  :value="convertToFieldValue(currentDetailRow[linkField.code], linkField)"
+                  :field-path="linkField.code"
+                  mode="detail"
+                  class="detail-link-item"
+                />
+              </div>
             </div>
             
-            <!-- 字段内容 -->
-            <div class="field-content">
-              <component 
-                :is="renderDetailField(field, currentDetailRow[field.code])"
-              />
+            <div class="fields-grid">
+              <div 
+                v-for="field in visibleFields.filter((f: FieldConfig) => f.widget?.type !== 'link')"
+                :key="field.code"
+                class="field-row"
+              >
+                <div class="field-label">
+                  {{ field.name }}
+                </div>
+                <div class="field-value">
+                  <!-- 复制按钮（hover 时显示） -->
+                  <div class="field-actions">
+                    <el-button 
+                      type="primary" 
+                      size="small" 
+                      text 
+                      @click="copyFieldValue(field, currentDetailRow[field.code])"
+                      class="copy-btn"
+                      :title="`复制${field.name}`"
+                    >
+                      <el-icon><DocumentCopy /></el-icon>
+                    </el-button>
+                  </div>
+                  
+                  <!-- 字段内容 -->
+                  <div class="field-content">
+                    <component 
+                      :is="renderDetailField(field, currentDetailRow[field.code])"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
+        </el-tab-pane>
 
-      <!-- 操作日志区域 -->
-      <OperateLogSection
-        :full-code-path="getFullCodePath"
-        :row-id="getCurrentRowId"
-        :function-detail="functionData"
-      />
+        <!-- 操作日志 tab -->
+        <el-tab-pane label="操作日志" name="operateLog">
+          <div class="tab-content">
+            <OperateLogSection
+              ref="operateLogSectionRef"
+              :full-code-path="getFullCodePath"
+              :row-id="getCurrentRowId"
+              :function-detail="functionData"
+              :auto-load="false"
+            />
+          </div>
+        </el-tab-pane>
+      </el-tabs>
     </div>
 
     <!-- 🔥 编辑模式：使用 FormRenderer -->
@@ -142,9 +155,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h } from 'vue'
+import { computed, h, ref, watch } from 'vue'
 import { Edit, ArrowLeft, ArrowRight, DocumentCopy } from '@element-plus/icons-vue'
-import { ElIcon, ElButton, ElMessage, ElEmpty } from 'element-plus'
+import { ElIcon, ElButton, ElMessage, ElEmpty, ElTabs, ElTabPane } from 'element-plus'
 import { useTableDetail, type UseTableDetailOptions } from '@/composables/useTableDetail'
 import { widgetComponentFactory } from '@/core/factories-v2'
 import { ErrorHandler } from '@/core/utils/ErrorHandler'
@@ -211,6 +224,26 @@ const {
   handleDetailSave,
   handleDetailDrawerClose
 } = useTableDetail(detailOptions)
+
+// Tab 相关
+const activeTab = ref('detail')
+const operateLogSectionRef = ref<InstanceType<typeof OperateLogSection> | null>(null)
+
+// 处理 tab 切换
+const handleTabChange = (tabName: string) => {
+  if (tabName === 'operateLog' && operateLogSectionRef.value) {
+    // 切换到操作日志 tab 时，触发加载
+    operateLogSectionRef.value.load()
+  }
+}
+
+// 监听详情行变化，重置 tab
+watch(
+  () => currentDetailRow.value,
+  () => {
+    activeTab.value = 'detail'
+  }
+)
 
 // ==================== 详情字段渲染 ====================
 
@@ -526,6 +559,26 @@ defineExpose({
 
   .detail-link-item {
     flex-shrink: 0;
+  }
+
+  /* Tab 样式 */
+  .detail-tabs {
+    :deep(.el-tabs__header) {
+      margin-bottom: 20px;
+    }
+
+    :deep(.el-tabs__item) {
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    :deep(.el-tabs__active-bar) {
+      background-color: var(--el-color-primary);
+    }
+  }
+
+  .tab-content {
+    padding: 0;
   }
 }
 </style>

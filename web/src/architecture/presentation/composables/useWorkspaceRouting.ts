@@ -54,6 +54,13 @@ export function useWorkspaceRouting(options: {
       return
     }
     
+    // 🔥 检查是否是函数组详情页面（_node_type=function_group）
+    // 如果是函数组，不需要查找 Tab，直接返回（函数组详情页面会自己处理）
+    if (route.query._node_type === 'function_group') {
+      Logger.debug('useWorkspaceRouting', '检测到函数组详情页面，跳过 Tab 查找', { path: route.path })
+      return
+    }
+    
     Logger.debug('useWorkspaceRouting', 'syncRouteToTab 开始执行', { path: route.path, fullPath })
     isSyncingRouteToTab = true
     
@@ -125,6 +132,9 @@ export function useWorkspaceRouting(options: {
               detail: detail
             })
           }
+        } else if (targetTab.node && targetTab.node.type === 'package') {
+          // 🔥 如果是 package 类型，确保设置了当前函数
+          applicationService.triggerNodeClick(targetTab.node)
         }
       } else {
         // Tab 不存在，从路由打开新 Tab
@@ -204,6 +214,12 @@ export function useWorkspaceRouting(options: {
 
       // 处理子路径（打开 Tab）
       if (pathSegments.length > 2) {
+        // 🔥 检查是否是函数组详情页面（_node_type=function_group）
+        // 如果是函数组，不需要查找函数节点，直接返回（函数组详情页面会自己处理）
+        if (route.query._node_type === 'function_group') {
+          return
+        }
+        
         const functionPath = '/' + pathSegments.join('/') // 构造完整路径，如 /luobei/demo/crm/list
         
         // 检查是否有 _tab 参数（create/edit/detail/OnTableAddRow 模式）
@@ -393,9 +409,11 @@ export function useWorkspaceRouting(options: {
       }
       
       // 处理 workspace-node-click：需要创建/激活 Tab
+      // 处理 workspace-node-click-package：需要设置当前函数（package 类型）
       // 处理 tab 切换相关：需要刷新函数界面（确保函数详情已加载）
       // 注意：tab-switch 是 RouteManager.handleTabSwitch 发出的，tab-switch-activeTabId 和 tab-click 是 useWorkspaceTabs 发出的
       if (payload.source === 'workspace-node-click' || 
+          payload.source === 'workspace-node-click-package' ||
           payload.source === 'tab-switch' || 
           payload.source === 'tab-switch-activeTabId' || 
           payload.source === 'tab-click') {
@@ -414,6 +432,26 @@ export function useWorkspaceRouting(options: {
         
         // 使用 nextTick 确保路由已经更新完成
         await nextTick()
+        
+        // 🔥 如果是 workspace-node-click-package，需要确保设置了当前函数
+        if (payload.source === 'workspace-node-click-package') {
+          const fullPath = extractWorkspacePath(payload.path)
+          if (fullPath) {
+            const pathSegments = fullPath.split('/').filter(Boolean)
+            if (pathSegments.length >= 3) {
+              const functionPath = '/' + pathSegments.join('/')
+              const tree = options.serviceTree()
+              if (tree && tree.length > 0) {
+                const node = options.findNodeByPath(tree, functionPath)
+                if (node && node.type === 'package') {
+                  const serviceNode: ServiceTree = node as any
+                  applicationService.triggerNodeClick(serviceNode)
+                }
+              }
+            }
+          }
+        }
+        
         syncRouteToTab()
         
         // 🔥 清除记录，允许下次处理（使用 setTimeout 延迟清除，避免快速连续触发）

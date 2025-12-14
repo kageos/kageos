@@ -1,8 +1,10 @@
 package v1
 
 import (
+	"encoding/json"
 	"time"
 
+	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/service"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
@@ -110,6 +112,7 @@ func (h *AgentChat) ListSessions(c *gin.Context) {
 			SessionID: session.SessionID,
 			AgentID:   session.AgentID,
 			Title:     session.Title,
+			Status:    session.Status,
 			User:      session.User,
 			CreatedAt: time.Time(session.CreatedAt).Format(time.DateTime),
 			UpdatedAt: time.Time(session.UpdatedAt).Format(time.DateTime),
@@ -192,5 +195,83 @@ func (h *AgentChat) ListMessages(c *gin.Context) {
 	resp = &dto.ChatMessageListResp{
 		Messages: messageInfos,
 	}
+	response.OkWithData(c, resp)
+}
+
+// GetFunctionGenStatus 查询代码生成状态
+// @Summary 查询代码生成状态
+// @Description 根据 record_id 查询代码生成状态
+// @Tags 智能体管理
+// @Accept json
+// @Produce json
+// @Param record_id query int true "生成记录ID"
+// @Success 200 {object} dto.FunctionGenStatusResp "查询成功"
+// @Failure 400 {string} string "请求参数错误"
+// @Failure 404 {string} string "记录不存在"
+// @Router /api/v1/agent/chat/function_gen/status [get]
+func (h *AgentChat) GetFunctionGenStatus(c *gin.Context) {
+	var req dto.FunctionGenStatusReq
+	var resp *dto.FunctionGenStatusResp
+	var err error
+
+	if err := c.ShouldBindQuery(&req); err != nil {
+		logger.Errorf(c, "[AgentChat] 参数绑定失败: %v", err)
+		response.FailWithMessage(c, "参数错误: "+err.Error())
+		return
+	}
+
+	ctx := contextx.ToContext(c)
+	user := contextx.GetRequestUser(ctx)
+	traceId := contextx.GetTraceId(ctx)
+
+	// 记录请求日志
+	logger.Infof(ctx, "[AgentChat] 查询代码生成状态 - RecordID: %d, User: %s, TraceID: %s", req.RecordID, user, traceId)
+
+	defer func() {
+		if err != nil {
+			logger.Errorf(ctx, "[AgentChat] 查询失败 - RecordID: %d, User: %s, TraceID: %s, Error: %v",
+				req.RecordID, user, traceId, err)
+		} else {
+			logger.Infof(ctx, "[AgentChat] 查询成功 - RecordID: %d, Status: %s, User: %s, TraceID: %s",
+				req.RecordID, resp.Status, user, traceId)
+		}
+	}()
+
+	// 调用服务查询状态
+	record, err := h.service.GetFunctionGenStatus(ctx, req.RecordID)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+
+	// 解析 FullGroupCodes
+	var fullGroupCodes []string
+	if record.FullGroupCodes != "" {
+		if err := json.Unmarshal([]byte(record.FullGroupCodes), &fullGroupCodes); err != nil {
+			logger.Warnf(ctx, "[AgentChat] 解析 FullGroupCodes 失败 - RecordID: %d, Error: %v", req.RecordID, err)
+			fullGroupCodes = []string{}
+		}
+	}
+
+	// 转换为响应格式
+	resp = &dto.FunctionGenStatusResp{
+		RecordID:       record.ID,
+		Status:         record.Status,
+		Duration:       record.Duration,
+		CreatedAt:      time.Time(record.CreatedAt).Format(time.DateTime),
+		UpdatedAt:      time.Time(record.UpdatedAt).Format(time.DateTime),
+		FullGroupCodes: fullGroupCodes,
+	}
+
+	// 根据状态返回不同的字段
+	if record.Status == model.FunctionGenStatusCompleted {
+		// 已完成：返回代码
+		resp.Code = record.Code
+	} else if record.Status == model.FunctionGenStatusFailed {
+		// 失败：返回错误信息
+		resp.ErrorMsg = record.ErrorMsg
+	}
+	// generating 状态：不返回代码和错误信息
+
 	response.OkWithData(c, resp)
 }

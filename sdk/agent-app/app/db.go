@@ -165,9 +165,9 @@ func getOrInitDB(dbName string) (*gorm.DB, error) {
 	// SQLite 是文件数据库，并发能力有限，建议不超过 20
 	maxOpenConns := 10
 	maxIdleConns := 5
-	sqlDB.SetMaxOpenConns(maxOpenConns)        // ✅ 从 5 增加到 10，支持更高并发
-	sqlDB.SetMaxIdleConns(maxIdleConns)        // ✅ 从 2 增加到 5，保持更多空闲连接
-	sqlDB.SetConnMaxLifetime(time.Hour)        // 连接最长生命周期 1 小时（合理）
+	sqlDB.SetMaxOpenConns(maxOpenConns) // ✅ 从 5 增加到 10，支持更高并发
+	sqlDB.SetMaxIdleConns(maxIdleConns) // ✅ 从 2 增加到 5，保持更多空闲连接
+	sqlDB.SetConnMaxLifetime(time.Hour) // 连接最长生命周期 1 小时（合理）
 
 	logger.Infof(context.Background(), "数据库连接池已配置: MaxOpenConns=%d, MaxIdleConns=%d, MaxLifetime=%v",
 		maxOpenConns, maxIdleConns, time.Hour)

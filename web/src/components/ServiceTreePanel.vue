@@ -50,9 +50,17 @@
             </template>
             <!-- 普通节点 -->
             <template v-else>
+              <!-- package 类型：显示文件夹图标 -->
               <el-icon v-if="data.type === 'package'" class="node-icon" :class="getNodeIconClass(data)">
                 <Folder />
               </el-icon>
+              <!-- function 类型：根据 template_type 显示不同图标 -->
+              <el-icon v-else-if="data.type === 'function'" 
+                       class="node-icon" 
+                       :class="getNodeIconClass(data)">
+                <component :is="getFunctionIcon(data)" />
+              </el-icon>
+              <!-- 其他类型：显示 fx 文本 -->
               <span v-else class="node-icon fx-icon" :class="getNodeIconClass(data)">fx</span>
               <span class="node-label">{{ node.label }}</span>
             </template>
@@ -104,10 +112,12 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick, computed } from 'vue'
-import { Folder, FolderOpened, Plus, MoreFilled, Link, CopyDocument, Upload } from '@element-plus/icons-vue'
+import { useRouter, useRoute } from 'vue-router'
+import { Folder, FolderOpened, Plus, MoreFilled, Link, CopyDocument, Upload, Grid, Postcard, Document } from '@element-plus/icons-vue'
 import { ElTag, ElLink } from 'element-plus'
 import { generateGroupId, createGroupNode, groupFunctionsByCode, getGroupName, type ExtendedServiceTree } from '@/utils/tree-utils'
 import type { ServiceTree } from '@/types'
+import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 
 interface Props {
   treeData: ServiceTree[]
@@ -126,6 +136,9 @@ interface Emits {
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
+
+const router = useRouter()
+const route = useRoute()
 
 // el-tree 的引用
 const treeRef = ref()
@@ -193,7 +206,27 @@ const groupedTreeData = computed(() => {
 })
 
 const handleNodeClick = (data: ServiceTree) => {
-  // 允许点击函数组节点，这样可以在顶部显示克隆按钮
+  // 如果是函数组（isGroup && full_group_code），更新路由
+  if ((data as any).isGroup && (data as any).full_group_code) {
+    const fullGroupCode = (data as any).full_group_code
+    // 使用 full_group_code 作为路径，例如：/luobei/demo/crm/crm_ticket -> /workspace/luobei/demo/crm/crm_ticket
+    const targetPath = `/workspace${fullGroupCode}`
+    // 更新路由，只保留 _node_type=function_group 参数，清除其他所有参数
+    router.push({
+      path: targetPath,
+      query: {
+        _node_type: 'function_group'
+      }
+    })
+    // 定位并展开函数组
+    nextTick(() => {
+      expandPaths([fullGroupCode])
+    })
+    return // 不继续触发 node-click 事件
+  }
+  
+  // 如果是 package 类型，直接触发 node-click 事件，让父组件处理路由跳转
+  // 其他节点类型，也触发 node-click 事件
   emit('node-click', data)
 }
 
@@ -224,13 +257,31 @@ const handleForkButtonClick = () => {
   emit('fork-group', null)
 }
 
+// 获取函数图标组件（根据 template_type）
+const getFunctionIcon = (data: ServiceTree) => {
+  if (data.template_type === TEMPLATE_TYPE.TABLE) {
+    return Grid
+  } else if (data.template_type === TEMPLATE_TYPE.FORM) {
+    return Postcard
+  }
+  // 默认使用 Document 图标（如果没有 template_type 或不是已知类型）
+  return Document
+}
+
 // 获取节点图标样式类
 const getNodeIconClass = (data: ServiceTree) => {
   if (data.type === 'package') {
     return 'package-icon'
-  } else {
-    return 'function-icon fx-icon'
+  } else if (data.type === 'function') {
+    // 根据 template_type 返回不同的样式类
+    if (data.template_type === TEMPLATE_TYPE.TABLE) {
+      return 'table-icon'
+    } else if (data.template_type === TEMPLATE_TYPE.FORM) {
+      return 'form-icon'
+    }
+    return 'function-icon'
   }
+  return 'function-icon'
 }
 
 // 查找从根节点到目标节点的路径
@@ -338,6 +389,30 @@ const findAndExpandByPath = (targetPath: string): ServiceTree | null => {
   return findNode(groupedTreeData.value, normalizedPath)
 }
 
+// 根据 full_group_code 查找函数组节点
+const findGroupByFullGroupCode = (fullGroupCode: string): ServiceTree | null => {
+  if (!groupedTreeData.value.length) {
+    return null
+  }
+  
+  const findNode = (nodes: ServiceTree[]): ServiceTree | null => {
+    for (const node of nodes) {
+      // 检查是否是函数组节点且 full_group_code 匹配
+      if ((node as any).isGroup && (node as any).full_group_code === fullGroupCode) {
+        return node
+      }
+      // 递归查找子节点
+      if (node.children && node.children.length > 0) {
+        const found = findNode(node.children)
+        if (found) return found
+      }
+    }
+    return null
+  }
+  
+  return findNode(groupedTreeData.value)
+}
+
 // 展开多个路径
 const expandPaths = (paths: string[]) => {
   if (!treeRef.value || !groupedTreeData.value.length) {
@@ -345,6 +420,22 @@ const expandPaths = (paths: string[]) => {
   }
   
   paths.forEach((path) => {
+    // 先尝试根据 full_group_code 查找函数组
+    const groupNode = findGroupByFullGroupCode(path)
+    if (groupNode) {
+      // 找到函数组节点，展开并选中
+      const nodeId = Number(groupNode.id)
+      const pathToNode = findPathToNode(groupedTreeData.value, nodeId)
+      if (pathToNode.length > 0) {
+        expandParentNodes(pathToNode)
+        setTimeout(() => {
+          treeRef.value.setCurrentKey(nodeId)
+        }, 100)
+      }
+      return
+    }
+    
+    // 如果不是函数组，尝试根据 full_code_path 查找
     const node = findAndExpandByPath(path)
     if (node) {
       // 找到节点后，展开到该节点的所有父节点
@@ -360,6 +451,15 @@ const expandPaths = (paths: string[]) => {
     }
   })
 }
+
+// 监听路由查询参数中的 full_group_code，自动定位并展开函数组
+watch(() => route.query.full_group_code, (fullGroupCode) => {
+  if (fullGroupCode && typeof fullGroupCode === 'string' && groupedTreeData.value.length > 0) {
+    nextTick(() => {
+      expandPaths([fullGroupCode])
+    })
+  }
+}, { immediate: true })
 
 // 监听 currentNodeId 变化，自动展开并选中节点
 watch(() => props.currentNodeId, (nodeId) => {
@@ -507,12 +607,17 @@ defineExpose({
     }
     
     &.table-icon {
-      color: #6366f1;
-      opacity: 0.8;
+      color: #10b981; /* green-500 - 表格用绿色 */
+      opacity: 0.9;
     }
     
     &.form-icon {
-      color: #6366f1;
+      color: #3b82f6; /* blue-500 - 表单用蓝色 */
+      opacity: 0.9;
+    }
+    
+    &.function-icon {
+      color: #6366f1; /* indigo-500 - 默认函数图标 */
       opacity: 0.8;
     }
     

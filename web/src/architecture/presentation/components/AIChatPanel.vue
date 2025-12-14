@@ -147,6 +147,7 @@
               'needs-expand': message.isGreeting && needsExpand(message)
             }]"
             v-html="message.isHtml ? message.content : formatMessage(message.content)"
+            @click="handleMessageLinkClick"
           ></div>
           <!-- 开场白展开/收起按钮 -->
           <div v-if="message.isGreeting && needsExpand(message)" class="greeting-expand">
@@ -261,8 +262,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted, computed } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ref, watch, nextTick, onMounted, onUnmounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage, ElNotification } from 'element-plus'
 import { Close, User, Loading, ChatRound, Upload, Document, Plus, ArrowDown, ArrowUp } from '@element-plus/icons-vue'
 import * as agentApi from '@/api/agent'
 import type { AgentInfo, ChatSessionInfo } from '@/api/agent'
@@ -291,6 +293,8 @@ const emit = defineEmits<{
   close: []
 }>()
 
+const router = useRouter()
+
 interface ChatFile {
   url: string
   remark: string
@@ -311,6 +315,10 @@ const inputMessage = ref('')
 const loading = ref(false)
 const messagesContainerRef = ref<HTMLElement>()
 const inputRef = ref<InstanceType<typeof HTMLTextAreaElement>>()
+
+// 轮询相关
+const pollingTimers = ref<Map<number, NodeJS.Timeout>>(new Map()) // 每个 record_id 对应的定时器
+const pollingRecordIds = ref<Set<number>>(new Set()) // 正在轮询的 record_id 集合
 
 // 文件上传相关
 const uploadedFiles = ref<ChatFile[]>([])
@@ -728,6 +736,11 @@ async function handleSelectSession(targetSessionId: string) {
 //   await loadSessionFromBackend()
 // }
 
+// 组件卸载时清理轮询
+onUnmounted(() => {
+  stopAllPolling()
+})
+
 // 初始化欢迎消息
 onMounted(async () => {
   await loadAgents()
@@ -935,6 +948,11 @@ async function handleSend() {
     // 添加 AI 回复
     addMessage('assistant', res.content || '抱歉，AI 没有返回内容')
     // 注意：消息已由后端保存，不需要前端保存
+
+    // 如果返回了 record_id，开始轮询状态
+    if (res.record_id) {
+      startPolling(res.record_id)
+    }
   } catch (error: any) {
     ElMessage.error(error.message || '发送消息失败')
     // 移除用户消息（因为发送失败）
@@ -986,6 +1004,136 @@ function formatMessage(content: string): string {
       .replace(/>/g, '&gt;')
       .replace(/\n/g, '<br>')
   }
+}
+
+// 处理消息中的链接点击（用于跳转到函数组）
+function handleMessageLinkClick(event: MouseEvent) {
+  const target = event.target as HTMLElement
+  // 检查是否点击的是链接
+  if (target.tagName === 'A' && target.getAttribute('href')) {
+    const href = target.getAttribute('href')
+    // 检查是否是 full_group_code 格式（以 / 开头，包含至少 3 段路径）
+    if (href && href.startsWith('/') && href.split('/').filter(Boolean).length >= 3) {
+      event.preventDefault()
+      // 更新路由，添加 full_group_code 查询参数
+      router.push({
+        path: router.currentRoute.value.path,
+        query: {
+          ...router.currentRoute.value.query,
+          full_group_code: href
+        }
+      })
+    }
+  }
+}
+
+// ==================== 轮询相关 ====================
+
+// 开始轮询代码生成状态
+function startPolling(recordId: number) {
+  // 如果已经在轮询这个 record_id，不重复启动
+  if (pollingRecordIds.value.has(recordId)) {
+    return
+  }
+  
+  pollingRecordIds.value.add(recordId)
+  
+  // 每 2 秒轮询一次
+  const poll = async () => {
+    try {
+      const res = await agentApi.getFunctionGenStatus({ record_id: recordId })
+      
+      if (res.status === 'completed') {
+        // 生成完成，停止轮询并发送通知
+        stopPolling(recordId)
+        
+        // 刷新消息列表（获取系统消息）
+        if (sessionId.value) {
+          await loadMessages(sessionId.value)
+        }
+        
+        // 发送成功通知
+        ElNotification({
+          title: '代码生成完成',
+          message: res.full_group_codes && res.full_group_codes.length > 0
+            ? `已生成 ${res.full_group_codes.length} 个函数组`
+            : '代码生成已完成',
+          type: 'success',
+          duration: 5000,
+          onClick: () => {
+            // 点击通知时，如果有函数组地址，跳转到第一个
+            if (res.full_group_codes && res.full_group_codes.length > 0) {
+              router.push({
+                path: router.currentRoute.value.path,
+                query: {
+                  ...router.currentRoute.value.query,
+                  full_group_code: res.full_group_codes[0]
+                }
+              })
+            }
+          }
+        })
+      } else if (res.status === 'failed') {
+        // 生成失败，停止轮询并发送通知
+        stopPolling(recordId)
+        
+        // 刷新消息列表
+        if (sessionId.value) {
+          await loadMessages(sessionId.value)
+        }
+        
+        // 发送失败通知
+        ElNotification({
+          title: '代码生成失败',
+          message: res.error_msg || '代码生成过程中出现错误',
+          type: 'error',
+          duration: 5000
+        })
+      }
+      // generating 状态继续轮询
+    } catch (error: any) {
+      console.error('[AIChatPanel] 轮询状态失败:', error)
+      // 轮询失败不中断，继续尝试
+    }
+  }
+  
+  // 立即执行一次
+  poll()
+  
+  // 设置定时器，每 2 秒轮询一次
+  const timer = setInterval(() => {
+    // 检查是否还在轮询列表中
+    if (!pollingRecordIds.value.has(recordId)) {
+      clearInterval(timer)
+      pollingTimers.value.delete(recordId)
+      return
+    }
+    poll()
+  }, 2000)
+  
+  // 保存定时器引用
+  pollingTimers.value.set(recordId, timer)
+}
+
+// 停止轮询
+function stopPolling(recordId: number) {
+  pollingRecordIds.value.delete(recordId)
+  // 清理对应的定时器
+  const timer = pollingTimers.value.get(recordId)
+  if (timer) {
+    clearInterval(timer)
+    pollingTimers.value.delete(recordId)
+  }
+}
+
+// 停止所有轮询
+function stopAllPolling() {
+  pollingRecordIds.value.clear()
+  // 清理所有定时器
+  pollingTimers.value.forEach((timer) => {
+    clearInterval(timer)
+  })
+  pollingTimers.value.clear()
 }
 
 // 根据格式类型渲染开场白

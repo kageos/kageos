@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/ai-agent-os/ai-agent-os/pkg/llms"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	"strings"
-	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
 	"github.com/ai-agent-os/ai-agent-os/dto"
@@ -187,8 +188,9 @@ func (s *AgentChatService) FunctionGenChat(ctx context.Context, req *dto.Functio
 		session := &model.AgentChatSession{
 			TreeID:    req.TreeID,
 			SessionID: sessionID,
-			AgentID:   req.AgentID, // 关联智能体ID
-			Title:     "",          // 可以后续根据第一条消息自动生成
+			AgentID:   req.AgentID,                   // 关联智能体ID
+			Title:     "",                            // 可以后续根据第一条消息自动生成
+			Status:    model.ChatSessionStatusActive, // 默认状态为 active
 			User:      user,
 		}
 		session.CreatedBy = user
@@ -202,7 +204,7 @@ func (s *AgentChatService) FunctionGenChat(ctx context.Context, req *dto.Functio
 		// 使用现有会话
 		sessionID = req.SessionID
 		logger.Debugf(ctx, "[FunctionGenChat] 使用现有会话 - SessionID: %s, TraceID: %s", sessionID, traceId)
-		_, err := s.sessionRepo.GetBySessionID(sessionID)
+		session, err := s.sessionRepo.GetBySessionID(sessionID)
 		if err != nil {
 			if err == gorm.ErrRecordNotFound {
 				logger.Errorf(ctx, "[FunctionGenChat] 会话不存在 - SessionID: %s, TraceID: %s", sessionID, traceId)
@@ -211,6 +213,25 @@ func (s *AgentChatService) FunctionGenChat(ctx context.Context, req *dto.Functio
 			logger.Errorf(ctx, "[FunctionGenChat] 获取会话失败 - SessionID: %s, TraceID: %s, Error: %v", sessionID, traceId, err)
 			return nil, fmt.Errorf("获取会话失败: %w", err)
 		}
+
+		// 检查会话状态
+		if session.Status == model.ChatSessionStatusDone {
+			logger.Warnf(ctx, "[FunctionGenChat] 会话已结束，不能再输入 - SessionID: %s, Status: %s, TraceID: %s", sessionID, session.Status, traceId)
+			return nil, fmt.Errorf("会话已结束，不能再输入。请新建会话继续生成")
+		}
+		if session.Status == model.ChatSessionStatusGenerating {
+			logger.Warnf(ctx, "[FunctionGenChat] 会话正在生成中，请等待完成 - SessionID: %s, Status: %s, TraceID: %s", sessionID, session.Status, traceId)
+			return nil, fmt.Errorf("会话正在生成中，请等待完成后再试")
+		}
+
+		// 设置会话状态为 generating
+		session.Status = model.ChatSessionStatusGenerating
+		session.UpdatedBy = user
+		if err := s.sessionRepo.Update(session); err != nil {
+			logger.Errorf(ctx, "[FunctionGenChat] 更新会话状态失败 - SessionID: %s, TraceID: %s, Error: %v", sessionID, traceId, err)
+			return nil, fmt.Errorf("更新会话状态失败: %w", err)
+		}
+		logger.Infof(ctx, "[FunctionGenChat] 会话状态已更新为 generating - SessionID: %s, TraceID: %s", sessionID, traceId)
 	}
 
 	// 3. 保存用户消息
@@ -629,14 +650,14 @@ func (s *AgentChatService) FunctionGenChat(ctx context.Context, req *dto.Functio
 func extractCodeFromMarkdown(content string) string {
 	// 查找 ```go 或 ``` 开头的代码块
 	lines := strings.Split(content, "\n")
-	
+
 	var codeBlocks []string
 	var inCodeBlock bool
 	var codeBlockStart int
-	
+
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		
+
 		// 检查是否是代码块开始标记
 		if strings.HasPrefix(trimmed, "```") {
 			if inCodeBlock {
@@ -654,13 +675,13 @@ func extractCodeFromMarkdown(content string) string {
 			continue
 		}
 	}
-	
+
 	// 如果代码块没有正确关闭，也提取已收集的内容
 	if inCodeBlock && codeBlockStart < len(lines)-1 {
 		codeBlock := strings.Join(lines[codeBlockStart+1:], "\n")
 		codeBlocks = append(codeBlocks, codeBlock)
 	}
-	
+
 	// 如果有代码块，返回第一个（通常只有一个）
 	if len(codeBlocks) > 0 {
 		extracted := strings.TrimSpace(codeBlocks[0])
@@ -669,7 +690,7 @@ func extractCodeFromMarkdown(content string) string {
 			return extracted
 		}
 	}
-	
+
 	// 如果没有找到代码块或代码块为空，返回原始内容（作为 fallback）
 	return content
 }

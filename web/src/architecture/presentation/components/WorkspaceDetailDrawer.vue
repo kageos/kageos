@@ -79,51 +79,64 @@
     <div class="detail-content">
       <!-- 详情模式 - 使用更美观的布局 -->
       <div v-if="mode === 'read'">
-        <!-- 链接操作区域：收集所有 link 字段显示在顶部 -->
-        <div v-if="linkFields.length > 0" class="detail-links-section">
-          <div class="links-section-title">相关链接</div>
-          <div class="links-section-content">
-            <LinkWidget
-              v-for="linkField in linkFields"
-              :key="linkField.code"
-              :field="linkField"
-              :value="getFieldValue(linkField.code)"
-              :field-path="linkField.code"
-              mode="detail"
-              class="detail-link-item"
-            />
-          </div>
-        </div>
-        
-        <!-- 字段网格（排除 link 字段） -->
-        <div class="detail-fields-grid">
-          <div
-            v-for="field in fields.filter((f: FieldConfig) => f.widget?.type !== WidgetType.LINK)"
-            :key="field.code"
-            class="detail-field-row"
-          >
-            <div class="detail-field-label">
-              {{ field.name }}
+        <el-tabs v-model="activeTab" @tab-change="handleTabChange" class="detail-tabs">
+          <!-- 详情 tab -->
+          <el-tab-pane label="详情" name="detail">
+            <div class="tab-content">
+              <!-- 链接操作区域：收集所有 link 字段显示在顶部 -->
+              <div v-if="linkFields.length > 0" class="detail-links-section">
+                <div class="links-section-title">相关链接</div>
+                <div class="links-section-content">
+                  <LinkWidget
+                    v-for="linkField in linkFields"
+                    :key="linkField.code"
+                    :field="linkField"
+                    :value="getFieldValue(linkField.code)"
+                    :field-path="linkField.code"
+                    mode="detail"
+                    class="detail-link-item"
+                  />
+                </div>
+              </div>
+              
+              <!-- 字段网格（排除 link 字段） -->
+              <div class="detail-fields-grid">
+                <div
+                  v-for="field in fields.filter((f: FieldConfig) => f.widget?.type !== WidgetType.LINK)"
+                  :key="field.code"
+                  class="detail-field-row"
+                >
+                  <div class="detail-field-label">
+                    {{ field.name }}
+                  </div>
+                  <div class="detail-field-value">
+                    <WidgetComponent
+                      :field="field"
+                      :value="getFieldValue(field.code)"
+                      mode="detail"
+                      :user-info-map="userInfoMap"
+                      :function-name="functionName"
+                      :record-id="recordId"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
-            <div class="detail-field-value">
-              <WidgetComponent
-                :field="field"
-                :value="getFieldValue(field.code)"
-                mode="detail"
-                :user-info-map="userInfoMap"
-                :function-name="functionName"
-                :record-id="recordId"
+          </el-tab-pane>
+
+          <!-- 操作日志 tab -->
+          <el-tab-pane label="操作日志" name="operateLog">
+            <div class="tab-content">
+              <OperateLogSection
+                ref="operateLogSectionRef"
+                :full-code-path="fullCodePath"
+                :row-id="rowId"
+                :function-detail="currentFunctionDetail || editFunctionDetail"
+                :auto-load="false"
               />
             </div>
-          </div>
-        </div>
-
-        <!-- 操作日志区域 -->
-        <OperateLogSection
-          :full-code-path="fullCodePath"
-          :row-id="rowId"
-          :function-detail="currentFunctionDetail || editFunctionDetail"
-        />
+          </el-tab-pane>
+        </el-tabs>
       </div>
 
       <!-- 编辑模式（复用 FormRenderer） -->
@@ -157,7 +170,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch } from 'vue'
 import { Edit, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElTabs, ElTabPane } from 'element-plus'
 import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
 import LinkWidget from '@/core/widgets-v2/components/LinkWidget.vue'
@@ -205,6 +218,26 @@ const emit = defineEmits<Emits>()
 
 const formRendererRef = ref<InstanceType<typeof FormRenderer> | null>(null)
 const isFormRendererReady = ref(false)
+
+// Tab 相关
+const activeTab = ref('detail')
+const operateLogSectionRef = ref<InstanceType<typeof OperateLogSection> | null>(null)
+
+// 处理 tab 切换
+const handleTabChange = (tabName: string) => {
+  if (tabName === 'operateLog' && operateLogSectionRef.value) {
+    // 切换到操作日志 tab 时，触发加载
+    operateLogSectionRef.value.load()
+  }
+}
+
+// 监听 rowData 变化，重置 tab
+watch(
+  () => props.rowData,
+  () => {
+    activeTab.value = 'detail'
+  }
+)
 
 // 监听 formRendererRef 的变化
 watch(formRendererRef, (newVal) => {
@@ -504,6 +537,26 @@ defineExpose({
 
 .edit-form-wrapper {
   min-height: 400px;
+}
+
+/* Tab 样式 */
+.detail-tabs {
+  :deep(.el-tabs__header) {
+    margin-bottom: 20px;
+  }
+
+  :deep(.el-tabs__item) {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  :deep(.el-tabs__active-bar) {
+    background-color: var(--el-color-primary);
+  }
+}
+
+.tab-content {
+  padding: 0;
 }
 </style>
 

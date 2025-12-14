@@ -92,6 +92,19 @@
         <!-- 🔥 Detail 模式：显示详情抽屉（通过 URL 参数打开） -->
         <!-- 注意：detail 模式使用抽屉显示，不需要单独的页面 -->
         
+        <!-- 🔥 函数组详情页面 -->
+        <FunctionGroupDetailView
+          v-else-if="route.query._node_type === 'function_group'"
+          :service-tree="serviceTree"
+        />
+        
+        <!-- 🔥 服务目录详情页面 -->
+        <PackageDetailView
+          v-else-if="currentFunction && currentFunction.type === 'package' && !selectedAgent"
+          :package-node="currentFunction"
+          @generate-system="handlePackageGenerateSystem"
+        />
+        
         <!-- 🔥 点击目录节点时根据选择的智能体显示不同的聊天面板 -->
         <div v-else-if="currentFunction && currentFunction.type === 'package' && selectedAgent" class="ai-chat-wrapper">
           <!-- 根据 chat_type 选择不同的渲染方式 -->
@@ -324,6 +337,8 @@ import WorkspaceTabs from '../components/WorkspaceTabs.vue'
 import WorkspaceDetailDrawer from '../components/WorkspaceDetailDrawer.vue'
 import AIChatPanel from '../components/AIChatPanel.vue'
 import AgentSelectDialog from '@/components/Agent/AgentSelectDialog.vue'
+import PackageDetailView from '../components/PackageDetailView.vue'
+import FunctionGroupDetailView from '../components/FunctionGroupDetailView.vue'
 import type { ServiceTree, App } from '../../domain/services/WorkspaceDomainService'
 import type { FunctionDetail } from '../../domain/interfaces/IFunctionLoader'
 import type { App as AppType, ServiceTree as ServiceTreeType } from '@/types'
@@ -607,6 +622,15 @@ function handleAgentSelect(agent: AgentInfo) {
   }
 }
 
+// 处理服务目录的生成系统按钮点击
+function handlePackageGenerateSystem(agent: AgentInfo) {
+  selectedAgent.value = agent
+  // 设置当前函数（确保 AIChatPanel 能正确显示）
+  if (currentFunction.value && currentFunction.value.type === 'package') {
+    applicationService.triggerNodeClick(currentFunction.value)
+  }
+}
+
 // 关闭 AI 聊天面板
 function handleCloseAIChat() {
   selectedAgent.value = null
@@ -675,6 +699,15 @@ const handleNodeClick = (node: ServiceTreeType) => {
   // 转换为新架构的 ServiceTree 类型
   const serviceTree: ServiceTree = node as any
   
+  // 调试日志
+  // console.log('[WorkspaceView] handleNodeClick', {
+  //   type: serviceTree.type,
+  //   name: serviceTree.name,
+  //   full_code_path: serviceTree.full_code_path,
+  //   isGroup: (serviceTree as any).isGroup,
+  //   full_group_code: (serviceTree as any).full_group_code
+  // })
+  
   // 🔥 路由优先策略：先更新路由，路由变化会触发 Tab 状态更新
   if (serviceTree.type === 'function' && serviceTree.full_code_path) {
     const targetPath = `/workspace${serviceTree.full_code_path}`
@@ -703,10 +736,10 @@ const handleNodeClick = (node: ServiceTreeType) => {
       // 🔥 阶段3：改为事件驱动，通过 RouteManager 统一处理路由更新
       let preservedQuery: Record<string, string | string[]>
       if (isLinkNavigation) {
-        // 🔥 link 跳转：保留所有参数（除了 _link_type 临时参数）
+        // 🔥 link 跳转：保留所有参数（除了 _link_type 和 _node_type 临时参数）
         preservedQuery = {}
         Object.keys(route.query).forEach(key => {
-          if (key !== '_link_type') {
+          if (key !== '_link_type' && key !== '_node_type') {
             const value = route.query[key]
             if (value !== null && value !== undefined) {
               preservedQuery[key] = Array.isArray(value) 
@@ -719,9 +752,16 @@ const handleNodeClick = (node: ServiceTreeType) => {
         // 普通跳转：根据函数类型保留相应参数
         // 如果是 table 函数，保留分页和排序参数；如果是 form 函数，不保留这些参数
         // form 函数不需要 page、page_size、sorts 等参数，必须清除
+        // 🔥 同时清除 _node_type 参数（函数组专用参数）
+        const filteredQuery: Record<string, any> = {}
+        Object.keys(route.query).forEach(key => {
+          if (key !== '_node_type') {
+            filteredQuery[key] = route.query[key]
+          }
+        })
         preservedQuery = isTableFunction
-          ? preserveQueryParamsForTable(route.query)
-          : preserveQueryParamsForForm(route.query)
+          ? preserveQueryParamsForTable(filteredQuery)
+          : preserveQueryParamsForForm(filteredQuery)
       }
       
       // 🔥 发出路由更新请求事件
@@ -732,7 +772,7 @@ const handleNodeClick = (node: ServiceTreeType) => {
         preserveParams: {
           table: isTableFunction,      // table 函数保留 table 参数
           search: false,                // 普通跳转不保留搜索参数
-          state: true,                  // 保留状态参数（_ 开头）
+          state: true,                  // 保留状态参数（_ 开头，但排除 _node_type）
           linkNavigation: isLinkNavigation  // link 跳转保留所有参数
         },
         source: 'workspace-node-click'
@@ -742,11 +782,52 @@ const handleNodeClick = (node: ServiceTreeType) => {
       applicationService.triggerNodeClick(serviceTree)
     }
   } else if (serviceTree.type === 'package') {
-    // 目录节点：先显示智能体选择对话框
-    // 设置当前函数（用于对话框显示上下文信息）
+    // 目录节点：跳转到目录详情页面
+    // 先设置当前函数，确保 PackageDetailView 能获取到数据
     applicationService.triggerNodeClick(serviceTree)
-    // 显示智能体选择对话框
-    agentSelectDialogVisible.value = true
+    
+    if (serviceTree.full_code_path) {
+      const targetPath = `/workspace${serviceTree.full_code_path}`
+      // 检查是否需要更新路由（路径不同或存在 _node_type 参数）
+      const needUpdate = route.path !== targetPath || route.query._node_type === 'function_group'
+      if (needUpdate) {
+        eventBus.emit(RouteEvent.updateRequested, {
+          path: targetPath,
+          query: {}, // 明确清除所有查询参数，包括 _node_type
+          replace: true,
+          preserveParams: {
+            table: false,
+            search: false,
+            state: false, // 不保留状态参数，确保清除 _node_type
+            linkNavigation: false
+          },
+          source: 'workspace-node-click-package'
+        })
+      }
+    }
+  } else if ((serviceTree as any).isGroup && (serviceTree as any).full_group_code) {
+    // 函数组节点：跳转到函数组详情页面
+    const fullGroupCode = (serviceTree as any).full_group_code
+    // 使用 full_group_code 作为路径，例如：/luobei/demo/crm/crm_ticket -> /workspace/luobei/demo/crm/crm_ticket
+    const targetPath = `/workspace${fullGroupCode}`
+    // 检查是否需要更新路由（路径或 _node_type 不同）
+    const needUpdate = route.path !== targetPath || route.query._node_type !== 'function_group'
+    if (needUpdate) {
+      eventBus.emit(RouteEvent.updateRequested, {
+        path: targetPath,
+        query: {
+          _node_type: 'function_group'
+        },
+        replace: true,
+        preserveParams: {
+          table: false,
+          search: false,
+          state: false, // 函数组详情页面不需要保留状态参数
+          linkNavigation: false
+        },
+        source: 'workspace-node-click-group'
+      })
+    }
   } else {
     // 其他类型节点，只设置当前函数
     applicationService.triggerNodeClick(serviceTree)
