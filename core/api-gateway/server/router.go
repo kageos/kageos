@@ -19,12 +19,16 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/pkg/pprof"
 )
 
 // setupRoutes 设置路由
 func (s *Server) setupRoutes() {
 	// 健康检查
 	s.httpServer.GET("/health", s.healthHandler)
+
+	// 注册 pprof 路由（性能分析）
+	pprof.RegisterPprofRoutes(s.httpServer)
 
 	// 配置接口（本地处理）
 	configHandler := v1.NewConfig()
