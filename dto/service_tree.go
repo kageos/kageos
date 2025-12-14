@@ -40,6 +40,7 @@ type GetServiceTreeResp struct {
 	AppID        int64                 `json:"app_id" example:"1"`                          // 应用ID
 	RefID        int64                 `json:"ref_id" example:"0"`                          // 引用ID：指向真实资源的ID，如果是package类型指向package的ID，如果是function类型指向function的ID
 	FullCodePath string                `json:"full_code_path" example:"/beiluo/myapp/user"` // 完整代码路径
+	TemplateType string                `json:"template_type" example:"form"`                 // 模板类型（函数的类型，如 form、table）
 	Children     []*GetServiceTreeResp `json:"children,omitempty"`                          // 子目录列表
 }
 

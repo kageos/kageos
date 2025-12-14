@@ -89,7 +89,6 @@ func (f *FunctionService) GetFunction(ctx context.Context, functionID int64) (*d
 		resp.Response = map[string]interface{}{}
 	}
 
-	logger.Infof(ctx, "[FunctionService] GetFunction success: functionID=%d", functionID)
 	return resp, nil
 }
 

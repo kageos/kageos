@@ -222,6 +222,7 @@ func (s *ServiceTreeService) convertToGetServiceTreeResp(tree *model.ServiceTree
 		Tags:         tree.Tags,
 		AppID:        tree.AppID,
 		FullCodePath: tree.FullCodePath,
+		TemplateType: tree.TemplateType,
 	}
 
 	// 递归处理子节点

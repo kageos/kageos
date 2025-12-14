@@ -2,8 +2,8 @@ package server
 
 import (
 	v1 "github.com/ai-agent-os/ai-agent-os/core/app-storage/api/v1"
-	"github.com/ai-agent-os/ai-agent-os/pkg/pprof"
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
+	"github.com/ai-agent-os/ai-agent-os/pkg/pprof"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
@@ -26,21 +26,20 @@ func (s *Server) setupRoutes() {
 	storage := apiV1.Group("/storage")
 	storage.Use(middleware2.JWTAuth()) // 存储管理需要JWT认证
 	storageHandler := v1.NewStorage(s.storageService)
-	
+
 	// 上传相关
 	storage.POST("/upload_token", storageHandler.GetUploadToken)
-	storage.POST("/batch_upload_token", storageHandler.BatchGetUploadToken) // ✨ 批量获取上传凭证
-	storage.POST("/upload_complete", storageHandler.UploadComplete)  // 上传完成通知
+	storage.POST("/batch_upload_token", storageHandler.BatchGetUploadToken)    // ✨ 批量获取上传凭证
+	storage.POST("/upload_complete", storageHandler.UploadComplete)            // 上传完成通知
 	storage.POST("/batch_upload_complete", storageHandler.BatchUploadComplete) // ✨ 批量上传完成通知
-	
+
 	// 文件操作（key 包含斜杠，使用 *key 匹配）
 	storage.GET("/download/*key", storageHandler.GetFileURL)
-	storage.GET("/info/*key", storageHandler.GetFileInfo)  // ✅ info 在前，避免 catch-all 冲突
+	storage.GET("/info/*key", storageHandler.GetFileInfo) // ✅ info 在前，避免 catch-all 冲突
 	storage.DELETE("/files/*key", storageHandler.DeleteFile)
-	
+
 	// 批量操作（按函数路径）
-	storage.GET("/files", storageHandler.ListFiles)           // 列举文件
-	storage.GET("/stats", storageHandler.GetStorageStats)     // 存储统计
+	storage.GET("/files", storageHandler.ListFiles)                   // 列举文件
+	storage.GET("/stats", storageHandler.GetStorageStats)             // 存储统计
 	storage.POST("/batch_delete", storageHandler.DeleteFilesByRouter) // 批量删除
 }
-

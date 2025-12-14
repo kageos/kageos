@@ -113,12 +113,15 @@ interface Props {
   rowId: number
   /** 函数详情（用于获取字段名称和渲染组件） */
   functionDetail?: any
+  /** 是否自动加载（默认 false，需要手动调用 load 方法） */
+  autoLoad?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   fullCodePath: '',
   rowId: 0,
-  functionDetail: undefined
+  functionDetail: undefined,
+  autoLoad: false
 })
 
 /**
@@ -264,6 +267,13 @@ const loadOperateLogs = async () => {
     
     // 批量加载用户信息
     await loadUserInfos()
+    
+    // 标记为已加载，记录参数
+    hasLoaded.value = true
+    lastLoadParams.value = {
+      fullCodePath: props.fullCodePath,
+      rowId: props.rowId
+    }
   } catch (error: any) {
     console.error('[OperateLogSection] 加载操作日志失败:', error)
     ElMessage.warning('加载操作日志失败: ' + (error.message || '未知错误'))
@@ -482,16 +492,33 @@ const handleUpgrade = () => {
   ElMessage.info('请联系管理员升级到企业版')
 }
 
-// 监听 props 变化，自动加载操作日志和函数详情
+// 是否已加载过（用于懒加载场景）
+const hasLoaded = ref(false)
+// 记录上次加载的参数，用于判断是否需要重新加载
+const lastLoadParams = ref<{ fullCodePath: string; rowId: number } | null>(null)
+
+// 监听 props 变化，自动加载操作日志和函数详情（仅在 autoLoad 为 true 时）
 watch(
   () => [props.fullCodePath, props.rowId, props.functionDetail],
   (newVal: [string, number, any], oldVal?: [string, number, any]) => {
     const [newFullCodePath, newRowId, newFunctionDetail] = newVal
     const [oldFullCodePath = '', oldRowId = 0, oldFunctionDetail] = oldVal || []
     
+    // 如果参数变化，重置加载状态
+    if (newFullCodePath && newRowId && (newFullCodePath !== oldFullCodePath || newRowId !== oldRowId)) {
+      hasLoaded.value = false
+      lastLoadParams.value = null
+      logs.value = []
+    }
+    
     // 如果 functionDetail 变化，清除缓存
     if (newFunctionDetail !== oldFunctionDetail) {
       functionDetailCache.value = null
+    }
+    
+    // 只有 autoLoad 为 true 时才自动加载
+    if (!props.autoLoad) {
+      return
     }
     
     // 只有当值真正变化时才加载（避免初始化时重复加载）
@@ -504,6 +531,28 @@ watch(
   },
   { immediate: true }
 )
+
+// 暴露 load 方法供外部调用
+defineExpose({
+  load: () => {
+    // 检查参数是否变化，如果变化了需要重新加载
+    const paramsChanged = !lastLoadParams.value || 
+      lastLoadParams.value.fullCodePath !== props.fullCodePath ||
+      lastLoadParams.value.rowId !== props.rowId
+    
+    if (paramsChanged) {
+      // 参数变化，清除状态重新加载
+      hasLoaded.value = false
+      logs.value = []
+      functionDetailCache.value = null
+    }
+    
+    // 如果还没加载过，或者参数变化了，则加载
+    if (!hasLoaded.value) {
+      loadOperateLogs()
+    }
+  }
+})
 </script>
 
 <style scoped>

@@ -192,3 +192,20 @@ func (s *AgentChatService) ListMessages(ctx context.Context, sessionID string) (
 
 	return messages, nil
 }
+
+// GetFunctionGenStatus 查询代码生成状态
+func (s *AgentChatService) GetFunctionGenStatus(ctx context.Context, recordID int64) (*model.FunctionGenRecord, error) {
+	if s.functionGenRepo == nil {
+		return nil, fmt.Errorf("函数生成Repository未初始化")
+	}
+
+	record, err := s.functionGenRepo.GetByID(recordID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("代码生成记录不存在（ID: %d）", recordID)
+		}
+		return nil, fmt.Errorf("查询代码生成状态失败: %w", err)
+	}
+
+	return record, nil
+}

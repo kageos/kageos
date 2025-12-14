@@ -591,6 +591,32 @@ export function getChatMessageList(params: ChatMessageListReq) {
   })
 }
 
+// ==================== 代码生成状态查询相关 ====================
+
+export interface FunctionGenStatusReq {
+  record_id: number
+}
+
+export interface FunctionGenStatusResp {
+  record_id: number
+  status: 'generating' | 'completed' | 'failed'
+  code?: string
+  error_msg?: string
+  full_group_codes?: string[]
+  duration: number
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * 查询代码生成状态
+ */
+export function getFunctionGenStatus(params: FunctionGenStatusReq) {
+  return axiosInstance.get<FunctionGenStatusResp>('/api/v1/agent/chat/function_gen/status', {
+    params
+  })
+}
+
 // ==================== LLM 相关 ====================
 
 export interface LLMInfo {

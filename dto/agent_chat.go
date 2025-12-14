@@ -93,6 +93,7 @@ type ChatSessionInfo struct {
 	AgentID   int64      `json:"agent_id" example:"1"`                     // 关联的智能体ID
 	Agent     *AgentInfo `json:"agent,omitempty"`                          // 关联的智能体信息（可选）
 	Title     string     `json:"title" example:"会话标题"`                    // 会话标题
+	Status    string     `json:"status" example:"active"`                  // 会话状态：active(活跃)/generating(生成中)/done(已完成)
 	User      string     `json:"user" example:"beiluo"`                     // 创建用户
 	CreatedAt string     `json:"created_at" example:"2006-01-02T15:04:05Z"` // 创建时间
 	UpdatedAt string     `json:"updated_at" example:"2006-01-02T15:04:05Z"` // 更新时间
@@ -135,4 +136,21 @@ type FunctionGenCallback struct {
 	AppID          int64    `json:"app_id"`           // 应用ID
 	AppCode        string   `json:"app_code"`         // 应用代码（冗余存储，提高查询效率）
 	Error          string   `json:"error,omitempty"`   // 错误信息（如果失败）
+}
+
+// FunctionGenStatusReq 查询代码生成状态请求
+type FunctionGenStatusReq struct {
+	RecordID int64 `json:"record_id" form:"record_id" binding:"required" example:"1"` // 生成记录ID
+}
+
+// FunctionGenStatusResp 查询代码生成状态响应
+type FunctionGenStatusResp struct {
+	RecordID       int64    `json:"record_id" example:"1"`                              // 生成记录ID
+	Status         string   `json:"status" example:"generating"`                         // 状态：generating/completed/failed
+	Code           string   `json:"code,omitempty" example:"package main\n\nfunc main() {}"` // 生成的代码（仅在 completed 时返回）
+	ErrorMsg       string   `json:"error_msg,omitempty" example:"生成失败"`                // 错误信息（仅在 failed 时返回）
+	FullGroupCodes []string `json:"full_group_codes,omitempty" example:"[\"/user/app/function\"]"` // 生成的函数组代码列表（仅在 completed 时返回）
+	Duration       int      `json:"duration" example:"30"`                              // 生成耗时（秒）
+	CreatedAt      string   `json:"created_at" example:"2006-01-02T15:04:05Z"`           // 创建时间
+	UpdatedAt      string   `json:"updated_at" example:"2006-01-02T15:04:05Z"`         // 更新时间
 }

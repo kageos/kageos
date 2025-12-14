@@ -72,6 +72,7 @@ export interface ServiceTree {
   full_code_path: string
   full_group_code?: string  // 完整函数组代码：{full_path}/{group_code}，与 source_code.full_group_code 对齐
   group_name?: string  // 组名称（用于展示，不参与路由）
+  template_type?: string  // 模板类型（函数的类型，如 form、table）
   created_at: string
   updated_at: string
   children?: ServiceTree[]

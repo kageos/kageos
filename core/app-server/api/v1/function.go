@@ -54,10 +54,6 @@ func (f *Function) GetFunction(c *gin.Context) {
 		return
 	}
 
-	defer func() {
-		logger.Infof(c, "GetFunction function_id:%d resp:%+v err:%v", functionID, resp, err)
-	}()
-
 	ctx := contextx.ToContext(c)
 	resp, err = f.functionService.GetFunction(ctx, functionID)
 	if err != nil {
