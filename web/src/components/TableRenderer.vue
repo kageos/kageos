@@ -8,76 +8,32 @@
     </div>
 
     <!-- 搜索栏 -->
-    <div class="search-bar">
-      <el-form :inline="true" :model="searchForm" class="search-form">
-        <template v-for="field in searchableFields" :key="field.code">
-          <!-- 🔥 通过 Widget 渲染搜索输入（组件自治） -->
-          <el-form-item :label="field.name">
-            <SearchInput
-              :field="field"
-              :search-type="field.search"
-              :model-value="getSearchValue(field)"
-              :function-method="functionData.method"
-              :function-router="functionData.router"
-              @update:model-value="(value: any) => {
-                // 🔥 判断是否清空：值为 null 或空字符串，且之前有值
-                const isClearing = (value === null || value === '') && 
-                                   searchForm.value && 
-                                   searchForm.value[field.code] !== undefined
-                updateSearchValue(field, value, isClearing)
-              }"
-            />
-          </el-form-item>
-        </template>
-
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">
-            <el-icon><Search /></el-icon>
-            搜索
-          </el-button>
-          <el-button @click="handleReset">
-            <el-icon><Refresh /></el-icon>
-            重置
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </div>
+    <TableSearchBar
+      :searchable-fields="searchableFields"
+      :search-form="searchForm"
+      :function-data="props.functionData"
+      @search="handleSearch"
+      @reset="handleReset"
+      @update:search-form="(value: Record<string, any>) => {
+        // 更新搜索表单并同步到 URL
+        Object.keys(searchForm.value).forEach(key => {
+          if (!(key in value)) {
+            delete searchForm.value[key]
+          }
+        })
+        Object.assign(searchForm.value, value)
+        syncToURL()
+      }"
+    />
 
     <!-- 🔥 排序信息条：显示当前排序状态 -->
-    <div v-if="displaySorts.length > 0" class="sort-info-bar">
-      <div class="sort-info-content">
-        <span class="sort-label">排序：</span>
-        <div class="sort-items">
-          <!-- 显示所有排序列 -->
-          <template v-for="(sort, index) in displaySorts" :key="sort.field">
-            <el-tag
-              :type="index === 0 ? 'primary' : 'info'"
-              size="small"
-              closable
-              @close="handleRemoveSort(sort.field)"
-              class="sort-tag"
-            >
-              <span class="sort-field-name">{{ getFieldName(sort.field) }}</span>
-              <el-icon class="sort-icon">
-                <ArrowUp v-if="sort.order === 'asc'" />
-                <ArrowDown v-else />
-              </el-icon>
-            </el-tag>
-            <span v-if="index < displaySorts.length - 1" class="sort-separator">></span>
-          </template>
-        </div>
-        <el-button
-          v-if="sorts.length > 0"
-          link
-          type="primary"
-          size="small"
-          @click="handleClearAllSorts"
-          class="clear-all-sorts-btn"
-        >
-          清除所有排序
-        </el-button>
-      </div>
-    </div>
+    <TableSortBar
+      :sorts="sorts"
+      :display-sorts="displaySorts"
+      :visible-fields="visibleFields"
+      @remove-sort="handleRemoveSort"
+      @clear-all-sorts="handleClearAllSorts"
+    />
 
     <!-- 表格 -->
     <!-- 
@@ -161,61 +117,14 @@
         class-name="action-column"
       >
         <template #default="{ row }">
-          <div class="action-buttons">
-            <!-- 链接区域：只有 1 个链接时直接显示，超过 1 个时使用下拉菜单 -->
-            <template v-if="linkFields.length === 1">
-              <LinkWidget
-                :field="linkFields[0]"
-                :value="convertToFieldValue(row[linkFields[0].code], linkFields[0])"
-                :field-path="linkFields[0].code"
-                mode="table-cell"
-                class="action-link"
-              />
-            </template>
-            
-            <!-- 多个链接下拉菜单（超过 1 个时显示） -->
-            <el-dropdown
-              v-else-if="linkFields.length > 1"
-              trigger="click"
-              placement="bottom-end"
-              @command="(fieldCode: string) => handleLinkClick(fieldCode, row)"
-            >
-              <el-button link type="primary" size="small" class="more-links-btn">
-                <el-icon><More /></el-icon>
-                链接
-              </el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item
-                    v-for="linkField in linkFields"
-                    :key="linkField.code"
-                    :command="linkField.code"
-                  >
-                    <div class="dropdown-link-content">
-                      <el-icon v-if="linkField.widget?.config?.icon" class="link-icon">
-                        <component :is="linkField.widget.config.icon" />
-                      </el-icon>
-                      <el-icon v-else class="link-icon internal-icon"><Right /></el-icon>
-                      <span>{{ getLinkText(linkField, row[linkField.code]) }}</span>
-                    </div>
-                  </el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-            
-            <!-- 删除按钮 -->
-            <el-button 
-              v-if="hasDeleteCallback"
-              link 
-              type="danger" 
-              size="small"
-              class="delete-btn"
-              @click.stop="handleDelete(row)"
-            >
-              <el-icon><Delete /></el-icon>
-              删除
-            </el-button>
-          </div>
+          <TableActionColumn
+            :link-fields="linkFields"
+            :has-delete-callback="hasDeleteCallback"
+            :row="row"
+            :user-info-map="userInfoMap"
+            @link-click="handleLinkClick"
+            @delete="handleDelete"
+          />
         </template>
       </el-table-column>
     </el-table>
@@ -288,8 +197,8 @@ defineOptions({
  */
 
 import { computed, ref, watch, h, nextTick, onMounted, onUpdated, onUnmounted, isVNode, defineComponent } from 'vue'
-import { Search, Refresh, Delete, Plus, ArrowUp, ArrowDown, More, Right } from '@element-plus/icons-vue'
-import { ElIcon, ElButton, ElMessage, ElNotification, ElDropdown, ElDropdownMenu, ElDropdownItem } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue'
+import { ElIcon, ElButton, ElMessage, ElNotification } from 'element-plus'
 import { formatTimestamp } from '@/utils/date'
 import { useTableOperations } from '@/composables/useTableOperations'
 import { widgetComponentFactory } from '@/core/factories-v2'
@@ -305,10 +214,10 @@ import { useRouter } from 'vue-router'
 import { TABLE_PARAM_KEYS, SEARCH_PARAM_KEYS } from '@/utils/urlParams'
 import FormDialog from './FormDialog.vue'
 import { renderTableCell } from '@/core/utils/tableCellRenderer'
-import SearchInput from './SearchInput.vue'
-import LinkWidget from '@/core/widgets-v2/components/LinkWidget.vue'
 import TableDetailDrawer from './TableDetailDrawer.vue'
-import { useTableDetail } from '@/composables/useTableDetail'
+import TableActionColumn from './TableActionColumn.vue'
+import TableSearchBar from './TableSearchBar.vue'
+import TableSortBar from './TableSortBar.vue'
 import type { Function as FunctionType, ServiceTree } from '@/types'
 import type { FieldConfig, FieldValue, FunctionDetail } from '@/core/types/field'
 
@@ -368,56 +277,14 @@ const {
   functionData: props.functionData
 })
 
-// ==================== 链接处理 ====================
+// ==================== 链接处理（已移至 TableActionColumn 组件） ====================
 
 /**
- * 获取链接文本（用于下拉菜单显示）
+ * 处理链接点击（用于事件传递）
  */
-const getLinkText = (linkField: FieldConfig, rawValue: any): string => {
-  const value = convertToFieldValue(rawValue, linkField)
-  const url = value?.raw || ''
-  if (!url) return linkField.name || '链接'
-  
-  // 解析 "[text]url" 格式
-  const match = url.match(/^\[([^\]]+)\](.+)$/)
-  if (match) {
-    return match[1]  // 返回文本部分
-  }
-  
-  // 如果没有文本，使用字段名称或配置的 text
-  return linkField.widget?.config?.text || linkField.name || '链接'
-}
-
-/**
- * 处理链接点击（用于下拉菜单）
- * 当链接数量超过 2 个时，多余的链接通过下拉菜单触发
- */
-const handleLinkClick = (fieldCode: string, row: any) => {
-  const linkField = linkFields.value.find((f: FieldConfig) => f.code === fieldCode)
-  if (!linkField) return
-  
-  // 获取链接值
-  const value = convertToFieldValue(row[fieldCode], linkField)
-  const url = value?.raw || ''
-  if (!url) return
-  
-  // 解析 "[text]url" 格式
-  const match = url.match(/^\[([^\]]+)\](.+)$/)
-  const actualUrl = match ? match[2] : url
-  
-  // 获取链接配置
-  const linkConfig = linkField.widget?.config || {}
-  const target = linkConfig.target || '_self'
-  
-  // 处理 URL，添加 /workspace 前缀
-  const resolvedUrl = resolveWorkspaceUrl(actualUrl, router.currentRoute.value)
-  
-  // 根据 target 决定打开方式
-  if (target === '_blank' || actualUrl.startsWith('http://') || actualUrl.startsWith('https://')) {
-    window.open(resolvedUrl, '_blank')
-  } else {
-    router.push(resolvedUrl)
-  }
+const handleLinkClick = (fieldCode: string, row: any): void => {
+  // TableActionColumn 组件内部已经处理了链接点击逻辑
+  // 这里只是事件传递，如果需要额外处理可以在这里添加
 }
 
 // ==================== 排序相关 ====================
@@ -710,41 +577,7 @@ const getColumnWidth = (field: FieldConfig): number => {
 
 // 注意：isIdColumn 方法已移除，改用 idField computed 和单独的控制中心列
 
-// ==================== 搜索表单相关 ====================
-
-/**
- * 获取搜索值
- * @param field 字段配置
- * @returns 搜索值
- */
-const getSearchValue = (field: FieldConfig): any => {
-  const value = searchForm.value[field.code]
-  // 🔥 如果值是 undefined，返回 null；否则返回原值（包括空对象、空数组等）
-  return value === undefined ? null : value
-}
-
-/**
- * 更新搜索值
- * @param field 字段配置
- * @param value 新的搜索值
- * @param shouldSearch 是否自动搜索（默认 false，清空时设为 true）
- */
-const updateSearchValue = (field: FieldConfig, value: any, shouldSearch: boolean = false): void => {
-  // 🔥 如果值为空（空数组、空字符串、null、undefined），删除该字段
-  if (value === null || value === undefined || 
-      (Array.isArray(value) && value.length === 0) || 
-      (typeof value === 'string' && value.trim() === '')) {
-    delete searchForm.value[field.code]
-  } else {
-    searchForm.value[field.code] = value
-  }
-  // 🔥 更新搜索值后，同步到 URL
-  syncToURL()
-  // 🔥 如果需要自动搜索（清空时），触发搜索
-  if (shouldSearch) {
-    loadTableData()
-  }
-}
+// ==================== 搜索表单相关（已移至 TableSearchBar 组件） ====================
 
 // ==================== 表格单元格渲染（组件自治） ====================
 
@@ -1024,67 +857,7 @@ onUnmounted(() => {
   border-radius: 8px;
 }
 
-/* 🔥 排序信息条样式 */
-.sort-info-bar {
-  margin-bottom: 16px;
-  padding: 12px 16px;
-  background: var(--el-fill-color-light);
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-}
-
-.sort-info-content {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  flex-wrap: wrap;
-}
-
-.sort-label {
-  font-size: 14px;
-  color: var(--el-text-color-secondary);
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.sort-items {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  flex: 1;
-}
-
-.sort-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  cursor: default;
-}
-
-.sort-field-name {
-  font-weight: 500;
-}
-
-.sort-icon {
-  font-size: 12px;
-  margin-left: 2px;
-}
-
-.sort-separator {
-  color: var(--el-text-color-secondary);
-  font-size: 14px;
-  font-weight: 500;
-  margin: 0 4px;
-}
-
-.clear-all-sorts-btn {
-  margin-left: auto;
-  white-space: nowrap;
-}
+/* 排序信息条样式（已移至 TableSortBar 组件） */
 
 .search-form {
   display: flex;
@@ -1182,44 +955,7 @@ onUnmounted(() => {
   pointer-events: auto;
 }
 
-.action-buttons {
-  position: relative;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: nowrap;  /* 🔥 禁止换行，防止行高增加 */
-  pointer-events: auto;
-  width: 100%;  /* 使用 100% 宽度，确保内容完整显示 */
-  min-width: 0;  /* 允许 flex 子元素收缩 */
-}
-
-.action-link {
-  flex-shrink: 0;
-  white-space: nowrap;  /* 防止文本换行 */
-}
-
-.more-links-btn {
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-.delete-btn {
-  flex-shrink: 0;  /* 🔥 防止删除按钮被压缩 */
-  white-space: nowrap;  /* 防止文字换行 */
-  min-width: fit-content;  /* 确保按钮内容完整显示 */
-}
-
-.dropdown-link-content {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-}
-
-.dropdown-link-content .link-icon {
-  font-size: 14px;
-  color: var(--el-color-primary);
-}
+/* 操作列样式（已移至 TableActionColumn 组件） */
 
 /* 详情页面链接区域（已移至 TableDetailDrawer 组件） */
 
@@ -1267,19 +1003,7 @@ onUnmounted(() => {
   pointer-events: auto !important;
 }
 
-/* action-buttons 样式已在上面定义，这里不需要重复 */
-
-:deep(.el-table__fixed-right .action-buttons) {
-  z-index: 2004 !important;
-  pointer-events: auto !important;
-}
-
-:deep(.el-table__fixed-right .action-buttons .el-button) {
-  position: relative !important;
-  z-index: 2005 !important;
-  pointer-events: auto !important;
-  cursor: pointer !important;
-}
+/* action-buttons 样式已移至 TableActionColumn 组件 */
 
 /* 🔥 表格主体样式：确保不会遮挡 fixed 列，并支持整体滚动 */
 :deep(.el-table__body-wrapper) {
