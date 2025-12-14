@@ -28,7 +28,11 @@ type cachedApp struct {
 const appCacheTTL = 5 * time.Minute
 
 func NewAppRepository(db *gorm.DB) *AppRepository {
-	return &AppRepository{db: db}
+	return &AppRepository{
+		db:         db,
+		appCache:   sync.Map{},           // ✅ 显式初始化缓存
+		cacheGroup: singleflight.Group{}, // ✅ 显式初始化 singleflight
+	}
 }
 
 // GetAppByUserName 根据用户名和应用代码获取应用信息（带缓存）
