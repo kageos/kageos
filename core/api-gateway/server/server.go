@@ -160,10 +160,19 @@ func (s *Server) healthHandler(c *gin.Context) {
 
 // initSharedTransport 初始化共享 Transport（提高性能）
 func (s *Server) initSharedTransport() {
+	// 获取默认超时时间
+	defaultTimeout := time.Duration(s.cfg.Timeouts.Default) * time.Second
+	if defaultTimeout == 0 {
+		defaultTimeout = 30 * time.Second
+	}
+
 	s.sharedTransport = &http.Transport{
-		MaxIdleConns:        100,
-		MaxIdleConnsPerHost: 10,
-		IdleConnTimeout:     90 * time.Second,
+		MaxIdleConns:          200,              // ✅ 优化：增加到 200，提高并发处理能力
+		MaxIdleConnsPerHost:   50,              // ✅ 优化：增加到 50，支持更高并发
+		IdleConnTimeout:       90 * time.Second,
+		ResponseHeaderTimeout: defaultTimeout,  // ✅ 优化：设置响应头超时，避免连接长时间等待
+		ExpectContinueTimeout: 1 * time.Second, // ✅ 优化：设置 Expect 100-continue 超时
+		TLSHandshakeTimeout:   10 * time.Second, // ✅ 优化：设置 TLS 握手超时
 	}
 }
 

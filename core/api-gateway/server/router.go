@@ -1,12 +1,14 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
@@ -268,7 +270,13 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 			c.Request.Header.Set(contextx.TraceIdHeader, traceId)
 		}
 
-		proxy.ServeHTTP(c.Writer, c.Request)
+		// ✅ 创建带超时的 Context，避免高并发时请求堆积
+		ctx, cancel := context.WithTimeout(c.Request.Context(), time.Duration(timeout)*time.Second)
+		defer cancel()
+
+		// ✅ 使用带超时的 Context 创建新请求
+		req := c.Request.WithContext(ctx)
+		proxy.ServeHTTP(c.Writer, req)
 	}
 }
 
