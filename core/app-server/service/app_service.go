@@ -5,14 +5,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"strconv"
 	"strings"
+
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
+	enterpriseDto "github.com/ai-agent-os/ai-agent-os/dto/enterprise"
+	"github.com/ai-agent-os/ai-agent-os/enterprise"
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
+	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"gorm.io/gorm"
 )
@@ -24,10 +28,11 @@ type AppService struct {
 	functionRepo    *repository.FunctionRepository
 	serviceTreeRepo *repository.ServiceTreeRepository
 	sourceCodeRepo  *repository.SourceCodeRepository
+	operateLogRepo  *repository.OperateLogRepository
 }
 
 // NewAppService 创建 AppService（依赖注入）
-func NewAppService(appRuntime *AppRuntime, userRepo *repository.UserRepository, appRepo *repository.AppRepository, functionRepo *repository.FunctionRepository, serviceTreeRepo *repository.ServiceTreeRepository, sourceCodeRepo *repository.SourceCodeRepository) *AppService {
+func NewAppService(appRuntime *AppRuntime, userRepo *repository.UserRepository, appRepo *repository.AppRepository, functionRepo *repository.FunctionRepository, serviceTreeRepo *repository.ServiceTreeRepository, sourceCodeRepo *repository.SourceCodeRepository, operateLogRepo *repository.OperateLogRepository) *AppService {
 	return &AppService{
 		appRuntime:      appRuntime,
 		userRepo:        userRepo,
@@ -35,6 +40,7 @@ func NewAppService(appRuntime *AppRuntime, userRepo *repository.UserRepository, 
 		functionRepo:    functionRepo,
 		serviceTreeRepo: serviceTreeRepo,
 		sourceCodeRepo:  sourceCodeRepo,
+		operateLogRepo:  operateLogRepo,
 	}
 }
 
@@ -50,6 +56,17 @@ func (a *AppService) CreateApp(ctx context.Context, req *dto.CreateAppReq) (*dto
 	requestUser := contextx.GetRequestUser(ctx)
 	if requestUser == "" {
 		return nil, fmt.Errorf("请求用户信息不能为空")
+	}
+
+	// ⭐ 检查应用数量限制（全局限制）
+	appCount, err := a.appRepo.CountApps()
+	if err != nil {
+		logger.Warnf(ctx, "[AppService] Failed to count apps: %v", err)
+	} else {
+		licenseMgr := license.GetManager()
+		if err := licenseMgr.CheckAppLimit(int(appCount)); err != nil {
+			return nil, err
+		}
 	}
 
 	// 根据租户用户获取主机和 NATS 信息
@@ -144,6 +161,9 @@ func extractVersionNum(version string) int {
 
 // RequestApp 请求应用
 func (a *AppService) RequestApp(ctx context.Context, req *dto.RequestAppReq) (*dto.RequestAppResp, error) {
+	// 记录操作日志（如果支持）
+	a.recordOperateLog(ctx, req, "request_app")
+
 	app, err := a.appRepo.GetAppByUserName(req.User, req.App)
 	if err != nil {
 		return nil, err
@@ -155,6 +175,156 @@ func (a *AppService) RequestApp(ctx context.Context, req *dto.RequestAppReq) (*d
 	}
 	resp.Version = req.Version
 	return resp, nil
+}
+
+// recordOperateLog 记录操作日志
+// 策略：
+//   - 社区版：也记录完整的操作日志（与企业版一样存储，无保留时间限制）
+//   - 企业版：记录完整的操作日志（与企业版一样存储，无保留时间限制）
+//   - 查看权限：只有企业版可以查看操作日志（通过 operate_log 查询接口的企业版鉴权中间件控制）
+//
+// 目的：
+//   - 升级后能看到完整的历史数据，提升升级体验
+//   - 通过查看权限控制来区分社区版和企业版，而不是通过记录策略
+func (a *AppService) recordOperateLog(ctx context.Context, req *dto.RequestAppReq, action string) {
+	// 获取 License 管理器
+	licenseMgr := license.GetManager()
+	isEnterprise := licenseMgr.HasOperateLogFeature()
+
+	// 无论社区版还是企业版，都记录完整的操作日志（存储方式相同）
+	// 区别仅在于查看权限：
+	//   - 社区版：记录了日志，但无法查看（operate_log 查询接口会进行企业版鉴权）
+	//   - 企业版：记录了日志，可以查看（通过企业版鉴权）
+	if isEnterprise {
+		logger.Infof(ctx, "[RequestApp] 企业版：记录操作日志（可查看）")
+	} else {
+		logger.Infof(ctx, "[RequestApp] 社区版：记录操作日志（不可查看，升级后可查看历史）")
+	}
+
+	// 获取请求用户信息
+	requestUser := contextx.GetRequestUser(ctx)
+	if requestUser == "" {
+		requestUser = req.RequestUser
+	}
+
+	// 记录操作日志
+	operateLogger := enterprise.GetOperateLogger()
+	operateLogReq := &enterpriseDto.CreateOperateLoggerReq{
+		User:       requestUser,
+		Action:     action,
+		Resource:   "app",
+		ResourceID: fmt.Sprintf("%s/%s", req.User, req.App),
+		Changes: map[string]interface{}{
+			"router":  req.Router,
+			"method":  req.Method,
+			"version": req.Version,
+		},
+	}
+
+	// 异步记录操作日志（不阻塞主流程）
+	go func() {
+		if _, err := operateLogger.CreateOperateLogger(operateLogReq); err != nil {
+			logger.Warnf(ctx, "[RequestApp] 记录操作日志失败: %v", err)
+		} else {
+			if isEnterprise {
+				logger.Infof(ctx, "[RequestApp] 操作日志记录成功（企业版）: user=%s, app=%s/%s", requestUser, req.User, req.App)
+			} else {
+				logger.Infof(ctx, "[RequestApp] 操作日志记录成功（社区版，仅记录）: user=%s, app=%s/%s", requestUser, req.User, req.App)
+			}
+		}
+	}()
+}
+
+// RecordTableOperateLog 记录 Table 操作日志（OnTableAddRow, OnTableUpdateRow, OnTableDeleteRows）
+// 策略：社区版和企业版都记录完整日志，但只有企业版可以查看
+func (a *AppService) RecordTableOperateLog(ctx context.Context, req *dto.RecordTableOperateLogReq) error {
+	// 获取应用信息（用于获取版本号）
+	app, err := a.appRepo.GetAppByUserName(req.TenantUser, req.App)
+	if err != nil {
+		return fmt.Errorf("获取应用信息失败: %w", err)
+	}
+
+	// 构建 full_code_path
+	fullCodePath := fmt.Sprintf("/%s/%s/%s", req.TenantUser, req.App, strings.TrimPrefix(req.Router, "/"))
+
+	// 根据操作类型处理不同的记录逻辑
+	switch req.Action {
+	case "OnTableAddRow":
+		// 新增操作：记录 body（新增的数据）
+		log := &model.TableOperateLog{
+			TenantUser:  req.TenantUser,
+			RequestUser: req.RequestUser,
+			Action:      req.Action,
+			IPAddress:   req.IPAddress,
+			UserAgent:   req.UserAgent,
+			App:         req.App,
+			FullCodePath: fullCodePath,
+			RowID:       0, // 新增时还没有 row_id
+			Updates:     req.Body, // 新增的数据作为 updates
+			OldValues:   nil,      // 新增时没有旧值
+			TraceID:     req.TraceID,
+			Version:     app.Version,
+		}
+		go func() {
+			if err := a.operateLogRepo.CreateTableOperateLog(log); err != nil {
+				logger.Warnf(ctx, "[RecordTableOperateLog] 记录 Table 新增操作日志失败: %v", err)
+			} else {
+				logger.Infof(ctx, "[RecordTableOperateLog] Table 新增操作日志记录成功: tenant_user=%s, request_user=%s, app=%s, full_code_path=%s", req.TenantUser, req.RequestUser, req.App, fullCodePath)
+			}
+		}()
+
+	case "OnTableUpdateRow":
+		// 更新操作：记录 updates 和 old_values
+		log := &model.TableOperateLog{
+			TenantUser:  req.TenantUser,
+			RequestUser: req.RequestUser,
+			Action:      req.Action,
+			IPAddress:   req.IPAddress,
+			UserAgent:   req.UserAgent,
+			App:         req.App,
+			FullCodePath: fullCodePath,
+			RowID:       req.RowID,
+			Updates:     req.Updates,
+			OldValues:   req.OldValues,
+			TraceID:     req.TraceID,
+			Version:     app.Version,
+		}
+		go func() {
+			if err := a.operateLogRepo.CreateTableOperateLog(log); err != nil {
+				logger.Warnf(ctx, "[RecordTableOperateLog] 记录 Table 更新操作日志失败: %v", err)
+			} else {
+				logger.Infof(ctx, "[RecordTableOperateLog] Table 更新操作日志记录成功: tenant_user=%s, request_user=%s, app=%s, full_code_path=%s, row_id=%d", req.TenantUser, req.RequestUser, req.App, fullCodePath, req.RowID)
+			}
+		}()
+
+	case "OnTableDeleteRows":
+		// 删除操作：为每个删除的记录创建一条日志
+		for _, rowID := range req.RowIDs {
+			log := &model.TableOperateLog{
+				TenantUser:  req.TenantUser,
+				RequestUser: req.RequestUser,
+				Action:      req.Action,
+				IPAddress:   req.IPAddress,
+				UserAgent:   req.UserAgent,
+				App:         req.App,
+				FullCodePath: fullCodePath,
+				RowID:       rowID,
+				Updates:     nil, // 删除时没有新值
+				OldValues:   nil, // 删除时暂时不记录旧值（如果需要可以后续添加）
+				TraceID:     req.TraceID,
+				Version:     app.Version,
+			}
+			go func(id int64) {
+				if err := a.operateLogRepo.CreateTableOperateLog(log); err != nil {
+					logger.Warnf(ctx, "[RecordTableOperateLog] 记录 Table 删除操作日志失败: %v", err)
+				} else {
+					logger.Infof(ctx, "[RecordTableOperateLog] Table 删除操作日志记录成功: tenant_user=%s, request_user=%s, app=%s, full_code_path=%s, row_id=%d", req.TenantUser, req.RequestUser, req.App, fullCodePath, id)
+				}
+			}(rowID)
+		}
+	}
+
+	return nil
 }
 
 // processAPIDiff 处理API差异，包括新增、更新、删除

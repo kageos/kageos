@@ -70,9 +70,17 @@ func (s *Server) setupRoutes() {
 	user.GET("/query", userHandler.QueryUser)
 	user.GET("/search_fuzzy", userHandler.SearchUsersFuzzy)
 	user.PUT("/update", userHandler.UpdateUser)
-	
+
 	// 批量获取用户（需要JWT验证）
 	users := apiV1.Group("/users")
 	users.Use(middleware2.JWTAuth())
 	users.POST("", userHandler.GetUsersByUsernames)
+
+	// 操作日志路由（需要JWT验证 + 操作日志功能鉴权）
+	operateLog := apiV1.Group("/operate_log")
+	operateLog.Use(middleware2.JWTAuth())        // JWT 认证
+	operateLog.Use(middleware2.OperateLogAuth()) // 操作日志功能鉴权（企业版）
+	operateLogHandler := v1.NewOperateLog(s.operateLogService)
+	operateLog.GET("/table", operateLogHandler.GetTableOperateLogs) // 查询 Table 操作日志
+	operateLog.GET("/form", operateLogHandler.GetFormOperateLogs)   // 查询 Form 操作日志
 }

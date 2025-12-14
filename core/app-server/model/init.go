@@ -20,6 +20,9 @@ func InitTables(db *gorm.DB) error {
 		&UserSession{},
 		// 源代码表
 		&SourceCode{},
+		// 操作日志表（企业版功能，但社区版也记录）
+		&TableOperateLog{},
+		&FormOperateLog{},
 	)
 	if err != nil {
 		return err

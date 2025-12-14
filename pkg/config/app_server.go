@@ -32,12 +32,13 @@ func GetAppServerConfig() *AppServerConfig {
 
 // AppServerConfig app-server 配置
 type AppServerConfig struct {
-	Server   AppServerServerConfig `mapstructure:"server"`
-	Nats     NatsConfig            `mapstructure:"nats"`
-	Timeouts AppServerTimeoutCfg   `mapstructure:"timeouts"`
-	DB       DBConfig              `mapstructure:"db"`
-	Email    EmailConfig           `mapstructure:"email"`
-	JWT      JWTConfig             `mapstructure:"jwt"`
+	Server         AppServerServerConfig      `mapstructure:"server"`
+	Nats           NatsConfig                 `mapstructure:"nats"`
+	Timeouts       AppServerTimeoutCfg        `mapstructure:"timeouts"`
+	DB             DBConfig                   `mapstructure:"db"`
+	Email          EmailConfig                `mapstructure:"email"`
+	JWT            JWTConfig                  `mapstructure:"jwt"`
+	ControlService ControlServiceClientConfig `mapstructure:"control_service"`
 }
 
 // AppServerServerConfig app-server 服务器配置
@@ -139,4 +140,3 @@ func (c *AppServerConfig) IsDBLogEnabled() bool {
 func (c *AppServerConfig) IsDBLogColorful() bool {
 	return c.DB.Colorful
 }
-

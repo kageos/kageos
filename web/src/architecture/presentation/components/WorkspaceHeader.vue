@@ -34,6 +34,34 @@
       >
         应用中心
       </el-button>
+      
+      <!-- 升级企业版按钮 -->
+      <el-button
+        v-if="!licenseStore.isEnterprise"
+        type="success"
+        size="small"
+        @click="showUpgradeDialog = true"
+        title="升级企业版"
+      >
+        升级企业版
+      </el-button>
+      
+      <!-- 企业版标识和注销按钮 -->
+      <template v-else>
+        <el-tag type="success" size="small">
+          {{ licenseStore.edition }}
+        </el-tag>
+        <el-button
+          type="warning"
+          size="small"
+          :icon="Delete"
+          @click="handleDeactivate"
+          title="注销 License（测试用）"
+        >
+          注销 License
+        </el-button>
+      </template>
+      
       <el-button
         type="primary"
         size="small"
@@ -61,21 +89,30 @@
 
     <!-- Debug 弹窗 -->
     <DebugDialog v-model="showDebugDialog" />
+    
+    <!-- 升级企业版对话框 -->
+    <UpgradeEnterpriseDialog 
+      v-model="showUpgradeDialog" 
+      @activated="handleLicenseActivated"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowDown, Delete } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
+import { useLicenseStore } from '@/stores/license'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import DebugDialog from './DebugDialog.vue'
+import UpgradeEnterpriseDialog from '@/components/UpgradeEnterpriseDialog.vue'
 import { navigateToHub as navigateToHubUtil } from '@/utils/hub-navigation'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const licenseStore = useLicenseStore()
 
 // 用户相关
 const userName = computed(() => authStore.userName || 'User')
@@ -123,6 +160,43 @@ const navigateToHub = () => {
 const navigateToAgent = () => {
   router.push('/agent')
 }
+
+// 升级企业版对话框
+const showUpgradeDialog = ref(false)
+
+// License 激活成功回调
+const handleLicenseActivated = async () => {
+  // 刷新 License 状态
+  await licenseStore.fetchStatus()
+}
+
+// License 注销处理
+const handleDeactivate = async () => {
+  try {
+    // 检查方法是否存在
+    if (typeof licenseStore.deactivate !== 'function') {
+      console.error('licenseStore.deactivate 不是函数', licenseStore)
+      ElMessage.error('License Store 未正确初始化，请刷新页面')
+      return
+    }
+    await licenseStore.deactivate()
+    // 注销成功后，状态会自动更新（store 中已处理）
+  } catch (error) {
+    // 错误已在 store 中处理
+    console.error('注销 License 失败:', error)
+  }
+}
+
+// 组件挂载时加载 License 状态
+onMounted(() => {
+  // 从本地加载（不主动调用接口，依赖定时检查和激活时的保存）
+  licenseStore.loadFromLocal()
+  
+  // 如果已有激活的 License，启动定时检查（如果还没启动的话）
+  if (licenseStore.isEnterprise && !licenseStore.isExpired) {
+    licenseStore.startPeriodicCheck()
+  }
+})
 </script>
 
 <style scoped lang="scss">

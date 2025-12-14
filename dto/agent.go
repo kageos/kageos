@@ -31,6 +31,9 @@ type AgentInfo struct {
 	SystemPromptTemplate string            `json:"system_prompt_template" example:"你是一个专业的代码生成助手。以下是相关的知识库内容，请参考这些内容来生成代码：\n{knowledge}"` // System Prompt模板，支持{knowledge}变量
 	Metadata            string             `json:"metadata" example:"{}"`
 	Logo                string             `json:"logo,omitempty" example:"https://example.com/logo.png"` // 智能体 Logo URL（可选）
+	Greeting            string             `json:"greeting,omitempty" example:"欢迎使用本智能体！"` // 开场白内容（可选）
+	GreetingType        string             `json:"greeting_type,omitempty" example:"md"` // 开场白格式类型：text, md, html
+	GenerationCount     int64              `json:"generation_count" example:"100"` // 生成次数统计
 	Visibility          int                `json:"visibility" example:"0"` // 0: 公开, 1: 私有
 	Admin               string             `json:"admin" example:"user1,user2"` // 管理员列表（逗号分隔）
 	IsAdmin             bool               `json:"is_admin" example:"true"` // 当前用户是否是管理员（前端计算或后端返回）
@@ -85,6 +88,9 @@ type AgentCreateReq struct {
 	LLMConfigID         int64  `json:"llm_config_id" example:"1"` // LLM配置ID，如果为0则使用默认LLM
 	SystemPromptTemplate string `json:"system_prompt_template" example:"你是一个专业的代码生成助手。以下是相关的知识库内容，请参考这些内容来生成代码：\n{knowledge}"` // System Prompt模板，支持{knowledge}变量
 	Metadata            string `json:"metadata" example:"{}"`
+	Logo                string `json:"logo" example:"https://example.com/logo.png"` // 智能体 Logo URL（可选）
+	Greeting            string `json:"greeting" example:"欢迎使用本智能体！"` // 开场白内容（可选）
+	GreetingType        string `json:"greeting_type" example:"md"` // 开场白格式类型：text, md, html（默认text）
 	Visibility          int    `json:"visibility" example:"0"` // 0: 公开, 1: 私有（默认0）
 	Admin               string `json:"admin" example:"user1,user2"` // 管理员列表（逗号分隔，默认创建用户）
 }
@@ -108,6 +114,9 @@ type AgentUpdateReq struct {
 	LLMConfigID         int64  `json:"llm_config_id" example:"1"` // LLM配置ID，如果为0则使用默认LLM
 	SystemPromptTemplate string `json:"system_prompt_template" example:"你是一个专业的代码生成助手。以下是相关的知识库内容，请参考这些内容来生成代码：\n{knowledge}"` // System Prompt模板，支持{knowledge}变量
 	Metadata            string `json:"metadata" example:"{}"`
+	Logo                string `json:"logo" example:"https://example.com/logo.png"` // 智能体 Logo URL（可选）
+	Greeting            string `json:"greeting" example:"欢迎使用本智能体！"` // 开场白内容（可选）
+	GreetingType        string `json:"greeting_type" example:"md"` // 开场白格式类型：text, md, html（默认text）
 	Visibility          int    `json:"visibility" example:"0"` // 0: 公开, 1: 私有
 	Admin               string `json:"admin" example:"user1,user2"` // 管理员列表（逗号分隔）
 }

@@ -50,6 +50,13 @@ type Agent struct {
 
 	// Logo（可选，如果为空则使用默认生成的 Logo）
 	Logo string `gorm:"type:varchar(512);comment:智能体Logo URL" json:"logo"`
+
+	// 开场白（可选，用于显示智能体的使用教程等）
+	Greeting     string `gorm:"type:text;comment:开场白内容" json:"greeting"`                    // 开场白内容
+	GreetingType string `gorm:"type:varchar(32);default:'text';comment:开场白格式类型" json:"greeting_type"` // 格式类型：text, md, html
+
+	// 使用统计
+	GenerationCount int64 `gorm:"type:bigint;default:0;index;comment:生成次数统计" json:"generation_count"` // 生成次数统计
 }
 
 // TableName 指定表名

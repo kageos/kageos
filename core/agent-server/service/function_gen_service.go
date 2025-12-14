@@ -514,6 +514,16 @@ func (s *AgentChatService) FunctionGenChat(ctx context.Context, req *dto.Functio
 	}
 	logger.Infof(ctx, "[FunctionGenChat] 生成记录创建成功 - RecordID: %d, MessageID: %d, SessionID: %s, TraceID: %s", record.ID, userMessage.ID, sessionID, traceId)
 
+	// 更新智能体的生成次数统计（异步，不阻塞主流程）
+	go func() {
+		if err := s.agentRepo.IncrementGenerationCount(req.AgentID); err != nil {
+			logger.Errorf(ctx, "[FunctionGenChat] 更新智能体生成次数失败 - AgentID: %d, TraceID: %s, Error: %v", req.AgentID, traceId, err)
+			// 不中断主流程，仅记录错误
+		} else {
+			logger.Infof(ctx, "[FunctionGenChat] 智能体生成次数已更新 - AgentID: %d, TraceID: %s", req.AgentID, traceId)
+		}
+	}()
+
 	// 9. 调用 LLM（异步处理，先返回）
 	logger.Infof(ctx, "[FunctionGenChat] 启动异步 LLM 调用 - RecordID: %d, MessagesCount: %d, TraceID: %s",
 		record.ID, len(llmMessages), traceId)

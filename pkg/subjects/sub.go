@@ -181,8 +181,20 @@ func GetAgentServerFunctionGenCallbackSubject() string {
 
 // ==================== Control Service 相关主题 ====================
 
-// GetControlLicenseKeySubject 获取 Control Service License 密钥分发主题
+// GetControlLicenseKeySubject 获取 Control Service License 密钥发布主题（推送模式）
 // 格式：control.license.key
 func GetControlLicenseKeySubject() string {
 	return "control.license.key"
+}
+
+// GetControlLicenseKeyRequestSubject 获取 Control Service License 密钥请求主题（请求-响应模式）
+// 格式：control.license.key.request
+func GetControlLicenseKeyRequestSubject() string {
+	return "control.license.key.request"
+}
+
+// GetControlLicenseKeyRefreshSubject 获取 Control Service License 密钥刷新主题（推送刷新指令）
+// 格式：control.license.key.refresh
+func GetControlLicenseKeyRefreshSubject() string {
+	return "control.license.key.refresh"
 }

@@ -2,6 +2,8 @@ package jsonx
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"reflect"
 )
 
@@ -109,6 +111,23 @@ func Convert(src, dest interface{}) error {
 		return err
 	}
 	err = json.Unmarshal(jsonBytes, dest)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func SaveFile(file string, data interface{}) error {
+	os.MkdirAll(filepath.Dir(file), 0777)
+	create, err := os.Create(file)
+	if err != nil {
+		return err
+	}
+	marshal, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	_, err = create.Write(marshal)
 	if err != nil {
 		return err
 	}

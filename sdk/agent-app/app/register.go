@@ -264,6 +264,12 @@ func (a *App) CallbackRouter(ctx *Context, resp response.Response) error {
 		if err != nil {
 			return err
 		}
+		if onTableReq.BindUpdatesMap == nil {
+			onTableReq.BindUpdatesMap = make(map[string]interface{})
+		}
+		for k, vv := range onTableReq.Updates {
+			onTableReq.BindUpdatesMap[k] = vv
+		}
 		onTableResp, err := v.OnTableUpdateRow(ctx, &onTableReq)
 		if err != nil {
 			return err

@@ -1,15 +1,6 @@
 package server
 
-import (
-	"net/http"
-
-	"github.com/gin-gonic/gin"
-)
-
-// getLicenseStatus 获取 License 状态
-// GET /api/v1/license/status
-func (s *Server) getLicenseStatus(c *gin.Context) {
-	status := s.licenseService.GetStatus()
-	c.JSON(http.StatusOK, status)
-}
+// router.go 文件已迁移到 API 层
+// 路由注册在 server.go 的 initRouter 方法中
+// API 实现位于 api/v1/license.go
 

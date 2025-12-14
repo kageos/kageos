@@ -104,6 +104,13 @@ func (r *AgentRepository) Update(agent *model.Agent) error {
 	return r.db.Save(agent).Error
 }
 
+// IncrementGenerationCount 增加智能体的生成次数（原子操作）
+func (r *AgentRepository) IncrementGenerationCount(agentID int64) error {
+	return r.db.Model(&model.Agent{}).
+		Where("id = ?", agentID).
+		Update("generation_count", gorm.Expr("generation_count + ?", 1)).Error
+}
+
 // Delete 删除智能体
 func (r *AgentRepository) Delete(id int64) error {
 	return r.db.Where("id = ?", id).Delete(&model.Agent{}).Error

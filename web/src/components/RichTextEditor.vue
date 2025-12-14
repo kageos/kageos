@@ -1,5 +1,10 @@
 <template>
-  <div class="rich-text-editor">
+  <div 
+    class="rich-text-editor"
+    @dragover.prevent="handleDragOver"
+    @dragleave.prevent="handleDragLeave"
+    @drop.prevent="handleEditorDrop"
+  >
     <div v-if="editor" class="editor-toolbar">
       <!-- 文本格式组 -->
       <div class="toolbar-group">
@@ -79,7 +84,7 @@
       <div class="toolbar-group">
         <el-tooltip content="插入链接" placement="bottom">
           <el-button
-            :icon="Link"
+            :icon="LinkIcon"
             @click="handleInsertLink"
           />
         </el-tooltip>
@@ -120,7 +125,12 @@
       </div>
     </div>
 
-    <editor-content :editor="editor" class="editor-content" />
+    <div 
+      class="editor-content"
+      :class="{ 'is-dragging': isDragging }"
+    >
+      <editor-content :editor="editor" />
+    </div>
 
     <!-- 链接输入对话框 -->
     <el-dialog
@@ -198,6 +208,7 @@ import { EditorContent, useEditor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import { Link } from '@tiptap/extension-link'
 import { Image } from '@tiptap/extension-image'
+import { Video } from '@/core/widgets-v2/components/VideoExtension'
 import { Underline } from '@tiptap/extension-underline'
 import { Placeholder } from '@tiptap/extension-placeholder'
 import {
@@ -234,6 +245,9 @@ const uploadedFileInfo = ref<{
   fileSize: number
 } | null>(null)
 const fileUploadRef = ref<InstanceType<typeof CommonUpload> | null>(null)
+
+// 拖拽状态
+const isDragging = ref(false)
 
 // 文件上传路由（从 localStorage 获取用户名或使用传入的 router）
 const fileUploadRouter = computed(() => {
@@ -336,8 +350,12 @@ const handleConfirmFileInsert = async () => {
     // 图片：插入为图片
     editor.value.chain().focus().setImage({ src: uploadedFileUrl.value, alt: fileName }).run()
   } else if (isVideo) {
-    // 视频：插入为视频（需要 Video 扩展，这里先插入为链接）
-    editor.value.chain().focus().setLink({ href: uploadedFileUrl.value }).insertContent(fileName).run()
+    // 视频：插入为视频
+    editor.value.chain().focus().setVideo({ 
+      src: uploadedFileUrl.value,
+      alt: fileName,
+      controls: true
+    }).run()
   } else {
     // 其他文件：插入为链接
     editor.value.chain().focus().setLink({ href: uploadedFileUrl.value }).insertContent(fileName).run()
@@ -352,6 +370,7 @@ const editor = useEditor({
   extensions: [
     StarterKit.configure({
       link: false,
+      underline: false, // 排除 StarterKit 中的 underline，使用自定义的 Underline
     }),
     Underline,
     Link.configure({
@@ -368,6 +387,13 @@ const editor = useEditor({
       },
       inline: true,
       allowBase64: false // 🔥 禁用 base64，强制使用 URL
+    }),
+    Video.configure({
+      HTMLAttributes: {
+        class: 'rich-text-video'
+      },
+      inline: false,
+      allowBase64: false
     }),
     Placeholder.configure({
       placeholder: props.placeholder || '请输入内容...'
@@ -431,8 +457,12 @@ const editor = useEditor({
                   // 图片：插入为图片
                   editor.value.chain().focus().setImage({ src: downloadUrl, alt: file.name }).run()
                 } else if (isVideo) {
-                  // 视频：插入为链接（需要 Video 扩展，这里先插入为链接）
-                  editor.value.chain().focus().setLink({ href: downloadUrl }).insertContent(file.name).run()
+                  // 视频：插入为视频
+                  editor.value.chain().focus().setVideo({ 
+                    src: downloadUrl,
+                    alt: file.name,
+                    controls: true
+                  }).run()
                 } else {
                   // 其他文件：插入为链接
                   editor.value.chain().focus().setLink({ href: downloadUrl }).insertContent(file.name).run()
@@ -456,6 +486,9 @@ const editor = useEditor({
     },
     // 支持拖拽粘贴文件（任意类型），自动上传
     handleDrop: async (view, event, slice, moved) => {
+      // 重置拖拽状态
+      isDragging.value = false
+      
       if (moved) {
         // 如果是编辑器内部的拖拽移动，使用默认处理
         return false
@@ -504,8 +537,12 @@ const editor = useEditor({
                 // 图片：插入为图片
                 editor.value.chain().focus().setImage({ src: downloadUrl, alt: file.name }).run()
               } else if (isVideo) {
-                // 视频：插入为链接
-                editor.value.chain().focus().setLink({ href: downloadUrl }).insertContent(file.name).run()
+                // 视频：插入为视频
+                editor.value.chain().focus().setVideo({ 
+                  src: downloadUrl,
+                  alt: file.name,
+                  controls: true
+                }).run()
               } else {
                 // 其他文件：插入为链接
                 editor.value.chain().focus().setLink({ href: downloadUrl }).insertContent(file.name).run()
@@ -525,6 +562,33 @@ const editor = useEditor({
     }
   }
 })
+
+// 拖拽悬停（视觉反馈）
+function handleDragOver(event: DragEvent) {
+  if (event.dataTransfer?.types.includes('Files')) {
+    isDragging.value = true
+    event.preventDefault()
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'copy'
+    }
+  }
+}
+
+// 拖拽离开
+function handleDragLeave(event: DragEvent) {
+  // 只有当离开编辑器容器时才取消拖拽状态
+  const relatedTarget = event.relatedTarget as HTMLElement
+  const currentTarget = event.currentTarget as HTMLElement | null
+  if (!relatedTarget || (currentTarget && !currentTarget.contains(relatedTarget))) {
+    isDragging.value = false
+  }
+}
+
+// 编辑器容器上的 drop 事件（作为备用，主要处理在 editorProps.handleDrop 中）
+function handleEditorDrop(event: DragEvent) {
+  isDragging.value = false
+  // 实际处理在 editorProps.handleDrop 中，这里只是重置状态
+}
 
 // 监听外部值变化
 watch(() => props.modelValue, (newValue) => {
@@ -620,11 +684,41 @@ onBeforeUnmount(() => {
 .editor-content {
   min-height: 300px;
   padding: 16px;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.editor-content.is-dragging {
+  background-color: var(--el-color-primary-light-9);
+  border: 2px dashed var(--el-color-primary);
+  border-radius: var(--el-border-radius-base);
+}
+
+.editor-content.is-dragging::before {
+  content: '释放文件以上传';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 16px;
+  color: var(--el-color-primary);
+  font-weight: 500;
+  z-index: 10;
+  pointer-events: none;
+  background: var(--el-bg-color);
+  padding: 8px 16px;
+  border-radius: var(--el-border-radius-base);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .editor-content :deep(.ProseMirror) {
   outline: none;
   min-height: 300px;
+  transition: opacity 0.3s ease;
+}
+
+.editor-content.is-dragging :deep(.ProseMirror) {
+  opacity: 0.5;
 }
 
 .editor-content :deep(.ProseMirror p.is-editor-empty:first-child::before) {
@@ -646,6 +740,16 @@ onBeforeUnmount(() => {
   height: auto;
   display: block;
   margin: 16px 0;
+}
+
+.editor-content :deep(.rich-text-video),
+.editor-content :deep(.ProseMirror video) {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  margin: 8px 0;
+  display: block;
+  background-color: #000;
 }
 
 .file-info {

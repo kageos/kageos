@@ -51,6 +51,10 @@
           <el-icon class="agent-card__info-icon"><Timer /></el-icon>
           <span>超时：{{ agent.timeout }}秒</span>
         </div>
+        <div class="agent-card__info-item">
+          <el-icon class="agent-card__info-icon"><Operation /></el-icon>
+          <span>生成次数：{{ agent.generation_count || 0 }}</span>
+        </div>
       </div>
 
       <el-divider v-if="agent.description || agent.admin" />
@@ -119,7 +123,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Document, Connection, Cpu, ChatDotRound, Timer, User } from '@element-plus/icons-vue'
+import { Document, Connection, Cpu, ChatDotRound, Timer, User, Operation } from '@element-plus/icons-vue'
 import type { AgentInfo } from '@/api/agent'
 
 interface Props {

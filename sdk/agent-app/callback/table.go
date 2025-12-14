@@ -27,7 +27,9 @@ func (c *OnTableDeleteRowsReq) GetIds() []int {
 type OnTableDeleteRowsResp struct {
 }
 type OnTableUpdateRowReq struct {
-	ID        int                    `json:"id"`
+	ID             int                    `json:"id"`
+	BindUpdatesMap map[string]interface{} `json:"bind_updates_map"` //原先的值，Updates会经过处理，为啥？因为例如附件这种json字段，Updates更新时候需要转换成字符串，但是我们通过BindUpdates的时候如果转换成字符串会导致这个字段无法序列化到结构体，所以我们BindUpdatesMap保存备份用于绑定结构体
+
 	Updates   map[string]interface{} `json:"updates"`
 	OldValues map[string]interface{} `json:"old_values"`
 }
@@ -127,18 +129,19 @@ func (c *OnTableUpdateRowReq) GetOldValues() map[string]interface{} {
 //	// 此时 updateFields 中只有更新的字段有值，例如：
 //	// 如果只更新了 name，则 updateFields.Name 有值，其他字段为零值
 func (c *OnTableUpdateRowReq) BindUpdates(target interface{}) error {
-	if c.Updates == nil || len(c.Updates) == 0 {
+	if c.BindUpdatesMap == nil || len(c.BindUpdatesMap) == 0 {
 		return nil
 	}
 
 	// 将 map 序列化为 JSON
-	jsonData, err := json.Marshal(c.Updates)
+	jsonData, err := json.Marshal(c.BindUpdatesMap)
 	if err != nil {
 		return fmt.Errorf("序列化 updates 失败: %w", err)
 	}
 
 	// 反序列化到目标结构体
 	if err := json.Unmarshal(jsonData, target); err != nil {
+		logger.Infof(context.Background(), "Unmarshal failed: %v jsonData ：%s", err, jsonData)
 		return fmt.Errorf("反序列化到目标结构体失败: %w", err)
 	}
 

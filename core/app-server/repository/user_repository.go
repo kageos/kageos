@@ -43,6 +43,13 @@ func (r *UserRepository) GetUserByEmail(email string) (*model.User, error) {
 	return &user, nil
 }
 
+// CountUsers 统计用户总数（不包括已删除的用户）
+func (r *UserRepository) CountUsers() (int64, error) {
+	var count int64
+	err := r.db.Model(&model.User{}).Count(&count).Error
+	return count, err
+}
+
 // GetUserWithHostAndNats 根据用户ID获取用户信息，并预加载host和nats信息
 func (r *UserRepository) GetUserWithHostAndNats(id int64) (*model.User, error) {
 	var user model.User

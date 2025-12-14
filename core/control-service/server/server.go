@@ -2,15 +2,16 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
 
+	v1 "github.com/ai-agent-os/ai-agent-os/core/control-service/api/v1"
 	"github.com/ai-agent-os/ai-agent-os/core/control-service/service"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
-	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/pkg/msgx"
+	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
 	"github.com/gin-gonic/gin"
 	"github.com/nats-io/nats.go"
 )
@@ -24,12 +25,15 @@ type Server struct {
 	// 服务
 	licenseService *service.LicenseService
 
+	// API层
+	licenseAPI *v1.License
+
 	// 配置
-	cfg            *config.ControlServiceConfig
-	licensePath    string
-	natsURL        string
-	encryptionKey  []byte // AES 加密密钥
-	httpPort       int
+	cfg             *config.ControlServiceConfig
+	licensePath     string
+	natsURL         string
+	encryptionKey   []byte // AES 加密密钥
+	httpPort        int
 	publishInterval int // 发布间隔（秒）
 
 	// 定期任务
@@ -44,6 +48,10 @@ type Server struct {
 func NewServer(cfg *config.ControlServiceConfig) (*Server, error) {
 	ctx := context.Background()
 
+	logger.Infof(ctx, "[Control Service] Creating server instance...")
+	logger.Infof(ctx, "[Control Service] Configuration: Port=%d, NATS=%s, LicensePath=%s",
+		cfg.GetPort(), cfg.GetNatsURL(), cfg.GetLicensePath())
+
 	s := &Server{
 		cfg:             cfg,
 		licensePath:     cfg.GetLicensePath(),
@@ -55,6 +63,7 @@ func NewServer(cfg *config.ControlServiceConfig) (*Server, error) {
 	}
 
 	// 初始化各个组件
+	logger.Infof(ctx, "[Control Service] Initializing components...")
 	if err := s.initNATS(ctx); err != nil {
 		return nil, fmt.Errorf("failed to init NATS: %w", err)
 	}
@@ -63,10 +72,20 @@ func NewServer(cfg *config.ControlServiceConfig) (*Server, error) {
 		return nil, fmt.Errorf("failed to init services: %w", err)
 	}
 
+	if err := s.initAPI(ctx); err != nil {
+		return nil, fmt.Errorf("failed to init API: %w", err)
+	}
+
 	if err := s.initRouter(ctx); err != nil {
 		return nil, fmt.Errorf("failed to init router: %w", err)
 	}
 
+	// 初始化 NATS 订阅（请求-响应模式）
+	if err := s.initNATSSubscriptions(ctx); err != nil {
+		return nil, fmt.Errorf("failed to init NATS subscriptions: %w", err)
+	}
+
+	logger.Infof(ctx, "[Control Service] Server instance created successfully")
 	return s, nil
 }
 
@@ -107,6 +126,16 @@ func (s *Server) initServices(ctx context.Context) error {
 	return nil
 }
 
+// initAPI 初始化API层
+func (s *Server) initAPI(ctx context.Context) error {
+	logger.Infof(ctx, "[Control Service] Initializing API layer...")
+
+	// 初始化 License API
+	s.licenseAPI = v1.NewLicense(s.licenseService)
+
+	return nil
+}
+
 // initRouter 初始化路由
 func (s *Server) initRouter(ctx context.Context) error {
 	logger.Infof(ctx, "[Control Service] Initializing router...")
@@ -119,8 +148,14 @@ func (s *Server) initRouter(ctx context.Context) error {
 	// 注册 API 路由
 	api := s.httpServer.Group("/api/v1")
 	{
-		// License 相关
-		api.GET("/license/status", s.getLicenseStatus)
+		// Control 相关路由组
+		control := api.Group("/control")
+		{
+			// License 相关
+			control.GET("/license/status", s.licenseAPI.GetStatus)
+			control.POST("/license/activate", s.licenseAPI.Activate)
+			control.POST("/license/deactivate", s.licenseAPI.Deactivate)
+		}
 	}
 
 	return nil
@@ -130,42 +165,76 @@ func (s *Server) initRouter(ctx context.Context) error {
 func (s *Server) Start(ctx context.Context) error {
 	logger.Infof(ctx, "[Control Service] Starting control-service...")
 
-	// 1. 加载并发布 License 密钥
+	// 1. 加载 License
+	logger.Infof(ctx, "[Control Service] Loading license from: %s", s.licensePath)
 	if err := s.licenseService.LoadAndPublish(ctx); err != nil {
 		logger.Warnf(ctx, "[Control Service] Failed to load license: %v, continuing with community edition", err)
+		logger.Infof(ctx, "[Control Service] Running in community edition mode")
+	} else {
+		lic := s.licenseService.GetLicense()
+		if lic != nil {
+			logger.Infof(ctx, "[Control Service] License loaded: Edition=%s, Customer=%s, ExpiresAt=%v",
+				lic.Edition, lic.Customer, lic.ExpiresAt.Time)
+		}
 	}
 
-	// 2. 启动定期任务（定期发布 License 密钥）
+	// 2. 启动定期任务（检查过期，快过期时推送刷新指令）
+	// 注意：定期任务不推送 License 内容，只检查过期和推送刷新指令
+	// License 推送主要用于激活/更新后的主动通知，启动时主要靠各服务主动请求
+	logger.Infof(ctx, "[Control Service] Starting periodic tasks (check interval: %d seconds)", s.publishInterval)
 	s.ticker = time.NewTicker(time.Duration(s.publishInterval) * time.Second)
 	go s.startPeriodicTasks(ctx)
+	logger.Infof(ctx, "[Control Service] Periodic tasks started (checking license expiry)")
 
 	// 3. 启动 HTTP 服务器
 	port := fmt.Sprintf(":%d", s.httpPort)
-	logger.Infof(ctx, "[Control Service] HTTP server starting on port %s", port)
+	logger.Infof(ctx, "[Control Service] Starting HTTP server on port %s", port)
 
 	go func() {
+		logger.Infof(ctx, "[Control Service] HTTP server listening on http://localhost%s", port)
 		if err := s.httpServer.Run(port); err != nil {
 			logger.Errorf(ctx, "[Control Service] HTTP server error: %v", err)
 		}
 	}()
 
+	// 等待一小段时间确保 HTTP 服务器启动
+	time.Sleep(100 * time.Millisecond)
+
 	logger.Infof(ctx, "[Control Service] Control-service started successfully")
+	logger.Infof(ctx, "[Control Service] API endpoints:")
+	logger.Infof(ctx, "[Control Service]   - GET  http://localhost%s/api/v1/control/license/status", port)
+	logger.Infof(ctx, "[Control Service]   - POST http://localhost%s/api/v1/control/license/activate", port)
 	return nil
 }
 
 // startPeriodicTasks 启动定期任务
+// 定期任务职责：
+//  1. 检查 License 是否过期
+//  2. License 快过期时（提前7天）推送刷新指令，提醒用户续费
+//
+// 注意：不定期推送 License 内容，推送主要用于激活/更新后的主动通知
 func (s *Server) startPeriodicTasks(ctx context.Context) {
 	for {
 		select {
 		case <-s.ticker.C:
-			// 定期发布 License 密钥（确保新实例能获取）
-			if err := s.licenseService.PublishKey(ctx); err != nil {
-				logger.Warnf(ctx, "[Control Service] Failed to publish license key: %v", err)
-			}
-
 			// 检查 License 是否过期
 			if err := s.licenseService.CheckExpiry(ctx); err != nil {
 				logger.Warnf(ctx, "[Control Service] License expired: %v", err)
+				continue
+			}
+
+			// 检查 License 是否快过期（提前7天推送刷新指令，提醒用户续费）
+			lic := s.licenseService.GetLicense()
+			if lic != nil && !lic.ExpiresAt.IsZero() {
+				daysUntilExpiry := time.Until(lic.ExpiresAt.Time).Hours() / 24
+				if daysUntilExpiry <= 7 && daysUntilExpiry > 0 {
+					// 快过期了，推送刷新指令（提醒用户续费，用户更新后会自动推送）
+					if err := s.licenseService.PublishRefresh(ctx); err != nil {
+						logger.Warnf(ctx, "[Control Service] Failed to publish refresh instruction: %v", err)
+					} else {
+						logger.Infof(ctx, "[Control Service] Published refresh instruction (License expires in %.1f days, please renew)", daysUntilExpiry)
+					}
+				}
 			}
 
 		case <-ctx.Done():
@@ -193,3 +262,45 @@ func (s *Server) Stop(ctx context.Context) error {
 	return nil
 }
 
+// initNATSSubscriptions 初始化 NATS 订阅
+func (s *Server) initNATSSubscriptions(ctx context.Context) error {
+	logger.Infof(ctx, "[Control Service] Initializing NATS subscriptions...")
+
+	// 订阅 License 密钥请求主题（请求-响应模式）
+	sub, err := s.natsConn.Subscribe(subjects.GetControlLicenseKeyRequestSubject(), func(msg *nats.Msg) {
+		s.handleLicenseKeyRequest(ctx, msg)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to subscribe license key request topic: %w", err)
+	}
+
+	logger.Infof(ctx, "[Control Service] Subscribed to license key request topic: %s", subjects.GetControlLicenseKeyRequestSubject())
+	_ = sub // 保存订阅（如果需要后续取消订阅）
+
+	return nil
+}
+
+// handleLicenseKeyRequest 处理 License 密钥请求
+func (s *Server) handleLicenseKeyRequest(ctx context.Context, msg *nats.Msg) {
+	logger.Infof(ctx, "[Control Service] Received license key request")
+
+	// 构建密钥消息
+	keyMsg, err := s.licenseService.BuildKeyMessage(ctx)
+	if err != nil {
+		logger.Errorf(ctx, "[Control Service] Failed to build key message: %v", err)
+		msgx.RespFailMsg(msg, err)
+		return
+	}
+
+	// 返回响应（使用 msgx.RespSuccessMsg 设置正确的 header）
+	if err := msgx.RespSuccessMsg(msg, keyMsg); err != nil {
+		logger.Errorf(ctx, "[Control Service] Failed to send key message response: %v", err)
+		return
+	}
+
+	if keyMsg.EncryptedLicense == "" {
+		logger.Infof(ctx, "[Control Service] Sent license key response (community edition, no license)")
+	} else {
+		logger.Infof(ctx, "[Control Service] Sent license key response (license size: %d bytes)", len(keyMsg.EncryptedLicense))
+	}
+}
