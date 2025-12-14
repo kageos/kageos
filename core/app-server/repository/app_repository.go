@@ -1,32 +1,106 @@
 package repository
 
 import (
+	"sync"
+	"time"
+
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
+	"golang.org/x/sync/singleflight"
 	"gorm.io/gorm"
 )
 
+// AppRepository 应用仓储
 type AppRepository struct {
 	db *gorm.DB
+
+	// ✅ 缓存相关
+	appCache   sync.Map           // key: "user:app", value: *cachedApp
+	cacheGroup singleflight.Group // 防止缓存击穿
 }
+
+// cachedApp 缓存的应用信息
+type cachedApp struct {
+	app       *model.App
+	cacheTime time.Time
+}
+
+// 缓存过期时间（5 分钟）
+const appCacheTTL = 5 * time.Minute
 
 func NewAppRepository(db *gorm.DB) *AppRepository {
 	return &AppRepository{db: db}
 }
 
-// GetAppByUserName 根据用户名和应用代码获取应用信息
+// GetAppByUserName 根据用户名和应用代码获取应用信息（带缓存）
 func (r *AppRepository) GetAppByUserName(user, app string) (*model.App, error) {
-	var appModel model.App
-	// 使用code字段查询，因为app参数是应用代码
-	err := r.db.Where("user = ? AND code = ?", user, app).First(&appModel).Error
+	cacheKey := user + ":" + app
+
+	// 1. 快速路径：尝试从缓存获取（大部分请求走这里）
+	if cached, ok := r.appCache.Load(cacheKey); ok {
+		cachedData := cached.(*cachedApp)
+		// 检查是否过期
+		if time.Since(cachedData.cacheTime) < appCacheTTL {
+			return cachedData.app, nil
+		}
+		// 过期，删除缓存
+		r.appCache.Delete(cacheKey)
+	}
+
+	// 2. 慢速路径：缓存未命中，使用 singleflight 防止并发查询
+	// 多个并发请求只会有一个真正查询数据库
+	value, err, _ := r.cacheGroup.Do(cacheKey, func() (interface{}, error) {
+		// 双重检查：可能其他协程已经设置了缓存
+		if cached, ok := r.appCache.Load(cacheKey); ok {
+			cachedData := cached.(*cachedApp)
+			if time.Since(cachedData.cacheTime) < appCacheTTL {
+				return cachedData.app, nil
+			}
+		}
+
+		// 从数据库查询
+		var appModel model.App
+		// 使用code字段查询，因为app参数是应用代码
+		err := r.db.Where("user = ? AND code = ?", user, app).First(&appModel).Error
+		if err != nil {
+			return nil, err
+		}
+
+		// 存入缓存
+		r.appCache.Store(cacheKey, &cachedApp{
+			app:       &appModel,
+			cacheTime: time.Now(),
+		})
+
+		return &appModel, nil
+	})
+
 	if err != nil {
 		return nil, err
 	}
-	return &appModel, nil
+
+	return value.(*model.App), nil
+}
+
+// InvalidateAppCache 使应用缓存失效（当应用更新、删除时调用）
+func (r *AppRepository) InvalidateAppCache(user, app string) {
+	cacheKey := user + ":" + app
+	r.appCache.Delete(cacheKey)
 }
 
 // CreateApp 创建应用
 func (r *AppRepository) CreateApp(app *model.App) error {
-	return r.db.Create(app).Error
+	err := r.db.Create(app).Error
+	if err != nil {
+		return err
+	}
+	
+	// ✅ 创建后可能会立即查询，预热缓存
+	r.appCache.Store(app.User+":"+app.Code, &cachedApp{
+		app:       app,
+		cacheTime: time.Now(),
+	})
+	
+	return nil
 }
 
 // ExistsAppNameForUser 判断指定用户下是否已存在同名应用（按中文名称 Name 判断）
@@ -54,7 +128,14 @@ func (r *AppRepository) CountAppsByUser(user string) (int64, error) {
 
 // UpdateApp 更新应用
 func (r *AppRepository) UpdateApp(app *model.App) error {
-	return r.db.Save(app).Error
+	err := r.db.Save(app).Error
+	if err != nil {
+		return err
+	}
+	
+	// ✅ 使缓存失效
+	r.InvalidateAppCache(app.User, app.Code)
+	return nil
 }
 
 // DeleteAppAndVersions 删除应用及其所有版本
@@ -64,6 +145,9 @@ func (r *AppRepository) DeleteAppAndVersions(user, app string) error {
 	if err != nil {
 		return err
 	}
+
+	// ✅ 使缓存失效
+	r.InvalidateAppCache(user, app)
 
 	// 注意：app-server 中没有 AppVersion 表，所以只删除 App 记录即可
 
