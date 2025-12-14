@@ -470,14 +470,8 @@ func (s *Server) initNATSSubscriptions(ctx context.Context) error {
 	return nil
 }
 
-// handleFunctionGenResult 异步处理函数生成结果消息
+// handleFunctionGenResult 处理函数生成结果消息
 func (s *Server) handleFunctionGenResult(msg *nats.Msg) {
-	// ✅ 立即启动 goroutine 处理，避免阻塞 NATS 订阅
-	go s.handleFunctionGenResultSync(msg)
-}
-
-// handleFunctionGenResultSync 同步处理函数生成结果消息（实际处理逻辑）
-func (s *Server) handleFunctionGenResultSync(msg *nats.Msg) {
 	ctx := context.Background()
 
 	// 从消息 header 中获取 trace_id 和 user
