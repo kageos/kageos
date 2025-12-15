@@ -137,6 +137,11 @@
                 :key="`table-${activeTabId}`"
                 :function-detail="currentFunctionDetail"
               />
+              <ChartView
+                v-else-if="currentFunctionDetail?.template_type === TEMPLATE_TYPE.CHART"
+                :key="`chart-${activeTabId}`"
+                :function-detail="currentFunctionDetail"
+              />
               <div v-else :key="`empty-${activeTabId}`" class="empty-state">
                 <p>加载中...</p>
               </div>
@@ -332,6 +337,7 @@ import FunctionForkDialog from '@/components/FunctionForkDialog.vue'
 import PublishToHubDialog from '@/components/PublishToHubDialog.vue'
 import FormView from './FormView.vue'
 import TableView from './TableView.vue'
+import ChartView from './ChartView.vue'
 import WorkspaceHeader from '../components/WorkspaceHeader.vue'
 import WorkspaceTabs from '../components/WorkspaceTabs.vue'
 import WorkspaceDetailDrawer from '../components/WorkspaceDetailDrawer.vue'

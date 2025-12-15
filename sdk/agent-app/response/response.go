@@ -3,6 +3,7 @@ package response
 import (
 	"fmt"
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/query"
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
 	"gorm.io/gorm"
 )
 
@@ -10,6 +11,7 @@ type RunFunctionResp struct {
 	Type      string     `json:"type"`
 	TableData *TableData `json:"table_data"`
 	FormData  *FormData  `json:"form_data"`
+	ChartData *ChartData `json:"chart_data"`
 
 	//系统错误
 	err error
@@ -29,6 +31,9 @@ func (r *RunFunctionResp) Data() interface{} {
 	}
 	if r.Type == "table" {
 		return r.TableData
+	}
+	if r.Type == "chart" {
+		return r.ChartData
 	}
 	return nil
 }
@@ -59,6 +64,10 @@ func (r *RunFunctionResp) Build() error {
 	}
 
 	if r.Type == "form" {
+		return nil
+	}
+
+	if r.Type == "chart" {
 		return nil
 	}
 
@@ -132,6 +141,10 @@ type FormData struct {
 	Data interface{} `json:"data"`
 }
 
+type ChartData struct {
+	Chart *types.Chart `json:"chart"`
+}
+
 type Builder interface {
 	Build() error
 }
@@ -140,12 +153,21 @@ type Response interface {
 	Form(data interface{}) Form
 	BizErrorf(format string, a ...any) Form
 	Table(resultList interface{}) Table
+	Chart(chart *types.Chart) Chart
 }
 
 func (r *RunFunctionResp) Form(data interface{}) Form {
 	r.Type = "form"
 	r.FormData = &FormData{
 		Data: data,
+	}
+	return r
+}
+
+func (r *RunFunctionResp) Chart(chart *types.Chart) Chart {
+	r.Type = "chart"
+	r.ChartData = &ChartData{
+		Chart: chart,
 	}
 	return r
 }

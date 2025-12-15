@@ -291,8 +291,8 @@ const getNodeIconClass = (data: ServiceTree) => {
     return 'function-icon'
   }
   return 'function-icon'
-}
-
+  }
+  
 // 使用工具函数：findPathToNode, expandParentNodes, findNodeByPath, findGroupByFullGroupCode, findParentNode
 // 这些函数已从 @/utils/serviceTreeUtils 导入
 
@@ -361,8 +361,8 @@ watch(() => [route.query._node_type, route.path, groupedTreeData.value.length], 
       nextTick(() => {
         expandPaths([fullGroupCode])
       })
+      }
     }
-  }
 }, { immediate: true })
 
 // 监听 currentNodeId 变化，自动展开并选中节点
@@ -370,10 +370,10 @@ watch(() => props.currentNodeId, async (nodeId) => {
   if (nodeId && treeRef.value && groupedTreeData.value.length > 0) {
     // 🔥 使用 nextTick 确保 DOM 已渲染
     await nextTick()
-    // 查找路径（使用分组后的数据）
-    const path = findPathToNode(groupedTreeData.value, nodeId)
-    
-    if (path.length > 0) {
+      // 查找路径（使用分组后的数据）
+      const path = findPathToNode(groupedTreeData.value, nodeId)
+      
+      if (path.length > 0) {
       // 展开路径并选中节点
       await expandPathAndSelect(
         treeRef.value,
@@ -381,14 +381,14 @@ watch(() => props.currentNodeId, async (nodeId) => {
         path,
         Number(nodeId)
       )
-      
-      // 🔥 滚动到选中节点（可见）
+          
+          // 🔥 滚动到选中节点（可见）
       await nextTick()
-      const selectedNode = treeRef.value.store.nodesMap[nodeId]
-      if (selectedNode) {
-        selectedNode.visible = true
+            const selectedNode = treeRef.value.store.nodesMap[nodeId]
+            if (selectedNode) {
+              selectedNode.visible = true
+            }
       }
-    }
   }
 }, { immediate: true })
 
@@ -396,15 +396,15 @@ watch(() => props.currentNodeId, async (nodeId) => {
 watch(() => groupedTreeData.value, async (newTreeData) => {
   if (newTreeData.length > 0 && props.currentNodeId && treeRef.value) {
     await nextTick()
-    const path = findPathToNode(newTreeData, props.currentNodeId)
-    if (path.length > 0) {
+      const path = findPathToNode(newTreeData, props.currentNodeId)
+      if (path.length > 0) {
       await expandPathAndSelect(
         treeRef.value,
         newTreeData,
         path,
         Number(props.currentNodeId)
       )
-    }
+      }
   }
 })
 
