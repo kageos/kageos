@@ -5,6 +5,7 @@ type TemplateType string
 const (
 	TemplateTypeForm  TemplateType = "form"
 	TemplateTypeTable TemplateType = "table"
+	TemplateTypeChart TemplateType = "chart"
 )
 
 type Templater interface {

@@ -7,7 +7,8 @@
  */
 export const TEMPLATE_TYPE = {
   TABLE: 'table',
-  FORM: 'form'
+  FORM: 'form',
+  CHART: 'chart'
 } as const
 
 /**

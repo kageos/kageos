@@ -140,7 +140,7 @@ export interface FunctionDetail {
   description?: string
   method: string  // 'GET', 'POST', etc.
   router: string
-  template_type: string  // 'form', 'table'
+  template_type: string  // 'form', 'table', 'chart'
   request: FieldConfig[]  // 请求参数（表单字段）
   response: FieldConfig[]  // 响应参数（表格列）
   callbacks?: string[]  // 回调类型，如 ['OnTableAddRow', 'OnSelectFuzzy']

@@ -254,14 +254,14 @@ func (a *App) getApis() (apis []*ApiInfo, createTables []interface{}, err error)
 		base := info.Template.GetBaseConfig()
 		// 构建源代码文件路径
 		sourceCodeFilePath := info.BuildSourceCodeFilePath()
-		
+
 		// 读取源代码文件内容
 		var sourceCode string
 		if sourceCodeFilePath != "" && info.Options != nil && info.Options.RouterGroup != nil {
 			// 构建实际的文件路径：在容器内，使用 /app/code/api/{package}/{group_code}.go
 			packagePath := strings.Trim(info.Options.PackagePath, "/")
 			groupCode := info.Options.RouterGroup.GroupCode
-			
+
 			// 文件路径：/app/code/api/{package}/{group_code}.go
 			var filePath string
 			if packagePath == "" {
@@ -269,7 +269,7 @@ func (a *App) getApis() (apis []*ApiInfo, createTables []interface{}, err error)
 			} else {
 				filePath = fmt.Sprintf("/app/code/api/%s/%s.go", packagePath, groupCode)
 			}
-			
+
 			// 读取文件内容
 			if content, err := os.ReadFile(filePath); err == nil {
 				sourceCode = string(content)
@@ -278,10 +278,10 @@ func (a *App) getApis() (apis []*ApiInfo, createTables []interface{}, err error)
 				logger.Warnf(context.Background(), "Failed to read source code file %s: %v", filePath, err)
 			}
 		} else {
-			logger.Warnf(context.Background(), "Cannot read source code: sourceCodeFilePath=%s, Options=%v, RouterGroup=%v", 
+			logger.Warnf(context.Background(), "Cannot read source code: sourceCodeFilePath=%s, Options=%v, RouterGroup=%v",
 				sourceCodeFilePath, info.Options != nil, info.Options != nil && info.Options.RouterGroup != nil)
 		}
-		
+
 		api := &ApiInfo{
 			Code:               info.getCode(),
 			Name:               base.Name,
@@ -309,7 +309,9 @@ func (a *App) getApis() (apis []*ApiInfo, createTables []interface{}, err error)
 		}
 		templateType := info.Template.TemplateType()
 		api.TemplateType = string(templateType)
-		if templateType == TemplateTypeTable {
+
+		switch templateType {
+		case TemplateTypeTable:
 			template := info.Template.(*TableTemplate)
 			table := template.AutoCrudTable
 			requestFields, responseFields, err := widget.DecodeTable(fieldsCallback, base.Request, table)
@@ -332,9 +334,7 @@ func (a *App) getApis() (apis []*ApiInfo, createTables []interface{}, err error)
 				api.Callback = callback
 			}
 
-		}
-
-		if templateType == TemplateTypeForm {
+		case TemplateTypeForm:
 			fields, responseFields, err := widget.DecodeForm(fieldsCallback, base.Request, base.Response)
 			if err != nil {
 				return nil, nil, err
@@ -342,11 +342,21 @@ func (a *App) getApis() (apis []*ApiInfo, createTables []interface{}, err error)
 			api.Request = fields
 			api.Response = responseFields
 
-			//var callback []string
-			//template := info.Template.(*FormTemplate)
-			//if template.on!=nil{
-			//	callback = append(callback, CallbackTypeOnPageLoad)
-			//}
+		case TemplateTypeChart:
+			fields, responseFields, err := widget.DecodeForm(fieldsCallback, base.Request, base.Response)
+			if err != nil {
+				return nil, nil, err
+			}
+			api.Request = fields
+			api.Response = responseFields
+		default:
+			//默认走form
+			fields, responseFields, err := widget.DecodeForm(fieldsCallback, base.Request, base.Response)
+			if err != nil {
+				return nil, nil, err
+			}
+			api.Request = fields
+			api.Response = responseFields
 		}
 
 		api.CreateTableModels = base.CreateTables
