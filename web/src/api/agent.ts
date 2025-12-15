@@ -507,7 +507,8 @@ export interface FunctionGenAgentChatResp {
   session_id: string
   content: string
   record_id?: number
-  status: string
+  status: string // generating/completed/failed
+  can_continue: boolean // 是否可以继续输入（true: 可以继续输入, false: 不能再输入）
   usage?: AgentChatUsage
 }
 

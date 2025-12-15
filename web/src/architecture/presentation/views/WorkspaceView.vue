@@ -629,6 +629,13 @@ function handlePackageGenerateSystem(agent: AgentInfo) {
   if (currentFunction.value && currentFunction.value.type === 'package') {
     applicationService.triggerNodeClick(currentFunction.value)
   }
+  // 触发 AIChatPanel 新建会话（使用 nextTick 确保组件已渲染）
+  nextTick(() => {
+    if (aiChatPanelRef.value && typeof (aiChatPanelRef.value as any).handleAgentSelect === 'function') {
+      // 调用 handleAgentSelect 会创建新会话（清空 sessionId，显示欢迎消息）
+      (aiChatPanelRef.value as any).handleAgentSelect(agent)
+    }
+  })
 }
 
 // 关闭 AI 聊天面板

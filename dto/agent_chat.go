@@ -36,11 +36,12 @@ type AgentChatResp struct {
 
 // FunctionGenAgentChatResp 函数生成智能体聊天响应
 type FunctionGenAgentChatResp struct {
-	SessionID string `json:"session_id" example:"550e8400-e29b-41d4-a716-446655440000"` // 会话ID（首次创建时返回）
-	Content   string `json:"content" example:"正在生成代码..."`                               // AI回答内容
-	RecordID  int64  `json:"record_id,omitempty" example:"1"`                           // function_gen 记录ID（如果触发生成）
-	Status    string `json:"status" example:"generating"`                               // 状态：generating/completed/failed
-	Usage     *Usage `json:"usage,omitempty"`                                           // Token使用统计（可选）
+	SessionID   string `json:"session_id" example:"550e8400-e29b-41d4-a716-446655440000"` // 会话ID（首次创建时返回）
+	Content     string `json:"content" example:"正在生成代码..."`                               // AI回答内容
+	RecordID    int64  `json:"record_id,omitempty" example:"1"`                           // function_gen 记录ID（如果触发生成）
+	Status      string `json:"status" example:"generating"`                               // 状态：generating/completed/failed
+	CanContinue bool   `json:"can_continue" example:"false"`                             // 是否可以继续输入（true: 可以继续输入, false: 不能再输入）
+	Usage       *Usage `json:"usage,omitempty"`                                           // Token使用统计（可选）
 }
 
 // Usage Token使用统计

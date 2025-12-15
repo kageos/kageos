@@ -180,6 +180,7 @@ func (s *AgentChatService) FunctionGenChat(ctx context.Context, req *dto.Functio
 
 	// 2. 会话管理：创建或获取会话
 	var sessionID string
+	var currentSession *model.AgentChatSession
 	if req.SessionID == "" {
 		// 创建新会话
 		sessionID = uuid.New().String()
@@ -199,7 +200,17 @@ func (s *AgentChatService) FunctionGenChat(ctx context.Context, req *dto.Functio
 			logger.Errorf(ctx, "[FunctionGenChat] 创建会话失败 - SessionID: %s, TraceID: %s, Error: %v", sessionID, traceId, err)
 			return nil, fmt.Errorf("创建会话失败: %w", err)
 		}
+		currentSession = session
 		logger.Infof(ctx, "[FunctionGenChat] 会话创建成功 - SessionID: %s, AgentID: %d, TraceID: %s", sessionID, req.AgentID, traceId)
+
+		// 创建新会话后，立即设置为 generating 状态（因为即将开始代码生成）
+		session.Status = model.ChatSessionStatusGenerating
+		session.UpdatedBy = user
+		if err := s.sessionRepo.Update(session); err != nil {
+			logger.Errorf(ctx, "[FunctionGenChat] 更新新会话状态失败 - SessionID: %s, TraceID: %s, Error: %v", sessionID, traceId, err)
+			return nil, fmt.Errorf("更新会话状态失败: %w", err)
+		}
+		logger.Infof(ctx, "[FunctionGenChat] 新会话状态已更新为 generating - SessionID: %s, TraceID: %s", sessionID, traceId)
 	} else {
 		// 使用现有会话
 		sessionID = req.SessionID
@@ -213,6 +224,7 @@ func (s *AgentChatService) FunctionGenChat(ctx context.Context, req *dto.Functio
 			logger.Errorf(ctx, "[FunctionGenChat] 获取会话失败 - SessionID: %s, TraceID: %s, Error: %v", sessionID, traceId, err)
 			return nil, fmt.Errorf("获取会话失败: %w", err)
 		}
+		currentSession = session
 
 		// 检查会话状态
 		if session.Status == model.ChatSessionStatusDone {
@@ -597,12 +609,14 @@ func (s *AgentChatService) FunctionGenChat(ctx context.Context, req *dto.Functio
 		logger.Infof(asyncCtx, "[FunctionGen] 代码提取完成 - 原始长度: %d, 提取后长度: %d, RecordID: %d, TraceID: %s",
 			len(resp.Content), len(extractedCode), record.ID, traceId)
 
-		// 更新记录（保存提取后的代码）
-		if err := s.functionGenRepo.UpdateCode(record.ID, extractedCode, model.FunctionGenStatusCompleted); err != nil {
-			logger.Errorf(asyncCtx, "[FunctionGen] 更新记录失败: %v, RecordID: %d, TraceID: %s",
+		// 更新记录（只保存代码，不更新状态）
+		// 状态和 full_group_codes 由 app-server 处理完代码后的回调更新
+		if err := s.functionGenRepo.UpdateCode(record.ID, extractedCode); err != nil {
+			logger.Errorf(asyncCtx, "[FunctionGen] 更新代码失败: %v, RecordID: %d, TraceID: %s",
 				err, record.ID, traceId)
 			// 继续执行，不中断流程
 		}
+		logger.Infof(asyncCtx, "[FunctionGen] 代码已保存，等待 app-server 处理 - RecordID: %d, TraceID: %s", record.ID, traceId)
 
 		// 记录成功日志
 		logger.Infof(asyncCtx, "[FunctionGen] 代码生成成功, RecordID: %d, AgentID: %d, TreeID: %d, TraceID: %s",
@@ -632,13 +646,17 @@ func (s *AgentChatService) FunctionGenChat(ctx context.Context, req *dto.Functio
 	}()
 
 	// 立即返回响应
-	logger.Infof(ctx, "[FunctionGenChat] 返回响应 - SessionID: %s, RecordID: %d, Status: %s, TraceID: %s",
-		sessionID, record.ID, model.FunctionGenStatusGenerating, traceId)
+	// 判断是否可以继续输入：此时会话状态已经是 generating，所以不能继续输入
+	// 因为已经触发了代码生成，会话状态已设置为 generating，所以不能继续输入
+	canContinue := false
+	logger.Infof(ctx, "[FunctionGenChat] 返回响应 - SessionID: %s, RecordID: %d, Status: %s, SessionStatus: %s, CanContinue: %v, TraceID: %s",
+		sessionID, record.ID, model.FunctionGenStatusGenerating, currentSession.Status, canContinue, traceId)
 	return &dto.FunctionGenAgentChatResp{
-		SessionID: sessionID,
-		Content:   "正在生成代码，请稍候...",
-		RecordID:  record.ID,
-		Status:    model.FunctionGenStatusGenerating,
+		SessionID:   sessionID,
+		Content:     "正在生成代码，请稍候...",
+		RecordID:    record.ID,
+		Status:      model.FunctionGenStatusGenerating,
+		CanContinue: canContinue,
 	}, nil
 }
 

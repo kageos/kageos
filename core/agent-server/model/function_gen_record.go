@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 )
@@ -17,9 +18,9 @@ type FunctionGenRecord struct {
 	Code         string `gorm:"type:longtext;comment:生成的代码" json:"code"`
 	ErrorMsg     string `gorm:"type:text;comment:错误信息" json:"error_msg"`
 	
-	// 生成的函数组代码列表（JSON数组）
-	// 例如：["/luobei/testgroup/plugins/tools_cashier", "/luobei/testgroup/plugins/tools_excel"]
-	FullGroupCodes string `gorm:"type:text;comment:生成的函数组代码列表（JSON数组）" json:"full_group_codes"`
+	// 生成的函数组代码列表（逗号分隔的字符串，便于使用 FIND_IN_SET 查询）
+	// 例如："/luobei/testgroup/plugins/tools_cashier,/luobei/testgroup/plugins/tools_excel"
+	FullGroupCodes string `gorm:"type:text;comment:生成的函数组代码列表（逗号分隔）" json:"full_group_codes"`
 	
 	// 生成过程的元数据（JSON）
 	// 包含：用户消息、上传的文件、插件处理结果等
@@ -32,24 +33,38 @@ type FunctionGenRecord struct {
 	User string `gorm:"type:varchar(128);not null;index;comment:创建用户" json:"user"`
 }
 
-// GetFullGroupCodes 获取 FullGroupCodes 列表
-func (r *FunctionGenRecord) GetFullGroupCodes() ([]string, error) {
+// GetFullGroupCodes 获取 FullGroupCodes 列表（从逗号分隔的字符串解析）
+func (r *FunctionGenRecord) GetFullGroupCodes() []string {
 	if r.FullGroupCodes == "" {
-		return []string{}, nil
+		return []string{}
 	}
-	var codes []string
-	err := json.Unmarshal([]byte(r.FullGroupCodes), &codes)
-	return codes, err
+	// 使用逗号分隔，并过滤空字符串
+	codes := strings.Split(r.FullGroupCodes, ",")
+	result := make([]string, 0, len(codes))
+	for _, code := range codes {
+		code = strings.TrimSpace(code)
+		if code != "" {
+			result = append(result, code)
+		}
+	}
+	return result
 }
 
-// SetFullGroupCodes 设置 FullGroupCodes 列表
-func (r *FunctionGenRecord) SetFullGroupCodes(codes []string) error {
-	data, err := json.Marshal(codes)
-	if err != nil {
-		return err
+// SetFullGroupCodes 设置 FullGroupCodes 列表（转换为逗号分隔的字符串）
+func (r *FunctionGenRecord) SetFullGroupCodes(codes []string) {
+	if len(codes) == 0 {
+		r.FullGroupCodes = ""
+		return
 	}
-	r.FullGroupCodes = string(data)
-	return nil
+	// 过滤空字符串并连接
+	validCodes := make([]string, 0, len(codes))
+	for _, code := range codes {
+		code = strings.TrimSpace(code)
+		if code != "" {
+			validCodes = append(validCodes, code)
+		}
+	}
+	r.FullGroupCodes = strings.Join(validCodes, ",")
 }
 
 // GetMetadata 获取元数据
