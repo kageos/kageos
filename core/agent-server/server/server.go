@@ -406,11 +406,8 @@ func (s *Server) handleFunctionGenCallback(msg *nats.Msg) {
 		return
 	}
 
-	// 更新 FullGroupCodes
-	if err := record.SetFullGroupCodes(callback.FullGroupCodes); err != nil {
-		logger.Errorf(ctx, "[Server] 设置 FullGroupCodes 失败: %v", err)
-		return
-	}
+	// 更新 FullGroupCodes（逗号分隔的字符串）
+	record.SetFullGroupCodes(callback.FullGroupCodes)
 
 	// 更新状态和耗时
 	if callback.Success {

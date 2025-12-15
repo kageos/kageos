@@ -143,8 +143,15 @@ func (r *FunctionGenRepository) UpdateStatus(id int64, status, errorMsg string) 
 		Updates(updates).Error
 }
 
-// UpdateCode 更新代码和状态（自动计算耗时）
-func (r *FunctionGenRepository) UpdateCode(id int64, code string, status string) error {
+// UpdateCode 更新代码（不更新状态，状态由回调更新）
+func (r *FunctionGenRepository) UpdateCode(id int64, code string) error {
+	return r.db.Model(&model.FunctionGenRecord{}).
+		Where("id = ?", id).
+		Update("code", code).Error
+}
+
+// UpdateCodeAndStatus 更新代码和状态（自动计算耗时，用于兼容旧代码）
+func (r *FunctionGenRepository) UpdateCodeAndStatus(id int64, code string, status string) error {
 	// 获取记录以计算耗时
 	var record model.FunctionGenRecord
 	if err := r.db.Where("id = ?", id).First(&record).Error; err != nil {

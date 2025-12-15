@@ -42,3 +42,34 @@ export function formatTimestamp(timestamp: number | string | null | undefined, f
   }
   return `${year}-${month}-${day}`
 }
+
+/**
+ * 格式化耗时（秒转换为友好的格式）
+ * @param seconds 秒数
+ * @returns 格式化后的字符串，如 "30秒"、"1分30秒"、"1小时5分钟"
+ * 
+ * @example
+ * formatDuration(30) // '30秒'
+ * formatDuration(90) // '1分30秒'
+ * formatDuration(3665) // '1小时1分5秒'
+ */
+export function formatDuration(seconds: number): string {
+  if (seconds < 60) {
+    return `${seconds}秒`
+  } else if (seconds < 3600) {
+    const minutes = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return secs > 0 ? `${minutes}分${secs}秒` : `${minutes}分钟`
+  } else {
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    const secs = seconds % 60
+    if (minutes > 0 && secs > 0) {
+      return `${hours}小时${minutes}分${secs}秒`
+    } else if (minutes > 0) {
+      return `${hours}小时${minutes}分钟`
+    } else {
+      return `${hours}小时`
+    }
+  }
+}

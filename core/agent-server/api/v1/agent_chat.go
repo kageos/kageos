@@ -1,7 +1,6 @@
 package v1
 
 import (
-	"encoding/json"
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
@@ -117,7 +116,7 @@ func (h *AgentChat) ListSessions(c *gin.Context) {
 			CreatedAt: time.Time(session.CreatedAt).Format(time.DateTime),
 			UpdatedAt: time.Time(session.UpdatedAt).Format(time.DateTime),
 		}
-		
+
 		// 如果预加载了智能体信息，转换为 DTO
 		if session.Agent != nil {
 			agentInfo := &dto.AgentInfo{
@@ -134,7 +133,7 @@ func (h *AgentChat) ListSessions(c *gin.Context) {
 			}
 			sessionInfo.Agent = agentInfo
 		}
-		
+
 		sessionInfos = append(sessionInfos, sessionInfo)
 	}
 
@@ -244,20 +243,20 @@ func (h *AgentChat) GetFunctionGenStatus(c *gin.Context) {
 		return
 	}
 
-	// 解析 FullGroupCodes
-	var fullGroupCodes []string
-	if record.FullGroupCodes != "" {
-		if err := json.Unmarshal([]byte(record.FullGroupCodes), &fullGroupCodes); err != nil {
-			logger.Warnf(ctx, "[AgentChat] 解析 FullGroupCodes 失败 - RecordID: %d, Error: %v", req.RecordID, err)
-			fullGroupCodes = []string{}
-		}
+	// 解析 FullGroupCodes（逗号分隔的字符串）
+	fullGroupCodes := record.GetFullGroupCodes()
+
+	// 计算耗时（如果状态为 generating 或 Duration 为 0，实时计算）
+	duration := record.Duration
+	if duration == 0 || record.Status == model.FunctionGenStatusGenerating {
+		duration = int(time.Since(time.Time(record.CreatedAt)).Seconds())
 	}
 
 	// 转换为响应格式
 	resp = &dto.FunctionGenStatusResp{
 		RecordID:       record.ID,
 		Status:         record.Status,
-		Duration:       record.Duration,
+		Duration:       duration,
 		CreatedAt:      time.Time(record.CreatedAt).Format(time.DateTime),
 		UpdatedAt:      time.Time(record.UpdatedAt).Format(time.DateTime),
 		FullGroupCodes: fullGroupCodes,

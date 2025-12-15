@@ -220,7 +220,7 @@
         type="textarea"
         :rows="3"
         placeholder="输入消息，按 Ctrl+Enter 发送（支持拖拽文件上传）"
-        :disabled="loading"
+        :disabled="loading || !canContinue"
         @keydown.ctrl.enter="handleSend"
         @keydown.meta.enter="handleSend"
         ref="inputRef"
@@ -231,16 +231,16 @@
           :auto-upload="false"
           :show-file-list="false"
           :on-change="handleFileSelect"
-          :disabled="loading"
+          :disabled="loading || !canContinue"
           accept="*"
           multiple
         >
-          <el-button :icon="Upload" :disabled="loading">上传文件</el-button>
+          <el-button :icon="Upload" :disabled="loading || !canContinue">上传文件</el-button>
         </el-upload>
         <el-button
           type="primary"
           :loading="loading"
-          :disabled="!inputMessage.trim() && uploadedFiles.length === 0"
+          :disabled="(!inputMessage.trim() && uploadedFiles.length === 0) || !canContinue"
           @click="handleSend"
         >
           发送
@@ -269,6 +269,7 @@ import { Close, User, Loading, ChatRound, Upload, Document, Plus, ArrowDown, Arr
 import * as agentApi from '@/api/agent'
 import type { AgentInfo, ChatSessionInfo } from '@/api/agent'
 import { uploadFile, notifyUploadComplete } from '@/utils/upload'
+import { formatDuration } from '@/utils/date'
 import type { UploadFile } from 'element-plus'
 import { marked } from 'marked'
 import AgentSelectDialog from '@/components/Agent/AgentSelectDialog.vue'
@@ -315,6 +316,7 @@ const inputMessage = ref('')
 const loading = ref(false)
 const messagesContainerRef = ref<HTMLElement>()
 const inputRef = ref<InstanceType<typeof HTMLTextAreaElement>>()
+const canContinue = ref(true) // 是否可以继续输入
 
 // 轮询相关
 const pollingTimers = ref<Map<number, NodeJS.Timeout>>(new Map()) // 每个 record_id 对应的定时器
@@ -465,6 +467,16 @@ async function loadSessionMessages(targetSessionId: string, signal?: AbortSignal
       return
     }
 
+    // 根据会话状态设置 canContinue
+    const session = sessionList.value.find(s => s.session_id === targetSessionId)
+    if (session) {
+      // 只有 active 状态才能继续输入
+      canContinue.value = session.status === 'active'
+    } else {
+      // 如果找不到会话信息，默认可以继续输入
+      canContinue.value = true
+    }
+    
     if (messageRes.messages && messageRes.messages.length > 0) {
       // 转换消息格式
       messages.value = messageRes.messages.map(msg => {
@@ -632,6 +644,7 @@ function handleAgentSelect(agent: AgentInfo) {
   sessionId.value = ''
   messages.value = []
   uploadedFiles.value = []
+  canContinue.value = true // 新建会话时可以继续输入
   
   // 刷新会话列表（确保显示最新的会话）
   loadSessionList()
@@ -694,6 +707,15 @@ async function handleSelectSession(targetSessionId: string) {
   sessionId.value = targetSessionId
   messages.value = []
   uploadedFiles.value = []
+  
+  // 根据会话状态设置 canContinue
+  if (session) {
+    // 只有 active 状态才能继续输入
+    canContinue.value = session.status === 'active'
+  } else {
+    // 如果找不到会话信息，默认可以继续输入
+    canContinue.value = true
+  }
   
   // 创建新的 AbortController
   const abortController = new AbortController()
@@ -949,6 +971,14 @@ async function handleSend() {
     addMessage('assistant', res.content || '抱歉，AI 没有返回内容')
     // 注意：消息已由后端保存，不需要前端保存
 
+    // 更新是否可以继续输入的状态
+    canContinue.value = res.can_continue ?? false
+
+    // 如果返回了 record_id，开始轮询状态
+    if (res.record_id) {
+      startPolling(res.record_id)
+    }
+
     // 如果返回了 record_id，开始轮询状态
     if (res.record_id) {
       startPolling(res.record_id)
@@ -1049,25 +1079,44 @@ function startPolling(recordId: number) {
         
         // 刷新消息列表（获取系统消息）
         if (sessionId.value) {
-          await loadMessages(sessionId.value)
+          await loadSessionMessages(sessionId.value)
+          // 生成完成后，会话状态变为 done，不能再输入
+          canContinue.value = false
         }
         
         // 发送成功通知
+        const durationText = res.duration ? `（耗时：${formatDuration(res.duration)}）` : ''
+        
+        // 构建通知消息，包含函数组按钮和耗时
+        let notificationMessage = `代码生成已完成${durationText}`
+        if (res.full_group_codes && res.full_group_codes.length > 0) {
+          const buttons = res.full_group_codes.map((code: string, index: number) => {
+            // 构建函数组详情页面 URL：域名 + /workspace + 函数组路径 + ?_node_type=function_group
+            const fullGroupCode = code.startsWith('/') ? code : `/${code}`
+            const url = `${window.location.origin}/workspace${fullGroupCode}?_node_type=function_group`
+            // 按钮只显示4个字
+            const buttonText = '查看详情'
+            // 使用按钮样式的链接，点击在新窗口打开
+            return `<a href="${url}" target="_blank" onclick="event.preventDefault(); window.open('${url}', '_blank'); return false;" style="display: inline-block; padding: 6px 12px; margin: 4px 8px 4px 0; background-color: #67C23A; color: white; text-decoration: none; border-radius: 4px; cursor: pointer; font-size: 12px; transition: background-color 0.3s;" onmouseover="this.style.backgroundColor='#5daf34'" onmouseout="this.style.backgroundColor='#67C23A'">${buttonText}</a>`
+          }).join('')
+          notificationMessage = `已生成 ${res.full_group_codes.length} 个函数组${durationText}：<br><div style="margin-top: 8px;">${buttons}</div>`
+        }
+        
         ElNotification({
           title: '代码生成完成',
-          message: res.full_group_codes && res.full_group_codes.length > 0
-            ? `已生成 ${res.full_group_codes.length} 个函数组`
-            : '代码生成已完成',
+          dangerouslyUseHTMLString: true,
+          message: notificationMessage,
           type: 'success',
-          duration: 5000,
+          duration: 0, // 不自动关闭，需要手动点击关闭或点击跳转
           onClick: () => {
             // 点击通知时，如果有函数组地址，跳转到第一个
             if (res.full_group_codes && res.full_group_codes.length > 0) {
+              const firstCode = res.full_group_codes[0]
+              const fullGroupCode = firstCode.startsWith('/') ? firstCode : `/${firstCode}`
               router.push({
-                path: router.currentRoute.value.path,
+                path: `/workspace${fullGroupCode}`,
                 query: {
-                  ...router.currentRoute.value.query,
-                  full_group_code: res.full_group_codes[0]
+                  _node_type: 'function_group'
                 }
               })
             }
@@ -1079,7 +1128,9 @@ function startPolling(recordId: number) {
         
         // 刷新消息列表
         if (sessionId.value) {
-          await loadMessages(sessionId.value)
+          await loadSessionMessages(sessionId.value)
+          // 生成失败后，会话状态恢复为 active，可以继续输入
+          canContinue.value = true
         }
         
         // 发送失败通知
