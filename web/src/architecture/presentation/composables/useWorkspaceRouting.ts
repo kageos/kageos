@@ -215,8 +215,29 @@ export function useWorkspaceRouting(options: {
       // 处理子路径（打开 Tab）
       if (pathSegments.length > 2) {
         // 🔥 检查是否是函数组详情页面（_node_type=function_group）
-        // 如果是函数组，不需要查找函数节点，直接返回（函数组详情页面会自己处理）
         if (route.query._node_type === 'function_group') {
+          // 如果是函数组，从路径中提取 full_group_code 并展开
+          const fullGroupCode = '/' + pathSegments.join('/')
+          // 等待服务树加载完成后展开函数组
+          if (options.serviceTree().length > 0) {
+            nextTick(() => {
+              options.expandCurrentRoutePath()
+            })
+          } else {
+            // 如果服务树还没加载，等待加载完成后再展开
+            let retries = 0
+            const interval = setInterval(() => {
+              if (options.serviceTree().length > 0 || retries > 10) {
+                clearInterval(interval)
+                if (options.serviceTree().length > 0) {
+                  nextTick(() => {
+                    options.expandCurrentRoutePath()
+                  })
+                }
+              }
+              retries++
+            }, 200)
+          }
           return
         }
         

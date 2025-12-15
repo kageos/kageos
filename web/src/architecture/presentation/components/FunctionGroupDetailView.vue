@@ -103,35 +103,10 @@ function findFunctionGroup() {
   }
   
   const findInTree = (nodes: ServiceTree[]): ServiceTree | null => {
+    // 🔥 优先查找函数组节点（isGroup）
     for (const node of nodes) {
       // 检查是否是函数组节点
       if ((node as any).isGroup && (node as any).full_group_code === fullGroupCode.value) {
-        return node
-      }
-      // 检查是否是函数节点且 full_group_code 匹配
-      if (node.type === 'function' && node.full_group_code === fullGroupCode.value) {
-        // 找到第一个匹配的函数，需要找到所有匹配的函数
-        const matchedFunctions: ServiceTree[] = []
-        const findAllFunctions = (nodes: ServiceTree[]) => {
-          for (const n of nodes) {
-            if (n.type === 'function' && n.full_group_code === fullGroupCode.value) {
-              matchedFunctions.push(n)
-            }
-            if (n.children) {
-              findAllFunctions(n.children)
-            }
-          }
-        }
-        findAllFunctions(props.serviceTree)
-        functions.value = matchedFunctions
-        // 使用第一个函数的 group_name 作为组名
-        if (matchedFunctions.length > 0 && (matchedFunctions[0] as any).group_name) {
-          groupName.value = (matchedFunctions[0] as any).group_name
-        } else {
-          // 从 full_group_code 提取组名
-          const segments = fullGroupCode.value.split('/').filter(Boolean)
-          groupName.value = segments[segments.length - 1] || '函数组'
-        }
         return node
       }
       // 递归查找子节点
@@ -143,11 +118,37 @@ function findFunctionGroup() {
     return null
   }
   
-  const groupNode = findInTree(props.serviceTree)
+  // 🔥 先查找函数组节点
+  let groupNode = findInTree(props.serviceTree)
+  
   if (groupNode && (groupNode as any).isGroup) {
-    // 如果是函数组节点，获取其子函数
+    // 如果找到函数组节点，获取其子函数
     functions.value = (groupNode.children || []).filter(child => child.type === 'function')
     groupName.value = groupNode.name || (groupNode as any).group_name || '函数组'
+  } else {
+    // 🔥 如果没有找到函数组节点，查找所有匹配的函数（fallback 逻辑）
+    // 这种情况可能发生在函数组节点不存在，但函数有 full_group_code 的情况
+    const matchedFunctions: ServiceTree[] = []
+    const findAllFunctions = (nodes: ServiceTree[]) => {
+      for (const n of nodes) {
+        if (n.type === 'function' && n.full_group_code === fullGroupCode.value) {
+          matchedFunctions.push(n)
+        }
+        if (n.children) {
+          findAllFunctions(n.children)
+        }
+      }
+    }
+    findAllFunctions(props.serviceTree)
+    functions.value = matchedFunctions
+    // 使用第一个函数的 group_name 作为组名
+    if (matchedFunctions.length > 0 && (matchedFunctions[0] as any).group_name) {
+      groupName.value = (matchedFunctions[0] as any).group_name
+    } else {
+      // 从 full_group_code 提取组名
+      const segments = fullGroupCode.value.split('/').filter(Boolean)
+      groupName.value = segments[segments.length - 1] || '函数组'
+    }
   }
 }
 
