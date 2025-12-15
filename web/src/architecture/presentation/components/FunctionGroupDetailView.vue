@@ -68,7 +68,8 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ArrowLeft, ArrowRight, Grid, Postcard, Document } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/types'
-import { extractWorkspacePath } from '@/utils/route'
+import { extractFullGroupCodeFromRoute, getParentPathFromFullGroupCode } from '@/utils/route'
+import { findFunctionGroup } from '@/utils/serviceTreeUtils'
 
 interface Props {
   serviceTree?: ServiceTree[]
@@ -88,58 +89,27 @@ const fullGroupCode = computed(() => {
     return props.fullGroupCode
   }
   // 从路由路径中提取 full_group_code
-  // 例如：/workspace/luobei/demo/crm/crm_ticket -> /luobei/demo/crm/crm_ticket
-  const path = route.path
-  if (path.startsWith('/workspace/')) {
-    return path.replace('/workspace', '')
-  }
-  return ''
+  return extractFullGroupCodeFromRoute(route.path)
 })
 
 // 查找函数组和函数
-function findFunctionGroup() {
+function loadFunctionGroup() {
   if (!props.serviceTree || !fullGroupCode.value) {
     return
   }
   
-  const findInTree = (nodes: ServiceTree[]): ServiceTree | null => {
-    // 🔥 优先查找函数组节点（isGroup）
-    for (const node of nodes) {
-      // 检查是否是函数组节点
-      if ((node as any).isGroup && (node as any).full_group_code === fullGroupCode.value) {
-        return node
-      }
-      // 递归查找子节点
-      if (node.children && node.children.length > 0) {
-        const found = findInTree(node.children)
-        if (found) return found
-      }
-    }
-    return null
-  }
-  
-  // 🔥 先查找函数组节点
-  let groupNode = findInTree(props.serviceTree)
+  // 使用工具函数查找函数组
+  const { groupNode, functions: matchedFunctions } = findFunctionGroup(
+    props.serviceTree,
+    fullGroupCode.value
+  )
   
   if (groupNode && (groupNode as any).isGroup) {
     // 如果找到函数组节点，获取其子函数
     functions.value = (groupNode.children || []).filter(child => child.type === 'function')
     groupName.value = groupNode.name || (groupNode as any).group_name || '函数组'
   } else {
-    // 🔥 如果没有找到函数组节点，查找所有匹配的函数（fallback 逻辑）
-    // 这种情况可能发生在函数组节点不存在，但函数有 full_group_code 的情况
-    const matchedFunctions: ServiceTree[] = []
-    const findAllFunctions = (nodes: ServiceTree[]) => {
-      for (const n of nodes) {
-        if (n.type === 'function' && n.full_group_code === fullGroupCode.value) {
-          matchedFunctions.push(n)
-        }
-        if (n.children) {
-          findAllFunctions(n.children)
-        }
-      }
-    }
-    findAllFunctions(props.serviceTree)
+    // 如果没有找到函数组节点，使用匹配的函数列表
     functions.value = matchedFunctions
     // 使用第一个函数的 group_name 作为组名
     if (matchedFunctions.length > 0 && (matchedFunctions[0] as any).group_name) {
@@ -155,23 +125,14 @@ function findFunctionGroup() {
 // 返回上一级
 function handleBack() {
   // 移除 _node_type 查询参数，并返回到父目录
-  // 从路径中提取父目录路径，例如：/workspace/luobei/demo/crm/crm_ticket -> /workspace/luobei/demo/crm
-  const path = route.path
-  if (path.startsWith('/workspace/')) {
-    const pathSegments = path.replace('/workspace', '').split('/').filter(Boolean)
-    if (pathSegments.length > 2) {
-      // 至少是 user/app/package，去掉最后一段
-      pathSegments.pop()
-      const parentPath = `/workspace/${pathSegments.join('/')}`
-      router.push({
-        path: parentPath,
-        query: {}
-      })
-    } else {
-      // 回到根目录
-      router.push('/workspace')
-    }
+  const parentPath = getParentPathFromFullGroupCode(fullGroupCode.value)
+  if (parentPath) {
+    router.push({
+      path: `/workspace${parentPath}`,
+      query: {}
+    })
   } else {
+    // 回到根目录
     router.push('/workspace')
   }
 }
@@ -186,11 +147,11 @@ function handleFunctionClick(func: ServiceTree) {
 
 // 监听 props 和路由变化
 watch(() => [props.serviceTree, fullGroupCode.value], () => {
-  findFunctionGroup()
+  loadFunctionGroup()
 }, { immediate: true, deep: true })
 
 onMounted(() => {
-  findFunctionGroup()
+  loadFunctionGroup()
 })
 </script>
 

@@ -94,7 +94,7 @@
         
         <!-- 🔥 函数组详情页面 -->
         <FunctionGroupDetailView
-          v-else-if="route.query._node_type === 'function_group'"
+          v-else-if="isFunctionGroupDetail(route.query)"
           :service-tree="serviceTree"
         />
         
@@ -350,7 +350,7 @@ import { useWorkspaceDetail } from '../composables/useWorkspaceDetail'
 import { useWorkspaceApp } from '../composables/useWorkspaceApp'
 import { useWorkspaceServiceTree } from '../composables/useWorkspaceServiceTree'
 import { findNodeByPath, findNodeById, getDirectChildFunctionCodes } from '../utils/workspaceUtils'
-import { preserveQueryParamsForTable, preserveQueryParamsForForm } from '@/utils/queryParams'
+import { preserveQueryParamsForTable, preserveQueryParamsForForm, isFunctionGroupDetail, buildFunctionGroupQuery } from '@/utils/queryParams'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { getAgentList, type AgentInfo } from '@/api/agent'
 
@@ -719,7 +719,7 @@ const handleNodeClick = (node: ServiceTreeType) => {
   if (serviceTree.type === 'function' && serviceTree.full_code_path) {
     const targetPath = `/workspace${serviceTree.full_code_path}`
     // 🔥 即使路径相同，如果存在 _node_type=function_group 参数，也需要更新路由来清除它
-    const hasFunctionGroupParam = route.query._node_type === 'function_group'
+    const hasFunctionGroupParam = isFunctionGroupDetail(route.query)
     if (route.path !== targetPath || hasFunctionGroupParam) {
       // 🔥 检查目标函数是否是 table 类型
       // 优先级：Tab 详情 > 默认 form
@@ -798,7 +798,7 @@ const handleNodeClick = (node: ServiceTreeType) => {
     if (serviceTree.full_code_path) {
       const targetPath = `/workspace${serviceTree.full_code_path}`
       // 检查是否需要更新路由（路径不同或存在 _node_type 参数）
-      const needUpdate = route.path !== targetPath || route.query._node_type === 'function_group'
+      const needUpdate = route.path !== targetPath || isFunctionGroupDetail(route.query)
       if (needUpdate) {
         eventBus.emit(RouteEvent.updateRequested, {
           path: targetPath,
@@ -820,13 +820,11 @@ const handleNodeClick = (node: ServiceTreeType) => {
     // 使用 full_group_code 作为路径，例如：/luobei/demo/crm/crm_ticket -> /workspace/luobei/demo/crm/crm_ticket
     const targetPath = `/workspace${fullGroupCode}`
     // 检查是否需要更新路由（路径或 _node_type 不同）
-    const needUpdate = route.path !== targetPath || route.query._node_type !== 'function_group'
+    const needUpdate = route.path !== targetPath || !isFunctionGroupDetail(route.query)
     if (needUpdate) {
       eventBus.emit(RouteEvent.updateRequested, {
         path: targetPath,
-        query: {
-          _node_type: 'function_group'
-        },
+        query: buildFunctionGroupQuery(),
         replace: true,
         preserveParams: {
           table: false,

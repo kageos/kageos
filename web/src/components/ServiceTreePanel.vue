@@ -118,6 +118,15 @@ import { ElTag, ElLink } from 'element-plus'
 import { generateGroupId, createGroupNode, groupFunctionsByCode, getGroupName, type ExtendedServiceTree } from '@/utils/tree-utils'
 import type { ServiceTree } from '@/types'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
+import {
+  findPathToNode,
+  expandParentNodes,
+  findNodeByPath,
+  findGroupByFullGroupCode,
+  findParentNode,
+  expandPathAndSelect
+} from '@/utils/serviceTreeUtils'
+import { extractFullGroupCodeFromRoute } from '@/utils/route'
 
 interface Props {
   treeData: ServiceTree[]
@@ -284,208 +293,54 @@ const getNodeIconClass = (data: ServiceTree) => {
   return 'function-icon'
 }
 
-// 查找从根节点到目标节点的路径
-const findPathToNode = (nodes: ServiceTree[], targetId: number | string): number[] => {
-  const path: number[] = []
-  // 确保 targetId 转换为数字进行比较
-  const targetIdNum = Number(targetId)
-  
-  const findNode = (nodes: ServiceTree[], targetId: number): boolean => {
-    for (const node of nodes) {
-      // 🔥 跳过分组节点（分组节点是虚拟节点）
-      if ((node as any).isGroup) {
-        // 在分组节点的子节点中查找
-        if (node.children && node.children.length > 0) {
-          if (findNode(node.children, targetId)) {
-            path.push(Number(node.id)) // 包含分组节点到路径中
-            return true
-          }
-        }
-        continue
-      }
-      
-      const nodeIdNum = Number(node.id)
-      path.push(nodeIdNum)
-      
-      if (nodeIdNum === targetId) {
-        return true
-      }
-      
-      if (node.children && node.children.length > 0) {
-        if (findNode(node.children, targetId)) {
-          return true
-        }
-      }
-      
-      path.pop()
-    }
-    return false
-  }
-  
-  findNode(nodes, targetIdNum)
-  return path
-}
-
-// 🔥 展开所有父节点（递归展开）
-const expandParentNodes = (path: number[]) => {
-  if (path.length === 0 || !treeRef.value) return
-  
-  // 展开所有父节点
-  const expandKeys = path.slice(0, -1) // 最后一个节点不需要展开，只需选中
-  expandKeys.forEach((key: number) => {
-    const node = treeRef.value.store.nodesMap[key]
-    if (node && !node.expanded) {
-      node.expand()
-    }
-  })
-}
-
-// 根据 full_code_path 查找节点并展开
-const findAndExpandByPath = (targetPath: string): ServiceTree | null => {
-  if (!treeRef.value || !groupedTreeData.value.length) {
-    return null
-  }
-  
-  // 规范化路径（移除开头的斜杠，确保格式一致）
-  const normalizedPath = targetPath.replace(/^\/+/, '')
-  
-  const findNode = (nodes: ServiceTree[], path: string, depth = 0): ServiceTree | null => {
-    for (const node of nodes) {
-      // 规范化节点的 full_code_path（移除开头的斜杠和 __group__ 部分）
-      let nodePath = node.full_code_path.replace(/^\/+/, '')
-      const isGroup = (node as any).isGroup
-      
-      // 如果是分组节点，移除 __group__ 部分来匹配目录路径
-      if (isGroup) {
-        nodePath = nodePath.replace(/\/__group__[^/]+$/, '')
-      }
-      
-      // 检查当前节点是否匹配（精确匹配或目录匹配）
-      if (nodePath === path || path.startsWith(nodePath + '/')) {
-        // 展开当前节点
-        const nodeKey = Number(node.id)
-        const treeNode = treeRef.value.store.nodesMap[nodeKey]
-        if (treeNode) {
-          if (!treeNode.expanded) {
-            treeNode.expand()
-          }
-        }
-        
-        // 如果是精确匹配，返回该节点
-        if (nodePath === path) {
-          return node
-        }
-        
-        // 如果是目录匹配，继续在子节点中查找
-        if (node.children && node.children.length > 0) {
-          const found = findNode(node.children, path, depth + 1)
-          if (found) return found
-        }
-      }
-    }
-    return null
-  }
-  
-  return findNode(groupedTreeData.value, normalizedPath)
-}
-
-// 根据 full_group_code 查找函数组节点
-const findGroupByFullGroupCode = (fullGroupCode: string): ServiceTree | null => {
-  if (!groupedTreeData.value.length) {
-    return null
-  }
-  
-  const findNode = (nodes: ServiceTree[]): ServiceTree | null => {
-    for (const node of nodes) {
-      // 检查是否是函数组节点且 full_group_code 匹配
-      if ((node as any).isGroup && (node as any).full_group_code === fullGroupCode) {
-        return node
-      }
-      // 递归查找子节点
-      if (node.children && node.children.length > 0) {
-        const found = findNode(node.children)
-        if (found) return found
-      }
-    }
-    return null
-  }
-  
-  return findNode(groupedTreeData.value)
-}
-
-// 查找函数组的父节点（package）
-const findParentPackage = (groupNode: ServiceTree): ServiceTree | null => {
-  if (!groupedTreeData.value.length) {
-    return null
-  }
-  
-  const findParent = (nodes: ServiceTree[], targetId: number): ServiceTree | null => {
-    for (const node of nodes) {
-      // 检查当前节点的子节点中是否包含目标节点
-      if (node.children && node.children.length > 0) {
-        const hasTarget = node.children.some(child => Number(child.id) === targetId)
-        if (hasTarget) {
-          return node
-        }
-        // 递归查找
-        const found = findParent(node.children, targetId)
-        if (found) return found
-      }
-    }
-    return null
-  }
-  
-  return findParent(groupedTreeData.value, Number(groupNode.id))
-}
+// 使用工具函数：findPathToNode, expandParentNodes, findNodeByPath, findGroupByFullGroupCode, findParentNode
+// 这些函数已从 @/utils/serviceTreeUtils 导入
 
 // 展开多个路径
-const expandPaths = (paths: string[]) => {
+const expandPaths = async (paths: string[]) => {
   if (!treeRef.value || !groupedTreeData.value.length) {
     return
   }
   
-  paths.forEach((path) => {
+  for (const path of paths) {
     // 先尝试根据 full_group_code 查找函数组
-    const groupNode = findGroupByFullGroupCode(path)
+    const groupNode = findGroupByFullGroupCode(groupedTreeData.value, path)
     if (groupNode) {
       // 找到函数组节点，需要展开其父节点（package）
-      const parentPackage = findParentPackage(groupNode)
+      const parentPackage = findParentNode(groupedTreeData.value, Number(groupNode.id))
       if (parentPackage) {
         // 先展开父节点（package）
         const parentPath = findPathToNode(groupedTreeData.value, Number(parentPackage.id))
         if (parentPath.length > 0) {
-          expandParentNodes(parentPath)
+          expandParentNodes(treeRef.value, parentPath)
           // 等待父节点展开后，再展开并选中函数组
-          setTimeout(() => {
-            const groupNodeId = Number(groupNode.id)
-            // 确保函数组节点也被展开（如果它是可展开的）
-            const treeNode = treeRef.value.store.nodesMap[groupNodeId]
-            if (treeNode && !treeNode.expanded && treeNode.childNodes && treeNode.childNodes.length > 0) {
-              treeNode.expand()
-            }
-            // 选中函数组节点
-            treeRef.value.setCurrentKey(groupNodeId)
-          }, 200)
+          await expandPathAndSelect(
+            treeRef.value,
+            groupedTreeData.value,
+            [Number(parentPackage.id)],
+            Number(groupNode.id)
+          )
         }
       }
-      return
+      continue
     }
     
     // 如果不是函数组，尝试根据 full_code_path 查找
-    const node = findAndExpandByPath(path)
+    const node = findNodeByPath(groupedTreeData.value, path)
     if (node) {
       // 找到节点后，展开到该节点的所有父节点
       const nodeId = Number(node.id)
       const pathToNode = findPathToNode(groupedTreeData.value, nodeId)
       if (pathToNode.length > 0) {
-        expandParentNodes(pathToNode)
-        // 高亮显示该节点
-        setTimeout(() => {
-          treeRef.value.setCurrentKey(nodeId)
-        }, 100)
+        await expandPathAndSelect(
+          treeRef.value,
+          groupedTreeData.value,
+          pathToNode,
+          nodeId
+        )
       }
     }
-  })
+  }
 }
 
 // 监听路由查询参数中的 full_group_code，自动定位并展开函数组
@@ -501,66 +356,55 @@ watch(() => route.query.full_group_code, (fullGroupCode) => {
 watch(() => [route.query._node_type, route.path, groupedTreeData.value.length], ([nodeType, path, treeLength]) => {
   if (nodeType === 'function_group' && treeLength > 0) {
     // 从路由路径中提取 full_group_code
-    // 例如：/workspace/luobei/demo/crm/crm_order -> /luobei/demo/crm/crm_order
-    if (path && path.startsWith('/workspace/')) {
-      const fullGroupCode = path.replace('/workspace', '')
-      if (fullGroupCode) {
-        nextTick(() => {
-          expandPaths([fullGroupCode])
-        })
-      }
+    const fullGroupCode = extractFullGroupCodeFromRoute(path as string)
+    if (fullGroupCode) {
+      nextTick(() => {
+        expandPaths([fullGroupCode])
+      })
     }
   }
 }, { immediate: true })
 
 // 监听 currentNodeId 变化，自动展开并选中节点
-watch(() => props.currentNodeId, (nodeId) => {
+watch(() => props.currentNodeId, async (nodeId) => {
   if (nodeId && treeRef.value && groupedTreeData.value.length > 0) {
     // 🔥 使用 nextTick 确保 DOM 已渲染
-    nextTick(() => {
-      // 查找路径（使用分组后的数据）
-      const path = findPathToNode(groupedTreeData.value, nodeId)
+    await nextTick()
+    // 查找路径（使用分组后的数据）
+    const path = findPathToNode(groupedTreeData.value, nodeId)
+    
+    if (path.length > 0) {
+      // 展开路径并选中节点
+      await expandPathAndSelect(
+        treeRef.value,
+        groupedTreeData.value,
+        path,
+        Number(nodeId)
+      )
       
-      if (path.length > 0) {
-        // 🔥 展开所有父节点
-        expandParentNodes(path)
-        
-        // 🔥 延迟选中，确保展开动画完成
-        setTimeout(() => {
-          // 再次确保所有父节点已展开
-          expandParentNodes(path)
-          
-          // 选中当前节点
-          treeRef.value.setCurrentKey(nodeId)
-          
-          // 🔥 滚动到选中节点（可见）
-          nextTick(() => {
-            const selectedNode = treeRef.value.store.nodesMap[nodeId]
-            if (selectedNode) {
-              selectedNode.visible = true
-            }
-          })
-        }, 100)
+      // 🔥 滚动到选中节点（可见）
+      await nextTick()
+      const selectedNode = treeRef.value.store.nodesMap[nodeId]
+      if (selectedNode) {
+        selectedNode.visible = true
       }
-    })
+    }
   }
 }, { immediate: true })
 
 // 🔥 监听服务树数据变化，如果 currentNodeId 存在但还没展开，重新尝试
-watch(() => groupedTreeData.value, (newTreeData) => {
-  if (newTreeData.length > 0 && props.currentNodeId) {
-    nextTick(() => {
-      const path = findPathToNode(newTreeData, props.currentNodeId)
-      if (path.length > 0) {
-        expandParentNodes(path)
-        setTimeout(() => {
-          expandParentNodes(path)
-          if (treeRef.value) {
-            treeRef.value.setCurrentKey(props.currentNodeId)
-          }
-        }, 100)
-      }
-    })
+watch(() => groupedTreeData.value, async (newTreeData) => {
+  if (newTreeData.length > 0 && props.currentNodeId && treeRef.value) {
+    await nextTick()
+    const path = findPathToNode(newTreeData, props.currentNodeId)
+    if (path.length > 0) {
+      await expandPathAndSelect(
+        treeRef.value,
+        newTreeData,
+        path,
+        Number(props.currentNodeId)
+      )
+    }
   }
 })
 

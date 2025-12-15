@@ -81,3 +81,39 @@ export function resolveWorkspaceUrl(
   return `/workspace/${url}`
 }
 
+/**
+ * 从路由路径提取 full_group_code
+ * 
+ * @param path 路由路径（如 '/workspace/luobei/demo/crm/crm_ticket'）
+ * @returns full_group_code（如 '/luobei/demo/crm/crm_ticket'）
+ * 
+ * @example
+ * extractFullGroupCodeFromRoute('/workspace/luobei/demo/crm/crm_ticket') // '/luobei/demo/crm/crm_ticket'
+ */
+export function extractFullGroupCodeFromRoute(path: string): string {
+  if (path.startsWith('/workspace/')) {
+    return path.replace('/workspace', '')
+  }
+  return ''
+}
+
+/**
+ * 从 full_group_code 提取父目录路径
+ * 
+ * @param fullGroupCode 函数组代码（如 '/luobei/demo/crm/crm_ticket'）
+ * @returns 父目录路径（如 '/luobei/demo/crm'）
+ * 
+ * @example
+ * getParentPathFromFullGroupCode('/luobei/demo/crm/crm_ticket') // '/luobei/demo/crm'
+ */
+export function getParentPathFromFullGroupCode(fullGroupCode: string): string {
+  const segments = fullGroupCode.split('/').filter(Boolean)
+  if (segments.length > 2) {
+    // 至少是 user/app/package，去掉最后一段
+    segments.pop()
+    return '/' + segments.join('/')
+  }
+  // 如果路径太短，返回空字符串
+  return ''
+}
+
