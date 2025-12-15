@@ -2,6 +2,7 @@ package server
 
 import (
 	v1 "github.com/ai-agent-os/ai-agent-os/core/app-server/api/v1"
+	"github.com/ai-agent-os/ai-agent-os/enterprise"
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
 	"github.com/ai-agent-os/ai-agent-os/pkg/pprof"
 	swaggerFiles "github.com/swaggo/files"
@@ -82,8 +83,8 @@ func (s *Server) setupRoutes() {
 
 	// 操作日志路由（需要JWT验证 + 操作日志功能鉴权）
 	operateLog := apiV1.Group("/operate_log")
-	operateLog.Use(middleware2.JWTAuth())        // JWT 认证
-	operateLog.Use(middleware2.OperateLogAuth()) // 操作日志功能鉴权（企业版）
+	operateLog.Use(middleware2.JWTAuth())                                    // JWT 认证
+	operateLog.Use(middleware2.RequireFeature(enterprise.FeatureOperateLog)) // 操作日志功能鉴权（企业版）
 	operateLogHandler := v1.NewOperateLog(s.operateLogService)
 	operateLog.GET("/table", operateLogHandler.GetTableOperateLogs) // 查询 Table 操作日志
 	operateLog.GET("/form", operateLogHandler.GetFormOperateLogs)   // 查询 Form 操作日志
