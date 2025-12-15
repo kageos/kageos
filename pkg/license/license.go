@@ -95,10 +95,40 @@ type License struct {
 
 // Features 功能开关
 // 定义所有企业功能的开关
-// 注意：目前只保留 operate_log，后续新增功能时再加
+// 注意：新增功能时需要在 Features 结构体中添加对应字段，并在 HasFeature() 方法中添加 case
 type Features struct {
 	// 操作日志
 	OperateLog bool `json:"operate_log"` // 操作日志功能
+
+	// 组织架构
+	Organization bool `json:"organization"` // 组织架构功能
+
+	// 权限管理
+	Permission bool `json:"permission"` // 权限管理功能
+
+	// 工作流
+	Workflow bool `json:"workflow"` // 工作流功能
+
+	// 审批流程
+	Approval bool `json:"approval"` // 审批流程功能
+
+	// 定时任务
+	ScheduledTask bool `json:"scheduled_task"` // 定时任务功能
+
+	// 回收站
+	RecycleBin bool `json:"recycle_bin"` // 回收站功能
+
+	// 变更日志
+	ChangeLog bool `json:"change_log"` // 变更日志功能
+
+	// 通知中心
+	Notification bool `json:"notification"` // 通知中心功能
+
+	// 配置管理
+	ConfigManagement bool `json:"config_management"` // 配置管理功能
+
+	// 快链
+	QuickLink bool `json:"quick_link"` // 快链功能
 }
 
 // LicenseFile License 文件结构（包含签名）
@@ -127,14 +157,48 @@ func (l *License) IsValid() bool {
 }
 
 // HasFeature 检查是否有某个功能
+// 参数：
+//   - featureName: 功能名称（使用 enterprise.FeatureXXX 常量）
+//
+// 返回：
+//   - bool: 是否有该功能
+//
+// 说明：
+//   - 社区版：返回 false
+//   - 企业版：根据 License 中的功能开关返回
 func (l *License) HasFeature(featureName string) bool {
 	if l == nil {
 		return false // 社区版，没有 License
 	}
 
+	// 检查 License 是否有效（未过期）
+	if !l.IsValid() {
+		return false // License 过期，没有企业功能
+	}
+
 	switch featureName {
 	case "operate_log":
 		return l.Features.OperateLog
+	case "organization":
+		return l.Features.Organization
+	case "permission":
+		return l.Features.Permission
+	case "workflow":
+		return l.Features.Workflow
+	case "approval":
+		return l.Features.Approval
+	case "scheduled_task":
+		return l.Features.ScheduledTask
+	case "recycle_bin":
+		return l.Features.RecycleBin
+	case "change_log":
+		return l.Features.ChangeLog
+	case "notification":
+		return l.Features.Notification
+	case "config_management":
+		return l.Features.ConfigManagement
+	case "quick_link":
+		return l.Features.QuickLink
 	default:
 		return false
 	}

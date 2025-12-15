@@ -31,7 +31,7 @@ func (s *Server) initEnterprise() error {
 		lic.Edition, lic.Customer)
 
 	// 初始化操作日志功能（如果 License 支持）
-	if licenseMgr.HasOperateLogFeature() {
+	if licenseMgr.HasFeature(enterprise.FeatureOperateLog) {
 		logger.Infof(ctx, "[Enterprise] Initializing operate log feature...")
 		err := enterprise.InitOperateLogger(&enterprise.InitOptions{DB: s.db})
 		if err != nil {

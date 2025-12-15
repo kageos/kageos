@@ -138,6 +138,9 @@ func (m *Manager) HasFeature(featureName string) bool {
 // HasOperateLogFeature 检查是否有操作日志功能
 // 返回：
 //   - bool: 是否有操作日志功能
+//
+// 说明：
+//   - 向后兼容方法，推荐使用 HasFeature(enterprise.FeatureOperateLog)
 func (m *Manager) HasOperateLogFeature() bool {
 	return m.HasFeature("operate_log")
 }
