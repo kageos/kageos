@@ -413,6 +413,31 @@ const findGroupByFullGroupCode = (fullGroupCode: string): ServiceTree | null => 
   return findNode(groupedTreeData.value)
 }
 
+// 查找函数组的父节点（package）
+const findParentPackage = (groupNode: ServiceTree): ServiceTree | null => {
+  if (!groupedTreeData.value.length) {
+    return null
+  }
+  
+  const findParent = (nodes: ServiceTree[], targetId: number): ServiceTree | null => {
+    for (const node of nodes) {
+      // 检查当前节点的子节点中是否包含目标节点
+      if (node.children && node.children.length > 0) {
+        const hasTarget = node.children.some(child => Number(child.id) === targetId)
+        if (hasTarget) {
+          return node
+        }
+        // 递归查找
+        const found = findParent(node.children, targetId)
+        if (found) return found
+      }
+    }
+    return null
+  }
+  
+  return findParent(groupedTreeData.value, Number(groupNode.id))
+}
+
 // 展开多个路径
 const expandPaths = (paths: string[]) => {
   if (!treeRef.value || !groupedTreeData.value.length) {
@@ -423,14 +448,25 @@ const expandPaths = (paths: string[]) => {
     // 先尝试根据 full_group_code 查找函数组
     const groupNode = findGroupByFullGroupCode(path)
     if (groupNode) {
-      // 找到函数组节点，展开并选中
-      const nodeId = Number(groupNode.id)
-      const pathToNode = findPathToNode(groupedTreeData.value, nodeId)
-      if (pathToNode.length > 0) {
-        expandParentNodes(pathToNode)
-        setTimeout(() => {
-          treeRef.value.setCurrentKey(nodeId)
-        }, 100)
+      // 找到函数组节点，需要展开其父节点（package）
+      const parentPackage = findParentPackage(groupNode)
+      if (parentPackage) {
+        // 先展开父节点（package）
+        const parentPath = findPathToNode(groupedTreeData.value, Number(parentPackage.id))
+        if (parentPath.length > 0) {
+          expandParentNodes(parentPath)
+          // 等待父节点展开后，再展开并选中函数组
+          setTimeout(() => {
+            const groupNodeId = Number(groupNode.id)
+            // 确保函数组节点也被展开（如果它是可展开的）
+            const treeNode = treeRef.value.store.nodesMap[groupNodeId]
+            if (treeNode && !treeNode.expanded && treeNode.childNodes && treeNode.childNodes.length > 0) {
+              treeNode.expand()
+            }
+            // 选中函数组节点
+            treeRef.value.setCurrentKey(groupNodeId)
+          }, 200)
+        }
       }
       return
     }
@@ -458,6 +494,22 @@ watch(() => route.query.full_group_code, (fullGroupCode) => {
     nextTick(() => {
       expandPaths([fullGroupCode])
     })
+  }
+}, { immediate: true })
+
+// 🔥 监听 _node_type=function_group，从路由路径中提取 full_group_code 并展开
+watch(() => [route.query._node_type, route.path, groupedTreeData.value.length], ([nodeType, path, treeLength]) => {
+  if (nodeType === 'function_group' && treeLength > 0) {
+    // 从路由路径中提取 full_group_code
+    // 例如：/workspace/luobei/demo/crm/crm_order -> /luobei/demo/crm/crm_order
+    if (path && path.startsWith('/workspace/')) {
+      const fullGroupCode = path.replace('/workspace', '')
+      if (fullGroupCode) {
+        nextTick(() => {
+          expandPaths([fullGroupCode])
+        })
+      }
+    }
   }
 }, { immediate: true })
 

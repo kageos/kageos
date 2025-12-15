@@ -718,7 +718,9 @@ const handleNodeClick = (node: ServiceTreeType) => {
   // 🔥 路由优先策略：先更新路由，路由变化会触发 Tab 状态更新
   if (serviceTree.type === 'function' && serviceTree.full_code_path) {
     const targetPath = `/workspace${serviceTree.full_code_path}`
-    if (route.path !== targetPath) {
+    // 🔥 即使路径相同，如果存在 _node_type=function_group 参数，也需要更新路由来清除它
+    const hasFunctionGroupParam = route.query._node_type === 'function_group'
+    if (route.path !== targetPath || hasFunctionGroupParam) {
       // 🔥 检查目标函数是否是 table 类型
       // 优先级：Tab 详情 > 默认 form
       // 注意：_link_type 参数已在 useWorkspaceRouting 中处理，这里不需要再处理
