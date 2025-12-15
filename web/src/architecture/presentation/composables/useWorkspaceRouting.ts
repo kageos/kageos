@@ -10,7 +10,7 @@
 import { watch, ref, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { extractWorkspacePath } from '@/utils/route'
-import { preserveQueryParamsForTable, preserveQueryParamsForForm } from '@/utils/queryParams'
+import { preserveQueryParamsForTable, preserveQueryParamsForForm, isFunctionGroupDetail } from '@/utils/queryParams'
 import { serviceFactory } from '../../infrastructure/factories'
 import { eventBus, RouteEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { Logger } from '@/core/utils/logger'
@@ -56,7 +56,7 @@ export function useWorkspaceRouting(options: {
     
     // 🔥 检查是否是函数组详情页面（_node_type=function_group）
     // 如果是函数组，不需要查找 Tab，直接返回（函数组详情页面会自己处理）
-    if (route.query._node_type === 'function_group') {
+    if (isFunctionGroupDetail(route.query)) {
       Logger.debug('useWorkspaceRouting', '检测到函数组详情页面，跳过 Tab 查找', { path: route.path })
       return
     }
@@ -215,7 +215,7 @@ export function useWorkspaceRouting(options: {
       // 处理子路径（打开 Tab）
       if (pathSegments.length > 2) {
         // 🔥 检查是否是函数组详情页面（_node_type=function_group）
-        if (route.query._node_type === 'function_group') {
+        if (isFunctionGroupDetail(route.query)) {
           // 如果是函数组，从路径中提取 full_group_code 并展开
           const fullGroupCode = '/' + pathSegments.join('/')
           // 等待服务树加载完成后展开函数组
