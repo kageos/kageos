@@ -45,13 +45,14 @@
             @click="handleFunctionClick(func)"
           >
             <el-icon>
-              <Grid v-if="func.template_type === 'table'" />
-              <Postcard v-else-if="func.template_type === 'form'" />
+              <TableIcon v-if="func.template_type === 'table'" />
+              <FormIcon v-else-if="func.template_type === 'form'" />
+              <ChartIcon v-else-if="func.template_type === 'chart'" />
               <Document v-else />
             </el-icon>
             <span class="function-name">{{ func.name }}</span>
-            <el-tag size="small" :type="func.template_type === 'table' ? 'success' : 'primary'">
-              {{ func.template_type === 'table' ? '表格' : func.template_type === 'form' ? '表单' : '函数' }}
+            <el-tag size="small" :type="func.template_type === 'table' ? 'success' : func.template_type === 'chart' ? 'warning' : 'primary'">
+              {{ func.template_type === 'table' ? '表格' : func.template_type === 'form' ? '表单' : func.template_type === 'chart' ? '图表' : '函数' }}
             </el-tag>
             <el-icon class="arrow-icon"><ArrowRight /></el-icon>
           </div>
@@ -66,7 +67,10 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ArrowLeft, ArrowRight, Grid, Postcard, Document } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight, Document } from '@element-plus/icons-vue'
+import ChartIcon from '@/components/icons/ChartIcon.vue'
+import TableIcon from '@/components/icons/TableIcon.vue'
+import FormIcon from '@/components/icons/FormIcon.vue'
 import type { ServiceTree } from '@/types'
 import { extractFullGroupCodeFromRoute, getParentPathFromFullGroupCode } from '@/utils/route'
 import { findFunctionGroup } from '@/utils/serviceTreeUtils'
