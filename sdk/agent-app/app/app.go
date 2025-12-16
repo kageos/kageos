@@ -82,13 +82,13 @@ func (a *App) registerRouter(method string, router string, handler HandleFunc, t
 // 检查 URL 唯一性，如果已存在则返回错误
 func (a *App) addRoute(router string, method string, handleFunc HandleFunc, templater Templater, options *RegisterOptions) error {
 	key := routerKey(router)
-	
+
 	// 检查 URL 唯一性
 	if existing, exists := a.routerInfo[key]; exists {
-		return fmt.Errorf("路由 %s 已存在，不允许重复注册。已存在的路由信息: Router=%s, Method=%s", 
-			router, existing.Router, existing.Method)
+		logger.Errorf(context.Background(), fmt.Sprintf("路由 %s 已存在，不允许重复注册。已存在的路由信息: Router=%s, Method=%s",
+			router, existing.Router, existing.Method))
 	}
-	
+
 	a.routerInfo[key] = &routerInfo{
 		HandleFunc: handleFunc,
 		Router:     router,

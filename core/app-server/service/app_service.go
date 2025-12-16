@@ -22,25 +22,25 @@ import (
 )
 
 type AppService struct {
-	appRuntime      *AppRuntime
-	userRepo        *repository.UserRepository
-	appRepo         *repository.AppRepository
-	functionRepo    *repository.FunctionRepository
-	serviceTreeRepo *repository.ServiceTreeRepository
-	sourceCodeRepo  *repository.SourceCodeRepository
-	operateLogRepo  *repository.OperateLogRepository
+	appRuntime                  *AppRuntime
+	userRepo                    *repository.UserRepository
+	appRepo                     *repository.AppRepository
+	functionRepo                *repository.FunctionRepository
+	serviceTreeRepo  *repository.ServiceTreeRepository
+	operateLogRepo   *repository.OperateLogRepository
+	fileSnapshotRepo *repository.FileSnapshotRepository
 }
 
 // NewAppService 创建 AppService（依赖注入）
-func NewAppService(appRuntime *AppRuntime, userRepo *repository.UserRepository, appRepo *repository.AppRepository, functionRepo *repository.FunctionRepository, serviceTreeRepo *repository.ServiceTreeRepository, sourceCodeRepo *repository.SourceCodeRepository, operateLogRepo *repository.OperateLogRepository) *AppService {
+func NewAppService(appRuntime *AppRuntime, userRepo *repository.UserRepository, appRepo *repository.AppRepository, functionRepo *repository.FunctionRepository, serviceTreeRepo *repository.ServiceTreeRepository, operateLogRepo *repository.OperateLogRepository, fileSnapshotRepo *repository.FileSnapshotRepository) *AppService {
 	return &AppService{
-		appRuntime:      appRuntime,
-		userRepo:        userRepo,
-		appRepo:         appRepo,
-		functionRepo:    functionRepo,
-		serviceTreeRepo: serviceTreeRepo,
-		sourceCodeRepo:  sourceCodeRepo,
-		operateLogRepo:  operateLogRepo,
+		appRuntime:       appRuntime,
+		userRepo:         userRepo,
+		appRepo:          appRepo,
+		functionRepo:     functionRepo,
+		serviceTreeRepo:  serviceTreeRepo,
+		operateLogRepo:   operateLogRepo,
+		fileSnapshotRepo: fileSnapshotRepo,
 	}
 }
 
@@ -323,13 +323,7 @@ func (a *AppService) processAPIDiff(ctx context.Context, appID int64, diffData *
 			return fmt.Errorf("转换新增API失败: %w", err)
 		}
 
-		// 2. 先保存源代码（按函数组分组），并设置 Function 的 SourceCodeID
-		err = a.saveSourceCodeForAPIs(ctx, appID, app.Version, diffData.Add, functions)
-		if err != nil {
-			return fmt.Errorf("保存源代码失败: %w", err)
-		}
-
-		// 3. 创建Function记录（此时 SourceCodeID 已经设置好）
+		// 2. 创建Function记录
 		err = a.functionRepo.CreateFunctions(functions)
 		if err != nil {
 			return fmt.Errorf("创建function记录失败: %w", err)
@@ -350,13 +344,7 @@ func (a *AppService) processAPIDiff(ctx context.Context, appID int64, diffData *
 			return fmt.Errorf("转换更新API失败: %w", err)
 		}
 
-		// 2. 先更新源代码（按函数组分组），并设置 Function 的 SourceCodeID
-		err = a.saveSourceCodeForAPIs(ctx, appID, app.Version, diffData.Update, functions)
-		if err != nil {
-			return fmt.Errorf("更新源代码失败: %w", err)
-		}
-
-		// 3. 更新Function记录（此时 SourceCodeID 已经设置好）
+		// 2. 更新Function记录
 		err = a.updateFunctionsForAPIs(ctx, appID, diffData.Update, functions)
 		if err != nil {
 			return fmt.Errorf("更新function记录失败: %w", err)
@@ -375,6 +363,13 @@ func (a *AppService) processAPIDiff(ctx context.Context, appID int64, diffData *
 		if err != nil {
 			return fmt.Errorf("删除function和service_tree记录失败: %w", err)
 		}
+	}
+
+	// 5. 创建目录快照（检测目录变更并创建快照）
+	err = a.createDirectorySnapshots(ctx, appID, app, diffData)
+	if err != nil {
+		// 快照创建失败不应该影响主流程，记录日志即可
+		logger.Warnf(ctx, "[processAPIDiff] 创建目录快照失败: %v", err)
 	}
 
 	return nil
@@ -520,7 +515,7 @@ func (a *AppService) createFunctionNode(appID int64, parentID int64, api *dto.Ap
 	serviceTree := &model.ServiceTree{
 		AppID:            appID,
 		ParentID:         parentID,
-		FullGroupCode:    api.BuildFullGroupCode(), // 完整函数组代码：{full_path}/{group_code}，与 source_code.full_group_code 对齐
+		FullGroupCode:    api.BuildFullGroupCode(), // 完整函数组代码：{full_path}/{file_name}
 		GroupName:        api.FunctionGroupName,
 		Type:             model.ServiceTreeTypeFunction,
 		Code:             api.Code, // API的code作为ServiceTree的code
@@ -636,7 +631,7 @@ func (a *AppService) updateServiceTreesForAPIs(ctx context.Context, appID int64,
 		existingTree.RefID = functions[i].ID
 		existingTree.Name = api.Name
 		existingTree.Description = api.Desc
-		existingTree.FullGroupCode = fullGroupCode // 完整函数组代码：{full_path}/{group_code}，与 source_code.full_group_code 对齐
+		existingTree.FullGroupCode = fullGroupCode // 完整函数组代码：{full_path}/{file_name}
 		existingTree.GroupName = api.FunctionGroupName
 		// 更新版本号：如果AddVersionNum为0，说明是新增的，设置为当前版本；否则更新UpdateVersionNum
 		if existingTree.AddVersionNum == 0 {
@@ -697,94 +692,6 @@ func (a *AppService) deleteFunctionsForAPIs(ctx context.Context, appID int64, ap
 	return nil
 }
 
-// saveSourceCodeForAPIs 保存源代码（按函数组分组）
-// 同一个函数组（GroupCode）下的所有函数共享同一个 SourceCode 记录
-func (a *AppService) saveSourceCodeForAPIs(ctx context.Context, appID int64, version string, apis []*dto.ApiInfo, functions []*model.Function) error {
-
-	// 按函数组分组（GroupCode）
-	groupMap := make(map[string]*struct {
-		apis       []*dto.ApiInfo
-		functions  []*model.Function
-		fullPath   string
-		groupCode  string
-		sourceCode string
-	})
-
-	for i, api := range apis {
-		groupCode := api.FunctionGroupCode
-		if groupCode == "" {
-			// 记录警告，但不中断流程
-			logger.Warnf(ctx, "[saveSourceCodeForAPIs] API %s %s 没有 FunctionGroupCode，跳过源代码保存", api.Method, api.Router)
-			continue // 跳过没有函数组的API
-		}
-
-		// 计算 fullPath（package 的完整路径）
-		// 从 SourceCodeFilePath 中提取，格式为：/{user}/{app}/{package_path}/{group_code}
-		// 我们需要提取到 package_path 部分
-		fullPath := api.GetParentFullCodePath() // 例如：/luobei/testgroup/plugins
-
-		// 如果 groupMap 中还没有这个函数组，创建新的
-		if _, exists := groupMap[groupCode]; !exists {
-			groupMap[groupCode] = &struct {
-				apis       []*dto.ApiInfo
-				functions  []*model.Function
-				fullPath   string
-				groupCode  string
-				sourceCode string
-			}{
-				apis:       []*dto.ApiInfo{},
-				functions:  []*model.Function{},
-				fullPath:   fullPath,
-				groupCode:  groupCode,
-				sourceCode: api.SourceCode, // 使用第一个API的源代码
-			}
-		}
-
-		// 添加到对应的函数组
-		groupMap[groupCode].apis = append(groupMap[groupCode].apis, api)
-		groupMap[groupCode].functions = append(groupMap[groupCode].functions, functions[i])
-
-		// 如果当前API的源代码不为空，更新源代码（同一个函数组应该使用相同的源代码）
-		if api.SourceCode != "" {
-			groupMap[groupCode].sourceCode = api.SourceCode
-		}
-	}
-
-	// 为每个函数组保存或更新 SourceCode 记录
-	for groupCode, group := range groupMap {
-		if group.sourceCode == "" {
-			logger.Warnf(ctx, "[saveSourceCodeForAPIs] 函数组 %s 的源代码为空，跳过保存", groupCode)
-			continue // 跳过没有源代码的函数组
-		}
-
-		// 构建 FullGroupCode：{full_path}/{group_code}
-		fullGroupCode := fmt.Sprintf("%s/%s", group.fullPath, groupCode)
-
-		// 创建或更新 SourceCode 记录
-		sourceCode := &model.SourceCode{
-			FullGroupCode: fullGroupCode, // 完整函数组代码：{full_path}/{group_code}，与 service_tree.full_group_code 对齐
-			FullPath:      group.fullPath,
-			GroupCode:     groupCode,
-			Content:       group.sourceCode,
-			AppID:         appID,
-			Version:       version,
-		}
-
-		savedSourceCode, err := a.sourceCodeRepo.GetOrCreate(sourceCode)
-		if err != nil {
-			logger.Errorf(ctx, "[saveSourceCodeForAPIs] 保存源代码失败: fullGroupCode=%s, error=%v", fullGroupCode, err)
-			return fmt.Errorf("保存源代码失败（函数组: %s）: %w", groupCode, err)
-		}
-
-		// 设置所有函数的 SourceCodeID（在创建/更新 Function 之前）
-		for _, function := range group.functions {
-			sourceCodeID := savedSourceCode.ID
-			function.SourceCodeID = &sourceCodeID
-		}
-	}
-
-	return nil
-}
 
 // DeleteApp 删除应用
 func (a *AppService) DeleteApp(ctx context.Context, req *dto.DeleteAppReq) (*dto.DeleteAppResp, error) {
@@ -835,4 +742,300 @@ func (a *AppService) GetApps(ctx context.Context, req *dto.GetAppsReq) (*dto.Get
 			Items:      apps,
 		},
 	}, nil
+}
+
+// createDirectorySnapshots 创建目录快照（检测目录变更并创建快照）
+func (a *AppService) createDirectorySnapshots(ctx context.Context, appID int64, app *model.App, diffData *dto.DiffData) error {
+	// 1. 按目录分组变更
+	directoryChanges := a.groupChangesByDirectory(diffData)
+	if len(directoryChanges) == 0 {
+		logger.Infof(ctx, "[createDirectorySnapshots] 没有目录变更，跳过快照创建")
+		return nil
+	}
+
+	currentAppVersion := app.Version
+	currentAppVersionNum := extractVersionNum(currentAppVersion)
+
+	// 2. 为每个有变更的目录创建快照
+	for directoryPath, changes := range directoryChanges {
+		logger.Infof(ctx, "[createDirectorySnapshots] 检测到目录变更: path=%s, add=%d, update=%d, delete=%d",
+			directoryPath, len(changes.Add), len(changes.Update), len(changes.Delete))
+
+		// 获取目录节点（ServiceTree）
+		serviceTree, err := a.serviceTreeRepo.GetServiceTreeByFullPath(directoryPath)
+		var currentVersionNum int
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				// 如果目录节点不存在，从 v1 开始（这种情况不应该发生，因为目录应该已经存在）
+				logger.Warnf(ctx, "[createDirectorySnapshots] 目录节点不存在: path=%s，从 v1 开始", directoryPath)
+				currentVersionNum = 1
+			} else {
+				logger.Warnf(ctx, "[createDirectorySnapshots] 获取目录节点失败: path=%s, error=%v", directoryPath, err)
+				continue
+			}
+		} else {
+			// 从 ServiceTree 获取当前版本
+			if serviceTree.VersionNum > 0 {
+				currentVersionNum = serviceTree.VersionNum
+			} else {
+				// 如果版本为0，从 v1 开始
+				currentVersionNum = 1
+			}
+		}
+
+		// 计算下一个版本
+		nextVersionNum := currentVersionNum + 1
+		nextVersion := fmt.Sprintf("v%d", nextVersionNum)
+
+		// 读取目录下所有文件的代码（从文件系统读取，用于创建快照）
+		files, err := a.readDirectoryFilesFromFS(ctx, app.User, app.Code, directoryPath)
+		if err != nil {
+			logger.Warnf(ctx, "[createDirectorySnapshots] 读取目录文件失败: path=%s, error=%v", directoryPath, err)
+			continue
+		}
+
+		if len(files) == 0 {
+			logger.Warnf(ctx, "[createDirectorySnapshots] 目录下没有文件，跳过快照创建: path=%s", directoryPath)
+			continue
+		}
+
+		// 批量获取所有文件的最新快照（用于变更检测）
+		fileNames := make([]string, 0, len(files))
+		fileNameMap := make(map[string]*directoryFile) // fileName -> file
+		for _, file := range files {
+			// 从相对路径提取文件名（最后一个 / 之后的部分）
+			fileNameFromPath := file.RelativePath
+			if lastSlash := strings.LastIndex(file.RelativePath, "/"); lastSlash >= 0 {
+				fileNameFromPath = file.RelativePath[lastSlash+1:]
+			}
+			// 优先使用 FileName，如果没有则从路径提取
+			fileName := file.FileName
+			if fileName == "" {
+				fileName = strings.TrimSuffix(fileNameFromPath, ".go")
+			}
+			fileNames = append(fileNames, fileName)
+			fileNameMap[fileName] = file
+		}
+
+		// 批量获取文件最新快照
+		latestSnapshots, err := a.fileSnapshotRepo.GetLatestFileSnapshots(appID, directoryPath, fileNames)
+		if err != nil {
+			logger.Warnf(ctx, "[createDirectorySnapshots] 获取文件最新快照失败: path=%s, error=%v", directoryPath, err)
+			// 如果获取失败，继续处理，所有文件都当作新文件处理
+			latestSnapshots = make(map[string]*model.FileSnapshot)
+		}
+
+		// 构建文件快照列表（每个文件一行记录）
+		fileSnapshots := make([]*model.FileSnapshot, 0, len(files))
+
+		for _, file := range files {
+			// 从相对路径提取文件名（最后一个 / 之后的部分）
+			fileNameFromPath := file.RelativePath
+			if lastSlash := strings.LastIndex(file.RelativePath, "/"); lastSlash >= 0 {
+				fileNameFromPath = file.RelativePath[lastSlash+1:]
+			}
+			// 优先使用 FileName，如果没有则从路径提取
+			fileName := file.FileName
+			if fileName == "" {
+				fileName = strings.TrimSuffix(fileNameFromPath, ".go")
+			}
+
+			// 判断文件类型
+			fileType := "go"
+			if strings.HasSuffix(file.RelativePath, ".go") {
+				fileType = "go"
+			} else if strings.HasSuffix(file.RelativePath, ".json") {
+				fileType = "json"
+			} else if strings.HasSuffix(file.RelativePath, ".yaml") || strings.HasSuffix(file.RelativePath, ".yml") {
+				fileType = "yaml"
+			} else if strings.HasSuffix(file.RelativePath, ".md") {
+				fileType = "markdown"
+			}
+
+			// 获取文件最新快照，判断文件是否变更
+			latestSnapshot := latestSnapshots[fileName]
+			var fileVersionNum int
+			var fileVersion string
+
+			if latestSnapshot == nil {
+				// 新文件，文件版本从 v1 开始
+				fileVersionNum = 1
+				fileVersion = "v1"
+				logger.Infof(ctx, "[createDirectorySnapshots] 检测到新文件: path=%s, file=%s", directoryPath, fileName)
+			} else {
+				// TODO: 优化内容比较策略
+				// 当前使用直接字符串比较，后续可以考虑：
+				// 1. 使用内容哈希（MD5/SHA256）比较，提高性能和准确性
+				// 2. 使用 diff 算法，记录变更类型和位置
+				// 3. 忽略空白字符和换行符的差异
+				// 比较文件内容，判断是否变更
+				if latestSnapshot.Content != file.Content {
+					// 内容变更，文件版本+1
+					fileVersionNum = latestSnapshot.FileVersionNum + 1
+					fileVersion = fmt.Sprintf("v%d", fileVersionNum)
+					logger.Infof(ctx, "[createDirectorySnapshots] 检测到文件变更: path=%s, file=%s, oldVersion=%s, newVersion=%s",
+						directoryPath, fileName, latestSnapshot.FileVersion, fileVersion)
+				} else {
+					// 内容未变更，文件版本不变
+					fileVersionNum = latestSnapshot.FileVersionNum
+					fileVersion = latestSnapshot.FileVersion
+					logger.Infof(ctx, "[createDirectorySnapshots] 文件未变更: path=%s, file=%s, version=%s",
+						directoryPath, fileName, fileVersion)
+				}
+			}
+
+			// 创建文件快照（所有文件都创建新快照，记录新的目录版本）
+			fileSnapshot := &model.FileSnapshot{
+				AppID:          appID,
+				FullCodePath:   directoryPath,
+				FileName:       fileName,
+				RelativePath:   file.RelativePath,
+				Content:        file.Content,
+				DirVersion:     nextVersion,
+				DirVersionNum:  nextVersionNum,
+				FileVersion:    fileVersion,
+				FileVersionNum: fileVersionNum,
+				AppVersion:     currentAppVersion,
+				AppVersionNum:  currentAppVersionNum,
+				FileType:       fileType,
+			}
+
+			fileSnapshots = append(fileSnapshots, fileSnapshot)
+		}
+
+		// 批量创建文件快照
+		err = a.fileSnapshotRepo.CreateBatch(fileSnapshots)
+		if err != nil {
+			logger.Warnf(ctx, "[createDirectorySnapshots] 创建文件快照失败: path=%s, error=%v", directoryPath, err)
+			continue
+		}
+
+		// 更新 ServiceTree 的版本
+		if serviceTree != nil {
+			serviceTree.Version = nextVersion
+			serviceTree.VersionNum = nextVersionNum
+			err = a.serviceTreeRepo.UpdateServiceTree(serviceTree)
+			if err != nil {
+				logger.Warnf(ctx, "[createDirectorySnapshots] 更新节点版本失败: path=%s, error=%v", directoryPath, err)
+				continue
+			}
+		} else {
+			logger.Warnf(ctx, "[createDirectorySnapshots] 目录节点不存在，无法更新版本: path=%s", directoryPath)
+		}
+
+		logger.Infof(ctx, "[createDirectorySnapshots] 目录快照创建成功: path=%s, version=%s, fileCount=%d",
+			directoryPath, nextVersion, len(files))
+	}
+
+	return nil
+}
+
+// DirectoryChanges 目录变更信息
+type DirectoryChanges struct {
+	Add    []*dto.ApiInfo
+	Update []*dto.ApiInfo
+	Delete []*dto.ApiInfo
+}
+
+// groupChangesByDirectory 按目录分组变更
+func (a *AppService) groupChangesByDirectory(diffData *dto.DiffData) map[string]*DirectoryChanges {
+	directoryChanges := make(map[string]*DirectoryChanges)
+
+	// 处理新增的API
+	for _, api := range diffData.Add {
+		dirPath := api.GetParentFullCodePath()
+		if dirPath == "" {
+			// 如果无法获取目录路径，跳过
+			continue
+		}
+		if directoryChanges[dirPath] == nil {
+			directoryChanges[dirPath] = &DirectoryChanges{
+				Add:    []*dto.ApiInfo{},
+				Update: []*dto.ApiInfo{},
+				Delete: []*dto.ApiInfo{},
+			}
+		}
+		directoryChanges[dirPath].Add = append(directoryChanges[dirPath].Add, api)
+	}
+
+	// 处理更新的API
+	for _, api := range diffData.Update {
+		dirPath := api.GetParentFullCodePath()
+		if dirPath == "" {
+			continue
+		}
+		if directoryChanges[dirPath] == nil {
+			directoryChanges[dirPath] = &DirectoryChanges{
+				Add:    []*dto.ApiInfo{},
+				Update: []*dto.ApiInfo{},
+				Delete: []*dto.ApiInfo{},
+			}
+		}
+		directoryChanges[dirPath].Update = append(directoryChanges[dirPath].Update, api)
+	}
+
+	// 处理删除的API
+	for _, api := range diffData.Delete {
+		dirPath := api.GetParentFullCodePath()
+		if dirPath == "" {
+			continue
+		}
+		if directoryChanges[dirPath] == nil {
+			directoryChanges[dirPath] = &DirectoryChanges{
+				Add:    []*dto.ApiInfo{},
+				Update: []*dto.ApiInfo{},
+				Delete: []*dto.ApiInfo{},
+			}
+		}
+		directoryChanges[dirPath].Delete = append(directoryChanges[dirPath].Delete, api)
+	}
+
+	return directoryChanges
+}
+
+// directoryFile 目录文件结构（用于创建快照，内部使用）
+type directoryFile struct {
+	FileName     string
+	RelativePath string
+	Content      string
+}
+
+// readDirectoryFilesFromFS 从 app-runtime 读取目录下的所有文件（用于创建快照）
+// 通过 NATS 调用 app-runtime 的接口，而不是直接访问文件系统
+func (a *AppService) readDirectoryFilesFromFS(ctx context.Context, user, app, fullCodePath string) ([]*directoryFile, error) {
+	// 获取应用信息（用于获取 HostID）
+	appModel, err := a.appRepo.GetAppByUserName(user, app)
+	if err != nil {
+		return nil, fmt.Errorf("获取应用信息失败: %w", err)
+	}
+
+	// 构建请求
+	req := &dto.ReadDirectoryFilesRuntimeReq{
+		User:          user,
+		App:           app,
+		DirectoryPath: fullCodePath,
+	}
+
+	// 通过 NATS 调用 app-runtime 读取目录文件
+	resp, err := a.appRuntime.ReadDirectoryFiles(ctx, appModel.HostID, req)
+	if err != nil {
+		return nil, fmt.Errorf("读取目录文件失败: %w", err)
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("读取目录文件失败: %s", resp.Message)
+	}
+
+	// 转换为内部格式
+	files := make([]*directoryFile, 0, len(resp.Files))
+	for _, file := range resp.Files {
+		files = append(files, &directoryFile{
+			FileName:     file.FileName,
+			RelativePath: file.RelativePath,
+			Content:      file.Content,
+		})
+	}
+
+	logger.Infof(ctx, "[readDirectoryFilesFromFS] 通过 NATS 读取目录文件成功: path=%s, fileCount=%d", fullCodePath, len(files))
+	return files, nil
 }

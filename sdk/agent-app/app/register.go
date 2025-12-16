@@ -42,8 +42,8 @@ type RegisterOptions struct {
 func (r *RegisterOptions) GetDBName(user string, app string) string {
 	trim := strings.Trim(r.PackagePath, "/")
 	split := strings.Split(trim, "/")
-	join := strings.Join(split, "_")
-	dbName := fmt.Sprintf("%s_%s_%s.db", user, app, join)
+	join := strings.Join(split, "-")
+	dbName := fmt.Sprintf("%s.db", join)
 	return dbName
 }
 

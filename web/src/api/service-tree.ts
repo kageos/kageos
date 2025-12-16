@@ -44,7 +44,20 @@ export function moveServiceTree(id: number, newParentId: number) {
   return put(`/api/v1/service_tree/${id}/move`, { parent_id: newParentId })
 }
 
-// 复制服务目录
+// 复制服务目录（新接口，支持递归复制）
+export function copyDirectory(data: {
+  source_directory_path: string
+  target_directory_path: string
+  target_app_id: number
+}) {
+  return post<{
+    message: string
+    directory_count: number
+    file_count: number
+  }>('/api/v1/service_tree/copy', data)
+}
+
+// 复制服务目录（旧接口，保留向后兼容）
 export function copyServiceTree(id: number, targetAppId: number, targetParentId?: number) {
   return post(`/api/v1/service_tree/${id}/copy`, {
     app_id: targetAppId,

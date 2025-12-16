@@ -49,17 +49,21 @@ func (s *CreateFunctionService) CreateFunctions(ctx context.Context, user, app s
 		// 构建目标文件路径
 		targetFilePath := filepath.Join(packageDir, funcInfo.GroupCode+".go")
 
-		// 修复 Go 代码的 import 语句（防止编译不通过）
+		// 尝试修复 Go 代码的 import 语句（防止编译不通过）
+		// 如果修复失败，使用原代码（代码来自快照，应该已经是正确的）
+		codeToWrite := funcInfo.SourceCode
 		fixedCode, err := gofmt.FixGoImport(targetFilePath, []byte(funcInfo.SourceCode))
 		if err != nil {
-			logger.Errorf(ctx, "[CreateFunctionService] 修复 import 失败: file=%s, error=%v", targetFilePath, err)
-			// 修复失败时删除已写入的文件
-			s.rollbackFiles(ctx, writtenFiles)
-			return nil, fmt.Errorf("修复 import 失败 %s/%s: %w", funcInfo.Package, funcInfo.GroupCode, err)
+			// 修复失败时，记录警告但继续使用原代码
+			// 因为代码来自快照，package 路径已经正确，可能不需要修复
+			logger.Warnf(ctx, "[CreateFunctionService] 修复 import 失败，使用原代码: file=%s, error=%v", targetFilePath, err)
+			codeToWrite = funcInfo.SourceCode
+		} else {
+			codeToWrite = fixedCode
 		}
 
-		// 写入文件（使用修复后的代码）
-		if err := os.WriteFile(targetFilePath, []byte(fixedCode), 0644); err != nil {
+		// 写入文件
+		if err := os.WriteFile(targetFilePath, []byte(codeToWrite), 0644); err != nil {
 			logger.Errorf(ctx, "[CreateFunctionService] 写入文件失败: file=%s, error=%v", targetFilePath, err)
 			// 失败时删除已写入的文件
 			s.rollbackFiles(ctx, writtenFiles)

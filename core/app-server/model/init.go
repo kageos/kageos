@@ -18,8 +18,8 @@ func InitTables(db *gorm.DB) error {
 		&EmailVerification{},
 		&EmailCode{},
 		&UserSession{},
-		// 源代码表
-		&SourceCode{},
+		// 目录快照表（用于递归 Fork）
+		&FileSnapshot{},
 		// 操作日志表（企业版功能，但社区版也记录）
 		&TableOperateLog{},
 		&FormOperateLog{},

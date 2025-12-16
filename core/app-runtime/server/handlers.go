@@ -115,6 +115,43 @@ func (s *Server) handleAppUpdate(msg *nats.Msg) {
 		result.User, result.App, result.OldVersion, result.NewVersion, result.Diff != nil)
 }
 
+// handleReadDirectoryFiles 处理读取目录文件请求
+func (s *Server) handleReadDirectoryFiles(msg *nats.Msg) {
+	ctx := context.Background()
+
+	// 使用统一的解析方法
+	msgInfo, err := msgx.DecodeNatsMsg[dto.ReadDirectoryFilesRuntimeReq](msg)
+	if err != nil {
+		logger.Errorf(ctx, "[handleReadDirectoryFiles] Failed to decode message: %v", err)
+		msgx.RespFailMsg(msg, err)
+		return
+	}
+
+	// 从消息体中获取租户用户信息
+	tenantUser := msgInfo.Data.User
+
+	logger.Infof(ctx, "[handleReadDirectoryFiles] Received read directory files request: tenantUser=%s, app=%s, directoryPath=%s",
+		tenantUser, msgInfo.Data.App, msgInfo.Data.DirectoryPath)
+
+	// 调用应用管理服务读取目录文件
+	files, err := s.appManageService.ReadDirectoryFiles(ctx, tenantUser, msgInfo.Data.App, msgInfo.Data.DirectoryPath)
+	if err != nil {
+		logger.Errorf(ctx, "[handleReadDirectoryFiles] Failed to read directory files: %v", err)
+		msgx.RespFailMsg(msg, err)
+		return
+	}
+
+	// 返回成功响应
+	resp := dto.ReadDirectoryFilesRuntimeResp{
+		Success: true,
+		Message: "读取成功",
+		Files:   files,
+	}
+
+	msgx.RespSuccessMsg(msg, resp)
+	logger.Infof(ctx, "[handleReadDirectoryFiles] Read directory files successfully: fileCount=%d", len(files))
+}
+
 // handleAppDelete 处理应用删除请求
 func (s *Server) handleAppDelete(msg *nats.Msg) {
 	ctx := context.Background()

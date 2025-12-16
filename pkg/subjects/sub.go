@@ -120,6 +120,11 @@ func GetAppServer2AppRuntimeDeleteRequestSubject() string {
 	return "app_server.app_runtime.delete"
 }
 
+// GetAppServer2AppRuntimeReadDirectoryFilesRequestSubject 获取 app_server 到 app_runtime 读取目录文件请求的订阅主题
+func GetAppServer2AppRuntimeReadDirectoryFilesRequestSubject() string {
+	return "app_server.app_runtime.read_directory_files"
+}
+
 // GetAppStartupNotificationSubject 获取应用启动完成通知的订阅主题（通配符）
 func GetAppStartupNotificationSubject() string {
 	return "app.startup.notification.*.*.*"

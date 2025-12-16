@@ -73,10 +73,6 @@ func (s *ServiceTreeService) CreateServiceTree(ctx context.Context, req *dto.Cre
 
 // calculatePackagePath 计算包路径
 func (s *ServiceTreeService) calculatePackagePath(ctx context.Context, serviceTree *dto.ServiceTreeRuntimeData) (string, error) {
-	// 如果父目录ID为0，说明是根目录
-	if serviceTree.ParentID == 0 {
-		return serviceTree.Code, nil
-	}
 
 	// 这里需要根据父目录ID获取父目录的路径
 	// 由于我们没有数据库连接，这里简化处理
@@ -85,8 +81,16 @@ func (s *ServiceTreeService) calculatePackagePath(ctx context.Context, serviceTr
 
 	// 简化实现：假设父目录路径已经包含在FullNamePath中
 	// 去掉开头的"/"并转换为包路径
+	subPath := serviceTree.GetSubPath()
 
-	return serviceTree.GetSubPath(), nil
+	// 清理路径：去掉首尾斜杠，确保不会返回 "/" 或空字符串
+	cleanPath := strings.Trim(subPath, "/")
+	if cleanPath == "" {
+		// 如果清理后为空，使用 Code 作为 fallback
+		return serviceTree.Code, nil
+	}
+
+	return cleanPath, nil
 }
 
 // generateInitFile 生成init_.go文件
@@ -111,6 +115,7 @@ var packageContext = &app.PackageContext{
 
 	// 写入文件
 	initFilePath := filepath.Join(packageDir, "init_.go")
+	logger.Infof(context.Background(), "[ServiceTreeService] Generate init file with packageContext: %s", initFilePath)
 	if err := os.WriteFile(initFilePath, []byte(content), 0644); err != nil {
 		return fmt.Errorf("failed to write init file: %w", err)
 	}
@@ -210,7 +215,14 @@ func (s *ServiceTreeService) updateMainFileImports(ctx context.Context, user, ap
 	}
 
 	// 生成新的import语句
-	newImport := fmt.Sprintf(`_ "github.com/ai-agent-os/ai-agent-os/namespace/%s/%s/code/api/%s"`, user, app, strings.Trim(packagePath, "/"))
+	// 清理 packagePath：去掉首尾斜杠，确保不会生成有尾随斜杠的 import
+	cleanPackagePath := strings.Trim(packagePath, "/")
+	if cleanPackagePath == "" {
+		// 如果 packagePath 为空，跳过（不应该为空，但防止错误）
+		logger.Warnf(ctx, "[ServiceTreeService] Package path is empty, skipping import update")
+		return nil
+	}
+	newImport := fmt.Sprintf(`_ "github.com/ai-agent-os/ai-agent-os/namespace/%s/%s/code/api/%s"`, user, app, cleanPackagePath)
 
 	// 检查import是否已存在
 	if strings.Contains(contentStr, newImport) {
