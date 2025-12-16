@@ -42,24 +42,41 @@
           <span class="tree-node">
             <!-- 分组节点：显示分组图标和组名 -->
             <template v-if="(data as any).isGroup">
-              <el-icon class="node-icon group-icon">
-                <FolderOpened />
-              </el-icon>
+              <img 
+                src="/service-tree/app (1).svg" 
+                alt="业务系统" 
+                class="node-icon group-icon-img"
+              />
               <span class="node-label group-label">{{ node.label }}</span>
               <el-tag type="info" size="small" class="group-tag">业务系统</el-tag>
             </template>
             <!-- 普通节点 -->
             <template v-else>
-              <!-- package 类型：显示文件夹图标 -->
-              <el-icon v-if="data.type === 'package'" class="node-icon" :class="getNodeIconClass(data)">
-                <Folder />
-              </el-icon>
+              <!-- package 类型：显示自定义文件夹图标 -->
+              <img 
+                v-if="data.type === 'package'" 
+                src="/service-tree/custom-folder.svg" 
+                alt="目录" 
+                class="node-icon package-icon-img"
+                :class="getNodeIconClass(data)"
+              />
               <!-- function 类型：根据 template_type 显示不同图标 -->
-              <el-icon v-else-if="data.type === 'function'" 
-                       class="node-icon" 
-                       :class="getNodeIconClass(data)">
-                <component :is="getFunctionIcon(data)" />
-              </el-icon>
+              <template v-else-if="data.type === 'function'">
+                <!-- 表单类型：使用自定义 SVG -->
+                <img 
+                  v-if="data.template_type === TEMPLATE_TYPE.FORM"
+                  src="/service-tree/表单 (3).svg" 
+                  alt="表单" 
+                  class="node-icon form-icon-img"
+                  :class="getNodeIconClass(data)"
+                />
+                <!-- 其他类型：使用组件图标 -->
+                <el-icon v-else 
+                         class="node-icon" 
+                         :class="getNodeIconClass(data)">
+                  <component :is="getFunctionIcon(data)" />
+                </el-icon>
+              </template>
               <!-- 其他类型：显示 fx 文本 -->
               <span v-else class="node-icon fx-icon" :class="getNodeIconClass(data)">fx</span>
               <span class="node-label">{{ node.label }}</span>
@@ -113,7 +130,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Folder, FolderOpened, Plus, MoreFilled, Link, CopyDocument, Upload, Document } from '@element-plus/icons-vue'
+import { Plus, MoreFilled, Link, CopyDocument, Upload, Document } from '@element-plus/icons-vue'
 import ChartIcon from './icons/ChartIcon.vue'
 import TableIcon from './icons/TableIcon.vue'
 import FormIcon from './icons/FormIcon.vue'
@@ -509,6 +526,13 @@ defineExpose({
       opacity: 0.8;
     }
     
+    &.package-icon-img {
+      width: 16px;
+      height: 16px;
+      object-fit: contain;
+      opacity: 0.9;
+    }
+    
     &.table-icon {
       color: #10b981; /* green-500 - 表格用绿色 */
       opacity: 0.9;
@@ -516,6 +540,13 @@ defineExpose({
     
     &.form-icon {
       color: #3b82f6; /* blue-500 - 表单用蓝色 */
+      opacity: 0.9;
+    }
+    
+    &.form-icon-img {
+      width: 16px;
+      height: 16px;
+      object-fit: contain;
       opacity: 0.9;
     }
     
@@ -535,6 +566,13 @@ defineExpose({
     
     &.group-icon {
       color: #909399;
+      opacity: 0.9;
+    }
+    
+    &.group-icon-img {
+      width: 16px;
+      height: 16px;
+      object-fit: contain;
       opacity: 0.9;
     }
   }
