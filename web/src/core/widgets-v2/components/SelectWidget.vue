@@ -802,28 +802,34 @@ const isComponentActive = ref(true) // 默认激活（首次挂载时）
 
 // 🔥 keep-alive 场景：组件激活时注册监听器
 // 注意：首次挂载时也会触发 onActivated，所以不需要在 onMounted 中注册
+// 🔥 优化：只在有 OnSelectFuzzy 回调且不是 table-cell 模式时才注册监听器
 onActivated(() => {
   isComponentActive.value = true // 🔥 标记为激活
-  Logger.debug('[SelectWidget]', 'onActivated - 注册监听器', { 
-    fieldCode: props.field.code,
-    hasCallback: hasCallback.value,
-    rawValue: props.value?.raw,
-    formRenderer: !!props.formRenderer,
-    getFunctionDetail: !!props.formRenderer?.getFunctionDetail,
-    functionDetail: props.formRenderer?.getFunctionDetail?.(),
-    functionId: props.formRenderer?.getFunctionDetail?.()?.id
-  })
-  registerFormInitializedListener()
+  
+  // 🔥 只在需要时才注册监听器（有回调且不是表格单元格模式）
+  if (hasCallback.value && props.mode !== 'table-cell') {
+    Logger.debug('[SelectWidget]', 'onActivated - 注册监听器', { 
+      fieldCode: props.field.code,
+      hasCallback: hasCallback.value,
+      mode: props.mode,
+      rawValue: props.value?.raw,
+      formRenderer: !!props.formRenderer
+    })
+    registerFormInitializedListener()
+  }
 })
 
 // 🔥 keep-alive 场景：组件失活时取消注册监听器
 onDeactivated(() => {
   isComponentActive.value = false // 🔥 标记为失活
-  Logger.debug('[SelectWidget]', 'onDeactivated - 取消注册监听器', { 
-    fieldCode: props.field.code,
-    functionId: props.formRenderer?.getFunctionDetail?.()?.id
-  })
-  unregisterFormInitializedListener()
+  
+  // 🔥 只在已注册的情况下才取消注册
+  if (unsubscribeFormInitialized) {
+    Logger.debug('[SelectWidget]', 'onDeactivated - 取消注册监听器', { 
+      fieldCode: props.field.code
+    })
+    unregisterFormInitializedListener()
+  }
 })
 
 onUnmounted(() => {
@@ -837,65 +843,83 @@ const lastSearchedValue = ref<any>(null)
 const lastSearchedRouter = ref<string | null>(null) // 🔥 记录上次搜索使用的 router
 const lastSearchedFunctionId = ref<number | null>(null) // 🔥 记录上次搜索使用的函数 ID
 
+// 🔥 优化：控制日志输出（默认关闭，调试时可以改为 true）
+const ENABLE_DETAILED_LOGS = false
+
 // 🔥 触发搜索的辅助函数（避免重复代码）
 const triggerSearchIfNeeded = (rawValue: any, formRenderer: any, mode: string) => {
-  Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded 开始', {
-    fieldCode: props.field.code,
-    rawValue,
-    hasCallback: hasCallback.value,
-    formRenderer: !!formRenderer,
-    isComponentActive: isComponentActive.value
-  })
+  // 🔥 优化：减少日志输出，只在关键节点输出
+  const shouldLog = ENABLE_DETAILED_LOGS
+  
+  if (shouldLog) {
+    Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded 开始', {
+      fieldCode: props.field.code,
+      rawValue,
+      hasCallback: hasCallback.value,
+      formRenderer: !!formRenderer,
+      isComponentActive: isComponentActive.value
+    })
+  }
   
   // 🔥 关键：如果组件失活，跳过搜索（keep-alive 场景）
   if (!isComponentActive.value) {
-    Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded 跳过：组件已失活', {
-      fieldCode: props.field.code,
-      rawValue
-    })
+    if (shouldLog) {
+      Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded 跳过：组件已失活', {
+        fieldCode: props.field.code,
+        rawValue
+      })
+    }
     return false
   }
   
   if (!hasCallback.value || !formRenderer) {
-    Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded 跳过：无回调或无 formRenderer', {
-      fieldCode: props.field.code,
-      hasCallback: hasCallback.value,
-      formRenderer: !!formRenderer
-    })
+    if (shouldLog) {
+      Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded 跳过：无回调或无 formRenderer', {
+        fieldCode: props.field.code,
+        hasCallback: hasCallback.value,
+        formRenderer: !!formRenderer
+      })
+    }
     return false
   }
   
   const currentRouter = formRenderer.getFunctionRouter?.()
   if (!currentRouter) {
-    Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded 跳过：无 currentRouter', {
-      fieldCode: props.field.code
-    })
+    if (shouldLog) {
+      Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded 跳过：无 currentRouter', {
+        fieldCode: props.field.code
+      })
+    }
     return false
   }
   
   // 🔥 获取当前函数 ID（用于 keep-alive 场景下的防重复调用）
   const currentFunctionId = formRenderer.getFunctionDetail?.()?.id || null
   
-  Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded 当前状态', {
-    fieldCode: props.field.code,
-    rawValue,
-    currentRouter,
-    currentFunctionId,
-    lastSearchedValue: lastSearchedValue.value,
-    lastSearchedRouter: lastSearchedRouter.value,
-    lastSearchedFunctionId: lastSearchedFunctionId.value,
-    isSearching: isSearching.value
-  })
+  if (shouldLog) {
+    Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded 当前状态', {
+      fieldCode: props.field.code,
+      rawValue,
+      currentRouter,
+      currentFunctionId,
+      lastSearchedValue: lastSearchedValue.value,
+      lastSearchedRouter: lastSearchedRouter.value,
+      lastSearchedFunctionId: lastSearchedFunctionId.value,
+      isSearching: isSearching.value
+    })
+  }
   
   // 🔥 如果 router 或 functionId 变化了，重置搜索状态
   if (currentRouter !== lastSearchedRouter.value || currentFunctionId !== lastSearchedFunctionId.value) {
-    Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded 重置搜索状态（router 或 functionId 变化）', {
-      fieldCode: props.field.code,
-      currentRouter,
-      lastSearchedRouter: lastSearchedRouter.value,
-      currentFunctionId,
-      lastSearchedFunctionId: lastSearchedFunctionId.value
-    })
+    if (shouldLog) {
+      Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded 重置搜索状态（router 或 functionId 变化）', {
+        fieldCode: props.field.code,
+        currentRouter,
+        lastSearchedRouter: lastSearchedRouter.value,
+        currentFunctionId,
+        lastSearchedFunctionId: lastSearchedFunctionId.value
+      })
+    }
     lastSearchedValue.value = null
     lastSearchedRouter.value = currentRouter
     lastSearchedFunctionId.value = currentFunctionId
@@ -912,25 +936,29 @@ const triggerSearchIfNeeded = (rawValue: any, formRenderer: any, mode: string) =
      currentRouter !== lastSearchedRouter.value || 
      currentFunctionId !== lastSearchedFunctionId.value)
   
-  Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded 判断结果', {
-    fieldCode: props.field.code,
-    shouldTrigger,
-    reasons: {
-      hasValue: rawValue !== null && rawValue !== undefined,
-      notSearching: !isSearching.value,
-      valueChanged: rawValue !== lastSearchedValue.value,
-      routerChanged: currentRouter !== lastSearchedRouter.value,
-      functionIdChanged: currentFunctionId !== lastSearchedFunctionId.value
-    }
-  })
+  if (shouldLog) {
+    Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded 判断结果', {
+      fieldCode: props.field.code,
+      shouldTrigger,
+      reasons: {
+        hasValue: rawValue !== null && rawValue !== undefined,
+        notSearching: !isSearching.value,
+        valueChanged: rawValue !== lastSearchedValue.value,
+        routerChanged: currentRouter !== lastSearchedRouter.value,
+        functionIdChanged: currentFunctionId !== lastSearchedFunctionId.value
+      }
+    })
+  }
   
   if (shouldTrigger) {
-    Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded ✅ 触发搜索', {
-      fieldCode: props.field.code,
-      rawValue,
-      currentRouter,
-      currentFunctionId
-    })
+    if (shouldLog) {
+      Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded ✅ 触发搜索', {
+        fieldCode: props.field.code,
+        rawValue,
+        currentRouter,
+        currentFunctionId
+      })
+    }
     isSearching.value = true
     lastSearchedValue.value = rawValue
     lastSearchedRouter.value = currentRouter
@@ -941,43 +969,58 @@ const triggerSearchIfNeeded = (rawValue: any, formRenderer: any, mode: string) =
     }
     // 🔥 通过 by_value 搜索获取对应的 label 和 displayInfo
     handleSearch(rawValue, true).finally(() => {
-      Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded 搜索完成', {
-        fieldCode: props.field.code,
-        rawValue,
-        currentFunctionId
-      })
+      if (shouldLog) {
+        Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded 搜索完成', {
+          fieldCode: props.field.code,
+          rawValue,
+          currentFunctionId
+        })
+      }
       isSearching.value = false
     })
     return true
   }
   
-  Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded ❌ 跳过搜索（防重复）', {
-    fieldCode: props.field.code,
-    rawValue,
-    lastSearchedValue: lastSearchedValue.value,
-    currentRouter,
-    lastSearchedRouter: lastSearchedRouter.value,
-    currentFunctionId,
-    lastSearchedFunctionId: lastSearchedFunctionId.value
-  })
+  if (shouldLog) {
+    Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded ❌ 跳过搜索（防重复）', {
+      fieldCode: props.field.code,
+      rawValue,
+      lastSearchedValue: lastSearchedValue.value,
+      currentRouter,
+      lastSearchedRouter: lastSearchedRouter.value,
+      currentFunctionId,
+      lastSearchedFunctionId: lastSearchedFunctionId.value
+    })
+  }
   return false
 }
 
 
 // 🔥 保留一个简单的 watch 来处理值变化（仅在 formRenderer 已准备好且组件激活时）
+// 🔥 优化：只在有回调且不是 table-cell 模式时才监听值变化
 watch(
   () => props.value?.raw,
   (newRaw, oldRaw) => {
-    Logger.debug('[SelectWidget]', 'watch props.value?.raw 触发', {
-      fieldCode: props.field.code,
-      newRaw,
-      oldRaw,
-      isComponentActive: isComponentActive.value,
-      formRenderer: !!props.formRenderer
-    })
-    // 只在 formRenderer 已准备好且值真正变化且组件激活时触发
+    // 🔥 减少日志输出：只在有回调且值真正变化时输出日志
+    if (hasCallback.value && props.mode !== 'table-cell' && newRaw !== oldRaw) {
+      Logger.debug('[SelectWidget]', 'watch props.value?.raw 触发', {
+        fieldCode: props.field.code,
+        newRaw,
+        oldRaw,
+        isComponentActive: isComponentActive.value,
+        formRenderer: !!props.formRenderer
+      })
+    }
+    
+    // 只在 formRenderer 已准备好且值真正变化且组件激活且有回调时触发
     // 注意：triggerSearchIfNeeded 内部也会检查 isComponentActive，这里是双重保险
-    if (isComponentActive.value && props.formRenderer && newRaw !== null && newRaw !== undefined && newRaw !== oldRaw) {
+    if (hasCallback.value && 
+        props.mode !== 'table-cell' && 
+        isComponentActive.value && 
+        props.formRenderer && 
+        newRaw !== null && 
+        newRaw !== undefined && 
+        newRaw !== oldRaw) {
       triggerSearchIfNeeded(newRaw, props.formRenderer, props.mode)
     }
   }
