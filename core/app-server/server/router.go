@@ -57,6 +57,7 @@ func (s *Server) setupRoutes() {
 	serviceTree.GET("", serviceTreeHandler.GetServiceTree)
 	serviceTree.PUT("", serviceTreeHandler.UpdateServiceTree)
 	serviceTree.DELETE("", serviceTreeHandler.DeleteServiceTree)
+	serviceTree.POST("/copy", serviceTreeHandler.CopyServiceTree) // 复制服务目录
 
 	// 函数管理路由（需要JWT验证）
 	function := apiV1.Group("/function")
@@ -64,8 +65,6 @@ func (s *Server) setupRoutes() {
 	functionHandler := v1.NewFunction(s.functionService)
 	function.GET("/get", functionHandler.GetFunction)
 	function.GET("/list", functionHandler.GetFunctionsByApp)
-	function.GET("/group-info", functionHandler.GetFunctionGroupInfo) // 获取函数组信息（用于 Hub 发布）
-	function.POST("/fork", functionHandler.ForkFunctionGroup)
 
 	// 用户管理路由（需要JWT验证）
 	user := apiV1.Group("/user")

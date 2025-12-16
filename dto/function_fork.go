@@ -30,9 +30,11 @@ type ForkPackageInfo struct {
 
 // ForkFunctionGroupFile Fork 的文件信息
 type ForkFunctionGroupFile struct {
-	GroupCode     string `json:"group_code"`     // 函数组代码（文件名，不含 .go）
+	FileName      string `json:"file_name"`      // 文件名（不含 .go 后缀）
 	SourceCode    string `json:"source_code"`    // 源代码内容
 	SourcePackage string `json:"source_package"` // 源 package 名称（用于替换）
+	// 向后兼容：保留 group_code（如果存在，优先使用 file_name）
+	GroupCode     string `json:"group_code,omitempty"` // 函数组代码（已废弃，使用 file_name）
 }
 
 // ForkFunctionGroupRuntimeResp Fork 函数组运行时响应（app-runtime，简化版）
@@ -40,4 +42,40 @@ type ForkFunctionGroupRuntimeResp struct {
 	Success      bool     `json:"success" example:"true"`   // 是否成功
 	Message      string   `json:"message" example:"文件写入成功"` // 响应消息
 	WrittenFiles []string `json:"written_files"`            // 已写入的文件路径列表（用于失败时回滚）
+}
+
+// CopyDirectoryReq 复制目录请求（支持递归复制目录及其所有子目录）
+type CopyDirectoryReq struct {
+	SourceDirectoryPath string `json:"source_directory_path" binding:"required" example:"/luobei/app_a/hr"` // 源目录完整路径
+	TargetDirectoryPath string `json:"target_directory_path" binding:"required" example:"/luobei/app_b/hr"` // 目标目录完整路径
+	TargetAppID         int64  `json:"target_app_id" binding:"required" example:"123"`                        // 目标应用ID
+}
+
+// CopyDirectoryResp 复制目录响应
+type CopyDirectoryResp struct {
+	Message        string `json:"message" example:"复制目录成功，共复制 3 个目录，15 个文件"` // 响应消息
+	DirectoryCount int    `json:"directory_count" example:"3"`                                    // 复制的目录数
+	FileCount      int    `json:"file_count" example:"15"`                                      // 复制的文件数
+}
+
+// CreateDirectoryReq 创建目录请求
+type CreateDirectoryReq struct {
+	DirectoryPath string `json:"directory_path" binding:"required" example:"/luobei/app_a/hr/new_dir"` // 目录完整路径
+	AppID         int64  `json:"app_id" binding:"required" example:"123"`                                // 应用ID
+}
+
+// CreateDirectoryResp 创建目录响应
+type CreateDirectoryResp struct {
+	Message string `json:"message" example:"创建目录成功"` // 响应消息
+}
+
+// RemoveDirectoryReq 删除目录请求
+type RemoveDirectoryReq struct {
+	DirectoryPath string `json:"directory_path" binding:"required" example:"/luobei/app_a/hr/old_dir"` // 目录完整路径
+	AppID         int64  `json:"app_id" binding:"required" example:"123"`                                // 应用ID
+}
+
+// RemoveDirectoryResp 删除目录响应
+type RemoveDirectoryResp struct {
+	Message string `json:"message" example:"删除目录成功"` // 响应消息
 }

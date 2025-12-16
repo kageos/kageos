@@ -128,16 +128,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, computed } from 'vue'
+import { ref, watch, nextTick, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Plus, MoreFilled, Link, CopyDocument, Upload, Document } from '@element-plus/icons-vue'
 import ChartIcon from './icons/ChartIcon.vue'
 import TableIcon from './icons/TableIcon.vue'
 import FormIcon from './icons/FormIcon.vue'
-import { ElTag, ElLink } from 'element-plus'
+import { ElTag, ElLink, ElMessageBox, ElMessage } from 'element-plus'
 import { generateGroupId, createGroupNode, groupFunctionsByCode, getGroupName, type ExtendedServiceTree } from '@/utils/tree-utils'
 import type { ServiceTree } from '@/types'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
+import { copyDirectory } from '@/api/service-tree'
 import {
   findPathToNode,
   expandParentNodes,
@@ -161,6 +162,7 @@ interface Emits {
   (e: 'copy-link', node: ServiceTree): void
   (e: 'fork-group', node: ServiceTree | null): void  // Fork 业务系统（可以为 null，表示打开对话框让用户选择）
   (e: 'publish-to-hub', node: ServiceTree): void   // 发布到应用中心
+  (e: 'refresh-tree'): void  // 刷新树（复制粘贴后需要刷新）
 }
 
 const props = defineProps<Props>()
@@ -171,6 +173,160 @@ const route = useRoute()
 
 // el-tree 的引用
 const treeRef = ref()
+
+// 复制粘贴相关状态
+const copiedDirectory = ref<ServiceTree | null>(null)  // 复制的目录信息
+const isPasting = ref(false)  // 是否正在粘贴
+
+// 键盘事件处理
+const handleKeyDown = (event: KeyboardEvent) => {
+  // Ctrl+C 或 Cmd+C：复制当前选中的目录（package类型）
+  if ((event.ctrlKey || event.metaKey) && event.key === 'c') {
+    const currentNode = getCurrentSelectedNode()
+    if (currentNode && currentNode.type === 'package') {
+      event.preventDefault()
+      handleCopy(currentNode)
+    }
+  }
+  
+  // Ctrl+V 或 Cmd+V：粘贴到当前选中的目录
+  if ((event.ctrlKey || event.metaKey) && event.key === 'v') {
+    if (copiedDirectory.value) {
+      event.preventDefault()
+      const currentNode = getCurrentSelectedNode()
+      if (currentNode && currentNode.type === 'package' && !(currentNode as any).isGroup) {
+        handlePaste(currentNode)
+      } else {
+        ElMessage.warning('请先选择一个目标目录（package类型）')
+      }
+    } else {
+      ElMessage.warning('没有可粘贴的目录，请先使用 Ctrl+C 复制一个目录')
+    }
+  }
+}
+
+// 获取当前选中的节点
+const getCurrentSelectedNode = (): ServiceTree | null => {
+  if (!treeRef.value) return null
+  
+  const currentNodeKey = treeRef.value.getCurrentKey()
+  if (!currentNodeKey) return null
+  
+  // 在分组后的树数据中查找节点
+  const findNode = (nodes: ServiceTree[], id: number | string): ServiceTree | null => {
+    for (const node of nodes) {
+      if (Number(node.id) === Number(id)) {
+        return node
+      }
+      if (node.children) {
+        const found = findNode(node.children, id)
+        if (found) return found
+      }
+    }
+    return null
+  }
+  
+  return findNode(groupedTreeData.value, currentNodeKey)
+}
+
+// 复制目录
+const handleCopy = (node: ServiceTree) => {
+  if (node.type !== 'package') {
+    ElMessage.warning('只能复制目录（package类型）')
+    return
+  }
+  
+  copiedDirectory.value = node
+  ElMessage.success(`已复制目录：${node.name}`)
+}
+
+  // 粘贴目录
+  const handlePaste = async (targetNode: ServiceTree) => {
+    if (!copiedDirectory.value) {
+      ElMessage.warning('没有可粘贴的目录')
+      return
+    }
+    
+    if (targetNode.type !== 'package') {
+      ElMessage.warning('只能粘贴到目录（package类型）')
+      return
+    }
+    
+    // 检查是否粘贴到自己或子目录
+    if (copiedDirectory.value.full_code_path === targetNode.full_code_path) {
+      ElMessage.warning('不能粘贴到自己')
+      return
+    }
+    
+    // 检查是否粘贴到自己的子目录
+    if (targetNode.full_code_path.startsWith(copiedDirectory.value.full_code_path + '/')) {
+      ElMessage.warning('不能粘贴到自己的子目录')
+      return
+    }
+    
+    // 弹窗确认
+    try {
+      await ElMessageBox.confirm(
+        `确定要将目录 "${copiedDirectory.value.name}" 复制到 "${targetNode.name}" 吗？\n\n源目录：${copiedDirectory.value.full_code_path}\n目标目录：${targetNode.full_code_path}`,
+        '确认粘贴',
+        {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'info'
+        }
+      )
+      
+      // 执行粘贴
+      isPasting.value = true
+      try {
+        // 解析目标应用信息（从 targetNode.full_code_path 中提取）
+        const targetPathParts = targetNode.full_code_path.split('/').filter(Boolean)
+        if (targetPathParts.length < 2) {
+          throw new Error('目标路径格式错误')
+        }
+        
+        // 获取目标应用ID
+        if (!targetNode.app_id) {
+          throw new Error('无法获取目标应用ID，请确保目标目录有效')
+        }
+        
+        const targetAppId = targetNode.app_id
+        
+        await copyDirectory({
+          source_directory_path: copiedDirectory.value.full_code_path,
+          target_directory_path: targetNode.full_code_path,
+          target_app_id: targetAppId
+        })
+      
+      ElMessage.success('目录复制成功')
+      
+      // 触发刷新树事件
+      emit('refresh-tree')
+      
+      // 清空复制状态（可选，也可以保留以便多次粘贴）
+      // copiedDirectory.value = null
+    } catch (error: any) {
+      // 用户取消操作不显示错误
+      if (error !== 'cancel' && error !== 'close') {
+        const errorMessage = error?.response?.data?.message || error?.message || '复制失败'
+        ElMessage.error(errorMessage)
+      }
+    } finally {
+      isPasting.value = false
+    }
+  } catch (error) {
+    // 用户取消
+  }
+}
+
+// 监听键盘事件
+onMounted(() => {
+  window.addEventListener('keydown', handleKeyDown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyDown)
+})
 
 /**
  * 🔥 按组分组处理服务树数据

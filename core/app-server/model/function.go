@@ -18,9 +18,7 @@ type Function struct {
 	CreateTables string          `json:"create_tables"`                                      //创建该api时候会自动帮忙创建这个数据库表gorm的model列表
 	Callbacks    string          `json:"callbacks"`
 	TemplateType string          `json:"widget"`                                  // 渲染类型
-	SourceCodeID *int64          `json:"source_code_id" gorm:"column:source_code_id;index;comment:指向SourceCode记录的ID"` // 指向 SourceCode 记录（可空，创建时先保存 SourceCode 再设置此字段）
 	App          *App            `json:"-" gorm:"foreignKey:AppID;references:ID"` // 预加载的完整应用对象
-	SourceCode   *SourceCode     `json:"-" gorm:"foreignKey:SourceCodeID;references:ID"` // 预加载的源代码对象
 }
 
 func (Function) TableName() string {

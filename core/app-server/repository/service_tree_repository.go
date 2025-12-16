@@ -2,6 +2,7 @@ package repository
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"gorm.io/gorm"
@@ -242,4 +243,31 @@ func (r *ServiceTreeRepository) GetServiceTreesByFullGroupCode(fullGroupCode str
 		return nil, err
 	}
 	return serviceTrees, nil
+}
+
+// GetDescendantDirectories 递归获取所有子目录（包括嵌套）
+// 使用路径前缀匹配，一次查询获取所有子目录
+func (r *ServiceTreeRepository) GetDescendantDirectories(appID int64, parentFullCodePath string) ([]*model.ServiceTree, error) {
+	// 标准化路径（确保以 / 结尾，用于前缀匹配）
+	normalizedPath := strings.TrimSuffix(parentFullCodePath, "/") + "/"
+	
+	var descendants []*model.ServiceTree
+	err := r.db.Where("app_id = ? AND full_code_path LIKE ? AND type = ?",
+		appID, normalizedPath+"%", model.ServiceTreeTypePackage).
+		Order("full_code_path ASC").
+		Find(&descendants).Error
+	
+	if err != nil {
+		return nil, err
+	}
+	
+	// 过滤：只返回真正的子目录（路径必须以 parentFullCodePath/ 开头）
+	result := make([]*model.ServiceTree, 0)
+	for _, dir := range descendants {
+		if strings.HasPrefix(dir.FullCodePath, normalizedPath) {
+			result = append(result, dir)
+		}
+	}
+	
+	return result, nil
 }

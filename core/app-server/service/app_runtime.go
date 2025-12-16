@@ -154,6 +154,23 @@ func (a *AppRuntime) CreateServiceTree(ctx context.Context, hostId int64, req *d
 	return &resp, nil
 }
 
+// ReadDirectoryFiles 读取目录文件（app-server -> app-runtime）
+func (a *AppRuntime) ReadDirectoryFiles(ctx context.Context, hostId int64, req *dto.ReadDirectoryFilesRuntimeReq) (*dto.ReadDirectoryFilesRuntimeResp, error) {
+	var resp dto.ReadDirectoryFilesRuntimeResp
+	timeout := time.Duration(a.config.GetNatsRequestTimeout()) * time.Second
+
+	conn, err := a.natsService.GetNatsByHost(hostId)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = msgx.RequestMsgWithTimeout(ctx, conn, subjects.GetAppServer2AppRuntimeReadDirectoryFilesRequestSubject(), req, &resp, timeout)
+	if err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 // initSubscriptions 初始化 NATS 订阅
 func (a *AppRuntime) initSubscriptions() {
 	// 获取所有可用的 NATS 连接

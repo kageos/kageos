@@ -1411,3 +1411,78 @@ func (s *AppManageService) StartAppVersion(ctx context.Context, user, app, versi
 		return fmt.Errorf("timeout waiting for app startup notification")
 	}
 }
+
+// ReadDirectoryFiles 读取目录下的所有文件（用于创建快照）
+func (s *AppManageService) ReadDirectoryFiles(ctx context.Context, user, app, fullCodePath string) ([]sharedDto.DirectoryFileInfo, error) {
+	logger.Infof(ctx, "[ReadDirectoryFiles] 开始读取目录文件: user=%s, app=%s, path=%s", user, app, fullCodePath)
+
+	// 构建应用目录路径
+	appDir := filepath.Join(s.config.AppDir.BasePath, user, app)
+	apiDir := filepath.Join(appDir, "code", "api")
+
+	// 从 full_code_path 提取相对路径（去掉应用前缀）
+	// fullCodePath 格式：/user/app/package1/package2
+	// 需要提取 package1/package2
+	appPrefix := fmt.Sprintf("/%s/%s", user, app)
+	relativePath := strings.TrimPrefix(fullCodePath, appPrefix)
+	relativePath = strings.TrimPrefix(relativePath, "/")
+
+	// 构建目录路径
+	directoryPath := filepath.Join(apiDir, relativePath)
+
+	var files []sharedDto.DirectoryFileInfo
+
+	// 遍历目录下的所有 .go 文件
+	err := filepath.Walk(directoryPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// 只读取 .go 文件，跳过目录
+		if info.IsDir() {
+			return nil
+		}
+
+		if !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+
+		// 读取文件内容
+		content, err := os.ReadFile(path)
+		if err != nil {
+			logger.Warnf(ctx, "[ReadDirectoryFiles] 读取文件失败: path=%s, error=%v", path, err)
+			return nil // 跳过读取失败的文件，继续处理其他文件
+		}
+
+		// 计算相对路径（相对于目录）
+		relPath, err := filepath.Rel(directoryPath, path)
+		if err != nil {
+			relPath = filepath.Base(path)
+		}
+
+		// 从路径提取文件名（不含 .go）
+		fileName := strings.TrimSuffix(filepath.Base(path), ".go")
+
+		files = append(files, sharedDto.DirectoryFileInfo{
+			FileName:     fileName,
+			RelativePath: relPath,
+			Content:      string(content),
+			// 向后兼容：同时设置 group_code
+			GroupCode: fileName,
+		})
+
+		return nil
+	})
+
+	if err != nil {
+		// 如果目录不存在，返回空列表（可能是新目录，还没有文件）
+		if os.IsNotExist(err) {
+			logger.Warnf(ctx, "[ReadDirectoryFiles] 目录不存在: path=%s", directoryPath)
+			return []sharedDto.DirectoryFileInfo{}, nil
+		}
+		return nil, err
+	}
+
+	logger.Infof(ctx, "[ReadDirectoryFiles] 读取目录文件完成: path=%s, fileCount=%d", directoryPath, len(files))
+	return files, nil
+}

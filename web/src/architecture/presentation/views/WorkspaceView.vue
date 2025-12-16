@@ -27,6 +27,7 @@
           @fork-group="handleForkGroup"
           @copy-link="handleCopyLink"
           @publish-to-hub="handlePublishToHub"
+          @refresh-tree="handleRefreshTree"
         />
       </div>
 
@@ -886,6 +887,13 @@ const handleForkGroup = (node: ServiceTreeType | null) => {
 const handlePublishToHub = (node: ServiceTreeType) => {
   publishSelectedNode.value = node
   publishToHubDialogVisible.value = true
+}
+
+// 处理刷新服务树（复制粘贴后需要刷新）
+const handleRefreshTree = async () => {
+  if (currentApp.value) {
+    await applicationService.loadServiceTree(currentApp.value)
+  }
 }
 
 // 发布成功后的回调

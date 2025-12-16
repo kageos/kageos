@@ -55,8 +55,19 @@ func (s *ForkService) ForkFunctionGroup(ctx context.Context, req *dto.ForkFuncti
 			// 处理源代码（替换 package）
 			processedCode := s.replacePackageName(file.SourceCode, file.SourcePackage, pkgInfo.Package)
 
+			// 获取文件名（优先使用 FileName，如果没有则使用 GroupCode 向后兼容）
+			fileName := file.FileName
+			if fileName == "" {
+				fileName = file.GroupCode
+			}
+			if fileName == "" {
+				logger.Errorf(ctx, "[ForkService] 文件缺少文件名: package=%s", pkgInfo.Package)
+				s.rollbackFiles(ctx, writtenFiles)
+				return nil, fmt.Errorf("文件缺少文件名: package=%s", pkgInfo.Package)
+			}
+
 			// 构建目标文件路径
-			targetFilePath := filepath.Join(packageDir, file.GroupCode+".go")
+			targetFilePath := filepath.Join(packageDir, fileName+".go")
 
 			// 修复 Go 代码的 import 语句（防止编译不通过）
 			fixedCode, err := gofmt.FixGoImport(targetFilePath, []byte(processedCode))
@@ -64,7 +75,7 @@ func (s *ForkService) ForkFunctionGroup(ctx context.Context, req *dto.ForkFuncti
 				logger.Errorf(ctx, "[ForkService] 修复 import 失败: file=%s, error=%v", targetFilePath, err)
 				// 修复失败时删除已写入的文件
 				s.rollbackFiles(ctx, writtenFiles)
-				return nil, fmt.Errorf("修复 import 失败 %s/%s: %w", pkgInfo.Package, file.GroupCode, err)
+				return nil, fmt.Errorf("修复 import 失败 %s/%s: %w", pkgInfo.Package, fileName, err)
 			}
 
 			// 写入文件（使用修复后的代码）
@@ -72,7 +83,7 @@ func (s *ForkService) ForkFunctionGroup(ctx context.Context, req *dto.ForkFuncti
 				logger.Errorf(ctx, "[ForkService] 写入文件失败: file=%s, error=%v", targetFilePath, err)
 				// 失败时删除已写入的文件
 				s.rollbackFiles(ctx, writtenFiles)
-				return nil, fmt.Errorf("写入文件失败 %s/%s: %w", pkgInfo.Package, file.GroupCode, err)
+				return nil, fmt.Errorf("写入文件失败 %s/%s: %w", pkgInfo.Package, fileName, err)
 			}
 
 			// 记录已写入的文件

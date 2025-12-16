@@ -352,6 +352,17 @@ func (s *Server) subscribeNATS(ctx context.Context) error {
 	}
 	s.subscriptions = append(s.subscriptions, sub)
 
+	// 订阅读取目录文件请求（使用队列组）
+	sub, err = s.natsConn.QueueSubscribe(
+		subjects.GetAppServer2AppRuntimeReadDirectoryFilesRequestSubject(),
+		"app-runtime-read-directory-files-workers",
+		s.handleReadDirectoryFiles,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to subscribe to read directory files: %w", err)
+	}
+	s.subscriptions = append(s.subscriptions, sub)
+
 	// Runtime 状态主题由 AppDiscoveryService 统一处理，不需要重复订阅
 
 	// 旧的订阅已移除，现在通过 runtime.status 主题统一处理

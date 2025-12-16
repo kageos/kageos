@@ -373,10 +373,9 @@ func (s *Server) initServices(ctx context.Context) error {
 	userSessionRepo := repository.NewUserSessionRepository(s.db)
 	functionRepo := repository.NewFunctionRepository(s.db)
 	serviceTreeRepo := repository.NewServiceTreeRepository(s.db)
-	sourceCodeRepo := repository.NewSourceCodeRepository(s.db)
 	operateLogRepo := repository.NewOperateLogRepository(s.db)
-
-	s.appService = service.NewAppService(s.appRuntime, userRepo, appRepo, functionRepo, serviceTreeRepo, sourceCodeRepo, operateLogRepo)
+	fileSnapshotRepo := repository.NewFileSnapshotRepository(s.db)
+	s.appService = service.NewAppService(s.appRuntime, userRepo, appRepo, functionRepo, serviceTreeRepo, operateLogRepo, fileSnapshotRepo)
 
 	// 初始化认证服务
 	s.authService = service.NewAuthService(userRepo, hostRepo, userSessionRepo)
@@ -388,10 +387,11 @@ func (s *Server) initServices(ctx context.Context) error {
 	// 初始化 JWT 服务
 	s.jwtService = service.NewJWTService()
 
-	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appRuntime)
+	// 初始化服务目录服务（包含目录管理功能：copy、create、remove）
+	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appRuntime, fileSnapshotRepo, s.appService)
 
-	// 初始化函数服务（需要更多依赖）
-	s.functionService = service.NewFunctionService(functionRepo, sourceCodeRepo, appRepo, serviceTreeRepo, s.appRuntime, s.appService)
+	// 初始化函数服务
+	s.functionService = service.NewFunctionService(functionRepo, appRepo)
 
 	// 初始化用户服务
 	s.userService = service.NewUserService(userRepo)

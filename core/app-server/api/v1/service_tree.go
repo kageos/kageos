@@ -5,6 +5,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
+	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/gin-gonic/gin"
 )
 
@@ -148,4 +149,41 @@ func (s *ServiceTree) DeleteServiceTree(c *gin.Context) {
 	}
 
 	response.OkWithMessage(c, "删除成功")
+}
+
+// CopyServiceTree 复制服务目录（递归复制目录及其所有子目录）
+// @Summary 复制服务目录
+// @Description 递归复制服务目录及其所有子目录到目标目录，保持目录结构
+// @Tags 服务目录
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Param request body dto.CopyDirectoryReq true "复制请求，source_directory_path=源目录完整路径，target_directory_path=目标目录完整路径"
+// @Success 200 {object} dto.CopyDirectoryResp "复制成功"
+// @Failure 400 {string} string "请求参数错误"
+// @Failure 401 {string} string "未授权"
+// @Failure 500 {string} string "服务器内部错误"
+// @Router /api/v1/service_tree/copy [post]
+func (s *ServiceTree) CopyServiceTree(c *gin.Context) {
+	var req dto.CopyDirectoryReq
+	var resp *dto.CopyDirectoryResp
+	var err error
+
+	if err = c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+
+	defer func() {
+		logger.Infof(c, "CopyServiceTree req:%+v resp:%+v err:%v", req, resp, err)
+	}()
+
+	ctx := contextx.ToContext(c)
+	resp, err = s.serviceTreeService.CopyServiceTree(ctx, &req)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.OkWithData(c, resp)
 }

@@ -23,6 +23,8 @@ type CreateServiceTreeResp struct {
 	AppID        int64  `json:"app_id" example:"1"`                          // 应用ID
 	RefID        int64  `json:"ref_id" example:"0"`                          // 引用ID：指向真实资源的ID，如果是package类型指向package的ID，如果是function类型指向function的ID
 	FullCodePath string `json:"full_code_path" example:"/beiluo/myapp/user"` // 完整代码路径
+	Version      string `json:"version" example:"v1"`                         // 节点当前版本号（如 v1, v2），package类型表示目录版本，function类型表示函数版本等
+	VersionNum   int    `json:"version_num" example:"1"`                      // 节点当前版本号（数字部分）
 	Status       string `json:"status" example:"enabled"`                    // 状态: enabled(启用), disabled(禁用)
 }
 
@@ -41,6 +43,8 @@ type GetServiceTreeResp struct {
 	RefID        int64                 `json:"ref_id" example:"0"`                          // 引用ID：指向真实资源的ID，如果是package类型指向package的ID，如果是function类型指向function的ID
 	FullCodePath string                `json:"full_code_path" example:"/beiluo/myapp/user"` // 完整代码路径
 	TemplateType string                `json:"template_type" example:"form"`                 // 模板类型（函数的类型，如 form、table）
+	Version      string                `json:"version" example:"v1"`                         // 节点当前版本号（如 v1, v2），package类型表示目录版本，function类型表示函数版本等
+	VersionNum   int                   `json:"version_num" example:"1"`                      // 节点当前版本号（数字部分）
 	Children     []*GetServiceTreeResp `json:"children,omitempty"`                          // 子目录列表
 }
 
