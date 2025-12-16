@@ -23,17 +23,19 @@
             :label="field.name"
             :required="isFieldRequired(field)"
           >
-            <WidgetComponent
-              :field="field"
-              :value="getFieldValue(field.code)"
-              :model-value="getFieldValue(field.code)"
-              @update:model-value="(v) => handleFieldUpdate(field.code, v)"
-              :field-path="field.code"
-              :form-renderer="formRendererContext"
-              :function-method="props.functionDetail.method || 'GET'"
-              :function-router="props.functionDetail.router || ''"
-              mode="edit"
-            />
+            <div class="widget-wrapper">
+              <WidgetComponent
+                :field="field"
+                :value="getFieldValue(field.code)"
+                :model-value="getFieldValue(field.code)"
+                @update:model-value="(v) => handleFieldUpdate(field.code, v)"
+                :field-path="field.code"
+                :form-renderer="formRendererContext"
+                :function-method="props.functionDetail.method || 'GET'"
+                :function-router="props.functionDetail.router || ''"
+                mode="edit"
+              />
+            </div>
           </el-form-item>
           
           <el-form-item>
@@ -127,6 +129,18 @@ const requestFields = computed(() => {
   return (props.functionDetail.request as FieldConfig[]).filter(field => {
     // 只显示有 widget 配置的字段
     return field.widget && field.widget.type
+  }).map(field => {
+    // 为 select 类型的字段添加 clearable 支持
+    if (field.widget && (field.widget.type === 'select' || field.widget.type === 'multiselect')) {
+      return {
+        ...field,
+        widget: {
+          ...field.widget,
+          clearable: true // 添加清空功能
+        }
+      }
+    }
+    return field
   })
 })
 
@@ -260,18 +274,45 @@ const buildEChartsOption = (chart: Chart): EChartsOption => {
   // 根据图表类型构建配置
   switch (chart.chart_type) {
     case 'bar':
-      // 柱状图 tooltip 配置（完全参考 ECharts 官方示例）
+      // 柱状图 tooltip 配置（参照折线图的样式）
       option.tooltip = {
+        show: true, // 明确启用 tooltip
         trigger: 'axis',
         axisPointer: {
           type: 'shadow'
         },
-        backgroundColor: 'rgba(50, 50, 50, 0.9)', // 深色背景，确保在深色主题下可见
+        backgroundColor: 'rgba(50, 50, 50, 0.9)',
         borderColor: '#333',
         borderWidth: 1,
+        padding: [10, 15],
         textStyle: {
-          color: '#fff', // 白色文字
-          fontSize: 12
+          color: '#fff',
+          fontSize: 13,
+          lineHeight: 20
+        },
+        formatter: (params: any) => {
+          // params 是数组，包含所有系列在该点的数据
+          if (!Array.isArray(params) || params.length === 0) {
+            return '无数据'
+          }
+          
+          let result = `<div style="font-weight: bold; margin-bottom: 8px;">${params[0].axisValue || ''}</div>`
+          
+          params.forEach((param: any) => {
+            const value = typeof param.value === 'number'
+              ? (param.value % 1 === 0 ? param.value : param.value.toFixed(2))
+              : param.value
+            const name = param.seriesName || param.name || ''
+            const color = param.color || '#5470c6'
+            
+            result += `<div style="display: flex; align-items: center; margin-bottom: 4px;">
+              <span style="display: inline-block; width: 10px; height: 10px; background-color: ${color}; border-radius: 50%; margin-right: 8px;"></span>
+              <span style="flex: 1;">${name}:</span>
+              <span style="font-weight: bold; margin-left: 10px;">${value}</span>
+            </div>`
+          })
+          
+          return result
         }
       }
       option.xAxis = {
@@ -323,9 +364,43 @@ const buildEChartsOption = (chart: Chart): EChartsOption => {
       break
 
     case 'line':
-      // 折线图 tooltip 配置（完全参考 ECharts 官方示例，保持最简单）
+      // 折线图 tooltip 配置（参照 gauge 图表的样式）
       option.tooltip = {
-        trigger: 'axis'
+        show: true, // 明确启用 tooltip
+        trigger: 'axis',
+        backgroundColor: 'rgba(50, 50, 50, 0.9)',
+        borderColor: '#333',
+        borderWidth: 1,
+        padding: [10, 15],
+        textStyle: {
+          color: '#fff',
+          fontSize: 13,
+          lineHeight: 20
+        },
+        formatter: (params: any) => {
+          // params 是数组，包含所有系列在该点的数据
+          if (!Array.isArray(params) || params.length === 0) {
+            return '无数据'
+          }
+          
+          let result = `<div style="font-weight: bold; margin-bottom: 8px;">${params[0].axisValue || ''}</div>`
+          
+          params.forEach((param: any) => {
+            const value = typeof param.value === 'number'
+              ? (param.value % 1 === 0 ? param.value : param.value.toFixed(2))
+              : param.value
+            const name = param.seriesName || param.name || ''
+            const color = param.color || '#5470c6'
+            
+            result += `<div style="display: flex; align-items: center; margin-bottom: 4px;">
+              <span style="display: inline-block; width: 10px; height: 10px; background-color: ${color}; border-radius: 50%; margin-right: 8px;"></span>
+              <span style="flex: 1;">${name}:</span>
+              <span style="font-weight: bold; margin-left: 10px;">${value}</span>
+            </div>`
+          })
+          
+          return result
+        }
       }
       // 折线图必须有 X 轴数据
       if (!chart.x_axis || chart.x_axis.length === 0) {
@@ -487,7 +562,9 @@ const buildEChartsOption = (chart: Chart): EChartsOption => {
             gaugeData = [{ value: parseFloat(String(firstItem)) || 0 }]
           }
         }
-        return {
+        
+        // 默认配置
+        const defaultConfig: any = {
           name: s.name,
           type: 'gauge',
           data: gaugeData,
@@ -495,14 +572,37 @@ const buildEChartsOption = (chart: Chart): EChartsOption => {
             fontSize: 16,
             color: '#1f2937', // 深灰色，提高可读性
             fontWeight: 'bold',
-            formatter: '{value}%' // 显示百分比
+            formatter: '{value}%' // 默认显示百分比
           },
           axisLabel: {
             fontSize: 12,
             color: '#374151' // 深灰色，提高可读性
-          },
-          ...s.config
+          }
         }
+        
+        // 如果 s.config 中有配置，深度合并（特别是 detail 和 axisLabel）
+        if (s.config) {
+          // 先合并顶层配置
+          Object.assign(defaultConfig, s.config)
+          
+          // 深度合并 detail 配置
+          if (s.config.detail) {
+            defaultConfig.detail = {
+              ...defaultConfig.detail,
+              ...s.config.detail
+            }
+          }
+          
+          // 深度合并 axisLabel 配置
+          if (s.config.axisLabel) {
+            defaultConfig.axisLabel = {
+              ...defaultConfig.axisLabel,
+              ...s.config.axisLabel
+            }
+          }
+        }
+        
+        return defaultConfig
       })
       break
 
@@ -830,6 +930,16 @@ watch(() => chartData.value, () => {
   
   .filter-card {
     margin-bottom: 20px;
+    
+    .widget-wrapper {
+      min-width: 200px; // 设置下拉框最小宽度
+      width: 100%;
+      
+      // 确保下拉框可以清空
+      :deep(.el-select) {
+        width: 100%;
+      }
+    }
     
     .filter-form {
       margin-top: 0;

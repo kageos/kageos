@@ -113,7 +113,10 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Folder, FolderOpened, Plus, MoreFilled, Link, CopyDocument, Upload, Grid, Postcard, Document } from '@element-plus/icons-vue'
+import { Folder, FolderOpened, Plus, MoreFilled, Link, CopyDocument, Upload, Document } from '@element-plus/icons-vue'
+import ChartIcon from './icons/ChartIcon.vue'
+import TableIcon from './icons/TableIcon.vue'
+import FormIcon from './icons/FormIcon.vue'
 import { ElTag, ElLink } from 'element-plus'
 import { generateGroupId, createGroupNode, groupFunctionsByCode, getGroupName, type ExtendedServiceTree } from '@/utils/tree-utils'
 import type { ServiceTree } from '@/types'
@@ -269,9 +272,11 @@ const handleForkButtonClick = () => {
 // 获取函数图标组件（根据 template_type）
 const getFunctionIcon = (data: ServiceTree) => {
   if (data.template_type === TEMPLATE_TYPE.TABLE) {
-    return Grid
+    return TableIcon
   } else if (data.template_type === TEMPLATE_TYPE.FORM) {
-    return Postcard
+    return FormIcon
+  } else if (data.template_type === TEMPLATE_TYPE.CHART) {
+    return ChartIcon
   }
   // 默认使用 Document 图标（如果没有 template_type 或不是已知类型）
   return Document
@@ -287,6 +292,8 @@ const getNodeIconClass = (data: ServiceTree) => {
       return 'table-icon'
     } else if (data.template_type === TEMPLATE_TYPE.FORM) {
       return 'form-icon'
+    } else if (data.template_type === TEMPLATE_TYPE.CHART) {
+      return 'chart-icon'
     }
     return 'function-icon'
   }
