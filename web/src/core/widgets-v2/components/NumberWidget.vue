@@ -10,7 +10,7 @@
       <el-input-number
         v-model="internalValue"
         :disabled="field.widget?.config?.disabled"
-        :placeholder="field.desc || `请输入${field.name}`"
+        :placeholder="placeholder"
         :min="minValue"
         :max="maxValue"
         :step="stepValue"
@@ -85,6 +85,17 @@ const stepValue = computed(() => {
 
 // 单位（从配置中读取）
 const unit = computed(() => config.value.unit || '')
+
+// 占位符（优先级：config.placeholder > field.desc > 默认值）
+const placeholder = computed(() => {
+  if (config.value.placeholder) {
+    return config.value.placeholder
+  }
+  if (props.field.desc) {
+    return props.field.desc
+  }
+  return `请输入${props.field.name}`
+})
 
 // 默认值（从配置中读取）
 const defaultValue = computed(() => {

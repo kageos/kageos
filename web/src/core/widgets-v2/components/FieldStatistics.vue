@@ -26,7 +26,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { FieldConfig } from '../types'
-import { ExpressionParser } from '../../utils/ExpressionParser'
+import { ExpressionParserAdapter } from '../../utils/ExpressionParserAdapter'
 
 interface Props {
   field: FieldConfig
@@ -101,9 +101,9 @@ const statisticsData = computed(() => {
   try {
     for (const [label, expression] of Object.entries(props.statistics)) {
       try {
-        // 🔥 使用 ExpressionParser 计算表达式
+        // 🔥 使用适配器计算表达式，自动支持新旧两种语法
         // 对于 value() 函数，传递 selectedItem 参数
-        const value = ExpressionParser.evaluate(expression as string, dataSource, selectedItem)
+        const value = ExpressionParserAdapter.evaluate(expression as string, dataSource, selectedItem)
         
         // 判断是数值还是字符串
         if (typeof value === 'number') {

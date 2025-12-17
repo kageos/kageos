@@ -80,6 +80,8 @@ export function initializeWidgetComponentFactory(): void {
   
   // 响应参数组件（Text 主要用于响应模式）
   widgetComponentFactory.registerResponseComponent(WidgetType.TEXT, TextWidget)
+  // Text 也可以用于请求参数（详情模式等场景）
+  widgetComponentFactory.registerRequestComponent(WidgetType.TEXT, TextWidget)
   
   // 后续添加其他组件时，在这里注册
   // ...
