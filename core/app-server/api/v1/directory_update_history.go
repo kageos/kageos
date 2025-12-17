@@ -31,9 +31,9 @@ func NewDirectoryUpdateHistory(directoryUpdateHistoryService *service.DirectoryU
 // @Produce json
 // @Security ApiKeyAuth
 // @Param X-Token header string true "JWT Token"
-	// @Param app_id query int true "应用ID"
-	// @Param app_version query string false "应用版本号，如 v101 (可选，如果为空则返回所有版本)"
-	// @Success 200 {object} dto.GetAppVersionUpdateHistoryResp "获取成功"
+// @Param app_id query int true "应用ID"
+// @Param app_version query string false "应用版本号，如 v101 (可选，如果为空则返回所有版本)"
+// @Success 200 {object} dto.GetAppVersionUpdateHistoryResp "获取成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
 // @Router /api/v1/directory_update_history/app_version [get]
