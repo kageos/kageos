@@ -87,4 +87,11 @@ func (s *Server) setupRoutes() {
 	operateLogHandler := v1.NewOperateLog(s.operateLogService)
 	operateLog.GET("/table", operateLogHandler.GetTableOperateLogs) // 查询 Table 操作日志
 	operateLog.GET("/form", operateLogHandler.GetFormOperateLogs)   // 查询 Form 操作日志
+
+	// 目录更新历史路由（需要JWT验证）
+	directoryUpdateHistory := apiV1.Group("/directory_update_history")
+	directoryUpdateHistory.Use(middleware2.JWTAuth()) // 目录更新历史需要JWT认证
+	directoryUpdateHistoryHandler := v1.NewDirectoryUpdateHistory(s.directoryUpdateHistoryService)
+	directoryUpdateHistory.GET("/app_version", directoryUpdateHistoryHandler.GetAppVersionUpdateHistory) // 获取应用版本更新历史（App视角）
+	directoryUpdateHistory.GET("/directory", directoryUpdateHistoryHandler.GetDirectoryUpdateHistory)    // 获取目录更新历史（目录视角）
 }

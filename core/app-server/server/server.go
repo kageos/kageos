@@ -36,15 +36,16 @@ type Server struct {
 	httpServer *gin.Engine
 
 	// 服务
-	appService         *service.AppService
-	authService        *service.AuthService
-	emailService       *service.EmailService
-	jwtService         *service.JWTService
-	appRuntime         *service.AppRuntime
-	serviceTreeService *service.ServiceTreeService
-	functionService    *service.FunctionService
-	userService        *service.UserService
-	operateLogService  *service.OperateLogService
+	appService                    *service.AppService
+	authService                   *service.AuthService
+	emailService                  *service.EmailService
+	jwtService                    *service.JWTService
+	appRuntime                    *service.AppRuntime
+	serviceTreeService            *service.ServiceTreeService
+	functionService               *service.FunctionService
+	userService                   *service.UserService
+	operateLogService             *service.OperateLogService
+	directoryUpdateHistoryService *service.DirectoryUpdateHistoryService
 
 	// 上游服务
 	natsService *service.NatsService
@@ -375,7 +376,8 @@ func (s *Server) initServices(ctx context.Context) error {
 	serviceTreeRepo := repository.NewServiceTreeRepository(s.db)
 	operateLogRepo := repository.NewOperateLogRepository(s.db)
 	fileSnapshotRepo := repository.NewFileSnapshotRepository(s.db)
-	s.appService = service.NewAppService(s.appRuntime, userRepo, appRepo, functionRepo, serviceTreeRepo, operateLogRepo, fileSnapshotRepo)
+	directoryUpdateHistoryRepo := repository.NewDirectoryUpdateHistoryRepository(s.db)
+	s.appService = service.NewAppService(s.appRuntime, userRepo, appRepo, functionRepo, serviceTreeRepo, operateLogRepo, fileSnapshotRepo, directoryUpdateHistoryRepo)
 
 	// 初始化认证服务
 	s.authService = service.NewAuthService(userRepo, hostRepo, userSessionRepo)
@@ -398,6 +400,9 @@ func (s *Server) initServices(ctx context.Context) error {
 
 	// 初始化操作日志服务
 	s.operateLogService = service.NewOperateLogService(operateLogRepo)
+
+	// 初始化目录更新历史服务
+	s.directoryUpdateHistoryService = service.NewDirectoryUpdateHistoryService(directoryUpdateHistoryRepo)
 
 	logger.Infof(ctx, "[Server] Services initialized successfully")
 	return nil
@@ -452,6 +457,11 @@ func (s *Server) GetAppService() *service.AppService {
 // GetAuthService 获取认证服务
 func (s *Server) GetAuthService() *service.AuthService {
 	return s.authService
+}
+
+// getDirectoryUpdateHistoryRepo 获取目录更新历史Repository（内部方法，用于路由注册）
+func (s *Server) getDirectoryUpdateHistoryRepo() *repository.DirectoryUpdateHistoryRepository {
+	return repository.NewDirectoryUpdateHistoryRepository(s.db)
 }
 
 // initNATSSubscriptions 初始化 NATS 订阅

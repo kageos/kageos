@@ -23,6 +23,8 @@ func InitTables(db *gorm.DB) error {
 		// 操作日志表（企业版功能，但社区版也记录）
 		&TableOperateLog{},
 		&FormOperateLog{},
+		// 目录更新历史表（用于记录API变更历史）
+		&DirectoryUpdateHistory{},
 	)
 	if err != nil {
 		return err
