@@ -568,8 +568,8 @@ watch([() => props.appId, () => props.appVersion, () => props.fullCodePath], () 
       }
       
       .changes-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+        display: flex;
+        flex-direction: column;
         gap: 20px;
         width: 100%;
       }
@@ -578,8 +578,8 @@ watch([() => props.appId, () => props.appVersion, () => props.fullCodePath], () 
   
   // 变更卡片样式（参考 PackageDetailView 的 overview-card）
   .changes-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    display: flex;
+    flex-direction: column;
     gap: 20px;
     width: 100%;
   }
