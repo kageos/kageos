@@ -160,9 +160,6 @@
                 <div class="change-version">
                   <el-tag type="primary" size="large">v{{ change.dir_version_num }}</el-tag>
                 </div>
-                <div v-if="change.summary" class="change-summary-text">
-                  {{ change.summary }}
-                </div>
               </div>
             </div>
             
