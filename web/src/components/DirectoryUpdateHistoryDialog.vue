@@ -24,46 +24,102 @@
           <div
             v-for="version in appHistory.versions"
             :key="version.app_version"
-            class="version-item"
+            class="version-section"
           >
-            <div class="version-header">
-              <el-tag type="primary" size="large">{{ version.app_version }}</el-tag>
-              <span class="version-info">
-                共 {{ version.directory_changes.length }} 个目录变更
-              </span>
+            <!-- 版本标题 -->
+            <div class="section-header">
+              <h3 class="section-title">
+                <el-icon class="section-icon"><Clock /></el-icon>
+                版本 {{ version.app_version }}
+              </h3>
+              <el-tag class="section-badge" type="primary" size="small">
+                {{ version.directory_changes.length }} 个目录变更
+              </el-tag>
             </div>
             
-            <div class="directory-changes">
+            <!-- 目录变更卡片列表 -->
+            <div class="changes-grid">
               <div
                 v-for="change in version.directory_changes"
                 :key="`${change.full_code_path}-${change.dir_version}`"
-                class="change-item"
+                class="change-card"
               >
-                <div class="change-header">
-                  <el-link
-                    type="primary"
-                    :underline="false"
-                    @click="handleViewDirectory(change.full_code_path)"
-                  >
-                    {{ change.full_code_path }}
-                  </el-link>
-                  <el-tag size="small" type="info">v{{ change.dir_version_num }}</el-tag>
-                  <span class="change-summary" v-if="change.summary">{{ change.summary }}</span>
+                <!-- 卡片头部 -->
+                <div class="change-card-header">
+                  <div class="change-icon-wrapper">
+                    <el-icon class="change-icon"><Folder /></el-icon>
+                  </div>
+                  <div class="change-title-wrapper">
+                    <el-link
+                      type="primary"
+                      :underline="false"
+                      @click="handleViewDirectory(change.full_code_path)"
+                      class="change-path"
+                    >
+                      {{ change.full_code_path }}
+                    </el-link>
+                    <el-tag size="small" type="info" class="change-version-tag">
+                      v{{ change.dir_version_num }}
+                    </el-tag>
+                  </div>
                 </div>
                 
-                <div class="change-stats">
-                  <el-tag v-if="change.added_count > 0" type="success" size="small">
-                    +{{ change.added_count }} 新增
-                  </el-tag>
-                  <el-tag v-if="change.updated_count > 0" type="warning" size="small">
-                    ~{{ change.updated_count }} 更新
-                  </el-tag>
-                  <el-tag v-if="change.deleted_count > 0" type="danger" size="small">
-                    -{{ change.deleted_count }} 删除
-                  </el-tag>
-                  <span class="change-time">
-                    {{ formatTime(change.created_at) }} · {{ change.updated_by }}
-                  </span>
+                <!-- 变更摘要 -->
+                <div v-if="change.summary" class="change-summary">
+                  {{ change.summary }}
+                </div>
+                
+                <!-- 统计信息卡片 -->
+                <div class="change-stats-card">
+                  <div class="stat-item" v-if="change.added_count > 0">
+                    <div class="stat-icon-wrapper added-icon">
+                      <el-icon class="stat-icon"><Plus /></el-icon>
+                    </div>
+                    <div class="stat-content">
+                      <div class="stat-label">新增</div>
+                      <div class="stat-value">{{ change.added_count }}</div>
+                    </div>
+                  </div>
+                  
+                  <div class="stat-item" v-if="change.updated_count > 0">
+                    <div class="stat-icon-wrapper updated-icon">
+                      <el-icon class="stat-icon"><Edit /></el-icon>
+                    </div>
+                    <div class="stat-content">
+                      <div class="stat-label">更新</div>
+                      <div class="stat-value">{{ change.updated_count }}</div>
+                    </div>
+                  </div>
+                  
+                  <div class="stat-item" v-if="change.deleted_count > 0">
+                    <div class="stat-icon-wrapper deleted-icon">
+                      <el-icon class="stat-icon"><Delete /></el-icon>
+                    </div>
+                    <div class="stat-content">
+                      <div class="stat-label">删除</div>
+                      <div class="stat-value">{{ change.deleted_count }}</div>
+                    </div>
+                  </div>
+                  
+                  <div class="stat-item">
+                    <div class="stat-icon-wrapper time-icon">
+                      <el-icon class="stat-icon"><Clock /></el-icon>
+                    </div>
+                    <div class="stat-content">
+                      <div class="stat-label">更新时间</div>
+                      <div class="stat-value">{{ formatTime(change.created_at) }}</div>
+                    </div>
+                  </div>
+                  
+                  <div class="stat-item" v-if="change.updated_by">
+                    <div class="stat-icon-wrapper user-icon">
+                      <el-icon class="stat-icon"><User /></el-icon>
+                    </div>
+                    <div class="stat-content">
+                      <div class="stat-label">操作人</div>
+                      <div class="stat-value">{{ change.updated_by }}</div>
+                    </div>
+                  </div>
                 </div>
                 
                 <!-- API 变更详情 -->
@@ -250,6 +306,7 @@
 import { ref, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { Clock, Folder, Plus, Edit, Delete, User } from '@element-plus/icons-vue'
 import {
   getAppVersionUpdateHistory,
   getDirectoryUpdateHistory,
@@ -418,6 +475,7 @@ watch([() => props.appId, () => props.appVersion, () => props.fullCodePath], () 
     min-height: 400px;
     max-height: 70vh;
     overflow-y: auto;
+    padding: 0;
   }
   
   .empty-state {
@@ -425,91 +483,199 @@ watch([() => props.appId, () => props.appVersion, () => props.fullCodePath], () 
     text-align: center;
   }
   
+  // 版本列表样式
   .versions-list {
-    .version-item {
-      margin-bottom: 24px;
-      padding: 16px;
-      background: var(--el-bg-color-page);
-      border-radius: 8px;
+    .version-section {
+      margin-bottom: 32px;
       
-      .version-header {
+      .section-header {
         display: flex;
         align-items: center;
-        gap: 12px;
+        justify-content: space-between;
         margin-bottom: 16px;
         
-        .version-info {
-          color: var(--el-text-color-secondary);
-          font-size: 14px;
+        .section-title {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 18px;
+          font-weight: 600;
+          color: var(--el-text-color-primary);
+          margin: 0;
+          
+          .section-icon {
+            font-size: 20px;
+            color: var(--el-color-primary);
+          }
+        }
+        
+        .section-badge {
+          font-weight: 500;
         }
       }
       
-      .directory-changes {
-        .change-item {
-          margin-bottom: 16px;
-          padding: 12px;
-          background: var(--el-bg-color);
-          border-radius: 6px;
-          border-left: 3px solid var(--el-border-color);
-          
-          .change-header {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 8px;
-            
-            .change-summary {
-              color: var(--el-text-color-regular);
-              font-size: 14px;
-            }
-          }
-          
-          .change-stats {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 12px;
-            
-            .change-time {
-              margin-left: auto;
-              color: var(--el-text-color-secondary);
-              font-size: 12px;
-            }
-          }
-        }
+      .changes-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+        gap: 16px;
       }
     }
   }
   
-  .change-item {
-    margin-bottom: 16px;
-    padding: 16px;
-    background: var(--el-bg-color-page);
-    border-radius: 8px;
-    border-left: 3px solid var(--el-color-primary);
+  // 变更卡片样式（参考 PackageDetailView 的 overview-card）
+  .changes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: 16px;
+  }
+  
+  .change-card {
+    background: var(--el-bg-color);
+    border: 1px solid var(--el-border-color-lighter);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    transition: all 0.3s ease;
     
-    .change-header {
+    &:hover {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+      transform: translateY(-2px);
+    }
+    
+    .change-card-header {
       display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 8px;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 16px;
       
-      .change-summary {
-        color: var(--el-text-color-regular);
-        font-size: 14px;
+      .change-icon-wrapper {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, var(--el-color-primary-light-8), var(--el-color-primary-light-9));
+        
+        .change-icon {
+          font-size: 24px;
+          color: var(--el-color-primary);
+        }
+      }
+      
+      .change-title-wrapper {
+        flex: 1;
+        min-width: 0;
+        
+        .change-path {
+          display: block;
+          font-size: 16px;
+          font-weight: 600;
+          color: var(--el-text-color-primary);
+          margin-bottom: 8px;
+          word-break: break-all;
+        }
+        
+        .change-version-tag {
+          margin-top: 4px;
+        }
+        
+        .change-summary {
+          margin-top: 8px;
+          font-size: 14px;
+          color: var(--el-text-color-regular);
+          line-height: 1.5;
+        }
       }
     }
     
-    .change-stats {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 12px;
+    .change-stats-card {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--el-border-color-lighter);
       
-      .change-time {
-        margin-left: auto;
-        color: var(--el-text-color-secondary);
-        font-size: 12px;
+      .stat-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        
+        .stat-icon-wrapper {
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 40px;
+          height: 40px;
+          border-radius: 10px;
+          
+          &.added-icon {
+            background: linear-gradient(135deg, var(--el-color-success-light-8), var(--el-color-success-light-9));
+            
+            .stat-icon {
+              font-size: 20px;
+              color: var(--el-color-success);
+            }
+          }
+          
+          &.updated-icon {
+            background: linear-gradient(135deg, var(--el-color-warning-light-8), var(--el-color-warning-light-9));
+            
+            .stat-icon {
+              font-size: 20px;
+              color: var(--el-color-warning);
+            }
+          }
+          
+          &.deleted-icon {
+            background: linear-gradient(135deg, var(--el-color-danger-light-8), var(--el-color-danger-light-9));
+            
+            .stat-icon {
+              font-size: 20px;
+              color: var(--el-color-danger);
+            }
+          }
+          
+          &.time-icon {
+            background: linear-gradient(135deg, var(--el-color-info-light-8), var(--el-color-info-light-9));
+            
+            .stat-icon {
+              font-size: 20px;
+              color: var(--el-color-info);
+            }
+          }
+          
+          &.user-icon {
+            background: linear-gradient(135deg, var(--el-color-primary-light-8), var(--el-color-primary-light-9));
+            
+            .stat-icon {
+              font-size: 20px;
+              color: var(--el-color-primary);
+            }
+          }
+        }
+        
+        .stat-content {
+          flex: 1;
+          min-width: 0;
+          
+          .stat-label {
+            font-size: 12px;
+            color: var(--el-text-color-secondary);
+            margin-bottom: 4px;
+            font-weight: 500;
+          }
+          
+          .stat-value {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--el-text-color-primary);
+            word-break: break-all;
+          }
+        }
       }
     }
   }
