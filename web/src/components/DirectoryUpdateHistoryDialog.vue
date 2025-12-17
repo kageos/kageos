@@ -65,8 +65,20 @@
                   </div>
                 </div>
                 
-                <!-- 变更摘要 -->
-                <div v-if="change.summary" class="change-summary-text">
+                <!-- 变更需求 -->
+                <div v-if="change.requirement" class="change-requirement">
+                  <div class="requirement-label">变更需求</div>
+                  <div class="requirement-content">{{ change.requirement }}</div>
+                </div>
+                
+                <!-- 变更描述 -->
+                <div v-if="change.change_description" class="change-description">
+                  <div class="description-label">变更描述</div>
+                  <div class="description-content">{{ change.change_description }}</div>
+                </div>
+                
+                <!-- 变更摘要（兼容旧数据） -->
+                <div v-if="change.summary && !change.requirement && !change.change_description" class="change-summary-text">
                   {{ change.summary }}
                 </div>
                 
@@ -231,6 +243,69 @@
                 </div>
               </el-collapse-item>
             </el-collapse>
+            
+            <!-- 统计信息卡片（放在最下面） -->
+            <div class="change-stats-card">
+              <div class="stat-item" v-if="change.added_count > 0">
+                <div class="stat-icon-wrapper added-icon">
+                  <el-icon class="stat-icon"><Plus /></el-icon>
+                </div>
+                <div class="stat-content">
+                  <div class="stat-label">新增</div>
+                  <div class="stat-value">{{ change.added_count }}</div>
+                </div>
+              </div>
+              
+              <div class="stat-item" v-if="change.updated_count > 0">
+                <div class="stat-icon-wrapper updated-icon">
+                  <el-icon class="stat-icon"><Edit /></el-icon>
+                </div>
+                <div class="stat-content">
+                  <div class="stat-label">更新</div>
+                  <div class="stat-value">{{ change.updated_count }}</div>
+                </div>
+              </div>
+              
+              <div class="stat-item" v-if="change.deleted_count > 0">
+                <div class="stat-icon-wrapper deleted-icon">
+                  <el-icon class="stat-icon"><Delete /></el-icon>
+                </div>
+                <div class="stat-content">
+                  <div class="stat-label">删除</div>
+                  <div class="stat-value">{{ change.deleted_count }}</div>
+                </div>
+              </div>
+              
+              <div class="stat-item">
+                <div class="stat-icon-wrapper time-icon">
+                  <el-icon class="stat-icon"><Clock /></el-icon>
+                </div>
+                <div class="stat-content">
+                  <div class="stat-label">更新时间</div>
+                  <div class="stat-value">{{ formatTime(change.created_at) }}</div>
+                </div>
+              </div>
+              
+              <div class="stat-item" v-if="change.updated_by">
+                <div class="stat-icon-wrapper user-icon">
+                  <el-icon class="stat-icon"><User /></el-icon>
+                </div>
+                <div class="stat-content">
+                  <div class="stat-label">操作人</div>
+                  <div class="stat-value">{{ change.updated_by }}</div>
+                </div>
+              </div>
+              
+              <div class="stat-item" v-if="change.duration">
+                <div class="stat-icon-wrapper duration-icon">
+                  <el-icon class="stat-icon"><Timer /></el-icon>
+                </div>
+                <div class="stat-content">
+                  <div class="stat-label">变更耗时</div>
+                  <div class="stat-value">{{ formatDuration(change.duration) }}</div>
+                </div>
+              </div>
+            </div>
           </div>
           
           <!-- 分页 -->
@@ -259,7 +334,7 @@
 import { ref, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Clock, Folder, Plus, Edit, Delete, User } from '@element-plus/icons-vue'
+import { Clock, Folder, Plus, Edit, Delete, User, Timer } from '@element-plus/icons-vue'
 import {
   getAppVersionUpdateHistory,
   getDirectoryUpdateHistory,
@@ -353,6 +428,20 @@ const formatTime = (time: string) => {
     hour: '2-digit',
     minute: '2-digit'
   })
+}
+
+// 格式化耗时
+const formatDuration = (duration: number) => {
+  if (!duration) return ''
+  if (duration < 1000) {
+    return `${duration}ms`
+  } else if (duration < 60000) {
+    return `${(duration / 1000).toFixed(1)}s`
+  } else {
+    const minutes = Math.floor(duration / 60000)
+    const seconds = ((duration % 60000) / 1000).toFixed(1)
+    return `${minutes}m ${seconds}s`
+  }
 }
 
 // 加载数据
@@ -635,6 +724,15 @@ watch([() => props.appId, () => props.appVersion, () => props.fullCodePath], () 
               color: var(--el-color-primary);
             }
           }
+          
+          &.duration-icon {
+            background: linear-gradient(135deg, var(--el-color-success-light-8), var(--el-color-success-light-9));
+            
+            .stat-icon {
+              font-size: 20px;
+              color: var(--el-color-success);
+            }
+          }
         }
         
         .stat-content {
@@ -659,11 +757,69 @@ watch([() => props.appId, () => props.appVersion, () => props.fullCodePath], () 
     }
   }
   
-  // API 变更详情样式
+  // 变更需求样式
+  .change-requirement {
+    margin: 16px 0;
+    padding: 12px 16px;
+    background: linear-gradient(135deg, var(--el-color-primary-light-9), var(--el-bg-color-page));
+    border-radius: 8px;
+    border-left: 3px solid var(--el-color-primary);
+    
+    .requirement-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--el-color-primary);
+      margin-bottom: 8px;
+    }
+    
+    .requirement-content {
+      font-size: 14px;
+      color: var(--el-text-color-regular);
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+  }
+  
+  // 变更描述样式
+  .change-description {
+    margin: 16px 0;
+    padding: 12px 16px;
+    background: linear-gradient(135deg, var(--el-color-info-light-9), var(--el-bg-color-page));
+    border-radius: 8px;
+    border-left: 3px solid var(--el-color-info);
+    
+    .description-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--el-color-info);
+      margin-bottom: 8px;
+    }
+    
+    .description-content {
+      font-size: 14px;
+      color: var(--el-text-color-regular);
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+  }
+  
+  // 变更摘要文本样式（兼容旧数据，独立显示在中间）
+  .change-summary-text {
+    margin: 16px 0;
+    padding: 12px 16px;
+    background: var(--el-bg-color-page);
+    border-radius: 8px;
+    font-size: 14px;
+    color: var(--el-text-color-regular);
+    line-height: 1.6;
+    border-left: 3px solid var(--el-color-primary);
+    white-space: pre-wrap;
+  }
+  
+  // API 变更详情样式（在中间，不需要上边框）
   .api-changes {
     margin-top: 16px;
-    padding-top: 16px;
-    border-top: 1px solid var(--el-border-color-lighter);
+    margin-bottom: 0;
     
     :deep(.el-collapse-item__header) {
       font-weight: 600;

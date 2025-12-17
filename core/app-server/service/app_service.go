@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 
@@ -114,6 +115,9 @@ func (a *AppService) CreateApp(ctx context.Context, req *dto.CreateAppReq) (*dto
 
 // UpdateApp 更新应用
 func (a *AppService) UpdateApp(ctx context.Context, req *dto.UpdateAppReq) (*dto.UpdateAppResp, error) {
+	// 记录开始时间（用于计算变更耗时）
+	startTime := time.Now()
+	
 	// 根据应用信息获取 NATS 连接，而不是根据当前用户
 	app, err := a.appRepo.GetAppByUserName(req.User, req.App)
 	if err != nil {
@@ -133,9 +137,12 @@ func (a *AppService) UpdateApp(ctx context.Context, req *dto.UpdateAppReq) (*dto
 		return nil, err
 	}
 
+	// 计算变更耗时（毫秒）
+	duration := time.Since(startTime).Milliseconds()
+
 	// 处理API差异，将API信息入库到function表
 	if resp.Diff != nil {
-		err = a.processAPIDiff(ctx, app.ID, resp.Diff, req.Summary)
+		err = a.processAPIDiff(ctx, app.ID, resp.Diff, req, duration)
 		if err != nil {
 			// API入库失败不应该影响主流程，记录日志即可
 			fmt.Printf("API入库失败: %v\n", err)
@@ -310,7 +317,7 @@ func (a *AppService) RecordTableOperateLog(ctx context.Context, req *dto.RecordT
 }
 
 // processAPIDiff 处理API差异，包括新增、更新、删除
-func (a *AppService) processAPIDiff(ctx context.Context, appID int64, diffData *dto.DiffData, summary string) error {
+func (a *AppService) processAPIDiff(ctx context.Context, appID int64, diffData *dto.DiffData, req *dto.UpdateAppReq, duration int64) error {
 	// 获取应用信息（用于获取版本号）
 	app, err := a.appRepo.GetAppByID(appID)
 	if err != nil {
@@ -368,7 +375,7 @@ func (a *AppService) processAPIDiff(ctx context.Context, appID int64, diffData *
 	}
 
 	// 5. 创建目录快照（检测目录变更并创建快照）
-	err = a.createDirectorySnapshots(ctx, appID, app, diffData, summary)
+	err = a.createDirectorySnapshots(ctx, appID, app, diffData, req, duration)
 	if err != nil {
 		// 快照创建失败不应该影响主流程，记录日志即可
 		logger.Warnf(ctx, "[processAPIDiff] 创建目录快照失败: %v", err)
@@ -747,7 +754,18 @@ func (a *AppService) GetApps(ctx context.Context, req *dto.GetAppsReq) (*dto.Get
 }
 
 // createDirectorySnapshots 创建目录快照（检测目录变更并创建快照）
-func (a *AppService) createDirectorySnapshots(ctx context.Context, appID int64, app *model.App, diffData *dto.DiffData, summary string) error {
+func (a *AppService) createDirectorySnapshots(ctx context.Context, appID int64, app *model.App, diffData *dto.DiffData, req *dto.UpdateAppReq, duration int64) error {
+	// 构建 summary：优先使用 Summary，如果没有则组合 Requirement 和 ChangeDescription
+	summary := req.Summary
+	if summary == "" {
+		if req.Requirement != "" && req.ChangeDescription != "" {
+			summary = fmt.Sprintf("需求：%s\n\n变更描述：%s", req.Requirement, req.ChangeDescription)
+		} else if req.Requirement != "" {
+			summary = req.Requirement
+		} else if req.ChangeDescription != "" {
+			summary = req.ChangeDescription
+		}
+	}
 	// 1. 按目录分组变更
 	directoryChanges := a.groupChangesByDirectory(diffData)
 	if len(directoryChanges) == 0 {
@@ -929,7 +947,7 @@ func (a *AppService) createDirectorySnapshots(ctx context.Context, appID int64, 
 			directoryPath, nextVersion, len(files))
 
 		// 🔥 新增：记录目录变更历史
-		err = a.recordDirectoryUpdateHistory(ctx, appID, app, directoryPath, nextVersion, nextVersionNum, changes, summary)
+		err = a.recordDirectoryUpdateHistory(ctx, appID, app, directoryPath, nextVersion, nextVersionNum, changes, req, duration)
 		if err != nil {
 			// 历史记录失败不应该影响主流程，记录日志即可
 			logger.Warnf(ctx, "[createDirectorySnapshots] 记录目录变更历史失败: path=%s, error=%v", directoryPath, err)
@@ -1011,8 +1029,20 @@ func (a *AppService) recordDirectoryUpdateHistory(
 	dirVersion string,
 	dirVersionNum int,
 	changes *DirectoryChanges,
-	summary string,
+	req *dto.UpdateAppReq,
+	duration int64,
 ) error {
+	// 构建 summary：优先使用 Summary，如果没有则组合 Requirement 和 ChangeDescription
+	summary := req.Summary
+	if summary == "" {
+		if req.Requirement != "" && req.ChangeDescription != "" {
+			summary = fmt.Sprintf("需求：%s\n\n变更描述：%s", req.Requirement, req.ChangeDescription)
+		} else if req.Requirement != "" {
+			summary = req.Requirement
+		} else if req.ChangeDescription != "" {
+			summary = req.ChangeDescription
+		}
+	}
 	// 构建API摘要列表
 	addedSummaries := make([]*model.ApiSummary, 0, len(changes.Add))
 	for _, api := range changes.Add {
@@ -1063,20 +1093,23 @@ func (a *AppService) recordDirectoryUpdateHistory(
 
 	// 创建历史记录
 	history := &model.DirectoryUpdateHistory{
-		AppID:         appID,
-		AppVersion:    app.Version,
-		AppVersionNum: extractVersionNum(app.Version),
-		FullCodePath:  directoryPath,
-		DirVersion:     dirVersion,
-		DirVersionNum: dirVersionNum,
-		AddedAPIs:     addedJSON,   // json.RawMessage，GORM 会自动处理
-		UpdatedAPIs:   updatedJSON, // json.RawMessage，GORM 会自动处理
-		DeletedAPIs:   deletedJSON, // json.RawMessage，GORM 会自动处理
-		AddedCount:    len(changes.Add),
-		UpdatedCount:  len(changes.Update),
-		DeletedCount:  len(changes.Delete),
-		Summary:       summary, // 变更摘要（详情），可能是大模型返回的摘要信息，也可能是用户的变更需求
-		UpdatedBy:     updatedBy,
+		AppID:            appID,
+		AppVersion:       app.Version,
+		AppVersionNum:    extractVersionNum(app.Version),
+		FullCodePath:     directoryPath,
+		DirVersion:       dirVersion,
+		DirVersionNum:    dirVersionNum,
+		AddedAPIs:        addedJSON,   // json.RawMessage，GORM 会自动处理
+		UpdatedAPIs:     updatedJSON, // json.RawMessage，GORM 会自动处理
+		DeletedAPIs:      deletedJSON, // json.RawMessage，GORM 会自动处理
+		AddedCount:       len(changes.Add),
+		UpdatedCount:     len(changes.Update),
+		DeletedCount:     len(changes.Delete),
+		Summary:          summary,              // 变更摘要（详情），可能是大模型返回的摘要信息，也可能是用户的变更需求
+		Requirement:      req.Requirement,      // 变更需求（用户在前端输入的）
+		ChangeDescription: req.ChangeDescription, // 变更描述（大模型输出的）
+		Duration:         duration,             // 变更耗时（毫秒）
+		UpdatedBy:        updatedBy,
 	}
 
 	return a.directoryUpdateHistoryRepo.CreateUpdateHistory(history)

@@ -29,20 +29,23 @@ type GetDirectoryUpdateHistoryResp struct {
 
 // DirectoryChangeInfo 目录变更信息
 type DirectoryChangeInfo struct {
-	FullCodePath  string          `json:"full_code_path"`  // 目录完整路径
-	DirVersion    string          `json:"dir_version"`     // 目录版本号
-	DirVersionNum int             `json:"dir_version_num"` // 目录版本号（数字部分）
-	AppVersion    string          `json:"app_version"`     // 应用版本号（目录视角时使用）
-	AppVersionNum int             `json:"app_version_num"` // 应用版本号（数字部分，目录视角时使用）
-	AddedAPIs     json.RawMessage `json:"added_apis"`      // 新增的API摘要列表
-	UpdatedAPIs   json.RawMessage `json:"updated_apis"`    // 更新的API摘要列表
-	DeletedAPIs   json.RawMessage `json:"deleted_apis"`    // 删除的API摘要列表
-	AddedCount    int             `json:"added_count"`     // 新增API数量
-	UpdatedCount  int             `json:"updated_count"`    // 更新API数量
-	DeletedCount  int             `json:"deleted_count"`   // 删除API数量
-	Summary       string          `json:"summary"`         // 变更摘要（详情）
-	UpdatedBy     string          `json:"updated_by"`      // 更新人
-	CreatedAt     time.Time       `json:"created_at"`      // 创建时间
+	FullCodePath      string          `json:"full_code_path"`       // 目录完整路径
+	DirVersion        string          `json:"dir_version"`          // 目录版本号
+	DirVersionNum     int             `json:"dir_version_num"`     // 目录版本号（数字部分）
+	AppVersion        string          `json:"app_version"`          // 应用版本号（目录视角时使用）
+	AppVersionNum     int             `json:"app_version_num"`      // 应用版本号（数字部分，目录视角时使用）
+	AddedAPIs         json.RawMessage `json:"added_apis"`          // 新增的API摘要列表
+	UpdatedAPIs       json.RawMessage `json:"updated_apis"`        // 更新的API摘要列表
+	DeletedAPIs       json.RawMessage `json:"deleted_apis"`        // 删除的API摘要列表
+	AddedCount        int             `json:"added_count"`          // 新增API数量
+	UpdatedCount      int             `json:"updated_count"`       // 更新API数量
+	DeletedCount      int             `json:"deleted_count"`        // 删除API数量
+	Summary           string          `json:"summary"`              // 变更摘要（详情）
+	Requirement       string          `json:"requirement"`          // 变更需求（用户输入）
+	ChangeDescription string          `json:"change_description"`   // 变更描述（大模型输出）
+	Duration          int64           `json:"duration"`             // 变更耗时（毫秒）
+	UpdatedBy         string          `json:"updated_by"`           // 更新人
+	CreatedAt         time.Time       `json:"created_at"`          // 创建时间
 }
 
 // PaginatedInfo 分页信息

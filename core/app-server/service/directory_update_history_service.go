@@ -50,18 +50,21 @@ func (s *DirectoryUpdateHistoryService) GetAppVersionUpdateHistory(ctx context.C
 
 	for _, history := range histories {
 		directoryChange := &dto.DirectoryChangeInfo{
-			FullCodePath:  history.FullCodePath,
-			DirVersion:    history.DirVersion,
-			DirVersionNum: history.DirVersionNum,
-			AddedAPIs:     history.AddedAPIs,
-			UpdatedAPIs:   history.UpdatedAPIs,
-			DeletedAPIs:   history.DeletedAPIs,
-			AddedCount:    history.AddedCount,
-			UpdatedCount:  history.UpdatedCount,
-			DeletedCount:  history.DeletedCount,
-			Summary:       history.Summary,
-			UpdatedBy:     history.UpdatedBy,
-			CreatedAt:     time.Time(history.CreatedAt),
+			FullCodePath:      history.FullCodePath,
+			DirVersion:        history.DirVersion,
+			DirVersionNum:     history.DirVersionNum,
+			AddedAPIs:         history.AddedAPIs,
+			UpdatedAPIs:       history.UpdatedAPIs,
+			DeletedAPIs:       history.DeletedAPIs,
+			AddedCount:        history.AddedCount,
+			UpdatedCount:      history.UpdatedCount,
+			DeletedCount:      history.DeletedCount,
+			Summary:           history.Summary,
+			Requirement:       history.Requirement,
+			ChangeDescription: history.ChangeDescription,
+			Duration:          history.Duration,
+			UpdatedBy:         history.UpdatedBy,
+			CreatedAt:         time.Time(history.CreatedAt),
 		}
 
 		if versionMap[history.AppVersion] == nil {
@@ -127,20 +130,23 @@ func (s *DirectoryUpdateHistoryService) GetDirectoryUpdateHistory(ctx context.Co
 	directoryChanges := make([]*dto.DirectoryChangeInfo, len(histories))
 	for i, history := range histories {
 		directoryChanges[i] = &dto.DirectoryChangeInfo{
-			FullCodePath:  history.FullCodePath,
-			DirVersion:    history.DirVersion,
-			DirVersionNum: history.DirVersionNum,
-			AppVersion:    history.AppVersion,
-			AppVersionNum: history.AppVersionNum,
-			AddedAPIs:     history.AddedAPIs,
-			UpdatedAPIs:   history.UpdatedAPIs,
-			DeletedAPIs:   history.DeletedAPIs,
-			AddedCount:    history.AddedCount,
-			UpdatedCount:  history.UpdatedCount,
-			DeletedCount:  history.DeletedCount,
-			Summary:       history.Summary,
-			UpdatedBy:     history.UpdatedBy,
-			CreatedAt:     time.Time(history.CreatedAt),
+			FullCodePath:      history.FullCodePath,
+			DirVersion:        history.DirVersion,
+			DirVersionNum:     history.DirVersionNum,
+			AppVersion:        history.AppVersion,
+			AppVersionNum:     history.AppVersionNum,
+			AddedAPIs:         history.AddedAPIs,
+			UpdatedAPIs:       history.UpdatedAPIs,
+			DeletedAPIs:       history.DeletedAPIs,
+			AddedCount:        history.AddedCount,
+			UpdatedCount:      history.UpdatedCount,
+			DeletedCount:      history.DeletedCount,
+			Summary:           history.Summary,
+			Requirement:       history.Requirement,
+			ChangeDescription: history.ChangeDescription,
+			Duration:          history.Duration,
+			UpdatedBy:         history.UpdatedBy,
+			CreatedAt:         time.Time(history.CreatedAt),
 		}
 	}
 

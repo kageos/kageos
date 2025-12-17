@@ -30,6 +30,15 @@ type DirectoryUpdateHistory struct {
 	// 变更摘要（详情），可能是大模型返回的摘要信息，也可能是用户的变更需求
 	Summary string `json:"summary" gorm:"type:text;column:summary;comment:变更摘要（详情）"`
 	
+	// 变更需求（用户在前端输入的）
+	Requirement string `json:"requirement" gorm:"type:text;column:requirement;comment:变更需求（用户输入）"`
+	
+	// 变更描述（大模型输出的）
+	ChangeDescription string `json:"change_description" gorm:"type:text;column:change_description;comment:变更描述（大模型输出）"`
+	
+	// 变更耗时（毫秒）
+	Duration int64 `json:"duration" gorm:"column:duration;comment:变更耗时（毫秒）"`
+	
 	// 操作信息
 	UpdatedBy string `json:"updated_by" gorm:"column:updated_by;comment:更新人"`
 }

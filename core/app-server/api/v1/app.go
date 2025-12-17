@@ -91,10 +91,14 @@ func (a *App) UpdateApp(c *gin.Context) {
 		return
 	}
 
-	// 构建请求对象
+	// 绑定请求体（包含 Requirement、ChangeDescription 等字段）
 	req := &dto.UpdateAppReq{
 		User: user,
 		App:  app,
+	}
+	if err := c.ShouldBindJSON(req); err != nil {
+		// 如果绑定失败，使用默认值（兼容旧版本，只设置 User 和 App）
+		// req 已经初始化了 User 和 App，无需额外处理
 	}
 
 	ctx := contextx.ToContext(c)

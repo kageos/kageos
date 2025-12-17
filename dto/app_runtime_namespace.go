@@ -77,11 +77,13 @@ type CreateFunctionsResp struct {
 
 // UpdateAppReq 更新应用请求
 type UpdateAppReq struct {
-	User            string                `json:"user" swaggerignore:"true"`              // 用户名
-	App             string                `json:"app" binding:"required" example:"myapp"` // 应用名
-	ForkPackages    []*ForkPackageInfo    `json:"fork_packages,omitempty"`                // 可选的 Fork 包列表（如果有，先执行 fork 再更新）
-	CreateFunctions []*CreateFunctionInfo `json:"create_functions,omitempty"`             // 可选的新建函数列表（如果有，先执行创建函数再更新）
-	Summary         string                `json:"summary,omitempty"`                     // 变更摘要（详情），可能是大模型返回的摘要信息，也可能是用户的变更需求
+	User             string                `json:"user" swaggerignore:"true"`              // 用户名
+	App              string                `json:"app" binding:"required" example:"myapp"` // 应用名
+	ForkPackages     []*ForkPackageInfo    `json:"fork_packages,omitempty"`                // 可选的 Fork 包列表（如果有，先执行 fork 再更新）
+	CreateFunctions  []*CreateFunctionInfo `json:"create_functions,omitempty"`             // 可选的新建函数列表（如果有，先执行创建函数再更新）
+	Requirement      string                `json:"requirement,omitempty"`                  // 变更需求（用户在前端输入的）
+	ChangeDescription string                `json:"change_description,omitempty"`          // 变更描述（大模型输出的）
+	Summary          string                `json:"summary,omitempty"`                     // 变更摘要（详情），兼容旧字段，如果未提供则使用 Requirement + ChangeDescription 组合
 }
 
 // UpdateAppResp 更新应用响应
