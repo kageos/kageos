@@ -535,14 +535,17 @@ watch([() => props.appId, () => props.appVersion, () => props.fullCodePath], () 
   
   // 版本列表样式
   .versions-list {
+    width: 100%;
+    
     .version-section {
       margin-bottom: 32px;
+      width: 100%;
       
       .section-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        margin-bottom: 16px;
+        margin-bottom: 20px;
         
         .section-title {
           display: flex;
@@ -631,6 +634,10 @@ watch([() => props.appId, () => props.appVersion, () => props.fullCodePath], () 
         
         .change-version-tag {
           margin-top: 4px;
+        }
+        
+        .change-version {
+          margin-bottom: 8px;
         }
         
         .change-summary {
