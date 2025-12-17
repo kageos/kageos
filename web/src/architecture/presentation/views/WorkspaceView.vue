@@ -28,6 +28,7 @@
           @copy-link="handleCopyLink"
           @publish-to-hub="handlePublishToHub"
           @refresh-tree="handleRefreshTree"
+          @update-history="handleUpdateHistory"
         />
       </div>
 
@@ -314,6 +315,15 @@
       :current-app="currentApp || undefined"
       @success="handlePublishSuccess"
     />
+
+    <!-- 变更记录对话框 -->
+    <DirectoryUpdateHistoryDialog
+      v-model="updateHistoryDialogVisible"
+      :mode="updateHistoryMode"
+      :app-id="updateHistoryAppId"
+      :app-version="updateHistoryAppVersion"
+      :full-code-path="updateHistoryFullCodePath"
+    />
   </div>
 </template>
 
@@ -330,6 +340,7 @@ import ServiceTreePanel from '@/components/ServiceTreePanel.vue'
 import AppSwitcher from '@/components/AppSwitcher.vue'
 import FunctionForkDialog from '@/components/FunctionForkDialog.vue'
 import PublishToHubDialog from '@/components/PublishToHubDialog.vue'
+import DirectoryUpdateHistoryDialog from '@/components/DirectoryUpdateHistoryDialog.vue'
 import FormView from './FormView.vue'
 import TableView from './TableView.vue'
 import ChartView from './ChartView.vue'
@@ -580,6 +591,13 @@ const forkSourceGroupName = ref('')
 // 发布到应用中心对话框
 const publishToHubDialogVisible = ref(false)
 const publishSelectedNode = ref<ServiceTreeType | null>(null)
+
+// 变更记录对话框状态
+const updateHistoryDialogVisible = ref(false)
+const updateHistoryMode = ref<'app' | 'directory'>('app')
+const updateHistoryAppId = ref(0)
+const updateHistoryAppVersion = ref('')
+const updateHistoryFullCodePath = ref('')
 
 // ServiceTreePanel 引用（用于展开路径）
 const serviceTreePanelRef = ref<InstanceType<typeof ServiceTreePanel> | null>(null)
@@ -858,6 +876,30 @@ const handleRefreshTree = async () => {
   if (currentApp.value) {
     await applicationService.loadServiceTree(currentApp.value)
   }
+}
+
+// 处理变更记录
+const handleUpdateHistory = (node?: ServiceTreeType) => {
+  if (!currentApp.value) {
+    ElMessage.warning('请先选择应用')
+    return
+  }
+  
+  if (node) {
+    // 目录视角：显示指定目录的变更记录
+    updateHistoryMode.value = 'directory'
+    updateHistoryAppId.value = currentApp.value.id
+    updateHistoryFullCodePath.value = node.full_code_path || ''
+    updateHistoryAppVersion.value = ''
+  } else {
+    // App视角：显示工作空间的变更记录
+    updateHistoryMode.value = 'app'
+    updateHistoryAppId.value = currentApp.value.id
+    updateHistoryAppVersion.value = '' // 空表示返回所有版本
+    updateHistoryFullCodePath.value = ''
+  }
+  
+  updateHistoryDialogVisible.value = true
 }
 
 // 发布成功后的回调

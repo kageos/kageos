@@ -40,6 +40,16 @@
                 size="small"
                 title="复制路径"
               />
+              <el-button
+                text
+                :icon="Clock"
+                @click="handleShowUpdateHistory"
+                class="path-history-btn"
+                size="small"
+                title="查看变更记录"
+              >
+                变更记录
+              </el-button>
             </p>
             <p class="hero-description" v-if="packageNode?.description">
               {{ packageNode.description }}
@@ -222,13 +232,21 @@
       />
       </div>
     </div>
+
+    <!-- 变更记录对话框 -->
+    <DirectoryUpdateHistoryDialog
+      v-model="updateHistoryDialogVisible"
+      mode="directory"
+      :app-id="packageNode?.app_id || 0"
+      :full-code-path="packageNode?.full_code_path || ''"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ArrowLeft, MagicStick, Folder, Document, CopyDocument, Key, Link, Files } from '@element-plus/icons-vue'
+import { ArrowLeft, MagicStick, Folder, Document, CopyDocument, Key, Link, Files, Clock } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { ServiceTree } from '@/types'
 import type { AgentInfo, AgentListReq } from '@/api/agent'
@@ -240,6 +258,7 @@ import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import ChartIcon from '@/components/icons/ChartIcon.vue'
 import TableIcon from '@/components/icons/TableIcon.vue'
 import FormIcon from '@/components/icons/FormIcon.vue'
+import DirectoryUpdateHistoryDialog from '@/components/DirectoryUpdateHistoryDialog.vue'
 
 interface Props {
   packageNode?: ServiceTree | null
@@ -257,6 +276,9 @@ const route = useRoute()
 // 智能体列表相关
 const agentLoading = ref(false)
 const agentList = ref<AgentInfo[]>([])
+
+// 变更记录对话框
+const updateHistoryDialogVisible = ref(false)
 
 // 返回上一级
 function handleBack() {
