@@ -70,61 +70,12 @@
                   {{ change.summary }}
                 </div>
                 
-                <!-- 统计信息卡片 -->
-                <div class="change-stats-card">
-                  <div class="stat-item" v-if="change.added_count > 0">
-                    <div class="stat-icon-wrapper added-icon">
-                      <el-icon class="stat-icon"><Plus /></el-icon>
-                    </div>
-                    <div class="stat-content">
-                      <div class="stat-label">新增</div>
-                      <div class="stat-value">{{ change.added_count }}</div>
-                    </div>
-                  </div>
-                  
-                  <div class="stat-item" v-if="change.updated_count > 0">
-                    <div class="stat-icon-wrapper updated-icon">
-                      <el-icon class="stat-icon"><Edit /></el-icon>
-                    </div>
-                    <div class="stat-content">
-                      <div class="stat-label">更新</div>
-                      <div class="stat-value">{{ change.updated_count }}</div>
-                    </div>
-                  </div>
-                  
-                  <div class="stat-item" v-if="change.deleted_count > 0">
-                    <div class="stat-icon-wrapper deleted-icon">
-                      <el-icon class="stat-icon"><Delete /></el-icon>
-                    </div>
-                    <div class="stat-content">
-                      <div class="stat-label">删除</div>
-                      <div class="stat-value">{{ change.deleted_count }}</div>
-                    </div>
-                  </div>
-                  
-                  <div class="stat-item">
-                    <div class="stat-icon-wrapper time-icon">
-                      <el-icon class="stat-icon"><Clock /></el-icon>
-                    </div>
-                    <div class="stat-content">
-                      <div class="stat-label">更新时间</div>
-                      <div class="stat-value">{{ formatTime(change.created_at) }}</div>
-                    </div>
-                  </div>
-                  
-                  <div class="stat-item" v-if="change.updated_by">
-                    <div class="stat-icon-wrapper user-icon">
-                      <el-icon class="stat-icon"><User /></el-icon>
-                    </div>
-                    <div class="stat-content">
-                      <div class="stat-label">操作人</div>
-                      <div class="stat-value">{{ change.updated_by }}</div>
-                    </div>
-                  </div>
-                </div>
-                
-                <!-- API 变更详情 -->
-                <el-collapse v-if="hasApiChanges(change)" class="api-changes">
+                <!-- API 变更详情（默认展开） -->
+                <el-collapse 
+                  v-if="hasApiChanges(change)" 
+                  class="api-changes"
+                  :model-value="getDefaultActiveNames(change)"
+                >
                   <el-collapse-item
                     v-if="getApiList(change.added_apis).length > 0"
                     title="新增的 API"
@@ -215,61 +166,12 @@
               </div>
             </div>
             
-            <!-- 统计信息卡片 -->
-            <div class="change-stats-card">
-              <div class="stat-item" v-if="change.added_count > 0">
-                <div class="stat-icon-wrapper added-icon">
-                  <el-icon class="stat-icon"><Plus /></el-icon>
-                </div>
-                <div class="stat-content">
-                  <div class="stat-label">新增</div>
-                  <div class="stat-value">{{ change.added_count }}</div>
-                </div>
-              </div>
-              
-              <div class="stat-item" v-if="change.updated_count > 0">
-                <div class="stat-icon-wrapper updated-icon">
-                  <el-icon class="stat-icon"><Edit /></el-icon>
-                </div>
-                <div class="stat-content">
-                  <div class="stat-label">更新</div>
-                  <div class="stat-value">{{ change.updated_count }}</div>
-                </div>
-              </div>
-              
-              <div class="stat-item" v-if="change.deleted_count > 0">
-                <div class="stat-icon-wrapper deleted-icon">
-                  <el-icon class="stat-icon"><Delete /></el-icon>
-                </div>
-                <div class="stat-content">
-                  <div class="stat-label">删除</div>
-                  <div class="stat-value">{{ change.deleted_count }}</div>
-                </div>
-              </div>
-              
-              <div class="stat-item">
-                <div class="stat-icon-wrapper time-icon">
-                  <el-icon class="stat-icon"><Clock /></el-icon>
-                </div>
-                <div class="stat-content">
-                  <div class="stat-label">更新时间</div>
-                  <div class="stat-value">{{ formatTime(change.created_at) }}</div>
-                </div>
-              </div>
-              
-              <div class="stat-item" v-if="change.updated_by">
-                <div class="stat-icon-wrapper user-icon">
-                  <el-icon class="stat-icon"><User /></el-icon>
-                </div>
-                <div class="stat-content">
-                  <div class="stat-label">操作人</div>
-                  <div class="stat-value">{{ change.updated_by }}</div>
-                </div>
-              </div>
-            </div>
-            
-            <!-- API 变更详情 -->
-            <el-collapse v-if="hasApiChanges(change)" class="api-changes">
+            <!-- API 变更详情（默认展开） -->
+            <el-collapse 
+              v-if="hasApiChanges(change)" 
+              class="api-changes"
+              :model-value="getDefaultActiveNames(change)"
+            >
               <el-collapse-item
                 v-if="getApiList(change.added_apis).length > 0"
                 title="新增的 API"
@@ -420,6 +322,22 @@ const hasApiChanges = (change: DirectoryChangeInfo) => {
     getApiList(change.updated_apis).length > 0 ||
     getApiList(change.deleted_apis).length > 0
   )
+}
+
+// 获取默认展开的折叠面板名称列表
+const getDefaultActiveNames = (change: DirectoryChangeInfo): string[] => {
+  const activeNames: string[] = []
+  const key = change.full_code_path || change.dir_version || ''
+  if (getApiList(change.added_apis).length > 0) {
+    activeNames.push(`added-${key}`)
+  }
+  if (getApiList(change.updated_apis).length > 0) {
+    activeNames.push(`updated-${key}`)
+  }
+  if (getApiList(change.deleted_apis).length > 0) {
+    activeNames.push(`deleted-${key}`)
+  }
+  return activeNames
 }
 
 // 格式化时间
