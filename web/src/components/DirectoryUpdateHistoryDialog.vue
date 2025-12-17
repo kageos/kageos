@@ -66,7 +66,7 @@
                 </div>
                 
                 <!-- 变更摘要 -->
-                <div v-if="change.summary" class="change-summary">
+                <div v-if="change.summary" class="change-summary-text">
                   {{ change.summary }}
                 </div>
                 
