@@ -175,8 +175,20 @@
               </div>
             </div>
             
-            <!-- 变更摘要 -->
-            <div v-if="change.summary" class="change-summary-text">
+            <!-- 变更需求 -->
+            <div v-if="change.requirement" class="change-requirement">
+              <div class="requirement-label">变更需求</div>
+              <div class="requirement-content">{{ change.requirement }}</div>
+            </div>
+            
+            <!-- 变更描述 -->
+            <div v-if="change.change_description" class="change-description">
+              <div class="description-label">变更描述</div>
+              <div class="description-content">{{ change.change_description }}</div>
+            </div>
+            
+            <!-- 变更摘要（兼容旧数据） -->
+            <div v-if="change.summary && !change.requirement && !change.change_description" class="change-summary-text">
               {{ change.summary }}
             </div>
             
