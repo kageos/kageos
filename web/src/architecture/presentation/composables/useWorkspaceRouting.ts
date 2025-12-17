@@ -365,7 +365,7 @@ export function useWorkspaceRouting(options: {
     // 当来源是 workspace-node-click 或 tab 切换相关时，需要主动触发 syncRouteToTab
     // 因为程序触发的路由更新不会发出 routeChanged 事件
     eventBus.on(RouteEvent.updateCompleted, async (payload: { path: string, query: any, source: string }) => {
-      // 🔥 处理 link-widget：清除 _link_type 参数
+      // 🔥 处理 link-widget：清除 _link_type 参数并同步路由到 Tab
       if (payload.source === 'link-widget') {
         // link 跳转完成后，清除 _link_type 临时参数
         // 使用 payload.query（来自 RouteManager 的 updateCompleted 事件），确保包含所有 link 跳转的参数
@@ -381,11 +381,16 @@ export function useWorkspaceRouting(options: {
           }
         })
         
-        Logger.debug('useWorkspaceRouting', 'link-widget 完成，准备清除 _link_type', {
+        Logger.debug('useWorkspaceRouting', 'link-widget 完成，准备清除 _link_type 并同步路由', {
           originalQuery: payload.query,
           preservedQuery,
           path: payload.path
         })
+        
+        // 🔥 先同步路由到 Tab（确保 Tab 和函数已更新，页面会刷新）
+        // 使用 nextTick 确保路由已经更新完成
+        await nextTick()
+        syncRouteToTab()
         
         // 🔥 发出路由更新请求，清除 _link_type
         // 🔥 关键：使用 preservedQuery（已经包含了所有 link 跳转的参数，除了 _link_type）

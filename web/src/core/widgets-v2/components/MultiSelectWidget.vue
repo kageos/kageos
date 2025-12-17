@@ -110,7 +110,7 @@ import type { WidgetComponentProps } from '../types'
 import { selectFuzzy } from '@/api/function'
 import { Logger } from '../../utils/logger'
 import { useFormDataStore } from '../../stores-v2/formData'
-import { ExpressionParser } from '../../utils/ExpressionParser'
+import { ExpressionParserAdapter } from '../../utils/ExpressionParserAdapter'
 import { isStringDataType, getMultiSelectDefaultDataType, DataType } from '../../constants/widget'
 import { SelectFuzzyQueryType, isStandardColor } from '../../constants/select'
 import { convertValueToType } from '../utils/valueConverter'
@@ -533,8 +533,9 @@ function calculateRowStatistics(
   try {
     for (const [label, expression] of Object.entries(statisticsConfig)) {
       try {
-        // 🔥 传递 selectedItem 参数，用于 selected() 函数
-        const value = ExpressionParser.evaluate(expression, validDisplayInfos, firstSelectedItem)
+        // 🔥 使用适配器计算表达式，自动支持新旧两种语法
+        // 传递 selectedItem 参数，用于 value() 函数
+        const value = ExpressionParserAdapter.evaluate(expression, validDisplayInfos, firstSelectedItem)
         result[label] = value
       } catch (error: any) {
         Logger.error(`[MultiSelectWidget] 行内聚合计算失败: ${label} = ${expression}`, error)

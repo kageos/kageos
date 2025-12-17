@@ -63,33 +63,38 @@
           <div
             v-for="agent in agentList"
             :key="agent.id"
-            class="agent-item"
+            class="agent-card"
             @click="handleAgentClick(agent)"
           >
-            <el-avatar
-              :size="40"
-              :src="getAgentLogo(agent)"
-              class="agent-avatar"
-            >
-              <span class="agent-avatar-text">{{ getAgentLogoText(agent) }}</span>
-            </el-avatar>
-            <div class="agent-info">
-              <div class="agent-name">{{ agent.name }}</div>
-              <div class="agent-meta">
-                <el-tag
-                  :type="agent.agent_type === 'plugin' ? 'warning' : 'success'"
-                  size="small"
-                >
-                  {{ agent.agent_type === 'plugin' ? '插件' : agent.agent_type === 'knowledge_only' ? '知识库' : agent.agent_type }}
-                </el-tag>
-                <el-tag
-                  type="info"
-                  size="small"
-                  style="margin-left: 4px;"
-                >
-                  {{ getChatTypeLabel(agent.chat_type) }}
-                </el-tag>
+            <div class="agent-card-header">
+              <el-avatar
+                :size="48"
+                :src="getAgentLogo(agent)"
+                class="agent-avatar"
+              >
+                <span class="agent-avatar-text">{{ getAgentLogoText(agent) }}</span>
+              </el-avatar>
+              <div class="agent-card-title">
+                <div class="agent-name">{{ agent.name }}</div>
+                <div class="agent-tags">
+                  <el-tag
+                    :type="agent.agent_type === 'plugin' ? 'warning' : 'success'"
+                    size="small"
+                  >
+                    {{ agent.agent_type === 'plugin' ? '插件' : agent.agent_type === 'knowledge_only' ? '知识库' : agent.agent_type }}
+                  </el-tag>
+                  <el-tag
+                    type="info"
+                    size="small"
+                    style="margin-left: 4px;"
+                  >
+                    {{ getChatTypeLabel(agent.chat_type) }}
+                  </el-tag>
+                </div>
               </div>
+            </div>
+            <div class="agent-description" v-if="agent.description">
+              {{ agent.description }}
             </div>
           </div>
           <el-empty
@@ -619,56 +624,86 @@ function handleChildClick(child: ServiceTree): void {
       .agent-list {
         flex: 1;
         overflow-y: auto;
-        padding: 12px;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
 
-        .agent-item {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 12px;
-          border-radius: 8px;
+        .agent-card {
+          background: var(--el-bg-color);
+          border: 2px solid var(--el-border-color-light);
+          border-radius: 12px;
+          padding: 16px;
           cursor: pointer;
-          transition: all 0.2s ease;
-          margin-bottom: 8px;
+          transition: all 0.3s ease;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
 
           &:hover {
-            background: var(--el-fill-color-lighter);
+            border-color: var(--el-color-primary);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
           }
 
           &:active {
-            background: var(--el-fill-color);
+            transform: translateY(0);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
           }
 
-          .agent-avatar {
-            flex-shrink: 0;
-            border: 2px solid var(--el-border-color-lighter);
+          .agent-card-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
 
-            .agent-avatar-text {
-              font-size: 16px;
-              font-weight: bold;
-              color: white;
+            .agent-avatar {
+              flex-shrink: 0;
+              border: 2px solid var(--el-border-color-lighter);
+              box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+
+              .agent-avatar-text {
+                font-size: 20px;
+                font-weight: bold;
+                color: white;
+              }
+            }
+
+            .agent-card-title {
+              flex: 1;
+              min-width: 0;
+
+              .agent-name {
+                font-size: 16px;
+                font-weight: 600;
+                color: var(--el-text-color-primary);
+                margin-bottom: 6px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                line-height: 1.4;
+              }
+
+              .agent-tags {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                flex-wrap: wrap;
+              }
             }
           }
 
-          .agent-info {
-            flex: 1;
-            min-width: 0;
-
-            .agent-name {
-              font-size: 14px;
-              font-weight: 600;
-              color: var(--el-text-color-primary);
-              margin-bottom: 4px;
-              overflow: hidden;
-              text-overflow: ellipsis;
-              white-space: nowrap;
-            }
-
-            .agent-meta {
-              display: flex;
-              align-items: center;
-              gap: 4px;
-            }
+          .agent-description {
+            font-size: 13px;
+            color: var(--el-text-color-regular);
+            line-height: 1.5;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding-top: 8px;
+            border-top: 1px solid var(--el-border-color-lighter);
           }
         }
       }
