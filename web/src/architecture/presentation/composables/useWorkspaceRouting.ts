@@ -214,33 +214,6 @@ export function useWorkspaceRouting(options: {
 
       // 处理子路径（打开 Tab）
       if (pathSegments.length > 2) {
-        // 🔥 检查是否是函数组详情页面（_node_type=function_group）
-        if (isFunctionGroupDetail(route.query)) {
-          // 如果是函数组，从路径中提取 full_group_code 并展开
-          const fullGroupCode = '/' + pathSegments.join('/')
-          // 等待服务树加载完成后展开函数组
-          if (options.serviceTree().length > 0) {
-            nextTick(() => {
-              options.expandCurrentRoutePath()
-            })
-          } else {
-            // 如果服务树还没加载，等待加载完成后再展开
-            let retries = 0
-            const interval = setInterval(() => {
-              if (options.serviceTree().length > 0 || retries > 10) {
-                clearInterval(interval)
-                if (options.serviceTree().length > 0) {
-                  nextTick(() => {
-                    options.expandCurrentRoutePath()
-                  })
-                }
-              }
-              retries++
-            }, 200)
-          }
-          return
-        }
-        
         const functionPath = '/' + pathSegments.join('/') // 构造完整路径，如 /luobei/demo/crm/list
         
         // 检查是否有 _tab 参数（create/edit/detail/OnTableAddRow 模式）

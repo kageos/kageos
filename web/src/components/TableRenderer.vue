@@ -1,10 +1,20 @@
 <template>
   <div class="table-renderer">
     <!-- 工具栏 -->
-    <div class="toolbar" v-if="hasAddCallback">
-      <el-button type="primary" @click="handleAdd" :icon="Plus">
-        新增
-      </el-button>
+    <div class="toolbar" v-if="hasAddCallback || (hasDeleteCallback && selectedRows.length > 0)">
+      <div class="toolbar-left">
+        <el-button v-if="hasAddCallback" type="primary" @click="handleAdd" :icon="Plus">
+          新增
+        </el-button>
+        <el-button 
+          v-if="hasDeleteCallback && selectedRows.length > 0" 
+          type="danger" 
+          @click="handleBatchDelete"
+          :icon="Delete"
+        >
+          批量删除 ({{ selectedRows.length }})
+        </el-button>
+      </div>
     </div>
 
     <!-- 搜索栏 -->
@@ -41,6 +51,7 @@
       不要使用 default-sort，因为它会干扰多列排序的显示
     -->
     <el-table
+      ref="tableRef"
       v-loading="loading"
       :data="tableData"
       :stripe="false"
@@ -48,7 +59,17 @@
       class="table-with-fixed-column"
       :key="`table-${Object.keys(sortOrderMap).length}`"
       @sort-change="handleSortChange"
+      @selection-change="handleSelectionChange"
     >
+      <!-- 复选框列（用于批量操作） -->
+      <el-table-column
+        v-if="hasDeleteCallback"
+        type="selection"
+        width="55"
+        fixed="left"
+        :selectable="checkSelectable"
+      />
+
       <!-- 🔥 控制中心列（ID列改造） -->
       <!-- 
         注意：ID 列默认启用排序，显示默认的 id 降序排序状态
@@ -197,8 +218,8 @@ defineOptions({
  */
 
 import { computed, ref, watch, h, nextTick, onMounted, onUpdated, onUnmounted, isVNode, defineComponent } from 'vue'
-import { Plus } from '@element-plus/icons-vue'
-import { ElIcon, ElButton, ElMessage, ElNotification } from 'element-plus'
+import { Plus, Delete } from '@element-plus/icons-vue'
+import { ElIcon, ElButton, ElMessage, ElNotification, ElMessageBox, ElTable } from 'element-plus'
 import { formatTimestamp } from '@/utils/date'
 import { useTableOperations } from '@/composables/useTableOperations'
 import { widgetComponentFactory } from '@/core/factories-v2'
@@ -485,6 +506,105 @@ watch(() => searchForm.value, () => {
     }
   })
 }, { deep: true, immediate: false })
+
+// ==================== 批量选择相关 ====================
+
+/** 选中的行数据 */
+const selectedRows = ref<any[]>([])
+
+/** 表格引用（用于控制复选框状态） */
+const tableRef = ref<InstanceType<typeof ElTable> | null>(null)
+
+/**
+ * 处理选择变化
+ * @param selection 选中的行数组
+ */
+const handleSelectionChange = (selection: any[]): void => {
+  selectedRows.value = selection
+}
+
+/**
+ * 判断行是否可选
+ * @param row 行数据
+ * @param index 行索引
+ * @returns 是否可选
+ */
+const checkSelectable = (row: Record<string, any>, index: number): boolean => {
+  // 所有行都可以选择
+  return true
+}
+
+/**
+ * 批量删除
+ */
+const handleBatchDelete = async (): Promise<void> => {
+  if (selectedRows.value.length === 0) {
+    ElMessage.warning('请先选择要删除的记录')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除选中的 ${selectedRows.value.length} 条记录吗？`,
+      '批量删除确认',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+
+    // 获取所有选中行的 ID
+    const ids = selectedRows.value
+      .map((row: Record<string, any>) => {
+        // 尝试从 id 字段获取，如果没有则尝试从 idField 获取
+        if (row.id) return row.id
+        if (idField.value && row[idField.value.code]) {
+          return row[idField.value.code]
+        }
+        return null
+      })
+      .filter((id: any): id is number => id !== null && typeof id === 'number')
+
+    if (ids.length === 0) {
+      ElMessage.error('无法获取记录 ID，删除失败')
+      return
+    }
+
+    // 调用批量删除 API
+    const { tableDeleteRows } = await import('@/api/function')
+    await tableDeleteRows(props.functionData.method, props.functionData.router, ids)
+
+    // 显示成功提示
+    ElNotification({
+      title: '删除成功',
+      message: `已成功删除 ${ids.length} 条记录`,
+      type: 'success',
+      duration: 3000,
+      position: 'top-right'
+    })
+
+    // 清空选择
+    selectedRows.value = []
+    if (tableRef.value) {
+      tableRef.value.clearSelection()
+    }
+
+    // 重新加载数据
+    await loadTableData()
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      const errorMessage = error?.response?.data?.msg || error?.message || '批量删除失败'
+      ElNotification({
+        title: '删除失败',
+        message: errorMessage,
+        type: 'error',
+        duration: 5000,
+        position: 'top-right'
+      })
+    }
+  }
+}
 
 // ==================== 对话框相关 ====================
 
@@ -847,6 +967,12 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 12px 0;
+}
+
+.toolbar-left {
+  display: flex;
+  gap: 12px;
+  align-items: center;
 }
 
 .search-bar {

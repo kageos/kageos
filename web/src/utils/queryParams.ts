@@ -99,30 +99,26 @@ export function preserveQueryParamsForForm(
 }
 
 /**
- * 检查是否是函数组详情页面
- * @param query 路由查询参数
- * @returns 是否是函数组详情页面
+ * 检查是否是函数组详情页面（已废弃，不再使用）
+ * @deprecated 函数组功能已移除，此函数始终返回 false
  */
 export function isFunctionGroupDetail(query: Record<string, any>): boolean {
-  return query._node_type === 'function_group'
+  return false
 }
 
 /**
- * 清除函数组相关参数
- * @param query 路由查询参数
- * @returns 清除后的查询参数
+ * 清除函数组相关参数（已废弃，不再使用）
+ * @deprecated 函数组功能已移除，此函数直接返回原查询参数
  */
 export function clearFunctionGroupParams(query: Record<string, any>): Record<string, any> {
-  const newQuery = { ...query }
-  delete newQuery._node_type
-  return newQuery
+  return query
 }
 
 /**
- * 构建函数组路由查询参数
- * @returns 函数组查询参数对象
+ * 构建函数组路由查询参数（已废弃，不再使用）
+ * @deprecated 函数组功能已移除，此函数返回空对象
  */
 export function buildFunctionGroupQuery(): Record<string, string> {
-  return { _node_type: 'function_group' }
+  return {}
 }
 

@@ -40,47 +40,34 @@
       >
         <template #default="{ node, data }">
           <span class="tree-node">
-            <!-- 分组节点：显示分组图标和组名 -->
-            <template v-if="(data as any).isGroup">
+            <!-- package 类型：显示自定义文件夹图标 -->
+            <img 
+              v-if="data.type === 'package'" 
+              src="/service-tree/custom-folder.svg" 
+              alt="目录" 
+              class="node-icon package-icon-img"
+              :class="getNodeIconClass(data)"
+            />
+            <!-- function 类型：根据 template_type 显示不同图标 -->
+            <template v-else-if="data.type === 'function'">
+              <!-- 表单类型：使用自定义 SVG -->
               <img 
-                src="/service-tree/app (1).svg" 
-                alt="业务系统" 
-                class="node-icon group-icon-img"
-              />
-              <span class="node-label group-label">{{ node.label }}</span>
-              <el-tag type="info" size="small" class="group-tag">业务系统</el-tag>
-            </template>
-            <!-- 普通节点 -->
-            <template v-else>
-              <!-- package 类型：显示自定义文件夹图标 -->
-              <img 
-                v-if="data.type === 'package'" 
-                src="/service-tree/custom-folder.svg" 
-                alt="目录" 
-                class="node-icon package-icon-img"
+                v-if="data.template_type === TEMPLATE_TYPE.FORM"
+                src="/service-tree/表单 (3).svg" 
+                alt="表单" 
+                class="node-icon form-icon-img"
                 :class="getNodeIconClass(data)"
               />
-              <!-- function 类型：根据 template_type 显示不同图标 -->
-              <template v-else-if="data.type === 'function'">
-                <!-- 表单类型：使用自定义 SVG -->
-                <img 
-                  v-if="data.template_type === TEMPLATE_TYPE.FORM"
-                  src="/service-tree/表单 (3).svg" 
-                  alt="表单" 
-                  class="node-icon form-icon-img"
-                  :class="getNodeIconClass(data)"
-                />
-                <!-- 其他类型：使用组件图标 -->
-                <el-icon v-else 
-                         class="node-icon" 
-                         :class="getNodeIconClass(data)">
-                  <component :is="getFunctionIcon(data)" />
-                </el-icon>
-              </template>
-              <!-- 其他类型：显示 fx 文本 -->
-              <span v-else class="node-icon fx-icon" :class="getNodeIconClass(data)">fx</span>
-              <span class="node-label">{{ node.label }}</span>
+              <!-- 其他类型：使用组件图标 -->
+              <el-icon v-else 
+                       class="node-icon" 
+                       :class="getNodeIconClass(data)">
+                <component :is="getFunctionIcon(data)" />
+              </el-icon>
             </template>
+            <!-- 其他类型：显示 fx 文本 -->
+            <span v-else class="node-icon fx-icon" :class="getNodeIconClass(data)">fx</span>
+            <span class="node-label">{{ node.label }}</span>
             
             <!-- 更多操作按钮 - 鼠标悬停时显示 -->
             <el-dropdown
@@ -95,14 +82,19 @@
               <template #dropdown>
                 <el-dropdown-menu>
                   <!-- 仅对package类型显示创建子目录选项 -->
-                  <el-dropdown-item v-if="!(data as any).isGroup && data.type === 'package'" command="create-directory">
+                  <el-dropdown-item v-if="data.type === 'package'" command="create-directory">
                     <el-icon><Plus /></el-icon>
                     添加服务目录
                   </el-dropdown-item>
-                  <!-- 仅对函数组（业务系统）显示发布到应用中心选项 -->
-                  <el-dropdown-item v-if="(data as any).isGroup && (data as any).full_group_code" command="publish-to-hub" divided>
-                    <el-icon><Upload /></el-icon>
-                    发布到应用中心
+                  <!-- 仅对package类型显示复制选项 -->
+                  <el-dropdown-item v-if="data.type === 'package'" command="copy" divided>
+                    <el-icon><CopyDocument /></el-icon>
+                    复制
+                  </el-dropdown-item>
+                  <!-- 仅对package类型显示粘贴选项（当有复制的内容时） -->
+                  <el-dropdown-item v-if="data.type === 'package' && copiedDirectory" command="paste">
+                    <el-icon><Document /></el-icon>
+                    粘贴
                   </el-dropdown-item>
                   <el-dropdown-item command="copy-link">
                     <el-icon><Link /></el-icon>
@@ -128,14 +120,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, computed, onMounted, onUnmounted } from 'vue'
+import { ref, watch, nextTick, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Plus, MoreFilled, Link, CopyDocument, Upload, Document } from '@element-plus/icons-vue'
+import { Plus, MoreFilled, Link, CopyDocument, Document } from '@element-plus/icons-vue'
 import ChartIcon from './icons/ChartIcon.vue'
 import TableIcon from './icons/TableIcon.vue'
 import FormIcon from './icons/FormIcon.vue'
 import { ElTag, ElLink, ElMessageBox, ElMessage } from 'element-plus'
-import { generateGroupId, createGroupNode, groupFunctionsByCode, getGroupName, type ExtendedServiceTree } from '@/utils/tree-utils'
 import type { ServiceTree } from '@/types'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { copyDirectory } from '@/api/service-tree'
@@ -143,11 +134,8 @@ import {
   findPathToNode,
   expandParentNodes,
   findNodeByPath,
-  findGroupByFullGroupCode,
-  findParentNode,
   expandPathAndSelect
 } from '@/utils/serviceTreeUtils'
-import { extractFullGroupCodeFromRoute } from '@/utils/route'
 
 interface Props {
   treeData: ServiceTree[]
@@ -160,8 +148,6 @@ interface Emits {
   (e: 'node-click', node: ServiceTree): void
   (e: 'create-directory', parentNode?: ServiceTree): void
   (e: 'copy-link', node: ServiceTree): void
-  (e: 'fork-group', node: ServiceTree | null): void  // Fork 业务系统（可以为 null，表示打开对话框让用户选择）
-  (e: 'publish-to-hub', node: ServiceTree): void   // 发布到应用中心
   (e: 'refresh-tree'): void  // 刷新树（复制粘贴后需要刷新）
 }
 
@@ -178,56 +164,6 @@ const treeRef = ref()
 const copiedDirectory = ref<ServiceTree | null>(null)  // 复制的目录信息
 const isPasting = ref(false)  // 是否正在粘贴
 
-// 键盘事件处理
-const handleKeyDown = (event: KeyboardEvent) => {
-  // Ctrl+C 或 Cmd+C：复制当前选中的目录（package类型）
-  if ((event.ctrlKey || event.metaKey) && event.key === 'c') {
-    const currentNode = getCurrentSelectedNode()
-    if (currentNode && currentNode.type === 'package') {
-      event.preventDefault()
-      handleCopy(currentNode)
-    }
-  }
-  
-  // Ctrl+V 或 Cmd+V：粘贴到当前选中的目录
-  if ((event.ctrlKey || event.metaKey) && event.key === 'v') {
-    if (copiedDirectory.value) {
-      event.preventDefault()
-      const currentNode = getCurrentSelectedNode()
-      if (currentNode && currentNode.type === 'package' && !(currentNode as any).isGroup) {
-        handlePaste(currentNode)
-      } else {
-        ElMessage.warning('请先选择一个目标目录（package类型）')
-      }
-    } else {
-      ElMessage.warning('没有可粘贴的目录，请先使用 Ctrl+C 复制一个目录')
-    }
-  }
-}
-
-// 获取当前选中的节点
-const getCurrentSelectedNode = (): ServiceTree | null => {
-  if (!treeRef.value) return null
-  
-  const currentNodeKey = treeRef.value.getCurrentKey()
-  if (!currentNodeKey) return null
-  
-  // 在分组后的树数据中查找节点
-  const findNode = (nodes: ServiceTree[], id: number | string): ServiceTree | null => {
-    for (const node of nodes) {
-      if (Number(node.id) === Number(id)) {
-        return node
-      }
-      if (node.children) {
-        const found = findNode(node.children, id)
-        if (found) return found
-      }
-    }
-    return null
-  }
-  
-  return findNode(groupedTreeData.value, currentNodeKey)
-}
 
 // 复制目录
 const handleCopy = (node: ServiceTree) => {
@@ -264,10 +200,24 @@ const handleCopy = (node: ServiceTree) => {
       return
     }
     
+    // 检查是否是跨应用复制
+    const sourcePathParts = copiedDirectory.value.full_code_path.split('/').filter(Boolean)
+    const targetPathParts = targetNode.full_code_path.split('/').filter(Boolean)
+    const isCrossApp = sourcePathParts.length >= 2 && targetPathParts.length >= 2 && 
+                       (sourcePathParts[0] !== targetPathParts[0] || sourcePathParts[1] !== targetPathParts[1])
+    
+    // 构建确认消息
+    let confirmMessage = `确定要将目录 "${copiedDirectory.value.name}" 复制到 "${targetNode.name}" 吗？\n\n`
+    confirmMessage += `源目录：${copiedDirectory.value.full_code_path}\n`
+    confirmMessage += `目标目录：${targetNode.full_code_path}`
+    if (isCrossApp) {
+      confirmMessage += `\n\n⚠️ 注意：这是跨应用复制操作`
+    }
+    
     // 弹窗确认
     try {
       await ElMessageBox.confirm(
-        `确定要将目录 "${copiedDirectory.value.name}" 复制到 "${targetNode.name}" 吗？\n\n源目录：${copiedDirectory.value.full_code_path}\n目标目录：${targetNode.full_code_path}`,
+        confirmMessage,
         '确认粘贴',
         {
           confirmButtonText: '确定',
@@ -319,127 +269,31 @@ const handleCopy = (node: ServiceTree) => {
   }
 }
 
-// 监听键盘事件
-onMounted(() => {
-  window.addEventListener('keydown', handleKeyDown)
-})
 
-onUnmounted(() => {
-  window.removeEventListener('keydown', handleKeyDown)
-})
-
-/**
- * 🔥 按组分组处理服务树数据
- * 将相同 full_group_code 的函数分组显示，组名使用 group_name
- */
-const groupedTreeData = computed(() => {
-  const processNode = (node: ServiceTree): ServiceTree => {
-    // 如果是 package 且有子节点，需要分组处理
-    if (node.type === 'package' && node.children && node.children.length > 0) {
-      // 分离函数和包
-      const functions = node.children.filter(child => child.type === 'function')
-      const packages = node.children.filter(child => child.type === 'package')
-      
-      // 按 full_group_code 分组函数
-      const groupedFunctions = new Map<string, ServiceTree[]>()
-      const ungroupedFunctions: ServiceTree[] = []
-      
-      functions.forEach(func => {
-        if (func.full_group_code && func.full_group_code.trim() !== '') {
-          if (!groupedFunctions.has(func.full_group_code)) {
-            groupedFunctions.set(func.full_group_code, [])
-          }
-          groupedFunctions.get(func.full_group_code)!.push(func)
-        } else {
-          ungroupedFunctions.push(func)
-        }
-      })
-      
-      // 构建新的 children 数组
-      const newChildren: ServiceTree[] = []
-      
-      // 1. 先添加包（保持原有顺序）
-      packages.forEach(pkg => {
-        newChildren.push(processNode(pkg))
-      })
-      
-      // 2. 添加分组后的函数
-      groupedFunctions.forEach((funcs, groupCode) => {
-        const groupName = getGroupName(funcs, groupCode)
-        const groupNode = createGroupNode(groupCode, groupName, node, true)
-        // 业务系统下包含函数节点
-        groupNode.children = funcs.map(func => processNode(func))
-        newChildren.push(groupNode)
-      })
-      
-      // 3. 添加未分组的函数
-      ungroupedFunctions.forEach(func => {
-        newChildren.push(processNode(func))
-      })
-      
-      return {
-        ...node,
-        children: newChildren
-      }
-    }
-    
-    // 如果是函数或没有子节点，直接返回
-    return node
-  }
-  
-  return props.treeData.map(node => processNode(node))
-})
+// 直接使用原始树数据，不再进行分组处理
+const groupedTreeData = computed(() => props.treeData)
 
 const handleNodeClick = (data: ServiceTree) => {
-  // 如果是函数组（isGroup && full_group_code），更新路由
-  if ((data as any).isGroup && (data as any).full_group_code) {
-    const fullGroupCode = (data as any).full_group_code
-    // 使用 full_group_code 作为路径，例如：/luobei/demo/crm/crm_ticket -> /workspace/luobei/demo/crm/crm_ticket
-    const targetPath = `/workspace${fullGroupCode}`
-    // 更新路由，只保留 _node_type=function_group 参数，清除其他所有参数
-    router.push({
-      path: targetPath,
-      query: {
-        _node_type: 'function_group'
-      }
-    })
-    // 定位并展开函数组
-    nextTick(() => {
-      expandPaths([fullGroupCode])
-    })
-    return // 不继续触发 node-click 事件
-  }
-  
-  // 如果是 package 类型，直接触发 node-click 事件，让父组件处理路由跳转
-  // 其他节点类型，也触发 node-click 事件
+  // 直接触发 node-click 事件，让父组件处理路由跳转
   emit('node-click', data)
 }
 
 const handleNodeAction = (command: string, data: ServiceTree) => {
   if (command === 'create-directory') {
     emit('create-directory', data)
+  } else if (command === 'copy') {
+    handleCopy(data)
+  } else if (command === 'paste') {
+    handlePaste(data)
   } else if (command === 'copy-link') {
     emit('copy-link', data)
-  } else if (command === 'fork') {
-    emit('fork-group', data)
-  } else if (command === 'publish-to-hub') {
-    emit('publish-to-hub', data)
   }
 }
 
-// 处理克隆按钮点击（直接打开克隆对话框，不需要选中节点）
+// 处理克隆按钮点击（已废弃，保留以兼容旧代码）
 const handleForkButtonClick = () => {
-  // 如果有选中的函数组节点，使用它；否则传递 null，让对话框自己处理
-  if (props.currentFunction) {
-    const data = props.currentFunction as any
-    // 如果当前选中的是业务系统节点，直接使用它
-    if (data.isGroup && data.full_group_code) {
-      emit('fork-group', props.currentFunction)
-      return
-    }
-  }
-  // 否则传递 null，打开对话框让用户选择要克隆的业务系统
-  emit('fork-group', null)
+  // 已废弃：不再支持函数组克隆
+  ElMessage.info('请使用目录复制功能')
 }
 
 // 获取函数图标组件（根据 template_type）
@@ -473,9 +327,6 @@ const getNodeIconClass = (data: ServiceTree) => {
   return 'function-icon'
   }
   
-// 使用工具函数：findPathToNode, expandParentNodes, findNodeByPath, findGroupByFullGroupCode, findParentNode
-// 这些函数已从 @/utils/serviceTreeUtils 导入
-
 // 展开多个路径
 const expandPaths = async (paths: string[]) => {
   if (!treeRef.value || !groupedTreeData.value.length) {
@@ -483,29 +334,7 @@ const expandPaths = async (paths: string[]) => {
   }
   
   for (const path of paths) {
-    // 先尝试根据 full_group_code 查找函数组
-    const groupNode = findGroupByFullGroupCode(groupedTreeData.value, path)
-    if (groupNode) {
-      // 找到函数组节点，需要展开其父节点（package）
-      const parentPackage = findParentNode(groupedTreeData.value, Number(groupNode.id))
-      if (parentPackage) {
-        // 先展开父节点（package）
-        const parentPath = findPathToNode(groupedTreeData.value, Number(parentPackage.id))
-        if (parentPath.length > 0) {
-          expandParentNodes(treeRef.value, parentPath)
-          // 等待父节点展开后，再展开并选中函数组
-          await expandPathAndSelect(
-            treeRef.value,
-            groupedTreeData.value,
-            [Number(parentPackage.id)],
-            Number(groupNode.id)
-          )
-        }
-      }
-      continue
-    }
-    
-    // 如果不是函数组，尝试根据 full_code_path 查找
+    // 根据 full_code_path 查找节点
     const node = findNodeByPath(groupedTreeData.value, path)
     if (node) {
       // 找到节点后，展开到该节点的所有父节点
@@ -522,28 +351,6 @@ const expandPaths = async (paths: string[]) => {
     }
   }
 }
-
-// 监听路由查询参数中的 full_group_code，自动定位并展开函数组
-watch(() => route.query.full_group_code, (fullGroupCode) => {
-  if (fullGroupCode && typeof fullGroupCode === 'string' && groupedTreeData.value.length > 0) {
-    nextTick(() => {
-      expandPaths([fullGroupCode])
-    })
-  }
-}, { immediate: true })
-
-// 🔥 监听 _node_type=function_group，从路由路径中提取 full_group_code 并展开
-watch(() => [route.query._node_type, route.path, groupedTreeData.value.length], ([nodeType, path, treeLength]) => {
-  if (nodeType === 'function_group' && treeLength > 0) {
-    // 从路由路径中提取 full_group_code
-    const fullGroupCode = extractFullGroupCodeFromRoute(path as string)
-    if (fullGroupCode) {
-      nextTick(() => {
-        expandPaths([fullGroupCode])
-      })
-      }
-    }
-}, { immediate: true })
 
 // 监听 currentNodeId 变化，自动展开并选中节点
 watch(() => props.currentNodeId, async (nodeId) => {

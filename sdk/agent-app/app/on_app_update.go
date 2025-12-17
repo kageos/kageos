@@ -17,7 +17,6 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/env"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
 	"github.com/nats-io/nats.go"
-	"gorm.io/gorm"
 )
 
 // 获取API日志目录
@@ -407,6 +406,7 @@ func (a *App) onAppUpdate(msg *nats.Msg) {
 		}
 
 		for _, createTable := range api.CreateTableModels {
+
 			err = db.AutoMigrate(createTable)
 			if err != nil {
 				a.sendErrorResponse(msg, fmt.Sprintf("Failed to migrate table: %v", err))
@@ -521,13 +521,4 @@ func (a *App) sendErrorResponse(msg *nats.Msg, message string) {
 		responseMsg.Data = responseData
 		msg.RespondMsg(responseMsg)
 	}
-}
-
-// 发送错误响应
-
-// getGormDB 获取数据库连接
-// 注意：这里需要根据实际的App结构来实现
-// 如果App有数据库连接的字段或方法，需要相应修改
-func (a *App) getGormDB() *gorm.DB {
-	return getGormDB()
 }
