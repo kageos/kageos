@@ -9,9 +9,10 @@
   <el-dialog
     v-model="visible"
     :title="mode === 'app' ? '工作空间变更记录' : '目录变更记录'"
-    width="80%"
+    width="90%"
     :close-on-click-modal="false"
     class="directory-update-history-dialog"
+    :style="{ maxWidth: '1400px' }"
   >
     <div v-loading="loading" class="history-content">
       <!-- App视角：显示所有版本的变更 -->
@@ -193,30 +194,78 @@
           <el-empty description="暂无变更记录" />
         </div>
         
-        <div v-else>
+        <div v-else class="changes-grid">
           <div
             v-for="change in directoryHistory.directory_changes"
             :key="`${change.dir_version}`"
-            class="change-item"
+            class="change-card"
           >
-            <div class="change-header">
-              <el-tag type="primary" size="large">v{{ change.dir_version_num }}</el-tag>
-              <span class="change-summary" v-if="change.summary">{{ change.summary }}</span>
+            <!-- 卡片头部 -->
+            <div class="change-card-header">
+              <div class="change-icon-wrapper">
+                <el-icon class="change-icon"><Clock /></el-icon>
+              </div>
+              <div class="change-title-wrapper">
+                <div class="change-version">
+                  <el-tag type="primary" size="large">v{{ change.dir_version_num }}</el-tag>
+                </div>
+                <div v-if="change.summary" class="change-summary">
+                  {{ change.summary }}
+                </div>
+              </div>
             </div>
             
-            <div class="change-stats">
-              <el-tag v-if="change.added_count > 0" type="success" size="small">
-                +{{ change.added_count }} 新增
-              </el-tag>
-              <el-tag v-if="change.updated_count > 0" type="warning" size="small">
-                ~{{ change.updated_count }} 更新
-              </el-tag>
-              <el-tag v-if="change.deleted_count > 0" type="danger" size="small">
-                -{{ change.deleted_count }} 删除
-              </el-tag>
-              <span class="change-time">
-                {{ formatTime(change.created_at) }} · {{ change.updated_by }}
-              </span>
+            <!-- 统计信息卡片 -->
+            <div class="change-stats-card">
+              <div class="stat-item" v-if="change.added_count > 0">
+                <div class="stat-icon-wrapper added-icon">
+                  <el-icon class="stat-icon"><Plus /></el-icon>
+                </div>
+                <div class="stat-content">
+                  <div class="stat-label">新增</div>
+                  <div class="stat-value">{{ change.added_count }}</div>
+                </div>
+              </div>
+              
+              <div class="stat-item" v-if="change.updated_count > 0">
+                <div class="stat-icon-wrapper updated-icon">
+                  <el-icon class="stat-icon"><Edit /></el-icon>
+                </div>
+                <div class="stat-content">
+                  <div class="stat-label">更新</div>
+                  <div class="stat-value">{{ change.updated_count }}</div>
+                </div>
+              </div>
+              
+              <div class="stat-item" v-if="change.deleted_count > 0">
+                <div class="stat-icon-wrapper deleted-icon">
+                  <el-icon class="stat-icon"><Delete /></el-icon>
+                </div>
+                <div class="stat-content">
+                  <div class="stat-label">删除</div>
+                  <div class="stat-value">{{ change.deleted_count }}</div>
+                </div>
+              </div>
+              
+              <div class="stat-item">
+                <div class="stat-icon-wrapper time-icon">
+                  <el-icon class="stat-icon"><Clock /></el-icon>
+                </div>
+                <div class="stat-content">
+                  <div class="stat-label">更新时间</div>
+                  <div class="stat-value">{{ formatTime(change.created_at) }}</div>
+                </div>
+              </div>
+              
+              <div class="stat-item" v-if="change.updated_by">
+                <div class="stat-icon-wrapper user-icon">
+                  <el-icon class="stat-icon"><User /></el-icon>
+                </div>
+                <div class="stat-content">
+                  <div class="stat-label">操作人</div>
+                  <div class="stat-value">{{ change.updated_by }}</div>
+                </div>
+              </div>
             </div>
             
             <!-- API 变更详情 -->
@@ -476,6 +525,7 @@ watch([() => props.appId, () => props.appVersion, () => props.fullCodePath], () 
     max-height: 70vh;
     overflow-y: auto;
     padding: 0;
+    width: 100%;
   }
   
   .empty-state {
@@ -516,8 +566,9 @@ watch([() => props.appId, () => props.appVersion, () => props.fullCodePath], () 
       
       .changes-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-        gap: 16px;
+        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+        gap: 20px;
+        width: 100%;
       }
     }
   }
@@ -525,8 +576,9 @@ watch([() => props.appId, () => props.appVersion, () => props.fullCodePath], () 
   // 变更卡片样式（参考 PackageDetailView 的 overview-card）
   .changes-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 20px;
+    width: 100%;
   }
   
   .change-card {
@@ -680,55 +732,85 @@ watch([() => props.appId, () => props.appVersion, () => props.fullCodePath], () 
     }
   }
   
+  // API 变更详情样式
   .api-changes {
-    margin-top: 12px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--el-border-color-lighter);
+    
+    :deep(.el-collapse-item__header) {
+      font-weight: 600;
+      color: var(--el-text-color-primary);
+    }
     
     .api-list {
       .api-item {
         display: flex;
         align-items: center;
         gap: 12px;
-        padding: 8px 12px;
+        padding: 12px 16px;
         margin-bottom: 8px;
-        background: var(--el-bg-color);
-        border-radius: 4px;
+        background: var(--el-bg-color-page);
+        border-radius: 8px;
+        border-left: 3px solid transparent;
+        transition: all 0.2s ease;
+        
+        &:hover {
+          background: var(--el-bg-color);
+          transform: translateX(4px);
+        }
         
         &.added {
-          border-left: 3px solid var(--el-color-success);
+          border-left-color: var(--el-color-success);
         }
         
         &.updated {
-          border-left: 3px solid var(--el-color-warning);
+          border-left-color: var(--el-color-warning);
         }
         
         &.deleted {
-          border-left: 3px solid var(--el-color-danger);
+          border-left-color: var(--el-color-danger);
         }
         
         .api-name {
           font-weight: 500;
           color: var(--el-text-color-primary);
+          font-size: 14px;
         }
         
         .api-desc {
           color: var(--el-text-color-secondary);
           font-size: 12px;
+          margin-left: 8px;
         }
         
         .api-router {
           margin-left: auto;
           color: var(--el-text-color-secondary);
           font-size: 12px;
-          font-family: monospace;
+          font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
         }
       }
     }
   }
   
   .pagination-wrapper {
-    margin-top: 24px;
+    margin-top: 32px;
     display: flex;
     justify-content: center;
+  }
+  
+  // 响应式设计
+  @media (max-width: 768px) {
+    .changes-grid {
+      grid-template-columns: 1fr;
+    }
+    
+    .change-card {
+      .change-stats-card {
+        grid-template-columns: 1fr;
+      }
+    }
   }
 }
 </style>
