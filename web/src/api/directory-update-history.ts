@@ -24,6 +24,9 @@ export interface DirectoryChangeInfo {
   updated_count: number
   deleted_count: number
   summary: string
+  requirement?: string // 变更需求（用户输入）
+  change_description?: string // 变更描述（大模型输出）
+  duration?: number // 变更耗时（毫秒）
   updated_by: string
   created_at: string
 }
