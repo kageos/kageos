@@ -22,25 +22,27 @@ import (
 )
 
 type AppService struct {
-	appRuntime                  *AppRuntime
-	userRepo                    *repository.UserRepository
-	appRepo                     *repository.AppRepository
-	functionRepo                *repository.FunctionRepository
-	serviceTreeRepo  *repository.ServiceTreeRepository
-	operateLogRepo   *repository.OperateLogRepository
-	fileSnapshotRepo *repository.FileSnapshotRepository
+	appRuntime                    *AppRuntime
+	userRepo                      *repository.UserRepository
+	appRepo                       *repository.AppRepository
+	functionRepo                  *repository.FunctionRepository
+	serviceTreeRepo                *repository.ServiceTreeRepository
+	operateLogRepo                 *repository.OperateLogRepository
+	fileSnapshotRepo               *repository.FileSnapshotRepository
+	directoryUpdateHistoryRepo     *repository.DirectoryUpdateHistoryRepository
 }
 
 // NewAppService 创建 AppService（依赖注入）
-func NewAppService(appRuntime *AppRuntime, userRepo *repository.UserRepository, appRepo *repository.AppRepository, functionRepo *repository.FunctionRepository, serviceTreeRepo *repository.ServiceTreeRepository, operateLogRepo *repository.OperateLogRepository, fileSnapshotRepo *repository.FileSnapshotRepository) *AppService {
+func NewAppService(appRuntime *AppRuntime, userRepo *repository.UserRepository, appRepo *repository.AppRepository, functionRepo *repository.FunctionRepository, serviceTreeRepo *repository.ServiceTreeRepository, operateLogRepo *repository.OperateLogRepository, fileSnapshotRepo *repository.FileSnapshotRepository, directoryUpdateHistoryRepo *repository.DirectoryUpdateHistoryRepository) *AppService {
 	return &AppService{
-		appRuntime:       appRuntime,
-		userRepo:         userRepo,
-		appRepo:          appRepo,
-		functionRepo:     functionRepo,
-		serviceTreeRepo:  serviceTreeRepo,
-		operateLogRepo:   operateLogRepo,
-		fileSnapshotRepo: fileSnapshotRepo,
+		appRuntime:                  appRuntime,
+		userRepo:                    userRepo,
+		appRepo:                     appRepo,
+		functionRepo:                 functionRepo,
+		serviceTreeRepo:              serviceTreeRepo,
+		operateLogRepo:               operateLogRepo,
+		fileSnapshotRepo:             fileSnapshotRepo,
+		directoryUpdateHistoryRepo:   directoryUpdateHistoryRepo,
 	}
 }
 
@@ -133,7 +135,7 @@ func (a *AppService) UpdateApp(ctx context.Context, req *dto.UpdateAppReq) (*dto
 
 	// 处理API差异，将API信息入库到function表
 	if resp.Diff != nil {
-		err = a.processAPIDiff(ctx, app.ID, resp.Diff)
+		err = a.processAPIDiff(ctx, app.ID, resp.Diff, req.Summary)
 		if err != nil {
 			// API入库失败不应该影响主流程，记录日志即可
 			fmt.Printf("API入库失败: %v\n", err)
@@ -308,7 +310,7 @@ func (a *AppService) RecordTableOperateLog(ctx context.Context, req *dto.RecordT
 }
 
 // processAPIDiff 处理API差异，包括新增、更新、删除
-func (a *AppService) processAPIDiff(ctx context.Context, appID int64, diffData *dto.DiffData) error {
+func (a *AppService) processAPIDiff(ctx context.Context, appID int64, diffData *dto.DiffData, summary string) error {
 	// 获取应用信息（用于获取版本号）
 	app, err := a.appRepo.GetAppByID(appID)
 	if err != nil {
@@ -366,7 +368,7 @@ func (a *AppService) processAPIDiff(ctx context.Context, appID int64, diffData *
 	}
 
 	// 5. 创建目录快照（检测目录变更并创建快照）
-	err = a.createDirectorySnapshots(ctx, appID, app, diffData)
+	err = a.createDirectorySnapshots(ctx, appID, app, diffData, summary)
 	if err != nil {
 		// 快照创建失败不应该影响主流程，记录日志即可
 		logger.Warnf(ctx, "[processAPIDiff] 创建目录快照失败: %v", err)
@@ -745,7 +747,7 @@ func (a *AppService) GetApps(ctx context.Context, req *dto.GetAppsReq) (*dto.Get
 }
 
 // createDirectorySnapshots 创建目录快照（检测目录变更并创建快照）
-func (a *AppService) createDirectorySnapshots(ctx context.Context, appID int64, app *model.App, diffData *dto.DiffData) error {
+func (a *AppService) createDirectorySnapshots(ctx context.Context, appID int64, app *model.App, diffData *dto.DiffData, summary string) error {
 	// 1. 按目录分组变更
 	directoryChanges := a.groupChangesByDirectory(diffData)
 	if len(directoryChanges) == 0 {
@@ -925,6 +927,13 @@ func (a *AppService) createDirectorySnapshots(ctx context.Context, appID int64, 
 
 		logger.Infof(ctx, "[createDirectorySnapshots] 目录快照创建成功: path=%s, version=%s, fileCount=%d",
 			directoryPath, nextVersion, len(files))
+
+		// 🔥 新增：记录目录变更历史
+		err = a.recordDirectoryUpdateHistory(ctx, appID, app, directoryPath, nextVersion, nextVersionNum, changes, summary)
+		if err != nil {
+			// 历史记录失败不应该影响主流程，记录日志即可
+			logger.Warnf(ctx, "[createDirectorySnapshots] 记录目录变更历史失败: path=%s, error=%v", directoryPath, err)
+		}
 	}
 
 	return nil
@@ -991,6 +1000,86 @@ func (a *AppService) groupChangesByDirectory(diffData *dto.DiffData) map[string]
 	}
 
 	return directoryChanges
+}
+
+// recordDirectoryUpdateHistory 记录目录更新历史
+func (a *AppService) recordDirectoryUpdateHistory(
+	ctx context.Context,
+	appID int64,
+	app *model.App,
+	directoryPath string,
+	dirVersion string,
+	dirVersionNum int,
+	changes *DirectoryChanges,
+	summary string,
+) error {
+	// 构建API摘要列表
+	addedSummaries := make([]*model.ApiSummary, 0, len(changes.Add))
+	for _, api := range changes.Add {
+		addedSummaries = append(addedSummaries, &model.ApiSummary{
+			Code:         api.FunctionGroupCode,
+			Name:         api.Name,
+			Desc:         api.Desc,
+			Router:       api.Router,
+			Method:       api.Method,
+			FullCodePath: api.BuildFullCodePath(),
+		})
+	}
+
+	updatedSummaries := make([]*model.ApiSummary, 0, len(changes.Update))
+	for _, api := range changes.Update {
+		updatedSummaries = append(updatedSummaries, &model.ApiSummary{
+			Code:         api.FunctionGroupCode,
+			Name:         api.Name,
+			Desc:         api.Desc,
+			Router:       api.Router,
+			Method:       api.Method,
+			FullCodePath: api.BuildFullCodePath(),
+		})
+	}
+
+	deletedSummaries := make([]*model.ApiSummary, 0, len(changes.Delete))
+	for _, api := range changes.Delete {
+		deletedSummaries = append(deletedSummaries, &model.ApiSummary{
+			Code:         api.FunctionGroupCode,
+			Name:         api.Name,
+			Desc:         api.Desc,
+			Router:       api.Router,
+			Method:       api.Method,
+			FullCodePath: api.BuildFullCodePath(),
+		})
+	}
+
+	// 序列化JSON（使用 json.RawMessage，GORM 会自动处理）
+	addedJSON, _ := json.Marshal(addedSummaries)
+	updatedJSON, _ := json.Marshal(updatedSummaries)
+	deletedJSON, _ := json.Marshal(deletedSummaries)
+
+	// 获取当前用户
+	updatedBy := contextx.GetRequestUser(ctx)
+	if updatedBy == "" {
+		updatedBy = "system"
+	}
+
+	// 创建历史记录
+	history := &model.DirectoryUpdateHistory{
+		AppID:         appID,
+		AppVersion:    app.Version,
+		AppVersionNum: extractVersionNum(app.Version),
+		FullCodePath:  directoryPath,
+		DirVersion:     dirVersion,
+		DirVersionNum: dirVersionNum,
+		AddedAPIs:     addedJSON,   // json.RawMessage，GORM 会自动处理
+		UpdatedAPIs:   updatedJSON, // json.RawMessage，GORM 会自动处理
+		DeletedAPIs:   deletedJSON, // json.RawMessage，GORM 会自动处理
+		AddedCount:    len(changes.Add),
+		UpdatedCount:  len(changes.Update),
+		DeletedCount:  len(changes.Delete),
+		Summary:       summary, // 变更摘要（详情），可能是大模型返回的摘要信息，也可能是用户的变更需求
+		UpdatedBy:     updatedBy,
+	}
+
+	return a.directoryUpdateHistoryRepo.CreateUpdateHistory(history)
 }
 
 // directoryFile 目录文件结构（用于创建快照，内部使用）

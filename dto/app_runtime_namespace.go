@@ -81,6 +81,7 @@ type UpdateAppReq struct {
 	App             string                `json:"app" binding:"required" example:"myapp"` // 应用名
 	ForkPackages    []*ForkPackageInfo    `json:"fork_packages,omitempty"`                // 可选的 Fork 包列表（如果有，先执行 fork 再更新）
 	CreateFunctions []*CreateFunctionInfo `json:"create_functions,omitempty"`             // 可选的新建函数列表（如果有，先执行创建函数再更新）
+	Summary         string                `json:"summary,omitempty"`                     // 变更摘要（详情），可能是大模型返回的摘要信息，也可能是用户的变更需求
 }
 
 // UpdateAppResp 更新应用响应
