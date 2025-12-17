@@ -27,13 +27,6 @@ func getDBName() string {
 	return fmt.Sprintf("%s_%s.db", env.User, env.App)
 }
 
-func getGormDB() *gorm.DB {
-	db, err := getOrInitDB(getDBName())
-	if err != nil {
-		return nil
-	}
-	return db
-}
 func (c *Context) GetGormDB() *gorm.DB {
 	// 如果 Context 中有 routerInfo 且 PackagePath 不为空，使用 PackagePath 构建数据库名称
 	// 否则使用默认的数据库名称（兼容旧代码）
@@ -46,6 +39,7 @@ func (c *Context) GetGormDB() *gorm.DB {
 	} else {
 		// 兼容旧代码，使用默认数据库名称
 		dbName = getDBName()
+		logger.Infof(c, "使用了旧的db 逻辑 get db name: %s", dbName)
 	}
 
 	db, err := getOrInitDB(dbName)
@@ -139,6 +133,7 @@ func getOrInitDB(dbName string) (*gorm.DB, error) {
 		logger.Errorf(context.Background(), "打开数据库失败 %s: %v", dbName, err)
 		return nil, err
 	}
+	logger.Infof(context.Background(), "打开数据库成功 %s", dbName)
 
 	// 设置SQLite优化参数（提升并发读写性能）
 	// WAL 模式：提升并发读写性能

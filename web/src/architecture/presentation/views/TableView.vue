@@ -13,10 +13,35 @@
 <template>
   <div class="table-view">
     <!-- 工具栏 -->
-    <div class="toolbar" v-if="hasAddCallback">
-      <el-button type="primary" @click="handleAdd" :icon="Plus">
-        新增
-      </el-button>
+    <div class="toolbar" v-if="hasAddCallback || hasDeleteCallback">
+      <div class="toolbar-left">
+        <el-button v-if="hasAddCallback" type="primary" @click="handleAdd" :icon="Plus">
+          新增
+        </el-button>
+        <el-button 
+          v-if="hasDeleteCallback && !isBatchDeleteMode" 
+          type="danger" 
+          @click="enterBatchDeleteMode"
+          :icon="Delete"
+        >
+          批量删除
+        </el-button>
+        <template v-if="hasDeleteCallback && isBatchDeleteMode">
+          <el-button 
+            type="danger" 
+            @click="handleBatchDelete"
+            :icon="Delete"
+            :disabled="selectedRows.length === 0"
+          >
+            删除选中 ({{ selectedRows.length }})
+          </el-button>
+          <el-button 
+            @click="exitBatchDeleteMode"
+          >
+            取消
+          </el-button>
+        </template>
+      </div>
     </div>
 
     <!-- 搜索栏 -->
@@ -90,13 +115,24 @@
 
     <!-- 表格 -->
     <el-table
+      ref="tableRef"
       v-loading="loading"
       :data="tableData"
       :stripe="false"
       style="width: 100%"
       class="table-with-fixed-column"
       @sort-change="handleSortChange"
+      @selection-change="handleSelectionChange"
     >
+      <!-- 复选框列（用于批量操作，仅在批量删除模式下显示） -->
+      <el-table-column
+        v-if="hasDeleteCallback && isBatchDeleteMode"
+        type="selection"
+        width="55"
+        fixed="left"
+        :selectable="checkSelectable"
+      />
+
       <!-- 🔥 控制中心列（ID列） -->
       <el-table-column
         v-if="idField"
@@ -238,7 +274,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox, ElIcon } from 'element-plus'
+import { ElMessage, ElMessageBox, ElIcon, ElTable, ElNotification } from 'element-plus'
 import { Search, Refresh, Delete, Plus, ArrowUp, ArrowDown, More, Right } from '@element-plus/icons-vue'
 import { eventBus, TableEvent, WorkspaceEvent, RouteEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
@@ -320,6 +356,135 @@ const pageSize = computed({
   }
 })
 const total = computed(() => pagination.value.total)
+
+// ==================== 批量选择相关 ====================
+
+/** 是否处于批量删除模式 */
+const isBatchDeleteMode = ref(false)
+
+/** 选中的行数据 */
+const selectedRows = ref<TableRow[]>([])
+
+/** 表格引用（用于控制复选框状态） */
+const tableRef = ref<InstanceType<typeof ElTable> | null>(null)
+
+/**
+ * 进入批量删除模式
+ */
+const enterBatchDeleteMode = (): void => {
+  isBatchDeleteMode.value = true
+  selectedRows.value = []
+  // 清空之前的选择
+  if (tableRef.value) {
+    tableRef.value.clearSelection()
+  }
+}
+
+/**
+ * 退出批量删除模式
+ */
+const exitBatchDeleteMode = (): void => {
+  isBatchDeleteMode.value = false
+  selectedRows.value = []
+  // 清空选择
+  if (tableRef.value) {
+    tableRef.value.clearSelection()
+  }
+}
+
+/**
+ * 处理选择变化
+ * @param selection 选中的行数组
+ */
+const handleSelectionChange = (selection: TableRow[]): void => {
+  selectedRows.value = selection
+}
+
+/**
+ * 判断行是否可选
+ * @param row 行数据
+ * @param index 行索引
+ * @returns 是否可选
+ */
+const checkSelectable = (row: TableRow, index: number): boolean => {
+  // 所有行都可以选择
+  return true
+}
+
+/**
+ * 批量删除
+ */
+const handleBatchDelete = async (): Promise<void> => {
+  if (selectedRows.value.length === 0) {
+    ElMessage.warning('请先选择要删除的记录')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除选中的 ${selectedRows.value.length} 条记录吗？`,
+      '批量删除确认',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+
+    // 获取所有选中行的 ID
+    const ids = selectedRows.value
+      .map((row: TableRow) => {
+        // 尝试从 id 字段获取，如果没有则尝试从 idField 获取
+        if (row.id) return row.id
+        if (idField.value && row[idField.value.code]) {
+          return row[idField.value.code]
+        }
+        return null
+      })
+      .filter((id: any): id is number => id !== null && typeof id === 'number')
+
+    if (ids.length === 0) {
+      ElMessage.error('无法获取记录 ID，删除失败')
+      return
+    }
+
+    // 调用批量删除 API
+    const { tableDeleteRows } = await import('@/api/function')
+    await tableDeleteRows(props.functionDetail.method || 'GET', props.functionDetail.router, ids)
+
+    // 显示成功提示
+    ElNotification.success({
+      title: '删除成功',
+      message: `已成功删除 ${ids.length} 条记录`,
+      duration: 3000,
+      position: 'top-right'
+    })
+
+    // 清空选择
+    selectedRows.value = []
+    if (tableRef.value) {
+      tableRef.value.clearSelection()
+    }
+
+    // 退出批量删除模式
+    isBatchDeleteMode.value = false
+
+    // 重新加载数据
+    await loadTableData()
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      const errorMessage = error?.response?.data?.msg || error?.message || '批量删除失败'
+      ElNotification.error({
+        title: '删除失败',
+        message: errorMessage,
+        duration: 5000,
+        position: 'top-right'
+      })
+    }
+  }
+}
+
+// ==================== 对话框相关 ====================
 
 // 创建对话框
 const createDialogVisible = ref(false)
@@ -1306,6 +1471,12 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 12px 0;
+}
+
+.toolbar-left {
+  display: flex;
+  gap: 12px;
+  align-items: center;
 }
 
 .search-bar {
