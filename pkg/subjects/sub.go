@@ -125,6 +125,16 @@ func GetAppServer2AppRuntimeReadDirectoryFilesRequestSubject() string {
 	return "app_server.app_runtime.read_directory_files"
 }
 
+// GetAppServer2AppRuntimeBatchCreateDirectoryTreeRequestSubject 获取 app_server 到 app_runtime 批量创建目录树请求的订阅主题
+func GetAppServer2AppRuntimeBatchCreateDirectoryTreeRequestSubject() string {
+	return "app_server.app_runtime.batch_create_directory_tree"
+}
+
+// GetAppServer2AppRuntimeUpdateServiceTreeRequestSubject 获取 app_server 到 app_runtime 更新服务树请求的订阅主题
+func GetAppServer2AppRuntimeUpdateServiceTreeRequestSubject() string {
+	return "app_server.app_runtime.update_service_tree"
+}
+
 // GetAppStartupNotificationSubject 获取应用启动完成通知的订阅主题（通配符）
 func GetAppStartupNotificationSubject() string {
 	return "app.startup.notification.*.*.*"

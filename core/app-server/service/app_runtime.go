@@ -171,6 +171,40 @@ func (a *AppRuntime) ReadDirectoryFiles(ctx context.Context, hostId int64, req *
 	return &resp, nil
 }
 
+// BatchCreateDirectoryTree 批量创建目录树（app-server -> app-runtime）
+func (a *AppRuntime) BatchCreateDirectoryTree(ctx context.Context, hostId int64, req *dto.BatchCreateDirectoryTreeRuntimeReq) (*dto.BatchCreateDirectoryTreeRuntimeResp, error) {
+	var resp dto.BatchCreateDirectoryTreeRuntimeResp
+	timeout := time.Duration(a.config.GetNatsRequestTimeout()) * time.Second
+
+	conn, err := a.natsService.GetNatsByHost(hostId)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = msgx.RequestMsgWithTimeout(ctx, conn, subjects.GetAppServer2AppRuntimeBatchCreateDirectoryTreeRequestSubject(), req, &resp, timeout)
+	if err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// UpdateServiceTree 更新服务树（app-server -> app-runtime）
+func (a *AppRuntime) UpdateServiceTree(ctx context.Context, hostId int64, req *dto.UpdateServiceTreeRuntimeReq) (*dto.UpdateServiceTreeRuntimeResp, error) {
+	var resp dto.UpdateServiceTreeRuntimeResp
+	timeout := time.Duration(a.config.GetNatsRequestTimeout()) * time.Second
+
+	conn, err := a.natsService.GetNatsByHost(hostId)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = msgx.RequestMsgWithTimeout(ctx, conn, subjects.GetAppServer2AppRuntimeUpdateServiceTreeRequestSubject(), req, &resp, timeout)
+	if err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 // initSubscriptions 初始化 NATS 订阅
 func (a *AppRuntime) initSubscriptions() {
 	// 获取所有可用的 NATS 连接

@@ -230,6 +230,8 @@ func (s *Server) initServices(ctx context.Context) error {
 
 	// 初始化服务目录管理服务
 	s.serviceTreeService = service.NewServiceTreeService(&s.cfg.AppManage)
+	// 设置依赖关系
+	s.serviceTreeService.SetAppManageService(s.appManageService)
 
 	return nil
 }
@@ -360,6 +362,28 @@ func (s *Server) subscribeNATS(ctx context.Context) error {
 	)
 	if err != nil {
 		return fmt.Errorf("failed to subscribe to read directory files: %w", err)
+	}
+	s.subscriptions = append(s.subscriptions, sub)
+
+	// 订阅批量创建目录树请求（使用队列组）
+	sub, err = s.natsConn.QueueSubscribe(
+		subjects.GetAppServer2AppRuntimeBatchCreateDirectoryTreeRequestSubject(),
+		"app-runtime-batch-create-directory-tree-workers",
+		s.handleBatchCreateDirectoryTree,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to subscribe to batch create directory tree: %w", err)
+	}
+	s.subscriptions = append(s.subscriptions, sub)
+
+	// 订阅更新服务树请求（使用队列组）
+	sub, err = s.natsConn.QueueSubscribe(
+		subjects.GetAppServer2AppRuntimeUpdateServiceTreeRequestSubject(),
+		"app-runtime-update-service-tree-workers",
+		s.handleUpdateServiceTree,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to subscribe to update service tree: %w", err)
 	}
 	s.subscriptions = append(s.subscriptions, sub)
 
