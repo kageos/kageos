@@ -27,16 +27,12 @@ type FunctionGenService struct {
 }
 
 // NewFunctionGenService 创建函数生成服务
-func NewFunctionGenService(natsConn *nats.Conn, cfg *config.AgentServerConfig) *FunctionGenService {
+func NewFunctionGenService(natsConn *nats.Conn, cfg *config.AgentServerConfig, functionGenRepo *repository.FunctionGenRepository) *FunctionGenService {
 	return &FunctionGenService{
-		natsConn: natsConn,
-		cfg:      cfg,
+		natsConn:        natsConn,
+		cfg:             cfg,
+		functionGenRepo: functionGenRepo,
 	}
-}
-
-// SetFunctionGenRepository 设置函数生成仓库（延迟注入，避免循环依赖）
-func (s *FunctionGenService) SetFunctionGenRepository(repo *repository.FunctionGenRepository) {
-	s.functionGenRepo = repo
 }
 
 // RunPlugin 执行插件处理
