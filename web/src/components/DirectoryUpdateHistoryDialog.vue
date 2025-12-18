@@ -524,6 +524,13 @@ const formatDuration = (duration: number) => {
   }
 }
 
+// 获取目录名字（从完整路径中提取最后一部分）
+const getDirectoryName = (fullCodePath: string): string => {
+  if (!fullCodePath) return ''
+  const parts = fullCodePath.split('/').filter(Boolean)
+  return parts.length > 0 ? parts[parts.length - 1] : ''
+}
+
 // 加载数据
 const loadData = async () => {
   if (!props.appId) return
