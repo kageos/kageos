@@ -209,7 +209,7 @@ export class TableDomainService {
       }
 
       // 调用 API
-      const url = `/api/v1/run${functionDetail.router}`
+      const url = `/workspace/api/v1/run${functionDetail.router}`
       const method = functionDetail.method?.toUpperCase() || 'GET'
       
       let response: TableResponse
@@ -705,7 +705,7 @@ export class TableDomainService {
 
   private buildCallbackUrl(router: string, type: string, method?: string): string {
     const functionMethod = method?.toUpperCase() || 'GET'
-    return `/api/v1/callback${router}?_type=${type}&_method=${functionMethod}`
+    return `/workspace/api/v1/callback${router}?_type=${type}&_method=${functionMethod}`
   }
 
   private buildUpdatePayload(

@@ -17,7 +17,7 @@ export function getAppList(pageSize: number = 200, search?: string) {
     page_size: number
     total_count: number
     items: App[]
-  }>('/api/v1/workspace/app/list', params).then(res => {
+  }>('/workspace/api/v1/app/list', params).then(res => {
     // ⚠️ 响应拦截器返回的是 data 对象，所以 res 就是分页对象
     // 需要检查 res 是否有 items 字段
     if (res && typeof res === 'object' && 'items' in res) {
@@ -37,7 +37,7 @@ export function createApp(data: CreateAppRequest) {
   // 后端期望的格式: { code: string, name: string }
   // user字段会自动从JWT Token获取，不需要前端传递
   // 后端返回的是 CreateAppResponse，不是完整的 App 对象
-  return post<CreateAppResponse>('/api/v1/workspace/app/create', {
+  return post<CreateAppResponse>('/workspace/api/v1/app/create', {
     code: data.code,
     name: data.name
   })
@@ -45,20 +45,20 @@ export function createApp(data: CreateAppRequest) {
 
 // 更新工作空间（重新编译）
 export function updateApp(code: string) {
-  return post(`/api/v1/workspace/app/update/${code}`, {})
+  return post(`/workspace/api/v1/app/update/${code}`, {})
 }
 
 // 删除工作空间
 export function deleteApp(code: string) {
-  return del(`/api/v1/workspace/app/delete/${code}`)
+  return del(`/workspace/api/v1/app/delete/${code}`)
 }
 
 // 获取工作空间详情
 export function getAppDetail(code: string) {
-  return get<App>(`/api/v1/workspace/app/detail/${code}`)
+  return get<App>(`/workspace/api/v1/app/detail/${code}`)
 }
 
 // 运行业务系统函数
 export function runFunction(fullCodePath: string, params?: any) {
-  return post(`/api/v1/workspace/run/${fullCodePath}`, params)
+  return post(`/workspace/api/v1/run/${fullCodePath}`, params)
 }

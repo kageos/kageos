@@ -70,7 +70,7 @@ export function getAppVersionUpdateHistory(appId: number, appVersion?: string) {
   if (appVersion) {
     params.app_version = appVersion
   }
-  return get<GetAppVersionUpdateHistoryResp>('/api/v1/directory_update_history/app_version', params)
+  return get<GetAppVersionUpdateHistoryResp>('/workspace/api/v1/directory_update_history/app_version', params)
 }
 
 // 获取目录更新历史（目录视角）
@@ -80,7 +80,7 @@ export function getDirectoryUpdateHistory(
   page: number = 1,
   pageSize: number = 10
 ) {
-  return get<GetDirectoryUpdateHistoryResp>('/api/v1/directory_update_history/directory', {
+  return get<GetDirectoryUpdateHistoryResp>('/workspace/api/v1/directory_update_history/directory', {
     app_id: appId,
     full_code_path: fullCodePath,
     page,

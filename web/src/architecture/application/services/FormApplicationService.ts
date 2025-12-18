@@ -76,7 +76,7 @@ export class FormApplicationService {
       const submitData = this.getSubmitData(fields)
 
       // 调用 API
-      const url = `/api/v1/run${functionDetail.router}`
+      const url = `/workspace/api/v1/run${functionDetail.router}`
       const method = functionDetail.method?.toUpperCase() || 'POST'
       
       let response: any
