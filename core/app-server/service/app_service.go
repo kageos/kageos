@@ -31,6 +31,7 @@ type AppService struct {
 	operateLogRepo             *repository.OperateLogRepository
 	fileSnapshotRepo           *repository.FileSnapshotRepository
 	directoryUpdateHistoryRepo *repository.DirectoryUpdateHistoryRepository
+	serviceTreeService         *ServiceTreeService // 用于 UpdateAppV2
 }
 
 // NewAppService 创建 AppService（依赖注入）
@@ -45,6 +46,11 @@ func NewAppService(appRuntime *AppRuntime, userRepo *repository.UserRepository, 
 		fileSnapshotRepo:           fileSnapshotRepo,
 		directoryUpdateHistoryRepo: directoryUpdateHistoryRepo,
 	}
+}
+
+// SetServiceTreeService 设置 ServiceTreeService（用于 UpdateAppV2）
+func (a *AppService) SetServiceTreeService(serviceTreeService *ServiceTreeService) {
+	a.serviceTreeService = serviceTreeService
 }
 
 // CreateApp 创建应用
@@ -150,6 +156,125 @@ func (a *AppService) UpdateApp(ctx context.Context, req *dto.UpdateAppReq) (*dto
 	}
 
 	return resp, nil
+}
+
+// UpdateAppV2 更新应用（新版本，使用 UpdateServiceTree 实现）
+// 这个方法使用新的 UpdateServiceTree 实现，支持通过 full-code-path 递归构建目录和文件
+// 后续可以逐步替代 UpdateApp
+func (a *AppService) UpdateAppV2(ctx context.Context, req *dto.UpdateAppReq) (*dto.UpdateAppResp, error) {
+	// 记录开始时间（用于计算变更耗时）
+	startTime := time.Now()
+
+	// 根据应用信息获取 NATS 连接，而不是根据当前用户
+	app, err := a.appRepo.GetAppByUserName(req.User, req.App)
+	if err != nil {
+		return nil, err
+	}
+
+	// 1. 构建 ServiceTreeNode 列表
+	nodes := make([]*dto.ServiceTreeNode, 0)
+	createdDirs := make(map[string]bool) // 记录已创建的目录
+
+	// 1.1 处理 CreateFunctions（转换为文件节点，并确保目录存在）
+	for _, createFunc := range req.CreateFunctions {
+		// 构建 package 的完整路径：/user/app/package
+		packageFullPath := fmt.Sprintf("/%s/%s/%s", req.User, req.App, createFunc.Package)
+		
+		// 如果目录不存在，先创建目录节点
+		if !createdDirs[packageFullPath] {
+			// 提取目录名称（package 路径的最后一部分）
+			packageParts := strings.Split(strings.Trim(createFunc.Package, "/"), "/")
+			dirName := packageParts[len(packageParts)-1]
+			
+			// 构建目录节点（新增操作）
+			dirNode := &dto.ServiceTreeNode{
+				FullCodePath: packageFullPath,
+				Type:         "directory",
+				Operation:    dto.ServiceTreeNodeOpAdd,
+				Name:         dirName,
+			}
+			nodes = append(nodes, dirNode)
+			createdDirs[packageFullPath] = true
+		}
+
+		// 构建文件的完整路径：/user/app/package/groupcode
+		fileFullPath := fmt.Sprintf("%s/%s", packageFullPath, createFunc.GroupCode)
+		
+		// 提取文件类型（默认 go）
+		fileType := "go"
+		// 可以从 SourceCode 中提取文件类型，或者从 GroupCode 中提取
+		// 这里简化处理，默认 go
+
+		// 构建文件节点（新增操作）
+		fileNode := &dto.ServiceTreeNode{
+			FullCodePath: fileFullPath,
+			Type:         "file",
+			Operation:    dto.ServiceTreeNodeOpAdd,
+			FileName:     createFunc.GroupCode,
+			FileType:     fileType,
+			Content:      createFunc.SourceCode,
+			RelativePath: createFunc.GroupCode + ".go",
+		}
+		nodes = append(nodes, fileNode)
+	}
+
+	// 1.2 处理 ForkPackages（如果有，转换为目录和文件节点）
+	// TODO: 实现 ForkPackages 的转换逻辑
+	// 目前先跳过，因为 ForkPackages 的处理比较复杂
+
+	// 2. 如果没有节点，直接返回（不需要更新）
+	if len(nodes) == 0 {
+		// 如果没有 CreateFunctions 和 ForkPackages，可能需要编译（如果有其他变更）
+		// 这里简化处理，直接返回当前版本
+		app, _ := a.appRepo.GetAppByUserName(req.User, req.App)
+		return &dto.UpdateAppResp{
+			User:       req.User,
+			App:        req.App,
+			OldVersion: app.Version,
+			NewVersion: app.Version,
+		}, nil
+	}
+
+	// 3. 调用 UpdateServiceTree
+	updateServiceTreeReq := &dto.UpdateServiceTreeReq{
+		User:  req.User,
+		App:   req.App,
+		Nodes: nodes,
+	}
+
+	updateServiceTreeResp, err := a.serviceTreeService.UpdateServiceTree(ctx, updateServiceTreeReq)
+	if err != nil {
+		return nil, fmt.Errorf("更新服务树失败: %w", err)
+	}
+
+	// 4. 更新数据库中的版本信息
+	app.Version = updateServiceTreeResp.NewVersion
+	err = a.appRepo.UpdateApp(app)
+	if err != nil {
+		return nil, err
+	}
+
+	// 5. 计算变更耗时（毫秒）
+	duration := time.Since(startTime).Milliseconds()
+
+	// 6. 处理API差异，将API信息入库到function表
+	if updateServiceTreeResp.Diff != nil {
+		err = a.processAPIDiff(ctx, app.ID, updateServiceTreeResp.Diff, req, duration, updateServiceTreeResp.GitCommitHash)
+		if err != nil {
+			// API入库失败不应该影响主流程，记录日志即可
+			fmt.Printf("API入库失败: %v\n", err)
+		}
+	}
+
+	// 7. 构建响应（兼容 UpdateAppResp）
+	return &dto.UpdateAppResp{
+		User:          req.User,
+		App:           req.App,
+		OldVersion:    updateServiceTreeResp.OldVersion,
+		NewVersion:    updateServiceTreeResp.NewVersion,
+		GitCommitHash: updateServiceTreeResp.GitCommitHash,
+		Diff:          updateServiceTreeResp.Diff,
+	}, nil
 }
 
 // extractVersionNum 从版本号字符串中提取数字部分（如 "v1" -> 1, "v20" -> 20）
