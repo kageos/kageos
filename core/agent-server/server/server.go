@@ -12,6 +12,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/service"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
@@ -44,11 +45,12 @@ type Server struct {
 	messageRepo            *repository.ChatMessageRepository
 
 	// 服务
-	agentService     *service.AgentService
-	pluginService    *service.PluginService
-	knowledgeService *service.KnowledgeService
-	llmService       *service.LLMService
-	agentChatService *service.AgentChatService
+	agentService       *service.AgentService
+	pluginService      *service.PluginService
+	knowledgeService   *service.KnowledgeService
+	llmService         *service.LLMService
+	agentChatService   *service.AgentChatService
+	functionGenService *service.FunctionGenService
 
 	// 上下文
 	ctx context.Context
@@ -318,8 +320,12 @@ func (s *Server) initServices(ctx context.Context) error {
 	s.pluginService = service.NewPluginService(s.pluginRepo)
 	s.knowledgeService = service.NewKnowledgeService(s.knowledgeRepo)
 	s.llmService = service.NewLLMService(s.llmRepo)
-	s.agentChatService = service.NewAgentChatService(s.agentRepo, s.llmRepo, s.knowledgeRepo, s.natsConn, s.cfg)
-	s.agentChatService.SetRepositories(sessionRepo, messageRepo, s.functionGenRepo)
+
+	// 先初始化函数生成服务（因为 agentChatService 依赖它）
+	s.functionGenService = service.NewFunctionGenService(s.natsConn, s.cfg, s.functionGenRepo, sessionRepo, messageRepo)
+
+	// 初始化智能体聊天服务（传入 functionGenService）
+	s.agentChatService = service.NewAgentChatService(s.agentRepo, s.llmRepo, s.knowledgeRepo, s.functionGenService, sessionRepo, messageRepo, s.functionGenRepo)
 
 	logger.Infof(ctx, "[Server] Services initialized successfully")
 	return nil
@@ -375,7 +381,7 @@ func (s *Server) initNATSSubscriptions(ctx context.Context) error {
 	return nil
 }
 
-// handleFunctionGenCallback 处理函数生成回调消息
+// handleFunctionGenCallback 处理函数生成回调消息（NATS 订阅）
 func (s *Server) handleFunctionGenCallback(msg *nats.Msg) {
 	ctx := context.Background()
 
@@ -396,114 +402,21 @@ func (s *Server) handleFunctionGenCallback(msg *nats.Msg) {
 		return
 	}
 
-	logger.Infof(ctx, "[Server] 收到回调消息 - RecordID: %d, MessageID: %d, Success: %v, FullGroupCodes: %v, AppCode: %s",
+	// 调用 Service 层处理
+	if err := s.functionGenService.ProcessFunctionGenCallback(ctx, &callback); err != nil {
+		logger.Errorf(ctx, "[Server] 处理回调失败: %v", err)
+	}
+}
+
+// HandleFunctionGenCallback 处理函数生成回调（HTTP 接口，实现 FunctionGenServer 接口）
+func (s *Server) HandleFunctionGenCallback(c *gin.Context, callback *dto.FunctionGenCallback) {
+	ctx := contextx.ToContext(c)
+
+	logger.Infof(ctx, "[Server] 收到回调消息 (HTTP) - RecordID: %d, MessageID: %d, Success: %v, FullGroupCodes: %v, AppCode: %s",
 		callback.RecordID, callback.MessageID, callback.Success, callback.FullGroupCodes, callback.AppCode)
 
-	// 1. 更新 FunctionGenRecord
-	record, err := s.functionGenRepo.GetByID(callback.RecordID)
-	if err != nil {
-		logger.Errorf(ctx, "[Server] 获取生成记录失败: %v", err)
-		return
+	// 调用 Service 层处理
+	if err := s.functionGenService.ProcessFunctionGenCallback(ctx, callback); err != nil {
+		logger.Errorf(ctx, "[Server] 处理回调失败: %v", err)
 	}
-
-	// 更新 FullGroupCodes（逗号分隔的字符串）
-	record.SetFullGroupCodes(callback.FullGroupCodes)
-
-	// 更新状态和耗时
-	if callback.Success {
-		record.Status = model.FunctionGenStatusCompleted
-	} else {
-		record.Status = model.FunctionGenStatusFailed
-		record.ErrorMsg = callback.Error
-	}
-
-	// 计算耗时（从创建时间到当前时间的秒数）
-	record.Duration = int(time.Since(time.Time(record.CreatedAt)).Seconds())
-
-	if err := s.functionGenRepo.Update(record); err != nil {
-		logger.Errorf(ctx, "[Server] 更新生成记录失败: %v", err)
-		return
-	}
-
-	// 2. 创建 FunctionGroupAgent 关联记录
-	for _, fullGroupCode := range callback.FullGroupCodes {
-		fga := &model.FunctionGroupAgent{
-			FullGroupCode: fullGroupCode,
-			AgentID:       record.AgentID,
-			RecordID:      record.ID,
-			AppID:         callback.AppID,
-			AppCode:       callback.AppCode,
-			User:          record.User,
-		}
-		fga.CreatedBy = record.User
-		fga.UpdatedBy = record.User
-
-		if err := s.functionGroupAgentRepo.Create(fga); err != nil {
-			logger.Errorf(ctx, "[Server] 创建关联记录失败: fullGroupCode=%s, error=%v", fullGroupCode, err)
-			// 继续处理其他记录，不中断
-		}
-	}
-
-	// 3. 如果成功，推送系统消息并更新会话状态
-	if callback.Success && len(callback.FullGroupCodes) > 0 {
-		// 获取会话
-		session, err := s.sessionRepo.GetBySessionID(record.SessionID)
-		if err != nil {
-			logger.Errorf(ctx, "[Server] 获取会话失败: SessionID=%s, error=%v", record.SessionID, err)
-		} else {
-			// 构建系统消息内容（包含生成的函数组地址）
-			var contentBuilder strings.Builder
-			contentBuilder.WriteString("✅ 代码生成完成！\n\n")
-			contentBuilder.WriteString("生成的函数组地址：\n")
-			for i, fullGroupCode := range callback.FullGroupCodes {
-				// 使用 Markdown 格式的链接，前端可以解析为可点击的链接
-				contentBuilder.WriteString(fmt.Sprintf("%d. [%s](%s)\n", i+1, fullGroupCode, fullGroupCode))
-			}
-			contentBuilder.WriteString("\n点击函数组地址可以跳转到对应位置。")
-
-			// 创建系统消息
-			systemMsg := &model.AgentChatMessage{
-				SessionID: record.SessionID,
-				AgentID:   record.AgentID,
-				Role:      "system",
-				Content:   contentBuilder.String(),
-				User:      record.User,
-			}
-			systemMsg.CreatedBy = record.User
-			systemMsg.UpdatedBy = record.User
-
-			if err := s.messageRepo.Create(systemMsg); err != nil {
-				logger.Errorf(ctx, "[Server] 创建系统消息失败: SessionID=%s, error=%v", record.SessionID, err)
-			} else {
-				logger.Infof(ctx, "[Server] 系统消息已推送 - SessionID=%s, FullGroupCodesCount=%d", record.SessionID, len(callback.FullGroupCodes))
-			}
-
-			// 更新会话状态为 done
-			session.Status = model.ChatSessionStatusDone
-			session.UpdatedBy = record.User
-			if err := s.sessionRepo.Update(session); err != nil {
-				logger.Errorf(ctx, "[Server] 更新会话状态失败: SessionID=%s, error=%v", record.SessionID, err)
-			} else {
-				logger.Infof(ctx, "[Server] 会话状态已更新为 done - SessionID=%s", record.SessionID)
-			}
-		}
-	} else if !callback.Success {
-		// 如果失败，也更新会话状态为 active（允许重试）
-		session, err := s.sessionRepo.GetBySessionID(record.SessionID)
-		if err != nil {
-			logger.Errorf(ctx, "[Server] 获取会话失败: SessionID=%s, error=%v", record.SessionID, err)
-		} else {
-			// 失败时恢复为 active 状态，允许用户重试
-			session.Status = model.ChatSessionStatusActive
-			session.UpdatedBy = record.User
-			if err := s.sessionRepo.Update(session); err != nil {
-				logger.Errorf(ctx, "[Server] 更新会话状态失败: SessionID=%s, error=%v", record.SessionID, err)
-			} else {
-				logger.Infof(ctx, "[Server] 会话状态已恢复为 active（允许重试） - SessionID=%s", record.SessionID)
-			}
-		}
-	}
-
-	logger.Infof(ctx, "[Server] 回调处理完成 - RecordID: %d, FullGroupCodesCount: %d, Success: %v",
-		callback.RecordID, len(callback.FullGroupCodes), callback.Success)
 }

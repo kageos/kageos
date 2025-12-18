@@ -11,12 +11,14 @@ import (
 
 type ServiceTree struct {
 	serviceTreeService *service.ServiceTreeService
+	functionGenService *service.FunctionGenService // 仅用于异步处理
 }
 
 // NewServiceTree 创建 ServiceTree 处理器（依赖注入）
-func NewServiceTree(serviceTreeService *service.ServiceTreeService) *ServiceTree {
+func NewServiceTree(serviceTreeService *service.ServiceTreeService, functionGenService *service.FunctionGenService) *ServiceTree {
 	return &ServiceTree{
 		serviceTreeService: serviceTreeService,
+		functionGenService: functionGenService,
 	}
 }
 
@@ -223,4 +225,59 @@ func (s *ServiceTree) PublishDirectoryToHub(c *gin.Context) {
 		return
 	}
 	response.OkWithData(c, resp)
+}
+
+// AddFunctions 向服务目录添加函数（服务间调用，不需要JWT验证）
+// @Summary 向服务目录添加函数
+// @Description 接收来自 agent-server 的代码，写入到工作空间对应的目录下，并更新工作空间
+// @Description async=true: 异步处理，返回已接收，通过回调通知结果
+// @Description async=false: 同步处理，直接返回处理结果
+// @Tags 服务目录
+// @Accept json
+// @Produce json
+// @Param X-Trace-Id header string false "追踪ID"
+// @Param X-Request-User header string false "请求用户"
+// @Param request body dto.AddFunctionsReq true "添加函数请求"
+// @Success 200 {object} dto.AddFunctionsResp "处理成功（同步模式）"
+// @Success 202 {object} map[string]interface{} "已接收，处理中（异步模式）"
+// @Failure 400 {string} string "请求参数错误"
+// @Failure 500 {string} string "服务器内部错误"
+// @Router /workspace/api/v1/service_tree/add_functions [post]
+func (s *ServiceTree) AddFunctions(c *gin.Context) {
+	var req dto.AddFunctionsReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Errorf(c, "[ServiceTree API] 解析请求失败: %v", err)
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+
+	ctx := contextx.ToContext(c)
+
+	// 根据 async 参数决定处理方式
+	if req.Async {
+		// 异步模式：返回已接收，后台处理，通过回调通知
+		go func() {
+			// 异步处理，不等待结果
+			_ = s.functionGenService.ProcessFunctionGenResultAsync(ctx, &req)
+		}()
+
+		// 立即返回已接收（使用 202 Accepted 状态码表示已接受但未处理完成）
+		c.JSON(202, map[string]interface{}{
+			"code":    0,
+			"message": "函数添加请求已接收，正在异步处理",
+			"data": map[string]interface{}{
+				"record_id": req.RecordID,
+			},
+		})
+	} else {
+		// 同步模式：等待处理完成，直接返回结果
+		resp, err := s.serviceTreeService.AddFunctions(ctx, &req)
+		if err != nil {
+			logger.Errorf(c, "[ServiceTree API] 处理失败: %v", err)
+			response.FailWithMessage(c, "处理失败: "+err.Error())
+			return
+		}
+
+		response.OkWithData(c, resp)
+	}
 }

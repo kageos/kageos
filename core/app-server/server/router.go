@@ -52,14 +52,20 @@ func (s *Server) setupRoutes() {
 
 	// 服务目录管理路由（需要JWT验证）
 	serviceTree := apiV1.Group("/service_tree")
-	serviceTree.Use(middleware2.JWTAuth()) // 服务目录管理需要JWT认证
-	serviceTreeHandler := v1.NewServiceTree(s.serviceTreeService)
-	serviceTree.POST("", serviceTreeHandler.CreateServiceTree)
-	serviceTree.GET("", serviceTreeHandler.GetServiceTree)
-	serviceTree.PUT("", serviceTreeHandler.UpdateServiceTree)
-	serviceTree.DELETE("", serviceTreeHandler.DeleteServiceTree)
-	serviceTree.POST("/copy", serviceTreeHandler.CopyServiceTree)                 // 复制服务目录
-	serviceTree.POST("/publish_to_hub", serviceTreeHandler.PublishDirectoryToHub) // 发布目录到 Hub
+	serviceTreeHandler := v1.NewServiceTree(s.serviceTreeService, s.functionGenService)
+
+	// 需要JWT验证的路由
+	serviceTreeAuth := serviceTree.Group("")
+	serviceTreeAuth.Use(middleware2.JWTAuth()) // 服务目录管理需要JWT认证
+	serviceTreeAuth.POST("", serviceTreeHandler.CreateServiceTree)
+	serviceTreeAuth.GET("", serviceTreeHandler.GetServiceTree)
+	serviceTreeAuth.PUT("", serviceTreeHandler.UpdateServiceTree)
+	serviceTreeAuth.DELETE("", serviceTreeHandler.DeleteServiceTree)
+	serviceTreeAuth.POST("/copy", serviceTreeHandler.CopyServiceTree)                 // 复制服务目录
+	serviceTreeAuth.POST("/publish_to_hub", serviceTreeHandler.PublishDirectoryToHub) // 发布目录到 Hub
+
+	// 服务间调用路由（不需要JWT验证）
+	serviceTree.POST("/add_functions", serviceTreeHandler.AddFunctions) // 向服务目录添加函数（agent-server -> workspace）
 
 	// 函数管理路由（需要JWT验证）
 	function := apiV1.Group("/function")
@@ -96,4 +102,5 @@ func (s *Server) setupRoutes() {
 	directoryUpdateHistoryHandler := v1.NewDirectoryUpdateHistory(s.directoryUpdateHistoryService)
 	directoryUpdateHistory.GET("/app_version", directoryUpdateHistoryHandler.GetAppVersionUpdateHistory) // 获取应用版本更新历史（App视角）
 	directoryUpdateHistory.GET("/directory", directoryUpdateHistoryHandler.GetDirectoryUpdateHistory)    // 获取目录更新历史（目录视角）
+
 }

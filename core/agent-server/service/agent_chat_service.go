@@ -4,13 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/repository"
-	"github.com/ai-agent-os/ai-agent-os/pkg/config"
+	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/llms"
-	"github.com/nats-io/nats.go"
+	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -20,7 +23,6 @@ type AgentChatService struct {
 	llmRepo            *repository.LLMRepository
 	knowledgeRepo      *repository.KnowledgeRepository
 	functionGenService *FunctionGenService
-	cfg                *config.AgentServerConfig
 
 	// Repository for chat sessions and messages
 	sessionRepo     *repository.ChatSessionRepository
@@ -33,27 +35,20 @@ func NewAgentChatService(
 	agentRepo *repository.AgentRepository,
 	llmRepo *repository.LLMRepository,
 	knowledgeRepo *repository.KnowledgeRepository,
-	natsConn *nats.Conn,
-	cfg *config.AgentServerConfig,
+	functionGenService *FunctionGenService,
+	sessionRepo *repository.ChatSessionRepository,
+	messageRepo *repository.ChatMessageRepository,
+	functionGenRepo *repository.FunctionGenRepository,
 ) *AgentChatService {
 	return &AgentChatService{
 		agentRepo:          agentRepo,
 		llmRepo:            llmRepo,
 		knowledgeRepo:      knowledgeRepo,
-		functionGenService: NewFunctionGenService(natsConn, cfg),
-		cfg:                cfg,
+		functionGenService: functionGenService,
+		sessionRepo:        sessionRepo,
+		messageRepo:        messageRepo,
+		functionGenRepo:    functionGenRepo,
 	}
-}
-
-// SetRepositories 设置会话和消息相关的 Repository（延迟初始化）
-func (s *AgentChatService) SetRepositories(
-	sessionRepo *repository.ChatSessionRepository,
-	messageRepo *repository.ChatMessageRepository,
-	functionGenRepo *repository.FunctionGenRepository,
-) {
-	s.sessionRepo = sessionRepo
-	s.messageRepo = messageRepo
-	s.functionGenRepo = functionGenRepo
 }
 
 // Chat 智能体聊天

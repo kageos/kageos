@@ -51,14 +51,32 @@ type Usage struct {
 	TotalTokens      int `json:"total_tokens" example:"30"`      // 总token数
 }
 
-// FunctionGenResult 函数生成结果（用于 NATS 消息队列，供 app-server 消费）
-type FunctionGenResult struct {
+// AddFunctionsReq 添加函数请求（agent-server -> workspace）
+// 用于向服务目录添加函数，将生成的代码写入到工作空间对应的目录下
+type AddFunctionsReq struct {
 	RecordID  int64  `json:"record_id" example:"1"`                                       // function_gen 记录ID
 	MessageID int64  `json:"message_id" example:"1"`                                      // 消息ID（关联到 AgentChatMessage.ID）
 	AgentID   int64  `json:"agent_id" example:"1"`                                        // 智能体ID
 	TreeID    int64  `json:"tree_id" example:"629"`                                       // 服务目录ID
 	User      string `json:"user" example:"beiluo"`                                       // 用户标识
-	Code      string `json:"code" example:"package main\n\nfunc main() {\n\t// 生成的代码\n}"` // 生成的代码内容
+	Code      string `json:"code" example:"package main\n\nfunc main() {\n\t// 生成的代码\n}"` // 生成的代码内容（原始代码，已废弃，保留用于兼容）
+	// 处理后的结构化数据（agent-server 处理后的结果）
+	FileName   string `json:"file_name" example:"crm_ticket"`   // 从代码中提取的文件名
+	SourceCode string `json:"source_code" example:"package..."`  // 处理后的源代码（从 Markdown 中提取）
+	Async      bool   `json:"async" example:"false"`            // 是否异步处理（true: 异步，通过回调通知；false: 同步，直接返回结果）
+}
+
+// FunctionGenResult 已废弃，请使用 AddFunctionsReq
+// Deprecated: 使用 AddFunctionsReq 替代
+type FunctionGenResult = AddFunctionsReq
+
+// AddFunctionsResp 添加函数响应（同步模式返回）
+type AddFunctionsResp struct {
+	Success        bool     `json:"success" example:"true"`           // 是否成功
+	FullGroupCodes []string `json:"full_group_codes,omitempty" example:"[\"/user/app/function\"]"` // 生成的函数组代码列表
+	AppID          int64    `json:"app_id" example:"1"`                // 应用ID
+	AppCode        string   `json:"app_code" example:"myapp"`          // 应用代码
+	Error          string   `json:"error,omitempty" example:""`         // 错误信息（如果失败）
 }
 
 // PluginFile 插件文件信息

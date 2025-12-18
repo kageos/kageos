@@ -150,8 +150,7 @@ func (s *FunctionGenService) PublishResult(ctx context.Context, result *dto.Func
 	return nil
 }
 
-// FunctionGenChat 函数生成智能体聊天（完整的对话流程）
-func (s *AgentChatService) FunctionGenChat(ctx context.Context, req *dto.FunctionGenAgentChatReq) (*dto.FunctionGenAgentChatResp, error) {
+// FunctionGenChat 方法已移至 agent_chat_service_function_gen.go
 	user := contextx.GetRequestUser(ctx)
 	traceId := contextx.GetTraceId(ctx)
 
