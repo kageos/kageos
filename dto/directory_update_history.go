@@ -34,9 +34,9 @@ type DirectoryChangeInfo struct {
 	DirVersionNum     int             `json:"dir_version_num"`     // 目录版本号（数字部分）
 	AppVersion        string          `json:"app_version"`          // 应用版本号（目录视角时使用）
 	AppVersionNum     int             `json:"app_version_num"`      // 应用版本号（数字部分，目录视角时使用）
-	AddedAPIs         json.RawMessage `json:"added_apis"`          // 新增的API摘要列表
-	UpdatedAPIs       json.RawMessage `json:"updated_apis"`        // 更新的API摘要列表
-	DeletedAPIs       json.RawMessage `json:"deleted_apis"`        // 删除的API摘要列表
+	AddedAPIs         json.RawMessage `json:"added_apis" swaggertype:"string" example:"[]"`          // 新增的API摘要列表
+	UpdatedAPIs       json.RawMessage `json:"updated_apis" swaggertype:"string" example:"[]"`        // 更新的API摘要列表
+	DeletedAPIs       json.RawMessage `json:"deleted_apis" swaggertype:"string" example:"[]"`        // 删除的API摘要列表
 	AddedCount        int             `json:"added_count"`          // 新增API数量
 	UpdatedCount      int             `json:"updated_count"`       // 更新API数量
 	DeletedCount      int             `json:"deleted_count"`        // 删除API数量

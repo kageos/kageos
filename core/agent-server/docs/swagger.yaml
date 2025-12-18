@@ -1,13 +1,13 @@
 definitions:
   dto.AgentCreateReq:
     properties:
-      agent_type:
-        description: knowledge_only, api_call
-        example: api_call
+      admin:
+        description: 管理员列表（逗号分隔，默认创建用户）
+        example: user1,user2
         type: string
-      api_path:
-        description: 仅接口调用类型需要
-        example: http://excel-generator:8080/api/v1/process
+      agent_type:
+        description: knowledge_only, plugin
+        example: plugin
         type: string
       author:
         example: beiluo
@@ -18,17 +18,47 @@ definitions:
       description:
         example: 基于Excel文件生成管理系统
         type: string
+      greeting:
+        description: 开场白内容（可选）
+        example: 欢迎使用本智能体！
+        type: string
+      greeting_type:
+        description: 开场白格式类型：text, md, html（默认text）
+        example: md
+        type: string
       knowledge_base_id:
         example: 1
         type: integer
+      llm_config_id:
+        description: LLM配置ID，如果为0则使用默认LLM
+        example: 1
+        type: integer
+      logo:
+        description: 智能体 Logo URL（可选）
+        example: https://example.com/logo.png
+        type: string
       metadata:
         example: '{}'
         type: string
       name:
         example: Excel生成智能体
         type: string
+      plugin_id:
+        description: 插件ID（仅 plugin 类型需要）
+        example: 1
+        type: integer
+      system_prompt_template:
+        description: System Prompt模板，支持{knowledge}变量
+        example: |-
+          你是一个专业的代码生成助手。以下是相关的知识库内容，请参考这些内容来生成代码：
+          {knowledge}
+        type: string
       timeout:
         example: 30
+        type: integer
+      visibility:
+        description: '0: 公开, 1: 私有（默认0）'
+        example: 0
         type: integer
     required:
     - agent_type
@@ -68,18 +98,19 @@ definitions:
     type: object
   dto.AgentGetResp:
     properties:
-      agent_type:
-        description: knowledge_only, api_call
-        example: api_call
+      admin:
+        description: 管理员列表（逗号分隔）
+        example: user1,user2
         type: string
-      api_path:
-        example: http://excel-generator:8080/api/v1/process
+      agent_type:
+        description: knowledge_only, plugin
+        example: plugin
         type: string
       author:
         example: beiluo
         type: string
       chat_type:
-        example: chat-task
+        example: function_gen
         type: string
       created_at:
         example: "2024-01-01T00:00:00Z"
@@ -90,17 +121,63 @@ definitions:
       enabled:
         example: true
         type: boolean
+      generation_count:
+        description: 生成次数统计
+        example: 100
+        type: integer
+      greeting:
+        description: 开场白内容（可选）
+        example: 欢迎使用本智能体！
+        type: string
+      greeting_type:
+        description: 开场白格式类型：text, md, html
+        example: md
+        type: string
       id:
         example: 1
         type: integer
+      is_admin:
+        description: 当前用户是否是管理员（前端计算或后端返回）
+        example: true
+        type: boolean
+      knowledge_base:
+        allOf:
+        - $ref: '#/definitions/dto.KnowledgeBaseInfo'
+        description: 预加载的知识库信息
       knowledge_base_id:
         example: 1
         type: integer
+      llm_config:
+        allOf:
+        - $ref: '#/definitions/dto.LLMConfigInfo'
+        description: 预加载的LLM配置信息
+      llm_config_id:
+        description: LLM配置ID，如果为0则使用默认LLM
+        example: 1
+        type: integer
+      logo:
+        description: 智能体 Logo URL（可选）
+        example: https://example.com/logo.png
+        type: string
       metadata:
         example: '{}'
         type: string
       name:
         example: Excel生成智能体
+        type: string
+      plugin:
+        allOf:
+        - $ref: '#/definitions/dto.PluginInfo'
+        description: 预加载的插件信息
+      plugin_id:
+        description: 插件ID（仅 plugin 类型需要）
+        example: 1
+        type: integer
+      system_prompt_template:
+        description: System Prompt模板，支持{knowledge}变量
+        example: |-
+          你是一个专业的代码生成助手。以下是相关的知识库内容，请参考这些内容来生成代码：
+          {knowledge}
         type: string
       timeout:
         example: 30
@@ -108,21 +185,26 @@ definitions:
       updated_at:
         example: "2024-01-01T00:00:00Z"
         type: string
+      visibility:
+        description: '0: 公开, 1: 私有'
+        example: 0
+        type: integer
     type: object
   dto.AgentInfo:
     properties:
-      agent_type:
-        description: knowledge_only, api_call
-        example: api_call
+      admin:
+        description: 管理员列表（逗号分隔）
+        example: user1,user2
         type: string
-      api_path:
-        example: http://excel-generator:8080/api/v1/process
+      agent_type:
+        description: knowledge_only, plugin
+        example: plugin
         type: string
       author:
         example: beiluo
         type: string
       chat_type:
-        example: chat-task
+        example: function_gen
         type: string
       created_at:
         example: "2024-01-01T00:00:00Z"
@@ -133,17 +215,63 @@ definitions:
       enabled:
         example: true
         type: boolean
+      generation_count:
+        description: 生成次数统计
+        example: 100
+        type: integer
+      greeting:
+        description: 开场白内容（可选）
+        example: 欢迎使用本智能体！
+        type: string
+      greeting_type:
+        description: 开场白格式类型：text, md, html
+        example: md
+        type: string
       id:
         example: 1
         type: integer
+      is_admin:
+        description: 当前用户是否是管理员（前端计算或后端返回）
+        example: true
+        type: boolean
+      knowledge_base:
+        allOf:
+        - $ref: '#/definitions/dto.KnowledgeBaseInfo'
+        description: 预加载的知识库信息
       knowledge_base_id:
         example: 1
         type: integer
+      llm_config:
+        allOf:
+        - $ref: '#/definitions/dto.LLMConfigInfo'
+        description: 预加载的LLM配置信息
+      llm_config_id:
+        description: LLM配置ID，如果为0则使用默认LLM
+        example: 1
+        type: integer
+      logo:
+        description: 智能体 Logo URL（可选）
+        example: https://example.com/logo.png
+        type: string
       metadata:
         example: '{}'
         type: string
       name:
         example: Excel生成智能体
+        type: string
+      plugin:
+        allOf:
+        - $ref: '#/definitions/dto.PluginInfo'
+        description: 预加载的插件信息
+      plugin_id:
+        description: 插件ID（仅 plugin 类型需要）
+        example: 1
+        type: integer
+      system_prompt_template:
+        description: System Prompt模板，支持{knowledge}变量
+        example: |-
+          你是一个专业的代码生成助手。以下是相关的知识库内容，请参考这些内容来生成代码：
+          {knowledge}
         type: string
       timeout:
         example: 30
@@ -151,6 +279,10 @@ definitions:
       updated_at:
         example: "2024-01-01T00:00:00Z"
         type: string
+      visibility:
+        description: '0: 公开, 1: 私有'
+        example: 0
+        type: integer
     type: object
   dto.AgentListResp:
     properties:
@@ -164,20 +296,29 @@ definitions:
     type: object
   dto.AgentUpdateReq:
     properties:
-      agent_type:
-        example: api_call
+      admin:
+        description: 管理员列表（逗号分隔）
+        example: user1,user2
         type: string
-      api_path:
-        example: http://excel-generator:8080/api/v1/process
+      agent_type:
+        example: plugin
         type: string
       author:
         example: beiluo
         type: string
       chat_type:
-        example: chat-task
+        example: function_gen
         type: string
       description:
         example: 基于Excel文件生成管理系统
+        type: string
+      greeting:
+        description: 开场白内容（可选）
+        example: 欢迎使用本智能体！
+        type: string
+      greeting_type:
+        description: 开场白格式类型：text, md, html（默认text）
+        example: md
         type: string
       id:
         example: 1
@@ -185,14 +326,36 @@ definitions:
       knowledge_base_id:
         example: 1
         type: integer
+      llm_config_id:
+        description: LLM配置ID，如果为0则使用默认LLM
+        example: 1
+        type: integer
+      logo:
+        description: 智能体 Logo URL（可选）
+        example: https://example.com/logo.png
+        type: string
       metadata:
         example: '{}'
         type: string
       name:
         example: Excel生成智能体
         type: string
+      plugin_id:
+        description: 插件ID（仅 plugin 类型需要）
+        example: 1
+        type: integer
+      system_prompt_template:
+        description: System Prompt模板，支持{knowledge}变量
+        example: |-
+          你是一个专业的代码生成助手。以下是相关的知识库内容，请参考这些内容来生成代码：
+          {knowledge}
+        type: string
       timeout:
         example: 30
+        type: integer
+      visibility:
+        description: '0: 公开, 1: 私有'
+        example: 0
         type: integer
     required:
     - agent_type
@@ -207,8 +370,141 @@ definitions:
         example: 1
         type: integer
     type: object
+  dto.ChatMessageInfo:
+    properties:
+      agent_id:
+        description: 处理该消息的智能体ID
+        example: 1
+        type: integer
+      content:
+        description: 消息内容
+        example: 你好
+        type: string
+      created_at:
+        description: 创建时间
+        example: "2006-01-02T15:04:05Z"
+        type: string
+      files:
+        description: 文件列表（JSON字符串，可选）
+        example: '[{"url":"...","remark":"..."}]'
+        type: string
+      id:
+        description: 消息ID
+        example: 1
+        type: integer
+      role:
+        description: 消息角色：user/assistant/system
+        example: user
+        type: string
+      session_id:
+        description: 会话ID
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      user:
+        description: 创建用户
+        example: beiluo
+        type: string
+    type: object
+  dto.ChatMessageListResp:
+    properties:
+      messages:
+        description: 消息列表（按创建时间升序）
+        items:
+          $ref: '#/definitions/dto.ChatMessageInfo'
+        type: array
+    type: object
+  dto.ChatSessionInfo:
+    properties:
+      agent:
+        allOf:
+        - $ref: '#/definitions/dto.AgentInfo'
+        description: 关联的智能体信息（可选）
+      agent_id:
+        description: 关联的智能体ID
+        example: 1
+        type: integer
+      created_at:
+        description: 创建时间
+        example: "2006-01-02T15:04:05Z"
+        type: string
+      id:
+        description: 会话ID
+        example: 1
+        type: integer
+      session_id:
+        description: 会话ID（UUID）
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      status:
+        description: 会话状态：active(活跃)/generating(生成中)/done(已完成)
+        example: active
+        type: string
+      title:
+        description: 会话标题
+        example: 会话标题
+        type: string
+      tree_id:
+        description: 服务目录ID
+        example: 629
+        type: integer
+      updated_at:
+        description: 更新时间
+        example: "2006-01-02T15:04:05Z"
+        type: string
+      user:
+        description: 创建用户
+        example: beiluo
+        type: string
+    type: object
+  dto.ChatSessionListResp:
+    properties:
+      sessions:
+        description: 会话列表
+        items:
+          $ref: '#/definitions/dto.ChatSessionInfo'
+        type: array
+      total:
+        description: 总数
+        example: 100
+        type: integer
+    type: object
+  dto.CreatePluginReq:
+    properties:
+      admin:
+        description: 管理员列表（逗号分隔，默认创建用户）
+        example: user1,user2
+        type: string
+      code:
+        example: excel_parser
+        type: string
+      config:
+        description: 插件配置（JSON）
+        example: '{"timeout": 30, "max_file_size": 10485760}'
+        type: string
+      description:
+        example: 解析Excel文件为Markdown表格
+        type: string
+      enabled:
+        example: true
+        type: boolean
+      name:
+        example: Excel解析插件
+        type: string
+      visibility:
+        description: '0: 公开, 1: 私有（默认0）'
+        example: 0
+        type: integer
+    required:
+    - code
+    - name
+    type: object
   dto.DocumentInfo:
     properties:
+      children:
+        description: 子文档列表（用于树形结构）
+        items:
+          $ref: '#/definitions/dto.DocumentInfo'
+        type: array
       content:
         example: Excel是一个电子表格软件...
         type: string
@@ -230,8 +526,20 @@ definitions:
       knowledge_base_id:
         example: 1
         type: integer
+      parent_id:
+        description: 父文档ID（0表示根目录）
+        example: 0
+        type: integer
+      path:
+        description: 路径
+        example: /目录1/文档
+        type: string
+      sort_order:
+        description: 排序字段
+        example: 0
+        type: integer
       status:
-        description: processing/completed/failed
+        description: completed/failed
         example: completed
         type: string
       title:
@@ -242,6 +550,135 @@ definitions:
         type: string
       user:
         example: admin
+        type: string
+    type: object
+  dto.FunctionGenAgentChatReq:
+    properties:
+      agent_id:
+        description: 智能体ID
+        example: 1
+        type: integer
+      existing_files:
+        description: 当前 package 下已存在的文件名（不含 .go 后缀）
+        example:
+        - '["crm_ticket"'
+        - '"crm_user"]'
+        items:
+          type: string
+        type: array
+      message:
+        allOf:
+        - $ref: '#/definitions/dto.Message'
+        description: 单条消息（历史记录后端自动加载）
+      package:
+        description: Package 名称（从前端传递）
+        example: crm
+        type: string
+      session_id:
+        description: 会话ID（UUID），首次为空，后端自动生成
+        example: ""
+        type: string
+      tree_id:
+        description: 服务目录ID
+        example: 629
+        type: integer
+    required:
+    - agent_id
+    - message
+    - tree_id
+    type: object
+  dto.FunctionGenAgentChatResp:
+    properties:
+      can_continue:
+        description: '是否可以继续输入（true: 可以继续输入, false: 不能再输入）'
+        example: false
+        type: boolean
+      content:
+        description: AI回答内容
+        example: 正在生成代码...
+        type: string
+      record_id:
+        description: function_gen 记录ID（如果触发生成）
+        example: 1
+        type: integer
+      session_id:
+        description: 会话ID（首次创建时返回）
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      status:
+        description: 状态：generating/completed/failed
+        example: generating
+        type: string
+      usage:
+        allOf:
+        - $ref: '#/definitions/dto.Usage'
+        description: Token使用统计（可选）
+    type: object
+  dto.FunctionGenCallback:
+    properties:
+      app_code:
+        description: 应用代码（冗余存储，提高查询效率）
+        type: string
+      app_id:
+        description: 应用ID
+        type: integer
+      error:
+        description: 错误信息（如果失败）
+        type: string
+      full_group_codes:
+        description: 生成的函数组代码列表
+        items:
+          type: string
+        type: array
+      message_id:
+        description: 消息ID
+        type: integer
+      record_id:
+        description: 生成记录ID
+        type: integer
+      success:
+        description: 是否成功
+        type: boolean
+    type: object
+  dto.FunctionGenStatusResp:
+    properties:
+      code:
+        description: 生成的代码（仅在 completed 时返回）
+        example: |-
+          package main
+
+          func main() {}
+        type: string
+      created_at:
+        description: 创建时间
+        example: "2006-01-02T15:04:05Z"
+        type: string
+      duration:
+        description: 生成耗时（秒）
+        example: 30
+        type: integer
+      error_msg:
+        description: 错误信息（仅在 failed 时返回）
+        example: 生成失败
+        type: string
+      full_group_codes:
+        description: 生成的函数组代码列表（仅在 completed 时返回）
+        example:
+        - '["/user/app/function"]'
+        items:
+          type: string
+        type: array
+      record_id:
+        description: 生成记录ID
+        example: 1
+        type: integer
+      status:
+        description: 状态：generating/completed/failed
+        example: generating
+        type: string
+      updated_at:
+        description: 更新时间
+        example: "2006-01-02T15:04:05Z"
         type: string
     type: object
   dto.KnowledgeAddDocumentReq:
@@ -255,6 +692,14 @@ definitions:
         type: string
       knowledge_base_id:
         example: 1
+        type: integer
+      parent_id:
+        description: 父文档ID（0表示根目录）
+        example: 0
+        type: integer
+      sort_order:
+        description: 排序字段（可选，默认为0）
+        example: 0
         type: integer
       title:
         example: Excel使用指南
@@ -270,8 +715,30 @@ definitions:
         example: doc_001
         type: string
     type: object
+  dto.KnowledgeBaseInfo:
+    properties:
+      description:
+        example: Excel相关文档
+        type: string
+      document_count:
+        example: 10
+        type: integer
+      id:
+        example: 1
+        type: integer
+      name:
+        example: Excel知识库
+        type: string
+      status:
+        example: active
+        type: string
+    type: object
   dto.KnowledgeCreateReq:
     properties:
+      admin:
+        description: 管理员列表（逗号分隔，默认创建用户）
+        example: user1,user2
+        type: string
       description:
         example: Excel相关的知识库
         type: string
@@ -282,6 +749,10 @@ definitions:
         description: active/inactive
         example: active
         type: string
+      visibility:
+        description: '0: 公开, 1: 私有（默认0）'
+        example: 0
+        type: integer
     required:
     - name
     type: object
@@ -291,29 +762,89 @@ definitions:
         example: 1
         type: integer
     type: object
-  dto.KnowledgeGetResp:
+  dto.KnowledgeDeleteDocumentReq:
     properties:
-      content_hash:
-        example: abc123...
+      id:
+        example: 1
+        type: integer
+    required:
+    - id
+    type: object
+  dto.KnowledgeDeleteReq:
+    properties:
+      id:
+        example: 1
+        type: integer
+    required:
+    - id
+    type: object
+  dto.KnowledgeDocumentSortUpdate:
+    properties:
+      id:
+        description: 文档ID
+        example: 1
+        type: integer
+      parent_id:
+        description: 父文档ID（0表示根目录）
+        example: 0
+        type: integer
+      path:
+        description: 路径
+        example: /目录1/文档
+        type: string
+      sort_order:
+        description: 排序字段
+        example: 0
+        type: integer
+    required:
+    - id
+    type: object
+  dto.KnowledgeGetDocumentResp:
+    properties:
+      children:
+        description: 子文档列表（用于树形结构）
+        items:
+          $ref: '#/definitions/dto.DocumentInfo'
+        type: array
+      content:
+        example: Excel是一个电子表格软件...
         type: string
       created_at:
         example: "2024-01-01T00:00:00Z"
         type: string
-      description:
-        example: Excel相关的知识库
+      doc_id:
+        example: doc_001
         type: string
-      document_count:
-        example: 10
+      file_size:
+        example: 1024
         type: integer
+      file_type:
+        example: pdf
+        type: string
       id:
         example: 1
         type: integer
-      name:
-        example: Excel知识库
+      knowledge_base_id:
+        example: 1
+        type: integer
+      parent_id:
+        description: 父文档ID（0表示根目录）
+        example: 0
+        type: integer
+      path:
+        description: 路径
+        example: /目录1/文档
         type: string
+      sort_order:
+        description: 排序字段
+        example: 0
+        type: integer
       status:
-        description: active/inactive
-        example: active
+        description: completed/failed
+        example: completed
+        type: string
+      title:
+        example: Excel使用指南
         type: string
       updated_at:
         example: "2024-01-01T00:00:00Z"
@@ -322,8 +853,20 @@ definitions:
         example: admin
         type: string
     type: object
-  dto.KnowledgeInfo:
+  dto.KnowledgeGetDocumentsTreeResp:
     properties:
+      documents:
+        description: 树形结构的文档列表
+        items:
+          $ref: '#/definitions/dto.DocumentInfo'
+        type: array
+    type: object
+  dto.KnowledgeGetResp:
+    properties:
+      admin:
+        description: 管理员列表（逗号分隔）
+        example: user1,user2
+        type: string
       content_hash:
         example: abc123...
         type: string
@@ -339,6 +882,10 @@ definitions:
       id:
         example: 1
         type: integer
+      is_admin:
+        description: 当前用户是否是管理员
+        example: true
+        type: boolean
       name:
         example: Excel知识库
         type: string
@@ -350,8 +897,57 @@ definitions:
         example: "2024-01-01T00:00:00Z"
         type: string
       user:
+        description: 保留用于向后兼容
         example: admin
         type: string
+      visibility:
+        description: '0: 公开, 1: 私有'
+        example: 0
+        type: integer
+    type: object
+  dto.KnowledgeInfo:
+    properties:
+      admin:
+        description: 管理员列表（逗号分隔）
+        example: user1,user2
+        type: string
+      content_hash:
+        example: abc123...
+        type: string
+      created_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      description:
+        example: Excel相关的知识库
+        type: string
+      document_count:
+        example: 10
+        type: integer
+      id:
+        example: 1
+        type: integer
+      is_admin:
+        description: 当前用户是否是管理员
+        example: true
+        type: boolean
+      name:
+        example: Excel知识库
+        type: string
+      status:
+        description: active/inactive
+        example: active
+        type: string
+      updated_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      user:
+        description: 保留用于向后兼容
+        example: admin
+        type: string
+      visibility:
+        description: '0: 公开, 1: 私有'
+        example: 0
+        type: integer
     type: object
   dto.KnowledgeListDocumentsResp:
     properties:
@@ -373,8 +969,64 @@ definitions:
         example: 100
         type: integer
     type: object
+  dto.KnowledgeUpdateDocumentReq:
+    properties:
+      content:
+        example: Excel是一个电子表格软件...
+        type: string
+      file_type:
+        description: pdf/txt/doc/md
+        example: pdf
+        type: string
+      id:
+        example: 1
+        type: integer
+      parent_id:
+        description: 父文档ID（0表示根目录）
+        example: 0
+        type: integer
+      sort_order:
+        description: 排序字段
+        example: 0
+        type: integer
+      status:
+        description: completed/failed
+        example: completed
+        type: string
+      title:
+        example: Excel使用指南
+        type: string
+    required:
+    - content
+    - id
+    - title
+    type: object
+  dto.KnowledgeUpdateDocumentResp:
+    properties:
+      id:
+        example: 1
+        type: integer
+    type: object
+  dto.KnowledgeUpdateDocumentsSortReq:
+    properties:
+      knowledge_base_id:
+        example: 1
+        type: integer
+      updates:
+        description: 排序更新列表
+        items:
+          $ref: '#/definitions/dto.KnowledgeDocumentSortUpdate'
+        type: array
+    required:
+    - knowledge_base_id
+    - updates
+    type: object
   dto.KnowledgeUpdateReq:
     properties:
+      admin:
+        description: 管理员列表（逗号分隔）
+        example: user1,user2
+        type: string
       description:
         example: Excel相关的知识库
         type: string
@@ -388,6 +1040,10 @@ definitions:
         description: active/inactive
         example: active
         type: string
+      visibility:
+        description: '0: 公开, 1: 私有'
+        example: 0
+        type: integer
     required:
     - id
     - name
@@ -398,8 +1054,30 @@ definitions:
         example: 1
         type: integer
     type: object
+  dto.LLMConfigInfo:
+    properties:
+      id:
+        example: 1
+        type: integer
+      is_default:
+        example: true
+        type: boolean
+      model:
+        example: gpt-4
+        type: string
+      name:
+        example: OpenAI GPT-4
+        type: string
+      provider:
+        example: openai
+        type: string
+    type: object
   dto.LLMCreateReq:
     properties:
+      admin:
+        description: 管理员列表（逗号分隔，默认创建用户）
+        example: user1,user2
+        type: string
       api_base:
         example: https://api.openai.com/v1
         type: string
@@ -426,6 +1104,14 @@ definitions:
         type: string
       timeout:
         example: 120
+        type: integer
+      use_thinking:
+        description: 是否使用思考模式（GLM特有功能）
+        example: false
+        type: boolean
+      visibility:
+        description: '0: 公开, 1: 私有（默认0）'
+        example: 0
         type: integer
     required:
     - model
@@ -440,6 +1126,10 @@ definitions:
     type: object
   dto.LLMGetDefaultResp:
     properties:
+      admin:
+        description: 管理员列表（逗号分隔）
+        example: user1,user2
+        type: string
       api_base:
         example: https://api.openai.com/v1
         type: string
@@ -452,6 +1142,10 @@ definitions:
       id:
         example: 1
         type: integer
+      is_admin:
+        description: 当前用户是否是管理员
+        example: true
+        type: boolean
       is_default:
         example: true
         type: boolean
@@ -474,9 +1168,21 @@ definitions:
       updated_at:
         example: "2024-01-01T00:00:00Z"
         type: string
+      use_thinking:
+        description: 是否使用思考模式（GLM特有功能）
+        example: false
+        type: boolean
+      visibility:
+        description: '0: 公开, 1: 私有'
+        example: 0
+        type: integer
     type: object
   dto.LLMGetResp:
     properties:
+      admin:
+        description: 管理员列表（逗号分隔）
+        example: user1,user2
+        type: string
       api_base:
         example: https://api.openai.com/v1
         type: string
@@ -489,6 +1195,10 @@ definitions:
       id:
         example: 1
         type: integer
+      is_admin:
+        description: 当前用户是否是管理员
+        example: true
+        type: boolean
       is_default:
         example: true
         type: boolean
@@ -511,9 +1221,21 @@ definitions:
       updated_at:
         example: "2024-01-01T00:00:00Z"
         type: string
+      use_thinking:
+        description: 是否使用思考模式（GLM特有功能）
+        example: false
+        type: boolean
+      visibility:
+        description: '0: 公开, 1: 私有'
+        example: 0
+        type: integer
     type: object
   dto.LLMInfo:
     properties:
+      admin:
+        description: 管理员列表（逗号分隔）
+        example: user1,user2
+        type: string
       api_base:
         example: https://api.openai.com/v1
         type: string
@@ -526,6 +1248,10 @@ definitions:
       id:
         example: 1
         type: integer
+      is_admin:
+        description: 当前用户是否是管理员
+        example: true
+        type: boolean
       is_default:
         example: true
         type: boolean
@@ -548,6 +1274,14 @@ definitions:
       updated_at:
         example: "2024-01-01T00:00:00Z"
         type: string
+      use_thinking:
+        description: 是否使用思考模式（GLM特有功能）
+        example: false
+        type: boolean
+      visibility:
+        description: '0: 公开, 1: 私有'
+        example: 0
+        type: integer
     type: object
   dto.LLMListResp:
     properties:
@@ -561,6 +1295,10 @@ definitions:
     type: object
   dto.LLMUpdateReq:
     properties:
+      admin:
+        description: 管理员列表（逗号分隔）
+        example: user1,user2
+        type: string
       api_base:
         example: https://api.openai.com/v1
         type: string
@@ -591,6 +1329,14 @@ definitions:
       timeout:
         example: 120
         type: integer
+      use_thinking:
+        description: 是否使用思考模式（GLM特有功能）
+        example: false
+        type: boolean
+      visibility:
+        description: '0: 公开, 1: 私有'
+        example: 0
+        type: integer
     required:
     - id
     - model
@@ -602,6 +1348,199 @@ definitions:
       id:
         example: 1
         type: integer
+    type: object
+  dto.Message:
+    properties:
+      content:
+        description: 消息内容
+        example: 你好
+        type: string
+      files:
+        items:
+          properties:
+            remark:
+              type: string
+            url:
+              description: 文件url
+              type: string
+          type: object
+        type: array
+    required:
+    - content
+    type: object
+  dto.PluginInfo:
+    properties:
+      admin:
+        description: 管理员列表（逗号分隔）
+        example: user1,user2
+        type: string
+      code:
+        example: excel_parser
+        type: string
+      config:
+        description: 插件配置（JSON）
+        example: '{"timeout": 30, "max_file_size": 10485760}'
+        type: string
+      created_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      description:
+        example: 解析Excel文件为Markdown表格
+        type: string
+      enabled:
+        example: true
+        type: boolean
+      id:
+        example: 1
+        type: integer
+      is_admin:
+        description: 当前用户是否是管理员
+        example: true
+        type: boolean
+      name:
+        example: Excel解析插件
+        type: string
+      nats_host:
+        description: NATS 服务器地址
+        example: nats://127.0.0.1:4223
+        type: string
+      subject:
+        description: NATS主题，自动生成
+        example: plugins.beiluo.1
+        type: string
+      updated_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      user:
+        description: 创建用户（保留用于向后兼容）
+        example: beiluo
+        type: string
+      visibility:
+        description: '0: 公开, 1: 私有'
+        example: 0
+        type: integer
+    type: object
+  dto.PluginListResp:
+    properties:
+      page:
+        example: 1
+        type: integer
+      page_size:
+        example: 10
+        type: integer
+      plugins:
+        items:
+          $ref: '#/definitions/dto.PluginInfo'
+        type: array
+      total:
+        example: 100
+        type: integer
+    type: object
+  dto.UpdatePluginReq:
+    properties:
+      admin:
+        description: 管理员列表（逗号分隔）
+        example: user1,user2
+        type: string
+      code:
+        example: excel_parser
+        type: string
+      config:
+        description: 插件配置（JSON）
+        example: '{"timeout": 30, "max_file_size": 10485760}'
+        type: string
+      description:
+        example: 解析Excel文件为Markdown表格
+        type: string
+      enabled:
+        example: true
+        type: boolean
+      name:
+        example: Excel解析插件
+        type: string
+      visibility:
+        description: '0: 公开, 1: 私有'
+        example: 0
+        type: integer
+    required:
+    - code
+    - name
+    type: object
+  dto.Usage:
+    properties:
+      completion_tokens:
+        description: 输出token数
+        example: 20
+        type: integer
+      prompt_tokens:
+        description: 输入token数
+        example: 10
+        type: integer
+      total_tokens:
+        description: 总token数
+        example: 30
+        type: integer
+    type: object
+  license.Features:
+    properties:
+      approval:
+        description: 审批流程
+        type: boolean
+      change_log:
+        description: 变更日志
+        type: boolean
+      config_management:
+        description: 配置管理
+        type: boolean
+      notification:
+        description: 通知中心
+        type: boolean
+      operate_log:
+        description: 操作日志
+        type: boolean
+      organization:
+        description: 组织架构
+        type: boolean
+      permission:
+        description: 权限管理
+        type: boolean
+      quick_link:
+        description: 快链
+        type: boolean
+      recycle_bin:
+        description: 回收站
+        type: boolean
+      scheduled_task:
+        description: 定时任务
+        type: boolean
+      workflow:
+        description: 工作流
+        type: boolean
+    type: object
+  service.LicenseStatus:
+    properties:
+      customer:
+        description: 客户名称（可选）
+        type: string
+      description:
+        description: License 描述（可选）
+        type: string
+      edition:
+        description: 版本类型：community, professional, enterprise, flagship
+        type: string
+      expires_at:
+        description: 过期时间（可选）
+        type: string
+      features:
+        allOf:
+        - $ref: '#/definitions/license.Features'
+        description: 功能开关（可选）
+      is_community:
+        description: 是否为社区版
+        type: boolean
+      is_valid:
+        description: License 是否有效
+        type: boolean
     type: object
 externalDocs:
   description: OpenAPI
@@ -620,7 +1559,7 @@ info:
   title: Agent-Server API
   version: "1.0"
 paths:
-  /api/v1/agent/agents/create:
+  /agent/api/v1/agents/create:
     post:
       consumes:
       - application/json
@@ -646,7 +1585,7 @@ paths:
       summary: 创建智能体
       tags:
       - 智能体管理
-  /api/v1/agent/agents/delete:
+  /agent/api/v1/agents/delete:
     post:
       consumes:
       - application/json
@@ -670,7 +1609,7 @@ paths:
       summary: 删除智能体
       tags:
       - 智能体管理
-  /api/v1/agent/agents/disable:
+  /agent/api/v1/agents/disable:
     post:
       consumes:
       - application/json
@@ -694,7 +1633,7 @@ paths:
       summary: 禁用智能体
       tags:
       - 智能体管理
-  /api/v1/agent/agents/enable:
+  /agent/api/v1/agents/enable:
     post:
       consumes:
       - application/json
@@ -718,7 +1657,7 @@ paths:
       summary: 启用智能体
       tags:
       - 智能体管理
-  /api/v1/agent/agents/get:
+  /agent/api/v1/agents/get:
     get:
       consumes:
       - application/json
@@ -743,7 +1682,7 @@ paths:
       summary: 获取智能体详情
       tags:
       - 智能体管理
-  /api/v1/agent/agents/list:
+  /agent/api/v1/agents/list:
     get:
       consumes:
       - application/json
@@ -752,7 +1691,7 @@ paths:
       - description: 智能体类型
         enum:
         - knowledge_only
-        - api_call
+        - plugin
         in: query
         name: agent_type
         type: string
@@ -786,7 +1725,7 @@ paths:
       summary: 获取智能体列表
       tags:
       - 智能体管理
-  /api/v1/agent/agents/update:
+  /agent/api/v1/agents/update:
     post:
       consumes:
       - application/json
@@ -812,7 +1751,122 @@ paths:
       summary: 更新智能体
       tags:
       - 智能体管理
-  /api/v1/agent/knowledge/add_document:
+  /agent/api/v1/chat/function_gen:
+    post:
+      consumes:
+      - application/json
+      description: 与智能体进行对话（function_gen 类型）
+      parameters:
+      - description: 聊天请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.FunctionGenAgentChatReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 聊天成功
+          schema:
+            $ref: '#/definitions/dto.FunctionGenAgentChatResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 智能体聊天 - 函数生成类型
+      tags:
+      - 智能体管理
+  /agent/api/v1/chat/function_gen/status:
+    get:
+      consumes:
+      - application/json
+      description: 根据 record_id 查询代码生成状态
+      parameters:
+      - description: 生成记录ID
+        in: query
+        name: record_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 查询成功
+          schema:
+            $ref: '#/definitions/dto.FunctionGenStatusResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "404":
+          description: 记录不存在
+          schema:
+            type: string
+      summary: 查询代码生成状态
+      tags:
+      - 智能体管理
+  /agent/api/v1/chat/messages:
+    get:
+      consumes:
+      - application/json
+      description: 根据SessionID获取消息列表
+      parameters:
+      - description: 会话ID
+        in: query
+        name: session_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            $ref: '#/definitions/dto.ChatMessageListResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 获取消息列表
+      tags:
+      - 智能体管理
+  /agent/api/v1/chat/sessions:
+    get:
+      consumes:
+      - application/json
+      description: 根据TreeID获取会话列表（会话不绑定到特定智能体，一个会话可以使用多个智能体）
+      parameters:
+      - description: 服务目录ID
+        in: query
+        name: tree_id
+        required: true
+        type: integer
+      - description: 页码
+        in: query
+        name: page
+        required: true
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            $ref: '#/definitions/dto.ChatSessionListResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 获取会话列表
+      tags:
+      - 智能体管理
+  /agent/api/v1/knowledge/add_document:
     post:
       consumes:
       - application/json
@@ -838,7 +1892,7 @@ paths:
       summary: 添加文档
       tags:
       - 知识库管理
-  /api/v1/agent/knowledge/create:
+  /agent/api/v1/knowledge/create:
     post:
       consumes:
       - application/json
@@ -864,17 +1918,18 @@ paths:
       summary: 创建知识库
       tags:
       - 知识库管理
-  /api/v1/agent/knowledge/delete:
+  /agent/api/v1/knowledge/delete:
     post:
       consumes:
       - application/json
       description: 删除知识库
       parameters:
-      - description: 知识库ID
-        in: query
-        name: id
+      - description: 删除知识库请求
+        in: body
+        name: request
         required: true
-        type: integer
+        schema:
+          $ref: '#/definitions/dto.KnowledgeDeleteReq'
       produces:
       - application/json
       responses:
@@ -887,7 +1942,31 @@ paths:
       summary: 删除知识库
       tags:
       - 知识库管理
-  /api/v1/agent/knowledge/get:
+  /agent/api/v1/knowledge/delete_document:
+    post:
+      consumes:
+      - application/json
+      description: 删除文档
+      parameters:
+      - description: 文档ID
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.KnowledgeDeleteDocumentReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 删除文档
+      tags:
+      - 知识库管理
+  /agent/api/v1/knowledge/get:
     get:
       consumes:
       - application/json
@@ -912,7 +1991,57 @@ paths:
       summary: 获取知识库详情
       tags:
       - 知识库管理
-  /api/v1/agent/knowledge/list:
+  /agent/api/v1/knowledge/get_document:
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取文档详细信息
+      parameters:
+      - description: 文档ID
+        in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            $ref: '#/definitions/dto.KnowledgeGetDocumentResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 获取文档详情
+      tags:
+      - 知识库管理
+  /agent/api/v1/knowledge/get_documents_tree:
+    get:
+      consumes:
+      - application/json
+      description: 获取知识库的文档树（目录结构）
+      parameters:
+      - description: 知识库ID
+        in: query
+        name: knowledge_base_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            $ref: '#/definitions/dto.KnowledgeGetDocumentsTreeResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 获取文档树
+      tags:
+      - 知识库管理
+  /agent/api/v1/knowledge/list:
     get:
       consumes:
       - application/json
@@ -944,7 +2073,7 @@ paths:
       summary: 获取知识库列表
       tags:
       - 知识库管理
-  /api/v1/agent/knowledge/list_documents:
+  /agent/api/v1/knowledge/list_documents:
     get:
       consumes:
       - application/json
@@ -981,7 +2110,7 @@ paths:
       summary: 获取文档列表
       tags:
       - 知识库管理
-  /api/v1/agent/knowledge/update:
+  /agent/api/v1/knowledge/update:
     post:
       consumes:
       - application/json
@@ -1007,7 +2136,57 @@ paths:
       summary: 更新知识库
       tags:
       - 知识库管理
-  /api/v1/agent/llm/create:
+  /agent/api/v1/knowledge/update_document:
+    post:
+      consumes:
+      - application/json
+      description: 更新文档信息
+      parameters:
+      - description: 更新文档请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.KnowledgeUpdateDocumentReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/dto.KnowledgeUpdateDocumentResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 更新文档
+      tags:
+      - 知识库管理
+  /agent/api/v1/knowledge/update_documents_sort:
+    post:
+      consumes:
+      - application/json
+      description: 批量更新文档的排序、父节点和路径
+      parameters:
+      - description: 更新排序请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.KnowledgeUpdateDocumentsSortReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 批量更新文档排序
+      tags:
+      - 知识库管理
+  /agent/api/v1/llm/create:
     post:
       consumes:
       - application/json
@@ -1033,7 +2212,7 @@ paths:
       summary: 创建LLM配置
       tags:
       - LLM管理
-  /api/v1/agent/llm/delete:
+  /agent/api/v1/llm/delete:
     post:
       consumes:
       - application/json
@@ -1056,7 +2235,7 @@ paths:
       summary: 删除LLM配置
       tags:
       - LLM管理
-  /api/v1/agent/llm/get:
+  /agent/api/v1/llm/get:
     get:
       consumes:
       - application/json
@@ -1081,7 +2260,7 @@ paths:
       summary: 获取LLM配置详情
       tags:
       - LLM管理
-  /api/v1/agent/llm/get_default:
+  /agent/api/v1/llm/get_default:
     get:
       consumes:
       - application/json
@@ -1100,7 +2279,7 @@ paths:
       summary: 获取默认LLM配置
       tags:
       - LLM管理
-  /api/v1/agent/llm/list:
+  /agent/api/v1/llm/list:
     get:
       consumes:
       - application/json
@@ -1132,7 +2311,7 @@ paths:
       summary: 获取LLM配置列表
       tags:
       - LLM管理
-  /api/v1/agent/llm/set_default:
+  /agent/api/v1/llm/set_default:
     post:
       consumes:
       - application/json
@@ -1155,7 +2334,7 @@ paths:
       summary: 设置默认LLM配置
       tags:
       - LLM管理
-  /api/v1/agent/llm/update:
+  /agent/api/v1/llm/update:
     post:
       consumes:
       - application/json
@@ -1181,6 +2360,319 @@ paths:
       summary: 更新LLM配置
       tags:
       - LLM管理
+  /agent/api/v1/plugins:
+    post:
+      consumes:
+      - application/json
+      description: 创建新的插件
+      parameters:
+      - description: 插件信息
+        in: body
+        name: plugin
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreatePluginReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 创建成功
+          schema:
+            $ref: '#/definitions/dto.PluginInfo'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 创建插件
+      tags:
+      - 插件管理
+  /agent/api/v1/plugins/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除插件（软删除）
+      parameters:
+      - description: 插件ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            type: string
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 删除插件
+      tags:
+      - 插件管理
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取插件详情
+      parameters:
+      - description: 插件ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            $ref: '#/definitions/dto.PluginInfo'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 获取插件详情
+      tags:
+      - 插件管理
+    put:
+      consumes:
+      - application/json
+      description: 更新插件信息
+      parameters:
+      - description: 插件ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 插件信息
+        in: body
+        name: plugin
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdatePluginReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/dto.PluginInfo'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 更新插件
+      tags:
+      - 插件管理
+  /agent/api/v1/plugins/{id}/disable:
+    post:
+      consumes:
+      - application/json
+      description: 禁用插件
+      parameters:
+      - description: 插件ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 禁用成功
+          schema:
+            type: string
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 禁用插件
+      tags:
+      - 插件管理
+  /agent/api/v1/plugins/{id}/enable:
+    post:
+      consumes:
+      - application/json
+      description: 启用插件
+      parameters:
+      - description: 插件ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 启用成功
+          schema:
+            type: string
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 启用插件
+      tags:
+      - 插件管理
+  /agent/api/v1/plugins/list:
+    get:
+      consumes:
+      - application/json
+      description: 获取所有可用插件列表
+      parameters:
+      - description: 是否启用
+        in: query
+        name: enabled
+        type: boolean
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        required: true
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: page_size
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            $ref: '#/definitions/dto.PluginListResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 获取插件列表
+      tags:
+      - 插件管理
+  /agent/api/v1/workspace/update/callback:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        接收来自 app-server 的工作空间更新回调，更新生成记录状态
+
+        **调用场景**：
+        - 当 app-server 异步处理完函数添加请求后，会调用此接口通知 agent-server 处理结果
+        - 此接口由 app-server 调用，agent-server 根据回调结果更新 FunctionGenRecord 的状态
+
+        **状态更新**：
+        - success=true: 更新记录状态为 completed，记录生成的函数组代码列表
+        - success=false: 更新记录状态为 failed，记录错误信息
+      parameters:
+      - description: 追踪ID（用于链路追踪）
+        in: header
+        name: X-Trace-Id
+        type: string
+      - description: 请求用户（用于审计）
+        in: header
+        name: X-Request-User
+        type: string
+      - description: Token（服务间调用时透传）
+        in: header
+        name: X-Token
+        type: string
+      - description: 工作空间更新回调
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.FunctionGenCallback'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 处理成功
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      summary: 接收工作空间更新回调
+      tags:
+      - 工作空间
+  /control/api/v1/license/activate:
+    post:
+      consumes:
+      - application/json
+      description: 上传License文件并激活企业版
+      parameters:
+      - description: License文件内容（JSON格式）
+        in: body
+        name: license
+        required: true
+        schema:
+          type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 激活成功
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      summary: 激活 License
+      tags:
+      - License管理
+  /control/api/v1/license/deactivate:
+    post:
+      consumes:
+      - application/json
+      description: 注销当前 License，删除激活信息，系统回到社区版（主要用于测试）
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 注销成功
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      summary: 注销 License
+      tags:
+      - License管理
+  /control/api/v1/license/status:
+    get:
+      consumes:
+      - application/json
+      description: 获取当前 License 的状态信息
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: License状态
+          schema:
+            $ref: '#/definitions/service.LicenseStatus'
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      summary: 获取 License 状态
+      tags:
+      - License管理
 securityDefinitions:
   ApiKeyAuth:
     in: header

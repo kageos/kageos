@@ -15,7 +15,113 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/api/v1/storage/batch_delete": {
+        "/control/api/v1/license/activate": {
+            "post": {
+                "description": "上传License文件并激活企业版",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "License管理"
+                ],
+                "summary": "激活 License",
+                "parameters": [
+                    {
+                        "description": "License文件内容（JSON格式）",
+                        "name": "license",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "激活成功",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/control/api/v1/license/deactivate": {
+            "post": {
+                "description": "注销当前 License，删除激活信息，系统回到社区版（主要用于测试）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "License管理"
+                ],
+                "summary": "注销 License",
+                "responses": {
+                    "200": {
+                        "description": "注销成功",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/control/api/v1/license/status": {
+            "get": {
+                "description": "获取当前 License 的状态信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "License管理"
+                ],
+                "summary": "获取 License 状态",
+                "responses": {
+                    "200": {
+                        "description": "License状态",
+                        "schema": {
+                            "$ref": "#/definitions/service.LicenseStatus"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/storage/api/v1/batch_delete": {
             "post": {
                 "description": "批量删除某个函数路径下的所有文件（危险操作）",
                 "consumes": [
@@ -61,7 +167,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/storage/batch_upload_complete": {
+        "/storage/api/v1/batch_upload_complete": {
             "post": {
                 "description": "批量通知后端创建上传记录（仅在上传成功时记录）",
                 "consumes": [
@@ -107,7 +213,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/storage/batch_upload_token": {
+        "/storage/api/v1/batch_upload_token": {
             "post": {
                 "description": "批量获取多个文件的上传凭证，支持多种存储方式（presigned_url/form_upload/sdk_upload）。如果某个文件未提供 router，将使用默认路由：/{username}/default",
                 "consumes": [
@@ -153,7 +259,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/storage/download/{key}": {
+        "/storage/api/v1/download/{key}": {
             "get": {
                 "description": "直接代理下载文件，返回文件流（无需复杂的预签名 URL 参数）",
                 "consumes": [
@@ -197,7 +303,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/storage/files": {
+        "/storage/api/v1/files": {
             "get": {
                 "description": "列举某个函数路径下的所有文件",
                 "consumes": [
@@ -241,7 +347,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/storage/files/{key}": {
+        "/storage/api/v1/files/{key}": {
             "delete": {
                 "description": "删除存储的文件",
                 "consumes": [
@@ -285,7 +391,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/storage/files/{key}/info": {
+        "/storage/api/v1/files/{key}/info": {
             "get": {
                 "description": "获取文件的元数据信息",
                 "consumes": [
@@ -329,7 +435,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/storage/stats": {
+        "/storage/api/v1/stats": {
             "get": {
                 "description": "获取某个函数路径下的文件数量和总大小",
                 "consumes": [
@@ -373,7 +479,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/storage/upload_complete": {
+        "/storage/api/v1/upload_complete": {
             "post": {
                 "description": "前端上传完成后，通知后端创建上传记录（仅在上传成功时记录）",
                 "consumes": [
@@ -419,7 +525,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/storage/upload_token": {
+        "/storage/api/v1/upload_token": {
             "post": {
                 "description": "获取文件上传的预签名 URL，文件将按函数路径分类存储。如果未提供 router，将使用默认路由：/{username}/default",
                 "consumes": [
@@ -899,6 +1005,92 @@ const docTemplate = `{
                 "UploadSourceBrowser",
                 "UploadSourceServer"
             ]
+        },
+        "license.Features": {
+            "type": "object",
+            "properties": {
+                "approval": {
+                    "description": "审批流程",
+                    "type": "boolean"
+                },
+                "change_log": {
+                    "description": "变更日志",
+                    "type": "boolean"
+                },
+                "config_management": {
+                    "description": "配置管理",
+                    "type": "boolean"
+                },
+                "notification": {
+                    "description": "通知中心",
+                    "type": "boolean"
+                },
+                "operate_log": {
+                    "description": "操作日志",
+                    "type": "boolean"
+                },
+                "organization": {
+                    "description": "组织架构",
+                    "type": "boolean"
+                },
+                "permission": {
+                    "description": "权限管理",
+                    "type": "boolean"
+                },
+                "quick_link": {
+                    "description": "快链",
+                    "type": "boolean"
+                },
+                "recycle_bin": {
+                    "description": "回收站",
+                    "type": "boolean"
+                },
+                "scheduled_task": {
+                    "description": "定时任务",
+                    "type": "boolean"
+                },
+                "workflow": {
+                    "description": "工作流",
+                    "type": "boolean"
+                }
+            }
+        },
+        "service.LicenseStatus": {
+            "type": "object",
+            "properties": {
+                "customer": {
+                    "description": "客户名称（可选）",
+                    "type": "string"
+                },
+                "description": {
+                    "description": "License 描述（可选）",
+                    "type": "string"
+                },
+                "edition": {
+                    "description": "版本类型：community, professional, enterprise, flagship",
+                    "type": "string"
+                },
+                "expires_at": {
+                    "description": "过期时间（可选）",
+                    "type": "string"
+                },
+                "features": {
+                    "description": "功能开关（可选）",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/license.Features"
+                        }
+                    ]
+                },
+                "is_community": {
+                    "description": "是否为社区版",
+                    "type": "boolean"
+                },
+                "is_valid": {
+                    "description": "License 是否有效",
+                    "type": "boolean"
+                }
+            }
         }
     },
     "securityDefinitions": {

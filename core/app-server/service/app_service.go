@@ -476,16 +476,18 @@ func (a *AppService) createServiceTreesForAPIs(ctx context.Context, appID int64,
 		}
 
 		// 创建function节点，使用Function的ID作为RefID
-		err = a.createFunctionNode(appID, parentID, api, functions[i].ID)
+		treeID, err := a.createFunctionNode(appID, parentID, api, functions[i].ID)
 		if err != nil {
 			return fmt.Errorf("创建function节点失败: %w", err)
 		}
+		// 赋值TreeID，方便后续写快照时入库
+		api.TreeID = treeID
 	}
 	return nil
 }
 
-// createFunctionNode 创建function节点
-func (a *AppService) createFunctionNode(appID int64, parentID int64, api *dto.ApiInfo, functionID int64) error {
+// createFunctionNode 创建function节点，返回创建的TreeID
+func (a *AppService) createFunctionNode(appID int64, parentID int64, api *dto.ApiInfo, functionID int64) (int64, error) {
 	// 检查是否已存在（full_name_path全局唯一）
 	existingNode, err := a.serviceTreeRepo.GetServiceTreeByFullPath(api.FullCodePath)
 	if err == nil {
@@ -493,7 +495,7 @@ func (a *AppService) createFunctionNode(appID int64, parentID int64, api *dto.Ap
 		// 获取应用当前版本
 		app, err := a.appRepo.GetAppByID(appID)
 		if err != nil {
-			return fmt.Errorf("获取应用信息失败: %w", err)
+			return 0, fmt.Errorf("获取应用信息失败: %w", err)
 		}
 
 		// 如果节点是新增的（AddVersionNum为0），设置添加版本号
@@ -505,18 +507,23 @@ func (a *AppService) createFunctionNode(appID int64, parentID int64, api *dto.Ap
 		}
 
 		// 更新节点信息
-		return a.serviceTreeRepo.UpdateServiceTree(existingNode)
+		err = a.serviceTreeRepo.UpdateServiceTree(existingNode)
+		if err != nil {
+			return 0, err
+		}
+		// 返回已存在的节点ID
+		return existingNode.ID, nil
 	}
 	// 如果是记录不存在的错误，这是正常的，继续创建
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return fmt.Errorf("查询路径失败: %w", err)
+		return 0, fmt.Errorf("查询路径失败: %w", err)
 	}
 	// err是gorm.ErrRecordNotFound，说明路径不存在，可以继续创建
 
 	// 获取应用当前版本
 	app, err := a.appRepo.GetAppByID(appID)
 	if err != nil {
-		return fmt.Errorf("获取应用信息失败: %w", err)
+		return 0, fmt.Errorf("获取应用信息失败: %w", err)
 	}
 
 	// 构建 FullGroupCode：{full_path}/{group_code}
@@ -541,8 +548,13 @@ func (a *AppService) createFunctionNode(appID int64, parentID int64, api *dto.Ap
 		serviceTree.Tags = strings.Join(api.Tags, ",")
 	}
 
-	// 创建ServiceTree节点
-	return a.serviceTreeRepo.CreateServiceTreeWithParentPath(serviceTree, "")
+	// 创建ServiceTree节点（GORM Create会自动填充ID）
+	err = a.serviceTreeRepo.CreateServiceTreeWithParentPath(serviceTree, "")
+	if err != nil {
+		return 0, err
+	}
+	// 返回创建的节点ID
+	return serviceTree.ID, nil
 }
 
 // updateFunctionsForAPIs 更新API对应的Function记录
@@ -624,10 +636,12 @@ func (a *AppService) updateServiceTreesForAPIs(ctx context.Context, appID int64,
 						parentID = parent.ID
 					}
 				}
-				err = a.createFunctionNode(appID, parentID, api, functions[i].ID)
+				treeID, err := a.createFunctionNode(appID, parentID, api, functions[i].ID)
 				if err != nil {
 					return fmt.Errorf("创建function节点失败: %w", err)
 				}
+				// 赋值TreeID，方便后续写快照时入库
+				api.TreeID = treeID
 				continue
 			}
 			return fmt.Errorf("查询service_tree失败: %w", err)
@@ -657,6 +671,8 @@ func (a *AppService) updateServiceTreesForAPIs(ctx context.Context, appID int64,
 		if err := a.serviceTreeRepo.UpdateServiceTree(existingTree); err != nil {
 			return fmt.Errorf("更新service_tree节点失败: %w", err)
 		}
+		// 赋值TreeID，方便后续写快照时入库
+		api.TreeID = existingTree.ID
 	}
 	return nil
 }
@@ -906,6 +922,7 @@ func (a *AppService) createDirectorySnapshots(ctx context.Context, appID int64, 
 			// 创建文件快照（所有文件都创建新快照，记录新的目录版本）
 			fileSnapshot := &model.FileSnapshot{
 				AppID:          appID,
+				ServiceTreeID:  0, // 默认值，如果 serviceTree 存在则赋值
 				FullCodePath:   directoryPath,
 				FileName:       fileName,
 				RelativePath:   file.RelativePath,
@@ -917,6 +934,12 @@ func (a *AppService) createDirectorySnapshots(ctx context.Context, appID int64, 
 				AppVersion:     currentAppVersion,
 				AppVersionNum:  currentAppVersionNum,
 				FileType:       fileType,
+				IsCurrent:      true, // 新快照标记为当前版本
+			}
+
+			// 如果目录节点存在，赋值 ServiceTreeID（方便后续查询和构建目录树）
+			if serviceTree != nil {
+				fileSnapshot.ServiceTreeID = serviceTree.ID
 			}
 
 			fileSnapshots = append(fileSnapshots, fileSnapshot)
@@ -927,6 +950,37 @@ func (a *AppService) createDirectorySnapshots(ctx context.Context, appID int64, 
 		if err != nil {
 			logger.Warnf(ctx, "[createDirectorySnapshots] 创建文件快照失败: path=%s, error=%v", directoryPath, err)
 			continue
+		}
+
+		// 批量更新旧快照的 IsCurrent 状态为 false
+		// 收集需要更新的旧快照ID（只更新那些 IsCurrent = true 的旧快照）
+		oldSnapshotIDs := make([]int64, 0)
+		for _, file := range files {
+			fileName := file.FileName
+			if fileName == "" {
+				// 从相对路径提取文件名
+				fileNameFromPath := file.RelativePath
+				if lastSlash := strings.LastIndex(file.RelativePath, "/"); lastSlash >= 0 {
+					fileNameFromPath = file.RelativePath[lastSlash+1:]
+				}
+				fileName = strings.TrimSuffix(fileNameFromPath, ".go")
+			}
+
+			latestSnapshot := latestSnapshots[fileName]
+			if latestSnapshot != nil && latestSnapshot.IsCurrent {
+				oldSnapshotIDs = append(oldSnapshotIDs, latestSnapshot.ID)
+			}
+		}
+
+		// 批量更新旧快照的 IsCurrent 状态
+		if len(oldSnapshotIDs) > 0 {
+			err = a.fileSnapshotRepo.BatchUpdateIsCurrent(oldSnapshotIDs, false)
+			if err != nil {
+				logger.Warnf(ctx, "[createDirectorySnapshots] 批量更新旧快照 IsCurrent 状态失败: path=%s, count=%d, error=%v", directoryPath, len(oldSnapshotIDs), err)
+				// 不中断流程，继续处理
+			} else {
+				logger.Infof(ctx, "[createDirectorySnapshots] 批量更新旧快照 IsCurrent 状态成功: path=%s, count=%d", directoryPath, len(oldSnapshotIDs))
+			}
 		}
 
 		// 更新 ServiceTree 的版本

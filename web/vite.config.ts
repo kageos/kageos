@@ -36,23 +36,24 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path, // 不重写路径，直接转发
       },
-      // Agent 服务通过网关代理
-      '/agent': {
+      // Agent API 通过网关代理（只代理 API 请求，不代理页面路由）
+      // 注意：使用更精确的匹配，只匹配 /agent/api/* 路径，不匹配 /agent 页面路由
+      '/agent/api': {
         target: 'http://localhost:9090',  // 网关地址
         changeOrigin: true,
       },
-      // Storage 服务通过网关代理
-      '/storage': {
+      // Storage API 通过网关代理（只代理 API 请求，不代理页面路由）
+      '/storage/api': {
         target: 'http://localhost:9090',  // 网关地址
         changeOrigin: true,
       },
-      // Hub 服务通过网关代理
-      '/hub': {
+      // Hub API 通过网关代理（只代理 API 请求，不代理页面路由）
+      '/hub/api': {
         target: 'http://localhost:9090',  // 网关地址
         changeOrigin: true,
       },
-      // Control 服务通过网关代理
-      '/control': {
+      // Control API 通过网关代理（只代理 API 请求，不代理页面路由）
+      '/control/api': {
         target: 'http://localhost:9090',  // 网关地址
         changeOrigin: true,
       },

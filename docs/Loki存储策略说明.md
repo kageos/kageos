@@ -255,3 +255,4 @@ curl http://localhost:3100/metrics | grep loki_ingester_chunks_stored_bytes_tota
 
 
 
+

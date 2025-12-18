@@ -4,9 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
-	
+
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
@@ -147,59 +146,6 @@ func (s *FunctionGenService) PublishResult(ctx context.Context, result *dto.Func
 		result.RecordID, resultSubject, traceId, requestUser, len(result.Code))
 
 	return nil
-}
-
-// FunctionGenChat 方法已移至 agent_chat_service_function_gen.go
-// 支持格式：
-// 1. ```go\n代码\n```
-// 2. ```\n代码\n```
-// 3. 如果找不到代码块，返回原始内容
-func extractCodeFromMarkdown(content string) string {
-	// 查找 ```go 或 ``` 开头的代码块
-	lines := strings.Split(content, "\n")
-
-	var codeBlocks []string
-	var inCodeBlock bool
-	var codeBlockStart int
-
-	for i, line := range lines {
-		trimmed := strings.TrimSpace(line)
-
-		// 检查是否是代码块开始标记
-		if strings.HasPrefix(trimmed, "```") {
-			if inCodeBlock {
-				// 代码块结束，提取内容
-				if i > codeBlockStart {
-					codeBlock := strings.Join(lines[codeBlockStart+1:i], "\n")
-					codeBlocks = append(codeBlocks, codeBlock)
-				}
-				inCodeBlock = false
-			} else {
-				// 代码块开始
-				inCodeBlock = true
-				codeBlockStart = i
-			}
-			continue
-		}
-	}
-
-	// 如果代码块没有正确关闭，也提取已收集的内容
-	if inCodeBlock && codeBlockStart < len(lines)-1 {
-		codeBlock := strings.Join(lines[codeBlockStart+1:], "\n")
-		codeBlocks = append(codeBlocks, codeBlock)
-	}
-
-	// 如果有代码块，返回第一个（通常只有一个）
-	if len(codeBlocks) > 0 {
-		extracted := strings.TrimSpace(codeBlocks[0])
-		// 如果提取的代码不为空，返回它
-		if extracted != "" {
-			return extracted
-		}
-	}
-
-	// 如果没有找到代码块或代码块为空，返回原始内容（作为 fallback）
-	return content
 }
 
 // ProcessFunctionGenCallback 处理函数生成回调（来自 app-server）

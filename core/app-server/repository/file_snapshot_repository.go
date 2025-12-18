@@ -48,9 +48,20 @@ func (r *FileSnapshotRepository) GetByDirectoryAndVersion(appID int64, fullCodeP
 }
 
 // GetLatestFileSnapshot 获取文件的最新快照（用于变更检测）
+// 优先使用 IsCurrent 字段查询，性能更好；如果没有 IsCurrent 标记，则回退到版本号排序查询
 func (r *FileSnapshotRepository) GetLatestFileSnapshot(appID int64, fullCodePath, fileName string) (*model.FileSnapshot, error) {
+	// 先尝试使用 IsCurrent 字段查询（性能更好）
 	var snapshot model.FileSnapshot
-	err := r.db.Where("app_id = ? AND full_code_path = ? AND file_name = ?",
+	err := r.db.Where("app_id = ? AND full_code_path = ? AND file_name = ? AND is_current = ?",
+		appID, fullCodePath, fileName, true).
+		First(&snapshot).Error
+	if err == nil {
+		// 如果查询到结果，直接返回
+		return &snapshot, nil
+	}
+	
+	// 如果没有查询到结果（可能是旧数据还没有 IsCurrent 标记），回退到版本号排序查询
+	err = r.db.Where("app_id = ? AND full_code_path = ? AND file_name = ?",
 		appID, fullCodePath, fileName).
 		Order("file_version_num DESC").
 		First(&snapshot).Error
@@ -103,7 +114,16 @@ func (r *FileSnapshotRepository) GetByFileAndVersion(appID int64, fullCodePath, 
 }
 
 // GetCurrentVersionByDirectory 获取目录当前版本的所有文件快照（需要配合 ServiceTreeRepository）
+// 优先使用 IsCurrent 字段查询，性能更好；如果没有 IsCurrent 标记，则回退到版本号查询
 func (r *FileSnapshotRepository) GetCurrentVersionByDirectory(appID int64, fullCodePath string, serviceTreeRepo *ServiceTreeRepository) ([]*model.FileSnapshot, error) {
+	// 先尝试使用 IsCurrent 字段查询（性能更好）
+	currentSnapshots, err := r.GetCurrentSnapshotsByDirectory(appID, fullCodePath)
+	if err == nil && len(currentSnapshots) > 0 {
+		// 如果查询到结果，直接返回
+		return currentSnapshots, nil
+	}
+	
+	// 如果没有查询到结果（可能是旧数据还没有 IsCurrent 标记），回退到版本号查询
 	// 先获取目录节点（ServiceTree）
 	serviceTree, err := serviceTreeRepo.GetServiceTreeByFullPath(fullCodePath)
 	if err != nil {
@@ -156,6 +176,65 @@ func (r *FileSnapshotRepository) GetByPathAndAppVersion(appID int64, fullCodePat
 	err := r.db.Where("app_id = ? AND full_code_path = ? AND app_version_num <= ?",
 		appID, fullCodePath, appVersionNum).
 		Order("app_version_num DESC, relative_path ASC").
+		Find(&snapshots).Error
+	if err != nil {
+		return nil, err
+	}
+	return snapshots, nil
+}
+
+// UpdateIsCurrent 更新快照的 IsCurrent 状态
+func (r *FileSnapshotRepository) UpdateIsCurrent(snapshotID int64, isCurrent bool) error {
+	return r.db.Model(&model.FileSnapshot{}).
+		Where("id = ?", snapshotID).
+		Update("is_current", isCurrent).Error
+}
+
+// BatchUpdateIsCurrent 批量更新快照的 IsCurrent 状态
+func (r *FileSnapshotRepository) BatchUpdateIsCurrent(snapshotIDs []int64, isCurrent bool) error {
+	if len(snapshotIDs) == 0 {
+		return nil
+	}
+	return r.db.Model(&model.FileSnapshot{}).
+		Where("id IN ?", snapshotIDs).
+		Update("is_current", isCurrent).Error
+}
+
+// GetCurrentSnapshotsByDirectory 获取目录下所有文件的当前版本快照（使用 IsCurrent 字段，性能更好）
+func (r *FileSnapshotRepository) GetCurrentSnapshotsByDirectory(appID int64, fullCodePath string) ([]*model.FileSnapshot, error) {
+	var snapshots []*model.FileSnapshot
+	err := r.db.Where("app_id = ? AND full_code_path = ? AND is_current = ?",
+		appID, fullCodePath, true).
+		Order("relative_path ASC").
+		Find(&snapshots).Error
+	if err != nil {
+		return nil, err
+	}
+	return snapshots, nil
+}
+
+// GetCurrentSnapshotsByServiceTreeID 根据 ServiceTreeID 获取当前版本快照（用于预加载）
+func (r *FileSnapshotRepository) GetCurrentSnapshotsByServiceTreeID(serviceTreeID int64) ([]*model.FileSnapshot, error) {
+	var snapshots []*model.FileSnapshot
+	err := r.db.Where("service_tree_id = ? AND is_current = ?",
+		serviceTreeID, true).
+		Order("relative_path ASC").
+		Find(&snapshots).Error
+	if err != nil {
+		return nil, err
+	}
+	return snapshots, nil
+}
+
+// GetCurrentSnapshotsByServiceTreeIDs 批量根据 ServiceTreeID 列表获取当前版本快照（用于递归查询目录）
+func (r *FileSnapshotRepository) GetCurrentSnapshotsByServiceTreeIDs(serviceTreeIDs []int64) ([]*model.FileSnapshot, error) {
+	if len(serviceTreeIDs) == 0 {
+		return []*model.FileSnapshot{}, nil
+	}
+	
+	var snapshots []*model.FileSnapshot
+	err := r.db.Where("service_tree_id IN ? AND is_current = ?", serviceTreeIDs, true).
+		Order("service_tree_id ASC, relative_path ASC").
 		Find(&snapshots).Error
 	if err != nil {
 		return nil, err

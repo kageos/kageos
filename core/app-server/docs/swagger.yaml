@@ -1,4 +1,69 @@
 definitions:
+  dto.AddFunctionsReq:
+    properties:
+      agent_id:
+        description: 智能体ID
+        example: 1
+        type: integer
+      async:
+        description: '是否异步处理（true: 异步，通过回调通知；false: 同步，直接返回结果）'
+        example: false
+        type: boolean
+      code:
+        description: 生成的代码内容（原始代码，已废弃，保留用于兼容）
+        example: "package main\n\nfunc main() {\n\t// 生成的代码\n}"
+        type: string
+      file_name:
+        description: 处理后的结构化数据（agent-server 处理后的结果）
+        example: crm_ticket
+        type: string
+      message_id:
+        description: 消息ID（关联到 AgentChatMessage.ID）
+        example: 1
+        type: integer
+      record_id:
+        description: function_gen 记录ID
+        example: 1
+        type: integer
+      source_code:
+        description: 处理后的源代码（从 Markdown 中提取）
+        example: package...
+        type: string
+      tree_id:
+        description: 服务目录ID
+        example: 629
+        type: integer
+      user:
+        description: 用户标识
+        example: beiluo
+        type: string
+    type: object
+  dto.AddFunctionsResp:
+    properties:
+      app_code:
+        description: 应用代码
+        example: myapp
+        type: string
+      app_id:
+        description: 应用ID
+        example: 1
+        type: integer
+      error:
+        description: 错误信息（如果失败）
+        example: ""
+        type: string
+      full_group_codes:
+        description: 生成的函数组代码列表
+        example:
+        - '["/user/app/function"]'
+        items:
+          type: string
+        type: array
+      success:
+        description: 是否成功
+        example: true
+        type: boolean
+    type: object
   dto.ApiInfo:
     properties:
       added_version:
@@ -54,6 +119,51 @@ definitions:
           type: string
         type: array
       user:
+        type: string
+    type: object
+  dto.AppVersionUpdateInfo:
+    properties:
+      app_version:
+        description: 应用版本号
+        type: string
+      directory_changes:
+        description: 该版本下的所有目录变更（数组）
+        items:
+          $ref: '#/definitions/dto.DirectoryChangeInfo'
+        type: array
+    type: object
+  dto.CopyDirectoryReq:
+    properties:
+      source_directory_path:
+        description: 源目录完整路径
+        example: /luobei/app_a/hr
+        type: string
+      target_app_id:
+        description: 目标应用ID
+        example: 123
+        type: integer
+      target_directory_path:
+        description: 目标目录完整路径
+        example: /luobei/app_b/hr
+        type: string
+    required:
+    - source_directory_path
+    - target_app_id
+    - target_directory_path
+    type: object
+  dto.CopyDirectoryResp:
+    properties:
+      directory_count:
+        description: 复制的目录数
+        example: 3
+        type: integer
+      file_count:
+        description: 复制的文件数
+        example: 15
+        type: integer
+      message:
+        description: 响应消息
+        example: 复制目录成功，共复制 3 个目录，15 个文件
         type: string
     type: object
   dto.CreateAppReq:
@@ -168,6 +278,14 @@ definitions:
           module(模块)'
         example: package
         type: string
+      version:
+        description: 节点当前版本号（如 v1, v2），package类型表示目录版本，function类型表示函数版本等
+        example: v1
+        type: string
+      version_num:
+        description: 节点当前版本号（数字部分）
+        example: 1
+        type: integer
     type: object
   dto.DeleteAppResp:
     properties:
@@ -207,30 +325,71 @@ definitions:
           $ref: '#/definitions/dto.ApiInfo'
         type: array
     type: object
-  dto.ForkFunctionGroupReq:
+  dto.DirectoryChangeInfo:
     properties:
-      source_to_target_map:
-        additionalProperties:
-          type: string
-        description: 源到目标的映射：key=函数组的full_group_code，value=服务目录的full_code_path
-        example:
-          /luobei/app_a/tools/tools_cashier: /luobei/app_b/a1
-          /luobei/app_a/tools/tools_excel: /luobei/app_b/b1
-        type: object
-      target_app_id:
-        description: 目标应用 ID
-        example: 123
-        type: integer
-    required:
-    - source_to_target_map
-    - target_app_id
-    type: object
-  dto.ForkFunctionGroupResp:
-    properties:
-      message:
-        description: 响应消息
-        example: 函数组 Fork 成功
+      added_apis:
+        description: 新增的API摘要列表
+        example: '[]'
         type: string
+      added_count:
+        description: 新增API数量
+        type: integer
+      app_version:
+        description: 应用版本号（目录视角时使用）
+        type: string
+      app_version_num:
+        description: 应用版本号（数字部分，目录视角时使用）
+        type: integer
+      change_description:
+        description: 变更描述（大模型输出）
+        type: string
+      created_at:
+        description: 创建时间
+        type: string
+      deleted_apis:
+        description: 删除的API摘要列表
+        example: '[]'
+        type: string
+      deleted_count:
+        description: 删除API数量
+        type: integer
+      dir_version:
+        description: 目录版本号
+        type: string
+      dir_version_num:
+        description: 目录版本号（数字部分）
+        type: integer
+      directory_desc:
+        description: 目录描述
+        type: string
+      directory_name:
+        description: 目录名称
+        type: string
+      duration:
+        description: 变更耗时（毫秒）
+        type: integer
+      full_code_path:
+        description: 目录完整路径
+        type: string
+      git_commit_hash:
+        description: Git 提交哈希（用于回滚）
+        type: string
+      requirement:
+        description: 变更需求（用户输入）
+        type: string
+      summary:
+        description: 变更摘要（详情）
+        type: string
+      updated_apis:
+        description: 更新的API摘要列表
+        example: '[]'
+        type: string
+      updated_by:
+        description: 更新人
+        type: string
+      updated_count:
+        description: 更新API数量
+        type: integer
     type: object
   dto.FunctionInfo:
     properties:
@@ -250,6 +409,10 @@ definitions:
         description: 创建时间
         example: "2024-01-01T00:00:00Z"
         type: string
+      description:
+        description: 函数描述（从 ServiceTree 获取）
+        example: 用于管理工单的创建、更新、删除等功能
+        type: string
       has_config:
         description: 是否有配置
         example: true
@@ -261,6 +424,10 @@ definitions:
       method:
         description: HTTP方法
         example: GET
+        type: string
+      name:
+        description: 函数名称（从 ServiceTree 获取）
+        example: 工单管理
         type: string
       router:
         description: 路由路径
@@ -279,6 +446,20 @@ definitions:
         example: "2024-01-01T00:00:00Z"
         type: string
     type: object
+  dto.GetAppVersionUpdateHistoryResp:
+    properties:
+      app_id:
+        description: 应用ID
+        type: integer
+      app_version:
+        description: 应用版本号（如果为空，表示返回所有版本）
+        type: string
+      versions:
+        description: 版本列表（二维数组：第一层是版本，第二层是目录变更）
+        items:
+          $ref: '#/definitions/dto.AppVersionUpdateInfo'
+        type: array
+    type: object
   dto.GetAppsResp:
     properties:
       items: {}
@@ -287,6 +468,38 @@ definitions:
       page_size:
         type: integer
       total_count:
+        type: integer
+    type: object
+  dto.GetDirectoryUpdateHistoryResp:
+    properties:
+      app_id:
+        description: 应用ID
+        type: integer
+      directory_changes:
+        description: 目录变更历史列表
+        items:
+          $ref: '#/definitions/dto.DirectoryChangeInfo'
+        type: array
+      full_code_path:
+        description: 目录完整路径
+        type: string
+      paginated:
+        allOf:
+        - $ref: '#/definitions/dto.PaginatedInfo'
+        description: 分页信息
+    type: object
+  dto.GetFormOperateLogsResp:
+    properties:
+      logs:
+        description: 日志列表
+      page:
+        description: 当前页码
+        type: integer
+      page_size:
+        description: 每页数量
+        type: integer
+      total:
+        description: 总数
         type: integer
     type: object
   dto.GetFunctionResp:
@@ -401,11 +614,37 @@ definitions:
         description: 标签
         example: user,management
         type: string
+      template_type:
+        description: 模板类型（函数的类型，如 form、table）
+        example: form
+        type: string
       type:
         description: '节点类型: package(服务目录/包), function(函数/文件), api(API接口), service(服务),
           module(模块)'
         example: package
         type: string
+      version:
+        description: 节点当前版本号（如 v1, v2），package类型表示目录版本，function类型表示函数版本等
+        example: v1
+        type: string
+      version_num:
+        description: 节点当前版本号（数字部分）
+        example: 1
+        type: integer
+    type: object
+  dto.GetTableOperateLogsResp:
+    properties:
+      logs:
+        description: 日志列表
+      page:
+        description: 当前页码
+        type: integer
+      page_size:
+        description: 每页数量
+        type: integer
+      total:
+        description: 总数
+        type: integer
     type: object
   dto.GetUsersByUsernamesReq:
     properties:
@@ -474,6 +713,71 @@ definitions:
     type: object
   dto.LogoutResp:
     type: object
+  dto.PaginatedInfo:
+    properties:
+      current_page:
+        description: 当前页码
+        type: integer
+      page_size:
+        description: 每页数量
+        type: integer
+      total_count:
+        description: 总数据量
+        type: integer
+      total_pages:
+        description: 总页数
+        type: integer
+    type: object
+  dto.PublishDirectoryToHubReq:
+    properties:
+      category:
+        description: 分类
+        type: string
+      description:
+        description: 目录描述
+        type: string
+      name:
+        description: 目录名称
+        type: string
+      service_fee_enterprise:
+        description: 企业用户服务费
+        type: number
+      service_fee_personal:
+        description: 个人用户服务费
+        type: number
+      source_app:
+        description: 源应用
+        type: string
+      source_directory_path:
+        description: 源目录完整路径
+        type: string
+      source_user:
+        description: 源用户
+        type: string
+      tags:
+        description: 标签
+        items:
+          type: string
+        type: array
+    required:
+    - name
+    - source_app
+    - source_directory_path
+    - source_user
+    type: object
+  dto.PublishDirectoryToHubResp:
+    properties:
+      directory_count:
+        description: 包含的子目录数量
+        type: integer
+      file_count:
+        description: 包含的文件数量
+        type: integer
+      hub_directory_id:
+        type: integer
+      hub_directory_url:
+        type: string
+    type: object
   dto.QueryUserResp:
     properties:
       user:
@@ -537,6 +841,10 @@ definitions:
     type: object
   dto.RequestAppResp:
     properties:
+      err_code:
+        description: 0 是正常，>0 是系统错误，<0 是业务错误，业务错误用户自己处理，系统错误需要考虑用ai来分析代码是哪里出了问题
+        example: 0
+        type: integer
       error:
         description: 错误信息
         example: 应用内部错误
@@ -582,6 +890,9 @@ definitions:
         description: API diff 信息
       error:
         description: 回调过程中的错误信息
+        type: string
+      git_commit_hash:
+        description: Git 提交哈希（用于回滚）
         type: string
       new_version:
         description: 新版本号
@@ -694,52 +1005,126 @@ definitions:
         example: beiluo
         type: string
     type: object
+  license.Features:
+    properties:
+      approval:
+        description: 审批流程
+        type: boolean
+      change_log:
+        description: 变更日志
+        type: boolean
+      config_management:
+        description: 配置管理
+        type: boolean
+      notification:
+        description: 通知中心
+        type: boolean
+      operate_log:
+        description: 操作日志
+        type: boolean
+      organization:
+        description: 组织架构
+        type: boolean
+      permission:
+        description: 权限管理
+        type: boolean
+      quick_link:
+        description: 快链
+        type: boolean
+      recycle_bin:
+        description: 回收站
+        type: boolean
+      scheduled_task:
+        description: 定时任务
+        type: boolean
+      workflow:
+        description: 工作流
+        type: boolean
+    type: object
+  service.LicenseStatus:
+    properties:
+      customer:
+        description: 客户名称（可选）
+        type: string
+      description:
+        description: License 描述（可选）
+        type: string
+      edition:
+        description: 版本类型：community, professional, enterprise, flagship
+        type: string
+      expires_at:
+        description: 过期时间（可选）
+        type: string
+      features:
+        allOf:
+        - $ref: '#/definitions/license.Features'
+        description: 功能开关（可选）
+      is_community:
+        description: 是否为社区版
+        type: boolean
+      is_valid:
+        description: License 是否有效
+        type: boolean
+    type: object
   widget.Field:
     properties:
       callbacks:
+        description: 字段级别的回调，如 ['OnSelectFuzzy']
         items:
           type: string
         type: array
       children:
+        description: 嵌套字段（用于 list/struct 类型）
         items:
           $ref: '#/definitions/widget.Field'
         type: array
       code:
-        description: 从json标签里解析，
+        description: 从json标签里解析，必需字段
         type: string
       data:
-        $ref: '#/definitions/widget.FieldData'
+        allOf:
+        - $ref: '#/definitions/widget.FieldData'
+        description: 字段数据类型信息
+      depend_on:
+        description: 依赖的字段 code，当依赖字段值变化时，该字段会被清空
+        type: string
       desc:
+        description: 字段描述，用于 placeholder 等
         type: string
       field_name:
+        description: Go 字段名，用于验证规则中的字段引用（如 required_if=MemberType vip）
         type: string
       name:
+        description: 必需字段
         type: string
       search:
+        description: 搜索类型，如 "like", "eq", "in" 等
         type: string
       table_permission:
-        description: read,update,create
+        description: 表格权限：read,update,create
         type: string
       validation:
-        description: 完全照搬github.com/go-playground/validator/v10
+        description: 验证规则，完全照搬 github.com/go-playground/validator/v10
         type: string
       widget:
         properties:
-          config: {}
+          config:
+            description: 组件配置，可以为空
           type:
+            description: 组件类型，必需
             type: string
         type: object
     type: object
   widget.FieldData:
     properties:
       example:
-        description: 示例数据，例如 10，紧急 这种，方便前端展示一些示例数据
+        description: 示例数据，如 "10", "紧急" 等，方便前端展示示例
         type: string
       format:
-        description: 默认不格式化，特殊场景可以格式化成 csv/markdown/json/yaml/html 等等，这个不重要，后面再说吧
+        description: 格式化类型，默认不格式化，特殊场景可格式化成 csv/markdown/json/yaml/html 等
         type: string
       type:
-        description: 这里的type可以自动根据组件类型来推断出来，例如Widget类型是input，那么很显然，FieldData的type是DataTypeString
+        description: 数据类型（string/int/float/bool等），建议保留用于类型判断
         type: string
     type: object
 externalDocs:
@@ -1108,36 +1493,35 @@ paths:
       summary: 回调应用
       tags:
       - 应用接口请求(运行函数)
-  /api/v1/function/fork:
-    post:
+  /api/v1/directory_update_history/app_version:
+    get:
       consumes:
       - application/json
-      description: 批量 Fork 函数组到目标 package
+      description: 查看整个应用在某个版本的所有目录变更，方便从app侧回滚。返回二维数组结构：一个app有多个版本，每个版本里有数组列举了多个目录的变更
       parameters:
       - description: JWT Token
         in: header
         name: X-Token
         required: true
         type: string
-      - description: Fork 请求，source_to_target_map 的 key=函数组的full_group_code，value=服务目录的full_code_path
-        in: body
-        name: request
+      - description: 应用ID
+        in: query
+        name: app_id
         required: true
-        schema:
-          $ref: '#/definitions/dto.ForkFunctionGroupReq'
+        type: integer
+      - description: 应用版本号，如 v101 (可选，如果为空则返回所有版本)
+        in: query
+        name: app_version
+        type: string
       produces:
       - application/json
       responses:
         "200":
-          description: Fork 成功
+          description: 获取成功
           schema:
-            $ref: '#/definitions/dto.ForkFunctionGroupResp'
+            $ref: '#/definitions/dto.GetAppVersionUpdateHistoryResp'
         "400":
           description: 请求参数错误
-          schema:
-            type: string
-        "401":
-          description: 未授权
           schema:
             type: string
         "500":
@@ -1146,9 +1530,58 @@ paths:
             type: string
       security:
       - ApiKeyAuth: []
-      summary: Fork 函数组
+      summary: 获取应用版本更新历史
       tags:
-      - 函数管理
+      - 目录更新历史
+  /api/v1/directory_update_history/directory:
+    get:
+      consumes:
+      - application/json
+      description: 查看单个目录的变更历史，方便仅回滚某个目录
+      parameters:
+      - description: JWT Token
+        in: header
+        name: X-Token
+        required: true
+        type: string
+      - description: 应用ID
+        in: query
+        name: app_id
+        required: true
+        type: integer
+      - description: 目录完整路径，如 /luobei/app/servercenter/erp
+        in: query
+        name: full_code_path
+        required: true
+        type: string
+      - description: 页码，默认1
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量，默认10
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            $ref: '#/definitions/dto.GetDirectoryUpdateHistoryResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: 获取目录更新历史
+      tags:
+      - 目录更新历史
   /api/v1/function/get:
     get:
       consumes:
@@ -1233,6 +1666,152 @@ paths:
       summary: 获取应用下所有函数
       tags:
       - 函数管理
+  /api/v1/operate_log/form:
+    get:
+      consumes:
+      - application/json
+      description: 查询 Form 操作日志（需要企业版 License）
+      parameters:
+      - description: JWT Token
+        in: header
+        name: X-Token
+        required: true
+        type: string
+      - description: 租户用户（app 的所有者）
+        in: query
+        name: tenant_user
+        type: string
+      - description: 请求用户（实际执行操作的用户）
+        in: query
+        name: request_user
+        type: string
+      - description: 应用名
+        in: query
+        name: app
+        type: string
+      - description: 完整代码路径
+        in: query
+        name: full_code_path
+        type: string
+      - description: 操作类型：request_app, form_submit
+        in: query
+        name: action
+        type: string
+      - default: 1
+        description: 页码（从1开始）
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - description: 排序字段（默认：created_at DESC）
+        in: query
+        name: order_by
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 查询成功
+          schema:
+            $ref: '#/definitions/dto.GetFormOperateLogsResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "401":
+          description: 未认证
+          schema:
+            type: string
+        "403":
+          description: 需要企业版 License
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      summary: 查询 Form 操作日志
+      tags:
+      - 操作日志
+  /api/v1/operate_log/table:
+    get:
+      consumes:
+      - application/json
+      description: 查询 Table 操作日志（需要企业版 License）
+      parameters:
+      - description: JWT Token
+        in: header
+        name: X-Token
+        required: true
+        type: string
+      - description: 租户用户（app 的所有者）
+        in: query
+        name: tenant_user
+        type: string
+      - description: 请求用户（实际执行操作的用户）
+        in: query
+        name: request_user
+        type: string
+      - description: 应用名
+        in: query
+        name: app
+        type: string
+      - description: 完整代码路径
+        in: query
+        name: full_code_path
+        type: string
+      - description: 记录ID
+        in: query
+        name: row_id
+        type: integer
+      - description: 操作类型：OnTableAddRow, OnTableUpdateRow, OnTableDeleteRows
+        in: query
+        name: action
+        type: string
+      - default: 1
+        description: 页码（从1开始）
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - description: 排序字段（默认：created_at DESC）
+        in: query
+        name: order_by
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 查询成功
+          schema:
+            $ref: '#/definitions/dto.GetTableOperateLogsResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "401":
+          description: 未认证
+          schema:
+            type: string
+        "403":
+          description: 需要企业版 License
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      summary: 查询 Table 操作日志
+      tags:
+      - 操作日志
   /api/v1/run/{full_code_path}:
     get:
       consumes:
@@ -1443,6 +2022,88 @@ paths:
       summary: 更新服务目录
       tags:
       - 服务目录
+  /api/v1/service_tree/copy:
+    post:
+      consumes:
+      - application/json
+      description: 递归复制服务目录及其所有子目录到目标目录，保持目录结构
+      parameters:
+      - description: JWT Token
+        in: header
+        name: X-Token
+        required: true
+        type: string
+      - description: 复制请求，source_directory_path=源目录完整路径，target_directory_path=目标目录完整路径
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CopyDirectoryReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 复制成功
+          schema:
+            $ref: '#/definitions/dto.CopyDirectoryResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "401":
+          description: 未授权
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: 复制服务目录
+      tags:
+      - 服务目录
+  /api/v1/service_tree/publish_to_hub:
+    post:
+      consumes:
+      - application/json
+      description: 将指定目录及其所有子目录发布到 Hub 市场
+      parameters:
+      - description: JWT Token
+        in: header
+        name: X-Token
+        required: true
+        type: string
+      - description: 发布目录请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.PublishDirectoryToHubReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 发布成功
+          schema:
+            $ref: '#/definitions/dto.PublishDirectoryToHubResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "401":
+          description: 未授权
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: 发布目录到 Hub
+      tags:
+      - 服务目录
   /api/v1/user/info:
     get:
       consumes:
@@ -1526,7 +2187,7 @@ paths:
     get:
       consumes:
       - application/json
-      description: 根据关键词模糊查询用户（支持用户名和邮箱）
+      description: 根据关键词模糊查询用户（支持用户名、邮箱和昵称）
       parameters:
       - description: JWT Token
         in: header
@@ -1648,6 +2309,132 @@ paths:
       summary: 批量获取用户信息
       tags:
       - 用户管理
+  /control/api/v1/license/activate:
+    post:
+      consumes:
+      - application/json
+      description: 上传License文件并激活企业版
+      parameters:
+      - description: License文件内容（JSON格式）
+        in: body
+        name: license
+        required: true
+        schema:
+          type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 激活成功
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      summary: 激活 License
+      tags:
+      - License管理
+  /control/api/v1/license/deactivate:
+    post:
+      consumes:
+      - application/json
+      description: 注销当前 License，删除激活信息，系统回到社区版（主要用于测试）
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 注销成功
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      summary: 注销 License
+      tags:
+      - License管理
+  /control/api/v1/license/status:
+    get:
+      consumes:
+      - application/json
+      description: 获取当前 License 的状态信息
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: License状态
+          schema:
+            $ref: '#/definitions/service.LicenseStatus'
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      summary: 获取 License 状态
+      tags:
+      - License管理
+  /workspace/api/v1/service_tree/add_functions:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        接收来自 agent-server 的代码，写入到工作空间对应的目录下，并更新工作空间
+
+        **处理模式**：
+        - async=true: 异步处理，立即返回 202 Accepted，后台处理完成后通过回调通知 agent-server
+        - async=false: 同步处理，等待处理完成后直接返回结果
+
+        **回调机制**：
+        - 异步模式下，处理完成后会调用 agent-server 的回调接口：POST /agent/api/v1/workspace/update/callback
+        - 回调会携带处理结果（成功/失败、生成的函数组代码列表等）
+      parameters:
+      - description: 追踪ID（用于链路追踪）
+        in: header
+        name: X-Trace-Id
+        type: string
+      - description: 请求用户（用于审计）
+        in: header
+        name: X-Request-User
+        type: string
+      - description: Token（服务间调用时透传）
+        in: header
+        name: X-Token
+        type: string
+      - description: 添加函数请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.AddFunctionsReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 处理成功（同步模式）
+          schema:
+            $ref: '#/definitions/dto.AddFunctionsResp'
+        "202":
+          description: 已接收，处理中（异步模式）
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      summary: 向服务目录添加函数
+      tags:
+      - 服务目录
 securityDefinitions:
   ApiKeyAuth:
     in: header

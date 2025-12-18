@@ -370,10 +370,15 @@ func (s *Server) createSwaggerProxy(targetURL string) gin.HandlerFunc {
 		if strings.HasPrefix(path, swaggerPrefix) {
 			// 找到服务名称后的第一个 /（即第二个 /）
 			// 例如：/swagger/server/index.html -> /swagger/index.html
-			if idx := strings.Index(path[len(swaggerPrefix):], "/"); idx >= 0 {
-				req.URL.Path = swaggerPrefix + path[len(swaggerPrefix)+idx+1:]
+			remainingPath := path[len(swaggerPrefix):]
+			if idx := strings.Index(remainingPath, "/"); idx >= 0 {
+				// 提取服务名称后的路径部分
+				newPath := swaggerPrefix + remainingPath[idx+1:]
+				logger.Infof(s.ctx, "[Swagger] Path rewrite: %s -> %s", path, newPath)
+				req.URL.Path = newPath
 			} else {
 				// 如果没有后续路径，直接使用 /swagger
+				logger.Infof(s.ctx, "[Swagger] Path rewrite: %s -> /swagger", path)
 				req.URL.Path = "/swagger"
 			}
 		}
@@ -389,7 +394,23 @@ func (s *Server) createSwaggerProxy(targetURL string) gin.HandlerFunc {
 		return nil
 	}
 
+	// 添加错误处理
+	proxy.ErrorHandler = func(rw http.ResponseWriter, req *http.Request, err error) {
+		logger.Errorf(s.ctx, "[Swagger] Proxy error for %s -> %s: %v", req.URL.Path, targetURL, err)
+		traceID := req.Header.Get("trace-id")
+		rw.Header().Set("Content-Type", "application/json")
+		rw.WriteHeader(http.StatusBadGateway)
+		json.NewEncoder(rw).Encode(gin.H{
+			"error":    "Swagger service unavailable",
+			"trace_id": traceID,
+			"details":  fmt.Sprintf("Failed to proxy to %s: %v", targetURL, err),
+		})
+	}
+
 	return func(c *gin.Context) {
+		// 记录请求日志
+		originalPath := c.Request.URL.Path
+		logger.Infof(s.ctx, "[Swagger] Proxying request: %s -> %s", originalPath, targetURL)
 		proxy.ServeHTTP(c.Writer, c.Request)
 	}
 }

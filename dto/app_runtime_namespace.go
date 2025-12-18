@@ -210,6 +210,7 @@ type ApiInfo struct {
 	User           string          `json:"user"`
 	App            string          `json:"app"`
 	FullCodePath   string          `json:"full_code_path"`
+	TreeID         int64           `json:"tree_id"` // ServiceTree节点ID，创建tree后赋值，方便后续写快照时入库
 
 	SourceCodeFilePath string        `json:"source_code_file_path"`
 	SourceCode         string        `json:"source_code"`

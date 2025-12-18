@@ -78,12 +78,15 @@ for service_config in "${services[@]}"; do
         fi
     done
     
-    # 排除 hub 目录（hub 在项目根目录，不在 core 目录下）
-    if [ -n "$exclude_dirs" ]; then
-        exclude_dirs="$exclude_dirs,hub"
-    else
-        exclude_dirs="hub"
-    fi
+    # 排除 hub 和 namespace 目录（这些目录在项目根目录，不在 core 目录下）
+    # namespace 目录包含用户生成的内容，可能包含非 Go 代码文件
+    for exclude_dir in "hub" "namespace"; do
+        if [ -n "$exclude_dirs" ]; then
+            exclude_dirs="$exclude_dirs,$exclude_dir"
+        else
+            exclude_dirs="$exclude_dir"
+        fi
+    done
     
     echo -e "${YELLOW}正在生成 Swagger 文档...${NC}"
     echo -e "${BLUE}服务目录: $service_dir${NC}"

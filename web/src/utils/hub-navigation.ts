@@ -48,11 +48,11 @@ export function navigateToHub(path: string = '/') {
 }
 
 /**
- * 跳转到 Hub 应用详情页
- * @param appId Hub 应用ID
+ * 跳转到 Hub 目录详情页
+ * @param directoryId Hub 目录ID
  */
-export function navigateToHubAppDetail(appId: number) {
-  navigateToHub(`/app/${appId}`)
+export function navigateToHubDirectoryDetail(directoryId: number) {
+  navigateToHub(`/directory/${directoryId}`)
 }
 
 /**
