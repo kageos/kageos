@@ -1,5 +1,7 @@
 package dto
 
+// 注意：DiffData 定义在 dto/app_runtime_namespace.go 中
+
 // PublishDirectoryToHubReq 发布目录到 Hub 请求
 type PublishDirectoryToHubReq struct {
 	SourceUser           string   `json:"source_user" binding:"required"`            // 源用户
@@ -69,8 +71,8 @@ type GetServiceTreeResp struct {
 	Children     []*GetServiceTreeResp `json:"children,omitempty"`                          // 子目录列表
 }
 
-// UpdateServiceTreeReq 更新服务目录请求
-type UpdateServiceTreeReq struct {
+// UpdateServiceTreeMetadataReq 更新服务目录元数据请求（旧接口，保留兼容性）
+type UpdateServiceTreeMetadataReq struct {
 	ID          int64  `json:"id" binding:"required" example:"1"`       // 服务目录ID
 	Name        string `json:"name" example:"用户管理"`                 // 服务目录名称
 	Code        string `json:"code" example:"user"`                     // 服务目录代码
@@ -81,4 +83,35 @@ type UpdateServiceTreeReq struct {
 // DeleteServiceTreeReq 删除服务目录请求
 type DeleteServiceTreeReq struct {
 	ID int64 `json:"id" binding:"required" example:"1"` // 服务目录ID
+}
+
+// BatchCreateDirectoryTreeReq 批量创建目录树请求
+type BatchCreateDirectoryTreeReq struct {
+	User  string                `json:"user" binding:"required"` // 用户名
+	App   string                `json:"app" binding:"required"`  // 应用名
+	Items []*DirectoryTreeItem  `json:"items" binding:"required"` // 目录树项列表
+}
+
+// BatchCreateDirectoryTreeResp 批量创建目录树响应
+type BatchCreateDirectoryTreeResp struct {
+	DirectoryCount int      `json:"directory_count"` // 创建的目录数量
+	FileCount      int      `json:"file_count"`      // 创建的文件数量
+	CreatedPaths   []string `json:"created_paths"`   // 创建的路径列表
+}
+
+// UpdateServiceTreeReq 更新服务树请求
+type UpdateServiceTreeReq struct {
+	User  string             `json:"user" binding:"required"` // 用户名
+	App   string             `json:"app" binding:"required"`  // 应用名
+	Nodes []*ServiceTreeNode `json:"nodes" binding:"required"` // 服务树节点列表
+}
+
+// UpdateServiceTreeResp 更新服务树响应
+type UpdateServiceTreeResp struct {
+	DirectoryCount int      `json:"directory_count"` // 处理的目录数量
+	FileCount      int      `json:"file_count"`      // 处理的文件数量
+	Diff           *DiffData `json:"diff,omitempty"`  // API diff 信息（如果有文件变更）
+	OldVersion     string   `json:"old_version"`     // 旧版本号
+	NewVersion     string   `json:"new_version"`     // 新版本号
+	GitCommitHash  string   `json:"git_commit_hash,omitempty"` // Git 提交哈希
 }

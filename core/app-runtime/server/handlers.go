@@ -156,6 +156,70 @@ func (s *Server) handleReadDirectoryFiles(msg *nats.Msg) {
 	logger.Infof(ctx, "[handleReadDirectoryFiles] Read directory files successfully: fileCount=%d", len(files))
 }
 
+// handleBatchCreateDirectoryTree 处理批量创建目录树请求
+func (s *Server) handleBatchCreateDirectoryTree(msg *nats.Msg) {
+	ctx := context.Background()
+
+	// 使用统一的解析方法
+	msgInfo, err := msgx.DecodeNatsMsg[dto.BatchCreateDirectoryTreeRuntimeReq](msg)
+	if err != nil {
+		logger.Errorf(ctx, "[handleBatchCreateDirectoryTree] Failed to decode message: %v", err)
+		msgx.RespFailMsg(msg, err)
+		return
+	}
+
+	// 从消息体中获取租户用户信息
+	tenantUser := msgInfo.Data.User
+
+	logger.Infof(ctx, "[handleBatchCreateDirectoryTree] Received batch create directory tree request: tenantUser=%s, app=%s, itemCount=%d",
+		tenantUser, msgInfo.Data.App, len(msgInfo.Data.Items))
+
+	// 调用服务目录服务批量创建目录树
+	resp, err := s.serviceTreeService.BatchCreateDirectoryTree(ctx, &msgInfo.Data)
+	if err != nil {
+		logger.Errorf(ctx, "[handleBatchCreateDirectoryTree] Failed to batch create directory tree: %v", err)
+		msgx.RespFailMsg(msg, err)
+		return
+	}
+
+	// 返回成功响应
+	msgx.RespSuccessMsg(msg, resp)
+	logger.Infof(ctx, "[handleBatchCreateDirectoryTree] Batch create directory tree successfully: directoryCount=%d, fileCount=%d",
+		resp.DirectoryCount, resp.FileCount)
+}
+
+// handleUpdateServiceTree 处理更新服务树请求
+func (s *Server) handleUpdateServiceTree(msg *nats.Msg) {
+	ctx := context.Background()
+
+	// 使用统一的解析方法
+	msgInfo, err := msgx.DecodeNatsMsg[dto.UpdateServiceTreeRuntimeReq](msg)
+	if err != nil {
+		logger.Errorf(ctx, "[handleUpdateServiceTree] Failed to decode message: %v", err)
+		msgx.RespFailMsg(msg, err)
+		return
+	}
+
+	// 从消息体中获取租户用户信息
+	tenantUser := msgInfo.Data.User
+
+	logger.Infof(ctx, "[handleUpdateServiceTree] Received update service tree request: tenantUser=%s, app=%s, nodeCount=%d",
+		tenantUser, msgInfo.Data.App, len(msgInfo.Data.Nodes))
+
+	// 调用服务目录服务更新服务树
+	resp, err := s.serviceTreeService.UpdateServiceTree(ctx, &msgInfo.Data)
+	if err != nil {
+		logger.Errorf(ctx, "[handleUpdateServiceTree] Failed to update service tree: %v", err)
+		msgx.RespFailMsg(msg, err)
+		return
+	}
+
+	// 返回成功响应
+	msgx.RespSuccessMsg(msg, resp)
+	logger.Infof(ctx, "[handleUpdateServiceTree] Update service tree successfully: directoryCount=%d, fileCount=%d, hasDiff=%v",
+		resp.DirectoryCount, resp.FileCount, resp.Diff != nil)
+}
+
 // handleAppDelete 处理应用删除请求
 func (s *Server) handleAppDelete(msg *nats.Msg) {
 	ctx := context.Background()

@@ -170,7 +170,7 @@ func (s *ServiceTreeService) GetServiceTree(ctx context.Context, user, app strin
 }
 
 // UpdateServiceTree 更新服务目录
-func (s *ServiceTreeService) UpdateServiceTree(ctx context.Context, req *dto.UpdateServiceTreeReq) error {
+func (s *ServiceTreeService) UpdateServiceTreeMetadata(ctx context.Context, req *dto.UpdateServiceTreeMetadataReq) error {
 	// 获取服务目录
 	serviceTree, err := s.serviceTreeRepo.GetServiceTreeByID(req.ID)
 	if err != nil {
@@ -479,66 +479,6 @@ func (s *ServiceTreeService) CopyServiceTree(ctx context.Context, req *dto.CopyD
 		return len(dirsToCreate[i].targetPath) < len(dirsToCreate[j].targetPath)
 	})
 
-	// 创建目标目录的 ServiceTree 记录
-	// 用户 copy 时，目标路径（包括子目录）一定不存在，直接递归创建即可
-	targetTreeMap := make(map[string]*model.ServiceTree) // targetPath -> ServiceTree
-	// 先将目标根目录放入 map，这样查找父目录时能找到它
-	targetTreeMap[targetRootTree.FullCodePath] = targetRootTree
-	currentVersionNum := extractVersionNumForServiceTree(targetApp.Version)
-
-	for _, dirInfo := range dirsToCreate {
-		// 计算父目录路径
-		targetPathParts := strings.Split(strings.Trim(dirInfo.targetPath, "/"), "/")
-		var parentTree *model.ServiceTree
-		if len(targetPathParts) > 3 {
-			// 有父目录，查找父目录的 ServiceTree（应该已经在 targetTreeMap 中）
-			parentPath := "/" + strings.Join(targetPathParts[:len(targetPathParts)-1], "/")
-			parentTree = targetTreeMap[parentPath]
-			if parentTree == nil {
-				return nil, fmt.Errorf("找不到父目录: path=%s, parentPath=%s", dirInfo.targetPath, parentPath)
-			}
-		} else {
-			// 根目录，使用目标根目录作为父目录
-			parentTree = targetRootTree
-		}
-
-		// 提取目录代码（路径的最后一部分）
-		dirCode := targetPathParts[len(targetPathParts)-1]
-
-		// 创建新的 ServiceTree 记录（保持源目录的名称、描述等信息）
-		var parentID int64 = 0
-		if parentTree != nil {
-			parentID = parentTree.ID
-		}
-		newTree := &model.ServiceTree{
-			Name:             dirInfo.sourceTree.Name, // 保持相同的名称
-			Code:             dirCode,
-			ParentID:         parentID,
-			Type:             model.ServiceTreeTypePackage,
-			Description:      dirInfo.sourceTree.Description, // 保持相同的描述
-			Tags:             dirInfo.sourceTree.Tags,        // 保持相同的标签
-			AppID:            targetApp.ID,
-			FullCodePath:     dirInfo.targetPath,
-			AddVersionNum:    currentVersionNum,
-			UpdateVersionNum: 0,
-		}
-
-		// 保存到数据库
-		if err := s.serviceTreeRepo.CreateServiceTreeWithParentPath(newTree, ""); err != nil {
-			return nil, fmt.Errorf("创建目标目录失败 (%s): %w", dirInfo.targetPath, err)
-		}
-
-		// 发送NATS消息给app-runtime创建目录结构和 init_.go 文件
-		if err := s.sendCreateServiceTreeMessage(ctx, targetApp.User, targetApp.Code, newTree); err != nil {
-			logger.Errorf(ctx, "[ServiceTreeService] 发送创建目录消息失败: %v", err)
-			return nil, fmt.Errorf("创建目录结构失败 (%s): %w", dirInfo.targetPath, err)
-		}
-
-		targetTreeMap[dirInfo.targetPath] = newTree
-		logger.Infof(ctx, "[ServiceTreeService] 创建目标目录: source=%s, target=%s, name=%s",
-			dirInfo.sourcePath, dirInfo.targetPath, newTree.Name)
-	}
-
 	// 更新目标路径（因为根目录会在目标根目录下创建同名目录）
 	// 例如：从 /user/app/a/b 复制到 /user/app/e，实际目标路径应该是 /user/app/e/b
 	if len(dirsToCreate) > 0 {
@@ -546,11 +486,22 @@ func (s *ServiceTreeService) CopyServiceTree(ctx context.Context, req *dto.CopyD
 		targetRootPath = dirsToCreate[0].targetPath
 	}
 
-	// 9. 构建 CreateFunctions 请求（新版本：直接复制文件，不替换 package）
-	// 因为新版本的 copy 是复制整个目录，package 路径已经正确了，不需要替换
-	createFunctions := make([]*dto.CreateFunctionInfo, 0)
-	totalFileCount := 0
+	// 8. 构建批量创建请求（优化版本：使用批量创建接口）
+	batchItems := make([]*dto.DirectoryTreeItem, 0)
 
+	// 8.1 添加目录项
+	for _, dirInfo := range dirsToCreate {
+		batchItems = append(batchItems, &dto.DirectoryTreeItem{
+			FullCodePath: dirInfo.targetPath,
+			Type:         "directory",
+			Name:         dirInfo.sourceTree.Name,
+			Description:  dirInfo.sourceTree.Description,
+			Tags:         dirInfo.sourceTree.Tags,
+		})
+	}
+
+	// 8.2 添加文件项
+	totalFileCount := 0
 	for sourcePath, fileSnapshots := range directoryFiles {
 		// 计算相对路径（相对于源根目录）
 		relativePath := strings.TrimPrefix(sourcePath, req.SourceDirectoryPath)
@@ -565,9 +516,6 @@ func (s *ServiceTreeService) CopyServiceTree(ctx context.Context, req *dto.CopyD
 			// 子目录：保持相对路径结构
 			targetPath = targetRootPath + "/" + relativePath
 		}
-
-		// 提取目标 package 路径（去掉应用前缀）
-		targetPackage := extractPackageFromPath(targetPath)
 
 		for _, fileSnapshot := range fileSnapshots {
 			// 使用 FileName，如果为空则从相对路径提取
@@ -586,11 +534,22 @@ func (s *ServiceTreeService) CopyServiceTree(ctx context.Context, req *dto.CopyD
 				continue
 			}
 
-			// 构建 CreateFunctionInfo（直接使用快照中的代码，不替换 package）
-			createFunctions = append(createFunctions, &dto.CreateFunctionInfo{
-				Package:    targetPackage,
-				GroupCode:  fileName,             // 使用 FileName 作为 GroupCode
-				SourceCode: fileSnapshot.Content, // 直接使用快照中的代码，package 路径已经正确
+			// 构建文件完整路径
+			fileFullPath := targetPath + "/" + fileName
+			if fileSnapshot.FileType != "" && fileSnapshot.FileType != "go" {
+				fileFullPath = targetPath + "/" + fileName + "." + fileSnapshot.FileType
+			} else {
+				fileFullPath = targetPath + "/" + fileName + ".go"
+			}
+
+			// 添加文件项
+			batchItems = append(batchItems, &dto.DirectoryTreeItem{
+				FullCodePath: fileFullPath,
+				Type:         "file",
+				FileName:     fileName,
+				FileType:     fileSnapshot.FileType,
+				Content:      fileSnapshot.Content,
+				RelativePath: fileSnapshot.RelativePath,
 			})
 			totalFileCount++
 		}
@@ -599,27 +558,47 @@ func (s *ServiceTreeService) CopyServiceTree(ctx context.Context, req *dto.CopyD
 			sourcePath, targetPath, len(fileSnapshots))
 	}
 
-	// 10. 调用 UpdateApp（使用 CreateFunctions，不替换 package）
-	logger.Infof(ctx, "[ServiceTreeService] 准备调用 UpdateApp（复制目录）: functionCount=%d", len(createFunctions))
+	// 9. 批量创建目录和文件（一次性调用 runtime）
+	logger.Infof(ctx, "[ServiceTreeService] 准备批量创建目录树: directoryCount=%d, fileCount=%d",
+		len(dirsToCreate), totalFileCount)
+
+	batchReq := &dto.BatchCreateDirectoryTreeReq{
+		User:  targetApp.User,
+		App:   targetApp.Code,
+		Items: batchItems,
+	}
+
+	batchResp, err := s.BatchCreateDirectoryTree(ctx, batchReq)
+	if err != nil {
+		logger.Errorf(ctx, "[ServiceTreeService] 批量创建目录树失败: error=%v", err)
+		return nil, fmt.Errorf("批量创建目录树失败: %w", err)
+	}
+
+	logger.Infof(ctx, "[ServiceTreeService] 批量创建目录树完成: directoryCount=%d, fileCount=%d",
+		batchResp.DirectoryCount, batchResp.FileCount)
+
+	// 10. 调用 UpdateApp（只用于编译和启动，文件已经通过批量创建了）
+	// 注意：这里仍然需要调用 UpdateApp 来触发编译和启动，但不需要 CreateFunctions
+	logger.Infof(ctx, "[ServiceTreeService] 准备调用 UpdateApp（编译和启动）")
 
 	updateReq := &dto.UpdateAppReq{
-		User:            targetApp.User,
-		App:             targetApp.Code,
-		CreateFunctions: createFunctions, // 使用 CreateFunctions，直接复制文件，不替换 package
+		User: targetApp.User,
+		App:  targetApp.Code,
+		// 不传递 CreateFunctions，因为文件已经通过批量创建了
 	}
 
 	_, err = s.appService.UpdateApp(ctx, updateReq)
 	if err != nil {
-		logger.Errorf(ctx, "[ServiceTreeService] UpdateApp（复制目录）失败: error=%v", err)
+		logger.Errorf(ctx, "[ServiceTreeService] UpdateApp（编译和启动）失败: error=%v", err)
 		return nil, fmt.Errorf("UpdateApp 失败: %w", err)
 	}
 
-	logger.Infof(ctx, "[ServiceTreeService] 复制目录完成: 目录数=%d, 文件数=%d", len(directoryFiles), totalFileCount)
+	logger.Infof(ctx, "[ServiceTreeService] 复制目录完成: 目录数=%d, 文件数=%d", batchResp.DirectoryCount, batchResp.FileCount)
 
 	return &dto.CopyDirectoryResp{
-		Message:        fmt.Sprintf("复制目录成功，共复制 %d 个目录，%d 个文件", len(directoryFiles), totalFileCount),
-		DirectoryCount: len(directoryFiles),
-		FileCount:      totalFileCount,
+		Message:        fmt.Sprintf("复制目录成功，共复制 %d 个目录，%d 个文件", batchResp.DirectoryCount, batchResp.FileCount),
+		DirectoryCount: batchResp.DirectoryCount,
+		FileCount:      batchResp.FileCount,
 	}, nil
 }
 
@@ -707,6 +686,146 @@ func (s *ServiceTreeService) PublishDirectoryToHub(ctx context.Context, req *dto
 		HubDirectoryURL: hubResp.HubDirectoryURL,
 		DirectoryCount:  hubResp.DirectoryCount,
 		FileCount:       hubResp.FileCount,
+	}, nil
+}
+
+// BatchCreateDirectoryTree 批量创建目录树（用于 copy 和 pull from hub）
+func (s *ServiceTreeService) BatchCreateDirectoryTree(
+	ctx context.Context,
+	req *dto.BatchCreateDirectoryTreeReq,
+) (*dto.BatchCreateDirectoryTreeResp, error) {
+	// 1. 获取应用信息
+	app, err := s.appRepo.GetAppByUserName(req.User, req.App)
+	if err != nil {
+		return nil, fmt.Errorf("获取应用信息失败: %w", err)
+	}
+
+	// 2. 构建 runtime 请求
+	runtimeReq := &dto.BatchCreateDirectoryTreeRuntimeReq{
+		User:  req.User,
+		App:   req.App,
+		Items: req.Items,
+	}
+
+	// 3. 调用 runtime 批量创建
+	runtimeResp, err := s.appRuntime.BatchCreateDirectoryTree(ctx, app.HostID, runtimeReq)
+	if err != nil {
+		return nil, fmt.Errorf("批量创建目录树失败: %w", err)
+	}
+
+	// 4. 创建 ServiceTree 记录（批量创建数据库记录）
+	// 这里需要根据 Items 创建对应的 ServiceTree 记录
+	// 先按路径排序，确保先创建父目录
+	sortedItems := make([]*dto.DirectoryTreeItem, len(req.Items))
+	copy(sortedItems, req.Items)
+	
+	// 按路径长度排序
+	sort.Slice(sortedItems, func(i, j int) bool {
+		return len(sortedItems[i].FullCodePath) < len(sortedItems[j].FullCodePath)
+	})
+
+	// 创建路径到 ServiceTree 的映射
+	pathToTree := make(map[string]*model.ServiceTree)
+	currentVersionNum := extractVersionNumForServiceTree(app.Version)
+
+	// 遍历所有项，创建 ServiceTree 记录
+	for _, item := range sortedItems {
+		if item.Type == "directory" {
+			// 提取目录代码（路径的最后一部分）
+			pathParts := strings.Split(strings.Trim(item.FullCodePath, "/"), "/")
+			if len(pathParts) < 3 {
+				continue // 跳过无效路径
+			}
+			dirCode := pathParts[len(pathParts)-1]
+
+			// 查找父目录
+			var parentID int64 = 0
+			parentPath := getParentPath(item.FullCodePath)
+			if parentPath != "" {
+				if parentTree, exists := pathToTree[parentPath]; exists {
+					parentID = parentTree.ID
+				}
+			}
+
+			// 创建 ServiceTree 记录
+			newTree := &model.ServiceTree{
+				Name:             item.Name,
+				Code:             dirCode,
+				ParentID:         parentID,
+				Type:             model.ServiceTreeTypePackage,
+				Description:      item.Description,
+				Tags:             item.Tags,
+				AppID:            app.ID,
+				FullCodePath:     item.FullCodePath,
+				AddVersionNum:    currentVersionNum,
+				UpdateVersionNum: 0,
+			}
+
+			// 保存到数据库
+			if err := s.serviceTreeRepo.CreateServiceTreeWithParentPath(newTree, ""); err != nil {
+				logger.Warnf(ctx, "[BatchCreateDirectoryTree] 创建 ServiceTree 记录失败: path=%s, error=%v",
+					item.FullCodePath, err)
+				// 不返回错误，因为目录已经创建成功
+			} else {
+				pathToTree[item.FullCodePath] = newTree
+			}
+		}
+		// 文件类型的 ServiceTree 记录会在后续的 UpdateApp 中创建，这里不处理
+	}
+
+	return &dto.BatchCreateDirectoryTreeResp{
+		DirectoryCount: runtimeResp.DirectoryCount,
+		FileCount:      runtimeResp.FileCount,
+		CreatedPaths:   runtimeResp.CreatedPaths,
+	}, nil
+}
+
+// getParentPath 获取父目录路径（辅助函数）
+func getParentPath(fullCodePath string) string {
+	pathParts := strings.Split(strings.Trim(fullCodePath, "/"), "/")
+	if len(pathParts) <= 3 {
+		return "" // 没有父目录（已经是根目录）
+	}
+	// 去掉最后一部分，重新组合
+	parentParts := pathParts[:len(pathParts)-1]
+	return "/" + strings.Join(parentParts, "/")
+}
+
+// UpdateServiceTree 更新服务树（通用方法，支持新增、更新、删除节点，返回 diff 信息）
+func (s *ServiceTreeService) UpdateServiceTree(
+	ctx context.Context,
+	req *dto.UpdateServiceTreeReq,
+) (*dto.UpdateServiceTreeResp, error) {
+	// 1. 获取应用信息
+	app, err := s.appRepo.GetAppByUserName(req.User, req.App)
+	if err != nil {
+		return nil, fmt.Errorf("获取应用信息失败: %w", err)
+	}
+
+	// 2. 构建 runtime 请求
+	runtimeReq := &dto.UpdateServiceTreeRuntimeReq{
+		User:  req.User,
+		App:   req.App,
+		Nodes: req.Nodes,
+	}
+
+	// 3. 调用 runtime 更新服务树
+	runtimeResp, err := s.appRuntime.UpdateServiceTree(ctx, app.HostID, runtimeReq)
+	if err != nil {
+		return nil, fmt.Errorf("更新服务树失败: %w", err)
+	}
+
+	// 4. 处理 ServiceTree 数据库记录
+	// 根据节点的操作类型，更新数据库记录
+	// TODO: 实现数据库记录的更新逻辑
+
+	return &dto.UpdateServiceTreeResp{
+		DirectoryCount: runtimeResp.DirectoryCount,
+		FileCount:      runtimeResp.FileCount,
+		Diff:           runtimeResp.Diff,
+		OldVersion:     runtimeResp.OldVersion,
+		NewVersion:     runtimeResp.NewVersion,
+		GitCommitHash:  runtimeResp.GitCommitHash,
 	}, nil
 }
 

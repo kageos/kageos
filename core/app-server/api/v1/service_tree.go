@@ -99,14 +99,14 @@ func (s *ServiceTree) GetServiceTree(c *gin.Context) {
 // @Produce json
 // @Security ApiKeyAuth
 // @Param X-Token header string true "JWT Token"
-// @Param request body dto.UpdateServiceTreeReq true "更新服务目录请求"
+// @Param request body dto.UpdateServiceTreeMetadataReq true "更新服务目录请求"
 // @Success 200 {string} string "更新成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 401 {string} string "未授权"
 // @Failure 500 {string} string "服务器内部错误"
 // @Router /api/v1/service_tree [put]
 func (s *ServiceTree) UpdateServiceTree(c *gin.Context) {
-	var req dto.UpdateServiceTreeReq
+	var req dto.UpdateServiceTreeMetadataReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.FailWithMessage(c, "参数错误: "+err.Error())
 		return
@@ -114,7 +114,7 @@ func (s *ServiceTree) UpdateServiceTree(c *gin.Context) {
 
 	// 更新服务目录
 	ctx := contextx.ToContext(c)
-	if err := s.serviceTreeService.UpdateServiceTree(ctx, &req); err != nil {
+	if err := s.serviceTreeService.UpdateServiceTreeMetadata(ctx, &req); err != nil {
 		response.FailWithMessage(c, "更新服务目录失败: "+err.Error())
 		return
 	}
