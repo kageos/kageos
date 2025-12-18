@@ -2,24 +2,26 @@ package dto
 
 // PublishHubDirectoryReq 发布目录到 Hub 请求
 type PublishHubDirectoryReq struct {
-	APIKey               string                    `json:"api_key"`                // API Key（私有化部署需要）
-	SourceUser           string                    `json:"source_user"`            // 源用户
-	SourceApp            string                    `json:"source_app"`             // 源应用
-	SourceDirectoryPath  string                    `json:"source_directory_path"`  // 源目录完整路径
-	Name                 string                    `json:"name"`                  // 目录名称
-	Description          string                    `json:"description"`            // 目录描述
-	Category             string                    `json:"category"`               // 分类
-	Tags                 []string                  `json:"tags"`                   // 标签
-	ServiceFeePersonal   float64                   `json:"service_fee_personal"`   // 个人用户服务费
-	ServiceFeeEnterprise float64                   `json:"service_fee_enterprise"` // 企业用户服务费
-	Version              string                    `json:"version"`                // 版本号（默认 v1）
-	DirectorySnapshots   []*DirectoryFileSnapshot  `json:"directory_snapshots"`    // 目录文件快照（递归）
+	APIKey               string            `json:"api_key"`                // API Key（私有化部署需要）
+	SourceUser           string            `json:"source_user"`            // 源用户
+	SourceApp            string            `json:"source_app"`             // 源应用
+	SourceDirectoryPath  string            `json:"source_directory_path"`  // 源目录完整路径
+	Name                 string            `json:"name"`                  // 目录名称
+	Description          string            `json:"description"`            // 目录描述
+	Category             string            `json:"category"`               // 分类
+	Tags                 []string          `json:"tags"`                   // 标签
+	ServiceFeePersonal   float64           `json:"service_fee_personal"`   // 个人用户服务费
+	ServiceFeeEnterprise float64           `json:"service_fee_enterprise"` // 企业用户服务费
+	Version              string            `json:"version"`                // 版本号（默认 v1）
+	DirectoryTree        *DirectoryTreeNode `json:"directory_tree"`        // 目录树结构（递归，支持嵌套）
 }
 
-// DirectoryFileSnapshot 目录文件快照（用于上传）
-type DirectoryFileSnapshot struct {
-	FullCodePath string              `json:"full_code_path"` // 目录完整路径
-	Files        []*FileSnapshotInfo `json:"files"`          // 该目录下的文件列表
+// DirectoryTreeNode 目录树节点（用于发布目录，包含文件内容）
+type DirectoryTreeNode struct {
+	Name           string              `json:"name"`            // 目录名称
+	Path           string              `json:"path"`            // 目录完整路径
+	Files          []*FileSnapshotInfo `json:"files"`           // 该目录下的文件列表（包含内容）
+	Subdirectories []*DirectoryTreeNode `json:"subdirectories"` // 子目录列表（递归）
 }
 
 // FileSnapshotInfo 文件快照信息
@@ -93,23 +95,8 @@ type HubDirectoryDTO struct {
 // HubDirectoryDetailDetailResp Hub 目录详情响应
 type HubDirectoryDetailDetailResp struct {
 	HubDirectoryDTO
-	DirectoryTree *DirectoryTreeNode  `json:"directory_tree,omitempty"` // 目录树结构（可选）
+	DirectoryTree *DirectoryTreeNode  `json:"directory_tree,omitempty"` // 目录树结构（可选，Files 字段可能为空，仅用于展示）
 	Files         []*DirectoryFileDTO `json:"files,omitempty"`         // 文件列表（可选）
-}
-
-// DirectoryTreeNode 目录树节点（用于目录树结构）
-type DirectoryTreeNode struct {
-	Name           string              `json:"name"`            // 目录名称
-	Path           string              `json:"path"`            // 目录路径
-	Files          []*FileNode          `json:"files"`          // 文件列表
-	Subdirectories []*DirectoryTreeNode `json:"subdirectories"` // 子目录列表
-}
-
-// FileNode 文件节点
-type FileNode struct {
-	Name         string `json:"name"`          // 文件名
-	RelativePath string `json:"relative_path"` // 文件相对路径
-	FileType     string `json:"file_type"`     // 文件类型
 }
 
 // DirectoryFileDTO 目录文件 DTO

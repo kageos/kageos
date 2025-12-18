@@ -293,40 +293,59 @@ func (s *ServiceTreeService) sendCreateServiceTreeMessage(ctx context.Context, u
 }
 
 // GetDirectorySnapshotsRecursively 递归获取目录及其所有子目录的文件快照
+// GetDirectorySnapshotsRecursively 递归获取目录及其所有子目录的当前版本文件快照
+// 优化：使用 ServiceTreeID 和 IsCurrent 字段，性能更好
 // 返回：map[目录路径][]文件快照
 func (s *ServiceTreeService) GetDirectorySnapshotsRecursively(ctx context.Context, appID int64, rootDirectoryPath string) (map[string][]*model.FileSnapshot, error) {
-	// 1. 获取根目录的文件快照
-	rootFiles, err := s.fileSnapshotRepo.GetCurrentVersionByDirectory(appID, rootDirectoryPath, s.serviceTreeRepo)
+	// 1. 获取根目录节点（ServiceTree）
+	rootTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(rootDirectoryPath)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			// 如果根目录快照不存在，返回空 map（可能是新目录，还没有快照）
-			logger.Warnf(ctx, "[ServiceTreeService] 根目录快照不存在: path=%s", rootDirectoryPath)
+			logger.Warnf(ctx, "[ServiceTreeService] 根目录节点不存在: path=%s", rootDirectoryPath)
 			return make(map[string][]*model.FileSnapshot), nil
 		}
-		return nil, fmt.Errorf("获取根目录快照失败: %w", err)
+		return nil, fmt.Errorf("获取根目录节点失败: %w", err)
 	}
 
-	result := make(map[string][]*model.FileSnapshot)
-	result[rootDirectoryPath] = rootFiles
-
-	// 2. 递归查询所有子目录
+	// 2. 递归查询所有子目录节点（包括根目录）
 	descendants, err := s.serviceTreeRepo.GetDescendantDirectories(appID, rootDirectoryPath)
 	if err != nil {
 		return nil, fmt.Errorf("查询子目录失败: %w", err)
 	}
 
-	// 3. 批量读取所有子目录的文件快照
-	for _, dir := range descendants {
-		files, err := s.fileSnapshotRepo.GetCurrentVersionByDirectory(appID, dir.FullCodePath, s.serviceTreeRepo)
-		if err != nil {
-			if err == gorm.ErrRecordNotFound {
-				logger.Warnf(ctx, "[ServiceTreeService] 子目录快照不存在: path=%s", dir.FullCodePath)
-				result[dir.FullCodePath] = []*model.FileSnapshot{} // 空列表
-				continue                                           // 跳过没有快照的目录，继续处理其他目录
-			}
-			return nil, fmt.Errorf("获取子目录快照失败 (%s): %w", dir.FullCodePath, err)
+	// 3. 构建所有目录节点的列表（包括根目录）
+	allTrees := make([]*model.ServiceTree, 0, len(descendants)+1)
+	allTrees = append(allTrees, rootTree)
+	allTrees = append(allTrees, descendants...)
+
+	// 4. 收集所有目录的 ServiceTreeID
+	treeIDs := make([]int64, 0, len(allTrees))
+	treeIDToPath := make(map[int64]string) // ServiceTreeID -> FullCodePath
+	for _, tree := range allTrees {
+		treeIDs = append(treeIDs, tree.ID)
+		treeIDToPath[tree.ID] = tree.FullCodePath
+	}
+
+	// 5. 批量查询所有目录的当前版本快照（使用 ServiceTreeID 和 IsCurrent）
+	// 一次性查询所有目录的快照，性能更好
+	allSnapshots, err := s.fileSnapshotRepo.GetCurrentSnapshotsByServiceTreeIDs(treeIDs)
+	if err != nil {
+		return nil, fmt.Errorf("批量查询文件快照失败: %w", err)
+	}
+
+	// 6. 按目录路径分组快照
+	result := make(map[string][]*model.FileSnapshot)
+	for _, tree := range allTrees {
+		// 初始化每个目录的空列表（即使没有文件也要包含）
+		result[tree.FullCodePath] = make([]*model.FileSnapshot, 0)
+	}
+
+	// 7. 将快照按目录分组
+	for _, snapshot := range allSnapshots {
+		path := treeIDToPath[snapshot.ServiceTreeID]
+		if path != "" {
+			result[path] = append(result[path], snapshot)
 		}
-		result[dir.FullCodePath] = files
 	}
 
 	totalFiles := 0
@@ -334,8 +353,8 @@ func (s *ServiceTreeService) GetDirectorySnapshotsRecursively(ctx context.Contex
 		totalFiles += len(files)
 	}
 
-	logger.Infof(ctx, "[ServiceTreeService] 递归获取快照完成: 根目录=%s, 子目录数=%d, 总文件数=%d",
-		rootDirectoryPath, len(descendants), totalFiles)
+	logger.Infof(ctx, "[ServiceTreeService] 递归获取快照完成: 根目录=%s, 目录数=%d, 总文件数=%d",
+		rootDirectoryPath, len(allTrees), totalFiles)
 
 	return result, nil
 }
@@ -618,7 +637,31 @@ func (s *ServiceTreeService) PublishDirectoryToHub(ctx context.Context, req *dto
 		return nil, fmt.Errorf("获取源目录信息失败: %w", err)
 	}
 
-	// 3. 递归获取所有目录的文件快照（包括根目录和所有子目录）
+	// 3. 获取根目录节点和所有子目录节点（用于构建父子关系）
+	rootTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(req.SourceDirectoryPath)
+	if err != nil {
+		return nil, fmt.Errorf("获取根目录节点失败: %w", err)
+	}
+
+	descendants, err := s.serviceTreeRepo.GetDescendantDirectories(sourceApp.ID, req.SourceDirectoryPath)
+	if err != nil {
+		return nil, fmt.Errorf("查询子目录失败: %w", err)
+	}
+
+	// 构建所有目录节点的列表和映射
+	allTrees := make([]*model.ServiceTree, 0, len(descendants)+1)
+	allTrees = append(allTrees, rootTree)
+	allTrees = append(allTrees, descendants...)
+
+	// 构建路径到 ServiceTree 的映射，用于快速查找父目录
+	pathToTree := make(map[string]*model.ServiceTree)
+	idToTree := make(map[int64]*model.ServiceTree)
+	for _, tree := range allTrees {
+		pathToTree[tree.FullCodePath] = tree
+		idToTree[tree.ID] = tree
+	}
+
+	// 4. 递归获取所有目录的文件快照（包括根目录和所有子目录）
 	directoryFiles, err := s.GetDirectorySnapshotsRecursively(ctx, sourceApp.ID, req.SourceDirectoryPath)
 	if err != nil {
 		return nil, fmt.Errorf("获取目录快照失败: %w", err)
@@ -628,26 +671,10 @@ func (s *ServiceTreeService) PublishDirectoryToHub(ctx context.Context, req *dto
 		return nil, fmt.Errorf("未找到任何目录快照，请确保源目录已创建快照")
 	}
 
-	// 4. 转换为 Hub 需要的格式
-	directorySnapshots := make([]*dto.DirectoryFileSnapshot, 0, len(directoryFiles))
-	for dirPath, files := range directoryFiles {
-		fileInfos := make([]*dto.FileSnapshotInfo, 0, len(files))
-		for _, file := range files {
-			fileInfos = append(fileInfos, &dto.FileSnapshotInfo{
-				FileName:     file.FileName,
-				RelativePath: file.RelativePath,
-				Content:      file.Content,
-				FileType:     file.FileType,
-				FileVersion:  file.FileVersion,
-			})
-		}
-		directorySnapshots = append(directorySnapshots, &dto.DirectoryFileSnapshot{
-			FullCodePath: dirPath,
-			Files:        fileInfos,
-		})
-	}
+	// 5. 构建树形结构
+	directoryTree := s.buildDirectoryTree(rootTree, allTrees, directoryFiles, idToTree)
 
-	// 5. 构建 Hub 请求
+	// 6. 构建 Hub 请求
 	hubReq := &dto.PublishHubDirectoryReq{
 		SourceUser:           req.SourceUser,
 		SourceApp:            req.SourceApp,
@@ -659,10 +686,10 @@ func (s *ServiceTreeService) PublishDirectoryToHub(ctx context.Context, req *dto
 		ServiceFeePersonal:   req.ServiceFeePersonal,
 		ServiceFeeEnterprise: req.ServiceFeeEnterprise,
 		Version:              sourceTree.Version,
-		DirectorySnapshots:   directorySnapshots,
+		DirectoryTree:        directoryTree,
 	}
 
-	// 6. 调用 Hub API
+	// 7. 调用 Hub API
 	header := &apicall.Header{
 		TraceID:     contextx.GetTraceId(ctx),
 		RequestUser: contextx.GetRequestUser(ctx),
@@ -674,7 +701,7 @@ func (s *ServiceTreeService) PublishDirectoryToHub(ctx context.Context, req *dto
 		return nil, fmt.Errorf("调用 Hub API 失败: %w", err)
 	}
 
-	// 7. 返回结果
+	// 8. 返回结果
 	return &dto.PublishDirectoryToHubResp{
 		HubDirectoryID:  hubResp.HubDirectoryID,
 		HubDirectoryURL: hubResp.HubDirectoryURL,
@@ -763,4 +790,61 @@ func (s *ServiceTreeService) AddFunctions(ctx context.Context, req *dto.AddFunct
 		AppID:          serviceTree.App.ID,
 		AppCode:        serviceTree.App.Code,
 	}, nil
+}
+
+// buildDirectoryTree 构建目录树结构（递归）
+// rootTree: 根目录节点
+// allTrees: 所有目录节点（包括根目录和子目录）
+// directoryFiles: 目录路径到文件快照的映射
+// idToTree: ServiceTreeID 到 ServiceTree 的映射
+func (s *ServiceTreeService) buildDirectoryTree(
+	rootTree *model.ServiceTree,
+	allTrees []*model.ServiceTree,
+	directoryFiles map[string][]*model.FileSnapshot,
+	idToTree map[int64]*model.ServiceTree,
+) *dto.DirectoryTreeNode {
+	return s.buildDirectoryTreeNode(rootTree, allTrees, directoryFiles, idToTree)
+}
+
+// buildDirectoryTreeNode 递归构建目录树节点
+func (s *ServiceTreeService) buildDirectoryTreeNode(
+	tree *model.ServiceTree,
+	allTrees []*model.ServiceTree,
+	directoryFiles map[string][]*model.FileSnapshot,
+	idToTree map[int64]*model.ServiceTree,
+) *dto.DirectoryTreeNode {
+	// 获取目录名称（路径的最后一部分）
+	pathParts := strings.Split(strings.Trim(tree.FullCodePath, "/"), "/")
+	dirName := pathParts[len(pathParts)-1]
+
+	// 构建文件列表
+	files := make([]*dto.FileSnapshotInfo, 0)
+	if fileSnapshots, exists := directoryFiles[tree.FullCodePath]; exists {
+		for _, file := range fileSnapshots {
+			files = append(files, &dto.FileSnapshotInfo{
+				FileName:     file.FileName,
+				RelativePath: file.RelativePath,
+				Content:      file.Content,
+				FileType:     file.FileType,
+				FileVersion:  file.FileVersion,
+			})
+		}
+	}
+
+	// 查找所有直接子目录
+	subdirectories := make([]*dto.DirectoryTreeNode, 0)
+	for _, childTree := range allTrees {
+		if childTree.ParentID == tree.ID {
+			// 递归构建子目录节点
+			childNode := s.buildDirectoryTreeNode(childTree, allTrees, directoryFiles, idToTree)
+			subdirectories = append(subdirectories, childNode)
+		}
+	}
+
+	return &dto.DirectoryTreeNode{
+		Name:           dirName,
+		Path:           tree.FullCodePath,
+		Files:          files,
+		Subdirectories: subdirectories,
+	}
 }

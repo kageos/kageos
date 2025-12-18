@@ -17,7 +17,7 @@
     },
     "host": "localhost:9095",
     "paths": {
-        "/api/v1/agent/agents/create": {
+        "/agent/api/v1/agents/create": {
             "post": {
                 "description": "创建新的智能体",
                 "consumes": [
@@ -57,7 +57,7 @@
                 }
             }
         },
-        "/api/v1/agent/agents/delete": {
+        "/agent/api/v1/agents/delete": {
             "post": {
                 "description": "删除智能体",
                 "consumes": [
@@ -94,7 +94,7 @@
                 }
             }
         },
-        "/api/v1/agent/agents/disable": {
+        "/agent/api/v1/agents/disable": {
             "post": {
                 "description": "禁用智能体",
                 "consumes": [
@@ -131,7 +131,7 @@
                 }
             }
         },
-        "/api/v1/agent/agents/enable": {
+        "/agent/api/v1/agents/enable": {
             "post": {
                 "description": "启用智能体",
                 "consumes": [
@@ -168,7 +168,7 @@
                 }
             }
         },
-        "/api/v1/agent/agents/get": {
+        "/agent/api/v1/agents/get": {
             "get": {
                 "description": "根据ID获取智能体详细信息",
                 "consumes": [
@@ -206,7 +206,7 @@
                 }
             }
         },
-        "/api/v1/agent/agents/list": {
+        "/agent/api/v1/agents/list": {
             "get": {
                 "description": "获取所有可用智能体列表（前端调用）",
                 "consumes": [
@@ -223,7 +223,7 @@
                     {
                         "enum": [
                             "knowledge_only",
-                            "api_call"
+                            "plugin"
                         ],
                         "type": "string",
                         "description": "智能体类型",
@@ -269,7 +269,7 @@
                 }
             }
         },
-        "/api/v1/agent/agents/update": {
+        "/agent/api/v1/agents/update": {
             "post": {
                 "description": "更新智能体信息",
                 "consumes": [
@@ -309,7 +309,181 @@
                 }
             }
         },
-        "/api/v1/agent/knowledge/add_document": {
+        "/agent/api/v1/chat/function_gen": {
+            "post": {
+                "description": "与智能体进行对话（function_gen 类型）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "智能体管理"
+                ],
+                "summary": "智能体聊天 - 函数生成类型",
+                "parameters": [
+                    {
+                        "description": "聊天请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.FunctionGenAgentChatReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "聊天成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.FunctionGenAgentChatResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/agent/api/v1/chat/function_gen/status": {
+            "get": {
+                "description": "根据 record_id 查询代码生成状态",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "智能体管理"
+                ],
+                "summary": "查询代码生成状态",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "生成记录ID",
+                        "name": "record_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "查询成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.FunctionGenStatusResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "记录不存在",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/agent/api/v1/chat/messages": {
+            "get": {
+                "description": "根据SessionID获取消息列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "智能体管理"
+                ],
+                "summary": "获取消息列表",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "会话ID",
+                        "name": "session_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ChatMessageListResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/agent/api/v1/chat/sessions": {
+            "get": {
+                "description": "根据TreeID获取会话列表（会话不绑定到特定智能体，一个会话可以使用多个智能体）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "智能体管理"
+                ],
+                "summary": "获取会话列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "服务目录ID",
+                        "name": "tree_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页数量",
+                        "name": "page_size",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ChatSessionListResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/agent/api/v1/knowledge/add_document": {
             "post": {
                 "description": "向知识库添加文档",
                 "consumes": [
@@ -349,7 +523,7 @@
                 }
             }
         },
-        "/api/v1/agent/knowledge/create": {
+        "/agent/api/v1/knowledge/create": {
             "post": {
                 "description": "创建新的知识库",
                 "consumes": [
@@ -389,7 +563,7 @@
                 }
             }
         },
-        "/api/v1/agent/knowledge/delete": {
+        "/agent/api/v1/knowledge/delete": {
             "post": {
                 "description": "删除知识库",
                 "consumes": [
@@ -404,11 +578,13 @@
                 "summary": "删除知识库",
                 "parameters": [
                     {
-                        "type": "integer",
-                        "description": "知识库ID",
-                        "name": "id",
-                        "in": "query",
-                        "required": true
+                        "description": "删除知识库请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.KnowledgeDeleteReq"
+                        }
                     }
                 ],
                 "responses": {
@@ -424,7 +600,44 @@
                 }
             }
         },
-        "/api/v1/agent/knowledge/get": {
+        "/agent/api/v1/knowledge/delete_document": {
+            "post": {
+                "description": "删除文档",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "知识库管理"
+                ],
+                "summary": "删除文档",
+                "parameters": [
+                    {
+                        "description": "文档ID",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.KnowledgeDeleteDocumentReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "删除成功"
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/agent/api/v1/knowledge/get": {
             "get": {
                 "description": "根据ID获取知识库详细信息",
                 "consumes": [
@@ -462,7 +675,83 @@
                 }
             }
         },
-        "/api/v1/agent/knowledge/list": {
+        "/agent/api/v1/knowledge/get_document": {
+            "get": {
+                "description": "根据ID获取文档详细信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "知识库管理"
+                ],
+                "summary": "获取文档详情",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "文档ID",
+                        "name": "id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.KnowledgeGetDocumentResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/agent/api/v1/knowledge/get_documents_tree": {
+            "get": {
+                "description": "获取知识库的文档树（目录结构）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "知识库管理"
+                ],
+                "summary": "获取文档树",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "知识库ID",
+                        "name": "knowledge_base_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.KnowledgeGetDocumentsTreeResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/agent/api/v1/knowledge/list": {
             "get": {
                 "description": "获取所有知识库列表",
                 "consumes": [
@@ -509,7 +798,7 @@
                 }
             }
         },
-        "/api/v1/agent/knowledge/list_documents": {
+        "/agent/api/v1/knowledge/list_documents": {
             "get": {
                 "description": "获取知识库的文档列表",
                 "consumes": [
@@ -563,7 +852,7 @@
                 }
             }
         },
-        "/api/v1/agent/knowledge/update": {
+        "/agent/api/v1/knowledge/update": {
             "post": {
                 "description": "更新知识库信息",
                 "consumes": [
@@ -603,7 +892,84 @@
                 }
             }
         },
-        "/api/v1/agent/llm/create": {
+        "/agent/api/v1/knowledge/update_document": {
+            "post": {
+                "description": "更新文档信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "知识库管理"
+                ],
+                "summary": "更新文档",
+                "parameters": [
+                    {
+                        "description": "更新文档请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.KnowledgeUpdateDocumentReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.KnowledgeUpdateDocumentResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/agent/api/v1/knowledge/update_documents_sort": {
+            "post": {
+                "description": "批量更新文档的排序、父节点和路径",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "知识库管理"
+                ],
+                "summary": "批量更新文档排序",
+                "parameters": [
+                    {
+                        "description": "更新排序请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.KnowledgeUpdateDocumentsSortReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新成功"
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/agent/api/v1/llm/create": {
             "post": {
                 "description": "创建新的LLM配置",
                 "consumes": [
@@ -643,7 +1009,7 @@
                 }
             }
         },
-        "/api/v1/agent/llm/delete": {
+        "/agent/api/v1/llm/delete": {
             "post": {
                 "description": "删除LLM配置",
                 "consumes": [
@@ -678,7 +1044,7 @@
                 }
             }
         },
-        "/api/v1/agent/llm/get": {
+        "/agent/api/v1/llm/get": {
             "get": {
                 "description": "根据ID获取LLM配置详细信息",
                 "consumes": [
@@ -716,7 +1082,7 @@
                 }
             }
         },
-        "/api/v1/agent/llm/get_default": {
+        "/agent/api/v1/llm/get_default": {
             "get": {
                 "description": "获取默认的LLM配置",
                 "consumes": [
@@ -745,7 +1111,7 @@
                 }
             }
         },
-        "/api/v1/agent/llm/list": {
+        "/agent/api/v1/llm/list": {
             "get": {
                 "description": "获取所有LLM配置列表",
                 "consumes": [
@@ -792,7 +1158,7 @@
                 }
             }
         },
-        "/api/v1/agent/llm/set_default": {
+        "/agent/api/v1/llm/set_default": {
             "post": {
                 "description": "设置默认的LLM配置",
                 "consumes": [
@@ -827,7 +1193,7 @@
                 }
             }
         },
-        "/api/v1/agent/llm/update": {
+        "/agent/api/v1/llm/update": {
             "post": {
                 "description": "更新LLM配置信息",
                 "consumes": [
@@ -866,6 +1232,465 @@
                     }
                 }
             }
+        },
+        "/agent/api/v1/plugins": {
+            "post": {
+                "description": "创建新的插件",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "插件管理"
+                ],
+                "summary": "创建插件",
+                "parameters": [
+                    {
+                        "description": "插件信息",
+                        "name": "plugin",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.CreatePluginReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "创建成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.PluginInfo"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/agent/api/v1/plugins/list": {
+            "get": {
+                "description": "获取所有可用插件列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "插件管理"
+                ],
+                "summary": "获取插件列表",
+                "parameters": [
+                    {
+                        "type": "boolean",
+                        "description": "是否启用",
+                        "name": "enabled",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "每页数量",
+                        "name": "page_size",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.PluginListResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/agent/api/v1/plugins/{id}": {
+            "get": {
+                "description": "根据ID获取插件详情",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "插件管理"
+                ],
+                "summary": "获取插件详情",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "插件ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.PluginInfo"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "更新插件信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "插件管理"
+                ],
+                "summary": "更新插件",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "插件ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "插件信息",
+                        "name": "plugin",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdatePluginReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.PluginInfo"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "删除插件（软删除）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "插件管理"
+                ],
+                "summary": "删除插件",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "插件ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "删除成功",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/agent/api/v1/plugins/{id}/disable": {
+            "post": {
+                "description": "禁用插件",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "插件管理"
+                ],
+                "summary": "禁用插件",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "插件ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "禁用成功",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/agent/api/v1/plugins/{id}/enable": {
+            "post": {
+                "description": "启用插件",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "插件管理"
+                ],
+                "summary": "启用插件",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "插件ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "启用成功",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/agent/api/v1/workspace/update/callback": {
+            "post": {
+                "description": "接收来自 app-server 的工作空间更新回调，更新生成记录状态\n\n**调用场景**：\n- 当 app-server 异步处理完函数添加请求后，会调用此接口通知 agent-server 处理结果\n- 此接口由 app-server 调用，agent-server 根据回调结果更新 FunctionGenRecord 的状态\n\n**状态更新**：\n- success=true: 更新记录状态为 completed，记录生成的函数组代码列表\n- success=false: 更新记录状态为 failed，记录错误信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "工作空间"
+                ],
+                "summary": "接收工作空间更新回调",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "追踪ID（用于链路追踪）",
+                        "name": "X-Trace-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "请求用户（用于审计）",
+                        "name": "X-Request-User",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Token（服务间调用时透传）",
+                        "name": "X-Token",
+                        "in": "header"
+                    },
+                    {
+                        "description": "工作空间更新回调",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.FunctionGenCallback"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "处理成功",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/control/api/v1/license/activate": {
+            "post": {
+                "description": "上传License文件并激活企业版",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "License管理"
+                ],
+                "summary": "激活 License",
+                "parameters": [
+                    {
+                        "description": "License文件内容（JSON格式）",
+                        "name": "license",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "激活成功",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/control/api/v1/license/deactivate": {
+            "post": {
+                "description": "注销当前 License，删除激活信息，系统回到社区版（主要用于测试）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "License管理"
+                ],
+                "summary": "注销 License",
+                "responses": {
+                    "200": {
+                        "description": "注销成功",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/control/api/v1/license/status": {
+            "get": {
+                "description": "获取当前 License 的状态信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "License管理"
+                ],
+                "summary": "获取 License 状态",
+                "responses": {
+                    "200": {
+                        "description": "License状态",
+                        "schema": {
+                            "$ref": "#/definitions/service.LicenseStatus"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -878,15 +1703,15 @@
                 "name"
             ],
             "properties": {
-                "agent_type": {
-                    "description": "knowledge_only, api_call",
+                "admin": {
+                    "description": "管理员列表（逗号分隔，默认创建用户）",
                     "type": "string",
-                    "example": "api_call"
+                    "example": "user1,user2"
                 },
-                "api_path": {
-                    "description": "仅接口调用类型需要",
+                "agent_type": {
+                    "description": "knowledge_only, plugin",
                     "type": "string",
-                    "example": "http://excel-generator:8080/api/v1/process"
+                    "example": "plugin"
                 },
                 "author": {
                     "type": "string",
@@ -900,9 +1725,29 @@
                     "type": "string",
                     "example": "基于Excel文件生成管理系统"
                 },
+                "greeting": {
+                    "description": "开场白内容（可选）",
+                    "type": "string",
+                    "example": "欢迎使用本智能体！"
+                },
+                "greeting_type": {
+                    "description": "开场白格式类型：text, md, html（默认text）",
+                    "type": "string",
+                    "example": "md"
+                },
                 "knowledge_base_id": {
                     "type": "integer",
                     "example": 1
+                },
+                "llm_config_id": {
+                    "description": "LLM配置ID，如果为0则使用默认LLM",
+                    "type": "integer",
+                    "example": 1
+                },
+                "logo": {
+                    "description": "智能体 Logo URL（可选）",
+                    "type": "string",
+                    "example": "https://example.com/logo.png"
                 },
                 "metadata": {
                     "type": "string",
@@ -912,9 +1757,24 @@
                     "type": "string",
                     "example": "Excel生成智能体"
                 },
+                "plugin_id": {
+                    "description": "插件ID（仅 plugin 类型需要）",
+                    "type": "integer",
+                    "example": 1
+                },
+                "system_prompt_template": {
+                    "description": "System Prompt模板，支持{knowledge}变量",
+                    "type": "string",
+                    "example": "你是一个专业的代码生成助手。以下是相关的知识库内容，请参考这些内容来生成代码：\n{knowledge}"
+                },
                 "timeout": {
                     "type": "integer",
                     "example": 30
+                },
+                "visibility": {
+                    "description": "0: 公开, 1: 私有（默认0）",
+                    "type": "integer",
+                    "example": 0
                 }
             }
         },
@@ -966,14 +1826,15 @@
         "dto.AgentGetResp": {
             "type": "object",
             "properties": {
-                "agent_type": {
-                    "description": "knowledge_only, api_call",
+                "admin": {
+                    "description": "管理员列表（逗号分隔）",
                     "type": "string",
-                    "example": "api_call"
+                    "example": "user1,user2"
                 },
-                "api_path": {
+                "agent_type": {
+                    "description": "knowledge_only, plugin",
                     "type": "string",
-                    "example": "http://excel-generator:8080/api/v1/process"
+                    "example": "plugin"
                 },
                 "author": {
                     "type": "string",
@@ -981,7 +1842,7 @@
                 },
                 "chat_type": {
                     "type": "string",
-                    "example": "chat-task"
+                    "example": "function_gen"
                 },
                 "created_at": {
                     "type": "string",
@@ -995,13 +1856,59 @@
                     "type": "boolean",
                     "example": true
                 },
+                "generation_count": {
+                    "description": "生成次数统计",
+                    "type": "integer",
+                    "example": 100
+                },
+                "greeting": {
+                    "description": "开场白内容（可选）",
+                    "type": "string",
+                    "example": "欢迎使用本智能体！"
+                },
+                "greeting_type": {
+                    "description": "开场白格式类型：text, md, html",
+                    "type": "string",
+                    "example": "md"
+                },
                 "id": {
                     "type": "integer",
                     "example": 1
                 },
+                "is_admin": {
+                    "description": "当前用户是否是管理员（前端计算或后端返回）",
+                    "type": "boolean",
+                    "example": true
+                },
+                "knowledge_base": {
+                    "description": "预加载的知识库信息",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/dto.KnowledgeBaseInfo"
+                        }
+                    ]
+                },
                 "knowledge_base_id": {
                     "type": "integer",
                     "example": 1
+                },
+                "llm_config": {
+                    "description": "预加载的LLM配置信息",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/dto.LLMConfigInfo"
+                        }
+                    ]
+                },
+                "llm_config_id": {
+                    "description": "LLM配置ID，如果为0则使用默认LLM",
+                    "type": "integer",
+                    "example": 1
+                },
+                "logo": {
+                    "description": "智能体 Logo URL（可选）",
+                    "type": "string",
+                    "example": "https://example.com/logo.png"
                 },
                 "metadata": {
                     "type": "string",
@@ -1011,6 +1918,24 @@
                     "type": "string",
                     "example": "Excel生成智能体"
                 },
+                "plugin": {
+                    "description": "预加载的插件信息",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/dto.PluginInfo"
+                        }
+                    ]
+                },
+                "plugin_id": {
+                    "description": "插件ID（仅 plugin 类型需要）",
+                    "type": "integer",
+                    "example": 1
+                },
+                "system_prompt_template": {
+                    "description": "System Prompt模板，支持{knowledge}变量",
+                    "type": "string",
+                    "example": "你是一个专业的代码生成助手。以下是相关的知识库内容，请参考这些内容来生成代码：\n{knowledge}"
+                },
                 "timeout": {
                     "type": "integer",
                     "example": 30
@@ -1018,20 +1943,26 @@
                 "updated_at": {
                     "type": "string",
                     "example": "2024-01-01T00:00:00Z"
+                },
+                "visibility": {
+                    "description": "0: 公开, 1: 私有",
+                    "type": "integer",
+                    "example": 0
                 }
             }
         },
         "dto.AgentInfo": {
             "type": "object",
             "properties": {
-                "agent_type": {
-                    "description": "knowledge_only, api_call",
+                "admin": {
+                    "description": "管理员列表（逗号分隔）",
                     "type": "string",
-                    "example": "api_call"
+                    "example": "user1,user2"
                 },
-                "api_path": {
+                "agent_type": {
+                    "description": "knowledge_only, plugin",
                     "type": "string",
-                    "example": "http://excel-generator:8080/api/v1/process"
+                    "example": "plugin"
                 },
                 "author": {
                     "type": "string",
@@ -1039,7 +1970,7 @@
                 },
                 "chat_type": {
                     "type": "string",
-                    "example": "chat-task"
+                    "example": "function_gen"
                 },
                 "created_at": {
                     "type": "string",
@@ -1053,13 +1984,59 @@
                     "type": "boolean",
                     "example": true
                 },
+                "generation_count": {
+                    "description": "生成次数统计",
+                    "type": "integer",
+                    "example": 100
+                },
+                "greeting": {
+                    "description": "开场白内容（可选）",
+                    "type": "string",
+                    "example": "欢迎使用本智能体！"
+                },
+                "greeting_type": {
+                    "description": "开场白格式类型：text, md, html",
+                    "type": "string",
+                    "example": "md"
+                },
                 "id": {
                     "type": "integer",
                     "example": 1
                 },
+                "is_admin": {
+                    "description": "当前用户是否是管理员（前端计算或后端返回）",
+                    "type": "boolean",
+                    "example": true
+                },
+                "knowledge_base": {
+                    "description": "预加载的知识库信息",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/dto.KnowledgeBaseInfo"
+                        }
+                    ]
+                },
                 "knowledge_base_id": {
                     "type": "integer",
                     "example": 1
+                },
+                "llm_config": {
+                    "description": "预加载的LLM配置信息",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/dto.LLMConfigInfo"
+                        }
+                    ]
+                },
+                "llm_config_id": {
+                    "description": "LLM配置ID，如果为0则使用默认LLM",
+                    "type": "integer",
+                    "example": 1
+                },
+                "logo": {
+                    "description": "智能体 Logo URL（可选）",
+                    "type": "string",
+                    "example": "https://example.com/logo.png"
                 },
                 "metadata": {
                     "type": "string",
@@ -1069,6 +2046,24 @@
                     "type": "string",
                     "example": "Excel生成智能体"
                 },
+                "plugin": {
+                    "description": "预加载的插件信息",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/dto.PluginInfo"
+                        }
+                    ]
+                },
+                "plugin_id": {
+                    "description": "插件ID（仅 plugin 类型需要）",
+                    "type": "integer",
+                    "example": 1
+                },
+                "system_prompt_template": {
+                    "description": "System Prompt模板，支持{knowledge}变量",
+                    "type": "string",
+                    "example": "你是一个专业的代码生成助手。以下是相关的知识库内容，请参考这些内容来生成代码：\n{knowledge}"
+                },
                 "timeout": {
                     "type": "integer",
                     "example": 30
@@ -1076,6 +2071,11 @@
                 "updated_at": {
                     "type": "string",
                     "example": "2024-01-01T00:00:00Z"
+                },
+                "visibility": {
+                    "description": "0: 公开, 1: 私有",
+                    "type": "integer",
+                    "example": 0
                 }
             }
         },
@@ -1104,13 +2104,14 @@
                 "name"
             ],
             "properties": {
+                "admin": {
+                    "description": "管理员列表（逗号分隔）",
+                    "type": "string",
+                    "example": "user1,user2"
+                },
                 "agent_type": {
                     "type": "string",
-                    "example": "api_call"
-                },
-                "api_path": {
-                    "type": "string",
-                    "example": "http://excel-generator:8080/api/v1/process"
+                    "example": "plugin"
                 },
                 "author": {
                     "type": "string",
@@ -1118,11 +2119,21 @@
                 },
                 "chat_type": {
                     "type": "string",
-                    "example": "chat-task"
+                    "example": "function_gen"
                 },
                 "description": {
                     "type": "string",
                     "example": "基于Excel文件生成管理系统"
+                },
+                "greeting": {
+                    "description": "开场白内容（可选）",
+                    "type": "string",
+                    "example": "欢迎使用本智能体！"
+                },
+                "greeting_type": {
+                    "description": "开场白格式类型：text, md, html（默认text）",
+                    "type": "string",
+                    "example": "md"
                 },
                 "id": {
                     "type": "integer",
@@ -1132,6 +2143,16 @@
                     "type": "integer",
                     "example": 1
                 },
+                "llm_config_id": {
+                    "description": "LLM配置ID，如果为0则使用默认LLM",
+                    "type": "integer",
+                    "example": 1
+                },
+                "logo": {
+                    "description": "智能体 Logo URL（可选）",
+                    "type": "string",
+                    "example": "https://example.com/logo.png"
+                },
                 "metadata": {
                     "type": "string",
                     "example": "{}"
@@ -1140,9 +2161,24 @@
                     "type": "string",
                     "example": "Excel生成智能体"
                 },
+                "plugin_id": {
+                    "description": "插件ID（仅 plugin 类型需要）",
+                    "type": "integer",
+                    "example": 1
+                },
+                "system_prompt_template": {
+                    "description": "System Prompt模板，支持{knowledge}变量",
+                    "type": "string",
+                    "example": "你是一个专业的代码生成助手。以下是相关的知识库内容，请参考这些内容来生成代码：\n{knowledge}"
+                },
                 "timeout": {
                     "type": "integer",
                     "example": 30
+                },
+                "visibility": {
+                    "description": "0: 公开, 1: 私有",
+                    "type": "integer",
+                    "example": 0
                 }
             }
         },
@@ -1155,9 +2191,188 @@
                 }
             }
         },
+        "dto.ChatMessageInfo": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "description": "处理该消息的智能体ID",
+                    "type": "integer",
+                    "example": 1
+                },
+                "content": {
+                    "description": "消息内容",
+                    "type": "string",
+                    "example": "你好"
+                },
+                "created_at": {
+                    "description": "创建时间",
+                    "type": "string",
+                    "example": "2006-01-02T15:04:05Z"
+                },
+                "files": {
+                    "description": "文件列表（JSON字符串，可选）",
+                    "type": "string",
+                    "example": "[{\"url\":\"...\",\"remark\":\"...\"}]"
+                },
+                "id": {
+                    "description": "消息ID",
+                    "type": "integer",
+                    "example": 1
+                },
+                "role": {
+                    "description": "消息角色：user/assistant/system",
+                    "type": "string",
+                    "example": "user"
+                },
+                "session_id": {
+                    "description": "会话ID",
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "user": {
+                    "description": "创建用户",
+                    "type": "string",
+                    "example": "beiluo"
+                }
+            }
+        },
+        "dto.ChatMessageListResp": {
+            "type": "object",
+            "properties": {
+                "messages": {
+                    "description": "消息列表（按创建时间升序）",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.ChatMessageInfo"
+                    }
+                }
+            }
+        },
+        "dto.ChatSessionInfo": {
+            "type": "object",
+            "properties": {
+                "agent": {
+                    "description": "关联的智能体信息（可选）",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/dto.AgentInfo"
+                        }
+                    ]
+                },
+                "agent_id": {
+                    "description": "关联的智能体ID",
+                    "type": "integer",
+                    "example": 1
+                },
+                "created_at": {
+                    "description": "创建时间",
+                    "type": "string",
+                    "example": "2006-01-02T15:04:05Z"
+                },
+                "id": {
+                    "description": "会话ID",
+                    "type": "integer",
+                    "example": 1
+                },
+                "session_id": {
+                    "description": "会话ID（UUID）",
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "status": {
+                    "description": "会话状态：active(活跃)/generating(生成中)/done(已完成)",
+                    "type": "string",
+                    "example": "active"
+                },
+                "title": {
+                    "description": "会话标题",
+                    "type": "string",
+                    "example": "会话标题"
+                },
+                "tree_id": {
+                    "description": "服务目录ID",
+                    "type": "integer",
+                    "example": 629
+                },
+                "updated_at": {
+                    "description": "更新时间",
+                    "type": "string",
+                    "example": "2006-01-02T15:04:05Z"
+                },
+                "user": {
+                    "description": "创建用户",
+                    "type": "string",
+                    "example": "beiluo"
+                }
+            }
+        },
+        "dto.ChatSessionListResp": {
+            "type": "object",
+            "properties": {
+                "sessions": {
+                    "description": "会话列表",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.ChatSessionInfo"
+                    }
+                },
+                "total": {
+                    "description": "总数",
+                    "type": "integer",
+                    "example": 100
+                }
+            }
+        },
+        "dto.CreatePluginReq": {
+            "type": "object",
+            "required": [
+                "code",
+                "name"
+            ],
+            "properties": {
+                "admin": {
+                    "description": "管理员列表（逗号分隔，默认创建用户）",
+                    "type": "string",
+                    "example": "user1,user2"
+                },
+                "code": {
+                    "type": "string",
+                    "example": "excel_parser"
+                },
+                "config": {
+                    "description": "插件配置（JSON）",
+                    "type": "string",
+                    "example": "{\"timeout\": 30, \"max_file_size\": 10485760}"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "解析Excel文件为Markdown表格"
+                },
+                "enabled": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Excel解析插件"
+                },
+                "visibility": {
+                    "description": "0: 公开, 1: 私有（默认0）",
+                    "type": "integer",
+                    "example": 0
+                }
+            }
+        },
         "dto.DocumentInfo": {
             "type": "object",
             "properties": {
+                "children": {
+                    "description": "子文档列表（用于树形结构）",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.DocumentInfo"
+                    }
+                },
                 "content": {
                     "type": "string",
                     "example": "Excel是一个电子表格软件..."
@@ -1186,8 +2401,23 @@
                     "type": "integer",
                     "example": 1
                 },
+                "parent_id": {
+                    "description": "父文档ID（0表示根目录）",
+                    "type": "integer",
+                    "example": 0
+                },
+                "path": {
+                    "description": "路径",
+                    "type": "string",
+                    "example": "/目录1/文档"
+                },
+                "sort_order": {
+                    "description": "排序字段",
+                    "type": "integer",
+                    "example": 0
+                },
                 "status": {
-                    "description": "processing/completed/failed",
+                    "description": "completed/failed",
                     "type": "string",
                     "example": "completed"
                 },
@@ -1202,6 +2432,179 @@
                 "user": {
                     "type": "string",
                     "example": "admin"
+                }
+            }
+        },
+        "dto.FunctionGenAgentChatReq": {
+            "type": "object",
+            "required": [
+                "agent_id",
+                "message",
+                "tree_id"
+            ],
+            "properties": {
+                "agent_id": {
+                    "description": "智能体ID",
+                    "type": "integer",
+                    "example": 1
+                },
+                "existing_files": {
+                    "description": "当前 package 下已存在的文件名（不含 .go 后缀）",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "[\"crm_ticket\"",
+                        "\"crm_user\"]"
+                    ]
+                },
+                "message": {
+                    "description": "单条消息（历史记录后端自动加载）",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/dto.Message"
+                        }
+                    ]
+                },
+                "package": {
+                    "description": "Package 名称（从前端传递）",
+                    "type": "string",
+                    "example": "crm"
+                },
+                "session_id": {
+                    "description": "会话ID（UUID），首次为空，后端自动生成",
+                    "type": "string",
+                    "example": ""
+                },
+                "tree_id": {
+                    "description": "服务目录ID",
+                    "type": "integer",
+                    "example": 629
+                }
+            }
+        },
+        "dto.FunctionGenAgentChatResp": {
+            "type": "object",
+            "properties": {
+                "can_continue": {
+                    "description": "是否可以继续输入（true: 可以继续输入, false: 不能再输入）",
+                    "type": "boolean",
+                    "example": false
+                },
+                "content": {
+                    "description": "AI回答内容",
+                    "type": "string",
+                    "example": "正在生成代码..."
+                },
+                "record_id": {
+                    "description": "function_gen 记录ID（如果触发生成）",
+                    "type": "integer",
+                    "example": 1
+                },
+                "session_id": {
+                    "description": "会话ID（首次创建时返回）",
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "status": {
+                    "description": "状态：generating/completed/failed",
+                    "type": "string",
+                    "example": "generating"
+                },
+                "usage": {
+                    "description": "Token使用统计（可选）",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/dto.Usage"
+                        }
+                    ]
+                }
+            }
+        },
+        "dto.FunctionGenCallback": {
+            "type": "object",
+            "properties": {
+                "app_code": {
+                    "description": "应用代码（冗余存储，提高查询效率）",
+                    "type": "string"
+                },
+                "app_id": {
+                    "description": "应用ID",
+                    "type": "integer"
+                },
+                "error": {
+                    "description": "错误信息（如果失败）",
+                    "type": "string"
+                },
+                "full_group_codes": {
+                    "description": "生成的函数组代码列表",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "message_id": {
+                    "description": "消息ID",
+                    "type": "integer"
+                },
+                "record_id": {
+                    "description": "生成记录ID",
+                    "type": "integer"
+                },
+                "success": {
+                    "description": "是否成功",
+                    "type": "boolean"
+                }
+            }
+        },
+        "dto.FunctionGenStatusResp": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "description": "生成的代码（仅在 completed 时返回）",
+                    "type": "string",
+                    "example": "package main\n\nfunc main() {}"
+                },
+                "created_at": {
+                    "description": "创建时间",
+                    "type": "string",
+                    "example": "2006-01-02T15:04:05Z"
+                },
+                "duration": {
+                    "description": "生成耗时（秒）",
+                    "type": "integer",
+                    "example": 30
+                },
+                "error_msg": {
+                    "description": "错误信息（仅在 failed 时返回）",
+                    "type": "string",
+                    "example": "生成失败"
+                },
+                "full_group_codes": {
+                    "description": "生成的函数组代码列表（仅在 completed 时返回）",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "[\"/user/app/function\"]"
+                    ]
+                },
+                "record_id": {
+                    "description": "生成记录ID",
+                    "type": "integer",
+                    "example": 1
+                },
+                "status": {
+                    "description": "状态：generating/completed/failed",
+                    "type": "string",
+                    "example": "generating"
+                },
+                "updated_at": {
+                    "description": "更新时间",
+                    "type": "string",
+                    "example": "2006-01-02T15:04:05Z"
                 }
             }
         },
@@ -1226,6 +2629,16 @@
                     "type": "integer",
                     "example": 1
                 },
+                "parent_id": {
+                    "description": "父文档ID（0表示根目录）",
+                    "type": "integer",
+                    "example": 0
+                },
+                "sort_order": {
+                    "description": "排序字段（可选，默认为0）",
+                    "type": "integer",
+                    "example": 0
+                },
                 "title": {
                     "type": "string",
                     "example": "Excel使用指南"
@@ -1241,12 +2654,42 @@
                 }
             }
         },
+        "dto.KnowledgeBaseInfo": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "example": "Excel相关文档"
+                },
+                "document_count": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Excel知识库"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "active"
+                }
+            }
+        },
         "dto.KnowledgeCreateReq": {
             "type": "object",
             "required": [
                 "name"
             ],
             "properties": {
+                "admin": {
+                    "description": "管理员列表（逗号分隔，默认创建用户）",
+                    "type": "string",
+                    "example": "user1,user2"
+                },
                 "description": {
                     "type": "string",
                     "example": "Excel相关的知识库"
@@ -1259,6 +2702,11 @@
                     "description": "active/inactive",
                     "type": "string",
                     "example": "active"
+                },
+                "visibility": {
+                    "description": "0: 公开, 1: 私有（默认0）",
+                    "type": "integer",
+                    "example": 0
                 }
             }
         },
@@ -1271,37 +2719,119 @@
                 }
             }
         },
-        "dto.KnowledgeGetResp": {
+        "dto.KnowledgeDeleteDocumentReq": {
+            "type": "object",
+            "required": [
+                "id"
+            ],
+            "properties": {
+                "id": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "dto.KnowledgeDeleteReq": {
+            "type": "object",
+            "required": [
+                "id"
+            ],
+            "properties": {
+                "id": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "dto.KnowledgeDocumentSortUpdate": {
+            "type": "object",
+            "required": [
+                "id"
+            ],
+            "properties": {
+                "id": {
+                    "description": "文档ID",
+                    "type": "integer",
+                    "example": 1
+                },
+                "parent_id": {
+                    "description": "父文档ID（0表示根目录）",
+                    "type": "integer",
+                    "example": 0
+                },
+                "path": {
+                    "description": "路径",
+                    "type": "string",
+                    "example": "/目录1/文档"
+                },
+                "sort_order": {
+                    "description": "排序字段",
+                    "type": "integer",
+                    "example": 0
+                }
+            }
+        },
+        "dto.KnowledgeGetDocumentResp": {
             "type": "object",
             "properties": {
-                "content_hash": {
+                "children": {
+                    "description": "子文档列表（用于树形结构）",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.DocumentInfo"
+                    }
+                },
+                "content": {
                     "type": "string",
-                    "example": "abc123..."
+                    "example": "Excel是一个电子表格软件..."
                 },
                 "created_at": {
                     "type": "string",
                     "example": "2024-01-01T00:00:00Z"
                 },
-                "description": {
+                "doc_id": {
                     "type": "string",
-                    "example": "Excel相关的知识库"
+                    "example": "doc_001"
                 },
-                "document_count": {
+                "file_size": {
                     "type": "integer",
-                    "example": 10
+                    "example": 1024
+                },
+                "file_type": {
+                    "type": "string",
+                    "example": "pdf"
                 },
                 "id": {
                     "type": "integer",
                     "example": 1
                 },
-                "name": {
+                "knowledge_base_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "parent_id": {
+                    "description": "父文档ID（0表示根目录）",
+                    "type": "integer",
+                    "example": 0
+                },
+                "path": {
+                    "description": "路径",
                     "type": "string",
-                    "example": "Excel知识库"
+                    "example": "/目录1/文档"
+                },
+                "sort_order": {
+                    "description": "排序字段",
+                    "type": "integer",
+                    "example": 0
                 },
                 "status": {
-                    "description": "active/inactive",
+                    "description": "completed/failed",
                     "type": "string",
-                    "example": "active"
+                    "example": "completed"
+                },
+                "title": {
+                    "type": "string",
+                    "example": "Excel使用指南"
                 },
                 "updated_at": {
                     "type": "string",
@@ -1313,9 +2843,26 @@
                 }
             }
         },
-        "dto.KnowledgeInfo": {
+        "dto.KnowledgeGetDocumentsTreeResp": {
             "type": "object",
             "properties": {
+                "documents": {
+                    "description": "树形结构的文档列表",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.DocumentInfo"
+                    }
+                }
+            }
+        },
+        "dto.KnowledgeGetResp": {
+            "type": "object",
+            "properties": {
+                "admin": {
+                    "description": "管理员列表（逗号分隔）",
+                    "type": "string",
+                    "example": "user1,user2"
+                },
                 "content_hash": {
                     "type": "string",
                     "example": "abc123..."
@@ -1336,6 +2883,11 @@
                     "type": "integer",
                     "example": 1
                 },
+                "is_admin": {
+                    "description": "当前用户是否是管理员",
+                    "type": "boolean",
+                    "example": true
+                },
                 "name": {
                     "type": "string",
                     "example": "Excel知识库"
@@ -1350,8 +2902,72 @@
                     "example": "2024-01-01T00:00:00Z"
                 },
                 "user": {
+                    "description": "保留用于向后兼容",
                     "type": "string",
                     "example": "admin"
+                },
+                "visibility": {
+                    "description": "0: 公开, 1: 私有",
+                    "type": "integer",
+                    "example": 0
+                }
+            }
+        },
+        "dto.KnowledgeInfo": {
+            "type": "object",
+            "properties": {
+                "admin": {
+                    "description": "管理员列表（逗号分隔）",
+                    "type": "string",
+                    "example": "user1,user2"
+                },
+                "content_hash": {
+                    "type": "string",
+                    "example": "abc123..."
+                },
+                "created_at": {
+                    "type": "string",
+                    "example": "2024-01-01T00:00:00Z"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Excel相关的知识库"
+                },
+                "document_count": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "is_admin": {
+                    "description": "当前用户是否是管理员",
+                    "type": "boolean",
+                    "example": true
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Excel知识库"
+                },
+                "status": {
+                    "description": "active/inactive",
+                    "type": "string",
+                    "example": "active"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "example": "2024-01-01T00:00:00Z"
+                },
+                "user": {
+                    "description": "保留用于向后兼容",
+                    "type": "string",
+                    "example": "admin"
+                },
+                "visibility": {
+                    "description": "0: 公开, 1: 私有",
+                    "type": "integer",
+                    "example": 0
                 }
             }
         },
@@ -1385,6 +3001,77 @@
                 }
             }
         },
+        "dto.KnowledgeUpdateDocumentReq": {
+            "type": "object",
+            "required": [
+                "content",
+                "id",
+                "title"
+            ],
+            "properties": {
+                "content": {
+                    "type": "string",
+                    "example": "Excel是一个电子表格软件..."
+                },
+                "file_type": {
+                    "description": "pdf/txt/doc/md",
+                    "type": "string",
+                    "example": "pdf"
+                },
+                "id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "parent_id": {
+                    "description": "父文档ID（0表示根目录）",
+                    "type": "integer",
+                    "example": 0
+                },
+                "sort_order": {
+                    "description": "排序字段",
+                    "type": "integer",
+                    "example": 0
+                },
+                "status": {
+                    "description": "completed/failed",
+                    "type": "string",
+                    "example": "completed"
+                },
+                "title": {
+                    "type": "string",
+                    "example": "Excel使用指南"
+                }
+            }
+        },
+        "dto.KnowledgeUpdateDocumentResp": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "dto.KnowledgeUpdateDocumentsSortReq": {
+            "type": "object",
+            "required": [
+                "knowledge_base_id",
+                "updates"
+            ],
+            "properties": {
+                "knowledge_base_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "updates": {
+                    "description": "排序更新列表",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.KnowledgeDocumentSortUpdate"
+                    }
+                }
+            }
+        },
         "dto.KnowledgeUpdateReq": {
             "type": "object",
             "required": [
@@ -1392,6 +3079,11 @@
                 "name"
             ],
             "properties": {
+                "admin": {
+                    "description": "管理员列表（逗号分隔）",
+                    "type": "string",
+                    "example": "user1,user2"
+                },
                 "description": {
                     "type": "string",
                     "example": "Excel相关的知识库"
@@ -1408,6 +3100,11 @@
                     "description": "active/inactive",
                     "type": "string",
                     "example": "active"
+                },
+                "visibility": {
+                    "description": "0: 公开, 1: 私有",
+                    "type": "integer",
+                    "example": 0
                 }
             }
         },
@@ -1420,6 +3117,31 @@
                 }
             }
         },
+        "dto.LLMConfigInfo": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "is_default": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "model": {
+                    "type": "string",
+                    "example": "gpt-4"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "OpenAI GPT-4"
+                },
+                "provider": {
+                    "type": "string",
+                    "example": "openai"
+                }
+            }
+        },
         "dto.LLMCreateReq": {
             "type": "object",
             "required": [
@@ -1428,6 +3150,11 @@
                 "provider"
             ],
             "properties": {
+                "admin": {
+                    "description": "管理员列表（逗号分隔，默认创建用户）",
+                    "type": "string",
+                    "example": "user1,user2"
+                },
                 "api_base": {
                     "type": "string",
                     "example": "https://api.openai.com/v1"
@@ -1463,6 +3190,16 @@
                 "timeout": {
                     "type": "integer",
                     "example": 120
+                },
+                "use_thinking": {
+                    "description": "是否使用思考模式（GLM特有功能）",
+                    "type": "boolean",
+                    "example": false
+                },
+                "visibility": {
+                    "description": "0: 公开, 1: 私有（默认0）",
+                    "type": "integer",
+                    "example": 0
                 }
             }
         },
@@ -1478,6 +3215,11 @@
         "dto.LLMGetDefaultResp": {
             "type": "object",
             "properties": {
+                "admin": {
+                    "description": "管理员列表（逗号分隔）",
+                    "type": "string",
+                    "example": "user1,user2"
+                },
                 "api_base": {
                     "type": "string",
                     "example": "https://api.openai.com/v1"
@@ -1493,6 +3235,11 @@
                 "id": {
                     "type": "integer",
                     "example": 1
+                },
+                "is_admin": {
+                    "description": "当前用户是否是管理员",
+                    "type": "boolean",
+                    "example": true
                 },
                 "is_default": {
                     "type": "boolean",
@@ -1522,12 +3269,27 @@
                 "updated_at": {
                     "type": "string",
                     "example": "2024-01-01T00:00:00Z"
+                },
+                "use_thinking": {
+                    "description": "是否使用思考模式（GLM特有功能）",
+                    "type": "boolean",
+                    "example": false
+                },
+                "visibility": {
+                    "description": "0: 公开, 1: 私有",
+                    "type": "integer",
+                    "example": 0
                 }
             }
         },
         "dto.LLMGetResp": {
             "type": "object",
             "properties": {
+                "admin": {
+                    "description": "管理员列表（逗号分隔）",
+                    "type": "string",
+                    "example": "user1,user2"
+                },
                 "api_base": {
                     "type": "string",
                     "example": "https://api.openai.com/v1"
@@ -1543,6 +3305,11 @@
                 "id": {
                     "type": "integer",
                     "example": 1
+                },
+                "is_admin": {
+                    "description": "当前用户是否是管理员",
+                    "type": "boolean",
+                    "example": true
                 },
                 "is_default": {
                     "type": "boolean",
@@ -1572,12 +3339,27 @@
                 "updated_at": {
                     "type": "string",
                     "example": "2024-01-01T00:00:00Z"
+                },
+                "use_thinking": {
+                    "description": "是否使用思考模式（GLM特有功能）",
+                    "type": "boolean",
+                    "example": false
+                },
+                "visibility": {
+                    "description": "0: 公开, 1: 私有",
+                    "type": "integer",
+                    "example": 0
                 }
             }
         },
         "dto.LLMInfo": {
             "type": "object",
             "properties": {
+                "admin": {
+                    "description": "管理员列表（逗号分隔）",
+                    "type": "string",
+                    "example": "user1,user2"
+                },
                 "api_base": {
                     "type": "string",
                     "example": "https://api.openai.com/v1"
@@ -1593,6 +3375,11 @@
                 "id": {
                     "type": "integer",
                     "example": 1
+                },
+                "is_admin": {
+                    "description": "当前用户是否是管理员",
+                    "type": "boolean",
+                    "example": true
                 },
                 "is_default": {
                     "type": "boolean",
@@ -1622,6 +3409,16 @@
                 "updated_at": {
                     "type": "string",
                     "example": "2024-01-01T00:00:00Z"
+                },
+                "use_thinking": {
+                    "description": "是否使用思考模式（GLM特有功能）",
+                    "type": "boolean",
+                    "example": false
+                },
+                "visibility": {
+                    "description": "0: 公开, 1: 私有",
+                    "type": "integer",
+                    "example": 0
                 }
             }
         },
@@ -1649,6 +3446,11 @@
                 "provider"
             ],
             "properties": {
+                "admin": {
+                    "description": "管理员列表（逗号分隔）",
+                    "type": "string",
+                    "example": "user1,user2"
+                },
                 "api_base": {
                     "type": "string",
                     "example": "https://api.openai.com/v1"
@@ -1688,6 +3490,16 @@
                 "timeout": {
                     "type": "integer",
                     "example": 120
+                },
+                "use_thinking": {
+                    "description": "是否使用思考模式（GLM特有功能）",
+                    "type": "boolean",
+                    "example": false
+                },
+                "visibility": {
+                    "description": "0: 公开, 1: 私有",
+                    "type": "integer",
+                    "example": 0
                 }
             }
         },
@@ -1697,6 +3509,271 @@
                 "id": {
                     "type": "integer",
                     "example": 1
+                }
+            }
+        },
+        "dto.Message": {
+            "type": "object",
+            "required": [
+                "content"
+            ],
+            "properties": {
+                "content": {
+                    "description": "消息内容",
+                    "type": "string",
+                    "example": "你好"
+                },
+                "files": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "remark": {
+                                "type": "string"
+                            },
+                            "url": {
+                                "description": "文件url",
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "dto.PluginInfo": {
+            "type": "object",
+            "properties": {
+                "admin": {
+                    "description": "管理员列表（逗号分隔）",
+                    "type": "string",
+                    "example": "user1,user2"
+                },
+                "code": {
+                    "type": "string",
+                    "example": "excel_parser"
+                },
+                "config": {
+                    "description": "插件配置（JSON）",
+                    "type": "string",
+                    "example": "{\"timeout\": 30, \"max_file_size\": 10485760}"
+                },
+                "created_at": {
+                    "type": "string",
+                    "example": "2024-01-01T00:00:00Z"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "解析Excel文件为Markdown表格"
+                },
+                "enabled": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "is_admin": {
+                    "description": "当前用户是否是管理员",
+                    "type": "boolean",
+                    "example": true
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Excel解析插件"
+                },
+                "nats_host": {
+                    "description": "NATS 服务器地址",
+                    "type": "string",
+                    "example": "nats://127.0.0.1:4223"
+                },
+                "subject": {
+                    "description": "NATS主题，自动生成",
+                    "type": "string",
+                    "example": "plugins.beiluo.1"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "example": "2024-01-01T00:00:00Z"
+                },
+                "user": {
+                    "description": "创建用户（保留用于向后兼容）",
+                    "type": "string",
+                    "example": "beiluo"
+                },
+                "visibility": {
+                    "description": "0: 公开, 1: 私有",
+                    "type": "integer",
+                    "example": 0
+                }
+            }
+        },
+        "dto.PluginListResp": {
+            "type": "object",
+            "properties": {
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "page_size": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "plugins": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.PluginInfo"
+                    }
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 100
+                }
+            }
+        },
+        "dto.UpdatePluginReq": {
+            "type": "object",
+            "required": [
+                "code",
+                "name"
+            ],
+            "properties": {
+                "admin": {
+                    "description": "管理员列表（逗号分隔）",
+                    "type": "string",
+                    "example": "user1,user2"
+                },
+                "code": {
+                    "type": "string",
+                    "example": "excel_parser"
+                },
+                "config": {
+                    "description": "插件配置（JSON）",
+                    "type": "string",
+                    "example": "{\"timeout\": 30, \"max_file_size\": 10485760}"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "解析Excel文件为Markdown表格"
+                },
+                "enabled": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Excel解析插件"
+                },
+                "visibility": {
+                    "description": "0: 公开, 1: 私有",
+                    "type": "integer",
+                    "example": 0
+                }
+            }
+        },
+        "dto.Usage": {
+            "type": "object",
+            "properties": {
+                "completion_tokens": {
+                    "description": "输出token数",
+                    "type": "integer",
+                    "example": 20
+                },
+                "prompt_tokens": {
+                    "description": "输入token数",
+                    "type": "integer",
+                    "example": 10
+                },
+                "total_tokens": {
+                    "description": "总token数",
+                    "type": "integer",
+                    "example": 30
+                }
+            }
+        },
+        "license.Features": {
+            "type": "object",
+            "properties": {
+                "approval": {
+                    "description": "审批流程",
+                    "type": "boolean"
+                },
+                "change_log": {
+                    "description": "变更日志",
+                    "type": "boolean"
+                },
+                "config_management": {
+                    "description": "配置管理",
+                    "type": "boolean"
+                },
+                "notification": {
+                    "description": "通知中心",
+                    "type": "boolean"
+                },
+                "operate_log": {
+                    "description": "操作日志",
+                    "type": "boolean"
+                },
+                "organization": {
+                    "description": "组织架构",
+                    "type": "boolean"
+                },
+                "permission": {
+                    "description": "权限管理",
+                    "type": "boolean"
+                },
+                "quick_link": {
+                    "description": "快链",
+                    "type": "boolean"
+                },
+                "recycle_bin": {
+                    "description": "回收站",
+                    "type": "boolean"
+                },
+                "scheduled_task": {
+                    "description": "定时任务",
+                    "type": "boolean"
+                },
+                "workflow": {
+                    "description": "工作流",
+                    "type": "boolean"
+                }
+            }
+        },
+        "service.LicenseStatus": {
+            "type": "object",
+            "properties": {
+                "customer": {
+                    "description": "客户名称（可选）",
+                    "type": "string"
+                },
+                "description": {
+                    "description": "License 描述（可选）",
+                    "type": "string"
+                },
+                "edition": {
+                    "description": "版本类型：community, professional, enterprise, flagship",
+                    "type": "string"
+                },
+                "expires_at": {
+                    "description": "过期时间（可选）",
+                    "type": "string"
+                },
+                "features": {
+                    "description": "功能开关（可选）",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/license.Features"
+                        }
+                    ]
+                },
+                "is_community": {
+                    "description": "是否为社区版",
+                    "type": "boolean"
+                },
+                "is_valid": {
+                    "description": "License 是否有效",
+                    "type": "boolean"
                 }
             }
         }

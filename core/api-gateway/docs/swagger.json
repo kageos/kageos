@@ -28,9 +28,201 @@
                     }
                 }
             }
+        },
+        "/control/api/v1/license/activate": {
+            "post": {
+                "description": "上传License文件并激活企业版",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "License管理"
+                ],
+                "summary": "激活 License",
+                "parameters": [
+                    {
+                        "description": "License文件内容（JSON格式）",
+                        "name": "license",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "激活成功",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/control/api/v1/license/deactivate": {
+            "post": {
+                "description": "注销当前 License，删除激活信息，系统回到社区版（主要用于测试）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "License管理"
+                ],
+                "summary": "注销 License",
+                "responses": {
+                    "200": {
+                        "description": "注销成功",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/control/api/v1/license/status": {
+            "get": {
+                "description": "获取当前 License 的状态信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "License管理"
+                ],
+                "summary": "获取 License 状态",
+                "responses": {
+                    "200": {
+                        "description": "License状态",
+                        "schema": {
+                            "$ref": "#/definitions/service.LicenseStatus"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
+        "license.Features": {
+            "type": "object",
+            "properties": {
+                "approval": {
+                    "description": "审批流程",
+                    "type": "boolean"
+                },
+                "change_log": {
+                    "description": "变更日志",
+                    "type": "boolean"
+                },
+                "config_management": {
+                    "description": "配置管理",
+                    "type": "boolean"
+                },
+                "notification": {
+                    "description": "通知中心",
+                    "type": "boolean"
+                },
+                "operate_log": {
+                    "description": "操作日志",
+                    "type": "boolean"
+                },
+                "organization": {
+                    "description": "组织架构",
+                    "type": "boolean"
+                },
+                "permission": {
+                    "description": "权限管理",
+                    "type": "boolean"
+                },
+                "quick_link": {
+                    "description": "快链",
+                    "type": "boolean"
+                },
+                "recycle_bin": {
+                    "description": "回收站",
+                    "type": "boolean"
+                },
+                "scheduled_task": {
+                    "description": "定时任务",
+                    "type": "boolean"
+                },
+                "workflow": {
+                    "description": "工作流",
+                    "type": "boolean"
+                }
+            }
+        },
+        "service.LicenseStatus": {
+            "type": "object",
+            "properties": {
+                "customer": {
+                    "description": "客户名称（可选）",
+                    "type": "string"
+                },
+                "description": {
+                    "description": "License 描述（可选）",
+                    "type": "string"
+                },
+                "edition": {
+                    "description": "版本类型：community, professional, enterprise, flagship",
+                    "type": "string"
+                },
+                "expires_at": {
+                    "description": "过期时间（可选）",
+                    "type": "string"
+                },
+                "features": {
+                    "description": "功能开关（可选）",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/license.Features"
+                        }
+                    ]
+                },
+                "is_community": {
+                    "description": "是否为社区版",
+                    "type": "boolean"
+                },
+                "is_valid": {
+                    "description": "License 是否有效",
+                    "type": "boolean"
+                }
+            }
+        },
         "v1.Service": {
             "type": "object",
             "properties": {

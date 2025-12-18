@@ -1,5 +1,66 @@
 basePath: /
 definitions:
+  license.Features:
+    properties:
+      approval:
+        description: 审批流程
+        type: boolean
+      change_log:
+        description: 变更日志
+        type: boolean
+      config_management:
+        description: 配置管理
+        type: boolean
+      notification:
+        description: 通知中心
+        type: boolean
+      operate_log:
+        description: 操作日志
+        type: boolean
+      organization:
+        description: 组织架构
+        type: boolean
+      permission:
+        description: 权限管理
+        type: boolean
+      quick_link:
+        description: 快链
+        type: boolean
+      recycle_bin:
+        description: 回收站
+        type: boolean
+      scheduled_task:
+        description: 定时任务
+        type: boolean
+      workflow:
+        description: 工作流
+        type: boolean
+    type: object
+  service.LicenseStatus:
+    properties:
+      customer:
+        description: 客户名称（可选）
+        type: string
+      description:
+        description: License 描述（可选）
+        type: string
+      edition:
+        description: 版本类型：community, professional, enterprise, flagship
+        type: string
+      expires_at:
+        description: 过期时间（可选）
+        type: string
+      features:
+        allOf:
+        - $ref: '#/definitions/license.Features'
+        description: 功能开关（可选）
+      is_community:
+        description: 是否为社区版
+        type: boolean
+      is_valid:
+        description: License 是否有效
+        type: boolean
+    type: object
   v1.Service:
     properties:
       direct_url:
@@ -46,4 +107,74 @@ paths:
       summary: 获取服务配置
       tags:
       - config
+  /control/api/v1/license/activate:
+    post:
+      consumes:
+      - application/json
+      description: 上传License文件并激活企业版
+      parameters:
+      - description: License文件内容（JSON格式）
+        in: body
+        name: license
+        required: true
+        schema:
+          type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 激活成功
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      summary: 激活 License
+      tags:
+      - License管理
+  /control/api/v1/license/deactivate:
+    post:
+      consumes:
+      - application/json
+      description: 注销当前 License，删除激活信息，系统回到社区版（主要用于测试）
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 注销成功
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      summary: 注销 License
+      tags:
+      - License管理
+  /control/api/v1/license/status:
+    get:
+      consumes:
+      - application/json
+      description: 获取当前 License 的状态信息
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: License状态
+          schema:
+            $ref: '#/definitions/service.LicenseStatus'
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      summary: 获取 License 状态
+      tags:
+      - License管理
 swagger: "2.0"

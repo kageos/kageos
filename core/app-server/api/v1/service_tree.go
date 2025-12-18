@@ -230,11 +230,11 @@ func (s *ServiceTree) PublishDirectoryToHub(c *gin.Context) {
 // AddFunctions 向服务目录添加函数（服务间调用，不需要JWT验证）
 // @Summary 向服务目录添加函数
 // @Description 接收来自 agent-server 的代码，写入到工作空间对应的目录下，并更新工作空间
-// @Description 
+// @Description
 // @Description **处理模式**：
 // @Description - async=true: 异步处理，立即返回 202 Accepted，后台处理完成后通过回调通知 agent-server
 // @Description - async=false: 同步处理，等待处理完成后直接返回结果
-// @Description 
+// @Description
 // @Description **回调机制**：
 // @Description - 异步模式下，处理完成后会调用 agent-server 的回调接口：POST /agent/api/v1/workspace/update/callback
 // @Description - 回调会携带处理结果（成功/失败、生成的函数组代码列表等）
