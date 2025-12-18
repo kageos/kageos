@@ -142,49 +142,49 @@ export interface AgentDisableReq {
  * 获取智能体列表
  */
 export function getAgentList(params: AgentListReq) {
-  return get<AgentListResp>('/api/v1/agent/agents/list', params)
+  return get<AgentListResp>('/agent/api/v1/agents/list', params)
 }
 
 /**
  * 获取智能体详情
  */
 export function getAgent(params: AgentGetReq) {
-  return get<AgentGetResp>('/api/v1/agent/agents/get', params)
+  return get<AgentGetResp>('/agent/api/v1/agents/get', params)
 }
 
 /**
  * 创建智能体
  */
 export function createAgent(data: AgentCreateReq) {
-  return post<AgentCreateResp>('/api/v1/agent/agents/create', data)
+  return post<AgentCreateResp>('/agent/api/v1/agents/create', data)
 }
 
 /**
  * 更新智能体
  */
 export function updateAgent(data: AgentUpdateReq) {
-  return post<AgentUpdateResp>('/api/v1/agent/agents/update', data)
+  return post<AgentUpdateResp>('/agent/api/v1/agents/update', data)
 }
 
 /**
  * 删除智能体
  */
 export function deleteAgent(params: AgentDeleteReq) {
-  return post('/api/v1/agent/agents/delete', params)
+  return post('/agent/api/v1/agents/delete', params)
 }
 
 /**
  * 启用智能体
  */
 export function enableAgent(params: AgentEnableReq) {
-  return post('/api/v1/agent/agents/enable', params)
+  return post('/agent/api/v1/agents/enable', params)
 }
 
 /**
  * 禁用智能体
  */
 export function disableAgent(params: AgentDisableReq) {
-  return post('/api/v1/agent/agents/disable', params)
+  return post('/agent/api/v1/agents/disable', params)
 }
 
 // ==================== 知识库相关 ====================
@@ -320,28 +320,28 @@ export interface KnowledgeListDocumentsResp {
  * 获取知识库列表
  */
 export function getKnowledgeList(params: KnowledgeListReq) {
-  return get<KnowledgeListResp>('/api/v1/agent/knowledge/list', params)
+  return get<KnowledgeListResp>('/agent/api/v1/knowledge/list', params)
 }
 
 /**
  * 获取知识库详情
  */
 export function getKnowledge(params: KnowledgeGetReq) {
-  return get<KnowledgeGetResp>('/api/v1/agent/knowledge/get', params)
+  return get<KnowledgeGetResp>('/agent/api/v1/knowledge/get', params)
 }
 
 /**
  * 创建知识库
  */
 export function createKnowledge(data: KnowledgeCreateReq) {
-  return post<KnowledgeCreateResp>('/api/v1/agent/knowledge/create', data)
+  return post<KnowledgeCreateResp>('/agent/api/v1/knowledge/create', data)
 }
 
 /**
  * 更新知识库
  */
 export function updateKnowledge(data: KnowledgeUpdateReq) {
-  return post<KnowledgeUpdateResp>('/api/v1/agent/knowledge/update', data)
+  return post<KnowledgeUpdateResp>('/agent/api/v1/knowledge/update', data)
 }
 
 /**

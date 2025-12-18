@@ -19,11 +19,11 @@ func (s *Server) setupRoutes() {
 	// Swagger 文档路由
 	s.httpServer.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
-	// API v1 路由组
-	apiV1 := s.httpServer.Group("/api/v1")
+	// Agent 路由组（统一使用 /agent/api/v1 开头，方便网关代理）
+	agent := s.httpServer.Group("/agent")
 
-	// Agent 路由组（统一使用 /api/v1/agent 开头，方便网关代理）
-	agent := apiV1.Group("/agent")
+	// API v1 路由组
+	apiV1 := agent.Group("/api/v1")
 
 	// 添加用户信息中间件
 	agent.Use(middleware2.WithUserInfo())
