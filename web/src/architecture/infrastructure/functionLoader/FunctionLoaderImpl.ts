@@ -144,7 +144,7 @@ export class FunctionLoaderImpl implements IFunctionLoader {
    * 根据 ID 加载函数详情（内部方法）
    */
   private async loadFunctionById(id: number, cacheKey: string): Promise<FunctionDetail> {
-    const response = await this.apiClient.get<FunctionDetail>('/api/v1/function/get', {
+    const response = await this.apiClient.get<FunctionDetail>('/workspace/api/v1/function/get', {
       function_id: id
     })
     
@@ -158,7 +158,7 @@ export class FunctionLoaderImpl implements IFunctionLoader {
    * 根据路径加载函数详情（内部方法）
    */
   private async loadFunctionByPath(path: string, cacheKey: string): Promise<FunctionDetail> {
-    const response = await this.apiClient.get<FunctionDetail>('/api/v1/function/by-path', {
+    const response = await this.apiClient.get<FunctionDetail>('/workspace/api/v1/function/by-path', {
       path: path
     })
     

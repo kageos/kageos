@@ -83,13 +83,13 @@ export interface GetFormOperateLogsResponse {
  * 查询 Table 操作日志
  */
 export function getTableOperateLogs(params: GetTableOperateLogsParams): Promise<GetTableOperateLogsResponse> {
-  return get<GetTableOperateLogsResponse>('/api/v1/operate_log/table', params)
+  return get<GetTableOperateLogsResponse>('/workspace/api/v1/operate_log/table', params)
 }
 
 /**
  * 查询 Form 操作日志
  */
 export function getFormOperateLogs(params: GetFormOperateLogsParams): Promise<GetFormOperateLogsResponse> {
-  return get<GetFormOperateLogsResponse>('/api/v1/operate_log/form', params)
+  return get<GetFormOperateLogsResponse>('/workspace/api/v1/operate_log/form', params)
 }
 
