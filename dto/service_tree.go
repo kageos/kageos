@@ -115,3 +115,20 @@ type UpdateServiceTreeResp struct {
 	NewVersion     string   `json:"new_version"`     // 新版本号
 	GitCommitHash  string   `json:"git_commit_hash,omitempty"` // Git 提交哈希
 }
+
+// BatchWriteFilesReq 批量写文件请求
+type BatchWriteFilesReq struct {
+	User  string                `json:"user" binding:"required"` // 用户名
+	App   string                `json:"app" binding:"required"`  // 应用名
+	Files []*DirectoryTreeItem  `json:"files" binding:"required"` // 文件列表（只包含文件，不包含目录）
+}
+
+// BatchWriteFilesResp 批量写文件响应
+type BatchWriteFilesResp struct {
+	FileCount     int      `json:"file_count"`      // 写入的文件数量
+	WrittenPaths  []string `json:"written_paths"`   // 写入的文件路径列表
+	Diff          *DiffData `json:"diff,omitempty"`  // API diff 信息（编译后）
+	OldVersion    string   `json:"old_version"`     // 旧版本号
+	NewVersion    string   `json:"new_version"`     // 新版本号
+	GitCommitHash string   `json:"git_commit_hash,omitempty"` // Git 提交哈希
+}
