@@ -27,19 +27,9 @@ func NewFunctionGen(appService *service.AppService, server FunctionGenServer) *F
 	}
 }
 
-// ReceiveFunctionGenResult 接收函数生成结果（HTTP 接口，替代 NATS 订阅）
-// @Summary 接收函数生成结果
-// @Description 接收来自 agent-server 的函数生成结果，处理并创建函数
-// @Tags 函数生成
-// @Accept json
-// @Produce json
-// @Param X-Trace-Id header string false "追踪ID"
-// @Param X-Request-User header string false "请求用户"
-// @Param request body dto.AddFunctionsReq true "添加函数请求"
-// @Success 200 {object} map[string]interface{} "处理成功"
-// @Failure 400 {string} string "请求参数错误"
-// @Failure 500 {string} string "服务器内部错误"
-// @Router /workspace/api/v1/function_gen/result [post]
+// ReceiveFunctionGenResult 已废弃，请使用 ServiceTree.AddFunctions
+// 该接口已迁移到 /workspace/api/v1/service_tree/add_functions
+// @Deprecated 使用 ServiceTree.AddFunctions 替代
 func (f *FunctionGen) ReceiveFunctionGenResult(c *gin.Context) {
 	var req dto.AddFunctionsReq
 	if err := c.ShouldBindJSON(&req); err != nil {

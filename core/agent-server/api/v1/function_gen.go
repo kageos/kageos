@@ -30,11 +30,20 @@ func NewFunctionGen(functionGenService FunctionGenService) *FunctionGen {
 // ReceiveCallback 接收工作空间更新回调（HTTP 接口，替代 NATS 订阅）
 // @Summary 接收工作空间更新回调
 // @Description 接收来自 app-server 的工作空间更新回调，更新生成记录状态
+// @Description 
+// @Description **调用场景**：
+// @Description - 当 app-server 异步处理完函数添加请求后，会调用此接口通知 agent-server 处理结果
+// @Description - 此接口由 app-server 调用，agent-server 根据回调结果更新 FunctionGenRecord 的状态
+// @Description 
+// @Description **状态更新**：
+// @Description - success=true: 更新记录状态为 completed，记录生成的函数组代码列表
+// @Description - success=false: 更新记录状态为 failed，记录错误信息
 // @Tags 工作空间
 // @Accept json
 // @Produce json
-// @Param X-Trace-Id header string false "追踪ID"
-// @Param X-Request-User header string false "请求用户"
+// @Param X-Trace-Id header string false "追踪ID（用于链路追踪）"
+// @Param X-Request-User header string false "请求用户（用于审计）"
+// @Param X-Token header string false "Token（服务间调用时透传）"
 // @Param request body dto.FunctionGenCallback true "工作空间更新回调"
 // @Success 200 {object} map[string]interface{} "处理成功"
 // @Failure 400 {string} string "请求参数错误"
