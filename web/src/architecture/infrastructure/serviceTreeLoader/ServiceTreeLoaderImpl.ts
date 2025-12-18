@@ -43,8 +43,8 @@ export class ServiceTreeLoaderImpl implements IServiceTreeLoader {
     const loadPromise = (async () => {
       try {
         Logger.debug('ServiceTreeLoader', '开始加载服务目录树', app.user, app.code)
-        // 注意：API 路径是 /api/v1/service_tree（下划线），不是 /api/v1/service-tree/list
-        const response = await this.apiClient.get<any>('/api/v1/service_tree', {
+        // 注意：API 路径是 /workspace/api/v1/service_tree（下划线），不是 /workspace/api/v1/service-tree/list
+        const response = await this.apiClient.get<any>('/workspace/api/v1/service_tree', {
           user: app.user,
           app: app.code
         })
