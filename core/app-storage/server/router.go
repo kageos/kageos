@@ -19,27 +19,30 @@ func (s *Server) setupRoutes() {
 	// Swagger 文档路由
 	s.httpServer.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
+	// Storage 路由组（统一使用 /storage/api/v1 开头，方便网关代理）
+	storage := s.httpServer.Group("/storage")
+
 	// API v1 路由组
-	apiV1 := s.httpServer.Group("/api/v1")
+	apiV1 := storage.Group("/api/v1")
 
 	// 存储相关路由（需要JWT验证）
-	storage := apiV1.Group("/storage")
-	storage.Use(middleware2.JWTAuth()) // 存储管理需要JWT认证
+	storageGroup := apiV1
+	storageGroup.Use(middleware2.JWTAuth()) // 存储管理需要JWT认证
 	storageHandler := v1.NewStorage(s.storageService)
 
 	// 上传相关
-	storage.POST("/upload_token", storageHandler.GetUploadToken)
-	storage.POST("/batch_upload_token", storageHandler.BatchGetUploadToken)    // ✨ 批量获取上传凭证
-	storage.POST("/upload_complete", storageHandler.UploadComplete)            // 上传完成通知
-	storage.POST("/batch_upload_complete", storageHandler.BatchUploadComplete) // ✨ 批量上传完成通知
+	storageGroup.POST("/upload_token", storageHandler.GetUploadToken)
+	storageGroup.POST("/batch_upload_token", storageHandler.BatchGetUploadToken)    // ✨ 批量获取上传凭证
+	storageGroup.POST("/upload_complete", storageHandler.UploadComplete)            // 上传完成通知
+	storageGroup.POST("/batch_upload_complete", storageHandler.BatchUploadComplete) // ✨ 批量上传完成通知
 
 	// 文件操作（key 包含斜杠，使用 *key 匹配）
-	storage.GET("/download/*key", storageHandler.GetFileURL)
-	storage.GET("/info/*key", storageHandler.GetFileInfo) // ✅ info 在前，避免 catch-all 冲突
-	storage.DELETE("/files/*key", storageHandler.DeleteFile)
+	storageGroup.GET("/download/*key", storageHandler.GetFileURL)
+	storageGroup.GET("/info/*key", storageHandler.GetFileInfo) // ✅ info 在前，避免 catch-all 冲突
+	storageGroup.DELETE("/files/*key", storageHandler.DeleteFile)
 
 	// 批量操作（按函数路径）
-	storage.GET("/files", storageHandler.ListFiles)                   // 列举文件
-	storage.GET("/stats", storageHandler.GetStorageStats)             // 存储统计
-	storage.POST("/batch_delete", storageHandler.DeleteFilesByRouter) // 批量删除
+	storageGroup.GET("/files", storageHandler.ListFiles)                   // 列举文件
+	storageGroup.GET("/stats", storageHandler.GetStorageStats)             // 存储统计
+	storageGroup.POST("/batch_delete", storageHandler.DeleteFilesByRouter) // 批量删除
 }

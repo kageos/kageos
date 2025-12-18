@@ -32,7 +32,7 @@ var httpClient = &http.Client{
 
 // callAPI 通用API调用方法
 // method: HTTP方法（POST、GET等）
-// path: API路径（如 "/api/v1/storage/upload_token"）
+// path: API路径（如 "/storage/api/v1/upload_token"）
 // header: 请求头信息（包含token、trace_id等）
 // reqBody: 请求体（会被序列化为JSON）
 // 返回: ApiResult[T] 结构，包含code、msg、data字段
@@ -112,7 +112,7 @@ func callAPI[T any](method, path string, header *Header, reqBody interface{}) (*
 
 // GetUploadToken 获取上传凭证（单个）
 func GetUploadToken(header *Header, req *dto.GetUploadTokenReq) (*dto.GetUploadTokenResp, error) {
-	result, err := callAPI[dto.GetUploadTokenResp](http.MethodPost, "/api/v1/storage/upload_token", header, req)
+	result, err := callAPI[dto.GetUploadTokenResp](http.MethodPost, "/storage/api/v1/upload_token", header, req)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +121,7 @@ func GetUploadToken(header *Header, req *dto.GetUploadTokenReq) (*dto.GetUploadT
 
 // BatchGetUploadToken 批量获取上传凭证
 func BatchGetUploadToken(header *Header, req *dto.BatchGetUploadTokenReq) (*dto.BatchGetUploadTokenResp, error) {
-	result, err := callAPI[dto.BatchGetUploadTokenResp](http.MethodPost, "/api/v1/storage/batch_upload_token", header, req)
+	result, err := callAPI[dto.BatchGetUploadTokenResp](http.MethodPost, "/storage/api/v1/batch_upload_token", header, req)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +130,7 @@ func BatchGetUploadToken(header *Header, req *dto.BatchGetUploadTokenReq) (*dto.
 
 // UploadComplete 通知上传完成（单个）
 func UploadComplete(header *Header, req *dto.UploadCompleteReq) (*dto.UploadCompleteResp, error) {
-	result, err := callAPI[dto.UploadCompleteResp](http.MethodPost, "/api/v1/storage/upload_complete", header, req)
+	result, err := callAPI[dto.UploadCompleteResp](http.MethodPost, "/storage/api/v1/upload_complete", header, req)
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +139,7 @@ func UploadComplete(header *Header, req *dto.UploadCompleteReq) (*dto.UploadComp
 
 // BatchUploadComplete 批量通知上传完成
 func BatchUploadComplete(header *Header, req *dto.BatchUploadCompleteReq) (*dto.BatchUploadCompleteResp, error) {
-	result, err := callAPI[dto.BatchUploadCompleteResp](http.MethodPost, "/api/v1/storage/batch_upload_complete", header, req)
+	result, err := callAPI[dto.BatchUploadCompleteResp](http.MethodPost, "/storage/api/v1/batch_upload_complete", header, req)
 	if err != nil {
 		return nil, err
 	}

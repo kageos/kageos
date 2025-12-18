@@ -36,6 +36,26 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path, // 不重写路径，直接转发
       },
+      // Agent 服务通过网关代理
+      '/agent': {
+        target: 'http://localhost:9090',  // 网关地址
+        changeOrigin: true,
+      },
+      // Storage 服务通过网关代理
+      '/storage': {
+        target: 'http://localhost:9090',  // 网关地址
+        changeOrigin: true,
+      },
+      // Hub 服务通过网关代理
+      '/hub': {
+        target: 'http://localhost:9090',  // 网关地址
+        changeOrigin: true,
+      },
+      // Control 服务通过网关代理
+      '/control': {
+        target: 'http://localhost:9090',  // 网关地址
+        changeOrigin: true,
+      },
       // 统一通过网关代理所有 API 请求（兜底，用于兼容旧路径）
       '/api': {
         target: 'http://localhost:9090',  // 网关地址
@@ -44,11 +64,6 @@ export default defineConfig({
       // Swagger 文档也通过网关
       '/swagger': {
         target: 'http://localhost:9090',  // 网关地址
-        changeOrigin: true,
-      },
-      // Hub API 也通过网关代理
-      '/hub': {
-        target: 'http://localhost:9090',  // 网关地址（网关会转发到 Hub 服务）
         changeOrigin: true,
       },
     },

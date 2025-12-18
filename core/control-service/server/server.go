@@ -11,7 +11,6 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/pkg/msgx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/pprof"
 	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
 	"github.com/gin-gonic/gin"
 	"github.com/nats-io/nats.go"
@@ -137,34 +136,6 @@ func (s *Server) initAPI(ctx context.Context) error {
 	return nil
 }
 
-// initRouter 初始化路由
-func (s *Server) initRouter(ctx context.Context) error {
-	logger.Infof(ctx, "[Control Service] Initializing router...")
-
-	gin.SetMode(gin.ReleaseMode)
-	s.httpServer = gin.New()
-	s.httpServer.Use(gin.Recovery())
-	s.httpServer.Use(gin.Logger())
-
-	// 注册 pprof 路由（性能分析）
-	pprof.RegisterPprofRoutes(s.httpServer)
-
-	// 注册 API 路由
-	api := s.httpServer.Group("/api/v1")
-	{
-		// Control 相关路由组
-		control := api.Group("/control")
-		{
-			// License 相关
-			control.GET("/license/status", s.licenseAPI.GetStatus)
-			control.POST("/license/activate", s.licenseAPI.Activate)
-			control.POST("/license/deactivate", s.licenseAPI.Deactivate)
-		}
-	}
-
-	return nil
-}
-
 // Start 启动服务器
 func (s *Server) Start(ctx context.Context) error {
 	logger.Infof(ctx, "[Control Service] Starting control-service...")
@@ -206,8 +177,8 @@ func (s *Server) Start(ctx context.Context) error {
 
 	logger.Infof(ctx, "[Control Service] Control-service started successfully")
 	logger.Infof(ctx, "[Control Service] API endpoints:")
-	logger.Infof(ctx, "[Control Service]   - GET  http://localhost%s/api/v1/control/license/status", port)
-	logger.Infof(ctx, "[Control Service]   - POST http://localhost%s/api/v1/control/license/activate", port)
+	logger.Infof(ctx, "[Control Service]   - GET  http://localhost%s/control/api/v1/license/status", port)
+	logger.Infof(ctx, "[Control Service]   - POST http://localhost%s/control/api/v1/license/activate", port)
 	return nil
 }
 

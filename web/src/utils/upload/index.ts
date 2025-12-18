@@ -189,7 +189,7 @@ async function getUploadCredentials(router: string, file: File): Promise<UploadC
   // ✅ 处理文件类型（某些文件如 .dmg 可能没有 MIME 类型）
   const contentType = file.type || 'application/octet-stream'
   
-  const res = await fetch('/api/v1/storage/upload_token', {
+  const res = await fetch('/storage/api/v1/upload_token', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -257,7 +257,7 @@ export async function notifyUploadComplete(params: UploadCompleteParams): Promis
   const token = localStorage.getItem('token') || ''
   
   try {
-    const res = await fetch('/api/v1/storage/upload_complete', {
+    const res = await fetch('/storage/api/v1/upload_complete', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -329,7 +329,7 @@ export async function notifyBatchUploadComplete(
   }
   
   try {
-    const res = await fetch('/api/v1/storage/batch_upload_complete', {
+    const res = await fetch('/storage/api/v1/batch_upload_complete', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

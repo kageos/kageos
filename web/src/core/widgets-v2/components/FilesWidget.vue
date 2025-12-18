@@ -938,7 +938,7 @@ function handlePreviewInNewWindow(file: FileItem): void {
   // 🔥 所有可预览的文件（包括图片和视频）都在新窗口打开，避免抽屉遮挡预览器
   const previewURL = file.url.startsWith('http://') || file.url.startsWith('https://')
     ? file.url
-    : `/api/v1/storage/download/${encodeURIComponent(file.url)}`
+    : `/storage/api/v1/download/${encodeURIComponent(file.url)}`
   
   window.open(previewURL, '_blank')
 }
@@ -1445,7 +1445,7 @@ async function handleDownloadFile(file: FileItem): Promise<void> {
     let downloadURL = file.url
 
     if (!downloadURL || (!downloadURL.startsWith('http://') && !downloadURL.startsWith('https://'))) {
-      downloadURL = `/api/v1/storage/download/${encodeURIComponent(file.url)}`
+      downloadURL = `/storage/api/v1/download/${encodeURIComponent(file.url)}`
     }
 
     const token = localStorage.getItem('token') || ''
@@ -1506,7 +1506,7 @@ async function handleDownloadAll(): Promise<void> {
         
         // 如果 url 不是完整的 URL，需要构建完整 URL
         if (!downloadURL || (!downloadURL.startsWith('http://') && !downloadURL.startsWith('https://'))) {
-          downloadURL = `/api/v1/storage/download/${encodeURIComponent(file.url)}`
+          downloadURL = `/storage/api/v1/download/${encodeURIComponent(file.url)}`
         }
 
         // 下载文件
