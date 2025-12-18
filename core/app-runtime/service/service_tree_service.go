@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	appPkg "github.com/ai-agent-os/ai-agent-os/pkg/app"
@@ -337,31 +338,58 @@ func (s *ServiceTreeService) BatchWriteFiles(
 		return nil, fmt.Errorf("创建 api 目录失败: %w", err)
 	}
 
-	// 2. 过滤出文件项（只处理文件，不处理目录）
-	fileItems := make([]*dto.DirectoryTreeItem, 0)
-	for _, item := range req.Files {
-		if item.Type == "file" {
-			fileItems = append(fileItems, item)
-		} else if item.Type == "directory" {
-			logger.Warnf(ctx, "[ServiceTreeService] 跳过目录项，目录创建请使用 BatchCreateDirectoryTree: path=%s", item.FullCodePath)
-		}
-	}
-
-	if len(fileItems) == 0 {
+	// 2. 批量写入文件（req.Files 只包含文件，不需要检查 Type）
+	if len(req.Files) == 0 {
 		return nil, fmt.Errorf("没有需要写入的文件")
 	}
 
 	// 3. 批量写入文件
-	writtenPaths := make([]string, 0)
-	createdDirs := make(map[string]bool) // 用于记录已创建的目录
+	writtenPaths := make([]string, 0)                    // FullCodePath 列表
+	writtenFilePaths := make([]string, 0)                // 实际文件路径列表（用于回滚）
 
-	for _, item := range fileItems {
-		if err := s.createFileForItem(ctx, apiDir, item, createdDirs); err != nil {
-			// 失败时回滚已写入的文件
-			s.rollbackFiles(ctx, writtenPaths)
+	for _, item := range req.Files {
+		// 从 FullCodePath 提取 package 路径和文件名
+		packagePath := extractPackagePath(item.FullCodePath)
+		if packagePath == "" {
+			s.rollbackFiles(ctx, writtenFilePaths)
+			return nil, fmt.Errorf("无效的文件路径: %s", item.FullCodePath)
+		}
+
+		fileName := item.FileName
+		if fileName == "" {
+			// 从 FullCodePath 提取文件名
+			pathParts := strings.Split(strings.Trim(item.FullCodePath, "/"), "/")
+			if len(pathParts) == 0 {
+				s.rollbackFiles(ctx, writtenFilePaths)
+				return nil, fmt.Errorf("无法从路径提取文件名: %s", item.FullCodePath)
+			}
+			fileName = pathParts[len(pathParts)-1]
+			// 去掉文件扩展名
+			if ext := filepath.Ext(fileName); ext != "" {
+				fileName = strings.TrimSuffix(fileName, ext)
+			}
+		}
+
+		// 确保目录存在
+		packageDir := filepath.Join(apiDir, packagePath)
+		if err := os.MkdirAll(packageDir, 0755); err != nil {
+			s.rollbackFiles(ctx, writtenFilePaths)
+			return nil, fmt.Errorf("创建目录失败: %w", err)
+		}
+
+		// 构建文件路径
+		fileExt := getFileExtension(item.FileType)
+		filePath := filepath.Join(packageDir, fileName+fileExt)
+
+		// 写入文件内容
+		if err := os.WriteFile(filePath, []byte(item.Content), 0644); err != nil {
+			s.rollbackFiles(ctx, writtenFilePaths)
 			return nil, fmt.Errorf("写入文件失败 (%s): %w", item.FullCodePath, err)
 		}
+
 		writtenPaths = append(writtenPaths, item.FullCodePath)
+		writtenFilePaths = append(writtenFilePaths, filePath)
+		logger.Infof(ctx, "[ServiceTreeService] 文件写入成功: %s", filePath)
 	}
 
 	logger.Infof(ctx, "[ServiceTreeService] 批量写文件完成: fileCount=%d", len(writtenPaths))
@@ -393,14 +421,31 @@ func (s *ServiceTreeService) BatchWriteFiles(
 	buildResult, err := s.appManageService.BuildApp(ctx, req.User, req.App, buildOpts)
 	if err != nil {
 		// 编译失败时，回滚已写入的文件
-		logger.Warnf(ctx, "[BatchWriteFiles] 编译失败，开始回滚已写入的文件: fileCount=%d", len(writtenPaths))
-		s.rollbackFiles(ctx, writtenPaths)
+		logger.Warnf(ctx, "[BatchWriteFiles] 编译失败，开始回滚已写入的文件: fileCount=%d", len(writtenFilePaths))
+		s.rollbackFiles(ctx, writtenFilePaths)
 		return nil, fmt.Errorf("编译应用失败: %w", err)
 	}
 
 	newVersion := buildResult.Version
 
-	// 5. Git 提交（可选，如果失败不影响主流程）
+	// 5. 更新版本信息
+	metadataDir := filepath.Join(appDir, "workplace/metadata")
+	versionFile := filepath.Join(metadataDir, "version.json")
+
+	// 检查版本文件是否存在，如果不存在则创建
+	if _, err := os.Stat(versionFile); os.IsNotExist(err) {
+		logger.Infof(ctx, "[BatchWriteFiles] Version file not found, creating initial version file...")
+		if err := s.appManageService.createVersionFiles(metadataDir, req.User, req.App); err != nil {
+			logger.Warnf(ctx, "[BatchWriteFiles] 创建版本文件失败: %v，继续执行", err)
+		}
+	}
+
+	// 更新版本信息
+	if err := s.appManageService.updateVersionJson(appDir, req.User, req.App, newVersion); err != nil {
+		logger.Warnf(ctx, "[BatchWriteFiles] 更新版本信息失败: %v，继续执行", err)
+	}
+
+	// 6. Git 提交（可选，如果失败不影响主流程）
 	var gitCommitHash string
 	if hash, err := s.appManageService.commitToGit(ctx, req.User, req.App, newVersion, "", ""); err != nil {
 		logger.Warnf(ctx, "[BatchWriteFiles] Git 提交失败: %v，继续执行", err)
@@ -408,11 +453,49 @@ func (s *ServiceTreeService) BatchWriteFiles(
 		gitCommitHash = hash
 	}
 
-	// 6. 获取 diff（通过启动应用并获取回调）
-	// 注意：这里需要启动容器来获取 diff，但为了简化，我们可以先返回空的 diff
-	// 后续可以通过其他方式获取 diff
+	// 7. 获取 diff（通过启动应用并获取回调，参考 UpdateApp 的逻辑）
 	var diff *dto.DiffData
-	// TODO: 实现获取 diff 的逻辑（可能需要启动容器或使用其他方式）
+	if s.appManageService != nil {
+		// 创建新版本容器并启动（用于获取 diff）
+		waiterChan := s.appManageService.registerStartupWaiter(req.User, req.App, newVersion)
+		defer s.appManageService.unregisterStartupWaiter(req.User, req.App, newVersion)
+
+		if s.appManageService.containerService != nil {
+			// 创建新版本容器
+			appDirRel := filepath.Join(s.config.AppDir.BasePath, req.User, req.App)
+			if err := s.appManageService.createVersionContainer(ctx, req.User, req.App, newVersion, appDirRel); err != nil {
+				logger.Warnf(ctx, "[BatchWriteFiles] 创建容器失败: %v，继续执行（不获取 diff）", err)
+			} else {
+				// 等待新版本启动
+				logger.Infof(ctx, "[BatchWriteFiles] 等待新版本启动: %s/%s/%s", req.User, req.App, newVersion)
+				select {
+				case <-waiterChan:
+					logger.Infof(ctx, "[BatchWriteFiles] ✅ 新版本启动成功: %s/%s/%s", req.User, req.App, newVersion)
+
+					// 发送更新回调请求获取 diff
+					updateCallbackResponse, callbackErr := s.appManageService.sendUpdateCallbackAndWait(ctx, req.User, req.App, newVersion)
+					if callbackErr != nil {
+						logger.Warnf(ctx, "[BatchWriteFiles] ❌ 获取 diff 失败: %v", callbackErr)
+					} else {
+						logger.Infof(ctx, "[BatchWriteFiles] ✅ 获取 diff 成功: %+v", updateCallbackResponse)
+						// 类型断言，将 interface{} 转换为 *dto.DiffData
+						if diffData, ok := updateCallbackResponse.Data.(*dto.DiffData); ok {
+							diff = diffData
+						} else {
+							logger.Warnf(ctx, "[BatchWriteFiles] diff 数据格式不正确，期望 *dto.DiffData，实际类型: %T", updateCallbackResponse.Data)
+						}
+					}
+
+					// 停止并删除临时容器（因为我们只是用来获取 diff）
+					if err := s.appManageService.stopOldVersionContainer(ctx, req.User, req.App, newVersion); err != nil {
+						logger.Warnf(ctx, "[BatchWriteFiles] 停止临时容器失败: %v", err)
+					}
+				case <-time.After(60 * time.Second):
+					logger.Warnf(ctx, "[BatchWriteFiles] ⚠️ 等待新版本启动超时，不获取 diff")
+				}
+			}
+		}
+	}
 
 	logger.Infof(ctx, "[ServiceTreeService] 批量写文件并编译完成: oldVersion=%s, newVersion=%s", oldVersion, newVersion)
 
@@ -427,9 +510,24 @@ func (s *ServiceTreeService) BatchWriteFiles(
 }
 
 // rollbackFiles 回滚已写入的文件（内部方法，失败时调用）
+// filePaths: 实际的文件路径列表（绝对路径）
 func (s *ServiceTreeService) rollbackFiles(ctx context.Context, filePaths []string) {
 	logger.Warnf(ctx, "[ServiceTreeService] 开始回滚已写入的文件: fileCount=%d", len(filePaths))
-	// TODO: 实现文件回滚逻辑
+
+	deletedCount := 0
+	for _, filePath := range filePaths {
+		if err := os.Remove(filePath); err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			logger.Errorf(ctx, "[ServiceTreeService] 删除文件失败: file=%s, error=%v", filePath, err)
+		} else {
+			deletedCount++
+			logger.Infof(ctx, "[ServiceTreeService] 已删除文件: %s", filePath)
+		}
+	}
+
+	logger.Infof(ctx, "[ServiceTreeService] 文件回滚完成: deletedCount=%d, totalCount=%d", deletedCount, len(filePaths))
 }
 
 // extractPackagePath 从 FullCodePath 提取 package 路径（去掉 /user/app 前缀）
