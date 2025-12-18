@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -16,7 +15,6 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
-	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
 	"github.com/gin-gonic/gin"
 	"github.com/nats-io/nats.go"
 	"gorm.io/driver/mysql"
@@ -91,10 +89,7 @@ func NewServer(cfg *config.AgentServerConfig) (*Server, error) {
 		return nil, fmt.Errorf("failed to init router: %w", err)
 	}
 
-	// 初始化 NATS 订阅（包括回调订阅）
-	if err := s.initNATSSubscriptions(ctx); err != nil {
-		return nil, fmt.Errorf("failed to init NATS subscriptions: %w", err)
-	}
+	// NATS 订阅已移除，回调现在通过 HTTP 处理
 
 	return s, nil
 }
@@ -322,7 +317,8 @@ func (s *Server) initServices(ctx context.Context) error {
 	s.llmService = service.NewLLMService(s.llmRepo)
 
 	// 先初始化函数生成服务（因为 agentChatService 依赖它）
-	s.functionGenService = service.NewFunctionGenService(s.natsConn, s.cfg, s.functionGenRepo, sessionRepo, messageRepo)
+	s.functionGenService = service.NewFunctionGenService(s.natsConn, s.cfg)
+	s.functionGenService.SetFunctionGenRepository(s.functionGenRepo)
 
 	// 初始化智能体聊天服务（传入 functionGenService）
 	s.agentChatService = service.NewAgentChatService(s.agentRepo, s.llmRepo, s.knowledgeRepo, s.functionGenService, sessionRepo, messageRepo, s.functionGenRepo)
@@ -364,51 +360,7 @@ func (s *Server) GetDB() *gorm.DB {
 	return s.db
 }
 
-// initNATSSubscriptions 初始化 NATS 订阅
-func (s *Server) initNATSSubscriptions(ctx context.Context) error {
-	logger.Infof(ctx, "[Server] Initializing NATS subscriptions...")
-
-	// 订阅函数生成回调主题（app-server -> agent-server）
-	callbackSubject := subjects.GetAgentServerFunctionGenCallbackSubject()
-	_, err := s.natsConn.Subscribe(callbackSubject, func(msg *nats.Msg) {
-		s.handleFunctionGenCallback(msg)
-	})
-	if err != nil {
-		return fmt.Errorf("failed to subscribe to %s: %w", callbackSubject, err)
-	}
-	logger.Infof(ctx, "[Server] Subscribed to callback subject: %s", callbackSubject)
-
-	return nil
-}
-
-// handleFunctionGenCallback 处理函数生成回调消息（NATS 订阅）
-func (s *Server) handleFunctionGenCallback(msg *nats.Msg) {
-	ctx := context.Background()
-
-	// 从 header 获取 trace_id 和 user
-	traceID := msg.Header.Get("X-Trace-Id")
-	requestUser := msg.Header.Get("X-Request-User")
-	if traceID != "" {
-		ctx = context.WithValue(ctx, "trace_id", traceID)
-	}
-	if requestUser != "" {
-		ctx = context.WithValue(ctx, "request_user", requestUser)
-	}
-
-	// 解析回调消息
-	var callback dto.FunctionGenCallback
-	if err := json.Unmarshal(msg.Data, &callback); err != nil {
-		logger.Errorf(ctx, "[Server] 解析回调消息失败: %v", err)
-		return
-	}
-
-	// 调用 Service 层处理
-	if err := s.functionGenService.ProcessFunctionGenCallback(ctx, &callback); err != nil {
-		logger.Errorf(ctx, "[Server] 处理回调失败: %v", err)
-	}
-}
-
-// HandleFunctionGenCallback 处理函数生成回调（HTTP 接口，实现 FunctionGenServer 接口）
+// HandleFunctionGenCallback 处理函数生成回调（HTTP 接口）
 func (s *Server) HandleFunctionGenCallback(c *gin.Context, callback *dto.FunctionGenCallback) {
 	ctx := contextx.ToContext(c)
 

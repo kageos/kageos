@@ -6,12 +6,9 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
-	"github.com/ai-agent-os/ai-agent-os/pkg/llms"
-	"github.com/google/uuid"
-	"gorm.io/gorm"
-
+	
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
+	"github.com/ai-agent-os/ai-agent-os/core/agent-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
@@ -22,10 +19,11 @@ import (
 )
 
 // FunctionGenService 函数生成服务
-// 负责调用 plugin 处理输入，以及发布函数生成结果到 NATS
+// 负责调用 plugin 处理输入，以及发布函数生成结果到 app-server（通过 HTTP）
 type FunctionGenService struct {
-	natsConn *nats.Conn
-	cfg      *config.AgentServerConfig
+	natsConn        *nats.Conn
+	cfg             *config.AgentServerConfig
+	functionGenRepo *repository.FunctionGenRepository
 }
 
 // NewFunctionGenService 创建函数生成服务
@@ -34,6 +32,11 @@ func NewFunctionGenService(natsConn *nats.Conn, cfg *config.AgentServerConfig) *
 		natsConn: natsConn,
 		cfg:      cfg,
 	}
+}
+
+// SetFunctionGenRepository 设置函数生成仓库（延迟注入，避免循环依赖）
+func (s *FunctionGenService) SetFunctionGenRepository(repo *repository.FunctionGenRepository) {
+	s.functionGenRepo = repo
 }
 
 // RunPlugin 执行插件处理
@@ -201,4 +204,39 @@ func extractCodeFromMarkdown(content string) string {
 
 	// 如果没有找到代码块或代码块为空，返回原始内容（作为 fallback）
 	return content
+}
+
+// ProcessFunctionGenCallback 处理函数生成回调（来自 app-server）
+func (s *FunctionGenService) ProcessFunctionGenCallback(ctx context.Context, callback *dto.FunctionGenCallback) error {
+	if s.functionGenRepo == nil {
+		return fmt.Errorf("FunctionGenRepository 未初始化")
+	}
+
+	traceId := contextx.GetTraceId(ctx)
+	logger.Infof(ctx, "[FunctionGenService] 处理回调 - RecordID: %d, MessageID: %d, Success: %v, FullGroupCodes: %v, AppCode: %s, TraceID: %s",
+		callback.RecordID, callback.MessageID, callback.Success, callback.FullGroupCodes, callback.AppCode, traceId)
+
+	if callback.Success {
+		// 更新记录状态为完成
+		if err := s.functionGenRepo.UpdateStatus(callback.RecordID, model.FunctionGenStatusCompleted, ""); err != nil {
+			logger.Errorf(ctx, "[FunctionGenService] 更新记录状态失败 - RecordID: %d, TraceID: %s, Error: %v", callback.RecordID, traceId, err)
+			return fmt.Errorf("更新记录状态失败: %w", err)
+		}
+		logger.Infof(ctx, "[FunctionGenService] 记录状态已更新为完成 - RecordID: %d, FullGroupCodes: %v, TraceID: %s",
+			callback.RecordID, callback.FullGroupCodes, traceId)
+	} else {
+		// 更新记录状态为失败
+		errorMsg := callback.Error
+		if errorMsg == "" {
+			errorMsg = "处理失败"
+		}
+		if err := s.functionGenRepo.UpdateStatus(callback.RecordID, model.FunctionGenStatusFailed, errorMsg); err != nil {
+			logger.Errorf(ctx, "[FunctionGenService] 更新记录状态失败 - RecordID: %d, TraceID: %s, Error: %v", callback.RecordID, traceId, err)
+			return fmt.Errorf("更新记录状态失败: %w", err)
+		}
+		logger.Infof(ctx, "[FunctionGenService] 记录状态已更新为失败 - RecordID: %d, Error: %s, TraceID: %s",
+			callback.RecordID, errorMsg, traceId)
+	}
+
+	return nil
 }
