@@ -38,7 +38,7 @@ export function useWorkspaceApp() {
   const loadAppList = async (): Promise<void> => {
     try {
       loadingApps.value = true
-      const response = await apiClient.get<any>('/api/v1/app/list', {
+      const response = await apiClient.get<any>('/workspace/api/v1/app/list', {
         page_size: 200,
         page: 1
       })
@@ -131,7 +131,7 @@ export function useWorkspaceApp() {
 
     try {
       creatingApp.value = true
-      await apiClient.post('/api/v1/app/create', createAppForm.value)
+      await apiClient.post('/workspace/api/v1/app/create', createAppForm.value)
       ElNotification.success({
         title: '成功',
         message: '工作空间创建成功'
@@ -163,7 +163,7 @@ export function useWorkspaceApp() {
   // 更新工作空间（重新编译）
   const handleUpdateApp = async (app: AppType): Promise<void> => {
     try {
-      await apiClient.post(`/api/v1/app/update/${app.code}`, {})
+      await apiClient.post(`/workspace/api/v1/app/update/${app.code}`, {})
       ElNotification.success({
         title: '成功',
         message: '工作空间更新成功'
@@ -191,7 +191,7 @@ export function useWorkspaceApp() {
         }
       )
       
-      await apiClient.delete(`/api/v1/app/delete/${app.code}`)
+      await apiClient.delete(`/workspace/api/v1/app/delete/${app.code}`)
       ElNotification.success({
         title: '成功',
         message: '工作空间删除成功'

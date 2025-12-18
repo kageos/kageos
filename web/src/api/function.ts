@@ -156,7 +156,7 @@ export function selectFuzzy(method: string, router: string, data: {
 
 // 导出数据
 export function exportData(router: string, params: SearchParams) {
-  return post(`/api/v1/export`, { router, ...params })
+  return post(`/workspace/api/v1/export`, { router, ...params })
 }
 
 // 导入数据
