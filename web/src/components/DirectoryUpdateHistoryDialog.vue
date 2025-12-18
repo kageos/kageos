@@ -145,6 +145,69 @@
                     </div>
                   </el-collapse-item>
                 </el-collapse>
+                
+                <!-- 统计信息卡片（放在最下面） -->
+                <div class="change-stats-card">
+                  <div class="stat-item" v-if="change.added_count > 0">
+                    <div class="stat-icon-wrapper added-icon">
+                      <el-icon class="stat-icon"><Plus /></el-icon>
+                    </div>
+                    <div class="stat-content">
+                      <div class="stat-label">新增</div>
+                      <div class="stat-value">{{ change.added_count }}</div>
+                    </div>
+                  </div>
+                  
+                  <div class="stat-item" v-if="change.updated_count > 0">
+                    <div class="stat-icon-wrapper updated-icon">
+                      <el-icon class="stat-icon"><Edit /></el-icon>
+                    </div>
+                    <div class="stat-content">
+                      <div class="stat-label">更新</div>
+                      <div class="stat-value">{{ change.updated_count }}</div>
+                    </div>
+                  </div>
+                  
+                  <div class="stat-item" v-if="change.deleted_count > 0">
+                    <div class="stat-icon-wrapper deleted-icon">
+                      <el-icon class="stat-icon"><Delete /></el-icon>
+                    </div>
+                    <div class="stat-content">
+                      <div class="stat-label">删除</div>
+                      <div class="stat-value">{{ change.deleted_count }}</div>
+                    </div>
+                  </div>
+                  
+                  <div class="stat-item">
+                    <div class="stat-icon-wrapper time-icon">
+                      <el-icon class="stat-icon"><Clock /></el-icon>
+                    </div>
+                    <div class="stat-content">
+                      <div class="stat-label">更新时间</div>
+                      <div class="stat-value">{{ formatTime(change.created_at) }}</div>
+                    </div>
+                  </div>
+                  
+                  <div class="stat-item" v-if="change.updated_by">
+                    <div class="stat-icon-wrapper user-icon">
+                      <el-icon class="stat-icon"><User /></el-icon>
+                    </div>
+                    <div class="stat-content">
+                      <div class="stat-label">操作人</div>
+                      <div class="stat-value">{{ change.updated_by }}</div>
+                    </div>
+                  </div>
+                  
+                  <div class="stat-item" v-if="change.duration">
+                    <div class="stat-icon-wrapper duration-icon">
+                      <el-icon class="stat-icon"><Timer /></el-icon>
+                    </div>
+                    <div class="stat-content">
+                      <div class="stat-label">变更耗时</div>
+                      <div class="stat-value">{{ formatDuration(change.duration) }}</div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
