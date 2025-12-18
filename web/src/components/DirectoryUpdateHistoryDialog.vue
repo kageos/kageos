@@ -51,14 +51,19 @@
                     <el-icon class="change-icon"><Folder /></el-icon>
                   </div>
                   <div class="change-title-wrapper">
-                    <el-link
-                      type="primary"
-                      :underline="false"
-                      @click="handleViewDirectory(change.full_code_path)"
-                      class="change-path"
-                    >
-                      {{ change.full_code_path }}
-                    </el-link>
+                    <div class="change-path-row">
+                      <el-link
+                        type="primary"
+                        :underline="false"
+                        @click="handleViewDirectory(change.full_code_path)"
+                        class="change-path"
+                      >
+                        {{ change.full_code_path }}
+                      </el-link>
+                      <el-tag v-if="getDirectoryName(change.full_code_path)" type="success" size="small" class="change-directory-name">
+                        {{ getDirectoryName(change.full_code_path) }}
+                      </el-tag>
+                    </div>
                     <el-tag size="small" type="info" class="change-version-tag">
                       v{{ change.dir_version_num }}
                     </el-tag>
