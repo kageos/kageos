@@ -4,27 +4,27 @@ import type { FieldConfig } from '@/core/types/field'
 
 // 获取函数详情
 export function getFunctionDetail(functionId: number) {
-  return get<Function>(`/api/v1/workspace/function/get`, { function_id: functionId })
+  return get<Function>(`/workspace/api/v1/function/get`, { function_id: functionId })
 }
 
 // 根据路径获取函数详情
 export function getFunctionByPath(fullCodePath: string) {
-  return get<Function>(`/api/v1/workspace/function/by-path`, { path: fullCodePath })
+  return get<Function>(`/workspace/api/v1/function/by-path`, { path: fullCodePath })
 }
 
 // 获取应用下所有函数
 export function getFunctionList(appId: number) {
-  return get<Function[]>('/api/v1/workspace/function/list', { app_id: appId })
+  return get<Function[]>('/workspace/api/v1/function/list', { app_id: appId })
 }
 
 // 获取服务目录下函数列表
 export function getFunctionByTree(treeId: number) {
-  return get<Function[]>(`/api/v1/workspace/function/tree/${treeId}`)
+  return get<Function[]>(`/workspace/api/v1/function/tree/${treeId}`)
 }
 
 // 执行函数（通用）
 export function executeFunction(method: string, router: string, params?: SearchParams | any) {
-  const url = `/api/v1/workspace/run${router}`
+  const url = `/workspace/api/v1/run${router}`
 
   // 根据方法类型调用不同的请求方法
   switch (method.toUpperCase()) {
@@ -48,23 +48,23 @@ export function executeFunction(method: string, router: string, params?: SearchP
 
 // 创建函数
 export function createFunction(data: Partial<Function>) {
-  return post<Function>('/api/v1/workspace/function/create', data)
+  return post<Function>('/workspace/api/v1/function/create', data)
 }
 
 // 更新函数
 export function updateFunction(id: number, data: Partial<Function>) {
-  return put(`/api/v1/workspace/function/${id}`, data)
+  return put(`/workspace/api/v1/function/${id}`, data)
 }
 
 // 删除函数
 export function deleteFunction(id: number) {
-  return del(`/api/v1/workspace/function/${id}`)
+  return del(`/workspace/api/v1/function/${id}`)
 }
 
 // Table 回调操作 - 新增记录
 // 统一使用 POST 方法，原函数的 method 通过 _method 查询参数传递，参数放在 body 里
 export function tableAddRow(method: string, router: string, data: any) {
-  const url = `/api/v1/callback${router}?_type=OnTableAddRow&_method=${method.toUpperCase()}`
+  const url = `/workspace/api/v1/callback${router}?_type=OnTableAddRow&_method=${method.toUpperCase()}`
 
   // 统一使用 POST 方法
   return post(url, data)
@@ -73,7 +73,7 @@ export function tableAddRow(method: string, router: string, data: any) {
 // Table 回调操作 - 更新记录
 // 统一使用 POST 方法，原函数的 method 通过 _method 查询参数传递，参数放在 body 里
 export function tableUpdateRow(method: string, router: string, data: any) {
-  const url = `/api/v1/callback${router}?_type=OnTableUpdateRow&_method=${method.toUpperCase()}`
+  const url = `/workspace/api/v1/callback${router}?_type=OnTableUpdateRow&_method=${method.toUpperCase()}`
 
   // 统一使用 POST 方法
   return post(url, data)
@@ -82,7 +82,7 @@ export function tableUpdateRow(method: string, router: string, data: any) {
 // Table 回调操作 - 删除记录
 // 统一使用 POST 方法，原函数的 method 通过 _method 查询参数传递，参数放在 body 里
 export function tableDeleteRows(method: string, router: string, ids: number[]) {
-  const url = `/api/v1/callback${router}?_type=OnTableDeleteRows&_method=${method.toUpperCase()}`
+  const url = `/workspace/api/v1/callback${router}?_type=OnTableDeleteRows&_method=${method.toUpperCase()}`
   const data = { ids }
 
   // 统一使用 POST 方法
@@ -148,7 +148,7 @@ export function selectFuzzy(method: string, router: string, data: {
   request: Record<string, any>
   value_type: string
 }) {
-  const url = `/api/v1/callback${router}?_type=OnSelectFuzzy&_function_method=${method.toUpperCase()}`
+  const url = `/workspace/api/v1/callback${router}?_type=OnSelectFuzzy&_function_method=${method.toUpperCase()}`
 
   // 统一使用 POST 方法
   return post(url, data)
@@ -161,7 +161,7 @@ export function exportData(router: string, params: SearchParams) {
 
 // 导入数据
 export function importData(router: string, formData: FormData) {
-  return post(`/api/v1/import`, formData, {
+  return post(`/workspace/api/v1/import`, formData, {
     headers: {
       'Content-Type': 'multipart/form-data'
     }
@@ -173,7 +173,7 @@ export function forkFunctionGroup(data: {
   source_to_target_map: Record<string, string>
   target_app_id: number
 }) {
-  return post<{ message: string }>('/api/v1/function/fork', data)
+  return post<{ message: string }>('/workspace/api/v1/function/fork', data)
 }
 
 /**
@@ -211,5 +211,5 @@ export interface GetFunctionGroupInfoResp {
 }
 
 export function getFunctionGroupInfo(fullGroupCode: string) {
-  return get<GetFunctionGroupInfoResp>('/api/v1/function/group-info', { full_group_code: fullGroupCode })
+  return get<GetFunctionGroupInfoResp>('/workspace/api/v1/function/group-info', { full_group_code: fullGroupCode })
 }

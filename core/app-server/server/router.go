@@ -20,14 +20,12 @@ func (s *Server) setupRoutes() {
 	// Swagger 文档路由
 	s.httpServer.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
-	// API v1 路由组
-	apiV1 := s.httpServer.Group("/api/v1")
-
-	// Workspace 路由组（统一使用 /api/v1/workspace 开头，方便网关代理）
-	workspace := apiV1.Group("/workspace")
+	// Workspace 路由组（统一使用 /workspace/api/v1 开头，方便网关代理）
+	workspace := s.httpServer.Group("/workspace")
+	apiV1 := workspace.Group("/api/v1")
 
 	// 认证相关路由（不需要JWT验证）
-	auth := workspace.Group("/auth")
+	auth := apiV1.Group("/auth")
 	authHandler := v1.NewAuth(s.authService, s.emailService)
 	auth.POST("/send_email_code", authHandler.SendEmailCode)
 	auth.POST("/register", authHandler.Register)
@@ -36,7 +34,7 @@ func (s *Server) setupRoutes() {
 	auth.POST("/logout", authHandler.Logout)
 
 	// 应用管理路由（需要JWT验证）
-	app := workspace.Group("/app")
+	app := apiV1.Group("/app")
 	app.Use(middleware2.JWTAuth()) // 应用管理需要JWT认证
 	appHandler := v1.NewApp(s.appService)
 	app.GET("/list", appHandler.GetApps)
@@ -44,16 +42,16 @@ func (s *Server) setupRoutes() {
 	app.POST("/update/:app", appHandler.UpdateApp)
 	app.DELETE("/delete/:app", appHandler.DeleteApp)
 	// 支持所有 HTTP 方法的请求应用接口
-	request := workspace.Group("/run")
+	request := apiV1.Group("/run")
 	request.Use(middleware2.JWTAuth())
 	request.Any("/*router", appHandler.RequestApp)
 
-	callback := workspace.Group("/callback")
+	callback := apiV1.Group("/callback")
 	callback.Use(middleware2.JWTAuth())
 	callback.POST("/*router", appHandler.CallbackApp)
 
 	// 服务目录管理路由（需要JWT验证）
-	serviceTree := workspace.Group("/service_tree")
+	serviceTree := apiV1.Group("/service_tree")
 	serviceTree.Use(middleware2.JWTAuth()) // 服务目录管理需要JWT认证
 	serviceTreeHandler := v1.NewServiceTree(s.serviceTreeService)
 	serviceTree.POST("", serviceTreeHandler.CreateServiceTree)
@@ -64,14 +62,14 @@ func (s *Server) setupRoutes() {
 	serviceTree.POST("/publish_to_hub", serviceTreeHandler.PublishDirectoryToHub) // 发布目录到 Hub
 
 	// 函数管理路由（需要JWT验证）
-	function := workspace.Group("/function")
+	function := apiV1.Group("/function")
 	function.Use(middleware2.JWTAuth()) // 函数管理需要JWT认证
 	functionHandler := v1.NewFunction(s.functionService)
 	function.GET("/get", functionHandler.GetFunction)
 	function.GET("/list", functionHandler.GetFunctionsByApp)
 
 	// 用户管理路由（需要JWT验证）
-	user := workspace.Group("/user")
+	user := apiV1.Group("/user")
 	user.Use(middleware2.JWTAuth()) // 用户管理需要JWT认证
 	userHandler := v1.NewUser(s.userService)
 	user.GET("/info", userHandler.GetUserInfo)
@@ -80,12 +78,12 @@ func (s *Server) setupRoutes() {
 	user.PUT("/update", userHandler.UpdateUser)
 
 	// 批量获取用户（需要JWT验证）
-	users := workspace.Group("/users")
+	users := apiV1.Group("/users")
 	users.Use(middleware2.JWTAuth())
 	users.POST("", userHandler.GetUsersByUsernames)
 
 	// 操作日志路由（需要JWT验证 + 操作日志功能鉴权）
-	operateLog := workspace.Group("/operate_log")
+	operateLog := apiV1.Group("/operate_log")
 	operateLog.Use(middleware2.JWTAuth())                                    // JWT 认证
 	operateLog.Use(middleware2.RequireFeature(enterprise.FeatureOperateLog)) // 操作日志功能鉴权（企业版）
 	operateLogHandler := v1.NewOperateLog(s.operateLogService)
@@ -93,7 +91,7 @@ func (s *Server) setupRoutes() {
 	operateLog.GET("/form", operateLogHandler.GetFormOperateLogs)   // 查询 Form 操作日志
 
 	// 目录更新历史路由（需要JWT验证）
-	directoryUpdateHistory := workspace.Group("/directory_update_history")
+	directoryUpdateHistory := apiV1.Group("/directory_update_history")
 	directoryUpdateHistory.Use(middleware2.JWTAuth()) // 目录更新历史需要JWT认证
 	directoryUpdateHistoryHandler := v1.NewDirectoryUpdateHistory(s.directoryUpdateHistoryService)
 	directoryUpdateHistory.GET("/app_version", directoryUpdateHistoryHandler.GetAppVersionUpdateHistory) // 获取应用版本更新历史（App视角）
