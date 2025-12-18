@@ -70,7 +70,7 @@ agent:
 
 ### 2. 路由规范
 - **不使用 RESTful 风格**，参数放在 query 和 body 里
-- 路由示例：`GET /api/v1/agent/list`, `POST /api/v1/agent/create`
+- 路由示例：`GET /agent/api/v1/agents/list`, `POST /agent/api/v1/agents/create`
 - 不使用 `/:id` 这种路径参数
 
 ### 3. DTO 规范

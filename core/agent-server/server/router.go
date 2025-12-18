@@ -26,10 +26,10 @@ func (s *Server) setupRoutes() {
 	apiV1 := agent.Group("/api/v1")
 
 	// 添加用户信息中间件
-	agent.Use(middleware2.WithUserInfo())
+	apiV1.Use(middleware2.WithUserInfo())
 
 	// 智能体管理路由
-	agents := agent.Group("/agents")
+	agents := apiV1.Group("/agents")
 	agentHandler := v1.NewAgent(s.agentService, s.cfg)
 	agents.GET("/list", agentHandler.List)        // 获取智能体列表（前端调用）
 	agents.GET("/get", agentHandler.Get)          // 获取智能体详情
@@ -40,7 +40,7 @@ func (s *Server) setupRoutes() {
 	agents.POST("/disable", agentHandler.Disable) // 禁用智能体
 
 	// 知识库管理路由
-	knowledge := agent.Group("/knowledge")
+	knowledge := apiV1.Group("/knowledge")
 	knowledgeHandler := v1.NewKnowledge(s.knowledgeService)
 	knowledge.GET("/list", knowledgeHandler.List)                      // 获取知识库列表
 	knowledge.GET("/get", knowledgeHandler.Get)                        // 获取知识库详情
@@ -56,7 +56,7 @@ func (s *Server) setupRoutes() {
 	knowledge.POST("/delete_document", knowledgeHandler.DeleteDocument)     // 删除文档
 
 	// LLM 配置管理路由
-	llm := agent.Group("/llm")
+	llm := apiV1.Group("/llm")
 	llmHandler := v1.NewLLM(s.llmService)
 	llm.GET("/list", llmHandler.List)              // 获取LLM配置列表
 	llm.GET("/get", llmHandler.Get)                // 获取LLM配置详情
@@ -67,7 +67,7 @@ func (s *Server) setupRoutes() {
 	llm.POST("/set_default", llmHandler.SetDefault) // 设置默认LLM配置
 
 	// 插件管理路由
-	plugins := agent.Group("/plugins")
+	plugins := apiV1.Group("/plugins")
 	pluginHandler := v1.NewPlugin(s.pluginService, s.cfg)
 	plugins.GET("/list", pluginHandler.List)              // 获取插件列表
 	plugins.GET("/:id", pluginHandler.Get)                // 获取插件详情
@@ -79,8 +79,9 @@ func (s *Server) setupRoutes() {
 
 	// 智能体聊天路由（按 chat_type 区分）
 	agentChatHandler := v1.NewAgentChat(s.agentChatService)
-	agent.POST("/chat/function_gen", agentChatHandler.FunctionGenChat)              // 智能体聊天 - 函数生成类型
-	agent.GET("/chat/function_gen/status", agentChatHandler.GetFunctionGenStatus)    // 查询代码生成状态
-	agent.GET("/chat/sessions", agentChatHandler.ListSessions)                      // 获取会话列表
-	agent.GET("/chat/messages", agentChatHandler.ListMessages)                      // 获取消息列表
+	chat := apiV1.Group("/chat")
+	chat.POST("/function_gen", agentChatHandler.FunctionGenChat)              // 智能体聊天 - 函数生成类型
+	chat.GET("/function_gen/status", agentChatHandler.GetFunctionGenStatus)    // 查询代码生成状态
+	chat.GET("/sessions", agentChatHandler.ListSessions)                      // 获取会话列表
+	chat.GET("/messages", agentChatHandler.ListMessages)                      // 获取消息列表
 }

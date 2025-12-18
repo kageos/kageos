@@ -31,7 +31,7 @@ func NewAgentChat(service *service.AgentChatService) *AgentChat {
 // @Param request body dto.FunctionGenAgentChatReq true "聊天请求"
 // @Success 200 {object} dto.FunctionGenAgentChatResp "聊天成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/chat/function_gen [post]
+// @Router /agent/api/v1/chat/function_gen [post]
 func (h *AgentChat) FunctionGenChat(c *gin.Context) {
 	var req dto.FunctionGenAgentChatReq
 	var resp *dto.FunctionGenAgentChatResp
@@ -83,7 +83,7 @@ func (h *AgentChat) FunctionGenChat(c *gin.Context) {
 // @Param page_size query int true "每页数量"
 // @Success 200 {object} dto.ChatSessionListResp "获取成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/chat/sessions [get]
+// @Router /agent/api/v1/chat/sessions [get]
 func (h *AgentChat) ListSessions(c *gin.Context) {
 	var req dto.ChatSessionListReq
 	var resp *dto.ChatSessionListResp
@@ -153,7 +153,7 @@ func (h *AgentChat) ListSessions(c *gin.Context) {
 // @Param session_id query string true "会话ID"
 // @Success 200 {object} dto.ChatMessageListResp "获取成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/chat/messages [get]
+// @Router /agent/api/v1/chat/messages [get]
 func (h *AgentChat) ListMessages(c *gin.Context) {
 	var req dto.ChatMessageListReq
 	var resp *dto.ChatMessageListResp
@@ -207,7 +207,7 @@ func (h *AgentChat) ListMessages(c *gin.Context) {
 // @Success 200 {object} dto.FunctionGenStatusResp "查询成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 404 {string} string "记录不存在"
-// @Router /api/v1/agent/chat/function_gen/status [get]
+// @Router /agent/api/v1/chat/function_gen/status [get]
 func (h *AgentChat) GetFunctionGenStatus(c *gin.Context) {
 	var req dto.FunctionGenStatusReq
 	var resp *dto.FunctionGenStatusResp

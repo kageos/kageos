@@ -36,7 +36,7 @@ func NewPlugin(service *service.PluginService, cfg *config.AgentServerConfig) *P
 // @Param page_size query int true "每页数量" default(10)
 // @Success 200 {object} dto.PluginListResp "获取成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/plugins/list [get]
+// @Router /agent/api/v1/plugins/list [get]
 func (h *Plugin) List(c *gin.Context) {
 	var req dto.PluginListReq
 	var resp *dto.PluginListResp
@@ -103,7 +103,7 @@ func (h *Plugin) List(c *gin.Context) {
 // @Param plugin body dto.CreatePluginReq true "插件信息"
 // @Success 200 {object} dto.PluginInfo "创建成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/plugins [post]
+// @Router /agent/api/v1/plugins [post]
 func (h *Plugin) Create(c *gin.Context) {
 	var req dto.CreatePluginReq
 	var resp *dto.PluginInfo
@@ -162,7 +162,7 @@ func (h *Plugin) Create(c *gin.Context) {
 // @Param plugin body dto.UpdatePluginReq true "插件信息"
 // @Success 200 {object} dto.PluginInfo "更新成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/plugins/{id} [put]
+// @Router /agent/api/v1/plugins/{id} [put]
 func (h *Plugin) Update(c *gin.Context) {
 	var req dto.UpdatePluginReq
 	var resp *dto.PluginInfo
@@ -234,7 +234,7 @@ func (h *Plugin) Update(c *gin.Context) {
 // @Param id path int true "插件ID"
 // @Success 200 {object} dto.PluginInfo "获取成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/plugins/{id} [get]
+// @Router /agent/api/v1/plugins/{id} [get]
 func (h *Plugin) Get(c *gin.Context) {
 	var resp *dto.PluginInfo
 	var err error
@@ -288,7 +288,7 @@ func (h *Plugin) Get(c *gin.Context) {
 // @Param id path int true "插件ID"
 // @Success 200 {string} string "删除成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/plugins/{id} [delete]
+// @Router /agent/api/v1/plugins/{id} [delete]
 func (h *Plugin) Delete(c *gin.Context) {
 	var err error
 
@@ -326,7 +326,7 @@ func (h *Plugin) Delete(c *gin.Context) {
 // @Param id path int true "插件ID"
 // @Success 200 {string} string "启用成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/plugins/{id}/enable [post]
+// @Router /agent/api/v1/plugins/{id}/enable [post]
 func (h *Plugin) Enable(c *gin.Context) {
 	var err error
 
@@ -364,7 +364,7 @@ func (h *Plugin) Enable(c *gin.Context) {
 // @Param id path int true "插件ID"
 // @Success 200 {string} string "禁用成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/plugins/{id}/disable [post]
+// @Router /agent/api/v1/plugins/{id}/disable [post]
 func (h *Plugin) Disable(c *gin.Context) {
 	var err error
 
