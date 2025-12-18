@@ -728,49 +728,51 @@ func (s *ServiceTreeService) BatchCreateDirectoryTree(
 	pathToTree := make(map[string]*model.ServiceTree)
 	currentVersionNum := extractVersionNumForServiceTree(app.Version)
 
-	// 遍历所有项，创建 ServiceTree 记录
+	// 遍历所有项，创建 ServiceTree 记录（只处理目录）
 	for _, item := range sortedItems {
-		if item.Type == "directory" {
-			// 提取目录代码（路径的最后一部分）
-			pathParts := strings.Split(strings.Trim(item.FullCodePath, "/"), "/")
-			if len(pathParts) < 3 {
-				continue // 跳过无效路径
-			}
-			dirCode := pathParts[len(pathParts)-1]
+		// 只处理目录，文件不在这里处理
+		if item.Type != "directory" {
+			continue
+		}
 
-			// 查找父目录
-			var parentID int64 = 0
-			parentPath := getParentPath(item.FullCodePath)
-			if parentPath != "" {
-				if parentTree, exists := pathToTree[parentPath]; exists {
-					parentID = parentTree.ID
-				}
-			}
+		// 提取目录代码（路径的最后一部分）
+		pathParts := strings.Split(strings.Trim(item.FullCodePath, "/"), "/")
+		if len(pathParts) < 3 {
+			continue // 跳过无效路径
+		}
+		dirCode := pathParts[len(pathParts)-1]
 
-			// 创建 ServiceTree 记录
-			newTree := &model.ServiceTree{
-				Name:             item.Name,
-				Code:             dirCode,
-				ParentID:         parentID,
-				Type:             model.ServiceTreeTypePackage,
-				Description:      item.Description,
-				Tags:             item.Tags,
-				AppID:            app.ID,
-				FullCodePath:     item.FullCodePath,
-				AddVersionNum:    currentVersionNum,
-				UpdateVersionNum: 0,
-			}
-
-			// 保存到数据库
-			if err := s.serviceTreeRepo.CreateServiceTreeWithParentPath(newTree, ""); err != nil {
-				logger.Warnf(ctx, "[BatchCreateDirectoryTree] 创建 ServiceTree 记录失败: path=%s, error=%v",
-					item.FullCodePath, err)
-				// 不返回错误，因为目录已经创建成功
-			} else {
-				pathToTree[item.FullCodePath] = newTree
+		// 查找父目录
+		var parentID int64 = 0
+		parentPath := getParentPath(item.FullCodePath)
+		if parentPath != "" {
+			if parentTree, exists := pathToTree[parentPath]; exists {
+				parentID = parentTree.ID
 			}
 		}
-		// 文件类型的 ServiceTree 记录会在后续的 UpdateApp 中创建，这里不处理
+
+		// 创建 ServiceTree 记录
+		newTree := &model.ServiceTree{
+			Name:             item.Name,
+			Code:             dirCode,
+			ParentID:         parentID,
+			Type:             model.ServiceTreeTypePackage,
+			Description:      item.Description,
+			Tags:             item.Tags,
+			AppID:            app.ID,
+			FullCodePath:     item.FullCodePath,
+			AddVersionNum:    currentVersionNum,
+			UpdateVersionNum: 0,
+		}
+
+		// 保存到数据库
+		if err := s.serviceTreeRepo.CreateServiceTreeWithParentPath(newTree, ""); err != nil {
+			logger.Warnf(ctx, "[BatchCreateDirectoryTree] 创建 ServiceTree 记录失败: path=%s, error=%v",
+				item.FullCodePath, err)
+			// 不返回错误，因为目录已经创建成功
+		} else {
+			pathToTree[item.FullCodePath] = newTree
+		}
 	}
 
 	return &dto.BatchCreateDirectoryTreeResp{
