@@ -718,7 +718,7 @@ func (s *ServiceTreeService) BatchCreateDirectoryTree(
 	// 先按路径排序，确保先创建父目录
 	sortedItems := make([]*dto.DirectoryTreeItem, len(req.Items))
 	copy(sortedItems, req.Items)
-	
+
 	// 按路径长度排序
 	sort.Slice(sortedItems, func(i, j int) bool {
 		return len(sortedItems[i].FullCodePath) < len(sortedItems[j].FullCodePath)
