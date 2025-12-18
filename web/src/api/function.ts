@@ -4,27 +4,27 @@ import type { FieldConfig } from '@/core/types/field'
 
 // 获取函数详情
 export function getFunctionDetail(functionId: number) {
-  return get<Function>(`/api/v1/function/get`, { function_id: functionId })
+  return get<Function>(`/api/v1/workspace/function/get`, { function_id: functionId })
 }
 
 // 根据路径获取函数详情
 export function getFunctionByPath(fullCodePath: string) {
-  return get<Function>(`/api/v1/function/by-path`, { path: fullCodePath })
+  return get<Function>(`/api/v1/workspace/function/by-path`, { path: fullCodePath })
 }
 
 // 获取应用下所有函数
 export function getFunctionList(appId: number) {
-  return get<Function[]>('/api/v1/function/list', { app_id: appId })
+  return get<Function[]>('/api/v1/workspace/function/list', { app_id: appId })
 }
 
 // 获取服务目录下函数列表
 export function getFunctionByTree(treeId: number) {
-  return get<Function[]>(`/api/v1/function/tree/${treeId}`)
+  return get<Function[]>(`/api/v1/workspace/function/tree/${treeId}`)
 }
 
 // 执行函数（通用）
 export function executeFunction(method: string, router: string, params?: SearchParams | any) {
-  const url = `/api/v1/run${router}`
+  const url = `/api/v1/workspace/run${router}`
 
   // 根据方法类型调用不同的请求方法
   switch (method.toUpperCase()) {
@@ -48,17 +48,17 @@ export function executeFunction(method: string, router: string, params?: SearchP
 
 // 创建函数
 export function createFunction(data: Partial<Function>) {
-  return post<Function>('/api/v1/function/create', data)
+  return post<Function>('/api/v1/workspace/function/create', data)
 }
 
 // 更新函数
 export function updateFunction(id: number, data: Partial<Function>) {
-  return put(`/api/v1/function/${id}`, data)
+  return put(`/api/v1/workspace/function/${id}`, data)
 }
 
 // 删除函数
 export function deleteFunction(id: number) {
-  return del(`/api/v1/function/${id}`)
+  return del(`/api/v1/workspace/function/${id}`)
 }
 
 // Table 回调操作 - 新增记录
