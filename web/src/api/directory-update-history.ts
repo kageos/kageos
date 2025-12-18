@@ -8,6 +8,7 @@ export interface ApiSummary {
   router: string
   method: string
   full_code_path: string
+  template_type?: string // 模板类型（如 form、table、chart）
 }
 
 // 目录变更信息
@@ -29,6 +30,8 @@ export interface DirectoryChangeInfo {
   duration?: number // 变更耗时（毫秒）
   updated_by: string
   created_at: string
+  directory_name?: string // 目录名称
+  directory_desc?: string // 目录描述
 }
 
 // 应用版本更新信息

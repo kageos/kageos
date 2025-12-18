@@ -71,6 +71,7 @@ type RuntimeConfig struct {
 type AppManageServiceConfig struct {
 	AppDir AppDirConfig `mapstructure:"app_dir"`
 	Build  BuildConfig  `mapstructure:"build"`
+	Git    GitConfig    `mapstructure:"git"` // Git 配置
 }
 
 // AppDirConfig 应用目录配置
@@ -84,6 +85,11 @@ type BuildConfig struct {
 	Platform         string `mapstructure:"platform"`
 	OutputDir        string `mapstructure:"output_dir"`
 	BinaryNameFormat string `mapstructure:"binary_name_format"`
+}
+
+// GitConfig Git 配置
+type GitConfig struct {
+	EmailSuffix string `mapstructure:"email_suffix"` // Git 邮箱后缀（如 "ai-agent-os.com"）
 }
 
 // ContainerServiceConfig 容器服务配置

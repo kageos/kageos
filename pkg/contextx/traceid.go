@@ -2,6 +2,7 @@ package contextx
 
 import (
 	"context"
+	"github.com/nats-io/nats.go"
 
 	"github.com/gin-gonic/gin"
 )
@@ -36,14 +37,14 @@ func GetTraceId(c context.Context) string {
 		// 从 gin context 读取（兼容旧方式）
 		return v.GetString("trace_id")
 	}
-	
+
 	// 从标准 context.Value 读取（可能是 ToContext 转换后的标准 context）
 	if value := c.Value("trace_id"); value != nil {
 		if traceId, ok := value.(string); ok && traceId != "" {
 			return traceId
 		}
 	}
-	
+
 	return ""
 }
 
@@ -75,7 +76,7 @@ func GetRequestUser(c context.Context) string {
 		}
 		return ""
 	}
-	
+
 	// 从标准 context.Value 读取（可能是 ToContext 转换后的标准 context，或 context.WithValue 包装的）
 	// context.WithValue 创建的新 context 的 Value() 会向上查找父 context
 	if value := c.Value("request_user"); value != nil {
@@ -83,7 +84,7 @@ func GetRequestUser(c context.Context) string {
 			return requestUser
 		}
 	}
-	
+
 	return ""
 }
 
@@ -115,7 +116,7 @@ func GetToken(c context.Context) string {
 // 这样即使内部使用 context.WithValue 包装，也能通过 context.Value 获取到这些值
 func ToContext(c *gin.Context) context.Context {
 	ctx := context.Background()
-	
+
 	// 1. 解析 TraceId（优先从 header，然后从 gin context）
 	traceId := c.GetHeader(TraceIdHeader)
 	if traceId == "" {
@@ -123,8 +124,9 @@ func ToContext(c *gin.Context) context.Context {
 	}
 	if traceId != "" {
 		ctx = context.WithValue(ctx, "trace_id", traceId)
+		ctx = context.WithValue(ctx, TraceIdHeader, traceId)
 	}
-	
+
 	// 2. 解析 RequestUser（优先从 header，然后从 gin context）
 	requestUser := c.GetHeader(RequestUserHeader)
 	if requestUser == "" {
@@ -135,8 +137,9 @@ func ToContext(c *gin.Context) context.Context {
 	}
 	if requestUser != "" {
 		ctx = context.WithValue(ctx, "request_user", requestUser)
+		ctx = context.WithValue(ctx, RequestUserHeader, requestUser)
 	}
-	
+
 	// 3. 解析 Token（优先从 gin context，然后从 header）
 	token := c.GetString("token")
 	if token == "" {
@@ -144,7 +147,40 @@ func ToContext(c *gin.Context) context.Context {
 	}
 	if token != "" {
 		ctx = context.WithValue(ctx, "token", token)
+		ctx = context.WithValue(ctx, TokenHeader, token)
 	}
-	
+
 	return ctx
+}
+
+func NatsTraceContext(msg *nats.Msg) context.Context {
+	//从nats 取出用户信息相关
+	background := context.Background()
+	ctx := context.WithValue(background, RequestUserHeader, msg.Header.Get(RequestUserHeader))
+	ctx = context.WithValue(ctx, TokenHeader, msg.Header.Get(TokenHeader))
+	ctx = context.WithValue(ctx, TraceIdHeader, msg.Header.Get(TraceIdHeader))
+
+	return ctx
+}
+
+// NewNatsMsg 需要携带尽可能多的信息，例如请求用户，trace_id
+func NewNatsTraceMsg(subject string, requestUser string, traceID string, token string) *nats.Msg {
+	msg := nats.NewMsg(subject)
+	msg.Header.Set(TraceIdHeader, traceID)
+	msg.Header.Set(TokenHeader, token)
+	msg.Header.Set(RequestUserHeader, requestUser)
+	return msg
+}
+
+func CtxToTraceNats(c context.Context, subject string) *nats.Msg {
+	user := GetRequestUser(c)
+	token := GetToken(c)
+	trace := GetTraceId(c)
+
+	msg := nats.NewMsg(subject)
+	msg.Header.Set(TraceIdHeader, trace)
+	msg.Header.Set(TokenHeader, token)
+	msg.Header.Set(RequestUserHeader, user)
+	return msg
+
 }

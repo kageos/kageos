@@ -57,7 +57,8 @@ func (s *Server) setupRoutes() {
 	serviceTree.GET("", serviceTreeHandler.GetServiceTree)
 	serviceTree.PUT("", serviceTreeHandler.UpdateServiceTree)
 	serviceTree.DELETE("", serviceTreeHandler.DeleteServiceTree)
-	serviceTree.POST("/copy", serviceTreeHandler.CopyServiceTree) // 复制服务目录
+	serviceTree.POST("/copy", serviceTreeHandler.CopyServiceTree)                 // 复制服务目录
+	serviceTree.POST("/publish_to_hub", serviceTreeHandler.PublishDirectoryToHub) // 发布目录到 Hub
 
 	// 函数管理路由（需要JWT验证）
 	function := apiV1.Group("/function")

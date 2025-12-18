@@ -402,7 +402,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	s.operateLogService = service.NewOperateLogService(operateLogRepo)
 
 	// 初始化目录更新历史服务
-	s.directoryUpdateHistoryService = service.NewDirectoryUpdateHistoryService(directoryUpdateHistoryRepo)
+	s.directoryUpdateHistoryService = service.NewDirectoryUpdateHistoryService(directoryUpdateHistoryRepo, serviceTreeRepo)
 
 	logger.Infof(ctx, "[Server] Services initialized successfully")
 	return nil

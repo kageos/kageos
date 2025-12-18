@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-runtime/service"
@@ -87,6 +88,9 @@ func (s *Server) handleServiceTreeCreate(msg *nats.Msg) {
 // handleAppUpdate 处理应用更新请求
 func (s *Server) handleAppUpdate(msg *nats.Msg) {
 	ctx := context.Background()
+	//contextx.GetRequestUser()
+
+	traceContext := contextx.NatsTraceContext(msg)
 
 	// 使用统一的解析方法
 	msgInfo, err := msgx.DecodeNatsMsg[dto.UpdateAppReq](msg)
@@ -102,8 +106,8 @@ func (s *Server) handleAppUpdate(msg *nats.Msg) {
 	//logger.Infof(ctx, "[handleAppUpdate] *** ENTRY *** Received app update request: tenantUser=%s, requestUser=%s, app=%s, reply=%s",
 	//	tenantUser, msgInfo.RequestUser, msgInfo.Data.App, msg.Reply)
 
-	// 调用应用管理服务更新应用（传递 ForkPackages 和 CreateFunctions）
-	result, err := s.appManageService.UpdateApp(ctx, tenantUser, msgInfo.Data.App, msgInfo.Data.ForkPackages, msgInfo.Data.CreateFunctions)
+	// 调用应用管理服务更新应用（传递 ForkPackages、CreateFunctions、Requirement 和 ChangeDescription）
+	result, err := s.appManageService.UpdateApp(traceContext, tenantUser, msgInfo.Data.App, msgInfo.Data.ForkPackages, msgInfo.Data.CreateFunctions, msgInfo.Data.Requirement, msgInfo.Data.ChangeDescription)
 	if err != nil {
 		logger.Errorf(ctx, "[handleAppUpdate] Failed to update app: %v", err)
 		msgx.RespFailMsg(msg, err)
