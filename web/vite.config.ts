@@ -29,7 +29,12 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      // 统一通过网关代理所有 API 请求
+      // Workspace API 通过网关代理
+      '/workspace': {
+        target: 'http://localhost:9090',  // 网关地址
+        changeOrigin: true,
+      },
+      // 统一通过网关代理所有 API 请求（兜底，用于兼容旧路径）
       '/api': {
         target: 'http://localhost:9090',  // 网关地址
         changeOrigin: true,
