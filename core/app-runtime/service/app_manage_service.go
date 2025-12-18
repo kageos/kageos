@@ -18,6 +18,8 @@ import (
 	appPkg "github.com/ai-agent-os/ai-agent-os/pkg/app"
 	"github.com/ai-agent-os/ai-agent-os/pkg/builder"
 	appconfig "github.com/ai-agent-os/ai-agent-os/pkg/config"
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
+	"github.com/ai-agent-os/ai-agent-os/pkg/gitx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
 	"github.com/nats-io/nats.go"
@@ -444,7 +446,7 @@ func (s *AppManageService) DeleteApp(ctx context.Context, user, app string) erro
 // UpdateApp 更新应用（重新编译并重启容器）
 // 如果提供了 CreateFunctions，先执行创建函数操作
 // 如果提供了 ForkPackages，先执行 fork 操作，再执行更新
-func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, forkPackages []*sharedDto.ForkPackageInfo, createFunctions []*sharedDto.CreateFunctionInfo) (*dto.UpdateAppResp, error) {
+func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, forkPackages []*sharedDto.ForkPackageInfo, createFunctions []*sharedDto.CreateFunctionInfo, requirement, changeDescription string) (*dto.UpdateAppResp, error) {
 
 	logStr := strings.Builder{}
 	logStr.WriteString(fmt.Sprintf("[UpdateApp] Starting update: %s/%s\t", user, app))
@@ -576,6 +578,15 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, fork
 
 	newVersion := buildResult.Version
 
+	// 🔥 新增：Git 提交（在编译成功后）
+	var gitCommitHash string
+	if hash, err := s.commitToGit(ctx, user, app, newVersion, requirement, changeDescription); err != nil {
+		logger.Warnf(ctx, "[UpdateApp] Git 提交失败: %v，继续执行", err)
+		// Git 提交失败不应该影响主流程
+	} else {
+		gitCommitHash = hash
+	}
+
 	// 4. 更新或创建 version.json 文件
 	metadataDir := filepath.Join(absAppDir, "workplace/metadata")
 	versionFile := filepath.Join(metadataDir, "version.json")
@@ -671,12 +682,13 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, fork
 	// 解析嵌套的 diff 数据，避免双嵌套
 
 	result := &dto.UpdateAppResp{
-		User:       user,
-		App:        app,
-		OldVersion: oldVersion,
-		NewVersion: newVersion,
-		Diff:       updateCallbackResponse.Data, // 修复后的 diff 信息
-		Error:      callbackErr,
+		User:          user,
+		App:           app,
+		OldVersion:    oldVersion,
+		NewVersion:    newVersion,
+		GitCommitHash: gitCommitHash,              // Git 提交哈希
+		Diff:          updateCallbackResponse.Data, // 修复后的 diff 信息
+		Error:         callbackErr,
 	}
 
 	return result, nil
@@ -1485,4 +1497,80 @@ func (s *AppManageService) ReadDirectoryFiles(ctx context.Context, user, app, fu
 
 	logger.Infof(ctx, "[ReadDirectoryFiles] 读取目录文件完成: path=%s, fileCount=%d", directoryPath, len(files))
 	return files, nil
+}
+
+// GitCommitMessage Git 提交消息结构体
+type GitCommitMessage struct {
+	AppVersion       string `json:"app_version"`        // 应用版本号
+	Requirement      string `json:"requirement"`       // 变更需求
+	ChangeDescription string `json:"change_description"` // 变更描述
+	Summary          string `json:"summary"`           // 变更摘要
+	Timestamp        string `json:"timestamp"`         // 时间戳
+}
+
+// commitToGit 提交代码到 Git，返回 commit hash
+func (s *AppManageService) commitToGit(
+	ctx context.Context,
+	user, app, version string,
+	requirement, changeDescription string,
+) (string, error) {
+	// 1. 获取应用代码目录
+	appCodeDir := filepath.Join(s.config.AppDir.BasePath, user, app, "code", "api")
+
+	// 2. 从 ctx 获取用户名称
+	authorName := contextx.GetRequestUser(ctx)
+	if authorName == "" {
+		authorName = user // 如果 ctx 中没有用户信息，使用 user 参数
+	}
+
+	// 3. 获取邮箱后缀（从配置读取）
+	emailSuffix := s.config.Git.EmailSuffix
+	if emailSuffix == "" {
+		emailSuffix = "ai-agent-os.com" // 默认后缀
+	}
+
+	// 4. 构建邮箱：{user}@{email_suffix}
+	if authorName == "" || authorName == "system" {
+		authorName = "system"
+	}
+	authorEmail := fmt.Sprintf("%s@%s", authorName, emailSuffix)
+
+	// 4. 初始化或打开 Git 仓库
+	gitRepo, err := gitx.InitOrOpen(appCodeDir, authorName, authorEmail)
+	if err != nil {
+		return "", fmt.Errorf("初始化 Git 仓库失败: %w", err)
+	}
+
+	// 5. 构建 commit message（JSON 格式）
+	commitMsg := GitCommitMessage{
+		AppVersion:        version,
+		Requirement:       requirement,
+		ChangeDescription: changeDescription,
+		Timestamp:         time.Now().Format(time.RFC3339),
+	}
+
+	// 构建 summary
+	if requirement != "" && changeDescription != "" {
+		commitMsg.Summary = fmt.Sprintf("需求：%s\n\n变更描述：%s", requirement, changeDescription)
+	} else if requirement != "" {
+		commitMsg.Summary = requirement
+	} else if changeDescription != "" {
+		commitMsg.Summary = changeDescription
+	}
+
+	commitJSON, err := json.Marshal(commitMsg)
+	if err != nil {
+		return "", fmt.Errorf("序列化 commit message 失败: %w", err)
+	}
+
+	// 6. 添加所有文件并提交
+	commitHash, err := gitRepo.AddAllAndCommit(string(commitJSON))
+	if err != nil {
+		return "", fmt.Errorf("Git 提交失败: %w", err)
+	}
+
+	logger.Infof(ctx, "[commitToGit] Git 提交成功: user=%s, app=%s, version=%s, commitHash=%s",
+		user, app, version, commitHash)
+
+	return commitHash, nil
 }

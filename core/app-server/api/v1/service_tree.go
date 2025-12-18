@@ -187,3 +187,40 @@ func (s *ServiceTree) CopyServiceTree(c *gin.Context) {
 	}
 	response.OkWithData(c, resp)
 }
+
+// PublishDirectoryToHub 发布目录到 Hub
+// @Summary 发布目录到 Hub
+// @Description 将指定目录及其所有子目录发布到 Hub 市场
+// @Tags 服务目录
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Param request body dto.PublishDirectoryToHubReq true "发布目录请求"
+// @Success 200 {object} dto.PublishDirectoryToHubResp "发布成功"
+// @Failure 400 {string} string "请求参数错误"
+// @Failure 401 {string} string "未授权"
+// @Failure 500 {string} string "服务器内部错误"
+// @Router /api/v1/service_tree/publish_to_hub [post]
+func (s *ServiceTree) PublishDirectoryToHub(c *gin.Context) {
+	var req dto.PublishDirectoryToHubReq
+	var resp *dto.PublishDirectoryToHubResp
+	var err error
+
+	if err = c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+
+	defer func() {
+		logger.Infof(c, "PublishDirectoryToHub req:%+v resp:%+v err:%v", req, resp, err)
+	}()
+
+	ctx := contextx.ToContext(c)
+	resp, err = s.serviceTreeService.PublishDirectoryToHub(ctx, &req)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.OkWithData(c, resp)
+}

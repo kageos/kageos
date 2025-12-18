@@ -17,20 +17,29 @@ func RequestMsg(conn *nats.Conn, subject string, data interface{}, resp interfac
 }
 
 func RequestMsgWithTimeout(ctx context.Context, conn *nats.Conn, subject string, data interface{}, resp interface{}, timeout time.Duration) (rsp *nats.Msg, err error) {
-	msg := nats.NewMsg(subject)
+
+	msg := contextx.CtxToTraceNats(ctx, subject)
+	//msg := nats.NewMsg(subject)
 	marshal, _ := json.Marshal(data)
 	msg.Data = marshal
 
-	// 从 context 中获取请求用户信息并添加到 NATS header
-	requestUser := contextx.GetRequestUser(ctx)
-	if requestUser != "" {
-		msg.Header.Set("X-Request-User", requestUser)
-	}
+	//// 从 context 中获取请求用户信息并添加到 NATS header
+	//requestUser := contextx.GetRequestUser(ctx)
+	//if requestUser != "" {
+	//	msg.Header.Set(contextx.RequestUserHeader, requestUser)
+	//}
+	//
+	//token := contextx.GetRequestUser(ctx)
+	//if requestUser != "" {
+	//	msg.Header.Set(contextx.RequestUserHeader, requestUser)
+	//}
+	//
+	//// 从 context 中获取追踪ID并添加到 NATS header
+	//if traceId := contextx.GetTraceId(ctx); traceId != "" {
+	//	msg.Header.Set(contextx.TraceIdHeader, traceId)
+	//}
 
-	// 从 context 中获取追踪ID并添加到 NATS header
-	if traceId := contextx.GetTraceId(ctx); traceId != "" {
-		msg.Header.Set("X-Trace-Id", traceId)
-	}
+	//contextx.ToContext()
 
 	requestMsg, err := conn.RequestMsg(msg, timeout)
 	if err != nil {

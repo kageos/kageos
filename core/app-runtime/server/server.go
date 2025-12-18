@@ -218,7 +218,7 @@ func (s *Server) initServices(ctx context.Context) error {
 		appRepo,
 		s.appDiscoveryService,
 		s.natsConn,
-		s.forkService, // 传入 Fork 服务
+		s.forkService,         // 传入 Fork 服务
 		createFunctionService, // 传入创建函数服务
 	)
 
@@ -289,7 +289,7 @@ func (s *Server) subscribeNATS(ctx context.Context) error {
 
 	// 订阅应用创建请求（使用队列组）
 	sub, err = s.natsConn.QueueSubscribe(
-		getAppRuntime2AppCreateRequestSubject(),
+		subjects.GetAppRuntime2AppCreateRequestSubject(),
 		"app-runtime-create-workers",
 		s.handleAppCreate,
 	)
@@ -300,7 +300,7 @@ func (s *Server) subscribeNATS(ctx context.Context) error {
 
 	// 订阅应用更新请求（使用队列组）
 	sub, err = s.natsConn.QueueSubscribe(
-		getAppRuntime2AppUpdateRequestSubject(),
+		subjects.GetAppRuntime2AppUpdateRequestSubject(),
 		"app-runtime-update-workers",
 		s.handleAppUpdate,
 	)
@@ -322,7 +322,7 @@ func (s *Server) subscribeNATS(ctx context.Context) error {
 
 	// 订阅来自 app-server 的请求（使用队列组）
 	sub, err = s.natsConn.QueueSubscribe(
-		getFunctionServer2AppRuntimeRequestSubject(),
+		subjects.GetFunctionServer2AppRuntimeRequestSubject(),
 		"app-runtime-request-workers",
 		s.handleFunctionServerRequest,
 	)

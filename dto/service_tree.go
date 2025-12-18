@@ -1,5 +1,26 @@
 package dto
 
+// PublishDirectoryToHubReq 发布目录到 Hub 请求
+type PublishDirectoryToHubReq struct {
+	SourceUser           string   `json:"source_user" binding:"required"`            // 源用户
+	SourceApp            string   `json:"source_app" binding:"required"`             // 源应用
+	SourceDirectoryPath  string   `json:"source_directory_path" binding:"required"`  // 源目录完整路径
+	Name                 string   `json:"name" binding:"required"`                   // 目录名称
+	Description          string   `json:"description"`                                // 目录描述
+	Category             string   `json:"category"`                                   // 分类
+	Tags                 []string `json:"tags"`                                      // 标签
+	ServiceFeePersonal   float64  `json:"service_fee_personal"`                      // 个人用户服务费
+	ServiceFeeEnterprise float64  `json:"service_fee_enterprise"`                   // 企业用户服务费
+}
+
+// PublishDirectoryToHubResp 发布目录到 Hub 响应
+type PublishDirectoryToHubResp struct {
+	HubDirectoryID  int64  `json:"hub_directory_id"`
+	HubDirectoryURL string `json:"hub_directory_url"`
+	DirectoryCount  int    `json:"directory_count"` // 包含的子目录数量
+	FileCount       int    `json:"file_count"`      // 包含的文件数量
+}
+
 // CreateServiceTreeReq 创建服务目录请求
 type CreateServiceTreeReq struct {
 	User        string `json:"user" binding:"required" example:"beiluo"`   // 用户名

@@ -39,6 +39,9 @@ type DirectoryUpdateHistory struct {
 	// 变更耗时（毫秒）
 	Duration int64 `json:"duration" gorm:"column:duration;comment:变更耗时（毫秒）"`
 	
+	// Git 相关信息
+	GitCommitHash string `json:"git_commit_hash" gorm:"type:varchar(40);column:git_commit_hash;comment:Git提交哈希（用于回滚）"`
+	
 	// 操作信息
 	UpdatedBy string `json:"updated_by" gorm:"column:updated_by;comment:更新人"`
 }
@@ -55,6 +58,7 @@ type ApiSummary struct {
 	Router       string `json:"router"`        // 路由路径
 	Method       string `json:"method"`        // HTTP方法
 	FullCodePath string `json:"full_code_path"` // 完整代码路径
+	TemplateType string `json:"template_type"` // 模板类型（如 form、table、chart）
 }
 
 // GetAddedAPIs 解析新增的API列表

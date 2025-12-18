@@ -13,6 +13,8 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
 
@@ -596,5 +598,84 @@ func (s *ServiceTreeService) CopyServiceTree(ctx context.Context, req *dto.CopyD
 		Message:        fmt.Sprintf("复制目录成功，共复制 %d 个目录，%d 个文件", len(directoryFiles), totalFileCount),
 		DirectoryCount: len(directoryFiles),
 		FileCount:      totalFileCount,
+	}, nil
+}
+
+// PublishDirectoryToHub 发布目录到 Hub
+func (s *ServiceTreeService) PublishDirectoryToHub(ctx context.Context, req *dto.PublishDirectoryToHubReq) (*dto.PublishDirectoryToHubResp, error) {
+	// 1. 获取应用信息
+	sourceApp, err := s.appRepo.GetAppByUserName(req.SourceUser, req.SourceApp)
+	if err != nil {
+		return nil, fmt.Errorf("获取源应用失败: %w", err)
+	}
+
+	// 2. 验证源目录是否存在
+	sourceTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(req.SourceDirectoryPath)
+	if err != nil {
+		return nil, fmt.Errorf("获取源目录信息失败: %w", err)
+	}
+
+	// 3. 递归获取所有目录的文件快照（包括根目录和所有子目录）
+	directoryFiles, err := s.GetDirectorySnapshotsRecursively(ctx, sourceApp.ID, req.SourceDirectoryPath)
+	if err != nil {
+		return nil, fmt.Errorf("获取目录快照失败: %w", err)
+	}
+
+	if len(directoryFiles) == 0 {
+		return nil, fmt.Errorf("未找到任何目录快照，请确保源目录已创建快照")
+	}
+
+	// 4. 转换为 Hub 需要的格式
+	directorySnapshots := make([]*dto.DirectoryFileSnapshot, 0, len(directoryFiles))
+	for dirPath, files := range directoryFiles {
+		fileInfos := make([]*dto.FileSnapshotInfo, 0, len(files))
+		for _, file := range files {
+			fileInfos = append(fileInfos, &dto.FileSnapshotInfo{
+				FileName:     file.FileName,
+				RelativePath: file.RelativePath,
+				Content:      file.Content,
+				FileType:     file.FileType,
+				FileVersion:  file.FileVersion,
+			})
+		}
+		directorySnapshots = append(directorySnapshots, &dto.DirectoryFileSnapshot{
+			FullCodePath: dirPath,
+			Files:        fileInfos,
+		})
+	}
+
+	// 5. 构建 Hub 请求
+	hubReq := &dto.PublishHubDirectoryReq{
+		SourceUser:           req.SourceUser,
+		SourceApp:            req.SourceApp,
+		SourceDirectoryPath:  req.SourceDirectoryPath,
+		Name:                 req.Name,
+		Description:          req.Description,
+		Category:             req.Category,
+		Tags:                 req.Tags,
+		ServiceFeePersonal:   req.ServiceFeePersonal,
+		ServiceFeeEnterprise: req.ServiceFeeEnterprise,
+		Version:              sourceTree.Version,
+		DirectorySnapshots:   directorySnapshots,
+	}
+
+	// 6. 调用 Hub API
+	header := &apicall.Header{
+		TraceID:     contextx.GetTraceId(ctx),
+		RequestUser: contextx.GetRequestUser(ctx),
+		Token:       contextx.GetToken(ctx),
+	}
+
+	hubResp, err := apicall.PublishDirectoryToHub(header, hubReq)
+	if err != nil {
+		return nil, fmt.Errorf("调用 Hub API 失败: %w", err)
+	}
+
+	// 7. 返回结果
+	return &dto.PublishDirectoryToHubResp{
+		HubDirectoryID:  hubResp.HubDirectoryID,
+		HubDirectoryURL: hubResp.HubDirectoryURL,
+		DirectoryCount:  hubResp.DirectoryCount,
+		FileCount:       hubResp.FileCount,
 	}, nil
 }

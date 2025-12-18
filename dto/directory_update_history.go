@@ -44,8 +44,11 @@ type DirectoryChangeInfo struct {
 	Requirement       string          `json:"requirement"`          // 变更需求（用户输入）
 	ChangeDescription string          `json:"change_description"`   // 变更描述（大模型输出）
 	Duration          int64           `json:"duration"`             // 变更耗时（毫秒）
+	GitCommitHash     string          `json:"git_commit_hash"`      // Git 提交哈希（用于回滚）
 	UpdatedBy         string          `json:"updated_by"`           // 更新人
 	CreatedAt         time.Time       `json:"created_at"`          // 创建时间
+	DirectoryName     string          `json:"directory_name"`       // 目录名称
+	DirectoryDesc     string          `json:"directory_desc"`       // 目录描述
 }
 
 // PaginatedInfo 分页信息

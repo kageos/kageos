@@ -15,12 +15,14 @@ import (
 // DirectoryUpdateHistoryService 目录更新历史服务
 type DirectoryUpdateHistoryService struct {
 	directoryUpdateHistoryRepo *repository.DirectoryUpdateHistoryRepository
+	serviceTreeRepo            *repository.ServiceTreeRepository
 }
 
 // NewDirectoryUpdateHistoryService 创建目录更新历史服务
-func NewDirectoryUpdateHistoryService(directoryUpdateHistoryRepo *repository.DirectoryUpdateHistoryRepository) *DirectoryUpdateHistoryService {
+func NewDirectoryUpdateHistoryService(directoryUpdateHistoryRepo *repository.DirectoryUpdateHistoryRepository, serviceTreeRepo *repository.ServiceTreeRepository) *DirectoryUpdateHistoryService {
 	return &DirectoryUpdateHistoryService{
 		directoryUpdateHistoryRepo: directoryUpdateHistoryRepo,
+		serviceTreeRepo:            serviceTreeRepo,
 	}
 }
 
@@ -43,12 +45,33 @@ func (s *DirectoryUpdateHistoryService) GetAppVersionUpdateHistory(ctx context.C
 		return nil, fmt.Errorf("查询更新历史失败: %w", err)
 	}
 
+	// 收集所有目录路径，批量查询目录信息
+	directoryPaths := make([]string, 0, len(histories))
+	for _, history := range histories {
+		directoryPaths = append(directoryPaths, history.FullCodePath)
+	}
+	
+	// 批量查询目录信息
+	directoryInfos, err := s.serviceTreeRepo.GetServiceTreeByFullPaths(directoryPaths)
+	if err != nil {
+		logger.Warnf(ctx, "[DirectoryUpdateHistoryService] 批量查询目录信息失败: %v", err)
+		directoryInfos = make(map[string]*model.ServiceTree)
+	}
+
 	// 按版本分组，构建二维数组结构
 	// 第一层：版本列表（每个版本一个元素）
 	// 第二层：该版本下的所有目录变更（数组）
 	versionMap := make(map[string][]*dto.DirectoryChangeInfo)
 
 	for _, history := range histories {
+		// 获取目录信息
+		directoryName := ""
+		directoryDesc := ""
+		if dirInfo, exists := directoryInfos[history.FullCodePath]; exists {
+			directoryName = dirInfo.Name
+			directoryDesc = dirInfo.Description
+		}
+
 		directoryChange := &dto.DirectoryChangeInfo{
 			FullCodePath:      history.FullCodePath,
 			DirVersion:        history.DirVersion,
@@ -63,8 +86,11 @@ func (s *DirectoryUpdateHistoryService) GetAppVersionUpdateHistory(ctx context.C
 			Requirement:       history.Requirement,
 			ChangeDescription: history.ChangeDescription,
 			Duration:          history.Duration,
+			GitCommitHash:     history.GitCommitHash,
 			UpdatedBy:         history.UpdatedBy,
 			CreatedAt:         time.Time(history.CreatedAt),
+			DirectoryName:     directoryName,
+			DirectoryDesc:     directoryDesc,
 		}
 
 		if versionMap[history.AppVersion] == nil {
@@ -126,6 +152,15 @@ func (s *DirectoryUpdateHistoryService) GetDirectoryUpdateHistory(ctx context.Co
 		return nil, fmt.Errorf("查询更新历史失败: %w", err)
 	}
 
+	// 获取目录信息
+	directoryInfo, err := s.serviceTreeRepo.GetServiceTreeByFullPath(fullCodePath)
+	directoryName := ""
+	directoryDesc := ""
+	if err == nil && directoryInfo != nil {
+		directoryName = directoryInfo.Name
+		directoryDesc = directoryInfo.Description
+	}
+
 	// 转换为响应格式
 	directoryChanges := make([]*dto.DirectoryChangeInfo, len(histories))
 	for i, history := range histories {
@@ -145,8 +180,11 @@ func (s *DirectoryUpdateHistoryService) GetDirectoryUpdateHistory(ctx context.Co
 			Requirement:       history.Requirement,
 			ChangeDescription: history.ChangeDescription,
 			Duration:          history.Duration,
+			GitCommitHash:     history.GitCommitHash,
 			UpdatedBy:         history.UpdatedBy,
 			CreatedAt:         time.Time(history.CreatedAt),
+			DirectoryName:     directoryName,
+			DirectoryDesc:     directoryDesc,
 		}
 	}
 

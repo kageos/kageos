@@ -60,9 +60,13 @@
                       >
                         {{ change.full_code_path }}
                       </el-link>
-                      <el-tag v-if="getDirectoryName(change.full_code_path)" type="success" size="small" class="change-directory-name">
-                        {{ getDirectoryName(change.full_code_path) }}
+                      <el-tag v-if="change.directory_name || getDirectoryName(change.full_code_path)" type="success" size="small" class="change-directory-name">
+                        {{ change.directory_name || getDirectoryName(change.full_code_path) }}
                       </el-tag>
+                    </div>
+                    <!-- 目录描述 -->
+                    <div v-if="change.directory_desc" class="change-directory-info">
+                      <div class="directory-desc">{{ change.directory_desc }}</div>
                     </div>
                     <el-tag size="small" type="info" class="change-version-tag">
                       v{{ change.dir_version_num }}
@@ -104,7 +108,17 @@
                         :key="api.code"
                         class="api-item added"
                       >
-                        <el-tag type="success" size="small">{{ api.method }}</el-tag>
+                        <!-- 表单类型：使用自定义 SVG -->
+                        <img 
+                          v-if="isFormType(api.template_type)"
+                          src="/service-tree/表单 (3).svg" 
+                          alt="表单" 
+                          class="api-icon form-icon-img"
+                        />
+                        <!-- 其他类型：使用组件图标 -->
+                        <el-icon v-else class="api-icon">
+                          <component :is="getTemplateTypeIcon(api.template_type)" />
+                        </el-icon>
                         <span class="api-name">{{ api.name }}</span>
                         <span class="api-desc" v-if="api.desc">{{ api.desc }}</span>
                         <span class="api-router">{{ api.router }}</span>
@@ -123,7 +137,17 @@
                         :key="api.code"
                         class="api-item updated"
                       >
-                        <el-tag type="warning" size="small">{{ api.method }}</el-tag>
+                        <!-- 表单类型：使用自定义 SVG -->
+                        <img 
+                          v-if="isFormType(api.template_type)"
+                          src="/service-tree/表单 (3).svg" 
+                          alt="表单" 
+                          class="api-icon form-icon-img"
+                        />
+                        <!-- 其他类型：使用组件图标 -->
+                        <el-icon v-else class="api-icon">
+                          <component :is="getTemplateTypeIcon(api.template_type)" />
+                        </el-icon>
                         <span class="api-name">{{ api.name }}</span>
                         <span class="api-desc" v-if="api.desc">{{ api.desc }}</span>
                         <span class="api-router">{{ api.router }}</span>
@@ -142,7 +166,17 @@
                         :key="api.code"
                         class="api-item deleted"
                       >
-                        <el-tag type="danger" size="small">{{ api.method }}</el-tag>
+                        <!-- 表单类型：使用自定义 SVG -->
+                        <img 
+                          v-if="isFormType(api.template_type)"
+                          src="/service-tree/表单 (3).svg" 
+                          alt="表单" 
+                          class="api-icon form-icon-img"
+                        />
+                        <!-- 其他类型：使用组件图标 -->
+                        <el-icon v-else class="api-icon">
+                          <component :is="getTemplateTypeIcon(api.template_type)" />
+                        </el-icon>
                         <span class="api-name">{{ api.name }}</span>
                         <span class="api-desc" v-if="api.desc">{{ api.desc }}</span>
                         <span class="api-router">{{ api.router }}</span>
@@ -240,6 +274,16 @@
                 <div class="change-version">
                   <el-tag type="primary" size="large">v{{ change.dir_version_num }}</el-tag>
                 </div>
+                <!-- 目录名称和描述 -->
+                <div v-if="change.directory_name || change.directory_desc" class="change-directory-info">
+                  <div v-if="change.directory_name" class="directory-name">
+                    <el-icon><Folder /></el-icon>
+                    <span>{{ change.directory_name }}</span>
+                  </div>
+                  <div v-if="change.directory_desc" class="directory-desc">
+                    {{ change.directory_desc }}
+                  </div>
+                </div>
               </div>
             </div>
             
@@ -277,7 +321,17 @@
                     :key="api.code"
                     class="api-item added"
                   >
-                    <el-tag type="success" size="small">{{ api.method }}</el-tag>
+                    <!-- 表单类型：使用自定义 SVG -->
+                    <img 
+                      v-if="isFormType(api.template_type)"
+                      src="/service-tree/表单 (3).svg" 
+                      alt="表单" 
+                      class="api-icon form-icon-img"
+                    />
+                    <!-- 其他类型：使用组件图标 -->
+                    <el-icon v-else class="api-icon">
+                      <component :is="getTemplateTypeIcon(api.template_type)" />
+                    </el-icon>
                     <span class="api-name">{{ api.name }}</span>
                     <span class="api-desc" v-if="api.desc">{{ api.desc }}</span>
                     <span class="api-router">{{ api.router }}</span>
@@ -296,7 +350,17 @@
                     :key="api.code"
                     class="api-item updated"
                   >
-                    <el-tag type="warning" size="small">{{ api.method }}</el-tag>
+                    <!-- 表单类型：使用自定义 SVG -->
+                    <img 
+                      v-if="isFormType(api.template_type)"
+                      src="/service-tree/表单 (3).svg" 
+                      alt="表单" 
+                      class="api-icon form-icon-img"
+                    />
+                    <!-- 其他类型：使用组件图标 -->
+                    <el-icon v-else class="api-icon">
+                      <component :is="getTemplateTypeIcon(api.template_type)" />
+                    </el-icon>
                     <span class="api-name">{{ api.name }}</span>
                     <span class="api-desc" v-if="api.desc">{{ api.desc }}</span>
                     <span class="api-router">{{ api.router }}</span>
@@ -315,7 +379,17 @@
                     :key="api.code"
                     class="api-item deleted"
                   >
-                    <el-tag type="danger" size="small">{{ api.method }}</el-tag>
+                    <!-- 表单类型：使用自定义 SVG -->
+                    <img 
+                      v-if="isFormType(api.template_type)"
+                      src="/service-tree/表单 (3).svg" 
+                      alt="表单" 
+                      class="api-icon form-icon-img"
+                    />
+                    <!-- 其他类型：使用组件图标 -->
+                    <el-icon v-else class="api-icon">
+                      <component :is="getTemplateTypeIcon(api.template_type)" />
+                    </el-icon>
                     <span class="api-name">{{ api.name }}</span>
                     <span class="api-desc" v-if="api.desc">{{ api.desc }}</span>
                     <span class="api-router">{{ api.router }}</span>
@@ -414,7 +488,7 @@
 import { ref, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Clock, Folder, Plus, Edit, Delete, User, Timer } from '@element-plus/icons-vue'
+import { Clock, Folder, Plus, Edit, Delete, User, Timer, Document } from '@element-plus/icons-vue'
 import {
   getAppVersionUpdateHistory,
   getDirectoryUpdateHistory,
@@ -423,6 +497,10 @@ import {
   type DirectoryChangeInfo,
   type ApiSummary
 } from '@/api/directory-update-history'
+import { TEMPLATE_TYPE } from '@/utils/functionTypes'
+import TableIcon from './icons/TableIcon.vue'
+import FormIcon from './icons/FormIcon.vue'
+import ChartIcon from './icons/ChartIcon.vue'
 
 interface Props {
   modelValue: boolean
@@ -529,6 +607,26 @@ const getDirectoryName = (fullCodePath: string): string => {
   if (!fullCodePath) return ''
   const parts = fullCodePath.split('/').filter(Boolean)
   return parts.length > 0 ? parts[parts.length - 1] : ''
+}
+
+// 获取模板类型图标组件
+const getTemplateTypeIcon = (templateType?: string) => {
+  if (!templateType) return Document
+  switch (templateType) {
+    case TEMPLATE_TYPE.TABLE:
+      return TableIcon
+    case TEMPLATE_TYPE.FORM:
+      return 'form-svg' // 特殊处理，使用 SVG
+    case TEMPLATE_TYPE.CHART:
+      return ChartIcon
+    default:
+      return Document
+  }
+}
+
+// 判断是否为表单类型（需要显示 SVG）
+const isFormType = (templateType?: string): boolean => {
+  return templateType === TEMPLATE_TYPE.FORM
 }
 
 // 加载数据
@@ -691,6 +789,32 @@ watch([() => props.appId, () => props.appVersion, () => props.fullCodePath], () 
     &:hover {
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
       transform: translateY(-2px);
+    }
+    
+    .change-directory-info {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--el-border-color-lighter);
+      
+      .directory-name {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--el-text-color-primary);
+        margin-bottom: 6px;
+        
+        .el-icon {
+          color: var(--el-color-primary);
+        }
+      }
+      
+      .directory-desc {
+        font-size: 13px;
+        color: var(--el-text-color-regular);
+        line-height: 1.5;
+      }
     }
     
     .change-card-header {
@@ -934,6 +1058,19 @@ watch([() => props.appId, () => props.appVersion, () => props.fullCodePath], () 
     }
     
     .api-list {
+      .api-icon {
+        width: 20px;
+        height: 20px;
+        flex-shrink: 0;
+        color: var(--el-text-color-regular);
+        
+        &.form-icon-img {
+          width: 20px;
+          height: 20px;
+          object-fit: contain;
+        }
+      }
+      
       .api-item {
         display: flex;
         align-items: center;
