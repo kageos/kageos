@@ -712,6 +712,26 @@ watch([() => props.appId, () => props.appVersion, () => props.fullCodePath], () 
         flex: 1;
         min-width: 0;
         
+        .change-path-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 8px;
+          flex-wrap: wrap;
+          
+          .change-path {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--el-text-color-primary);
+            word-break: break-all;
+          }
+          
+          .change-directory-name {
+            font-weight: 500;
+            flex-shrink: 0;
+          }
+        }
+        
         .change-path {
           display: block;
           font-size: 16px;
