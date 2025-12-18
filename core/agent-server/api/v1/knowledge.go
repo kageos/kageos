@@ -33,7 +33,7 @@ func NewKnowledge(service *service.KnowledgeService) *Knowledge {
 // @Param page_size query int true "每页数量" default(10)
 // @Success 200 {object} dto.KnowledgeListResp "获取成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/knowledge/list [get]
+// @Router /agent/api/v1/knowledge/list [get]
 func (h *Knowledge) List(c *gin.Context) {
 	var req dto.KnowledgeListReq
 	var resp *dto.KnowledgeListResp
@@ -91,7 +91,7 @@ func (h *Knowledge) List(c *gin.Context) {
 // @Param id query int true "知识库ID"
 // @Success 200 {object} dto.KnowledgeGetResp "获取成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/knowledge/get [get]
+// @Router /agent/api/v1/knowledge/get [get]
 func (h *Knowledge) Get(c *gin.Context) {
 	var req dto.KnowledgeGetReq
 	var resp *dto.KnowledgeGetResp
@@ -138,7 +138,7 @@ func (h *Knowledge) Get(c *gin.Context) {
 // @Param request body dto.KnowledgeCreateReq true "创建知识库请求"
 // @Success 200 {object} dto.KnowledgeCreateResp "创建成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/knowledge/create [post]
+// @Router /agent/api/v1/knowledge/create [post]
 func (h *Knowledge) Create(c *gin.Context) {
 	var req dto.KnowledgeCreateReq
 	var resp *dto.KnowledgeCreateResp
@@ -178,7 +178,7 @@ func (h *Knowledge) Create(c *gin.Context) {
 // @Param request body dto.KnowledgeUpdateReq true "更新知识库请求"
 // @Success 200 {object} dto.KnowledgeUpdateResp "更新成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/knowledge/update [post]
+// @Router /agent/api/v1/knowledge/update [post]
 func (h *Knowledge) Update(c *gin.Context) {
 	var req dto.KnowledgeUpdateReq
 	var resp *dto.KnowledgeUpdateResp
@@ -225,7 +225,7 @@ func (h *Knowledge) Update(c *gin.Context) {
 // @Param request body dto.KnowledgeDeleteReq true "删除知识库请求"
 // @Success 200 "删除成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/knowledge/delete [post]
+// @Router /agent/api/v1/knowledge/delete [post]
 func (h *Knowledge) Delete(c *gin.Context) {
 	var req dto.KnowledgeDeleteReq
 	var err error
@@ -257,7 +257,7 @@ func (h *Knowledge) Delete(c *gin.Context) {
 // @Param request body dto.KnowledgeAddDocumentReq true "添加文档请求"
 // @Success 200 {object} dto.KnowledgeAddDocumentResp "添加成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/knowledge/add_document [post]
+// @Router /agent/api/v1/knowledge/add_document [post]
 func (h *Knowledge) AddDocument(c *gin.Context) {
 	var req dto.KnowledgeAddDocumentReq
 	var resp *dto.KnowledgeAddDocumentResp
@@ -303,7 +303,7 @@ func (h *Knowledge) AddDocument(c *gin.Context) {
 // @Param page_size query int true "每页数量" default(10)
 // @Success 200 {object} dto.KnowledgeListDocumentsResp "获取成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/knowledge/list_documents [get]
+// @Router /agent/api/v1/knowledge/list_documents [get]
 func (h *Knowledge) ListDocuments(c *gin.Context) {
 	var req dto.KnowledgeListDocumentsReq
 	var resp *dto.KnowledgeListDocumentsResp
@@ -362,7 +362,7 @@ func (h *Knowledge) ListDocuments(c *gin.Context) {
 // @Param id query int true "文档ID"
 // @Success 200 {object} dto.KnowledgeGetDocumentResp "获取成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/knowledge/get_document [get]
+// @Router /agent/api/v1/knowledge/get_document [get]
 func (h *Knowledge) GetDocument(c *gin.Context) {
 	var req dto.KnowledgeGetDocumentReq
 	var resp *dto.KnowledgeGetDocumentResp
@@ -414,7 +414,7 @@ func (h *Knowledge) GetDocument(c *gin.Context) {
 // @Param request body dto.KnowledgeUpdateDocumentReq true "更新文档请求"
 // @Success 200 {object} dto.KnowledgeUpdateDocumentResp "更新成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/knowledge/update_document [post]
+// @Router /agent/api/v1/knowledge/update_document [post]
 func (h *Knowledge) UpdateDocument(c *gin.Context) {
 	var req dto.KnowledgeUpdateDocumentReq
 	var resp *dto.KnowledgeUpdateDocumentResp
@@ -466,7 +466,7 @@ func (h *Knowledge) UpdateDocument(c *gin.Context) {
 // @Param request body dto.KnowledgeDeleteDocumentReq true "文档ID"
 // @Success 200 "删除成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/knowledge/delete_document [post]
+// @Router /agent/api/v1/knowledge/delete_document [post]
 func (h *Knowledge) DeleteDocument(c *gin.Context) {
 	var req dto.KnowledgeDeleteDocumentReq
 	var err error
@@ -498,7 +498,7 @@ func (h *Knowledge) DeleteDocument(c *gin.Context) {
 // @Param knowledge_base_id query int true "知识库ID"
 // @Success 200 {object} dto.KnowledgeGetDocumentsTreeResp "获取成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/knowledge/get_documents_tree [get]
+// @Router /agent/api/v1/knowledge/get_documents_tree [get]
 func (h *Knowledge) GetDocumentsTree(c *gin.Context) {
 	var req dto.KnowledgeGetDocumentsTreeReq
 	var resp *dto.KnowledgeGetDocumentsTreeResp
@@ -595,7 +595,7 @@ func (h *Knowledge) GetDocumentsTree(c *gin.Context) {
 // @Param request body dto.KnowledgeUpdateDocumentsSortReq true "更新排序请求"
 // @Success 200 "更新成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/knowledge/update_documents_sort [post]
+// @Router /agent/api/v1/knowledge/update_documents_sort [post]
 func (h *Knowledge) UpdateDocumentsSort(c *gin.Context) {
 	var req dto.KnowledgeUpdateDocumentsSortReq
 	var err error

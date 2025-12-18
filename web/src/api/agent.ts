@@ -348,21 +348,21 @@ export function updateKnowledge(data: KnowledgeUpdateReq) {
  * 删除知识库
  */
 export function deleteKnowledge(params: KnowledgeDeleteReq) {
-  return post('/api/v1/agent/knowledge/delete', { id: params.id })
+  return post('/agent/api/v1/knowledge/delete', { id: params.id })
 }
 
 /**
  * 添加文档
  */
 export function addKnowledgeDocument(data: KnowledgeAddDocumentReq) {
-  return post<KnowledgeAddDocumentResp>('/api/v1/agent/knowledge/add_document', data)
+  return post<KnowledgeAddDocumentResp>('/agent/api/v1/knowledge/add_document', data)
 }
 
 /**
  * 获取文档列表
  */
 export function getKnowledgeDocuments(params: KnowledgeListDocumentsReq) {
-  return get<KnowledgeListDocumentsResp>('/api/v1/agent/knowledge/list_documents', {
+  return get<KnowledgeListDocumentsResp>('/agent/api/v1/knowledge/list_documents', {
     knowledge_base_id: params.knowledge_base_id,
     page: params.page,
     page_size: params.page_size
@@ -405,21 +405,21 @@ export interface KnowledgeDeleteDocumentReq {
  * 获取文档详情
  */
 export function getKnowledgeDocument(params: KnowledgeGetDocumentReq) {
-  return get<KnowledgeGetDocumentResp>('/api/v1/agent/knowledge/get_document', params)
+  return get<KnowledgeGetDocumentResp>('/agent/api/v1/knowledge/get_document', params)
 }
 
 /**
  * 更新文档
  */
 export function updateKnowledgeDocument(data: KnowledgeUpdateDocumentReq) {
-  return post<KnowledgeUpdateDocumentResp>('/api/v1/agent/knowledge/update_document', data)
+  return post<KnowledgeUpdateDocumentResp>('/agent/api/v1/knowledge/update_document', data)
 }
 
 /**
  * 删除文档
  */
 export function deleteKnowledgeDocument(params: KnowledgeDeleteDocumentReq) {
-  return post('/api/v1/agent/knowledge/delete_document', { id: params.id })
+  return post('/agent/api/v1/knowledge/delete_document', { id: params.id })
 }
 
 export interface KnowledgeGetDocumentsTreeReq {
@@ -438,7 +438,7 @@ export interface KnowledgeGetDocumentsTreeResp {
  * 获取知识库文档树（目录结构）
  */
 export function getKnowledgeDocumentsTree(params: KnowledgeGetDocumentsTreeReq) {
-  return get<KnowledgeGetDocumentsTreeResp>('/api/v1/agent/knowledge/get_documents_tree', {
+  return get<KnowledgeGetDocumentsTreeResp>('/agent/api/v1/knowledge/get_documents_tree', {
     knowledge_base_id: params.knowledge_base_id
   })
 }
@@ -459,7 +459,7 @@ export interface KnowledgeUpdateDocumentsSortReq {
  * 批量更新文档排序
  */
 export function updateKnowledgeDocumentsSort(data: KnowledgeUpdateDocumentsSortReq) {
-  return post('/api/v1/agent/knowledge/update_documents_sort', data)
+  return post('/agent/api/v1/knowledge/update_documents_sort', data)
 }
 
 // ==================== Agent Chat 相关 ====================
@@ -516,7 +516,7 @@ export interface FunctionGenAgentChatResp {
  * 智能体聊天 - 函数生成类型（设置 600 秒超时时间）
  */
 export function functionGenChat(data: FunctionGenAgentChatReq) {
-  return axiosInstance.post<FunctionGenAgentChatResp>('/api/v1/agent/chat/function_gen', data, {
+  return axiosInstance.post<FunctionGenAgentChatResp>('/agent/api/v1/chat/function_gen', data, {
     timeout: 600000 // 600 秒
   })
 }
@@ -525,7 +525,7 @@ export function functionGenChat(data: FunctionGenAgentChatReq) {
  * @deprecated 使用 functionGenChat 代替
  */
 export function agentChat(data: AgentChatReq) {
-  return axiosInstance.post<AgentChatResp>('/api/v1/agent/chat/function_gen', data, {
+  return axiosInstance.post<AgentChatResp>('/agent/api/v1/chat/function_gen', data, {
     timeout: 600000
   })
 }
@@ -559,7 +559,7 @@ export interface ChatSessionListResp {
  * 获取会话列表
  */
 export function getChatSessionList(params: ChatSessionListReq) {
-  return axiosInstance.get<ChatSessionListResp>('/api/v1/agent/chat/sessions', {
+  return axiosInstance.get<ChatSessionListResp>('/agent/api/v1/chat/sessions', {
     params
   })
 }
@@ -587,7 +587,7 @@ export interface ChatMessageListResp {
  * 获取消息列表
  */
 export function getChatMessageList(params: ChatMessageListReq) {
-  return axiosInstance.get<ChatMessageListResp>('/api/v1/agent/chat/messages', {
+  return axiosInstance.get<ChatMessageListResp>('/agent/api/v1/chat/messages', {
     params
   })
 }
@@ -613,7 +613,7 @@ export interface FunctionGenStatusResp {
  * 查询代码生成状态
  */
 export function getFunctionGenStatus(params: FunctionGenStatusReq) {
-  return axiosInstance.get<FunctionGenStatusResp>('/api/v1/agent/chat/function_gen/status', {
+  return axiosInstance.get<FunctionGenStatusResp>('/agent/api/v1/chat/function_gen/status', {
     params
   })
 }
@@ -728,49 +728,49 @@ export interface LLMSetDefaultReq {
  * 获取LLM配置列表
  */
 export function getLLMList(params: LLMListReq) {
-  return get<LLMListResp>('/api/v1/agent/llm/list', params)
+  return get<LLMListResp>('/agent/api/v1/llm/list', params)
 }
 
 /**
  * 获取LLM配置详情
  */
 export function getLLM(params: LLMGetReq) {
-  return get<LLMGetResp>('/api/v1/agent/llm/get', params)
+  return get<LLMGetResp>('/agent/api/v1/llm/get', params)
 }
 
 /**
  * 获取默认LLM配置
  */
 export function getDefaultLLM() {
-  return get<LLMGetDefaultResp>('/api/v1/agent/llm/get_default')
+  return get<LLMGetDefaultResp>('/agent/api/v1/llm/get_default')
 }
 
 /**
  * 创建LLM配置
  */
 export function createLLM(data: LLMCreateReq) {
-  return post<LLMCreateResp>('/api/v1/agent/llm/create', data)
+  return post<LLMCreateResp>('/agent/api/v1/llm/create', data)
 }
 
 /**
  * 更新LLM配置
  */
 export function updateLLM(data: LLMUpdateReq) {
-  return post<LLMUpdateResp>('/api/v1/agent/llm/update', data)
+  return post<LLMUpdateResp>('/agent/api/v1/llm/update', data)
 }
 
 /**
  * 删除LLM配置
  */
 export function deleteLLM(params: LLMDeleteReq) {
-  return post('/api/v1/agent/llm/delete', params)
+  return post('/agent/api/v1/llm/delete', params)
 }
 
 /**
  * 设置默认LLM配置
  */
 export function setDefaultLLM(params: LLMSetDefaultReq) {
-  return post('/api/v1/agent/llm/set_default', params)
+  return post('/agent/api/v1/llm/set_default', params)
 }
 
 // ==================== 插件相关 ====================
@@ -858,7 +858,7 @@ export interface PluginDisableReq {
  * 获取插件列表
  */
 export function getPluginList(params: PluginListReq) {
-  return axiosInstance.get<PluginListResp>('/api/v1/agent/plugins/list', {
+  return axiosInstance.get<PluginListResp>('/agent/api/v1/plugins/list', {
     params
   })
 }
@@ -867,41 +867,41 @@ export function getPluginList(params: PluginListReq) {
  * 获取插件详情
  */
 export function getPlugin(params: PluginGetReq) {
-  return axiosInstance.get<PluginInfo>(`/api/v1/agent/plugins/${params.id}`)
+  return axiosInstance.get<PluginInfo>(`/agent/api/v1/plugins/${params.id}`)
 }
 
 /**
  * 创建插件
  */
 export function createPlugin(data: PluginCreateReq) {
-  return axiosInstance.post<PluginCreateResp>('/api/v1/agent/plugins', data)
+  return axiosInstance.post<PluginCreateResp>('/agent/api/v1/plugins', data)
 }
 
 /**
  * 更新插件
  */
 export function updatePlugin(id: number, data: PluginUpdateReq) {
-  return axiosInstance.put<PluginUpdateResp>(`/api/v1/agent/plugins/${id}`, data)
+  return axiosInstance.put<PluginUpdateResp>(`/agent/api/v1/plugins/${id}`, data)
 }
 
 /**
  * 删除插件
  */
 export function deletePlugin(params: PluginDeleteReq) {
-  return axiosInstance.delete(`/api/v1/agent/plugins/${params.id}`)
+  return axiosInstance.delete(`/agent/api/v1/plugins/${params.id}`)
 }
 
 /**
  * 启用插件
  */
 export function enablePlugin(params: PluginEnableReq) {
-  return axiosInstance.post(`/api/v1/agent/plugins/${params.id}/enable`)
+  return axiosInstance.post(`/agent/api/v1/plugins/${params.id}/enable`)
 }
 
 /**
  * 禁用插件
  */
 export function disablePlugin(params: PluginDisableReq) {
-  return axiosInstance.post(`/api/v1/agent/plugins/${params.id}/disable`)
+  return axiosInstance.post(`/agent/api/v1/plugins/${params.id}/disable`)
 }
 

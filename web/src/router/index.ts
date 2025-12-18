@@ -114,6 +114,7 @@ const router = createRouter({
     },
 
     // 工作空间页面（新架构）
+    // 注意：/workspace/api/* 路径会被 Vite 代理到后端，不会被 Vue Router 匹配
     {
       path: '/workspace',
       name: 'workspace',
@@ -124,12 +125,26 @@ const router = createRouter({
       }
     },
     {
-      path: '/workspace/:path+',
+      // 匹配 /workspace/:user/:app 等页面路由，但不匹配 /workspace/api/*
+      // 使用更精确的路径匹配，排除 /api 开头的路径
+      path: '/workspace/:user/:app/:path*',
       name: 'workspace-path',
       component: () => import('../architecture/presentation/views/WorkspaceView.vue'),
       meta: {
         title: '工作空间',
         requireAuth: true
+      },
+      // 路由守卫：排除 /api 路径
+      beforeEnter: (to, from, next) => {
+        // 如果路径包含 /api，说明是 API 请求，不应该被 Vue Router 处理
+        // 这种情况应该由 Vite 代理处理，但为了安全，我们在这里也做检查
+        if (to.path.startsWith('/workspace/api')) {
+          // 这不应该发生，因为 Vite 代理应该已经处理了
+          // 但为了安全，我们返回 404
+          next({ name: 'not-found' })
+          return
+        }
+        next()
       }
     },
 

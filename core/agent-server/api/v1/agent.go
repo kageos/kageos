@@ -38,7 +38,7 @@ func NewAgent(service *service.AgentService, cfg *config.AgentServerConfig) *Age
 // @Param page_size query int true "每页数量" default(10)
 // @Success 200 {object} dto.AgentListResp "获取成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/agents/list [get]
+// @Router /agent/api/v1/agents/list [get]
 func (h *Agent) List(c *gin.Context) {
 	var req dto.AgentListReq
 	var resp *dto.AgentListResp
@@ -183,7 +183,7 @@ func (h *Agent) List(c *gin.Context) {
 // @Param id query int true "智能体ID"
 // @Success 200 {object} dto.AgentGetResp "获取成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/agents/get [get]
+// @Router /agent/api/v1/agents/get [get]
 func (h *Agent) Get(c *gin.Context) {
 	var req dto.AgentGetReq
 	var resp *dto.AgentGetResp
@@ -293,7 +293,7 @@ func (h *Agent) Get(c *gin.Context) {
 // @Param request body dto.AgentCreateReq true "创建智能体请求"
 // @Success 200 {object} dto.AgentCreateResp "创建成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/agents/create [post]
+// @Router /agent/api/v1/agents/create [post]
 func (h *Agent) Create(c *gin.Context) {
 	var req dto.AgentCreateReq
 	var resp *dto.AgentCreateResp
@@ -350,7 +350,7 @@ func (h *Agent) Create(c *gin.Context) {
 // @Param request body dto.AgentUpdateReq true "更新智能体请求"
 // @Success 200 {object} dto.AgentUpdateResp "更新成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/agents/update [post]
+// @Router /agent/api/v1/agents/update [post]
 func (h *Agent) Update(c *gin.Context) {
 	var req dto.AgentUpdateReq
 	var resp *dto.AgentUpdateResp
@@ -414,7 +414,7 @@ func (h *Agent) Update(c *gin.Context) {
 // @Param request body dto.AgentDeleteReq true "删除智能体请求"
 // @Success 200 "删除成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/agents/delete [post]
+// @Router /agent/api/v1/agents/delete [post]
 func (h *Agent) Delete(c *gin.Context) {
 	var req dto.AgentDeleteReq
 	var err error
@@ -446,7 +446,7 @@ func (h *Agent) Delete(c *gin.Context) {
 // @Param request body dto.AgentEnableReq true "启用智能体请求"
 // @Success 200 "启用成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/agents/enable [post]
+// @Router /agent/api/v1/agents/enable [post]
 func (h *Agent) Enable(c *gin.Context) {
 	var req dto.AgentEnableReq
 	var err error
@@ -478,7 +478,7 @@ func (h *Agent) Enable(c *gin.Context) {
 // @Param request body dto.AgentDisableReq true "禁用智能体请求"
 // @Success 200 "禁用成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/agents/disable [post]
+// @Router /agent/api/v1/agents/disable [post]
 func (h *Agent) Disable(c *gin.Context) {
 	var req dto.AgentDisableReq
 	var err error

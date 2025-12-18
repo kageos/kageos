@@ -29,10 +29,12 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      // Workspace API 通过网关代理
-      '/workspace': {
+      // Workspace API 通过网关代理（必须在 Vue Router 之前处理）
+      // 注意：只代理 /workspace/api/* 路径，不代理 /workspace 页面路由
+      '/workspace/api': {
         target: 'http://localhost:9090',  // 网关地址
         changeOrigin: true,
+        rewrite: (path) => path, // 不重写路径，直接转发
       },
       // 统一通过网关代理所有 API 请求（兜底，用于兼容旧路径）
       '/api': {

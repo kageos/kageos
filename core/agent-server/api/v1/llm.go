@@ -33,7 +33,7 @@ func NewLLM(service *service.LLMService) *LLM {
 // @Param page_size query int true "每页数量" default(10)
 // @Success 200 {object} dto.LLMListResp "获取成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/llm/list [get]
+// @Router /agent/api/v1/llm/list [get]
 func (h *LLM) List(c *gin.Context) {
 	var req dto.LLMListReq
 	var resp *dto.LLMListResp
@@ -98,7 +98,7 @@ func (h *LLM) List(c *gin.Context) {
 // @Param id query int true "LLM配置ID"
 // @Success 200 {object} dto.LLMGetResp "获取成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/llm/get [get]
+// @Router /agent/api/v1/llm/get [get]
 func (h *LLM) Get(c *gin.Context) {
 	var req dto.LLMGetReq
 	var resp *dto.LLMGetResp
@@ -151,7 +151,7 @@ func (h *LLM) Get(c *gin.Context) {
 // @Produce json
 // @Success 200 {object} dto.LLMGetDefaultResp "获取成功"
 // @Failure 400 {string} string "未设置默认配置"
-// @Router /api/v1/agent/llm/get_default [get]
+// @Router /agent/api/v1/llm/get_default [get]
 func (h *LLM) GetDefault(c *gin.Context) {
 	var resp *dto.LLMGetDefaultResp
 	var err error
@@ -199,7 +199,7 @@ func (h *LLM) GetDefault(c *gin.Context) {
 // @Param request body dto.LLMCreateReq true "创建LLM配置请求"
 // @Success 200 {object} dto.LLMCreateResp "创建成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/llm/create [post]
+// @Router /agent/api/v1/llm/create [post]
 func (h *LLM) Create(c *gin.Context) {
 	var req dto.LLMCreateReq
 	var resp *dto.LLMCreateResp
@@ -246,7 +246,7 @@ func (h *LLM) Create(c *gin.Context) {
 // @Param request body dto.LLMUpdateReq true "更新LLM配置请求"
 // @Success 200 {object} dto.LLMUpdateResp "更新成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/llm/update [post]
+// @Router /agent/api/v1/llm/update [post]
 func (h *LLM) Update(c *gin.Context) {
 	var req dto.LLMUpdateReq
 	var resp *dto.LLMUpdateResp
@@ -305,7 +305,7 @@ func (h *LLM) Update(c *gin.Context) {
 // @Param id query int true "LLM配置ID"
 // @Success 200 "删除成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/llm/delete [post]
+// @Router /agent/api/v1/llm/delete [post]
 func (h *LLM) Delete(c *gin.Context) {
 	var req dto.LLMDeleteReq
 	var err error
@@ -337,7 +337,7 @@ func (h *LLM) Delete(c *gin.Context) {
 // @Param id query int true "LLM配置ID"
 // @Success 200 "设置成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /api/v1/agent/llm/set_default [post]
+// @Router /agent/api/v1/llm/set_default [post]
 func (h *LLM) SetDefault(c *gin.Context) {
 	var req dto.LLMSetDefaultReq
 	var err error
