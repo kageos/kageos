@@ -817,7 +817,52 @@ func (s *ServiceTreeService) UpdateServiceTree(
 
 	// 4. 处理 ServiceTree 数据库记录
 	// 根据节点的操作类型，更新数据库记录
-	// TODO: 实现数据库记录的更新逻辑
+	// 注意：只处理目录节点（directory），文件节点（file）的函数变更需要通过 DiffData 来确定
+	currentVersionNum := extractVersionNumForServiceTree(runtimeResp.NewVersion)
+
+	// 先按路径长度排序，确保先处理父目录
+	sortedNodes := make([]*dto.ServiceTreeNode, 0, len(req.Nodes))
+	for _, node := range req.Nodes {
+		if node.Type == "directory" {
+			sortedNodes = append(sortedNodes, node)
+		}
+		// 文件节点不在这里处理，因为函数的变更需要通过 DiffData 来确定
+	}
+
+	// 按路径长度排序（先处理父目录）
+	sort.Slice(sortedNodes, func(i, j int) bool {
+		return len(sortedNodes[i].FullCodePath) < len(sortedNodes[j].FullCodePath)
+	})
+
+	// 创建路径到 ServiceTree 的映射（用于查找父目录）
+	pathToTree := make(map[string]*model.ServiceTree)
+
+	// 遍历所有目录节点，根据操作类型处理
+	for _, node := range sortedNodes {
+		switch node.Operation {
+		case dto.ServiceTreeNodeOpAdd:
+			// 新增目录：创建 ServiceTree 记录（package 类型）
+			if err := s.handleAddDirectory(ctx, app.ID, node, pathToTree, currentVersionNum); err != nil {
+				logger.Warnf(ctx, "[UpdateServiceTree] 创建目录 ServiceTree 记录失败: path=%s, error=%v",
+					node.FullCodePath, err)
+				// 不返回错误，因为目录已经创建成功
+			}
+		case dto.ServiceTreeNodeOpUpdate:
+			// 更新目录：更新 ServiceTree 记录
+			if err := s.handleUpdateDirectory(ctx, app.ID, node, currentVersionNum); err != nil {
+				logger.Warnf(ctx, "[UpdateServiceTree] 更新目录 ServiceTree 记录失败: path=%s, error=%v",
+					node.FullCodePath, err)
+				// 不返回错误，因为目录已经更新成功
+			}
+		case dto.ServiceTreeNodeOpDelete:
+			// 删除目录：删除 ServiceTree 记录（级联删除子节点）
+			if err := s.handleDeleteDirectory(ctx, node); err != nil {
+				logger.Warnf(ctx, "[UpdateServiceTree] 删除目录 ServiceTree 记录失败: path=%s, error=%v",
+					node.FullCodePath, err)
+				// 不返回错误，因为目录已经删除成功
+			}
+		}
+	}
 
 	return &dto.UpdateServiceTreeResp{
 		DirectoryCount: runtimeResp.DirectoryCount,
@@ -966,4 +1011,158 @@ func (s *ServiceTreeService) buildDirectoryTreeNode(
 		Files:          files,
 		Subdirectories: subdirectories,
 	}
+}
+
+// handleAddDirectory 处理新增目录操作
+func (s *ServiceTreeService) handleAddDirectory(
+	ctx context.Context,
+	appID int64,
+	node *dto.ServiceTreeNode,
+	pathToTree map[string]*model.ServiceTree,
+	currentVersionNum int,
+) error {
+	// 提取目录代码（路径的最后一部分）
+	pathParts := strings.Split(strings.Trim(node.FullCodePath, "/"), "/")
+	if len(pathParts) < 3 {
+		return fmt.Errorf("无效的路径: %s", node.FullCodePath)
+	}
+	dirCode := pathParts[len(pathParts)-1]
+
+	// 查找父目录
+	var parentID int64 = 0
+	parentPath := getParentPath(node.FullCodePath)
+	if parentPath != "" {
+		if parentTree, exists := pathToTree[parentPath]; exists {
+			parentID = parentTree.ID
+		} else {
+			// 如果父目录不在 pathToTree 中，尝试从数据库查询
+			parentTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(parentPath)
+			if err == nil {
+				parentID = parentTree.ID
+				pathToTree[parentPath] = parentTree
+			}
+		}
+	}
+
+	// 检查是否已存在
+	existingTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(node.FullCodePath)
+	if err == nil {
+		// 如果已存在，更新版本号而不是创建新节点
+		if existingTree.AddVersionNum == 0 {
+			existingTree.AddVersionNum = currentVersionNum
+		} else {
+			existingTree.UpdateVersionNum = currentVersionNum
+		}
+		// 更新名称、描述、标签（如果提供了）
+		if node.Name != "" {
+			existingTree.Name = node.Name
+		}
+		if node.Description != "" {
+			existingTree.Description = node.Description
+		}
+		if node.Tags != "" {
+			existingTree.Tags = node.Tags
+		}
+		if err := s.serviceTreeRepo.UpdateServiceTree(existingTree); err != nil {
+			return err
+		}
+		pathToTree[node.FullCodePath] = existingTree
+		return nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return fmt.Errorf("查询路径失败: %w", err)
+	}
+
+	// 创建新的 ServiceTree 记录
+	newTree := &model.ServiceTree{
+		Name:             node.Name,
+		Code:             dirCode,
+		ParentID:         parentID,
+		Type:             model.ServiceTreeTypePackage,
+		Description:      node.Description,
+		Tags:             node.Tags,
+		AppID:            appID,
+		FullCodePath:     node.FullCodePath,
+		AddVersionNum:    currentVersionNum,
+		UpdateVersionNum: 0,
+	}
+
+	// 保存到数据库
+	if err := s.serviceTreeRepo.CreateServiceTreeWithParentPath(newTree, ""); err != nil {
+		return err
+	}
+
+	pathToTree[node.FullCodePath] = newTree
+	return nil
+}
+
+// handleUpdateDirectory 处理更新目录操作
+func (s *ServiceTreeService) handleUpdateDirectory(
+	ctx context.Context,
+	appID int64,
+	node *dto.ServiceTreeNode,
+	currentVersionNum int,
+) error {
+	// 根据 FullCodePath 查找现有的 ServiceTree
+	existingTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(node.FullCodePath)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// 如果不存在，创建新节点（容错处理）
+			logger.Warnf(ctx, "[handleUpdateDirectory] 目录不存在，将创建新节点: path=%s", node.FullCodePath)
+			pathToTree := make(map[string]*model.ServiceTree)
+			return s.handleAddDirectory(ctx, appID, node, pathToTree, currentVersionNum)
+		}
+		return fmt.Errorf("查询路径失败: %w", err)
+	}
+
+	// 验证节点类型
+	if existingTree.Type != model.ServiceTreeTypePackage {
+		return fmt.Errorf("路径 %s 不是目录类型，当前类型: %s", node.FullCodePath, existingTree.Type)
+	}
+
+	// 更新版本号
+	if existingTree.AddVersionNum == 0 {
+		existingTree.AddVersionNum = currentVersionNum
+	} else {
+		existingTree.UpdateVersionNum = currentVersionNum
+	}
+
+	// 更新名称、描述、标签（如果提供了）
+	if node.Name != "" {
+		existingTree.Name = node.Name
+	}
+	if node.Description != "" {
+		existingTree.Description = node.Description
+	}
+	if node.Tags != "" {
+		existingTree.Tags = node.Tags
+	}
+
+	// 保存更新
+	return s.serviceTreeRepo.UpdateServiceTree(existingTree)
+}
+
+// handleDeleteDirectory 处理删除目录操作
+func (s *ServiceTreeService) handleDeleteDirectory(
+	ctx context.Context,
+	node *dto.ServiceTreeNode,
+) error {
+	// 根据 FullCodePath 查找现有的 ServiceTree
+	existingTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(node.FullCodePath)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// 如果不存在，直接返回成功（容错处理）
+			logger.Warnf(ctx, "[handleDeleteDirectory] 目录不存在，跳过删除: path=%s", node.FullCodePath)
+			return nil
+		}
+		return fmt.Errorf("查询路径失败: %w", err)
+	}
+
+	// 验证节点类型
+	if existingTree.Type != model.ServiceTreeTypePackage {
+		return fmt.Errorf("路径 %s 不是目录类型，当前类型: %s", node.FullCodePath, existingTree.Type)
+	}
+
+	// 删除 ServiceTree（会级联删除子节点）
+	return s.serviceTreeRepo.DeleteServiceTree(existingTree.ID)
 }
