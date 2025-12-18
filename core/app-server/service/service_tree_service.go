@@ -35,11 +35,12 @@ func extractVersionNumForServiceTree(version string) int {
 }
 
 type ServiceTreeService struct {
-	serviceTreeRepo  *repository.ServiceTreeRepository
-	appRepo          *repository.AppRepository
-	appRuntime       *AppRuntime
-	fileSnapshotRepo *repository.FileSnapshotRepository
-	appService       *AppService
+	serviceTreeRepo    *repository.ServiceTreeRepository
+	appRepo            *repository.AppRepository
+	appRuntime         *AppRuntime
+	fileSnapshotRepo   *repository.FileSnapshotRepository
+	appService         *AppService
+	functionGenService *FunctionGenService // 用于异步处理和回调
 }
 
 // NewServiceTreeService 创建服务目录服务
@@ -49,13 +50,15 @@ func NewServiceTreeService(
 	appRuntime *AppRuntime,
 	fileSnapshotRepo *repository.FileSnapshotRepository,
 	appService *AppService,
+	functionGenService *FunctionGenService,
 ) *ServiceTreeService {
 	return &ServiceTreeService{
-		serviceTreeRepo:  serviceTreeRepo,
-		appRepo:          appRepo,
-		appRuntime:       appRuntime,
-		fileSnapshotRepo: fileSnapshotRepo,
-		appService:       appService,
+		serviceTreeRepo:    serviceTreeRepo,
+		appRepo:            appRepo,
+		appRuntime:         appRuntime,
+		fileSnapshotRepo:   fileSnapshotRepo,
+		appService:         appService,
+		functionGenService: functionGenService,
 	}
 }
 
@@ -677,5 +680,87 @@ func (s *ServiceTreeService) PublishDirectoryToHub(ctx context.Context, req *dto
 		HubDirectoryURL: hubResp.HubDirectoryURL,
 		DirectoryCount:  hubResp.DirectoryCount,
 		FileCount:       hubResp.FileCount,
+	}, nil
+}
+
+// AddFunctions 向服务目录添加函数（同步处理）
+func (s *ServiceTreeService) AddFunctions(ctx context.Context, req *dto.AddFunctionsReq) (*dto.AddFunctionsResp, error) {
+	// 1. 根据 TreeID 获取 ServiceTree（需要预加载 App）
+	serviceTree, err := s.serviceTreeRepo.GetByID(req.TreeID)
+	if err != nil {
+		logger.Errorf(ctx, "[ServiceTreeService] 获取 ServiceTree 失败: TreeID=%d, error=%v", req.TreeID, err)
+		return &dto.AddFunctionsResp{
+			Success: false,
+			Error:   err.Error(),
+		}, err
+	}
+
+	// 预加载 App 信息（如果还没有加载）
+	if serviceTree.App == nil {
+		app, err := s.appRepo.GetAppByID(serviceTree.AppID)
+		if err != nil {
+			logger.Errorf(ctx, "[ServiceTreeService] 获取 App 失败: AppID=%d, error=%v", serviceTree.AppID, err)
+			return &dto.AddFunctionsResp{
+				Success: false,
+				Error:   err.Error(),
+			}, err
+		}
+		serviceTree.App = app
+	}
+
+	// 2. 从 ServiceTree 中提取 package 路径（使用 model 方法）
+	packagePath := serviceTree.GetPackagePathForFileCreation()
+
+	// 3. 使用 agent-server 处理后的结构化数据
+	fileName := req.FileName
+	if fileName == "" {
+		logger.Warnf(ctx, "[ServiceTreeService] agent-server 未提取到文件名，使用 ServiceTree.Code 作为 fallback: %s", serviceTree.Code)
+		fileName = serviceTree.Code
+	}
+
+	sourceCode := req.SourceCode
+	if sourceCode == "" {
+		logger.Warnf(ctx, "[ServiceTreeService] agent-server 未处理代码，使用原始代码")
+		sourceCode = req.Code
+	}
+
+	logger.Infof(ctx, "[ServiceTreeService] 添加函数: Package=%s, FileName=%s, SourceCodeLength=%d", packagePath, fileName, len(sourceCode))
+
+	// 4. 构建 CreateFunctionInfo
+	createFunction := &dto.CreateFunctionInfo{
+		Package:    packagePath,
+		GroupCode:  fileName,
+		SourceCode: sourceCode,
+	}
+
+	// 5. 调用 AppService.UpdateApp
+	updateReq := &dto.UpdateAppReq{
+		User:            req.User,
+		App:             serviceTree.App.Code,
+		CreateFunctions: []*dto.CreateFunctionInfo{createFunction},
+	}
+
+	updateResp, err := s.appService.UpdateApp(ctx, updateReq)
+	if err != nil {
+		logger.Errorf(ctx, "[ServiceTreeService] AppService.UpdateApp 失败: error=%v", err)
+		return &dto.AddFunctionsResp{
+			Success: false,
+			Error:   err.Error(),
+		}, err
+	}
+
+	// 6. 获取新增的 FullGroupCodes
+	fullGroupCodes := make([]string, 0)
+	if updateResp.Diff != nil {
+		fullGroupCodes = updateResp.Diff.GetAddFullGroupCodes()
+		logger.Infof(ctx, "[ServiceTreeService] 添加函数完成 - Count: %d, FullGroupCodes: %v", len(fullGroupCodes), fullGroupCodes)
+	}
+
+	// 7. 返回同步结果（不发送回调）
+	return &dto.AddFunctionsResp{
+		Success:        true,
+		FullGroupCodes: fullGroupCodes,
+		AppID:          serviceTree.App.ID,
+		AppCode:        serviceTree.App.Code,
 	}, nil
 }

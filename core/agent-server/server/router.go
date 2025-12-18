@@ -84,4 +84,9 @@ func (s *Server) setupRoutes() {
 	chat.GET("/function_gen/status", agentChatHandler.GetFunctionGenStatus)    // 查询代码生成状态
 	chat.GET("/sessions", agentChatHandler.ListSessions)                      // 获取会话列表
 	chat.GET("/messages", agentChatHandler.ListMessages)                      // 获取消息列表
+
+	// 工作空间相关路由（服务间调用，不需要JWT验证，但需要用户信息中间件）
+	workspace := apiV1.Group("/workspace")
+	workspaceHandler := v1.NewFunctionGen(s.functionGenService)
+	workspace.POST("/update/callback", workspaceHandler.ReceiveCallback) // 接收工作空间更新回调（app-server -> agent-server）
 }
