@@ -27,7 +27,7 @@ func NewLicense(licenseService *service.LicenseService) *License {
 // @Produce json
 // @Success 200 {object} service.LicenseStatus "License状态"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/control/license/status [get]
+// @Router /control/api/v1/license/status [get]
 func (l *License) GetStatus(c *gin.Context) {
 	status := l.licenseService.GetStatus()
 	response.OkWithData(c, status)
@@ -43,7 +43,7 @@ func (l *License) GetStatus(c *gin.Context) {
 // @Success 200 {object} map[string]interface{} "激活成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/control/license/activate [post]
+// @Router /control/api/v1/license/activate [post]
 func (l *License) Activate(c *gin.Context) {
 	// 读取请求体（License文件内容）
 	licenseData, err := c.GetRawData()
@@ -106,7 +106,7 @@ func (l *License) Activate(c *gin.Context) {
 // @Produce json
 // @Success 200 {object} map[string]interface{} "注销成功"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/control/license/deactivate [post]
+// @Router /control/api/v1/license/deactivate [post]
 func (l *License) Deactivate(c *gin.Context) {
 	logger.Infof(c, "[License API] 开始注销 License...")
 	if err := l.licenseService.Deactivate(c); err != nil {

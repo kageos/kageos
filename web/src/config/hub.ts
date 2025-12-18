@@ -45,11 +45,11 @@ function getDefaultHubURL(): string {
   
   if (isDev) {
     // 开发环境：使用本地地址（通过网关代理）
-    // 网关路径是 /api/v1/hub，所以这里直接使用
-    return '/api/v1/hub'
+    // 网关路径是 /hub，所以这里直接使用
+    return '/hub/api/v1'
   } else {
     // 生产环境：使用官方地址
-    return 'https://www.ai-agent-os.com/api/v1/hub'
+    return 'https://www.ai-agent-os.com/hub/api/v1'
   }
 }
 

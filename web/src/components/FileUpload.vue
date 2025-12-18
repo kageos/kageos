@@ -138,7 +138,7 @@ async function handleFileSelect(file: any) {
   try {
     // ✨ 关键：调用 uploadFile，内部会先请求后端获取上传凭证（包含域名）
     // uploadFile() 的流程：
-    //   1. getUploadCredentials() → 请求 /api/v1/storage/upload_token
+    //   1. getUploadCredentials() → 请求 /storage/api/v1/upload_token
     //   2. 后端返回：{ method, url, upload_host, upload_domain, ... }
     //   3. UploaderFactory.create(method) → 创建对应的上传器
     //   4. uploader.upload(credentials, file, onProgress) → 执行上传

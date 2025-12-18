@@ -41,7 +41,7 @@ func NewStorage(storageService *service.StorageService) *Storage {
 // @Success 200 {object} dto.GetUploadTokenResp "获取成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/storage/upload_token [post]
+// @Router /storage/api/v1/upload_token [post]
 func (s *Storage) GetUploadToken(c *gin.Context) {
 	var req dto.GetUploadTokenReq
 	var resp *dto.GetUploadTokenResp
@@ -115,7 +115,7 @@ func (s *Storage) GetUploadToken(c *gin.Context) {
 // @Success 200 {object} dto.BatchGetUploadTokenResp "获取成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/storage/batch_upload_token [post]
+// @Router /storage/api/v1/batch_upload_token [post]
 func (s *Storage) BatchGetUploadToken(c *gin.Context) {
 	var req dto.BatchGetUploadTokenReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -194,7 +194,7 @@ func (s *Storage) BatchGetUploadToken(c *gin.Context) {
 // @Success 200 {object} dto.UploadCompleteResp "通知成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/storage/upload_complete [post]
+// @Router /storage/api/v1/upload_complete [post]
 func (s *Storage) UploadComplete(c *gin.Context) {
 	var req dto.UploadCompleteReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -273,7 +273,7 @@ func (s *Storage) UploadComplete(c *gin.Context) {
 // @Success 200 {object} dto.BatchUploadCompleteResp "通知成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/storage/batch_upload_complete [post]
+// @Router /storage/api/v1/batch_upload_complete [post]
 func (s *Storage) BatchUploadComplete(c *gin.Context) {
 	var req dto.BatchUploadCompleteReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -355,7 +355,7 @@ func (s *Storage) BatchUploadComplete(c *gin.Context) {
 // @Success 200 {file} file "文件内容"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/storage/download/{key} [get]
+// @Router /storage/api/v1/download/{key} [get]
 func (s *Storage) GetFileURL(c *gin.Context) {
 	// 使用 *key 匹配时，需要去掉前导斜杠
 	key := c.Param("key")
@@ -440,7 +440,7 @@ func (s *Storage) GetFileURL(c *gin.Context) {
 // @Success 200 {string} string "删除成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/storage/files/{key} [delete]
+// @Router /storage/api/v1/files/{key} [delete]
 func (s *Storage) DeleteFile(c *gin.Context) {
 	// 使用 *key 匹配时，需要去掉前导斜杠
 	key := c.Param("key")
@@ -472,7 +472,7 @@ func (s *Storage) DeleteFile(c *gin.Context) {
 // @Success 200 {object} dto.GetFileInfoResp "获取成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/storage/files/{key}/info [get]
+// @Router /storage/api/v1/files/{key}/info [get]
 func (s *Storage) GetFileInfo(c *gin.Context) {
 	// 使用 *key 匹配时，需要去掉前导斜杠
 	key := c.Param("key")
@@ -512,7 +512,7 @@ func (s *Storage) GetFileInfo(c *gin.Context) {
 // @Success 200 {object} dto.GetStorageStatsResp "获取成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/storage/stats [get]
+// @Router /storage/api/v1/stats [get]
 func (s *Storage) GetStorageStats(c *gin.Context) {
 	var req dto.GetStorageStatsReq
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -552,7 +552,7 @@ func (s *Storage) GetStorageStats(c *gin.Context) {
 // @Success 200 {object} dto.ListFilesResp "获取成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/storage/files [get]
+// @Router /storage/api/v1/files [get]
 func (s *Storage) ListFiles(c *gin.Context) {
 	var req dto.ListFilesReq
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -588,7 +588,7 @@ func (s *Storage) ListFiles(c *gin.Context) {
 // @Success 200 {object} dto.DeleteFilesByRouterResp "删除成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/storage/batch_delete [post]
+// @Router /storage/api/v1/batch_delete [post]
 func (s *Storage) DeleteFilesByRouter(c *gin.Context) {
 	var req dto.DeleteFilesByRouterReq
 	if err := c.ShouldBindJSON(&req); err != nil {

@@ -19,7 +19,7 @@ func GetGatewayURL() string {
 
 // GetServiceURL 获取服务地址（通过网关）
 // serviceName: 服务名称（如 "storage", "app"）
-// path: 服务路径前缀（如 "/api/v1/storage", "/api"）
+// path: 服务路径前缀（如 "/storage/api/v1", "/api"）
 func GetServiceURL(serviceName, path string) string {
 	gatewayURL := GetGatewayURL()
 
@@ -34,7 +34,7 @@ func GetServiceURL(serviceName, path string) string {
 
 // GetStorageURL 获取存储服务地址（便捷方法）
 func GetStorageURL() string {
-	return GetServiceURL("storage", "/api/v1/storage")
+	return GetServiceURL("storage", "/storage/api/v1")
 }
 
 // GetAppServerURL 获取主服务地址（便捷方法）

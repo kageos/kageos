@@ -23,7 +23,7 @@ export interface ActivateLicenseResponse {
  * 获取 License 状态
  */
 export function getLicenseStatus(): Promise<LicenseStatus> {
-  return get<LicenseStatus>('/api/v1/control/license/status')
+  return get<LicenseStatus>('/control/api/v1/license/status')
 }
 
 /**
@@ -45,7 +45,7 @@ export async function activateLicense(licenseFile: File): Promise<LicenseStatus>
   // 使用 fetch 直接发送，避免被 axios 拦截器处理
   const token = localStorage.getItem('token') || ''
   const baseURL = import.meta.env.VITE_API_BASE_URL || ''
-  const url = `${baseURL}/api/v1/control/license/activate`
+  const url = `${baseURL}/control/api/v1/license/activate`
   
   const response = await fetch(url, {
     method: 'POST',
@@ -69,6 +69,6 @@ export async function activateLicense(licenseFile: File): Promise<LicenseStatus>
  * 注销 License
  */
 export function deactivateLicense(): Promise<LicenseStatus> {
-  return post<LicenseStatus>('/api/v1/control/license/deactivate')
+  return post<LicenseStatus>('/control/api/v1/license/deactivate')
 }
 
