@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/url"
 	"sort"
-	"strconv"
 	"strings"
 
 	"gorm.io/gorm"
@@ -804,7 +803,6 @@ func getParentPath(fullCodePath string) string {
 	return "/" + strings.Join(parentParts, "/")
 }
 
-
 // AddFunctions 向服务目录添加函数（同步处理）
 func (s *ServiceTreeService) AddFunctions(ctx context.Context, req *dto.AddFunctionsReq) (*dto.AddFunctionsResp, error) {
 	// 1. 根据 TreeID 获取 ServiceTree（需要预加载 App）
@@ -944,16 +942,16 @@ func (s *ServiceTreeService) buildDirectoryTreeNode(
 	}
 }
 
-
 // HubLinkInfo Hub 链接信息
 type HubLinkInfo struct {
-	Host        string // Hub 主机地址（如 hub.example.com:8080）
-	DirectoryID int64  // Hub 目录 ID
-	Version     string // 版本号（可选）
+	Host         string // Hub 主机地址（如 hub.example.com:8080）
+	FullCodePath string // 目录完整路径（如 /user/app/plugins/cashier）
+	Version      string // 版本号（可选）
 }
 
 // ParseHubLink 解析 Hub 链接
-// 格式：hub://{host}/{directory_id} 或 hub://{host}/{directory_id}@v1.0.0
+// 格式：hub://{host}/{full_code_path} 或 hub://{host}/{full_code_path}@v1.0.0
+// 例如：hub://hub.example.com/luobei/demo/plugins/cashier 或 hub://hub.example.com/luobei/demo/plugins/cashier@v1.0.0
 func ParseHubLink(hubLink string) (*HubLinkInfo, error) {
 	// 移除协议前缀
 	if !strings.HasPrefix(hubLink, "hub://") {
@@ -969,34 +967,30 @@ func ParseHubLink(hubLink string) (*HubLinkInfo, error) {
 		link = link[:idx]
 	}
 
-	// 解析主机和目录 ID
-	parts := strings.Split(link, "/")
+	// 解析主机和 full-code-path
+	parts := strings.SplitN(link, "/", 2)
 	if len(parts) < 2 {
-		return nil, fmt.Errorf("无效的 Hub 链接格式，缺少目录 ID")
+		return nil, fmt.Errorf("无效的 Hub 链接格式，缺少 full-code-path")
 	}
 
 	host := parts[0]
-	directoryIDStr := parts[len(parts)-1]
+	fullCodePath := "/" + parts[1] // 确保以 / 开头
 
-	// 处理可能的 /directory/ 路径
-	if len(parts) > 2 && parts[1] == "directory" {
-		directoryIDStr = parts[2]
-	}
-
-	directoryID, err := strconv.ParseInt(directoryIDStr, 10, 64)
-	if err != nil {
-		return nil, fmt.Errorf("无效的目录 ID: %s", directoryIDStr)
+	// 验证 full-code-path 格式（应该至少包含 /user/app/...）
+	pathParts := strings.Split(strings.Trim(fullCodePath, "/"), "/")
+	if len(pathParts) < 2 {
+		return nil, fmt.Errorf("无效的 full-code-path 格式，应该至少包含 /user/app/...")
 	}
 
 	return &HubLinkInfo{
-		Host:        host,
-		DirectoryID: directoryID,
-		Version:     version,
+		Host:         host,
+		FullCodePath: fullCodePath,
+		Version:      version,
 	}, nil
 }
 
-// GetHubDirectoryDetailFromHost 从指定的 Hub 主机获取目录详情
-func GetHubDirectoryDetailFromHost(host string, hubDirectoryID int64, includeTree, includeFiles bool) (*dto.HubDirectoryDetailDetailResp, error) {
+// GetHubDirectoryDetailFromHost 从指定的 Hub 主机获取目录详情（通过 full-code-path）
+func GetHubDirectoryDetailFromHost(host string, fullCodePath string, includeTree, includeFiles bool) (*dto.HubDirectoryDetailDetailResp, error) {
 	// 构建 Hub API URL
 	baseURL := host
 	if !strings.HasPrefix(host, "http://") && !strings.HasPrefix(host, "https://") {
@@ -1006,7 +1000,7 @@ func GetHubDirectoryDetailFromHost(host string, hubDirectoryID int64, includeTre
 	// 构建查询参数
 	path := "/api/v1/hub/directories/detail"
 	params := url.Values{}
-	params.Set("hub_directory_id", strconv.FormatInt(hubDirectoryID, 10))
+	params.Set("full_code_path", fullCodePath) // 使用 full-code-path 而不是 directory_id
 	if includeTree {
 		params.Set("include_tree", "true")
 	}
@@ -1037,11 +1031,11 @@ func (s *ServiceTreeService) PullDirectoryFromHub(ctx context.Context, req *dto.
 		return nil, fmt.Errorf("解析 Hub 链接失败: %w", err)
 	}
 
-	logger.Infof(ctx, "[PullDirectoryFromHub] 解析 Hub 链接成功: host=%s, directoryID=%d, version=%s",
-		hubLinkInfo.Host, hubLinkInfo.DirectoryID, hubLinkInfo.Version)
+	logger.Infof(ctx, "[PullDirectoryFromHub] 解析 Hub 链接成功: host=%s, fullCodePath=%s, version=%s",
+		hubLinkInfo.Host, hubLinkInfo.FullCodePath, hubLinkInfo.Version)
 
 	// 2. 从 Hub 获取目录详情（包含目录树和文件内容）
-	hubDetail, err := GetHubDirectoryDetailFromHost(hubLinkInfo.Host, hubLinkInfo.DirectoryID, true, true)
+	hubDetail, err := GetHubDirectoryDetailFromHost(hubLinkInfo.Host, hubLinkInfo.FullCodePath, true, true)
 	if err != nil {
 		return nil, fmt.Errorf("获取 Hub 目录详情失败: %w", err)
 	}
@@ -1118,13 +1112,13 @@ func (s *ServiceTreeService) PullDirectoryFromHub(ctx context.Context, req *dto.
 	}
 
 	// 10. 建立双向绑定：更新根目录节点的 HubDirectoryID
-	if rootTree != nil {
-		rootTree.HubDirectoryID = hubLinkInfo.DirectoryID
+	if rootTree != nil && hubDetail.ID > 0 {
+		rootTree.HubDirectoryID = hubDetail.ID
 		if err := s.serviceTreeRepo.UpdateServiceTree(rootTree); err != nil {
 			logger.Warnf(ctx, "[PullDirectoryFromHub] 更新ServiceTree的HubDirectoryID失败: treeID=%d, hubDirectoryID=%d, error=%v",
-				rootTree.ID, hubLinkInfo.DirectoryID, err)
+				rootTree.ID, hubDetail.ID, err)
 		} else {
-			logger.Infof(ctx, "[PullDirectoryFromHub] 成功建立双向绑定: treeID=%d, hubDirectoryID=%d", rootTree.ID, hubLinkInfo.DirectoryID)
+			logger.Infof(ctx, "[PullDirectoryFromHub] 成功建立双向绑定: treeID=%d, hubDirectoryID=%d", rootTree.ID, hubDetail.ID)
 		}
 	}
 
@@ -1140,7 +1134,7 @@ func (s *ServiceTreeService) PullDirectoryFromHub(ctx context.Context, req *dto.
 				return 0
 			}
 		}(),
-		HubDirectoryID:   hubLinkInfo.DirectoryID,
+		HubDirectoryID:   hubDetail.ID,
 		HubDirectoryName: hubDetail.Name,
 	}, nil
 }

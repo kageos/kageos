@@ -47,7 +47,6 @@ func NewAppService(appRuntime *AppRuntime, userRepo *repository.UserRepository, 
 	}
 }
 
-
 // CreateApp 创建应用
 func (a *AppService) CreateApp(ctx context.Context, req *dto.CreateAppReq) (*dto.CreateAppResp, error) {
 	// 从请求体中获取租户用户信息（应用所有者）
@@ -152,7 +151,6 @@ func (a *AppService) UpdateApp(ctx context.Context, req *dto.UpdateAppReq) (*dto
 
 	return resp, nil
 }
-
 
 // extractVersionNum 从版本号字符串中提取数字部分（如 "v1" -> 1, "v20" -> 20）
 func extractVersionNum(version string) int {
