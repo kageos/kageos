@@ -1071,10 +1071,6 @@ func (s *ServiceTreeService) buildDirectoryTreeNode(
 	idToTree map[int64]*model.ServiceTree,
 	functionMap map[int64][]*model.ServiceTree,
 ) *dto.DirectoryTreeNode {
-	// 获取目录名称（路径的最后一部分）
-	pathParts := strings.Split(strings.Trim(tree.FullCodePath, "/"), "/")
-	dirName := pathParts[len(pathParts)-1]
-
 	// 构建文件列表
 	files := make([]*dto.FileSnapshotInfo, 0)
 	if fileSnapshots, exists := directoryFiles[tree.FullCodePath]; exists {
@@ -1119,7 +1115,8 @@ func (s *ServiceTreeService) buildDirectoryTreeNode(
 	}
 
 	return &dto.DirectoryTreeNode{
-		Name:           dirName,
+		Type:           "package", // DirectoryTreeNode 始终是 package 类型
+		Name:           tree.Name, // 使用 ServiceTree 的 Name 字段
 		Path:           tree.FullCodePath,
 		Files:          files,
 		Functions:      functions,

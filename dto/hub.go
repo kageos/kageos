@@ -18,6 +18,7 @@ type PublishHubDirectoryReq struct {
 
 // DirectoryTreeNode 目录树节点（用于发布目录，包含文件内容和函数）
 type DirectoryTreeNode struct {
+	Type           string              `json:"type"`            // 节点类型：package（目录）或 function（函数）
 	Name           string              `json:"name"`            // 目录名称
 	Path           string              `json:"path"`            // 目录完整路径
 	Files          []*FileSnapshotInfo `json:"files"`           // 该目录下的文件列表（包含内容）
