@@ -871,7 +871,7 @@ func (s *ServiceTreeService) PublishDirectoryToHub(ctx context.Context, req *dto
 
 	// 8. 建立双向绑定：更新根目录节点的 HubDirectoryID 和版本信息
 	// 需要查询 Hub 获取版本信息（因为 hubResp 可能不包含版本）
-	hubDetail, err := apicall.GetHubDirectoryDetail(header, req.SourceDirectoryPath, "", false, false)
+	hubDetail, err := apicall.GetHubDirectoryDetail(header, req.SourceDirectoryPath, "", false)
 	if err != nil {
 		logger.Warnf(ctx, "[PublishDirectoryToHub] 获取Hub目录详情失败，无法记录版本信息: hubDirectoryID=%d, error=%v", hubResp.HubDirectoryID, err)
 		// 即使获取详情失败，也记录 HubDirectoryID
@@ -1248,10 +1248,14 @@ func (s *ServiceTreeService) buildDirectoryTreeNode(
 	idToTree map[int64]*model.ServiceTree,
 	functionMap map[int64][]*model.ServiceTree,
 ) *dto.DirectoryTreeNode {
-	// 构建文件列表
+	// 构建文件列表（过滤掉 init_.go 文件，这是运行时生成的文件）
 	files := make([]*dto.FileSnapshotInfo, 0)
 	if fileSnapshots, exists := directoryFiles[tree.FullCodePath]; exists {
 		for _, file := range fileSnapshots {
+			// 忽略 init_.go 文件（运行时生成的文件，类似于 .idea）
+			if file.FileName == "init_" || file.FileName == "init_.go" || strings.HasSuffix(file.RelativePath, "/init_.go") {
+				continue
+			}
 			files = append(files, &dto.FileSnapshotInfo{
 				FileName:     file.FileName,
 				RelativePath: file.RelativePath,
@@ -1646,7 +1650,7 @@ func (s *ServiceTreeService) GetHubInfo(ctx context.Context, req *dto.GetHubInfo
 		Token:       contextx.GetToken(ctx),
 	}
 
-	hubDetail, err := apicall.GetHubDirectoryDetail(header, req.FullCodePath, "", false, false)
+	hubDetail, err := apicall.GetHubDirectoryDetail(header, req.FullCodePath, "", false)
 	if err != nil {
 		logger.Warnf(ctx, "[GetHubInfo] 获取 Hub 目录详情失败: fullCodePath=%s, error=%v", req.FullCodePath, err)
 		// 即使获取详情失败，也返回基本信息
