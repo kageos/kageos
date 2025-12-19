@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/serviceconfig"
@@ -61,12 +62,17 @@ func GetHubDirectoryList(header *Header, page, pageSize int, search, category, p
 	return &result.Data, nil
 }
 
-// GetHubDirectoryDetail 获取 Hub 目录详情
-func GetHubDirectoryDetail(header *Header, hubDirectoryID int64, includeTree, includeFiles bool) (*dto.HubDirectoryDetailDetailResp, error) {
+// GetHubDirectoryDetail 获取 Hub 目录详情（通过网关，支持 hub_directory_id 或 full_code_path）
+func GetHubDirectoryDetail(header *Header, hubDirectoryID int64, fullCodePath string, includeTree, includeFiles bool) (*dto.HubDirectoryDetailDetailResp, error) {
 	// 构建查询参数
 	path := "/hub/api/v1/hub/directories/detail"
 	params := url.Values{}
-	params.Set("hub_directory_id", strconv.FormatInt(hubDirectoryID, 10))
+	if hubDirectoryID > 0 {
+		params.Set("hub_directory_id", strconv.FormatInt(hubDirectoryID, 10))
+	}
+	if fullCodePath != "" {
+		params.Set("full_code_path", fullCodePath)
+	}
 	if includeTree {
 		params.Set("include_tree", "true")
 	}
@@ -82,6 +88,41 @@ func GetHubDirectoryDetail(header *Header, hubDirectoryID int64, includeTree, in
 		http.MethodGet,
 		fullURL,
 		header,
+		nil,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &result.Data, nil
+}
+
+// GetHubDirectoryDetailFromHost 从指定的 Hub 主机获取目录详情（通过 full-code-path）
+// 用于跨 Hub 主机调用，不通过网关
+func GetHubDirectoryDetailFromHost(host string, fullCodePath string, includeTree, includeFiles bool) (*dto.HubDirectoryDetailDetailResp, error) {
+	// 构建 Hub API URL
+	baseURL := host
+	if !strings.HasPrefix(host, "http://") && !strings.HasPrefix(host, "https://") {
+		baseURL = "http://" + host
+	}
+
+	// 构建查询参数
+	path := "/api/v1/hub/directories/detail"
+	params := url.Values{}
+	params.Set("full_code_path", fullCodePath)
+	if includeTree {
+		params.Set("include_tree", "true")
+	}
+	if includeFiles {
+		params.Set("include_files", "true")
+	}
+
+	fullURL := fmt.Sprintf("%s%s?%s", baseURL, path, params.Encode())
+
+	// 使用 callAPIWithURL 调用（不需要 header，因为是公开接口）
+	result, err := callAPIWithURL[dto.HubDirectoryDetailDetailResp](
+		http.MethodGet,
+		fullURL,
+		nil, // 不需要 header
 		nil,
 	)
 	if err != nil {

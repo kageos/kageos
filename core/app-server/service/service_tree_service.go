@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -990,39 +989,6 @@ func ParseHubLink(hubLink string) (*HubLinkInfo, error) {
 	}, nil
 }
 
-// GetHubDirectoryDetailFromHost 从指定的 Hub 主机获取目录详情（通过 full-code-path）
-func GetHubDirectoryDetailFromHost(host string, fullCodePath string, includeTree, includeFiles bool) (*dto.HubDirectoryDetailDetailResp, error) {
-	// 构建 Hub API URL
-	baseURL := host
-	if !strings.HasPrefix(host, "http://") && !strings.HasPrefix(host, "https://") {
-		baseURL = "http://" + host
-	}
-
-	// 构建查询参数
-	path := "/api/v1/hub/directories/detail"
-	params := url.Values{}
-	params.Set("full_code_path", fullCodePath) // 使用 full-code-path 而不是 directory_id
-	if includeTree {
-		params.Set("include_tree", "true")
-	}
-	if includeFiles {
-		params.Set("include_files", "true")
-	}
-
-	fullURL := fmt.Sprintf("%s%s?%s", baseURL, path, params.Encode())
-
-	// 使用 callAPIWithURL 调用（不需要 token，因为是公开接口）
-	result, err := apicall.CallAPIWithURL[dto.HubDirectoryDetailDetailResp](
-		"GET",
-		fullURL,
-		nil, // 不需要 header
-		nil,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return &result.Data, nil
-}
 
 // PullDirectoryFromHub 从 Hub 拉取目录到工作空间（类似 git pull）
 func (s *ServiceTreeService) PullDirectoryFromHub(ctx context.Context, req *dto.PullDirectoryFromHubReq) (*dto.PullDirectoryFromHubResp, error) {
@@ -1036,7 +1002,7 @@ func (s *ServiceTreeService) PullDirectoryFromHub(ctx context.Context, req *dto.
 		hubLinkInfo.Host, hubLinkInfo.FullCodePath, hubLinkInfo.Version)
 
 	// 2. 从 Hub 获取目录详情（包含目录树和文件内容）
-	hubDetail, err := GetHubDirectoryDetailFromHost(hubLinkInfo.Host, hubLinkInfo.FullCodePath, true, true)
+	hubDetail, err := apicall.GetHubDirectoryDetailFromHost(hubLinkInfo.Host, hubLinkInfo.FullCodePath, true, true)
 	if err != nil {
 		return nil, fmt.Errorf("获取 Hub 目录详情失败: %w", err)
 	}
@@ -1255,7 +1221,7 @@ func (s *ServiceTreeService) GetHubInfo(ctx context.Context, req *dto.GetHubInfo
 		Token:       contextx.GetToken(ctx),
 	}
 
-	hubDetail, err := apicall.GetHubDirectoryDetail(header, tree.HubDirectoryID, false, false)
+	hubDetail, err := apicall.GetHubDirectoryDetail(header, tree.HubDirectoryID, "", false, false)
 	if err != nil {
 		logger.Warnf(ctx, "[GetHubInfo] 获取 Hub 目录详情失败: hubDirectoryID=%d, error=%v", tree.HubDirectoryID, err)
 		// 即使获取详情失败，也返回基本信息
