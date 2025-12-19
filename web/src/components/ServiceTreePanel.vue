@@ -69,6 +69,17 @@
             <span v-else class="node-icon fx-icon" :class="getNodeIconClass(data)">fx</span>
             <span class="node-label">{{ node.label }}</span>
             
+            <!-- Hub 标记 - 已发布到 Hub 的目录显示 -->
+            <span
+              v-if="data.type === 'package' && data.hub_directory_id && data.hub_directory_id > 0"
+              class="hub-badge"
+              @click.stop="handleHubBadgeClick(data)"
+              :title="data.hub_version ? `已发布到应用中心 ${data.hub_version}` : '已发布到应用中心'"
+            >
+              <el-icon class="hub-icon"><Link /></el-icon>
+              <span v-if="data.hub_version" class="hub-version">{{ data.hub_version }}</span>
+            </span>
+            
             <!-- 更多操作按钮 - 鼠标悬停时显示 -->
             <el-dropdown
               trigger="click"
@@ -151,6 +162,7 @@ import {
   findNodeByPath,
   expandPathAndSelect
 } from '@/utils/serviceTreeUtils'
+import { navigateToHubDirectoryDetail } from '@/utils/hub-navigation'
 
 interface Props {
   treeData: ServiceTree[]
@@ -319,6 +331,13 @@ const handleNodeAction = (command: string, data: ServiceTree) => {
 const handleUpdateHistoryClick = () => {
   // 显示工作空间变更记录
   emit('update-history')
+}
+
+// 处理 Hub 标记点击 - 跳转到 Hub 目录详情页
+const handleHubBadgeClick = (data: ServiceTree) => {
+  if (data.hub_directory_id && data.hub_directory_id > 0) {
+    navigateToHubDirectoryDetail(data.hub_directory_id)
+  }
 }
 
 // 处理从应用中心安装按钮点击
@@ -587,6 +606,36 @@ defineExpose({
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  
+  .hub-badge {
+    margin-left: 6px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    transition: all 0.2s;
+    flex-shrink: 0;
+    padding: 2px 4px;
+    border-radius: 3px;
+    color: var(--el-color-primary);
+    
+    &:hover {
+      background-color: var(--el-color-primary-light-9);
+      color: var(--el-color-primary);
+    }
+    
+    .hub-icon {
+      font-size: 13px;
+      color: var(--el-color-primary);
+    }
+    
+    .hub-version {
+      font-size: 10px;
+      color: var(--el-text-color-secondary);
+      margin-left: 2px;
+      font-weight: 500;
+    }
   }
   
   .node-more-actions {

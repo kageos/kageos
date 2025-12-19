@@ -90,10 +90,13 @@ type GetServiceTreeResp struct {
 	AppID        int64                 `json:"app_id" example:"1"`                          // 应用ID
 	RefID        int64                 `json:"ref_id" example:"0"`                          // 引用ID：指向真实资源的ID，如果是package类型指向package的ID，如果是function类型指向function的ID
 	FullCodePath string                `json:"full_code_path" example:"/beiluo/myapp/user"` // 完整代码路径
-	TemplateType string                `json:"template_type" example:"form"`                 // 模板类型（函数的类型，如 form、table）
-	Version      string                `json:"version" example:"v1"`                         // 节点当前版本号（如 v1, v2），package类型表示目录版本，function类型表示函数版本等
-	VersionNum   int                   `json:"version_num" example:"1"`                      // 节点当前版本号（数字部分）
-	Children     []*GetServiceTreeResp `json:"children,omitempty"`                          // 子目录列表
+	TemplateType   string                `json:"template_type" example:"form"`                 // 模板类型（函数的类型，如 form、table）
+	Version        string                `json:"version" example:"v1"`                         // 节点当前版本号（如 v1, v2），package类型表示目录版本，function类型表示函数版本等
+	VersionNum     int                   `json:"version_num" example:"1"`                      // 节点当前版本号（数字部分）
+	HubDirectoryID int64                 `json:"hub_directory_id" example:"0"`                 // 关联的Hub目录ID（如果已发布到Hub）
+	HubVersion     string                `json:"hub_version" example:""`                       // Hub目录版本（如 v1.0.0），用于版本检测和升级
+	HubVersionNum  int                   `json:"hub_version_num" example:"0"`                  // Hub目录版本号（数字部分），用于版本比较
+	Children       []*GetServiceTreeResp `json:"children,omitempty"`                          // 子目录列表
 }
 
 // UpdateServiceTreeMetadataReq 更新服务目录元数据请求（旧接口，保留兼容性）
