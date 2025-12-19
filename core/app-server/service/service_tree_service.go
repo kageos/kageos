@@ -733,7 +733,7 @@ func (s *ServiceTreeService) copyFromHub(ctx context.Context, req *dto.CopyDirec
 				rootDirCode = pathParts[len(pathParts)-1]
 			}
 		}
-		
+
 		if rootDirCode != "" {
 			rootDirPath = fmt.Sprintf("%s/%s", targetPath, rootDirCode)
 		} else {
@@ -1297,8 +1297,8 @@ func (s *ServiceTreeService) buildDirectoryTreeNode(
 
 	return &dto.DirectoryTreeNode{
 		Type:           "package", // DirectoryTreeNode 始终是 package 类型
-		Name:           tree.Name,  // 使用 ServiceTree 的 Name 字段（中文显示名称）
-		Code:           tree.Code,  // 使用 ServiceTree 的 Code 字段（英文标识）
+		Name:           tree.Name, // 使用 ServiceTree 的 Name 字段（中文显示名称）
+		Code:           tree.Code, // 使用 ServiceTree 的 Code 字段（英文标识）
 		Path:           tree.FullCodePath,
 		Files:          files,
 		Functions:      functions,
@@ -1444,7 +1444,7 @@ func (s *ServiceTreeService) PullDirectoryFromHub(ctx context.Context, req *dto.
 				rootDirCode = pathParts[len(pathParts)-1]
 			}
 		}
-		
+
 		if rootDirCode != "" {
 			rootDirPath = fmt.Sprintf("%s/%s", targetPath, rootDirCode)
 		} else {
@@ -1574,7 +1574,7 @@ func (s *ServiceTreeService) buildItemsFromTree(
 			dirCode = pathParts[len(pathParts)-1] // 获取最后一部分作为代码名称
 		}
 	}
-	
+
 	// 如果仍然无法获取，fallback 到 Name（但这种情况不应该发生）
 	if dirCode == "" {
 		dirCode = node.Name
