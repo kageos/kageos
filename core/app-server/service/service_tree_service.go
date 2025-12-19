@@ -1565,7 +1565,7 @@ func (s *ServiceTreeService) buildItemsFromTree(
 	dirCode := node.Code
 	logger.Infof(context.Background(), "[buildItemsFromTree] 处理节点: Name=%s, Code=%s, Path=%s, Files数量=%d",
 		node.Name, node.Code, node.Path, len(node.Files))
-	
+
 	// 如果 Code 为空，记录警告但不使用 fallback
 	if dirCode == "" {
 		logger.Warnf(context.Background(), "[buildItemsFromTree] ⚠️ Code 字段为空！Name=%s, Path=%s", node.Name, node.Path)
