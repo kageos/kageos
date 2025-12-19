@@ -142,6 +142,20 @@ func (r *AppRepository) UpdateApp(app *model.App) error {
 	return nil
 }
 
+// UpdateAppVersion 更新应用版本（仅更新版本字段，更高效）
+func (r *AppRepository) UpdateAppVersion(user, app, newVersion string) error {
+	err := r.db.Model(&model.App{}).
+		Where("user = ? AND code = ?", user, app).
+		Update("version", newVersion).Error
+	if err != nil {
+		return err
+	}
+	
+	// ✅ 使缓存失效
+	r.InvalidateAppCache(user, app)
+	return nil
+}
+
 // DeleteAppAndVersions 删除应用及其所有版本
 func (r *AppRepository) DeleteAppAndVersions(user, app string) error {
 	// 删除应用记录（使用code字段，因为app参数是应用代码）

@@ -374,6 +374,9 @@ func extractPackageFromPath(fullCodePath string) string {
 }
 
 // CopyServiceTree 复制服务目录（递归复制目录及其所有子目录）
+// 支持两种模式：
+// 1. 本地复制：从本地工作空间复制目录
+// 2. Hub 复制：从 Hub 链接复制目录（自动检测 hub:// 前缀）
 func (s *ServiceTreeService) CopyServiceTree(ctx context.Context, req *dto.CopyDirectoryReq) (*dto.CopyDirectoryResp, error) {
 	// 1. 获取目标应用信息
 	targetApp, err := s.appRepo.GetAppByID(req.TargetAppID)
@@ -381,7 +384,19 @@ func (s *ServiceTreeService) CopyServiceTree(ctx context.Context, req *dto.CopyD
 		return nil, fmt.Errorf("获取目标应用失败: %w", err)
 	}
 
-	// 2. 解析源目录信息
+	// 2. 检测是否为 Hub 链接
+	if strings.HasPrefix(req.SourceDirectoryPath, "hub://") {
+		// Hub 复制模式：使用 PullDirectoryFromHub 的逻辑
+		return s.copyFromHub(ctx, req, targetApp)
+	}
+
+	// 3. 本地复制模式：原有的本地复制逻辑
+	return s.copyFromLocal(ctx, req, targetApp)
+}
+
+// copyFromLocal 从本地工作空间复制目录
+func (s *ServiceTreeService) copyFromLocal(ctx context.Context, req *dto.CopyDirectoryReq, targetApp *model.App) (*dto.CopyDirectoryResp, error) {
+	// 解析源目录信息
 	sourceParts := strings.Split(strings.Trim(req.SourceDirectoryPath, "/"), "/")
 	if len(sourceParts) < 3 {
 		return nil, fmt.Errorf("源目录路径格式错误: %s", req.SourceDirectoryPath)
@@ -489,12 +504,13 @@ func (s *ServiceTreeService) CopyServiceTree(ctx context.Context, req *dto.CopyD
 		targetRootPath = dirsToCreate[0].targetPath
 	}
 
-	// 8. 构建批量创建请求（优化版本：使用批量创建接口）
-	batchItems := make([]*dto.DirectoryTreeItem, 0)
+	// 8. 构建批量创建请求（分离目录和文件，参考 PullDirectoryFromHub 的实现）
+	directoryItems := make([]*dto.DirectoryTreeItem, 0)
+	fileItems := make([]*dto.DirectoryTreeItem, 0)
 
 	// 8.1 添加目录项
 	for _, dirInfo := range dirsToCreate {
-		batchItems = append(batchItems, &dto.DirectoryTreeItem{
+		directoryItems = append(directoryItems, &dto.DirectoryTreeItem{
 			FullCodePath: dirInfo.targetPath,
 			Type:         "directory",
 			Name:         dirInfo.sourceTree.Name,
@@ -505,7 +521,13 @@ func (s *ServiceTreeService) CopyServiceTree(ctx context.Context, req *dto.CopyD
 
 	// 8.2 添加文件项
 	totalFileCount := 0
+	logger.Infof(ctx, "[CopyServiceTree] 开始处理文件快照: 源目录=%s, 目标根路径=%s, 目录数=%d",
+		req.SourceDirectoryPath, targetRootPath, len(directoryFiles))
+
 	for sourcePath, fileSnapshots := range directoryFiles {
+		logger.Infof(ctx, "[CopyServiceTree] 处理目录文件快照: sourcePath=%s, fileCount=%d",
+			sourcePath, len(fileSnapshots))
+
 		// 计算相对路径（相对于源根目录）
 		relativePath := strings.TrimPrefix(sourcePath, req.SourceDirectoryPath)
 		relativePath = strings.TrimPrefix(relativePath, "/")
@@ -517,8 +539,13 @@ func (s *ServiceTreeService) CopyServiceTree(ctx context.Context, req *dto.CopyD
 			targetPath = targetRootPath
 		} else {
 			// 子目录：保持相对路径结构
+			// 例如：源根目录是 /luobei/operations/other/fo，子目录是 /luobei/operations/other/fo/ticket
+			// relativePath 应该是 "ticket"，目标路径应该是 targetRootPath + "/ticket"
 			targetPath = targetRootPath + "/" + relativePath
 		}
+
+		logger.Infof(ctx, "[CopyServiceTree] 目录路径映射: sourcePath=%s -> targetPath=%s, relativePath=%s",
+			sourcePath, targetPath, relativePath)
 
 		for _, fileSnapshot := range fileSnapshots {
 			// 使用 FileName，如果为空则从相对路径提取
@@ -537,20 +564,17 @@ func (s *ServiceTreeService) CopyServiceTree(ctx context.Context, req *dto.CopyD
 				continue
 			}
 
-			// 构建文件完整路径
-			fileFullPath := targetPath + "/" + fileName
-			if fileSnapshot.FileType != "" && fileSnapshot.FileType != "go" {
-				fileFullPath = targetPath + "/" + fileName + "." + fileSnapshot.FileType
-			} else {
-				fileFullPath = targetPath + "/" + fileName + ".go"
-			}
+			// 构建文件完整路径（FullCodePath 应该只包含目录路径，不包含文件名）
+			// BatchWriteFiles 会从 FullCodePath 提取 package 路径，从 FileName 获取文件名
+			// 所以 FullCodePath 应该只是目录路径，如 /user/app/package，而不是 /user/app/package/file
+			// 参考 buildItemsFromTree 的实现，它也是错误的，但我们需要修复这里
 
 			// 添加文件项
-			batchItems = append(batchItems, &dto.DirectoryTreeItem{
-				FullCodePath: fileFullPath,
+			fileItems = append(fileItems, &dto.DirectoryTreeItem{
+				FullCodePath: targetPath, // 只包含目录路径，不包含文件名，如 /user/app/package
 				Type:         "file",
-				FileName:     fileName,
-				FileType:     fileSnapshot.FileType,
+				FileName:     fileName,              // 文件名（不含扩展名），如 test
+				FileType:     fileSnapshot.FileType, // 文件类型，如 go
 				Content:      fileSnapshot.Content,
 				RelativePath: fileSnapshot.RelativePath,
 			})
@@ -561,47 +585,174 @@ func (s *ServiceTreeService) CopyServiceTree(ctx context.Context, req *dto.CopyD
 			sourcePath, targetPath, len(fileSnapshots))
 	}
 
-	// 9. 批量创建目录和文件（一次性调用 runtime）
-	logger.Infof(ctx, "[ServiceTreeService] 准备批量创建目录树: directoryCount=%d, fileCount=%d",
-		len(dirsToCreate), totalFileCount)
+	// 9. 先批量创建目录
+	var directoryCount int
+	if len(directoryItems) > 0 {
+		batchCreateReq := &dto.BatchCreateDirectoryTreeReq{
+			User:  targetApp.User,
+			App:   targetApp.Code,
+			Items: directoryItems,
+		}
 
-	batchReq := &dto.BatchCreateDirectoryTreeReq{
-		User:  targetApp.User,
-		App:   targetApp.Code,
-		Items: batchItems,
+		batchCreateResp, err := s.BatchCreateDirectoryTree(ctx, batchCreateReq)
+		if err != nil {
+			logger.Errorf(ctx, "[ServiceTreeService] 批量创建目录失败: error=%v", err)
+			return nil, fmt.Errorf("批量创建目录失败: %w", err)
+		}
+
+		directoryCount = batchCreateResp.DirectoryCount
+		logger.Infof(ctx, "[ServiceTreeService] 批量创建目录完成: directoryCount=%d", directoryCount)
 	}
 
-	batchResp, err := s.BatchCreateDirectoryTree(ctx, batchReq)
-	if err != nil {
-		logger.Errorf(ctx, "[ServiceTreeService] 批量创建目录树失败: error=%v", err)
-		return nil, fmt.Errorf("批量创建目录树失败: %w", err)
+	// 10. 再批量写文件（会编译并返回 diff）
+	var fileCount int
+	var oldVersion, newVersion, gitCommitHash string
+	if len(fileItems) > 0 {
+		batchWriteReq := &dto.BatchWriteFilesReq{
+			User:  targetApp.User,
+			App:   targetApp.Code,
+			Files: fileItems,
+		}
+
+		batchWriteResp, err := s.BatchWriteFiles(ctx, batchWriteReq)
+		if err != nil {
+			logger.Errorf(ctx, "[ServiceTreeService] 批量写文件失败: error=%v", err)
+			return nil, fmt.Errorf("批量写文件失败: %w", err)
+		}
+
+		fileCount = batchWriteResp.FileCount
+		oldVersion = batchWriteResp.OldVersion
+		newVersion = batchWriteResp.NewVersion
+		gitCommitHash = batchWriteResp.GitCommitHash
+		logger.Infof(ctx, "[ServiceTreeService] 批量写文件完成: fileCount=%d, oldVersion=%s, newVersion=%s, gitCommitHash=%s",
+			fileCount, oldVersion, newVersion, gitCommitHash)
 	}
 
-	logger.Infof(ctx, "[ServiceTreeService] 批量创建目录树完成: directoryCount=%d, fileCount=%d",
-		batchResp.DirectoryCount, batchResp.FileCount)
-
-	// 10. 调用 UpdateApp（只用于编译和启动，文件已经通过批量创建了）
-	// 注意：这里仍然需要调用 UpdateApp 来触发编译和启动，但不需要 CreateFunctions
-	logger.Infof(ctx, "[ServiceTreeService] 准备调用 UpdateApp（编译和启动）")
-
-	updateReq := &dto.UpdateAppReq{
-		User: targetApp.User,
-		App:  targetApp.Code,
-		// 不传递 CreateFunctions，因为文件已经通过批量创建了
-	}
-
-	_, err = s.appService.UpdateApp(ctx, updateReq)
-	if err != nil {
-		logger.Errorf(ctx, "[ServiceTreeService] UpdateApp（编译和启动）失败: error=%v", err)
-		return nil, fmt.Errorf("UpdateApp 失败: %w", err)
-	}
-
-	logger.Infof(ctx, "[ServiceTreeService] 复制目录完成: 目录数=%d, 文件数=%d", batchResp.DirectoryCount, batchResp.FileCount)
+	logger.Infof(ctx, "[ServiceTreeService] 复制目录完成: 目录数=%d, 文件数=%d, oldVersion=%s, newVersion=%s",
+		directoryCount, fileCount, oldVersion, newVersion)
 
 	return &dto.CopyDirectoryResp{
-		Message:        fmt.Sprintf("复制目录成功，共复制 %d 个目录，%d 个文件", batchResp.DirectoryCount, batchResp.FileCount),
-		DirectoryCount: batchResp.DirectoryCount,
-		FileCount:      batchResp.FileCount,
+		Message:        fmt.Sprintf("复制目录成功，共复制 %d 个目录，%d 个文件", directoryCount, fileCount),
+		DirectoryCount: directoryCount,
+		FileCount:      fileCount,
+		OldVersion:     oldVersion,
+		NewVersion:     newVersion,
+		GitCommitHash:  gitCommitHash,
+	}, nil
+}
+
+// copyFromHub 从 Hub 链接复制目录
+func (s *ServiceTreeService) copyFromHub(ctx context.Context, req *dto.CopyDirectoryReq, targetApp *model.App) (*dto.CopyDirectoryResp, error) {
+	// 1. 解析 Hub 链接
+	hubLinkInfo, err := ParseHubLink(req.SourceDirectoryPath)
+	if err != nil {
+		return nil, fmt.Errorf("解析 Hub 链接失败: %w", err)
+	}
+
+	logger.Infof(ctx, "[CopyServiceTree] 解析 Hub 链接成功: host=%s, fullCodePath=%s, version=%s",
+		hubLinkInfo.Host, hubLinkInfo.FullCodePath, hubLinkInfo.Version)
+
+	// 2. 从 Hub 获取目录详情（包含目录树和文件内容，如果指定了版本号则查询指定版本）
+	hubDetail, err := apicall.GetHubDirectoryDetailFromHost(hubLinkInfo.Host, hubLinkInfo.FullCodePath, hubLinkInfo.Version, true, true)
+	if err != nil {
+		return nil, fmt.Errorf("获取 Hub 目录详情失败: %w", err)
+	}
+
+	// 3. 如果指定了版本号，验证版本是否匹配
+	if hubLinkInfo.Version != "" && hubDetail.Version != hubLinkInfo.Version {
+		return nil, fmt.Errorf("版本不匹配：请求版本 %s，实际版本 %s", hubLinkInfo.Version, hubDetail.Version)
+	}
+
+	// 4. 确定目标目录路径
+	targetPath := req.TargetDirectoryPath
+
+	// 5. 从 DirectoryTree 构建批量创建请求
+	if hubDetail.DirectoryTree == nil {
+		return nil, fmt.Errorf("Hub 目录树为空")
+	}
+
+	// 5.1 构建目录项列表
+	directoryItems := make([]*dto.DirectoryTreeItem, 0)
+	fileItems := make([]*dto.DirectoryTreeItem, 0)
+
+	// 递归遍历目录树，构建目录和文件项
+	s.buildItemsFromTree(hubDetail.DirectoryTree, targetPath, &directoryItems, &fileItems)
+
+	// 6. 先批量创建目录
+	var directoryCount int
+	if len(directoryItems) > 0 {
+		batchCreateReq := &dto.BatchCreateDirectoryTreeReq{
+			User:  targetApp.User,
+			App:   targetApp.Code,
+			Items: directoryItems,
+		}
+
+		batchCreateResp, err := s.BatchCreateDirectoryTree(ctx, batchCreateReq)
+		if err != nil {
+			return nil, fmt.Errorf("批量创建目录失败: %w", err)
+		}
+
+		directoryCount = batchCreateResp.DirectoryCount
+		logger.Infof(ctx, "[CopyServiceTree] 批量创建目录完成: directoryCount=%d", directoryCount)
+	}
+
+	// 7. 再批量写文件（会编译并返回 diff）
+	var fileCount int
+	var oldVersion, newVersion, gitCommitHash string
+	if len(fileItems) > 0 {
+		batchWriteReq := &dto.BatchWriteFilesReq{
+			User:  targetApp.User,
+			App:   targetApp.Code,
+			Files: fileItems,
+		}
+
+		batchWriteResp, err := s.BatchWriteFiles(ctx, batchWriteReq)
+		if err != nil {
+			return nil, fmt.Errorf("批量写文件失败: %w", err)
+		}
+
+		fileCount = batchWriteResp.FileCount
+		oldVersion = batchWriteResp.OldVersion
+		newVersion = batchWriteResp.NewVersion
+		gitCommitHash = batchWriteResp.GitCommitHash
+		logger.Infof(ctx, "[CopyServiceTree] 批量写文件完成: fileCount=%d, oldVersion=%s, newVersion=%s, gitCommitHash=%s",
+			fileCount, oldVersion, newVersion, gitCommitHash)
+	}
+
+	// 8. 获取根目录的 ServiceTree ID（用于建立双向绑定）
+	// 注意：根目录路径应该是 targetPath + 目录名称（从 Hub 目录树的第一层目录名）
+	rootDirPath := targetPath
+	if hubDetail.DirectoryTree != nil {
+		rootDirPath = fmt.Sprintf("%s/%s", targetPath, hubDetail.DirectoryTree.Name)
+	}
+	rootTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(rootDirPath)
+	if err != nil {
+		logger.Warnf(ctx, "[CopyServiceTree] 获取根目录 ServiceTree 失败: path=%s, error=%v", rootDirPath, err)
+	}
+
+	// 9. 建立双向绑定：更新根目录节点的 HubDirectoryID 和版本信息
+	if rootTree != nil && hubDetail.ID > 0 {
+		rootTree.HubDirectoryID = hubDetail.ID
+		rootTree.HubVersion = hubDetail.Version
+		rootTree.HubVersionNum = hubDetail.VersionNum
+		if err := s.serviceTreeRepo.UpdateServiceTree(rootTree); err != nil {
+			logger.Warnf(ctx, "[CopyServiceTree] 更新ServiceTree的Hub信息失败: treeID=%d, hubDirectoryID=%d, hubVersion=%s, error=%v",
+				rootTree.ID, hubDetail.ID, hubDetail.Version, err)
+		} else {
+			logger.Infof(ctx, "[CopyServiceTree] 成功建立双向绑定: treeID=%d, hubDirectoryID=%d, hubVersion=%s", rootTree.ID, hubDetail.ID, hubDetail.Version)
+		}
+	}
+
+	logger.Infof(ctx, "[CopyServiceTree] 从 Hub 复制目录完成: 目录数=%d, 文件数=%d, oldVersion=%s, newVersion=%s",
+		directoryCount, fileCount, oldVersion, newVersion)
+
+	return &dto.CopyDirectoryResp{
+		Message:        fmt.Sprintf("从 Hub 复制目录成功，共复制 %d 个目录，%d 个文件", directoryCount, fileCount),
+		DirectoryCount: directoryCount,
+		FileCount:      fileCount,
+		OldVersion:     oldVersion,
+		NewVersion:     newVersion,
+		GitCommitHash:  gitCommitHash,
 	}, nil
 }
 
@@ -921,8 +1072,16 @@ func (s *ServiceTreeService) BatchCreateDirectoryTree(
 		var parentID int64 = 0
 		parentPath := getParentPath(item.FullCodePath)
 		if parentPath != "" {
+			// 先从本次创建的目录中查找
 			if parentTree, exists := pathToTree[parentPath]; exists {
 				parentID = parentTree.ID
+			} else {
+				// 如果本次创建中没有，从数据库中查找（可能父目录已存在）
+				if existingParent, err := s.serviceTreeRepo.GetServiceTreeByFullPath(parentPath); err == nil {
+					parentID = existingParent.ID
+					// 将已存在的父目录也加入映射，供后续子目录使用
+					pathToTree[parentPath] = existingParent
+				}
 			}
 		}
 
@@ -958,10 +1117,13 @@ func (s *ServiceTreeService) BatchCreateDirectoryTree(
 }
 
 // getParentPath 获取父目录路径（辅助函数）
+// 路径格式：/user/app/package1/package2/...
+// 根目录是 /user/app（2部分），第一个 package 是 /user/app/package1（3部分）
+// 所以只有当路径部分数 <= 2 时才是根目录，没有父目录
 func getParentPath(fullCodePath string) string {
 	pathParts := strings.Split(strings.Trim(fullCodePath, "/"), "/")
-	if len(pathParts) <= 3 {
-		return "" // 没有父目录（已经是根目录）
+	if len(pathParts) <= 2 {
+		return "" // 没有父目录（已经是根目录 /user/app）
 	}
 	// 去掉最后一部分，重新组合
 	parentParts := pathParts[:len(pathParts)-1]
@@ -1329,6 +1491,18 @@ func (s *ServiceTreeService) BatchWriteFiles(ctx context.Context, req *dto.Batch
 		}
 	}
 
+	// 5. 更新数据库中的版本信息（基于 runtimeResp 返回的版本信息）
+	if runtimeResp.NewVersion != "" {
+		if err := s.appRepo.UpdateAppVersion(req.User, req.App, runtimeResp.NewVersion); err != nil {
+			logger.Warnf(ctx, "[BatchWriteFiles] 更新应用版本失败: oldVersion=%s, newVersion=%s, error=%v",
+				runtimeResp.OldVersion, runtimeResp.NewVersion, err)
+			// 不返回错误，因为文件已经写入成功，只是版本更新失败
+		} else {
+			logger.Infof(ctx, "[BatchWriteFiles] 应用版本更新成功: oldVersion=%s, newVersion=%s",
+				runtimeResp.OldVersion, runtimeResp.NewVersion)
+		}
+	}
+
 	return &dto.BatchWriteFilesResp{
 		FileCount:     runtimeResp.FileCount,
 		WrittenPaths:  runtimeResp.WrittenPaths,
@@ -1372,9 +1546,10 @@ func (s *ServiceTreeService) buildItemsFromTree(
 			}
 		}
 
-		fileFullPath := fmt.Sprintf("%s/%s", currentTargetPath, fileName)
+		// FullCodePath 应该只包含目录路径，不包含文件名
+		// BatchWriteFiles 会从 FullCodePath 提取 package 路径，从 FileName 获取文件名
 		*fileItems = append(*fileItems, &dto.DirectoryTreeItem{
-			FullCodePath: fileFullPath,
+			FullCodePath: currentTargetPath, // 只包含目录路径，不包含文件名
 			Type:         "file",
 			FileName:     fileName,
 			FileType:     file.FileType,

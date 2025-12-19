@@ -102,10 +102,10 @@
                     <el-icon><CopyDocument /></el-icon>
                     复制
                   </el-dropdown-item>
-                  <!-- 仅对package类型显示粘贴选项（当有复制的内容时） -->
+                  <!-- 粘贴选项（当有复制的内容且当前节点是目录时显示） -->
                   <el-dropdown-item v-if="data.type === 'package' && copiedDirectory" command="paste">
                     <el-icon><Document /></el-icon>
-                    粘贴
+                    粘贴到此处
                   </el-dropdown-item>
                   <el-dropdown-item command="copy-link">
                     <el-icon><Link /></el-icon>
@@ -146,7 +146,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, computed } from 'vue'
+import { ref, watch, nextTick, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Plus, MoreFilled, Link, CopyDocument, Document, Clock, Upload, Download } from '@element-plus/icons-vue'
 import ChartIcon from './icons/ChartIcon.vue'
@@ -207,40 +207,68 @@ const handleCopy = (node: ServiceTree) => {
   ElMessage.success(`已复制目录：${node.name}`)
 }
 
-  // 粘贴目录
-  const handlePaste = async (targetNode: ServiceTree) => {
+  // 粘贴目录（使用当前选中的目录作为目标）
+  const handlePaste = async (targetNode?: ServiceTree) => {
     if (!copiedDirectory.value) {
       ElMessage.warning('没有可粘贴的目录')
       return
     }
     
-    if (targetNode.type !== 'package') {
+    // 如果没有传入 targetNode，使用当前选中的目录
+    let finalTargetNode = targetNode
+    if (!finalTargetNode && props.currentFunction && props.currentFunction.type === 'package') {
+      finalTargetNode = props.currentFunction
+    }
+    
+    // 如果还是没有目标节点，尝试从树数据中查找当前选中的节点
+    if (!finalTargetNode && props.currentNodeId) {
+      const findNodeById = (nodes: ServiceTree[], id: number | string): ServiceTree | null => {
+        for (const node of nodes) {
+          if (Number(node.id) === Number(id)) {
+            return node
+          }
+          if (node.children && node.children.length > 0) {
+            const found = findNodeById(node.children, id)
+            if (found) return found
+          }
+        }
+        return null
+      }
+      finalTargetNode = findNodeById(groupedTreeData.value, props.currentNodeId)
+    }
+    
+    if (!finalTargetNode) {
+      ElMessage.warning('请先选择一个目录作为粘贴目标')
+      return
+    }
+    
+    if (finalTargetNode.type !== 'package') {
       ElMessage.warning('只能粘贴到目录（package类型）')
       return
     }
     
     // 检查是否粘贴到自己或子目录
-    if (copiedDirectory.value.full_code_path === targetNode.full_code_path) {
+    if (copiedDirectory.value.full_code_path === finalTargetNode.full_code_path) {
       ElMessage.warning('不能粘贴到自己')
       return
     }
     
     // 检查是否粘贴到自己的子目录
-    if (targetNode.full_code_path.startsWith(copiedDirectory.value.full_code_path + '/')) {
+    if (finalTargetNode.full_code_path.startsWith(copiedDirectory.value.full_code_path + '/')) {
       ElMessage.warning('不能粘贴到自己的子目录')
       return
     }
     
     // 检查是否是跨应用复制
     const sourcePathParts = copiedDirectory.value.full_code_path.split('/').filter(Boolean)
-    const targetPathParts = targetNode.full_code_path.split('/').filter(Boolean)
+    const targetPathParts = finalTargetNode.full_code_path.split('/').filter(Boolean)
     const isCrossApp = sourcePathParts.length >= 2 && targetPathParts.length >= 2 && 
                        (sourcePathParts[0] !== targetPathParts[0] || sourcePathParts[1] !== targetPathParts[1])
     
     // 构建确认消息
-    let confirmMessage = `确定要将目录 "${copiedDirectory.value.name}" 复制到 "${targetNode.name}" 吗？\n\n`
+    let confirmMessage = `确定要将目录 "${copiedDirectory.value.name}" 复制到 "${finalTargetNode.name}" 吗？\n\n`
     confirmMessage += `源目录：${copiedDirectory.value.full_code_path}\n`
-    confirmMessage += `目标目录：${targetNode.full_code_path}`
+    confirmMessage += `目标目录：${finalTargetNode.full_code_path}`
     if (isCrossApp) {
       confirmMessage += `\n\n⚠️ 注意：这是跨应用复制操作`
     }
@@ -260,22 +288,22 @@ const handleCopy = (node: ServiceTree) => {
       // 执行粘贴
       isPasting.value = true
       try {
-        // 解析目标应用信息（从 targetNode.full_code_path 中提取）
-        const targetPathParts = targetNode.full_code_path.split('/').filter(Boolean)
+        // 解析目标应用信息（从 finalTargetNode.full_code_path 中提取）
+        const targetPathParts = finalTargetNode.full_code_path.split('/').filter(Boolean)
         if (targetPathParts.length < 2) {
           throw new Error('目标路径格式错误')
         }
         
         // 获取目标应用ID
-        if (!targetNode.app_id) {
+        if (!finalTargetNode.app_id) {
           throw new Error('无法获取目标应用ID，请确保目标目录有效')
         }
         
-        const targetAppId = targetNode.app_id
+        const targetAppId = finalTargetNode.app_id
         
         await copyDirectory({
           source_directory_path: copiedDirectory.value.full_code_path,
-          target_directory_path: targetNode.full_code_path,
+          target_directory_path: finalTargetNode.full_code_path,
           target_app_id: targetAppId
         })
       
@@ -315,7 +343,12 @@ const handleNodeAction = (command: string, data: ServiceTree) => {
   } else if (command === 'copy') {
     handleCopy(data)
   } else if (command === 'paste') {
-    handlePaste(data)
+    // 粘贴时，如果右键的节点是目录，使用该节点；否则使用当前选中的目录
+    if (data.type === 'package') {
+      handlePaste(data)
+    } else {
+      handlePaste() // 使用当前选中的目录
+    }
   } else if (command === 'copy-link') {
     emit('copy-link', data)
   } else if (command === 'publish-to-hub') {
@@ -326,6 +359,33 @@ const handleNodeAction = (command: string, data: ServiceTree) => {
     emit('update-history', data)
   }
 }
+
+// 处理 Ctrl+V 快捷键
+const handleKeyDown = (event: KeyboardEvent) => {
+  // 检查是否是 Ctrl+V 或 Cmd+V（Mac）
+  if ((event.ctrlKey || event.metaKey) && event.key === 'v') {
+    // 检查是否在输入框中（避免与输入框的粘贴冲突）
+    const target = event.target as HTMLElement
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+      return // 在输入框中，不处理
+    }
+    
+    // 阻止默认行为
+    event.preventDefault()
+    
+    // 执行粘贴
+    handlePaste()
+  }
+}
+
+// 注册和注销键盘事件监听
+onMounted(() => {
+  window.addEventListener('keydown', handleKeyDown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyDown)
+})
 
 // 处理变更记录按钮点击
 const handleUpdateHistoryClick = () => {

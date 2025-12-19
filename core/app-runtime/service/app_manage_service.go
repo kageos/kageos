@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-runtime/dto"
 	sharedDto "github.com/ai-agent-os/ai-agent-os/dto"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-runtime/model"
@@ -446,7 +445,7 @@ func (s *AppManageService) DeleteApp(ctx context.Context, user, app string) erro
 // UpdateApp 更新应用（重新编译并重启容器）
 // 如果提供了 CreateFunctions，先执行创建函数操作
 // 如果提供了 ForkPackages，先执行 fork 操作，再执行更新
-func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, forkPackages []*sharedDto.ForkPackageInfo, createFunctions []*sharedDto.CreateFunctionInfo, requirement, changeDescription string) (*dto.UpdateAppResp, error) {
+func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, forkPackages []*sharedDto.ForkPackageInfo, createFunctions []*sharedDto.CreateFunctionInfo, requirement, changeDescription string) (*sharedDto.UpdateAppResp, error) {
 
 	logStr := strings.Builder{}
 	logStr.WriteString(fmt.Sprintf("[UpdateApp] Starting update: %s/%s\t", user, app))
@@ -681,14 +680,35 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, fork
 	// 构建 UpdateResult，包含 diff 信息（如果有）
 	// 解析嵌套的 diff 数据，避免双嵌套
 
-	result := &dto.UpdateAppResp{
+	// 将 updateCallbackResponse.Data (interface{}) 转换为 *dto.DiffData
+	// 因为 JSON 反序列化时，Data 被解析为 map[string]interface{}，需要重新序列化/反序列化
+	var diffData *sharedDto.DiffData
+	if updateCallbackResponse.Data != nil {
+		// 先序列化为 JSON，再反序列化为 DiffData
+		dataBytes, err := json.Marshal(updateCallbackResponse.Data)
+		if err == nil {
+			var tempDiffData sharedDto.DiffData
+			if err := json.Unmarshal(dataBytes, &tempDiffData); err == nil {
+				diffData = &tempDiffData
+			} else {
+				logger.Warnf(ctx, "[UpdateApp] 反序列化 diff 数据失败: %v", err)
+			}
+		} else {
+			logger.Warnf(ctx, "[UpdateApp] 序列化 diff 数据失败: %v", err)
+		}
+	}
+
+	result := &sharedDto.UpdateAppResp{
 		User:          user,
 		App:           app,
 		OldVersion:    oldVersion,
 		NewVersion:    newVersion,
-		GitCommitHash: gitCommitHash,              // Git 提交哈希
-		Diff:          updateCallbackResponse.Data, // 修复后的 diff 信息
-		Error:         callbackErr,
+		GitCommitHash: gitCommitHash, // Git 提交哈希
+		Diff:          diffData,      // 转换后的 diff 信息
+		Error:         "",
+	}
+	if callbackErr != nil {
+		result.Error = callbackErr.Error()
 	}
 
 	return result, nil
@@ -1501,11 +1521,11 @@ func (s *AppManageService) ReadDirectoryFiles(ctx context.Context, user, app, fu
 
 // GitCommitMessage Git 提交消息结构体
 type GitCommitMessage struct {
-	AppVersion       string `json:"app_version"`        // 应用版本号
-	Requirement      string `json:"requirement"`       // 变更需求
+	AppVersion        string `json:"app_version"`        // 应用版本号
+	Requirement       string `json:"requirement"`        // 变更需求
 	ChangeDescription string `json:"change_description"` // 变更描述
-	Summary          string `json:"summary"`           // 变更摘要
-	Timestamp        string `json:"timestamp"`         // 时间戳
+	Summary           string `json:"summary"`            // 变更摘要
+	Timestamp         string `json:"timestamp"`          // 时间戳
 }
 
 // commitToGit 提交代码到 Git，返回 commit hash

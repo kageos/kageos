@@ -73,6 +73,7 @@ import type { App } from '@/types'
 interface Props {
   modelValue: boolean
   currentApp?: App | null  // 当前应用
+  initialHubLink?: string  // 初始 Hub 链接（用于外部传入）
 }
 
 interface Emits {
@@ -121,6 +122,17 @@ const rules = {
 watch(dialogVisible, (visible) => {
   if (visible) {
     initForm()
+    // 如果有初始链接，填充到表单
+    if (props.initialHubLink) {
+      form.value.hub_link = props.initialHubLink
+    }
+  }
+})
+
+// 监听 initialHubLink 变化，更新表单
+watch(() => props.initialHubLink, (newLink) => {
+  if (newLink && dialogVisible.value) {
+    form.value.hub_link = newLink
   }
 })
 
