@@ -947,7 +947,13 @@ const handlePullFromHub = () => {
 // 处理刷新服务树（复制粘贴后需要刷新）
 const handleRefreshTree = async () => {
   if (currentApp.value) {
-    await applicationService.loadServiceTree(currentApp.value)
+    const app: App = {
+      id: currentApp.value.id,
+      user: currentApp.value.user,
+      code: currentApp.value.code,
+      name: currentApp.value.name
+    }
+    await domainService.loadServiceTree(app)
   }
 }
 

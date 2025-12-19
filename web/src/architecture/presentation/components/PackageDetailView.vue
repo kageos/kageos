@@ -441,6 +441,11 @@ onMounted(() => {
   loadAgents()
 })
 
+// 处理显示变更记录
+function handleShowUpdateHistory(): void {
+  emit('update-history', props.packageNode)
+}
+
 // 处理子项点击（跳转到对应的目录或函数）
 function handleChildClick(child: ServiceTree): void {
   const applicationService = serviceFactory.getWorkspaceApplicationService()
