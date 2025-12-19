@@ -430,6 +430,95 @@ const handleCopy = (node: ServiceTree) => {
   }
 }
 
+// 粘贴 Hub 链接
+const handlePasteHubLink = async (hubLink: string, targetNode?: ServiceTree) => {
+  // 如果没有传入 targetNode，使用当前选中的目录
+  let finalTargetNode = targetNode
+  if (!finalTargetNode && props.currentFunction && props.currentFunction.type === 'package') {
+    finalTargetNode = props.currentFunction
+  }
+  
+  // 如果还是没有目标节点，尝试从树数据中查找当前选中的节点
+  if (!finalTargetNode && props.currentNodeId) {
+    const findNodeById = (nodes: ServiceTree[], id: number | string): ServiceTree | null => {
+      for (const node of nodes) {
+        if (Number(node.id) === Number(id)) {
+          return node
+        }
+        if (node.children && node.children.length > 0) {
+          const found = findNodeById(node.children, id)
+          if (found) return found
+        }
+      }
+      return null
+    }
+    finalTargetNode = findNodeById(groupedTreeData.value, props.currentNodeId)
+  }
+  
+  if (!finalTargetNode) {
+    ElMessage.warning('请先选择一个目录作为粘贴目标')
+    return
+  }
+  
+  if (finalTargetNode.type !== 'package') {
+    ElMessage.warning('只能粘贴到目录（package类型）')
+    return
+  }
+  
+  // 构建确认消息
+  let confirmMessage = `确定要从 Hub 链接复制目录到 "${finalTargetNode.name}" 吗？\n\n`
+  confirmMessage += `Hub 链接：${hubLink}\n`
+  confirmMessage += `目标目录：${finalTargetNode.full_code_path}`
+  
+  // 弹窗确认
+  try {
+    await ElMessageBox.confirm(
+      confirmMessage,
+      '确认粘贴',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'info'
+      }
+    )
+    
+    // 执行粘贴
+    isPasting.value = true
+    try {
+      // 获取目标应用ID
+      if (!finalTargetNode.app_id) {
+        throw new Error('无法获取目标应用ID，请确保目标目录有效')
+      }
+      
+      const targetAppId = finalTargetNode.app_id
+      
+      // 调用复制 API（后端会自动检测 hub:// 前缀）
+      await copyDirectory({
+        source_directory_path: hubLink,  // Hub 链接
+        target_directory_path: finalTargetNode.full_code_path,
+        target_app_id: targetAppId
+      })
+    
+      ElMessage.success('目录复制成功')
+      
+      // 触发刷新树事件
+      emit('refresh-tree')
+      
+      // 保留 Hub 链接以便多次粘贴
+    } catch (error: any) {
+      // 用户取消操作不显示错误
+      if (error !== 'cancel' && error !== 'close') {
+        const errorMessage = error?.response?.data?.message || error?.message || '复制失败'
+        ElMessage.error(errorMessage)
+      }
+    } finally {
+      isPasting.value = false
+    }
+  } catch (error) {
+    // 用户取消
+  }
+}
+
 
 // 直接使用原始树数据，不再进行分组处理
 const groupedTreeData = computed(() => props.treeData)
