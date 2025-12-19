@@ -767,17 +767,17 @@ func (s *ServiceTreeService) PushDirectoryToHub(ctx context.Context, req *dto.Pu
 
 	// 7. 构建 Hub 请求
 	hubReq := &dto.UpdateHubDirectoryReq{
-		APIKey:              req.APIKey,
-		HubDirectoryID:      sourceTree.HubDirectoryID,
-		SourceDirectoryPath: req.SourceDirectoryPath,
-		Name:                req.Name,
-		Description:         req.Description,
-		Category:            req.Category,
-		Tags:                req.Tags,
-		ServiceFeePersonal:  req.ServiceFeePersonal,
+		APIKey:               req.APIKey,
+		HubDirectoryID:       sourceTree.HubDirectoryID,
+		SourceDirectoryPath:  req.SourceDirectoryPath,
+		Name:                 req.Name,
+		Description:          req.Description,
+		Category:             req.Category,
+		Tags:                 req.Tags,
+		ServiceFeePersonal:   req.ServiceFeePersonal,
 		ServiceFeeEnterprise: req.ServiceFeeEnterprise,
-		Version:             req.Version,
-		DirectoryTree:       directoryTree,
+		Version:              req.Version,
+		DirectoryTree:        directoryTree,
 	}
 
 	// 8. 调用 Hub API

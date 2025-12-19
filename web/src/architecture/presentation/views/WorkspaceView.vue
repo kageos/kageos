@@ -27,6 +27,8 @@
           @fork-group="handleForkGroup"
           @copy-link="handleCopyLink"
           @publish-to-hub="handlePublishToHub"
+          @push-to-hub="handlePushToHub"
+          @pull-from-hub="handlePullFromHub"
           @refresh-tree="handleRefreshTree"
           @update-history="handleUpdateHistory"
         />
@@ -340,6 +342,8 @@ import ServiceTreePanel from '@/components/ServiceTreePanel.vue'
 import AppSwitcher from '@/components/AppSwitcher.vue'
 import FunctionForkDialog from '@/components/FunctionForkDialog.vue'
 import PublishToHubDialog from '@/components/PublishToHubDialog.vue'
+import PushToHubDialog from '@/components/PushToHubDialog.vue'
+import PullFromHubDialog from '@/components/PullFromHubDialog.vue'
 import DirectoryUpdateHistoryDialog from '@/components/DirectoryUpdateHistoryDialog.vue'
 import FormView from './FormView.vue'
 import TableView from './TableView.vue'
@@ -591,6 +595,9 @@ const forkSourceGroupName = ref('')
 // 发布到应用中心对话框
 const publishToHubDialogVisible = ref(false)
 const publishSelectedNode = ref<ServiceTreeType | null>(null)
+const pushToHubDialogVisible = ref(false)
+const pushSelectedNode = ref<ServiceTreeType | null>(null)
+const pullFromHubDialogVisible = ref(false)
 
 // 变更记录对话框状态
 const updateHistoryDialogVisible = ref(false)
@@ -871,6 +878,17 @@ const handlePublishToHub = (node: ServiceTreeType) => {
   publishToHubDialogVisible.value = true
 }
 
+// 处理推送到应用中心
+const handlePushToHub = (node: ServiceTreeType) => {
+  pushSelectedNode.value = node
+  pushToHubDialogVisible.value = true
+}
+
+// 处理从应用中心拉取
+const handlePullFromHub = () => {
+  pullFromHubDialogVisible.value = true
+}
+
 // 处理刷新服务树（复制粘贴后需要刷新）
 const handleRefreshTree = async () => {
   if (currentApp.value) {
@@ -903,9 +921,27 @@ const handleUpdateHistory = (node?: ServiceTreeType) => {
 }
 
 // 发布成功后的回调
-const handlePublishSuccess = () => {
-  // 可以在这里添加刷新逻辑，例如刷新服务目录树
-  ElMessage.success('发布成功！')
+const handlePublishSuccess = async () => {
+  // 刷新服务目录树
+  if (currentApp.value) {
+    await applicationService.loadServiceTree(currentApp.value)
+  }
+}
+
+// 推送成功后的回调
+const handlePushSuccess = async () => {
+  // 刷新服务目录树
+  if (currentApp.value) {
+    await applicationService.loadServiceTree(currentApp.value)
+  }
+}
+
+// 拉取成功后的回调
+const handlePullSuccess = async () => {
+  // 刷新服务目录树
+  if (currentApp.value) {
+    await applicationService.loadServiceTree(currentApp.value)
+  }
 }
 
 // Fork 成功后的回调
