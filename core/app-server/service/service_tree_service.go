@@ -1529,6 +1529,15 @@ func (s *ServiceTreeService) BatchWriteFiles(ctx context.Context, req *dto.Batch
 	}, nil
 }
 
+// countFilesInTree 递归统计目录树中的文件数量（用于调试）
+func (s *ServiceTreeService) countFilesInTree(node *dto.DirectoryTreeNode) int {
+	count := len(node.Files)
+	for _, subdir := range node.Subdirectories {
+		count += s.countFilesInTree(subdir)
+	}
+	return count
+}
+
 // buildItemsFromTree 递归构建目录和文件项列表
 func (s *ServiceTreeService) buildItemsFromTree(
 	node *dto.DirectoryTreeNode,
@@ -1565,6 +1574,7 @@ func (s *ServiceTreeService) buildItemsFromTree(
 	})
 
 	// 添加文件项
+	logger.Infof(context.Background(), "[buildItemsFromTree] 处理目录 %s，文件数量: %d", currentTargetPath, len(node.Files))
 	for _, file := range node.Files {
 		// 从 RelativePath 提取文件名（不含扩展名）
 		fileName := file.FileName
@@ -1577,6 +1587,11 @@ func (s *ServiceTreeService) buildItemsFromTree(
 			}
 		}
 
+		// 检查文件内容是否为空
+		if file.Content == "" {
+			logger.Warnf(context.Background(), "[buildItemsFromTree] 文件 %s 内容为空", fileName)
+		}
+
 		// FullCodePath 应该只包含目录路径，不包含文件名
 		// BatchWriteFiles 会从 FullCodePath 提取 package 路径，从 FileName 获取文件名
 		*fileItems = append(*fileItems, &dto.DirectoryTreeItem{
@@ -1587,6 +1602,7 @@ func (s *ServiceTreeService) buildItemsFromTree(
 			Content:      file.Content, // 文件内容
 			RelativePath: file.RelativePath,
 		})
+		logger.Infof(context.Background(), "[buildItemsFromTree] 添加文件: %s, 内容长度: %d", fileName, len(file.Content))
 	}
 
 	// 递归处理子目录
