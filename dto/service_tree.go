@@ -23,6 +23,31 @@ type PublishDirectoryToHubResp struct {
 	FileCount       int    `json:"file_count"`      // 包含的文件数量
 }
 
+// PushDirectoryToHubReq 推送目录到 Hub 请求（用于 push，更新已发布的目录）
+type PushDirectoryToHubReq struct {
+	SourceUser          string   `json:"source_user"`           // 源用户
+	SourceApp           string   `json:"source_app"`            // 源应用
+	SourceDirectoryPath string   `json:"source_directory_path"` // 源目录完整路径
+	Name                string   `json:"name"`                   // 目录名称（可选，不传则保持原值）
+	Description         string   `json:"description"`           // 目录描述（可选，不传则保持原值）
+	Category            string   `json:"category"`              // 分类（可选，不传则保持原值）
+	Tags                []string `json:"tags"`                  // 标签（可选，不传则保持原值）
+	ServiceFeePersonal  float64  `json:"service_fee_personal"`  // 个人用户服务费（可选）
+	ServiceFeeEnterprise float64 `json:"service_fee_enterprise"` // 企业用户服务费（可选）
+	Version             string   `json:"version"`               // 新版本号（必需，必须大于当前版本）
+	APIKey              string   `json:"api_key"`               // API Key（私有化部署需要）
+}
+
+// PushDirectoryToHubResp 推送目录到 Hub 响应
+type PushDirectoryToHubResp struct {
+	HubDirectoryID  int64  `json:"hub_directory_id"`
+	HubDirectoryURL string `json:"hub_directory_url"`
+	DirectoryCount  int    `json:"directory_count"` // 包含的子目录数量
+	FileCount       int    `json:"file_count"`      // 包含的文件数量
+	OldVersion      string `json:"old_version"`      // 旧版本号
+	NewVersion      string `json:"new_version"`     // 新版本号
+}
+
 // CreateServiceTreeReq 创建服务目录请求
 type CreateServiceTreeReq struct {
 	User        string `json:"user" binding:"required" example:"beiluo"`   // 用户名

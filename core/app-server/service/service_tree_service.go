@@ -711,6 +711,110 @@ func (s *ServiceTreeService) PublishDirectoryToHub(ctx context.Context, req *dto
 	}, nil
 }
 
+// PushDirectoryToHub 推送目录到 Hub（更新已发布的目录，类似 git push）
+func (s *ServiceTreeService) PushDirectoryToHub(ctx context.Context, req *dto.PushDirectoryToHubReq) (*dto.PushDirectoryToHubResp, error) {
+	// 1. 获取应用信息
+	sourceApp, err := s.appRepo.GetAppByUserName(req.SourceUser, req.SourceApp)
+	if err != nil {
+		return nil, fmt.Errorf("获取源应用失败: %w", err)
+	}
+
+	// 2. 验证源目录是否存在
+	sourceTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(req.SourceDirectoryPath)
+	if err != nil {
+		return nil, fmt.Errorf("获取源目录信息失败: %w", err)
+	}
+
+	// 3. 检查目录是否已发布到 Hub
+	if sourceTree.HubDirectoryID == 0 {
+		return nil, fmt.Errorf("目录尚未发布到 Hub，请先使用 PublishDirectoryToHub 发布")
+	}
+
+	// 4. 获取根目录节点和所有子目录节点（用于构建父子关系）
+	rootTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(req.SourceDirectoryPath)
+	if err != nil {
+		return nil, fmt.Errorf("获取根目录节点失败: %w", err)
+	}
+
+	descendants, err := s.serviceTreeRepo.GetDescendantDirectories(sourceApp.ID, req.SourceDirectoryPath)
+	if err != nil {
+		return nil, fmt.Errorf("查询子目录失败: %w", err)
+	}
+
+	// 构建所有目录节点的列表和映射
+	allTrees := make([]*model.ServiceTree, 0, len(descendants)+1)
+	allTrees = append(allTrees, rootTree)
+	allTrees = append(allTrees, descendants...)
+
+	// 构建路径到 ServiceTree 的映射，用于快速查找父目录
+	idToTree := make(map[int64]*model.ServiceTree)
+	for _, tree := range allTrees {
+		idToTree[tree.ID] = tree
+	}
+
+	// 5. 递归获取所有目录的文件快照（包括根目录和所有子目录）
+	directoryFiles, err := s.GetDirectorySnapshotsRecursively(ctx, sourceApp.ID, req.SourceDirectoryPath)
+	if err != nil {
+		return nil, fmt.Errorf("获取目录快照失败: %w", err)
+	}
+
+	if len(directoryFiles) == 0 {
+		return nil, fmt.Errorf("未找到任何目录快照，请确保源目录已创建快照")
+	}
+
+	// 6. 构建树形结构
+	directoryTree := s.buildDirectoryTree(rootTree, allTrees, directoryFiles, idToTree)
+
+	// 7. 构建 Hub 请求
+	hubReq := &dto.UpdateHubDirectoryReq{
+		APIKey:              req.APIKey,
+		HubDirectoryID:      sourceTree.HubDirectoryID,
+		SourceDirectoryPath: req.SourceDirectoryPath,
+		Name:                req.Name,
+		Description:         req.Description,
+		Category:            req.Category,
+		Tags:                req.Tags,
+		ServiceFeePersonal:  req.ServiceFeePersonal,
+		ServiceFeeEnterprise: req.ServiceFeeEnterprise,
+		Version:             req.Version,
+		DirectoryTree:       directoryTree,
+	}
+
+	// 8. 调用 Hub API
+	header := &apicall.Header{
+		TraceID:     contextx.GetTraceId(ctx),
+		RequestUser: contextx.GetRequestUser(ctx),
+		Token:       contextx.GetToken(ctx),
+	}
+
+	hubResp, err := apicall.UpdateDirectoryToHub(header, hubReq)
+	if err != nil {
+		return nil, fmt.Errorf("调用 Hub API 失败: %w", err)
+	}
+
+	// 9. 更新根目录节点的版本信息
+	rootTree.HubVersion = hubResp.NewVersion
+	rootTree.HubVersionNum = extractVersionNumForServiceTree(hubResp.NewVersion)
+	if err := s.serviceTreeRepo.UpdateServiceTree(rootTree); err != nil {
+		logger.Warnf(ctx, "[PushDirectoryToHub] 更新ServiceTree的Hub版本信息失败: treeID=%d, hubDirectoryID=%d, newVersion=%s, error=%v",
+			rootTree.ID, hubResp.HubDirectoryID, hubResp.NewVersion, err)
+		// 不返回错误，因为推送已经成功，只是更新版本信息失败
+	} else {
+		logger.Infof(ctx, "[PushDirectoryToHub] 成功更新Hub版本: treeID=%d, hubDirectoryID=%d, oldVersion=%s, newVersion=%s",
+			rootTree.ID, hubResp.HubDirectoryID, hubResp.OldVersion, hubResp.NewVersion)
+	}
+
+	// 10. 返回结果
+	return &dto.PushDirectoryToHubResp{
+		HubDirectoryID:  hubResp.HubDirectoryID,
+		HubDirectoryURL: hubResp.HubDirectoryURL,
+		DirectoryCount:  hubResp.DirectoryCount,
+		FileCount:       hubResp.FileCount,
+		OldVersion:      hubResp.OldVersion,
+		NewVersion:      hubResp.NewVersion,
+	}, nil
+}
+
 // BatchCreateDirectoryTree 批量创建目录树（用于 copy 和 pull from hub）
 func (s *ServiceTreeService) BatchCreateDirectoryTree(
 	ctx context.Context,
