@@ -62,17 +62,12 @@ func GetHubDirectoryList(header *Header, page, pageSize int, search, category, p
 	return &result.Data, nil
 }
 
-// GetHubDirectoryDetail 获取 Hub 目录详情（通过网关，支持 hub_directory_id 或 full_code_path）
-func GetHubDirectoryDetail(header *Header, hubDirectoryID int64, fullCodePath string, includeTree, includeFiles bool) (*dto.HubDirectoryDetailDetailResp, error) {
+// GetHubDirectoryDetail 获取 Hub 目录详情（通过网关，使用 full_code_path）
+func GetHubDirectoryDetail(header *Header, fullCodePath string, includeTree, includeFiles bool) (*dto.HubDirectoryDetailDetailResp, error) {
 	// 构建查询参数
 	path := "/hub/api/v1/hub/directories/detail"
 	params := url.Values{}
-	if hubDirectoryID > 0 {
-		params.Set("hub_directory_id", strconv.FormatInt(hubDirectoryID, 10))
-	}
-	if fullCodePath != "" {
-		params.Set("full_code_path", fullCodePath)
-	}
+	params.Set("full_code_path", fullCodePath)
 	if includeTree {
 		params.Set("include_tree", "true")
 	}
