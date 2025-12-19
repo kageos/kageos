@@ -436,6 +436,11 @@ function getChildFunctionIcon(child: ServiceTree) {
   return Document
 }
 
+// 处理显示变更记录
+function handleShowUpdateHistory(): void {
+  emit('update-history', props.packageNode)
+}
+
 // 组件挂载时加载智能体列表
 onMounted(() => {
   loadAgents()
