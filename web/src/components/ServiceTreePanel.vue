@@ -102,10 +102,10 @@
                     <el-icon><CopyDocument /></el-icon>
                     复制
                   </el-dropdown-item>
-                  <!-- 粘贴选项（当有复制的内容且当前节点是目录时显示） -->
-                  <el-dropdown-item v-if="data.type === 'package' && copiedDirectory" command="paste">
+                  <!-- 粘贴选项（当有复制的内容时显示，粘贴到当前选中的目录） -->
+                  <el-dropdown-item v-if="copiedDirectory" command="paste" divided>
                     <el-icon><Document /></el-icon>
-                    粘贴到此处
+                    粘贴
                   </el-dropdown-item>
                   <el-dropdown-item command="copy-link">
                     <el-icon><Link /></el-icon>
