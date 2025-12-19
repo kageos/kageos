@@ -985,7 +985,13 @@ const handleUpdateHistory = (node?: ServiceTreeType) => {
 const handlePublishSuccess = async () => {
   // 刷新服务目录树
   if (currentApp.value) {
-    await applicationService.loadServiceTree(currentApp.value)
+    const app: App = {
+      id: currentApp.value.id,
+      user: currentApp.value.user,
+      code: currentApp.value.code,
+      name: currentApp.value.name
+    }
+    await domainService.loadServiceTree(app)
   }
 }
 
@@ -993,7 +999,13 @@ const handlePublishSuccess = async () => {
 const handlePushSuccess = async () => {
   // 刷新服务目录树
   if (currentApp.value) {
-    await applicationService.loadServiceTree(currentApp.value)
+    const app: App = {
+      id: currentApp.value.id,
+      user: currentApp.value.user,
+      code: currentApp.value.code,
+      name: currentApp.value.name
+    }
+    await domainService.loadServiceTree(app)
   }
 }
 
@@ -1003,7 +1015,13 @@ const handlePullSuccess = async () => {
   pastedHubLink.value = ''
   // 刷新服务目录树
   if (currentApp.value) {
-    await applicationService.loadServiceTree(currentApp.value)
+    const app: App = {
+      id: currentApp.value.id,
+      user: currentApp.value.user,
+      code: currentApp.value.code,
+      name: currentApp.value.name
+    }
+    await domainService.loadServiceTree(app)
   }
 }
 
