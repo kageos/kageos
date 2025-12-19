@@ -720,10 +720,18 @@ func (s *ServiceTreeService) copyFromHub(ctx context.Context, req *dto.CopyDirec
 	}
 
 	// 8. 获取根目录的 ServiceTree ID（用于建立双向绑定）
-	// 注意：根目录路径应该是 targetPath + 目录名称（从 Hub 目录树的第一层目录名）
+	// 注意：根目录路径应该是 targetPath + 目录代码名称（从 Hub 目录树的 Path 中提取）
 	rootDirPath := targetPath
-	if hubDetail.DirectoryTree != nil {
-		rootDirPath = fmt.Sprintf("%s/%s", targetPath, hubDetail.DirectoryTree.Name)
+	if hubDetail.DirectoryTree != nil && hubDetail.DirectoryTree.Path != "" {
+		// 从 Path 中提取根目录的代码名称
+		pathParts := strings.Split(strings.Trim(hubDetail.DirectoryTree.Path, "/"), "/")
+		if len(pathParts) > 0 {
+			rootDirCode := pathParts[len(pathParts)-1]
+			rootDirPath = fmt.Sprintf("%s/%s", targetPath, rootDirCode)
+		} else {
+			// fallback 到 Name（不应该发生）
+			rootDirPath = fmt.Sprintf("%s/%s", targetPath, hubDetail.DirectoryTree.Name)
+		}
 	}
 	rootTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(rootDirPath)
 	if err != nil {
@@ -1414,10 +1422,18 @@ func (s *ServiceTreeService) PullDirectoryFromHub(ctx context.Context, req *dto.
 	}
 
 	// 9. 获取根目录的 ServiceTree ID（用于建立双向绑定）
-	// 注意：根目录路径应该是 targetPath + 目录名称（从 Hub 目录树的第一层目录名）
+	// 注意：根目录路径应该是 targetPath + 目录代码名称（从 Hub 目录树的 Path 中提取）
 	rootDirPath := targetPath
-	if hubDetail.DirectoryTree != nil {
-		rootDirPath = fmt.Sprintf("%s/%s", targetPath, hubDetail.DirectoryTree.Name)
+	if hubDetail.DirectoryTree != nil && hubDetail.DirectoryTree.Path != "" {
+		// 从 Path 中提取根目录的代码名称
+		pathParts := strings.Split(strings.Trim(hubDetail.DirectoryTree.Path, "/"), "/")
+		if len(pathParts) > 0 {
+			rootDirCode := pathParts[len(pathParts)-1]
+			rootDirPath = fmt.Sprintf("%s/%s", targetPath, rootDirCode)
+		} else {
+			// fallback 到 Name（不应该发生）
+			rootDirPath = fmt.Sprintf("%s/%s", targetPath, hubDetail.DirectoryTree.Name)
+		}
 	}
 	rootTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(rootDirPath)
 	if err != nil {
@@ -1529,13 +1545,13 @@ func (s *ServiceTreeService) buildItemsFromTree(
 			dirCode = pathParts[len(pathParts)-1] // 获取最后一部分作为代码名称
 		}
 	}
-	
+
 	// 如果无法从 Path 提取，fallback 到 Name（但这种情况不应该发生）
 	if dirCode == "" {
 		dirCode = node.Name
 		// 注意：这里无法获取 context，所以不记录日志
 	}
-	
+
 	// 计算当前目录的目标路径（使用代码名称）
 	currentTargetPath := fmt.Sprintf("%s/%s", targetBasePath, dirCode)
 
@@ -1545,7 +1561,7 @@ func (s *ServiceTreeService) buildItemsFromTree(
 		Type:         "directory",
 		Name:         dirCode, // 使用代码名称（从 Path 提取）
 		Description:  "",      // Hub 目录树可能没有描述
-		Tags:         "",       // Hub 目录树可能没有标签
+		Tags:         "",      // Hub 目录树可能没有标签
 	})
 
 	// 添加文件项
