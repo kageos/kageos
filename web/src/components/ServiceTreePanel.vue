@@ -195,6 +195,50 @@ const treeRef = ref()
 const copiedDirectory = ref<ServiceTree | null>(null)  // 复制的目录信息
 const isPasting = ref(false)  // 是否正在粘贴
 
+// localStorage 键名
+const COPIED_DIRECTORY_KEY = 'copied_directory'
+
+// 从 localStorage 恢复复制的目录
+const restoreCopiedDirectory = () => {
+  try {
+    const saved = localStorage.getItem(COPIED_DIRECTORY_KEY)
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      // 验证数据格式
+      if (parsed && parsed.full_code_path && parsed.name) {
+        copiedDirectory.value = parsed as ServiceTree
+      } else {
+        localStorage.removeItem(COPIED_DIRECTORY_KEY)
+      }
+    }
+  } catch (error) {
+    console.error('恢复复制的目录失败:', error)
+    localStorage.removeItem(COPIED_DIRECTORY_KEY)
+  }
+}
+
+// 保存复制的目录到 localStorage
+const saveCopiedDirectory = (node: ServiceTree) => {
+  try {
+    // 只保存必要的字段，避免存储过多数据
+    const dataToSave = {
+      id: node.id,
+      name: node.name,
+      full_code_path: node.full_code_path,
+      app_id: node.app_id,
+      type: node.type
+    }
+    localStorage.setItem(COPIED_DIRECTORY_KEY, JSON.stringify(dataToSave))
+  } catch (error) {
+    console.error('保存复制的目录失败:', error)
+  }
+}
+
+// 组件挂载时恢复复制的目录
+onMounted(() => {
+  restoreCopiedDirectory()
+  window.addEventListener('keydown', handleKeyDown)
+})
 
 // 复制目录
 const handleCopy = (node: ServiceTree) => {
@@ -204,6 +248,7 @@ const handleCopy = (node: ServiceTree) => {
   }
   
   copiedDirectory.value = node
+  saveCopiedDirectory(node)  // 保存到 localStorage
   ElMessage.success(`已复制目录：${node.name}`)
 }
 
@@ -378,11 +423,7 @@ const handleKeyDown = (event: KeyboardEvent) => {
   }
 }
 
-// 注册和注销键盘事件监听
-onMounted(() => {
-  window.addEventListener('keydown', handleKeyDown)
-})
-
+// 注销键盘事件监听
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown)
 })
