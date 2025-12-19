@@ -132,3 +132,34 @@ type BatchWriteFilesResp struct {
 	NewVersion    string   `json:"new_version"`     // 新版本号
 	GitCommitHash string   `json:"git_commit_hash,omitempty"` // Git 提交哈希
 }
+
+// PullDirectoryFromHubReq 从 Hub 拉取目录请求
+type PullDirectoryFromHubReq struct {
+	HubLink            string `json:"hub_link" binding:"required"`             // Hub 链接（如 hub://hub.example.com/123）
+	TargetUser         string `json:"target_user" binding:"required"`          // 目标用户
+	TargetApp          string `json:"target_app" binding:"required"`          // 目标应用
+	TargetDirectoryPath string `json:"target_directory_path"`                 // 目标目录路径（可选，默认为应用根目录）
+}
+
+// PullDirectoryFromHubResp 从 Hub 拉取目录响应
+type PullDirectoryFromHubResp struct {
+	Message            string `json:"message"`              // 成功消息
+	DirectoryCount     int    `json:"directory_count"`     // 安装的目录数量
+	FileCount          int    `json:"file_count"`          // 安装的文件数量
+	TargetDirectoryPath string `json:"target_directory_path"` // 目标目录路径
+	ServiceTreeID      int64  `json:"service_tree_id"`     // 根目录的 ServiceTree ID
+	HubDirectoryID     int64  `json:"hub_directory_id"`     // Hub 目录 ID
+	HubDirectoryName   string `json:"hub_directory_name"`   // Hub 目录名称
+}
+
+// GetHubInfoReq 获取目录的 Hub 信息请求
+type GetHubInfoReq struct {
+	FullCodePath string `json:"full_code_path" form:"full_code_path" binding:"required"` // 目录完整路径
+}
+
+// GetHubInfoResp 获取目录的 Hub 信息响应
+type GetHubInfoResp struct {
+	HubDirectoryID  int64  `json:"hub_directory_id"`  // Hub 目录 ID
+	HubDirectoryURL  string `json:"hub_directory_url"` // Hub 目录 URL
+	PublishedAt      string `json:"published_at"`      // 发布时间
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -680,7 +681,17 @@ func (s *ServiceTreeService) PublishDirectoryToHub(ctx context.Context, req *dto
 		return nil, fmt.Errorf("调用 Hub API 失败: %w", err)
 	}
 
-	// 8. 返回结果
+	// 8. 建立双向绑定：更新根目录节点的 HubDirectoryID
+	rootTree.HubDirectoryID = hubResp.HubDirectoryID
+	if err := s.serviceTreeRepo.UpdateServiceTree(rootTree); err != nil {
+		logger.Warnf(ctx, "[PublishDirectoryToHub] 更新ServiceTree的HubDirectoryID失败: treeID=%d, hubDirectoryID=%d, error=%v",
+			rootTree.ID, hubResp.HubDirectoryID, err)
+		// 不返回错误，因为发布已经成功，只是绑定失败
+	} else {
+		logger.Infof(ctx, "[PublishDirectoryToHub] 成功建立双向绑定: treeID=%d, hubDirectoryID=%d", rootTree.ID, hubResp.HubDirectoryID)
+	}
+
+	// 9. 返回结果
 	return &dto.PublishDirectoryToHubResp{
 		HubDirectoryID:  hubResp.HubDirectoryID,
 		HubDirectoryURL: hubResp.HubDirectoryURL,
@@ -1167,4 +1178,340 @@ func (s *ServiceTreeService) handleDeleteDirectory(
 
 	// 删除 ServiceTree（会级联删除子节点）
 	return s.serviceTreeRepo.DeleteServiceTree(existingTree.ID)
+}
+
+// HubLinkInfo Hub 链接信息
+type HubLinkInfo struct {
+	Host        string // Hub 主机地址（如 hub.example.com:8080）
+	DirectoryID int64  // Hub 目录 ID
+	Version     string // 版本号（可选）
+}
+
+// ParseHubLink 解析 Hub 链接
+// 格式：hub://{host}/{directory_id} 或 hub://{host}/{directory_id}@v1.0.0
+func ParseHubLink(hubLink string) (*HubLinkInfo, error) {
+	// 移除协议前缀
+	if !strings.HasPrefix(hubLink, "hub://") {
+		return nil, fmt.Errorf("无效的 Hub 链接格式，必须以 hub:// 开头")
+	}
+
+	link := strings.TrimPrefix(hubLink, "hub://")
+
+	// 解析版本号（可选）
+	var version string
+	if idx := strings.LastIndex(link, "@"); idx != -1 {
+		version = link[idx+1:]
+		link = link[:idx]
+	}
+
+	// 解析主机和目录 ID
+	parts := strings.Split(link, "/")
+	if len(parts) < 2 {
+		return nil, fmt.Errorf("无效的 Hub 链接格式，缺少目录 ID")
+	}
+
+	host := parts[0]
+	directoryIDStr := parts[len(parts)-1]
+
+	// 处理可能的 /directory/ 路径
+	if len(parts) > 2 && parts[1] == "directory" {
+		directoryIDStr = parts[2]
+	}
+
+	directoryID, err := strconv.ParseInt(directoryIDStr, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("无效的目录 ID: %s", directoryIDStr)
+	}
+
+	return &HubLinkInfo{
+		Host:        host,
+		DirectoryID: directoryID,
+		Version:     version,
+	}, nil
+}
+
+// GetHubDirectoryDetailFromHost 从指定的 Hub 主机获取目录详情
+func GetHubDirectoryDetailFromHost(host string, hubDirectoryID int64, includeTree, includeFiles bool) (*dto.HubDirectoryDetailDetailResp, error) {
+	// 构建 Hub API URL
+	baseURL := host
+	if !strings.HasPrefix(host, "http://") && !strings.HasPrefix(host, "https://") {
+		baseURL = "http://" + host
+	}
+
+	// 构建查询参数
+	path := "/api/v1/hub/directories/detail"
+	params := url.Values{}
+	params.Set("hub_directory_id", strconv.FormatInt(hubDirectoryID, 10))
+	if includeTree {
+		params.Set("include_tree", "true")
+	}
+	if includeFiles {
+		params.Set("include_files", "true")
+	}
+
+	fullURL := fmt.Sprintf("%s%s?%s", baseURL, path, params.Encode())
+
+	// 使用 callAPIWithURL 调用（不需要 token，因为是公开接口）
+	result, err := apicall.CallAPIWithURL[dto.HubDirectoryDetailDetailResp](
+		"GET",
+		fullURL,
+		nil, // 不需要 header
+		nil,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &result.Data, nil
+}
+
+// PullDirectoryFromHub 从 Hub 拉取目录到工作空间（类似 git pull）
+func (s *ServiceTreeService) PullDirectoryFromHub(ctx context.Context, req *dto.PullDirectoryFromHubReq) (*dto.PullDirectoryFromHubResp, error) {
+	// 1. 解析 Hub 链接
+	hubLinkInfo, err := ParseHubLink(req.HubLink)
+	if err != nil {
+		return nil, fmt.Errorf("解析 Hub 链接失败: %w", err)
+	}
+
+	logger.Infof(ctx, "[PullDirectoryFromHub] 解析 Hub 链接成功: host=%s, directoryID=%d, version=%s",
+		hubLinkInfo.Host, hubLinkInfo.DirectoryID, hubLinkInfo.Version)
+
+	// 2. 从 Hub 获取目录详情（包含目录树和文件内容）
+	hubDetail, err := GetHubDirectoryDetailFromHost(hubLinkInfo.Host, hubLinkInfo.DirectoryID, true, true)
+	if err != nil {
+		return nil, fmt.Errorf("获取 Hub 目录详情失败: %w", err)
+	}
+
+	// 3. 如果指定了版本号，验证版本是否匹配
+	if hubLinkInfo.Version != "" && hubDetail.Version != hubLinkInfo.Version {
+		return nil, fmt.Errorf("版本不匹配：请求版本 %s，实际版本 %s", hubLinkInfo.Version, hubDetail.Version)
+	}
+
+	// 4. 获取目标应用信息
+	targetApp, err := s.appRepo.GetAppByUserName(req.TargetUser, req.TargetApp)
+	if err != nil {
+		return nil, fmt.Errorf("获取目标应用失败: %w", err)
+	}
+
+	// 5. 确定目标目录路径
+	targetPath := req.TargetDirectoryPath
+	if targetPath == "" {
+		targetPath = fmt.Sprintf("/%s/%s", targetApp.User, targetApp.Code)
+	}
+
+	// 6. 从 DirectoryTree 构建批量创建请求
+	if hubDetail.DirectoryTree == nil {
+		return nil, fmt.Errorf("Hub 目录树为空")
+	}
+
+	// 6.1 构建目录项列表
+	directoryItems := make([]*dto.DirectoryTreeItem, 0)
+	fileItems := make([]*dto.DirectoryTreeItem, 0)
+
+	// 递归遍历目录树，构建目录和文件项
+	s.buildItemsFromTree(hubDetail.DirectoryTree, targetPath, &directoryItems, &fileItems)
+
+	// 7. 先批量创建目录
+	if len(directoryItems) > 0 {
+		batchCreateReq := &dto.BatchCreateDirectoryTreeReq{
+			User:  req.TargetUser,
+			App:   req.TargetApp,
+			Items: directoryItems,
+		}
+
+		batchCreateResp, err := s.BatchCreateDirectoryTree(ctx, batchCreateReq)
+		if err != nil {
+			return nil, fmt.Errorf("批量创建目录失败: %w", err)
+		}
+
+		logger.Infof(ctx, "[PullDirectoryFromHub] 批量创建目录完成: directoryCount=%d", batchCreateResp.DirectoryCount)
+	}
+
+	// 8. 再批量写文件（会编译并返回 diff）
+	if len(fileItems) > 0 {
+		batchWriteReq := &dto.BatchWriteFilesReq{
+			User:  req.TargetUser,
+			App:   req.TargetApp,
+			Files: fileItems,
+		}
+
+		batchWriteResp, err := s.BatchWriteFiles(ctx, batchWriteReq)
+		if err != nil {
+			return nil, fmt.Errorf("批量写文件失败: %w", err)
+		}
+		logger.Infof(ctx, "[PullDirectoryFromHub] 批量写文件完成: fileCount=%d", batchWriteResp.FileCount)
+	}
+
+	// 9. 获取根目录的 ServiceTree ID（用于建立双向绑定）
+	// 注意：根目录路径应该是 targetPath + 目录名称（从 Hub 目录树的第一层目录名）
+	rootDirPath := targetPath
+	if hubDetail.DirectoryTree != nil {
+		rootDirPath = fmt.Sprintf("%s/%s", targetPath, hubDetail.DirectoryTree.Name)
+	}
+	rootTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(rootDirPath)
+	if err != nil {
+		logger.Warnf(ctx, "[PullDirectoryFromHub] 获取根目录 ServiceTree 失败: path=%s, error=%v", targetPath, err)
+	}
+
+	// 10. 建立双向绑定：更新根目录节点的 HubDirectoryID
+	if rootTree != nil {
+		rootTree.HubDirectoryID = hubLinkInfo.DirectoryID
+		if err := s.serviceTreeRepo.UpdateServiceTree(rootTree); err != nil {
+			logger.Warnf(ctx, "[PullDirectoryFromHub] 更新ServiceTree的HubDirectoryID失败: treeID=%d, hubDirectoryID=%d, error=%v",
+				rootTree.ID, hubLinkInfo.DirectoryID, err)
+		} else {
+			logger.Infof(ctx, "[PullDirectoryFromHub] 成功建立双向绑定: treeID=%d, hubDirectoryID=%d", rootTree.ID, hubLinkInfo.DirectoryID)
+		}
+	}
+
+	return &dto.PullDirectoryFromHubResp{
+		Message:             fmt.Sprintf("从 Hub 安装目录成功，共安装 %d 个目录，%d 个文件", len(directoryItems), len(fileItems)),
+		DirectoryCount:      len(directoryItems),
+		FileCount:           len(fileItems),
+		TargetDirectoryPath: rootDirPath,
+		ServiceTreeID: func() int64 {
+			if rootTree != nil {
+				return rootTree.ID
+			} else {
+				return 0
+			}
+		}(),
+		HubDirectoryID:   hubLinkInfo.DirectoryID,
+		HubDirectoryName: hubDetail.Name,
+	}, nil
+}
+
+// BatchWriteFiles 批量写文件（app-server 端，调用 runtime）
+func (s *ServiceTreeService) BatchWriteFiles(ctx context.Context, req *dto.BatchWriteFilesReq) (*dto.BatchWriteFilesResp, error) {
+	// 1. 获取应用信息
+	app, err := s.appRepo.GetAppByUserName(req.User, req.App)
+	if err != nil {
+		return nil, fmt.Errorf("获取应用信息失败: %w", err)
+	}
+
+	// 2. 构建 runtime 请求
+	runtimeReq := &dto.BatchWriteFilesRuntimeReq{
+		User:  req.User,
+		App:   req.App,
+		Files: req.Files,
+	}
+
+	// 3. 调用 runtime 批量写文件
+	runtimeResp, err := s.appRuntime.BatchWriteFiles(ctx, app.HostID, runtimeReq)
+	if err != nil {
+		return nil, fmt.Errorf("批量写文件失败: %w", err)
+	}
+
+	// 4. 处理 diff，更新 ServiceTree 的 function 节点（通过 processAPIDiff）
+	if runtimeResp.Diff != nil {
+		// 构建 UpdateAppReq 用于 processAPIDiff（兼容旧接口）
+		updateAppReq := &dto.UpdateAppReq{
+			User: req.User,
+			App:  req.App,
+		}
+		// 调用 appService.processAPIDiff 处理 API 差异
+		if err := s.appService.processAPIDiff(ctx, app.ID, runtimeResp.Diff, updateAppReq, 0, runtimeResp.GitCommitHash); err != nil {
+			logger.Warnf(ctx, "[BatchWriteFiles] 处理 API diff 失败: %v", err)
+			// 不返回错误，因为文件已经写入成功
+		}
+	}
+
+	return &dto.BatchWriteFilesResp{
+		FileCount:     runtimeResp.FileCount,
+		WrittenPaths:  runtimeResp.WrittenPaths,
+		Diff:          runtimeResp.Diff,
+		OldVersion:    runtimeResp.OldVersion,
+		NewVersion:    runtimeResp.NewVersion,
+		GitCommitHash: runtimeResp.GitCommitHash,
+	}, nil
+}
+
+// buildItemsFromTree 递归构建目录和文件项列表
+func (s *ServiceTreeService) buildItemsFromTree(
+	node *dto.DirectoryTreeNode,
+	targetBasePath string,
+	directoryItems *[]*dto.DirectoryTreeItem,
+	fileItems *[]*dto.DirectoryTreeItem,
+) {
+	// 计算当前目录的目标路径
+	dirName := node.Name
+	currentTargetPath := fmt.Sprintf("%s/%s", targetBasePath, dirName)
+
+	// 添加目录项
+	*directoryItems = append(*directoryItems, &dto.DirectoryTreeItem{
+		FullCodePath: currentTargetPath,
+		Type:         "directory",
+		Name:         dirName,
+		Description:  "", // Hub 目录树可能没有描述
+		Tags:         "", // Hub 目录树可能没有标签
+	})
+
+	// 添加文件项
+	for _, file := range node.Files {
+		// 从 RelativePath 提取文件名（不含扩展名）
+		fileName := file.FileName
+		if fileName == "" {
+			// 从 RelativePath 提取
+			pathParts := strings.Split(file.RelativePath, "/")
+			fileName = pathParts[len(pathParts)-1]
+			if ext := strings.LastIndex(fileName, "."); ext != -1 {
+				fileName = fileName[:ext]
+			}
+		}
+
+		fileFullPath := fmt.Sprintf("%s/%s", currentTargetPath, fileName)
+		*fileItems = append(*fileItems, &dto.DirectoryTreeItem{
+			FullCodePath: fileFullPath,
+			Type:         "file",
+			FileName:     fileName,
+			FileType:     file.FileType,
+			Content:      file.Content, // 文件内容
+			RelativePath: file.RelativePath,
+		})
+	}
+
+	// 递归处理子目录
+	for _, subdir := range node.Subdirectories {
+		s.buildItemsFromTree(subdir, currentTargetPath, directoryItems, fileItems)
+	}
+}
+
+// GetHubInfo 获取目录的 Hub 信息
+func (s *ServiceTreeService) GetHubInfo(ctx context.Context, req *dto.GetHubInfoReq) (*dto.GetHubInfoResp, error) {
+	// 1. 根据 FullCodePath 获取 ServiceTree 节点
+	tree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(req.FullCodePath)
+	if err != nil {
+		return nil, fmt.Errorf("获取目录信息失败: %w", err)
+	}
+
+	// 2. 检查是否已发布到 Hub
+	if tree.HubDirectoryID == 0 {
+		return nil, fmt.Errorf("目录未发布到 Hub")
+	}
+
+	// 3. 调用 Hub API 获取目录信息（用于获取 URL 和发布时间）
+	header := &apicall.Header{
+		TraceID:     contextx.GetTraceId(ctx),
+		RequestUser: contextx.GetRequestUser(ctx),
+		Token:       contextx.GetToken(ctx),
+	}
+
+	hubDetail, err := apicall.GetHubDirectoryDetail(header, tree.HubDirectoryID, false, false)
+	if err != nil {
+		logger.Warnf(ctx, "[GetHubInfo] 获取 Hub 目录详情失败: hubDirectoryID=%d, error=%v", tree.HubDirectoryID, err)
+		// 即使获取详情失败，也返回基本信息
+		return &dto.GetHubInfoResp{
+			HubDirectoryID:  tree.HubDirectoryID,
+			HubDirectoryURL: fmt.Sprintf("/hub/directory/%d", tree.HubDirectoryID),
+			PublishedAt:     "", // 无法获取发布时间
+		}, nil
+	}
+
+	// 4. 构建 Hub URL（需要从配置获取 Hub 主机地址）
+	hubURL := fmt.Sprintf("/hub/directory/%d", tree.HubDirectoryID)
+
+	return &dto.GetHubInfoResp{
+		HubDirectoryID:  tree.HubDirectoryID,
+		HubDirectoryURL: hubURL,
+		PublishedAt:     hubDetail.PublishedAt,
+	}, nil
 }

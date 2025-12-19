@@ -288,3 +288,66 @@ func (s *ServiceTree) AddFunctions(c *gin.Context) {
 		response.OkWithData(c, resp)
 	}
 }
+
+// GetHubInfo 获取目录的 Hub 信息
+// @Summary 获取目录的 Hub 信息
+// @Description 根据目录完整路径获取其关联的 Hub 目录信息
+// @Tags 服务目录
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Param full_code_path query string true "目录完整路径"
+// @Success 200 {object} dto.GetHubInfoResp "获取成功"
+// @Failure 400 {string} string "请求参数错误"
+// @Failure 401 {string} string "未授权"
+// @Failure 404 {string} string "目录未发布到 Hub"
+// @Failure 500 {string} string "服务器内部错误"
+// @Router /api/v1/service_tree/hub_info [get]
+func (s *ServiceTree) GetHubInfo(c *gin.Context) {
+	var req dto.GetHubInfoReq
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+
+	ctx := contextx.ToContext(c)
+	resp, err := s.serviceTreeService.GetHubInfo(ctx, &req)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+
+	response.OkWithData(c, resp)
+}
+
+// PullDirectoryFromHub 从 Hub 拉取目录到工作空间
+// @Summary 从 Hub 拉取目录
+// @Description 使用 Hub 链接从 Hub 拉取目录到工作空间（类似 git pull）
+// @Tags 服务目录
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Param request body dto.PullDirectoryFromHubReq true "拉取目录请求"
+// @Success 200 {object} dto.PullDirectoryFromHubResp "拉取成功"
+// @Failure 400 {string} string "请求参数错误"
+// @Failure 401 {string} string "未授权"
+// @Failure 500 {string} string "服务器内部错误"
+// @Router /api/v1/service_tree/pull_from_hub [post]
+func (s *ServiceTree) PullDirectoryFromHub(c *gin.Context) {
+	var req dto.PullDirectoryFromHubReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+
+	ctx := contextx.ToContext(c)
+	resp, err := s.serviceTreeService.PullDirectoryFromHub(ctx, &req)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+
+	response.OkWithData(c, resp)
+}

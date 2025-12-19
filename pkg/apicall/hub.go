@@ -90,7 +90,13 @@ func GetHubDirectoryDetail(header *Header, hubDirectoryID int64, includeTree, in
 	return &result.Data, nil
 }
 
-// callAPIWithURL 使用完整 URL 调用 API（支持查询参数）
+// CallAPIWithURL 使用完整 URL 调用 API（支持查询参数，公开方法）
+// 注意：这里直接使用完整 URL，不通过 serviceconfig.GetGatewayURL()
+func CallAPIWithURL[T any](method, fullURL string, header *Header, reqBody interface{}) (*ApiResult[T], error) {
+	return callAPIWithURL[T](method, fullURL, header, reqBody)
+}
+
+// callAPIWithURL 使用完整 URL 调用 API（支持查询参数，内部方法）
 // 注意：这里直接使用完整 URL，不通过 serviceconfig.GetGatewayURL()
 func callAPIWithURL[T any](method, fullURL string, header *Header, reqBody interface{}) (*ApiResult[T], error) {
 	var bodyReader io.Reader
