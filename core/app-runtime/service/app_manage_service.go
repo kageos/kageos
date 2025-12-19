@@ -1479,6 +1479,12 @@ func (s *AppManageService) ReadDirectoryFiles(ctx context.Context, user, app, fu
 			return nil
 		}
 
+		// 忽略 init_.go 文件（运行时生成的文件，类似于 .idea）
+		fileName := filepath.Base(path)
+		if fileName == "init_.go" {
+			return nil
+		}
+
 		// 读取文件内容
 		content, err := os.ReadFile(path)
 		if err != nil {

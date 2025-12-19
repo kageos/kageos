@@ -1248,14 +1248,10 @@ func (s *ServiceTreeService) buildDirectoryTreeNode(
 	idToTree map[int64]*model.ServiceTree,
 	functionMap map[int64][]*model.ServiceTree,
 ) *dto.DirectoryTreeNode {
-	// 构建文件列表（过滤掉 init_.go 文件，这是运行时生成的文件）
+	// 构建文件列表（init_.go 已在 app-runtime 层过滤，这里不需要再过滤）
 	files := make([]*dto.FileSnapshotInfo, 0)
 	if fileSnapshots, exists := directoryFiles[tree.FullCodePath]; exists {
 		for _, file := range fileSnapshots {
-			// 忽略 init_.go 文件（运行时生成的文件，类似于 .idea）
-			if file.FileName == "init_" || file.FileName == "init_.go" || strings.HasSuffix(file.RelativePath, "/init_.go") {
-				continue
-			}
 			files = append(files, &dto.FileSnapshotInfo{
 				FileName:     file.FileName,
 				RelativePath: file.RelativePath,
