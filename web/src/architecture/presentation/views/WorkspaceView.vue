@@ -388,6 +388,7 @@ const authStore = useAuthStore()
 // 依赖注入（使用 ServiceFactory 简化）
 const stateManager = serviceFactory.getWorkspaceStateManager()
 const applicationService = serviceFactory.getWorkspaceApplicationService()
+const domainService = serviceFactory.getWorkspaceDomainService()
 
 // 从状态管理器获取状态
 const serviceTree = computed(() => stateManager.getServiceTree())
