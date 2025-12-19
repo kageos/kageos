@@ -720,13 +720,21 @@ func (s *ServiceTreeService) copyFromHub(ctx context.Context, req *dto.CopyDirec
 	}
 
 	// 8. 获取根目录的 ServiceTree ID（用于建立双向绑定）
-	// 注意：根目录路径应该是 targetPath + 目录代码名称（从 Hub 目录树的 Path 中提取）
+	// 注意：根目录路径应该是 targetPath + 目录代码名称（优先使用 Code 字段）
 	rootDirPath := targetPath
-	if hubDetail.DirectoryTree != nil && hubDetail.DirectoryTree.Path != "" {
-		// 从 Path 中提取根目录的代码名称
-		pathParts := strings.Split(strings.Trim(hubDetail.DirectoryTree.Path, "/"), "/")
-		if len(pathParts) > 0 {
-			rootDirCode := pathParts[len(pathParts)-1]
+	if hubDetail.DirectoryTree != nil {
+		var rootDirCode string
+		if hubDetail.DirectoryTree.Code != "" {
+			rootDirCode = hubDetail.DirectoryTree.Code // 优先使用 Code 字段
+		} else if hubDetail.DirectoryTree.Path != "" {
+			// fallback：从 Path 中提取根目录的代码名称
+			pathParts := strings.Split(strings.Trim(hubDetail.DirectoryTree.Path, "/"), "/")
+			if len(pathParts) > 0 {
+				rootDirCode = pathParts[len(pathParts)-1]
+			}
+		}
+		
+		if rootDirCode != "" {
 			rootDirPath = fmt.Sprintf("%s/%s", targetPath, rootDirCode)
 		} else {
 			// fallback 到 Name（不应该发生）
@@ -1289,7 +1297,8 @@ func (s *ServiceTreeService) buildDirectoryTreeNode(
 
 	return &dto.DirectoryTreeNode{
 		Type:           "package", // DirectoryTreeNode 始终是 package 类型
-		Name:           tree.Name, // 使用 ServiceTree 的 Name 字段
+		Name:           tree.Name,  // 使用 ServiceTree 的 Name 字段（中文显示名称）
+		Code:           tree.Code,  // 使用 ServiceTree 的 Code 字段（英文标识）
 		Path:           tree.FullCodePath,
 		Files:          files,
 		Functions:      functions,
@@ -1422,13 +1431,21 @@ func (s *ServiceTreeService) PullDirectoryFromHub(ctx context.Context, req *dto.
 	}
 
 	// 9. 获取根目录的 ServiceTree ID（用于建立双向绑定）
-	// 注意：根目录路径应该是 targetPath + 目录代码名称（从 Hub 目录树的 Path 中提取）
+	// 注意：根目录路径应该是 targetPath + 目录代码名称（优先使用 Code 字段）
 	rootDirPath := targetPath
-	if hubDetail.DirectoryTree != nil && hubDetail.DirectoryTree.Path != "" {
-		// 从 Path 中提取根目录的代码名称
-		pathParts := strings.Split(strings.Trim(hubDetail.DirectoryTree.Path, "/"), "/")
-		if len(pathParts) > 0 {
-			rootDirCode := pathParts[len(pathParts)-1]
+	if hubDetail.DirectoryTree != nil {
+		var rootDirCode string
+		if hubDetail.DirectoryTree.Code != "" {
+			rootDirCode = hubDetail.DirectoryTree.Code // 优先使用 Code 字段
+		} else if hubDetail.DirectoryTree.Path != "" {
+			// fallback：从 Path 中提取根目录的代码名称
+			pathParts := strings.Split(strings.Trim(hubDetail.DirectoryTree.Path, "/"), "/")
+			if len(pathParts) > 0 {
+				rootDirCode = pathParts[len(pathParts)-1]
+			}
+		}
+		
+		if rootDirCode != "" {
 			rootDirPath = fmt.Sprintf("%s/%s", targetPath, rootDirCode)
 		} else {
 			// fallback 到 Name（不应该发生）
@@ -1545,17 +1562,20 @@ func (s *ServiceTreeService) buildItemsFromTree(
 	directoryItems *[]*dto.DirectoryTreeItem,
 	fileItems *[]*dto.DirectoryTreeItem,
 ) {
-	// 从 Path 中提取目录的代码名称（而不是使用 Name，因为 Name 可能是中文）
-	// Path 格式：/user/app/package1/package2，我们需要提取最后一部分
+	// 优先使用 Code 字段（英文标识），如果没有则从 Path 中提取
 	var dirCode string
-	if node.Path != "" {
+	if node.Code != "" {
+		dirCode = node.Code // 直接使用 Code 字段
+	} else if node.Path != "" {
+		// fallback：从 Path 中提取目录的代码名称
+		// Path 格式：/user/app/package1/package2，我们需要提取最后一部分
 		pathParts := strings.Split(strings.Trim(node.Path, "/"), "/")
 		if len(pathParts) > 0 {
 			dirCode = pathParts[len(pathParts)-1] // 获取最后一部分作为代码名称
 		}
 	}
-
-	// 如果无法从 Path 提取，fallback 到 Name（但这种情况不应该发生）
+	
+	// 如果仍然无法获取，fallback 到 Name（但这种情况不应该发生）
 	if dirCode == "" {
 		dirCode = node.Name
 		// 注意：这里无法获取 context，所以不记录日志
