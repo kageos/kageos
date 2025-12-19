@@ -100,6 +100,16 @@
                     <el-icon><Link /></el-icon>
                     复制链接
                   </el-dropdown-item>
+                  <!-- 仅对package类型显示发布到Hub选项（未发布时） -->
+                  <el-dropdown-item v-if="data.type === 'package' && (!data.hub_directory_id || data.hub_directory_id === 0)" command="publish-to-hub" divided>
+                    <el-icon><Upload /></el-icon>
+                    发布到应用中心
+                  </el-dropdown-item>
+                  <!-- 仅对package类型显示推送到Hub选项（已发布时） -->
+                  <el-dropdown-item v-if="data.type === 'package' && data.hub_directory_id && data.hub_directory_id > 0" command="push-to-hub" divided>
+                    <el-icon><Upload /></el-icon>
+                    推送到应用中心
+                  </el-dropdown-item>
                   <!-- 仅对package类型显示变更记录选项 -->
                   <el-dropdown-item v-if="data.type === 'package'" command="update-history" divided>
                     <el-icon><Clock /></el-icon>
@@ -127,7 +137,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Plus, MoreFilled, Link, CopyDocument, Document, Clock } from '@element-plus/icons-vue'
+import { Plus, MoreFilled, Link, CopyDocument, Document, Clock, Upload, Download } from '@element-plus/icons-vue'
 import ChartIcon from './icons/ChartIcon.vue'
 import TableIcon from './icons/TableIcon.vue'
 import FormIcon from './icons/FormIcon.vue'
@@ -155,6 +165,9 @@ interface Emits {
   (e: 'copy-link', node: ServiceTree): void
   (e: 'refresh-tree'): void  // 刷新树（复制粘贴后需要刷新）
   (e: 'update-history', node?: ServiceTree): void  // 显示变更记录（工作空间或目录）
+  (e: 'publish-to-hub', node: ServiceTree): void  // 发布到 Hub
+  (e: 'push-to-hub', node: ServiceTree): void  // 推送到 Hub
+  (e: 'pull-from-hub'): void  // 从 Hub 拉取
 }
 
 const props = defineProps<Props>()
@@ -293,6 +306,10 @@ const handleNodeAction = (command: string, data: ServiceTree) => {
     handlePaste(data)
   } else if (command === 'copy-link') {
     emit('copy-link', data)
+  } else if (command === 'publish-to-hub') {
+    emit('publish-to-hub', data)
+  } else if (command === 'push-to-hub') {
+    emit('push-to-hub', data)
   } else if (command === 'update-history') {
     emit('update-history', data)
   }
@@ -302,6 +319,11 @@ const handleNodeAction = (command: string, data: ServiceTree) => {
 const handleUpdateHistoryClick = () => {
   // 显示工作空间变更记录
   emit('update-history')
+}
+
+// 处理从应用中心安装按钮点击
+const handlePullFromHubClick = () => {
+  emit('pull-from-hub')
 }
 
 // 获取函数图标组件（根据 template_type）
