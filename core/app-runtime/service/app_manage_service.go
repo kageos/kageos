@@ -1480,8 +1480,8 @@ func (s *AppManageService) ReadDirectoryFiles(ctx context.Context, user, app, fu
 		}
 
 		// 忽略 init_.go 文件（运行时生成的文件，类似于 .idea）
-		fileName := filepath.Base(path)
-		if fileName == "init_.go" {
+		baseName := filepath.Base(path)
+		if baseName == "init_.go" {
 			return nil
 		}
 
@@ -1499,7 +1499,7 @@ func (s *AppManageService) ReadDirectoryFiles(ctx context.Context, user, app, fu
 		}
 
 		// 从路径提取文件名（不含 .go）
-		fileName := strings.TrimSuffix(filepath.Base(path), ".go")
+		fileName := strings.TrimSuffix(baseName, ".go")
 
 		files = append(files, sharedDto.DirectoryFileInfo{
 			FileName:     fileName,
