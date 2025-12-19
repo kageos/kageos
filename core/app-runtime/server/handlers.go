@@ -220,6 +220,35 @@ func (s *Server) handleUpdateServiceTree(msg *nats.Msg) {
 		resp.DirectoryCount, resp.FileCount, resp.Diff != nil)
 }
 
+// handleBatchWriteFiles 处理批量写文件请求
+func (s *Server) handleBatchWriteFiles(msg *nats.Msg) {
+	ctx := context.Background()
+
+	// 使用统一的解析方法
+	msgInfo, err := msgx.DecodeNatsMsg[dto.BatchWriteFilesRuntimeReq](msg)
+	if err != nil {
+		logger.Errorf(ctx, "[handleBatchWriteFiles] Failed to decode message: %v", err)
+		msgx.RespFailMsg(msg, err)
+		return
+	}
+
+	logger.Infof(ctx, "[handleBatchWriteFiles] Received batch write files request: tenantUser=%s, app=%s, fileCount=%d",
+		msgInfo.Data.User, msgInfo.Data.App, len(msgInfo.Data.Files))
+
+	// 调用服务目录管理服务
+	resp, err := s.serviceTreeService.BatchWriteFiles(ctx, &msgInfo.Data)
+	if err != nil {
+		logger.Errorf(ctx, "[handleBatchWriteFiles] Failed to batch write files: %v", err)
+		msgx.RespFailMsg(msg, err)
+		return
+	}
+
+	logger.Infof(ctx, "[handleBatchWriteFiles] Batch write files successfully: fileCount=%d, oldVersion=%s, newVersion=%s, hasDiff=%v",
+		resp.FileCount, resp.OldVersion, resp.NewVersion, resp.Diff != nil)
+
+	msgx.RespSuccessMsg(msg, resp)
+}
+
 // handleAppDelete 处理应用删除请求
 func (s *Server) handleAppDelete(msg *nats.Msg) {
 	ctx := context.Background()

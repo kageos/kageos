@@ -205,6 +205,23 @@ func (a *AppRuntime) UpdateServiceTree(ctx context.Context, hostId int64, req *d
 	return &resp, nil
 }
 
+// BatchWriteFiles 批量写文件（app-server -> app-runtime）
+func (a *AppRuntime) BatchWriteFiles(ctx context.Context, hostId int64, req *dto.BatchWriteFilesRuntimeReq) (*dto.BatchWriteFilesRuntimeResp, error) {
+	var resp dto.BatchWriteFilesRuntimeResp
+	timeout := time.Duration(a.config.GetNatsRequestTimeout()) * time.Second
+
+	conn, err := a.natsService.GetNatsByHost(hostId)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = msgx.RequestMsgWithTimeout(ctx, conn, subjects.GetAppServer2AppRuntimeBatchWriteFilesRequestSubject(), req, &resp, timeout)
+	if err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 // initSubscriptions 初始化 NATS 订阅
 func (a *AppRuntime) initSubscriptions() {
 	// 获取所有可用的 NATS 连接

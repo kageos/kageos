@@ -387,6 +387,17 @@ func (s *Server) subscribeNATS(ctx context.Context) error {
 	}
 	s.subscriptions = append(s.subscriptions, sub)
 
+	// 订阅批量写文件请求（使用队列组）
+	sub, err = s.natsConn.QueueSubscribe(
+		subjects.GetAppServer2AppRuntimeBatchWriteFilesRequestSubject(),
+		"app-runtime-batch-write-files-workers",
+		s.handleBatchWriteFiles,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to subscribe to batch write files: %w", err)
+	}
+	s.subscriptions = append(s.subscriptions, sub)
+
 	// Runtime 状态主题由 AppDiscoveryService 统一处理，不需要重复订阅
 
 	// 旧的订阅已移除，现在通过 runtime.status 主题统一处理

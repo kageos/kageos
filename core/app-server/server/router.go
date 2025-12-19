@@ -63,6 +63,8 @@ func (s *Server) setupRoutes() {
 	serviceTreeAuth.DELETE("", serviceTreeHandler.DeleteServiceTree)
 	serviceTreeAuth.POST("/copy", serviceTreeHandler.CopyServiceTree)                 // 复制服务目录
 	serviceTreeAuth.POST("/publish_to_hub", serviceTreeHandler.PublishDirectoryToHub) // 发布目录到 Hub
+	serviceTreeAuth.GET("/hub_info", serviceTreeHandler.GetHubInfo)                    // 获取目录的 Hub 信息
+	serviceTreeAuth.POST("/pull_from_hub", serviceTreeHandler.PullDirectoryFromHub)    // 从 Hub 拉取目录
 
 	// 服务间调用路由（不需要JWT验证）
 	serviceTree.POST("/add_functions", serviceTreeHandler.AddFunctions) // 向服务目录添加函数（agent-server -> workspace）

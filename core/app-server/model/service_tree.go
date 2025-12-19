@@ -34,6 +34,7 @@ type ServiceTree struct {
 	UpdateVersionNum int            `json:"update_version_num"`                                                                          // 更新版本号（数字部分，如 v2 -> 2），用于版本回滚时过滤
 	Version          string         `json:"version" gorm:"type:varchar(50);comment:节点当前版本号（如 v1, v2），package类型表示目录版本，function类型表示函数版本等"` // 节点当前版本号
 	VersionNum       int            `json:"version_num" gorm:"comment:节点当前版本号（数字部分）"`                                                    // 节点当前版本号（数字部分）
+	HubDirectoryID   int64          `json:"hub_directory_id" gorm:"index;default:0;comment:关联的Hub目录ID（如果已发布到Hub）"` // 关联的Hub目录ID
 	Children         []*ServiceTree `json:"children" gorm:"-"`
 }
 

@@ -135,6 +135,11 @@ func GetAppServer2AppRuntimeUpdateServiceTreeRequestSubject() string {
 	return "app_server.app_runtime.update_service_tree"
 }
 
+// GetAppServer2AppRuntimeBatchWriteFilesRequestSubject 获取 app_server 到 app_runtime 批量写文件请求的订阅主题
+func GetAppServer2AppRuntimeBatchWriteFilesRequestSubject() string {
+	return "app_server.app_runtime.batch_write_files"
+}
+
 // GetAppStartupNotificationSubject 获取应用启动完成通知的订阅主题（通配符）
 func GetAppStartupNotificationSubject() string {
 	return "app.startup.notification.*.*.*"
