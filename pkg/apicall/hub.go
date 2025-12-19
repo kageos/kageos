@@ -28,6 +28,20 @@ func PublishDirectoryToHub(header *Header, req *dto.PublishHubDirectoryReq) (*dt
 	return &result.Data, nil
 }
 
+// UpdateDirectoryToHub 更新目录到 Hub（用于 push）
+func UpdateDirectoryToHub(header *Header, req *dto.UpdateHubDirectoryReq) (*dto.UpdateHubDirectoryResp, error) {
+	result, err := callAPI[dto.UpdateHubDirectoryResp](
+		http.MethodPut,
+		"/hub/api/v1/hub/directories/update",
+		header,
+		req,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &result.Data, nil
+}
+
 // GetHubDirectoryList 获取 Hub 目录列表
 func GetHubDirectoryList(header *Header, page, pageSize int, search, category, publisherUsername string) (*dto.HubDirectoryListResp, error) {
 	// 构建查询参数

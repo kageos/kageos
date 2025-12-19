@@ -227,6 +227,44 @@ func (s *ServiceTree) PublishDirectoryToHub(c *gin.Context) {
 	response.OkWithData(c, resp)
 }
 
+// PushDirectoryToHub 推送目录到 Hub（更新已发布的目录）
+// @Summary 推送目录到 Hub
+// @Description 推送目录更新到 Hub（类似 git push），更新已发布的目录
+// @Tags 服务目录
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Param request body dto.PushDirectoryToHubReq true "推送目录请求"
+// @Success 200 {object} dto.PushDirectoryToHubResp "推送成功"
+// @Failure 400 {string} string "请求参数错误"
+// @Failure 401 {string} string "未授权"
+// @Failure 500 {string} string "服务器内部错误"
+// @Router /api/v1/service_tree/push_to_hub [post]
+func (s *ServiceTree) PushDirectoryToHub(c *gin.Context) {
+	var req dto.PushDirectoryToHubReq
+	var resp *dto.PushDirectoryToHubResp
+	var err error
+
+	if err = c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+
+	defer func() {
+		logger.Infof(c, "PushDirectoryToHub req:%+v resp:%+v err:%v", req, resp, err)
+	}()
+
+	ctx := contextx.ToContext(c)
+	resp, err = s.serviceTreeService.PushDirectoryToHub(ctx, &req)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+
+	response.OkWithData(c, resp)
+}
+
 // AddFunctions 向服务目录添加函数（服务间调用，不需要JWT验证）
 // @Summary 向服务目录添加函数
 // @Description 接收来自 agent-server 的代码，写入到工作空间对应的目录下，并更新工作空间
