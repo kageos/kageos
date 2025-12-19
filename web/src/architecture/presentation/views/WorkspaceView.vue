@@ -317,6 +317,17 @@
       :current-app="currentApp || undefined"
       @success="handlePublishSuccess"
     />
+    <PushToHubDialog
+      v-model="pushToHubDialogVisible"
+      :selected-node="pushSelectedNode"
+      :current-app="currentApp || undefined"
+      @success="handlePushSuccess"
+    />
+    <PullFromHubDialog
+      v-model="pullFromHubDialogVisible"
+      :current-app="currentApp || undefined"
+      @success="handlePullSuccess"
+    />
 
     <!-- 变更记录对话框 -->
     <DirectoryUpdateHistoryDialog
