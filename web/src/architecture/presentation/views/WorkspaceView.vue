@@ -326,6 +326,7 @@
     <PullFromHubDialog
       v-model="pullFromHubDialogVisible"
       :current-app="currentApp || undefined"
+      :initial-hub-link="pastedHubLink"
       @success="handlePullSuccess"
     />
 
@@ -609,6 +610,7 @@ const publishSelectedNode = ref<ServiceTreeType | null>(null)
 const pushToHubDialogVisible = ref(false)
 const pushSelectedNode = ref<ServiceTreeType | null>(null)
 const pullFromHubDialogVisible = ref(false)
+const pastedHubLink = ref('')  // 粘贴的 Hub 链接
 
 // 变更记录对话框状态
 const updateHistoryDialogVisible = ref(false)
@@ -717,6 +719,39 @@ async function loadDefaultAgent() {
 }
 
 
+// 🔥 全局粘贴监听：检测 Hub 链接并自动打开安装对话框
+const handleGlobalPaste = async (event: ClipboardEvent) => {
+  // 如果当前焦点在输入框、文本域等可编辑元素上，不处理（让默认行为生效）
+  const target = event.target as HTMLElement
+  if (target && (
+    target.tagName === 'INPUT' ||
+    target.tagName === 'TEXTAREA' ||
+    target.isContentEditable
+  )) {
+    return
+  }
+
+  const pastedText = event.clipboardData?.getData('text')
+  if (pastedText && pastedText.trim().startsWith('hub://')) {
+    // 阻止默认粘贴行为
+    event.preventDefault()
+    
+    // 检查是否有当前应用
+    if (!currentApp.value) {
+      ElMessage.warning('请先选择应用')
+      return
+    }
+
+    // 设置粘贴的 Hub 链接
+    pastedHubLink.value = pastedText.trim()
+    
+    // 打开安装对话框
+    pullFromHubDialogVisible.value = true
+    
+    ElMessage.info('检测到 Hub 链接，已打开安装对话框')
+  }
+}
+
 onMounted(() => {
   // 🔥 监听表格详情事件（使用 Composable）
   eventBus.on('table:detail-row', async ({ row, index, tableData }: { row: Record<string, any>, index?: number, tableData?: any[] }) => {
@@ -730,6 +765,14 @@ onMounted(() => {
   
   // 🔥 设置 URL 监听（使用 Composable）
   setupUrlWatch()
+  
+  // 🔥 添加全局粘贴监听
+  document.addEventListener('paste', handleGlobalPaste)
+})
+
+onUnmounted(() => {
+  // 🔥 移除全局粘贴监听
+  document.removeEventListener('paste', handleGlobalPaste)
 })
 
 
@@ -897,6 +940,7 @@ const handlePushToHub = (node: ServiceTreeType) => {
 
 // 处理从应用中心拉取
 const handlePullFromHub = () => {
+  pastedHubLink.value = ''  // 清空之前的链接（手动打开对话框时）
   pullFromHubDialogVisible.value = true
 }
 
@@ -949,6 +993,8 @@ const handlePushSuccess = async () => {
 
 // 拉取成功后的回调
 const handlePullSuccess = async () => {
+  // 清空粘贴的链接
+  pastedHubLink.value = ''
   // 刷新服务目录树
   if (currentApp.value) {
     await applicationService.loadServiceTree(currentApp.value)

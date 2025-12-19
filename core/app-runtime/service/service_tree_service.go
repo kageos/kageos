@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,7 +18,7 @@ import (
 
 // ServiceTreeService 服务目录管理服务
 type ServiceTreeService struct {
-	config          *config.AppManageServiceConfig
+	config           *config.AppManageServiceConfig
 	appManageService *AppManageService // 用于编译和获取 diff
 }
 
@@ -309,6 +310,18 @@ func (s *ServiceTreeService) BatchCreateDirectoryTree(
 				item.FullCodePath, err)
 			// 不返回错误，因为目录已创建成功
 		}
+
+		// 更新 main.go 文件，添加新包的 import
+		packagePath := extractPackagePath(item.FullCodePath)
+		if packagePath != "" {
+			if err := s.updateMainFileImports(ctx, req.User, req.App, packagePath); err != nil {
+				logger.Warnf(ctx, "[ServiceTreeService] 更新 main.go import 失败: path=%s, error=%v",
+					item.FullCodePath, err)
+				// 不返回错误，因为目录已创建成功，只是 import 可能需要手动添加
+			} else {
+				logger.Infof(ctx, "[ServiceTreeService] Main.go import 更新成功: package=%s", packagePath)
+			}
+		}
 	}
 
 	logger.Infof(ctx, "[ServiceTreeService] 批量创建目录树完成: directoryCount=%d", directoryCount)
@@ -343,8 +356,8 @@ func (s *ServiceTreeService) BatchWriteFiles(
 	}
 
 	// 3. 批量写入文件
-	writtenPaths := make([]string, 0)                    // FullCodePath 列表
-	writtenFilePaths := make([]string, 0)                // 实际文件路径列表（用于回滚）
+	writtenPaths := make([]string, 0)     // FullCodePath 列表
+	writtenFilePaths := make([]string, 0) // 实际文件路径列表（用于回滚）
 
 	for _, item := range req.Files {
 		// 从 FullCodePath 提取 package 路径和文件名
@@ -477,11 +490,21 @@ func (s *ServiceTreeService) BatchWriteFiles(
 						logger.Warnf(ctx, "[BatchWriteFiles] ❌ 获取 diff 失败: %v", callbackErr)
 					} else {
 						logger.Infof(ctx, "[BatchWriteFiles] ✅ 获取 diff 成功: %+v", updateCallbackResponse)
-						// 类型断言，将 interface{} 转换为 *dto.DiffData
-						if diffData, ok := updateCallbackResponse.Data.(*dto.DiffData); ok {
-							diff = diffData
-						} else {
-							logger.Warnf(ctx, "[BatchWriteFiles] diff 数据格式不正确，期望 *dto.DiffData，实际类型: %T", updateCallbackResponse.Data)
+						// 将 updateCallbackResponse.Data (interface{}) 转换为 *dto.DiffData
+						// 因为 JSON 反序列化时，Data 被解析为 map[string]interface{}，需要重新序列化/反序列化
+						if updateCallbackResponse.Data != nil {
+							// 先序列化为 JSON，再反序列化为 DiffData
+							dataBytes, err := json.Marshal(updateCallbackResponse.Data)
+							if err == nil {
+								var tempDiffData dto.DiffData
+								if err := json.Unmarshal(dataBytes, &tempDiffData); err == nil {
+									diff = &tempDiffData
+								} else {
+									logger.Warnf(ctx, "[BatchWriteFiles] 反序列化 diff 数据失败: %v", err)
+								}
+							} else {
+								logger.Warnf(ctx, "[BatchWriteFiles] 序列化 diff 数据失败: %v", err)
+							}
 						}
 					}
 
