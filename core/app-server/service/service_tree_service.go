@@ -653,7 +653,7 @@ func (s *ServiceTreeService) copyFromHub(ctx context.Context, req *dto.CopyDirec
 		hubLinkInfo.Host, hubLinkInfo.FullCodePath, hubLinkInfo.Version)
 
 	// 2. 从 Hub 获取目录详情（包含目录树和文件内容，如果指定了版本号则查询指定版本）
-	hubDetail, err := apicall.GetHubDirectoryDetailFromHost(hubLinkInfo.Host, hubLinkInfo.FullCodePath, hubLinkInfo.Version, true, true)
+	hubDetail, err := apicall.GetHubDirectoryDetailFromHost(hubLinkInfo.Host, hubLinkInfo.FullCodePath, hubLinkInfo.Version, true)
 	if err != nil {
 		return nil, fmt.Errorf("获取 Hub 目录详情失败: %w", err)
 	}
@@ -1365,7 +1365,7 @@ func (s *ServiceTreeService) PullDirectoryFromHub(ctx context.Context, req *dto.
 		hubLinkInfo.Host, hubLinkInfo.FullCodePath, hubLinkInfo.Version)
 
 	// 2. 从 Hub 获取目录详情（包含目录树和文件内容，如果指定了版本号则查询指定版本）
-	hubDetail, err := apicall.GetHubDirectoryDetailFromHost(hubLinkInfo.Host, hubLinkInfo.FullCodePath, hubLinkInfo.Version, true, true)
+	hubDetail, err := apicall.GetHubDirectoryDetailFromHost(hubLinkInfo.Host, hubLinkInfo.FullCodePath, hubLinkInfo.Version, true)
 	if err != nil {
 		return nil, fmt.Errorf("获取 Hub 目录详情失败: %w", err)
 	}
