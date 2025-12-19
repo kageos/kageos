@@ -16,12 +16,27 @@ type PublishHubDirectoryReq struct {
 	DirectoryTree        *DirectoryTreeNode `json:"directory_tree"`        // 目录树结构（递归，支持嵌套）
 }
 
-// DirectoryTreeNode 目录树节点（用于发布目录，包含文件内容）
+// DirectoryTreeNode 目录树节点（用于发布目录，包含文件内容和函数）
 type DirectoryTreeNode struct {
 	Name           string              `json:"name"`            // 目录名称
 	Path           string              `json:"path"`            // 目录完整路径
 	Files          []*FileSnapshotInfo `json:"files"`           // 该目录下的文件列表（包含内容）
+	Functions      []*HubFunctionInfo  `json:"functions"`       // 该目录下的函数列表（新增）
 	Subdirectories []*DirectoryTreeNode `json:"subdirectories"` // 子目录列表（递归）
+}
+
+// HubFunctionInfo 函数信息（用于 Hub 目录树）
+type HubFunctionInfo struct {
+	ID           int64    `json:"id"`            // ServiceTree 节点ID
+	Name         string   `json:"name"`          // 函数名称
+	Code         string   `json:"code"`          // 函数代码
+	FullCodePath string   `json:"full_code_path"` // 完整代码路径
+	Description  string   `json:"description"`   // 函数描述
+	TemplateType string   `json:"template_type"` // 函数类型（如 form, table, chart 等）
+	Tags         []string `json:"tags"`          // 标签
+	RefID        int64    `json:"ref_id"`        // 指向真实的 function ID
+	Version      string   `json:"version"`       // 函数版本号
+	VersionNum   int      `json:"version_num"`   // 版本号数字部分
 }
 
 // FileSnapshotInfo 文件快照信息

@@ -650,8 +650,31 @@ func (s *ServiceTreeService) PublishDirectoryToHub(ctx context.Context, req *dto
 		return nil, fmt.Errorf("未找到任何目录快照，请确保源目录已创建快照")
 	}
 
-	// 5. 构建树形结构
-	directoryTree := s.buildDirectoryTree(rootTree, allTrees, directoryFiles, idToTree)
+	// 5. 获取所有函数节点（function 类型，属于当前目录树下的）
+	// 使用路径前缀匹配，只查询属于当前目录的函数
+	normalizedPath := strings.TrimSuffix(req.SourceDirectoryPath, "/") + "/"
+	allFunctions, err := s.serviceTreeRepo.GetServiceTreesByAppIDAndType(sourceApp.ID, model.ServiceTreeTypeFunction)
+	if err != nil {
+		return nil, fmt.Errorf("查询函数节点失败: %w", err)
+	}
+
+	// 构建函数映射：ParentID -> []Function
+	functionMap := make(map[int64][]*model.ServiceTree)
+	for _, fn := range allFunctions {
+		// 只包含属于当前目录树下的函数（路径前缀匹配）
+		if strings.HasPrefix(fn.FullCodePath, normalizedPath) || fn.FullCodePath == req.SourceDirectoryPath {
+			// 找到函数所属的目录节点（通过 ParentID 匹配）
+			if dirTree, exists := idToTree[fn.ParentID]; exists {
+				// 确保目录节点也在当前目录树下
+				if strings.HasPrefix(dirTree.FullCodePath, normalizedPath) || dirTree.FullCodePath == req.SourceDirectoryPath {
+					functionMap[dirTree.ID] = append(functionMap[dirTree.ID], fn)
+				}
+			}
+		}
+	}
+
+	// 6. 构建树形结构（包含函数）
+	directoryTree := s.buildDirectoryTree(rootTree, allTrees, directoryFiles, idToTree, functionMap)
 
 	// 6. 构建 Hub 请求
 	hubReq := &dto.PublishHubDirectoryReq{
@@ -762,8 +785,31 @@ func (s *ServiceTreeService) PushDirectoryToHub(ctx context.Context, req *dto.Pu
 		return nil, fmt.Errorf("未找到任何目录快照，请确保源目录已创建快照")
 	}
 
-	// 6. 构建树形结构
-	directoryTree := s.buildDirectoryTree(rootTree, allTrees, directoryFiles, idToTree)
+	// 6. 获取所有函数节点（function 类型，属于当前目录树下的）
+	// 使用路径前缀匹配，只查询属于当前目录的函数
+	normalizedPath := strings.TrimSuffix(req.SourceDirectoryPath, "/") + "/"
+	allFunctions, err := s.serviceTreeRepo.GetServiceTreesByAppIDAndType(sourceApp.ID, model.ServiceTreeTypeFunction)
+	if err != nil {
+		return nil, fmt.Errorf("查询函数节点失败: %w", err)
+	}
+
+	// 构建函数映射：ParentID -> []Function
+	functionMap := make(map[int64][]*model.ServiceTree)
+	for _, fn := range allFunctions {
+		// 只包含属于当前目录树下的函数（路径前缀匹配）
+		if strings.HasPrefix(fn.FullCodePath, normalizedPath) || fn.FullCodePath == req.SourceDirectoryPath {
+			// 找到函数所属的目录节点（通过 ParentID 匹配）
+			if dirTree, exists := idToTree[fn.ParentID]; exists {
+				// 确保目录节点也在当前目录树下
+				if strings.HasPrefix(dirTree.FullCodePath, normalizedPath) || dirTree.FullCodePath == req.SourceDirectoryPath {
+					functionMap[dirTree.ID] = append(functionMap[dirTree.ID], fn)
+				}
+			}
+		}
+	}
+
+	// 7. 构建树形结构（包含函数）
+	directoryTree := s.buildDirectoryTree(rootTree, allTrees, directoryFiles, idToTree, functionMap)
 
 	// 7. 构建 Hub 请求
 	hubReq := &dto.UpdateHubDirectoryReq{
@@ -1001,26 +1047,29 @@ func (s *ServiceTreeService) AddFunctions(ctx context.Context, req *dto.AddFunct
 	}, nil
 }
 
-// buildDirectoryTree 构建目录树结构（递归）
+// buildDirectoryTree 构建目录树结构（递归，包含函数）
 // rootTree: 根目录节点
 // allTrees: 所有目录节点（包括根目录和子目录）
 // directoryFiles: 目录路径到文件快照的映射
 // idToTree: ServiceTreeID 到 ServiceTree 的映射
+// functionMap: 目录ID到函数列表的映射
 func (s *ServiceTreeService) buildDirectoryTree(
 	rootTree *model.ServiceTree,
 	allTrees []*model.ServiceTree,
 	directoryFiles map[string][]*model.FileSnapshot,
 	idToTree map[int64]*model.ServiceTree,
+	functionMap map[int64][]*model.ServiceTree,
 ) *dto.DirectoryTreeNode {
-	return s.buildDirectoryTreeNode(rootTree, allTrees, directoryFiles, idToTree)
+	return s.buildDirectoryTreeNode(rootTree, allTrees, directoryFiles, idToTree, functionMap)
 }
 
-// buildDirectoryTreeNode 递归构建目录树节点
+// buildDirectoryTreeNode 递归构建目录树节点（包含函数）
 func (s *ServiceTreeService) buildDirectoryTreeNode(
 	tree *model.ServiceTree,
 	allTrees []*model.ServiceTree,
 	directoryFiles map[string][]*model.FileSnapshot,
 	idToTree map[int64]*model.ServiceTree,
+	functionMap map[int64][]*model.ServiceTree,
 ) *dto.DirectoryTreeNode {
 	// 获取目录名称（路径的最后一部分）
 	pathParts := strings.Split(strings.Trim(tree.FullCodePath, "/"), "/")
@@ -1040,12 +1089,31 @@ func (s *ServiceTreeService) buildDirectoryTreeNode(
 		}
 	}
 
+	// 构建函数列表
+	functions := make([]*dto.HubFunctionInfo, 0)
+	if functionList, exists := functionMap[tree.ID]; exists {
+		for _, fn := range functionList {
+			functions = append(functions, &dto.HubFunctionInfo{
+				ID:           fn.ID,
+				Name:         fn.Name,
+				Code:         fn.Code,
+				FullCodePath: fn.FullCodePath,
+				Description:  fn.Description,
+				TemplateType: fn.TemplateType,
+				Tags:         fn.GetTagsSlice(),
+				RefID:        fn.RefID,
+				Version:      fn.Version,
+				VersionNum:   fn.VersionNum,
+			})
+		}
+	}
+
 	// 查找所有直接子目录
 	subdirectories := make([]*dto.DirectoryTreeNode, 0)
 	for _, childTree := range allTrees {
 		if childTree.ParentID == tree.ID {
 			// 递归构建子目录节点
-			childNode := s.buildDirectoryTreeNode(childTree, allTrees, directoryFiles, idToTree)
+			childNode := s.buildDirectoryTreeNode(childTree, allTrees, directoryFiles, idToTree, functionMap)
 			subdirectories = append(subdirectories, childNode)
 		}
 	}
@@ -1054,6 +1122,7 @@ func (s *ServiceTreeService) buildDirectoryTreeNode(
 		Name:           dirName,
 		Path:           tree.FullCodePath,
 		Files:          files,
+		Functions:      functions,
 		Subdirectories: subdirectories,
 	}
 }
