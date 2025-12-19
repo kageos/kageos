@@ -18,7 +18,7 @@ import (
 func PublishDirectoryToHub(header *Header, req *dto.PublishHubDirectoryReq) (*dto.PublishHubDirectoryResp, error) {
 	result, err := callAPI[dto.PublishHubDirectoryResp](
 		http.MethodPost,
-		"/hub/api/v1/hub/directories/publish",
+		"/hub/api/v1/directories/publish",
 		header,
 		req,
 	)
@@ -32,7 +32,7 @@ func PublishDirectoryToHub(header *Header, req *dto.PublishHubDirectoryReq) (*dt
 func UpdateDirectoryToHub(header *Header, req *dto.UpdateHubDirectoryReq) (*dto.UpdateHubDirectoryResp, error) {
 	result, err := callAPI[dto.UpdateHubDirectoryResp](
 		http.MethodPut,
-		"/hub/api/v1/hub/directories/update",
+		"/hub/api/v1/directories/update",
 		header,
 		req,
 	)
@@ -45,7 +45,7 @@ func UpdateDirectoryToHub(header *Header, req *dto.UpdateHubDirectoryReq) (*dto.
 // GetHubDirectoryList 获取 Hub 目录列表
 func GetHubDirectoryList(header *Header, page, pageSize int, search, category, publisherUsername string) (*dto.HubDirectoryListResp, error) {
 	// 构建查询参数
-	path := "/hub/api/v1/hub/directories"
+	path := "/hub/api/v1/directories"
 	params := url.Values{}
 	params.Set("page", strconv.Itoa(page))
 	params.Set("page_size", strconv.Itoa(pageSize))
@@ -79,7 +79,7 @@ func GetHubDirectoryList(header *Header, page, pageSize int, search, category, p
 // GetHubDirectoryDetail 获取 Hub 目录详情（通过网关，使用 full_code_path）
 func GetHubDirectoryDetail(header *Header, fullCodePath string, includeTree, includeFiles bool) (*dto.HubDirectoryDetailDetailResp, error) {
 	// 构建查询参数
-	path := "/hub/api/v1/hub/directories/detail"
+	path := "/hub/api/v1/directories/detail"
 	params := url.Values{}
 	params.Set("full_code_path", fullCodePath)
 	if includeTree {

@@ -222,37 +222,24 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 
 		// 注意：X-Token 和其他请求头会被 httputil.ReverseProxy 自动转发，无需手动处理
 
-		// 路径处理：去掉路由前缀，如果配置了 rewrite_path 则替换，否则直接去掉前缀
-		if route != nil {
+		// 路径重写：如果配置了 rewrite_path，替换路径前缀
+		if route != nil && route.RewritePath != "" {
 			originalPath := req.URL.Path
 			routePath := route.Path
 
-			// 如果请求路径以路由路径开头，进行路径处理
+			// 如果请求路径以路由路径开头，进行重写
 			if strings.HasPrefix(originalPath, routePath) {
 				// 提取路径的后半部分（去掉路由前缀）
 				suffix := originalPath[len(routePath):]
-				
-				if route.RewritePath != "" {
-					// 如果配置了 rewrite_path，替换路径前缀
-					rewritePath := route.RewritePath
-					if !strings.HasSuffix(rewritePath, "/") && suffix != "" && !strings.HasPrefix(suffix, "/") {
-						rewritePath += "/"
-					}
-					req.URL.Path = rewritePath + suffix
-					logger.Debugf(s.ctx, "[Proxy] Path rewrite: %s -> %s (route: %s, rewrite: %s)",
-						originalPath, req.URL.Path, routePath, route.RewritePath)
-				} else {
-					// 如果没有配置 rewrite_path，直接去掉路由前缀
-					// 确保 suffix 以 / 开头（如果原路径不是以 / 结尾）
-					if suffix == "" {
-						suffix = "/"
-					} else if !strings.HasPrefix(suffix, "/") {
-						suffix = "/" + suffix
-					}
-					req.URL.Path = suffix
-					logger.Debugf(s.ctx, "[Proxy] Path strip prefix: %s -> %s (route: %s)",
-						originalPath, req.URL.Path, routePath)
+				// 拼接新的路径
+				rewritePath := route.RewritePath
+				if !strings.HasSuffix(rewritePath, "/") && suffix != "" && !strings.HasPrefix(suffix, "/") {
+					rewritePath += "/"
 				}
+				req.URL.Path = rewritePath + suffix
+
+				logger.Debugf(s.ctx, "[Proxy] Path rewrite: %s -> %s (route: %s, rewrite: %s)",
+					originalPath, req.URL.Path, routePath, route.RewritePath)
 			}
 		}
 	}
