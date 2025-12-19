@@ -989,7 +989,6 @@ func ParseHubLink(hubLink string) (*HubLinkInfo, error) {
 	}, nil
 }
 
-
 // PullDirectoryFromHub 从 Hub 拉取目录到工作空间（类似 git pull）
 func (s *ServiceTreeService) PullDirectoryFromHub(ctx context.Context, req *dto.PullDirectoryFromHubReq) (*dto.PullDirectoryFromHubResp, error) {
 	// 1. 解析 Hub 链接
@@ -1221,9 +1220,9 @@ func (s *ServiceTreeService) GetHubInfo(ctx context.Context, req *dto.GetHubInfo
 		Token:       contextx.GetToken(ctx),
 	}
 
-	hubDetail, err := apicall.GetHubDirectoryDetail(header, tree.HubDirectoryID, "", false, false)
+	hubDetail, err := apicall.GetHubDirectoryDetail(header, req.FullCodePath, false, false)
 	if err != nil {
-		logger.Warnf(ctx, "[GetHubInfo] 获取 Hub 目录详情失败: hubDirectoryID=%d, error=%v", tree.HubDirectoryID, err)
+		logger.Warnf(ctx, "[GetHubInfo] 获取 Hub 目录详情失败: fullCodePath=%s, error=%v", req.FullCodePath, err)
 		// 即使获取详情失败，也返回基本信息
 		return &dto.GetHubInfoResp{
 			HubDirectoryID:  tree.HubDirectoryID,
@@ -1232,11 +1231,11 @@ func (s *ServiceTreeService) GetHubInfo(ctx context.Context, req *dto.GetHubInfo
 		}, nil
 	}
 
-	// 4. 构建 Hub URL（需要从配置获取 Hub 主机地址）
-	hubURL := fmt.Sprintf("/hub/directory/%d", tree.HubDirectoryID)
+	// 4. 构建 Hub URL（使用 full-code-path）
+	hubURL := fmt.Sprintf("/hub/directory/%s", req.FullCodePath)
 
 	return &dto.GetHubInfoResp{
-		HubDirectoryID:  tree.HubDirectoryID,
+		HubDirectoryID:  hubDetail.ID,
 		HubDirectoryURL: hubURL,
 		PublishedAt:     hubDetail.PublishedAt,
 	}, nil
