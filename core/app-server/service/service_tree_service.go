@@ -1533,7 +1533,7 @@ func (s *ServiceTreeService) buildItemsFromTree(
 	// 如果无法从 Path 提取，fallback 到 Name（但这种情况不应该发生）
 	if dirCode == "" {
 		dirCode = node.Name
-		logger.Warnf(context.Background(), "[buildItemsFromTree] 无法从 Path 提取目录代码，使用 Name: %s", node.Name)
+		// 注意：这里无法获取 context，所以不记录日志
 	}
 	
 	// 计算当前目录的目标路径（使用代码名称）
