@@ -134,6 +134,8 @@ type PullDirectoryFromHubResp struct {
 	ServiceTreeID      int64  `json:"service_tree_id"`     // 根目录的 ServiceTree ID
 	HubDirectoryID     int64  `json:"hub_directory_id"`     // Hub 目录 ID
 	HubDirectoryName   string `json:"hub_directory_name"`   // Hub 目录名称
+	HubVersion         string `json:"hub_version"`         // Hub 目录版本（如 v1.0.0）
+	HubVersionNum      int    `json:"hub_version_num"`     // Hub 目录版本号（数字部分）
 }
 
 // GetHubInfoReq 获取目录的 Hub 信息请求

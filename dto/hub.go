@@ -84,7 +84,8 @@ type HubDirectoryDTO struct {
 	Rating        float64 `json:"rating"`
 
 	// 版本信息
-	Version string `json:"version"`
+	Version    string `json:"version"`     // 版本号（如 v1.0.0）
+	VersionNum int    `json:"version_num"` // 版本号（数字部分）
 
 	// 统计信息（快照）
 	DirectoryCount int `json:"directory_count"` // 子目录数量

@@ -680,14 +680,26 @@ func (s *ServiceTreeService) PublishDirectoryToHub(ctx context.Context, req *dto
 		return nil, fmt.Errorf("调用 Hub API 失败: %w", err)
 	}
 
-	// 8. 建立双向绑定：更新根目录节点的 HubDirectoryID
-	rootTree.HubDirectoryID = hubResp.HubDirectoryID
+	// 8. 建立双向绑定：更新根目录节点的 HubDirectoryID 和版本信息
+	// 需要查询 Hub 获取版本信息（因为 hubResp 可能不包含版本）
+	hubDetail, err := apicall.GetHubDirectoryDetail(header, req.SourceDirectoryPath, false, false)
+	if err != nil {
+		logger.Warnf(ctx, "[PublishDirectoryToHub] 获取Hub目录详情失败，无法记录版本信息: hubDirectoryID=%d, error=%v", hubResp.HubDirectoryID, err)
+		// 即使获取详情失败，也记录 HubDirectoryID
+		rootTree.HubDirectoryID = hubResp.HubDirectoryID
+	} else {
+		// 记录 Hub 信息（ID 和版本）
+		rootTree.HubDirectoryID = hubDetail.ID
+		rootTree.HubVersion = hubDetail.Version
+		rootTree.HubVersionNum = hubDetail.VersionNum
+	}
+
 	if err := s.serviceTreeRepo.UpdateServiceTree(rootTree); err != nil {
-		logger.Warnf(ctx, "[PublishDirectoryToHub] 更新ServiceTree的HubDirectoryID失败: treeID=%d, hubDirectoryID=%d, error=%v",
-			rootTree.ID, hubResp.HubDirectoryID, err)
+		logger.Warnf(ctx, "[PublishDirectoryToHub] 更新ServiceTree的Hub信息失败: treeID=%d, hubDirectoryID=%d, hubVersion=%s, error=%v",
+			rootTree.ID, rootTree.HubDirectoryID, rootTree.HubVersion, err)
 		// 不返回错误，因为发布已经成功，只是绑定失败
 	} else {
-		logger.Infof(ctx, "[PublishDirectoryToHub] 成功建立双向绑定: treeID=%d, hubDirectoryID=%d", rootTree.ID, hubResp.HubDirectoryID)
+		logger.Infof(ctx, "[PublishDirectoryToHub] 成功建立双向绑定: treeID=%d, hubDirectoryID=%d, hubVersion=%s", rootTree.ID, rootTree.HubDirectoryID, rootTree.HubVersion)
 	}
 
 	// 9. 返回结果
@@ -1077,14 +1089,16 @@ func (s *ServiceTreeService) PullDirectoryFromHub(ctx context.Context, req *dto.
 		logger.Warnf(ctx, "[PullDirectoryFromHub] 获取根目录 ServiceTree 失败: path=%s, error=%v", targetPath, err)
 	}
 
-	// 10. 建立双向绑定：更新根目录节点的 HubDirectoryID
+	// 10. 建立双向绑定：更新根目录节点的 HubDirectoryID 和版本信息
 	if rootTree != nil && hubDetail.ID > 0 {
 		rootTree.HubDirectoryID = hubDetail.ID
+		rootTree.HubVersion = hubDetail.Version
+		rootTree.HubVersionNum = hubDetail.VersionNum
 		if err := s.serviceTreeRepo.UpdateServiceTree(rootTree); err != nil {
-			logger.Warnf(ctx, "[PullDirectoryFromHub] 更新ServiceTree的HubDirectoryID失败: treeID=%d, hubDirectoryID=%d, error=%v",
-				rootTree.ID, hubDetail.ID, err)
+			logger.Warnf(ctx, "[PullDirectoryFromHub] 更新ServiceTree的Hub信息失败: treeID=%d, hubDirectoryID=%d, hubVersion=%s, error=%v",
+				rootTree.ID, hubDetail.ID, hubDetail.Version, err)
 		} else {
-			logger.Infof(ctx, "[PullDirectoryFromHub] 成功建立双向绑定: treeID=%d, hubDirectoryID=%d", rootTree.ID, hubDetail.ID)
+			logger.Infof(ctx, "[PullDirectoryFromHub] 成功建立双向绑定: treeID=%d, hubDirectoryID=%d, hubVersion=%s", rootTree.ID, hubDetail.ID, hubDetail.Version)
 		}
 	}
 
@@ -1102,6 +1116,8 @@ func (s *ServiceTreeService) PullDirectoryFromHub(ctx context.Context, req *dto.
 		}(),
 		HubDirectoryID:   hubDetail.ID,
 		HubDirectoryName: hubDetail.Name,
+		HubVersion:       hubDetail.Version,
+		HubVersionNum:    hubDetail.VersionNum,
 	}, nil
 }
 
