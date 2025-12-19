@@ -99,22 +99,6 @@ type BatchCreateDirectoryTreeResp struct {
 	CreatedPaths   []string `json:"created_paths"`   // 创建的路径列表
 }
 
-// UpdateServiceTreeReq 更新服务树请求
-type UpdateServiceTreeReq struct {
-	User  string             `json:"user" binding:"required"` // 用户名
-	App   string             `json:"app" binding:"required"`  // 应用名
-	Nodes []*ServiceTreeNode `json:"nodes" binding:"required"` // 服务树节点列表
-}
-
-// UpdateServiceTreeResp 更新服务树响应
-type UpdateServiceTreeResp struct {
-	DirectoryCount int      `json:"directory_count"` // 处理的目录数量
-	FileCount      int      `json:"file_count"`      // 处理的文件数量
-	Diff           *DiffData `json:"diff,omitempty"`  // API diff 信息（如果有文件变更）
-	OldVersion     string   `json:"old_version"`     // 旧版本号
-	NewVersion     string   `json:"new_version"`     // 新版本号
-	GitCommitHash  string   `json:"git_commit_hash,omitempty"` // Git 提交哈希
-}
 
 // BatchWriteFilesReq 批量写文件请求
 type BatchWriteFilesReq struct {

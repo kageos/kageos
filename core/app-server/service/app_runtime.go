@@ -188,22 +188,6 @@ func (a *AppRuntime) BatchCreateDirectoryTree(ctx context.Context, hostId int64,
 	return &resp, nil
 }
 
-// UpdateServiceTree 更新服务树（app-server -> app-runtime）
-func (a *AppRuntime) UpdateServiceTree(ctx context.Context, hostId int64, req *dto.UpdateServiceTreeRuntimeReq) (*dto.UpdateServiceTreeRuntimeResp, error) {
-	var resp dto.UpdateServiceTreeRuntimeResp
-	timeout := time.Duration(a.config.GetNatsRequestTimeout()) * time.Second
-
-	conn, err := a.natsService.GetNatsByHost(hostId)
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = msgx.RequestMsgWithTimeout(ctx, conn, subjects.GetAppServer2AppRuntimeUpdateServiceTreeRequestSubject(), req, &resp, timeout)
-	if err != nil {
-		return nil, err
-	}
-	return &resp, nil
-}
 
 // BatchWriteFiles 批量写文件（app-server -> app-runtime）
 func (a *AppRuntime) BatchWriteFiles(ctx context.Context, hostId int64, req *dto.BatchWriteFilesRuntimeReq) (*dto.BatchWriteFilesRuntimeResp, error) {

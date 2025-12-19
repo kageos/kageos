@@ -188,42 +188,19 @@ func (s *Server) handleBatchCreateDirectoryTree(msg *nats.Msg) {
 		resp.DirectoryCount, resp.FileCount)
 }
 
-// handleUpdateServiceTree 处理更新服务树请求
+// handleUpdateServiceTree 处理更新服务树请求（已废弃）
+// 注意：此方法已废弃，请使用 BatchCreateDirectoryTree 和 BatchWriteFiles 替代
 func (s *Server) handleUpdateServiceTree(msg *nats.Msg) {
-	ctx := context.Background()
-
-	// 使用统一的解析方法
-	msgInfo, err := msgx.DecodeNatsMsg[dto.UpdateServiceTreeRuntimeReq](msg)
-	if err != nil {
-		logger.Errorf(ctx, "[handleUpdateServiceTree] Failed to decode message: %v", err)
-		msgx.RespFailMsg(msg, err)
-		return
-	}
-
-	// 从消息体中获取租户用户信息
-	tenantUser := msgInfo.Data.User
-
-	logger.Infof(ctx, "[handleUpdateServiceTree] Received update service tree request: tenantUser=%s, app=%s, nodeCount=%d",
-		tenantUser, msgInfo.Data.App, len(msgInfo.Data.Nodes))
-
-	// 调用服务目录服务更新服务树
-	resp, err := s.serviceTreeService.UpdateServiceTree(ctx, &msgInfo.Data)
-	if err != nil {
-		logger.Errorf(ctx, "[handleUpdateServiceTree] Failed to update service tree: %v", err)
-		msgx.RespFailMsg(msg, err)
-		return
-	}
-
-	// 返回成功响应
-	msgx.RespSuccessMsg(msg, resp)
-	logger.Infof(ctx, "[handleUpdateServiceTree] Update service tree successfully: directoryCount=%d, fileCount=%d, hasDiff=%v",
-		resp.DirectoryCount, resp.FileCount, resp.Diff != nil)
+	ctx := contextx.NatsTraceContext(msg)
+	err := fmt.Errorf("UpdateServiceTree 已废弃，请使用 BatchCreateDirectoryTree 和 BatchWriteFiles 替代")
+	logger.Errorf(ctx, "[handleUpdateServiceTree] %v", err)
+	msgx.RespFailMsg(msg, err)
 }
 
 // handleBatchWriteFiles 处理批量写文件请求
 func (s *Server) handleBatchWriteFiles(msg *nats.Msg) {
-	ctx := context.Background()
 
+	ctx := contextx.NatsTraceContext(msg)
 	// 使用统一的解析方法
 	msgInfo, err := msgx.DecodeNatsMsg[dto.BatchWriteFilesRuntimeReq](msg)
 	if err != nil {

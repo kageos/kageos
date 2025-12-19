@@ -376,16 +376,8 @@ func (s *Server) subscribeNATS(ctx context.Context) error {
 	}
 	s.subscriptions = append(s.subscriptions, sub)
 
-	// 订阅更新服务树请求（使用队列组）
-	sub, err = s.natsConn.QueueSubscribe(
-		subjects.GetAppServer2AppRuntimeUpdateServiceTreeRequestSubject(),
-		"app-runtime-update-service-tree-workers",
-		s.handleUpdateServiceTree,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to subscribe to update service tree: %w", err)
-	}
-	s.subscriptions = append(s.subscriptions, sub)
+	// 注意：UpdateServiceTree 已废弃，不再订阅
+	// 请使用 BatchCreateDirectoryTree 和 BatchWriteFiles 替代
 
 	// 订阅批量写文件请求（使用队列组）
 	sub, err = s.natsConn.QueueSubscribe(

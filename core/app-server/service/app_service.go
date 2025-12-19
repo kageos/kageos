@@ -31,7 +31,6 @@ type AppService struct {
 	operateLogRepo             *repository.OperateLogRepository
 	fileSnapshotRepo           *repository.FileSnapshotRepository
 	directoryUpdateHistoryRepo *repository.DirectoryUpdateHistoryRepository
-	serviceTreeService         *ServiceTreeService // 用于 UpdateAppV2
 }
 
 // NewAppService 创建 AppService（依赖注入）
@@ -48,10 +47,6 @@ func NewAppService(appRuntime *AppRuntime, userRepo *repository.UserRepository, 
 	}
 }
 
-// SetServiceTreeService 设置 ServiceTreeService（用于 UpdateAppV2）
-func (a *AppService) SetServiceTreeService(serviceTreeService *ServiceTreeService) {
-	a.serviceTreeService = serviceTreeService
-}
 
 // CreateApp 创建应用
 func (a *AppService) CreateApp(ctx context.Context, req *dto.CreateAppReq) (*dto.CreateAppResp, error) {
@@ -158,73 +153,6 @@ func (a *AppService) UpdateApp(ctx context.Context, req *dto.UpdateAppReq) (*dto
 	return resp, nil
 }
 
-// UpdateAppV2 更新应用（新版本，使用 UpdateServiceTree 实现）
-// 这个方法使用新的 UpdateServiceTree 实现，支持通过 full-code-path 递归构建目录和文件
-// 参数使用 UpdateServiceTreeReq，更通用，支持新增、更新、删除节点
-// 后续可以逐步替代 UpdateApp
-func (a *AppService) UpdateAppV2(ctx context.Context, req *dto.UpdateServiceTreeReq) (*dto.UpdateAppResp, error) {
-	// 记录开始时间（用于计算变更耗时）
-	startTime := time.Now()
-
-	// 根据应用信息获取 NATS 连接，而不是根据当前用户
-	app, err := a.appRepo.GetAppByUserName(req.User, req.App)
-	if err != nil {
-		return nil, err
-	}
-
-	// 1. 如果没有节点，直接返回（不需要更新）
-	if len(req.Nodes) == 0 {
-		// 如果没有节点，可能需要编译（如果有其他变更）
-		// 这里简化处理，直接返回当前版本
-		return &dto.UpdateAppResp{
-			User:       req.User,
-			App:        req.App,
-			OldVersion: app.Version,
-			NewVersion: app.Version,
-		}, nil
-	}
-
-	// 2. 调用 UpdateServiceTree
-	updateServiceTreeResp, err := a.serviceTreeService.UpdateServiceTree(ctx, req)
-	if err != nil {
-		return nil, fmt.Errorf("更新服务树失败: %w", err)
-	}
-
-	// 3. 更新数据库中的版本信息
-	app.Version = updateServiceTreeResp.NewVersion
-	err = a.appRepo.UpdateApp(app)
-	if err != nil {
-		return nil, err
-	}
-
-	// 4. 计算变更耗时（毫秒）
-	duration := time.Since(startTime).Milliseconds()
-
-	// 5. 处理API差异，将API信息入库到function表
-	// 注意：这里需要构建一个 UpdateAppReq 用于 processAPIDiff（兼容旧接口）
-	updateAppReq := &dto.UpdateAppReq{
-		User: req.User,
-		App:  req.App,
-		// 其他字段不需要，因为 processAPIDiff 主要使用 diff 信息
-	}
-	if updateServiceTreeResp.Diff != nil {
-		err = a.processAPIDiff(ctx, app.ID, updateServiceTreeResp.Diff, updateAppReq, duration, updateServiceTreeResp.GitCommitHash)
-		if err != nil {
-			// API入库失败不应该影响主流程，记录日志即可
-			fmt.Printf("API入库失败: %v\n", err)
-		}
-	}
-
-	// 6. 构建响应（兼容 UpdateAppResp）
-	return &dto.UpdateAppResp{
-		User:          req.User,
-		App:           req.App,
-		OldVersion:    updateServiceTreeResp.OldVersion,
-		NewVersion:    updateServiceTreeResp.NewVersion,
-		GitCommitHash: updateServiceTreeResp.GitCommitHash,
-		Diff:          updateServiceTreeResp.Diff,
-	}, nil
-}
 
 // extractVersionNum 从版本号字符串中提取数字部分（如 "v1" -> 1, "v20" -> 20）
 func extractVersionNum(version string) int {
