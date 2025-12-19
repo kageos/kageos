@@ -705,7 +705,7 @@ func (s *ServiceTreeService) PublishDirectoryToHub(ctx context.Context, req *dto
 
 	// 8. 建立双向绑定：更新根目录节点的 HubDirectoryID 和版本信息
 	// 需要查询 Hub 获取版本信息（因为 hubResp 可能不包含版本）
-	hubDetail, err := apicall.GetHubDirectoryDetail(header, req.SourceDirectoryPath, false, false)
+		hubDetail, err := apicall.GetHubDirectoryDetail(header, req.SourceDirectoryPath, "", false, false)
 	if err != nil {
 		logger.Warnf(ctx, "[PublishDirectoryToHub] 获取Hub目录详情失败，无法记录版本信息: hubDirectoryID=%d, error=%v", hubResp.HubDirectoryID, err)
 		// 即使获取详情失败，也记录 HubDirectoryID
@@ -1185,8 +1185,8 @@ func (s *ServiceTreeService) PullDirectoryFromHub(ctx context.Context, req *dto.
 	logger.Infof(ctx, "[PullDirectoryFromHub] 解析 Hub 链接成功: host=%s, fullCodePath=%s, version=%s",
 		hubLinkInfo.Host, hubLinkInfo.FullCodePath, hubLinkInfo.Version)
 
-	// 2. 从 Hub 获取目录详情（包含目录树和文件内容）
-	hubDetail, err := apicall.GetHubDirectoryDetailFromHost(hubLinkInfo.Host, hubLinkInfo.FullCodePath, true, true)
+	// 2. 从 Hub 获取目录详情（包含目录树和文件内容，如果指定了版本号则查询指定版本）
+	hubDetail, err := apicall.GetHubDirectoryDetailFromHost(hubLinkInfo.Host, hubLinkInfo.FullCodePath, hubLinkInfo.Version, true, true)
 	if err != nil {
 		return nil, fmt.Errorf("获取 Hub 目录详情失败: %w", err)
 	}
@@ -1409,7 +1409,7 @@ func (s *ServiceTreeService) GetHubInfo(ctx context.Context, req *dto.GetHubInfo
 		Token:       contextx.GetToken(ctx),
 	}
 
-	hubDetail, err := apicall.GetHubDirectoryDetail(header, req.FullCodePath, false, false)
+		hubDetail, err := apicall.GetHubDirectoryDetail(header, req.FullCodePath, "", false, false)
 	if err != nil {
 		logger.Warnf(ctx, "[GetHubInfo] 获取 Hub 目录详情失败: fullCodePath=%s, error=%v", req.FullCodePath, err)
 		// 即使获取详情失败，也返回基本信息

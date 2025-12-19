@@ -77,11 +77,14 @@ func GetHubDirectoryList(header *Header, page, pageSize int, search, category, p
 }
 
 // GetHubDirectoryDetail 获取 Hub 目录详情（通过网关，使用 full_code_path）
-func GetHubDirectoryDetail(header *Header, fullCodePath string, includeTree, includeFiles bool) (*dto.HubDirectoryDetailDetailResp, error) {
+func GetHubDirectoryDetail(header *Header, fullCodePath string, version string, includeTree, includeFiles bool) (*dto.HubDirectoryDetailDetailResp, error) {
 	// 构建查询参数
 	path := "/hub/api/v1/directories/detail"
 	params := url.Values{}
 	params.Set("full_code_path", fullCodePath)
+	if version != "" {
+		params.Set("version", version)
+	}
 	if includeTree {
 		params.Set("include_tree", "true")
 	}
@@ -105,9 +108,9 @@ func GetHubDirectoryDetail(header *Header, fullCodePath string, includeTree, inc
 	return &result.Data, nil
 }
 
-// GetHubDirectoryDetailFromHost 从指定的 Hub 主机获取目录详情（通过 full-code-path）
+// GetHubDirectoryDetailFromHost 从指定的 Hub 主机获取目录详情（通过 full-code-path，支持版本号）
 // 用于跨 Hub 主机调用，不通过网关
-func GetHubDirectoryDetailFromHost(host string, fullCodePath string, includeTree, includeFiles bool) (*dto.HubDirectoryDetailDetailResp, error) {
+func GetHubDirectoryDetailFromHost(host string, fullCodePath string, version string, includeTree, includeFiles bool) (*dto.HubDirectoryDetailDetailResp, error) {
 	// 构建 Hub API URL
 	baseURL := host
 	if !strings.HasPrefix(host, "http://") && !strings.HasPrefix(host, "https://") {
@@ -118,6 +121,9 @@ func GetHubDirectoryDetailFromHost(host string, fullCodePath string, includeTree
 	path := "/hub/api/v1/directories/detail"
 	params := url.Values{}
 	params.Set("full_code_path", fullCodePath)
+	if version != "" {
+		params.Set("version", version)
+	}
 	if includeTree {
 		params.Set("include_tree", "true")
 	}
