@@ -35,6 +35,8 @@ type ServiceTree struct {
 	Version          string         `json:"version" gorm:"type:varchar(50);comment:节点当前版本号（如 v1, v2），package类型表示目录版本，function类型表示函数版本等"` // 节点当前版本号
 	VersionNum       int            `json:"version_num" gorm:"comment:节点当前版本号（数字部分）"`                                                    // 节点当前版本号（数字部分）
 	HubDirectoryID   int64          `json:"hub_directory_id" gorm:"index;default:0;comment:关联的Hub目录ID（如果已发布到Hub）"` // 关联的Hub目录ID
+	HubVersion       string         `json:"hub_version" gorm:"type:varchar(50);default:'';comment:Hub目录版本（如 v1.0.0），用于版本检测和升级"` // Hub目录版本
+	HubVersionNum    int            `json:"hub_version_num" gorm:"default:0;comment:Hub目录版本号（数字部分），用于版本比较"` // Hub目录版本号（数字部分）
 	Children         []*ServiceTree `json:"children" gorm:"-"`
 }
 
