@@ -657,13 +657,13 @@ func (s *ServiceTreeService) copyFromHub(ctx context.Context, req *dto.CopyDirec
 	if err != nil {
 		return nil, fmt.Errorf("获取 Hub 目录详情失败: %w", err)
 	}
-	
+
 	// 详细日志：检查 Hub 返回的目录树结构
 	if hubDetail.DirectoryTree != nil {
 		logger.Infof(ctx, "[CopyServiceTree] Hub 目录树根节点信息: Name=%s, Code=%s, Path=%s, Files数量=%d, Subdirectories数量=%d",
 			hubDetail.DirectoryTree.Name, hubDetail.DirectoryTree.Code, hubDetail.DirectoryTree.Path,
 			len(hubDetail.DirectoryTree.Files), len(hubDetail.DirectoryTree.Subdirectories))
-		
+
 		// 递归打印所有节点的详细信息
 		s.logDirectoryTree(ctx, hubDetail.DirectoryTree, 0)
 	} else {
@@ -1540,13 +1540,13 @@ func (s *ServiceTreeService) logDirectoryTree(ctx context.Context, node *dto.Dir
 	indent := strings.Repeat("  ", level)
 	logger.Infof(ctx, "%s[logDirectoryTree] 节点: Name=%s, Code=%s, Path=%s, Files数量=%d, Subdirectories数量=%d",
 		indent, node.Name, node.Code, node.Path, len(node.Files), len(node.Subdirectories))
-	
+
 	// 打印文件详情
 	for i, file := range node.Files {
 		logger.Infof(ctx, "%s  [文件%d] FileName=%s, RelativePath=%s, FileType=%s, Content长度=%d",
 			indent, i+1, file.FileName, file.RelativePath, file.FileType, len(file.Content))
 	}
-	
+
 	// 递归打印子目录
 	for i, subdir := range node.Subdirectories {
 		logger.Infof(ctx, "%s  [子目录%d]", indent, i+1)
@@ -1565,7 +1565,7 @@ func (s *ServiceTreeService) buildItemsFromTree(
 	dirCode := node.Code
 	logger.Infof(context.Background(), "[buildItemsFromTree] 处理节点: Name=%s, Code=%s, Path=%s, Files数量=%d",
 		node.Name, node.Code, node.Path, len(node.Files))
-	
+
 	// 检查 Code 是否为空
 	if dirCode == "" {
 		logger.Warnf(context.Background(), "[buildItemsFromTree] ⚠️ Code 字段为空！Name=%s, Path=%s", node.Name, node.Path)
