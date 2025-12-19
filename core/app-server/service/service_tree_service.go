@@ -1565,22 +1565,10 @@ func (s *ServiceTreeService) buildItemsFromTree(
 	dirCode := node.Code
 	logger.Infof(context.Background(), "[buildItemsFromTree] 处理节点: Name=%s, Code=%s, Path=%s, Files数量=%d",
 		node.Name, node.Code, node.Path, len(node.Files))
-
-	// 检查 Code 是否为空
+	
+	// 如果 Code 为空，记录警告但不使用 fallback
 	if dirCode == "" {
 		logger.Warnf(context.Background(), "[buildItemsFromTree] ⚠️ Code 字段为空！Name=%s, Path=%s", node.Name, node.Path)
-		// 如果 Code 为空，从 Path 提取（临时处理）
-		if node.Path != "" {
-			pathParts := strings.Split(strings.Trim(node.Path, "/"), "/")
-			if len(pathParts) > 0 {
-				dirCode = pathParts[len(pathParts)-1]
-				logger.Warnf(context.Background(), "[buildItemsFromTree] 从 Path 提取 Code: %s", dirCode)
-			}
-		}
-		if dirCode == "" {
-			dirCode = node.Name // 最后的 fallback
-			logger.Warnf(context.Background(), "[buildItemsFromTree] ⚠️ 使用 Name 作为 Code: %s", dirCode)
-		}
 	}
 
 	// 计算当前目录的目标路径（使用代码名称）
