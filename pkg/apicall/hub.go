@@ -115,7 +115,7 @@ func GetHubDirectoryDetailFromHost(host string, fullCodePath string, includeTree
 	}
 
 	// 构建查询参数
-	path := "/api/v1/hub/directories/detail"
+	path := "/hub/api/v1/directories/detail"
 	params := url.Values{}
 	params.Set("full_code_path", fullCodePath)
 	if includeTree {
@@ -200,4 +200,3 @@ func callAPIWithURL[T any](method, fullURL string, header *Header, reqBody inter
 
 	return &result, nil
 }
-
