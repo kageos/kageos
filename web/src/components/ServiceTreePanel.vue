@@ -102,8 +102,8 @@
                     <el-icon><CopyDocument /></el-icon>
                     复制
                   </el-dropdown-item>
-                  <!-- 粘贴选项（当有复制的内容时显示，粘贴到当前选中的目录） -->
-                  <el-dropdown-item v-if="copiedDirectory" command="paste" divided>
+                  <!-- 粘贴选项（当有复制的内容或 Hub 链接时显示，粘贴到当前选中的目录） -->
+                  <el-dropdown-item v-if="copiedDirectory || copiedHubLink" command="paste" divided>
                     <el-icon><Document /></el-icon>
                     粘贴
                   </el-dropdown-item>
@@ -192,15 +192,18 @@ const route = useRoute()
 const treeRef = ref()
 
 // 复制粘贴相关状态
-const copiedDirectory = ref<ServiceTree | null>(null)  // 复制的目录信息
+const copiedDirectory = ref<ServiceTree | null>(null)  // 复制的目录信息（本地目录）
+const copiedHubLink = ref<string | null>(null)  // 复制的 Hub 链接
 const isPasting = ref(false)  // 是否正在粘贴
 
 // localStorage 键名
 const COPIED_DIRECTORY_KEY = 'copied_directory'
+const COPIED_HUB_LINK_KEY = 'copied_hub_link'
 
-// 从 localStorage 恢复复制的目录
+// 从 localStorage 恢复复制的目录或 Hub 链接
 const restoreCopiedDirectory = () => {
   try {
+    // 恢复本地目录
     const saved = localStorage.getItem(COPIED_DIRECTORY_KEY)
     if (saved) {
       const parsed = JSON.parse(saved)
@@ -211,9 +214,18 @@ const restoreCopiedDirectory = () => {
         localStorage.removeItem(COPIED_DIRECTORY_KEY)
       }
     }
+    
+    // 恢复 Hub 链接
+    const savedHubLink = localStorage.getItem(COPIED_HUB_LINK_KEY)
+    if (savedHubLink && savedHubLink.startsWith('hub://')) {
+      copiedHubLink.value = savedHubLink
+    } else if (savedHubLink) {
+      localStorage.removeItem(COPIED_HUB_LINK_KEY)
+    }
   } catch (error) {
     console.error('恢复复制的目录失败:', error)
     localStorage.removeItem(COPIED_DIRECTORY_KEY)
+    localStorage.removeItem(COPIED_HUB_LINK_KEY)
   }
 }
 
@@ -229,8 +241,23 @@ const saveCopiedDirectory = (node: ServiceTree) => {
       type: node.type
     }
     localStorage.setItem(COPIED_DIRECTORY_KEY, JSON.stringify(dataToSave))
+    // 清除 Hub 链接（如果存在）
+    copiedHubLink.value = null
+    localStorage.removeItem(COPIED_HUB_LINK_KEY)
   } catch (error) {
     console.error('保存复制的目录失败:', error)
+  }
+}
+
+// 保存复制的 Hub 链接到 localStorage
+const saveCopiedHubLink = (hubLink: string) => {
+  try {
+    localStorage.setItem(COPIED_HUB_LINK_KEY, hubLink)
+    // 清除本地目录（如果存在）
+    copiedDirectory.value = null
+    localStorage.removeItem(COPIED_DIRECTORY_KEY)
+  } catch (error) {
+    console.error('保存复制的 Hub 链接失败:', error)
   }
 }
 
@@ -253,9 +280,39 @@ const handleCopy = (node: ServiceTree) => {
 }
 
   // 粘贴目录（使用当前选中的目录作为目标）
+  // 支持两种模式：
+  // 1. 粘贴本地复制的目录
+  // 2. 粘贴 Hub 链接（从剪贴板检测或已保存的 Hub 链接）
   const handlePaste = async (targetNode?: ServiceTree) => {
+    // 首先检查剪贴板是否有 Hub 链接
+    let hubLinkToPaste: string | null = null
+    try {
+      const clipboardText = await navigator.clipboard.readText()
+      if (clipboardText && clipboardText.trim().startsWith('hub://')) {
+        hubLinkToPaste = clipboardText.trim()
+        // 保存到 localStorage
+        saveCopiedHubLink(hubLinkToPaste)
+        copiedHubLink.value = hubLinkToPaste
+      }
+    } catch (error) {
+      // 剪贴板访问失败，忽略（可能是权限问题）
+      console.debug('无法读取剪贴板:', error)
+    }
+    
+    // 如果剪贴板没有 Hub 链接，检查已保存的 Hub 链接
+    if (!hubLinkToPaste && copiedHubLink.value) {
+      hubLinkToPaste = copiedHubLink.value
+    }
+    
+    // 如果有 Hub 链接，使用 Hub 链接粘贴
+    if (hubLinkToPaste) {
+      await handlePasteHubLink(hubLinkToPaste, targetNode)
+      return
+    }
+    
+    // 否则使用本地复制的目录
     if (!copiedDirectory.value) {
-      ElMessage.warning('没有可粘贴的目录')
+      ElMessage.warning('没有可粘贴的目录或 Hub 链接')
       return
     }
     
