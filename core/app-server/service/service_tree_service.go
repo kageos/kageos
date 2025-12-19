@@ -1520,17 +1520,32 @@ func (s *ServiceTreeService) buildItemsFromTree(
 	directoryItems *[]*dto.DirectoryTreeItem,
 	fileItems *[]*dto.DirectoryTreeItem,
 ) {
-	// 计算当前目录的目标路径
-	dirName := node.Name
-	currentTargetPath := fmt.Sprintf("%s/%s", targetBasePath, dirName)
+	// 从 Path 中提取目录的代码名称（而不是使用 Name，因为 Name 可能是中文）
+	// Path 格式：/user/app/package1/package2，我们需要提取最后一部分
+	var dirCode string
+	if node.Path != "" {
+		pathParts := strings.Split(strings.Trim(node.Path, "/"), "/")
+		if len(pathParts) > 0 {
+			dirCode = pathParts[len(pathParts)-1] // 获取最后一部分作为代码名称
+		}
+	}
+	
+	// 如果无法从 Path 提取，fallback 到 Name（但这种情况不应该发生）
+	if dirCode == "" {
+		dirCode = node.Name
+		logger.Warnf(context.Background(), "[buildItemsFromTree] 无法从 Path 提取目录代码，使用 Name: %s", node.Name)
+	}
+	
+	// 计算当前目录的目标路径（使用代码名称）
+	currentTargetPath := fmt.Sprintf("%s/%s", targetBasePath, dirCode)
 
-	// 添加目录项
+	// 添加目录项（使用代码名称作为 Name，但保留原始 Name 作为显示名称）
 	*directoryItems = append(*directoryItems, &dto.DirectoryTreeItem{
 		FullCodePath: currentTargetPath,
 		Type:         "directory",
-		Name:         dirName,
-		Description:  "", // Hub 目录树可能没有描述
-		Tags:         "", // Hub 目录树可能没有标签
+		Name:         dirCode, // 使用代码名称（从 Path 提取）
+		Description:  "",      // Hub 目录树可能没有描述
+		Tags:         "",       // Hub 目录树可能没有标签
 	})
 
 	// 添加文件项
