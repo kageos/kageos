@@ -1,5 +1,5 @@
 <!--
-  WorkspaceDetailDrawer - 工作空间详情抽屉组件
+  TableRowDetailDrawer - 表格行详情抽屉组件
   
   职责：
   - 详情展示
@@ -405,7 +405,7 @@ const getInitialLayout = (): boolean => {
     // 默认使用新布局
     return true
   } catch (error) {
-    console.error('[WorkspaceDetailDrawer] 读取布局设置失败:', error)
+    console.error('[TableRowDetailDrawer] 读取布局设置失败:', error)
     // 出错时默认使用新布局
     return true
   }
