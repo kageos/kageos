@@ -11,7 +11,7 @@
   <el-drawer
     v-model="visible"
     :title="title"
-    size="50%"
+    size="60%"
     destroy-on-close
     :modal="true"
     :close-on-click-modal="true"
