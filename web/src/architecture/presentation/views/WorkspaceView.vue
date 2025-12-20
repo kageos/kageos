@@ -1037,19 +1037,37 @@ const handleUpdateHistory = (node?: ServiceTreeType) => {
     return
   }
   
+  // 🔥 修复：检查 appId 是否有效
+  const appId = currentApp.value.id
+  if (!appId || appId === 0) {
+    console.error('[WorkspaceView] handleUpdateHistory: appId 无效', {
+      currentApp: currentApp.value,
+      appId
+    })
+    ElMessage.error('应用ID无效，无法加载变更记录。请刷新页面后重试。')
+    return
+  }
+  
   if (node) {
     // 目录视角：显示指定目录的变更记录
     updateHistoryMode.value = 'directory'
-    updateHistoryAppId.value = currentApp.value.id
+    updateHistoryAppId.value = appId
     updateHistoryFullCodePath.value = node.full_code_path || ''
     updateHistoryAppVersion.value = ''
   } else {
     // App视角：显示工作空间的变更记录
     updateHistoryMode.value = 'app'
-    updateHistoryAppId.value = currentApp.value.id
+    updateHistoryAppId.value = appId
     updateHistoryAppVersion.value = '' // 空表示返回所有版本
     updateHistoryFullCodePath.value = ''
   }
+  
+  console.log('[WorkspaceView] 打开变更记录对话框', {
+    mode: updateHistoryMode.value,
+    appId: updateHistoryAppId.value,
+    appVersion: updateHistoryAppVersion.value,
+    fullCodePath: updateHistoryFullCodePath.value
+  })
   
   updateHistoryDialogVisible.value = true
 }

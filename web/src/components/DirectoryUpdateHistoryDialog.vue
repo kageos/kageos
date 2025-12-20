@@ -631,27 +631,45 @@ const isFormType = (templateType?: string): boolean => {
 
 // 加载数据
 const loadData = async () => {
-  if (!props.appId) return
+  // 🔥 修复：检查 appId 是否有效（不能为 0 或 undefined）
+  if (!props.appId || props.appId === 0) {
+    console.warn('[DirectoryUpdateHistoryDialog] appId 无效:', props.appId)
+    ElMessage.warning('应用ID无效，无法加载变更记录')
+    return
+  }
   
   loading.value = true
   try {
     if (props.mode === 'app') {
+      console.log('[DirectoryUpdateHistoryDialog] 加载应用版本更新历史', {
+        appId: props.appId,
+        appVersion: props.appVersion
+      })
       const res = await getAppVersionUpdateHistory(props.appId, props.appVersion)
+      console.log('[DirectoryUpdateHistoryDialog] 应用版本更新历史响应:', res)
       appHistory.value = res
     } else {
       if (!props.fullCodePath) {
         ElMessage.warning('目录路径不能为空')
         return
       }
+      console.log('[DirectoryUpdateHistoryDialog] 加载目录更新历史', {
+        appId: props.appId,
+        fullCodePath: props.fullCodePath,
+        page: currentPage.value,
+        pageSize: pageSize.value
+      })
       const res = await getDirectoryUpdateHistory(
         props.appId,
         props.fullCodePath,
         currentPage.value,
         pageSize.value
       )
+      console.log('[DirectoryUpdateHistoryDialog] 目录更新历史响应:', res)
       directoryHistory.value = res
     }
   } catch (error: any) {
+    console.error('[DirectoryUpdateHistoryDialog] 加载变更记录失败:', error)
     ElMessage.error(error.message || '加载变更记录失败')
   } finally {
     loading.value = false
