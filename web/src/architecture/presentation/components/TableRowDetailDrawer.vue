@@ -939,7 +939,8 @@ defineExpose({
 }
 
 /* 标准字段行样式（用于分组布局） */
-.grouped-detail-layout .field-row {
+/* 左侧：左右布局（label 在左，value 在右） */
+.grouped-detail-layout .main-content .field-row {
   display: grid;
   grid-template-columns: 140px 1fr;
   gap: 12px;
@@ -952,14 +953,34 @@ defineExpose({
   background: transparent;
 }
 
-.grouped-detail-layout .field-row:hover {
+.grouped-detail-layout .main-content .field-row:hover {
+  background: var(--el-fill-color-light);
+  border-color: var(--el-border-color);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* 右侧：上下布局（label 在上，value 在下） */
+.grouped-detail-layout .sidebar-content .field-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--el-border-color-extra-light);
+  align-items: stretch;
+  min-height: auto;
+  transition: all 0.2s ease;
+  border-radius: 4px;
+  background: transparent;
+}
+
+.grouped-detail-layout .sidebar-content .field-row:hover {
   background: var(--el-fill-color-light);
   border-color: var(--el-border-color);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
 }
 
 .grouped-detail-layout .field-label {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--el-text-color-secondary);
   display: flex;
@@ -967,6 +988,14 @@ defineExpose({
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* 右侧 label 样式（更小，更紧凑） */
+.grouped-detail-layout .sidebar-content .field-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--el-text-color-secondary);
+  margin-bottom: 4px;
 }
 
 .grouped-detail-layout .field-value {
@@ -979,6 +1008,12 @@ defineExpose({
   gap: 8px;
   min-height: 24px;
   position: relative;
+}
+
+/* 右侧 value 样式 */
+.grouped-detail-layout .sidebar-content .field-value {
+  font-size: 13px;
+  width: 100%;
 }
 
 /* 底部：复杂字段 */
