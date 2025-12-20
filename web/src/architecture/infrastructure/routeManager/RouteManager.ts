@@ -263,10 +263,10 @@ export class RouteManager {
    */
   private async handleUpdateRequest(request: RouteUpdateRequest): Promise<void> {
       // 🔥 Tab 功能已删除，sync-route-to-tab-save-state 已废弃
-      if ((request as any).source === 'sync-route-to-tab-save-state') {
+    if ((request as any).source === 'sync-route-to-tab-save-state') {
         // Tab 功能已删除，直接返回
         return
-      }
+    }
     
     if (this.isUpdating) {
       this.log('路由更新中，跳过重复请求', { source: request.source })

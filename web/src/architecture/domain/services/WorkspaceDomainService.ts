@@ -203,8 +203,10 @@ export class WorkspaceDomainService {
 
   /**
    * 设置当前目录（切换目录时调用）
+   * @param directory 目录节点
+   * @param setAsCurrentFunction 是否同时将目录设置为当前函数（默认 true，用于点击目录节点时）
    */
-  setCurrentDirectory(directory: ServiceTree | null): void {
+  setCurrentDirectory(directory: ServiceTree | null, setAsCurrentFunction: boolean = true): void {
     const state = this.stateManager.getState()
     
     // 如果目录相同，不执行任何操作
@@ -215,7 +217,9 @@ export class WorkspaceDomainService {
     this.stateManager.setState({
       ...state,
       currentDirectory: directory,
-      currentFunction: directory // 设置当前函数为目录节点
+      // 🔥 优化：只有在明确要求时才将目录设置为当前函数
+      // 这样可以避免在加载函数详情时先显示目录详情
+      currentFunction: setAsCurrentFunction ? directory : state.currentFunction
     })
   }
 
