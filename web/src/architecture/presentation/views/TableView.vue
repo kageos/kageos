@@ -277,6 +277,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElIcon, ElTable, ElNotification } from 'element-plus'
 import { Search, Refresh, Delete, Plus, ArrowUp, ArrowDown, More, Right } from '@element-plus/icons-vue'
 import { eventBus, TableEvent, WorkspaceEvent, RouteEvent } from '../../infrastructure/eventBus'
+import { RouteSource } from '@/utils/routeSource'
 import { serviceFactory } from '../../infrastructure/factories'
 import WidgetComponent from '../../presentation/widgets/WidgetComponent.vue'
 import SearchInput from '@/components/SearchInput.vue'
@@ -1024,7 +1025,7 @@ const syncToURL = (): void => {
       state: true,        // 保留状态参数（_ 开头）
       linkNavigation: isLinkNavigation  // 如果是 link 跳转，保留所有参数
     },
-    source: 'table-sync'
+    source: RouteSource.TABLE_SYNC
   })
 }
 
@@ -1185,7 +1186,7 @@ const handleLinkClick = (fieldCode: string, row: any) => {
         preserveParams: {
           linkNavigation: true  // link 跳转：保留所有参数
         },
-        source: 'table-link-click'
+        source: RouteSource.TABLE_LINK_CLICK
       })
     }
   }
@@ -1221,7 +1222,7 @@ const handleAdd = (): void => {
     preserveParams: {
       state: true  // 保留状态参数
     },
-    source: 'add-dialog-open'
+    source: RouteSource.TABLE_ADD_DIALOG_OPEN
   })
 }
 
@@ -1262,7 +1263,7 @@ const handleCreateDialogClose = (): void => {
         search: true, // 保留搜索参数
         state: true   // 保留状态参数
       },
-      source: 'table-create-dialog-close'
+      source: RouteSource.TABLE_CREATE_DIALOG_CLOSE
     })
   }
 }

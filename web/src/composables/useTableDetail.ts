@@ -21,6 +21,7 @@ import { ErrorHandler } from '@/core/utils/ErrorHandler'
 import { useUserInfoStore } from '@/stores/userInfo'
 import { collectFilesUploadUsersFromRow } from '@/utils/tableUserInfo'
 import { eventBus, RouteEvent } from '@/architecture/infrastructure/eventBus'
+import { RouteSource } from '@/utils/routeSource'
 import type { Function as FunctionType, ServiceTree } from '@/types'
 import type { FieldConfig, FunctionDetail } from '@/core/types/field'
 import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
@@ -193,7 +194,7 @@ export function useTableDetail(options: UseTableDetailOptions) {
             search: true, // 保留搜索参数
             state: true   // 保留状态参数
           },
-          source: 'table-detail-open'
+          source: RouteSource.TABLE_DETAIL_OPEN
         })
       }
     }
@@ -250,7 +251,7 @@ export function useTableDetail(options: UseTableDetailOptions) {
           search: true, // 保留搜索参数
           state: true   // 保留状态参数
         },
-        source: 'table-detail-navigate'
+        source: RouteSource.TABLE_DETAIL_NAVIGATE
       })
     }
   }
@@ -426,7 +427,7 @@ export function useTableDetail(options: UseTableDetailOptions) {
           search: true, // 保留搜索参数
           state: true   // 保留状态参数（除了 _detail_id 和 _detail_function_id）
         },
-        source: 'table-detail-close'
+        source: RouteSource.TABLE_DETAIL_CLOSE
       })
       // 使用 nextTick 确保路由更新完成
       nextTick().finally(() => {
@@ -477,7 +478,7 @@ export function useTableDetail(options: UseTableDetailOptions) {
           search: true, // 保留搜索参数
           state: true   // 保留状态参数（除了 _detail_id 和 _detail_function_id）
         },
-        source: 'table-detail-cleanup'
+        source: RouteSource.TABLE_DETAIL_CLEANUP
       })
       return
     }
@@ -504,7 +505,7 @@ export function useTableDetail(options: UseTableDetailOptions) {
           search: true, // 保留搜索参数
           state: true   // 保留状态参数（除了 _detail_id 和 _detail_function_id）
         },
-        source: 'table-detail-cleanup'
+        source: RouteSource.TABLE_DETAIL_CLEANUP
       })
       return
     }
@@ -558,7 +559,7 @@ export function useTableDetail(options: UseTableDetailOptions) {
                 search: true, // 保留搜索参数
                 state: true   // 保留状态参数
               },
-              source: 'table-detail-cleanup-invalid-id'
+              source: RouteSource.TABLE_DETAIL_CLEANUP_INVALID_ID
             })
           }
           return
@@ -604,7 +605,7 @@ export function useTableDetail(options: UseTableDetailOptions) {
               search: true, // 保留搜索参数
               state: true   // 保留状态参数
             },
-            source: 'table-detail-cleanup-not-found'
+            source: RouteSource.TABLE_DETAIL_CLEANUP_NOT_FOUND
           })
         }
       }
@@ -661,7 +662,7 @@ export function useTableDetail(options: UseTableDetailOptions) {
             search: true, // 保留搜索参数
             state: true   // 保留状态参数
           },
-          source: 'table-detail-cleanup-function-change'
+          source: RouteSource.TABLE_DETAIL_CLEANUP_FUNCTION_CHANGE
         })
       }
     } else {
