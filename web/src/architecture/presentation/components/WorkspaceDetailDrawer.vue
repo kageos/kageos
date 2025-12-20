@@ -52,6 +52,17 @@
               保存
             </el-button>
           </div>
+          <!-- 布局切换按钮 -->
+          <el-button
+            v-if="mode === 'read'"
+            size="small"
+            text
+            @click="toggleDetailLayout"
+            :title="useGroupedDetailLayout ? '切换到原布局' : '切换到分组布局'"
+          >
+            <el-icon><component :is="useGroupedDetailLayout ? List : Grid" /></el-icon>
+            {{ useGroupedDetailLayout ? '原布局' : '分组布局' }}
+          </el-button>
           <!-- 导航按钮（上一个/下一个） -->
           <div class="drawer-navigation" v-if="tableData && tableData.length > 1 && mode === 'read'">
             <el-button
@@ -99,8 +110,157 @@
                 </div>
               </div>
               
-              <!-- 字段网格（排除 link 字段） -->
-              <div class="detail-fields-grid">
+              <!-- 🔥 根据布局模式渲染不同的布局 -->
+              <!-- 分组布局 -->
+              <div v-if="useGroupedDetailLayout" class="grouped-detail-layout">
+                <!-- 顶部：状态/分类字段组（横向展示） -->
+                <div v-if="groupedFields.statusFields.length > 0" class="status-section">
+                  <div 
+                    v-for="field in groupedFields.statusFields"
+                    :key="field.code"
+                    class="status-field-card"
+                  >
+                    <span class="status-label">{{ field.name }}</span>
+                    <div class="status-value">
+                      <WidgetComponent
+                        :field="field"
+                        :value="getFieldValue(field.code)"
+                        mode="detail"
+                        :user-info-map="userInfoMap"
+                        :function-name="functionName"
+                        :record-id="recordId"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 主布局：左右分栏 -->
+                <div class="main-layout">
+                  <!-- 左侧：主要业务字段 -->
+                  <div class="main-content">
+                    <div 
+                      v-for="field in groupedFields.mainFields"
+                      :key="field.code"
+                      class="field-row"
+                    >
+                      <div class="field-label">
+                        {{ field.name }}
+                      </div>
+                      <div class="field-value">
+                        <WidgetComponent
+                          :field="field"
+                          :value="getFieldValue(field.code)"
+                          mode="detail"
+                          :user-info-map="userInfoMap"
+                          :function-name="functionName"
+                          :record-id="recordId"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 右侧：元数据字段组（侧边栏） -->
+                  <div class="sidebar-content">
+                    <!-- ID 字段 -->
+                    <div v-if="groupedFields.idField" class="metadata-section">
+                      <div class="metadata-section-title">基本信息</div>
+                      <div class="field-row metadata-field">
+                        <div class="field-label">ID</div>
+                        <div class="field-value">
+                          <WidgetComponent
+                            :field="groupedFields.idField"
+                            :value="getFieldValue(groupedFields.idField.code)"
+                            mode="detail"
+                            :user-info-map="userInfoMap"
+                            :function-name="functionName"
+                            :record-id="recordId"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- 用户字段组 -->
+                    <div v-if="groupedFields.userFields.length > 0" class="metadata-section">
+                      <div class="metadata-section-title">人员信息</div>
+                      <div 
+                        v-for="field in groupedFields.userFields"
+                        :key="field.code"
+                        class="field-row metadata-field"
+                      >
+                        <div class="field-label">
+                          {{ field.name }}
+                        </div>
+                        <div class="field-value">
+                          <WidgetComponent
+                            :field="field"
+                            :value="getFieldValue(field.code)"
+                            mode="detail"
+                            :user-info-map="userInfoMap"
+                            :function-name="functionName"
+                            :record-id="recordId"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- 时间字段组 -->
+                    <div v-if="groupedFields.timestampFields.length > 0" class="metadata-section">
+                      <div class="metadata-section-title">时间信息</div>
+                      <div 
+                        v-for="field in groupedFields.timestampFields"
+                        :key="field.code"
+                        class="field-row metadata-field"
+                      >
+                        <div class="field-label">
+                          {{ field.name }}
+                        </div>
+                        <div class="field-value">
+                          <WidgetComponent
+                            :field="field"
+                            :value="getFieldValue(field.code)"
+                            mode="detail"
+                            :user-info-map="userInfoMap"
+                            :function-name="functionName"
+                            :record-id="recordId"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 底部：复杂字段（可折叠） -->
+                <div v-if="groupedFields.complexFields.length > 0" class="complex-section">
+                  <div 
+                    v-for="field in groupedFields.complexFields"
+                    :key="field.code"
+                    class="complex-field-card"
+                  >
+                    <el-collapse>
+                      <el-collapse-item :name="field.code">
+                        <template #title>
+                          <div class="complex-field-title">
+                            <span class="complex-field-name">{{ field.name }}</span>
+                          </div>
+                        </template>
+                        <div class="complex-field-content">
+                          <WidgetComponent
+                            :field="field"
+                            :value="getFieldValue(field.code)"
+                            mode="detail"
+                            :user-info-map="userInfoMap"
+                            :function-name="functionName"
+                            :record-id="recordId"
+                          />
+                        </div>
+                      </el-collapse-item>
+                    </el-collapse>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 原布局（网格布局） -->
+              <div v-else class="detail-fields-grid">
                 <div
                   v-for="field in fields.filter((f: FieldConfig) => f.widget?.type !== WidgetType.LINK)"
                   :key="field.code"
@@ -169,7 +329,7 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, watch } from 'vue'
-import { Edit, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
+import { Edit, ArrowLeft, ArrowRight, Grid, List } from '@element-plus/icons-vue'
 import { ElMessage, ElTabs, ElTabPane } from 'element-plus'
 import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
@@ -219,6 +379,49 @@ const emit = defineEmits<Emits>()
 const formRendererRef = ref<InstanceType<typeof FormRenderer> | null>(null)
 const isFormRendererReady = ref(false)
 
+// ==================== 详情布局配置 ====================
+
+/**
+ * 是否使用分组布局的详情页面
+ * 默认使用新布局，可以通过切换按钮或 localStorage 控制
+ */
+const getInitialLayout = (): boolean => {
+  try {
+    // 优先从 localStorage 读取用户设置
+    const stored = localStorage.getItem('useGroupedDetailLayout')
+    const layoutVersion = localStorage.getItem('useGroupedDetailLayoutVersion')
+    
+    // 如果用户明确设置了布局且有版本标记，使用用户设置
+    if (stored === 'true' || stored === 'false') {
+      if (layoutVersion) {
+        // 有版本标记，说明是用户明确的选择，使用用户设置
+        return stored === 'true'
+      } else {
+        // 没有版本标记，说明是旧的设置，清除它
+        localStorage.removeItem('useGroupedDetailLayout')
+      }
+    }
+    
+    // 默认使用新布局
+    return true
+  } catch (error) {
+    console.error('[WorkspaceDetailDrawer] 读取布局设置失败:', error)
+    // 出错时默认使用新布局
+    return true
+  }
+}
+const useGroupedDetailLayout = ref<boolean>(getInitialLayout())
+
+/**
+ * 切换详情布局
+ */
+const toggleDetailLayout = (): void => {
+  useGroupedDetailLayout.value = !useGroupedDetailLayout.value
+  localStorage.setItem('useGroupedDetailLayout', String(useGroupedDetailLayout.value))
+  // 设置版本标记，表示这是用户明确的选择
+  localStorage.setItem('useGroupedDetailLayoutVersion', '1.0')
+}
+
 // Tab 相关
 const activeTab = ref('detail')
 const operateLogSectionRef = ref<InstanceType<typeof OperateLogSection> | null>(null)
@@ -262,6 +465,68 @@ const visible = computed({
 // 详情页的 Link 字段（用于顶部链接区域显示）
 const linkFields = computed(() => {
   return props.fields.filter((f: FieldConfig) => f.widget?.type === WidgetType.LINK)
+})
+
+// ==================== 分组布局字段分组 ====================
+
+/**
+ * 分组布局的字段分组
+ */
+const groupedFields = computed(() => {
+  // 排除 link 字段（link 字段单独显示在顶部）
+  const fieldsToGroup = props.fields.filter((f: FieldConfig) => f.widget?.type !== WidgetType.LINK)
+  
+  // ID 字段
+  const idField = fieldsToGroup.find((f: FieldConfig) => f.widget?.type === WidgetType.ID)
+  
+  // 状态/分类字段（select, multiselect, radio, checkbox, switch）
+  const statusFields = fieldsToGroup.filter((f: FieldConfig) => {
+    const widgetType = f.widget?.type
+    return widgetType === WidgetType.SELECT || 
+           widgetType === WidgetType.MULTISELECT || 
+           widgetType === WidgetType.RADIO || 
+           widgetType === WidgetType.CHECKBOX || 
+           widgetType === WidgetType.SWITCH
+  })
+  
+  // 用户字段
+  const userFields = fieldsToGroup.filter((f: FieldConfig) => f.widget?.type === WidgetType.USER)
+  
+  // 时间字段
+  const timestampFields = fieldsToGroup.filter((f: FieldConfig) => f.widget?.type === WidgetType.TIMESTAMP)
+  
+  // 复杂字段（form, table, richtext）
+  const complexFields = fieldsToGroup.filter((f: FieldConfig) => {
+    const widgetType = f.widget?.type
+    return widgetType === WidgetType.FORM || 
+           widgetType === WidgetType.TABLE || 
+           widgetType === WidgetType.RICHTEXT
+  })
+  
+  // 主要业务字段（排除上述所有字段）
+  const mainFields = fieldsToGroup.filter((f: FieldConfig) => {
+    const widgetType = f.widget?.type
+    return widgetType !== WidgetType.ID &&
+           widgetType !== WidgetType.SELECT &&
+           widgetType !== WidgetType.MULTISELECT &&
+           widgetType !== WidgetType.RADIO &&
+           widgetType !== WidgetType.CHECKBOX &&
+           widgetType !== WidgetType.SWITCH &&
+           widgetType !== WidgetType.USER &&
+           widgetType !== WidgetType.TIMESTAMP &&
+           widgetType !== WidgetType.FORM &&
+           widgetType !== WidgetType.TABLE &&
+           widgetType !== WidgetType.RICHTEXT
+  })
+  
+  return {
+    idField,
+    statusFields,
+    userFields,
+    timestampFields,
+    complexFields,
+    mainFields
+  }
 })
 
 const getFieldValue = (fieldCode: string): FieldValue => {
@@ -557,6 +822,198 @@ defineExpose({
 
 .tab-content {
   padding: 0;
+}
+
+/* ==================== 分组布局样式 ==================== */
+
+/* 分组布局容器 */
+.grouped-detail-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* 顶部：状态/分类字段组（横向展示） */
+.status-section {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px;
+  background: var(--el-fill-color-lighter);
+  border-radius: 8px;
+  border: 1px solid var(--el-border-color-light);
+}
+
+.status-field-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--el-bg-color);
+  border-radius: 6px;
+  border: 1px solid var(--el-border-color);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+}
+
+.status-field-card:hover {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+.status-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+}
+
+.status-value {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 主布局：左右分栏 */
+.main-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 24px;
+}
+
+/* 响应式：小屏幕时改为单列 */
+@media (max-width: 1200px) {
+  .main-layout {
+    grid-template-columns: 1fr;
+  }
+  
+  .sidebar-content {
+    position: static !important;
+    max-height: none !important;
+  }
+}
+
+/* 左侧：主要业务字段 */
+.main-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* 右侧：元数据字段组（侧边栏） */
+.sidebar-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--el-fill-color-lighter);
+  border-radius: 8px;
+  padding: 16px;
+  border: 1px solid var(--el-border-color-light);
+  position: sticky;
+  top: 20px;
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+}
+
+.metadata-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.metadata-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  margin-bottom: 4px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--el-border-color);
+}
+
+.metadata-field {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--el-border-color-extra-light);
+}
+
+.metadata-field:last-child {
+  border-bottom: none;
+}
+
+/* 标准字段行样式（用于分组布局） */
+.grouped-detail-layout .field-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--el-border-color-extra-light);
+  align-items: start;
+  min-height: auto;
+  transition: all 0.2s ease;
+  border-radius: 4px;
+  background: transparent;
+}
+
+.grouped-detail-layout .field-row:hover {
+  background: var(--el-fill-color-light);
+  border-color: var(--el-border-color);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+}
+
+.grouped-detail-layout .field-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--el-text-color-secondary);
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.grouped-detail-layout .field-value {
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+  word-break: break-word;
+  line-height: 1.6;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 24px;
+  position: relative;
+}
+
+/* 底部：复杂字段 */
+.complex-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  background: var(--el-fill-color-lighter);
+  border-radius: 8px;
+  border: 1px solid var(--el-border-color-light);
+}
+
+.complex-field-card {
+  background: var(--el-bg-color);
+  border-radius: 6px;
+  border: 1px solid var(--el-border-color);
+  overflow: hidden;
+}
+
+.complex-field-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+}
+
+.complex-field-name {
+  flex: 1;
+}
+
+.complex-field-content {
+  padding: 16px;
 }
 </style>
 
