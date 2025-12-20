@@ -279,39 +279,47 @@ const props = defineProps<Props>()
  * 默认使用新布局，可以通过切换按钮或 localStorage 控制
  */
 const getInitialLayout = (): boolean => {
-  // 优先从 localStorage 读取用户设置
-  const stored = localStorage.getItem('useGroupedDetailLayout')
-  console.log('[TableRenderer] 读取布局设置:', { stored })
-  
-  // 如果用户明确设置为 'true'，使用新布局
-  if (stored === 'true') {
+  try {
+    // 优先从 localStorage 读取用户设置
+    const stored = localStorage.getItem('useGroupedDetailLayout')
+    const layoutVersion = localStorage.getItem('useGroupedDetailLayoutVersion')
+    
+    // 如果用户明确设置了布局且有版本标记，使用用户设置
+    if (stored === 'true' || stored === 'false') {
+      if (layoutVersion) {
+        // 有版本标记，说明是用户明确的选择，使用用户设置
+        return stored === 'true'
+      } else {
+        // 没有版本标记，说明是旧的设置，清除它
+        localStorage.removeItem('useGroupedDetailLayout')
+      }
+    }
+    
+    // 默认使用新布局
+    return true
+  } catch (error) {
+    console.error('[TableRenderer] 读取布局设置失败:', error)
+    // 出错时默认使用新布局
     return true
   }
-  
-  // 如果用户明确设置为 'false'，使用旧布局
-  // 但为了确保新功能默认启用，我们检查是否有版本标记
-  if (stored === 'false') {
-    const layoutVersion = localStorage.getItem('useGroupedDetailLayoutVersion')
-    // 如果没有版本标记，说明是旧的设置，清除它并使用新布局
-    if (!layoutVersion) {
-      console.log('[TableRenderer] 检测到旧的布局设置，清除并使用新布局')
-      localStorage.removeItem('useGroupedDetailLayout')
-      return true // 使用新布局
-    }
-    return false // 用户明确选择旧布局
-  }
-  
-  // 默认使用新布局
-  return true
 }
 const useGroupedDetailLayout = ref<boolean>(getInitialLayout())
 
 // 调试：输出当前布局状态
-console.log('[TableRenderer] 初始化布局状态:', { useGroupedDetailLayout: useGroupedDetailLayout.value })
+console.log('[TableRenderer] 初始化布局状态:', { 
+  useGroupedDetailLayout: useGroupedDetailLayout.value,
+  localStorage: localStorage.getItem('useGroupedDetailLayout'),
+  version: localStorage.getItem('useGroupedDetailLayoutVersion')
+})
 
 // 监听布局变化
 watch(useGroupedDetailLayout, (newVal) => {
-  console.log('[TableRenderer] 布局状态变化:', { newVal, localStorage: localStorage.getItem('useGroupedDetailLayout') })
+  console.log('[TableRenderer] 布局状态变化:', { 
+    newVal, 
+    localStorage: localStorage.getItem('useGroupedDetailLayout'),
+    willRenderGrouped: newVal,
+    willRenderOriginal: !newVal
+  })
 }, { immediate: true })
 
 /**
@@ -1013,13 +1021,24 @@ onMounted(() => {
   // 监听窗口大小变化
   window.addEventListener('resize', fixFixedColumnClick)
   
-  // 调试：输出布局状态
-  console.log('[TableRenderer] onMounted - 布局状态:', {
+  // 调试：输出布局状态（使用更明显的日志）
+  const stored = localStorage.getItem('useGroupedDetailLayout')
+  const version = localStorage.getItem('useGroupedDetailLayoutVersion')
+  console.log('🔵 [TableRenderer] onMounted - 布局状态:', {
     useGroupedDetailLayout: useGroupedDetailLayout.value,
-    localStorage: localStorage.getItem('useGroupedDetailLayout'),
+    localStorage_stored: stored,
+    localStorage_version: version,
     willRenderGrouped: useGroupedDetailLayout.value,
-    willRenderOriginal: !useGroupedDetailLayout.value
+    willRenderOriginal: !useGroupedDetailLayout.value,
+    component: 'TableRenderer'
   })
+  
+  // 如果 localStorage 中有 'false' 但没有版本标记，强制清除
+  if (stored === 'false' && !version) {
+    console.log('🟡 [TableRenderer] 检测到旧的布局设置，强制清除并使用新布局')
+    localStorage.removeItem('useGroupedDetailLayout')
+    useGroupedDetailLayout.value = true
+  }
 })
 
 onUpdated(() => {
