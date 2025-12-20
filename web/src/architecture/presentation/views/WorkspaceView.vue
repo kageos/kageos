@@ -377,6 +377,7 @@ import { useWorkspaceServiceTree } from '../composables/useWorkspaceServiceTree'
 import { findNodeByPath, findNodeById, getDirectChildFunctionCodes } from '../utils/workspaceUtils'
 import { preserveQueryParamsForTable, preserveQueryParamsForForm } from '@/utils/queryParams'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
+import { resolveWorkspaceUrl } from '@/utils/route'
 import { getAgentList, type AgentInfo } from '@/api/agent'
 
 const route = useRoute()
@@ -599,7 +600,7 @@ function handleAgentSelect(agent: AgentInfo) {
   
   // 如果路由不匹配，更新路由
   if (currentFunction.value?.full_code_path && currentApp.value) {
-    const targetPath = `/workspace${currentFunction.value.full_code_path}`
+    const targetPath = buildWorkspacePath(currentFunction.value.full_code_path)
     if (route.path !== targetPath) {
       eventBus.emit(RouteEvent.updateRequested, {
         path: targetPath,
@@ -717,82 +718,126 @@ onUnmounted(() => {
 // 转换 loadingTree 为 boolean (避免 computed 类型问题)
 const loading = computed(() => stateManager.isLoading())
 
+/**
+ * 构建工作空间路径
+ */
+const buildWorkspacePath = (fullCodePath: string): string => {
+  return resolveWorkspaceUrl(fullCodePath.startsWith('/') ? fullCodePath : `/${fullCodePath}`)
+}
+
+/**
+ * 判断是否是 table 函数
+ */
+const isTableFunction = (node: ServiceTree): boolean => {
+  return node.template_type === TEMPLATE_TYPE.TABLE
+}
+
+/**
+ * 判断是否是 link 跳转
+ */
+const isLinkNavigation = (): boolean => {
+  return route.query._link_type === 'table' || route.query._link_type === 'form'
+}
+
+/**
+ * 构建 link 跳转的查询参数（保留所有参数，除了 _link_type）
+ */
+const buildLinkNavigationQuery = (): Record<string, string | string[]> => {
+  const preservedQuery: Record<string, string | string[]> = {}
+  Object.keys(route.query).forEach(key => {
+    if (key !== '_link_type') {
+      const value = route.query[key]
+      if (value !== null && value !== undefined) {
+        preservedQuery[key] = Array.isArray(value) 
+          ? value.filter(v => v !== null).map(v => String(v))
+          : String(value)
+      }
+    }
+  })
+  return preservedQuery
+}
+
+/**
+ * 处理函数节点的路由更新
+ */
+const handleFunctionNodeRoute = (node: ServiceTree, source: string): void => {
+  if (!node.full_code_path) return
+  
+  const targetPath = buildWorkspacePath(node.full_code_path)
+  if (route.path === targetPath) {
+    // 路由已匹配，直接触发节点点击加载详情（避免路由更新循环）
+    applicationService.triggerNodeClick(node)
+    return
+  }
+  
+  const isTable = isTableFunction(node)
+  const isLink = isLinkNavigation()
+  
+  // 构建查询参数
+  let preservedQuery: Record<string, string | string[]>
+  if (isLink) {
+    preservedQuery = buildLinkNavigationQuery()
+  } else {
+    const filteredQuery: Record<string, any> = { ...route.query }
+    preservedQuery = isTable
+      ? preserveQueryParamsForTable(filteredQuery)
+      : preserveQueryParamsForForm(filteredQuery)
+  }
+  
+  // 发出路由更新请求事件
+  eventBus.emit(RouteEvent.updateRequested, {
+    path: targetPath,
+    query: preservedQuery,
+    replace: true,
+    preserveParams: {
+      table: isTable,
+      search: false,
+      state: true,
+      linkNavigation: isLink
+    },
+    source: source as any
+  })
+}
+
+/**
+ * 处理目录节点的路由更新
+ */
+const handlePackageNodeRoute = (node: ServiceTree, source: string): void => {
+  if (!node.full_code_path) return
+  
+  const targetPath = buildWorkspacePath(node.full_code_path)
+  if (route.path === targetPath) {
+    applicationService.triggerNodeClick(node)
+    return
+  }
+  
+  eventBus.emit(RouteEvent.updateRequested, {
+    path: targetPath,
+    query: {},
+    replace: true,
+    preserveParams: {
+      table: false,
+      search: false,
+      state: false,
+      linkNavigation: false
+    },
+    source: source as any
+  })
+}
+
 // 事件处理
 const handleNodeClick = (node: ServiceTreeType) => {
   // 转换为新架构的 ServiceTree 类型
   const serviceTree: ServiceTree = node as any
   
-  // 🔥 路由优先策略：先更新路由，路由变化会触发 Tab 状态更新
-  if (serviceTree.type === 'function' && serviceTree.full_code_path) {
-    const targetPath = `/workspace${serviceTree.full_code_path}`
-    if (route.path !== targetPath) {
-      // 🔥 检查目标函数是否是 table 类型
-      // 由于移除了缓存，无法从缓存获取，需要加载函数详情或使用其他方式判断
-      // 暂时假设需要保留 table 参数（如果判断错误，RouteManager 会处理）
-      let isTableFunction = false
-      // TODO: 可以通过 serviceTree 的其他属性判断，或者直接加载函数详情
-      // 为了简化，暂时使用保守策略：假设是 table 函数，保留 table 参数
-      
-      // 🔥 检查是否是 link 跳转（通过 _link_type 参数）
-      const isLinkNavigation = route.query._link_type === 'table' || route.query._link_type === 'form'
-      
-      // 🔥 构建查询参数
-      let preservedQuery: Record<string, string | string[]>
-      if (isLinkNavigation) {
-        // 🔥 link 跳转：保留所有参数（除了 _link_type 临时参数）
-        preservedQuery = {}
-        Object.keys(route.query).forEach(key => {
-          if (key !== '_link_type') {
-            const value = route.query[key]
-            if (value !== null && value !== undefined) {
-              preservedQuery[key] = Array.isArray(value) 
-                ? value.filter(v => v !== null).map(v => String(v))
-                : String(value)
-            }
-          }
-        })
-      } else {
-        // 普通跳转：根据函数类型保留相应参数
-        const filteredQuery: Record<string, any> = { ...route.query }
-        preservedQuery = isTableFunction
-          ? preserveQueryParamsForTable(filteredQuery)
-          : preserveQueryParamsForForm(filteredQuery)
-      }
-      
-      // 🔥 发出路由更新请求事件
-      eventBus.emit(RouteEvent.updateRequested, {
-        path: targetPath,
-        query: preservedQuery,
-        replace: true,
-        preserveParams: {
-          table: isTableFunction,      // table 函数保留 table 参数
-          search: false,                // 普通跳转不保留搜索参数
-          state: true,                  // 保留状态参数（_ 开头）
-          linkNavigation: isLinkNavigation  // link 跳转保留所有参数
-        },
-        source: RouteSource.WORKSPACE_NODE_CLICK
-      })
-    } else {
-      // 路由已匹配，直接触发节点点击加载详情（避免路由更新循环）
-      applicationService.triggerNodeClick(serviceTree)
-    }
+  if (serviceTree.type === 'function') {
+    handleFunctionNodeRoute(serviceTree, RouteSource.WORKSPACE_NODE_CLICK)
   } else if (serviceTree.type === 'package') {
-    // 目录节点：跳转到目录详情页面
-    const targetPath = `/workspace${serviceTree.full_code_path}`
-    if (route.path !== targetPath) {
-      eventBus.emit(RouteEvent.updateRequested, {
-        path: targetPath,
-        query: {},
-        replace: true,
-        preserveParams: {},
-        source: RouteSource.WORKSPACE_NODE_CLICK_PACKAGE
-      })
-    } else {
-      // 路由已匹配，直接触发节点点击
-      applicationService.triggerNodeClick(serviceTree)
-    }
+    // 先设置当前函数，确保 PackageDetailView 能获取到数据
+    applicationService.triggerNodeClick(serviceTree)
+    handlePackageNodeRoute(serviceTree, RouteSource.WORKSPACE_NODE_CLICK_PACKAGE)
   } else {
-    // 其他类型，直接触发节点点击
+    // 其他类型节点，只设置当前函数
     applicationService.triggerNodeClick(serviceTree)
   }
 }
@@ -801,162 +846,15 @@ const handleNodeClick = (node: ServiceTreeType) => {
  * 处理面包屑节点点击
  */
 const handleBreadcrumbNodeClick = (node: ServiceTree) => {
-  // 🔥 面包屑点击也需要更新路由
-  if (node.type === 'function' && node.full_code_path) {
-    const targetPath = `/workspace${node.full_code_path}`
-    if (route.path !== targetPath) {
-      // 🔥 检查是否是 table 函数
-      // 由于移除了缓存，无法从缓存获取，需要加载函数详情或使用其他方式判断
-      // 暂时假设需要保留 table 参数（如果判断错误，RouteManager 会处理）
-      // TODO: 可以通过 node 的其他属性判断，或者直接加载函数详情
-      const isTableFunction = false // 保守策略：假设不是 table 函数
-      
-      // 构建查询参数
-      const filteredQuery: Record<string, any> = { ...route.query }
-      const preservedQuery = isTableFunction
-        ? preserveQueryParamsForTable(filteredQuery)
-        : preserveQueryParamsForForm(filteredQuery)
-      
-      eventBus.emit(RouteEvent.updateRequested, {
-        path: targetPath,
-        query: preservedQuery,
-        replace: true,
-        preserveParams: {
-          table: isTableFunction,
-          search: false,
-          state: true,
-          linkNavigation: false
-        },
-        source: RouteSource.WORKSPACE_NODE_CLICK
-      })
-    } else {
-      applicationService.triggerNodeClick(node)
-    }
+  if (node.type === 'function') {
+    handleFunctionNodeRoute(node, RouteSource.WORKSPACE_NODE_CLICK)
   } else if (node.type === 'package') {
-    const targetPath = `/workspace${node.full_code_path}`
-    if (route.path !== targetPath) {
-      eventBus.emit(RouteEvent.updateRequested, {
-        path: targetPath,
-        query: {},
-        replace: true,
-        preserveParams: {},
-        source: RouteSource.WORKSPACE_NODE_CLICK_PACKAGE
-      })
-    } else {
-      applicationService.triggerNodeClick(node)
-    }
+    handlePackageNodeRoute(node, RouteSource.WORKSPACE_NODE_CLICK_PACKAGE)
   } else {
     applicationService.triggerNodeClick(node)
   }
 }
 
-// 事件处理（旧代码，保留用于兼容）
-const handleNodeClickOld = (node: ServiceTreeType) => {
-  // 转换为新架构的 ServiceTree 类型
-  const serviceTree: ServiceTree = node as any
-  
-  // 调试日志
-  // console.log('[WorkspaceView] handleNodeClick', {
-  //   type: serviceTree.type,
-  //   name: serviceTree.name,
-  //   full_code_path: serviceTree.full_code_path,
-  //   isGroup: (serviceTree as any).isGroup,
-  //   full_group_code: (serviceTree as any).full_group_code
-  // })
-  
-  // 🔥 路由优先策略：先更新路由，路由变化会触发 Tab 状态更新
-  if (serviceTree.type === 'function' && serviceTree.full_code_path) {
-    const targetPath = `/workspace${serviceTree.full_code_path}`
-    if (route.path !== targetPath) {
-      // 🔥 检查目标函数是否是 table 类型
-      // 优先级：Tab 详情 > 默认 form
-      // 注意：_link_type 参数已在 useWorkspaceRouting 中处理，这里不需要再处理
-      // 不再需要检查 Tab，直接使用当前函数详情
-      
-      // 检查 Tab 详情
-      let isTableFunction = false
-      if (existingTab && existingTab.node) {
-        const detail = stateManager.getFunctionDetail(existingTab.node)
-        if (detail && detail.template_type === TEMPLATE_TYPE.TABLE) {
-          isTableFunction = true
-        }
-      }
-      
-      // 🔥 检查是否是 link 跳转（通过 _link_type 参数）
-      // link 跳转时，URL 中的参数是用户明确指定的（来自 link 值），应该全部保留
-      const isLinkNavigation = route.query._link_type === 'table' || route.query._link_type === 'form'
-      
-      // 🔥 阶段3：改为事件驱动，通过 RouteManager 统一处理路由更新
-      let preservedQuery: Record<string, string | string[]>
-      if (isLinkNavigation) {
-        // 🔥 link 跳转：保留所有参数（除了 _link_type 临时参数）
-        preservedQuery = {}
-        Object.keys(route.query).forEach(key => {
-          if (key !== '_link_type') {
-            const value = route.query[key]
-            if (value !== null && value !== undefined) {
-              preservedQuery[key] = Array.isArray(value) 
-                ? value.filter(v => v !== null).map(v => String(v))
-                : String(value)
-            }
-          }
-        })
-      } else {
-        // 普通跳转：根据函数类型保留相应参数
-        // 如果是 table 函数，保留分页和排序参数；如果是 form 函数，不保留这些参数
-        // form 函数不需要 page、page_size、sorts 等参数，必须清除
-        // 保留所有查询参数
-        const filteredQuery: Record<string, any> = { ...route.query }
-        preservedQuery = isTableFunction
-          ? preserveQueryParamsForTable(filteredQuery)
-          : preserveQueryParamsForForm(filteredQuery)
-      }
-      
-      // 🔥 发出路由更新请求事件
-      eventBus.emit(RouteEvent.updateRequested, {
-        path: targetPath,
-        query: preservedQuery,
-        replace: true,
-        preserveParams: {
-          table: isTableFunction,      // table 函数保留 table 参数
-          search: false,                // 普通跳转不保留搜索参数
-          state: true,                  // 保留状态参数（_ 开头）
-          linkNavigation: isLinkNavigation  // link 跳转保留所有参数
-        },
-        source: RouteSource.WORKSPACE_NODE_CLICK
-      })
-    } else {
-      // 路由已匹配，直接触发节点点击加载详情（避免路由更新循环）
-      applicationService.triggerNodeClick(serviceTree)
-    }
-  } else if (serviceTree.type === 'package') {
-    // 目录节点：跳转到目录详情页面
-    // 先设置当前函数，确保 PackageDetailView 能获取到数据
-    applicationService.triggerNodeClick(serviceTree)
-    
-    if (serviceTree.full_code_path) {
-      const targetPath = `/workspace${serviceTree.full_code_path}`
-      // 检查是否需要更新路由
-      if (route.path !== targetPath) {
-        eventBus.emit(RouteEvent.updateRequested, {
-          path: targetPath,
-          query: {}, // 明确清除所有查询参数
-          replace: true,
-          preserveParams: {
-            table: false,
-            search: false,
-            state: false, // 不保留状态参数
-            linkNavigation: false
-          },
-          source: RouteSource.WORKSPACE_NODE_CLICK_PACKAGE
-        })
-      }
-    }
-  } else {
-    // 其他类型节点，只设置当前函数
-    applicationService.triggerNodeClick(serviceTree)
-  }
-}
 
 // 🔥 处理创建目录（使用 Composable）
 const handleCreateDirectory = (parentNode?: ServiceTreeType) => {
@@ -1170,7 +1068,9 @@ const backToList = () => {
     }
   })
   
-  const path = `/workspace${currentFunction.value.full_code_path || ''}`
+  const path = currentFunction.value.full_code_path 
+    ? buildWorkspacePath(currentFunction.value.full_code_path)
+    : ''
   
   // 🔥 发出路由更新请求事件
   eventBus.emit(RouteEvent.updateRequested, {
@@ -1277,7 +1177,7 @@ onMounted(async () => {
   // 监听应用信息更新事件（用于更新应用列表中的 app.id）
   unsubscribeAppInfoUpdated = eventBus.on('workspace:app-info-updated' as any, (payload: { app: AppType }) => {
     // 更新应用列表中的 app 信息
-    const index = appList.value.findIndex(a => a.code === payload.app.code)
+    const index = appList.value.findIndex((a: AppType) => a.code === payload.app.code)
     if (index !== -1) {
       appList.value[index] = { ...appList.value[index], ...payload.app }
     }
