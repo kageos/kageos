@@ -81,13 +81,10 @@ export function useWorkspaceRouting(options: {
           currentFunction.id === serviceNode.id || 
           currentFunction.full_code_path === serviceNode.full_code_path
         )) {
-          // 已经是目标节点，检查函数详情是否已加载
+          // 已经是目标节点，直接触发节点点击（会加载函数详情）
           if (serviceNode.type === 'function') {
-            const detail = stateManager.getFunctionDetail(serviceNode)
-          if (!detail) {
-              // 函数详情未加载，加载它
-              applicationService.handleNodeClick(serviceNode)
-          }
+            // 🔥 移除缓存后，不再检查缓存，直接加载函数详情
+            applicationService.handleNodeClick(serviceNode)
           }
           return
         }

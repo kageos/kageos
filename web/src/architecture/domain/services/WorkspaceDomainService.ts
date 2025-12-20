@@ -35,7 +35,7 @@ export interface WorkspaceState {
   currentFunction: ServiceTree | null
   currentDirectory: ServiceTree | null // 当前目录
   serviceTree: ServiceTree[]
-  functionDetails: Map<string, FunctionDetail> // 函数详情缓存
+  functionDetails: Map<string, FunctionDetail> // 🔥 保留字段以兼容接口，但不再使用（移除缓存机制）
   loading: boolean // 加载状态
 }
 
@@ -52,26 +52,11 @@ export class WorkspaceDomainService {
 
   /**
    * 加载函数详情
+   * 🔥 移除缓存机制，每次切换函数时都重新加载，确保数据一致性
    * @param node 函数节点
-   * @param forceReload 是否强制重新加载（忽略缓存），默认 false
    */
-  async loadFunction(node: ServiceTree, forceReload: boolean = false): Promise<FunctionDetail> {
-    const state = this.stateManager.getState()
-    
-    // 生成缓存键
-    const key = node.ref_id ? `id:${node.ref_id}` : `path:${node.full_code_path}`
-    
-    // 先检查缓存（如果不强制重新加载）
-    if (!forceReload) {
-    const cached = state.functionDetails.get(key)
-    if (cached) {
-      // 触发事件（使用缓存）
-      this.eventBus.emit(WorkspaceEvent.functionLoaded, { node, detail: cached })
-      return cached
-      }
-    }
-
-    // 加载函数详情
+  async loadFunction(node: ServiceTree): Promise<FunctionDetail> {
+    // 直接加载函数详情，不使用缓存
     let detail: FunctionDetail
     if (node.ref_id && node.ref_id > 0) {
       detail = await this.functionLoader.loadById(node.ref_id)
@@ -81,14 +66,11 @@ export class WorkspaceDomainService {
       throw new Error('节点没有 ref_id 和 full_code_path，无法加载函数详情')
     }
 
-    // 更新状态
-    const newFunctionDetails = new Map(state.functionDetails)
-    newFunctionDetails.set(key, detail)
-    
+    // 更新状态（不缓存函数详情）
+    const state = this.stateManager.getState()
     this.stateManager.setState({
       ...state,
-      currentFunction: node,
-      functionDetails: newFunctionDetails
+      currentFunction: node
     })
 
     // 触发事件

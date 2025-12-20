@@ -23,7 +23,7 @@ export class WorkspaceStateManager extends StateManagerImpl<WorkspaceState> impl
       currentApp: null,
       currentFunction: null,
       serviceTree: [],
-      functionDetails: new Map(),
+      functionDetails: new Map(), // 🔥 保留字段以兼容接口，但不再使用
       loading: false, // 🔥 默认 loading 为 false
       tabs: [], // 🔥 默认空 Tabs
       activeTabId: null // 🔥 默认无激活 Tab
@@ -60,12 +60,15 @@ export class WorkspaceStateManager extends StateManagerImpl<WorkspaceState> impl
   }
 
   /**
-   * 获取函数详情（从缓存）
+   * 获取函数详情
+   * 🔥 移除缓存后，此方法已废弃，总是返回 null
+   * 函数详情应该通过 WorkspaceEvent.functionLoaded 事件获取
+   * @deprecated 使用事件监听获取函数详情，而不是从缓存获取
    */
   getFunctionDetail(node: ServiceTree): FunctionDetail | null {
-    const state = this.getState()
-    const key = node.ref_id ? `id:${node.ref_id}` : `path:${node.full_code_path}`
-    return state.functionDetails.get(key) || null
+    // 🔥 移除缓存后，不再从缓存获取，总是返回 null
+    // 函数详情应该通过 WorkspaceEvent.functionLoaded 事件获取
+    return null
   }
 
   isLoading(): boolean {

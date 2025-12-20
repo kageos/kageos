@@ -20,6 +20,7 @@ import { Logger } from '@/core/utils/logger'
 import { ErrorHandler } from '@/core/utils/ErrorHandler'
 import { useUserInfoStore } from '@/stores/userInfo'
 import { collectFilesUploadUsersFromRow } from '@/utils/tableUserInfo'
+import { eventBus, RouteEvent } from '@/architecture/infrastructure/eventBus'
 import type { Function as FunctionType, ServiceTree } from '@/types'
 import type { FieldConfig, FunctionDetail } from '@/core/types/field'
 import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
@@ -183,7 +184,17 @@ export function useTableDetail(options: UseTableDetailOptions) {
         const query = { ...router.currentRoute.value.query }
         query._detail_id = detailId
         query._detail_function_id = String(currentFunctionId)  // 🔥 同时存储 functionDataId
-        router.replace({ query })
+        // 🔥 通过事件总线更新路由，统一管理
+        eventBus.emit(RouteEvent.updateRequested, {
+          query,
+          replace: true,
+          preserveParams: {
+            table: true,  // 保留 table 参数
+            search: true, // 保留搜索参数
+            state: true   // 保留状态参数
+          },
+          source: 'table-detail-open'
+        })
       }
     }
   }
@@ -230,7 +241,17 @@ export function useTableDetail(options: UseTableDetailOptions) {
       const query = { ...router.currentRoute.value.query }
       query._detail_id = detailId
       query._detail_function_id = String(currentFunctionId)  // 🔥 同时更新 functionDataId
-      router.replace({ query })
+      // 🔥 通过事件总线更新路由，统一管理
+      eventBus.emit(RouteEvent.updateRequested, {
+        query,
+        replace: true,
+        preserveParams: {
+          table: true,  // 保留 table 参数
+          search: true, // 保留搜索参数
+          state: true   // 保留状态参数
+        },
+        source: 'table-detail-navigate'
+      })
     }
   }
 
@@ -396,7 +417,19 @@ export function useTableDetail(options: UseTableDetailOptions) {
     }
     
     if (hasChanges) {
-      router.replace({ query }).finally(() => {
+      // 🔥 通过事件总线更新路由，统一管理
+      eventBus.emit(RouteEvent.updateRequested, {
+        query,
+        replace: true,
+        preserveParams: {
+          table: true,  // 保留 table 参数
+          search: true, // 保留搜索参数
+          state: true   // 保留状态参数（除了 _detail_id 和 _detail_function_id）
+        },
+        source: 'table-detail-close'
+      })
+      // 使用 nextTick 确保路由更新完成
+      nextTick().finally(() => {
         isClosingDetail = false
       })
     } else {
@@ -435,7 +468,17 @@ export function useTableDetail(options: UseTableDetailOptions) {
       if (queryToClean._detail_function_id) {
         delete queryToClean._detail_function_id
       }
-      router.replace({ query: queryToClean })
+      // 🔥 通过事件总线更新路由，统一管理
+      eventBus.emit(RouteEvent.updateRequested, {
+        query: queryToClean,
+        replace: true,
+        preserveParams: {
+          table: true,  // 保留 table 参数
+          search: true, // 保留搜索参数
+          state: true   // 保留状态参数（除了 _detail_id 和 _detail_function_id）
+        },
+        source: 'table-detail-cleanup'
+      })
       return
     }
     
@@ -452,7 +495,17 @@ export function useTableDetail(options: UseTableDetailOptions) {
       if (queryToClean._detail_function_id) {
         delete queryToClean._detail_function_id
       }
-      router.replace({ query: queryToClean })
+      // 🔥 通过事件总线更新路由，统一管理
+      eventBus.emit(RouteEvent.updateRequested, {
+        query: queryToClean,
+        replace: true,
+        preserveParams: {
+          table: true,  // 保留 table 参数
+          search: true, // 保留搜索参数
+          state: true   // 保留状态参数（除了 _detail_id 和 _detail_function_id）
+        },
+        source: 'table-detail-cleanup'
+      })
       return
     }
     
@@ -496,7 +549,17 @@ export function useTableDetail(options: UseTableDetailOptions) {
           const queryToClean = { ...router.currentRoute.value.query }
           if (queryToClean._detail_id) {
             delete queryToClean._detail_id
-            router.replace({ query: queryToClean })
+            // 🔥 通过事件总线更新路由，统一管理
+            eventBus.emit(RouteEvent.updateRequested, {
+              query: queryToClean,
+              replace: true,
+              preserveParams: {
+                table: true,  // 保留 table 参数
+                search: true, // 保留搜索参数
+                state: true   // 保留状态参数
+              },
+              source: 'table-detail-cleanup-invalid-id'
+            })
           }
           return
         }
@@ -532,7 +595,17 @@ export function useTableDetail(options: UseTableDetailOptions) {
           hasChanges = true
         }
         if (hasChanges) {
-          router.replace({ query: queryToClean })
+          // 🔥 通过事件总线更新路由，统一管理
+          eventBus.emit(RouteEvent.updateRequested, {
+            query: queryToClean,
+            replace: true,
+            preserveParams: {
+              table: true,  // 保留 table 参数
+              search: true, // 保留搜索参数
+              state: true   // 保留状态参数
+            },
+            source: 'table-detail-cleanup-not-found'
+          })
         }
       }
     } finally {
@@ -579,7 +652,17 @@ export function useTableDetail(options: UseTableDetailOptions) {
         hasChanges = true
       }
       if (hasChanges) {
-        router.replace({ query })
+        // 🔥 通过事件总线更新路由，统一管理
+        eventBus.emit(RouteEvent.updateRequested, {
+          query,
+          replace: true,
+          preserveParams: {
+            table: true,  // 保留 table 参数
+            search: true, // 保留搜索参数
+            state: true   // 保留状态参数
+          },
+          source: 'table-detail-cleanup-function-change'
+        })
       }
     } else {
       // 如果是首次加载或同一个表格，只更新 currentFunctionDataId（如果还是 null 或需要更新）
