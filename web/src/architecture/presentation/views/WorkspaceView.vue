@@ -122,28 +122,26 @@
         <!-- 函数详情区域（正常模式 - 函数节点） -->
         <div v-else-if="currentFunction && currentFunction.type === 'function' && currentFunctionDetail" class="function-content-wrapper">
           <div class="function-content">
-            <!-- 🔥 使用 keep-alive 缓存函数内容，提升性能并保持状态 -->
-            <!-- 🔥 使用 full_code_path 作为 key，更稳定，避免不必要的组件重建 -->
-            <keep-alive>
-              <FormView
-                v-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.FORM"
-                :key="`form-${currentFunction.full_code_path || currentFunction.id}`"
-                :function-detail="currentFunctionDetail"
-              />
-              <TableView
-                v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.TABLE"
-                :key="`table-${currentFunction.full_code_path || currentFunction.id}`"
-                :function-detail="currentFunctionDetail"
-              />
-              <ChartView
-                v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.CHART"
-                :key="`chart-${currentFunction.full_code_path || currentFunction.id}`"
-                :function-detail="currentFunctionDetail"
-              />
-              <div v-else :key="`empty-${currentFunction.full_code_path || currentFunction.id}`" class="empty-state">
-                <p>加载中...</p>
-              </div>
-            </keep-alive>
+            <!-- 🔥 移除 keep-alive，每次切换函数时重新渲染，保证数据一致性 -->
+            <!-- 🔥 使用 full_code_path 作为 key，确保函数切换时组件正确重建 -->
+            <FormView
+              v-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.FORM"
+              :key="`form-${currentFunction.full_code_path || currentFunction.id}`"
+              :function-detail="currentFunctionDetail"
+            />
+            <TableView
+              v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.TABLE"
+              :key="`table-${currentFunction.full_code_path || currentFunction.id}`"
+              :function-detail="currentFunctionDetail"
+            />
+            <ChartView
+              v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.CHART"
+              :key="`chart-${currentFunction.full_code_path || currentFunction.id}`"
+              :function-detail="currentFunctionDetail"
+            />
+            <div v-else :key="`empty-${currentFunction.full_code_path || currentFunction.id}`" class="empty-state">
+              <p>加载中...</p>
+            </div>
           </div>
         </div>
         <div v-else class="empty-state">
