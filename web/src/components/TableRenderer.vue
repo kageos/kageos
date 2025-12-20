@@ -219,7 +219,11 @@ defineOptions({
 })
 
 /**
- * TableRenderer - 表格渲染器组件
+ * TableRenderer - 表格渲染器组件（旧架构）
+ * 
+ * ⚠️ 注意：这是旧架构的组件，已被新架构替代
+ * - 新架构使用：TableView.vue + WorkspaceDetailDrawer.vue
+ * - 此组件保留作为备用，但新功能应在新架构中实现
  * 
  * 设计原则：
  * 1. **依赖倒置**：依赖 Widget 抽象接口，不依赖具体实现
@@ -305,22 +309,12 @@ const getInitialLayout = (): boolean => {
 }
 const useGroupedDetailLayout = ref<boolean>(getInitialLayout())
 
-// 调试：输出当前布局状态
-console.log('[TableRenderer] 初始化布局状态:', { 
-  useGroupedDetailLayout: useGroupedDetailLayout.value,
-  localStorage: localStorage.getItem('useGroupedDetailLayout'),
-  version: localStorage.getItem('useGroupedDetailLayoutVersion')
-})
-
 // 监听布局变化
-watch(useGroupedDetailLayout, (newVal) => {
-  console.log('[TableRenderer] 布局状态变化:', { 
-    newVal, 
-    localStorage: localStorage.getItem('useGroupedDetailLayout'),
-    willRenderGrouped: newVal,
-    willRenderOriginal: !newVal
-  })
-}, { immediate: true })
+watch(useGroupedDetailLayout, (newVal: boolean) => {
+  // 布局状态变化时更新 localStorage
+  localStorage.setItem('useGroupedDetailLayout', String(newVal))
+  localStorage.setItem('useGroupedDetailLayoutVersion', '1.0')
+}, { immediate: false })
 
 /**
  * 切换详情布局
@@ -1020,25 +1014,6 @@ onMounted(() => {
   fixFixedColumnClick()
   // 监听窗口大小变化
   window.addEventListener('resize', fixFixedColumnClick)
-  
-  // 调试：输出布局状态（使用更明显的日志）
-  const stored = localStorage.getItem('useGroupedDetailLayout')
-  const version = localStorage.getItem('useGroupedDetailLayoutVersion')
-  console.log('🔵 [TableRenderer] onMounted - 布局状态:', {
-    useGroupedDetailLayout: useGroupedDetailLayout.value,
-    localStorage_stored: stored,
-    localStorage_version: version,
-    willRenderGrouped: useGroupedDetailLayout.value,
-    willRenderOriginal: !useGroupedDetailLayout.value,
-    component: 'TableRenderer'
-  })
-  
-  // 如果 localStorage 中有 'false' 但没有版本标记，强制清除
-  if (stored === 'false' && !version) {
-    console.log('🟡 [TableRenderer] 检测到旧的布局设置，强制清除并使用新布局')
-    localStorage.removeItem('useGroupedDetailLayout')
-    useGroupedDetailLayout.value = true
-  }
 })
 
 onUpdated(() => {
