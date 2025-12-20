@@ -274,24 +274,10 @@ export class RouteManager {
     }
     
     this.isUpdating = true
-    this.log('🔍 [handleUpdateRequest] 开始处理路由更新请求', { 
-      request,
-      requestQuery: request.query,
-      requestQueryKeys: request.query ? Object.keys(request.query) : [],
-      requestQueryLength: request.query ? Object.keys(request.query).length : 0,
-      preserveParams: request.preserveParams,
-      source: request.source
-    })
     
     try {
       // 1. 构建新的查询参数（应用参数保留策略）
       const newQuery = this.buildQuery(request)
-      
-      console.log('🔍 [handleUpdateRequest] buildQuery 返回结果', {
-        newQuery,
-        newQueryKeys: Object.keys(newQuery),
-        newQueryLength: Object.keys(newQuery).length
-      })
       
       // 2. 执行路由更新
       const targetPath = request.path || this.route.path

@@ -160,63 +160,34 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     // link 跳转时，URL 中的参数是用户明确指定的（来自 link 值），应该优先从 URL 恢复
     const isLinkNavigation = route.query._link_type === 'table' || route.query._link_type === 'form'
     
-    console.log('🔍 [useTableInitialization.decideRestoreStrategy] 决定恢复策略', {
-      pathMatches,
-      hasTabState,
-      hasURLParams,
-      isLinkNavigation,
-      currentSearchForm: currentState.searchForm,
-      currentQuery: route.query,
-      currentQueryKeys: Object.keys(route.query)
-    })
-    
     // 优先级 1：如果是 link 跳转，优先从 URL 恢复（即使 Tab 有状态也要覆盖）
     if (isLinkNavigation && hasURLParams) {
-      console.log('🔍 [useTableInitialization.decideRestoreStrategy] 优先级 1：link 跳转，从 URL 恢复')
       await restoreFromURLAndSync()
       return
     }
     
     // 优先级 2：Tab 有保存的状态，优先使用 Tab 的状态（Tab 切换场景）
     if (hasTabState) {
-      console.log('🔍 [useTableInitialization.decideRestoreStrategy] 优先级 2：Tab 有保存的状态，使用 Tab 的状态')
       await syncTabStateToURL()
       return
     }
     
     // 优先级 3：Tab 没有保存的状态，且 URL 有参数，从 URL 恢复（link 跳转场景）
     if (hasURLParams) {
-      console.log('🔍 [useTableInitialization.decideRestoreStrategy] 优先级 3：URL 有参数，从 URL 恢复')
       await restoreFromURLAndSync()
       return
     }
     
     // 🔥 优先级 4：Tab 没有保存的状态，且 URL 没有参数（刚切换函数），清空状态
     // 这是关键修复：切换函数时，如果 URL 没有参数，说明是新的函数，应该清空旧的状态
+    // 注意：状态清空已在 initializeTable 开始时处理，这里只需要同步默认参数到 URL
     if (!hasTabState && !hasURLParams && !isLinkNavigation) {
-      console.log('🔍 [useTableInitialization.decideRestoreStrategy] 优先级 4：刚切换函数，清空状态')
-      const functionDetailValue = 'value' in functionDetail ? functionDetail.value : functionDetail
-      const defaultState = {
-        searchForm: {},
-        sorts: [],
-        hasManualSort: false,
-        pagination: {
-          currentPage: 1,
-          pageSize: currentState.pagination.pageSize, // 保留分页大小
-          total: 0
-        }
-      }
-      stateManager.setState({
-        ...currentState,
-        ...defaultState
-      })
       // 清空状态后，同步默认参数到 URL
       await syncTabStateToURL()
       return
     }
     
     // 默认：同步 Tab 状态到 URL（即使没有状态，也需要同步默认参数）
-    console.log('🔍 [useTableInitialization.decideRestoreStrategy] 默认：同步 Tab 状态到 URL')
     await syncTabStateToURL()
   }
 
@@ -225,24 +196,13 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
    */
   const initializeTable = async (): Promise<void> => {
     const functionDetailValue = 'value' in functionDetail ? functionDetail.value : functionDetail
-    const functionId = functionDetailValue?.id
     const router = functionDetailValue?.router
 
-    console.log('🔍 [useTableInitialization.initializeTable] 开始初始化表格', {
-      functionId,
-      router,
-      currentQuery: route.query,
-      currentQueryKeys: Object.keys(route.query),
-      currentState: stateManager.getState()
-    })
-
     if (isInitializing.value) {
-      console.log('🔍 [useTableInitialization.initializeTable] 正在初始化中，跳过')
       return
     }
 
     if (isMounted && !isMounted.value) {
-      console.log('🔍 [useTableInitialization.initializeTable] 组件未挂载，跳过')
       return
     }
 
@@ -252,7 +212,7 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     const isLinkNavigation = route.query._link_type === 'table' || route.query._link_type === 'form'
     
     if (!hasQueryParams && !isLinkNavigation) {
-      console.log('🔍 [useTableInitialization.initializeTable] 刚切换函数，清空 TableStateManager 状态')
+      // 刚切换函数，清空 TableStateManager 的状态，避免旧函数的状态污染新函数
       const currentState = stateManager.getState()
       stateManager.setState({
         ...currentState,
@@ -265,9 +225,6 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
           total: 0
         }
       })
-      console.log('🔍 [useTableInitialization.initializeTable] 状态已清空', {
-        newState: stateManager.getState()
-      })
     }
 
     isInitializing.value = true
@@ -277,7 +234,6 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
       // 优先级：Tab 保存的状态 > URL 参数
       // - 如果 Tab 有保存的状态（searchForm 不为空），说明是 Tab 切换，使用 Tab 的状态，不从 URL 恢复
       // - 如果 Tab 没有保存的状态（searchForm 为空），且 URL 有参数，说明是 link 跳转，从 URL 恢复
-      console.log('🔍 [useTableInitialization.initializeTable] 调用 decideRestoreStrategy')
       await decideRestoreStrategy(router || '')
       
       // 🔥 时机 1：预加载搜索表单中的用户信息

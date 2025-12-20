@@ -865,17 +865,6 @@ const buildTableQueryParams = (): Record<string, string> => {
   const query: Record<string, string> = {}
   const currentState = stateManager.getState()
   
-  console.log('🔍 [TableView.buildTableQueryParams] 开始构建查询参数', {
-    currentState: {
-      searchForm: currentState.searchForm,
-      sorts: currentState.sorts,
-      hasManualSort: currentState.hasManualSort,
-      pagination: currentState.pagination
-    },
-    searchFormKeys: Object.keys(currentState.searchForm),
-    searchFormLength: Object.keys(currentState.searchForm).length
-  })
-  
   // 分页参数
   query.page = String(currentState.pagination.currentPage)
   query.page_size = String(currentState.pagination.pageSize)
@@ -903,13 +892,7 @@ const buildTableQueryParams = (): Record<string, string> => {
   const responseFieldsForURL = responseFields.filter(
     (field: FieldConfig) => !requestFieldCodes.has(field.code)
   )
-  const searchParamsFromResponse = buildURLSearchParams(searchForm.value, responseFieldsForURL)
-  console.log('🔍 [TableView.buildTableQueryParams] response 字段搜索参数', {
-    responseFieldsForURL: responseFieldsForURL.map(f => f.code),
-    searchParamsFromResponse,
-    searchParamsFromResponseKeys: Object.keys(searchParamsFromResponse)
-  })
-  Object.assign(query, searchParamsFromResponse)
+  Object.assign(query, buildURLSearchParams(searchForm.value, responseFieldsForURL))
   
   // 搜索参数（request 字段）
   requestFields.forEach((field: FieldConfig) => {
@@ -931,11 +914,6 @@ const buildTableQueryParams = (): Record<string, string> => {
     }
     
     query[field.code] = Array.isArray(value) ? value.join(',') : String(value)
-    console.log('🔍 [TableView.buildTableQueryParams] 添加 request 字段搜索参数', {
-      fieldCode: field.code,
-      value,
-      queryValue: query[field.code]
-    })
   })
   
   // 清理空值参数
@@ -949,12 +927,6 @@ const buildTableQueryParams = (): Record<string, string> => {
     
     // 删除空值或无效值
     delete query[key]
-  })
-  
-  console.log('🔍 [TableView.buildTableQueryParams] 最终构建的查询参数', {
-    query,
-    queryKeys: Object.keys(query),
-    queryLength: Object.keys(query).length
   })
   
   return query
@@ -1425,50 +1397,13 @@ const { initializeTable, setupQueryWatch } = useTableInitialization({
 })
 
 onMounted(async () => {
-  const functionId = props.functionDetail.id
-  const router = props.functionDetail.router
-  
   // 🔥 设置挂载状态
   isMounted.value = true
-  
-  // 🔥 检查是否是刚切换函数（URL 没有查询参数）
-  // 如果是，先清空 TableStateManager 的状态，避免旧函数的状态污染新函数
-  const hasQueryParams = Object.keys(route.query).length > 0
-  const isLinkNavigation = route.query._link_type === 'table' || route.query._link_type === 'form'
-  
-  console.log('🔍 [TableView.onMounted] 组件挂载', {
-    functionId,
-    router,
-    hasQueryParams,
-    isLinkNavigation,
-    currentQuery: route.query,
-    currentQueryKeys: Object.keys(route.query)
-  })
-  
-  if (!hasQueryParams && !isLinkNavigation) {
-    // 刚切换函数，URL 没有查询参数，清空 TableStateManager 的状态
-    console.log('🔍 [TableView.onMounted] 刚切换函数，清空 TableStateManager 状态')
-    const currentState = stateManager.getState()
-    stateManager.setState({
-      ...currentState,
-      searchForm: {},
-      sorts: [],
-      hasManualSort: false,
-      pagination: {
-        currentPage: 1,
-        pageSize: currentState.pagination.pageSize, // 保留分页大小
-        total: 0
-      }
-    })
-    console.log('🔍 [TableView.onMounted] 状态已清空', {
-      newState: stateManager.getState()
-    })
-  }
   
   // 🔥 阶段4：设置 URL 变化监听（监听 RouteEvent.queryChanged）
   setupQueryWatch()
   
-  // 初始化表格
+  // 初始化表格（状态清空逻辑已在 initializeTable 中处理）
   await initializeTable()
   
   // 监听数据加载完成事件
