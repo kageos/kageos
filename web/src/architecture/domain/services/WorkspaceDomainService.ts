@@ -63,11 +63,11 @@ export class WorkspaceDomainService {
     
     // 先检查缓存（如果不强制重新加载）
     if (!forceReload) {
-      const cached = state.functionDetails.get(key)
-      if (cached) {
-        // 触发事件（使用缓存）
-        this.eventBus.emit(WorkspaceEvent.functionLoaded, { node, detail: cached })
-        return cached
+    const cached = state.functionDetails.get(key)
+    if (cached) {
+      // 触发事件（使用缓存）
+      this.eventBus.emit(WorkspaceEvent.functionLoaded, { node, detail: cached })
+      return cached
       }
     }
 

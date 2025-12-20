@@ -123,23 +123,24 @@
         <div v-else-if="currentFunction && currentFunction.type === 'function' && currentFunctionDetail" class="function-content-wrapper">
           <div class="function-content">
             <!-- 🔥 使用 keep-alive 缓存函数内容，提升性能并保持状态 -->
+            <!-- 🔥 使用 full_code_path 作为 key，更稳定，避免不必要的组件重建 -->
             <keep-alive>
               <FormView
                 v-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.FORM"
-                :key="`form-${currentFunction.id}`"
+                :key="`form-${currentFunction.full_code_path || currentFunction.id}`"
                 :function-detail="currentFunctionDetail"
               />
               <TableView
                 v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.TABLE"
-                :key="`table-${currentFunction.id}`"
+                :key="`table-${currentFunction.full_code_path || currentFunction.id}`"
                 :function-detail="currentFunctionDetail"
               />
               <ChartView
                 v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.CHART"
-                :key="`chart-${currentFunction.id}`"
+                :key="`chart-${currentFunction.full_code_path || currentFunction.id}`"
                 :function-detail="currentFunctionDetail"
               />
-              <div v-else :key="`empty-${currentFunction.id}`" class="empty-state">
+              <div v-else :key="`empty-${currentFunction.full_code_path || currentFunction.id}`" class="empty-state">
                 <p>加载中...</p>
               </div>
             </keep-alive>

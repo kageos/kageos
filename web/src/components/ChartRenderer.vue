@@ -743,18 +743,27 @@ const renderChart = () => {
     return
   }
 
-  // 销毁旧实例
-  if (chartInstance.value) {
-    chartInstance.value.dispose()
-  }
+  // 🔥 优化：如果实例已存在且容器未变化，只更新配置，不重新创建实例
+  const needRecreate = !chartInstance.value || 
+                       !chartContainerRef.value || 
+                       chartInstance.value.getDom() !== chartContainerRef.value
 
-  // 创建新实例（完全按照官方示例）
-  chartInstance.value = echarts.init(chartContainerRef.value, null, {
-    renderer: 'canvas',
-    useDirtyRect: false
-  })
-  console.log('[ChartRenderer] ECharts 实例已创建:', chartInstance.value)
-  console.log('[ChartRenderer] DOM 元素:', chartContainerRef.value)
+  if (needRecreate) {
+    // 销毁旧实例
+    if (chartInstance.value) {
+      chartInstance.value.dispose()
+    }
+
+    // 创建新实例（完全按照官方示例）
+    chartInstance.value = echarts.init(chartContainerRef.value, null, {
+      renderer: 'canvas',
+      useDirtyRect: false
+    })
+    console.log('[ChartRenderer] ECharts 实例已创建:', chartInstance.value)
+    console.log('[ChartRenderer] DOM 元素:', chartContainerRef.value)
+  } else {
+    console.log('[ChartRenderer] 复用现有 ECharts 实例，只更新配置')
+  }
 
   // 构建配置
   const option = buildEChartsOption(chartData.value)
@@ -768,8 +777,10 @@ const renderChart = () => {
     return
   }
 
-  // 打印 option 用于调试
-  console.log('[ChartRenderer] ECharts option:', JSON.stringify(option, null, 2))
+  // 打印 option 用于调试（仅在开发环境）
+  if (import.meta.env.DEV) {
+    console.log('[ChartRenderer] ECharts option:', JSON.stringify(option, null, 2))
+  }
   console.log('[ChartRenderer] tooltip config:', option.tooltip)
   const seriesArray = Array.isArray(option.series) ? option.series : [option.series]
   console.log('[ChartRenderer] series data:', seriesArray.map((s: any) => ({ 
@@ -913,14 +924,29 @@ onUnmounted(() => {
   }
 })
 
-// 监听 chartData 变化，重新渲染
-watch(() => chartData.value, () => {
-  if (chartData.value) {
-    nextTick(() => {
-      renderChart()
-    })
+// 🔥 优化：监听 chartData 变化，使用浅层监听 + 手动检查，减少不必要的重新渲染
+let lastChartDataHash: string | null = null
+watch(() => chartData.value, (newData) => {
+  if (!newData) {
+    if (chartInstance.value) {
+      chartInstance.value.dispose()
+      chartInstance.value = null
+    }
+    lastChartDataHash = null
+    return
   }
-}, { deep: true })
+  
+  // 🔥 使用简单的哈希比较，避免深度监听导致的性能问题
+  const currentHash = JSON.stringify(newData)
+  if (currentHash === lastChartDataHash) {
+    return // 数据未变化，跳过渲染
+  }
+  lastChartDataHash = currentHash
+  
+  nextTick(() => {
+    renderChart()
+  })
+}, { flush: 'post' }) // 使用 post 确保在 DOM 更新后执行
 </script>
 
 <style scoped lang="scss">

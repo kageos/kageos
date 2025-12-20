@@ -164,7 +164,7 @@ export function useWorkspaceApp() {
             // 使用获取到的完整 App 对象进行切换
             // 注意：这里我们已经有服务目录树了，但 handleSwitchApp 会再次加载
             // 为了优化，我们可以直接设置服务目录树，但为了保持一致性，还是使用 handleSwitchApp
-            await handleSwitchApp(newApp, currentApp)
+        await handleSwitchApp(newApp, currentApp)
           } else {
             // 如果获取详情失败，使用创建响应中的信息直接跳转
             const targetPath = `/workspace/${createResponse.user}/${createResponse.app}`

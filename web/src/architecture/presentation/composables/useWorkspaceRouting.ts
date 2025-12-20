@@ -195,14 +195,17 @@ export function useWorkspaceRouting(options: {
           }
           
           if (appSwitched) {
-            let retries = 0
-            const interval = setInterval(() => {
-              if (options.serviceTree().length > 0 || retries > 10) {
-                clearInterval(interval)
-                tryLoadFunction()
-              }
-              retries++
-            }, 200)
+            // 🔥 使用事件监听替代 setInterval 轮询，减少不必要的重复调用
+            const unsubscribe = eventBus.on(WorkspaceEvent.serviceTreeLoaded, async () => {
+              unsubscribe()
+              await nextTick()
+              tryLoadFunction()
+            })
+            // 如果服务树已经加载，直接执行
+            if (options.serviceTree().length > 0) {
+              unsubscribe()
+              tryLoadFunction()
+            }
           } else {
             tryLoadFunction()
           }
@@ -256,16 +259,18 @@ export function useWorkspaceRouting(options: {
           applicationService.triggerNodeClick(serviceNode)
         }
 
-        // 等待服务树加载
+        // 🔥 使用事件监听替代 setInterval 轮询，减少不必要的重复调用
         if (appSwitched) {
-          let retries = 0
-          const interval = setInterval(async () => {
-            if (options.serviceTree().length > 0 || retries > 10) {
-              clearInterval(interval)
-              await tryOpenTab()
-            }
-            retries++
-          }, 200)
+          const unsubscribe = eventBus.on(WorkspaceEvent.serviceTreeLoaded, async () => {
+            unsubscribe()
+            await nextTick()
+            await tryOpenTab()
+          })
+          // 如果服务树已经加载，直接执行
+          if (options.serviceTree().length > 0) {
+            unsubscribe()
+            await tryOpenTab()
+          }
         } else {
           await tryOpenTab()
         }
