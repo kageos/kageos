@@ -36,13 +36,12 @@
 
       <!-- 中间函数渲染区域 -->
       <div class="function-renderer">
-        <!-- 标签页区域 -->
-        <WorkspaceTabs
-          :tabs="tabs"
-          :active-tab-id="activeTabId"
-          @update:active-tab-id="(val: string) => activeTabId = val"
-          @tab-edit="handleTabsEdit"
-          @clear-all-tabs="handleClearAllTabs"
+        <!-- 面包屑导航（只在显示函数详情时显示） -->
+        <FunctionBreadcrumb
+          v-if="currentFunction && currentFunction.type === 'function'"
+          :current-node="currentFunction"
+          :service-tree="serviceTree"
+          @node-click="handleBreadcrumbNodeClick"
         />
         
         <!-- 🔥 Create/Edit 模式：根据 queryTab 显示独立页面 -->
@@ -120,27 +119,27 @@
           <!-- 例如：<TaskChatPanel v-else-if="selectedAgent.chat_type === 'chat-task'" ... /> -->
         </div>
         
-        <!-- Tab 内容区域（正常模式 - 函数节点） -->
-        <div v-else-if="tabs.length > 0" class="tabs-content-wrapper">
-          <div class="tab-content">
-            <!-- 🔥 使用 keep-alive 缓存 Tab 内容，提升性能并保持状态 -->
+        <!-- 函数详情区域（正常模式 - 函数节点） -->
+        <div v-else-if="currentFunction && currentFunction.type === 'function' && currentFunctionDetail" class="function-content-wrapper">
+          <div class="function-content">
+            <!-- 🔥 使用 keep-alive 缓存函数内容，提升性能并保持状态 -->
             <keep-alive>
               <FormView
-                v-if="currentFunctionDetail?.template_type === TEMPLATE_TYPE.FORM"
-                :key="`form-${activeTabId}`"
+                v-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.FORM"
+                :key="`form-${currentFunction.id}`"
                 :function-detail="currentFunctionDetail"
               />
               <TableView
-                v-else-if="currentFunctionDetail?.template_type === TEMPLATE_TYPE.TABLE"
-                :key="`table-${activeTabId}`"
+                v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.TABLE"
+                :key="`table-${currentFunction.id}`"
                 :function-detail="currentFunctionDetail"
               />
               <ChartView
-                v-else-if="currentFunctionDetail?.template_type === TEMPLATE_TYPE.CHART"
-                :key="`chart-${activeTabId}`"
+                v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.CHART"
+                :key="`chart-${currentFunction.id}`"
                 :function-detail="currentFunctionDetail"
               />
-              <div v-else :key="`empty-${activeTabId}`" class="empty-state">
+              <div v-else :key="`empty-${currentFunction.id}`" class="empty-state">
                 <p>加载中...</p>
               </div>
             </keep-alive>
@@ -361,7 +360,7 @@ import FormView from './FormView.vue'
 import TableView from './TableView.vue'
 import ChartView from './ChartView.vue'
 import WorkspaceHeader from '../components/WorkspaceHeader.vue'
-import WorkspaceTabs from '../components/WorkspaceTabs.vue'
+import FunctionBreadcrumb from '../components/FunctionBreadcrumb.vue'
 import TableRowDetailDrawer from '../components/TableRowDetailDrawer.vue'
 import AIChatPanel from '../components/AIChatPanel.vue'
 import AgentSelectDialog from '@/components/Agent/AgentSelectDialog.vue'
@@ -371,7 +370,6 @@ import type { FunctionDetail } from '../../domain/interfaces/IFunctionLoader'
 import type { App as AppType, ServiceTree as ServiceTreeType } from '@/types'
 import type { FieldConfig, FieldValue } from '../../domain/types'
 // 🔥 导入 Composable
-import { useWorkspaceTabs } from '../composables/useWorkspaceTabs'
 import { useWorkspaceRouting } from '../composables/useWorkspaceRouting'
 import { useWorkspaceDetail } from '../composables/useWorkspaceDetail'
 import { useWorkspaceApp } from '../composables/useWorkspaceApp'
@@ -395,18 +393,7 @@ const serviceTree = computed(() => stateManager.getServiceTree())
 const currentFunction = computed(() => stateManager.getCurrentFunction())
 const currentAppFromState = computed(() => stateManager.getCurrentApp())
 
-// 🔥 初始化 Composable
-const {
-  tabs,
-  activeTabId,
-  handleTabClick: tabsHandleTabClick,
-  handleTabsEdit,
-  handleClearAllTabs,
-  restoreTabsFromStorage,
-  restoreTabsNodes: tabsRestoreTabsNodes,
-  setupTabDataWatch,
-  setupAutoSave
-} = useWorkspaceTabs()
+// 🔥 不再使用 Tab 功能，简化系统
 
 const currentApp = computed<AppType | null>(() => {
   const app = currentAppFromState.value
@@ -456,34 +443,12 @@ const {
 } = useWorkspaceServiceTree()
 
 const currentFunctionDetail = computed<FunctionDetail | null>(() => {
-  const tabsCount = tabs.value.length
-  const activeTabIdValue = activeTabId.value
-  
-  // 🔥 如果没有标签页，不返回 functionDetail，避免渲染旧的组件
-  if (tabsCount === 0) {
-    return null
-  }
-  
   const node = currentFunction.value
-  if (!node) {
+  if (!node || node.type !== 'function') {
     return null
-  }
-  
-  // 🔥 检查当前函数是否属于当前激活的 tab
-  const activeTab = tabs.value.find((t: any) => t.id === activeTabIdValue)
-  if (activeTab && activeTab.node) {
-    const activeTabNode = activeTab.node
-    // 检查 node 是否匹配当前激活的 tab
-    const nodeId = node.full_code_path || String(node.id)
-    const activeTabNodeId = activeTab.node.full_code_path || String(activeTab.node.id)
-    if (nodeId !== activeTabNodeId) {
-      // 如果不匹配，返回 null，避免渲染错误的组件
-      return null
-    }
   }
   
   const detail = stateManager.getFunctionDetail(node)
-  
   return detail
 })
 
@@ -516,8 +481,6 @@ const {
   loadAppFromRoute: routingLoadAppFromRoute,
   setupRouteWatch
 } = useWorkspaceRouting({
-  tabs: () => tabs.value,
-  activeTabId: () => activeTabId.value,
   serviceTree: () => serviceTree.value,
   currentApp: () => currentApp.value,
   appList: () => appList.value,
@@ -742,10 +705,7 @@ onMounted(() => {
     await openDetailDrawer(row, index, tableData)
   })
   
-  // 🔥 注意：不再监听 tabActivated 事件来更新路由
-  // 路由应该由 handleTabClick 直接更新（路由优先策略）
-  // tabActivated 事件只用于状态同步，不用于路由更新
-  // 这样可以与服务目录切换的逻辑保持一致
+  // 🔥 Tab 功能已删除，相关事件监听已移除
   
   // 🔥 设置 URL 监听（使用 Composable）
   setupUrlWatch()
@@ -769,6 +729,137 @@ const handleNodeClick = (node: ServiceTreeType) => {
   // 转换为新架构的 ServiceTree 类型
   const serviceTree: ServiceTree = node as any
   
+  // 🔥 路由优先策略：先更新路由，路由变化会触发 Tab 状态更新
+  if (serviceTree.type === 'function' && serviceTree.full_code_path) {
+    const targetPath = `/workspace${serviceTree.full_code_path}`
+    if (route.path !== targetPath) {
+      // 🔥 检查目标函数是否是 table 类型
+      let isTableFunction = false
+      const detail = stateManager.getFunctionDetail(serviceTree)
+      if (detail && detail.template_type === TEMPLATE_TYPE.TABLE) {
+        isTableFunction = true
+      }
+      
+      // 🔥 检查是否是 link 跳转（通过 _link_type 参数）
+      const isLinkNavigation = route.query._link_type === 'table' || route.query._link_type === 'form'
+      
+      // 🔥 构建查询参数
+      let preservedQuery: Record<string, string | string[]>
+      if (isLinkNavigation) {
+        // 🔥 link 跳转：保留所有参数（除了 _link_type 临时参数）
+        preservedQuery = {}
+        Object.keys(route.query).forEach(key => {
+          if (key !== '_link_type') {
+            const value = route.query[key]
+            if (value !== null && value !== undefined) {
+              preservedQuery[key] = Array.isArray(value) 
+                ? value.filter(v => v !== null).map(v => String(v))
+                : String(value)
+            }
+          }
+        })
+      } else {
+        // 普通跳转：根据函数类型保留相应参数
+        const filteredQuery: Record<string, any> = { ...route.query }
+        preservedQuery = isTableFunction
+          ? preserveQueryParamsForTable(filteredQuery)
+          : preserveQueryParamsForForm(filteredQuery)
+      }
+      
+      // 🔥 发出路由更新请求事件
+      eventBus.emit(RouteEvent.updateRequested, {
+        path: targetPath,
+        query: preservedQuery,
+        replace: true,
+        preserveParams: {
+          table: isTableFunction,      // table 函数保留 table 参数
+          search: false,                // 普通跳转不保留搜索参数
+          state: true,                  // 保留状态参数（_ 开头）
+          linkNavigation: isLinkNavigation  // link 跳转保留所有参数
+        },
+        source: 'workspace-node-click'
+      })
+    } else {
+      // 路由已匹配，直接触发节点点击加载详情（避免路由更新循环）
+      applicationService.triggerNodeClick(serviceTree)
+    }
+  } else if (serviceTree.type === 'package') {
+    // 目录节点：跳转到目录详情页面
+    const targetPath = `/workspace${serviceTree.full_code_path}`
+    if (route.path !== targetPath) {
+      eventBus.emit(RouteEvent.updateRequested, {
+        path: targetPath,
+        query: {},
+        replace: true,
+        preserveParams: {},
+        source: 'workspace-node-click-package'
+      })
+    } else {
+      // 路由已匹配，直接触发节点点击
+      applicationService.triggerNodeClick(serviceTree)
+    }
+  } else {
+    // 其他类型，直接触发节点点击
+    applicationService.triggerNodeClick(serviceTree)
+  }
+}
+
+/**
+ * 处理面包屑节点点击
+ */
+const handleBreadcrumbNodeClick = (node: ServiceTree) => {
+  // 🔥 面包屑点击也需要更新路由
+  if (node.type === 'function' && node.full_code_path) {
+    const targetPath = `/workspace${node.full_code_path}`
+    if (route.path !== targetPath) {
+      // 检查是否是 table 函数
+      const detail = stateManager.getFunctionDetail(node)
+      const isTableFunction = detail && detail.template_type === TEMPLATE_TYPE.TABLE
+      
+      // 构建查询参数
+      const filteredQuery: Record<string, any> = { ...route.query }
+      const preservedQuery = isTableFunction
+        ? preserveQueryParamsForTable(filteredQuery)
+        : preserveQueryParamsForForm(filteredQuery)
+      
+      eventBus.emit(RouteEvent.updateRequested, {
+        path: targetPath,
+        query: preservedQuery,
+        replace: true,
+        preserveParams: {
+          table: isTableFunction,
+          search: false,
+          state: true,
+          linkNavigation: false
+        },
+        source: 'workspace-node-click'
+      })
+    } else {
+      applicationService.triggerNodeClick(node)
+    }
+  } else if (node.type === 'package') {
+    const targetPath = `/workspace${node.full_code_path}`
+    if (route.path !== targetPath) {
+      eventBus.emit(RouteEvent.updateRequested, {
+        path: targetPath,
+        query: {},
+        replace: true,
+        preserveParams: {},
+        source: 'workspace-node-click-package'
+      })
+    } else {
+      applicationService.triggerNodeClick(node)
+    }
+  } else {
+    applicationService.triggerNodeClick(node)
+  }
+}
+
+// 事件处理（旧代码，保留用于兼容）
+const handleNodeClickOld = (node: ServiceTreeType) => {
+  // 转换为新架构的 ServiceTree 类型
+  const serviceTree: ServiceTree = node as any
+  
   // 调试日志
   // console.log('[WorkspaceView] handleNodeClick', {
   //   type: serviceTree.type,
@@ -785,10 +876,7 @@ const handleNodeClick = (node: ServiceTreeType) => {
       // 🔥 检查目标函数是否是 table 类型
       // 优先级：Tab 详情 > 默认 form
       // 注意：_link_type 参数已在 useWorkspaceRouting 中处理，这里不需要再处理
-      const tabsArray = Array.isArray(tabs.value) ? tabs.value : []
-      const existingTab = tabsArray.find((t: any) => 
-        t.path === serviceTree.full_code_path || t.path === String(serviceTree.id)
-      )
+      // 不再需要检查 Tab，直接使用当前函数详情
       
       // 检查 Tab 详情
       let isTableFunction = false
@@ -1126,39 +1214,30 @@ let unsubscribeServiceTreeLoaded: (() => void) | null = null
 let unsubscribeAppSwitched: (() => void) | null = null
 
 // 🔥 重新关联 tabs 的 node 信息（使用 Composable）
-const restoreTabsNodes = () => {
-  tabsRestoreTabsNodes(serviceTree.value, findNodeByPath)
-}
+// 🔥 不再使用 Tab，删除 restoreTabsNodes 函数
 
 // 🔥 初始化 RouteManager（路由管理器）
 let routeManager: RouteManager | null = null
 
 onMounted(async () => {
-  // 🔥 首先从 localStorage 恢复 tabs
-  restoreTabsFromStorage()
-  
   // 🔥 如果已存在 routeManager，先销毁（避免热更新时重复创建）
   if (routeManager) {
     routeManager.destroy()
     routeManager = null
   }
   
-  // 🔥 初始化 RouteManager（阶段1：只监听，不处理更新请求）
+  // 🔥 初始化 RouteManager（不再使用 Tab）
   routeManager = new RouteManager(
     router,
     route,
     eventBus,
-    () => activeTabId.value || null  // 获取当前 Tab ID
+    () => null  // 不再使用 Tab，返回 null
   )
   
   // 🔥 开发环境下启用调试日志
   if (import.meta.env.DEV) {
     routeManager.setDebugLog(true)
   }
-  
-  // 🔥 设置 Tab 数据监听和自动保存
-  setupTabDataWatch()
-  setupAutoSave()
   
   // 监听函数加载完成事件
   unsubscribeFunctionLoaded = eventBus.on(WorkspaceEvent.functionLoaded, () => {
@@ -1168,10 +1247,6 @@ onMounted(async () => {
   // 监听服务树加载完成事件
   unsubscribeServiceTreeLoaded = eventBus.on(WorkspaceEvent.serviceTreeLoaded, (payload: { app: any, tree: any[] }) => {
     // 状态已通过 StateManager 自动更新
-    // 🔥 服务树加载后，重新关联 tabs 的 node 信息
-    nextTick(() => {
-      restoreTabsNodes()
-    })
   })
   
   // 监听应用切换事件，开始加载服务树
@@ -1179,7 +1254,7 @@ onMounted(async () => {
     // 应用切换事件处理
   })
 
-  // 从路由加载应用（会激活对应的 Tab）
+  // 从路由加载应用
   // 优化：如果路由中有应用信息，直接使用合并接口获取，不需要先加载整个应用列表
   await routingLoadAppFromRoute()
   
@@ -1190,18 +1265,15 @@ onMounted(async () => {
   setupRouteWatch()
 })
 
-// 🔥 监听服务树变化，重新关联 tabs 的 node 并展开目录树
+// 🔥 监听服务树变化，展开目录树
 watch(() => serviceTree.value.length, (newLength: number) => {
   if (newLength > 0 && currentApp.value) {
-    // 重新关联 tabs 的 node 信息（会检查并加载函数详情）
-    restoreTabsNodes()
-    
     // 展开目录树
     if (route.query._forked) {
-    checkAndExpandForkedPaths()
+      checkAndExpandForkedPaths()
     } else {
       expandCurrentRoutePath()
-  }
+    }
   }
 }, { immediate: true })
 
@@ -1293,7 +1365,7 @@ onUnmounted(() => {
   overflow: hidden; /* 防止双滚动条 */
 }
 
-.tabs-content-wrapper {
+.function-content-wrapper {
   flex: 1;
   overflow: hidden; /* 🔥 外层容器隐藏溢出，内层处理滚动 */
   display: flex;
@@ -1301,13 +1373,31 @@ onUnmounted(() => {
   min-height: 0; /* 🔥 关键：允许 flex 子元素缩小 */
 }
 
-.tab-content {
+.function-content {
   flex: 1;
   overflow-y: auto !important; /* 🔥 强制允许垂直滚动，让搜索框和数据区一起滚动 */
   overflow-x: hidden;
   min-height: 0; /* 🔥 关键：允许 flex 子元素缩小 */
   height: 0; /* 🔥 关键：配合 flex: 1 和 min-height: 0，让滚动容器正确计算高度 */
   -webkit-overflow-scrolling: touch; /* 🔥 iOS 平滑滚动 */
+}
+
+/* 保留旧的类名以兼容（如果还有地方使用） */
+.tabs-content-wrapper {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.tab-content {
+  flex: 1;
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  min-height: 0;
+  height: 0;
+  -webkit-overflow-scrolling: touch;
 }
 
 .left-sidebar {
