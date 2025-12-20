@@ -865,6 +865,17 @@ const buildTableQueryParams = (): Record<string, string> => {
   const query: Record<string, string> = {}
   const currentState = stateManager.getState()
   
+  console.log('🔍 [TableView.buildTableQueryParams] 开始构建查询参数', {
+    currentState: {
+      searchForm: currentState.searchForm,
+      sorts: currentState.sorts,
+      hasManualSort: currentState.hasManualSort,
+      pagination: currentState.pagination
+    },
+    searchFormKeys: Object.keys(currentState.searchForm),
+    searchFormLength: Object.keys(currentState.searchForm).length
+  })
+  
   // 分页参数
   query.page = String(currentState.pagination.currentPage)
   query.page_size = String(currentState.pagination.pageSize)
@@ -892,7 +903,13 @@ const buildTableQueryParams = (): Record<string, string> => {
   const responseFieldsForURL = responseFields.filter(
     (field: FieldConfig) => !requestFieldCodes.has(field.code)
   )
-  Object.assign(query, buildURLSearchParams(searchForm.value, responseFieldsForURL))
+  const searchParamsFromResponse = buildURLSearchParams(searchForm.value, responseFieldsForURL)
+  console.log('🔍 [TableView.buildTableQueryParams] response 字段搜索参数', {
+    responseFieldsForURL: responseFieldsForURL.map(f => f.code),
+    searchParamsFromResponse,
+    searchParamsFromResponseKeys: Object.keys(searchParamsFromResponse)
+  })
+  Object.assign(query, searchParamsFromResponse)
   
   // 搜索参数（request 字段）
   requestFields.forEach((field: FieldConfig) => {
@@ -914,6 +931,11 @@ const buildTableQueryParams = (): Record<string, string> => {
     }
     
     query[field.code] = Array.isArray(value) ? value.join(',') : String(value)
+    console.log('🔍 [TableView.buildTableQueryParams] 添加 request 字段搜索参数', {
+      fieldCode: field.code,
+      value,
+      queryValue: query[field.code]
+    })
   })
   
   // 清理空值参数
@@ -927,6 +949,12 @@ const buildTableQueryParams = (): Record<string, string> => {
     
     // 删除空值或无效值
     delete query[key]
+  })
+  
+  console.log('🔍 [TableView.buildTableQueryParams] 最终构建的查询参数', {
+    query,
+    queryKeys: Object.keys(query),
+    queryLength: Object.keys(query).length
   })
   
   return query
