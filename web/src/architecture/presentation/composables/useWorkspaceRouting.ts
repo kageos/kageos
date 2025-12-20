@@ -13,6 +13,7 @@ import { extractWorkspacePath } from '@/utils/route'
 import { preserveQueryParamsForTable, preserveQueryParamsForForm, isFunctionGroupDetail } from '@/utils/queryParams'
 import { serviceFactory } from '../../infrastructure/factories'
 import { eventBus, RouteEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
+import { RouteSource } from '@/utils/routeSource'
 import { Logger } from '@/core/utils/logger'
 import { getAppWithServiceTree } from '@/api/app'
 import type { ServiceTree, App } from '../../domain/services/WorkspaceDomainService'
@@ -342,7 +343,7 @@ export function useWorkspaceRouting(options: {
           preserveParams: {
             linkNavigation: true  // 保持 linkNavigation: true，确保 RouteManager 不会覆盖 preservedQuery 中的参数
           },
-          source: 'workspace-routing-clear-link-type'
+          source: RouteSource.WORKSPACE_ROUTING_CLEAR_LINK_TYPE
         })
         return
       }
@@ -350,8 +351,8 @@ export function useWorkspaceRouting(options: {
       // 处理 workspace-node-click：需要加载函数详情
       // 处理 workspace-node-click-package：需要设置当前函数（package 类型）
       // 🔥 Tab 功能已删除，tab-switch 相关事件已废弃
-      if (payload.source === 'workspace-node-click' || 
-          payload.source === 'workspace-node-click-package') {
+      if (payload.source === RouteSource.WORKSPACE_NODE_CLICK || 
+          payload.source === RouteSource.WORKSPACE_NODE_CLICK_PACKAGE) {
         // 🔥 防重复处理：如果已经处理过相同的 updateCompleted 事件，跳过
         const eventKey = `${payload.source}:${payload.path}`
         if (lastProcessedUpdateCompleted && 
@@ -369,7 +370,7 @@ export function useWorkspaceRouting(options: {
         await nextTick()
         
         // 🔥 如果是 workspace-node-click，需要触发节点点击来加载函数详情
-        if (payload.source === 'workspace-node-click') {
+        if (payload.source === RouteSource.WORKSPACE_NODE_CLICK) {
           const fullPath = extractWorkspacePath(payload.path)
           if (fullPath) {
             const pathSegments = fullPath.split('/').filter(Boolean)

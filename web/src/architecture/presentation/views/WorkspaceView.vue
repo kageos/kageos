@@ -370,6 +370,7 @@ import type { App as AppType, ServiceTree as ServiceTreeType } from '@/types'
 import type { FieldConfig, FieldValue } from '../../domain/types'
 // 🔥 导入 Composable
 import { useWorkspaceRouting } from '../composables/useWorkspaceRouting'
+import { RouteSource } from '@/utils/routeSource'
 import { useWorkspaceDetail } from '../composables/useWorkspaceDetail'
 import { useWorkspaceApp } from '../composables/useWorkspaceApp'
 import { useWorkspaceServiceTree } from '../composables/useWorkspaceServiceTree'
@@ -443,9 +444,6 @@ const {
 
 // 🔥 移除缓存后，通过事件获取函数详情
 const currentFunctionDetail = ref<FunctionDetail | null>(null)
-
-// 监听函数加载完成事件
-let unsubscribeFunctionLoaded: (() => void) | null = null
 
 const {
   detailDrawerVisible,
@@ -612,7 +610,7 @@ function handleAgentSelect(agent: AgentInfo) {
           table: false,
           search: false
         },
-        source: 'agent-select'
+        source: RouteSource.AGENT_SELECT
       })
     }
   }
@@ -772,7 +770,7 @@ const handleNodeClick = (node: ServiceTreeType) => {
           state: true,                  // 保留状态参数（_ 开头）
           linkNavigation: isLinkNavigation  // link 跳转保留所有参数
         },
-        source: 'workspace-node-click'
+        source: RouteSource.WORKSPACE_NODE_CLICK
       })
     } else {
       // 路由已匹配，直接触发节点点击加载详情（避免路由更新循环）
@@ -787,7 +785,7 @@ const handleNodeClick = (node: ServiceTreeType) => {
         query: {},
         replace: true,
         preserveParams: {},
-        source: 'workspace-node-click-package'
+        source: RouteSource.WORKSPACE_NODE_CLICK_PACKAGE
       })
     } else {
       // 路由已匹配，直接触发节点点击
@@ -829,7 +827,7 @@ const handleBreadcrumbNodeClick = (node: ServiceTree) => {
           state: true,
           linkNavigation: false
         },
-        source: 'workspace-node-click'
+        source: RouteSource.WORKSPACE_NODE_CLICK
       })
     } else {
       applicationService.triggerNodeClick(node)
@@ -842,7 +840,7 @@ const handleBreadcrumbNodeClick = (node: ServiceTree) => {
         query: {},
         replace: true,
         preserveParams: {},
-        source: 'workspace-node-click-package'
+        source: RouteSource.WORKSPACE_NODE_CLICK_PACKAGE
       })
     } else {
       applicationService.triggerNodeClick(node)
@@ -925,7 +923,7 @@ const handleNodeClickOld = (node: ServiceTreeType) => {
           state: true,                  // 保留状态参数（_ 开头）
           linkNavigation: isLinkNavigation  // link 跳转保留所有参数
         },
-        source: 'workspace-node-click'
+        source: RouteSource.WORKSPACE_NODE_CLICK
       })
     } else {
       // 路由已匹配，直接触发节点点击加载详情（避免路由更新循环）
@@ -950,7 +948,7 @@ const handleNodeClickOld = (node: ServiceTreeType) => {
             state: false, // 不保留状态参数
             linkNavigation: false
           },
-          source: 'workspace-node-click-package'
+          source: RouteSource.WORKSPACE_NODE_CLICK_PACKAGE
         })
       }
     }
@@ -1182,7 +1180,7 @@ const backToList = () => {
     preserveParams: {
       state: true  // 保留状态参数
     },
-    source: 'back-to-list'
+    source: RouteSource.BACK_TO_LIST
   })
 }
 
@@ -1227,6 +1225,7 @@ const handleDeleteApp = async (app: AppType): Promise<void> => {
 let unsubscribeFunctionLoaded: (() => void) | null = null
 let unsubscribeServiceTreeLoaded: (() => void) | null = null
 let unsubscribeAppSwitched: (() => void) | null = null
+let unsubscribeAppInfoUpdated: (() => void) | null = null
 
 // 🔥 重新关联 tabs 的 node 信息（使用 Composable）
 // 🔥 不再使用 Tab，删除 restoreTabsNodes 函数
@@ -1273,6 +1272,15 @@ onMounted(async () => {
   // 监听应用切换事件，开始加载服务树
   unsubscribeAppSwitched = eventBus.on(WorkspaceEvent.appSwitched, (payload: { app: any }) => {
     // 应用切换事件处理
+  })
+
+  // 监听应用信息更新事件（用于更新应用列表中的 app.id）
+  unsubscribeAppInfoUpdated = eventBus.on('workspace:app-info-updated' as any, (payload: { app: AppType }) => {
+    // 更新应用列表中的 app 信息
+    const index = appList.value.findIndex(a => a.code === payload.app.code)
+    if (index !== -1) {
+      appList.value[index] = { ...appList.value[index], ...payload.app }
+    }
   })
 
   // 从路由加载应用
@@ -1375,11 +1383,8 @@ onUnmounted(() => {
     unsubscribeAppSwitched()
   }
   if (unsubscribeAppInfoUpdated) {
-          unsubscribeAppInfoUpdated()
-        }
-        if (unsubscribeAppInfoUpdated) {
-          unsubscribeAppInfoUpdated()
-        }
+    unsubscribeAppInfoUpdated()
+  }
 })
 </script>
 
