@@ -1403,6 +1403,40 @@ onMounted(async () => {
   // 🔥 设置挂载状态
   isMounted.value = true
   
+  // 🔥 检查是否是刚切换函数（URL 没有查询参数）
+  // 如果是，先清空 TableStateManager 的状态，避免旧函数的状态污染新函数
+  const hasQueryParams = Object.keys(route.query).length > 0
+  const isLinkNavigation = route.query._link_type === 'table' || route.query._link_type === 'form'
+  
+  console.log('🔍 [TableView.onMounted] 组件挂载', {
+    functionId,
+    router,
+    hasQueryParams,
+    isLinkNavigation,
+    currentQuery: route.query,
+    currentQueryKeys: Object.keys(route.query)
+  })
+  
+  if (!hasQueryParams && !isLinkNavigation) {
+    // 刚切换函数，URL 没有查询参数，清空 TableStateManager 的状态
+    console.log('🔍 [TableView.onMounted] 刚切换函数，清空 TableStateManager 状态')
+    const currentState = stateManager.getState()
+    stateManager.setState({
+      ...currentState,
+      searchForm: {},
+      sorts: [],
+      hasManualSort: false,
+      pagination: {
+        currentPage: 1,
+        pageSize: currentState.pagination.pageSize, // 保留分页大小
+        total: 0
+      }
+    })
+    console.log('🔍 [TableView.onMounted] 状态已清空', {
+      newState: stateManager.getState()
+    })
+  }
+  
   // 🔥 阶段4：设置 URL 变化监听（监听 RouteEvent.queryChanged）
   setupQueryWatch()
   
