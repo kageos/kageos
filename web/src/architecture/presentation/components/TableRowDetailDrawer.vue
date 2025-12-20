@@ -904,10 +904,7 @@ defineExpose({
   display: flex;
   flex-direction: column;
   gap: 16px;
-  background: var(--el-fill-color-lighter);
-  border-radius: 8px;
-  padding: 16px;
-  border: 1px solid var(--el-border-color-light);
+  padding: 0;
   position: sticky;
   top: 20px;
   max-height: calc(100vh - 200px);
@@ -917,24 +914,20 @@ defineExpose({
 .metadata-section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
 .metadata-section-title {
   font-size: 13px;
   font-weight: 600;
   color: var(--el-text-color-primary);
-  margin-bottom: 4px;
+  margin-bottom: 8px;
   padding-bottom: 8px;
-  border-bottom: 1px solid var(--el-border-color);
+  border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
 .metadata-field {
   padding: 8px 0;
-  border-bottom: 1px solid var(--el-border-color-extra-light);
-}
-
-.metadata-field:last-child {
   border-bottom: none;
 }
 
