@@ -295,23 +295,30 @@ const useGroupedDetailLayout = ref<boolean>(() => {
  * 切换详情布局
  */
 const toggleDetailLayout = (): void => {
+  // 保存当前详情状态（如果详情已打开）
+  const savedState = currentDetailState.value
+  
+  // 切换布局
   useGroupedDetailLayout.value = !useGroupedDetailLayout.value
   localStorage.setItem('useGroupedDetailLayout', String(useGroupedDetailLayout.value))
   
   // 如果当前有打开的详情，需要重新打开以应用新布局
-  if (tableDetailDrawerRef.value) {
-    const currentRow = (tableDetailDrawerRef.value as any).currentDetailRow
-    const currentIndex = (tableDetailDrawerRef.value as any).currentDetailIndex
-    if (currentRow && currentIndex !== undefined) {
-      // 关闭当前详情
-      ;(tableDetailDrawerRef.value as any).handleDetailDrawerClose()
-      // 等待下一个 tick 后重新打开
-      nextTick(() => {
-        if (tableDetailDrawerRef.value) {
-          ;(tableDetailDrawerRef.value as any).handleShowDetail(currentRow, currentIndex)
-        }
-      })
+  if (savedState) {
+    // 先关闭当前详情（如果 ref 还存在）
+    if (tableDetailDrawerRef.value) {
+      try {
+        ;(tableDetailDrawerRef.value as any).handleDetailDrawerClose()
+      } catch (e) {
+        // 忽略错误，组件可能已经销毁
+      }
     }
+    
+    // 等待组件切换后重新打开详情
+    nextTick(() => {
+      if (tableDetailDrawerRef.value && savedState) {
+        ;(tableDetailDrawerRef.value as any).handleShowDetail(savedState.row, savedState.index)
+      }
+    })
   }
 }
 
