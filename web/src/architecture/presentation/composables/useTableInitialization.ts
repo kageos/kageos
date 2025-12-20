@@ -228,11 +228,21 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     const functionId = functionDetailValue?.id
     const router = functionDetailValue?.router
 
+    console.log('🔍 [useTableInitialization.initializeTable] 开始初始化表格', {
+      functionId,
+      router,
+      currentQuery: route.query,
+      currentQueryKeys: Object.keys(route.query),
+      currentState: stateManager.getState()
+    })
+
     if (isInitializing.value) {
+      console.log('🔍 [useTableInitialization.initializeTable] 正在初始化中，跳过')
       return
     }
 
     if (isMounted && !isMounted.value) {
+      console.log('🔍 [useTableInitialization.initializeTable] 组件未挂载，跳过')
       return
     }
 
@@ -243,6 +253,7 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
       // 优先级：Tab 保存的状态 > URL 参数
       // - 如果 Tab 有保存的状态（searchForm 不为空），说明是 Tab 切换，使用 Tab 的状态，不从 URL 恢复
       // - 如果 Tab 没有保存的状态（searchForm 为空），且 URL 有参数，说明是 link 跳转，从 URL 恢复
+      console.log('🔍 [useTableInitialization.initializeTable] 调用 decideRestoreStrategy')
       await decideRestoreStrategy(router || '')
       
       // 🔥 时机 1：预加载搜索表单中的用户信息
