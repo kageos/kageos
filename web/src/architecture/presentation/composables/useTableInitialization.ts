@@ -246,6 +246,30 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
       return
     }
 
+    // 🔥 在初始化之前，先检查是否需要清空状态
+    // 如果 URL 没有查询参数（刚切换函数），先清空 TableStateManager 的状态
+    const hasQueryParams = Object.keys(route.query).length > 0
+    const isLinkNavigation = route.query._link_type === 'table' || route.query._link_type === 'form'
+    
+    if (!hasQueryParams && !isLinkNavigation) {
+      console.log('🔍 [useTableInitialization.initializeTable] 刚切换函数，清空 TableStateManager 状态')
+      const currentState = stateManager.getState()
+      stateManager.setState({
+        ...currentState,
+        searchForm: {},
+        sorts: [],
+        hasManualSort: false,
+        pagination: {
+          currentPage: 1,
+          pageSize: currentState.pagination.pageSize, // 保留分页大小
+          total: 0
+        }
+      })
+      console.log('🔍 [useTableInitialization.initializeTable] 状态已清空', {
+        newState: stateManager.getState()
+      })
+    }
+
     isInitializing.value = true
 
     try {
