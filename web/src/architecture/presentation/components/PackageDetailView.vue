@@ -448,48 +448,89 @@ onMounted(() => {
 
 // 处理子项点击（跳转到对应的目录或函数）
 function handleChildClick(child: ServiceTree): void {
+  console.log('🔍 [PackageDetailView.handleChildClick] 开始处理子项点击', {
+    childName: child.name,
+    childType: child.type,
+    fullCodePath: child.full_code_path,
+    currentPath: route.path,
+    currentQuery: route.query
+  })
+  
   const applicationService = serviceFactory.getWorkspaceApplicationService()
 
   if (child.type === 'function' && child.full_code_path) {
     // 函数节点：跳转到函数页面
     const targetPath = `/workspace${child.full_code_path}`
+    console.log('🔍 [PackageDetailView.handleChildClick] 函数节点', {
+      targetPath,
+      currentPath: route.path,
+      pathMatch: route.path === targetPath
+    })
+    
     if (route.path !== targetPath) {
       // 触发节点点击，加载函数详情
       applicationService.triggerNodeClick(child)
+
+      const preserveParams = {
+        table: false,
+        search: false,
+        state: false,
+        linkNavigation: false
+      }
+      
+      console.log('🔍 [PackageDetailView.handleChildClick] 发出路由更新请求（函数）', {
+        path: targetPath,
+        query: {},
+        queryKeys: Object.keys({}),
+        queryLength: Object.keys({}).length,
+        preserveParams,
+        source: 'package-detail-child-click'
+      })
 
       // 更新路由
       eventBus.emit(RouteEvent.updateRequested, {
         path: targetPath,
         query: {},
         replace: true,
-        preserveParams: {
-          table: false,
-          search: false,
-          state: false,
-          linkNavigation: false
-        },
+        preserveParams,
         source: 'package-detail-child-click'
       })
     } else {
       // 路由已匹配，直接触发节点点击加载详情
+      console.log('🔍 [PackageDetailView.handleChildClick] 路由已匹配，直接触发节点点击')
       applicationService.triggerNodeClick(child)
     }
   } else if (child.type === 'package' && child.full_code_path) {
     // 目录节点：跳转到目录详情页面
+    console.log('🔍 [PackageDetailView.handleChildClick] 目录节点', {
+      fullCodePath: child.full_code_path
+    })
+    
     applicationService.triggerNodeClick(child)
 
     const targetPath = `/workspace${child.full_code_path}`
     if (route.path !== targetPath) {
+      const preserveParams = {
+        table: false,
+        search: false,
+        state: false,
+        linkNavigation: false
+      }
+      
+      console.log('🔍 [PackageDetailView.handleChildClick] 发出路由更新请求（目录）', {
+        path: targetPath,
+        query: {},
+        queryKeys: Object.keys({}),
+        queryLength: Object.keys({}).length,
+        preserveParams,
+        source: 'package-detail-child-click-package'
+      })
+      
       eventBus.emit(RouteEvent.updateRequested, {
         path: targetPath,
         query: {},
         replace: true,
-        preserveParams: {
-          table: false,
-          search: false,
-          state: false,
-          linkNavigation: false
-        },
+        preserveParams,
         source: 'package-detail-child-click-package'
       })
     }

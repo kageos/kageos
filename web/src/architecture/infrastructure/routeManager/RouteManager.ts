@@ -327,11 +327,26 @@ export class RouteManager {
     const preserve = request.preserveParams || {}
     const currentQuery = { ...this.route.query }
     
+    this.log('🔍 [buildQuery] 开始构建查询参数', {
+      source: request.source,
+      requestQuery: request.query,
+      requestQueryKeys: request.query ? Object.keys(request.query) : [],
+      requestQueryLength: request.query ? Object.keys(request.query).length : 0,
+      preserveParams: preserve,
+      currentQuery: currentQuery,
+      currentQueryKeys: Object.keys(currentQuery),
+      currentPath: this.route.path
+    })
+    
     // 🔥 如果 request.query 已经包含了完整的查询参数（如 TableView 的 syncToURL），
     // 则直接使用，不再应用参数保留策略
     // 注意：TableView 的 syncToURL 已经通过 preserveExistingParams 计算好了完整的 newQuery
     // 🔥 修复：如果 request.query 是空对象 {}，且所有 preserveParams 都是 false，直接返回空对象
     if (request.query && Object.keys(request.query).length > 0) {
+      this.log('🔍 [buildQuery] request.query 不为空，进入第一个分支', {
+        queryKeys: Object.keys(request.query),
+        queryLength: Object.keys(request.query).length
+      })
       // 检查是否是 link 跳转
       if (preserve.linkNavigation) {
         // 🔥 特殊处理：workspace-routing-clear-link-type 请求的 query 已经包含了所有参数（除了 _link_type）
@@ -407,28 +422,70 @@ export class RouteManager {
     // 🔥 如果 request.query 为空或未提供，则根据 preserveParams 策略从当前路由中保留参数
     const newQuery: Record<string, string | string[]> = {}
     
+    this.log('🔍 [buildQuery] request.query 为空或未提供，进入第二个分支', {
+      hasRequestQuery: !!request.query,
+      requestQueryType: request.query ? typeof request.query : 'undefined',
+      requestQueryIsObject: request.query ? (request.query instanceof Object) : false,
+      requestQueryKeys: request.query ? Object.keys(request.query) : [],
+      requestQueryLength: request.query ? Object.keys(request.query).length : 0,
+      preserveParams: preserve
+    })
+    
     // 🔥 如果 request.query 是空对象 {}，且所有 preserveParams 都是 false，直接返回空对象（清空所有参数）
     // 注意：这里需要检查 request.query 是否是空对象，如果是空对象，说明调用者明确要求清空所有参数
     if (request.query && Object.keys(request.query).length === 0) {
+      this.log('🔍 [buildQuery] request.query 是空对象 {}', {
+        preserveParams: preserve,
+        linkNavigation: preserve.linkNavigation,
+        table: preserve.table,
+        search: preserve.search,
+        state: preserve.state,
+        custom: preserve.custom
+      })
+      
       // request.query 是空对象 {}，说明调用者明确要求清空所有参数
       // 检查 preserveParams，如果所有都是 false，直接返回空对象
-      if (!preserve.linkNavigation && 
+      const shouldClear = !preserve.linkNavigation && 
           preserve.table !== true && 
           preserve.search !== true && 
           preserve.state === false && 
-          (!preserve.custom || preserve.custom.length === 0)) {
-        this.log('request.query 是空对象且所有 preserveParams 都是 false，清空所有查询参数')
+          (!preserve.custom || preserve.custom.length === 0)
+      
+      this.log('🔍 [buildQuery] 检查是否应该清空参数', {
+        shouldClear,
+        linkNavigation: preserve.linkNavigation,
+        table: preserve.table,
+        search: preserve.search,
+        state: preserve.state,
+        custom: preserve.custom
+      })
+      
+      if (shouldClear) {
+        this.log('✅ [buildQuery] request.query 是空对象且所有 preserveParams 都是 false，清空所有查询参数，返回空对象')
         return newQuery
+      } else {
+        this.log('⚠️ [buildQuery] request.query 是空对象但 preserveParams 不是全部 false，继续处理')
       }
     }
     
     // 🔥 如果所有 preserveParams 都是 false，且没有自定义参数，直接返回空对象（清空所有参数）
-    if (!preserve.linkNavigation && 
+    const allPreserveFalse = !preserve.linkNavigation && 
         preserve.table !== true && 
         preserve.search !== true && 
         preserve.state === false && 
-        (!preserve.custom || preserve.custom.length === 0)) {
-      this.log('所有 preserveParams 都是 false，清空所有查询参数')
+        (!preserve.custom || preserve.custom.length === 0)
+    
+    this.log('🔍 [buildQuery] 检查所有 preserveParams 是否都是 false', {
+      allPreserveFalse,
+      linkNavigation: preserve.linkNavigation,
+      table: preserve.table,
+      search: preserve.search,
+      state: preserve.state,
+      custom: preserve.custom
+    })
+    
+    if (allPreserveFalse) {
+      this.log('✅ [buildQuery] 所有 preserveParams 都是 false，清空所有查询参数，返回空对象')
       return newQuery
     }
     
@@ -484,6 +541,12 @@ export class RouteManager {
           ? value.filter(v => v !== null).map(v => String(v))
           : String(value)
       }
+    })
+    
+    this.log('🔍 [buildQuery] 最终构建的查询参数', {
+      newQuery,
+      newQueryKeys: Object.keys(newQuery),
+      newQueryLength: Object.keys(newQuery).length
     })
     
     return newQuery
