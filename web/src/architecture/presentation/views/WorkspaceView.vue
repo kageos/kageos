@@ -219,7 +219,7 @@
     </el-dialog>
 
     <!-- 详情抽屉 -->
-    <WorkspaceDetailDrawer
+    <TableRowDetailDrawer
       v-model:visible="detailDrawerVisible"
       v-model:mode="detailDrawerMode"
       :title="detailDrawerTitle"
@@ -362,7 +362,7 @@ import TableView from './TableView.vue'
 import ChartView from './ChartView.vue'
 import WorkspaceHeader from '../components/WorkspaceHeader.vue'
 import WorkspaceTabs from '../components/WorkspaceTabs.vue'
-import WorkspaceDetailDrawer from '../components/WorkspaceDetailDrawer.vue'
+import TableRowDetailDrawer from '../components/TableRowDetailDrawer.vue'
 import AIChatPanel from '../components/AIChatPanel.vue'
 import AgentSelectDialog from '@/components/Agent/AgentSelectDialog.vue'
 import PackageDetailView from '../components/PackageDetailView.vue'
