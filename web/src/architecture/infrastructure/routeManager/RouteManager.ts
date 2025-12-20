@@ -274,21 +274,45 @@ export class RouteManager {
     }
     
     this.isUpdating = true
-    this.log('处理路由更新请求', { request })
+    this.log('🔍 [handleUpdateRequest] 开始处理路由更新请求', { 
+      request,
+      requestQuery: request.query,
+      requestQueryKeys: request.query ? Object.keys(request.query) : [],
+      requestQueryLength: request.query ? Object.keys(request.query).length : 0,
+      preserveParams: request.preserveParams,
+      source: request.source
+    })
     
     try {
       // 1. 构建新的查询参数（应用参数保留策略）
       const newQuery = this.buildQuery(request)
       
+      console.log('🔍 [handleUpdateRequest] buildQuery 返回结果', {
+        newQuery,
+        newQueryKeys: Object.keys(newQuery),
+        newQueryLength: Object.keys(newQuery).length
+      })
+      
       // 2. 执行路由更新
       const targetPath = request.path || this.route.path
       const replace = request.replace !== false
       
-      this.log('执行路由更新', { 
+      this.log('🔍 [handleUpdateRequest] 执行路由更新', { 
         path: targetPath, 
-        query: newQuery, 
+        query: newQuery,
+        queryKeys: Object.keys(newQuery),
+        queryLength: Object.keys(newQuery).length,
         replace,
         source: request.source 
+      })
+      
+      console.log('🔍 [handleUpdateRequest] 准备执行路由更新', {
+        targetPath,
+        newQuery,
+        newQueryKeys: Object.keys(newQuery),
+        newQueryLength: Object.keys(newQuery).length,
+        replace,
+        source: request.source
       })
       
       if (replace) {
@@ -296,6 +320,13 @@ export class RouteManager {
       } else {
         await this.router.push({ path: targetPath, query: newQuery })
       }
+      
+      console.log('🔍 [handleUpdateRequest] 路由更新完成', {
+        targetPath,
+        finalQuery: newQuery,
+        finalQueryKeys: Object.keys(newQuery),
+        finalQueryLength: Object.keys(newQuery).length
+      })
       
       // 🔥 Tab 功能已删除，不再保存 Tab 路由状态
       
@@ -306,7 +337,13 @@ export class RouteManager {
         source: request.source
       })
       
-      this.log('路由更新完成', { path: targetPath, source: request.source })
+      this.log('🔍 [handleUpdateRequest] 路由更新完成，已发出 updateCompleted 事件', { 
+        path: targetPath, 
+        query: newQuery,
+        queryKeys: Object.keys(newQuery),
+        queryLength: Object.keys(newQuery).length,
+        source: request.source 
+      })
     } catch (error) {
       Logger.error('RouteManager', '路由更新失败', error)
     } finally {
