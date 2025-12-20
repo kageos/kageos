@@ -278,7 +278,7 @@ const props = defineProps<Props>()
  * 是否使用分组布局的详情页面
  * 默认使用新布局，可以通过切换按钮或 localStorage 控制
  */
-const useGroupedDetailLayout = ref<boolean>(() => {
+const getInitialLayout = (): boolean => {
   // 优先从 localStorage 读取用户设置
   const stored = localStorage.getItem('useGroupedDetailLayout')
   if (stored === 'true') {
@@ -289,7 +289,8 @@ const useGroupedDetailLayout = ref<boolean>(() => {
   }
   // 默认使用新布局
   return true
-})
+}
+const useGroupedDetailLayout = ref<boolean>(getInitialLayout())
 
 /**
  * 切换详情布局
@@ -495,6 +496,9 @@ const handleClearAllSorts = (): void => {
 
 /** TableDetailDrawer 组件引用（兼容两种组件） */
 const tableDetailDrawerRef = ref<InstanceType<typeof TableDetailDrawer> | InstanceType<typeof TableDetailDrawerGrouped>>()
+
+/** 当前详情状态（用于布局切换时保存状态） */
+const currentDetailState = ref<{ row: any; index: number } | null>(null)
 
 /**
  * 显示详情
