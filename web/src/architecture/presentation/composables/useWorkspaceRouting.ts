@@ -345,15 +345,11 @@ export function useWorkspaceRouting(options: {
         return
       }
       
-      // 处理 workspace-node-click：需要创建/激活 Tab
+      // 处理 workspace-node-click：需要加载函数详情
       // 处理 workspace-node-click-package：需要设置当前函数（package 类型）
-      // 处理 tab 切换相关：需要刷新函数界面（确保函数详情已加载）
-      // 🔥 Tab 功能已删除，相关事件已废弃
+      // 🔥 Tab 功能已删除，tab-switch 相关事件已废弃
       if (payload.source === 'workspace-node-click' || 
-          payload.source === 'workspace-node-click-package' ||
-          payload.source === 'tab-switch' || 
-          payload.source === 'tab-switch-activeTabId' || 
-          payload.source === 'tab-click') {
+          payload.source === 'workspace-node-click-package') {
         // 🔥 防重复处理：如果已经处理过相同的 updateCompleted 事件，跳过
         const eventKey = `${payload.source}:${payload.path}`
         if (lastProcessedUpdateCompleted && 
