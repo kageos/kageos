@@ -14,6 +14,7 @@ import { preserveQueryParamsForTable, preserveQueryParamsForForm, isFunctionGrou
 import { serviceFactory } from '../../infrastructure/factories'
 import { eventBus, RouteEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { Logger } from '@/core/utils/logger'
+import { getAppWithServiceTree } from '@/api/app'
 import type { ServiceTree, App } from '../../domain/services/WorkspaceDomainService'
 import type { App as AppType, ServiceTree as ServiceTreeType } from '@/types'
 
@@ -173,44 +174,51 @@ export function useWorkspaceRouting(options: {
     try {
       isLoadingAppFromRoute = true
       
-      // 确保应用列表已加载
-      if (options.appList().length === 0) {
-        await options.loadAppList()
-      }
+      // 优化：如果路由中有应用信息，直接使用合并接口获取应用详情和服务目录树
+      // 不需要先加载整个应用列表
+      // triggerAppSwitch 内部会调用合并接口，所以我们可以直接构造一个临时的 app 对象
+      const currentAppState = options.currentApp()
       
-      // 从已加载的应用列表中查找
-      const app = options.appList().find((a: AppType) => a.user === user && a.code === appCode)
-      
-      if (!app) {
+      // 检查当前应用是否已经是目标应用（通过 user 和 code 匹配，因为 id 可能还没有）
+      if (currentAppState && currentAppState.user === user && currentAppState.code === appCode) {
+        // 当前应用已经是目标应用，不需要切换
+        Logger.debug('useWorkspaceRouting', '当前应用已经是目标应用，跳过切换', { user, appCode })
         return
       }
       
-      const targetAppId = app.id
-      let appSwitched = false
-      const pendingAppId = ref<number | string | null>(null)
-
-      // 检查当前应用是否已经是目标应用
-      const currentAppState = options.currentApp()
-      if (!currentAppState || String(currentAppState.id) !== String(targetAppId)) {
-        // 需要切换应用
-        if (String(pendingAppId.value) !== String(targetAppId)) {
-          pendingAppId.value = targetAppId
-          try {
-            const appForService: App = {
-              id: app.id,
-              user: app.user,
-              code: app.code,
-              name: app.name
+      // 构造临时 app 对象（只有基本信息，triggerAppSwitch 会通过合并接口获取完整信息）
+      const appForService: App = {
+        id: 0, // 临时 ID，triggerAppSwitch 会通过合并接口获取真实的 ID
+        user: user,
+        code: appCode,
+        name: '' // 临时名称，triggerAppSwitch 会通过合并接口获取真实的名称
+      }
+      
+      try {
+        // triggerAppSwitch 内部会使用合并接口获取应用详情和服务目录树
+        // 这样就不需要先加载整个应用列表了
+        await applicationService.triggerAppSwitch(appForService)
+      } catch (error) {
+        Logger.error('useWorkspaceRouting', '切换应用失败', error)
+        // 如果切换失败，回退到加载应用列表
+        if (options.appList().length === 0) {
+          await options.loadAppList()
+          const foundApp = options.appList().find((a: AppType) => a.user === user && a.code === appCode)
+          if (foundApp) {
+            const appForServiceFallback: App = {
+              id: foundApp.id,
+              user: foundApp.user,
+              code: foundApp.code,
+              name: foundApp.name
             }
-            await applicationService.triggerAppSwitch(appForService)
-            appSwitched = true
-          } catch (error) {
-            // 静默失败
-            pendingAppId.value = null
-            return
+            await applicationService.triggerAppSwitch(appForServiceFallback)
           }
         }
+        return
       }
+      
+      // 标记已切换（用于后续处理）
+      let appSwitched = true
 
       // 处理子路径（打开 Tab）
       if (pathSegments.length > 2) {

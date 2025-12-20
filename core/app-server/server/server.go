@@ -424,6 +424,7 @@ func (s *Server) initRouter(ctx context.Context) error {
 	s.httpServer.Use(middleware2.Cors())
 	// ✅ 移除 WithTraceId 中间件，统一在网关生成 TraceId
 	// s.httpServer.Use(middleware2.WithTraceId())
+	// 注意：gzip 压缩只在服务树接口上使用，在路由层面配置
 
 	// 设置路由
 	s.setupRoutes()

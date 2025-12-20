@@ -43,29 +43,56 @@ export class ServiceTreeLoaderImpl implements IServiceTreeLoader {
     const loadPromise = (async () => {
       try {
         Logger.debug('ServiceTreeLoader', '开始加载服务目录树', app.user, app.code)
-        // 注意：API 路径是 /workspace/api/v1/service_tree（下划线），不是 /workspace/api/v1/service-tree/list
-        const response = await this.apiClient.get<any>('/workspace/api/v1/service_tree', {
-          user: app.user,
-          app: app.code
-        })
+        // 使用合并接口获取应用详情和服务目录树（减少请求次数）
+        // 接口路径：/workspace/api/v1/app/{code}/tree
+        const response = await this.apiClient.get<any>(`/workspace/api/v1/app/${app.code}/tree`, {})
         
         Logger.debug('ServiceTreeLoader', 'API 响应', response)
         
-        // 处理响应数据：可能是数组，也可能是分页对象
+        // 处理响应数据：合并接口返回 { app: App, service_tree: ServiceTree[] }
         let tree: ServiceTree[] = []
-        if (Array.isArray(response)) {
-          tree = response
-        } else if (response && typeof response === 'object' && 'items' in response) {
-          tree = response.items || []
-        } else if (response && typeof response === 'object' && 'data' in response) {
-          tree = Array.isArray(response.data) ? response.data : []
+        if (response && typeof response === 'object') {
+          // 如果是合并接口的响应格式
+          if ('service_tree' in response && Array.isArray(response.service_tree)) {
+            tree = response.service_tree
+          }
+          // 兼容旧的单独接口格式（数组或分页对象）
+          else if (Array.isArray(response)) {
+            tree = response
+          } else if ('items' in response && Array.isArray(response.items)) {
+            tree = response.items || []
+          } else if ('data' in response && Array.isArray(response.data)) {
+            tree = response.data || []
+          }
         }
         
         Logger.debug('ServiceTreeLoader', '解析后的服务目录树，节点数', tree.length)
         return tree
       } catch (error) {
         Logger.error('ServiceTreeLoader', '加载服务目录树失败', error)
-        return []
+        // 如果合并接口失败，回退到旧的单独接口
+        try {
+          Logger.debug('ServiceTreeLoader', '回退到旧的单独接口')
+          const fallbackResponse = await this.apiClient.get<any>('/workspace/api/v1/service_tree', {
+            user: app.user,
+            app: app.code
+          })
+          
+          let tree: ServiceTree[] = []
+          if (Array.isArray(fallbackResponse)) {
+            tree = fallbackResponse
+          } else if (fallbackResponse && typeof fallbackResponse === 'object' && 'items' in fallbackResponse) {
+            tree = fallbackResponse.items || []
+          } else if (fallbackResponse && typeof fallbackResponse === 'object' && 'data' in fallbackResponse) {
+            tree = Array.isArray(fallbackResponse.data) ? fallbackResponse.data : []
+          }
+          
+          Logger.debug('ServiceTreeLoader', '回退接口解析后的服务目录树，节点数', tree.length)
+          return tree
+        } catch (fallbackError) {
+          Logger.error('ServiceTreeLoader', '回退接口也失败', fallbackError)
+          return []
+        }
       } finally {
         // 加载完成后，从 Map 中移除
         this.loadingPromises.delete(cacheKey)

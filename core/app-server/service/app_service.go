@@ -768,6 +768,34 @@ func (a *AppService) GetApps(ctx context.Context, req *dto.GetAppsReq) (*dto.Get
 	}, nil
 }
 
+// GetAppDetail 获取应用详情
+func (a *AppService) GetAppDetail(ctx context.Context, req *dto.GetAppDetailReq) (*dto.GetAppDetailResp, error) {
+	// 从数据库获取应用信息
+	app, err := a.appRepo.GetAppByUserName(req.User, req.App)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("应用不存在: %s/%s", req.User, req.App)
+		}
+		return nil, fmt.Errorf("获取应用详情失败: %w", err)
+	}
+
+	// 转换为响应格式
+	return &dto.GetAppDetailResp{
+		AppInfo: dto.AppInfo{
+			ID:        app.ID,
+			User:      app.User,
+			Code:      app.Code,
+			Name:      app.Name,
+			Status:    app.Status,
+			Version:   app.Version,
+			NatsID:    app.NatsID,
+			HostID:    app.HostID,
+			CreatedAt: time.Time(app.CreatedAt).Format("2006-01-02 15:04:05"),
+			UpdatedAt: time.Time(app.UpdatedAt).Format("2006-01-02 15:04:05"),
+		},
+	}, nil
+}
+
 // createDirectorySnapshots 创建目录快照（检测目录变更并创建快照）
 func (a *AppService) createDirectorySnapshots(ctx context.Context, appID int64, app *model.App, diffData *dto.DiffData, req *dto.UpdateAppReq, duration int64, gitCommitHash string) error {
 	// 构建 summary：优先使用 Summary，如果没有则组合 Requirement 和 ChangeDescription

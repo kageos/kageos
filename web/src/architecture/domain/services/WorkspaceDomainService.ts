@@ -67,19 +67,23 @@ export class WorkspaceDomainService {
 
   /**
    * 加载函数详情
+   * @param node 函数节点
+   * @param forceReload 是否强制重新加载（忽略缓存），默认 false
    */
-  async loadFunction(node: ServiceTree): Promise<FunctionDetail> {
+  async loadFunction(node: ServiceTree, forceReload: boolean = false): Promise<FunctionDetail> {
     const state = this.stateManager.getState()
     
     // 生成缓存键
     const key = node.ref_id ? `id:${node.ref_id}` : `path:${node.full_code_path}`
     
-    // 先检查缓存
-    const cached = state.functionDetails.get(key)
-    if (cached) {
-      // 触发事件（使用缓存）
-      this.eventBus.emit(WorkspaceEvent.functionLoaded, { node, detail: cached })
-      return cached
+    // 先检查缓存（如果不强制重新加载）
+    if (!forceReload) {
+      const cached = state.functionDetails.get(key)
+      if (cached) {
+        // 触发事件（使用缓存）
+        this.eventBus.emit(WorkspaceEvent.functionLoaded, { node, detail: cached })
+        return cached
+      }
     }
 
     // 加载函数详情
@@ -389,6 +393,35 @@ export class WorkspaceDomainService {
   hasTab(tabId: string): boolean {
     const state = this.stateManager.getState()
     return state.tabs.some(t => t.id === tabId)
+  }
+
+  /**
+   * 获取 Tab
+   */
+  getTab(tabId: string): WorkspaceTab | null {
+    const state = this.stateManager.getState()
+    return state.tabs.find(t => t.id === tabId) || null
+  }
+
+  /**
+   * 更新 Tab 的 node（用于切换函数时更新 Tab 关联的节点）
+   */
+  updateTabNode(tabId: string, node: ServiceTree): void {
+    const state = this.stateManager.getState()
+    const tabIndex = state.tabs.findIndex(t => t.id === tabId)
+    if (tabIndex >= 0) {
+      const updatedTabs = [...state.tabs]
+      updatedTabs[tabIndex] = {
+        ...updatedTabs[tabIndex],
+        node: node,
+        title: node.name || node.code,
+        path: node.full_code_path || String(node.id)
+      }
+      this.stateManager.setState({
+        ...state,
+        tabs: updatedTabs
+      })
+    }
   }
 }
 

@@ -36,8 +36,11 @@ func (s *Server) setupRoutes() {
 	// 应用管理路由（需要JWT验证）
 	app := apiV1.Group("/app")
 	app.Use(middleware2.JWTAuth()) // 应用管理需要JWT认证
-	appHandler := v1.NewApp(s.appService)
+	appHandler := v1.NewApp(s.appService, s.serviceTreeService)
 	app.GET("/list", appHandler.GetApps)
+	app.GET("/detail/:app", appHandler.GetAppDetail)
+	// 服务树接口使用 gzip 压缩
+	app.GET("/:app/tree", middleware2.Gzip(), appHandler.GetAppWithServiceTree)
 	app.POST("/create", appHandler.CreateApp)
 	app.POST("/update/:app", appHandler.UpdateApp)
 	app.DELETE("/delete/:app", appHandler.DeleteApp)
@@ -58,7 +61,8 @@ func (s *Server) setupRoutes() {
 	serviceTreeAuth := serviceTree.Group("")
 	serviceTreeAuth.Use(middleware2.JWTAuth()) // 服务目录管理需要JWT认证
 	serviceTreeAuth.POST("", serviceTreeHandler.CreateServiceTree)
-	serviceTreeAuth.GET("", serviceTreeHandler.GetServiceTree)
+	// 服务树接口使用 gzip 压缩
+	serviceTreeAuth.GET("", middleware2.Gzip(), serviceTreeHandler.GetServiceTree)
 	serviceTreeAuth.PUT("", serviceTreeHandler.UpdateServiceTree)
 	serviceTreeAuth.DELETE("", serviceTreeHandler.DeleteServiceTree)
 	serviceTreeAuth.POST("/copy", serviceTreeHandler.CopyServiceTree)                 // 复制服务目录
