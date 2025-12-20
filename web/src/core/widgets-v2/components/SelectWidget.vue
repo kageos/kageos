@@ -137,7 +137,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, onActivated, onDeactivated, watch, nextTick, withDefaults } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick, withDefaults } from 'vue'
 import { ElInput, ElMessage, ElTag, ElIcon } from 'element-plus'
 import { ArrowDown, CircleClose } from '@element-plus/icons-vue'
 import FuzzySearchDialog from './FuzzySearchDialog.vue'
@@ -770,7 +770,7 @@ let unsubscribeFormInitialized: (() => void) | null = null
 
 // 🔥 注册监听器的函数（避免重复代码）
 const registerFormInitializedListener = () => {
-  // 🔥 先取消注册旧的监听器（避免 keep-alive 场景下重复注册）
+  // 🔥 先取消注册旧的监听器（避免重复注册）
   if (unsubscribeFormInitialized) {
     unsubscribeFormInitialized()
     unsubscribeFormInitialized = null
@@ -820,8 +820,19 @@ const unregisterFormInitializedListener = () => {
 // 初始化
 onMounted(() => {
   initOptions()
-  // 🔥 不在 onMounted 中注册监听器，因为 onActivated 会被调用
-  // registerFormInitializedListener()
+  
+  // 🔥 注册监听器（移除 keep-alive 后，使用 onMounted 注册）
+  // 🔥 只在有 OnSelectFuzzy 回调且不是 table-cell 模式时才注册监听器
+  if (hasCallback.value && props.mode !== 'table-cell') {
+    Logger.debug('[SelectWidget]', 'onMounted - 注册监听器', { 
+      fieldCode: props.field.code,
+      hasCallback: hasCallback.value,
+      mode: props.mode,
+      rawValue: props.value?.raw,
+      formRenderer: !!props.formRenderer
+    })
+    registerFormInitializedListener()
+  }
   
   // 🔥 如果已经有值了，也尝试触发一次（处理表单已经初始化完成的情况）
   if (hasCallback.value && props.value?.raw && props.formRenderer) {
@@ -833,35 +844,11 @@ onMounted(() => {
   }
 })
 
-// 🔥 keep-alive 场景：跟踪组件激活状态
-const isComponentActive = ref(true) // 默认激活（首次挂载时）
-
-// 🔥 keep-alive 场景：组件激活时注册监听器
-// 注意：首次挂载时也会触发 onActivated，所以不需要在 onMounted 中注册
-// 🔥 优化：只在有 OnSelectFuzzy 回调且不是 table-cell 模式时才注册监听器
-onActivated(() => {
-  isComponentActive.value = true // 🔥 标记为激活
-  
-  // 🔥 只在需要时才注册监听器（有回调且不是表格单元格模式）
-  if (hasCallback.value && props.mode !== 'table-cell') {
-    Logger.debug('[SelectWidget]', 'onActivated - 注册监听器', { 
-      fieldCode: props.field.code,
-      hasCallback: hasCallback.value,
-      mode: props.mode,
-      rawValue: props.value?.raw,
-      formRenderer: !!props.formRenderer
-    })
-    registerFormInitializedListener()
-  }
-})
-
-// 🔥 keep-alive 场景：组件失活时取消注册监听器
-onDeactivated(() => {
-  isComponentActive.value = false // 🔥 标记为失活
-  
+// 🔥 组件卸载时取消注册监听器
+onUnmounted(() => {
   // 🔥 只在已注册的情况下才取消注册
   if (unsubscribeFormInitialized) {
-    Logger.debug('[SelectWidget]', 'onDeactivated - 取消注册监听器', { 
+    Logger.debug('[SelectWidget]', 'onUnmounted - 取消注册监听器', { 
       fieldCode: props.field.code
     })
     unregisterFormInitializedListener()
@@ -893,20 +880,10 @@ const triggerSearchIfNeeded = (rawValue: any, formRenderer: any, mode: string) =
       rawValue,
       hasCallback: hasCallback.value,
       formRenderer: !!formRenderer,
-      isComponentActive: isComponentActive.value
     })
   }
   
-  // 🔥 关键：如果组件失活，跳过搜索（keep-alive 场景）
-  if (!isComponentActive.value) {
-    if (shouldLog) {
-      Logger.debug('[SelectWidget]', 'triggerSearchIfNeeded 跳过：组件已失活', {
-        fieldCode: props.field.code,
-        rawValue
-      })
-    }
-    return false
-  }
+  // 🔥 移除 keep-alive 后，组件每次都会重新挂载，不需要检查激活状态
   
   if (!hasCallback.value || !formRenderer) {
     if (shouldLog) {
@@ -929,7 +906,7 @@ const triggerSearchIfNeeded = (rawValue: any, formRenderer: any, mode: string) =
     return false
   }
   
-  // 🔥 获取当前函数 ID（用于 keep-alive 场景下的防重复调用）
+  // 🔥 获取当前函数 ID（用于防重复调用）
   const currentFunctionId = formRenderer.getFunctionDetail?.()?.id || null
   
   if (shouldLog) {
@@ -962,7 +939,7 @@ const triggerSearchIfNeeded = (rawValue: any, formRenderer: any, mode: string) =
   }
   
   // 🔥 检查是否需要触发搜索
-  // keep-alive 场景下：如果函数 ID 相同、值相同、router 相同，说明已经搜索过，不需要重复调用
+  // 如果函数 ID 相同、值相同、router 相同，说明已经搜索过，不需要重复调用
   const shouldTrigger = 
     rawValue !== null && 
     rawValue !== undefined && 
@@ -1043,16 +1020,14 @@ watch(
         fieldCode: props.field.code,
         newRaw,
         oldRaw,
-        isComponentActive: isComponentActive.value,
         formRenderer: !!props.formRenderer
       })
     }
     
-    // 只在 formRenderer 已准备好且值真正变化且组件激活且有回调时触发
-    // 注意：triggerSearchIfNeeded 内部也会检查 isComponentActive，这里是双重保险
+    // 只在 formRenderer 已准备好且值真正变化且有回调时触发
+    // 🔥 移除 keep-alive 后，组件每次都会重新挂载，不需要检查激活状态
     if (hasCallback.value && 
         props.mode !== 'table-cell' && 
-        isComponentActive.value && 
         props.formRenderer && 
         newRaw !== null && 
         newRaw !== undefined && 
