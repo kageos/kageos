@@ -406,6 +406,16 @@ export class RouteManager {
     // 🔥 如果 request.query 为空或未提供，则根据 preserveParams 策略从当前路由中保留参数
     const newQuery: Record<string, string | string[]> = {}
     
+    // 🔥 如果所有 preserveParams 都是 false，且没有自定义参数，直接返回空对象（清空所有参数）
+    if (!preserve.linkNavigation && 
+        preserve.table !== true && 
+        preserve.search !== true && 
+        preserve.state === false && 
+        (!preserve.custom || preserve.custom.length === 0)) {
+      this.log('所有 preserveParams 都是 false，清空所有查询参数')
+      return newQuery
+    }
+    
     // link 跳转：保留参数（除了临时参数和 table 参数）
     // 🔥 修复：link 跳转到 form 函数时，不应该保留 table 参数（page, page_size, sorts）
     if (preserve.linkNavigation) {
@@ -436,15 +446,16 @@ export class RouteManager {
       let shouldPreserve = false
       
       // 保留状态参数（_ 开头，但排除 _node_type）
-      if (preserve.state !== false && key.startsWith('_')) {
+      // 🔥 修复：只有当 preserve.state 明确为 true 时才保留，false 时不保留
+      if (preserve.state === true && key.startsWith('_')) {
         shouldPreserve = true
       }
       // 保留 table 参数
-      else if (preserve.table && TABLE_PARAM_KEYS.includes(key as any)) {
+      else if (preserve.table === true && TABLE_PARAM_KEYS.includes(key as any)) {
         shouldPreserve = true
       }
       // 保留搜索参数
-      else if (preserve.search && SEARCH_PARAM_KEYS.includes(key as any)) {
+      else if (preserve.search === true && SEARCH_PARAM_KEYS.includes(key as any)) {
         shouldPreserve = true
       }
       // 保留自定义参数
