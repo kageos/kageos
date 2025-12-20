@@ -53,7 +53,7 @@ export class WorkspaceApplicationService {
     if (node.type === 'function') {
       // 🔥 优化：直接加载函数详情，不先切换目录
       // 这样可以避免先显示目录详情再切换到函数详情的闪烁问题
-      const detail = await this.domainService.loadFunction(node, false)
+      const detail = await this.domainService.loadFunction(node)
       
       // 加载完成后，一次性设置目录和函数，避免中间状态
       const functionDirectory = this.getFunctionDirectory(node)

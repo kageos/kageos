@@ -1253,7 +1253,17 @@ const handleCreateDialogClose = (): void => {
         }
       })
     }
-    router.replace({ query })
+    // 🔥 通过事件总线更新路由，统一管理
+    eventBus.emit(RouteEvent.updateRequested, {
+      query,
+      replace: true,
+      preserveParams: {
+        table: true,  // 保留 table 参数（分页、排序等）
+        search: true, // 保留搜索参数
+        state: true   // 保留状态参数
+      },
+      source: 'table-create-dialog-close'
+    })
   }
 }
 

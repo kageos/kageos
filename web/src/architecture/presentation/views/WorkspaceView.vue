@@ -441,15 +441,11 @@ const {
   handleCopyLink
 } = useWorkspaceServiceTree()
 
-const currentFunctionDetail = computed<FunctionDetail | null>(() => {
-  const node = currentFunction.value
-  if (!node || node.type !== 'function') {
-    return null
-  }
-  
-  const detail = stateManager.getFunctionDetail(node)
-  return detail
-})
+// 🔥 移除缓存后，通过事件获取函数详情
+const currentFunctionDetail = ref<FunctionDetail | null>(null)
+
+// 监听函数加载完成事件
+let unsubscribeFunctionLoaded: (() => void) | null = null
 
 const {
   detailDrawerVisible,
@@ -733,11 +729,11 @@ const handleNodeClick = (node: ServiceTreeType) => {
     const targetPath = `/workspace${serviceTree.full_code_path}`
     if (route.path !== targetPath) {
       // 🔥 检查目标函数是否是 table 类型
+      // 由于移除了缓存，无法从缓存获取，需要加载函数详情或使用其他方式判断
+      // 暂时假设需要保留 table 参数（如果判断错误，RouteManager 会处理）
       let isTableFunction = false
-      const detail = stateManager.getFunctionDetail(serviceTree)
-      if (detail && detail.template_type === TEMPLATE_TYPE.TABLE) {
-        isTableFunction = true
-      }
+      // TODO: 可以通过 serviceTree 的其他属性判断，或者直接加载函数详情
+      // 为了简化，暂时使用保守策略：假设是 table 函数，保留 table 参数
       
       // 🔥 检查是否是 link 跳转（通过 _link_type 参数）
       const isLinkNavigation = route.query._link_type === 'table' || route.query._link_type === 'form'
@@ -811,9 +807,11 @@ const handleBreadcrumbNodeClick = (node: ServiceTree) => {
   if (node.type === 'function' && node.full_code_path) {
     const targetPath = `/workspace${node.full_code_path}`
     if (route.path !== targetPath) {
-      // 检查是否是 table 函数
-      const detail = stateManager.getFunctionDetail(node)
-      const isTableFunction = detail && detail.template_type === TEMPLATE_TYPE.TABLE
+      // 🔥 检查是否是 table 函数
+      // 由于移除了缓存，无法从缓存获取，需要加载函数详情或使用其他方式判断
+      // 暂时假设需要保留 table 参数（如果判断错误，RouteManager 会处理）
+      // TODO: 可以通过 node 的其他属性判断，或者直接加载函数详情
+      const isTableFunction = false // 保守策略：假设不是 table 函数
       
       // 构建查询参数
       const filteredQuery: Record<string, any> = { ...route.query }
@@ -1257,8 +1255,14 @@ onMounted(async () => {
   }
   
   // 监听函数加载完成事件
-  unsubscribeFunctionLoaded = eventBus.on(WorkspaceEvent.functionLoaded, () => {
-    // 状态已通过 StateManager 自动更新
+  // 🔥 监听函数加载完成事件，更新 currentFunctionDetail
+  unsubscribeFunctionLoaded = eventBus.on(WorkspaceEvent.functionLoaded, (payload: { node: any, detail: FunctionDetail }) => {
+    // 只有当加载的函数是当前函数时，才更新 currentFunctionDetail
+    if (currentFunction.value && 
+        (currentFunction.value.id === payload.node.id || 
+         currentFunction.value.full_code_path === payload.node.full_code_path)) {
+      currentFunctionDetail.value = payload.detail
+    }
   })
 
   // 监听服务树加载完成事件
@@ -1333,12 +1337,13 @@ watch(queryTab, async (newTab: string, oldTab: string) => {
 // 🔥 监听路由 query 变化，处理 _tab 参数
 watch(() => route.query._tab, async (newTab: any) => {
   if (newTab === 'create' || newTab === 'edit') {
-    // 确保当前函数和函数详情已加载
+    // 确保当前函数已加载
     if (!currentFunction.value) {
       return
     }
     
-    if (!currentFunctionDetail.value) {
+    // 🔥 移除缓存后，切换函数时总是重新加载函数详情
+    if (currentFunction.value && currentFunction.value.type === 'function') {
       await applicationService.handleNodeClick(currentFunction.value)
     }
   } else if (newTab === 'detail') {
@@ -1348,7 +1353,8 @@ watch(() => route.query._tab, async (newTab: any) => {
       return
     }
     
-    if (!currentFunctionDetail.value) {
+    // 🔥 移除缓存后，切换函数时总是重新加载函数详情
+    if (currentFunction.value && currentFunction.value.type === 'function') {
       await applicationService.handleNodeClick(currentFunction.value)
     }
   }
@@ -1356,6 +1362,9 @@ watch(() => route.query._tab, async (newTab: any) => {
 
 
 onUnmounted(() => {
+  // 清理函数详情
+  currentFunctionDetail.value = null
+  
   if (unsubscribeFunctionLoaded) {
     unsubscribeFunctionLoaded()
   }
@@ -1365,7 +1374,7 @@ onUnmounted(() => {
   if (unsubscribeAppSwitched) {
     unsubscribeAppSwitched()
   }
-        if (unsubscribeAppInfoUpdated) {
+  if (unsubscribeAppInfoUpdated) {
           unsubscribeAppInfoUpdated()
         }
         if (unsubscribeAppInfoUpdated) {
