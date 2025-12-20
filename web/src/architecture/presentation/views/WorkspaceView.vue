@@ -762,52 +762,24 @@ const buildLinkNavigationQuery = (): Record<string, string | string[]> => {
  */
 const handleFunctionNodeRoute = (node: ServiceTree, source: string): void => {
   if (!node.full_code_path) {
-    console.log('🔍 [handleFunctionNodeRoute] node.full_code_path 为空，返回')
     return
   }
   
   const targetPath = buildWorkspacePath(node.full_code_path)
-  console.log('🔍 [handleFunctionNodeRoute] 开始处理函数节点路由', {
-    nodeName: node.name,
-    nodeType: node.type,
-    fullCodePath: node.full_code_path,
-    targetPath,
-    currentPath: route.path,
-    currentQuery: route.query,
-    source
-  })
   
   if (route.path === targetPath) {
     // 路由已匹配，直接触发节点点击加载详情（避免路由更新循环）
-    console.log('🔍 [handleFunctionNodeRoute] 路由已匹配，直接触发节点点击')
     applicationService.triggerNodeClick(node)
     return
   }
   
   const isLink = isLinkNavigation()
-  console.log('🔍 [handleFunctionNodeRoute] 检查是否是 link 跳转', {
-    isLink,
-    linkType: route.query._link_type
-  })
   
   // 🔥 构建查询参数
   // 只有 link 跳转时才保留参数，普通切换函数时清空所有参数
-  let preservedQuery: Record<string, string | string[]>
-  if (isLink) {
-    // link 跳转：保留所有参数（除了 _link_type）
-    preservedQuery = buildLinkNavigationQuery()
-    console.log('🔍 [handleFunctionNodeRoute] link 跳转，保留参数', {
-      preservedQuery,
-      preservedQueryKeys: Object.keys(preservedQuery)
-    })
-  } else {
-    // 🔥 普通切换函数：清空所有查询参数，避免参数污染
-    preservedQuery = {}
-    console.log('🔍 [handleFunctionNodeRoute] 普通切换函数，清空所有参数', {
-      preservedQuery,
-      preservedQueryKeys: Object.keys(preservedQuery)
-    })
-  }
+  const preservedQuery: Record<string, string | string[]> = isLink
+    ? buildLinkNavigationQuery()  // link 跳转：保留所有参数（除了 _link_type）
+    : {}                           // 普通切换函数：清空所有查询参数，避免参数污染
   
   const preserveParams = {
     table: false,      // 🔥 不再保留 table 参数
@@ -815,15 +787,6 @@ const handleFunctionNodeRoute = (node: ServiceTree, source: string): void => {
     state: false,      // 🔥 不再保留状态参数
     linkNavigation: isLink  // 只有 link 跳转时才保留参数
   }
-  
-  console.log('🔍 [handleFunctionNodeRoute] 发出路由更新请求', {
-    path: targetPath,
-    query: preservedQuery,
-    queryKeys: Object.keys(preservedQuery),
-    queryLength: Object.keys(preservedQuery).length,
-    preserveParams,
-    source
-  })
   
   // 发出路由更新请求事件
   eventBus.emit(RouteEvent.updateRequested, {
