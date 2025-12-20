@@ -348,7 +348,7 @@ export function useWorkspaceRouting(options: {
       // 处理 workspace-node-click：需要创建/激活 Tab
       // 处理 workspace-node-click-package：需要设置当前函数（package 类型）
       // 处理 tab 切换相关：需要刷新函数界面（确保函数详情已加载）
-      // 注意：tab-switch 是 RouteManager.handleTabSwitch 发出的，tab-switch-activeTabId 和 tab-click 是 useWorkspaceTabs 发出的
+      // 🔥 Tab 功能已删除，相关事件已废弃
       if (payload.source === 'workspace-node-click' || 
           payload.source === 'workspace-node-click-package' ||
           payload.source === 'tab-switch' || 
