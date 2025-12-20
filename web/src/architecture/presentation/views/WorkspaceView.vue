@@ -1364,9 +1364,15 @@ onUnmounted(() => {
   if (unsubscribeServiceTreeLoaded) {
     unsubscribeServiceTreeLoaded()
   }
-  if (unsubscribeAppSwitched) {
-    unsubscribeAppSwitched()
-  }
+        if (unsubscribeAppSwitched) {
+          unsubscribeAppSwitched()
+        }
+        if (unsubscribeAppInfoUpdated) {
+          unsubscribeAppInfoUpdated()
+        }
+        if (unsubscribeAppInfoUpdated) {
+          unsubscribeAppInfoUpdated()
+        }
 })
 </script>
 

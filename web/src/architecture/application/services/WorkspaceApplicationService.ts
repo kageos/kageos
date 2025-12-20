@@ -135,16 +135,42 @@ export class WorkspaceApplicationService {
   async handleAppSwitch(app: App): Promise<void> {
     // 🔥 检查当前应用是否已经是目标应用，避免重复切换
     const currentApp = this.domainService.getCurrentApp()
-    if (currentApp && currentApp.id === app.id) {
+    if (currentApp && currentApp.id === app.id && app.id !== 0) {
       // 当前应用已经是目标应用，不需要切换
       return
     }
     
+    // 🔥 修复：如果 app.id 是 0（临时值），通过合并接口获取完整的应用信息
+    let appToSwitch = app
+    if (app.id === 0) {
+      try {
+        // 动态导入 getAppWithServiceTree，避免循环依赖
+        const { getAppWithServiceTree } = await import('@/api/app')
+        const workspaceData = await getAppWithServiceTree(app.code)
+        if (workspaceData && workspaceData.app) {
+          appToSwitch = {
+            id: workspaceData.app.id,
+            user: workspaceData.app.user,
+            code: workspaceData.app.code,
+            name: workspaceData.app.name
+          }
+          console.log('[WorkspaceApplicationService] 从合并接口获取到应用信息', appToSwitch)
+          
+          // 🔥 修复：发出应用信息更新事件，让 Presentation Layer 更新 appList
+          // 这样 currentApp 的 computed 就能找到对应的应用了
+          this.eventBus.emit('workspace:app-info-updated', { app: appToSwitch })
+        }
+      } catch (error) {
+        console.error('[WorkspaceApplicationService] 获取应用信息失败', error)
+        // 如果获取失败，继续使用原始的 app 对象
+      }
+    }
+    
     // 切换应用（只更新状态，不触发事件）
-    await this.domainService.switchApp(app)
+    await this.domainService.switchApp(appToSwitch)
     
     // 加载服务目录树
-    await this.domainService.loadServiceTree(app)
+    await this.domainService.loadServiceTree(appToSwitch)
   }
 
   /**
