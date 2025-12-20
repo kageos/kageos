@@ -207,8 +207,22 @@ const getFieldValue = (fieldCode: string): FieldValue => {
 
 // 更新字段值
 const handleFieldUpdate = (fieldCode: string, value: FieldValue): void => {
+  const oldValue = fieldValues.value[fieldCode]
+  const oldRaw = oldValue?.raw ?? null
+  const newRaw = value?.raw ?? null
+  
   fieldValues.value[fieldCode] = value
   filterForm.value[fieldCode] = value.raw
+  
+  // 🔥 如果值发生变化（选中、修改或清除），自动刷新数据
+  // 判断值是否真正发生变化（考虑 null、undefined、空字符串都视为空值）
+  const oldIsEmpty = oldRaw == null || oldRaw === ''
+  const newIsEmpty = newRaw == null || newRaw === ''
+  const valueChanged = oldRaw !== newRaw && (oldIsEmpty !== newIsEmpty || (!oldIsEmpty && !newIsEmpty))
+  
+  if (valueChanged) {
+    loadChartData()
+  }
 }
 
 // 判断字段是否必填
