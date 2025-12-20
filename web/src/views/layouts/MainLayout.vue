@@ -209,10 +209,10 @@ const loadServiceTree = async (app: App) => {
     } else {
       // 如果合并接口返回数据不完整，回退到单独加载服务目录树
       console.warn('[MainLayout] 合并接口返回数据不完整，回退到单独加载服务目录树')
-      const tree = await getServiceTree(app.user, app.code)
-      serviceTree.value = tree || []
-      console.log('[MainLayout] 服务目录树加载完成，节点数:', serviceTree.value.length)
-      window.dispatchEvent(new CustomEvent('service-tree-updated', { detail: { tree: serviceTree.value } }))
+    const tree = await getServiceTree(app.user, app.code)
+    serviceTree.value = tree || []
+    console.log('[MainLayout] 服务目录树加载完成，节点数:', serviceTree.value.length)
+    window.dispatchEvent(new CustomEvent('service-tree-updated', { detail: { tree: serviceTree.value } }))
     }
   } catch (error) {
     console.error('[MainLayout] 获取工作空间数据失败:', error)
@@ -224,8 +224,8 @@ const loadServiceTree = async (app: App) => {
       window.dispatchEvent(new CustomEvent('service-tree-updated', { detail: { tree: serviceTree.value } }))
     } catch (fallbackError) {
       console.error('[MainLayout] 获取服务目录树失败:', fallbackError)
-      ElMessage.error('获取服务目录树失败')
-      serviceTree.value = []
+    ElMessage.error('获取服务目录树失败')
+    serviceTree.value = []
     }
   } finally {
     loadingTree.value = false
@@ -284,21 +284,21 @@ const handleSubmitCreateApp = async () => {
             appList.value.push(newApp)
           }
           
-          console.log('[MainLayout] 跳转到新应用工作空间:', `${newApp.user}/${newApp.code}`)
-          currentApp.value = newApp
+      console.log('[MainLayout] 跳转到新应用工作空间:', `${newApp.user}/${newApp.code}`)
+      currentApp.value = newApp
           
           // 设置服务目录树（从合并接口获取）
           serviceTree.value = workspaceData.service_tree || []
           console.log('[MainLayout] 服务目录树加载完成，节点数:', serviceTree.value.length)
           
-          // 先跳转路由
-          await router.push(`/workspace/${newApp.user}/${newApp.code}`)
+      // 先跳转路由
+      await router.push(`/workspace/${newApp.user}/${newApp.code}`)
           
           // 发送服务目录树更新事件
           window.dispatchEvent(new CustomEvent('service-tree-updated', { detail: { tree: serviceTree.value } }))
           
-          // 发送应用切换事件
-          window.dispatchEvent(new CustomEvent('app-switched', { detail: { app: newApp } }))
+      // 发送应用切换事件
+      window.dispatchEvent(new CustomEvent('app-switched', { detail: { app: newApp } }))
         } else {
           // 如果获取详情失败，使用创建响应中的信息直接跳转
           console.warn('[MainLayout] 获取工作空间数据返回的数据不完整，使用创建响应中的信息')

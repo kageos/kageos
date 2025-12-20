@@ -58,9 +58,9 @@ export class ServiceTreeLoaderImpl implements IServiceTreeLoader {
           }
           // 兼容旧的单独接口格式（数组或分页对象）
           else if (Array.isArray(response)) {
-            tree = response
+          tree = response
           } else if ('items' in response && Array.isArray(response.items)) {
-            tree = response.items || []
+          tree = response.items || []
           } else if ('data' in response && Array.isArray(response.data)) {
             tree = response.data || []
           }
@@ -91,7 +91,7 @@ export class ServiceTreeLoaderImpl implements IServiceTreeLoader {
           return tree
         } catch (fallbackError) {
           Logger.error('ServiceTreeLoader', '回退接口也失败', fallbackError)
-          return []
+        return []
         }
       } finally {
         // 加载完成后，从 Map 中移除

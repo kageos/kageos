@@ -63,7 +63,7 @@ export class WorkspaceApplicationService {
       }
       
       // 加载函数详情并设置当前函数
-      const detail = await this.domainService.loadFunction(node)
+        const detail = await this.domainService.loadFunction(node)
       this.domainService.setCurrentFunctionWithDetail(node, detail)
     } else {
       // 目录节点：切换到该目录
