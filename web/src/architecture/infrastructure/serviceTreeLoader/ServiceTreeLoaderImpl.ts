@@ -51,22 +51,41 @@ export class ServiceTreeLoaderImpl implements IServiceTreeLoader {
         
         // 处理响应数据：合并接口返回 { app: App, service_tree: ServiceTree[] }
         let tree: ServiceTree[] = []
+        let appInfo: App | null = null
+        
         if (response && typeof response === 'object') {
           // 如果是合并接口的响应格式
           if ('service_tree' in response && Array.isArray(response.service_tree)) {
             tree = response.service_tree
+            // 🔥 修复：提取应用信息（包括正确的 id）
+            if ('app' in response && response.app) {
+              appInfo = response.app as App
+              Logger.debug('ServiceTreeLoader', '从合并接口获取到应用信息', {
+                id: appInfo.id,
+                user: appInfo.user,
+                code: appInfo.code,
+                name: appInfo.name
+              })
+            }
           }
           // 兼容旧的单独接口格式（数组或分页对象）
           else if (Array.isArray(response)) {
           tree = response
           } else if ('items' in response && Array.isArray(response.items)) {
-          tree = response.items || []
+            tree = response.items || []
           } else if ('data' in response && Array.isArray(response.data)) {
             tree = response.data || []
           }
         }
         
         Logger.debug('ServiceTreeLoader', '解析后的服务目录树，节点数', tree.length)
+        
+        // 🔥 修复：如果获取到了应用信息，需要更新应用状态
+        // 注意：这里不能直接更新状态，因为 ServiceTreeLoader 不应该依赖 Domain Service
+        // 所以我们将应用信息存储在返回的数据中，由调用方处理
+        // 但是，由于接口定义只返回 ServiceTree[]，我们需要通过其他方式传递应用信息
+        // 方案：在 loadServiceTree 中处理应用信息的更新
+        
         return tree
       } catch (error) {
         Logger.error('ServiceTreeLoader', '加载服务目录树失败', error)
