@@ -259,3 +259,27 @@ type AppInfo struct {
 	CreatedAt string `json:"created_at" example:"2006-01-02 15:04:05"` // 创建时间
 	UpdatedAt string `json:"updated_at" example:"2006-01-02 15:04:05"` // 更新时间
 }
+
+// GetAppDetailReq 获取应用详情请求
+type GetAppDetailReq struct {
+	User string `json:"user" swaggerignore:"true"` // 租户名（从JWT Token获取）
+	App  string `json:"app" form:"app" binding:"required" example:"myapp"` // 应用代码
+}
+
+// GetAppDetailResp 获取应用详情响应
+type GetAppDetailResp struct {
+	AppInfo
+}
+
+// GetAppWithServiceTreeReq 获取应用详情和服务目录树请求
+type GetAppWithServiceTreeReq struct {
+	User string `json:"user" swaggerignore:"true"` // 租户名（从JWT Token获取）
+	App  string `json:"app" form:"app" binding:"required" example:"myapp"` // 应用代码
+	Type string `json:"type" form:"type" example:"package"`                // 节点类型过滤（可选），如：package（只显示服务目录/包）、function（只显示函数/文件）
+}
+
+// GetAppWithServiceTreeResp 获取应用详情和服务目录树响应
+type GetAppWithServiceTreeResp struct {
+	App        AppInfo                 `json:"app"`         // 应用详情
+	ServiceTree []*GetServiceTreeResp `json:"service_tree"` // 服务目录树
+}

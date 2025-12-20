@@ -17,13 +17,15 @@ import (
 )
 
 type App struct {
-	appService *service.AppService
+	appService         *service.AppService
+	serviceTreeService *service.ServiceTreeService
 }
 
 // NewApp 创建 App 处理器（依赖注入）
-func NewApp(appService *service.AppService) *App {
+func NewApp(appService *service.AppService, serviceTreeService *service.ServiceTreeService) *App {
 	return &App{
-		appService: appService,
+		appService:         appService,
+		serviceTreeService: serviceTreeService,
 	}
 }
 
@@ -450,6 +452,110 @@ func (a *App) GetApps(c *gin.Context) {
 
 	ctx := contextx.ToContext(c)
 	resp, err = a.appService.GetApps(ctx, &req)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.OkWithData(c, resp)
+}
+
+// GetAppDetail 获取应用详情
+// @Summary 获取应用详情
+// @Description 根据应用代码获取应用详情信息
+// @Tags 应用管理
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Param app path string true "应用代码"
+// @Success 200 {object} dto.GetAppDetailResp "获取成功"
+// @Failure 400 {string} string "请求参数错误"
+// @Failure 401 {string} string "未授权"
+// @Failure 404 {string} string "应用不存在"
+// @Failure 500 {string} string "服务器内部错误"
+// @Router /api/v1/app/detail/{app} [get]
+func (a *App) GetAppDetail(c *gin.Context) {
+	var req dto.GetAppDetailReq
+	var resp *dto.GetAppDetailResp
+	var err error
+
+	// 从JWT Token获取用户信息
+	user := contextx.GetRequestUser(c)
+	if user == "" {
+		response.FailWithMessage(c, "无法获取用户信息")
+		return
+	}
+
+	// 从路径参数获取应用代码
+	app := c.Param("app")
+	if app == "" {
+		response.FailWithMessage(c, "app parameter is required")
+		return
+	}
+
+	// 构建请求对象
+	req = dto.GetAppDetailReq{
+		User: user,
+		App:  app,
+	}
+
+	ctx := contextx.ToContext(c)
+	resp, err = a.appService.GetAppDetail(ctx, &req)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.OkWithData(c, resp)
+}
+
+// GetAppWithServiceTree 获取应用详情和服务目录树
+// @Summary 获取应用详情和服务目录树
+// @Description 根据应用代码获取应用详情和服务目录树（合并接口，减少请求次数）
+// @Tags 应用管理
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Param app path string true "应用代码"
+// @Param type query string false "节点类型过滤（可选），如：package（只显示服务目录/包）、function（只显示函数/文件）"
+// @Success 200 {object} dto.GetAppWithServiceTreeResp "获取成功"
+// @Failure 400 {string} string "请求参数错误"
+// @Failure 401 {string} string "未授权"
+// @Failure 404 {string} string "应用不存在"
+// @Failure 500 {string} string "服务器内部错误"
+// @Router /api/v1/app/{app}/tree [get]
+func (a *App) GetAppWithServiceTree(c *gin.Context) {
+	var req dto.GetAppWithServiceTreeReq
+	var resp *dto.GetAppWithServiceTreeResp
+	var err error
+
+	// 从JWT Token获取用户信息
+	user := contextx.GetRequestUser(c)
+	if user == "" {
+		response.FailWithMessage(c, "无法获取用户信息")
+		return
+	}
+
+	// 从路径参数获取应用代码
+	app := c.Param("app")
+	if app == "" {
+		response.FailWithMessage(c, "app parameter is required")
+		return
+	}
+
+	// 从查询参数获取节点类型过滤
+	nodeType := c.Query("type")
+
+	// 构建请求对象
+	req = dto.GetAppWithServiceTreeReq{
+		User: user,
+		App:  app,
+		Type: nodeType,
+	}
+
+	// 调用 ServiceTreeService 的方法（避免循环依赖）
+	ctx := contextx.ToContext(c)
+	resp, err = a.serviceTreeService.GetAppWithServiceTree(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return

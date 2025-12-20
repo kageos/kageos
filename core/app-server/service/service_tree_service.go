@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -141,16 +142,11 @@ func (s *ServiceTreeService) CreateServiceTree(ctx context.Context, req *dto.Cre
 	return resp, nil
 }
 
-// GetServiceTree 获取服务目录
-func (s *ServiceTreeService) GetServiceTree(ctx context.Context, user, app string, nodeType string) ([]*dto.GetServiceTreeResp, error) {
-	// 获取应用信息
-	appModel, err := s.appRepo.GetAppByUserName(user, app)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get app: %w", err)
-	}
-
+// getServiceTreeByAppModel 根据 appModel 获取服务目录树（内部方法，避免重复获取 appModel）
+func (s *ServiceTreeService) getServiceTreeByAppModel(ctx context.Context, appModel *model.App, nodeType string) ([]*dto.GetServiceTreeResp, error) {
 	// 构建树形结构（如果指定了类型，则只返回该类型的节点）
 	var trees []*model.ServiceTree
+	var err error
 	if nodeType != "" {
 		trees, err = s.serviceTreeRepo.BuildServiceTreeByType(appModel.ID, nodeType)
 	} else {
@@ -167,6 +163,59 @@ func (s *ServiceTreeService) GetServiceTree(ctx context.Context, user, app strin
 	}
 
 	return resp, nil
+}
+
+// GetServiceTree 获取服务目录
+func (s *ServiceTreeService) GetServiceTree(ctx context.Context, user, app string, nodeType string) ([]*dto.GetServiceTreeResp, error) {
+	// 获取应用信息
+	appModel, err := s.appRepo.GetAppByUserName(user, app)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get app: %w", err)
+	}
+
+	return s.getServiceTreeByAppModel(ctx, appModel, nodeType)
+}
+
+// GetAppWithServiceTree 获取应用详情和服务目录树（合并接口，减少请求次数）
+// 这个方法放在 ServiceTreeService 中，因为：
+// 1. ServiceTreeService 已经有 appService 依赖，可以直接调用
+// 2. 避免 AppService 和 ServiceTreeService 之间的循环依赖
+// 3. 职责清晰：ServiceTreeService 负责服务目录树相关的所有操作，包括组合操作
+// 优化：只获取一次 appModel，避免重复查询数据库
+func (s *ServiceTreeService) GetAppWithServiceTree(ctx context.Context, req *dto.GetAppWithServiceTreeReq) (*dto.GetAppWithServiceTreeResp, error) {
+	// 获取应用信息（只获取一次，避免重复调用）
+	appModel, err := s.appRepo.GetAppByUserName(req.User, req.App)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("应用不存在: %s/%s", req.User, req.App)
+		}
+		return nil, fmt.Errorf("获取应用信息失败: %w", err)
+	}
+
+	// 转换为 AppInfo 响应格式
+	appInfo := dto.AppInfo{
+		ID:        appModel.ID,
+		User:      appModel.User,
+		Code:      appModel.Code,
+		Name:      appModel.Name,
+		Status:    appModel.Status,
+		Version:   appModel.Version,
+		NatsID:    appModel.NatsID,
+		HostID:    appModel.HostID,
+		CreatedAt: time.Time(appModel.CreatedAt).Format("2006-01-02 15:04:05"),
+		UpdatedAt: time.Time(appModel.UpdatedAt).Format("2006-01-02 15:04:05"),
+	}
+
+	// 使用内部方法获取服务目录树（复用 appModel，避免重复查询）
+	serviceTreeResp, err := s.getServiceTreeByAppModel(ctx, appModel, req.Type)
+	if err != nil {
+		return nil, fmt.Errorf("获取服务目录树失败: %w", err)
+	}
+
+	return &dto.GetAppWithServiceTreeResp{
+		App:         appInfo,
+		ServiceTree: serviceTreeResp,
+	}, nil
 }
 
 // UpdateServiceTree 更新服务目录
@@ -234,8 +283,6 @@ func (s *ServiceTreeService) convertToGetServiceTreeResp(tree *model.ServiceTree
 		ParentID:       tree.ParentID,
 		RefID:          tree.RefID,
 		Type:           tree.Type,
-		FullGroupCode:  tree.FullGroupCode,
-		GroupName:      tree.GroupName,
 		Description:    tree.Description,
 		Tags:           tree.Tags,
 		AppID:          tree.AppID,

@@ -5,7 +5,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { InfoFilled } from '@element-plus/icons-vue'
 import { extractWorkspacePath } from '@/utils/route'
 import { Logger } from '@/core/utils/logger'
-import { getAppList, createApp, updateApp, deleteApp } from '@/api'
+import { getAppList, createApp, updateApp, deleteApp, getAppDetailByUserAndCode, getAppWithServiceTree } from '@/api'
 import { getServiceTree } from '@/api/service-tree'
 import type { App, CreateAppRequest } from '@/types'
 import AppSwitcher from '@/components/AppSwitcher.vue'
@@ -172,7 +172,7 @@ const switchApp = async (app: App, updateRoute = true) => {
   }
 }
 
-// 加载服务目录树
+// 加载服务目录树（使用合并接口，同时获取应用详情和服务目录树）
 const loadServiceTree = async (app: App) => {
   if (!app || !app.user || !app.code) {
     serviceTree.value = []
@@ -180,18 +180,53 @@ const loadServiceTree = async (app: App) => {
   }
   
   try {
-    console.log('[MainLayout] 开始加载服务目录树:', app.user + '/' + app.code)
+    console.log('[MainLayout] 开始加载工作空间数据:', app.user + '/' + app.code)
     loadingTree.value = true
-    const tree = await getServiceTree(app.user, app.code)
-    serviceTree.value = tree || []
-    console.log('[MainLayout] 服务目录树加载完成，节点数:', serviceTree.value.length)
-    // 发送服务目录树更新事件到Workspace页面
-    console.log('[MainLayout] 发送 service-tree-updated 事件')
-    window.dispatchEvent(new CustomEvent('service-tree-updated', { detail: { tree: serviceTree.value } }))
+    
+    // 使用合并接口获取应用详情和服务目录树（减少请求次数）
+    const workspaceData = await getAppWithServiceTree(app.code)
+    
+    if (workspaceData && workspaceData.app && workspaceData.service_tree) {
+      // 更新应用详情（确保是最新的）
+      const updatedApp = workspaceData.app
+      const appIndex = appList.value.findIndex(a => a.id === updatedApp.id)
+      if (appIndex >= 0) {
+        appList.value[appIndex] = updatedApp
+      }
+      
+      // 如果当前应用是更新的应用，更新 currentApp
+      if (currentApp.value && currentApp.value.id === updatedApp.id) {
+        currentApp.value = updatedApp
+      }
+      
+      // 设置服务目录树
+      serviceTree.value = workspaceData.service_tree || []
+      console.log('[MainLayout] 工作空间数据加载完成，节点数:', serviceTree.value.length)
+      
+      // 发送服务目录树更新事件到Workspace页面
+      console.log('[MainLayout] 发送 service-tree-updated 事件')
+      window.dispatchEvent(new CustomEvent('service-tree-updated', { detail: { tree: serviceTree.value } }))
+    } else {
+      // 如果合并接口返回数据不完整，回退到单独加载服务目录树
+      console.warn('[MainLayout] 合并接口返回数据不完整，回退到单独加载服务目录树')
+      const tree = await getServiceTree(app.user, app.code)
+      serviceTree.value = tree || []
+      console.log('[MainLayout] 服务目录树加载完成，节点数:', serviceTree.value.length)
+      window.dispatchEvent(new CustomEvent('service-tree-updated', { detail: { tree: serviceTree.value } }))
+    }
   } catch (error) {
-    console.error('[MainLayout] 获取服务目录树失败:', error)
-    ElMessage.error('获取服务目录树失败')
-    serviceTree.value = []
+    console.error('[MainLayout] 获取工作空间数据失败:', error)
+    // 如果合并接口失败，回退到单独加载服务目录树
+    try {
+      console.log('[MainLayout] 尝试单独加载服务目录树')
+      const tree = await getServiceTree(app.user, app.code)
+      serviceTree.value = tree || []
+      window.dispatchEvent(new CustomEvent('service-tree-updated', { detail: { tree: serviceTree.value } }))
+    } catch (fallbackError) {
+      console.error('[MainLayout] 获取服务目录树失败:', fallbackError)
+      ElMessage.error('获取服务目录树失败')
+      serviceTree.value = []
+    }
   } finally {
     loadingTree.value = false
   }
@@ -229,24 +264,51 @@ const handleSubmitCreateApp = async () => {
   try {
     creatingApp.value = true
     console.log('[MainLayout] 创建应用请求:', createAppForm.value)
-    const newApp = await createApp(createAppForm.value)
-    console.log('[MainLayout] 应用创建成功:', newApp)
+    const createResponse = await createApp(createAppForm.value)
+    console.log('[MainLayout] 应用创建成功:', createResponse)
     ElMessage.success('工作空间创建成功')
     createAppDialogVisible.value = false
     
-    // 刷新应用列表
-    await fetchAppList()
-    
-    // 切换到新创建的应用并跳转到工作空间
-    if (newApp) {
-      console.log('[MainLayout] 跳转到新应用工作空间:', `${newApp.user}/${newApp.code}`)
-      currentApp.value = newApp
-      // 先跳转路由
-      await router.push(`/workspace/${newApp.user}/${newApp.code}`)
-      // 然后加载服务目录树
-      await loadServiceTree(newApp)
-      // 发送应用切换事件
-      window.dispatchEvent(new CustomEvent('app-switched', { detail: { app: newApp } }))
+    // 使用创建响应中的信息获取工作空间详情和服务目录树（合并接口，减少请求次数）
+    if (createResponse && createResponse.user && createResponse.app) {
+      try {
+        // 使用合并接口获取工作空间详情和服务目录树
+        const workspaceData = await getAppWithServiceTree(createResponse.app)
+        
+        if (workspaceData && workspaceData.app && workspaceData.app.user && workspaceData.app.code) {
+          const newApp = workspaceData.app
+          
+          // 将新应用添加到列表（如果不在列表中的话）
+          const existsInList = appList.value.some(a => a.id === newApp.id)
+          if (!existsInList) {
+            appList.value.push(newApp)
+          }
+          
+          console.log('[MainLayout] 跳转到新应用工作空间:', `${newApp.user}/${newApp.code}`)
+          currentApp.value = newApp
+          
+          // 设置服务目录树（从合并接口获取）
+          serviceTree.value = workspaceData.service_tree || []
+          console.log('[MainLayout] 服务目录树加载完成，节点数:', serviceTree.value.length)
+          
+          // 先跳转路由
+          await router.push(`/workspace/${newApp.user}/${newApp.code}`)
+          
+          // 发送服务目录树更新事件
+          window.dispatchEvent(new CustomEvent('service-tree-updated', { detail: { tree: serviceTree.value } }))
+          
+          // 发送应用切换事件
+          window.dispatchEvent(new CustomEvent('app-switched', { detail: { app: newApp } }))
+        } else {
+          // 如果获取详情失败，使用创建响应中的信息直接跳转
+          console.warn('[MainLayout] 获取工作空间数据返回的数据不完整，使用创建响应中的信息')
+          await router.push(`/workspace/${createResponse.user}/${createResponse.app}`)
+        }
+      } catch (error) {
+        // 如果获取详情失败，使用创建响应中的信息直接跳转
+        console.error('[MainLayout] 获取工作空间数据失败:', error)
+        await router.push(`/workspace/${createResponse.user}/${createResponse.app}`)
+      }
     }
   } catch (error: any) {
     console.error('[MainLayout] 创建应用失败:', error)

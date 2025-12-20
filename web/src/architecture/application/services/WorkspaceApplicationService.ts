@@ -53,15 +53,27 @@ export class WorkspaceApplicationService {
       
       // 使用 Domain Service 的方法检查 Tab 是否存在（遵循依赖倒置原则）
       if (this.domainService.hasTab(tabId)) {
-        // Tab 已存在，检查函数详情是否已加载
-        const detail = this.domainService.getFunctionDetail(node)
-        if (detail) {
-          // 函数详情已加载，只激活 Tab
+        // Tab 已存在，检查是否是同一个函数节点
+        const existingTab = this.domainService.getTab(tabId)
+        const isSameNode = existingTab?.node && (
+          existingTab.node.id === node.id || 
+          existingTab.node.full_code_path === node.full_code_path
+        )
+        
+        if (isSameNode) {
+          // 是同一个函数节点，但切换函数时应该重新加载函数详情（确保数据是最新的）
+          // 🔥 强制重新加载，确保数据是最新的（用户点击切换函数时，应该获取最新数据）
+          const loadedDetail = await this.domainService.loadFunction(node, true)
+          // 加载完成后激活 Tab（确保 currentFunction 和 functionDetails 已更新）
           this.domainService.activateTab(tabId)
         } else {
-          // Tab 已存在但函数详情未加载（刷新时的情况），加载函数详情
+          // 🔥 是不同的函数节点，需要更新 Tab 的 node 并重新加载函数详情
+          // 即使 Tab 已存在，也要重新加载函数详情（因为函数可能已更新）
+          // 是不同的函数节点，需要更新 Tab 的 node 并重新加载函数详情
           const loadedDetail = await this.domainService.loadFunction(node)
-          // 加载完成后激活 Tab（确保 currentFunction 和 functionDetails 已更新）
+          // 更新 Tab 的 node
+          this.domainService.updateTabNode(tabId, node)
+          // 激活 Tab
           this.domainService.activateTab(tabId)
         }
       } else {

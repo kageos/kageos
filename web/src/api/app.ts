@@ -58,6 +58,24 @@ export function getAppDetail(code: string) {
   return get<App>(`/workspace/api/v1/app/detail/${code}`)
 }
 
+// 根据 user 和 code 获取工作空间详情（创建后使用）
+export function getAppDetailByUserAndCode(user: string, code: string) {
+  // 注意：后端接口只需要 code，user 从 JWT Token 获取
+  return get<App>(`/workspace/api/v1/app/detail/${code}`)
+}
+
+// 获取工作空间详情和服务目录树（合并接口，减少请求次数）
+export function getAppWithServiceTree(code: string, nodeType?: string) {
+  const params: Record<string, any> = {}
+  if (nodeType) {
+    params.type = nodeType
+  }
+  return get<{
+    app: App
+    service_tree: import('@/types').ServiceTree[]
+  }>(`/workspace/api/v1/app/${code}/tree`, params)
+}
+
 // 运行业务系统函数
 export function runFunction(fullCodePath: string, params?: any) {
   return post(`/workspace/api/v1/run/${fullCodePath}`, params)

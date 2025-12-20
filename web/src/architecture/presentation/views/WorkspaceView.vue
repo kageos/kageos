@@ -624,7 +624,6 @@ const updateHistoryFullCodePath = ref('')
 const serviceTreePanelRef = ref<InstanceType<typeof ServiceTreePanel> | null>(null)
 
 // AI 对话框相关
-const defaultAgentId = ref<number | null>(null)
 const agentSelectDialogVisible = ref(false)
 const selectedAgent = ref<AgentInfo | null>(null)
 const aiChatPanelRef = ref<InstanceType<typeof AIChatPanel> | null>(null)
@@ -702,22 +701,6 @@ const existingFilesInPackage = computed(() => {
   return getDirectChildFunctionCodes(currentNode)
 })
 
-// 加载默认智能体
-async function loadDefaultAgent() {
-  try {
-    const res = await getAgentList({
-      enabled: true,
-      page: 1,
-      page_size: 1
-    })
-    // 响应拦截器已经返回了 data，所以 res 就是 { agents: [], total: 0 }
-    if (res.agents && res.agents.length > 0) {
-      defaultAgentId.value = res.agents[0].id
-    }
-  } catch (error: any) {
-    console.error('加载默认智能体失败:', error)
-  }
-}
 
 
 // 🔥 全局粘贴监听：检测 Hub 链接并自动打开安装对话框
@@ -1196,14 +1179,12 @@ onMounted(async () => {
     // 应用切换事件处理
   })
 
-  // 加载应用列表
-  await loadAppList()
-
-  // 加载默认智能体
-  await loadDefaultAgent()
-
   // 从路由加载应用（会激活对应的 Tab）
+  // 优化：如果路由中有应用信息，直接使用合并接口获取，不需要先加载整个应用列表
   await routingLoadAppFromRoute()
+  
+  // 注意：应用列表在用户点击应用切换器时才加载（AppSwitcher 的 handleVisibleChange 会触发 load-apps 事件）
+  // 智能体列表在目录（package）节点时才加载（PackageDetailView 中处理）
   
   // 🔥 设置路由监听
   setupRouteWatch()

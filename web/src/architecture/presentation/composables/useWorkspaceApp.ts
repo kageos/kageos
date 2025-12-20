@@ -15,6 +15,7 @@ import { serviceFactory } from '../../infrastructure/factories'
 import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
 import type { App } from '../../domain/services/WorkspaceDomainService'
 import type { App as AppType, CreateAppRequest } from '@/types'
+import { getAppDetailByUserAndCode, getAppWithServiceTree } from '@/api/app'
 
 export function useWorkspaceApp() {
   const route = useRoute()
@@ -69,6 +70,12 @@ export function useWorkspaceApp() {
 
   // 切换工作空间
   const handleSwitchApp = async (app: AppType, currentApp: () => AppType | null): Promise<void> => {
+    // 检查 app 对象是否有效
+    if (!app || !app.user || !app.code) {
+      console.error('[useWorkspaceApp] handleSwitchApp: app 对象无效', app)
+      return
+    }
+    
     const targetAppId = app.id
     
     // 检查当前应用是否已经是目标应用，避免重复切换
@@ -101,6 +108,7 @@ export function useWorkspaceApp() {
         })
       }
     } catch (error) {
+      console.error('[useWorkspaceApp] handleSwitchApp 失败:', error)
       // 静默失败
     }
   }
@@ -131,22 +139,59 @@ export function useWorkspaceApp() {
 
     try {
       creatingApp.value = true
-      await apiClient.post('/workspace/api/v1/app/create', createAppForm.value)
+      const createResponse = await apiClient.post<{ user: string; app: string; app_dir: string }>('/workspace/api/v1/app/create', createAppForm.value)
       ElNotification.success({
         title: '成功',
         message: '工作空间创建成功'
       })
       createAppDialogVisible.value = false
       
-      // 刷新工作空间列表
-      await loadAppList()
-      
-      // 如果工作空间列表中有新创建的工作空间，自动切换
-      const newApp = appList.value.find(
-        (a: AppType) => a.code === createAppForm.value.code
-      )
-      if (newApp) {
-        await handleSwitchApp(newApp, currentApp)
+      // 使用创建响应中的信息获取工作空间详情和服务目录树（合并接口，减少请求次数）
+      if (createResponse && createResponse.user && createResponse.app) {
+        try {
+          // 使用合并接口获取工作空间详情和服务目录树
+          const workspaceData = await getAppWithServiceTree(createResponse.app)
+          
+          if (workspaceData && workspaceData.app && workspaceData.app.user && workspaceData.app.code) {
+            const newApp = workspaceData.app
+            
+            // 将新应用添加到列表（如果不在列表中的话）
+            const existsInList = appList.value.some(a => a.id === newApp.id)
+            if (!existsInList) {
+              appList.value.push(newApp)
+            }
+            
+            // 使用获取到的完整 App 对象进行切换
+            // 注意：这里我们已经有服务目录树了，但 handleSwitchApp 会再次加载
+            // 为了优化，我们可以直接设置服务目录树，但为了保持一致性，还是使用 handleSwitchApp
+            await handleSwitchApp(newApp, currentApp)
+          } else {
+            // 如果获取详情失败，使用创建响应中的信息直接跳转
+            const targetPath = `/workspace/${createResponse.user}/${createResponse.app}`
+            if (route.path !== targetPath) {
+              eventBus.emit(RouteEvent.updateRequested, {
+                path: targetPath,
+                query: {},
+                replace: false,
+                preserveParams: {},
+                source: 'app-create-fallback'
+              })
+            }
+          }
+        } catch (error) {
+          // 如果获取详情失败，使用创建响应中的信息直接跳转
+          console.error('[useWorkspaceApp] 获取工作空间数据失败:', error)
+          const targetPath = `/workspace/${createResponse.user}/${createResponse.app}`
+          if (route.path !== targetPath) {
+            eventBus.emit(RouteEvent.updateRequested, {
+              path: targetPath,
+              query: {},
+              replace: false,
+              preserveParams: {},
+              source: 'app-create-fallback'
+            })
+          }
+        }
       }
     } catch (error: any) {
       // 🔥 统一使用 msg 字段
