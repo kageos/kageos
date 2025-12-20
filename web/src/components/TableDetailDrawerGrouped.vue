@@ -41,6 +41,17 @@
               保存
             </el-button>
           </div>
+          <!-- 布局切换按钮 -->
+          <el-button
+            v-if="detailMode === 'view' && props.onToggleLayout"
+            size="small"
+            text
+            @click="props.onToggleLayout"
+            title="切换到原布局"
+          >
+            <el-icon><List /></el-icon>
+            原布局
+          </el-button>
           <!-- 导航按钮（上一个/下一个） -->
           <div class="drawer-navigation" v-if="tableData.length > 1 && detailMode === 'view'">
             <el-button
@@ -299,7 +310,7 @@
 
 <script setup lang="ts">
 import { computed, h, ref, watch } from 'vue'
-import { Edit, ArrowLeft, ArrowRight, DocumentCopy } from '@element-plus/icons-vue'
+import { Edit, ArrowLeft, ArrowRight, DocumentCopy, List } from '@element-plus/icons-vue'
 import { ElIcon, ElButton, ElMessage, ElEmpty, ElTabs, ElTabPane, ElCollapse, ElCollapseItem } from 'element-plus'
 import { useTableDetail, type UseTableDetailOptions } from '@/composables/useTableDetail'
 import { widgetComponentFactory } from '@/core/factories-v2'
@@ -333,6 +344,8 @@ interface Props {
   onUpdate: (id: number, data: any, oldData: any) => Promise<boolean>
   /** 刷新回调函数 */
   onRefresh: () => Promise<void>
+  /** 切换布局回调函数 */
+  onToggleLayout?: () => void
 }
 
 const props = defineProps<Props>()

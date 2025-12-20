@@ -190,6 +190,7 @@
       :user-info-map="userInfoMap"
       :on-update="handleUpdateRow"
       :on-refresh="loadTableData"
+      :on-toggle-layout="toggleDetailLayout"
       ref="tableDetailDrawerRef"
     />
     <TableDetailDrawer
@@ -204,6 +205,7 @@
       :user-info-map="userInfoMap"
       :on-update="handleUpdateRow"
       :on-refresh="loadTableData"
+      :on-toggle-layout="toggleDetailLayout"
       ref="tableDetailDrawerRef"
     />
 
@@ -274,22 +276,10 @@ const props = defineProps<Props>()
 
 /**
  * 是否使用分组布局的详情页面
- * 可以通过以下方式控制：
- * 1. URL 参数：?detail_layout=grouped（开发/测试阶段）
- * 2. localStorage：localStorage.getItem('useGroupedDetailLayout') === 'true'
- * 3. 环境变量：import.meta.env.VITE_USE_GROUPED_DETAIL_LAYOUT === 'true'
- * 4. 默认值：true（启用新布局）
+ * 默认使用新布局，可以通过切换按钮或 localStorage 控制
  */
-const useGroupedDetailLayout = computed(() => {
-  // 方案 1：URL 参数（开发/测试阶段，优先级最高）
-  if (route.query.detail_layout === 'grouped') {
-    return true
-  }
-  if (route.query.detail_layout === 'original') {
-    return false
-  }
-  
-  // 方案 2：localStorage（用户设置）
+const useGroupedDetailLayout = ref<boolean>(() => {
+  // 优先从 localStorage 读取用户设置
   const stored = localStorage.getItem('useGroupedDetailLayout')
   if (stored === 'true') {
     return true
@@ -297,15 +287,33 @@ const useGroupedDetailLayout = computed(() => {
   if (stored === 'false') {
     return false
   }
-  
-  // 方案 3：环境变量
-  // if (import.meta.env.VITE_USE_GROUPED_DETAIL_LAYOUT === 'true') {
-  //   return true
-  // }
-  
-  // 方案 4：默认值（启用新布局）
+  // 默认使用新布局
   return true
 })
+
+/**
+ * 切换详情布局
+ */
+const toggleDetailLayout = (): void => {
+  useGroupedDetailLayout.value = !useGroupedDetailLayout.value
+  localStorage.setItem('useGroupedDetailLayout', String(useGroupedDetailLayout.value))
+  
+  // 如果当前有打开的详情，需要重新打开以应用新布局
+  if (tableDetailDrawerRef.value) {
+    const currentRow = (tableDetailDrawerRef.value as any).currentDetailRow
+    const currentIndex = (tableDetailDrawerRef.value as any).currentDetailIndex
+    if (currentRow && currentIndex !== undefined) {
+      // 关闭当前详情
+      ;(tableDetailDrawerRef.value as any).handleDetailDrawerClose()
+      // 等待下一个 tick 后重新打开
+      nextTick(() => {
+        if (tableDetailDrawerRef.value) {
+          ;(tableDetailDrawerRef.value as any).handleShowDetail(currentRow, currentIndex)
+        }
+      })
+    }
+  }
+}
 
 // ==================== 使用 Composable（业务逻辑层） ====================
 
