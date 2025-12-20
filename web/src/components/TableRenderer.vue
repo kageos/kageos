@@ -314,9 +314,9 @@ const toggleDetailLayout = (): void => {
     }
     
     // 等待组件切换后重新打开详情
-    nextTick(() => {
+    nextTick(async () => {
       if (tableDetailDrawerRef.value && savedState) {
-        ;(tableDetailDrawerRef.value as any).handleShowDetail(savedState.row, savedState.index)
+        await (tableDetailDrawerRef.value as any).handleShowDetail(savedState.row, savedState.index)
       }
     })
   }
@@ -501,10 +501,12 @@ const tableDetailDrawerRef = ref<InstanceType<typeof TableDetailDrawer> | Instan
  * 通过 ref 调用 TableDetailDrawer 的方法
  */
 const handleShowDetail = async (row: any, index: number): Promise<void> => {
+  // 保存当前详情状态
+  currentDetailState.value = { row, index }
   // TableDetailDrawer 内部使用 useTableDetail 管理状态
   // 通过 ref 调用内部方法
   if (tableDetailDrawerRef.value) {
-    tableDetailDrawerRef.value.handleShowDetail(row, index)
+    await tableDetailDrawerRef.value.handleShowDetail(row, index)
   }
 }
 
