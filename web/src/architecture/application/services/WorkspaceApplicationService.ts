@@ -45,69 +45,90 @@ export class WorkspaceApplicationService {
 
   /**
    * 处理节点点击
-   * 如果 Tab 已存在但函数详情未加载，也会加载函数详情（刷新时需要）
+   * 🔥 简化：不再使用 Tab，直接加载函数详情
+   * - 点击目录节点：切换到该目录
+   * - 点击函数节点：加载函数详情并设置当前函数
    */
   async handleNodeClick(node: ServiceTree): Promise<void> {
     if (node.type === 'function') {
-      const tabId = node.full_code_path || String(node.id)
+      // 检查函数是否在当前目录下
+      const currentDirectory = this.domainService.getCurrentDirectory()
+      const functionDirectory = this.getFunctionDirectory(node)
       
-      // 使用 Domain Service 的方法检查 Tab 是否存在（遵循依赖倒置原则）
-      if (this.domainService.hasTab(tabId)) {
-        // Tab 已存在，检查是否是同一个函数节点
-        const existingTab = this.domainService.getTab(tabId)
-        const isSameNode = existingTab?.node && (
-          existingTab.node.id === node.id || 
-          existingTab.node.full_code_path === node.full_code_path
-        )
-        
-        if (isSameNode) {
-          // 是同一个函数节点，但切换函数时应该重新加载函数详情（确保数据是最新的）
-          // 🔥 强制重新加载，确保数据是最新的（用户点击切换函数时，应该获取最新数据）
-          const loadedDetail = await this.domainService.loadFunction(node, true)
-          // 加载完成后激活 Tab（确保 currentFunction 和 functionDetails 已更新）
-          this.domainService.activateTab(tabId)
-        } else {
-          // 🔥 是不同的函数节点，需要更新 Tab 的 node 并重新加载函数详情
-          // 即使 Tab 已存在，也要重新加载函数详情（因为函数可能已更新）
-          // 是不同的函数节点，需要更新 Tab 的 node 并重新加载函数详情
-          const loadedDetail = await this.domainService.loadFunction(node)
-          // 更新 Tab 的 node
-          this.domainService.updateTabNode(tabId, node)
-          // 激活 Tab
-          this.domainService.activateTab(tabId)
+      // 如果函数不在当前目录，先切换到函数所在目录
+      if (!currentDirectory || currentDirectory.id !== functionDirectory?.id) {
+        if (functionDirectory) {
+          this.domainService.setCurrentDirectory(functionDirectory)
         }
-      } else {
-        // Tab 不存在，加载函数详情并创建新 Tab
-        const detail = await this.domainService.loadFunction(node)
-        this.domainService.openTab(node, detail)
       }
+      
+      // 加载函数详情并设置当前函数
+      const detail = await this.domainService.loadFunction(node)
+      this.domainService.setCurrentFunctionWithDetail(node, detail)
     } else {
-      // 目录节点，只设置当前函数，不加载详情
-      this.domainService.setCurrentFunction(node)
+      // 目录节点：切换到该目录
+      this.domainService.setCurrentDirectory(node)
     }
   }
 
   /**
-   * 激活标签页（供 Presentation Layer 调用）
+   * 获取函数所在的目录节点
    */
-  activateTab(tabId: string): void {
-    console.log('[WorkspaceApplicationService] activateTab 调用', { tabId })
-    this.domainService.activateTab(tabId)
+  private getFunctionDirectory(functionNode: ServiceTree): ServiceTree | null {
+    const serviceTree = this.domainService.getServiceTree()
+    
+    // 方法1：通过 parent_id 查找（如果函数节点有 parent_id）
+    if (functionNode.parent_id && functionNode.parent_id > 0) {
+      const findNodeById = (nodes: ServiceTree[], targetId: number): ServiceTree | null => {
+        for (const node of nodes) {
+          if (node.id === targetId && node.type === 'package') {
+            return node
+          }
+          if (node.children && node.children.length > 0) {
+            const found = findNodeById(node.children, targetId)
+            if (found) return found
+          }
+        }
+        return null
+      }
+      
+      const directory = findNodeById(serviceTree, functionNode.parent_id)
+      if (directory) {
+        return directory
+      }
+    }
+    
+    // 方法2：从 full_code_path 提取目录路径（回退方案）
+    if (!functionNode.full_code_path) {
+      return null
+    }
+    
+    const pathParts = functionNode.full_code_path.split('/').filter(Boolean)
+    if (pathParts.length < 3) {
+      // 路径格式：/user/app/...，至少需要 3 段
+      return null
+    }
+    
+    // 移除最后一段（函数名），得到目录路径
+    const directoryPath = '/' + pathParts.slice(0, -1).join('/')
+    
+    // 在服务树中查找目录节点
+    const findNodeByPath = (nodes: ServiceTree[], targetPath: string): ServiceTree | null => {
+      for (const node of nodes) {
+        if (node.full_code_path === targetPath && node.type === 'package') {
+          return node
+        }
+        if (node.children && node.children.length > 0) {
+          const found = findNodeByPath(node.children, targetPath)
+          if (found) return found
+        }
+      }
+      return null
+    }
+    
+    return findNodeByPath(serviceTree, directoryPath)
   }
 
-  /**
-   * 关闭标签页（供 Presentation Layer 调用）
-   */
-  closeTab(tabId: string): void {
-    this.domainService.closeTab(tabId)
-  }
-
-  /**
-   * 清空所有标签页（供 Presentation Layer 调用）
-   */
-  closeAllTabs(): void {
-    this.domainService.closeAllTabs()
-  }
 
   /**
    * 处理应用切换

@@ -28,30 +28,15 @@ import type { App, ServiceTree } from '@/types'
 export type { App, ServiceTree }
 
 /**
- * 工作空间 Tab
- */
-export interface WorkspaceTab {
-  id: string
-  title: string
-  type: 'function' | 'welcome' | 'settings'
-  path: string
-  icon?: string
-  closable: boolean
-  node?: ServiceTree // 关联的服务树节点
-  data?: any // 保存的状态
-}
-
-/**
  * 工作空间状态
  */
 export interface WorkspaceState {
   currentApp: App | null
   currentFunction: ServiceTree | null
+  currentDirectory: ServiceTree | null // 当前目录
   serviceTree: ServiceTree[]
-  functionDetails: Map<string, FunctionDetail>
-  loading: boolean // 🔥 添加 loading 状态，统一管理加载状态
-  tabs: WorkspaceTab[] // 🔥 多标签页支持
-  activeTabId: string | null // 🔥 当前激活的 Tab ID
+  functionDetails: Map<string, FunctionDetail> // 函数详情缓存
+  loading: boolean // 加载状态
 }
 
 /**
@@ -113,151 +98,23 @@ export class WorkspaceDomainService {
   }
 
   /**
-   * 打开 Tab（如果已存在则激活，否则创建）
-   * 🔥 修复：如果 Tab 已存在，只激活，不重新加载函数详情
+   * 设置当前函数（加载函数详情并更新状态）
+   * 🔥 简化：不再使用 Tab，直接设置当前函数
    */
-  openTab(node: ServiceTree, detail?: FunctionDetail): void {
+  setCurrentFunctionWithDetail(node: ServiceTree, detail?: FunctionDetail): void {
     const state = this.stateManager.getState()
-    const tabId = node.full_code_path || String(node.id)
     
-    // 检查是否已存在
-    const existingTab = state.tabs.find(t => t.id === tabId)
-    if (existingTab) {
-      // 🔥 Tab 已存在，只激活，不重新加载函数详情（避免重复加载）
-      this.activateTab(tabId)
-      return
-    }
-
-    // 🔥 创建新 Tab（使用传入的 detail 或从缓存中获取）
-    const functionDetail = detail || this.getFunctionDetail(node)
-    
-    const newTab: WorkspaceTab = {
-      id: tabId,
-      title: node.name || node.code,
-      path: node.full_code_path || String(node.id),
-      node: node
-    }
-    
+    // 更新函数详情缓存
+    const key = node.ref_id ? `id:${node.ref_id}` : `path:${node.full_code_path}`
     const newFunctionDetails = new Map(state.functionDetails)
-    if (functionDetail) {
-      newFunctionDetails.set(tabId, functionDetail)
+    if (detail) {
+      newFunctionDetails.set(key, detail)
     }
 
     this.stateManager.setState({
       ...state,
-      tabs: [...state.tabs, newTab],
-      activeTabId: tabId,
       currentFunction: node,
       functionDetails: newFunctionDetails
-    })
-
-    // 🔥 触发路由更新事件（让 Presentation Layer 更新路由）
-    this.eventBus.emit(WorkspaceEvent.tabOpened, { tab: newTab, shouldUpdateRoute: true })
-  }
-
-  /**
-   * 激活 Tab
-   */
-  activateTab(tabId: string): void {
-    console.log('[WorkspaceDomainService] activateTab 开始', { tabId })
-    const state = this.stateManager.getState()
-    const tab = state.tabs.find(t => t.id === tabId)
-    console.log('[WorkspaceDomainService] activateTab 查找 tab', { 
-      tabId, 
-      found: !!tab, 
-      tabPath: tab?.path,
-      tabsCount: state.tabs.length,
-      allTabIds: state.tabs.map(t => t.id)
-    })
-    
-    if (!tab) {
-      console.warn('[WorkspaceDomainService] activateTab tab 不存在', { tabId, availableTabs: state.tabs.map(t => ({ id: t.id, title: t.title })) })
-      return
-    }
-    
-    // 🔥 检查状态是否已同步，避免不必要的更新
-    const currentActiveTabId = state.activeTabId
-    const currentFunctionId = state.currentFunction?.id
-    const targetFunctionId = tab.node?.id
-    
-    const isStateSynced = currentActiveTabId === tabId && 
-                          ((!currentFunctionId && !targetFunctionId) || currentFunctionId === targetFunctionId)
-    
-    if (isStateSynced) {
-      console.log('[WorkspaceDomainService] activateTab: 状态已同步，无需更新', {
-        tabId,
-        currentActiveTabId,
-        currentFunctionId,
-        targetFunctionId
-      })
-      return
-    }
-    
-    console.log('[WorkspaceDomainService] activateTab 更新状态并触发事件', { 
-      tabId, 
-      tabPath: tab.path,
-      tabTitle: tab.title,
-      currentActiveTabId,
-      currentFunctionId,
-      targetFunctionId
-    })
-    
-    this.stateManager.setState({
-      ...state,
-      activeTabId: tabId,
-      currentFunction: tab.node || null
-    })
-
-    // 🔥 注意：不再触发 tabActivated 事件来更新路由
-    // 路由应该由 handleTabClick 直接更新（路由优先策略）
-    // 这样可以与服务目录切换的逻辑保持一致
-    console.log('[WorkspaceDomainService] activateTab 状态已更新', { tabId, tabPath: tab.path })
-  }
-
-  /**
-   * 关闭 Tab
-   */
-  closeTab(tabId: string): void {
-    const state = this.stateManager.getState()
-    const tabIndex = state.tabs.findIndex(t => t.id === tabId)
-    if (tabIndex === -1) return
-
-    const newTabs = state.tabs.filter(t => t.id !== tabId)
-    let newActiveId = state.activeTabId
-    let newCurrentFunction = state.currentFunction
-
-    // 如果关闭的是当前激活的 Tab
-    if (tabId === state.activeTabId) {
-      if (newTabs.length > 0) {
-        // 激活相邻的 Tab（优先右侧，如果没有则左侧）
-        // 注意：filter 后的索引可能发生变化
-        const nextTab = newTabs[Math.min(tabIndex, newTabs.length - 1)]
-        newActiveId = nextTab.id
-        newCurrentFunction = nextTab.node || null
-      } else {
-        newActiveId = null
-        newCurrentFunction = null
-      }
-    }
-
-    this.stateManager.setState({
-      ...state,
-      tabs: newTabs,
-      activeTabId: newActiveId,
-      currentFunction: newCurrentFunction
-    })
-  }
-
-  /**
-   * 清空所有 Tab
-   */
-  closeAllTabs(): void {
-    const state = this.stateManager.getState()
-    this.stateManager.setState({
-      ...state,
-      tabs: [],
-      activeTabId: null,
-      currentFunction: null
     })
   }
 
@@ -269,16 +126,17 @@ export class WorkspaceDomainService {
   async switchApp(app: App): Promise<void> {
     const state = this.stateManager.getState()
     
-    // 更新状态：设置当前应用，清空服务树，设置 loading 为 true
+    // 更新状态：设置当前应用，清空服务树和当前目录，设置 loading 为 true
     this.stateManager.setState({
       ...state,
       currentApp: app,
       currentFunction: null,
+      currentDirectory: null,
       serviceTree: [], // 清空服务树，等待重新加载
-      loading: true    // 🔥 开始加载
+      loading: true    // 开始加载
     })
 
-    // 🔥 不在这里触发 appSwitched 事件，避免循环触发
+    // 不在这里触发 appSwitched 事件，避免循环触发
     // 事件应该在 Application Service 层统一管理
   }
 
@@ -344,6 +202,68 @@ export class WorkspaceDomainService {
   }
 
   /**
+   * 设置当前目录（切换目录时调用）
+   */
+  setCurrentDirectory(directory: ServiceTree | null): void {
+    const state = this.stateManager.getState()
+    
+    // 如果目录相同，不执行任何操作
+    if (state.currentDirectory?.id === directory?.id) {
+      return
+    }
+    
+    this.stateManager.setState({
+      ...state,
+      currentDirectory: directory,
+      currentFunction: directory // 设置当前函数为目录节点
+    })
+  }
+
+  /**
+   * 获取当前目录
+   */
+  getCurrentDirectory(): ServiceTree | null {
+    return this.stateManager.getState().currentDirectory
+  }
+
+  /**
+   * 获取指定目录下的所有函数节点（只获取直接子函数，不包括子目录下的函数）
+   */
+  getFunctionsInDirectory(directory: ServiceTree): ServiceTree[] {
+    const state = this.stateManager.getState()
+    const functions: ServiceTree[] = []
+    
+    // 递归查找目录节点
+    const findDirectoryNode = (nodes: ServiceTree[], targetId: number): ServiceTree | null => {
+      for (const node of nodes) {
+        if (node.id === targetId) {
+          return node
+        }
+        if (node.children && node.children.length > 0) {
+          const found = findDirectoryNode(node.children, targetId)
+          if (found) return found
+        }
+      }
+      return null
+    }
+    
+    // 找到目录节点
+    const dirNode = findDirectoryNode(state.serviceTree, directory.id)
+    if (!dirNode || !dirNode.children) {
+      return []
+    }
+    
+    // 只获取直接子函数（不包括子目录）
+    for (const child of dirNode.children) {
+      if (child.type === 'function') {
+        functions.push(child)
+      }
+    }
+    
+    return functions
+  }
+
+  /**
    * 获取当前应用
    */
   getCurrentApp(): App | null {
@@ -387,41 +307,5 @@ export class WorkspaceDomainService {
     return this.stateManager
   }
 
-  /**
-   * 检查 Tab 是否存在
-   */
-  hasTab(tabId: string): boolean {
-    const state = this.stateManager.getState()
-    return state.tabs.some(t => t.id === tabId)
-  }
-
-  /**
-   * 获取 Tab
-   */
-  getTab(tabId: string): WorkspaceTab | null {
-    const state = this.stateManager.getState()
-    return state.tabs.find(t => t.id === tabId) || null
-  }
-
-  /**
-   * 更新 Tab 的 node（用于切换函数时更新 Tab 关联的节点）
-   */
-  updateTabNode(tabId: string, node: ServiceTree): void {
-    const state = this.stateManager.getState()
-    const tabIndex = state.tabs.findIndex(t => t.id === tabId)
-    if (tabIndex >= 0) {
-      const updatedTabs = [...state.tabs]
-      updatedTabs[tabIndex] = {
-        ...updatedTabs[tabIndex],
-        node: node,
-        title: node.name || node.code,
-        path: node.full_code_path || String(node.id)
-      }
-      this.stateManager.setState({
-        ...state,
-        tabs: updatedTabs
-      })
-    }
-  }
 }
 

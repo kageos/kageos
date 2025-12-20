@@ -59,8 +59,7 @@ export class RouteManager {
     // 监听路由更新请求事件
     this.setupUpdateListener()
     
-    // 监听 Tab 切换事件
-    this.setupTabSwitchListener()
+    // 🔥 Tab 功能已删除，不再监听 Tab 切换事件
     
     this.log('RouteManager 初始化完成')
   }
@@ -146,17 +145,18 @@ export class RouteManager {
   }
   
   /**
-   * 监听 Tab 切换事件
+   * 🔥 Tab 功能已删除，以下方法已废弃
    */
-  private setupTabSwitchListener(): void {
-    this.eventBus.on(WorkspaceEvent.tabSwitching, (payload: { oldTabId: string, newTabId: string }) => {
-      this.handleTabSwitch(payload.oldTabId, payload.newTabId)
-    })
-  }
+  // private setupTabSwitchListener(): void {
+  //   this.eventBus.on(WorkspaceEvent.tabSwitching, (payload: { oldTabId: string, newTabId: string }) => {
+  //     this.handleTabSwitch(payload.oldTabId, payload.newTabId)
+  //   })
+  // }
   
   /**
-   * 处理 Tab 切换
+   * 🔥 Tab 功能已删除，以下方法已废弃
    */
+  /*
   private handleTabSwitch(oldTabId: string, newTabId: string): void {
     this.log('Tab 切换', { oldTabId, newTabId })
     

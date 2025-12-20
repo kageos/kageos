@@ -19,8 +19,6 @@ import type { ServiceTree, App } from '../../domain/services/WorkspaceDomainServ
 import type { App as AppType, ServiceTree as ServiceTreeType } from '@/types'
 
 export function useWorkspaceRouting(options: {
-  tabs: () => any[]
-  activeTabId: () => string
   serviceTree: () => ServiceTreeType[]
   currentApp: () => AppType | null
   appList: () => AppType[]
@@ -37,10 +35,9 @@ export function useWorkspaceRouting(options: {
   // 防重复调用保护
   let isLoadingAppFromRoute = false
   let isSyncingRouteToTab = false
-  let lastSavedTabId: string | null = null // 🔥 记录上次保存的 Tab ID，防止重复保存
   let lastProcessedUpdateCompleted: { path: string, source: string } | null = null // 🔥 记录上次处理的 updateCompleted 事件，防止重复处理
 
-  // 从路由同步到 Tab 状态（路由变化时调用）
+  // 从路由同步到当前函数（路由变化时调用）
   const syncRouteToTab = async () => {
     // 🔥 防重复调用保护
     if (isSyncingRouteToTab) {
@@ -56,9 +53,8 @@ export function useWorkspaceRouting(options: {
     }
     
     // 🔥 检查是否是函数组详情页面（_node_type=function_group）
-    // 如果是函数组，不需要查找 Tab，直接返回（函数组详情页面会自己处理）
     if (isFunctionGroupDetail(route.query)) {
-      Logger.debug('useWorkspaceRouting', '检测到函数组详情页面，跳过 Tab 查找', { path: route.path })
+      Logger.debug('useWorkspaceRouting', '检测到函数组详情页面，跳过', { path: route.path })
       return
     }
     
@@ -66,83 +62,41 @@ export function useWorkspaceRouting(options: {
     isSyncingRouteToTab = true
     
     try {
-      // 解析路径，找到对应的 Tab
-      const targetTab = options.tabs().find(t => {
-        const tabPath = t.path?.replace(/^\//, '') || ''
-        const routePath = fullPath?.replace(/^\//, '') || ''
-        return tabPath === routePath
-      })
+      // 从路由路径找到对应的节点
+      const tree = options.serviceTree()
+      if (tree.length === 0) {
+        // 服务树未加载，等待加载
+        return
+      }
       
-      if (targetTab) {
-        // Tab 已存在，激活它（不触发路由更新）
-        // 🔥 只有在 Tab ID 不同时才激活，避免重复调用
-        const currentActiveTabId = options.activeTabId()
-        if (currentActiveTabId !== targetTab.id) {
-          Logger.debug('useWorkspaceRouting', '激活 Tab', { 
-            currentActiveTabId, 
-            targetTabId: targetTab.id 
-          })
-          applicationService.activateTab(targetTab.id)
-        } else {
-          Logger.debug('useWorkspaceRouting', 'Tab 已激活，跳过', { 
-            tabId: targetTab.id 
-          })
+      const functionPath = '/' + fullPath.split('/').filter(Boolean).join('/')
+      const node = options.findNodeByPath(tree, functionPath)
+      
+      if (node) {
+        const serviceNode: ServiceTree = node as any
+        
+        // 检查当前函数是否已经是目标节点
+        const currentFunction = stateManager.getCurrentFunction()
+        if (currentFunction && (
+          currentFunction.id === serviceNode.id || 
+          currentFunction.full_code_path === serviceNode.full_code_path
+        )) {
+          // 已经是目标节点，检查函数详情是否已加载
+          if (serviceNode.type === 'function') {
+            const detail = stateManager.getFunctionDetail(serviceNode)
+            if (!detail) {
+              // 函数详情未加载，加载它
+              applicationService.handleNodeClick(serviceNode)
+            }
+          }
+          return
         }
         
-        // 🔥 Tab 激活后，保存 Tab 的路由状态（用于 workspace-node-click 场景）
-        // 因为 workspace-node-click 时，路由更新完成时 Tab 可能还没有激活
-        // 所以在这里保存，确保保存的是正确的 Tab ID
-        await nextTick() // 等待 activateTab 完成
-        const currentTabId = options.activeTabId()
-        if (currentTabId === targetTab.id) {
-          // 🔥 防止重复保存：如果已经保存过这个 Tab 的路由状态，且路由没有变化，则跳过
-          const currentPath = route.path
-          const currentQuery = { ...route.query }
-          const shouldSave = lastSavedTabId !== targetTab.id // 如果 Tab ID 变化了，需要保存
-          
-          if (shouldSave) {
-            // 确保 Tab 已经激活，再保存路由状态
-            // 通过事件通知 RouteManager 保存路由状态
-            // 🔥 使用当前路由的 path 和 query，确保保存的是正确的路由状态
-            eventBus.emit(RouteEvent.updateRequested, {
-              path: currentPath,
-              query: currentQuery,
-              replace: false, // 不实际更新路由，只是触发保存
-              preserveParams: {
-                state: true
-              },
-              source: 'sync-route-to-tab-save-state',
-              meta: { tabId: targetTab.id, path: currentPath, query: currentQuery } // 🔥 传递 Tab ID 和路由状态，确保保存正确
-            } as any)
-            lastSavedTabId = targetTab.id // 🔥 记录已保存的 Tab ID
-          }
-        }
-      
-        // 🔥 Tab 切换时，即使 Tab 已经激活，也需要确保函数详情已加载
-        // 因为 Tab 切换时，路由已经更新了，函数界面需要刷新
-        if (targetTab.node && targetTab.node.type === 'function') {
-          const detail = stateManager.getFunctionDetail(targetTab.node)
-          if (!detail) {
-            // 使用 handleNodeClick 加载函数详情
-            applicationService.handleNodeClick(targetTab.node)
-          } else {
-            // 🔥 函数详情已加载，但 Tab 切换时路由已更新，需要触发函数界面刷新
-            // 发出函数加载完成事件，让 FormView/TableView 重新初始化
-            eventBus.emit(WorkspaceEvent.functionLoaded, {
-              function: targetTab.node,
-              detail: detail
-            })
-          }
-        } else if (targetTab.node && targetTab.node.type === 'package') {
-          // 🔥 如果是 package 类型，确保设置了当前函数
-          applicationService.triggerNodeClick(targetTab.node)
-        }
+        // 触发节点点击，加载函数详情
+        applicationService.triggerNodeClick(serviceNode)
       } else {
-        // Tab 不存在，从路由打开新 Tab
-        // 注意：这里需要确保服务树已加载，否则无法找到节点
-        if (options.serviceTree().length > 0) {
-          await loadAppFromRoute()
-        }
+        // 节点不存在，尝试从路由加载应用（可能是新应用）
+        await loadAppFromRoute()
       }
     } finally {
       isSyncingRouteToTab = false
@@ -298,31 +252,7 @@ export function useWorkspaceRouting(options: {
           // 🔥 注意：_link_type 参数的处理已移至 setupRouteWatch 中的 link-widget updateCompleted 事件监听
           // 这里不再处理 _link_type，避免在路由更新完成前就清除参数
           
-          // 检查 Tab 是否存在
-          const tabsArray = Array.isArray(options.tabs()) ? options.tabs() : []
-          const existingTab = tabsArray.find(t => 
-            t.path === serviceNode.full_code_path || t.path === String(serviceNode.id)
-          )
-          
-          if (existingTab) {
-            // Tab 已存在，激活它（不触发路由更新）
-            if (options.activeTabId() !== existingTab.id) {
-              isSyncingRouteToTab = true
-              applicationService.activateTab(existingTab.id)
-              isSyncingRouteToTab = false
-            }
-            
-            // 无论是否激活，都检查函数详情是否已加载
-            if (existingTab.node && existingTab.node.type === 'function') {
-              const detail = stateManager.getFunctionDetail(existingTab.node)
-              if (!detail) {
-                applicationService.handleNodeClick(existingTab.node)
-              }
-            }
-            return
-          }
-          
-          // Tab 不存在，打开新 Tab
+          // 直接触发节点点击，加载函数详情
           applicationService.triggerNodeClick(serviceNode)
         }
 
@@ -440,6 +370,34 @@ export function useWorkspaceRouting(options: {
         // 使用 nextTick 确保路由已经更新完成
         await nextTick()
         
+        // 🔥 如果是 workspace-node-click，需要触发节点点击来加载函数详情
+        if (payload.source === 'workspace-node-click') {
+          const fullPath = extractWorkspacePath(payload.path)
+          if (fullPath) {
+            const pathSegments = fullPath.split('/').filter(Boolean)
+            if (pathSegments.length >= 3) {
+              const functionPath = '/' + pathSegments.join('/')
+              const tree = options.serviceTree()
+              if (tree && tree.length > 0) {
+                const node = options.findNodeByPath(tree, functionPath)
+                if (node && node.type === 'function') {
+                  const serviceNode: ServiceTree = node as any
+                  // 🔥 触发节点点击，确保函数详情已加载
+                  applicationService.triggerNodeClick(serviceNode)
+                  // 清除记录，允许下次处理
+                  setTimeout(() => {
+                    if (lastProcessedUpdateCompleted?.path === payload.path && 
+                        lastProcessedUpdateCompleted?.source === payload.source) {
+                      lastProcessedUpdateCompleted = null
+                    }
+                  }, 100)
+                  return
+                }
+              }
+            }
+          }
+        }
+        
         // 🔥 如果是 workspace-node-click-package，需要确保设置了当前函数
         if (payload.source === 'workspace-node-click-package') {
           const fullPath = extractWorkspacePath(payload.path)
@@ -453,12 +411,21 @@ export function useWorkspaceRouting(options: {
                 if (node && node.type === 'package') {
                   const serviceNode: ServiceTree = node as any
                   applicationService.triggerNodeClick(serviceNode)
+                  // 清除记录，允许下次处理
+                  setTimeout(() => {
+                    if (lastProcessedUpdateCompleted?.path === payload.path && 
+                        lastProcessedUpdateCompleted?.source === payload.source) {
+                      lastProcessedUpdateCompleted = null
+                    }
+                  }, 100)
+                  return
                 }
               }
             }
           }
         }
         
+        // 对于 tab 切换相关事件，只同步路由到 Tab
         syncRouteToTab()
         
         // 🔥 清除记录，允许下次处理（使用 setTimeout 延迟清除，避免快速连续触发）
