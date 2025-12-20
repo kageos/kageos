@@ -375,7 +375,6 @@ import { useWorkspaceDetail } from '../composables/useWorkspaceDetail'
 import { useWorkspaceApp } from '../composables/useWorkspaceApp'
 import { useWorkspaceServiceTree } from '../composables/useWorkspaceServiceTree'
 import { findNodeByPath, findNodeById, getDirectChildFunctionCodes } from '../utils/workspaceUtils'
-import { preserveQueryParamsForTable, preserveQueryParamsForForm } from '@/utils/queryParams'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { resolveWorkspaceUrl } from '@/utils/route'
 import { getAgentList, type AgentInfo } from '@/api/agent'
@@ -759,6 +758,7 @@ const buildLinkNavigationQuery = (): Record<string, string | string[]> => {
 
 /**
  * 处理函数节点的路由更新
+ * 🔥 切换函数时清空所有查询参数，避免参数污染
  */
 const handleFunctionNodeRoute = (node: ServiceTree, source: string): void => {
   if (!node.full_code_path) return
@@ -770,18 +770,17 @@ const handleFunctionNodeRoute = (node: ServiceTree, source: string): void => {
     return
   }
   
-  const isTable = isTableFunction(node)
   const isLink = isLinkNavigation()
   
-  // 构建查询参数
+  // 🔥 构建查询参数
+  // 只有 link 跳转时才保留参数，普通切换函数时清空所有参数
   let preservedQuery: Record<string, string | string[]>
   if (isLink) {
+    // link 跳转：保留所有参数（除了 _link_type）
     preservedQuery = buildLinkNavigationQuery()
   } else {
-    const filteredQuery: Record<string, any> = { ...route.query }
-    preservedQuery = isTable
-      ? preserveQueryParamsForTable(filteredQuery)
-      : preserveQueryParamsForForm(filteredQuery)
+    // 🔥 普通切换函数：清空所有查询参数，避免参数污染
+    preservedQuery = {}
   }
   
   // 发出路由更新请求事件
@@ -790,10 +789,10 @@ const handleFunctionNodeRoute = (node: ServiceTree, source: string): void => {
     query: preservedQuery,
     replace: true,
     preserveParams: {
-      table: isTable,
-      search: false,
-      state: true,
-      linkNavigation: isLink
+      table: false,      // 🔥 不再保留 table 参数
+      search: false,     // 🔥 不再保留搜索参数
+      state: false,      // 🔥 不再保留状态参数
+      linkNavigation: isLink  // 只有 link 跳转时才保留参数
     },
     source: source as any
   })
