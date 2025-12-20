@@ -181,7 +181,7 @@ export class WorkspaceApplicationService {
     if (preloadedServiceTree) {
       await this.domainService.loadServiceTreeWithData(appToSwitch, preloadedServiceTree)
     } else {
-      // 加载服务目录树
+    // 加载服务目录树
       await this.domainService.loadServiceTree(appToSwitch)
     }
   }

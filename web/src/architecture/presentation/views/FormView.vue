@@ -190,6 +190,8 @@ import { Logger } from '@/core/utils/logger'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
 import { hasAnyRequiredRule } from '@/core/utils/validationUtils'
+import { useFormDataStore } from '@/core/stores-v2/formData'
+import { useResponseDataStore } from '@/core/stores-v2/responseData'
 
 const props = defineProps<{
   functionDetail: FunctionDetail
@@ -202,6 +204,17 @@ const route = useRoute()
 const stateManager = serviceFactory.getFormStateManager()
 const domainService = serviceFactory.getFormDomainService()
 const applicationService = serviceFactory.getFormApplicationService()
+
+// 🔥 获取全局 formDataStore 和 responseDataStore（用于清理，因为 WidgetComponent 内部使用的组件会直接使用这些 store）
+const formDataStore = useFormDataStore()
+const responseDataStore = useResponseDataStore()
+
+// 🔥 计算函数标识（用于函数粒度缓存）
+const functionKey = computed(() => {
+  return props.functionDetail.id && props.functionDetail.id !== 0
+    ? props.functionDetail.id
+    : props.functionDetail.router || 'default'
+})
 
 // 从状态管理器获取状态
 const formData = computed(() => {
@@ -444,6 +457,10 @@ const handleSubmit = async (): Promise<void> => {
 }
 
 const handleReset = (): void => {
+  // 🔥 重置时清理当前函数的数据（不清空其他函数的数据）
+  formDataStore.clear(functionKey.value, props.functionDetail.router)
+  responseDataStore.clear(functionKey.value, props.functionDetail.router)
+  
   applicationService.clearForm()
   // 重新初始化表单
   const fields = requestFields.value
@@ -457,6 +474,10 @@ let unsubscribeFunctionLoaded: (() => void) | null = null
 let unsubscribeFormInitialized: (() => void) | null = null
 
 onMounted(() => {
+  // 🔥 设置当前函数标识（用于函数粒度缓存）
+  formDataStore.setCurrentFunction(functionKey.value, props.functionDetail.router)
+  responseDataStore.setCurrentFunction(functionKey.value, props.functionDetail.router)
+  
   // 初始化表单：在挂载时立即初始化，并传递 URL 参数作为初始数据
   if (requestFields.value.length > 0) {
     const initialData = formInitialData.value
@@ -473,6 +494,13 @@ onMounted(() => {
         return
       }
       lastInitializedFunctionId = payload.detail.id
+      
+      // 🔥 切换函数时，设置新的函数标识（用于函数粒度缓存）
+      const newFunctionKey = payload.detail.id && payload.detail.id !== 0
+        ? payload.detail.id
+        : payload.detail.router || 'default'
+      formDataStore.setCurrentFunction(newFunctionKey, payload.detail.router)
+      responseDataStore.setCurrentFunction(newFunctionKey, payload.detail.router)
       
       // 🔥 使用 nextTick 确保 formInitialData 已经更新（因为它依赖于 route.query）
       nextTick(() => {
@@ -499,6 +527,13 @@ onMounted(() => {
     // 🔥 只在 functionDetail 的 id 或 router 真正变化时重新初始化
     // 如果只是其他属性变化（如字段配置），不应该重新初始化
     if (newDetail.id !== oldDetail?.id || newDetail.router !== oldDetail?.router) {
+      // 🔥 切换函数时，设置新的函数标识（用于函数粒度缓存）
+      const newFunctionKey = newDetail.id && newDetail.id !== 0
+        ? newDetail.id
+        : newDetail.router || 'default'
+      formDataStore.setCurrentFunction(newFunctionKey, newDetail.router)
+      responseDataStore.setCurrentFunction(newFunctionKey, newDetail.router)
+      
       const fields = (newDetail.request || []) as FieldConfig[]
       if (fields.length > 0) {
         // 🔥 使用 nextTick 确保 formInitialData 已经更新（因为它依赖于 route.query）

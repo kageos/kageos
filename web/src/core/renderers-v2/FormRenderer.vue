@@ -174,6 +174,13 @@ const props = withDefaults(defineProps<{
 const formDataStore = useFormDataStore()
 const responseDataStore = useResponseDataStore()
 
+// 🔥 计算函数标识（用于函数粒度缓存）
+const functionKey = computed(() => {
+  return props.functionDetail.id && props.functionDetail.id !== 0
+    ? props.functionDetail.id
+    : props.functionDetail.router || 'default'
+})
+
 // 🔥 用户信息映射（从 props 获取，如果没有则使用空 Map）
 const userInfoMap = computed(() => props.userInfoMap || new Map())
 
@@ -301,7 +308,7 @@ const hasResponseData = computed(() => {
 const formData = computed(() => {
   const data: Record<string, any> = {}
   requestFields.value.forEach((field: FieldConfig) => {
-    const value = formDataStore.getValue(field.code)
+    const value = formDataStore.getValue(field.code, functionKey.value, props.functionDetail.router)
     data[field.code] = value?.raw
   })
   return data
@@ -309,12 +316,12 @@ const formData = computed(() => {
 
 // 获取字段值
 function getFieldValue(fieldCode: string): FieldValue {
-  return formDataStore.getValue(fieldCode)
+  return formDataStore.getValue(fieldCode, functionKey.value, props.functionDetail.router)
 }
 
 // 更新字段值
 function updateFieldValue(fieldCode: string, value: FieldValue): void {
-  formDataStore.setValue(fieldCode, value)
+  formDataStore.setValue(fieldCode, value, functionKey.value, props.functionDetail.router)
   
   // 字段值改变时，重新验证当前字段
   const field = requestFields.value.find(f => f.code === fieldCode)
@@ -335,7 +342,7 @@ function updateFieldValue(fieldCode: string, value: FieldValue): void {
           raw: null,
           display: '',
           meta: {}
-        })
+        }, functionKey.value, props.functionDetail.router)
         // 同时清空该字段的验证错误（fieldErrors 是 Map，使用 delete 方法）
         if (fieldErrors.has(otherField.code)) {
           fieldErrors.delete(otherField.code)
@@ -483,12 +490,12 @@ const validationEngine = computed(() => {
   // 创建适配器，将 formDataStore 转换为 ReactiveFormDataManager 接口
   const formManagerAdapter = {
     getValue: (fieldPath: string) => {
-      return formDataStore.getValue(fieldPath)
+      return formDataStore.getValue(fieldPath, functionKey.value, props.functionDetail.router)
     },
     getAllValues: () => {
       const allValues: Record<string, FieldValue> = {}
       allFields.forEach(f => {
-        allValues[f.code] = formDataStore.getValue(f.code)
+        allValues[f.code] = formDataStore.getValue(f.code, functionKey.value, props.functionDetail.router)
       })
       return allValues
     }
@@ -626,7 +633,7 @@ function validateField(field: FieldConfig): void {
   }
   
   // 基础 Widget：直接验证
-  const value = formDataStore.getValue(fieldPath)
+  const value = formDataStore.getValue(fieldPath, functionKey.value, props.functionDetail.router)
   if (field.validation) {
     const errors = validationEngine.value.validateField(field, value, allFields)
     updateFieldErrors(fieldPath, errors)
@@ -690,7 +697,7 @@ const formRendererContext: FormRendererContext = {
   getFunctionMethod: () => props.functionDetail.method,
   getFunctionRouter: () => props.functionDetail.router,
   getFunctionDetail: () => props.functionDetail, // 🔥 获取函数详情（用于 keep-alive 场景下的防重复调用）
-  getSubmitData: () => formDataStore.getSubmitData(requestFields.value),
+  getSubmitData: () => formDataStore.getSubmitData(requestFields.value, '', functionKey.value, props.functionDetail.router),
   getFieldError: (fieldPath: string) => getFieldError(fieldPath) // 🔥 获取字段错误
 }
 
@@ -728,7 +735,7 @@ function shouldShowFieldInForm(
   // 创建一个适配器，将 formDataStore 转换为 ReactiveFormDataManager 接口
   const formManagerAdapter = {
     getValue: (fieldPath: string) => {
-      let value = formDataStore.getValue(fieldPath)
+      let value = formDataStore.getValue(fieldPath, functionKey.value, props.functionDetail.router)
       
       // ⚠️ 关键修复：如果 formDataStore 中没有值，且 initialData 中有值，使用 initialData 的值
       // 这样可以确保在初始化时，条件渲染能正确判断字段是否应该显示
@@ -750,7 +757,7 @@ function shouldShowFieldInForm(
     getAllValues: () => {
       const allValues: Record<string, FieldValue> = {}
       allFields.forEach(f => {
-        let value = formDataStore.getValue(f.code)
+        let value = formDataStore.getValue(f.code, functionKey.value, props.functionDetail.router)
         
         // ⚠️ 关键修复：同上，确保 getAllValues 也能从 initialData 中获取值
         if ((!value || value.raw === null || value.raw === undefined) && 
@@ -792,9 +799,9 @@ function getFieldDefaultValue(field: FieldConfig): FieldValue {
  * - 这样可以确保依赖字段（如 `vote_type`）的值能被正确读取，从而显示被依赖的字段（如 `max_selections`）
  */
 function initializeForm(): void {
-  // 清空数据
-  formDataStore.clear()
-  responseDataStore.clear()
+  // 🔥 设置当前函数标识（用于函数粒度缓存）
+  formDataStore.setCurrentFunction(functionKey.value, props.functionDetail.router)
+  responseDataStore.setCurrentFunction(functionKey.value, props.functionDetail.router)
   
   // 初始化字段值
   // ⚠️ 注意：requestFields 已经通过条件渲染过滤，只包含应该显示的字段
@@ -814,7 +821,7 @@ function initializeForm(): void {
         meta: {}
       }
       
-      formDataStore.setValue(fieldCode, fieldValue)
+      formDataStore.setValue(fieldCode, fieldValue, functionKey.value, props.functionDetail.router)
     } else {
       // 使用默认值（从字段配置中获取）
       const defaultValue = getFieldDefaultValue(field)
@@ -869,7 +876,7 @@ async function handleSubmit(): Promise<void> {
   
   try {
     // 获取提交数据
-    const submitData = formDataStore.getSubmitData(requestFields.value)
+    const submitData = formDataStore.getSubmitData(requestFields.value, '', functionKey.value, props.functionDetail.router)
     
     Logger.info('[FormRenderer-v2]', '提交数据', submitData)
     
@@ -893,7 +900,8 @@ async function handleSubmit(): Promise<void> {
     // 保存数据
     Logger.info('[FormRenderer-v2]', '调用 setData 前，responseDataStore:', responseDataStore)
     Logger.info('[FormRenderer-v2]', '调用 setData 前，data:', responseDataStore.data)
-    responseDataStore.setData(newResponseData)
+    // 🔥 保存响应数据到函数粒度的缓存
+    responseDataStore.setData(newResponseData, functionKey.value, props.functionDetail.router)
     Logger.info('[FormRenderer-v2]', '调用 setData 后，data:', responseDataStore.data)
     Logger.info('[FormRenderer-v2]', '调用 setData 后，data.value:', responseDataStore.data.value)
     
@@ -945,7 +953,7 @@ function prepareSubmitDataWithTypeConversion(): Record<string, any> {
   }
   
   // 使用 formDataStore 的 getSubmitData 方法递归收集所有字段的数据
-  const submitData = formDataStore.getSubmitData(props.functionDetail.request, '')
+  const submitData = formDataStore.getSubmitData(props.functionDetail.request, '', functionKey.value, props.functionDetail.router)
   
   Logger.info('[FormRenderer-v2]', '准备提交数据', submitData)
   
@@ -960,7 +968,8 @@ function cleanup(): void {
   nextTick(() => {
     // 清理数据
     formDataStore.clear()
-    responseDataStore.clear()
+    // 🔥 清理当前函数的数据（不清空其他函数的数据）
+    responseDataStore.clear(functionKey.value, props.functionDetail.router)
   })
 }
 

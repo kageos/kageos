@@ -72,7 +72,7 @@ export class ServiceTreeLoaderImpl implements IServiceTreeLoader {
           else if (Array.isArray(response)) {
           tree = response
           } else if ('items' in response && Array.isArray(response.items)) {
-            tree = response.items || []
+          tree = response.items || []
           } else if ('data' in response && Array.isArray(response.data)) {
             tree = response.data || []
           }
