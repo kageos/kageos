@@ -18,6 +18,14 @@
         <div class="select-content">
           <div class="select-main">
             <span class="select-label">{{ displayValue || (field.desc || `请选择${field.name}`) }}</span>
+            <!-- 🔥 清除按钮（当有值且不是必填字段时显示） -->
+            <el-icon
+              v-if="props.value?.raw != null && props.value?.raw !== '' && !isFieldRequired(field)"
+              class="clear-icon"
+              @click.stop="handleClear"
+            >
+              <CircleClose />
+            </el-icon>
             <el-icon class="input-icon"><ArrowDown /></el-icon>
           </div>
           <div v-if="displayInfoText" class="display-info-text">
@@ -87,6 +95,14 @@
         <div class="select-content">
           <div class="select-main">
             <span class="select-label">{{ displayValue || `搜索${field.name}` }}</span>
+            <!-- 🔥 清除按钮（当有值且不是必填字段时显示） -->
+            <el-icon
+              v-if="props.value?.raw != null && props.value?.raw !== '' && !isFieldRequired(field)"
+              class="clear-icon"
+              @click.stop="handleClear"
+            >
+              <CircleClose />
+            </el-icon>
             <el-icon class="input-icon"><ArrowDown /></el-icon>
           </div>
           <div v-if="displayInfoText" class="display-info-text">
@@ -123,13 +139,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, onActivated, onDeactivated, watch, nextTick, withDefaults } from 'vue'
 import { ElInput, ElMessage, ElTag, ElIcon } from 'element-plus'
-import { ArrowDown } from '@element-plus/icons-vue'
+import { ArrowDown, CircleClose } from '@element-plus/icons-vue'
 import FuzzySearchDialog from './FuzzySearchDialog.vue'
 import FieldStatistics from './FieldStatistics.vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useFormDataStore } from '../../stores-v2/formData'
 import { createFieldValue } from '../utils/createFieldValue'
 import { selectFuzzy } from '@/api/function'
+import { isFieldRequired } from '@/core/utils/validationUtils'
 import { Logger } from '../../utils/logger'
 import { SelectFuzzyQueryType, isStandardColor, getStandardColorCSSVar, type StandardColorType } from '../../constants/select'
 import { convertValueToType } from '../utils/valueConverter'
@@ -586,6 +603,25 @@ function handleDialogSelect(item: { value: any; label?: string; displayInfo?: an
   
   // 🔥 关闭对话框
   dialogVisible.value = false
+}
+
+// 🔥 处理清除值
+function handleClear(): void {
+  // 创建空值
+  const emptyFieldValue = createFieldValue(
+    props.field,
+    null,
+    '',
+    {}
+  )
+  
+  // 更新 formDataStore
+  if (props.mode === 'edit') {
+    formDataStore.setValue(props.fieldPath, emptyFieldValue)
+  }
+  
+  // 触发 emit
+  emit('update:modelValue', emptyFieldValue)
 }
 
 // 处理搜索
@@ -1090,6 +1126,21 @@ watch(
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.clear-icon {
+  color: var(--el-text-color-secondary);
+  font-size: 16px;
+  transition: all 0.2s;
+  flex-shrink: 0;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 50%;
+}
+
+.clear-icon:hover {
+  color: var(--el-color-danger);
+  background-color: var(--el-color-danger-light-9);
 }
 
 .input-icon {
