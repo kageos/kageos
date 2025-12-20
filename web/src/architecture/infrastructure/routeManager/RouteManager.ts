@@ -239,12 +239,12 @@ export class RouteManager {
         })
         // 删除错误的状态
         this.tabStateManager.deleteTabRouteState(newTabId)
-        // 使用默认路径（由 useWorkspaceTabs 处理）
+        // 🔥 Tab 功能已删除
       }
     } else {
       this.log('Tab 没有保存的路由状态，使用默认路由', { tabId: newTabId })
       // 🔥 即使没有保存的状态，也需要发出路由更新请求（使用默认路径）
-      // 这样，useWorkspaceTabs 就不需要再发出 tab-click 请求了
+      // 🔥 Tab 功能已删除
       const defaultPath = `/workspace${newTabId}`
       this.requestUpdate({
         path: defaultPath,
