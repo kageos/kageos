@@ -190,18 +190,18 @@ export class WorkspaceDomainService {
 
     try {
       const state = this.stateManager.getState()
-
+      
       console.log('[WorkspaceDomainService] 开始加载服务目录树:', app.user, app.code, 'app.id:', app.id)
-
+      
       // 从 ServiceTreeLoader 加载服务目录树
       const tree = await this.serviceTreeLoader.load(app)
-
+      
       console.log('[WorkspaceDomainService] 服务目录树加载完成，节点数:', tree?.length || 0)
 
       // 🔥 注意：如果 app.id 是 0（临时值），应用信息的更新由 Application Service 层处理
       // 这里只更新服务树，应用信息的更新在 handleAppSwitch 中处理
       let updatedApp = app
-
+      
       // 更新状态
       this.stateManager.setState({
         ...state,
@@ -211,13 +211,13 @@ export class WorkspaceDomainService {
 
       // 触发事件
       this.eventBus.emit(WorkspaceEvent.serviceTreeLoaded, { app: updatedApp, tree: tree || [] })
-
+      
       console.log('[WorkspaceDomainService] 已触发 serviceTreeLoaded 事件')
 
       return tree || []
     } catch (error) {
       console.error('[WorkspaceDomainService] 加载服务目录树失败', error)
-
+      
       // 更新状态：即使失败也要重置 loading
       const state = this.stateManager.getState()
       this.stateManager.setState({
@@ -225,7 +225,7 @@ export class WorkspaceDomainService {
         serviceTree: [],
         loading: false // 🔥 加载失败，结束 loading
       })
-
+      
       // 即使失败也要触发事件，确保 loading 状态能正确更新
       this.eventBus.emit(WorkspaceEvent.serviceTreeLoaded, { app, tree: [] })
       return []
