@@ -281,6 +281,7 @@ const props = defineProps<Props>()
 const getInitialLayout = (): boolean => {
   // 优先从 localStorage 读取用户设置
   const stored = localStorage.getItem('useGroupedDetailLayout')
+  console.log('[TableRenderer] 读取布局设置:', { stored, result: stored === 'true' || stored !== 'false' })
   if (stored === 'true') {
     return true
   }
@@ -291,6 +292,14 @@ const getInitialLayout = (): boolean => {
   return true
 }
 const useGroupedDetailLayout = ref<boolean>(getInitialLayout())
+
+// 调试：输出当前布局状态
+console.log('[TableRenderer] 初始化布局状态:', { useGroupedDetailLayout: useGroupedDetailLayout.value })
+
+// 监听布局变化
+watch(useGroupedDetailLayout, (newVal) => {
+  console.log('[TableRenderer] 布局状态变化:', { newVal, localStorage: localStorage.getItem('useGroupedDetailLayout') })
+}, { immediate: true })
 
 /**
  * 切换详情布局
@@ -988,6 +997,14 @@ onMounted(() => {
   fixFixedColumnClick()
   // 监听窗口大小变化
   window.addEventListener('resize', fixFixedColumnClick)
+  
+  // 调试：输出布局状态
+  console.log('[TableRenderer] onMounted - 布局状态:', {
+    useGroupedDetailLayout: useGroupedDetailLayout.value,
+    localStorage: localStorage.getItem('useGroupedDetailLayout'),
+    willRenderGrouped: useGroupedDetailLayout.value,
+    willRenderOriginal: !useGroupedDetailLayout.value
+  })
 })
 
 onUpdated(() => {
