@@ -749,20 +749,20 @@ const renderChart = () => {
                        chartInstance.value.getDom() !== chartContainerRef.value
 
   if (needRecreate) {
-    // 销毁旧实例
-    if (chartInstance.value) {
-      chartInstance.value.dispose()
-    }
+  // 销毁旧实例
+  if (chartInstance.value) {
+    chartInstance.value.dispose()
+  }
 
-    // 创建新实例（完全按照官方示例）
-    chartInstance.value = echarts.init(chartContainerRef.value, null, {
-      renderer: 'canvas',
-      useDirtyRect: false
-    })
+  // 创建新实例（完全按照官方示例）
+  chartInstance.value = echarts.init(chartContainerRef.value, null, {
+    renderer: 'canvas',
+    useDirtyRect: false
+  })
     // 🔥 优化：减少日志输出，仅在开发环境且需要调试时输出
     if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_CHART) {
-      console.log('[ChartRenderer] ECharts 实例已创建:', chartInstance.value)
-      console.log('[ChartRenderer] DOM 元素:', chartContainerRef.value)
+  console.log('[ChartRenderer] ECharts 实例已创建:', chartInstance.value)
+  console.log('[ChartRenderer] DOM 元素:', chartContainerRef.value)
     }
   } else {
     // 🔥 优化：减少日志输出
@@ -785,17 +785,17 @@ const renderChart = () => {
 
   // 🔥 优化：减少日志输出，仅在开发环境且需要调试时输出
   if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_CHART) {
-    console.log('[ChartRenderer] ECharts option:', JSON.stringify(option, null, 2))
-    console.log('[ChartRenderer] tooltip config:', option.tooltip)
-    const seriesArray = Array.isArray(option.series) ? option.series : [option.series]
-    console.log('[ChartRenderer] series data:', seriesArray.map((s: any) => ({ 
-      name: s.name, 
-      type: s.type, 
-      dataLength: s.data?.length,
-      firstDataValue: s.data?.[0],
-      firstDataValueType: typeof s.data?.[0],
-      sampleData: s.data?.slice(0, 3)
-    })))
+  console.log('[ChartRenderer] ECharts option:', JSON.stringify(option, null, 2))
+  console.log('[ChartRenderer] tooltip config:', option.tooltip)
+  const seriesArray = Array.isArray(option.series) ? option.series : [option.series]
+  console.log('[ChartRenderer] series data:', seriesArray.map((s: any) => ({ 
+    name: s.name, 
+    type: s.type, 
+    dataLength: s.data?.length,
+    firstDataValue: s.data?.[0],
+    firstDataValueType: typeof s.data?.[0],
+    sampleData: s.data?.slice(0, 3)
+  })))
   }
 
   // 设置配置（完全按照官方示例，不使用 notMerge）
@@ -803,7 +803,7 @@ const renderChart = () => {
   
   // 🔥 优化：减少日志输出
   if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_CHART) {
-    console.log('[ChartRenderer] ✅ 配置已设置')
+  console.log('[ChartRenderer] ✅ 配置已设置')
   }
 
   // 响应式调整大小
@@ -952,9 +952,9 @@ watch(() => chartData.value, (newData) => {
   }
   lastChartDataHash = currentHash
   
-  nextTick(() => {
-    renderChart()
-  })
+    nextTick(() => {
+      renderChart()
+    })
 }, { flush: 'post' }) // 使用 post 确保在 DOM 更新后执行
 </script>
 

@@ -1271,10 +1271,10 @@ watch(() => serviceTree.value.length, (newLength: number) => {
   if (newLength > 0 && currentApp.value) {
     // 展开目录树
     if (route.query._forked) {
-      checkAndExpandForkedPaths()
+    checkAndExpandForkedPaths()
     } else {
       expandCurrentRoutePath()
-    }
+  }
   }
 }, { immediate: true })
 

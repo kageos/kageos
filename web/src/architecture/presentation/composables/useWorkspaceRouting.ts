@@ -84,10 +84,10 @@ export function useWorkspaceRouting(options: {
           // 已经是目标节点，检查函数详情是否已加载
           if (serviceNode.type === 'function') {
             const detail = stateManager.getFunctionDetail(serviceNode)
-            if (!detail) {
+          if (!detail) {
               // 函数详情未加载，加载它
               applicationService.handleNodeClick(serviceNode)
-            }
+          }
           }
           return
         }
@@ -96,7 +96,7 @@ export function useWorkspaceRouting(options: {
         applicationService.triggerNodeClick(serviceNode)
       } else {
         // 节点不存在，尝试从路由加载应用（可能是新应用）
-        await loadAppFromRoute()
+          await loadAppFromRoute()
       }
     } finally {
       isSyncingRouteToTab = false
@@ -204,8 +204,8 @@ export function useWorkspaceRouting(options: {
             // 如果服务树已经加载，直接执行
             if (options.serviceTree().length > 0) {
               unsubscribe()
-              tryLoadFunction()
-            }
+                tryLoadFunction()
+              }
           } else {
             tryLoadFunction()
           }
@@ -269,8 +269,8 @@ export function useWorkspaceRouting(options: {
           // 如果服务树已经加载，直接执行
           if (options.serviceTree().length > 0) {
             unsubscribe()
-            await tryOpenTab()
-          }
+              await tryOpenTab()
+            }
         } else {
           await tryOpenTab()
         }

@@ -47,24 +47,23 @@ export class WorkspaceApplicationService {
    * 处理节点点击
    * 🔥 简化：不再使用 Tab，直接加载函数详情
    * - 点击目录节点：切换到该目录
-   * - 点击函数节点：加载函数详情并设置当前函数
+   * - 点击函数节点：直接加载函数详情，不先切换目录（避免闪烁）
    */
   async handleNodeClick(node: ServiceTree): Promise<void> {
     if (node.type === 'function') {
-      // 检查函数是否在当前目录下
-      const currentDirectory = this.domainService.getCurrentDirectory()
-      const functionDirectory = this.getFunctionDirectory(node)
+      // 🔥 优化：直接加载函数详情，不先切换目录
+      // 这样可以避免先显示目录详情再切换到函数详情的闪烁问题
+      const detail = await this.domainService.loadFunction(node, false)
       
-      // 如果函数不在当前目录，先切换到函数所在目录
-      if (!currentDirectory || currentDirectory.id !== functionDirectory?.id) {
-        if (functionDirectory) {
-          this.domainService.setCurrentDirectory(functionDirectory)
-        }
+      // 加载完成后，一次性设置目录和函数，避免中间状态
+      const functionDirectory = this.getFunctionDirectory(node)
+      if (functionDirectory) {
+        // 设置目录，但不将目录设置为当前函数（避免显示目录详情）
+        this.domainService.setCurrentDirectory(functionDirectory, false)
       }
       
-      // 加载函数详情并设置当前函数
-        const detail = await this.domainService.loadFunction(node)
-      this.domainService.setCurrentFunctionWithDetail(node, detail)
+      // 然后设置函数（这会触发函数详情显示）
+      this.domainService.setCurrentFunction(node)
     } else {
       // 目录节点：切换到该目录
       this.domainService.setCurrentDirectory(node)
