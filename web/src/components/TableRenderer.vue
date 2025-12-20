@@ -281,13 +281,26 @@ const props = defineProps<Props>()
 const getInitialLayout = (): boolean => {
   // 优先从 localStorage 读取用户设置
   const stored = localStorage.getItem('useGroupedDetailLayout')
-  console.log('[TableRenderer] 读取布局设置:', { stored, result: stored === 'true' || stored !== 'false' })
+  console.log('[TableRenderer] 读取布局设置:', { stored })
+  
+  // 如果用户明确设置为 'true'，使用新布局
   if (stored === 'true') {
     return true
   }
+  
+  // 如果用户明确设置为 'false'，使用旧布局
+  // 但为了确保新功能默认启用，我们检查是否有版本标记
   if (stored === 'false') {
-    return false
+    const layoutVersion = localStorage.getItem('useGroupedDetailLayoutVersion')
+    // 如果没有版本标记，说明是旧的设置，清除它并使用新布局
+    if (!layoutVersion) {
+      console.log('[TableRenderer] 检测到旧的布局设置，清除并使用新布局')
+      localStorage.removeItem('useGroupedDetailLayout')
+      return true // 使用新布局
+    }
+    return false // 用户明确选择旧布局
   }
+  
   // 默认使用新布局
   return true
 }
@@ -311,6 +324,8 @@ const toggleDetailLayout = (): void => {
   // 切换布局
   useGroupedDetailLayout.value = !useGroupedDetailLayout.value
   localStorage.setItem('useGroupedDetailLayout', String(useGroupedDetailLayout.value))
+  // 设置版本标记，表示这是用户明确的选择
+  localStorage.setItem('useGroupedDetailLayoutVersion', '1.0')
   
   // 如果当前有打开的详情，需要重新打开以应用新布局
   if (savedState) {
