@@ -140,8 +140,10 @@ export class WorkspaceApplicationService {
       return
     }
     
-    // 🔥 修复：如果 app.id 是 0（临时值），通过合并接口获取完整的应用信息
+    // 🔥 修复：如果 app.id 是 0（临时值），通过合并接口获取完整的应用信息和服务目录树
     let appToSwitch = app
+    let preloadedServiceTree: ServiceTree[] | null = null
+    
     if (app.id === 0) {
       try {
         // 动态导入 getAppWithServiceTree，避免循环依赖
@@ -156,6 +158,12 @@ export class WorkspaceApplicationService {
           }
           console.log('[WorkspaceApplicationService] 从合并接口获取到应用信息', appToSwitch)
           
+          // 🔥 修复：如果已经获取了服务目录树，直接使用，避免重复调用
+          if (workspaceData.service_tree && Array.isArray(workspaceData.service_tree)) {
+            preloadedServiceTree = workspaceData.service_tree
+            console.log('[WorkspaceApplicationService] 从合并接口获取到服务目录树，节点数:', preloadedServiceTree.length)
+          }
+          
           // 🔥 修复：发出应用信息更新事件，让 Presentation Layer 更新 appList
           // 这样 currentApp 的 computed 就能找到对应的应用了
           this.eventBus.emit('workspace:app-info-updated', { app: appToSwitch })
@@ -169,8 +177,13 @@ export class WorkspaceApplicationService {
     // 切换应用（只更新状态，不触发事件）
     await this.domainService.switchApp(appToSwitch)
     
-    // 加载服务目录树
-    await this.domainService.loadServiceTree(appToSwitch)
+    // 🔥 优化：如果已经获取了服务目录树，直接使用，避免重复调用
+    if (preloadedServiceTree) {
+      await this.domainService.loadServiceTreeWithData(appToSwitch, preloadedServiceTree)
+    } else {
+      // 加载服务目录树
+      await this.domainService.loadServiceTree(appToSwitch)
+    }
   }
 
   /**

@@ -141,6 +141,45 @@ export class WorkspaceDomainService {
   }
 
   /**
+   * 加载服务目录树（使用已获取的数据，避免重复调用 API）
+   */
+  async loadServiceTreeWithData(app: App, tree: ServiceTree[]): Promise<ServiceTree[]> {
+    try {
+      const state = this.stateManager.getState()
+
+      console.log('[WorkspaceDomainService] 使用已获取的服务目录树，节点数:', tree?.length || 0)
+
+      // 更新状态
+      this.stateManager.setState({
+        ...state,
+        serviceTree: tree || [],
+        loading: false // 🔥 加载完成
+      })
+
+      // 触发事件
+      this.eventBus.emit(WorkspaceEvent.serviceTreeLoaded, { app, tree: tree || [] })
+
+      console.log('[WorkspaceDomainService] 已触发 serviceTreeLoaded 事件')
+
+      return tree || []
+    } catch (error) {
+      console.error('[WorkspaceDomainService] 设置服务目录树失败', error)
+
+      // 更新状态：即使失败也要重置 loading
+      const state = this.stateManager.getState()
+      this.stateManager.setState({
+        ...state,
+        serviceTree: [],
+        loading: false // 🔥 加载失败，结束 loading
+      })
+
+      // 即使失败也要触发事件，确保 loading 状态能正确更新
+      this.eventBus.emit(WorkspaceEvent.serviceTreeLoaded, { app, tree: [] })
+      return []
+    }
+  }
+
+  /**
    * 加载服务目录树
    */
   async loadServiceTree(app: App): Promise<ServiceTree[]> {
