@@ -1002,6 +1002,19 @@ const syncToURL = (): void => {
   // 构建表格查询参数
   const query = buildTableQueryParams()
   
+  // 🔥 检查当前 URL 是否有查询参数
+  // 如果 URL 没有查询参数（刚切换函数），不应该保留任何旧参数
+  const hasQueryParams = Object.keys(route.query).length > 0
+  const isLinkNavigation = route.query._link_type === 'table' || route.query._link_type === 'form'
+  
+  console.log('🔍 [TableView.syncToURL] 开始同步到 URL', {
+    hasQueryParams,
+    currentQuery: route.query,
+    currentQueryKeys: Object.keys(route.query),
+    isLinkNavigation,
+    newQuery: query
+  })
+  
   // 获取 request 字段代码集合（用于过滤）
   const requestFields = Array.isArray(props.functionDetail.request) ? props.functionDetail.request : []
   const requestFieldCodes = new Set<string>()
@@ -1009,13 +1022,34 @@ const syncToURL = (): void => {
     requestFieldCodes.add(field.code)
   })
   
-  // 保留现有参数并合并新的 table 参数
-  const newQuery = preserveExistingParams(requestFieldCodes)
-  Object.assign(newQuery, query)
+  // 🔥 如果 URL 没有查询参数（刚切换函数），直接使用新的查询参数，不保留任何旧参数
+  let newQuery: Record<string, string | string[]>
+  if (!hasQueryParams && !isLinkNavigation) {
+    // 刚切换函数，URL 是空的，直接使用新的查询参数
+    console.log('🔍 [TableView.syncToURL] URL 没有查询参数，不保留旧参数，直接使用新参数')
+    newQuery = { ...query }
+  } else {
+    // URL 有查询参数，保留现有参数并合并新的 table 参数
+    newQuery = preserveExistingParams(requestFieldCodes)
+    Object.assign(newQuery, query)
+    console.log('🔍 [TableView.syncToURL] URL 有查询参数，保留现有参数', {
+      preservedQuery: newQuery,
+      preservedQueryKeys: Object.keys(newQuery)
+    })
+  }
   
   // 🔥 阶段2：改为发出事件，通过 RouteManager 统一处理路由更新
-  // 检查是否是 link 跳转（通过 _link_type 参数）
-  const isLinkNavigation = route.query._link_type === 'table' || route.query._link_type === 'form'
+  console.log('🔍 [TableView.syncToURL] 发出路由更新请求', {
+    query: newQuery,
+    queryKeys: Object.keys(newQuery),
+    queryLength: Object.keys(newQuery).length,
+    preserveParams: {
+      table: true,
+      search: true,
+      state: true,
+      linkNavigation: isLinkNavigation
+    }
+  })
   
   eventBus.emit(RouteEvent.updateRequested, {
     query: newQuery,
