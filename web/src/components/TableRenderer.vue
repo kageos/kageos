@@ -177,8 +177,9 @@
     />
 
     <!-- 🔥 详情抽屉 -->
-    <!-- 🔥 详情抽屉 -->
-    <TableDetailDrawer
+    <!-- 通过配置切换使用分组布局或原布局 -->
+    <TableDetailDrawerGrouped
+      v-if="useGroupedDetailLayout"
       :function-data="props.functionData"
       :current-function="props.currentFunction"
       :table-data="tableData"
@@ -186,11 +187,25 @@
       :id-field="idField"
       :link-fields="linkFields"
       :has-update-callback="hasUpdateCallback"
-          :user-info-map="userInfoMap"
+      :user-info-map="userInfoMap"
       :on-update="handleUpdateRow"
       :on-refresh="loadTableData"
       ref="tableDetailDrawerRef"
-        />
+    />
+    <TableDetailDrawer
+      v-else
+      :function-data="props.functionData"
+      :current-function="props.currentFunction"
+      :table-data="tableData"
+      :visible-fields="visibleFields"
+      :id-field="idField"
+      :link-fields="linkFields"
+      :has-update-callback="hasUpdateCallback"
+      :user-info-map="userInfoMap"
+      :on-update="handleUpdateRow"
+      :on-refresh="loadTableData"
+      ref="tableDetailDrawerRef"
+    />
 
   </div>
 </template>
@@ -231,11 +246,12 @@ import { WidgetType } from '@/core/constants/widget'
 import { useUserInfoStore } from '@/stores/userInfo'
 import { collectAllUsernames, collectFilesUploadUsersFromRow } from '@/utils/tableUserInfo'
 import { getSortableConfig } from '@/utils/fieldSort'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { TABLE_PARAM_KEYS, SEARCH_PARAM_KEYS } from '@/utils/urlParams'
 import FormDialog from './FormDialog.vue'
 import { renderTableCell } from '@/core/utils/tableCellRenderer'
 import TableDetailDrawer from './TableDetailDrawer.vue'
+import TableDetailDrawerGrouped from './TableDetailDrawerGrouped.vue'
 import TableActionColumn from './TableActionColumn.vue'
 import TableSearchBar from './TableSearchBar.vue'
 import TableSortBar from './TableSortBar.vue'
@@ -243,6 +259,7 @@ import type { Function as FunctionType, ServiceTree } from '@/types'
 import type { FieldConfig, FieldValue, FunctionDetail } from '@/core/types/field'
 
 const router = useRouter()
+const route = useRoute()
 
 interface Props {
   /** 函数配置数据 */
@@ -252,6 +269,43 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+
+// ==================== 详情布局配置 ====================
+
+/**
+ * 是否使用分组布局的详情页面
+ * 可以通过以下方式控制：
+ * 1. URL 参数：?detail_layout=grouped（开发/测试阶段）
+ * 2. localStorage：localStorage.getItem('useGroupedDetailLayout') === 'true'
+ * 3. 环境变量：import.meta.env.VITE_USE_GROUPED_DETAIL_LAYOUT === 'true'
+ * 4. 默认值：true（启用新布局）
+ */
+const useGroupedDetailLayout = computed(() => {
+  // 方案 1：URL 参数（开发/测试阶段，优先级最高）
+  if (route.query.detail_layout === 'grouped') {
+    return true
+  }
+  if (route.query.detail_layout === 'original') {
+    return false
+  }
+  
+  // 方案 2：localStorage（用户设置）
+  const stored = localStorage.getItem('useGroupedDetailLayout')
+  if (stored === 'true') {
+    return true
+  }
+  if (stored === 'false') {
+    return false
+  }
+  
+  // 方案 3：环境变量
+  // if (import.meta.env.VITE_USE_GROUPED_DETAIL_LAYOUT === 'true') {
+  //   return true
+  // }
+  
+  // 方案 4：默认值（启用新布局）
+  return true
+})
 
 // ==================== 使用 Composable（业务逻辑层） ====================
 
@@ -424,8 +478,8 @@ const handleClearAllSorts = (): void => {
 
 // ==================== 详情抽屉 ====================
 
-/** TableDetailDrawer 组件引用 */
-const tableDetailDrawerRef = ref<InstanceType<typeof TableDetailDrawer>>()
+/** TableDetailDrawer 组件引用（兼容两种组件） */
+const tableDetailDrawerRef = ref<InstanceType<typeof TableDetailDrawer> | InstanceType<typeof TableDetailDrawerGrouped>>()
 
 /**
  * 显示详情
