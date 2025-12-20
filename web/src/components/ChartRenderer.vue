@@ -759,10 +759,16 @@ const renderChart = () => {
       renderer: 'canvas',
       useDirtyRect: false
     })
-    console.log('[ChartRenderer] ECharts 实例已创建:', chartInstance.value)
-    console.log('[ChartRenderer] DOM 元素:', chartContainerRef.value)
+    // 🔥 优化：减少日志输出，仅在开发环境且需要调试时输出
+    if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_CHART) {
+      console.log('[ChartRenderer] ECharts 实例已创建:', chartInstance.value)
+      console.log('[ChartRenderer] DOM 元素:', chartContainerRef.value)
+    }
   } else {
-    console.log('[ChartRenderer] 复用现有 ECharts 实例，只更新配置')
+    // 🔥 优化：减少日志输出
+    if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_CHART) {
+      console.log('[ChartRenderer] 复用现有 ECharts 实例，只更新配置')
+    }
   }
 
   // 构建配置
@@ -777,25 +783,28 @@ const renderChart = () => {
     return
   }
 
-  // 打印 option 用于调试（仅在开发环境）
-  if (import.meta.env.DEV) {
+  // 🔥 优化：减少日志输出，仅在开发环境且需要调试时输出
+  if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_CHART) {
     console.log('[ChartRenderer] ECharts option:', JSON.stringify(option, null, 2))
+    console.log('[ChartRenderer] tooltip config:', option.tooltip)
+    const seriesArray = Array.isArray(option.series) ? option.series : [option.series]
+    console.log('[ChartRenderer] series data:', seriesArray.map((s: any) => ({ 
+      name: s.name, 
+      type: s.type, 
+      dataLength: s.data?.length,
+      firstDataValue: s.data?.[0],
+      firstDataValueType: typeof s.data?.[0],
+      sampleData: s.data?.slice(0, 3)
+    })))
   }
-  console.log('[ChartRenderer] tooltip config:', option.tooltip)
-  const seriesArray = Array.isArray(option.series) ? option.series : [option.series]
-  console.log('[ChartRenderer] series data:', seriesArray.map((s: any) => ({ 
-    name: s.name, 
-    type: s.type, 
-    dataLength: s.data?.length,
-    firstDataValue: s.data?.[0],
-    firstDataValueType: typeof s.data?.[0],
-    sampleData: s.data?.slice(0, 3)
-  })))
 
   // 设置配置（完全按照官方示例，不使用 notMerge）
   chartInstance.value.setOption(option)
   
-  console.log('[ChartRenderer] ✅ 配置已设置')
+  // 🔥 优化：减少日志输出
+  if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_CHART) {
+    console.log('[ChartRenderer] ✅ 配置已设置')
+  }
 
   // 响应式调整大小
   window.addEventListener('resize', handleResize)
