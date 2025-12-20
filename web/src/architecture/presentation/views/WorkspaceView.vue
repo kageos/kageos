@@ -1231,7 +1231,7 @@ onMounted(async () => {
     router,
     route,
     eventBus,
-    () => null  // 不再使用 Tab，返回 null
+    () => null  // 🔥 Tab 功能已删除
   )
   
   // 🔥 开发环境下启用调试日志

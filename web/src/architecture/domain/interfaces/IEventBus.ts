@@ -52,8 +52,9 @@ export enum WorkspaceEvent {
   appSwitched = 'workspace:app-switched',           // 应用切换
   serviceTreeLoaded = 'workspace:service-tree-loaded', // 服务树加载完成
   functionLoaded = 'workspace:function-loaded',     // 函数加载完成
-  tabSwitched = 'workspace:tab-switched',           // 标签切换（已废弃，保留兼容性）
-  tabSwitchedComplete = 'workspace:tab-switched-complete' // Tab 切换完成（路由已恢复，组件已激活）
+  // 🔥 Tab 功能已删除，以下事件已废弃
+  // tabSwitched = 'workspace:tab-switched',
+  // tabSwitchedComplete = 'workspace:tab-switched-complete'
 }
 
 export enum FormEvent {

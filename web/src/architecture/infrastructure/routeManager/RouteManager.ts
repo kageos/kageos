@@ -5,7 +5,7 @@
  * - 唯一的路由更新入口
  * - 统一处理参数保留逻辑
  * - 监听 Vue Router 变化，发出事件
- * - 管理 Tab 路由状态
+ * - 🔥 Tab 功能已删除，相关代码已废弃
  * - 防止路由更新循环
  */
 
@@ -14,7 +14,8 @@ import type { WatchSource } from 'vue'
 import type { Router, RouteLocationNormalized } from 'vue-router'
 import type { IEventBus } from '../../domain/interfaces/IEventBus'
 import { RouteEvent, WorkspaceEvent } from '../../domain/interfaces/IEventBus'
-import { TabStateManager, type TabRouteState } from './TabStateManager'
+// 🔥 Tab 功能已删除，TabStateManager 已废弃
+// import { TabStateManager, type TabRouteState } from './TabStateManager'
 import { TABLE_PARAM_KEYS, SEARCH_PARAM_KEYS } from '@/utils/urlParams'
 import { Logger } from '@/core/utils/logger'
 
@@ -36,8 +37,9 @@ export class RouteManager {
   private router: Router
   private route: RouteLocationNormalized
   private eventBus: IEventBus
-  private tabStateManager: TabStateManager
-  private getCurrentTabId: () => string | null
+  // 🔥 Tab 功能已删除，以下属性已废弃
+  // private tabStateManager: TabStateManager
+  // private getCurrentTabId: () => string | null
   private isUpdating = false  // 防止循环更新
   private enableDebugLog = false  // 调试日志开关
   
@@ -45,13 +47,14 @@ export class RouteManager {
     router: Router, 
     route: RouteLocationNormalized, 
     eventBus: IEventBus,
-    getCurrentTabId: () => string | null
+    // getCurrentTabId: () => string | null  // 🔥 Tab 功能已删除
   ) {
     this.router = router
     this.route = route
     this.eventBus = eventBus
-    this.getCurrentTabId = getCurrentTabId
-    this.tabStateManager = new TabStateManager()
+    // 🔥 Tab 功能已删除，以下代码已废弃
+    // this.getCurrentTabId = getCurrentTabId
+    // this.tabStateManager = new TabStateManager()
     
     // 监听路由变化，发出事件
     this.setupRouteWatch()
@@ -259,30 +262,11 @@ export class RouteManager {
    * 处理路由更新请求
    */
   private async handleUpdateRequest(request: RouteUpdateRequest): Promise<void> {
-    // 🔥 sync-route-to-tab-save-state 是特殊请求，只用于保存 Tab 路由状态，不实际更新路由
-    if ((request as any).source === 'sync-route-to-tab-save-state') {
-      const tabId = (request as any).meta?.tabId
-      const savedPath = (request as any).meta?.path
-      const savedQuery = (request as any).meta?.query
-      if (tabId) {
-        // 🔥 使用传递过来的 path 和 query，而不是当前路由的 path 和 query
-        // 因为当前路由可能已经更新了（如果用户快速切换）
-        const routeState = {
-          path: savedPath || this.route.path,
-          query: savedQuery || { ...this.route.query }
-        }
-        this.tabStateManager.saveTabRouteState(tabId, routeState)
-        this.log('保存 Tab 路由状态（sync-route-to-tab）', { 
-          tabId, 
-          route: routeState,
-          savedPath,
-          savedQuery,
-          currentPath: this.route.path,
-          currentQuery: this.route.query
-        })
+      // 🔥 Tab 功能已删除，sync-route-to-tab-save-state 已废弃
+      if ((request as any).source === 'sync-route-to-tab-save-state') {
+        // Tab 功能已删除，直接返回
+        return
       }
-      return
-    }
     
     if (this.isUpdating) {
       this.log('路由更新中，跳过重复请求', { source: request.source })
@@ -313,44 +297,7 @@ export class RouteManager {
         await this.router.push({ path: targetPath, query: newQuery })
       }
       
-      // 3. 🔥 更新当前 Tab 的路由状态
-      // Tab 切换时，使用 request.meta.newTabId（如果存在）来保存新 Tab 的路由状态
-      // workspace-node-click 时，等待 syncRouteToTab 完成后再保存（通过 RouteEvent.updateCompleted 事件）
-      // 否则，使用 getCurrentTabId() 获取当前 Tab ID
-      if (request.source === 'tab-switch') {
-        // Tab 切换时，使用 request.meta.newTabId 保存新 Tab 的路由状态
-        const newTabId = (request as any).meta?.newTabId
-        if (newTabId) {
-          // 🔥 验证：确保保存的路由状态与 newTabId 对应的 Tab 路径匹配
-          // 如果 targetPath 不匹配 newTabId 对应的 Tab 路径，说明恢复的状态是错误的，不应该保存
-          // 但是，由于 targetPath 是从恢复的状态中获取的，所以应该是匹配的
-          // 这里我们直接保存，因为 targetPath 就是从 targetRouteState 中获取的
-          this.tabStateManager.saveTabRouteState(newTabId, {
-            path: targetPath,
-            query: newQuery
-          })
-          this.log('更新 Tab 路由状态（Tab 切换）', { tabId: newTabId, route: { path: targetPath, query: newQuery } })
-        }
-      } else if (request.source === 'workspace-node-click') {
-        // 🔥 workspace-node-click 时，不立即保存 Tab 路由状态
-        // 因为此时 Tab 可能还没有激活，getCurrentTabId() 返回的是旧 Tab ID
-        // 路由状态会在 syncRouteToTab 完成后，通过 RouteEvent.updateCompleted 事件保存
-        this.log('workspace-node-click：等待 syncRouteToTab 完成后再保存 Tab 路由状态')
-      } else {
-        // 用户操作、link 跳转等需要更新 Tab 的路由状态
-        const currentTabId = this.getCurrentTabId()
-        if (currentTabId) {
-          // 🔥 验证：确保保存的路由状态与 currentTabId 对应的 Tab 路径匹配
-          // 如果 targetPath 不匹配 currentTabId 对应的 Tab 路径，说明路由状态不一致，不应该保存
-          // 但是，由于这些操作通常是直接更新路由的，所以应该是匹配的
-          // 这里我们直接保存
-          this.tabStateManager.saveTabRouteState(currentTabId, {
-            path: targetPath,
-            query: newQuery
-          })
-          this.log('更新 Tab 路由状态', { tabId: currentTabId, route: { path: targetPath, query: newQuery } })
-        }
-      }
+      // 🔥 Tab 功能已删除，不再保存 Tab 路由状态
       
       // 4. 发出更新完成事件
       this.eventBus.emit(RouteEvent.updateCompleted, {
@@ -558,8 +505,9 @@ export class RouteManager {
   /**
    * 获取 Tab 状态管理器（用于外部访问）
    */
-  getTabStateManager(): TabStateManager {
-    return this.tabStateManager
-  }
+  // 🔥 Tab 功能已删除，以下方法已废弃
+  // getTabStateManager(): TabStateManager {
+  //   return this.tabStateManager
+  // }
 }
 
