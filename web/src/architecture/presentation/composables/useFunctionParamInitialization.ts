@@ -264,6 +264,14 @@ export function useFunctionParamInitialization(
       return
     }
     
+    // 🔥 检查 functionDetail 是否有效
+    if (!options.functionDetail || !options.functionDetail.id) {
+      console.log('🔍 [useFunctionParamInitialization] functionDetail 无效，跳过初始化', {
+        functionDetail: options.functionDetail
+      })
+      return
+    }
+    
     isInitializing.value = true
     
     try {
