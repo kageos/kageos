@@ -518,9 +518,22 @@ onMounted(async () => {
   // 注意：只在 functionDetail 真正变化时（id 或 router 变化）才重新初始化
   // 如果只是 URL 参数变化，不应该触发这个 watch
   watch(() => props.functionDetail, async (newDetail: FunctionDetail, oldDetail?: FunctionDetail) => {
+    // 🔥 检查 functionDetail 是否有效
+    if (!newDetail || !newDetail.id) {
+      console.log('🔍 [FormView] functionDetail 无效，跳过初始化', { newDetail })
+      return
+    }
+    
     // 🔥 只在 functionDetail 的 id 或 router 真正变化时重新初始化
     // 如果只是其他属性变化（如字段配置），不应该重新初始化
     if (newDetail.id !== oldDetail?.id || newDetail.router !== oldDetail?.router) {
+      console.log('🔍 [FormView] functionDetail 变化，重新初始化', {
+        oldId: oldDetail?.id,
+        newId: newDetail.id,
+        oldRouter: oldDetail?.router,
+        newRouter: newDetail.router
+      })
+      
       // 🔥 切换函数时，先清理全局 store（因为 WidgetComponent 内部使用的组件会直接使用这些 store）
       formDataStore.clear()
       responseDataStore.clear()
@@ -540,11 +553,16 @@ onMounted(async () => {
               initialData[field.code] = fieldValue.raw
             }
           })
+          console.log('🔍 [FormView] 初始化表单', {
+            fieldsCount: fields.length,
+            initialDataKeys: Object.keys(initialData),
+            initialData
+          })
           applicationService.initializeForm(fields, initialData)
         })
       }
     }
-  }, { deep: false }) // 🔥 改为 shallow watch，避免深度监听导致不必要的触发
+  }, { deep: false, immediate: false }) // 🔥 不立即执行，等待 functionDetail 加载完成
 
   // 🔥 移除 watch route.query，改为使用统一的数据初始化框架处理 URL 参数
   // URL 参数会在 initializeParams 时统一处理，包括类型转换和组件自治初始化
