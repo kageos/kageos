@@ -382,7 +382,13 @@ export function useFunctionParamInitialization(
     formData: Record<string, FieldValue>,
     fieldMetadata: Record<string, any>
   ): Promise<void> => {
-    const fields = options.functionDetail.request || []
+    const detail = functionDetail.value
+    if (!detail) {
+      console.log('🔍 [triggerWidgetInitialization] functionDetail 无效，跳过组件自治初始化')
+      return
+    }
+    
+    const fields = detail.request || []
     
     console.log('🔍 [triggerWidgetInitialization] 开始组件自治初始化', {
       fieldsCount: fields.length,
