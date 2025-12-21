@@ -970,6 +970,21 @@ function cleanup(): void {
   })
 }
 
+// 🔥 监听 props.functionDetail 变化，同步到内部的 functionDetail ref
+watch(
+  () => props.functionDetail,
+  (newDetail) => {
+    if (newDetail && newDetail.id) {
+      functionDetail.value = newDetail
+      console.log('🔍 [FormRenderer] props.functionDetail 变化，同步到内部 ref', {
+        functionId: newDetail.id,
+        requestFieldsCount: newDetail.request?.length || 0
+      })
+    }
+  },
+  { immediate: true }
+)
+
 // 监听 functionDetail 变化，在路由切换时清理
 watch(
   () => functionDetail.value?.id || functionDetail.value?.router,
@@ -983,7 +998,9 @@ watch(
       // 重新初始化
       isMounted.value = true
       await nextTick()
-      initializeForm()
+      if (functionDetail.value && functionDetail.value.request) {
+        initializeForm()
+      }
     }
   },
   { flush: 'post' } // 在 DOM 更新后执行
