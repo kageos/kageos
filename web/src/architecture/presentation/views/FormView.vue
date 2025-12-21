@@ -54,6 +54,14 @@
           <el-icon><RefreshLeft /></el-icon>
           重置
         </el-button>
+        <el-button size="large" @click="handleSaveQuickLink" type="info">
+          <el-icon><Link /></el-icon>
+          保存快链
+        </el-button>
+        <el-button size="large" @click="showQuickLinkListDialog = true" type="info">
+          <el-icon><List /></el-icon>
+          快链列表
+        </el-button>
         <el-button size="large" @click="showDebugDialog = true" type="info">
           <el-icon><View /></el-icon>
           Debug
@@ -90,6 +98,145 @@
         </el-form-item>
       </el-form>
     </div>
+
+    <!-- 快链名称输入弹窗 -->
+    <el-dialog
+      v-model="showQuickLinkNameDialog"
+      title="保存快链"
+      width="500px"
+      :close-on-click-modal="false"
+    >
+      <div class="quicklink-name-dialog-content">
+        <el-form :model="quickLinkForm" label-width="100px">
+          <el-form-item label="快链名称" required>
+            <el-input
+              v-model="quickLinkForm.name"
+              placeholder="请输入快链名称"
+              maxlength="100"
+              show-word-limit
+              @keyup.enter="confirmSaveQuickLink"
+            />
+          </el-form-item>
+        </el-form>
+      </div>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="showQuickLinkNameDialog = false">取消</el-button>
+          <el-button
+            type="primary"
+            @click="confirmSaveQuickLink"
+            :disabled="!quickLinkForm.name || quickLinkForm.name.trim() === ''"
+          >
+            保存
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    <!-- 快链地址弹窗 -->
+    <el-dialog
+      v-model="showQuickLinkDialog"
+      title="快链保存成功"
+      width="600px"
+      :close-on-click-modal="false"
+    >
+      <div class="quicklink-dialog-content">
+        <div class="quicklink-info">
+          <p>快链已保存，您可以通过以下链接访问：</p>
+        </div>
+        <div class="quicklink-url-section">
+          <el-input
+            v-model="quickLinkUrl"
+            readonly
+            class="quicklink-url-input"
+          >
+            <template #append>
+              <el-button
+                type="primary"
+                @click="copyQuickLinkUrl"
+                :icon="DocumentCopy"
+              >
+                复制
+              </el-button>
+            </template>
+          </el-input>
+        </div>
+        <div class="quicklink-tips">
+          <el-alert
+            type="info"
+            :closable="false"
+            show-icon
+          >
+            <template #default>
+              <div>提示：复制链接后，您可以分享给他人或在新标签页中打开</div>
+            </template>
+          </el-alert>
+        </div>
+      </div>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="showQuickLinkDialog = false">关闭</el-button>
+          <el-button
+            type="primary"
+            @click="copyQuickLinkUrl"
+          >
+            <el-icon><DocumentCopy /></el-icon>
+            复制链接
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    <!-- 快链列表弹窗 -->
+    <el-dialog
+      v-model="showQuickLinkListDialog"
+      title="快链列表"
+      width="800px"
+      :close-on-click-modal="false"
+      @opened="loadQuickLinkList"
+    >
+      <div class="quicklink-list-content">
+        <div v-if="quickLinkListLoading" class="loading-container">
+          <el-skeleton :rows="5" animated />
+        </div>
+        <div v-else-if="quickLinkList.length === 0" class="empty-container">
+          <el-empty description="暂无快链" />
+        </div>
+        <div v-else class="quicklink-list">
+          <el-table :data="quickLinkList" stripe>
+            <el-table-column prop="name" label="快链名称" min-width="200" />
+            <el-table-column prop="created_at" label="创建时间" width="180">
+              <template #default="{ row }">
+                {{ formatDate(row.created_at) }}
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="200" fixed="right">
+              <template #default="{ row }">
+                <el-button
+                  type="primary"
+                  size="small"
+                  @click="openQuickLink(row.id)"
+                >
+                  打开
+                </el-button>
+                <el-button
+                  type="danger"
+                  size="small"
+                  @click="deleteQuickLink(row.id)"
+                >
+                  删除
+                </el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+      </div>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="showQuickLinkListDialog = false">关闭</el-button>
+        </div>
+      </template>
+    </el-dialog>
 
     <!-- Debug 弹窗 -->
     <el-dialog
@@ -180,9 +327,10 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, watch, ref, nextTick } from 'vue'
-import { useRoute } from 'vue-router'
-import { Promotion, RefreshLeft, View, DocumentCopy } from '@element-plus/icons-vue'
-import { ElIcon, ElTag, ElNotification, ElMessage } from 'element-plus'
+import type { ComputedRef } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { Promotion, RefreshLeft, View, DocumentCopy, Link, List } from '@element-plus/icons-vue'
+import { ElIcon, ElTag, ElNotification, ElMessage, ElAlert, ElMessageBox } from 'element-plus'
 import { eventBus, FormEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
@@ -201,6 +349,7 @@ const props = defineProps<{
 
 // 路由
 const route = useRoute()
+const router = useRouter()
 
 // 依赖注入（使用 ServiceFactory 简化）
 const stateManager = serviceFactory.getFormStateManager()
@@ -276,6 +425,17 @@ const hasResponseData = computed(() => {
 // Debug 相关
 const showDebugDialog = ref(false)
 const debugActiveTab = ref('request')
+
+// 快链相关
+const showQuickLinkNameDialog = ref(false)
+const showQuickLinkDialog = ref(false)
+const showQuickLinkListDialog = ref(false)
+const quickLinkUrl = ref('')
+const quickLinkForm = ref({
+  name: ''
+})
+const quickLinkList = ref<any[]>([])
+const quickLinkListLoading = ref(false)
 
 // 实时获取提交数据（用于 Debug）
 const debugRequestData = computed(() => {
@@ -439,6 +599,217 @@ const handleReset = (): void => {
   if (fields.length > 0) {
     applicationService.initializeForm(fields)
   }
+}
+
+// 复制快链 URL
+const copyQuickLinkUrl = async (): Promise<void> => {
+  try {
+    await navigator.clipboard.writeText(quickLinkUrl.value)
+    ElMessage.success('快链链接已复制到剪贴板')
+  } catch (err) {
+    ElMessage.error('复制失败，请手动复制：' + quickLinkUrl.value)
+  }
+}
+
+const handleSaveQuickLink = (): void => {
+  if (!functionDetail.value) {
+    ElNotification.error({
+      title: '保存失败',
+      message: '函数详情未加载完成，请稍后重试',
+      duration: 3000
+    })
+    return
+  }
+
+  // 1. 收集所有字段的 FieldValue
+  const requestParams: Record<string, FieldValue> = {}
+  requestFields.value.forEach((field: FieldConfig) => {
+    const fieldValue = formDataStore.getValue(field.code)
+    if (fieldValue && fieldValue.raw !== null && fieldValue.raw !== undefined && fieldValue.raw !== '') {
+      requestParams[field.code] = fieldValue
+    }
+  })
+
+  // 如果没有数据，提示用户
+  if (Object.keys(requestParams).length === 0) {
+    ElMessage.warning('当前表单没有数据，无法保存快链')
+    return
+  }
+
+  // 2. 显示名称输入弹窗
+  quickLinkForm.value.name = `快链 ${new Date().toLocaleString('zh-CN')}`
+  showQuickLinkNameDialog.value = true
+}
+
+const confirmSaveQuickLink = async (): Promise<void> => {
+  try {
+    if (!functionDetail.value) {
+      return
+    }
+
+    if (!quickLinkForm.value.name || quickLinkForm.value.name.trim() === '') {
+      ElMessage.warning('请输入快链名称')
+      return
+    }
+
+    // 1. 收集所有字段的 FieldValue（使用提取器递归提取嵌套数据）
+    const { FieldExtractorRegistry } = await import('@/core/stores-v2/extractors/FieldExtractorRegistry')
+    const extractorRegistry = new FieldExtractorRegistry()
+    
+    const requestParams: Record<string, FieldValue> = {}
+    requestFields.value.forEach((field: FieldConfig) => {
+      const fieldValue = formDataStore.getValue(field.code)
+      if (!fieldValue) {
+        return
+      }
+      
+      // 🔥 对于 form 和 table 类型字段，使用提取器递归提取嵌套数据
+      if (field.widget?.type === 'form' || field.widget?.type === 'table') {
+        const extractedValue = extractorRegistry.extractField(field, field.code, (path: string) => {
+          return formDataStore.getValue(path)
+        })
+        
+        // 🔥 form 类型：如果提取后的对象为空（没有任何子字段），跳过该字段
+        if (field.widget?.type === 'form') {
+          if (!extractedValue || typeof extractedValue !== 'object' || Object.keys(extractedValue).length === 0) {
+            return
+          }
+        }
+        
+        // 🔥 table 类型：如果提取后的数组为空，跳过该字段
+        if (field.widget?.type === 'table') {
+          if (Array.isArray(extractedValue) && extractedValue.length === 0) {
+            return
+          }
+        }
+        
+        // 使用提取后的值（已递归提取嵌套数据）更新 FieldValue
+        requestParams[field.code] = {
+          ...fieldValue,
+          raw: extractedValue
+        }
+      } else {
+        // 其他类型字段：直接使用
+        if (fieldValue.raw !== null && fieldValue.raw !== undefined && fieldValue.raw !== '') {
+          requestParams[field.code] = fieldValue
+        }
+      }
+    })
+
+    // 2. 调用后端 API 保存快链
+    const { createQuickLink } = await import('@/api/quicklink')
+    const result = await createQuickLink({
+      name: quickLinkForm.value.name.trim(),
+      function_router: functionDetail.value.router,
+      function_method: functionDetail.value.method,
+      template_type: functionDetail.value.template_type || 'form',
+      request_params: requestParams
+    })
+
+    // 3. 生成快链 URL
+    const url = `${window.location.origin}${route.path}?_quicklink_id=${result.id}`
+    quickLinkUrl.value = url
+
+    // 4. 关闭名称输入弹窗，显示快链地址弹窗
+    showQuickLinkNameDialog.value = false
+    showQuickLinkDialog.value = true
+
+    // 5. 刷新快链列表（如果列表弹窗已打开）
+    if (showQuickLinkListDialog.value) {
+      loadQuickLinkList()
+    }
+  } catch (error: any) {
+    let errorMessage = '保存快链失败，请稍后重试'
+    if (error?.response?.data) {
+      const responseData = error.response.data
+      errorMessage = responseData.msg || errorMessage
+    } else if (error?.message) {
+      errorMessage = error.message
+    }
+    
+    ElNotification.error({
+      title: '保存失败',
+      message: errorMessage,
+      duration: 3000
+    })
+  }
+}
+
+// 加载快链列表
+const loadQuickLinkList = async (): Promise<void> => {
+  if (!functionDetail.value) {
+    return
+  }
+
+  try {
+    quickLinkListLoading.value = true
+    const { listQuickLinks } = await import('@/api/quicklink')
+    const result = await listQuickLinks({
+      function_router: functionDetail.value.router,
+      page: 1,
+      page_size: 100
+    })
+    quickLinkList.value = result.list || []
+  } catch (error: any) {
+    ElNotification.error({
+      title: '加载失败',
+      message: error?.response?.data?.msg || error?.message || '加载快链列表失败',
+      duration: 3000
+    })
+  } finally {
+    quickLinkListLoading.value = false
+  }
+}
+
+// 打开快链
+const openQuickLink = (id: number): void => {
+  showQuickLinkListDialog.value = false
+  // 使用路由跳转，添加快链参数
+  router.push({
+    path: route.path,
+    query: {
+      ...route.query,
+      _quicklink_id: String(id)
+    }
+  })
+}
+
+// 删除快链
+const deleteQuickLink = async (id: number): Promise<void> => {
+  try {
+    await ElMessageBox.confirm('确定要删除这个快链吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+
+    const { deleteQuickLink: deleteQuickLinkApi } = await import('@/api/quicklink')
+    await deleteQuickLinkApi(id)
+    
+    ElMessage.success('删除成功')
+    loadQuickLinkList()
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElNotification.error({
+        title: '删除失败',
+        message: error?.response?.data?.msg || error?.message || '删除快链失败',
+        duration: 3000
+      })
+    }
+  }
+}
+
+// 格式化日期
+const formatDate = (dateStr: string): string => {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
 }
 
 // 生命周期
@@ -648,7 +1019,7 @@ onMounted(async () => {
 
   // 监听表单初始化完成事件
   unsubscribeFormInitialized = eventBus.on(FormEvent.initialized, () => {
-// 表单已初始化，可以渲染
+    // 表单已初始化，可以渲染
   })
   
   // 🔥 开始监听表单数据变化，自动同步到 URL
@@ -802,6 +1173,57 @@ onUnmounted(() => {
 
 .response-section .is-empty {
   opacity: 0.6;
+}
+
+/* 快链弹窗样式 */
+.quicklink-dialog-content {
+  padding: 10px 0;
+}
+
+.quicklink-info {
+  margin-bottom: 20px;
+}
+
+.quicklink-info p {
+  margin: 0;
+  color: var(--el-text-color-primary);
+  font-size: 14px;
+}
+
+.quicklink-url-section {
+  margin-bottom: 20px;
+}
+
+.quicklink-url-input {
+  width: 100%;
+}
+
+.quicklink-tips {
+  margin-top: 20px;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* 快链名称输入弹窗样式 */
+.quicklink-name-dialog-content {
+  padding: 10px 0;
+}
+
+/* 快链列表弹窗样式 */
+.quicklink-list-content {
+  min-height: 200px;
+}
+
+.loading-container {
+  padding: 20px;
+}
+
+.empty-container {
+  padding: 40px 0;
 }
 </style>
 

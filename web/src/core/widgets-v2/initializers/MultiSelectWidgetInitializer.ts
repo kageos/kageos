@@ -17,6 +17,8 @@ import { DataType } from '../../constants/widget'
 import { convertArrayType } from '../utils/typeConverter'
 import { createFieldValue } from '../utils/createFieldValue'
 import { Logger } from '../../utils/logger'
+import { FieldCallback } from '../../constants/field'
+import { FieldValueMeta } from '../../constants/field'
 
 /**
  * MultiSelectWidget 初始化器

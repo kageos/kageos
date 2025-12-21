@@ -604,7 +604,7 @@ import {
   Files,
   Edit,
 } from '@element-plus/icons-vue'
-import type { WidgetComponentProps } from '../types'
+import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { uploadFile, notifyBatchUploadComplete } from '@/utils/upload'
 import type { FileInfo, BatchUploadCompleteItem, UploadProgress, UploadFileResult } from '@/utils/upload'
 import type { Uploader } from '@/utils/upload'
@@ -628,6 +628,7 @@ const props = withDefaults(defineProps<WidgetComponentProps>(), {
   functionName: undefined,
   recordId: undefined,
 })
+const emit = defineEmits<WidgetComponentEmits>()
 
 const formDataStore = useFormDataStore()
 const userInfoStore = useUserInfoStore()
@@ -1423,11 +1424,17 @@ async function updateFiles(files: FileItem[]): Promise<void> {
     data_type: 'struct',   // 固定值
   }
 
-  formDataStore.setValue(props.fieldPath, {
+  const newFieldValue = {
     raw: newData,
     display: `${files.length} 个文件`,
     meta: {},
-  })
+  }
+
+  // 🔥 同时更新 formDataStore 和触发 update:modelValue 事件
+  formDataStore.setValue(props.fieldPath, newFieldValue)
+  
+  // 🔥 触发 update:modelValue 事件，通知父组件更新
+  emit('update:modelValue', newFieldValue)
 }
 
 // 删除文件
@@ -1656,11 +1663,17 @@ function updateRemark(remarkValue: string): void {
     remark: remarkValue,
   }
 
-  formDataStore.setValue(props.fieldPath, {
+  const newFieldValue = {
     raw: newData,
     display: `${data.files.length} 个文件`,
     meta: {},
-  })
+  }
+
+  // 🔥 同时更新 formDataStore 和触发 update:modelValue 事件
+  formDataStore.setValue(props.fieldPath, newFieldValue)
+  
+  // 🔥 触发 update:modelValue 事件，通知父组件更新
+  emit('update:modelValue', newFieldValue)
 }
 
 function handleUpdateRemark(): void {

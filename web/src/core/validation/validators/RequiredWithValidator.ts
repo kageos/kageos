@@ -7,7 +7,7 @@
 
 import type { Validator, ValidationRule, ValidationResult, ValidationContext } from '../types'
 import type { FieldValue } from '../../types/field'
-import { isEmpty as isEmptyValue, getFieldName, createRequiredErrorMessage } from '../utils/fieldUtils'
+import { isEmpty as isEmptyValue, getFieldName, createRequiredErrorMessage, findFieldInContext } from '../utils/fieldUtils'
 
 export class RequiredWithValidator implements Validator {
   readonly name = 'required_with'
@@ -25,12 +25,17 @@ export class RequiredWithValidator implements Validator {
     // 🔥 通过 formManager 获取其他字段的值（解耦设计）
     const otherFieldValue = context.formManager.getValue(rule.field)
     
+    // 🔥 查找其他字段的配置（用于 table 类型字段的空行过滤）
+    const otherField = context.allFields.find(f => f.code === rule.field)
+    
     // 判断其他字段是否有值
-    const otherFieldHasValue = !isEmptyValue(otherFieldValue)
+    const otherFieldHasValue = !isEmptyValue(otherFieldValue, otherField || undefined)
     
     if (otherFieldHasValue) {
       // 其他字段有值，当前字段必填
-      if (isEmptyValue(value)) {
+      // 🔥 从 context 中查找字段配置，用于 table 类型字段的空行过滤
+      const field = findFieldInContext(context)
+      if (isEmptyValue(value, field || undefined)) {
         const fieldName = getFieldName(context)
         return {
           valid: false,

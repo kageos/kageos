@@ -110,4 +110,17 @@ func (s *Server) setupRoutes() {
 	directoryUpdateHistory.GET("/app_version", directoryUpdateHistoryHandler.GetAppVersionUpdateHistory) // 获取应用版本更新历史（App视角）
 	directoryUpdateHistory.GET("/directory", directoryUpdateHistoryHandler.GetDirectoryUpdateHistory)    // 获取目录更新历史（目录视角）
 
+	// 快链管理路由
+	quickLink := apiV1.Group("/quicklink")
+	quickLinkHandler := v1.NewQuickLink(s.quickLinkService)
+	// 获取快链（公开访问，不验证用户，用于分享链接）
+	quickLink.GET("/get", quickLinkHandler.GetQuickLink)
+	// 需要JWT验证的路由
+	quickLinkAuth := quickLink.Group("")
+	quickLinkAuth.Use(middleware2.JWTAuth()) // 快链管理需要JWT认证
+	quickLinkAuth.POST("/create", quickLinkHandler.CreateQuickLink)     // 创建快链
+	quickLinkAuth.GET("/list", quickLinkHandler.ListQuickLinks)        // 获取快链列表
+	quickLinkAuth.PUT("/:id", quickLinkHandler.UpdateQuickLink)        // 更新快链
+	quickLinkAuth.DELETE("/:id", quickLinkHandler.DeleteQuickLink)     // 删除快链
+
 }

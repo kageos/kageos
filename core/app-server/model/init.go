@@ -25,6 +25,8 @@ func InitTables(db *gorm.DB) error {
 		&FormOperateLog{},
 		// 目录更新历史表（用于记录API变更历史）
 		&DirectoryUpdateHistory{},
+		// 快链表（用于保存表单状态、表格状态、图表筛选条件等）
+		&QuickLink{},
 	)
 	if err != nil {
 		return err
