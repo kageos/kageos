@@ -108,6 +108,8 @@ import { ArrowDown, Close } from '@element-plus/icons-vue'
 import FuzzySearchDialog from './FuzzySearchDialog.vue'
 import type { WidgetComponentProps } from '../types'
 import { selectFuzzy } from '@/api/function'
+import { widgetInitializerRegistry } from '../initializers/WidgetInitializerRegistry'
+import { MultiSelectWidgetInitializer } from '../initializers/MultiSelectWidgetInitializer'
 import { Logger } from '../../utils/logger'
 import { useFormDataStore } from '../../stores-v2/formData'
 import { ExpressionParserAdapter } from '../../utils/ExpressionParserAdapter'
@@ -793,8 +795,19 @@ const lastSearchedValues = ref<string[]>([])
 
 // 在 onMounted 中处理，确保 formRenderer 已经传递过来
 onMounted(() => {
+  // 🔥 注册 MultiSelectWidget 初始化器（组件自治）
+  // 只在有 OnSelectFuzzy 回调时才注册
+  if (hasRemoteSearch.value) {
+    widgetInitializerRegistry.register('multiselect', new MultiSelectWidgetInitializer())
+    Logger.debug('[MultiSelectWidget]', '注册初始化器', {
+      fieldCode: props.field.code,
+      widgetType: 'multiselect'
+    })
+  }
+  
   // 🔥 如果有回调接口且有初始值，立即触发一次回调
   // 因为 watch 可能在组件挂载时 formRenderer 还没传递过来
+  // 🔥 注意：这个逻辑未来可能会被统一初始化框架替代
   if (hasRemoteSearch.value && props.value?.raw && props.formRenderer) {
     nextTick(() => {
       const values = parseRawValue(props.value?.raw)
