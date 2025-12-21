@@ -18,6 +18,8 @@ import { widgetInitializerRegistry } from '../../../core/widgets-v2/initializers
 import type { WidgetInitContext } from '../../../core/widgets-v2/interfaces/IWidgetInitializer'
 import { eventBus, FormEvent } from '../../infrastructure/eventBus'
 import { Logger } from '../../../core/utils/logger'
+import { getWidgetDefaultValue } from '../../../core/widgets-v2/composables/useWidgetDefaultValue'
+import { useAuthStore } from '@/core/stores/auth'
 
 /**
  * 初始化源接口
@@ -161,14 +163,58 @@ class QuickLinkInitSource implements InitSource {
 
 /**
  * 默认值初始化源
+ * 
+ * 职责：
+ * - 处理 widget.config.default 默认值
+ * - 对于没有 URL 参数和快链的字段，使用默认值
  */
 class DefaultInitSource implements InitSource {
   priority = InitSourcePriority.DEFAULT
   name = 'Default'
   
   async initialize(context: InitContext): Promise<InitResult> {
-    // 默认值初始化：返回空数据，由组件自己处理默认值
-    return { formData: {} }
+    const { functionDetail, currentFormData } = context
+    
+    console.log('🔍 [DefaultInitSource] 开始初始化', {
+      requestFieldsCount: (functionDetail.request || []).length,
+      currentFormDataKeys: Object.keys(currentFormData),
+      currentFormDataCount: Object.keys(currentFormData).length
+    })
+    
+    const formData: Record<string, FieldValue> = {}
+    const requestFields = functionDetail.request || []
+    
+    // 遍历所有字段，对于没有初始值的字段，使用默认值
+    requestFields.forEach(field => {
+      // 如果已经有初始值（来自 URL 或快链），跳过
+      if (currentFormData.hasOwnProperty(field.code)) {
+        console.log(`🔍 [DefaultInitSource] 字段 ${field.code} 已有初始值，跳过默认值初始化`)
+        return
+      }
+      
+      // 使用 getWidgetDefaultValue 获取默认值
+      const defaultValue = getWidgetDefaultValue(field, undefined, () => useAuthStore())
+      
+      // 只有当默认值不是空值时才设置
+      if (defaultValue.raw !== null && defaultValue.raw !== undefined && defaultValue.raw !== '') {
+        formData[field.code] = defaultValue
+        console.log(`🔍 [DefaultInitSource] 字段 ${field.code} 使用默认值`, {
+          raw: defaultValue.raw,
+          display: defaultValue.display,
+          widgetType: field.widget?.type,
+          hasConfigDefault: !!(field.widget?.config as any)?.default
+        })
+      } else {
+        console.log(`🔍 [DefaultInitSource] 字段 ${field.code} 没有默认值，跳过`)
+      }
+    })
+    
+    console.log('✅ [DefaultInitSource] 初始化完成', {
+      formDataKeys: Object.keys(formData),
+      formDataCount: Object.keys(formData).length
+    })
+    
+    return { formData }
   }
 }
 
