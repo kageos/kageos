@@ -21,6 +21,12 @@ export const RouteSource = {
   TABLE_CREATE_DIALOG_CLOSE: 'table-create-dialog-close',
   TABLE_ADD_DIALOG_OPEN: 'add-dialog-open',
   
+  // 表单相关
+  FORM_SYNC: 'form-sync',
+  
+  // 图表相关
+  CHART_SYNC: 'chart-sync',
+  
   // 其他
   AGENT_SELECT: 'agent-select',
   BACK_TO_LIST: 'back-to-list',

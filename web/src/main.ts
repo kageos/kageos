@@ -14,6 +14,7 @@ import router from './router'
 import { useAuthStore } from './stores/auth'
 import { useThemeStore } from './stores/theme'
 import { useUserInfoStore } from './stores/userInfo'
+import { registerWidgetInitializers } from './core/widgets-v2/initializers/registerInitializers'
 
 const app = createApp(App)
 const pinia = createPinia()
@@ -36,6 +37,9 @@ authStore.initAuth()
 // 初始化主题
 const themeStore = useThemeStore()
 themeStore.initTheme()
+
+// 🔥 注册所有 Widget 初始化器（组件自治，符合依赖倒置原则）
+registerWidgetInitializers()
 
 // 🔥 开发环境：将 stores 挂载到 window 对象，方便在控制台调试
 if (import.meta.env.DEV) {

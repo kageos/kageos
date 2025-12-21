@@ -274,7 +274,10 @@ const requestFields = computed(() => {
   // 🔥 关键：追踪 formDataStore.data 的变化，确保条件渲染能响应式更新
   const _ = formDataStore.data  // 触发响应式追踪
   
-  const allFields = functionDetail.value?.request || []
+  // ⚠️ 关键修复：确保 request 始终是数组，避免 detail.request?.map is not a function 错误
+  // 后端可能返回 null 或 undefined，需要统一处理为数组
+  const request = functionDetail.value?.request
+  const allFields = Array.isArray(request) ? request : []
   return allFields.filter((field: FieldConfig) => {
     // 条件渲染：根据其他字段的值决定是否显示
     // 注意：这里需要适配 shouldShowField 函数，使其支持 formDataStore
@@ -284,7 +287,8 @@ const requestFields = computed(() => {
 
 // 响应字段列表
 const responseFields = computed(() => {
-  return functionDetail.value?.response || []
+  const response = functionDetail.value?.response
+  return Array.isArray(response) ? response : []
 })
 
 // 是否有响应数据
@@ -486,7 +490,8 @@ const fieldErrors = reactive<Map<string, ValidationResult[]>>(new Map())
 // 验证引擎（适配 formDataStore）
 const validationEngine = computed(() => {
   const validatorRegistry = createDefaultValidatorRegistry()
-  const allFields = functionDetail.value?.request || []
+  const request = functionDetail.value?.request
+  const allFields = Array.isArray(request) ? request : []
   
   // 创建适配器，将 formDataStore 转换为 ReactiveFormDataManager 接口
   const formManagerAdapter = {
@@ -623,7 +628,8 @@ function generateErrorMessage(): string {
  */
 function validateField(field: FieldConfig): void {
   const fieldPath = field.code
-  const allFields = functionDetail.value?.request || []
+  const request = functionDetail.value?.request
+  const allFields = Array.isArray(request) ? request : []
   const widgetRef = widgetRefs.get(fieldPath)
   
   // 容器 Widget：通过 ref 调用其 validate 方法（会递归验证嵌套字段）
@@ -945,12 +951,13 @@ async function handleSubmit(): Promise<void> {
  * 这个方法会被 FormDialog 等外部组件调用
  */
 function prepareSubmitDataWithTypeConversion(): Record<string, any> {
-  if (!functionDetail.value?.request) {
+  const request = functionDetail.value?.request
+  if (!Array.isArray(request) || request.length === 0) {
     return {}
   }
   
   // 使用 formDataStore 的 getSubmitData 方法递归收集所有字段的数据
-  const submitData = formDataStore.getSubmitData(functionDetail.value.request)
+  const submitData = formDataStore.getSubmitData(request)
   
   Logger.info('[FormRenderer-v2]', '准备提交数据', submitData)
   
@@ -971,18 +978,34 @@ function cleanup(): void {
 }
 
 // 🔥 监听 props.functionDetail 变化，同步到内部的 functionDetail ref
+// 注意：这个 watch 只负责同步 ref，不触发初始化逻辑
+// 初始化逻辑在 onMounted 和 functionDetail 变化 watch 中处理
 watch(
   () => props.functionDetail,
   (newDetail) => {
-    if (newDetail && newDetail.id) {
+    // ⚠️ 关键修复：不要检查 id，因为 FormDialog 传入的 id 可能是 0
+    // 如果使用 `newDetail.id` 判断，0 会被当作 falsy，导致 FormDialog 传入的 formFunctionDetail 被忽略
+    if (newDetail) {
+      // 🔥 确保 request 和 response 始终是数组
+      newDetail.request = Array.isArray(newDetail.request) ? newDetail.request : []
+      newDetail.response = Array.isArray(newDetail.response) ? newDetail.response : []
+      const oldId = functionDetail.value?.id
+      const oldRouter = functionDetail.value?.router
       functionDetail.value = newDetail
-      console.log('🔍 [FormRenderer] props.functionDetail 变化，同步到内部 ref', {
-        functionId: newDetail.id,
-        requestFieldsCount: newDetail.request?.length || 0
-      })
+      // 只在 functionDetail 真正变化时输出日志
+      if (oldId !== newDetail.id || oldRouter !== newDetail.router) {
+        console.log('🔍 [FormRenderer] props.functionDetail 变化，同步到内部 ref', {
+          oldId,
+          newId: newDetail.id,
+          oldRouter,
+          newRouter: newDetail.router,
+          requestFieldsCount: newDetail.request.length,
+          responseFieldsCount: newDetail.response.length
+        })
+      }
     }
   },
-  { immediate: true }
+  { immediate: true } // 🔥 保留 immediate: true，因为这只是同步 ref，不会触发初始化
 )
 
 // 监听 functionDetail 变化，在路由切换时清理
@@ -1045,12 +1068,23 @@ watch(
 onMounted(async () => {
   // 🔥 在 onMounted 中主动获取 functionDetail
   // 如果 prop 已经提供了 functionDetail，直接使用；否则从 WorkspaceStateManager 获取当前函数节点并加载详情
-  if (props.functionDetail && props.functionDetail.id) {
+  // 
+  // ⚠️ 关键修复：不要检查 id，因为 FormDialog 传入的 id 可能是 0
+  // 如果使用 `props.functionDetail.id` 判断，0 会被当作 falsy，导致重新加载函数详情
+  // 这会导致 FormDialog 传入的 formFunctionDetail（包含正确的 request 字段）被覆盖
+  if (props.functionDetail) {
     // 如果 prop 已经提供了 functionDetail，直接使用
-    functionDetail.value = props.functionDetail
+    // 🔥 确保 request 和 response 始终是数组
+    const detail = { ...props.functionDetail }
+    detail.request = Array.isArray(detail.request) ? detail.request : []
+    detail.response = Array.isArray(detail.response) ? detail.response : []
+    functionDetail.value = detail
     console.log('🔍 [FormRenderer] onMounted 时使用 prop 提供的 functionDetail', {
-      functionId: props.functionDetail.id,
-      requestFieldsCount: props.functionDetail.request?.length || 0
+      functionId: detail.id,
+      requestFieldsCount: detail.request.length,
+      responseFieldsCount: detail.response.length,
+      hasRequest: detail.request.length > 0,
+      hasResponse: detail.response.length > 0
     })
   } else {
     // 否则，从 WorkspaceStateManager 获取当前函数节点并加载详情
@@ -1065,18 +1099,23 @@ onMounted(async () => {
       try {
         // 🔥 loadFunction 会优先使用 ref_id 加载函数详情
         const detail = await workspaceDomainService.loadFunction(currentFunction)
+        // 🔥 确保 request 和 response 始终是数组
+        if (detail) {
+          detail.request = Array.isArray(detail.request) ? detail.request : []
+          detail.response = Array.isArray(detail.response) ? detail.response : []
+        }
         functionDetail.value = detail
         console.log('✅ [FormRenderer] onMounted 时成功加载 functionDetail', {
-          functionId: detail.id,
+          functionId: detail?.id,
           refId: currentFunction.ref_id,  // 🔥 记录使用的 ref_id
-          requestFieldsCount: detail.request?.length || 0,
-          requestFields: detail.request?.map((f: any) => ({
+          requestFieldsCount: detail?.request?.length || 0,
+          requestFields: Array.isArray(detail?.request) ? detail.request.map((f: any) => ({
             code: f.code,
             name: f.name,
             widgetType: f.widget?.type,
             hasDefault: !!(f.widget?.config as any)?.default,
             defaultValue: (f.widget?.config as any)?.default
-          })) || []
+          })) : []
         })
       } catch (error) {
         console.error('❌ [FormRenderer] onMounted 时加载 functionDetail 失败', error)

@@ -94,6 +94,17 @@ export const useFormDataStore = defineStore('formData-v2', () => {
     return Array.from(data.keys())
   }
   
+  /**
+   * 获取所有字段值（用于 URL 同步等场景）
+   */
+  function getAllValues(): Record<string, FieldValue> {
+    const allValues: Record<string, FieldValue> = {}
+    data.forEach((value, key) => {
+      allValues[key] = value
+    })
+    return allValues
+  }
+  
   return {
     data,
     setValue,
@@ -101,6 +112,7 @@ export const useFormDataStore = defineStore('formData-v2', () => {
     initializeField,
     getSubmitData,
     clear,
-    getAllFieldPaths
+    getAllFieldPaths,
+    getAllValues
   }
 })
