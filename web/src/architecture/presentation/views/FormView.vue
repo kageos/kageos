@@ -30,8 +30,8 @@
           :value="fieldValues[field.code]"
           :field-path="field.code"
           :form-renderer="formRendererContext"
-          :function-method="props.functionDetail.method || 'GET'"
-          :function-router="props.functionDetail.router || ''"
+          :function-method="functionDetail?.method || 'GET'"
+          :function-router="functionDetail?.router || ''"
           @update:model-value="(v: FieldValue) => handleFieldUpdate(field.code, v)"
         />
       </el-form-item>
@@ -195,7 +195,7 @@ import { useResponseDataStore } from '@/core/stores-v2/responseData'
 import { useFunctionParamInitialization } from '../composables/useFunctionParamInitialization'
 
 const props = defineProps<{
-  functionDetail: FunctionDetail
+  functionDetail?: FunctionDetail  // 🔥 改为可选，因为会在 onMounted 中主动获取
 }>()
 
 // 路由
@@ -205,6 +205,11 @@ const route = useRoute()
 const stateManager = serviceFactory.getFormStateManager()
 const domainService = serviceFactory.getFormDomainService()
 const applicationService = serviceFactory.getFormApplicationService()
+const workspaceStateManager = serviceFactory.getWorkspaceStateManager()  // 🔥 用于获取当前函数节点
+const workspaceDomainService = serviceFactory.getWorkspaceDomainService()  // 🔥 用于获取函数详情
+
+// 🔥 内部维护 functionDetail（在 onMounted 中主动获取）
+const functionDetail = ref<FunctionDetail | null>(props.functionDetail || null)
 
 // 🔥 获取全局 formDataStore 和 responseDataStore（用于清理，因为 WidgetComponent 内部使用的组件会直接使用这些 store）
 const formDataStore = useFormDataStore()
@@ -224,8 +229,8 @@ const formData = computed(() => {
   return data
 })
 
-const requestFields = computed(() => (props.functionDetail.request || []) as FieldConfig[])
-const responseFields = computed(() => (props.functionDetail.response || []) as FieldConfig[])
+const requestFields = computed(() => (functionDetail.value?.request || []) as FieldConfig[])
+const responseFields = computed(() => (functionDetail.value?.response || []) as FieldConfig[])
 
 // 🔥 移除 formInitialData computed，改为使用统一的数据初始化框架
 // URL 参数会在 useFunctionParamInitialization 中统一处理
@@ -329,8 +334,8 @@ const copyToClipboard = async (text: string): Promise<void> => {
 // 注意：使用 computed 确保响应式更新，并且每次访问都返回新的对象（但方法引用稳定）
 const formRendererContext = computed(() => {
   return {
-    getFunctionMethod: () => props.functionDetail.method || 'GET',
-    getFunctionRouter: () => props.functionDetail.router || '',
+    getFunctionMethod: () => functionDetail.value?.method || 'GET',
+    getFunctionRouter: () => functionDetail.value?.router || '',
     getSubmitData: () => {
       const state = stateManager.getState()
       const data: Record<string, any> = {}
@@ -380,7 +385,15 @@ const handleFieldUpdate = (fieldCode: string, value: FieldValue): void => {
 
 const handleSubmit = async (): Promise<void> => {
   try {
-    await applicationService.submitForm(props.functionDetail)
+    if (!functionDetail.value) {
+      ElNotification.error({
+        title: '提交失败',
+        message: '函数详情未加载完成，请稍后重试',
+        duration: 3000
+      })
+      return
+    }
+    await applicationService.submitForm(functionDetail.value)
     
     // 🔥 如果执行到这里，说明 API 调用成功（request.ts 的响应拦截器在 code !== 0 时会 reject）
     // request.ts 在 code === 0 时返回 data，所以这里 response 是 data 部分
@@ -433,7 +446,7 @@ let unsubscribeFormInitialized: (() => void) | null = null
 
 // 🔥 使用统一的数据初始化框架
 const { initialize: initializeParams } = useFunctionParamInitialization({
-  functionDetail: computed(() => props.functionDetail),
+  functionDetail: computed(() => functionDetail.value),
   formDataStore: {
     getValue: (fieldCode: string) => formDataStore.getValue(fieldCode),
     setValue: (fieldCode: string, value: any) => formDataStore.setValue(fieldCode, value),
@@ -456,17 +469,50 @@ onMounted(async () => {
   formDataStore.clear()
   responseDataStore.clear()
   
-  // 🔥 在 onMounted 时初始化参数（因为 FormView 是通过 v-if="currentFunctionDetail" 条件渲染的，此时 functionDetail 应该已经存在）
-  // 但需要检查 functionDetail 是否有效（有 id 和 request）
-  if (props.functionDetail && props.functionDetail.id && props.functionDetail.request) {
-    console.log('🔍 [FormView] onMounted 时初始化参数', {
+  // 🔥 在 onMounted 中主动获取 functionDetail
+  // 如果 prop 已经提供了 functionDetail，直接使用；否则从 WorkspaceStateManager 获取当前函数节点并加载详情
+  if (props.functionDetail && props.functionDetail.id) {
+    // 如果 prop 已经提供了 functionDetail，直接使用
+    functionDetail.value = props.functionDetail
+    console.log('🔍 [FormView] onMounted 时使用 prop 提供的 functionDetail', {
       functionId: props.functionDetail.id,
-      requestFieldsCount: props.functionDetail.request.length
+      requestFieldsCount: props.functionDetail.request?.length || 0
+    })
+  } else {
+    // 否则，从 WorkspaceStateManager 获取当前函数节点并加载详情
+    const currentFunction = workspaceStateManager.getCurrentFunction()
+    if (currentFunction && currentFunction.type === 'function') {
+      console.log('🔍 [FormView] onMounted 时主动加载 functionDetail', {
+        functionNodeId: currentFunction.id,
+        functionPath: currentFunction.full_code_path
+      })
+      try {
+        const detail = await workspaceDomainService.loadFunction(currentFunction)
+        functionDetail.value = detail
+        console.log('✅ [FormView] onMounted 时成功加载 functionDetail', {
+          functionId: detail.id,
+          requestFieldsCount: detail.request?.length || 0
+        })
+      } catch (error) {
+        console.error('❌ [FormView] onMounted 时加载 functionDetail 失败', error)
+        return
+      }
+    } else {
+      console.log('🔍 [FormView] onMounted 时没有当前函数节点，等待 watch 触发')
+      return
+    }
+  }
+  
+  // 🔥 初始化参数（此时 functionDetail 已经加载完成）
+  if (functionDetail.value && functionDetail.value.id && functionDetail.value.request) {
+    console.log('🔍 [FormView] onMounted 时初始化参数', {
+      functionId: functionDetail.value.id,
+      requestFieldsCount: functionDetail.value.request.length
     })
     await initializeParams()
     
     // 初始化表单：在参数初始化完成后，初始化表单结构
-    const fields = props.functionDetail.request || []
+    const fields = functionDetail.value.request || []
     if (fields.length > 0) {
       // 🔥 从 formDataStore 获取已初始化的数据
       const initialData: Record<string, any> = {}
@@ -483,18 +529,12 @@ onMounted(async () => {
       })
       applicationService.initializeForm(fields, initialData)
     }
-  } else {
-    console.log('🔍 [FormView] onMounted 时 functionDetail 无效，等待 watch 触发', {
-      hasDetail: !!props.functionDetail,
-      hasId: !!props.functionDetail?.id,
-      hasRequest: !!props.functionDetail?.request
-    })
   }
 
   // 监听函数加载完成事件
   let lastInitializedFunctionId: number | null = null // 🔥 记录上次初始化的函数 ID，防止重复初始化
   unsubscribeFunctionLoaded = eventBus.on(WorkspaceEvent.functionLoaded, async (payload: { detail: FunctionDetail }) => {
-    if (payload.detail.template_type === TEMPLATE_TYPE.FORM && payload.detail.id === props.functionDetail.id) {
+    if (payload.detail.template_type === TEMPLATE_TYPE.FORM && functionDetail.value && payload.detail.id === functionDetail.value.id) {
       // 🔥 防重复初始化：如果已经初始化过这个函数，跳过
       if (lastInitializedFunctionId === payload.detail.id) {
         Logger.debug('FormView', '跳过重复的 functionLoaded 事件', { functionId: payload.detail.id })
