@@ -486,7 +486,7 @@ const fieldErrors = reactive<Map<string, ValidationResult[]>>(new Map())
 // 验证引擎（适配 formDataStore）
 const validationEngine = computed(() => {
   const validatorRegistry = createDefaultValidatorRegistry()
-  const allFields = props.functionDetail?.request || []
+  const allFields = functionDetail.value?.request || []
   
   // 创建适配器，将 formDataStore 转换为 ReactiveFormDataManager 接口
   const formManagerAdapter = {
@@ -623,7 +623,7 @@ function generateErrorMessage(): string {
  */
 function validateField(field: FieldConfig): void {
   const fieldPath = field.code
-  const allFields = props.functionDetail?.request || []
+  const allFields = functionDetail.value?.request || []
   const widgetRef = widgetRefs.get(fieldPath)
   
   // 容器 Widget：通过 ref 调用其 validate 方法（会递归验证嵌套字段）
