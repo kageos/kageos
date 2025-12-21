@@ -696,25 +696,30 @@ const confirmSaveQuickLink = async (): Promise<void> => {
       }
     })
 
-    // 2. 调用后端 API 保存快链
+    // 2. 收集响应数据（如果有）
+    const state = stateManager.getState()
+    const responseParams = state.response || null
+
+    // 3. 调用后端 API 保存快链
     const { createQuickLink } = await import('@/api/quicklink')
     const result = await createQuickLink({
       name: quickLinkForm.value.name.trim(),
       function_router: functionDetail.value.router,
       function_method: functionDetail.value.method,
       template_type: functionDetail.value.template_type || 'form',
-      request_params: requestParams
+      request_params: requestParams,
+      response_params: responseParams || undefined
     })
 
-    // 3. 生成快链 URL
+    // 4. 生成快链 URL
     const url = `${window.location.origin}${route.path}?_quicklink_id=${result.id}`
     quickLinkUrl.value = url
 
-    // 4. 关闭名称输入弹窗，显示快链地址弹窗
+    // 5. 关闭名称输入弹窗，显示快链地址弹窗
     showQuickLinkNameDialog.value = false
     showQuickLinkDialog.value = true
 
-    // 5. 刷新快链列表（如果列表弹窗已打开）
+    // 6. 刷新快链列表（如果列表弹窗已打开）
     if (showQuickLinkListDialog.value) {
       loadQuickLinkList()
     }
@@ -963,7 +968,7 @@ onMounted(async () => {
       functionId: functionDetail.value.id,
       requestFieldsCount: functionDetail.value.request.length
     })
-    await initializeParams()
+    const metadata = await initializeParams()
     
     // 初始化表单：在参数初始化完成后，初始化表单结构
     const fields = functionDetail.value.request || []
@@ -980,6 +985,16 @@ onMounted(async () => {
         initialData
       })
       applicationService.initializeForm(fields, initialData)
+    }
+    
+    // 🔥 恢复响应数据（在表单初始化之后，避免被覆盖）
+    if (metadata?.responseParams && stateManager && typeof (stateManager as any).setResponse === 'function') {
+      (stateManager as any).setResponse(metadata.responseParams)
+      console.log('🔍 [FormView] 已恢复响应数据', {
+        responseParamsKeys: Object.keys(metadata.responseParams),
+        responseParams: metadata.responseParams,
+        stateResponse: stateManager.getState().response
+      })
     }
   }
 
@@ -999,7 +1014,7 @@ onMounted(async () => {
       responseDataStore.clear()
       
       // 🔥 使用统一的数据初始化框架初始化参数
-      await initializeParams()
+      const metadata = await initializeParams()
       
       // 🔥 使用 nextTick 确保参数初始化完成
       nextTick(() => {
@@ -1012,6 +1027,16 @@ onMounted(async () => {
           // 🔥 构建 initialData 并调用 initializeForm
           const initialData = buildInitialDataFromFormDataStore(fields)
           applicationService.initializeForm(fields, initialData)
+        }
+        
+        // 🔥 恢复响应数据（在表单初始化之后，避免被覆盖）
+        if (metadata?.responseParams && stateManager && typeof (stateManager as any).setResponse === 'function') {
+          (stateManager as any).setResponse(metadata.responseParams)
+          console.log('🔍 [FormView] 已恢复响应数据', {
+            responseParamsKeys: Object.keys(metadata.responseParams),
+            responseParams: metadata.responseParams,
+            stateResponse: stateManager.getState().response
+          })
         }
       })
     }
@@ -1063,7 +1088,7 @@ onMounted(async () => {
       responseDataStore.clear()
       
       // 🔥 使用统一的数据初始化框架初始化参数（此时 functionDetail 已经加载完成）
-      await initializeParams()
+      const metadata = await initializeParams()
       
       const fields = (newDetail.request || []) as FieldConfig[]
       if (fields.length > 0) {
@@ -1080,6 +1105,16 @@ onMounted(async () => {
             initialData
           })
           applicationService.initializeForm(fields, initialData)
+          
+          // 🔥 恢复响应数据（在表单初始化之后，避免被覆盖）
+          if (metadata?.responseParams && stateManager && typeof (stateManager as any).setResponse === 'function') {
+            (stateManager as any).setResponse(metadata.responseParams)
+            console.log('🔍 [FormView] 已恢复响应数据', {
+              responseParamsKeys: Object.keys(metadata.responseParams),
+              responseParams: metadata.responseParams,
+              stateResponse: stateManager.getState().response
+            })
+          }
         })
       }
     }

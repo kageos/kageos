@@ -216,7 +216,7 @@ class QuickLinkInitSource implements InitSource {
         formData,
         fieldMetadata: quickLink.field_metadata || {},
         metadata: {
-          responseParams: quickLink.metadata?.response_params,
+          responseParams: quickLink.response_params || null,
           tableState: quickLink.metadata?.table_state,
           chartFilters: quickLink.metadata?.chart_filters,
           ...quickLink.metadata
@@ -332,11 +332,13 @@ export function useFunctionParamInitialization(
    * 2. 组件自治初始化（组件负责）：调用组件的初始化接口
    * 3. 应用字段元数据（快链特有）
    * 4. 完成初始化，触发 FormEvent.initialized 事件
+   * 
+   * @returns metadata 元数据（包含 responseParams 等）
    */
-  const initialize = async (): Promise<void> => {
+  const initialize = async (): Promise<Record<string, any>> => {
     if (isInitializing.value) {
       console.log('🔍 [useFunctionParamInitialization] 正在初始化中，跳过')
-      return
+      return {}
     }
     
     // 🔥 检查 functionDetail 是否有效（使用 computed 的值）
@@ -346,7 +348,7 @@ export function useFunctionParamInitialization(
         functionDetail: detail,
         isComputedRef: options.functionDetail && typeof options.functionDetail === 'object' && 'value' in options.functionDetail
       })
-      return
+      return {}
     }
     
     isInitializing.value = true
@@ -364,6 +366,7 @@ export function useFunctionParamInitialization(
       // 步骤 1：通用初始化（框架负责）
       let currentFormData: Record<string, FieldValue> = {}
       let fieldMetadata: Record<string, any> = {}
+      let metadata: Record<string, any> = {}
       
       // 按优先级执行初始化源
       const sortedSources = initSources.sort((a, b) => a.priority - b.priority)
@@ -389,12 +392,15 @@ export function useFunctionParamInitialization(
           resultFormDataKeys: Object.keys(result.formData),
           resultFormDataCount: Object.keys(result.formData).length,
           hasFieldMetadata: !!result.fieldMetadata,
-          fieldMetadataKeys: result.fieldMetadata ? Object.keys(result.fieldMetadata) : []
+          fieldMetadataKeys: result.fieldMetadata ? Object.keys(result.fieldMetadata) : [],
+          hasMetadata: !!result.metadata,
+          metadataKeys: result.metadata ? Object.keys(result.metadata) : []
         })
         
         // 合并数据（后面的优先级更高，会覆盖前面的）
         currentFormData = { ...currentFormData, ...result.formData }
         fieldMetadata = { ...fieldMetadata, ...(result.fieldMetadata || {}) }
+        metadata = { ...metadata, ...(result.metadata || {}) }
       }
       
       console.log('🔍 [useFunctionParamInitialization] 通用初始化完成', {
@@ -432,6 +438,9 @@ export function useFunctionParamInitialization(
         initializedFields: Object.keys(currentFormData),
         initializedFieldsCount: Object.keys(currentFormData).length
       })
+      
+      // 🔥 返回 metadata（包含 responseParams 等）
+      return metadata
     } catch (error: any) {
       console.error('❌ [useFunctionParamInitialization] 初始化失败', error)
       Logger.error('[useFunctionParamInitialization]', '初始化失败', error)

@@ -74,6 +74,7 @@ func (q *QuickLink) CreateQuickLink(c *gin.Context) {
 		req.FunctionMethod,
 		req.TemplateType,
 		req.RequestParams,
+		req.ResponseParams,
 		convertFieldMetadata(req.FieldMetadata),
 		req.Metadata,
 	)
@@ -261,6 +262,7 @@ func (q *QuickLink) UpdateQuickLink(c *gin.Context) {
 		username,
 		req.Name,
 		req.RequestParams,
+		req.ResponseParams,
 		convertFieldMetadata(req.FieldMetadata),
 		req.Metadata,
 	)
@@ -329,6 +331,12 @@ func convertQuickLinkToDTO(quickLink *model.QuickLink) *dto.GetQuickLinkResp {
 		requestParams = make(map[string]interface{})
 	}
 
+	// 解析响应参数
+	responseParams, _ := quickLink.GetResponseParams()
+	if responseParams == nil {
+		responseParams = make(map[string]interface{})
+	}
+
 	// 解析字段元数据
 	fieldMetadata, _ := quickLink.GetFieldMetadata()
 	if fieldMetadata == nil {
@@ -356,6 +364,7 @@ func convertQuickLinkToDTO(quickLink *model.QuickLink) *dto.GetQuickLinkResp {
 		FunctionMethod: quickLink.FunctionMethod,
 		TemplateType:   quickLink.TemplateType,
 		RequestParams:  requestParams,
+		ResponseParams: responseParams,
 		FieldMetadata:  convertedFieldMetadata,
 		Metadata:       metadata,
 		CreatedAt:      time.Time(quickLink.CreatedAt).Format(time.RFC3339),

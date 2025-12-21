@@ -15,8 +15,9 @@ type QuickLink struct {
 	FunctionMethod string          `json:"function_method" gorm:"column:function_method;type:varchar(10);not null;comment:函数HTTP方法"`
 	TemplateType   string          `json:"template_type" gorm:"column:template_type;type:varchar(50);not null;comment:模板类型:form,table,chart"`
 	RequestParams  json.RawMessage `json:"request_params" gorm:"type:json;comment:表单参数(完整的FieldValue结构)"`
+	ResponseParams json.RawMessage `json:"response_params" gorm:"type:json;comment:响应参数(函数执行后的响应数据)"`
 	FieldMetadata  json.RawMessage `json:"field_metadata" gorm:"type:json;comment:字段元数据(editable,readonly,hint,highlight)"`
-	Metadata       json.RawMessage `json:"metadata" gorm:"type:json;comment:其他元数据(table_state,chart_filters,response_params)"`
+	Metadata       json.RawMessage `json:"metadata" gorm:"type:json;comment:其他元数据(table_state,chart_filters)"`
 }
 
 func (QuickLink) TableName() string {
@@ -70,6 +71,26 @@ func (q *QuickLink) SetFieldMetadata(metadata map[string]interface{}) error {
 		return err
 	}
 	q.FieldMetadata = data
+	return nil
+}
+
+// GetResponseParams 获取响应参数（解析 JSON）
+func (q *QuickLink) GetResponseParams() (map[string]interface{}, error) {
+	if len(q.ResponseParams) == 0 {
+		return make(map[string]interface{}), nil
+	}
+	var params map[string]interface{}
+	err := json.Unmarshal(q.ResponseParams, &params)
+	return params, err
+}
+
+// SetResponseParams 设置响应参数（序列化为 JSON）
+func (q *QuickLink) SetResponseParams(params map[string]interface{}) error {
+	data, err := json.Marshal(params)
+	if err != nil {
+		return err
+	}
+	q.ResponseParams = data
 	return nil
 }
 

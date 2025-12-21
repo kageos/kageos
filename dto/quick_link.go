@@ -7,8 +7,9 @@ type CreateQuickLinkReq struct {
 	FunctionMethod string                            `json:"function_method" binding:"required"` // 函数HTTP方法
 	TemplateType   string                            `json:"template_type" binding:"required"`   // 模板类型:form,table,chart
 	RequestParams  map[string]interface{}            `json:"request_params"`                    // 表单参数(完整的FieldValue结构)
+	ResponseParams map[string]interface{}            `json:"response_params"`                    // 响应参数(函数执行后的响应数据)
 	FieldMetadata  map[string]map[string]interface{} `json:"field_metadata"`                    // 字段元数据(editable,readonly,hint,highlight)
-	Metadata       map[string]interface{}            `json:"metadata"`                           // 其他元数据(table_state,chart_filters,response_params)
+	Metadata       map[string]interface{}            `json:"metadata"`                           // 其他元数据(table_state,chart_filters)
 }
 
 // CreateQuickLinkResp 创建快链响应
@@ -26,6 +27,7 @@ type GetQuickLinkResp struct {
 	FunctionMethod string                            `json:"function_method"`
 	TemplateType   string                            `json:"template_type"`
 	RequestParams  map[string]interface{}            `json:"request_params"`
+	ResponseParams map[string]interface{}            `json:"response_params"`
 	FieldMetadata  map[string]map[string]interface{} `json:"field_metadata"`
 	Metadata       map[string]interface{}            `json:"metadata"`
 	CreatedAt      string                            `json:"created_at"`
@@ -61,6 +63,7 @@ type QuickLinkItem struct {
 type UpdateQuickLinkReq struct {
 	Name          string                            `json:"name"`           // 快链名称
 	RequestParams map[string]interface{}            `json:"request_params"` // 表单参数
+	ResponseParams map[string]interface{}            `json:"response_params"` // 响应参数
 	FieldMetadata map[string]map[string]interface{} `json:"field_metadata"` // 字段元数据
 	Metadata      map[string]interface{}            `json:"metadata"`       // 其他元数据
 }
