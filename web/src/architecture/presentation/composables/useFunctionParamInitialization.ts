@@ -127,10 +127,11 @@ class URLParamsInitSource implements InitSource {
             [FieldValueMeta.ORIGINAL_VALUE]: value  // 保存原始值（可能是字符串、数字、JSON 字符串等）
           }
         }
+        const savedFieldValue = formData[field.code]
         console.log(`✅ [URLParamsInitSource] 字段 ${field.code} 原始值已保存`, {
           originalValue: value,
-          raw: formData[field.code].raw,
-          hasFromURLFlag: !!formData[field.code].meta?.[FieldValueMeta.FROM_URL]
+          raw: savedFieldValue?.raw,
+          hasFromURLFlag: !!savedFieldValue?.meta?.[FieldValueMeta.FROM_URL]
         })
       }
     })
@@ -148,36 +149,83 @@ class URLParamsInitSource implements InitSource {
 /**
  * 快链初始化源
  * 
- * 🔥 暂时不做，保留扩展接口
- * 未来实现：从后端加载快链数据，使用完整的 FieldValue 结构
+ * 🔥 从后端加载快链数据，使用完整的 FieldValue 结构
  */
 class QuickLinkInitSource implements InitSource {
   priority = InitSourcePriority.QUICK_LINK
   name = 'QuickLink'
   
   async initialize(context: InitContext): Promise<InitResult> {
-    const { route } = context
+    const { route, functionDetail } = context
     const quickLinkId = route.query._quicklink_id || route.query._quick_link_id
     
     if (!quickLinkId) {
       return { formData: {} }
     }
     
-    // 🔥 TODO: 未来实现快链加载
-    // const quickLink = await loadQuickLink(String(quickLinkId))
-    // return {
-    //   formData: quickLink.request_params || {},
-    //   fieldMetadata: quickLink.field_metadata || {},
-    //   metadata: {
-    //     responseParams: quickLink.response_params,
-    //     tableState: quickLink.table_state,
-    //     chartFilters: quickLink.chart_filters,
-    //     ...quickLink.metadata
-    //   }
-    // }
-    
-    Logger.debug('[QuickLinkInitSource]', '快链功能暂未实现', { quickLinkId })
-    return { formData: {} }
+    try {
+      // 1. 调用后端 API 加载快链数据
+      const { getQuickLink } = await import('@/api/quicklink')
+      const quickLink = await getQuickLink(Number(quickLinkId))
+      
+      Logger.debug('[QuickLinkInitSource]', '加载快链数据', {
+        quickLinkId,
+        functionRouter: quickLink.function_router,
+        currentRouter: functionDetail?.router || 'undefined'
+      })
+      
+      // 2. 验证快链是否匹配当前函数
+      if (functionDetail) {
+        if (quickLink.function_router !== functionDetail.router ||
+            quickLink.function_method !== functionDetail.method) {
+          Logger.warn('[QuickLinkInitSource]', '快链函数不匹配', {
+            quickLinkRouter: quickLink.function_router,
+            quickLinkMethod: quickLink.function_method,
+            currentRouter: functionDetail.router,
+            currentMethod: functionDetail.method
+          })
+          return { formData: {} }
+        }
+      }
+      
+      // 3. 恢复 FieldValue 到 formData
+      const formData: Record<string, FieldValue> = {}
+      Object.keys(quickLink.request_params || {}).forEach(fieldCode => {
+        const fieldValue = quickLink.request_params[fieldCode]
+        if (fieldValue) {
+          // 🔥 确保 FieldValue 结构完整
+          formData[fieldCode] = {
+            raw: fieldValue.raw,
+            display: fieldValue.display || String(fieldValue.raw || ''),
+            meta: {
+              ...(fieldValue.meta || {}),
+              _fromQuickLink: true,  // 标记来自快链
+              _quickLinkId: quickLink.id
+            }
+          }
+        }
+      })
+      
+      Logger.debug('[QuickLinkInitSource]', '快链数据恢复完成', {
+        formDataKeys: Object.keys(formData),
+        formDataCount: Object.keys(formData).length
+      })
+      
+      // 4. 返回初始化结果
+      return {
+        formData,
+        fieldMetadata: quickLink.field_metadata || {},
+        metadata: {
+          responseParams: quickLink.metadata?.response_params,
+          tableState: quickLink.metadata?.table_state,
+          chartFilters: quickLink.metadata?.chart_filters,
+          ...quickLink.metadata
+        }
+      }
+    } catch (error: any) {
+      Logger.error('[QuickLinkInitSource]', '加载快链失败', error)
+      return { formData: {} }
+    }
   }
 }
 
@@ -446,7 +494,8 @@ export function useFunctionParamInitialization(
         currentValue,
         allFormData: formData,
         functionDetail: detail,  // 🔥 使用解包后的 detail
-        initSource: route.query._quicklink_id ? 'quicklink' : 'url'
+        initSource: route.query._quicklink_id ? 'quicklink' : 'url',
+        fieldPath: field.code  // 🔥 顶层字段的路径就是 field.code
       }
       
       try {
