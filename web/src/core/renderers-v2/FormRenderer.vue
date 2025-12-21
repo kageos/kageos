@@ -156,9 +156,10 @@ import type { ValidationResult } from '../validation/types'
 import { getWidgetDefaultValue } from '../widgets-v2/composables/useWidgetDefaultValue'
 import { useAuthStore } from '@/stores/auth'
 import { convertToFieldValue } from '@/utils/field'
+import { serviceFactory } from '@/architecture/infrastructure/factories'
 
 const props = withDefaults(defineProps<{
-  functionDetail: FunctionDetail
+  functionDetail?: FunctionDetail  // 🔥 改为可选，因为会在 onMounted 中主动获取
   showSubmitButton?: boolean
   showResetButton?: boolean
   initialData?: Record<string, any>
@@ -170,21 +171,28 @@ const props = withDefaults(defineProps<{
   userInfoMap: () => new Map()
 })
 
+// 🔥 内部维护 functionDetail（在 onMounted 中主动获取）
+const functionDetail = ref<FunctionDetail | null>(props.functionDetail || null)
+
 // Pinia Stores
 const formDataStore = useFormDataStore()
 const responseDataStore = useResponseDataStore()
+
+// 🔥 依赖注入（用于获取函数详情）
+const workspaceStateManager = serviceFactory.getWorkspaceStateManager()
+const workspaceDomainService = serviceFactory.getWorkspaceDomainService()
 
 // 🔥 用户信息映射（从 props 获取，如果没有则使用空 Map）
 const userInfoMap = computed(() => props.userInfoMap || new Map())
 
 // 🔥 从 functionDetail.router 提取函数名称（用于 FilesWidget 打包下载命名）
 const functionName = computed(() => {
-  if (!props.functionDetail?.router) {
+  if (!functionDetail.value?.router) {
     return undefined
   }
   
   // router 格式通常是：/user/app/function_name 或 /user/app/group/function_name
-  const routerParts = props.functionDetail.router.split('/').filter(Boolean)
+  const routerParts = functionDetail.value.router.split('/').filter(Boolean)
   if (routerParts.length === 0) {
     return undefined
   }
@@ -255,10 +263,10 @@ const isMounted = ref(false)
 
 // 渲染器 key（用于强制重新渲染）
 const rendererKey = computed(() => {
-  if (!props.functionDetail) {
+  if (!functionDetail.value) {
     return 'default'
   }
-  return String(props.functionDetail.id || props.functionDetail.router || 'default')
+  return String(functionDetail.value.id || functionDetail.value.router || 'default')
 })
 
 // 请求字段列表（根据条件渲染规则过滤）
@@ -266,7 +274,7 @@ const requestFields = computed(() => {
   // 🔥 关键：追踪 formDataStore.data 的变化，确保条件渲染能响应式更新
   const _ = formDataStore.data  // 触发响应式追踪
   
-  const allFields = props.functionDetail?.request || []
+  const allFields = functionDetail.value?.request || []
   return allFields.filter((field: FieldConfig) => {
     // 条件渲染：根据其他字段的值决定是否显示
     // 注意：这里需要适配 shouldShowField 函数，使其支持 formDataStore
@@ -276,7 +284,7 @@ const requestFields = computed(() => {
 
 // 响应字段列表
 const responseFields = computed(() => {
-  return props.functionDetail?.response || []
+  return functionDetail.value?.response || []
 })
 
 // 是否有响应数据
@@ -687,9 +695,9 @@ const formManager = null as any // 不再使用 ReactiveFormDataManager
 const formRendererContext: FormRendererContext = {
   registerWidget: () => {},
   unregisterWidget: () => {},
-  getFunctionMethod: () => props.functionDetail.method,
-  getFunctionRouter: () => props.functionDetail.router,
-  getFunctionDetail: () => props.functionDetail, // 🔥 获取函数详情（用于防重复调用）
+  getFunctionMethod: () => functionDetail.value?.method || 'GET',
+  getFunctionRouter: () => functionDetail.value?.router || '',
+  getFunctionDetail: () => functionDetail.value, // 🔥 获取函数详情（用于防重复调用）
   getSubmitData: () => formDataStore.getSubmitData(requestFields.value),
   getFieldError: (fieldPath: string) => getFieldError(fieldPath) // 🔥 获取字段错误
 }
@@ -871,8 +879,8 @@ async function handleSubmit(): Promise<void> {
     
     // 调用后端 API
     const response = await executeFunction(
-      props.functionDetail.method,
-      props.functionDetail.router,
+      functionDetail.value?.method || 'GET',
+      functionDetail.value?.router || '',
       submitData
     )
     
@@ -937,12 +945,12 @@ async function handleSubmit(): Promise<void> {
  * 这个方法会被 FormDialog 等外部组件调用
  */
 function prepareSubmitDataWithTypeConversion(): Record<string, any> {
-  if (!props.functionDetail?.request) {
+  if (!functionDetail.value?.request) {
     return {}
   }
   
   // 使用 formDataStore 的 getSubmitData 方法递归收集所有字段的数据
-  const submitData = formDataStore.getSubmitData(props.functionDetail.request)
+  const submitData = formDataStore.getSubmitData(functionDetail.value.request)
   
   Logger.info('[FormRenderer-v2]', '准备提交数据', submitData)
   
@@ -964,7 +972,7 @@ function cleanup(): void {
 
 // 监听 functionDetail 变化，在路由切换时清理
 watch(
-  () => props.functionDetail?.id || props.functionDetail?.router,
+  () => functionDetail.value?.id || functionDetail.value?.router,
   async (newId, oldId) => {
     if (oldId && newId !== oldId) {
       // 路由切换，先清理旧数据
@@ -1018,10 +1026,48 @@ watch(
 
 // 生命周期
 onMounted(async () => {
+  // 🔥 在 onMounted 中主动获取 functionDetail
+  // 如果 prop 已经提供了 functionDetail，直接使用；否则从 WorkspaceStateManager 获取当前函数节点并加载详情
+  if (props.functionDetail && props.functionDetail.id) {
+    // 如果 prop 已经提供了 functionDetail，直接使用
+    functionDetail.value = props.functionDetail
+    console.log('🔍 [FormRenderer] onMounted 时使用 prop 提供的 functionDetail', {
+      functionId: props.functionDetail.id,
+      requestFieldsCount: props.functionDetail.request?.length || 0
+    })
+  } else {
+    // 否则，从 WorkspaceStateManager 获取当前函数节点并加载详情
+    const currentFunction = workspaceStateManager.getCurrentFunction()
+    if (currentFunction && currentFunction.type === 'function') {
+      console.log('🔍 [FormRenderer] onMounted 时主动加载 functionDetail', {
+        functionNodeId: currentFunction.id,
+        functionPath: currentFunction.full_code_path
+      })
+      try {
+        const detail = await workspaceDomainService.loadFunction(currentFunction)
+        functionDetail.value = detail
+        console.log('✅ [FormRenderer] onMounted 时成功加载 functionDetail', {
+          functionId: detail.id,
+          requestFieldsCount: detail.request?.length || 0
+        })
+      } catch (error) {
+        console.error('❌ [FormRenderer] onMounted 时加载 functionDetail 失败', error)
+        return
+      }
+    } else {
+      console.log('🔍 [FormRenderer] onMounted 时没有当前函数节点，等待 watch 触发')
+      return
+    }
+  }
+  
   // 延迟挂载，确保 DOM 已准备好
   await nextTick()
   isMounted.value = true
-  initializeForm()
+  
+  // 🔥 只有在 functionDetail 加载完成后才初始化表单
+  if (functionDetail.value && functionDetail.value.request) {
+    initializeForm()
+  }
 })
 
 onBeforeUnmount(() => {
