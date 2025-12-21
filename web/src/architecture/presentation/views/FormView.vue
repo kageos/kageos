@@ -484,21 +484,35 @@ onMounted(async () => {
     if (currentFunction && currentFunction.type === 'function') {
       console.log('🔍 [FormView] onMounted 时主动加载 functionDetail', {
         functionNodeId: currentFunction.id,
-        functionPath: currentFunction.full_code_path
+        refId: currentFunction.ref_id,  // 🔥 记录 ref_id（函数 ID）
+        functionPath: currentFunction.full_code_path,
+        hasRefId: !!(currentFunction.ref_id && currentFunction.ref_id > 0)
       })
       try {
+        // 🔥 loadFunction 会优先使用 ref_id 加载函数详情
         const detail = await workspaceDomainService.loadFunction(currentFunction)
         functionDetail.value = detail
         console.log('✅ [FormView] onMounted 时成功加载 functionDetail', {
           functionId: detail.id,
-          requestFieldsCount: detail.request?.length || 0
+          refId: currentFunction.ref_id,  // 🔥 记录使用的 ref_id
+          requestFieldsCount: detail.request?.length || 0,
+          requestFields: detail.request?.map((f: any) => ({
+            code: f.code,
+            name: f.name,
+            widgetType: f.widget?.type,
+            hasDefault: !!(f.widget?.config as any)?.default,
+            defaultValue: (f.widget?.config as any)?.default
+          })) || []
         })
       } catch (error) {
         console.error('❌ [FormView] onMounted 时加载 functionDetail 失败', error)
         return
       }
     } else {
-      console.log('🔍 [FormView] onMounted 时没有当前函数节点，等待 watch 触发')
+      console.log('🔍 [FormView] onMounted 时没有当前函数节点，等待 watch 触发', {
+        hasCurrentFunction: !!currentFunction,
+        functionType: currentFunction?.type
+      })
       return
     }
   }
