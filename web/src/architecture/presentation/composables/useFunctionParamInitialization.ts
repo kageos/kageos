@@ -19,7 +19,7 @@ import type { WidgetInitContext } from '../../../core/widgets-v2/interfaces/IWid
 import { eventBus, FormEvent } from '../../infrastructure/eventBus'
 import { Logger } from '../../../core/utils/logger'
 import { getWidgetDefaultValue } from '../../../core/widgets-v2/composables/useWidgetDefaultValue'
-import { useAuthStore } from '@/core/stores/auth'
+import { useAuthStore } from '@/stores/auth'
 
 /**
  * 初始化源接口
