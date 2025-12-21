@@ -516,7 +516,7 @@ onMounted(async () => {
   // 🔥 监听 functionDetail 变化，重新初始化表单
   // 注意：只在 functionDetail 真正变化时（id 或 router 变化）才重新初始化
   // 如果只是 URL 参数变化，不应该触发这个 watch
-  watch(() => props.functionDetail, (newDetail: FunctionDetail, oldDetail?: FunctionDetail) => {
+  watch(() => props.functionDetail, async (newDetail: FunctionDetail, oldDetail?: FunctionDetail) => {
     // 🔥 只在 functionDetail 的 id 或 router 真正变化时重新初始化
     // 如果只是其他属性变化（如字段配置），不应该重新初始化
     if (newDetail.id !== oldDetail?.id || newDetail.router !== oldDetail?.router) {
@@ -524,21 +524,29 @@ onMounted(async () => {
       formDataStore.clear()
       responseDataStore.clear()
       
+      // 🔥 使用统一的数据初始化框架初始化参数
+      await initializeParams()
+      
       const fields = (newDetail.request || []) as FieldConfig[]
       if (fields.length > 0) {
-        // 🔥 使用 nextTick 确保 formInitialData 已经更新（因为它依赖于 route.query）
+        // 🔥 使用 nextTick 确保参数初始化完成
         nextTick(() => {
-          // 🔥 重新初始化时，传递 URL 参数作为初始数据，确保 URL 参数不会被清空
-          const initialData = formInitialData.value
+          // 🔥 从 formDataStore 获取已初始化的数据
+          const initialData: Record<string, any> = {}
+          fields.forEach(field => {
+            const fieldValue = formDataStore.getValue(field.code)
+            if (fieldValue) {
+              initialData[field.code] = fieldValue.raw
+            }
+          })
           applicationService.initializeForm(fields, initialData)
         })
       }
     }
   }, { deep: false }) // 🔥 改为 shallow watch，避免深度监听导致不必要的触发
 
-  // 🔥 移除 watch route.query，改为在表单初始化时统一处理 URL 参数
-  // 这样可以避免时序问题，确保表单完全初始化后再处理 URL 参数
-  // URL 参数会在 initializeForm 时通过 initialData 传递，FormDomainService 会正确处理
+  // 🔥 移除 watch route.query，改为使用统一的数据初始化框架处理 URL 参数
+  // URL 参数会在 initializeParams 时统一处理，包括类型转换和组件自治初始化
 
 onUnmounted(() => {
   if (unsubscribeFunctionLoaded) {
