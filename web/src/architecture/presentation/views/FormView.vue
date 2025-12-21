@@ -456,21 +456,8 @@ onMounted(async () => {
   formDataStore.clear()
   responseDataStore.clear()
   
-  // 🔥 使用统一的数据初始化框架初始化参数
-  await initializeParams()
-  
-  // 初始化表单：在参数初始化完成后，初始化表单结构
-  if (requestFields.value.length > 0) {
-    // 🔥 从 formDataStore 获取已初始化的数据
-    const initialData: Record<string, any> = {}
-    requestFields.value.forEach(field => {
-      const fieldValue = formDataStore.getValue(field.code)
-      if (fieldValue) {
-        initialData[field.code] = fieldValue.raw
-      }
-    })
-    applicationService.initializeForm(requestFields.value, initialData)
-  }
+  // 🔥 不在这里初始化参数，因为 functionDetail 可能还没有加载完成
+  // 初始化会在 watch functionDetail 或 functionLoaded 事件中触发（此时 functionDetail 已经加载完成）
 
   // 监听函数加载完成事件
   let lastInitializedFunctionId: number | null = null // 🔥 记录上次初始化的函数 ID，防止重复初始化
