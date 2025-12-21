@@ -27,31 +27,65 @@ export function getWidgetDefaultValue(
   customConverter?: (defaultValue: any, field: FieldConfig) => any,
   getAuthStore?: () => any
 ): FieldValue {
+  console.log(`🔍 [getWidgetDefaultValue] 开始获取字段 ${field.code} 的默认值`, {
+    widgetType: field.widget?.type,
+    hasConfig: !!field.widget?.config,
+    configKeys: field.widget?.config ? Object.keys(field.widget?.config as any) : [],
+    hasDefault: !!(field.widget?.config as any)?.default,
+    defaultValue: (field.widget?.config as any)?.default
+  })
+  
   // 1. 优先使用 widget.config.default
   const config = field.widget?.config
   if (config && typeof config === 'object' && 'default' in config) {
     let defaultValue = (config as Record<string, any>).default
+    console.log(`🔍 [getWidgetDefaultValue] 字段 ${field.code} 找到 config.default`, {
+      defaultValue,
+      type: typeof defaultValue
+    })
+    
     if (defaultValue !== undefined && defaultValue !== null && defaultValue !== '') {
       // 🔥 解析动态变量（如 $me, $now, $today 等）
       const widgetType = field.widget?.type || ''
       defaultValue = resolveDynamicDefaultValue(defaultValue, widgetType, getAuthStore)
+      console.log(`🔍 [getWidgetDefaultValue] 字段 ${field.code} 解析动态变量后`, {
+        defaultValue
+      })
       
       // 使用自定义转换函数（如果提供），否则使用默认转换
       const convertedValue = customConverter
         ? customConverter(defaultValue, field)
         : convertDefaultValueByType(defaultValue, field.data?.type || DataType.STRING)
       
+      console.log(`🔍 [getWidgetDefaultValue] 字段 ${field.code} 转换后的值`, {
+        convertedValue,
+        fieldType: field.data?.type
+      })
+      
       // 对于 select 组件，需要找到对应的 label
       if (field.widget?.type === 'select' && Array.isArray(config.options)) {
+        console.log(`🔍 [getWidgetDefaultValue] 字段 ${field.code} 是 select 组件，查找 label`, {
+          options: config.options,
+          convertedValue
+        })
+        
         const option = config.options.find((opt: any) => {
           if (typeof opt === 'string') {
             return opt === convertedValue
           }
           return opt.value === convertedValue || opt.label === convertedValue
         })
+        
         const display = option 
           ? (typeof option === 'string' ? option : option.label || String(convertedValue))
           : String(convertedValue)
+        
+        console.log(`✅ [getWidgetDefaultValue] 字段 ${field.code} select 默认值`, {
+          raw: convertedValue,
+          display,
+          foundOption: !!option
+        })
+        
         return {
           raw: convertedValue,
           display,
@@ -59,17 +93,32 @@ export function getWidgetDefaultValue(
         }
       }
       
+      console.log(`✅ [getWidgetDefaultValue] 字段 ${field.code} 默认值`, {
+        raw: convertedValue,
+        display: String(convertedValue)
+      })
+      
       return {
         raw: convertedValue,
         display: String(convertedValue),
         meta: {}
       }
+    } else {
+      console.log(`🔍 [getWidgetDefaultValue] 字段 ${field.code} config.default 为空，跳过`)
     }
+  } else {
+    console.log(`🔍 [getWidgetDefaultValue] 字段 ${field.code} 没有 config.default`)
   }
   
   // 2. 根据字段类型设置默认值
   const fieldType = field.data?.type || DataType.STRING
-  return getDefaultValueByType(fieldType)
+  const typeDefault = getDefaultValueByType(fieldType)
+  console.log(`🔍 [getWidgetDefaultValue] 字段 ${field.code} 使用类型默认值`, {
+    fieldType,
+    typeDefault
+  })
+  
+  return typeDefault
 }
 
 /**
