@@ -504,28 +504,36 @@ onMounted(async () => {
   // 🔥 监听 functionDetail 变化，重新初始化表单
   // 注意：只在 functionDetail 真正变化时（id 或 router 变化）才重新初始化
   // 如果只是 URL 参数变化，不应该触发这个 watch
+  // 🔥 监听 functionDetail 变化，只在 functionDetail 加载完成后初始化
+  // 如果 functionDetail 还没有加载完成（id 为空或没有 request），不执行初始化
   watch(() => props.functionDetail, async (newDetail: FunctionDetail, oldDetail?: FunctionDetail) => {
-    // 🔥 检查 functionDetail 是否有效
-    if (!newDetail || !newDetail.id) {
-      console.log('🔍 [FormView] functionDetail 无效，跳过初始化', { newDetail })
+    // 🔥 检查 functionDetail 是否有效（必须要有 id 和 request 字段）
+    if (!newDetail || !newDetail.id || !newDetail.request) {
+      console.log('🔍 [FormView] functionDetail 无效或未加载完成，跳过初始化', {
+        hasDetail: !!newDetail,
+        hasId: !!newDetail?.id,
+        hasRequest: !!newDetail?.request,
+        requestCount: newDetail?.request?.length || 0
+      })
       return
     }
     
     // 🔥 只在 functionDetail 的 id 或 router 真正变化时重新初始化
     // 如果只是其他属性变化（如字段配置），不应该重新初始化
     if (newDetail.id !== oldDetail?.id || newDetail.router !== oldDetail?.router) {
-      console.log('🔍 [FormView] functionDetail 变化，重新初始化', {
+      console.log('🔍 [FormView] functionDetail 变化，开始初始化', {
         oldId: oldDetail?.id,
         newId: newDetail.id,
         oldRouter: oldDetail?.router,
-        newRouter: newDetail.router
+        newRouter: newDetail.router,
+        requestFieldsCount: newDetail.request?.length || 0
       })
       
       // 🔥 切换函数时，先清理全局 store（因为 WidgetComponent 内部使用的组件会直接使用这些 store）
       formDataStore.clear()
       responseDataStore.clear()
       
-      // 🔥 使用统一的数据初始化框架初始化参数
+      // 🔥 使用统一的数据初始化框架初始化参数（此时 functionDetail 已经加载完成）
       await initializeParams()
       
       const fields = (newDetail.request || []) as FieldConfig[]
@@ -549,7 +557,7 @@ onMounted(async () => {
         })
       }
     }
-  }, { deep: false, immediate: false }) // 🔥 不立即执行，等待 functionDetail 加载完成
+  }, { deep: false, immediate: true }) // 🔥 立即执行一次，如果 functionDetail 已经加载完成则初始化
 
   // 🔥 移除 watch route.query，改为使用统一的数据初始化框架处理 URL 参数
   // URL 参数会在 initializeParams 时统一处理，包括类型转换和组件自治初始化
