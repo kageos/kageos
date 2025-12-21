@@ -10,7 +10,7 @@
  * - 提供统一的初始化接口
  */
 
-import { ref } from 'vue'
+import { ref, computed, type ComputedRef } from 'vue'
 import { useRoute } from 'vue-router'
 import type { FunctionDetail } from '../../../core/types/field'
 import type { FieldValue } from '../../../core/types/field'
@@ -222,7 +222,7 @@ class DefaultInitSource implements InitSource {
  * useFunctionParamInitialization 选项
  */
 export interface UseFunctionParamInitializationOptions {
-  functionDetail: FunctionDetail
+  functionDetail: FunctionDetail | ComputedRef<FunctionDetail | null>  // 🔥 支持直接传入 FunctionDetail 或 ComputedRef
   formDataStore: {
     getValue: (fieldCode: string) => FieldValue | undefined
     setValue: (fieldCode: string, value: FieldValue) => void
@@ -239,6 +239,13 @@ export function useFunctionParamInitialization(
 ) {
   const route = useRoute()
   const isInitializing = ref(false)
+  
+  // 🔥 将 functionDetail 统一转换为 computed，方便后续使用
+  const functionDetail = computed(() => {
+    const detail = options.functionDetail
+    // 如果是 ComputedRef，获取其 value；否则直接使用
+    return detail && typeof detail === 'object' && 'value' in detail ? detail.value : detail
+  })
   
   // 注册初始化源
   const initSources: InitSource[] = [
@@ -264,10 +271,12 @@ export function useFunctionParamInitialization(
       return
     }
     
-    // 🔥 检查 functionDetail 是否有效
-    if (!options.functionDetail || !options.functionDetail.id) {
+    // 🔥 检查 functionDetail 是否有效（使用 computed 的值）
+    const detail = functionDetail.value
+    if (!detail || !detail.id) {
       console.log('🔍 [useFunctionParamInitialization] functionDetail 无效，跳过初始化', {
-        functionDetail: options.functionDetail
+        functionDetail: detail,
+        isComputedRef: options.functionDetail && typeof options.functionDetail === 'object' && 'value' in options.functionDetail
       })
       return
     }
@@ -276,10 +285,10 @@ export function useFunctionParamInitialization(
     
     try {
       console.log('🔍 [useFunctionParamInitialization] 开始初始化', {
-        functionId: options.functionDetail.id,
-        router: options.functionDetail.router,
-        functionName: options.functionDetail.name,
-        requestFieldsCount: (options.functionDetail.request || []).length,
+        functionId: detail.id,
+        router: detail.router,
+        functionName: detail.name,
+        requestFieldsCount: (detail.request || []).length,
         currentQuery: route.query,
         currentQueryKeys: Object.keys(route.query)
       })
@@ -303,7 +312,7 @@ export function useFunctionParamInitialization(
         })
         
         const result = await source.initialize({
-          functionDetail: options.functionDetail,
+          functionDetail: detail,  // 🔥 使用解包后的 detail
           currentFormData,
           route
         })
@@ -347,8 +356,8 @@ export function useFunctionParamInitialization(
       eventBus.emit(FormEvent.initialized)
       
       console.log('✅ [useFunctionParamInitialization] 初始化完成', {
-        functionId: options.functionDetail.id,
-        router: options.functionDetail.router,
+        functionId: detail.id,
+        router: detail.router,
         initializedFields: Object.keys(currentFormData),
         initializedFieldsCount: Object.keys(currentFormData).length
       })
@@ -403,7 +412,7 @@ export function useFunctionParamInitialization(
         field,
         currentValue,
         allFormData: formData,
-        functionDetail: options.functionDetail,
+        functionDetail: detail,  // 🔥 使用解包后的 detail
         initSource: route.query._quicklink_id ? 'quicklink' : 'url'
       }
       
