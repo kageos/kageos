@@ -12,7 +12,7 @@
 
 import { ref, computed, type ComputedRef } from 'vue'
 import { useRoute } from 'vue-router'
-import type { FunctionDetail } from '../../../core/types/field'
+import type { FunctionDetail, FieldConfig } from '../../../core/types/field'
 import type { FieldValue } from '../../../core/types/field'
 import { widgetInitializerRegistry } from '../../../core/widgets-v2/initializers/WidgetInitializerRegistry'
 import type { WidgetInitContext } from '../../../core/widgets-v2/interfaces/IWidgetInitializer'
@@ -20,6 +20,8 @@ import { eventBus, FormEvent } from '../../infrastructure/eventBus'
 import { Logger } from '../../../core/utils/logger'
 import { getWidgetDefaultValue } from '../../../core/widgets-v2/composables/useWidgetDefaultValue'
 import { useAuthStore } from '@/stores/auth'
+import { FieldValueMeta, FieldCallback } from '../../../core/constants/field'
+import { DataType } from '../../../core/constants/widget'
 
 /**
  * 初始化源接口
@@ -84,11 +86,51 @@ class URLParamsInitSource implements InitSource {
     requestFields.forEach(field => {
       const queryValue = query[field.code]
       if (queryValue !== undefined && queryValue !== null) {
-        const value = Array.isArray(queryValue) ? queryValue[0] : queryValue
-        formData[field.code] = this.convertToFieldValue(value, field)
+        let value = Array.isArray(queryValue) ? queryValue[0] : queryValue
+        
+        // 🔥 URL 解码：如果值是 URL 编码的 JSON 字符串，先解码
+        if (typeof value === 'string') {
+          try {
+            // 尝试 URL 解码
+            const decoded = decodeURIComponent(value)
+            // 检查是否是 JSON 字符串（以 [ 或 { 开头）
+            if ((decoded.startsWith('[') || decoded.startsWith('{')) && decoded !== value) {
+              value = decoded
+              console.log(`🔍 [URLParamsInitSource] 字段 ${field.code} URL 解码成功`, {
+                original: value,
+                decoded
+              })
+            }
+          } catch (e) {
+            // URL 解码失败，使用原始值
+            console.log(`🔍 [URLParamsInitSource] 字段 ${field.code} URL 解码失败，使用原始值`, {
+              value,
+              error: e
+            })
+          }
+        }
+        
         console.log(`🔍 [URLParamsInitSource] 解析字段 ${field.code}`, {
           queryValue,
-          convertedValue: formData[field.code]
+          value,
+          fieldType: field.data?.type || 'string',
+          widgetType: (field.widget && 'type' in field.widget) ? field.widget.type : 'unknown'
+        })
+        
+        // 🔥 框架层只负责获取原始值，不进行类型转换
+        // 类型转换交给组件初始化器处理（符合依赖倒置原则）
+        formData[field.code] = {
+          raw: String(value),  // 保持为字符串，让组件自己转换
+          display: String(value),
+          meta: {
+            [FieldValueMeta.FROM_URL]: true,  // 标记来自 URL，需要类型转换
+            [FieldValueMeta.ORIGINAL_VALUE]: value  // 保存原始值（可能是字符串、数字、JSON 字符串等）
+          }
+        }
+        console.log(`✅ [URLParamsInitSource] 字段 ${field.code} 原始值已保存`, {
+          originalValue: value,
+          raw: formData[field.code].raw,
+          hasFromURLFlag: !!formData[field.code].meta?.[FieldValueMeta.FROM_URL]
         })
       }
     })
@@ -101,28 +143,6 @@ class URLParamsInitSource implements InitSource {
     return { formData }
   }
   
-  /**
-   * 将简单值转换为 FieldValue 结构
-   */
-  private convertToFieldValue(value: any, field: any): FieldValue {
-    // 类型转换
-    let rawValue: any = value
-    if (field.data?.type === 'int' || field.data?.type === 'integer') {
-      rawValue = parseInt(String(value), 10)
-    } else if (field.data?.type === 'float' || field.data?.type === 'number') {
-      rawValue = parseFloat(String(value))
-    } else if (field.data?.type === 'bool' || field.data?.type === 'boolean') {
-      rawValue = String(value) === 'true' || String(value) === '1'
-    }
-    
-    return {
-      raw: rawValue,
-      display: String(value),  // URL 参数只有简单值，display 暂时等于 raw
-      dataType: field.data?.type,
-      widgetType: field.widget?.type,
-      meta: {}  // URL 参数没有 meta 信息，后续由组件初始化补充
-    }
-  }
 }
 
 /**
@@ -337,7 +357,10 @@ export function useFunctionParamInitialization(
       
       // 步骤 2：应用数据到 formDataStore
       Object.keys(currentFormData).forEach(fieldCode => {
-        options.formDataStore.setValue(fieldCode, currentFormData[fieldCode])
+        const fieldValue = currentFormData[fieldCode]
+        if (fieldValue) {
+          options.formDataStore.setValue(fieldCode, fieldValue)
+        }
       })
       console.log('🔍 [useFunctionParamInitialization] 数据已应用到 formDataStore', {
         appliedFields: Object.keys(currentFormData)
@@ -392,7 +415,11 @@ export function useFunctionParamInitialization(
     
     console.log('🔍 [triggerWidgetInitialization] 开始组件自治初始化', {
       fieldsCount: fields.length,
-      fields: fields.map(f => ({ code: f.code, widgetType: f.widget?.type, hasCallback: f.callbacks?.includes('OnSelectFuzzy') }))
+      fields: fields.map((f: FieldConfig) => ({ 
+        code: f.code, 
+        widgetType: f.widget?.type, 
+        hasCallback: f.callbacks?.includes(FieldCallback.ON_SELECT_FUZZY) 
+      }))
     })
     
     // 遍历所有字段，调用组件的初始化接口
@@ -405,7 +432,7 @@ export function useFunctionParamInitialization(
       
       console.log(`🔍 [triggerWidgetInitialization] 初始化字段 ${field.code}`, {
         widgetType: field.widget?.type,
-        hasCallback: field.callbacks?.includes('OnSelectFuzzy'),
+        hasCallback: field.callbacks?.includes(FieldCallback.ON_SELECT_FUZZY),
         currentValue: {
           raw: currentValue.raw,
           display: currentValue.display,
@@ -425,8 +452,12 @@ export function useFunctionParamInitialization(
       try {
         const initializedValue = await widgetInitializerRegistry.initialize(initContext)
         
-        // 如果组件返回了新的值，更新 formDataStore
-        if (initializedValue !== currentValue) {
+        // 🔥 判断是否需要更新：即使 raw 相同，如果 display 或 meta 不同，也需要更新
+        const needsUpdate = initializedValue !== currentValue || 
+                            initializedValue.display !== currentValue.display ||
+                            JSON.stringify(initializedValue.meta) !== JSON.stringify(currentValue.meta)
+        
+        if (needsUpdate) {
           console.log(`✅ [triggerWidgetInitialization] 字段 ${field.code} 初始化完成`, {
             widgetType: field.widget?.type,
             oldValue: {

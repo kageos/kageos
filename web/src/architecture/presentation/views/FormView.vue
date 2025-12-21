@@ -193,6 +193,7 @@ import { hasAnyRequiredRule } from '@/core/utils/validationUtils'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { useResponseDataStore } from '@/core/stores-v2/responseData'
 import { useFunctionParamInitialization } from '../composables/useFunctionParamInitialization'
+import { useFormParamURLSync } from '../composables/useFormParamURLSync'
 
 const props = defineProps<{
   functionDetail?: FunctionDetail  // 🔥 改为可选，因为会在 onMounted 中主动获取
@@ -444,6 +445,52 @@ const handleReset = (): void => {
 let unsubscribeFunctionLoaded: (() => void) | null = null
 let unsubscribeFormInitialized: (() => void) | null = null
 
+/**
+ * 同步 formDataStore 的数据到 stateManager
+ * 🔥 确保 SelectWidgetInitializer 更新后的 display 值不丢失
+ * 
+ * @param fields 字段配置列表
+ */
+function syncFormDataStoreToStateManager(fields: FieldConfig[]): void {
+  const state = stateManager.getState()
+  const newData = new Map<string, FieldValue>()
+  
+  fields.forEach((field: FieldConfig) => {
+    const fieldValue = formDataStore.getValue(field.code)
+    if (fieldValue) {
+      // 🔥 直接使用 formDataStore 中的完整 FieldValue（包含 display）
+      newData.set(field.code, fieldValue)
+    } else {
+      // 如果没有值，使用默认值
+      newData.set(field.code, { raw: null, display: '', meta: {} })
+    }
+  })
+  
+  // 🔥 同步更新 stateManager，确保 fieldValues computed 能获取到最新的 display 值
+  stateManager.setState({
+    ...state,
+    data: newData
+  })
+}
+
+/**
+ * 从 formDataStore 构建 initialData（只包含 raw 值）
+ * 用于传递给 applicationService.initializeForm
+ * 
+ * @param fields 字段配置列表
+ * @returns initialData 对象
+ */
+function buildInitialDataFromFormDataStore(fields: FieldConfig[]): Record<string, any> {
+  const initialData: Record<string, any> = {}
+  fields.forEach((field: FieldConfig) => {
+    const fieldValue = formDataStore.getValue(field.code)
+    if (fieldValue) {
+      initialData[field.code] = fieldValue.raw
+    }
+  })
+  return initialData
+}
+
 // 🔥 使用统一的数据初始化框架
 const { initialize: initializeParams } = useFunctionParamInitialization({
   functionDetail: computed(() => functionDetail.value),
@@ -462,6 +509,28 @@ const { initialize: initializeParams } = useFunctionParamInitialization({
     },
     clear: () => formDataStore.clear()
   }
+})
+
+// 🔥 使用 Form 参数 URL 同步
+const formDataStoreForURLSync = {
+  getValue: (fieldCode: string) => formDataStore.getValue(fieldCode),
+  getAllValues: () => {
+    const allValues: Record<string, FieldValue> = {}
+    const state = stateManager.getState()
+    if (state.data) {
+      state.data.forEach((value, key) => {
+        allValues[key] = value
+      })
+    }
+    return allValues
+  }
+}
+
+const { watchFormData } = useFormParamURLSync({
+  functionDetail: computed(() => functionDetail.value),
+  formDataStore: formDataStoreForURLSync,
+  enabled: true,
+  debounceMs: 300
 })
 
 onMounted(async () => {
@@ -528,14 +597,12 @@ onMounted(async () => {
     // 初始化表单：在参数初始化完成后，初始化表单结构
     const fields = functionDetail.value.request || []
     if (fields.length > 0) {
-      // 🔥 从 formDataStore 获取已初始化的数据
-      const initialData: Record<string, any> = {}
-      fields.forEach(field => {
-        const fieldValue = formDataStore.getValue(field.code)
-        if (fieldValue) {
-          initialData[field.code] = fieldValue.raw
-        }
-      })
+      // 🔥 同步 formDataStore 的数据到 stateManager，确保 display 值不丢失
+      syncFormDataStoreToStateManager(fields)
+      
+      // 🔥 调用 initializeForm 来触发 FormEvent.initialized 事件和更新字段配置
+      // 🔥 注意：FormDomainService.initializeForm 已经优化，会优先保留已有的完整值（包含 display）
+      const initialData = buildInitialDataFromFormDataStore(fields)
       console.log('🔍 [FormView] onMounted 时初始化表单', {
         fieldsCount: fields.length,
         initialDataKeys: Object.keys(initialData),
@@ -568,13 +635,11 @@ onMounted(async () => {
         // 重新初始化表单（从 formDataStore 获取已初始化的数据）
         const fields = (payload.detail.request || []) as FieldConfig[]
         if (fields.length > 0) {
-          const initialData: Record<string, any> = {}
-          fields.forEach(field => {
-            const fieldValue = formDataStore.getValue(field.code)
-            if (fieldValue) {
-              initialData[field.code] = fieldValue.raw
-            }
-          })
+          // 🔥 同步 formDataStore 的数据到 stateManager，确保 display 值不丢失
+          syncFormDataStoreToStateManager(fields)
+          
+          // 🔥 构建 initialData 并调用 initializeForm
+          const initialData = buildInitialDataFromFormDataStore(fields)
           applicationService.initializeForm(fields, initialData)
         }
       })
@@ -585,17 +650,23 @@ onMounted(async () => {
   unsubscribeFormInitialized = eventBus.on(FormEvent.initialized, () => {
 // 表单已初始化，可以渲染
   })
+  
+  // 🔥 开始监听表单数据变化，自动同步到 URL
+  watchFormData()
 })
 
-  // 🔥 监听 functionDetail 变化，重新初始化表单
-  // 注意：只在 functionDetail 真正变化时（id 或 router 变化）才重新初始化
-  // 如果只是 URL 参数变化，不应该触发这个 watch
-  // 🔥 监听 functionDetail 变化，只在 functionDetail 加载完成后初始化
-  // 如果 functionDetail 还没有加载完成（id 为空或没有 request），不执行初始化
-  watch(() => props.functionDetail, async (newDetail: FunctionDetail, oldDetail?: FunctionDetail) => {
+  // 🔥 监听 props.functionDetail 变化，同步到内部的 functionDetail ref
+  // 注意：只在 props.functionDetail 真正变化时（id 或 router 变化）才重新初始化
+  // 初始化逻辑在 onMounted 中处理，这里只处理函数切换的场景
+  watch(() => props.functionDetail, async (newDetail: FunctionDetail | undefined, oldDetail?: FunctionDetail) => {
+    // 🔥 同步到内部的 functionDetail ref
+    if (newDetail && newDetail.id) {
+      functionDetail.value = newDetail
+    }
+    
     // 🔥 检查 functionDetail 是否有效（必须要有 id 和 request 字段）
     if (!newDetail || !newDetail.id || !newDetail.request) {
-      console.log('🔍 [FormView] functionDetail 无效或未加载完成，跳过初始化', {
+      console.log('🔍 [FormView] props.functionDetail 无效或未加载完成，跳过初始化', {
         hasDetail: !!newDetail,
         hasId: !!newDetail?.id,
         hasRequest: !!newDetail?.request,
@@ -606,11 +677,12 @@ onMounted(async () => {
     
     // 🔥 只在 functionDetail 的 id 或 router 真正变化时重新初始化
     // 如果只是其他属性变化（如字段配置），不应该重新初始化
-    if (newDetail.id !== oldDetail?.id || newDetail.router !== oldDetail?.router) {
-      console.log('🔍 [FormView] functionDetail 变化，开始初始化', {
-        oldId: oldDetail?.id,
+    // 注意：oldDetail 为 undefined 时，说明是首次设置，此时 onMounted 已经处理过了，不需要重复初始化
+    if (oldDetail && (newDetail.id !== oldDetail.id || newDetail.router !== oldDetail.router)) {
+      console.log('🔍 [FormView] props.functionDetail 变化（函数切换），开始重新初始化', {
+        oldId: oldDetail.id,
         newId: newDetail.id,
-        oldRouter: oldDetail?.router,
+        oldRouter: oldDetail.router,
         newRouter: newDetail.router,
         requestFieldsCount: newDetail.request?.length || 0
       })
@@ -626,15 +698,12 @@ onMounted(async () => {
       if (fields.length > 0) {
         // 🔥 使用 nextTick 确保参数初始化完成
         nextTick(() => {
-          // 🔥 从 formDataStore 获取已初始化的数据
-          const initialData: Record<string, any> = {}
-          fields.forEach(field => {
-            const fieldValue = formDataStore.getValue(field.code)
-            if (fieldValue) {
-              initialData[field.code] = fieldValue.raw
-            }
-          })
-          console.log('🔍 [FormView] 初始化表单', {
+          // 🔥 同步 formDataStore 的数据到 stateManager，确保 display 值不丢失
+          syncFormDataStoreToStateManager(fields)
+          
+          // 🔥 构建 initialData 并调用 initializeForm
+          const initialData = buildInitialDataFromFormDataStore(fields)
+          console.log('🔍 [FormView] 函数切换后初始化表单', {
             fieldsCount: fields.length,
             initialDataKeys: Object.keys(initialData),
             initialData
@@ -643,7 +712,7 @@ onMounted(async () => {
         })
       }
     }
-  }, { deep: false, immediate: true }) // 🔥 立即执行一次，如果 functionDetail 已经加载完成则初始化
+  }, { deep: false }) // 🔥 移除 immediate: true，避免与 onMounted 重复初始化
 
   // 🔥 移除 watch route.query，改为使用统一的数据初始化框架处理 URL 参数
   // URL 参数会在 initializeParams 时统一处理，包括类型转换和组件自治初始化

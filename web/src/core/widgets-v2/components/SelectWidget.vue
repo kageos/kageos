@@ -833,29 +833,10 @@ onMounted(() => {
     })
   }
   
-  // 🔥 注册监听器（移除 keep-alive 后，使用 onMounted 注册）
-  // 🔥 只在有 OnSelectFuzzy 回调且不是 table-cell 模式时才注册监听器
-  // 🔥 注意：这个监听器用于处理表单初始化完成后的回显，未来可能会被统一初始化框架替代
-  if (hasCallback.value && props.mode !== 'table-cell') {
-    Logger.debug('[SelectWidget]', 'onMounted - 注册监听器', { 
-      fieldCode: props.field.code,
-      hasCallback: hasCallback.value,
-      mode: props.mode,
-      rawValue: props.value?.raw,
-      formRenderer: !!props.formRenderer
-    })
-    registerFormInitializedListener()
-  }
-  
-  // 🔥 如果已经有值了，也尝试触发一次（处理表单已经初始化完成的情况）
-  // 🔥 注意：这个逻辑未来可能会被统一初始化框架替代
-  if (hasCallback.value && props.value?.raw && props.formRenderer) {
-    nextTick(() => {
-      if (props.formRenderer && !isSearching.value && props.value?.raw !== lastSearchedValue.value) {
-        triggerSearchIfNeeded(props.value.raw, props.formRenderer, props.mode)
-      }
-    })
-  }
+  // 🔥 移除 FormEvent.initialized 监听器，统一使用 SelectWidgetInitializer 处理初始化
+  // 🔥 SelectWidgetInitializer 在 useFunctionParamInitialization 的 triggerWidgetInitialization 中调用
+  // 🔥 这样可以避免重复调用回显接口，并且保证初始化逻辑的统一性
+  // 🔥 如果未来需要保留这个监听器，需要添加防重复调用的机制
 })
 
 // 🔥 组件卸载时取消注册监听器
@@ -1025,6 +1006,7 @@ const triggerSearchIfNeeded = (rawValue: any, formRenderer: any, mode: string) =
 
 // 🔥 保留一个简单的 watch 来处理值变化（仅在 formRenderer 已准备好且组件激活时）
 // 🔥 优化：只在有回调且不是 table-cell 模式时才监听值变化
+// 🔥 注意：如果 value.display 已经存在且不等于 raw，说明已经通过 SelectWidgetInitializer 初始化过了，不需要再触发
 watch(
   () => props.value?.raw,
   (newRaw, oldRaw) => {
@@ -1034,11 +1016,48 @@ watch(
         fieldCode: props.field.code,
         newRaw,
         oldRaw,
-        formRenderer: !!props.formRenderer
+        formRenderer: !!props.formRenderer,
+        hasDisplay: !!props.value?.display,
+        display: props.value?.display,
+        displayEqualsRaw: props.value?.display && String(props.value.display) === String(newRaw)
       })
     }
     
-    // 只在 formRenderer 已准备好且值真正变化且有回调时触发
+    // 🔥 如果 value.display 已经存在且不等于 raw，说明已经通过 SelectWidgetInitializer 初始化过了，不需要再触发
+    // 这样可以避免在初始化时重复调用回显接口
+    if (props.value?.display && 
+        String(props.value.display) !== String(newRaw) && 
+        props.value.display !== '') {
+      Logger.debug('[SelectWidget]', 'watch props.value?.raw 跳过：已有 display 值（已初始化）', {
+        fieldCode: props.field.code,
+        newRaw,
+        display: props.value.display
+      })
+      return  // 已经初始化过了，不需要再触发
+    }
+    
+    // 🔥 如果 oldRaw 是 null 且 newRaw 有值，说明是初始化阶段（从 URL 或默认值恢复）
+    // 此时应该等待 SelectWidgetInitializer 处理，而不是立即触发搜索
+    if (oldRaw === null && newRaw !== null && newRaw !== undefined) {
+      // 如果已经搜索过这个值，不需要再触发
+      if (lastSearchedValue.value === newRaw) {
+        Logger.debug('[SelectWidget]', 'watch props.value?.raw 跳过：初始化阶段且已搜索过', {
+          fieldCode: props.field.code,
+          newRaw,
+          lastSearchedValue: lastSearchedValue.value
+        })
+        return
+      }
+      // 初始化阶段，等待 SelectWidgetInitializer 统一处理
+      Logger.debug('[SelectWidget]', 'watch props.value?.raw 跳过：初始化阶段，等待 SelectWidgetInitializer 处理', {
+        fieldCode: props.field.code,
+        newRaw,
+        oldRaw
+      })
+      return
+    }
+    
+    // 只在 formRenderer 已准备好且值真正变化且有回调时触发（用户手动修改值的场景）
     // 🔥 移除 keep-alive 后，组件每次都会重新挂载，不需要检查激活状态
     if (hasCallback.value && 
         props.mode !== 'table-cell' && 

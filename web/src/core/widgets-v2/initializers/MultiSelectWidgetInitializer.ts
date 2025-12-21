@@ -13,6 +13,8 @@ import type { IWidgetInitializer, WidgetInitContext } from '../interfaces/IWidge
 import type { FieldValue } from '../../types/field'
 import { selectFuzzy } from '@/api/function'
 import { SelectFuzzyQueryType } from '../../constants/select'
+import { DataType } from '../../constants/widget'
+import { convertArrayType } from '../utils/typeConverter'
 import { createFieldValue } from '../utils/createFieldValue'
 import { Logger } from '../../utils/logger'
 
@@ -32,61 +34,92 @@ export class MultiSelectWidgetInitializer implements IWidgetInitializer {
     const { field, currentValue, functionDetail, allFormData } = context
     
     console.log(`🔍 [MultiSelectWidgetInitializer] 开始初始化字段 ${field.code}`, {
-      hasCallback: field.callbacks?.includes('OnSelectFuzzy'),
+      hasCallback: field.callbacks?.includes(FieldCallback.ON_SELECT_FUZZY),
       currentValue: {
         raw: currentValue.raw,
         display: currentValue.display,
-        hasDisplayInfo: !!currentValue.meta?.displayInfo
+        hasDisplayInfo: !!currentValue.meta?.displayInfo,
+        fromURL: !!currentValue.meta?.[FieldValueMeta.FROM_URL]
       },
       initSource: context.initSource
     })
     
+    // 🔥 步骤 0：处理来自 URL 的类型转换（组件自治）
+    let processedValue = currentValue
+    if (currentValue.meta?.[FieldValueMeta.FROM_URL] && currentValue.meta?.[FieldValueMeta.ORIGINAL_VALUE] !== undefined) {
+      const originalValue = currentValue.meta[FieldValueMeta.ORIGINAL_VALUE]
+      const fieldType = field.data?.type || DataType.STRINGS
+      
+      console.log(`🔍 [MultiSelectWidgetInitializer] 字段 ${field.code} 来自 URL，进行类型转换`, {
+        originalValue,
+        fieldType,
+        currentRaw: currentValue.raw
+      })
+      
+      // 🔥 使用统一的类型转换工具（避免硬编码）
+      const convertedRaw = convertArrayType(originalValue, fieldType)
+      
+      // 数组类型的 display 使用逗号分隔的字符串
+      const display = Array.isArray(convertedRaw) 
+        ? convertedRaw.map(v => String(v)).join(',')
+        : String(originalValue)
+      
+      processedValue = {
+        raw: convertedRaw,
+        display,
+        meta: {
+          ...currentValue.meta,
+          [FieldValueMeta.CONVERTED]: true  // 标记已转换
+        }
+      }
+      
+      console.log(`✅ [MultiSelectWidgetInitializer] 字段 ${field.code} 类型转换完成`, {
+        originalValue,
+        convertedRaw,
+        display,
+        fieldType
+      })
+    }
+    
     // 1. 检查是否需要初始化
-    // 如果字段没有 OnSelectFuzzy 回调，则不需要初始化
-    if (!field.callbacks?.includes('OnSelectFuzzy')) {
-      console.log(`🔍 [MultiSelectWidgetInitializer] 字段 ${field.code} 没有 OnSelectFuzzy 回调，跳过初始化`)
-      return null  // 不需要初始化
+    // 如果字段没有 OnSelectFuzzy 回调，则不需要初始化（但已转换的值需要返回）
+    if (!field.callbacks?.includes(FieldCallback.ON_SELECT_FUZZY)) {
+      console.log(`🔍 [MultiSelectWidgetInitializer] 字段 ${field.code} 没有 ${FieldCallback.ON_SELECT_FUZZY} 回调，跳过初始化`)
+      // 🔥 如果进行了类型转换，返回转换后的值；否则返回 null
+      return processedValue !== currentValue ? processedValue : null
     }
     
     // 2. 如果已经有完整的 display 和 meta（来自快链），则不需要初始化
-    if (currentValue.display && currentValue.meta?.displayInfo) {
+    if (processedValue.display && processedValue.meta?.displayInfo) {
       console.log(`🔍 [MultiSelectWidgetInitializer] 字段 ${field.code} 已有完整的 display 和 meta，跳过初始化`, {
-        display: currentValue.display,
-        hasDisplayInfo: !!currentValue.meta?.displayInfo
+        display: processedValue.display,
+        hasDisplayInfo: !!processedValue.meta?.displayInfo
       })
-      return null  // 不需要初始化
+      return processedValue  // 返回处理后的值（可能包含类型转换）
     }
     
-    // 3. 如果只有 raw 值（来自 URL），需要通过 by_values 查询获取 display 和 meta
-    if (currentValue.raw !== null && currentValue.raw !== undefined) {
+    // 3. 如果只有 raw 值（来自 URL 或默认值），需要通过 by_values 查询获取 display 和 meta
+    if (processedValue.raw !== null && processedValue.raw !== undefined) {
       console.log(`🔍 [MultiSelectWidgetInitializer] 字段 ${field.code} 只有 raw 值，需要通过 by_values 查询`, {
-        rawValue: currentValue.raw,
-        isArray: Array.isArray(currentValue.raw)
+        rawValue: processedValue.raw,
+        isArray: Array.isArray(processedValue.raw)
       })
       try {
         // 确保 raw 是数组
-        const rawArray = Array.isArray(currentValue.raw) ? currentValue.raw : [currentValue.raw]
+        const rawArray = Array.isArray(processedValue.raw) ? processedValue.raw : [processedValue.raw]
         if (rawArray.length === 0) {
           return null  // 空数组，不需要初始化
         }
         
-        // 类型转换：根据 value_type 转换数组元素类型
-        const valueType = field.data?.type || '[]string'
+        // 类型转换：根据 value_type 转换数组元素类型（可能已经在步骤 0 转换过了）
+        const valueType = field.data?.type || DataType.STRINGS
         let convertedValue: any = rawArray
         
-        if (valueType.startsWith('[]')) {
-          const elementType = valueType.slice(2)
-          if (elementType === 'int' || elementType === 'integer') {
-            convertedValue = rawArray.map((v: any) => {
-              const intVal = parseInt(String(v), 10)
-              return isNaN(intVal) ? v : intVal
-            })
-          } else if (elementType === 'float' || elementType === 'number') {
-            convertedValue = rawArray.map((v: any) => {
-              const floatVal = parseFloat(String(v))
-              return isNaN(floatVal) ? v : floatVal
-            })
-          }
+        // 🔥 如果还没有转换过，使用统一的类型转换工具
+        if (valueType.startsWith('[]') && !processedValue.meta?.[FieldValueMeta.CONVERTED]) {
+          convertedValue = convertArrayType(rawArray, valueType)
+        } else {
+          convertedValue = rawArray
         }
         
         // 构建请求参数（将 allFormData 转换为请求格式）

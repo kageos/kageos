@@ -109,6 +109,7 @@ import type { Chart, ChartSeries } from '@/core/types/chart'
 import { widgetComponentFactory } from '@/core/factories-v2'
 import { hasAnyRequiredRule } from '@/core/utils/validationUtils'
 import { convertToFieldValue } from '@/utils/field'
+import { useChartParamURLSync } from '@/architecture/presentation/composables/useChartParamURLSync'
 
 const props = defineProps<{
   functionDetail: FunctionDetail
@@ -204,6 +205,14 @@ const formRendererContext = computed(() => {
 const getFieldValue = (fieldCode: string): FieldValue => {
   return fieldValues.value[fieldCode] || { raw: null, display: '', meta: {} }
 }
+
+// 🔥 使用 Chart 参数 URL 同步
+const { watchChartData } = useChartParamURLSync({
+  functionDetail: computed(() => props.functionDetail),
+  fieldValues,
+  enabled: true,
+  debounceMs: 300
+})
 
 // 更新字段值
 const handleFieldUpdate = (fieldCode: string, value: FieldValue): void => {
@@ -912,6 +921,9 @@ let resizeObserver: ResizeObserver | null = null
 onMounted(() => {
   // 初始化字段值
   initializeFieldValues()
+  
+  // 🔥 开始监听图表筛选条件变化，自动同步到 URL
+  watchChartData()
   
   // 自动加载数据（进入页面即加载，无需点击搜索）
   loadChartData()

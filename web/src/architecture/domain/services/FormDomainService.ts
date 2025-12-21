@@ -87,36 +87,50 @@ export class FormDomainService {
 
     fields.forEach(field => {
       const fieldCode = field.code
+      const existingValue = state.data?.get(fieldCode)
+      const hasInitialData = initialData && initialData.hasOwnProperty(fieldCode)
+      const initialRawValue = hasInitialData ? initialData[fieldCode] : undefined
       
-      // 🔥 优先级：initialData > 已有值 > 默认值
-      // 这样可以保留用户已输入的值，同时支持 URL 参数覆盖
-      if (initialData && initialData.hasOwnProperty(fieldCode)) {
-        // 优先使用 initialData（URL 参数）
-        const rawValue = initialData[fieldCode]
-        // 🔥 对于有 OnSelectFuzzy 回调的字段，display 暂时设置为空字符串
-        // 让 SelectWidget 的 watch 自动调用 by_value 来获取 label
-        // 这样可以避免显示 raw 值（如 4）而不是 label
-        const hasOnSelectFuzzy = field.callbacks?.includes('OnSelectFuzzy') || false
-        newData.set(fieldCode, {
-          raw: rawValue,
-          display: hasOnSelectFuzzy ? '' : (typeof rawValue === 'object' ? JSON.stringify(rawValue) : String(rawValue)),
-          meta: {}
-        })
-      } else if (state.data && state.data.has(fieldCode)) {
-        // 保留已有值（如果 initialData 中没有该字段）
-        const existingValue = state.data.get(fieldCode)
-        if (existingValue) {
+      // 🔥 优先级：已有完整值（包含 display）> initialData > 已有值（只有 raw）> 默认值
+      // 这样可以保留 SelectWidgetInitializer 更新后的完整 FieldValue（包含 display）
+      
+      // 1. 如果已有值且 display 存在且不等于 raw，说明已经通过 SelectWidgetInitializer 初始化过了
+      // 此时应该保留这个完整值，即使 initialData 中有该字段
+      if (existingValue && 
+          existingValue.display && 
+          String(existingValue.display) !== String(existingValue.raw) &&
+          existingValue.display !== '') {
+        newData.set(fieldCode, existingValue)
+        return  // 保留完整值，跳过后续处理
+      }
+      
+      // 2. 如果 initialData 中有该字段，使用 initialData（但保留已有的 display 和 meta）
+      if (hasInitialData) {
+        // 如果 raw 值相同，保留已有的 display 和 meta（可能已经通过 SelectWidgetInitializer 初始化）
+        if (existingValue && existingValue.raw === initialRawValue) {
           newData.set(fieldCode, existingValue)
         } else {
-          // 使用默认值
-          const defaultValue = this.getDefaultValue(field)
-          newData.set(fieldCode, defaultValue)
+          // 🔥 对于有 OnSelectFuzzy 回调的字段，display 暂时设置为空字符串
+          // 让 SelectWidgetInitializer 通过 by_value 来获取 label
+          const hasOnSelectFuzzy = field.callbacks?.includes('OnSelectFuzzy') || false
+          newData.set(fieldCode, {
+            raw: initialRawValue,
+            display: hasOnSelectFuzzy ? '' : (typeof initialRawValue === 'object' ? JSON.stringify(initialRawValue) : String(initialRawValue)),
+            meta: {}
+          })
         }
-      } else {
-        // 使用默认值
-        const defaultValue = this.getDefaultValue(field)
-        newData.set(fieldCode, defaultValue)
+        return
       }
+      
+      // 3. 保留已有值（如果 initialData 中没有该字段）
+      if (existingValue) {
+        newData.set(fieldCode, existingValue)
+        return
+      }
+      
+      // 4. 使用默认值
+      const defaultValue = this.getDefaultValue(field)
+      newData.set(fieldCode, defaultValue)
     })
 
     // 更新状态

@@ -114,6 +114,12 @@ const filteredFields = computed(() => {
 
 /**
  * 🔥 将 fields 包装成 FunctionDetail 格式，供 FormRenderer 使用
+ * 
+ * ⚠️ 关键说明：
+ * - 对于 table 函数的新增表单：fields 来自 functionDetail.response（新增时需要填写的字段）
+ * - request 字段用于 FormRenderer 渲染可编辑的表单字段
+ * - response 字段为空数组（新增表单不需要显示响应参数）
+ * - id 设置为 0（FormRenderer 需要正确处理 id === 0 的情况）
  */
 const formFunctionDetail = computed<FunctionDetail | null>(() => {
   // 🔥 method 是必需的，如果不存在应该返回 null，让模板不渲染 FormRenderer
@@ -123,7 +129,7 @@ const formFunctionDetail = computed<FunctionDetail | null>(() => {
   }
   
   return {
-  id: 0,
+  id: 0,  // ⚠️ 注意：id 为 0，FormRenderer 需要正确处理这种情况
   app_id: 0,
   tree_id: 0,
     // 🔥 使用原函数的 method，这样 OnSelectFuzzy 回调才能正确获取到原函数的 method
@@ -133,8 +139,8 @@ const formFunctionDetail = computed<FunctionDetail | null>(() => {
   create_tables: '',
   callbacks: '',
   template_type: 'form',
-  request: filteredFields.value,  // 🔥 使用过滤后的字段
-  response: [],
+  request: filteredFields.value,  // 🔥 使用过滤后的字段（对于 table 函数，这是 response 字段）
+  response: [],  // 🔥 新增表单不需要显示响应参数
   created_at: '',
   updated_at: '',
   full_code_path: ''
