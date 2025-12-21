@@ -192,6 +192,7 @@ import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types
 import { hasAnyRequiredRule } from '@/core/utils/validationUtils'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { useResponseDataStore } from '@/core/stores-v2/responseData'
+import { useFunctionParamInitialization } from '../composables/useFunctionParamInitialization'
 
 const props = defineProps<{
   functionDetail: FunctionDetail
