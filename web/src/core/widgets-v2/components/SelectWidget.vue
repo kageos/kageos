@@ -152,6 +152,8 @@ import { SelectFuzzyQueryType, isStandardColor, getStandardColorCSSVar, type Sta
 import { convertValueToType } from '../utils/valueConverter'
 // 🔥 使用事件驱动：监听表单初始化完成事件，统一处理 OnSelectFuzzy 字段
 import { eventBus, FormEvent } from '../../../architecture/infrastructure/eventBus'
+import { widgetInitializerRegistry } from '../initializers/WidgetInitializerRegistry'
+import { SelectWidgetInitializer } from '../initializers/SelectWidgetInitializer'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -821,8 +823,19 @@ const unregisterFormInitializedListener = () => {
 onMounted(() => {
   initOptions()
   
+  // 🔥 注册 SelectWidget 初始化器（组件自治）
+  // 只在有 OnSelectFuzzy 回调时才注册
+  if (hasCallback.value) {
+    widgetInitializerRegistry.register('select', new SelectWidgetInitializer())
+    Logger.debug('[SelectWidget]', '注册初始化器', {
+      fieldCode: props.field.code,
+      widgetType: 'select'
+    })
+  }
+  
   // 🔥 注册监听器（移除 keep-alive 后，使用 onMounted 注册）
   // 🔥 只在有 OnSelectFuzzy 回调且不是 table-cell 模式时才注册监听器
+  // 🔥 注意：这个监听器用于处理表单初始化完成后的回显，未来可能会被统一初始化框架替代
   if (hasCallback.value && props.mode !== 'table-cell') {
     Logger.debug('[SelectWidget]', 'onMounted - 注册监听器', { 
       fieldCode: props.field.code,
@@ -835,6 +848,7 @@ onMounted(() => {
   }
   
   // 🔥 如果已经有值了，也尝试触发一次（处理表单已经初始化完成的情况）
+  // 🔥 注意：这个逻辑未来可能会被统一初始化框架替代
   if (hasCallback.value && props.value?.raw && props.formRenderer) {
     nextTick(() => {
       if (props.formRenderer && !isSearching.value && props.value?.raw !== lastSearchedValue.value) {
