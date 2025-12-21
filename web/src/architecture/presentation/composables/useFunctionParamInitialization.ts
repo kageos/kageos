@@ -69,6 +69,12 @@ class URLParamsInitSource implements InitSource {
     const { route, functionDetail } = context
     const query = route.query
     
+    console.log('🔍 [URLParamsInitSource] 开始初始化', {
+      queryKeys: Object.keys(query),
+      queryCount: Object.keys(query).length,
+      requestFieldsCount: (functionDetail.request || []).length
+    })
+    
     // 从 URL 解析参数
     const formData: Record<string, FieldValue> = {}
     const requestFields = functionDetail.request || []
@@ -78,7 +84,16 @@ class URLParamsInitSource implements InitSource {
       if (queryValue !== undefined && queryValue !== null) {
         const value = Array.isArray(queryValue) ? queryValue[0] : queryValue
         formData[field.code] = this.convertToFieldValue(value, field)
+        console.log(`🔍 [URLParamsInitSource] 解析字段 ${field.code}`, {
+          queryValue,
+          convertedValue: formData[field.code]
+        })
       }
+    })
+    
+    console.log('✅ [URLParamsInitSource] 初始化完成', {
+      formDataKeys: Object.keys(formData),
+      formDataCount: Object.keys(formData).length
     })
     
     return { formData }
@@ -199,16 +214,20 @@ export function useFunctionParamInitialization(
    */
   const initialize = async (): Promise<void> => {
     if (isInitializing.value) {
-      Logger.debug('[useFunctionParamInitialization]', '正在初始化中，跳过')
+      console.log('🔍 [useFunctionParamInitialization] 正在初始化中，跳过')
       return
     }
     
     isInitializing.value = true
     
     try {
-      Logger.debug('[useFunctionParamInitialization]', '开始初始化', {
+      console.log('🔍 [useFunctionParamInitialization] 开始初始化', {
         functionId: options.functionDetail.id,
-        router: options.functionDetail.router
+        router: options.functionDetail.router,
+        functionName: options.functionDetail.name,
+        requestFieldsCount: (options.functionDetail.request || []).length,
+        currentQuery: route.query,
+        currentQueryKeys: Object.keys(route.query)
       })
       
       // 步骤 1：通用初始化（框架负责）
@@ -217,11 +236,29 @@ export function useFunctionParamInitialization(
       
       // 按优先级执行初始化源
       const sortedSources = initSources.sort((a, b) => a.priority - b.priority)
+      console.log('🔍 [useFunctionParamInitialization] 初始化源列表', {
+        sources: sortedSources.map(s => ({ name: s.name, priority: s.priority })),
+        count: sortedSources.length
+      })
+      
       for (const source of sortedSources) {
+        console.log(`🔍 [useFunctionParamInitialization] 执行初始化源: ${source.name}`, {
+          priority: source.priority,
+          currentFormDataKeys: Object.keys(currentFormData),
+          currentFormDataCount: Object.keys(currentFormData).length
+        })
+        
         const result = await source.initialize({
           functionDetail: options.functionDetail,
           currentFormData,
           route
+        })
+        
+        console.log(`🔍 [useFunctionParamInitialization] 初始化源 ${source.name} 完成`, {
+          resultFormDataKeys: Object.keys(result.formData),
+          resultFormDataCount: Object.keys(result.formData).length,
+          hasFieldMetadata: !!result.fieldMetadata,
+          fieldMetadataKeys: result.fieldMetadata ? Object.keys(result.fieldMetadata) : []
         })
         
         // 合并数据（后面的优先级更高，会覆盖前面的）
@@ -229,25 +266,40 @@ export function useFunctionParamInitialization(
         fieldMetadata = { ...fieldMetadata, ...(result.fieldMetadata || {}) }
       }
       
+      console.log('🔍 [useFunctionParamInitialization] 通用初始化完成', {
+        finalFormDataKeys: Object.keys(currentFormData),
+        finalFormDataCount: Object.keys(currentFormData).length,
+        finalFormData: currentFormData
+      })
+      
       // 步骤 2：应用数据到 formDataStore
       Object.keys(currentFormData).forEach(fieldCode => {
         options.formDataStore.setValue(fieldCode, currentFormData[fieldCode])
       })
+      console.log('🔍 [useFunctionParamInitialization] 数据已应用到 formDataStore', {
+        appliedFields: Object.keys(currentFormData)
+      })
       
       // 步骤 3：组件自治初始化（组件负责）
+      console.log('🔍 [useFunctionParamInitialization] 开始组件自治初始化')
       await triggerWidgetInitialization(currentFormData, fieldMetadata)
+      console.log('🔍 [useFunctionParamInitialization] 组件自治初始化完成')
       
       // 步骤 4：应用字段元数据（快链特有，未来实现）
       // applyFieldMetadata(fieldMetadata)
       
       // 步骤 5：触发 FormEvent.initialized 事件
+      console.log('🔍 [useFunctionParamInitialization] 触发 FormEvent.initialized 事件')
       eventBus.emit(FormEvent.initialized)
       
-      Logger.debug('[useFunctionParamInitialization]', '初始化完成', {
+      console.log('✅ [useFunctionParamInitialization] 初始化完成', {
         functionId: options.functionDetail.id,
-        initializedFields: Object.keys(currentFormData)
+        router: options.functionDetail.router,
+        initializedFields: Object.keys(currentFormData),
+        initializedFieldsCount: Object.keys(currentFormData).length
       })
     } catch (error: any) {
+      console.error('❌ [useFunctionParamInitialization] 初始化失败', error)
       Logger.error('[useFunctionParamInitialization]', '初始化失败', error)
       throw error
     } finally {
@@ -269,12 +321,28 @@ export function useFunctionParamInitialization(
   ): Promise<void> => {
     const fields = options.functionDetail.request || []
     
+    console.log('🔍 [triggerWidgetInitialization] 开始组件自治初始化', {
+      fieldsCount: fields.length,
+      fields: fields.map(f => ({ code: f.code, widgetType: f.widget?.type, hasCallback: f.callbacks?.includes('OnSelectFuzzy') }))
+    })
+    
     // 遍历所有字段，调用组件的初始化接口
     for (const field of fields) {
       const currentValue = options.formDataStore.getValue(field.code)
       if (!currentValue || currentValue.raw === null || currentValue.raw === undefined) {
+        console.log(`🔍 [triggerWidgetInitialization] 跳过字段 ${field.code}（没有值）`)
         continue  // 没有值，跳过
       }
+      
+      console.log(`🔍 [triggerWidgetInitialization] 初始化字段 ${field.code}`, {
+        widgetType: field.widget?.type,
+        hasCallback: field.callbacks?.includes('OnSelectFuzzy'),
+        currentValue: {
+          raw: currentValue.raw,
+          display: currentValue.display,
+          hasDisplayInfo: !!currentValue.meta?.displayInfo
+        }
+      })
       
       // 🔥 调用抽象接口，组件自己决定是否需要初始化
       const initContext: WidgetInitContext = {
@@ -290,15 +358,28 @@ export function useFunctionParamInitialization(
         
         // 如果组件返回了新的值，更新 formDataStore
         if (initializedValue !== currentValue) {
-          options.formDataStore.setValue(field.code, initializedValue)
-          Logger.debug('[useFunctionParamInitialization]', '组件初始化完成', {
-            fieldCode: field.code,
+          console.log(`✅ [triggerWidgetInitialization] 字段 ${field.code} 初始化完成`, {
             widgetType: field.widget?.type,
-            hasDisplay: !!initializedValue.display,
-            hasDisplayInfo: !!initializedValue.meta?.displayInfo
+            oldValue: {
+              raw: currentValue.raw,
+              display: currentValue.display,
+              hasDisplayInfo: !!currentValue.meta?.displayInfo
+            },
+            newValue: {
+              raw: initializedValue.raw,
+              display: initializedValue.display,
+              hasDisplayInfo: !!initializedValue.meta?.displayInfo
+            }
           })
+          options.formDataStore.setValue(field.code, initializedValue)
+        } else {
+          console.log(`🔍 [triggerWidgetInitialization] 字段 ${field.code} 不需要初始化（组件返回 null 或原始值）`)
         }
       } catch (error: any) {
+        console.warn(`⚠️ [triggerWidgetInitialization] 字段 ${field.code} 初始化失败`, {
+          widgetType: field.widget?.type,
+          error: error?.message || error
+        })
         Logger.warn('[useFunctionParamInitialization]', '组件初始化失败', {
           fieldCode: field.code,
           widgetType: field.widget?.type,
@@ -307,6 +388,10 @@ export function useFunctionParamInitialization(
         // 初始化失败不影响其他字段，继续处理下一个字段
       }
     }
+    
+    console.log('✅ [triggerWidgetInitialization] 组件自治初始化完成', {
+      processedFieldsCount: fields.length
+    })
   }
   
   return {
