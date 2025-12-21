@@ -31,16 +31,26 @@ export class MultiSelectWidgetInitializer implements IWidgetInitializer {
   async initialize(context: WidgetInitContext): Promise<FieldValue | null> {
     const { field, currentValue, functionDetail, allFormData } = context
     
+    console.log(`🔍 [MultiSelectWidgetInitializer] 开始初始化字段 ${field.code}`, {
+      hasCallback: field.callbacks?.includes('OnSelectFuzzy'),
+      currentValue: {
+        raw: currentValue.raw,
+        display: currentValue.display,
+        hasDisplayInfo: !!currentValue.meta?.displayInfo
+      },
+      initSource: context.initSource
+    })
+    
     // 1. 检查是否需要初始化
     // 如果字段没有 OnSelectFuzzy 回调，则不需要初始化
     if (!field.callbacks?.includes('OnSelectFuzzy')) {
+      console.log(`🔍 [MultiSelectWidgetInitializer] 字段 ${field.code} 没有 OnSelectFuzzy 回调，跳过初始化`)
       return null  // 不需要初始化
     }
     
     // 2. 如果已经有完整的 display 和 meta（来自快链），则不需要初始化
     if (currentValue.display && currentValue.meta?.displayInfo) {
-      Logger.debug('[MultiSelectWidgetInitializer]', '已有完整的 display 和 meta，跳过初始化', {
-        fieldCode: field.code,
+      console.log(`🔍 [MultiSelectWidgetInitializer] 字段 ${field.code} 已有完整的 display 和 meta，跳过初始化`, {
         display: currentValue.display,
         hasDisplayInfo: !!currentValue.meta?.displayInfo
       })
@@ -49,6 +59,10 @@ export class MultiSelectWidgetInitializer implements IWidgetInitializer {
     
     // 3. 如果只有 raw 值（来自 URL），需要通过 by_values 查询获取 display 和 meta
     if (currentValue.raw !== null && currentValue.raw !== undefined) {
+      console.log(`🔍 [MultiSelectWidgetInitializer] 字段 ${field.code} 只有 raw 值，需要通过 by_values 查询`, {
+        rawValue: currentValue.raw,
+        isArray: Array.isArray(currentValue.raw)
+      })
       try {
         // 确保 raw 是数组
         const rawArray = Array.isArray(currentValue.raw) ? currentValue.raw : [currentValue.raw]
@@ -79,6 +93,15 @@ export class MultiSelectWidgetInitializer implements IWidgetInitializer {
         const requestData = this.convertFormDataToRequest(allFormData)
         
         // 调用 OnSelectFuzzy 回调接口（使用 by_values）
+        console.log(`🔍 [MultiSelectWidgetInitializer] 调用 OnSelectFuzzy 回调接口`, {
+          fieldCode: field.code,
+          method: functionDetail.method || 'POST',
+          router: functionDetail.router || '',
+          convertedValue,
+          valueType,
+          valuesCount: Array.isArray(convertedValue) ? convertedValue.length : 1
+        })
+        
         const response = await selectFuzzy(
           functionDetail.method || 'POST',
           functionDetail.router || '',
@@ -91,9 +114,14 @@ export class MultiSelectWidgetInitializer implements IWidgetInitializer {
           }
         )
         
+        console.log(`🔍 [MultiSelectWidgetInitializer] OnSelectFuzzy 回调接口返回`, {
+          fieldCode: field.code,
+          hasError: !!response.error_msg,
+          itemsCount: response.items?.length || 0
+        })
+        
         if (response.error_msg) {
-          Logger.warn('[MultiSelectWidgetInitializer]', '回调接口返回错误', {
-            fieldCode: field.code,
+          console.warn(`⚠️ [MultiSelectWidgetInitializer] 字段 ${field.code} 回调接口返回错误`, {
             error: response.error_msg
           })
           return null  // 初始化失败，返回 null
@@ -123,8 +151,7 @@ export class MultiSelectWidgetInitializer implements IWidgetInitializer {
           return displayInfoMap.get(raw) || null
         })
         
-        // 构建初始化后的 FieldValue
-        return createFieldValue(
+        const initializedValue = createFieldValue(
           field,
           currentValue.raw,  // 保持原始 raw 值
           display,
@@ -134,6 +161,16 @@ export class MultiSelectWidgetInitializer implements IWidgetInitializer {
             statistics: response.statistics || {}
           }
         )
+        
+        console.log(`✅ [MultiSelectWidgetInitializer] 字段 ${field.code} 初始化成功`, {
+          raw: initializedValue.raw,
+          display: initializedValue.display,
+          hasDisplayInfo: !!initializedValue.meta?.displayInfo,
+          displayInfoCount: Array.isArray(initializedValue.meta?.displayInfo) ? initializedValue.meta.displayInfo.length : 0
+        })
+        
+        // 构建初始化后的 FieldValue
+        return initializedValue
       } catch (error: any) {
         Logger.error('[MultiSelectWidgetInitializer]', '初始化失败', {
           fieldCode: field.code,
