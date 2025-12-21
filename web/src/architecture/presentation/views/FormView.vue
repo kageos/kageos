@@ -226,44 +226,8 @@ const formData = computed(() => {
 const requestFields = computed(() => (props.functionDetail.request || []) as FieldConfig[])
 const responseFields = computed(() => (props.functionDetail.response || []) as FieldConfig[])
 
-// 从 URL 查询参数中提取表单初始数据
-const formInitialData = computed(() => {
-  const initialData: Record<string, any> = {}
-  const query = route.query
-  
-  // 遍历所有查询参数，如果字段在 request 中，添加到 initialData
-  if (props.functionDetail?.request) {
-    props.functionDetail.request.forEach((field: FieldConfig) => {
-      const fieldCode = field.code
-      const queryValue = query[fieldCode]
-      
-      // 🔥 处理数组类型的查询参数（取第一个值）
-      const value = Array.isArray(queryValue) ? queryValue[0] : queryValue
-      
-      if (value !== undefined && value !== null && value !== '') {
-        // 类型转换：根据字段类型转换值
-        if (field.data?.type === 'int' || field.data?.type === 'integer') {
-          const intValue = parseInt(String(value), 10)
-          if (!isNaN(intValue)) {
-            initialData[fieldCode] = intValue
-          }
-        } else if (field.data?.type === 'float' || field.data?.type === 'number') {
-          const floatValue = parseFloat(String(value))
-          if (!isNaN(floatValue)) {
-            initialData[fieldCode] = floatValue
-          }
-        } else if (field.data?.type === 'bool' || field.data?.type === 'boolean') {
-          const strValue = String(value)
-          initialData[fieldCode] = strValue === 'true' || strValue === '1'
-        } else {
-          initialData[fieldCode] = value
-        }
-      }
-    })
-  }
-  
-  return initialData
-})
+// 🔥 移除 formInitialData computed，改为使用统一的数据初始化框架
+// URL 参数会在 useFunctionParamInitialization 中统一处理
 
 // 🔥 为所有字段创建响应式的值 Map
 const fieldValues = computed(() => {
@@ -466,20 +430,50 @@ const handleReset = (): void => {
 let unsubscribeFunctionLoaded: (() => void) | null = null
 let unsubscribeFormInitialized: (() => void) | null = null
 
-onMounted(() => {
+// 🔥 使用统一的数据初始化框架
+const { initialize: initializeParams } = useFunctionParamInitialization({
+  functionDetail: computed(() => props.functionDetail),
+  formDataStore: {
+    getValue: (fieldCode: string) => formDataStore.getValue(fieldCode),
+    setValue: (fieldCode: string, value: any) => formDataStore.setValue(fieldCode, value),
+    getAllValues: () => {
+      const allValues: Record<string, any> = {}
+      const state = stateManager.getState()
+      if (state.data) {
+        state.data.forEach((value, key) => {
+          allValues[key] = value
+        })
+      }
+      return allValues
+    },
+    clear: () => formDataStore.clear()
+  }
+})
+
+onMounted(async () => {
   // 🔥 挂载时清理 store，避免之前函数的数据污染
   formDataStore.clear()
   responseDataStore.clear()
   
-  // 初始化表单：在挂载时立即初始化，并传递 URL 参数作为初始数据
+  // 🔥 使用统一的数据初始化框架初始化参数
+  await initializeParams()
+  
+  // 初始化表单：在参数初始化完成后，初始化表单结构
   if (requestFields.value.length > 0) {
-    const initialData = formInitialData.value
+    // 🔥 从 formDataStore 获取已初始化的数据
+    const initialData: Record<string, any> = {}
+    requestFields.value.forEach(field => {
+      const fieldValue = formDataStore.getValue(field.code)
+      if (fieldValue) {
+        initialData[field.code] = fieldValue.raw
+      }
+    })
     applicationService.initializeForm(requestFields.value, initialData)
   }
 
   // 监听函数加载完成事件
   let lastInitializedFunctionId: number | null = null // 🔥 记录上次初始化的函数 ID，防止重复初始化
-  unsubscribeFunctionLoaded = eventBus.on(WorkspaceEvent.functionLoaded, (payload: { detail: FunctionDetail }) => {
+  unsubscribeFunctionLoaded = eventBus.on(WorkspaceEvent.functionLoaded, async (payload: { detail: FunctionDetail }) => {
     if (payload.detail.template_type === TEMPLATE_TYPE.FORM && payload.detail.id === props.functionDetail.id) {
       // 🔥 防重复初始化：如果已经初始化过这个函数，跳过
       if (lastInitializedFunctionId === payload.detail.id) {
@@ -492,12 +486,21 @@ onMounted(() => {
       formDataStore.clear()
       responseDataStore.clear()
       
-      // 🔥 使用 nextTick 确保 formInitialData 已经更新（因为它依赖于 route.query）
+      // 🔥 使用统一的数据初始化框架初始化参数
+      await initializeParams()
+      
+      // 🔥 使用 nextTick 确保参数初始化完成
       nextTick(() => {
-        // 重新初始化表单（传递 URL 参数作为初始数据）
+        // 重新初始化表单（从 formDataStore 获取已初始化的数据）
         const fields = (payload.detail.request || []) as FieldConfig[]
         if (fields.length > 0) {
-          const initialData = formInitialData.value
+          const initialData: Record<string, any> = {}
+          fields.forEach(field => {
+            const fieldValue = formDataStore.getValue(field.code)
+            if (fieldValue) {
+              initialData[field.code] = fieldValue.raw
+            }
+          })
           applicationService.initializeForm(fields, initialData)
         }
       })
@@ -506,7 +509,7 @@ onMounted(() => {
 
   // 监听表单初始化完成事件
   unsubscribeFormInitialized = eventBus.on(FormEvent.initialized, () => {
-    // 表单已初始化，可以渲染
+// 表单已初始化，可以渲染
   })
 })
 
