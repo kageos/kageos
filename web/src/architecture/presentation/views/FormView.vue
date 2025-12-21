@@ -456,8 +456,40 @@ onMounted(async () => {
   formDataStore.clear()
   responseDataStore.clear()
   
-  // 🔥 不在这里初始化参数，因为 functionDetail 可能还没有加载完成
-  // 初始化会在 watch functionDetail 或 functionLoaded 事件中触发（此时 functionDetail 已经加载完成）
+  // 🔥 在 onMounted 时初始化参数（因为 FormView 是通过 v-if="currentFunctionDetail" 条件渲染的，此时 functionDetail 应该已经存在）
+  // 但需要检查 functionDetail 是否有效（有 id 和 request）
+  if (props.functionDetail && props.functionDetail.id && props.functionDetail.request) {
+    console.log('🔍 [FormView] onMounted 时初始化参数', {
+      functionId: props.functionDetail.id,
+      requestFieldsCount: props.functionDetail.request.length
+    })
+    await initializeParams()
+    
+    // 初始化表单：在参数初始化完成后，初始化表单结构
+    const fields = props.functionDetail.request || []
+    if (fields.length > 0) {
+      // 🔥 从 formDataStore 获取已初始化的数据
+      const initialData: Record<string, any> = {}
+      fields.forEach(field => {
+        const fieldValue = formDataStore.getValue(field.code)
+        if (fieldValue) {
+          initialData[field.code] = fieldValue.raw
+        }
+      })
+      console.log('🔍 [FormView] onMounted 时初始化表单', {
+        fieldsCount: fields.length,
+        initialDataKeys: Object.keys(initialData),
+        initialData
+      })
+      applicationService.initializeForm(fields, initialData)
+    }
+  } else {
+    console.log('🔍 [FormView] onMounted 时 functionDetail 无效，等待 watch 触发', {
+      hasDetail: !!props.functionDetail,
+      hasId: !!props.functionDetail?.id,
+      hasRequest: !!props.functionDetail?.request
+    })
+  }
 
   // 监听函数加载完成事件
   let lastInitializedFunctionId: number | null = null // 🔥 记录上次初始化的函数 ID，防止重复初始化
