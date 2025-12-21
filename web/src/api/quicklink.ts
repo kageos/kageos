@@ -13,6 +13,7 @@ export interface QuickLink {
   function_method: string
   template_type: 'form' | 'table' | 'chart'
   request_params: Record<string, FieldValue>
+  response_params?: Record<string, any>
   field_metadata?: Record<string, {
     editable?: boolean
     readonly?: boolean
@@ -27,7 +28,6 @@ export interface QuickLink {
       search_params?: Record<string, any>
     }
     chart_filters?: Record<string, any>
-    response_params?: Record<string, FieldValue>
   }
   created_at: string
   updated_at: string
@@ -41,6 +41,7 @@ export interface CreateQuickLinkReq {
   function_method: string
   template_type: 'form' | 'table' | 'chart'
   request_params: Record<string, FieldValue>
+  response_params?: Record<string, any>
   field_metadata?: Record<string, {
     editable?: boolean
     readonly?: boolean
@@ -55,7 +56,6 @@ export interface CreateQuickLinkReq {
       search_params?: Record<string, any>
     }
     chart_filters?: Record<string, any>
-    response_params?: Record<string, FieldValue>
   }
 }
 
@@ -74,6 +74,7 @@ export interface GetQuickLinkResp {
   function_method: string
   template_type: 'form' | 'table' | 'chart'
   request_params: Record<string, FieldValue>
+  response_params?: Record<string, any>
   field_metadata?: Record<string, {
     editable?: boolean
     readonly?: boolean
@@ -88,7 +89,6 @@ export interface GetQuickLinkResp {
       search_params?: Record<string, any>
     }
     chart_filters?: Record<string, any>
-    response_params?: Record<string, FieldValue>
   }
   created_at: string
   updated_at: string
@@ -123,6 +123,7 @@ export interface ListQuickLinksResp {
 export interface UpdateQuickLinkReq {
   name?: string
   request_params?: Record<string, FieldValue>
+  response_params?: Record<string, any>
   field_metadata?: Record<string, {
     editable?: boolean
     readonly?: boolean
@@ -137,7 +138,6 @@ export interface UpdateQuickLinkReq {
       search_params?: Record<string, any>
     }
     chart_filters?: Record<string, any>
-    response_params?: Record<string, FieldValue>
   }
 }
 

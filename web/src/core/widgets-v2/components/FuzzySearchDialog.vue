@@ -5,6 +5,7 @@
     width="600px"
     :close-on-click-modal="false"
     :close-on-press-escape="true"
+    :z-index="3001"
     append-to-body
     @close="handleClose"
   >

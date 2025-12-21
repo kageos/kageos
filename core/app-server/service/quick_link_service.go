@@ -19,7 +19,7 @@ func NewQuickLinkService(quickLinkRepo *repository.QuickLinkRepository) *QuickLi
 }
 
 // CreateQuickLink 创建快链
-func (s *QuickLinkService) CreateQuickLink(username string, name string, functionRouter string, functionMethod string, templateType string, requestParams map[string]interface{}, fieldMetadata map[string]interface{}, metadata map[string]interface{}) (*model.QuickLink, error) {
+func (s *QuickLinkService) CreateQuickLink(username string, name string, functionRouter string, functionMethod string, templateType string, requestParams map[string]interface{}, responseParams map[string]interface{}, fieldMetadata map[string]interface{}, metadata map[string]interface{}) (*model.QuickLink, error) {
 	quickLink := &model.QuickLink{
 		CreatedBy:      username,
 		Name:           name,
@@ -32,6 +32,14 @@ func (s *QuickLinkService) CreateQuickLink(username string, name string, functio
 	if err := quickLink.SetRequestParams(requestParams); err != nil {
 		logger.Errorf(nil, "[QuickLinkService] Failed to set request params: %v", err)
 		return nil, err
+	}
+
+	// 设置响应参数
+	if responseParams != nil && len(responseParams) > 0 {
+		if err := quickLink.SetResponseParams(responseParams); err != nil {
+			logger.Errorf(nil, "[QuickLinkService] Failed to set response params: %v", err)
+			return nil, err
+		}
 	}
 
 	// 设置字段元数据
@@ -86,7 +94,7 @@ func (s *QuickLinkService) ListQuickLinks(username string, functionRouter string
 }
 
 // UpdateQuickLink 更新快链
-func (s *QuickLinkService) UpdateQuickLink(id int64, username string, name string, requestParams map[string]interface{}, fieldMetadata map[string]interface{}, metadata map[string]interface{}) (*model.QuickLink, error) {
+func (s *QuickLinkService) UpdateQuickLink(id int64, username string, name string, requestParams map[string]interface{}, responseParams map[string]interface{}, fieldMetadata map[string]interface{}, metadata map[string]interface{}) (*model.QuickLink, error) {
 	// 获取快链（验证用户）
 	quickLink, err := s.quickLinkRepo.GetByIDAndUser(id, username)
 	if err != nil {
@@ -100,6 +108,12 @@ func (s *QuickLinkService) UpdateQuickLink(id int64, username string, name strin
 
 	if requestParams != nil {
 		if err := quickLink.SetRequestParams(requestParams); err != nil {
+			return nil, err
+		}
+	}
+
+	if responseParams != nil {
+		if err := quickLink.SetResponseParams(responseParams); err != nil {
 			return nil, err
 		}
 	}
