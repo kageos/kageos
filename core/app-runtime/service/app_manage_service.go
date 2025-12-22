@@ -1083,9 +1083,19 @@ func (s *AppManageService) startAppContainer(ctx context.Context, containerName,
 	logger.Infof(ctx, "[startAppContainer] Running container with mount: image=%s, name=%s, hostPath=%s, containerPath=%s", image, containerName, absHostPath, containerPath)
 
 	// 设置环境变量
-	envVars := []string{
-		"NATS_URL=nats://host.containers.internal:4223", // 使用 host.containers.internal 访问宿主机 NATS
+	envVars := []string{}
+	
+	// 注入 NATS 地址（从全局配置读取）
+	natsConfig := appconfig.GetGlobalSharedConfig().Nats
+	natsURL := natsConfig.URL
+	if natsURL == "" {
+		natsURL = "nats://127.0.0.1:4222" // 默认值
 	}
+	// 将 localhost/127.0.0.1 替换为 host.containers.internal，以便容器内访问宿主机 NATS
+	natsURL = strings.ReplaceAll(natsURL, "localhost", "host.containers.internal")
+	natsURL = strings.ReplaceAll(natsURL, "127.0.0.1", "host.containers.internal")
+	envVars = append(envVars, fmt.Sprintf("NATS_URL=%s", natsURL))
+	logger.Infof(ctx, "[startAppContainer] Injecting NATS_URL=%s into container", natsURL)
 
 	// 注入网关地址（从全局配置读取）
 	gatewayURL := appconfig.GetGatewayURL()

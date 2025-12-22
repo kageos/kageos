@@ -16,7 +16,7 @@ type PluginInfo struct {
 	Description string  `json:"description" example:"解析Excel文件为Markdown表格"`
 	Enabled     bool    `json:"enabled" example:"true"`
 	Subject     string  `json:"subject" example:"plugins.beiluo.1"` // NATS主题，自动生成
-	NatsHost    string  `json:"nats_host" example:"nats://127.0.0.1:4223"` // NATS 服务器地址
+	NatsHost    string  `json:"nats_host" example:"nats://127.0.0.1:4222"` // NATS 服务器地址
 	Config      *string `json:"config" example:"{\"timeout\": 30, \"max_file_size\": 10485760}"` // 插件配置（JSON）
 	User        string  `json:"user" example:"beiluo"` // 创建用户（保留用于向后兼容）
 	Visibility  int     `json:"visibility" example:"0"` // 0: 公开, 1: 私有
