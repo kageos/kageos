@@ -1,12 +1,31 @@
 /**
- * Link 导航工具函数
+ * Link 导航工具函数和常量
  */
+
+/**
+ * Link 类型常量
+ * 对应模板类型：table、form
+ */
+export const LinkType = {
+  TABLE: 'table',
+  FORM: 'form'
+} as const
+
+/**
+ * Link 类型
+ */
+export type LinkTypeValue = typeof LinkType[keyof typeof LinkType]
+
+/**
+ * URL 查询参数中的 link type 键名
+ */
+export const LINK_TYPE_QUERY_KEY = '_link_type'
 
 /**
  * 解析 Link 组件的 JSON 值
  */
 export interface ParsedLinkValue {
-  type?: 'table' | 'form'  // 函数类型（外链时为空）
+  type?: LinkTypeValue  // 函数类型（外链时为空）
   name: string             // 链接文本
   url: string              // 链接 URL
 }
@@ -40,14 +59,14 @@ export function parseLinkValue(raw: string): ParsedLinkValue {
 /**
  * 为内部链接添加 _link_type 参数（用于传递函数类型信息）
  */
-export function addLinkTypeToUrl(url: string, linkType?: 'table' | 'form'): string {
+export function addLinkTypeToUrl(url: string, linkType?: LinkTypeValue): string {
   if (!linkType) {
     return url
   }
   
   try {
     const urlObj = new URL(url, window.location.origin)
-    urlObj.searchParams.set('_link_type', linkType)
+    urlObj.searchParams.set(LINK_TYPE_QUERY_KEY, linkType)
     return urlObj.pathname + urlObj.search
   } catch {
     // URL 解析失败，返回原始 URL
@@ -55,3 +74,13 @@ export function addLinkTypeToUrl(url: string, linkType?: 'table' | 'form'): stri
   }
 }
 
+/**
+ * 判断是否是 link 跳转
+ * 
+ * @param query URL 查询参数对象
+ * @returns 是否是 link 跳转
+ */
+export function isLinkNavigation(query: Record<string, any>): boolean {
+  const linkType = query[LINK_TYPE_QUERY_KEY]
+  return linkType === LinkType.TABLE || linkType === LinkType.FORM
+}

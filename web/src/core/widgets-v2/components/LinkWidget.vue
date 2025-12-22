@@ -18,7 +18,7 @@
     <!-- 表格/详情模式：作为按钮显示（在操作区域） -->
     <el-button
       v-else-if="resolvedUrl && (mode === 'table-cell' || mode === 'detail')"
-      :type="linkConfig.type === 'link' ? 'primary' : (linkConfig.type || 'primary')"
+      :type="linkConfig.type || 'primary'"
       size="small"
       :link="mode === 'table-cell' || linkConfig.type === 'link'"
       :plain="mode === 'detail'"
@@ -61,6 +61,7 @@ import { resolveWorkspaceUrl } from '@/utils/route'
 import { parseLinkValue, addLinkTypeToUrl } from '@/utils/linkNavigation'
 import { eventBus, RouteEvent } from '../../../architecture/infrastructure/eventBus'
 import type { WidgetComponentProps } from '../types'
+import type { LinkWidgetConfig } from '@/core/types/widget-configs'
 
 const props = defineProps<WidgetComponentProps>()
 const router = useRouter()
@@ -91,20 +92,14 @@ const linkText = computed(() => {
   return props.field.widget?.text || props.value?.display || props.field.name || '链接'
 })
 
-// 链接配置
+// 链接配置（带类型）
 const linkConfig = computed(() => {
   const widget = props.field.widget
   if (!widget || widget.type !== 'link') {
-    return {}
+    return {} as LinkWidgetConfig
   }
   
-  // 后端返回的 JSON 字段名是 type（因为 json:"type,omitempty"）
-  // 但结构体字段名是 LinkType，所以这里直接读取 config.type
-  return {
-    type: (widget.config as any)?.type || 'primary',
-    target: (widget.config as any)?.target || '_self',
-    icon: (widget.config as any)?.icon,
-  }
+  return (widget.config || {}) as LinkWidgetConfig
 })
 
 // 判断是否是外链

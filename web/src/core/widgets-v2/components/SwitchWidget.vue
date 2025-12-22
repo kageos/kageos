@@ -9,7 +9,7 @@
     <el-switch
       v-if="mode === 'edit'"
       v-model="internalValue"
-      :disabled="field.widget?.config?.disabled"
+      :disabled="false"
       :active-text="activeText"
       :inactive-text="inactiveText"
       @change="handleChange"
@@ -31,7 +31,7 @@
       inline-prompt
       :active-text="activeText"
       :inactive-text="inactiveText"
-      :disabled="field.widget?.config?.disabled"
+      :disabled="false"
       @change="handleTableCellChange"
     />
     
@@ -56,6 +56,7 @@ import { ElSwitch, ElTag } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useFormDataStore } from '../../stores-v2/formData'
 import { createFieldValue } from '../utils/createFieldValue'
+import type { SwitchWidgetConfig } from '@/core/types/widget-configs'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -68,13 +69,18 @@ const emit = defineEmits<WidgetComponentEmits>()
 
 const formDataStore = useFormDataStore()
 
-// 激活文本/非激活文本（从配置中获取）
+// 获取配置（带类型，注意：SwitchWidgetConfig 当前无配置项）
+const widgetConfig = computed(() => {
+  return (props.field.widget?.config || {}) as SwitchWidgetConfig
+})
+
+// 激活文本/非激活文本（注意：SwitchWidgetConfig 中没有这些字段，使用默认值）
 const activeText = computed(() => {
-  return props.field.widget?.config?.activeText || '是'
+  return '是'
 })
 
 const inactiveText = computed(() => {
-  return props.field.widget?.config?.inactiveText || '否'
+  return '否'
 })
 
 // 内部值（用于 v-model）

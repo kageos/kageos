@@ -132,8 +132,10 @@ const emit = defineEmits<{
 
 const formDataStore = useFormDataStore()
 
-// 配置
-const config = computed(() => props.field.widget?.config || {})
+// 获取配置（带类型）
+const config = computed(() => {
+  return (props.field.widget?.config || {}) as MultiSelectWidgetConfig
+})
 
 /**
  * 🔥 选项颜色配置

@@ -68,6 +68,7 @@ import { ElColorPicker, ElInput } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useFormDataStore } from '../../stores-v2/formData'
 import { createFieldValue } from '../utils/createFieldValue'
+import type { ColorWidgetConfig } from '@/core/types/widget-configs'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -80,8 +81,10 @@ const emit = defineEmits<WidgetComponentEmits>()
 
 const formDataStore = useFormDataStore()
 
-// 配置
-const config = computed(() => props.field.widget?.config || {})
+// 获取配置（带类型）
+const config = computed(() => {
+  return (props.field.widget?.config || {}) as ColorWidgetConfig
+})
 
 // 颜色格式、是否显示透明度
 const colorFormat = computed(() => {

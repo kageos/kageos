@@ -612,7 +612,7 @@ export class RouteManager {
    * 检查是否是 link 跳转
    */
   isLinkNavigation(): boolean {
-    return this.route.query._link_type === 'table' || this.route.query._link_type === 'form'
+    return isLinkNavCheck(this.route.query)
   }
   
   /**

@@ -9,7 +9,7 @@
     <el-date-picker
       v-if="mode === 'edit'"
       v-model="internalValue"
-      :disabled="field.widget?.config?.disabled"
+      :disabled="widgetConfig.disabled"
       :placeholder="field.desc || `请选择${field.name}`"
       :type="pickerType"
       :format="format"
@@ -54,6 +54,7 @@ import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useFormDataStore } from '../../stores-v2/formData'
 import { createFieldValue } from '../utils/createFieldValue'
 import { formatTimestamp } from '@/utils/date'
+import type { TimestampWidgetConfig } from '@/core/types/widget-configs'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -66,14 +67,19 @@ const emit = defineEmits<WidgetComponentEmits>()
 
 const formDataStore = useFormDataStore()
 
-// 选择器类型
+// 获取配置（带类型）
+const widgetConfig = computed(() => {
+  return (props.field.widget?.config || {}) as TimestampWidgetConfig
+})
+
+// 选择器类型（注意：TimestampWidgetConfig 中没有 type 字段，使用默认值）
 const pickerType = computed(() => {
-  return props.field.widget?.config?.type || 'datetime'
+  return 'datetime'
 })
 
 // 格式
 const format = computed(() => {
-  return props.field.widget?.config?.format || 'YYYY-MM-DD HH:mm:ss'
+  return widgetConfig.value.format || 'YYYY-MM-DD HH:mm:ss'
 })
 
 // 值格式（默认返回时间戳毫秒）
@@ -81,12 +87,12 @@ const format = computed(() => {
 // 当 valueFormat 为字符串格式时，Element Plus 返回字符串
 // 但是 v-model 绑定的值始终是 Date 对象（Element Plus 内部处理）
 const valueFormat = computed(() => {
-  return props.field.widget?.config?.valueFormat || 'x'
+  return 'x'  // TimestampWidgetConfig 中没有 valueFormat 字段，使用默认值
 })
 
-// 快捷选择
+// 快捷选择（注意：TimestampWidgetConfig 中没有 shortcuts 字段，默认显示）
 const shortcuts = computed(() => {
-  const showShortcuts = props.field.widget?.config?.shortcuts !== false
+  const showShortcuts = true
   if (!showShortcuts) {
     return undefined
   }

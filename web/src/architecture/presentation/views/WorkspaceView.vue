@@ -378,6 +378,7 @@ import { findNodeByPath, findNodeById, getDirectChildFunctionCodes } from '../ut
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { resolveWorkspaceUrl } from '@/utils/route'
 import { getAgentList, type AgentInfo } from '@/api/agent'
+import { isLinkNavigation as checkLinkNavigation, LINK_TYPE_QUERY_KEY } from '@/utils/linkNavigation'
 
 const route = useRoute()
 const router = useRouter()
@@ -735,7 +736,7 @@ const isTableFunction = (node: ServiceTree): boolean => {
  * 判断是否是 link 跳转
  */
 const isLinkNavigation = (): boolean => {
-  return route.query._link_type === 'table' || route.query._link_type === 'form'
+  return checkLinkNavigation(route.query as Record<string, any>)
 }
 
 /**
@@ -744,7 +745,7 @@ const isLinkNavigation = (): boolean => {
 const buildLinkNavigationQuery = (): Record<string, string | string[]> => {
   const preservedQuery: Record<string, string | string[]> = {}
   Object.keys(route.query).forEach(key => {
-    if (key !== '_link_type') {
+    if (key !== LINK_TYPE_QUERY_KEY) {
       const value = route.query[key]
       if (value !== null && value !== undefined) {
         preservedQuery[key] = Array.isArray(value) 

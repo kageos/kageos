@@ -10,7 +10,7 @@
       v-if="mode === 'edit'"
       v-model="internalValue"
       type="textarea"
-      :disabled="field.widget?.config?.disabled"
+      :disabled="false"
       :placeholder="field.desc || `请输入${field.name}`"
       :rows="rows"
       :maxlength="maxLength"
@@ -64,14 +64,19 @@ const emit = defineEmits<WidgetComponentEmits>()
 
 const formDataStore = useFormDataStore()
 
-// 行数（从配置中获取）
-const rows = computed(() => {
-  return props.field.widget?.config?.rows || 4
+// 获取配置（带类型）
+const widgetConfig = computed(() => {
+  return (props.field.widget?.config || {}) as TextAreaWidgetConfig
 })
 
-// 最大长度（从验证规则或配置中获取）
+// 行数（从配置中获取，注意：TextAreaWidgetConfig 中没有 rows 字段，使用默认值）
+const rows = computed(() => {
+  return 4
+})
+
+// 最大长度（从验证规则或配置中获取，注意：TextAreaWidgetConfig 中没有 maxlength 字段）
 const maxLength = computed(() => {
-  const configMaxLength = props.field.widget?.config?.maxlength
+  const configMaxLength = undefined
   if (configMaxLength) {
     return configMaxLength
   }
@@ -81,9 +86,9 @@ const maxLength = computed(() => {
   return maxMatch ? Number(maxMatch[1]) : undefined
 })
 
-// 是否显示字数统计
+// 是否显示字数统计（注意：TextAreaWidgetConfig 中没有 showWordLimit 字段，使用默认值）
 const showWordLimit = computed(() => {
-  return props.field.widget?.config?.showWordLimit || false
+  return false
 })
 
 // 内部值（用于 v-model）

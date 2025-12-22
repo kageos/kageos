@@ -636,8 +636,10 @@ const userInfoStore = useUserInfoStore()
 // 常量定义
 const MAX_DISPLAY_FILES = 3
 
-// 配置
-const filesConfig = computed(() => props.field.widget?.config || {})
+// 获取配置（带类型）
+const filesConfig = computed(() => {
+  return (props.field.widget?.config || {}) as FilesWidgetConfig
+})
 const accept = computed(() => filesConfig.value.accept || '*')
 const maxSize = computed(() => filesConfig.value.max_size)
 const maxCount = computed(() => filesConfig.value.max_count || 5)

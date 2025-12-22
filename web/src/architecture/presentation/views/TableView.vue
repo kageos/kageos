@@ -289,7 +289,7 @@ import { WidgetType } from '@/core/constants/widget'
 import { useTableInitialization } from '../composables/useTableInitialization'
 import { convertToFieldValue } from '@/utils/field'
 import { resolveWorkspaceUrl } from '@/utils/route'
-import { parseLinkValue, addLinkTypeToUrl } from '@/utils/linkNavigation'
+import { parseLinkValue, addLinkTypeToUrl, isLinkNavigation, LINK_TYPE_QUERY_KEY } from '@/utils/linkNavigation'
 import LinkWidget from '@/core/widgets-v2/components/LinkWidget.vue'
 import { TABLE_PARAM_KEYS, SEARCH_PARAM_KEYS } from '@/utils/urlParams'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
@@ -945,7 +945,7 @@ const preserveExistingParams = (requestFieldCodes: Set<string>): Record<string, 
   
   // 🔥 检查是否是 link 跳转（通过 _link_type 参数）
   // link 跳转时，URL 中的参数是用户明确指定的（来自 link 值），应该全部保留
-  const isLinkNavigation = route.query._link_type === 'table' || route.query._link_type === 'form'
+  const isLinkNav = isLinkNavigation(route.query as Record<string, any>)
   
   // 先保留所有非 table 相关的参数（包括 link 跳转携带的参数）
   Object.keys(route.query).forEach(key => {
@@ -958,7 +958,7 @@ const preserveExistingParams = (requestFieldCodes: Set<string>): Record<string, 
 
     // 保留以 _ 开头的参数（前端状态参数），但清除 _link_type（临时参数）
     if (key.startsWith('_')) {
-      if (key !== '_link_type') {
+      if (key !== LINK_TYPE_QUERY_KEY) {
         newQuery[key] = String(value)
       }
       return
@@ -969,7 +969,7 @@ const preserveExistingParams = (requestFieldCodes: Set<string>): Record<string, 
     // - 非 link 跳转时：不保留搜索参数，搜索参数完全由当前函数的 searchForm 决定
     //   这样当用户删除搜索选项时，URL 中的搜索参数会被清除
     if (searchParamKeys.includes(key as any)) {
-      if (isLinkNavigation) {
+      if (isLinkNav) {
         // link 跳转：保留搜索参数
         newQuery[key] = String(value)
       }
@@ -1006,13 +1006,13 @@ const syncToURL = (): void => {
   // 🔥 检查当前 URL 是否有查询参数
   // 如果 URL 没有查询参数（刚切换函数），不应该保留任何旧参数
   const hasQueryParams = Object.keys(route.query).length > 0
-  const isLinkNavigation = route.query._link_type === 'table' || route.query._link_type === 'form'
+    const isLinkNav = isLinkNavigation(route.query as Record<string, any>)
   
   console.log('🔍 [TableView.syncToURL] 开始同步到 URL', {
     hasQueryParams,
     currentQuery: route.query,
     currentQueryKeys: Object.keys(route.query),
-    isLinkNavigation,
+    isLinkNavigation: isLinkNav,
     newQuery: query
   })
   
@@ -1025,7 +1025,7 @@ const syncToURL = (): void => {
   
   // 🔥 如果 URL 没有查询参数（刚切换函数），直接使用新的查询参数，不保留任何旧参数
   let newQuery: Record<string, string | string[]>
-  if (!hasQueryParams && !isLinkNavigation) {
+    if (!hasQueryParams && !isLinkNav) {
     // 刚切换函数，URL 是空的，直接使用新的查询参数
     console.log('🔍 [TableView.syncToURL] URL 没有查询参数，不保留旧参数，直接使用新参数')
     newQuery = { ...query }
@@ -1048,7 +1048,7 @@ const syncToURL = (): void => {
       table: true,
       search: true,
       state: true,
-      linkNavigation: isLinkNavigation
+      linkNavigation: isLinkNav
     }
   })
   
@@ -1058,7 +1058,7 @@ const syncToURL = (): void => {
       table: true,        // 保留 table 参数（page, page_size, sorts）
       search: true,       // 保留搜索参数（eq, like, in 等）
       state: true,        // 保留状态参数（_ 开头）
-      linkNavigation: isLinkNavigation  // 如果是 link 跳转，保留所有参数
+      linkNavigation: isLinkNav  // 如果是 link 跳转，保留所有参数
     },
     source: RouteSource.TABLE_SYNC
   })
