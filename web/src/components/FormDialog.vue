@@ -42,10 +42,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { useRoute } from 'vue-router'
 import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
 import { Logger } from '@/core/utils/logger'
-import type { FieldConfig, FunctionDetail } from '@/core/types/field'
+import type { FieldConfig, FunctionDetail, FieldValue } from '@/core/types/field'
+import { useFormParamURLSync } from '@/architecture/presentation/composables/useFormParamURLSync'
+import { useFunctionParamInitialization } from '@/architecture/presentation/composables/useFunctionParamInitialization'
+import { useFormDataStore } from '@/core/stores-v2/formData'
 
 interface Props {
   modelValue: boolean  // 对话框显示状态
@@ -71,6 +75,8 @@ const emit = defineEmits<{
   close: []
 }>()
 
+const route = useRoute()
+
 // 对话框显示状态
 const dialogVisible = computed({
   get: () => props.modelValue,
@@ -82,6 +88,9 @@ const formRendererRef = ref<InstanceType<typeof FormRenderer>>()
 
 // 提交状态
 const submitting = ref(false)
+
+// 🔥 获取 formDataStore（与 FormRenderer 共享同一个 store）
+const formDataStore = useFormDataStore()
 
 /**
  * 根据 table_permission 过滤字段
@@ -182,10 +191,90 @@ const handleClose = () => {
 }
 
 /**
+ * 🔥 URL 参数同步（仅在新增模式且 _tab=OnTableAddRow 时启用）
+ */
+const shouldSyncURL = computed(() => {
+  // 只在新增模式且 URL 中有 _tab=OnTableAddRow 参数时才同步
+  return props.mode === 'create' && route.query._tab === 'OnTableAddRow'
+})
+
+// 🔥 使用 Form 参数 URL 同步
+// ⚠️ 关键：必须直接从 formDataStore.data 获取数据，确保响应式追踪
+const formDataStoreForURLSync = {
+  getValue: (fieldCode: string) => formDataStore.getValue(fieldCode),
+  getAllValues: () => {
+    // 🔥 直接从 formDataStore.data 获取，确保响应式追踪
+    const allValues: Record<string, FieldValue> = {}
+    const data = formDataStore.data
+    if (data) {
+      data.forEach((value, key) => {
+        allValues[key] = value
+      })
+    }
+    return allValues
+  }
+}
+
+const { watchFormData } = useFormParamURLSync({
+  functionDetail: computed(() => formFunctionDetail.value),
+  formDataStore: formDataStoreForURLSync,
+  enabled: shouldSyncURL,  // 🔥 只在 shouldSyncURL 为 true 时启用
+  debounceMs: 300
+})
+
+// 🔥 使用统一的数据初始化框架（从 URL 参数初始化）
+const { initialize: initializeParams } = useFunctionParamInitialization({
+  functionDetail: computed(() => formFunctionDetail.value),
+  formDataStore: {
+    getValue: (fieldCode: string) => formDataStore.getValue(fieldCode),
+    setValue: (fieldCode: string, value: any) => formDataStore.setValue(fieldCode, value),
+    getAllValues: () => {
+      const allValues: Record<string, any> = {}
+      const data = formDataStore.data
+      if (data) {
+        data.forEach((value, key) => {
+          allValues[key] = value
+        })
+      }
+      return allValues
+    },
+    clear: () => formDataStore.clear()
+  }
+})
+
+/**
  * 监听对话框显示状态
  */
-watch(() => props.modelValue, () => {
-  // 对话框打开/关闭逻辑
+watch(() => props.modelValue, async (newValue) => {
+  if (newValue && formFunctionDetail.value) {
+    // 对话框打开时，如果 URL 中有参数，初始化表单
+    if (shouldSyncURL.value) {
+      await nextTick()
+      // 🔥 从 URL 参数初始化表单（如果 URL 中有参数）
+      const metadata = await initializeParams()
+      Logger.debug('[FormDialog]', '从 URL 参数初始化表单完成', {
+        metadataKeys: Object.keys(metadata || {})
+      })
+      
+      // 🔥 开始监听表单数据变化，同步到 URL
+      watchFormData()
+    }
+  } else {
+    // 对话框关闭时，清理 formDataStore（避免污染）
+    formDataStore.clear()
+  }
+})
+
+// 🔥 监听 formFunctionDetail 变化，重新初始化
+watch(() => formFunctionDetail.value, async (newDetail) => {
+  if (newDetail && dialogVisible.value && shouldSyncURL.value) {
+    await nextTick()
+    // 从 URL 参数初始化表单
+    const metadata = await initializeParams()
+    Logger.debug('[FormDialog]', 'formFunctionDetail 变化，从 URL 参数初始化表单完成', {
+      metadataKeys: Object.keys(metadata || {})
+    })
+  }
 })
 
 /**

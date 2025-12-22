@@ -6,10 +6,11 @@
  * - 支持复杂字段的序列化（JSON）
  * - 支持从 URL 参数回显筛选条件（通过 useFunctionParamInitialization 的 URLParamsInitSource）
  * 
- * 🔥 设计原则：
- * - 只同步简单字段到 URL（字符串、数字、布尔值）
- * - 复杂字段（form、table、files）使用 JSON 序列化
+ * 🔥 设计原则（黑名单模式）：
+ * - 默认支持所有组件类型的 URL 同步
+ * - 黑名单：复杂类型（form、table、files）+ 密码字段（安全性考虑）
  * - 空值不添加到 URL（保持 URL 简洁）
+ * - 支持所有 template_type（form、table、chart 等），通过 enabled 参数控制是否启用
  */
 
 import { watch, computed, type Ref, type ComputedRef } from 'vue'
@@ -62,36 +63,32 @@ function buildChartQueryParams(
       return
     }
     
-    // 🔥 暂不支持复杂类型（form、table、files）的 URL 同步（太复杂，后续通过快链支持）
+    // 🔥 黑名单模式：默认都支持 URL 同步，只有复杂类型和密码字段不支持
     const widgetType = field.widget?.type
-    if (widgetType === WidgetType.FORM || widgetType === WidgetType.TABLE || widgetType === WidgetType.FILES) {
-      Logger.debug('[useChartParamURLSync]', `字段 ${field.code} 是复杂类型（${widgetType}），跳过 URL 同步，后续通过快链支持`)
+    const widgetConfig = field.widget?.config as any
+    
+    // 排除复杂类型
+    const unsupportedTypes = [WidgetType.FORM, WidgetType.TABLE, WidgetType.FILES]
+    if (widgetType && unsupportedTypes.includes(widgetType)) {
+      Logger.debug('[useChartParamURLSync]', `字段 ${field.code} 是复杂类型（${widgetType}），跳过 URL 同步`)
       return
     }
     
-    // 处理简单类型（字符串、数字、布尔值）
-    if (widgetType === WidgetType.INPUT || widgetType === WidgetType.TEXT || widgetType === WidgetType.TEXT_AREA || 
-        widgetType === WidgetType.NUMBER || widgetType === WidgetType.FLOAT || widgetType === WidgetType.SWITCH ||
-        widgetType === WidgetType.SELECT || widgetType === WidgetType.RADIO || widgetType === WidgetType.CHECKBOX ||
-        widgetType === WidgetType.TIMESTAMP || widgetType === WidgetType.ID) {
-      // 简单类型直接转换为字符串
-      if (Array.isArray(fieldValue.raw)) {
-        // 多选：使用逗号分隔
-        query[field.code] = fieldValue.raw.map(v => String(v)).join(',')
-      } else {
-        query[field.code] = String(fieldValue.raw)
-      }
-    } else if (widgetType === WidgetType.MULTI_SELECT) {
-      // 多选：使用逗号分隔
-      if (Array.isArray(fieldValue.raw)) {
-        query[field.code] = fieldValue.raw.map(v => String(v)).join(',')
-      } else {
-        query[field.code] = String(fieldValue.raw)
-      }
-    } else {
-      // 其他类型：暂不支持 URL 同步
-      Logger.debug('[useChartParamURLSync]', `字段 ${field.code} 类型 ${widgetType} 暂不支持 URL 同步，后续通过快链支持`)
+    // 🔥 排除密码字段（安全性考虑：密码不应出现在 URL 中）
+    if (widgetType === WidgetType.INPUT && widgetConfig?.password === true) {
+      Logger.debug('[useChartParamURLSync]', `字段 ${field.code} 是密码字段，跳过 URL 同步（安全性考虑）`)
       return
+    }
+    
+    // 🔥 默认支持所有其他类型：直接转换为字符串
+    // 支持的类型包括：input, text, text_area, number, float, switch, select, multiselect, 
+    // radio, checkbox, timestamp, ID, rate, user, slider, color, richtext, link, progress 等
+    if (Array.isArray(fieldValue.raw)) {
+      // 数组类型（如 multiselect）：使用逗号分隔
+      query[field.code] = fieldValue.raw.map(v => String(v)).join(',')
+    } else {
+      // 其他类型：直接转换为字符串
+      query[field.code] = String(fieldValue.raw)
     }
   })
   
@@ -122,11 +119,14 @@ export function useChartParamURLSync(options: UseChartParamURLSyncOptions) {
       return
     }
     
-    // 检查当前函数类型，如果是非 chart 函数，不应该调用 syncToURL
+    // 🔥 黑名单模式：默认都支持 URL 同步，只有特定场景不支持
     const detail = functionDetail.value
-    if (!detail || detail.template_type !== 'chart') {
+    if (!detail) {
       return
     }
+    
+    // 🔥 支持所有 template_type（form、table、chart 等），不再限制
+    // 如果某个场景不需要 URL 同步，可以通过 enabled 参数控制
     
     // 构建图表查询参数
     const requestFields = detail.request || []
