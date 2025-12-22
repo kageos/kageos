@@ -94,11 +94,10 @@ type GitConfig struct {
 
 // ContainerServiceConfig 容器服务配置
 type ContainerServiceConfig struct {
-	Runtime        string               `mapstructure:"runtime"` // podman, docker
-	Socket         string               `mapstructure:"socket"`  // 容器运行时 socket 路径
-	Timeout        int                  `mapstructure:"timeout"` // 连接超时时间（秒）
-	Image          ImageConfig          `mapstructure:"image"`
-	Infrastructure InfrastructureConfig `mapstructure:"infrastructure"`
+	Runtime string      `mapstructure:"runtime"` // podman, docker
+	Socket  string      `mapstructure:"socket"`  // 容器运行时 socket 路径
+	Timeout int         `mapstructure:"timeout"` // 连接超时时间（秒）
+	Image   ImageConfig `mapstructure:"image"`
 }
 
 // ImageConfig 镜像配置
@@ -106,18 +105,6 @@ type ImageConfig struct {
 	BaseImage     string   `mapstructure:"base_image"`
 	ContainerPath string   `mapstructure:"container_path"`
 	Command       []string `mapstructure:"command"`
-	RestartPolicy string   `mapstructure:"restart_policy"`
-}
-
-// InfrastructureConfig 基础设施配置
-type InfrastructureConfig struct {
-	Nats ContainerNatsConfig `mapstructure:"nats"`
-}
-
-// ContainerNatsConfig 容器 NATS 配置
-type ContainerNatsConfig struct {
-	Image         string   `mapstructure:"image"`
-	Ports         []string `mapstructure:"ports"`
 	RestartPolicy string   `mapstructure:"restart_policy"`
 }
 
