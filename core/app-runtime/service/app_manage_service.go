@@ -1087,15 +1087,21 @@ func (s *AppManageService) startAppContainer(ctx context.Context, containerName,
 
 	// 注入 SDK 配置（专门用于容器内访问宿主机服务）
 	// 注意：SDK app 运行在容器中，需要使用 host.containers.internal 访问宿主机服务
-	// 而服务配置（如 app-server）运行在裸机上，使用 127.0.0.1 访问
+	// 而服务配置（如 app-server）运行在裸机上，使用 localhost 访问
+	// 
+	// SDK 配置会在构建时注入为环境变量：
+	//   - nats_url -> NATS_URL 环境变量
+	//   - gateway_url -> GATEWAY_URL 环境变量
 	sdkConfig := appconfig.GetSDKConfig()
 
 	// 注入 NATS 地址（使用 SDK 配置，容器内访问）
+	// 环境变量：NATS_URL
 	natsURL := sdkConfig.GetNatsURL()
 	envVars = append(envVars, fmt.Sprintf("NATS_URL=%s", natsURL))
 	logger.Infof(ctx, "[startAppContainer] Injecting NATS_URL=%s into container (SDK config)", natsURL)
 
 	// 注入网关地址（使用 SDK 配置，容器内访问）
+	// 环境变量：GATEWAY_URL
 	gatewayURL := sdkConfig.GetGatewayURL()
 	envVars = append(envVars, fmt.Sprintf("GATEWAY_URL=%s", gatewayURL))
 	logger.Infof(ctx, "[startAppContainer] Injecting GATEWAY_URL=%s into container (SDK config)", gatewayURL)
