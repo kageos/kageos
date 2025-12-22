@@ -41,13 +41,13 @@ type GlobalSharedConfig struct {
 }
 
 // GatewayConfig 网关配置
-// 注意：服务运行在裸机上，使用 127.0.0.1 访问
+// 注意：服务运行在裸机上，使用 localhost 访问
 type GatewayConfig struct {
-	Host        string `mapstructure:"host"`         // 网关主机（裸机服务访问，如 127.0.0.1）
+	Host        string `mapstructure:"host"`         // 网关主机（裸机服务访问，如 localhost）
 	Port        int    `mapstructure:"port"`         // 网关端口（如 9090）
 	Domain      string `mapstructure:"domain"`       // 网关域名（生产环境使用，如 api.example.com）
-	BaseURL     string `mapstructure:"base_url"`     // 网关基础 URL（裸机服务访问，如 http://127.0.0.1:9090）
-	InternalURL string `mapstructure:"internal_url"` // 内部服务访问地址（裸机服务之间访问，如 http://127.0.0.1:9090）
+	BaseURL     string `mapstructure:"base_url"`     // 网关基础 URL（裸机服务访问，如 http://localhost:9090）
+	InternalURL string `mapstructure:"internal_url"` // 内部服务访问地址（裸机服务之间访问，如 http://localhost:9090）
 }
 
 // GetBaseURL 获取网关基础 URL
@@ -62,7 +62,7 @@ func (g *GatewayConfig) GetBaseURL() string {
 	if g.Host != "" && g.Port > 0 {
 		return fmt.Sprintf("http://%s:%d", g.Host, g.Port)
 	}
-	return "http://127.0.0.1:9090" // 默认值（裸机服务访问）
+	return "http://localhost:9090" // 默认值（裸机服务访问）
 }
 
 // GetInternalURL 获取内部服务访问地址
