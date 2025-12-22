@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 )
 
@@ -49,14 +50,8 @@ type AgentServerServerConfig struct {
 
 // AgentConfig 智能体配置
 type AgentConfig struct {
-	Timeout int             `mapstructure:"timeout"`
-	Nats    AgentNatsConfig `mapstructure:"nats"`
-}
-
-// AgentNatsConfig Agent Server NATS 配置
-type AgentNatsConfig struct {
-	Host    string `mapstructure:"host"`    // NATS 服务器地址，例如：127.0.0.1:4222
-	Timeout int    `mapstructure:"timeout"` // NATS 请求超时时间（秒）
+	Timeout int `mapstructure:"timeout"`
+	// 注意：NATS 配置已移至全局配置，不再在此处配置
 }
 
 // 便捷访问方法
@@ -64,17 +59,24 @@ func (c *AgentServerConfig) GetPort() int         { return c.Server.Port }
 func (c *AgentServerConfig) GetLogLevel() string  { return c.Server.LogLevel }
 func (c *AgentServerConfig) IsDebug() bool        { return c.Server.Debug }
 func (c *AgentServerConfig) GetAgentTimeout() int { return c.Agent.Timeout }
+// GetNatsHost 获取 NATS 地址（从全局配置读取）
 func (c *AgentServerConfig) GetNatsHost() string {
-	if c.Agent.Nats.Host == "" {
-		return "127.0.0.1:4222" // 默认值
+	global := GetGlobalSharedConfig()
+	if global.Nats.URL != "" {
+		// 从 nats://127.0.0.1:4222 格式中提取 host:port
+		url := global.Nats.URL
+		if strings.HasPrefix(url, "nats://") {
+			return strings.TrimPrefix(url, "nats://")
+		}
+		return url
 	}
-	return c.Agent.Nats.Host
+	return "127.0.0.1:4222" // 默认值
 }
+
+// GetNatsTimeout 获取 NATS 请求超时时间（秒）
 func (c *AgentServerConfig) GetNatsTimeout() int {
-	if c.Agent.Nats.Timeout == 0 {
-		return 600 // 默认 600 秒
-	}
-	return c.Agent.Nats.Timeout
+	// 默认 600 秒
+	return 600
 }
 
 // 数据库配置便捷访问方法
