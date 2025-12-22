@@ -1087,12 +1087,8 @@ func (s *AppManageService) startAppContainer(ctx context.Context, containerName,
 		"NATS_URL=nats://host.containers.internal:4223", // 使用 host.containers.internal 访问宿主机 NATS
 	}
 
-	// 注入网关地址（从 runtime 配置读取）
-	gatewayURL := s.runtimeConfig.Runtime.GatewayURL
-	if gatewayURL == "" {
-		// 如果没有配置，使用默认值
-		gatewayURL = "http://localhost:9090"
-	}
+	// 注入网关地址（从全局配置读取）
+	gatewayURL := s.runtimeConfig.GetGatewayURL()
 	envVars = append(envVars, fmt.Sprintf("GATEWAY_URL=%s", gatewayURL))
 	logger.Infof(ctx, "[startAppContainer] Injecting GATEWAY_URL=%s into container", gatewayURL)
 

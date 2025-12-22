@@ -28,6 +28,12 @@ func GetAppRuntimeConfig() *AppRuntimeConfig {
 			config = &AppRuntimeConfig{}
 		}
 
+		// 获取全局共享配置
+		global := GetGlobalSharedConfig()
+
+		// 合并 NATS 配置
+		config.Nats = mergeNatsConfig(global.Nats, config.Nats)
+
 		appRuntimeMu.Lock()
 		appRuntimeConfig = config
 		appRuntimeMu.Unlock()
@@ -36,6 +42,13 @@ func GetAppRuntimeConfig() *AppRuntimeConfig {
 	appRuntimeMu.RLock()
 	defer appRuntimeMu.RUnlock()
 	return appRuntimeConfig
+}
+
+// GetGatewayURL 获取网关地址（从全局配置读取）
+// 用于注入到 SDK 容器中
+func (c *AppRuntimeConfig) GetGatewayURL() string {
+	global := GetGlobalSharedConfig()
+	return global.Gateway.GetBaseURL()
 }
 
 // NatsConfig NATS 配置
@@ -61,10 +74,10 @@ type AppRuntimeTimeoutConfig struct {
 
 // RuntimeConfig 运行时配置
 type RuntimeConfig struct {
-	Port       int    `mapstructure:"port"`
-	LogLevel   string `mapstructure:"log_level"`
-	Debug      bool   `mapstructure:"debug"`
-	GatewayURL string `mapstructure:"gateway_url"` // 网关地址（会注入到 SDK 容器中）
+	Port     int    `mapstructure:"port"`
+	LogLevel string `mapstructure:"log_level"`
+	Debug    bool   `mapstructure:"debug"`
+	// 注意：gateway_url 已移除，改为从全局配置读取（GetGatewayURL()）
 }
 
 // AppManageServiceConfig App Manage 服务配置

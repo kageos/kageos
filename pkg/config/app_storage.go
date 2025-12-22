@@ -2,104 +2,91 @@ package config
 
 import (
 	"fmt"
-	"os"
 	"sync"
-
-	"gopkg.in/yaml.v3"
 )
 
 // AppStorageConfig app-storage 配置
 type AppStorageConfig struct {
 	Server struct {
-		Port     int    `yaml:"port"`
-		LogLevel string `yaml:"log_level"`
-		Debug    bool   `yaml:"debug"`
-	} `yaml:"server"`
+		Port     int    `mapstructure:"port"`
+		LogLevel string `mapstructure:"log_level"`
+		Debug    bool   `mapstructure:"debug"`
+	} `mapstructure:"server"`
 
 	JWT struct {
-		Secret string `yaml:"secret"`
-		Issuer string `yaml:"issuer"`
-	} `yaml:"jwt"`
+		Secret string `mapstructure:"secret"`
+		Issuer string `mapstructure:"issuer"`
+	} `mapstructure:"jwt"`
 
 	Audit struct {
 		UploadTracking struct {
-			Enabled bool `yaml:"enabled"`
-		} `yaml:"upload_tracking"`
+			Enabled bool `mapstructure:"enabled"`
+		} `mapstructure:"upload_tracking"`
 		DownloadTracking struct {
-			Enabled       bool `yaml:"enabled"`
-			RetentionDays int  `yaml:"retention_days"`
-		} `yaml:"download_tracking"`
-	} `yaml:"audit"`
+			Enabled       bool `mapstructure:"enabled"`
+			RetentionDays int  `mapstructure:"retention_days"`
+		} `mapstructure:"download_tracking"`
+	} `mapstructure:"audit"`
 
 	Storage struct {
-		Type string `yaml:"type"` // 存储类型：minio | tencentcos | aliyunoss | awss3 | local
+		Type string `mapstructure:"type"` // 存储类型：minio | tencentcos | aliyunoss | awss3 | local
 
 		MinIO struct {
-			Endpoint       string `yaml:"endpoint"`        // 浏览器上传用的 endpoint（宿主机访问）
-			ServerEndpoint string `yaml:"server_endpoint"` // ✨ 服务端上传用的 endpoint（容器内访问）
-			AccessKey      string `yaml:"access_key"`
-			SecretKey      string `yaml:"secret_key"`
-			UseSSL         bool   `yaml:"use_ssl"`
-			Region         string `yaml:"region"`
-			DefaultBucket  string `yaml:"default_bucket"`
-			CDNDomain      string `yaml:"cdn_domain"` // ✨ CDN 域名（可选，用于加速访问）
-		} `yaml:"minio"`
+			Endpoint       string `mapstructure:"endpoint"`        // 浏览器上传用的 endpoint（宿主机访问）
+			ServerEndpoint string `mapstructure:"server_endpoint"` // ✨ 服务端上传用的 endpoint（容器内访问）
+			AccessKey      string `mapstructure:"access_key"`
+			SecretKey      string `mapstructure:"secret_key"`
+			UseSSL         bool   `mapstructure:"use_ssl"`
+			Region         string `mapstructure:"region"`
+			DefaultBucket  string `mapstructure:"default_bucket"`
+			CDNDomain      string `mapstructure:"cdn_domain"` // ✨ CDN 域名（可选，用于加速访问）
+		} `mapstructure:"minio"`
 
 		TencentCOS struct {
-			Endpoint      string `yaml:"endpoint"`
-			SecretID      string `yaml:"secret_id"`
-			SecretKey     string `yaml:"secret_key"`
-			Region        string `yaml:"region"`
-			DefaultBucket string `yaml:"default_bucket"`
-			CDNDomain     string `yaml:"cdn_domain"` // ✨ CDN 域名（可选）
-		} `yaml:"tencentcos"`
+			Endpoint      string `mapstructure:"endpoint"`
+			SecretID      string `mapstructure:"secret_id"`
+			SecretKey     string `mapstructure:"secret_key"`
+			Region        string `mapstructure:"region"`
+			DefaultBucket string `mapstructure:"default_bucket"`
+			CDNDomain     string `mapstructure:"cdn_domain"` // ✨ CDN 域名（可选）
+		} `mapstructure:"tencentcos"`
 
 		AliyunOSS struct {
-			Endpoint        string `yaml:"endpoint"`
-			AccessKeyID     string `yaml:"access_key_id"`
-			AccessKeySecret string `yaml:"access_key_secret"`
-			Region          string `yaml:"region"`
-			DefaultBucket   string `yaml:"default_bucket"`
-			CDNDomain       string `yaml:"cdn_domain"` // ✨ CDN 域名（可选）
-		} `yaml:"aliyunoss"`
+			Endpoint        string `mapstructure:"endpoint"`
+			AccessKeyID      string `mapstructure:"access_key_id"`
+			AccessKeySecret  string `mapstructure:"access_key_secret"`
+			Region           string `mapstructure:"region"`
+			DefaultBucket    string `mapstructure:"default_bucket"`
+			CDNDomain        string `mapstructure:"cdn_domain"` // ✨ CDN 域名（可选）
+		} `mapstructure:"aliyunoss"`
 
 		AWSS3 struct {
-			Endpoint      string `yaml:"endpoint"`
-			AccessKey     string `yaml:"access_key"`
-			SecretKey     string `yaml:"secret_key"`
-			Region        string `yaml:"region"`
-			DefaultBucket string `yaml:"default_bucket"`
-			CDNDomain     string `yaml:"cdn_domain"` // ✨ CDN 域名（可选）
-		} `yaml:"awss3"`
+			Endpoint      string `mapstructure:"endpoint"`
+			AccessKey     string `mapstructure:"access_key"`
+			SecretKey     string `mapstructure:"secret_key"`
+			Region        string `mapstructure:"region"`
+			DefaultBucket string `mapstructure:"default_bucket"`
+			CDNDomain     string `mapstructure:"cdn_domain"` // ✨ CDN 域名（可选）
+		} `mapstructure:"awss3"`
 
 		Upload struct {
-			MaxSize      int64    `yaml:"max_size"`
-			TokenExpire  int      `yaml:"token_expire"`
-			AllowedTypes []string `yaml:"allowed_types"`
-		} `yaml:"upload"`
+			MaxSize      int64    `mapstructure:"max_size"`
+			TokenExpire  int      `mapstructure:"token_expire"`
+			AllowedTypes []string `mapstructure:"allowed_types"`
+		} `mapstructure:"upload"`
 
 		Deduplication struct {
-			Enabled       bool   `yaml:"enabled"`
-			HashAlgorithm string `yaml:"hash_algorithm"`
-		} `yaml:"deduplication"`
+			Enabled       bool   `mapstructure:"enabled"`
+			HashAlgorithm string `mapstructure:"hash_algorithm"`
+		} `mapstructure:"deduplication"`
 
 		Cache struct {
-			Enabled bool `yaml:"enabled"`
-			MaxAge  int  `yaml:"max_age"`
-		} `yaml:"cache"`
-	} `yaml:"storage"`
+			Enabled bool `mapstructure:"enabled"`
+			MaxAge  int  `mapstructure:"max_age"`
+		} `mapstructure:"cache"`
+	} `mapstructure:"storage"`
 
-	DB struct {
-		Type         string `yaml:"type"`
-		Host         string `yaml:"host"`
-		Port         int    `yaml:"port"`
-		User         string `yaml:"user"`
-		Password     string `yaml:"password"`
-		Name         string `yaml:"name"`
-		MaxIdleConns int    `yaml:"max_idle_conns"`
-		MaxOpenConns int    `yaml:"max_open_conns"`
-		LogLevel     string `yaml:"log_level"`
-	} `yaml:"db"`
+	DB DBConfig `mapstructure:"db"`
 }
 
 var (
@@ -117,19 +104,38 @@ func GetAppStorageConfig() *AppStorageConfig {
 
 // loadAppStorageConfig 加载 app-storage 配置
 func loadAppStorageConfig() *AppStorageConfig {
-	configFile := "configs/app-storage.yaml"
-
-	data, err := os.ReadFile(configFile)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to read app-storage config file: %v", err))
+	cfg := &AppStorageConfig{}
+	if err := loadYAMLConfig("app-storage.yaml", cfg); err != nil {
+		// 配置文件不存在或加载失败，返回空配置
+		fmt.Printf("Failed to load app-storage config: %v\n", err)
+		cfg = &AppStorageConfig{}
 	}
 
-	var cfg AppStorageConfig
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		panic(fmt.Sprintf("Failed to parse app-storage config: %v", err))
+	// 获取全局共享配置
+	global := GetGlobalSharedConfig()
+
+	// 合并数据库配置（如果服务配置了，使用服务配置；否则使用全局配置）
+	if cfg.DB.Host == "" && cfg.DB.Type == "" {
+		// 服务完全没有配置数据库，使用全局配置
+		cfg.DB = global.Database
+	} else {
+		// 服务配置了部分字段，合并未配置的字段
+		cfg.DB = mergeDBConfig(global.Database, cfg.DB)
 	}
 
-	return &cfg
+	// 合并 JWT 配置
+	if cfg.JWT.Secret == "" {
+		// 服务没有配置 JWT，使用全局配置
+		cfg.JWT.Secret = global.JWT.Secret
+		cfg.JWT.Issuer = global.JWT.Issuer
+	} else {
+		// 服务配置了部分字段，合并未配置的字段
+		if cfg.JWT.Issuer == "" {
+			cfg.JWT.Issuer = global.JWT.Issuer
+		}
+	}
+
+	return cfg
 }
 
 // GetPort 获取端口

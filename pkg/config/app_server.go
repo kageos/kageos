@@ -20,6 +20,40 @@ func GetAppServerConfig() *AppServerConfig {
 			fmt.Printf("Failed to load app-server config: %v\n", err)
 			cfg = &AppServerConfig{}
 		}
+
+		// 获取全局共享配置
+		global := GetGlobalSharedConfig()
+
+		// 合并数据库配置（如果服务配置了，使用服务配置；否则使用全局配置）
+		if cfg.DB.Host == "" && cfg.DB.Type == "" {
+			// 服务完全没有配置数据库，使用全局配置
+			cfg.DB = global.Database
+		} else {
+			// 服务配置了部分字段，合并未配置的字段
+			cfg.DB = mergeDBConfig(global.Database, cfg.DB)
+		}
+
+		// 合并 NATS 配置
+		cfg.Nats = mergeNatsConfig(global.Nats, cfg.Nats)
+
+		// 合并 JWT 配置
+		if cfg.JWT.Secret == "" {
+			// 服务没有配置 JWT，使用全局配置
+			cfg.JWT = global.JWT
+		} else {
+			// 服务配置了部分字段，合并未配置的字段
+			cfg.JWT = mergeJWTConfig(global.JWT, cfg.JWT)
+		}
+
+		// 合并 Control Service 配置
+		if !cfg.ControlService.IsEnabled() && cfg.ControlService.EncryptionKey == "" && cfg.ControlService.NatsURL == "" {
+			// 服务完全没有配置 Control Service，使用全局配置
+			cfg.ControlService = global.ControlService
+		} else {
+			// 服务配置了部分字段，合并未配置的字段
+			cfg.ControlService = mergeControlServiceConfig(global.ControlService, cfg.ControlService)
+		}
+
 		appServerMu.Lock()
 		appServerConfig = cfg
 		appServerMu.Unlock()
