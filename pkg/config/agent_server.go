@@ -57,11 +57,10 @@ type AgentNatsConfig struct {
 	Timeout int    `mapstructure:"timeout"` // NATS 请求超时时间（秒）
 }
 
-
 // 便捷访问方法
-func (c *AgentServerConfig) GetPort() int           { return c.Server.Port }
-func (c *AgentServerConfig) GetLogLevel() string    { return c.Server.LogLevel }
-func (c *AgentServerConfig) IsDebug() bool          { return c.Server.Debug }
+func (c *AgentServerConfig) GetPort() int         { return c.Server.Port }
+func (c *AgentServerConfig) GetLogLevel() string  { return c.Server.LogLevel }
+func (c *AgentServerConfig) IsDebug() bool        { return c.Server.Debug }
 func (c *AgentServerConfig) GetAgentTimeout() int { return c.Agent.Timeout }
 func (c *AgentServerConfig) GetNatsHost() string {
 	if c.Agent.Nats.Host == "" {
