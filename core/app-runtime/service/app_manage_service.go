@@ -1084,7 +1084,7 @@ func (s *AppManageService) startAppContainer(ctx context.Context, containerName,
 
 	// 设置环境变量
 	envVars := []string{}
-	
+
 	// 注入 NATS 地址（从全局配置读取）
 	natsConfig := appconfig.GetGlobalSharedConfig().Nats
 	natsURL := natsConfig.URL
@@ -1092,8 +1092,12 @@ func (s *AppManageService) startAppContainer(ctx context.Context, containerName,
 		natsURL = "nats://127.0.0.1:4222" // 默认值
 	}
 	// 将 localhost/127.0.0.1 替换为 host.containers.internal，以便容器内访问宿主机 NATS
-	natsURL = strings.ReplaceAll(natsURL, "localhost", "host.containers.internal")
-	natsURL = strings.ReplaceAll(natsURL, "127.0.0.1", "host.containers.internal")
+	// 注意：host.containers.internal 只能访问宿主机上的服务，不能访问其他机器
+	// 如果配置的是其他机器的地址（如 192.168.1.100），则不替换
+	if strings.Contains(natsURL, "localhost") || strings.Contains(natsURL, "127.0.0.1") {
+		natsURL = strings.ReplaceAll(natsURL, "localhost", "host.containers.internal")
+		natsURL = strings.ReplaceAll(natsURL, "127.0.0.1", "host.containers.internal")
+	}
 	envVars = append(envVars, fmt.Sprintf("NATS_URL=%s", natsURL))
 	logger.Infof(ctx, "[startAppContainer] Injecting NATS_URL=%s into container", natsURL)
 
