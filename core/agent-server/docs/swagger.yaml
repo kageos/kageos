@@ -1402,7 +1402,7 @@ definitions:
         type: string
       nats_host:
         description: NATS 服务器地址
-        example: nats://127.0.0.1:4223
+        example: nats://127.0.0.1:4222
         type: string
       subject:
         description: NATS主题，自动生成
