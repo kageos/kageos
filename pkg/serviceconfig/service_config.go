@@ -24,7 +24,7 @@ func GetGatewayURL() string {
 	}
 
 	// 默认值（开发环境）
-	return "http://127.0.0.1:9090"
+	return "http://localhost:9090"
 }
 
 // GetServiceURL 获取服务地址（通过网关）
