@@ -34,7 +34,6 @@ func GetAPIGatewayConfig() *APIGatewayConfig {
 type APIGatewayConfig struct {
 	Server   GatewayServerConfig  `mapstructure:"server"`
 	Routes   []RouteConfig        `mapstructure:"routes"` // ✨ 路由配置
-	Nats     NatsConfig           `mapstructure:"nats"`   // 已废弃，api-gateway 不使用 NATS
 	Timeouts GatewayTimeoutConfig `mapstructure:"timeouts"`
 }
 
