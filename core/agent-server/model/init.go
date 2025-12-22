@@ -14,7 +14,6 @@ func InitTables(db *gorm.DB) error {
 		&KnowledgeDocument{},
 		&KnowledgeChunk{},
 		&LLMConfig{},
-		&Task{},
 		&AgentChatSession{},
 		&AgentChatMessage{},
 		&FunctionGenRecord{},
