@@ -20,6 +20,28 @@ func GetAgentServerConfig() *AgentServerConfig {
 			fmt.Printf("Failed to load agent-server config: %v\n", err)
 			cfg = &AgentServerConfig{}
 		}
+
+		// 获取全局共享配置
+		global := GetGlobalSharedConfig()
+
+		// 合并数据库配置（如果服务配置了，使用服务配置；否则使用全局配置）
+		if cfg.DB.Host == "" && cfg.DB.Type == "" {
+			// 服务完全没有配置数据库，使用全局配置
+			cfg.DB = global.Database
+		} else {
+			// 服务配置了部分字段，合并未配置的字段
+			cfg.DB = mergeDBConfig(global.Database, cfg.DB)
+		}
+
+		// 合并 Control Service 配置
+		if !cfg.ControlService.IsEnabled() && cfg.ControlService.EncryptionKey == "" && cfg.ControlService.NatsURL == "" {
+			// 服务完全没有配置 Control Service，使用全局配置
+			cfg.ControlService = global.ControlService
+		} else {
+			// 服务配置了部分字段，合并未配置的字段
+			cfg.ControlService = mergeControlServiceConfig(global.ControlService, cfg.ControlService)
+		}
+
 		agentServerMu.Lock()
 		agentServerConfig = cfg
 		agentServerMu.Unlock()
