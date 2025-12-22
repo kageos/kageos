@@ -219,7 +219,7 @@ func (s *Server) initLicense(ctx context.Context) error {
 // initLicenseClient 初始化 License Client（通过 NATS 获取和刷新 License）
 func (s *Server) initLicenseClient(ctx context.Context) error {
 	// 检查是否启用 Control Service 客户端
-	controlCfg := s.cfg.ControlService
+	controlCfg := s.cfg.GetControlService()
 	if !controlCfg.IsEnabled() {
 		logger.Infof(ctx, "[Server] Control Service client is disabled, skipping license client initialization")
 		return nil
@@ -264,7 +264,7 @@ func (s *Server) initLicenseClient(ctx context.Context) error {
 func (s *Server) initDatabase(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Initializing database...")
 
-	dbCfg := s.cfg.DB
+	dbCfg := s.cfg.GetDB()
 
 	// 配置 GORM 日志
 	gormConfig := &gorm.Config{}
@@ -350,7 +350,8 @@ func (s *Server) initNATS(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Initializing NATS connection...")
 
 	var err error
-	s.natsConn, err = nats.Connect(s.cfg.Nats.URL)
+	natsConfig := s.cfg.GetNats()
+	s.natsConn, err = nats.Connect(natsConfig.URL)
 	if err != nil {
 		return fmt.Errorf("failed to connect to NATS: %w", err)
 	}

@@ -1088,7 +1088,7 @@ func (s *AppManageService) startAppContainer(ctx context.Context, containerName,
 	}
 
 	// 注入网关地址（从全局配置读取）
-	gatewayURL := s.runtimeConfig.GetGatewayURL()
+	gatewayURL := appconfig.GetGatewayURL()
 	envVars = append(envVars, fmt.Sprintf("GATEWAY_URL=%s", gatewayURL))
 	logger.Infof(ctx, "[startAppContainer] Injecting GATEWAY_URL=%s into container", gatewayURL)
 

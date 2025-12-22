@@ -160,7 +160,8 @@ func (s *Server) closeDatabase(ctx context.Context) {
 // initNATS 初始化 NATS 连接
 func (s *Server) initNATS(ctx context.Context) error {
 
-	conn, err := nats.Connect(s.cfg.Nats.URL)
+	natsConfig := config.GetGlobalSharedConfig().Nats
+	conn, err := nats.Connect(natsConfig.URL)
 	if err != nil {
 		return fmt.Errorf("failed to connect to NATS: %w", err)
 	}

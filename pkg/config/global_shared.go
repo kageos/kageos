@@ -72,3 +72,10 @@ func (g *GatewayConfig) GetInternalURL() string {
 	return g.GetBaseURL()
 }
 
+// GetGatewayURL 获取网关地址（全局函数，从全局配置读取）
+// 用于注入到 SDK 容器中等场景
+func GetGatewayURL() string {
+	global := GetGlobalSharedConfig()
+	return global.Gateway.GetBaseURL()
+}
+

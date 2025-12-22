@@ -13,10 +13,7 @@ type AppStorageConfig struct {
 		Debug    bool   `mapstructure:"debug"`
 	} `mapstructure:"server"`
 
-	JWT struct {
-		Secret string `mapstructure:"secret"`
-		Issuer string `mapstructure:"issuer"`
-	} `mapstructure:"jwt"`
+	// 注意：JWT 配置已移至全局配置，不再在此处配置
 
 	Audit struct {
 		UploadTracking struct {
@@ -86,7 +83,7 @@ type AppStorageConfig struct {
 		} `mapstructure:"cache"`
 	} `mapstructure:"storage"`
 
-	DB DBConfig `mapstructure:"db"`
+	// 注意：数据库配置已移至全局配置，不再在此处配置
 }
 
 var (
@@ -111,30 +108,6 @@ func loadAppStorageConfig() *AppStorageConfig {
 		cfg = &AppStorageConfig{}
 	}
 
-	// 获取全局共享配置
-	global := GetGlobalSharedConfig()
-
-	// 合并数据库配置（如果服务配置了，使用服务配置；否则使用全局配置）
-	if cfg.DB.Host == "" && cfg.DB.Type == "" {
-		// 服务完全没有配置数据库，使用全局配置
-		cfg.DB = global.Database
-	} else {
-		// 服务配置了部分字段，合并未配置的字段
-		cfg.DB = mergeDBConfig(global.Database, cfg.DB)
-	}
-
-	// 合并 JWT 配置
-	if cfg.JWT.Secret == "" {
-		// 服务没有配置 JWT，使用全局配置
-		cfg.JWT.Secret = global.JWT.Secret
-		cfg.JWT.Issuer = global.JWT.Issuer
-	} else {
-		// 服务配置了部分字段，合并未配置的字段
-		if cfg.JWT.Issuer == "" {
-			cfg.JWT.Issuer = global.JWT.Issuer
-		}
-	}
-
 	return cfg
 }
 
@@ -157,5 +130,15 @@ func (c *AppStorageConfig) GetLogLevel() string {
 // IsDebug 是否调试模式
 func (c *AppStorageConfig) IsDebug() bool {
 	return c.Server.Debug
+}
+
+// GetDB 获取数据库配置（从全局配置获取）
+func (c *AppStorageConfig) GetDB() DBConfig {
+	return GetGlobalSharedConfig().Database
+}
+
+// GetJWT 获取 JWT 配置（从全局配置获取）
+func (c *AppStorageConfig) GetJWT() JWTConfig {
+	return GetGlobalSharedConfig().JWT
 }
 

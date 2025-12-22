@@ -17,8 +17,9 @@ type JWTService struct {
 // NewJWTService 创建JWT服务
 func NewJWTService() *JWTService {
 	appConfig := appconfig.GetAppServerConfig()
+	jwtConfig := appConfig.GetJWT()
 	return &JWTService{
-		config: &appConfig.JWT,
+		config: &jwtConfig,
 	}
 }
 

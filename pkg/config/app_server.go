@@ -21,39 +21,6 @@ func GetAppServerConfig() *AppServerConfig {
 			cfg = &AppServerConfig{}
 		}
 
-		// 获取全局共享配置
-		global := GetGlobalSharedConfig()
-
-		// 合并数据库配置（如果服务配置了，使用服务配置；否则使用全局配置）
-		if cfg.DB.Host == "" && cfg.DB.Type == "" {
-			// 服务完全没有配置数据库，使用全局配置
-			cfg.DB = global.Database
-		} else {
-			// 服务配置了部分字段，合并未配置的字段
-			cfg.DB = mergeDBConfig(global.Database, cfg.DB)
-		}
-
-		// 合并 NATS 配置
-		cfg.Nats = mergeNatsConfig(global.Nats, cfg.Nats)
-
-		// 合并 JWT 配置
-		if cfg.JWT.Secret == "" {
-			// 服务没有配置 JWT，使用全局配置
-			cfg.JWT = global.JWT
-		} else {
-			// 服务配置了部分字段，合并未配置的字段
-			cfg.JWT = mergeJWTConfig(global.JWT, cfg.JWT)
-		}
-
-		// 合并 Control Service 配置
-		if !cfg.ControlService.IsEnabled() && cfg.ControlService.EncryptionKey == "" && cfg.ControlService.NatsURL == "" {
-			// 服务完全没有配置 Control Service，使用全局配置
-			cfg.ControlService = global.ControlService
-		} else {
-			// 服务配置了部分字段，合并未配置的字段
-			cfg.ControlService = mergeControlServiceConfig(global.ControlService, cfg.ControlService)
-		}
-
 		appServerMu.Lock()
 		appServerConfig = cfg
 		appServerMu.Unlock()
@@ -66,13 +33,10 @@ func GetAppServerConfig() *AppServerConfig {
 
 // AppServerConfig app-server 配置
 type AppServerConfig struct {
-	Server         AppServerServerConfig      `mapstructure:"server"`
-	Nats           NatsConfig                 `mapstructure:"nats"`
-	Timeouts       AppServerTimeoutCfg        `mapstructure:"timeouts"`
-	DB             DBConfig                   `mapstructure:"db"`
-	Email          EmailConfig                `mapstructure:"email"`
-	JWT            JWTConfig                  `mapstructure:"jwt"`
-	ControlService ControlServiceClientConfig `mapstructure:"control_service"`
+	Server   AppServerServerConfig `mapstructure:"server"`
+	Timeouts AppServerTimeoutCfg   `mapstructure:"timeouts"`
+	Email    EmailConfig            `mapstructure:"email"`
+	// 注意：NATS、数据库、JWT、Control Service 配置已移至全局配置，不再在此处配置
 }
 
 // AppServerServerConfig app-server 服务器配置
@@ -148,21 +112,44 @@ func (c *AppServerConfig) IsDebug() bool              { return c.Server.Debug }
 func (c *AppServerConfig) GetAppRequestTimeout() int  { return c.Timeouts.AppRequest }
 func (c *AppServerConfig) GetNatsRequestTimeout() int { return c.Timeouts.NatsRequest }
 
-// 数据库配置便捷访问方法
+// 数据库配置便捷访问方法（从全局配置获取）
 func (c *AppServerConfig) GetDBLogLevel() string {
-	if c.DB.LogLevel == "" {
+	global := GetGlobalSharedConfig()
+	if global.Database.LogLevel == "" {
 		return "warn" // 默认日志级别
 	}
-	return c.DB.LogLevel
+	return global.Database.LogLevel
 }
 
 func (c *AppServerConfig) GetDBSlowThreshold() int {
-	if c.DB.SlowThreshold == 0 {
+	global := GetGlobalSharedConfig()
+	if global.Database.SlowThreshold == 0 {
 		return 200 // 默认200毫秒
 	}
-	return c.DB.SlowThreshold
+	return global.Database.SlowThreshold
 }
 
 func (c *AppServerConfig) IsDBLogEnabled() bool {
-	return c.DB.LogLevel != "silent"
+	global := GetGlobalSharedConfig()
+	return global.Database.LogLevel != "silent"
+}
+
+// GetDB 获取数据库配置（从全局配置获取）
+func (c *AppServerConfig) GetDB() DBConfig {
+	return GetGlobalSharedConfig().Database
+}
+
+// GetNats 获取 NATS 配置（从全局配置获取）
+func (c *AppServerConfig) GetNats() NatsConfig {
+	return GetGlobalSharedConfig().Nats
+}
+
+// GetJWT 获取 JWT 配置（从全局配置获取）
+func (c *AppServerConfig) GetJWT() JWTConfig {
+	return GetGlobalSharedConfig().JWT
+}
+
+// GetControlService 获取 Control Service 配置（从全局配置获取）
+func (c *AppServerConfig) GetControlService() ControlServiceClientConfig {
+	return GetGlobalSharedConfig().ControlService
 }
