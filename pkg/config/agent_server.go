@@ -34,8 +34,10 @@ func GetAgentServerConfig() *AgentServerConfig {
 // AgentServerConfig agent-server 配置
 type AgentServerConfig struct {
 	Server AgentServerServerConfig `mapstructure:"server"`
-	Agent  AgentConfig             `mapstructure:"agent"`
-	// 注意：数据库、Control Service 配置已移至全局配置，不再在此处配置
+	Agent  AgentConfig            `mapstructure:"agent"`
+	DB     DBConfig               `mapstructure:"db"`
+	// 注意：Control Service 配置已移至全局配置，不再在此处配置
+	// 数据库配置保留在服务配置中，因为微服务后续每个服务一个库
 }
 
 // AgentServerServerConfig agent-server 服务器配置
@@ -75,31 +77,28 @@ func (c *AgentServerConfig) GetNatsTimeout() int {
 	return c.Agent.Nats.Timeout
 }
 
-// 数据库配置便捷访问方法（从全局配置获取）
+// 数据库配置便捷访问方法
 func (c *AgentServerConfig) GetDBLogLevel() string {
-	global := GetGlobalSharedConfig()
-	if global.Database.LogLevel == "" {
+	if c.DB.LogLevel == "" {
 		return "warn"
 	}
-	return global.Database.LogLevel
+	return c.DB.LogLevel
 }
 
 func (c *AgentServerConfig) GetDBSlowThreshold() int {
-	global := GetGlobalSharedConfig()
-	if global.Database.SlowThreshold == 0 {
+	if c.DB.SlowThreshold == 0 {
 		return 200
 	}
-	return global.Database.SlowThreshold
+	return c.DB.SlowThreshold
 }
 
 func (c *AgentServerConfig) IsDBLogEnabled() bool {
-	global := GetGlobalSharedConfig()
-	return global.Database.LogLevel != "silent"
+	return c.DB.LogLevel != "silent"
 }
 
-// GetDB 获取数据库配置（从全局配置获取）
+// GetDB 获取数据库配置
 func (c *AgentServerConfig) GetDB() DBConfig {
-	return GetGlobalSharedConfig().Database
+	return c.DB
 }
 
 // GetControlService 获取 Control Service 配置（从全局配置获取）
