@@ -35,8 +35,8 @@ func GetAppServerConfig() *AppServerConfig {
 type AppServerConfig struct {
 	Server   AppServerServerConfig `mapstructure:"server"`
 	Timeouts AppServerTimeoutCfg   `mapstructure:"timeouts"`
-	Email    EmailConfig            `mapstructure:"email"`
-	DB       DBConfig               `mapstructure:"db"`
+	Email    EmailConfig           `mapstructure:"email"`
+	DB       DBConfig              `mapstructure:"db"`
 	// 注意：NATS、JWT、Control Service 配置已移至全局配置，不再在此处配置
 	// 数据库配置保留在服务配置中，因为微服务后续每个服务一个库
 }
