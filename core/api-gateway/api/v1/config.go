@@ -1,8 +1,6 @@
 package v1
 
 import (
-	"fmt"
-
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/gin-gonic/gin"
 )
@@ -40,10 +38,9 @@ type Service struct {
 func (c *Config) GetConfig(ctx *gin.Context) {
 	cfg := config.GetAPIGatewayConfig()
 
-	// 获取网关地址
-	gatewayURL := fmt.Sprintf("http://localhost:%d", cfg.GetPort())
-	// TODO: 从配置读取外部地址（用于生产环境）
-	// 可以从环境变量 GATEWAY_EXTERNAL_URL 读取
+	// 获取网关地址（从全局配置读取，裸机服务访问）
+	globalConfig := config.GetGlobalSharedConfig()
+	gatewayURL := globalConfig.Gateway.GetBaseURL()
 
 	// 构建服务配置
 	services := make(map[string]Service)
