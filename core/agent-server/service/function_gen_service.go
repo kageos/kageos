@@ -81,7 +81,8 @@ func (s *FunctionGenService) callPlugin(ctx context.Context, pluginSubject strin
 
 	// 调用插件（使用 NATS Request/Reply 模式）
 	var pluginResp dto.PluginRunResp
-	timeout := time.Duration(s.cfg.GetNatsTimeout()) * time.Second
+	// 默认 NATS 超时时间：600 秒
+	timeout := 600 * time.Second
 	logger.Debugf(ctx, "[FunctionGenService] 发送 NATS 请求 - Subject: %s, Timeout: %v, TraceID: %s",
 		pluginSubject, timeout, traceId)
 
