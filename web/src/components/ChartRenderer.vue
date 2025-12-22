@@ -98,7 +98,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElCard, ElForm, ElFormItem, ElButton, ElEmpty, ElMessage, ElRow, ElCol } from 'element-plus'
+import { ElCard, ElForm, ElFormItem, ElButton, ElEmpty, ElMessage, ElRow, ElCol, ElDialog, ElInput, ElText, ElNotification } from 'element-plus'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import type { EChartsOption } from 'echarts'
@@ -914,11 +914,117 @@ const handleRefresh = () => {
   loadChartData()
 }
 
+// ==================== 快链保存 ====================
+
+// 🔥 Ctrl+S 快捷键监听
+const handleKeydown = (event: KeyboardEvent): void => {
+  // Ctrl+S 或 Cmd+S（Mac）
+  if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+    event.preventDefault()
+    handleSaveQuickLink()
+  }
+}
+
+// 保存快链
+const handleSaveQuickLink = (): void => {
+  if (!props.functionDetail) {
+    ElNotification.error({
+      title: '保存失败',
+      message: '函数详情未加载完成，请稍后重试',
+      duration: 3000
+    })
+    return
+  }
+
+  // 检查是否有筛选数据
+  const hasFilterData = Object.keys(fieldValues.value).some(key => {
+    const value = fieldValues.value[key]
+    return value && value.raw !== null && value.raw !== undefined && value.raw !== ''
+  })
+
+  if (!hasFilterData) {
+    ElMessage.warning('当前图表没有筛选条件，无法保存快链')
+    return
+  }
+
+  // 显示名称输入弹窗
+  quickLinkForm.value.name = `快链 ${new Date().toLocaleString('zh-CN')}`
+  showQuickLinkNameDialog.value = true
+}
+
+// 确认保存快链
+const confirmSaveQuickLink = async (): Promise<void> => {
+  try {
+    if (!props.functionDetail) {
+      return
+    }
+
+    if (!quickLinkForm.value.name || quickLinkForm.value.name.trim() === '') {
+      ElMessage.warning('请输入快链名称')
+      return
+    }
+
+    // 1. 构建请求参数（筛选条件）
+    const requestParams: Record<string, FieldValue> = {}
+    Object.keys(fieldValues.value).forEach(key => {
+      const value = fieldValues.value[key]
+      if (value && value.raw !== null && value.raw !== undefined && value.raw !== '') {
+        requestParams[key] = value
+      }
+    })
+
+    // 2. 调用后端 API 保存快链
+    const { createQuickLink } = await import('@/api/quicklink')
+    const result = await createQuickLink({
+      name: quickLinkForm.value.name.trim(),
+      function_router: props.functionDetail.router,
+      function_method: props.functionDetail.method || 'GET',
+      template_type: 'chart',
+      request_params: requestParams
+    })
+
+    // 3. 生成快链 URL
+    const url = `${window.location.origin}${route.path}?_quicklink_id=${result.id}`
+    quickLinkUrl.value = url
+
+    // 4. 关闭名称输入弹窗，显示快链地址弹窗
+    showQuickLinkNameDialog.value = false
+    showQuickLinkDialog.value = true
+  } catch (error: any) {
+    let errorMessage = '保存快链失败，请稍后重试'
+    if (error?.response?.data) {
+      const responseData = error.response.data
+      errorMessage = responseData.msg || errorMessage
+    } else if (error?.message) {
+      errorMessage = error.message
+    }
+    
+    ElNotification.error({
+      title: '保存失败',
+      message: errorMessage,
+      duration: 3000
+    })
+  }
+}
+
+// 复制快链 URL
+const copyQuickLinkUrl = async (): Promise<void> => {
+  try {
+    await navigator.clipboard.writeText(quickLinkUrl.value)
+    ElMessage.success('快链链接已复制到剪贴板')
+  } catch (err) {
+    ElMessage.error('复制失败，请手动复制：' + quickLinkUrl.value)
+  }
+}
+
 // ResizeObserver 用于监听容器大小变化
 let resizeObserver: ResizeObserver | null = null
 
 // 生命周期
 onMounted(() => {
+  // 🔥 添加 Ctrl+S 快捷键监听
+  window.addEventListener('keydown', handleKeydown)
+  
   // 初始化字段值
   initializeFieldValues()
   
@@ -942,6 +1048,9 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  // 🔥 移除 Ctrl+S 快捷键监听
+  window.removeEventListener('keydown', handleKeydown)
+  
   // 销毁图表实例
   if (chartInstance.value) {
     chartInstance.value.dispose()
@@ -1074,6 +1183,20 @@ watch(() => chartData.value, (newData) => {
       }
     }
   }
+}
+
+.quicklink-url-section {
+  margin-top: 16px;
+}
+
+.quicklink-url-display {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.quicklink-url-input {
+  flex: 1;
 }
 </style>
 

@@ -321,6 +321,8 @@ const canContinue = ref(true) // 是否可以继续输入
 // 轮询相关
 const pollingTimers = ref<Map<number, NodeJS.Timeout>>(new Map()) // 每个 record_id 对应的定时器
 const pollingRecordIds = ref<Set<number>>(new Set()) // 正在轮询的 record_id 集合
+// 轮询状态：记录每个 recordId 的轮询次数和开始时间
+const pollingStates = ref<Map<number, { count: number; startTime: number }>>(new Map())
 
 // 文件上传相关
 const uploadedFiles = ref<ChatFile[]>([])
@@ -978,11 +980,6 @@ async function handleSend() {
     if (res.record_id) {
       startPolling(res.record_id)
     }
-
-    // 如果返回了 record_id，开始轮询状态
-    if (res.record_id) {
-      startPolling(res.record_id)
-    }
   } catch (error: any) {
     ElMessage.error(error.message || '发送消息失败')
     // 移除用户消息（因为发送失败）
@@ -1059,6 +1056,50 @@ function handleMessageLinkClick(event: MouseEvent) {
 
 // ==================== 轮询相关 ====================
 
+/**
+ * 智能轮询策略：根据已用时间和轮询次数动态调整间隔
+ * 
+ * 策略说明：
+ * - 初始阶段（预计30秒-1.5分钟）：用较长间隔（30秒），因为还没到完成时间
+ * - 临近完成：加快频率（5秒、2秒），因为这时候更可能完成
+ * - 超时后（超过2分钟）：降低频率（10秒），因为可能出问题了
+ * 
+ * 具体策略：
+ * - 第1次：30秒后轮询（初始等待）
+ * - 第2次：5秒后轮询（开始接近预计完成时间）
+ * - 第3次：5秒后轮询
+ * - 第4次：5秒后轮询
+ * - 第5次：2秒后轮询（临近完成，加快频率）
+ * - 第6次及以后：如果超过2分钟，改为10秒间隔（可能出问题，降低频率）
+ */
+function getPollInterval(count: number, elapsed: number): number {
+  // 超时阈值：2分钟（120秒）
+  const TIMEOUT_THRESHOLD = 120 * 1000
+  
+  // 如果超过超时阈值，降低频率（10秒）
+  if (elapsed > TIMEOUT_THRESHOLD) {
+    return 10 * 1000
+  }
+  
+  // 根据轮询次数决定间隔
+  switch (count) {
+    case 1:
+      // 第1次：30秒后轮询（初始等待）
+      return 30 * 1000
+    case 2:
+    case 3:
+    case 4:
+      // 第2-4次：5秒后轮询（开始接近预计完成时间）
+      return 5 * 1000
+    case 5:
+      // 第5次：2秒后轮询（临近完成，加快频率）
+      return 2 * 1000
+    default:
+      // 第6次及以后：如果还没超时，继续用2秒（保持快速响应）
+      return 2 * 1000
+  }
+}
+
 // 开始轮询代码生成状态
 function startPolling(recordId: number) {
   // 如果已经在轮询这个 record_id，不重复启动
@@ -1068,8 +1109,26 @@ function startPolling(recordId: number) {
   
   pollingRecordIds.value.add(recordId)
   
-  // 每 2 秒轮询一次
+  // 初始化轮询状态（count 从 1 开始，因为第一次轮询是第 1 次）
+  const startTime = Date.now()
+  pollingStates.value.set(recordId, { count: 1, startTime })
+  
+  // 轮询函数
   const poll = async () => {
+    // 检查是否还在轮询列表中
+    if (!pollingRecordIds.value.has(recordId)) {
+      return
+    }
+    
+    // 获取当前轮询状态
+    const state = pollingStates.value.get(recordId)
+    if (!state) {
+      return
+    }
+    
+    // 当前轮询次数
+    const currentCount = state.count
+    
     try {
       const res = await agentApi.getFunctionGenStatus({ record_id: recordId })
       
@@ -1140,27 +1199,43 @@ function startPolling(recordId: number) {
           type: 'error',
           duration: 5000
         })
+      } else {
+        // generating 状态：继续轮询，使用智能间隔
+        // 更新轮询次数（为下一次轮询准备）
+        state.count++
+        const elapsed = Date.now() - state.startTime
+        const interval = getPollInterval(state.count, elapsed)
+        
+        // 使用 setTimeout 而不是 setInterval，因为间隔是动态的
+        const timer = setTimeout(() => {
+          poll()
+        }, interval)
+        
+        // 更新定时器引用
+        pollingTimers.value.set(recordId, timer)
       }
-      // generating 状态继续轮询
     } catch (error: any) {
       console.error('[AIChatPanel] 轮询状态失败:', error)
-      // 轮询失败不中断，继续尝试
+      // 轮询失败不中断，继续尝试（使用默认间隔）
+      if (state) {
+        state.count++
+        const elapsed = Date.now() - state.startTime
+        const interval = getPollInterval(state.count, elapsed)
+        
+        const timer = setTimeout(() => {
+          poll()
+        }, interval)
+        
+        pollingTimers.value.set(recordId, timer)
+      }
     }
   }
   
-  // 立即执行一次
-  poll()
-  
-  // 设置定时器，每 2 秒轮询一次
-  const timer = setInterval(() => {
-    // 检查是否还在轮询列表中
-    if (!pollingRecordIds.value.has(recordId)) {
-      clearInterval(timer)
-      pollingTimers.value.delete(recordId)
-      return
-    }
+  // 第一次轮询：等待 30 秒后执行（count = 1）
+  const firstInterval = getPollInterval(1, 0)
+  const timer = setTimeout(() => {
     poll()
-  }, 2000)
+  }, firstInterval)
   
   // 保存定时器引用
   pollingTimers.value.set(recordId, timer)
@@ -1172,9 +1247,11 @@ function stopPolling(recordId: number) {
   // 清理对应的定时器
   const timer = pollingTimers.value.get(recordId)
   if (timer) {
-    clearInterval(timer)
+    clearTimeout(timer)
     pollingTimers.value.delete(recordId)
   }
+  // 清理轮询状态
+  pollingStates.value.delete(recordId)
 }
 
 // 停止所有轮询
@@ -1182,9 +1259,11 @@ function stopAllPolling() {
   pollingRecordIds.value.clear()
   // 清理所有定时器
   pollingTimers.value.forEach((timer) => {
-    clearInterval(timer)
+    clearTimeout(timer)
   })
   pollingTimers.value.clear()
+  // 清理所有轮询状态
+  pollingStates.value.clear()
 }
 
 // 根据格式类型渲染开场白

@@ -268,13 +268,57 @@
       @submit="handleCreateSubmit"
       @close="handleCreateDialogClose"
     />
+
+    <!-- 快链保存弹窗 -->
+    <el-dialog
+      v-model="showQuickLinkNameDialog"
+      title="保存快链"
+      width="500px"
+      :close-on-click-modal="false"
+    >
+      <el-form :model="quickLinkForm" label-width="100px">
+        <el-form-item label="快链名称" required>
+          <el-input
+            v-model="quickLinkForm.name"
+            placeholder="请输入快链名称"
+            @keyup.enter="confirmSaveQuickLink"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showQuickLinkNameDialog = false">取消</el-button>
+        <el-button type="primary" @click="confirmSaveQuickLink">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 快链地址弹窗 -->
+    <el-dialog
+      v-model="showQuickLinkDialog"
+      title="快链已保存"
+      width="500px"
+    >
+      <div class="quicklink-url-section">
+        <el-text type="info" size="small">快链地址已生成，您可以复制链接分享给他人：</el-text>
+        <div class="quicklink-url-display">
+          <el-input
+            :model-value="quickLinkUrl"
+            readonly
+            class="quicklink-url-input"
+          />
+          <el-button type="primary" @click="copyQuickLinkUrl">复制</el-button>
+        </div>
+      </div>
+      <template #footer>
+        <el-button type="primary" @click="showQuickLinkDialog = false">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox, ElIcon, ElTable, ElNotification } from 'element-plus'
+import { ElMessage, ElMessageBox, ElIcon, ElTable, ElNotification, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElText } from 'element-plus'
 import { Search, Refresh, Delete, Plus, ArrowUp, ArrowDown, More, Right } from '@element-plus/icons-vue'
 import { eventBus, TableEvent, WorkspaceEvent, RouteEvent } from '../../infrastructure/eventBus'
 import { RouteSource } from '@/utils/routeSource'
@@ -1364,6 +1408,136 @@ const handleCurrentChange = (page: number): void => {
   loadTableData()
 }
 
+// ==================== 快链保存 ====================
+
+// 快链相关状态
+const showQuickLinkNameDialog = ref(false)
+const showQuickLinkDialog = ref(false)
+const quickLinkUrl = ref('')
+const quickLinkForm = ref({
+  name: ''
+})
+
+// 🔥 Ctrl+S 快捷键监听
+const handleKeydown = (event: KeyboardEvent): void => {
+  // Ctrl+S 或 Cmd+S（Mac）
+  if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+    event.preventDefault()
+    handleSaveQuickLink()
+  }
+}
+
+// 保存快链
+const handleSaveQuickLink = (): void => {
+  if (!props.functionDetail) {
+    ElNotification.error({
+      title: '保存失败',
+      message: '函数详情未加载完成，请稍后重试',
+      duration: 3000
+    })
+    return
+  }
+
+  const currentState = stateManager.getState()
+  
+  // 检查是否有数据需要保存
+  const hasSearchData = Object.keys(currentState.searchForm).length > 0
+  const hasSortData = currentState.sorts.length > 0
+  const hasPaginationData = currentState.pagination.currentPage > 1 || currentState.pagination.pageSize !== 20
+
+  if (!hasSearchData && !hasSortData && !hasPaginationData) {
+    ElMessage.warning('当前表格没有筛选、排序或分页数据，无法保存快链')
+    return
+  }
+
+  // 显示名称输入弹窗
+  quickLinkForm.value.name = `快链 ${new Date().toLocaleString('zh-CN')}`
+  showQuickLinkNameDialog.value = true
+}
+
+// 确认保存快链
+const confirmSaveQuickLink = async (): Promise<void> => {
+  try {
+    if (!props.functionDetail) {
+      return
+    }
+
+    if (!quickLinkForm.value.name || quickLinkForm.value.name.trim() === '') {
+      ElMessage.warning('请输入快链名称')
+      return
+    }
+
+    const currentState = stateManager.getState()
+
+    // 1. 构建请求参数（搜索条件）
+    const requestParams: Record<string, FieldValue> = {}
+    const searchableFields = (props.functionDetail.response || []).filter((field: FieldConfig) => {
+      const search = field.search
+      return search && search !== '-' && search !== '' && search.trim() !== ''
+    })
+
+    searchableFields.forEach((field: FieldConfig) => {
+      const value = currentState.searchForm[field.code]
+      if (value !== null && value !== undefined && value !== '') {
+        requestParams[field.code] = convertToFieldValue(value, field)
+      }
+    })
+
+    // 2. 构建元数据（排序、分页）
+    const metadata: any = {
+      table_state: {
+        page: currentState.pagination.currentPage,
+        page_size: currentState.pagination.pageSize,
+        sorts: currentState.sorts,
+        search_params: currentState.searchForm
+      }
+    }
+
+    // 3. 调用后端 API 保存快链
+    const { createQuickLink } = await import('@/api/quicklink')
+    const result = await createQuickLink({
+      name: quickLinkForm.value.name.trim(),
+      function_router: props.functionDetail.router,
+      function_method: props.functionDetail.method || 'GET',
+      template_type: 'table',
+      request_params: requestParams,
+      metadata: metadata
+    })
+
+    // 4. 生成快链 URL
+    const url = `${window.location.origin}${route.path}?_quicklink_id=${result.id}`
+    quickLinkUrl.value = url
+
+    // 5. 关闭名称输入弹窗，显示快链地址弹窗
+    showQuickLinkNameDialog.value = false
+    showQuickLinkDialog.value = true
+  } catch (error: any) {
+    let errorMessage = '保存快链失败，请稍后重试'
+    if (error?.response?.data) {
+      const responseData = error.response.data
+      errorMessage = responseData.msg || errorMessage
+    } else if (error?.message) {
+      errorMessage = error.message
+    }
+    
+    ElNotification.error({
+      title: '保存失败',
+      message: errorMessage,
+      duration: 3000
+    })
+  }
+}
+
+// 复制快链 URL
+const copyQuickLinkUrl = async (): Promise<void> => {
+  try {
+    await navigator.clipboard.writeText(quickLinkUrl.value)
+    ElMessage.success('快链链接已复制到剪贴板')
+  } catch (err) {
+    ElMessage.error('复制失败，请手动复制：' + quickLinkUrl.value)
+  }
+}
+
 // ==================== 回调判断 ====================
 
 const hasAddCallback = computed(() => {
@@ -1397,6 +1571,9 @@ const { initializeTable, setupQueryWatch } = useTableInitialization({
 })
 
 onMounted(async () => {
+  // 🔥 添加 Ctrl+S 快捷键监听
+  window.addEventListener('keydown', handleKeydown)
+  
   // 🔥 设置挂载状态
   isMounted.value = true
   
@@ -1479,6 +1656,8 @@ const setupAddDialogUrlWatch = () => {
 }
 
 onUnmounted(() => {
+  // 🔥 移除 Ctrl+S 快捷键监听
+  window.removeEventListener('keydown', handleKeydown)
   const functionId = props.functionDetail.id
   const router = props.functionDetail.router
   
@@ -1715,6 +1894,20 @@ onUnmounted(() => {
   flex-shrink: 0;
   white-space: nowrap;
   min-width: fit-content;
+}
+
+.quicklink-url-section {
+  margin-top: 16px;
+}
+
+.quicklink-url-display {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.quicklink-url-input {
+  flex: 1;
 }
 </style>
 

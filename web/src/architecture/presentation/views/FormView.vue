@@ -117,6 +117,24 @@
               @keyup.enter="confirmSaveQuickLink"
             />
           </el-form-item>
+          <el-form-item label="保存选项">
+            <el-checkbox
+              v-model="quickLinkForm.saveResponseParams"
+              :disabled="!hasResponseData"
+            >
+              同时保存响应参数
+            </el-checkbox>
+            <div v-if="!hasResponseData" class="form-item-hint">
+              <el-text type="info" size="small">
+                当前没有响应数据，请先提交表单后再保存快链
+              </el-text>
+            </div>
+            <div v-else class="form-item-hint">
+              <el-text type="info" size="small">
+                勾选后将保存当前表单的响应结果，适用于计算结果缓存等场景
+              </el-text>
+            </div>
+          </el-form-item>
         </el-form>
       </div>
       <template #footer>
@@ -330,7 +348,7 @@ import { computed, onMounted, onUnmounted, watch, ref, nextTick } from 'vue'
 import type { ComputedRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Promotion, RefreshLeft, View, DocumentCopy, Link, List } from '@element-plus/icons-vue'
-import { ElIcon, ElTag, ElNotification, ElMessage, ElAlert, ElMessageBox } from 'element-plus'
+import { ElIcon, ElTag, ElNotification, ElMessage, ElAlert, ElMessageBox, ElText, ElCheckbox } from 'element-plus'
 import { eventBus, FormEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
@@ -432,7 +450,8 @@ const showQuickLinkDialog = ref(false)
 const showQuickLinkListDialog = ref(false)
 const quickLinkUrl = ref('')
 const quickLinkForm = ref({
-  name: ''
+  name: '',
+  saveResponseParams: false  // 🔥 默认不保存响应参数
 })
 const quickLinkList = ref<any[]>([])
 const quickLinkListLoading = ref(false)
@@ -611,6 +630,15 @@ const copyQuickLinkUrl = async (): Promise<void> => {
   }
 }
 
+// 🔥 Ctrl+S 快捷键监听
+const handleKeydown = (event: KeyboardEvent): void => {
+  // Ctrl+S 或 Cmd+S（Mac）
+  if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+    event.preventDefault()
+    handleSaveQuickLink()
+  }
+}
+
 const handleSaveQuickLink = (): void => {
   if (!functionDetail.value) {
     ElNotification.error({
@@ -638,6 +666,7 @@ const handleSaveQuickLink = (): void => {
 
   // 2. 显示名称输入弹窗
   quickLinkForm.value.name = `快链 ${new Date().toLocaleString('zh-CN')}`
+  quickLinkForm.value.saveResponseParams = false  // 🔥 重置为默认值（不保存响应参数）
   showQuickLinkNameDialog.value = true
 }
 
@@ -696,9 +725,14 @@ const confirmSaveQuickLink = async (): Promise<void> => {
       }
     })
 
-    // 2. 收集响应数据（如果有）
-    const state = stateManager.getState()
-    const responseParams = state.response || null
+    // 2. 收集响应数据（如果用户勾选了保存响应参数）
+    let responseParams: Record<string, any> | undefined = undefined
+    if (quickLinkForm.value.saveResponseParams) {
+      const state = stateManager.getState()
+      if (state.response && Object.keys(state.response).length > 0) {
+        responseParams = state.response
+      }
+    }
 
     // 3. 调用后端 API 保存快链
     const { createQuickLink } = await import('@/api/quicklink')
@@ -708,7 +742,7 @@ const confirmSaveQuickLink = async (): Promise<void> => {
       function_method: functionDetail.value.method,
       template_type: functionDetail.value.template_type || 'form',
       request_params: requestParams,
-      response_params: responseParams || undefined
+      response_params: responseParams
     })
 
     // 4. 生成快链 URL
@@ -910,6 +944,9 @@ const { watchFormData } = useFormParamURLSync({
 })
 
 onMounted(async () => {
+  // 🔥 添加 Ctrl+S 快捷键监听
+  window.addEventListener('keydown', handleKeydown)
+  
   // 🔥 挂载时清理 store，避免之前函数的数据污染
   formDataStore.clear()
   responseDataStore.clear()
@@ -1124,6 +1161,8 @@ onMounted(async () => {
   // URL 参数会在 initializeParams 时统一处理，包括类型转换和组件自治初始化
 
 onUnmounted(() => {
+  // 🔥 移除 Ctrl+S 快捷键监听
+  window.removeEventListener('keydown', handleKeydown)
   if (unsubscribeFunctionLoaded) {
     unsubscribeFunctionLoaded()
   }
@@ -1246,6 +1285,11 @@ onUnmounted(() => {
 /* 快链名称输入弹窗样式 */
 .quicklink-name-dialog-content {
   padding: 10px 0;
+}
+
+.form-item-hint {
+  margin-top: 8px;
+  line-height: 1.5;
 }
 
 /* 快链列表弹窗样式 */
