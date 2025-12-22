@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
@@ -210,15 +209,11 @@ func (s *Server) initDatabase(ctx context.Context) error {
 func (s *Server) initNATS(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Initializing NATS connection...")
 
-	natsHost := s.cfg.GetNatsHost()
-	if natsHost == "" {
-		return fmt.Errorf("NATS host is not configured")
-	}
-
-	// 构建 NATS URL（如果配置中已经包含 nats:// 前缀，则直接使用，否则添加前缀）
-	natsURL := natsHost
-	if !strings.HasPrefix(natsHost, "nats://") {
-		natsURL = fmt.Sprintf("nats://%s", natsHost)
+	// 从全局配置读取 NATS URL
+	globalConfig := config.GetGlobalSharedConfig()
+	natsURL := globalConfig.Nats.URL
+	if natsURL == "" {
+		return fmt.Errorf("NATS URL is not configured in global config")
 	}
 
 	// 连接选项

@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"strings"
 	"sync"
 )
 
@@ -59,25 +58,6 @@ func (c *AgentServerConfig) GetPort() int         { return c.Server.Port }
 func (c *AgentServerConfig) GetLogLevel() string  { return c.Server.LogLevel }
 func (c *AgentServerConfig) IsDebug() bool        { return c.Server.Debug }
 func (c *AgentServerConfig) GetAgentTimeout() int { return c.Agent.Timeout }
-// GetNatsHost 获取 NATS 地址（从全局配置读取）
-func (c *AgentServerConfig) GetNatsHost() string {
-	global := GetGlobalSharedConfig()
-	if global.Nats.URL != "" {
-		// 从 nats://127.0.0.1:4222 格式中提取 host:port
-		url := global.Nats.URL
-		if strings.HasPrefix(url, "nats://") {
-			return strings.TrimPrefix(url, "nats://")
-		}
-		return url
-	}
-	return "127.0.0.1:4222" // 默认值
-}
-
-// GetNatsTimeout 获取 NATS 请求超时时间（秒）
-func (c *AgentServerConfig) GetNatsTimeout() int {
-	// 默认 600 秒
-	return 600
-}
 
 // 数据库配置便捷访问方法
 func (c *AgentServerConfig) GetDBLogLevel() string {

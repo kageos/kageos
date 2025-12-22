@@ -21,6 +21,15 @@ type Agent struct {
 	cfg     *config.AgentServerConfig
 }
 
+// getNatsHost 获取 NATS 地址（从全局配置读取，返回完整 URL）
+func (h *Agent) getNatsHost() string {
+	globalConfig := config.GetGlobalSharedConfig()
+	if globalConfig.Nats.URL != "" {
+		return globalConfig.Nats.URL
+	}
+	return "nats://127.0.0.1:4222" // 默认值
+}
+
 // NewAgent 创建智能体 API 处理器
 func NewAgent(service *service.AgentService, cfg *config.AgentServerConfig) *Agent {
 	return &Agent{service: service, cfg: cfg}
@@ -131,7 +140,7 @@ func (h *Agent) List(c *gin.Context) {
 				Description: agent.Plugin.Description,
 				Enabled:     agent.Plugin.Enabled,
 				Subject:     agent.Plugin.Subject,
-				NatsHost:    h.cfg.GetNatsHost(),
+				NatsHost:    h.getNatsHost(),
 				Config:      agent.Plugin.Config,
 				User:        agent.Plugin.User,
 				CreatedAt:   time.Time(agent.Plugin.CreatedAt).Format("2006-01-02T15:04:05Z"),
@@ -245,7 +254,7 @@ func (h *Agent) Get(c *gin.Context) {
 			Description: agent.Plugin.Description,
 			Enabled:     agent.Plugin.Enabled,
 			Subject:     agent.Plugin.Subject,
-			NatsHost:    h.cfg.GetNatsHost(),
+			NatsHost:    h.getNatsHost(),
 			Config:      agent.Plugin.Config,
 			User:        agent.Plugin.User,
 			CreatedAt:   time.Time(agent.Plugin.CreatedAt).Format("2006-01-02T15:04:05Z"),
