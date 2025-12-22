@@ -3592,7 +3592,7 @@ const docTemplate = `{
                 "nats_host": {
                     "description": "NATS 服务器地址",
                     "type": "string",
-                    "example": "nats://127.0.0.1:4223"
+                    "example": "nats://127.0.0.1:4222"
                 },
                 "subject": {
                     "description": "NATS主题，自动生成",

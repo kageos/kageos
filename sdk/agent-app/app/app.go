@@ -147,7 +147,7 @@ func NewApp() (*App, error) {
 	// 连接 NATS（优先使用环境变量）
 	natsURL := os.Getenv("NATS_URL")
 	if natsURL == "" {
-		natsURL = "nats://127.0.0.1:4223"
+		natsURL = "nats://127.0.0.1:4222"
 	}
 
 	logger.Infof(context.Background(), "Connecting to NATS: %s", natsURL)
