@@ -3,7 +3,7 @@
 # NATS Server Podman 部署脚本
 
 CONTAINER_NAME="nats-server"
-NATS_PORT="4223"
+NATS_PORT="4222"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="$SCRIPT_DIR/nats-server.conf"
 
