@@ -19,7 +19,7 @@ import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
 import { RouteSource } from '@/utils/routeSource'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
 import { Logger } from '@/core/utils/logger'
-import { WidgetType } from '@/core/constants/widget'
+import { isEmptyValue, shouldSkipURLSync, convertFieldValueToURLParam, mergeURLQueryParams } from './utils/urlSyncUtils'
 
 export interface UseFormParamURLSyncOptions {
   functionDetail: Ref<FunctionDetail | null> | ComputedRef<FunctionDetail | null>
@@ -48,52 +48,19 @@ function buildFormQueryParams(
     const fieldValue = formDataStore.getValue(field.code)
     
     // 跳过空值
-    if (!fieldValue || fieldValue.raw === null || fieldValue.raw === undefined) {
+    if (isEmptyValue(fieldValue)) {
       return
     }
     
-    // 跳过空字符串
-    if (typeof fieldValue.raw === 'string' && fieldValue.raw.trim() === '') {
+    // 黑名单检查：排除复杂类型和密码字段
+    if (shouldSkipURLSync(field, '[useFormParamURLSync]')) {
       return
     }
     
-    // 跳过空数组
-    if (Array.isArray(fieldValue.raw) && fieldValue.raw.length === 0) {
-      return
-    }
-    
-    // 跳过空对象
-    if (typeof fieldValue.raw === 'object' && !Array.isArray(fieldValue.raw) && Object.keys(fieldValue.raw).length === 0) {
-      return
-    }
-    
-    // 🔥 黑名单模式：默认都支持 URL 同步，只有复杂类型和密码字段不支持
-    const widgetType = field.widget?.type
-    const widgetConfig = field.widget?.config as any
-    
-    // 排除复杂类型
-    const unsupportedTypes = [WidgetType.FORM, WidgetType.TABLE, WidgetType.FILES]
-    if (widgetType && unsupportedTypes.includes(widgetType)) {
-      Logger.debug('[useFormParamURLSync]', `字段 ${field.code} 是复杂类型（${widgetType}），跳过 URL 同步`)
-      return
-    }
-    
-    // 🔥 排除密码字段（安全性考虑：密码不应出现在 URL 中）
-    if (widgetType === WidgetType.INPUT && widgetConfig?.password === true) {
-      Logger.debug('[useFormParamURLSync]', `字段 ${field.code} 是密码字段，跳过 URL 同步（安全性考虑）`)
-      return
-    }
-    
-    // 🔥 默认支持所有其他类型：直接转换为字符串
+    // 🔥 默认支持所有其他类型：转换为 URL 参数
     // 支持的类型包括：input, text, text_area, number, float, switch, select, multiselect, 
     // radio, checkbox, timestamp, ID, rate, user, slider, color, richtext, link, progress 等
-    if (Array.isArray(fieldValue.raw)) {
-      // 数组类型（如 multiselect）：使用逗号分隔
-      query[field.code] = fieldValue.raw.map(v => String(v)).join(',')
-    } else {
-      // 其他类型：直接转换为字符串
-      query[field.code] = String(fieldValue.raw)
-    }
+    query[field.code] = convertFieldValueToURLParam(fieldValue)
   })
   
   return query
@@ -136,51 +103,11 @@ export function useFormParamURLSync(options: UseFormParamURLSyncOptions) {
     const requestFields = detail.request || []
     const query = buildFormQueryParams(requestFields, options.formDataStore)
     
-    // 获取当前 URL 的查询参数
+    // 获取当前 URL 的查询参数并合并
     const currentQuery = route.query
-    const hasQueryParams = Object.keys(currentQuery).length > 0
-    const isLinkNavigation = currentQuery._link_type === 'form'
+    const newQuery = mergeURLQueryParams(currentQuery, query, 'form')
     
-    console.log('🔍 [useFormParamURLSync] 开始同步到 URL', {
-      hasQueryParams,
-      currentQueryKeys: Object.keys(currentQuery),
-      isLinkNavigation,
-      newQuery: query,
-      newQueryKeys: Object.keys(query)
-    })
-    
-    // 🔥 如果 URL 没有查询参数（刚切换函数），直接使用新的查询参数，不保留任何旧参数
-    let newQuery: Record<string, string | string[]>
-    if (!hasQueryParams && !isLinkNavigation) {
-      // 刚切换函数，URL 是空的，直接使用新的查询参数
-      console.log('🔍 [useFormParamURLSync] URL 没有查询参数，不保留旧参数，直接使用新参数')
-      newQuery = { ...query }
-    } else {
-      // URL 有查询参数，保留现有参数（如 _link_type、_tab）并合并新的 form 参数
-      newQuery = { ...currentQuery }
-      
-      // 保留以 _ 开头的参数（前端状态参数，如 _tab=OnTableAddRow），但清除 _link_type（临时参数）
-      Object.keys(newQuery).forEach(key => {
-        if (key.startsWith('_') && key !== '_link_type') {
-          // 保留状态参数（如 _tab）
-        } else if (key.startsWith('_') && key === '_link_type') {
-          // 清除临时参数
-          delete newQuery[key]
-        }
-      })
-      
-      // 合并新的 form 参数（覆盖旧的同名参数）
-      Object.assign(newQuery, query)
-      
-      console.log('🔍 [useFormParamURLSync] URL 有查询参数，保留现有参数', {
-        preservedQuery: newQuery,
-        preservedQueryKeys: Object.keys(newQuery)
-      })
-    }
-    
-    // 🔥 发出路由更新请求
-    console.log('🔍 [useFormParamURLSync] 发出路由更新请求', {
-      query: newQuery,
+    Logger.debug('[useFormParamURLSync]', '发出路由更新请求', {
       queryKeys: Object.keys(newQuery),
       queryLength: Object.keys(newQuery).length
     })
