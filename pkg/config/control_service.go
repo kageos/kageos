@@ -33,7 +33,7 @@ func GetControlServiceConfig() *ControlServiceConfig {
 // ControlServiceConfig control-service 配置
 type ControlServiceConfig struct {
 	Server  ControlServiceServerConfig `mapstructure:"server"`
-	Nats    ControlServiceNatsConfig   `mapstructure:"nats"`
+	Nats    ControlServiceNatsConfig   `mapstructure:"nats"` // 已废弃，改为从全局配置读取
 	License LicenseConfig              `mapstructure:"license"`
 }
 
@@ -126,12 +126,19 @@ func (c *ControlServiceConfig) IsDebug() bool {
 	return c.Server.Debug
 }
 
-// GetNatsURL 获取 NATS URL
+// GetNatsURL 获取 NATS URL（从全局配置读取）
 func (c *ControlServiceConfig) GetNatsURL() string {
-	if c.Nats.URL == "" {
-		return "nats://127.0.0.1:4222"
+	// 优先使用全局配置的 NATS
+	global := GetGlobalSharedConfig()
+	if global.Nats.URL != "" {
+		return global.Nats.URL
 	}
-	return c.Nats.URL
+	// 如果全局配置为空，使用服务配置（向后兼容）
+	if c.Nats.URL != "" {
+		return c.Nats.URL
+	}
+	// 默认值
+	return "nats://127.0.0.1:4222"
 }
 
 // GetLicensePath 获取 License 文件路径
