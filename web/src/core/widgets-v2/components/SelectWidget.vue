@@ -154,6 +154,7 @@ import { convertValueToType } from '../utils/valueConverter'
 import { eventBus, FormEvent } from '../../../architecture/infrastructure/eventBus'
 import { widgetInitializerRegistry } from '../initializers/WidgetInitializerRegistry'
 import { SelectWidgetInitializer } from '../initializers/SelectWidgetInitializer'
+import type { SelectWidgetConfig } from '@/core/types/widget-configs'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -166,6 +167,11 @@ const emit = defineEmits<WidgetComponentEmits>()
 
 const formDataStore = useFormDataStore()
 
+// 获取配置（带类型）
+const widgetConfig = computed(() => {
+  return (props.field.widget?.config || {}) as SelectWidgetConfig
+})
+
 // 选项列表
 const options = ref<Array<{ label: string; value: any; disabled?: boolean; displayInfo?: string }>>([])
 
@@ -174,7 +180,7 @@ const options = ref<Array<{ label: string; value: any; disabled?: boolean; displ
  * options_colors 数组与静态选项的索引对齐
  */
 const staticOptions = computed(() => {
-  const configOptions = props.field.widget?.config?.options || []
+  const configOptions = widgetConfig.value.options || []
   if (Array.isArray(configOptions)) {
     if (typeof configOptions[0] === 'string') {
       // 字符串数组
@@ -202,7 +208,7 @@ const staticOptions = computed(() => {
  * options_colors 数组与 staticOptions 数组的索引对齐，通过索引获取对应选项的颜色
  */
 const optionColors = computed(() => {
-  return props.field.widget?.config?.options_colors || []
+  return widgetConfig.value.options_colors || []
 })
 
 // isStandardColor 已从 constants/select 导入
@@ -292,11 +298,7 @@ const dialogVisible = ref(false)
 const dialogSuggestions = ref<Array<{ label: string; value: any; displayInfo?: any; icon?: string }>>([])
 
 // 🔥 SelectWidget 是纯单选组件，不需要多选相关逻辑
-
-// 是否可搜索
-const isFilterable = computed(() => {
-  return props.field.widget?.config?.filterable !== false
-})
+// 注意：SelectWidget 始终支持搜索（通过 FuzzySearchDialog），不需要 filterable 配置
 
 // 内部值（用于 v-model）
 const internalValue = computed({
@@ -451,7 +453,7 @@ const displayValue = computed(() => {
 
 // 初始化选项
 function initOptions(): void {
-  const configOptions = props.field.widget?.config?.options
+  const configOptions = widgetConfig.value.options
   if (configOptions && Array.isArray(configOptions)) {
     if (typeof configOptions[0] === 'string') {
       // 字符串数组

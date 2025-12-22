@@ -525,6 +525,7 @@ import {
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useFormDataStore } from '../../stores-v2/formData'
 import { createFieldValue } from '../utils/createFieldValue'
+import type { RichTextWidgetConfig } from '@/core/types/widget-configs'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -607,8 +608,10 @@ function getVideoMimeType(ext: string): string {
   return mimeTypes[ext.toLowerCase()] || 'video/mp4'
 }
 
-// 配置
-const config = computed(() => props.field.widget?.config || {})
+// 获取配置（带类型）
+const config = computed(() => {
+  return (props.field.widget?.config || {}) as RichTextWidgetConfig
+})
 
 // 编辑器高度
 const editorHeight = computed(() => {

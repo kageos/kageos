@@ -18,6 +18,7 @@ import type { TableState } from '../../domain/services/TableDomainService'
 import { extractWorkspacePath } from '@/utils/route'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
+import { isLinkNavigation } from '@/utils/linkNavigation'
 
 export interface UseTableInitializationOptions {
   functionDetail: FunctionDetail | { value: FunctionDetail }
@@ -117,11 +118,11 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     // 只有在 URL 参数不完整时才同步（比如只有搜索参数，没有分页参数）
     // 🔥 修复：检查是否是 link 跳转，如果是 link 跳转，即使没有分页参数，也不要同步
     // 因为 link 跳转时，URL 中的参数是用户明确指定的，不应该被覆盖
-    const isLinkNavigation = route.query._link_type === 'table' || route.query._link_type === 'form'
+    const isLinkNav = isLinkNavigation(route.query)
     const hasPaginationParams = route.query.page && route.query.page_size
     
     // 🔥 只有在非 link 跳转且没有分页参数时，才同步默认分页参数
-    if (!isLinkNavigation && !hasPaginationParams) {
+    if (!isLinkNav && !hasPaginationParams) {
       // URL 中没有分页参数，需要同步默认分页参数
       if (!isSyncingToURL.value) {
         isSyncingToURL.value = true
@@ -158,10 +159,10 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     
     // 🔥 检查是否是 link 跳转（通过 _link_type 参数）
     // link 跳转时，URL 中的参数是用户明确指定的（来自 link 值），应该优先从 URL 恢复
-    const isLinkNavigation = route.query._link_type === 'table' || route.query._link_type === 'form'
+    const isLinkNav = isLinkNavigation(route.query)
     
     // 优先级 1：如果是 link 跳转，优先从 URL 恢复（即使 Tab 有状态也要覆盖）
-    if (isLinkNavigation && hasURLParams) {
+    if (isLinkNav && hasURLParams) {
       await restoreFromURLAndSync()
       return
     }
@@ -181,7 +182,7 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     // 🔥 优先级 4：Tab 没有保存的状态，且 URL 没有参数（刚切换函数），清空状态
     // 这是关键修复：切换函数时，如果 URL 没有参数，说明是新的函数，应该清空旧的状态
     // 注意：状态清空已在 initializeTable 开始时处理，这里只需要同步默认参数到 URL
-    if (!hasTabState && !hasURLParams && !isLinkNavigation) {
+    if (!hasTabState && !hasURLParams && !isLinkNav) {
       // 清空状态后，同步默认参数到 URL
       await syncTabStateToURL()
       return
@@ -209,9 +210,9 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     // 🔥 在初始化之前，先检查是否需要清空状态
     // 如果 URL 没有查询参数（刚切换函数），先清空 TableStateManager 的状态
     const hasQueryParams = Object.keys(route.query).length > 0
-    const isLinkNavigation = route.query._link_type === 'table' || route.query._link_type === 'form'
+    const isLinkNav = isLinkNavigation(route.query)
     
-    if (!hasQueryParams && !isLinkNavigation) {
+    if (!hasQueryParams && !isLinkNav) {
       // 刚切换函数，清空 TableStateManager 的状态，避免旧函数的状态污染新函数
       const currentState = stateManager.getState()
       stateManager.setState({

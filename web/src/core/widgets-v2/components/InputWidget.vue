@@ -16,8 +16,8 @@
     <el-input
       v-if="mode === 'edit'"
       v-model="internalValue"
-      :disabled="field.widget?.config?.disabled"
-      :placeholder="field.desc || `请输入${field.name}`"
+      :disabled="widgetConfig.disabled"
+      :placeholder="widgetConfig.placeholder || field.desc || `请输入${field.name}`"
       :clearable="true"
       @blur="handleBlur"
     />
@@ -53,6 +53,7 @@ import { ElInput } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useFormDataStore } from '../../stores-v2/formData'
 import { createFieldValue } from '../utils/createFieldValue'
+import type { InputWidgetConfig } from '@/core/types/widget-configs'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -64,6 +65,11 @@ const props = withDefaults(defineProps<WidgetComponentProps>(), {
 const emit = defineEmits<WidgetComponentEmits>()
 
 const formDataStore = useFormDataStore()
+
+// 获取配置（带类型）
+const widgetConfig = computed(() => {
+  return (props.field.widget?.config || {}) as InputWidgetConfig
+})
 
 // 内部值（用于 v-model）
 const internalValue = computed({

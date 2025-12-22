@@ -58,6 +58,7 @@ import { ElInputNumber } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useFormDataStore } from '../../stores-v2/formData'
 import { createFieldValue } from '../utils/createFieldValue'
+import type { FloatWidgetConfig } from '@/core/types/widget-configs'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -70,8 +71,10 @@ const emit = defineEmits<WidgetComponentEmits>()
 
 const formDataStore = useFormDataStore()
 
-// 配置
-const config = computed(() => props.field.widget?.config || {})
+// 获取配置（带类型）
+const config = computed(() => {
+  return (props.field.widget?.config || {}) as FloatWidgetConfig
+})
 
 // 精度（小数位数）
 const precisionValue = computed(() => {

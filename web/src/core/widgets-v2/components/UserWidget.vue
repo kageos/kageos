@@ -13,8 +13,8 @@
       <div
         v-if="selectedUserForDisplay"
         class="user-select-display"
-        :class="{ 'is-disabled': field.widget?.config?.disabled }"
-        @click="!field.widget?.config?.disabled && handleOpenDialog()"
+        :class="{ 'is-disabled': false }"
+        @click="handleOpenDialog()"
       >
         <el-avatar 
           v-if="selectedUserForDisplay.avatar" 
@@ -34,14 +34,14 @@
         <span class="user-display-text">
           {{ formatUserDisplayName(selectedUserForDisplay) }}
         </span>
-        <el-icon v-if="!field.widget?.config?.disabled" class="edit-icon">
+        <el-icon class="edit-icon">
           <Edit />
         </el-icon>
       </div>
       <!-- 未选中时显示按钮 -->
       <el-button
         v-else
-        :disabled="field.widget?.config?.disabled"
+        :disabled="false"
         :placeholder="field.desc || `请选择${field.name}`"
         @click="handleOpenDialog()"
       >

@@ -93,8 +93,10 @@ const emit = defineEmits<WidgetComponentEmits>()
 
 const formDataStore = useFormDataStore()
 
-// 配置
-const config = computed(() => props.field.widget?.config || {})
+// 获取配置（带类型）
+const config = computed(() => {
+  return (props.field.widget?.config || {}) as SliderWidgetConfig
+})
 
 // 最小值、最大值、步长、单位
 const min = computed(() => {

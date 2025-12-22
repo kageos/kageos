@@ -20,6 +20,7 @@ import { RouteSource } from '@/utils/routeSource'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
 import { Logger } from '@/core/utils/logger'
 import { isEmptyValue, shouldSkipURLSync, convertFieldValueToURLParam, mergeURLQueryParams } from './utils/urlSyncUtils'
+import { isLinkNavigation } from '@/utils/linkNavigation'
 
 export interface UseFormParamURLSyncOptions {
   functionDetail: Ref<FunctionDetail | null> | ComputedRef<FunctionDetail | null>
@@ -107,9 +108,13 @@ export function useFormParamURLSync(options: UseFormParamURLSyncOptions) {
     const currentQuery = route.query
     const newQuery = mergeURLQueryParams(currentQuery, query, 'form')
     
+    // 判断是否是 link 跳转
+    const isLinkNav = isLinkNavigation(currentQuery)
+    
     Logger.debug('[useFormParamURLSync]', '发出路由更新请求', {
       queryKeys: Object.keys(newQuery),
-      queryLength: Object.keys(newQuery).length
+      queryLength: Object.keys(newQuery).length,
+      isLinkNavigation: isLinkNav
     })
     
     eventBus.emit(RouteEvent.updateRequested, {
@@ -118,7 +123,7 @@ export function useFormParamURLSync(options: UseFormParamURLSyncOptions) {
         table: false,        // Form 不需要保留 table 参数
         search: false,       // Form 不需要保留搜索参数
         state: true,         // 保留状态参数（_ 开头，如 _tab=OnTableAddRow）
-        linkNavigation: isLinkNavigation  // 如果是 link 跳转，保留所有参数
+        linkNavigation: isLinkNav  // 如果是 link 跳转，保留所有参数
       },
       source: RouteSource.FORM_SYNC
     })

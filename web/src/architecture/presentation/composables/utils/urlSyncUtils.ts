@@ -6,6 +6,7 @@
 import type { FieldConfig, FieldValue } from '../../../domain/types'
 import { Logger } from '@/core/utils/logger'
 import { WidgetType } from '@/core/constants/widget'
+import { LINK_TYPE_QUERY_KEY, LinkType, isLinkNavigation } from '@/utils/linkNavigation'
 
 /**
  * 检查字段值是否为空
@@ -76,7 +77,7 @@ export function convertFieldValueToURLParam(fieldValue: FieldValue): string {
  * 
  * @param currentQuery 当前 URL 查询参数
  * @param newQuery 新的查询参数
- * @param linkType 链接类型（用于判断是否是链接导航）
+ * @param linkType 链接类型（用于判断是否是链接导航，可选）
  * @returns 合并后的查询参数
  */
 export function mergeURLQueryParams(
@@ -85,10 +86,13 @@ export function mergeURLQueryParams(
   linkType?: string
 ): Record<string, string | string[]> {
   const hasQueryParams = Object.keys(currentQuery).length > 0
-  const isLinkNavigation = linkType && currentQuery._link_type === linkType
+  // 判断是否是 link 跳转：如果提供了 linkType，检查是否匹配；否则使用通用判断
+  const isLinkNav = linkType 
+    ? currentQuery[LINK_TYPE_QUERY_KEY] === linkType
+    : isLinkNavigation(currentQuery)
   
   // 🔥 如果 URL 没有查询参数（刚切换函数），直接使用新的查询参数，不保留任何旧参数
-  if (!hasQueryParams && !isLinkNavigation) {
+  if (!hasQueryParams && !isLinkNav) {
     Logger.debug('[URLSync]', 'URL 没有查询参数，不保留旧参数，直接使用新参数')
     return { ...newQuery }
   }
@@ -98,7 +102,7 @@ export function mergeURLQueryParams(
   
   // 保留以 _ 开头的参数（前端状态参数，如 _tab=OnTableAddRow），但清除 _link_type（临时参数）
   Object.keys(mergedQuery).forEach(key => {
-    if (key.startsWith('_') && key === '_link_type') {
+    if (key.startsWith('_') && key === LINK_TYPE_QUERY_KEY) {
       // 清除临时参数
       delete mergedQuery[key]
     }
@@ -109,7 +113,8 @@ export function mergeURLQueryParams(
   Object.assign(mergedQuery, newQuery)
   
   Logger.debug('[URLSync]', 'URL 有查询参数，保留现有参数', {
-    preservedQueryKeys: Object.keys(mergedQuery)
+    preservedQueryKeys: Object.keys(mergedQuery),
+    isLinkNavigation: isLinkNav
   })
   
   return mergedQuery

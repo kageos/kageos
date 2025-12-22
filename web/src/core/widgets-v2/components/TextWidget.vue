@@ -88,7 +88,7 @@
         type="textarea"
         :rows="6"
         :placeholder="field.desc || `请输入${field.name}`"
-        :disabled="field.widget?.config?.disabled"
+        :disabled="false"
         @blur="handleBlur"
       />
     </div>
@@ -126,6 +126,7 @@ import { ElInput } from 'element-plus'
 import { marked } from 'marked'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useFormDataStore } from '../../stores-v2/formData'
+import type { TextWidgetConfig } from '@/core/types/widget-configs'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -138,8 +139,10 @@ const emit = defineEmits<WidgetComponentEmits>()
 
 const formDataStore = useFormDataStore()
 
-// 配置
-const config = computed(() => props.field.widget?.config || {})
+// 获取配置（带类型）
+const config = computed(() => {
+  return (props.field.widget?.config || {}) as TextWidgetConfig
+})
 
 // 格式化类型
 const format = computed(() => {
