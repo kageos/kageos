@@ -145,7 +145,8 @@ func (s *AuthService) LoginUser(username, password string, remember bool) (*mode
 	}
 
 	// 根据"记住我"设置不同的Refresh Token有效期
-	refreshTokenExpire := s.config.JWT.RefreshTokenExpire
+	jwtConfig := s.config.GetJWT()
+	refreshTokenExpire := jwtConfig.RefreshTokenExpire
 	if remember {
 		// 记住我：延长到30天
 		refreshTokenExpire = 30 * 24 * 3600 // 30天
