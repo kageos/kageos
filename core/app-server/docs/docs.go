@@ -3380,10 +3380,6 @@ const docTemplate = `{
                     "description": "权限管理",
                     "type": "boolean"
                 },
-                "quick_link": {
-                    "description": "快链",
-                    "type": "boolean"
-                },
                 "recycle_bin": {
                     "description": "回收站",
                     "type": "boolean"

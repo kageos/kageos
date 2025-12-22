@@ -47,7 +47,6 @@ type Server struct {
 	userService                   *service.UserService
 	operateLogService             *service.OperateLogService
 	directoryUpdateHistoryService *service.DirectoryUpdateHistoryService
-	quickLinkService              *service.QuickLinkService
 
 	// 上游服务
 	natsService *service.NatsService
@@ -410,9 +409,6 @@ func (s *Server) initServices(ctx context.Context) error {
 	// 初始化目录更新历史服务
 	s.directoryUpdateHistoryService = service.NewDirectoryUpdateHistoryService(directoryUpdateHistoryRepo, serviceTreeRepo)
 
-	// 初始化快链服务
-	quickLinkRepo := repository.NewQuickLinkRepository(s.db)
-	s.quickLinkService = service.NewQuickLinkService(quickLinkRepo)
 
 	logger.Infof(ctx, "[Server] Services initialized successfully")
 	return nil
