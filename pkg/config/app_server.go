@@ -73,15 +73,13 @@ type EmailSMTPConfig struct {
 
 // EmailVerificationConfig 邮箱验证配置
 type EmailVerificationConfig struct {
-	CodeLength int    `mapstructure:"code_length"`
-	CodeExpire int    `mapstructure:"code_expire"`
-	Template   string `mapstructure:"template"`
+	CodeLength int `mapstructure:"code_length"`
+	CodeExpire int `mapstructure:"code_expire"`
 }
 
 // EmailRegisterConfig 注册邮件配置
+// 注意：当前代码中未使用，保留结构体以保持向后兼容
 type EmailRegisterConfig struct {
-	Subject  string `mapstructure:"subject"`
-	Template string `mapstructure:"template"`
 }
 
 // JWTConfig JWT配置
@@ -107,8 +105,6 @@ type DBConfig struct {
 	// 数据库日志配置
 	LogLevel      string `mapstructure:"log_level" json:"log_level"`           // silent, error, warn, info
 	SlowThreshold int    `mapstructure:"slow_threshold" json:"slow_threshold"` // 慢查询阈值（毫秒）
-	LogFile       string `mapstructure:"log_file" json:"log_file"`             // 日志文件路径
-	Colorful      bool   `mapstructure:"colorful" json:"colorful"`             // 是否彩色输出
 }
 
 // 常用便捷访问方法（可选）
@@ -135,8 +131,4 @@ func (c *AppServerConfig) GetDBSlowThreshold() int {
 
 func (c *AppServerConfig) IsDBLogEnabled() bool {
 	return c.DB.LogLevel != "silent"
-}
-
-func (c *AppServerConfig) IsDBLogColorful() bool {
-	return c.DB.Colorful
 }

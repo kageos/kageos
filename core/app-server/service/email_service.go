@@ -104,7 +104,7 @@ func (s *EmailService) generateCode() string {
 func (s *EmailService) getSubject(codeType string) string {
 	switch codeType {
 	case "register":
-		return s.config.Register.Subject
+		return "AI Agent OS 注册验证码"
 	default:
 		return "AI Agent OS 验证码"
 	}
