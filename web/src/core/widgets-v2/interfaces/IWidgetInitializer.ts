@@ -29,7 +29,7 @@ export interface WidgetInitContext {
   functionDetail: FunctionDetail
   
   /** 初始化源信息（用于判断是否需要初始化） */
-  initSource: 'url' | 'quicklink' | 'default'
+  initSource: 'url' | 'default'
   
   /** 字段完整路径（用于嵌套字段，如 payment_info.discount_info） */
   fieldPath?: string

@@ -1147,7 +1147,8 @@ onBeforeUnmount(() => {
 
 // 暴露方法给外部组件（如 FormDialog）使用
 defineExpose({
-  prepareSubmitDataWithTypeConversion
+  prepareSubmitDataWithTypeConversion,
+  formDataStore  // 🔥 暴露 formDataStore，用于 URL 同步
 })
 </script>
 
