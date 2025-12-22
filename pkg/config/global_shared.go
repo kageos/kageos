@@ -32,21 +32,22 @@ func GetGlobalSharedConfig() *GlobalSharedConfig {
 
 // GlobalSharedConfig 全局共享配置
 type GlobalSharedConfig struct {
-	Gateway        GatewayConfig                `mapstructure:"gateway"`
-	Nats           NatsConfig                   `mapstructure:"nats"`
-	JWT            JWTConfig                    `mapstructure:"jwt"`
-	ControlService ControlServiceClientConfig   `mapstructure:"control_service"`
-	SDK            SDKConfig                    `mapstructure:"sdk"`
+	Gateway        GatewayConfig              `mapstructure:"gateway"`
+	Nats           NatsConfig                 `mapstructure:"nats"`
+	JWT            JWTConfig                  `mapstructure:"jwt"`
+	ControlService ControlServiceClientConfig `mapstructure:"control_service"`
+	SDK            SDKConfig                  `mapstructure:"sdk"`
 	// 注意：数据库配置不在全局配置中，每个服务可以单独配置自己的数据库
 }
 
 // GatewayConfig 网关配置
+// 注意：服务运行在裸机上，使用 127.0.0.1 访问
 type GatewayConfig struct {
-	Host        string `mapstructure:"host"`         // 网关主机（如 localhost）
+	Host        string `mapstructure:"host"`         // 网关主机（裸机服务访问，如 127.0.0.1）
 	Port        int    `mapstructure:"port"`         // 网关端口（如 9090）
-	Domain      string `mapstructure:"domain"`       // 网关域名（如 api.example.com）
-	BaseURL     string `mapstructure:"base_url"`     // 网关基础 URL（如 http://localhost:9090）
-	InternalURL string `mapstructure:"internal_url"` // 内部服务访问地址（如 http://localhost:9090）
+	Domain      string `mapstructure:"domain"`       // 网关域名（生产环境使用，如 api.example.com）
+	BaseURL     string `mapstructure:"base_url"`     // 网关基础 URL（裸机服务访问，如 http://127.0.0.1:9090）
+	InternalURL string `mapstructure:"internal_url"` // 内部服务访问地址（裸机服务之间访问，如 http://127.0.0.1:9090）
 }
 
 // GetBaseURL 获取网关基础 URL
@@ -61,7 +62,7 @@ func (g *GatewayConfig) GetBaseURL() string {
 	if g.Host != "" && g.Port > 0 {
 		return fmt.Sprintf("http://%s:%d", g.Host, g.Port)
 	}
-	return "http://localhost:9090" // 默认值
+	return "http://127.0.0.1:9090" // 默认值（裸机服务访问）
 }
 
 // GetInternalURL 获取内部服务访问地址
@@ -84,7 +85,7 @@ func GetGatewayURL() string {
 // 注意：SDK app 运行在容器中，需要使用 host.containers.internal 访问宿主机服务
 type SDKConfig struct {
 	NatsURL    string `mapstructure:"nats_url"`    // NATS 地址（容器内访问，如 nats://host.containers.internal:4222）
-	GatewayURL string `mapstructure:"gateway_url"`  // 网关地址（容器内访问，如 http://host.containers.internal:9090）
+	GatewayURL string `mapstructure:"gateway_url"` // 网关地址（容器内访问，如 http://host.containers.internal:9090）
 }
 
 // GetNatsURL 获取 SDK NATS 地址（容器内访问）
@@ -109,4 +110,3 @@ func GetSDKConfig() SDKConfig {
 	global := GetGlobalSharedConfig()
 	return global.SDK
 }
-

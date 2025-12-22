@@ -3,18 +3,28 @@ package serviceconfig
 import (
 	"os"
 	"strings"
+
+	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 )
 
 // GetGatewayURL 获取网关地址
-// 优先级：环境变量 > 默认值
+// 优先级：环境变量 > 全局配置 > 默认值
+// 注意：服务运行在裸机上，使用 127.0.0.1 访问
 func GetGatewayURL() string {
 	// 优先环境变量（生产环境）
 	if url := os.Getenv("GATEWAY_URL"); url != "" {
 		return url
 	}
 
+	// 从全局配置读取（裸机服务访问）
+	globalConfig := config.GetGlobalSharedConfig()
+	gatewayURL := globalConfig.Gateway.GetBaseURL()
+	if gatewayURL != "" {
+		return gatewayURL
+	}
+
 	// 默认值（开发环境）
-	return "http://localhost:9090"
+	return "http://127.0.0.1:9090"
 }
 
 // GetServiceURL 获取服务地址（通过网关）
