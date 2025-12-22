@@ -1085,26 +1085,20 @@ func (s *AppManageService) startAppContainer(ctx context.Context, containerName,
 	// 设置环境变量
 	envVars := []string{}
 
-	// 注入 NATS 地址（从全局配置读取）
-	natsConfig := appconfig.GetGlobalSharedConfig().Nats
-	natsURL := natsConfig.URL
-	if natsURL == "" {
-		natsURL = "nats://127.0.0.1:4222" // 默认值
-	}
-	// 将 localhost/127.0.0.1 替换为 host.containers.internal，以便容器内访问宿主机 NATS
-	// 注意：host.containers.internal 只能访问宿主机上的服务，不能访问其他机器
-	// 如果配置的是其他机器的地址（如 192.168.1.100），则不替换
-	if strings.Contains(natsURL, "localhost") || strings.Contains(natsURL, "127.0.0.1") {
-		natsURL = strings.ReplaceAll(natsURL, "localhost", "host.containers.internal")
-		natsURL = strings.ReplaceAll(natsURL, "127.0.0.1", "host.containers.internal")
-	}
+	// 注入 SDK 配置（专门用于容器内访问宿主机服务）
+	// 注意：SDK app 运行在容器中，需要使用 host.containers.internal 访问宿主机服务
+	// 而服务配置（如 app-server）运行在裸机上，使用 127.0.0.1 访问
+	sdkConfig := appconfig.GetSDKConfig()
+	
+	// 注入 NATS 地址（使用 SDK 配置，容器内访问）
+	natsURL := sdkConfig.GetNatsURL()
 	envVars = append(envVars, fmt.Sprintf("NATS_URL=%s", natsURL))
-	logger.Infof(ctx, "[startAppContainer] Injecting NATS_URL=%s into container", natsURL)
+	logger.Infof(ctx, "[startAppContainer] Injecting NATS_URL=%s into container (SDK config)", natsURL)
 
-	// 注入网关地址（从全局配置读取）
-	gatewayURL := appconfig.GetGatewayURL()
+	// 注入网关地址（使用 SDK 配置，容器内访问）
+	gatewayURL := sdkConfig.GetGatewayURL()
 	envVars = append(envVars, fmt.Sprintf("GATEWAY_URL=%s", gatewayURL))
-	logger.Infof(ctx, "[startAppContainer] Injecting GATEWAY_URL=%s into container", gatewayURL)
+	logger.Infof(ctx, "[startAppContainer] Injecting GATEWAY_URL=%s into container (SDK config)", gatewayURL)
 
 	// 注入版本信息到环境变量（新架构：每个容器对应特定版本）
 	// 这样启动脚本可以通过环境变量读取版本，而不依赖可能被更新的文件

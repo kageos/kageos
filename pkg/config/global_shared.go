@@ -36,6 +36,7 @@ type GlobalSharedConfig struct {
 	Nats           NatsConfig                   `mapstructure:"nats"`
 	JWT            JWTConfig                    `mapstructure:"jwt"`
 	ControlService ControlServiceClientConfig   `mapstructure:"control_service"`
+	SDK            SDKConfig                    `mapstructure:"sdk"`
 	// 注意：数据库配置不在全局配置中，每个服务可以单独配置自己的数据库
 }
 
@@ -77,5 +78,35 @@ func (g *GatewayConfig) GetInternalURL() string {
 func GetGatewayURL() string {
 	global := GetGlobalSharedConfig()
 	return global.Gateway.GetBaseURL()
+}
+
+// SDKConfig SDK 配置（专门用于 runtime 构建 SDK app 时注入到容器中）
+// 注意：SDK app 运行在容器中，需要使用 host.containers.internal 访问宿主机服务
+type SDKConfig struct {
+	NatsURL    string `mapstructure:"nats_url"`    // NATS 地址（容器内访问，如 nats://host.containers.internal:4222）
+	GatewayURL string `mapstructure:"gateway_url"`  // 网关地址（容器内访问，如 http://host.containers.internal:9090）
+}
+
+// GetNatsURL 获取 SDK NATS 地址（容器内访问）
+func (s *SDKConfig) GetNatsURL() string {
+	if s.NatsURL != "" {
+		return s.NatsURL
+	}
+	return "nats://host.containers.internal:4222" // 默认值（容器内访问宿主机 NATS）
+}
+
+// GetGatewayURL 获取 SDK 网关地址（容器内访问）
+func (s *SDKConfig) GetGatewayURL() string {
+	if s.GatewayURL != "" {
+		return s.GatewayURL
+	}
+	return "http://host.containers.internal:9090" // 默认值（容器内访问宿主机网关）
+}
+
+// GetSDKConfig 获取 SDK 配置（全局函数）
+// 用于 runtime 构建 SDK app 时注入到容器中
+func GetSDKConfig() SDKConfig {
+	global := GetGlobalSharedConfig()
+	return global.SDK
 }
 
