@@ -253,7 +253,7 @@ func (s *Server) initNATS(ctx context.Context) error {
 // initLicenseClient 初始化 License Client（通过 NATS 获取和刷新 License）
 func (s *Server) initLicenseClient(ctx context.Context) error {
 	// 检查是否启用 Control Service 客户端
-	controlCfg := s.cfg.ControlService
+	controlCfg := s.cfg.GetControlService()
 	if !controlCfg.IsEnabled() {
 		logger.Infof(ctx, "[Server] Control Service client is disabled, skipping license client initialization")
 		return nil
