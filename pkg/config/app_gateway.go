@@ -57,31 +57,17 @@ type RouteConfig struct {
 
 // BackendConfig 后端服务配置
 type BackendConfig struct {
-	URL    string `mapstructure:"url"`    // 后端服务地址（如 http://localhost:9091）
-	Weight int    `mapstructure:"weight"` // 权重（用于加权负载均衡，默认 1，仅当 load_balance.strategy=weighted 时生效）
+	URL string `mapstructure:"url"` // 后端服务地址（如 http://localhost:9091）
 }
 
 // LoadBalanceConfig 负载均衡配置
 type LoadBalanceConfig struct {
-	Strategy    string             `mapstructure:"strategy"`     // 策略：round_robin, weighted, least_connections, ip_hash（默认 round_robin）
-	HealthCheck *HealthCheckConfig `mapstructure:"health_check"` // 健康检查配置（可选）
-}
-
-// HealthCheckConfig 健康检查配置
-type HealthCheckConfig struct {
-	Enabled  bool   `mapstructure:"enabled"`  // 是否启用健康检查（默认 false）
-	Path     string `mapstructure:"path"`     // 健康检查路径（默认 /health）
-	Interval int    `mapstructure:"interval"` // 检查间隔（秒，默认 10）
-	Timeout  int    `mapstructure:"timeout"`  // 超时时间（秒，默认 3）
-	Retries  int    `mapstructure:"retries"`  // 失败重试次数（默认 2）
+	Strategy string `mapstructure:"strategy"` // 策略：round_robin, weighted, least_connections, ip_hash（默认 round_robin）
 }
 
 // GatewayTimeoutConfig 网关超时配置
 type GatewayTimeoutConfig struct {
-	Default          int `mapstructure:"default"`            // 默认超时时间（秒）
-	AppServerRequest int `mapstructure:"app_server_request"` // app-server 请求超时时间（秒）
-	AppRequest       int `mapstructure:"app_request"`        // 应用请求超时时间（秒）
-	NatsRequest      int `mapstructure:"nats_request"`       // NATS 请求超时时间（秒）
+	Default int `mapstructure:"default"` // 默认超时时间（秒）
 }
 
 // GetPort 获取端口

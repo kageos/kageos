@@ -35,8 +35,6 @@ type AgentServerConfig struct {
 	Server         AgentServerServerConfig    `mapstructure:"server"`
 	DB             DBConfig                   `mapstructure:"db"`
 	Agent          AgentConfig                `mapstructure:"agent"`
-	CodeGen        CodeGenConfig              `mapstructure:"code_gen"`
-	Builder        BuilderConfig              `mapstructure:"builder"`
 	ControlService ControlServiceClientConfig `mapstructure:"control_service"`
 }
 
@@ -50,7 +48,6 @@ type AgentServerServerConfig struct {
 // AgentConfig 智能体配置
 type AgentConfig struct {
 	Timeout int             `mapstructure:"timeout"`
-	Retry   RetryConfig     `mapstructure:"retry"`
 	Nats    AgentNatsConfig `mapstructure:"nats"`
 }
 
@@ -60,31 +57,12 @@ type AgentNatsConfig struct {
 	Timeout int    `mapstructure:"timeout"` // NATS 请求超时时间（秒）
 }
 
-// RetryConfig 重试配置
-type RetryConfig struct {
-	MaxAttempts int    `mapstructure:"max_attempts"`
-	Backoff     string `mapstructure:"backoff"` // exponential, linear, fixed
-}
-
-// CodeGenConfig 代码生成配置
-type CodeGenConfig struct {
-	SDKVersion   string `mapstructure:"sdk_version"`
-	TemplatePath string `mapstructure:"template_path"`
-	OutputPath   string `mapstructure:"output_path"`
-}
-
-// BuilderConfig 应用构建配置
-type BuilderConfig struct {
-	Timeout       int    `mapstructure:"timeout"`
-	WorkspacePath string `mapstructure:"workspace_path"`
-}
 
 // 便捷访问方法
 func (c *AgentServerConfig) GetPort() int           { return c.Server.Port }
 func (c *AgentServerConfig) GetLogLevel() string    { return c.Server.LogLevel }
 func (c *AgentServerConfig) IsDebug() bool          { return c.Server.Debug }
-func (c *AgentServerConfig) GetAgentTimeout() int   { return c.Agent.Timeout }
-func (c *AgentServerConfig) GetBuilderTimeout() int { return c.Builder.Timeout }
+func (c *AgentServerConfig) GetAgentTimeout() int { return c.Agent.Timeout }
 func (c *AgentServerConfig) GetNatsHost() string {
 	if c.Agent.Nats.Host == "" {
 		return "127.0.0.1:4222" // 默认值
@@ -115,8 +93,4 @@ func (c *AgentServerConfig) GetDBSlowThreshold() int {
 
 func (c *AgentServerConfig) IsDBLogEnabled() bool {
 	return c.DB.LogLevel != "silent"
-}
-
-func (c *AgentServerConfig) IsDBLogColorful() bool {
-	return c.DB.Colorful
 }

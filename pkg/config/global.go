@@ -9,10 +9,9 @@ import (
 
 // GlobalConfig 全局配置
 type GlobalConfig struct {
-	BuildMode string                   `mapstructure:"build_mode"`
-	Logging   LoggingConfig            `mapstructure:"logging"`
-	Runtime   GlobalRuntimeConfig      `mapstructure:"runtime"`
-	Services  map[string]ServiceConfig `mapstructure:"services"`
+	BuildMode string              `mapstructure:"build_mode"`
+	Logging   LoggingConfig       `mapstructure:"logging"`
+	Runtime   GlobalRuntimeConfig `mapstructure:"runtime"`
 }
 
 // LoggingConfig 日志配置
@@ -33,13 +32,6 @@ type ServiceLogConfig struct {
 type GlobalRuntimeConfig struct {
 	RunDir    string `mapstructure:"run_dir"`
 	ConfigDir string `mapstructure:"config_dir"`
-}
-
-// ServiceConfig 服务配置
-type ServiceConfig struct {
-	Enabled bool   `mapstructure:"enabled"`
-	Port    int    `mapstructure:"port"`
-	Config  string `mapstructure:"config"`
 }
 
 var (

@@ -98,7 +98,6 @@ type ContainerServiceConfig struct {
 	Socket         string               `mapstructure:"socket"`  // 容器运行时 socket 路径
 	Timeout        int                  `mapstructure:"timeout"` // 连接超时时间（秒）
 	Image          ImageConfig          `mapstructure:"image"`
-	Environment    []string             `mapstructure:"environment"`
 	Infrastructure InfrastructureConfig `mapstructure:"infrastructure"`
 }
 
@@ -112,8 +111,7 @@ type ImageConfig struct {
 
 // InfrastructureConfig 基础设施配置
 type InfrastructureConfig struct {
-	AutoStartContainers []string            `mapstructure:"auto_start_containers"`
-	Nats                ContainerNatsConfig `mapstructure:"nats"`
+	Nats ContainerNatsConfig `mapstructure:"nats"`
 }
 
 // ContainerNatsConfig 容器 NATS 配置
