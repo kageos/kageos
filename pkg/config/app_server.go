@@ -36,7 +36,9 @@ type AppServerConfig struct {
 	Server   AppServerServerConfig `mapstructure:"server"`
 	Timeouts AppServerTimeoutCfg   `mapstructure:"timeouts"`
 	Email    EmailConfig            `mapstructure:"email"`
-	// 注意：NATS、数据库、JWT、Control Service 配置已移至全局配置，不再在此处配置
+	DB       DBConfig               `mapstructure:"db"`
+	// 注意：NATS、JWT、Control Service 配置已移至全局配置，不再在此处配置
+	// 数据库配置保留在服务配置中，因为微服务后续每个服务一个库
 }
 
 // AppServerServerConfig app-server 服务器配置
@@ -112,31 +114,28 @@ func (c *AppServerConfig) IsDebug() bool              { return c.Server.Debug }
 func (c *AppServerConfig) GetAppRequestTimeout() int  { return c.Timeouts.AppRequest }
 func (c *AppServerConfig) GetNatsRequestTimeout() int { return c.Timeouts.NatsRequest }
 
-// 数据库配置便捷访问方法（从全局配置获取）
+// 数据库配置便捷访问方法
 func (c *AppServerConfig) GetDBLogLevel() string {
-	global := GetGlobalSharedConfig()
-	if global.Database.LogLevel == "" {
+	if c.DB.LogLevel == "" {
 		return "warn" // 默认日志级别
 	}
-	return global.Database.LogLevel
+	return c.DB.LogLevel
 }
 
 func (c *AppServerConfig) GetDBSlowThreshold() int {
-	global := GetGlobalSharedConfig()
-	if global.Database.SlowThreshold == 0 {
+	if c.DB.SlowThreshold == 0 {
 		return 200 // 默认200毫秒
 	}
-	return global.Database.SlowThreshold
+	return c.DB.SlowThreshold
 }
 
 func (c *AppServerConfig) IsDBLogEnabled() bool {
-	global := GetGlobalSharedConfig()
-	return global.Database.LogLevel != "silent"
+	return c.DB.LogLevel != "silent"
 }
 
-// GetDB 获取数据库配置（从全局配置获取）
+// GetDB 获取数据库配置
 func (c *AppServerConfig) GetDB() DBConfig {
-	return GetGlobalSharedConfig().Database
+	return c.DB
 }
 
 // GetNats 获取 NATS 配置（从全局配置获取）

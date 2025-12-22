@@ -83,7 +83,9 @@ type AppStorageConfig struct {
 		} `mapstructure:"cache"`
 	} `mapstructure:"storage"`
 
-	// 注意：数据库配置已移至全局配置，不再在此处配置
+	DB DBConfig `mapstructure:"db"`
+	// 注意：JWT 配置已移至全局配置，不再在此处配置
+	// 数据库配置保留在服务配置中，因为微服务后续每个服务一个库
 }
 
 var (
@@ -132,9 +134,9 @@ func (c *AppStorageConfig) IsDebug() bool {
 	return c.Server.Debug
 }
 
-// GetDB 获取数据库配置（从全局配置获取）
+// GetDB 获取数据库配置
 func (c *AppStorageConfig) GetDB() DBConfig {
-	return GetGlobalSharedConfig().Database
+	return c.DB
 }
 
 // GetJWT 获取 JWT 配置（从全局配置获取）
