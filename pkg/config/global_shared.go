@@ -83,9 +83,12 @@ func GetGatewayURL() string {
 
 // SDKConfig SDK 配置（专门用于 runtime 构建 SDK app 时注入到容器中）
 // 注意：SDK app 运行在容器中，需要使用 host.containers.internal 访问宿主机服务
+// 这些配置会在构建时注入为环境变量：
+//   - nats_url -> NATS_URL 环境变量
+//   - gateway_url -> GATEWAY_URL 环境变量
 type SDKConfig struct {
-	NatsURL    string `mapstructure:"nats_url"`    // NATS 地址（容器内访问，如 nats://host.containers.internal:4222）
-	GatewayURL string `mapstructure:"gateway_url"` // 网关地址（容器内访问，如 http://host.containers.internal:9090）
+	NatsURL    string `mapstructure:"nats_url"`    // NATS 地址（容器内访问，如 nats://host.containers.internal:4222），注入为 NATS_URL 环境变量
+	GatewayURL string `mapstructure:"gateway_url"` // 网关地址（容器内访问，如 http://host.containers.internal:9090），注入为 GATEWAY_URL 环境变量
 }
 
 // GetNatsURL 获取 SDK NATS 地址（容器内访问）
