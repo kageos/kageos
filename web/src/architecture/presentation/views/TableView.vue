@@ -13,34 +13,43 @@
 <template>
   <div class="table-view">
     <!-- ⭐ 权限不足提示：在详情页面显示，不弹窗 -->
-    <el-alert
-      v-if="permissionError"
-      :title="`权限不足：${permissionError.action_display || permissionError.error_message || '没有权限访问该资源'}`"
-      type="warning"
-      :closable="false"
-      show-icon
-      class="permission-error-alert"
-    >
-      <template #default>
+    <div v-if="permissionError" class="permission-error-wrapper">
+      <el-card class="permission-error-card" shadow="hover">
+        <template #header>
+          <div class="permission-error-header">
+            <el-icon class="permission-error-icon"><Lock /></el-icon>
+            <span class="permission-error-title">权限不足</span>
+          </div>
+        </template>
         <div class="permission-error-content">
-          <p v-if="permissionError.resource_path">
-            资源路径：<strong>{{ permissionError.resource_path }}</strong>
-          </p>
-          <p v-if="permissionError.action_display">
-            缺少权限：<strong>{{ permissionError.action_display }}</strong>
-          </p>
-          <el-button
-            v-if="permissionError.apply_url"
-            type="primary"
-            size="small"
-            @click="handleApplyPermission"
-            style="margin-top: 12px"
-          >
-            立即申请权限
-          </el-button>
+          <div class="permission-error-message">
+            <p class="error-message-text">
+              您没有 <strong>{{ permissionError.action_display || permissionError.error_message || '访问该资源' }}</strong> 的权限
+            </p>
+          </div>
+          <div v-if="permissionError.resource_path" class="permission-error-info">
+            <el-icon><Document /></el-icon>
+            <span class="info-label">资源路径：</span>
+            <span class="info-value">{{ permissionError.resource_path }}</span>
+          </div>
+          <div v-if="permissionError.action_display" class="permission-error-info">
+            <el-icon><Key /></el-icon>
+            <span class="info-label">缺少权限：</span>
+            <span class="info-value">{{ permissionError.action_display }}</span>
+          </div>
+          <div v-if="permissionError.apply_url" class="permission-error-actions">
+            <el-button
+              type="primary"
+              size="default"
+              @click="handleApplyPermission"
+              :icon="Lock"
+            >
+              立即申请权限
+            </el-button>
+          </div>
         </div>
-      </template>
-    </el-alert>
+      </el-card>
+    </div>
 
     <!-- 工具栏 -->
     <div class="toolbar" v-if="hasAddCallback || hasDeleteCallback">
