@@ -588,6 +588,18 @@ func (a *AppService) createFunctionNode(appID int64, parentID int64, api *dto.Ap
 	if err != nil {
 		return 0, err
 	}
+
+	// ⭐ 自动给创建者添加函数执行权限
+	// 资源路径：函数的 FullCodePath，权限：function:execute
+	requestUser := contextx.GetRequestUser(ctx)
+	if requestUser != "" {
+		if err := a.grantCreatorPermission(ctx, requestUser, api.FullCodePath, "function:execute"); err != nil {
+			// 权限添加失败不应该影响函数创建，只记录警告日志
+			logger.Warnf(ctx, "[AppService] 自动添加创建者权限失败: user=%s, resource=%s, action=function:execute, error=%v",
+				requestUser, api.FullCodePath, err)
+		}
+	}
+
 	// 返回创建的节点ID
 	return serviceTree.ID, nil
 }
