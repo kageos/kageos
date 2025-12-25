@@ -208,16 +208,24 @@ export class TableDomainService {
         params.sorts = `${sort.field}:${sort.order}`
       }
 
-      // 调用 API
-      const url = `/workspace/api/v1/run${functionDetail.router}`
-      const method = functionDetail.method?.toUpperCase() || 'GET'
+      // ⭐ 使用标准 API：/table/search/{full-code-path}
+      const fullCodePath = functionDetail.router?.startsWith('/') 
+        ? functionDetail.router 
+        : `/${functionDetail.router || ''}`
+      const url = `/workspace/api/v1/table/search${fullCodePath}`
       
-      let response: TableResponse
-      if (method === 'GET') {
-        response = await this.apiClient.get<TableResponse>(url, params)
-      } else {
-        response = await this.apiClient.post<TableResponse>(url, params)
-      }
+      // Table 查询统一使用 GET 方法
+      const response = await this.apiClient.get<TableResponse>(url, params)
+      
+      // ⭐ 旧版本（已注释，保留用于参考）
+      // const url = `/workspace/api/v1/run${functionDetail.router}`
+      // const method = functionDetail.method?.toUpperCase() || 'GET'
+      // let response: TableResponse
+      // if (method === 'GET') {
+      //   response = await this.apiClient.get<TableResponse>(url, params)
+      // } else {
+      //   response = await this.apiClient.post<TableResponse>(url, params)
+      // }
 
       // 🔥 BeforeRender: 在数据加载完成后、状态更新前、界面渲染前执行所有钩子
       // 这样渲染时，所有关联数据（用户信息、部门信息等）都已经在缓存中

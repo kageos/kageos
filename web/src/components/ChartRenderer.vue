@@ -852,11 +852,12 @@ const loadChartData = async () => {
       }
     })
 
-    // 调用函数接口
+    // ⭐ 使用标准 API：/chart/query/{full-code-path}
     const response = await executeFunction(
       props.functionDetail.method,
       props.functionDetail.router,
-      params
+      params,
+      'chart'  // 指定 template_type 为 chart
     )
 
     // 解析响应数据
