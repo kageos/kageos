@@ -148,7 +148,8 @@ export class WorkspaceApplicationService {
       try {
         // 动态导入 getAppWithServiceTree，避免循环依赖
         const { getAppWithServiceTree } = await import('@/api/app')
-        const workspaceData = await getAppWithServiceTree(app.code)
+        // ⭐ 传递 user 和 app，而不是只传 code
+        const workspaceData = await getAppWithServiceTree(app.user, app.code)
         if (workspaceData && workspaceData.app) {
           appToSwitch = {
             id: workspaceData.app.id,

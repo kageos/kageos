@@ -43,9 +43,9 @@ export class ServiceTreeLoaderImpl implements IServiceTreeLoader {
     const loadPromise = (async () => {
       try {
         Logger.debug('ServiceTreeLoader', '开始加载服务目录树', app.user, app.code)
-        // 使用合并接口获取应用详情和服务目录树（减少请求次数）
-        // 接口路径：/workspace/api/v1/app/{code}/tree
-        const response = await this.apiClient.get<any>(`/workspace/api/v1/app/${app.code}/tree`, {})
+        // ⭐ 使用合并接口获取应用详情和服务目录树（减少请求次数）
+        // 接口路径：/workspace/api/v1/app/{user}/{app}/tree
+        const response = await this.apiClient.get<any>(`/workspace/api/v1/app/${app.user}/${app.code}/tree`, {})
         
         Logger.debug('ServiceTreeLoader', 'API 响应', response)
         
