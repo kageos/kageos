@@ -1451,7 +1451,7 @@ const canCreate = computed(() => {
 const canDelete = computed(() => {
   const node = currentFunctionNode.value
   if (!node) return true  // 如果没有节点信息，默认允许（向后兼容）
-  return hasPermission(node, TablePermissions.DELETE)
+  return hasPermission(node, TablePermissions.delete)
 })
 
 // ⭐ 权限错误状态
