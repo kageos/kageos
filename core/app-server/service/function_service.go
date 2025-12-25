@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
@@ -26,6 +27,18 @@ func NewFunctionService(
 		functionRepo: functionRepo,
 		appRepo:      appRepo,
 	}
+}
+
+// GetFunctionByID 根据函数ID获取函数模型（用于权限检查等）
+func (f *FunctionService) GetFunctionByID(ctx context.Context, functionID int64) (*model.Function, error) {
+	function, err := f.functionRepo.GetFunctionByID(functionID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("函数不存在")
+		}
+		return nil, fmt.Errorf("获取函数失败: %w", err)
+	}
+	return function, nil
 }
 
 // GetFunction 获取函数详情

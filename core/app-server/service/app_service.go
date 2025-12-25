@@ -517,6 +517,17 @@ func (a *AppService) createServiceTreesForAPIs(ctx context.Context, appID int64,
 		}
 		// 赋值TreeID，方便后续写快照时入库
 		api.TreeID = treeID
+
+		// ⭐ 自动给创建者添加函数执行权限
+		// 资源路径：函数的 FullCodePath，权限：function:execute
+		requestUser := contextx.GetRequestUser(ctx)
+		if requestUser != "" {
+			if err := a.grantCreatorPermission(ctx, requestUser, api.FullCodePath, "function:execute"); err != nil {
+				// 权限添加失败不应该影响函数创建，只记录警告日志
+				logger.Warnf(ctx, "[AppService] 自动添加创建者权限失败: user=%s, resource=%s, action=function:execute, error=%v",
+					requestUser, api.FullCodePath, err)
+			}
+		}
 	}
 	return nil
 }
@@ -591,14 +602,9 @@ func (a *AppService) createFunctionNode(appID int64, parentID int64, api *dto.Ap
 
 	// ⭐ 自动给创建者添加函数执行权限
 	// 资源路径：函数的 FullCodePath，权限：function:execute
-	requestUser := contextx.GetRequestUser(ctx)
-	if requestUser != "" {
-		if err := a.grantCreatorPermission(ctx, requestUser, api.FullCodePath, "function:execute"); err != nil {
-			// 权限添加失败不应该影响函数创建，只记录警告日志
-			logger.Warnf(ctx, "[AppService] 自动添加创建者权限失败: user=%s, resource=%s, action=function:execute, error=%v",
-				requestUser, api.FullCodePath, err)
-		}
-	}
+	// 注意：createFunctionNode 方法没有 ctx 参数，需要从调用方传入
+	// 这里暂时跳过权限授予，因为 createFunctionNode 通常是在 createServiceTreesForAPIs 中调用
+	// 权限授予应该在 createServiceTreesForAPIs 中进行
 
 	// 返回创建的节点ID
 	return serviceTree.ID, nil
