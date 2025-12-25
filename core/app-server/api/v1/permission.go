@@ -249,23 +249,55 @@ func (p *Permission) ApplyPermission(c *gin.Context) {
 		return
 	}
 	
-	// ⭐ 简化版：直接添加权限（不创建申请记录）
-	// 后续可以扩展为：创建申请记录，等待管理员审核
-	addReq := dto.AddPermissionReq{
-		Username:     username,
-		ResourcePath: req.ResourcePath,
-		Action:       req.Action,
+	// ⭐ 确定要申请的权限点列表
+	actions := make([]string, 0)
+	if len(req.Actions) > 0 {
+		// 如果提供了 actions 数组，使用数组
+		actions = req.Actions
+	} else if req.Action != "" {
+		// 如果只提供了单个 action，使用单个
+		actions = []string{req.Action}
+	} else {
+		response.FailWithMessage(c, "请至少指定一个操作类型")
+		return
 	}
 	
-	if err := p.permissionService.AddPermission(ctx, &addReq); err != nil {
-		response.FailWithMessage(c, "权限申请失败: "+err.Error())
+	// ⭐ 批量添加权限（不创建申请记录）
+	// 后续可以扩展为：创建申请记录，等待管理员审核
+	successCount := 0
+	failedActions := make([]string, 0)
+	
+	for _, action := range actions {
+		addReq := dto.AddPermissionReq{
+			Username:     username,
+			ResourcePath: req.ResourcePath,
+			Action:       action,
+		}
+		
+		if err := p.permissionService.AddPermission(ctx, &addReq); err != nil {
+			failedActions = append(failedActions, action)
+			continue
+		}
+		successCount++
+	}
+
+	if successCount == 0 {
+		response.FailWithMessage(c, "权限申请失败，所有权限点都添加失败")
 		return
+	}
+
+	var message string
+	if successCount == len(actions) {
+		message = fmt.Sprintf("权限申请已批准，已成功添加 %d 个权限", successCount)
+	} else {
+		message = fmt.Sprintf("权限申请部分成功，已成功添加 %d/%d 个权限，失败：%v", 
+			successCount, len(actions), failedActions)
 	}
 
 	resp := dto.ApplyPermissionResp{
 		ID:      "", // 暂时返回空字符串，后续可以扩展为申请记录ID
 		Status:  "approved", // 简化版：直接批准
-		Message: "权限申请已批准，权限已添加",
+		Message: message,
 	}
 
 	response.OkWithData(c, resp)

@@ -113,6 +113,93 @@ export function getDefaultPermissionsForTemplate(templateType?: string): string[
 }
 
 /**
+ * 根据资源路径和类型获取可申请的权限点列表
+ * @param resourcePath 资源路径（full-code-path）
+ * @param resourceType 资源类型（function、directory、app）
+ * @param templateType 模板类型（table、form、chart，仅对 function 有效）
+ * @returns 权限点选项列表（包含 action 和 displayName）
+ */
+export function getAvailablePermissions(
+  resourcePath: string,
+  resourceType?: 'function' | 'directory' | 'app',
+  templateType?: string
+): Array<{ action: string; displayName: string; isMinimal?: boolean }> {
+  const permissions: Array<{ action: string; displayName: string; isMinimal?: boolean }> = []
+
+  // 根据资源类型返回相关权限点
+  if (resourceType === 'function') {
+    // 函数相关权限
+    permissions.push(
+      { action: 'function:read', displayName: '函数查看', isMinimal: true },
+      { action: 'function:execute', displayName: '函数执行', isMinimal: false }
+    )
+
+    // 根据模板类型添加特定权限
+    if (templateType === 'table') {
+      permissions.push(
+        { action: 'table:search', displayName: '表格查询', isMinimal: true },
+        { action: 'table:create', displayName: '表格新增', isMinimal: false },
+        { action: 'table:update', displayName: '表格更新', isMinimal: false },
+        { action: 'table:delete', displayName: '表格删除', isMinimal: false }
+      )
+    } else if (templateType === 'form') {
+      permissions.push(
+        { action: 'form:submit', displayName: '表单提交', isMinimal: true }
+      )
+    } else if (templateType === 'chart') {
+      permissions.push(
+        { action: 'chart:query', displayName: '图表查询', isMinimal: true }
+      )
+    }
+
+    // 所有函数都可能有回调权限
+    permissions.push(
+      { action: 'callback:on_select_fuzzy', displayName: '模糊搜索回调', isMinimal: false }
+    )
+  } else if (resourceType === 'directory') {
+    // 目录相关权限
+    permissions.push(
+      { action: 'directory:read', displayName: '目录查看', isMinimal: true },
+      { action: 'directory:create', displayName: '目录创建', isMinimal: false },
+      { action: 'directory:update', displayName: '目录更新', isMinimal: false },
+      { action: 'directory:delete', displayName: '目录删除', isMinimal: false },
+      { action: 'directory:manage', displayName: '目录管理', isMinimal: false }
+    )
+  } else if (resourceType === 'app') {
+    // 应用相关权限
+    permissions.push(
+      { action: 'app:read', displayName: '应用查看', isMinimal: true },
+      { action: 'app:create', displayName: '应用创建', isMinimal: false },
+      { action: 'app:update', displayName: '应用更新', isMinimal: false },
+      { action: 'app:delete', displayName: '应用删除', isMinimal: false },
+      { action: 'app:deploy', displayName: '应用部署', isMinimal: false },
+      { action: 'app:manage', displayName: '应用管理', isMinimal: false }
+    )
+  } else {
+    // 未知类型，返回通用权限
+    permissions.push(
+      { action: 'function:read', displayName: '函数查看', isMinimal: true },
+      { action: 'function:execute', displayName: '函数执行', isMinimal: false }
+    )
+  }
+
+  return permissions
+}
+
+/**
+ * 获取默认选中的权限点（最小粒度）
+ * @param availablePermissions 可用的权限点列表
+ * @returns 默认选中的权限点列表
+ */
+export function getDefaultSelectedPermissions(
+  availablePermissions: Array<{ action: string; displayName: string; isMinimal?: boolean }>
+): string[] {
+  return availablePermissions
+    .filter(p => p.isMinimal === true)
+    .map(p => p.action)
+}
+
+/**
  * 检查 Table 函数的相关权限
  */
 export const TablePermissions = {
