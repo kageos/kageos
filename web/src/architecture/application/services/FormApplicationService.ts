@@ -75,8 +75,11 @@ export class FormApplicationService {
       // 为了保持依赖倒置，我们通过 Domain Service 获取
       const submitData = this.getSubmitData(fields)
 
-      // 调用 API
-      const url = `/workspace/api/v1/run${functionDetail.router}`
+      // ⭐ 使用标准 API：/form/submit/{full-code-path}
+      const fullCodePath = functionDetail.router?.startsWith('/') 
+        ? functionDetail.router 
+        : `/${functionDetail.router || ''}`
+      const url = `/workspace/api/v1/form/submit${fullCodePath}`
       const method = functionDetail.method?.toUpperCase() || 'POST'
       
       let response: any
@@ -85,6 +88,16 @@ export class FormApplicationService {
       } else {
         response = await this.apiClient.post(url, submitData)
       }
+      
+      // ⭐ 旧版本（已注释，保留用于参考）
+      // const url = `/workspace/api/v1/run${functionDetail.router}`
+      // const method = functionDetail.method?.toUpperCase() || 'POST'
+      // let response: any
+      // if (method === 'GET') {
+      //   response = await this.apiClient.get(url, submitData)
+      // } else {
+      //   response = await this.apiClient.post(url, submitData)
+      // }
 
       // 🔥 保存响应数据到状态管理器
       const stateManager = this.domainService.getStateManager()

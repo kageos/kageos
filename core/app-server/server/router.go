@@ -63,11 +63,12 @@ func (s *Server) setupRoutes() {
 	}))
 	request.Any("/*router", appHandler.RequestApp)
 
-	callback := apiV1.Group("/callback")
-	callback.Use(middleware2.JWTAuth())
-	// ⭐ 添加回调接口权限检查
-	callback.Use(middleware2.CheckCallback())
-	callback.POST("/*router", appHandler.CallbackApp)
+	// ⭐ 旧的回调接口（已注释，改用标准接口）
+	// callback := apiV1.Group("/callback")
+	// callback.Use(middleware2.JWTAuth())
+	// // ⭐ 添加回调接口权限检查
+	// callback.Use(middleware2.CheckCallback())
+	// callback.POST("/*router", appHandler.CallbackApp)
 
 	// 服务目录管理路由（需要JWT验证）
 	serviceTree := apiV1.Group("/service_tree")

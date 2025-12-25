@@ -23,28 +23,66 @@ export function getFunctionByTree(treeId: number) {
 }
 
 // 执行函数（通用）
-export function executeFunction(method: string, router: string, params?: SearchParams | any) {
+/**
+ * 执行函数（通用接口，根据 template_type 自动选择标准 API）
+ * 
+ * @param method 原函数的 HTTP 方法（GET/POST 等）
+ * @param router 函数路由（如 /luobei/test999/plugins/cashier_desk），将转换为 full-code-path
+ * @param params 请求参数
+ * @param templateType 模板类型（table/form/chart），用于选择标准 API
+ */
+export function executeFunction(method: string, router: string, params?: SearchParams | any, templateType?: string) {
+  const fullCodePath = router.startsWith('/') ? router : `/${router}`
+  
+  // ⭐ 根据 template_type 选择标准 API
+  if (templateType === 'table') {
+    // Table 查询：使用 /table/search/{full-code-path}
+    return get<any>(`/workspace/api/v1/table/search${fullCodePath}`, params || {})
+  } else if (templateType === 'form') {
+    // Form 提交：使用 /form/submit/{full-code-path}
+    const submitMethod = method.toUpperCase() || 'POST'
+    if (submitMethod === 'GET') {
+      return get<any>(`/workspace/api/v1/form/submit${fullCodePath}`, params || {})
+    } else {
+      return post<any>(`/workspace/api/v1/form/submit${fullCodePath}`, params || {})
+    }
+  } else if (templateType === 'chart') {
+    // Chart 查询：使用 /chart/query/{full-code-path}
+    return get<any>(`/workspace/api/v1/chart/query${fullCodePath}`, params || {})
+  }
+  
+  // ⭐ 如果没有指定 template_type，使用旧的 /run 接口（向后兼容）
   const url = `/workspace/api/v1/run${router}`
-
-  // 根据方法类型调用不同的请求方法
   switch (method.toUpperCase()) {
     case 'GET':
-      // GET 请求，params 作为查询参数
       return get<any>(url, params || {})
     case 'POST':
-      // POST 请求，params 作为 body
       return post<any>(url, params || {})
     case 'PUT':
-      // PUT 请求，params 作为 body
       return put<any>(url, params || {})
     case 'DELETE':
-      // DELETE 请求，params 作为查询参数
       return del<any>(url)
     default:
-      // 默认使用 GET
       return get<any>(url, params || {})
   }
 }
+
+// ⭐ 旧版本（已注释，保留用于参考）
+// export function executeFunction_OLD(method: string, router: string, params?: SearchParams | any) {
+//   const url = `/workspace/api/v1/run${router}`
+//   switch (method.toUpperCase()) {
+//     case 'GET':
+//       return get<any>(url, params || {})
+//     case 'POST':
+//       return post<any>(url, params || {})
+//     case 'PUT':
+//       return put<any>(url, params || {})
+//     case 'DELETE':
+//       return del<any>(url)
+//     default:
+//       return get<any>(url, params || {})
+//   }
+// }
 
 // 创建函数
 export function createFunction(data: Partial<Function>) {
@@ -61,33 +99,44 @@ export function deleteFunction(id: number) {
   return del(`/workspace/api/v1/function/${id}`)
 }
 
-// Table 回调操作 - 新增记录
-// 统一使用 POST 方法，原函数的 method 通过 _method 查询参数传递，参数放在 body 里
+// ⭐ Table 回调操作 - 新增记录（使用标准 API）
 export function tableAddRow(method: string, router: string, data: any) {
-  const url = `/workspace/api/v1/callback${router}?_type=OnTableAddRow&_method=${method.toUpperCase()}`
-
-  // 统一使用 POST 方法
+  // ⭐ 使用标准 API：/table/create/{full-code-path}
+  const fullCodePath = router.startsWith('/') ? router : `/${router}`
+  const url = `/workspace/api/v1/table/create${fullCodePath}`
   return post(url, data)
 }
 
-// Table 回调操作 - 更新记录
-// 统一使用 POST 方法，原函数的 method 通过 _method 查询参数传递，参数放在 body 里
+// ⭐ Table 回调操作 - 更新记录（使用标准 API）
 export function tableUpdateRow(method: string, router: string, data: any) {
-  const url = `/workspace/api/v1/callback${router}?_type=OnTableUpdateRow&_method=${method.toUpperCase()}`
-
-  // 统一使用 POST 方法
-  return post(url, data)
+  // ⭐ 使用标准 API：/table/update/{full-code-path}
+  const fullCodePath = router.startsWith('/') ? router : `/${router}`
+  const url = `/workspace/api/v1/table/update${fullCodePath}`
+  return put(url, data)
 }
 
-// Table 回调操作 - 删除记录
-// 统一使用 POST 方法，原函数的 method 通过 _method 查询参数传递，参数放在 body 里
+// ⭐ Table 回调操作 - 删除记录（使用标准 API）
 export function tableDeleteRows(method: string, router: string, ids: number[]) {
-  const url = `/workspace/api/v1/callback${router}?_type=OnTableDeleteRows&_method=${method.toUpperCase()}`
+  // ⭐ 使用标准 API：/table/delete/{full-code-path}
+  const fullCodePath = router.startsWith('/') ? router : `/${router}`
+  const url = `/workspace/api/v1/table/delete${fullCodePath}`
   const data = { ids }
-
-  // 统一使用 POST 方法
-  return post(url, data)
+  return del(url, data)  // DELETE 请求带 body
 }
+
+// ⭐ 旧版本（已注释，保留用于参考）
+// export function tableAddRow_OLD(method: string, router: string, data: any) {
+//   const url = `/workspace/api/v1/callback${router}?_type=OnTableAddRow&_method=${method.toUpperCase()}`
+//   return post(url, data)
+// }
+// export function tableUpdateRow_OLD(method: string, router: string, data: any) {
+//   const url = `/workspace/api/v1/callback${router}?_type=OnTableUpdateRow&_method=${method.toUpperCase()}`
+//   return post(url, data)
+// }
+// export function tableDeleteRows_OLD(method: string, router: string, ids: number[]) {
+//   const url = `/workspace/api/v1/callback${router}?_type=OnTableDeleteRows&_method=${method.toUpperCase()}`
+//   return post(url, { ids })
+// }
 
 /**
  * Select 回调操作 - 模糊查询选项
@@ -141,6 +190,13 @@ export function tableDeleteRows(method: string, router: string, ids: number[]) {
 import { SelectFuzzyQueryType } from '@/core/constants/select'
 import { Logger } from '@/core/utils/logger'
 
+/**
+ * Select 回调操作 - 模糊查询选项（使用标准 API）
+ * 
+ * @param method 原函数的 HTTP 方法（GET/POST 等），用于标识回调所属的函数（已废弃，保留用于兼容）
+ * @param router 函数路由（如 /luobei/test999/plugins/cashier_desk），将转换为 full-code-path
+ * @param data 回调数据
+ */
 export function selectFuzzy(method: string, router: string, data: {
   code: string
   type: 'by_keyword' | 'by_value' | 'by_values'
@@ -148,11 +204,26 @@ export function selectFuzzy(method: string, router: string, data: {
   request: Record<string, any>
   value_type: string
 }) {
-  const url = `/workspace/api/v1/callback${router}?_type=OnSelectFuzzy&_function_method=${method.toUpperCase()}`
+  // ⭐ 使用标准 API：/callback/on_select_fuzzy/{full-code-path}
+  // router 格式：/luobei/app/dir/func，需要确保以 / 开头
+  const fullCodePath = router.startsWith('/') ? router : `/${router}`
+  const url = `/workspace/api/v1/callback/on_select_fuzzy${fullCodePath}`
 
   // 统一使用 POST 方法
   return post(url, data)
 }
+
+// ⭐ 旧版本（已注释，保留用于参考）
+// export function selectFuzzy_OLD(method: string, router: string, data: {
+//   code: string
+//   type: 'by_keyword' | 'by_value' | 'by_values'
+//   value: any
+//   request: Record<string, any>
+//   value_type: string
+// }) {
+//   const url = `/workspace/api/v1/callback${router}?_type=OnSelectFuzzy&_function_method=${method.toUpperCase()}`
+//   return post(url, data)
+// }
 
 // 导出数据
 export function exportData(router: string, params: SearchParams) {
