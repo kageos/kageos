@@ -260,41 +260,33 @@ function getFilenameFromResponse(response: any): string | null {
 /**
  * 处理权限不足错误（403）
  * @param data 响应数据（包含权限信息）
+ * ⭐ 不弹窗，而是将权限信息存储到 store 中，供详情页面显示
  */
-async function handlePermissionDenied(data: any) {
+function handlePermissionDenied(data: any) {
   // 尝试从响应数据中提取权限信息
   const permissionInfo: PermissionInfo | undefined = data?.data
 
-  if (permissionInfo && permissionInfo.action_display && permissionInfo.apply_url) {
-    // 有详细的权限信息，显示权限申请提示
-    try {
-      await ElMessageBox.confirm(
-        `您没有 ${permissionInfo.action_display} 权限，是否立即申请？`,
-        '权限不足',
-        {
-          confirmButtonText: '立即申请',
-          cancelButtonText: '取消',
-          type: 'warning',
-          dangerouslyUseHTMLString: false
-        }
-      )
-      // 用户点击"立即申请"，跳转到权限申请页面
-      // 注意：apply_url 是后端返回的相对路径，如 /permissions/apply?resource=...&action=...
-      // 这里需要根据实际的路由配置来处理
-      if (permissionInfo.apply_url.startsWith('/')) {
-        // 如果是相对路径，直接使用 router.push
-        router.push(permissionInfo.apply_url)
-      } else {
-        // 如果是完整 URL，使用 window.open
-        window.open(permissionInfo.apply_url, '_blank')
-      }
-    } catch {
-      // 用户点击"取消"，不执行任何操作
-    }
+  if (permissionInfo) {
+    // ⭐ 将权限信息存储到 store 中，供详情页面显示
+    // 使用动态导入避免循环依赖
+    import('@/stores/permissionError').then(({ usePermissionErrorStore }) => {
+      const permissionErrorStore = usePermissionErrorStore()
+      permissionErrorStore.setError(permissionInfo)
+    })
   } else {
-    // 没有详细的权限信息，显示通用错误提示
-    const errorMessage = data?.msg || permissionInfo?.error_message || '没有权限访问该资源'
-    ElMessage.error(errorMessage)
+    // 没有详细的权限信息，显示通用错误提示（但不弹窗）
+    const errorMessage = data?.msg || '没有权限访问该资源'
+    // ⭐ 也存储到 store 中，使用默认的权限信息结构
+    import('@/stores/permissionError').then(({ usePermissionErrorStore }) => {
+      const permissionErrorStore = usePermissionErrorStore()
+      permissionErrorStore.setError({
+        resource_path: '',
+        action: '',
+        action_display: '',
+        apply_url: '',
+        error_message: errorMessage
+      })
+    })
   }
 }
 

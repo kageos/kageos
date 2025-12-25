@@ -10,6 +10,36 @@
 
 <template>
   <div class="form-view">
+    <!-- ⭐ 权限不足提示：在详情页面显示，不弹窗 -->
+    <el-alert
+      v-if="permissionError"
+      :title="`权限不足：${permissionError.action_display || permissionError.error_message || '没有权限访问该资源'}`"
+      type="warning"
+      :closable="false"
+      show-icon
+      class="permission-error-alert"
+    >
+      <template #default>
+        <div class="permission-error-content">
+          <p v-if="permissionError.resource_path">
+            资源路径：<strong>{{ permissionError.resource_path }}</strong>
+          </p>
+          <p v-if="permissionError.action_display">
+            缺少权限：<strong>{{ permissionError.action_display }}</strong>
+          </p>
+          <el-button
+            v-if="permissionError.apply_url"
+            type="primary"
+            size="small"
+            @click="handleApplyPermission"
+            style="margin-top: 12px"
+          >
+            立即申请权限
+          </el-button>
+        </div>
+      </template>
+    </el-alert>
+
     <!-- 请求参数表单 -->
     <el-form
       v-if="requestFields.length > 0"
@@ -212,6 +242,8 @@ import { useResponseDataStore } from '@/core/stores-v2/responseData'
 import { useFunctionParamInitialization } from '../composables/useFunctionParamInitialization'
 import { useFormParamURLSync } from '../composables/useFormParamURLSync'
 import { hasPermission, FormPermissions } from '@/utils/permission'
+import { usePermissionErrorStore } from '@/stores/permissionError'
+import type { PermissionInfo } from '@/utils/permission'
 
 const props = defineProps<{
   functionDetail?: FunctionDetail  // 🔥 改为可选，因为会在 onMounted 中主动获取
@@ -263,6 +295,21 @@ const canSubmit = computed(() => {
   if (!node) return true  // 如果没有节点信息，默认允许（向后兼容）
   return hasPermission(node, FormPermissions.submit)
 })
+
+// ⭐ 权限错误状态
+const permissionErrorStore = usePermissionErrorStore()
+const permissionError = computed<PermissionInfo | null>(() => permissionErrorStore.currentError)
+
+// ⭐ 处理权限申请
+const handleApplyPermission = () => {
+  if (permissionError.value?.apply_url) {
+    if (permissionError.value.apply_url.startsWith('/')) {
+      router.push(permissionError.value.apply_url)
+    } else {
+      window.open(permissionError.value.apply_url, '_blank')
+    }
+  }
+}
 
 // 🔥 移除 formInitialData computed，改为使用统一的数据初始化框架
 // URL 参数会在 useFunctionParamInitialization 中统一处理
@@ -604,6 +651,8 @@ onMounted(async () => {
   // 🔥 挂载时清理 store，避免之前函数的数据污染
   formDataStore.clear()
   responseDataStore.clear()
+  // ⭐ 清除之前的权限错误（切换函数时清除）
+  permissionErrorStore.clearError()
   
   // 🔥 在 onMounted 中主动获取 functionDetail
   // 如果 prop 已经提供了 functionDetail，直接使用；否则从 WorkspaceStateManager 获取当前函数节点并加载详情
@@ -746,6 +795,9 @@ onMounted(async () => {
   // 注意：只在 props.functionDetail 真正变化时（id 或 router 变化）才重新初始化
   // 初始化逻辑在 onMounted 中处理，这里只处理函数切换的场景
   watch(() => props.functionDetail, async (newDetail: FunctionDetail | undefined, oldDetail?: FunctionDetail) => {
+    // ⭐ 切换函数时清除权限错误
+    permissionErrorStore.clearError()
+    
     // 🔥 同步到内部的 functionDetail ref
     if (newDetail && newDetail.id) {
       functionDetail.value = newDetail

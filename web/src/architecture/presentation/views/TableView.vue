@@ -12,6 +12,36 @@
 
 <template>
   <div class="table-view">
+    <!-- ⭐ 权限不足提示：在详情页面显示，不弹窗 -->
+    <el-alert
+      v-if="permissionError"
+      :title="`权限不足：${permissionError.action_display || permissionError.error_message || '没有权限访问该资源'}`"
+      type="warning"
+      :closable="false"
+      show-icon
+      class="permission-error-alert"
+    >
+      <template #default>
+        <div class="permission-error-content">
+          <p v-if="permissionError.resource_path">
+            资源路径：<strong>{{ permissionError.resource_path }}</strong>
+          </p>
+          <p v-if="permissionError.action_display">
+            缺少权限：<strong>{{ permissionError.action_display }}</strong>
+          </p>
+          <el-button
+            v-if="permissionError.apply_url"
+            type="primary"
+            size="small"
+            @click="handleApplyPermission"
+            style="margin-top: 12px"
+          >
+            立即申请权限
+          </el-button>
+        </div>
+      </template>
+    </el-alert>
+
     <!-- 工具栏 -->
     <div class="toolbar" v-if="hasAddCallback || hasDeleteCallback">
       <div class="toolbar-left">
@@ -305,6 +335,8 @@ import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types
 import type { TableRow, SearchParams, SortParams, SortItem } from '../../domain/services/TableDomainService'
 import type { UserInfo } from '@/types'
 import { hasPermission, TablePermissions } from '@/utils/permission'
+import { usePermissionErrorStore } from '@/stores/permissionError'
+import type { PermissionInfo } from '@/utils/permission'
 
 const props = defineProps<{
   functionDetail: FunctionDetail
@@ -1445,6 +1477,8 @@ const { initializeTable, setupQueryWatch } = useTableInitialization({
 })
 
 onMounted(async () => {
+  // ⭐ 清除之前的权限错误（切换函数时清除）
+  permissionErrorStore.clearError()
   
   // 🔥 设置挂载状态
   isMounted.value = true
