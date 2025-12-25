@@ -1124,7 +1124,7 @@ const loadTableData = async (): Promise<void> => {
   }
   
   try {
-    await applicationService.loadData(props.functionDetail, searchParams, sortParams, pagination)
+  await applicationService.loadData(props.functionDetail, searchParams, sortParams, pagination)
   } catch (error: any) {
     // 🔥 处理错误：当 API 返回 code !== 0 时，显示错误消息
     // request.ts 的响应拦截器在 code !== 0 时会 reject，并创建错误对象
