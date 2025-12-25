@@ -37,6 +37,32 @@ func extractVersionNumForServiceTree(version string) int {
 	return num
 }
 
+// grantCreatorPermission 给创建者授予权限（如果权限功能启用）
+func (s *ServiceTreeService) grantCreatorPermission(ctx context.Context, username, resourcePath, action string) error {
+	// 检查权限功能是否启用（企业版）
+	licenseMgr := license.GetManager()
+	if !licenseMgr.HasFeature(enterprise.FeaturePermission) {
+		// 权限功能未启用，跳过
+		return nil
+	}
+
+	// 获取权限服务
+	permissionService := enterprise.GetPermissionService()
+	if permissionService == nil {
+		return fmt.Errorf("权限服务未初始化")
+	}
+
+	// 添加权限
+	err := permissionService.AddPolicy(ctx, username, resourcePath, action)
+	if err != nil {
+		return fmt.Errorf("添加权限失败: %w", err)
+	}
+
+	logger.Infof(ctx, "[ServiceTreeService] 自动添加创建者权限成功: user=%s, resource=%s, action=%s",
+		username, resourcePath, action)
+	return nil
+}
+
 type ServiceTreeService struct {
 	serviceTreeRepo    *repository.ServiceTreeRepository
 	appRepo            *repository.AppRepository
