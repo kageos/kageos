@@ -17,6 +17,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/enterprise"
 	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
+	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
 
@@ -304,28 +305,36 @@ func (s *ServiceTreeService) convertToGetServiceTreeResp(ctx context.Context, tr
 	}
 
 	// ⭐ 添加权限标识（企业版功能）
-	// 获取用户信息
-	username := contextx.GetRequestUser(ctx)
-	if username != "" && resp.FullCodePath != "" {
-		// 根据节点类型和模板类型，动态确定需要检查的权限点
-		actions := s.getPermissionActionsForNode(resp.Type, resp.TemplateType)
+	// ⭐ 先检查 License 是否支持权限功能
+	licenseMgr := license.GetManager()
+	if licenseMgr.HasFeature(enterprise.FeaturePermission) {
+		// 企业版且支持权限功能：进行权限检查
+		// 获取用户信息
+		username := contextx.GetRequestUser(ctx)
+		if username != "" && resp.FullCodePath != "" {
+			// 根据节点类型和模板类型，动态确定需要检查的权限点
+			actions := s.getPermissionActionsForNode(resp.Type, resp.TemplateType)
 
-		if len(actions) > 0 {
-			// 批量查询权限（使用 enterprise 接口）
-			permissionService := enterprise.GetPermissionService()
-			resourcePaths := []string{resp.FullCodePath}
+			if len(actions) > 0 {
+				// 批量查询权限（使用 enterprise 接口）
+				permissionService := enterprise.GetPermissionService()
+				resourcePaths := []string{resp.FullCodePath}
 
-			// 批量查询权限
-			permissions, err := permissionService.BatchCheckPermissions(ctx, username, resourcePaths, actions)
-			if err == nil {
-				// 附加当前节点的权限标识
-				if nodePerms, ok := permissions[resp.FullCodePath]; ok {
-					resp.Permissions = nodePerms
+				// 批量查询权限
+				permissions, err := permissionService.BatchCheckPermissions(ctx, username, resourcePaths, actions)
+				if err == nil {
+					// 附加当前节点的权限标识
+					if nodePerms, ok := permissions[resp.FullCodePath]; ok {
+						resp.Permissions = nodePerms
+					}
+				} else {
+					logger.Warnf(ctx, "[ServiceTreeService] 批量权限查询失败: %v", err)
 				}
-			} else {
-				logger.Warnf(ctx, "[ServiceTreeService] 批量权限查询失败: %v", err)
 			}
 		}
+	} else {
+		// 社区版或不支持权限功能：不返回 permissions 字段（或返回空）
+		// 这样前端就不会显示权限相关的 UI
 	}
 
 	return resp
