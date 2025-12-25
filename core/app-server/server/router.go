@@ -41,9 +41,9 @@ func (s *Server) setupRoutes() {
 	appHandler := v1.NewApp(s.appService, s.serviceTreeService)
 	app.GET("/list", appHandler.GetApps)
 	app.GET("/detail/:app", appHandler.GetAppDetail)
-	// ⭐ 服务树接口：使用 full-code-path（至少包含 /{user}/{app}）
-	// 格式：/workspace/api/v1/app/{user}/{app}/tree 或 /workspace/api/v1/app/{user}/{app}/.../tree
-	app.GET("/*full-code-path/tree", middleware2.Gzip(), appHandler.GetAppWithServiceTree)
+	// ⭐ 服务树接口：使用 user 和 app 参数（从 full-code-path 中解析）
+	// 格式：/workspace/api/v1/app/{user}/{app}/tree
+	app.GET("/:user/:app/tree", middleware2.Gzip(), appHandler.GetAppWithServiceTree)
 	app.POST("/create", appHandler.CreateApp)
 	// ⭐ 添加应用更新权限检查
 	app.POST("/update/:app", middleware2.CheckAppUpdate(), appHandler.UpdateApp)
