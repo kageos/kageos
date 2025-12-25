@@ -2,6 +2,7 @@ import axios from 'axios'
 import type { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
+import { usePermissionErrorStore } from '@/stores/permissionError'
 import { Logger } from '@/core/utils/logger'
 import router from '@/router'
 import type { ApiResponse } from '@/types'
@@ -266,26 +267,23 @@ function handlePermissionDenied(data: any) {
   // 尝试从响应数据中提取权限信息
   const permissionInfo: PermissionInfo | undefined = data?.data
 
+  // ⭐ 直接使用导入的 store，避免异步问题
+  // 注意：usePermissionErrorStore 必须在函数内部调用，不能在模块级别调用
+  const permissionErrorStore = usePermissionErrorStore()
+
   if (permissionInfo) {
     // ⭐ 将权限信息存储到 store 中，供详情页面显示
-    // 使用动态导入避免循环依赖
-    import('@/stores/permissionError').then(({ usePermissionErrorStore }) => {
-      const permissionErrorStore = usePermissionErrorStore()
-      permissionErrorStore.setError(permissionInfo)
-    })
+    permissionErrorStore.setError(permissionInfo)
   } else {
     // 没有详细的权限信息，显示通用错误提示（但不弹窗）
     const errorMessage = data?.msg || '没有权限访问该资源'
     // ⭐ 也存储到 store 中，使用默认的权限信息结构
-    import('@/stores/permissionError').then(({ usePermissionErrorStore }) => {
-      const permissionErrorStore = usePermissionErrorStore()
-      permissionErrorStore.setError({
-        resource_path: '',
-        action: '',
-        action_display: '',
-        apply_url: '',
-        error_message: errorMessage
-      })
+    permissionErrorStore.setError({
+      resource_path: '',
+      action: '',
+      action_display: '',
+      apply_url: '',
+      error_message: errorMessage
     })
   }
 }

@@ -123,7 +123,11 @@
         <div v-else-if="currentFunction && currentFunction.type === 'function'" class="function-content-wrapper">
           <div class="function-content">
             <!-- ⭐ 如果函数详情已加载，显示对应的视图 -->
-            <template v-if="currentFunctionDetail">
+            <!-- ⚠️ 重要：只有当 currentFunctionDetail 的 id 或 router 与 currentFunction 匹配时才显示 -->
+            <template v-if="currentFunctionDetail && 
+                           currentFunction && 
+                           (currentFunctionDetail.id === currentFunction.ref_id || 
+                            currentFunctionDetail.router === currentFunction.full_code_path)">
               <!-- 🔥 移除 keep-alive，每次切换函数时重新渲染，保证数据一致性 -->
               <!-- 🔥 使用 full_code_path 作为 key，确保函数切换时组件正确重建 -->
               <FormView
@@ -145,14 +149,15 @@
                 <p>加载中...</p>
               </div>
             </template>
-            <!-- ⭐ 如果函数详情未加载（可能是权限不足），显示一个占位视图 -->
-            <!-- 权限错误会在 FormView/TableView/ChartView 中显示（通过 permissionErrorStore） -->
-            <!-- 这里显示一个默认的 FormView，它会显示权限错误提示 -->
-            <FormView
-              v-else
-              :key="`form-permission-error-${currentFunction.full_code_path || currentFunction.id}`"
-              :function-detail="null"
+            <!-- 如果函数详情未加载且有权限错误，显示权限错误组件 -->
+            <PermissionDeniedView
+              v-else-if="hasPermissionError"
+              :key="`permission-denied-${currentFunction.full_code_path || currentFunction.id}`"
             />
+            <!-- 如果函数详情未加载且没有权限错误，显示加载中 -->
+            <div v-else :key="`loading-${currentFunction.full_code_path || currentFunction.id}`" class="empty-state">
+              <p>加载中...</p>
+            </div>
           </div>
         </div>
         <div v-else class="empty-state">
@@ -236,7 +241,7 @@
       :row-data="detailRowData"
       :table-data="detailTableData"
       :current-index="currentDetailIndex"
-      :can-edit="currentFunctionDetail?.callbacks?.includes('OnTableUpdateRow') || false"
+      :can-edit="(currentFunctionDetail?.callbacks?.includes('OnTableUpdateRow') || false) && canUpdateTable"
       :edit-function-detail="editFunctionDetail"
       :current-function-detail="currentFunctionDetail"
       :user-info-map="detailUserInfoMap"
@@ -372,6 +377,7 @@ import ChartView from './ChartView.vue'
 import WorkspaceHeader from '../components/WorkspaceHeader.vue'
 import FunctionBreadcrumb from '../components/FunctionBreadcrumb.vue'
 import TableRowDetailDrawer from '../components/TableRowDetailDrawer.vue'
+import PermissionDeniedView from '../components/PermissionDeniedView.vue'
 import AIChatPanel from '../components/AIChatPanel.vue'
 import AgentSelectDialog from '@/components/Agent/AgentSelectDialog.vue'
 import PackageDetailView from '../components/PackageDetailView.vue'
@@ -390,6 +396,8 @@ import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { resolveWorkspaceUrl } from '@/utils/route'
 import { getAgentList, type AgentInfo } from '@/api/agent'
 import { isLinkNavigation as checkLinkNavigation, LINK_TYPE_QUERY_KEY } from '@/utils/linkNavigation'
+import { hasPermission, TablePermissions, buildPermissionApplyURL } from '@/utils/permission'
+import { usePermissionErrorStore } from '@/stores/permissionError'
 
 const route = useRoute()
 const router = useRouter()
@@ -669,7 +677,18 @@ const existingFilesInPackage = computed(() => {
   return getDirectChildFunctionCodes(currentNode)
 })
 
+// ⭐ 权限检查：是否有表格更新权限
+const canUpdateTable = computed(() => {
+  const node = currentFunction.value
+  if (!node) return true  // 如果没有节点信息，默认允许（向后兼容）
+  return hasPermission(node, TablePermissions.update)
+})
 
+// ⭐ 权限错误状态
+const permissionErrorStore = usePermissionErrorStore()
+const hasPermissionError = computed(() => {
+  return permissionErrorStore.currentError !== null
+})
 
 // 🔥 全局粘贴监听：检测 Hub 链接并自动打开安装对话框
 const handleGlobalPaste = async (event: ClipboardEvent) => {
@@ -1172,6 +1191,8 @@ onMounted(async () => {
         (currentFunction.value.id === payload.node.id || 
          currentFunction.value.full_code_path === payload.node.full_code_path)) {
       currentFunctionDetail.value = payload.detail
+      // 清除权限错误（因为函数已成功加载）
+      permissionErrorStore.clearError()
     }
   })
 
@@ -1223,6 +1244,17 @@ watch(currentApp, () => {
     nextTick(() => {
       checkAndExpandForkedPaths()
     })
+  }
+})
+
+// 🔥 监听当前函数变化，清除旧的函数详情和权限错误
+watch(() => currentFunction.value?.id, (newId: number | undefined, oldId: number | undefined) => {
+  // 当切换函数时，先清空旧的函数详情，避免显示上一个函数的详情
+  if (newId !== oldId && oldId !== undefined) {
+    // ⭐ 清空旧的函数详情，这样如果新函数加载失败，不会显示旧函数的详情
+    currentFunctionDetail.value = null
+    // 清除旧的权限错误（新的权限错误会在加载失败时重新设置）
+    permissionErrorStore.clearError()
   }
 })
 

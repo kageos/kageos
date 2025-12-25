@@ -149,10 +149,10 @@ func (s *Server) setupRoutes() {
 	chart.Use(middleware2.JWTAuth())
 	chart.GET("/query/*full-code-path", middleware2.CheckChartQuery(), standardAPI.ChartQuery) // Chart 查询
 
-	// Callback 接口
+	// Callback 接口（不需要权限检查，因为这是内部回调）
 	callbackStandard := apiV1.Group("/callback")
 	callbackStandard.Use(middleware2.JWTAuth())
-	callbackStandard.POST("/on_select_fuzzy/*full-code-path", middleware2.CheckCallback(), standardAPI.CallbackOnSelectFuzzy) // 模糊搜索回调
+	callbackStandard.POST("/on_select_fuzzy/*full-code-path", standardAPI.CallbackOnSelectFuzzy) // 模糊搜索回调
 
 	// ⭐ 权限管理路由（需要JWT验证 + 权限管理功能鉴权）
 	permission := apiV1.Group("/permission")

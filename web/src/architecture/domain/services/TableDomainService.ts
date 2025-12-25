@@ -23,6 +23,7 @@ import { denormalizeSearchValue } from '@/utils/searchValueNormalizer'
 import { parseCommaSeparatedString } from '@/utils/stringUtils'
 import { SearchType } from '@/core/constants/search'
 import { WidgetType } from '@/core/constants/widget'
+import { tableAddRow } from '@/api/function'
 
 /**
  * 表格数据项类型
@@ -320,8 +321,8 @@ export class TableDomainService {
    * 新增行
    */
   async addRow(functionDetail: FunctionDetail, data: Record<string, any>): Promise<TableRow> {
-    const url = this.buildCallbackUrl(functionDetail.router, 'OnTableAddRow', functionDetail.method)
-    const response = await this.apiClient.post<TableRow>(url, data)
+    // ⭐ 使用标准 API：/table/create/{full-code-path}
+    const response = await tableAddRow(functionDetail.method || 'POST', functionDetail.router, data)
 
     // 触发事件
     this.eventBus.emit(TableEvent.rowAdded, { row: response })
