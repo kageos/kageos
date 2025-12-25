@@ -120,28 +120,39 @@
         </div>
         
         <!-- 函数详情区域（正常模式 - 函数节点） -->
-        <div v-else-if="currentFunction && currentFunction.type === 'function' && currentFunctionDetail" class="function-content-wrapper">
+        <div v-else-if="currentFunction && currentFunction.type === 'function'" class="function-content-wrapper">
           <div class="function-content">
-            <!-- 🔥 移除 keep-alive，每次切换函数时重新渲染，保证数据一致性 -->
-            <!-- 🔥 使用 full_code_path 作为 key，确保函数切换时组件正确重建 -->
+            <!-- ⭐ 如果函数详情已加载，显示对应的视图 -->
+            <template v-if="currentFunctionDetail">
+              <!-- 🔥 移除 keep-alive，每次切换函数时重新渲染，保证数据一致性 -->
+              <!-- 🔥 使用 full_code_path 作为 key，确保函数切换时组件正确重建 -->
+              <FormView
+                v-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.FORM"
+                :key="`form-${currentFunction.full_code_path || currentFunction.id}`"
+                :function-detail="currentFunctionDetail"
+              />
+              <TableView
+                v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.TABLE"
+                :key="`table-${currentFunction.full_code_path || currentFunction.id}`"
+                :function-detail="currentFunctionDetail"
+              />
+              <ChartView
+                v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.CHART"
+                :key="`chart-${currentFunction.full_code_path || currentFunction.id}`"
+                :function-detail="currentFunctionDetail"
+              />
+              <div v-else :key="`empty-${currentFunction.full_code_path || currentFunction.id}`" class="empty-state">
+                <p>加载中...</p>
+              </div>
+            </template>
+            <!-- ⭐ 如果函数详情未加载（可能是权限不足），显示一个占位视图 -->
+            <!-- 权限错误会在 FormView/TableView/ChartView 中显示（通过 permissionErrorStore） -->
+            <!-- 这里显示一个默认的 FormView，它会显示权限错误提示 -->
             <FormView
-              v-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.FORM"
-              :key="`form-${currentFunction.full_code_path || currentFunction.id}`"
-              :function-detail="currentFunctionDetail"
+              v-else
+              :key="`form-permission-error-${currentFunction.full_code_path || currentFunction.id}`"
+              :function-detail="null"
             />
-            <TableView
-              v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.TABLE"
-              :key="`table-${currentFunction.full_code_path || currentFunction.id}`"
-              :function-detail="currentFunctionDetail"
-            />
-            <ChartView
-              v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.CHART"
-              :key="`chart-${currentFunction.full_code_path || currentFunction.id}`"
-              :function-detail="currentFunctionDetail"
-            />
-            <div v-else :key="`empty-${currentFunction.full_code_path || currentFunction.id}`" class="empty-state">
-              <p>加载中...</p>
-            </div>
           </div>
         </div>
         <div v-else class="empty-state">
