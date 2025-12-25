@@ -160,3 +160,11 @@ func (s *CasbinService) ReloadPolicy() error {
 	return s.enforcer.LoadPolicy()
 }
 
+// GetAllPolicies 获取所有策略（用于调试）
+// 返回：
+//   - [][]string: 所有策略列表，每个策略格式为 [subject, object, action]
+//   - error: 如果查询失败返回错误
+func (s *CasbinService) GetAllPolicies() ([][]string, error) {
+	return s.enforcer.GetPolicy()
+}
+
