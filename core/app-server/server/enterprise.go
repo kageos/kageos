@@ -4,6 +4,10 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/enterprise"
 	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+
+	// ⭐ 导入企业版实现，触发 init() 函数注册
+	_ "github.com/ai-agent-os/ai-agent-os/enterprise_impl/operatelog"
+	_ "github.com/ai-agent-os/ai-agent-os/enterprise_impl/permission"
 )
 
 // initEnterprise 初始化企业功能
