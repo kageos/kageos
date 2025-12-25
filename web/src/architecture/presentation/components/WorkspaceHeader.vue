@@ -188,9 +188,18 @@ const handleDeactivate = async () => {
 }
 
 // 组件挂载时加载 License 状态
-onMounted(() => {
-  // 从本地加载（不主动调用接口，依赖定时检查和激活时的保存）
+onMounted(async () => {
+  // ⭐ 先从本地加载（快速显示，避免闪烁）
   licenseStore.loadFromLocal()
+  
+  // ⭐ 主动从后端获取最新的 License 状态（确保跨浏览器一致性）
+  // License 状态是存储在服务器端的，应该从后端获取，而不是依赖浏览器的 localStorage
+  try {
+    await licenseStore.fetchStatus()
+  } catch (error) {
+    // 如果获取失败，使用本地缓存（可能是网络问题）
+    console.warn('[WorkspaceHeader] 获取 License 状态失败，使用本地缓存:', error)
+  }
   
   // 如果已有激活的 License，启动定时检查（如果还没启动的话）
   if (licenseStore.isEnterprise && !licenseStore.isExpired) {
