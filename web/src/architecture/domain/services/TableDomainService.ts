@@ -338,9 +338,17 @@ export class TableDomainService {
     data: Record<string, any>,
     oldData?: Record<string, any>
   ): Promise<TableRow> {
-    const url = this.buildCallbackUrl(functionDetail.router, 'OnTableUpdateRow', functionDetail.method)
+    // ⭐ 使用标准 API：PUT /workspace/api/v1/table/update/{full-code-path}
+    const fullCodePath = functionDetail.router.startsWith('/') 
+      ? functionDetail.router 
+      : `/${functionDetail.router}`
+    const url = `/workspace/api/v1/table/update${fullCodePath}`
+    
+    // 构建更新负载
     const payload = this.buildUpdatePayload(id, data, oldData)
-    const response = await this.apiClient.post<TableRow>(url, payload)
+    
+    // 使用 PUT 方法调用新接口
+    const response = await this.apiClient.put<TableRow>(url, payload)
 
     // 触发事件
     this.eventBus.emit(TableEvent.rowUpdated, { id, row: response })
