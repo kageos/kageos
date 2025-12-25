@@ -46,6 +46,17 @@ const router = createRouter({
       }
     },
 
+    // 权限申请页面
+    {
+      path: '/permissions/apply',
+      name: 'permission-apply',
+      component: () => import('../views/Permission/PermissionApply.vue'),
+      meta: {
+        title: '权限申请',
+        requireAuth: true
+      }
+    },
+
     // Agent-Server 管理页面
     {
       path: '/agent',

@@ -52,3 +52,17 @@ type GetUserRolesResp struct {
 	Roles    []string `json:"roles"`   // 角色列表
 }
 
+// ApplyPermissionReq 权限申请请求
+type ApplyPermissionReq struct {
+	ResourcePath string `json:"resource_path" binding:"required"` // 资源路径（full-code-path）
+	Action       string `json:"action" binding:"required"`        // 操作类型（如 table:search、function:execute 等）
+	Reason       string `json:"reason" binding:"required"`        // 申请理由
+}
+
+// ApplyPermissionResp 权限申请响应
+type ApplyPermissionResp struct {
+	ID      string `json:"id"`      // 申请ID（暂时返回空字符串，后续可以扩展为申请记录ID）
+	Status  string `json:"status"`  // 申请状态（approved：已批准，pending：待审核）
+	Message string `json:"message"` // 响应消息
+}
+
