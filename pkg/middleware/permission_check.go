@@ -28,6 +28,12 @@ func checkPermission(c *gin.Context, action string, errorMessage string) bool {
 	return checkPermissionWithPath(c, fullCodePath, action, errorMessage)
 }
 
+// CheckPermissionWithPath 通用权限检查函数（导出，供其他包使用）
+// 使用指定的 full-code-path
+func CheckPermissionWithPath(c *gin.Context, fullCodePath string, action string, errorMessage string) bool {
+	return checkPermissionWithPath(c, fullCodePath, action, errorMessage)
+}
+
 // checkPermissionWithPath 通用权限检查函数（内部使用，支持企业版控制）
 // 使用指定的 full-code-path
 func checkPermissionWithPath(c *gin.Context, fullCodePath string, action string, errorMessage string) bool {

@@ -5,9 +5,12 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
 	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/enterprise"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
+	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/pkg/middleware"
 	"github.com/gin-gonic/gin"
 )
 
@@ -55,6 +58,32 @@ func (f *Function) GetFunction(c *gin.Context) {
 	}
 
 	ctx := contextx.ToContext(c)
+	
+	// ⭐ 先获取函数信息，用于权限检查
+	function, err := f.functionService.GetFunctionByID(ctx, functionID)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+
+	// ⭐ 权限检查：检查是否有 function:read 权限
+	// 使用函数的 Router 字段作为 full-code-path（Router 存储的就是 full-code-path）
+	fullCodePath := function.Router
+	if fullCodePath == "" {
+		response.FailWithMessage(c, "函数路由信息不完整")
+		return
+	}
+
+	// 检查权限功能是否启用（企业版）
+	licenseMgr := license.GetManager()
+	if licenseMgr.HasFeature(enterprise.FeaturePermission) {
+		// 企业版：进行权限检查
+		if !middleware.CheckPermissionWithPath(c, fullCodePath, "function:read", "无权限查看该函数详情") {
+			return
+		}
+	}
+
+	// 获取函数详情
 	resp, err = f.functionService.GetFunction(ctx, functionID)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
