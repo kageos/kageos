@@ -47,9 +47,6 @@ func NewCasbinService(db *gorm.DB) (*CasbinService, error) {
 	// 启用自动保存（修改策略时自动保存到数据库）
 	enforcer.EnableAutoSave(true)
 
-	// 启用缓存（提升性能）
-	enforcer.EnableCache(true)
-
 	return &CasbinService{
 		enforcer: enforcer,
 		db:       db,
@@ -91,7 +88,12 @@ func (s *CasbinService) BatchCheckPermissions(requests [][]interface{}) ([]bool,
 //   - bool: 是否添加成功
 //   - error: 如果添加失败返回错误
 func (s *CasbinService) AddPolicy(params ...string) (bool, error) {
-	return s.enforcer.AddPolicy(params...)
+	// 将 []string 转换为 []interface{}
+	interfaceParams := make([]interface{}, len(params))
+	for i, v := range params {
+		interfaceParams[i] = v
+	}
+	return s.enforcer.AddPolicy(interfaceParams...)
 }
 
 // RemovePolicy 删除策略
@@ -102,7 +104,12 @@ func (s *CasbinService) AddPolicy(params ...string) (bool, error) {
 //   - bool: 是否删除成功
 //   - error: 如果删除失败返回错误
 func (s *CasbinService) RemovePolicy(params ...string) (bool, error) {
-	return s.enforcer.RemovePolicy(params...)
+	// 将 []string 转换为 []interface{}
+	interfaceParams := make([]interface{}, len(params))
+	for i, v := range params {
+		interfaceParams[i] = v
+	}
+	return s.enforcer.RemovePolicy(interfaceParams...)
 }
 
 // AddGroupingPolicy 添加关系（g、g2、g3、g4）
@@ -117,7 +124,12 @@ func (s *CasbinService) RemovePolicy(params ...string) (bool, error) {
 //   - bool: 是否添加成功
 //   - error: 如果添加失败返回错误
 func (s *CasbinService) AddGroupingPolicy(params ...string) (bool, error) {
-	return s.enforcer.AddGroupingPolicy(params...)
+	// 将 []string 转换为 []interface{}
+	interfaceParams := make([]interface{}, len(params))
+	for i, v := range params {
+		interfaceParams[i] = v
+	}
+	return s.enforcer.AddGroupingPolicy(interfaceParams...)
 }
 
 // RemoveGroupingPolicy 删除关系
@@ -128,7 +140,12 @@ func (s *CasbinService) AddGroupingPolicy(params ...string) (bool, error) {
 //   - bool: 是否删除成功
 //   - error: 如果删除失败返回错误
 func (s *CasbinService) RemoveGroupingPolicy(params ...string) (bool, error) {
-	return s.enforcer.RemoveGroupingPolicy(params...)
+	// 将 []string 转换为 []interface{}
+	interfaceParams := make([]interface{}, len(params))
+	for i, v := range params {
+		interfaceParams[i] = v
+	}
+	return s.enforcer.RemoveGroupingPolicy(interfaceParams...)
 }
 
 // GetRolesForUser 获取用户的所有角色
