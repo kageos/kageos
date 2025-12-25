@@ -1,7 +1,6 @@
 package model
 
 import (
-	"github.com/ai-agent-os/ai-agent-os/pkg/casbin"
 	"gorm.io/gorm"
 )
 
@@ -28,11 +27,6 @@ func InitTables(db *gorm.DB) error {
 		&DirectoryUpdateHistory{},
 	)
 	if err != nil {
-		return err
-	}
-
-	// ⭐ 初始化 Casbin 表（权限系统需要）
-	if err := casbin.InitCasbinTable(db); err != nil {
 		return err
 	}
 
