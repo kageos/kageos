@@ -54,23 +54,25 @@
     <!-- 工具栏 -->
     <div class="toolbar" v-if="hasAddCallback || hasDeleteCallback">
       <div class="toolbar-left">
-        <!-- ⭐ 新增按钮：需要 table:create 权限 -->
+        <!-- ⭐ 新增按钮：需要 table:create 权限，无权限时显示但禁用，点击跳转申请 -->
         <el-button 
-          v-if="hasAddCallback && canCreate" 
-          type="primary" 
-          @click="handleAdd" 
+          v-if="hasAddCallback" 
+          :type="canCreate ? 'primary' : 'info'"
+          :disabled="!canCreate"
+          @click="canCreate ? handleAdd() : handleApplyPermissionForAction('table:create')" 
           :icon="Plus"
         >
-          新增
+          {{ canCreate ? '新增' : '新增（需权限）' }}
         </el-button>
-        <!-- ⭐ 批量删除按钮：需要 table:delete 权限 -->
+        <!-- ⭐ 批量删除按钮：需要 table:delete 权限，无权限时显示但禁用，点击跳转申请 -->
         <el-button 
-          v-if="hasDeleteCallback && !isBatchDeleteMode && canDelete" 
-          type="danger" 
-          @click="enterBatchDeleteMode"
+          v-if="hasDeleteCallback && !isBatchDeleteMode" 
+          :type="canDelete ? 'danger' : 'info'"
+          :disabled="!canDelete"
+          @click="canDelete ? enterBatchDeleteMode() : handleApplyPermissionForAction('table:delete')"
           :icon="Delete"
         >
-          批量删除
+          {{ canDelete ? '批量删除' : '批量删除（需权限）' }}
         </el-button>
         <template v-if="hasDeleteCallback && isBatchDeleteMode">
           <el-button 
@@ -272,17 +274,31 @@
               </template>
             </el-dropdown>
             
-            <!-- ⭐ 删除按钮：需要 table:delete 权限 -->
+            <!-- ⭐ 更新按钮：需要 table:update 权限，无权限时显示但禁用，点击跳转申请 -->
             <el-button 
-              v-if="hasDeleteCallback && canDelete"
+              v-if="hasUpdateCallback"
               link 
-              type="danger" 
+              :type="canUpdate ? 'primary' : 'info'"
+              :disabled="!canUpdate"
+              size="small"
+              class="update-btn"
+              @click.stop="canUpdate ? tableOperations.handleUpdate(row.id, row, row) : handleApplyPermissionForAction('table:update')"
+            >
+              <el-icon><Edit /></el-icon>
+              {{ canUpdate ? '更新' : '更新（需权限）' }}
+            </el-button>
+            <!-- ⭐ 删除按钮：需要 table:delete 权限，无权限时显示但禁用，点击跳转申请 -->
+            <el-button 
+              v-if="hasDeleteCallback"
+              link 
+              :type="canDelete ? 'danger' : 'info'"
+              :disabled="!canDelete"
               size="small"
               class="delete-btn"
-              @click.stop="handleDelete(row)"
+              @click.stop="canDelete ? handleDelete(row) : handleApplyPermissionForAction('table:delete')"
             >
               <el-icon><Delete /></el-icon>
-              删除
+              {{ canDelete ? '删除' : '删除（需权限）' }}
             </el-button>
           </div>
         </template>
@@ -1456,6 +1472,13 @@ const canCreate = computed(() => {
   return hasPermission(node, TablePermissions.create)
 })
 
+// ⭐ 是否有更新权限
+const canUpdate = computed(() => {
+  const node = currentFunctionNode.value
+  if (!node) return true  // 如果没有节点信息，默认允许（向后兼容）
+  return hasPermission(node, TablePermissions.update)
+})
+
 // ⭐ 是否有删除权限
 const canDelete = computed(() => {
   const node = currentFunctionNode.value
@@ -1476,6 +1499,19 @@ const handleApplyPermission = () => {
       window.open(permissionError.value.apply_url, '_blank')
     }
   }
+}
+
+// ⭐ 为特定操作申请权限
+const handleApplyPermissionForAction = (action: string) => {
+  const node = currentFunctionNode.value
+  if (!node || !node.full_code_path) {
+    ElMessage.warning('无法获取资源路径，无法申请权限')
+    return
+  }
+  
+  const resourcePath = node.full_code_path
+  const applyUrl = `/permissions/apply?resource=${encodeURIComponent(resourcePath)}&action=${encodeURIComponent(action)}`
+  router.push(applyUrl)
 }
 
 // ==================== 生命周期 ====================
