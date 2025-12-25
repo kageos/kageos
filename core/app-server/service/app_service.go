@@ -110,7 +110,42 @@ func (a *AppService) CreateApp(ctx context.Context, req *dto.CreateAppReq) (*dto
 		return nil, err
 	}
 
+	// ⭐ 自动给创建者添加应用管理权限
+	// 资源路径：/{user}/{app}，权限：app:manage
+	resourcePath := fmt.Sprintf("/%s/%s", tenantUser, req.Code)
+	if err := a.grantCreatorPermission(ctx, tenantUser, resourcePath, "app:manage"); err != nil {
+		// 权限添加失败不应该影响应用创建，只记录警告日志
+		logger.Warnf(ctx, "[AppService] 自动添加创建者权限失败: user=%s, resource=%s, action=app:manage, error=%v",
+			tenantUser, resourcePath, err)
+	}
+
 	return resp, nil
+}
+
+// grantCreatorPermission 给创建者授予权限（如果权限功能启用）
+func (a *AppService) grantCreatorPermission(ctx context.Context, username, resourcePath, action string) error {
+	// 检查权限功能是否启用（企业版）
+	licenseMgr := license.GetManager()
+	if !licenseMgr.HasFeature(enterprise.FeaturePermission) {
+		// 权限功能未启用，跳过
+		return nil
+	}
+
+	// 获取权限服务
+	permissionService := enterprise.GetPermissionService()
+	if permissionService == nil {
+		return fmt.Errorf("权限服务未初始化")
+	}
+
+	// 添加权限
+	err := permissionService.AddPolicy(ctx, username, resourcePath, action)
+	if err != nil {
+		return fmt.Errorf("添加权限失败: %w", err)
+	}
+
+	logger.Infof(ctx, "[AppService] 自动添加创建者权限成功: user=%s, resource=%s, action=%s",
+		username, resourcePath, action)
+	return nil
 }
 
 // UpdateApp 更新应用

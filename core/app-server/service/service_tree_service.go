@@ -119,6 +119,17 @@ func (s *ServiceTreeService) CreateServiceTree(ctx context.Context, req *dto.Cre
 
 	logger.Infof(ctx, "[ServiceTreeService] Created service tree: %s/%s/%s", req.User, req.App, req.Code)
 
+	// ⭐ 自动给创建者添加目录管理权限
+	// 资源路径：目录的 FullCodePath，权限：directory:manage
+	requestUser := contextx.GetRequestUser(ctx)
+	if requestUser != "" {
+		if err := s.grantCreatorPermission(ctx, requestUser, serviceTree.FullCodePath, "directory:manage"); err != nil {
+			// 权限添加失败不应该影响目录创建，只记录警告日志
+			logger.Warnf(ctx, "[ServiceTreeService] 自动添加创建者权限失败: user=%s, resource=%s, action=directory:manage, error=%v",
+				requestUser, serviceTree.FullCodePath, err)
+		}
+	}
+
 	// 发送NATS消息给app-runtime创建目录结构
 	if err := s.sendCreateServiceTreeMessage(ctx, req.User, req.App, serviceTree); err != nil {
 		logger.Warnf(ctx, "[ServiceTreeService] Failed to send NATS message: %v", err)
