@@ -37,6 +37,11 @@ func NewCasbinService(db *gorm.DB) (*CasbinService, error) {
 		return nil, err
 	}
 
+	// ⭐ 显式加载策略（这会触发适配器创建 casbin_rule 表）
+	if err := enforcer.LoadPolicy(); err != nil {
+		return nil, fmt.Errorf("加载权限策略失败: %w", err)
+	}
+
 	// 启用自动保存（修改策略时自动保存到数据库）
 	enforcer.EnableAutoSave(true)
 
