@@ -92,37 +92,64 @@
               </el-icon>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <!-- 仅对package类型显示创建子目录选项 -->
-                  <el-dropdown-item v-if="data.type === 'package'" command="create-directory">
+                  <!-- 仅对package类型显示创建子目录选项（需要 directory:create 权限） -->
+                  <el-dropdown-item 
+                    v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.create)" 
+                    command="create-directory"
+                  >
                     <el-icon><Plus /></el-icon>
                     添加服务目录
                   </el-dropdown-item>
-                  <!-- 仅对package类型显示复制选项 -->
-                  <el-dropdown-item v-if="data.type === 'package'" command="copy" divided>
+                  <!-- 仅对package类型显示复制选项（需要 directory:read 权限） -->
+                  <el-dropdown-item 
+                    v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.read)" 
+                    command="copy" 
+                    divided
+                  >
                     <el-icon><CopyDocument /></el-icon>
                     复制
                   </el-dropdown-item>
-                  <!-- 粘贴选项（当有复制的内容或 Hub 链接时显示，粘贴到当前选中的目录） -->
-                  <el-dropdown-item v-if="copiedDirectory || copiedHubLink" command="paste" divided>
+                  <!-- 粘贴选项（当有复制的内容或 Hub 链接时显示，粘贴到当前选中的目录，需要 directory:create 权限） -->
+                  <el-dropdown-item 
+                    v-if="(copiedDirectory || copiedHubLink) && data.type === 'package' && hasPermission(data, DirectoryPermissions.create)" 
+                    command="paste" 
+                    divided
+                  >
                     <el-icon><Document /></el-icon>
                     粘贴
                   </el-dropdown-item>
-                  <el-dropdown-item command="copy-link">
+                  <!-- 复制链接（需要 directory:read 权限） -->
+                  <el-dropdown-item 
+                    v-if="hasPermission(data, DirectoryPermissions.read)" 
+                    command="copy-link"
+                  >
                     <el-icon><Link /></el-icon>
                     复制链接
                   </el-dropdown-item>
-                  <!-- 仅对package类型显示发布到Hub选项（未发布时） -->
-                  <el-dropdown-item v-if="data.type === 'package' && (!data.hub_directory_id || data.hub_directory_id === 0)" command="publish-to-hub" divided>
+                  <!-- 仅对package类型显示发布到Hub选项（未发布时，需要 directory:manage 权限） -->
+                  <el-dropdown-item 
+                    v-if="data.type === 'package' && (!data.hub_directory_id || data.hub_directory_id === 0) && hasPermission(data, DirectoryPermissions.manage)" 
+                    command="publish-to-hub" 
+                    divided
+                  >
                     <el-icon><Upload /></el-icon>
                     发布到应用中心
                   </el-dropdown-item>
-                  <!-- 仅对package类型显示推送到Hub选项（已发布时） -->
-                  <el-dropdown-item v-if="data.type === 'package' && data.hub_directory_id && data.hub_directory_id > 0" command="push-to-hub" divided>
+                  <!-- 仅对package类型显示推送到Hub选项（已发布时，需要 directory:manage 权限） -->
+                  <el-dropdown-item 
+                    v-if="data.type === 'package' && data.hub_directory_id && data.hub_directory_id > 0 && hasPermission(data, DirectoryPermissions.manage)" 
+                    command="push-to-hub" 
+                    divided
+                  >
                     <el-icon><Upload /></el-icon>
                     推送到应用中心
                   </el-dropdown-item>
-                  <!-- 仅对package类型显示变更记录选项 -->
-                  <el-dropdown-item v-if="data.type === 'package'" command="update-history" divided>
+                  <!-- 仅对package类型显示变更记录选项（需要 directory:read 权限） -->
+                  <el-dropdown-item 
+                    v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.read)" 
+                    command="update-history" 
+                    divided
+                  >
                     <el-icon><Clock /></el-icon>
                     变更记录
                   </el-dropdown-item>
@@ -163,6 +190,7 @@ import {
   expandPathAndSelect
 } from '@/utils/serviceTreeUtils'
 import { navigateToHubDirectoryDetail } from '@/utils/hub-navigation'
+import { hasPermission, DirectoryPermissions } from '@/utils/permission'
 
 interface Props {
   treeData: ServiceTree[]

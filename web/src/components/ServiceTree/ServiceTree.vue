@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { ElTree, ElMessage } from 'element-plus'
 import { Folder, Document, Plus, Edit, Delete } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/types'
+import { hasPermission, DirectoryPermissions } from '@/utils/permission'
 
 interface Props {
   data: ServiceTree[]
@@ -277,15 +278,28 @@ onMounted(() => {
                 </el-button>
                 <template #dropdown>
                   <el-dropdown-menu>
-                    <el-dropdown-item command="create" v-if="data.type === 'package'">
+                    <!-- 创建子节点（需要 directory:create 权限） -->
+                    <el-dropdown-item 
+                      command="create" 
+                      v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.create)"
+                    >
                       <el-icon><Plus /></el-icon>
                       创建子节点
                     </el-dropdown-item>
-                    <el-dropdown-item command="edit">
+                    <!-- 编辑节点（需要 directory:update 权限） -->
+                    <el-dropdown-item 
+                      command="edit"
+                      v-if="hasPermission(data, data.type === 'package' ? DirectoryPermissions.update : 'function:read')"
+                    >
                       <el-icon><Edit /></el-icon>
                       编辑节点
                     </el-dropdown-item>
-                    <el-dropdown-item command="delete" divided>
+                    <!-- 删除节点（需要 directory:delete 权限） -->
+                    <el-dropdown-item 
+                      command="delete" 
+                      divided
+                      v-if="hasPermission(data, data.type === 'package' ? DirectoryPermissions.delete : 'function:read')"
+                    >
                       <el-icon><Delete /></el-icon>
                       删除节点
                     </el-dropdown-item>
