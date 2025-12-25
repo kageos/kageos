@@ -200,7 +200,6 @@ const loadAvailablePermissions = async (resourcePath: string, defaultAction?: st
   
   // 尝试从服务树获取资源信息
   try {
-    const authStore = useAuthStore()
     const response = await getAppWithServiceTree(user, app)
     
     if (response && response.tree) {
