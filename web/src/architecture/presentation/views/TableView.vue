@@ -339,7 +339,7 @@
 import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElIcon, ElTable, ElNotification, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElText, ElCard } from 'element-plus'
-import { Search, Refresh, Delete, Plus, ArrowUp, ArrowDown, More, Right, Lock, Document, Key } from '@element-plus/icons-vue'
+import { Search, Refresh, Delete, Plus, ArrowUp, ArrowDown, More, Right, Lock, Document, Key, Edit } from '@element-plus/icons-vue'
 import { eventBus, TableEvent, WorkspaceEvent, RouteEvent } from '../../infrastructure/eventBus'
 import { RouteSource } from '@/utils/routeSource'
 import { serviceFactory } from '../../infrastructure/factories'
