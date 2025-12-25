@@ -9,7 +9,8 @@ import { get, post } from '@/utils/request'
  */
 export interface PermissionApplyReq {
   resource_path: string  // 资源路径
-  action: string  // 权限点（如 table:search）
+  action?: string  // 权限点（如 table:search，可选，如果提供了 actions 则忽略）
+  actions?: string[]  // 权限点列表（可选，如果提供则批量申请）
   reason: string  // 申请理由
 }
 
