@@ -1451,8 +1451,23 @@ const canCreate = computed(() => {
 const canDelete = computed(() => {
   const node = currentFunctionNode.value
   if (!node) return true  // 如果没有节点信息，默认允许（向后兼容）
-  return hasPermission(node, TablePermissions.delete)
+  return hasPermission(node, TablePermissions.DELETE)
 })
+
+// ⭐ 权限错误状态
+const permissionErrorStore = usePermissionErrorStore()
+const permissionError = computed<PermissionInfo | null>(() => permissionErrorStore.currentError)
+
+// ⭐ 处理权限申请
+const handleApplyPermission = () => {
+  if (permissionError.value?.apply_url) {
+    if (permissionError.value.apply_url.startsWith('/')) {
+      router.push(permissionError.value.apply_url)
+    } else {
+      window.open(permissionError.value.apply_url, '_blank')
+    }
+  }
+}
 
 // ==================== 生命周期 ====================
 
