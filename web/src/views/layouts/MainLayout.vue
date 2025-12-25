@@ -183,8 +183,9 @@ const loadServiceTree = async (app: App) => {
     console.log('[MainLayout] 开始加载工作空间数据:', app.user + '/' + app.code)
     loadingTree.value = true
     
-    // 使用合并接口获取应用详情和服务目录树（减少请求次数）
-    const workspaceData = await getAppWithServiceTree(app.code)
+    // ⭐ 使用合并接口获取应用详情和服务目录树（减少请求次数）
+    // 传递 user 和 app，而不是只传 code
+    const workspaceData = await getAppWithServiceTree(app.user, app.code)
     
     if (workspaceData && workspaceData.app && workspaceData.service_tree) {
       // 更新应用详情（确保是最新的）

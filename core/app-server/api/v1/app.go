@@ -529,17 +529,27 @@ func (a *App) GetAppWithServiceTree(c *gin.Context) {
 	var resp *dto.GetAppWithServiceTreeResp
 	var err error
 
-	// 从JWT Token获取用户信息
-	user := contextx.GetRequestUser(c)
-	if user == "" {
-		response.FailWithMessage(c, "无法获取用户信息")
+	// ⭐ 从路径参数获取 full-code-path（格式：/{user}/{app} 或 /{user}/{app}/...）
+	fullCodePath := c.Param("full-code-path")
+	if fullCodePath == "" {
+		response.FailWithMessage(c, "full-code-path 参数不能为空")
 		return
 	}
 
-	// 从路径参数获取应用代码
-	app := c.Param("app")
-	if app == "" {
-		response.FailWithMessage(c, "app parameter is required")
+	// ⭐ 从 full-code-path 中解析 user 和 app
+	// 格式：/{user}/{app} 或 /{user}/{app}/...
+	fullCodePath = strings.TrimPrefix(fullCodePath, "/")
+	parts := strings.Split(fullCodePath, "/")
+	if len(parts) < 2 {
+		response.FailWithMessage(c, "full-code-path 格式错误，至少需要包含 user/app")
+		return
+	}
+
+	user := parts[0]
+	app := parts[1]
+
+	if user == "" || app == "" {
+		response.FailWithMessage(c, "user 和 app 不能为空")
 		return
 	}
 

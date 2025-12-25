@@ -149,8 +149,9 @@ export function useWorkspaceApp() {
       // 使用创建响应中的信息获取工作空间详情和服务目录树（合并接口，减少请求次数）
       if (createResponse && createResponse.user && createResponse.app) {
         try {
-          // 使用合并接口获取工作空间详情和服务目录树
-          const workspaceData = await getAppWithServiceTree(createResponse.app)
+          // ⭐ 使用合并接口获取工作空间详情和服务目录树
+          // 传递 user 和 app，而不是只传 code
+          const workspaceData = await getAppWithServiceTree(createResponse.user, createResponse.app)
           
           if (workspaceData && workspaceData.app && workspaceData.app.user && workspaceData.app.code) {
             const newApp = workspaceData.app

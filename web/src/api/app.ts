@@ -64,16 +64,18 @@ export function getAppDetailByUserAndCode(user: string, code: string) {
   return get<App>(`/workspace/api/v1/app/detail/${code}`)
 }
 
-// 获取工作空间详情和服务目录树（合并接口，减少请求次数）
-export function getAppWithServiceTree(code: string, nodeType?: string) {
+// ⭐ 获取工作空间详情和服务目录树（合并接口，减少请求次数）
+// 使用 full-code-path（至少包含 user/app）
+export function getAppWithServiceTree(user: string, app: string, nodeType?: string) {
   const params: Record<string, any> = {}
   if (nodeType) {
     params.type = nodeType
   }
+  // ⭐ 使用 full-code-path：/{user}/{app}/tree
   return get<{
     app: App
     service_tree: import('@/types').ServiceTree[]
-  }>(`/workspace/api/v1/app/${code}/tree`, params)
+  }>(`/workspace/api/v1/app/${user}/${app}/tree`, params)
 }
 
 // 运行业务系统函数
