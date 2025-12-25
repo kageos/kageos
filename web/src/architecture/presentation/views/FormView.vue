@@ -91,6 +91,20 @@
       </el-form>
     </div>
 
+    <!-- 执行信息（元数据）：显示函数执行耗时等信息，明确区分不是响应参数 -->
+    <div v-if="responseMetadata && responseMetadata.total_cost_mill !== undefined" class="metadata-section">
+      <div class="metadata-title">
+        <el-icon class="metadata-icon"><InfoFilled /></el-icon>
+        <span>执行信息</span>
+      </div>
+      <div class="metadata-content">
+        <span class="metadata-label">执行耗时：</span>
+        <span class="metadata-value">
+          {{ formatCostTime(responseMetadata.total_cost_mill) }}
+        </span>
+      </div>
+    </div>
+
     <!-- Debug 弹窗 -->
     <el-dialog
       v-model="showDebugDialog"
@@ -182,7 +196,7 @@
 import { computed, onMounted, onUnmounted, watch, ref, nextTick } from 'vue'
 import type { ComputedRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Promotion, RefreshLeft, View, DocumentCopy } from '@element-plus/icons-vue'
+import { Promotion, RefreshLeft, View, DocumentCopy, InfoFilled } from '@element-plus/icons-vue'
 import { ElIcon, ElTag, ElNotification, ElMessage, ElAlert, ElMessageBox, ElText, ElCheckbox } from 'element-plus'
 import { eventBus, FormEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
@@ -274,6 +288,25 @@ const hasResponseData = computed(() => {
   const state = stateManager.getState()
   return state.response !== null && state.response !== undefined
 })
+
+// 🔥 获取响应元数据（如 total_cost_mill、trace_id 等）
+const responseMetadata = computed(() => {
+  const state = stateManager.getState()
+  return state.metadata || null
+})
+
+// 🔥 格式化耗时显示
+const formatCostTime = (milliseconds: number): string => {
+  if (milliseconds < 1000) {
+    return `${milliseconds}ms`
+  } else if (milliseconds < 60000) {
+    return `${(milliseconds / 1000).toFixed(2)}s`
+  } else {
+    const minutes = Math.floor(milliseconds / 60000)
+    const seconds = ((milliseconds % 60000) / 1000).toFixed(2)
+    return `${minutes}分${seconds}秒`
+  }
+}
 
 // Debug 相关
 const showDebugDialog = ref(false)
@@ -851,6 +884,49 @@ onUnmounted(() => {
 
 .response-section .is-empty {
   opacity: 0.6;
+}
+
+.metadata-section {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--el-border-color);
+}
+
+.metadata-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--el-text-color-regular);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.metadata-icon {
+  color: var(--el-color-info);
+  font-size: 16px;
+}
+
+.metadata-content {
+  padding: 12px 16px;
+  background: var(--el-fill-color-lighter);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: var(--el-border-radius-base);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.metadata-label {
+  color: var(--el-text-color-regular);
+  font-weight: 500;
+}
+
+.metadata-value {
+  color: var(--el-color-primary);
+  font-weight: 600;
+  font-size: 14px;
 }
 
 .dialog-footer {

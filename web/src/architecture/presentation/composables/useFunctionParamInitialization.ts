@@ -22,6 +22,7 @@ import { getWidgetDefaultValue } from '../../../core/widgets-v2/composables/useW
 import { useAuthStore } from '@/stores/auth'
 import { FieldValueMeta, FieldCallback } from '../../../core/constants/field'
 import { DataType } from '../../../core/constants/widget'
+import { convertValueByFieldType } from '../../../core/widgets-v2/utils/typeConverter'
 
 /**
  * 初始化源接口
@@ -116,14 +117,24 @@ class URLParamsInitSource implements InitSource {
           widgetType: (field.widget && 'type' in field.widget) ? field.widget.type : 'unknown'
         })
         
-        // 🔥 框架层只负责获取原始值，不进行类型转换
-        // 类型转换交给组件初始化器处理（符合依赖倒置原则）
+        // 🔥 根据字段类型进行转换（URL 参数都是字符串，需要转换为正确的类型）
+        const convertedValue = convertValueByFieldType(value, field)
+        
+        console.log(`🔍 [URLParamsInitSource] 字段 ${field.code} 类型转换`, {
+          originalValue: value,
+          convertedValue,
+          fieldType: field.data?.type || 'string',
+          originalType: typeof value,
+          convertedType: typeof convertedValue
+        })
+        
+        // 🔥 将转换后的值保存为 FieldValue
         formData[field.code] = {
-          raw: String(value),  // 保持为字符串，让组件自己转换
-          display: String(value),
+          raw: convertedValue,  // 使用转换后的值（可能是数字、布尔值等）
+          display: String(convertedValue),  // 显示值始终是字符串
           meta: {
-            [FieldValueMeta.FROM_URL]: true,  // 标记来自 URL，需要类型转换
-            [FieldValueMeta.ORIGINAL_VALUE]: value  // 保存原始值（可能是字符串、数字、JSON 字符串等）
+            [FieldValueMeta.FROM_URL]: true,  // 标记来自 URL
+            [FieldValueMeta.ORIGINAL_VALUE]: value  // 保存原始值（用于调试）
           }
         }
         const savedFieldValue = formData[field.code]
@@ -396,11 +407,15 @@ export function useFunctionParamInitialization(
     
     // 遍历所有字段，调用组件的初始化接口
     for (const field of fields) {
+      // 🔥 每次循环都从 formDataStore 获取最新值，确保获取到之前字段初始化后的最新值
       const currentValue = options.formDataStore.getValue(field.code)
       if (!currentValue || currentValue.raw === null || currentValue.raw === undefined) {
         console.log(`🔍 [triggerWidgetInitialization] 跳过字段 ${field.code}（没有值）`)
         continue  // 没有值，跳过
       }
+      
+      // 🔥 每次循环都从 formDataStore 获取所有字段的最新值，确保 allFormData 包含之前字段初始化后的最新值
+      const allFormData = options.formDataStore.getAllValues()
       
       console.log(`🔍 [triggerWidgetInitialization] 初始化字段 ${field.code}`, {
         widgetType: field.widget?.type,
@@ -416,7 +431,7 @@ export function useFunctionParamInitialization(
       const initContext: WidgetInitContext = {
         field,
         currentValue,
-        allFormData: formData,
+        allFormData: allFormData,  // 🔥 使用实时获取的最新值
         functionDetail: detail,  // 🔥 使用解包后的 detail
         initSource: 'url',
         fieldPath: field.code  // 🔥 顶层字段的路径就是 field.code

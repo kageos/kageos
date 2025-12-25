@@ -14,6 +14,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/enterprise"
 	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
@@ -159,7 +160,7 @@ func (s *ServiceTreeService) getServiceTreeByAppModel(ctx context.Context, appMo
 	// 转换为响应格式
 	var resp []*dto.GetServiceTreeResp
 	for _, tree := range trees {
-		resp = append(resp, s.convertToGetServiceTreeResp(tree))
+		resp = append(resp, s.convertToGetServiceTreeResp(ctx, tree))
 	}
 
 	return resp, nil
@@ -274,8 +275,8 @@ func (s *ServiceTreeService) DeleteServiceTree(ctx context.Context, id int64) er
 	return nil
 }
 
-// convertToGetServiceTreeResp 转换为响应格式
-func (s *ServiceTreeService) convertToGetServiceTreeResp(tree *model.ServiceTree) *dto.GetServiceTreeResp {
+// convertToGetServiceTreeResp 转换为响应格式（支持权限标识）
+func (s *ServiceTreeService) convertToGetServiceTreeResp(ctx context.Context, tree *model.ServiceTree) *dto.GetServiceTreeResp {
 	resp := &dto.GetServiceTreeResp{
 		ID:             tree.ID,
 		Name:           tree.Name,
@@ -298,11 +299,105 @@ func (s *ServiceTreeService) convertToGetServiceTreeResp(tree *model.ServiceTree
 	// 递归处理子节点
 	if len(tree.Children) > 0 {
 		for _, child := range tree.Children {
-			resp.Children = append(resp.Children, s.convertToGetServiceTreeResp(child))
+			resp.Children = append(resp.Children, s.convertToGetServiceTreeResp(ctx, child))
+		}
+	}
+
+	// ⭐ 添加权限标识（企业版功能）
+	// 获取用户信息
+	username := contextx.GetRequestUser(ctx)
+	if username != "" && resp.FullCodePath != "" {
+		// 根据节点类型和模板类型，动态确定需要检查的权限点
+		actions := s.getPermissionActionsForNode(resp.Type, resp.TemplateType)
+
+		if len(actions) > 0 {
+			// 批量查询权限（使用 enterprise 接口）
+			permissionService := enterprise.GetPermissionService()
+			resourcePaths := []string{resp.FullCodePath}
+
+			// 批量查询权限
+			permissions, err := permissionService.BatchCheckPermissions(ctx, username, resourcePaths, actions)
+			if err == nil {
+				// 附加当前节点的权限标识
+				if nodePerms, ok := permissions[resp.FullCodePath]; ok {
+					resp.Permissions = nodePerms
+				}
+			} else {
+				logger.Warnf(ctx, "[ServiceTreeService] 批量权限查询失败: %v", err)
+			}
 		}
 	}
 
 	return resp
+}
+
+// getPermissionActionsForNode 根据节点类型和模板类型，获取需要检查的权限点
+// 参数：
+//   - nodeType: 节点类型（package=服务目录, function=函数）
+//   - templateType: 模板类型（table=表格, form=表单, chart=图表）
+//
+// 返回：
+//   - []string: 需要检查的权限点列表
+//
+// 说明：
+//   - 服务目录（package）：检查 directory 相关权限
+//   - 函数（function）：检查 function 相关权限，以及根据 template_type 检查操作级别权限
+func (s *ServiceTreeService) getPermissionActionsForNode(nodeType string, templateType string) []string {
+	actions := make([]string, 0)
+
+	if nodeType == model.ServiceTreeTypePackage {
+		// 服务目录（package）：检查目录管理权限
+		actions = append(actions,
+			"directory:read",
+			"directory:create",
+			"directory:update",
+			"directory:delete",
+			"directory:manage", // 管理权限（拥有所有目录权限）
+		)
+	} else if nodeType == model.ServiceTreeTypeFunction {
+		// 函数（function）：检查函数权限和操作级别权限
+		actions = append(actions,
+			"function:read",
+			"function:execute", // 执行权限（拥有所有操作权限）
+		)
+
+		// 根据模板类型，添加操作级别的权限点
+		switch templateType {
+		case "table":
+			// 表格函数：检查表格操作权限
+			actions = append(actions,
+				"table:search",
+				"table:create",
+				"table:update",
+				"table:delete",
+			)
+		case "form":
+			// 表单函数：检查表单提交权限
+			actions = append(actions,
+				"form:submit",
+			)
+		case "chart":
+			// 图表函数：检查图表查询权限
+			actions = append(actions,
+				"chart:query",
+			)
+		default:
+			// 其他类型或未指定：只检查 function:execute
+			// 不添加额外的操作级别权限
+		}
+
+		// 所有函数都可能有回调接口
+		actions = append(actions,
+			"callback:on_select_fuzzy", // 回调接口权限
+		)
+	}
+
+	return actions
+}
+
+// GetServiceTreeByFullPath 根据完整路径获取服务目录（用于权限检查）
+func (s *ServiceTreeService) GetServiceTreeByFullPath(ctx context.Context, fullPath string) (*model.ServiceTree, error) {
+	return s.serviceTreeRepo.GetServiceTreeByFullPath(fullPath)
 }
 
 // sendCreateServiceTreeMessage 发送创建服务目录的NATS消息

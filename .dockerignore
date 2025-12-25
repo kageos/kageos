@@ -36,6 +36,7 @@ node_modules/
 # Scripts (keep only necessary ones)
 scripts/
 !scripts/podman/nats-server.conf
+!scripts/start.sh
 
 # Temporary files
 tmp/

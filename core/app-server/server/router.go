@@ -1,6 +1,8 @@
 package server
 
 import (
+	"context"
+
 	v1 "github.com/ai-agent-os/ai-agent-os/core/app-server/api/v1"
 	"github.com/ai-agent-os/ai-agent-os/enterprise"
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
@@ -42,15 +44,29 @@ func (s *Server) setupRoutes() {
 	// 服务树接口使用 gzip 压缩
 	app.GET("/:app/tree", middleware2.Gzip(), appHandler.GetAppWithServiceTree)
 	app.POST("/create", appHandler.CreateApp)
-	app.POST("/update/:app", appHandler.UpdateApp)
-	app.DELETE("/delete/:app", appHandler.DeleteApp)
+	// ⭐ 添加应用更新权限检查
+	app.POST("/update/:app", middleware2.CheckAppUpdate(), appHandler.UpdateApp)
+	// ⭐ 添加应用删除权限检查
+	app.DELETE("/delete/:app", middleware2.CheckAppDelete(), appHandler.DeleteApp)
 	// 支持所有 HTTP 方法的请求应用接口
 	request := apiV1.Group("/run")
 	request.Use(middleware2.JWTAuth())
+	// ⭐ 添加权限检查中间件（动态根据函数类型和HTTP方法确定权限点）
+	request.Use(middleware2.CheckFunctionExecute(func(ctx context.Context, fullCodePath string) (string, error) {
+		// 根据 full-code-path 获取服务树节点（包含 template_type）
+		serviceTree, err := s.serviceTreeService.GetServiceTreeByFullPath(ctx, fullCodePath)
+		if err != nil {
+			// 如果查询失败，返回空字符串（使用默认的 function:execute 权限）
+			return "", nil
+		}
+		return serviceTree.TemplateType, nil
+	}))
 	request.Any("/*router", appHandler.RequestApp)
 
 	callback := apiV1.Group("/callback")
 	callback.Use(middleware2.JWTAuth())
+	// ⭐ 添加回调接口权限检查
+	callback.Use(middleware2.CheckCallback())
 	callback.POST("/*router", appHandler.CallbackApp)
 
 	// 服务目录管理路由（需要JWT验证）
@@ -109,5 +125,43 @@ func (s *Server) setupRoutes() {
 	directoryUpdateHistoryHandler := v1.NewDirectoryUpdateHistory(s.directoryUpdateHistoryService)
 	directoryUpdateHistory.GET("/app_version", directoryUpdateHistoryHandler.GetAppVersionUpdateHistory) // 获取应用版本更新历史（App视角）
 	directoryUpdateHistory.GET("/directory", directoryUpdateHistoryHandler.GetDirectoryUpdateHistory)    // 获取目录更新历史（目录视角）
+
+	// ⭐ 标准接口路由（使用 full-code-path，便于权限控制）
+	standardAPI := v1.NewStandardAPI(s.appService)
+
+	// Table 函数接口
+	table := apiV1.Group("/table")
+	table.Use(middleware2.JWTAuth())
+	table.GET("/search/*full-code-path", middleware2.CheckTableSearch(), standardAPI.TableSearch)     // Table 查询
+	table.POST("/create/*full-code-path", middleware2.CheckTableCreate(), standardAPI.TableCreate)    // Table 新增
+	table.PUT("/update/*full-code-path", middleware2.CheckTableUpdate(), standardAPI.TableUpdate)     // Table 更新
+	table.DELETE("/delete/*full-code-path", middleware2.CheckTableDelete(), standardAPI.TableDelete) // Table 删除
+
+	// Form 函数接口
+	form := apiV1.Group("/form")
+	form.Use(middleware2.JWTAuth())
+	form.POST("/submit/*full-code-path", middleware2.CheckFormSubmit(), standardAPI.FormSubmit) // Form 提交
+
+	// Chart 函数接口
+	chart := apiV1.Group("/chart")
+	chart.Use(middleware2.JWTAuth())
+	chart.GET("/query/*full-code-path", middleware2.CheckChartQuery(), standardAPI.ChartQuery) // Chart 查询
+
+	// Callback 接口
+	callbackStandard := apiV1.Group("/callback")
+	callbackStandard.Use(middleware2.JWTAuth())
+	callbackStandard.POST("/on_select_fuzzy/*full-code-path", middleware2.CheckCallback(), standardAPI.CallbackOnSelectFuzzy) // 模糊搜索回调
+
+	// ⭐ 权限管理路由（需要JWT验证 + 权限管理功能鉴权）
+	permission := apiV1.Group("/permission")
+	permission.Use(middleware2.JWTAuth())                                    // JWT 认证
+	permission.Use(middleware2.RequireFeature(enterprise.FeaturePermission)) // 权限管理功能鉴权（企业版）
+	permissionHandler := v1.NewPermission(s.permissionService)
+	permission.POST("/add", permissionHandler.AddPermission)                    // 添加权限
+	permission.POST("/remove", permissionHandler.RemovePermission)              // 删除权限
+	permission.GET("/user", permissionHandler.GetUserPermissions)               // 获取用户权限
+	permission.POST("/role/assign", permissionHandler.AssignRoleToUser)         // 分配角色给用户
+	permission.POST("/role/remove", permissionHandler.RemoveRoleFromUser)       // 从用户移除角色
+	permission.GET("/role/user", permissionHandler.GetUserRoles)                // 获取用户角色
 
 }

@@ -3,6 +3,8 @@ export interface ApiResponse<T = any> {
   code: number
   data: T
   message?: string
+  msg?: string  // 统一使用 msg 字段（兼容 message）
+  metadata?: Record<string, any>  // 元数据（如 total_cost_mill、trace_id 等）
 }
 
 // 用户相关类型
@@ -105,13 +107,13 @@ export type {
 } from '@/core/types/field'
 
 // 导出 WidgetTypes 命名空间（推荐新代码使用）
-export { WidgetTypes } from '@/core/types/field'
+export type { WidgetTypes } from '@/core/types/field'
 
 // 函数相关类型
 export interface Function {
   id: number
   request: any
-  response: FieldConfig[]  // 🔥 使用统一的 FieldConfig 类型
+  response: import('@/core/types/field').FieldConfig[]  // 🔥 使用统一的 FieldConfig 类型
   app_id: number
   tree_id: number
   method: string

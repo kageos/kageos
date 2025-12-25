@@ -274,6 +274,17 @@ npm run dev
 
 详见 [LICENSE](LICENSE) 文件。
 
+### 第三方软件许可证
+
+本项目使用了以下第三方开源软件：
+
+- **FFmpeg** (LGPL 2.1+) - 用于音视频处理
+  - 构建配置：LGPL-only 构建（`--enable-gpl=no --enable-nonfree=no`）
+  - 使用方式：通过命令行调用，不涉及库链接
+  - 源代码：https://ffmpeg.org/download.html
+
+详细的第三方软件许可证信息请参考 [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md)。
+
 ---
 
 ## 🎯 为什么选择 BSL 1.1？

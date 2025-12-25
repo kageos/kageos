@@ -16,7 +16,7 @@ import { SelectFuzzyQueryType } from '../../constants/select'
 import { DataType } from '../../constants/widget'
 import { FieldCallback, FieldValueMeta } from '../../constants/field'
 import { convertValueToType } from '../utils/valueConverter'
-import { convertBasicType } from '../utils/typeConverter'
+import { convertBasicType, convertFormDataToRequestByType } from '../utils/typeConverter'
 import { createFieldValue } from '../utils/createFieldValue'
 import { Logger } from '../../utils/logger'
 
@@ -123,8 +123,9 @@ export class SelectWidgetInitializer implements IWidgetInitializer {
           convertedValue = convertValueToType(processedValue.raw, valueType, 'SelectWidgetInitializer')
         }
         
-        // 构建请求参数（将 allFormData 转换为请求格式）
-        const requestData = this.convertFormDataToRequest(allFormData)
+        // 🔥 构建请求参数（将 allFormData 转换为请求格式，并根据字段类型进行转换）
+        // 使用统一的类型转换函数，确保所有字段都根据 field.data.type 正确转换
+        const requestData = convertFormDataToRequestByType(allFormData, functionDetail)
         
         // 调用 OnSelectFuzzy 回调接口
         console.log(`🔍 [SelectWidgetInitializer] 调用 OnSelectFuzzy 回调接口`, {
@@ -209,18 +210,5 @@ export class SelectWidgetInitializer implements IWidgetInitializer {
     return null
   }
   
-  /**
-   * 将表单数据转换为请求格式
-   * 
-   * @param formData 表单数据（FieldValue 格式）
-   * @returns 请求数据（raw 值格式）
-   */
-  private convertFormDataToRequest(formData: Record<string, FieldValue>): Record<string, any> {
-    const request: Record<string, any> = {}
-    Object.keys(formData).forEach(key => {
-      request[key] = formData[key].raw
-    })
-    return request
-  }
 }
 

@@ -93,6 +93,13 @@ export class FormApplicationService {
         const responseData = response && typeof response === 'object' 
           ? response 
           : { result: response }
+        
+        // 🔥 提取 metadata（从 response._metadata，由 request.ts 响应拦截器附加）
+        const metadata = (response as any)?._metadata
+        if (metadata && typeof (stateManager as any).setMetadata === 'function') {
+          ;(stateManager as any).setMetadata(metadata)
+        }
+        
         ;(stateManager as any).setResponse(responseData)
       }
 

@@ -72,8 +72,15 @@ func (c *FS) ResponseFiles(filePaths []string) *types.Files {
 
 // GetTraceOutputDir 获取基于 TraceId 的唯一输出目录
 // 注意：此目录已经基于 TraceId 生成，是唯一的，文件名无需再包含 TraceId
+// 如果目录不存在，会自动创建
 func (c *FS) GetTraceOutputDir() string {
-	return filepath.Join("/app/workplace/output", c.ctx.msg.TraceId)
+	outputDir := filepath.Join("/app/workplace/output", c.ctx.msg.TraceId)
+	// 确保输出目录存在
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		logger.Errorf(c.ctx, "[GetTraceOutputDir] 创建输出目录失败: %v", err)
+		// 即使创建失败也返回路径，让调用方处理错误
+	}
+	return outputDir
 }
 
 // DownloadFiles 下载文件到本地

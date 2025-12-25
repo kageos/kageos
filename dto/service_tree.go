@@ -94,6 +94,7 @@ type GetServiceTreeResp struct {
 	HubDirectoryID int64                 `json:"hub_directory_id,omitempty" example:"0"`                // 关联的Hub目录ID（如果已发布到Hub）
 	HubVersion     string                `json:"hub_version,omitempty" example:""`                      // Hub目录版本（如 v1.0.0），用于版本检测和升级
 	HubVersionNum  int                   `json:"hub_version_num,omitempty" example:"0"`                 // Hub目录版本号（数字部分），用于版本比较
+	Permissions    map[string]bool      `json:"permissions,omitempty"`                                 // 权限标识（企业版功能）：resourcePath -> action -> hasPermission
 	Children       []*GetServiceTreeResp `json:"children,omitempty"`                                    // 子目录列表
 }
 

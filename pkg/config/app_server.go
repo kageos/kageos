@@ -108,11 +108,21 @@ type DBConfig struct {
 }
 
 // 常用便捷访问方法（可选）
-func (c *AppServerConfig) GetPort() int               { return c.Server.Port }
-func (c *AppServerConfig) GetLogLevel() string        { return c.Server.LogLevel }
-func (c *AppServerConfig) IsDebug() bool              { return c.Server.Debug }
-func (c *AppServerConfig) GetAppRequestTimeout() int  { return c.Timeouts.AppRequest }
-func (c *AppServerConfig) GetNatsRequestTimeout() int { return c.Timeouts.NatsRequest }
+func (c *AppServerConfig) GetPort() int        { return c.Server.Port }
+func (c *AppServerConfig) GetLogLevel() string { return c.Server.LogLevel }
+func (c *AppServerConfig) IsDebug() bool       { return c.Server.Debug }
+func (c *AppServerConfig) GetAppRequestTimeout() int {
+	if c.Timeouts.AppRequest <= 0 {
+		return 300 // 默认 300 秒（5分钟）
+	}
+	return c.Timeouts.AppRequest
+}
+func (c *AppServerConfig) GetNatsRequestTimeout() int {
+	if c.Timeouts.NatsRequest <= 0 {
+		return 300 // 默认 300 秒（5分钟）
+	}
+	return c.Timeouts.NatsRequest
+}
 
 // 数据库配置便捷访问方法
 func (c *AppServerConfig) GetDBLogLevel() string {

@@ -44,6 +44,18 @@ func (s *Server) initEnterprise() error {
 		s.operateLogger = enterprise.GetOperateLogger()
 	}
 
+	// 初始化权限管理功能（如果 License 支持）
+	if licenseMgr.HasFeature(enterprise.FeaturePermission) {
+		logger.Infof(ctx, "[Enterprise] Initializing permission feature...")
+		err := enterprise.InitPermissionService(&enterprise.InitOptions{DB: s.db})
+		if err != nil {
+			return err
+		}
+		logger.Infof(ctx, "[Enterprise] Permission feature initialized")
+	} else {
+		logger.Infof(ctx, "[Enterprise] Permission feature not available in license, using default implementation")
+	}
+
 	// 后续可以添加更多功能的初始化，例如：
 	// if licenseMgr.HasFeature(enterprise.FeatureWorkflow) {
 	//     // 初始化工作流功能

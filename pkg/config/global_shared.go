@@ -86,9 +86,11 @@ func GetGatewayURL() string {
 // 这些配置会在构建时注入为环境变量：
 //   - nats_url -> NATS_URL 环境变量
 //   - gateway_url -> GATEWAY_URL 环境变量
+//   - env_vars 中的键值对 -> 对应的环境变量
 type SDKConfig struct {
-	NatsURL    string `mapstructure:"nats_url"`    // NATS 地址（容器内访问，如 nats://host.containers.internal:4222），注入为 NATS_URL 环境变量
-	GatewayURL string `mapstructure:"gateway_url"` // 网关地址（容器内访问，如 http://host.containers.internal:9090），注入为 GATEWAY_URL 环境变量
+	NatsURL    string            `mapstructure:"nats_url"`    // NATS 地址（容器内访问，如 nats://host.containers.internal:4222），注入为 NATS_URL 环境变量
+	GatewayURL string            `mapstructure:"gateway_url"` // 网关地址（容器内访问，如 http://host.containers.internal:9090），注入为 GATEWAY_URL 环境变量
+	EnvVars    map[string]string `mapstructure:"env_vars"`    // 额外的环境变量映射（键值对），会直接注入到容器中
 }
 
 // GetNatsURL 获取 SDK NATS 地址（容器内访问）
@@ -105,6 +107,34 @@ func (s *SDKConfig) GetGatewayURL() string {
 		return s.GatewayURL
 	}
 	return "http://host.containers.internal:9090" // 默认值（容器内访问宿主机网关）
+}
+
+// GetEnvVars 获取所有环境变量（包括固定字段和 env_vars 中的）
+// 返回 map[string]string，键为环境变量名，值为环境变量值
+func (s *SDKConfig) GetEnvVars() map[string]string {
+	envVars := make(map[string]string)
+
+	// 注入固定字段（向后兼容）
+	if s.NatsURL != "" {
+		envVars["NATS_URL"] = s.NatsURL
+	} else {
+		envVars["NATS_URL"] = "nats://host.containers.internal:4222" // 默认值
+	}
+
+	if s.GatewayURL != "" {
+		envVars["GATEWAY_URL"] = s.GatewayURL
+	} else {
+		envVars["GATEWAY_URL"] = "http://host.containers.internal:9090" // 默认值
+	}
+
+	// 注入 env_vars 中的额外环境变量（会覆盖固定字段，如果键名相同）
+	if s.EnvVars != nil {
+		for k, v := range s.EnvVars {
+			envVars[k] = v
+		}
+	}
+
+	return envVars
 }
 
 // GetSDKConfig 获取 SDK 配置（全局函数）

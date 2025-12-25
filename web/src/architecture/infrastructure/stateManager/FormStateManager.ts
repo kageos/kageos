@@ -23,6 +23,7 @@ export interface FormState {
   errors: Map<string, any[]>
   submitting: boolean
   response: Record<string, any> | null // 🔥 新增：响应数据
+  metadata: Record<string, any> | null // 🔥 新增：元数据（如 total_cost_mill、trace_id 等）
 }
 
 /**
@@ -34,6 +35,7 @@ export class FormStateManager extends StateManagerImpl<FormState> implements ISt
   private submitting = reactive({ value: false })
 
   private response = reactive<{ value: Record<string, any> | null }>({ value: null })
+  private metadata = reactive<{ value: Record<string, any> | null }>({ value: null })
 
   constructor() {
     // 1. 先调用 super 传递初始空状态
@@ -41,7 +43,8 @@ export class FormStateManager extends StateManagerImpl<FormState> implements ISt
       data: new Map(),
       errors: new Map(),
       submitting: false,
-      response: null
+      response: null,
+      metadata: null
     })
 
     // 2. 初始化 store 和其他属性
@@ -56,7 +59,8 @@ export class FormStateManager extends StateManagerImpl<FormState> implements ISt
         data: this.formStore.data,
         errors: this.errors,
         submitting: this.submitting.value,
-        response: this.response.value
+        response: this.response.value,
+        metadata: this.metadata.value
       }
     })
 
@@ -74,7 +78,8 @@ export class FormStateManager extends StateManagerImpl<FormState> implements ISt
       data: this.formStore.data,
       errors: this.errors,
       submitting: this.submitting.value,
-      response: this.response.value
+      response: this.response.value,
+      metadata: this.metadata.value
     }
     this.setState(newState)
   }
@@ -137,6 +142,21 @@ export class FormStateManager extends StateManagerImpl<FormState> implements ISt
    */
   getResponse(): Record<string, any> | null {
     return this.response.value
+  }
+
+  /**
+   * 设置元数据
+   */
+  setMetadata(metadata: Record<string, any> | null): void {
+    this.metadata.value = metadata
+    this.updateState()
+  }
+
+  /**
+   * 获取元数据
+   */
+  getMetadata(): Record<string, any> | null {
+    return this.metadata.value
   }
 
 }
