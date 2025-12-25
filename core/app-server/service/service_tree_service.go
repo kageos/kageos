@@ -326,15 +326,38 @@ func (s *ServiceTreeService) convertToGetServiceTreeResp(ctx context.Context, tr
 					// 附加当前节点的权限标识
 					if nodePerms, ok := permissions[resp.FullCodePath]; ok {
 						resp.Permissions = nodePerms
+						logger.Debugf(ctx, "[ServiceTreeService] 权限查询成功: resource=%s, username=%s, permissions=%v",
+							resp.FullCodePath, username, nodePerms)
+					} else {
+						// 如果查询结果中没有该资源，初始化一个空的权限 map（所有权限为 false）
+						resp.Permissions = make(map[string]bool)
+						for _, action := range actions {
+							resp.Permissions[action] = false
+						}
+						logger.Debugf(ctx, "[ServiceTreeService] 权限查询结果中未找到资源: resource=%s, username=%s",
+							resp.FullCodePath, username)
 					}
 				} else {
-					logger.Warnf(ctx, "[ServiceTreeService] 批量权限查询失败: %v", err)
+					logger.Warnf(ctx, "[ServiceTreeService] 批量权限查询失败: resource=%s, username=%s, error=%v",
+						resp.FullCodePath, username, err)
+					// 查询失败时，初始化一个空的权限 map（所有权限为 false）
+					resp.Permissions = make(map[string]bool)
+					for _, action := range actions {
+						resp.Permissions[action] = false
+					}
 				}
+			} else {
+				logger.Debugf(ctx, "[ServiceTreeService] 节点无需权限检查: resource=%s, type=%s, templateType=%s",
+					resp.FullCodePath, resp.Type, resp.TemplateType)
 			}
+		} else {
+			logger.Debugf(ctx, "[ServiceTreeService] 跳过权限检查: username=%s, fullCodePath=%s",
+				username, resp.FullCodePath)
 		}
 	} else {
 		// 社区版或不支持权限功能：不返回 permissions 字段（或返回空）
 		// 这样前端就不会显示权限相关的 UI
+		logger.Debugf(ctx, "[ServiceTreeService] License 不支持权限功能，跳过权限检查")
 	}
 
 	return resp
