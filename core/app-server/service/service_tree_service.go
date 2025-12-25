@@ -19,6 +19,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/pkg/permission"
 )
 
 // extractVersionNum 从版本号字符串中提取数字部分（如 "v1" -> 1, "v20" -> 20）

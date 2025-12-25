@@ -9,6 +9,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
 	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/pkg/permission"
 	"github.com/gin-gonic/gin"
 )
 
@@ -65,57 +66,18 @@ func checkPermissionWithPath(c *gin.Context, fullCodePath string, action string,
 		return false
 	}
 
-	// ⭐ 构建所有需要检查的权限点（批量查询）
-	// 1. 当前资源的权限
-	// 2. 所有父目录的 directory:manage 权限（用于权限继承）
-	resourcePaths := []string{fullCodePath}
-	actions := []string{action}
-
-	// 解析路径，获取所有父目录路径
-	pathParts := strings.Split(strings.Trim(fullCodePath, "/"), "/")
-	// 如果路径深度 >= 4，说明可能是函数，需要检查父目录权限
-	// 例如：/user/app/dir/function -> 检查 /user/app/dir 和 /user/app 的 directory:manage
-	if len(pathParts) >= 4 {
-		// 从直接父目录开始，向上查找所有父目录
-		for i := len(pathParts) - 1; i >= 2; i-- {
-			parentPath := "/" + strings.Join(pathParts[:i], "/")
-			resourcePaths = append(resourcePaths, parentPath)
-			actions = append(actions, "directory:manage")
-		}
-	}
-
-	// ⭐ 批量查询所有权限
+	// ⭐ 使用统一的权限检查函数（支持权限继承）
 	permissionService := enterprise.GetPermissionService()
 	ctx := contextx.ToContext(c)
-	permissions, err := permissionService.BatchCheckPermissions(ctx, username, resourcePaths, actions)
+	hasPermission, err := permission.CheckPermissionWithInheritance(ctx, permissionService, username, fullCodePath, action)
 	if err != nil {
 		permissionInfo := buildPermissionInfo(fullCodePath, action, "权限检查失败: "+err.Error())
 		response.PermissionDenied(c, "权限检查失败: "+err.Error(), permissionInfo)
 		return false
 	}
 
-	// ⭐ 按优先级判断权限（先检查当前资源，再检查父目录）
-	// 1. 优先检查当前资源的直接权限
-	if nodePerms, ok := permissions[fullCodePath]; ok {
-		if hasPerm, ok := nodePerms[action]; ok && hasPerm {
-			logger.Debugf(c, "[PermissionCheck] 直接权限通过: resource=%s, action=%s", fullCodePath, action)
-			return true
-		}
-	}
-
-	// 2. 如果直接权限失败，检查父目录的 directory:manage 权限（权限继承）
-	if len(pathParts) >= 4 {
-		for i := len(pathParts) - 1; i >= 2; i-- {
-			parentPath := "/" + strings.Join(pathParts[:i], "/")
-			if nodePerms, ok := permissions[parentPath]; ok {
-				if hasManage, ok := nodePerms["directory:manage"]; ok && hasManage {
-					// 父目录有管理权限，自动拥有所有子资源的权限
-					logger.Infof(c, "[PermissionCheck] 权限继承成功: resource=%s, action=%s, parent=%s, has directory:manage",
-						fullCodePath, action, parentPath)
-					return true
-				}
-			}
-		}
+	if hasPermission {
+		return true
 	}
 
 	// 所有检查都失败，返回权限不足
@@ -383,24 +345,6 @@ func extractFullCodePathFromURL(urlPath string) string {
 
 	// 构建 full-code-path（必须以 / 开头）
 	return "/" + urlPath
-}
-
-// isValidTenantName 验证租户名称格式
-func isValidTenantName(name string) bool {
-	if len(name) == 0 {
-		return false
-	}
-	for _, char := range name {
-		if !((char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || char == '_') {
-			return false
-		}
-	}
-	return true
-}
-
-// isValidAppName 验证应用名称格式
-func isValidAppName(name string) bool {
-	return isValidTenantName(name)
 }
 
 // buildPermissionInfo 构建权限详细信息，方便前端构造申请权限的提示
