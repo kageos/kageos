@@ -36,6 +36,7 @@ func CheckPermissionWithPath(c *gin.Context, fullCodePath string, action string,
 
 // checkPermissionWithPath 通用权限检查函数（内部使用，支持企业版控制）
 // 使用指定的 full-code-path
+// ⭐ 支持权限继承：批量查询所有可能的权限点（当前资源 + 所有父目录的 directory:manage）
 func checkPermissionWithPath(c *gin.Context, fullCodePath string, action string, errorMessage string) bool {
 	// ⭐ 运行时动态检查：根据当前 license 状态决定是否启用权限检查
 	licenseMgr := license.GetManager()
@@ -64,24 +65,63 @@ func checkPermissionWithPath(c *gin.Context, fullCodePath string, action string,
 		return false
 	}
 
-	// 检查权限（使用 enterprise 接口）
+	// ⭐ 构建所有需要检查的权限点（批量查询）
+	// 1. 当前资源的权限
+	// 2. 所有父目录的 directory:manage 权限（用于权限继承）
+	resourcePaths := []string{fullCodePath}
+	actions := []string{action}
+
+	// 解析路径，获取所有父目录路径
+	pathParts := strings.Split(strings.Trim(fullCodePath, "/"), "/")
+	// 如果路径深度 >= 4，说明可能是函数，需要检查父目录权限
+	// 例如：/user/app/dir/function -> 检查 /user/app/dir 和 /user/app 的 directory:manage
+	if len(pathParts) >= 4 {
+		// 从直接父目录开始，向上查找所有父目录
+		for i := len(pathParts) - 1; i >= 2; i-- {
+			parentPath := "/" + strings.Join(pathParts[:i], "/")
+			resourcePaths = append(resourcePaths, parentPath)
+			actions = append(actions, "directory:manage")
+		}
+	}
+
+	// ⭐ 批量查询所有权限
 	permissionService := enterprise.GetPermissionService()
 	ctx := contextx.ToContext(c)
-	hasPermission, err := permissionService.CheckPermission(ctx, username, fullCodePath, action)
+	permissions, err := permissionService.BatchCheckPermissions(ctx, username, resourcePaths, actions)
 	if err != nil {
 		permissionInfo := buildPermissionInfo(fullCodePath, action, "权限检查失败: "+err.Error())
 		response.PermissionDenied(c, "权限检查失败: "+err.Error(), permissionInfo)
 		return false
 	}
 
-	if !hasPermission {
-		// 构建权限详细信息，方便前端构造申请权限的提示
-		permissionInfo := buildPermissionInfo(fullCodePath, action, errorMessage)
-		response.PermissionDenied(c, errorMessage, permissionInfo)
-		return false
+	// ⭐ 按优先级判断权限（先检查当前资源，再检查父目录）
+	// 1. 优先检查当前资源的直接权限
+	if nodePerms, ok := permissions[fullCodePath]; ok {
+		if hasPerm, ok := nodePerms[action]; ok && hasPerm {
+			logger.Debugf(c, "[PermissionCheck] 直接权限通过: resource=%s, action=%s", fullCodePath, action)
+			return true
+		}
 	}
 
-	return true
+	// 2. 如果直接权限失败，检查父目录的 directory:manage 权限（权限继承）
+	if len(pathParts) >= 4 {
+		for i := len(pathParts) - 1; i >= 2; i-- {
+			parentPath := "/" + strings.Join(pathParts[:i], "/")
+			if nodePerms, ok := permissions[parentPath]; ok {
+				if hasManage, ok := nodePerms["directory:manage"]; ok && hasManage {
+					// 父目录有管理权限，自动拥有所有子资源的权限
+					logger.Infof(c, "[PermissionCheck] 权限继承成功: resource=%s, action=%s, parent=%s, has directory:manage",
+						fullCodePath, action, parentPath)
+					return true
+				}
+			}
+		}
+	}
+
+	// 所有检查都失败，返回权限不足
+	permissionInfo := buildPermissionInfo(fullCodePath, action, errorMessage)
+	response.PermissionDenied(c, errorMessage, permissionInfo)
+	return false
 }
 
 // checkPermissionDynamic 动态权限检查函数（根据函数类型和HTTP方法自动确定权限点）
@@ -160,7 +200,7 @@ func determinePermissionAction(templateType string, httpMethod string) (action s
 	case "table":
 		switch httpMethod {
 		case "GET":
-			return "table:search", "无权限查询该表格"
+			return "function:read", "无权限查看该表格"
 		case "POST":
 			return "table:create", "无权限创建该表格"
 		case "PUT", "PATCH":
@@ -180,7 +220,7 @@ func determinePermissionAction(templateType string, httpMethod string) (action s
 	case "chart":
 		switch httpMethod {
 		case "GET", "POST":
-			return "chart:query", "无权限查询该图表"
+			return "function:read", "无权限查看该图表"
 		default:
 			return "function:execute", "无权限执行该函数"
 		}
@@ -190,10 +230,10 @@ func determinePermissionAction(templateType string, httpMethod string) (action s
 	}
 }
 
-// CheckTableSearch 检查表格查询权限
+// CheckTableSearch 检查表格查询权限（使用 function:read）
 func CheckTableSearch() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !checkPermission(c, "table:search", "无权限查询该表格") {
+		if !checkPermission(c, "function:read", "无权限查看该表格") {
 			return
 		}
 		c.Next()
@@ -240,10 +280,10 @@ func CheckFormSubmit() gin.HandlerFunc {
 	}
 }
 
-// CheckChartQuery 检查图表查询权限
+// CheckChartQuery 检查图表查询权限（使用 function:read）
 func CheckChartQuery() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !checkPermission(c, "chart:query", "无权限查询该图表") {
+		if !checkPermission(c, "function:read", "无权限查看该图表") {
 			return
 		}
 		c.Next()
@@ -292,35 +332,11 @@ func CheckAppDelete() gin.HandlerFunc {
 	}
 }
 
-// CheckCallback 检查回调接口权限
+// CheckCallback 检查回调接口权限（已废弃，on_select_fuzzy 不再需要权限检查）
+// 保留此函数以兼容旧代码，但不再使用
 func CheckCallback() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 回调接口统一使用 callback:on_select_fuzzy 权限（或根据 _type 参数动态确定）
-		callbackType := c.Query("_type")
-		action := "callback:on_select_fuzzy"
-		errorMessage := "无权限调用该回调接口"
-
-		// 可以根据 callbackType 进一步细化权限点（如 OnTableAddRow、OnTableUpdateRow 等）
-		if callbackType != "" {
-			switch callbackType {
-			case "OnTableAddRow":
-				action = "table:create"
-				errorMessage = "无权限新增表格数据"
-			case "OnTableUpdateRow":
-				action = "table:update"
-				errorMessage = "无权限更新表格数据"
-			case "OnTableDeleteRows":
-				action = "table:delete"
-				errorMessage = "无权限删除表格数据"
-			case "OnSelectFuzzy":
-				action = "callback:on_select_fuzzy"
-				errorMessage = "无权限调用模糊选择回调"
-			}
-		}
-
-		if !checkPermission(c, action, errorMessage) {
-			return
-		}
+		// 回调接口不再需要权限检查，直接通过
 		c.Next()
 	}
 }
@@ -345,7 +361,7 @@ func CheckFunctionExecute(getFunctionDetail func(ctx context.Context, fullCodePa
 func extractFullCodePathFromURL(urlPath string) string {
 	// 移除 /workspace/api/v1 前缀
 	urlPath = strings.TrimPrefix(urlPath, "/workspace/api/v1")
-	
+
 	// 移除操作前缀（如 /table/search、/form/submit、/chart/query、/callback/on_select_fuzzy、/run、/callback 等）
 	urlPath = strings.TrimPrefix(urlPath, "/table/search")
 	urlPath = strings.TrimPrefix(urlPath, "/table/create")
@@ -396,11 +412,11 @@ func buildPermissionInfo(resourcePath string, action string, errorMessage string
 	applyURL := buildPermissionApplyURL(resourcePath, action)
 
 	return map[string]interface{}{
-		"resource_path":  resourcePath,              // 资源路径
-		"action":         action,                    // 权限点（如 table:search）
-		"action_display": actionDisplay,             // 操作显示名称（如 "表格查询"）
-		"apply_url":       applyURL,                 // 申请权限的 URL（前端可以直接使用）
-		"error_message":   errorMessage,            // 错误消息
+		"resource_path":  resourcePath,  // 资源路径
+		"action":         action,        // 权限点（如 function:read）
+		"action_display": actionDisplay, // 操作显示名称（如 "表格查询"）
+		"apply_url":      applyURL,      // 申请权限的 URL（前端可以直接使用）
+		"error_message":  errorMessage,  // 错误消息
 	}
 }
 
@@ -408,24 +424,19 @@ func buildPermissionInfo(resourcePath string, action string, errorMessage string
 func getActionDisplayName(action string) string {
 	displayNames := map[string]string{
 		// Table 操作
-		"table:search": "表格查询",
 		"table:create": "表格新增",
 		"table:update": "表格更新",
 		"table:delete": "表格删除",
 		// Form 操作
 		"form:submit": "表单提交",
-		// Chart 操作
-		"chart:query": "图表查询",
-		// Callback 操作
-		"callback:on_select_fuzzy": "模糊搜索回调",
 		// Function 操作
 		"function:read":    "函数查看",
 		"function:execute": "函数执行",
 		// Directory 操作
-		"directory:read":    "目录查看",
-		"directory:create":  "目录创建",
-		"directory:update":  "目录更新",
-		"directory:delete":  "目录删除",
+		"directory:read":   "目录查看",
+		"directory:create": "目录创建",
+		"directory:update": "目录更新",
+		"directory:delete": "目录删除",
 		"directory:manage": "目录管理",
 		// App 操作
 		"app:read":   "应用查看",
@@ -450,4 +461,3 @@ func buildPermissionApplyURL(resourcePath string, action string) string {
 	// 格式：/permissions/apply?resource={resourcePath}&action={action}
 	return "/permissions/apply?resource=" + resourcePath + "&action=" + action
 }
-

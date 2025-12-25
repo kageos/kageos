@@ -77,9 +77,8 @@ func (s *PermissionService) GetUserPermissions(ctx context.Context, req *dto.Get
 		} else {
 			// 如果没有指定操作列表，查询所有常见操作的权限
 			actions := []string{
-				"table:search", "table:create", "table:update", "table:delete",
-				"form:submit", "chart:query", "callback:on_select_fuzzy",
-				"function:read", "function:execute",
+				"function:read", "table:create", "table:update", "table:delete",
+				"form:submit", "function:execute",
 				"directory:read", "directory:create", "directory:update", "directory:delete", "directory:manage",
 				"app:read", "app:create", "app:update", "app:delete", "app:manage",
 			}

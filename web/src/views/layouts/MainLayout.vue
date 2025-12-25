@@ -540,7 +540,8 @@ onUnmounted(() => {
 
 .main-layout__content {
   flex: 1;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .form-tip {

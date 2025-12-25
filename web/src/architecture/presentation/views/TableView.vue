@@ -54,23 +54,31 @@
     <!-- 工具栏 -->
     <div class="toolbar" v-if="hasAddCallback || hasDeleteCallback">
       <div class="toolbar-left">
-        <!-- ⭐ 新增按钮：需要 table:create 权限，无权限时显示但禁用，点击跳转申请 -->
+        <!-- 新增按钮：需要 table:create 权限，无权限时可点击跳转申请 -->
         <el-button 
           v-if="hasAddCallback" 
-          :type="canCreate ? 'primary' : 'info'"
-          :disabled="!canCreate"
+          :type="canCreate ? 'primary' : 'default'"
+          :plain="!canCreate"
           @click="canCreate ? handleAdd() : handleApplyPermissionForAction('table:create')" 
           :icon="Plus"
+          class="action-btn"
+          :class="{ 'action-btn-no-permission': !canCreate }"
         >
-          {{ canCreate ? '新增' : '新增（需权限）' }}
+          <template v-if="!canCreate">
+            <el-icon><Lock /></el-icon>
+            新增（需权限）
+          </template>
+          <template v-else>新增</template>
         </el-button>
-        <!-- ⭐ 批量删除按钮：需要 table:delete 权限，无权限时显示但禁用，点击跳转申请 -->
+        <!-- 批量删除按钮：需要 table:delete 权限，无权限时可点击跳转申请 -->
         <el-button 
           v-if="hasDeleteCallback && !isBatchDeleteMode" 
-          :type="canDelete ? 'danger' : 'info'"
-          :disabled="!canDelete"
+          :type="canDelete ? 'danger' : 'default'"
+          :plain="!canDelete"
           @click="canDelete ? enterBatchDeleteMode() : handleApplyPermissionForAction('table:delete')"
-          :icon="Delete"
+          :icon="canDelete ? Delete : Lock"
+          class="action-btn"
+          :class="{ 'action-btn-no-permission': !canDelete }"
         >
           {{ canDelete ? '批量删除' : '批量删除（需权限）' }}
         </el-button>
@@ -274,31 +282,31 @@
               </template>
             </el-dropdown>
             
-            <!-- ⭐ 更新按钮：需要 table:update 权限，无权限时显示但禁用，点击跳转申请 -->
+            <!-- 更新按钮：需要 table:update 权限，无权限时可点击跳转申请 -->
             <!-- 注意：更新操作通过详情抽屉实现，这里点击打开详情抽屉 -->
             <el-button 
               v-if="hasUpdateCallback"
               link 
-              :type="canUpdate ? 'primary' : 'info'"
-              :disabled="!canUpdate"
+              :type="canUpdate ? 'primary' : 'default'"
               size="small"
               class="update-btn"
+              :class="{ 'action-btn-no-permission': !canUpdate }"
               @click.stop="canUpdate ? handleDetail(row) : handleApplyPermissionForAction('table:update')"
             >
-              <el-icon><Edit /></el-icon>
+              <el-icon><component :is="canUpdate ? Edit : Lock" /></el-icon>
               {{ canUpdate ? '更新' : '更新（需权限）' }}
             </el-button>
-            <!-- ⭐ 删除按钮：需要 table:delete 权限，无权限时显示但禁用，点击跳转申请 -->
+            <!-- 删除按钮：需要 table:delete 权限，无权限时可点击跳转申请 -->
             <el-button 
               v-if="hasDeleteCallback"
               link 
-              :type="canDelete ? 'danger' : 'info'"
-              :disabled="!canDelete"
+              :type="canDelete ? 'danger' : 'default'"
               size="small"
               class="delete-btn"
+              :class="{ 'action-btn-no-permission': !canDelete }"
               @click.stop="canDelete ? handleDelete(row) : handleApplyPermissionForAction('table:delete')"
             >
-              <el-icon><Delete /></el-icon>
+              <el-icon><component :is="canDelete ? Delete : Lock" /></el-icon>
               {{ canDelete ? '删除' : '删除（需权限）' }}
             </el-button>
           </div>
@@ -1461,6 +1469,10 @@ const hasDeleteCallback = computed(() => {
   return props.functionDetail.callbacks?.includes('OnTableDeleteRows') || false
 })
 
+const hasUpdateCallback = computed(() => {
+  return props.functionDetail.callbacks?.includes('OnTableUpdateRow') || false
+})
+
 // ⭐ 权限检查：获取当前函数节点的权限信息
 const currentFunctionNode = computed(() => {
   return workspaceStateManager.getCurrentFunction()
@@ -1963,6 +1975,22 @@ onUnmounted(() => {
   justify-content: center;
   padding-top: 16px;
   border-top: 1px solid var(--el-border-color-lighter);
+}
+
+/* 无权限按钮样式优化 */
+.action-btn-no-permission {
+  color: var(--el-text-color-secondary) !important;
+  border-color: var(--el-border-color-light) !important;
+  
+  &:hover {
+    color: var(--el-color-primary) !important;
+    border-color: var(--el-color-primary-light-7) !important;
+    background-color: var(--el-color-primary-light-9) !important;
+  }
+  
+  .el-icon {
+    margin-right: 4px;
+  }
 }
 </style>
 

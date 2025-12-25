@@ -334,13 +334,6 @@ func (s *ServiceTreeService) convertToGetServiceTreeResp(ctx context.Context, tr
 		HubVersionNum:  tree.HubVersionNum,
 	}
 
-	// 递归处理子节点
-	if len(tree.Children) > 0 {
-		for _, child := range tree.Children {
-			resp.Children = append(resp.Children, s.convertToGetServiceTreeResp(ctx, child))
-		}
-	}
-
 	// ⭐ 添加权限标识（企业版功能）
 	// ⭐ 先检查 License 是否支持权限功能
 	licenseMgr := license.GetManager()
@@ -396,6 +389,33 @@ func (s *ServiceTreeService) convertToGetServiceTreeResp(ctx context.Context, tr
 		// 这样前端就不会显示权限相关的 UI
 		logger.Infof(ctx, "[ServiceTreeService] License 不支持权限功能，跳过权限检查: hasFeature=%v",
 			licenseMgr.HasFeature(enterprise.FeaturePermission))
+	}
+
+	// 递归处理子节点（在权限检查之后，以便应用权限继承）
+	if len(tree.Children) > 0 {
+		for _, child := range tree.Children {
+			childResp := s.convertToGetServiceTreeResp(ctx, child)
+			
+			// ⭐ 权限继承：如果当前节点是目录且有 directory:manage 权限，则子节点自动拥有所有权限
+			if resp.Type == model.ServiceTreeTypePackage && resp.Permissions != nil {
+				if hasManage, ok := resp.Permissions["directory:manage"]; ok && hasManage {
+					// 父目录有管理权限，子节点自动拥有所有权限
+					// 获取子节点需要的所有权限点
+					childActions := s.getPermissionActionsForNode(childResp.Type, childResp.TemplateType)
+					if childResp.Permissions == nil {
+						childResp.Permissions = make(map[string]bool)
+					}
+					// 将所有权限设置为 true
+					for _, action := range childActions {
+						childResp.Permissions[action] = true
+					}
+					logger.Infof(ctx, "[ServiceTreeService] 权限继承: 父目录 %s 有 directory:manage 权限，子节点 %s 自动拥有所有权限",
+						resp.FullCodePath, childResp.FullCodePath)
+				}
+			}
+			
+			resp.Children = append(resp.Children, childResp)
+		}
 	}
 
 	return resp

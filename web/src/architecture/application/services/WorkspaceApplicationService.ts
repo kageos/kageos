@@ -53,17 +53,30 @@ export class WorkspaceApplicationService {
     if (node.type === 'function') {
       // 🔥 优化：直接加载函数详情，不先切换目录
       // 这样可以避免先显示目录详情再切换到函数详情的闪烁问题
-      const detail = await this.domainService.loadFunction(node)
-      
-      // 加载完成后，一次性设置目录和函数，避免中间状态
-      const functionDirectory = this.getFunctionDirectory(node)
-      if (functionDirectory) {
-        // 设置目录，但不将目录设置为当前函数（避免显示目录详情）
-        this.domainService.setCurrentDirectory(functionDirectory, false)
+      try {
+        const detail = await this.domainService.loadFunction(node)
+        
+        // 加载完成后，一次性设置目录和函数，避免中间状态
+        const functionDirectory = this.getFunctionDirectory(node)
+        if (functionDirectory) {
+          // 设置目录，但不将目录设置为当前函数（避免显示目录详情）
+          this.domainService.setCurrentDirectory(functionDirectory, false)
+        }
+        
+        // 然后设置函数（这会触发函数详情显示）
+        this.domainService.setCurrentFunction(node)
+      } catch (error: any) {
+        // ⭐ 捕获错误（包括 403 权限不足）
+        // currentFunction 已经在 loadFunction 中设置了
+        // 权限错误信息已经通过 request.ts 拦截器存储到 permissionErrorStore 中
+        // 这里只需要设置函数，让详情页面显示权限错误组件
+        const functionDirectory = this.getFunctionDirectory(node)
+        if (functionDirectory) {
+          this.domainService.setCurrentDirectory(functionDirectory, false)
+        }
+        this.domainService.setCurrentFunction(node)
+        // 不重新抛出错误，让 UI 显示权限错误组件
       }
-      
-      // 然后设置函数（这会触发函数详情显示）
-      this.domainService.setCurrentFunction(node)
     } else {
       // 目录节点：切换到该目录
       this.domainService.setCurrentDirectory(node)

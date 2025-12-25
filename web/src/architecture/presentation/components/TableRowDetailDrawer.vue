@@ -26,13 +26,16 @@
           <!-- 模式切换按钮 -->
           <div class="drawer-mode-actions">
             <el-button
-              v-if="mode === 'read' && canEdit"
-              type="primary"
+              v-if="mode === 'read'"
+              :type="canEdit ? 'primary' : 'default'"
+              :plain="!canEdit"
               size="small"
+              class="edit-btn"
+              :class="{ 'action-btn-no-permission': !canEdit }"
               @click="handleToggleMode('edit')"
             >
-              <el-icon><Edit /></el-icon>
-              编辑
+              <el-icon><component :is="canEdit ? Edit : Lock" /></el-icon>
+              {{ canEdit ? '编辑' : '编辑（需权限）' }}
             </el-button>
             <el-button
               v-if="mode === 'edit'"
@@ -329,8 +332,10 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, watch } from 'vue'
-import { Edit, ArrowLeft, ArrowRight, Grid, List } from '@element-plus/icons-vue'
+import { Edit, ArrowLeft, ArrowRight, Grid, List, Lock } from '@element-plus/icons-vue'
 import { ElMessage, ElTabs, ElTabPane } from 'element-plus'
+import { useRouter } from 'vue-router'
+import { buildPermissionApplyURL } from '@/utils/permission'
 import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
 import LinkWidget from '@/core/widgets-v2/components/LinkWidget.vue'
@@ -375,6 +380,8 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<Emits>()
+
+const router = useRouter()
 
 const formRendererRef = ref<InstanceType<typeof FormRenderer> | null>(null)
 const isFormRendererReady = ref(false)
@@ -631,6 +638,17 @@ const rowId = computed(() => {
 })
 
 const handleToggleMode = (newMode: 'read' | 'edit') => {
+  // 如果尝试进入编辑模式但没有权限，跳转到权限申请页面
+  if (newMode === 'edit' && !props.canEdit) {
+    const path = fullCodePath.value
+    if (path) {
+      const applyURL = buildPermissionApplyURL(path, 'table:update')
+      router.push(applyURL)
+    } else {
+      ElMessage.warning('无法获取资源路径，无法申请权限')
+    }
+    return
+  }
   emit('update:mode', newMode)
 }
 
@@ -669,6 +687,22 @@ defineExpose({
 .detail-drawer :deep(.el-drawer__body) {
   padding: 20px;
   overflow: auto;
+}
+
+// ⭐ 无权限按钮样式优化
+.action-btn-no-permission {
+  color: var(--el-text-color-secondary) !important;
+  border-color: var(--el-border-color-light) !important;
+  
+  &:hover {
+    color: var(--el-color-primary) !important;
+    border-color: var(--el-color-primary-light-7) !important;
+    background-color: var(--el-color-primary-light-9) !important;
+  }
+  
+  .el-icon {
+    margin-right: 4px;
+  }
 }
 
 .detail-content {
