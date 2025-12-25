@@ -162,6 +162,7 @@ func (s *Server) setupRoutes() {
 	permission.POST("/add", permissionHandler.AddPermission)                    // 添加权限
 	permission.POST("/remove", permissionHandler.RemovePermission)              // 删除权限
 	permission.GET("/user", permissionHandler.GetUserPermissions)               // 获取用户权限
+	permission.POST("/apply", permissionHandler.ApplyPermission)               // 权限申请
 	permission.POST("/role/assign", permissionHandler.AssignRoleToUser)         // 分配角色给用户
 	permission.POST("/role/remove", permissionHandler.RemoveRoleFromUser)       // 从用户移除角色
 	permission.GET("/role/user", permissionHandler.GetUserRoles)                // 获取用户角色

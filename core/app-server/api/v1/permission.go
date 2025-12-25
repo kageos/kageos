@@ -219,3 +219,55 @@ func (p *Permission) GetUserRoles(c *gin.Context) {
 	response.OkWithData(c, resp)
 }
 
+// ApplyPermission 权限申请
+// @Summary 权限申请
+// @Description 用户申请资源权限（简化版：直接添加权限，不创建申请记录）
+// @Tags 权限管理
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Param body body dto.ApplyPermissionReq true "权限申请请求"
+// @Success 200 {object} dto.ApplyPermissionResp "申请成功"
+// @Failure 400 {string} string "请求参数错误"
+// @Failure 401 {string} string "未授权"
+// @Failure 500 {string} string "服务器内部错误"
+// @Router /workspace/api/v1/permission/apply [post]
+func (p *Permission) ApplyPermission(c *gin.Context) {
+	var req dto.ApplyPermissionReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+
+	// 从 JWT 中获取当前用户名
+	username, exists := c.Get("username")
+	if !exists {
+		response.FailWithMessage(c, "无法获取当前用户信息")
+		return
+	}
+
+	ctx := contextx.ToContext(c)
+	
+	// ⭐ 简化版：直接添加权限（不创建申请记录）
+	// 后续可以扩展为：创建申请记录，等待管理员审核
+	addReq := dto.AddPermissionReq{
+		Username:     username.(string),
+		ResourcePath: req.ResourcePath,
+		Action:       req.Action,
+	}
+	
+	if err := p.permissionService.AddPermission(ctx, &addReq); err != nil {
+		response.FailWithMessage(c, "权限申请失败: "+err.Error())
+		return
+	}
+
+	resp := dto.ApplyPermissionResp{
+		ID:      "", // 暂时返回空字符串，后续可以扩展为申请记录ID
+		Status:  "approved", // 简化版：直接批准
+		Message: "权限申请已批准，权限已添加",
+	}
+
+	response.OkWithData(c, resp)
+}
+
