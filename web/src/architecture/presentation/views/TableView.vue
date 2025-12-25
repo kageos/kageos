@@ -275,6 +275,7 @@
             </el-dropdown>
             
             <!-- ⭐ 更新按钮：需要 table:update 权限，无权限时显示但禁用，点击跳转申请 -->
+            <!-- 注意：更新操作通过详情抽屉实现，这里点击打开详情抽屉 -->
             <el-button 
               v-if="hasUpdateCallback"
               link 
@@ -282,7 +283,7 @@
               :disabled="!canUpdate"
               size="small"
               class="update-btn"
-              @click.stop="canUpdate ? tableOperations.handleUpdate(row.id, row, row) : handleApplyPermissionForAction('table:update')"
+              @click.stop="canUpdate ? handleDetail(row) : handleApplyPermissionForAction('table:update')"
             >
               <el-icon><Edit /></el-icon>
               {{ canUpdate ? '更新' : '更新（需权限）' }}
