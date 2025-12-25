@@ -240,19 +240,19 @@ func (p *Permission) ApplyPermission(c *gin.Context) {
 		return
 	}
 
-	// 从 JWT 中获取当前用户名
-	username, exists := c.Get("username")
-	if !exists {
+	ctx := contextx.ToContext(c)
+	
+	// ⭐ 从 context 中获取当前用户名（JWT 中间件已设置）
+	username := contextx.GetRequestUser(c)
+	if username == "" {
 		response.FailWithMessage(c, "无法获取当前用户信息")
 		return
 	}
-
-	ctx := contextx.ToContext(c)
 	
 	// ⭐ 简化版：直接添加权限（不创建申请记录）
 	// 后续可以扩展为：创建申请记录，等待管理员审核
 	addReq := dto.AddPermissionReq{
-		Username:     username.(string),
+		Username:     username,
 		ResourcePath: req.ResourcePath,
 		Action:       req.Action,
 	}
