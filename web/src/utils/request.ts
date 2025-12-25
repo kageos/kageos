@@ -11,7 +11,7 @@ import type { ApiResponse } from '@/types'
 // 在生产环境可以通过 VITE_API_BASE_URL 环境变量指定绝对路径
 const service = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '',  // 开发环境使用相对路径（走 Vite 代理），生产环境可配置绝对路径
-  timeout: 30000,
+  timeout: 300000, // 300 秒（5分钟），与后端超时时间保持一致
   headers: {
     'Content-Type': 'application/json'
   }
@@ -78,9 +78,16 @@ service.interceptors.response.use(
     const { code, data } = response.data
     // 🔥 统一使用 msg 字段
     const msg = (response.data as any).msg || '请求失败'
+    // 🔥 获取 metadata（如 total_cost_mill、trace_id 等）
+    const metadata = (response.data as any).metadata
 
     // 请求成功
     if (code === 0) {
+      // 🔥 如果存在 metadata 且 data 是对象，将 metadata 附加到 data 上
+      // 这样调用方可以通过 data._metadata 访问元数据
+      if (metadata && typeof data === 'object' && data !== null && !Array.isArray(data)) {
+        (data as any)._metadata = metadata
+      }
       return data
     }
 

@@ -1092,19 +1092,15 @@ func (s *AppManageService) startAppContainer(ctx context.Context, containerName,
 	// SDK 配置会在构建时注入为环境变量：
 	//   - nats_url -> NATS_URL 环境变量
 	//   - gateway_url -> GATEWAY_URL 环境变量
+	//   - env_vars 中的键值对 -> 对应的环境变量
 	sdkConfig := appconfig.GetSDKConfig()
 
-	// 注入 NATS 地址（使用 SDK 配置，容器内访问）
-	// 环境变量：NATS_URL
-	natsURL := sdkConfig.GetNatsURL()
-	envVars = append(envVars, fmt.Sprintf("NATS_URL=%s", natsURL))
-	logger.Infof(ctx, "[startAppContainer] Injecting NATS_URL=%s into container (SDK config)", natsURL)
-
-	// 注入网关地址（使用 SDK 配置，容器内访问）
-	// 环境变量：GATEWAY_URL
-	gatewayURL := sdkConfig.GetGatewayURL()
-	envVars = append(envVars, fmt.Sprintf("GATEWAY_URL=%s", gatewayURL))
-	logger.Infof(ctx, "[startAppContainer] Injecting GATEWAY_URL=%s into container (SDK config)", gatewayURL)
+	// 从 SDK 配置获取所有环境变量（包括固定字段和 env_vars 中的）
+	sdkEnvVars := sdkConfig.GetEnvVars()
+	for key, value := range sdkEnvVars {
+		envVars = append(envVars, fmt.Sprintf("%s=%s", key, value))
+		logger.Infof(ctx, "[startAppContainer] Injecting %s=%s into container (SDK config)", key, value)
+	}
 
 	// 注入版本信息到环境变量（新架构：每个容器对应特定版本）
 	// 这样启动脚本可以通过环境变量读取版本，而不依赖可能被更新的文件

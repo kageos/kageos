@@ -157,6 +157,7 @@ import { getWidgetDefaultValue } from '../widgets-v2/composables/useWidgetDefaul
 import { useAuthStore } from '@/stores/auth'
 import { convertToFieldValue } from '@/utils/field'
 import { serviceFactory } from '@/architecture/infrastructure/factories'
+import { convertFormDataToRequestByType } from '../widgets-v2/utils/typeConverter'
 
 const props = withDefaults(defineProps<{
   functionDetail?: FunctionDetail  // 🔥 改为可选，因为会在 onMounted 中主动获取
@@ -878,10 +879,18 @@ async function handleSubmit(): Promise<void> {
   submitting.value = true
   
   try {
-    // 获取提交数据
-    const submitData = formDataStore.getSubmitData(requestFields.value)
+    // 获取提交数据（提取 raw 值）
+    const rawSubmitData = formDataStore.getSubmitData(requestFields.value)
     
-    Logger.info('[FormRenderer-v2]', '提交数据', submitData)
+    Logger.info('[FormRenderer-v2]', '原始提交数据', rawSubmitData)
+    
+    // 🔥 根据字段类型进行转换（确保提交的数据类型符合后端要求）
+    const submitData = convertFormDataToRequestByType(
+      rawSubmitData,
+      functionDetail.value || {}
+    )
+    
+    Logger.info('[FormRenderer-v2]', '转换后的提交数据', submitData)
     
     // 调用后端 API
     const response = await executeFunction(

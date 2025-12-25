@@ -14,7 +14,7 @@ import type { FieldValue } from '../../types/field'
 import { selectFuzzy } from '@/api/function'
 import { SelectFuzzyQueryType } from '../../constants/select'
 import { DataType } from '../../constants/widget'
-import { convertArrayType } from '../utils/typeConverter'
+import { convertArrayType, convertFormDataToRequestByType, buildOptionMaps, getOptionLabelFromMap } from '../utils/typeConverter'
 import { createFieldValue } from '../utils/createFieldValue'
 import { Logger } from '../../utils/logger'
 import { FieldCallback } from '../../constants/field'
@@ -124,8 +124,9 @@ export class MultiSelectWidgetInitializer implements IWidgetInitializer {
           convertedValue = rawArray
         }
         
-        // 构建请求参数（将 allFormData 转换为请求格式）
-        const requestData = this.convertFormDataToRequest(allFormData)
+        // 🔥 构建请求参数（将 allFormData 转换为请求格式，并根据字段类型进行转换）
+        // 使用统一的类型转换函数，确保所有字段都根据 field.data.type 正确转换
+        const requestData = convertFormDataToRequestByType(allFormData, functionDetail)
         
         // 调用 OnSelectFuzzy 回调接口（使用 by_values）
         console.log(`🔍 [MultiSelectWidgetInitializer] 调用 OnSelectFuzzy 回调接口`, {
@@ -162,36 +163,29 @@ export class MultiSelectWidgetInitializer implements IWidgetInitializer {
           return null  // 初始化失败，返回 null
         }
         
-        // 构建选项映射（value -> label）
-        const optionMap = new Map<any, string>()
-        const displayInfoMap = new Map<any, any>()
+        // 🔥 构建选项映射（value -> label），使用统一工具函数
+        const { optionMap, displayInfoMap } = buildOptionMaps(response.items || [])
         
-        if (response.items && Array.isArray(response.items)) {
-          response.items.forEach((item: any) => {
-            optionMap.set(item.value, item.label || String(item.value))
-            if (item.display_info || item.displayInfo) {
-              displayInfoMap.set(item.value, item.display_info || item.displayInfo)
-            }
-          })
-        }
+        // 🔥 使用转换后的值（convertedValue）去匹配选项，确保类型一致
+        const finalRawValue = Array.isArray(convertedValue) ? convertedValue : [convertedValue]
         
-        // 构建 display 字符串（逗号分隔的标签）
-        const displayLabels = rawArray.map((raw: any) => {
-          return optionMap.get(raw) || String(raw)
+        // 构建 display 字符串（逗号分隔的标签），使用统一工具函数
+        const displayLabels = finalRawValue.map((val: any) => {
+          return getOptionLabelFromMap(optionMap, val)
         })
         const display = displayLabels.join(', ')
         
         // 构建 displayInfo（数组形式，每个元素对应一个值）
-        const displayInfoArray = rawArray.map((raw: any) => {
-          return displayInfoMap.get(raw) || null
+        const displayInfoArray = finalRawValue.map((val: any) => {
+          return displayInfoMap.get(val) || null
         })
         
         const initializedValue = createFieldValue(
           field,
-          currentValue.raw,  // 保持原始 raw 值
+          convertedValue,  // 🔥 使用转换后的值作为 raw，确保类型正确
           display,
           {
-            ...currentValue.meta,
+            ...processedValue.meta,  // 🔥 使用 processedValue.meta，保留转换标记
             displayInfo: displayInfoArray.length > 0 ? displayInfoArray : undefined,
             statistics: response.statistics || {}
           }
@@ -219,18 +213,5 @@ export class MultiSelectWidgetInitializer implements IWidgetInitializer {
     return null
   }
   
-  /**
-   * 将表单数据转换为请求格式
-   * 
-   * @param formData 表单数据（FieldValue 格式）
-   * @returns 请求数据（raw 值格式）
-   */
-  private convertFormDataToRequest(formData: Record<string, FieldValue>): Record<string, any> {
-    const request: Record<string, any> = {}
-    Object.keys(formData).forEach(key => {
-      request[key] = formData[key].raw
-    })
-    return request
-  }
 }
 

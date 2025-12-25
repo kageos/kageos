@@ -163,7 +163,7 @@ func (s *Server) initSharedTransport() {
 	// 获取默认超时时间
 	defaultTimeout := time.Duration(s.cfg.Timeouts.Default) * time.Second
 	if defaultTimeout == 0 {
-		defaultTimeout = 30 * time.Second
+		defaultTimeout = 300 * time.Second // 默认 300 秒（5分钟）
 	}
 
 	s.sharedTransport = &http.Transport{
@@ -182,7 +182,7 @@ func (s *Server) getTimeout(timeout int) int {
 		timeout = s.cfg.Timeouts.Default
 	}
 	if timeout == 0 {
-		timeout = 30 // 默认 30 秒
+		timeout = 300 // 默认 300 秒（5分钟）
 	}
 	return timeout
 }

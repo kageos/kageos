@@ -450,7 +450,22 @@ export function useTableOperations(options: TableOperationsOptions): TableOperat
         currentPage.value = response.paginated.current_page
       }
     } catch (error: any) {
-      ElMessage.error(error.message || '加载数据失败')
+      // 🔥 处理错误：当 API 返回 code !== 0 时，显示错误消息
+      // request.ts 的响应拦截器在 code !== 0 时会 reject，并创建错误对象
+      // 错误对象包含 response 属性，其中包含完整的响应数据
+      let errorMessage = '加载数据失败，请稍后重试'
+      
+      // 🔥 统一使用 msg 字段
+      // 尝试从 error.response.data 中获取错误消息（request.ts 第 99-101 行）
+      if (error?.response?.data) {
+        const responseData = error.response.data
+        errorMessage = responseData.msg || errorMessage
+      } else if (error?.message) {
+        // 如果错误对象本身有 message（request.ts 第 99 行创建的）
+        errorMessage = error.message
+      }
+      
+      ElMessage.error(errorMessage)
       tableData.value = []
     } finally {
       loading.value = false

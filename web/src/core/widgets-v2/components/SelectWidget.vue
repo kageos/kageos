@@ -150,6 +150,7 @@ import { isFieldRequired } from '@/core/utils/validationUtils'
 import { Logger } from '../../utils/logger'
 import { SelectFuzzyQueryType, isStandardColor, getStandardColorCSSVar, type StandardColorType } from '../../constants/select'
 import { convertValueToType } from '../utils/valueConverter'
+import { convertFormDataToRequestByType } from '../utils/typeConverter'
 // 🔥 使用事件驱动：监听表单初始化完成事件，统一处理 OnSelectFuzzy 字段
 import { eventBus, FormEvent } from '../../../architecture/infrastructure/eventBus'
 import { widgetInitializerRegistry } from '../initializers/WidgetInitializerRegistry'
@@ -628,6 +629,7 @@ function handleClear(): void {
   emit('update:modelValue', emptyFieldValue)
 }
 
+
 // 处理搜索
 async function handleSearch(query: string | number, isByValue: boolean): Promise<void> {
   if (!hasCallback.value || !props.formRenderer) {
@@ -656,11 +658,17 @@ async function handleSearch(query: string | number, isByValue: boolean): Promise
       convertedValue = convertValueToType(query, valueType, 'SelectWidget')
     }
     
+    // 🔥 获取提交数据并根据字段类型进行转换
+    // 使用统一的类型转换函数，确保所有字段都根据 field.data.type 正确转换
+    const submitData = props.formRenderer.getSubmitData()
+    const functionDetail = props.formRenderer.getFunctionDetail?.()
+    const requestData = convertFormDataToRequestByType(submitData, functionDetail || {})
+    
     const requestBody = {
       code: props.field.code,
       type: isByValue ? SelectFuzzyQueryType.BY_VALUE : SelectFuzzyQueryType.BY_KEYWORD,
       value: convertedValue, // 🔥 使用转换后的值
-      request: props.formRenderer.getSubmitData(),
+      request: requestData,  // 🔥 使用转换后的请求数据
       value_type: valueType
     }
     

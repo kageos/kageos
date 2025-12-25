@@ -116,6 +116,7 @@ import { ExpressionParserAdapter } from '../../utils/ExpressionParserAdapter'
 import { isStringDataType, getMultiSelectDefaultDataType, DataType } from '../../constants/widget'
 import { SelectFuzzyQueryType, isStandardColor } from '../../constants/select'
 import { convertValueToType } from '../utils/valueConverter'
+import { convertFormDataToRequestByType, convertArrayType } from '../utils/typeConverter'
 import { createFieldValue } from '../utils/createFieldValue'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
@@ -276,29 +277,9 @@ const selectedValues = computed({
       // 提交逗号分隔的字符串
       rawValue = stringValues.length > 0 ? stringValues.join(',') : ''
     } else {
-      // 提交数组，需要根据数组元素类型进行转换
-      if (dataType.startsWith('[]')) {
-        const elementType = dataType.slice(2) // 去掉 '[]' 前缀，得到元素类型
-        rawValue = stringValues.map((val: string) => {
-          // 根据元素类型转换
-          if (elementType === 'int' || elementType === 'integer') {
-            const intVal = parseInt(val, 10)
-            return isNaN(intVal) ? val : intVal
-          } else if (elementType === 'float' || elementType === 'number') {
-            const floatVal = parseFloat(val)
-            return isNaN(floatVal) ? val : floatVal
-          } else if (elementType === 'bool' || elementType === 'boolean') {
-            const strVal = String(val)
-            return strVal === 'true' || strVal === '1' || (typeof val === 'boolean' && val === true)
-          } else {
-            // 默认保持字符串
-            return val
-          }
-        })
-      } else {
-        // 未知的数组类型，保持字符串数组
-        rawValue = stringValues
-      }
+      // 🔥 提交数组，使用统一的类型转换工具
+      // 根据 field.data.type 决定数组元素类型
+      rawValue = convertArrayType(stringValues, dataType)
     }
     
     // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
@@ -426,10 +407,27 @@ function getOptionLabel(value: any): string {
     return option.label
   }
   
-  // 2. 如果 options 中没有，尝试从 props.value.display 中解析
-  // 注意：display 是逗号分隔的字符串，我们需要知道每个值对应的 label
-  // 由于 display 是聚合的，我们无法直接解析单个值的 label
-  // 所以这里还是返回 valueStr，但会在初始化时通过 by_values 查询来加载 labels
+  // 2. 如果 options 中没有，但 props.value.display 存在且不为空，尝试解析
+  // 注意：display 是逗号分隔的字符串（如 "goland" 或 "选项1, 选项2"）
+  if (props.value?.display && props.value.display !== valueStr) {
+    const displayStr = String(props.value.display)
+    const displayLabels = displayStr.split(',').map(s => s.trim()).filter(Boolean)
+    
+    // 如果只有一个值，直接使用 display
+    if (displayLabels.length === 1) {
+      return displayLabels[0] || valueStr
+    }
+    
+    // 🔥 如果有多个值，需要按索引匹配
+    // selectedValues 和 displayLabels 的顺序应该是对应的
+    const valueIndex = selectedValues.value.findIndex((v: any) => String(v) === valueStr)
+    if (valueIndex >= 0 && valueIndex < displayLabels.length) {
+      const label = displayLabels[valueIndex]
+      if (label) {
+        return label
+      }
+    }
+  }
   
   // 3. 如果还没有，返回 valueStr（作为后备）
   return valueStr
@@ -553,6 +551,7 @@ function calculateRowStatistics(
   return result
 }
 
+
 /**
  * 处理搜索（OnSelectFuzzy 回调）
  */
@@ -580,31 +579,25 @@ async function handleSearch(query: string | any[], isByValue = false): Promise<v
     }
     
     // 🔥 对于 by_values 查询，需要确保传递的值类型正确
-    // 如果 field.data.type 是 []int，query 应该是整数数组
+    // 使用统一的类型转换工具，根据 field.data.type 转换
     let queryValue: any = query
     if (isByValue && Array.isArray(query)) {
       const dataType = props.field.data?.type || getMultiSelectDefaultDataType()
-      if (dataType.startsWith('[]')) {
-        const elementType = dataType.slice(2)
-        if (elementType === 'int' || elementType === 'integer') {
-          queryValue = query.map((v: any) => {
-            const intVal = parseInt(String(v), 10)
-            return isNaN(intVal) ? v : intVal
-          })
-        } else if (elementType === 'float' || elementType === 'number') {
-          queryValue = query.map((v: any) => {
-            const floatVal = parseFloat(String(v))
-            return isNaN(floatVal) ? v : floatVal
-          })
-        }
-      }
+      // 🔥 使用统一的类型转换工具
+      queryValue = convertArrayType(query, dataType)
     }
+    
+    // 🔥 获取提交数据并根据字段类型进行转换
+    // 使用统一的类型转换函数，确保所有字段都根据 field.data.type 正确转换
+    const submitData = props.formRenderer?.getSubmitData?.() || {}
+    const functionDetail = props.formRenderer?.getFunctionDetail?.()
+    const requestData = convertFormDataToRequestByType(submitData, functionDetail || {})
     
     const requestBody = {
       code: props.field.code,
       type: queryType,
       value: queryValue,
-      request: props.formRenderer?.getSubmitData?.() || {},
+      request: requestData,  // 🔥 使用转换后的请求数据
       value_type: props.field.data?.type || getMultiSelectDefaultDataType()
     }
 
@@ -812,6 +805,19 @@ onMounted(() => {
   // 🔥 注意：这个逻辑未来可能会被统一初始化框架替代
   if (hasRemoteSearch.value && props.value?.raw && props.formRenderer) {
     nextTick(() => {
+      // 🔥 检查 functionDetail 是否已准备好
+      const functionDetail = props.formRenderer?.getFunctionDetail?.()
+      if (!functionDetail || !functionDetail.request || functionDetail.request.length === 0) {
+        // functionDetail 还没准备好，等待 watch 触发
+        console.log(`🔍 [MultiSelectWidget] onMounted 时 functionDetail 未准备好，等待 watch 触发`, {
+          fieldCode: props.field.code,
+          hasFunctionDetail: !!functionDetail,
+          hasRequestFields: !!(functionDetail?.request && Array.isArray(functionDetail.request)),
+          requestFieldsCount: functionDetail?.request?.length || 0
+        })
+        return
+      }
+      
       const values = parseRawValue(props.value?.raw)
       if (values.length > 0 && !hasInitialized.value) {
         hasInitialized.value = true
@@ -827,6 +833,19 @@ watch(
   () => [hasRemoteSearch.value, props.value?.raw, props.formRenderer],
   ([hasCallback, rawValue, formRenderer]: [boolean, any, any]) => {
     if (!hasInitialized.value && hasCallback && rawValue && formRenderer) {
+      // 🔥 检查 functionDetail 是否已准备好
+      const functionDetail = formRenderer?.getFunctionDetail?.()
+      if (!functionDetail || !functionDetail.request || functionDetail.request.length === 0) {
+        // functionDetail 还没准备好，等待下次触发
+        console.log(`🔍 [MultiSelectWidget] watch 触发，但 functionDetail 未准备好，等待下次触发`, {
+          fieldCode: props.field.code,
+          hasFunctionDetail: !!functionDetail,
+          hasRequestFields: !!(functionDetail?.request && Array.isArray(functionDetail.request)),
+          requestFieldsCount: functionDetail?.request?.length || 0
+        })
+        return
+      }
+      
       const values = parseRawValue(rawValue)
       if (values.length > 0) {
         // 检查是否已经搜索过这些值

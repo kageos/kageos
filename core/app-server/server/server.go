@@ -47,6 +47,7 @@ type Server struct {
 	userService                   *service.UserService
 	operateLogService             *service.OperateLogService
 	directoryUpdateHistoryService *service.DirectoryUpdateHistoryService
+	permissionService             *service.PermissionService // ⭐ 权限管理服务
 
 	// 上游服务
 	natsService *service.NatsService
@@ -102,6 +103,9 @@ func NewServer(cfg *config.AppServerConfig) (*Server, error) {
 	if err := s.initEnterprise(); err != nil {
 		return nil, fmt.Errorf("failed to init enterprise features: %w", err)
 	}
+
+	// ⭐ 初始化权限管理服务（需要在 initEnterprise 之后，因为需要 enterprise.GetPermissionService()）
+	s.permissionService = service.NewPermissionService(enterprise.GetPermissionService())
 
 	if err := s.initRouter(ctx); err != nil {
 		return nil, fmt.Errorf("failed to init router: %w", err)
@@ -409,6 +413,9 @@ func (s *Server) initServices(ctx context.Context) error {
 	// 初始化目录更新历史服务
 	s.directoryUpdateHistoryService = service.NewDirectoryUpdateHistoryService(directoryUpdateHistoryRepo, serviceTreeRepo)
 
+	// ⭐ 初始化权限管理服务（需要在 initEnterprise 之后，因为需要 enterprise.GetPermissionService()）
+	// 注意：这里先不初始化，等 initEnterprise 之后再初始化
+	// 在 initEnterprise 中会初始化 enterprise.GetPermissionService()，然后在这里创建 PermissionService
 
 	logger.Infof(ctx, "[Server] Services initialized successfully")
 	return nil

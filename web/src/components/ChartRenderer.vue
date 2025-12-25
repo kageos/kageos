@@ -110,6 +110,7 @@ import { widgetComponentFactory } from '@/core/factories-v2'
 import { hasAnyRequiredRule } from '@/core/utils/validationUtils'
 import { convertToFieldValue } from '@/utils/field'
 import { useChartParamURLSync } from '@/architecture/presentation/composables/useChartParamURLSync'
+import { convertValueByFieldType } from '@/core/widgets-v2/utils/typeConverter'
 
 const props = defineProps<{
   functionDetail: FunctionDetail
@@ -160,16 +161,8 @@ const initializeFieldValues = () => {
     const value = Array.isArray(queryValue) ? queryValue[0] : queryValue
     
     if (value !== undefined && value !== null && value !== '') {
-      // 类型转换
-      let rawValue: any = value
-      if (field.data?.type === 'int' || field.data?.type === 'integer') {
-        rawValue = parseInt(String(value), 10)
-      } else if (field.data?.type === 'float' || field.data?.type === 'number') {
-        rawValue = parseFloat(String(value))
-      } else if (field.data?.type === 'bool' || field.data?.type === 'boolean') {
-        rawValue = String(value) === 'true' || String(value) === '1'
-      }
-      
+      // 🔥 使用统一的类型转换工具
+      const rawValue = convertValueByFieldType(value, field)
       values[field.code] = convertToFieldValue(rawValue, field)
       filterForm.value[field.code] = rawValue
     } else {
