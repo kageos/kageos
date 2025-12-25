@@ -15,11 +15,18 @@
     <!-- 工具栏 -->
     <div class="toolbar" v-if="hasAddCallback || hasDeleteCallback">
       <div class="toolbar-left">
-        <el-button v-if="hasAddCallback" type="primary" @click="handleAdd" :icon="Plus">
+        <!-- ⭐ 新增按钮：需要 table:create 权限 -->
+        <el-button 
+          v-if="hasAddCallback && canCreate" 
+          type="primary" 
+          @click="handleAdd" 
+          :icon="Plus"
+        >
           新增
         </el-button>
+        <!-- ⭐ 批量删除按钮：需要 table:delete 权限 -->
         <el-button 
-          v-if="hasDeleteCallback && !isBatchDeleteMode" 
+          v-if="hasDeleteCallback && !isBatchDeleteMode && canDelete" 
           type="danger" 
           @click="enterBatchDeleteMode"
           :icon="Delete"
@@ -226,9 +233,9 @@
               </template>
             </el-dropdown>
             
-            <!-- 删除按钮 -->
+            <!-- ⭐ 删除按钮：需要 table:delete 权限 -->
             <el-button 
-              v-if="hasDeleteCallback"
+              v-if="hasDeleteCallback && canDelete"
               link 
               type="danger" 
               size="small"
@@ -297,6 +304,7 @@ import { useUserInfoStore } from '@/stores/userInfo'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
 import type { TableRow, SearchParams, SortParams, SortItem } from '../../domain/services/TableDomainService'
 import type { UserInfo } from '@/types'
+import { hasPermission, TablePermissions } from '@/utils/permission'
 
 const props = defineProps<{
   functionDetail: FunctionDetail
@@ -309,6 +317,7 @@ const router = useRouter()
 const stateManager = serviceFactory.getTableStateManager()
 const domainService = serviceFactory.getTableDomainService()
 const applicationService = serviceFactory.getTableApplicationService()
+const workspaceStateManager = serviceFactory.getWorkspaceStateManager()  // ⭐ 用于获取当前函数节点的权限信息
 
 // 🔥 从状态管理器获取状态（统一状态管理）
 const tableData = computed(() => stateManager.getData())
@@ -1392,6 +1401,25 @@ const hasAddCallback = computed(() => {
 
 const hasDeleteCallback = computed(() => {
   return props.functionDetail.callbacks?.includes('OnTableDeleteRows') || false
+})
+
+// ⭐ 权限检查：获取当前函数节点的权限信息
+const currentFunctionNode = computed(() => {
+  return workspaceStateManager.getCurrentFunction()
+})
+
+// ⭐ 是否有新增权限
+const canCreate = computed(() => {
+  const node = currentFunctionNode.value
+  if (!node) return true  // 如果没有节点信息，默认允许（向后兼容）
+  return hasPermission(node, TablePermissions.create)
+})
+
+// ⭐ 是否有删除权限
+const canDelete = computed(() => {
+  const node = currentFunctionNode.value
+  if (!node) return true  // 如果没有节点信息，默认允许（向后兼容）
+  return hasPermission(node, TablePermissions.delete)
 })
 
 // ==================== 生命周期 ====================

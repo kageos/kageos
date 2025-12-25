@@ -78,6 +78,7 @@ export interface ServiceTree {
   hub_directory_id?: number  // Hub 目录 ID（如果已发布到 Hub）
   hub_version?: string  // Hub 目录版本（如 v1.0.0）
   hub_version_num?: number  // Hub 目录版本号（数字部分）
+  permissions?: Record<string, boolean>  // ⭐ 权限标识（企业版功能）：权限点 -> 是否有权限
   created_at: string
   updated_at: string
   children?: ServiceTree[]

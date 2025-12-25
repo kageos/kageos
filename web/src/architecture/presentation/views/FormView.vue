@@ -40,7 +40,9 @@
     <!-- 提交按钮 -->
     <div class="form-actions-section">
       <div class="form-actions-row">
+        <!-- ⭐ 提交按钮：需要 form:submit 权限 -->
         <el-button
+          v-if="canSubmit"
           type="primary"
           size="large"
           @click="handleSubmit"
@@ -209,6 +211,7 @@ import { useFormDataStore } from '@/core/stores-v2/formData'
 import { useResponseDataStore } from '@/core/stores-v2/responseData'
 import { useFunctionParamInitialization } from '../composables/useFunctionParamInitialization'
 import { useFormParamURLSync } from '../composables/useFormParamURLSync'
+import { hasPermission, FormPermissions } from '@/utils/permission'
 
 const props = defineProps<{
   functionDetail?: FunctionDetail  // 🔥 改为可选，因为会在 onMounted 中主动获取
@@ -248,6 +251,18 @@ const formData = computed(() => {
 
 const requestFields = computed(() => (functionDetail.value?.request || []) as FieldConfig[])
 const responseFields = computed(() => (functionDetail.value?.response || []) as FieldConfig[])
+
+// ⭐ 权限检查：获取当前函数节点的权限信息
+const currentFunctionNode = computed(() => {
+  return workspaceStateManager.getCurrentFunction()
+})
+
+// ⭐ 是否有提交权限
+const canSubmit = computed(() => {
+  const node = currentFunctionNode.value
+  if (!node) return true  // 如果没有节点信息，默认允许（向后兼容）
+  return hasPermission(node, FormPermissions.submit)
+})
 
 // 🔥 移除 formInitialData computed，改为使用统一的数据初始化框架
 // URL 参数会在 useFunctionParamInitialization 中统一处理
