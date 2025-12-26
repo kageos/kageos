@@ -1,6 +1,8 @@
 package v1
 
 import (
+	"strconv"
+
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
@@ -89,6 +91,102 @@ func (s *ServiceTree) GetServiceTree(c *gin.Context) {
 	}
 
 	response.OkWithData(c, trees)
+}
+
+// GetServiceTreeDetail 获取服务目录详情（包含权限信息）
+// @Summary 获取服务目录详情
+// @Description 根据ID或full-code-path获取服务目录详情，包含权限信息
+// @Tags 服务目录
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Param id query int false "服务目录ID（优先使用）"
+// @Param full_code_path query string false "完整代码路径（如果未提供ID则使用）"
+// @Success 200 {object} dto.GetServiceTreeDetailResp "获取成功"
+// @Failure 400 {string} string "请求参数错误"
+// @Failure 401 {string} string "未授权"
+// @Failure 404 {string} string "服务目录不存在"
+// @Failure 500 {string} string "服务器内部错误"
+// @Router /api/v1/service_tree/detail [get]
+func (s *ServiceTree) GetServiceTreeDetail(c *gin.Context) {
+	var req dto.GetServiceTreeDetailReq
+
+	// 从 query 参数获取 ID
+	idStr := c.Query("id")
+	if idStr != "" {
+		id, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil {
+			response.FailWithMessage(c, "无效的ID参数")
+			return
+		}
+		req.ID = id
+	}
+
+	// 从 query 参数获取 full_code_path
+	req.FullCodePath = c.Query("full_code_path")
+
+	if req.ID == 0 && req.FullCodePath == "" {
+		response.FailWithMessage(c, "必须提供 ID 或 full_code_path 参数")
+		return
+	}
+
+	ctx := contextx.ToContext(c)
+	resp, err := s.serviceTreeService.GetServiceTreeDetail(ctx, &req)
+	if err != nil {
+		response.FailWithMessage(c, "获取服务目录详情失败: "+err.Error())
+		return
+	}
+
+	response.OkWithData(c, resp)
+}
+
+// GetPackageInfo 获取目录信息（仅用于获取目录权限）
+// @Summary 获取目录信息
+// @Description 根据ID或full-code-path获取目录信息，包含权限信息（仅用于目录，函数请使用函数详情接口）
+// @Tags 服务目录
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Param id query int false "目录ID（优先使用）"
+// @Param full_code_path query string false "完整代码路径（如果未提供ID则使用）"
+// @Success 200 {object} dto.GetPackageInfoResp "获取成功"
+// @Failure 400 {string} string "请求参数错误"
+// @Failure 401 {string} string "未授权"
+// @Failure 404 {string} string "目录不存在"
+// @Failure 500 {string} string "服务器内部错误"
+// @Router /api/v1/service_tree/package_info [get]
+func (s *ServiceTree) GetPackageInfo(c *gin.Context) {
+	var req dto.GetPackageInfoReq
+
+	// 从 query 参数获取 ID
+	idStr := c.Query("id")
+	if idStr != "" {
+		id, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil {
+			response.FailWithMessage(c, "无效的ID参数")
+			return
+		}
+		req.ID = id
+	}
+
+	// 从 query 参数获取 full_code_path
+	req.FullCodePath = c.Query("full_code_path")
+
+	if req.ID == 0 && req.FullCodePath == "" {
+		response.FailWithMessage(c, "必须提供 ID 或 full_code_path 参数")
+		return
+	}
+
+	ctx := contextx.ToContext(c)
+	resp, err := s.serviceTreeService.GetPackageInfo(ctx, &req)
+	if err != nil {
+		response.FailWithMessage(c, "获取目录信息失败: "+err.Error())
+		return
+	}
+
+	response.OkWithData(c, resp)
 }
 
 // UpdateServiceTree 更新服务目录

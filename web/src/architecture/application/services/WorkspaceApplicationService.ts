@@ -46,10 +46,13 @@ export class WorkspaceApplicationService {
   /**
    * 处理节点点击
    * 🔥 简化：不再使用 Tab，直接加载函数详情
-   * - 点击目录节点：切换到该目录
-   * - 点击函数节点：直接加载函数详情，不先切换目录（避免闪烁）
+   * - 点击目录节点：切换到该目录，并获取目录权限
+   * - 点击函数节点：直接加载函数详情，不先切换目录（避免闪烁），并获取函数权限
    */
   async handleNodeClick(node: ServiceTree): Promise<void> {
+    // ⭐ 先获取节点权限信息（目录和函数都需要）
+    await this.loadNodePermissions(node)
+
     if (node.type === 'function') {
       // 🔥 优化：直接加载函数详情，不先切换目录
       // 这样可以避免先显示目录详情再切换到函数详情的闪烁问题
@@ -80,6 +83,72 @@ export class WorkspaceApplicationService {
     } else {
       // 目录节点：切换到该目录
       this.domainService.setCurrentDirectory(node)
+    }
+  }
+
+  /**
+   * 加载节点权限信息（从详情接口获取）
+   * ⭐ 优化：添加请求去重，避免重复调用
+   */
+  private loadingPermissions = new Set<string>() // 正在加载的权限请求（用于去重）
+
+  private async loadNodePermissions(node: ServiceTree): Promise<void> {
+    // 检查是否有 id 或 full_code_path
+    if (!node.id && !node.full_code_path) {
+      return
+    }
+
+    // 生成缓存键（用于去重）
+    const cacheKey = node.full_code_path || `node:${node.id}`
+    
+    // 检查是否正在加载（去重）
+    if (this.loadingPermissions.has(cacheKey)) {
+      return
+    }
+
+    try {
+      // 动态导入，避免循环依赖
+      const { getPackageInfo } = await import('@/api/service-tree')
+      const { useNodePermissionsStore } = await import('@/stores/nodePermissions')
+      
+      const permissionStore = useNodePermissionsStore()
+      
+      // 检查缓存
+      const cached = permissionStore.getPermissions(node)
+      if (cached) {
+        // 使用缓存的权限信息
+        return
+      }
+
+      // ⭐ 函数节点的权限从函数详情接口获取，不需要单独调用
+      if (node.type === 'function') {
+        // 函数权限会在 loadFunction 时从函数详情接口获取并缓存
+        return
+      }
+
+      // 标记为正在加载
+      this.loadingPermissions.add(cacheKey)
+
+      // ⭐ 只对目录节点调用 package_info 接口获取权限
+      const params: { id?: number; full_code_path?: string } = {}
+      if (node.id) {
+        params.id = node.id
+      }
+      if (node.full_code_path) {
+        params.full_code_path = node.full_code_path
+      }
+
+      const packageInfo = await getPackageInfo(params)
+      if (packageInfo.permissions) {
+        // 缓存权限信息
+        permissionStore.setPermissions(node, packageInfo.permissions)
+      }
+    } catch (error) {
+      // 权限获取失败不影响主流程，只是权限控制可能不准确
+      console.warn('[WorkspaceApplicationService] 获取节点权限失败:', error)
+    } finally {
+      // 移除加载标记
+      this.loadingPermissions.delete(cacheKey)
     }
   }
 

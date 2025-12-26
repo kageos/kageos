@@ -94,8 +94,50 @@ type GetServiceTreeResp struct {
 	HubDirectoryID int64                 `json:"hub_directory_id,omitempty" example:"0"`                // 关联的Hub目录ID（如果已发布到Hub）
 	HubVersion     string                `json:"hub_version,omitempty" example:""`                      // Hub目录版本（如 v1.0.0），用于版本检测和升级
 	HubVersionNum  int                   `json:"hub_version_num,omitempty" example:"0"`                 // Hub目录版本号（数字部分），用于版本比较
-	Permissions    map[string]bool      `json:"permissions,omitempty"`                                 // 权限标识（企业版功能）：resourcePath -> action -> hasPermission
+	// ⭐ 移除 Permissions 字段：权限信息不再在服务树中返回，改为在详情接口中返回
 	Children       []*GetServiceTreeResp `json:"children,omitempty"`                                    // 子目录列表
+}
+
+// GetServiceTreeDetailReq 获取服务目录详情请求
+type GetServiceTreeDetailReq struct {
+	ID           int64  `json:"id" example:"1"`                                    // 服务目录ID（优先使用）
+	FullCodePath string `json:"full_code_path" example:"/beiluo/myapp/user"`      // 完整代码路径（如果未提供ID则使用）
+}
+
+// GetServiceTreeDetailResp 获取服务目录详情响应
+type GetServiceTreeDetailResp struct {
+	ID             int64            `json:"id" example:"1"`                              // 服务目录ID
+	Name           string            `json:"name" example:"用户管理"`                         // 服务目录名称
+	Code           string            `json:"code" example:"user"`                         // 服务目录代码
+	ParentID       int64             `json:"parent_id" example:"0"`                       // 父目录ID
+	Type           string            `json:"type" example:"package"`                      // 节点类型: package(服务目录/包), function(函数/文件)
+	Description    string            `json:"description" example:"用户相关的API接口"`            // 描述
+	Tags           string            `json:"tags" example:"user,management"`              // 标签
+	AppID          int64             `json:"app_id" example:"1"`                          // 应用ID
+	RefID          int64             `json:"ref_id" example:"0"`                          // 引用ID
+	FullCodePath   string            `json:"full_code_path" example:"/beiluo/myapp/user"` // 完整代码路径
+	TemplateType   string            `json:"template_type,omitempty" example:"form"`       // 模板类型（函数的类型，如 form、table）
+	Version        string            `json:"version" example:"v1"`                         // 节点当前版本号
+	VersionNum     int               `json:"version_num" example:"1"`                     // 节点当前版本号（数字部分）
+	HubDirectoryID int64             `json:"hub_directory_id,omitempty" example:"0"`      // 关联的Hub目录ID
+	HubVersion     string            `json:"hub_version,omitempty" example:""`            // Hub目录版本
+	HubVersionNum  int               `json:"hub_version_num,omitempty" example:"0"`         // Hub目录版本号（数字部分）
+	Permissions    map[string]bool   `json:"permissions,omitempty"`                       // ⭐ 权限标识（企业版功能）：权限点 -> 是否有权限
+}
+
+// GetPackageInfoReq 获取目录信息请求（仅用于获取目录权限，不包含函数）
+type GetPackageInfoReq struct {
+	ID           int64  `json:"id" form:"id" example:"1"`                                    // 目录ID（优先使用）
+	FullCodePath string `json:"full_code_path" form:"full_code_path" example:"/beiluo/myapp/user"` // 完整代码路径（如果未提供ID则使用）
+}
+
+// GetPackageInfoResp 获取目录信息响应（仅包含目录权限）
+type GetPackageInfoResp struct {
+	ID           int64           `json:"id" example:"1"`                              // 目录ID
+	Name         string          `json:"name" example:"用户管理"`                         // 目录名称
+	Code         string          `json:"code" example:"user"`                         // 目录代码
+	FullCodePath string          `json:"full_code_path" example:"/beiluo/myapp/user"` // 完整代码路径
+	Permissions  map[string]bool `json:"permissions,omitempty"`                       // ⭐ 权限信息（企业版功能）：directory:read, directory:create, directory:update, directory:delete, directory:manage
 }
 
 // UpdateServiceTreeMetadataReq 更新服务目录元数据请求（旧接口，保留兼容性）

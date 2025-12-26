@@ -642,7 +642,9 @@ const handleToggleMode = (newMode: 'read' | 'edit') => {
   if (newMode === 'edit' && !props.canEdit) {
     const path = fullCodePath.value
     if (path) {
-      const applyURL = buildPermissionApplyURL(path, 'table:update')
+      // 获取 template_type（从 currentFunctionDetail 或 functionDetail）
+      const templateType = props.currentFunctionDetail?.template_type || props.functionDetail?.template_type
+      const applyURL = buildPermissionApplyURL(path, 'table:update', templateType)
       router.push(applyURL)
     } else {
       ElMessage.warning('无法获取资源路径，无法申请权限')

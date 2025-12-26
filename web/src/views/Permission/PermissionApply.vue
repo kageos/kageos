@@ -217,6 +217,7 @@ onMounted(async () => {
   // 从 URL 参数中获取权限信息
   const resource = route.query.resource as string
   const action = route.query.action as string  // 可选，用于默认选中
+  const templateType = route.query.templateType as string  // 可选，函数类型（table、form、chart）
 
   if (!resource) {
     error.value = '缺少必要的参数：resource'
@@ -233,42 +234,43 @@ onMounted(async () => {
   }
 
   // ⭐ 根据资源路径获取权限范围（包括当前资源和父级资源）
+  // 优先使用 URL 参数中的 templateType，如果没有则从服务树获取
   try {
-    await loadPermissionScopes(resourcePath, action)
+    await loadPermissionScopes(resourcePath, action, templateType)
   } catch (err: any) {
     console.error('加载权限范围失败:', err)
-    // 如果加载失败，使用默认逻辑
-    permissionScopes.value = getPermissionScopes(resourcePath)
+    // 如果加载失败，使用默认逻辑（使用 URL 参数中的 templateType）
+    permissionScopes.value = getPermissionScopes(resourcePath, undefined, templateType)
     selectedPermissions.value = permissionScopes.value.map(() => [])
-  }
-
-  // ⭐ 设置默认选中的权限点（第一个范围的最小粒度权限）
-  if (permissionScopes.value.length > 0 && selectedPermissions.value.length > 0) {
-    const firstScope = permissionScopes.value[0]
-    const minimalPermissions = firstScope.permissions
-      .filter(p => p.isMinimal === true)
-      .map(p => p.action)
     
-    // 如果 URL 中指定了 action，也加入默认选中
-    if (action && !minimalPermissions.includes(action)) {
-      minimalPermissions.push(action)
+    // ⭐ 设置默认选中的权限点（第一个范围的最小粒度权限 + URL 中指定的 action）
+    if (permissionScopes.value.length > 0 && selectedPermissions.value.length > 0) {
+      const firstScope = permissionScopes.value[0]
+      const minimalPermissions = firstScope.permissions
+        .filter(p => p.isMinimal === true)
+        .map(p => p.action)
+      
+      // 如果 URL 中指定了 action，也加入默认选中
+      if (action && !minimalPermissions.includes(action)) {
+        minimalPermissions.push(action)
+      }
+      
+      selectedPermissions.value[0] = minimalPermissions
     }
-    
-    selectedPermissions.value[0] = minimalPermissions
   }
 
   loading.value = false
 })
 
 // ⭐ 加载权限范围（包括当前资源和父级资源）
-const loadPermissionScopes = async (resourcePath: string, defaultAction?: string) => {
+const loadPermissionScopes = async (resourcePath: string, defaultAction?: string, urlTemplateType?: string) => {
   // 解析资源路径，判断资源类型
   // 格式：/user/app/dir1/dir2/function
   const pathParts = resourcePath.split('/').filter(Boolean)
   
   if (pathParts.length < 2) {
     // 路径格式错误
-    permissionScopes.value = getPermissionScopes(resourcePath)
+    permissionScopes.value = getPermissionScopes(resourcePath, undefined, urlTemplateType)
     selectedPermissions.value = permissionScopes.value.map(() => [])
     return
   }
@@ -277,42 +279,44 @@ const loadPermissionScopes = async (resourcePath: string, defaultAction?: string
   const app = pathParts[1]
   
   let resourceType: 'function' | 'directory' | 'app' | undefined
-  let templateType: string | undefined
+  let templateType: string | undefined = urlTemplateType  // ⭐ 优先使用 URL 参数中的 templateType
   
-  // 尝试从服务树获取资源信息
-  try {
-    const response = await getAppWithServiceTree(user, app)
-    
-    if (response && response.tree) {
-      // 在服务树中查找匹配的节点
-      const findNode = (nodes: any[], path: string): any => {
-        for (const node of nodes) {
-          if (node.full_code_path === path) {
-            return node
-          }
-          if (node.children && node.children.length > 0) {
-            const found = findNode(node.children, path)
-            if (found) return found
-          }
-        }
-        return null
-      }
-
-      const node = findNode(response.tree, resourcePath)
+  // 如果 URL 中没有 templateType，尝试从服务树获取资源信息
+  if (!templateType) {
+    try {
+      const response = await getAppWithServiceTree(user, app)
       
-      if (node) {
-        // 根据节点类型和模板类型获取权限范围
-        if (node.type === 'function') {
-          resourceType = 'function'
-          templateType = node.template_type
-        } else if (node.type === 'package') {
-          resourceType = 'directory'
+      if (response && response.tree) {
+        // 在服务树中查找匹配的节点
+        const findNode = (nodes: any[], path: string): any => {
+          for (const node of nodes) {
+            if (node.full_code_path === path) {
+              return node
+            }
+            if (node.children && node.children.length > 0) {
+              const found = findNode(node.children, path)
+              if (found) return found
+            }
+          }
+          return null
+        }
+
+        const node = findNode(response.tree, resourcePath)
+        
+        if (node) {
+          // 根据节点类型和模板类型获取权限范围
+          if (node.type === 'function') {
+            resourceType = 'function'
+            templateType = node.template_type
+          } else if (node.type === 'package') {
+            resourceType = 'directory'
+          }
         }
       }
+    } catch (err) {
+      // 获取服务树失败，使用默认逻辑
+      console.warn('获取服务树失败，使用默认逻辑:', err)
     }
-  } catch (err) {
-    // 获取服务树失败，使用默认逻辑
-    console.warn('获取服务树失败，使用默认逻辑:', err)
   }
   
   // 如果无法从服务树获取，根据路径长度判断
@@ -324,9 +328,28 @@ const loadPermissionScopes = async (resourcePath: string, defaultAction?: string
     }
   }
   
-  // 获取权限范围
+  // 获取权限范围（使用确定的 templateType）
   permissionScopes.value = getPermissionScopes(resourcePath, resourceType, templateType)
   selectedPermissions.value = permissionScopes.value.map(() => [])
+  
+  // ⭐ 设置默认选中的权限点（第一个范围的最小粒度权限 + URL 中指定的 action）
+  if (permissionScopes.value.length > 0 && selectedPermissions.value.length > 0) {
+    const firstScope = permissionScopes.value[0]
+    const minimalPermissions = firstScope.permissions
+      .filter(p => p.isMinimal === true)
+      .map(p => p.action)
+    
+    // 如果 URL 中指定了 action，也加入默认选中（优先使用指定的 action）
+    if (defaultAction) {
+      // 如果指定的 action 不在最小粒度权限中，添加它
+      if (!minimalPermissions.includes(defaultAction)) {
+        minimalPermissions.push(defaultAction)
+      }
+      // 如果指定的 action 在最小粒度权限中，确保它被选中（可能已经是了）
+    }
+    
+    selectedPermissions.value[0] = minimalPermissions
+  }
 }
 
 // ⭐ 快捷选择（选择某个范围的全部权限）

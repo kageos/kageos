@@ -831,13 +831,14 @@ const handleFunctionNodeRoute = (node: ServiceTree, source: string): void => {
 
 /**
  * 处理目录节点的路由更新
+ * ⭐ 优化：不再在这里调用 triggerNodeClick，因为已经在 handleNodeClick 中调用过了
  */
 const handlePackageNodeRoute = (node: ServiceTree, source: string): void => {
   if (!node.full_code_path) return
   
   const targetPath = buildWorkspacePath(node.full_code_path)
+  // ⭐ 如果路由已匹配，不需要更新路由（节点点击已经在 handleNodeClick 中处理了）
   if (route.path === targetPath) {
-    applicationService.triggerNodeClick(node)
     return
   }
   
@@ -863,9 +864,16 @@ const handleNodeClick = (node: ServiceTreeType) => {
   if (serviceTree.type === 'function') {
     handleFunctionNodeRoute(serviceTree, RouteSource.WORKSPACE_NODE_CLICK)
   } else if (serviceTree.type === 'package') {
-    // 先设置当前函数，确保 PackageDetailView 能获取到数据
-    applicationService.triggerNodeClick(serviceTree)
-    handlePackageNodeRoute(serviceTree, RouteSource.WORKSPACE_NODE_CLICK_PACKAGE)
+    // ⭐ 优化：先检查路由是否已匹配，避免重复调用
+    const targetPath = buildWorkspacePath(serviceTree.full_code_path || '')
+    if (route.path === targetPath) {
+      // 路由已匹配，直接触发节点点击（只调用一次）
+      applicationService.triggerNodeClick(serviceTree)
+    } else {
+      // 路由未匹配，先触发节点点击，然后更新路由
+      applicationService.triggerNodeClick(serviceTree)
+      handlePackageNodeRoute(serviceTree, RouteSource.WORKSPACE_NODE_CLICK_PACKAGE)
+    }
   } else {
     // 其他类型节点，只设置当前函数
     applicationService.triggerNodeClick(serviceTree)

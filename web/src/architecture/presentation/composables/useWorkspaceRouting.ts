@@ -397,31 +397,19 @@ export function useWorkspaceRouting(options: {
           }
         }
         
-        // 🔥 如果是 workspace-node-click-package，需要确保设置了当前函数
+        // ⭐ 优化：workspace-node-click-package 不需要再次触发节点点击
+        // 因为在 handleNodeClick 中已经调用过 triggerNodeClick 了
+        // 这里只需要确保路由已同步即可
         if (payload.source === 'workspace-node-click-package') {
-          const fullPath = extractWorkspacePath(payload.path)
-          if (fullPath) {
-            const pathSegments = fullPath.split('/').filter(Boolean)
-            if (pathSegments.length >= 3) {
-              const functionPath = '/' + pathSegments.join('/')
-              const tree = options.serviceTree()
-              if (tree && tree.length > 0) {
-                const node = options.findNodeByPath(tree, functionPath)
-                if (node && node.type === 'package') {
-                  const serviceNode: ServiceTree = node as any
-                  applicationService.triggerNodeClick(serviceNode)
-                  // 清除记录，允许下次处理
-                  setTimeout(() => {
-                    if (lastProcessedUpdateCompleted?.path === payload.path && 
-                        lastProcessedUpdateCompleted?.source === payload.source) {
-                      lastProcessedUpdateCompleted = null
-                    }
-                  }, 100)
-                  return
-                }
-              }
+          // 不需要再次调用 triggerNodeClick，因为已经在 handleNodeClick 中调用过了
+          // 只需要清除记录，允许下次处理
+          setTimeout(() => {
+            if (lastProcessedUpdateCompleted?.path === payload.path && 
+                lastProcessedUpdateCompleted?.source === payload.source) {
+              lastProcessedUpdateCompleted = null
             }
-          }
+          }, 100)
+          return
         }
         
         // 对于 tab 切换相关事件，只同步路由到 Tab

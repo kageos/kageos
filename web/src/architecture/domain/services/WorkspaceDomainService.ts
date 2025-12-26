@@ -95,6 +95,17 @@ export class WorkspaceDomainService {
         throw new Error('节点没有 ref_id 和 full_code_path，无法加载函数详情')
       }
 
+      // ⭐ 如果函数详情包含权限信息，缓存到权限 store
+      if (detail.permissions && node) {
+        // 动态导入，避免循环依赖
+        import('@/stores/nodePermissions').then(({ useNodePermissionsStore }) => {
+          const permissionStore = useNodePermissionsStore()
+          permissionStore.setPermissions(node, detail.permissions!)
+        }).catch(err => {
+          console.warn('[WorkspaceDomainService] 缓存函数权限失败:', err)
+        })
+      }
+
       // 触发事件
       this.eventBus.emit(WorkspaceEvent.functionLoaded, { node, detail })
 

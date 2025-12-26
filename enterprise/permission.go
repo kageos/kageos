@@ -134,6 +134,21 @@ type PermissionService interface {
 	//   - 社区版实现返回空列表
 	//   - 企业版实现会从 Casbin 查询用户的所有角色
 	GetRolesForUser(ctx context.Context, username string) ([]string, error)
+
+	// AddResourceInheritance 添加资源继承关系（g2 关系）
+	// 参数：
+	//   - ctx: 上下文
+	//   - childResource: 子资源路径
+	//   - parentResource: 父资源路径
+	//
+	// 返回：
+	//   - error: 如果添加失败返回错误
+	//
+	// 说明：
+	//   - 社区版实现返回错误（不支持权限管理）
+	//   - 企业版实现会添加 g2 关系到 Casbin
+	//   - g2 关系用于实现资源权限继承：如果父资源有权限，子资源自动继承
+	AddResourceInheritance(ctx context.Context, childResource string, parentResource string) error
 }
 
 // 全局变量：存储当前实现
@@ -243,5 +258,11 @@ func (u *UnImplPermissionService) RemoveGroupingPolicy(ctx context.Context, user
 func (u *UnImplPermissionService) GetRolesForUser(ctx context.Context, username string) ([]string, error) {
 	// 社区版（开源版本）默认实现：返回空列表
 	return []string{}, nil
+}
+
+// AddResourceInheritance 添加资源继承关系（g2 关系）
+// 社区版实现：返回错误（不支持权限管理）
+func (u *UnImplPermissionService) AddResourceInheritance(ctx context.Context, childResource string, parentResource string) error {
+	return fmt.Errorf("权限管理功能仅在企业版可用")
 }
 
