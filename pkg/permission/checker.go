@@ -8,9 +8,8 @@ import (
 )
 
 // CheckPermissionWithInheritance 检查权限（支持权限继承）
-// 会检查：
-// 1. 当前资源的直接权限
-// 2. 所有父目录的 directory:manage 权限（权限继承）
+// ⭐ 优化：权限继承现在由 Casbin Matcher 自动处理（通过 keyMatch2 和权限映射）
+// 所以这里只需要检查当前资源的权限，Casbin 会自动处理父目录的权限继承
 //
 // 参数：
 //   - ctx: 上下文
@@ -22,6 +21,12 @@ import (
 // 返回：
 //   - hasPermission: 是否有权限
 //   - err: 错误信息
+//
+// 说明：
+//   - Casbin Matcher 已经支持权限映射：
+//     * directory:manage 权限自动覆盖所有子资源的权限
+//     * app:manage 权限自动覆盖应用下所有资源的权限
+//   - 所以这里只需要调用 Casbin 的 CheckPermission，它会自动处理权限继承
 func CheckPermissionWithInheritance(
 	ctx context.Context,
 	permissionService enterprise.PermissionService,
@@ -29,50 +34,22 @@ func CheckPermissionWithInheritance(
 	fullCodePath string,
 	action string,
 ) (hasPermission bool, err error) {
-	// 构建所有需要检查的权限点（批量查询）
-	// 1. 当前资源的权限
-	// 2. 所有父目录的 directory:manage 权限（用于权限继承）
-	resourcePaths := []string{fullCodePath}
-	actions := []string{action}
-
-	// 解析路径，获取所有父目录路径
-	parentPaths := GetParentPaths(fullCodePath)
-	for _, parentPath := range parentPaths {
-		resourcePaths = append(resourcePaths, parentPath)
-		actions = append(actions, "directory:manage")
-	}
-
-	// 批量查询所有权限
-	permissions, err := permissionService.BatchCheckPermissions(ctx, username, resourcePaths, actions)
+	// ⭐ 优化：直接调用 Casbin 的 CheckPermission
+	// Casbin Matcher 已经支持权限映射和路径匹配，会自动处理权限继承
+	hasPermission, err = permissionService.CheckPermission(ctx, username, fullCodePath, action)
 	if err != nil {
-		logger.Warnf(ctx, "[PermissionChecker] 批量权限查询失败: resource=%s, username=%s, error=%v",
-			fullCodePath, username, err)
+		logger.Warnf(ctx, "[PermissionChecker] 权限检查失败: resource=%s, username=%s, action=%s, error=%v",
+			fullCodePath, username, action, err)
 		return false, err
 	}
 
-	// 按优先级判断权限（先检查当前资源，再检查父目录）
-	// 1. 优先检查当前资源的直接权限
-	if nodePerms, ok := permissions[fullCodePath]; ok {
-		if hasPerm, ok := nodePerms[action]; ok && hasPerm {
-			logger.Debugf(ctx, "[PermissionChecker] 直接权限通过: resource=%s, action=%s", fullCodePath, action)
-			return true, nil
-		}
+	if hasPermission {
+		logger.Debugf(ctx, "[PermissionChecker] 权限检查通过: resource=%s, action=%s", fullCodePath, action)
+	} else {
+		logger.Debugf(ctx, "[PermissionChecker] 权限检查失败: resource=%s, action=%s", fullCodePath, action)
 	}
 
-	// 2. 如果直接权限失败，检查父目录的 directory:manage 权限（权限继承）
-	for _, parentPath := range parentPaths {
-		if nodePerms, ok := permissions[parentPath]; ok {
-			if hasManage, ok := nodePerms["directory:manage"]; ok && hasManage {
-				// 父目录有管理权限，自动拥有所有子资源的权限
-				logger.Infof(ctx, "[PermissionChecker] 权限继承成功: resource=%s, action=%s, parent=%s, has directory:manage",
-					fullCodePath, action, parentPath)
-				return true, nil
-			}
-		}
-	}
-
-	// 所有检查都失败，返回无权限
-	return false, nil
+	return hasPermission, nil
 }
 
 // BuildPermissionCheckRequests 构建权限检查请求（用于批量查询）

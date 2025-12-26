@@ -80,6 +80,7 @@
     <div class="form-actions-section">
       <div class="form-actions-row">
         <!-- ⭐ 提交按钮：需要 form:submit 权限 -->
+        <!-- 如果没有权限，显示禁用状态的按钮，点击后跳转到权限申请页面 -->
         <el-button
           v-if="canSubmit"
           type="primary"
@@ -90,6 +91,18 @@
         >
           <el-icon><Promotion /></el-icon>
           提交
+        </el-button>
+        <el-button
+          v-else
+          type="primary"
+          size="large"
+          :disabled="false"
+          plain
+          class="submit-button-full-width action-btn-no-permission"
+          @click="handleApplyPermissionForSubmit"
+        >
+          <el-icon><Lock /></el-icon>
+          提交（需权限）
         </el-button>
         <el-button size="large" @click="handleReset">
           <el-icon><RefreshLeft /></el-icon>
@@ -237,7 +250,7 @@
 import { computed, onMounted, onUnmounted, watch, ref, nextTick } from 'vue'
 import type { ComputedRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Promotion, RefreshLeft, View, DocumentCopy, InfoFilled } from '@element-plus/icons-vue'
+import { Promotion, RefreshLeft, View, DocumentCopy, InfoFilled, Lock } from '@element-plus/icons-vue'
 import { ElIcon, ElTag, ElNotification, ElMessage, ElAlert, ElMessageBox, ElText, ElCheckbox, ElCard } from 'element-plus'
 import { eventBus, FormEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
@@ -250,7 +263,7 @@ import { useFormDataStore } from '@/core/stores-v2/formData'
 import { useResponseDataStore } from '@/core/stores-v2/responseData'
 import { useFunctionParamInitialization } from '../composables/useFunctionParamInitialization'
 import { useFormParamURLSync } from '../composables/useFormParamURLSync'
-import { hasPermission, FormPermissions } from '@/utils/permission'
+import { hasPermission, FormPermissions, buildPermissionApplyURL } from '@/utils/permission'
 import { usePermissionErrorStore } from '@/stores/permissionError'
 import type { PermissionInfo } from '@/utils/permission'
 
@@ -318,6 +331,16 @@ const handleApplyPermission = () => {
       window.open(permissionError.value.apply_url, '_blank')
     }
   }
+}
+
+// ⭐ 处理提交按钮的权限申请
+const handleApplyPermissionForSubmit = () => {
+  const node = currentFunctionNode.value
+  if (!node || !node.full_code_path) return
+  
+  // 构建权限申请 URL（传递 template_type 以便正确显示权限选项）
+  const applyUrl = buildPermissionApplyURL(node.full_code_path, 'form:submit', node.template_type)
+  router.push(applyUrl)
 }
 
 // 🔥 移除 formInitialData computed，改为使用统一的数据初始化框架

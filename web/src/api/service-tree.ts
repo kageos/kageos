@@ -34,9 +34,60 @@ export function deleteServiceTree(id: number) {
   return del(`/workspace/api/v1/service_tree/${id}`)
 }
 
-// 获取服务目录详情
-export function getServiceTreeDetail(id: number) {
-  return get<ServiceTree>(`/workspace/api/v1/service_tree/${id}`)
+// 获取服务目录详情（包含权限信息）
+export interface ServiceTreeDetail {
+  id: number
+  name: string
+  code: string
+  parent_id: number
+  type: 'package' | 'function'
+  description: string
+  tags: string
+  app_id: number
+  ref_id: number
+  full_code_path: string
+  template_type?: string
+  version: string
+  version_num: number
+  hub_directory_id?: number
+  hub_version?: string
+  hub_version_num?: number
+  permissions?: Record<string, boolean>  // ⭐ 权限信息
+}
+
+// 获取服务目录详情（支持 ID 或 full_code_path）
+// ⚠️ 注意：函数权限请使用函数详情接口，此接口主要用于兼容旧代码
+export function getServiceTreeDetail(params: { id?: number; full_code_path?: string }) {
+  const queryParams: Record<string, string> = {}
+  if (params.id) {
+    queryParams.id = params.id.toString()
+  }
+  if (params.full_code_path) {
+    queryParams.full_code_path = params.full_code_path
+  }
+  return get<ServiceTreeDetail>('/workspace/api/v1/service_tree/detail', queryParams)
+}
+
+// 获取目录信息（仅用于获取目录权限）
+export interface PackageInfo {
+  id: number
+  name: string
+  code: string
+  full_code_path: string
+  permissions?: Record<string, boolean>  // ⭐ 权限信息：directory:read, directory:create, directory:update, directory:delete, directory:manage
+}
+
+// 获取目录信息（支持 ID 或 full_code_path）
+// ⭐ 优化：专门用于获取目录权限，函数权限从函数详情接口获取
+export function getPackageInfo(params: { id?: number; full_code_path?: string }) {
+  const queryParams: Record<string, string> = {}
+  if (params.id) {
+    queryParams.id = params.id.toString()
+  }
+  if (params.full_code_path) {
+    queryParams.full_code_path = params.full_code_path
+  }
+  return get<PackageInfo>('/workspace/api/v1/service_tree/package_info', queryParams)
 }
 
 // 移动服务目录

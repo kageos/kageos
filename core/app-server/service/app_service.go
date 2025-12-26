@@ -123,6 +123,7 @@ func (a *AppService) CreateApp(ctx context.Context, req *dto.CreateAppReq) (*dto
 }
 
 // grantCreatorPermission 给创建者授予权限（如果权限功能启用）
+// ⭐ 优化：同时设置 g2 资源继承关系
 func (a *AppService) grantCreatorPermission(ctx context.Context, username, resourcePath, action string) error {
 	// 检查权限功能是否启用（企业版）
 	licenseMgr := license.GetManager()
@@ -137,8 +138,18 @@ func (a *AppService) grantCreatorPermission(ctx context.Context, username, resou
 		return fmt.Errorf("权限服务未初始化")
 	}
 
+	// ⭐ 优化：使用通配符路径策略，自动覆盖所有子资源
+	// 对于目录：/luobei/operations → /luobei/operations/*
+	// 对于函数：/luobei/operations/tools/videos/convert → 使用精确路径（函数不需要通配符）
+	policyPath := resourcePath
+	if action == "directory:manage" || action == "app:manage" {
+		// 目录和应用权限使用通配符，自动覆盖所有子资源
+		policyPath = resourcePath + "/*"
+	}
+	// 函数权限使用精确路径（因为函数是叶子节点，不需要通配符）
+	
 	// 添加权限
-	err := permissionService.AddPolicy(ctx, username, resourcePath, action)
+	err := permissionService.AddPolicy(ctx, username, policyPath, action)
 	if err != nil {
 		return fmt.Errorf("添加权限失败: %w", err)
 	}
@@ -520,8 +531,9 @@ func (a *AppService) createServiceTreesForAPIs(ctx context.Context, appID int64,
 
 		// ⭐ 自动给创建者添加函数执行权限
 		// 资源路径：函数的 FullCodePath，权限：function:execute
+		// grantCreatorPermission 会自动设置 g2 资源继承关系
 		requestUser := contextx.GetRequestUser(ctx)
-		if requestUser != "" {
+		if requestUser != "" && api.FullCodePath != "" {
 			if err := a.grantCreatorPermission(ctx, requestUser, api.FullCodePath, "function:execute"); err != nil {
 				// 权限添加失败不应该影响函数创建，只记录警告日志
 				logger.Warnf(ctx, "[AppService] 自动添加创建者权限失败: user=%s, resource=%s, action=function:execute, error=%v",
@@ -603,8 +615,7 @@ func (a *AppService) createFunctionNode(appID int64, parentID int64, api *dto.Ap
 	// ⭐ 自动给创建者添加函数执行权限
 	// 资源路径：函数的 FullCodePath，权限：function:execute
 	// 注意：createFunctionNode 方法没有 ctx 参数，需要从调用方传入
-	// 这里暂时跳过权限授予，因为 createFunctionNode 通常是在 createServiceTreesForAPIs 中调用
-	// 权限授予应该在 createServiceTreesForAPIs 中进行
+	// 权限授予在 createServiceTreesForAPIs 中进行
 
 	// 返回创建的节点ID
 	return serviceTree.ID, nil

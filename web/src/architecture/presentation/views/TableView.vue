@@ -368,7 +368,7 @@ import { useUserInfoStore } from '@/stores/userInfo'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
 import type { TableRow, SearchParams, SortParams, SortItem } from '../../domain/services/TableDomainService'
 import type { UserInfo } from '@/types'
-import { hasPermission, TablePermissions } from '@/utils/permission'
+import { hasPermission, TablePermissions, buildPermissionApplyURL } from '@/utils/permission'
 import { usePermissionErrorStore } from '@/stores/permissionError'
 import type { PermissionInfo } from '@/utils/permission'
 
@@ -1522,8 +1522,8 @@ const handleApplyPermissionForAction = (action: string) => {
     return
   }
   
-  const resourcePath = node.full_code_path
-  const applyUrl = `/permissions/apply?resource=${encodeURIComponent(resourcePath)}&action=${encodeURIComponent(action)}`
+  // 使用 buildPermissionApplyURL 构建 URL（传递 template_type 以便正确显示权限选项）
+  const applyUrl = buildPermissionApplyURL(node.full_code_path, action, node.template_type)
   router.push(applyUrl)
 }
 

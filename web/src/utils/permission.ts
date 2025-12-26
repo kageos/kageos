@@ -4,6 +4,7 @@
  */
 
 import type { ServiceTree } from '@/types'
+import { useNodePermissionsStore } from '@/stores/nodePermissions'
 
 /**
  * 权限信息接口（从 403 响应中获取）
@@ -18,42 +19,97 @@ export interface PermissionInfo {
 
 /**
  * 检查节点是否有指定权限
+ * ⭐ 优化：优先从权限缓存中获取，如果没有则从节点本身的 permissions 字段获取
  * @param node 服务树节点
  * @param action 权限点（如 table:search、function:execute）
  * @returns 是否有权限
  */
 export function hasPermission(node: ServiceTree | undefined, action: string): boolean {
-  if (!node || !node.permissions) {
-    // 如果没有权限信息，默认返回 true（向后兼容）
+  if (!node) {
+    // 如果没有节点，默认返回 true（向后兼容）
     return true
   }
-  return node.permissions[action] === true
+
+  // ⭐ 优先从权限缓存中获取
+  const permissionStore = useNodePermissionsStore()
+  const cachedPermissions = permissionStore.getPermissions(node)
+  if (cachedPermissions) {
+    // 如果缓存中有权限信息，检查是否有该权限
+    // 如果缓存中没有该权限点，说明权限信息不完整，默认返回 true（向后兼容）
+    if (action in cachedPermissions) {
+      return cachedPermissions[action] === true
+    }
+    // 如果缓存中没有该权限点，默认返回 true（向后兼容，避免权限信息不完整时按钮消失）
+    return true
+  }
+
+  // 如果没有缓存，从节点本身的 permissions 字段获取（向后兼容）
+  if (node.permissions) {
+    // 如果节点有权限信息，检查是否有该权限
+    // 如果节点权限信息中没有该权限点，默认返回 true（向后兼容）
+    if (action in node.permissions) {
+      return node.permissions[action] === true
+    }
+    // 如果节点权限信息中没有该权限点，默认返回 true（向后兼容）
+    return true
+  }
+
+  // 如果都没有，默认返回 true（向后兼容）
+  return true
 }
 
 /**
  * 检查节点是否有多个权限（只要有一个有权限就返回 true）
+ * ⭐ 优化：优先从权限缓存中获取
  * @param node 服务树节点
  * @param actions 权限点列表
  * @returns 是否有权限
  */
 export function hasAnyPermission(node: ServiceTree | undefined, actions: string[]): boolean {
-  if (!node || !node.permissions) {
+  if (!node) {
     return true
   }
-  return actions.some(action => node.permissions![action] === true)
+
+  // ⭐ 优先从权限缓存中获取
+  const permissionStore = useNodePermissionsStore()
+  const cachedPermissions = permissionStore.getPermissions(node)
+  if (cachedPermissions) {
+    return actions.some(action => cachedPermissions[action] === true)
+  }
+
+  // 如果没有缓存，从节点本身的 permissions 字段获取（向后兼容）
+  if (node.permissions) {
+    return actions.some(action => node.permissions![action] === true)
+  }
+
+  return true
 }
 
 /**
  * 检查节点是否有所有权限（必须全部有权限才返回 true）
+ * ⭐ 优化：优先从权限缓存中获取
  * @param node 服务树节点
  * @param actions 权限点列表
  * @returns 是否有权限
  */
 export function hasAllPermissions(node: ServiceTree | undefined, actions: string[]): boolean {
-  if (!node || !node.permissions) {
+  if (!node) {
     return true
   }
-  return actions.every(action => node.permissions![action] === true)
+
+  // ⭐ 优先从权限缓存中获取
+  const permissionStore = useNodePermissionsStore()
+  const cachedPermissions = permissionStore.getPermissions(node)
+  if (cachedPermissions) {
+    return actions.every(action => cachedPermissions[action] === true)
+  }
+
+  // 如果没有缓存，从节点本身的 permissions 字段获取（向后兼容）
+  if (node.permissions) {
+    return actions.every(action => node.permissions![action] === true)
+  }
+
+  return true
 }
 
 /**
@@ -373,9 +429,14 @@ export function getPermissionScopes(
  * 构建权限申请 URL
  * @param resourcePath 资源路径（full-code-path）
  * @param action 权限点（如 table:update）
+ * @param templateType 模板类型（table、form、chart，可选）
  * @returns 权限申请页面的 URL
  */
-export function buildPermissionApplyURL(resourcePath: string, action: string): string {
-  return `/permissions/apply?resource=${encodeURIComponent(resourcePath)}&action=${encodeURIComponent(action)}`
+export function buildPermissionApplyURL(resourcePath: string, action: string, templateType?: string): string {
+  let url = `/permissions/apply?resource=${encodeURIComponent(resourcePath)}&action=${encodeURIComponent(action)}`
+  if (templateType) {
+    url += `&templateType=${encodeURIComponent(templateType)}`
+  }
+  return url
 }
 

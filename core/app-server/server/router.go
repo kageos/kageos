@@ -81,6 +81,8 @@ func (s *Server) setupRoutes() {
 	serviceTreeAuth.POST("", serviceTreeHandler.CreateServiceTree)
 	// 服务树接口使用 gzip 压缩
 	serviceTreeAuth.GET("", middleware2.Gzip(), serviceTreeHandler.GetServiceTree)
+	serviceTreeAuth.GET("/detail", serviceTreeHandler.GetServiceTreeDetail) // ⭐ 获取服务目录详情（包含权限，兼容旧接口）
+	serviceTreeAuth.GET("/package_info", serviceTreeHandler.GetPackageInfo) // ⭐ 获取目录信息（仅用于获取目录权限，函数权限从函数详情接口获取）
 	serviceTreeAuth.PUT("", serviceTreeHandler.UpdateServiceTree)
 	serviceTreeAuth.DELETE("", serviceTreeHandler.DeleteServiceTree)
 	serviceTreeAuth.POST("/copy", serviceTreeHandler.CopyServiceTree)                 // 复制服务目录

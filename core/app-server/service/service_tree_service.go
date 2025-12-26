@@ -39,6 +39,7 @@ func extractVersionNumForServiceTree(version string) int {
 }
 
 // grantCreatorPermission 给创建者授予权限（如果权限功能启用）
+// ⭐ 优化：同时设置 g2 资源继承关系
 func (s *ServiceTreeService) grantCreatorPermission(ctx context.Context, username, resourcePath, action string) error {
 	// 检查权限功能是否启用（企业版）
 	licenseMgr := license.GetManager()
@@ -53,8 +54,13 @@ func (s *ServiceTreeService) grantCreatorPermission(ctx context.Context, usernam
 		return fmt.Errorf("权限服务未初始化")
 	}
 
-	// 添加权限
-	err := permissionService.AddPolicy(ctx, username, resourcePath, action)
+	// ⭐ 优化：使用通配符路径策略，自动覆盖所有子资源
+	// 例如：/luobei/operations → /luobei/operations/*
+	// 这样，授予顶层目录权限后，所有子资源自动继承
+	policyPath := resourcePath + "/*"
+	
+	// 添加权限（使用通配符路径）
+	err := permissionService.AddPolicy(ctx, username, policyPath, action)
 	if err != nil {
 		return fmt.Errorf("添加权限失败: %w", err)
 	}
@@ -183,6 +189,7 @@ func (s *ServiceTreeService) CreateServiceTree(ctx context.Context, req *dto.Cre
 }
 
 // getServiceTreeByAppModel 根据 appModel 获取服务目录树（内部方法，避免重复获取 appModel）
+// ⭐ 优化：不再查询权限，服务树只返回结构信息，权限在详情接口中查询
 func (s *ServiceTreeService) getServiceTreeByAppModel(ctx context.Context, appModel *model.App, nodeType string) ([]*dto.GetServiceTreeResp, error) {
 	// 构建树形结构（如果指定了类型，则只返回该类型的节点）
 	var trees []*model.ServiceTree
@@ -196,7 +203,7 @@ func (s *ServiceTreeService) getServiceTreeByAppModel(ctx context.Context, appMo
 		return nil, fmt.Errorf("failed to build service tree: %w", err)
 	}
 
-	// 转换为响应格式
+	// ⭐ 直接转换为响应格式，不查询权限
 	var resp []*dto.GetServiceTreeResp
 	for _, tree := range trees {
 		resp = append(resp, s.convertToGetServiceTreeResp(ctx, tree))
@@ -258,6 +265,282 @@ func (s *ServiceTreeService) GetAppWithServiceTree(ctx context.Context, req *dto
 	}, nil
 }
 
+// GetServiceTreeDetail 获取服务目录详情（包含权限信息）
+// ⭐ 优化：按需查询权限，只在获取详情时查询
+func (s *ServiceTreeService) GetServiceTreeDetail(ctx context.Context, req *dto.GetServiceTreeDetailReq) (*dto.GetServiceTreeDetailResp, error) {
+	var tree *model.ServiceTree
+	var err error
+
+	// 优先使用 ID，如果没有则使用 full-code-path
+	if req.ID > 0 {
+		tree, err = s.serviceTreeRepo.GetServiceTreeByID(req.ID)
+	} else if req.FullCodePath != "" {
+		tree, err = s.serviceTreeRepo.GetServiceTreeByFullPath(req.FullCodePath)
+	} else {
+		return nil, fmt.Errorf("必须提供 ID 或 full_code_path")
+	}
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("服务目录不存在")
+		}
+		return nil, fmt.Errorf("获取服务目录失败: %w", err)
+	}
+
+	// 转换为响应格式
+	resp := &dto.GetServiceTreeDetailResp{
+		ID:             tree.ID,
+		Name:           tree.Name,
+		Code:           tree.Code,
+		ParentID:       tree.ParentID,
+		Type:           tree.Type,
+		Description:    tree.Description,
+		Tags:           tree.Tags,
+		AppID:          tree.AppID,
+		RefID:          tree.RefID,
+		FullCodePath:   tree.FullCodePath,
+		TemplateType:   tree.TemplateType,
+		Version:        tree.Version,
+		VersionNum:     tree.VersionNum,
+		HubDirectoryID: tree.HubDirectoryID,
+		HubVersion:     tree.HubVersion,
+		HubVersionNum:  tree.HubVersionNum,
+	}
+
+	// ⭐ 查询权限信息（企业版功能）
+	licenseMgr := license.GetManager()
+	username := contextx.GetRequestUser(ctx)
+
+	if licenseMgr.HasFeature(enterprise.FeaturePermission) && username != "" && tree.FullCodePath != "" {
+		permissionService := enterprise.GetPermissionService()
+		if permissionService != nil {
+			// 根据节点类型确定需要查询的权限点
+			var actions []string
+			if tree.Type == model.ServiceTreeTypePackage {
+				// 目录节点：查询目录权限
+				actions = []string{
+					"directory:read",
+					"directory:create",
+					"directory:update",
+					"directory:delete",
+					"directory:manage",
+				}
+			} else if tree.Type == model.ServiceTreeTypeFunction {
+				// 函数节点：查询函数权限和操作级别权限
+				actions = []string{
+					"function:read",
+					"function:execute",
+				}
+				// 根据模板类型添加操作级别权限
+				switch tree.TemplateType {
+				case "table":
+					actions = append(actions, "table:create", "table:update", "table:delete")
+				case "form":
+					actions = append(actions, "form:submit")
+				case "chart":
+					// chart 使用 function:read 权限，拥有 read 权限即视为拥有 query 权限
+				}
+			}
+
+			if len(actions) > 0 {
+				// ⭐ 支持权限继承：批量查询所有可能的权限点（当前资源 + 所有父目录的 directory:manage）
+				resourcePaths := []string{tree.FullCodePath}
+				allActions := make([]string, len(actions))
+				copy(allActions, actions)
+				
+				// 获取所有父目录路径
+				parentPaths := permission.GetParentPaths(tree.FullCodePath)
+				for _, parentPath := range parentPaths {
+					resourcePaths = append(resourcePaths, parentPath)
+					allActions = append(allActions, "directory:manage")
+				}
+
+				permissions, err := permissionService.BatchCheckPermissions(ctx, username, resourcePaths, allActions)
+				if err != nil {
+					logger.Warnf(ctx, "[ServiceTreeService] 查询权限失败: username=%s, resource=%s, error=%v",
+						username, tree.FullCodePath, err)
+					// 权限查询失败，初始化所有权限为 false
+					resp.Permissions = make(map[string]bool)
+					for _, action := range actions {
+						resp.Permissions[action] = false
+					}
+				} else {
+					// 初始化权限 map
+					resp.Permissions = make(map[string]bool)
+
+					// 先检查当前资源的直接权限
+					if nodePerms, ok := permissions[tree.FullCodePath]; ok {
+						for _, action := range actions {
+							if hasPerm, ok := nodePerms[action]; ok {
+								resp.Permissions[action] = hasPerm
+							} else {
+								resp.Permissions[action] = false
+							}
+						}
+					} else {
+						// 如果查询结果中没有该资源，初始化所有权限为 false
+						for _, action := range actions {
+							resp.Permissions[action] = false
+						}
+					}
+
+					// ⭐ 如果直接权限都是 false，检查父目录的 directory:manage 权限（权限继承）
+					hasAnyDirectPermission := false
+					for _, action := range actions {
+						if resp.Permissions[action] {
+							hasAnyDirectPermission = true
+							break
+						}
+					}
+
+					if !hasAnyDirectPermission {
+						// 检查父目录的 directory:manage 权限
+						for _, parentPath := range parentPaths {
+							if nodePerms, ok := permissions[parentPath]; ok {
+								if hasManage, ok := nodePerms["directory:manage"]; ok && hasManage {
+									// 父目录有管理权限，子资源自动拥有所有权限
+									logger.Infof(ctx, "[ServiceTreeService] 权限继承成功: resource=%s, parent=%s, has directory:manage",
+										tree.FullCodePath, parentPath)
+									for _, action := range actions {
+										resp.Permissions[action] = true
+									}
+									break
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return resp, nil
+}
+
+// GetPackageInfo 获取目录信息（仅用于获取目录权限，不包含函数）
+// ⭐ 优化：专门用于获取目录权限，函数权限从函数详情接口获取
+func (s *ServiceTreeService) GetPackageInfo(ctx context.Context, req *dto.GetPackageInfoReq) (*dto.GetPackageInfoResp, error) {
+	var tree *model.ServiceTree
+	var err error
+
+	// 优先使用 ID，如果没有则使用 full-code-path
+	if req.ID > 0 {
+		tree, err = s.serviceTreeRepo.GetServiceTreeByID(req.ID)
+	} else if req.FullCodePath != "" {
+		tree, err = s.serviceTreeRepo.GetServiceTreeByFullPath(req.FullCodePath)
+	} else {
+		return nil, fmt.Errorf("必须提供 ID 或 full_code_path")
+	}
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("目录不存在")
+		}
+		return nil, fmt.Errorf("获取目录失败: %w", err)
+	}
+
+	// 只处理目录类型（package），函数类型应该使用函数详情接口
+	if tree.Type != model.ServiceTreeTypePackage {
+		return nil, fmt.Errorf("该接口仅用于获取目录信息，函数信息请使用函数详情接口")
+	}
+
+	// 转换为响应格式
+	resp := &dto.GetPackageInfoResp{
+		ID:           tree.ID,
+		Name:         tree.Name,
+		Code:         tree.Code,
+		FullCodePath: tree.FullCodePath,
+	}
+
+	// ⭐ 查询权限信息（企业版功能）
+	licenseMgr := license.GetManager()
+	username := contextx.GetRequestUser(ctx)
+
+	if licenseMgr.HasFeature(enterprise.FeaturePermission) && username != "" && tree.FullCodePath != "" {
+		permissionService := enterprise.GetPermissionService()
+		if permissionService != nil {
+			// 目录节点：查询目录权限
+			actions := []string{
+				"directory:read",
+				"directory:create",
+				"directory:update",
+				"directory:delete",
+				"directory:manage",
+			}
+
+			// ⭐ 支持权限继承：批量查询所有可能的权限点（当前资源 + 所有父目录的 directory:manage）
+			resourcePaths := []string{tree.FullCodePath}
+			allActions := make([]string, len(actions))
+			copy(allActions, actions)
+
+			// 获取所有父目录路径
+			parentPaths := permission.GetParentPaths(tree.FullCodePath)
+			for _, parentPath := range parentPaths {
+				resourcePaths = append(resourcePaths, parentPath)
+				allActions = append(allActions, "directory:manage")
+			}
+
+			permissions, err := permissionService.BatchCheckPermissions(ctx, username, resourcePaths, allActions)
+			if err != nil {
+				logger.Warnf(ctx, "[ServiceTreeService] 查询目录权限失败: username=%s, resource=%s, error=%v",
+					username, tree.FullCodePath, err)
+				// 权限查询失败，初始化所有权限为 false
+				resp.Permissions = make(map[string]bool)
+				for _, action := range actions {
+					resp.Permissions[action] = false
+				}
+			} else {
+				// 初始化权限 map
+				resp.Permissions = make(map[string]bool)
+
+				// 先检查当前资源的直接权限
+				if nodePerms, ok := permissions[tree.FullCodePath]; ok {
+					for _, action := range actions {
+						if hasPerm, ok := nodePerms[action]; ok {
+							resp.Permissions[action] = hasPerm
+						} else {
+							resp.Permissions[action] = false
+						}
+					}
+				} else {
+					// 如果查询结果中没有该资源，初始化所有权限为 false
+					for _, action := range actions {
+						resp.Permissions[action] = false
+					}
+				}
+
+				// ⭐ 如果直接权限都是 false，检查父目录的 directory:manage 权限（权限继承）
+				hasAnyDirectPermission := false
+				for _, action := range actions {
+					if resp.Permissions[action] {
+						hasAnyDirectPermission = true
+						break
+					}
+				}
+
+				if !hasAnyDirectPermission {
+					// 检查父目录的 directory:manage 权限
+					for _, parentPath := range parentPaths {
+						if nodePerms, ok := permissions[parentPath]; ok {
+							if hasManage, ok := nodePerms["directory:manage"]; ok && hasManage {
+								// 父目录有管理权限，子资源自动拥有所有权限
+								logger.Infof(ctx, "[ServiceTreeService] 权限继承成功: resource=%s, parent=%s, has directory:manage",
+									tree.FullCodePath, parentPath)
+								for _, action := range actions {
+									resp.Permissions[action] = true
+								}
+								break
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return resp, nil
+}
+
 // UpdateServiceTree 更新服务目录
 func (s *ServiceTreeService) UpdateServiceTreeMetadata(ctx context.Context, req *dto.UpdateServiceTreeMetadataReq) error {
 	// 获取服务目录
@@ -314,7 +597,8 @@ func (s *ServiceTreeService) DeleteServiceTree(ctx context.Context, id int64) er
 	return nil
 }
 
-// convertToGetServiceTreeResp 转换为响应格式（支持权限标识）
+// convertToGetServiceTreeResp 转换为响应格式（不包含权限信息）
+// ⭐ 优化：服务树不再返回权限信息，权限在详情接口中查询
 func (s *ServiceTreeService) convertToGetServiceTreeResp(ctx context.Context, tree *model.ServiceTree) *dto.GetServiceTreeResp {
 	resp := &dto.GetServiceTreeResp{
 		ID:             tree.ID,
@@ -333,94 +617,22 @@ func (s *ServiceTreeService) convertToGetServiceTreeResp(ctx context.Context, tr
 		HubDirectoryID: tree.HubDirectoryID,
 		HubVersion:     tree.HubVersion,
 		HubVersionNum:  tree.HubVersionNum,
+		// ⭐ 不再设置 Permissions 字段
 	}
 
-	// ⭐ 添加权限标识（企业版功能）
-	// ⭐ 先检查 License 是否支持权限功能
-	licenseMgr := license.GetManager()
-	if licenseMgr.HasFeature(enterprise.FeaturePermission) {
-		// 企业版且支持权限功能：进行权限检查
-		// 获取用户信息
-		username := contextx.GetRequestUser(ctx)
-		if username != "" && resp.FullCodePath != "" {
-			// 根据节点类型和模板类型，动态确定需要检查的权限点
-			actions := s.getPermissionActionsForNode(resp.Type, resp.TemplateType)
-
-			if len(actions) > 0 {
-				// 批量查询权限（使用 enterprise 接口）
-				permissionService := enterprise.GetPermissionService()
-				resourcePaths := []string{resp.FullCodePath}
-
-				// 批量查询权限
-				permissions, err := permissionService.BatchCheckPermissions(ctx, username, resourcePaths, actions)
-				if err == nil {
-					// 附加当前节点的权限标识
-					if nodePerms, ok := permissions[resp.FullCodePath]; ok {
-						resp.Permissions = nodePerms
-						logger.Infof(ctx, "[ServiceTreeService] 权限查询成功: resource=%s, username=%s, permissions=%v",
-							resp.FullCodePath, username, nodePerms)
-					} else {
-						// 如果查询结果中没有该资源，初始化一个空的权限 map（所有权限为 false）
-						resp.Permissions = make(map[string]bool)
-						for _, action := range actions {
-							resp.Permissions[action] = false
-						}
-						logger.Infof(ctx, "[ServiceTreeService] 权限查询结果中未找到资源: resource=%s, username=%s, actions=%v",
-							resp.FullCodePath, username, actions)
-					}
-				} else {
-					logger.Warnf(ctx, "[ServiceTreeService] 批量权限查询失败: resource=%s, username=%s, error=%v",
-						resp.FullCodePath, username, err)
-					// 查询失败时，初始化一个空的权限 map（所有权限为 false）
-					resp.Permissions = make(map[string]bool)
-					for _, action := range actions {
-						resp.Permissions[action] = false
-					}
-				}
-			} else {
-				logger.Infof(ctx, "[ServiceTreeService] 节点无需权限检查: resource=%s, type=%s, templateType=%s, actions为空",
-					resp.FullCodePath, resp.Type, resp.TemplateType)
-			}
-		} else {
-			logger.Infof(ctx, "[ServiceTreeService] 跳过权限检查: username=%s, fullCodePath=%s",
-				username, resp.FullCodePath)
-		}
-	} else {
-		// 社区版或不支持权限功能：不返回 permissions 字段（或返回空）
-		// 这样前端就不会显示权限相关的 UI
-		logger.Infof(ctx, "[ServiceTreeService] License 不支持权限功能，跳过权限检查: hasFeature=%v",
-			licenseMgr.HasFeature(enterprise.FeaturePermission))
-	}
-
-	// 递归处理子节点（在权限检查之后，以便应用权限继承）
+	// 递归处理子节点
 	if len(tree.Children) > 0 {
 		for _, child := range tree.Children {
 			childResp := s.convertToGetServiceTreeResp(ctx, child)
-			
-			// ⭐ 权限继承：如果当前节点是目录且有 directory:manage 权限，则子节点自动拥有所有权限
-			if resp.Type == model.ServiceTreeTypePackage && resp.Permissions != nil {
-				if hasManage, ok := resp.Permissions["directory:manage"]; ok && hasManage {
-					// 父目录有管理权限，子节点自动拥有所有权限
-					// 获取子节点需要的所有权限点
-					childActions := s.getPermissionActionsForNode(childResp.Type, childResp.TemplateType)
-					if childResp.Permissions == nil {
-						childResp.Permissions = make(map[string]bool)
-					}
-					// 将所有权限设置为 true
-					for _, action := range childActions {
-						childResp.Permissions[action] = true
-					}
-					logger.Infof(ctx, "[ServiceTreeService] 权限继承: 父目录 %s 有 directory:manage 权限，子节点 %s 自动拥有所有权限",
-						resp.FullCodePath, childResp.FullCodePath)
-				}
-			}
-			
 			resp.Children = append(resp.Children, childResp)
 		}
 	}
 
 	return resp
 }
+
+// ⭐ 已废弃：collectPermissionInfo 和 convertToGetServiceTreeRespWithPermissions 方法已不再使用
+// 服务树不再返回权限信息，权限在详情接口中查询
 
 // getPermissionActionsForNode 根据节点类型和模板类型，获取需要检查的权限点
 // 参数：
@@ -468,19 +680,12 @@ func (s *ServiceTreeService) getPermissionActionsForNode(nodeType string, templa
 				"form:submit",
 			)
 		case "chart":
-			// 图表函数：检查图表查询权限
-			actions = append(actions,
-				"chart:query",
-			)
+			// 图表函数：使用 function:read 权限，拥有 read 权限即视为拥有 query 权限
+			// 不需要单独检查 chart:query 权限
 		default:
 			// 其他类型或未指定：只检查 function:execute
 			// 不添加额外的操作级别权限
 		}
-
-		// 所有函数都可能有回调接口
-		actions = append(actions,
-			"callback:on_select_fuzzy", // 回调接口权限
-		)
 	}
 
 	return actions
