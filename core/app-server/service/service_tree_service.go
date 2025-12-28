@@ -320,7 +320,7 @@ func (s *ServiceTreeService) GetServiceTreeDetail(ctx context.Context, req *dto.
 				// 目录节点：查询目录权限
 				actions = []string{
 					"directory:read",
-					"directory:create",
+					"directory:write",
 					"directory:update",
 					"directory:delete",
 					"directory:manage",
@@ -329,14 +329,14 @@ func (s *ServiceTreeService) GetServiceTreeDetail(ctx context.Context, req *dto.
 				// 函数节点：查询函数权限和操作级别权限
 				actions = []string{
 					"function:read",
-					"function:execute",
+					"function:manage",
 				}
 				// 根据模板类型添加操作级别权限
 				switch tree.TemplateType {
 				case "table":
-					actions = append(actions, "table:create", "table:update", "table:delete")
+					actions = append(actions, "table:write", "table:update", "table:delete")
 				case "form":
-					actions = append(actions, "form:submit")
+					actions = append(actions, "form:write")
 				case "chart":
 					// chart 使用 function:read 权限，拥有 read 权限即视为拥有 query 权限
 				}
@@ -462,7 +462,7 @@ func (s *ServiceTreeService) GetPackageInfo(ctx context.Context, req *dto.GetPac
 			// 目录节点：查询目录权限
 			actions := []string{
 				"directory:read",
-				"directory:create",
+				"directory:write",
 				"directory:update",
 				"directory:delete",
 				"directory:manage",
@@ -628,7 +628,28 @@ func (s *ServiceTreeService) convertToGetServiceTreeResp(ctx context.Context, tr
 		}
 	}
 
+	// ⭐ 判断 package 类型节点是否有函数（只检查直接子节点，不递归）
+	if tree.Type == model.ServiceTreeTypePackage {
+		resp.HasFunction = s.hasFunctionInDirectChildren(tree)
+	}
+
 	return resp
+}
+
+// hasFunctionInDirectChildren 只检查直接子节点是否有 function 类型（不递归）
+func (s *ServiceTreeService) hasFunctionInDirectChildren(node *model.ServiceTree) bool {
+	if node == nil {
+		return false
+	}
+
+	// 只检查直接子节点，不递归检查子目录的子节点
+	for _, child := range node.Children {
+		if child.Type == model.ServiceTreeTypeFunction {
+			return true
+		}
+	}
+
+	return false
 }
 
 // ⭐ 已废弃：collectPermissionInfo 和 convertToGetServiceTreeRespWithPermissions 方法已不再使用
@@ -652,7 +673,7 @@ func (s *ServiceTreeService) getPermissionActionsForNode(nodeType string, templa
 		// 服务目录（package）：检查目录管理权限
 		actions = append(actions,
 			"directory:read",
-			"directory:create",
+			"directory:write",
 			"directory:update",
 			"directory:delete",
 			"directory:manage", // 管理权限（拥有所有目录权限）
@@ -661,7 +682,7 @@ func (s *ServiceTreeService) getPermissionActionsForNode(nodeType string, templa
 		// 函数（function）：检查函数权限和操作级别权限
 		actions = append(actions,
 			"function:read",
-			"function:execute", // 执行权限（拥有所有操作权限）
+			"function:manage", // 所有权权限（拥有所有操作权限）
 		)
 
 		// 根据模板类型，添加操作级别的权限点
@@ -670,20 +691,20 @@ func (s *ServiceTreeService) getPermissionActionsForNode(nodeType string, templa
 			// 表格函数：检查表格操作权限
 			actions = append(actions,
 				"table:search",
-				"table:create",
+				"table:write",
 				"table:update",
 				"table:delete",
 			)
 		case "form":
-			// 表单函数：检查表单提交权限
+			// 表单函数：检查表单写入权限
 			actions = append(actions,
-				"form:submit",
+				"form:write",
 			)
 		case "chart":
 			// 图表函数：使用 function:read 权限，拥有 read 权限即视为拥有 query 权限
 			// 不需要单独检查 chart:query 权限
 		default:
-			// 其他类型或未指定：只检查 function:execute
+			// 其他类型或未指定：只检查 function:manage（所有权）
 			// 不添加额外的操作级别权限
 		}
 	}

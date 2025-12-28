@@ -54,12 +54,12 @@
     <!-- 工具栏 -->
     <div class="toolbar" v-if="hasAddCallback || hasDeleteCallback">
       <div class="toolbar-left">
-        <!-- 新增按钮：需要 table:create 权限，无权限时可点击跳转申请 -->
+        <!-- 新增按钮：需要 table:write 权限，无权限时可点击跳转申请 -->
         <el-button 
           v-if="hasAddCallback" 
           :type="canCreate ? 'primary' : 'default'"
           :plain="!canCreate"
-          @click="canCreate ? handleAdd() : handleApplyPermissionForAction('table:create')" 
+          @click="canCreate ? handleAdd() : handleApplyPermissionForAction('table:write')" 
           :icon="Plus"
           class="action-btn"
           :class="{ 'action-btn-no-permission': !canCreate }"
@@ -1482,7 +1482,7 @@ const currentFunctionNode = computed(() => {
 const canCreate = computed(() => {
   const node = currentFunctionNode.value
   if (!node) return true  // 如果没有节点信息，默认允许（向后兼容）
-  return hasPermission(node, TablePermissions.create)
+  return hasPermission(node, TablePermissions.write)
 })
 
 // ⭐ 是否有更新权限

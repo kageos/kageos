@@ -304,3 +304,35 @@ func (p *Permission) ApplyPermission(c *gin.Context) {
 	response.OkWithData(c, resp)
 }
 
+// GetWorkspacePermissions 获取工作空间的所有权限
+// @Summary 获取工作空间权限
+// @Description 获取整个工作空间（应用）的所有节点权限，用于权限申请页面显示已有权限
+// @Tags 权限管理
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Param user query string true "用户名"
+// @Param app query string true "应用名"
+// @Success 200 {object} dto.GetWorkspacePermissionsResp "查询成功"
+// @Failure 400 {string} string "请求参数错误"
+// @Failure 401 {string} string "未授权"
+// @Failure 500 {string} string "服务器内部错误"
+// @Router /workspace/api/v1/permission/workspace [get]
+func (p *Permission) GetWorkspacePermissions(c *gin.Context) {
+	var req dto.GetWorkspacePermissionsReq
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+
+	ctx := contextx.ToContext(c)
+	resp, err := p.permissionService.GetWorkspacePermissions(ctx, &req)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+
+	response.OkWithData(c, resp)
+}
+

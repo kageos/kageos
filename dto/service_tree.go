@@ -94,6 +94,7 @@ type GetServiceTreeResp struct {
 	HubDirectoryID int64                 `json:"hub_directory_id,omitempty" example:"0"`                // 关联的Hub目录ID（如果已发布到Hub）
 	HubVersion     string                `json:"hub_version,omitempty" example:""`                      // Hub目录版本（如 v1.0.0），用于版本检测和升级
 	HubVersionNum  int                   `json:"hub_version_num,omitempty" example:"0"`                 // Hub目录版本号（数字部分），用于版本比较
+	HasFunction    bool                  `json:"has_function,omitempty" example:"true"`                 // ⭐ 是否有函数（仅对package类型有效）：如果该package下直接或间接包含function类型的子节点，则为true
 	// ⭐ 移除 Permissions 字段：权限信息不再在服务树中返回，改为在详情接口中返回
 	Children       []*GetServiceTreeResp `json:"children,omitempty"`                                    // 子目录列表
 }

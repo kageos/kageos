@@ -111,7 +111,7 @@
                         <!-- 表单类型：使用自定义 SVG -->
                         <img 
                           v-if="isFormType(api.template_type)"
-                          src="/service-tree/表单 (3).svg" 
+                          src="/service-tree/编辑.svg" 
                           alt="表单" 
                           class="api-icon form-icon-img"
                         />
@@ -140,7 +140,7 @@
                         <!-- 表单类型：使用自定义 SVG -->
                         <img 
                           v-if="isFormType(api.template_type)"
-                          src="/service-tree/表单 (3).svg" 
+                          src="/service-tree/编辑.svg" 
                           alt="表单" 
                           class="api-icon form-icon-img"
                         />
@@ -169,7 +169,7 @@
                         <!-- 表单类型：使用自定义 SVG -->
                         <img 
                           v-if="isFormType(api.template_type)"
-                          src="/service-tree/表单 (3).svg" 
+                          src="/service-tree/编辑.svg" 
                           alt="表单" 
                           class="api-icon form-icon-img"
                         />

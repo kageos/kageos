@@ -117,8 +117,47 @@
 
       <!-- 右侧：目录详情内容 -->
       <div class="detail-content">
+      <!-- ⭐ 权限不足提示：当目录没有任何权限时显示 -->
+      <div v-if="hasNoDirectoryPermissions" class="permission-error-wrapper">
+        <el-card class="permission-error-card" shadow="hover">
+          <template #header>
+            <div class="permission-error-header">
+              <el-icon class="permission-error-icon"><Lock /></el-icon>
+              <span class="permission-error-title">权限不足</span>
+            </div>
+          </template>
+          <div class="permission-error-content">
+            <div class="permission-error-message">
+              <p class="error-message-text">
+                您没有 <strong>访问该目录</strong> 的权限
+              </p>
+            </div>
+            <div v-if="packageNode?.full_code_path" class="permission-error-info">
+              <el-icon><Document /></el-icon>
+              <span class="info-label">资源路径：</span>
+              <span class="info-value">{{ packageNode.full_code_path }}</span>
+            </div>
+            <div class="permission-error-info">
+              <el-icon><Key /></el-icon>
+              <span class="info-label">缺少权限：</span>
+              <span class="info-value">目录查看</span>
+            </div>
+            <div class="permission-error-actions">
+              <el-button
+                type="primary"
+                size="default"
+                @click="handleApplyPermission"
+                :icon="Lock"
+              >
+                立即申请权限
+              </el-button>
+            </div>
+          </div>
+        </el-card>
+      </div>
+
       <!-- 信息概览卡片 -->
-      <div v-if="packageNode" class="overview-section">
+      <div v-else-if="packageNode" class="overview-section">
         <div class="overview-card">
           <div class="overview-item">
             <div class="overview-icon-wrapper name-icon">
@@ -159,7 +198,7 @@
       </div>
 
       <!-- 子目录和函数列表 -->
-      <div class="children-section" v-if="packageNode?.children && packageNode.children.length > 0">
+      <div class="children-section" v-if="!hasNoDirectoryPermissions && packageNode?.children && packageNode.children.length > 0">
         <div class="section-header">
           <h3 class="section-title">
             <el-icon class="section-icon"><Files /></el-icon>
@@ -188,10 +227,10 @@
                 />
                 <!-- function 类型：根据 template_type 显示不同图标 -->
                 <template v-else-if="child.type === 'function'">
-                  <!-- 表单类型：使用自定义 SVG -->
+                  <!-- 表单类型：使用编辑图标 -->
                   <img
                     v-if="child.template_type === TEMPLATE_TYPE.FORM"
-                    src="/service-tree/表单 (3).svg"
+                    src="/service-tree/编辑.svg"
                     alt="表单"
                     class="child-icon-img"
                   />
@@ -244,9 +283,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ArrowLeft, MagicStick, Folder, Document, CopyDocument, Key, Link, Files, Clock } from '@element-plus/icons-vue'
+import { ArrowLeft, MagicStick, Folder, Document, CopyDocument, Key, Link, Files, Clock, Lock } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { ServiceTree } from '@/types'
 import type { AgentInfo, AgentListReq } from '@/api/agent'
@@ -259,6 +298,8 @@ import ChartIcon from '@/components/icons/ChartIcon.vue'
 import TableIcon from '@/components/icons/TableIcon.vue'
 import FormIcon from '@/components/icons/FormIcon.vue'
 import DirectoryUpdateHistoryDialog from '@/components/DirectoryUpdateHistoryDialog.vue'
+import { buildPermissionApplyURL } from '@/utils/permission'
+import { useNodePermissionsStore } from '@/stores/nodePermissions'
 
 interface Props {
   packageNode?: ServiceTree | null
@@ -279,6 +320,65 @@ const agentList = ref<AgentInfo[]>([])
 
 // 变更记录对话框
 const updateHistoryDialogVisible = ref(false)
+
+// ⭐ 权限 Store
+const permissionStore = useNodePermissionsStore()
+
+// ⭐ 检查是否没有任何目录权限
+const hasNoDirectoryPermissions = computed(() => {
+  if (!props.packageNode) {
+    return false
+  }
+  
+  // 优先从 store 中获取权限信息
+  let permissions: Record<string, boolean> | null = null
+  if (props.packageNode) {
+    permissions = permissionStore.getPermissions(props.packageNode)
+  }
+  
+  // 如果 store 中没有，尝试从节点本身的 permissions 字段获取
+  if (!permissions && props.packageNode.permissions) {
+    permissions = props.packageNode.permissions
+  }
+  
+  // ⭐ 如果没有权限信息，也检查一下是否应该显示权限不足
+  // 如果节点有 full_code_path，说明这是一个有效的目录节点，应该检查权限
+  // 如果权限信息不存在，可能是还没有加载，暂时不显示权限不足（避免闪烁）
+  if (!permissions) {
+    // 如果节点有 full_code_path，说明这是一个有效的目录节点
+    // 但是权限信息可能还没有加载，暂时返回 false（不显示权限不足）
+    // 等权限信息加载后，computed 会自动重新计算
+    return false
+  }
+  
+  const directoryPermissions = [
+    'directory:read',
+    'directory:write',
+    'directory:update',
+    'directory:delete',
+    'directory:manage'
+  ]
+  
+  // 如果所有目录权限都是 false，则显示权限不足
+  const hasNoPerms = directoryPermissions.every(perm => {
+    // 如果权限字段不存在，也视为 false
+    return permissions![perm] === false || permissions![perm] === undefined
+  })
+  
+  return hasNoPerms
+})
+
+// 处理权限申请
+function handleApplyPermission() {
+  if (!props.packageNode?.full_code_path) {
+    ElMessage.warning('路径信息不可用')
+    return
+  }
+  
+  // 跳转到权限申请页面，默认申请目录查看权限
+  const applyURL = buildPermissionApplyURL(props.packageNode.full_code_path, 'directory:read', undefined)
+  router.push(applyURL)
+}
 
 // 返回上一级
 function handleBack() {
@@ -999,6 +1099,111 @@ function handleChildClick(child: ServiceTree): void {
 
       .empty-state {
         margin-top: 60px;
+      }
+
+      // ⭐ 权限不足提示样式
+      .permission-error-wrapper {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 400px;
+        padding: 40px 20px;
+      }
+
+      .permission-error-card {
+        max-width: 600px;
+        width: 100%;
+        border-radius: 16px;
+        border: none;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        transition: all 0.3s ease;
+
+        &:hover {
+          box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+          transform: translateY(-2px);
+        }
+      }
+
+      .permission-error-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--el-color-warning);
+      }
+
+      .permission-error-icon {
+        font-size: 24px;
+      }
+
+      .permission-error-title {
+        font-size: 18px;
+      }
+
+      .permission-error-content {
+        padding: 8px 0;
+      }
+
+      .permission-error-message {
+        margin-bottom: 24px;
+        padding: 16px;
+        background: linear-gradient(135deg, rgba(255, 193, 7, 0.1) 0%, rgba(255, 152, 0, 0.05) 100%);
+        border-radius: 12px;
+        border-left: 4px solid var(--el-color-warning);
+      }
+
+      .error-message-text {
+        margin: 0;
+        font-size: 15px;
+        line-height: 1.6;
+        color: var(--el-text-color-primary);
+
+        strong {
+          color: var(--el-color-warning);
+          font-weight: 600;
+        }
+      }
+
+      .permission-error-info {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 16px;
+        padding: 12px 16px;
+        background: var(--el-bg-color-page);
+        border-radius: 10px;
+        font-size: 14px;
+        transition: all 0.2s ease;
+
+        &:hover {
+          background: var(--el-fill-color-light);
+        }
+
+        .el-icon {
+          color: var(--el-color-info);
+          font-size: 18px;
+        }
+
+        .info-label {
+          color: var(--el-text-color-regular);
+          font-weight: 500;
+        }
+
+        .info-value {
+          color: var(--el-text-color-primary);
+          font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+          font-size: 13px;
+          word-break: break-all;
+        }
+      }
+
+      .permission-error-actions {
+        margin-top: 24px;
+        display: flex;
+        justify-content: center;
+        padding-top: 16px;
+        border-top: 1px solid var(--el-border-color-lighter);
       }
     }
   }

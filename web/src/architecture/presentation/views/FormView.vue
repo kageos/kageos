@@ -79,7 +79,7 @@
     <!-- 提交按钮 -->
     <div class="form-actions-section">
       <div class="form-actions-row">
-        <!-- ⭐ 提交按钮：需要 form:submit 权限 -->
+        <!-- ⭐ 提交按钮：需要 form:write 权限 -->
         <!-- 如果没有权限，显示禁用状态的按钮，点击后跳转到权限申请页面 -->
         <el-button
           v-if="canSubmit"
@@ -315,7 +315,7 @@ const currentFunctionNode = computed(() => {
 const canSubmit = computed(() => {
   const node = currentFunctionNode.value
   if (!node) return true  // 如果没有节点信息，默认允许（向后兼容）
-  return hasPermission(node, FormPermissions.submit)
+  return hasPermission(node, FormPermissions.write)
 })
 
 // ⭐ 权限错误状态
@@ -339,7 +339,7 @@ const handleApplyPermissionForSubmit = () => {
   if (!node || !node.full_code_path) return
   
   // 构建权限申请 URL（传递 template_type 以便正确显示权限选项）
-  const applyUrl = buildPermissionApplyURL(node.full_code_path, 'form:submit', node.template_type)
+  const applyUrl = buildPermissionApplyURL(node.full_code_path, 'form:write', node.template_type)
   router.push(applyUrl)
 }
 
