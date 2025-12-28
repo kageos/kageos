@@ -4,7 +4,7 @@ package dto
 type AddPermissionReq struct {
 	Username     string `json:"username" binding:"required"`     // 用户名
 	ResourcePath string `json:"resource_path" binding:"required"` // 资源路径（full-code-path）
-	Action       string `json:"action" binding:"required"`     // 操作类型（如 table:search、function:execute 等）
+	Action       string `json:"action" binding:"required"`     // 操作类型（如 table:search、function:manage 等）
 }
 
 // RemovePermissionReq 删除权限请求
@@ -65,5 +65,18 @@ type ApplyPermissionResp struct {
 	ID      string `json:"id"`      // 申请ID（暂时返回空字符串，后续可以扩展为申请记录ID）
 	Status  string `json:"status"`  // 申请状态（approved：已批准，pending：待审核）
 	Message string `json:"message"` // 响应消息
+}
+
+// GetWorkspacePermissionsReq 获取工作空间权限请求
+type GetWorkspacePermissionsReq struct {
+	User string `json:"user" form:"user" binding:"required"` // 用户名
+	App  string `json:"app" form:"app" binding:"required"`   // 应用名
+}
+
+// GetWorkspacePermissionsResp 获取工作空间权限响应
+type GetWorkspacePermissionsResp struct {
+	User       string                            `json:"user"`        // 用户名
+	App        string                            `json:"app"`         // 应用名
+	Permissions map[string]map[string]bool       `json:"permissions"` // 权限结果（full_code_path -> action -> hasPermission）
 }
 

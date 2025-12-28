@@ -101,14 +101,14 @@ func (f *Function) GetFunction(c *gin.Context) {
 			var actions []string
 			actions = []string{
 				"function:read",
-				"function:execute",
+				"function:manage",
 			}
 			// 根据模板类型添加操作级别权限
 			switch resp.TemplateType {
 			case "table":
-				actions = append(actions, "table:create", "table:update", "table:delete")
+				actions = append(actions, "table:write", "table:update", "table:delete")
 			case "form":
-				actions = append(actions, "form:submit")
+				actions = append(actions, "form:write")
 			case "chart":
 				// chart 使用 function:read 权限，拥有 read 权限即视为拥有 query 权限
 			}

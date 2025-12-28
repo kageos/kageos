@@ -131,9 +131,9 @@ func checkPermissionDynamic(c *gin.Context, getFunctionDetail func(ctx context.C
 		}
 	}
 
-	// 如果无法确定权限点，使用默认的 execute 权限
+	// 如果无法确定权限点，使用默认的 manage 权限（所有权）
 	if action == "" {
-		action = "function:execute"
+		action = "function:manage"
 		errorMessage = "无权限执行该函数"
 	}
 
@@ -164,31 +164,31 @@ func determinePermissionAction(templateType string, httpMethod string) (action s
 		case "GET":
 			return "function:read", "无权限查看该表格"
 		case "POST":
-			return "table:create", "无权限创建该表格"
+			return "table:write", "无权限新增该表格记录"
 		case "PUT", "PATCH":
 			return "table:update", "无权限更新该表格"
 		case "DELETE":
 			return "table:delete", "无权限删除该表格"
 		default:
-			return "function:execute", "无权限执行该函数"
+			return "function:manage", "无权限执行该函数"
 		}
 	case "form":
 		switch httpMethod {
 		case "POST", "PUT", "PATCH":
-			return "form:submit", "无权限提交该表单"
+			return "form:write", "无权限提交该表单"
 		default:
-			return "function:execute", "无权限执行该函数"
+			return "function:manage", "无权限执行该函数"
 		}
 	case "chart":
 		switch httpMethod {
 		case "GET", "POST":
 			return "function:read", "无权限查看该图表"
 		default:
-			return "function:execute", "无权限执行该函数"
+			return "function:manage", "无权限执行该函数"
 		}
 	default:
-		// 其他类型或未指定：使用 function:execute
-		return "function:execute", "无权限执行该函数"
+		// 其他类型或未指定：使用 function:manage（所有权）
+		return "function:manage", "无权限执行该函数"
 	}
 }
 
@@ -202,10 +202,10 @@ func CheckTableSearch() gin.HandlerFunc {
 	}
 }
 
-// CheckTableCreate 检查表格创建权限
-func CheckTableCreate() gin.HandlerFunc {
+// CheckTableWrite 检查表格写入权限
+func CheckTableWrite() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !checkPermission(c, "table:create", "无权限创建该表格") {
+		if !checkPermission(c, "table:write", "无权限新增该表格记录") {
 			return
 		}
 		c.Next()
@@ -232,10 +232,10 @@ func CheckTableDelete() gin.HandlerFunc {
 	}
 }
 
-// CheckFormSubmit 检查表单提交权限
-func CheckFormSubmit() gin.HandlerFunc {
+// CheckFormWrite 检查表单写入权限
+func CheckFormWrite() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !checkPermission(c, "form:submit", "无权限提交该表单") {
+		if !checkPermission(c, "form:write", "无权限提交该表单") {
 			return
 		}
 		c.Next()
@@ -305,7 +305,7 @@ func CheckCallback() gin.HandlerFunc {
 
 // CheckFunctionExecute 检查函数执行权限（动态根据函数类型和HTTP方法确定权限点）
 // 注意：这个中间件需要能够获取函数详情（template_type），可能需要查询数据库
-// 如果无法获取函数详情，则使用默认的 function:execute 权限
+// 如果无法获取函数详情，则使用默认的 function:manage 权限（所有权）
 func CheckFunctionExecute(getFunctionDetail func(ctx context.Context, fullCodePath string) (templateType string, err error)) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !checkPermissionDynamic(c, getFunctionDetail) {
@@ -368,17 +368,17 @@ func buildPermissionInfo(resourcePath string, action string, errorMessage string
 func getActionDisplayName(action string) string {
 	displayNames := map[string]string{
 		// Table 操作
-		"table:create": "表格新增",
-		"table:update": "表格更新",
-		"table:delete": "表格删除",
+		"table:write": "新增表格记录",
+		"table:update": "更新表格记录",
+		"table:delete": "删除表格记录",
 		// Form 操作
-		"form:submit": "表单提交",
+		"form:write": "表单提交",
 		// Function 操作
 		"function:read":    "函数查看",
-		"function:execute": "函数执行",
+		"function:manage": "所有权",
 		// Directory 操作
 		"directory:read":   "目录查看",
-		"directory:create": "目录创建",
+		"directory:write": "目录写入",
 		"directory:update": "目录更新",
 		"directory:delete": "目录删除",
 		"directory:manage": "目录管理",

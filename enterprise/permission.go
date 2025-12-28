@@ -68,7 +68,7 @@ type PermissionService interface {
 	//   - ctx: 上下文
 	//   - username: 用户名
 	//   - resourcePath: 资源路径（full-code-path）
-	//   - action: 操作类型（如 table:search、function:execute 等）
+	//   - action: 操作类型（如 table:search、function:manage 等）
 	//
 	// 返回：
 	//   - error: 如果添加失败返回错误

@@ -105,7 +105,8 @@ func NewServer(cfg *config.AppServerConfig) (*Server, error) {
 	}
 
 	// ⭐ 初始化权限管理服务（需要在 initEnterprise 之后，因为需要 enterprise.GetPermissionService()）
-	s.permissionService = service.NewPermissionService(enterprise.GetPermissionService())
+	// ⭐ 需要传入 serviceTreeService，用于获取工作空间权限
+	s.permissionService = service.NewPermissionService(enterprise.GetPermissionService(), s.serviceTreeService)
 
 	if err := s.initRouter(ctx); err != nil {
 		return nil, fmt.Errorf("failed to init router: %w", err)

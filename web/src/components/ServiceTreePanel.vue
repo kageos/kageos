@@ -40,7 +40,7 @@
       >
         <template #default="{ node, data }">
           <span class="tree-node">
-            <!-- package 类型：显示自定义文件夹图标 -->
+            <!-- package 类型：统一使用目录图标 -->
             <img 
               v-if="data.type === 'package'" 
               src="/service-tree/custom-folder.svg" 
@@ -50,10 +50,10 @@
             />
             <!-- function 类型：根据 template_type 显示不同图标 -->
             <template v-else-if="data.type === 'function'">
-              <!-- 表单类型：使用自定义 SVG -->
+              <!-- 表单类型：使用编辑图标 -->
               <img 
                 v-if="data.template_type === TEMPLATE_TYPE.FORM"
-                src="/service-tree/表单 (3).svg" 
+                src="/service-tree/编辑.svg" 
                 alt="表单" 
                 class="node-icon form-icon-img"
                 :class="getNodeIconClass(data)"
@@ -83,18 +83,27 @@
             <!-- 更多操作按钮 - 鼠标悬停时显示 -->
             <el-dropdown
               trigger="click"
-              @click.stop
+              :teleported="true"
+              popper-class="service-tree-dropdown-popper"
+              @click.stop.prevent
+              @mousedown.stop.prevent
               class="node-more-actions"
               @command="(command: string) => handleNodeAction(command, data)"
+              @visible-change="handleDropdownVisibleChange"
             >
-              <el-icon class="more-icon" @click.stop>
+              <el-icon 
+                class="more-icon" 
+                @click.stop.prevent
+                @mousedown.stop.prevent
+                @mouseup.stop.prevent
+              >
                 <MoreFilled />
               </el-icon>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <!-- 仅对package类型显示创建子目录选项（需要 directory:create 权限） -->
+                  <!-- 仅对package类型显示创建子目录选项（需要 directory:write 权限） -->
                   <el-dropdown-item 
-                    v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.create)" 
+                    v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.write)" 
                     command="create-directory"
                   >
                     <el-icon><Plus /></el-icon>
@@ -109,7 +118,7 @@
                     <el-icon><CopyDocument /></el-icon>
                     复制
                   </el-dropdown-item>
-                  <!-- 粘贴选项（当有复制的内容或 Hub 链接时显示，粘贴到当前选中的目录，需要 directory:create 权限） -->
+                  <!-- 粘贴选项（当有复制的内容或 Hub 链接时显示，粘贴到当前选中的目录，需要 directory:write 权限） -->
                   <el-dropdown-item 
                     v-if="(copiedDirectory || copiedHubLink) && data.type === 'package' && hasPermission(data, DirectoryPermissions.create)" 
                     command="paste" 
@@ -118,9 +127,9 @@
                     <el-icon><Document /></el-icon>
                     粘贴
                   </el-dropdown-item>
-                  <!-- 复制链接（需要 directory:read 权限） -->
+                  <!-- 复制链接（需要 directory:read 或 function:read 权限） -->
                   <el-dropdown-item 
-                    v-if="hasPermission(data, DirectoryPermissions.read)" 
+                    v-if="hasPermission(data, data.type === 'package' ? DirectoryPermissions.read : 'function:read')"
                     command="copy-link"
                   >
                     <el-icon><Link /></el-icon>
@@ -551,7 +560,27 @@ const handlePasteHubLink = async (hubLink: string, targetNode?: ServiceTree) => 
 // 直接使用原始树数据，不再进行分组处理
 const groupedTreeData = computed(() => props.treeData)
 
+// 用于跟踪是否正在点击下拉菜单
+const isClickingDropdown = ref(false)
+
+// 处理下拉菜单显示状态变化
+const handleDropdownVisibleChange = (visible: boolean) => {
+  if (visible) {
+    isClickingDropdown.value = true
+  } else {
+    // 延迟重置，确保 node-click 事件已经处理完
+    window.setTimeout(() => {
+      isClickingDropdown.value = false
+    }, 100)
+  }
+}
+
 const handleNodeClick = (data: ServiceTree) => {
+  // 如果正在点击下拉菜单，不触发 node-click 事件
+  if (isClickingDropdown.value) {
+    isClickingDropdown.value = false
+    return
+  }
   // 直接触发 node-click 事件，让父组件处理路由跳转
   emit('node-click', data)
 }
@@ -779,10 +808,12 @@ defineExpose({
 .tree-content {
   flex: 1;
   overflow-y: auto;
+  overflow-x: visible; /* 确保下拉菜单不被裁剪 */
   padding: 8px;
   padding-bottom: 100px; /* ✅ 为左下角 AppSwitcher 留出空间，避免底部内容被遮挡 */
   display: flex;
   flex-direction: column;
+  position: relative; /* 确保下拉菜单定位正确 */
 }
 
 .empty-state {
@@ -917,12 +948,16 @@ defineExpose({
     flex-shrink: 0;
     opacity: 0;
     transition: opacity 0.2s;
+    position: relative; /* 确保下拉菜单定位正确 */
+    z-index: 10; /* 确保下拉菜单在最上层 */
+    pointer-events: auto; /* 确保可以点击 */
     
     .more-icon {
       font-size: 14px;
       color: var(--el-text-color-secondary);
       cursor: pointer;
       padding: 4px;
+      pointer-events: auto; /* 确保可以点击 */
       
       &:hover {
         color: var(--el-color-primary);
@@ -940,6 +975,8 @@ defineExpose({
   padding: 0 8px;
   display: flex;
   align-items: center;
+  position: relative; /* 确保下拉菜单定位正确 */
+  overflow: visible; /* 确保下拉菜单不被裁剪 */
   
   &:hover {
     background-color: var(--el-fill-color-light);
@@ -964,6 +1001,17 @@ defineExpose({
       color: #6366f1;  /* ✅ 旧版本紫色主题色 */
       opacity: 0.8;
     }
+    
+    /* 确保高亮节点时下拉菜单也能正常显示 */
+    .node-more-actions {
+      opacity: 1 !important; /* 高亮节点时始终显示下拉按钮 */
+      z-index: 100; /* 确保下拉菜单在最上层 */
+      pointer-events: auto !important; /* 确保可以点击 */
+      
+      .more-icon {
+        pointer-events: auto !important; /* 确保图标可以点击 */
+      }
+    }
   }
 }
 
@@ -973,9 +1021,23 @@ defineExpose({
   border-left: none;
 }
 
-:deep(.el-dropdown-menu__item) {
+/* 下拉菜单样式修复 */
+:deep(.el-dropdown-menu),
+:global(.service-tree-dropdown-popper .el-dropdown-menu) {
+  min-width: 160px;
+  z-index: 9999 !important; /* 确保下拉菜单在最上层 */
+}
+
+:deep(.el-dropdown-menu__item),
+:global(.service-tree-dropdown-popper .el-dropdown-menu__item) {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 8px 16px;
+  white-space: nowrap;
+  
+  .el-icon {
+    font-size: 14px;
+  }
 }
 </style>

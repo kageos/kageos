@@ -57,7 +57,7 @@ func (s *Server) setupRoutes() {
 		// 根据 full-code-path 获取服务树节点（包含 template_type）
 		serviceTree, err := s.serviceTreeService.GetServiceTreeByFullPath(ctx, fullCodePath)
 		if err != nil {
-			// 如果查询失败，返回空字符串（使用默认的 function:execute 权限）
+			// 如果查询失败，返回空字符串（使用默认的 function:manage 权限）
 			return "", nil
 		}
 		return serviceTree.TemplateType, nil
@@ -137,14 +137,14 @@ func (s *Server) setupRoutes() {
 	table := apiV1.Group("/table")
 	table.Use(middleware2.JWTAuth())
 	table.GET("/search/*full-code-path", middleware2.CheckTableSearch(), standardAPI.TableSearch)     // Table 查询
-	table.POST("/create/*full-code-path", middleware2.CheckTableCreate(), standardAPI.TableCreate)    // Table 新增
+	table.POST("/create/*full-code-path", middleware2.CheckTableWrite(), standardAPI.TableCreate)    // Table 新增
 	table.PUT("/update/*full-code-path", middleware2.CheckTableUpdate(), standardAPI.TableUpdate)     // Table 更新
 	table.DELETE("/delete/*full-code-path", middleware2.CheckTableDelete(), standardAPI.TableDelete) // Table 删除
 
 	// Form 函数接口
 	form := apiV1.Group("/form")
 	form.Use(middleware2.JWTAuth())
-	form.POST("/submit/*full-code-path", middleware2.CheckFormSubmit(), standardAPI.FormSubmit) // Form 提交
+	form.POST("/submit/*full-code-path", middleware2.CheckFormWrite(), standardAPI.FormSubmit) // Form 提交
 
 	// Chart 函数接口
 	chart := apiV1.Group("/chart")
@@ -168,5 +168,6 @@ func (s *Server) setupRoutes() {
 	permission.POST("/role/assign", permissionHandler.AssignRoleToUser)         // 分配角色给用户
 	permission.POST("/role/remove", permissionHandler.RemoveRoleFromUser)       // 从用户移除角色
 	permission.GET("/role/user", permissionHandler.GetUserRoles)                // 获取用户角色
+	permission.GET("/workspace", permissionHandler.GetWorkspacePermissions)     // 获取工作空间所有权限
 
 }

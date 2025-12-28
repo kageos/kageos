@@ -278,10 +278,10 @@ onMounted(() => {
                 </el-button>
                 <template #dropdown>
                   <el-dropdown-menu>
-                    <!-- 创建子节点（需要 directory:create 权限） -->
+                    <!-- 创建子节点（需要 directory:write 权限） -->
                     <el-dropdown-item 
                       command="create" 
-                      v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.create)"
+                      v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.write)"
                     >
                       <el-icon><Plus /></el-icon>
                       创建子节点

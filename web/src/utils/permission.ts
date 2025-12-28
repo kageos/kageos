@@ -7,6 +7,91 @@ import type { ServiceTree } from '@/types'
 import { useNodePermissionsStore } from '@/stores/nodePermissions'
 
 /**
+ * 获取权限的详细说明
+ * @param action 权限点
+ * @param resourceType 资源类型（function、directory、app）
+ * @param templateType 模板类型（table、form、chart，仅对 function 有效）
+ * @returns 权限说明对象，包含 description（说明）和 inheritance（继承规则）
+ */
+export function getPermissionDescription(
+  action: string,
+  resourceType?: 'function' | 'directory' | 'app',
+  templateType?: string
+): { description: string; inheritance?: string } {
+  const descriptions: Record<string, { description: string; inheritance?: string }> = {
+    // 目录权限
+    'directory:read': {
+      description: '可以查看目录的基本信息和子资源列表',
+      inheritance: '子目录和子函数会继承查看权限'
+    },
+    'directory:write': {
+      description: '可以在目录下创建新的子目录和函数',
+      inheritance: '子目录会继承写入权限；子函数中，表格函数继承"新增记录"权限，表单函数继承"表单提交"权限'
+    },
+    'directory:update': {
+      description: '可以修改目录的基本信息（名称、描述等）',
+      inheritance: '子目录会继承更新权限；子函数中，表格函数继承"更新记录"权限'
+    },
+    'directory:delete': {
+      description: '可以删除目录及其所有子资源',
+      inheritance: '子目录会继承删除权限；子函数中，表格函数继承"删除记录"权限'
+    },
+    'directory:manage': {
+      description: '拥有目录的所有权限（查看、创建、更新、删除），以及所有子资源的完整权限',
+      inheritance: '子目录会继承管理权限（所有权）；子函数会继承所有相关权限（所有权）'
+    },
+    
+    // 工作空间权限
+    'app:read': {
+      description: '可以查看工作空间的基本信息和资源列表',
+      inheritance: '子目录和子函数会继承查看权限'
+    },
+    'app:create': {
+      description: '可以在工作空间下创建新的目录和函数'
+    },
+    'app:update': {
+      description: '可以修改工作空间的基本信息（名称、描述等）'
+    },
+    'app:delete': {
+      description: '可以删除工作空间及其所有资源'
+    },
+    'app:deploy': {
+      description: '可以部署工作空间到运行环境'
+    },
+    'app:manage': {
+      description: '拥有工作空间的所有权限（查看、创建、更新、删除、部署），以及所有子资源的完整权限',
+      inheritance: '子目录和子函数会继承所有相关权限（所有权）'
+    },
+    
+    // 函数权限
+    'function:read': {
+      description: '可以查看函数的基本信息和配置'
+    },
+    'function:manage': {
+      description: '拥有函数的所有权限，包括所有操作权限（查看、新增、更新、删除等）'
+    },
+    
+    // 表格权限
+    'table:write': {
+      description: '可以在表格中新增记录'
+    },
+    'table:update': {
+      description: '可以修改表格中的记录'
+    },
+    'table:delete': {
+      description: '可以删除表格中的记录'
+    },
+    
+    // 表单权限
+    'form:write': {
+      description: '可以提交表单数据'
+    },
+  }
+  
+  return descriptions[action] || { description: '未知权限' }
+}
+
+/**
  * 权限信息接口（从 403 响应中获取）
  */
 export interface PermissionInfo {
@@ -21,7 +106,7 @@ export interface PermissionInfo {
  * 检查节点是否有指定权限
  * ⭐ 优化：优先从权限缓存中获取，如果没有则从节点本身的 permissions 字段获取
  * @param node 服务树节点
- * @param action 权限点（如 table:search、function:execute）
+ * @param action 权限点（如 table:search、function:manage）
  * @returns 是否有权限
  */
 export function hasPermission(node: ServiceTree | undefined, action: string): boolean {
@@ -120,27 +205,27 @@ export function hasAllPermissions(node: ServiceTree | undefined, actions: string
 export function getPermissionDisplayName(action: string): string {
   const displayNames: Record<string, string> = {
     // Table 操作
-    'table:create': '表格新增',
-    'table:update': '表格更新',
-    'table:delete': '表格删除',
+    'table:write': '新增表格记录',
+    'table:update': '更新表格记录',
+    'table:delete': '删除表格记录',
     // Form 操作
-    'form:submit': '表单提交',
+    'form:write': '表单提交',
     // Function 操作
     'function:read': '函数查看',
-    'function:execute': '函数执行',
+    'function:manage': '所有权',
     // Directory 操作
     'directory:read': '目录查看',
-    'directory:create': '目录创建',
+    'directory:write': '目录写入',
     'directory:update': '目录更新',
     'directory:delete': '目录删除',
-    'directory:manage': '目录管理',
-    // App 操作
-    'app:read': '应用查看',
-    'app:create': '应用创建',
-    'app:update': '应用更新',
-    'app:delete': '应用删除',
-    'app:manage': '应用管理',
-    'app:deploy': '应用部署',
+    'directory:manage': '所有权',
+    // App 操作（工作空间）
+    'app:read': '工作空间查看',
+    'app:create': '工作空间创建',
+    'app:update': '工作空间更新',
+    'app:delete': '工作空间删除',
+    'app:deploy': '工作空间部署',
+    'app:manage': '所有权',
   }
   return displayNames[action] || action
 }
@@ -153,13 +238,13 @@ export function getPermissionDisplayName(action: string): string {
 export function getDefaultPermissionsForTemplate(templateType?: string): string[] {
   switch (templateType) {
     case 'table':
-      return ['function:read', 'table:create', 'table:update', 'table:delete', 'function:execute']
+      return ['function:read', 'table:write', 'table:update', 'table:delete', 'function:manage']
     case 'form':
-      return ['form:submit', 'function:execute']
+      return ['form:write', 'function:manage']
     case 'chart':
-      return ['function:read', 'function:execute']
+      return ['function:read', 'function:manage']
     default:
-      return ['function:execute']
+      return ['function:manage']
   }
 }
 
@@ -178,49 +263,60 @@ export function getAvailablePermissions(
   const permissions: Array<{ action: string; displayName: string; isMinimal?: boolean }> = []
 
   // 根据资源类型返回相关权限点
+  // ⭐ 权限顺序：小权限（具体操作）在前，大权限（所有权/管理）在后
   if (resourceType === 'function') {
-    // 函数相关权限
+    // 函数相关权限：小权限在前
     permissions.push(
-      { action: 'function:read', displayName: '函数查看', isMinimal: true },
-      { action: 'function:execute', displayName: '函数执行', isMinimal: false }
+      { action: 'function:read', displayName: '函数查看', isMinimal: true }
     )
 
     // 根据模板类型添加特定权限
     if (templateType === 'table') {
       permissions.push(
-        { action: 'table:create', displayName: '表格新增', isMinimal: false },
-        { action: 'table:update', displayName: '表格更新', isMinimal: false },
-        { action: 'table:delete', displayName: '表格删除', isMinimal: false }
+        { action: 'table:write', displayName: '新增表格记录', isMinimal: false },
+        { action: 'table:update', displayName: '更新表格记录', isMinimal: false },
+        { action: 'table:delete', displayName: '删除表格记录', isMinimal: false }
       )
     } else if (templateType === 'form') {
       permissions.push(
-        { action: 'form:submit', displayName: '表单提交', isMinimal: true }
+        { action: 'form:write', displayName: '表单提交', isMinimal: true }
       )
     }
+    
+    // 大权限（所有权）放在最后
+    permissions.push(
+      { action: 'function:manage', displayName: '所有权', isMinimal: false, isManage: true }
+    )
   } else if (resourceType === 'directory') {
-    // 目录相关权限
+    // 目录相关权限：小权限在前
     permissions.push(
       { action: 'directory:read', displayName: '目录查看', isMinimal: true },
-      { action: 'directory:create', displayName: '目录创建', isMinimal: false },
+      { action: 'directory:write', displayName: '目录写入', isMinimal: false },
       { action: 'directory:update', displayName: '目录更新', isMinimal: false },
-      { action: 'directory:delete', displayName: '目录删除', isMinimal: false },
-      { action: 'directory:manage', displayName: '目录管理', isMinimal: false }
+      { action: 'directory:delete', displayName: '目录删除', isMinimal: false }
+    )
+    // 大权限（所有权）放在最后
+    permissions.push(
+      { action: 'directory:manage', displayName: '所有权', isMinimal: false, isManage: true }
     )
   } else if (resourceType === 'app') {
-    // 应用相关权限
+    // 工作空间相关权限：小权限在前
     permissions.push(
-      { action: 'app:read', displayName: '应用查看', isMinimal: true },
-      { action: 'app:create', displayName: '应用创建', isMinimal: false },
-      { action: 'app:update', displayName: '应用更新', isMinimal: false },
-      { action: 'app:delete', displayName: '应用删除', isMinimal: false },
-      { action: 'app:deploy', displayName: '应用部署', isMinimal: false },
-      { action: 'app:manage', displayName: '应用管理', isMinimal: false }
+      { action: 'app:read', displayName: '工作空间查看', isMinimal: true },
+      { action: 'app:create', displayName: '工作空间创建', isMinimal: false },
+      { action: 'app:update', displayName: '工作空间更新', isMinimal: false },
+      { action: 'app:delete', displayName: '工作空间删除', isMinimal: false },
+      { action: 'app:deploy', displayName: '工作空间部署', isMinimal: false }
+    )
+    // 大权限（所有权）放在最后
+    permissions.push(
+      { action: 'app:manage', displayName: '所有权', isMinimal: false, isManage: true }
     )
   } else {
     // 未知类型，返回通用权限
     permissions.push(
       { action: 'function:read', displayName: '函数查看', isMinimal: true },
-      { action: 'function:execute', displayName: '函数执行', isMinimal: false }
+      { action: 'function:manage', displayName: '所有权', isMinimal: false, isManage: true }
     )
   }
 
@@ -245,18 +341,18 @@ export function getDefaultSelectedPermissions(
  */
 export const TablePermissions = {
   read: 'function:read',
-  create: 'table:create',
+  write: 'table:write',
   update: 'table:update',
   delete: 'table:delete',
-  execute: 'function:execute',
+  manage: 'function:manage',
 } as const
 
 /**
  * 检查 Form 函数的相关权限
  */
 export const FormPermissions = {
-  submit: 'form:submit',
-  execute: 'function:execute',
+  write: 'form:write',
+  manage: 'function:manage',
 } as const
 
 /**
@@ -264,7 +360,7 @@ export const FormPermissions = {
  */
 export const ChartPermissions = {
   read: 'function:read',
-  execute: 'function:execute',
+  manage: 'function:manage',
 } as const
 
 /**
@@ -272,7 +368,7 @@ export const ChartPermissions = {
  */
 export const DirectoryPermissions = {
   read: 'directory:read',
-  create: 'directory:create',
+  write: 'directory:write',
   update: 'directory:update',
   delete: 'directory:delete',
   manage: 'directory:manage',
@@ -382,7 +478,7 @@ export function getPermissionScopes(
       ? `函数：${parsed.functionName}` 
       : parsed.isDirectory 
       ? `目录：${parsed.directoryPath}` 
-      : `应用：${parsed.app}`,
+      : `工作空间：${parsed.app}`,
     permissions: currentPermissions,
     quickSelect: parsed.isFunction ? {
       label: '申请此函数的全部权限',
@@ -413,10 +509,10 @@ export function getPermissionScopes(
       resourcePath: parsed.appPath,
       resourceType: 'app',
       resourceName: parsed.app,
-      displayName: `应用：${parsed.app}`,
+      displayName: `工作空间：${parsed.app}`,
       permissions: appPermissions,
       quickSelect: {
-        label: '申请此应用的管理权限',
+        label: '申请此工作空间的管理权限',
         actions: ['app:manage']
       },
     })

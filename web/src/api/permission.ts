@@ -49,3 +49,28 @@ export function getPermissionApplication(id: string): Promise<any> {
   return get(`/workspace/api/v1/permission/apply/${id}`)
 }
 
+/**
+ * 获取工作空间权限请求参数
+ */
+export interface GetWorkspacePermissionsReq {
+  user: string  // 用户名
+  app: string   // 应用名
+}
+
+/**
+ * 获取工作空间权限响应
+ */
+export interface GetWorkspacePermissionsResp {
+  user: string  // 用户名
+  app: string   // 应用名
+  permissions: Record<string, Record<string, boolean>>  // 权限结果（full_code_path -> action -> hasPermission）
+}
+
+/**
+ * 获取工作空间的所有权限
+ * 用于权限申请页面显示已有权限
+ */
+export function getWorkspacePermissions(params: GetWorkspacePermissionsReq): Promise<GetWorkspacePermissionsResp> {
+  return get<GetWorkspacePermissionsResp>('/workspace/api/v1/permission/workspace', params)
+}
+
