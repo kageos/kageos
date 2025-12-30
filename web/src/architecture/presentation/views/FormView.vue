@@ -339,7 +339,7 @@ const handleApplyPermissionForSubmit = () => {
   if (!node || !node.full_code_path) return
   
   // 构建权限申请 URL（传递 template_type 以便正确显示权限选项）
-  const applyUrl = buildPermissionApplyURL(node.full_code_path, 'form:write', node.template_type)
+        const applyUrl = buildPermissionApplyURL(node.full_code_path, 'function:write', node.template_type)
   router.push(applyUrl)
 }
 

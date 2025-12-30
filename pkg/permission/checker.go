@@ -52,19 +52,3 @@ func CheckPermissionWithInheritance(
 	return hasPermission, nil
 }
 
-// BuildPermissionCheckRequests 构建权限检查请求（用于批量查询）
-// 返回所有需要检查的 resourcePath 和 action 对
-func BuildPermissionCheckRequests(fullCodePath string, action string) (resourcePaths []string, actions []string) {
-	resourcePaths = []string{fullCodePath}
-	actions = []string{action}
-
-	// 解析路径，获取所有父目录路径
-	parentPaths := GetParentPaths(fullCodePath)
-	for _, parentPath := range parentPaths {
-		resourcePaths = append(resourcePaths, parentPath)
-		actions = append(actions, "directory:manage")
-	}
-
-	return resourcePaths, actions
-}
-

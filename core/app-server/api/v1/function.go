@@ -67,7 +67,7 @@ func (f *Function) GetFunction(c *gin.Context) {
 		return
 	}
 
-	// ⭐ 权限检查：检查是否有 function:read 权限
+	// ⭐ 权限检查：根据模板类型使用不同的权限点
 	// 使用函数的 Router 字段作为 full-code-path（Router 存储的就是 full-code-path）
 	fullCodePath := function.Router
 	if fullCodePath == "" {
@@ -78,8 +78,9 @@ func (f *Function) GetFunction(c *gin.Context) {
 	// 检查权限功能是否启用（企业版）
 	licenseMgr := license.GetManager()
 	if licenseMgr.HasFeature(enterprise.FeaturePermission) {
-		// 企业版：进行权限检查
-		if !middleware.CheckPermissionWithPath(c, fullCodePath, "function:read", "无权限查看该函数详情") {
+		// 企业版：统一使用 function:read 权限检查
+		// ⭐ 优化：使用权限常量，避免硬编码
+		if !middleware.CheckPermissionWithPath(c, fullCodePath, permission.FunctionRead, "无权限查看该函数详情") {
 			return
 		}
 	}
@@ -97,36 +98,15 @@ func (f *Function) GetFunction(c *gin.Context) {
 		username := contextx.GetRequestUser(c)
 
 		if permissionService != nil && username != "" && fullCodePath != "" {
-			// 根据模板类型确定需要查询的权限点
-			var actions []string
-			actions = []string{
-				"function:read",
-				"function:manage",
-			}
-			// 根据模板类型添加操作级别权限
-			switch resp.TemplateType {
-			case "table":
-				actions = append(actions, "table:write", "table:update", "table:delete")
-			case "form":
-				actions = append(actions, "form:write")
-			case "chart":
-				// chart 使用 function:read 权限，拥有 read 权限即视为拥有 query 权限
-			}
+			// ⭐ 统一权限点：所有函数类型统一使用 function:read/write/update/delete
+			// ⭐ 优化：使用权限常量，避免硬编码
+			actions := permission.FunctionActions
 
 			if len(actions) > 0 {
-				// ⭐ 支持权限继承：批量查询所有可能的权限点（当前资源 + 所有父目录的 directory:manage）
-				resourcePaths := []string{fullCodePath}
-				allActions := make([]string, len(actions))
-				copy(allActions, actions)
-
-				// 获取所有父目录路径
-				parentPaths := permission.GetParentPaths(fullCodePath)
-				for _, parentPath := range parentPaths {
-					resourcePaths = append(resourcePaths, parentPath)
-					allActions = append(allActions, "directory:manage")
-				}
-
-				permissions, err := permissionService.BatchCheckPermissions(ctx, username, resourcePaths, allActions)
+				// ⭐ 直接利用 Casbin matcher 的自动权限继承
+				// Casbin matcher 已经配置了权限映射规则，会自动检查父目录权限并应用继承
+				// 只需要查询子函数需要的权限，Casbin 会自动处理继承逻辑
+				permissions, err := permissionService.BatchCheckPermissions(ctx, username, []string{fullCodePath}, actions)
 				if err != nil {
 					logger.Warnf(c, "[Function API] 查询权限失败: username=%s, resource=%s, error=%v",
 						username, fullCodePath, err)
@@ -139,7 +119,7 @@ func (f *Function) GetFunction(c *gin.Context) {
 					// 初始化权限 map
 					resp.Permissions = make(map[string]bool)
 
-					// 先检查当前资源的直接权限
+					// Casbin 已经自动处理了权限继承，直接使用查询结果
 					if nodePerms, ok := permissions[fullCodePath]; ok {
 						for _, action := range actions {
 							if hasPerm, ok := nodePerms[action]; ok {
@@ -152,32 +132,6 @@ func (f *Function) GetFunction(c *gin.Context) {
 						// 如果查询结果中没有该资源，初始化所有权限为 false
 						for _, action := range actions {
 							resp.Permissions[action] = false
-						}
-					}
-
-					// ⭐ 如果直接权限都是 false，检查父目录的 directory:manage 权限（权限继承）
-					hasAnyDirectPermission := false
-					for _, action := range actions {
-						if resp.Permissions[action] {
-							hasAnyDirectPermission = true
-							break
-						}
-					}
-
-					if !hasAnyDirectPermission {
-						// 检查父目录的 directory:manage 权限
-						for _, parentPath := range parentPaths {
-							if nodePerms, ok := permissions[parentPath]; ok {
-								if hasManage, ok := nodePerms["directory:manage"]; ok && hasManage {
-									// 父目录有管理权限，子资源自动拥有所有权限
-									logger.Infof(c, "[Function API] 权限继承成功: resource=%s, parent=%s, has directory:manage",
-										fullCodePath, parentPath)
-									for _, action := range actions {
-										resp.Permissions[action] = true
-									}
-									break
-								}
-							}
 						}
 					}
 				}

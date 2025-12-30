@@ -81,7 +81,16 @@
                       </template>
                       <!-- 其他类型：显示 fx 文本 -->
                       <span v-else class="node-icon fx-icon" :class="getNodeIconClass(data)">fx</span>
-                      <span class="node-label">{{ node.label }}</span>
+                      <span class="node-label" :class="{ 'no-permission': !hasAnyPermissionForNode(data) }">{{ node.label }}</span>
+                      
+                      <!-- 无权限标识 - 没有权限的节点显示 -->
+                      <el-icon 
+                        v-if="!hasAnyPermissionForNode(data)" 
+                        class="no-permission-icon" 
+                        :title="'该节点没有权限'"
+                      >
+                        <Lock />
+                      </el-icon>
                       
                       <!-- 节点元信息：只显示已选择的权限提示 -->
                       <div class="node-meta">
@@ -171,6 +180,7 @@
                       v-for="permission in getSmallPermissions()"
                     :key="permission.action"
                     :label="permission.action"
+                    :disabled="hasExistingPermission(permission.action)"
                     class="permission-checkbox"
                     :class="{ 
                       'has-existing-selected': hasExistingPermission(permission.action) && selectedPermissions.includes(permission.action),
@@ -253,6 +263,7 @@
                       v-for="permission in getManagePermissions()"
                       :key="permission.action"
                       :label="permission.action"
+                      :disabled="hasExistingPermission(permission.action)"
                       class="permission-checkbox manage-checkbox"
                       :class="{ 
                         'has-existing-selected': hasExistingPermission(permission.action) && selectedPermissions.includes(permission.action),
@@ -365,6 +376,7 @@ import {
   getPermissionScopes,
   getAvailablePermissions,
   getPermissionDescription,
+  hasAnyPermissionForNode,
   type PermissionScope
 } from '@/utils/permission'
 import { applyPermission, getWorkspacePermissions } from '@/api/permission'
@@ -427,8 +439,7 @@ const formData = ref({
 // 表单验证规则
 const rules: FormRules = {
   reason: [
-    { required: true, message: '请填写申请理由', trigger: 'blur' },
-    { min: 10, message: '申请理由至少需要10个字符', trigger: 'blur' },
+    { min: 10, message: '申请理由至少需要10个字符（如果填写）', trigger: 'blur' },
   ],
 }
 
@@ -524,26 +535,42 @@ onMounted(async () => {
 
   // 加载服务树和工作空间信息
   try {
-    // ⭐ 并行加载服务树和已有权限
-    const [treeResponse, permissionsResponse] = await Promise.all([
-      getAppWithServiceTree(user, app),
-      getWorkspacePermissions({ user, app }).catch(err => {
-        // 如果获取权限失败，记录错误但不中断流程
-        console.warn('获取工作空间权限失败:', err)
+    // ⭐ 先加载服务树，获取 app_id 后传递给权限接口（性能更好）
+    const treeResponse = await getAppWithServiceTree(user, app)
+    
+    // ⭐ 使用 app_id 查询权限（利用索引，性能更好，用户信息从 context 中获取）
+    const permissionsResponse = await (async () => {
+      if (treeResponse?.app?.id) {
+        return getWorkspacePermissions({ app_id: treeResponse.app.id }).catch(err => {
+          console.warn('获取工作空间权限失败:', err)
+          return null
+        })
+      } else {
+        console.warn('无法获取 app_id，跳过权限查询')
         return null
-      })
-    ])
+      }
+    })()
     
     if (treeResponse) {
       // 保存工作空间信息
       currentApp.value = treeResponse.app || null
       
       // ⭐ 保存已有权限
-      if (permissionsResponse && permissionsResponse.permissions) {
+      if (permissionsResponse && permissionsResponse.records) {
         const permissionsMap = new Map<string, Record<string, boolean>>()
-        for (const [resourcePath, perms] of Object.entries(permissionsResponse.permissions)) {
-          permissionsMap.set(resourcePath, perms)
+        
+        // ⭐ 前端自己处理原始权限记录
+        for (const record of permissionsResponse.records) {
+          const resourcePath = record.resource
+          const action = record.action
+          
+          if (!permissionsMap.has(resourcePath)) {
+            permissionsMap.set(resourcePath, {})
+          }
+          const perms = permissionsMap.get(resourcePath)!
+          perms[action] = true
         }
+        
         existingPermissions.value = permissionsMap
       }
       
@@ -677,11 +704,33 @@ const loadResourcePermissions = async (resourcePath: string, defaultAction?: str
   // 获取权限范围
   const parsed = resourcePath.split('/').filter(Boolean)
   const resourceName = parsed[parsed.length - 1] || '资源'
+  
+  // ⭐ 构建中文路径（使用节点的 name 字段）
+  const buildChinesePath = (path: string): string => {
+    const pathParts = path.split('/').filter(Boolean)
+    const chineseParts: string[] = []
+    
+    // 从根路径开始，逐步构建路径
+    let currentPath = ''
+    for (let i = 0; i < pathParts.length; i++) {
+      currentPath += '/' + pathParts[i]
+      const node = findNodeInTree(serviceTree.value, currentPath)
+      if (node && node.name) {
+        chineseParts.push(node.name)
+      } else {
+        // 如果找不到节点，使用原始代码
+        chineseParts.push(pathParts[i])
+      }
+    }
+    
+    return chineseParts.join(' / ')
+  }
+  
   const displayName = resourceType === 'function' 
-    ? `函数：${resourceName}` 
+    ? `函数：${node?.name || resourceName}` 
     : resourceType === 'directory' 
-    ? `目录：${resourcePath}` 
-    : `工作空间：${parsed[1] || '工作空间'}`
+    ? `目录：${buildChinesePath(resourcePath)}` 
+    : `工作空间：${node?.name || parsed[1] || '工作空间'}`
   
   const permissions = getAvailablePermissions(resourcePath, resourceType, templateType)
   
@@ -1025,25 +1074,29 @@ const mapPermissionsForChild = (childPath: string, childNode: ServiceTree, paren
         }
       } else if (childNode.type === 'function') {
         // 子函数：保存所有相关权限，但显示时会显示为"所有权"
+        // ⭐ 统一权限点：所有函数类型统一使用 function:read/write/update/delete
         const childType = childNode.template_type
         if (childType === TEMPLATE_TYPE.TABLE) {
-          // 保存所有表格权限，但显示时显示"所有权"
-          if (!childPermissions.includes('table:read')) childPermissions.push('table:read')
-          if (!childPermissions.includes('table:write')) childPermissions.push('table:write')
-          if (!childPermissions.includes('table:update')) childPermissions.push('table:update')
-          if (!childPermissions.includes('table:delete')) childPermissions.push('table:delete')
-        } else if (childType === TEMPLATE_TYPE.FORM) {
-          // 保存所有表单权限，但显示时显示"所有权"
-          // ⭐ form 类型只有 form:write 权限，没有 form:read
-          if (!childPermissions.includes('form:write')) childPermissions.push('form:write')
-        } else if (childType === TEMPLATE_TYPE.CHART) {
-          // 保存所有图表权限，但显示时显示"所有权"
-          if (!childPermissions.includes('chart:read')) childPermissions.push('chart:read')
-    } else {
-          // 保存所有函数权限，但显示时显示"所有权"
+          // table 类型：使用 function:read/write/update/delete
           if (!childPermissions.includes('function:read')) childPermissions.push('function:read')
-          if (!childPermissions.includes('function:manage')) childPermissions.push('function:manage')
+          if (!childPermissions.includes('function:write')) childPermissions.push('function:write')
+          if (!childPermissions.includes('function:update')) childPermissions.push('function:update')
+          if (!childPermissions.includes('function:delete')) childPermissions.push('function:delete')
+        } else if (childType === TEMPLATE_TYPE.FORM) {
+          // form 类型：使用 function:write（虽然定义了 read/update/delete，但业务逻辑中不使用）
+          if (!childPermissions.includes('function:write')) childPermissions.push('function:write')
+        } else if (childType === TEMPLATE_TYPE.CHART) {
+          // chart 类型：使用 function:read（虽然定义了 write/update/delete，但业务逻辑中不使用）
+          if (!childPermissions.includes('function:read')) childPermissions.push('function:read')
+    } else {
+          // 其他类型：使用 function:read/write/update/delete
+          if (!childPermissions.includes('function:read')) childPermissions.push('function:read')
+          if (!childPermissions.includes('function:write')) childPermissions.push('function:write')
+          if (!childPermissions.includes('function:update')) childPermissions.push('function:update')
+          if (!childPermissions.includes('function:delete')) childPermissions.push('function:delete')
         }
+        // 所有权权限
+        if (!childPermissions.includes('function:manage')) childPermissions.push('function:manage')
         // 添加一个特殊标记，表示这是管理权限下的子节点
         if (!childPermissions.includes('_has_manage_permission')) {
           childPermissions.push('_has_manage_permission')
@@ -1057,17 +1110,13 @@ const mapPermissionsForChild = (childPath: string, childNode: ServiceTree, paren
           childPermissions.push('directory:write')
         }
       } else if (childNode.type === 'function') {
+        // ⭐ 统一权限点：所有函数类型统一使用 function:write
         // 子函数：根据类型映射写入权限（只继承给 table 和 form）
         const childType = childNode.template_type
-        if (childType === TEMPLATE_TYPE.TABLE) {
-          // table 类型：映射为 table:write
-          if (!childPermissions.includes('table:write')) {
-            childPermissions.push('table:write')
-          }
-        } else if (childType === TEMPLATE_TYPE.FORM) {
-          // form 类型：映射为 form:write
-          if (!childPermissions.includes('form:write')) {
-            childPermissions.push('form:write')
+        if (childType === TEMPLATE_TYPE.TABLE || childType === TEMPLATE_TYPE.FORM) {
+          // table 和 form 类型：映射为 function:write
+          if (!childPermissions.includes('function:write')) {
+            childPermissions.push('function:write')
           }
         }
         // chart 和其他类型：不继承 write 权限（用户要求不要乱映射）
@@ -1080,12 +1129,12 @@ const mapPermissionsForChild = (childPath: string, childNode: ServiceTree, paren
           childPermissions.push('directory:update')
         }
       } else if (childNode.type === 'function') {
-        // 子函数：根据类型映射更新权限
+        // ⭐ 统一权限点：table 类型使用 function:update
         const childType = childNode.template_type
         if (childType === TEMPLATE_TYPE.TABLE) {
-          // table 类型：映射为 table:update
-          if (!childPermissions.includes('table:update')) {
-            childPermissions.push('table:update')
+          // table 类型：映射为 function:update
+          if (!childPermissions.includes('function:update')) {
+            childPermissions.push('function:update')
           }
         }
         // form、chart 和其他类型：不继承 update 权限（只有 table 有 update）
@@ -1098,12 +1147,12 @@ const mapPermissionsForChild = (childPath: string, childNode: ServiceTree, paren
           childPermissions.push('directory:delete')
         }
       } else if (childNode.type === 'function') {
-        // 子函数：根据类型映射删除权限
+        // ⭐ 统一权限点：table 类型使用 function:delete
         const childType = childNode.template_type
         if (childType === TEMPLATE_TYPE.TABLE) {
-          // table 类型：映射为 table:delete
-          if (!childPermissions.includes('table:delete')) {
-            childPermissions.push('table:delete')
+          // table 类型：映射为 function:delete
+          if (!childPermissions.includes('function:delete')) {
+            childPermissions.push('function:delete')
           }
         }
         // form、chart 和其他类型：不继承 delete 权限（只有 table 有 delete）
@@ -1115,17 +1164,13 @@ const mapPermissionsForChild = (childPath: string, childNode: ServiceTree, paren
           childPermissions.push('directory:read')
         }
       } else if (childNode.type === 'function') {
+        // ⭐ 统一权限点：所有函数类型统一使用 function:read
         const childType = childNode.template_type
-        if (childType === TEMPLATE_TYPE.TABLE) {
-          if (!childPermissions.includes('table:read')) childPermissions.push('table:read')
-        } else if (childType === TEMPLATE_TYPE.FORM) {
-          // ⭐ form 类型只有 form:write 权限，没有 form:read
-          // 查看权限不继承给 form 类型（form 只有 write 权限）
-        } else if (childType === TEMPLATE_TYPE.CHART) {
-          if (!childPermissions.includes('chart:read')) childPermissions.push('chart:read')
-        } else {
+        if (childType === TEMPLATE_TYPE.TABLE || childType === TEMPLATE_TYPE.CHART || !childType) {
+          // table、chart 和其他类型：使用 function:read
           if (!childPermissions.includes('function:read')) childPermissions.push('function:read')
         }
+        // form 类型：虽然定义了 function:read，但业务逻辑中不使用（form 只有 write 权限）
       }
     }
   }
@@ -1423,6 +1468,18 @@ const handleCancel = () => {
                   overflow: hidden;
                   text-overflow: ellipsis;
                   white-space: nowrap;
+                  
+                  &.no-permission {
+                    color: var(--el-text-color-disabled);
+                    opacity: 0.6;
+                  }
+                }
+                
+                .no-permission-icon {
+                  color: var(--el-color-warning);
+                  font-size: 14px;
+                  margin-left: 4px;
+                  flex-shrink: 0;
                 }
                 
                 .node-meta {
@@ -1702,6 +1759,61 @@ const handleCancel = () => {
                   transform: translateY(-1px);
                   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
                 }
+                
+                // ⭐ 已有权限且选中：禁用状态，显示为已选中
+                &.has-existing-selected {
+                  // 禁用状态的样式
+                  :deep(.el-checkbox__input.is-disabled) {
+                    .el-checkbox__inner {
+                      background-color: var(--el-color-success);
+                      border-color: var(--el-color-success);
+                      cursor: not-allowed;
+                    }
+                    
+                    &.is-checked .el-checkbox__inner {
+                      background-color: var(--el-color-success);
+                      border-color: var(--el-color-success);
+                    }
+                    
+                    .el-checkbox__label {
+                      color: var(--el-text-color-primary);
+                      cursor: not-allowed;
+                      opacity: 0.9;
+                    }
+                  }
+                  
+                  // 禁用状态下不显示hover效果
+                  &:hover {
+                    border-color: var(--el-border-color-lighter);
+                    background-color: var(--el-fill-color-lighter);
+                    transform: none;
+                    box-shadow: none;
+                  }
+                }
+                
+                // ⭐ 已有权限但未选中（理论上不应该出现，因为已有权限会自动选中）
+                &.has-existing-unselected {
+                  :deep(.el-checkbox__input.is-disabled) {
+                    .el-checkbox__inner {
+                      background-color: var(--el-fill-color);
+                      border-color: var(--el-border-color);
+                      cursor: not-allowed;
+                    }
+                    
+                    .el-checkbox__label {
+                      color: var(--el-text-color-regular);
+                      cursor: not-allowed;
+                      opacity: 0.6;
+                    }
+                  }
+                  
+                  &:hover {
+                    border-color: var(--el-border-color-lighter);
+                    background-color: var(--el-fill-color-lighter);
+                    transform: none;
+                    box-shadow: none;
+                  }
+                }
 
                 .permission-option {
                   display: flex;
@@ -1721,12 +1833,12 @@ const handleCancel = () => {
                     min-width: 0;
                     flex-wrap: wrap;
 
-                    .permission-name {
+                  .permission-name {
                       font-weight: 600;
-                      color: var(--el-text-color-primary);
+                    color: var(--el-text-color-primary);
                       font-size: 15px;
-                      line-height: 1.4;
-                      word-break: break-word;
+                    line-height: 1.4;
+                    word-break: break-word;
                       overflow-wrap: break-word;
                       flex: 1;
                       min-width: 0;

@@ -2,6 +2,7 @@ package casbin
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/casbin/casbin/v2"
@@ -47,6 +48,24 @@ func NewCasbinService(db *gorm.DB) (*CasbinService, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// ⭐ 注册自定义函数 pathPrefix：检查子路径是否以父路径开头（支持无通配符的前缀匹配）
+	// 例如：pathPrefix("/a/b/c", "/a/b") → true
+	// 这样，即使策略路径没有通配符，也能匹配子路径
+	enforcer.AddFunction("pathPrefix", func(args ...interface{}) (interface{}, error) {
+		if len(args) != 2 {
+			return false, fmt.Errorf("pathPrefix 需要 2 个参数")
+		}
+		childPath := fmt.Sprintf("%v", args[0])
+		parentPath := fmt.Sprintf("%v", args[1])
+		
+		// 检查子路径是否以父路径开头
+		// 例如：/a/b/c 以 /a/b 开头
+		if strings.HasPrefix(childPath, parentPath+"/") || childPath == parentPath {
+			return true, nil
+		}
+		return false, nil
+	})
 
 	// ⭐ 显式加载策略（这会触发适配器创建 casbin_rule 表）
 	if err := enforcer.LoadPolicy(); err != nil {

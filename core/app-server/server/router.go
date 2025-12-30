@@ -161,13 +161,8 @@ func (s *Server) setupRoutes() {
 	permission.Use(middleware2.JWTAuth())                                    // JWT 认证
 	permission.Use(middleware2.RequireFeature(enterprise.FeaturePermission)) // 权限管理功能鉴权（企业版）
 	permissionHandler := v1.NewPermission(s.permissionService)
-	permission.POST("/add", permissionHandler.AddPermission)                    // 添加权限
-	permission.POST("/remove", permissionHandler.RemovePermission)              // 删除权限
-	permission.GET("/user", permissionHandler.GetUserPermissions)               // 获取用户权限
-	permission.POST("/apply", permissionHandler.ApplyPermission)               // 权限申请
-	permission.POST("/role/assign", permissionHandler.AssignRoleToUser)         // 分配角色给用户
-	permission.POST("/role/remove", permissionHandler.RemoveRoleFromUser)       // 从用户移除角色
-	permission.GET("/role/user", permissionHandler.GetUserRoles)                // 获取用户角色
-	permission.GET("/workspace", permissionHandler.GetWorkspacePermissions)     // 获取工作空间所有权限
+	permission.POST("/add", permissionHandler.AddPermission)                // 添加权限（内部使用，被 ApplyPermission 调用）
+	permission.POST("/apply", permissionHandler.ApplyPermission)             // 权限申请
+	permission.GET("/workspace", permissionHandler.GetWorkspacePermissions)  // 获取工作空间所有权限
 
 }

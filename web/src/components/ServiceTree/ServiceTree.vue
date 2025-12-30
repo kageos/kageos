@@ -3,7 +3,8 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { ElTree, ElMessage } from 'element-plus'
 import { Folder, Document, Plus, Edit, Delete } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/types'
-import { hasPermission, DirectoryPermissions } from '@/utils/permission'
+import { hasPermission, DirectoryPermissions, TablePermissions } from '@/utils/permission'
+import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 
 interface Props {
   data: ServiceTree[]
@@ -289,7 +290,7 @@ onMounted(() => {
                     <!-- 编辑节点（需要 directory:update 权限） -->
                     <el-dropdown-item 
                       command="edit"
-                      v-if="hasPermission(data, data.type === 'package' ? DirectoryPermissions.update : 'function:read')"
+                      v-if="hasPermission(data, data.type === 'package' ? DirectoryPermissions.update : (data.template_type === TEMPLATE_TYPE.TABLE ? TablePermissions.read : 'function:read'))"
                     >
                       <el-icon><Edit /></el-icon>
                       编辑节点
@@ -298,7 +299,7 @@ onMounted(() => {
                     <el-dropdown-item 
                       command="delete" 
                       divided
-                      v-if="hasPermission(data, data.type === 'package' ? DirectoryPermissions.delete : 'function:read')"
+                      v-if="hasPermission(data, data.type === 'package' ? DirectoryPermissions.delete : (data.template_type === TEMPLATE_TYPE.TABLE ? TablePermissions.read : 'function:read'))"
                     >
                       <el-icon><Delete /></el-icon>
                       删除节点

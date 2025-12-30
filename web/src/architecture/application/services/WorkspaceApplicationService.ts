@@ -50,10 +50,10 @@ export class WorkspaceApplicationService {
    * - 点击函数节点：直接加载函数详情，不先切换目录（避免闪烁），并获取函数权限
    */
   async handleNodeClick(node: ServiceTree): Promise<void> {
-    // ⭐ 先获取节点权限信息（目录和函数都需要）
-    await this.loadNodePermissions(node)
-
     if (node.type === 'function') {
+      // ⭐ 函数节点：先获取权限信息，然后加载函数详情
+      await this.loadNodePermissions(node)
+      
       // 🔥 优化：直接加载函数详情，不先切换目录
       // 这样可以避免先显示目录详情再切换到函数详情的闪烁问题
       try {
@@ -81,8 +81,12 @@ export class WorkspaceApplicationService {
         // 不重新抛出错误，让 UI 显示权限错误组件
       }
     } else {
-      // 目录节点：切换到该目录
-      this.domainService.setCurrentDirectory(node)
+      // ⭐ 目录节点：先获取权限信息，然后切换到该目录
+      // 确保权限数据加载完成后再设置目录，这样 PackageDetailView 才能正确显示权限信息
+      await this.loadNodePermissions(node)
+      
+      // 将目录设置为当前函数，以便显示目录详情
+      this.domainService.setCurrentDirectory(node, true)
     }
   }
 
@@ -138,10 +142,21 @@ export class WorkspaceApplicationService {
         params.full_code_path = node.full_code_path
       }
 
+      console.log('[WorkspaceApplicationService] 加载目录权限信息:', params)
       const packageInfo = await getPackageInfo(params)
+      console.log('[WorkspaceApplicationService] 目录权限信息加载完成:', {
+        id: packageInfo.id,
+        name: packageInfo.name,
+        full_code_path: packageInfo.full_code_path,
+        permissions: packageInfo.permissions
+      })
+      
       if (packageInfo.permissions) {
         // 缓存权限信息
         permissionStore.setPermissions(node, packageInfo.permissions)
+        console.log('[WorkspaceApplicationService] 权限信息已缓存到 store')
+      } else {
+        console.warn('[WorkspaceApplicationService] 目录权限信息为空:', packageInfo)
       }
     } catch (error) {
       // 权限获取失败不影响主流程，只是权限控制可能不准确
