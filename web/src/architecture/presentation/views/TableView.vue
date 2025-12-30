@@ -59,7 +59,7 @@
           v-if="hasAddCallback" 
           :type="canCreate ? 'primary' : 'default'"
           :plain="!canCreate"
-          @click="canCreate ? handleAdd() : handleApplyPermissionForAction('table:write')" 
+          @click="canCreate ? handleAdd() : handleApplyPermissionForAction('function:write')" 
           :icon="Plus"
           class="action-btn"
           :class="{ 'action-btn-no-permission': !canCreate }"
@@ -75,7 +75,7 @@
           v-if="hasDeleteCallback && !isBatchDeleteMode" 
           :type="canDelete ? 'danger' : 'default'"
           :plain="!canDelete"
-          @click="canDelete ? enterBatchDeleteMode() : handleApplyPermissionForAction('table:delete')"
+          @click="canDelete ? enterBatchDeleteMode() : handleApplyPermissionForAction('function:delete')"
           :icon="canDelete ? Delete : Lock"
           class="action-btn"
           :class="{ 'action-btn-no-permission': !canDelete }"
@@ -291,7 +291,7 @@
               size="small"
               class="update-btn"
               :class="{ 'action-btn-no-permission': !canUpdate }"
-              @click.stop="canUpdate ? handleDetail(row) : handleApplyPermissionForAction('table:update')"
+              @click.stop="canUpdate ? handleDetail(row) : handleApplyPermissionForAction('function:update')"
             >
               <el-icon><component :is="canUpdate ? Edit : Lock" /></el-icon>
               {{ canUpdate ? '更新' : '更新（需权限）' }}
@@ -304,7 +304,7 @@
               size="small"
               class="delete-btn"
               :class="{ 'action-btn-no-permission': !canDelete }"
-              @click.stop="canDelete ? handleDelete(row) : handleApplyPermissionForAction('table:delete')"
+              @click.stop="canDelete ? handleDelete(row) : handleApplyPermissionForAction('function:delete')"
             >
               <el-icon><component :is="canDelete ? Delete : Lock" /></el-icon>
               {{ canDelete ? '删除' : '删除（需权限）' }}

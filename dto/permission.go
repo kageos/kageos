@@ -7,57 +7,12 @@ type AddPermissionReq struct {
 	Action       string `json:"action" binding:"required"`     // 操作类型（如 table:search、function:manage 等）
 }
 
-// RemovePermissionReq 删除权限请求
-type RemovePermissionReq struct {
-	Username     string `json:"username" binding:"required"`     // 用户名
-	ResourcePath string `json:"resource_path" binding:"required"` // 资源路径（full-code-path）
-	Action       string `json:"action" binding:"required"`     // 操作类型
-}
-
-// GetUserPermissionsReq 获取用户权限请求
-type GetUserPermissionsReq struct {
-	Username     string   `json:"username" form:"username" binding:"required"`     // 用户名
-	ResourcePath string   `json:"resource_path" form:"resource_path"`             // 资源路径（可选，如果提供则只查询该资源的权限）
-	Actions      []string `json:"actions" form:"actions"`                         // 操作类型列表（可选，如果提供则只查询这些操作的权限）
-}
-
-// GetUserPermissionsResp 获取用户权限响应
-type GetUserPermissionsResp struct {
-	Username     string              `json:"username"`      // 用户名
-	ResourcePath string              `json:"resource_path"` // 资源路径（如果请求中提供了）
-	Permissions  map[string]bool     `json:"permissions"`   // 权限结果（action -> hasPermission）
-	AllResources map[string]map[string]bool `json:"all_resources,omitempty"` // 所有资源的权限（resourcePath -> action -> hasPermission），仅在查询所有资源时返回
-}
-
-// AddRoleReq 添加角色请求
-type AddRoleReq struct {
-	RoleName string `json:"role_name" binding:"required"` // 角色名称
-}
-
-// AssignRoleToUserReq 分配角色给用户请求
-type AssignRoleToUserReq struct {
-	Username string `json:"username" binding:"required"` // 用户名
-	RoleName string `json:"role_name" binding:"required"` // 角色名称
-}
-
-// RemoveRoleFromUserReq 从用户移除角色请求
-type RemoveRoleFromUserReq struct {
-	Username string `json:"username" binding:"required"` // 用户名
-	RoleName string `json:"role_name" binding:"required"` // 角色名称
-}
-
-// GetUserRolesResp 获取用户角色响应
-type GetUserRolesResp struct {
-	Username string   `json:"username"` // 用户名
-	Roles    []string `json:"roles"`   // 角色列表
-}
-
 // ApplyPermissionReq 权限申请请求
 type ApplyPermissionReq struct {
 	ResourcePath string   `json:"resource_path" binding:"required"` // 资源路径（full-code-path）
 	Action        string   `json:"action"`                          // 操作类型（可选，如果提供了 actions 则忽略）
 	Actions       []string `json:"actions"`                         // 操作类型列表（可选，如果提供则批量申请）
-	Reason        string   `json:"reason" binding:"required"`       // 申请理由
+	Reason        string   `json:"reason"`                          // 申请理由（可选）
 }
 
 // ApplyPermissionResp 权限申请响应
@@ -69,14 +24,21 @@ type ApplyPermissionResp struct {
 
 // GetWorkspacePermissionsReq 获取工作空间权限请求
 type GetWorkspacePermissionsReq struct {
-	User string `json:"user" form:"user" binding:"required"` // 用户名
-	App  string `json:"app" form:"app" binding:"required"`   // 应用名
+	AppID int64 `json:"app_id" form:"app_id"` // 应用ID（必填）
+}
+
+// PermissionRecord 权限记录
+type PermissionRecord struct {
+	ID       int64  `json:"id"`        // 权限记录ID
+	User     string `json:"user"`      // 用户名
+	Resource string `json:"resource"`  // 资源路径
+	Action   string `json:"action"`    // 操作类型
+	AppID    int64  `json:"app_id"`    // 应用ID
 }
 
 // GetWorkspacePermissionsResp 获取工作空间权限响应
+// ⭐ 直接返回原始权限记录，让前端处理
 type GetWorkspacePermissionsResp struct {
-	User       string                            `json:"user"`        // 用户名
-	App        string                            `json:"app"`         // 应用名
-	Permissions map[string]map[string]bool       `json:"permissions"` // 权限结果（full_code_path -> action -> hasPermission）
+	Records []PermissionRecord `json:"records"` // 原始权限记录
 }
 

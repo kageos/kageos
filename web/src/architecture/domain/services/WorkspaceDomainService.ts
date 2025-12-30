@@ -280,8 +280,15 @@ export class WorkspaceDomainService {
   setCurrentDirectory(directory: ServiceTree | null, setAsCurrentFunction: boolean = true): void {
     const state = this.stateManager.getState()
     
-    // 如果目录相同，不执行任何操作
+    // 如果目录相同，但需要设置 currentFunction，仍然需要更新
     if (state.currentDirectory?.id === directory?.id) {
+      // 如果需要将目录设置为当前函数，且当前函数不是这个目录，则更新
+      if (setAsCurrentFunction && state.currentFunction?.id !== directory?.id) {
+        this.stateManager.setState({
+          ...state,
+          currentFunction: directory
+        })
+      }
       return
     }
     

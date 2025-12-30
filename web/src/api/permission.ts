@@ -11,7 +11,7 @@ export interface PermissionApplyReq {
   resource_path: string  // 资源路径
   action?: string  // 权限点（如 table:search，可选，如果提供了 actions 则忽略）
   actions?: string[]  // 权限点列表（可选，如果提供则批量申请）
-  reason: string  // 申请理由
+  reason?: string  // 申请理由（可选）
 }
 
 /**
@@ -53,17 +53,21 @@ export function getPermissionApplication(id: string): Promise<any> {
  * 获取工作空间权限请求参数
  */
 export interface GetWorkspacePermissionsReq {
-  user: string  // 用户名
-  app: string   // 应用名
+  app_id: number  // 应用ID（必填）
 }
 
 /**
  * 获取工作空间权限响应
+ * ⭐ 直接返回原始权限记录，让前端处理
  */
 export interface GetWorkspacePermissionsResp {
-  user: string  // 用户名
-  app: string   // 应用名
-  permissions: Record<string, Record<string, boolean>>  // 权限结果（full_code_path -> action -> hasPermission）
+  records: Array<{  // 原始权限记录
+    id: number
+    user: string
+    resource: string
+    action: string
+    app_id: number
+  }>
 }
 
 /**

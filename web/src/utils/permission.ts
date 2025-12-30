@@ -64,28 +64,24 @@ export function getPermissionDescription(
     },
     
     // 函数权限
+    // 函数权限（统一权限点）
     'function:read': {
-      description: '可以查看函数的基本信息和配置'
+      description: '可以查看函数的基本信息和配置（适用于所有函数类型：table、form、chart 等）'
+    },
+    'function:write': {
+      description: '可以执行写入操作（table 类型：新增记录；form 类型：提交表单）'
+    },
+    'function:update': {
+      description: '可以执行更新操作（table 类型：更新记录）'
+    },
+    'function:delete': {
+      description: '可以执行删除操作（table 类型：删除记录）'
     },
     'function:manage': {
       description: '拥有函数的所有权限，包括所有操作权限（查看、新增、更新、删除等）'
     },
     
-    // 表格权限
-    'table:write': {
-      description: '可以在表格中新增记录'
-    },
-    'table:update': {
-      description: '可以修改表格中的记录'
-    },
-    'table:delete': {
-      description: '可以删除表格中的记录'
-    },
-    
-    // 表单权限
-    'form:write': {
-      description: '可以提交表单数据'
-    },
+    // ⭐ 统一权限点：form:write 已统一为 function:write，此条目保留用于向后兼容（可删除）
   }
   
   return descriptions[action] || { description: '未知权限' }
@@ -141,6 +137,34 @@ export function hasPermission(node: ServiceTree | undefined, action: string): bo
 
   // 如果都没有，默认返回 true（向后兼容）
   return true
+}
+
+/**
+ * 判断节点是否有任何权限（不指定具体权限点）
+ * @param node 服务树节点
+ * @returns 是否有任何权限
+ */
+export function hasAnyPermissionForNode(node: ServiceTree | undefined): boolean {
+  if (!node) {
+    return false
+  }
+
+  // ⭐ 优先从权限缓存中获取
+  const permissionStore = useNodePermissionsStore()
+  const cachedPermissions = permissionStore.getPermissions(node)
+  if (cachedPermissions) {
+    // 检查缓存中是否有任何权限为 true
+    return Object.values(cachedPermissions).some(hasPerm => hasPerm === true)
+  }
+
+  // 如果没有缓存，从节点本身的 permissions 字段获取
+  if (node.permissions) {
+    // 检查节点权限信息中是否有任何权限为 true
+    return Object.values(node.permissions).some(hasPerm => hasPerm === true)
+  }
+
+  // 如果都没有，返回 false（没有权限）
+  return false
 }
 
 /**
@@ -205,13 +229,13 @@ export function hasAllPermissions(node: ServiceTree | undefined, actions: string
 export function getPermissionDisplayName(action: string): string {
   const displayNames: Record<string, string> = {
     // Table 操作
-    'table:write': '新增表格记录',
-    'table:update': '更新表格记录',
-    'table:delete': '删除表格记录',
-    // Form 操作
-    'form:write': '表单提交',
+    // 统一权限点：所有函数类型统一使用 function:read/write/update/delete
+    // 显示名称根据模板类型在 getAvailablePermissions 中动态设置
     // Function 操作
     'function:read': '函数查看',
+    'function:write': '函数写入',
+    'function:update': '函数更新',
+    'function:delete': '函数删除',
     'function:manage': '所有权',
     // Directory 操作
     'directory:read': '目录查看',
@@ -237,14 +261,12 @@ export function getPermissionDisplayName(action: string): string {
  */
 export function getDefaultPermissionsForTemplate(templateType?: string): string[] {
   switch (templateType) {
+    // ⭐ 统一权限点：所有函数类型统一使用 function:read/write/update/delete
     case 'table':
-      return ['function:read', 'table:write', 'table:update', 'table:delete', 'function:manage']
     case 'form':
-      return ['form:write', 'function:manage']
     case 'chart':
-      return ['function:read', 'function:manage']
     default:
-      return ['function:manage']
+      return ['function:read', 'function:write', 'function:update', 'function:delete', 'function:manage']
   }
 }
 
@@ -265,21 +287,31 @@ export function getAvailablePermissions(
   // 根据资源类型返回相关权限点
   // ⭐ 权限顺序：小权限（具体操作）在前，大权限（所有权/管理）在后
   if (resourceType === 'function') {
-    // 函数相关权限：小权限在前
-    permissions.push(
-      { action: 'function:read', displayName: '函数查看', isMinimal: true }
-    )
-
-    // 根据模板类型添加特定权限
+    // ⭐ 统一权限点：所有函数类型统一使用 function:read/write/update/delete
+    // 根据模板类型显示不同的权限名称（但底层权限点统一）
     if (templateType === 'table') {
       permissions.push(
-        { action: 'table:write', displayName: '新增表格记录', isMinimal: false },
-        { action: 'table:update', displayName: '更新表格记录', isMinimal: false },
-        { action: 'table:delete', displayName: '删除表格记录', isMinimal: false }
+        { action: 'function:read', displayName: '表格查看', isMinimal: true },
+        { action: 'function:write', displayName: '新增表格记录', isMinimal: false },
+        { action: 'function:update', displayName: '更新表格记录', isMinimal: false },
+        { action: 'function:delete', displayName: '删除表格记录', isMinimal: false }
       )
     } else if (templateType === 'form') {
       permissions.push(
-        { action: 'form:write', displayName: '表单提交', isMinimal: true }
+        { action: 'function:write', displayName: '表单提交', isMinimal: true }
+      )
+      // form 类型虽然定义了 read/update/delete，但业务逻辑中不使用，所以不显示
+    } else if (templateType === 'chart') {
+      permissions.push(
+        { action: 'function:read', displayName: '图表查看', isMinimal: true }
+      )
+      // chart 类型虽然定义了 write/update/delete，但业务逻辑中不使用，所以不显示
+    } else {
+      permissions.push(
+        { action: 'function:read', displayName: '函数查看', isMinimal: true },
+        { action: 'function:write', displayName: '函数写入', isMinimal: false },
+        { action: 'function:update', displayName: '函数更新', isMinimal: false },
+        { action: 'function:delete', displayName: '函数删除', isMinimal: false }
       )
     }
     
@@ -341,9 +373,9 @@ export function getDefaultSelectedPermissions(
  */
 export const TablePermissions = {
   read: 'function:read',
-  write: 'table:write',
-  update: 'table:update',
-  delete: 'table:delete',
+  write: 'function:write',
+  update: 'function:update',
+  delete: 'function:delete',
   manage: 'function:manage',
 } as const
 
@@ -351,7 +383,7 @@ export const TablePermissions = {
  * 检查 Form 函数的相关权限
  */
 export const FormPermissions = {
-  write: 'form:write',
+  write: 'function:write',
   manage: 'function:manage',
 } as const
 

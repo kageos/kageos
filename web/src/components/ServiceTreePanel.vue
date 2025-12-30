@@ -67,7 +67,17 @@
             </template>
             <!-- 其他类型：显示 fx 文本 -->
             <span v-else class="node-icon fx-icon" :class="getNodeIconClass(data)">fx</span>
-            <span class="node-label">{{ node.label }}</span>
+            <span class="node-label" :class="{ 'no-permission': !hasAnyPermissionForNode(data) }">{{ node.label }}</span>
+            
+            <!-- 无权限标识 - 没有权限的节点显示 -->
+            <el-icon 
+              v-if="!hasAnyPermissionForNode(data)" 
+              class="no-permission-icon" 
+              :title="'该节点没有权限，点击申请权限'"
+              @click.stop="handleNoPermissionClick(data)"
+            >
+              <Lock />
+            </el-icon>
             
             <!-- Hub 标记 - 已发布到 Hub 的目录显示 -->
             <span
@@ -89,7 +99,6 @@
               @mousedown.stop.prevent
               class="node-more-actions"
               @command="(command: string) => handleNodeAction(command, data)"
-              @visible-change="handleDropdownVisibleChange"
             >
               <el-icon 
                 class="more-icon" 
@@ -184,7 +193,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Plus, MoreFilled, Link, CopyDocument, Document, Clock, Upload, Download } from '@element-plus/icons-vue'
+import { Plus, MoreFilled, Link, CopyDocument, Document, Clock, Upload, Download, Lock } from '@element-plus/icons-vue'
 import ChartIcon from './icons/ChartIcon.vue'
 import TableIcon from './icons/TableIcon.vue'
 import FormIcon from './icons/FormIcon.vue'
@@ -199,7 +208,7 @@ import {
   expandPathAndSelect
 } from '@/utils/serviceTreeUtils'
 import { navigateToHubDirectoryDetail } from '@/utils/hub-navigation'
-import { hasPermission, DirectoryPermissions } from '@/utils/permission'
+import { hasPermission, hasAnyPermissionForNode, DirectoryPermissions, TablePermissions } from '@/utils/permission'
 
 interface Props {
   treeData: ServiceTree[]
@@ -560,28 +569,24 @@ const handlePasteHubLink = async (hubLink: string, targetNode?: ServiceTree) => 
 // 直接使用原始树数据，不再进行分组处理
 const groupedTreeData = computed(() => props.treeData)
 
-// 用于跟踪是否正在点击下拉菜单
-const isClickingDropdown = ref(false)
-
-// 处理下拉菜单显示状态变化
-const handleDropdownVisibleChange = (visible: boolean) => {
-  if (visible) {
-    isClickingDropdown.value = true
-  } else {
-    // 延迟重置，确保 node-click 事件已经处理完
-    window.setTimeout(() => {
-      isClickingDropdown.value = false
-    }, 100)
-  }
+// 处理无权限节点点击
+const handleNoPermissionClick = (data: ServiceTree) => {
+  // 跳转到权限申请页面
+  const resourcePath = data.full_code_path
+  const resourceType = data.type === 'package' ? 'directory' : 'function'
+  const templateType = data.template_type
+  
+  // 构建权限申请 URL
+  const defaultAction = resourceType === 'directory' ? 'directory:read' : 'function:read'
+  const url = `/permissions/apply?resource=${encodeURIComponent(resourcePath)}&action=${encodeURIComponent(defaultAction)}`
+  const finalUrl = templateType ? `${url}&templateType=${encodeURIComponent(templateType)}` : url
+  
+  router.push(finalUrl)
 }
 
 const handleNodeClick = (data: ServiceTree) => {
-  // 如果正在点击下拉菜单，不触发 node-click 事件
-  if (isClickingDropdown.value) {
-    isClickingDropdown.value = false
-    return
-  }
   // 直接触发 node-click 事件，让父组件处理路由跳转
+  // ⭐ 下拉菜单的点击已经通过 @click.stop.prevent 阻止了事件冒泡，所以这里不需要额外检查
   emit('node-click', data)
 }
 
@@ -912,6 +917,24 @@ defineExpose({
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    
+    &.no-permission {
+      color: var(--el-text-color-disabled);
+      opacity: 0.6;
+    }
+  }
+  
+  .no-permission-icon {
+    color: var(--el-color-warning);
+    font-size: 14px;
+    margin-left: 4px;
+    cursor: pointer;
+    transition: color 0.2s ease;
+    flex-shrink: 0;
+    
+    &:hover {
+      color: var(--el-color-warning-dark-2);
+    }
   }
   
   .hub-badge {

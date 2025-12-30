@@ -48,6 +48,7 @@ type Server struct {
 	operateLogService             *service.OperateLogService
 	directoryUpdateHistoryService *service.DirectoryUpdateHistoryService
 	permissionService             *service.PermissionService // ⭐ 权限管理服务
+	appRepo                       *repository.AppRepository   // ⭐ 应用仓储（用于权限服务查询 app.id）
 
 	// 上游服务
 	natsService *service.NatsService
@@ -95,18 +96,15 @@ func NewServer(cfg *config.AppServerConfig) (*Server, error) {
 		logger.Warnf(ctx, "[Server] Failed to init license client: %v, continuing with community edition", err)
 	}
 
-	if err := s.initServices(ctx); err != nil {
-		return nil, fmt.Errorf("failed to init services: %w", err)
-	}
-
-	// ⭐ 2. 初始化企业功能（在数据库和 NATS 初始化之后）
+	// ⭐ 2. 初始化企业功能（在数据库和 NATS 初始化之后，在服务初始化之前）
+	// ⭐ 这样 enterprise.GetPermissionService() 就可以在 initServices 中使用了
 	if err := s.initEnterprise(); err != nil {
 		return nil, fmt.Errorf("failed to init enterprise features: %w", err)
 	}
 
-	// ⭐ 初始化权限管理服务（需要在 initEnterprise 之后，因为需要 enterprise.GetPermissionService()）
-	// ⭐ 需要传入 serviceTreeService，用于获取工作空间权限
-	s.permissionService = service.NewPermissionService(enterprise.GetPermissionService(), s.serviceTreeService)
+	if err := s.initServices(ctx); err != nil {
+		return nil, fmt.Errorf("failed to init services: %w", err)
+	}
 
 	if err := s.initRouter(ctx); err != nil {
 		return nil, fmt.Errorf("failed to init router: %w", err)
@@ -376,7 +374,8 @@ func (s *Server) initServices(ctx context.Context) error {
 
 	// 初始化应用服务
 	userRepo := repository.NewUserRepository(s.db)
-	appRepo := repository.NewAppRepository(s.db)
+	s.appRepo = repository.NewAppRepository(s.db) // ⭐ 保存到 Server 结构体，供权限服务使用
+	appRepo := s.appRepo                           // 局部变量，用于传递给其他服务
 	hostRepo := repository.NewHostRepository(s.db)
 	userSessionRepo := repository.NewUserSessionRepository(s.db)
 	functionRepo := repository.NewFunctionRepository(s.db)
@@ -399,8 +398,13 @@ func (s *Server) initServices(ctx context.Context) error {
 	// 初始化函数生成服务
 	s.functionGenService = service.NewFunctionGenService(s.appService, serviceTreeRepo, appRepo)
 
+	// ⭐ 初始化权限管理服务（需要在 initEnterprise 之后，因为需要 enterprise.GetPermissionService()）
+	// ⭐ 需要传入 casbinRuleRepo、appRepo，用于查询权限记录和填充 app_id
+	casbinRuleRepo := repository.NewCasbinRuleRepository(s.db)
+	s.permissionService = service.NewPermissionService(enterprise.GetPermissionService(), casbinRuleRepo, s.appRepo)
+
 	// 初始化服务目录服务（包含目录管理功能：copy、create、remove）
-	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appRuntime, fileSnapshotRepo, s.appService, s.functionGenService)
+	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appRuntime, fileSnapshotRepo, s.appService, s.functionGenService, s.permissionService)
 
 	// 初始化函数服务
 	s.functionService = service.NewFunctionService(functionRepo, appRepo)
