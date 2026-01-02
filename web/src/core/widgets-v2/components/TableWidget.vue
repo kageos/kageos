@@ -321,13 +321,132 @@
         </template>
       </el-drawer>
     </template>
+    
+    <!-- 导入对话框 -->
+    <el-dialog
+      v-model="importDialogVisible"
+      title="批量导入"
+      width="80%"
+      :close-on-click-modal="false"
+      destroy-on-close
+    >
+      <template #default>
+        <div class="import-dialog-content">
+          <!-- 步骤1: 选择文件 -->
+          <div v-if="!importFile" class="import-step">
+            <h3>步骤 1: 选择 Excel 文件</h3>
+            <el-upload
+              :auto-upload="false"
+              :on-change="handleFileSelect"
+              :show-file-list="false"
+              accept=".xlsx,.xls"
+            >
+              <el-button type="primary">
+                <el-icon><Upload /></el-icon>
+                选择文件
+              </el-button>
+            </el-upload>
+            <div style="margin-top: 16px;">
+              <el-button
+                type="text"
+                @click="handleDownloadTemplate"
+                :loading="downloadingTemplate"
+              >
+                <el-icon><Download /></el-icon>
+                下载导入模板
+              </el-button>
+            </div>
+          </div>
+          
+          <!-- 步骤2: 预览数据 -->
+          <div v-else class="import-step">
+            <h3>步骤 2: 预览数据</h3>
+            <div class="import-info">
+              <p>文件: {{ importFile.name }}</p>
+              <p>共解析 {{ importData.length }} 条数据</p>
+              <p v-if="importErrors.length > 0" style="color: #f56c6c;">
+                发现 {{ importErrors.length }} 个错误
+              </p>
+            </div>
+            
+            <!-- 错误列表 -->
+            <el-alert
+              v-if="importErrors.length > 0"
+              type="error"
+              :closable="false"
+              style="margin-bottom: 16px;"
+            >
+              <template #title>
+                <div>
+                  <p>数据验证失败，请修正以下错误：</p>
+                  <ul style="margin: 8px 0 0 20px;">
+                    <li v-for="error in importErrors" :key="`${error.index}-${error.field}`">
+                      第 {{ error.index + 1 }} 行，字段 "{{ error.field }}": {{ error.error }}
+                    </li>
+                  </ul>
+                </div>
+              </template>
+            </el-alert>
+            
+            <!-- 数据预览表格 -->
+            <el-table
+              :data="importData"
+              max-height="400"
+              border
+              stripe
+            >
+              <el-table-column type="index" label="行号" width="60" />
+              <el-table-column
+                v-for="field in itemFields"
+                :key="field.code"
+                :prop="field.code"
+                :label="field.name"
+                :min-width="120"
+              >
+                <template #default="{ row, $index }">
+                  <span
+                    :class="{
+                      'error-cell': importErrors.some(e => e.index === $index && e.field === field.code)
+                    }"
+                  >
+                    {{ row[field.code] ?? '' }}
+                  </span>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </div>
+      </template>
+      
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="importDialogVisible = false">取消</el-button>
+          <el-button
+            v-if="importFile"
+            @click="handleReSelectFile"
+          >
+            重新选择
+          </el-button>
+          <el-button
+            v-if="importFile && importErrors.length === 0"
+            type="primary"
+            @click="handleSubmitImport"
+            :loading="importing"
+          >
+            确认导入
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, defineComponent, ref } from 'vue'
-import { ElTable, ElTableColumn, ElButton, ElDrawer, ElCard, ElIcon } from 'element-plus'
+import { ElTable, ElTableColumn, ElButton, ElDrawer, ElCard, ElIcon, ElDialog, ElUpload, ElAlert, ElMessage } from 'element-plus'
 import { Upload, Download, View } from '@element-plus/icons-vue'
+import * as XLSX from 'xlsx'
+import { download, post } from '@/utils/request'
 import type { WidgetComponentProps, WidgetComponentEmits } from '../types'
 import { useTableWidget } from '../composables/useTableWidget'
 import { useTableEditMode } from '../composables/useTableEditMode'
@@ -708,9 +827,358 @@ function updateFieldErrors(
   }
 }
 
-// 处理导入（待实现）
+// 导入相关状态
+const importDialogVisible = ref(false)
+const importFile = ref<File | null>(null)
+const importData = ref<any[]>([])
+const importErrors = ref<Array<{ index: number; field: string; error: string }>>([])
+const importing = ref(false)
+const downloadingTemplate = ref(false)
+
+// 处理导入
 function handleImport(): void {
-  Logger.warn('TableWidget', '导入功能待实现')
+  importDialogVisible.value = true
+  importFile.value = null
+  importData.value = []
+  importErrors.value = []
+}
+
+// 下载模板
+async function handleDownloadTemplate(): Promise<void> {
+  const functionDetail = props.formRenderer?.getFunctionDetail?.()
+  if (!functionDetail?.router) {
+    ElMessage.error('无法获取函数路由，无法下载模板')
+    return
+  }
+  
+  downloadingTemplate.value = true
+  try {
+    const fullCodePath = functionDetail.router.startsWith('/') ? functionDetail.router : `/${functionDetail.router}`
+    await download(`/workspace/api/v1/table/template${fullCodePath}`)
+    ElMessage.success('模板下载成功')
+  } catch (error: any) {
+    ElMessage.error(`下载模板失败: ${error.message || '未知错误'}`)
+  } finally {
+    downloadingTemplate.value = false
+  }
+}
+
+// 选择文件
+function handleFileSelect(file: any): void {
+  const rawFile = file.raw
+  if (!rawFile) return
+  
+  importFile.value = rawFile
+  
+  // 解析 Excel
+  parseExcelFile(rawFile)
+}
+
+// 解析 Excel 文件
+function parseExcelFile(file: File): void {
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    try {
+      const data = new Uint8Array(e.target?.result as ArrayBuffer)
+      const workbook = XLSX.read(data, { type: 'array' })
+      
+      // 获取第一个工作表
+      const firstSheetName = workbook.SheetNames[0]
+      const worksheet = workbook.Sheets[firstSheetName]
+      
+      // 转换为 JSON（第一行作为键名）
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' })
+      
+      if (jsonData.length < 3) {
+        ElMessage.error('Excel 文件格式错误：至少需要 3 行（字段名称、字段代码、示例数据）')
+        return
+      }
+      
+      // 第一行：字段名称（中文）
+      // 第二行：字段代码（英文，用于映射）
+      // 第三行：示例数据
+      // 第四行开始：数据行
+      const fieldNames = jsonData[0] as string[]
+      const fieldCodes = jsonData[1] as string[]
+      const dataRows = jsonData.slice(3) as any[][]
+      
+      // 构建字段映射（字段代码 -> 列索引）
+      const fieldCodeMap = new Map<string, number>()
+      fieldCodes.forEach((code, index) => {
+        if (code) {
+          fieldCodeMap.set(code, index)
+        }
+      })
+      
+      // 转换数据
+      const convertedData: any[] = []
+      const errors: Array<{ index: number; field: string; error: string }> = []
+      
+      dataRows.forEach((row, rowIndex) => {
+        // 跳过空行
+        if (row.every(cell => !cell || cell.toString().trim() === '')) {
+          return
+        }
+        
+        const rowData: any = {}
+        let hasError = false
+        
+        // 根据字段代码映射数据
+        itemFields.value.forEach((field) => {
+          const colIndex = fieldCodeMap.get(field.code)
+          if (colIndex !== undefined && colIndex < row.length) {
+            const cellValue = row[colIndex]
+            // 转换数据类型
+            const convertedValue = convertFieldValue(field, cellValue)
+            rowData[field.code] = convertedValue
+            
+            // 验证数据
+            const validationError = validateFieldValue(field, convertedValue)
+            if (validationError) {
+              errors.push({
+                index: convertedData.length, // 使用 convertedData 的长度作为索引（实际数据行号）
+                field: field.name,
+                error: validationError
+              })
+              hasError = true
+            }
+          } else if (isFieldRequired(field)) {
+            // 必填字段缺失
+            errors.push({
+              index: convertedData.length, // 使用 convertedData 的长度作为索引（实际数据行号）
+              field: field.name,
+              error: '必填字段不能为空'
+            })
+            hasError = true
+          }
+        })
+        
+        if (!hasError || Object.keys(rowData).length > 0) {
+          convertedData.push(rowData)
+        }
+      })
+      
+      importData.value = convertedData
+      importErrors.value = errors
+      
+      if (errors.length > 0) {
+        ElMessage.warning(`解析完成，发现 ${errors.length} 个错误，请修正后重新导入`)
+      } else {
+        ElMessage.success(`解析完成，共 ${convertedData.length} 条有效数据`)
+      }
+    } catch (error: any) {
+      ElMessage.error(`解析 Excel 文件失败: ${error.message || '未知错误'}`)
+      Logger.error('TableWidget', '解析 Excel 失败', error)
+    }
+  }
+  reader.readAsArrayBuffer(file)
+}
+
+// 转换字段值（根据 data.type 转换，只使用 widget.go 中定义的数据类型）
+// 注意：这个函数应该使用 excelImport.ts 中的 convertFieldValue，保持一致性
+// 这里保留是为了兼容，但建议统一使用 excelImport.ts
+function convertFieldValue(field: FieldConfig, value: any): any {
+  if (value === null || value === undefined || value === '') {
+    return null
+  }
+  
+  const dataType = (field.data as any)?.type || 'string'
+  const widgetType = field.widget?.type || 'input'
+  
+  // 根据 data.type 转换数据类型（只使用 widget.go 中定义的类型）
+  switch (dataType) {
+    case 'int':
+      const num = Number(value)
+      return isNaN(num) ? null : num
+      
+    case 'float':
+      const floatNum = Number(value)
+      return isNaN(floatNum) ? null : floatNum
+      
+    case 'bool':
+      if (typeof value === 'boolean') return value
+      if (typeof value === 'string') {
+        const lower = value.toLowerCase()
+        return lower === 'true' || lower === '1' || lower === '是' || lower === 'yes'
+      }
+      return Boolean(value)
+      
+    case '[]string':
+      // 字符串数组：支持逗号分隔的字符串
+      if (Array.isArray(value)) return value
+      if (typeof value === 'string') {
+        return value.split(',').map(v => v.trim()).filter(Boolean)
+      }
+      return [value]
+      
+    case '[]int':
+      // 整数数组：支持逗号分隔的字符串，转换为数字数组
+      if (Array.isArray(value)) {
+        return value.map(v => {
+          const num = Number(v)
+          return isNaN(num) ? null : num
+        }).filter(v => v !== null)
+      }
+      if (typeof value === 'string') {
+        return value.split(',').map(v => {
+          const num = Number(v.trim())
+          return isNaN(num) ? null : num
+        }).filter(v => v !== null)
+      }
+      return [Number(value)]
+      
+    case '[]float':
+      // 浮点数数组：支持逗号分隔的字符串，转换为浮点数数组
+      if (Array.isArray(value)) {
+        return value.map(v => {
+          const num = Number(v)
+          return isNaN(num) ? null : num
+        }).filter(v => v !== null)
+      }
+      if (typeof value === 'string') {
+        return value.split(',').map(v => {
+          const num = Number(v.trim())
+          return isNaN(num) ? null : num
+        }).filter(v => v !== null)
+      }
+      return [Number(value)]
+      
+    case 'string':
+    default:
+      // 字符串类型：保持原样，但如果是 multiselect widget，需要特殊处理
+      if (widgetType === 'multiselect') {
+        // multiselect 但 data.type 是 string，需要转换为逗号分隔的字符串
+        if (Array.isArray(value)) {
+          return value.join(',')
+        }
+        if (typeof value === 'string') {
+          // 已经是字符串，直接返回
+          return value
+        }
+      }
+      // timestamp widget 也保持字符串格式（日期时间字符串）
+      return value.toString()
+  }
+}
+
+// 验证字段值
+function validateFieldValue(field: FieldConfig, value: any): string | null {
+  // 必填验证
+  if (isFieldRequired(field)) {
+    if (value === null || value === undefined || value === '' || 
+        (Array.isArray(value) && value.length === 0)) {
+      return '必填字段不能为空'
+    }
+  }
+  
+  // 类型验证
+  const dataType = (field.data as any)?.type || 'string'
+  const widgetType = field.widget?.type || 'input'
+  
+  if (value !== null && value !== undefined && value !== '') {
+    switch (widgetType) {
+      case 'number':
+      case 'float':
+        if (isNaN(Number(value))) {
+          return '必须是数字'
+        }
+        break
+        
+      case 'switch':
+        if (typeof value !== 'boolean') {
+          return '必须是布尔值'
+        }
+        break
+    }
+  }
+  
+  // 长度验证
+  const validation = field.validation
+  if (validation && typeof value === 'string') {
+    if (validation.includes('min=')) {
+      const minMatch = validation.match(/min=(\d+)/)
+      if (minMatch && value.length < Number(minMatch[1])) {
+        return `长度不能少于 ${minMatch[1]} 个字符`
+      }
+    }
+    if (validation.includes('max=')) {
+      const maxMatch = validation.match(/max=(\d+)/)
+      if (maxMatch && value.length > Number(maxMatch[1])) {
+        return `长度不能超过 ${maxMatch[1]} 个字符`
+      }
+    }
+  }
+  
+  return null
+}
+
+// 检查字段是否必填
+function isFieldRequired(field: FieldConfig): boolean {
+  return field.validation?.includes('required') || false
+}
+
+// 重新选择文件
+function handleReSelectFile(): void {
+  importFile.value = null
+  importData.value = []
+  importErrors.value = []
+}
+
+// 提交导入
+async function handleSubmitImport(): Promise<void> {
+  if (importData.value.length === 0) {
+    ElMessage.warning('没有可导入的数据')
+    return
+  }
+  
+  const functionDetail = props.formRenderer?.getFunctionDetail?.()
+  if (!functionDetail?.router) {
+    ElMessage.error('无法获取函数路由，无法导入数据')
+    return
+  }
+  
+  importing.value = true
+  try {
+    const fullCodePath = functionDetail.router.startsWith('/') ? functionDetail.router : `/${functionDetail.router}`
+    const response = await post(`/workspace/api/v1/table/batch-create${fullCodePath}`, {
+      data: importData.value
+    })
+    
+    if (response.code === 0) {
+      const result = response.data || {}
+      const successCount = result.success_count || 0
+      const failCount = result.fail_count || 0
+      
+      if (failCount > 0) {
+        ElMessage.warning(`导入完成：成功 ${successCount} 条，失败 ${failCount} 条`)
+        // 显示失败详情
+        if (result.errors && result.errors.length > 0) {
+          const errorMsg = result.errors.map((e: any) => `第 ${e.index + 1} 行: ${e.error}`).join('\n')
+          ElMessage.error(`失败详情:\n${errorMsg}`)
+        }
+      } else {
+        ElMessage.success(`成功导入 ${successCount} 条数据`)
+      }
+      
+      // 关闭对话框
+      importDialogVisible.value = false
+      
+      // 刷新表格数据（触发父组件刷新）
+      emit('update:modelValue', {
+        ...props.value,
+        raw: null, // 触发重新加载
+        display: props.value.display,
+        meta: props.value.meta
+      })
+    } else {
+      ElMessage.error(response.msg || '导入失败')
+    }
+  } catch (error: any) {
+    ElMessage.error(`导入失败: ${error.message || '未知错误'}`)
+    Logger.error('TableWidget', '导入失败', error)
+  } finally {
+    importing.value = false
+  }
 }
 
 // 处理导出（待实现）
@@ -782,6 +1250,43 @@ defineExpose({
 
 .table-cell-value {
   color: var(--el-text-color-regular);
+}
+
+.import-dialog-content {
+  padding: 16px 0;
+}
+
+.import-step {
+  margin-bottom: 24px;
+}
+
+.import-step h3 {
+  margin-bottom: 16px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.import-info {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #f5f7fa;
+  border-radius: 4px;
+}
+
+.import-info p {
+  margin: 4px 0;
+  font-size: 14px;
+}
+
+.error-cell {
+  color: #f56c6c;
+  font-weight: 500;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .table-cell-button {

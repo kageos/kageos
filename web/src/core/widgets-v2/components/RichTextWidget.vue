@@ -749,82 +749,101 @@ const editor = useEditor({
     // 特别处理：检测粘贴的文件（任意类型），自动上传而不是使用 base64
     handlePaste: async (view, event, slice) => {
       const clipboardData = event.clipboardData
+      
+      // 如果没有 clipboardData，让 TipTap 使用默认处理
       if (!clipboardData) {
         return false
       }
       
-      // 检测是否有文件（任意类型）
-      const items = Array.from(clipboardData.items)
-      const fileItems = items.filter(item => item.kind === 'file')
-      
-      if (fileItems.length > 0) {
-        // 阻止默认粘贴行为
-        event.preventDefault()
+      try {
+        // 检测是否有文件（任意类型）
+        const items = Array.from(clipboardData.items || [])
+        const fileItems = items.filter(item => item.kind === 'file')
         
-        // 处理每个文件
-        for (const item of fileItems) {
-          const file = item.getAsFile()
-          if (!file) continue
+        // 如果有文件，处理文件上传
+        if (fileItems.length > 0) {
+          // 阻止默认粘贴行为
+          event.preventDefault()
           
-          try {
-            // 显示上传提示
-            ElMessage.info(`正在上传 ${file.name}...`)
+          // 处理每个文件
+          for (const item of fileItems) {
+            const file = item.getAsFile()
+            if (!file) continue
             
-            // 上传文件
-            const uploadResult = await uploadFile(
-              fileUploadRouter.value,
-              file,
-              () => {} // 粘贴上传不显示进度
-            )
-            
-            // 通知后端上传完成
-            if (uploadResult.fileInfo) {
-              const downloadUrl = await notifyUploadComplete({
-                key: uploadResult.fileInfo.key,
-                success: true,
-                router: uploadResult.fileInfo.router,
-                file_name: uploadResult.fileInfo.file_name,
-                file_size: uploadResult.fileInfo.file_size,
-                content_type: uploadResult.fileInfo.content_type,
-                hash: uploadResult.fileInfo.hash,
-              })
+            try {
+              // 显示上传提示
+              ElMessage.info(`正在上传 ${file.name}...`)
               
-              if (downloadUrl && editor.value) {
-                // 判断文件类型并插入
-                const isImage = file.type.startsWith('image/')
-                const isVideo = file.type.startsWith('video/')
+              // 上传文件
+              const uploadResult = await uploadFile(
+                fileUploadRouter.value,
+                file,
+                () => {} // 粘贴上传不显示进度
+              )
+              
+              // 通知后端上传完成
+              if (uploadResult.fileInfo) {
+                const downloadUrl = await notifyUploadComplete({
+                  key: uploadResult.fileInfo.key,
+                  success: true,
+                  router: uploadResult.fileInfo.router,
+                  file_name: uploadResult.fileInfo.file_name,
+                  file_size: uploadResult.fileInfo.file_size,
+                  content_type: uploadResult.fileInfo.content_type,
+                  hash: uploadResult.fileInfo.hash,
+                })
                 
-                if (isImage) {
-                  // 图片：插入为图片
-                  editor.value.chain().focus().setImage({ src: downloadUrl, alt: file.name }).run()
-                } else if (isVideo) {
-                  // 视频：插入为视频
-                  editor.value.chain().focus().setVideo({ 
-                    src: downloadUrl,
-                    alt: file.name,
-                    controls: true
-                  }).run()
+                if (downloadUrl && editor.value) {
+                  // 判断文件类型并插入
+                  const isImage = file.type.startsWith('image/')
+                  const isVideo = file.type.startsWith('video/')
+                  
+                  if (isImage) {
+                    // 图片：插入为图片
+                    editor.value.chain().focus().setImage({ src: downloadUrl, alt: file.name }).run()
+                  } else if (isVideo) {
+                    // 视频：插入为视频
+                    editor.value.chain().focus().setVideo({ 
+                      src: downloadUrl,
+                      alt: file.name,
+                      controls: true
+                    }).run()
+                  } else {
+                    // 其他文件：插入为链接
+                    editor.value.chain().focus().setLink({ href: downloadUrl }).insertContent(file.name).run()
+                  }
+                  
+                  ElMessage.success(`${file.name} 上传成功`)
                 } else {
-                  // 其他文件：插入为链接
-                  editor.value.chain().focus().setLink({ href: downloadUrl }).insertContent(file.name).run()
+                  throw new Error('获取下载地址失败')
                 }
-                
-                ElMessage.success(`${file.name} 上传成功`)
-              } else {
-                throw new Error('获取下载地址失败')
               }
+            } catch (error: any) {
+              Logger.error('RichTextWidget', '粘贴文件上传失败', error)
+              ElMessage.error(`上传 ${file.name} 失败: ${error?.message || '未知错误'}`)
             }
-          } catch (error: any) {
-            Logger.error('RichTextWidget', '粘贴文件上传失败', error)
-            ElMessage.error(`上传 ${file.name} 失败: ${error?.message || '未知错误'}`)
           }
+          
+          return true // 已处理，阻止默认行为
         }
         
-        return true // 已处理，阻止默认行为
+        // 如果没有文件，处理文本粘贴
+        // 使用 slice 参数直接插入内容（TipTap 已经处理好了格式转换）
+        if (slice && slice.content && editor.value) {
+          // 使用 slice 插入内容，TipTap 会自动处理 Markdown 转换、HTML 清理等
+          const { state, dispatch } = view
+          const transaction = view.state.tr.replaceSelection(slice)
+          dispatch(transaction)
+          return true // 已处理
+        }
+        
+        // 如果 slice 为空，让 TipTap 使用默认处理
+        return false
+      } catch (error: any) {
+        // 如果处理过程中出错，记录错误但让 TipTap 使用默认处理
+        Logger.error('RichTextWidget', '粘贴处理失败', error)
+        return false
       }
-      
-      // 返回 false 让 TipTap 使用默认处理（Markdown 等）
-      return false
     },
     // 支持拖拽粘贴文件（任意类型），自动上传
     handleDrop: async (view, event, slice, moved) => {

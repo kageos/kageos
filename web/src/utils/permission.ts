@@ -101,6 +101,7 @@ export interface PermissionInfo {
 /**
  * 检查节点是否有指定权限
  * ⭐ 优化：优先从权限缓存中获取，如果没有则从节点本身的 permissions 字段获取
+ * ⭐ 支持权限层级关系：manage 权限包含所有其他权限
  * @param node 服务树节点
  * @param action 权限点（如 table:search、function:manage）
  * @returns 是否有权限
@@ -111,31 +112,46 @@ export function hasPermission(node: ServiceTree | undefined, action: string): bo
     return true
   }
 
-  // ⭐ 优先从权限缓存中获取
+  // 获取权限对象（优先从缓存获取，否则从节点获取）
   const permissionStore = useNodePermissionsStore()
   const cachedPermissions = permissionStore.getPermissions(node)
-  if (cachedPermissions) {
-    // 如果缓存中有权限信息，检查是否有该权限
-    // 如果缓存中没有该权限点，说明权限信息不完整，默认返回 true（向后兼容）
-    if (action in cachedPermissions) {
-      return cachedPermissions[action] === true
-    }
-    // 如果缓存中没有该权限点，默认返回 true（向后兼容，避免权限信息不完整时按钮消失）
+  const permissions = cachedPermissions || node.permissions
+
+  if (!permissions) {
+    // 如果都没有，默认返回 true（向后兼容）
     return true
   }
 
-  // 如果没有缓存，从节点本身的 permissions 字段获取（向后兼容）
-  if (node.permissions) {
-    // 如果节点有权限信息，检查是否有该权限
-    // 如果节点权限信息中没有该权限点，默认返回 true（向后兼容）
-    if (action in node.permissions) {
-      return node.permissions[action] === true
+  // 直接检查该权限
+  if (action in permissions) {
+    if (permissions[action] === true) {
+      return true
     }
-    // 如果节点权限信息中没有该权限点，默认返回 true（向后兼容）
-    return true
   }
 
-  // 如果都没有，默认返回 true（向后兼容）
+  // ⭐ 权限层级关系：如果有 manage 权限，自动拥有所有相关权限
+  // directory:manage 包含 directory:read、directory:write、directory:update、directory:delete、directory:create
+  if (action.startsWith('directory:')) {
+    if (permissions['directory:manage'] === true) {
+      return true
+    }
+  }
+
+  // function:manage 包含 function:read、function:write、function:update、function:delete
+  if (action.startsWith('function:')) {
+    if (permissions['function:manage'] === true) {
+      return true
+    }
+  }
+
+  // app:manage 包含 app:read、app:create、app:update、app:delete、app:deploy
+  if (action.startsWith('app:')) {
+    if (permissions['app:manage'] === true) {
+      return true
+    }
+  }
+
+  // 如果权限信息中没有该权限点，默认返回 true（向后兼容，避免权限信息不完整时按钮消失）
   return true
 }
 

@@ -89,9 +89,24 @@ func (r *FunctionRepository) FunctionExists(appID int64, method, router string) 
 }
 
 // GetFunctionByKey 根据app_id、method、router获取函数
+// ⚠️ 注意：router 存储的是 full-code-path，已经包含了 user 和 app 信息
+// 但为了兼容性和明确性，仍然保留 appID 参数（虽然可以通过 router 推导出来）
 func (r *FunctionRepository) GetFunctionByKey(appID int64, method, router string) (*model.Function, error) {
 	var function model.Function
 	err := r.db.Where("app_id = ? AND method = ? AND router = ?", appID, method, router).
+		First(&function).Error
+	if err != nil {
+		return nil, err
+	}
+	return &function, nil
+}
+
+// GetFunctionByFullCodePath 根据 full-code-path 获取函数
+// fullCodePath 存储的是完整的路径（如 /luobei/operations/tools/pdftools/to_images），已经包含了 user 和 app 信息
+// full-code-path 是全局唯一的，不需要 method 参数
+func (r *FunctionRepository) GetFunctionByFullCodePath(fullCodePath string) (*model.Function, error) {
+	var function model.Function
+	err := r.db.Where("router = ?", fullCodePath).
 		First(&function).Error
 	if err != nil {
 		return nil, err

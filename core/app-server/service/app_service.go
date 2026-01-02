@@ -860,6 +860,23 @@ func (a *AppService) GetAppDetail(ctx context.Context, req *dto.GetAppDetailReq)
 	}, nil
 }
 
+// GetAppByUserName 根据用户名和应用名获取应用信息
+func (a *AppService) GetAppByUserName(ctx context.Context, user, app string) (*model.App, error) {
+	return a.appRepo.GetAppByUserName(user, app)
+}
+
+// GetFunctionByFullCodePath 根据 full-code-path 获取函数信息
+// fullCodePath 参数应该是完整的路径（如 /luobei/operations/tools/pdftools/to_images）
+// full-code-path 是全局唯一的，不需要 method 参数
+func (a *AppService) GetFunctionByFullCodePath(ctx context.Context, fullCodePath string) (*model.Function, error) {
+	function, err := a.functionRepo.GetFunctionByFullCodePath(fullCodePath)
+	if err != nil {
+		return nil, fmt.Errorf("获取函数信息失败: %w", err)
+	}
+
+	return function, nil
+}
+
 // createDirectorySnapshots 创建目录快照（检测目录变更并创建快照）
 func (a *AppService) createDirectorySnapshots(ctx context.Context, appID int64, app *model.App, diffData *dto.DiffData, req *dto.UpdateAppReq, duration int64, gitCommitHash string) error {
 	// 构建 summary：优先使用 Summary，如果没有则组合 Requirement 和 ChangeDescription

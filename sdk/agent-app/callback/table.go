@@ -150,3 +150,21 @@ func (c *OnTableUpdateRowReq) BindUpdates(target interface{}) error {
 
 type OnTableUpdateRowResp struct {
 }
+
+// OnTableCreateInBatchesReq 批量创建请求
+type OnTableCreateInBatchesReq struct {
+	Data []map[string]interface{} `json:"data"` // 批量数据数组
+}
+
+// OnTableCreateInBatchesResp 批量创建响应
+type OnTableCreateInBatchesResp struct {
+	SuccessCount int                      `json:"success_count"` // 成功数量
+	FailCount    int                      `json:"fail_count"`    // 失败数量
+	Errors       []OnTableCreateBatchError `json:"errors"`       // 错误详情
+}
+
+// OnTableCreateBatchError 批量创建错误信息
+type OnTableCreateBatchError struct {
+	Index int    `json:"index"` // 数据索引（从0开始）
+	Error string `json:"error"` // 错误信息
+}
