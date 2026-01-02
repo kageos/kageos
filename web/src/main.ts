@@ -14,7 +14,7 @@ import router from './router'
 import { useAuthStore } from './stores/auth'
 import { useThemeStore } from './stores/theme'
 import { useUserInfoStore } from './stores/userInfo'
-import { registerWidgetInitializers } from './core/widgets-v2/initializers/registerInitializers'
+import { registerWidgetInitializers } from './architecture/presentation/widgets/initializers/registerInitializers'
 
 const app = createApp(App)
 const pinia = createPinia()

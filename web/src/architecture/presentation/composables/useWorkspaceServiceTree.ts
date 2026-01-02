@@ -12,14 +12,17 @@ import { useRoute } from 'vue-router'
 import { extractWorkspacePath } from '@/utils/route'
 import { ElNotification } from 'element-plus'
 import { serviceFactory } from '../../infrastructure/factories'
+import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import { createServiceTree } from '@/api/service-tree'
 import type { ServiceTree as ServiceTreeType, CreateServiceTreeRequest } from '@/types'
 import type { App } from '../../domain/services/WorkspaceDomainService'
 import ServiceTreePanel from '@/components/ServiceTreePanel.vue'
 
-export function useWorkspaceServiceTree() {
+export function useWorkspaceServiceTree(
+  serviceProvider: IServiceProvider = serviceFactory  // 🔥 通过参数注入，提高可测试性
+) {
   const route = useRoute()
-  const applicationService = serviceFactory.getWorkspaceApplicationService()
+  const applicationService = serviceProvider.getWorkspaceApplicationService()
 
   // 创建目录对话框状态
   const createDirectoryDialogVisible = ref(false)

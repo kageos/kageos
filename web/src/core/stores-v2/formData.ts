@@ -60,12 +60,27 @@ export const useFormDataStore = defineStore('formData-v2', () => {
       const fieldPath = basePath ? `${basePath}.${field.code}` : field.code
       
       // 🔥 使用提取器注册表提取字段值（即使字段不存在也会尝试从原始数据中提取）
+      const fieldValue = data.get(fieldPath)
       const extractedValue = extractorRegistry.extractField(field, fieldPath, (path: string) => {
         return data.get(path)
       })
       
+      // 🔥 调试日志：检查字段值提取（仅对必填字段）
+      if (field.validation && field.validation.includes('required')) {
+        console.log('[getSubmitData] 必填字段提取', {
+          fieldCode: field.code,
+          fieldPath,
+          fieldValue,
+          extractedValue,
+          extractedValueType: typeof extractedValue,
+          isUndefined: extractedValue === undefined,
+          isNull: extractedValue === null
+        })
+      }
+      
       // 🔥 对于 form 和 table 类型，即使提取的值是空对象或空数组，也要添加到结果中
       // 对于其他类型，只有当提取的值不为 undefined 时才添加
+      // ⚠️ 注意：null 值也要添加到结果中，让后端可以正确验证必填字段
       if (extractedValue !== undefined) {
         result[field.code] = extractedValue
       } else if (field.widget?.type === 'form') {
@@ -75,6 +90,8 @@ export const useFormDataStore = defineStore('formData-v2', () => {
         // 🔥 table 类型字段，即使没有值也要返回空数组，保持结构完整
         result[field.code] = []
       }
+      // 🔥 其他类型字段如果没有值（extractedValue === undefined），不添加到结果中
+      // 这样后端可以正确验证必填字段（如果字段不在提交数据中，后端会报错）
     })
     
     return result

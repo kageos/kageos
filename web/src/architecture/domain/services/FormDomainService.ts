@@ -19,6 +19,7 @@ import { FormEvent } from '../interfaces/IEventBus'
 import type { FieldConfig, FieldValue } from '../types'
 import { ValidationEngine, createDefaultValidatorRegistry } from '@/core/validation'
 import type { ReactiveFormDataManager } from '@/core/managers/ReactiveFormDataManager'
+import { Logger } from '@/core/utils/logger'
 
 /**
  * 验证结果类型（简化，实际应该从 validation 导入）
@@ -79,6 +80,12 @@ export class FormDomainService {
    * 初始化表单
    */
   initializeForm(fields: FieldConfig[], initialData?: Record<string, any>): void {
+    Logger.debug('FormDomainService', 'initializeForm 被调用', {
+      fieldsCount: fields.length,
+      fieldCodes: fields.map(f => f.code),
+      initialDataKeys: initialData ? Object.keys(initialData) : []
+    })
+    
     // 更新字段配置
     this.fields = fields
 
@@ -140,22 +147,36 @@ export class FormDomainService {
       submitting: false
     })
 
+    Logger.debug('FormDomainService', 'initializeForm 完成', {
+      fieldsCount: fields.length,
+      newDataSize: newData.size,
+      newDataKeys: Array.from(newData.keys())
+    })
+
     // 触发事件
     this.eventBus.emit(FormEvent.initialized, { fields, data: newData })
   }
 
   /**
    * 更新字段值
+   * 🔥 移除实时验证，只在提交时验证
+   * 🔥 更新字段值时，立即清除该字段的所有错误，避免显示过时的错误消息
    */
   updateFieldValue(fieldCode: string, value: FieldValue): void {
     const state = this.stateManager.getState()
     const newData = new Map(state.data)
     newData.set(fieldCode, value)
 
+    // 🔥 更新字段值时，立即清除该字段的所有错误（不进行实时验证）
+    // 验证只在提交时进行，避免在输入/选择时显示错误
+    const newErrors = new Map(state.errors)
+    newErrors.delete(fieldCode)  // 清除该字段的所有错误
+
     // 更新状态
     this.stateManager.setState({ 
       ...state,
-      data: newData 
+      data: newData,
+      errors: newErrors  // 🔥 使用清除后的错误 Map
     })
 
     // 处理字段依赖

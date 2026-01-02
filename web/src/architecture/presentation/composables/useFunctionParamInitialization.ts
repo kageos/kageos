@@ -12,17 +12,17 @@
 
 import { ref, computed, type ComputedRef } from 'vue'
 import { useRoute } from 'vue-router'
-import type { FunctionDetail, FieldConfig } from '../../../core/types/field'
-import type { FieldValue } from '../../../core/types/field'
-import { widgetInitializerRegistry } from '../../../core/widgets-v2/initializers/WidgetInitializerRegistry'
-import type { WidgetInitContext } from '../../../core/widgets-v2/interfaces/IWidgetInitializer'
+import type { FunctionDetail, FieldConfig } from '../../domain/types'
+import type { FieldValue } from '../../domain/types'
+import { widgetInitializerRegistry } from '../../presentation/widgets/initializers/WidgetInitializerRegistry'
+import type { WidgetInitContext } from '../../presentation/widgets/interfaces/IWidgetInitializer'
 import { eventBus, FormEvent } from '../../infrastructure/eventBus'
-import { Logger } from '../../../core/utils/logger'
-import { getWidgetDefaultValue } from '../../../core/widgets-v2/composables/useWidgetDefaultValue'
+import { Logger } from '@/core/utils/logger'
+import { getWidgetDefaultValue } from '../../presentation/widgets/composables/useWidgetDefaultValue'
 import { useAuthStore } from '@/stores/auth'
-import { FieldValueMeta, FieldCallback } from '../../../core/constants/field'
-import { DataType } from '../../../core/constants/widget'
-import { convertValueByFieldType } from '../../../core/widgets-v2/utils/typeConverter'
+import { FieldValueMeta, FieldCallback } from '@/core/constants/field'
+import { DataType } from '@/core/constants/widget'
+import { convertValueByFieldType } from '../../presentation/widgets/utils/typeConverter'
 
 /**
  * 初始化源接口
@@ -76,12 +76,13 @@ class URLParamsInitSource implements InitSource {
     console.log('🔍 [URLParamsInitSource] 开始初始化', {
       queryKeys: Object.keys(query),
       queryCount: Object.keys(query).length,
-      requestFieldsCount: (functionDetail.request || []).length
+      requestFieldsCount: (Array.isArray(functionDetail.request) ? functionDetail.request : []).length
     })
     
     // 从 URL 解析参数
     const formData: Record<string, FieldValue> = {}
-    const requestFields = functionDetail.request || []
+    // 🔥 确保 requestFields 是数组，防止类型错误
+    const requestFields = Array.isArray(functionDetail.request) ? functionDetail.request : []
     
     requestFields.forEach(field => {
       const queryValue = query[field.code]
@@ -171,13 +172,14 @@ class DefaultInitSource implements InitSource {
     const { functionDetail, currentFormData } = context
     
     console.log('🔍 [DefaultInitSource] 开始初始化', {
-      requestFieldsCount: (functionDetail.request || []).length,
+      requestFieldsCount: (Array.isArray(functionDetail.request) ? functionDetail.request : []).length,
       currentFormDataKeys: Object.keys(currentFormData),
       currentFormDataCount: Object.keys(currentFormData).length
     })
     
     const formData: Record<string, FieldValue> = {}
-    const requestFields = functionDetail.request || []
+    // 🔥 确保 requestFields 是数组，防止类型错误
+    const requestFields = Array.isArray(functionDetail.request) ? functionDetail.request : []
     
     // 遍历所有字段，对于没有初始值的字段，使用默认值
     requestFields.forEach(field => {
@@ -284,7 +286,7 @@ export function useFunctionParamInitialization(
         functionId: detail.id,
         router: detail.router,
         functionName: detail.name,
-        requestFieldsCount: (detail.request || []).length,
+        requestFieldsCount: (Array.isArray(detail.request) ? detail.request : []).length,
         currentQuery: route.query,
         currentQueryKeys: Object.keys(route.query)
       })
@@ -394,7 +396,8 @@ export function useFunctionParamInitialization(
       return
     }
     
-    const fields = detail.request || []
+    // 🔥 确保 fields 是数组，防止类型错误
+    const fields = Array.isArray(detail.request) ? detail.request : []
     
     console.log('🔍 [triggerWidgetInitialization] 开始组件自治初始化', {
       fieldsCount: fields.length,

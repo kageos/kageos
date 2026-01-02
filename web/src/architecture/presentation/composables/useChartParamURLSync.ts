@@ -98,7 +98,8 @@ export function useChartParamURLSync(options: UseChartParamURLSyncOptions) {
     // 如果某个场景不需要 URL 同步，可以通过 enabled 参数控制
     
     // 构建图表查询参数
-    const requestFields = detail.request || []
+    // 🔥 确保 requestFields 是数组，防止类型错误
+    const requestFields = Array.isArray(detail.request) ? detail.request : []
     const query = buildChartQueryParams(requestFields, options.fieldValues.value)
     
     // 获取当前 URL 的查询参数并合并

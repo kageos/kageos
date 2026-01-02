@@ -47,7 +47,8 @@ export class FormApplicationService {
    */
   async handleFunctionLoaded(detail: FunctionDetail): Promise<void> {
     // 初始化表单
-    const fields = (detail.request || []) as FieldConfig[]
+    // 🔥 确保 fields 是数组，防止类型错误
+    const fields = (Array.isArray(detail.request) ? detail.request : []) as FieldConfig[]
     const initialData = {} // 从 URL 或其他地方获取初始数据
     
     this.domainService.setFields(fields)
@@ -58,13 +59,7 @@ export class FormApplicationService {
    * 提交表单
    */
   async submitForm(functionDetail: FunctionDetail): Promise<any> {
-    // 验证表单
-    const fields = (functionDetail.request || []) as FieldConfig[]
-    const isValid = this.domainService.validateForm(fields)
-    
-    if (!isValid) {
-      throw new Error('表单验证失败')
-    }
+    // 🔥 不进行前端验证，由后端验证
 
     // 设置提交状态
     this.domainService.setSubmitting(true)

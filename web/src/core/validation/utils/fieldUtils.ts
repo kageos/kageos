@@ -13,9 +13,20 @@ import type { ValidationContext } from '../types'
  * 因为 TableFieldExtractor 会过滤掉空行（所有字段都为 null/undefined 的行）
  */
 export function isEmpty(value: FieldValue, field?: FieldConfig): boolean {
-  // 基本空值检查
-  if (value.raw === null || value.raw === undefined || value.raw === '') {
+  // 🔥 基本空值检查：如果 raw 有值（不是 null、undefined、空字符串），则认为不为空
+  // 注意：空字符串 '' 也认为是空值，但 0、false 等认为是有效值
+  if (value.raw === null || value.raw === undefined) {
     return true
+  }
+  
+  // 🔥 字符串类型：空字符串认为是空值
+  if (typeof value.raw === 'string' && value.raw.trim() === '') {
+    return true
+  }
+  
+  // 🔥 其他类型（数字、布尔值等）：有值就认为不为空
+  if (value.raw !== '') {
+    return false
   }
   
   // 数组类型检查
@@ -82,14 +93,6 @@ export function findFieldInContext(context: ValidationContext): FieldConfig | nu
     })
   }
   
-  // 🔥 调试日志：如果找不到字段配置，记录警告
-  if (!foundField) {
-    console.warn('[findFieldInContext] 找不到字段配置', {
-      fieldPath: context.fieldPath,
-      allFieldCodes: context.allFields.map(f => f.code),
-      allFieldPaths: context.allFields.map(f => f.field_path || f.code)
-    })
-  }
   
   return foundField || null
 }
@@ -113,7 +116,22 @@ export function createRequiredErrorMessage(fieldName: string): string {
  */
 export function getFieldName(context: ValidationContext, fallback: string = '此字段'): string {
   const field = findFieldInContext(context)
-  return field?.name || fallback
+  // 🔥 优先使用字段的 name（中文名称），如果没有则使用 fallback
+  // 注意：不应该使用 field.code，因为 code 是英文的字段代码
+  if (field?.name) {
+    return field.name
+  }
+  
+  // 🔥 如果找不到字段配置，尝试从 fieldPath 查找
+  // 因为 fieldPath 可能是字段的 code，我们可以从 allFields 中查找
+  if (!field && context.fieldPath) {
+    const foundField = context.allFields.find(f => f.code === context.fieldPath || f.field_path === context.fieldPath)
+    if (foundField?.name) {
+      return foundField.name
+    }
+  }
+  
+  return fallback
 }
 
 /**
