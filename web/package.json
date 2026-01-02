@@ -54,7 +54,8 @@
     "turndown": "^7.2.2",
     "vue": "^3.5.22",
     "vue-echarts": "^8.0.1",
-    "vue-router": "^4.6.3"
+    "vue-router": "^4.6.3",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tsconfig/node22": "^22.0.2",

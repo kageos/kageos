@@ -136,10 +136,12 @@ func (s *Server) setupRoutes() {
 	// Table 函数接口
 	table := apiV1.Group("/table")
 	table.Use(middleware2.JWTAuth())
-	table.GET("/search/*full-code-path", middleware2.CheckTableSearch(), standardAPI.TableSearch)     // Table 查询
-	table.POST("/create/*full-code-path", middleware2.CheckTableWrite(), standardAPI.TableCreate)    // Table 新增
-	table.PUT("/update/*full-code-path", middleware2.CheckTableUpdate(), standardAPI.TableUpdate)     // Table 更新
-	table.DELETE("/delete/*full-code-path", middleware2.CheckTableDelete(), standardAPI.TableDelete) // Table 删除
+	table.GET("/search/*full-code-path", middleware2.CheckTableSearch(), standardAPI.TableSearch)           // Table 查询
+	table.GET("/template/*full-code-path", middleware2.CheckTableRead(), standardAPI.TableTemplate)         // Table 下载导入模板
+	table.POST("/create/*full-code-path", middleware2.CheckTableWrite(), standardAPI.TableCreate)            // Table 新增
+	table.POST("/batch-create/*full-code-path", middleware2.CheckTableWrite(), standardAPI.TableBatchCreate) // Table 批量导入
+	table.PUT("/update/*full-code-path", middleware2.CheckTableUpdate(), standardAPI.TableUpdate)          // Table 更新
+	table.DELETE("/delete/*full-code-path", middleware2.CheckTableDelete(), standardAPI.TableDelete)        // Table 删除
 
 	// Form 函数接口
 	form := apiV1.Group("/form")

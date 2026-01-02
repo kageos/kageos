@@ -697,7 +697,11 @@ const handleGlobalPaste = async (event: ClipboardEvent) => {
   if (target && (
     target.tagName === 'INPUT' ||
     target.tagName === 'TEXTAREA' ||
-    target.isContentEditable
+    target.isContentEditable ||
+    // 检查是否是 TipTap 编辑器（TipTap 编辑器有特定的类名）
+    target.closest('.ProseMirror') ||
+    target.closest('.rich-text-widget') ||
+    target.closest('.editor-container')
   )) {
     return
   }

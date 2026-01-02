@@ -5,11 +5,12 @@ import (
 )
 
 const (
-	CallbackTypeOnTableAddRow     = "OnTableAddRow"
-	CallbackTypeOnTableUpdateRow  = "OnTableUpdateRow"
-	CallbackTypeOnTableDeleteRows = "OnTableDeleteRows"
-	CallbackTypeOnPageLoad        = "OnPageLoad"
-	CallbackTypeOnSelectFuzzy     = "OnSelectFuzzy"
+	CallbackTypeOnTableAddRow         = "OnTableAddRow"
+	CallbackTypeOnTableUpdateRow      = "OnTableUpdateRow"
+	CallbackTypeOnTableDeleteRows     = "OnTableDeleteRows"
+	CallbackTypeOnTableCreateInBatches = "OnTableCreateInBatches" // 系统内置批量创建回调
+	CallbackTypeOnPageLoad            = "OnPageLoad"
+	CallbackTypeOnSelectFuzzy         = "OnSelectFuzzy"
 )
 
 type OnTableAddRow func(ctx *Context, req *callback.OnTableAddRowReq) (*callback.OnTableAddRowResp, error)

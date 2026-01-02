@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
@@ -302,6 +303,33 @@ func (a *App) CallbackRouter(ctx *Context, resp response.Response) error {
 		}
 		logger.Infof(ctx, "CallbackRouter OnTableDeleteRows success")
 		return nil
+	case CallbackTypeOnTableCreateInBatches:
+		// 系统内置批量创建回调，直接批量插入数据库，不触发用户侧的回调
+		v, ok := router.Template.(*TableTemplate)
+		if !ok {
+			return errors.New("invalid type of TableTemplate")
+		}
+		
+		var batchReq callback.OnTableCreateInBatchesReq
+		err := json.Unmarshal(ctx.body, &batchReq)
+		if err != nil {
+			return fmt.Errorf("解析批量创建请求失败: %w", err)
+		}
+		
+		// 调用系统内置的批量创建逻辑
+		batchResp, err := handleTableCreateInBatches(ctx, v, &batchReq)
+		if err != nil {
+			logger.Errorf(ctx, "callback OnTableCreateInBatches router:%s error:%s", req.Type, err.Error())
+			return err
+		}
+		
+		err = resp.Form(batchResp).Build()
+		if err != nil {
+			logger.Errorf(ctx, "callback OnTableCreateInBatches router:%s Build error:%s", req.Type, err.Error())
+			return err
+		}
+		logger.Infof(ctx, "CallbackRouter OnTableCreateInBatches success: success=%d, fail=%d", batchResp.SuccessCount, batchResp.FailCount)
+		return nil
 	case CallbackTypeOnSelectFuzzy:
 		var onCallback callback.OnSelectFuzzyReq
 		base := router.Template.GetBaseConfig()
@@ -327,4 +355,100 @@ func (a *App) CallbackRouter(ctx *Context, resp response.Response) error {
 	}
 	return nil
 
+}
+
+// handleTableCreateInBatches 系统内置的批量创建处理函数
+// 通过反射获取 AutoCrudTable 结构类型，批量插入数据库
+func handleTableCreateInBatches(ctx *Context, template *TableTemplate, req *callback.OnTableCreateInBatchesReq) (*callback.OnTableCreateInBatchesResp, error) {
+	if template.AutoCrudTable == nil {
+		return nil, errors.New("AutoCrudTable 不能为空")
+	}
+	
+	// 获取数据库连接
+	db := ctx.GetGormDB()
+	if db == nil {
+		return nil, errors.New("获取数据库连接失败")
+	}
+	
+	// 获取 AutoCrudTable 的结构类型
+	tableType := reflect.TypeOf(template.AutoCrudTable)
+	if tableType.Kind() == reflect.Ptr {
+		tableType = tableType.Elem()
+	}
+	if tableType.Kind() != reflect.Struct {
+		return nil, fmt.Errorf("AutoCrudTable 必须是结构体类型，当前类型: %v", tableType.Kind())
+	}
+	
+	// 创建切片类型
+	sliceType := reflect.SliceOf(reflect.PtrTo(tableType))
+	
+	// 创建切片实例
+	sliceValue := reflect.New(sliceType).Elem()
+	
+	// 将 JSON 数据反序列化到切片
+	jsonData, err := json.Marshal(req.Data)
+	if err != nil {
+		return nil, fmt.Errorf("序列化数据失败: %w", err)
+	}
+	
+	// 创建切片指针并反序列化
+	slicePtr := reflect.New(sliceType).Interface()
+	if err := json.Unmarshal(jsonData, slicePtr); err != nil {
+		return nil, fmt.Errorf("反序列化数据失败: %w", err)
+	}
+	
+	// 获取切片值
+	sliceValue = reflect.ValueOf(slicePtr).Elem()
+	
+	// 批量插入数据库
+	successCount := 0
+	failCount := 0
+	var errors []callback.OnTableCreateBatchError
+	
+	// 使用 CreateInBatches 批量插入（每批 100 条）
+	batchSize := 100
+	totalCount := sliceValue.Len()
+	
+	for i := 0; i < totalCount; i += batchSize {
+		end := i + batchSize
+		if end > totalCount {
+			end = totalCount
+		}
+		
+		// 获取当前批次
+		batchSlice := sliceValue.Slice(i, end)
+		
+		// 转换为 []interface{}
+		batchInterface := make([]interface{}, batchSlice.Len())
+		for j := 0; j < batchSlice.Len(); j++ {
+			batchInterface[j] = batchSlice.Index(j).Interface()
+		}
+		
+		// 批量插入
+		if err := db.CreateInBatches(batchInterface, batchSize).Error; err != nil {
+			// 如果批量插入失败，尝试逐条插入以获取详细的错误信息
+			for j := 0; j < batchSlice.Len(); j++ {
+				item := batchSlice.Index(j).Interface()
+				if err := db.Create(item).Error; err != nil {
+					failCount++
+					errors = append(errors, callback.OnTableCreateBatchError{
+						Index: i + j,
+						Error: err.Error(),
+					})
+				} else {
+					successCount++
+				}
+			}
+		} else {
+			successCount += batchSlice.Len()
+		}
+	}
+	
+	logger.Infof(ctx, "[handleTableCreateInBatches] 批量创建完成: 总数=%d, 成功=%d, 失败=%d", totalCount, successCount, failCount)
+	
+	return &callback.OnTableCreateInBatchesResp{
+		SuccessCount: successCount,
+		FailCount:    failCount,
+		Errors:       errors,
+	}, nil
 }

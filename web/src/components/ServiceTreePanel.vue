@@ -95,16 +95,13 @@
               trigger="click"
               :teleported="true"
               popper-class="service-tree-dropdown-popper"
-              @click.stop.prevent
-              @mousedown.stop.prevent
+              @click.stop
               class="node-more-actions"
               @command="(command: string) => handleNodeAction(command, data)"
             >
               <el-icon 
                 class="more-icon" 
-                @click.stop.prevent
-                @mousedown.stop.prevent
-                @mouseup.stop.prevent
+                @click.stop
               >
                 <MoreFilled />
               </el-icon>
@@ -129,7 +126,7 @@
                   </el-dropdown-item>
                   <!-- 粘贴选项（当有复制的内容或 Hub 链接时显示，粘贴到当前选中的目录，需要 directory:write 权限） -->
                   <el-dropdown-item 
-                    v-if="(copiedDirectory || copiedHubLink) && data.type === 'package' && hasPermission(data, DirectoryPermissions.create)" 
+                    v-if="(copiedDirectory || copiedHubLink) && data.type === 'package' && hasPermission(data, DirectoryPermissions.write)" 
                     command="paste" 
                     divided
                   >

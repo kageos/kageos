@@ -77,8 +77,14 @@ service.interceptors.request.use(
 
 // 响应拦截器
 service.interceptors.response.use(
-  (response: AxiosResponse<ApiResponse>) => {
-    const { code, data } = response.data
+  (response: AxiosResponse<ApiResponse | Blob>) => {
+    // 🔥 如果是 blob 响应（文件下载），直接返回，不进行 JSON 解析
+    if (response.data instanceof Blob) {
+      return response
+    }
+    
+    // 普通 JSON 响应处理
+    const { code, data } = response.data as ApiResponse
     // 🔥 统一使用 msg 字段
     const msg = (response.data as any).msg || '请求失败'
     // 🔥 获取 metadata（如 total_cost_mill、trace_id 等）
@@ -233,28 +239,51 @@ export function download(url: string, params?: any): Promise<void> {
     params,
     responseType: 'blob'
   }).then((response: any) => {
-    const blob = new Blob([response])
-    const url = window.URL.createObjectURL(blob)
+    // response 已经是 Blob 对象（因为响应拦截器检测到 Blob 后直接返回了 response）
+    // 如果 response 是完整的 AxiosResponse，取 response.data；否则直接使用 response
+    const blob = response instanceof Blob ? response : (response.data instanceof Blob ? response.data : new Blob([response.data || response]))
+    const blobUrl = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
-    link.href = url
+    link.href = blobUrl
     link.download = getFilenameFromResponse(response) || 'download'
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-    window.URL.revokeObjectURL(url)
+    window.URL.revokeObjectURL(blobUrl)
   })
 }
 
-// 从响应头获取文件名
+// 从响应头获取文件名（支持 RFC 5987 格式）
 function getFilenameFromResponse(response: any): string | null {
   const contentDisposition = response.headers['content-disposition']
-  if (contentDisposition) {
-    const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/
-    const matches = filenameRegex.exec(contentDisposition)
-    if (matches && matches[1]) {
-      return matches[1].replace(/['"]/g, '')
+  if (!contentDisposition) {
+    return null
+  }
+  
+  // 优先尝试 RFC 5987 格式：filename*=UTF-8''encoded-filename
+  const rfc5987Regex = /filename\*=UTF-8''([^;]+)/
+  const rfc5987Match = rfc5987Regex.exec(contentDisposition)
+  if (rfc5987Match && rfc5987Match[1]) {
+    try {
+      // URL 解码
+      return decodeURIComponent(rfc5987Match[1])
+    } catch (e) {
+      // 解码失败，继续尝试其他格式
     }
   }
+  
+  // 尝试标准格式：filename="filename" 或 filename=filename
+  const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/
+  const matches = filenameRegex.exec(contentDisposition)
+  if (matches && matches[1]) {
+    const filename = matches[1].replace(/['"]/g, '')
+    // 如果文件名包含路径分隔符，只取最后一部分
+    if (filename.includes('/')) {
+      return filename.split('/').pop() || filename
+    }
+    return filename
+  }
+  
   return null
 }
 

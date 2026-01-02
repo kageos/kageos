@@ -329,6 +329,9 @@ func (a *App) getApis() (apis []*ApiInfo, createTables []interface{}, err error)
 			if template.OnTableDeleteRows != nil {
 				callback = append(callback, CallbackTypeOnTableDeleteRows)
 			}
+			// OnTableCreateInBatches 是系统内置的回调，所有 Table 函数都自动支持
+			// 不需要用户实现，系统会自动处理批量创建
+			callback = append(callback, CallbackTypeOnTableCreateInBatches)
 			if len(callback) > 0 {
 				api.Callback = callback
 			}

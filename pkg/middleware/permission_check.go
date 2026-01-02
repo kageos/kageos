@@ -215,6 +215,17 @@ func CheckTableSearch() gin.HandlerFunc {
 	}
 }
 
+// CheckTableRead 检查表格读取权限（使用 function:read）
+// 用于下载模板等读取操作
+func CheckTableRead() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !checkPermission(c, permissionconstants.FunctionRead, "无权限查看该表格") {
+			return
+		}
+		c.Next()
+	}
+}
+
 // CheckTableWrite 检查表格写入权限（使用 function:write）
 func CheckTableWrite() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -339,7 +350,9 @@ func extractFullCodePathFromURL(urlPath string) string {
 
 	// 移除操作前缀（如 /table/search、/form/submit、/chart/query、/callback/on_select_fuzzy、/run、/callback 等）
 	urlPath = strings.TrimPrefix(urlPath, "/table/search")
+	urlPath = strings.TrimPrefix(urlPath, "/table/template")
 	urlPath = strings.TrimPrefix(urlPath, "/table/create")
+	urlPath = strings.TrimPrefix(urlPath, "/table/batch-create")
 	urlPath = strings.TrimPrefix(urlPath, "/table/update")
 	urlPath = strings.TrimPrefix(urlPath, "/table/delete")
 	urlPath = strings.TrimPrefix(urlPath, "/form/submit")
