@@ -362,6 +362,7 @@ import { ElMessage, ElMessageBox, ElNotification, ElDialog, ElForm, ElFormItem, 
 import { InfoFilled, ArrowLeft } from '@element-plus/icons-vue'
 import { eventBus, WorkspaceEvent, RouteEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
+import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import { RouteManager } from '../../infrastructure/routeManager'
 import { useAuthStore } from '@/stores/auth'
 import ServiceTreePanel from '@/components/ServiceTreePanel.vue'
@@ -403,10 +404,11 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 
-// 依赖注入（使用 ServiceFactory 简化）
-const stateManager = serviceFactory.getWorkspaceStateManager()
-const applicationService = serviceFactory.getWorkspaceApplicationService()
-const domainService = serviceFactory.getWorkspaceDomainService()
+// 依赖注入（使用 IServiceProvider 接口，遵循依赖倒置原则）
+const serviceProvider: IServiceProvider = serviceFactory
+const stateManager = serviceProvider.getWorkspaceStateManager()
+const applicationService = serviceProvider.getWorkspaceApplicationService()
+const domainService = serviceProvider.getWorkspaceDomainService()
 
 // 从状态管理器获取状态
 const serviceTree = computed(() => stateManager.getServiceTree())

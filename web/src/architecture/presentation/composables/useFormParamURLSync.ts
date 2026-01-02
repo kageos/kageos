@@ -91,7 +91,15 @@ export function useFormParamURLSync(options: UseFormParamURLSyncOptions) {
       return
     }
     
-    // 🔥 黑名单模式：默认都支持 URL 同步，只有特定场景不支持
+    // 🔥 双重检查：确保只有在 _tab=OnTableAddRow 时才同步
+    // 防止编辑模式（_tab=OnTableUpdateRow 或 _tab=detail）时误同步
+    if (route.query._tab !== 'OnTableAddRow') {
+      Logger.debug('[useFormParamURLSync]', '检测到非新增模式标识，跳过 URL 同步', {
+        currentTab: route.query._tab
+      })
+      return
+    }
+    
     const detail = functionDetail.value
     if (!detail) {
       return
@@ -101,7 +109,8 @@ export function useFormParamURLSync(options: UseFormParamURLSyncOptions) {
     // 如果某个场景不需要 URL 同步，可以通过 enabled 参数控制
     
     // 构建表单查询参数
-    const requestFields = detail.request || []
+    // 🔥 确保 requestFields 是数组，防止类型错误
+    const requestFields = Array.isArray(detail.request) ? detail.request : []
     const query = buildFormQueryParams(requestFields, options.formDataStore)
     
     // 获取当前 URL 的查询参数并合并

@@ -208,7 +208,7 @@ import { EditorContent, useEditor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import { Link } from '@tiptap/extension-link'
 import { Image } from '@tiptap/extension-image'
-import { Video } from '@/core/widgets-v2/components/VideoExtension'
+import { Video } from '@/architecture/presentation/widgets/VideoExtension'
 import { Underline } from '@tiptap/extension-underline'
 import { Placeholder } from '@tiptap/extension-placeholder'
 import {

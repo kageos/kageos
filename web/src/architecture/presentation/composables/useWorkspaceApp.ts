@@ -12,15 +12,18 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElNotification, ElMessageBox } from 'element-plus'
 import { apiClient } from '../../infrastructure/apiClient'
 import { serviceFactory } from '../../infrastructure/factories'
+import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
 import type { App } from '../../domain/services/WorkspaceDomainService'
 import type { App as AppType, CreateAppRequest } from '@/types'
 import { getAppDetailByUserAndCode, getAppWithServiceTree } from '@/api/app'
 
-export function useWorkspaceApp() {
+export function useWorkspaceApp(
+  serviceProvider: IServiceProvider = serviceFactory  // 🔥 通过参数注入，提高可测试性
+) {
   const route = useRoute()
   const router = useRouter()
-  const applicationService = serviceFactory.getWorkspaceApplicationService()
+  const applicationService = serviceProvider.getWorkspaceApplicationService()
 
   // 工作空间列表状态
   const appList = ref<AppType[]>([])

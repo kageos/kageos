@@ -293,6 +293,7 @@ import { getAgentList } from '@/api/agent'
 import { extractWorkspacePath } from '@/utils/route'
 import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
+import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import ChartIcon from '@/components/icons/ChartIcon.vue'
 import TableIcon from '@/components/icons/TableIcon.vue'
@@ -556,7 +557,8 @@ function handleChildClick(child: ServiceTree): void {
     currentQuery: route.query
   })
   
-  const applicationService = serviceFactory.getWorkspaceApplicationService()
+  const serviceProvider: IServiceProvider = serviceFactory
+  const applicationService = serviceProvider.getWorkspaceApplicationService()
 
   if (child.type === 'function' && child.full_code_path) {
     // 函数节点：跳转到函数页面

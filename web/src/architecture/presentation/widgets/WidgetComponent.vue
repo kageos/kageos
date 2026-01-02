@@ -22,7 +22,6 @@
     :form-renderer="formRenderer"
     :function-method="functionMethod"
     :function-router="functionRouter"
-    :user-info-map="userInfoMap"
     :function-name="functionName"
     :record-id="recordId"
   />
@@ -34,9 +33,9 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
 import { Logger } from '@/core/utils/logger'
-import { widgetComponentFactory } from '@/core/factories-v2'
-import type { FieldConfig, FieldValue } from '../../domain/types'
-import type { WidgetMode } from '@/core/widgets-v2/types'
+import { widgetComponentFactory } from '@/architecture/infrastructure/widgetRegistry'
+import type { FieldConfig, FieldValue } from '@/core/domain/types'
+import type { WidgetMode } from '@/architecture/presentation/widgets/types'
 
 const props = withDefaults(defineProps<{
   field: FieldConfig
@@ -47,14 +46,12 @@ const props = withDefaults(defineProps<{
   formRenderer?: any // FormRenderer 上下文（用于 OnSelectFuzzy 回调）
   functionMethod?: string // 函数 HTTP 方法（用于 OnSelectFuzzy 回调）
   functionRouter?: string // 函数路由（用于 OnSelectFuzzy 回调）
-  userInfoMap?: Map<string, any> // 用户信息映射（用于 UserWidget 批量查询优化）
   functionName?: string // 函数名称（用于 FilesWidget 打包下载命名）
   recordId?: string | number // 记录ID（用于 FilesWidget 打包下载命名）
 }>(), {
   mode: 'edit',
   fieldPath: '',
   value: () => ({ raw: null, display: '', meta: {} }),
-  userInfoMap: () => new Map(),
   functionName: undefined,
   recordId: undefined
 })

@@ -69,9 +69,10 @@ export class ValidationEngine {
     const rules = this.parseValidationString(field.validation)
     
     // 构建验证上下文
+    // 🔥 使用 field.code 作为 fieldPath，确保 findFieldInContext 能正确找到字段配置
     const context: ValidationContext = {
       formManager: this.formManager,
-      fieldPath: field.field_path || field.code,
+      fieldPath: field.code,  // 🔥 使用 code 而不是 field_path，确保能匹配到字段
       allFields
     }
     

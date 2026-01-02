@@ -28,6 +28,7 @@ import type { IApiClient } from '../../domain/interfaces/IApiClient'
 import type { ICacheManager } from '../../domain/interfaces/ICacheManager'
 import type { IFunctionLoader } from '../../domain/interfaces/IFunctionLoader'
 import type { IServiceTreeLoader } from '../../domain/interfaces/IServiceTreeLoader'
+import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 
 /**
  * 服务工厂配置
@@ -41,8 +42,10 @@ export interface ServiceFactoryConfig {
 
 /**
  * 服务工厂
+ * 
+ * 🔥 实现 IServiceProvider 接口，遵循依赖倒置原则
  */
-export class ServiceFactory {
+export class ServiceFactory implements IServiceProvider {
   private eventBus: IEventBus
   private apiClient: IApiClient
   private cacheManager: ICacheManager
@@ -188,6 +191,42 @@ export class ServiceFactory {
       )
     }
     return this.tableApplicationService
+  }
+
+  // ========== Infrastructure Services ==========
+  /**
+   * 获取事件总线
+   */
+  getEventBus(): IEventBus {
+    return this.eventBus
+  }
+
+  /**
+   * 获取 API 客户端
+   */
+  getApiClient(): IApiClient {
+    return this.apiClient
+  }
+
+  /**
+   * 获取缓存管理器
+   */
+  getCacheManager(): ICacheManager {
+    return this.cacheManager
+  }
+
+  /**
+   * 获取函数加载器
+   */
+  getFunctionLoader(): IFunctionLoader {
+    return this.functionLoader
+  }
+
+  /**
+   * 获取服务树加载器
+   */
+  getServiceTreeLoader(): IServiceTreeLoader {
+    return this.serviceTreeLoader
   }
 
   /**

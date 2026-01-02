@@ -12,21 +12,26 @@ import { deepClone } from '@/utils/clone'
 import { useRoute, useRouter } from 'vue-router'
 import { ElNotification, ElMessage } from 'element-plus'
 import { serviceFactory } from '../../infrastructure/factories'
+import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
-import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
+import FormView from '@/architecture/presentation/views/FormView.vue'
 import type { FieldConfig, FieldValue } from '../../domain/types'
 import type { FunctionDetail } from '../../domain/interfaces/IFunctionLoader'
+import { useFormDataStore } from '@/core/stores-v2/formData'
 
-export function useWorkspaceDetail(options: {
-  currentFunctionDetail: () => FunctionDetail | null
-  currentFunction: () => any
-}) {
+export function useWorkspaceDetail(
+  options: {
+    currentFunctionDetail: () => FunctionDetail | null
+    currentFunction: () => any
+  },
+  serviceProvider: IServiceProvider = serviceFactory  // 🔥 通过参数注入，提高可测试性
+) {
   const route = useRoute()
   const router = useRouter()
-  const tableApplicationService = serviceFactory.getTableApplicationService()
-  const tableStateManager = serviceFactory.getTableStateManager()
-  const stateManager = serviceFactory.getWorkspaceStateManager()
+  const tableApplicationService = serviceProvider.getTableApplicationService()
+  const tableStateManager = serviceProvider.getTableStateManager()
+  const stateManager = serviceProvider.getWorkspaceStateManager()
 
   // 详情抽屉状态
   const detailDrawerVisible = ref(false)
@@ -36,7 +41,7 @@ export function useWorkspaceDetail(options: {
   const detailOriginalRow = ref<Record<string, any> | null>(null)
   const detailDrawerMode = ref<'read' | 'edit'>('read')
   const drawerSubmitting = ref(false)
-  const detailFormRendererRef = ref<InstanceType<typeof FormRenderer> | null>(null)
+  const detailFormViewRef = ref<InstanceType<typeof FormView> | null>(null)
   const detailUserInfoMap = ref<Map<string, any>>(new Map())
   const detailTableData = ref<any[]>([])
   const currentDetailIndex = ref<number>(-1)
@@ -79,6 +84,56 @@ export function useWorkspaceDetail(options: {
       return
     }
     detailDrawerMode.value = mode
+    
+    // 🔥 切换模式时更新 URL：编辑模式使用 _tab=OnTableUpdateRow，查看模式使用 _tab=detail
+    const id = detailRowData.value?.id || detailRowData.value?._id
+    if (id) {
+      // 🔥 获取编辑模式的字段代码集合，用于清除表单字段参数
+      const editableFieldCodes = new Set<string>()
+      if (editFunctionDetail.value && editFunctionDetail.value.request) {
+        editFunctionDetail.value.request.forEach((field: FieldConfig) => {
+          editableFieldCodes.add(field.code)
+        })
+      }
+      
+      const query: Record<string, string | string[]> = {}
+      // 保留现有参数（除了 _tab、_id 和表单字段参数）
+      Object.keys(route.query).forEach(key => {
+        // 跳过 _tab 和 _id，后面会根据模式设置
+        if (key === '_tab' || key === '_id') {
+          return
+        }
+        
+        // 🔥 编辑模式：清除所有表单字段参数（这些参数不应该在编辑模式下存在）
+        if (mode === 'edit' && editableFieldCodes.has(key)) {
+          return
+        }
+        
+        // 保留其他参数（如 table 参数、搜索参数等）
+        const value = route.query[key]
+        if (value !== null && value !== undefined) {
+          query[key] = Array.isArray(value) 
+            ? value.filter(v => v !== null).map(v => String(v))
+            : String(value)
+        }
+      })
+      
+      // 🔥 编辑模式：设置 _tab=OnTableUpdateRow；查看模式：设置 _tab=detail
+      query._tab = mode === 'edit' ? 'OnTableUpdateRow' : 'detail'
+      query._id = String(id)
+      
+      // 🔥 发出路由更新请求事件
+      eventBus.emit(RouteEvent.updateRequested, {
+        query,
+        replace: true,
+        preserveParams: {
+          table: true,   // 保留 table 参数
+          search: true,  // 保留搜索参数
+          state: true    // 保留其他状态参数
+        },
+        source: 'detail-drawer-mode-toggle'
+      })
+    }
   }
 
   // 导航详情（上一个/下一个）
@@ -133,19 +188,19 @@ export function useWorkspaceDetail(options: {
   }
 
   // 提交编辑
-  const submitDrawerEdit = async (formRendererRef?: InstanceType<typeof FormRenderer> | null) => {
+  const submitDrawerEdit = async (formViewRef?: InstanceType<typeof FormView> | null) => {
     const currentDetail = options.currentFunctionDetail()
-    // 🔥 优先使用传入的 formRendererRef，如果没有则使用 detailFormRendererRef
-    const rendererRef = formRendererRef || detailFormRendererRef.value
+    // 🔥 优先使用传入的 formViewRef，如果没有则使用 detailFormViewRef
+    const viewRef = formViewRef || detailFormViewRef.value
     
-    if (!currentDetail || !detailRowData.value || !rendererRef) {
+    if (!currentDetail || !detailRowData.value || !viewRef) {
       ElMessage.error('编辑表单未准备就绪')
       return
     }
     
     try {
       drawerSubmitting.value = true
-      const submitData = rendererRef.prepareSubmitDataWithTypeConversion()
+      const submitData = viewRef.prepareSubmitDataWithTypeConversion()
       const oldValues = detailOriginalRow.value
         ? deepClone(detailOriginalRow.value)
         : undefined
@@ -159,6 +214,48 @@ export function useWorkspaceDetail(options: {
         detailRowData.value = { ...updatedRow }
         detailOriginalRow.value = deepClone(updatedRow)
         await refreshDetailRowData()
+        
+        // 🔥 保存成功后，清除 URL 中的表单字段参数和 _tab 参数
+        const editableFieldCodes = new Set<string>()
+        if (editFunctionDetail.value && editFunctionDetail.value.request) {
+          editFunctionDetail.value.request.forEach((field: FieldConfig) => {
+            editableFieldCodes.add(field.code)
+          })
+        }
+        
+        const query: Record<string, string | string[]> = {}
+        Object.keys(route.query).forEach(key => {
+          // 跳过 _tab 和 _id 参数（详情抽屉相关）
+          if (key === '_tab' || key === '_id') {
+            return
+          }
+          
+          // 🔥 清除所有表单字段参数
+          if (editableFieldCodes.has(key)) {
+            return
+          }
+          
+          // 保留其他参数（如 table 参数、搜索参数等）
+          const value = route.query[key]
+          if (value !== null && value !== undefined) {
+            query[key] = Array.isArray(value) 
+              ? value.filter(v => v !== null).map(v => String(v))
+              : String(value)
+          }
+        })
+        
+        // 🔥 发出路由更新请求事件，清除表单字段参数
+        eventBus.emit(RouteEvent.updateRequested, {
+          query,
+          replace: true,
+          preserveParams: {
+            table: true,   // 保留 table 参数
+            search: true,  // 保留搜索参数
+            state: true    // 保留其他状态参数
+          },
+          source: 'detail-drawer-save-success'
+        })
+        
         ElNotification.success({
           title: '成功',
           message: '更新成功'
@@ -207,18 +304,39 @@ export function useWorkspaceDetail(options: {
 
   // 处理详情抽屉关闭（移除 URL 参数）
   const handleDetailDrawerClose = () => {
-    // 如果当前 URL 有 _tab=detail 参数，移除它
+    // 如果当前 URL 有 _tab=detail 或 _tab=OnTableUpdateRow 参数，移除它
     // 🔥 阶段3：改为事件驱动，通过 RouteManager 统一处理路由更新
-    if (route.query._tab === 'detail') {
+    if (route.query._tab === 'detail' || route.query._tab === 'OnTableUpdateRow' || route.query._id) {
+      // 🔥 获取编辑模式的字段代码集合，用于清除表单字段参数
+      const editableFieldCodes = new Set<string>()
+      if (editFunctionDetail.value && editFunctionDetail.value.request) {
+        editFunctionDetail.value.request.forEach((field: FieldConfig) => {
+          editableFieldCodes.add(field.code)
+        })
+      }
+      
+      // 🔥 清空 formDataStore，避免 FormView 重新初始化时从 URL 读取数据
+      const formDataStore = useFormDataStore()
+      formDataStore.clear()
+      
       const query: Record<string, string | string[]> = {}
       Object.keys(route.query).forEach(key => {
-        if (key !== '_tab' && key !== '_id') {
-          const value = route.query[key]
-          if (value !== null && value !== undefined) {
-            query[key] = Array.isArray(value) 
-              ? value.filter(v => v !== null).map(v => String(v))
-              : String(value)
-          }
+        // 跳过 _tab 和 _id 参数（详情抽屉相关）
+        if (key === '_tab' || key === '_id') {
+          return
+        }
+        
+        // 🔥 跳过表单字段参数（编辑模式下 FormView 不应该同步到 URL，但如果有残留参数需要清除）
+        if (editableFieldCodes.has(key)) {
+          return
+        }
+        
+        // 保留其他参数（如 table 参数、搜索参数等）
+        const value = route.query[key]
+        if (value !== null && value !== undefined) {
+          query[key] = Array.isArray(value) 
+            ? value.filter(v => v !== null).map(v => String(v))
+            : String(value)
         }
       })
       
@@ -227,7 +345,9 @@ export function useWorkspaceDetail(options: {
         query,
         replace: true,
         preserveParams: {
-          state: true  // 保留其他状态参数
+          table: true,   // 保留 table 参数（分页、排序等）
+          search: true,  // 保留搜索参数
+          state: true    // 保留其他状态参数
         },
         source: 'detail-drawer-close'
       })
@@ -249,9 +369,22 @@ export function useWorkspaceDetail(options: {
     if (options.currentFunction()) {
       const id = row.id || row._id
       if (id) {
+        // 🔥 获取编辑模式的字段代码集合，用于清除表单字段参数
+        const editableFieldCodes = new Set<string>()
+        if (editFunctionDetail.value && editFunctionDetail.value.request) {
+          editFunctionDetail.value.request.forEach((field: FieldConfig) => {
+            editableFieldCodes.add(field.code)
+          })
+        }
+        
         const query: Record<string, string | string[]> = {}
-        // 保留现有参数
+        // 保留现有参数（除了表单字段参数）
         Object.keys(route.query).forEach(key => {
+          // 🔥 清除所有表单字段参数（详情和编辑模式下都不应该显示这些参数）
+          if (editableFieldCodes.has(key)) {
+            return
+          }
+          
           const value = route.query[key]
           if (value !== null && value !== undefined) {
             query[key] = Array.isArray(value) 
@@ -268,7 +401,9 @@ export function useWorkspaceDetail(options: {
           query,
           replace: true,
           preserveParams: {
-            state: true  // 保留状态参数
+            table: true,   // 保留 table 参数
+            search: true,  // 保留搜索参数
+            state: true    // 保留状态参数
           },
           source: 'detail-drawer-open'
         })
@@ -364,7 +499,8 @@ export function useWorkspaceDetail(options: {
     await nextTick()
     
     // 继续原有的逻辑（从 watch 中复制）
-    if (tab === 'detail' && id && detail && detail.template_type === TEMPLATE_TYPE.TABLE) {
+    // 🔥 支持 _tab=detail（查看模式）和 _tab=OnTableUpdateRow（编辑模式）
+    if ((tab === 'detail' || tab === 'OnTableUpdateRow') && id && detail && detail.template_type === TEMPLATE_TYPE.TABLE) {
       // 确保函数详情已加载
       if (!options.currentFunction()) {
         return
@@ -468,7 +604,8 @@ export function useWorkspaceDetail(options: {
             }
           }
           
-          detailDrawerMode.value = 'read'
+          // 🔥 根据 _tab 参数设置模式：OnTableUpdateRow 为编辑模式，detail 为查看模式
+          detailDrawerMode.value = tab === 'OnTableUpdateRow' ? 'edit' : 'read'
           detailDrawerVisible.value = true
         } else {
           ElNotification.warning({
@@ -487,8 +624,8 @@ export function useWorkspaceDetail(options: {
   // 这样可以避免程序触发的路由更新导致循环
   const setupUrlWatch = () => {
     // 🔥 初始化时检查 URL 参数（页面刷新场景）
-    // 如果 URL 中已经有 _tab=detail&_id=xxx，等待函数详情和表格数据加载完成后打开详情
-    if (route.query._tab === 'detail' && route.query._id) {
+    // 如果 URL 中已经有 _tab=detail&_id=xxx 或 _tab=OnTableUpdateRow&_id=xxx，等待函数详情和表格数据加载完成后打开详情
+    if ((route.query._tab === 'detail' || route.query._tab === 'OnTableUpdateRow') && route.query._id) {
       // 等待函数详情加载完成
       const checkAndOpen = async () => {
         let retries = 0
@@ -530,7 +667,7 @@ export function useWorkspaceDetail(options: {
     detailOriginalRow,
     detailDrawerMode,
     drawerSubmitting,
-    detailFormRendererRef,
+    detailFormViewRef,
     detailUserInfoMap,
     detailTableData,
     currentDetailIndex,

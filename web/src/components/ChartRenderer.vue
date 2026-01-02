@@ -106,11 +106,11 @@ import WidgetComponent from '@/architecture/presentation/widgets/WidgetComponent
 import { executeFunction } from '@/api/function'
 import type { FieldConfig, FieldValue, FunctionDetail } from '@/core/types/field'
 import type { Chart, ChartSeries } from '@/core/types/chart'
-import { widgetComponentFactory } from '@/core/factories-v2'
+import { widgetComponentFactory } from '@/architecture/infrastructure/widgetRegistry'
 import { hasAnyRequiredRule } from '@/core/utils/validationUtils'
 import { convertToFieldValue } from '@/utils/field'
 import { useChartParamURLSync } from '@/architecture/presentation/composables/useChartParamURLSync'
-import { convertValueByFieldType } from '@/core/widgets-v2/utils/typeConverter'
+import { convertValueByFieldType } from '@/architecture/presentation/widgets/utils/typeConverter'
 
 const props = defineProps<{
   functionDetail: FunctionDetail
