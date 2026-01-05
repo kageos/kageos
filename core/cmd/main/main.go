@@ -15,6 +15,7 @@ import (
 	appStorageRunner "github.com/ai-agent-os/ai-agent-os/core/app-storage/runner"
 	apiGatewayRunner "github.com/ai-agent-os/ai-agent-os/core/api-gateway/runner"
 	controlServiceRunner "github.com/ai-agent-os/ai-agent-os/core/control-service/runner"
+	hrServerRunner "github.com/ai-agent-os/ai-agent-os/core/hr-server/runner"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
@@ -59,13 +60,19 @@ func init() {
 		Main: agentServerRunner.Main,
 	})
 
-	// 5. App Server（应用服务）
+	// 5. HR Server（HR 服务，用户管理、组织架构）
+	services = append(services, ServiceInfo{
+		Name: "hr-server",
+		Main: hrServerRunner.Main,
+	})
+
+	// 6. App Server（应用服务）
 	services = append(services, ServiceInfo{
 		Name: "app-server",
 		Main: appServerRunner.Main,
 	})
 
-	// 6. API Gateway（API 网关，最后启动，因为依赖其他服务）
+	// 7. API Gateway（API 网关，最后启动，因为依赖其他服务）
 	services = append(services, ServiceInfo{
 		Name: "api-gateway",
 		Main: apiGatewayRunner.Main,

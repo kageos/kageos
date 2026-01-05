@@ -11,14 +11,14 @@
 import { defineStore } from 'pinia'
 import { reactive } from 'vue'
 import type { FieldConfig, FieldValue } from '../types/field'
-import { FieldExtractorRegistry } from './extractors/FieldExtractorRegistry'
+import { fieldExtractorRegistry } from './extractors/FieldExtractorRegistry'
+import { Logger } from '@/core/utils/logger'
 
 export const useFormDataStore = defineStore('formData-v2', () => {
   // 存储所有字段的值（field_path -> FieldValue）
   const data = reactive<Map<string, FieldValue>>(new Map())
   
-  // 🔥 字段提取器注册表（遵循依赖倒置原则）
-  const extractorRegistry = new FieldExtractorRegistry()
+  // 🔥 使用全局字段提取器注册表（支持插件扩展）
   
   /**
    * 设置字段值
@@ -59,15 +59,15 @@ export const useFormDataStore = defineStore('formData-v2', () => {
     fields.forEach(field => {
       const fieldPath = basePath ? `${basePath}.${field.code}` : field.code
       
-      // 🔥 使用提取器注册表提取字段值（即使字段不存在也会尝试从原始数据中提取）
+      // 🔥 使用全局提取器注册表提取字段值（即使字段不存在也会尝试从原始数据中提取）
       const fieldValue = data.get(fieldPath)
-      const extractedValue = extractorRegistry.extractField(field, fieldPath, (path: string) => {
+      const extractedValue = fieldExtractorRegistry.extractField(field, fieldPath, (path: string) => {
         return data.get(path)
       })
       
-      // 🔥 调试日志：检查字段值提取（仅对必填字段）
+      // 🔥 调试日志：检查字段值提取（仅对必填字段，使用 Logger.debug）
       if (field.validation && field.validation.includes('required')) {
-        console.log('[getSubmitData] 必填字段提取', {
+        Logger.debug('[getSubmitData]', '必填字段提取', {
           fieldCode: field.code,
           fieldPath,
           fieldValue,

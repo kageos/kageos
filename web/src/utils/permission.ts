@@ -1,10 +1,86 @@
 /**
  * 权限工具函数
- * 用于处理权限相关的逻辑
+ * 
+ * ============================================
+ * 📋 需求说明
+ * ============================================
+ * 
+ * 1. **权限来源**：
+ *    - 后端树接口（service_tree）已经返回了每个节点的权限信息
+ *    - 权限信息已经包含了继承后的最终权限（后端已处理权限继承）
+ *    - 前端只需要直接使用 `node.permissions` 字段即可
+ * 
+ * 2. **权限继承规则**（后端已处理）：
+ *    - `directory:manage` → 子节点自动拥有所有权限
+ *    - `directory:write` → 子节点自动拥有 `function:write`
+ *    - `directory:update` → 子节点自动拥有 `function:update`
+ *    - `directory:delete` → 子节点自动拥有 `function:delete`
+ *    - `directory:read` → 子节点自动拥有 `function:read`
+ *    - `app:manage` → 应用下所有资源自动拥有所有权限
+ * 
+ * 3. **权限层级关系**（前端双重保险）：
+ *    - `function:manage` 包含 `function:read`、`function:write`、`function:update`、`function:delete`
+ *    - `directory:manage` 包含所有目录权限
+ *    - `app:manage` 包含所有应用权限
+ * 
+ * ============================================
+ * 🎯 设计思路
+ * ============================================
+ * 
+ * 1. **简化原则**：
+ *    - 不缓存权限信息（后端返回的是最新数据）
+ *    - 不处理权限继承（后端已处理）
+ *    - 直接使用 `node.permissions[action]` 检查权限
+ * 
+ * 2. **安全原则**：
+ *    - 默认拒绝：没有节点、没有权限信息、权限不存在时，一律返回 `false`
+ *    - 不向后兼容：避免权限绕过漏洞
+ * 
+ * 3. **双重保险**：
+ *    - 保留权限层级关系检查（`manage` 权限包含其他权限）
+ *    - 防止后端遗漏权限继承时的安全漏洞
+ * 
+ * ============================================
+ * 📝 使用场景
+ * ============================================
+ * 
+ * 1. **表格操作权限检查**：
+ *    - 新增：`hasPermission(node, TablePermissions.write)`
+ *    - 编辑：`hasPermission(node, TablePermissions.update)`
+ *    - 删除：`hasPermission(node, TablePermissions.delete)`
+ * 
+ * 2. **表单提交权限检查**：
+ *    - 提交：`hasPermission(node, FormPermissions.write)`
+ * 
+ * 3. **目录操作权限检查**：
+ *    - 查看：`hasPermission(node, DirectoryPermissions.read)`
+ *    - 创建：`hasPermission(node, DirectoryPermissions.write)`
+ * 
+ * ============================================
+ * ⚠️ 注意事项
+ * ============================================
+ * 
+ * 1. **权限数据来源**：
+ *    - 必须从服务树接口获取的节点中获取权限
+ *    - 不要从其他来源获取权限信息
+ * 
+ * 2. **权限检查时机**：
+ *    - UI 层面：控制按钮显示/隐藏
+ *    - 提交时：再次检查权限，防止绕过 UI 检查
+ * 
+ * 3. **权限层级关系**：
+ *    - 后端应该已经处理了 `manage` 权限的继承
+ *    - 前端的层级关系检查只是双重保险
+ * 
+ * ============================================
+ * 📚 相关文档
+ * ============================================
+ * 
+ * - 权限判断逻辑分析：`web/docs/权限判断逻辑分析.md`
+ * - 后端权限继承实现：`core/app-server/service/service_tree_service.go`
  */
 
 import type { ServiceTree } from '@/types'
-import { useNodePermissionsStore } from '@/stores/nodePermissions'
 
 /**
  * 获取权限的详细说明
@@ -106,40 +182,47 @@ export interface PermissionInfo {
  * @param action 权限点（如 table:search、function:manage）
  * @returns 是否有权限
  */
+/**
+ * 检查节点是否有指定权限
+ * 
+ * ⭐ 权限来源：后端返回的 permissions 字段已经是最终权限（包含继承）
+ * ⭐ 权限层级关系：manage 权限包含所有其他权限（作为双重保险）
+ * 
+ * @param node 服务树节点
+ * @param action 权限点（如 function:read、function:write、function:manage）
+ * @returns 是否有权限
+ */
 export function hasPermission(node: ServiceTree | undefined, action: string): boolean {
+  // 如果没有节点，拒绝访问
   if (!node) {
-    // 如果没有节点，默认返回 true（向后兼容）
-    return true
+    return false
   }
 
-  // 获取权限对象（优先从缓存获取，否则从节点获取）
-  const permissionStore = useNodePermissionsStore()
-  const cachedPermissions = permissionStore.getPermissions(node)
-  const permissions = cachedPermissions || node.permissions
+  // 直接使用节点上的权限信息（后端返回的最新数据，已包含继承）
+  const permissions = node.permissions
 
+  // 如果没有权限信息，拒绝访问
   if (!permissions) {
-    // 如果都没有，默认返回 true（向后兼容）
+    return false
+  }
+
+  // 直接检查该权限（后端已经处理了继承）
+  if (permissions[action] === true) {
     return true
   }
 
-  // 直接检查该权限
-  if (action in permissions) {
-    if (permissions[action] === true) {
-      return true
-    }
-  }
-
-  // ⭐ 权限层级关系：如果有 manage 权限，自动拥有所有相关权限
-  // directory:manage 包含 directory:read、directory:write、directory:update、directory:delete、directory:create
-  if (action.startsWith('directory:')) {
-    if (permissions['directory:manage'] === true) {
-      return true
-    }
-  }
-
+  // ⭐ 权限层级关系检查（双重保险，防止后端遗漏）
+  // 注意：先检查层级关系，再检查是否为 false
   // function:manage 包含 function:read、function:write、function:update、function:delete
   if (action.startsWith('function:')) {
     if (permissions['function:manage'] === true) {
+      return true
+    }
+  }
+
+  // directory:manage 包含 directory:read、directory:write、directory:update、directory:delete
+  if (action.startsWith('directory:')) {
+    if (permissions['directory:manage'] === true) {
       return true
     }
   }
@@ -151,8 +234,13 @@ export function hasPermission(node: ServiceTree | undefined, action: string): bo
     }
   }
 
-  // 如果权限信息中没有该权限点，默认返回 true（向后兼容，避免权限信息不完整时按钮消失）
-  return true
+  // 如果权限明确为 false，直接返回 false
+  if (permissions[action] === false) {
+    return false
+  }
+
+  // 权限信息中没有该权限点，拒绝访问
+  return false
 }
 
 /**
@@ -161,80 +249,40 @@ export function hasPermission(node: ServiceTree | undefined, action: string): bo
  * @returns 是否有任何权限
  */
 export function hasAnyPermissionForNode(node: ServiceTree | undefined): boolean {
-  if (!node) {
+  if (!node || !node.permissions) {
     return false
   }
 
-  // ⭐ 优先从权限缓存中获取
-  const permissionStore = useNodePermissionsStore()
-  const cachedPermissions = permissionStore.getPermissions(node)
-  if (cachedPermissions) {
-    // 检查缓存中是否有任何权限为 true
-    return Object.values(cachedPermissions).some(hasPerm => hasPerm === true)
-  }
-
-  // 如果没有缓存，从节点本身的 permissions 字段获取
-  if (node.permissions) {
     // 检查节点权限信息中是否有任何权限为 true
     return Object.values(node.permissions).some(hasPerm => hasPerm === true)
-  }
-
-  // 如果都没有，返回 false（没有权限）
-  return false
 }
 
 /**
  * 检查节点是否有多个权限（只要有一个有权限就返回 true）
- * ⭐ 优化：优先从权限缓存中获取
  * @param node 服务树节点
  * @param actions 权限点列表
  * @returns 是否有权限
  */
 export function hasAnyPermission(node: ServiceTree | undefined, actions: string[]): boolean {
-  if (!node) {
-    return true
+  if (!node || !node.permissions) {
+    return false
   }
 
-  // ⭐ 优先从权限缓存中获取
-  const permissionStore = useNodePermissionsStore()
-  const cachedPermissions = permissionStore.getPermissions(node)
-  if (cachedPermissions) {
-    return actions.some(action => cachedPermissions[action] === true)
-  }
-
-  // 如果没有缓存，从节点本身的 permissions 字段获取（向后兼容）
-  if (node.permissions) {
-    return actions.some(action => node.permissions![action] === true)
-  }
-
-  return true
+  return actions.some(action => hasPermission(node, action))
 }
 
 /**
  * 检查节点是否有所有权限（必须全部有权限才返回 true）
- * ⭐ 优化：优先从权限缓存中获取
  * @param node 服务树节点
  * @param actions 权限点列表
  * @returns 是否有权限
  */
 export function hasAllPermissions(node: ServiceTree | undefined, actions: string[]): boolean {
-  if (!node) {
-    return true
+  if (!node || !node.permissions) {
+    return false
   }
 
-  // ⭐ 优先从权限缓存中获取
-  const permissionStore = useNodePermissionsStore()
-  const cachedPermissions = permissionStore.getPermissions(node)
-  if (cachedPermissions) {
-    return actions.every(action => cachedPermissions[action] === true)
-  }
-
-  // 如果没有缓存，从节点本身的 permissions 字段获取（向后兼容）
-  if (node.permissions) {
-    return actions.every(action => node.permissions![action] === true)
-  }
-
-  return true
+  return actions.every(action => hasPermission(node, action))
 }
 
 /**
