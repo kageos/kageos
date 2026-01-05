@@ -7,7 +7,7 @@
  * - 注册到工厂
  */
 
-import { widgetComponentFactory } from './WidgetComponentFactory'
+import { widgetComponentFactory } from './factory'
 import { WidgetType } from '@/core/constants/widget'
 
 // 导入组件（按需导入，避免循环依赖）
@@ -27,8 +27,9 @@ import SliderWidget from '@/architecture/presentation/widgets/SliderWidget.vue'
 import RateWidget from '@/architecture/presentation/widgets/RateWidget.vue'
 import ColorWidget from '@/architecture/presentation/widgets/ColorWidget.vue'
 import RichTextWidget from '@/architecture/presentation/widgets/RichTextWidget.vue'
-import FormWidget from '@/architecture/presentation/widgets/FormWidget.vue'
-import TableWidget from '@/architecture/presentation/widgets/TableWidget.vue'
+// 🔥 延迟导入容器组件，避免循环依赖
+// FormWidget 和 TableWidget 都导入了 widgetComponentFactory，会导致循环依赖
+// 解决方案：在函数内部动态导入，而不是在模块顶层导入
 import UserWidget from '@/architecture/presentation/widgets/UserWidget.vue'
 import LinkWidget from '@/architecture/presentation/widgets/LinkWidget.vue'
 import ProgressWidget from '@/architecture/presentation/widgets/ProgressWidget.vue'
@@ -36,8 +37,15 @@ import ProgressWidget from '@/architecture/presentation/widgets/ProgressWidget.v
 /**
  * 初始化组件工厂
  * 注册所有组件到工厂
+ * 
+ * 🔥 注意：由于 FormWidget 和 TableWidget 都导入了 widgetComponentFactory，
+ * 如果在顶层导入会导致循环依赖，所以使用动态 import 延迟加载
  */
-export function initializeWidgetComponentFactory(): void {
+export async function initializeWidgetComponentFactory(): Promise<void> {
+  // 🔥 动态导入容器组件，避免循环依赖
+  // FormWidget 和 TableWidget 都导入了 widgetComponentFactory，如果在顶层导入会导致循环依赖
+  const { default: FormWidget } = await import('@/architecture/presentation/widgets/FormWidget.vue')
+  const { default: TableWidget } = await import('@/architecture/presentation/widgets/TableWidget.vue')
   // 注册请求参数组件
   widgetComponentFactory.registerRequestComponent(WidgetType.INPUT, InputWidget)
   widgetComponentFactory.registerRequestComponent(WidgetType.TEXT, InputWidget)  // text 别名
@@ -87,9 +95,23 @@ export function initializeWidgetComponentFactory(): void {
   // ...
 }
 
-// 自动初始化
-initializeWidgetComponentFactory()
+// 🔥 自动初始化（异步，避免循环依赖）
+// 注意：由于使用了动态 import，初始化是异步的
+// 但组件注册应该在应用启动时完成，所以这里使用立即执行的异步函数
+let initializationPromise: Promise<void> | null = null
 
-// 导出工厂实例
-export { widgetComponentFactory }
+export function ensureInitialized(): Promise<void> {
+  if (!initializationPromise) {
+    initializationPromise = initializeWidgetComponentFactory()
+  }
+  return initializationPromise
+}
+
+// 立即开始初始化
+ensureInitialized().catch(err => {
+  console.error('[WidgetComponentFactory] 初始化失败', err)
+})
+
+// 重新导出工厂实例（从 factory.ts 导入）
+export { widgetComponentFactory } from './factory'
 
