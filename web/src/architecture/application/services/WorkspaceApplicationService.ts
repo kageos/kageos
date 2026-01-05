@@ -51,11 +51,8 @@ export class WorkspaceApplicationService {
    */
   async handleNodeClick(node: ServiceTree): Promise<void> {
     if (node.type === 'function') {
-      // ⭐ 函数节点：先获取权限信息，然后加载函数详情
-      await this.loadNodePermissions(node)
-      
-      // 🔥 优化：直接加载函数详情，不先切换目录
-      // 这样可以避免先显示目录详情再切换到函数详情的闪烁问题
+      // ⭐ 函数节点：直接加载函数详情
+      // 权限信息已从树接口返回，不需要单独加载
       try {
         const detail = await this.domainService.loadFunction(node)
         
@@ -81,91 +78,20 @@ export class WorkspaceApplicationService {
         // 不重新抛出错误，让 UI 显示权限错误组件
       }
     } else {
-      // ⭐ 目录节点：先获取权限信息，然后切换到该目录
-      // 确保权限数据加载完成后再设置目录，这样 PackageDetailView 才能正确显示权限信息
-      await this.loadNodePermissions(node)
-      
-      // 将目录设置为当前函数，以便显示目录详情
+      // ⭐ 目录节点：直接切换到该目录
+      // 权限信息已从树接口返回，不需要单独加载
       this.domainService.setCurrentDirectory(node, true)
     }
   }
 
   /**
-   * 加载节点权限信息（从详情接口获取）
-   * ⭐ 优化：添加请求去重，避免重复调用
+   * ⭐ 已移除：loadNodePermissions 方法
+   * 
+   * 原因：
+   * - 后端树接口已经返回了所有节点的权限（包含继承）
+   * - 不需要从详情接口获取权限
+   * - 不需要权限缓存，直接使用 node.permissions 即可
    */
-  private loadingPermissions = new Set<string>() // 正在加载的权限请求（用于去重）
-
-  private async loadNodePermissions(node: ServiceTree): Promise<void> {
-    // 检查是否有 id 或 full_code_path
-    if (!node.id && !node.full_code_path) {
-      return
-    }
-
-    // 生成缓存键（用于去重）
-    const cacheKey = node.full_code_path || `node:${node.id}`
-    
-    // 检查是否正在加载（去重）
-    if (this.loadingPermissions.has(cacheKey)) {
-      return
-    }
-
-    try {
-      // 动态导入，避免循环依赖
-      const { getPackageInfo } = await import('@/api/service-tree')
-      const { useNodePermissionsStore } = await import('@/stores/nodePermissions')
-      
-      const permissionStore = useNodePermissionsStore()
-      
-      // 检查缓存
-      const cached = permissionStore.getPermissions(node)
-      if (cached) {
-        // 使用缓存的权限信息
-        return
-      }
-
-      // ⭐ 函数节点的权限从函数详情接口获取，不需要单独调用
-      if (node.type === 'function') {
-        // 函数权限会在 loadFunction 时从函数详情接口获取并缓存
-        return
-      }
-
-      // 标记为正在加载
-      this.loadingPermissions.add(cacheKey)
-
-      // ⭐ 只对目录节点调用 package_info 接口获取权限
-      const params: { id?: number; full_code_path?: string } = {}
-      if (node.id) {
-        params.id = node.id
-      }
-      if (node.full_code_path) {
-        params.full_code_path = node.full_code_path
-      }
-
-      console.log('[WorkspaceApplicationService] 加载目录权限信息:', params)
-      const packageInfo = await getPackageInfo(params)
-      console.log('[WorkspaceApplicationService] 目录权限信息加载完成:', {
-        id: packageInfo.id,
-        name: packageInfo.name,
-        full_code_path: packageInfo.full_code_path,
-        permissions: packageInfo.permissions
-      })
-      
-      if (packageInfo.permissions) {
-        // 缓存权限信息
-        permissionStore.setPermissions(node, packageInfo.permissions)
-        console.log('[WorkspaceApplicationService] 权限信息已缓存到 store')
-      } else {
-        console.warn('[WorkspaceApplicationService] 目录权限信息为空:', packageInfo)
-      }
-    } catch (error) {
-      // 权限获取失败不影响主流程，只是权限控制可能不准确
-      console.warn('[WorkspaceApplicationService] 获取节点权限失败:', error)
-    } finally {
-      // 移除加载标记
-      this.loadingPermissions.delete(cacheKey)
-    }
-  }
 
   /**
    * 获取函数所在的目录节点

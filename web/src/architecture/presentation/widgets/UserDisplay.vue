@@ -36,34 +36,50 @@
       <span class="user-name">{{ displayName }}</span>
     </div>
     
-    <!-- 详细模式：暂时只显示头像和名称（弹窗功能已移除，后续再加） -->
-    <div v-else-if="mode === 'card'" class="user-display-simple" :class="[sizeClass, layoutClass]">
-      <el-avatar 
-        v-if="actualUserInfo" 
-        :src="actualUserInfo.avatar" 
-        :size="avatarSize"
-        class="user-avatar"
+    <!-- 详细模式：点击头像弹出用户信息卡片 -->
+    <div v-else-if="mode === 'card'" class="user-display-card" :class="[sizeClass, layoutClass]">
+      <el-popover
+        v-if="actualUserInfo"
+        placement="bottom-start"
+        :width="380"
+        trigger="click"
+        popper-class="user-info-popover"
       >
-        {{ actualUserInfo.username?.[0]?.toUpperCase() || 'U' }}
-      </el-avatar>
-      <el-avatar 
-        v-else 
-        :size="avatarSize"
-        class="user-avatar"
-      >
-        {{ displayName?.[0]?.toUpperCase() || 'U' }}
-      </el-avatar>
-      <span class="user-name">{{ displayName }}</span>
+        <template #reference>
+          <div class="user-display-simple" style="cursor: pointer;">
+            <el-avatar 
+              :src="actualUserInfo.avatar" 
+              :size="avatarSize"
+              class="user-avatar"
+            >
+              {{ actualUserInfo.username?.[0]?.toUpperCase() || 'U' }}
+            </el-avatar>
+            <span class="user-name">{{ displayName }}</span>
+          </div>
+        </template>
+        <UserDetailCard :user-info="actualUserInfo" />
+      </el-popover>
+      <!-- 如果没有用户信息，只显示头像和名称（不可点击） -->
+      <div v-else class="user-display-simple" :class="[sizeClass, layoutClass]">
+        <el-avatar 
+          :size="avatarSize"
+          class="user-avatar"
+        >
+          {{ displayName?.[0]?.toUpperCase() || 'U' }}
+        </el-avatar>
+        <span class="user-name">{{ displayName }}</span>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, watch, ref } from 'vue'
-import { ElAvatar, ElMessage } from 'element-plus'
+import { ElAvatar, ElMessage, ElPopover } from 'element-plus'
 import type { UserInfo } from '@/types'
 import { formatUserDisplayName } from '@/utils/userInfo'
 import { useUserInfoStore } from '@/stores/userInfo'
+import UserDetailCard from './UserDetailCard.vue'
 
 interface Props {
   /** 用户信息对象 */

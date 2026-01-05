@@ -1,15 +1,77 @@
 /**
  * FormApplicationService - 表单应用服务
  * 
- * 职责：表单业务流程编排
- * - 监听事件，调用 Domain Services
- * - 协调表单初始化和提交流程
- * - 不包含业务逻辑，只负责编排
+ * ============================================
+ * 📋 需求说明
+ * ============================================
  * 
- * 特点：
- * - 依赖 Domain Services
- * - 通过事件总线监听和触发事件
- * - 不包含业务逻辑，只负责流程编排
+ * 1. **表单初始化**：
+ *    - 监听函数加载完成事件，初始化表单
+ *    - 协调 Domain Service 初始化表单数据
+ *    - 处理初始数据回显（编辑模式）
+ * 
+ * 2. **表单提交**：
+ *    - 验证表单数据
+ *    - 提取提交数据（使用 FieldExtractorRegistry）
+ *    - 调用 API 提交数据
+ *    - 处理提交结果（成功/失败）
+ * 
+ * 3. **事件协调**：
+ *    - 监听 WorkspaceEvent.functionLoaded 事件
+ *    - 触发 FormEvent.initialized、FormEvent.submitted 等事件
+ *    - 协调 Domain Service 和 Infrastructure Layer
+ * 
+ * ============================================
+ * 🎯 设计思路
+ * ============================================
+ * 
+ * 1. **应用层职责**：
+ *    - 不包含业务逻辑，只负责流程编排
+ *    - 协调 Domain Services 完成业务流程
+ *    - 通过事件总线监听和触发事件
+ * 
+ * 2. **依赖关系**：
+ *    - 依赖 FormDomainService（业务逻辑）
+ *    - 依赖 IApiClient（API 调用）
+ *    - 依赖 IEventBus（事件通信）
+ * 
+ * 3. **数据流**：
+ *    - 初始化：事件 → FormApplicationService → FormDomainService → StateManager
+ *    - 提交：FormApplicationService → 验证 → 提取数据 → API → 处理结果
+ * 
+ * ============================================
+ * 📝 关键功能
+ * ============================================
+ * 
+ * 1. **handleFunctionLoaded**：
+ *    - 监听函数加载完成事件
+ *    - 调用 FormDomainService.initializeForm 初始化表单
+ *    - 触发 FormEvent.initialized 事件
+ * 
+ * 2. **submitForm**：
+ *    - 验证表单数据（FormDomainService.validateForm）
+ *    - 提取提交数据（使用 FieldExtractorRegistry）
+ *    - 调用 API 提交数据
+ *    - 处理提交结果，触发 FormEvent.submitted 事件
+ * 
+ * ============================================
+ * ⚠️ 注意事项
+ * ============================================
+ * 
+ * 1. **数据提取**：
+ *    - 使用 FieldExtractorRegistry 提取字段值
+ *    - 只提取 `raw` 值，不提取 `display` 值
+ *    - 支持嵌套结构（form、table）的递归提取
+ * 
+ * 2. **验证时机**：
+ *    - 提交前验证表单
+ *    - 验证失败时抛出错误，不提交数据
+ *    - 验证错误使用字段的中文名称
+ * 
+ * 3. **错误处理**：
+ *    - API 错误通过 request.ts 拦截器处理
+ *    - 权限错误存储到 permissionErrorStore
+ *    - 其他错误通过事件或异常抛出
  */
 
 import { Logger } from '@/core/utils/logger'
@@ -68,6 +130,8 @@ export class FormApplicationService {
       // 获取提交数据（从 StateManager）
       // 注意：这里需要访问 FormStateManager 的 getSubmitData 方法
       // 为了保持依赖倒置，我们通过 Domain Service 获取
+      // 🔥 确保 fields 是数组，防止类型错误
+      const fields = (Array.isArray(functionDetail.request) ? functionDetail.request : []) as FieldConfig[]
       const submitData = this.getSubmitData(fields)
 
       // ⭐ 使用标准 API：/form/submit/{full-code-path}

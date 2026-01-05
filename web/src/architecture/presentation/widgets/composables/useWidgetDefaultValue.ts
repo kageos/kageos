@@ -110,7 +110,26 @@ export function getWidgetDefaultValue(
     console.log(`🔍 [getWidgetDefaultValue] 字段 ${field.code} 没有 config.default`)
   }
   
-  // 2. 根据字段类型设置默认值
+  // 2. 根据 widget 类型设置默认值（优先于数据类型）
+  const widgetType = field.widget?.type
+  if (widgetType === 'table') {
+    console.log(`🔍 [getWidgetDefaultValue] 字段 ${field.code} 是 table 类型，返回空数组`)
+    return {
+      raw: [],
+      display: '',
+      meta: {}
+    }
+  }
+  if (widgetType === 'form') {
+    console.log(`🔍 [getWidgetDefaultValue] 字段 ${field.code} 是 form 类型，返回空对象`)
+    return {
+      raw: {},
+      display: '',
+      meta: {}
+    }
+  }
+  
+  // 3. 根据字段类型设置默认值
   const fieldType = field.data?.type || DataType.STRING
   const typeDefault = getDefaultValueByType(fieldType)
   console.log(`🔍 [getWidgetDefaultValue] 字段 ${field.code} 使用类型默认值`, {

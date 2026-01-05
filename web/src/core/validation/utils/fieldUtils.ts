@@ -5,6 +5,7 @@
 
 import type { FieldConfig, FieldValue } from '../../types/field'
 import type { ValidationContext } from '../types'
+import { Logger } from '@/core/utils/logger'
 
 /**
  * 判断字段值是否为空
@@ -50,9 +51,9 @@ export function isEmpty(value: FieldValue, field?: FieldConfig): boolean {
         return hasValidValue
       })
       
-      // 🔥 调试日志：帮助排查问题
+      // 🔥 调试日志：帮助排查问题（使用 Logger.warn）
       if (value.raw.length > 0 && validRows.length === 0) {
-        console.warn('[isEmpty] table 字段所有行都被过滤为空', {
+        Logger.warn('[isEmpty]', 'table 字段所有行都被过滤为空', {
           fieldCode: field.code,
           totalRows: value.raw.length,
           rows: value.raw.map((row: any, index: number) => ({

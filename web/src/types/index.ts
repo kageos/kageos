@@ -20,6 +20,11 @@ export interface UserInfo {
   email_verified: boolean
   status: string
   created_at: string
+  department_full_path?: string      // 部门完整路径（可选）
+  department_name?: string           // 部门名称（可选，用于显示）
+  department_full_name_path?: string // 部门完整名称路径（可选，用于展示组织架构全称，如：技术部/后端组）
+  leader_username?: string           // Leader 用户名（可选）
+  leader_display_name?: string  // Leader 显示名称（可选，用于显示，格式：username(nickname) 或 username）
 }
 
 export interface LoginRequest {
