@@ -72,10 +72,10 @@ func (a *AppService) CreateApp(ctx context.Context, req *dto.CreateAppReq) (*dto
 		}
 	}
 
-	// 根据租户用户获取主机和 NATS 信息
-	user, err := a.userRepo.GetUserByUsernameWithHostAndNats(tenantUser)
+	// 验证用户是否存在（不再需要获取 Host 信息）
+	_, err = a.userRepo.GetUserByUsername(tenantUser)
 	if err != nil {
-		return nil, fmt.Errorf("获取租户用户 %s 的主机信息失败: %w", tenantUser, err)
+		return nil, fmt.Errorf("租户用户 %s 不存在: %w", tenantUser, err)
 	}
 
 	// 创建前校验：同一用户下应用中文名称是否重复
@@ -85,9 +85,28 @@ func (a *AppService) CreateApp(ctx context.Context, req *dto.CreateAppReq) (*dto
 		return nil, fmt.Errorf("应用名称已存在: %s", req.Name)
 	}
 
-	// 创建包含用户信息的请求对象（内部使用）
+	// 分配可用的 Host（选择 app_count 最小的 host，实现负载均衡）
+	hostRepo := repository.NewHostRepository(a.appRepo.GetDB())
+	hosts, err := hostRepo.GetHostList()
+	if err != nil || len(hosts) == 0 {
+		return nil, fmt.Errorf("无法获取可用的主机: %w", err)
+	}
 
-	resp, err := a.appRuntime.CreateApp(ctx, user.HostID, req)
+	// 选择 app_count 最小的 host（负载均衡）
+	var selectedHost *model.Host
+	for _, host := range hosts {
+		if host.Status == "enabled" {
+			if selectedHost == nil || host.AppCount < selectedHost.AppCount {
+				selectedHost = host
+			}
+		}
+	}
+	if selectedHost == nil {
+		return nil, fmt.Errorf("没有可用的主机")
+	}
+
+	// 创建包含用户信息的请求对象（内部使用）
+	resp, err := a.appRuntime.CreateApp(ctx, selectedHost.ID, req)
 	if err != nil {
 		return nil, err
 	}
@@ -101,8 +120,8 @@ func (a *AppService) CreateApp(ctx context.Context, req *dto.CreateAppReq) (*dto
 		Code:    req.Code,
 		Name:    req.Name,   // 应用名称
 		User:    tenantUser, // 记录租户用户（应用所有者）
-		NatsID:  user.Host.NatsID,
-		HostID:  user.Host.ID,
+		NatsID:  selectedHost.NatsID,
+		HostID:  selectedHost.ID,
 		Status:  "enabled",
 	}
 	err = a.appRepo.CreateApp(&app)
@@ -370,10 +389,13 @@ func (a *AppService) processAPIDiff(ctx context.Context, appID int64, diffData *
 		return fmt.Errorf("获取应用信息失败: %w", err)
 	}
 
+	// 从 context 获取当前用户名
+	username := contextx.GetRequestUser(ctx)
+
 	// 处理新增的API
 	if len(diffData.Add) > 0 {
 		// 1. 先转换API为Function模型（但不创建）
-		functions, err := a.convertApiInfoToFunctions(appID, diffData.Add)
+		functions, err := a.convertApiInfoToFunctions(ctx, appID, diffData.Add, username)
 		if err != nil {
 			return fmt.Errorf("转换新增API失败: %w", err)
 		}
@@ -394,7 +416,7 @@ func (a *AppService) processAPIDiff(ctx context.Context, appID int64, diffData *
 	// 处理更新的API
 	if len(diffData.Update) > 0 {
 		// 1. 转换更新的API为Function模型
-		functions, err := a.convertApiInfoToFunctions(appID, diffData.Update)
+		functions, err := a.convertApiInfoToFunctions(ctx, appID, diffData.Update, username)
 		if err != nil {
 			return fmt.Errorf("转换更新API失败: %w", err)
 		}
@@ -431,7 +453,7 @@ func (a *AppService) processAPIDiff(ctx context.Context, appID int64, diffData *
 }
 
 // convertApiInfoToFunctions 将ApiInfo转换为Function模型
-func (a *AppService) convertApiInfoToFunctions(appID int64, apis []*dto.ApiInfo) ([]*model.Function, error) {
+func (a *AppService) convertApiInfoToFunctions(ctx context.Context, appID int64, apis []*dto.ApiInfo, username string) ([]*model.Function, error) {
 	functions := make([]*model.Function, len(apis))
 
 	for i, api := range apis {
@@ -467,6 +489,8 @@ func (a *AppService) convertApiInfoToFunctions(appID int64, apis []*dto.ApiInfo)
 			TemplateType: api.TemplateType,
 			Callbacks:    strings.Join(api.Callback, ","),
 		}
+		// 设置创建者用户名（通过嵌入的 Base 结构体）
+		function.CreatedBy = username
 		if api.CreateTables != nil {
 			function.CreateTables = strings.Join(api.CreateTables, ",")
 		}

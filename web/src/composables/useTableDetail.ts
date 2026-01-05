@@ -24,7 +24,7 @@ import { eventBus, RouteEvent } from '@/architecture/infrastructure/eventBus'
 import { RouteSource } from '@/utils/routeSource'
 import type { Function as FunctionType, ServiceTree } from '@/types'
 import type { FieldConfig, FunctionDetail } from '@/core/types/field'
-import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
+import FormView from '@/architecture/presentation/views/FormView.vue'
 
 export interface UseTableDetailOptions {
   functionData: FunctionType
@@ -34,7 +34,6 @@ export interface UseTableDetailOptions {
   idField?: FieldConfig
   linkFields: FieldConfig[]
   hasUpdateCallback: boolean
-  userInfoMap: Map<string, any>
   onUpdate: (id: number, data: any, oldData: any) => Promise<boolean>
   onRefresh: () => Promise<void>
 }
@@ -57,8 +56,8 @@ export function useTableDetail(options: UseTableDetailOptions) {
   /** 详情模式：查看/编辑 */
   const detailMode = ref<'view' | 'edit'>('view')
   
-  /** 详情编辑模式的 FormRenderer 引用 */
-  const detailFormRendererRef = ref<InstanceType<typeof FormRenderer>>()
+  /** 详情编辑模式的 FormView 引用 */
+  const detailFormViewRef = ref<InstanceType<typeof FormView>>()
   
   /** 详情编辑提交状态 */
   const detailSubmitting = ref(false)
@@ -160,12 +159,7 @@ export function useTableDetail(options: UseTableDetailOptions) {
       // 批量查询用户信息（自动处理缓存）
       const users = await userInfoStore.batchGetUserInfo(filesUploadUsers)
       
-      // 更新 userInfoMap，供详情中的 FilesWidget 使用
-      for (const user of users) {
-        if (user.username) {
-          options.userInfoMap.set(user.username, user)
-        }
-      }
+      // 🔥 userInfoStore 已经缓存了用户信息，FilesWidget 会直接从 store 读取
     }
 
     // 🔥 更新 URL，添加 _detail_id 和 _detail_function_id 参数（用于分享和刷新后恢复状态）
@@ -227,12 +221,7 @@ export function useTableDetail(options: UseTableDetailOptions) {
     if (filesUploadUsers.length > 0) {
       // 批量查询用户信息（自动处理缓存）
       const users = await userInfoStore.batchGetUserInfo(filesUploadUsers)
-      // 更新 userInfoMap，供详情中的 FilesWidget 使用
-      for (const user of users) {
-        if (user.username) {
-          options.userInfoMap.set(user.username, user)
-        }
-      }
+      // 🔥 userInfoStore 已经缓存了用户信息，FilesWidget 会直接从 store 读取
     }
     
     // 🔥 更新 URL，更新 _detail_id 和 _detail_function_id 参数
@@ -272,13 +261,13 @@ export function useTableDetail(options: UseTableDetailOptions) {
     
     // 再次等待，确保 FormRenderer 完全准备好
     let retries = 0
-    while (retries < 10 && !detailFormRendererRef.value) {
+    while (retries < 10 && !detailFormViewRef.value) {
       await nextTick()
       await new Promise(resolve => setTimeout(resolve, 50))
       retries++
     }
     
-    if (!detailFormRendererRef.value) {
+    if (!detailFormViewRef.value) {
       ElMessage.error('编辑表单未准备就绪，请稍后重试')
       detailMode.value = 'view'
     }
@@ -295,7 +284,7 @@ export function useTableDetail(options: UseTableDetailOptions) {
    * 保存（详情编辑模式）
    */
   const handleDetailSave = async (): Promise<void> => {
-    if (!detailFormRendererRef.value) {
+    if (!detailFormViewRef.value) {
       ElMessage.error('表单引用不存在')
       return
     }
@@ -308,12 +297,13 @@ export function useTableDetail(options: UseTableDetailOptions) {
     try {
       detailSubmitting.value = true
       
-      // 1. 准备提交数据
-      const submitData = detailFormRendererRef.value.prepareSubmitDataWithTypeConversion()
+      const oldValues = currentDetailRow.value
+      
+      // 1. 准备更新数据（表格更新场景，只返回变更的字段）
+      const submitData = await detailFormViewRef.value.prepareUpdateData(oldValues)
       
       // 2. 调用更新接口（复用现有的更新逻辑）
-      // ⚠️ 关键：传递旧值（currentDetailRow.value），用于对比找出变更的字段
-      const success = await options.onUpdate(currentDetailRow.value.id, submitData, currentDetailRow.value)
+      const success = await options.onUpdate(currentDetailRow.value.id, submitData, oldValues)
       
       if (success) {
         // 3. 刷新当前记录数据
@@ -376,12 +366,7 @@ export function useTableDetail(options: UseTableDetailOptions) {
           // 批量查询用户信息（自动处理缓存）
           const users = await userInfoStore.batchGetUserInfo(filesUploadUsers)
           
-          // 更新 userInfoMap，供详情中的 FilesWidget 使用
-          for (const user of users) {
-            if (user.username) {
-              options.userInfoMap.set(user.username, user)
-            }
-          }
+          // 🔥 userInfoStore 已经缓存了用户信息，FilesWidget 会直接从 store 读取
         }
       }
     } catch (error) {
@@ -577,7 +562,7 @@ export function useTableDetail(options: UseTableDetailOptions) {
           const users = await userInfoStore.batchGetUserInfo(filesUploadUsers)
           for (const user of users) {
             if (user.username) {
-              options.userInfoMap.set(user.username, user)
+              // 🔥 userInfoStore 已经缓存了用户信息，FilesWidget 会直接从 store 读取
             }
           }
         }
@@ -694,7 +679,7 @@ export function useTableDetail(options: UseTableDetailOptions) {
     currentDetailRow,
     currentDetailIndex,
     detailMode,
-    detailFormRendererRef,
+    detailFormViewRef,
     detailSubmitting,
     
     // 计算属性

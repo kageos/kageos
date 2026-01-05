@@ -57,6 +57,11 @@ export default defineConfig({
         target: 'http://localhost:9090',  // 网关地址
         changeOrigin: true,
       },
+      // HR API 通过网关代理（只代理 API 请求，不代理页面路由）
+      '/hr/api': {
+        target: 'http://localhost:9090',  // 网关地址
+        changeOrigin: true,
+      },
       // 统一通过网关代理所有 API 请求（兜底，用于兼容旧路径）
       '/api': {
         target: 'http://localhost:9090',  // 网关地址

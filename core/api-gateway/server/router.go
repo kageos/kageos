@@ -1,9 +1,11 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -20,6 +22,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/pkg/pprof"
+	"github.com/ai-agent-os/ai-agent-os/pkg/response"
 )
 
 // setupRoutes 设置路由
@@ -206,16 +209,27 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 		if req.Header.Get(contextx.RequestUserHeader) == "" {
 			token := req.Header.Get("X-Token")
 			if token != "" {
-				// 解析 token 获取 username
-				jwtService := service.NewJWTService()
-				claims, err := jwtService.ValidateToken(token)
-				if err == nil {
-					// 解析成功，设置 username 到 header
-					req.Header.Set(contextx.RequestUserHeader, claims.Username)
-					logger.Debugf(s.ctx, "[Proxy] Extracted username from token: %s", claims.Username)
-				} else {
-					// token 解析失败，但不阻止请求（可能是不需要认证的接口）
-					logger.Debugf(s.ctx, "[Proxy] Failed to parse token: %v", err)
+						// ⭐ 新增：检查 token 是否在黑名单中
+				if s.tokenBlacklist.IsBlacklisted(token) {
+					logger.Warnf(s.ctx, "[Proxy] Token is blacklisted, rejecting request")
+					// 设置标记，在 ModifyResponse 中拦截
+					req.Header.Set("X-Token-Blacklisted", "true")
+					// 不继续解析 token，直接返回
+					return
+				}
+				
+				{
+					// 解析 token 获取 username
+					jwtService := service.NewJWTService()
+					claims, err := jwtService.ValidateToken(token)
+					if err == nil {
+						// 解析成功，设置 username 到 header
+						req.Header.Set(contextx.RequestUserHeader, claims.Username)
+						logger.Debugf(s.ctx, "[Proxy] Extracted username from token: %s", claims.Username)
+					} else {
+						// token 解析失败，但不阻止请求（可能是不需要认证的接口）
+						logger.Debugf(s.ctx, "[Proxy] Failed to parse token: %v", err)
+					}
 				}
 			}
 		}
@@ -247,6 +261,22 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 	// 移除后端服务设置的 CORS 头，避免与网关的 CORS 中间件重复
 	// 网关的 CORS 中间件会统一处理所有响应
 	proxy.ModifyResponse = func(resp *http.Response) error {
+		// ⭐ 新增：检查 token 是否在黑名单中，如果是则返回 401
+		if resp.Request.Header.Get("X-Token-Blacklisted") == "true" {
+			logger.Warnf(s.ctx, "[Proxy] Token is blacklisted, returning 401")
+			resp.StatusCode = http.StatusUnauthorized
+			resp.Status = "401 Unauthorized"
+			// 设置响应头
+			resp.Header = make(http.Header)
+			resp.Header.Set("Content-Type", "application/json")
+			// 返回 JSON 错误响应（使用定义的常量，前端会根据 code 跳转到登录页）
+			errorResp := response.GetTokenBlacklistedResponse()
+			errorBody, _ := json.Marshal(errorResp)
+			resp.Body = io.NopCloser(bytes.NewReader(errorBody))
+			resp.ContentLength = int64(len(errorBody))
+			return nil
+		}
+
 		// 移除后端服务设置的 CORS 头，避免重复
 		resp.Header.Del("Access-Control-Allow-Origin")
 		resp.Header.Del("Access-Control-Allow-Methods")

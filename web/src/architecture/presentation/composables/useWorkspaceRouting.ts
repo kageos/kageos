@@ -12,6 +12,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { extractWorkspacePath } from '@/utils/route'
 import { preserveQueryParamsForTable, preserveQueryParamsForForm, isFunctionGroupDetail } from '@/utils/queryParams'
 import { serviceFactory } from '../../infrastructure/factories'
+import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import { eventBus, RouteEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { RouteSource } from '@/utils/routeSource'
 import { Logger } from '@/core/utils/logger'
@@ -19,19 +20,22 @@ import { getAppWithServiceTree } from '@/api/app'
 import type { ServiceTree, App } from '../../domain/services/WorkspaceDomainService'
 import type { App as AppType, ServiceTree as ServiceTreeType } from '@/types'
 
-export function useWorkspaceRouting(options: {
-  serviceTree: () => ServiceTreeType[]
-  currentApp: () => AppType | null
-  appList: () => AppType[]
-  loadAppList: () => Promise<void>
-  findNodeByPath: (tree: ServiceTreeType[], path: string) => ServiceTreeType | null
-  checkAndExpandForkedPaths: () => void
-  expandCurrentRoutePath: () => void
-}) {
+export function useWorkspaceRouting(
+  options: {
+    serviceTree: () => ServiceTreeType[]
+    currentApp: () => AppType | null
+    appList: () => AppType[]
+    loadAppList: () => Promise<void>
+    findNodeByPath: (tree: ServiceTreeType[], path: string) => ServiceTreeType | null
+    checkAndExpandForkedPaths: () => void
+    expandCurrentRoutePath: () => void
+  },
+  serviceProvider: IServiceProvider = serviceFactory  // 🔥 通过参数注入，提高可测试性
+) {
   const route = useRoute()
   const router = useRouter()
-  const stateManager = serviceFactory.getWorkspaceStateManager()
-  const applicationService = serviceFactory.getWorkspaceApplicationService()
+  const stateManager = serviceProvider.getWorkspaceStateManager()
+  const applicationService = serviceProvider.getWorkspaceApplicationService()
 
   // 防重复调用保护
   let isLoadingAppFromRoute = false

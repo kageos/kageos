@@ -141,6 +141,15 @@
                     <el-icon><Link /></el-icon>
                     复制链接
                   </el-dropdown-item>
+                  <!-- 仅对function类型显示删除选项（需要 function:delete 权限） -->
+                  <el-dropdown-item 
+                    v-if="data.type === 'function' && hasPermission(data, 'function:delete')"
+                    command="delete-function"
+                    divided
+                  >
+                    <el-icon><Delete /></el-icon>
+                    删除
+                  </el-dropdown-item>
                   <!-- 仅对package类型显示发布到Hub选项（未发布时，需要 directory:manage 权限） -->
                   <el-dropdown-item 
                     v-if="data.type === 'package' && (!data.hub_directory_id || data.hub_directory_id === 0) && hasPermission(data, DirectoryPermissions.manage)" 
@@ -190,7 +199,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Plus, MoreFilled, Link, CopyDocument, Document, Clock, Upload, Download, Lock } from '@element-plus/icons-vue'
+import { Plus, MoreFilled, Link, CopyDocument, Document, Clock, Upload, Download, Lock, Delete } from '@element-plus/icons-vue'
 import ChartIcon from './icons/ChartIcon.vue'
 import TableIcon from './icons/TableIcon.vue'
 import FormIcon from './icons/FormIcon.vue'
@@ -218,6 +227,7 @@ interface Emits {
   (e: 'node-click', node: ServiceTree): void
   (e: 'create-directory', parentNode?: ServiceTree): void
   (e: 'copy-link', node: ServiceTree): void
+  (e: 'delete-function', node: ServiceTree): void  // 删除函数
   (e: 'refresh-tree'): void  // 刷新树（复制粘贴后需要刷新）
   (e: 'update-history', node?: ServiceTree): void  // 显示变更记录（工作空间或目录）
   (e: 'publish-to-hub', node: ServiceTree): void  // 发布到 Hub
@@ -601,6 +611,8 @@ const handleNodeAction = (command: string, data: ServiceTree) => {
     }
   } else if (command === 'copy-link') {
     emit('copy-link', data)
+  } else if (command === 'delete-function') {
+    emit('delete-function', data)
   } else if (command === 'publish-to-hub') {
     emit('publish-to-hub', data)
   } else if (command === 'push-to-hub') {

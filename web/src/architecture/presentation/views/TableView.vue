@@ -2,54 +2,87 @@
   TableView - 表格视图
   新架构的展示层组件
   
-  职责：
-  - 纯 UI 展示，不包含业务逻辑
+  ============================================
+  📋 需求说明
+  ============================================
+  
+  1. **表格数据展示**：
+     - 从后端获取表格数据并渲染
+     - 支持搜索、排序、分页
+     - 支持批量操作（批量删除）
+  
+  2. **权限控制**：
+     - 根据节点权限控制按钮显示/隐藏
+     - 新增按钮：需要 `function:write` 权限
+     - 编辑按钮：需要 `function:update` 权限
+     - 删除按钮：需要 `function:delete` 权限
+     - 提交时再次检查权限，防止绕过 UI 检查
+  
+  3. **URL 参数同步**：
+     - 搜索条件同步到 URL（`like=field:value`）
+     - 排序条件同步到 URL（`sorts=field:order`）
+     - 分页信息同步到 URL（`page=1&page_size=20`）
+     - 新增弹窗状态同步到 URL（`_tab=OnTableAddRow`）
+  
+  ============================================
+  🎯 设计思路
+  ============================================
+  
+  1. **分层架构**：
+     - Presentation Layer：纯 UI 展示，不包含业务逻辑
   - 通过事件与 Application Layer 通信
   - 从 StateManager 获取状态并渲染
-  - URL 参数同步（搜索、排序、分页）
-  - 排序信息条显示
+  
+  2. **权限检查**：
+     - UI 层面：使用 `canCreate`、`canUpdate`、`canDelete` 控制按钮显示
+     - 提交时：在 `handleCreateSubmit`、`handleBatchDelete` 中再次检查权限
+     - 权限来源：从 `currentFunctionNode` 获取节点权限信息
+  
+  3. **URL 同步**：
+     - 使用 `useTableInitialization` 从 URL 初始化表格状态
+     - 使用 `useTableParamURLSync` 同步表格状态到 URL
+     - 使用事件驱动，避免直接操作路由
+  
+  ============================================
+  📝 关键功能
+  ============================================
+  
+  1. **表格操作**：
+     - 新增：打开 FormDialog，提交时检查权限
+     - 编辑：打开详情抽屉，在 useWorkspaceDetail 中检查权限
+     - 删除：批量删除，提交前检查权限
+  
+  2. **数据加载**：
+     - 从 TableApplicationService 加载数据
+     - 支持搜索、排序、分页参数
+     - 支持从 URL 恢复表格状态
+  
+  3. **权限提示**：
+     - 无权限时显示锁定图标和"需权限"提示
+     - 点击无权限按钮时跳转到权限申请页面
+  
+  ============================================
+  ⚠️ 注意事项
+  ============================================
+  
+  1. **权限检查**：
+     - 必须在 UI 层面和提交时都检查权限
+     - 权限检查失败时，显示提示并跳转到申请页面
+  
+  2. **URL 同步**：
+     - 新增弹窗状态使用 `_tab=OnTableAddRow` 标识
+     - 详情抽屉状态使用 `_tab=detail` 标识（编辑模式不设置 `_tab`）
+     - 表单字段参数只在新增模式下同步到 URL
+  
+  3. **数据流**：
+     - TableView → TableApplicationService → TableDomainService → TableStateManager
+     - 状态变化通过事件总线通知其他组件
 -->
 
 <template>
   <div class="table-view">
-    <!-- ⭐ 权限不足提示：在详情页面显示，不弹窗 -->
-    <div v-if="permissionError" class="permission-error-wrapper">
-      <el-card class="permission-error-card" shadow="hover">
-        <template #header>
-          <div class="permission-error-header">
-            <el-icon class="permission-error-icon"><Lock /></el-icon>
-            <span class="permission-error-title">权限不足</span>
-          </div>
-        </template>
-        <div class="permission-error-content">
-          <div class="permission-error-message">
-            <p class="error-message-text">
-              您没有 <strong>{{ permissionError.action_display || permissionError.error_message || '访问该资源' }}</strong> 的权限
-            </p>
-          </div>
-          <div v-if="permissionError.resource_path" class="permission-error-info">
-            <el-icon><Document /></el-icon>
-            <span class="info-label">资源路径：</span>
-            <span class="info-value">{{ permissionError.resource_path }}</span>
-          </div>
-          <div v-if="permissionError.action_display" class="permission-error-info">
-            <el-icon><Key /></el-icon>
-            <span class="info-label">缺少权限：</span>
-            <span class="info-value">{{ permissionError.action_display }}</span>
-          </div>
-          <div v-if="permissionError.apply_url" class="permission-error-actions">
-            <el-button
-              type="primary"
-              size="default"
-              @click="handleApplyPermission"
-              :icon="Lock"
-            >
-              立即申请权限
-            </el-button>
-          </div>
-        </div>
-      </el-card>
-    </div>
+    <!-- ⭐ 权限不足提示：使用 PermissionDeniedView 组件 -->
+    <PermissionDeniedView v-if="permissionError" />
 
     <!-- 工具栏 -->
     <div class="toolbar" v-if="hasAddCallback || hasDeleteCallback">
@@ -503,7 +536,7 @@ import { useTableInitialization } from '../composables/useTableInitialization'
 import { convertToFieldValue } from '@/utils/field'
 import { resolveWorkspaceUrl } from '@/utils/route'
 import { parseLinkValue, addLinkTypeToUrl, isLinkNavigation, LINK_TYPE_QUERY_KEY } from '@/utils/linkNavigation'
-import LinkWidget from '@/core/widgets-v2/components/LinkWidget.vue'
+import LinkWidget from '@/architecture/presentation/widgets/LinkWidget.vue'
 import { TABLE_PARAM_KEYS, SEARCH_PARAM_KEYS } from '@/utils/urlParams'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { useUserInfoStore } from '@/stores/userInfo'
@@ -514,6 +547,7 @@ import { hasPermission, TablePermissions, buildPermissionApplyURL } from '@/util
 import { usePermissionErrorStore } from '@/stores/permissionError'
 import type { PermissionInfo } from '@/utils/permission'
 import { parseExcelFile } from '@/utils/excelImport'
+import PermissionDeniedView from '../components/PermissionDeniedView.vue'
 
 const props = defineProps<{
   functionDetail: FunctionDetail
@@ -522,11 +556,12 @@ const props = defineProps<{
 const route = useRoute()
 const router = useRouter()
 
-// 依赖注入
-const stateManager = serviceFactory.getTableStateManager()
-const domainService = serviceFactory.getTableDomainService()
-const applicationService = serviceFactory.getTableApplicationService()
-const workspaceStateManager = serviceFactory.getWorkspaceStateManager()  // ⭐ 用于获取当前函数节点的权限信息
+// 依赖注入（使用 IServiceProvider 接口，遵循依赖倒置原则）
+const serviceProvider: IServiceProvider = serviceFactory
+const stateManager = serviceProvider.getTableStateManager()
+const domainService = serviceProvider.getTableDomainService()
+const applicationService = serviceProvider.getTableApplicationService()
+const workspaceStateManager = serviceProvider.getWorkspaceStateManager()  // ⭐ 用于获取当前函数节点的权限信息
 
 // 🔥 从状态管理器获取状态（统一状态管理）
 const tableData = computed(() => stateManager.getData())
@@ -637,6 +672,29 @@ const checkSelectable = (row: TableRow, index: number): boolean => {
 const handleBatchDelete = async (): Promise<void> => {
   if (selectedRows.value.length === 0) {
     ElMessage.warning('请先选择要删除的记录')
+    return
+  }
+
+  // 🔥 安全修复：检查删除权限
+  const node = currentFunctionNode.value
+  if (!node) {
+    ElMessage.error('无法获取函数节点信息，无法验证权限')
+    return
+  }
+  
+  if (!hasPermission(node, TablePermissions.delete)) {
+    ElNotification.warning({
+      title: '权限不足',
+      message: '您没有删除该表格记录的权限',
+      duration: 3000
+    })
+    // 跳转到权限申请页面
+    const applyUrl = buildPermissionApplyURL(
+      node.full_code_path || '',
+      TablePermissions.delete,
+      props.functionDetail?.template_type
+    )
+    router.push(applyUrl)
     return
   }
 
@@ -1499,6 +1557,29 @@ const handleAdd = (): void => {
 }
 
 const handleCreateSubmit = async (data: Record<string, any>): Promise<void> => {
+  // 🔥 安全修复：提交前再次检查权限，避免绕过 UI 权限检查
+  const node = currentFunctionNode.value
+  if (!node) {
+    ElMessage.error('无法获取函数节点信息，无法验证权限')
+    return
+  }
+  
+  if (!hasPermission(node, TablePermissions.write)) {
+    ElNotification.warning({
+      title: '权限不足',
+      message: '您没有新增该表格记录的权限',
+      duration: 3000
+    })
+    // 跳转到权限申请页面
+    const applyUrl = buildPermissionApplyURL(
+      node.full_code_path || '',
+      TablePermissions.write,
+      props.functionDetail?.template_type
+    )
+    router.push(applyUrl)
+    return
+  }
+  
   try {
     await applicationService.addRow(props.functionDetail, data)
     ElMessage.success('新增成功')
@@ -1844,21 +1925,21 @@ const currentFunctionNode = computed(() => {
 // ⭐ 是否有新增权限
 const canCreate = computed(() => {
   const node = currentFunctionNode.value
-  if (!node) return true  // 如果没有节点信息，默认允许（向后兼容）
+  if (!node) return false
   return hasPermission(node, TablePermissions.write)
 })
 
 // ⭐ 是否有更新权限
 const canUpdate = computed(() => {
   const node = currentFunctionNode.value
-  if (!node) return true  // 如果没有节点信息，默认允许（向后兼容）
+  if (!node) return false
   return hasPermission(node, TablePermissions.update)
 })
 
 // ⭐ 是否有删除权限
 const canDelete = computed(() => {
   const node = currentFunctionNode.value
-  if (!node) return true  // 如果没有节点信息，默认允许（向后兼容）
+  if (!node) return false
   return hasPermission(node, TablePermissions.delete)
 })
 
@@ -1866,18 +1947,7 @@ const canDelete = computed(() => {
 const permissionErrorStore = usePermissionErrorStore()
 const permissionError = computed<PermissionInfo | null>(() => permissionErrorStore.currentError)
 
-// ⭐ 处理权限申请
-const handleApplyPermission = () => {
-  if (permissionError.value?.apply_url) {
-    if (permissionError.value.apply_url.startsWith('/')) {
-      router.push(permissionError.value.apply_url)
-    } else {
-      window.open(permissionError.value.apply_url, '_blank')
-    }
-  }
-}
-
-// ⭐ 为特定操作申请权限
+// ⭐ 为特定操作申请权限（PermissionDeniedView 组件已处理权限错误显示）
 const handleApplyPermissionForAction = (action: string) => {
   const node = currentFunctionNode.value
   if (!node || !node.full_code_path) {
@@ -2236,109 +2306,7 @@ onUnmounted(() => {
   min-width: fit-content;
 }
 
-.permission-error-wrapper {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 400px;
-  padding: 40px 20px;
-}
-
-.permission-error-card {
-  max-width: 600px;
-  width: 100%;
-  border-radius: 16px;
-  border: none;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-  transition: all 0.3s ease;
-
-  &:hover {
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
-    transform: translateY(-2px);
-  }
-}
-
-.permission-error-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--el-color-warning);
-}
-
-.permission-error-icon {
-  font-size: 24px;
-}
-
-.permission-error-title {
-  font-size: 18px;
-}
-
-.permission-error-content {
-  padding: 8px 0;
-}
-
-.permission-error-message {
-  margin-bottom: 24px;
-  padding: 16px;
-  background: linear-gradient(135deg, rgba(255, 193, 7, 0.1) 0%, rgba(255, 152, 0, 0.05) 100%);
-  border-radius: 12px;
-  border-left: 4px solid var(--el-color-warning);
-}
-
-.error-message-text {
-  margin: 0;
-  font-size: 15px;
-  line-height: 1.6;
-  color: var(--el-text-color-primary);
-
-  strong {
-    color: var(--el-color-warning);
-    font-weight: 600;
-  }
-}
-
-.permission-error-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 16px;
-  padding: 12px 16px;
-  background: var(--el-bg-color-page);
-  border-radius: 10px;
-  font-size: 14px;
-  transition: all 0.2s ease;
-
-  &:hover {
-    background: var(--el-fill-color-light);
-  }
-
-  .el-icon {
-    color: var(--el-color-info);
-    font-size: 18px;
-  }
-
-  .info-label {
-    color: var(--el-text-color-regular);
-    font-weight: 500;
-  }
-
-  .info-value {
-    color: var(--el-text-color-primary);
-    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-    font-size: 13px;
-    word-break: break-all;
-  }
-}
-
-.permission-error-actions {
-  margin-top: 24px;
-  display: flex;
-  justify-content: center;
-  padding-top: 16px;
-  border-top: 1px solid var(--el-border-color-lighter);
-}
+/* 🔥 权限错误显示样式已移至 PermissionDeniedView 组件 */
 
 /* 无权限按钮样式优化 */
 .action-btn-no-permission {

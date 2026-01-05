@@ -1,21 +1,28 @@
-# 渲染引擎
+# Core 核心模块
+
+> **注意**：Widget 组件、工厂和渲染器已迁移到新架构 `web/src/architecture/` 目录下。
+> 旧架构代码（widgets-v2、factories-v2、renderers-v2）已删除。
 
 ## 目录结构
 
 ```
 core/
-├── types/              # 类型定义
+├── types/              # 类型定义（共享类型，新架构也使用）
 │   ├── field.ts       # 字段相关类型
 │   └── widget.ts      # Widget 相关类型
-├── widgets-v2/        # Widget 组件（Vue 组件版本）
-│   ├── components/    # 所有 Widget 组件
-│   └── composables/   # Widget 相关的 composables
-├── factories-v2/      # 工厂（Vue 组件版本）
-│   └── WidgetComponentFactory.ts  # Widget 组件工厂
-├── managers/          # 管理器
+├── constants/          # 常量定义（共享常量）
+│   ├── field.ts       # 字段常量
+│   └── widget.ts      # Widget 常量
+├── managers/          # 管理器（共享管理器）
 │   └── ReactiveFormDataManager.ts  # 表单数据管理器
-└── renderers-v2/      # 渲染器（Vue 组件版本）
-    └── FormRenderer.vue  # 表单渲染器
+├── stores-v2/         # Pinia Stores（共享状态管理）
+│   ├── formData.ts    # 表单数据 Store
+│   └── responseData.ts # 响应数据 Store
+├── utils/             # 工具函数（共享工具）
+│   ├── logger.ts      # 日志工具
+│   └── validationUtils.ts # 验证工具
+└── validation/        # 验证系统（共享验证）
+    └── ValidationEngine.ts # 验证引擎
 ```
 
 ## 已实现功能

@@ -50,25 +50,9 @@ func (r *UserRepository) CountUsers() (int64, error) {
 	return count, err
 }
 
-// GetUserWithHostAndNats 根据用户ID获取用户信息，并预加载host和nats信息
-func (r *UserRepository) GetUserWithHostAndNats(id int64) (*model.User, error) {
-	var user model.User
-	err := r.db.Preload("Host.Nats").Where("id = ?", id).First(&user).Error
-	if err != nil {
-		return nil, err
-	}
-	return &user, nil
-}
-
-// GetUserByUsernameWithHostAndNats 根据用户名获取用户信息，并预加载host和nats信息
-func (r *UserRepository) GetUserByUsernameWithHostAndNats(username string) (*model.User, error) {
-	var user model.User
-	err := r.db.Preload("Host.Nats").Where("username = ?", username).First(&user).Error
-	if err != nil {
-		return nil, err
-	}
-	return &user, nil
-}
+// ⚠️ 注意：以下方法已废弃，因为 User 不再关联 Host 和 Nats
+// Host 和 Nats 绑定在 App 上，不在 User 上
+// 如果需要获取 Host 信息，应该从 App 获取
 
 // GetUserByThirdPartyID 根据第三方平台ID和注册方式获取用户信息
 func (r *UserRepository) GetUserByThirdPartyID(thirdPartyID, registerType string) (*model.User, error) {

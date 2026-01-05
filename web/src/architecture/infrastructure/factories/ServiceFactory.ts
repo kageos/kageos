@@ -1,12 +1,85 @@
 /**
  * ServiceFactory - 服务工厂
  * 
- * 职责：创建和配置所有服务实例，简化依赖注入
+ * ============================================
+ * 📋 需求说明
+ * ============================================
  * 
- * 特点：
- * - 统一管理依赖注入
- * - 提供默认配置
- * - 可以轻松替换实现
+ * 1. **依赖注入管理**：
+ *    - 统一创建和配置所有服务实例
+ *    - 简化依赖注入流程
+ *    - 提供默认配置，支持自定义配置
+ * 
+ * 2. **服务提供**：
+ *    - 实现 `IServiceProvider` 接口
+ *    - 提供 Domain Services、Application Services、State Managers 等
+ *    - 支持懒加载（按需创建）
+ * 
+ * 3. **可扩展性**：
+ *    - 可以轻松替换实现（通过构造函数配置）
+ *    - 支持测试时注入 Mock 对象
+ *    - 遵循依赖倒置原则
+ * 
+ * ============================================
+ * 🎯 设计思路
+ * ============================================
+ * 
+ * 1. **依赖倒置原则**：
+ *    - 实现 `IServiceProvider` 接口
+ *    - Presentation Layer 只依赖接口，不依赖具体实现
+ *    - 可以轻松替换实现，提高可测试性
+ * 
+ * 2. **服务分层**：
+ *    - Domain Services：业务逻辑层
+ *    - Application Services：业务流程编排层
+ *    - State Managers：状态管理层
+ *    - Infrastructure Services：基础设施层（EventBus、ApiClient 等）
+ * 
+ * 3. **懒加载**：
+ *    - 服务实例按需创建（首次调用时创建）
+ *    - 避免不必要的初始化开销
+ *    - 支持循环依赖的解决
+ * 
+ * ============================================
+ * 📝 关键功能
+ * ============================================
+ * 
+ * 1. **服务创建**：
+ *    - 创建 Domain Services（FormDomainService、TableDomainService 等）
+ *    - 创建 Application Services（FormApplicationService、TableApplicationService 等）
+ *    - 创建 State Managers（FormStateManager、TableStateManager 等）
+ * 
+ * 2. **依赖注入**：
+ *    - 自动注入依赖（EventBus、ApiClient、StateManager 等）
+ *    - 支持自定义依赖（通过构造函数配置）
+ * 
+ * 3. **服务获取**：
+ *    - 通过 `getXXXService()` 方法获取服务实例
+ *    - 首次调用时创建，后续调用返回已创建的实例
+ * 
+ * ============================================
+ * ⚠️ 注意事项
+ * ============================================
+ * 
+ * 1. **服务生命周期**：
+ *    - 服务实例是单例的（同一 ServiceFactory 实例）
+ *    - 服务实例在首次调用时创建
+ * 
+ * 2. **依赖顺序**：
+ *    - State Managers 不依赖其他服务
+ *    - Domain Services 依赖 State Managers 和 Infrastructure Services
+ *    - Application Services 依赖 Domain Services
+ * 
+ * 3. **测试支持**：
+ *    - 可以通过构造函数注入 Mock 对象
+ *    - 支持单元测试和集成测试
+ * 
+ * ============================================
+ * 📚 相关文档
+ * ============================================
+ * 
+ * - 服务提供者接口：`web/src/architecture/domain/interfaces/IServiceProvider.ts`
+ * - 新架构扩展性分析：`web/docs/新架构扩展性分析报告.md`
  */
 
 import { eventBus } from '../eventBus'
@@ -28,6 +101,7 @@ import type { IApiClient } from '../../domain/interfaces/IApiClient'
 import type { ICacheManager } from '../../domain/interfaces/ICacheManager'
 import type { IFunctionLoader } from '../../domain/interfaces/IFunctionLoader'
 import type { IServiceTreeLoader } from '../../domain/interfaces/IServiceTreeLoader'
+import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 
 /**
  * 服务工厂配置
@@ -41,8 +115,10 @@ export interface ServiceFactoryConfig {
 
 /**
  * 服务工厂
+ * 
+ * 🔥 实现 IServiceProvider 接口，遵循依赖倒置原则
  */
-export class ServiceFactory {
+export class ServiceFactory implements IServiceProvider {
   private eventBus: IEventBus
   private apiClient: IApiClient
   private cacheManager: ICacheManager
@@ -188,6 +264,42 @@ export class ServiceFactory {
       )
     }
     return this.tableApplicationService
+  }
+
+  // ========== Infrastructure Services ==========
+  /**
+   * 获取事件总线
+   */
+  getEventBus(): IEventBus {
+    return this.eventBus
+  }
+
+  /**
+   * 获取 API 客户端
+   */
+  getApiClient(): IApiClient {
+    return this.apiClient
+  }
+
+  /**
+   * 获取缓存管理器
+   */
+  getCacheManager(): ICacheManager {
+    return this.cacheManager
+  }
+
+  /**
+   * 获取函数加载器
+   */
+  getFunctionLoader(): IFunctionLoader {
+    return this.functionLoader
+  }
+
+  /**
+   * 获取服务树加载器
+   */
+  getServiceTreeLoader(): IServiceTreeLoader {
+    return this.serviceTreeLoader
   }
 
   /**

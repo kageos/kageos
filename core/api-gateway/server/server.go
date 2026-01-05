@@ -21,6 +21,7 @@ type Server struct {
 	// 核心组件
 	httpServer      *gin.Engine
 	sharedTransport *http.Transport // 共享 Transport，提高性能
+	tokenBlacklist  *TokenBlacklist  // ⭐ 新增：Token 黑名单管理器
 
 	// 上下文
 	ctx context.Context
@@ -31,8 +32,9 @@ func NewServer(cfg *config.APIGatewayConfig) (*Server, error) {
 	ctx := context.Background()
 
 	s := &Server{
-		cfg: cfg,
-		ctx: ctx,
+		cfg:            cfg,
+		ctx:            ctx,
+		tokenBlacklist: NewTokenBlacklist(), // ⭐ 新增：初始化 Token 黑名单管理器
 	}
 
 	// 初始化共享 Transport
@@ -57,6 +59,12 @@ func (s *Server) Start(ctx context.Context) error {
 
 	// 打印代理配置信息
 	s.printProxyRoutes(ctx)
+
+	// ⭐ 新增：启动 NATS 监听器
+	if err := s.startNATSListener(ctx); err != nil {
+		logger.Warnf(ctx, "[Server] Failed to start NATS listener: %v, continuing without NATS", err)
+		// 不返回错误，允许服务在没有 NATS 的情况下运行（向后兼容）
+	}
 
 	// 启动 HTTP 服务器
 	port := fmt.Sprintf(":%d", s.cfg.GetPort())
