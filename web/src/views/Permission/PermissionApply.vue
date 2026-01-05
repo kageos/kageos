@@ -1644,7 +1644,7 @@ const handleSubmit = async () => {
       for (const action of actions) {
         try {
           await addPermission({
-            username: grantTargetUser.value.username,
+            subject: grantTargetUser.value.username,
             resource_path: resourcePath,
             action: action
           })
@@ -1666,58 +1666,38 @@ const handleSubmit = async () => {
         ElMessage.warning(`赋权部分成功，已成功添加 ${successCount}/${actions.length} 个权限，失败：${failedActions.join(', ')}`)
       }
     } else if (grantTargetType.value === 'department') {
-      // 给部门赋权
+      // 给部门赋权（直接给组织架构路径赋权，该部门下的所有用户自动拥有权限）
       if (!grantTargetDepartment.value) {
         ElMessage.warning('请选择要赋权的部门')
         return
       }
 
-      // 获取部门下的所有用户
-      const deptUsersRes = await getUsersByDepartment(grantTargetDepartment.value)
-      const deptUsers = deptUsersRes.users || []
+      let successCount = 0
+      let failedActions: string[] = []
 
-      if (deptUsers.length === 0) {
-        ElMessage.warning('该部门下没有用户')
-        return
-      }
-
-      // 批量给部门下的所有用户赋权
-      let totalSuccess = 0
-      let totalFailed = 0
-      const failedUsers: string[] = []
-
-      for (const user of deptUsers) {
-        for (const action of actions) {
-          try {
-            await addPermission({
-              username: user.username,
-              resource_path: resourcePath,
-              action: action
-            })
-            totalSuccess++
-          } catch (err: any) {
-            totalFailed++
-            if (!failedUsers.includes(user.username)) {
-              failedUsers.push(user.username)
-            }
-            console.error(`给用户 ${user.username} 赋权失败: ${action}`, err)
-          }
+      for (const action of actions) {
+        try {
+          await addPermission({
+            subject: grantTargetDepartment.value, // ⭐ 直接使用组织架构路径作为 subject
+            resource_path: resourcePath,
+            action: action
+          })
+          successCount++
+        } catch (err: any) {
+          failedActions.push(action)
+          console.error(`给部门赋权失败: ${action}`, err)
         }
       }
 
-      const totalAttempts = deptUsers.length * actions.length
-      if (totalSuccess === 0) {
+      if (successCount === 0) {
         ElMessage.error('赋权失败，所有权限点都添加失败')
         return
       }
 
-      if (totalSuccess === totalAttempts) {
-        ElMessage.success(`已成功给部门 "${grantTargetDepartment.value}" 下的 ${deptUsers.length} 个用户赋权，共 ${totalSuccess} 个权限`)
+      if (successCount === actions.length) {
+        ElMessage.success(`已成功给部门 "${grantTargetDepartment.value}" 赋权 ${successCount} 个权限，该部门下的所有用户自动拥有这些权限`)
       } else {
-        ElMessage.warning(
-          `赋权部分成功，已成功添加 ${totalSuccess}/${totalAttempts} 个权限，` +
-          `失败用户：${failedUsers.length > 0 ? failedUsers.join(', ') : '无'}`
-        )
+        ElMessage.warning(`赋权部分成功，已成功添加 ${successCount}/${actions.length} 个权限，失败：${failedActions.join(', ')}`)
       }
     }
     

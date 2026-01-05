@@ -80,9 +80,10 @@ export function getWorkspacePermissions(params: GetWorkspacePermissionsReq): Pro
 
 /**
  * 添加权限请求（用于赋权）
+ * ⭐ Subject 可以是用户名（如 "liubeiluo"）或组织架构路径（如 "/org/sub/qsearch"）
  */
 export interface AddPermissionReq {
-  username: string  // 用户名
+  subject: string  // 权限主体：用户名或组织架构路径
   resource_path: string  // 资源路径
   action: string  // 权限点
 }

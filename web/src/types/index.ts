@@ -49,6 +49,8 @@ export interface App {
   host_id: number
   status: 'enabled' | 'disabled'
   version: string
+  is_public: boolean
+  admins?: string
   created_at: string
   updated_at: string
 }
@@ -56,6 +58,8 @@ export interface App {
 export interface CreateAppRequest {
   code: string
   name: string
+  is_public?: boolean
+  admins?: string
 }
 
 // 创建应用响应（后端实际返回的结构）

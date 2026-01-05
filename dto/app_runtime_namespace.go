@@ -2,22 +2,25 @@ package dto
 
 import (
 	"fmt"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
 	"strings"
+
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
 )
 
 type NamespaceCreateReq struct {
 	Name string `json:"name" binding:"required" example:"my-namespace"` // 命名空间名称
 }
 type NamespaceCreateResp struct {
-	Success bool   `json:"success" example:"true"`             // 是否成功
+	Success bool   `json:"success" example:"true"`     // 是否成功
 	Message string `json:"message" example:"命名空间创建成功"` // 响应消息
 }
 
 type CreateAppReq struct {
-	User string `json:"user" swaggerignore:"true"`                    // 租户用户名（应用所有者，决定应用的所有权）- 内部字段，不显示在文档中
-	Code string `json:"code" binding:"required" example:"myapp"`      // 应用名
-	Name string `json:"name" binding:"required" example:"腾讯oa系统"` // 应用名
+	User     string `json:"user" swaggerignore:"true"`                    // 租户用户名（应用所有者，决定应用的所有权）- 内部字段，不显示在文档中
+	Code     string `json:"code" binding:"required" example:"myapp"`      // 应用名
+	Name     string `json:"name" binding:"required" example:"腾讯oa系统"`     // 应用名
+	IsPublic *bool  `json:"is_public,omitempty" example:"true"`           // 是否公开，默认 true（公开）
+	Admins   string `json:"admins,omitempty" example:"user1,user2,user3"` // 管理员列表，逗号分隔的用户名
 }
 
 type CreateAppResp struct {
@@ -52,9 +55,9 @@ type CallbackAppReq struct {
 type RequestAppResp struct {
 	TraceId string      `json:"trace_id" example:"req-123456"` // 追踪ID
 	Version string      `json:"version" example:"v1"`
-	Result  interface{} `json:"result,omitempty"`                       // 结果
+	Result  interface{} `json:"result,omitempty"`                 // 结果
 	Error   string      `json:"error,omitempty" example:"应用内部错误"` // 错误信息
-	ErrCode int         `json:"err_code" example:"0"`                   //0 是正常，>0 是系统错误，<0 是业务错误，业务错误用户自己处理，系统错误需要考虑用ai来分析代码是哪里出了问题
+	ErrCode int         `json:"err_code" example:"0"`             //0 是正常，>0 是系统错误，<0 是业务错误，业务错误用户自己处理，系统错误需要考虑用ai来分析代码是哪里出了问题
 }
 
 func (r *RequestAppResp) IsError() bool {
@@ -70,31 +73,31 @@ type CreateFunctionInfo struct {
 
 // CreateFunctionsResp 创建函数响应
 type CreateFunctionsResp struct {
-	Success      bool     `json:"success" example:"true"`         // 是否成功
+	Success      bool     `json:"success" example:"true"`   // 是否成功
 	Message      string   `json:"message" example:"文件创建成功"` // 响应消息
-	WrittenFiles []string `json:"written_files"`                  // 已写入的文件路径列表（用于失败时回滚）
+	WrittenFiles []string `json:"written_files"`            // 已写入的文件路径列表（用于失败时回滚）
 }
 
 // UpdateAppReq 更新应用请求
 type UpdateAppReq struct {
-	User             string                `json:"user" swaggerignore:"true"`              // 用户名
-	App              string                `json:"app" binding:"required" example:"myapp"` // 应用名
-	ForkPackages     []*ForkPackageInfo    `json:"fork_packages,omitempty"`                // 可选的 Fork 包列表（如果有，先执行 fork 再更新）
-	CreateFunctions  []*CreateFunctionInfo `json:"create_functions,omitempty"`             // 可选的新建函数列表（如果有，先执行创建函数再更新）
-	Requirement      string                `json:"requirement,omitempty"`                  // 变更需求（用户在前端输入的）
-	ChangeDescription string                `json:"change_description,omitempty"`          // 变更描述（大模型输出的）
-	Summary          string                `json:"summary,omitempty"`                     // 变更摘要（详情），兼容旧字段，如果未提供则使用 Requirement + ChangeDescription 组合
+	User              string                `json:"user" swaggerignore:"true"`              // 用户名
+	App               string                `json:"app" binding:"required" example:"myapp"` // 应用名
+	ForkPackages      []*ForkPackageInfo    `json:"fork_packages,omitempty"`                // 可选的 Fork 包列表（如果有，先执行 fork 再更新）
+	CreateFunctions   []*CreateFunctionInfo `json:"create_functions,omitempty"`             // 可选的新建函数列表（如果有，先执行创建函数再更新）
+	Requirement       string                `json:"requirement,omitempty"`                  // 变更需求（用户在前端输入的）
+	ChangeDescription string                `json:"change_description,omitempty"`           // 变更描述（大模型输出的）
+	Summary           string                `json:"summary,omitempty"`                      // 变更摘要（详情），兼容旧字段，如果未提供则使用 Requirement + ChangeDescription 组合
 }
 
 // UpdateAppResp 更新应用响应
 type UpdateAppResp struct {
-	User          string    `json:"user" example:"beiluo"`           // 用户名
-	App           string    `json:"app" example:"myapp"`             // 应用名
-	OldVersion    string    `json:"old_version" example:"v1"`         // 旧版本号
-	NewVersion    string    `json:"new_version" example:"v2"`        // 新版本号
-	GitCommitHash string    `json:"git_commit_hash,omitempty"`       // Git 提交哈希（用于回滚）
-	Diff          *DiffData `json:"diff,omitempty"`                  // API diff 信息
-	Error         string    `json:"error,omitempty"`                  // 回调过程中的错误信息
+	User          string    `json:"user" example:"beiluo"`     // 用户名
+	App           string    `json:"app" example:"myapp"`       // 应用名
+	OldVersion    string    `json:"old_version" example:"v1"`  // 旧版本号
+	NewVersion    string    `json:"new_version" example:"v2"`  // 新版本号
+	GitCommitHash string    `json:"git_commit_hash,omitempty"` // Git 提交哈希（用于回滚）
+	Diff          *DiffData `json:"diff,omitempty"`            // API diff 信息
+	Error         string    `json:"error,omitempty"`           // 回调过程中的错误信息
 }
 
 type DiffData struct {
@@ -237,8 +240,9 @@ type DeleteAppResp struct {
 // GetAppsReq 获取应用列表请求
 type GetAppsReq struct {
 	PageInfoReq
-	User   string `json:"user" swaggerignore:"true"` // 租户名（从JWT Token获取）
-	Search string `json:"search" form:"search"`      // 搜索关键词（支持按应用名称或代码搜索）
+	User       string `json:"user" swaggerignore:"true"`      // 租户名（从JWT Token获取）
+	Search     string `json:"search" form:"search"`           // 搜索关键词（支持按应用名称或代码搜索）
+	IncludeAll bool   `json:"include_all" form:"include_all"` // 是否包含所有公开的工作空间（true: 显示自己的+全部公开的，false: 只显示自己的）
 }
 
 // GetAppsResp 获取应用列表响应
@@ -251,18 +255,20 @@ type AppInfo struct {
 	ID        int64  `json:"id" example:"1"`                           // 应用ID
 	User      string `json:"user" example:"beiluo"`                    // 租户名
 	Code      string `json:"code" example:"myapp"`                     // 应用代码
-	Name      string `json:"name" example:"我的应用"`                  // 应用名称
+	Name      string `json:"name" example:"我的应用"`                      // 应用名称
 	Status    string `json:"status" example:"enabled"`                 // 状态: enabled(启用), disabled(禁用)
 	Version   string `json:"version" example:"v1"`                     // 版本
 	NatsID    int64  `json:"nats_id" example:"1"`                      // NATS ID
 	HostID    int64  `json:"host_id" example:"1"`                      // 主机ID
+	IsPublic  bool   `json:"is_public" example:"true"`                 // 是否公开
+	Admins    string `json:"admins,omitempty" example:"user1,user2"`   // 管理员列表，逗号分隔的用户名
 	CreatedAt string `json:"created_at" example:"2006-01-02 15:04:05"` // 创建时间
 	UpdatedAt string `json:"updated_at" example:"2006-01-02 15:04:05"` // 更新时间
 }
 
 // GetAppDetailReq 获取应用详情请求
 type GetAppDetailReq struct {
-	User string `json:"user" swaggerignore:"true"` // 租户名（从JWT Token获取）
+	User string `json:"user" swaggerignore:"true"`                         // 租户名（从JWT Token获取）
 	App  string `json:"app" form:"app" binding:"required" example:"myapp"` // 应用代码
 }
 
@@ -273,13 +279,13 @@ type GetAppDetailResp struct {
 
 // GetAppWithServiceTreeReq 获取应用详情和服务目录树请求
 type GetAppWithServiceTreeReq struct {
-	User string `json:"user" swaggerignore:"true"` // 租户名（从JWT Token获取）
+	User string `json:"user" swaggerignore:"true"`                         // 租户名（从JWT Token获取）
 	App  string `json:"app" form:"app" binding:"required" example:"myapp"` // 应用代码
 	Type string `json:"type" form:"type" example:"package"`                // 节点类型过滤（可选），如：package（只显示服务目录/包）、function（只显示函数/文件）
 }
 
 // GetAppWithServiceTreeResp 获取应用详情和服务目录树响应
 type GetAppWithServiceTreeResp struct {
-	App        AppInfo                 `json:"app"`         // 应用详情
+	App         AppInfo               `json:"app"`          // 应用详情
 	ServiceTree []*GetServiceTreeResp `json:"service_tree"` // 服务目录树
 }

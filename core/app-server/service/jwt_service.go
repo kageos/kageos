@@ -29,6 +29,12 @@ type JWTClaims struct {
 	UserID   int64  `json:"user_id"`
 	Username string `json:"username"`
 	Email    string `json:"email"`
+	
+	// ⭐ 组织架构信息（与 hr-server 的 JWTClaims 保持一致）
+	// token 由 hr-server 生成，一定包含这些字段（如果用户有组织架构信息）
+	DepartmentFullPath *string `json:"department_full_path,omitempty"`
+	LeaderUsername    *string `json:"leader_username,omitempty"`
+	
 	jwt.RegisteredClaims
 }
 

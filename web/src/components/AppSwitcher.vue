@@ -1,14 +1,11 @@
 <template>
   <div class="app-switcher">
     <div class="app-container">
-      <el-dropdown 
-        trigger="click" 
-        placement="top-start" 
-        @command="handleSwitchApp"
-        @visible-change="handleVisibleChange"
-        popper-class="app-dropdown-popper"
+      <div 
+        class="app-current" 
+        v-if="currentApp"
+        @click="handleOpenDialog"
       >
-        <div class="app-current" v-if="currentApp">
           <div class="app-avatar">
             <div class="app-icon" :style="{ backgroundColor: getAppColor(currentApp) }">
               {{ getAppInitial(currentApp.name || currentApp.code) }}
@@ -28,7 +25,11 @@
             </el-icon>
           </div>
         </div>
-        <div class="app-current" v-else>
+      <div 
+        class="app-current" 
+        v-else
+        @click="handleOpenDialog"
+      >
           <div class="app-avatar">
             <div class="app-icon" style="background-color: #909399;">
               ?
@@ -47,109 +48,25 @@
             </el-icon>
           </div>
         </div>
-      
-      <template #dropdown>
-        <div class="app-dropdown">
-          <!-- 头部 -->
-          <div class="dropdown-header">
-            <div class="header-content">
-              <div class="header-title">
-                <el-icon class="header-icon"><Grid /></el-icon>
-                工作空间列表
-              </div>
-              <div class="header-subtitle">选择或管理你的工作空间</div>
-            </div>
-          </div>
-          
-          <!-- 加载状态 -->
-          <div v-if="loadingApps" class="loading-state">
-            <div class="loading-content">
-              <el-icon class="loading-icon"><Loading /></el-icon>
-              <span class="loading-text">正在加载工作空间列表...</span>
-            </div>
-          </div>
-
-          <!-- 工作空间列表 -->
-          <div v-else class="app-list">
-            <el-scrollbar v-if="appList.length > 0" max-height="300px" class="app-scrollbar">
-              <div class="app-items">
-                <div 
-                  v-for="app in appList" 
-                  :key="app.id" 
-                  class="app-item"
-                  :class="{ 'is-active': currentApp && app.id === currentApp.id }"
-                  @click="handleSwitchApp(app)"
-                >
-                  <div class="item-avatar">
-                    <div class="item-icon" :style="{ backgroundColor: getAppColor(app) }">
-                      {{ getAppInitial(app.name || app.code) }}
-                    </div>
-                  </div>
-                  <div class="item-content">
-                    <div class="item-title">{{ app.name || app.code }}</div>
-                    <div class="item-path">
-                      <el-icon class="path-icon"><FolderOpened /></el-icon>
-                      {{ app.user }}/{{ app.code }}
-                    </div>
-                  </div>
-                  <div class="item-actions">
-                    <el-button
-                      link
-                      size="small"
-                      class="update-btn"
-                      title="重新编译工作空间"
-                      @click="(e) => handleUpdateApp(app, e)"
-                    >
-                      <el-icon><RefreshRight /></el-icon>
-                    </el-button>
-                    <el-button
-                      link
-                      size="small"
-                      class="delete-btn"
-                      title="删除工作空间"
-                      @click="(e) => handleDeleteApp(app, e)"
-                    >
-                      <el-icon><Delete /></el-icon>
-                    </el-button>
-                    <div v-if="currentApp && app.id === currentApp.id" class="check-badge">
-                      <el-icon class="check-icon"><Check /></el-icon>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </el-scrollbar>
-            <div v-else class="empty-app-list">
-              <el-empty description="暂无工作空间" :image-size="80">
-                <el-button type="primary" @click="$emit('create-app')">
-                  <el-icon><Plus /></el-icon>
-                  创建工作空间
-                </el-button>
-              </el-empty>
-            </div>
-          </div>
-          
-          <!-- 底部操作 -->
-          <div class="dropdown-footer">
-            <el-button 
-              type="primary" 
-              class="create-btn"
-              @click="$emit('create-app')"
-            >
-              <el-icon class="create-icon"><Plus /></el-icon>
-              创建新工作空间
-            </el-button>
-          </div>
-        </div>
-      </template>
-    </el-dropdown>
     </div>
+
+    <!-- 工作空间列表弹窗 -->
+    <WorkspaceListDialog
+      v-model="dialogVisible"
+      :current-app="currentApp"
+      @switch-app="handleSwitchApp"
+      @create-app="handleCreateApp"
+      @update-app="handleUpdateApp"
+      @delete-app="handleDeleteApp"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ArrowUp, Loading, Check, Plus, FolderOpened, Grid, RefreshRight, Delete } from '@element-plus/icons-vue'
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
+import { ArrowUp, FolderOpened } from '@element-plus/icons-vue'
 import type { App } from '@/types'
+import WorkspaceListDialog from './WorkspaceListDialog.vue'
 
 interface Props {
   currentApp: App | null
@@ -168,6 +85,8 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
+const dialogVisible = ref(false)
+
 // 应用颜色映射
 const appColors = [
   '#3C9AE8', '#52C41A', '#F5222D', '#FAAD14', '#1890FF', 
@@ -176,7 +95,7 @@ const appColors = [
 
 // 获取应用颜色
 const getAppColor = (app: App) => {
-  const index = appList.value.findIndex(a => a.id === app.id)
+  const index = props.appList.findIndex(a => a.id === app.id)
   return appColors[index % appColors.length] || appColors[0]
 }
 
@@ -186,32 +105,32 @@ const getAppInitial = (text: string) => {
   return text.charAt(0).toUpperCase()
 }
 
+// 打开弹窗
+const handleOpenDialog = () => {
+  dialogVisible.value = true
+  emit('load-apps')
+}
+
 // 切换应用
 const handleSwitchApp = (app: App) => {
-  if (app.id === props.currentApp?.id) return
   emit('switch-app', app)
 }
 
-// 更新应用（重新编译）
-const handleUpdateApp = (app: App, event: Event) => {
-  event.stopPropagation() // 阻止冒泡，避免触发切换应用
+// 创建应用
+const handleCreateApp = () => {
+  dialogVisible.value = false
+  emit('create-app')
+}
+
+// 更新应用
+const handleUpdateApp = (app: App) => {
   emit('update-app', app)
 }
 
 // 删除应用
-const handleDeleteApp = (app: App, event: Event) => {
-  event.stopPropagation() // 阻止冒泡，避免触发切换应用
+const handleDeleteApp = (app: App) => {
   emit('delete-app', app)
 }
-
-// 下拉框可见性变化
-const handleVisibleChange = (visible: boolean) => {
-  if (visible) {
-    emit('load-apps')
-  }
-}
-
-const appList = computed(() => props.appList)
 </script>
 
 <style scoped>
@@ -310,218 +229,5 @@ const appList = computed(() => props.appList)
   font-size: 14px;
   color: var(--el-text-color-secondary);
   transition: transform 0.3s;
-}
-
-.app-dropdown {
-  min-width: 320px;
-  background: var(--el-bg-color);
-  border-radius: 12px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
-}
-
-.dropdown-header {
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--el-border-color-light);
-}
-
-.header-content {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.header-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-  
-  .header-icon {
-    font-size: 18px;
-    color: var(--el-color-primary);
-  }
-}
-
-.header-subtitle {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-.loading-state {
-  padding: 40px 20px;
-  text-align: center;
-}
-
-.loading-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  
-  .loading-icon {
-    font-size: 24px;
-    color: var(--el-color-primary);
-    animation: rotate 1s linear infinite;
-  }
-  
-  .loading-text {
-    font-size: 14px;
-    color: var(--el-text-color-secondary);
-  }
-}
-
-@keyframes rotate {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.app-list {
-  max-height: 300px;
-}
-
-.app-items {
-  padding: 8px 0;
-}
-
-.app-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 20px;
-  cursor: pointer;
-  transition: background-color 0.2s;
-
-  &:hover {
-    background: var(--el-fill-color-light);
-  }
-
-  &.is-active {
-    background: #6366f1;
-    border-left: 3px solid #4f46e5;
-    
-    .item-title {
-      color: white;
-      font-weight: 600;
-    }
-    
-    .item-path {
-      color: rgba(255, 255, 255, 0.8);
-      
-      .path-icon {
-        color: rgba(255, 255, 255, 0.8);
-      }
-    }
-    
-    .item-icon {
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-    }
-  }
-}
-
-.item-avatar {
-  flex-shrink: 0;
-}
-
-.item-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-weight: 600;
-  font-size: 14px;
-}
-
-.item-content {
-  flex: 1;
-  min-width: 0;
-}
-
-.item-title {
-  font-size: 14px;
-  color: var(--el-text-color-primary);
-  margin-bottom: 4px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.item-path {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  
-  .path-icon {
-    font-size: 12px;
-  }
-}
-
-.item-actions {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.update-btn,
-.delete-btn {
-  opacity: 0;
-  transition: opacity 0.2s;
-  color: var(--el-text-color-secondary);
-  
-  &:hover {
-    color: var(--el-color-primary);
-  }
-}
-
-.delete-btn:hover {
-  color: var(--el-color-danger);
-}
-
-.app-item:hover .update-btn,
-.app-item:hover .delete-btn {
-  opacity: 1;
-}
-
-.check-badge {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: var(--el-color-primary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  
-  .check-icon {
-    color: white;
-    font-size: 14px;
-  }
-}
-
-.dropdown-footer {
-  padding: 12px 20px;
-  border-top: 1px solid var(--el-border-color-light);
-}
-
-.create-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-:deep(.app-dropdown-popper) {
-  padding: 0 !important;
 }
 </style>

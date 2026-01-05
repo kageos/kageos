@@ -72,3 +72,32 @@ func (r *CasbinRuleRepository) GetPermissionsByAppIDAndUser(appID int64, usernam
 	return rules, nil
 }
 
+// GetPermissionsByAppIDAndV0List 根据 app_id 和 v0 列表查询该工作空间下的所有权限
+// ⭐ 支持查询用户权限和组织架构权限（v0 可以是用户名或组织架构路径）
+// 参数：
+//   - appID: 应用ID
+//   - v0List: v0 列表（用户名和组织架构路径的列表）
+//
+// 返回：
+//   - []PermissionRecord: 权限列表
+//   - error: 如果查询失败返回错误
+//
+// 说明：
+//   - v0 可以是用户名（如 "zhangsan"）或组织架构路径（如 "/org/master/bizit"）
+//   - 用于一次性查询用户及其组织架构的所有权限
+func (r *CasbinRuleRepository) GetPermissionsByAppIDAndV0List(appID int64, v0List []string) ([]PermissionRecord, error) {
+	if len(v0List) == 0 {
+		return []PermissionRecord{}, nil
+	}
+
+	var rules []PermissionRecord
+	err := r.db.Table("casbin_rule").
+		Where("app_id = ? AND ptype = 'p' AND v0 IN ?", appID, v0List).
+		Find(&rules).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return rules, nil
+}
+

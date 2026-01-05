@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/gin-gonic/gin"
@@ -30,6 +31,13 @@ func JWTAuth() gin.HandlerFunc {
 			// 网关已解析token，直接使用header中的username
 			c.Set("request_user", requestUser)
 			c.Set("user", requestUser) // 保持向后兼容
+			
+			// ⭐ 从 header 获取组织架构信息（网关已设置）
+			// ⭐ 统一使用 DepartmentFullPathHeader 常量
+			if deptPath := c.GetHeader(contextx.DepartmentFullPathHeader); deptPath != "" {
+				c.Set(contextx.DepartmentFullPathHeader, deptPath)
+			}
+			
 			c.Next()
 			return
 		}
@@ -57,6 +65,12 @@ func JWTAuth() gin.HandlerFunc {
 			c.Set("request_user", claims.Username) // 保持向后兼容
 			c.Set("user", claims.Username)         // 保持向后兼容
 			c.Set("token", token)                  // ✅ 保存 token 到 context，供透传使用
+			
+			// ⭐ 设置组织架构信息到上下文（token 中一定包含这些字段，如果用户有组织架构信息）
+			// ⭐ 统一使用 DepartmentFullPathHeader 常量
+			if claims.DepartmentFullPath != nil && *claims.DepartmentFullPath != "" {
+				c.Set(contextx.DepartmentFullPathHeader, *claims.DepartmentFullPath)
+			}
 
 			c.Next()
 			return

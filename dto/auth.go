@@ -77,3 +77,15 @@ type LogoutReq struct {
 type LogoutResp struct {
 	// 使用统一的 response.Response 格式，无需额外字段
 }
+
+// ForgotPasswordReq 忘记密码请求（简化版：直接通过验证码重置密码）
+type ForgotPasswordReq struct {
+	Email    string `json:"email" binding:"required,email" example:"user@example.com"` // 邮箱地址
+	Code     string `json:"code" binding:"required,len=6" example:"123456"`            // 验证码
+	Password string `json:"password" binding:"required,min=6" example:"123456"`        // 新密码
+}
+
+// ForgotPasswordResp 忘记密码响应
+type ForgotPasswordResp struct {
+	// 使用统一的 response.Response 格式，无需额外字段
+}

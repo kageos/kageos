@@ -112,17 +112,23 @@ func (a *AppService) CreateApp(ctx context.Context, req *dto.CreateAppReq) (*dto
 	}
 
 	// 写入数据库记录
+	isPublic := true // 默认公开
+	if req.IsPublic != nil {
+		isPublic = *req.IsPublic
+	}
 	app := model.App{
 		Base: models.Base{
 			CreatedBy: requestUser, // 记录实际请求用户（谁发起的请求）
 		},
-		Version: "v1",
-		Code:    req.Code,
-		Name:    req.Name,   // 应用名称
-		User:    tenantUser, // 记录租户用户（应用所有者）
-		NatsID:  selectedHost.NatsID,
-		HostID:  selectedHost.ID,
-		Status:  "enabled",
+		Version:  "v1",
+		Code:     req.Code,
+		Name:     req.Name,   // 应用名称
+		User:     tenantUser, // 记录租户用户（应用所有者）
+		NatsID:   selectedHost.NatsID,
+		HostID:   selectedHost.ID,
+		Status:   "enabled",
+		IsPublic: isPublic, // 是否公开
+		Admins:   req.Admins, // 管理员列表，逗号分隔的用户名
 	}
 	err = a.appRepo.CreateApp(&app)
 	if err != nil {
@@ -840,10 +846,29 @@ func (a *AppService) GetApps(ctx context.Context, req *dto.GetAppsReq) (*dto.Get
 		pageSize = 10 // 默认每页10条
 	}
 
-	// 从数据库获取用户的分页应用列表（支持搜索）
-	apps, totalCount, err := a.appRepo.GetAppsByUserWithPage(req.User, page, pageSize, req.Search)
+	// 从数据库获取应用列表（支持搜索和过滤）
+	apps, totalCount, err := a.appRepo.GetAppsWithPage(req.User, page, pageSize, req.Search, req.IncludeAll)
 	if err != nil {
 		return nil, fmt.Errorf("获取应用列表失败: %w", err)
+	}
+
+	// 转换为 AppInfo 列表
+	appInfos := make([]*dto.AppInfo, len(apps))
+	for i, app := range apps {
+		appInfos[i] = &dto.AppInfo{
+			ID:        app.ID,
+			User:      app.User,
+			Code:      app.Code,
+			Name:      app.Name,
+			Status:    app.Status,
+			Version:   app.Version,
+			NatsID:    app.NatsID,
+			HostID:    app.HostID,
+			IsPublic:  app.IsPublic,
+			Admins:    app.Admins,
+			CreatedAt: time.Time(app.CreatedAt).Format("2006-01-02 15:04:05"),
+			UpdatedAt: time.Time(app.UpdatedAt).Format("2006-01-02 15:04:05"),
+		}
 	}
 
 	return &dto.GetAppsResp{
@@ -851,7 +876,7 @@ func (a *AppService) GetApps(ctx context.Context, req *dto.GetAppsReq) (*dto.Get
 			Page:       page,
 			PageSize:   pageSize,
 			TotalCount: int(totalCount),
-			Items:      apps,
+			Items:      appInfos,
 		},
 	}, nil
 }
@@ -878,6 +903,8 @@ func (a *AppService) GetAppDetail(ctx context.Context, req *dto.GetAppDetailReq)
 			Version:   app.Version,
 			NatsID:    app.NatsID,
 			HostID:    app.HostID,
+			IsPublic:  app.IsPublic,
+			Admins:    app.Admins,
 			CreatedAt: time.Time(app.CreatedAt).Format("2006-01-02 15:04:05"),
 			UpdatedAt: time.Time(app.UpdatedAt).Format("2006-01-02 15:04:05"),
 		},

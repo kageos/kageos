@@ -9,6 +9,7 @@ import { getAppList, createApp, updateApp, deleteApp, getAppDetailByUserAndCode,
 import { getServiceTree } from '@/api/service-tree'
 import type { App, CreateAppRequest } from '@/types'
 import AppSwitcher from '@/components/AppSwitcher.vue'
+import UserSearchInput from '@/components/UserSearchInput.vue'
 import type { ServiceTree } from '@/types'
 
 const route = useRoute()
@@ -28,9 +29,19 @@ const loadingTree = ref(false)
 const createAppDialogVisible = ref(false)
 const creatingApp = ref(false)
 const createAppForm = ref<CreateAppRequest>({
+  is_public: true, // 默认公开
   code: '',
-  name: ''
+  name: '',
+  admins: '' // 管理员列表，逗号分隔的用户名
 })
+
+// 管理员数组（用于 UserSearchInput 组件，多选模式返回数组）
+const adminsArray = ref<string[]>([])
+
+// 监听 adminsArray 变化，转换为逗号分隔的字符串
+watch(adminsArray, (newVal) => {
+  createAppForm.value.admins = newVal.length > 0 ? newVal.join(',') : ''
+}, { immediate: true })
 
 // 从路由中解析应用信息
 const parseAppFromRoute = () => {
@@ -237,8 +248,11 @@ const loadServiceTree = async (app: App) => {
 const handleCreateApp = () => {
   createAppForm.value = {
     code: '',
-    name: ''
+    name: '',
+    is_public: true,
+    admins: ''
   }
+  adminsArray.value = []
   createAppDialogVisible.value = true
 }
 
@@ -488,8 +502,11 @@ onUnmounted(() => {
       @close="() => {
         createAppForm = {
           code: '',
-          name: ''
+          name: '',
+          is_public: true,
+          admins: ''
         }
+        adminsArray = []
       }"
     >
       <el-form :model="createAppForm" label-width="90px">
@@ -514,6 +531,28 @@ onUnmounted(() => {
           <div class="form-tip">
             <el-icon><InfoFilled /></el-icon>
             英文标识只能包含小写字母、数字和下划线，长度 2-50 个字符
+          </div>
+        </el-form-item>
+        <el-form-item label="是否公开">
+          <el-switch
+            v-model="createAppForm.is_public"
+            active-text="公开"
+            inactive-text="私有"
+          />
+          <div class="form-tip">
+            <el-icon><InfoFilled /></el-icon>
+            公开的工作空间可以被其他用户搜索到，私有的工作空间只有您自己可以看到
+          </div>
+        </el-form-item>
+        <el-form-item label="管理员">
+          <UserSearchInput
+            v-model="adminsArray"
+            placeholder="搜索并选择管理员（可多选）"
+            :multiple="true"
+          />
+          <div class="form-tip">
+            <el-icon><InfoFilled /></el-icon>
+            可以设置多个管理员，管理员拥有工作空间的管理权限
           </div>
         </el-form-item>
       </el-form>
@@ -552,4 +591,5 @@ onUnmounted(() => {
   align-items: center;
   gap: 4px;
 }
+</style>
 </style>

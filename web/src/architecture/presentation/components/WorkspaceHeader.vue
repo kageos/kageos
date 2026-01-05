@@ -71,6 +71,16 @@
         智能体管理
       </el-button>
       
+      <el-button
+        type="primary"
+        size="small"
+        :icon="OfficeBuilding"
+        @click="navigateToOrganization"
+        title="组织架构和用户管理"
+      >
+        组织架构和用户管理
+      </el-button>
+      
       <ThemeToggle />
       <el-dropdown @command="handleUserCommand">
         <span class="user-profile">
@@ -101,7 +111,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowDown, Delete } from '@element-plus/icons-vue'
+import { ArrowDown, Delete, OfficeBuilding } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { useLicenseStore } from '@/stores/license'
@@ -159,6 +169,11 @@ const navigateToHub = () => {
 // 导航到 Agent
 const navigateToAgent = () => {
   router.push('/agent')
+}
+
+// 导航到组织架构和用户管理
+const navigateToOrganization = () => {
+  router.push('/organization')
 }
 
 // 升级企业版对话框

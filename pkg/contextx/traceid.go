@@ -13,6 +13,10 @@ const TraceIdHeader = "X-Trace-Id"
 // RequestUserHeader HTTP Header 中的 RequestUser key（统一使用此名称）
 const RequestUserHeader = "X-Request-User"
 
+// DepartmentFullPathHeader HTTP Header 和 Context 中的 DepartmentFullPath key（统一使用此名称）
+// ⭐ 统一使用此常量，不要硬编码字符串（既用于 HTTP Header，也用于 Context）
+const DepartmentFullPathHeader = "X-Department-Full-Path"
+
 // TokenHeader HTTP Header 中的 Token key（统一使用此名称）
 const TokenHeader = "X-Token"
 
@@ -88,6 +92,41 @@ func GetRequestUser(c context.Context) string {
 	return ""
 }
 
+// GetRequestDepartmentFullPath 获取请求用户的组织架构路径（从 HTTP header 或 context 读取）
+// 优先级：HTTP Header (X-Department-Full-Path) > Context (X-Department-Full-Path)
+// 支持从 *gin.Context 或标准 context.Context 读取
+// ⭐ 统一使用 DepartmentFullPathHeader 常量
+func GetRequestDepartmentFullPath(c context.Context) string {
+	// 首先尝试转换为 *gin.Context（可以读取 header）
+	v, ok := c.(*gin.Context)
+	if ok {
+		// ✨ 优先从 HTTP header 读取（网关已设置）
+		if deptPath := v.GetHeader(DepartmentFullPathHeader); deptPath != "" {
+			return deptPath
+		}
+		// 从 gin context 读取（JWTAuth 中间件通过 c.Set() 设置）
+		if deptPath := v.GetString(DepartmentFullPathHeader); deptPath != "" {
+			return deptPath
+		}
+		// 从 context.Value 读取
+		if value := c.Value(DepartmentFullPathHeader); value != nil {
+			if deptPath, ok := value.(string); ok && deptPath != "" {
+				return deptPath
+			}
+		}
+		return ""
+	}
+
+	// 从标准 context.Value 读取（可能是 ToContext 转换后的标准 context，或 context.WithValue 包装的）
+	if value := c.Value(DepartmentFullPathHeader); value != nil {
+		if deptPath, ok := value.(string); ok && deptPath != "" {
+			return deptPath
+		}
+	}
+
+	return ""
+}
+
 // GetToken 获取认证 Token（从 HTTP header 或 context）
 func GetToken(c context.Context) string {
 	v, ok := c.(*gin.Context)
@@ -148,6 +187,16 @@ func ToContext(c *gin.Context) context.Context {
 	if token != "" {
 		ctx = context.WithValue(ctx, "token", token)
 		ctx = context.WithValue(ctx, TokenHeader, token)
+	}
+
+	// 4. 解析 DepartmentFullPath（优先从 header，然后从 gin context）
+	// ⭐ 统一使用 DepartmentFullPathHeader 常量
+	deptPath := c.GetHeader(DepartmentFullPathHeader)
+	if deptPath == "" {
+		deptPath = c.GetString(DepartmentFullPathHeader)
+	}
+	if deptPath != "" {
+		ctx = context.WithValue(ctx, DepartmentFullPathHeader, deptPath)
 	}
 
 	return ctx

@@ -174,3 +174,48 @@ func (s *JWTService) ExtractUsername(tokenString string) (string, error) {
 	}
 	return claims.Username, nil
 }
+
+// GeneratePasswordResetToken 生成密码重置令牌
+func (s *JWTService) GeneratePasswordResetToken(userID int64, username, email string) (string, error) {
+	now := time.Now()
+	// 重置密码token有效期为1小时
+	expiresAt := now.Add(1 * time.Hour)
+	
+	claims := JWTClaims{
+		UserID:   userID,
+		Username: username,
+		Email:    email,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    s.config.Issuer,
+			Subject:   fmt.Sprintf("reset_password_%d", userID),
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(expiresAt),
+			NotBefore: jwt.NewNumericDate(now),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString([]byte(s.config.Secret))
+	if err != nil {
+		logger.Errorf(nil, "[JWTService] Failed to generate password reset token: %v", err)
+		return "", fmt.Errorf("生成密码重置令牌失败: %w", err)
+	}
+
+	logger.Infof(nil, "[JWTService] Password reset token generated for user: %s", username)
+	return tokenString, nil
+}
+
+// ValidatePasswordResetToken 验证密码重置令牌
+func (s *JWTService) ValidatePasswordResetToken(tokenString string) (*JWTClaims, error) {
+	claims, err := s.ValidateToken(tokenString)
+	if err != nil {
+		return nil, err
+	}
+
+	// 检查是否是密码重置令牌
+	if len(claims.Subject) < 16 || claims.Subject[:16] != "reset_password_" {
+		return nil, fmt.Errorf("无效的密码重置令牌")
+	}
+
+	return claims, nil
+}

@@ -47,19 +47,19 @@ registerWidgetInitializers()
 // 注意：基础组件已经在模块加载时同步注册，这里只需要等待容器组件（FormWidget、TableWidget）注册完成
 ensureInitialized()
   .then(() => {
-    // 🔥 开发环境：将 stores 挂载到 window 对象，方便在控制台调试
-    if (import.meta.env.DEV) {
-      const userInfoStore = useUserInfoStore()
-      ;(window as any).__stores__ = {
-        authStore,
-        themeStore,
-        userInfoStore
-      }
-      console.log('[Dev] Stores 已挂载到 window.__stores__，可以在控制台访问：')
-      console.log('  - window.__stores__.userInfoStore.getCacheStats()')
-      console.log('  - window.__stores__.userInfoStore.clearCache()')
-      console.log('  - window.__stores__.userInfoStore.refreshCache()')
-    }
+// 🔥 开发环境：将 stores 挂载到 window 对象，方便在控制台调试
+if (import.meta.env.DEV) {
+  const userInfoStore = useUserInfoStore()
+  ;(window as any).__stores__ = {
+    authStore,
+    themeStore,
+    userInfoStore
+  }
+  console.log('[Dev] Stores 已挂载到 window.__stores__，可以在控制台访问：')
+  console.log('  - window.__stores__.userInfoStore.getCacheStats()')
+  console.log('  - window.__stores__.userInfoStore.clearCache()')
+  console.log('  - window.__stores__.userInfoStore.refreshCache()')
+}
 
     // 所有组件注册完成，挂载应用
     app.mount('#app')
@@ -67,5 +67,5 @@ ensureInitialized()
   .catch((err) => {
     console.error('[main.ts] Widget 组件工厂初始化失败，应用仍将启动', err)
     // 即使初始化失败，也挂载应用（基础组件已经同步注册，大部分功能仍可用）
-    app.mount('#app')
+app.mount('#app')
   })
