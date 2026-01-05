@@ -7,7 +7,7 @@
   - 显示状态和注册信息
 -->
 <template>
-  <div v-if="userInfo" class="user-detail-card">
+  <div v-if="userInfo" class="user-detail-card" :class="{ compact: props.compact }">
     <!-- 用户头像和基本信息 -->
     <div class="user-header">
       <el-avatar :size="72" :src="userInfo.avatar" class="user-avatar-large">
@@ -46,8 +46,8 @@
       </div>
     </div>
 
-    <!-- Leader 信息 -->
-    <div v-if="userInfo.leader_display_name || userInfo.leader_username" class="info-item">
+    <!-- Leader 信息（仅在紧凑模式下显示） -->
+    <div v-if="props.compact && (userInfo.leader_display_name || userInfo.leader_username)" class="info-item">
       <div class="info-label">
         <el-icon class="info-icon"><UserFilled /></el-icon>
         <span>直接上级</span>
@@ -57,8 +57,8 @@
       </div>
     </div>
 
-    <!-- 状态和注册信息 -->
-    <div class="info-footer">
+    <!-- 状态和注册信息（仅在紧凑模式下显示） -->
+    <div v-if="props.compact" class="info-footer">
       <el-tag :type="statusTagType" size="small" class="status-tag">
         {{ statusText }}
       </el-tag>
@@ -78,9 +78,13 @@ import { formatUserDisplayName } from '@/utils/userInfo'
 
 interface Props {
   userInfo: UserInfo | null
+  /** 是否紧凑模式（用于弹窗，默认 true） */
+  compact?: boolean
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  compact: true
+})
 
 // 性别文本
 const genderText = computed(() => {
@@ -134,6 +138,17 @@ const registerTypeText = computed(() => {
   padding: 16px;
   min-width: 320px;
   max-width: 400px;
+}
+
+/* 非紧凑模式（用于直接展示，rich 模式） */
+.user-detail-card:not(.compact) {
+  padding: 20px;
+  min-width: auto;
+  max-width: none;
+  width: 100%;
+  background: var(--el-bg-color);
+  border-radius: 8px;
+  border: 1px solid var(--el-border-color-lighter);
 }
 
 .user-header {

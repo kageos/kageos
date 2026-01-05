@@ -11,7 +11,7 @@
       v-model="internalValue"
       type="textarea"
       :disabled="false"
-      :placeholder="field.desc || `请输入${field.name}`"
+      :placeholder="editPlaceholder"
       :rows="rows"
       :maxlength="maxLength"
       :show-word-limit="showWordLimit"
@@ -40,7 +40,7 @@
       v-else-if="mode === 'search'"
       v-model="internalValue"
       type="textarea"
-      :placeholder="`搜索${field.name}`"
+      :placeholder="searchPlaceholder"
       :rows="3"
     />
   </div>
@@ -52,6 +52,7 @@ import { ElInput } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
+import type { TextAreaWidgetConfig } from '@/core/types/widget-configs'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -89,6 +90,25 @@ const maxLength = computed(() => {
 // 是否显示字数统计（注意：TextAreaWidgetConfig 中没有 showWordLimit 字段，使用默认值）
 const showWordLimit = computed(() => {
   return false
+})
+
+// 编辑模式的 placeholder（优先级：widgetConfig.placeholder > field.desc > 默认值）
+const editPlaceholder = computed(() => {
+  if (widgetConfig.value.placeholder) {
+    return widgetConfig.value.placeholder
+  }
+  if (props.field.desc) {
+    return props.field.desc
+  }
+  return `请输入${props.field.name}`
+})
+
+// 搜索模式的 placeholder（优先级：widgetConfig.placeholder > 默认值）
+const searchPlaceholder = computed(() => {
+  if (widgetConfig.value.placeholder) {
+    return widgetConfig.value.placeholder
+  }
+  return `搜索${props.field.name}`
 })
 
 // 内部值（用于 v-model）

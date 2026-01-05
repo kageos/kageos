@@ -131,6 +131,7 @@ export interface Function {
   template_type: string
   created_at: string
   updated_at: string
+  created_by?: string  // 创建者用户名
 }
 
 // 组件类型枚举

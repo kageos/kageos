@@ -1,18 +1,18 @@
 <!--
   UserDisplay - 通用用户展示组件
   功能：
-  - 简单模式：只显示头像和名称（用于列表、详情等）
-  - 详细模式：点击头像显示完整用户信息卡片（使用 el-tooltip，简单直接）
+  - simple：简单模式，只显示头像和名称（不可点击）
+  - card：卡片模式，显示头像和名称，点击弹窗显示详情（适用于表格、操作日志等空间有限的地方）
+  - rich：详细模式，直接展示完整用户信息（组织架构、个性签名、邮箱等，适用于有足够空间的地方）
   
   显示风格：
   - horizontal：水平布局，头像在左，名称在右（适用于 table、详情字段等）
   - vertical：垂直布局，头像在上，名称在下（适用于文件上传用户等）
   
   使用场景：
-  - Form 输出用户字段（horizontal）
-  - Table 表格中显示用户（horizontal）
-  - 详情中显示用户信息（horizontal）
-  - 文件上传用户显示（vertical）
+  - simple：只读展示，不需要交互
+  - card：表格、操作日志等空间有限的地方，点击查看详情
+  - rich：函数详情右侧等有足够空间的地方，直接展示完整信息
 -->
 <template>
   <div class="user-display-wrapper">
@@ -36,7 +36,7 @@
       <span class="user-name">{{ displayName }}</span>
     </div>
     
-    <!-- 详细模式：点击头像弹出用户信息卡片 -->
+    <!-- 卡片模式：点击头像弹出用户信息卡片 -->
     <div v-else-if="mode === 'card'" class="user-display-card" :class="[sizeClass, layoutClass]">
       <el-popover
         v-if="actualUserInfo"
@@ -70,6 +70,11 @@
         <span class="user-name">{{ displayName }}</span>
       </div>
     </div>
+    
+    <!-- 详细模式：直接展示完整用户信息 -->
+    <div v-else-if="mode === 'rich'" class="user-display-rich">
+      <UserDetailCard :user-info="actualUserInfo" :compact="false" />
+    </div>
   </div>
 </template>
 
@@ -86,8 +91,8 @@ interface Props {
   userInfo?: UserInfo | null
   /** 用户名（当 userInfo 不存在时使用） */
   username?: string | null
-  /** 显示模式：simple（简单模式，只显示头像和名称）或 card（详细模式，hover 显示卡片） */
-  mode?: 'simple' | 'card'
+  /** 显示模式：simple（简单模式，只显示头像和名称）| card（卡片模式，点击弹窗显示详情）| rich（详细模式，直接展示完整信息） */
+  mode?: 'simple' | 'card' | 'rich'
   /** 显示风格：horizontal（水平布局，头像在左名称在右）或 vertical（垂直布局，头像在上名称在下） */
   layout?: 'horizontal' | 'vertical'
   /** 头像大小：small(24px) | medium(32px) | large(48px) | 自定义数字 */
@@ -253,5 +258,10 @@ const handleCopyUserInfo = (): void => {
 
 .user-avatar {
   flex-shrink: 0;
+}
+
+/* 详细模式 */
+.user-display-rich {
+  width: 100%;
 }
 </style>

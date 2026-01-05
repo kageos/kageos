@@ -8,26 +8,72 @@
     <!-- 响应模式（主要使用场景） -->
     <div v-if="mode === 'response'" class="response-text">
       <div v-if="formattedContent || markdownContent || csvTableData" class="formatted-content" :class="formatClass">
-        <pre v-if="isCodeFormat" class="code-content">{{ formattedContent }}</pre>
-        <div v-else-if="format === 'html'" v-html="formattedContent" class="html-content"></div>
-        <div v-else-if="format === 'markdown'" v-html="markdownContent" class="markdown-content"></div>
-        <div v-else-if="format === 'csv' && csvTableData" class="csv-content">
-          <table>
-            <thead>
-              <tr>
-                <th v-for="header in csvTableData.headers" :key="header">{{ header }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(row, rowIndex) in csvTableData.rows" :key="rowIndex">
-                <td v-for="(cell, cellIndex) in row" :key="cellIndex">{{ cell }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <div v-else class="text-content">{{ formattedContent }}</div>
+        <!-- 超大文本处理：截断显示 + 弹窗 -->
+        <template v-if="shouldTruncate && !isSpecialFormat">
+          <div class="text-content-truncated">
+            <pre v-if="isCodeFormat" class="code-content">{{ truncatedContent }}</pre>
+            <div v-else class="text-content">{{ truncatedContent }}</div>
+            <div class="text-actions">
+              <el-button 
+                type="primary" 
+                link 
+                size="small" 
+                @click="showFullTextDialog = true"
+              >
+                查看全部 ({{ contentLength }} 字符)
+              </el-button>
+            </div>
+          </div>
+        </template>
+        <!-- 正常显示 -->
+        <template v-else>
+          <pre v-if="isCodeFormat" class="code-content">{{ formattedContent }}</pre>
+          <div v-else-if="format === 'html'" v-html="formattedContent" class="html-content"></div>
+          <div v-else-if="format === 'markdown'" v-html="markdownContent" class="markdown-content"></div>
+          <div v-else-if="format === 'csv' && csvTableData" class="csv-content">
+            <table>
+              <thead>
+                <tr>
+                  <th v-for="header in csvTableData.headers" :key="header">{{ header }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(row, rowIndex) in csvTableData.rows" :key="rowIndex">
+                  <td v-for="(cell, cellIndex) in row" :key="cellIndex">{{ cell }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div v-else class="text-content">{{ formattedContent }}</div>
+        </template>
       </div>
       <span v-else class="empty-text">-</span>
+      
+      <!-- 全文显示弹窗 -->
+      <el-dialog
+        v-model="showFullTextDialog"
+        :title="field.name || '查看全文'"
+        width="80%"
+        :close-on-click-modal="false"
+        class="text-full-dialog"
+      >
+        <div class="dialog-content">
+          <el-input
+            v-model="editableContent"
+            type="textarea"
+            :rows="20"
+            :placeholder="field.desc || '文本内容'"
+            class="full-text-editor"
+          />
+        </div>
+        <template #footer>
+          <div class="dialog-footer">
+            <el-button @click="handleCancelEdit">取消</el-button>
+            <el-button type="primary" @click="handleSaveEdit">保存</el-button>
+            <el-button type="info" @click="handleCopyToClipboard">复制</el-button>
+          </div>
+        </template>
+      </el-dialog>
     </div>
     
     <!-- 表格单元格模式 -->
@@ -121,8 +167,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { ElInput } from 'element-plus'
+import { computed, ref, watch } from 'vue'
+import { ElInput, ElButton, ElDialog } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { marked } from 'marked'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/core/stores-v2/formData'
@@ -409,6 +456,77 @@ const internalValue = computed({
 // 失焦处理
 function handleBlur(): void {
   // 可以在这里添加验证逻辑
+}
+
+// 超大文本处理相关
+const MAX_DISPLAY_LENGTH = 500 // 最大显示长度（字符数）
+const showFullTextDialog = ref(false)
+const editableContent = ref('')
+
+// 是否为特殊格式（不需要截断的格式）
+const isSpecialFormat = computed(() => {
+  return format.value === 'html' || format.value === 'markdown' || format.value === 'csv'
+})
+
+// 内容长度
+const contentLength = computed(() => {
+  return rawContent.value.length
+})
+
+// 是否需要截断
+const shouldTruncate = computed(() => {
+  if (isSpecialFormat.value) {
+    return false
+  }
+  return contentLength.value > MAX_DISPLAY_LENGTH
+})
+
+// 截断后的内容
+const truncatedContent = computed(() => {
+  if (!shouldTruncate.value) {
+    return formattedContent.value
+  }
+  const content = formattedContent.value
+  return content.substring(0, MAX_DISPLAY_LENGTH) + '...'
+})
+
+// 监听弹窗打开，初始化可编辑内容
+watch(showFullTextDialog, (newVal) => {
+  if (newVal) {
+    editableContent.value = rawContent.value
+  }
+})
+
+// 取消编辑
+function handleCancelEdit(): void {
+  showFullTextDialog.value = false
+  editableContent.value = ''
+}
+
+// 保存编辑
+function handleSaveEdit(): void {
+  const fieldValue = {
+    raw: editableContent.value,
+    display: editableContent.value,
+    meta: {}
+  }
+  
+  formDataStore.setValue(props.fieldPath, fieldValue)
+  emit('update:modelValue', fieldValue)
+  
+  ElMessage.success('保存成功')
+  showFullTextDialog.value = false
+}
+
+// 复制到剪贴板
+async function handleCopyToClipboard(): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(editableContent.value)
+    ElMessage.success('已复制到剪贴板')
+  } catch (error) {
+    console.error('复制失败:', error)
+    ElMessage.error('复制失败，请手动复制')
+  }
 }
 </script>
 
@@ -712,6 +830,49 @@ function handleBlur(): void {
   padding: 8px;
   white-space: pre-wrap;
   word-wrap: break-word;
+}
+
+/* 超大文本截断样式 */
+.text-content-truncated {
+  position: relative;
+}
+
+.text-content-truncated .text-content,
+.text-content-truncated .code-content {
+  max-height: 300px;
+  overflow: hidden;
+  position: relative;
+}
+
+.text-actions {
+  margin-top: 8px;
+  padding: 8px 0;
+  text-align: right;
+}
+
+/* 全文弹窗样式 */
+.text-full-dialog :deep(.el-dialog__body) {
+  padding: 20px;
+}
+
+.dialog-content {
+  width: 100%;
+}
+
+.full-text-editor {
+  width: 100%;
+}
+
+.full-text-editor :deep(.el-textarea__inner) {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
 }
 
 .empty-text {

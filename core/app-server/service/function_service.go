@@ -66,7 +66,8 @@ func (f *FunctionService) GetFunction(ctx context.Context, functionID int64) (*d
 		TemplateType: function.TemplateType,
 		CreatedAt:    time.Time(function.CreatedAt).Format("2006-01-02T15:04:05Z"),
 		UpdatedAt:    time.Time(function.UpdatedAt).Format("2006-01-02T15:04:05Z"),
-		FullCodePath: function.Router, // Router 存储的就是 full-code-path
+		CreatedBy:    function.CreatedBy, // 创建者用户名
+		FullCodePath: function.Router,    // Router 存储的就是 full-code-path
 	}
 
 	// 将json.RawMessage转换为interface{}以便返回JSON对象
