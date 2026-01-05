@@ -31,8 +31,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch } from 'vue'
-import { Logger } from '@/core/utils/logger'
+import { computed } from 'vue'
 import { widgetComponentFactory } from '@/architecture/infrastructure/widgetRegistry'
 import type { FieldConfig, FieldValue } from '@/core/domain/types'
 import type { WidgetMode } from '@/architecture/presentation/widgets/types'
@@ -60,10 +59,9 @@ const emit = defineEmits<{
   'update:modelValue': [value: FieldValue]
 }>()
 
-// 调试日志：只在 formRenderer 缺失且需要时警告（response 模式不需要 formRenderer）
-// 已移除调试日志
-
 // 获取 Widget 组件
+// 🔥 优化：基础组件已经在模块加载时同步注册，无需等待
+// 只有 FormWidget 和 TableWidget 需要异步注册，但应用启动时会等待它们注册完成
 const widgetComponent = computed(() => {
   const type = props.field.widget?.type || 'input'
   

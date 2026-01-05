@@ -104,17 +104,10 @@ import LinkWidget from '@/architecture/presentation/widgets/LinkWidget.vue'
 import ProgressWidget from '@/architecture/presentation/widgets/ProgressWidget.vue'
 
 /**
- * 初始化组件工厂
- * 注册所有组件到工厂
- * 
- * 🔥 注意：由于 FormWidget 和 TableWidget 都导入了 widgetComponentFactory，
- * 如果在顶层导入会导致循环依赖，所以使用动态 import 延迟加载
+ * 同步注册基础组件（不依赖 widgetComponentFactory 的组件）
+ * 这些组件可以在模块加载时立即注册，无需等待
  */
-export async function initializeWidgetComponentFactory(): Promise<void> {
-  // 🔥 动态导入容器组件，避免循环依赖
-  // FormWidget 和 TableWidget 都导入了 widgetComponentFactory，如果在顶层导入会导致循环依赖
-  const { default: FormWidget } = await import('@/architecture/presentation/widgets/FormWidget.vue')
-  const { default: TableWidget } = await import('@/architecture/presentation/widgets/TableWidget.vue')
+function registerBasicComponents(): void {
   // 注册请求参数组件
   widgetComponentFactory.registerRequestComponent(WidgetType.INPUT, InputWidget)
   widgetComponentFactory.registerRequestComponent(WidgetType.TEXT, InputWidget)  // text 别名
@@ -142,9 +135,6 @@ export async function initializeWidgetComponentFactory(): Promise<void> {
   
   widgetComponentFactory.registerRequestComponent(WidgetType.FILES, FilesWidget)
   
-  // 容器组件
-  widgetComponentFactory.registerRequestComponent(WidgetType.FORM, FormWidget)
-  widgetComponentFactory.registerRequestComponent(WidgetType.TABLE, TableWidget)
   widgetComponentFactory.registerRequestComponent(WidgetType.USER, UserWidget)
   
   // 链接组件
@@ -159,26 +149,60 @@ export async function initializeWidgetComponentFactory(): Promise<void> {
   widgetComponentFactory.registerResponseComponent(WidgetType.TEXT, TextWidget)
   // Text 也可以用于请求参数（详情模式等场景）
   widgetComponentFactory.registerRequestComponent(WidgetType.TEXT, TextWidget)
-  
-  // 后续添加其他组件时，在这里注册
-  // ...
 }
 
-// 🔥 自动初始化（异步，避免循环依赖）
-// 注意：由于使用了动态 import，初始化是异步的
-// 但组件注册应该在应用启动时完成，所以这里使用立即执行的异步函数
+/**
+ * 异步注册容器组件（依赖 widgetComponentFactory 的组件）
+ * 这些组件需要动态导入，避免循环依赖
+ */
+async function registerContainerComponents(): Promise<void> {
+  // 🔥 动态导入容器组件，避免循环依赖
+  // FormWidget 和 TableWidget 都导入了 widgetComponentFactory，如果在顶层导入会导致循环依赖
+  const { default: FormWidget } = await import('@/architecture/presentation/widgets/FormWidget.vue')
+  const { default: TableWidget } = await import('@/architecture/presentation/widgets/TableWidget.vue')
+  
+  // 容器组件
+  widgetComponentFactory.registerRequestComponent(WidgetType.FORM, FormWidget)
+  widgetComponentFactory.registerRequestComponent(WidgetType.TABLE, TableWidget)
+}
+
+/**
+ * 初始化组件工厂
+ * 注册所有组件到工厂
+ * 
+ * 🔥 优化：分两步注册
+ * 1. 同步注册基础组件（立即完成，无需等待）
+ * 2. 异步注册容器组件（需要动态导入，避免循环依赖）
+ * 
+ * 这样大部分组件在模块加载时就已注册，只有容器组件需要异步注册
+ */
+export async function initializeWidgetComponentFactory(): Promise<void> {
+  // 第一步：同步注册基础组件（立即完成）
+  registerBasicComponents()
+  
+  // 第二步：异步注册容器组件（需要动态导入）
+  await registerContainerComponents()
+}
+
+// 🔥 立即同步注册基础组件（在模块加载时完成）
+// 这样大部分组件在应用启动前就已经注册好了，避免"组件未找到"的闪现
+registerBasicComponents()
+
+// 🔥 异步初始化容器组件（需要动态导入，避免循环依赖）
+// 注意：由于 FormWidget 和 TableWidget 使用了动态 import，这部分是异步的
+// 但基础组件已经同步注册完成，所以不会影响大部分组件的使用
 let initializationPromise: Promise<void> | null = null
 
 export function ensureInitialized(): Promise<void> {
   if (!initializationPromise) {
-    initializationPromise = initializeWidgetComponentFactory()
+    initializationPromise = registerContainerComponents()
   }
   return initializationPromise
 }
 
-// 立即开始初始化
+// 立即开始异步初始化容器组件
 ensureInitialized().catch(err => {
-  console.error('[WidgetComponentFactory] 初始化失败', err)
+  console.error('[WidgetComponentFactory] 容器组件初始化失败', err)
 })
 
 // 重新导出工厂实例（从 factory.ts 导入）
