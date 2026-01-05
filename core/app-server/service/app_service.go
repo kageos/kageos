@@ -389,10 +389,13 @@ func (a *AppService) processAPIDiff(ctx context.Context, appID int64, diffData *
 		return fmt.Errorf("获取应用信息失败: %w", err)
 	}
 
+	// 从 context 获取当前用户名
+	username := contextx.GetRequestUser(ctx)
+
 	// 处理新增的API
 	if len(diffData.Add) > 0 {
 		// 1. 先转换API为Function模型（但不创建）
-		functions, err := a.convertApiInfoToFunctions(appID, diffData.Add)
+		functions, err := a.convertApiInfoToFunctions(ctx, appID, diffData.Add, username)
 		if err != nil {
 			return fmt.Errorf("转换新增API失败: %w", err)
 		}
@@ -413,7 +416,7 @@ func (a *AppService) processAPIDiff(ctx context.Context, appID int64, diffData *
 	// 处理更新的API
 	if len(diffData.Update) > 0 {
 		// 1. 转换更新的API为Function模型
-		functions, err := a.convertApiInfoToFunctions(appID, diffData.Update)
+		functions, err := a.convertApiInfoToFunctions(ctx, appID, diffData.Update, username)
 		if err != nil {
 			return fmt.Errorf("转换更新API失败: %w", err)
 		}
@@ -450,7 +453,7 @@ func (a *AppService) processAPIDiff(ctx context.Context, appID int64, diffData *
 }
 
 // convertApiInfoToFunctions 将ApiInfo转换为Function模型
-func (a *AppService) convertApiInfoToFunctions(appID int64, apis []*dto.ApiInfo) ([]*model.Function, error) {
+func (a *AppService) convertApiInfoToFunctions(ctx context.Context, appID int64, apis []*dto.ApiInfo, username string) ([]*model.Function, error) {
 	functions := make([]*model.Function, len(apis))
 
 	for i, api := range apis {
@@ -486,6 +489,8 @@ func (a *AppService) convertApiInfoToFunctions(appID int64, apis []*dto.ApiInfo)
 			TemplateType: api.TemplateType,
 			Callbacks:    strings.Join(api.Callback, ","),
 		}
+		// 设置创建者用户名（通过嵌入的 Base 结构体）
+		function.CreatedBy = username
 		if api.CreateTables != nil {
 			function.CreateTables = strings.Join(api.CreateTables, ",")
 		}

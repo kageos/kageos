@@ -20,8 +20,11 @@
           :auto-upload="false"
           :show-file-list="false"
           :drag="true"
+          :multiple="true"
           :accept="accept"
           :on-change="handleFileChange"
+          @drop.native.stop.prevent="handleElUploadDrop"
+          @dragover.native.stop.prevent
         >
           <div class="upload-dragger-content">
             <el-icon :size="48" class="upload-icon">
@@ -644,6 +647,7 @@ const maxCount = computed(() => filesConfig.value.max_count || 5)
 
 // 状态
 const isDragging = ref(false)
+const isHandlingDrop = ref(false) // 🔥 标记是否正在处理拖拽事件，防止 el-upload 的 handleFileChange 重复处理
 const uploadingFiles = ref<UploadingFile[]>([])
 const pendingCompleteQueue = ref<BatchUploadCompleteItem[]>([])
 const batchCompleteTimer = ref<ReturnType<typeof setTimeout> | null>(null)
@@ -1063,11 +1067,14 @@ function parseMaxSize(maxSizeStr?: string): number {
 // 验证文件
 function validateFile(file: File): boolean {
   const maxSizeBytes = parseMaxSize(maxSize.value)
+  // 🔥 检查数量限制时，需要包括已上传的文件和正在上传的文件
   const currentFilesCount = currentFiles.value.length
+  const uploadingCount = uploadingFiles.value.length
+  const totalCount = currentFilesCount + uploadingCount
 
   // 检查数量限制
-  if (currentFilesCount >= maxCount.value) {
-    ElMessage.error(`最多只能上传 ${maxCount.value} 个文件`)
+  if (totalCount >= maxCount.value) {
+    ElMessage.error(`最多只能上传 ${maxCount.value} 个文件，当前已有 ${currentFilesCount} 个文件，正在上传 ${uploadingCount} 个文件`)
     return false
   }
 
@@ -1303,6 +1310,10 @@ async function flushCompleteQueue(): Promise<void> {
   try {
     const results = await notifyBatchUploadComplete(items)
 
+    // 🔥 收集所有成功上传的文件，一次性更新
+    const newFiles: FileItem[] = []
+    const completedUploadingFiles: UploadingFile[] = []
+
     // 🔥 使用 for...of 循环，支持 await
     for (const item of items) {
       const result = results.get(item.key)
@@ -1328,14 +1339,8 @@ async function flushCompleteQueue(): Promise<void> {
             upload_user: item.upload_user || '',  // 🔥 使用从 complete 接口传递的 upload_user
           }
 
-          const currentFilesList = currentFiles.value
-          updateFiles([...currentFilesList, newFile])
-
-          // 立即移除上传中的文件（文件已添加到列表，用户已看到成功提示）
-          const index = uploadingFiles.value.findIndex((f: UploadingFile) => f.uid === uploadingFile.uid)
-          if (index !== -1) {
-            uploadingFiles.value.splice(index, 1)
-          }
+          newFiles.push(newFile)
+          completedUploadingFiles.push(uploadingFile)
         }
       } else if (!item.success || (result && result.status === 'failed')) {
         if (uploadingFile) {
@@ -1343,6 +1348,20 @@ async function flushCompleteQueue(): Promise<void> {
           uploadingFile.error = result?.error || item.error || '上传失败'
         }
       }
+    }
+
+    // 🔥 一次性更新所有文件（避免多次更新导致覆盖）
+    if (newFiles.length > 0) {
+      const currentFilesList = currentFiles.value
+      updateFiles([...currentFilesList, ...newFiles])
+
+      // 移除所有已完成的上传文件
+      completedUploadingFiles.forEach((uploadingFile) => {
+        const index = uploadingFiles.value.findIndex((f: UploadingFile) => f.uid === uploadingFile.uid)
+        if (index !== -1) {
+          uploadingFiles.value.splice(index, 1)
+        }
+      })
     }
 
     const successCount = items.filter(item => item.success && results.get(item.key)?.status === 'completed').length
@@ -1675,17 +1694,48 @@ function handleDragLeave(e: DragEvent): void {
 }
 
 function handleDrop(e: DragEvent): void {
+  e.preventDefault()
+  e.stopPropagation()
   isDragging.value = false
+  isHandlingDrop.value = true // 🔥 标记正在处理拖拽事件
+  
   const files = e.dataTransfer?.files
   if (files && files.length > 0) {
-    Array.from(files).forEach(file => {
-      handleFileSelect(file)
+    // 遍历所有文件并上传
+    const fileArray = Array.from(files)
+    console.log('[FilesWidget] 拖拽文件数量:', fileArray.length)
+    
+    // 🔥 使用 Promise.all 确保所有文件都被处理，但不要等待上传完成
+    fileArray.forEach((file, index) => {
+      console.log(`[FilesWidget] 处理文件 ${index + 1}/${fileArray.length}:`, file.name)
+      // 异步处理，不等待完成
+      handleFileSelect(file).catch((error) => {
+        console.error(`[FilesWidget] 文件 ${file.name} 上传失败:`, error)
+      })
     })
   }
+  
+  // 🔥 延迟重置标志，确保 el-upload 的 handleFileChange 不会处理拖拽的文件
+  setTimeout(() => {
+    isHandlingDrop.value = false
+  }, 100)
 }
 
-// 文件选择处理
+// 处理 el-upload 的 drop 事件（阻止其默认行为）
+function handleElUploadDrop(e: DragEvent): void {
+  e.preventDefault()
+  e.stopPropagation()
+  // 不处理，由外层的 handleDrop 统一处理
+}
+
+// 文件选择处理（el-upload 的回调，用于点击上传）
 function handleFileChange(file: any): void {
+  // 🔥 如果正在处理拖拽事件，忽略 el-upload 的回调（避免重复处理）
+  if (isHandlingDrop.value) {
+    console.log('[FilesWidget] 忽略 el-upload 的 handleFileChange，因为正在处理拖拽事件')
+    return
+  }
+  
   if (file.raw) {
     handleFileSelect(file.raw)
   }

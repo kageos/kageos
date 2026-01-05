@@ -145,5 +145,6 @@ export interface FunctionDetail {
   response: FieldConfig[]  // 响应参数（表格列）
   callbacks?: string[]  // 回调类型，如 ['OnTableAddRow', 'OnSelectFuzzy']
   permissions?: Record<string, boolean>  // ⭐ 权限信息（企业版功能）：权限点 -> 是否有权限
+  created_by?: string  // 创建者用户名
 }
 
