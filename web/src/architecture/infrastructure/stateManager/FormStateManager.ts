@@ -101,9 +101,6 @@ export class FormStateManager extends StateManagerImpl<FormState> implements ISt
 
   private response = reactive<{ value: Record<string, any> | null }>({ value: null })
   private metadata = reactive<{ value: Record<string, any> | null }>({ value: null })
-  
-  // 🔥 防止循环更新的标志
-  private isUpdatingFromStore = false
 
   constructor() {
     // 1. 先调用 super 传递初始空状态
@@ -134,10 +131,6 @@ export class FormStateManager extends StateManagerImpl<FormState> implements ISt
 
     // 监听 Pinia Store 的变化，同步到 StateManager
     watch(() => this.formStore.data, () => {
-      // 🔥 如果正在从 setState 更新 store，跳过 watch，避免循环
-      if (this.isUpdatingFromStore) {
-        return
-      }
       this.updateState()
     }, { deep: true })
   }
@@ -229,55 +222,6 @@ export class FormStateManager extends StateManagerImpl<FormState> implements ISt
    */
   getMetadata(): Record<string, any> | null {
     return this.metadata.value
-  }
-
-  /**
-   * 🔥 重写 setState，确保同步更新 formStore.data
-   * 当调用 initializeForm 时，需要将数据同步到 formStore
-   */
-  setState(newState: FormState): void {
-    // 🔥 设置标志，防止 watch 触发循环更新
-    this.isUpdatingFromStore = true
-    
-    try {
-      // 🔥 如果 newState.data 存在，同步到 formStore.data
-      if (newState.data && newState.data instanceof Map) {
-        // 清空 formStore 并设置新值
-        this.formStore.clear()
-        newState.data.forEach((value, key) => {
-          this.formStore.setValue(key, value)
-        })
-      }
-      
-      // 同步其他状态
-      if (newState.errors) {
-        this.errors.clear()
-        newState.errors.forEach((errors, key) => {
-          this.errors.set(key, errors)
-        })
-      }
-      
-      if (newState.submitting !== undefined) {
-        this.submitting.value = newState.submitting
-      }
-      
-      if (newState.response !== undefined) {
-        this.response.value = newState.response
-      }
-      
-      if (newState.metadata !== undefined) {
-        this.metadata.value = newState.metadata
-      }
-      
-      // 调用父类的 setState，触发响应式更新
-      super.setState(newState)
-    } finally {
-      // 🔥 使用 nextTick 确保所有更新完成后再重置标志
-      // 这样可以避免在同一个 tick 内触发 watch
-      setTimeout(() => {
-        this.isUpdatingFromStore = false
-      }, 0)
-    }
   }
 
 }
