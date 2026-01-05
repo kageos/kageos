@@ -29,9 +29,18 @@ export const useFormDataStore = defineStore('formData-v2', () => {
   
   /**
    * 获取字段值
+   * 🔥 关键：需要访问 Map 本身来建立响应式依赖
    */
   function getValue(fieldPath: string): FieldValue {
-    return data.get(fieldPath) || { raw: null, display: '', meta: {} }
+    // 🔥 先访问 data 本身来建立响应式依赖
+    // 遍历 Map 来确保建立响应式依赖（Vue 3 的 reactive Map 的 .get() 可能不会建立依赖）
+    let value: FieldValue | undefined
+    data.forEach((v, k) => {
+      if (k === fieldPath) {
+        value = v
+      }
+    })
+    return value || { raw: null, display: '', meta: {} }
   }
   
   /**

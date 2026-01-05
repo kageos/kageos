@@ -18,16 +18,8 @@ export function useTableEditMode(props: WidgetComponentProps) {
   // 🔥 关键修复：getter 从 formDataStore 读取，确保与 setter 同步
   const tableData = computed({
     get: () => {
-      // 🔥 先访问 formDataStore.data 来建立响应式依赖
-      // 遍历 Map 来确保建立响应式依赖（Vue 3 的 reactive Map 的 .get() 可能不会建立依赖）
-      let storeValue: any = null
-      formDataStore.data.forEach((value: any, key: string) => {
-        if (key === props.fieldPath) {
-          storeValue = value
-        }
-      })
-      
       // 优先从 formDataStore 读取，如果没有则从 props.value 读取
+      const storeValue = formDataStore.getValue(props.fieldPath)
       if (storeValue && Array.isArray(storeValue.raw)) {
         return storeValue.raw
       }
@@ -61,7 +53,7 @@ export function useTableEditMode(props: WidgetComponentProps) {
     const itemFields = props.field.children || []
     const newIndex = currentData.length
     
-    itemFields.forEach((itemField: any) => {
+    itemFields.forEach(itemField => {
       newRow[itemField.code] = null
       
       // 初始化 formDataStore 中的字段值
@@ -92,7 +84,7 @@ export function useTableEditMode(props: WidgetComponentProps) {
       
       // 清理 formDataStore 中该行的数据
       const itemFields = props.field.children || []
-      itemFields.forEach((itemField: any) => {
+      itemFields.forEach(itemField => {
         const fieldPath = `${props.fieldPath}[${indexToRemove}].${itemField.code}`
         // 注意：formDataStore 没有 delete 方法，这里先不清理，后续可以优化
       })
