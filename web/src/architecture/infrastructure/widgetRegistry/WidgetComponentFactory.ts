@@ -163,6 +163,6 @@ export class WidgetComponentFactory {
   }
 }
 
-// 导出单例
-export const widgetComponentFactory = new WidgetComponentFactory()
+// 🔥 不在这里导出实例，避免循环依赖
+// 实例在 index.ts 中创建和导出，这样 FormWidget 和 TableWidget 可以安全导入
 
