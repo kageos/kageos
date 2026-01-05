@@ -1,16 +1,77 @@
 /**
  * FormDomainService - 表单领域服务
  * 
- * 职责：表单相关的业务逻辑
- * - 初始化表单
- * - 更新字段值
- * - 处理字段依赖（depend_on）
- * - 验证表单
+ * ============================================
+ * 📋 需求说明
+ * ============================================
  * 
- * 特点：
- * - 依赖接口，不依赖具体实现
- * - 通过事件总线通信
- * - 通过状态管理器管理状态
+ * 1. **表单初始化**：
+ *    - 根据字段配置初始化表单数据
+ *    - 支持初始数据回显（编辑模式）
+ *    - 支持字段默认值设置
+ * 
+ * 2. **字段值更新**：
+ *    - 更新单个字段的值
+ *    - 处理字段依赖关系（`depend_on`）
+ *    - 清除字段验证错误（提交时验证，不实时验证）
+ * 
+ * 3. **表单验证**：
+ *    - 提交时验证所有字段
+ *    - 支持多种验证规则（required、min、max、email 等）
+ *    - 验证错误使用字段的中文名称（`field.name`）
+ * 
+ * ============================================
+ * 🎯 设计思路
+ * ============================================
+ * 
+ * 1. **依赖倒置原则**：
+ *    - 依赖 `IStateManager` 接口，不依赖具体实现
+ *    - 依赖 `IEventBus` 接口，通过事件总线通信
+ *    - 可以轻松替换实现，提高可测试性
+ * 
+ * 2. **状态管理**：
+ *    - 通过 StateManager 管理表单状态（字段值、验证错误）
+ *    - 状态变化通过事件总线通知其他组件
+ * 
+ * 3. **验证引擎**：
+ *    - 使用 ValidationEngine 统一管理验证规则
+ *    - 支持多种验证器（RequiredValidator、MinValidator 等）
+ *    - 验证错误使用字段的中文名称，提升用户体验
+ * 
+ * ============================================
+ * 📝 关键功能
+ * ============================================
+ * 
+ * 1. **initializeForm**：
+ *    - 初始化表单字段和初始数据
+ *    - 优先使用 `initialData`（编辑模式）
+ *    - 如果没有初始数据，使用字段默认值
+ * 
+ * 2. **updateFieldValue**：
+ *    - 更新字段值并清除该字段的验证错误
+ *    - 不进行实时验证（只在提交时验证）
+ *    - 触发 `FormEvent.fieldValueUpdated` 事件
+ * 
+ * 3. **validateForm**：
+ *    - 验证所有字段
+ *    - 返回验证结果和错误信息
+ *    - 验证错误使用字段的中文名称
+ * 
+ * ============================================
+ * ⚠️ 注意事项
+ * ============================================
+ * 
+ * 1. **初始数据优先级**：
+ *    - `initialData` > 字段默认值
+ *    - 编辑模式下必须提供 `initialData`
+ * 
+ * 2. **验证时机**：
+ *    - 只在提交时验证，不进行实时验证
+ *    - 字段更新时只清除该字段的错误，不重新验证
+ * 
+ * 3. **字段依赖**：
+ *    - 支持 `depend_on` 字段依赖关系
+ *    - 依赖字段变化时，自动更新被依赖字段
  */
 
 import type { IStateManager } from '../interfaces/IStateManager'
@@ -19,6 +80,7 @@ import { FormEvent } from '../interfaces/IEventBus'
 import type { FieldConfig, FieldValue } from '../types'
 import { ValidationEngine, createDefaultValidatorRegistry } from '@/core/validation'
 import type { ReactiveFormDataManager } from '@/core/managers/ReactiveFormDataManager'
+import { Logger } from '@/core/utils/logger'
 
 /**
  * 验证结果类型（简化，实际应该从 validation 导入）
@@ -79,6 +141,12 @@ export class FormDomainService {
    * 初始化表单
    */
   initializeForm(fields: FieldConfig[], initialData?: Record<string, any>): void {
+    Logger.debug('FormDomainService', 'initializeForm 被调用', {
+      fieldsCount: fields.length,
+      fieldCodes: fields.map(f => f.code),
+      initialDataKeys: initialData ? Object.keys(initialData) : []
+    })
+    
     // 更新字段配置
     this.fields = fields
 
@@ -140,22 +208,36 @@ export class FormDomainService {
       submitting: false
     })
 
+    Logger.debug('FormDomainService', 'initializeForm 完成', {
+      fieldsCount: fields.length,
+      newDataSize: newData.size,
+      newDataKeys: Array.from(newData.keys())
+    })
+
     // 触发事件
     this.eventBus.emit(FormEvent.initialized, { fields, data: newData })
   }
 
   /**
    * 更新字段值
+   * 🔥 移除实时验证，只在提交时验证
+   * 🔥 更新字段值时，立即清除该字段的所有错误，避免显示过时的错误消息
    */
   updateFieldValue(fieldCode: string, value: FieldValue): void {
     const state = this.stateManager.getState()
     const newData = new Map(state.data)
     newData.set(fieldCode, value)
 
+    // 🔥 更新字段值时，立即清除该字段的所有错误（不进行实时验证）
+    // 验证只在提交时进行，避免在输入/选择时显示错误
+    const newErrors = new Map(state.errors)
+    newErrors.delete(fieldCode)  // 清除该字段的所有错误
+
     // 更新状态
     this.stateManager.setState({ 
       ...state,
-      data: newData 
+      data: newData,
+      errors: newErrors  // 🔥 使用清除后的错误 Map
     })
 
     // 处理字段依赖

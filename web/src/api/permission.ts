@@ -78,3 +78,19 @@ export function getWorkspacePermissions(params: GetWorkspacePermissionsReq): Pro
   return get<GetWorkspacePermissionsResp>('/workspace/api/v1/permission/workspace', params)
 }
 
+/**
+ * 添加权限请求（用于赋权）
+ */
+export interface AddPermissionReq {
+  username: string  // 用户名
+  resource_path: string  // 资源路径
+  action: string  // 权限点
+}
+
+/**
+ * 添加权限（赋权给用户）
+ */
+export function addPermission(data: AddPermissionReq): Promise<void> {
+  return post<void>('/workspace/api/v1/permission/add', data)
+}
+

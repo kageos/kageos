@@ -76,7 +76,8 @@ func (a *AppRuntime) RequestApp(ctx context.Context, natsId int64, req *dto.Requ
 
 	// 发送到 app-runtime，由 app-runtime 转发给具体的 app
 	subject := subjects.BuildFunctionServer2AppRuntimeSubject(req.User, req.App, req.Version)
-	conn, err := a.natsService.GetNatsByHost(natsId)
+	// ⚠️ 注意：参数是 natsId，应该使用 GetNatsByNatsId 而不是 GetNatsByHost
+	conn, err := a.natsService.GetNatsByNatsId(natsId)
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +188,6 @@ func (a *AppRuntime) BatchCreateDirectoryTree(ctx context.Context, hostId int64,
 	}
 	return &resp, nil
 }
-
 
 // BatchWriteFiles 批量写文件（app-server -> app-runtime）
 func (a *AppRuntime) BatchWriteFiles(ctx context.Context, hostId int64, req *dto.BatchWriteFilesRuntimeReq) (*dto.BatchWriteFilesRuntimeResp, error) {

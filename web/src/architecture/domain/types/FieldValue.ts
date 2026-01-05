@@ -4,5 +4,5 @@
  * 从 core/types/field.ts 导入，保持类型一致性
  */
 
-export type { FieldValue } from '@/core/types/field'
+export type { FieldValue } from '@/architecture/domain/types'
 

@@ -2,60 +2,104 @@
   FormView - 表单视图
   新架构的展示层组件
   
-  职责：
-  - 纯 UI 展示，不包含业务逻辑
-  - 通过事件与 Application Layer 通信
-  - 从 StateManager 获取状态并渲染
+  ============================================
+  📋 需求说明
+  ============================================
+  
+  1. **表单渲染**：
+     - 根据字段配置（`functionDetail.request`）渲染表单
+     - 支持多种字段类型（input、select、form、table 等）
+     - 支持嵌套结构（form 嵌套 table，table 嵌套 form）
+  
+  2. **数据初始化**：
+     - 编辑模式：使用 `initialData` 回显数据
+     - 新增模式：从 URL 参数或字段默认值初始化
+     - 支持从 URL 参数恢复表单状态（仅新增模式，`_tab=OnTableAddRow`）
+  
+  3. **URL 参数同步**：
+     - 仅在新增模式下同步表单数据到 URL（`_tab=OnTableAddRow`）
+     - 编辑模式和详情模式不同步 URL（`_tab=detail` 或不设置 `_tab`）
+     - 同步时保留表格参数、搜索参数等其他参数
+  
+  4. **表单验证**：
+     - 提交时验证所有字段
+     - 验证错误使用字段的中文名称（`field.name`）
+     - 验证错误显示在字段下方
+  
+  ============================================
+  🎯 设计思路
+  ============================================
+  
+  1. **分层架构**：
+     - Presentation Layer：纯 UI 展示，不包含业务逻辑
+     - 通过 FormApplicationService 调用业务逻辑
+     - 从 FormStateManager 获取状态并渲染
+  
+  2. **数据流**：
+     - 初始化：FormApplicationService.initializeForm → FormDomainService.initializeForm
+     - 更新：用户输入 → updateFieldValue → StateManager → 事件总线
+     - 提交：FormApplicationService.submitForm → FormDomainService.validateForm → API
+  
+  3. **URL 同步控制**：
+     - 使用 `shouldSyncURL` computed 判断是否需要同步
+     - 只在 `_tab=OnTableAddRow` 时同步 URL
+     - 其他模式（`_tab=detail` 或不设置 `_tab`）不同步
+  
+  ============================================
+  📝 关键功能
+  ============================================
+  
+  1. **表单初始化**：
+     - `initializeFormWithData`：编辑模式，使用 `initialData` 初始化
+     - `initializeFormNormal`：新增模式，从 URL 或默认值初始化
+  
+  2. **字段渲染**：
+     - 使用 `WidgetComponent` 渲染字段
+     - 根据字段的 `widget.type` 选择对应的组件
+     - 支持多种渲染模式（edit、response、table-cell、detail、search）
+  
+  3. **表单验证**：
+     - `validateForm`：验证所有字段，返回验证结果
+     - `getFieldError`：获取字段的验证错误信息
+     - 验证错误使用字段的中文名称
+  
+  ============================================
+  ⚠️ 注意事项
+  ============================================
+  
+  1. **URL 同步时机**：
+     - 只在新增模式下同步（`_tab=OnTableAddRow`）
+     - 编辑模式和详情模式不同步，避免 URL 污染
+  
+  2. **初始数据优先级**：
+     - 编辑模式：`initialData` > 字段默认值
+     - 新增模式：URL 参数 > 字段默认值
+  
+  3. **字段 ID 生成**：
+     - 使用 `:prop="field.code"` 确保 Element Plus 生成正确的 `id` 属性
+     - 嵌套字段使用 `:prop="`${fieldPath}.${subField.code}`"` 格式
+  
+  4. **验证错误显示**：
+     - 使用字段的中文名称（`field.name`）显示错误
+     - 验证错误显示在字段下方，使用 `:error` 属性
 -->
 
 <template>
   <div class="form-view">
-    <!-- ⭐ 权限不足提示：在详情页面显示，不弹窗 -->
-    <div v-if="permissionError" class="permission-error-wrapper">
-      <el-card class="permission-error-card" shadow="hover">
-        <template #header>
-          <div class="permission-error-header">
-            <el-icon class="permission-error-icon"><Lock /></el-icon>
-            <span class="permission-error-title">权限不足</span>
-          </div>
-        </template>
-        <div class="permission-error-content">
-          <div class="permission-error-message">
-            <p class="error-message-text">
-              您没有 <strong>{{ permissionError.action_display || permissionError.error_message || '访问该资源' }}</strong> 的权限
-            </p>
-          </div>
-          <div v-if="permissionError.resource_path" class="permission-error-info">
-            <el-icon><Document /></el-icon>
-            <span class="info-label">资源路径：</span>
-            <span class="info-value">{{ permissionError.resource_path }}</span>
-          </div>
-          <div v-if="permissionError.action_display" class="permission-error-info">
-            <el-icon><Key /></el-icon>
-            <span class="info-label">缺少权限：</span>
-            <span class="info-value">{{ permissionError.action_display }}</span>
-          </div>
-          <div v-if="permissionError.apply_url" class="permission-error-actions">
-            <el-button
-              type="primary"
-              size="default"
-              @click="handleApplyPermission"
-              :icon="Lock"
-            >
-              立即申请权限
-            </el-button>
-          </div>
-        </div>
-      </el-card>
-    </div>
+    <!-- ⭐ 权限不足提示：使用 PermissionDeniedView 组件 -->
+    <PermissionDeniedView v-if="permissionError" />
 
-    <!-- 请求参数表单 -->
-    <el-form
-      v-if="requestFields.length > 0"
-      :model="formData"
-      label-width="100px"
-      class="function-form"
-    >
+    <!-- 主内容区域：使用 flex 布局，左侧表单，右侧详情 -->
+    <div class="form-view-container">
+      <!-- 左侧：表单内容 -->
+      <div class="form-view-main">
+        <!-- 请求参数表单 -->
+        <el-form
+          v-if="requestFields.length > 0"
+          :model="formData"
+          label-width="100px"
+          class="function-form"
+        >
       <div class="section-title">请求参数</div>
       <el-form-item
         v-for="field in requestFields"
@@ -77,12 +121,12 @@
     </el-form>
 
     <!-- 提交按钮 -->
-    <div class="form-actions-section">
+    <div v-if="showSubmitButton || showResetButton" class="form-actions-section">
       <div class="form-actions-row">
         <!-- ⭐ 提交按钮：需要 form:write 权限 -->
         <!-- 如果没有权限，显示禁用状态的按钮，点击后跳转到权限申请页面 -->
         <el-button
-          v-if="canSubmit"
+          v-if="showSubmitButton && canSubmit"
           type="primary"
           size="large"
           @click="handleSubmit"
@@ -93,7 +137,7 @@
           提交
         </el-button>
         <el-button
-          v-else
+          v-else-if="showSubmitButton"
           type="primary"
           size="large"
           :disabled="false"
@@ -104,7 +148,7 @@
           <el-icon><Lock /></el-icon>
           提交（需权限）
         </el-button>
-        <el-button size="large" @click="handleReset">
+        <el-button v-if="showResetButton" size="large" @click="handleReset">
           <el-icon><RefreshLeft /></el-icon>
           重置
         </el-button>
@@ -243,18 +287,82 @@
         </el-tab-pane>
       </el-tabs>
     </el-dialog>
+      </div>
+      <!-- 右侧：函数详情面板 -->
+      <div class="form-view-sidebar" v-if="functionDetail && currentFunctionNode">
+        <el-card class="function-detail-card" shadow="hover">
+          <template #header>
+            <div class="function-detail-header">
+              <el-icon><InfoFilled /></el-icon>
+              <span>函数介绍</span>
+            </div>
+          </template>
+          
+          <!-- 创建用户信息 -->
+          <div class="detail-section" v-if="functionDetail.created_by">
+            <div class="detail-section-title">
+              <el-icon><User /></el-icon>
+              <span>创建者</span>
+            </div>
+            <div class="creator-info">
+              <UserDisplay 
+                :username="functionDetail.created_by" 
+                mode="rich"
+                layout="horizontal"
+              />
+            </div>
+          </div>
+          
+          <!-- 函数名称 -->
+          <div class="detail-section">
+            <div class="function-name">{{ functionDetail.name || currentFunctionNode.name || '-' }}</div>
+          </div>
+
+          <!-- 函数描述 -->
+          <div class="detail-section" v-if="currentFunctionNode.description">
+            <div class="description-wrapper">
+              <div class="description-content">{{ currentFunctionNode.description }}</div>
+            </div>
+          </div>
+
+          <!-- 标签 -->
+          <div class="detail-section" v-if="currentFunctionNode.tags">
+            <div class="detail-section-title">
+              <el-icon><PriceTag /></el-icon>
+              <span>标签</span>
+            </div>
+            <div class="tags-list">
+              <el-tag
+                v-for="tag in (currentFunctionNode.tags?.split(',') || []).filter((t: string) => t.trim())"
+                :key="tag"
+                size="small"
+                class="tag-item"
+              >
+                {{ tag.trim() }}
+              </el-tag>
+            </div>
+          </div>
+
+          <!-- 如果没有描述和标签，显示提示 -->
+          <div v-if="!currentFunctionNode.description && !currentFunctionNode.tags" class="empty-tip">
+            <el-empty description="暂无介绍信息" :image-size="80" />
+          </div>
+        </el-card>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, watch, ref, nextTick } from 'vue'
+import { computed, onMounted, onUnmounted, watch, ref, nextTick, withDefaults } from 'vue'
 import type { ComputedRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Promotion, RefreshLeft, View, DocumentCopy, InfoFilled, Lock } from '@element-plus/icons-vue'
-import { ElIcon, ElTag, ElNotification, ElMessage, ElAlert, ElMessageBox, ElText, ElCheckbox, ElCard } from 'element-plus'
+import { Promotion, RefreshLeft, View, DocumentCopy, InfoFilled, Lock, Document, List, PriceTag, User } from '@element-plus/icons-vue'
+import { ElIcon, ElTag, ElNotification, ElMessage, ElAlert, ElMessageBox, ElText, ElCheckbox, ElCard, ElEmpty } from 'element-plus'
 import { eventBus, FormEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
+import UserDisplay from '../widgets/UserDisplay.vue'
 import { Logger } from '@/core/utils/logger'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
@@ -266,21 +374,30 @@ import { useFormParamURLSync } from '../composables/useFormParamURLSync'
 import { hasPermission, FormPermissions, buildPermissionApplyURL } from '@/utils/permission'
 import { usePermissionErrorStore } from '@/stores/permissionError'
 import type { PermissionInfo } from '@/utils/permission'
+import PermissionDeniedView from '../components/PermissionDeniedView.vue'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   functionDetail?: FunctionDetail  // 🔥 改为可选，因为会在 onMounted 中主动获取
-}>()
+  showSubmitButton?: boolean  // 🔥 是否显示提交按钮（用于 FormDialog 等场景）
+  showResetButton?: boolean  // 🔥 是否显示重置按钮
+  initialData?: Record<string, any>  // 🔥 初始数据（用于编辑模式）
+}>(), {
+  showSubmitButton: true,
+  showResetButton: true,
+  initialData: () => ({}),
+})
 
 // 路由
 const route = useRoute()
 const router = useRouter()
 
-// 依赖注入（使用 ServiceFactory 简化）
-const stateManager = serviceFactory.getFormStateManager()
-const domainService = serviceFactory.getFormDomainService()
-const applicationService = serviceFactory.getFormApplicationService()
-const workspaceStateManager = serviceFactory.getWorkspaceStateManager()  // 🔥 用于获取当前函数节点
-const workspaceDomainService = serviceFactory.getWorkspaceDomainService()  // 🔥 用于获取函数详情
+// 依赖注入（使用 IServiceProvider 接口，遵循依赖倒置原则）
+const serviceProvider: IServiceProvider = serviceFactory
+const stateManager = serviceProvider.getFormStateManager() as FormStateManager  // 🔥 类型断言：FormStateManager 有 setResponse 方法
+const domainService = serviceProvider.getFormDomainService()
+const applicationService = serviceProvider.getFormApplicationService()
+const workspaceStateManager = serviceProvider.getWorkspaceStateManager()  // 🔥 用于获取当前函数节点
+const workspaceDomainService = serviceProvider.getWorkspaceDomainService()  // 🔥 用于获取函数详情
 
 // 🔥 内部维护 functionDetail（在 onMounted 中主动获取）
 const functionDetail = ref<FunctionDetail | null>(props.functionDetail || null)
@@ -322,18 +439,7 @@ const canSubmit = computed(() => {
 const permissionErrorStore = usePermissionErrorStore()
 const permissionError = computed<PermissionInfo | null>(() => permissionErrorStore.currentError)
 
-// ⭐ 处理权限申请
-const handleApplyPermission = () => {
-  if (permissionError.value?.apply_url) {
-    if (permissionError.value.apply_url.startsWith('/')) {
-      router.push(permissionError.value.apply_url)
-    } else {
-      window.open(permissionError.value.apply_url, '_blank')
-    }
-  }
-}
-
-// ⭐ 处理提交按钮的权限申请
+// ⭐ 处理提交按钮的权限申请（PermissionDeniedView 组件已处理权限错误显示）
 const handleApplyPermissionForSubmit = () => {
   const node = currentFunctionNode.value
   if (!node || !node.full_code_path) return
@@ -351,7 +457,8 @@ const fieldValues = computed(() => {
   const state = stateManager.getState()
   const values: Record<string, FieldValue> = {}
   requestFields.value.forEach((field: FieldConfig) => {
-    values[field.code] = state.data.get(field.code) || { raw: null, display: '', meta: {} }
+    const fieldValue = state.data?.get(field.code) || { raw: null, display: '', meta: {} }
+    values[field.code] = fieldValue
   })
   return values
 })
@@ -461,6 +568,7 @@ const copyToClipboard = async (text: string): Promise<void> => {
   }
 }
 
+
 // FormRenderer 上下文（用于 OnSelectFuzzy 回调）
 // 注意：使用 computed 确保响应式更新，并且每次访问都返回新的对象（但方法引用稳定）
 const formRendererContext = computed(() => {
@@ -494,6 +602,7 @@ const getFieldValue = (fieldCode: string): FieldValue => {
 }
 
 const getFieldError = (fieldCode: string): string => {
+  // 🔥 只在提交时显示验证错误
   const errors = domainService.getFieldError(fieldCode)
   return errors[0]?.message || ''
 }
@@ -570,6 +679,107 @@ const handleReset = (): void => {
     applicationService.initializeForm(fields)
   }
 }
+
+/**
+ * 准备提交数据（带类型转换）
+ * 🔥 用于表单提交场景（新增/创建），返回所有字段的数据
+ * 这个方法会被 FormDialog 等外部组件调用
+ * 
+ * ⚠️ 注意：这个方法只用于表单提交（新增场景），不用于表格更新
+ * 表格更新应该使用 `prepareUpdateData` 方法，只返回变更的字段
+ * 
+ * @returns 提交数据对象（包含所有字段）
+ */
+function prepareSubmitDataWithTypeConversion(): Record<string, any> {
+  const request = functionDetail.value?.request
+  if (!Array.isArray(request) || request.length === 0) {
+    return {}
+  }
+  
+  // 使用 domainService 的 getSubmitData 方法递归收集所有字段的数据
+  const submitData = domainService.getSubmitData(request)
+  
+  // 🔥 调试日志：检查提交数据中是否包含所有必填字段
+  const requiredFields = request.filter(f => f.validation && f.validation.includes('required'))
+  const missingFields = requiredFields.filter(f => submitData[f.code] === undefined || submitData[f.code] === null || submitData[f.code] === '')
+  
+  if (missingFields.length > 0) {
+    Logger.warn('[FormView]', '提交数据中缺少必填字段', {
+      missingFields: missingFields.map(f => f.code),
+      submitDataKeys: Object.keys(submitData),
+      allFieldCodes: request.map(f => f.code)
+    })
+  }
+  
+  Logger.info('[FormView]', '准备提交数据（表单提交）', {
+    submitData,
+    fieldCount: request.length,
+    submitDataKeys: Object.keys(submitData),
+    allFieldCodes: request.map(f => f.code)
+  })
+  
+  return submitData
+}
+
+/**
+ * 准备更新数据（只返回变更的字段）
+ * 🔥 用于表格更新场景，只返回用户实际修改的字段
+ * 
+ * @param oldValues 旧值对象（完整的记录数据）
+ * @returns 只包含变更字段的数据对象
+ */
+async function prepareUpdateData(oldValues: Record<string, any>): Promise<Record<string, any>> {
+  const request = functionDetail.value?.request
+  if (!Array.isArray(request) || request.length === 0) {
+    return {}
+  }
+  
+  // 先获取所有字段的数据
+  const allSubmitData = domainService.getSubmitData(request)
+  
+  // 使用 getChangedFields 过滤出只变更的字段
+  const { getChangedFields } = await import('@/utils/objectDiff')
+  const { updates } = getChangedFields(oldValues, allSubmitData)
+  
+  Logger.info('[FormView]', '准备更新数据（表格更新）', {
+    allFieldsCount: Object.keys(allSubmitData).length,
+    changedFieldsCount: Object.keys(updates).length,
+    changedFields: Object.keys(updates),
+    allSubmitData,
+    updates
+  })
+  
+  return updates
+}
+
+/**
+ * 验证表单
+ * 这个方法会被 FormDialog 等外部组件调用
+ */
+function validateForm(): boolean {
+  if (!functionDetail.value) {
+    Logger.warn('[FormView]', 'functionDetail 不存在，无法验证')
+    return false
+  }
+  
+  const fields = (Array.isArray(functionDetail.value.request) ? functionDetail.value.request : []) as FieldConfig[]
+  const isValid = domainService.validateForm(fields)
+  
+  Logger.debug('[FormView]', '表单验证结果', {
+    isValid,
+    fieldsCount: fields.length,
+    fieldCodes: fields.map(f => f.code)
+  })
+  
+  return isValid
+}
+
+// 🔥 暴露方法给外部组件调用（兼容 FormRenderer 的接口）
+defineExpose({
+  prepareSubmitDataWithTypeConversion,  // 表单提交（新增场景）
+  prepareUpdateData,                     // 表格更新（更新场景，只返回变更的字段）
+  validateForm
+})
 
 
 // 格式化日期
@@ -672,10 +882,20 @@ const formDataStoreForURLSync = {
   }
 }
 
+/**
+ * 🔥 判断是否应该启用 URL 同步
+ * 只有新增模式（_tab=OnTableAddRow）才需要同步 URL 参数
+ * 其他所有情况（编辑模式、详情模式等）都不需要同步
+ */
+const shouldSyncURL = computed(() => {
+  // 🔥 只有 _tab=OnTableAddRow 时才启用 URL 同步
+  return route.query._tab === 'OnTableAddRow'
+})
+
 const { watchFormData } = useFormParamURLSync({
   functionDetail: computed(() => functionDetail.value),
   formDataStore: formDataStoreForURLSync,
-  enabled: true,
+  enabled: shouldSyncURL,
   debounceMs: 300
 })
 
@@ -688,18 +908,19 @@ onMounted(async () => {
   
   // 🔥 在 onMounted 中主动获取 functionDetail
   // 如果 prop 已经提供了 functionDetail，直接使用；否则从 WorkspaceStateManager 获取当前函数节点并加载详情
-  if (props.functionDetail && props.functionDetail.id) {
+  // ⚠️ 注意：id 可能为 0（FormDialog 中设置），所以不能直接用 truthy 判断
+  if (props.functionDetail && (props.functionDetail.id !== undefined && props.functionDetail.id !== null)) {
     // 如果 prop 已经提供了 functionDetail，直接使用
     functionDetail.value = props.functionDetail
-    console.log('🔍 [FormView] onMounted 时使用 prop 提供的 functionDetail', {
+    Logger.debug('FormView', 'onMounted 时使用 prop 提供的 functionDetail', {
       functionId: props.functionDetail.id,
-      requestFieldsCount: props.functionDetail.request?.length || 0
+      requestFieldsCount: Array.isArray(props.functionDetail.request) ? props.functionDetail.request.length : 0
     })
   } else {
     // 否则，从 WorkspaceStateManager 获取当前函数节点并加载详情
     const currentFunction = workspaceStateManager.getCurrentFunction()
     if (currentFunction && currentFunction.type === 'function') {
-      console.log('🔍 [FormView] onMounted 时主动加载 functionDetail', {
+      Logger.debug('FormView', 'onMounted 时主动加载 functionDetail', {
         functionNodeId: currentFunction.id,
         refId: currentFunction.ref_id,  // 🔥 记录 ref_id（函数 ID）
         functionPath: currentFunction.full_code_path,
@@ -709,24 +930,24 @@ onMounted(async () => {
         // 🔥 loadFunction 会优先使用 ref_id 加载函数详情
         const detail = await workspaceDomainService.loadFunction(currentFunction)
         functionDetail.value = detail
-        console.log('✅ [FormView] onMounted 时成功加载 functionDetail', {
+        Logger.info('FormView', 'onMounted 时成功加载 functionDetail', {
           functionId: detail.id,
           refId: currentFunction.ref_id,  // 🔥 记录使用的 ref_id
           requestFieldsCount: detail.request?.length || 0,
-          requestFields: detail.request?.map((f: any) => ({
+          requestFields: Array.isArray(detail.request) ? detail.request.map((f: any) => ({
             code: f.code,
             name: f.name,
             widgetType: f.widget?.type,
             hasDefault: !!(f.widget?.config as any)?.default,
             defaultValue: (f.widget?.config as any)?.default
-          })) || []
+          })) : []
         })
       } catch (error) {
-        console.error('❌ [FormView] onMounted 时加载 functionDetail 失败', error)
+        Logger.error('FormView', 'onMounted 时加载 functionDetail 失败', error)
         return
       }
     } else {
-      console.log('🔍 [FormView] onMounted 时没有当前函数节点，等待 watch 触发', {
+      Logger.debug('FormView', 'onMounted 时没有当前函数节点，等待 watch 触发', {
         hasCurrentFunction: !!currentFunction,
         functionType: currentFunction?.type
       })
@@ -734,39 +955,69 @@ onMounted(async () => {
     }
   }
   
-  // 🔥 初始化参数（此时 functionDetail 已经加载完成）
-  if (functionDetail.value && functionDetail.value.id && functionDetail.value.request) {
-    console.log('🔍 [FormView] onMounted 时初始化参数', {
-      functionId: functionDetail.value.id,
-      requestFieldsCount: functionDetail.value.request.length
+  /**
+   * 🔥 使用 initialData 初始化表单（用于编辑模式）
+   * 先清空 stateManager，然后直接使用 initialData 初始化，避免默认值干扰
+   */
+  const initializeFormWithData = (fields: FieldConfig[], initialData: Record<string, any>) => {
+    // 🔥 重要：先清空 stateManager，避免已有值影响 initialData 的初始化
+    const currentState = stateManager.getState()
+    stateManager.setState({
+      ...currentState,
+      data: new Map(),
+      errors: new Map(),
+      submitting: false
+    })
+    
+    // 🔥 直接调用 initializeForm，不使用 syncFormDataStoreToStateManager
+    // 因为 formDataStore 可能是空的，会设置默认值，影响 initialData 的初始化
+    applicationService.initializeForm(fields, initialData)
+  }
+
+  /**
+   * 🔥 使用正常流程初始化表单（用于新建模式）
+   * 先初始化参数，然后从 formDataStore 或 props.initialData 构建初始数据
+   */
+  const initializeFormNormal = async (fields: FieldConfig[]) => {
+    Logger.debug('FormView', 'onMounted 时初始化参数', {
+      functionId: functionDetail.value?.id,
+      requestFieldsCount: fields.length
     })
     const metadata = await initializeParams()
     
     // 初始化表单：在参数初始化完成后，初始化表单结构
-    const fields = functionDetail.value.request || []
     if (fields.length > 0) {
       // 🔥 同步 formDataStore 的数据到 stateManager，确保 display 值不丢失
       syncFormDataStoreToStateManager(fields)
       
-      // 🔥 调用 initializeForm 来触发 FormEvent.initialized 事件和更新字段配置
-      // 🔥 注意：FormDomainService.initializeForm 已经优化，会优先保留已有的完整值（包含 display）
-      const initialData = buildInitialDataFromFormDataStore(fields)
-      console.log('🔍 [FormView] onMounted 时初始化表单', {
-        fieldsCount: fields.length,
-        initialDataKeys: Object.keys(initialData),
-        initialData
-      })
+      // 🔥 优先使用 props.initialData，如果没有则使用 formDataStore 中的数据
+      const initialData = Object.keys(props.initialData).length > 0 
+        ? props.initialData 
+        : buildInitialDataFromFormDataStore(fields)
       applicationService.initializeForm(fields, initialData)
     }
     
     // 🔥 恢复响应数据（在表单初始化之后，避免被覆盖）
-    if (metadata?.responseParams && stateManager && typeof (stateManager as any).setResponse === 'function') {
-      (stateManager as any).setResponse(metadata.responseParams)
-      console.log('🔍 [FormView] 已恢复响应数据', {
-        responseParamsKeys: Object.keys(metadata.responseParams),
-        responseParams: metadata.responseParams,
-        stateResponse: stateManager.getState().response
+    if (metadata?.responseParams && stateManager) {
+      stateManager.setResponse(metadata.responseParams)
+      Logger.debug('FormView', '已恢复响应数据', {
+        responseParamsKeys: Object.keys(metadata.responseParams)
       })
+    }
+  }
+
+  // 🔥 初始化参数（此时 functionDetail 已经加载完成）
+  // ⚠️ 注意：id 可能为 0（FormDialog 中设置），所以不能直接用 truthy 判断
+  if (functionDetail.value && (functionDetail.value.id !== undefined && functionDetail.value.id !== null) && functionDetail.value.request) {
+    const fields = Array.isArray(functionDetail.value.request) ? functionDetail.value.request : []
+    
+    // 🔥 如果 props.initialData 有值，直接使用它初始化，跳过 initializeParams
+    // 这样可以避免 initializeParams 使用默认值覆盖 initialData
+    if (Object.keys(props.initialData).length > 0 && fields.length > 0) {
+      initializeFormWithData(fields, props.initialData)
+    } else {
+      // 🔥 如果没有 initialData，使用正常的初始化流程
+      await initializeFormNormal(fields)
     }
   }
 
@@ -791,7 +1042,8 @@ onMounted(async () => {
       // 🔥 使用 nextTick 确保参数初始化完成
       nextTick(() => {
         // 重新初始化表单（从 formDataStore 获取已初始化的数据）
-        const fields = (payload.detail.request || []) as FieldConfig[]
+        // 🔥 确保 fields 是数组，防止类型错误
+        const fields = (Array.isArray(payload.detail.request) ? payload.detail.request : []) as FieldConfig[]
         if (fields.length > 0) {
           // 🔥 同步 formDataStore 的数据到 stateManager，确保 display 值不丢失
           syncFormDataStoreToStateManager(fields)
@@ -804,7 +1056,7 @@ onMounted(async () => {
         // 🔥 恢复响应数据（在表单初始化之后，避免被覆盖）
         if (metadata?.responseParams && stateManager && typeof (stateManager as any).setResponse === 'function') {
           (stateManager as any).setResponse(metadata.responseParams)
-          console.log('🔍 [FormView] 已恢复响应数据', {
+          Logger.debug('FormView', '已恢复响应数据', {
             responseParamsKeys: Object.keys(metadata.responseParams),
             responseParams: metadata.responseParams,
             stateResponse: stateManager.getState().response
@@ -831,13 +1083,15 @@ onMounted(async () => {
     permissionErrorStore.clearError()
     
     // 🔥 同步到内部的 functionDetail ref
-    if (newDetail && newDetail.id) {
+    // ⚠️ 注意：id 可能为 0（FormDialog 中设置），所以不能直接用 truthy 判断
+    if (newDetail && (newDetail.id !== undefined && newDetail.id !== null)) {
       functionDetail.value = newDetail
     }
     
     // 🔥 检查 functionDetail 是否有效（必须要有 id 和 request 字段）
-    if (!newDetail || !newDetail.id || !newDetail.request) {
-      console.log('🔍 [FormView] props.functionDetail 无效或未加载完成，跳过初始化', {
+    // ⚠️ 注意：id 可能为 0（FormDialog 中设置），所以不能直接用 truthy 判断
+    if (!newDetail || (newDetail.id === undefined || newDetail.id === null) || !newDetail.request) {
+      Logger.debug('FormView', 'props.functionDetail 无效或未加载完成，跳过初始化', {
         hasDetail: !!newDetail,
         hasId: !!newDetail?.id,
         hasRequest: !!newDetail?.request,
@@ -850,7 +1104,7 @@ onMounted(async () => {
     // 如果只是其他属性变化（如字段配置），不应该重新初始化
     // 注意：oldDetail 为 undefined 时，说明是首次设置，此时 onMounted 已经处理过了，不需要重复初始化
     if (oldDetail && (newDetail.id !== oldDetail.id || newDetail.router !== oldDetail.router)) {
-      console.log('🔍 [FormView] props.functionDetail 变化（函数切换），开始重新初始化', {
+      Logger.debug('FormView', 'props.functionDetail 变化（函数切换），开始重新初始化', {
         oldId: oldDetail.id,
         newId: newDetail.id,
         oldRouter: oldDetail.router,
@@ -873,18 +1127,25 @@ onMounted(async () => {
           syncFormDataStoreToStateManager(fields)
           
           // 🔥 构建 initialData 并调用 initializeForm
-          const initialData = buildInitialDataFromFormDataStore(fields)
-          console.log('🔍 [FormView] 函数切换后初始化表单', {
+          // 🔥 优先使用 props.initialData，如果没有则使用 formDataStore 中的数据
+          const initialData = Object.keys(props.initialData).length > 0 
+            ? props.initialData 
+            : buildInitialDataFromFormDataStore(fields)
+          console.log('[FormView] 函数切换后初始化表单', {
             fieldsCount: fields.length,
+            fieldCodes: fields.map((f: FieldConfig) => f.code),
             initialDataKeys: Object.keys(initialData),
-            initialData
+            initialData,
+            propsInitialDataKeys: Object.keys(props.initialData),
+            propsInitialData: props.initialData,
+            fromProps: Object.keys(props.initialData).length > 0
           })
           applicationService.initializeForm(fields, initialData)
           
           // 🔥 恢复响应数据（在表单初始化之后，避免被覆盖）
           if (metadata?.responseParams && stateManager && typeof (stateManager as any).setResponse === 'function') {
             (stateManager as any).setResponse(metadata.responseParams)
-            console.log('🔍 [FormView] 已恢复响应数据', {
+            Logger.debug('FormView', '已恢复响应数据', {
               responseParamsKeys: Object.keys(metadata.responseParams),
               responseParams: metadata.responseParams,
               stateResponse: stateManager.getState().response
@@ -894,6 +1155,81 @@ onMounted(async () => {
       }
     }
   }, { deep: false }) // 🔥 移除 immediate: true，避免与 onMounted 重复初始化
+
+  /**
+   * 🔥 检查 initialData 是否真的变化了
+   */
+  const hasInitialDataChanged = (
+    newData: Record<string, any>,
+    oldData?: Record<string, any>
+  ): boolean => {
+    const newKeys = Object.keys(newData || {})
+    const oldKeys = Object.keys(oldData || {})
+    
+    // 如果 key 数量不同，或者有新的 key，或者值有变化，才重新初始化
+    return newKeys.length !== oldKeys.length || 
+      newKeys.some(key => newData[key] !== oldData?.[key])
+  }
+
+  // 🔥 监听 initialData 变化，当切换到编辑模式时重新初始化表单
+  watch(() => props.initialData, async (newInitialData: Record<string, any>, oldInitialData?: Record<string, any>) => {
+    // 只在 initialData 真正变化时（且不是首次设置）才重新初始化
+    if (!functionDetail.value || !functionDetail.value.request) {
+      return
+    }
+    
+    if (!hasInitialDataChanged(newInitialData, oldInitialData)) {
+      return
+    }
+    
+    const fields = (functionDetail.value.request || []) as FieldConfig[]
+    if (fields.length > 0 && newInitialData && Object.keys(newInitialData).length > 0) {
+      // 🔥 使用新的 initialData 重新初始化表单
+      nextTick(() => {
+        syncFormDataStoreToStateManager(fields)
+        applicationService.initializeForm(fields, newInitialData)
+      })
+    }
+  }, { deep: true })
+
+  // 🔥 监听 functionDetail 和 initialData 的组合变化，确保在编辑模式下能够正确初始化
+  // 当切换到编辑模式时，functionDetail 可能会变化，此时需要重新初始化表单
+  watch(
+    () => [props.functionDetail?.id, props.functionDetail?.request, Object.keys(props.initialData || {})],
+    async ([newId, newRequest, newInitialDataKeys], [oldId, oldRequest, oldInitialDataKeys]) => {
+      // 只在 functionDetail 准备好且有 initialData 时才初始化
+      // ⚠️ 注意：id 可能为 0（FormDialog 中设置），所以不能直接用 truthy 判断
+      if (!functionDetail.value || !functionDetail.value.request || (functionDetail.value.id === undefined || functionDetail.value.id === null)) {
+        return
+      }
+      
+      // 检查是否有新的 initialData（从空变为有值）
+      const hasNewInitialData = newInitialDataKeys && newInitialDataKeys.length > 0 && 
+        (!oldInitialDataKeys || oldInitialDataKeys.length === 0)
+      
+      // 检查 functionDetail 是否变化了（id 或 request 变化）
+      const functionDetailChanged = newId !== oldId || 
+        (newRequest && oldRequest && JSON.stringify(newRequest) !== JSON.stringify(oldRequest))
+      
+      // 如果 functionDetail 变化了，或者有新的 initialData，重新初始化
+      if (functionDetailChanged || hasNewInitialData) {
+        const fields = (functionDetail.value.request || []) as FieldConfig[]
+        if (fields.length > 0) {
+          const initialData = Object.keys(props.initialData).length > 0 
+            ? props.initialData 
+            : buildInitialDataFromFormDataStore(fields)
+          
+          if (Object.keys(initialData).length > 0) {
+            nextTick(() => {
+              syncFormDataStoreToStateManager(fields)
+              applicationService.initializeForm(fields, initialData)
+            })
+          }
+        }
+      }
+    },
+    { deep: true, immediate: false }
+  )
 
   // 🔥 移除 watch route.query，改为使用统一的数据初始化框架处理 URL 参数
   // URL 参数会在 initializeParams 时统一处理，包括类型转换和组件自治初始化
@@ -913,109 +1249,124 @@ onUnmounted(() => {
   padding: 20px;
 }
 
-.permission-error-wrapper {
+.form-view-container {
   display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 400px;
-  padding: 40px 20px;
+  gap: 20px;
+  align-items: flex-start;
 }
 
-.permission-error-card {
-  max-width: 600px;
-  width: 100%;
-  border-radius: 16px;
-  border: none;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-  transition: all 0.3s ease;
+.form-view-main {
+  flex: 1;
+  min-width: 0; // 防止 flex 子元素溢出
+}
 
-  &:hover {
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
-    transform: translateY(-2px);
+.form-view-sidebar {
+  width: 360px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 20px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+}
+
+.function-detail-card {
+  .function-detail-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 16px;
+    color: var(--el-text-color-primary);
   }
 }
 
-.permission-error-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+.detail-section {
+  margin-bottom: 24px;
+  
+  .detail-section-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--el-text-color-regular);
+    margin-bottom: 12px;
+  }
+  
+  .creator-info {
+    display: flex;
+    align-items: flex-start;
+    width: 100%;
+  }
+  
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.function-name {
   font-size: 18px;
   font-weight: 600;
-  color: var(--el-color-warning);
-}
-
-.permission-error-icon {
-  font-size: 24px;
-}
-
-.permission-error-title {
-  font-size: 18px;
-}
-
-.permission-error-content {
-  padding: 8px 0;
-}
-
-.permission-error-message {
-  margin-bottom: 24px;
-  padding: 16px;
-  background: linear-gradient(135deg, rgba(255, 193, 7, 0.1) 0%, rgba(255, 152, 0, 0.05) 100%);
-  border-radius: 12px;
-  border-left: 4px solid var(--el-color-warning);
-}
-
-.error-message-text {
-  margin: 0;
-  font-size: 15px;
-  line-height: 1.6;
   color: var(--el-text-color-primary);
-
-  strong {
-    color: var(--el-color-warning);
-    font-weight: 600;
-  }
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
-.permission-error-info {
+.detail-section-title {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 16px;
-  padding: 12px 16px;
-  background: var(--el-bg-color-page);
-  border-radius: 10px;
+  font-weight: 600;
   font-size: 14px;
-  transition: all 0.2s ease;
+  color: var(--el-text-color-primary);
+  margin-bottom: 12px;
+}
 
-  &:hover {
-    background: var(--el-fill-color-light);
-  }
+.description-wrapper {
+  position: relative;
+}
 
-  .el-icon {
-    color: var(--el-color-info);
-    font-size: 18px;
-  }
-
-  .info-label {
-    color: var(--el-text-color-regular);
-    font-weight: 500;
-  }
-
-  .info-value {
-    color: var(--el-text-color-primary);
-    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-    font-size: 13px;
-    word-break: break-all;
+.description-content {
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+  line-height: 1.8;
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, rgba(64, 158, 255, 0.05) 0%, rgba(64, 158, 255, 0.02) 100%);
+  border-radius: 8px;
+  border-left: 3px solid var(--el-color-primary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  position: relative;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: linear-gradient(180deg, var(--el-color-primary) 0%, rgba(64, 158, 255, 0.6) 100%);
+    border-radius: 8px 0 0 8px;
   }
 }
 
-.permission-error-actions {
-  margin-top: 24px;
+.tags-list {
   display: flex;
-  justify-content: center;
-  padding-top: 16px;
-  border-top: 1px solid var(--el-border-color-lighter);
+  flex-wrap: wrap;
+  gap: 8px;
 }
+
+.tag-item {
+  margin: 0;
+}
+
+.empty-tip {
+  padding: 20px 0;
+}
+
+/* 🔥 权限错误显示样式已移至 PermissionDeniedView 组件 */
 
 /* Debug 弹窗样式 */
 .debug-section {

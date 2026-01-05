@@ -63,7 +63,7 @@ import { ElIcon, ElButton, ElDropdown, ElDropdownMenu, ElDropdownItem } from 'el
 import { useRouter } from 'vue-router'
 import { convertToFieldValue } from '@/utils/field'
 import { resolveWorkspaceUrl } from '@/utils/route'
-import LinkWidget from '@/core/widgets-v2/components/LinkWidget.vue'
+import LinkWidget from '@/architecture/presentation/widgets/LinkWidget.vue'
 import type { FieldConfig } from '@/core/types/field'
 
 interface Props {

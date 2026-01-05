@@ -35,6 +35,20 @@
         <el-descriptions-item v-if="userInfo.email" label="邮箱">
           {{ userInfo.email }}
         </el-descriptions-item>
+        <!-- 组织架构信息 -->
+        <el-descriptions-item v-if="userInfo.department_full_name_path || userInfo.department_name || userInfo.department_full_path" label="组织架构">
+          <div class="org-info">
+            <el-icon><OfficeBuilding /></el-icon>
+            <span>{{ userInfo.department_full_name_path || userInfo.department_name || userInfo.department_full_path }}</span>
+          </div>
+        </el-descriptions-item>
+        <!-- Leader 信息 -->
+        <el-descriptions-item v-if="userInfo.leader_display_name || userInfo.leader_username" label="直接上级">
+          <div class="leader-info">
+            <el-icon><UserFilled /></el-icon>
+            <span>{{ userInfo.leader_display_name || userInfo.leader_username }}</span>
+          </div>
+        </el-descriptions-item>
         <el-descriptions-item v-if="userInfo.gender" label="性别">
           {{ genderText }}
         </el-descriptions-item>
@@ -66,7 +80,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ElDialog, ElAvatar, ElDescriptions, ElDescriptionsItem, ElTag, ElButton, ElEmpty } from 'element-plus'
+import { ElDialog, ElAvatar, ElDescriptions, ElDescriptionsItem, ElTag, ElButton, ElEmpty, ElIcon } from 'element-plus'
+import { OfficeBuilding, UserFilled } from '@element-plus/icons-vue'
 import type { UserInfo } from '@/types'
 
 interface Props {
@@ -164,6 +179,19 @@ function formatDate(dateString: string): string {
 
 .user-descriptions {
   margin-top: 20px;
+}
+
+.org-info,
+.leader-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.org-info .el-icon,
+.leader-info .el-icon {
+  font-size: 16px;
+  color: var(--el-text-color-secondary);
 }
 
 .user-detail-loading {

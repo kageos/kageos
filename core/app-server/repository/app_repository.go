@@ -35,6 +35,11 @@ func NewAppRepository(db *gorm.DB) *AppRepository {
 	}
 }
 
+// GetDB 获取数据库连接（用于复杂查询或创建其他仓库）
+func (r *AppRepository) GetDB() *gorm.DB {
+	return r.db
+}
+
 // GetAppByUserName 根据用户名和应用代码获取应用信息（带缓存）
 func (r *AppRepository) GetAppByUserName(user, app string) (*model.App, error) {
 	cacheKey := user + ":" + app

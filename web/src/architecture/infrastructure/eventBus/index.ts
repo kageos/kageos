@@ -15,3 +15,7 @@ export { EventBusImpl }
 // 导出单例实例（可选，也可以在使用时创建新实例）
 export const eventBus: IEventBus = new EventBusImpl()
 
+// 导出事件类型注册表
+export { eventTypeRegistry, EventTypeRegistry } from './EventTypeRegistry'
+export type { EventTypeMetadata } from './EventTypeRegistry'
+
