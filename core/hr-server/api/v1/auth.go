@@ -53,8 +53,13 @@ func (a *Auth) SendEmailCode(c *gin.Context) {
 	ipAddress := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
 
-	// 发送验证码
-	err = a.emailService.SendVerificationCode(req.Email, "register", ipAddress, userAgent)
+	// 发送验证码（根据 codeType 参数决定发送类型，默认为 register）
+	codeType := c.Query("type")
+	if codeType == "" {
+		codeType = "register"
+	}
+	
+	err = a.emailService.SendVerificationCode(req.Email, codeType, ipAddress, userAgent)
 	if err != nil {
 		response.FailWithMessage(c, "发送验证码失败: "+err.Error())
 		return
@@ -241,4 +246,47 @@ func (a *Auth) Logout(c *gin.Context) {
 	}
 
 	response.OkWithMessage(c, "登出成功")
+}
+
+// ForgotPassword 忘记密码（简化版：直接通过验证码重置密码）
+// @Summary 忘记密码
+// @Description 验证邮箱和验证码，直接重置密码
+// @Tags 认证管理
+// @Accept json
+// @Produce json
+// @Param request body dto.ForgotPasswordReq true "忘记密码请求"
+// @Success 200 {object} dto.ForgotPasswordResp "重置成功"
+// @Failure 400 {string} string "请求参数错误"
+// @Failure 500 {string} string "服务器内部错误"
+// @Router /hr/api/v1/auth/forgot_password [post]
+func (a *Auth) ForgotPassword(c *gin.Context) {
+	var req dto.ForgotPasswordReq
+	var resp *dto.ForgotPasswordResp
+	var err error
+	defer func() {
+		logger.Infof(c, "ForgotPassword req:%+v resp:%+v err:%v", req, resp, err)
+	}()
+
+	// 绑定请求参数
+	if err = c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+
+	// 验证验证码（使用 "forgot_password" 作为 codeType）
+	err = a.emailService.VerifyCode(req.Email, req.Code, "forgot_password")
+	if err != nil {
+		response.FailWithMessage(c, "验证码错误或已过期: "+err.Error())
+		return
+	}
+
+	// 直接重置密码（验证码已验证，用户存在性在 ResetPasswordByEmail 中检查）
+	err = a.authService.ResetPasswordByEmail(req.Email, req.Password)
+	if err != nil {
+		response.FailWithMessage(c, "重置密码失败: "+err.Error())
+		return
+	}
+
+	resp = &dto.ForgotPasswordResp{}
+	response.OkWithMessage(c, "密码重置成功")
 }

@@ -50,13 +50,26 @@
             v-loading="usersLoading"
             :data="userList"
             style="width: 100%"
-            border
             stripe
           >
-            <el-table-column prop="username" label="用户名" width="150" />
+            <el-table-column label="用户名" width="200">
+              <template #default="{ row }">
+                <UserDisplay
+                  :username="(row as any).username"
+                  mode="card"
+                  layout="horizontal"
+                  size="small"
+                />
+              </template>
+            </el-table-column>
             <el-table-column prop="nickname" label="昵称" width="150" />
-            <el-table-column prop="email" label="邮箱" width="200" />
-            <el-table-column label="部门" width="200">
+            <el-table-column label="性别" width="80" align="center">
+              <template #default="{ row }">
+                <span>{{ getGenderText((row as any).gender) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="email" label="邮箱" min-width="200" />
+            <el-table-column label="部门" min-width="200">
               <template #default="{ row }">
                 <DepartmentDisplay
                   v-if="(row as any).department_full_path"
@@ -69,7 +82,7 @@
                 <el-tag v-else type="info" size="small">未分配</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="Leader" width="150">
+            <el-table-column label="Leader" width="200">
               <template #default="{ row }">
                 <UserDisplay
                   v-if="(row as any).leader_username"
@@ -81,7 +94,7 @@
                 <el-tag v-else type="info" size="small">未分配</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="200" fixed="right">
+            <el-table-column label="操作" width="150" fixed="right">
               <template #default="{ row }">
                 <el-button
                   link
@@ -457,6 +470,17 @@ function handleEditUserSuccess() {
   }
 }
 
+// 获取性别文本
+function getGenderText(gender?: string): string {
+  const genderMap: Record<string, string> = {
+    'male': '男',
+    'female': '女',
+    'other': '其他',
+    '': '未设置'
+  }
+  return genderMap[gender || ''] || '未设置'
+}
+
 // ==================== 生命周期 ====================
 
 onMounted(() => {
@@ -480,8 +504,8 @@ onMounted(() => {
 }
 
 .left-sidebar {
-  width: 300px;
-  min-width: 300px;
+  width: 400px;
+  min-width: 400px;
   height: 100%;
   border-right: 1px solid var(--el-border-color);
   overflow: hidden;
@@ -493,6 +517,7 @@ onMounted(() => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  min-width: 0; /* 确保 flex 子元素可以收缩 */
 }
 
 .users-card {
@@ -500,12 +525,18 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  width: 100%;
 
   :deep(.el-card__body) {
     flex: 1;
     overflow: auto;
     display: flex;
     flex-direction: column;
+    padding: 20px;
+  }
+
+  :deep(.el-table) {
+    width: 100%;
   }
 
   .card-header {

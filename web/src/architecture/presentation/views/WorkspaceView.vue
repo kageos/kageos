@@ -221,6 +221,28 @@
             英文标识只能包含小写字母、数字和下划线，长度 2-50 个字符
           </div>
         </el-form-item>
+        <el-form-item label="是否公开">
+          <el-switch
+            v-model="createAppForm.is_public"
+            active-text="公开"
+            inactive-text="私有"
+          />
+          <div class="form-tip">
+            <el-icon><InfoFilled /></el-icon>
+            公开的工作空间可以被其他用户搜索到，私有的工作空间只有您自己可以看到
+          </div>
+        </el-form-item>
+        <el-form-item label="管理员">
+          <UserSearchInput
+            v-model="adminsArray"
+            placeholder="搜索并选择管理员（可多选）"
+            :multiple="true"
+          />
+          <div class="form-tip">
+            <el-icon><InfoFilled /></el-icon>
+            可以设置多个管理员，用逗号分隔。管理员拥有工作空间的管理权限
+          </div>
+        </el-form-item>
       </el-form>
 
       <template #footer>
@@ -359,7 +381,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, watch, ref, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox, ElNotification, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon } from 'element-plus'
+import { ElMessage, ElMessageBox, ElNotification, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon, ElSwitch } from 'element-plus'
 import { InfoFilled, ArrowLeft } from '@element-plus/icons-vue'
 import { eventBus, WorkspaceEvent, RouteEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
@@ -383,6 +405,7 @@ import PermissionDeniedView from '../components/PermissionDeniedView.vue'
 import AIChatPanel from '../components/AIChatPanel.vue'
 import AgentSelectDialog from '@/components/Agent/AgentSelectDialog.vue'
 import PackageDetailView from '../components/PackageDetailView.vue'
+import UserSearchInput from '@/components/UserSearchInput.vue'
 import type { ServiceTree, App } from '../../domain/services/WorkspaceDomainService'
 import type { FunctionDetail } from '../../domain/interfaces/IFunctionLoader'
 import type { App as AppType, ServiceTree as ServiceTreeType } from '@/types'
@@ -443,6 +466,7 @@ const {
   createAppDialogVisible,
   creatingApp,
   createAppForm,
+  adminsArray,
   loadAppList,
   handleSwitchApp: appHandleSwitchApp,
   showCreateAppDialog,

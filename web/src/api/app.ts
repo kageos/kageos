@@ -2,7 +2,7 @@ import { get, post, put, del } from '@/utils/request'
 import type { App, CreateAppRequest, CreateAppResponse } from '@/types'
 
 // 获取工作空间列表
-export function getAppList(pageSize: number = 200, search?: string) {
+export function getAppList(pageSize: number = 200, search?: string, includeAll: boolean = false) {
   // 后端返回的是分页数据结构: { page, page_size, total_count, items: App[] }
   // ⚠️ 注意：响应拦截器已经提取了 data 字段，所以 res 就是分页对象本身
   const params: Record<string, any> = {
@@ -11,6 +11,9 @@ export function getAppList(pageSize: number = 200, search?: string) {
   }
   if (search) {
     params.search = search
+  }
+  if (includeAll) {
+    params.include_all = true
   }
   return get<{
     page: number
@@ -34,13 +37,20 @@ export function getAppList(pageSize: number = 200, search?: string) {
 
 // 创建工作空间
 export function createApp(data: CreateAppRequest) {
-  // 后端期望的格式: { code: string, name: string }
+  // 后端期望的格式: { code: string, name: string, is_public?: boolean, admins?: string }
   // user字段会自动从JWT Token获取，不需要前端传递
   // 后端返回的是 CreateAppResponse，不是完整的 App 对象
-  return post<CreateAppResponse>('/workspace/api/v1/app/create', {
+  const payload: Record<string, any> = {
     code: data.code,
     name: data.name
-  })
+  }
+  if (data.is_public !== undefined) {
+    payload.is_public = data.is_public
+  }
+  if (data.admins !== undefined && data.admins !== '') {
+    payload.admins = data.admins
+  }
+  return post<CreateAppResponse>('/workspace/api/v1/app/create', payload)
 }
 
 // 更新工作空间（重新编译）

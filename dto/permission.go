@@ -1,10 +1,11 @@
 package dto
 
 // AddPermissionReq 添加权限请求
+// ⭐ Subject 可以是用户名（如 "liubeiluo"）或组织架构路径（如 "/org/sub/qsearch"）
 type AddPermissionReq struct {
-	Username     string `json:"username" binding:"required"`     // 用户名
+	Subject      string `json:"subject" binding:"required"`      // 权限主体：用户名或组织架构路径
 	ResourcePath string `json:"resource_path" binding:"required"` // 资源路径（full-code-path）
-	Action       string `json:"action" binding:"required"`     // 操作类型（如 table:search、function:manage 等）
+	Action       string `json:"action" binding:"required"`        // 操作类型（如 table:search、function:manage 等）
 }
 
 // ApplyPermissionReq 权限申请请求
@@ -23,8 +24,11 @@ type ApplyPermissionResp struct {
 }
 
 // GetWorkspacePermissionsReq 获取工作空间权限请求
+// ⭐ 支持传递用户和组织架构参数，使方法可复用（既可以获取当前用户权限，也可以获取其他用户权限）
 type GetWorkspacePermissionsReq struct {
-	AppID int64 `json:"app_id" form:"app_id"` // 应用ID（必填）
+	AppID            int64  `json:"app_id" form:"app_id"`                        // 应用ID（必填）
+	Username         string `json:"username,omitempty" form:"username,omitempty"` // 用户名（可选，如果不提供则从 context 获取当前用户）
+	DepartmentFullPath string `json:"department_full_path,omitempty" form:"department_full_path,omitempty"` // 组织架构路径（可选，如果不提供则从 context 获取）
 }
 
 // PermissionRecord 权限记录

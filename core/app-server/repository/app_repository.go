@@ -198,12 +198,27 @@ func (r *AppRepository) GetAppsByUser(user string) ([]*model.App, error) {
 }
 
 // GetAppsByUserWithPage 根据用户获取分页应用列表（支持搜索）
+// 保留此方法以保持向后兼容
 func (r *AppRepository) GetAppsByUserWithPage(user string, page, pageSize int, search string) ([]*model.App, int64, error) {
+	return r.GetAppsWithPage(user, page, pageSize, search, false)
+}
+
+// GetAppsWithPage 获取分页应用列表（支持搜索和过滤）
+// user: 当前用户（用于过滤自己的应用）
+// includeAll: 如果为 true，返回自己的应用 + 所有公开的应用；如果为 false，只返回自己的应用
+func (r *AppRepository) GetAppsWithPage(user string, page, pageSize int, search string, includeAll bool) ([]*model.App, int64, error) {
 	var apps []*model.App
 	var totalCount int64
 
 	// 构建查询条件
-	query := r.db.Model(&model.App{}).Where("user = ?", user)
+	var query *gorm.DB
+	if includeAll {
+		// 包含自己的应用 + 所有公开的应用
+		query = r.db.Model(&model.App{}).Where("user = ? OR is_public = ?", user, true)
+	} else {
+		// 只包含自己的应用
+		query = r.db.Model(&model.App{}).Where("user = ?", user)
+	}
 
 	// 如果有关键词，添加搜索条件（按名称或代码搜索）
 	if search != "" {
@@ -220,8 +235,8 @@ func (r *AppRepository) GetAppsByUserWithPage(user string, page, pageSize int, s
 	// 计算偏移量
 	offset := (page - 1) * pageSize
 
-	// 获取分页数据
-	err = query.Offset(offset).Limit(pageSize).Find(&apps).Error
+	// 获取分页数据，按创建时间倒序
+	err = query.Order("created_at DESC").Offset(offset).Limit(pageSize).Find(&apps).Error
 	if err != nil {
 		return nil, 0, err
 	}

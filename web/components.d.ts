@@ -112,6 +112,7 @@ declare module 'vue' {
     UpgradeEnterpriseDialog: typeof import('./src/components/UpgradeEnterpriseDialog.vue')['default']
     UserDetailDialog: typeof import('./src/components/UserDetailDialog.vue')['default']
     UserSearchInput: typeof import('./src/components/UserSearchInput.vue')['default']
+    WorkspaceListDialog: typeof import('./src/components/WorkspaceListDialog.vue')['default']
   }
   export interface GlobalDirectives {
     vLoading: typeof import('element-plus/es')['ElLoadingDirective']
@@ -220,4 +221,5 @@ declare global {
   const UpgradeEnterpriseDialog: typeof import('./src/components/UpgradeEnterpriseDialog.vue')['default']
   const UserDetailDialog: typeof import('./src/components/UserDetailDialog.vue')['default']
   const UserSearchInput: typeof import('./src/components/UserSearchInput.vue')['default']
+  const WorkspaceListDialog: typeof import('./src/components/WorkspaceListDialog.vue')['default']
 }

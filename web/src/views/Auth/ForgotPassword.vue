@@ -2,77 +2,132 @@
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { User, Lock, Check, Loading } from '@element-plus/icons-vue'
-import { useAuthStore } from '@/stores/auth'
-import type { LoginRequest } from '@/types'
+import { Message, Loading, Lock } from '@element-plus/icons-vue'
+import { forgotPassword, sendEmailCode } from '@/api/auth'
 
 const router = useRouter()
-const authStore = useAuthStore()
 
 // 表单数据
-const loginForm = reactive<LoginRequest>({
-  username: '',
-  password: ''
+const formData = reactive({
+  email: '',
+  code: '',
+  password: '',
+  confirmPassword: ''
 })
 
 // 表单引用
-const loginFormRef = ref()
+const formRef = ref()
 
 // 加载状态
 const loading = ref(false)
+const codeLoading = ref(false)
+const countdown = ref(0)
 
 // 表单验证规则
+const validateConfirmPassword = (rule: any, value: string, callback: Function) => {
+  if (!value) {
+    callback(new Error('请再次输入密码'))
+  } else if (value !== formData.password) {
+    callback(new Error('两次输入的密码不一致'))
+  } else {
+    callback()
+  }
+}
+
 const rules = {
-  username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' },
-    { min: 2, max: 50, message: '用户名长度在 2 到 50 个字符', trigger: 'blur' }
+  email: [
+    { required: true, message: '请输入邮箱地址', trigger: 'blur' },
+    { type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }
+  ],
+  code: [
+    { required: true, message: '请输入验证码', trigger: 'blur' },
+    { len: 6, message: '验证码长度为6位', trigger: 'blur' }
   ],
   password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
+    { required: true, message: '请输入新密码', trigger: 'blur' },
     { min: 6, max: 50, message: '密码长度在 6 到 50 个字符', trigger: 'blur' }
+  ],
+  confirmPassword: [
+    { required: true, message: '请再次输入密码', trigger: 'blur' },
+    { validator: validateConfirmPassword, trigger: 'blur' }
   ]
 }
 
-// 处理登录
-const handleLogin = async () => {
+// 发送验证码
+const handleSendCode = async () => {
+  if (!formData.email) {
+    ElMessage.warning('请先输入邮箱地址')
+    return
+  }
+
   try {
-    await loginFormRef.value.validate()
+    codeLoading.value = true
+    await sendEmailCode(formData.email, 'forgot_password')
+    ElMessage.success('验证码已发送到您的邮箱，请查收')
+    
+    // 开始倒计时
+    countdown.value = 60
+    const timer = setInterval(() => {
+      countdown.value--
+      if (countdown.value <= 0) {
+        clearInterval(timer)
+      }
+    }, 1000)
+  } catch (error: any) {
+    console.error('发送验证码失败:', error)
+    const message = error?.response?.data?.msg || error?.message || '发送验证码失败'
+    ElMessage.error(message)
+  } finally {
+    codeLoading.value = false
+  }
+}
+
+// 提交忘记密码请求
+const handleSubmit = async () => {
+  try {
+    await formRef.value.validate()
     loading.value = true
 
-    await authStore.login(loginForm)
+    await forgotPassword({
+      email: formData.email,
+      code: formData.code,
+      password: formData.password
+    })
 
-    // 登录成功后跳转到首页
-    await router.push('/')
+    ElMessage.success('密码重置成功，请使用新密码登录')
+    
+    // 跳转到登录页
+    setTimeout(() => {
+      router.push('/login')
+    }, 2000)
   } catch (error: any) {
-    console.error('登录失败:', error)
-    // 🔥 统一使用 msg 字段
-    const message = error?.response?.data?.msg || error?.message || '登录失败，请检查用户名和密码'
+    console.error('忘记密码失败:', error)
+    if (error?.errors) {
+      // 表单验证错误，不显示错误消息
+      return
+    }
+    const message = error?.response?.data?.msg || error?.message || '操作失败，请重试'
     ElMessage.error(message)
   } finally {
     loading.value = false
   }
 }
 
-// 跳转到注册页
-const goToRegister = () => {
-  router.push('/register')
-}
-
-// 跳转到忘记密码页
-const goToForgotPassword = () => {
-  router.push('/forgot-password')
+// 返回登录页
+const goToLogin = () => {
+  router.push('/login')
 }
 
 // 处理回车键
 const handleKeyPress = (event: KeyboardEvent) => {
   if (event.key === 'Enter') {
-    handleLogin()
+    handleSubmit()
   }
 }
 </script>
 
 <template>
-  <div class="login-container" @keypress="handleKeyPress">
+  <div class="forgot-password-container" @keypress="handleKeyPress">
     <!-- 背景装饰 -->
     <div class="background-decoration">
       <div class="decoration-circle circle-1"></div>
@@ -81,7 +136,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
     </div>
 
     <!-- 左侧品牌展示 -->
-    <div class="login-brand">
+    <div class="forgot-password-brand">
       <div class="brand-content">
         <div class="brand-logo-wrapper">
           <div class="logo-glow"></div>
@@ -90,116 +145,117 @@ const handleKeyPress = (event: KeyboardEvent) => {
           </div>
         </div>
         <h1 class="brand-title">
-          <span class="title-gradient">AI Agent OS</span>
+          <span class="title-gradient">忘记密码</span>
         </h1>
         <p class="brand-subtitle">
-          新一代智能代理操作系统<br />
-          让AI应用开发像描述一样简单
+          请输入您的邮箱地址和验证码<br />
+          设置新密码即可完成重置
         </p>
-        <div class="brand-features">
-          <div class="feature-item">
-            <div class="feature-icon">
-              <el-icon><Check /></el-icon>
-            </div>
-            <div class="feature-text">
-              <span class="feature-title">智能代码生成</span>
-              <span class="feature-desc">基于自然语言生成生产代码</span>
-            </div>
-          </div>
-          <div class="feature-item">
-            <div class="feature-icon">
-              <el-icon><Check /></el-icon>
-            </div>
-            <div class="feature-text">
-              <span class="feature-title">自动API渲染</span>
-              <span class="feature-desc">零代码构建完整应用界面</span>
-            </div>
-          </div>
-          <div class="feature-item">
-            <div class="feature-icon">
-              <el-icon><Check /></el-icon>
-            </div>
-            <div class="feature-text">
-              <span class="feature-title">物理多租户</span>
-              <span class="feature-desc">完全隔离的安全运行环境</span>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
 
-    <!-- 右侧登录表单 -->
-    <div class="login-form-section">
-      <div class="login-card">
+    <!-- 右侧表单 -->
+    <div class="forgot-password-form-section">
+      <div class="forgot-password-card">
         <div class="card-header">
           <div class="header-icon">
-            <el-icon><User /></el-icon>
+            <el-icon><Message /></el-icon>
           </div>
-          <h2 class="login-title">欢迎回来</h2>
-          <p class="login-subtitle">登录您的账号以继续使用</p>
+          <h2 class="form-title">找回密码</h2>
+          <p class="form-subtitle">验证邮箱并设置新密码</p>
         </div>
 
         <el-form
-          ref="loginFormRef"
-          :model="loginForm"
+          ref="formRef"
+          :model="formData"
           :rules="rules"
           label-width="0"
           size="large"
-          class="login-form"
+          class="forgot-password-form"
         >
-          <el-form-item prop="username">
+          <el-form-item prop="email">
             <el-input
-              v-model="loginForm.username"
-              placeholder="请输入用户名"
-              :prefix-icon="User"
+              v-model="formData.email"
+              placeholder="请输入邮箱地址"
+              :prefix-icon="Message"
               clearable
               size="large"
               class="form-input"
             />
           </el-form-item>
 
+          <el-form-item prop="code">
+            <div class="code-input-wrapper">
+              <el-input
+                v-model="formData.code"
+                placeholder="请输入验证码"
+                maxlength="6"
+                clearable
+                size="large"
+                class="form-input code-input"
+              />
+              <el-button
+                :disabled="countdown > 0"
+                :loading="codeLoading"
+                @click="handleSendCode"
+                class="code-button"
+              >
+                <template #loading>
+                  <el-icon class="is-loading"><Loading /></el-icon>
+                </template>
+                <span v-if="countdown > 0">{{ countdown }}秒后重试</span>
+                <span v-else>发送验证码</span>
+              </el-button>
+            </div>
+          </el-form-item>
+
           <el-form-item prop="password">
             <el-input
-              v-model="loginForm.password"
+              v-model="formData.password"
               type="password"
-              placeholder="请输入密码"
+              placeholder="请输入新密码"
               :prefix-icon="Lock"
               show-password
               clearable
               size="large"
               class="form-input"
-              @keyup.enter="handleLogin"
             />
           </el-form-item>
 
-          <el-form-item class="login-btn-item">
+          <el-form-item prop="confirmPassword">
+            <el-input
+              v-model="formData.confirmPassword"
+              type="password"
+              placeholder="请再次输入新密码"
+              :prefix-icon="Lock"
+              show-password
+              clearable
+              size="large"
+              class="form-input"
+              @keyup.enter="handleSubmit"
+            />
+          </el-form-item>
+
+          <el-form-item class="submit-btn-item">
             <el-button
               type="primary"
               size="large"
               :loading="loading"
-              class="login-btn"
-              @click="handleLogin"
+              class="submit-btn"
+              @click="handleSubmit"
             >
               <template #loading>
                 <el-icon class="is-loading"><Loading /></el-icon>
               </template>
-              <span v-if="!loading">登录</span>
-              <span v-else>登录中...</span>
+              <span v-if="!loading">提交</span>
+              <span v-else>提交中...</span>
             </el-button>
           </el-form-item>
 
-          <div class="login-footer">
-            <div class="footer-top">
-              <el-button type="text" @click="goToForgotPassword" class="forgot-password-link">
-                忘记密码？
-              </el-button>
-            </div>
-            <div class="footer-bottom">
-            <span class="login-tip">还没有账号？</span>
-            <el-button type="text" @click="goToRegister" class="register-link">
-              立即注册
+          <div class="form-footer">
+            <el-button type="text" @click="goToLogin" class="back-link">
+              ← 返回登录
             </el-button>
-            </div>
           </div>
         </el-form>
       </div>
@@ -208,7 +264,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
 </template>
 
 <style scoped>
-.login-container {
+.forgot-password-container {
   min-height: 100vh;
   display: flex;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
@@ -274,7 +330,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
   }
 }
 
-.login-brand {
+.forgot-password-brand {
   flex: 1;
   display: flex;
   align-items: center;
@@ -371,74 +427,12 @@ const handleKeyPress = (event: KeyboardEvent) => {
 .brand-subtitle {
   font-size: 18px;
   line-height: 1.8;
-  margin: 0 0 56px 0;
+  margin: 0;
   color: rgba(255, 255, 255, 0.95);
   font-weight: 300;
 }
 
-.brand-features {
-  text-align: left;
-  max-width: 400px;
-  margin: 0 auto;
-}
-
-.feature-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  margin-bottom: 28px;
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  transition: all 0.3s ease;
-}
-
-.feature-item:hover {
-  background: rgba(255, 255, 255, 0.15);
-  transform: translateX(8px);
-}
-
-.feature-icon {
-  width: 48px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 12px;
-  flex-shrink: 0;
-}
-
-.feature-icon .el-icon {
-  color: #fff;
-  font-size: 20px;
-  font-weight: bold;
-}
-
-.feature-text {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.feature-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: white;
-  display: block;
-}
-
-.feature-desc {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.8);
-  display: block;
-  line-height: 1.5;
-}
-
-.login-form-section {
+.forgot-password-form-section {
   width: 600px;
   display: flex;
   align-items: center;
@@ -451,7 +445,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
   box-shadow: -10px 0 40px rgba(0, 0, 0, 0.1);
 }
 
-.login-card {
+.forgot-password-card {
   width: 100%;
   max-width: 440px;
   animation: slideInRight 0.8s ease-out;
@@ -489,7 +483,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
   font-size: 32px;
 }
 
-.login-title {
+.form-title {
   font-size: 32px;
   font-weight: 700;
   color: #1a202c;
@@ -497,14 +491,14 @@ const handleKeyPress = (event: KeyboardEvent) => {
   letter-spacing: -0.5px;
 }
 
-.login-subtitle {
+.form-subtitle {
   font-size: 15px;
   color: #718096;
   margin: 0;
   font-weight: 400;
 }
 
-.login-form {
+.forgot-password-form {
   margin-bottom: 32px;
 }
 
@@ -540,11 +534,28 @@ const handleKeyPress = (event: KeyboardEvent) => {
   color: #a0aec0;
 }
 
-.login-btn-item {
+.code-input-wrapper {
+  display: flex;
+  gap: 12px;
+}
+
+.code-input {
+  flex: 1;
+}
+
+.code-button {
+  flex-shrink: 0;
+  white-space: nowrap;
+  border-radius: 12px;
+  height: 52px;
+  padding: 0 20px;
+}
+
+.submit-btn-item {
   margin-bottom: 32px;
 }
 
-.login-btn {
+.submit-btn {
   width: 100%;
   height: 52px;
   font-size: 16px;
@@ -556,51 +567,20 @@ const handleKeyPress = (event: KeyboardEvent) => {
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
 }
 
-.login-btn:hover {
+.submit-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
 }
 
-.login-btn:active {
+.submit-btn:active {
   transform: translateY(0);
 }
 
-.login-footer {
+.form-footer {
   text-align: center;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
 }
 
-.footer-top {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.footer-bottom {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-.forgot-password-link {
-  font-size: 14px;
-  color: #718096;
-  padding: 0;
-  transition: all 0.3s ease;
-}
-
-.forgot-password-link:hover {
-  color: #667eea;
-}
-
-.login-tip {
-  font-size: 15px;
-  color: #718096;
-}
-
-.register-link {
+.back-link {
   font-size: 15px;
   font-weight: 600;
   color: #667eea;
@@ -608,9 +588,9 @@ const handleKeyPress = (event: KeyboardEvent) => {
   transition: all 0.3s ease;
 }
 
-.register-link:hover {
+.back-link:hover {
   color: #764ba2;
-  transform: translateX(2px);
+  transform: translateX(-2px);
 }
 
 /* Element Plus 样式覆盖 */
@@ -630,22 +610,22 @@ const handleKeyPress = (event: KeyboardEvent) => {
 
 /* 响应式设计 */
 @media (max-width: 1200px) {
-  .login-brand {
+  .forgot-password-brand {
     padding: 0 60px;
   }
 
-  .login-form-section {
+  .forgot-password-form-section {
     width: 520px;
     padding: 60px 40px;
   }
 }
 
 @media (max-width: 968px) {
-  .login-container {
+  .forgot-password-container {
     flex-direction: column;
   }
 
-  .login-brand {
+  .forgot-password-brand {
     width: 100%;
     padding: 80px 40px 60px;
     min-height: auto;
@@ -658,14 +638,9 @@ const handleKeyPress = (event: KeyboardEvent) => {
 
   .brand-subtitle {
     font-size: 16px;
-    margin-bottom: 40px;
   }
 
-  .brand-features {
-    max-width: 100%;
-  }
-
-  .login-form-section {
+  .forgot-password-form-section {
     width: 100%;
     padding: 60px 40px;
     box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.1);
@@ -673,7 +648,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
 }
 
 @media (max-width: 640px) {
-  .login-brand {
+  .forgot-password-brand {
     padding: 60px 20px 40px;
   }
 
@@ -685,16 +660,11 @@ const handleKeyPress = (event: KeyboardEvent) => {
     font-size: 14px;
   }
 
-  .feature-item {
-    padding: 16px;
-    margin-bottom: 16px;
-  }
-
-  .login-form-section {
+  .forgot-password-form-section {
     padding: 40px 24px;
   }
 
-  .login-title {
+  .form-title {
     font-size: 28px;
   }
 
@@ -706,6 +676,14 @@ const handleKeyPress = (event: KeyboardEvent) => {
   .header-icon .el-icon {
     font-size: 28px;
   }
+
+  .code-input-wrapper {
+    flex-direction: column;
+  }
+
+  .code-button {
+    width: 100%;
+  }
 }
 
 @media (max-width: 480px) {
@@ -714,3 +692,4 @@ const handleKeyPress = (event: KeyboardEvent) => {
   }
 }
 </style>
+

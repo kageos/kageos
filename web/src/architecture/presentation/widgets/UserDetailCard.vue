@@ -23,8 +23,9 @@
           <span>{{ userInfo.email }}</span>
         </div>
         <div v-if="userInfo.gender" class="user-gender">
-          <el-icon class="info-icon"><User /></el-icon>
-          <span>{{ genderText }}</span>
+          <el-icon class="info-icon gender-icon" :class="genderIconClass">
+            <component :is="genderIcon" />
+          </el-icon>
         </div>
       </div>
     </div>
@@ -72,7 +73,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { ElAvatar, ElIcon, ElTag } from 'element-plus'
-import { OfficeBuilding, UserFilled, Message, User, EditPen } from '@element-plus/icons-vue'
+import { OfficeBuilding, UserFilled, Message, User, EditPen, Male, Female } from '@element-plus/icons-vue'
 import type { UserInfo } from '@/types'
 import { formatUserDisplayName } from '@/utils/userInfo'
 
@@ -86,15 +87,28 @@ const props = withDefaults(defineProps<Props>(), {
   compact: true
 })
 
-// 性别文本
-const genderText = computed(() => {
-  const genderMap: Record<string, string> = {
-    'male': '男',
-    'female': '女',
-    'other': '其他',
-    '': '未设置'
+// 计算性别图标
+const genderIcon = computed(() => {
+  const gender = props.userInfo?.gender || ''
+  const iconMap: Record<string, any> = {
+    'male': Male,        // 男 - 使用 Male 图标
+    'female': Female,    // 女 - 使用 Female 图标
+    'other': User,       // 其他 - 使用 User 图标
+    '': User
   }
-  return genderMap[props.userInfo?.gender || ''] || '未设置'
+  return iconMap[gender] || User
+})
+
+// 计算性别图标样式类
+const genderIconClass = computed(() => {
+  const gender = props.userInfo?.gender || ''
+  const classMap: Record<string, string> = {
+    'male': 'gender-icon-male',        // 男 - 蓝色
+    'female': 'gender-icon-female',    // 女 - 红色/粉色
+    'other': 'gender-icon-other',      // 其他 - 灰色
+    '': 'gender-icon-other'
+  }
+  return classMap[gender] || 'gender-icon-other'
 })
 
 // 状态文本和标签类型
@@ -202,6 +216,22 @@ const registerTypeText = computed(() => {
   font-size: 14px;
   color: var(--el-text-color-secondary);
   flex-shrink: 0;
+}
+
+.user-gender .gender-icon {
+  font-size: 18px;
+}
+
+.gender-icon-male {
+  color: var(--el-color-primary);
+}
+
+.gender-icon-female {
+  color: var(--el-color-danger);
+}
+
+.gender-icon-other {
+  color: var(--el-text-color-secondary);
 }
 
 .signature-section {

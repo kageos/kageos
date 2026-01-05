@@ -102,7 +102,7 @@ func (p *Permission) ApplyPermission(c *gin.Context) {
 	
 	for _, action := range actions {
 		addReq := dto.AddPermissionReq{
-			Username:     username,
+			Subject:      username,
 			ResourcePath: req.ResourcePath,
 			Action:       action,
 		}
@@ -138,13 +138,18 @@ func (p *Permission) ApplyPermission(c *gin.Context) {
 
 // GetWorkspacePermissions 获取工作空间的所有权限
 // @Summary 获取工作空间权限
-// @Description 获取整个工作空间（应用）的所有节点权限，用于权限申请页面显示已有权限。用户信息从 context 中获取（JWT 中间件已设置）
+// @Description 获取整个工作空间（应用）的所有节点权限，用于权限申请页面显示已有权限。
+// @Description 支持两种方式：
+// @Description 1. 获取当前用户权限：不传 username 和 department_full_path，系统从 context 中获取（JWT 中间件已设置）
+// @Description 2. 获取指定用户权限：传递 username 和 department_full_path 参数，可以查询其他用户的权限（需要管理员权限）
 // @Tags 权限管理
 // @Accept json
 // @Produce json
 // @Security ApiKeyAuth
 // @Param X-Token header string true "JWT Token"
 // @Param app_id query int true "应用ID"
+// @Param username query string false "用户名（可选，不传则获取当前用户权限）"
+// @Param department_full_path query string false "组织架构路径（可选，不传则从 context 获取）"
 // @Success 200 {object} dto.GetWorkspacePermissionsResp "查询成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 401 {string} string "未授权"

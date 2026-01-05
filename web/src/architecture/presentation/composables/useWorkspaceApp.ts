@@ -7,7 +7,7 @@
  * - 工作空间 CRUD 操作
  */
 
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElNotification, ElMessageBox } from 'element-plus'
 import { apiClient } from '../../infrastructure/apiClient'
@@ -35,8 +35,18 @@ export function useWorkspaceApp(
   const creatingApp = ref(false)
   const createAppForm = ref<CreateAppRequest>({
     code: '',
-    name: ''
+    name: '',
+    is_public: true, // 默认公开
+    admins: '' // 管理员列表，逗号分隔的用户名
   })
+  
+  // 管理员数组（用于 UserSearchInput 组件，多选模式返回数组）
+  const adminsArray = ref<string[]>([])
+  
+  // 监听 adminsArray 变化，转换为逗号分隔的字符串
+  watch(adminsArray, (newVal) => {
+    createAppForm.value.admins = newVal.length > 0 ? newVal.join(',') : ''
+  }, { immediate: true })
 
   // 加载工作空间列表
   const loadAppList = async (): Promise<void> => {
@@ -126,8 +136,11 @@ export function useWorkspaceApp(
   const resetCreateAppForm = (): void => {
     createAppForm.value = {
       code: '',
-      name: ''
+      name: '',
+      is_public: true,
+      admins: ''
     }
+    adminsArray.value = []
   }
 
   // 提交创建工作空间
@@ -285,6 +298,7 @@ export function useWorkspaceApp(
     createAppDialogVisible,
     creatingApp,
     createAppForm,
+    adminsArray,
     
     // 方法
     loadAppList,

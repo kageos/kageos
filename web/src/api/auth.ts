@@ -32,8 +32,10 @@ export function getUserInfo() {
 }
 
 // 发送邮箱验证码
-export function sendEmailCode(email: string) {
-  return post('/hr/api/v1/auth/send_email_code', { email })
+export function sendEmailCode(email: string, codeType: 'register' | 'forgot_password' = 'register') {
+  // 将 codeType 作为查询参数传递
+  const url = `/hr/api/v1/auth/send_email_code?type=${codeType}`
+  return post(url, { email })
 }
 
 // 验证邮箱
@@ -43,4 +45,9 @@ export function verifyEmail(email: string, code: string) {
   // TODO: hr-server 中暂无独立的 verify-email API，暂时保留此函数以保持兼容性
   // 实际验证在 register 接口中完成
   return post('/hr/api/v1/auth/verify-email', { email, code })
+}
+
+// 忘记密码（简化版：直接通过验证码重置密码）
+export function forgotPassword(data: { email: string; code: string; password: string }) {
+  return post('/hr/api/v1/auth/forgot_password', data)
 }

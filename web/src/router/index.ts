@@ -34,6 +34,15 @@ const router = createRouter({
         requireAuth: false
       }
     },
+    {
+      path: '/forgot-password',
+      name: 'forgot-password',
+      component: () => import('../views/Auth/ForgotPassword.vue'),
+      meta: {
+        title: '忘记密码',
+        requireAuth: false
+      }
+    },
 
     // 用户设置页面
     {

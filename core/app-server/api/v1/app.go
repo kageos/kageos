@@ -439,6 +439,7 @@ func (a *App) GetApps(c *gin.Context) {
 	page := c.DefaultQuery("page", "1")
 	pageSize := c.DefaultQuery("page_size", "10")
 	search := c.Query("search")
+	includeAll := c.DefaultQuery("include_all", "false") == "true"
 
 	// 构建请求对象
 	req = dto.GetAppsReq{
@@ -446,8 +447,9 @@ func (a *App) GetApps(c *gin.Context) {
 			Page:     parseIntWithDefault(page, 1),
 			PageSize: parseIntWithDefault(pageSize, 10),
 		},
-		User:   user,
-		Search: search,
+		User:       user,
+		Search:     search,
+		IncludeAll: includeAll,
 	}
 
 	ctx := contextx.ToContext(c)

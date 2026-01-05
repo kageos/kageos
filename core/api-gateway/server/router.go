@@ -209,7 +209,7 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 		if req.Header.Get(contextx.RequestUserHeader) == "" {
 			token := req.Header.Get("X-Token")
 			if token != "" {
-						// ⭐ 新增：检查 token 是否在黑名单中
+				// ⭐ 新增：检查 token 是否在黑名单中
 				if s.tokenBlacklist.IsBlacklisted(token) {
 					logger.Warnf(s.ctx, "[Proxy] Token is blacklisted, rejecting request")
 					// 设置标记，在 ModifyResponse 中拦截
@@ -217,15 +217,22 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 					// 不继续解析 token，直接返回
 					return
 				}
-				
+
 				{
-					// 解析 token 获取 username
+					// 解析 token 获取 username 和组织架构信息
 					jwtService := service.NewJWTService()
 					claims, err := jwtService.ValidateToken(token)
 					if err == nil {
 						// 解析成功，设置 username 到 header
 						req.Header.Set(contextx.RequestUserHeader, claims.Username)
 						logger.Debugf(s.ctx, "[Proxy] Extracted username from token: %s", claims.Username)
+
+						// ⭐ 设置组织架构信息到 header（token 中一定包含这些字段，如果用户有组织架构信息）
+						// ⭐ 统一使用 DepartmentFullPathHeader 常量
+						if claims.DepartmentFullPath != nil && *claims.DepartmentFullPath != "" {
+							req.Header.Set(contextx.DepartmentFullPathHeader, *claims.DepartmentFullPath)
+							logger.Debugf(s.ctx, "[Proxy] Extracted department_full_path from token: %s", *claims.DepartmentFullPath)
+						}
 					} else {
 						// token 解析失败，但不阻止请求（可能是不需要认证的接口）
 						logger.Debugf(s.ctx, "[Proxy] Failed to parse token: %v", err)

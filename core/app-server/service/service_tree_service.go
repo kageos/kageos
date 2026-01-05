@@ -270,6 +270,8 @@ func (s *ServiceTreeService) GetAppWithServiceTree(ctx context.Context, req *dto
 		Version:   appModel.Version,
 		NatsID:    appModel.NatsID,
 		HostID:    appModel.HostID,
+		IsPublic:  appModel.IsPublic,
+		Admins:    appModel.Admins,
 		CreatedAt: time.Time(appModel.CreatedAt).Format("2006-01-02 15:04:05"),
 		UpdatedAt: time.Time(appModel.UpdatedAt).Format("2006-01-02 15:04:05"),
 	}

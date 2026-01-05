@@ -31,6 +31,7 @@ func (s *Server) setupRoutes() {
 	auth.POST("/login", authHandler.Login)
 	auth.POST("/refresh", authHandler.RefreshToken)
 	auth.POST("/logout", authHandler.Logout)
+	auth.POST("/forgot_password", authHandler.ForgotPassword)
 
 	// 用户管理路由（需要JWT验证）
 	user := apiV1.Group("/user")
