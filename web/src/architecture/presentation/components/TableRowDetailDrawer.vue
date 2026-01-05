@@ -49,7 +49,7 @@
               type="primary"
               size="small"
               :loading="submitting"
-              :disabled="!isFormRendererReady"
+              :disabled="!isFormViewReady"
               @click="handleSubmit"
             >
               保存
@@ -129,7 +129,6 @@
                         :field="field"
                         :value="getFieldValue(field.code)"
                         mode="detail"
-                        :user-info-map="userInfoMap"
                         :function-name="functionName"
                         :record-id="recordId"
                       />
@@ -154,7 +153,6 @@
                           :field="field"
                           :value="getFieldValue(field.code)"
                           mode="detail"
-                          :user-info-map="userInfoMap"
                           :function-name="functionName"
                           :record-id="recordId"
                         />
@@ -174,7 +172,6 @@
                             :field="groupedFields.idField"
                             :value="getFieldValue(groupedFields.idField.code)"
                             mode="detail"
-                            :user-info-map="userInfoMap"
                             :function-name="functionName"
                             :record-id="recordId"
                           />
@@ -198,7 +195,6 @@
                             :field="field"
                             :value="getFieldValue(field.code)"
                             mode="detail"
-                            :user-info-map="userInfoMap"
                             :function-name="functionName"
                             :record-id="recordId"
                           />
@@ -222,7 +218,6 @@
                             :field="field"
                             :value="getFieldValue(field.code)"
                             mode="detail"
-                            :user-info-map="userInfoMap"
                             :function-name="functionName"
                             :record-id="recordId"
                           />
@@ -251,7 +246,6 @@
                             :field="field"
                             :value="getFieldValue(field.code)"
                             mode="detail"
-                            :user-info-map="userInfoMap"
                             :function-name="functionName"
                             :record-id="recordId"
                           />
@@ -277,7 +271,6 @@
                       :field="field"
                       :value="getFieldValue(field.code)"
                       mode="detail"
-                      :user-info-map="userInfoMap"
                       :function-name="functionName"
                       :record-id="recordId"
                     />
@@ -304,16 +297,14 @@
 
       <!-- 编辑模式（复用 FormRenderer） -->
       <div v-else class="edit-form-wrapper" v-loading="submitting">
-        <FormRenderer
+        <FormView
           v-if="editFunctionDetail && mode === 'edit'"
-          ref="formRendererRef"
+          ref="formViewRef"
           :key="`detail-edit-${rowData?.id || ''}-${mode}`"
           :function-detail="editFunctionDetail"
-          :initial-data="rowData || {}"
+          :initial-data="filteredInitialData"
           :show-submit-button="false"
           :show-reset-button="false"
-          :show-share-button="false"
-          :show-debug-button="false"
         />
         <el-empty v-else-if="!editFunctionDetail" description="无法构建编辑表单" />
         <div v-else class="form-loading">
@@ -336,9 +327,9 @@ import { Edit, ArrowLeft, ArrowRight, Grid, List, Lock } from '@element-plus/ico
 import { ElMessage, ElTabs, ElTabPane } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { buildPermissionApplyURL } from '@/utils/permission'
-import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
+import FormView from '@/architecture/presentation/views/FormView.vue'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
-import LinkWidget from '@/core/widgets-v2/components/LinkWidget.vue'
+import LinkWidget from '@/architecture/presentation/widgets/LinkWidget.vue'
 import OperateLogSection from '@/components/OperateLogSection.vue'
 import { WidgetType } from '@/core/constants/widget'
 import type { FieldConfig, FieldValue } from '../../domain/types'
@@ -355,7 +346,6 @@ interface Props {
   canEdit?: boolean
   editFunctionDetail?: FunctionDetail | null
   currentFunctionDetail?: FunctionDetail | null  // 原始的 functionDetail（未修改的，用于操作日志）
-  userInfoMap?: Map<string, any>
   submitting?: boolean
   currentFunction?: any  // ServiceTree 节点，包含 full_code_path
 }
@@ -364,7 +354,7 @@ interface Emits {
   (e: 'update:visible', value: boolean): void
   (e: 'update:mode', value: 'read' | 'edit'): void
   (e: 'navigate', direction: 'prev' | 'next'): void
-  (e: 'submit', formRendererRef: InstanceType<typeof FormRenderer>): void
+  (e: 'submit', formViewRef: InstanceType<typeof FormView>): void
   (e: 'close'): void
 }
 
@@ -374,7 +364,6 @@ const props = withDefaults(defineProps<Props>(), {
   canEdit: false,
   editFunctionDetail: null,
   currentFunctionDetail: null,
-  userInfoMap: () => new Map(),
   submitting: false,
   currentFunction: null
 })
@@ -383,8 +372,8 @@ const emit = defineEmits<Emits>()
 
 const router = useRouter()
 
-const formRendererRef = ref<InstanceType<typeof FormRenderer> | null>(null)
-const isFormRendererReady = ref(false)
+const formViewRef = ref<InstanceType<typeof FormView> | null>(null)
+const isFormViewReady = ref(false)
 
 // ==================== 详情布局配置 ====================
 
@@ -449,18 +438,18 @@ watch(
   }
 )
 
-// 监听 formRendererRef 的变化
-watch(formRendererRef, (newVal) => {
-  isFormRendererReady.value = !!newVal
+// 监听 formViewRef 的变化
+watch(formViewRef, (newVal) => {
+  isFormViewReady.value = !!newVal
 }, { immediate: true })
 
 // 监听 mode 变化，重置 ready 状态
 watch(() => props.mode, (newMode) => {
   if (newMode === 'edit') {
-    // 重置 ready 状态，等待 watch(formRendererRef) 自动更新
-    isFormRendererReady.value = false
+    // 重置 ready 状态，等待 watch(formViewRef) 自动更新
+    isFormViewReady.value = false
   } else {
-    isFormRendererReady.value = false
+    isFormViewReady.value = false
   }
 })
 
@@ -545,6 +534,29 @@ const getFieldValue = (fieldCode: string): FieldValue => {
     meta: {} 
   }
 }
+
+/**
+ * 🔥 过滤 initialData，只包含 editFunctionDetail.request 中的字段
+ * 这样可以确保传递给 FormView 的 initialData 只包含可编辑的字段
+ */
+const filteredInitialData = computed(() => {
+  if (!props.rowData || !props.editFunctionDetail || !props.editFunctionDetail.request) {
+    return {}
+  }
+  
+  const editableFieldCodes = new Set(
+    props.editFunctionDetail.request.map((field: FieldConfig) => field.code)
+  )
+  
+  const filtered: Record<string, any> = {}
+  Object.keys(props.rowData).forEach(key => {
+    if (editableFieldCodes.has(key)) {
+      filtered[key] = props.rowData[key]
+    }
+  })
+  
+  return filtered
+})
 
 // 🔥 从 editFunctionDetail.router 提取函数名称（用于 FilesWidget 打包下载命名）
 const functionName = computed(() => {
@@ -659,14 +671,14 @@ const handleNavigate = (direction: 'prev' | 'next') => {
 }
 
 const handleSubmit = () => {
-  // 直接检查 isFormRendererReady，这个状态由 watch(formRendererRef) 自动维护
-  if (!isFormRendererReady.value || !formRendererRef.value) {
+  // 直接检查 isFormViewReady，这个状态由 watch(formViewRef) 自动维护
+  if (!isFormViewReady.value || !formViewRef.value) {
     ElMessage.warning('编辑表单正在初始化，请稍后再试')
     return
   }
   
-  // 直接传递 formRendererRef 给父组件
-  emit('submit', formRendererRef.value)
+  // 直接传递 formViewRef 给父组件
+  emit('submit', formViewRef.value)
 }
 
 const handleClose = () => {
@@ -675,7 +687,7 @@ const handleClose = () => {
 
 // 暴露方法供父组件调用
 defineExpose({
-  formRendererRef
+  formViewRef
 })
 </script>
 

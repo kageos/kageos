@@ -57,6 +57,26 @@
             <p class="form-tip">邮箱不可修改</p>
           </el-form-item>
 
+          <!-- 组织架构（只读） -->
+          <el-form-item label="组织架构">
+            <div v-if="currentUser?.department_full_name_path || currentUser?.department_name || currentUser?.department_full_path" class="org-info">
+              <img src="/组织架构.svg" alt="组织架构" class="info-icon" />
+              <span>{{ currentUser.department_full_name_path || currentUser.department_name || currentUser.department_full_path }}</span>
+            </div>
+            <span v-else class="text-muted">未分配</span>
+            <p class="form-tip">组织架构由管理员分配，不可修改</p>
+          </el-form-item>
+
+          <!-- 直接上级（只读） -->
+          <el-form-item label="直接上级">
+            <div v-if="currentUser?.leader_display_name || currentUser?.leader_username" class="leader-info">
+              <el-icon><UserFilled /></el-icon>
+              <span>{{ currentUser.leader_display_name || currentUser.leader_username }}</span>
+            </div>
+            <span v-else class="text-muted">未分配</span>
+            <p class="form-tip">直接上级由管理员分配，不可修改</p>
+          </el-form-item>
+
           <!-- 昵称 -->
           <el-form-item label="昵称" prop="nickname">
             <el-input
@@ -111,7 +131,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElForm } from 'element-plus'
-import { ArrowLeft } from '@element-plus/icons-vue'
+import { ArrowLeft, UserFilled } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import CommonUpload from '@/components/CommonUpload.vue'
 import type { FormRules } from 'element-plus'
@@ -294,6 +314,34 @@ onMounted(() => {
 
 .disabled-input {
   opacity: 0.6;
+}
+
+.org-info,
+.leader-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  
+  .info-icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    opacity: 0.8;
+  }
+  
+  .el-icon {
+    font-size: 16px;
+    color: var(--el-text-color-secondary);
+  }
+  
+  span {
+    color: var(--el-text-color-primary);
+  }
+}
+
+.text-muted {
+  color: var(--el-text-color-placeholder);
+  font-size: 14px;
 }
 </style>
 

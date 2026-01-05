@@ -99,12 +99,12 @@ import { ElIcon, ElEmpty, ElTag, ElCard, ElDivider, ElButton, ElMessage } from '
 import { formatTimestamp } from '@/utils/date'
 import { useLicenseStore } from '@/stores/license'
 import { getTableOperateLogs, type TableOperateLog } from '@/api/operateLog'
-import { widgetComponentFactory } from '@/core/factories-v2'
+import { widgetComponentFactory } from '@/architecture/infrastructure/widgetRegistry'
 import { convertToFieldValue } from '@/utils/field'
 import type { FieldConfig } from '@/types'
 import { getFunctionByPath } from '@/api/function'
 import type { FunctionDetail } from '@/architecture/domain/interfaces/IFunctionLoader'
-import UserDisplay from '@/core/widgets-v2/components/UserDisplay.vue'
+import UserDisplay from '@/architecture/presentation/widgets/UserDisplay.vue'
 
 interface Props {
   /** 完整代码路径 */

@@ -22,10 +22,7 @@ type User struct {
 	Nickname      string         `json:"nickname" gorm:"column:nickname;type:varchar(100)"`                          // 昵称
 	Signature     string         `json:"signature" gorm:"column:signature;type:varchar(500)"`                        // 个人签名/简介
 	Gender        string         `json:"gender" gorm:"column:gender;type:varchar(20)"`                               // 性别: male(男), female(女), other(其他), 空字符串表示未设置
-	HostID        int64          `json:"host_id" gorm:"column:host_id"`                                              //每个用户分配一个host，相当于把每个用户都分配一个主机
-
-	// 关联字段
-	Host *Host `json:"host" gorm:"foreignKey:HostID;references:ID"`
+	// ⚠️ 注意：Host 和 Nats 绑定在 App 上，不在 User 上
 }
 
 func (User) TableName() string {

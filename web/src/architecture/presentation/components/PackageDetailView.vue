@@ -293,13 +293,13 @@ import { getAgentList } from '@/api/agent'
 import { extractWorkspacePath } from '@/utils/route'
 import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
+import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import ChartIcon from '@/components/icons/ChartIcon.vue'
 import TableIcon from '@/components/icons/TableIcon.vue'
 import FormIcon from '@/components/icons/FormIcon.vue'
 import DirectoryUpdateHistoryDialog from '@/components/DirectoryUpdateHistoryDialog.vue'
 import { buildPermissionApplyURL } from '@/utils/permission'
-import { useNodePermissionsStore } from '@/stores/nodePermissions'
 
 interface Props {
   packageNode?: ServiceTree | null
@@ -321,33 +321,17 @@ const agentList = ref<AgentInfo[]>([])
 // 变更记录对话框
 const updateHistoryDialogVisible = ref(false)
 
-// ⭐ 权限 Store
-const permissionStore = useNodePermissionsStore()
-
 // ⭐ 检查是否没有任何目录权限
 const hasNoDirectoryPermissions = computed(() => {
   if (!props.packageNode) {
     return false
   }
   
-  // 优先从 store 中获取权限信息
-  let permissions: Record<string, boolean> | null = null
-  if (props.packageNode) {
-    permissions = permissionStore.getPermissions(props.packageNode)
-  }
+  // 直接使用节点上的权限信息（后端返回的最新数据，已包含继承）
+  const permissions = props.packageNode.permissions
   
-  // 如果 store 中没有，尝试从节点本身的 permissions 字段获取
-  if (!permissions && props.packageNode.permissions) {
-    permissions = props.packageNode.permissions
-  }
-  
-  // ⭐ 如果没有权限信息，也检查一下是否应该显示权限不足
-  // 如果节点有 full_code_path，说明这是一个有效的目录节点，应该检查权限
-  // 如果权限信息不存在，可能是还没有加载，暂时不显示权限不足（避免闪烁）
+  // 如果没有权限信息，返回 false（不显示权限不足）
   if (!permissions) {
-    // 如果节点有 full_code_path，说明这是一个有效的目录节点
-    // 但是权限信息可能还没有加载，暂时返回 false（不显示权限不足）
-    // 等权限信息加载后，computed 会自动重新计算
     return false
   }
   
@@ -556,7 +540,8 @@ function handleChildClick(child: ServiceTree): void {
     currentQuery: route.query
   })
   
-  const applicationService = serviceFactory.getWorkspaceApplicationService()
+  const serviceProvider: IServiceProvider = serviceFactory
+  const applicationService = serviceProvider.getWorkspaceApplicationService()
 
   if (child.type === 'function' && child.full_code_path) {
     // 函数节点：跳转到函数页面

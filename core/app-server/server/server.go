@@ -48,7 +48,7 @@ type Server struct {
 	operateLogService             *service.OperateLogService
 	directoryUpdateHistoryService *service.DirectoryUpdateHistoryService
 	permissionService             *service.PermissionService // ⭐ 权限管理服务
-	appRepo                       *repository.AppRepository   // ⭐ 应用仓储（用于权限服务查询 app.id）
+	appRepo                       *repository.AppRepository  // ⭐ 应用仓储（用于权限服务查询 app.id）
 
 	// 上游服务
 	natsService *service.NatsService
@@ -375,8 +375,8 @@ func (s *Server) initServices(ctx context.Context) error {
 	// 初始化应用服务
 	userRepo := repository.NewUserRepository(s.db)
 	s.appRepo = repository.NewAppRepository(s.db) // ⭐ 保存到 Server 结构体，供权限服务使用
-	appRepo := s.appRepo                           // 局部变量，用于传递给其他服务
-	hostRepo := repository.NewHostRepository(s.db)
+	appRepo := s.appRepo                          // 局部变量，用于传递给其他服务
+	//hostRepo := repository.NewHostRepository(s.db)
 	userSessionRepo := repository.NewUserSessionRepository(s.db)
 	functionRepo := repository.NewFunctionRepository(s.db)
 	serviceTreeRepo := repository.NewServiceTreeRepository(s.db)
@@ -386,7 +386,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	s.appService = service.NewAppService(s.appRuntime, userRepo, appRepo, functionRepo, serviceTreeRepo, operateLogRepo, fileSnapshotRepo, directoryUpdateHistoryRepo)
 
 	// 初始化认证服务
-	s.authService = service.NewAuthService(userRepo, hostRepo, userSessionRepo)
+	s.authService = service.NewAuthService(userRepo, userSessionRepo)
 
 	// 初始化邮件服务
 	emailCodeRepo := repository.NewEmailCodeRepository(s.db)
