@@ -682,8 +682,13 @@ const handleReset = (): void => {
 
 /**
  * 准备提交数据（带类型转换）
+ * 🔥 用于表单提交场景（新增/创建），返回所有字段的数据
  * 这个方法会被 FormDialog 等外部组件调用
- * 🔥 兼容 FormRenderer 的接口
+ * 
+ * ⚠️ 注意：这个方法只用于表单提交（新增场景），不用于表格更新
+ * 表格更新应该使用 `prepareUpdateData` 方法，只返回变更的字段
+ * 
+ * @returns 提交数据对象（包含所有字段）
  */
 function prepareSubmitDataWithTypeConversion(): Record<string, any> {
   const request = functionDetail.value?.request
@@ -706,7 +711,7 @@ function prepareSubmitDataWithTypeConversion(): Record<string, any> {
     })
   }
   
-  Logger.info('[FormView]', '准备提交数据', {
+  Logger.info('[FormView]', '准备提交数据（表单提交）', {
     submitData,
     fieldCount: request.length,
     submitDataKeys: Object.keys(submitData),
@@ -714,6 +719,37 @@ function prepareSubmitDataWithTypeConversion(): Record<string, any> {
   })
   
   return submitData
+}
+
+/**
+ * 准备更新数据（只返回变更的字段）
+ * 🔥 用于表格更新场景，只返回用户实际修改的字段
+ * 
+ * @param oldValues 旧值对象（完整的记录数据）
+ * @returns 只包含变更字段的数据对象
+ */
+async function prepareUpdateData(oldValues: Record<string, any>): Promise<Record<string, any>> {
+  const request = functionDetail.value?.request
+  if (!Array.isArray(request) || request.length === 0) {
+    return {}
+  }
+  
+  // 先获取所有字段的数据
+  const allSubmitData = domainService.getSubmitData(request)
+  
+  // 使用 getChangedFields 过滤出只变更的字段
+  const { getChangedFields } = await import('@/utils/objectDiff')
+  const { updates } = getChangedFields(oldValues, allSubmitData)
+  
+  Logger.info('[FormView]', '准备更新数据（表格更新）', {
+    allFieldsCount: Object.keys(allSubmitData).length,
+    changedFieldsCount: Object.keys(updates).length,
+    changedFields: Object.keys(updates),
+    allSubmitData,
+    updates
+  })
+  
+  return updates
 }
 
 /**
@@ -740,7 +776,8 @@ function validateForm(): boolean {
 
 // 🔥 暴露方法给外部组件调用（兼容 FormRenderer 的接口）
 defineExpose({
-  prepareSubmitDataWithTypeConversion,
+  prepareSubmitDataWithTypeConversion,  // 表单提交（新增场景）
+  prepareUpdateData,                     // 表格更新（更新场景，只返回变更的字段）
   validateForm
 })
 
