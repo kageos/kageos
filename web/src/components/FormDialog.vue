@@ -7,18 +7,15 @@
     :append-to-body="true"
     @close="handleClose"
   >
-    <!-- 🔥 使用新的 FormRenderer 替代所有渲染逻辑 -->
+    <!-- 🔥 使用新的 FormView 替代所有渲染逻辑 -->
     <template v-if="dialogVisible">
-    <FormRenderer
+    <FormView
         v-if="formFunctionDetail"
-      ref="formRendererRef"
+      ref="formViewRef"
       :function-detail="formFunctionDetail"
       :show-submit-button="false"
-      :show-share-button="false"
       :show-reset-button="false"
-      :show-debug-button="false"
       :initial-data="props.initialData"
-      :user-info-map="props.userInfoMap"
     />
       <div v-else class="error-message">
         <el-alert
@@ -44,7 +41,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
-import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
+import FormView from '@/architecture/presentation/views/FormView.vue'
 import { Logger } from '@/core/utils/logger'
 import type { FieldConfig, FunctionDetail, FieldValue } from '@/core/types/field'
 import { useFormParamURLSync } from '@/architecture/presentation/composables/useFormParamURLSync'
@@ -60,7 +57,6 @@ interface Props {
   method?: string  // 🔥 原函数的 HTTP 方法（用于 OnSelectFuzzy 回调）
   initialData?: Record<string, any>  // 初始数据（编辑模式）
   width?: string | number  // 对话框宽度
-  userInfoMap?: Map<string, any>  // 🔥 用户信息映射（用于 UserWidget 批量查询优化）
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -83,8 +79,8 @@ const dialogVisible = computed({
   set: (value) => emit('update:modelValue', value)
 })
 
-// FormRenderer 引用
-const formRendererRef = ref<InstanceType<typeof FormRenderer>>()
+// FormView 引用
+const formViewRef = ref<InstanceType<typeof FormView>>()
 
 // 提交状态
 const submitting = ref(false)
@@ -160,16 +156,23 @@ const formFunctionDetail = computed<FunctionDetail | null>(() => {
  * 提交表单
  */
 const handleSubmit = async () => {
-  if (!formRendererRef.value) {
-    Logger.error('FormDialog', 'FormRenderer 引用不存在')
+  if (!formViewRef.value) {
+    Logger.error('FormDialog', 'FormView 引用不存在')
     return
   }
   
   try {
     submitting.value = true
     
-    // 🔥 调用 FormRenderer 的内部方法准备提交数据
-    const submitData = formRendererRef.value.prepareSubmitDataWithTypeConversion()
+    // 🔥 提交时验证表单
+    const isValid = formViewRef.value.validateForm()
+    if (!isValid) {
+      Logger.warn('FormDialog', '表单验证失败')
+      return
+    }
+    
+    // 🔥 验证通过后，准备提交数据
+    const submitData = await formViewRef.value.prepareSubmitDataWithTypeConversion()
     
     // 触发提交事件
     emit('submit', submitData)
@@ -281,7 +284,7 @@ watch(() => formFunctionDetail.value, async (newDetail) => {
  * 暴露方法给父组件
  */
 defineExpose({
-  formRendererRef,
+  formViewRef,
   submit: handleSubmit
 })
 </script>

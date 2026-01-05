@@ -1,28 +1,100 @@
 /**
  * useFunctionParamInitialization - 统一数据初始化 Composable
  * 
- * 🔥 依赖倒置原则：框架只依赖抽象接口，不依赖具体组件
+ * ============================================
+ * 📋 需求说明
+ * ============================================
  * 
- * 功能：
- * - 统一管理所有初始化源（URL、快链、默认值）
- * - 控制初始化顺序
- * - 调用组件自治初始化
- * - 提供统一的初始化接口
+ * 1. **数据初始化来源**：
+ *    - URL 参数：从 URL 查询参数初始化表单字段
+ *    - 默认值：从字段配置的默认值初始化
+ *    - 组件自治初始化：组件自己决定是否需要初始化（如 SelectWidget 加载选项）
+ * 
+ * 2. **初始化顺序**：
+ *    - URL 参数优先（priority: 2）
+ *    - 默认值其次（priority: 1）
+ *    - 组件自治初始化最后（在所有初始化源之后）
+ * 
+ * 3. **组件自治初始化**：
+ *    - 某些组件需要动态初始化（如 SelectWidget 从 API 加载选项）
+ *    - 组件实现 `IWidgetInitializer` 接口
+ *    - 初始化器可以决定是否需要初始化（返回 null 表示不需要）
+ * 
+ * ============================================
+ * 🎯 设计思路
+ * ============================================
+ * 
+ * 1. **初始化源模式**：
+ *    - 使用 `InitSource` 接口定义初始化源
+ *    - 每个初始化源有优先级（priority）
+ *    - 按优先级顺序执行初始化
+ * 
+ * 2. **依赖倒置原则**：
+ *    - 框架只依赖抽象接口（IWidgetInitializer）
+ *    - 不依赖具体组件实现
+ *    - 组件可以决定是否需要初始化
+ * 
+ * 3. **初始化流程**：
+ *    - 按优先级执行初始化源
+ *    - 每个初始化源可以修改表单数据
+ *    - 最后调用组件自治初始化
+ * 
+ * ============================================
+ * 📝 关键功能
+ * ============================================
+ * 
+ * 1. **URLParamsInitSource**：
+ *    - 从 URL 查询参数初始化表单字段
+ *    - 优先级：2（最高）
+ *    - 支持复杂类型的 JSON 反序列化
+ * 
+ * 2. **DefaultInitSource**：
+ *    - 从字段默认值初始化表单字段
+ *    - 优先级：1（较低）
+ *    - 只在字段没有值时设置默认值
+ * 
+ * 3. **triggerWidgetInitialization**：
+ *    - 调用组件自治初始化
+ *    - 遍历所有字段，调用对应的初始化器
+ *    - 初始化器可以返回新的 FieldValue 或 null
+ * 
+ * ============================================
+ * ⚠️ 注意事项
+ * ============================================
+ * 
+ * 1. **初始化顺序**：
+ *    - URL 参数优先，会覆盖默认值
+ *    - 组件自治初始化最后，可以覆盖 URL 参数和默认值
+ * 
+ * 2. **字段类型检查**：
+ *    - 确保 `functionDetail.request` 是数组
+ *    - 使用 `Array.isArray` 检查，避免类型错误
+ * 
+ * 3. **组件自治初始化**：
+ *    - 组件可以决定是否需要初始化（返回 null）
+ *    - 初始化器可以访问所有表单数据（用于依赖字段）
+ * 
+ * ============================================
+ * 📚 相关文档
+ * ============================================
+ * 
+ * - Widget 初始化接口：`web/src/architecture/presentation/widgets/interfaces/IWidgetInitializer.ts`
+ * - Widget 初始化器注册表：`web/src/architecture/presentation/widgets/initializers/WidgetInitializerRegistry.ts`
  */
 
 import { ref, computed, type ComputedRef } from 'vue'
 import { useRoute } from 'vue-router'
-import type { FunctionDetail, FieldConfig } from '../../../core/types/field'
-import type { FieldValue } from '../../../core/types/field'
-import { widgetInitializerRegistry } from '../../../core/widgets-v2/initializers/WidgetInitializerRegistry'
-import type { WidgetInitContext } from '../../../core/widgets-v2/interfaces/IWidgetInitializer'
+import type { FunctionDetail, FieldConfig } from '../../domain/types'
+import type { FieldValue } from '../../domain/types'
+import { widgetInitializerRegistry } from '../../presentation/widgets/initializers/WidgetInitializerRegistry'
+import type { WidgetInitContext } from '../../presentation/widgets/interfaces/IWidgetInitializer'
 import { eventBus, FormEvent } from '../../infrastructure/eventBus'
-import { Logger } from '../../../core/utils/logger'
-import { getWidgetDefaultValue } from '../../../core/widgets-v2/composables/useWidgetDefaultValue'
+import { Logger } from '@/core/utils/logger'
+import { getWidgetDefaultValue } from '../../presentation/widgets/composables/useWidgetDefaultValue'
 import { useAuthStore } from '@/stores/auth'
-import { FieldValueMeta, FieldCallback } from '../../../core/constants/field'
-import { DataType } from '../../../core/constants/widget'
-import { convertValueByFieldType } from '../../../core/widgets-v2/utils/typeConverter'
+import { FieldValueMeta, FieldCallback } from '@/core/constants/field'
+import { DataType } from '@/core/constants/widget'
+import { convertValueByFieldType } from '../../presentation/widgets/utils/typeConverter'
 
 /**
  * 初始化源接口
@@ -76,12 +148,13 @@ class URLParamsInitSource implements InitSource {
     console.log('🔍 [URLParamsInitSource] 开始初始化', {
       queryKeys: Object.keys(query),
       queryCount: Object.keys(query).length,
-      requestFieldsCount: (functionDetail.request || []).length
+      requestFieldsCount: (Array.isArray(functionDetail.request) ? functionDetail.request : []).length
     })
     
     // 从 URL 解析参数
     const formData: Record<string, FieldValue> = {}
-    const requestFields = functionDetail.request || []
+    // 🔥 确保 requestFields 是数组，防止类型错误
+    const requestFields = Array.isArray(functionDetail.request) ? functionDetail.request : []
     
     requestFields.forEach(field => {
       const queryValue = query[field.code]
@@ -171,13 +244,14 @@ class DefaultInitSource implements InitSource {
     const { functionDetail, currentFormData } = context
     
     console.log('🔍 [DefaultInitSource] 开始初始化', {
-      requestFieldsCount: (functionDetail.request || []).length,
+      requestFieldsCount: (Array.isArray(functionDetail.request) ? functionDetail.request : []).length,
       currentFormDataKeys: Object.keys(currentFormData),
       currentFormDataCount: Object.keys(currentFormData).length
     })
     
     const formData: Record<string, FieldValue> = {}
-    const requestFields = functionDetail.request || []
+    // 🔥 确保 requestFields 是数组，防止类型错误
+    const requestFields = Array.isArray(functionDetail.request) ? functionDetail.request : []
     
     // 遍历所有字段，对于没有初始值的字段，使用默认值
     requestFields.forEach(field => {
@@ -190,13 +264,18 @@ class DefaultInitSource implements InitSource {
       // 使用 getWidgetDefaultValue 获取默认值
       const defaultValue = getWidgetDefaultValue(field, undefined, () => useAuthStore())
       
-      // 只有当默认值不是空值时才设置
-      if (defaultValue.raw !== null && defaultValue.raw !== undefined && defaultValue.raw !== '') {
+      // 🔥 对于 table 和 form 类型字段，即使默认值是空数组/空对象，也需要设置
+      // 因为它们是容器组件，需要初始化为空数组/空对象才能正常工作
+      const isContainerWidget = field.widget?.type === 'table' || field.widget?.type === 'form'
+      
+      // 只有当默认值不是空值时才设置（但容器组件例外）
+      if (isContainerWidget || (defaultValue.raw !== null && defaultValue.raw !== undefined && defaultValue.raw !== '')) {
         formData[field.code] = defaultValue
         console.log(`🔍 [DefaultInitSource] 字段 ${field.code} 使用默认值`, {
           raw: defaultValue.raw,
           display: defaultValue.display,
           widgetType: field.widget?.type,
+          isContainerWidget,
           hasConfigDefault: !!(field.widget?.config as any)?.default
         })
       } else {
@@ -284,7 +363,7 @@ export function useFunctionParamInitialization(
         functionId: detail.id,
         router: detail.router,
         functionName: detail.name,
-        requestFieldsCount: (detail.request || []).length,
+        requestFieldsCount: (Array.isArray(detail.request) ? detail.request : []).length,
         currentQuery: route.query,
         currentQueryKeys: Object.keys(route.query)
       })
@@ -394,7 +473,8 @@ export function useFunctionParamInitialization(
       return
     }
     
-    const fields = detail.request || []
+    // 🔥 确保 fields 是数组，防止类型错误
+    const fields = Array.isArray(detail.request) ? detail.request : []
     
     console.log('🔍 [triggerWidgetInitialization] 开始组件自治初始化', {
       fieldsCount: fields.length,

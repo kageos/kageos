@@ -37,7 +37,13 @@ export class TableFieldExtractor implements IFieldExtractor {
           const rawValue = row[itemField.code]
           if (rawValue !== undefined) {
             rowData[itemField.code] = this.extractFromRaw(itemField, rawValue, extractorRegistry)
+          } else {
+            // 如果原始数据也没有，设置为 null（保持结构完整）
+            rowData[itemField.code] = null
           }
+        } else {
+          // 如果既没有 store 值也没有原始数据，设置为 null
+          rowData[itemField.code] = null
         }
       })
       

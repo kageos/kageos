@@ -45,6 +45,16 @@ const router = createRouter({
         requireAuth: true
       }
     },
+    // 组织架构和用户管理页面
+    {
+      path: '/organization',
+      name: 'organization-management',
+      component: () => import('../views/Organization/index.vue'),
+      meta: {
+        title: '组织架构和用户管理',
+        requireAuth: true
+      }
+    },
 
     // 权限申请页面
     {

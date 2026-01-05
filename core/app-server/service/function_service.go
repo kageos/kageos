@@ -66,28 +66,40 @@ func (f *FunctionService) GetFunction(ctx context.Context, functionID int64) (*d
 		TemplateType: function.TemplateType,
 		CreatedAt:    time.Time(function.CreatedAt).Format("2006-01-02T15:04:05Z"),
 		UpdatedAt:    time.Time(function.UpdatedAt).Format("2006-01-02T15:04:05Z"),
-		FullCodePath: function.Router, // Router 存储的就是 full-code-path
+		CreatedBy:    function.CreatedBy, // 创建者用户名
+		FullCodePath: function.Router,    // Router 存储的就是 full-code-path
 	}
 
 	// 将json.RawMessage转换为interface{}以便返回JSON对象
+	// 🔥 统一返回数组类型，符合前端类型定义 FieldConfig[]
 	if len(function.Request) > 0 {
-		var requestMap interface{}
-		if err := json.Unmarshal(function.Request, &requestMap); err != nil {
-			requestMap = map[string]interface{}{}
+		var requestArray []interface{}
+		// 尝试解析为数组（request 字段应该是数组类型）
+		if err := json.Unmarshal(function.Request, &requestArray); err != nil {
+			// 解析失败，返回空数组
+			resp.Request = []interface{}{}
+		} else {
+			// 解析成功，返回数组
+			resp.Request = requestArray
 		}
-		resp.Request = requestMap
 	} else {
-		resp.Request = map[string]interface{}{}
+		// 🔥 空时返回空数组，而不是空对象
+		resp.Request = []interface{}{}
 	}
 
 	if len(function.Response) > 0 {
-		var responseMap interface{}
-		if err := json.Unmarshal(function.Response, &responseMap); err != nil {
-			responseMap = map[string]interface{}{}
+		var responseArray []interface{}
+		// 尝试解析为数组（response 字段应该是数组类型）
+		if err := json.Unmarshal(function.Response, &responseArray); err != nil {
+			// 解析失败，返回空数组
+			resp.Response = []interface{}{}
+		} else {
+			// 解析成功，返回数组
+			resp.Response = responseArray
 		}
-		resp.Response = responseMap
 	} else {
-		resp.Response = map[string]interface{}{}
+		// 🔥 空时返回空数组，而不是空对象
+		resp.Response = []interface{}{}
 	}
 
 	return resp, nil

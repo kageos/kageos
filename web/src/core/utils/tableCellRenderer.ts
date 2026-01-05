@@ -5,7 +5,7 @@
  * 
  * 设计原则：
  * - 使用 h() 渲染组件为 VNode，支持复杂组件（如 MultiSelectWidget）
- * - 传递 userInfoMap 用于批量查询优化
+ * - 使用全局 userInfoStore 获取用户信息（自动处理缓存）
  * - 统一的错误处理
  * - 支持不同的渲染模式（table-cell, detail 等）
  */
@@ -13,7 +13,7 @@
 import { h } from 'vue'
 import type { FieldConfig, FieldValue } from '../types/field'
 import { convertToFieldValue } from '@/utils/field'
-import { widgetComponentFactory } from '../factories-v2'
+import { widgetComponentFactory } from '@/architecture/infrastructure/widgetRegistry'
 
 /**
  * 渲染表格单元格
@@ -22,7 +22,6 @@ import { widgetComponentFactory } from '../factories-v2'
  * @param rawValue 原始值（来自后端）
  * @param options 可选配置
  * @param options.mode 渲染模式，默认为 'table-cell'
- * @param options.userInfoMap 用户信息映射（用于批量查询优化）
  * @param options.fieldPath 字段路径，默认为 field.code
  * @param options.formRenderer 表单渲染器上下文（可选）
  * @param options.formManager 表单管理器（可选）
@@ -33,7 +32,6 @@ export function renderTableCell(
   rawValue: any,
   options: {
     mode?: 'table-cell' | 'detail' | 'response'
-    userInfoMap?: Map<string, any>
     fieldPath?: string
     formRenderer?: any
     formManager?: any
@@ -41,7 +39,6 @@ export function renderTableCell(
 ): { content: any, isString: boolean } {
   const {
     mode = 'table-cell',
-    userInfoMap = new Map(),
     fieldPath = field.code,
     formRenderer,
     formManager
@@ -72,7 +69,6 @@ export function renderTableCell(
       'model-value': value,
       'field-path': fieldPath,
       mode: mode,
-      'user-info-map': userInfoMap
     }
     
     // 可选 props

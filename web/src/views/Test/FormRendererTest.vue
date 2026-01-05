@@ -8,7 +8,7 @@
 
     <el-divider />
 
-    <FormRenderer
+    <FormView
       v-if="currentTestData"
       :key="currentTestIndex"
       :function-detail="currentTestData"
@@ -20,7 +20,7 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElPageHeader, ElDivider, ElButton, ElMessage } from 'element-plus'
-import FormRenderer from '@/core/renderers-v2/FormRenderer.vue'
+import FormView from '@/architecture/presentation/views/FormView.vue'
 import type { FunctionDetail } from '@/core/types/field'
 
 const router = useRouter()

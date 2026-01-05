@@ -26,6 +26,7 @@
           @create-directory="handleCreateDirectory"
           @fork-group="handleForkGroup"
           @copy-link="handleCopyLink"
+          @delete-function="handleDeleteFunction"
           @publish-to-hub="handlePublishToHub"
           @push-to-hub="handlePushToHub"
           @pull-from-hub="handlePullFromHub"
@@ -362,6 +363,7 @@ import { ElMessage, ElMessageBox, ElNotification, ElDialog, ElForm, ElFormItem, 
 import { InfoFilled, ArrowLeft } from '@element-plus/icons-vue'
 import { eventBus, WorkspaceEvent, RouteEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
+import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import { RouteManager } from '../../infrastructure/routeManager'
 import { useAuthStore } from '@/stores/auth'
 import ServiceTreePanel from '@/components/ServiceTreePanel.vue'
@@ -403,10 +405,11 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 
-// 依赖注入（使用 ServiceFactory 简化）
-const stateManager = serviceFactory.getWorkspaceStateManager()
-const applicationService = serviceFactory.getWorkspaceApplicationService()
-const domainService = serviceFactory.getWorkspaceDomainService()
+// 依赖注入（使用 IServiceProvider 接口，遵循依赖倒置原则）
+const serviceProvider: IServiceProvider = serviceFactory
+const stateManager = serviceProvider.getWorkspaceStateManager()
+const applicationService = serviceProvider.getWorkspaceApplicationService()
+const domainService = serviceProvider.getWorkspaceDomainService()
 
 // 从状态管理器获取状态
 const serviceTree = computed(() => stateManager.getServiceTree())
@@ -949,6 +952,50 @@ const handlePushToHub = (node: ServiceTreeType) => {
 const handlePullFromHub = () => {
   pastedHubLink.value = ''  // 清空之前的链接（手动打开对话框时）
   pullFromHubDialogVisible.value = true
+}
+
+// 处理删除函数
+const handleDeleteFunction = async (node: ServiceTreeType) => {
+  if (node.type !== 'function') {
+    ElMessage.warning('只能删除函数节点')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除函数 "${node.name}" 吗？此操作不可恢复。`,
+      '确认删除',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+
+    // 调用删除 API
+    const { deleteFunction } = await import('@/api/function')
+    await deleteFunction(node.id)
+
+    ElMessage.success('删除成功')
+
+    // 如果删除的是当前选中的函数，清空选中状态
+    if (currentFunction.value && currentFunction.value.id === node.id) {
+      currentFunction.value = null
+      // 清空 URL 参数
+      router.replace({
+        path: route.path,
+        query: { ...route.query, _id: undefined, _tab: undefined }
+      })
+    }
+
+    // 刷新服务树
+    await handleRefreshTree()
+  } catch (error: any) {
+    if (error !== 'cancel' && error !== 'close') {
+      const errorMessage = error?.response?.data?.msg || error?.message || '删除失败'
+      ElMessage.error(errorMessage)
+    }
+  }
 }
 
 // 处理刷新服务树（复制粘贴后需要刷新）

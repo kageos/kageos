@@ -18,19 +18,17 @@ type AuthService struct {
 	config          *appconfig.AppServerConfig
 	jwtService      *JWTService
 	userRepo        *repository.UserRepository
-	hostRepo        *repository.HostRepository
 	userSessionRepo *repository.UserSessionRepository
 }
 
 // NewAuthService 创建认证服务（依赖注入）
-func NewAuthService(userRepo *repository.UserRepository, hostRepo *repository.HostRepository, userSessionRepo *repository.UserSessionRepository) *AuthService {
+func NewAuthService(userRepo *repository.UserRepository, userSessionRepo *repository.UserSessionRepository) *AuthService {
 	config := appconfig.GetAppServerConfig()
 	jwtService := NewJWTService()
 	return &AuthService{
 		config:          config,
 		jwtService:      jwtService,
 		userRepo:        userRepo,
-		hostRepo:        hostRepo,
 		userSessionRepo: userSessionRepo,
 	}
 }
@@ -67,15 +65,7 @@ func (s *AuthService) RegisterUser(username, email, password string) (int64, err
 		return 0, fmt.Errorf("密码加密失败")
 	}
 
-	// 获取可用的host（选择app_count最小的host）
-	hosts, err := s.hostRepo.GetHostList()
-	if err != nil || len(hosts) == 0 {
-		logger.Errorf(nil, "[AuthService] Failed to get available host: %v", err)
-		return 0, fmt.Errorf("无法获取可用的主机")
-	}
-	host := hosts[0] // 选择第一个可用的host
-
-	// 创建用户
+	// 创建用户（不再分配 HostID，Host 和 Nats 绑定在 App 上）
 	user := &model.User{
 		Username:      username,
 		Email:         email,
@@ -84,7 +74,6 @@ func (s *AuthService) RegisterUser(username, email, password string) (int64, err
 		Status:        "pending", // 待邮箱验证
 		EmailVerified: false,
 		CreatedBy:     "system",
-		HostID:        host.ID, // 分配host
 	}
 
 	// 保存到数据库
