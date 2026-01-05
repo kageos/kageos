@@ -172,7 +172,7 @@ const handleSubmit = async () => {
     }
     
     // 🔥 验证通过后，准备提交数据
-    const submitData = formViewRef.value.prepareSubmitDataWithTypeConversion()
+    const submitData = await formViewRef.value.prepareSubmitDataWithTypeConversion()
     
     // 触发提交事件
     emit('submit', submitData)

@@ -297,12 +297,13 @@ export function useTableDetail(options: UseTableDetailOptions) {
     try {
       detailSubmitting.value = true
       
-      // 1. 准备提交数据
-      const submitData = detailFormViewRef.value.prepareSubmitDataWithTypeConversion()
+      const oldValues = currentDetailRow.value
+      
+      // 1. 准备更新数据（表格更新场景，只返回变更的字段）
+      const submitData = await detailFormViewRef.value.prepareUpdateData(oldValues)
       
       // 2. 调用更新接口（复用现有的更新逻辑）
-      // ⚠️ 关键：传递旧值（currentDetailRow.value），用于对比找出变更的字段
-      const success = await options.onUpdate(currentDetailRow.value.id, submitData, currentDetailRow.value)
+      const success = await options.onUpdate(currentDetailRow.value.id, submitData, oldValues)
       
       if (success) {
         // 3. 刷新当前记录数据

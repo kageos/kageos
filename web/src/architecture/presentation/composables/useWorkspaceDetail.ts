@@ -298,10 +298,13 @@ export function useWorkspaceDetail(
     
     try {
       drawerSubmitting.value = true
-      const submitData = viewRef.prepareSubmitDataWithTypeConversion()
       const oldValues = detailOriginalRow.value
         ? deepClone(detailOriginalRow.value)
         : undefined
+      
+      // 🔥 表格更新场景：使用 prepareUpdateData 只返回变更的字段
+      const submitData = await viewRef.prepareUpdateData(oldValues)
+      
       const updatedRow = await tableApplicationService.updateRow(
         currentDetail,
         detailRowData.value.id,
