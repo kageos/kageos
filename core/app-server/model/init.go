@@ -25,6 +25,11 @@ func InitTables(db *gorm.DB) error {
 		&FormOperateLog{},
 		// 目录更新历史表（用于记录API变更历史）
 		&DirectoryUpdateHistory{},
+		// 权限系统相关表
+		&WorkspacePermission{},
+		&PermissionRequest{},
+		&PermissionGrantLog{},
+		&ApprovalPolicy{},
 	)
 	if err != nil {
 		return err
