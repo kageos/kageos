@@ -41,7 +41,22 @@ func (f *FunctionService) GetFunctionByID(ctx context.Context, functionID int64)
 	return function, nil
 }
 
-// GetFunction 获取函数详情
+// GetFunctionByFullCodePath 根据 full-code-path 获取函数详情
+// ⭐ 注意：权限信息在 API Handler 中查询并添加到响应中，这里只返回基础信息
+func (f *FunctionService) GetFunctionByFullCodePath(ctx context.Context, fullCodePath string) (*dto.GetFunctionResp, error) {
+	// 从数据库获取函数信息
+	function, err := f.functionRepo.GetFunctionByFullCodePath(fullCodePath)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("函数不存在")
+		}
+		return nil, fmt.Errorf("获取函数失败: %w", err)
+	}
+
+	return f.convertFunctionToResp(function), nil
+}
+
+// GetFunction 获取函数详情（根据ID，保留用于向后兼容）
 // ⭐ 注意：权限信息在 API Handler 中查询并添加到响应中，这里只返回基础信息
 func (f *FunctionService) GetFunction(ctx context.Context, functionID int64) (*dto.GetFunctionResp, error) {
 	// 从数据库获取函数信息
@@ -53,7 +68,12 @@ func (f *FunctionService) GetFunction(ctx context.Context, functionID int64) (*d
 		return nil, fmt.Errorf("获取函数失败: %w", err)
 	}
 
-	// 转换为响应格式
+	return f.convertFunctionToResp(function), nil
+}
+
+// convertFunctionToResp 将函数模型转换为响应格式
+func (f *FunctionService) convertFunctionToResp(function *model.Function) *dto.GetFunctionResp {
+
 	resp := &dto.GetFunctionResp{
 		ID:           function.ID,
 		AppID:        function.AppID,
@@ -102,7 +122,7 @@ func (f *FunctionService) GetFunction(ctx context.Context, functionID int64) (*d
 		resp.Response = []interface{}{}
 	}
 
-	return resp, nil
+	return resp
 }
 
 // GetFunctionsByApp 获取应用下所有函数

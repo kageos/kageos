@@ -2,14 +2,20 @@ import { get, post, put, del } from '@/utils/request'
 import type { Function, SearchParams, TableResponse } from '@/types'
 import type { FieldConfig } from '@/core/types/field'
 
-// 获取函数详情
-export function getFunctionDetail(functionId: number) {
-  return get<Function>(`/workspace/api/v1/function/get`, { function_id: functionId })
+// 获取函数详情（根据路径）
+// ⭐ 使用新的路由：/function/info/*full-code-path
+export function getFunctionByPath(fullCodePath: string) {
+  // 确保路径以 / 开头
+  const path = fullCodePath.startsWith('/') ? fullCodePath : `/${fullCodePath}`
+  return get<Function>(`/workspace/api/v1/function/info${path}`)
 }
 
-// 根据路径获取函数详情
-export function getFunctionByPath(fullCodePath: string) {
-  return get<Function>(`/workspace/api/v1/function/by-path`, { path: fullCodePath })
+// 获取函数详情（根据ID，已废弃，建议使用 getFunctionByPath）
+// ⭐ 注意：新路由只支持 full-code-path，如果只有 function_id，需要先查询 full-code-path
+export function getFunctionDetail(functionId: number) {
+  // ⭐ 临时兼容：使用旧的 API（如果后端还支持）
+  // TODO: 建议改为先查询 function_id 对应的 full-code-path，然后调用 getFunctionByPath
+  return get<Function>(`/workspace/api/v1/function/get`, { function_id: functionId })
 }
 
 // 获取应用下所有函数

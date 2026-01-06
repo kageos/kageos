@@ -8,8 +8,8 @@ import (
 )
 
 // CheckPermissionWithInheritance 检查权限（支持权限继承）
-// ⭐ 优化：权限继承现在由 Casbin Matcher 自动处理（通过 keyMatch2 和权限映射）
-// 所以这里只需要检查当前资源的权限，Casbin 会自动处理父目录的权限继承
+// ⭐ 使用新的权限系统，支持权限继承
+// 新权限系统会自动检查父目录权限并应用继承逻辑
 //
 // 参数：
 //   - ctx: 上下文
@@ -23,10 +23,10 @@ import (
 //   - err: 错误信息
 //
 // 说明：
-//   - Casbin Matcher 已经支持权限映射：
+//   - 新权限系统支持权限继承：
 //     * directory:manage 权限自动覆盖所有子资源的权限
 //     * app:manage 权限自动覆盖应用下所有资源的权限
-//   - 所以这里只需要调用 Casbin 的 CheckPermission，它会自动处理权限继承
+//   - 调用 CheckPermission 会自动处理权限继承
 func CheckPermissionWithInheritance(
 	ctx context.Context,
 	permissionService enterprise.PermissionService,
@@ -34,8 +34,7 @@ func CheckPermissionWithInheritance(
 	fullCodePath string,
 	action string,
 ) (hasPermission bool, err error) {
-	// ⭐ 优化：直接调用 Casbin 的 CheckPermission
-	// Casbin Matcher 已经支持权限映射和路径匹配，会自动处理权限继承
+	// ⭐ 使用新的权限系统，自动处理权限继承
 	hasPermission, err = permissionService.CheckPermission(ctx, username, fullCodePath, action)
 	if err != nil {
 		logger.Warnf(ctx, "[PermissionChecker] 权限检查失败: resource=%s, username=%s, action=%s, error=%v",

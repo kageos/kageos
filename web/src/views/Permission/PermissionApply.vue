@@ -780,21 +780,14 @@ onMounted(async () => {
 
   // 加载服务树和工作空间信息
   try {
-    // ⭐ 先加载服务树，获取 app_id 后传递给权限接口（性能更好）
+    // ⭐ 加载服务树
     const treeResponse = await getAppWithServiceTree(user, app)
     
-    // ⭐ 使用 app_id 查询权限（利用索引，性能更好，用户信息从 context 中获取）
-    const permissionsResponse = await (async () => {
-      if (treeResponse?.app?.id) {
-        return getWorkspacePermissions({ app_id: treeResponse.app.id }).catch(err => {
-          console.warn('获取工作空间权限失败:', err)
-          return null
-        })
-      } else {
-        console.warn('无法获取 app_id，跳过权限查询')
-        return null
-      }
-    })()
+    // ⭐ 直接使用 user 和 app 查询权限（无需查询 app_id，性能更好）
+    const permissionsResponse = await getWorkspacePermissions({ user, app }).catch(err => {
+      console.warn('获取工作空间权限失败:', err)
+      return null
+    })
     
     if (treeResponse) {
       // 保存工作空间信息

@@ -53,7 +53,8 @@ export function getPermissionApplication(id: string): Promise<any> {
  * 获取工作空间权限请求参数
  */
 export interface GetWorkspacePermissionsReq {
-  app_id: number  // 应用ID（必填）
+  user: string  // 工作空间所属用户（必填）
+  app: string   // 工作空间应用代码（必填）
 }
 
 /**

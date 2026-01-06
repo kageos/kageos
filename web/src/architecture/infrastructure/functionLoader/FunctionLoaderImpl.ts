@@ -142,8 +142,11 @@ export class FunctionLoaderImpl implements IFunctionLoader {
 
   /**
    * 根据 ID 加载函数详情（内部方法）
+   * ⭐ 注意：新路由只支持 full-code-path，如果只有 function_id，需要先查询 full-code-path
    */
   private async loadFunctionById(id: number, cacheKey: string): Promise<FunctionDetail> {
+    // ⭐ 临时兼容：使用旧的 API（如果后端还支持）
+    // TODO: 建议改为先查询 function_id 对应的 full-code-path，然后调用 loadFunctionByPath
     const response = await this.apiClient.get<FunctionDetail>('/workspace/api/v1/function/get', {
       function_id: id
     })
@@ -156,11 +159,12 @@ export class FunctionLoaderImpl implements IFunctionLoader {
 
   /**
    * 根据路径加载函数详情（内部方法）
+   * ⭐ 使用新的路由：/function/info/*full-code-path
    */
   private async loadFunctionByPath(path: string, cacheKey: string): Promise<FunctionDetail> {
-    const response = await this.apiClient.get<FunctionDetail>('/workspace/api/v1/function/by-path', {
-      path: path
-    })
+    // 确保路径以 / 开头
+    const fullCodePath = path.startsWith('/') ? path : `/${path}`
+    const response = await this.apiClient.get<FunctionDetail>(`/workspace/api/v1/function/info${fullCodePath}`)
     
     // 缓存结果
     this.cacheManager.set(cacheKey, response)

@@ -7,10 +7,11 @@
 -- ============================================
 CREATE TABLE IF NOT EXISTS `workspace_permission` (
   `id` BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
-  `app_id` BIGINT NOT NULL COMMENT '工作空间ID（app_id）',
+  `user` VARCHAR(100) NOT NULL COMMENT '租户用户名（从 resource_path 解析，如 /user/app/... 中的 user）',
+  `app` VARCHAR(100) NOT NULL COMMENT '应用代码（从 resource_path 解析，如 /user/app/... 中的 app）',
   `subject_type` VARCHAR(20) NOT NULL COMMENT '权限主体类型：user（用户）、department（组织架构）',
-  `subject` VARCHAR(500) NOT NULL COMMENT '权限主体：用户名或组织架构路径（如 /org/master/bizit）',
-  `resource_path` VARCHAR(500) NOT NULL COMMENT '资源路径（如 /luobei/operations/crm/ticket）',
+  `subject` VARCHAR(150) NOT NULL COMMENT '权限主体：用户名或组织架构路径（如 /org/master/bizit）',
+  `resource_path` VARCHAR(150) NOT NULL COMMENT '资源路径（如 /luobei/operations/crm/ticket）',
   `resource_type` VARCHAR(20) NOT NULL COMMENT '资源类型：app（工作空间）、directory（目录）、function（函数）',
   `action` VARCHAR(50) NOT NULL COMMENT '操作类型：app:read、directory:read、function:write 等',
   `is_wildcard` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否通配符路径：0-精确路径，1-通配符路径（如 /path/*）',
@@ -22,14 +23,15 @@ CREATE TABLE IF NOT EXISTS `workspace_permission` (
   `created_by` VARCHAR(100) DEFAULT NULL COMMENT '创建者用户名（授权时为授权人，审批通过时为审批人）',
   
   -- 索引设计
-  INDEX `idx_app_subject` (`app_id`, `subject_type`, `subject`),
-  INDEX `idx_app_resource` (`app_id`, `resource_path`, `is_wildcard`),
+  INDEX `idx_user_app` (`user`, `app`),
+  INDEX `idx_user_app_resource` (`user`, `app`, `resource_path`),
+  INDEX `idx_user_app_subject` (`user`, `app`, `subject_type`, `subject`),
   INDEX `idx_subject_resource` (`subject_type`, `subject`, `resource_path`),
   INDEX `idx_resource_action` (`resource_path`, `action`),
   INDEX `idx_time` (`start_time`, `end_time`),
   
   -- 唯一约束：防止重复授权
-  UNIQUE KEY `uk_app_subject_resource_action` (`app_id`, `subject_type`, `subject`, `resource_path`, `action`, `is_wildcard`)
+  UNIQUE KEY `uk_user_app_subject_resource_action` (`user`, `app`, `subject_type`, `subject`, `resource_path`, `action`, `is_wildcard`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工作空间权限表（只存储已生效的权限）';
 
 -- ============================================
@@ -40,8 +42,8 @@ CREATE TABLE IF NOT EXISTS `permission_request` (
   `app_id` BIGINT NOT NULL COMMENT '工作空间ID',
   `applicant_username` VARCHAR(100) NOT NULL COMMENT '申请人用户名',
   `subject_type` VARCHAR(20) NOT NULL COMMENT '权限主体类型：user（用户）、department（组织架构）',
-  `subject` VARCHAR(500) NOT NULL COMMENT '权限主体（申请人自己或组织架构路径）',
-  `resource_path` VARCHAR(500) NOT NULL COMMENT '资源路径',
+  `subject` VARCHAR(150) NOT NULL COMMENT '权限主体（申请人自己或组织架构路径）',
+  `resource_path` VARCHAR(150) NOT NULL COMMENT '资源路径',
   `action` VARCHAR(50) NOT NULL COMMENT '操作类型',
   `start_time` DATETIME NOT NULL COMMENT '权限开始时间（申请时指定）',
   `end_time` DATETIME DEFAULT NULL COMMENT '权限结束时间（申请时指定，NULL 表示永久）',
@@ -73,8 +75,8 @@ CREATE TABLE IF NOT EXISTS `permission_grant_log` (
   `app_id` BIGINT NOT NULL COMMENT '工作空间ID',
   `grantor_username` VARCHAR(100) NOT NULL COMMENT '授权人用户名（谁授权的）',
   `grantee_type` VARCHAR(20) NOT NULL COMMENT '被授权人类型：user（用户）、department（组织架构）',
-  `grantee` VARCHAR(500) NOT NULL COMMENT '被授权人（用户名或组织架构路径）',
-  `resource_path` VARCHAR(500) NOT NULL COMMENT '资源路径',
+  `grantee` VARCHAR(150) NOT NULL COMMENT '被授权人（用户名或组织架构路径）',
+  `resource_path` VARCHAR(150) NOT NULL COMMENT '资源路径',
   `action` VARCHAR(50) NOT NULL COMMENT '操作类型',
   `start_time` DATETIME NOT NULL COMMENT '权限开始时间',
   `end_time` DATETIME DEFAULT NULL COMMENT '权限结束时间（NULL 表示永久）',
@@ -97,9 +99,9 @@ CREATE TABLE IF NOT EXISTS `permission_grant_log` (
 CREATE TABLE IF NOT EXISTS `approval_policy` (
   `id` BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
   `app_id` BIGINT NOT NULL COMMENT '工作空间ID',
-  `resource_path` VARCHAR(500) NOT NULL COMMENT '目录路径（只配置在目录级别）',
-  `policy_expression` VARCHAR(500) NOT NULL COMMENT '审批策略表达式（使用内置变量，如 $current_node_admins）',
-  `description` VARCHAR(500) DEFAULT NULL COMMENT '策略描述',
+  `resource_path` VARCHAR(150) NOT NULL COMMENT '目录路径（只配置在目录级别）',
+  `policy_expression` VARCHAR(150) NOT NULL COMMENT '审批策略表达式（使用内置变量，如 $current_node_admins）',
+  `description` VARCHAR(150) DEFAULT NULL COMMENT '策略描述',
   `is_enabled` TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否启用：0-禁用，1-启用',
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `created_by` VARCHAR(100) DEFAULT NULL COMMENT '创建者用户名',
@@ -118,7 +120,7 @@ CREATE TABLE IF NOT EXISTS `approval_policy` (
 -- 5. 在 service_tree 表中添加 admins 字段
 -- ============================================
 ALTER TABLE `service_tree` 
-ADD COLUMN IF NOT EXISTS `admins` VARCHAR(500) DEFAULT NULL COMMENT '节点管理员列表，逗号分隔的用户名（如 user1,user2,user3）' AFTER `tags`;
+ADD COLUMN IF NOT EXISTS `admins` VARCHAR(150) DEFAULT NULL COMMENT '节点管理员列表，逗号分隔的用户名（如 user1,user2,user3）' AFTER `tags`;
 
 -- 为 admins 字段添加索引（用于查询用户管理的节点）
 ALTER TABLE `service_tree`

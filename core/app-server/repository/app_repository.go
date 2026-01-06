@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"strconv"
 	"sync"
 	"time"
 
@@ -14,8 +15,10 @@ type AppRepository struct {
 	db *gorm.DB
 
 	// ✅ 缓存相关
-	appCache   sync.Map           // key: "user:app", value: *cachedApp
-	cacheGroup singleflight.Group // 防止缓存击穿
+	appCache      sync.Map           // key: "user:app", value: *cachedApp
+	appIDCache    sync.Map           // key: appID (int64), value: *cachedApp
+	cacheGroup    singleflight.Group // 防止缓存击穿（用于 user:app）
+	cacheIDGroup  singleflight.Group // 防止缓存击穿（用于 appID）
 }
 
 // cachedApp 缓存的应用信息
@@ -29,9 +32,11 @@ const appCacheTTL = 5 * time.Minute
 
 func NewAppRepository(db *gorm.DB) *AppRepository {
 	return &AppRepository{
-		db:         db,
-		appCache:   sync.Map{},           // ✅ 显式初始化缓存
-		cacheGroup: singleflight.Group{}, // ✅ 显式初始化 singleflight
+		db:            db,
+		appCache:      sync.Map{},           // ✅ 显式初始化缓存（user:app）
+		appIDCache:    sync.Map{},           // ✅ 显式初始化缓存（appID）
+		cacheGroup:    singleflight.Group{}, // ✅ 显式初始化 singleflight（user:app）
+		cacheIDGroup:  singleflight.Group{}, // ✅ 显式初始化 singleflight（appID）
 	}
 }
 
@@ -74,11 +79,13 @@ func (r *AppRepository) GetAppByUserName(user, app string) (*model.App, error) {
 			return nil, err
 		}
 
-		// 存入缓存
-		r.appCache.Store(cacheKey, &cachedApp{
+		// 存入缓存（同时更新两个缓存：user:app 和 appID，保持一致性）
+		cached := &cachedApp{
 			app:       &appModel,
 			cacheTime: time.Now(),
-		})
+		}
+		r.appCache.Store(cacheKey, cached)
+		r.appIDCache.Store(appModel.ID, cached)
 
 		return &appModel, nil
 	})
@@ -96,6 +103,18 @@ func (r *AppRepository) InvalidateAppCache(user, app string) {
 	r.appCache.Delete(cacheKey)
 }
 
+// InvalidateAppCacheByID 使应用缓存失效（通过 appID）
+func (r *AppRepository) InvalidateAppCacheByID(appID int64) {
+	r.appIDCache.Delete(appID)
+}
+
+// InvalidateAppCacheBoth 使应用缓存失效（同时清除 user:app 和 appID 缓存）
+func (r *AppRepository) InvalidateAppCacheBoth(user, app string, appID int64) {
+	cacheKey := user + ":" + app
+	r.appCache.Delete(cacheKey)
+	r.appIDCache.Delete(appID)
+}
+
 // CreateApp 创建应用
 func (r *AppRepository) CreateApp(app *model.App) error {
 	err := r.db.Create(app).Error
@@ -103,11 +122,13 @@ func (r *AppRepository) CreateApp(app *model.App) error {
 		return err
 	}
 	
-	// ✅ 创建后可能会立即查询，预热缓存
-	r.appCache.Store(app.User+":"+app.Code, &cachedApp{
+	// ✅ 创建后可能会立即查询，预热缓存（同时预热 user:app 和 appID 缓存）
+	cached := &cachedApp{
 		app:       app,
 		cacheTime: time.Now(),
-	})
+	}
+	r.appCache.Store(app.User+":"+app.Code, cached)
+	r.appIDCache.Store(app.ID, cached)
 	
 	return nil
 }
@@ -142,49 +163,104 @@ func (r *AppRepository) UpdateApp(app *model.App) error {
 		return err
 	}
 	
-	// ✅ 使缓存失效
-	r.InvalidateAppCache(app.User, app.Code)
+	// ✅ 使缓存失效（同时清除 user:app 和 appID 缓存）
+	r.InvalidateAppCacheBoth(app.User, app.Code, app.ID)
 	return nil
 }
 
 // UpdateAppVersion 更新应用版本（仅更新版本字段，更高效）
 func (r *AppRepository) UpdateAppVersion(user, app, newVersion string) error {
-	err := r.db.Model(&model.App{}).
+	// ⚠️ 需要先查询 appID，以便清除 appID 缓存
+	appModel, err := r.GetAppByUserName(user, app)
+	if err != nil {
+		return err
+	}
+	
+	err = r.db.Model(&model.App{}).
 		Where("user = ? AND code = ?", user, app).
 		Update("version", newVersion).Error
 	if err != nil {
 		return err
 	}
 	
-	// ✅ 使缓存失效
-	r.InvalidateAppCache(user, app)
+	// ✅ 使缓存失效（同时清除 user:app 和 appID 缓存）
+	r.InvalidateAppCacheBoth(user, app, appModel.ID)
 	return nil
 }
 
 // DeleteAppAndVersions 删除应用及其所有版本
 func (r *AppRepository) DeleteAppAndVersions(user, app string) error {
+	// ⚠️ 需要先查询 appID，以便清除 appID 缓存
+	appModel, err := r.GetAppByUserName(user, app)
+	if err != nil {
+		return err
+	}
+	
 	// 删除应用记录（使用code字段，因为app参数是应用代码）
-	err := r.db.Where("user = ? AND code = ?", user, app).Delete(&model.App{}).Error
+	err = r.db.Where("user = ? AND code = ?", user, app).Delete(&model.App{}).Error
 	if err != nil {
 		return err
 	}
 
-	// ✅ 使缓存失效
-	r.InvalidateAppCache(user, app)
+	// ✅ 使缓存失效（同时清除 user:app 和 appID 缓存）
+	r.InvalidateAppCacheBoth(user, app, appModel.ID)
 
 	// 注意：app-server 中没有 AppVersion 表，所以只删除 App 记录即可
 
 	return nil
 }
 
-// GetAppByID 根据ID获取应用信息
+// GetAppByID 根据ID获取应用信息（带缓存）
 func (r *AppRepository) GetAppByID(id int64) (*model.App, error) {
-	var app model.App
-	err := r.db.Where("id = ?", id).First(&app).Error
+	// 1. 快速路径：尝试从缓存获取（大部分请求走这里）
+	if cached, ok := r.appIDCache.Load(id); ok {
+		cachedData := cached.(*cachedApp)
+		// 检查是否过期
+		if time.Since(cachedData.cacheTime) < appCacheTTL {
+			return cachedData.app, nil
+		}
+		// 过期，删除缓存
+		r.appIDCache.Delete(id)
+	}
+
+	// 2. 慢速路径：缓存未命中，使用 singleflight 防止并发查询
+	// 多个并发请求只会有一个真正查询数据库
+	cacheKey := strconv.FormatInt(id, 10) // 将 int64 转换为 string 作为 singleflight 的 key
+	value, err, _ := r.cacheIDGroup.Do(cacheKey, func() (interface{}, error) {
+		// 双重检查：可能其他协程已经设置了缓存
+		if cached, ok := r.appIDCache.Load(id); ok {
+			cachedData := cached.(*cachedApp)
+			if time.Since(cachedData.cacheTime) < appCacheTTL {
+				return cachedData.app, nil
+			}
+		}
+
+		// 从数据库查询
+		var appModel model.App
+		err := r.db.Where("id = ?", id).First(&appModel).Error
+		if err != nil {
+			return nil, err
+		}
+
+		// 存入缓存（同时更新两个缓存：appID 和 user:app）
+		r.appIDCache.Store(id, &cachedApp{
+			app:       &appModel,
+			cacheTime: time.Now(),
+		})
+		// 同时更新 user:app 缓存，保持一致性
+		r.appCache.Store(appModel.User+":"+appModel.Code, &cachedApp{
+			app:       &appModel,
+			cacheTime: time.Now(),
+		})
+
+		return &appModel, nil
+	})
+
 	if err != nil {
 		return nil, err
 	}
-	return &app, nil
+
+	return value.(*model.App), nil
 }
 
 // GetAppsByUser 根据用户获取所有应用
