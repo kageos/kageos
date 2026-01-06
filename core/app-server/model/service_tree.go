@@ -22,6 +22,7 @@ type ServiceTree struct {
 	Type          string `json:"type"` // 节点类型: package(服务目录/包), function(函数/文件), api(API接口), service(服务), module(模块)
 	Description   string `json:"description,omitempty"`
 	Tags          string `json:"tags"`
+	Admins        string `json:"admins" gorm:"type:varchar(500);comment:节点管理员列表，逗号分隔的用户名（如 user1,user2,user3）"` // 节点管理员列表
 	AppID         int64  `json:"app_id"`
 	FullGroupCode string `json:"full_group_code" gorm:"type:varchar(500);comment:完整函数组代码：{full_path}/{file_name}"` // 完整函数组代码：{full_path}/{file_name}
 	GroupName     string `json:"group_name"`
