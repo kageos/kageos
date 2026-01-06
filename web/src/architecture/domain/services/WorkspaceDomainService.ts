@@ -66,24 +66,12 @@ export class WorkspaceDomainService {
     // 直接加载函数详情，不使用缓存
     let detail: FunctionDetail
     try {
-      if (node.ref_id && node.ref_id > 0) {
-        // 🔥 优先使用 ref_id（函数 ID）加载函数详情
-        console.log('🔍 [WorkspaceDomainService] 使用 ref_id 加载函数详情', {
-          refId: node.ref_id,
-          nodeId: node.id,
-          fullCodePath: node.full_code_path
-        })
-        detail = await this.functionLoader.loadById(node.ref_id)
-        console.log('✅ [WorkspaceDomainService] 成功加载函数详情', {
-          functionId: detail.id,
-          router: detail.router,
-          requestFieldsCount: detail.request?.length || 0
-        })
-      } else if (node.full_code_path) {
-        // 如果没有 ref_id，使用 full_code_path 加载
+      // ⭐ 优先使用 full_code_path 加载（新 API 只支持 full-code-path）
+      if (node.full_code_path) {
         console.log('🔍 [WorkspaceDomainService] 使用 full_code_path 加载函数详情', {
           fullCodePath: node.full_code_path,
-          nodeId: node.id
+          nodeId: node.id,
+          refId: node.ref_id
         })
         detail = await this.functionLoader.loadByPath(node.full_code_path)
         console.log('✅ [WorkspaceDomainService] 成功加载函数详情', {
@@ -91,8 +79,20 @@ export class WorkspaceDomainService {
           router: detail.router,
           requestFieldsCount: detail.request?.length || 0
         })
+      } else if (node.ref_id && node.ref_id > 0) {
+        // ⭐ 如果没有 full_code_path，使用 ref_id 加载（向后兼容，但建议后端总是返回 full_code_path）
+        console.log('⚠️ [WorkspaceDomainService] 节点没有 full_code_path，使用 ref_id 加载（向后兼容）', {
+          refId: node.ref_id,
+          nodeId: node.id
+        })
+        detail = await this.functionLoader.loadById(node.ref_id)
+        console.log('✅ [WorkspaceDomainService] 成功加载函数详情', {
+          functionId: detail.id,
+          router: detail.router,
+          requestFieldsCount: detail.request?.length || 0
+        })
       } else {
-        throw new Error('节点没有 ref_id 和 full_code_path，无法加载函数详情')
+        throw new Error('节点没有 full_code_path 和 ref_id，无法加载函数详情')
       }
 
       // ⭐ 权限信息已从树接口返回，不需要缓存

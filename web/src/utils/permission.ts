@@ -319,6 +319,33 @@ export function getPermissionDisplayName(action: string): string {
 }
 
 /**
+ * 获取权限点的简短显示名称（用于按钮提示）
+ * @param action 权限点
+ * @returns 简短显示名称（如 "read权限"、"write权限"）
+ */
+export function getPermissionShortName(action: string): string {
+  const shortNames: Record<string, string> = {
+    'function:read': 'read权限',
+    'function:write': 'write权限',
+    'function:update': 'update权限',
+    'function:delete': 'delete权限',
+    'function:manage': 'manage权限',
+    'directory:read': 'read权限',
+    'directory:write': 'write权限',
+    'directory:update': 'update权限',
+    'directory:delete': 'delete权限',
+    'directory:manage': 'manage权限',
+    'app:read': 'read权限',
+    'app:create': 'create权限',
+    'app:update': 'update权限',
+    'app:delete': 'delete权限',
+    'app:deploy': 'deploy权限',
+    'app:manage': 'manage权限',
+  }
+  return shortNames[action] || `${action.split(':')[1] || action}权限`
+}
+
+/**
  * 根据函数类型获取默认权限点
  * @param templateType 模板类型（table、form、chart）
  * @returns 权限点列表

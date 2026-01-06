@@ -99,7 +99,7 @@
         >
           <template v-if="!canCreate">
             <el-icon><Lock /></el-icon>
-            导入（需权限）
+            导入（需{{ getPermissionShortName('function:write') }}）
           </template>
           <template v-else>导入</template>
         </el-button>
@@ -115,7 +115,7 @@
         >
           <template v-if="!canCreate">
             <el-icon><Lock /></el-icon>
-            新增（需权限）
+            新增（需{{ getPermissionShortName('function:write') }}）
           </template>
           <template v-else>新增</template>
         </el-button>
@@ -129,7 +129,7 @@
           class="action-btn"
           :class="{ 'action-btn-no-permission': !canDelete }"
         >
-          {{ canDelete ? '批量删除' : '批量删除（需权限）' }}
+          {{ canDelete ? '批量删除' : `批量删除（需${getPermissionShortName('function:delete')}）` }}
         </el-button>
         <template v-if="hasDeleteCallback && isBatchDeleteMode">
           <el-button 
@@ -343,7 +343,7 @@
               @click.stop="canUpdate ? handleDetail(row) : handleApplyPermissionForAction('function:update')"
             >
               <el-icon><component :is="canUpdate ? Edit : Lock" /></el-icon>
-              {{ canUpdate ? '更新' : '更新（需权限）' }}
+              {{ canUpdate ? '更新' : `更新（需${getPermissionShortName('function:update')}）` }}
             </el-button>
             <!-- 删除按钮：需要 table:delete 权限，无权限时可点击跳转申请 -->
             <el-button 
@@ -356,7 +356,7 @@
               @click.stop="canDelete ? handleDelete(row) : handleApplyPermissionForAction('function:delete')"
             >
               <el-icon><component :is="canDelete ? Delete : Lock" /></el-icon>
-              {{ canDelete ? '删除' : '删除（需权限）' }}
+              {{ canDelete ? '删除' : `删除（需${getPermissionShortName('function:delete')}）` }}
             </el-button>
           </div>
         </template>
@@ -543,7 +543,7 @@ import { useUserInfoStore } from '@/stores/userInfo'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
 import type { TableRow, SearchParams, SortParams, SortItem } from '../../domain/services/TableDomainService'
 import type { UserInfo } from '@/types'
-import { hasPermission, TablePermissions, buildPermissionApplyURL } from '@/utils/permission'
+import { hasPermission, TablePermissions, buildPermissionApplyURL, getPermissionShortName } from '@/utils/permission'
 import { usePermissionErrorStore } from '@/stores/permissionError'
 import type { PermissionInfo } from '@/utils/permission'
 import { parseExcelFile } from '@/utils/excelImport'

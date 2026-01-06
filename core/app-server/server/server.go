@@ -48,7 +48,7 @@ type Server struct {
 	operateLogService             *service.OperateLogService
 	directoryUpdateHistoryService *service.DirectoryUpdateHistoryService
 	permissionService             *service.PermissionService // ⭐ 权限管理服务
-	appRepo                       *repository.AppRepository  // ⭐ 应用仓储（用于权限服务查询 app.id）
+	appRepo                       *repository.AppRepository  // ⭐ 应用仓储（用于其他服务）
 
 	// 上游服务
 	natsService *service.NatsService
@@ -399,9 +399,8 @@ func (s *Server) initServices(ctx context.Context) error {
 	s.functionGenService = service.NewFunctionGenService(s.appService, serviceTreeRepo, appRepo)
 
 	// ⭐ 初始化权限管理服务（需要在 initEnterprise 之后，因为需要 enterprise.GetPermissionService()）
-	// ⭐ 需要传入 casbinRuleRepo、appRepo，用于查询权限记录和填充 app_id
-	casbinRuleRepo := repository.NewCasbinRuleRepository(s.db)
-	s.permissionService = service.NewPermissionService(enterprise.GetPermissionService(), casbinRuleRepo, s.appRepo)
+	// ⭐ 完全移除 Casbin，使用新的权限系统（不再需要 appRepo，从 resourcePath 解析 user 和 app）
+	s.permissionService = service.NewPermissionService(enterprise.GetPermissionService())
 
 	// 初始化服务目录服务（包含目录管理功能：copy、create、remove）
 	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appRuntime, fileSnapshotRepo, s.appService, s.functionGenService, s.permissionService)

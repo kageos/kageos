@@ -54,13 +54,9 @@ func (s *ServiceTreeService) grantCreatorPermission(ctx context.Context, usernam
 		return fmt.Errorf("权限服务未初始化")
 	}
 
-	// ⭐ 优化：使用通配符路径策略，自动覆盖所有子资源
-	// 例如：/luobei/operations → /luobei/operations/*
-	// 这样，授予顶层目录权限后，所有子资源自动继承
-	policyPath := resourcePath + "/*"
-
-	// 添加权限（使用通配符路径）
-	err := permissionService.AddPolicy(ctx, username, policyPath, action)
+	// ⭐ 使用新的权限系统，直接调用 AddPolicy（会自动处理通配符路径）
+	// 新权限系统会自动为目录权限添加通配符路径，实现权限继承
+	err := permissionService.AddPolicy(ctx, username, resourcePath, action)
 	if err != nil {
 		return fmt.Errorf("添加权限失败: %w", err)
 	}
@@ -214,7 +210,7 @@ func (s *ServiceTreeService) getServiceTreeByAppModel(ctx context.Context, appMo
 
 	if licenseMgr.HasFeature(enterprise.FeaturePermission) && username != "" && appModel.ID > 0 && s.permissionService != nil {
 		// 直接计算权限（不使用缓存）
-		permsMap, err := s.calculatePermissions(ctx, appModel.ID, trees)
+		permsMap, err := s.calculatePermissions(ctx, appModel.User, appModel.Code, trees)
 		if err != nil {
 			logger.Warnf(ctx, "[ServiceTreeService] 计算权限失败: app_id=%d, error=%v，继续返回服务树（无权限信息）", appModel.ID, err)
 			// 权限计算失败不影响服务树返回，只是没有权限信息
@@ -335,17 +331,24 @@ func (s *ServiceTreeService) GetServiceTreeDetail(ctx context.Context, req *dto.
 	licenseMgr := license.GetManager()
 	username := contextx.GetRequestUser(ctx)
 
-	if licenseMgr.HasFeature(enterprise.FeaturePermission) && username != "" && tree.FullCodePath != "" && tree.AppID > 0 && s.permissionService != nil {
-		// 1. 调用 GetWorkspacePermissions 获取所有权限记录（只需要8ms）
-		permReq := &dto.GetWorkspacePermissionsReq{
-			AppID: tree.AppID,
-		}
-		permResp, err := s.permissionService.GetWorkspacePermissions(ctx, permReq)
-		if err != nil {
-			logger.Warnf(ctx, "[ServiceTreeService] 查询权限失败: app_id=%d, error=%v，继续返回详情（无权限信息）", tree.AppID, err)
-			// 权限查询失败不影响详情返回，只是没有权限信息
+	if licenseMgr.HasFeature(enterprise.FeaturePermission) && username != "" && tree.FullCodePath != "" && s.permissionService != nil {
+		// ⭐ 从 FullCodePath 解析 user 和 app（格式：/user/app/...）
+		_, workspaceUser, workspaceApp := permission.ParseFullCodePath(tree.FullCodePath)
+		if workspaceUser == "" || workspaceApp == "" {
+			logger.Warnf(ctx, "[ServiceTreeService] 无法从 FullCodePath 解析 user 和 app: fullCodePath=%s", tree.FullCodePath)
 			resp.Permissions = make(map[string]bool)
-		} else if permResp != nil {
+		} else {
+			// 1. 调用 GetWorkspacePermissions 获取所有权限记录（只需要8ms）
+			permReq := &dto.GetWorkspacePermissionsReq{
+				User: workspaceUser,
+				App:  workspaceApp,
+			}
+			permResp, err := s.permissionService.GetWorkspacePermissions(ctx, permReq)
+			if err != nil {
+				logger.Warnf(ctx, "[ServiceTreeService] 查询权限失败: user=%s, app=%s, error=%v，继续返回详情（无权限信息）", workspaceUser, workspaceApp, err)
+				// 权限查询失败不影响详情返回，只是没有权限信息
+				resp.Permissions = make(map[string]bool)
+			} else if permResp != nil {
 			// 2. 将权限记录转换为 Map<resourcePath, Set<action>>（原始权限）
 			rawPermissions := make(map[string]map[string]bool) // resourcePath -> action -> true
 			for _, record := range permResp.Records {
@@ -423,10 +426,11 @@ func (s *ServiceTreeService) GetServiceTreeDetail(ctx context.Context, req *dto.
 				}
 			}
 
-			resp.Permissions = nodePerms
-		} else {
-			// 如果没有权限记录，初始化为空 map
-			resp.Permissions = make(map[string]bool)
+				resp.Permissions = nodePerms
+			} else {
+				// 如果没有权限记录，初始化为空 map
+				resp.Permissions = make(map[string]bool)
+			}
 		}
 	} else {
 		// 如果权限功能未启用或缺少必要信息，初始化为空 map
@@ -476,17 +480,24 @@ func (s *ServiceTreeService) GetPackageInfo(ctx context.Context, req *dto.GetPac
 	licenseMgr := license.GetManager()
 	username := contextx.GetRequestUser(ctx)
 
-	if licenseMgr.HasFeature(enterprise.FeaturePermission) && username != "" && tree.FullCodePath != "" && tree.AppID > 0 && s.permissionService != nil {
-		// 1. 调用 GetWorkspacePermissions 获取所有权限记录（只需要8ms）
-		permReq := &dto.GetWorkspacePermissionsReq{
-			AppID: tree.AppID,
-		}
-		permResp, err := s.permissionService.GetWorkspacePermissions(ctx, permReq)
-		if err != nil {
-			logger.Warnf(ctx, "[ServiceTreeService] 查询权限失败: app_id=%d, error=%v，继续返回目录信息（无权限信息）", tree.AppID, err)
-			// 权限查询失败不影响目录信息返回，只是没有权限信息
+	if licenseMgr.HasFeature(enterprise.FeaturePermission) && username != "" && tree.FullCodePath != "" && s.permissionService != nil {
+		// ⭐ 从 FullCodePath 解析 user 和 app（格式：/user/app/...）
+		_, workspaceUser, workspaceApp := permission.ParseFullCodePath(tree.FullCodePath)
+		if workspaceUser == "" || workspaceApp == "" {
+			logger.Warnf(ctx, "[ServiceTreeService] 无法从 FullCodePath 解析 user 和 app: fullCodePath=%s", tree.FullCodePath)
 			resp.Permissions = make(map[string]bool)
-		} else if permResp != nil {
+		} else {
+			// 1. 调用 GetWorkspacePermissions 获取所有权限记录（只需要8ms）
+			permReq := &dto.GetWorkspacePermissionsReq{
+				User: workspaceUser,
+				App:  workspaceApp,
+			}
+			permResp, err := s.permissionService.GetWorkspacePermissions(ctx, permReq)
+			if err != nil {
+				logger.Warnf(ctx, "[ServiceTreeService] 查询权限失败: user=%s, app=%s, error=%v，继续返回目录信息（无权限信息）", workspaceUser, workspaceApp, err)
+				// 权限查询失败不影响目录信息返回，只是没有权限信息
+				resp.Permissions = make(map[string]bool)
+			} else if permResp != nil {
 			// 2. 将权限记录转换为 Map<resourcePath, Set<action>>（原始权限）
 			rawPermissions := make(map[string]map[string]bool) // resourcePath -> action -> true
 			for _, record := range permResp.Records {
@@ -555,10 +566,11 @@ func (s *ServiceTreeService) GetPackageInfo(ctx context.Context, req *dto.GetPac
 				}
 			}
 
-			resp.Permissions = nodePerms
-		} else {
-			// 如果没有权限记录，初始化为空 map
-			resp.Permissions = make(map[string]bool)
+				resp.Permissions = nodePerms
+			} else {
+				// 如果没有权限记录，初始化为空 map
+				resp.Permissions = make(map[string]bool)
+			}
 		}
 	} else {
 		// 如果权限功能未启用或缺少必要信息，初始化为空 map
@@ -680,10 +692,11 @@ func (s *ServiceTreeService) convertToGetServiceTreeResp(ctx context.Context, tr
 
 // calculatePermissions 计算权限（内部方法）
 // ⭐ 自顶向下计算权限（O(n) 复杂度）
-func (s *ServiceTreeService) calculatePermissions(ctx context.Context, appID int64, trees []*model.ServiceTree) (map[string]map[string]bool, error) {
+func (s *ServiceTreeService) calculatePermissions(ctx context.Context, user, app string, trees []*model.ServiceTree) (map[string]map[string]bool, error) {
 	// 1. 调用 GetWorkspacePermissions 获取所有权限记录（只需要8ms）
 	permReq := &dto.GetWorkspacePermissionsReq{
-		AppID: appID,
+		User: user,
+		App:  app,
 	}
 	permResp, err := s.permissionService.GetWorkspacePermissions(ctx, permReq)
 	if err != nil {
@@ -691,7 +704,7 @@ func (s *ServiceTreeService) calculatePermissions(ctx context.Context, appID int
 	}
 	
 	if permResp == nil || len(permResp.Records) == 0 {
-		logger.Debugf(ctx, "[ServiceTreeService] 没有权限记录: app_id=%d", appID)
+		logger.Debugf(ctx, "[ServiceTreeService] 没有权限记录: user=%s, app=%s", user, app)
 		return make(map[string]map[string]bool), nil
 	}
 	
@@ -847,7 +860,7 @@ func (s *ServiceTreeService) calculatePermissions(ctx context.Context, appID int
 }
 
 // applyPermissionInheritance 应用权限继承规则
-// 根据 Casbin 规则，实现权限继承逻辑
+// ⭐ 新权限系统实现权限继承逻辑
 func (s *ServiceTreeService) applyPermissionInheritance(
 	nodeType string,
 	templateType string,

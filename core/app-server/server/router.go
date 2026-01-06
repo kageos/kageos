@@ -98,8 +98,10 @@ func (s *Server) setupRoutes() {
 	function := apiV1.Group("/function")
 	function.Use(middleware2.JWTAuth()) // 函数管理需要JWT认证
 	functionHandler := v1.NewFunction(s.functionService)
-	function.GET("/get", functionHandler.GetFunction)
+	// ⭐ /list 路由放在通配符路由之前，避免路由冲突
 	function.GET("/list", functionHandler.GetFunctionsByApp)
+	// ⭐ 使用 /info/*full-code-path 作为路径参数，中间件会自动从 URL 提取并检查权限
+	function.GET("/info/*full-code-path", middleware2.CheckFunctionRead(), functionHandler.GetFunction)
 
 	// 用户管理路由（需要JWT验证）
 	user := apiV1.Group("/user")
@@ -164,7 +166,14 @@ func (s *Server) setupRoutes() {
 	permission.Use(middleware2.RequireFeature(enterprise.FeaturePermission)) // 权限管理功能鉴权（企业版）
 	permissionHandler := v1.NewPermission(s.permissionService)
 	permission.POST("/add", permissionHandler.AddPermission)                // 添加权限（内部使用，被 ApplyPermission 调用）
-	permission.POST("/apply", permissionHandler.ApplyPermission)             // 权限申请
-	permission.GET("/workspace", permissionHandler.GetWorkspacePermissions)  // 获取工作空间所有权限
+	permission.POST("/apply", permissionHandler.ApplyPermission)             // 权限申请（简化版，直接添加权限）
+	permission.GET("/workspace", permissionHandler.GetWorkspacePermissions)   // 获取工作空间所有权限
+	
+	// ⭐ 权限申请和审批路由（新权限系统）
+	permission.POST("/request/create", permissionHandler.CreatePermissionRequest)   // 创建权限申请
+	permission.POST("/request/approve", permissionHandler.ApprovePermissionRequest) // 审批通过
+	permission.POST("/request/reject", permissionHandler.RejectPermissionRequest)    // 审批拒绝
+	permission.GET("/requests", permissionHandler.GetPermissionRequests)              // 获取权限申请列表
+	permission.POST("/grant", permissionHandler.GrantPermission)                     // 授权权限（管理员主动授权）
 
 }

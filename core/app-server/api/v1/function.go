@@ -2,6 +2,7 @@ package v1
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
 	"github.com/ai-agent-os/ai-agent-os/dto"
@@ -10,8 +11,8 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
 	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/pkg/middleware"
 	"github.com/ai-agent-os/ai-agent-os/pkg/permission"
+	permissionpkg "github.com/ai-agent-os/ai-agent-os/pkg/permission"
 	"github.com/gin-gonic/gin"
 )
 
@@ -28,71 +29,46 @@ func NewFunction(functionService *service.FunctionService) *Function {
 
 // GetFunction 获取函数详情
 // @Summary 获取函数详情
-// @Description 根据函数ID获取函数的详细信息
+// @Description 根据 full-code-path 获取函数的详细信息
 // @Tags 函数管理
 // @Accept json
 // @Produce json
 // @Security ApiKeyAuth
 // @Param X-Token header string true "JWT Token"
-// @Param function_id query int true "函数ID"
+// @Param full-code-path path string true "函数完整路径，如 /luobei/operations/crm/ticket"
 // @Success 200 {object} dto.GetFunctionResp "获取成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 401 {string} string "未授权"
+// @Failure 403 {string} string "权限不足"
 // @Failure 404 {string} string "函数不存在"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/function/get [get]
+// @Router /api/v1/function/info/*full-code-path [get]
 func (f *Function) GetFunction(c *gin.Context) {
-	var resp *dto.GetFunctionResp
-	var err error
-
-	// 从query参数获取函数ID
-	functionIDStr := c.Query("function_id")
-	if functionIDStr == "" {
-		response.FailWithMessage(c, "缺少function_id参数")
+	// ⭐ 从路径参数获取 full-code-path
+	fullCodePath := c.Param("full-code-path")
+	if fullCodePath == "" {
+		response.FailWithMessage(c, "缺少full-code-path参数")
 		return
 	}
 
-	functionID, err := strconv.ParseInt(functionIDStr, 10, 64)
-	if err != nil {
-		response.FailWithMessage(c, "无效的函数ID")
-		return
+	// 确保路径以 / 开头
+	if !strings.HasPrefix(fullCodePath, "/") {
+		fullCodePath = "/" + fullCodePath
 	}
 
 	ctx := contextx.ToContext(c)
 
-	// ⭐ 先获取函数信息，用于权限检查
-	function, err := f.functionService.GetFunctionByID(ctx, functionID)
-	if err != nil {
-		response.FailWithMessage(c, err.Error())
-		return
-	}
-
-	// ⭐ 权限检查：根据模板类型使用不同的权限点
-	// 使用函数的 Router 字段作为 full-code-path（Router 存储的就是 full-code-path）
-	fullCodePath := function.Router
-	if fullCodePath == "" {
-		response.FailWithMessage(c, "函数路由信息不完整")
-		return
-	}
-
-	// 检查权限功能是否启用（企业版）
-	licenseMgr := license.GetManager()
-	if licenseMgr.HasFeature(enterprise.FeaturePermission) {
-		// 企业版：统一使用 function:read 权限检查
-		// ⭐ 优化：使用权限常量，避免硬编码
-		if !middleware.CheckPermissionWithPath(c, fullCodePath, permission.FunctionRead, "无权限查看该函数详情") {
-			return
-		}
-	}
+	// ⭐ 权限检查已由中间件自动处理（CheckFunctionRead），无需在此处再次检查
 
 	// 获取函数详情
-	resp, err = f.functionService.GetFunction(ctx, functionID)
+	resp, err := f.functionService.GetFunctionByFullCodePath(ctx, fullCodePath)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
 
 	// ⭐ 查询并返回函数权限信息（企业版功能）
+	licenseMgr := license.GetManager()
 	if licenseMgr.HasFeature(enterprise.FeaturePermission) {
 		permissionService := enterprise.GetPermissionService()
 		username := contextx.GetRequestUser(c)
@@ -103,36 +79,40 @@ func (f *Function) GetFunction(c *gin.Context) {
 			actions := permission.FunctionActions
 
 			if len(actions) > 0 {
-				// ⭐ 直接利用 Casbin matcher 的自动权限继承
-				// Casbin matcher 已经配置了权限映射规则，会自动检查父目录权限并应用继承
-				// 只需要查询子函数需要的权限，Casbin 会自动处理继承逻辑
-				permissions, err := permissionService.BatchCheckPermissions(ctx, username, []string{fullCodePath}, actions)
-				if err != nil {
-					logger.Warnf(c, "[Function API] 查询权限失败: username=%s, resource=%s, error=%v",
-						username, fullCodePath, err)
-					// 权限查询失败，初始化所有权限为 false
-					resp.Permissions = make(map[string]bool)
-					for _, action := range actions {
-						resp.Permissions[action] = false
+				// ⭐ 使用 GetUserWorkspacePermissions 获取所有权限，然后在应用层校验
+				// 从 resourcePath 解析 user 和 app
+				_, user, app := permissionpkg.ParseFullCodePath(fullCodePath)
+				if user != "" && app != "" {
+					permReq := &enterprise.GetUserWorkspacePermissionsReq{
+						User:           user,
+						App:            app,
+						Username:       username,
+						DepartmentPath: contextx.GetRequestDepartmentFullPath(ctx),
 					}
-				} else {
-					// 初始化权限 map
-					resp.Permissions = make(map[string]bool)
-
-					// Casbin 已经自动处理了权限继承，直接使用查询结果
-					if nodePerms, ok := permissions[fullCodePath]; ok {
-						for _, action := range actions {
-							if hasPerm, ok := nodePerms[action]; ok {
-								resp.Permissions[action] = hasPerm
-							} else {
-								resp.Permissions[action] = false
-							}
-						}
-					} else {
-						// 如果查询结果中没有该资源，初始化所有权限为 false
+					
+					permResp, err := permissionService.GetUserWorkspacePermissions(ctx, permReq)
+					if err != nil {
+						logger.Warnf(c, "[Function API] 查询权限失败: username=%s, resource=%s, error=%v",
+							username, fullCodePath, err)
+						// 权限查询失败，初始化所有权限为 false
+						resp.Permissions = make(map[string]bool)
 						for _, action := range actions {
 							resp.Permissions[action] = false
 						}
+					} else {
+						// 初始化权限 map
+						resp.Permissions = make(map[string]bool)
+						
+						// ⭐ 使用响应对象的辅助方法检查每个权限（自动处理权限继承）
+						for _, action := range actions {
+							resp.Permissions[action] = permResp.CheckPermission(fullCodePath, action)
+						}
+					}
+				} else {
+					// 无法解析 user 和 app，初始化所有权限为 false
+					resp.Permissions = make(map[string]bool)
+					for _, action := range actions {
+						resp.Permissions[action] = false
 					}
 				}
 			}

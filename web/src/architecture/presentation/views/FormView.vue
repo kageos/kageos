@@ -138,15 +138,14 @@
         </el-button>
         <el-button
           v-else-if="showSubmitButton"
-          type="primary"
+          type="default"
           size="large"
           :disabled="false"
-          plain
           class="submit-button-full-width action-btn-no-permission"
           @click="handleApplyPermissionForSubmit"
         >
           <el-icon><Lock /></el-icon>
-          提交（需权限）
+          提交（需{{ getPermissionShortName('function:write') }}）
         </el-button>
         <el-button v-if="showResetButton" size="large" @click="handleReset">
           <el-icon><RefreshLeft /></el-icon>
@@ -371,7 +370,7 @@ import { useFormDataStore } from '@/core/stores-v2/formData'
 import { useResponseDataStore } from '@/core/stores-v2/responseData'
 import { useFunctionParamInitialization } from '../composables/useFunctionParamInitialization'
 import { useFormParamURLSync } from '../composables/useFormParamURLSync'
-import { hasPermission, FormPermissions, buildPermissionApplyURL } from '@/utils/permission'
+import { hasPermission, FormPermissions, buildPermissionApplyURL, getPermissionShortName } from '@/utils/permission'
 import { usePermissionErrorStore } from '@/stores/permissionError'
 import type { PermissionInfo } from '@/utils/permission'
 import PermissionDeniedView from '../components/PermissionDeniedView.vue'
@@ -1367,6 +1366,23 @@ onUnmounted(() => {
 }
 
 /* 🔥 权限错误显示样式已移至 PermissionDeniedView 组件 */
+
+/* 无权限按钮样式优化 */
+.action-btn-no-permission {
+  color: var(--el-text-color-secondary) !important;
+  border-color: var(--el-border-color-light) !important;
+  background-color: var(--el-fill-color-lighter) !important;
+  
+  &:hover {
+    color: var(--el-text-color-secondary) !important;
+    border-color: var(--el-border-color-light) !important;
+    background-color: var(--el-fill-color-light) !important;
+  }
+  
+  .el-icon {
+    margin-right: 4px;
+  }
+}
 
 /* Debug 弹窗样式 */
 .debug-section {
