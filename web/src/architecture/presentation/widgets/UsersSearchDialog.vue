@@ -113,7 +113,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, computed } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 import { ElDialog, ElInput, ElButton, ElIcon, ElAvatar, ElEmpty, ElCheckbox } from 'element-plus'
 import { Search, Loading, Close } from '@element-plus/icons-vue'
 import { searchUsersFuzzy } from '@/api/user'
@@ -151,17 +151,49 @@ const selectedUsers = ref<UserInfo[]>([])
 const inputRef = ref<InstanceType<typeof ElInput> | null>(null)
 
 // 监听 modelValue 变化，控制弹窗显示
-watch(() => props.modelValue, (newValue) => {
+watch(() => props.modelValue, async (newValue) => {
   dialogVisible.value = newValue
   if (newValue) {
     // 弹窗打开时，初始化已选用户
     if (props.initialUsernames) {
       const usernames = props.initialUsernames.split(',').map(u => u.trim()).filter(u => u)
-      // 这里需要加载用户信息，暂时先清空，由父组件传入
-      selectedUsers.value = []
+      // 🔥 加载已选用户的信息
+      if (usernames.length > 0) {
+        try {
+          const { useUserInfoStore } = await import('@/stores/userInfo')
+          const userInfoStore = useUserInfoStore()
+          const users: UserInfo[] = []
+          
+          // 并行加载所有用户信息
+          await Promise.all(
+            usernames.map(async (username) => {
+              try {
+                const user = await userInfoStore.getUserInfo(username)
+                if (user) {
+                  users.push(user)
+                }
+              } catch (error) {
+                Logger.error('UsersSearchDialog', '加载用户信息失败', { username, error })
+              }
+            })
+          )
+          
+          selectedUsers.value = users
+        } catch (error) {
+          Logger.error('UsersSearchDialog', '加载已选用户信息失败', { error })
+          selectedUsers.value = []
+        }
+      } else {
+        selectedUsers.value = []
+      }
     } else {
       selectedUsers.value = []
     }
+    // ⭐ 注意：不要在这里清空 searchKeyword，让 handleDialogOpened 来处理自动搜索
+    // searchKeyword.value = ''
+    userList.value = []
+  } else {
+    // 弹窗关闭时，清空搜索关键词
     searchKeyword.value = ''
     userList.value = []
   }
@@ -181,6 +213,24 @@ const handleDialogOpened = async () => {
       }, 100)
     }
   }
+  
+  // 🔥 参考 UserSearchDialog：弹窗打开时，如果有初始用户名，自动搜索这些用户名的第一个字符
+  // 这样用户可以看到相关的用户列表，而不是显示"请输入关键词搜索用户"
+  // ⭐ 使用 setTimeout 确保在弹窗完全打开后再执行搜索
+  setTimeout(() => {
+    if (props.initialUsernames) {
+      const usernames = props.initialUsernames.split(',').map(u => u.trim()).filter(u => u)
+      if (usernames.length > 0 && usernames[0]) {
+        // 使用第一个用户名的第一个字符进行搜索
+        const firstChar = usernames[0][0]
+        if (firstChar) {
+          searchKeyword.value = firstChar
+          // 直接调用 handleSearch，不需要等待防抖
+          handleSearch(firstChar)
+        }
+      }
+    }
+  }, 200) // 等待弹窗动画完成
 }
 
 // 监听 dialogVisible 变化，同步到 modelValue
@@ -249,6 +299,21 @@ const handleSearch = (keyword: string) => {
       }
       
       userList.value = users
+      
+      // 🔥 如果有初始用户名，自动选中匹配的用户（参考 UserSearchDialog）
+      if (props.initialUsernames && users.length > 0) {
+        const initialUsernames = props.initialUsernames.split(',').map(u => u.trim()).filter(u => u)
+        initialUsernames.forEach(username => {
+          const matchedUser = users.find(u => u.username === username)
+          if (matchedUser && !isUserSelected(matchedUser)) {
+            // 检查是否超过最大数量
+            if (props.maxCount > 0 && selectedUsers.value.length >= props.maxCount) {
+              return
+            }
+            selectedUsers.value.push(matchedUser)
+          }
+        })
+      }
     } catch (error) {
       Logger.error('UsersSearchDialog', '搜索用户失败', { keyword, error })
       userList.value = []

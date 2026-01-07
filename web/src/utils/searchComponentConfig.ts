@@ -39,6 +39,11 @@ export function createSearchComponentConfig(
     return createUserComponentConfig(field, searchType)
   }
 
+  // 多用户组件
+  if (widgetType === WidgetType.USERS) {
+    return createUsersComponentConfig(field, searchType)
+  }
+
   // 时间戳组件
   if (widgetType === WidgetType.TIMESTAMP) {
     return createTimestampComponentConfig(field, searchType)
@@ -124,6 +129,55 @@ function createUserComponentConfig(field: FieldConfig, searchType: string | unde
       style: { width: SearchConfig.DEFAULT_INPUT_WIDTH }
     },
     onRemoteMethod: createUserRemoteMethod()
+  }
+}
+
+/**
+ * 创建多用户组件配置
+ */
+function createUsersComponentConfig(field: FieldConfig, searchType: string | undefined): ComponentConfig {
+  // 多用户组件默认支持多选搜索（contains/in）
+  // 如果 search 标签是 "contains" 或 "in"，使用多选用户搜索
+  if (hasSearchType(searchType, SearchType.CONTAINS) || hasSearchType(searchType, SearchType.IN)) {
+    return {
+      component: SearchComponent.EL_SELECT,
+      props: {
+        placeholder: generatePlaceholder(field.name, 'select'),
+        clearable: true,
+        filterable: true,
+        remote: true,
+        multiple: true,
+        style: { width: SearchConfig.DEFAULT_INPUT_WIDTH },
+        collapseTags: true,
+        maxCollapseTags: SearchConfig.MAX_COLLAPSE_TAGS,
+        popperClass: 'user-select-dropdown-popper' // 🔥 使用用户选择器的样式
+      },
+      onRemoteMethod: createUserRemoteMethod(),
+      onInitOptions: createUsersInitOptions() // 🔥 支持初始化已选中的用户
+    }
+  }
+
+  // 如果 search 标签是 "like"，渲染普通文本输入框
+  if (hasSearchType(searchType, SearchType.LIKE)) {
+    return createDefaultInputConfig(field)
+  }
+
+  // 默认：使用多选搜索（contains），渲染多用户选择器
+  return {
+    component: SearchComponent.EL_SELECT,
+    props: {
+      placeholder: generatePlaceholder(field.name, 'select'),
+      clearable: true,
+      filterable: true,
+      remote: true,
+      multiple: true,
+      style: { width: SearchConfig.DEFAULT_INPUT_WIDTH },
+      collapseTags: true,
+      maxCollapseTags: SearchConfig.MAX_COLLAPSE_TAGS,
+      popperClass: 'user-select-dropdown-popper' // 🔥 使用用户选择器的样式
+    },
+    onRemoteMethod: createUserRemoteMethod(),
+    onInitOptions: createUsersInitOptions() // 🔥 支持初始化已选中的用户
   }
 }
 
@@ -414,7 +468,7 @@ function getWidgetOptions(widgetConfig: Record<string, any>): Array<{ label: str
 /**
  * 创建用户远程搜索方法
  */
-function createUserRemoteMethod(): (query: string) => Promise<Array<{ label: string; value: any }>> {
+function createUserRemoteMethod(): (query: string) => Promise<Array<{ label: string; value: any; userInfo?: any }>> {
   return async (query: string) => {
     if (!query || query.trim() === '') {
       return []
@@ -427,10 +481,46 @@ function createUserRemoteMethod(): (query: string) => Promise<Array<{ label: str
 
       return users.map((user: any) => ({
         label: user.nickname ? `${user.username}(${user.nickname})` : user.username,
-        value: user.username
+        value: user.username,
+        userInfo: user // 🔥 保存用户信息，用于显示头像等
       }))
     } catch (error) {
       console.error('[SearchInput] 搜索用户失败', error)
+      return []
+    }
+  }
+}
+
+/**
+ * 创建多用户初始化选项方法（用于初始化已选中的用户）
+ */
+function createUsersInitOptions(): (values: string | string[]) => Promise<Array<{ label: string; value: any; userInfo?: any }>> {
+  return async (values: string | string[]) => {
+    if (!values) {
+      return []
+    }
+
+    try {
+      const { getUsersByUsernames } = await import('@/api/user')
+      // 处理值：如果是字符串，可能是逗号分隔的字符串
+      const usernames = Array.isArray(values) 
+        ? values 
+        : (typeof values === 'string' ? values.split(',').map(u => u.trim()).filter(u => u) : [])
+      
+      if (usernames.length === 0) {
+        return []
+      }
+
+      const response = await getUsersByUsernames(usernames)
+      const users = response.users || []
+
+      return users.map((user: any) => ({
+        label: user.nickname ? `${user.username}(${user.nickname})` : user.username,
+        value: user.username,
+        userInfo: user // 🔥 保存用户信息，用于显示头像等
+      }))
+    } catch (error) {
+      console.error('[SearchInput] 初始化用户选项失败', error)
       return []
     }
   }
