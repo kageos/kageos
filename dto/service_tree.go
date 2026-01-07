@@ -85,6 +85,7 @@ type GetServiceTreeResp struct {
 	Type           string                `json:"type,omitempty" example:"package"`                      // 节点类型: package(服务目录/包), function(函数/文件), api(API接口), service(服务), module(模块)
 	Description    string                `json:"description,omitempty" example:"用户相关的API接口"`            // 描述
 	Tags           string                `json:"tags,omitempty" example:"user,management"`              // 标签
+	Admins         string                `json:"admins,omitempty" example:"user1,user2"`                // 节点管理员列表，逗号分隔的用户名
 	AppID          int64                 `json:"app_id,omitempty" example:"1"`                          // 应用ID
 	RefID          int64                 `json:"ref_id,omitempty" example:"0"`                          // 引用ID：指向真实资源的ID，如果是package类型指向package的ID，如果是function类型指向function的ID
 	FullCodePath   string                `json:"full_code_path,omitempty" example:"/beiluo/myapp/user"` // 完整代码路径

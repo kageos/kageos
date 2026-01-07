@@ -452,12 +452,22 @@ const handleApplyPermissionForSubmit = () => {
 // URL 参数会在 useFunctionParamInitialization 中统一处理
 
 // 🔥 为所有字段创建响应式的值 Map
+// ⭐ 直接访问 formDataStore.data，确保响应式更新
+// ⚠️ 注意：Vue 3 的 reactive Map 的 .get() 可能不会建立响应式依赖，需要使用 forEach 遍历
 const fieldValues = computed(() => {
-  const state = stateManager.getState()
   const values: Record<string, FieldValue> = {}
+  // ⭐ 先遍历 formDataStore.data 建立响应式依赖
+  formDataStore.data.forEach((value, key) => {
+    // 只包含 requestFields 中的字段
+    if (requestFields.value.some((f: FieldConfig) => f.code === key)) {
+      values[key] = value
+    }
+  })
+  // ⭐ 确保所有 requestFields 中的字段都有值（即使 formDataStore 中没有）
   requestFields.value.forEach((field: FieldConfig) => {
-    const fieldValue = state.data?.get(field.code) || { raw: null, display: '', meta: {} }
-    values[field.code] = fieldValue
+    if (!values[field.code]) {
+      values[field.code] = { raw: null, display: '', meta: {} }
+    }
   })
   return values
 })
@@ -959,6 +969,14 @@ onMounted(async () => {
    * 先清空 stateManager，然后直接使用 initialData 初始化，避免默认值干扰
    */
   const initializeFormWithData = (fields: FieldConfig[], initialData: Record<string, any>) => {
+    Logger.debug('FormView', 'initializeFormWithData 被调用', {
+      fieldsCount: fields.length,
+      fieldCodes: fields.map((f: FieldConfig) => f.code),
+      initialDataKeys: Object.keys(initialData),
+      initialDataCount: Object.keys(initialData).length,
+      initialDataSample: JSON.parse(JSON.stringify(Object.fromEntries(Object.entries(initialData).slice(0, 5))))
+    })
+    
     // 🔥 重要：先清空 stateManager，避免已有值影响 initialData 的初始化
     const currentState = stateManager.getState()
     stateManager.setState({
@@ -971,6 +989,11 @@ onMounted(async () => {
     // 🔥 直接调用 initializeForm，不使用 syncFormDataStoreToStateManager
     // 因为 formDataStore 可能是空的，会设置默认值，影响 initialData 的初始化
     applicationService.initializeForm(fields, initialData)
+    
+    Logger.debug('FormView', 'initializeFormWithData 完成', {
+      stateDataSize: stateManager.getState().data.size,
+      stateDataKeys: Array.from(stateManager.getState().data.keys())
+    })
   }
 
   /**
@@ -1177,6 +1200,11 @@ onMounted(async () => {
       return
     }
     
+    // ⭐ 如果 oldInitialData 为空，说明是首次设置，跳过（由 onMounted 处理）
+    if (!oldInitialData || Object.keys(oldInitialData).length === 0) {
+      return
+    }
+    
     if (!hasInitialDataChanged(newInitialData, oldInitialData)) {
       return
     }
@@ -1191,27 +1219,29 @@ onMounted(async () => {
     }
   }, { deep: true })
 
-  // 🔥 监听 functionDetail 和 initialData 的组合变化，确保在编辑模式下能够正确初始化
+  // 🔥 监听 functionDetail 变化，确保在编辑模式下能够正确初始化
   // 当切换到编辑模式时，functionDetail 可能会变化，此时需要重新初始化表单
+  // ⚠️ 注意：initialData 的变化由上面的 watch 处理，这里只处理 functionDetail 的变化
   watch(
-    () => [props.functionDetail?.id, props.functionDetail?.request, Object.keys(props.initialData || {})],
-    async ([newId, newRequest, newInitialDataKeys], [oldId, oldRequest, oldInitialDataKeys]) => {
-      // 只在 functionDetail 准备好且有 initialData 时才初始化
+    () => [props.functionDetail?.id, props.functionDetail?.request],
+    async ([newId, newRequest], [oldId, oldRequest]) => {
+      // 只在 functionDetail 准备好时才初始化
       // ⚠️ 注意：id 可能为 0（FormDialog 中设置），所以不能直接用 truthy 判断
       if (!functionDetail.value || !functionDetail.value.request || (functionDetail.value.id === undefined || functionDetail.value.id === null)) {
         return
       }
       
-      // 检查是否有新的 initialData（从空变为有值）
-      const hasNewInitialData = newInitialDataKeys && newInitialDataKeys.length > 0 && 
-        (!oldInitialDataKeys || oldInitialDataKeys.length === 0)
+      // ⭐ 如果 oldId 为空，说明是首次设置，跳过（由 onMounted 处理）
+      if (oldId === undefined || oldId === null) {
+        return
+      }
       
       // 检查 functionDetail 是否变化了（id 或 request 变化）
       const functionDetailChanged = newId !== oldId || 
         (newRequest && oldRequest && JSON.stringify(newRequest) !== JSON.stringify(oldRequest))
       
-      // 如果 functionDetail 变化了，或者有新的 initialData，重新初始化
-      if (functionDetailChanged || hasNewInitialData) {
+      // 如果 functionDetail 变化了，重新初始化
+      if (functionDetailChanged) {
         const fields = (functionDetail.value.request || []) as FieldConfig[]
         if (fields.length > 0) {
           const initialData = Object.keys(props.initialData).length > 0 

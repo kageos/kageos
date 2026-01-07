@@ -89,13 +89,13 @@
                       <span class="node-label" :class="{ 'no-permission': !hasAnyPermissionForNode(data) }">{{ node.label }}</span>
                       
                       <!-- 无权限标识 - 没有权限的节点显示 -->
-                      <el-icon 
+                      <img 
                         v-if="!hasAnyPermissionForNode(data)" 
+                        src="/锁定.svg" 
+                        alt="无权限" 
                         class="no-permission-icon" 
                         :title="'该节点没有权限'"
-                      >
-                        <Lock />
-                      </el-icon>
+                      />
                       
                       <!-- 节点元信息：只显示已选择的权限提示 -->
                       <div class="node-meta">
@@ -1019,13 +1019,41 @@ const loadResourcePermissions = async (resourcePath: string, defaultAction?: str
     }
   }
   
+  // ⭐ 映射 URL 中的 action 到实际的权限点（向后兼容旧格式）
+  // 注意：现在统一使用 function:* 格式，此映射仅用于向后兼容
+  // table:update -> function:update
+  // table:delete -> function:delete
+  // table:read -> function:read
+  // form:write -> function:write
+  // chart:query -> function:read
+  const mapActionToPermission = (action: string, templateType?: string): string => {
+    // 向后兼容：映射旧格式到新格式
+    if (action === 'table:update') {
+      return 'function:update'
+    } else if (action === 'table:delete') {
+      return 'function:delete'
+    } else if (action === 'table:read') {
+      return 'function:read'
+    } else if (action === 'form:write') {
+      return 'function:write'
+    } else if (action === 'chart:query') {
+      return 'function:read'
+    }
+    // 如果已经是 function:* 格式，直接返回
+    return action
+  }
+  
   // 设置默认选中的权限点
   const minimalPermissions = permissions
     .filter(p => p.isMinimal === true)
     .map(p => p.action)
   
-  if (defaultAction && !minimalPermissions.includes(defaultAction)) {
-    minimalPermissions.push(defaultAction)
+  // ⭐ 映射 defaultAction 到实际的权限点
+  if (defaultAction) {
+    const mappedAction = mapActionToPermission(defaultAction, templateType)
+    if (!minimalPermissions.includes(mappedAction)) {
+      minimalPermissions.push(mappedAction)
+    }
   }
   
   // ⭐ 检查该资源的已有权限，并自动选中
@@ -1935,10 +1963,16 @@ const handleCancel = () => {
                 }
                 
                 .no-permission-icon {
-                  color: var(--el-color-warning);
-                  font-size: 14px;
+                  width: 16px;
+                  height: 16px;
                   margin-left: 4px;
+                  opacity: 0.7;
                   flex-shrink: 0;
+                  transition: opacity 0.2s ease;
+                  
+                  &:hover {
+                    opacity: 1;
+                  }
                 }
                 
                 .node-meta {

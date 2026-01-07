@@ -70,14 +70,14 @@
             <span class="node-label" :class="{ 'no-permission': !hasAnyPermissionForNode(data) }">{{ node.label }}</span>
             
             <!-- 无权限标识 - 没有权限的节点显示 -->
-            <el-icon 
+            <img 
               v-if="!hasAnyPermissionForNode(data)" 
+              src="/锁定.svg" 
+              alt="无权限" 
               class="no-permission-icon" 
               :title="'该节点没有权限，点击申请权限'"
               @click.stop="handleNoPermissionClick(data)"
-            >
-              <Lock />
-            </el-icon>
+            />
             
             <!-- Hub 标记 - 已发布到 Hub 的目录显示 -->
             <span
@@ -199,7 +199,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Plus, MoreFilled, Link, CopyDocument, Document, Clock, Upload, Download, Lock, Delete } from '@element-plus/icons-vue'
+import { Plus, MoreFilled, Link, CopyDocument, Document, Clock, Upload, Download, Delete } from '@element-plus/icons-vue'
 import ChartIcon from './icons/ChartIcon.vue'
 import TableIcon from './icons/TableIcon.vue'
 import FormIcon from './icons/FormIcon.vue'
@@ -934,15 +934,16 @@ defineExpose({
   }
   
   .no-permission-icon {
-    color: var(--el-color-warning);
-    font-size: 14px;
+    width: 16px;
+    height: 16px;
     margin-left: 4px;
     cursor: pointer;
-    transition: color 0.2s ease;
+    opacity: 0.7;
     flex-shrink: 0;
+    transition: opacity 0.2s ease;
     
     &:hover {
-      color: var(--el-color-warning-dark-2);
+      opacity: 1;
     }
   }
   
