@@ -38,6 +38,7 @@
       class="user-select-search"
       @change="handleInput"
       @clear="handleClear"
+      @visible-change="handleVisibleChange"
     >
       <el-option
         v-for="option in selectOptionsComputed"
@@ -73,6 +74,7 @@
       class="user-select-search"
       @change="handleInput"
       @clear="handleClear"
+      @visible-change="handleVisibleChange"
     >
       <el-option
         v-for="option in selectOptionsComputed"
@@ -120,6 +122,7 @@
       class="user-select-search"
       @change="handleInput"
       @clear="handleClear"
+      @visible-change="handleVisibleChange"
     >
       <!-- 🔥 自定义标签显示（multiple 模式） -->
       <template v-if="inputConfig.props?.multiple" #tag>
@@ -588,12 +591,56 @@ const handleRemoteMethod = async (query: string) => {
   selectLoading.value = true
   try {
     const options = await inputConfig.value.onRemoteMethod(query)
-    selectOptions.value = options || []
+    // 🔥 保留已选中的选项，避免丢失用户信息
+    const currentValue = localValue.value
+    const existingOptions = selectOptions.value || []
+    
+    // 合并新选项和已选中的选项
+    const mergedOptions = [...(options || [])]
+    
+    // 如果有已选中的值，确保它们在选项中
+    if (currentValue) {
+      const valuesToCheck = Array.isArray(currentValue) ? currentValue : [currentValue]
+      valuesToCheck.forEach((val: any) => {
+        if (val && !mergedOptions.find((opt: any) => {
+          const optValue = typeof opt === 'object' ? opt.value : opt
+          return String(optValue) === String(val)
+        })) {
+          // 如果已选中的值不在新选项中，尝试从现有选项中查找
+          const existingOption = existingOptions.find((opt: any) => {
+            const optValue = typeof opt === 'object' ? opt.value : opt
+            return String(optValue) === String(val)
+          })
+          if (existingOption) {
+            mergedOptions.push(existingOption)
+          }
+        }
+      })
+    }
+    
+    selectOptions.value = mergedOptions
   } catch (error) {
     Logger.error('SearchInput', 'Remote method error', error)
     selectOptions.value = []
   } finally {
     selectLoading.value = false
+  }
+}
+
+// 🔥 处理下拉框显示/隐藏事件
+const handleVisibleChange = (visible: boolean) => {
+  if (visible) {
+    // 下拉框打开时，如果有已选中的值但选项为空，初始化选项
+    const currentValue = localValue.value
+    if (currentValue && (Array.isArray(currentValue) ? currentValue.length > 0 : true)) {
+      const hasOptions = selectOptions.value && selectOptions.value.length > 0
+      if (!hasOptions && inputConfig.value.onInitOptions) {
+        // 如果选项为空，重新初始化
+        nextTick(() => {
+          initSelectedOptions()
+        })
+      }
+    }
   }
 }
 
