@@ -189,8 +189,7 @@ watch(() => props.modelValue, async (newValue) => {
     } else {
       selectedUsers.value = []
     }
-    // ⭐ 注意：不要在这里清空 searchKeyword，让 handleDialogOpened 来处理自动搜索
-    // searchKeyword.value = ''
+    // ⭐ 弹窗打开时不清空搜索关键词，保持用户之前的搜索状态
     userList.value = []
   } else {
     // 弹窗关闭时，清空搜索关键词
@@ -214,23 +213,7 @@ const handleDialogOpened = async () => {
     }
   }
   
-  // 🔥 参考 UserSearchDialog：弹窗打开时，如果有初始用户名，自动搜索这些用户名的第一个字符
-  // 这样用户可以看到相关的用户列表，而不是显示"请输入关键词搜索用户"
-  // ⭐ 使用 setTimeout 确保在弹窗完全打开后再执行搜索
-  setTimeout(() => {
-    if (props.initialUsernames) {
-      const usernames = props.initialUsernames.split(',').map(u => u.trim()).filter(u => u)
-      if (usernames.length > 0 && usernames[0]) {
-        // 使用第一个用户名的第一个字符进行搜索
-        const firstChar = usernames[0][0]
-        if (firstChar) {
-          searchKeyword.value = firstChar
-          // 直接调用 handleSearch，不需要等待防抖
-          handleSearch(firstChar)
-        }
-      }
-    }
-  }, 200) // 等待弹窗动画完成
+  // ⭐ 弹窗打开时不再自动搜索，让用户手动输入关键词
 }
 
 // 监听 dialogVisible 变化，同步到 modelValue

@@ -79,6 +79,7 @@ export interface ServiceTree {
   description: string
   tags: string
   admins?: string  // 节点管理员列表，逗号分隔的用户名
+  owner?: string   // 节点创建者（owner）
   app_id: number
   ref_id: number
   full_code_path: string
@@ -103,6 +104,7 @@ export interface CreateServiceTreeRequest {
   parent_id?: number
   description?: string
   tags?: string
+  admins?: string  // 管理员列表，逗号分隔的用户名
 }
 
 // 🔥 统一类型系统：从 core/types/field 重新导出 Widget 相关类型
