@@ -136,6 +136,47 @@ export class FormStateManager extends StateManagerImpl<FormState> implements ISt
   }
 
   /**
+   * 重写 setState，确保同步到 formStore.data
+   */
+  setState(newState: FormState): void {
+    // ⭐ 先同步 data 到 formStore.data
+    if (newState.data) {
+      // 清空 formStore.data
+      this.formStore.data.clear()
+      // 复制新数据到 formStore.data
+      newState.data.forEach((value, key) => {
+        this.formStore.data.set(key, value)
+      })
+    }
+    
+    // ⭐ 同步 errors
+    if (newState.errors) {
+      this.errors.clear()
+      newState.errors.forEach((errors, key) => {
+        this.errors.set(key, errors)
+      })
+    }
+    
+    // ⭐ 同步 submitting
+    if (newState.submitting !== undefined) {
+      this.submitting.value = newState.submitting
+    }
+    
+    // ⭐ 同步 response
+    if (newState.response !== undefined) {
+      this.response.value = newState.response
+    }
+    
+    // ⭐ 同步 metadata
+    if (newState.metadata !== undefined) {
+      this.metadata.value = newState.metadata
+    }
+    
+    // ⭐ 调用父类的 setState（会触发响应式更新）
+    super.setState(newState)
+  }
+
+  /**
    * 更新状态并通知订阅者
    */
   private updateState(): void {
@@ -146,7 +187,7 @@ export class FormStateManager extends StateManagerImpl<FormState> implements ISt
       response: this.response.value,
       metadata: this.metadata.value
     }
-    this.setState(newState)
+    super.setState(newState)
   }
 
   /**

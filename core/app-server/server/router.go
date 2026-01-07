@@ -45,8 +45,8 @@ func (s *Server) setupRoutes() {
 	// 格式：/workspace/api/v1/app/{user}/{app}/tree
 	app.GET("/:user/:app/tree", middleware2.Gzip(), appHandler.GetAppWithServiceTree)
 	app.POST("/create", appHandler.CreateApp)
-	// ⭐ 添加应用更新权限检查
-	app.POST("/update/:app", middleware2.CheckAppUpdate(), appHandler.UpdateApp)
+	// ⭐ 更新应用接口（debug 功能，生产环境不存在，无需权限检查）
+	app.POST("/update/:app", appHandler.UpdateApp)
 	// ⭐ 添加应用删除权限检查
 	app.DELETE("/delete/:app", middleware2.CheckAppDelete(), appHandler.DeleteApp)
 	// 支持所有 HTTP 方法的请求应用接口

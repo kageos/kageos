@@ -78,6 +78,7 @@ export interface ServiceTree {
   type: 'package' | 'function'
   description: string
   tags: string
+  admins?: string  // 节点管理员列表，逗号分隔的用户名
   app_id: number
   ref_id: number
   full_code_path: string

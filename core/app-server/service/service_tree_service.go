@@ -648,6 +648,7 @@ func (s *ServiceTreeService) convertToGetServiceTreeResp(ctx context.Context, tr
 		Type:           tree.Type,
 		Description:    tree.Description,
 		Tags:           tree.Tags,
+		Admins:         tree.Admins,
 		AppID:          tree.AppID,
 		FullCodePath:   tree.FullCodePath,
 		TemplateType:   tree.TemplateType,

@@ -130,6 +130,15 @@ export function useWorkspaceDetail(
         const permission = field.table_permission
         return !permission || permission === '' || permission === 'update'
       })
+      
+      // 🔥 调试日志：记录 editFunctionDetail 的计算过程
+      console.log('[useWorkspaceDetail] editFunctionDetail 计算', {
+        templateType: current.template_type,
+        responseFieldsCount: fields.length,
+        editableFieldsCount: editableFields.length,
+        editableFieldCodes: editableFields.map(f => f.code)
+      })
+      
       return {
         ...current,
         template_type: 'form',

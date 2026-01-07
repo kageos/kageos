@@ -424,12 +424,8 @@ watch(visible, (newVal) => {
 .card-actions {
   display: flex;
   gap: 8px;
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-.workspace-card:hover .card-actions {
   opacity: 1;
+  transition: opacity 0.2s;
 }
 
 .dialog-footer {

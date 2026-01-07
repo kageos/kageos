@@ -194,6 +194,29 @@
               </div>
             </div>
           </div>
+
+          <!-- 管理员信息 -->
+          <div v-if="packageNode?.admins && packageNode.admins.trim()" class="overview-divider"></div>
+
+          <div v-if="packageNode?.admins && packageNode.admins.trim()" class="overview-item">
+            <div class="overview-icon-wrapper admins-icon">
+              <el-icon class="overview-icon"><UserFilled /></el-icon>
+            </div>
+            <div class="overview-content">
+              <div class="overview-label">管理员</div>
+              <div class="overview-value">
+                <el-tag
+                  v-for="(admin, index) in packageNode.admins.split(',').map(s => s.trim()).filter(s => s)"
+                  :key="index"
+                  size="small"
+                  type="info"
+                  style="margin-right: 4px;"
+                >
+                  {{ admin }}
+                </el-tag>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -285,7 +308,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ArrowLeft, MagicStick, Folder, Document, CopyDocument, Key, Link, Files, Clock, Lock } from '@element-plus/icons-vue'
+import { ArrowLeft, MagicStick, Folder, Document, CopyDocument, Key, Link, Files, Clock, Lock, UserFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { ServiceTree } from '@/types'
 import type { AgentInfo, AgentListReq } from '@/api/agent'
@@ -922,6 +945,15 @@ function handleChildClick(child: ServiceTree): void {
                 .overview-icon {
                   font-size: 24px;
                   color: var(--el-color-warning);
+                }
+              }
+
+              &.admins-icon {
+                background: linear-gradient(135deg, var(--el-color-info-light-8), var(--el-color-info-light-9));
+
+                .overview-icon {
+                  font-size: 24px;
+                  color: var(--el-color-info);
                 }
               }
             }

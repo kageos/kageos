@@ -647,7 +647,7 @@ export function getPermissionScopes(
 /**
  * 构建权限申请 URL
  * @param resourcePath 资源路径（full-code-path）
- * @param action 权限点（如 table:update）
+ * @param action 权限点（如 function:update）
  * @param templateType 模板类型（table、form、chart，可选）
  * @returns 权限申请页面的 URL
  */
