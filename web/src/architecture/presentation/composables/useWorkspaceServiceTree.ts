@@ -17,17 +17,25 @@ import { createServiceTree } from '@/api/service-tree'
 import type { ServiceTree as ServiceTreeType, CreateServiceTreeRequest } from '@/types'
 import type { App } from '../../domain/services/WorkspaceDomainService'
 import ServiceTreePanel from '@/components/ServiceTreePanel.vue'
+import { useAuthStore } from '@/stores/auth'
 
 export function useWorkspaceServiceTree(
   serviceProvider: IServiceProvider = serviceFactory  // 🔥 通过参数注入，提高可测试性
 ) {
   const route = useRoute()
   const applicationService = serviceProvider.getWorkspaceApplicationService()
+  const authStore = useAuthStore()
 
   // 创建目录对话框状态
   const createDirectoryDialogVisible = ref(false)
   const creatingDirectory = ref(false)
   const currentParentNode = ref<ServiceTreeType | null>(null)
+  
+  // 获取当前用户名作为默认管理员
+  const getDefaultAdmins = () => {
+    return authStore.user?.username || ''
+  }
+  
   const createDirectoryForm = ref<CreateServiceTreeRequest>({
     user: '',
     app: '',
@@ -35,7 +43,8 @@ export function useWorkspaceServiceTree(
     code: '',
     parent_id: 0,
     description: '',
-    tags: ''
+    tags: '',
+    admins: getDefaultAdmins()  // 默认当前用户为管理员
   })
 
   // 处理创建目录
@@ -55,7 +64,8 @@ export function useWorkspaceServiceTree(
       code: '',
       parent_id: parentNode ? Number(parentNode.id) : 0,
       description: '',
-      tags: ''
+      tags: '',
+      admins: getDefaultAdmins()  // 默认当前用户为管理员
     }
     createDirectoryDialogVisible.value = true
   }
@@ -77,7 +87,8 @@ export function useWorkspaceServiceTree(
       code: '',
       parent_id: 0,
       description: '',
-      tags: ''
+      tags: '',
+      admins: getDefaultAdmins()  // 默认当前用户为管理员
     }
     currentParentNode.value = null
   }
@@ -118,7 +129,8 @@ export function useWorkspaceServiceTree(
         code: createDirectoryForm.value.code,
         parent_id: createDirectoryForm.value.parent_id || 0,
         description: createDirectoryForm.value.description || '',
-        tags: createDirectoryForm.value.tags || ''
+        tags: createDirectoryForm.value.tags || '',
+        admins: createDirectoryForm.value.admins || getDefaultAdmins()  // 包含管理员字段
       }
       
       await createServiceTree(requestData)

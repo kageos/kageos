@@ -101,6 +101,7 @@
           v-else-if="currentFunction && currentFunction.type === 'package' && !selectedAgent"
           :package-node="currentFunction"
           @generate-system="handlePackageGenerateSystem"
+          @refresh="handleRefreshTree"
         />
         
         <!-- 🔥 点击目录节点时根据选择的智能体显示不同的聊天面板 -->
@@ -326,6 +327,18 @@
             clearable
           />
         </el-form-item>
+        <el-form-item label="管理员">
+          <UsersWidget
+            :field="adminsField"
+            :value="adminsFieldValue"
+            mode="edit"
+            @update:modelValue="handleAdminsChange"
+          />
+          <div class="form-tip">
+            <el-icon><InfoFilled /></el-icon>
+            默认当前用户为管理员，可以添加其他用户
+          </div>
+        </el-form-item>
       </el-form>
 
       <template #footer>
@@ -406,10 +419,12 @@ import AIChatPanel from '../components/AIChatPanel.vue'
 import AgentSelectDialog from '@/components/Agent/AgentSelectDialog.vue'
 import PackageDetailView from '../components/PackageDetailView.vue'
 import UserSearchInput from '@/components/UserSearchInput.vue'
+import UsersWidget from '../widgets/UsersWidget.vue'
 import type { ServiceTree, App } from '../../domain/services/WorkspaceDomainService'
+import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
+import { WidgetType } from '@/core/constants/widget'
 import type { FunctionDetail } from '../../domain/interfaces/IFunctionLoader'
 import type { App as AppType, ServiceTree as ServiceTreeType } from '@/types'
-import type { FieldConfig, FieldValue } from '../../domain/types'
 // 🔥 导入 Composable
 import { useWorkspaceRouting } from '../composables/useWorkspaceRouting'
 import { RouteSource } from '@/utils/routeSource'
@@ -488,6 +503,39 @@ const {
   checkAndExpandForkedPaths: serviceTreeCheckAndExpandForkedPaths,
   handleCopyLink
 } = useWorkspaceServiceTree()
+
+// 管理员字段配置（用于 UsersWidget）
+const adminsField = computed<FieldConfig>(() => ({
+  code: 'admins',
+  name: '管理员',
+  widget: {
+    type: WidgetType.USERS,
+    config: {}
+  }
+}))
+
+// 管理员字段值（用于 UsersWidget）
+const adminsFieldValue = computed<FieldValue>(() => {
+  if (!createDirectoryForm.value.admins || !createDirectoryForm.value.admins.trim()) {
+    return {
+      raw: null,
+      display: '',
+      meta: {}
+    }
+  }
+  
+  const admins = createDirectoryForm.value.admins.split(',').map(s => s.trim()).filter(s => s)
+  return {
+    raw: admins.join(','),
+    display: admins.join(', '),
+    meta: {}
+  }
+})
+
+// 处理管理员字段变化
+function handleAdminsChange(value: FieldValue) {
+  createDirectoryForm.value.admins = value.raw || ''
+}
 
 // 🔥 移除缓存后，通过事件获取函数详情
 const currentFunctionDetail = ref<FunctionDetail | null>(null)

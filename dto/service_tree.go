@@ -57,6 +57,7 @@ type CreateServiceTreeReq struct {
 	ParentID    int64  `json:"parent_id" example:"0"`                    // 父目录ID，0表示根目录
 	Description string `json:"description" example:"用户相关的API接口"`         // 描述
 	Tags        string `json:"tags" example:"user,management"`           // 标签
+	Admins      string `json:"admins" example:"user1,user2"`              // 管理员列表，逗号分隔的用户名
 }
 
 // CreateServiceTreeResp 创建服务目录响应
@@ -86,6 +87,7 @@ type GetServiceTreeResp struct {
 	Description    string                `json:"description,omitempty" example:"用户相关的API接口"`            // 描述
 	Tags           string                `json:"tags,omitempty" example:"user,management"`              // 标签
 	Admins         string                `json:"admins,omitempty" example:"user1,user2"`                // 节点管理员列表，逗号分隔的用户名
+	Owner          string                `json:"owner,omitempty" example:"user1"`                      // 节点创建者（owner）
 	AppID          int64                 `json:"app_id,omitempty" example:"1"`                          // 应用ID
 	RefID          int64                 `json:"ref_id,omitempty" example:"0"`                          // 引用ID：指向真实资源的ID，如果是package类型指向package的ID，如果是function类型指向function的ID
 	FullCodePath   string                `json:"full_code_path,omitempty" example:"/beiluo/myapp/user"` // 完整代码路径
@@ -149,6 +151,7 @@ type UpdateServiceTreeMetadataReq struct {
 	Code        string `json:"code" example:"user"`               // 服务目录代码
 	Description string `json:"description" example:"用户相关的API接口"`  // 描述
 	Tags        string `json:"tags" example:"user,management"`    // 标签
+	Admins      string `json:"admins" example:"user1,user2"`      // 管理员列表，逗号分隔的用户名
 }
 
 // DeleteServiceTreeReq 删除服务目录请求

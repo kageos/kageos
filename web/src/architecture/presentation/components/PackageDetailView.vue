@@ -50,6 +50,17 @@
               >
                 变更记录
               </el-button>
+              <el-button
+                v-if="canEdit"
+                text
+                :icon="Edit"
+                @click="handleEdit"
+                class="path-edit-btn"
+                size="small"
+                title="编辑目录"
+              >
+                编辑
+              </el-button>
             </p>
             <p class="hero-description" v-if="packageNode?.description">
               {{ packageNode.description }}
@@ -195,25 +206,40 @@
             </div>
           </div>
 
+          <!-- Owner 信息 -->
+          <div v-if="packageNode?.owner && packageNode.owner.trim()" class="overview-divider"></div>
+
+          <div v-if="packageNode?.owner && packageNode.owner.trim()" class="overview-item">
+            <div class="overview-icon-wrapper owner-icon">
+              <el-icon class="overview-icon"><Star /></el-icon>
+            </div>
+            <div class="overview-content">
+              <div class="overview-label">创建者</div>
+              <div class="overview-value">
+                <UserWidget
+                  :field="ownerField"
+                  :value="ownerFieldValue"
+                  mode="detail"
+                />
+              </div>
+            </div>
+          </div>
+
           <!-- 管理员信息 -->
           <div v-if="packageNode?.admins && packageNode.admins.trim()" class="overview-divider"></div>
 
           <div v-if="packageNode?.admins && packageNode.admins.trim()" class="overview-item">
             <div class="overview-icon-wrapper admins-icon">
-              <el-icon class="overview-icon"><UserFilled /></el-icon>
+              <el-icon class="overview-icon"><Avatar /></el-icon>
             </div>
             <div class="overview-content">
               <div class="overview-label">管理员</div>
               <div class="overview-value">
-                <el-tag
-                  v-for="(admin, index) in packageNode.admins.split(',').map(s => s.trim()).filter(s => s)"
-                  :key="index"
-                  size="small"
-                  type="info"
-                  style="margin-right: 4px;"
-                >
-                  {{ admin }}
-                </el-tag>
+                <UsersWidget
+                  :field="adminsField"
+                  :value="adminsFieldValue"
+                  mode="detail"
+                />
               </div>
             </div>
           </div>
@@ -302,13 +328,56 @@
       :app-id="packageNode?.app_id || 0"
       :full-code-path="packageNode?.full_code_path || ''"
     />
+
+    <!-- 编辑对话框 -->
+    <el-dialog
+      v-model="editDialogVisible"
+      title="编辑目录"
+      width="600px"
+      :close-on-click-modal="false"
+    >
+      <el-form
+        ref="editFormRef"
+        :model="editForm"
+        label-width="100px"
+        label-position="left"
+      >
+        <el-form-item label="目录名称" prop="name" :rules="[{ required: true, message: '请输入目录名称', trigger: 'blur' }]">
+          <el-input
+            v-model="editForm.name"
+            placeholder="请输入目录名称"
+            maxlength="100"
+            show-word-limit
+          />
+        </el-form-item>
+        
+        <el-form-item label="管理员" prop="admins">
+          <UsersWidget
+            :field="adminsField"
+            :value="editAdminsFieldValue"
+            mode="edit"
+            @update:modelValue="handleEditAdminsChange"
+          />
+          <div class="form-item-tip">
+            可以添加多个管理员，管理员可以编辑目录信息
+          </div>
+        </el-form-item>
+      </el-form>
+      
+      <template #footer>
+        <el-button @click="editDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="editSubmitting" @click="handleSubmitEdit">
+          保存
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ArrowLeft, MagicStick, Folder, Document, CopyDocument, Key, Link, Files, Clock, Lock, UserFilled } from '@element-plus/icons-vue'
+import { ArrowLeft, MagicStick, Folder, Document, CopyDocument, Key, Link, Files, Clock, Lock, Avatar, Edit, Star } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { ServiceTree } from '@/types'
 import type { AgentInfo, AgentListReq } from '@/api/agent'
@@ -323,6 +392,12 @@ import TableIcon from '@/components/icons/TableIcon.vue'
 import FormIcon from '@/components/icons/FormIcon.vue'
 import DirectoryUpdateHistoryDialog from '@/components/DirectoryUpdateHistoryDialog.vue'
 import { buildPermissionApplyURL } from '@/utils/permission'
+import UsersWidget from '@/architecture/presentation/widgets/UsersWidget.vue'
+import UserWidget from '@/architecture/presentation/widgets/UserWidget.vue'
+import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
+import { WidgetType } from '@/core/constants/widget'
+import { useAuthStore } from '@/stores/auth'
+import { updateServiceTree } from '@/api/service-tree'
 
 interface Props {
   packageNode?: ServiceTree | null
@@ -332,6 +407,7 @@ const props = defineProps<Props>()
 
 const emit = defineEmits<{
   'generate-system': [agent: AgentInfo]
+  'refresh': []
 }>()
 
 const router = useRouter()
@@ -343,6 +419,97 @@ const agentList = ref<AgentInfo[]>([])
 
 // 变更记录对话框
 const updateHistoryDialogVisible = ref(false)
+
+// 编辑对话框
+const editDialogVisible = ref(false)
+const editSubmitting = ref(false)
+const editFormRef = ref()
+const editForm = ref({
+  name: '',
+  admins: ''
+})
+
+// 认证 store
+const authStore = useAuthStore()
+
+// ⭐ 检查是否可以编辑（owner 或 admins 可以编辑）
+const canEdit = computed(() => {
+  if (!props.packageNode || !authStore.user?.username) {
+    return false
+  }
+  
+  const currentUser = authStore.user.username
+  
+  // 检查是否是 owner
+  if (props.packageNode.owner && props.packageNode.owner.trim() === currentUser) {
+    return true
+  }
+  
+  // 检查是否是 admins 之一
+  if (props.packageNode.admins && props.packageNode.admins.trim()) {
+    const admins = props.packageNode.admins.split(',').map(s => s.trim()).filter(s => s)
+    if (admins.includes(currentUser)) {
+      return true
+    }
+  }
+  
+  return false
+})
+
+// Owner 字段配置（用于 UserWidget）
+const ownerField = computed<FieldConfig>(() => ({
+  code: 'owner',
+  name: '创建者',
+  widget: {
+    type: WidgetType.USER,
+    config: {}
+  }
+}))
+
+// Owner 字段值（用于 UserWidget）
+const ownerFieldValue = computed<FieldValue>(() => {
+  if (!props.packageNode?.owner || !props.packageNode.owner.trim()) {
+    return {
+      raw: null,
+      display: '',
+      meta: {}
+    }
+  }
+  
+  return {
+    raw: props.packageNode.owner.trim(),
+    display: props.packageNode.owner.trim(),
+    meta: {}
+  }
+})
+
+// 管理员字段配置（用于 UsersWidget）
+const adminsField = computed<FieldConfig>(() => ({
+  code: 'admins',
+  name: '管理员',
+  widget: {
+    type: WidgetType.USERS,
+    config: {}
+  }
+}))
+
+// 管理员字段值（用于 UsersWidget）
+const adminsFieldValue = computed<FieldValue>(() => {
+  if (!props.packageNode?.admins || !props.packageNode.admins.trim()) {
+    return {
+      raw: null,
+      display: '',
+      meta: {}
+    }
+  }
+  
+  const admins = props.packageNode.admins.split(',').map(s => s.trim()).filter(s => s)
+  return {
+    raw: admins.join(','),
+    display: admins.join(', '),
+    meta: {}
+  }
+})
 
 // ⭐ 检查是否没有任何目录权限
 const hasNoDirectoryPermissions = computed(() => {
@@ -548,6 +715,88 @@ function handleShowUpdateHistory(): void {
   emit('update-history', props.packageNode)
 }
 
+// 编辑表单的管理员字段值
+const editAdminsFieldValue = computed<FieldValue>(() => {
+  if (!editForm.value.admins || !editForm.value.admins.trim()) {
+    return {
+      raw: null,
+      display: '',
+      meta: {}
+    }
+  }
+  
+  const admins = editForm.value.admins.split(',').map(s => s.trim()).filter(s => s)
+  return {
+    raw: admins.join(','),
+    display: admins.join(', '),
+    meta: {}
+  }
+})
+
+// 处理编辑表单中管理员字段的变化
+function handleEditAdminsChange(value: FieldValue): void {
+  if (value.raw) {
+    editForm.value.admins = typeof value.raw === 'string' ? value.raw : String(value.raw)
+  } else {
+    editForm.value.admins = ''
+  }
+}
+
+// 处理编辑按钮点击
+function handleEdit(): void {
+  if (!props.packageNode) {
+    return
+  }
+  
+  // 初始化编辑表单
+  editForm.value = {
+    name: props.packageNode.name || '',
+    admins: props.packageNode.admins || ''
+  }
+  
+  editDialogVisible.value = true
+}
+
+// 提交编辑
+async function handleSubmitEdit(): Promise<void> {
+  if (!props.packageNode) {
+    return
+  }
+  
+  // 表单验证
+  if (!editFormRef.value) {
+    return
+  }
+  
+  try {
+    await editFormRef.value.validate()
+  } catch (error) {
+    return
+  }
+  
+  editSubmitting.value = true
+  try {
+    await updateServiceTree(props.packageNode.id, {
+      name: editForm.value.name.trim(),
+      admins: editForm.value.admins.trim()
+    })
+    
+    ElMessage.success('更新成功')
+    editDialogVisible.value = false
+    
+    // 触发刷新（通过 emit 事件或直接刷新）
+    // 这里可以通过 emit 通知父组件刷新，或者直接刷新当前页面数据
+    // 暂时先关闭对话框，父组件可以通过 watch packageNode 来刷新
+    // 或者我们可以 emit 一个事件让父组件处理刷新
+    emit('refresh')
+  } catch (error: any) {
+    console.error('更新目录失败:', error)
+    ElMessage.error(error.message || '更新目录失败')
+  } finally {
+    editSubmitting.value = false
+  }
+}
+
 // 组件挂载时加载智能体列表
 onMounted(() => {
   loadAgents()
@@ -737,7 +986,9 @@ function handleChildClick(child: ServiceTree): void {
               word-break: break-all;
             }
 
-            .path-copy-btn {
+            .path-copy-btn,
+            .path-history-btn,
+            .path-edit-btn {
               flex-shrink: 0;
               color: var(--el-text-color-secondary);
 
@@ -949,11 +1200,11 @@ function handleChildClick(child: ServiceTree): void {
               }
 
               &.admins-icon {
-                background: linear-gradient(135deg, var(--el-color-info-light-8), var(--el-color-info-light-9));
+                background: linear-gradient(135deg, #f3e8ff, #e9d5ff);
 
                 .overview-icon {
                   font-size: 24px;
-                  color: var(--el-color-info);
+                  color: #9333ea;
                 }
               }
             }

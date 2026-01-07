@@ -120,19 +120,84 @@
       <span v-else class="empty-text">-</span>
     </div>
     
-    <!-- 详情模式：横着一行展示多个用户 -->
+    <!-- 详情模式：只展示头像，支持最多显示数量限制 -->
     <div v-else-if="mode === 'detail'" class="users-detail">
-      <div v-if="displayUsers.length > 0" class="users-list users-list-horizontal">
-        <UserDisplay
-          v-for="(user, index) in displayUsers"
+      <div v-if="displayUsers.length > 0" class="users-avatars-list">
+        <!-- 显示的头像（最多 maxDisplayCount 个） -->
+        <el-popover
+          v-for="(user, index) in displayedUsers"
           :key="user.username || index"
-          :user-info="user"
-          :username="user.username"
-          mode="card"
-          layout="horizontal"
-          size="medium"
-          class="user-item"
-        />
+          placement="top"
+          :width="380"
+          trigger="hover"
+          popper-class="users-popover"
+        >
+          <template #reference>
+            <el-avatar 
+              v-if="user.avatar" 
+              :src="user.avatar" 
+              :size="32"
+              class="user-avatar-item"
+            >
+              {{ user.username?.[0]?.toUpperCase() || 'U' }}
+            </el-avatar>
+            <el-avatar 
+              v-else
+              :size="32"
+              class="user-avatar-item"
+            >
+              {{ user.username?.[0]?.toUpperCase() || 'U' }}
+            </el-avatar>
+          </template>
+          <UserDetailCard :user-info="user" />
+        </el-popover>
+        
+        <!-- 省略号：点击显示全部 -->
+        <el-popover
+          v-if="hasMoreUsers"
+          placement="top"
+          :width="400"
+          trigger="click"
+          popper-class="users-popover"
+        >
+          <template #reference>
+            <div class="users-more-indicator" @click.stop>
+              <span class="more-text">+{{ remainingUsersCount }}</span>
+            </div>
+          </template>
+          <div class="users-full-list">
+            <div class="users-full-list-header">
+              <span>全部管理员 ({{ displayUsers.length }})</span>
+            </div>
+            <div class="users-full-list-content">
+              <div
+                v-for="(user, index) in displayUsers"
+                :key="user.username || index"
+                class="users-full-list-item"
+              >
+                <el-avatar 
+                  v-if="user.avatar" 
+                  :src="user.avatar" 
+                  :size="40"
+                  class="user-avatar"
+                >
+                  {{ user.username?.[0]?.toUpperCase() || 'U' }}
+                </el-avatar>
+                <el-avatar 
+                  v-else
+                  :size="40"
+                  class="user-avatar"
+                >
+                  {{ user.username?.[0]?.toUpperCase() || 'U' }}
+                </el-avatar>
+                <div class="user-info">
+                  <div class="user-name">{{ user.username }}</div>
+                  <div v-if="user.nickname" class="user-nickname">{{ user.nickname }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </el-popover>
       </div>
       <span v-else class="empty-text">-</span>
     </div>
@@ -183,9 +248,15 @@ const maxCount = computed(() => {
   return config.value?.max_count || 0
 })
 
+// 详情模式最多显示的头像数量（默认 5 个）
+const maxDisplayCount = computed(() => {
+  return config.value?.max_display_count || 5
+})
+
 interface UsersWidgetConfig {
   default?: string
   max_count?: number
+  max_display_count?: number // 详情模式最多显示的头像数量
 }
 
 // 处理打开弹窗
@@ -264,6 +335,30 @@ const displayUsers = computed(() => {
     return userInfoList.value
   }
   return []
+})
+
+// 详情模式：显示的头像列表（最多 maxDisplayCount 个）
+const displayedUsers = computed(() => {
+  if (props.mode !== 'detail') {
+    return displayUsers.value
+  }
+  return displayUsers.value.slice(0, maxDisplayCount.value)
+})
+
+// 详情模式：是否有更多用户
+const hasMoreUsers = computed(() => {
+  if (props.mode !== 'detail') {
+    return false
+  }
+  return displayUsers.value.length > maxDisplayCount.value
+})
+
+// 详情模式：剩余用户数量
+const remainingUsersCount = computed(() => {
+  if (props.mode !== 'detail') {
+    return 0
+  }
+  return displayUsers.value.length - maxDisplayCount.value
 })
 
 // 加载用户信息列表（用于显示）
@@ -525,6 +620,110 @@ onMounted(async () => {
 .empty-text {
   color: var(--el-text-color-placeholder);
   font-size: 14px;
+}
+
+/* 详情模式：头像列表 */
+.users-detail .users-avatars-list {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.users-detail .user-avatar-item {
+  cursor: pointer;
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.users-detail .user-avatar-item:hover {
+  transform: scale(1.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* 省略号指示器 */
+.users-more-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: var(--el-fill-color-light);
+  border: 1px solid var(--el-border-color);
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.users-more-indicator:hover {
+  background-color: var(--el-color-primary-light-9);
+  border-color: var(--el-color-primary);
+  color: var(--el-color-primary);
+}
+
+.users-more-indicator .more-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--el-text-color-regular);
+}
+
+.users-more-indicator:hover .more-text {
+  color: var(--el-color-primary);
+}
+
+/* 全部用户列表弹窗 */
+.users-full-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.users-full-list-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.users-full-list-content {
+  padding: 8px 0;
+}
+
+.users-full-list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  transition: background-color 0.2s;
+}
+
+.users-full-list-item:hover {
+  background-color: var(--el-fill-color-light);
+}
+
+.users-full-list-item .user-avatar {
+  flex-shrink: 0;
+}
+
+.users-full-list-item .user-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.users-full-list-item .user-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+  line-height: 1.4;
+}
+
+.users-full-list-item .user-nickname {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.4;
+  margin-top: 2px;
 }
 </style>
 

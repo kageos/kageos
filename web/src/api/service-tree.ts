@@ -25,8 +25,12 @@ export function createServiceTree(data: CreateServiceTreeRequest) {
 }
 
 // 更新服务目录
-export function updateServiceTree(id: number, data: Partial<ServiceTree>) {
-  return put(`/workspace/api/v1/service_tree/${id}`, data)
+export function updateServiceTree(id: number, data: { name?: string; admins?: string }) {
+  return put('/workspace/api/v1/service_tree', {
+    id,
+    name: data.name,
+    admins: data.admins
+  })
 }
 
 // 删除服务目录
