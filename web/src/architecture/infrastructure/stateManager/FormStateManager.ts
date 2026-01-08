@@ -137,17 +137,25 @@ export class FormStateManager extends StateManagerImpl<FormState> implements ISt
 
   /**
    * 重写 setState，确保同步到 formStore.data
+   * 🔥 关键修复：合并更新而不是替换，避免丢失数据
    */
   setState(newState: FormState): void {
-    // ⭐ 先同步 data 到 formStore.data
-    if (newState.data) {
-      // 清空 formStore.data
-      this.formStore.data.clear()
-      // 复制新数据到 formStore.data
-      newState.data.forEach((value, key) => {
-        this.formStore.data.set(key, value)
-      })
+    // ⭐ 同步 data 到 formStore.data
+    if (newState.data !== undefined) {
+      if (newState.data.size === 0) {
+        // 🔥 如果 newState.data 是空 Map，说明是要清空数据（如 clearForm）
+        this.formStore.data.clear()
+      } else {
+        // 🔥 关键修复：合并更新，而不是清空后复制
+        // 这样可以避免在更新单个字段时丢失其他字段的数据
+        // 遍历 newState.data，只更新有变化的字段，保留 formStore.data 中的其他字段
+        // ⚠️ 重要：不要清空 formStore.data，直接合并更新，这样可以保留 WidgetComponent 直接设置的数据
+        newState.data.forEach((value, key) => {
+          this.formStore.data.set(key, value)
+        })
+      }
     }
+    // 🔥 如果 newState.data 是 undefined，说明不更新 data，保持原有数据不变
     
     // ⭐ 同步 errors
     if (newState.errors) {
@@ -173,7 +181,14 @@ export class FormStateManager extends StateManagerImpl<FormState> implements ISt
     }
     
     // ⭐ 调用父类的 setState（会触发响应式更新）
-    super.setState(newState)
+    // 🔥 关键修复：传递给父类的 newState 应该使用更新后的 formStore.data，而不是 newState.data
+    // 这样可以确保父类中的 state.data 始终与 formStore.data 保持一致
+    // ⚠️ 重要：使用 formStore.data（已经合并更新后的数据），而不是 newState.data（可能只包含部分字段）
+    const stateToSet: FormState = {
+      ...newState,
+      data: this.formStore.data  // 🔥 使用 formStore.data，确保包含所有字段（包括 WidgetComponent 直接设置的）
+    }
+    super.setState(stateToSet)
   }
 
   /**

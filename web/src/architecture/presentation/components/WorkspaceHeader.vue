@@ -9,9 +9,6 @@
 
 <template>
   <div class="workspace-header">
-    <div class="header-left">
-      <div class="logo">AI Agent OS</div>
-    </div>
     <div class="header-right">
       <!-- 🔥 开发工具：Debug 弹窗按钮 -->
       <el-button
@@ -229,24 +226,13 @@ onMounted(async () => {
 <style scoped lang="scss">
 .workspace-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
   height: 60px;
   padding: 0 24px;
   background: var(--el-bg-color);
   border-bottom: 1px solid var(--el-border-color-lighter);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-}
-
-.logo {
-  font-size: 20px;
-  font-weight: 600;
-  color: #6366f1; /* ✅ 与服务目录 fx 图标颜色一致（indigo-500） */
 }
 
 .header-right {

@@ -225,12 +225,11 @@
                       </div>
                       <p class="permission-description">
                         {{ getPermissionDescription(permission.action, currentScope?.resourceType, currentScope?.resourceType === 'function' ? (findNodeInTree(serviceTree, currentScope?.resourcePath || '')?.template_type) : undefined).description }}
+                        <span v-if="hasInheritance(permission.action, currentScope?.resourceType)" class="inheritance-badge">
+                          <el-icon class="inheritance-icon-small"><Folder /></el-icon>
+                          <span>{{ getInheritanceText(permission.action) }}</span>
+                        </span>
                       </p>
-                      <div v-if="getPermissionDescription(permission.action, currentScope?.resourceType, currentScope?.resourceType === 'function' ? (findNodeInTree(serviceTree, currentScope?.resourcePath || '')?.template_type) : undefined).inheritance" class="permission-inheritance">
-                        <el-icon class="inheritance-icon"><Folder /></el-icon>
-                        <span class="inheritance-text">{{ getPermissionDescription(permission.action, currentScope?.resourceType, currentScope?.resourceType === 'function' ? (findNodeInTree(serviceTree, currentScope?.resourcePath || '')?.template_type) : undefined).inheritance }}</span>
-                      </div>
-                      <code class="permission-code">{{ permission.action }}</code>
                     </div>
                   </el-checkbox>
                 </el-checkbox-group>
@@ -300,12 +299,11 @@
                         </div>
                         <p class="permission-description">
                           {{ getPermissionDescription(permission.action, currentScope?.resourceType, currentScope?.resourceType === 'function' ? (findNodeInTree(serviceTree, currentScope?.resourcePath || '')?.template_type) : undefined).description }}
+                          <span v-if="hasInheritance(permission.action, currentScope?.resourceType)" class="inheritance-badge">
+                            <el-icon class="inheritance-icon-small"><Folder /></el-icon>
+                            <span>{{ getInheritanceText(permission.action) }}</span>
+                          </span>
                         </p>
-                        <div v-if="getPermissionDescription(permission.action, currentScope?.resourceType, currentScope?.resourceType === 'function' ? (findNodeInTree(serviceTree, currentScope?.resourcePath || '')?.template_type) : undefined).inheritance" class="permission-inheritance">
-                          <el-icon class="inheritance-icon"><Folder /></el-icon>
-                          <span class="inheritance-text">{{ getPermissionDescription(permission.action, currentScope?.resourceType, currentScope?.resourceType === 'function' ? (findNodeInTree(serviceTree, currentScope?.resourcePath || '')?.template_type) : undefined).inheritance }}</span>
-                        </div>
-                        <code class="permission-code">{{ permission.action }}</code>
                       </div>
                     </el-checkbox>
                   </el-checkbox-group>
@@ -434,6 +432,35 @@
                   </div>
                 </el-form-item>
 
+                <!-- 审批人显示 -->
+                <el-form-item label="审批人" v-if="approvers.length > 0">
+                  <div class="approvers-display">
+                    <UsersWidget
+                      :value="approversFieldValue"
+                      :field="approversField"
+                      mode="detail"
+                    />
+                  </div>
+                </el-form-item>
+
+                <!-- 有效期选择 -->
+                <el-form-item label="有效期">
+                  <el-radio-group v-model="formData.isPermanent">
+                    <el-radio :label="true">永久</el-radio>
+                    <el-radio :label="false">指定有效期</el-radio>
+                  </el-radio-group>
+                  <el-date-picker
+                    v-if="!formData.isPermanent"
+                    v-model="formData.endTime"
+                    type="datetime"
+                    placeholder="选择权限到期时间"
+                    format="YYYY-MM-DD HH:mm:ss"
+                    value-format="YYYY-MM-DDTHH:mm:ssZ"
+                    style="width: 100%; margin-top: 12px"
+                    :disabled-date="(date: Date) => date.getTime() < Date.now()"
+                  />
+                </el-form-item>
+
                 <el-form-item label="申请理由" prop="reason">
                   <el-input
                     v-model="formData.reason"
@@ -498,6 +525,9 @@ import { useAuthStore } from '@/stores/auth'
 import type { ServiceTree, App } from '@/types'
 import UserSearchInput from '@/components/UserSearchInput.vue'
 import type { UserInfo } from '@/types'
+import UsersWidget from '@/architecture/presentation/widgets/UsersWidget.vue'
+import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
+import { WidgetType } from '@/core/constants/widget'
 
 const route = useRoute()
 const router = useRouter()
@@ -548,6 +578,8 @@ const existingPermissions = ref<Map<string, Record<string, boolean>>>(new Map())
 const formRef = ref<FormInstance>()
 const formData = ref({
   reason: '',
+  isPermanent: true,  // 是否永久权限
+  endTime: null as string | null,  // 有效期结束时间（ISO 8601 格式）
 })
 
 // 表单验证规则
@@ -641,6 +673,35 @@ watch(grantTargetUserUsername, async (username) => {
 })
 
 const grantTargetDepartment = ref<string>('')
+
+// 审批人（从当前选中资源的 admins 字段获取）
+const approvers = computed(() => {
+  if (!selectedResourcePath.value) return []
+  const node = findNodeInTree(serviceTree.value, selectedResourcePath.value)
+  if (!node || !node.admins) return []
+  // admins 是逗号分隔的字符串
+  return node.admins.split(',').filter(Boolean).map(u => u.trim())
+})
+
+// 审批人字段配置（用于 UsersWidget）
+const approversField = computed<FieldConfig>(() => ({
+  code: 'approvers',
+  name: '审批人',
+  widget: {
+    type: WidgetType.USERS,
+    config: {}
+  },
+  data: {
+    type: 'string'
+  }
+}))
+
+// 审批人字段值（用于 UsersWidget）
+const approversFieldValue = computed<FieldValue>(() => ({
+  raw: approvers.value.join(','),
+  display: approvers.value.join(','),
+  meta: {}
+}))
 
 // 部门列表（用于组织架构赋权）
 const departmentTree = ref<Department[]>([])
@@ -785,9 +846,9 @@ onMounted(async () => {
     
     // ⭐ 直接使用 user 和 app 查询权限（无需查询 app_id，性能更好）
     const permissionsResponse = await getWorkspacePermissions({ user, app }).catch(err => {
-      console.warn('获取工作空间权限失败:', err)
-      return null
-    })
+          console.warn('获取工作空间权限失败:', err)
+          return null
+        })
     
     if (treeResponse) {
       // 保存工作空间信息
@@ -837,8 +898,11 @@ onMounted(async () => {
       
       serviceTree.value = [appNode]
       
+      console.log('✅ [定位节点] 服务树数据已加载，节点数:', serviceTree.value[0]?.children?.length || 0)
+      
       // 设置默认选中的资源
       selectedResourcePath.value = resourcePath
+      console.log('✅ [定位节点] 已设置 selectedResourcePath:', resourcePath)
       
       // 展开到选中节点的路径（包括工作空间节点）
       const expandedPaths: string[] = []
@@ -878,6 +942,10 @@ onMounted(async () => {
       }
       
       defaultExpandedKeys.value = expandedPaths
+      console.log('✅ [定位节点] 已设置 defaultExpandedKeys:', expandedPaths)
+      
+      // 注意：不在 onMounted 中直接定位，而是通过 watch 监听 treeRef 和 serviceTree 的变化
+      // 在树完全渲染后再执行定位逻辑
       
       // 加载选中资源的权限范围
       await loadResourcePermissions(resourcePath, action, templateType)
@@ -1084,13 +1152,14 @@ const loadResourcePermissions = async (resourcePath: string, defaultAction?: str
   }
 }
 
-// 更新树数据中的 disabled 字段（已有权限的节点应该禁用）
+// 更新树数据中的 disabled 字段（只有已有权限的节点应该禁用，子节点不禁用以便可以点击）
 const updateTreeDisabledState = () => {
-  const updateNodeDisabled = (nodes: ServiceTree[]): void => {
+  const updateNodeDisabled = (nodes: ServiceTree[]) => {
     for (const node of nodes) {
       const existingPerms = existingPermissions.value.get(node.full_code_path)
       const hasAnyExistingPerm = existingPerms && Object.values(existingPerms).some(hasPerm => hasPerm === true)
-      // 设置 disabled 字段
+      
+      // 只禁用已有权限的节点（不能取消选中），子节点不禁用以便可以点击查看权限
       ;(node as any).disabled = hasAnyExistingPerm
       
       // 递归处理子节点
@@ -1104,7 +1173,7 @@ const updateTreeDisabledState = () => {
 }
 
 // 更新资源的权限选择状态
-const updateResourcePermissions = (resourcePath: string, permissions: string[]) => {
+const updateResourcePermissions = (resourcePath: string, permissions: string[], cascadeToChildren = true) => {
   if (permissions.length === 0) {
     // 如果权限为空，删除该资源的权限记录，这样树节点上的权限提示就会消失
     allResourcePermissions.value.delete(resourcePath)
@@ -1119,6 +1188,17 @@ const updateResourcePermissions = (resourcePath: string, permissions: string[]) 
         }
       }
     })
+    
+    // 如果启用级联，也要取消子资源的权限
+    if (cascadeToChildren) {
+      const node = findNodeInTree(serviceTree.value, resourcePath)
+      if (node && (node.type === 'package' || node.type === 'app')) {
+        const childResources = findAllChildResources(resourcePath)
+        childResources.forEach(childPath => {
+          updateResourcePermissions(childPath, [], false) // 递归级联，但不再级联到子子资源
+        })
+      }
+    }
   } else {
     // 否则更新权限列表
     allResourcePermissions.value.set(resourcePath, [...permissions])
@@ -1128,8 +1208,283 @@ const updateResourcePermissions = (resourcePath: string, permissions: string[]) 
         treeRef.value.setChecked(resourcePath, true, false)
       }
     })
+    
+    // 如果启用级联，也要更新子资源的权限
+    if (cascadeToChildren) {
+      const node = findNodeInTree(serviceTree.value, resourcePath)
+      if (node && (node.type === 'package' || node.type === 'app')) {
+        const childResources = findAllChildResources(resourcePath)
+        childResources.forEach(childPath => {
+          const childNode = findNodeInTree(serviceTree.value, childPath)
+          if (childNode) {
+            const childPermissions = mapPermissionsForChild(childPath, childNode, permissions)
+            updateResourcePermissions(childPath, childPermissions, false) // 递归级联，但不再级联到子子资源
+          }
+        })
+      }
+    }
   }
 }
+
+// 定位节点的函数（提取为独立函数，可复用）
+const scrollToResourceNode = (resourcePath: string) => {
+  if (!resourcePath || !treeRef.value) {
+    console.log('⏳ [定位节点] 等待条件满足，resourcePath:', resourcePath, 'treeRef:', !!treeRef.value)
+    return false
+  }
+  
+  console.log('🔍 [定位节点] 开始定位，resourcePath:', resourcePath)
+  
+  try {
+    // 使用 el-tree 的内部 store 确保节点可见并展开所有父节点
+    try {
+      const node = (treeRef.value as any).store?.nodesMap?.[resourcePath]
+      if (node) {
+        node.visible = true
+        // 确保所有父节点都展开
+        let parent = node.parent
+        while (parent) {
+          if (!parent.expanded) {
+            parent.expand()
+          }
+          parent = parent.parent
+        }
+      }
+    } catch (e) {
+      console.warn('无法访问 el-tree store:', e)
+    }
+    
+    // 设置当前节点（高亮显示）- 确保在展开和滚动之前设置
+    if (treeRef.value) {
+      treeRef.value.setCurrentKey(resourcePath)
+      console.log('✅ [定位节点] 已设置 setCurrentKey:', resourcePath)
+    }
+    
+    // 等待节点渲染和展开完成（减少延迟）
+    nextTick(() => {
+      setTimeout(() => {
+        // 使用更可靠的方法：通过 el-tree 的内部 store 和 DOM 查找
+        const scrollToNode = (attempt = 0) => {
+          console.log(`🔍 [定位节点] 尝试 ${attempt + 1}，resourcePath:`, resourcePath)
+          
+          if (attempt > 10) {
+            console.warn('❌ [定位节点] 无法定位到节点:', resourcePath, '已尝试', attempt, '次')
+            return
+          }
+          
+          if (!treeRef.value) {
+            console.log('⏳ [定位节点] treeRef 未就绪，等待重试...')
+            setTimeout(() => scrollToNode(attempt + 1), 100) // 从 150ms 减少到 100ms
+            return
+          }
+          
+          try {
+            // 确保当前节点被正确选中（多次调用确保生效）
+            if (treeRef.value) {
+              treeRef.value.setCurrentKey(resourcePath)
+              // 再次调用，确保样式生效
+              nextTick(() => {
+                if (treeRef.value) {
+                  treeRef.value.setCurrentKey(resourcePath)
+                }
+              })
+            }
+            
+            // 等待 DOM 更新
+            nextTick(() => {
+              const treeEl = treeRef.value?.$el
+              if (!treeEl) {
+                console.log('⏳ [定位节点] treeEl 未就绪，等待重试...')
+                setTimeout(() => scrollToNode(attempt + 1), 100) // 从 150ms 减少到 100ms
+                return
+              }
+              
+              console.log('✅ [定位节点] treeEl 已就绪，开始查找节点')
+              
+              // 方法1: 通过 el-tree 的内部 store 获取节点，然后找到对应的 DOM 元素
+              let targetElement: HTMLElement | null = null
+              try {
+                const store = (treeRef.value as any).store
+                if (store && store.nodesMap) {
+                  const node = store.nodesMap[resourcePath]
+                  if (node) {
+                    // 确保节点可见并展开父节点
+                    node.visible = true
+                    let parent = node.parent
+                    while (parent) {
+                      if (!parent.expanded) {
+                        parent.expand()
+                      }
+                      parent = parent.parent
+                    }
+                    
+                    // 通过节点的 key 查找 DOM 元素
+                    // el-tree 会在节点元素上添加 data-key 属性（对应 node-key 的值）
+                    targetElement = treeEl.querySelector(`[data-key="${resourcePath}"]`) as HTMLElement
+                    
+                    // 如果找不到 data-key，尝试通过节点的 index 或其他方式查找
+                    if (!targetElement) {
+                      // 遍历所有节点，通过 Vue 实例匹配
+                      const allNodes = treeEl.querySelectorAll('.el-tree-node')
+                      for (const nodeEl of Array.from(allNodes)) {
+                        const vueInstance = (nodeEl as any).__vueParentComponent
+                        if (vueInstance) {
+                          const nodeData = vueInstance.props?.data || vueInstance.ctx?.data
+                          if (nodeData && nodeData.full_code_path === resourcePath) {
+                            targetElement = nodeEl as HTMLElement
+                            break
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              } catch (e) {
+                console.warn('无法访问 el-tree store:', e)
+              }
+              
+              // 方法2: 如果还是找不到，通过 is-current 类查找
+              if (!targetElement) {
+                targetElement = treeEl.querySelector('.el-tree-node.is-current') as HTMLElement
+              }
+              
+              // 方法3: 如果还是找不到，通过节点标签文本匹配
+              if (!targetElement) {
+                const pathParts = resourcePath.split('/').filter(Boolean)
+                const targetName = pathParts[pathParts.length - 1]
+                const allNodes = treeEl.querySelectorAll('.el-tree-node')
+                for (const node of Array.from(allNodes)) {
+                  const nodeEl = node as HTMLElement
+                  const nodeLabel = nodeEl.querySelector('.node-label')?.textContent?.trim()
+                  if (nodeLabel && nodeLabel === targetName) {
+                    targetElement = nodeEl
+                    break
+                  }
+                }
+              }
+              
+              if (targetElement) {
+                console.log('✅ [定位节点] 找到目标节点，准备滚动:', resourcePath)
+                // 找到节点后，使用 scrollIntoView 滚动
+                targetElement.scrollIntoView({
+                  behavior: 'smooth',
+                  block: 'center',
+                  inline: 'nearest'
+                })
+                
+                // 验证滚动是否成功（延迟检查）
+                setTimeout(() => {
+                  const rect = targetElement!.getBoundingClientRect()
+                  const container = document.querySelector('.tree-container') as HTMLElement
+                  if (container) {
+                    const containerRect = container.getBoundingClientRect()
+                    const isVisible = rect.top >= containerRect.top && rect.bottom <= containerRect.bottom
+                    if (!isVisible && attempt < 5) {
+                      // 如果不可见，手动计算滚动位置
+                      const nodeTop = rect.top - containerRect.top + container.scrollTop
+                      const nodeHeight = rect.height
+                      const containerHeight = containerRect.height
+                      const targetScrollTop = nodeTop - (containerHeight / 2) + (nodeHeight / 2)
+                      container.scrollTop = Math.max(0, targetScrollTop)
+                      console.log('✅ [定位节点] 手动滚动到位置:', targetScrollTop)
+                    } else {
+                      console.log('✅ [定位节点] 节点已成功滚动到可视区域')
+                    }
+                  }
+                }, 200) // 从 300ms 减少到 200ms
+              } else {
+                // 如果找不到，继续尝试
+                console.log('⚠️ [定位节点] 未找到目标节点，继续尝试，attempt:', attempt + 1)
+                setTimeout(() => scrollToNode(attempt + 1), 150) // 从 250ms 减少到 150ms
+              }
+            })
+          } catch (error) {
+            console.error('❌ [定位节点] 定位失败:', error)
+            setTimeout(() => scrollToNode(attempt + 1), 150) // 从 200ms 减少到 150ms
+          }
+        }
+        
+        scrollToNode()
+      }, 200) // 从 500ms 减少到 200ms
+    })
+    
+    return true
+  } catch (error) {
+    console.error('❌ [定位节点] 定位失败:', error)
+    return false
+  }
+}
+
+// 监听 treeRef 和 selectedResourcePath 的变化，在树渲染完成后自动定位
+let scrollTimeout: ReturnType<typeof setTimeout> | null = null
+watch([() => treeRef.value, () => selectedResourcePath.value, () => serviceTree.value.length], 
+  ([newTreeRef, newPath, treeLength]) => {
+    if (newTreeRef && newPath && treeLength > 0) {
+      console.log('✅ [定位节点] 条件满足，开始定位，treeRef:', !!newTreeRef, 'path:', newPath, 'treeLength:', treeLength)
+      // 清除之前的延迟
+      if (scrollTimeout) {
+        clearTimeout(scrollTimeout)
+      }
+      // 延迟执行，确保 DOM 完全渲染（减少延迟时间）
+      nextTick(() => {
+        scrollTimeout = setTimeout(() => {
+          scrollToResourceNode(newPath)
+        }, 100) // 从 300ms 减少到 100ms
+      })
+    }
+  },
+  { immediate: true }
+)
+
+// 监听 selectedResourcePath 变化，自动滚动到对应节点
+watch(() => selectedResourcePath.value, (newPath) => {
+  if (!newPath || !treeRef.value) return
+  
+  // 等待 DOM 更新
+  nextTick(() => {
+    setTimeout(() => {
+      try {
+        // 确保当前节点被正确选中
+        treeRef.value?.setCurrentKey(newPath)
+        
+        nextTick(() => {
+          const treeEl = treeRef.value?.$el
+          if (!treeEl) return
+          
+          // 通过 is-current 类查找
+          let targetElement = treeEl.querySelector('.el-tree-node.is-current') as HTMLElement
+          
+          // 如果找不到，遍历所有节点查找
+          if (!targetElement) {
+            const allNodes = treeEl.querySelectorAll('.el-tree-node')
+            for (const node of Array.from(allNodes)) {
+              const nodeEl = node as HTMLElement
+              const vueInstance = (nodeEl as any).__vueParentComponent
+              if (vueInstance) {
+                const nodeData = vueInstance.props?.data || vueInstance.ctx?.data
+                if (nodeData && nodeData.full_code_path === newPath) {
+                  targetElement = nodeEl
+                  nodeEl.classList.add('is-current')
+                  break
+                }
+              }
+            }
+          }
+          
+          if (targetElement) {
+            targetElement.scrollIntoView({
+              behavior: 'smooth',
+              block: 'center',
+              inline: 'nearest'
+            })
+          }
+        })
+      } catch (error) {
+        console.error('监听 selectedResourcePath 变化时定位失败:', error)
+      }
+    }, 300)
+  })
+}, { immediate: false })
 
 // 监听已有权限变化，更新树节点的选中和禁用状态
 watch([existingPermissions, allResourcePermissions], () => {
@@ -1190,6 +1545,40 @@ const hasExistingPermission = (action: string): boolean => {
   return existingPerms[action] === true
 }
 
+// 检查权限是否有继承（目录和工作空间权限会继承到子资源）
+const hasInheritance = (action: string, resourceType?: string): boolean => {
+  // 目录权限会继承到子资源
+  if (action.startsWith('directory:')) {
+    return true
+  }
+  // 工作空间权限会继承到子资源
+  if (action.startsWith('app:')) {
+    return true
+  }
+  // 函数权限不会继承到子资源（但会被父资源继承）
+  return false
+}
+
+// 获取继承权限对应的子资源权限描述
+const getInheritanceText = (action: string): string => {
+  // 根据权限类型获取对应的子资源权限名称
+  const permissionNameMap: Record<string, string> = {
+    'directory:read': '查看权限',
+    'directory:write': '写入权限',
+    'directory:update': '更新权限',
+    'directory:delete': '删除权限',
+    'directory:manage': '所有权',
+    'app:read': '查看权限',
+    'app:create': '创建权限',
+    'app:update': '更新权限',
+    'app:delete': '删除权限',
+    'app:manage': '所有权',
+  }
+  
+  const permissionName = permissionNameMap[action] || '对应权限'
+  return `包含子资源${permissionName}`
+}
+
 // 获取权限的简化显示名称（用于树节点显示，去掉前缀）
 const getSimplifiedPermissionName = (action: string): string => {
   const fullName = getPermissionDisplayName(action)
@@ -1241,7 +1630,32 @@ const getSimplifiedPermissionName = (action: string): string => {
   return simplified
 }
 
-// 获取节点权限显示文本（用于树节点显示）
+// 获取权限的简短标识（用于树节点显示）
+const getPermissionShortLabel = (action: string): string | null => {
+  const labelMap: Record<string, string> = {
+    // 目录权限
+    'directory:read': '读',
+    'directory:write': '写',
+    'directory:update': '改',
+    'directory:delete': '删',
+    'directory:manage': '所有权',
+    // 工作空间权限
+    'app:read': '读',
+    'app:create': '创建',
+    'app:update': '改',
+    'app:delete': '删',
+    'app:manage': '所有权',
+    // 函数权限
+    'function:read': '读',
+    'function:write': '写',
+    'function:update': '改',
+    'function:delete': '删',
+    'function:manage': '所有权',
+  }
+  return labelMap[action] || null
+}
+
+// 获取节点权限显示文本（用于树节点显示，显示简短标识：读、写、改、删、所有权）
 const getNodePermissionDisplayText = (resourcePath: string): string | null => {
   // ⭐ 收集已有权限
   const existingPerms = existingPermissions.value.get(resourcePath)
@@ -1273,24 +1687,21 @@ const getNodePermissionDisplayText = (resourcePath: string): string | null => {
     return null
   }
   
-  // ⭐ 合并显示已有权限和新选择的权限
+  // ⭐ 合并显示已有权限和新选择的权限（使用简短标识）
   const parts: string[] = []
   
   // 处理已有权限
   if (existingPermissionsList.length > 0) {
     // 检查是否有管理权限（优先级最高）
     if (existingPermissionsList.some(p => p === 'directory:manage' || p === 'app:manage' || p === 'function:manage')) {
-      parts.push('已有：所有权')
+      parts.push('所有权')
     } else {
-      // 显示所有已有权限的简化名称（过滤掉技术性权限点，只显示友好的名称）
-      const friendlyNames = existingPermissionsList
-        .map(action => getSimplifiedPermissionName(action))
-        .filter(name => name && name !== '') // 过滤掉空字符串（技术性权限点）
-      if (friendlyNames.length > 0) {
-        parts.push('已有：' + friendlyNames.join('，'))
-      } else {
-        // 如果都是技术性权限点，显示"已有权限"
-        parts.push('已有权限')
+      // 显示所有已有权限的简短标识
+      const labels = existingPermissionsList
+        .map(action => getPermissionShortLabel(action))
+        .filter(label => label !== null) as string[]
+      if (labels.length > 0) {
+        parts.push(...labels)
       }
     }
   }
@@ -1299,20 +1710,21 @@ const getNodePermissionDisplayText = (resourcePath: string): string | null => {
   if (newSelectedPermissions.length > 0) {
     // 检查是否有管理权限（优先级最高）
     if (newSelectedPermissions.includes('directory:manage') || newSelectedPermissions.includes('app:manage') || newSelectedPermissions.includes('function:manage')) {
-      parts.push('已选：所有权')
+      parts.push('所有权')
     } else {
-      // 显示所有新选择权限的简化名称（过滤掉技术性权限点）
-      const friendlyNames = newSelectedPermissions
-        .map(action => getSimplifiedPermissionName(action))
-        .filter(name => name && name !== '') // 过滤掉空字符串（技术性权限点）
-      if (friendlyNames.length > 0) {
-        parts.push('已选：' + friendlyNames.join('，'))
+      // 显示所有新选择权限的简短标识
+      const labels = newSelectedPermissions
+        .map(action => getPermissionShortLabel(action))
+        .filter(label => label !== null) as string[]
+      if (labels.length > 0) {
+        parts.push(...labels)
       }
-      // 如果都是技术性权限点，不显示（避免显示 chart:read 这种）
     }
   }
   
-  return parts.length > 0 ? parts.join(' | ') : null
+  // 去重并返回
+  const uniqueLabels = [...new Set(parts)]
+  return uniqueLabels.length > 0 ? uniqueLabels.join(' ') : null
 }
 
 // 获取节点权限标签的类型（已有权限用 info，新选择的权限用 success）
@@ -1359,38 +1771,15 @@ const handlePermissionChange = (selectedActions: string[]) => {
   }
   
   // 更新当前资源的权限（如果为空数组，也要更新，表示取消所有权限）
-  updateResourcePermissions(resourcePath, finalSelectedActions)
-  
-  // 如果是目录或应用，需要级联到子资源
-  if (resourceType === 'directory' || resourceType === 'app') {
-    // 查找所有子资源
-    const childResources = findAllChildResources(resourcePath)
-    
-    // 如果当前资源取消了所有权限，也要取消子资源的权限
-    if (finalSelectedActions.length === 0) {
-      childResources.forEach(childPath => {
-        updateResourcePermissions(childPath, [])
-      })
-      } else {
-      // 对每个子资源应用相同的权限（使用处理后的权限列表）
-      childResources.forEach(childPath => {
-        // 获取子资源的类型
-        const childNode = findNodeInTree(serviceTree.value, childPath)
-        if (!childNode) {
-          console.warn(`找不到子节点: ${childPath}`)
-          return
-        }
-        
-        // 根据子资源类型和选择的权限，确定应该应用的权限（使用处理后的权限列表）
-        const childPermissions = mapPermissionsForChild(childPath, childNode, finalSelectedActions)
-        // 无论是否有权限，都要更新（可能是清空）
-        updateResourcePermissions(childPath, childPermissions)
-      })
+  // updateResourcePermissions 现在会自动级联到子资源，所以不需要手动处理
+  updateResourcePermissions(resourcePath, finalSelectedActions, true)
       
       // 调试信息（开发时使用，生产环境可删除）
       if (process.env.NODE_ENV === 'development') {
+    const node = findNodeInTree(serviceTree.value, resourcePath)
+    if (node && (node.type === 'package' || node.type === 'app')) {
+      const childResources = findAllChildResources(resourcePath)
         console.log(`级联权限更新: 父资源=${resourcePath}, 子资源数量=${childResources.length}`, childResources)
-      }
     }
   }
 }
@@ -1430,7 +1819,21 @@ const mapPermissionsForChild = (childPath: string, childNode: ServiceTree, paren
   
   // 检查父资源选择的权限
   for (const parentAction of parentPermissions) {
-    if (parentAction === 'directory:manage' || parentAction === 'app:manage') {
+    if (parentAction === 'directory:read') {
+      // 查看权限：子节点继承查看权限
+      if (childNode.type === 'package') {
+        // 子目录：继承 directory:read
+        if (!childPermissions.includes('directory:read')) {
+          childPermissions.push('directory:read')
+        }
+      } else if (childNode.type === 'function') {
+        // ⭐ 统一权限点：所有函数类型统一使用 function:read
+        // 子函数：映射为 function:read
+        if (!childPermissions.includes('function:read')) {
+          childPermissions.push('function:read')
+        }
+      }
+    } else if (parentAction === 'directory:manage' || parentAction === 'app:manage') {
       // 管理权限：子节点显示"所有权"
       if (childNode.type === 'package') {
         // 子目录：保存 directory:manage（显示时会显示为"所有权"）
@@ -1522,9 +1925,10 @@ const mapPermissionsForChild = (childPath: string, childNode: ServiceTree, paren
         }
         // form、chart 和其他类型：不继承 delete 权限（只有 table 有 delete）
       }
-    } else if (parentAction === 'directory:read' || parentAction === 'app:read') {
-      // 查看权限：子节点显示"查看权限"
+    } else if (parentAction === 'app:read') {
+      // 工作空间查看权限：子节点继承查看权限
       if (childNode.type === 'package') {
+        // 子目录：继承 directory:read
         if (!childPermissions.includes('directory:read')) {
           childPermissions.push('directory:read')
         }
@@ -1558,7 +1962,7 @@ const handleTreeNodeClick = (data: ServiceTree) => {
   }
 }
 
-// 处理树节点复选框变化
+// 处理树节点复选框变化（强制继承：父节点选中/取消时，子节点必须跟随）
 const handleTreeNodeCheck = (data: ServiceTree, checked: { checkedKeys: string[], halfCheckedKeys: string[] }) => {
   const resourcePath = data.full_code_path
   const isChecked = checked.checkedKeys.includes(resourcePath)
@@ -1567,15 +1971,37 @@ const handleTreeNodeCheck = (data: ServiceTree, checked: { checkedKeys: string[]
   const existingPerms = existingPermissions.value.get(resourcePath)
   const hasAnyExistingPerm = existingPerms && Object.values(existingPerms).some(hasPerm => hasPerm === true)
   
+  // 检查节点是否有父节点（除了根节点和工作空间节点）
+  const parentPath = getParentPath(resourcePath)
+  const hasParent = !!parentPath
+  
+  // 如果节点有父节点，不允许直接操作复选框（应该通过父节点控制）
+  // 但节点本身仍然可以点击（用于查看权限）
+  if (hasParent) {
+    // 恢复选中状态（因为子节点应该跟随父节点）
+    nextTick(() => {
+      if (treeRef.value) {
+        // 检查父节点是否选中
+        if (parentPath) {
+          const parentChecked = checked.checkedKeys.includes(parentPath)
+          treeRef.value.setChecked(resourcePath, parentChecked, false)
+        }
+      }
+    })
+    return
+  }
+  
   if (isChecked) {
-    // 节点被选中
+    // 父节点被选中：强制选中所有子节点
     // 如果节点已有权限，不需要做任何操作（因为已有权限的节点应该是禁用且选中的）
     if (!hasAnyExistingPerm) {
       // 如果节点没有已有权限，加载该节点的权限范围并选中最小权限
+      // loadResourcePermissions 会调用 updateResourcePermissions，而 updateResourcePermissions 会自动级联到子节点
       loadResourcePermissions(resourcePath)
     }
+    // 注意：如果节点已有权限，updateResourcePermissions 已经在初始化时级联过了，不需要再次级联
   } else {
-    // 节点被取消选中
+    // 父节点被取消选中：强制取消所有子节点
     // 如果节点已有权限，不允许取消选中（应该通过禁用来防止）
     if (!hasAnyExistingPerm) {
       // 如果节点没有已有权限，清除该节点的权限选择
@@ -1585,6 +2011,27 @@ const handleTreeNodeCheck = (data: ServiceTree, checked: { checkedKeys: string[]
         selectedPermissions.value = []
         currentScope.value = null
       }
+      
+      // ⭐ 强制继承：取消所有子节点（包括子目录和子函数）
+      const childResources = findAllChildResources(resourcePath)
+      console.log(`[强制继承] 父节点取消选中: ${resourcePath}, 子节点数量: ${childResources.length}`, childResources)
+      
+      childResources.forEach(childPath => {
+        // 清除子节点的权限记录（包括目录和函数）
+        allResourcePermissions.value.delete(childPath)
+        
+        // 取消选中子节点的复选框
+        nextTick(() => {
+          if (treeRef.value) {
+            const childExistingPerms = existingPermissions.value.get(childPath)
+            const childHasAnyExistingPerm = childExistingPerms && Object.values(childExistingPerms).some(hasPerm => hasPerm === true)
+            // 只有非禁用的子节点才能取消选中
+            if (!childHasAnyExistingPerm) {
+              treeRef.value.setChecked(childPath, false, false)
+            }
+          }
+        })
+      })
     } else {
       // 如果节点已有权限但用户尝试取消选中，重新选中它
       nextTick(() => {
@@ -1594,6 +2041,17 @@ const handleTreeNodeCheck = (data: ServiceTree, checked: { checkedKeys: string[]
       })
     }
   }
+}
+
+// 获取父节点路径
+const getParentPath = (resourcePath: string): string | null => {
+  const pathParts = resourcePath.split('/').filter(Boolean)
+  if (pathParts.length <= 2) {
+    // 根节点或工作空间节点，没有父节点
+    return null
+  }
+  // 返回父节点路径（去掉最后一个部分）
+  return '/' + pathParts.slice(0, -1).join('/')
 }
 
 // ⭐ 快捷选择（选择当前资源的全部权限）
@@ -1643,6 +2101,9 @@ const handleSubmit = async () => {
     const resourcePath = currentScope.value.resourcePath
     const actions = selectedPermissions.value
 
+    // 准备有效期参数
+    const endTime = formData.value.isPermanent ? undefined : (formData.value.endTime || undefined)
+
     // 根据赋权对象类型决定是申请还是赋权
     if (grantTargetType.value === 'self') {
       // 给自己申请权限
@@ -1650,6 +2111,7 @@ const handleSubmit = async () => {
         resource_path: resourcePath,
         actions: actions,
         reason: formData.value.reason,
+        end_time: endTime,
       })
       ElMessage.success('权限申请已提交')
     } else if (grantTargetType.value === 'user') {
@@ -1667,7 +2129,8 @@ const handleSubmit = async () => {
           await addPermission({
             subject: grantTargetUser.value.username,
             resource_path: resourcePath,
-            action: action
+            action: action,
+            end_time: endTime,
           })
           successCount++
         } catch (err: any) {
@@ -1701,7 +2164,8 @@ const handleSubmit = async () => {
           await addPermission({
             subject: grantTargetDepartment.value, // ⭐ 直接使用组织架构路径作为 subject
             resource_path: resourcePath,
-            action: action
+            action: action,
+            end_time: endTime,
           })
           successCount++
         } catch (err: any) {
@@ -2192,7 +2656,7 @@ const handleCancel = () => {
             .permission-checkbox-group {
               display: flex;
               flex-direction: column;
-              gap: 12px;
+              gap: 8px;
               width: 100%;
 
               :deep(.el-checkbox) {
@@ -2235,9 +2699,9 @@ const handleCancel = () => {
                 width: 100%;
                 max-width: 100%;
                 margin: 0;
-                padding: 16px;
+                padding: 10px 12px;
                 border: 1px solid var(--el-border-color-lighter);
-                border-radius: 8px;
+                border-radius: 6px;
                 transition: all 0.2s ease;
                 background: var(--el-fill-color-lighter);
                 min-height: auto;
@@ -2312,25 +2776,25 @@ const handleCancel = () => {
                   display: flex;
                   flex-direction: column;
                   align-items: flex-start;
-                  gap: 8px;
+                  gap: 4px;
                   width: 100%;
                   max-width: 100%;
                   min-width: 0;
 
                   .permission-header {
                     display: flex;
-                    align-items: flex-start;
-                    gap: 12px;
+                    align-items: center;
+                    gap: 8px;
                     width: 100%;
                     max-width: 100%;
                     min-width: 0;
                     flex-wrap: wrap;
 
                   .permission-name {
-                      font-weight: 600;
+                      font-weight: 500;
                     color: var(--el-text-color-primary);
-                      font-size: 15px;
-                    line-height: 1.4;
+                      font-size: 14px;
+                    line-height: 1.3;
                     word-break: break-word;
                       overflow-wrap: break-word;
                       flex: 1;
@@ -2354,56 +2818,31 @@ const handleCancel = () => {
                   
                   .permission-description {
                     margin: 0;
-                    font-size: 13px;
-                    color: var(--el-text-color-regular);
-                    line-height: 1.6;
+                    font-size: 12px;
+                    color: var(--el-text-color-secondary);
+                    line-height: 1.4;
                     word-break: break-word;
                     overflow-wrap: break-word;
                     width: 100%;
                   }
                   
-                  .permission-inheritance {
-                    display: flex;
-                    align-items: flex-start;
-                    gap: 8px;
-                    padding: 10px 12px;
+                  .inheritance-badge {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 4px;
+                    margin-left: 8px;
+                    padding: 2px 6px;
                     background: var(--el-fill-color-darker);
-                    border-radius: 6px;
-                    border: 1px solid var(--el-border-color);
-                    width: 100%;
-                    box-sizing: border-box;
-                    margin-top: 4px;
+                    border-radius: 3px;
+                    font-size: 11px;
+                    color: var(--el-text-color-secondary);
                     
-                    .inheritance-icon {
-                      color: var(--el-text-color-regular);
-                      font-size: 14px;
-                      margin-top: 2px;
-                      flex-shrink: 0;
-                    }
-                    
-                    .inheritance-text {
+                    .inheritance-icon-small {
                       font-size: 12px;
-                      color: var(--el-text-color-regular);
-                      line-height: 1.6;
-                      flex: 1;
-                      min-width: 0;
-                      width: 0;
-                      word-break: break-word;
-                      overflow-wrap: break-word;
+                      flex-shrink: 0;
                     }
                   }
 
-                  .permission-code {
-                    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-                    font-size: 11px;
-                    color: var(--el-text-color-secondary);
-                    background: var(--el-fill-color);
-                    padding: 2px 6px;
-                    border-radius: 4px;
-                    border: 1px solid var(--el-border-color-lighter);
-                    align-self: flex-start;
-                    word-break: break-all;
-                  }
                   }
                 }
               }

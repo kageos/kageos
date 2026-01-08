@@ -15,7 +15,7 @@
 
     <div class="workspace-view">
       <!-- 左侧服务目录树 -->
-      <div class="left-sidebar">
+      <div class="left-sidebar" :class="{ 'sidebar-collapsed': !showLeftSidebar }">
         <ServiceTreePanel
           ref="serviceTreePanelRef"
           :tree-data="serviceTree"
@@ -35,8 +35,59 @@
         />
       </div>
 
+      <!-- 左侧边栏控制按钮 -->
+      <div class="left-sidebar-controls">
+        <el-button
+          v-if="!showLeftSidebar"
+          link
+          @click="toggleLeftSidebar"
+          class="sidebar-toggle"
+          title="显示服务目录"
+        >
+          <el-icon><ArrowRight /></el-icon>
+          显示目录
+        </el-button>
+        
+        <el-button
+          v-if="showLeftSidebar"
+          link
+          @click="toggleLeftSidebar"
+          class="sidebar-toggle"
+          title="隐藏服务目录"
+        >
+          <el-icon><ArrowLeft /></el-icon>
+          隐藏目录
+        </el-button>
+      </div>
+
       <!-- 中间函数渲染区域 -->
       <div class="function-renderer">
+        <!-- 右侧边栏控制按钮 -->
+        <div class="sidebar-controls" v-if="currentFunction && currentFunction.type === 'function'">
+          <div class="right-controls">
+            <el-button
+              v-if="!showRightSidebar"
+              link
+              @click="toggleRightSidebar"
+              class="sidebar-toggle"
+              title="显示函数信息"
+            >
+              <el-icon><ArrowLeft /></el-icon>
+              显示函数信息
+            </el-button>
+            
+            <el-button
+              v-if="showRightSidebar"
+              link
+              @click="toggleRightSidebar"
+              class="sidebar-toggle"
+              title="隐藏函数信息"
+            >
+              <el-icon><ArrowRight /></el-icon>
+              隐藏函数信息
+            </el-button>
+          </div>
+        </div>
         <!-- 面包屑导航（只在显示函数详情时显示） -->
         <FunctionBreadcrumb
           v-if="currentFunction && currentFunction.type === 'function'"
@@ -165,6 +216,18 @@
         <div v-else class="empty-state">
           <p>请在左侧选择功能或目录</p>
         </div>
+      </div>
+
+      <!-- 右侧函数信息面板 -->
+      <div 
+        v-if="currentFunction && currentFunction.type === 'function' && showRightSidebar" 
+        class="right-sidebar"
+        :class="{ 'sidebar-collapsed': !showRightSidebar }"
+      >
+        <FunctionInfoPanel 
+          :function-data="currentFunctionDetail" 
+          :function-node="currentFunction"
+        />
       </div>
     </div>
 
@@ -395,7 +458,7 @@
 import { computed, onMounted, onUnmounted, watch, ref, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElNotification, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon, ElSwitch } from 'element-plus'
-import { InfoFilled, ArrowLeft } from '@element-plus/icons-vue'
+import { InfoFilled, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { eventBus, WorkspaceEvent, RouteEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
@@ -418,6 +481,7 @@ import PermissionDeniedView from '../components/PermissionDeniedView.vue'
 import AIChatPanel from '../components/AIChatPanel.vue'
 import AgentSelectDialog from '@/components/Agent/AgentSelectDialog.vue'
 import PackageDetailView from '../components/PackageDetailView.vue'
+import FunctionInfoPanel from '../components/FunctionInfoPanel.vue'
 import UserSearchInput from '@/components/UserSearchInput.vue'
 import UsersWidget from '../widgets/UsersWidget.vue'
 import type { ServiceTree, App } from '../../domain/services/WorkspaceDomainService'
@@ -674,6 +738,26 @@ const updateHistoryFullCodePath = ref('')
 // ServiceTreePanel 引用（用于展开路径）
 const serviceTreePanelRef = ref<InstanceType<typeof ServiceTreePanel> | null>(null)
 
+// 左侧服务目录树显示状态
+const showLeftSidebar = ref(true)
+
+// 右侧函数信息面板显示状态
+const showRightSidebar = ref(true)
+
+// 切换左侧边栏显示
+const toggleLeftSidebar = () => {
+  showLeftSidebar.value = !showLeftSidebar.value
+  // 保存到 localStorage 持久化
+  localStorage.setItem('workspace-left-sidebar', String(showLeftSidebar.value))
+}
+
+// 切换右侧边栏显示
+const toggleRightSidebar = () => {
+  showRightSidebar.value = !showRightSidebar.value
+  // 保存到 localStorage 持久化
+  localStorage.setItem('workspace-right-sidebar', String(showRightSidebar.value))
+}
+
 // AI 对话框相关
 const agentSelectDialogVisible = ref(false)
 const selectedAgent = ref<AgentInfo | null>(null)
@@ -803,6 +887,18 @@ const handleGlobalPaste = async (event: ClipboardEvent) => {
 }
 
 onMounted(() => {
+  // 从 localStorage 恢复左侧边栏状态
+  const savedLeft = localStorage.getItem('workspace-left-sidebar')
+  if (savedLeft !== null) {
+    showLeftSidebar.value = savedLeft === 'true'
+  }
+  
+  // 从 localStorage 恢复右侧边栏状态
+  const savedRight = localStorage.getItem('workspace-right-sidebar')
+  if (savedRight !== null) {
+    showRightSidebar.value = savedRight === 'true'
+  }
+  
   // 🔥 监听表格详情事件（使用 Composable）
   eventBus.on('table:detail-row', async ({ row, index, tableData }: { row: Record<string, any>, index?: number, tableData?: any[] }) => {
     await openDetailDrawer(row, index, tableData)
@@ -1462,7 +1558,7 @@ onUnmounted(() => {
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .workspace-container {
   display: flex;
   flex-direction: column;
@@ -1513,7 +1609,38 @@ onUnmounted(() => {
 
 .left-sidebar {
   width: 300px;
+  min-width: 300px;
   border-right: 1px solid var(--el-border-color);
+  transition: all 0.3s ease;
+  overflow: hidden;
+  
+  &.sidebar-collapsed {
+    width: 0;
+    min-width: 0;
+    overflow: hidden;
+    border-right: none;
+  }
+}
+
+// 左侧边栏控制按钮
+.left-sidebar-controls {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 10;
+  transition: left 0.3s ease;
+  
+  // 当左侧边栏收起时，按钮位置保持不变
+  .sidebar-toggle {
+    background: var(--el-bg-color);
+    border: 1px solid var(--el-border-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    
+    &:hover {
+      background: var(--el-fill-color-light);
+      border-color: var(--el-color-primary);
+    }
+  }
 }
 
 .function-renderer {
@@ -1522,6 +1649,51 @@ onUnmounted(() => {
   flex-direction: column;
   overflow: hidden;
   min-height: 0;
+  position: relative;
+}
+
+// 右侧边栏控制按钮
+.sidebar-controls {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 10;
+  
+  .right-controls {
+    display: flex;
+    gap: 8px;
+  }
+  
+  .sidebar-toggle {
+    background: var(--el-bg-color);
+    border: 1px solid var(--el-border-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    
+    &:hover {
+      background: var(--el-fill-color-light);
+      border-color: var(--el-color-primary);
+    }
+  }
+}
+
+// 右侧函数信息面板
+.right-sidebar {
+  width: 350px;
+  min-width: 350px;
+  background-color: var(--el-bg-color);
+  border-left: 1px solid var(--el-border-color-light);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  
+  &.sidebar-collapsed {
+    width: 0;
+    min-width: 0;
+    overflow: hidden;
+    border-left: none;
+  }
 }
 
 .ai-chat-wrapper {
