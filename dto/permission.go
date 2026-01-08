@@ -6,6 +6,7 @@ type AddPermissionReq struct {
 	Subject      string `json:"subject" binding:"required"`      // 权限主体：用户名或组织架构路径
 	ResourcePath string `json:"resource_path" binding:"required"` // 资源路径（full-code-path）
 	Action       string `json:"action" binding:"required"`        // 操作类型（如 table:search、function:manage 等）
+	EndTime      string `json:"end_time"`                         // 权限结束时间（ISO 8601 格式，可选，空字符串表示永久）
 }
 
 // ApplyPermissionReq 权限申请请求
@@ -14,6 +15,7 @@ type ApplyPermissionReq struct {
 	Action        string   `json:"action"`                          // 操作类型（可选，如果提供了 actions 则忽略）
 	Actions       []string `json:"actions"`                         // 操作类型列表（可选，如果提供则批量申请）
 	Reason        string   `json:"reason"`                          // 申请理由（可选）
+	EndTime       string   `json:"end_time"`                         // 权限结束时间（ISO 8601 格式，可选，空字符串表示永久）
 }
 
 // ApplyPermissionResp 权限申请响应

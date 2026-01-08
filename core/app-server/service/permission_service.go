@@ -37,6 +37,12 @@ func (s *PermissionService) AddPermission(ctx context.Context, req *dto.AddPermi
 		subjectType = "department"
 	}
 
+	// 处理有效期：如果为空字符串或未提供，表示永久权限
+	endTime := req.EndTime
+	if endTime == "" {
+		endTime = "" // 空字符串表示永久权限
+	}
+
 	// 构建授权请求（AppID 已废弃，从 resourcePath 解析 user 和 app）
 	grantReq := &enterprise.GrantPermissionReq{
 		AppID:           0,                            // ⭐ 已废弃，不再使用（企业版实现会从 resourcePath 解析 user 和 app）
@@ -46,7 +52,7 @@ func (s *PermissionService) AddPermission(ctx context.Context, req *dto.AddPermi
 		ResourcePath:    req.ResourcePath,
 		Action:          req.Action,
 		StartTime:       time.Now().Format(time.RFC3339),
-		EndTime:         "", // 永久权限
+		EndTime:          endTime, // 有效期（空字符串表示永久）
 	}
 
 	// 调用企业版接口授权权限

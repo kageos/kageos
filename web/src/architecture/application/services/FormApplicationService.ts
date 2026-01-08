@@ -132,7 +132,30 @@ export class FormApplicationService {
       // 为了保持依赖倒置，我们通过 Domain Service 获取
       // 🔥 确保 fields 是数组，防止类型错误
       const fields = (Array.isArray(functionDetail.request) ? functionDetail.request : []) as FieldConfig[]
+      
+      // 🔥 调试日志：检查提交前的数据状态
+      const stateManagerForDebug = (this.domainService as any).stateManager
+      if (stateManagerForDebug && stateManagerForDebug.formStore && stateManagerForDebug.formStore.data) {
+        Logger.info('[FormApplicationService]', '提交前 formStore.data 状态', {
+          dataSize: stateManagerForDebug.formStore.data.size,
+          dataKeys: Array.from(stateManagerForDebug.formStore.data.keys()),
+          dataSample: Array.from(stateManagerForDebug.formStore.data.entries()).slice(0, 5).map(([k, v]) => ({
+            key: k,
+            raw: (v as any)?.raw,
+            display: (v as any)?.display
+          }))
+        })
+      }
+      
       const submitData = this.getSubmitData(fields)
+      
+      // 🔥 调试日志：检查提交数据
+      Logger.info('[FormApplicationService]', '提交数据', {
+        submitDataKeys: Object.keys(submitData),
+        submitData,
+        fieldsCount: fields.length,
+        fieldCodes: fields.map(f => f.code)
+      })
 
       // ⭐ 使用标准 API：/form/submit/{full-code-path}
       const fullCodePath = functionDetail.router?.startsWith('/') 

@@ -93,7 +93,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import UserDisplay from './UserDisplay.vue'
 import UserSearchDialog from './UserSearchDialog.vue'
 import { ElAvatar, ElButton, ElIcon } from 'element-plus'
@@ -263,33 +263,48 @@ watch(() => props.mode, (newMode: string) => {
 // 🔥 同时检查是否有动态默认值（如 $me）
 onMounted(async () => {
   // 🔥 检查是否有动态默认值需要设置（$me）
-  // 注意：如果 value.raw 是 null、undefined、空字符串，或者是 $me 字符串，都应该设置默认值
+  // ⚠️ 重要：只有在新增模式下才使用默认值，编辑模式下不应该使用默认值
   if (props.mode === 'edit') {
-    const currentRaw = props.value?.raw
-    const shouldSetDefault = !currentRaw || currentRaw === '' || currentRaw === '$me'
+    // ⚠️ 使用 nextTick 等待一下，确保 initializeForm 已经完成
+    // 这样可以避免在编辑模式下错误地使用默认值
+    await nextTick()
     
-    if (shouldSetDefault) {
-      const config = props.field.widget?.config
-      if (config && typeof config === 'object' && 'default' in config) {
-        const defaultValue = (config as Record<string, any>).default
-        if (typeof defaultValue === 'string' && defaultValue === '$me') {
-          // 动态默认值：$me（当前登录用户）
-          const { useAuthStore } = await import('@/stores/auth')
-          const authStore = useAuthStore()
-          const currentUsername = authStore.user?.username
-          if (currentUsername) {
-            // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
-            const newFieldValue = createFieldValue(
-              props.field,
-              currentUsername,
-              currentUsername
-            )
-            formDataStore.setValue(props.fieldPath, newFieldValue)
-            emit('update:modelValue', newFieldValue)
-            // 加载用户信息
-            loadUserInfo(currentUsername)
-            return
-          }
+    const currentRaw = props.value?.raw
+    const existingValue = formDataStore.getValue(props.fieldPath)
+    
+    // 🔥 检查是否需要解析 $me 动态变量
+    // 情况1：value.raw 是 "$me" 字符串（FormDomainService 还没有解析）
+    // 情况2：value.raw 是 null/undefined/空字符串，且配置中有 "$me" 默认值
+    const needsResolveMe = currentRaw === '$me' || 
+      ((!currentRaw || currentRaw === '') && 
+       props.field.widget?.config?.default === '$me')
+    
+    if (needsResolveMe) {
+      // ⚠️ 检查是否是编辑模式：如果 existingValue 存在且 raw 不是 "$me"，说明是编辑模式
+      // 编辑模式下，existingValue.raw 应该是实际的用户名，不应该是 "$me"
+      const isEditMode = existingValue && 
+                        existingValue.raw !== null && 
+                        existingValue.raw !== undefined && 
+                        existingValue.raw !== '' && 
+                        existingValue.raw !== '$me'
+      
+      // 只有在新增模式下才解析 $me
+      if (!isEditMode) {
+        const { useAuthStore } = await import('@/stores/auth')
+        const authStore = useAuthStore()
+        const currentUsername = authStore.user?.username
+        if (currentUsername) {
+          // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
+          const newFieldValue = createFieldValue(
+            props.field,
+            currentUsername,
+            currentUsername
+          )
+          formDataStore.setValue(props.fieldPath, newFieldValue)
+          emit('update:modelValue', newFieldValue)
+          // 加载用户信息
+          loadUserInfo(currentUsername)
+          return
         }
       }
     }

@@ -287,67 +287,6 @@
       </el-tabs>
     </el-dialog>
       </div>
-      <!-- 右侧：函数详情面板 -->
-      <div class="form-view-sidebar" v-if="functionDetail && currentFunctionNode">
-        <el-card class="function-detail-card" shadow="hover">
-          <template #header>
-            <div class="function-detail-header">
-              <el-icon><InfoFilled /></el-icon>
-              <span>函数介绍</span>
-            </div>
-          </template>
-          
-          <!-- 创建用户信息 -->
-          <div class="detail-section" v-if="functionDetail.created_by">
-            <div class="detail-section-title">
-              <el-icon><User /></el-icon>
-              <span>创建者</span>
-            </div>
-            <div class="creator-info">
-              <UserDisplay 
-                :username="functionDetail.created_by" 
-                mode="rich"
-                layout="horizontal"
-              />
-            </div>
-          </div>
-          
-          <!-- 函数名称 -->
-          <div class="detail-section">
-            <div class="function-name">{{ functionDetail.name || currentFunctionNode.name || '-' }}</div>
-          </div>
-
-          <!-- 函数描述 -->
-          <div class="detail-section" v-if="currentFunctionNode.description">
-            <div class="description-wrapper">
-              <div class="description-content">{{ currentFunctionNode.description }}</div>
-            </div>
-          </div>
-
-          <!-- 标签 -->
-          <div class="detail-section" v-if="currentFunctionNode.tags">
-            <div class="detail-section-title">
-              <el-icon><PriceTag /></el-icon>
-              <span>标签</span>
-            </div>
-            <div class="tags-list">
-              <el-tag
-                v-for="tag in (currentFunctionNode.tags?.split(',') || []).filter((t: string) => t.trim())"
-                :key="tag"
-                size="small"
-                class="tag-item"
-              >
-                {{ tag.trim() }}
-              </el-tag>
-            </div>
-          </div>
-
-          <!-- 如果没有描述和标签，显示提示 -->
-          <div v-if="!currentFunctionNode.description && !currentFunctionNode.tags" class="empty-tip">
-            <el-empty description="暂无介绍信息" :image-size="80" />
-          </div>
-        </el-card>
-      </div>
     </div>
   </div>
 </template>
@@ -356,12 +295,11 @@
 import { computed, onMounted, onUnmounted, watch, ref, nextTick, withDefaults } from 'vue'
 import type { ComputedRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Promotion, RefreshLeft, View, DocumentCopy, InfoFilled, Lock, Document, List, PriceTag, User } from '@element-plus/icons-vue'
+import { Promotion, RefreshLeft, View, DocumentCopy, InfoFilled, Lock, Document, List, User } from '@element-plus/icons-vue'
 import { ElIcon, ElTag, ElNotification, ElMessage, ElAlert, ElMessageBox, ElText, ElCheckbox, ElCard, ElEmpty } from 'element-plus'
 import { eventBus, FormEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
-import UserDisplay from '../widgets/UserDisplay.vue'
 import { Logger } from '@/core/utils/logger'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
@@ -1289,111 +1227,6 @@ onUnmounted(() => {
   min-width: 0; // 防止 flex 子元素溢出
 }
 
-.form-view-sidebar {
-  width: 360px;
-  flex-shrink: 0;
-  position: sticky;
-  top: 20px;
-  max-height: calc(100vh - 40px);
-  overflow-y: auto;
-}
-
-.function-detail-card {
-  .function-detail-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-weight: 600;
-    font-size: 16px;
-    color: var(--el-text-color-primary);
-  }
-}
-
-.detail-section {
-  margin-bottom: 24px;
-  
-  .detail-section-title {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--el-text-color-regular);
-    margin-bottom: 12px;
-  }
-  
-  .creator-info {
-    display: flex;
-    align-items: flex-start;
-    width: 100%;
-  }
-  
-  &:last-child {
-    margin-bottom: 0;
-  }
-}
-
-.function-name {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-  margin-bottom: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-}
-
-.detail-section-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-  font-size: 14px;
-  color: var(--el-text-color-primary);
-  margin-bottom: 12px;
-}
-
-.description-wrapper {
-  position: relative;
-}
-
-.description-content {
-  font-size: 14px;
-  color: var(--el-text-color-primary);
-  line-height: 1.8;
-  white-space: pre-wrap;
-  word-break: break-word;
-  padding: 16px 20px;
-  background: linear-gradient(135deg, rgba(64, 158, 255, 0.05) 0%, rgba(64, 158, 255, 0.02) 100%);
-  border-radius: 8px;
-  border-left: 3px solid var(--el-color-primary);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  position: relative;
-  
-  &::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 3px;
-    background: linear-gradient(180deg, var(--el-color-primary) 0%, rgba(64, 158, 255, 0.6) 100%);
-    border-radius: 8px 0 0 8px;
-  }
-}
-
-.tags-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.tag-item {
-  margin: 0;
-}
-
-.empty-tip {
-  padding: 20px 0;
-}
 
 /* 🔥 权限错误显示样式已移至 PermissionDeniedView 组件 */
 

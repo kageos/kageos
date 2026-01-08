@@ -105,6 +105,7 @@ func (p *Permission) ApplyPermission(c *gin.Context) {
 			Subject:      username,
 			ResourcePath: req.ResourcePath,
 			Action:       action,
+			EndTime:      req.EndTime, // 传递有效期参数
 		}
 
 		if err := p.permissionService.AddPermission(ctx, &addReq); err != nil {

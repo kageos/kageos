@@ -143,15 +143,45 @@ const internalValue = computed({
 
 // 颜色值（用于显示）
 const colorValue = computed(() => {
-  const value = props.value?.raw
-  if (value === null || value === undefined || value === '') {
-    return 'transparent'
+  const value = props.value
+  
+  // 🔥 优先使用 display 值（响应模式下可能只有 display 值）
+  if (value?.display) {
+    const displayStr = String(value.display).trim()
+    if (displayStr && displayStr !== '-' && isValidColor(displayStr)) {
+      return normalizeColor(displayStr)
+    }
   }
-  const strValue = String(value)
-  // 验证是否为有效的颜色值
-  if (isValidColor(strValue)) {
-    return strValue
+  
+  // 其次使用 raw 值
+  const rawValue = value?.raw
+  if (rawValue !== null && rawValue !== undefined && rawValue !== '') {
+    const strValue = String(rawValue).trim()
+    // 验证是否为有效的颜色值
+    if (strValue && isValidColor(strValue)) {
+      return normalizeColor(strValue)
+    }
   }
+  
+  // 🔥 如果都没有，尝试从 displayValue 中获取（兼容响应模式下数据传递的特殊情况）
+  // 注意：这里需要先计算 displayValue，但不能直接引用（会造成循环依赖）
+  // 所以手动实现 displayValue 的逻辑
+  let displayVal = ''
+  if (value) {
+    if (value.display) {
+      displayVal = String(value.display)
+    } else {
+      const raw = value.raw
+      if (raw !== null && raw !== undefined && raw !== '') {
+        displayVal = String(raw)
+      }
+    }
+  }
+  
+  if (displayVal && displayVal !== '-' && isValidColor(displayVal)) {
+    return normalizeColor(displayVal)
+  }
+  
   return 'transparent'
 })
 
@@ -175,24 +205,47 @@ const displayValue = computed(() => {
 })
 
 /**
+ * 规范化颜色值（自动添加 # 前缀）
+ */
+function normalizeColor(color: string): string {
+  if (!color) return ''
+  const trimmed = color.trim()
+  
+  // 如果是 6 位或 8 位十六进制数字（没有 # 前缀），自动添加 #
+  if (/^[A-Fa-f0-9]{6}$/.test(trimmed) || /^[A-Fa-f0-9]{8}$/.test(trimmed)) {
+    return '#' + trimmed
+  }
+  
+  // 如果是 3 位十六进制数字（没有 # 前缀），自动添加 #
+  if (/^[A-Fa-f0-9]{3}$/.test(trimmed)) {
+    return '#' + trimmed
+  }
+  
+  // 如果已经有 # 前缀或其他格式，直接返回
+  return trimmed
+}
+
+/**
  * 验证颜色值是否有效
  */
 function isValidColor(color: string): boolean {
   if (!color) return false
   
+  const normalized = normalizeColor(color)
+  
   // 验证 hex 格式 (#RRGGBB 或 #RRGGBBAA)
-  if (/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3}|[A-Fa-f0-9]{8})$/.test(color)) {
+  if (/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3}|[A-Fa-f0-9]{8})$/.test(normalized)) {
     return true
   }
   
   // 验证 rgb/rgba 格式
-  if (/^rgba?\(/.test(color)) {
+  if (/^rgba?\(/.test(normalized)) {
     return true
   }
   
   // 验证颜色名称（如 red, blue 等）
   const colorNames = ['red', 'blue', 'green', 'yellow', 'orange', 'purple', 'pink', 'black', 'white', 'gray', 'grey']
-  if (colorNames.includes(color.toLowerCase())) {
+  if (colorNames.includes(normalized.toLowerCase())) {
     return true
   }
   
@@ -281,6 +334,7 @@ watch(
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-bottom: 16px;
 }
 
 .table-cell-value {
@@ -293,6 +347,7 @@ watch(
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-bottom: 16px;
 }
 
 .color-block {

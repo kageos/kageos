@@ -277,7 +277,6 @@ func getActionDisplayName(action string) string {
 		permissionconstants.AppUpdate: "应用更新",
 		permissionconstants.AppDelete: "应用删除",
 		permissionconstants.AppManage: "应用管理",
-		permissionconstants.AppDeploy: "应用部署",
 	}
 
 	if displayName, ok := displayNames[action]; ok {

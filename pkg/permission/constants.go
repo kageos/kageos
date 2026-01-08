@@ -27,7 +27,6 @@ const (
 	AppCreate = "app:create" // 工作空间创建
 	AppUpdate = "app:update" // 工作空间更新
 	AppDelete = "app:delete" // 工作空间删除
-	AppDeploy = "app:deploy" // 工作空间部署
 	AppManage = "app:manage" // 工作空间所有权（拥有所有工作空间权限）
 )
 
@@ -57,7 +56,6 @@ var (
 		AppCreate,
 		AppUpdate,
 		AppDelete,
-		AppDeploy,
 		AppManage,
 	}
 
@@ -80,7 +78,6 @@ var (
 		AppCreate,
 		AppUpdate,
 		AppDelete,
-		AppDeploy,
 		AppManage,
 	}
 )
