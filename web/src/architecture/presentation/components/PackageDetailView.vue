@@ -238,6 +238,7 @@
                 <UsersWidget
                   :field="adminsField"
                   :value="adminsFieldValue"
+                  :field-path="adminsField.code"
                   mode="detail"
                 />
               </div>
