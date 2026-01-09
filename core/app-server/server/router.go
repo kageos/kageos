@@ -164,7 +164,7 @@ func (s *Server) setupRoutes() {
 	permission := apiV1.Group("/permission")
 	permission.Use(middleware2.JWTAuth())                                    // JWT 认证
 	permission.Use(middleware2.RequireFeature(enterprise.FeaturePermission)) // 权限管理功能鉴权（企业版）
-	permissionHandler := v1.NewPermission(s.permissionService)
+	permissionHandler := v1.NewPermission(s.permissionService, s.appRepo)
 	permission.POST("/add", permissionHandler.AddPermission)                // 添加权限（内部使用，被 ApplyPermission 调用）
 	permission.POST("/apply", permissionHandler.ApplyPermission)             // 权限申请（简化版，直接添加权限）
 	permission.GET("/workspace", permissionHandler.GetWorkspacePermissions)   // 获取工作空间所有权限

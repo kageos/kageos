@@ -1,24 +1,29 @@
 package v1
 
 import (
+	"context"
 	"fmt"
 
+	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
+	"github.com/ai-agent-os/ai-agent-os/pkg/permission"
 	"github.com/gin-gonic/gin"
 )
 
 // Permission 权限管理处理器
 type Permission struct {
 	permissionService *service.PermissionService
+	appRepo          *repository.AppRepository // ⭐ 用于解析 app_id
 }
 
 // NewPermission 创建权限管理处理器
-func NewPermission(permissionService *service.PermissionService) *Permission {
+func NewPermission(permissionService *service.PermissionService, appRepo *repository.AppRepository) *Permission {
 	return &Permission{
 		permissionService: permissionService,
+		appRepo:           appRepo,
 	}
 }
 
@@ -54,7 +59,7 @@ func (p *Permission) AddPermission(c *gin.Context) {
 
 // ApplyPermission 权限申请
 // @Summary 权限申请
-// @Description 用户申请资源权限（简化版：直接添加权限，不创建申请记录）
+// @Description 用户申请资源权限，创建申请记录，等待管理员审批
 // @Tags 权限管理
 // @Accept json
 // @Produce json
@@ -82,6 +87,14 @@ func (p *Permission) ApplyPermission(c *gin.Context) {
 		return
 	}
 
+	// ⭐ 从 resource_path 解析 app_id
+	// resource_path 格式：/user/app/...，需要解析出 user 和 app，然后查询 app_id
+	appID, err := p.parseAppIDFromResourcePath(ctx, req.ResourcePath)
+	if err != nil {
+		response.FailWithMessage(c, "无法从资源路径解析应用ID: "+err.Error())
+		return
+	}
+
 	// ⭐ 确定要申请的权限点列表
 	actions := make([]string, 0)
 	if len(req.Actions) > 0 {
@@ -95,46 +108,82 @@ func (p *Permission) ApplyPermission(c *gin.Context) {
 		return
 	}
 
-	// ⭐ 批量添加权限（不创建申请记录）
-	// 后续可以扩展为：创建申请记录，等待管理员审核
+	// ⭐ 批量创建申请记录（不再直接添加权限）
 	successCount := 0
 	failedActions := make([]string, 0)
+	var requestIDs []int64
 
 	for _, action := range actions {
-		addReq := dto.AddPermissionReq{
-			Subject:      username,
+		createReq := dto.CreatePermissionRequestReq{
+			AppID:        appID,
 			ResourcePath: req.ResourcePath,
 			Action:       action,
-			EndTime:      req.EndTime, // 传递有效期参数
+			SubjectType:  "user", // 申请自己时是 user
+			Subject:      username,
+			EndTime:      req.EndTime,
+			Reason:       req.Reason,
 		}
 
-		if err := p.permissionService.AddPermission(ctx, &addReq); err != nil {
+		resp, err := p.permissionService.CreatePermissionRequest(ctx, &createReq)
+		if err != nil {
 			failedActions = append(failedActions, action)
 			continue
 		}
 		successCount++
+		requestIDs = append(requestIDs, resp.RequestID)
 	}
 
 	if successCount == 0 {
-		response.FailWithMessage(c, "权限申请失败，所有权限点都添加失败")
+		response.FailWithMessage(c, "权限申请失败，所有权限点都申请失败")
 		return
 	}
 
 	var message string
+	var status string
 	if successCount == len(actions) {
-		message = fmt.Sprintf("权限申请已批准，已成功添加 %d 个权限", successCount)
+		status = "pending"
+		message = fmt.Sprintf("权限申请已提交，等待审批（共 %d 个权限点）", successCount)
 	} else {
-		message = fmt.Sprintf("权限申请部分成功，已成功添加 %d/%d 个权限，失败：%v",
+		status = "partial"
+		message = fmt.Sprintf("权限申请部分成功，已成功提交 %d/%d 个权限点，失败：%v",
 			successCount, len(actions), failedActions)
 	}
 
+	// 返回第一个申请记录ID（如果有多个，前端可以后续扩展）
+	requestIDStr := ""
+	if len(requestIDs) > 0 {
+		requestIDStr = fmt.Sprintf("%d", requestIDs[0])
+	}
+
 	resp := dto.ApplyPermissionResp{
-		ID:      "",         // 暂时返回空字符串，后续可以扩展为申请记录ID
-		Status:  "approved", // 简化版：直接批准
+		ID:      requestIDStr, // 返回申请记录ID
+		Status:  status,       // pending：待审批
 		Message: message,
 	}
 
 	response.OkWithData(c, resp)
+}
+
+// parseAppIDFromResourcePath 从资源路径解析 app_id
+// resource_path 格式：/user/app/...，需要解析出 user 和 app，然后查询 app_id
+func (p *Permission) parseAppIDFromResourcePath(ctx context.Context, resourcePath string) (int64, error) {
+	if p.appRepo == nil {
+		return 0, fmt.Errorf("appRepo 未初始化")
+	}
+
+	// 使用 pkg/permission/path_parser.go 中的 ParseFullCodePath 解析
+	_, user, app := permission.ParseFullCodePath(resourcePath)
+	if user == "" || app == "" {
+		return 0, fmt.Errorf("资源路径格式错误，无法解析 user 和 app: %s", resourcePath)
+	}
+
+	// 查询 app_id
+	appModel, err := p.appRepo.GetAppByUserName(user, app)
+	if err != nil {
+		return 0, fmt.Errorf("查询应用失败: user=%s, app=%s, error=%w", user, app, err)
+	}
+
+	return appModel.ID, nil
 }
 
 // GetWorkspacePermissions 获取工作空间的所有权限
