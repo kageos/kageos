@@ -79,6 +79,7 @@ export interface ServiceTree {
   description: string
   tags: string
   admins?: string  // 节点管理员列表，逗号分隔的用户名
+  pending_count?: number  // ⭐ 待审批的权限申请数量
   owner?: string   // 节点创建者（owner）
   app_id: number
   ref_id: number

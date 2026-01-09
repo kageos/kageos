@@ -90,6 +90,16 @@
               <span v-if="data.hub_version" class="hub-version">{{ data.hub_version }}</span>
             </span>
             
+            <!-- ⭐ 待审批数量 badge - 仅管理员可见 -->
+            <el-badge
+              v-if="data.type === 'package' && isAdmin(data) && data.pending_count && data.pending_count > 0"
+              :value="data.pending_count"
+              :max="99"
+              class="pending-count-badge"
+              @click.stop="handlePendingCountClick(data)"
+              :title="`有 ${data.pending_count} 个待审批的权限申请`"
+            />
+            
             <!-- 更多操作按钮 - 鼠标悬停时显示 -->
             <el-dropdown
               trigger="click"
