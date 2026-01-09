@@ -17,17 +17,17 @@ import (
 // PermissionService 权限管理服务
 // ⭐ 完全移除 Casbin，使用新的权限系统
 type PermissionService struct {
-	permissionService        enterprise.PermissionService
-	serviceTreeRepo         *repository.ServiceTreeRepository         // ⭐ 用于更新 pending_count
-	permissionRequestRepo   *repository.PermissionRequestRepository  // ⭐ 用于查询 permission_request 表
+	permissionService     enterprise.PermissionService
+	serviceTreeRepo       *repository.ServiceTreeRepository       // ⭐ 用于更新 pending_count
+	permissionRequestRepo *repository.PermissionRequestRepository // ⭐ 用于查询 permission_request 表
 }
 
 // NewPermissionService 创建权限管理服务
 func NewPermissionService(permissionService enterprise.PermissionService, serviceTreeRepo *repository.ServiceTreeRepository, permissionRequestRepo *repository.PermissionRequestRepository) *PermissionService {
 	return &PermissionService{
-		permissionService:      permissionService,
-		serviceTreeRepo:        serviceTreeRepo,
-		permissionRequestRepo:  permissionRequestRepo,
+		permissionService:     permissionService,
+		serviceTreeRepo:       serviceTreeRepo,
+		permissionRequestRepo: permissionRequestRepo,
 	}
 }
 
@@ -58,7 +58,7 @@ func (s *PermissionService) AddPermission(ctx context.Context, req *dto.AddPermi
 		ResourcePath:    req.ResourcePath,
 		Action:          req.Action,
 		StartTime:       time.Now().Format(time.RFC3339),
-		EndTime:          endTime, // 有效期（空字符串表示永久）
+		EndTime:         endTime, // 有效期（空字符串表示永久）
 	}
 
 	// 调用企业版接口授权权限
@@ -325,32 +325,34 @@ func (s *PermissionService) GetPermissionRequests(ctx context.Context, req *dto.
 		return nil, fmt.Errorf("查询权限申请列表失败: %w", err)
 	}
 
-		// 转换为 DTO
-		records := make([]dto.PermissionRequestInfo, 0, len(requests))
-		for _, req := range requests {
-			info := dto.PermissionRequestInfo{
-				ID:               req.ID,
-				AppID:            req.AppID,
-				ApplicantUsername: req.ApplicantUsername,
-				SubjectType:      req.SubjectType,
-				Subject:          req.Subject,
-				ResourcePath:     req.ResourcePath,
-				Action:           req.Action,
-				StartTime:        req.StartTime.Format(time.RFC3339),
-				EndTime:          "",
-				Reason:           req.Reason,
-				Status:           req.Status,
-				CreatedAt:        req.CreatedAt,
-			}
+	// 转换为 DTO
+	records := make([]dto.PermissionRequestInfo, 0, len(requests))
+	for _, req := range requests {
+		info := dto.PermissionRequestInfo{
+			ID:                req.ID,
+			AppID:             req.AppID,
+			ApplicantUsername: req.ApplicantUsername,
+			SubjectType:       req.SubjectType,
+			Subject:           req.Subject,
+			ResourcePath:      req.ResourcePath,
+			Action:            req.Action,
+			StartTime:         models.Time(req.StartTime),
+			EndTime:           nil,
+			Reason:            req.Reason,
+			Status:            req.Status,
+			CreatedAt:         req.CreatedAt,
+		}
 
 		// 处理 EndTime（可能为 nil，表示永久权限）
 		if req.EndTime != nil {
-			info.EndTime = req.EndTime.Format(time.RFC3339)
+			endTime := models.Time(*req.EndTime)
+			info.EndTime = &endTime
 		}
 
 		// 处理审批信息
 		if req.ApprovedAt != nil {
-			info.ApprovedAt = req.ApprovedAt.Format(time.RFC3339)
+			approvedAt := models.Time(*req.ApprovedAt)
+			info.ApprovedAt = &approvedAt
 		}
 		if req.ApprovedBy != "" {
 			info.ApprovedBy = req.ApprovedBy
@@ -358,7 +360,8 @@ func (s *PermissionService) GetPermissionRequests(ctx context.Context, req *dto.
 
 		// 处理拒绝信息
 		if req.RejectedAt != nil {
-			info.RejectedAt = req.RejectedAt.Format(time.RFC3339)
+			rejectedAt := models.Time(*req.RejectedAt)
+			info.RejectedAt = &rejectedAt
 		}
 		if req.RejectedBy != "" {
 			info.RejectedBy = req.RejectedBy
