@@ -356,6 +356,7 @@
           <UsersWidget
             :field="adminsField"
             :value="editAdminsFieldValue"
+            :field-path="adminsField.code"
             mode="edit"
             @update:modelValue="handleEditAdminsChange"
           />
