@@ -128,8 +128,8 @@
 
       <!-- 右侧：目录详情内容 -->
       <div class="detail-content">
-      <!-- ⭐ 权限不足提示：当目录没有任何权限时显示 -->
-      <div v-if="hasNoDirectoryPermissions" class="permission-error-wrapper">
+        <!-- ⭐ 权限不足提示：当目录没有任何权限时显示 -->
+        <div v-if="hasNoDirectoryPermissions" class="permission-error-wrapper">
         <el-card class="permission-error-card" shadow="hover">
           <template #header>
             <div class="permission-error-header">
@@ -165,10 +165,10 @@
             </div>
           </div>
         </el-card>
-      </div>
+        </div>
 
-      <!-- ⭐ 权限申请 tab（仅管理员可见） -->
-      <div v-else-if="showPermissionRequestTab" class="permission-request-section">
+        <!-- ⭐ 权限申请 tab（仅管理员可见） -->
+        <div v-else-if="showPermissionRequestTab" class="permission-request-section">
         <el-tabs v-model="activeTab" @tab-change="handleTabChange" class="detail-tabs">
           <el-tab-pane label="目录信息" name="info">
             <div class="tab-content">
@@ -338,10 +338,10 @@
             </div>
           </el-tab-pane>
         </el-tabs>
-      </div>
-      
-      <!-- 非管理员或没有权限申请 tab 时，显示原来的内容 -->
-      <div v-else-if="packageNode" class="overview-section">
+        </div>
+        
+        <!-- 非管理员或没有权限申请 tab 时，显示原来的内容 -->
+        <div v-else-if="packageNode" class="overview-section">
         <div class="overview-card">
           <div class="overview-item">
             <div class="overview-icon-wrapper name-icon">
@@ -491,8 +491,8 @@
           :image-size="120"
           class="empty-state"
         />
+        </div>
       </div>
-    </div>
 
     <!-- 变更记录对话框 -->
     <DirectoryUpdateHistoryDialog
