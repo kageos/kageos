@@ -32,7 +32,71 @@ export function applyPermission(data: PermissionApplyReq): Promise<PermissionApp
 }
 
 /**
- * 获取权限申请列表
+ * 获取权限申请列表（新接口）
+ */
+export interface GetPermissionRequestsReq {
+  resource_path?: string  // 资源路径（可选）
+  status?: string  // 状态：pending、approved、rejected
+  page?: number
+  page_size?: number
+}
+
+export interface PermissionRequestInfo {
+  id: number
+  app_id: number
+  applicant_username: string
+  subject_type: string
+  subject: string
+  resource_path: string
+  action: string
+  start_time: string
+  end_time: string
+  reason: string
+  status: string
+  approved_at?: string
+  approved_by?: string
+  rejected_at?: string
+  rejected_by?: string
+  reject_reason?: string
+  created_at: string
+}
+
+export interface GetPermissionRequestsResp {
+  total: number
+  page: number
+  page_size: number
+  records: PermissionRequestInfo[]
+}
+
+export function getPermissionRequests(params?: GetPermissionRequestsReq): Promise<GetPermissionRequestsResp> {
+  return get<GetPermissionRequestsResp>('/workspace/api/v1/permission/requests', { params })
+}
+
+/**
+ * 审批通过权限申请
+ */
+export interface ApprovePermissionRequestReq {
+  request_id: number
+}
+
+export function approvePermissionRequest(data: ApprovePermissionRequestReq): Promise<void> {
+  return post<void>('/workspace/api/v1/permission/request/approve', data)
+}
+
+/**
+ * 审批拒绝权限申请
+ */
+export interface RejectPermissionRequestReq {
+  request_id: number
+  reason: string
+}
+
+export function rejectPermissionRequest(data: RejectPermissionRequestReq): Promise<void> {
+  return post<void>('/workspace/api/v1/permission/request/reject', data)
+}
+
+/**
+ * 获取权限申请列表（旧接口，保留兼容）
  */
 export function getPermissionApplications(params?: {
   username?: string

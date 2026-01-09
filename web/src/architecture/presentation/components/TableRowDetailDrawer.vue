@@ -337,8 +337,10 @@ import FormView from '@/architecture/presentation/views/FormView.vue'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
 import LinkWidget from '@/architecture/presentation/widgets/LinkWidget.vue'
 import OperateLogSection from '@/components/OperateLogSection.vue'
+import PermissionRequestList from '@/components/Permission/PermissionRequestList.vue'
 import { WidgetType } from '@/core/constants/widget'
 import { Logger } from '@/core/utils/logger'
+import { useAuthStore } from '@/stores/auth'
 import type { FieldConfig, FieldValue } from '../../domain/types'
 import type { FunctionDetail } from '../../domain/interfaces/IFunctionLoader'
 
@@ -428,12 +430,37 @@ const toggleDetailLayout = (): void => {
 // Tab 相关
 const activeTab = ref('detail')
 const operateLogSectionRef = ref<InstanceType<typeof OperateLogSection> | null>(null)
+const permissionRequestListRef = ref<InstanceType<typeof PermissionRequestList> | null>(null)
+
+// ⭐ 判断是否显示权限申请 tab
+// 条件：1. 节点类型是 package  2. 用户是管理员
+const showPermissionRequestTab = computed(() => {
+  if (!props.currentFunction) {
+    return false
+  }
+  
+  // 必须是 package 类型
+  if (props.currentFunction.type !== 'package') {
+    return false
+  }
+  
+  // 检查是否是管理员
+  if (!props.currentFunction.admins || !authStore.user?.username) {
+    return false
+  }
+  
+  const admins = props.currentFunction.admins.split(',').map(a => a.trim()).filter(Boolean)
+  return admins.includes(authStore.user.username)
+})
 
 // 处理 tab 切换
 const handleTabChange = (tabName: string) => {
   if (tabName === 'operateLog' && operateLogSectionRef.value) {
     // 切换到操作日志 tab 时，触发加载
     operateLogSectionRef.value.load()
+  } else if (tabName === 'permissionRequest' && permissionRequestListRef.value) {
+    // 切换到权限申请 tab 时，触发加载
+    permissionRequestListRef.value.loadRequests()
   }
 }
 
