@@ -331,7 +331,7 @@
 import { ref, computed, nextTick, watch } from 'vue'
 import { Edit, ArrowLeft, ArrowRight, Grid, List, Lock } from '@element-plus/icons-vue'
 import { ElMessage, ElTabs, ElTabPane } from 'element-plus'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { buildPermissionApplyURL, getPermissionShortName } from '@/utils/permission'
 import FormView from '@/architecture/presentation/views/FormView.vue'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
