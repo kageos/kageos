@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/enterprise"
@@ -19,13 +20,15 @@ import (
 type PermissionService struct {
 	permissionService enterprise.PermissionService
 	serviceTreeRepo  *repository.ServiceTreeRepository // ⭐ 用于更新 pending_count
+	db               *gorm.DB                          // ⭐ 用于查询 permission_request 表
 }
 
 // NewPermissionService 创建权限管理服务
-func NewPermissionService(permissionService enterprise.PermissionService, serviceTreeRepo *repository.ServiceTreeRepository) *PermissionService {
+func NewPermissionService(permissionService enterprise.PermissionService, serviceTreeRepo *repository.ServiceTreeRepository, db *gorm.DB) *PermissionService {
 	return &PermissionService{
 		permissionService: permissionService,
 		serviceTreeRepo:  serviceTreeRepo,
+		db:               db,
 	}
 }
 
@@ -222,8 +225,29 @@ func (s *PermissionService) ApprovePermissionRequest(ctx context.Context, req *d
 		return fmt.Errorf("无法获取当前用户信息")
 	}
 
+	// ⭐ 先获取申请记录信息，用于更新 pending_count
+	requestInfo, err := s.getPermissionRequestInfo(ctx, req.RequestID)
+	if err != nil {
+		logger.Warnf(ctx, "[PermissionService] 获取申请记录信息失败: request_id=%d, error=%v", req.RequestID, err)
+		// 继续执行审批，不因为获取信息失败而中断
+	}
+
 	// 调用企业版接口
-	return s.permissionService.ApprovePermissionRequest(ctx, req.RequestID, approverUsername)
+	err = s.permissionService.ApprovePermissionRequest(ctx, req.RequestID, approverUsername)
+	if err != nil {
+		return err
+	}
+
+	// ⭐ 审批成功后，更新对应节点的 pending_count（-1）
+	if requestInfo != nil {
+		if err := s.updateServiceTreePendingCount(ctx, requestInfo.AppID, requestInfo.ResourcePath, -1); err != nil {
+			// 记录日志，但不影响审批流程
+			logger.Warnf(ctx, "[PermissionService] 更新节点 pending_count 失败: app_id=%d, resource_path=%s, error=%v",
+				requestInfo.AppID, requestInfo.ResourcePath, err)
+		}
+	}
+
+	return nil
 }
 
 // RejectPermissionRequest 审批拒绝权限申请
@@ -234,8 +258,29 @@ func (s *PermissionService) RejectPermissionRequest(ctx context.Context, req *dt
 		return fmt.Errorf("无法获取当前用户信息")
 	}
 
+	// ⭐ 先获取申请记录信息，用于更新 pending_count
+	requestInfo, err := s.getPermissionRequestInfo(ctx, req.RequestID)
+	if err != nil {
+		logger.Warnf(ctx, "[PermissionService] 获取申请记录信息失败: request_id=%d, error=%v", req.RequestID, err)
+		// 继续执行审批，不因为获取信息失败而中断
+	}
+
 	// 调用企业版接口
-	return s.permissionService.RejectPermissionRequest(ctx, req.RequestID, approverUsername, req.Reason)
+	err = s.permissionService.RejectPermissionRequest(ctx, req.RequestID, approverUsername, req.Reason)
+	if err != nil {
+		return err
+	}
+
+	// ⭐ 审批拒绝后，更新对应节点的 pending_count（-1）
+	if requestInfo != nil {
+		if err := s.updateServiceTreePendingCount(ctx, requestInfo.AppID, requestInfo.ResourcePath, -1); err != nil {
+			// 记录日志，但不影响审批流程
+			logger.Warnf(ctx, "[PermissionService] 更新节点 pending_count 失败: app_id=%d, resource_path=%s, error=%v",
+				requestInfo.AppID, requestInfo.ResourcePath, err)
+		}
+	}
+
+	return nil
 }
 
 // GrantPermission 授权权限（管理员主动授权）
@@ -303,4 +348,33 @@ func (s *PermissionService) updateServiceTreePendingCount(ctx context.Context, a
 		resourcePath, delta)
 
 	return nil
+}
+
+// getPermissionRequestInfo 获取权限申请记录信息
+// ⭐ 用于在审批时获取申请信息（app_id 和 resource_path）
+func (s *PermissionService) getPermissionRequestInfo(ctx context.Context, requestID int64) (*struct {
+	AppID        int64
+	ResourcePath string
+}, error) {
+	if s.db == nil {
+		return nil, fmt.Errorf("数据库连接未初始化")
+	}
+
+	// 直接查询 permission_request 表获取申请信息
+	var request model.PermissionRequest
+	err := s.db.Where("id = ?", requestID).First(&request).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("申请记录不存在: request_id=%d", requestID)
+		}
+		return nil, fmt.Errorf("查询申请记录失败: %w", err)
+	}
+
+	return &struct {
+		AppID        int64
+		ResourcePath string
+	}{
+		AppID:        request.AppID,
+		ResourcePath: request.ResourcePath,
+	}, nil
 }
