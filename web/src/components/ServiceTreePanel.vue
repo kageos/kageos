@@ -177,6 +177,22 @@
                     <el-icon><Clock /></el-icon>
                     变更记录
                   </el-dropdown-item>
+                  <!-- 申请权限选项（对所有节点都显示） -->
+                  <el-dropdown-item 
+                    command="apply-permission" 
+                    divided
+                  >
+                    <el-icon><Key /></el-icon>
+                    申请权限
+                  </el-dropdown-item>
+                  <!-- 权限管理选项（仅对目录显示，且仅管理员可见） -->
+                  <el-dropdown-item 
+                    v-if="data.type === 'package' && isAdmin(data)" 
+                    command="manage-permission" 
+                  >
+                    <el-icon><User /></el-icon>
+                    权限管理
+                  </el-dropdown-item>
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
@@ -199,7 +215,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Plus, MoreFilled, Link, CopyDocument, Document, Clock, Upload, Download, Delete } from '@element-plus/icons-vue'
+import { Plus, MoreFilled, Link, CopyDocument, Document, Clock, Upload, Download, Delete, Key, User } from '@element-plus/icons-vue'
 import ChartIcon from './icons/ChartIcon.vue'
 import TableIcon from './icons/TableIcon.vue'
 import FormIcon from './icons/FormIcon.vue'
@@ -214,7 +230,8 @@ import {
   expandPathAndSelect
 } from '@/utils/serviceTreeUtils'
 import { navigateToHubDirectoryDetail } from '@/utils/hub-navigation'
-import { hasPermission, hasAnyPermissionForNode, DirectoryPermissions, TablePermissions } from '@/utils/permission'
+import { hasPermission, hasAnyPermissionForNode, DirectoryPermissions, TablePermissions, buildPermissionApplyURL } from '@/utils/permission'
+import { useAuthStore } from '@/stores/auth'
 
 interface Props {
   treeData: ServiceTree[]
@@ -240,6 +257,9 @@ const emit = defineEmits<Emits>()
 
 const router = useRouter()
 const route = useRoute()
+
+// 获取当前用户信息
+const authStore = useAuthStore()
 
 // el-tree 的引用
 const treeRef = ref()
@@ -597,6 +617,34 @@ const handleNodeClick = (data: ServiceTree) => {
   emit('node-click', data)
 }
 
+// 判断是否是管理员
+const isAdmin = (node: ServiceTree): boolean => {
+  if (!node.admins || !authStore.user?.username) {
+    return false
+  }
+  const admins = node.admins.split(',').map(a => a.trim()).filter(Boolean)
+  return admins.includes(authStore.user.username)
+}
+
+// 处理申请权限
+const handleApplyPermission = (data: ServiceTree) => {
+  const resourcePath = data.full_code_path
+  const resourceType = data.type === 'package' ? 'directory' : 'function'
+  const defaultAction = resourceType === 'directory' ? 'directory:read' : 'function:read'
+  const url = buildPermissionApplyURL(resourcePath, defaultAction, data.template_type)
+  router.push(url)
+}
+
+// 处理权限管理
+const handleManagePermission = (data: ServiceTree) => {
+  const resourcePath = data.full_code_path
+  const resourceType = data.type === 'package' ? 'directory' : 'function'
+  const defaultAction = resourceType === 'directory' ? 'directory:read' : 'function:read'
+  // 权限管理页面，默认显示授权模式
+  const url = buildPermissionApplyURL(resourcePath, defaultAction, data.template_type) + '&mode=grant'
+  router.push(url)
+}
+
 const handleNodeAction = (command: string, data: ServiceTree) => {
   if (command === 'create-directory') {
     emit('create-directory', data)
@@ -619,6 +667,10 @@ const handleNodeAction = (command: string, data: ServiceTree) => {
     emit('push-to-hub', data)
   } else if (command === 'update-history') {
     emit('update-history', data)
+  } else if (command === 'apply-permission') {
+    handleApplyPermission(data)
+  } else if (command === 'manage-permission') {
+    handleManagePermission(data)
   }
 }
 
