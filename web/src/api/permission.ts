@@ -69,7 +69,7 @@ export interface GetPermissionRequestsResp {
 }
 
 export function getPermissionRequests(params?: GetPermissionRequestsReq): Promise<GetPermissionRequestsResp> {
-  return get<GetPermissionRequestsResp>('/workspace/api/v1/permission/requests', { params })
+  return get<GetPermissionRequestsResp>('/workspace/api/v1/permission/requests', params)
 }
 
 /**
