@@ -3,12 +3,14 @@ package v1
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
+	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/pkg/permission"
 	"github.com/gin-gonic/gin"
 )
@@ -16,7 +18,7 @@ import (
 // Permission 权限管理处理器
 type Permission struct {
 	permissionService *service.PermissionService
-	appRepo          *repository.AppRepository // ⭐ 用于解析 app_id
+	appRepo           *repository.AppRepository // ⭐ 用于解析 app_id
 }
 
 // NewPermission 创建权限管理处理器
@@ -116,7 +118,7 @@ func (p *Permission) ApplyPermission(c *gin.Context) {
 	for _, action := range actions {
 		// ⭐ 设置开始时间为当前时间
 		startTime := time.Now().Format(time.RFC3339)
-		
+
 		createReq := dto.CreatePermissionRequestReq{
 			AppID:        appID,
 			ResourcePath: req.ResourcePath,
