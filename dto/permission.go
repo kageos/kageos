@@ -110,22 +110,22 @@ type GetPermissionRequestsReq struct {
 
 // PermissionRequestInfo 权限申请信息
 type PermissionRequestInfo struct {
-	ID               int64  `json:"id"`                 // 申请记录ID
-	AppID            int64  `json:"app_id"`             // 工作空间ID
-	ApplicantUsername string `json:"applicant_username"` // 申请人用户名
-	SubjectType      string `json:"subject_type"`      // 权限主体类型
-	Subject          string `json:"subject"`            // 权限主体
-	ResourcePath     string `json:"resource_path"`      // 资源路径
-	Action           string `json:"action"`             // 操作类型
-	StartTime        string `json:"start_time"`         // 权限开始时间
-	EndTime          string `json:"end_time"`           // 权限结束时间（空字符串表示永久）
-	Reason           string `json:"reason"`             // 申请原因
-	Status           string `json:"status"`             // 申请状态
-	ApprovedAt       string `json:"approved_at"`        // 审批时间（可选）
-	ApprovedBy       string `json:"approved_by"`        // 审批人用户名（可选）
-	RejectedAt       string `json:"rejected_at"`       // 拒绝时间（可选）
-	RejectedBy       string `json:"rejected_by"`        // 拒绝人用户名（可选）
-	RejectReason     string `json:"reject_reason"`      // 拒绝原因（可选）
+	ID               int64       `json:"id"`                 // 申请记录ID
+	AppID            int64       `json:"app_id"`             // 工作空间ID
+	ApplicantUsername string      `json:"applicant_username"` // 申请人用户名
+	SubjectType      string      `json:"subject_type"`      // 权限主体类型
+	Subject          string      `json:"subject"`            // 权限主体
+	ResourcePath     string      `json:"resource_path"`      // 资源路径
+	Action           string      `json:"action"`             // 操作类型
+	StartTime        models.Time `json:"start_time"`         // 权限开始时间
+	EndTime          *models.Time `json:"end_time"`          // 权限结束时间（nil 表示永久）
+	Reason           string      `json:"reason"`             // 申请原因
+	Status           string      `json:"status"`             // 申请状态
+	ApprovedAt       *models.Time `json:"approved_at"`       // 审批时间（可选）
+	ApprovedBy       string      `json:"approved_by"`        // 审批人用户名（可选）
+	RejectedAt       *models.Time `json:"rejected_at"`       // 拒绝时间（可选）
+	RejectedBy       string      `json:"rejected_by"`        // 拒绝人用户名（可选）
+	RejectReason     string      `json:"reject_reason"`      // 拒绝原因（可选）
 	CreatedAt        models.Time `json:"created_at"`         // 申请时间
 }
 
