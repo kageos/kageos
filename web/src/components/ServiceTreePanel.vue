@@ -90,9 +90,9 @@
               <span v-if="data.hub_version" class="hub-version">{{ data.hub_version }}</span>
             </span>
             
-            <!-- ⭐ 待审批数量 badge - 仅管理员可见 -->
+            <!-- ⭐ 待审批数量 badge - 仅管理员可见（package 和 function 类型都显示） -->
             <el-badge
-              v-if="data.type === 'package' && isAdmin(data) && data.pending_count && data.pending_count > 0"
+              v-if="(data.type === 'package' || data.type === 'function') && isAdmin(data) && data.pending_count && data.pending_count > 0"
               :value="data.pending_count"
               :max="99"
               class="pending-count-badge"
