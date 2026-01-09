@@ -573,7 +573,6 @@ import { WidgetType } from '@/core/constants/widget'
 import { useAuthStore } from '@/stores/auth'
 import { updateServiceTree } from '@/api/service-tree'
 import PermissionRequestList from '@/components/Permission/PermissionRequestList.vue'
-import { watch, nextTick } from 'vue'
 
 interface Props {
   packageNode?: ServiceTree | null
