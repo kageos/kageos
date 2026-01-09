@@ -493,6 +493,7 @@
         />
         </div>
       </div>
+    </div>
 
     <!-- 变更记录对话框 -->
     <DirectoryUpdateHistoryDialog
