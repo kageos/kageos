@@ -150,6 +150,16 @@ func (r *ServiceTreeRepository) UpdateServiceTree(serviceTree *model.ServiceTree
 	return r.db.Save(serviceTree).Error
 }
 
+// UpdatePendingCount 原子更新节点的 pending_count
+// ⭐ 使用 SQL 表达式进行原子更新，防止并发问题
+func (r *ServiceTreeRepository) UpdatePendingCount(id int64, delta int) error {
+	// 使用 GORM 的 Update 方法进行原子更新，直接使用 SQL 表达式
+	// GREATEST(0, pending_count + delta) 确保结果不为负数
+	return r.db.Model(&model.ServiceTree{}).
+		Where("id = ?", id).
+		Update("pending_count", gorm.Expr("GREATEST(0, pending_count + ?)", delta)).Error
+}
+
 // DeleteServiceTree 删除服务目录（级联删除子目录）
 func (r *ServiceTreeRepository) DeleteServiceTree(id int64) error {
 	// 先删除所有子目录

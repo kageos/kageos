@@ -400,7 +400,7 @@ func (s *Server) initServices(ctx context.Context) error {
 
 	// ⭐ 初始化权限管理服务（需要在 initEnterprise 之后，因为需要 enterprise.GetPermissionService()）
 	// ⭐ 完全移除 Casbin，使用新的权限系统（不再需要 appRepo，从 resourcePath 解析 user 和 app）
-	s.permissionService = service.NewPermissionService(enterprise.GetPermissionService())
+	s.permissionService = service.NewPermissionService(enterprise.GetPermissionService(), serviceTreeRepo)
 
 	// 初始化服务目录服务（包含目录管理功能：copy、create、remove）
 	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appRuntime, fileSnapshotRepo, s.appService, s.functionGenService, s.permissionService)

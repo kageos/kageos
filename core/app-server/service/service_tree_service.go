@@ -663,6 +663,7 @@ func (s *ServiceTreeService) convertToGetServiceTreeResp(ctx context.Context, tr
 		Description:    tree.Description,
 		Tags:           tree.Tags,
 		Admins:         tree.Admins,
+		PendingCount:   tree.PendingCount, // ⭐ 待审批的权限申请数量
 		Owner:          tree.CreatedBy,
 		AppID:          tree.AppID,
 		FullCodePath:   tree.FullCodePath,
