@@ -114,18 +114,25 @@ func (p *Permission) ApplyPermission(c *gin.Context) {
 	var requestIDs []int64
 
 	for _, action := range actions {
+		// ⭐ 设置开始时间为当前时间
+		startTime := time.Now().Format(time.RFC3339)
+		
 		createReq := dto.CreatePermissionRequestReq{
 			AppID:        appID,
 			ResourcePath: req.ResourcePath,
 			Action:       action,
 			SubjectType:  "user", // 申请自己时是 user
 			Subject:      username,
+			StartTime:    startTime,
 			EndTime:      req.EndTime,
 			Reason:       req.Reason,
 		}
 
 		resp, err := p.permissionService.CreatePermissionRequest(ctx, &createReq)
 		if err != nil {
+			// ⭐ 记录详细错误信息，便于调试
+			logger.Errorf(ctx, "[ApplyPermission] 创建权限申请失败: action=%s, resource_path=%s, error=%v",
+				action, req.ResourcePath, err)
 			failedActions = append(failedActions, action)
 			continue
 		}
