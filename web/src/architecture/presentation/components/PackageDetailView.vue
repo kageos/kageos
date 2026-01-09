@@ -418,80 +418,80 @@
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- 子目录和函数列表 -->
-      <div class="children-section" v-if="!hasNoDirectoryPermissions && packageNode?.children && packageNode.children.length > 0">
-        <div class="section-header">
-          <h3 class="section-title">
-            <el-icon class="section-icon"><Files /></el-icon>
-            子目录和函数
-          </h3>
-          <el-tag class="section-badge" type="primary" size="small">
-            {{ packageNode.children.length }}
-          </el-tag>
-        </div>
+        <!-- 子目录和函数列表 -->
+        <div class="children-section" v-if="!hasNoDirectoryPermissions && packageNode?.children && packageNode.children.length > 0">
+          <div class="section-header">
+            <h3 class="section-title">
+              <el-icon class="section-icon"><Files /></el-icon>
+              子目录和函数
+            </h3>
+            <el-tag class="section-badge" type="primary" size="small">
+              {{ packageNode.children.length }}
+            </el-tag>
+          </div>
 
-        <div class="children-grid">
-          <div
-            v-for="child in packageNode.children"
-            :key="child.id"
-            class="child-card"
-            @click="handleChildClick(child)"
-          >
-            <div class="child-card-header">
-              <div class="child-icon-wrapper" :class="child.type === 'package' ? 'package-type' : 'function-type'">
-                <!-- package 类型：使用自定义文件夹图标 -->
-                <img
-                  v-if="child.type === 'package'"
-                  src="/service-tree/custom-folder.svg"
-                  alt="目录"
-                  class="child-icon-img"
-                />
-                <!-- function 类型：根据 template_type 显示不同图标 -->
-                <template v-else-if="child.type === 'function'">
-                  <!-- 表单类型：使用编辑图标 -->
+          <div class="children-grid">
+            <div
+              v-for="child in packageNode.children"
+              :key="child.id"
+              class="child-card"
+              @click="handleChildClick(child)"
+            >
+              <div class="child-card-header">
+                <div class="child-icon-wrapper" :class="child.type === 'package' ? 'package-type' : 'function-type'">
+                  <!-- package 类型：使用自定义文件夹图标 -->
                   <img
-                    v-if="child.template_type === TEMPLATE_TYPE.FORM"
-                    src="/service-tree/编辑.svg"
-                    alt="表单"
+                    v-if="child.type === 'package'"
+                    src="/service-tree/custom-folder.svg"
+                    alt="目录"
                     class="child-icon-img"
                   />
-                  <!-- 其他类型：使用组件图标 -->
+                  <!-- function 类型：根据 template_type 显示不同图标 -->
+                  <template v-else-if="child.type === 'function'">
+                    <!-- 表单类型：使用编辑图标 -->
+                    <img
+                      v-if="child.template_type === TEMPLATE_TYPE.FORM"
+                      src="/service-tree/编辑.svg"
+                      alt="表单"
+                      class="child-icon-img"
+                    />
+                    <!-- 其他类型：使用组件图标 -->
+                    <el-icon v-else class="child-icon">
+                      <component :is="getChildFunctionIcon(child)" />
+                    </el-icon>
+                  </template>
+                  <!-- 默认图标 -->
                   <el-icon v-else class="child-icon">
-                    <component :is="getChildFunctionIcon(child)" />
+                    <Document />
                   </el-icon>
-                </template>
-                <!-- 默认图标 -->
-                <el-icon v-else class="child-icon">
-                  <Document />
-                </el-icon>
+                </div>
+                <el-tag
+                  v-if="child.type === 'function'"
+                  size="small"
+                  :type="getTemplateTypeTag(child.template_type)"
+                  class="child-type-tag"
+                >
+                  {{ getTemplateTypeText(child.template_type) }}
+                </el-tag>
               </div>
-              <el-tag
-                v-if="child.type === 'function'"
-                size="small"
-                :type="getTemplateTypeTag(child.template_type)"
-                class="child-type-tag"
-              >
-                {{ getTemplateTypeText(child.template_type) }}
-              </el-tag>
-            </div>
-            <div class="child-card-body">
-              <div class="child-name">{{ child.name }}</div>
-              <div class="child-description" v-if="child.description">
-                {{ child.description }}
+              <div class="child-card-body">
+                <div class="child-name">{{ child.name }}</div>
+                <div class="child-description" v-if="child.description">
+                  {{ child.description }}
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <el-empty
-        v-else-if="!hasNoDirectoryPermissions"
-        description="该目录下暂无子目录或函数"
-        :image-size="120"
-        class="empty-state"
-      />
+        <el-empty
+          v-else-if="!hasNoDirectoryPermissions"
+          description="该目录下暂无子目录或函数"
+          :image-size="120"
+          class="empty-state"
+        />
+      </div>
     </div>
 
     <!-- 变更记录对话框 -->
