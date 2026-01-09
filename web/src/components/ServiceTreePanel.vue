@@ -195,6 +195,19 @@
                     <el-icon><Key /></el-icon>
                     申请权限
                   </el-dropdown-item>
+                  <!-- ⭐ 审批权限申请选项（仅管理员可见，且有待审批申请时显示） -->
+                  <el-dropdown-item 
+                    v-if="(data.type === 'package' || data.type === 'function') && isAdmin(data) && data.pending_count && data.pending_count > 0" 
+                    command="approve-permission" 
+                  >
+                    <el-icon><DocumentChecked /></el-icon>
+                    审批权限申请
+                    <el-badge 
+                      :value="data.pending_count" 
+                      :max="99" 
+                      class="dropdown-badge"
+                    />
+                  </el-dropdown-item>
                   <!-- 权限管理选项（仅对目录显示，且仅管理员可见） -->
                   <el-dropdown-item 
                     v-if="data.type === 'package' && isAdmin(data)" 
@@ -225,7 +238,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Plus, MoreFilled, Link, CopyDocument, Document, Clock, Upload, Download, Delete, Key, User } from '@element-plus/icons-vue'
+import { Plus, MoreFilled, Link, CopyDocument, Document, Clock, Upload, Download, Delete, Key, User, DocumentChecked } from '@element-plus/icons-vue'
 import ChartIcon from './icons/ChartIcon.vue'
 import TableIcon from './icons/TableIcon.vue'
 import FormIcon from './icons/FormIcon.vue'
@@ -688,6 +701,8 @@ const handleNodeAction = (command: string, data: ServiceTree) => {
     emit('update-history', data)
   } else if (command === 'apply-permission') {
     handleApplyPermission(data)
+  } else if (command === 'approve-permission') {
+    handleApprovePermission(data)
   } else if (command === 'manage-permission') {
     handleManagePermission(data)
   }
