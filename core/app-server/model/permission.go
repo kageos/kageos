@@ -64,29 +64,37 @@ func (p *WorkspacePermission) MatchResource(resourcePath string) bool {
 // PermissionRequest 权限申请审批表
 type PermissionRequest struct {
 	models.Base
-	AppID             int64      `json:"app_id" gorm:"column:app_id;not null;index:idx_app_status;comment:工作空间ID"`
-	ApplicantUsername string     `json:"applicant_username" gorm:"column:applicant_username;type:varchar(100);not null;index:idx_applicant;comment:申请人用户名"`
-	SubjectType       string     `json:"subject_type" gorm:"column:subject_type;type:varchar(20);not null;comment:权限主体类型"`
-	Subject           string     `json:"subject" gorm:"column:subject;type:varchar(150);not null;comment:权限主体"`
-	ResourcePath      string     `json:"resource_path" gorm:"column:resource_path;type:varchar(150);not null;index:idx_resource_status;comment:资源路径"`
-	Action            string     `json:"action" gorm:"column:action;type:varchar(50);not null;comment:操作类型"`
-	StartTime         time.Time  `json:"start_time" gorm:"column:start_time;type:datetime;not null;comment:权限开始时间"`
-	EndTime           *time.Time `json:"end_time" gorm:"column:end_time;type:datetime;comment:权限结束时间（NULL 表示永久）"`
-	Reason            string     `json:"reason" gorm:"column:reason;type:text;comment:申请原因"`
-	Status            string     `json:"status" gorm:"column:status;type:varchar(20);not null;default:'pending';index:idx_resource_status;index:idx_status;index:idx_app_status;comment:申请状态"`
-	ApprovedAt        *time.Time `json:"approved_at" gorm:"column:approved_at;type:datetime;comment:审批时间"`
-	ApprovedBy        string     `json:"approved_by" gorm:"column:approved_by;type:varchar(100);index:idx_approver;comment:审批人用户名"`
-	RejectedAt        *time.Time `json:"rejected_at" gorm:"column:rejected_at;type:datetime;comment:拒绝时间"`
-	RejectedBy        string     `json:"rejected_by" gorm:"column:rejected_by;type:varchar(100);comment:拒绝人用户名"`
-	RejectReason      string     `json:"reject_reason" gorm:"column:reject_reason;type:text;comment:拒绝原因"`
-	CancelledAt       *time.Time `json:"cancelled_at" gorm:"column:cancelled_at;type:datetime;comment:取消时间"`
-	CancelledBy       string     `json:"cancelled_by" gorm:"column:cancelled_by;type:varchar(100);comment:取消人用户名"`
-	PermissionID      *int64     `json:"permission_id" gorm:"column:permission_id;comment:关联的权限记录ID"`
+	AppID             int64       `json:"app_id" gorm:"column:app_id;not null;index:idx_app_status;comment:工作空间ID"`
+	ApplicantUsername string       `json:"applicant_username" gorm:"column:applicant_username;type:varchar(100);not null;index:idx_applicant;comment:申请人用户名"`
+	SubjectType       string      `json:"subject_type" gorm:"column:subject_type;type:varchar(20);not null;comment:权限主体类型"`
+	Subject           string       `json:"subject" gorm:"column:subject;type:varchar(150);not null;comment:权限主体"`
+	ResourcePath      string       `json:"resource_path" gorm:"column:resource_path;type:varchar(150);not null;index:idx_resource_status;comment:资源路径"`
+	Action            string       `json:"action" gorm:"column:action;type:varchar(50);not null;comment:操作类型"`
+	StartTime         models.Time  `json:"start_time" gorm:"column:start_time;type:datetime;not null;comment:权限开始时间"`
+	EndTime           *models.Time `json:"end_time" gorm:"column:end_time;type:datetime;comment:权限结束时间（NULL 表示永久）"`
+	Reason            string       `json:"reason" gorm:"column:reason;type:text;comment:申请原因"`
+	Status            string       `json:"status" gorm:"column:status;type:varchar(20);not null;default:'pending';index:idx_resource_status;index:idx_status;index:idx_app_status;comment:申请状态"`
+	ApprovedAt        *models.Time `json:"approved_at" gorm:"column:approved_at;type:datetime;comment:审批时间"`
+	ApprovedBy        string       `json:"approved_by" gorm:"column:approved_by;type:varchar(100);index:idx_approver;comment:审批人用户名"`
+	RejectedAt        *models.Time `json:"rejected_at" gorm:"column:rejected_at;type:datetime;comment:拒绝时间"`
+	RejectedBy        string       `json:"rejected_by" gorm:"column:rejected_by;type:varchar(100);comment:拒绝人用户名"`
+	RejectReason      string       `json:"reject_reason" gorm:"column:reject_reason;type:text;comment:拒绝原因"`
+	CancelledAt       *models.Time `json:"cancelled_at" gorm:"column:cancelled_at;type:datetime;comment:取消时间"`
+	CancelledBy       string       `json:"cancelled_by" gorm:"column:cancelled_by;type:varchar(100);comment:取消人用户名"`
+	PermissionID      *int64       `json:"permission_id" gorm:"column:permission_id;comment:关联的权限记录ID"`
 }
 
 func (*PermissionRequest) TableName() string {
 	return "permission_request"
 }
+
+// 权限申请状态常量
+const (
+	PermissionRequestStatusPending   = "pending"   // 待审批
+	PermissionRequestStatusApproved   = "approved" // 已同意
+	PermissionRequestStatusRejected   = "rejected" // 已驳回
+	PermissionRequestStatusCancelled  = "cancelled" // 已取消
+)
 
 // PermissionGrantLog 授权记录表
 type PermissionGrantLog struct {

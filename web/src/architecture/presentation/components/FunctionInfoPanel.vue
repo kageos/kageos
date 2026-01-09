@@ -93,7 +93,8 @@ const mergedFunctionData = computed(() => {
     name: detail.name || node.name || '',
     description: detail.description || node.description || '',
     tags: detail.tags || node.tags || '',
-    created_by: detail.created_by || node.owner || '',
+    // ⭐ 优先使用树节点的 owner（创建用户），这样即使没有 read 权限也可以展示
+    created_by: node.owner || detail.created_by || '',
     created_at: detail.created_at || node.created_at || '',
     router: detail.router || node.full_code_path || '',
     method: detail.method || 'GET',

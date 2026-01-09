@@ -10,6 +10,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
+	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/pkg/permission"
 	"github.com/gin-gonic/gin"
@@ -110,21 +111,32 @@ func (p *Permission) ApplyPermission(c *gin.Context) {
 		return
 	}
 
+	// ⭐ 确定权限主体类型和主体
+	subjectType := req.SubjectType
+	if subjectType == "" {
+		subjectType = "user" // 默认为用户
+	}
+
+	subject := req.Subject
+	if subject == "" {
+		subject = username // 默认为当前用户
+	}
+
 	// ⭐ 批量创建申请记录（不再直接添加权限）
 	successCount := 0
 	failedActions := make([]string, 0)
 	var requestIDs []int64
 
 	for _, action := range actions {
-		// ⭐ 设置开始时间为当前时间
-		startTime := time.Now().Format(time.RFC3339)
+		// ⭐ 设置开始时间为当前时间（使用 models.Time）
+		startTime := models.Time(time.Now())
 
 		createReq := dto.CreatePermissionRequestReq{
 			AppID:        appID,
 			ResourcePath: req.ResourcePath,
 			Action:       action,
-			SubjectType:  "user", // 申请自己时是 user
-			Subject:      username,
+			SubjectType:  subjectType, // ⭐ 支持用户或部门
+			Subject:      subject,     // ⭐ 支持用户名或部门路径
 			StartTime:    startTime,
 			EndTime:      req.EndTime,
 			Reason:       req.Reason,

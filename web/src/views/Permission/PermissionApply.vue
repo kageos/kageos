@@ -335,8 +335,8 @@
                     class="grant-target-type-radio"
                   >
                     <el-radio label="self">给自己申请</el-radio>
-                    <el-radio label="user" :disabled="!hasManagePermission">给其他用户</el-radio>
-                    <el-radio label="department" :disabled="!hasManagePermission">给部门</el-radio>
+                    <el-radio label="user">给其他用户申请</el-radio>
+                    <el-radio label="department">给部门申请</el-radio>
                   </el-radio-group>
                   
                   <!-- 当前用户显示 -->
@@ -362,86 +362,20 @@
                     </div>
                   </div>
                   
-                  <!-- 用户选择 -->
+                  <!-- 用户选择（多选） -->
                   <div v-if="grantTargetType === 'user'" class="grant-target-input">
-                    <div v-if="!hasManagePermission" class="disabled-overlay">
-                      <el-alert
-                        type="warning"
-                        :closable="false"
-                        show-icon
-                      >
-                        <template #default>
-                          <div class="tip-content">
-                            <p class="tip-text">您没有该资源的管理权限，无法给其他用户赋权</p>
-                          </div>
-                        </template>
-                      </el-alert>
-                    </div>
-                    <div v-else>
-                      <el-button
-                        type="primary"
-                        @click="showUserSelector = true"
-                        style="width: 100%"
-                        :icon="grantTargetUser ? null : User"
-                      >
-                        {{ grantTargetUser ? `已选择: ${grantTargetUser.username}` : '选择用户' }}
-                      </el-button>
-                      <!-- 显示选中用户的详细信息 -->
-                      <div v-if="grantTargetUser" class="selected-user-details">
-                        <div class="selected-user-card">
-                          <div class="user-content">
-                            <el-avatar
-                              :src="grantTargetUser.avatar"
-                              :size="36"
-                              class="user-avatar"
-                            >
-                              {{ grantTargetUser.username?.[0]?.toUpperCase() || 'U' }}
-                            </el-avatar>
-                            <div class="user-info">
-                              <div class="user-name">{{ grantTargetUser.username }}</div>
-                              <div class="user-meta">
-                                <span v-if="grantTargetUser.nickname" class="user-nickname">{{ grantTargetUser.nickname }}</span>
-                                <span v-if="grantTargetUser.email" class="user-email">{{ grantTargetUser.email }}</span>
-                              </div>
-                              <div v-if="grantTargetUser.department_name || grantTargetUser.department_full_path" class="user-org-info">
-                                <el-icon><OfficeBuilding /></el-icon>
-                                <span>{{ grantTargetUser.department_name || grantTargetUser.department_full_path }}</span>
-                              </div>
-                              <div v-if="grantTargetUser.leader_display_name || grantTargetUser.leader_username" class="user-leader-info">
-                                <el-icon><UserFilled /></el-icon>
-                                <span>{{ grantTargetUser.leader_display_name || grantTargetUser.leader_username }}</span>
-                              </div>
-                            </div>
-                          </div>
-                          <el-button
-                            text
-                            type="danger"
-                            @click="grantTargetUser = null; grantTargetUserUsername = null"
-                            :icon="Close"
-                            circle
-                            class="remove-btn"
-                          />
-                        </div>
-                      </div>
-                    </div>
+                    <UsersWidget
+                      :value="grantTargetUsersValue"
+                      :field="grantTargetUsersField"
+                      mode="edit"
+                      field-path="grantTargetUsers"
+                      @update:modelValue="handleGrantTargetUsersChange"
+                    />
                   </div>
                   
                   <!-- 部门选择 -->
                   <div v-if="grantTargetType === 'department'" class="grant-target-input">
-                    <div v-if="!hasManagePermission" class="disabled-overlay">
-                      <el-alert
-                        type="warning"
-                        :closable="false"
-                        show-icon
-                      >
-                        <template #default>
-                          <div class="tip-content">
-                            <p class="tip-text">您没有该资源的管理权限，无法给部门赋权</p>
-                          </div>
-                        </template>
-                      </el-alert>
-                    </div>
-                    <div v-else>
+                    <div>
                       <el-button
                         type="primary"
                         @click="showDepartmentSelector = true"
@@ -941,13 +875,38 @@ function formatUserDisplayName(user: UserInfo | null): string {
   return user.username
 }
 
+// 赋权目标用户字段配置（用于 UsersWidget，支持多选）
+const grantTargetUsersField = computed<FieldConfig>(() => ({
+  code: 'grantTargetUsers',
+  name: '申请权限的用户',
+  widget: {
+    type: WidgetType.USERS,
+    config: {}
+  },
+  data: {
+    type: 'string'
+  }
+}))
+
+// 赋权目标用户字段值（用于 UsersWidget）
+const grantTargetUsersValue = ref<FieldValue>({
+  raw: '',
+  display: '',
+  meta: {}
+})
+
+// 处理赋权目标用户变化
+const handleGrantTargetUsersChange = (value: FieldValue) => {
+  grantTargetUsersValue.value = value
+}
+
 // 是否可以提交
 const canSubmit = computed(() => {
   if (selectedPermissions.value.length === 0) {
     return false
   }
   if (grantTargetType.value === 'user') {
-    return grantTargetUser.value !== null
+    return grantTargetUsersValue.value?.raw && String(grantTargetUsersValue.value.raw).trim() !== ''
   } else if (grantTargetType.value === 'department') {
     return grantTargetDepartment.value !== ''
   }
@@ -2323,87 +2282,51 @@ const handleSubmit = async () => {
     // 准备有效期参数
     const endTime = formData.value.isPermanent ? undefined : (formData.value.endTime || undefined)
 
-    // 根据赋权对象类型决定是申请还是赋权
+    // ⭐ 统一使用申请流程（不再区分申请和赋权）
+    // 所有权限申请都需要经过审批流程
+    let subjectType: 'user' | 'department' = 'user'
+    let subject: string = ''
+    
     if (grantTargetType.value === 'self') {
       // 给自己申请权限
-      await applyPermission({
-        resource_path: resourcePath,
-        actions: actions,
-        reason: formData.value.reason,
-        end_time: endTime,
-      })
-      ElMessage.success('权限申请已提交')
+      subjectType = 'user'
+      subject = '' // 后端会使用当前用户
     } else if (grantTargetType.value === 'user') {
-      // 给其他用户赋权
-      if (!grantTargetUser.value) {
-        ElMessage.warning('请选择要赋权的用户')
+      // 给其他用户申请权限（支持多选）
+      const selectedUsernames = grantTargetUsersValue.value?.raw
+      if (!selectedUsernames || !String(selectedUsernames).trim()) {
+        ElMessage.warning('请至少选择一个要申请权限的用户')
         return
       }
-
-      let successCount = 0
-      let failedActions: string[] = []
-
-      for (const action of actions) {
-        try {
-          await addPermission({
-            subject: grantTargetUser.value.username,
-            resource_path: resourcePath,
-            action: action,
-            end_time: endTime,
-          })
-          successCount++
-        } catch (err: any) {
-          failedActions.push(action)
-          console.error(`赋权失败: ${action}`, err)
-        }
-      }
-
-      if (successCount === 0) {
-        ElMessage.error('赋权失败，所有权限点都添加失败')
-        return
-      }
-
-      if (successCount === actions.length) {
-        ElMessage.success(`已成功给用户 "${grantTargetUser.value.username}" 赋权 ${successCount} 个权限`)
-      } else {
-        ElMessage.warning(`赋权部分成功，已成功添加 ${successCount}/${actions.length} 个权限，失败：${failedActions.join(', ')}`)
-      }
+      subjectType = 'user'
+      subject = String(selectedUsernames).trim() // 多个用户名用逗号分隔
     } else if (grantTargetType.value === 'department') {
-      // 给部门赋权（直接给组织架构路径赋权，该部门下的所有用户自动拥有权限）
+      // 给部门申请权限
       if (!grantTargetDepartment.value) {
-        ElMessage.warning('请选择要赋权的部门')
+        ElMessage.warning('请选择要申请权限的部门')
         return
       }
-
-      let successCount = 0
-      let failedActions: string[] = []
-
-      for (const action of actions) {
-        try {
-          await addPermission({
-            subject: grantTargetDepartment.value, // ⭐ 直接使用组织架构路径作为 subject
-            resource_path: resourcePath,
-            action: action,
-            end_time: endTime,
-          })
-          successCount++
-        } catch (err: any) {
-          failedActions.push(action)
-          console.error(`给部门赋权失败: ${action}`, err)
-        }
-      }
-
-      if (successCount === 0) {
-        ElMessage.error('赋权失败，所有权限点都添加失败')
-        return
-      }
-
-      if (successCount === actions.length) {
-        ElMessage.success(`已成功给部门 "${grantTargetDepartment.value}" 赋权 ${successCount} 个权限，该部门下的所有用户自动拥有这些权限`)
-      } else {
-        ElMessage.warning(`赋权部分成功，已成功添加 ${successCount}/${actions.length} 个权限，失败：${failedActions.join(', ')}`)
-      }
+      subjectType = 'department'
+      subject = grantTargetDepartment.value
     }
+
+    // 提交权限申请（统一走申请流程）
+    await applyPermission({
+      resource_path: resourcePath,
+      actions: actions,
+      subject_type: subjectType,
+      subject: subject,
+      reason: formData.value.reason,
+      end_time: endTime,
+    })
+    
+    const targetText = grantTargetType.value === 'self' 
+      ? '自己' 
+      : grantTargetType.value === 'user' 
+      ? `用户 "${grantTargetUsersValue.value?.display || grantTargetUsersValue.value?.raw || ''}"` 
+      : `部门 "${grantTargetDepartment.value}"`
+    
+    ElMessage.success(`已为${targetText}提交权限申请，等待审批`)
     
     // 延迟后返回上一页
     setTimeout(() => {

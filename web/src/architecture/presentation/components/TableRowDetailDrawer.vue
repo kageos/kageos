@@ -292,6 +292,17 @@
               />
             </div>
           </el-tab-pane>
+
+          <!-- 权限申请 tab（仅管理员可见） -->
+          <el-tab-pane v-if="showPermissionRequestTab" label="权限申请" name="permissionRequest">
+            <div class="tab-content">
+              <PermissionRequestList
+                ref="permissionRequestListRef"
+                :resource-path="fullCodePath"
+                :auto-load="activeTab === 'permissionRequest'"
+              />
+            </div>
+          </el-tab-pane>
         </el-tabs>
       </div>
 

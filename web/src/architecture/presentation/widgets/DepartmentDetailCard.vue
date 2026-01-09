@@ -163,33 +163,41 @@ const currentPath = computed(() => {
 })
 
 // 监听 currentPath 变化，定位到当前节点
-watch([() => props.currentPath, () => props.departmentInfo], () => {
-  if (currentPath.value && treeRef.value) {
-    nextTick(() => {
-      // 设置当前节点
-      treeRef.value?.setCurrentKey(currentPath.value!)
-      
-      // 展开到当前节点的路径
-      const expandPath = (path: string) => {
-        const parts = path.split('/').filter(Boolean)
-        const expandedKeys: string[] = []
-        let currentPath = ''
-        for (const part of parts) {
-          currentPath = currentPath ? `${currentPath}/${part}` : `/${part}`
-          expandedKeys.push(currentPath)
-        }
-        return expandedKeys
+watch([() => props.currentPath, () => props.departmentInfo, () => treeData.value], async () => {
+  if (currentPath.value && treeRef.value && treeData.value.length > 0) {
+    // 🔥 使用 nextTick 确保 DOM 已渲染
+    await nextTick()
+    
+    // 设置当前节点
+    treeRef.value?.setCurrentKey(currentPath.value!)
+    
+    // 展开到当前节点的路径
+    const expandPath = (path: string) => {
+      const parts = path.split('/').filter(Boolean)
+      const expandedKeys: string[] = []
+      let currentPath = ''
+      for (const part of parts) {
+        currentPath = currentPath ? `${currentPath}/${part}` : `/${part}`
+        expandedKeys.push(currentPath)
       }
-      
-      const expandedKeys = expandPath(currentPath.value!)
-      // 展开所有父节点
-      expandedKeys.forEach(key => {
-        const node = treeRef.value?.getNode(key)
-        if (node && !node.expanded) {
-          node.expand()
-        }
-      })
+      return expandedKeys
+    }
+    
+    const expandedKeys = expandPath(currentPath.value!)
+    // 展开所有父节点
+    expandedKeys.forEach(key => {
+      const node = treeRef.value?.getNode(key)
+      if (node && !node.expanded) {
+        node.expand()
+      }
     })
+    
+    // 🔥 滚动到选中节点（可见）
+    await nextTick()
+    const selectedNode = treeRef.value?.store?.nodesMap?.[currentPath.value!]
+    if (selectedNode) {
+      selectedNode.visible = true
+    }
   }
 }, { immediate: true })
 
@@ -202,8 +210,8 @@ function handleGoToOrganizationPage() {
 <style scoped>
 .department-detail-card {
   padding: 16px;
-  min-width: 360px;
-  max-width: 480px;
+  min-width: 460px;
+  max-width: 600px;
 }
 
 .department-header {
@@ -260,7 +268,7 @@ function handleGoToOrganizationPage() {
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 4px;
   padding: 8px;
-  background: var(--el-fill-color-lighter);
+  background: var(--el-bg-color);
 }
 
 .department-tree {
@@ -277,10 +285,20 @@ function handleGoToOrganizationPage() {
   background-color: var(--el-fill-color);
 }
 
-.department-tree :deep(.el-tree-node.is-current > .el-tree-node__content) {
-  background-color: var(--el-color-primary-light-9);
-  color: var(--el-color-primary);
-  font-weight: 500;
+:deep(.el-tree-node.is-current > .el-tree-node__content) {
+  background-color: var(--el-fill-color-lighter);
+  border-left: 2px solid #6366f1;
+  
+  .tree-node {
+    .node-label {
+      color: var(--el-text-color-primary);
+      font-weight: 500;
+    }
+    
+    .node-icon {
+      opacity: 0.8;
+    }
+  }
 }
 
 .tree-node {
@@ -291,8 +309,17 @@ function handleGoToOrganizationPage() {
 }
 
 .tree-node.is-current {
-  color: var(--el-color-primary);
+  color: var(--el-text-color-primary);
   font-weight: 500;
+  
+  .node-icon {
+    opacity: 0.8;
+  }
+  
+  .node-label {
+    color: var(--el-text-color-primary);
+    font-weight: 500;
+  }
 }
 
 .node-icon {
