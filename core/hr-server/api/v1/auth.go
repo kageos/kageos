@@ -1,10 +1,10 @@
 package v1
 
 import (
-	"time"
-
+	"github.com/ai-agent-os/ai-agent-os/core/hr-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/hr-server/service"
 	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/gin-gonic/gin"
@@ -12,15 +12,19 @@ import (
 
 // Auth 认证相关API
 type Auth struct {
-	authService  *service.AuthService
-	emailService *service.EmailService
+	authService       *service.AuthService
+	emailService      *service.EmailService
+	userService       *service.UserService
+	departmentService *service.DepartmentService
 }
 
 // NewAuth 创建认证API（依赖注入）
-func NewAuth(authService *service.AuthService, emailService *service.EmailService) *Auth {
+func NewAuth(authService *service.AuthService, emailService *service.EmailService, userService *service.UserService, departmentService *service.DepartmentService) *Auth {
 	return &Auth{
-		authService:  authService,
-		emailService: emailService,
+		authService:       authService,
+		emailService:      emailService,
+		userService:       userService,
+		departmentService: departmentService,
 	}
 }
 
@@ -154,19 +158,18 @@ func (a *Auth) Login(c *gin.Context) {
 		return
 	}
 
+	// ⭐ 转换为DTO（包含详细信息：组织架构和Leader信息）
+	ctx := contextx.ToContext(c)
+	userInfos := convertUsersToDTOBatch(ctx, []*model.User{user}, a.userService, a.departmentService)
+	if len(userInfos) == 0 {
+		response.FailWithMessage(c, "转换用户信息失败")
+		return
+	}
+
 	resp = &dto.LoginResp{
 		Token:        token,
 		RefreshToken: refreshToken,
-		User: dto.UserInfo{
-			ID:            user.ID,
-			Username:      user.Username,
-			Email:         user.Email,
-			RegisterType:  user.RegisterType,
-			Avatar:        user.Avatar,
-			EmailVerified: user.EmailVerified,
-			Status:        user.Status,
-			CreatedAt:     time.Time(user.CreatedAt).Format(time.RFC3339),
-		},
+		User:         *userInfos[0],
 	}
 
 	response.OkWithData(c, resp)

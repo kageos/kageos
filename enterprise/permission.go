@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 )
 
 // PermissionService 权限服务接口
@@ -209,31 +211,106 @@ type PermissionService interface {
 	//   - 企业版实现会查询用户和组织架构的所有权限
 	//   - 返回的响应对象包含 CheckPermission 方法，方便在应用层校验权限
 	GetUserWorkspacePermissions(ctx context.Context, req *GetUserWorkspacePermissionsReq) (*GetUserWorkspacePermissionsResp, error)
+
+	// ============================================
+	// 审批服务方法（企业版功能，原 ApprovalService 的方法）
+	// ============================================
+
+	// CreateApprovalRequest 创建权限申请（审批流程）
+	// 参数：
+	//   - ctx: 上下文
+	//   - req: 内部创建权限申请请求
+	//
+	// 返回：
+	//   - request: 权限申请记录
+	//   - error: 如果创建失败返回错误
+	//
+	// 说明：
+	//   - 社区版实现返回错误（不支持权限申请）
+	//   - 企业版实现会创建申请记录，状态为 pending
+	CreateApprovalRequest(ctx context.Context, req *InternalCreatePermissionRequestReq) (*PermissionRequest, error)
+
+	// ApproveApprovalRequest 审批通过权限申请
+	// 参数：
+	//   - ctx: 上下文
+	//   - requestID: 申请记录ID
+	//   - approverUsername: 审批人用户名
+	//
+	// 返回：
+	//   - error: 如果审批失败返回错误
+	//
+	// 说明：
+	//   - 社区版实现返回错误（不支持权限审批）
+	//   - 企业版实现会更新申请状态为 approved，并创建权限记录
+	ApproveApprovalRequest(ctx context.Context, requestID int64, approverUsername string) error
+
+	// RejectApprovalRequest 审批拒绝权限申请
+	// 参数：
+	//   - ctx: 上下文
+	//   - requestID: 申请记录ID
+	//   - approverUsername: 审批人用户名
+	//   - reason: 拒绝原因
+	//
+	// 返回：
+	//   - error: 如果拒绝失败返回错误
+	//
+	// 说明：
+	//   - 社区版实现返回错误（不支持权限审批）
+	//   - 企业版实现会更新申请状态为 rejected
+	RejectApprovalRequest(ctx context.Context, requestID int64, approverUsername string, reason string) error
+}
+
+// InternalCreatePermissionRequestReq 内部创建权限申请请求（企业版内部使用）
+// ⭐ 注意：这个结构体应该与 dto.InternalCreatePermissionRequestReq 保持一致
+// 但由于 enterprise 包不能依赖 dto 包，所以这里重新定义
+type InternalCreatePermissionRequestReq struct {
+	User              string       // 租户用户名
+	App               string       // 应用代码
+	ApplicantUsername string       // 申请人用户名
+	SubjectType       string       // 权限主体类型
+	Subject           string       // 权限主体
+	ResourcePath      string       // 资源路径
+	Action            string       // 操作类型
+	StartTime         models.Time  // 权限开始时间
+	EndTime           *models.Time // 权限结束时间（nil 表示永久）
+	Reason            string       // 申请原因
+}
+
+// PermissionRequest 权限申请记录（企业版内部使用）
+type PermissionRequest struct {
+	ID                int64  // 申请记录ID
+	AppID             int64  // 工作空间ID
+	ApplicantUsername string // 申请人用户名
+	SubjectType       string // 权限主体类型
+	Subject           string // 权限主体
+	ResourcePath      string // 资源路径
+	Action            string // 操作类型
+	Status            string // 申请状态
 }
 
 // PermissionRequestReq 权限申请请求
 type PermissionRequestReq struct {
 	AppID             int64
 	ApplicantUsername string
-	SubjectType       string // user 或 department
-	Subject           string // 用户名或组织架构路径
+	SubjectType       string       // user 或 department
+	Subject           string       // 用户名或组织架构路径
 	ResourcePath      string
 	Action            string
-	StartTime         string // ISO 8601 格式
-	EndTime           string // ISO 8601 格式，空字符串表示永久
+	StartTime         models.Time  // 权限开始时间
+	EndTime           *models.Time // 权限结束时间（nil 表示永久）
 	Reason            string
 }
 
 // GrantPermissionReq 授权请求
 type GrantPermissionReq struct {
 	AppID           int64
-	GrantorUsername string // 授权人用户名
-	GranteeType     string // user 或 department
-	Grantee         string // 被授权人
+	GrantorUsername string       // 授权人用户名
+	GranteeType     string       // user 或 department
+	Grantee         string       // 被授权人
 	ResourcePath    string
 	Action          string
-	StartTime       string // ISO 8601 格式
-	EndTime         string // ISO 8601 格式，空字符串表示永久
+	StartTime       models.Time  // 权限开始时间
+	EndTime         *models.Time // 权限结束时间（nil 表示永久）
 }
 
 // GetUserWorkspacePermissionsReq 获取用户工作空间权限请求
@@ -492,4 +569,22 @@ func (u *UnImplPermissionService) GetUserWorkspacePermissions(ctx context.Contex
 	return &GetUserWorkspacePermissionsResp{
 		Records: []PermissionRecord{},
 	}, nil
+}
+
+// CreateApprovalRequest 创建权限申请（审批流程）
+// 社区版实现：返回错误（不支持权限申请）
+func (u *UnImplPermissionService) CreateApprovalRequest(ctx context.Context, req *InternalCreatePermissionRequestReq) (*PermissionRequest, error) {
+	return nil, fmt.Errorf("权限申请功能仅在企业版可用")
+}
+
+// ApproveApprovalRequest 审批通过权限申请
+// 社区版实现：返回错误（不支持权限审批）
+func (u *UnImplPermissionService) ApproveApprovalRequest(ctx context.Context, requestID int64, approverUsername string) error {
+	return fmt.Errorf("权限审批功能仅在企业版可用")
+}
+
+// RejectApprovalRequest 审批拒绝权限申请
+// 社区版实现：返回错误（不支持权限审批）
+func (u *UnImplPermissionService) RejectApprovalRequest(ctx context.Context, requestID int64, approverUsername string, reason string) error {
+	return fmt.Errorf("权限审批功能仅在企业版可用")
 }

@@ -169,8 +169,11 @@
 
         <!-- ⭐ 权限申请 tab（仅管理员可见） -->
         <div v-else-if="showPermissionRequestTab" class="permission-request-section">
-        <el-tabs v-model="activeTab" @tab-change="handleTabChange" class="detail-tabs">
-          <el-tab-pane label="目录信息" name="info">
+        <el-tabs v-model="activeTab" type="card" @tab-change="handleTabChange" class="detail-tabs">
+          <el-tab-pane name="info">
+            <template #label>
+              <span>目录信息</span>
+            </template>
             <div class="tab-content">
               <!-- 信息概览卡片 -->
               <div v-if="packageNode" class="overview-section">
@@ -328,7 +331,12 @@
           </el-tab-pane>
           
           <!-- 权限申请 tab -->
-          <el-tab-pane label="权限申请" name="permissionRequest">
+          <el-tab-pane name="permissionRequest">
+            <template #label>
+              <el-badge :value="packageNode?.pending_count || 0" :hidden="!packageNode?.pending_count || packageNode.pending_count === 0" :max="99">
+                <span>权限申请</span>
+              </el-badge>
+            </template>
             <div class="tab-content">
               <PermissionRequestList
                 ref="permissionRequestListRef"
@@ -1698,6 +1706,78 @@ function handleChildClick(child: ServiceTree): void {
         justify-content: center;
         padding-top: 16px;
         border-top: 1px solid var(--el-border-color-lighter);
+      }
+
+      // ⭐ Tab 样式（参考旧版本的 card 样式）
+      .detail-tabs {
+        :deep(.el-tabs__header) {
+          margin-bottom: 20px;
+          overflow: visible; /* 确保 badge 不被裁剪 */
+        }
+
+        :deep(.el-tabs__nav-wrap) {
+          overflow: visible !important; /* 确保 badge 不被裁剪 */
+        }
+
+        :deep(.el-tabs__nav-scroll) {
+          overflow: visible !important; /* 确保 badge 不被裁剪 */
+        }
+
+        :deep(.el-tabs__nav) {
+          border: none;
+          overflow: visible; /* 确保 badge 不被裁剪 */
+        }
+
+        :deep(.el-tabs__item) {
+          height: 40px;
+          line-height: 40px;
+          font-size: 14px;
+          color: var(--el-text-color-regular);
+          border: none;
+          background: var(--el-bg-color-overlay);
+          margin-right: 4px;
+          border-radius: 4px 4px 0 0;
+          transition: all 0.3s;
+          padding: 0 20px;
+          overflow: visible; /* 确保 badge 不被裁剪 */
+
+          &:hover {
+            color: var(--el-color-primary);
+            opacity: 0.8;
+          }
+
+          &.is-active {
+            color: var(--el-color-primary);
+            background: var(--el-bg-color);
+            font-weight: 500;
+            opacity: 1;
+          }
+        }
+
+        :deep(.el-tabs__active-bar) {
+          display: none; /* card 类型不需要 active-bar */
+        }
+
+        // Badge 样式
+        :deep(.el-badge) {
+          position: relative;
+          display: inline-block;
+          
+          .el-badge__content {
+            font-size: 11px;
+            height: 18px;
+            line-height: 18px;
+            padding: 0 6px;
+            min-width: 18px;
+            border-radius: 9px;
+            z-index: 10; /* 确保 badge 在最上层 */
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* 添加阴影，增强可见性 */
+          }
+        }
+      }
+
+      .tab-content {
+        padding: 0;
       }
     }
   }

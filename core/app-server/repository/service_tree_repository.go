@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -201,6 +202,88 @@ func (r *ServiceTreeRepository) GetServiceTreeByFullPath(fullPath string) (*mode
 		return nil, err
 	}
 	return &serviceTree, nil
+}
+
+// GetNodeByPath 根据路径查询节点（带 context，企业版使用）
+func (r *ServiceTreeRepository) GetNodeByPath(ctx context.Context, resourcePath string) (*model.ServiceTree, error) {
+	return r.GetServiceTreeByFullPath(resourcePath)
+}
+
+// GetNodeAdmins 获取节点的管理员列表
+func (r *ServiceTreeRepository) GetNodeAdmins(ctx context.Context, resourcePath string) ([]string, error) {
+	var node model.ServiceTree
+	err := r.db.WithContext(ctx).
+		Where("full_code_path = ?", resourcePath).
+		Select("admins").
+		First(&node).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// 解析逗号分隔的管理员列表
+	if node.Admins == "" {
+		return []string{}, nil
+	}
+
+	admins := strings.Split(node.Admins, ",")
+	result := make([]string, 0, len(admins))
+	for _, admin := range admins {
+		admin = strings.TrimSpace(admin)
+		if admin != "" {
+			result = append(result, admin)
+		}
+	}
+
+	return result, nil
+}
+
+// AddNodeAdmin 添加节点管理员
+func (r *ServiceTreeRepository) AddNodeAdmin(ctx context.Context, resourcePath string, adminUsername string) error {
+	// 获取当前管理员列表
+	admins, err := r.GetNodeAdmins(ctx, resourcePath)
+	if err != nil {
+		return err
+	}
+
+	// 检查是否已存在
+	for _, admin := range admins {
+		if admin == adminUsername {
+			return nil // 已存在，静默成功
+		}
+	}
+
+	// 添加新管理员
+	admins = append(admins, adminUsername)
+	adminsStr := strings.Join(admins, ",")
+
+	return r.db.WithContext(ctx).
+		Model(&model.ServiceTree{}).
+		Where("full_code_path = ?", resourcePath).
+		Update("admins", adminsStr).Error
+}
+
+// RemoveNodeAdmin 删除节点管理员
+func (r *ServiceTreeRepository) RemoveNodeAdmin(ctx context.Context, resourcePath string, adminUsername string) error {
+	// 获取当前管理员列表
+	admins, err := r.GetNodeAdmins(ctx, resourcePath)
+	if err != nil {
+		return err
+	}
+
+	// 移除管理员
+	newAdmins := make([]string, 0, len(admins))
+	for _, admin := range admins {
+		if admin != adminUsername {
+			newAdmins = append(newAdmins, admin)
+		}
+	}
+
+	adminsStr := strings.Join(newAdmins, ",")
+
+	return r.db.WithContext(ctx).
+		Model(&model.ServiceTree{}).
+		Where("full_code_path = ?", resourcePath).
+		Update("admins", adminsStr).Error
 }
 
 // GetServiceTreeByFullPaths 批量根据完整路径获取服务目录

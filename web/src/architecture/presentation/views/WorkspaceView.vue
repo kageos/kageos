@@ -175,41 +175,110 @@
         <!-- 函数详情区域（正常模式 - 函数节点） -->
         <div v-else-if="currentFunction && currentFunction.type === 'function'" class="function-content-wrapper">
           <div class="function-content">
-            <!-- ⭐ 如果函数详情已加载，显示对应的视图 -->
-            <!-- ⚠️ 重要：只有当 currentFunctionDetail 的 id 或 router 与 currentFunction 匹配时才显示 -->
-            <template v-if="currentFunctionDetail && 
-                           currentFunction && 
-                           (currentFunctionDetail.id === currentFunction.ref_id || 
-                            currentFunctionDetail.router === currentFunction.full_code_path)">
-              <!-- 🔥 移除 keep-alive，每次切换函数时重新渲染，保证数据一致性 -->
-              <!-- 🔥 使用 full_code_path 作为 key，确保函数切换时组件正确重建 -->
-              <FormView
-                v-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.FORM"
-                :key="`form-${currentFunction.full_code_path || currentFunction.id}`"
-                :function-detail="currentFunctionDetail"
+            <!-- ⭐ 权限申请 tab（仅管理员可见） -->
+            <div v-if="showFunctionPermissionRequestTab" class="function-tabs-wrapper">
+              <el-tabs v-model="functionActiveTab" type="card" @tab-change="handleFunctionTabChange" class="function-detail-tabs">
+                <!-- 函数内容 tab -->
+                <el-tab-pane name="content">
+                  <template #label>
+                    <span>函数内容</span>
+                  </template>
+                  <div class="tab-content">
+                    <!-- ⭐ 如果函数详情已加载，显示对应的视图 -->
+                    <!-- ⚠️ 重要：只有当 currentFunctionDetail 的 id 或 router 与 currentFunction 匹配时才显示 -->
+                    <template v-if="currentFunctionDetail && 
+                                   currentFunction && 
+                                   (currentFunctionDetail.id === currentFunction.ref_id || 
+                                    currentFunctionDetail.router === currentFunction.full_code_path)">
+                      <!-- 🔥 移除 keep-alive，每次切换函数时重新渲染，保证数据一致性 -->
+                      <!-- 🔥 使用 full_code_path 作为 key，确保函数切换时组件正确重建 -->
+                      <FormView
+                        v-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.FORM"
+                        :key="`form-${currentFunction.full_code_path || currentFunction.id}`"
+                        :function-detail="currentFunctionDetail"
+                      />
+                      <TableView
+                        v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.TABLE"
+                        :key="`table-${currentFunction.full_code_path || currentFunction.id}`"
+                        :function-detail="currentFunctionDetail"
+                      />
+                      <ChartView
+                        v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.CHART"
+                        :key="`chart-${currentFunction.full_code_path || currentFunction.id}`"
+                        :function-detail="currentFunctionDetail"
+                      />
+                      <div v-else :key="`empty-${currentFunction.full_code_path || currentFunction.id}`" class="empty-state">
+                        <p>加载中...</p>
+                      </div>
+                    </template>
+                    <!-- 如果函数详情未加载且有权限错误，显示权限错误组件 -->
+                    <PermissionDeniedView
+                      v-else-if="hasPermissionError"
+                      :key="`permission-denied-${currentFunction.full_code_path || currentFunction.id}`"
+                    />
+                    <!-- 如果函数详情未加载且没有权限错误，显示加载中 -->
+                    <div v-else :key="`loading-${currentFunction.full_code_path || currentFunction.id}`" class="empty-state">
+                      <p>加载中...</p>
+                    </div>
+                  </div>
+                </el-tab-pane>
+
+                <!-- 权限申请 tab -->
+                <el-tab-pane name="permissionRequest">
+                  <template #label>
+                    <el-badge :value="currentFunction?.pending_count || 0" :hidden="!currentFunction?.pending_count || currentFunction.pending_count === 0" :max="99">
+                      <span>权限申请</span>
+                    </el-badge>
+                  </template>
+                  <div class="tab-content">
+                    <PermissionRequestList
+                      ref="functionPermissionRequestListRef"
+                      :resource-path="currentFunction?.full_code_path"
+                      :auto-load="functionActiveTab === 'permissionRequest'"
+                    />
+                  </div>
+                </el-tab-pane>
+              </el-tabs>
+            </div>
+
+            <!-- 非管理员或没有权限申请 tab 时，显示原来的内容 -->
+            <div v-else>
+              <!-- ⭐ 如果函数详情已加载，显示对应的视图 -->
+              <!-- ⚠️ 重要：只有当 currentFunctionDetail 的 id 或 router 与 currentFunction 匹配时才显示 -->
+              <template v-if="currentFunctionDetail && 
+                             currentFunction && 
+                             (currentFunctionDetail.id === currentFunction.ref_id || 
+                              currentFunctionDetail.router === currentFunction.full_code_path)">
+                <!-- 🔥 移除 keep-alive，每次切换函数时重新渲染，保证数据一致性 -->
+                <!-- 🔥 使用 full_code_path 作为 key，确保函数切换时组件正确重建 -->
+                <FormView
+                  v-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.FORM"
+                  :key="`form-${currentFunction.full_code_path || currentFunction.id}`"
+                  :function-detail="currentFunctionDetail"
+                />
+                <TableView
+                  v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.TABLE"
+                  :key="`table-${currentFunction.full_code_path || currentFunction.id}`"
+                  :function-detail="currentFunctionDetail"
+                />
+                <ChartView
+                  v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.CHART"
+                  :key="`chart-${currentFunction.full_code_path || currentFunction.id}`"
+                  :function-detail="currentFunctionDetail"
+                />
+                <div v-else :key="`empty-${currentFunction.full_code_path || currentFunction.id}`" class="empty-state">
+                  <p>加载中...</p>
+                </div>
+              </template>
+              <!-- 如果函数详情未加载且有权限错误，显示权限错误组件 -->
+              <PermissionDeniedView
+                v-else-if="hasPermissionError"
+                :key="`permission-denied-${currentFunction.full_code_path || currentFunction.id}`"
               />
-              <TableView
-                v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.TABLE"
-                :key="`table-${currentFunction.full_code_path || currentFunction.id}`"
-                :function-detail="currentFunctionDetail"
-              />
-              <ChartView
-                v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.CHART"
-                :key="`chart-${currentFunction.full_code_path || currentFunction.id}`"
-                :function-detail="currentFunctionDetail"
-              />
-              <div v-else :key="`empty-${currentFunction.full_code_path || currentFunction.id}`" class="empty-state">
+              <!-- 如果函数详情未加载且没有权限错误，显示加载中 -->
+              <div v-else :key="`loading-${currentFunction.full_code_path || currentFunction.id}`" class="empty-state">
                 <p>加载中...</p>
               </div>
-            </template>
-            <!-- 如果函数详情未加载且有权限错误，显示权限错误组件 -->
-            <PermissionDeniedView
-              v-else-if="hasPermissionError"
-              :key="`permission-denied-${currentFunction.full_code_path || currentFunction.id}`"
-            />
-            <!-- 如果函数详情未加载且没有权限错误，显示加载中 -->
-            <div v-else :key="`loading-${currentFunction.full_code_path || currentFunction.id}`" class="empty-state">
-              <p>加载中...</p>
             </div>
           </div>
         </div>
@@ -484,6 +553,7 @@ import PackageDetailView from '../components/PackageDetailView.vue'
 import FunctionInfoPanel from '../components/FunctionInfoPanel.vue'
 import UserSearchInput from '@/components/UserSearchInput.vue'
 import UsersWidget from '../widgets/UsersWidget.vue'
+import PermissionRequestList from '@/components/Permission/PermissionRequestList.vue'
 import type { ServiceTree, App } from '../../domain/services/WorkspaceDomainService'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import { WidgetType } from '@/core/constants/widget'
@@ -743,6 +813,41 @@ const showLeftSidebar = ref(true)
 
 // 右侧函数信息面板显示状态
 const showRightSidebar = ref(true)
+
+// 函数详情 tab 相关
+const functionActiveTab = ref('content')
+const functionPermissionRequestListRef = ref<InstanceType<typeof PermissionRequestList> | null>(null)
+
+// ⭐ 判断是否显示函数权限申请 tab
+// 条件：1. 节点类型是 function  2. 用户是管理员
+const showFunctionPermissionRequestTab = computed(() => {
+  if (!currentFunction.value) {
+    return false
+  }
+  
+  // 必须是 function 类型
+  if (currentFunction.value.type !== 'function') {
+    return false
+  }
+  
+  // 检查是否是管理员
+  if (!currentFunction.value.admins || !authStore.user?.username) {
+    return false
+  }
+  
+  const admins = currentFunction.value.admins.split(',').map((a: string) => a.trim()).filter(Boolean)
+  return admins.includes(authStore.user.username)
+})
+
+// 处理函数 tab 切换
+const handleFunctionTabChange = (tabName: string) => {
+  if (tabName === 'permissionRequest' && functionPermissionRequestListRef.value) {
+    // 切换到权限申请 tab 时，触发加载
+    nextTick(() => {
+      functionPermissionRequestListRef.value?.loadRequests()
+    })
+  }
+}
 
 // 切换左侧边栏显示
 const toggleLeftSidebar = () => {
@@ -1527,6 +1632,23 @@ watch(queryTab, async (newTab: string, oldTab: string) => {
   }
 }, { immediate: false })
 
+// ⭐ 监听路由 query 参数，支持通过 tab 参数指定要打开的函数 tab
+watch(
+  () => route.query.tab,
+  (tab: string | string[] | null) => {
+    if (tab === 'permissionRequest' && showFunctionPermissionRequestTab.value) {
+      functionActiveTab.value = 'permissionRequest'
+      // 切换 tab 时触发加载
+      nextTick(() => {
+        if (functionPermissionRequestListRef.value) {
+          functionPermissionRequestListRef.value.loadRequests()
+        }
+      })
+    }
+  },
+  { immediate: true }
+)
+
 // 🔥 监听路由 query 变化，处理 _tab 参数
 watch(() => route.query._tab, async (newTab: any) => {
   if (newTab === 'create' || newTab === 'edit') {
@@ -1597,11 +1719,131 @@ onUnmounted(() => {
 
 .function-content {
   flex: 1;
-  overflow-y: auto !important; /* 🔥 强制允许垂直滚动，让搜索框和数据区一起滚动 */
-  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
   min-height: 0; /* 🔥 关键：允许 flex 子元素缩小 */
-  height: 0; /* 🔥 关键：配合 flex: 1 和 min-height: 0，让滚动容器正确计算高度 */
-  -webkit-overflow-scrolling: touch; /* 🔥 iOS 平滑滚动 */
+  overflow: hidden; /* 🔥 外层容器隐藏溢出，内层处理滚动 */
+  
+  // 当有 tab 结构时，需要特殊处理
+  .function-tabs-wrapper {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  // 当没有 tab 结构时，直接显示内容（允许滚动）
+  > div:not(.function-tabs-wrapper) {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto !important;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    height: 0; /* 🔥 关键：配合 flex: 1 和 min-height: 0，让滚动容器正确计算高度 */
+  }
+}
+
+// 函数 tab 包装器（已在 function-content 中定义，这里不需要重复）
+
+// 函数详情 tab 样式（参考旧版本的 card 样式）
+.function-detail-tabs {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  :deep(.el-tabs__header) {
+    margin-top: 20px; /* 与面包屑保持距离 */
+    margin-bottom: 20px;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1; /* 确保 tab header 在面包屑之上 */
+    overflow: visible; /* 确保 badge 不被裁剪 */
+  }
+
+  :deep(.el-tabs__nav-wrap) {
+    overflow: visible !important; /* 确保 badge 不被裁剪 */
+  }
+
+  :deep(.el-tabs__nav-scroll) {
+    overflow: visible !important; /* 确保 badge 不被裁剪 */
+  }
+
+  :deep(.el-tabs__nav) {
+    border: none;
+    overflow: visible; /* 确保 badge 不被裁剪 */
+  }
+
+  :deep(.el-tabs__item) {
+    height: 40px;
+    line-height: 40px;
+    font-size: 14px;
+    color: var(--el-text-color-regular);
+    border: none;
+    background: var(--el-bg-color-overlay);
+    margin-right: 4px;
+    border-radius: 4px 4px 0 0;
+    transition: all 0.3s;
+    padding: 0 20px;
+    overflow: visible; /* 确保 badge 不被裁剪 */
+
+    &:hover {
+      color: var(--el-color-primary);
+      opacity: 0.8;
+    }
+
+    &.is-active {
+      color: var(--el-color-primary);
+      background: var(--el-bg-color);
+      font-weight: 500;
+      opacity: 1;
+    }
+  }
+
+  :deep(.el-tabs__active-bar) {
+    display: none; /* card 类型不需要 active-bar */
+  }
+
+  :deep(.el-tabs__content) {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  :deep(.el-tab-pane) {
+    height: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  // Badge 样式
+  :deep(.el-badge) {
+    position: relative;
+    display: inline-block;
+    
+    .el-badge__content {
+      font-size: 11px;
+      height: 18px;
+      line-height: 18px;
+      padding: 0 6px;
+      min-width: 18px;
+      border-radius: 9px;
+      z-index: 10; /* 确保 badge 在最上层 */
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* 添加阴影，增强可见性 */
+    }
+  }
+}
+
+.function-tabs-wrapper .tab-content {
+  padding: 0;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 /* 保留旧的类名以兼容（如果还有地方使用） */

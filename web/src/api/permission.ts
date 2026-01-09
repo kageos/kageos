@@ -11,6 +11,8 @@ export interface PermissionApplyReq {
   resource_path: string  // 资源路径
   action?: string  // 权限点（如 table:search，可选，如果提供了 actions 则忽略）
   actions?: string[]  // 权限点列表（可选，如果提供则批量申请）
+  subject_type?: 'user' | 'department'  // 权限主体类型：user（用户）或 department（部门），可选，默认为 user
+  subject?: string  // 权限主体：用户名或组织架构路径，可选，默认为当前用户
   reason?: string  // 申请理由（可选）
   end_time?: string  // 权限结束时间（ISO 8601 格式，可选，空字符串或 null 表示永久）
 }
@@ -48,9 +50,10 @@ export interface PermissionRequestInfo {
   subject_type: string
   subject: string
   resource_path: string
+  resource_name: string // ⭐ 资源名称（中文）
   action: string
   start_time: string
-  end_time: string
+  end_time?: string
   reason: string
   status: string
   approved_at?: string
@@ -59,6 +62,7 @@ export interface PermissionRequestInfo {
   rejected_by?: string
   reject_reason?: string
   created_at: string
+  approvers: string[] // ⭐ 审批人列表
 }
 
 export interface GetPermissionRequestsResp {

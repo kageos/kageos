@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/enterprise"
@@ -44,11 +45,9 @@ func (s *PermissionService) AddPermission(ctx context.Context, req *dto.AddPermi
 		subjectType = "department"
 	}
 
-	// 处理有效期：如果为空字符串或未提供，表示永久权限
-	endTime := req.EndTime
-	if endTime == "" {
-		endTime = "" // 空字符串表示永久权限
-	}
+	// 处理时间字段：dto 已经使用 models.Time，直接使用
+	startTime := models.Time(time.Now())
+	endTime := req.EndTime // dto.AddPermissionReq.EndTime 已经是 *models.Time
 
 	// 构建授权请求（AppID 已废弃，从 resourcePath 解析 user 和 app）
 	grantReq := &enterprise.GrantPermissionReq{
@@ -58,8 +57,8 @@ func (s *PermissionService) AddPermission(ctx context.Context, req *dto.AddPermi
 		Grantee:         req.Subject,
 		ResourcePath:    req.ResourcePath,
 		Action:          req.Action,
-		StartTime:       time.Now().Format(time.RFC3339),
-		EndTime:         endTime, // 有效期（空字符串表示永久）
+		StartTime:       startTime, // ⭐ 使用 models.Time
+		EndTime:         endTime,   // ⭐ 使用 *models.Time（nil 表示永久）
 	}
 
 	// 调用企业版接口授权权限
@@ -184,6 +183,13 @@ func (s *PermissionService) CreatePermissionRequest(ctx context.Context, req *dt
 		return nil, fmt.Errorf("无法获取当前用户信息")
 	}
 
+	// 处理时间字段：dto 已经使用 models.Time，直接使用
+	startTime := req.StartTime
+	if time.Time(startTime).IsZero() {
+		startTime = models.Time(time.Now()) // 默认为当前时间
+	}
+	endTime := req.EndTime // dto.CreatePermissionRequestReq.EndTime 已经是 *models.Time
+
 	// 构建企业版请求（AppID 已废弃，企业版实现会从 resourcePath 解析 user 和 app）
 	enterpriseReq := &enterprise.PermissionRequestReq{
 		AppID:             0, // ⭐ 已废弃，不再使用（企业版实现会从 resourcePath 解析 user 和 app）
@@ -192,8 +198,8 @@ func (s *PermissionService) CreatePermissionRequest(ctx context.Context, req *dt
 		Subject:           req.Subject,
 		ResourcePath:      req.ResourcePath,
 		Action:            req.Action,
-		StartTime:         req.StartTime,
-		EndTime:           req.EndTime,
+		StartTime:         startTime, // ⭐ 使用 models.Time
+		EndTime:           endTime,   // ⭐ 使用 *models.Time（nil 表示永久）
 		Reason:            req.Reason,
 	}
 
@@ -212,7 +218,7 @@ func (s *PermissionService) CreatePermissionRequest(ctx context.Context, req *dt
 
 	return &dto.CreatePermissionRequestResp{
 		RequestID: requestID,
-		Status:    "pending",
+		Status:    model.PermissionRequestStatusPending,
 		Message:   "权限申请已提交，等待审批",
 	}, nil
 }
@@ -291,6 +297,13 @@ func (s *PermissionService) GrantPermission(ctx context.Context, req *dto.GrantP
 		return fmt.Errorf("无法获取当前用户信息")
 	}
 
+	// 处理时间字段：dto 已经使用 models.Time，直接使用
+	startTime := req.StartTime
+	if time.Time(startTime).IsZero() {
+		startTime = models.Time(time.Now()) // 默认为当前时间
+	}
+	endTime := req.EndTime // dto.GrantPermissionReq.EndTime 已经是 *models.Time
+
 	// 构建企业版请求（AppID 已废弃，企业版实现会从 resourcePath 解析 user 和 app）
 	enterpriseReq := &enterprise.GrantPermissionReq{
 		AppID:           0, // ⭐ 已废弃，不再使用（企业版实现会从 resourcePath 解析 user 和 app）
@@ -299,8 +312,8 @@ func (s *PermissionService) GrantPermission(ctx context.Context, req *dto.GrantP
 		Grantee:         req.Grantee,
 		ResourcePath:    req.ResourcePath,
 		Action:          req.Action,
-		StartTime:       req.StartTime,
-		EndTime:         req.EndTime,
+		StartTime:       startTime, // ⭐ 使用 models.Time
+		EndTime:         endTime,   // ⭐ 使用 *models.Time（nil 表示永久）
 	}
 
 	// 调用企业版接口
@@ -336,24 +349,19 @@ func (s *PermissionService) GetPermissionRequests(ctx context.Context, req *dto.
 			SubjectType:       req.SubjectType,
 			Subject:           req.Subject,
 			ResourcePath:      req.ResourcePath,
+			ResourceName:      "", // ⭐ 默认空，后面从 service_tree 获取
 			Action:            req.Action,
-			StartTime:         models.Time(req.StartTime),
-			EndTime:           nil,
+			StartTime:         req.StartTime, // ⭐ 直接赋值，无需转换
+			EndTime:           req.EndTime,   // ⭐ 直接赋值，无需转换
 			Reason:            req.Reason,
 			Status:            req.Status,
 			CreatedAt:         req.CreatedAt,
-		}
-
-		// 处理 EndTime（可能为 nil，表示永久权限）
-		if req.EndTime != nil {
-			endTime := models.Time(*req.EndTime)
-			info.EndTime = &endTime
+			Approvers:         []string{}, // ⭐ 默认空，后面从 service_tree 获取
 		}
 
 		// 处理审批信息
 		if req.ApprovedAt != nil {
-			approvedAt := models.Time(*req.ApprovedAt)
-			info.ApprovedAt = &approvedAt
+			info.ApprovedAt = req.ApprovedAt // ⭐ 直接赋值，无需转换
 		}
 		if req.ApprovedBy != "" {
 			info.ApprovedBy = req.ApprovedBy
@@ -361,14 +369,33 @@ func (s *PermissionService) GetPermissionRequests(ctx context.Context, req *dto.
 
 		// 处理拒绝信息
 		if req.RejectedAt != nil {
-			rejectedAt := models.Time(*req.RejectedAt)
-			info.RejectedAt = &rejectedAt
+			info.RejectedAt = req.RejectedAt // ⭐ 直接赋值，无需转换
 		}
 		if req.RejectedBy != "" {
 			info.RejectedBy = req.RejectedBy
 		}
 		if req.RejectReason != "" {
 			info.RejectReason = req.RejectReason
+		}
+
+		// ⭐ 从 service_tree 获取资源名称和审批人列表
+		if s.serviceTreeRepo != nil && req.ResourcePath != "" {
+			tree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(req.ResourcePath)
+			if err == nil && tree != nil {
+				// 获取资源名称（中文）
+				info.ResourceName = tree.Name
+
+				// 获取审批人列表（节点管理员）
+				if tree.Admins != "" {
+					admins := strings.Split(tree.Admins, ",")
+					for _, admin := range admins {
+						admin = strings.TrimSpace(admin)
+						if admin != "" {
+							info.Approvers = append(info.Approvers, admin)
+						}
+					}
+				}
+			}
 		}
 
 		records = append(records, info)

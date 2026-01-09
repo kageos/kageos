@@ -64,22 +64,37 @@
 
           <div class="request-body">
             <div class="request-field">
-              <span class="field-label">申请人：</span>
-              <span class="field-value">{{ request.applicant_username }}</span>
-            </div>
-            <div class="request-field">
               <span class="field-label">权限主体：</span>
               <span class="field-value">
-                {{ request.subject_type === 'user' ? '用户' : '组织架构' }}: {{ request.subject }}
+                <template v-if="request.subject_type === 'user'">
+                  <UsersWidget
+                    :value="getSubjectUsersValue(request.subject)"
+                    :field="subjectUsersField"
+                    mode="response"
+                    field-path="subject"
+                  />
+                </template>
+                <template v-else>
+                  <DepartmentsWidget
+                    :value="getSubjectDepartmentsValue(request.subject)"
+                    :field="subjectDepartmentsField"
+                    mode="response"
+                    field-path="subject"
+                  />
+                </template>
               </span>
             </div>
             <div class="request-field">
               <span class="field-label">资源路径：</span>
-              <span class="field-value">{{ request.resource_path }}</span>
+              <span class="field-value">
+                <span v-if="request.resource_name">{{ request.resource_name }}</span>
+                <span v-else>{{ request.resource_path }}</span>
+                <span v-if="request.resource_name" class="path-hint">({{ request.resource_path }})</span>
+              </span>
             </div>
             <div class="request-field">
               <span class="field-label">操作类型：</span>
-              <span class="field-value">{{ request.action }}</span>
+              <span class="field-value">{{ getPermissionDisplayName(request.action) }}</span>
             </div>
             <div class="request-field" v-if="request.reason">
               <span class="field-label">申请原因：</span>
@@ -91,21 +106,64 @@
                 {{ request.start_time }} 至 {{ request.end_time || '永久' }}
               </span>
             </div>
-            <div class="request-field" v-if="request.status === 'approved' && request.approved_by">
+            <div class="request-field" v-if="request.approvers && request.approvers.length > 0">
               <span class="field-label">审批人：</span>
-              <span class="field-value">{{ request.approved_by }} ({{ request.approved_at }})</span>
+              <span class="field-value approvers-list">
+                <UserDisplay
+                  v-for="approver in request.approvers"
+                  :key="approver"
+                  :username="approver"
+                  mode="card"
+                  size="small"
+                  layout="horizontal"
+                  class="approver-item"
+                />
+              </span>
+            </div>
+            <div class="request-field" v-if="request.status === 'approved' && request.approved_by">
+              <span class="field-label">已审批人：</span>
+              <span class="field-value">
+                <UserDisplay
+                  :username="request.approved_by"
+                  mode="card"
+                  size="small"
+                  layout="horizontal"
+                />
+                <span class="approval-time" v-if="request.approved_at"> ({{ request.approved_at }})</span>
+              </span>
             </div>
             <div class="request-field" v-if="request.status === 'rejected' && request.rejected_by">
               <span class="field-label">驳回人：</span>
-              <span class="field-value">{{ request.rejected_by }} ({{ request.rejected_at }})</span>
+              <span class="field-value">
+                <UserDisplay
+                  :username="request.rejected_by"
+                  mode="card"
+                  size="small"
+                  layout="horizontal"
+                />
+                <span class="rejection-time" v-if="request.rejected_at"> ({{ request.rejected_at }})</span>
+              </span>
             </div>
             <div class="request-field" v-if="request.status === 'rejected' && request.reject_reason">
               <span class="field-label">驳回原因：</span>
               <span class="field-value">{{ request.reject_reason }}</span>
             </div>
-            <div class="request-field">
-              <span class="field-label">申请时间：</span>
-              <span class="field-value">{{ request.created_at }}</span>
+          </div>
+          
+          <!-- 底部信息（左下角：申请时间，右下角：申请人） -->
+          <div class="request-footer">
+            <div class="request-time">
+              <span class="time-label">申请时间：</span>
+              <span class="time-value">{{ request.created_at }}</span>
+            </div>
+            <div class="applicant-info">
+              <span class="applicant-label">申请人：</span>
+              <UserDisplay
+                :username="request.applicant_username"
+                mode="card"
+                size="small"
+                layout="horizontal"
+              />
             </div>
           </div>
         </div>
@@ -156,6 +214,12 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getPermissionRequests, approvePermissionRequest, rejectPermissionRequest } from '@/api/permission'
 import { useAuthStore } from '@/stores/auth'
+import UserDisplay from '@/architecture/presentation/widgets/UserDisplay.vue'
+import { getPermissionDisplayName } from '@/utils/permission'
+import UsersWidget from '@/architecture/presentation/widgets/UsersWidget.vue'
+import DepartmentsWidget from '@/architecture/presentation/widgets/DepartmentsWidget.vue'
+import { WidgetType } from '@/core/constants/widget'
+import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 
 interface Props {
   resourcePath?: string  // 资源路径（可选，如果提供则只显示该资源的申请）
@@ -174,9 +238,10 @@ interface PermissionRequest {
   subject_type: string
   subject: string
   resource_path: string
+  resource_name: string // ⭐ 资源名称（中文）
   action: string
   start_time: string
-  end_time: string
+  end_time?: string
   reason: string
   status: string
   approved_at?: string
@@ -185,6 +250,7 @@ interface PermissionRequest {
   rejected_by?: string
   reject_reason?: string
   created_at: string
+  approvers: string[] // ⭐ 审批人列表
 }
 
 // 状态
@@ -289,6 +355,66 @@ const getStatusText = (status: string) => {
       return '已驳回'
     default:
       return status
+  }
+}
+
+// 权限主体用户字段配置（用于 UsersWidget）
+const subjectUsersField = computed<FieldConfig>(() => ({
+  code: 'subject',
+  name: '权限主体',
+  widget: {
+    type: WidgetType.USERS,
+    config: {}
+  },
+  data: {
+    type: 'string'
+  }
+}))
+
+// 获取权限主体用户字段值（用于 UsersWidget）
+const getSubjectUsersValue = (subject: string): FieldValue => {
+  if (!subject) {
+    return {
+      raw: '',
+      display: '',
+      meta: {}
+    }
+  }
+  // subject 是逗号分隔的用户名
+  return {
+    raw: subject,
+    display: subject,
+    meta: {}
+  }
+}
+
+// 权限主体组织架构字段配置（用于 DepartmentsWidget）
+const subjectDepartmentsField = computed<FieldConfig>(() => ({
+  code: 'subject',
+  name: '权限主体',
+  widget: {
+    type: 'departments', // 使用字符串，因为 WidgetType 中可能还没有定义
+    config: {}
+  },
+  data: {
+    type: 'string'
+  }
+}))
+
+// 获取权限主体组织架构字段值（用于 DepartmentsWidget）
+const getSubjectDepartmentsValue = (subject: string): FieldValue => {
+  if (!subject) {
+    return {
+      raw: '',
+      display: '',
+      meta: {}
+    }
+  }
+  // subject 是逗号分隔的组织架构路径（如 "/org/nanjing,/org/beijing"）
+  return {
+    raw: subject,
+    display: subject,
+    meta: {}
   }
 }
 
@@ -463,6 +589,67 @@ defineExpose({
           .field-value {
             color: var(--el-text-color-primary);
             word-break: break-all;
+            
+            .path-hint {
+              color: var(--el-text-color-secondary);
+              font-size: 12px;
+              margin-left: 8px;
+            }
+            
+            &.approvers-list {
+              display: flex;
+              flex-wrap: wrap;
+              gap: 12px;
+              align-items: center;
+              
+              .approver-item {
+                display: inline-flex;
+              }
+            }
+            
+            .approval-time,
+            .rejection-time {
+              color: var(--el-text-color-secondary);
+              font-size: 12px;
+              margin-left: 4px;
+            }
+          }
+        }
+      }
+      
+      .request-footer {
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid var(--el-border-color-lighter);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        
+        .request-time {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          color: var(--el-text-color-secondary);
+          font-size: 12px;
+          
+          .time-label {
+            color: var(--el-text-color-regular);
+          }
+          
+          .time-value {
+            color: var(--el-text-color-secondary);
+          }
+        }
+        
+        .applicant-info {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          color: var(--el-text-color-secondary);
+          font-size: 12px;
+          
+          .applicant-label {
+            color: var(--el-text-color-regular);
           }
         }
       }
