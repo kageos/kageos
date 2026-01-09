@@ -340,7 +340,7 @@ func (s *PermissionService) GetPermissionRequests(ctx context.Context, req *dto.
 				EndTime:          "",
 				Reason:           req.Reason,
 				Status:           req.Status,
-				CreatedAt:        req.CreatedAt.String(),
+				CreatedAt:        strings.Trim(req.CreatedAt.String(), `"`),
 			}
 
 		// 处理 EndTime（可能为 nil，表示永久权限）
