@@ -23,6 +23,7 @@ type ServiceTree struct {
 	Description   string `json:"description,omitempty"`
 	Tags          string `json:"tags"`
 	Admins        string `json:"admins" gorm:"type:varchar(150);comment:节点管理员列表，逗号分隔的用户名（如 user1,user2,user3）"` // 节点管理员列表
+	PendingCount  int    `json:"pending_count" gorm:"default:0;comment:待审批的权限申请数量"` // ⭐ 待审批的权限申请数量
 	AppID         int64  `json:"app_id"`
 	FullGroupCode string `json:"full_group_code" gorm:"type:varchar(500);comment:完整函数组代码：{full_path}/{file_name}"` // 完整函数组代码：{full_path}/{file_name}
 	GroupName     string `json:"group_name"`

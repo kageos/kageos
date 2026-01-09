@@ -6,22 +6,26 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/enterprise"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"gorm.io/gorm"
 )
 
 // PermissionService 权限管理服务
 // ⭐ 完全移除 Casbin，使用新的权限系统
 type PermissionService struct {
 	permissionService enterprise.PermissionService
+	serviceTreeRepo  *repository.ServiceTreeRepository // ⭐ 用于更新 pending_count
 }
 
 // NewPermissionService 创建权限管理服务
-func NewPermissionService(permissionService enterprise.PermissionService) *PermissionService {
+func NewPermissionService(permissionService enterprise.PermissionService, serviceTreeRepo *repository.ServiceTreeRepository) *PermissionService {
 	return &PermissionService{
 		permissionService: permissionService,
+		serviceTreeRepo:  serviceTreeRepo,
 	}
 }
 
@@ -196,6 +200,13 @@ func (s *PermissionService) CreatePermissionRequest(ctx context.Context, req *dt
 		return nil, fmt.Errorf("创建权限申请失败: %w", err)
 	}
 
+	// ⭐ 更新对应节点的 pending_count（+1）
+	if err := s.updateServiceTreePendingCount(ctx, req.AppID, req.ResourcePath, 1); err != nil {
+		// 记录日志，但不影响申请创建
+		logger.Warnf(ctx, "[PermissionService] 更新节点 pending_count 失败: app_id=%d, resource_path=%s, error=%v",
+			req.AppID, req.ResourcePath, err)
+	}
+
 	return &dto.CreatePermissionRequestResp{
 		RequestID: requestID,
 		Status:    "pending",
@@ -261,4 +272,35 @@ func (s *PermissionService) GetPermissionRequests(ctx context.Context, req *dto.
 		PageSize: req.PageSize,
 		Records:  []dto.PermissionRequestInfo{},
 	}, nil
+}
+
+// updateServiceTreePendingCount 更新服务树节点的 pending_count
+// ⭐ 使用原子操作更新，防止并发问题
+func (s *PermissionService) updateServiceTreePendingCount(ctx context.Context, appID int64, resourcePath string, delta int) error {
+	if s.serviceTreeRepo == nil {
+		return fmt.Errorf("serviceTreeRepo 未初始化")
+	}
+
+	// 根据 resource_path 查找对应的 service_tree 节点
+	tree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(resourcePath)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			// 节点不存在，记录警告但不返回错误（可能是新创建的节点还未同步）
+			logger.Warnf(ctx, "[PermissionService] 节点不存在，无法更新 pending_count: resource_path=%s", resourcePath)
+			return nil
+		}
+		return fmt.Errorf("查询节点失败: %w", err)
+	}
+
+	// 更新 pending_count（使用原子操作，防止并发问题）
+	// 使用 ServiceTreeRepository 的 UpdatePendingCount 方法进行原子更新
+	err = s.serviceTreeRepo.UpdatePendingCount(tree.ID, delta)
+	if err != nil {
+		return fmt.Errorf("更新 pending_count 失败: %w", err)
+	}
+
+	logger.Debugf(ctx, "[PermissionService] 更新节点 pending_count 成功: resource_path=%s, delta=%d",
+		resourcePath, delta)
+
+	return nil
 }
