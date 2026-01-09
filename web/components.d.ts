@@ -20,6 +20,7 @@ declare module 'vue' {
     ChartRenderer: typeof import('./src/components/ChartRenderer.vue')['default']
     CommonUpload: typeof import('./src/components/CommonUpload.vue')['default']
     DepartmentSelector: typeof import('./src/components/DepartmentSelector.vue')['default']
+    DepartmentSelectorDialog: typeof import('./src/components/DepartmentSelectorDialog.vue')['default']
     DepartmentTreePanel: typeof import('./src/components/DepartmentTreePanel.vue')['default']
     DirectoryUpdateHistoryDialog: typeof import('./src/components/DirectoryUpdateHistoryDialog.vue')['default']
     ElAlert: typeof import('element-plus/es')['ElAlert']
@@ -112,6 +113,7 @@ declare module 'vue' {
     UpgradeEnterpriseDialog: typeof import('./src/components/UpgradeEnterpriseDialog.vue')['default']
     UserDetailDialog: typeof import('./src/components/UserDetailDialog.vue')['default']
     UserSearchInput: typeof import('./src/components/UserSearchInput.vue')['default']
+    UserSelectorDialog: typeof import('./src/components/UserSelectorDialog.vue')['default']
     WorkspaceListDialog: typeof import('./src/components/WorkspaceListDialog.vue')['default']
   }
   export interface GlobalDirectives {
@@ -129,6 +131,7 @@ declare global {
   const ChartRenderer: typeof import('./src/components/ChartRenderer.vue')['default']
   const CommonUpload: typeof import('./src/components/CommonUpload.vue')['default']
   const DepartmentSelector: typeof import('./src/components/DepartmentSelector.vue')['default']
+  const DepartmentSelectorDialog: typeof import('./src/components/DepartmentSelectorDialog.vue')['default']
   const DepartmentTreePanel: typeof import('./src/components/DepartmentTreePanel.vue')['default']
   const DirectoryUpdateHistoryDialog: typeof import('./src/components/DirectoryUpdateHistoryDialog.vue')['default']
   const ElAlert: typeof import('element-plus/es')['ElAlert']
@@ -221,5 +224,6 @@ declare global {
   const UpgradeEnterpriseDialog: typeof import('./src/components/UpgradeEnterpriseDialog.vue')['default']
   const UserDetailDialog: typeof import('./src/components/UserDetailDialog.vue')['default']
   const UserSearchInput: typeof import('./src/components/UserSearchInput.vue')['default']
+  const UserSelectorDialog: typeof import('./src/components/UserSelectorDialog.vue')['default']
   const WorkspaceListDialog: typeof import('./src/components/WorkspaceListDialog.vue')['default']
 }

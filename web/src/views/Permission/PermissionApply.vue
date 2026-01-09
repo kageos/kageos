@@ -378,20 +378,49 @@
                       </el-alert>
                     </div>
                     <div v-else>
-                      <UserSearchInput
-                        v-model="grantTargetUserUsername"
-                        placeholder="搜索并选择要赋权的用户"
-                        :multiple="false"
-                      />
+                      <el-button
+                        type="primary"
+                        @click="showUserSelector = true"
+                        style="width: 100%"
+                        :icon="grantTargetUser ? null : User"
+                      >
+                        {{ grantTargetUser ? `已选择: ${grantTargetUser.username}` : '选择用户' }}
+                      </el-button>
                       <!-- 显示选中用户的详细信息 -->
                       <div v-if="grantTargetUser" class="selected-user-details">
-                        <div v-if="grantTargetUser.department_name || grantTargetUser.department_full_path" class="user-org-info">
-                          <el-icon><OfficeBuilding /></el-icon>
-                          <span>{{ grantTargetUser.department_name || grantTargetUser.department_full_path }}</span>
-                        </div>
-                        <div v-if="grantTargetUser.leader_display_name || grantTargetUser.leader_username" class="user-leader-info">
-                          <el-icon><UserFilled /></el-icon>
-                          <span>{{ grantTargetUser.leader_display_name || grantTargetUser.leader_username }}</span>
+                        <div class="selected-user-card">
+                          <div class="user-content">
+                            <el-avatar
+                              :src="grantTargetUser.avatar"
+                              :size="36"
+                              class="user-avatar"
+                            >
+                              {{ grantTargetUser.username?.[0]?.toUpperCase() || 'U' }}
+                            </el-avatar>
+                            <div class="user-info">
+                              <div class="user-name">{{ grantTargetUser.username }}</div>
+                              <div class="user-meta">
+                                <span v-if="grantTargetUser.nickname" class="user-nickname">{{ grantTargetUser.nickname }}</span>
+                                <span v-if="grantTargetUser.email" class="user-email">{{ grantTargetUser.email }}</span>
+                              </div>
+                              <div v-if="grantTargetUser.department_name || grantTargetUser.department_full_path" class="user-org-info">
+                                <el-icon><OfficeBuilding /></el-icon>
+                                <span>{{ grantTargetUser.department_name || grantTargetUser.department_full_path }}</span>
+                              </div>
+                              <div v-if="grantTargetUser.leader_display_name || grantTargetUser.leader_username" class="user-leader-info">
+                                <el-icon><UserFilled /></el-icon>
+                                <span>{{ grantTargetUser.leader_display_name || grantTargetUser.leader_username }}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <el-button
+                            text
+                            type="danger"
+                            @click="grantTargetUser = null; grantTargetUserUsername = null"
+                            :icon="Close"
+                            circle
+                            class="remove-btn"
+                          />
                         </div>
                       </div>
                     </div>
@@ -399,36 +428,70 @@
                   
                   <!-- 部门选择 -->
                   <div v-if="grantTargetType === 'department'" class="grant-target-input">
-                    <el-select
-                      v-model="grantTargetDepartment"
-                      placeholder="请选择要赋权的部门"
-                      filterable
-                      clearable
-                      :disabled="!hasManagePermission"
-                      style="width: 100%"
-                    >
-                      <el-option
-                        v-for="dept in flatDepartmentList"
-                        :key="dept.full_code_path"
-                        :label="`${dept.name} (${dept.full_code_path})`"
-                        :value="dept.full_code_path"
-                      />
-                    </el-select>
-                    <el-alert
-                      type="info"
-                      :closable="false"
-                      show-icon
-                      style="margin-top: 12px"
-                    >
-                      <template #default>
-                        <div class="tip-content">
-                          <p class="tip-text">选择部门后，将给该部门下的所有用户赋权</p>
-                          <p v-if="!hasManagePermission" class="tip-text" style="color: var(--el-color-warning); margin-top: 4px;">
-                            ⚠️ 您没有该资源的管理权限，无法给部门赋权
-                          </p>
+                    <div v-if="!hasManagePermission" class="disabled-overlay">
+                      <el-alert
+                        type="warning"
+                        :closable="false"
+                        show-icon
+                      >
+                        <template #default>
+                          <div class="tip-content">
+                            <p class="tip-text">您没有该资源的管理权限，无法给部门赋权</p>
+                          </div>
+                        </template>
+                      </el-alert>
+                    </div>
+                    <div v-else>
+                      <el-button
+                        type="primary"
+                        @click="showDepartmentSelector = true"
+                        style="width: 100%"
+                        :icon="selectedDepartment ? null : OfficeBuilding"
+                      >
+                        {{ selectedDepartment ? `已选择: ${selectedDepartment.name}` : '选择组织架构' }}
+                      </el-button>
+                      <!-- 显示选中部门的详细信息 -->
+                      <div v-if="selectedDepartment" class="selected-department-details">
+                        <div class="selected-department-card">
+                          <div class="department-content">
+                            <img src="/组织架构.svg" alt="部门" class="department-icon" />
+                            <div class="department-info">
+                              <div class="department-name">{{ selectedDepartment.name }}</div>
+                              <div class="department-meta">
+                                <span class="department-path">{{ selectedDepartment.full_code_path }}</span>
+                                <span v-if="selectedDepartment.full_name_path && selectedDepartment.full_name_path !== selectedDepartment.name" class="department-full-name">
+                                  {{ selectedDepartment.full_name_path }}
+                                </span>
+                                <span v-if="selectedDepartment.managers" class="department-managers">
+                                  <el-icon><UserFilled /></el-icon>
+                                  负责人: {{ selectedDepartment.managers }}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <el-button
+                            text
+                            type="danger"
+                            @click="selectedDepartment = null; grantTargetDepartment = ''"
+                            :icon="Close"
+                            circle
+                            class="remove-btn"
+                          />
                         </div>
-                      </template>
-                    </el-alert>
+                      </div>
+                      <el-alert
+                        type="info"
+                        :closable="false"
+                        show-icon
+                        style="margin-top: 12px"
+                      >
+                        <template #default>
+                          <div class="tip-content">
+                            <p class="tip-text">选择部门后，将给该部门下的所有用户赋权</p>
+                          </div>
+                        </template>
+                      </el-alert>
+                    </div>
                   </div>
                 </el-form-item>
 
@@ -458,6 +521,7 @@
                     value-format="YYYY-MM-DDTHH:mm:ssZ"
                     style="width: 100%; margin-top: 12px"
                     :disabled-date="(date: Date) => date.getTime() < Date.now()"
+                    :shortcuts="datePickerShortcuts"
                   />
                 </el-form-item>
 
@@ -497,13 +561,28 @@
     </el-card>
     </div>
   </div>
+
+  <!-- 用户选择器对话框 -->
+  <UserSelectorDialog
+    v-model="showUserSelector"
+    :selected-user="grantTargetUser"
+    @select="handleUserSelect"
+  />
+
+  <!-- 组织架构选择器对话框 -->
+  <DepartmentSelectorDialog
+    v-model="showDepartmentSelector"
+    :selected-department="selectedDepartment"
+    :department-tree="departmentTree"
+    @select="handleDepartmentSelect"
+  />
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElText, ElIcon, ElTree, ElDivider } from 'element-plus'
-import { Document, Folder, Lock, OfficeBuilding, UserFilled } from '@element-plus/icons-vue'
+import { Document, Folder, Lock, OfficeBuilding, UserFilled, User, Close } from '@element-plus/icons-vue'
 import ChartIcon from '@/components/icons/ChartIcon.vue'
 import TableIcon from '@/components/icons/TableIcon.vue'
 import FormIcon from '@/components/icons/FormIcon.vue'
@@ -523,7 +602,8 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { getAppWithServiceTree } from '@/api/app'
 import { useAuthStore } from '@/stores/auth'
 import type { ServiceTree, App } from '@/types'
-import UserSearchInput from '@/components/UserSearchInput.vue'
+import UserSelectorDialog from '@/components/UserSelectorDialog.vue'
+import DepartmentSelectorDialog from '@/components/DepartmentSelectorDialog.vue'
 import type { UserInfo } from '@/types'
 import UsersWidget from '@/architecture/presentation/widgets/UsersWidget.vue'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
@@ -628,13 +708,28 @@ const disabledNodeKeys = computed(() => {
 const authStore = useAuthStore()
 const currentUser = computed(() => authStore.user)
 
+// 检查是否是管理员
+const isAdmin = (node: ServiceTree): boolean => {
+  if (!node.admins || !currentUser.value?.username) {
+    return false
+  }
+  const admins = node.admins.split(',').map(a => a.trim()).filter(Boolean)
+  return admins.includes(currentUser.value.username)
+}
+
 // 检查当前节点是否有 manage 权限
+// ⭐ 管理员也应该能够赋权，即使没有显式的 manage 权限
 const hasManagePermission = computed(() => {
   if (!selectedResourcePath.value || !serviceTree.value.length) {
     return false
   }
   const node = findNodeInTree(serviceTree.value, selectedResourcePath.value)
   if (!node) return false
+  
+  // ⭐ 首先检查是否是管理员（管理员可以赋权）
+  if (isAdmin(node)) {
+    return true
+  }
   
   // 检查是否有 manage 权限（根据资源类型）
   if (node.type === 'function') {
@@ -653,6 +748,14 @@ const grantTargetType = ref<'self' | 'user' | 'department'>('self')
 // 赋权目标：个人（用户对象）或组织架构（部门路径）
 const grantTargetUser = ref<UserInfo | null>(null)
 const grantTargetUserUsername = ref<string | null>(null)
+const grantTargetDepartment = ref<string>('')
+
+// 选中部门对象（用于显示详细信息）
+const selectedDepartment = ref<Department | null>(null)
+
+// 对话框状态
+const showUserSelector = ref(false)
+const showDepartmentSelector = ref(false)
 
 // 监听 grantTargetUserUsername 变化，更新 grantTargetUser
 watch(grantTargetUserUsername, async (username) => {
@@ -672,7 +775,117 @@ watch(grantTargetUserUsername, async (username) => {
   }
 })
 
-const grantTargetDepartment = ref<string>('')
+// 监听部门路径变化，更新部门对象
+watch(grantTargetDepartment, (path) => {
+  if (!path) {
+    selectedDepartment.value = null
+    return
+  }
+  // 从部门树中查找对应的部门对象
+  const findDepartment = (depts: Department[], targetPath: string): Department | null => {
+    for (const dept of depts) {
+      if (dept.full_code_path === targetPath) {
+        return dept
+      }
+      if (dept.children && dept.children.length > 0) {
+        const found = findDepartment(dept.children, targetPath)
+        if (found) return found
+      }
+    }
+    return null
+  }
+  selectedDepartment.value = findDepartment(departmentTree.value, path)
+})
+
+// 处理用户选择
+const handleUserSelect = (user: UserInfo) => {
+  grantTargetUser.value = user
+  grantTargetUserUsername.value = user.username
+}
+
+// 处理部门选择
+const handleDepartmentSelect = (department: Department) => {
+  selectedDepartment.value = department
+  grantTargetDepartment.value = department.full_code_path
+}
+
+// 日期选择器快捷选项
+const datePickerShortcuts = computed(() => {
+  const now = new Date()
+  
+  return [
+    {
+      text: '1天后',
+      value: () => {
+        const date = new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000)
+        return date
+      }
+    },
+    {
+      text: '3天后',
+      value: () => {
+        const date = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
+        return date
+      }
+    },
+    {
+      text: '7天后',
+      value: () => {
+        const date = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+        return date
+      }
+    },
+    {
+      text: '15天后',
+      value: () => {
+        const date = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000)
+        return date
+      }
+    },
+    {
+      text: '1个月后',
+      value: () => {
+        const date = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
+        return date
+      }
+    },
+    {
+      text: '3个月后',
+      value: () => {
+        const date = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000)
+        return date
+      }
+    },
+    {
+      text: '6个月后',
+      value: () => {
+        const date = new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000)
+        return date
+      }
+    },
+    {
+      text: '1年后',
+      value: () => {
+        const date = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000)
+        return date
+      }
+    },
+    {
+      text: '2年后',
+      value: () => {
+        const date = new Date(now.getTime() + 730 * 24 * 60 * 60 * 1000)
+        return date
+      }
+    },
+    {
+      text: '3年后',
+      value: () => {
+        const date = new Date(now.getTime() + 1095 * 24 * 60 * 60 * 1000)
+        return date
+      }
+    },
+  ]
+})
 
 // 审批人（从当前选中资源的 admins 字段获取）
 const approvers = computed(() => {
@@ -813,6 +1026,12 @@ onMounted(async () => {
   const resource = route.query.resource as string
   const action = route.query.action as string  // 可选，用于默认选中
   const templateType = route.query.templateType as string  // 可选，函数类型（table、form、chart）
+  const mode = route.query.mode as string  // 可选，模式：grant（授权模式）或 apply（申请模式，默认）
+
+  // 如果 mode=grant，默认设置为授权模式（给其他用户赋权）
+  if (mode === 'grant') {
+    grantTargetType.value = 'user'
+  }
 
   if (!resource) {
     error.value = '缺少必要的参数：resource'
@@ -2263,9 +2482,18 @@ const handleCancel = () => {
     .apply-content {
       .apply-layout {
         display: grid;
-        grid-template-columns: 400px 1fr 320px;
+        grid-template-columns: 400px 1fr 480px;
         gap: 24px;
         align-items: start;
+        
+        // 响应式调整
+        @media (max-width: 1600px) {
+          grid-template-columns: 350px 1fr 450px;
+        }
+        
+        @media (max-width: 1400px) {
+          grid-template-columns: 320px 1fr 400px;
+        }
       }
 
       .apply-sidebar {
@@ -2886,8 +3114,27 @@ const handleCancel = () => {
         }
 
         .apply-form {
+          width: 100%;
+          max-width: 100%;
+          overflow: hidden;
+          box-sizing: border-box;
+
           .form-item-tip {
             margin-top: 8px;
+          }
+
+          :deep(.el-form-item) {
+            width: 100%;
+            max-width: 100%;
+            overflow: hidden;
+            box-sizing: border-box;
+          }
+
+          :deep(.el-form-item__content) {
+            width: 100%;
+            max-width: 100%;
+            overflow: hidden;
+            box-sizing: border-box;
           }
 
           :deep(.el-form-item__label) {
@@ -2907,6 +3154,7 @@ const handleCancel = () => {
             }
           }
 
+
           :deep(.el-button) {
             border-radius: 8px;
             padding: 10px 20px;
@@ -2923,31 +3171,46 @@ const handleCancel = () => {
 
           .grant-target-display {
             margin-top: 12px;
-            padding: 14px 16px;
+            padding: 12px;
             background: var(--el-fill-color-lighter);
-            border-radius: 6px;
+            border-radius: 8px;
             border: 1px solid var(--el-border-color-lighter);
+            width: 100%;
+            max-width: 100%;
+            overflow: hidden;
+            box-sizing: border-box;
 
             .current-user-info {
               display: flex;
-              align-items: center;
+              align-items: flex-start;
               gap: 12px;
+              width: 100%;
+              max-width: 100%;
+              overflow: hidden;
 
               .el-avatar {
                 flex-shrink: 0;
-                border: 2px solid var(--el-border-color);
+                width: 36px !important;
+                height: 36px !important;
+                border: 1px solid var(--el-border-color);
               }
 
               .user-details {
                 flex: 1;
                 min-width: 0;
+                max-width: 100%;
+                overflow: hidden;
 
                 .user-name {
                   font-size: 14px;
-                  font-weight: 500;
+                  font-weight: 600;
                   color: var(--el-text-color-primary);
-                  line-height: 1.5;
+                  line-height: 1.4;
                   margin-bottom: 4px;
+                  white-space: nowrap;
+                  overflow: hidden;
+                  text-overflow: ellipsis;
+                  width: 100%;
                 }
 
                 .user-email {
@@ -2957,21 +3220,35 @@ const handleCancel = () => {
                   overflow: hidden;
                   text-overflow: ellipsis;
                   white-space: nowrap;
-                  margin-bottom: 6px;
+                  margin-bottom: 4px;
+                  width: 100%;
                 }
 
                 .user-org-info,
                 .user-leader-info {
                   display: flex;
                   align-items: center;
-                  gap: 6px;
+                  gap: 4px;
                   font-size: 12px;
                   color: var(--el-text-color-regular);
                   margin-top: 4px;
+                  line-height: 1.4;
+                  width: 100%;
+                  max-width: 100%;
+                  overflow: hidden;
 
                   .el-icon {
-                    font-size: 14px;
+                    font-size: 12px;
                     color: var(--el-text-color-secondary);
+                    flex-shrink: 0;
+                  }
+
+                  span {
+                    flex: 1;
+                    min-width: 0;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
                   }
                 }
               }
@@ -2980,33 +3257,246 @@ const handleCancel = () => {
 
           .selected-user-details {
             margin-top: 12px;
-            padding: 10px 12px;
-            background: var(--el-fill-color-extra-light);
-            border-radius: 4px;
-            border: 1px solid var(--el-border-color-lighter);
+            width: 100%;
+            max-width: 100%;
+            overflow: hidden;
 
-            .user-org-info,
-            .user-leader-info {
-              display: flex;
-              align-items: center;
-              gap: 6px;
-              font-size: 12px;
-              color: var(--el-text-color-regular);
-              margin-bottom: 6px;
+            .selected-user-card {
+              position: relative;
+              padding: 12px;
+              padding-right: 36px;
+              background: var(--el-bg-color);
+              border: 1px solid var(--el-color-primary-light-7);
+              border-radius: 8px;
+              box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+              width: 100%;
+              max-width: 100%;
+              box-sizing: border-box;
+              overflow: hidden;
 
-              &:last-child {
-                margin-bottom: 0;
+              .user-content {
+                display: flex;
+                gap: 12px;
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+                overflow: hidden;
+
+                .user-avatar {
+                  flex-shrink: 0;
+                  width: 36px !important;
+                  height: 36px !important;
+                  border: 1px solid var(--el-color-primary-light-5);
+                }
+
+                .user-info {
+                  flex: 1;
+                  min-width: 0;
+                  max-width: 100%;
+                  overflow: hidden;
+
+                  .user-name {
+                    font-size: 14px;
+                    font-weight: 600;
+                    color: var(--el-text-color-primary);
+                    margin-bottom: 4px;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    width: 100%;
+                    max-width: 100%;
+                  }
+
+                  .user-meta {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 8px;
+                    font-size: 12px;
+                    color: var(--el-text-color-secondary);
+                    margin-bottom: 4px;
+                    line-height: 1.4;
+                    width: 100%;
+                    max-width: 100%;
+                    overflow: hidden;
+
+                    .user-nickname {
+                      color: var(--el-text-color-regular);
+                      white-space: nowrap;
+                      overflow: hidden;
+                      text-overflow: ellipsis;
+                      max-width: 120px;
+                    }
+
+                    .user-email {
+                      color: var(--el-text-color-secondary);
+                      white-space: nowrap;
+                      overflow: hidden;
+                      text-overflow: ellipsis;
+                      max-width: 150px;
+                    }
+                  }
+
+                  .user-org-info,
+                  .user-leader-info {
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                    font-size: 12px;
+                    color: var(--el-text-color-regular);
+                    margin-top: 4px;
+                    line-height: 1.4;
+                    width: 100%;
+                    max-width: 100%;
+                    overflow: hidden;
+
+                    .el-icon {
+                      font-size: 13px;
+                      color: var(--el-text-color-secondary);
+                      flex-shrink: 0;
+                    }
+
+                    span {
+                      flex: 1;
+                      min-width: 0;
+                      overflow: hidden;
+                      text-overflow: ellipsis;
+                      white-space: nowrap;
+                    }
+                  }
+                }
               }
 
-              .el-icon {
-                font-size: 14px;
-                color: var(--el-text-color-secondary);
+              .remove-btn {
+                position: absolute;
+                top: 8px;
+                right: 8px;
+                width: 24px;
+                height: 24px;
+                padding: 0;
+                flex-shrink: 0;
+                z-index: 1;
+              }
+            }
+          }
+
+          .selected-department-details {
+            margin-top: 12px;
+            width: 100%;
+            max-width: 100%;
+            overflow: hidden;
+
+            .selected-department-card {
+              position: relative;
+              padding: 12px;
+              padding-right: 36px;
+              background: var(--el-bg-color);
+              border: 1px solid var(--el-color-primary-light-7);
+              border-radius: 8px;
+              box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+              width: 100%;
+              max-width: 100%;
+              box-sizing: border-box;
+              overflow: hidden;
+
+              .department-content {
+                display: flex;
+                gap: 12px;
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+                overflow: hidden;
+
+                .department-icon {
+                  flex-shrink: 0;
+                  width: 36px;
+                  height: 36px;
+                  object-fit: contain;
+                }
+
+                .department-info {
+                  flex: 1;
+                  min-width: 0;
+                  max-width: 100%;
+                  overflow: hidden;
+
+                  .department-name {
+                    font-size: 14px;
+                    font-weight: 600;
+                    color: var(--el-text-color-primary);
+                    margin-bottom: 4px;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    width: 100%;
+                    max-width: 100%;
+                  }
+
+                  .department-meta {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 8px;
+                    font-size: 12px;
+                    color: var(--el-text-color-secondary);
+                    line-height: 1.4;
+                    width: 100%;
+                    max-width: 100%;
+                    overflow: hidden;
+
+                    .department-path {
+                      font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+                      color: var(--el-text-color-secondary);
+                      white-space: nowrap;
+                      overflow: hidden;
+                      text-overflow: ellipsis;
+                      max-width: 200px;
+                    }
+
+                    .department-full-name {
+                      color: var(--el-text-color-regular);
+                      white-space: nowrap;
+                      overflow: hidden;
+                      text-overflow: ellipsis;
+                      max-width: 150px;
+                    }
+
+                    .department-managers {
+                      display: inline-flex;
+                      align-items: center;
+                      gap: 4px;
+                      color: var(--el-text-color-secondary);
+                      white-space: nowrap;
+                      overflow: hidden;
+                      text-overflow: ellipsis;
+                      max-width: 180px;
+
+                      .el-icon {
+                        font-size: 12px;
+                        flex-shrink: 0;
+                      }
+                    }
+                  }
+                }
+              }
+
+              .remove-btn {
+                position: absolute;
+                top: 8px;
+                right: 8px;
+                width: 24px;
+                height: 24px;
+                padding: 0;
+                flex-shrink: 0;
+                z-index: 1;
               }
             }
           }
 
           .grant-target-input {
             margin-top: 12px;
+            width: 100%;
+            max-width: 100%;
+            overflow: hidden;
+            box-sizing: border-box;
 
             .disabled-overlay {
               opacity: 0.6;
