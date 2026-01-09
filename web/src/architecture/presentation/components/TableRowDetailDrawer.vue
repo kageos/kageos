@@ -473,6 +473,24 @@ watch(
   }
 )
 
+// ⭐ 监听路由 query 参数，支持通过 tab 参数指定要打开的 tab
+const route = useRoute()
+watch(
+  () => route.query.tab,
+  (tab) => {
+    if (tab === 'permissionRequest' && showPermissionRequestTab.value) {
+      activeTab.value = 'permissionRequest'
+      // 切换 tab 时触发加载
+      nextTick(() => {
+        if (permissionRequestListRef.value) {
+          permissionRequestListRef.value.loadRequests()
+        }
+      })
+    }
+  },
+  { immediate: true }
+)
+
 // 监听 formViewRef 的变化
 watch(formViewRef, (newVal) => {
   isFormViewReady.value = !!newVal
