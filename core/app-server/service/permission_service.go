@@ -325,23 +325,23 @@ func (s *PermissionService) GetPermissionRequests(ctx context.Context, req *dto.
 		return nil, fmt.Errorf("查询权限申请列表失败: %w", err)
 	}
 
-	// 转换为 DTO
-	records := make([]dto.PermissionRequestInfo, 0, len(requests))
-	for _, req := range requests {
-		info := dto.PermissionRequestInfo{
-			ID:               req.ID,
-			AppID:            req.AppID,
-			ApplicantUsername: req.ApplicantUsername,
-			SubjectType:      req.SubjectType,
-			Subject:          req.Subject,
-			ResourcePath:     req.ResourcePath,
-			Action:           req.Action,
-			StartTime:        req.StartTime.Format(time.RFC3339),
-			EndTime:          "",
-			Reason:           req.Reason,
-			Status:           req.Status,
-			CreatedAt:        req.CreatedAt.Format(time.RFC3339),
-		}
+		// 转换为 DTO
+		records := make([]dto.PermissionRequestInfo, 0, len(requests))
+		for _, req := range requests {
+			info := dto.PermissionRequestInfo{
+				ID:               req.ID,
+				AppID:            req.AppID,
+				ApplicantUsername: req.ApplicantUsername,
+				SubjectType:      req.SubjectType,
+				Subject:          req.Subject,
+				ResourcePath:     req.ResourcePath,
+				Action:           req.Action,
+				StartTime:        req.StartTime.Format(time.RFC3339),
+				EndTime:          "",
+				Reason:           req.Reason,
+				Status:           req.Status,
+				CreatedAt:        time.Time(req.CreatedAt).Format(time.RFC3339),
+			}
 
 		// 处理 EndTime（可能为 nil，表示永久权限）
 		if req.EndTime != nil {
