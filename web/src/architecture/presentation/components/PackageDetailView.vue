@@ -167,7 +167,265 @@
         </el-card>
       </div>
 
-      <!-- 信息概览卡片 -->
+      <!-- ⭐ 权限申请 tab（仅管理员可见） -->
+      <div v-else-if="showPermissionRequestTab" class="permission-request-section">
+        <el-tabs v-model="activeTab" @tab-change="handleTabChange" class="detail-tabs">
+          <el-tab-pane label="目录信息" name="info">
+            <div class="tab-content">
+              <!-- 信息概览卡片 -->
+              <div v-if="packageNode" class="overview-section">
+        <div class="overview-card">
+          <div class="overview-item">
+            <div class="overview-icon-wrapper name-icon">
+              <el-icon class="overview-icon"><Document /></el-icon>
+            </div>
+            <div class="overview-content">
+              <div class="overview-label">目录名称</div>
+              <div class="overview-value">{{ packageNode.name }}</div>
+            </div>
+          </div>
+
+          <div class="overview-divider"></div>
+
+          <div class="overview-item">
+            <div class="overview-icon-wrapper code-icon">
+              <el-icon class="overview-icon"><Key /></el-icon>
+            </div>
+            <div class="overview-content">
+              <div class="overview-label">目录代码</div>
+              <div class="overview-value code-text">{{ packageNode.code }}</div>
+            </div>
+          </div>
+
+          <div class="overview-divider"></div>
+
+          <div class="overview-item">
+            <div class="overview-icon-wrapper count-icon">
+              <el-icon class="overview-icon"><Files /></el-icon>
+            </div>
+            <div class="overview-content">
+              <div class="overview-label">子项数量</div>
+              <div class="overview-value">
+                {{ packageNode?.children?.length || 0 }} 项
+              </div>
+            </div>
+          </div>
+
+          <!-- Owner 信息 -->
+          <div v-if="packageNode?.owner && packageNode.owner.trim()" class="overview-divider"></div>
+
+          <div v-if="packageNode?.owner && packageNode.owner.trim()" class="overview-item">
+            <div class="overview-icon-wrapper owner-icon">
+              <el-icon class="overview-icon"><Star /></el-icon>
+            </div>
+            <div class="overview-content">
+              <div class="overview-label">创建者</div>
+              <div class="overview-value">
+                <UserWidget
+                  :field="ownerField"
+                  :value="ownerFieldValue"
+                  mode="detail"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- 管理员信息 -->
+          <div v-if="packageNode?.admins && packageNode.admins.trim()" class="overview-divider"></div>
+
+          <div v-if="packageNode?.admins && packageNode.admins.trim()" class="overview-item">
+            <div class="overview-icon-wrapper admins-icon">
+              <el-icon class="overview-icon"><Avatar /></el-icon>
+            </div>
+            <div class="overview-content">
+              <div class="overview-label">管理员</div>
+              <div class="overview-value">
+                <UsersWidget
+                  :field="adminsField"
+                  :value="adminsFieldValue"
+                  :field-path="adminsField.code"
+                  mode="detail"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ⭐ 权限申请 tab（仅管理员可见） -->
+      <div v-if="showPermissionRequestTab" class="permission-request-section">
+        <el-tabs v-model="activeTab" @tab-change="handleTabChange" class="detail-tabs">
+          <el-tab-pane label="目录信息" name="info">
+            <div class="tab-content">
+              <!-- 信息概览卡片 -->
+              <div v-if="packageNode" class="overview-section">
+                <div class="overview-card">
+                  <div class="overview-item">
+                    <div class="overview-icon-wrapper name-icon">
+                      <el-icon class="overview-icon"><Document /></el-icon>
+                    </div>
+                    <div class="overview-content">
+                      <div class="overview-label">目录名称</div>
+                      <div class="overview-value">{{ packageNode.name }}</div>
+                    </div>
+                  </div>
+
+                  <div class="overview-divider"></div>
+
+                  <div class="overview-item">
+                    <div class="overview-icon-wrapper code-icon">
+                      <el-icon class="overview-icon"><Key /></el-icon>
+                    </div>
+                    <div class="overview-content">
+                      <div class="overview-label">目录代码</div>
+                      <div class="overview-value code-text">{{ packageNode.code }}</div>
+                    </div>
+                  </div>
+
+                  <div class="overview-divider"></div>
+
+                  <div class="overview-item">
+                    <div class="overview-icon-wrapper count-icon">
+                      <el-icon class="overview-icon"><Files /></el-icon>
+                    </div>
+                    <div class="overview-content">
+                      <div class="overview-label">子项数量</div>
+                      <div class="overview-value">
+                        {{ packageNode?.children?.length || 0 }} 项
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Owner 信息 -->
+                  <div v-if="packageNode?.owner && packageNode.owner.trim()" class="overview-divider"></div>
+
+                  <div v-if="packageNode?.owner && packageNode.owner.trim()" class="overview-item">
+                    <div class="overview-icon-wrapper owner-icon">
+                      <el-icon class="overview-icon"><Star /></el-icon>
+                    </div>
+                    <div class="overview-content">
+                      <div class="overview-label">创建者</div>
+                      <div class="overview-value">
+                        <UserWidget
+                          :field="ownerField"
+                          :value="ownerFieldValue"
+                          mode="detail"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 管理员信息 -->
+                  <div v-if="packageNode?.admins && packageNode.admins.trim()" class="overview-divider"></div>
+
+                  <div v-if="packageNode?.admins && packageNode.admins.trim()" class="overview-item">
+                    <div class="overview-icon-wrapper admins-icon">
+                      <el-icon class="overview-icon"><Avatar /></el-icon>
+                    </div>
+                    <div class="overview-content">
+                      <div class="overview-label">管理员</div>
+                      <div class="overview-value">
+                        <UsersWidget
+                          :field="adminsField"
+                          :value="adminsFieldValue"
+                          :field-path="adminsField.code"
+                          mode="detail"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 子目录和函数列表 -->
+              <div class="children-section" v-if="packageNode?.children && packageNode.children.length > 0">
+                <div class="section-header">
+                  <h3 class="section-title">
+                    <el-icon class="section-icon"><Files /></el-icon>
+                    子目录和函数
+                  </h3>
+                  <el-tag class="section-badge" type="primary" size="small">
+                    {{ packageNode.children.length }}
+                  </el-tag>
+                </div>
+
+                <div class="children-grid">
+                  <div
+                    v-for="child in packageNode.children"
+                    :key="child.id"
+                    class="child-card"
+                    @click="handleChildClick(child)"
+                  >
+            <div class="child-card-header">
+              <div class="child-icon-wrapper" :class="child.type === 'package' ? 'package-type' : 'function-type'">
+                <!-- package 类型：使用自定义文件夹图标 -->
+                <img
+                  v-if="child.type === 'package'"
+                  src="/service-tree/custom-folder.svg"
+                  alt="目录"
+                  class="child-icon-img"
+                />
+                <!-- function 类型：根据 template_type 显示不同图标 -->
+                <template v-else-if="child.type === 'function'">
+                  <!-- 表单类型：使用编辑图标 -->
+                  <img
+                    v-if="child.template_type === TEMPLATE_TYPE.FORM"
+                    src="/service-tree/编辑.svg"
+                    alt="表单"
+                    class="child-icon-img"
+                  />
+                  <!-- 其他类型：使用组件图标 -->
+                  <el-icon v-else class="child-icon">
+                    <component :is="getChildFunctionIcon(child)" />
+                  </el-icon>
+                </template>
+                <!-- 默认图标 -->
+                <el-icon v-else class="child-icon">
+                  <Document />
+                </el-icon>
+              </div>
+              <el-tag
+                v-if="child.type === 'function'"
+                size="small"
+                :type="getTemplateTypeTag(child.template_type)"
+                class="child-type-tag"
+              >
+                {{ getTemplateTypeText(child.template_type) }}
+              </el-tag>
+            </div>
+            <div class="child-card-body">
+              <div class="child-name">{{ child.name }}</div>
+              <div class="child-description" v-if="child.description">
+                {{ child.description }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+              <el-empty
+                v-else
+                description="该目录下暂无子目录或函数"
+                :image-size="120"
+                class="empty-state"
+              />
+            </div>
+          </el-tab-pane>
+          
+          <!-- 权限申请 tab -->
+          <el-tab-pane label="权限申请" name="permissionRequest">
+            <div class="tab-content">
+              <PermissionRequestList
+                ref="permissionRequestListRef"
+                :resource-path="packageNode?.full_code_path"
+                :auto-load="activeTab === 'permissionRequest'"
+              />
+            </div>
+          </el-tab-pane>
+        </el-tabs>
+      </div>
+      
+      <!-- 非管理员或没有权限申请 tab 时，显示原来的内容 -->
       <div v-else-if="packageNode" class="overview-section">
         <div class="overview-card">
           <div class="overview-item">
@@ -314,12 +572,11 @@
       </div>
 
       <el-empty
-        v-else
+        v-else-if="!hasNoDirectoryPermissions"
         description="该目录下暂无子目录或函数"
         :image-size="120"
         class="empty-state"
       />
-      </div>
     </div>
 
     <!-- 变更记录对话框 -->
@@ -400,6 +657,8 @@ import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import { WidgetType } from '@/core/constants/widget'
 import { useAuthStore } from '@/stores/auth'
 import { updateServiceTree } from '@/api/service-tree'
+import PermissionRequestList from '@/components/Permission/PermissionRequestList.vue'
+import { watch, nextTick } from 'vue'
 
 interface Props {
   packageNode?: ServiceTree | null
@@ -414,6 +673,58 @@ const emit = defineEmits<{
 
 const router = useRouter()
 const route = useRoute()
+
+// Tab 相关
+const activeTab = ref('info')
+const permissionRequestListRef = ref<InstanceType<typeof PermissionRequestList> | null>(null)
+
+// ⭐ 判断是否显示权限申请 tab
+// 条件：1. 节点类型是 package  2. 用户是管理员
+const showPermissionRequestTab = computed(() => {
+  if (!props.packageNode) {
+    return false
+  }
+  
+  // 必须是 package 类型
+  if (props.packageNode.type !== 'package') {
+    return false
+  }
+  
+  // 检查是否是管理员
+  if (!props.packageNode.admins || !authStore.user?.username) {
+    return false
+  }
+  
+  const admins = props.packageNode.admins.split(',').map((a: string) => a.trim()).filter(Boolean)
+  return admins.includes(authStore.user.username)
+})
+
+// 处理 tab 切换
+const handleTabChange = (tabName: string) => {
+  if (tabName === 'permissionRequest' && permissionRequestListRef.value) {
+    // 切换到权限申请 tab 时，触发加载
+    nextTick(() => {
+      permissionRequestListRef.value?.loadRequests()
+    })
+  }
+}
+
+// ⭐ 监听路由 query 参数，支持通过 tab 参数指定要打开的 tab
+watch(
+  () => route.query.tab,
+  (tab) => {
+    if (tab === 'permissionRequest' && showPermissionRequestTab.value) {
+      activeTab.value = 'permissionRequest'
+      // 切换 tab 时触发加载
+      nextTick(() => {
+        if (permissionRequestListRef.value) {
+          permissionRequestListRef.value.loadRequests()
+        }
+      })
+    }
+  },
+  { immediate: true }
+)
 
 // 智能体列表相关
 const agentLoading = ref(false)

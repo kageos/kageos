@@ -670,24 +670,27 @@ const handlePendingCountClick = (data: ServiceTree) => {
 
 // 处理审批权限申请
 const handleApprovePermission = (data: ServiceTree) => {
-  // 跳转到节点详情页面，并自动切换到权限申请 tab
-  // 使用事件总线更新路由，保留 tab 参数
-  const targetPath = `/workspace${data.full_code_path}`
+  // 先触发节点点击，确保节点详情已加载
+  emit('node-click', data)
   
-  // 使用事件总线更新路由，这样可以保留 tab 参数
-  eventBus.emit(RouteEvent.updateRequested, {
-    path: targetPath,
-    query: {
-      tab: 'permissionRequest'  // 指定要打开的 tab
-    },
-    replace: true,
-    preserveParams: {
-      table: false,
-      search: false,
-      state: false,
-      linkNavigation: false
-    },
-    source: 'approve-permission-click'
+  // 然后通过事件总线更新路由，添加 tab 参数
+  // 使用 nextTick 确保节点点击事件已处理
+  nextTick(() => {
+    const targetPath = `/workspace${data.full_code_path}`
+    eventBus.emit(RouteEvent.updateRequested, {
+      path: targetPath,
+      query: {
+        tab: 'permissionRequest'  // 指定要打开的 tab
+      },
+      replace: true,
+      preserveParams: {
+        table: false,
+        search: false,
+        state: false,
+        linkNavigation: false
+      },
+      source: 'approve-permission-click'
+    })
   })
 }
 
