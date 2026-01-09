@@ -434,14 +434,14 @@ const operateLogSectionRef = ref<InstanceType<typeof OperateLogSection> | null>(
 const permissionRequestListRef = ref<InstanceType<typeof PermissionRequestList> | null>(null)
 
 // ⭐ 判断是否显示权限申请 tab
-// 条件：1. 节点类型是 package  2. 用户是管理员
+// 条件：1. 节点类型是 package 或 function  2. 用户是管理员
 const showPermissionRequestTab = computed(() => {
   if (!props.currentFunction) {
     return false
   }
   
-  // 必须是 package 类型
-  if (props.currentFunction.type !== 'package') {
+  // 必须是 package 或 function 类型
+  if (props.currentFunction.type !== 'package' && props.currentFunction.type !== 'function') {
     return false
   }
   
@@ -450,7 +450,7 @@ const showPermissionRequestTab = computed(() => {
     return false
   }
   
-  const admins = props.currentFunction.admins.split(',').map(a => a.trim()).filter(Boolean)
+  const admins = props.currentFunction.admins.split(',').map((a: string) => a.trim()).filter(Boolean)
   return admins.includes(authStore.user.username)
 })
 
