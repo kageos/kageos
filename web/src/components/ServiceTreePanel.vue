@@ -667,6 +667,19 @@ const handlePendingCountClick = (data: ServiceTree) => {
   // TODO: 在详情页面添加权限申请 tab，显示待审批的申请列表
 }
 
+// 处理审批权限申请
+const handleApprovePermission = (data: ServiceTree) => {
+  // 跳转到节点详情页面，并自动切换到权限申请 tab
+  // 通过路由参数指定要打开的 tab
+  const targetPath = `/workspace${data.full_code_path}`
+  router.push({
+    path: targetPath,
+    query: {
+      tab: 'permissionRequest'  // 指定要打开的 tab
+    }
+  })
+}
+
 // 处理权限管理
 const handleManagePermission = (data: ServiceTree) => {
   const resourcePath = data.full_code_path
