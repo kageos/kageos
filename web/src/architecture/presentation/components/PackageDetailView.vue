@@ -588,6 +588,7 @@ const emit = defineEmits<{
 
 const router = useRouter()
 const route = useRoute()
+const authStore = useAuthStore() // ⭐ 必须在 showPermissionRequestTab 之前初始化
 
 // Tab 相关
 const activeTab = ref('info')
