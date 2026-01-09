@@ -174,91 +174,6 @@
             <div class="tab-content">
               <!-- 信息概览卡片 -->
               <div v-if="packageNode" class="overview-section">
-        <div class="overview-card">
-          <div class="overview-item">
-            <div class="overview-icon-wrapper name-icon">
-              <el-icon class="overview-icon"><Document /></el-icon>
-            </div>
-            <div class="overview-content">
-              <div class="overview-label">目录名称</div>
-              <div class="overview-value">{{ packageNode.name }}</div>
-            </div>
-          </div>
-
-          <div class="overview-divider"></div>
-
-          <div class="overview-item">
-            <div class="overview-icon-wrapper code-icon">
-              <el-icon class="overview-icon"><Key /></el-icon>
-            </div>
-            <div class="overview-content">
-              <div class="overview-label">目录代码</div>
-              <div class="overview-value code-text">{{ packageNode.code }}</div>
-            </div>
-          </div>
-
-          <div class="overview-divider"></div>
-
-          <div class="overview-item">
-            <div class="overview-icon-wrapper count-icon">
-              <el-icon class="overview-icon"><Files /></el-icon>
-            </div>
-            <div class="overview-content">
-              <div class="overview-label">子项数量</div>
-              <div class="overview-value">
-                {{ packageNode?.children?.length || 0 }} 项
-              </div>
-            </div>
-          </div>
-
-          <!-- Owner 信息 -->
-          <div v-if="packageNode?.owner && packageNode.owner.trim()" class="overview-divider"></div>
-
-          <div v-if="packageNode?.owner && packageNode.owner.trim()" class="overview-item">
-            <div class="overview-icon-wrapper owner-icon">
-              <el-icon class="overview-icon"><Star /></el-icon>
-            </div>
-            <div class="overview-content">
-              <div class="overview-label">创建者</div>
-              <div class="overview-value">
-                <UserWidget
-                  :field="ownerField"
-                  :value="ownerFieldValue"
-                  mode="detail"
-                />
-              </div>
-            </div>
-          </div>
-
-          <!-- 管理员信息 -->
-          <div v-if="packageNode?.admins && packageNode.admins.trim()" class="overview-divider"></div>
-
-          <div v-if="packageNode?.admins && packageNode.admins.trim()" class="overview-item">
-            <div class="overview-icon-wrapper admins-icon">
-              <el-icon class="overview-icon"><Avatar /></el-icon>
-            </div>
-            <div class="overview-content">
-              <div class="overview-label">管理员</div>
-              <div class="overview-value">
-                <UsersWidget
-                  :field="adminsField"
-                  :value="adminsFieldValue"
-                  :field-path="adminsField.code"
-                  mode="detail"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ⭐ 权限申请 tab（仅管理员可见） -->
-      <div v-if="showPermissionRequestTab" class="permission-request-section">
-        <el-tabs v-model="activeTab" @tab-change="handleTabChange" class="detail-tabs">
-          <el-tab-pane label="目录信息" name="info">
-            <div class="tab-content">
-              <!-- 信息概览卡片 -->
-              <div v-if="packageNode" class="overview-section">
                 <div class="overview-card">
                   <div class="overview-item">
                     <div class="overview-icon-wrapper name-icon">
@@ -356,52 +271,52 @@
                     class="child-card"
                     @click="handleChildClick(child)"
                   >
-            <div class="child-card-header">
-              <div class="child-icon-wrapper" :class="child.type === 'package' ? 'package-type' : 'function-type'">
-                <!-- package 类型：使用自定义文件夹图标 -->
-                <img
-                  v-if="child.type === 'package'"
-                  src="/service-tree/custom-folder.svg"
-                  alt="目录"
-                  class="child-icon-img"
-                />
-                <!-- function 类型：根据 template_type 显示不同图标 -->
-                <template v-else-if="child.type === 'function'">
-                  <!-- 表单类型：使用编辑图标 -->
-                  <img
-                    v-if="child.template_type === TEMPLATE_TYPE.FORM"
-                    src="/service-tree/编辑.svg"
-                    alt="表单"
-                    class="child-icon-img"
-                  />
-                  <!-- 其他类型：使用组件图标 -->
-                  <el-icon v-else class="child-icon">
-                    <component :is="getChildFunctionIcon(child)" />
-                  </el-icon>
-                </template>
-                <!-- 默认图标 -->
-                <el-icon v-else class="child-icon">
-                  <Document />
-                </el-icon>
+                    <div class="child-card-header">
+                      <div class="child-icon-wrapper" :class="child.type === 'package' ? 'package-type' : 'function-type'">
+                        <!-- package 类型：使用自定义文件夹图标 -->
+                        <img
+                          v-if="child.type === 'package'"
+                          src="/service-tree/custom-folder.svg"
+                          alt="目录"
+                          class="child-icon-img"
+                        />
+                        <!-- function 类型：根据 template_type 显示不同图标 -->
+                        <template v-else-if="child.type === 'function'">
+                          <!-- 表单类型：使用编辑图标 -->
+                          <img
+                            v-if="child.template_type === TEMPLATE_TYPE.FORM"
+                            src="/service-tree/编辑.svg"
+                            alt="表单"
+                            class="child-icon-img"
+                          />
+                          <!-- 其他类型：使用组件图标 -->
+                          <el-icon v-else class="child-icon">
+                            <component :is="getChildFunctionIcon(child)" />
+                          </el-icon>
+                        </template>
+                        <!-- 默认图标 -->
+                        <el-icon v-else class="child-icon">
+                          <Document />
+                        </el-icon>
+                      </div>
+                      <el-tag
+                        v-if="child.type === 'function'"
+                        size="small"
+                        :type="getTemplateTypeTag(child.template_type)"
+                        class="child-type-tag"
+                      >
+                        {{ getTemplateTypeText(child.template_type) }}
+                      </el-tag>
+                    </div>
+                    <div class="child-card-body">
+                      <div class="child-name">{{ child.name }}</div>
+                      <div class="child-description" v-if="child.description">
+                        {{ child.description }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <el-tag
-                v-if="child.type === 'function'"
-                size="small"
-                :type="getTemplateTypeTag(child.template_type)"
-                class="child-type-tag"
-              >
-                {{ getTemplateTypeText(child.template_type) }}
-              </el-tag>
-            </div>
-            <div class="child-card-body">
-              <div class="child-name">{{ child.name }}</div>
-              <div class="child-description" v-if="child.description">
-                {{ child.description }}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
 
               <el-empty
                 v-else
