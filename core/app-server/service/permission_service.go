@@ -18,17 +18,17 @@ import (
 // PermissionService 权限管理服务
 // ⭐ 完全移除 Casbin，使用新的权限系统
 type PermissionService struct {
-	permissionService enterprise.PermissionService
-	serviceTreeRepo  *repository.ServiceTreeRepository // ⭐ 用于更新 pending_count
-	db               *gorm.DB                          // ⭐ 用于查询 permission_request 表
+	permissionService        enterprise.PermissionService
+	serviceTreeRepo         *repository.ServiceTreeRepository         // ⭐ 用于更新 pending_count
+	permissionRequestRepo   *repository.PermissionRequestRepository  // ⭐ 用于查询 permission_request 表
 }
 
 // NewPermissionService 创建权限管理服务
-func NewPermissionService(permissionService enterprise.PermissionService, serviceTreeRepo *repository.ServiceTreeRepository, db *gorm.DB) *PermissionService {
+func NewPermissionService(permissionService enterprise.PermissionService, serviceTreeRepo *repository.ServiceTreeRepository, permissionRequestRepo *repository.PermissionRequestRepository) *PermissionService {
 	return &PermissionService{
-		permissionService: permissionService,
-		serviceTreeRepo:  serviceTreeRepo,
-		db:               db,
+		permissionService:      permissionService,
+		serviceTreeRepo:        serviceTreeRepo,
+		permissionRequestRepo:  permissionRequestRepo,
 	}
 }
 
@@ -356,13 +356,12 @@ func (s *PermissionService) getPermissionRequestInfo(ctx context.Context, reques
 	AppID        int64
 	ResourcePath string
 }, error) {
-	if s.db == nil {
-		return nil, fmt.Errorf("数据库连接未初始化")
+	if s.permissionRequestRepo == nil {
+		return nil, fmt.Errorf("permissionRequestRepo 未初始化")
 	}
 
-	// 直接查询 permission_request 表获取申请信息
-	var request model.PermissionRequest
-	err := s.db.Where("id = ?", requestID).First(&request).Error
+	// 通过 repository 查询申请记录
+	request, err := s.permissionRequestRepo.GetPermissionRequestByID(requestID)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, fmt.Errorf("申请记录不存在: request_id=%d", requestID)

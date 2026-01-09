@@ -398,9 +398,12 @@ func (s *Server) initServices(ctx context.Context) error {
 	// 初始化函数生成服务
 	s.functionGenService = service.NewFunctionGenService(s.appService, serviceTreeRepo, appRepo)
 
+	// ⭐ 初始化权限申请仓储
+	permissionRequestRepo := repository.NewPermissionRequestRepository(s.db)
+
 	// ⭐ 初始化权限管理服务（需要在 initEnterprise 之后，因为需要 enterprise.GetPermissionService()）
 	// ⭐ 完全移除 Casbin，使用新的权限系统（不再需要 appRepo，从 resourcePath 解析 user 和 app）
-	s.permissionService = service.NewPermissionService(enterprise.GetPermissionService(), serviceTreeRepo, s.db)
+	s.permissionService = service.NewPermissionService(enterprise.GetPermissionService(), serviceTreeRepo, permissionRequestRepo)
 
 	// 初始化服务目录服务（包含目录管理功能：copy、create、remove）
 	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appRuntime, fileSnapshotRepo, s.appService, s.functionGenService, s.permissionService)

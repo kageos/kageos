@@ -88,8 +88,8 @@ func (s *Server) setupRoutes() {
 	serviceTreeAuth.POST("/copy", serviceTreeHandler.CopyServiceTree)                 // 复制服务目录
 	serviceTreeAuth.POST("/publish_to_hub", serviceTreeHandler.PublishDirectoryToHub) // 发布目录到 Hub
 	serviceTreeAuth.POST("/push_to_hub", serviceTreeHandler.PushDirectoryToHub)       // 推送目录到 Hub（更新已发布的目录）
-	serviceTreeAuth.GET("/hub_info", serviceTreeHandler.GetHubInfo)                    // 获取目录的 Hub 信息
-	serviceTreeAuth.POST("/pull_from_hub", serviceTreeHandler.PullDirectoryFromHub)    // 从 Hub 拉取目录
+	serviceTreeAuth.GET("/hub_info", serviceTreeHandler.GetHubInfo)                   // 获取目录的 Hub 信息
+	serviceTreeAuth.POST("/pull_from_hub", serviceTreeHandler.PullDirectoryFromHub)   // 从 Hub 拉取目录
 
 	// 服务间调用路由（不需要JWT验证）
 	serviceTree.POST("/add_functions", serviceTreeHandler.AddFunctions) // 向服务目录添加函数（agent-server -> workspace）
@@ -138,12 +138,12 @@ func (s *Server) setupRoutes() {
 	// Table 函数接口
 	table := apiV1.Group("/table")
 	table.Use(middleware2.JWTAuth())
-	table.GET("/search/*full-code-path", middleware2.CheckTableSearch(), standardAPI.TableSearch)           // Table 查询
-	table.GET("/template/*full-code-path", middleware2.CheckTableRead(), standardAPI.TableTemplate)         // Table 下载导入模板
+	table.GET("/search/*full-code-path", middleware2.CheckTableSearch(), standardAPI.TableSearch)            // Table 查询
+	table.GET("/template/*full-code-path", middleware2.CheckTableRead(), standardAPI.TableTemplate)          // Table 下载导入模板
 	table.POST("/create/*full-code-path", middleware2.CheckTableWrite(), standardAPI.TableCreate)            // Table 新增
 	table.POST("/batch-create/*full-code-path", middleware2.CheckTableWrite(), standardAPI.TableBatchCreate) // Table 批量导入
-	table.PUT("/update/*full-code-path", middleware2.CheckTableUpdate(), standardAPI.TableUpdate)          // Table 更新
-	table.DELETE("/delete/*full-code-path", middleware2.CheckTableDelete(), standardAPI.TableDelete)        // Table 删除
+	table.PUT("/update/*full-code-path", middleware2.CheckTableUpdate(), standardAPI.TableUpdate)            // Table 更新
+	table.DELETE("/delete/*full-code-path", middleware2.CheckTableDelete(), standardAPI.TableDelete)         // Table 删除
 
 	// Form 函数接口
 	form := apiV1.Group("/form")
@@ -166,14 +166,14 @@ func (s *Server) setupRoutes() {
 	permission.Use(middleware2.RequireFeature(enterprise.FeaturePermission)) // 权限管理功能鉴权（企业版）
 	permissionHandler := v1.NewPermission(s.permissionService, s.appRepo)
 	permission.POST("/add", permissionHandler.AddPermission)                // 添加权限（内部使用，被 ApplyPermission 调用）
-	permission.POST("/apply", permissionHandler.ApplyPermission)             // 权限申请（简化版，直接添加权限）
-	permission.GET("/workspace", permissionHandler.GetWorkspacePermissions)   // 获取工作空间所有权限
-	
+	permission.POST("/apply", permissionHandler.ApplyPermission)            // 权限申请（简化版，直接添加权限）
+	permission.GET("/workspace", permissionHandler.GetWorkspacePermissions) // 获取工作空间所有权限
+
 	// ⭐ 权限申请和审批路由（新权限系统）
 	permission.POST("/request/create", permissionHandler.CreatePermissionRequest)   // 创建权限申请
 	permission.POST("/request/approve", permissionHandler.ApprovePermissionRequest) // 审批通过
-	permission.POST("/request/reject", permissionHandler.RejectPermissionRequest)    // 审批拒绝
-	permission.GET("/requests", permissionHandler.GetPermissionRequests)              // 获取权限申请列表
-	permission.POST("/grant", permissionHandler.GrantPermission)                     // 授权权限（管理员主动授权）
+	permission.POST("/request/reject", permissionHandler.RejectPermissionRequest)   // 审批拒绝
+	permission.GET("/requests", permissionHandler.GetPermissionRequests)            // 获取权限申请列表
+	permission.POST("/grant", permissionHandler.GrantPermission)                    // 授权权限（管理员主动授权）
 
 }
