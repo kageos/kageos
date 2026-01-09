@@ -658,9 +658,6 @@ const editForm = ref({
   admins: ''
 })
 
-// 认证 store
-const authStore = useAuthStore()
-
 // ⭐ 检查是否可以编辑（owner 或 admins 可以编辑）
 const canEdit = computed(() => {
   if (!props.packageNode || !authStore.user?.username) {
