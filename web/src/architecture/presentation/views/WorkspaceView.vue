@@ -1056,6 +1056,20 @@ const handleNodeClick = (node: ServiceTreeType) => {
   }
 }
 
+// ⭐ 处理审批权限申请（从 ServiceTreePanel 调用）
+const handleApprovePermission = (node: ServiceTreeType) => {
+  const serviceTree: ServiceTree = node as any
+  if (!serviceTree.full_code_path) return
+  
+  // 先触发节点点击，确保节点详情已加载
+  applicationService.triggerNodeClick(serviceTree)
+  
+  // 然后更新路由，添加 tab 参数
+  handlePackageNodeRoute(serviceTree, 'approve-permission-click', {
+    tab: 'permissionRequest'
+  })
+}
+
 /**
  * 处理面包屑节点点击
  */
