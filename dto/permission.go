@@ -1,5 +1,9 @@
 package dto
 
+import (
+	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
+)
+
 // AddPermissionReq 添加权限请求
 // ⭐ Subject 可以是用户名（如 "liubeiluo"）或组织架构路径（如 "/org/sub/qsearch"）
 type AddPermissionReq struct {
@@ -122,7 +126,7 @@ type PermissionRequestInfo struct {
 	RejectedAt       string `json:"rejected_at"`       // 拒绝时间（可选）
 	RejectedBy       string `json:"rejected_by"`        // 拒绝人用户名（可选）
 	RejectReason     string `json:"reject_reason"`      // 拒绝原因（可选）
-	CreatedAt        string `json:"created_at"`         // 申请时间
+	CreatedAt        models.Time `json:"created_at"`         // 申请时间
 }
 
 // GetPermissionRequestsResp 获取权限申请列表响应
