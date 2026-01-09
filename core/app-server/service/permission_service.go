@@ -307,14 +307,74 @@ func (s *PermissionService) GrantPermission(ctx context.Context, req *dto.GrantP
 }
 
 // GetPermissionRequests 获取权限申请列表
-// TODO: 实现此方法，需要查询 permission_request 表
 func (s *PermissionService) GetPermissionRequests(ctx context.Context, req *dto.GetPermissionRequestsReq) (*dto.GetPermissionRequestsResp, error) {
-	// 暂时返回空列表，后续实现
+	if s.permissionRequestRepo == nil {
+		return nil, fmt.Errorf("permissionRequestRepo 未初始化")
+	}
+
+	// 查询权限申请列表
+	requests, total, err := s.permissionRequestRepo.GetPermissionRequestsWithPage(
+		req.AppID,
+		req.Status,
+		req.Applicant,
+		req.ResourcePath,
+		req.Page,
+		req.PageSize,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("查询权限申请列表失败: %w", err)
+	}
+
+	// 转换为 DTO
+	records := make([]dto.PermissionRequestInfo, 0, len(requests))
+	for _, req := range requests {
+		info := dto.PermissionRequestInfo{
+			ID:               req.ID,
+			AppID:            req.AppID,
+			ApplicantUsername: req.ApplicantUsername,
+			SubjectType:      req.SubjectType,
+			Subject:          req.Subject,
+			ResourcePath:     req.ResourcePath,
+			Action:           req.Action,
+			StartTime:        req.StartTime.Format(time.RFC3339),
+			EndTime:          "",
+			Reason:           req.Reason,
+			Status:           req.Status,
+			CreatedAt:        req.CreatedAt.Format(time.RFC3339),
+		}
+
+		// 处理 EndTime（可能为 nil，表示永久权限）
+		if req.EndTime != nil {
+			info.EndTime = req.EndTime.Format(time.RFC3339)
+		}
+
+		// 处理审批信息
+		if req.ApprovedAt != nil {
+			info.ApprovedAt = req.ApprovedAt.Format(time.RFC3339)
+		}
+		if req.ApprovedBy != "" {
+			info.ApprovedBy = req.ApprovedBy
+		}
+
+		// 处理拒绝信息
+		if req.RejectedAt != nil {
+			info.RejectedAt = req.RejectedAt.Format(time.RFC3339)
+		}
+		if req.RejectedBy != "" {
+			info.RejectedBy = req.RejectedBy
+		}
+		if req.RejectReason != "" {
+			info.RejectReason = req.RejectReason
+		}
+
+		records = append(records, info)
+	}
+
 	return &dto.GetPermissionRequestsResp{
-		Total:    0,
+		Total:    total,
 		Page:     req.Page,
 		PageSize: req.PageSize,
-		Records:  []dto.PermissionRequestInfo{},
+		Records:  records,
 	}, nil
 }
 
