@@ -549,7 +549,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ArrowLeft, MagicStick, Folder, Document, CopyDocument, Key, Link, Files, Clock, Lock, Avatar, Edit, Star } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -627,7 +627,7 @@ const handleTabChange = (tabName: string) => {
 // ⭐ 监听路由 query 参数，支持通过 tab 参数指定要打开的 tab
 watch(
   () => route.query.tab,
-  (tab) => {
+  (tab: string | string[] | null) => {
     if (tab === 'permissionRequest' && showPermissionRequestTab.value) {
       activeTab.value = 'permissionRequest'
       // 切换 tab 时触发加载
@@ -675,7 +675,7 @@ const canEdit = computed(() => {
   
   // 检查是否是 admins 之一
   if (props.packageNode.admins && props.packageNode.admins.trim()) {
-    const admins = props.packageNode.admins.split(',').map(s => s.trim()).filter(s => s)
+    const admins = props.packageNode.admins.split(',').map((s: string) => s.trim()).filter((s: string) => Boolean(s))
     if (admins.includes(currentUser)) {
       return true
     }
@@ -731,7 +731,7 @@ const adminsFieldValue = computed<FieldValue>(() => {
     }
   }
   
-  const admins = props.packageNode.admins.split(',').map(s => s.trim()).filter(s => s)
+  const admins = props.packageNode.admins.split(',').map((s: string) => s.trim()).filter((s: string) => Boolean(s))
   return {
     raw: admins.join(','),
     display: admins.join(', '),
@@ -953,7 +953,7 @@ const editAdminsFieldValue = computed<FieldValue>(() => {
     }
   }
   
-  const admins = editForm.value.admins.split(',').map(s => s.trim()).filter(s => s)
+  const admins = editForm.value.admins.split(',').map((s: string) => s.trim()).filter((s: string) => Boolean(s))
   return {
     raw: admins.join(','),
     display: admins.join(', '),
