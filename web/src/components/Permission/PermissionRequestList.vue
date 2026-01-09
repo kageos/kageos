@@ -367,6 +367,11 @@ onMounted(() => {
     loadRequests()
   }
 })
+
+// 暴露方法供外部调用
+defineExpose({
+  loadRequests
+})
 </script>
 
 <style scoped lang="scss">

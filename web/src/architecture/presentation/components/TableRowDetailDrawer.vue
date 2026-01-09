@@ -380,6 +380,7 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<Emits>()
 
 const router = useRouter()
+const authStore = useAuthStore()
 
 const formViewRef = ref<InstanceType<typeof FormView> | null>(null)
 const isFormViewReady = ref(false)
