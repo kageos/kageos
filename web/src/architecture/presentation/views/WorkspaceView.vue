@@ -1008,18 +1008,19 @@ const handleFunctionNodeRoute = (node: ServiceTree, source: string): void => {
  * 处理目录节点的路由更新
  * ⭐ 优化：不再在这里调用 triggerNodeClick，因为已经在 handleNodeClick 中调用过了
  */
-const handlePackageNodeRoute = (node: ServiceTree, source: string): void => {
+const handlePackageNodeRoute = (node: ServiceTree, source: string, customQuery?: Record<string, any>): void => {
   if (!node.full_code_path) return
   
   const targetPath = buildWorkspacePath(node.full_code_path)
   // ⭐ 如果路由已匹配，不需要更新路由（节点点击已经在 handleNodeClick 中处理了）
-  if (route.path === targetPath) {
+  // 但如果 source 是 approve-permission-click，需要更新 query 参数
+  if (route.path === targetPath && !customQuery) {
     return
   }
   
   eventBus.emit(RouteEvent.updateRequested, {
     path: targetPath,
-    query: {},
+    query: customQuery || {},
     replace: true,
     preserveParams: {
       table: false,

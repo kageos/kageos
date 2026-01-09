@@ -255,6 +255,7 @@ import {
 import { navigateToHubDirectoryDetail } from '@/utils/hub-navigation'
 import { hasPermission, hasAnyPermissionForNode, DirectoryPermissions, TablePermissions, buildPermissionApplyURL } from '@/utils/permission'
 import { useAuthStore } from '@/stores/auth'
+import { eventBus, RouteEvent } from '@/architecture/infrastructure/eventBus'
 
 interface Props {
   treeData: ServiceTree[]
@@ -670,13 +671,23 @@ const handlePendingCountClick = (data: ServiceTree) => {
 // 处理审批权限申请
 const handleApprovePermission = (data: ServiceTree) => {
   // 跳转到节点详情页面，并自动切换到权限申请 tab
-  // 通过路由参数指定要打开的 tab
+  // 使用事件总线更新路由，保留 tab 参数
   const targetPath = `/workspace${data.full_code_path}`
-  router.push({
+  
+  // 使用事件总线更新路由，这样可以保留 tab 参数
+  eventBus.emit(RouteEvent.updateRequested, {
     path: targetPath,
     query: {
       tab: 'permissionRequest'  // 指定要打开的 tab
-    }
+    },
+    replace: true,
+    preserveParams: {
+      table: false,
+      search: false,
+      state: false,
+      linkNavigation: false
+    },
+    source: 'approve-permission-click'
   })
 }
 
