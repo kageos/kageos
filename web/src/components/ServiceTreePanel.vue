@@ -645,6 +645,15 @@ const handleApplyPermission = (data: ServiceTree) => {
   router.push(url)
 }
 
+// 处理待审批数量点击
+const handlePendingCountClick = (data: ServiceTree) => {
+  // 点击待审批数量时，跳转到节点详情页面的权限申请 tab
+  // 这里先触发 node-click 事件，让父组件处理路由跳转
+  // 后续可以在详情页面添加权限申请 tab
+  emit('node-click', data)
+  // TODO: 在详情页面添加权限申请 tab，显示待审批的申请列表
+}
+
 // 处理权限管理
 const handleManagePermission = (data: ServiceTree) => {
   const resourcePath = data.full_code_path
