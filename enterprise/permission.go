@@ -60,7 +60,7 @@ type PermissionService interface {
 	//
 	// 说明：
 	//   - 社区版实现返回错误（不支持权限管理）
-	//   - 企业版实现会添加权限策略到 Casbin
+	//   - 企业版实现会添加权限策略到自研权限系统
 	AddPolicy(ctx context.Context, username string, resourcePath string, action string) error
 
 	// RemovePolicy 删除权限策略
@@ -75,7 +75,7 @@ type PermissionService interface {
 	//
 	// 说明：
 	//   - 社区版实现返回错误（不支持权限管理）
-	//   - 企业版实现会从 Casbin 删除权限策略
+	//   - 企业版实现会从自研权限系统删除权限策略
 	RemovePolicy(ctx context.Context, username string, resourcePath string, action string) error
 
 	// AddGroupingPolicy 添加关系策略（用户-角色关系）
@@ -89,7 +89,7 @@ type PermissionService interface {
 	//
 	// 说明：
 	//   - 社区版实现返回错误（不支持权限管理）
-	//   - 企业版实现会添加用户-角色关系到 Casbin
+	//   - 企业版实现会添加用户-角色关系到自研权限系统
 	AddGroupingPolicy(ctx context.Context, user string, role string) error
 
 	// RemoveGroupingPolicy 删除关系策略（用户-角色关系）
@@ -103,7 +103,7 @@ type PermissionService interface {
 	//
 	// 说明：
 	//   - 社区版实现返回错误（不支持权限管理）
-	//   - 企业版实现会从 Casbin 删除用户-角色关系
+	//   - 企业版实现会从自研权限系统删除用户-角色关系
 	RemoveGroupingPolicy(ctx context.Context, user string, role string) error
 
 	// GetRolesForUser 获取用户的所有角色
@@ -117,7 +117,7 @@ type PermissionService interface {
 	//
 	// 说明：
 	//   - 社区版实现返回空列表
-	//   - 企业版实现会从 Casbin 查询用户的所有角色
+	//   - 企业版实现会从自研权限系统查询用户的所有角色
 	GetRolesForUser(ctx context.Context, username string) ([]string, error)
 
 	// AddResourceInheritance 添加资源继承关系（g2 关系）
@@ -131,8 +131,8 @@ type PermissionService interface {
 	//
 	// 说明：
 	//   - 社区版实现返回错误（不支持权限管理）
-	//   - 企业版实现会添加 g2 关系到 Casbin
-	//   - g2 关系用于实现资源权限继承：如果父资源有权限，子资源自动继承
+	//   - 企业版实现会添加资源继承关系到自研权限系统
+	//   - 资源继承关系用于实现资源权限继承：如果父资源有权限，子资源自动继承
 	AddResourceInheritance(ctx context.Context, childResource string, parentResource string) error
 
 	// ============================================
