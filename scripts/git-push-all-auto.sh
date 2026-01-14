@@ -1,18 +1,18 @@
 #!/bin/bash
 
 # Git 一键提交脚本（自动模式 - 适合大模型/AI助手使用）
-# 功能：自动提交所有代码（包括 Submodule）并推送到 Gitee
+# 功能：自动提交所有代码并推送到 Gitee
 # 使用方式：./scripts/git-push-all-auto.sh "提交信息"
 # 
 # 策略说明：
 # - 开发阶段：全量代码（包括企业代码）都提交到 Gitee
 # - 开源同步：使用 scripts/git-sync-to-github.sh 单独同步到 GitHub（过滤企业代码）
+# - enterprise_impl 已作为普通目录包含在主仓库中，不再使用 Submodule
 # 
 # 特点：
 # - 完全自动化，无需交互
 # - 适合大模型/AI助手调用
 # - 自动处理所有 Git 操作
-# - 支持 Submodule 自动提交
 
 set -e  # 遇到错误立即退出
 
@@ -67,7 +67,9 @@ check_remotes() {
 }
 
 # 提交 Submodule 更改（自动模式）
+# 注意：现在 enterprise_impl 已作为普通目录，不再需要 Submodule 处理
 commit_submodules_auto() {
+    # 检查是否还有 Submodule（向后兼容）
     if [ ! -f .gitmodules ]; then
         return 0
     fi
@@ -82,7 +84,7 @@ commit_submodules_auto() {
         return 0
     fi
     
-            for SUBMODULE in $SUBMODULES; do
+    for SUBMODULE in $SUBMODULES; do
         if [ -d "$SUBMODULE" ] && [ -d "$SUBMODULE/.git" ]; then
             print_info "检查 Submodule: $SUBMODULE"
             
