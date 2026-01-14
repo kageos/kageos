@@ -51,39 +51,15 @@ check_git_repo() {
 check_remotes() {
     print_info "检查远程仓库配置..."
     
-    # 检查 GitHub
+    # 检查 GitHub（主仓库推送到 GitHub）
     if ! git remote get-url origin > /dev/null 2>&1; then
-        print_error "未找到 origin 远程仓库"
+        print_error "未找到 origin 远程仓库（GitHub）"
         exit 1
     fi
     
     ORIGIN_URL=$(git remote get-url origin)
-    print_info "Origin: $ORIGIN_URL"
-    
-    # 检查 Gitee
-    if ! git remote get-url gitee > /dev/null 2>&1; then
-        print_warning "未找到 gitee 远程仓库，尝试自动添加..."
-        
-        # 尝试从 origin 推断 Gitee URL
-        if [[ "$ORIGIN_URL" == *"github.com"* ]]; then
-            REPO_NAME=$(echo "$ORIGIN_URL" | sed -E 's|.*github.com[:/]([^/]+/[^/]+)(\.git)?$|\1|' | sed 's/\.git$//')
-            GITEE_URL="https://gitee.com/$REPO_NAME.git"
-            print_info "自动添加 Gitee 远程仓库: $GITEE_URL"
-            git remote add gitee "$GITEE_URL" 2>/dev/null || {
-                # 如果添加失败，尝试使用已知的 Gitee 仓库
-                if [[ "$REPO_NAME" == *"ai-agent-os"* ]]; then
-                    GITEE_URL="https://gitee.com/lliubaorui/ai-agent-os.git"
-                    git remote add gitee "$GITEE_URL" 2>/dev/null || print_warning "Gitee 远程仓库已存在或添加失败"
-                fi
-            }
-        else
-            print_error "无法自动推断 Gitee URL"
-            exit 1
-        fi
-    fi
-    
-    GITEE_URL=$(git remote get-url gitee 2>/dev/null || echo "未配置")
-    print_info "Gitee: $GITEE_URL"
+    print_info "Origin (GitHub): $ORIGIN_URL"
+    print_info "注意：主代码推送到 GitHub，Submodule 代码推送到 Gitee"
 }
 
 # 提交 Submodule 更改（自动模式）
@@ -118,11 +94,18 @@ commit_submodules_auto() {
                     continue
                 }
                 
-                # 尝试推送到 Submodule 的远程仓库
-                if git push 2>/dev/null; then
-                    print_success "$SUBMODULE 已提交并推送"
+                # 推送到 Submodule 的远程仓库（Gitee 企业版）
+                print_info "$SUBMODULE 推送到 Gitee 企业版仓库..."
+                if git push origin 2>&1; then
+                    print_success "$SUBMODULE 已提交并推送到 Gitee"
                 else
-                    print_warning "$SUBMODULE 推送失败（可能没有远程仓库或权限），但继续执行"
+                    PUSH_ERROR=$?
+                    # 检查是否是因为已经是最新版本
+                    if git push origin 2>&1 | grep -q "Everything up-to-date"; then
+                        print_info "$SUBMODULE 已是最新版本，无需推送"
+                    else
+                        print_warning "$SUBMODULE 推送到 Gitee 失败（错误码: $PUSH_ERROR），但继续执行"
+                    fi
                 fi
             else
                 print_info "$SUBMODULE 无更改"
@@ -176,6 +159,7 @@ commit_main_repo_auto() {
 }
 
 # 推送到远程仓库（自动模式）
+# 注意：主仓库只推送到 GitHub，Submodule 推送到 Gitee（在 commit_submodules_auto 中处理）
 push_to_remotes_auto() {
     print_info "推送到远程仓库..."
     
@@ -190,8 +174,8 @@ push_to_remotes_auto() {
         print_warning "本地和远程已同步，无需推送"
     fi
     
-    # 推送到 GitHub (origin)
-    print_info "推送到 GitHub (origin)..."
+    # 主仓库只推送到 GitHub (origin)
+    print_info "推送到 GitHub (origin) - 主代码..."
     if git push origin "$CURRENT_BRANCH" 2>&1; then
         print_success "GitHub 推送成功"
     else
@@ -201,29 +185,12 @@ push_to_remotes_auto() {
             print_info "GitHub 已是最新版本，无需推送"
         else
             print_error "GitHub 推送失败（错误码: $PUSH_ERROR）"
-            # 不立即退出，尝试推送到 Gitee
+            exit 1
         fi
-    fi
-    
-    # 推送到 Gitee
-    if git remote get-url gitee > /dev/null 2>&1; then
-        print_info "推送到 Gitee..."
-        if git push gitee "$CURRENT_BRANCH" 2>&1; then
-            print_success "Gitee 推送成功"
-        else
-            PUSH_ERROR=$?
-            # 检查是否是因为已经是最新版本
-            if git push gitee "$CURRENT_BRANCH" 2>&1 | grep -q "Everything up-to-date"; then
-                print_info "Gitee 已是最新版本，无需推送"
-            else
-                print_warning "Gitee 推送失败（错误码: $PUSH_ERROR），但继续执行"
-            fi
-        fi
-    else
-        print_warning "Gitee 远程仓库未配置，跳过 Gitee 推送"
     fi
     
     print_success "推送操作完成"
+    print_info "注意：Submodule 代码已推送到 Gitee（在 Submodule 提交阶段处理）"
 }
 
 # 主函数
