@@ -1,8 +1,12 @@
 #!/bin/bash
 
 # Git 一键提交脚本（自动模式 - 适合大模型/AI助手使用）
-# 功能：自动提交所有代码（包括 Submodule）并推送到 GitHub 和 Gitee
+# 功能：自动提交所有代码（包括 Submodule）并推送到 Gitee
 # 使用方式：./scripts/git-push-all-auto.sh "提交信息"
+# 
+# 策略说明：
+# - 开发阶段：全量代码（包括企业代码）都提交到 Gitee
+# - 开源同步：使用 scripts/git-sync-to-github.sh 单独同步到 GitHub（过滤企业代码）
 # 
 # 特点：
 # - 完全自动化，无需交互
@@ -51,15 +55,15 @@ check_git_repo() {
 check_remotes() {
     print_info "检查远程仓库配置..."
     
-    # 检查 GitHub（主仓库推送到 GitHub）
-    if ! git remote get-url origin > /dev/null 2>&1; then
-        print_error "未找到 origin 远程仓库（GitHub）"
+    # 检查 Gitee（主仓库推送到 Gitee）
+    if ! git remote get-url gitee > /dev/null 2>&1; then
+        print_error "未找到 gitee 远程仓库"
         exit 1
     fi
     
-    ORIGIN_URL=$(git remote get-url origin)
-    print_info "Origin (GitHub): $ORIGIN_URL"
-    print_info "注意：主代码推送到 GitHub，Submodule 代码推送到 Gitee"
+    GITEE_URL=$(git remote get-url gitee)
+    print_info "Gitee: $GITEE_URL"
+    print_info "策略：开发阶段全量代码提交到 Gitee，开源时使用 git-sync-to-github.sh 同步到 GitHub"
 }
 
 # 提交 Submodule 更改（自动模式）
@@ -78,11 +82,21 @@ commit_submodules_auto() {
         return 0
     fi
     
-    for SUBMODULE in $SUBMODULES; do
+            for SUBMODULE in $SUBMODULES; do
         if [ -d "$SUBMODULE" ] && [ -d "$SUBMODULE/.git" ]; then
             print_info "检查 Submodule: $SUBMODULE"
             
             cd "$SUBMODULE"
+            
+            # 确保 Submodule 使用项目级别的 Git 配置（不修改全局配置）
+            if [ -f "../.git/config" ]; then
+                PARENT_USER_NAME=$(git -C .. config user.name 2>/dev/null || echo "")
+                PARENT_USER_EMAIL=$(git -C .. config user.email 2>/dev/null || echo "")
+                if [ -n "$PARENT_USER_NAME" ] && [ -n "$PARENT_USER_EMAIL" ]; then
+                    git config --local user.name "$PARENT_USER_NAME" 2>/dev/null || true
+                    git config --local user.email "$PARENT_USER_EMAIL" 2>/dev/null || true
+                fi
+            fi
             
             # 检查是否有未提交的更改
             if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
@@ -94,8 +108,8 @@ commit_submodules_auto() {
                     continue
                 }
                 
-                # 推送到 Submodule 的远程仓库（Gitee 企业版）
-                print_info "$SUBMODULE 推送到 Gitee 企业版仓库..."
+                # 推送到 Submodule 的远程仓库（Gitee）
+                print_info "$SUBMODULE 推送到 Gitee..."
                 if git push origin 2>&1; then
                     print_success "$SUBMODULE 已提交并推送到 Gitee"
                 else
@@ -159,7 +173,7 @@ commit_main_repo_auto() {
 }
 
 # 推送到远程仓库（自动模式）
-# 注意：主仓库只推送到 GitHub，Submodule 推送到 Gitee（在 commit_submodules_auto 中处理）
+# 注意：主仓库和 Submodule 都推送到 Gitee
 push_to_remotes_auto() {
     print_info "推送到远程仓库..."
     
@@ -168,29 +182,29 @@ push_to_remotes_auto() {
     
     # 检查是否有需要推送的提交
     LOCAL=$(git rev-parse @ 2>/dev/null || echo "")
-    REMOTE_ORIGIN=$(git rev-parse @{u} 2>/dev/null || echo "")
+    REMOTE_GITEE=$(git rev-parse gitee/$CURRENT_BRANCH 2>/dev/null || echo "")
     
-    if [ "$LOCAL" = "$REMOTE_ORIGIN" ] && [ -n "$LOCAL" ]; then
+    if [ "$LOCAL" = "$REMOTE_GITEE" ] && [ -n "$LOCAL" ]; then
         print_warning "本地和远程已同步，无需推送"
     fi
     
-    # 主仓库只推送到 GitHub (origin)
-    print_info "推送到 GitHub (origin) - 主代码..."
-    if git push origin "$CURRENT_BRANCH" 2>&1; then
-        print_success "GitHub 推送成功"
+    # 主仓库推送到 Gitee
+    print_info "推送到 Gitee - 主代码（全量，包括企业代码）..."
+    if git push gitee "$CURRENT_BRANCH" 2>&1; then
+        print_success "Gitee 推送成功"
     else
         PUSH_ERROR=$?
         # 检查是否是因为已经是最新版本
-        if git push origin "$CURRENT_BRANCH" 2>&1 | grep -q "Everything up-to-date"; then
-            print_info "GitHub 已是最新版本，无需推送"
+        if git push gitee "$CURRENT_BRANCH" 2>&1 | grep -q "Everything up-to-date"; then
+            print_info "Gitee 已是最新版本，无需推送"
         else
-            print_error "GitHub 推送失败（错误码: $PUSH_ERROR）"
+            print_error "Gitee 推送失败（错误码: $PUSH_ERROR）"
             exit 1
         fi
     fi
     
     print_success "推送操作完成"
-    print_info "注意：Submodule 代码已推送到 Gitee（在 Submodule 提交阶段处理）"
+    print_info "提示：如需同步到 GitHub（开源），请使用 scripts/git-sync-to-github.sh"
 }
 
 # 主函数
