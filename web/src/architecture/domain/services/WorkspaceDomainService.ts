@@ -73,7 +73,9 @@ export class WorkspaceDomainService {
           nodeId: node.id,
           refId: node.ref_id
         })
-        detail = await this.functionLoader.loadByPath(node.full_code_path)
+        // ⭐ 从 node.template_type 获取函数类型，传递给 API（后端无需查询数据库即可构造权限点）
+        const funcType = node.template_type || 'table'
+        detail = await this.functionLoader.loadByPath(node.full_code_path, funcType)
         console.log('✅ [WorkspaceDomainService] 成功加载函数详情', {
           functionId: detail.id,
           router: detail.router,

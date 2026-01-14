@@ -12,14 +12,14 @@
  * 
  * 2. **权限继承规则**（后端已处理）：
  *    - `directory:manage` → 子节点自动拥有所有权限
- *    - `directory:write` → 子节点自动拥有 `function:write`
- *    - `directory:update` → 子节点自动拥有 `function:update`
- *    - `directory:delete` → 子节点自动拥有 `function:delete`
- *    - `directory:read` → 子节点自动拥有 `function:read`
+ *    - `directory:write` → 子节点自动拥有 `table:write`、`form:write` 等
+ *    - `directory:update` → 子节点自动拥有 `table:update` 等
+ *    - `directory:delete` → 子节点自动拥有 `table:delete` 等
+ *    - `directory:read` → 子节点自动拥有 `table:read`、`form:read`、`chart:read` 等
  *    - `app:manage` → 应用下所有资源自动拥有所有权限
  * 
  * 3. **权限层级关系**（前端双重保险）：
- *    - `function:manage` 包含 `function:read`、`function:write`、`function:update`、`function:delete`
+ *    - `table:admin`、`form:admin`、`chart:admin` 包含对应的所有权限
  *    - `directory:manage` 包含所有目录权限
  *    - `app:manage` 包含所有应用权限
  * 
@@ -179,17 +179,24 @@ export interface PermissionInfo {
 /**
  * 检查节点是否有指定权限
  * 
- * ⭐ 权限来源：后端返回的 permissions 字段已经是最终权限（包含继承）
- * ⭐ 权限层级关系：manage 权限包含所有其他权限（作为双重保险）
+ * ⭐ 权限判断顺序：
+ * 1. 优先判断 is_admin：如果用户是工作空间管理员，直接返回 true（无需检查具体权限）
+ * 2. 精确判断权限：检查 permissions 字段中的具体权限点
+ * 3. 权限层级关系检查：manage 权限包含所有其他权限（作为双重保险）
  * 
  * @param node 服务树节点
- * @param action 权限点（如 function:read、function:write、function:manage）
+ * @param action 权限点（如 table:read、form:write、chart:read）
  * @returns 是否有权限
  */
 export function hasPermission(node: ServiceTree | undefined, action: string): boolean {
   // 如果没有节点，拒绝访问
   if (!node) {
     return false
+  }
+
+  // ⭐ 优先判断：如果用户是工作空间管理员，直接返回 true（无需检查具体权限）
+  if (node.is_admin === true) {
+    return true
   }
 
   // 直接使用节点上的权限信息（后端返回的最新数据，已包含继承）
@@ -207,7 +214,23 @@ export function hasPermission(node: ServiceTree | undefined, action: string): bo
 
   // ⭐ 权限层级关系检查（双重保险，防止后端遗漏）
   // 注意：先检查层级关系，再检查是否为 false
-  // function:manage 包含 function:read、function:write、function:update、function:delete
+  // table:admin、form:admin、chart:admin 包含对应的所有权限
+  if (action.startsWith('table:')) {
+    if (permissions['table:admin'] === true) {
+      return true
+    }
+  }
+  if (action.startsWith('form:')) {
+    if (permissions['form:admin'] === true) {
+      return true
+    }
+  }
+  if (action.startsWith('chart:')) {
+    if (permissions['chart:admin'] === true) {
+      return true
+    }
+  }
+  // ⭐ 兼容旧格式（function:manage、function:read 等）
   if (action.startsWith('function:')) {
     if (permissions['function:manage'] === true) {
       return true
@@ -286,10 +309,20 @@ export function hasAllPermissions(node: ServiceTree | undefined, actions: string
  */
 export function getPermissionDisplayName(action: string): string {
   const displayNames: Record<string, string> = {
-    // Table 操作
-    // 统一权限点：所有函数类型统一使用 function:read/write/update/delete
-    // 显示名称根据模板类型在 getAvailablePermissions 中动态设置
-    // Function 操作
+    // Table 操作（新的权限点格式）
+    'table:read': '查看表格',
+    'table:write': '新增记录',
+    'table:update': '更新记录',
+    'table:delete': '删除记录',
+    'table:admin': '所有权',
+    // Form 操作（新的权限点格式）
+    'form:read': '查看表单',
+    'form:write': '提交表单',
+    'form:admin': '所有权',
+    // Chart 操作（新的权限点格式）
+    'chart:read': '查看图表',
+    'chart:admin': '所有权',
+    // ⭐ 兼容旧格式（function:read、function:write 等）
     'function:read': '查看函数',
     'function:write': '写入函数',
     'function:update': '更新函数',
@@ -318,6 +351,20 @@ export function getPermissionDisplayName(action: string): string {
  */
 export function getPermissionShortName(action: string): string {
   const shortNames: Record<string, string> = {
+    // Table 操作（新的权限点格式）
+    'table:read': 'read权限',
+    'table:write': 'write权限',
+    'table:update': 'update权限',
+    'table:delete': 'delete权限',
+    'table:admin': 'admin权限',
+    // Form 操作（新的权限点格式）
+    'form:read': 'read权限',
+    'form:write': 'write权限',
+    'form:admin': 'admin权限',
+    // Chart 操作（新的权限点格式）
+    'chart:read': 'read权限',
+    'chart:admin': 'admin权限',
+    // ⭐ 兼容旧格式（function:read、function:write 等）
     'function:read': 'read权限',
     'function:write': 'write权限',
     'function:update': 'update权限',
@@ -344,12 +391,15 @@ export function getPermissionShortName(action: string): string {
  */
 export function getDefaultPermissionsForTemplate(templateType?: string): string[] {
   switch (templateType) {
-    // ⭐ 统一权限点：所有函数类型统一使用 function:read/write/update/delete
     case 'table':
+      return ['table:read', 'table:write', 'table:update', 'table:delete', 'table:admin']
     case 'form':
+      return ['form:write', 'form:admin']
     case 'chart':
+      return ['chart:read', 'chart:admin']
     default:
-      return ['function:read', 'function:write', 'function:update', 'function:delete', 'function:manage']
+      // 默认使用 table 类型的权限点
+      return ['table:read', 'table:write', 'table:update', 'table:delete', 'table:admin']
   }
 }
 
@@ -370,38 +420,49 @@ export function getAvailablePermissions(
   // 根据资源类型返回相关权限点
   // ⭐ 权限顺序：小权限（具体操作）在前，大权限（所有权/管理）在后
   if (resourceType === 'function') {
-    // ⭐ 统一权限点：所有函数类型统一使用 function:read/write/update/delete
-    // 根据模板类型显示不同的权限名称（但底层权限点统一）
+    // ⭐ 根据模板类型使用不同的权限点格式：table:read、form:write、chart:read 等
     if (templateType === 'table') {
       permissions.push(
-        { action: 'function:read', displayName: '查看表格', isMinimal: true },
-        { action: 'function:write', displayName: '新增记录', isMinimal: false },
-        { action: 'function:update', displayName: '更新记录', isMinimal: false },
-        { action: 'function:delete', displayName: '删除记录', isMinimal: false }
+        { action: 'table:read', displayName: '查看表格', isMinimal: true },
+        { action: 'table:write', displayName: '新增记录', isMinimal: false },
+        { action: 'table:update', displayName: '更新记录', isMinimal: false },
+        { action: 'table:delete', displayName: '删除记录', isMinimal: false }
+      )
+      // 大权限（所有权）放在最后
+      permissions.push(
+        { action: 'table:admin', displayName: '所有权', isMinimal: false, isManage: true }
       )
     } else if (templateType === 'form') {
       permissions.push(
-        { action: 'function:write', displayName: '提交表单', isMinimal: true }
+        { action: 'form:write', displayName: '提交表单', isMinimal: true }
+      )
+      // 大权限（所有权）放在最后
+      permissions.push(
+        { action: 'form:admin', displayName: '所有权', isMinimal: false, isManage: true }
       )
       // form 类型虽然定义了 read/update/delete，但业务逻辑中不使用，所以不显示
     } else if (templateType === 'chart') {
       permissions.push(
-        { action: 'function:read', displayName: '查看图表', isMinimal: true }
+        { action: 'chart:read', displayName: '查看图表', isMinimal: true }
+      )
+      // 大权限（所有权）放在最后
+      permissions.push(
+        { action: 'chart:admin', displayName: '所有权', isMinimal: false, isManage: true }
       )
       // chart 类型虽然定义了 write/update/delete，但业务逻辑中不使用，所以不显示
     } else {
+      // 默认使用 table 类型的权限点
       permissions.push(
-        { action: 'function:read', displayName: '查看函数', isMinimal: true },
-        { action: 'function:write', displayName: '写入函数', isMinimal: false },
-        { action: 'function:update', displayName: '更新函数', isMinimal: false },
-        { action: 'function:delete', displayName: '删除函数', isMinimal: false }
+        { action: 'table:read', displayName: '查看函数', isMinimal: true },
+        { action: 'table:write', displayName: '写入函数', isMinimal: false },
+        { action: 'table:update', displayName: '更新函数', isMinimal: false },
+        { action: 'table:delete', displayName: '删除函数', isMinimal: false }
       )
-    }
-    
     // 大权限（所有权）放在最后
     permissions.push(
-      { action: 'function:manage', displayName: '所有权', isMinimal: false, isManage: true }
+        { action: 'table:admin', displayName: '所有权', isMinimal: false, isManage: true }
     )
+    }
   } else if (resourceType === 'directory') {
     // 目录相关权限：小权限在前
     permissions.push(
@@ -451,30 +512,30 @@ export function getDefaultSelectedPermissions(
 }
 
 /**
- * 检查 Table 函数的相关权限
+ * 检查 Table 函数的相关权限（使用新的权限点格式：table:read、table:write 等）
  */
 export const TablePermissions = {
-  read: 'function:read',
-  write: 'function:write',
-  update: 'function:update',
-  delete: 'function:delete',
-  manage: 'function:manage',
+  read: 'table:read',
+  write: 'table:write',
+  update: 'table:update',
+  delete: 'table:delete',
+  manage: 'table:admin', // ⭐ 使用 admin 而不是 manage
 } as const
 
 /**
- * 检查 Form 函数的相关权限
+ * 检查 Form 函数的相关权限（使用新的权限点格式：form:write 等）
  */
 export const FormPermissions = {
-  write: 'function:write',
-  manage: 'function:manage',
+  write: 'form:write',
+  manage: 'form:admin', // ⭐ 使用 admin 而不是 manage
 } as const
 
 /**
- * 检查 Chart 函数的相关权限
+ * 检查 Chart 函数的相关权限（使用新的权限点格式：chart:read 等）
  */
 export const ChartPermissions = {
-  read: 'function:read',
-  manage: 'function:manage',
+  read: 'chart:read',
+  manage: 'chart:admin', // ⭐ 使用 admin 而不是 manage
 } as const
 
 /**

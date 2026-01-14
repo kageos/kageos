@@ -93,8 +93,8 @@
               </span>
             </div>
             <div class="request-field">
-              <span class="field-label">操作类型：</span>
-              <span class="field-value">{{ getPermissionDisplayName(request.action) }}</span>
+              <span class="field-label">角色：</span>
+              <span class="field-value">{{ request.role_name || `角色ID: ${request.role_id}` }}</span>
             </div>
             <div class="request-field" v-if="request.reason">
               <span class="field-label">申请原因：</span>
@@ -239,7 +239,8 @@ interface PermissionRequest {
   subject: string
   resource_path: string
   resource_name: string // ⭐ 资源名称（中文）
-  action: string
+  role_id: number // ⭐ 角色ID
+  role_name: string // ⭐ 角色名称
   start_time: string
   end_time?: string
   reason: string

@@ -47,6 +47,9 @@ func (s *Server) setupRoutes() {
 	app.POST("/create", appHandler.CreateApp)
 	// ⭐ 更新应用接口（debug 功能，生产环境不存在，无需权限检查）
 	app.POST("/update/:app", appHandler.UpdateApp)
+	// ⭐ 更新工作空间接口（只更新 MySQL 记录，不涉及容器更新，需要 app:admin 权限）
+	//app.PUT("/workspace/:user/:app", middleware2.CheckWorkspaceUpdate(), appHandler.UpdateWorkspace)
+	app.PUT("/workspace/:user/:app", appHandler.UpdateWorkspace)
 	// ⭐ 添加应用删除权限检查
 	app.DELETE("/delete/:app", middleware2.CheckAppDelete(), appHandler.DeleteApp)
 	// 支持所有 HTTP 方法的请求应用接口
@@ -100,8 +103,9 @@ func (s *Server) setupRoutes() {
 	functionHandler := v1.NewFunction(s.functionService)
 	// ⭐ /list 路由放在通配符路由之前，避免路由冲突
 	function.GET("/list", functionHandler.GetFunctionsByApp)
-	// ⭐ 使用 /info/*full-code-path 作为路径参数，中间件会自动从 URL 提取并检查权限
-	function.GET("/info/*full-code-path", middleware2.CheckFunctionRead(), functionHandler.GetFunction)
+	// ⭐ 使用 /info/:func-type/*full-code-path 作为路径参数，函数类型直接从 URL 路径获取
+	// ⭐ 这样后端无需查询数据库即可构造权限点（table:read、form:read、chart:read）
+	function.GET("/info/:func-type/*full-code-path", middleware2.CheckFunctionRead(), functionHandler.GetFunction)
 
 	// 用户管理路由（需要JWT验证）
 	user := apiV1.Group("/user")
@@ -165,8 +169,7 @@ func (s *Server) setupRoutes() {
 	permission.Use(middleware2.JWTAuth())                                    // JWT 认证
 	permission.Use(middleware2.RequireFeature(enterprise.FeaturePermission)) // 权限管理功能鉴权（企业版）
 	permissionHandler := v1.NewPermission(s.permissionService, s.appRepo)
-	permission.POST("/add", permissionHandler.AddPermission)                // 添加权限（内部使用，被 ApplyPermission 调用）
-	permission.POST("/apply", permissionHandler.ApplyPermission)            // 权限申请（简化版，直接添加权限）
+	permission.POST("/apply", permissionHandler.ApplyPermission)            // 权限申请（角色申请）
 	permission.GET("/workspace", permissionHandler.GetWorkspacePermissions) // 获取工作空间所有权限
 
 	// ⭐ 权限申请和审批路由（新权限系统）
@@ -174,6 +177,25 @@ func (s *Server) setupRoutes() {
 	permission.POST("/request/approve", permissionHandler.ApprovePermissionRequest) // 审批通过
 	permission.POST("/request/reject", permissionHandler.RejectPermissionRequest)   // 审批拒绝
 	permission.GET("/requests", permissionHandler.GetPermissionRequests)            // 获取权限申请列表
-	permission.POST("/grant", permissionHandler.GrantPermission)                    // 授权权限（管理员主动授权）
+
+	// ⭐ 角色管理路由（需要JWT验证 + 权限管理功能鉴权）
+	role := apiV1.Group("/role")
+	role.Use(middleware2.JWTAuth())                                    // JWT 认证
+	role.Use(middleware2.RequireFeature(enterprise.FeaturePermission)) // 权限管理功能鉴权（企业版）
+	// 直接使用 PermissionService 的角色管理方法
+	permissionService := enterprise.GetPermissionService()
+	roleHandler := v1.NewRoleHandlerFromPermissionService(permissionService)
+	role.GET("", roleHandler.GetRoles)                                    // 获取所有角色
+	role.GET("/:id", roleHandler.GetRole)                                 // 获取角色详情
+	role.POST("", roleHandler.CreateRole)                                 // 创建角色
+	role.PUT("/:id", roleHandler.UpdateRole)                              // 更新角色
+	role.DELETE("/:id", roleHandler.DeleteRole)                           // 删除角色
+	role.POST("/assign/user", roleHandler.AssignRoleToUser)               // 给用户分配角色
+	role.POST("/assign/department", roleHandler.AssignRoleToDepartment)   // 给组织架构分配角色
+	role.POST("/remove/user", roleHandler.RemoveRoleFromUser)             // 移除用户角色
+	role.POST("/remove/department", roleHandler.RemoveRoleFromDepartment) // 移除组织架构角色
+	role.POST("/user", roleHandler.GetUserRoles)                          // 获取用户角色
+	role.POST("/department", roleHandler.GetDepartmentRoles)              // 获取组织架构角色
+	role.GET("/for_request", roleHandler.GetRolesForPermissionRequest)    // 获取可用于权限申请的角色列表（根据节点类型过滤）
 
 }

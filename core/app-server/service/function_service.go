@@ -125,6 +125,11 @@ func (f *FunctionService) convertFunctionToResp(function *model.Function) *dto.G
 	return resp
 }
 
+// GetAppByUserAndCode 根据用户和应用代码获取应用信息（用于权限检查）
+func (f *FunctionService) GetAppByUserAndCode(ctx context.Context, user, app string) (*model.App, error) {
+	return f.appRepo.GetAppByUserName(user, app)
+}
+
 // GetFunctionsByApp 获取应用下所有函数
 func (f *FunctionService) GetFunctionsByApp(ctx context.Context, appID int64) (*dto.GetFunctionsByAppResp, error) {
 	// 从数据库获取应用的所有函数

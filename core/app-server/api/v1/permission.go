@@ -30,35 +30,6 @@ func NewPermission(permissionService *service.PermissionService, appRepo *reposi
 	}
 }
 
-// AddPermission 添加权限
-// @Summary 添加权限
-// @Description 为用户添加资源权限
-// @Tags 权限管理
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Param X-Token header string true "JWT Token"
-// @Param body body dto.AddPermissionReq true "添加权限请求"
-// @Success 200 {object} response.Response "添加成功"
-// @Failure 400 {string} string "请求参数错误"
-// @Failure 401 {string} string "未授权"
-// @Failure 500 {string} string "服务器内部错误"
-// @Router /workspace/api/v1/permission/add [post]
-func (p *Permission) AddPermission(c *gin.Context) {
-	var req dto.AddPermissionReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
-		return
-	}
-
-	ctx := contextx.ToContext(c)
-	if err := p.permissionService.AddPermission(ctx, &req); err != nil {
-		response.FailWithMessage(c, err.Error())
-		return
-	}
-
-	response.OkWithMessage(c, "添加权限成功")
-}
 
 // ApplyPermission 权限申请
 // @Summary 权限申请
@@ -98,19 +69,6 @@ func (p *Permission) ApplyPermission(c *gin.Context) {
 		return
 	}
 
-	// ⭐ 确定要申请的权限点列表
-	actions := make([]string, 0)
-	if len(req.Actions) > 0 {
-		// 如果提供了 actions 数组，使用数组
-		actions = req.Actions
-	} else if req.Action != "" {
-		// 如果只提供了单个 action，使用单个
-		actions = []string{req.Action}
-	} else {
-		response.FailWithMessage(c, "请至少指定一个操作类型")
-		return
-	}
-
 	// ⭐ 确定权限主体类型和主体
 	subjectType := req.SubjectType
 	if subjectType == "" {
@@ -122,67 +80,34 @@ func (p *Permission) ApplyPermission(c *gin.Context) {
 		subject = username // 默认为当前用户
 	}
 
-	// ⭐ 批量创建申请记录（不再直接添加权限）
-	successCount := 0
-	failedActions := make([]string, 0)
-	var requestIDs []int64
+	// ⭐ 设置开始时间为当前时间（使用 models.Time）
+	startTime := models.Time(time.Now())
 
-	for _, action := range actions {
-		// ⭐ 设置开始时间为当前时间（使用 models.Time）
-		startTime := models.Time(time.Now())
-
-		createReq := dto.CreatePermissionRequestReq{
-			AppID:        appID,
-			ResourcePath: req.ResourcePath,
-			Action:       action,
-			SubjectType:  subjectType, // ⭐ 支持用户或部门
-			Subject:      subject,     // ⭐ 支持用户名或部门路径
-			StartTime:    startTime,
-			EndTime:      req.EndTime,
-			Reason:       req.Reason,
-		}
-
-		resp, err := p.permissionService.CreatePermissionRequest(ctx, &createReq)
-		if err != nil {
-			// ⭐ 记录详细错误信息，便于调试
-			logger.Errorf(ctx, "[ApplyPermission] 创建权限申请失败: action=%s, resource_path=%s, error=%v",
-				action, req.ResourcePath, err)
-			failedActions = append(failedActions, action)
-			continue
-		}
-		successCount++
-		requestIDs = append(requestIDs, resp.RequestID)
+	// ⭐ 创建角色申请记录
+	createReq := dto.CreatePermissionRequestReq{
+		AppID:        appID,
+		ResourcePath: req.ResourcePath,
+		RoleID:       req.RoleID, // ⭐ 角色ID（必填）
+		SubjectType:  subjectType,
+		Subject:      subject,
+		StartTime:    startTime,
+		EndTime:      req.EndTime,
+		Reason:       req.Reason,
 	}
 
-	if successCount == 0 {
-		response.FailWithMessage(c, "权限申请失败，所有权限点都申请失败")
+	resp, err := p.permissionService.CreatePermissionRequest(ctx, &createReq)
+	if err != nil {
+		logger.Errorf(ctx, "[ApplyPermission] 创建角色申请失败: role_id=%d, resource_path=%s, error=%v",
+			req.RoleID, req.ResourcePath, err)
+		response.FailWithMessage(c, "创建角色申请失败: "+err.Error())
 		return
 	}
 
-	var message string
-	var status string
-	if successCount == len(actions) {
-		status = "pending"
-		message = fmt.Sprintf("权限申请已提交，等待审批（共 %d 个权限点）", successCount)
-	} else {
-		status = "partial"
-		message = fmt.Sprintf("权限申请部分成功，已成功提交 %d/%d 个权限点，失败：%v",
-			successCount, len(actions), failedActions)
-	}
-
-	// 返回第一个申请记录ID（如果有多个，前端可以后续扩展）
-	requestIDStr := ""
-	if len(requestIDs) > 0 {
-		requestIDStr = fmt.Sprintf("%d", requestIDs[0])
-	}
-
-	resp := dto.ApplyPermissionResp{
-		ID:      requestIDStr, // 返回申请记录ID
-		Status:  status,       // pending：待审批
-		Message: message,
-	}
-
-	response.OkWithData(c, resp)
+	response.OkWithData(c, dto.ApplyPermissionResp{
+		ID:      fmt.Sprintf("%d", resp),
+		Status:  "pending",
+		Message: "角色申请已提交，等待审批",
+	})
 }
 
 // parseAppIDFromResourcePath 从资源路径解析 app_id
@@ -340,35 +265,6 @@ func (p *Permission) RejectPermissionRequest(c *gin.Context) {
 	response.OkWithMessage(c, "审批拒绝成功")
 }
 
-// GrantPermission 授权权限（管理员主动授权）
-// @Summary 授权权限
-// @Description 管理员主动授权权限，不需要审批流程
-// @Tags 权限管理
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Param X-Token header string true "JWT Token"
-// @Param body body dto.GrantPermissionReq true "授权请求"
-// @Success 200 {object} response.Response "授权成功"
-// @Failure 400 {string} string "请求参数错误"
-// @Failure 401 {string} string "未授权"
-// @Failure 500 {string} string "服务器内部错误"
-// @Router /workspace/api/v1/permission/grant [post]
-func (p *Permission) GrantPermission(c *gin.Context) {
-	var req dto.GrantPermissionReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
-		return
-	}
-
-	ctx := contextx.ToContext(c)
-	if err := p.permissionService.GrantPermission(ctx, &req); err != nil {
-		response.FailWithMessage(c, err.Error())
-		return
-	}
-
-	response.OkWithMessage(c, "授权成功")
-}
 
 // GetPermissionRequests 获取权限申请列表
 // @Summary 获取权限申请列表

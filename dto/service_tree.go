@@ -99,6 +99,7 @@ type GetServiceTreeResp struct {
 	HubVersion     string                `json:"hub_version,omitempty" example:""`                      // Hub目录版本（如 v1.0.0），用于版本检测和升级
 	HubVersionNum  int                   `json:"hub_version_num,omitempty" example:"0"`                 // Hub目录版本号（数字部分），用于版本比较
 	HasFunction    bool                  `json:"has_function,omitempty" example:"true"`                 // ⭐ 是否有函数（仅对package类型有效）：如果该package下直接或间接包含function类型的子节点，则为true
+	IsAdmin        bool                  `json:"is_admin,omitempty" example:"true"`                     // ⭐ 是否是管理员（企业版功能）：如果用户是工作空间管理员，则为 true，前端优先判断此字段，无需构造每个节点的权限
 	Permissions    map[string]bool       `json:"permissions,omitempty"`                                 // ⭐ 权限信息（企业版功能）：权限点 -> 是否有权限
 	Children       []*GetServiceTreeResp `json:"children,omitempty"`                                    // 子目录列表
 }

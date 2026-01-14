@@ -2,12 +2,15 @@ import { get, post, put, del } from '@/utils/request'
 import type { Function, SearchParams, TableResponse } from '@/types'
 import type { FieldConfig } from '@/core/types/field'
 
-// 获取函数详情（根据路径）
-// ⭐ 使用新的路由：/function/info/*full-code-path
-export function getFunctionByPath(fullCodePath: string) {
+// 获取函数详情（根据路径和函数类型）
+// ⭐ 使用新的路由：/function/info/:func-type/*full-code-path
+// @param fullCodePath 函数完整路径
+// @param funcType 函数类型：table、form、chart（从 node.template_type 获取）
+export function getFunctionByPath(fullCodePath: string, funcType: string = 'table') {
   // 确保路径以 / 开头
   const path = fullCodePath.startsWith('/') ? fullCodePath : `/${fullCodePath}`
-  return get<Function>(`/workspace/api/v1/function/info${path}`)
+  // ⭐ 函数类型作为路径参数，这样后端无需查询数据库即可构造权限点
+  return get<Function>(`/workspace/api/v1/function/info/${funcType}${path}`)
 }
 
 // 获取函数详情（根据ID，已废弃，建议使用 getFunctionByPath）

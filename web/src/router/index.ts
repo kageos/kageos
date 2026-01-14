@@ -75,6 +75,16 @@ const router = createRouter({
         requireAuth: true
       }
     },
+    // 角色管理页面
+    {
+      path: '/permissions/roles',
+      name: 'role-management',
+      component: () => import('../views/Permission/RoleManagement.vue'),
+      meta: {
+        title: '角色管理',
+        requireAuth: true
+      }
+    },
 
     // Agent-Server 管理页面
     {

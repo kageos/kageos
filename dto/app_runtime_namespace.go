@@ -78,7 +78,7 @@ type CreateFunctionsResp struct {
 	WrittenFiles []string `json:"written_files"`            // 已写入的文件路径列表（用于失败时回滚）
 }
 
-// UpdateAppReq 更新应用请求
+// UpdateAppReq 更新应用请求（更新应用代码并重新编译部署）
 type UpdateAppReq struct {
 	User              string                `json:"user" swaggerignore:"true"`              // 用户名
 	App               string                `json:"app" binding:"required" example:"myapp"` // 应用名

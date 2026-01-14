@@ -486,6 +486,7 @@ onUnmounted(() => {
       :current-app="currentApp"
       :app-list="appList"
       :loading-apps="loadingApps"
+      :service-tree="serviceTree"
       @switch-app="switchApp"
       @create-app="handleCreateApp"
       @update-app="handleUpdateApp"

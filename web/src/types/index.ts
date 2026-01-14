@@ -91,6 +91,7 @@ export interface ServiceTree {
   hub_version?: string  // Hub 目录版本（如 v1.0.0）
   hub_version_num?: number  // Hub 目录版本号（数字部分）
   has_function?: boolean  // ⭐ 是否有函数（仅对package类型有效）：如果该package下直接或间接包含function类型的子节点，则为true
+  is_admin?: boolean  // ⭐ 是否是管理员（企业版功能）：如果用户是工作空间管理员，则为 true，前端优先判断此字段，无需构造每个节点的权限
   permissions?: Record<string, boolean>  // ⭐ 权限标识（企业版功能）：权限点 -> 是否有权限
   created_at: string
   updated_at: string
