@@ -17,18 +17,16 @@ func GetHubConfig() *HubConfig {
 		cfg := &HubConfig{}
 		// 尝试从多个路径加载配置文件
 		configPaths := []string{
-			"hub.yaml",
-			"hub/backend/config/hub.yaml",
-			"config/hub.yaml",
+			"../../config/hub.yaml",
 		}
-		
+
 		var err error
 		for _, path := range configPaths {
 			if err = loadYAMLConfig(path, cfg); err == nil {
 				break
 			}
 		}
-		
+
 		if err != nil {
 			// 配置文件不存在或加载失败，返回空配置
 			fmt.Printf("Failed to load hub config from any path, using defaults: %v\n", err)
@@ -46,9 +44,9 @@ func GetHubConfig() *HubConfig {
 
 // HubConfig Hub 配置
 type HubConfig struct {
-	Server   HubServerConfig `mapstructure:"server"`
-	DB       DBConfig        `mapstructure:"db"`
-	OS       OSConfig        `mapstructure:"os"`
+	Server HubServerConfig `mapstructure:"server"`
+	DB     DBConfig        `mapstructure:"db"`
+	OS     OSConfig        `mapstructure:"os"`
 }
 
 // HubServerConfig Hub 服务器配置
@@ -83,4 +81,3 @@ func (c *HubConfig) GetLogLevel() string {
 func (c *HubConfig) IsDebug() bool {
 	return c.Server.Debug
 }
-

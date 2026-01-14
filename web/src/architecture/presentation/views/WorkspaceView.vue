@@ -315,6 +315,7 @@
       :current-app="currentApp"
       :app-list="appList"
       :loading-apps="loadingApps"
+      :service-tree="serviceTree"
       @switch-app="handleSwitchApp"
       @create-app="showCreateAppDialog"
       @update-app="handleUpdateApp"

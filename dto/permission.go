@@ -4,20 +4,10 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 )
 
-// AddPermissionReq 添加权限请求
-// ⭐ Subject 可以是用户名（如 "liubeiluo"）或组织架构路径（如 "/org/sub/qsearch"）
-type AddPermissionReq struct {
-	Subject      string       `json:"subject" binding:"required"`       // 权限主体：用户名或组织架构路径
-	ResourcePath string       `json:"resource_path" binding:"required"` // 资源路径（full-code-path）
-	Action       string       `json:"action" binding:"required"`        // 操作类型（如 table:search、function:manage 等）
-	EndTime      *models.Time `json:"end_time"`                         // 权限结束时间（nil 表示永久）
-}
-
-// ApplyPermissionReq 权限申请请求
+// ApplyPermissionReq 权限申请请求（角色申请）
 type ApplyPermissionReq struct {
 	ResourcePath string       `json:"resource_path" binding:"required"` // 资源路径（full-code-path）
-	Action       string       `json:"action"`                           // 操作类型（可选，如果提供了 actions 则忽略）
-	Actions      []string     `json:"actions"`                          // 操作类型列表（可选，如果提供则批量申请）
+	RoleID       int64        `json:"role_id" binding:"required"`       // 角色ID（必填）
 	SubjectType  string       `json:"subject_type"`                     // 权限主体类型：user（用户）或 department（部门），可选，默认为 user
 	Subject      string       `json:"subject"`                          // 权限主体：用户名或组织架构路径，可选，默认为当前用户
 	Reason       string       `json:"reason"`                           // 申请理由（可选）
@@ -59,11 +49,11 @@ type GetWorkspacePermissionsResp struct {
 // 权限申请和审批相关 DTO（企业版功能）
 // ============================================
 
-// CreatePermissionRequestReq 创建权限申请请求（API 层使用）
+// CreatePermissionRequestReq 创建权限申请请求（API 层使用，角色申请）
 type CreatePermissionRequestReq struct {
 	AppID        int64        `json:"app_id" binding:"required"`        // 工作空间ID
 	ResourcePath string       `json:"resource_path" binding:"required"` // 资源路径（full-code-path）
-	Action       string       `json:"action" binding:"required"`        // 操作类型
+	RoleID       int64        `json:"role_id" binding:"required"`      // 角色ID（必填）
 	SubjectType  string       `json:"subject_type" binding:"required"`  // 权限主体类型：user 或 department
 	Subject      string       `json:"subject" binding:"required"`       // 权限主体：用户名或组织架构路径
 	StartTime    models.Time  `json:"start_time"`                       // 权限开始时间（可选，默认为当前时间）
@@ -71,15 +61,16 @@ type CreatePermissionRequestReq struct {
 	Reason       string       `json:"reason"`                           // 申请原因（可选）
 }
 
-// InternalCreatePermissionRequestReq 内部创建权限申请请求（企业版内部使用）
+// InternalCreatePermissionRequestReq 内部创建权限申请请求（企业版内部使用，角色申请）
 type InternalCreatePermissionRequestReq struct {
 	User              string       `json:"user"`               // 租户用户名
 	App               string       `json:"app"`                // 应用代码
+	AppID             int64        `json:"app_id"`             // 工作空间ID（从 resourcePath 解析得到）
 	ApplicantUsername string       `json:"applicant_username"` // 申请人用户名
 	SubjectType       string       `json:"subject_type"`       // 权限主体类型
 	Subject           string       `json:"subject"`            // 权限主体
 	ResourcePath      string       `json:"resource_path"`      // 资源路径
-	Action            string       `json:"action"`             // 操作类型
+	RoleID            int64        `json:"role_id"`            // 角色ID（必填）
 	StartTime         models.Time  `json:"start_time"`         // 权限开始时间
 	EndTime           *models.Time `json:"end_time"`           // 权限结束时间（nil 表示永久）
 	Reason            string       `json:"reason"`             // 申请原因
@@ -103,17 +94,6 @@ type RejectPermissionRequestReq struct {
 	Reason    string `json:"reason"`                        // 拒绝原因（可选）
 }
 
-// GrantPermissionReq 授权权限请求（管理员主动授权）
-type GrantPermissionReq struct {
-	AppID        int64        `json:"app_id" binding:"required"`        // 工作空间ID
-	GranteeType  string       `json:"grantee_type" binding:"required"`  // 被授权人类型：user 或 department
-	Grantee      string       `json:"grantee" binding:"required"`       // 被授权人：用户名或组织架构路径
-	ResourcePath string       `json:"resource_path" binding:"required"` // 资源路径（full-code-path）
-	Action       string       `json:"action" binding:"required"`        // 操作类型
-	StartTime    models.Time  `json:"start_time"`                       // 权限开始时间（可选，默认为当前时间）
-	EndTime      *models.Time `json:"end_time"`                         // 权限结束时间（nil 表示永久）
-}
-
 // GetPermissionRequestsReq 获取权限申请列表请求
 type GetPermissionRequestsReq struct {
 	AppID        int64  `json:"app_id" form:"app_id"`               // 工作空间ID（可选）
@@ -124,7 +104,7 @@ type GetPermissionRequestsReq struct {
 	PageSize     int    `json:"page_size" form:"page_size"`         // 每页数量（可选，默认20）
 }
 
-// PermissionRequestInfo 权限申请信息
+// PermissionRequestInfo 权限申请信息（角色申请）
 type PermissionRequestInfo struct {
 	ID                int64        `json:"id"`                 // 申请记录ID
 	AppID             int64        `json:"app_id"`             // 工作空间ID
@@ -133,7 +113,8 @@ type PermissionRequestInfo struct {
 	Subject           string       `json:"subject"`            // 权限主体
 	ResourcePath      string       `json:"resource_path"`      // 资源路径
 	ResourceName      string       `json:"resource_name"`      // 资源名称（中文，从 service_tree 获取）
-	Action            string       `json:"action"`             // 操作类型
+	RoleID            int64        `json:"role_id"`            // 角色ID
+	RoleName          string       `json:"role_name"`          // 角色名称（从角色服务获取）
 	StartTime         models.Time  `json:"start_time"`         // 权限开始时间
 	EndTime           *models.Time `json:"end_time"`           // 权限结束时间（nil 表示永久）
 	Reason            string       `json:"reason"`             // 申请原因

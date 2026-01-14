@@ -88,6 +88,15 @@ export function getAppWithServiceTree(user: string, app: string, nodeType?: stri
   }>(`/workspace/api/v1/app/${user}/${app}/tree`, params)
 }
 
+// 更新工作空间配置（只更新 MySQL 记录，不涉及容器更新）
+export function updateWorkspace(user: string, app: string, data: { admins?: string }) {
+  return put<{
+    user: string
+    app: string
+    admins: string
+  }>(`/workspace/api/v1/app/workspace/${user}/${app}`, data)
+}
+
 // 运行业务系统函数
 export function runFunction(fullCodePath: string, params?: any) {
   return post(`/workspace/api/v1/run/${fullCodePath}`, params)

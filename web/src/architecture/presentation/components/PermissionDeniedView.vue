@@ -27,11 +27,6 @@
           <span class="info-label">资源路径：</span>
           <span class="info-value">{{ permissionError.resource_path }}</span>
         </div>
-        <div v-if="permissionError?.action_display" class="permission-error-info">
-          <el-icon><Key /></el-icon>
-          <span class="info-label">缺少权限：</span>
-          <span class="info-value">{{ permissionError.action_display }}</span>
-        </div>
         <div v-if="permissionError?.action" class="permission-error-info">
           <el-icon><Key /></el-icon>
           <span class="info-label">权限点：</span>

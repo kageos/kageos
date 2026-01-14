@@ -64,7 +64,7 @@ export class FunctionLoaderImpl implements IFunctionLoader {
   /**
    * 根据路径加载函数详情（带防抖）
    */
-  async loadByPath(path: string): Promise<FunctionDetail> {
+  async loadByPath(path: string, funcType: string = 'table'): Promise<FunctionDetail> {
     const cacheKey = `function:path:${path}`
     
     // 先检查缓存
@@ -94,7 +94,7 @@ export class FunctionLoaderImpl implements IFunctionLoader {
         this.debounceTimers.delete(debounceKey)
         
         try {
-          const request = this.loadFunctionByPath(path, cacheKey)
+          const request = this.loadFunctionByPath(path, cacheKey, funcType)
           this.pendingRequests.set(debounceKey, request)
           
           const result = await request
@@ -159,12 +159,16 @@ export class FunctionLoaderImpl implements IFunctionLoader {
 
   /**
    * 根据路径加载函数详情（内部方法）
-   * ⭐ 使用新的路由：/function/info/*full-code-path
+   * ⭐ 使用新的路由：/function/info/:func-type/*full-code-path
+   * @param path 函数完整路径
+   * @param cacheKey 缓存键
+   * @param funcType 函数类型：table、form、chart（可选，默认为 table）
    */
-  private async loadFunctionByPath(path: string, cacheKey: string): Promise<FunctionDetail> {
+  private async loadFunctionByPath(path: string, cacheKey: string, funcType: string = 'table'): Promise<FunctionDetail> {
     // 确保路径以 / 开头
     const fullCodePath = path.startsWith('/') ? path : `/${path}`
-    const response = await this.apiClient.get<FunctionDetail>(`/workspace/api/v1/function/info${fullCodePath}`)
+    // ⭐ 函数类型作为路径参数，这样后端无需查询数据库即可构造权限点
+    const response = await this.apiClient.get<FunctionDetail>(`/workspace/api/v1/function/info/${funcType}${fullCodePath}`)
     
     // 缓存结果
     this.cacheManager.set(cacheKey, response)

@@ -1,75 +1,22 @@
 package model
 
 import (
-	"strings"
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 )
 
-// WorkspacePermission 工作空间权限表（只存储已生效的权限）
-type WorkspacePermission struct {
-	models.Base
-	User         string     `json:"user" gorm:"column:user;type:varchar(100);not null;index:idx_user_app;index:idx_user_app_resource;index:idx_user_app_subject;comment:租户用户名（从 resource_path 解析）"`
-	App          string     `json:"app" gorm:"column:app;type:varchar(100);not null;index:idx_user_app;index:idx_user_app_resource;index:idx_user_app_subject;comment:应用代码（从 resource_path 解析）"`
-	SubjectType  string     `json:"subject_type" gorm:"column:subject_type;type:varchar(20);not null;index:idx_user_app_subject;index:idx_subject_resource;comment:权限主体类型：user（用户）、department（组织架构）"`
-	Subject      string     `json:"subject" gorm:"column:subject;type:varchar(150);not null;index:idx_user_app_subject;index:idx_subject_resource;comment:权限主体：用户名或组织架构路径"`
-	ResourcePath string     `json:"resource_path" gorm:"column:resource_path;type:varchar(150);not null;index:idx_user_app_resource;index:idx_subject_resource;index:idx_resource_action;comment:资源路径"`
-	ResourceType string     `json:"resource_type" gorm:"column:resource_type;type:varchar(20);not null;comment:资源类型：app（工作空间）、directory（目录）、function（函数）"`
-	Action       string     `json:"action" gorm:"column:action;type:varchar(50);not null;index:idx_resource_action;comment:操作类型"`
-	IsWildcard   bool       `json:"is_wildcard" gorm:"column:is_wildcard;type:tinyint(1);not null;default:0;comment:是否通配符路径"`
-	StartTime    time.Time  `json:"start_time" gorm:"column:start_time;type:datetime;not null;default:CURRENT_TIMESTAMP;index:idx_time;comment:权限开始时间"`
-	EndTime      *time.Time `json:"end_time" gorm:"column:end_time;type:datetime;index:idx_time;comment:权限结束时间（NULL 表示永久权限）"`
-	SourceType   string     `json:"source_type" gorm:"column:source_type;type:varchar(20);not null;comment:权限来源：grant（授权）、approval（审批通过）"`
-	SourceID     *int64     `json:"source_id" gorm:"column:source_id;comment:来源记录ID（授权记录ID或审批记录ID）"`
-	CreatedBy    string     `json:"created_by" gorm:"column:created_by;type:varchar(100);comment:创建者用户名"`
-}
+// ⭐ WorkspacePermission 已废弃，不再使用 workspace_permission 表，仅使用角色系统
 
-func (*WorkspacePermission) TableName() string {
-	return "workspace_permission"
-}
-
-// IsExpired 检查权限是否已过期
-func (p *WorkspacePermission) IsExpired(now time.Time) bool {
-	if p.EndTime == nil {
-		return false // 永久权限
-	}
-	return now.After(*p.EndTime)
-}
-
-// IsEffective 检查权限是否生效
-func (p *WorkspacePermission) IsEffective(now time.Time) bool {
-	return !now.Before(p.StartTime) && !p.IsExpired(now)
-}
-
-// MatchResource 检查策略是否匹配资源路径
-// ⭐ 目录权限自动继承：目录路径自动匹配所有子路径（如 /user/app/dir 匹配 /user/app/dir/function）
-func (p *WorkspacePermission) MatchResource(resourcePath string) bool {
-	// 1. 精确匹配
-	if p.ResourcePath == resourcePath {
-		return true
-	}
-	
-	// 2. 目录权限继承匹配：如果权限记录是目录或应用，且 resourcePath 是该目录的子路径，则匹配
-	// 例如：权限记录是 /user/app/dir（directory 或 app），resourcePath 是 /user/app/dir/function，则匹配
-	if (p.ResourceType == "directory" || p.ResourceType == "app") && 
-		len(p.ResourcePath) < len(resourcePath) && 
-		strings.HasPrefix(resourcePath, p.ResourcePath+"/") {
-		return true
-	}
-	
-	return false
-}
-
-// PermissionRequest 权限申请审批表
+// PermissionRequest 权限申请审批表（角色申请）
 type PermissionRequest struct {
 	models.Base
-	AppID             int64       `json:"app_id" gorm:"column:app_id;not null;index:idx_app_status;comment:工作空间ID"`
+	AppID             int64        `json:"app_id" gorm:"column:app_id;not null;index:idx_app_status;comment:工作空间ID"`
 	ApplicantUsername string       `json:"applicant_username" gorm:"column:applicant_username;type:varchar(100);not null;index:idx_applicant;comment:申请人用户名"`
-	SubjectType       string      `json:"subject_type" gorm:"column:subject_type;type:varchar(20);not null;comment:权限主体类型"`
+	SubjectType       string       `json:"subject_type" gorm:"column:subject_type;type:varchar(20);not null;comment:权限主体类型"`
 	Subject           string       `json:"subject" gorm:"column:subject;type:varchar(150);not null;comment:权限主体"`
 	ResourcePath      string       `json:"resource_path" gorm:"column:resource_path;type:varchar(150);not null;index:idx_resource_status;comment:资源路径"`
-	Action            string       `json:"action" gorm:"column:action;type:varchar(50);not null;comment:操作类型"`
+	RoleID            int64        `json:"role_id" gorm:"column:role_id;not null;index;comment:角色ID"`
 	StartTime         models.Time  `json:"start_time" gorm:"column:start_time;type:datetime;not null;comment:权限开始时间"`
 	EndTime           *models.Time `json:"end_time" gorm:"column:end_time;type:datetime;comment:权限结束时间（NULL 表示永久）"`
 	Reason            string       `json:"reason" gorm:"column:reason;type:text;comment:申请原因"`
@@ -81,7 +28,7 @@ type PermissionRequest struct {
 	RejectReason      string       `json:"reject_reason" gorm:"column:reject_reason;type:text;comment:拒绝原因"`
 	CancelledAt       *models.Time `json:"cancelled_at" gorm:"column:cancelled_at;type:datetime;comment:取消时间"`
 	CancelledBy       string       `json:"cancelled_by" gorm:"column:cancelled_by;type:varchar(100);comment:取消人用户名"`
-	PermissionID      *int64       `json:"permission_id" gorm:"column:permission_id;comment:关联的权限记录ID"`
+	RoleAssignmentID  *int64       `json:"role_assignment_id" gorm:"column:role_assignment_id;comment:关联的角色分配记录ID"`
 }
 
 func (*PermissionRequest) TableName() string {
@@ -91,9 +38,9 @@ func (*PermissionRequest) TableName() string {
 // 权限申请状态常量
 const (
 	PermissionRequestStatusPending   = "pending"   // 待审批
-	PermissionRequestStatusApproved   = "approved" // 已同意
-	PermissionRequestStatusRejected   = "rejected" // 已驳回
-	PermissionRequestStatusCancelled  = "cancelled" // 已取消
+	PermissionRequestStatusApproved  = "approved"  // 已同意
+	PermissionRequestStatusRejected  = "rejected"  // 已驳回
+	PermissionRequestStatusCancelled = "cancelled" // 已取消
 )
 
 // PermissionGrantLog 授权记录表

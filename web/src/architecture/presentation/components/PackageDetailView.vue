@@ -148,11 +148,6 @@
               <span class="info-label">资源路径：</span>
               <span class="info-value">{{ packageNode.full_code_path }}</span>
             </div>
-            <div class="permission-error-info">
-              <el-icon><Key /></el-icon>
-              <span class="info-label">缺少权限：</span>
-              <span class="info-value">目录查看</span>
-            </div>
             <div class="permission-error-actions">
               <el-button
                 type="primary"

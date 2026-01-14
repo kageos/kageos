@@ -135,21 +135,37 @@ func (a *AppService) CreateApp(ctx context.Context, req *dto.CreateAppReq) (*dto
 		return nil, err
 	}
 
-	// ⭐ 自动给创建者添加应用管理权限
-	// 资源路径：/{user}/{app}，权限：app:manage
+	// ⭐ 自动给创建者和管理员分配应用管理员角色（拥有 app:admin 权限）
 	resourcePath := fmt.Sprintf("/%s/%s", tenantUser, req.Code)
-	if err := a.grantCreatorPermission(ctx, tenantUser, resourcePath, "app:manage"); err != nil {
+	
+	// 1. 给创建者分配应用管理员角色
+	if err := a.assignAppAdminRoleToUser(ctx, tenantUser, req.Code, tenantUser, resourcePath); err != nil {
 		// 权限添加失败不应该影响应用创建，只记录警告日志
-		logger.Warnf(ctx, "[AppService] 自动添加创建者权限失败: user=%s, resource=%s, action=app:manage, error=%v",
-			tenantUser, resourcePath, err)
+		logger.Warnf(ctx, "[AppService] 自动添加创建者应用管理员角色失败: user=%s, app=%s, username=%s, resource=%s, error=%v",
+			tenantUser, req.Code, tenantUser, resourcePath, err)
+	}
+
+	// 2. 给管理员列表中的用户分配应用管理员角色
+	if req.Admins != "" {
+		admins := strings.Split(req.Admins, ",")
+		for _, admin := range admins {
+			admin = strings.TrimSpace(admin)
+			if admin != "" && admin != tenantUser { // 避免重复分配（创建者已经在上面分配了）
+				if err := a.assignAppAdminRoleToUser(ctx, tenantUser, req.Code, admin, resourcePath); err != nil {
+					// 权限添加失败不应该影响应用创建，只记录警告日志
+					logger.Warnf(ctx, "[AppService] 自动添加应用管理员角色失败: user=%s, app=%s, username=%s, resource=%s, error=%v",
+						tenantUser, req.Code, admin, resourcePath, err)
+				}
+			}
+		}
 	}
 
 	return resp, nil
 }
 
-// grantCreatorPermission 给创建者授予权限（如果权限功能启用）
-// ⭐ 优化：同时设置 g2 资源继承关系
-func (a *AppService) grantCreatorPermission(ctx context.Context, username, resourcePath, action string) error {
+// assignAppAdminRoleToUser 给用户分配应用管理员角色
+// ⭐ 使用角色系统，分配"admin"角色（拥有 app:admin 权限）
+func (a *AppService) assignAppAdminRoleToUser(ctx context.Context, user, app, username, resourcePath string) error {
 	// 检查权限功能是否启用（企业版）
 	licenseMgr := license.GetManager()
 	if !licenseMgr.HasFeature(enterprise.FeaturePermission) {
@@ -163,28 +179,66 @@ func (a *AppService) grantCreatorPermission(ctx context.Context, username, resou
 		return fmt.Errorf("权限服务未初始化")
 	}
 
-	// ⭐ 优化：使用通配符路径策略，自动覆盖所有子资源
-	// 对于目录：/luobei/operations → /luobei/operations/*
-	// 对于函数：/luobei/operations/tools/videos/convert → 使用精确路径（函数不需要通配符）
-	policyPath := resourcePath
-	if action == "directory:manage" || action == "app:manage" {
-		// 目录和应用权限使用通配符，自动覆盖所有子资源
-		policyPath = resourcePath + "/*"
-	}
-	// 函数权限使用精确路径（因为函数是叶子节点，不需要通配符）
-	
-	// 添加权限
-	err := permissionService.AddPolicy(ctx, username, policyPath, action)
-	if err != nil {
-		return fmt.Errorf("添加权限失败: %w", err)
+	// ⭐ 使用角色系统，分配"admin"角色（拥有 app:admin 权限）
+	// 应用级别使用 app 资源类型
+	assignReq := &dto.AssignRoleToUserReq{
+		User:         user,
+		App:          app,
+		Username:     username,
+		RoleCode:     "admin",        // 管理员角色
+		ResourceType: "app",          // ⭐ 应用级别使用 app 资源类型
+		ResourcePath: resourcePath,
+		StartTime:    nil, // 永久权限
+		EndTime:      nil, // 永久权限
 	}
 
-	logger.Infof(ctx, "[AppService] 自动添加创建者权限成功: user=%s, resource=%s, action=%s",
-		username, resourcePath, action)
+	_, err := permissionService.AssignRoleToUser(ctx, assignReq)
+	if err != nil {
+		return fmt.Errorf("分配应用管理员角色失败: %w", err)
+	}
+
+	logger.Infof(ctx, "[AppService] 分配应用管理员角色成功: user=%s, app=%s, username=%s, resource=%s",
+		user, app, username, resourcePath)
 	return nil
 }
 
-// UpdateApp 更新应用
+// removeAppAdminRoleFromUser 移除用户的应用管理员角色
+func (a *AppService) removeAppAdminRoleFromUser(ctx context.Context, user, app, username, resourcePath string) error {
+	// 检查权限功能是否启用（企业版）
+	licenseMgr := license.GetManager()
+	if !licenseMgr.HasFeature(enterprise.FeaturePermission) {
+		// 权限功能未启用，跳过
+		return nil
+	}
+
+	// 获取权限服务
+	permissionService := enterprise.GetPermissionService()
+	if permissionService == nil {
+		return fmt.Errorf("权限服务未初始化")
+	}
+
+	// ⭐ 使用角色系统，移除"admin"角色
+	// 应用级别使用 app 资源类型
+	removeReq := &dto.RemoveRoleFromUserReq{
+		User:         user,
+		App:          app,
+		Username:     username,
+		RoleCode:     "admin", // 管理员角色
+		ResourceType: "app",   // ⭐ 应用级别使用 app 资源类型
+		ResourcePath: resourcePath,
+	}
+
+	err := permissionService.RemoveRoleFromUser(ctx, removeReq)
+	if err != nil {
+		return fmt.Errorf("移除应用管理员角色失败: %w", err)
+	}
+
+	logger.Infof(ctx, "[AppService] 移除应用管理员角色成功: user=%s, app=%s, username=%s, resource=%s",
+		user, app, username, resourcePath)
+	return nil
+}
+
+// UpdateApp 更新应用（更新应用代码并重新编译部署）
 func (a *AppService) UpdateApp(ctx context.Context, req *dto.UpdateAppReq) (*dto.UpdateAppResp, error) {
 	// 记录开始时间（用于计算变更耗时）
 	startTime := time.Now()
@@ -559,15 +613,20 @@ func (a *AppService) createServiceTreesForAPIs(ctx context.Context, appID int64,
 		// 赋值TreeID，方便后续写快照时入库
 		api.TreeID = treeID
 
-		// ⭐ 自动给创建者添加函数执行权限
-		// 资源路径：函数的 FullCodePath，权限：function:manage（所有权）
-		// grantCreatorPermission 会自动设置 g2 资源继承关系
+		// ⭐ 自动给创建者添加函数执行权限（使用角色系统）
+		// 资源路径：函数的 FullCodePath，权限：function:admin（所有权）
+		// 注意：函数权限分配暂时跳过，因为函数权限应该通过目录权限继承
+		// 如果需要单独给函数分配权限，可以后续添加
 		requestUser := contextx.GetRequestUser(ctx)
 		if requestUser != "" && api.FullCodePath != "" {
-			if err := a.grantCreatorPermission(ctx, requestUser, api.FullCodePath, "function:manage"); err != nil {
-				// 权限添加失败不应该影响函数创建，只记录警告日志
-				logger.Warnf(ctx, "[AppService] 自动添加创建者权限失败: user=%s, resource=%s, action=function:manage, error=%v",
-					requestUser, api.FullCodePath, err)
+			// 从 FullCodePath 解析 user 和 app
+			parts := strings.Split(strings.Trim(api.FullCodePath, "/"), "/")
+			if len(parts) >= 2 {
+				user := parts[0]
+				app := parts[1]
+				// 暂时跳过函数权限分配，因为函数权限应该通过目录权限继承
+				logger.Debugf(ctx, "[AppService] 函数权限通过目录权限继承，跳过单独分配: user=%s, app=%s, resource=%s",
+					user, app, api.FullCodePath)
 			}
 		}
 	}
@@ -914,6 +973,82 @@ func (a *AppService) GetAppDetail(ctx context.Context, req *dto.GetAppDetailReq)
 // GetAppByUserName 根据用户名和应用名获取应用信息
 func (a *AppService) GetAppByUserName(ctx context.Context, user, app string) (*model.App, error) {
 	return a.appRepo.GetAppByUserName(user, app)
+}
+
+// UpdateWorkspace 更新工作空间（只更新 MySQL 记录，不涉及容器更新）
+func (a *AppService) UpdateWorkspace(ctx context.Context, req *dto.UpdateWorkspaceReq) (*dto.UpdateWorkspaceResp, error) {
+	// 获取应用信息
+	app, err := a.appRepo.GetAppByUserName(req.User, req.App)
+	if err != nil {
+		return nil, fmt.Errorf("获取应用信息失败: %w", err)
+	}
+
+	// ⭐ 更新管理员列表并同步更新角色分配
+	oldAdminsStr := app.Admins
+	newAdminsStr := req.Admins
+
+	// 解析旧管理员列表
+	oldAdmins := make(map[string]bool)
+	if oldAdminsStr != "" {
+		for _, admin := range strings.Split(oldAdminsStr, ",") {
+			admin = strings.TrimSpace(admin)
+			if admin != "" {
+				oldAdmins[admin] = true
+			}
+		}
+	}
+
+	// 解析新管理员列表
+	newAdmins := make(map[string]bool)
+	if newAdminsStr != "" {
+		for _, admin := range strings.Split(newAdminsStr, ",") {
+			admin = strings.TrimSpace(admin)
+			if admin != "" {
+				newAdmins[admin] = true
+			}
+		}
+	}
+
+	// 更新数据库中的管理员列表
+	app.Admins = req.Admins
+	if err := a.appRepo.UpdateApp(app); err != nil {
+		return nil, fmt.Errorf("更新工作空间失败: %w", err)
+	}
+
+	// ⭐ 同步更新角色分配
+	resourcePath := fmt.Sprintf("/%s/%s", req.User, req.App)
+
+	// 1. 移除不再担任管理员的用户角色
+	for oldAdmin := range oldAdmins {
+		if !newAdmins[oldAdmin] {
+			// 该用户不再是管理员，移除其应用管理员角色
+			if err := a.removeAppAdminRoleFromUser(ctx, req.User, req.App, oldAdmin, resourcePath); err != nil {
+				// 角色移除失败不应该影响更新，只记录警告日志
+				logger.Warnf(ctx, "[AppService] 移除应用管理员角色失败: resource=%s, username=%s, error=%v",
+					resourcePath, oldAdmin, err)
+			}
+		}
+	}
+
+	// 2. 给新管理员分配角色
+	for newAdmin := range newAdmins {
+		if !oldAdmins[newAdmin] {
+			// 该用户是新管理员，分配应用管理员角色
+			if err := a.assignAppAdminRoleToUser(ctx, req.User, req.App, newAdmin, resourcePath); err != nil {
+				// 角色分配失败不应该影响更新，只记录警告日志
+				logger.Warnf(ctx, "[AppService] 分配应用管理员角色失败: resource=%s, username=%s, error=%v",
+					resourcePath, newAdmin, err)
+			}
+		}
+	}
+
+	logger.Infof(ctx, "[AppService] 更新工作空间成功: user=%s, app=%s, admins=%s", req.User, req.App, req.Admins)
+
+	return &dto.UpdateWorkspaceResp{
+		User:   req.User,
+		App:    req.App,
+		Admins: req.Admins,
+	}, nil
 }
 
 // GetFunctionByFullCodePath 根据 full-code-path 获取函数信息

@@ -33,45 +33,6 @@ func NewPermissionService(permissionService enterprise.PermissionService, servic
 	}
 }
 
-// AddPermission 添加权限
-// ⭐ 使用新的权限系统，完全移除 Casbin
-// 支持两种类型的权限：
-//  1. 用户权限：subject = username
-//  2. 组织架构权限：subject = department_path（以 /org 开头）
-func (s *PermissionService) AddPermission(ctx context.Context, req *dto.AddPermissionReq) error {
-	// 确定权限主体类型
-	subjectType := "user"
-	if strings.HasPrefix(req.Subject, "/org") {
-		subjectType = "department"
-	}
-
-	// 处理时间字段：dto 已经使用 models.Time，直接使用
-	startTime := models.Time(time.Now())
-	endTime := req.EndTime // dto.AddPermissionReq.EndTime 已经是 *models.Time
-
-	// 构建授权请求（AppID 已废弃，从 resourcePath 解析 user 和 app）
-	grantReq := &enterprise.GrantPermissionReq{
-		AppID:           0,                            // ⭐ 已废弃，不再使用（企业版实现会从 resourcePath 解析 user 和 app）
-		GrantorUsername: contextx.GetRequestUser(ctx), // 授权人（当前用户）
-		GranteeType:     subjectType,
-		Grantee:         req.Subject,
-		ResourcePath:    req.ResourcePath,
-		Action:          req.Action,
-		StartTime:       startTime, // ⭐ 使用 models.Time
-		EndTime:         endTime,   // ⭐ 使用 *models.Time（nil 表示永久）
-	}
-
-	// 调用企业版接口授权权限
-	if err := s.permissionService.GrantPermission(ctx, grantReq); err != nil {
-		logger.Errorf(ctx, "[PermissionService] 授权权限失败: subject=%s, resource=%s, action=%s, error=%v",
-			req.Subject, req.ResourcePath, req.Action, err)
-		return fmt.Errorf("授权权限失败: %w", err)
-	}
-
-	logger.Infof(ctx, "[PermissionService] 添加权限成功: subject=%s, resource=%s, action=%s",
-		req.Subject, req.ResourcePath, req.Action)
-	return nil
-}
 
 // GetWorkspacePermissions 获取工作空间的所有权限
 // ⭐ 优化：支持查询用户权限和组织架构权限（v0 可以是用户名或组织架构路径）
@@ -190,14 +151,14 @@ func (s *PermissionService) CreatePermissionRequest(ctx context.Context, req *dt
 	}
 	endTime := req.EndTime // dto.CreatePermissionRequestReq.EndTime 已经是 *models.Time
 
-	// 构建企业版请求（AppID 已废弃，企业版实现会从 resourcePath 解析 user 和 app）
+	// 构建企业版请求
 	enterpriseReq := &enterprise.PermissionRequestReq{
-		AppID:             0, // ⭐ 已废弃，不再使用（企业版实现会从 resourcePath 解析 user 和 app）
+		AppID:             req.AppID, // ⭐ 传递 AppID（从 resourcePath 解析得到）
 		ApplicantUsername: username,
 		SubjectType:       req.SubjectType,
 		Subject:           req.Subject,
 		ResourcePath:      req.ResourcePath,
-		Action:            req.Action,
+		RoleID:            req.RoleID, // ⭐ 角色ID（必填）
 		StartTime:         startTime, // ⭐ 使用 models.Time
 		EndTime:           endTime,   // ⭐ 使用 *models.Time（nil 表示永久）
 		Reason:            req.Reason,
@@ -289,36 +250,6 @@ func (s *PermissionService) RejectPermissionRequest(ctx context.Context, req *dt
 	return nil
 }
 
-// GrantPermission 授权权限（管理员主动授权）
-func (s *PermissionService) GrantPermission(ctx context.Context, req *dto.GrantPermissionReq) error {
-	// 获取当前用户名（授权人）
-	grantorUsername := contextx.GetRequestUser(ctx)
-	if grantorUsername == "" {
-		return fmt.Errorf("无法获取当前用户信息")
-	}
-
-	// 处理时间字段：dto 已经使用 models.Time，直接使用
-	startTime := req.StartTime
-	if time.Time(startTime).IsZero() {
-		startTime = models.Time(time.Now()) // 默认为当前时间
-	}
-	endTime := req.EndTime // dto.GrantPermissionReq.EndTime 已经是 *models.Time
-
-	// 构建企业版请求（AppID 已废弃，企业版实现会从 resourcePath 解析 user 和 app）
-	enterpriseReq := &enterprise.GrantPermissionReq{
-		AppID:           0, // ⭐ 已废弃，不再使用（企业版实现会从 resourcePath 解析 user 和 app）
-		GrantorUsername: grantorUsername,
-		GranteeType:     req.GranteeType,
-		Grantee:         req.Grantee,
-		ResourcePath:    req.ResourcePath,
-		Action:          req.Action,
-		StartTime:       startTime, // ⭐ 使用 models.Time
-		EndTime:         endTime,   // ⭐ 使用 *models.Time（nil 表示永久）
-	}
-
-	// 调用企业版接口
-	return s.permissionService.GrantPermission(ctx, enterpriseReq)
-}
 
 // GetPermissionRequests 获取权限申请列表
 func (s *PermissionService) GetPermissionRequests(ctx context.Context, req *dto.GetPermissionRequestsReq) (*dto.GetPermissionRequestsResp, error) {
@@ -350,7 +281,7 @@ func (s *PermissionService) GetPermissionRequests(ctx context.Context, req *dto.
 			Subject:           req.Subject,
 			ResourcePath:      req.ResourcePath,
 			ResourceName:      "", // ⭐ 默认空，后面从 service_tree 获取
-			Action:            req.Action,
+			RoleID:            req.RoleID, // ⭐ 角色ID
 			StartTime:         req.StartTime, // ⭐ 直接赋值，无需转换
 			EndTime:           req.EndTime,   // ⭐ 直接赋值，无需转换
 			Reason:            req.Reason,
@@ -395,6 +326,18 @@ func (s *PermissionService) GetPermissionRequests(ctx context.Context, req *dto.
 						}
 					}
 				}
+			}
+		}
+
+		// ⭐ 从角色服务获取角色名称
+		if req.RoleID > 0 {
+			roleResp, err := s.permissionService.GetRole(ctx, req.RoleID)
+			if err == nil && roleResp != nil && roleResp.Role != nil {
+				info.RoleName = roleResp.Role.Name
+			} else {
+				// 如果获取失败，记录警告但不影响返回
+				logger.Warnf(ctx, "[PermissionService] 获取角色信息失败: role_id=%d, error=%v", req.RoleID, err)
+				info.RoleName = "" // 默认为空
 			}
 		}
 
