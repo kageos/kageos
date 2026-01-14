@@ -1,0 +1,18 @@
+server:
+  port: 9094
+  log_level: info
+  debug: true
+
+db:
+  type: mysql
+  host: 127.0.0.1
+  port: 3306
+  user: app
+  password: app
+  name: app_db
+  log_level: warn
+  slow_threshold: 200
+
+os:
+  base_url: http://localhost:9090  # OS 平台基础 URL
+
