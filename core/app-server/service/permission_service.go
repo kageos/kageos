@@ -151,14 +151,14 @@ func (s *PermissionService) CreatePermissionRequest(ctx context.Context, req *dt
 	}
 	endTime := req.EndTime // dto.CreatePermissionRequestReq.EndTime 已经是 *models.Time
 
-	// 构建企业版请求
-	enterpriseReq := &enterprise.PermissionRequestReq{
+	// 构建企业版请求（添加 ApplicantUsername）
+	enterpriseReq := &dto.CreatePermissionRequestReq{
 		AppID:             req.AppID, // ⭐ 传递 AppID（从 resourcePath 解析得到）
-		ApplicantUsername: username,
-		SubjectType:       req.SubjectType,
-		Subject:           req.Subject,
 		ResourcePath:      req.ResourcePath,
 		RoleID:            req.RoleID, // ⭐ 角色ID（必填）
+		SubjectType:       req.SubjectType,
+		Subject:           req.Subject,
+		ApplicantUsername: username, // ⭐ 从 context 获取的申请人用户名
 		StartTime:         startTime, // ⭐ 使用 models.Time
 		EndTime:           endTime,   // ⭐ 使用 *models.Time（nil 表示永久）
 		Reason:            req.Reason,

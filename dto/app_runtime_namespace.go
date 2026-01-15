@@ -288,4 +288,5 @@ type GetAppWithServiceTreeReq struct {
 type GetAppWithServiceTreeResp struct {
 	App         AppInfo               `json:"app"`          // 应用详情
 	ServiceTree []*GetServiceTreeResp `json:"service_tree"` // 服务目录树
+	ExpandedKeys []int64              `json:"expanded_keys,omitempty"` // ⭐ 需要自动展开的节点ID列表（包含所有 pending_count > 0 的节点及其父节点）
 }

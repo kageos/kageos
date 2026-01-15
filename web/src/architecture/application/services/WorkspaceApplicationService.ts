@@ -166,6 +166,7 @@ export class WorkspaceApplicationService {
     // 🔥 修复：如果 app.id 是 0（临时值），通过合并接口获取完整的应用信息和服务目录树
     let appToSwitch = app
     let preloadedServiceTree: ServiceTree[] | null = null
+    let preloadedExpandedKeys: number[] | undefined = undefined
     
     if (app.id === 0) {
       try {
@@ -174,18 +175,20 @@ export class WorkspaceApplicationService {
         // ⭐ 传递 user 和 app，而不是只传 code
         const workspaceData = await getAppWithServiceTree(app.user, app.code)
         if (workspaceData && workspaceData.app) {
-          appToSwitch = {
-            id: workspaceData.app.id,
-            user: workspaceData.app.user,
-            code: workspaceData.app.code,
-            name: workspaceData.app.name
-          }
+          // ⭐ 使用完整的 app 对象，包含所有字段（包括 admins）
+          appToSwitch = workspaceData.app as App
           console.log('[WorkspaceApplicationService] 从合并接口获取到应用信息', appToSwitch)
           
           // 🔥 修复：如果已经获取了服务目录树，直接使用，避免重复调用
           if (workspaceData.service_tree && Array.isArray(workspaceData.service_tree)) {
             preloadedServiceTree = workspaceData.service_tree
             console.log('[WorkspaceApplicationService] 从合并接口获取到服务目录树，节点数:', preloadedServiceTree.length)
+          }
+          
+          // ⭐ 保存 expanded_keys（如果后端返回了）
+          if (workspaceData.expanded_keys && Array.isArray(workspaceData.expanded_keys)) {
+            preloadedExpandedKeys = workspaceData.expanded_keys
+            console.log('[WorkspaceApplicationService] 从合并接口获取到 expanded_keys，节点数:', preloadedExpandedKeys.length)
           }
           
           // 🔥 修复：发出应用信息更新事件，让 Presentation Layer 更新 appList
@@ -203,7 +206,7 @@ export class WorkspaceApplicationService {
     
     // 🔥 优化：如果已经获取了服务目录树，直接使用，避免重复调用
     if (preloadedServiceTree) {
-      await this.domainService.loadServiceTreeWithData(appToSwitch, preloadedServiceTree)
+      await this.domainService.loadServiceTreeWithData(appToSwitch, preloadedServiceTree, preloadedExpandedKeys)
     } else {
     // 加载服务目录树
       await this.domainService.loadServiceTree(appToSwitch)

@@ -109,6 +109,12 @@ function handleAdminsChange(value: FieldValue) {
 
 // 初始化表单数据
 function initForm() {
+  if (!props.currentApp) {
+    adminsArray.value = []
+    return
+  }
+
+  // 直接使用 currentApp 中的 admins 字段（tree 接口已经返回了）
   if (props.currentApp?.admins) {
     adminsArray.value = props.currentApp.admins
       .split(',')

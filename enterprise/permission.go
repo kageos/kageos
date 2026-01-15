@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 )
 
 // PermissionService 权限服务接口
@@ -61,7 +60,7 @@ type PermissionService interface {
 	// 说明：
 	//   - 社区版实现返回错误（不支持权限申请）
 	//   - 企业版实现会创建申请记录，状态为 pending
-	CreatePermissionRequest(ctx context.Context, req *PermissionRequestReq) (int64, error)
+	CreatePermissionRequest(ctx context.Context, req *dto.CreatePermissionRequestReq) (int64, error)
 
 	// ApprovePermissionRequest 审批通过权限申请
 	// 参数：
@@ -125,7 +124,7 @@ type PermissionService interface {
 	// 说明：
 	//   - 社区版实现返回错误（不支持权限申请）
 	//   - 企业版实现会创建申请记录，状态为 pending
-	CreateApprovalRequest(ctx context.Context, req *InternalCreatePermissionRequestReq) (*PermissionRequest, error)
+	CreateApprovalRequest(ctx context.Context, req *dto.InternalCreatePermissionRequestReq) (*dto.PermissionRequest, error)
 
 	// ApproveApprovalRequest 审批通过权限申请
 	// 参数：
@@ -327,48 +326,6 @@ type PermissionService interface {
 	GetRolesForPermissionRequest(ctx context.Context, req *dto.GetRolesForPermissionRequestReq) (*dto.GetRolesForPermissionRequestResp, error)
 }
 
-// InternalCreatePermissionRequestReq 内部创建权限申请请求（企业版内部使用，角色申请）
-// ⭐ 注意：这个结构体应该与 dto.InternalCreatePermissionRequestReq 保持一致
-// 但由于 enterprise 包不能依赖 dto 包，所以这里重新定义
-type InternalCreatePermissionRequestReq struct {
-	User              string       // 租户用户名
-	App               string       // 应用代码
-	AppID             int64        // 工作空间ID（从 resourcePath 解析得到）
-	ApplicantUsername string       // 申请人用户名
-	SubjectType       string       // 权限主体类型
-	Subject           string       // 权限主体
-	ResourcePath      string       // 资源路径
-	RoleID            int64        // 角色ID（必填）
-	StartTime         models.Time  // 权限开始时间
-	EndTime           *models.Time // 权限结束时间（nil 表示永久）
-	Reason            string       // 申请原因
-}
-
-// PermissionRequest 权限申请记录（企业版内部使用，角色申请）
-type PermissionRequest struct {
-	ID                int64  // 申请记录ID
-	AppID             int64  // 工作空间ID
-	ApplicantUsername string // 申请人用户名
-	SubjectType       string // 权限主体类型
-	Subject           string // 权限主体
-	ResourcePath      string // 资源路径
-	RoleID            int64  // 角色ID
-	Status            string // 申请状态
-}
-
-// PermissionRequestReq 权限申请请求（角色申请）
-type PermissionRequestReq struct {
-	AppID             int64
-	ApplicantUsername string
-	SubjectType       string // user 或 department
-	Subject           string // 用户名或组织架构路径
-	ResourcePath      string
-	RoleID            int64        // 角色ID（必填）
-	StartTime         models.Time  // 权限开始时间
-	EndTime           *models.Time // 权限结束时间（nil 表示永久）
-	Reason            string
-}
-
 // GetUserWorkspacePermissionsReq 获取用户工作空间权限请求
 type GetUserWorkspacePermissionsReq struct {
 	User           string // 租户用户名
@@ -433,17 +390,15 @@ func (r *GetUserWorkspacePermissionsResp) CheckPermission(resourcePath string, a
 				return true
 			}
 
-			// 2. 检查 admin 权限（包含所有操作）
-			if actions["app:admin"] || actions["directory:admin"] || actions["table:admin"] || actions["form:admin"] || actions["chart:admin"] {
-				return true
+			// 2. 检查 admin 权限（包含所有操作）- 动态检查所有资源类型的 admin 权限
+			// 遍历所有权限点，检查是否有任何资源类型的 admin 权限
+			for actionKey := range actions {
+				if strings.HasSuffix(actionKey, ":admin") {
+					return true
+				}
 			}
 
-			// 3. 兼容旧格式（manage 权限）
-			if actions["app:manage"] || actions["directory:manage"] || actions["function:manage"] {
-				return true
-			}
-
-			// 4. 检查权限继承（directory:read → function:read 等，仅作为兼容）
+			// 3. 检查权限继承（directory:read → table:read 等）
 			if checkPermissionInheritance(action, actions) {
 				return true
 			}
@@ -459,55 +414,33 @@ func (r *GetUserWorkspacePermissionsResp) CheckPermission(resourcePath string, a
 //   - directory:write → table:write, form:write
 //   - directory:update → table:update
 //   - directory:delete → table:delete
-//   - app:admin → 所有权限
+//   - 任何资源类型的 admin 权限 → 所有权限
 func checkPermissionInheritance(action string, actions map[string]bool) bool {
-	// ⭐ 新格式：app:admin → 所有权限
-	if actions["app:admin"] {
-		return true
+	// ⭐ 检查是否有任何资源类型的 admin 权限（动态检查，不硬编码）
+	for actionKey := range actions {
+		if strings.HasSuffix(actionKey, ":admin") {
+			return true
+		}
 	}
 
-	// ⭐ 新格式：directory:read → table:read, form:read, chart:read
+	// ⭐ 目录权限继承到子资源
+	// directory:read → table:read, form:read, chart:read
 	if (action == "table:read" || action == "form:read" || action == "chart:read") && actions["directory:read"] {
 		return true
 	}
-	// ⭐ 新格式：directory:write → table:write, form:write
+	// directory:write → table:write, form:write
 	if (action == "table:write" || action == "form:write") && actions["directory:write"] {
 		return true
 	}
-	// ⭐ 新格式：directory:update → table:update
+	// directory:update → table:update
 	if action == "table:update" && actions["directory:update"] {
 		return true
 	}
-	// ⭐ 新格式：directory:delete → table:delete
+	// directory:delete → table:delete
 	if action == "table:delete" && actions["directory:delete"] {
 		return true
 	}
-	// ⭐ 新格式：directory:admin → 所有权限
-	if actions["directory:admin"] {
-		return true
-	}
 
-	// ⭐ 兼容旧格式
-	// directory:read → function:read
-	if action == "function:read" && actions["directory:read"] {
-		return true
-	}
-	// directory:write → function:write
-	if action == "function:write" && actions["directory:write"] {
-		return true
-	}
-	// directory:update → function:update
-	if action == "function:update" && actions["directory:update"] {
-		return true
-	}
-	// directory:delete → function:delete
-	if action == "function:delete" && actions["directory:delete"] {
-		return true
-	}
-	// app:manage → 所有权限（兼容旧格式）
-	if actions["app:manage"] {
-		return true
-	}
 	return false
 }
 
@@ -576,7 +509,7 @@ func (u *UnImplPermissionService) CheckPermission(ctx context.Context, username 
 
 // CreatePermissionRequest 创建权限申请
 // 社区版实现：返回错误（不支持权限申请）
-func (u *UnImplPermissionService) CreatePermissionRequest(ctx context.Context, req *PermissionRequestReq) (int64, error) {
+func (u *UnImplPermissionService) CreatePermissionRequest(ctx context.Context, req *dto.CreatePermissionRequestReq) (int64, error) {
 	return 0, fmt.Errorf("权限申请功能仅在企业版可用")
 }
 
@@ -602,7 +535,7 @@ func (u *UnImplPermissionService) GetUserWorkspacePermissions(ctx context.Contex
 
 // CreateApprovalRequest 创建权限申请（审批流程）
 // 社区版实现：返回错误（不支持权限申请）
-func (u *UnImplPermissionService) CreateApprovalRequest(ctx context.Context, req *InternalCreatePermissionRequestReq) (*PermissionRequest, error) {
+func (u *UnImplPermissionService) CreateApprovalRequest(ctx context.Context, req *dto.InternalCreatePermissionRequestReq) (*dto.PermissionRequest, error) {
 	return nil, fmt.Errorf("权限申请功能仅在企业版可用")
 }
 

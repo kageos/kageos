@@ -125,9 +125,9 @@ func (s *Server) setupRoutes() {
 	operateLog := apiV1.Group("/operate_log")
 	operateLog.Use(middleware2.JWTAuth())                                    // JWT 认证
 	operateLog.Use(middleware2.RequireFeature(enterprise.FeatureOperateLog)) // 操作日志功能鉴权（企业版）
-	operateLogHandler := v1.NewOperateLog(s.operateLogService)
-	operateLog.GET("/table", operateLogHandler.GetTableOperateLogs) // 查询 Table 操作日志
-	operateLog.GET("/form", operateLogHandler.GetFormOperateLogs)   // 查询 Form 操作日志
+	operateLogHandler := v1.NewOperateLog()                                  // 使用企业版接口，无需传入服务
+	operateLog.GET("/table", operateLogHandler.GetTableOperateLogs)          // 查询 Table 操作日志
+	operateLog.GET("/form", operateLogHandler.GetFormOperateLogs)            // 查询 Form 操作日志
 
 	// 目录更新历史路由（需要JWT验证）
 	directoryUpdateHistory := apiV1.Group("/directory_update_history")

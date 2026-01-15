@@ -1,8 +1,8 @@
 package v1
 
 import (
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
 	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/enterprise"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
@@ -11,14 +11,13 @@ import (
 
 // OperateLog 操作日志相关API
 type OperateLog struct {
-	operateLogService *service.OperateLogService
+	// 使用企业版接口，通过 enterprise.GetOperateLogger() 获取实现
 }
 
 // NewOperateLog 创建操作日志API（依赖注入）
-func NewOperateLog(operateLogService *service.OperateLogService) *OperateLog {
-	return &OperateLog{
-		operateLogService: operateLogService,
-	}
+// 注意：现在使用企业版接口，不再需要传入核心服务层
+func NewOperateLog() *OperateLog {
+	return &OperateLog{}
 }
 
 // GetTableOperateLogs 查询 Table 操作日志
@@ -65,9 +64,10 @@ func (o *OperateLog) GetTableOperateLogs(c *gin.Context) {
 		req.PageSize = 20
 	}
 
-	// 调用服务层
+	// 调用企业版接口
 	ctx := contextx.ToContext(c)
-	resp, err = o.operateLogService.GetTableOperateLogs(ctx, &req)
+	operateLogger := enterprise.GetOperateLogger()
+	resp, err = operateLogger.GetTableOperateLogs(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -119,9 +119,10 @@ func (o *OperateLog) GetFormOperateLogs(c *gin.Context) {
 		req.PageSize = 20
 	}
 
-	// 调用服务层
+	// 调用企业版接口
 	ctx := contextx.ToContext(c)
-	resp, err = o.operateLogService.GetFormOperateLogs(ctx, &req)
+	operateLogger := enterprise.GetOperateLogger()
+	resp, err = operateLogger.GetFormOperateLogs(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return

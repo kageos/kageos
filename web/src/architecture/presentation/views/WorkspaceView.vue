@@ -22,6 +22,7 @@
           :loading="loading"
           :current-node-id="currentFunction?.id || null"
           :current-function="currentFunction"
+          :expanded-keys="expandedKeys"
           @node-click="handleNodeClick"
           @create-directory="handleCreateDirectory"
           @fork-group="handleForkGroup"
@@ -589,6 +590,9 @@ const serviceTree = computed(() => stateManager.getServiceTree())
 const currentFunction = computed(() => stateManager.getCurrentFunction())
 const currentAppFromState = computed(() => stateManager.getCurrentApp())
 
+// ⭐ 需要自动展开的节点ID列表（从后端返回）
+const expandedKeys = ref<number[]>([])
+
 // 🔥 不再使用 Tab 功能，简化系统
 
 const currentApp = computed<AppType | null>(() => {
@@ -601,12 +605,13 @@ const currentApp = computed<AppType | null>(() => {
     user: app.user,
     code: app.code,
     name: app.name,
-    nats_id: 0,
-    host_id: 0,
-    status: 'enabled' as const,
-    version: '',
-    created_at: '',
-    updated_at: ''
+    nats_id: app.nats_id || 0,
+    host_id: app.host_id || 0,
+    status: (app.status || 'enabled') as 'enabled' | 'disabled',
+    version: app.version || '',
+    created_at: app.created_at || '',
+    updated_at: app.updated_at || '',
+    admins: app.admins || '' // ⭐ 包含 admins 字段
   }
 })
 
@@ -1545,8 +1550,21 @@ onMounted(async () => {
   })
 
   // 监听服务树加载完成事件
-  unsubscribeServiceTreeLoaded = eventBus.on(WorkspaceEvent.serviceTreeLoaded, (payload: { app: any, tree: any[] }) => {
+  unsubscribeServiceTreeLoaded = eventBus.on(WorkspaceEvent.serviceTreeLoaded, (payload: { app: any, tree: any[], expandedKeys?: number[] }) => {
     // 状态已通过 StateManager 自动更新
+    // ⭐ 更新 expandedKeys（如果后端返回了）
+    console.log('[WorkspaceView] serviceTreeLoaded 事件收到:', {
+      treeLength: payload.tree?.length || 0,
+      expandedKeysLength: payload.expandedKeys?.length || 0,
+      expandedKeys: payload.expandedKeys
+    })
+    if (payload.expandedKeys && payload.expandedKeys.length > 0) {
+      expandedKeys.value = payload.expandedKeys
+      console.log('[WorkspaceView] ✅ 已更新 expandedKeys:', expandedKeys.value)
+    } else {
+      expandedKeys.value = []
+      console.log('[WorkspaceView] expandedKeys 为空，清空')
+    }
   })
   
   // 监听应用切换事件，开始加载服务树

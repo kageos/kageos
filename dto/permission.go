@@ -51,14 +51,15 @@ type GetWorkspacePermissionsResp struct {
 
 // CreatePermissionRequestReq 创建权限申请请求（API 层使用，角色申请）
 type CreatePermissionRequestReq struct {
-	AppID        int64        `json:"app_id" binding:"required"`        // 工作空间ID
-	ResourcePath string       `json:"resource_path" binding:"required"` // 资源路径（full-code-path）
-	RoleID       int64        `json:"role_id" binding:"required"`      // 角色ID（必填）
-	SubjectType  string       `json:"subject_type" binding:"required"`  // 权限主体类型：user 或 department
-	Subject      string       `json:"subject" binding:"required"`       // 权限主体：用户名或组织架构路径
-	StartTime    models.Time  `json:"start_time"`                       // 权限开始时间（可选，默认为当前时间）
-	EndTime      *models.Time `json:"end_time"`                         // 权限结束时间（nil 表示永久）
-	Reason       string       `json:"reason"`                           // 申请原因（可选）
+	AppID             int64        `json:"app_id" binding:"required"`        // 工作空间ID
+	ResourcePath      string       `json:"resource_path" binding:"required"` // 资源路径（full-code-path）
+	RoleID            int64        `json:"role_id" binding:"required"`       // 角色ID（必填）
+	SubjectType       string       `json:"subject_type" binding:"required"`  // 权限主体类型：user 或 department
+	Subject           string       `json:"subject" binding:"required"`       // 权限主体：用户名或组织架构路径
+	ApplicantUsername string       `json:"applicant_username"`              // 申请人用户名（可选，通常从 context 获取）
+	StartTime         models.Time  `json:"start_time"`                       // 权限开始时间（可选，默认为当前时间）
+	EndTime           *models.Time `json:"end_time"`                         // 权限结束时间（nil 表示永久）
+	Reason            string       `json:"reason"`                           // 申请原因（可选）
 }
 
 // InternalCreatePermissionRequestReq 内部创建权限申请请求（企业版内部使用，角色申请）
@@ -102,6 +103,19 @@ type GetPermissionRequestsReq struct {
 	ResourcePath string `json:"resource_path" form:"resource_path"` // 资源路径（可选）
 	Page         int    `json:"page" form:"page"`                   // 页码（可选，默认1）
 	PageSize     int    `json:"page_size" form:"page_size"`         // 每页数量（可选，默认20）
+}
+
+// PermissionRequest 权限申请记录（企业版内部使用，角色申请）
+// 用于 CreateApprovalRequest 的返回值
+type PermissionRequest struct {
+	ID                int64  `json:"id"`                 // 申请记录ID
+	AppID             int64  `json:"app_id"`             // 工作空间ID
+	ApplicantUsername string `json:"applicant_username"` // 申请人用户名
+	SubjectType       string `json:"subject_type"`       // 权限主体类型
+	Subject           string `json:"subject"`             // 权限主体
+	ResourcePath      string `json:"resource_path"`      // 资源路径
+	RoleID            int64  `json:"role_id"`             // 角色ID
+	Status            string `json:"status"`             // 申请状态
 }
 
 // PermissionRequestInfo 权限申请信息（角色申请）

@@ -259,7 +259,7 @@ func (s *PermissionServiceImpl) AddResourceInheritance(ctx context.Context, chil
 }
 
 // CreatePermissionRequest 创建权限申请（实现 enterprise.PermissionService 接口）
-func (s *PermissionServiceImpl) CreatePermissionRequest(ctx context.Context, req *enterprise.PermissionRequestReq) (int64, error) {
+func (s *PermissionServiceImpl) CreatePermissionRequest(ctx context.Context, req *dto.CreatePermissionRequestReq) (int64, error) {
 	// ⭐ 从 resourcePath 解析 user 和 app
 	_, user, app := permissionpkg.ParseFullCodePath(req.ResourcePath)
 	if user == "" || app == "" {
@@ -277,13 +277,22 @@ func (s *PermissionServiceImpl) CreatePermissionRequest(ctx context.Context, req
 		}
 	}
 
+	// 获取申请人用户名（从 context 或请求中获取）
+	applicantUsername := req.ApplicantUsername
+	if applicantUsername == "" {
+		applicantUsername = contextx.GetRequestUser(ctx)
+		if applicantUsername == "" {
+			return 0, fmt.Errorf("无法获取申请人用户名")
+		}
+	}
+
 	// 调用审批服务创建申请
 	// ⭐ 直接使用 models.Time，无需转换
-	approvalReq := &enterprise.InternalCreatePermissionRequestReq{
+	approvalReq := &dto.InternalCreatePermissionRequestReq{
 		User:              user,
 		App:               app,
 		AppID:             appID, // ⭐ 传递 AppID
-		ApplicantUsername: req.ApplicantUsername,
+		ApplicantUsername: applicantUsername,
 		SubjectType:       req.SubjectType,
 		Subject:           req.Subject,
 		ResourcePath:      req.ResourcePath,
@@ -303,7 +312,7 @@ func (s *PermissionServiceImpl) CreatePermissionRequest(ctx context.Context, req
 }
 
 // CreateApprovalRequest 创建权限申请（审批流程，实现 enterprise.PermissionService 接口）
-func (s *PermissionServiceImpl) CreateApprovalRequest(ctx context.Context, req *enterprise.InternalCreatePermissionRequestReq) (*enterprise.PermissionRequest, error) {
+func (s *PermissionServiceImpl) CreateApprovalRequest(ctx context.Context, req *dto.InternalCreatePermissionRequestReq) (*dto.PermissionRequest, error) {
 	return s.approvalService.CreateRequest(ctx, req)
 }
 
@@ -327,10 +336,6 @@ func (s *PermissionServiceImpl) RejectPermissionRequest(ctx context.Context, req
 	return s.RejectApprovalRequest(ctx, requestID, approverUsername, reason)
 }
 
-// GrantPermission 授权权限（已废弃，仅使用角色系统）
-func (s *PermissionServiceImpl) GrantPermission(ctx context.Context, req *enterprise.GrantPermissionReq) error {
-	return fmt.Errorf("已废弃：请使用角色系统分配权限，不再支持直接权限点授权")
-}
 
 // GetUserWorkspacePermissions 获取用户工作空间权限（服务树场景，实现 enterprise.PermissionService 接口）
 // ⭐ 仅使用角色权限系统，不再查询 workspace_permission 表

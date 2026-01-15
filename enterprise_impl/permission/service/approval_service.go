@@ -9,7 +9,6 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/enterprise"
 	permissionrepo "github.com/ai-agent-os/ai-agent-os/enterprise_impl/permission/repository"
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
@@ -42,7 +41,7 @@ func NewApprovalService(
 
 // CreateRequest 创建权限申请
 // ⭐ 实现 enterprise.ApprovalService 接口
-func (s *ApprovalService) CreateRequest(ctx context.Context, req *enterprise.InternalCreatePermissionRequestReq) (*enterprise.PermissionRequest, error) {
+func (s *ApprovalService) CreateRequest(ctx context.Context, req *dto.InternalCreatePermissionRequestReq) (*dto.PermissionRequest, error) {
 	// 1. 创建申请记录
 	request := &model.PermissionRequest{
 		AppID:             req.AppID, // ⭐ 使用传入的 AppID
@@ -72,8 +71,8 @@ func (s *ApprovalService) CreateRequest(ctx context.Context, req *enterprise.Int
 	logger.Infof(ctx, "[ApprovalService] 创建角色申请: id=%d, applicant=%s, resource=%s, role_id=%d, approvers=%v",
 		request.ID, req.ApplicantUsername, req.ResourcePath, req.RoleID, approvers)
 
-	// 4. 转换为 enterprise.PermissionRequest
-	return &enterprise.PermissionRequest{
+	// 4. 转换为 dto.PermissionRequest
+	return &dto.PermissionRequest{
 		ID:                request.ID,
 		AppID:             request.AppID,
 		ApplicantUsername: request.ApplicantUsername,

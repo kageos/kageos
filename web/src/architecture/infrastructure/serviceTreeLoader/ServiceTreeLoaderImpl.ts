@@ -49,9 +49,10 @@ export class ServiceTreeLoaderImpl implements IServiceTreeLoader {
         
         Logger.debug('ServiceTreeLoader', 'API 响应', response)
         
-        // 处理响应数据：合并接口返回 { app: App, service_tree: ServiceTree[] }
+        // 处理响应数据：合并接口返回 { app: App, service_tree: ServiceTree[], expanded_keys?: number[] }
         let tree: ServiceTree[] = []
         let appInfo: App | null = null
+        let expandedKeys: number[] | undefined = undefined
         
         if (response && typeof response === 'object') {
           // 如果是合并接口的响应格式
@@ -66,6 +67,11 @@ export class ServiceTreeLoaderImpl implements IServiceTreeLoader {
                 code: appInfo.code,
                 name: appInfo.name
               })
+            }
+            // ⭐ 提取 expanded_keys（如果后端返回了）
+            if ('expanded_keys' in response && Array.isArray(response.expanded_keys)) {
+              expandedKeys = response.expanded_keys
+              Logger.debug('ServiceTreeLoader', '从合并接口获取到 expanded_keys', expandedKeys)
             }
           }
           // 兼容旧的单独接口格式（数组或分页对象）
