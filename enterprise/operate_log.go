@@ -1,7 +1,9 @@
 package enterprise
 
 import (
-	dto "github.com/ai-agent-os/ai-agent-os/dto/enterprise"
+	"context"
+
+	"github.com/ai-agent-os/ai-agent-os/dto"
 )
 
 // OperateLogger 操作日志记录器接口
@@ -35,6 +37,38 @@ type OperateLogger interface {
 	//   - 社区版实现直接返回空响应，不执行任何操作
 	//   - 企业版实现会将日志持久化到数据库
 	CreateOperateLogger(req *dto.CreateOperateLoggerReq) (*dto.CreateOperateLoggerResp, error)
+
+	// GetTableOperateLogs 查询 Table 操作日志
+	// 查询 Table 相关的操作日志（新增、更新、删除等）
+	//
+	// 参数：
+	//   - ctx: 上下文
+	//   - req: 查询请求，包含过滤条件、分页参数等
+	//
+	// 返回：
+	//   - resp: 查询响应，包含日志列表、总数、分页信息等
+	//   - error: 如果查询失败返回错误
+	//
+	// 注意：
+	//   - 社区版实现返回空结果
+	//   - 企业版实现会从数据库查询并返回完整日志
+	GetTableOperateLogs(ctx context.Context, req *dto.GetTableOperateLogsReq) (*dto.GetTableOperateLogsResp, error)
+
+	// GetFormOperateLogs 查询 Form 操作日志
+	// 查询 Form 相关的操作日志（提交等）
+	//
+	// 参数：
+	//   - ctx: 上下文
+	//   - req: 查询请求，包含过滤条件、分页参数等
+	//
+	// 返回：
+	//   - resp: 查询响应，包含日志列表、总数、分页信息等
+	//   - error: 如果查询失败返回错误
+	//
+	// 注意：
+	//   - 社区版实现返回空结果
+	//   - 企业版实现会从数据库查询并返回完整日志
+	GetFormOperateLogs(ctx context.Context, req *dto.GetFormOperateLogsReq) (*dto.GetFormOperateLogsResp, error)
 }
 
 // 全局变量：存储当前实现
@@ -118,4 +152,26 @@ func (u *UnImplOperateLogger) CreateOperateLogger(req *dto.CreateOperateLoggerRe
 	// 社区版（开源版本）默认实现：不记录日志
 	// 企业实现会替换为完整实现，记录完整的操作日志（与企业版一样存储）
 	return &dto.CreateOperateLoggerResp{}, nil
+}
+
+// GetTableOperateLogs 查询 Table 操作日志（社区版空实现）
+// 社区版返回空结果，企业版会实现完整查询逻辑
+func (u *UnImplOperateLogger) GetTableOperateLogs(ctx context.Context, req *dto.GetTableOperateLogsReq) (*dto.GetTableOperateLogsResp, error) {
+	return &dto.GetTableOperateLogsResp{
+		Logs:     []interface{}{},
+		Total:    0,
+		Page:     req.Page,
+		PageSize: req.PageSize,
+	}, nil
+}
+
+// GetFormOperateLogs 查询 Form 操作日志（社区版空实现）
+// 社区版返回空结果，企业版会实现完整查询逻辑
+func (u *UnImplOperateLogger) GetFormOperateLogs(ctx context.Context, req *dto.GetFormOperateLogsReq) (*dto.GetFormOperateLogsResp, error) {
+	return &dto.GetFormOperateLogsResp{
+		Logs:     []interface{}{},
+		Total:    0,
+		Page:     req.Page,
+		PageSize: req.PageSize,
+	}, nil
 }

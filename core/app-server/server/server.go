@@ -45,7 +45,6 @@ type Server struct {
 	functionService               *service.FunctionService
 	functionGenService            *service.FunctionGenService
 	userService                   *service.UserService
-	operateLogService             *service.OperateLogService
 	directoryUpdateHistoryService *service.DirectoryUpdateHistoryService
 	permissionService             *service.PermissionService // ⭐ 权限管理服务
 	appRepo                       *repository.AppRepository  // ⭐ 应用仓储（用于其他服务）
@@ -414,8 +413,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	// 初始化用户服务
 	s.userService = service.NewUserService(userRepo)
 
-	// 初始化操作日志服务
-	s.operateLogService = service.NewOperateLogService(operateLogRepo)
+	// 操作日志服务已迁移到企业版，通过 enterprise.GetOperateLogger() 获取
 
 	// 初始化目录更新历史服务
 	s.directoryUpdateHistoryService = service.NewDirectoryUpdateHistoryService(directoryUpdateHistoryRepo, serviceTreeRepo)

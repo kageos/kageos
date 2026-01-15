@@ -48,7 +48,7 @@ bash scripts/git-sync-to-github.sh
 
 ### 项目级别配置（已设置）
 ```bash
-git config --local user.name "执念"
+git config --local user.name "洛北"
 git config --local user.email "1210227080@qq.com"
 ```
 
@@ -77,7 +77,7 @@ git remote add github git@github.com:ai-agent-os/ai-agent-os.git
 
 1. **不要修改全局 Git 配置**：项目使用项目级别配置，不会影响其他项目
 2. **主提交到公司账号**：公司项目使用全局配置（wb_liubeiluo <wb_liubeiluo@kuaishou.com>）
-3. **个人项目使用项目配置**：本项目使用项目级别配置（执念 <1210227080@qq.com>）
+3. **个人项目使用项目配置**：本项目使用项目级别配置（洛北 <1210227080@qq.com>）
 4. **Submodule 配置**：脚本会自动确保 Submodule 使用项目级别的 Git 配置
 
 ## 常见问题

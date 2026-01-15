@@ -56,12 +56,13 @@ export function findPathToNode(nodes: ServiceTree[], targetId: number | string):
  * 展开所有父节点（递归展开）
  * @param treeRef Element Plus Tree 组件的 ref
  * @param path 节点路径数组
+ * @param includeLastNode 是否包含路径中的最后一个节点（默认 false，只展开父节点）
  */
-export function expandParentNodes(treeRef: any, path: number[]): void {
+export function expandParentNodes(treeRef: any, path: number[], includeLastNode: boolean = false): void {
   if (path.length === 0 || !treeRef) return
   
-  // 展开所有父节点（最后一个节点不需要展开，只需选中）
-  const expandKeys = path.slice(0, -1)
+  // 展开所有节点（如果 includeLastNode 为 true，包含最后一个节点；否则只展开父节点）
+  const expandKeys = includeLastNode ? path : path.slice(0, -1)
   expandKeys.forEach((key: number) => {
     const node = treeRef.store.nodesMap[key]
     if (node && !node.expanded) {
@@ -276,6 +277,34 @@ export function waitForNodeExpansion(
       }
     }, 50)
   })
+}
+
+/**
+ * 展开路径（不选中节点）
+ * @param treeRef Element Plus Tree 组件的 ref
+ * @param path 节点路径数组
+ * @returns Promise，展开完成时 resolve
+ */
+export async function expandPathOnly(
+  treeRef: any,
+  path: number[]
+): Promise<void> {
+  if (!treeRef || path.length === 0) {
+    return
+  }
+  
+  // 展开路径中的所有节点（包括最后一个节点，如果它是可展开的）
+  // ⭐ 注意：这里展开所有节点，但不选中任何节点
+  expandParentNodes(treeRef, path, true)
+  
+  // 等待展开完成（较短的延迟，因为不需要选中节点）
+  await new Promise(resolve => setTimeout(resolve, 50))
+  
+  // 确保路径中的最后一个节点也被展开（如果它是可展开的）
+  if (path.length > 0) {
+    const lastNodeId = path[path.length - 1]
+    await waitForNodeExpansion(treeRef, lastNodeId, 100)
+  }
 }
 
 /**

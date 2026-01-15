@@ -34,6 +34,7 @@
         :props="{ children: 'children', label: 'name' }"
         node-key="id"
         :default-expand-all="false"
+        :default-expanded-keys="expandedKeys || []"
         :expand-on-click-node="false"
         :highlight-current="true"
         @node-click="handleNodeClick"
@@ -250,7 +251,8 @@ import {
   findPathToNode,
   expandParentNodes,
   findNodeByPath,
-  expandPathAndSelect
+  expandPathAndSelect,
+  expandPathOnly
 } from '@/utils/serviceTreeUtils'
 import { navigateToHubDirectoryDetail } from '@/utils/hub-navigation'
 import { hasPermission, hasAnyPermissionForNode, DirectoryPermissions, TablePermissions, buildPermissionApplyURL } from '@/utils/permission'
@@ -262,6 +264,7 @@ interface Props {
   loading?: boolean
   currentNodeId?: number | string | null
   currentFunction?: ServiceTree | null  // 当前选中的节点（用于判断是否可以克隆）
+  expandedKeys?: number[] // ⭐ 需要自动展开的节点ID列表（从后端返回）
 }
 
 interface Emits {
@@ -807,6 +810,80 @@ const getNodeIconClass = (data: ServiceTree) => {
   return 'function-icon'
   }
   
+// ⭐ 递归查找所有 pending_count > 0 的节点
+const findAllNodesWithPendingCount = (nodes: ServiceTree[]): ServiceTree[] => {
+  const result: ServiceTree[] = []
+  
+  const traverse = (nodeList: ServiceTree[]) => {
+    for (const node of nodeList) {
+      // 检查当前节点是否有 pending_count > 0
+      if (node.pending_count && node.pending_count > 0) {
+        result.push(node)
+      }
+      
+      // 递归处理子节点
+      if (node.children && node.children.length > 0) {
+        traverse(node.children)
+      }
+    }
+  }
+  
+  traverse(nodes)
+  return result
+}
+
+// ⭐ 自动展开所有 pending_count > 0 的节点及其父节点
+const expandNodesWithPendingCount = async (treeData: ServiceTree[]) => {
+  if (!treeRef.value || !treeData.length) {
+    return
+  }
+  
+  // 查找所有 pending_count > 0 的节点
+  const nodesWithPending = findAllNodesWithPendingCount(treeData)
+  
+  if (nodesWithPending.length === 0) {
+    return
+  }
+  
+  console.log(`[ServiceTreePanel] 找到 ${nodesWithPending.length} 个待审批节点，自动展开`)
+  
+  // 收集所有需要展开的节点 ID（包括节点本身及其所有父节点）
+  const expandNodeIds = new Set<number>()
+  
+  for (const node of nodesWithPending) {
+    const nodeId = Number(node.id)
+    // 找到从根到该节点的路径
+    const path = findPathToNode(treeData, nodeId)
+    // 将路径中的所有节点 ID 添加到展开集合中
+    path.forEach(id => expandNodeIds.add(id))
+  }
+  
+  // 展开所有收集到的节点
+  if (expandNodeIds.size > 0) {
+    const expandKeys = Array.from(expandNodeIds)
+    console.log(`[ServiceTreePanel] 展开 ${expandKeys.length} 个节点:`, expandKeys)
+    
+    // 使用 Element Plus Tree 的 setExpandedKeys 方法批量展开
+    await nextTick()
+    if (treeRef.value && treeRef.value.setExpandedKeys) {
+      treeRef.value.setExpandedKeys(expandKeys, false) // false 表示不触发 expand 事件
+    } else {
+      // 如果 setExpandedKeys 不可用，使用 expandPathAndSelect 逐个展开
+      for (const nodeId of expandKeys) {
+        const path = findPathToNode(treeData, nodeId)
+        if (path.length > 0) {
+          await expandPathAndSelect(
+            treeRef.value,
+            treeData,
+            path,
+            nodeId
+          )
+        }
+      }
+    }
+  }
+}
+
 // 展开多个路径
 const expandPaths = async (paths: string[]) => {
   if (!treeRef.value || !groupedTreeData.value.length) {
@@ -859,19 +936,154 @@ watch(() => props.currentNodeId, async (nodeId) => {
   }
 }, { immediate: true })
 
-// 🔥 监听服务树数据变化，如果 currentNodeId 存在但还没展开，重新尝试
-watch(() => groupedTreeData.value, async (newTreeData) => {
-  if (newTreeData.length > 0 && props.currentNodeId && treeRef.value) {
+// ⭐ 防重复展开标志
+let isExpanding = false
+let lastExpandedKeys: number[] = []
+
+// ⭐ 展开节点的辅助函数
+const expandKeysNow = async (keys: number[]) => {
+  if (keys.length === 0) {
+    return
+  }
+  
+  // ⭐ 防重复展开：如果正在展开或 keys 相同，跳过
+  const keysStr = JSON.stringify(keys.sort())
+  const lastKeysStr = JSON.stringify(lastExpandedKeys.sort())
+  if (isExpanding || keysStr === lastKeysStr) {
+    console.log('[ServiceTreePanel] 跳过重复展开:', {
+      isExpanding,
+      keysStr,
+      lastKeysStr,
+      isSame: keysStr === lastKeysStr
+    })
+    return
+  }
+  
+  isExpanding = true
+  lastExpandedKeys = [...keys]
+  
+  try {
+    if (!treeRef.value) {
+      console.warn('[ServiceTreePanel] treeRef.value 未初始化，等待...')
+      // 等待 treeRef 初始化
+      await nextTick()
+      await new Promise(resolve => setTimeout(resolve, 100))
+      if (!treeRef.value) {
+        console.error('[ServiceTreePanel] treeRef.value 仍未初始化，无法展开节点')
+        return
+      }
+    }
+    
+    if (!groupedTreeData.value.length) {
+      console.warn('[ServiceTreePanel] groupedTreeData 为空，等待数据加载...')
+      // 等待数据加载
+      await nextTick()
+      await new Promise(resolve => setTimeout(resolve, 100))
+      if (!groupedTreeData.value.length) {
+        console.error('[ServiceTreePanel] groupedTreeData 仍为空，无法展开节点')
+        return
+      }
+    }
+    
+    console.log(`[ServiceTreePanel] 准备展开 ${keys.length} 个节点:`, keys)
+    console.log('[ServiceTreePanel] treeRef.value 状态:', {
+      exists: !!treeRef.value,
+      hasSetExpandedKeys: !!(treeRef.value && treeRef.value.setExpandedKeys),
+      dataLength: groupedTreeData.value.length
+    })
+    
+    // 等待 DOM 渲染完成
     await nextTick()
+    await new Promise(resolve => setTimeout(resolve, 200)) // 给树组件一些时间渲染
+    
+    if (treeRef.value && treeRef.value.setExpandedKeys) {
+      try {
+        treeRef.value.setExpandedKeys(keys, false) // false 表示不触发 expand 事件
+        console.log(`[ServiceTreePanel] ✅ 已调用 setExpandedKeys，展开节点数:`, keys.length)
+      } catch (error) {
+        console.error('[ServiceTreePanel] setExpandedKeys 调用失败:', error)
+        // 回退方案：使用 expandPathOnly 批量展开（不选中节点，避免节点切换）
+        console.warn('[ServiceTreePanel] 回退到 expandPathOnly 方式')
+        // ⭐ 批量展开所有路径，而不是逐个展开，减少节点切换
+        const paths: number[][] = []
+        for (const nodeId of keys) {
+          const path = findPathToNode(groupedTreeData.value, nodeId)
+          if (path.length > 0) {
+            paths.push(path)
+          }
+        }
+        // 一次性展开所有路径（不选中节点）
+        for (const path of paths) {
+          await expandPathOnly(treeRef.value, path)
+        }
+      }
+    } else {
+      console.warn('[ServiceTreePanel] treeRef.value.setExpandedKeys 不可用，尝试使用 expandPathOnly')
+      // 回退方案：使用 expandPathOnly 批量展开（不选中节点，避免节点切换）
+      const paths: number[][] = []
+      for (const nodeId of keys) {
+        const path = findPathToNode(groupedTreeData.value, nodeId)
+        if (path.length > 0) {
+          paths.push(path)
+        }
+      }
+      // 一次性展开所有路径（不选中节点）
+      for (const path of paths) {
+        await expandPathOnly(treeRef.value, path)
+      }
+    }
+  } finally {
+    isExpanding = false
+  }
+}
+
+// 🔥 监听 expandedKeys 变化，自动展开节点
+watch(() => props.expandedKeys, async (keys: number[] | undefined, oldKeys: number[] | undefined) => {
+  if (keys && keys.length > 0) {
+    // ⭐ 防重复：如果 keys 和 oldKeys 相同，跳过
+    const keysStr = JSON.stringify(keys.sort())
+    const oldKeysStr = oldKeys ? JSON.stringify(oldKeys.sort()) : ''
+    if (keysStr === oldKeysStr) {
+      console.log('[ServiceTreePanel] expandedKeys 未变化，跳过展开')
+      return
+    }
+    
+    console.log(`[ServiceTreePanel] expandedKeys 变化:`, {
+      oldKeys: oldKeys?.length || 0,
+      newKeys: keys.length,
+      keys: keys
+    })
+    // 无论树数据是否已加载，都尝试展开（expandKeysNow 内部会等待）
+    await expandKeysNow(keys)
+  }
+}, { immediate: true })
+
+// 🔥 监听服务树数据变化，如果 currentNodeId 存在但还没展开，重新尝试
+watch(() => groupedTreeData.value, async (newTreeData: ServiceTree[]) => {
+  if (newTreeData.length > 0 && treeRef.value) {
+    await nextTick()
+    
+    // ⭐ 优先使用后端返回的 expanded_keys（如果存在）
+    if (props.expandedKeys && props.expandedKeys.length > 0) {
+      console.log(`[ServiceTreePanel] 服务树数据变化，使用后端返回的 expanded_keys，展开 ${props.expandedKeys.length} 个节点`)
+      await expandKeysNow(props.expandedKeys)
+    } else {
+      // ⭐ 如果没有后端返回的 expanded_keys，使用前端计算的方式（兼容旧逻辑）
+      await expandNodesWithPendingCount(newTreeData)
+    }
+    
+    // 如果 currentNodeId 存在，展开并选中当前节点
+    if (props.currentNodeId) {
       const path = findPathToNode(newTreeData, props.currentNodeId)
       if (path.length > 0) {
-      await expandPathAndSelect(
-        treeRef.value,
-        newTreeData,
-        path,
-        Number(props.currentNodeId)
-      )
+        await expandPathAndSelect(
+          treeRef.value,
+          newTreeData,
+          path,
+          Number(props.currentNodeId)
+        )
       }
+    }
   }
 })
 

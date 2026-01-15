@@ -1,33 +1,33 @@
-package service
+package repository
 
 import (
 	"context"
 	"fmt"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
+	"gorm.io/gorm"
 )
 
-// OperateLogService 操作日志服务
-type OperateLogService struct {
-	operateLogRepo *repository.OperateLogRepository
+// OperateLogRepository 操作日志仓库（企业版）
+type OperateLogRepository struct {
+	db *gorm.DB
 }
 
-// NewOperateLogService 创建操作日志服务
-func NewOperateLogService(operateLogRepo *repository.OperateLogRepository) *OperateLogService {
-	return &OperateLogService{
-		operateLogRepo: operateLogRepo,
+// NewOperateLogRepository 创建操作日志仓库
+func NewOperateLogRepository(db *gorm.DB) *OperateLogRepository {
+	return &OperateLogRepository{
+		db: db,
 	}
 }
 
 // GetTableOperateLogs 查询 Table 操作日志
-func (s *OperateLogService) GetTableOperateLogs(ctx context.Context, req *dto.GetTableOperateLogsReq) (*dto.GetTableOperateLogsResp, error) {
+func (r *OperateLogRepository) GetTableOperateLogs(ctx context.Context, req *dto.GetTableOperateLogsReq) ([]*model.TableOperateLog, int64, error) {
 	var logs []*model.TableOperateLog
 	var total int64
 
 	// 构建查询
-	query := s.operateLogRepo.GetDB().Model(&model.TableOperateLog{})
+	query := r.db.Model(&model.TableOperateLog{})
 
 	// 条件过滤
 	if req.TenantUser != "" {
@@ -51,7 +51,7 @@ func (s *OperateLogService) GetTableOperateLogs(ctx context.Context, req *dto.Ge
 
 	// 获取总数
 	if err := query.Count(&total).Error; err != nil {
-		return nil, fmt.Errorf("查询总数失败: %w", err)
+		return nil, 0, fmt.Errorf("查询总数失败: %w", err)
 	}
 
 	// 分页查询
@@ -69,24 +69,29 @@ func (s *OperateLogService) GetTableOperateLogs(ctx context.Context, req *dto.Ge
 
 	// 执行查询
 	if err := query.Find(&logs).Error; err != nil {
-		return nil, fmt.Errorf("查询操作日志失败: %w", err)
+		return nil, 0, fmt.Errorf("查询操作日志失败: %w", err)
 	}
 
-	return &dto.GetTableOperateLogsResp{
-		Logs: logs,
-		Total: total,
-		Page:  req.Page,
-		PageSize: req.PageSize,
-	}, nil
+	return logs, total, nil
+}
+
+// CreateTableOperateLog 创建 Table 操作日志
+func (r *OperateLogRepository) CreateTableOperateLog(log *model.TableOperateLog) error {
+	return r.db.Create(log).Error
+}
+
+// CreateFormOperateLog 创建 Form 操作日志
+func (r *OperateLogRepository) CreateFormOperateLog(log *model.FormOperateLog) error {
+	return r.db.Create(log).Error
 }
 
 // GetFormOperateLogs 查询 Form 操作日志
-func (s *OperateLogService) GetFormOperateLogs(ctx context.Context, req *dto.GetFormOperateLogsReq) (*dto.GetFormOperateLogsResp, error) {
+func (r *OperateLogRepository) GetFormOperateLogs(ctx context.Context, req *dto.GetFormOperateLogsReq) ([]*model.FormOperateLog, int64, error) {
 	var logs []*model.FormOperateLog
 	var total int64
 
 	// 构建查询
-	query := s.operateLogRepo.GetDB().Model(&model.FormOperateLog{})
+	query := r.db.Model(&model.FormOperateLog{})
 
 	// 条件过滤
 	if req.TenantUser != "" {
@@ -107,7 +112,7 @@ func (s *OperateLogService) GetFormOperateLogs(ctx context.Context, req *dto.Get
 
 	// 获取总数
 	if err := query.Count(&total).Error; err != nil {
-		return nil, fmt.Errorf("查询总数失败: %w", err)
+		return nil, 0, fmt.Errorf("查询总数失败: %w", err)
 	}
 
 	// 分页查询
@@ -125,14 +130,8 @@ func (s *OperateLogService) GetFormOperateLogs(ctx context.Context, req *dto.Get
 
 	// 执行查询
 	if err := query.Find(&logs).Error; err != nil {
-		return nil, fmt.Errorf("查询操作日志失败: %w", err)
+		return nil, 0, fmt.Errorf("查询操作日志失败: %w", err)
 	}
 
-	return &dto.GetFormOperateLogsResp{
-		Logs: logs,
-		Total: total,
-		Page:  req.Page,
-		PageSize: req.PageSize,
-	}, nil
+	return logs, total, nil
 }
-

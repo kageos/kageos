@@ -376,9 +376,13 @@ func (s *ServiceTreeService) GetAppWithServiceTree(ctx context.Context, req *dto
 		return nil, fmt.Errorf("获取服务目录树失败: %w", err)
 	}
 
+	// ⭐ 计算需要自动展开的节点ID列表（包含所有 pending_count > 0 的节点及其父节点）
+	expandedKeys := s.calculateExpandedKeys(serviceTreeResp)
+
 	return &dto.GetAppWithServiceTreeResp{
 		App:         appInfo,
 		ServiceTree: serviceTreeResp,
+		ExpandedKeys: expandedKeys,
 	}, nil
 }
 
@@ -864,6 +868,42 @@ func (s *ServiceTreeService) convertToGetServiceTreeResp(ctx context.Context, tr
 	}
 
 	return resp
+}
+
+// calculateExpandedKeys 计算需要自动展开的节点ID列表
+// ⭐ 包含所有 pending_count > 0 的节点及其所有父节点
+func (s *ServiceTreeService) calculateExpandedKeys(trees []*dto.GetServiceTreeResp) []int64 {
+	expandedKeysMap := make(map[int64]bool)
+	
+	// 递归查找所有 pending_count > 0 的节点，并收集其路径上的所有节点ID
+	var findNodesWithPending func(nodes []*dto.GetServiceTreeResp, parentPath []int64)
+	findNodesWithPending = func(nodes []*dto.GetServiceTreeResp, parentPath []int64) {
+		for _, node := range nodes {
+			currentPath := append(parentPath, node.ID)
+			
+			// 如果当前节点有 pending_count > 0，将路径上的所有节点ID添加到展开列表
+			if node.PendingCount > 0 {
+				for _, id := range currentPath {
+					expandedKeysMap[id] = true
+				}
+			}
+			
+			// 递归处理子节点
+			if len(node.Children) > 0 {
+				findNodesWithPending(node.Children, currentPath)
+			}
+		}
+	}
+	
+	findNodesWithPending(trees, []int64{})
+	
+	// 转换为切片
+	expandedKeys := make([]int64, 0, len(expandedKeysMap))
+	for id := range expandedKeysMap {
+		expandedKeys = append(expandedKeys, id)
+	}
+	
+	return expandedKeys
 }
 
 // calculatePermissions 计算权限（内部方法）
