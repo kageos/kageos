@@ -53,32 +53,30 @@ func (s *PermissionService) GetWorkspacePermissions(ctx context.Context, req *dt
 		}
 	}
 
-	// ⭐ 构建 v0 列表：用户名 + 组织架构路径 + 父级组织架构路径
-	v0List := []string{username}
-
 	// ⭐ 获取组织架构路径：优先使用请求参数，否则从 context 获取（向后兼容）
 	deptPath := req.DepartmentFullPath
 	if deptPath == "" {
 		deptPath = contextx.GetRequestDepartmentFullPath(ctx)
 	}
 
+	// ⭐ 计算组织架构路径及其所有父级路径（用于日志记录）
+	var deptPaths []string
 	if deptPath != "" {
-		// 添加用户所属组织架构路径及其所有父级路径
-		deptPaths := s.getAllParentDeptPaths(deptPath)
-		v0List = append(v0List, deptPaths...)
-
-		logger.Debugf(ctx, "[PermissionService] 查询权限: user=%s, deptPath=%s, parentPaths=%v, v0List=%v",
-			username, deptPath, deptPaths, v0List)
+		deptPaths = s.getAllParentDeptPaths(deptPath)
+		logger.Debugf(ctx, "[PermissionService] 查询权限: user=%s, deptPath=%s, parentPaths=%v",
+			username, deptPath, deptPaths)
 	} else {
 		logger.Debugf(ctx, "[PermissionService] 用户无组织架构信息: user=%s，仅查询用户直接权限", username)
 	}
 
 	// ⭐ 直接使用 user 和 app，无需查询 app 表（性能优化）
+	// ⭐ 注意：DepartmentPath 只需要传递当前路径，GetUserWorkspacePermissions 内部会重新计算所有父级路径
+	// ⭐ 这样可以确保父级路径的计算逻辑统一（在 getUserRolePermissions 中处理）
 	enterpriseReq := &enterprise.GetUserWorkspacePermissionsReq{
 		User:           req.User,
 		App:            req.App,
 		Username:       username,
-		DepartmentPath: deptPath,
+		DepartmentPath: deptPath, // ⭐ 只传递当前路径，父级路径在内部计算
 	}
 
 	enterpriseResp, err := s.permissionService.GetUserWorkspacePermissions(ctx, enterpriseReq)

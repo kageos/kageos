@@ -20,14 +20,6 @@ type Plugin struct {
 	cfg     *config.AgentServerConfig
 }
 
-// getNatsHost 获取 NATS 地址（从全局配置读取，返回完整 URL）
-func (h *Plugin) getNatsHost() string {
-	globalConfig := config.GetGlobalSharedConfig()
-	if globalConfig.Nats.URL != "" {
-		return globalConfig.Nats.URL
-	}
-	return "nats://127.0.0.1:4222" // 默认值
-}
 
 // NewPlugin 创建插件 API 处理器
 func NewPlugin(service *service.PluginService, cfg *config.AgentServerConfig) *Plugin {
@@ -81,8 +73,7 @@ func (h *Plugin) List(c *gin.Context) {
 			Code:        plugin.Code,
 			Description: plugin.Description,
 			Enabled:     plugin.Enabled,
-			Subject:     plugin.Subject,
-			NatsHost:    h.getNatsHost(),
+			FormPath:    plugin.FormPath,
 			Config:      plugin.Config,
 			User:        plugin.User,
 			Visibility:  plugin.Visibility,
@@ -150,8 +141,7 @@ func (h *Plugin) Create(c *gin.Context) {
 		Code:        plugin.Code,
 		Description: plugin.Description,
 		Enabled:     plugin.Enabled,
-		Subject:     plugin.Subject,
-		NatsHost:    h.getNatsHost(),
+		FormPath:    plugin.FormPath,
 		Config:      plugin.Config,
 		User:        plugin.User,
 		CreatedAt:   time.Time(plugin.CreatedAt).Format("2006-01-02T15:04:05Z"),
@@ -211,6 +201,7 @@ func (h *Plugin) Update(c *gin.Context) {
 	plugin.Code = req.Code
 	plugin.Description = req.Description
 	plugin.Enabled = req.Enabled
+	plugin.FormPath = req.FormPath
 	plugin.Config = req.Config
 
 	if err = h.service.UpdatePlugin(ctx, plugin); err != nil {
@@ -223,8 +214,7 @@ func (h *Plugin) Update(c *gin.Context) {
 		Code:        plugin.Code,
 		Description: plugin.Description,
 		Enabled:     plugin.Enabled,
-		Subject:     plugin.Subject,
-		NatsHost:    h.getNatsHost(),
+		FormPath:    plugin.FormPath,
 		Config:      plugin.Config,
 		User:        plugin.User,
 		CreatedAt:   time.Time(plugin.CreatedAt).Format("2006-01-02T15:04:05Z"),
@@ -277,8 +267,7 @@ func (h *Plugin) Get(c *gin.Context) {
 		Code:        plugin.Code,
 		Description: plugin.Description,
 		Enabled:     plugin.Enabled,
-		Subject:     plugin.Subject,
-		NatsHost:    h.getNatsHost(),
+		FormPath:    plugin.FormPath,
 		Config:      plugin.Config,
 		User:        plugin.User,
 		CreatedAt:   time.Time(plugin.CreatedAt).Format("2006-01-02T15:04:05Z"),

@@ -21,9 +21,14 @@ func (c *PermissionCalculator) getUserRolePermissions(
 		{Type: "user", Value: username},
 	}
 
-	// 添加组织架构路径及其所有父级路径
+	// ⭐ 添加组织架构路径及其所有父级路径
+	// ⭐ 修复：确保所有父级路径都被正确使用，包括当前路径和所有父级路径
+	// ⭐ 数据库存储的是完整路径（如 /org/master/bizit），直接处理完整路径
 	if departmentPath != "" {
 		deptPaths := getAllParentDeptPathsForRole(departmentPath)
+		// ⭐ 调试日志：确认所有父级路径都被正确计算和使用
+		// logger.Debugf(ctx, "[PermissionCalculator] 查询组织架构权限: departmentPath=%s, deptPaths=%v, subjects_count=%d", 
+		// 	departmentPath, deptPaths, len(subjects)+len(deptPaths))
 		for _, path := range deptPaths {
 			subjects = append(subjects, permissionrepo.SubjectInfo{
 				Type:  "department",
@@ -71,28 +76,32 @@ func (c *PermissionCalculator) getUserRolePermissions(
 }
 
 // getAllParentDeptPathsForRole 获取组织架构路径及其所有父级路径（角色系统专用）
+// ⭐ 修复：统一实现，确保所有父级路径都被正确使用
 // 例如：/org/master/bizit → ["/org/master/bizit", "/org/master", "/org"]
+// 例如：/tech/backend → ["/tech/backend", "/tech"]
 func getAllParentDeptPathsForRole(departmentPath string) []string {
 	if departmentPath == "" {
 		return []string{}
 	}
 
-	// 移除开头的 /org
-	path := departmentPath
-	if strings.HasPrefix(path, "/org") {
-		path = path[4:] // 移除 "/org"
+	// ⭐ 统一实现：不假设路径格式，直接处理所有路径
+	// 移除开头的斜杠
+	path := strings.TrimPrefix(departmentPath, "/")
+	if path == "" {
+		return []string{}
 	}
 
 	// 分割路径
-	parts := strings.Split(strings.Trim(path, "/"), "/")
+	parts := strings.Split(path, "/")
 	if len(parts) == 0 {
 		return []string{}
 	}
 
-	// 构建所有父级路径
+	// ⭐ 构建所有父级路径（包括自身）
+	// 例如：/org/master/bizit → ["/org/master/bizit", "/org/master", "/org"]
 	parentPaths := make([]string, 0, len(parts))
 	for i := 1; i <= len(parts); i++ {
-		parentPath := "/org" + "/" + strings.Join(parts[:i], "/")
+		parentPath := "/" + strings.Join(parts[:i], "/")
 		parentPaths = append(parentPaths, parentPath)
 	}
 

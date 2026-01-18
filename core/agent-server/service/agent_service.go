@@ -183,12 +183,10 @@ func (s *AgentService) UpdateAgent(ctx context.Context, agent *model.Agent) erro
 			}
 			return fmt.Errorf("验证插件失败: %w", err)
 		}
-		// 新架构中，plugin 类型使用 Plugin.Subject，不需要 MsgSubject
-		agent.MsgSubject = ""
+		// plugin 类型已关联插件，无需其他操作
 	} else {
-		// 非 plugin 类型，清空 PluginID 和 MsgSubject
+		// 非 plugin 类型，清空 PluginID
 		agent.PluginID = nil
-		agent.MsgSubject = ""
 	}
 
 	// 规范化 metadata 字段
