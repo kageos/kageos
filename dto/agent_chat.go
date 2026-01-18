@@ -1,5 +1,9 @@
 package dto
 
+import (
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
+)
+
 // AgentChatReq 智能体聊天请求
 type AgentChatReq struct {
 	AgentID   int64  `json:"agent_id" binding:"required" example:"1"` // 智能体ID
@@ -95,6 +99,19 @@ type PluginRunReq struct {
 type PluginRunResp struct {
 	Data  string `json:"data" example:"工单标题,问题描述,优先级,工单状态\n工单1,描述1,低,待处理"` // 处理后的数据（格式化后的文本，供LLM理解）
 	Error string `json:"error,omitempty" example:"文件解析失败: 读取 CSV 行失败"`              // 错误信息（如果有），如果设置了此字段，表示插件处理失败，不应调用 LLM
+}
+
+// AgentPluginFormReq 智能体插件场景的 Form API 请求（固定格式）
+// 用于调用 Form API 时的请求结构
+type AgentPluginFormReq struct {
+	Message    string       `json:"message,omitempty"`     // 文本输入（可选）
+	InputFiles *types.Files `json:"input_files,omitempty"` // 文件输入（可选）
+}
+
+// AgentPluginFormResp 智能体插件场景的 Form API 响应（固定格式）
+// 用于调用 Form API 时的响应结构
+type AgentPluginFormResp struct {
+	Result string `json:"result"` // 文本输出
 }
 
 // ChatSessionListReq 获取会话列表请求

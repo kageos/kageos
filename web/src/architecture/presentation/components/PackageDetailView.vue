@@ -546,6 +546,8 @@
         
         <el-form-item label="管理员" prop="admins">
           <UsersWidget
+            v-if="editDialogVisible"
+            :key="`admins-${editForm.admins || 'empty'}`"
             :field="adminsField"
             :value="editAdminsFieldValue"
             :field-path="adminsField.code"

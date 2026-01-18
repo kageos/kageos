@@ -21,14 +21,6 @@ type Agent struct {
 	cfg     *config.AgentServerConfig
 }
 
-// getNatsHost 获取 NATS 地址（从全局配置读取，返回完整 URL）
-func (h *Agent) getNatsHost() string {
-	globalConfig := config.GetGlobalSharedConfig()
-	if globalConfig.Nats.URL != "" {
-		return globalConfig.Nats.URL
-	}
-	return "nats://127.0.0.1:4222" // 默认值
-}
 
 // NewAgent 创建智能体 API 处理器
 func NewAgent(service *service.AgentService, cfg *config.AgentServerConfig) *Agent {
@@ -139,8 +131,7 @@ func (h *Agent) List(c *gin.Context) {
 				Code:        agent.Plugin.Code,
 				Description: agent.Plugin.Description,
 				Enabled:     agent.Plugin.Enabled,
-				Subject:     agent.Plugin.Subject,
-				NatsHost:    h.getNatsHost(),
+				FormPath:    agent.Plugin.FormPath,
 				Config:      agent.Plugin.Config,
 				User:        agent.Plugin.User,
 				CreatedAt:   time.Time(agent.Plugin.CreatedAt).Format("2006-01-02T15:04:05Z"),
@@ -244,23 +235,22 @@ func (h *Agent) Get(c *gin.Context) {
 		}
 	}
 
-	// 构建插件信息（如果已预加载）
-	var pluginInfo *dto.PluginInfo
-	if agent.Plugin != nil && agent.Plugin.ID > 0 {
-		pluginInfo = &dto.PluginInfo{
-			ID:          agent.Plugin.ID,
-			Name:        agent.Plugin.Name,
-			Code:        agent.Plugin.Code,
-			Description: agent.Plugin.Description,
-			Enabled:     agent.Plugin.Enabled,
-			Subject:     agent.Plugin.Subject,
-			NatsHost:    h.getNatsHost(),
-			Config:      agent.Plugin.Config,
-			User:        agent.Plugin.User,
-			CreatedAt:   time.Time(agent.Plugin.CreatedAt).Format("2006-01-02T15:04:05Z"),
-			UpdatedAt:   time.Time(agent.Plugin.UpdatedAt).Format("2006-01-02T15:04:05Z"),
+		// 构建插件信息（如果已预加载）
+		var pluginInfo *dto.PluginInfo
+		if agent.Plugin != nil && agent.Plugin.ID > 0 {
+			pluginInfo = &dto.PluginInfo{
+				ID:          agent.Plugin.ID,
+				Name:        agent.Plugin.Name,
+				Code:        agent.Plugin.Code,
+				Description: agent.Plugin.Description,
+				Enabled:     agent.Plugin.Enabled,
+				FormPath:    agent.Plugin.FormPath,
+				Config:      agent.Plugin.Config,
+				User:        agent.Plugin.User,
+				CreatedAt:   time.Time(agent.Plugin.CreatedAt).Format("2006-01-02T15:04:05Z"),
+				UpdatedAt:   time.Time(agent.Plugin.UpdatedAt).Format("2006-01-02T15:04:05Z"),
+			}
 		}
-	}
 
 	resp = &dto.AgentGetResp{
 		AgentInfo: dto.AgentInfo{

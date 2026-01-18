@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -112,6 +113,7 @@ func (s *ServiceTreeService) generateInitFile(packageDir string, serviceTree *dt
 	}
 
 	// 生成init_.go文件内容（新格式：使用PackageContext）
+	// 使用 strconv.Quote 转义字符串，防止特殊字符破坏代码
 	content := fmt.Sprintf(`package %s
 
 import (
@@ -119,9 +121,11 @@ import (
 )
 
 var packageContext = &app.PackageContext{
-	RouterGroup: "%s",
+	RouterGroup: %s,
+	Name:        %s,
+	Desc:        %s,
 }
-`, serviceTree.Code, routerGroup)
+`, serviceTree.Code, strconv.Quote(routerGroup), strconv.Quote(serviceTree.Name), strconv.Quote(serviceTree.Description))
 
 	// 写入文件
 	initFilePath := filepath.Join(packageDir, "init_.go")
@@ -713,6 +717,7 @@ func (s *ServiceTreeService) generateInitFileForPath(
 	}
 
 	// 生成 init_.go 文件内容（新格式：使用PackageContext）
+	// 使用 strconv.Quote 转义字符串，防止特殊字符破坏代码
 	content := fmt.Sprintf(`package %s
 
 import (
@@ -720,9 +725,11 @@ import (
 )
 
 var packageContext = &app.PackageContext{
-	RouterGroup: "%s",
+	RouterGroup: %s,
+	Name:        %s,
+	Desc:        %s,
 }
-`, dirCode, routerGroup)
+`, dirCode, strconv.Quote(routerGroup), strconv.Quote(item.Name), strconv.Quote(item.Description))
 
 	// 写入文件
 	initFilePath := filepath.Join(packageDir, "init_.go")

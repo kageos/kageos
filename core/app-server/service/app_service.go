@@ -540,8 +540,16 @@ func (a *AppService) createServiceTreesForAPIs(ctx context.Context, appID int64,
 			parentID = parent.ID
 		}
 
+		// 获取父节点的 Admins（如果有父节点）
+		var parentAdmins string
+		if parentID > 0 {
+			if parent, exists := parentNodes[parentPath]; exists {
+				parentAdmins = parent.Admins
+			}
+		}
+
 		// 创建function节点，使用Function的ID作为RefID
-		treeID, err := a.createFunctionNode(appID, parentID, api, functions[i].ID)
+		treeID, err := a.createFunctionNode(ctx, appID, parentID, api, functions[i].ID, parentAdmins)
 		if err != nil {
 			return fmt.Errorf("创建function节点失败: %w", err)
 		}
@@ -569,7 +577,7 @@ func (a *AppService) createServiceTreesForAPIs(ctx context.Context, appID int64,
 }
 
 // createFunctionNode 创建function节点，返回创建的TreeID
-func (a *AppService) createFunctionNode(appID int64, parentID int64, api *dto.ApiInfo, functionID int64) (int64, error) {
+func (a *AppService) createFunctionNode(ctx context.Context, appID int64, parentID int64, api *dto.ApiInfo, functionID int64, parentAdmins string) (int64, error) {
 	// 检查是否已存在（full_name_path全局唯一）
 	existingNode, err := a.serviceTreeRepo.GetServiceTreeByFullPath(api.FullCodePath)
 	if err == nil {
@@ -608,6 +616,15 @@ func (a *AppService) createFunctionNode(appID int64, parentID int64, api *dto.Ap
 		return 0, fmt.Errorf("获取应用信息失败: %w", err)
 	}
 
+	// 获取创建者用户名
+	requestUser := contextx.GetRequestUser(ctx)
+
+	// 确定 Admins 字段：优先使用父节点的 Admins，如果没有父节点或父节点没有 Admins，则使用当前用户
+	admins := parentAdmins
+	if admins == "" && requestUser != "" {
+		admins = requestUser
+	}
+
 	// 创建新的function节点，预加载完整的app对象
 	serviceTree := &model.ServiceTree{
 		AppID:            appID,
@@ -621,6 +638,12 @@ func (a *AppService) createFunctionNode(appID int64, parentID int64, api *dto.Ap
 		FullCodePath:     api.FullCodePath,       // 直接使用api.FullCodePath，不需要重新计算
 		AddVersionNum:    app.GetVersionNumber(), // 设置添加版本号
 		UpdateVersionNum: 0,                      // 新增节点，更新版本号为0
+		Admins:           admins,                 // 设置管理员列表（从父节点继承，或使用当前用户）
+	}
+
+	// 设置创建者
+	if requestUser != "" {
+		serviceTree.CreatedBy = requestUser
 	}
 
 	if len(api.Tags) > 0 {
@@ -714,14 +737,16 @@ func (a *AppService) updateServiceTreesForAPIs(ctx context.Context, appID int64,
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				// 如果不存在，创建新的节点（这种情况不应该发生，但为了容错处理）
 				var parentID int64 = 0
+				var parentAdmins string
 				parentPath := api.GetParentFullCodePath()
 				if parentPath != "" {
 					parent, exists := parentNodes[parentPath]
 					if exists {
 						parentID = parent.ID
+						parentAdmins = parent.Admins
 					}
 				}
-				treeID, err := a.createFunctionNode(appID, parentID, api, functions[i].ID)
+				treeID, err := a.createFunctionNode(ctx, appID, parentID, api, functions[i].ID, parentAdmins)
 				if err != nil {
 					return fmt.Errorf("创建function节点失败: %w", err)
 				}

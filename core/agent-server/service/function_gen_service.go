@@ -9,18 +9,19 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/pkg/msgx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
 	"github.com/nats-io/nats.go"
 )
 
 // FunctionGenService 函数生成服务
-// 负责调用 plugin 处理输入，以及发布函数生成结果到 app-server（通过 HTTP）
+// 负责调用 plugin 处理输入（通过 Form API），以及发布函数生成结果到 app-server（通过 NATS）
 type FunctionGenService struct {
-	natsConn        *nats.Conn
+	natsConn        *nats.Conn // NATS 连接，用于发布结果
 	cfg             *config.AgentServerConfig
 	functionGenRepo *repository.FunctionGenRepository
 }
@@ -45,13 +46,9 @@ func (s *FunctionGenService) RunPlugin(ctx context.Context, agent *model.Agent, 
 		return nil, fmt.Errorf("智能体类型不是 plugin，无法调用插件")
 	}
 
-	// 2. 获取插件信息
+	// 2. 验证插件是否已关联
 	if agent.PluginID == nil || *agent.PluginID == 0 {
-		// 向后兼容：如果没有关联插件，使用旧的逻辑
-		pluginSubject := subjects.BuildAgentPluginRunSubject(agent.ChatType, agent.CreatedBy, agent.ID)
-		logger.Warnf(ctx, "[FunctionGenService] 智能体未关联插件，使用旧的插件主题 - Subject: %s, AgentID: %d, TraceID: %s",
-			pluginSubject, agent.ID, traceId)
-		return s.callPlugin(ctx, pluginSubject, agent.ID, req, traceId)
+		return nil, fmt.Errorf("智能体未关联插件，请先关联插件")
 	}
 
 	// 3. 验证插件是否已预加载
@@ -64,42 +61,66 @@ func (s *FunctionGenService) RunPlugin(ctx context.Context, agent *model.Agent, 
 		return nil, fmt.Errorf("插件已禁用: PluginID=%d", plugin.ID)
 	}
 
-	// 4. 使用插件的主题
-	pluginSubject := plugin.Subject
-	if pluginSubject == "" {
-		return nil, fmt.Errorf("插件主题为空: PluginID=%d", plugin.ID)
+	// 4. 验证 FormPath
+	if plugin.FormPath == "" {
+		return nil, fmt.Errorf("插件 FormPath 为空: PluginID=%d", plugin.ID)
 	}
 
-	logger.Infof(ctx, "[FunctionGenService] 开始调用 Plugin - Subject: %s, PluginID: %d, AgentID: %d, MessageLength: %d, FilesCount: %d, TraceID: %s",
-		pluginSubject, plugin.ID, agent.ID, len(req.Message), len(req.Files), traceId)
+	logger.Infof(ctx, "[FunctionGenService] 开始调用 Plugin - FormPath: %s, PluginID: %d, AgentID: %d, MessageLength: %d, FilesCount: %d, TraceID: %s",
+		plugin.FormPath, plugin.ID, agent.ID, len(req.Message), len(req.Files), traceId)
 
-	return s.callPlugin(ctx, pluginSubject, agent.ID, req, traceId)
+	return s.callFormAPI(ctx, plugin.FormPath, req, traceId)
 }
 
-// callPlugin 调用插件的通用方法
-func (s *FunctionGenService) callPlugin(ctx context.Context, pluginSubject string, agentID int64, req *dto.PluginRunReq, traceId string) (*dto.PluginRunResp, error) {
+// callFormAPI 调用 Form API 的通用方法
+func (s *FunctionGenService) callFormAPI(ctx context.Context, formPath string, req *dto.PluginRunReq, traceId string) (*dto.PluginRunResp, error) {
+	// 1. 构建 Form 请求体（智能体插件场景使用固定格式）
+	formReq := &dto.AgentPluginFormReq{
+		Message: req.Message,
+	}
 
-	// 调用插件（使用 NATS Request/Reply 模式）
-	var pluginResp dto.PluginRunResp
-	// 默认 NATS 超时时间：600 秒
-	timeout := 600 * time.Second
-	logger.Debugf(ctx, "[FunctionGenService] 发送 NATS 请求 - Subject: %s, Timeout: %v, TraceID: %s",
-		pluginSubject, timeout, traceId)
+	// 2. 转换文件列表
+	if len(req.Files) > 0 {
+		files := make([]*types.File, 0, len(req.Files))
+		for _, f := range req.Files {
+			files = append(files, &types.File{
+				Url:         f.Url,
+				Description: f.Remark, // 将 Remark 映射到 Description
+			})
+		}
+		formReq.InputFiles = &types.Files{
+			Files: files,
+		}
+	}
 
+	// 3. 构建请求头
+	header := &apicall.Header{
+		TraceID:     traceId,
+		RequestUser: contextx.GetRequestUser(ctx),
+		Token:       contextx.GetToken(ctx),
+	}
+
+	// 4. 调用 Form API（智能体插件场景使用固定格式）
 	startTime := time.Now()
-	_, err := msgx.RequestMsgWithTimeout(ctx, s.natsConn, pluginSubject, req, &pluginResp, timeout)
+	logger.Debugf(ctx, "[FunctionGenService] 发送 Form API 请求 - FormPath: %s, TraceID: %s", formPath, traceId)
+
+	resp, err := apicall.CallFormAPI[dto.AgentPluginFormReq, dto.AgentPluginFormResp](header, formPath, *formReq)
 	duration := time.Since(startTime)
 
 	if err != nil {
-		logger.Errorf(ctx, "[FunctionGenService] 调用插件失败 - Subject: %s, AgentID: %d, Duration: %v, TraceID: %s, Error: %v",
-			pluginSubject, agentID, duration, traceId, err)
-		return nil, fmt.Errorf("调用 plugin 失败: %w", err)
+		logger.Errorf(ctx, "[FunctionGenService] 调用 Form API 失败 - FormPath: %s, Duration: %v, TraceID: %s, Error: %v",
+			formPath, duration, traceId, err)
+		return &dto.PluginRunResp{
+			Error: err.Error(),
+		}, nil
 	}
 
-	logger.Infof(ctx, "[FunctionGenService] 插件执行成功 - Subject: %s, AgentID: %d, DataLength: %d, Duration: %v, TraceID: %s",
-		pluginSubject, agentID, len(pluginResp.Data), duration, traceId)
+	logger.Infof(ctx, "[FunctionGenService] Form API 调用成功 - FormPath: %s, DataLength: %d, Duration: %v, TraceID: %s",
+		formPath, len(resp.Result), duration, traceId)
 
-	return &pluginResp, nil
+	return &dto.PluginRunResp{
+		Data: resp.Result,
+	}, nil
 }
 
 // PublishResult 发布函数生成结果到 NATS

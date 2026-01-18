@@ -15,6 +15,8 @@ import (
 
 type PackageContext struct {
 	RouterGroup string `json:"router_group"`
+	Name        string `json:"name,omitempty"` // 包名称（可选）
+	Desc        string `json:"desc,omitempty"` // 包描述（可选）
 }
 
 // RegisterOptions 路由注册选项

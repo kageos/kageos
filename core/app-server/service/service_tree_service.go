@@ -839,6 +839,7 @@ func (s *ServiceTreeService) convertToGetServiceTreeResp(ctx context.Context, tr
 	}
 
 	// ⭐ 设置权限信息
+	// ⭐ 确保所有节点都有权限信息，即使权限功能未启用或查询失败
 	if tree.FullCodePath != "" {
 		if permissionsMap != nil {
 			if nodePerms, ok := permissionsMap[tree.FullCodePath]; ok {
@@ -850,8 +851,12 @@ func (s *ServiceTreeService) convertToGetServiceTreeResp(ctx context.Context, tr
 			}
 		} else {
 			// ⭐ 如果 permissionsMap 为 nil（权限功能未启用或查询失败），也初始化为空 map
+			// ⭐ 确保所有节点都有权限字段，方便前端判断
 			resp.Permissions = make(map[string]bool)
 		}
+	} else {
+		// ⭐ 即使 FullCodePath 为空，也初始化权限字段
+		resp.Permissions = make(map[string]bool)
 	}
 
 	// 递归处理子节点
