@@ -281,7 +281,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	s.functionGroupAgentRepo = repository.NewFunctionGroupAgentRepository(s.db)
 
 	// 初始化 Service
-	s.agentService = service.NewAgentService(s.agentRepo, s.pluginRepo, s.knowledgeRepo)
+	s.agentService = service.NewAgentService(s.agentRepo, s.knowledgeRepo)
 	s.pluginService = service.NewPluginService(s.pluginRepo)
 	s.knowledgeService = service.NewKnowledgeService(s.knowledgeRepo)
 	s.llmService = service.NewLLMService(s.llmRepo)

@@ -258,7 +258,7 @@ async function handleFileSelect(file: File): Promise<void> {
     
     // 通知后端上传完成
     if (uploadResult.fileInfo) {
-      const downloadUrl = await notifyUploadComplete({
+      const completeResult = await notifyUploadComplete({
         key: uploadResult.fileInfo.key,
         success: true,
         router: uploadResult.fileInfo.router,
@@ -268,6 +268,7 @@ async function handleFileSelect(file: File): Promise<void> {
         hash: uploadResult.fileInfo.hash,
       })
       
+      const downloadUrl = completeResult?.download_url
       if (downloadUrl) {
         fileUrl.value = downloadUrl
         emit('update:modelValue', downloadUrl)

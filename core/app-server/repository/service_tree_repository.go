@@ -353,3 +353,49 @@ func (r *ServiceTreeRepository) GetDescendantDirectories(appID int64, parentFull
 
 	return result, nil
 }
+
+// SearchFunctions 搜索函数（支持按名称、路径、类型过滤）
+func (r *ServiceTreeRepository) SearchFunctions(user, app, keyword, templateType string, page, pageSize int) ([]*model.ServiceTree, int64, error) {
+	var functions []*model.ServiceTree
+	var total int64
+
+	// 构建查询
+	query := r.db.Model(&model.ServiceTree{}).
+		Where("service_tree.type = ?", model.ServiceTreeTypeFunction)
+
+	// 如果指定了 user 和 app，需要先获取 app_id
+	if user != "" && app != "" {
+		// 需要关联 app 表来过滤（表名是 app，不是 apps）
+		query = query.Joins("JOIN app ON service_tree.app_id = app.id").
+			Where("app.user = ? AND app.code = ?", user, app)
+	}
+
+	// 模板类型过滤
+	if templateType != "" {
+		query = query.Where("service_tree.template_type = ?", templateType)
+	}
+
+	// 关键词搜索（名称或路径）
+	if keyword != "" {
+		keywordPattern := "%" + keyword + "%"
+		query = query.Where("service_tree.name LIKE ? OR service_tree.full_code_path LIKE ?", keywordPattern, keywordPattern)
+	}
+
+	// 获取总数
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 分页查询
+	offset := (page - 1) * pageSize
+	if err := query.
+		Preload("App").
+		Offset(offset).
+		Limit(pageSize).
+		Order("service_tree.created_at DESC").
+		Find(&functions).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return functions, total, nil
+}

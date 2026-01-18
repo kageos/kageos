@@ -25,7 +25,6 @@ func (r *AgentRepository) Create(agent *model.Agent) error {
 func (r *AgentRepository) GetByID(id int64) (*model.Agent, error) {
 	var agent model.Agent
 	if err := r.db.
-		Preload("Plugin").
 		Preload("KnowledgeBase").
 		Preload("LLMConfig").
 		Where("id = ?", id).
@@ -75,8 +74,8 @@ func (r *AgentRepository) List(req dto.AgentListReq, currentUser string) ([]*mod
 		dbQuery = dbQuery.Where("llm_config_id = ?", *req.LLMConfigID)
 	}
 
-	if req.PluginID != nil && *req.PluginID > 0 {
-		dbQuery = dbQuery.Where("plugin_id = ?", *req.PluginID)
+	if req.PluginFunctionPath != "" {
+		dbQuery = dbQuery.Where("plugin_function_path = ?", req.PluginFunctionPath)
 	}
 
 	// 获取总数
@@ -86,7 +85,6 @@ func (r *AgentRepository) List(req dto.AgentListReq, currentUser string) ([]*mod
 
 	// 获取列表（预加载关联数据）
 	if err := dbQuery.
-		Preload("Plugin").
 		Preload("KnowledgeBase").
 		Preload("LLMConfig").
 		Offset(offset).

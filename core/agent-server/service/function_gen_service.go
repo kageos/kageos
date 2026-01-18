@@ -14,7 +14,6 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
 	"github.com/nats-io/nats.go"
 )
 
@@ -46,63 +45,51 @@ func (s *FunctionGenService) RunPlugin(ctx context.Context, agent *model.Agent, 
 		return nil, fmt.Errorf("智能体类型不是 plugin，无法调用插件")
 	}
 
-	// 2. 验证插件是否已关联
-	if agent.PluginID == nil || *agent.PluginID == 0 {
-		return nil, fmt.Errorf("智能体未关联插件，请先关联插件")
+	// 2. 验证 PluginFunctionPath
+	if agent.PluginFunctionPath == "" {
+		return nil, fmt.Errorf("智能体未指定插件函数路径，请先配置 PluginFunctionPath")
 	}
 
-	// 3. 验证插件是否已预加载
-	if agent.Plugin == nil {
-		return nil, fmt.Errorf("插件信息未预加载，请确保 AgentRepository.GetByID 预加载了 Plugin")
+	filesCount := 0
+	if req.Files != nil {
+		filesCount = len(req.Files.Files)
 	}
+	logger.Infof(ctx, "[FunctionGenService] 开始调用 Form API - PluginFunctionPath: %s, AgentID: %d, ContentLength: %d, FilesCount: %d, TraceID: %s",
+		agent.PluginFunctionPath, agent.ID, len(req.Content), filesCount, traceId)
 
-	plugin := agent.Plugin
-	if !plugin.Enabled {
-		return nil, fmt.Errorf("插件已禁用: PluginID=%d", plugin.ID)
-	}
-
-	// 4. 验证 FormPath
-	if plugin.FormPath == "" {
-		return nil, fmt.Errorf("插件 FormPath 为空: PluginID=%d", plugin.ID)
-	}
-
-	logger.Infof(ctx, "[FunctionGenService] 开始调用 Plugin - FormPath: %s, PluginID: %d, AgentID: %d, MessageLength: %d, FilesCount: %d, TraceID: %s",
-		plugin.FormPath, plugin.ID, agent.ID, len(req.Message), len(req.Files), traceId)
-
-	return s.callFormAPI(ctx, plugin.FormPath, req, traceId)
+	return s.callFormAPI(ctx, agent.PluginFunctionPath, req, traceId)
 }
 
 // callFormAPI 调用 Form API 的通用方法
 func (s *FunctionGenService) callFormAPI(ctx context.Context, formPath string, req *dto.PluginRunReq, traceId string) (*dto.PluginRunResp, error) {
 	// 1. 构建 Form 请求体（智能体插件场景使用固定格式）
 	formReq := &dto.AgentPluginFormReq{
-		Message: req.Message,
+		Content: req.Content,
 	}
 
-	// 2. 转换文件列表
-	if len(req.Files) > 0 {
-		files := make([]*types.File, 0, len(req.Files))
-		for _, f := range req.Files {
-			files = append(files, &types.File{
-				Url:         f.Url,
-				Description: f.Remark, // 将 Remark 映射到 Description
-			})
-		}
-		formReq.InputFiles = &types.Files{
-			Files: files,
-		}
+	// 2. 直接使用 types.Files（无需转换）
+	if req.Files != nil {
+		formReq.InputFiles = req.Files
 	}
 
 	// 3. 构建请求头
+	requestUser := contextx.GetRequestUser(ctx)
+	token := contextx.GetToken(ctx)
+	
+	// ⭐ 确保用户信息不为空，否则权限检查会失败
+	if requestUser == "" {
+		logger.Warnf(ctx, "[FunctionGenService] RequestUser 为空，可能导致权限检查失败 - FormPath: %s, TraceID: %s", formPath, traceId)
+	}
+	
 	header := &apicall.Header{
 		TraceID:     traceId,
-		RequestUser: contextx.GetRequestUser(ctx),
-		Token:       contextx.GetToken(ctx),
+		RequestUser: requestUser,
+		Token:       token,
 	}
 
 	// 4. 调用 Form API（智能体插件场景使用固定格式）
 	startTime := time.Now()
-	logger.Debugf(ctx, "[FunctionGenService] 发送 Form API 请求 - FormPath: %s, TraceID: %s", formPath, traceId)
+	logger.Debugf(ctx, "[FunctionGenService] 发送 Form API 请求 - FormPath: %s, User: %s, TraceID: %s", formPath, requestUser, traceId)
 
 	resp, err := apicall.CallFormAPI[dto.AgentPluginFormReq, dto.AgentPluginFormResp](header, formPath, *formReq)
 	duration := time.Since(startTime)

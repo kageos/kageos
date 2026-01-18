@@ -205,39 +205,36 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 		}
 
 		// ✨ 解析 JWT Token 并提取 username，设置到 X-Request-User header
-		// 如果 header 中已有 X-Request-User，则不覆盖（允许手动指定）
-		if req.Header.Get(contextx.RequestUserHeader) == "" {
-			token := req.Header.Get("X-Token")
-			if token != "" {
-				// ⭐ 新增：检查 token 是否在黑名单中
-				if s.tokenBlacklist.IsBlacklisted(token) {
-					logger.Warnf(s.ctx, "[Proxy] Token is blacklisted, rejecting request")
-					// 设置标记，在 ModifyResponse 中拦截
-					req.Header.Set("X-Token-Blacklisted", "true")
-					// 不继续解析 token，直接返回
-					return
-				}
+		// ⭐ 直接覆盖 RequestUserHeader，以 token 为准，忽略请求中的 X-Request-User
+		// 这样确保每次都能正确解析 token 并设置用户信息和组织架构信息
+		token := req.Header.Get(contextx.TokenHeader)
+		if token != "" {
+			// ⭐ 新增：检查 token 是否在黑名单中
+			if s.tokenBlacklist.IsBlacklisted(token) {
+				logger.Warnf(s.ctx, "[Proxy] Token is blacklisted, rejecting request")
+				// 设置标记，在 ModifyResponse 中拦截
+				req.Header.Set("X-Token-Blacklisted", "true")
+				// 不继续解析 token，直接返回
+				return
+			}
 
-				{
-					// 解析 token 获取 username 和组织架构信息
-					jwtService := service.NewJWTService()
-					claims, err := jwtService.ValidateToken(token)
-					if err == nil {
-						// 解析成功，设置 username 到 header
-						req.Header.Set(contextx.RequestUserHeader, claims.Username)
-						logger.Debugf(s.ctx, "[Proxy] Extracted username from token: %s", claims.Username)
+			// 解析 token 获取 username 和组织架构信息
+			jwtService := service.NewJWTService()
+			claims, err := jwtService.ValidateToken(token)
+			if err == nil {
+				// 解析成功，直接覆盖 username 到 header（忽略请求中的 X-Request-User）
+				req.Header.Set(contextx.RequestUserHeader, claims.Username)
+				logger.Debugf(s.ctx, "[Proxy] Extracted username from token: %s", claims.Username)
 
-						// ⭐ 设置组织架构信息到 header（token 中一定包含这些字段，如果用户有组织架构信息）
-						// ⭐ 统一使用 DepartmentFullPathHeader 常量
-						if claims.DepartmentFullPath != nil && *claims.DepartmentFullPath != "" {
-							req.Header.Set(contextx.DepartmentFullPathHeader, *claims.DepartmentFullPath)
-							logger.Debugf(s.ctx, "[Proxy] Extracted department_full_path from token: %s", *claims.DepartmentFullPath)
-						}
-					} else {
-						// token 解析失败，但不阻止请求（可能是不需要认证的接口）
-						logger.Debugf(s.ctx, "[Proxy] Failed to parse token: %v", err)
-					}
+				// ⭐ 设置组织架构信息到 header（token 中一定包含这些字段，如果用户有组织架构信息）
+				// ⭐ 统一使用 DepartmentFullPathHeader 常量
+				if claims.DepartmentFullPath != nil && *claims.DepartmentFullPath != "" {
+					req.Header.Set(contextx.DepartmentFullPathHeader, *claims.DepartmentFullPath)
+					logger.Debugf(s.ctx, "[Proxy] Extracted department_full_path from token: %s", *claims.DepartmentFullPath)
 				}
+			} else {
+				// token 解析失败，但不阻止请求（可能是不需要认证的接口）
+				logger.Debugf(s.ctx, "[Proxy] Failed to parse token: %v", err)
 			}
 		}
 
@@ -310,6 +307,10 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 			// 设置到请求 header，这样 proxy.Director 就能读取并传递给后端
 			c.Request.Header.Set(contextx.TraceIdHeader, traceId)
 		}
+
+		// ✨ 如果请求中已有 X-Token，在 proxy.Director 中会解析并设置 X-Request-User 和 X-Department-Full-Path
+		// 这里确保 X-Token 被正确传递到 proxy.Director
+		// 注意：X-Token 会被 httputil.ReverseProxy 自动转发，proxy.Director 中会读取并解析
 
 		// ✅ 创建带超时的 Context，避免高并发时请求堆积
 		ctx, cancel := context.WithTimeout(c.Request.Context(), time.Duration(timeout)*time.Second)

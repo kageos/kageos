@@ -224,3 +224,34 @@ type GetHubInfoResp struct {
 	HubDirectoryURL string `json:"hub_directory_url"` // Hub 目录 URL
 	PublishedAt     string `json:"published_at"`      // 发布时间
 }
+
+// SearchFunctionsReq 搜索函数请求
+type SearchFunctionsReq struct {
+	User        string `json:"user" form:"user"`                    // 用户名（可选，用于过滤应用）
+	App         string `json:"app" form:"app"`                      // 应用名（可选，用于过滤应用）
+	Keyword     string `json:"keyword" form:"keyword"`              // 搜索关键词（可选，用于搜索名称和路径）
+	TemplateType string `json:"template_type" form:"template_type"` // 模板类型过滤（可选，如：form、table、chart）
+	Page        int    `json:"page" form:"page" binding:"required" example:"1"`        // 页码
+	PageSize    int    `json:"page_size" form:"page_size" binding:"required" example:"10"` // 每页数量
+}
+
+// SearchFunctionsResp 搜索函数响应
+type SearchFunctionsResp struct {
+	Functions []*FunctionSearchResult `json:"functions"` // 函数列表
+	Total     int64                   `json:"total"`     // 总数
+	Page      int                     `json:"page"`      // 当前页码
+	PageSize  int                     `json:"page_size"` // 每页数量
+}
+
+// FunctionSearchResult 函数搜索结果
+type FunctionSearchResult struct {
+	ID           int64  `json:"id" example:"1"`                              // 函数ID
+	Name         string `json:"name" example:"表格解析"`                         // 函数名称
+	Code         string `json:"code" example:"table_parse"`                   // 函数代码
+	FullCodePath string `json:"full_code_path" example:"/system/official/agent/plugin/excel_or_csv/table_parse"` // 完整代码路径
+	Description  string `json:"description" example:"解析Excel/CSV文件为Markdown表格"` // 函数描述
+	TemplateType string `json:"template_type" example:"form"`                 // 模板类型（form、table、chart）
+	AppID        int64  `json:"app_id" example:"1"`                            // 应用ID
+	AppUser      string `json:"app_user" example:"system"`                     // 应用所属用户
+	AppCode      string `json:"app_code" example:"official"`                   // 应用代码
+}

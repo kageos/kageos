@@ -250,10 +250,23 @@ interface UploadCompleteParams {
   file_size: number
   content_type: string
   hash?: string
+  storage?: string      // ⭐ 存储引擎类型
   upload_user?: string  // 🔥 上传用户
 }
 
-export async function notifyUploadComplete(params: UploadCompleteParams): Promise<string | null> {
+// ⭐ 上传完成响应（完整文件信息）
+export interface UploadCompleteResult {
+  download_url: string              // 外部访问的下载地址（前端使用）
+  server_download_url?: string      // 内部访问的下载地址（服务端使用）
+  key: string                       // 文件 Key
+  file_name: string                  // 文件名
+  file_size: number                  // 文件大小
+  content_type: string               // 文件类型
+  hash?: string                      // 文件hash
+  storage?: string                   // 存储引擎类型
+}
+
+export async function notifyUploadComplete(params: UploadCompleteParams): Promise<UploadCompleteResult | null> {
   const token = localStorage.getItem('token') || ''
   
   try {
@@ -282,9 +295,18 @@ export async function notifyUploadComplete(params: UploadCompleteParams): Promis
     
     const response = await res.json()
     
-    // ✅ 返回下载 URL（如果上传成功）
+    // ✅ 返回完整文件信息（如果上传成功）
     if (params.success && response.data?.download_url) {
-      return response.data.download_url
+      return {
+        download_url: response.data.download_url,
+        server_download_url: response.data.server_download_url || '',
+        key: params.key,
+        file_name: params.file_name,
+        file_size: params.file_size,
+        content_type: params.content_type,
+        hash: params.hash || '',
+        storage: params.storage, // ⭐ 从参数中获取存储引擎类型
+      }
     }
     
     return null

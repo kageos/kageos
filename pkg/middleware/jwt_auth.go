@@ -23,7 +23,7 @@ func JWTAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// ✨ 优先从header获取username（网关已解析token并设置到header）
 		// 如果网关已经解析了token，直接使用header中的username，无需重复解析
-		requestUser := c.GetHeader("X-Request-User")
+		requestUser := c.GetHeader(contextx.RequestUserHeader)
 		if requestUser == "" {
 			requestUser = c.GetHeader("X-Username") // 备用
 		}
@@ -38,6 +38,7 @@ func JWTAuth() gin.HandlerFunc {
 				c.Set(contextx.DepartmentFullPathHeader, deptPath)
 			}
 			
+			logger.Debugf(c, "[JWTAuth] 从 header 获取用户信息 - User: %s, Path: %s", requestUser, c.Request.URL.Path)
 			c.Next()
 			return
 		}
@@ -79,7 +80,7 @@ func JWTAuth() gin.HandlerFunc {
 		// ✅ 如果没有token，检查是否为内网请求（SDK内部调用）
 		if isInternalRequest(c) {
 			// 从header获取用户信息（SDK传入）
-			requestUser := c.GetHeader("X-Request-User")
+			requestUser := c.GetHeader(contextx.RequestUserHeader)
 			if requestUser == "" {
 				response.FailWithMessage(c, "内网请求必须提供X-Request-User头")
 				c.Abort()

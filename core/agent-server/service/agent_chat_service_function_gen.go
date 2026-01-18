@@ -12,9 +12,18 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/llms"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
+
+// getFilesCount 获取文件数量（辅助函数）
+func getFilesCount(files *types.Files) int {
+	if files == nil {
+		return 0
+	}
+	return len(files.Files)
+}
 
 // FunctionGenChat 函数生成智能体聊天（完整的对话流程）
 func (s *AgentChatService) FunctionGenChat(ctx context.Context, req *dto.FunctionGenAgentChatReq) (*dto.FunctionGenAgentChatResp, error) {
@@ -209,7 +218,7 @@ func (s *AgentChatService) getAndValidateSession(ctx context.Context, sessionID,
 // saveUserMessage 保存用户消息
 func (s *AgentChatService) saveUserMessage(ctx context.Context, req *dto.FunctionGenAgentChatReq, sessionID, user, traceId string) (*model.AgentChatMessage, error) {
 	logger.Debugf(ctx, "[FunctionGenChat] 保存用户消息 - SessionID: %s, AgentID: %d, ContentLength: %d, FilesCount: %d, TraceID: %s",
-		sessionID, req.AgentID, len(req.Message.Content), len(req.Message.Files), traceId)
+		sessionID, req.AgentID, len(req.Message.Content), getFilesCount(req.Message.Files), traceId)
 
 	userMessage := &model.AgentChatMessage{
 		SessionID: sessionID,
@@ -220,7 +229,7 @@ func (s *AgentChatService) saveUserMessage(ctx context.Context, req *dto.Functio
 	}
 
 	// 处理文件列表
-	if len(req.Message.Files) > 0 {
+	if req.Message.Files != nil && len(req.Message.Files.Files) > 0 {
 		filesJSON, err := json.Marshal(req.Message.Files)
 		if err != nil {
 			logger.Errorf(ctx, "[FunctionGenChat] 序列化文件列表失败 - SessionID: %s, TraceID: %s, Error: %v", sessionID, traceId, err)
@@ -370,19 +379,12 @@ func (s *AgentChatService) processPlugin(ctx context.Context, req *dto.FunctionG
 	}
 
 	logger.Infof(ctx, "[FunctionGenChat] 调用 Plugin - AgentID: %d, MessageLength: %d, FilesCount: %d, TraceID: %s",
-		agent.ID, len(req.Message.Content), len(req.Message.Files), traceId)
+		agent.ID, len(req.Message.Content), getFilesCount(req.Message.Files), traceId)
 
-	// 构建 plugin 请求
-	pluginFiles := make([]dto.PluginFile, 0, len(req.Message.Files))
-	for _, f := range req.Message.Files {
-		pluginFiles = append(pluginFiles, dto.PluginFile{
-			Url:    f.Url,
-			Remark: f.Remark,
-		})
-	}
+	// 构建 plugin 请求（直接使用 types.Files）
 	pluginReq := &dto.PluginRunReq{
-		Message: req.Message.Content,
-		Files:   pluginFiles,
+		Content: req.Message.Content,
+		Files:   req.Message.Files, // 直接传递 types.Files
 	}
 
 	// 调用 plugin

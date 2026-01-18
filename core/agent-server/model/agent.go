@@ -19,10 +19,9 @@ type Agent struct {
 	Description string `gorm:"type:text" json:"description"`
 	Timeout     int    `gorm:"default:30" json:"timeout"` // 超时时间（秒）
 	
-	// 插件关联（仅 plugin 类型需要）
-	PluginID  *int64  `gorm:"type:bigint;index;comment:插件ID" json:"plugin_id"`
-	Plugin    *Plugin `gorm:"foreignKey:PluginID;references:ID" json:"plugin,omitempty"`
-	
+	// 插件函数路径（仅 plugin 类型需要）
+	// 例如：/system/official/agent/plugin/excel_or_csv/table_parse
+	PluginFunctionPath string `gorm:"type:varchar(512);index;comment:插件函数路径(full-code-path)" json:"plugin_function_path"`
 	
 	// 知识库关联（两种类型都需要）
 	KnowledgeBaseID int64        `gorm:"type:bigint;not null;index;comment:知识库ID" json:"knowledge_base_id"`

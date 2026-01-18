@@ -25,11 +25,8 @@ type FunctionGenAgentChatReq struct {
 
 // Message 对话消息
 type Message struct {
-	Content string `json:"content" binding:"required" example:"你好"` // 消息内容
-	Files   []struct {
-		Url    string `json:"url"` //文件url
-		Remark string `json:"remark"`
-	} `json:"files"`
+	Content string      `json:"content" binding:"required" example:"你好"` // 消息内容
+	Files   *types.Files `json:"files,omitempty"`                            // 文件列表（直接使用 types.Files）
 }
 
 // AgentChatResp 智能体聊天响应
@@ -83,16 +80,10 @@ type AddFunctionsResp struct {
 	Error          string   `json:"error,omitempty" example:""`         // 错误信息（如果失败）
 }
 
-// PluginFile 插件文件信息
-type PluginFile struct {
-	Url    string `json:"url" example:"https://example.com/file.xlsx"` // 文件URL
-	Remark string `json:"remark" example:"Excel文件"`                    // 文件备注
-}
-
 // PluginRunReq 插件执行请求
 type PluginRunReq struct {
-	Message string       `json:"message" binding:"required" example:"请处理这个Excel文件"`                                    // 用户消息
-	Files   []PluginFile `json:"files" example:"[{\"url\":\"https://example.com/file.xlsx\",\"remark\":\"Excel文件\"}]"` // 文件列表
+	Content string       `json:"content" binding:"required" example:"请处理这个Excel文件"` // 用户消息内容
+	Files   *types.Files `json:"files,omitempty"`                                         // 文件列表（直接使用 types.Files）
 }
 
 // PluginRunResp 插件执行响应
@@ -104,7 +95,7 @@ type PluginRunResp struct {
 // AgentPluginFormReq 智能体插件场景的 Form API 请求（固定格式）
 // 用于调用 Form API 时的请求结构
 type AgentPluginFormReq struct {
-	Message    string       `json:"message,omitempty"`     // 文本输入（可选）
+	Content    string       `json:"content,omitempty"`      // 文本输入（可选）
 	InputFiles *types.Files `json:"input_files,omitempty"` // 文件输入（可选）
 }
 
