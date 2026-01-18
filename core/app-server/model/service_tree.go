@@ -25,8 +25,7 @@ type ServiceTree struct {
 	Admins        string `json:"admins" gorm:"type:varchar(150);comment:节点管理员列表，逗号分隔的用户名（如 user1,user2,user3）"` // 节点管理员列表
 	PendingCount  int    `json:"pending_count" gorm:"default:0;comment:待审批的权限申请数量"` // ⭐ 待审批的权限申请数量
 	AppID         int64  `json:"app_id"`
-	FullGroupCode string `json:"full_group_code" gorm:"type:varchar(500);comment:完整函数组代码：{full_path}/{file_name}"` // 完整函数组代码：{full_path}/{file_name}
-	GroupName     string `json:"group_name"`
+	// FullGroupCode 和 GroupName 已移除，不再需要
 	RefID         int64  `json:"ref_id" gorm:"default:0"`                   // 引用ID：指向真实资源的ID，如果是package类型指向package的ID，如果是function类型指向function的ID
 	App           *App   `json:"app" gorm:"foreignKey:AppID;references:ID"` // 预加载的完整应用对象
 	TemplateType  string `json:"template_type"`                             //函数的类型

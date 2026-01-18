@@ -133,20 +133,6 @@ export function tableDeleteRows(method: string, router: string, ids: number[]) {
   return del(url, data)  // DELETE 请求带 body
 }
 
-// ⭐ 旧版本（已注释，保留用于参考）
-// export function tableAddRow_OLD(method: string, router: string, data: any) {
-//   const url = `/workspace/api/v1/callback${router}?_type=OnTableAddRow&_method=${method.toUpperCase()}`
-//   return post(url, data)
-// }
-// export function tableUpdateRow_OLD(method: string, router: string, data: any) {
-//   const url = `/workspace/api/v1/callback${router}?_type=OnTableUpdateRow&_method=${method.toUpperCase()}`
-//   return post(url, data)
-// }
-// export function tableDeleteRows_OLD(method: string, router: string, ids: number[]) {
-//   const url = `/workspace/api/v1/callback${router}?_type=OnTableDeleteRows&_method=${method.toUpperCase()}`
-//   return post(url, { ids })
-// }
-
 /**
  * Select 回调操作 - 模糊查询选项
  *

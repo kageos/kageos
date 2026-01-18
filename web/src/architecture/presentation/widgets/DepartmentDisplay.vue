@@ -72,6 +72,8 @@ interface Props {
   layout?: 'horizontal' | 'vertical'
   /** 图标大小：small(16px) | medium(20px) | large(24px) | 自定义数字 */
   size?: 'small' | 'medium' | 'large' | number
+  /** 部门树（可选，如果传入则使用传入的，避免重复加载） */
+  departmentTree?: Department[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -81,11 +83,21 @@ const props = withDefaults(defineProps<Props>(), {
   mode: 'simple',
   layout: 'horizontal',
   size: 'medium',
+  departmentTree: () => []
 })
 
 // 使用 ref 存储组织架构信息，确保响应式更新
 const cachedDepartmentInfo = ref<Department | null>(null)
-const departmentTree = ref<Department[]>([])
+// 使用 computed 来获取部门树：优先使用 props.departmentTree，否则使用内部的 ref
+const internalDepartmentTree = ref<Department[]>([])
+const departmentTree = computed(() => {
+  // 如果传入了 departmentTree prop，优先使用
+  if (props.departmentTree && props.departmentTree.length > 0) {
+    return props.departmentTree
+  }
+  // 否则使用内部的 ref
+  return internalDepartmentTree.value
+})
 
 // 更新缓存的组织架构信息
 const updateCachedDepartmentInfo = async () => {
@@ -98,10 +110,10 @@ const updateCachedDepartmentInfo = async () => {
   // 如果有 fullCodePath，从 API 获取
   if (props.fullCodePath) {
     try {
-      // 先加载部门树（如果还没有加载）
+      // 先加载部门树（如果还没有加载，且没有传入 prop）
       if (departmentTree.value.length === 0) {
         const treeRes = await getDepartmentTree()
-        departmentTree.value = treeRes.departments
+        internalDepartmentTree.value = treeRes.departments
       }
       
       // 从树中查找部门
@@ -186,12 +198,20 @@ const displayName = computed(() => {
   return '未分配'
 })
 
-// 组件挂载时，如果有 fullCodePath，加载部门树
+// 组件挂载时，如果有 fullCodePath 且没有传入 departmentTree prop，才加载部门树
 onMounted(async () => {
+  // 如果传入了 departmentTree prop，不需要加载
+  if (props.departmentTree && props.departmentTree.length > 0) {
+    // 直接更新缓存信息
+    await updateCachedDepartmentInfo()
+    return
+  }
+  
+  // 如果没有传入 departmentTree prop，且有 fullCodePath，才加载部门树
   if (props.fullCodePath && departmentTree.value.length === 0) {
     try {
       const treeRes = await getDepartmentTree()
-      departmentTree.value = treeRes.departments
+      internalDepartmentTree.value = treeRes.departments
       // 加载后更新组织架构信息
       await updateCachedDepartmentInfo()
     } catch (error) {

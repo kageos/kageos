@@ -8,6 +8,47 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/dto"
 )
 
+// ============================================
+// 权限判断逻辑说明
+// ============================================
+//
+// 权限继承方式：方式2（直接函数权限继承）
+//
+// 工作原理：
+//   - 如果父目录配置了 table:write，子函数直接继承 table:write 权限
+//   - 如果父目录配置了 form:read，子函数直接继承 form:read 权限
+//   - 如果父目录配置了 table:admin，子函数直接继承 table:admin 权限（拥有所有表格权限）
+//   - 不需要转换，直接匹配相同的权限点
+//
+// 示例：
+//   父目录：/user/app/dir
+//   角色：目录开发者（配置了 table:write, form:read）
+//
+//   子函数：/user/app/dir/function1
+//   检查 table:write 权限：
+//     ✅ 父目录有 table:write → 子函数继承 table:write
+//
+//   父目录：/user/app/dir
+//   角色：目录管理员（配置了 table:admin, form:admin, chart:admin）
+//
+//   子函数：/user/app/dir/function1
+//   检查 table:read 权限：
+//     ✅ 父目录有 table:admin → 子函数继承 table:admin（包含所有表格权限）
+//
+// 权限检查流程（按优先级）：
+//   1. 精确路径匹配：检查当前资源路径是否有该权限点
+//   2. 父目录继承：向上查找父目录，检查是否有相同的权限点（方式2）
+//   3. 前缀匹配：检查是否有前缀路径配置了该权限点
+//   4. 应用级别：检查应用级别权限
+//   5. Admin 权限：检查是否有任何资源类型的 admin 权限
+//
+// 已废弃的方式1（目录权限转换）：
+//   - directory:read → table:read（已删除）
+//   - directory:write → table:write（已删除）
+//   原因：方式1太混乱，只使用方式2（直接函数权限继承）
+//
+// ============================================
+
 // PermissionService 权限服务接口
 // 用于权限检查、权限管理等
 //
@@ -311,6 +352,20 @@ type PermissionService interface {
 	//   - 企业版实现会查询指定组织架构的所有角色分配
 	GetDepartmentRoles(ctx context.Context, req *dto.GetDepartmentRolesReq) (*dto.GetDepartmentRolesResp, error)
 
+	// GetResourcePermissions 查询资源的所有权限分配
+	// 参数：
+	//   - ctx: 上下文
+	//   - req: 查询资源权限请求
+	//
+	// 返回：
+	//   - *dto.GetResourcePermissionsResp: 资源权限响应
+	//   - error: 如果查询失败返回错误
+	//
+	// 说明：
+	//   - 社区版实现返回错误（不支持权限管理）
+	//   - 企业版实现会查询指定资源路径的所有权限分配（支持精确匹配和前缀匹配）
+	GetResourcePermissions(ctx context.Context, req *dto.GetResourcePermissionsReq) (*dto.GetResourcePermissionsResp, error)
+
 	// GetRolesForPermissionRequest 获取可用于权限申请的角色列表（根据节点类型过滤）
 	// 参数：
 	//   - ctx: 上下文
@@ -348,11 +403,39 @@ type PermissionRecord struct {
 }
 
 // CheckPermission 检查指定资源路径和操作是否有权限
-// ⭐ 简化逻辑：直接检查父目录是否有相同的权限点（不需要转换）
-// 例如检查 /user/app/dir/function 的 table:read 权限时：
-//  1. 先检查 /user/app/dir/function 是否有 table:read 权限
-//  2. 如果没有，检查父目录 /user/app/dir 是否有 table:read 权限（直接继承）
-//  3. 如果还没有，继续向上检查父目录
+//
+// ⭐ 权限判断逻辑（方式2：直接函数权限继承）：
+//   1. 精确路径匹配：检查当前资源路径是否有该权限点
+//      - 例如：检查 /user/app/dir/function 的 table:read 权限
+//      - 先检查 /user/app/dir/function 是否有 table:read 权限
+//
+//   2. 父目录继承：向上查找父目录，检查是否有相同的权限点（直接继承，不需要转换）
+//      - 如果没有，检查父目录 /user/app/dir 是否有 table:read 权限
+//      - 如果父目录配置了 table:read，子函数直接继承 table:read 权限
+//      - 继续向上检查父目录，直到应用级别
+//
+//   3. 前缀匹配：检查是否有前缀路径配置了该权限点
+//      - 例如：/user/app/* 配置了 table:read，那么 /user/app/dir/function 继承该权限
+//
+//   4. 应用级别：检查应用级别权限（app:admin）
+//      - 如果用户有 app:admin 权限，拥有该应用下所有资源的权限
+//
+//   5. Admin 权限：检查是否有任何资源类型的 admin 权限
+//      - 如果用户有 table:admin 权限，拥有所有表格权限（table:read、table:write、table:update、table:delete）
+//      - 如果用户有 form:admin 权限，拥有所有表单权限（form:read、form:write）
+//      - 如果用户有 chart:admin 权限，拥有所有图表权限（chart:read）
+//
+// ⭐ 权限继承方式：方式2（直接函数权限继承）
+//   - 不需要转换，直接匹配相同的权限点
+//   - 例如：父目录配置了 table:write → 子函数直接继承 table:write
+//   - 例如：父目录配置了 form:read → 子函数直接继承 form:read
+//   - 例如：父目录配置了 table:admin → 子函数继承 table:admin（拥有所有表格权限）
+//
+// ⭐ 已废弃的方式1（目录权限转换）：
+//   - directory:read → table:read（已删除）
+//   - directory:write → table:write（已删除）
+//   原因：方式1太混乱，只使用方式2（直接函数权限继承）
+//
 func (r *GetUserWorkspacePermissionsResp) CheckPermission(resourcePath string, action string) bool {
 	// 构建所有需要检查的路径（当前资源 + 所有父目录 + 应用级别）
 	parts := strings.Split(strings.Trim(resourcePath, "/"), "/")
@@ -398,51 +481,16 @@ func (r *GetUserWorkspacePermissionsResp) CheckPermission(resourcePath string, a
 				}
 			}
 
-			// 3. 检查权限继承（directory:read → table:read 等）
-			if checkPermissionInheritance(action, actions) {
-				return true
-			}
+			// ⭐ 方式2（直接函数权限继承）：如果父目录配置了 table:write，子函数直接继承 table:write
+			// 不需要转换，直接检查父目录是否有相同的权限点即可
+			// 例如：父目录 a/b 的开发者角色配置了 table:write，那么子函数 a/b/c 直接继承 table:write 权限
+			// 这个逻辑已经在 permission_calculator_v2.go 中实现了，这里只需要直接匹配即可
 		}
 	}
 
 	return false
 }
 
-// checkPermissionInheritance 检查权限继承
-// ⭐ 目录权限自动继承到子资源：
-//   - directory:read → table:read, form:read, chart:read
-//   - directory:write → table:write, form:write
-//   - directory:update → table:update
-//   - directory:delete → table:delete
-//   - 任何资源类型的 admin 权限 → 所有权限
-func checkPermissionInheritance(action string, actions map[string]bool) bool {
-	// ⭐ 检查是否有任何资源类型的 admin 权限（动态检查，不硬编码）
-	for actionKey := range actions {
-		if strings.HasSuffix(actionKey, ":admin") {
-			return true
-		}
-	}
-
-	// ⭐ 目录权限继承到子资源
-	// directory:read → table:read, form:read, chart:read
-	if (action == "table:read" || action == "form:read" || action == "chart:read") && actions["directory:read"] {
-		return true
-	}
-	// directory:write → table:write, form:write
-	if (action == "table:write" || action == "form:write") && actions["directory:write"] {
-		return true
-	}
-	// directory:update → table:update
-	if action == "table:update" && actions["directory:update"] {
-		return true
-	}
-	// directory:delete → table:delete
-	if action == "table:delete" && actions["directory:delete"] {
-		return true
-	}
-
-	return false
-}
 
 // 全局变量：存储当前实现
 var permissionServiceImpl PermissionService = &UnImplPermissionService{}
@@ -621,8 +669,19 @@ func (u *UnImplPermissionService) GetDepartmentRoles(ctx context.Context, req *d
 	return nil, fmt.Errorf("角色管理功能仅在企业版可用")
 }
 
+// GetResourcePermissions 查询资源的所有权限分配
+// 社区版实现：返回错误（不支持权限管理）
+func (u *UnImplPermissionService) GetResourcePermissions(ctx context.Context, req *dto.GetResourcePermissionsReq) (*dto.GetResourcePermissionsResp, error) {
+	return nil, fmt.Errorf("权限管理功能仅在企业版可用")
+}
+
 // GetRolesForPermissionRequest 获取可用于权限申请的角色列表
 // 社区版实现：返回错误（不支持角色管理）
 func (u *UnImplPermissionService) GetRolesForPermissionRequest(ctx context.Context, req *dto.GetRolesForPermissionRequestReq) (*dto.GetRolesForPermissionRequestResp, error) {
 	return nil, fmt.Errorf("角色管理功能仅在企业版可用")
+}
+
+func (u *UnImplPermissionService) GetDefaultPermissions(ctx context.Context, resourceType string) ([]string, error) {
+	// 社区版返回空列表
+	return []string{}, nil
 }

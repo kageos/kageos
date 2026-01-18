@@ -22,7 +22,7 @@ type DirectoryTreeNode struct {
 	Name           string              `json:"name"`            // 目录名称（中文显示名称）
 	Code           string              `json:"code"`            // 目录代码（英文标识）
 	Path           string              `json:"path"`            // 目录完整路径
-	Files          []*FileSnapshotInfo `json:"files"`          // 该目录下的文件列表（包含内容）
+	Files          []*FileSnapshotInfo `json:"files,omitempty"` // 该目录下的文件列表（包含内容，发布时需要，获取详情时不返回）
 	Functions      []*HubFunctionInfo  `json:"functions"`      // 该目录下的函数列表（新增）
 	Subdirectories []*DirectoryTreeNode `json:"subdirectories"` // 子目录列表（递归）
 }

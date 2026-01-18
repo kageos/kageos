@@ -22,7 +22,7 @@ type Agent struct {
 	
 	// 插件关联（仅 plugin 类型需要）
 	PluginID  *int64  `gorm:"type:bigint;index;comment:插件ID" json:"plugin_id"`
-	Plugin    *Plugin `gorm:"foreignKey:PluginID" json:"plugin,omitempty"`
+	Plugin    *Plugin `gorm:"foreignKey:PluginID;references:ID" json:"plugin,omitempty"`
 	
 	// 消息主题（已废弃，使用 Plugin.Subject）
 	// 格式：agent.{chat_type}.{创建用户}.{智能体id}
@@ -31,11 +31,11 @@ type Agent struct {
 	
 	// 知识库关联（两种类型都需要）
 	KnowledgeBaseID int64        `gorm:"type:bigint;not null;index;comment:知识库ID" json:"knowledge_base_id"`
-	KnowledgeBase   KnowledgeBase `gorm:"foreignKey:KnowledgeBaseID" json:"knowledge_base,omitempty"` // 预加载关联
+	KnowledgeBase   KnowledgeBase `gorm:"foreignKey:KnowledgeBaseID;references:ID" json:"knowledge_base,omitempty"` // 预加载关联
 
 	// LLM 配置关联（如果为空，则使用默认 LLM 配置）
 	LLMConfigID int64    `gorm:"type:bigint;index;comment:LLM配置ID" json:"llm_config_id"`
-	LLMConfig   LLMConfig `gorm:"foreignKey:LLMConfigID" json:"llm_config,omitempty"` // 预加载关联
+	LLMConfig   LLMConfig `gorm:"foreignKey:LLMConfigID;references:ID" json:"llm_config,omitempty"` // 预加载关联
 
 	// System Prompt 模板（支持 {knowledge} 变量，会被替换为知识库内容）
 	// 如果为空，使用默认模板："你是一个专业的代码生成助手。以下是相关的知识库内容，请参考这些内容来生成代码：\n{knowledge}"

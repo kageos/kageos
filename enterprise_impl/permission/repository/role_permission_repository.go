@@ -23,11 +23,13 @@ func (r *RolePermissionRepository) CreateRolePermission(ctx context.Context, rol
 }
 
 // GetPermissionsByRoleIDAndResourceType 根据角色ID和资源类型获取权限列表
+// ⭐ 通过 Action 关联查询，根据 Action.ResourceType 过滤
 func (r *RolePermissionRepository) GetPermissionsByRoleIDAndResourceType(ctx context.Context, roleID int64, resourceType string) ([]*model.RolePermission, error) {
 	var perms []*model.RolePermission
-	query := r.db.WithContext(ctx).Where("role_id = ?", roleID)
+	query := r.db.WithContext(ctx).Preload("ActionModel").Where("role_id = ?", roleID)
 	if resourceType != "" {
-		query = query.Where("resource_type = ?", resourceType)
+		// ⭐ 通过 Action 关联查询，根据 Action.ResourceType 过滤
+		query = query.Joins("JOIN action ON role_permission.action_id = action.id").Where("action.resource_type = ?", resourceType)
 	}
 	err := query.Find(&perms).Error
 	if err != nil {
@@ -37,9 +39,10 @@ func (r *RolePermissionRepository) GetPermissionsByRoleIDAndResourceType(ctx con
 }
 
 // GetPermissionsByRoleID 根据角色ID获取权限列表
+// ⭐ 预加载 Action 关联
 func (r *RolePermissionRepository) GetPermissionsByRoleID(ctx context.Context, roleID int64) ([]*model.RolePermission, error) {
 	var perms []*model.RolePermission
-	err := r.db.WithContext(ctx).Where("role_id = ?", roleID).Find(&perms).Error
+	err := r.db.WithContext(ctx).Preload("ActionModel").Where("role_id = ?", roleID).Find(&perms).Error
 	if err != nil {
 		return nil, err
 	}
@@ -61,9 +64,10 @@ func (r *RolePermissionRepository) GetPermissionsByRoleIDs(ctx context.Context, 
 }
 
 // GetAllRolePermissions 获取所有角色权限（用于缓存加载）
+// ⭐ 预加载 Action 关联，避免 N+1 查询
 func (r *RolePermissionRepository) GetAllRolePermissions(ctx context.Context) ([]*model.RolePermission, error) {
 	var perms []*model.RolePermission
-	err := r.db.WithContext(ctx).Find(&perms).Error
+	err := r.db.WithContext(ctx).Preload("ActionModel").Find(&perms).Error
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +79,12 @@ func (r *RolePermissionRepository) DeleteByRoleID(ctx context.Context, roleID in
 	return r.db.WithContext(ctx).Where("role_id = ?", roleID).Delete(&model.RolePermission{}).Error
 }
 
-// DeleteRolePermission 删除单个角色权限
-func (r *RolePermissionRepository) DeleteRolePermission(ctx context.Context, roleID int64, action string) error {
-	return r.db.WithContext(ctx).Where("role_id = ? AND action = ?", roleID, action).Delete(&model.RolePermission{}).Error
+// DeleteRolePermission 删除单个角色权限（通过 ActionCode）
+func (r *RolePermissionRepository) DeleteRolePermission(ctx context.Context, roleID int64, actionCode string) error {
+	// ⭐ 先查询 ActionID，然后删除
+	var action model.Action
+	if err := r.db.WithContext(ctx).Where("code = ?", actionCode).First(&action).Error; err != nil {
+		return err
+	}
+	return r.db.WithContext(ctx).Where("role_id = ? AND action_id = ?", roleID, action.ID).Delete(&model.RolePermission{}).Error
 }

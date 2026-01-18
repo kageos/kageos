@@ -19,7 +19,8 @@ import (
 // Main 服务主函数（支持统一入口调用）
 // ctx: 统一的上下文
 // stopCh: 停止信号通道，服务应该监听此通道并在收到信号时优雅关闭
-func Main(ctx context.Context, stopCh <-chan struct{}) error {
+// readyCh: 就绪通道，服务启动完成后应该发送信号到此通道（可选，如果为 nil 则忽略）
+func Main(ctx context.Context, stopCh <-chan struct{}, readyCh chan<- struct{}) error {
 	// 获取配置
 	cfg := config.GetAppServerConfig()
 
@@ -56,6 +57,13 @@ func Main(ctx context.Context, stopCh <-chan struct{}) error {
 	}
 
 	logger.Infof(ctx, "App-server started successfully")
+	
+	// ⭐ 发送就绪信号（如果提供了 readyCh）
+	// 使用阻塞式发送，确保信号被接收（channel 容量为 1，不会阻塞太久）
+	if readyCh != nil {
+		readyCh <- struct{}{}
+		logger.Infof(ctx, "App-server 就绪信号已发送")
+	}
 
 	// 等待停止信号
 	select {

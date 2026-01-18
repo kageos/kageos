@@ -7,6 +7,7 @@ import (
 	"runtime/debug"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/response"
 	"github.com/nats-io/nats.go"
@@ -46,7 +47,7 @@ func (a *App) handleMessage(msg *nats.Msg) {
 		req.Token = msg.Header.Get("X-Token")
 	}
 	if req.RequestUser == "" {
-		req.RequestUser = msg.Header.Get("request_user")
+		req.RequestUser = msg.Header.Get(contextx.RequestUserHeader)
 	}
 
 	// 增加运行中函数计数

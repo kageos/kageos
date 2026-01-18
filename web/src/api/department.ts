@@ -41,6 +41,7 @@ export interface CreateDepartmentReq {
   code: string
   parent_id: number
   description?: string
+  managers?: string  // 多个用户名逗号分隔
 }
 
 export interface CreateDepartmentResp {

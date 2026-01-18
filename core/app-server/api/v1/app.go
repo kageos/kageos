@@ -493,6 +493,15 @@ func (a *App) GetApps(c *gin.Context) {
 	pageSize := c.DefaultQuery("page_size", "10")
 	search := c.Query("search")
 	includeAll := c.DefaultQuery("include_all", "false") == "true"
+	typeStr := c.Query("type")
+
+	// 解析应用类型（可选）
+	var appType *int
+	if typeStr != "" {
+		if typeVal := parseIntWithDefault(typeStr, -1); typeVal >= 0 {
+			appType = &typeVal
+		}
+	}
 
 	// 构建请求对象
 	req = dto.GetAppsReq{
@@ -503,6 +512,7 @@ func (a *App) GetApps(c *gin.Context) {
 		User:       user,
 		Search:     search,
 		IncludeAll: includeAll,
+		Type:       appType,
 	}
 
 	ctx := contextx.ToContext(c)

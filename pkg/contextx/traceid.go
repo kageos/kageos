@@ -53,7 +53,7 @@ func GetTraceId(c context.Context) string {
 }
 
 // GetRequestUser 获取请求用户（从 HTTP header 或 context 读取）
-// 优先级：HTTP Header (X-Request-User) > Context (request_user)
+// 优先级：HTTP Header (X-Request-User) > Gin Context > Context.Value
 // 网关已解析 token 并设置到 X-Request-User header，直接从 header 读取即可
 // 支持从 *gin.Context 或标准 context.Context 读取
 func GetRequestUser(c context.Context) string {
@@ -68,22 +68,20 @@ func GetRequestUser(c context.Context) string {
 		if requestUser := v.GetHeader("X-Username"); requestUser != "" {
 			return requestUser
 		}
-		// 从 gin context 读取（兼容旧方式）
-		if requestUser := v.GetString("request_user"); requestUser != "" {
-			return requestUser
-		}
-		// 从 context.Value 读取（JWTAuth 中间件通过 c.Set() 设置到 Keys 中）
-		if value := c.Value("request_user"); value != nil {
+		// ⭐ 降级：从 context.Value 读取（不要直接返回空，先降级查询）
+		// 即使传入的是 *gin.Context，如果 header 都没有，也应该尝试从底层的 context.Value 中读取
+		if value := c.Value(RequestUserHeader); value != nil {
 			if requestUser, ok := value.(string); ok && requestUser != "" {
 				return requestUser
 			}
 		}
+		// 如果都查不到，才返回空
 		return ""
 	}
 
 	// 从标准 context.Value 读取（可能是 ToContext 转换后的标准 context，或 context.WithValue 包装的）
 	// context.WithValue 创建的新 context 的 Value() 会向上查找父 context
-	if value := c.Value("request_user"); value != nil {
+	if value := c.Value(RequestUserHeader); value != nil {
 		if requestUser, ok := value.(string); ok && requestUser != "" {
 			return requestUser
 		}
@@ -151,7 +149,7 @@ func GetToken(c context.Context) string {
 }
 
 // ToContext 将 gin.Context 转换为标准 context.Context
-// 解析 header 中的关键信息（trace_id, request_user, token）并放入 context.Value
+// 解析 header 中的关键信息（trace_id, requestUser, token）并放入 context.Value
 // 这样即使内部使用 context.WithValue 包装，也能通过 context.Value 获取到这些值
 func ToContext(c *gin.Context) context.Context {
 	ctx := context.Background()
@@ -171,11 +169,7 @@ func ToContext(c *gin.Context) context.Context {
 	if requestUser == "" {
 		requestUser = c.GetHeader("X-Username")
 	}
-	if requestUser == "" {
-		requestUser = c.GetString("request_user")
-	}
 	if requestUser != "" {
-		ctx = context.WithValue(ctx, "request_user", requestUser)
 		ctx = context.WithValue(ctx, RequestUserHeader, requestUser)
 	}
 

@@ -48,6 +48,7 @@ export interface App {
   nats_id: number
   host_id: number
   status: 'enabled' | 'disabled'
+  type?: number  // 应用类型：0=用户空间，1=系统空间
   version: string
   is_public: boolean
   admins?: string

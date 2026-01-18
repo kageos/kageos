@@ -564,6 +564,17 @@ func extractPackagePath(fullCodePath string) string {
 	return strings.Join(subParts, "/")
 }
 
+// extractGroupCodeFromPath 从路径中提取 GroupCode（路径最后一段）
+// 例如："/tools/pdftools" -> "pdftools"
+func extractGroupCodeFromPath(path string) string {
+	// 去掉首尾斜杠并分割路径
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+	if len(parts) > 0 {
+		return parts[len(parts)-1]
+	}
+	return ""
+}
+
 // getParentPath 获取父目录路径
 func getParentPath(fullCodePath string) string {
 	pathParts := strings.Split(strings.Trim(fullCodePath, "/"), "/")
@@ -701,7 +712,7 @@ func (s *ServiceTreeService) generateInitFileForPath(
 		routerGroup = "/" + routerGroup
 	}
 
-	// 生成 init_.go 文件内容
+	// 生成 init_.go 文件内容（新格式：使用PackageContext）
 	content := fmt.Sprintf(`package %s
 
 import (

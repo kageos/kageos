@@ -110,13 +110,15 @@ func (c *Context) ShouldBindValidate(req interface{}) error {
 }
 
 // GetRouterGroup 获取当前请求的 RouterGroup
-// 返回当前请求所属的 RouterGroup 路径（如 "/crm"）
+// 返回当前请求所属的 RouterGroup 路径（如 "/tools/pdftools"）
 // 如果无法获取（系统路由或未设置），返回空字符串
 func (ctx *Context) GetRouterGroup() string {
-	if ctx.routerInfo != nil &&
-		ctx.routerInfo.Options != nil &&
-		ctx.routerInfo.Options.RouterGroup != nil {
-		return ctx.routerInfo.Options.RouterGroup.RouterGroup
+	if ctx.routerInfo != nil && ctx.routerInfo.Options != nil {
+		// 从 PackagePath 构建 RouterGroup 路径（单一数据源）
+		packagePath := ctx.routerInfo.Options.PackagePath
+		if packagePath != "" {
+			return "/" + strings.Trim(packagePath, "/")
+		}
 	}
 	return ""
 }

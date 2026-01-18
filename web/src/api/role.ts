@@ -15,6 +15,8 @@ export interface Role {
   code: string
   description: string
   is_system: boolean // 是否为系统角色（不可删除）
+  is_default: boolean // 是否为默认角色（用于权限申请时的默认推荐）
+  resource_type?: string // 资源类型（directory、table、form、chart、app）- 角色的主要资源类型
   created_at: string
   updated_at: string
   permissions?: RolePermission[] // 角色权限列表（可选）
@@ -53,6 +55,7 @@ export interface CreateRoleResp {
 export interface UpdateRoleReq {
   name?: string
   description?: string
+  is_default?: boolean // 是否设置为默认角色
   permissions?: Record<string, string[]> // 权限点列表，按资源类型分组
 }
 

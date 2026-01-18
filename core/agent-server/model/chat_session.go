@@ -15,7 +15,7 @@ type AgentChatSession struct {
 	User      string `gorm:"type:varchar(128);not null;index;comment:创建用户" json:"user"`
 	
 	// 关联的智能体（预加载）
-	Agent *Agent `gorm:"foreignKey:AgentID" json:"agent,omitempty"`
+	Agent *Agent `gorm:"foreignKey:AgentID;references:ID" json:"agent,omitempty"`
 }
 
 // 会话状态常量

@@ -21,12 +21,7 @@ func GetUserByUsername(header *Header, username string) (*dto.UserInfo, error) {
 	gatewayURL := serviceconfig.GetGatewayURL()
 	fullURL := fmt.Sprintf("%s%s?%s", gatewayURL, path, params.Encode())
 
-	result, err := callAPIWithURL[dto.QueryUserResp](
-		http.MethodGet,
-		fullURL,
-		header,
-		nil,
-	)
+	result, err := callAPIWithURL[dto.QueryUserResp](http.MethodGet, fullURL, header, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -39,12 +34,7 @@ func GetUsersByUsernames(header *Header, usernames []string) ([]dto.UserInfo, er
 		Usernames: usernames,
 	}
 
-	result, err := callAPI[dto.GetUsersByUsernamesResp](
-		http.MethodPost,
-		"/hr/api/v1/users",
-		header,
-		req,
-	)
+	result, err := callAPI[dto.GetUsersByUsernamesResp](http.MethodPost, "/hr/api/v1/users", header, req)
 	if err != nil {
 		return nil, err
 	}
@@ -76,4 +66,3 @@ func SearchUsersFuzzy(header *Header, keyword string, limit int) ([]dto.UserInfo
 	}
 	return result.Data.Users, nil
 }
-

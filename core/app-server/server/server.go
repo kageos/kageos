@@ -37,14 +37,11 @@ type Server struct {
 
 	// 服务
 	appService                    *service.AppService
-	authService                   *service.AuthService
-	emailService                  *service.EmailService
 	jwtService                    *service.JWTService
 	appRuntime                    *service.AppRuntime
 	serviceTreeService            *service.ServiceTreeService
 	functionService               *service.FunctionService
 	functionGenService            *service.FunctionGenService
-	userService                   *service.UserService
 	directoryUpdateHistoryService *service.DirectoryUpdateHistoryService
 	permissionService             *service.PermissionService // ⭐ 权限管理服务
 	appRepo                       *repository.AppRepository  // ⭐ 应用仓储（用于其他服务）
@@ -103,6 +100,14 @@ func NewServer(cfg *config.AppServerConfig) (*Server, error) {
 
 	if err := s.initServices(ctx); err != nil {
 		return nil, fmt.Errorf("failed to init services: %w", err)
+	}
+
+	// ⭐ 初始化系统工作空间（只初始化 official 工作空间）
+	// 注意：system 用户应该在 hr-server 中初始化
+	// 在服务初始化之后，路由初始化之前
+	if err := service.InitSystemWorkspace(ctx, s.appService); err != nil {
+		logger.Warnf(ctx, "[Server] 初始化系统工作空间失败: %v", err)
+		// 不中断启动，记录警告即可
 	}
 
 	if err := s.initRouter(ctx); err != nil {
@@ -269,33 +274,8 @@ func (s *Server) initDatabase(ctx context.Context) error {
 
 	// 配置 GORM 日志
 	gormConfig := &gorm.Config{}
-
-	// 如果启用了数据库日志
-	if dbCfg.LogLevel != "silent" {
-		var logLevel gormLogger.LogLevel
-		switch dbCfg.LogLevel {
-		case "error":
-			logLevel = gormLogger.Error
-		case "warn":
-			logLevel = gormLogger.Warn
-		case "info":
-			logLevel = gormLogger.Info
-		default:
-			logLevel = gormLogger.Warn
-		}
-
-		// 配置慢查询阈值
-		slowThreshold := time.Duration(dbCfg.SlowThreshold) * time.Millisecond
-		if slowThreshold == 0 {
-			slowThreshold = 200 * time.Millisecond // 默认200毫秒
-		}
-
-		// 使用 GORM 默认日志配置
-		gormConfig.Logger = gormLogger.Default.LogMode(logLevel)
-	} else {
-		// 禁用日志
-		gormConfig.Logger = gormLogger.Default.LogMode(gormLogger.Silent)
-	}
+	// 关闭 GORM 控制台日志
+	gormConfig.Logger = gormLogger.Default.LogMode(gormLogger.Silent)
 
 	var err error
 	switch dbCfg.Type {
@@ -372,24 +352,17 @@ func (s *Server) initServices(ctx context.Context) error {
 	s.appRuntime = service.NewAppRuntimeService(s.cfg, s.natsService)
 
 	// 初始化应用服务
-	userRepo := repository.NewUserRepository(s.db)
 	s.appRepo = repository.NewAppRepository(s.db) // ⭐ 保存到 Server 结构体，供权限服务使用
 	appRepo := s.appRepo                          // 局部变量，用于传递给其他服务
 	//hostRepo := repository.NewHostRepository(s.db)
-	userSessionRepo := repository.NewUserSessionRepository(s.db)
 	functionRepo := repository.NewFunctionRepository(s.db)
 	serviceTreeRepo := repository.NewServiceTreeRepository(s.db)
 	operateLogRepo := repository.NewOperateLogRepository(s.db)
 	fileSnapshotRepo := repository.NewFileSnapshotRepository(s.db)
 	directoryUpdateHistoryRepo := repository.NewDirectoryUpdateHistoryRepository(s.db)
-	s.appService = service.NewAppService(s.appRuntime, userRepo, appRepo, functionRepo, serviceTreeRepo, operateLogRepo, fileSnapshotRepo, directoryUpdateHistoryRepo)
+	s.appService = service.NewAppService(s.appRuntime, appRepo, functionRepo, serviceTreeRepo, operateLogRepo, fileSnapshotRepo, directoryUpdateHistoryRepo)
 
-	// 初始化认证服务
-	s.authService = service.NewAuthService(userRepo, userSessionRepo)
-
-	// 初始化邮件服务
-	emailCodeRepo := repository.NewEmailCodeRepository(s.db)
-	s.emailService = service.NewEmailService(emailCodeRepo)
+	// ⭐ 邮件服务已迁移到 hr-server，不再需要初始化
 
 	// 初始化 JWT 服务
 	s.jwtService = service.NewJWTService()
@@ -409,9 +382,6 @@ func (s *Server) initServices(ctx context.Context) error {
 
 	// 初始化函数服务
 	s.functionService = service.NewFunctionService(functionRepo, appRepo)
-
-	// 初始化用户服务
-	s.userService = service.NewUserService(userRepo)
 
 	// 操作日志服务已迁移到企业版，通过 enterprise.GetOperateLogger() 获取
 
@@ -473,10 +443,6 @@ func (s *Server) GetAppService() *service.AppService {
 	return s.appService
 }
 
-// GetAuthService 获取认证服务
-func (s *Server) GetAuthService() *service.AuthService {
-	return s.authService
-}
 
 // getDirectoryUpdateHistoryRepo 获取目录更新历史Repository（内部方法，用于路由注册）
 func (s *Server) getDirectoryUpdateHistoryRepo() *repository.DirectoryUpdateHistoryRepository {
@@ -512,7 +478,7 @@ func (s *Server) handleFunctionGenResult(msg *nats.Msg) {
 		ctx = context.WithValue(ctx, "trace_id", traceID)
 	}
 	if requestUser != "" {
-		ctx = context.WithValue(ctx, "request_user", requestUser)
+		ctx = context.WithValue(ctx, contextx.RequestUserHeader, requestUser)
 	}
 
 	// 解析消息体

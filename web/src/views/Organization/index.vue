@@ -45,6 +45,32 @@
             </div>
           </template>
 
+          <!-- 组织架构信息展示 -->
+          <div v-if="selectedDepartment" class="department-info-section">
+            <el-descriptions :column="1" border>
+              <el-descriptions-item label="部门介绍" v-if="selectedDepartment.description">
+                <div class="description-text">{{ selectedDepartment.description }}</div>
+              </el-descriptions-item>
+              <el-descriptions-item label="负责人" v-if="selectedDepartment.managers">
+                <div class="managers-list">
+                  <UserDisplay
+                    v-for="manager in managerUsers"
+                    :key="manager.username"
+                    :user-info="manager"
+                    :username="manager.username"
+                    mode="card"
+                    layout="horizontal"
+                    size="small"
+                    class="manager-item"
+                  />
+                  <span v-if="managerUsers.length === 0 && selectedDepartment.managers" class="loading-text">
+                    加载中...
+                  </span>
+                </div>
+              </el-descriptions-item>
+            </el-descriptions>
+          </div>
+
           <!-- 用户列表 -->
           <el-table
             v-loading="usersLoading"
@@ -75,6 +101,7 @@
                   v-if="(row as any).department_full_path"
                   :full-code-path="(row as any).department_full_path"
                   :display-name="(row as any).department_full_name_path || (row as any).department_name"
+                  :department-tree="departmentTree"
                   mode="card"
                   layout="horizontal"
                   size="small"
@@ -164,10 +191,13 @@
             placeholder="请输入部门描述"
           />
         </el-form-item>
-        <el-form-item v-if="departmentForm.id" label="负责人">
-          <el-input
-            v-model="departmentForm.managers"
-            placeholder="多个用户名逗号分隔，如：zhangsan,lisi"
+        <el-form-item label="负责人">
+          <UsersWidget
+            :value="managersFieldValue"
+            :field="managersField"
+            mode="edit"
+            field-path="managers"
+            @update:modelValue="handleManagersChange"
           />
         </el-form-item>
       </el-form>
@@ -204,10 +234,15 @@ import {
   getUsersByDepartment,
   type Department
 } from '@/api/department'
-import { searchUsersFuzzy, type UserInfo } from '@/api/user'
+import { searchUsersFuzzy } from '@/api/user'
+import type { UserInfo } from '@/types'
+import { useUserInfoStore } from '@/stores/userInfo'
 import UserDisplay from '@/architecture/presentation/widgets/UserDisplay.vue'
 import UserEditDialog from '@/views/User/components/UserEditDialog.vue'
 import { useAuthStore } from '@/stores/auth'
+import UsersWidget from '@/architecture/presentation/widgets/UsersWidget.vue'
+import { WidgetType } from '@/core/constants/widget'
+import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 
 // ==================== 状态管理 ====================
 
@@ -220,6 +255,10 @@ const selectedDepartment = ref<Department | null>(null)
 // 用户列表相关
 const usersLoading = ref(false)
 const userList = ref<UserInfo[]>([])
+
+// 负责人用户列表
+const managerUsers = ref<UserInfo[]>([])
+const managersLoading = ref(false)
 
 // 对话框相关
 const departmentDialogVisible = ref(false)
@@ -237,8 +276,49 @@ const departmentForm = reactive<{
   name: '',
   code: '',
   parent_id: null,
-  description: ''
+  description: '',
+  managers: ''
 })
+
+// 负责人字段配置（用于 UsersWidget）
+const managersField: FieldConfig = {
+  type: WidgetType.USERS,
+  name: 'managers',
+  label: '负责人',
+  data: {
+    type: 'string'
+  }
+}
+
+// 负责人字段值（用于 UsersWidget）
+const managersFieldValue = computed<FieldValue>(() => {
+  if (!departmentForm.managers) {
+    return {
+      raw: '',
+      display: '',
+      meta: {}
+    }
+  }
+  // managers 是逗号分隔的字符串，需要转换为数组格式
+  const usernames = departmentForm.managers.split(',').map(u => u.trim()).filter(Boolean)
+  return {
+    raw: usernames.join(','),
+    display: usernames.join(','),
+    meta: {}
+  }
+})
+
+// 处理负责人变化
+const handleManagersChange = (value: FieldValue) => {
+  // 从 FieldValue 中提取 raw 值（逗号分隔的字符串）
+  if (typeof value.raw === 'string') {
+    departmentForm.managers = value.raw
+  } else if (Array.isArray(value.raw)) {
+    departmentForm.managers = value.raw.join(',')
+  } else {
+    departmentForm.managers = ''
+  }
+}
 
 const departmentFormRules: FormRules = {
   name: [{ required: true, message: '请输入部门名称', trigger: 'blur' }],
@@ -326,6 +406,22 @@ function findDepartmentByPath(tree: Department[], targetPath: string): Departmen
   return null
 }
 
+// 在树中根据 id 查找部门
+function findDepartmentById(tree: Department[], id: number): Department | null {
+  for (const dept of tree) {
+    if (dept.id === id) {
+      return dept
+    }
+    if (dept.children && dept.children.length > 0) {
+      const found = findDepartmentById(dept.children, id)
+      if (found) {
+        return found
+      }
+    }
+  }
+  return null
+}
+
 
 // 处理部门节点点击
 function handleDepartmentNodeClick(node: Department) {
@@ -333,6 +429,49 @@ function handleDepartmentNodeClick(node: Department) {
   selectedDepartment.value = node
   // 自动加载该部门的用户列表
   loadDepartmentUsers(node)
+  // 加载负责人信息
+  loadManagerUsers(node)
+}
+
+// 加载负责人用户信息（使用用户 SDK，带缓存）
+async function loadManagerUsers(department: Department) {
+  if (!department.managers || department.managers.trim() === '') {
+    managerUsers.value = []
+    return
+  }
+  
+  const usernames = department.managers.split(',').map(u => u.trim()).filter(Boolean)
+  if (usernames.length === 0) {
+    managerUsers.value = []
+    return
+  }
+  
+  managersLoading.value = true
+  try {
+    const userInfoStore = useUserInfoStore()
+    const users: UserInfo[] = []
+    
+    // 并行加载所有负责人信息（使用 SDK，自动处理缓存）
+    await Promise.all(
+      usernames.map(async (username) => {
+        try {
+          const user = await userInfoStore.getUserInfo(username)
+          if (user) {
+            users.push(user)
+          }
+        } catch (error) {
+          console.error(`[Organization] 加载负责人 ${username} 信息失败:`, error)
+        }
+      })
+    )
+    
+    managerUsers.value = users
+  } catch (error: any) {
+    console.error('加载负责人信息失败:', error)
+    managerUsers.value = []
+  } finally {
+    managersLoading.value = false
+  }
 }
 
 // 新增部门
@@ -386,12 +525,22 @@ async function handleSubmitDepartment() {
           name: departmentForm.name,
           code: departmentForm.code,
           parent_id: departmentForm.parent_id ?? 0, // null 转换为 0 传给后端（后端会将 0 转换为 NULL）
-          description: departmentForm.description
+          description: departmentForm.description,
+          managers: departmentForm.managers
         })
         ElMessage.success('创建部门成功')
       }
       departmentDialogVisible.value = false
-      loadDepartmentTree()
+      await loadDepartmentTree()
+      // 如果更新的是当前选中的部门，重新加载负责人信息
+      if (departmentForm.id && selectedDepartment.value && selectedDepartment.value.id === departmentForm.id) {
+        // 从树中重新获取更新后的部门信息
+        const updatedDept = findDepartmentById(departmentTree.value, departmentForm.id)
+        if (updatedDept) {
+          selectedDepartment.value = updatedDept
+          loadManagerUsers(updatedDept)
+        }
+      }
     } catch (error: any) {
       ElMessage.error(error.message || '操作失败')
     } finally {
@@ -447,6 +596,8 @@ async function handleViewDepartmentUsers(dept: Department) {
   selectedDepartmentId.value = dept.id
   selectedDepartment.value = dept
   await loadDepartmentUsers(dept)
+  // 加载负责人信息
+  loadManagerUsers(dept)
 }
 
 // 刷新用户列表
@@ -489,6 +640,36 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
+.department-info-section {
+  margin-bottom: 20px;
+  padding: 16px;
+  background-color: var(--el-bg-color-page);
+  border-radius: 4px;
+  
+  .description-text {
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.6;
+    color: var(--el-text-color-regular);
+  }
+  
+  .managers-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    
+    .manager-item {
+      flex-shrink: 0;
+    }
+    
+    .loading-text {
+      color: var(--el-text-color-placeholder);
+      font-size: 14px;
+    }
+  }
+}
+
 .organization-management {
   height: 100%;
   display: flex;

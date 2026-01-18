@@ -17,6 +17,9 @@ type App struct {
 	Version  string `gorm:"column:version;type:varchar(50)" json:"version"`
 	IsPublic bool   `gorm:"column:is_public;type:boolean;default:true" json:"is_public"` // 是否公开，默认公开
 	Admins   string `gorm:"column:admins;type:text" json:"admins"`                      // 管理员列表，逗号分隔的用户名
+	
+	// ⭐ 新增：应用类型（0:用户空间, 1:系统空间）
+	Type AppType `json:"type" gorm:"column:type;type:tinyint;default:0;index;comment:应用类型(0:用户空间,1:系统空间)"`
 }
 
 func (App) TableName() string {
@@ -55,4 +58,14 @@ func (a *App) GetVersionNumber() int {
 		return 0
 	}
 	return num
+}
+
+// IsSystemApp 检查是否为系统空间
+func (a *App) IsSystemApp() bool {
+	return a.Type.IsSystem()
+}
+
+// IsUserApp 检查是否为用户空间
+func (a *App) IsUserApp() bool {
+	return a.Type.IsUser()
 }

@@ -1,9 +1,10 @@
 /**
  * Hub 前端用户 API
- * 调用 OS 的用户 API 获取用户信息
+ * 调用 hr-server 的用户 API 获取用户信息
+ * 注意：需要调用主项目（5173端口）的 hr-server API
  */
 
-import { get } from '@/utils/request'
+import axios from 'axios'
 
 // 用户信息接口
 export interface UserInfo {
@@ -18,6 +19,12 @@ export interface UserInfo {
   email_verified: boolean
   status: string
   created_at: string
+  // ⭐ 新增：组织架构相关字段
+  department_full_path?: string
+  department_name?: string
+  department_full_name_path?: string
+  leader_username?: string
+  leader_display_name?: string
 }
 
 // 查询用户响应
@@ -26,7 +33,8 @@ export interface QueryUserResp {
 }
 
 /**
- * 获取 OS API 基础地址
+ * 获取主项目（OS）的 API 基础地址
+ * Hub 运行在 5174 端口，需要调用主项目（5173端口）的 API
  */
 function getOSAPIBaseURL(): string {
   // 从环境变量获取配置
@@ -39,13 +47,63 @@ function getOSAPIBaseURL(): string {
   // 如果没有配置，从当前域名推断
   const isDev = import.meta.env.DEV || import.meta.env.MODE === 'development'
   if (isDev) {
-    // 开发环境：假设 OS 运行在 5173 端口
-    return 'http://localhost:5173/workspace/api/v1'
+    // 开发环境：主项目运行在 5173 端口
+    return 'http://localhost:5173'
   } else {
-    // 生产环境：使用当前域名
-    return `${window.location.origin}/workspace/api/v1`
+    // 生产环境：使用当前域名（假设主项目和 Hub 在同一域名下）
+    return window.location.origin
   }
 }
+
+/**
+ * 创建用于调用主项目 API 的 axios 实例
+ */
+function createOSAPIInstance() {
+  const instance = axios.create({
+    baseURL: getOSAPIBaseURL(),
+    timeout: 30000,
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  })
+
+  // 请求拦截器：添加 token
+  instance.interceptors.request.use(
+    (config) => {
+      const token = localStorage.getItem('token') || ''
+      if (token && typeof token === 'string' && token.trim()) {
+        if (!config.headers) {
+          config.headers = {} as any
+        }
+        (config.headers as any)['X-Token'] = token
+      }
+      return config
+    },
+    (error) => {
+      return Promise.reject(error)
+    }
+  )
+
+  // 响应拦截器：处理响应格式
+  instance.interceptors.response.use(
+    (response) => {
+      const { code, data } = response.data as any
+      if (code === 0) {
+        return data
+      }
+      const error = new Error((response.data as any).msg || (response.data as any).message || '请求失败') as any
+      error.response = response
+      return Promise.reject(error)
+    },
+    (error) => {
+      return Promise.reject(error)
+    }
+  )
+
+  return instance
+}
+
+const osAPI = createOSAPIInstance()
 
 /**
  * 根据用户名查询用户信息
@@ -57,36 +115,11 @@ export async function queryUser(username: string): Promise<UserInfo | null> {
   }
   
   try {
-    const baseURL = getOSAPIBaseURL()
-    const url = `${baseURL}/user/query?username=${encodeURIComponent(username)}`
-    
-    // 使用 fetch 直接调用 OS API（因为可能跨域）
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        // 传递 token（如果有）
-        ...(localStorage.getItem('token') ? {
-          'X-Token': localStorage.getItem('token') || ''
-        } : {})
-      }
+    // ⭐ 调用主项目（5173端口）的 hr-server 接口
+    const response = await osAPI.get<QueryUserResp>('/hr/api/v1/user/query', {
+      params: { username }
     })
-    
-    if (!response.ok) {
-      console.warn(`[queryUser] 获取用户信息失败: ${response.status}`)
-      return null
-    }
-    
-    const responseData = await response.json()
-    // 处理 OS API 的响应格式：{ code: 0, data: { user: {...} }, msg: "成功" }
-    if (responseData.code === 0 && responseData.data) {
-      return responseData.data.user || null
-    }
-    // 降级处理：直接返回 user 字段（如果存在）
-    if (responseData.user) {
-      return responseData.user
-    }
-    return null
+    return response.user || null
   } catch (error) {
     console.error('[queryUser] 获取用户信息失败:', error)
     return null
@@ -113,37 +146,9 @@ export async function getUsersByUsernames(usernames: string[]): Promise<UserInfo
   }
   
   try {
-    const baseURL = getOSAPIBaseURL()
-    const url = `${baseURL}/users`
-    
-    // 使用 fetch 直接调用 OS API（因为可能跨域）
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        // 传递 token（如果有）
-        ...(localStorage.getItem('token') ? {
-          'X-Token': localStorage.getItem('token') || ''
-        } : {})
-      },
-      body: JSON.stringify({ usernames })
-    })
-    
-    if (!response.ok) {
-      console.warn(`[getUsersByUsernames] 批量获取用户信息失败: ${response.status}`)
-      return []
-    }
-    
-    const responseData = await response.json()
-    // 处理 OS API 的响应格式：{ code: 0, data: { users: [...] }, msg: "成功" }
-    if (responseData.code === 0 && responseData.data) {
-      return responseData.data.users || []
-    }
-    // 降级处理：直接返回 users 字段（如果存在）
-    if (responseData.users) {
-      return responseData.users
-    }
-    return []
+    // ⭐ 调用主项目（5173端口）的 hr-server 接口
+    const response = await osAPI.post<GetUsersByUsernamesResp>('/hr/api/v1/users', { usernames })
+    return response.users || []
   } catch (error) {
     console.error('[getUsersByUsernames] 批量获取用户信息失败:', error)
     return []

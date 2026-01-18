@@ -18,7 +18,7 @@
           <div class="header-actions">
             <el-select
               v-model="selectedResourceType"
-              placeholder="选择资源类型"
+              placeholder="筛选资源类型"
               clearable
               style="width: 150px; margin-right: 10px;"
               @change="handleResourceTypeChange"
@@ -37,75 +37,127 @@
         </div>
       </template>
 
-      <!-- 角色列表 -->
-      <el-table
-        v-loading="loading"
-        :data="roleList"
-        style="width: 100%"
-        stripe
-      >
-        <el-table-column prop="name" label="角色名称" width="150" />
-        <el-table-column prop="code" label="角色代码" width="150" />
-        <el-table-column label="资源类型" width="120" align="center">
-          <template #default="{ row }">
-            <el-tag type="primary" size="small">
-              {{ getResourceTypeLabel(row.resource_type) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="description" label="描述" min-width="200" />
-        <el-table-column label="类型" width="100" align="center">
-          <template #default="{ row }">
-            <el-tag v-if="row.is_system" type="success" size="small">系统角色</el-tag>
-            <el-tag v-else type="info" size="small">自定义角色</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="权限配置" min-width="300">
-          <template #default="{ row }">
-            <div class="permissions-display">
-              <el-tag
-                v-for="(actions, resourceType) in getRolePermissions(row)"
-                :key="resourceType"
-                size="small"
-                style="margin-right: 8px; margin-bottom: 4px;"
-              >
-                {{ getResourceTypeLabel(resourceType) }}: {{ actions.length }} 个权限
-              </el-tag>
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="180">
-          <template #default="{ row }">
-            {{ formatDateTime(row.created_at) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
-          <template #default="{ row }">
-            <el-button link type="primary" size="small" @click="handleEditRole(row)">
-              编辑
-            </el-button>
-            <el-button link type="primary" size="small" @click="handleAssignRole(row)">
-              分配
-            </el-button>
-            <el-button
-              v-if="!row.is_system"
-              link
-              type="danger"
-              size="small"
-              @click="handleDeleteRole(row)"
-            >
-              删除
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <!-- 按资源类型分组的角色列表 -->
+      <div v-loading="loading" class="role-groups-container">
+        <!-- 遍历每个资源类型 -->
+        <div
+          v-for="resourceType in resourceTypes"
+          :key="resourceType"
+          class="resource-group"
+        >
+          <el-card shadow="hover" class="resource-group-card">
+            <template #header>
+              <div class="group-header">
+                <div class="group-title">
+                  <el-icon class="group-icon"><FolderOpened /></el-icon>
+                  <span class="group-name">{{ getResourceTypeLabel(resourceType) }}</span>
+                  <el-tag type="info" size="small" class="group-count">
+                    {{ getRolesByResourceType(resourceType).length }} 个角色
+                  </el-tag>
+                </div>
+                <el-button
+                  type="primary"
+                  size="small"
+                  :icon="Plus"
+                  @click="handleCreateRoleForResourceType(resourceType)"
+                >
+                  新建{{ getResourceTypeLabel(resourceType) }}角色
+                </el-button>
+              </div>
+            </template>
 
-      <!-- 空状态 -->
-      <el-empty
-        v-if="!loading && roleList.length === 0"
-        description="暂无角色（请检查后端是否已初始化预设角色）"
-        :image-size="100"
-      />
+            <!-- 该资源类型的角色列表 -->
+            <el-table
+              v-if="getRolesByResourceType(resourceType).length > 0"
+              :data="getRolesByResourceType(resourceType)"
+              style="width: 100%"
+              stripe
+              :show-header="true"
+            >
+              <el-table-column prop="name" label="角色名称" width="200">
+                <template #default="{ row }">
+                  <div class="role-name-cell">
+                    <span class="role-name">{{ row.name }}</span>
+                    <div class="role-tags">
+                      <el-tag
+                        v-if="row.is_default === true"
+                        type="warning"
+                        size="small"
+                        style="margin-left: 8px;"
+                      >
+                        默认
+                      </el-tag>
+                      <el-tag
+                        v-if="row.is_system === true"
+                        type="success"
+                        size="small"
+                        style="margin-left: 8px;"
+                      >
+                        系统
+                      </el-tag>
+                    </div>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column prop="code" label="角色代码" width="150" />
+              <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
+              <el-table-column label="权限配置" min-width="300">
+                <template #default="{ row }">
+                  <div class="permissions-display">
+                    <el-tag
+                      v-for="(actions, rt) in getRolePermissions(row)"
+                      :key="rt"
+                      size="small"
+                      :type="rt === resourceType ? 'primary' : 'info'"
+                      style="margin-right: 8px; margin-bottom: 4px;"
+                    >
+                      {{ getResourceTypeLabel(rt) }}: {{ actions.length }} 个权限
+                    </el-tag>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column prop="created_at" label="创建时间" width="180">
+                <template #default="{ row }">
+                  {{ formatDateTime(row.created_at) }}
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="200" fixed="right">
+                <template #default="{ row }">
+                  <el-button link type="primary" size="small" @click="handleEditRole(row)">
+                    编辑
+                  </el-button>
+                  <el-button link type="primary" size="small" @click="handleAssignRole(row)">
+                    分配
+                  </el-button>
+                  <el-button
+                    v-if="!row.is_system"
+                    link
+                    type="danger"
+                    size="small"
+                    @click="handleDeleteRole(row)"
+                  >
+                    删除
+                  </el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+
+            <!-- 该资源类型无角色时的空状态 -->
+            <el-empty
+              v-else
+              :description="`暂无${getResourceTypeLabel(resourceType)}角色`"
+              :image-size="80"
+            />
+          </el-card>
+        </div>
+
+        <!-- 全局空状态（所有资源类型都没有角色） -->
+        <el-empty
+          v-if="!loading && roleList.length === 0"
+          description="暂无角色（请检查后端是否已初始化预设角色）"
+          :image-size="100"
+        />
+      </div>
     </el-card>
 
     <!-- 创建/编辑角色对话框 -->
@@ -139,10 +191,20 @@
             placeholder="请输入角色描述"
           />
         </el-form-item>
+        <el-form-item label="设为默认角色" v-if="roleForm.id">
+          <el-switch
+            v-model="roleForm.is_default"
+            active-text="是"
+            inactive-text="否"
+          />
+          <div style="margin-top: 8px; color: #909399; font-size: 12px;">
+            💡 设置为默认角色后，在权限申请时会自动推荐此角色
+          </div>
+        </el-form-item>
         <el-form-item label="权限配置" prop="permissions">
           <div class="permissions-config">
             <div
-              v-for="resourceType in resourceTypes"
+              v-for="resourceType in getAvailableResourceTypesForRole"
               :key="resourceType"
               class="resource-type-section"
             >
@@ -159,6 +221,7 @@
                 <el-checkbox-group
                   v-model="roleForm.permissions[resourceType]"
                   @change="handlePermissionChange(resourceType)"
+                  class="permissions-checkbox-group"
                 >
                   <el-checkbox
                     v-for="action in getAvailableActions(resourceType)"
@@ -171,6 +234,18 @@
                 </el-checkbox-group>
               </div>
             </div>
+          </div>
+          <div class="permissions-tip">
+            <el-alert
+              v-if="isDirectoryRole"
+              type="info"
+              :closable="false"
+              show-icon
+            >
+              <template #title>
+                <span>提示：目录开发者角色可以配置所有资源类型的权限（目录 + 函数），这样目录下的函数也能继承相应的权限。</span>
+              </template>
+            </el-alert>
           </div>
         </el-form-item>
       </el-form>
@@ -278,7 +353,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { Plus, Refresh } from '@element-plus/icons-vue'
+import { Plus, Refresh, FolderOpened } from '@element-plus/icons-vue'
 import {
   getRoles,
   getRole,
@@ -318,11 +393,13 @@ const roleForm = reactive<{
   name: string
   code: string
   description: string
+  is_default: boolean
   permissions: Record<string, string[]>
 }>({
   name: '',
   code: '',
   description: '',
+  is_default: false,
   permissions: {},
 })
 
@@ -422,36 +499,37 @@ const resourceTypeLabels: Record<string, string> = {
 }
 
 // 权限点配置（按资源类型）
+// ⭐ 使用新的权限点格式：resource_type:action_type（如 table:read, form:write）
 const permissionConfig: Record<string, Array<{ value: string; label: string }>> = {
   directory: [
     { value: 'directory:read', label: '查看目录' },
     { value: 'directory:write', label: '写入目录' },
     { value: 'directory:update', label: '更新目录' },
     { value: 'directory:delete', label: '删除目录' },
-    { value: 'directory:manage', label: '所有权' },
+    { value: 'directory:admin', label: '所有权' },
   ],
   table: [
-    { value: 'function:read', label: '查看表格' },
-    { value: 'function:write', label: '新增记录' },
-    { value: 'function:update', label: '更新记录' },
-    { value: 'function:delete', label: '删除记录' },
-    { value: 'function:manage', label: '所有权' },
+    { value: 'table:read', label: '查看表格' },
+    { value: 'table:write', label: '新增记录' },
+    { value: 'table:update', label: '更新记录' },
+    { value: 'table:delete', label: '删除记录' },
+    { value: 'table:admin', label: '所有权' },
   ],
   form: [
-    { value: 'function:read', label: '查看表单' },
-    { value: 'function:write', label: '提交表单' },
-    { value: 'function:manage', label: '所有权' },
+    { value: 'form:read', label: '查看表单' },
+    { value: 'form:write', label: '提交表单' },
+    { value: 'form:admin', label: '所有权' },
   ],
   chart: [
-    { value: 'function:read', label: '查看图表' },
-    { value: 'function:manage', label: '所有权' },
+    { value: 'chart:read', label: '查看图表' },
+    { value: 'chart:admin', label: '所有权' },
   ],
   app: [
     { value: 'app:read', label: '查看工作空间' },
     { value: 'app:create', label: '创建工作空间' },
     { value: 'app:update', label: '更新工作空间' },
     { value: 'app:delete', label: '删除工作空间' },
-    { value: 'app:manage', label: '所有权' },
+    { value: 'app:admin', label: '所有权' },
   ],
 }
 
@@ -472,6 +550,41 @@ function getAvailableActions(resourceType: string) {
 }
 
 /**
+ * 判断当前编辑的角色是否是目录类型
+ */
+const isDirectoryRole = computed(() => {
+  if (roleForm.id) {
+    const currentRole = roleList.value.find(r => r.id === roleForm.id)
+    return currentRole && (currentRole as any).resource_type === 'directory'
+  }
+  return false
+})
+
+/**
+ * 获取角色可配置的资源类型列表
+ * ⭐ 目录类型的角色可以配置所有资源类型的权限（目录 + 函数）
+ * ⭐ 其他类型的角色只能配置对应资源类型的权限
+ */
+const getAvailableResourceTypesForRole = computed(() => {
+  // 如果正在编辑角色，检查角色的 resource_type
+  if (roleForm.id) {
+    // 从角色列表中查找当前编辑的角色
+    const currentRole = roleList.value.find(r => r.id === roleForm.id)
+    if (currentRole && (currentRole as any).resource_type === 'directory') {
+      // 目录角色可以配置所有资源类型的权限
+      return resourceTypes
+    } else if (currentRole && (currentRole as any).resource_type) {
+      // 其他类型角色只配置对应资源类型的权限
+      return [(currentRole as any).resource_type]
+    }
+  }
+  
+  // 如果是新建角色，显示所有资源类型（用户可以选择）
+  // 实际创建时会根据选择的权限推断主要资源类型
+  return resourceTypes
+})
+
+/**
  * 获取角色的权限配置（按资源类型分组）
  */
 function getRolePermissions(role: Role): Record<string, string[]> {
@@ -487,6 +600,49 @@ function getRolePermissions(role: Role): Record<string, string[]> {
     result[perm.resource_type].push(perm.action)
   }
   return result
+}
+
+/**
+ * 根据资源类型获取角色列表
+ */
+/**
+ * 根据资源类型获取角色列表
+ * ⭐ 只返回 resource_type 字段匹配的角色，不检查权限（函数只显示对应资源类型的角色）
+ */
+function getRolesByResourceType(resourceType: string): Role[] {
+  // ⭐ 只根据角色的 resource_type 字段过滤，不检查权限
+  // 这样表格函数只显示 table 资源类型的角色，表单函数只显示 form 资源类型的角色
+  // 目录角色（resource_type: "directory"）不会出现在函数分组中
+  return roleList.value.filter(role => {
+    return (role as any).resource_type === resourceType
+  })
+}
+
+/**
+ * 为指定资源类型创建角色
+ */
+function handleCreateRoleForResourceType(resourceType: string) {
+  // 重置表单
+  Object.assign(roleForm, {
+    id: undefined,
+    name: '',
+    code: '',
+    description: '',
+    permissions: {},
+  })
+
+  // 初始化权限配置
+  for (const rt of resourceTypes) {
+    roleForm.permissions[rt] = []
+  }
+
+  // 默认选中当前资源类型的第一个权限（如果有）
+  const availableActions = getAvailableActions(resourceType)
+  if (availableActions.length > 0) {
+    roleForm.permissions[resourceType] = [availableActions[0].value]
+  }
+
+  roleDialogVisible.value = true
 }
 
 /**
@@ -599,6 +755,7 @@ function handleCreateRole() {
     name: '',
     code: '',
     description: '',
+    is_default: false,
     permissions: {},
   })
 
@@ -625,6 +782,7 @@ async function handleEditRole(role: Role) {
       name: roleData.name,
       code: roleData.code,
       description: roleData.description || '',
+      is_default: roleData.is_default || false,
       permissions: {},
     })
 
@@ -674,6 +832,7 @@ async function handleSubmitRole() {
       const req: UpdateRoleReq = {
         name: roleForm.name,
         description: roleForm.description,
+        is_default: roleForm.is_default,
         permissions,
       }
       await updateRole(roleForm.id, req)
@@ -804,6 +963,18 @@ onMounted(() => {
 <style scoped lang="scss">
 .role-management {
   padding: 20px;
+  min-height: calc(100vh - 40px);
+  width: 100%;
+  box-sizing: border-box;
+
+  :deep(.el-card) {
+    height: auto;
+    overflow: visible;
+  }
+
+  :deep(.el-card__body) {
+    overflow: visible;
+  }
 
   .card-header {
     display: flex;
@@ -820,6 +991,63 @@ onMounted(() => {
       display: flex;
       gap: 8px;
     }
+  }
+
+  .role-groups-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-height: 0; // 允许 flex 子元素收缩
+  }
+
+  .resource-group {
+    .resource-group-card {
+      border: 1px solid var(--el-border-color-lighter);
+      transition: all 0.3s;
+      margin-bottom: 0;
+
+      &:hover {
+        border-color: var(--el-color-primary);
+        box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+      }
+
+      :deep(.el-card__body) {
+        overflow: visible;
+        padding: 20px;
+      }
+
+      .group-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+
+        .group-title {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+
+          .group-icon {
+            font-size: 18px;
+            color: var(--el-color-primary);
+          }
+
+          .group-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--el-text-color-primary);
+          }
+
+          .group-count {
+            margin-left: 4px;
+          }
+        }
+      }
+    }
+  }
+
+  .role-name-cell {
+    display: flex;
+    align-items: center;
   }
 
   .permissions-display {
@@ -851,13 +1079,19 @@ onMounted(() => {
       .permissions-list {
         padding-left: 24px;
 
-        :deep(.el-checkbox-group) {
+        .permissions-checkbox-group {
           display: flex;
-          flex-direction: column;
-          gap: 8px;
+          flex-direction: row;
+          flex-wrap: wrap;
+          gap: 16px;
+          align-items: center;
         }
       }
     }
+  }
+
+  .permissions-tip {
+    margin-top: 12px;
   }
 }
 </style>

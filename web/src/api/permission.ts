@@ -166,3 +166,47 @@ export function addPermission(data: AddPermissionReq): Promise<void> {
   return post<void>('/workspace/api/v1/permission/add', data)
 }
 
+/**
+ * 查询资源的所有权限分配请求参数
+ */
+export interface GetResourcePermissionsReq {
+  user: string  // 租户用户（必填）
+  app: string   // 应用代码（必填）
+  resource_path: string  // 资源路径（full-code-path，必填）
+}
+
+/**
+ * 资源权限分配信息
+ */
+export interface ResourcePermissionAssignment {
+  id: number  // 分配ID
+  subject_type: 'user' | 'department'  // 权限主体类型
+  subject: string  // 权限主体：用户名或组织架构路径
+  subject_name: string  // 权限主体名称（用户昵称或部门名称）
+  role_id: number  // 角色ID
+  role_code: string  // 角色编码
+  role_name: string  // 角色名称
+  resource_path: string  // 资源路径
+  resource_name: string  // 资源名称（节点名称）
+  start_time: string  // 生效开始时间（ISO 8601 格式字符串）
+  end_time?: string  // 生效结束时间（可选，ISO 8601 格式字符串，nil 表示永久）
+  created_by?: string  // 创建者
+  created_at: string  // 创建时间（ISO 8601 格式字符串）
+}
+
+/**
+ * 查询资源的所有权限分配响应
+ */
+export interface GetResourcePermissionsResp {
+  assignments: ResourcePermissionAssignment[]  // 权限分配列表
+  total: number  // 总数
+}
+
+/**
+ * 查询资源的所有权限分配
+ * 用于权限管理 Tab 显示资源的所有权限列表
+ */
+export function getResourcePermissions(params: GetResourcePermissionsReq): Promise<GetResourcePermissionsResp> {
+  return get<GetResourcePermissionsResp>('/workspace/api/v1/permission/resource', params)
+}
+

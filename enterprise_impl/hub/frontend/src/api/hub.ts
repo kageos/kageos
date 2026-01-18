@@ -95,12 +95,8 @@ export interface DirectoryTreeNode {
   type: 'package' | 'function'  // 节点类型：package（目录）或 function（函数）
   name: string
   path: string
-  files: Array<{
-    name: string
-    relative_path: string
-    file_type: string
-  }>
-  functions?: HubFunctionInfo[]  // 函数列表（新增）
+  // ⭐ files 字段已移除，不再返回和展示文件
+  functions?: HubFunctionInfo[]  // 函数列表
   subdirectories: DirectoryTreeNode[]
 }
 
@@ -109,7 +105,7 @@ export interface DirectoryTreeNode {
  */
 export interface HubDirectoryDetail extends HubDirectoryInfo {
   directory_tree?: DirectoryTreeNode  // 目录树结构（可选）
-  files?: DirectoryFileInfo[]         // 文件列表（可选）
+  // ⭐ files 字段已移除，不再返回和展示文件
 }
 
 /**
@@ -117,15 +113,13 @@ export interface HubDirectoryDetail extends HubDirectoryInfo {
  */
 export async function getHubDirectoryDetail(
   hubDirectoryId: number,
-  includeTree?: boolean,
-  includeFiles?: boolean
+  includeTree?: boolean
 ): Promise<HubDirectoryDetail> {
   const baseURL = getHubBaseURL()
   const url = `${baseURL}/directories/detail`
 
   return get<HubDirectoryDetail>(url, {
     hub_directory_id: hubDirectoryId,
-    include_tree: includeTree || false,
-    include_files: includeFiles || false
+    include_tree: includeTree || false
   })
 }

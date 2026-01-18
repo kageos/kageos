@@ -57,9 +57,13 @@
             <p class="form-tip">邮箱不可修改</p>
           </el-form-item>
 
-          <!-- 组织架构（只读） -->
+          <!-- 组织架构（只读，可点击跳转） -->
           <el-form-item label="组织架构">
-            <div v-if="currentUser?.department_full_name_path || currentUser?.department_name || currentUser?.department_full_path" class="org-info">
+            <div 
+              v-if="currentUser?.department_full_name_path || currentUser?.department_name || currentUser?.department_full_path" 
+              class="org-info clickable"
+              @click="handleGoToOrganization"
+            >
               <img src="/组织架构.svg" alt="组织架构" class="info-icon" />
               <span>{{ currentUser.department_full_name_path || currentUser.department_name || currentUser.department_full_path }}</span>
             </div>
@@ -67,12 +71,15 @@
             <p class="form-tip">组织架构由管理员分配，不可修改</p>
           </el-form-item>
 
-          <!-- 直接上级（只读） -->
+          <!-- 直接上级（只读，使用用户组件展示） -->
           <el-form-item label="直接上级">
-            <div v-if="currentUser?.leader_display_name || currentUser?.leader_username" class="leader-info">
-              <el-icon><UserFilled /></el-icon>
-              <span>{{ currentUser.leader_display_name || currentUser.leader_username }}</span>
-            </div>
+            <UserDisplay
+              v-if="currentUser?.leader_username"
+              :username="currentUser.leader_username"
+              mode="card"
+              layout="horizontal"
+              size="medium"
+            />
             <span v-else class="text-muted">未分配</span>
             <p class="form-tip">直接上级由管理员分配，不可修改</p>
           </el-form-item>
@@ -131,9 +138,10 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElForm } from 'element-plus'
-import { ArrowLeft, UserFilled } from '@element-plus/icons-vue'
+import { ArrowLeft } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import CommonUpload from '@/components/CommonUpload.vue'
+import UserDisplay from '@/architecture/presentation/widgets/UserDisplay.vue'
 import type { FormRules } from 'element-plus'
 
 const router = useRouter()
@@ -250,13 +258,28 @@ function handleBack() {
   router.go(-1)
 }
 
+// 跳转到组织架构页面
+function handleGoToOrganization() {
+  router.push('/organization')
+}
+
 // 组件挂载时初始化
-onMounted(() => {
+onMounted(async () => {
   // 如果用户未登录，跳转到登录页
   if (!authStore.isAuthenticated) {
     router.push('/login')
     return
   }
+  
+  // ⭐ 刷新用户信息，获取最新数据
+  try {
+    await authStore.fetchUserInfo()
+  } catch (error) {
+    console.error('获取用户信息失败:', error)
+    // 如果获取失败，仍然使用缓存的数据初始化表单
+  }
+  
+  // 初始化表单数据
   initFormData()
 })
 </script>
@@ -316,8 +339,7 @@ onMounted(() => {
   opacity: 0.6;
 }
 
-.org-info,
-.leader-info {
+.org-info {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -329,13 +351,19 @@ onMounted(() => {
     opacity: 0.8;
   }
   
-  .el-icon {
-    font-size: 16px;
-    color: var(--el-text-color-secondary);
-  }
-  
   span {
     color: var(--el-text-color-primary);
+  }
+  
+  &.clickable {
+    cursor: pointer;
+    transition: color 0.2s;
+    
+    &:hover {
+      span {
+        color: var(--el-color-primary);
+      }
+    }
   }
 }
 

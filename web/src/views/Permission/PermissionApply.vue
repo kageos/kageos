@@ -163,7 +163,10 @@
                       >
                         <div class="role-card-header">
                           <span class="role-name">{{ role.name }}</span>
-                          <el-tag v-if="role.is_system" type="success" size="small">系统角色</el-tag>
+                          <div class="role-tags">
+                            <el-tag v-if="role.is_default" type="warning" size="small">默认</el-tag>
+                            <el-tag v-if="role.is_system" type="success" size="small">系统角色</el-tag>
+                          </div>
                         </div>
                         <p class="role-description">{{ role.description || '无描述' }}</p>
                         <div class="role-permissions-preview">
@@ -1221,20 +1224,6 @@ const loadResourcePermissions = async (resourcePath: string, defaultAction?: str
     return action
   }
   
-  // 设置默认选中的权限点
-  const minimalPermissions = permissions
-    .filter(p => p.isMinimal === true)
-    .map(p => p.action)
-  
-  // ⭐ 映射 defaultAction 到实际的权限点
-  if (defaultAction) {
-    const mappedAction = mapActionToPermission(defaultAction, templateType)
-    if (!minimalPermissions.includes(mappedAction)) {
-      minimalPermissions.push(mappedAction)
-    }
-  }
-  
-  
   // ⭐ 加载可用角色列表（根据资源类型过滤）
   if (node) {
     loadAvailableRoles(node.type, node.template_type || '')
@@ -2148,6 +2137,13 @@ const loadAvailableRoles = async (nodeType: string, templateType: string) => {
     if (resp && resp.roles) {
       availableRoles.value = resp.roles
       console.log('[PermissionApply] 已加载角色列表，数量:', resp.roles.length)
+      
+      // ⭐ 自动选择默认角色（如果有的话）
+      const defaultRole = resp.roles.find((role: Role) => role.is_default)
+      if (defaultRole && !selectedRoleId.value) {
+        selectedRoleId.value = defaultRole.id
+        console.log('[PermissionApply] 自动选择默认角色:', defaultRole.name)
+      }
     } else {
       availableRoles.value = []
       console.warn('[PermissionApply] 角色列表为空')

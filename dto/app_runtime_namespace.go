@@ -106,13 +106,11 @@ type DiffData struct {
 	Delete []*ApiInfo `json:"delete"` // 删除的API
 }
 
-// GetAddFullGroupCodes 获取此次变更新增的group code，一个group code 表示新增了一个文件，新增了一个业务系统
+// GetAddFullGroupCodes 已移除，不再需要 group code
+// 如果需要获取新增的 API 路径，可以使用 GetAddFullCodePaths()
 func (d *DiffData) GetAddFullGroupCodes() []string {
-	codes := make([]string, 0)
-	for _, info := range d.Add {
-		codes = append(codes, info.BuildFullGroupCode())
-	}
-	return codes
+	// 返回空数组，保持向后兼容
+	return []string{}
 }
 
 func (a *ApiInfo) BuildFullCodePath() string {
@@ -202,8 +200,7 @@ type ApiInfo struct {
 	Method            string   `json:"method"`
 	CreateTables      []string `json:"create_tables"`
 	Callback          []string `json:"callback"`
-	FunctionGroupCode string   `json:"function_group_code"`
-	FunctionGroupName string   `json:"function_group_name"`
+	// FunctionGroupCode 和 FunctionGroupName 已移除，不再需要
 
 	Request        []*widget.Field `json:"request"`
 	Response       []*widget.Field `json:"response"`
@@ -220,10 +217,7 @@ type ApiInfo struct {
 	CreateTableModels  []interface{} `json:"-"`
 }
 
-// BuildFullGroupCode 完整函数组代码：{full_path}/{group_code}，与 source_code.full_group_code 对齐
-func (a *ApiInfo) BuildFullGroupCode() string {
-	return fmt.Sprintf("%s/%s", a.GetParentFullCodePath(), a.FunctionGroupCode)
-}
+// BuildFullGroupCode 已移除，不再需要
 
 // DeleteAppReq 删除应用请求
 type DeleteAppReq struct {
@@ -243,6 +237,7 @@ type GetAppsReq struct {
 	User       string `json:"user" swaggerignore:"true"`      // 租户名（从JWT Token获取）
 	Search     string `json:"search" form:"search"`           // 搜索关键词（支持按应用名称或代码搜索）
 	IncludeAll bool   `json:"include_all" form:"include_all"` // 是否包含所有公开的工作空间（true: 显示自己的+全部公开的，false: 只显示自己的）
+	Type       *int   `json:"type,omitempty" form:"type"`     // 应用类型筛选（可选）：0=用户空间，1=系统空间。如果为 nil，不筛选类型
 }
 
 // GetAppsResp 获取应用列表响应
@@ -262,6 +257,7 @@ type AppInfo struct {
 	HostID    int64  `json:"host_id" example:"1"`                      // 主机ID
 	IsPublic  bool   `json:"is_public" example:"true"`                 // 是否公开
 	Admins    string `json:"admins,omitempty" example:"user1,user2"`   // 管理员列表，逗号分隔的用户名
+	Type      int    `json:"type" example:"0"`                         // 应用类型：0=用户空间，1=系统空间
 	CreatedAt string `json:"created_at" example:"2006-01-02 15:04:05"` // 创建时间
 	UpdatedAt string `json:"updated_at" example:"2006-01-02 15:04:05"` // 更新时间
 }

@@ -19,8 +19,6 @@ type ApiInfo struct {
 	Method            string   `json:"method"`
 	CreateTables      []string `json:"create_tables"`
 	Callback          []string `json:"callback"`
-	FunctionGroupCode string   `json:"function_group_code"`
-	FunctionGroupName string   `json:"function_group_name"`
 
 	Request        []*widget.Field `json:"request"`
 	Response       []*widget.Field `json:"response"`
@@ -117,7 +115,7 @@ func (a *ApiInfo) GetPackageChain() []string {
 }
 
 // IsEqual 比较当前API与另一个API是否相等（排除版本信息）
-// 比较的字段包括：Name, Desc, Tags, CreateTables, Callback, TemplateType, FunctionGroupCode, FunctionGroupName, Request, Response
+// 比较的字段包括：Name, Desc, Tags, CreateTables, Callback, TemplateType, Request, Response
 func (a *ApiInfo) IsEqual(other *ApiInfo) bool {
 	if other == nil {
 		return false
@@ -129,9 +127,7 @@ func (a *ApiInfo) IsEqual(other *ApiInfo) bool {
 		!equalStrings(a.Tags, other.Tags) ||
 		!equalStrings(a.CreateTables, other.CreateTables) ||
 		!equalStrings(a.Callback, other.Callback) ||
-		a.TemplateType != other.TemplateType ||
-		a.FunctionGroupCode != other.FunctionGroupCode ||
-		a.FunctionGroupName != other.FunctionGroupName {
+		a.TemplateType != other.TemplateType {
 		return false
 	}
 

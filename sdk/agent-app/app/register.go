@@ -17,27 +17,9 @@ type PackageContext struct {
 	RouterGroup string `json:"router_group"`
 }
 
-type RouterGroup struct {
-	RouterGroup      string `json:"router_group"`
-	*RouterGroupInfo `json:"router_group_info"`
-}
-
-// BuildFullRouter 构建完整路由路径
-// router: 相对路由路径（如 "meeting_room_list"）
-// 返回: 完整路由路径（如 "/crm/meeting_room_list"）
-// 示例:
-//
-//	rg := &RouterGroup{RouterGroup: "/crm"}
-//	fullRouter := rg.BuildFullRouter("meeting_room_list") // 返回 "/crm/meeting_room_list"
-func (p *RouterGroup) BuildFullRouter(router string) string {
-	packagePath := strings.Trim(p.RouterGroup, "/")
-	return fmt.Sprintf("/%s/%s", packagePath, strings.Trim(router, "/"))
-}
-
 // RegisterOptions 路由注册选项
 type RegisterOptions struct {
 	PackagePath string // 服务目录路径（package路径），用于获取对应的数据库连接
-	RouterGroup *RouterGroup
 }
 
 func (r *RegisterOptions) GetDBName(user string, app string) string {
@@ -48,9 +30,16 @@ func (r *RegisterOptions) GetDBName(user string, app string) string {
 	return dbName
 }
 
-// registerWithGroup 通用的注册方法，处理 FunctionGroup 设置和路由路径构建
-// 优化：直接调用 app.addRoute，跳过中间层（GET/POST/PUT/DELETE 和 register）
-func (p *RouterGroup) registerWithGroup(method string, router string, handleFunc HandleFunc, templater Templater) {
+// BuildFullRouter 构建完整路由路径
+// router: 相对路由路径（如 "extract_text"）
+// 返回: 完整路由路径（如 "/tools/pdftools/extract_text"）
+func (p *PackageContext) BuildFullRouter(router string) string {
+	packagePath := strings.Trim(p.RouterGroup, "/")
+	return fmt.Sprintf("/%s/%s", packagePath, strings.Trim(router, "/"))
+}
+
+// register 通用的注册方法，构建路由路径并注册
+func (p *PackageContext) register(method string, router string, handleFunc HandleFunc, templater Templater) {
 	// 确保 app 已初始化
 	if app == nil {
 		initApp()
@@ -62,19 +51,14 @@ func (p *RouterGroup) registerWithGroup(method string, router string, handleFunc
 		return
 	}
 
-	// 设置 FunctionGroup
-	config := templater.GetBaseConfig()
-	config.FunctionGroup.Name = p.GroupName
-	config.FunctionGroup.Code = p.GroupCode
-
-	// 构建完整路由路径
+	// 构建完整路由路径：RouterGroup + "/" + router
+	// 例如："/tools/pdftools" + "/" + "extract_text" -> "/tools/pdftools/extract_text"
 	fullRouter := p.BuildFullRouter(router)
-	packagePath := strings.Trim(p.RouterGroup, "/")
+	packagePath := strings.Trim(p.RouterGroup, "/") // 从 RouterGroup 提取 PackagePath
 
-	// 创建 options，设置 PackagePath
+	// 创建 options，设置 PackagePath（用于获取对应的数据库连接）
 	options := &RegisterOptions{
 		PackagePath: packagePath,
-		RouterGroup: p,
 	}
 
 	// 直接调用 app.addRoute，跳过中间层
@@ -84,33 +68,24 @@ func (p *RouterGroup) registerWithGroup(method string, router string, handleFunc
 	}
 }
 
-func (p *RouterGroup) GET(router string, handleFunc HandleFunc, templater Templater) {
-	p.registerWithGroup("GET", router, handleFunc, templater)
+// POST 注册 POST 路由
+func (p *PackageContext) POST(router string, handleFunc HandleFunc, templater Templater) {
+	p.register("POST", router, handleFunc, templater)
 }
 
-func (p *RouterGroup) POST(router string, handleFunc HandleFunc, templater Templater) {
-	p.registerWithGroup("POST", router, handleFunc, templater)
+// GET 注册 GET 路由
+func (p *PackageContext) GET(router string, handleFunc HandleFunc, templater Templater) {
+	p.register("GET", router, handleFunc, templater)
 }
 
-func (p *RouterGroup) PUT(router string, handleFunc HandleFunc, templater Templater) {
-	p.registerWithGroup("PUT", router, handleFunc, templater)
+// PUT 注册 PUT 路由
+func (p *PackageContext) PUT(router string, handleFunc HandleFunc, templater Templater) {
+	p.register("PUT", router, handleFunc, templater)
 }
 
-func (p *RouterGroup) DELETE(router string, handleFunc HandleFunc, templater Templater) {
-	p.registerWithGroup("DELETE", router, handleFunc, templater)
-}
-
-type RouterGroupInfo struct {
-	GroupCode string `json:"group_code"`
-	GroupName string `json:"group_name"`
-}
-
-func NewRouterGroup(pkgCtx *PackageContext, routerGroup *RouterGroupInfo) *RouterGroup {
-
-	return &RouterGroup{
-		RouterGroup:     pkgCtx.RouterGroup,
-		RouterGroupInfo: routerGroup,
-	}
+// DELETE 注册 DELETE 路由
+func (p *PackageContext) DELETE(router string, handleFunc HandleFunc, templater Templater) {
+	p.register("DELETE", router, handleFunc, templater)
 }
 
 // routerKey 构建路由 key（URL 唯一，不包含 method）
@@ -118,76 +93,15 @@ func routerKey(router string) string {
 	return strings.Trim(router, "/")
 }
 
-func register(router string, method string, handleFunc HandleFunc, templater Templater, options *RegisterOptions) {
-	// 确保 app 已初始化
-	if app == nil {
-		initApp()
-	}
-
-	// 如果初始化失败，app 可能仍然是 nil，延迟注册到 Run() 时
-	if app == nil {
-		logger.Errorf(context.Background(), "Cannot register router %s %s: app initialization failed", method, router)
-		return
-	}
-
-	// 使用统一的 addRoute 方法
-	if err := app.addRoute(router, method, handleFunc, templater, options); err != nil {
-		logger.Errorf(context.Background(), "Failed to register router %s %s: %v", method, router, err)
-		panic(err) // 注册失败时 panic，避免静默失败
-	}
-}
-
-// GET 注册 GET 路由
-// options 可以为 nil，表示使用默认值（PackagePath 为空）
-func GET(router string, handleFunc HandleFunc, templater Templater, options ...*RegisterOptions) {
-	var opts *RegisterOptions
-	if len(options) > 0 {
-		opts = options[0]
-	}
-	register(router, "GET", handleFunc, templater, opts)
-}
-
-// POST 注册 POST 路由
-// options 可以为 nil，表示使用默认值（PackagePath 为空）
-func POST(router string, handleFunc HandleFunc, templater Templater, options ...*RegisterOptions) {
-	var opts *RegisterOptions
-	if len(options) > 0 {
-		opts = options[0]
-	}
-	register(router, "POST", handleFunc, templater, opts)
-}
-
-// PUT 注册 PUT 路由
-// options 可以为 nil，表示使用默认值（PackagePath 为空）
-func PUT(router string, handleFunc HandleFunc, templater Templater, options ...*RegisterOptions) {
-	var opts *RegisterOptions
-	if len(options) > 0 {
-		opts = options[0]
-	}
-	register(router, "PUT", handleFunc, templater, opts)
-}
-
-// DELETE 注册 DELETE 路由
-// options 可以为 nil，表示使用默认值（PackagePath 为空）
-func DELETE(router string, handleFunc HandleFunc, templater Templater, options ...*RegisterOptions) {
-	var opts *RegisterOptions
-	if len(options) > 0 {
-		opts = options[0]
-	}
-	register(router, "DELETE", handleFunc, templater, opts)
-}
-
 func initRouter(a *App) {
-	//a.registerRouter(MethodPost, "/test/add", AddHandle, Temp)
-	//a.registerRouter(MethodPost, "/test/get", GetHandle, Temp)
 
-	// ⚠️ 重要：必须直接操作 a.routerInfo，不能调用 register() 或 a.registerRouter()
+	// ⚠️ 重要：必须直接操作 a.routerInfo，不能调用 a.registerRouter() 或 PackageContext.register()
 	//
 	// 原因：死锁问题
 	// 1. initRouter() 在 NewApp() 中被调用
 	// 2. NewApp() 本身在 initApp() 的 sync.Once.Do() 中执行
 	// 3. 此时全局变量 app 还没有被赋值（NewApp() 还没返回）
-	// 4. 如果调用 register()，它会检查 app == nil，然后再次调用 initApp()
+	// 4. 如果调用 PackageContext.register()，它会检查 app == nil，然后再次调用 initApp()
 	// 5. sync.Once.Do() 会阻塞等待第一次执行完成，但第一次执行就是 NewApp()
 	// 6. 而 NewApp() 又调用了 initRouter()，形成死锁
 	//
@@ -309,20 +223,20 @@ func (a *App) CallbackRouter(ctx *Context, resp response.Response) error {
 		if !ok {
 			return errors.New("invalid type of TableTemplate")
 		}
-		
+
 		var batchReq callback.OnTableCreateInBatchesReq
 		err := json.Unmarshal(ctx.body, &batchReq)
 		if err != nil {
 			return fmt.Errorf("解析批量创建请求失败: %w", err)
 		}
-		
+
 		// 调用系统内置的批量创建逻辑
 		batchResp, err := handleTableCreateInBatches(ctx, v, &batchReq)
 		if err != nil {
 			logger.Errorf(ctx, "callback OnTableCreateInBatches router:%s error:%s", req.Type, err.Error())
 			return err
 		}
-		
+
 		err = resp.Form(batchResp).Build()
 		if err != nil {
 			logger.Errorf(ctx, "callback OnTableCreateInBatches router:%s Build error:%s", req.Type, err.Error())
@@ -363,13 +277,13 @@ func handleTableCreateInBatches(ctx *Context, template *TableTemplate, req *call
 	if template.AutoCrudTable == nil {
 		return nil, errors.New("AutoCrudTable 不能为空")
 	}
-	
+
 	// 获取数据库连接
 	db := ctx.GetGormDB()
 	if db == nil {
 		return nil, errors.New("获取数据库连接失败")
 	}
-	
+
 	// 获取 AutoCrudTable 的结构类型
 	tableType := reflect.TypeOf(template.AutoCrudTable)
 	if tableType.Kind() == reflect.Ptr {
@@ -378,52 +292,52 @@ func handleTableCreateInBatches(ctx *Context, template *TableTemplate, req *call
 	if tableType.Kind() != reflect.Struct {
 		return nil, fmt.Errorf("AutoCrudTable 必须是结构体类型，当前类型: %v", tableType.Kind())
 	}
-	
+
 	// 创建切片类型
 	sliceType := reflect.SliceOf(reflect.PtrTo(tableType))
-	
+
 	// 创建切片实例
 	sliceValue := reflect.New(sliceType).Elem()
-	
+
 	// 将 JSON 数据反序列化到切片
 	jsonData, err := json.Marshal(req.Data)
 	if err != nil {
 		return nil, fmt.Errorf("序列化数据失败: %w", err)
 	}
-	
+
 	// 创建切片指针并反序列化
 	slicePtr := reflect.New(sliceType).Interface()
 	if err := json.Unmarshal(jsonData, slicePtr); err != nil {
 		return nil, fmt.Errorf("反序列化数据失败: %w", err)
 	}
-	
+
 	// 获取切片值
 	sliceValue = reflect.ValueOf(slicePtr).Elem()
-	
+
 	// 批量插入数据库
 	successCount := 0
 	failCount := 0
 	var errors []callback.OnTableCreateBatchError
-	
+
 	// 使用 CreateInBatches 批量插入（每批 100 条）
 	batchSize := 100
 	totalCount := sliceValue.Len()
-	
+
 	for i := 0; i < totalCount; i += batchSize {
 		end := i + batchSize
 		if end > totalCount {
 			end = totalCount
 		}
-		
+
 		// 获取当前批次
 		batchSlice := sliceValue.Slice(i, end)
-		
+
 		// 转换为 []interface{}
 		batchInterface := make([]interface{}, batchSlice.Len())
 		for j := 0; j < batchSlice.Len(); j++ {
 			batchInterface[j] = batchSlice.Index(j).Interface()
 		}
-		
+
 		// 批量插入
 		if err := db.CreateInBatches(batchInterface, batchSize).Error; err != nil {
 			// 如果批量插入失败，尝试逐条插入以获取详细的错误信息
@@ -443,9 +357,9 @@ func handleTableCreateInBatches(ctx *Context, template *TableTemplate, req *call
 			successCount += batchSlice.Len()
 		}
 	}
-	
+
 	logger.Infof(ctx, "[handleTableCreateInBatches] 批量创建完成: 总数=%d, 成功=%d, 失败=%d", totalCount, successCount, failCount)
-	
+
 	return &callback.OnTableCreateInBatchesResp{
 		SuccessCount: successCount,
 		FailCount:    failCount,

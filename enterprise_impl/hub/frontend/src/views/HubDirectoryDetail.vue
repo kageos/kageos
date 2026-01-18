@@ -291,23 +291,6 @@
                 </div>
               </div>
             </div>
-            <div
-              v-for="file in directoryDetail.directory_tree.files"
-              :key="file.relative_path"
-              class="child-card"
-              @click.stop="handleFileClick(file)"
-            >
-              <div class="child-card-header">
-                <div class="child-icon-wrapper file-type">
-                  <el-icon class="child-icon"><Document /></el-icon>
-                </div>
-                <el-tag size="small" type="info" class="child-type-tag">文件</el-tag>
-              </div>
-              <div class="child-card-body">
-                <div class="child-name">{{ file.name || file.relative_path }}</div>
-                <div class="child-description" v-if="file.file_type">{{ file.file_type }}</div>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -477,7 +460,7 @@ const loadDirectoryDetail = async () => {
 
   loading.value = true
   try {
-    const detail = await getHubDirectoryDetail(directoryId, true, true)
+    const detail = await getHubDirectoryDetail(directoryId, true)
     directoryDetail.value = detail
     
     // 🔥 预加载发布者的用户信息（使用缓存）
@@ -551,7 +534,7 @@ function getTemplateTypeText(templateType: string): string {
 function countChildren(node: DirectoryTreeNode): number {
   let count = 0
   if (node.functions) count += node.functions.length
-  if (node.files) count += node.files.length
+  // ⭐ 不再计算 files（已移除）
   if (node.subdirectories) {
     for (const subdir of node.subdirectories) {
       count += countChildren(subdir)
@@ -588,15 +571,7 @@ function convertToTreeData(node: DirectoryTreeNode): any {
     })))
   }
   
-  // 添加文件
-  if (node.files && node.files.length > 0) {
-    children.push(...node.files.map(file => ({
-      name: file.name || file.relative_path,
-      path: file.relative_path,
-      type: 'file',
-      file_type: file.file_type
-    })))
-  }
+  // ⭐ 不再添加文件（已移除）
   
   return {
     name: node.name,
@@ -692,28 +667,7 @@ const DirectoryNodeWrapper = defineComponent({
             ])
           ])
         ),
-        // 文件
-        ...(props.node.files || []).map((file: any) =>
-          h('div', {
-            key: file.relative_path,
-            class: 'child-card',
-            onClick: (e: Event) => {
-              e.stopPropagation() // 阻止事件冒泡
-              handleFileClick(file)
-            }
-          }, [
-            h('div', { class: 'child-card-header' }, [
-              h('div', { class: 'child-icon-wrapper file-type' }, [
-                h(Document, { class: 'child-icon' })
-              ]),
-              h(ElTag, { size: 'small', type: 'info', class: 'child-type-tag' }, () => '文件')
-            ]),
-            h('div', { class: 'child-card-body' }, [
-              h('div', { class: 'child-name' }, file.name || file.relative_path),
-              file.file_type && h('div', { class: 'child-description' }, file.file_type)
-            ])
-          ])
-        )
+        // ⭐ 不再渲染文件（已移除）
       ])
     ])
   }
