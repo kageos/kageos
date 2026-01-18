@@ -113,6 +113,28 @@ func (d *DiffData) GetAddFullGroupCodes() []string {
 	return []string{}
 }
 
+// GetAddFullCodePaths 获取新增 API 的完整代码路径列表
+func (d *DiffData) GetAddFullCodePaths() []string {
+	if d == nil || len(d.Add) == 0 {
+		return []string{}
+	}
+	
+	fullCodePaths := make([]string, 0, len(d.Add))
+	for _, api := range d.Add {
+		if api != nil {
+			fullCodePath := api.FullCodePath
+			if fullCodePath == "" {
+				// 如果 FullCodePath 为空，尝试构建
+				fullCodePath = api.BuildFullCodePath()
+			}
+			if fullCodePath != "" {
+				fullCodePaths = append(fullCodePaths, fullCodePath)
+			}
+		}
+	}
+	return fullCodePaths
+}
+
 func (a *ApiInfo) BuildFullCodePath() string {
 	router := strings.Trim(a.Router, "/")
 	if router == "" {

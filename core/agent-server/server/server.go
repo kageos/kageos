@@ -333,8 +333,8 @@ func (s *Server) GetDB() *gorm.DB {
 func (s *Server) HandleFunctionGenCallback(c *gin.Context, callback *dto.FunctionGenCallback) {
 	ctx := contextx.ToContext(c)
 
-	logger.Infof(ctx, "[Server] 收到回调消息 (HTTP) - RecordID: %d, MessageID: %d, Success: %v, FullGroupCodes: %v, AppCode: %s",
-		callback.RecordID, callback.MessageID, callback.Success, callback.FullGroupCodes, callback.AppCode)
+	logger.Infof(ctx, "[Server] 收到回调消息 (HTTP) - RecordID: %d, MessageID: %d, Success: %v, FullCodePaths: %v, AppCode: %s",
+		callback.RecordID, callback.MessageID, callback.Success, callback.FullCodePaths, callback.AppCode)
 
 	// 调用 Service 层处理
 	if err := s.functionGenService.ProcessFunctionGenCallback(ctx, callback); err != nil {

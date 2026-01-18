@@ -2163,7 +2163,7 @@ func (s *ServiceTreeService) AddFunctions(ctx context.Context, req *dto.AddFunct
 		CreateFunctions: []*dto.CreateFunctionInfo{createFunction},
 	}
 
-	updateResp, err := s.appService.UpdateApp(ctx, updateReq)
+	_, err = s.appService.UpdateApp(ctx, updateReq)
 	if err != nil {
 		logger.Errorf(ctx, "[ServiceTreeService] AppService.UpdateApp 失败: error=%v", err)
 		return &dto.AddFunctionsResp{
@@ -2172,19 +2172,11 @@ func (s *ServiceTreeService) AddFunctions(ctx context.Context, req *dto.AddFunct
 		}, err
 	}
 
-	// 6. 获取新增的 FullGroupCodes
-	fullGroupCodes := make([]string, 0)
-	if updateResp.Diff != nil {
-		fullGroupCodes = updateResp.Diff.GetAddFullGroupCodes()
-		logger.Infof(ctx, "[ServiceTreeService] 添加函数完成 - Count: %d, FullGroupCodes: %v", len(fullGroupCodes), fullGroupCodes)
-	}
-
-	// 7. 返回同步结果（不发送回调）
+	// 6. 返回同步结果（不发送回调）
 	return &dto.AddFunctionsResp{
-		Success:        true,
-		FullGroupCodes: fullGroupCodes,
-		AppID:          serviceTree.App.ID,
-		AppCode:        serviceTree.App.Code,
+		Success: true,
+		AppID:   serviceTree.App.ID,
+		AppCode: serviceTree.App.Code,
 	}, nil
 }
 

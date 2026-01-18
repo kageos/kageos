@@ -96,46 +96,49 @@ func (s *FunctionGenService) ProcessFunctionGenResult(ctx context.Context, req *
 
 	logger.Infof(ctx, "[FunctionGenService] 函数创建成功: Package=%s, FileName=%s", packagePath, fileName)
 
-	// 7. 获取新增的 FullGroupCodes
-	fullGroupCodes := make([]string, 0)
+	// 7. 获取新增的 FullCodePaths
+	fullCodePaths := make([]string, 0)
 	if updateResp.Diff != nil {
-		fullGroupCodes = updateResp.Diff.GetAddFullGroupCodes()
-		logger.Infof(ctx, "[FunctionGenService] 获取新增函数组代码 - Count: %d, FullGroupCodes: %v", len(fullGroupCodes), fullGroupCodes)
+		fullCodePaths = updateResp.Diff.GetAddFullCodePaths()
+		logger.Infof(ctx, "[FunctionGenService] 获取新增函数完整代码路径 - Count: %d, FullCodePaths: %v", len(fullCodePaths), fullCodePaths)
 	}
 
 	// 8. 发送回调消息给 agent-server
-	if len(fullGroupCodes) > 0 {
-		callbackData := &dto.FunctionGenCallback{
-			RecordID:       req.RecordID,
-			MessageID:      req.MessageID,
-			Success:        true,
-			FullGroupCodes: fullGroupCodes,
-			AppID:          serviceTree.App.ID,
-			AppCode:        serviceTree.App.Code,
-			Error:          "",
-		}
-
-		// 从 ctx 中获取 traceID 和 requestUser
-		traceID := contextx.GetTraceId(ctx)
-		requestUser := contextx.GetRequestUser(ctx)
-		
-		// 通过 HTTP 发送回调到 agent-server
-		apicallHeader := &apicall.Header{
-			TraceID:     traceID,
-			RequestUser: requestUser,
-			Token:       "", // 服务间调用不需要 token
-		}
-
-		if err := apicall.NotifyWorkspaceUpdateComplete(apicallHeader, callbackData); err != nil {
-			logger.Errorf(ctx, "[FunctionGenService] 通知工作空间更新完成失败: error=%v", err)
-			// 不中断流程，记录日志即可
-		} else {
-			logger.Infof(ctx, "[FunctionGenService] 工作空间更新完成通知已发送 (HTTP) - RecordID: %d, MessageID: %d, FullGroupCodes: %v, AppCode: %s",
-				req.RecordID, req.MessageID, fullGroupCodes, serviceTree.App.Code)
-		}
-	} else {
-		logger.Warnf(ctx, "[FunctionGenService] 没有新增的函数组代码，跳过回调 - RecordID: %d", req.RecordID)
+	// ⭐ 只要处理成功就发送回调，确保状态能正确更新为 completed
+	callbackData := &dto.FunctionGenCallback{
+		RecordID:      req.RecordID,
+		MessageID:     req.MessageID,
+		Success:       true,
+		FullCodePaths: fullCodePaths,
+		AppID:         serviceTree.App.ID,
+		AppCode:       serviceTree.App.Code,
+		Error:         "",
 	}
+
+	// 从 ctx 中获取 traceID 和 token
+	traceID := contextx.GetTraceId(ctx)
+	token := contextx.GetToken(ctx)
+	
+	// 通过 HTTP 发送回调到 agent-server
+	// ⭐ 服务间调用需要 token（用于权限验证），不需要 requestUser（网关会从 token 解析）
+	apicallHeader := &apicall.Header{
+		TraceID:     traceID,
+		RequestUser: "", // 服务间调用不需要 requestUser，网关会从 token 解析
+		Token:       token,
+	}
+
+	if err := apicall.NotifyWorkspaceUpdateComplete(apicallHeader, callbackData); err != nil {
+		logger.Errorf(ctx, "[FunctionGenService] 通知工作空间更新完成失败: error=%v", err)
+		// 不中断流程，记录日志即可
+		} else {
+			if len(fullCodePaths) > 0 {
+				logger.Infof(ctx, "[FunctionGenService] 工作空间更新完成通知已发送 (HTTP) - RecordID: %d, MessageID: %d, FullCodePaths: %v, AppCode: %s",
+					req.RecordID, req.MessageID, fullCodePaths, serviceTree.App.Code)
+			} else {
+				logger.Infof(ctx, "[FunctionGenService] 工作空间更新完成通知已发送 (HTTP) - RecordID: %d, MessageID: %d, FullCodePaths: [] (无新增函数), AppCode: %s",
+					req.RecordID, req.MessageID, serviceTree.App.Code)
+			}
+		}
 
 	return nil
 }
@@ -146,8 +149,8 @@ func (s *FunctionGenService) ProcessFunctionGenResultAsync(ctx context.Context, 
 	serviceTree, err := s.serviceTreeRepo.GetByID(req.TreeID)
 	if err != nil {
 		logger.Errorf(ctx, "[FunctionGenService] 获取 ServiceTree 失败: TreeID=%d, error=%v", req.TreeID, err)
-		// 发送失败回调
-		s.sendCallback(ctx, req, serviceTree, false, nil, err.Error())
+		// 发送失败回调（serviceTree 可能为 nil，但 sendCallback 会处理）
+		s.sendCallback(ctx, req, nil, false, []string{}, err.Error())
 		return err
 	}
 
@@ -156,7 +159,7 @@ func (s *FunctionGenService) ProcessFunctionGenResultAsync(ctx context.Context, 
 		app, err := s.appRepo.GetAppByID(serviceTree.AppID)
 		if err != nil {
 			logger.Errorf(ctx, "[FunctionGenService] 获取 App 失败: AppID=%d, error=%v", serviceTree.AppID, err)
-			s.sendCallback(ctx, req, serviceTree, false, nil, err.Error())
+			s.sendCallback(ctx, req, serviceTree, false, []string{}, err.Error())
 			return err
 		}
 		serviceTree.App = app
@@ -197,25 +200,25 @@ func (s *FunctionGenService) ProcessFunctionGenResultAsync(ctx context.Context, 
 	updateResp, err := s.appService.UpdateApp(ctx, updateReq)
 	if err != nil {
 		logger.Errorf(ctx, "[FunctionGenService] AppService.UpdateApp 失败: error=%v", err)
-		s.sendCallback(ctx, req, serviceTree, false, nil, err.Error())
+		s.sendCallback(ctx, req, serviceTree, false, []string{}, err.Error())
 		return err
 	}
 
-	// 6. 获取新增的 FullGroupCodes
-	fullGroupCodes := make([]string, 0)
+	// 6. 获取新增的 FullCodePaths
+	fullCodePaths := make([]string, 0)
 	if updateResp.Diff != nil {
-		fullGroupCodes = updateResp.Diff.GetAddFullGroupCodes()
-		logger.Infof(ctx, "[FunctionGenService] 异步处理完成 - Count: %d, FullGroupCodes: %v", len(fullGroupCodes), fullGroupCodes)
+		fullCodePaths = updateResp.Diff.GetAddFullCodePaths()
+		logger.Infof(ctx, "[FunctionGenService] 异步处理完成 - Count: %d, FullCodePaths: %v", len(fullCodePaths), fullCodePaths)
 	}
 
 	// 7. 发送回调通知（异步模式必须发送回调）
-	s.sendCallback(ctx, req, serviceTree, true, fullGroupCodes, "")
+	s.sendCallback(ctx, req, serviceTree, true, fullCodePaths, "")
 
 	return nil
 }
 
 // sendCallback 发送回调通知（内部辅助方法）
-func (s *FunctionGenService) sendCallback(ctx context.Context, req *dto.AddFunctionsReq, serviceTree *model.ServiceTree, success bool, fullGroupCodes []string, errorMsg string) {
+func (s *FunctionGenService) sendCallback(ctx context.Context, req *dto.AddFunctionsReq, serviceTree *model.ServiceTree, success bool, fullCodePaths []string, errorMsg string) {
 	var appID int64
 	var appCode string
 	
@@ -233,23 +236,24 @@ func (s *FunctionGenService) sendCallback(ctx context.Context, req *dto.AddFunct
 	}
 	
 	callbackData := &dto.FunctionGenCallback{
-		RecordID:       req.RecordID,
-		MessageID:      req.MessageID,
-		Success:        success,
-		FullGroupCodes: fullGroupCodes,
-		AppID:          appID,
-		AppCode:        appCode,
-		Error:          errorMsg,
+		RecordID:      req.RecordID,
+		MessageID:     req.MessageID,
+		Success:       success,
+		FullCodePaths: fullCodePaths,
+		AppID:         appID,
+		AppCode:       appCode,
+		Error:         errorMsg,
 	}
 
-	// 从 ctx 中获取 traceID 和 requestUser
+	// 从 ctx 中获取 traceID 和 token
 	traceID := contextx.GetTraceId(ctx)
-	requestUser := contextx.GetRequestUser(ctx)
+	token := contextx.GetToken(ctx)
 	
+	// ⭐ 服务间调用需要 token（用于权限验证），不需要 requestUser（网关会从 token 解析）
 	apicallHeader := &apicall.Header{
 		TraceID:     traceID,
-		RequestUser: requestUser,
-		Token:       "",
+		RequestUser: "", // 服务间调用不需要 requestUser，网关会从 token 解析
+		Token:       token,
 	}
 
 	if err := apicall.NotifyWorkspaceUpdateComplete(apicallHeader, callbackData); err != nil {
