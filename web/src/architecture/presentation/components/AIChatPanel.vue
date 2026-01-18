@@ -1113,17 +1113,15 @@ function handleMessageLinkClick(event: MouseEvent) {
  * 智能轮询策略：根据已用时间和轮询次数动态调整间隔
  * 
  * 策略说明：
- * - 初始阶段（预计30秒-1.5分钟）：用较长间隔（30秒），因为还没到完成时间
- * - 临近完成：加快频率（5秒、2秒），因为这时候更可能完成
+ * - 模型升级后，20秒内有可能就成功，所以需要更快的响应
+ * - 第一次：8秒后轮询（快速开始检查）
+ * - 后续每次：3秒间隔（保持快速响应）
  * - 超时后（超过2分钟）：降低频率（10秒），因为可能出问题了
  * 
  * 具体策略：
- * - 第1次：30秒后轮询（初始等待）
- * - 第2次：5秒后轮询（开始接近预计完成时间）
- * - 第3次：5秒后轮询
- * - 第4次：5秒后轮询
- * - 第5次：2秒后轮询（临近完成，加快频率）
- * - 第6次及以后：如果超过2分钟，改为10秒间隔（可能出问题，降低频率）
+ * - 第1次：8秒后轮询（快速开始）
+ * - 第2次及以后：3秒后轮询（保持快速响应）
+ * - 超过2分钟：10秒间隔（可能出问题，降低频率）
  */
 function getPollInterval(count: number, elapsed: number): number {
   // 超时阈值：2分钟（120秒）
@@ -1135,21 +1133,12 @@ function getPollInterval(count: number, elapsed: number): number {
   }
   
   // 根据轮询次数决定间隔
-  switch (count) {
-    case 1:
-      // 第1次：30秒后轮询（初始等待）
-      return 30 * 1000
-    case 2:
-    case 3:
-    case 4:
-      // 第2-4次：5秒后轮询（开始接近预计完成时间）
-      return 5 * 1000
-    case 5:
-      // 第5次：2秒后轮询（临近完成，加快频率）
-      return 2 * 1000
-    default:
-      // 第6次及以后：如果还没超时，继续用2秒（保持快速响应）
-      return 2 * 1000
+  if (count === 1) {
+    // 第1次：8秒后轮询（快速开始检查）
+    return 8 * 1000
+  } else {
+    // 第2次及以后：3秒后轮询（保持快速响应）
+    return 3 * 1000
   }
 }
 
@@ -1199,19 +1188,19 @@ function startPolling(recordId: number) {
         // 发送成功通知
         const durationText = res.duration ? `（耗时：${formatDuration(res.duration)}）` : ''
         
-        // 构建通知消息，包含函数组按钮和耗时
+        // 构建通知消息，包含函数完整代码路径按钮和耗时
         let notificationMessage = `代码生成已完成${durationText}`
-        if (res.full_group_codes && res.full_group_codes.length > 0) {
-          const buttons = res.full_group_codes.map((code: string, index: number) => {
-            // 构建函数组详情页面 URL：域名 + /workspace + 函数组路径 + ?_node_type=function_group
-            const fullGroupCode = code.startsWith('/') ? code : `/${code}`
-            const url = `${window.location.origin}/workspace${fullGroupCode}?_node_type=function_group`
+        if (res.full_code_paths && res.full_code_paths.length > 0) {
+          const buttons = res.full_code_paths.map((code: string, index: number) => {
+            // 构建函数详情页面 URL：域名 + /workspace + 函数路径 + ?_node_type=function
+            const fullCodePath = code.startsWith('/') ? code : `/${code}`
+            const url = `${window.location.origin}/workspace${fullCodePath}?_node_type=function`
             // 按钮只显示4个字
             const buttonText = '查看详情'
             // 使用按钮样式的链接，点击在新窗口打开
             return `<a href="${url}" target="_blank" onclick="event.preventDefault(); window.open('${url}', '_blank'); return false;" style="display: inline-block; padding: 6px 12px; margin: 4px 8px 4px 0; background-color: #67C23A; color: white; text-decoration: none; border-radius: 4px; cursor: pointer; font-size: 12px; transition: background-color 0.3s;" onmouseover="this.style.backgroundColor='#5daf34'" onmouseout="this.style.backgroundColor='#67C23A'">${buttonText}</a>`
           }).join('')
-          notificationMessage = `已生成 ${res.full_group_codes.length} 个函数组${durationText}：<br><div style="margin-top: 8px;">${buttons}</div>`
+          notificationMessage = `已生成 ${res.full_code_paths.length} 个函数${durationText}：<br><div style="margin-top: 8px;">${buttons}</div>`
         }
         
         ElNotification({
@@ -1221,14 +1210,14 @@ function startPolling(recordId: number) {
           type: 'success',
           duration: 0, // 不自动关闭，需要手动点击关闭或点击跳转
           onClick: () => {
-            // 点击通知时，如果有函数组地址，跳转到第一个
-            if (res.full_group_codes && res.full_group_codes.length > 0) {
-              const firstCode = res.full_group_codes[0]
-              const fullGroupCode = firstCode.startsWith('/') ? firstCode : `/${firstCode}`
+            // 点击通知时，如果有函数路径，跳转到第一个
+            if (res.full_code_paths && res.full_code_paths.length > 0) {
+              const firstCode = res.full_code_paths[0]
+              const fullCodePath = firstCode.startsWith('/') ? firstCode : `/${firstCode}`
               router.push({
-                path: `/workspace${fullGroupCode}`,
+                path: `/workspace${fullCodePath}`,
                 query: {
-                  _node_type: 'function_group'
+                  _node_type: 'function'
                 }
               })
             }

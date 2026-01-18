@@ -602,7 +602,7 @@ export interface FunctionGenStatusResp {
   status: 'generating' | 'completed' | 'failed'
   code?: string
   error_msg?: string
-  full_group_codes?: string[]
+  full_code_paths?: string[]
   duration: number
   created_at: string
   updated_at: string

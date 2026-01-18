@@ -73,11 +73,10 @@ type FunctionGenResult = AddFunctionsReq
 
 // AddFunctionsResp 添加函数响应（同步模式返回）
 type AddFunctionsResp struct {
-	Success        bool     `json:"success" example:"true"`           // 是否成功
-	FullGroupCodes []string `json:"full_group_codes,omitempty" example:"[\"/user/app/function\"]"` // 生成的函数组代码列表
-	AppID          int64    `json:"app_id" example:"1"`                // 应用ID
-	AppCode        string   `json:"app_code" example:"myapp"`          // 应用代码
-	Error          string   `json:"error,omitempty" example:""`         // 错误信息（如果失败）
+	Success bool   `json:"success" example:"true"`         // 是否成功
+	AppID   int64  `json:"app_id" example:"1"`             // 应用ID
+	AppCode string `json:"app_code" example:"myapp"`      // 应用代码
+	Error   string `json:"error,omitempty" example:""`     // 错误信息（如果失败）
 }
 
 // PluginRunReq 插件执行请求
@@ -156,13 +155,13 @@ type ChatMessageListResp struct {
 
 // FunctionGenCallback 函数生成回调（app-server -> agent-server）
 type FunctionGenCallback struct {
-	RecordID       int64    `json:"record_id"`        // 生成记录ID
-	MessageID      int64    `json:"message_id"`       // 消息ID
-	Success        bool     `json:"success"`           // 是否成功
-	FullGroupCodes []string `json:"full_group_codes"`  // 生成的函数组代码列表
-	AppID          int64    `json:"app_id"`           // 应用ID
-	AppCode        string   `json:"app_code"`         // 应用代码（冗余存储，提高查询效率）
-	Error          string   `json:"error,omitempty"`   // 错误信息（如果失败）
+	RecordID      int64    `json:"record_id"`        // 生成记录ID
+	MessageID     int64    `json:"message_id"`       // 消息ID
+	Success       bool     `json:"success"`           // 是否成功
+	FullCodePaths []string `json:"full_code_paths,omitempty" example:"[\"/user/app/function\"]"` // 生成的函数完整代码路径列表
+	AppID         int64    `json:"app_id"`           // 应用ID
+	AppCode       string   `json:"app_code"`         // 应用代码（冗余存储，提高查询效率）
+	Error         string   `json:"error,omitempty"`   // 错误信息（如果失败）
 }
 
 // FunctionGenStatusReq 查询代码生成状态请求
@@ -172,12 +171,12 @@ type FunctionGenStatusReq struct {
 
 // FunctionGenStatusResp 查询代码生成状态响应
 type FunctionGenStatusResp struct {
-	RecordID       int64    `json:"record_id" example:"1"`                              // 生成记录ID
-	Status         string   `json:"status" example:"generating"`                         // 状态：generating/completed/failed
-	Code           string   `json:"code,omitempty" example:"package main\n\nfunc main() {}"` // 生成的代码（仅在 completed 时返回）
-	ErrorMsg       string   `json:"error_msg,omitempty" example:"生成失败"`                // 错误信息（仅在 failed 时返回）
-	FullGroupCodes []string `json:"full_group_codes,omitempty" example:"[\"/user/app/function\"]"` // 生成的函数组代码列表（仅在 completed 时返回）
-	Duration       int      `json:"duration" example:"30"`                              // 生成耗时（秒）
-	CreatedAt      string   `json:"created_at" example:"2006-01-02T15:04:05Z"`           // 创建时间
-	UpdatedAt      string   `json:"updated_at" example:"2006-01-02T15:04:05Z"`         // 更新时间
+	RecordID      int64    `json:"record_id" example:"1"`                              // 生成记录ID
+	Status        string   `json:"status" example:"generating"`                         // 状态：generating/completed/failed
+	Code          string   `json:"code,omitempty" example:"package main\n\nfunc main() {}"` // 生成的代码（仅在 completed 时返回）
+	ErrorMsg      string   `json:"error_msg,omitempty" example:"生成失败"`                // 错误信息（仅在 failed 时返回）
+	FullCodePaths []string `json:"full_code_paths,omitempty" example:"[\"/user/app/function\"]"` // 生成的函数完整代码路径列表（仅在 completed 时返回）
+	Duration      int      `json:"duration" example:"30"`                              // 生成耗时（秒）
+	CreatedAt     string   `json:"created_at" example:"2006-01-02T15:04:05Z"`           // 创建时间
+	UpdatedAt     string   `json:"updated_at" example:"2006-01-02T15:04:05Z"`         // 更新时间
 }

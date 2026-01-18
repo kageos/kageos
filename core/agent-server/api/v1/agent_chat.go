@@ -252,23 +252,23 @@ func (h *AgentChat) GetFunctionGenStatus(c *gin.Context) {
 		return
 	}
 
-	// 解析 FullGroupCodes（逗号分隔的字符串）
-	fullGroupCodes := record.GetFullGroupCodes()
-
 	// 计算耗时（如果状态为 generating 或 Duration 为 0，实时计算）
 	duration := record.Duration
 	if duration == 0 || record.Status == model.FunctionGenStatusGenerating {
 		duration = int(time.Since(time.Time(record.CreatedAt)).Seconds())
 	}
 
+	// 解析 FullCodePaths（逗号分隔的字符串）
+	fullCodePaths := record.GetFullCodePaths()
+
 	// 转换为响应格式
 	resp = &dto.FunctionGenStatusResp{
-		RecordID:       record.ID,
-		Status:         record.Status,
-		Duration:       duration,
-		CreatedAt:      time.Time(record.CreatedAt).Format(time.DateTime),
-		UpdatedAt:      time.Time(record.UpdatedAt).Format(time.DateTime),
-		FullGroupCodes: fullGroupCodes,
+		RecordID:      record.ID,
+		Status:        record.Status,
+		Duration:      duration,
+		CreatedAt:     time.Time(record.CreatedAt).Format(time.DateTime),
+		UpdatedAt:     time.Time(record.UpdatedAt).Format(time.DateTime),
+		FullCodePaths: fullCodePaths,
 	}
 
 	// 根据状态返回不同的字段

@@ -164,17 +164,17 @@ func (s *FunctionGenService) ProcessFunctionGenCallback(ctx context.Context, cal
 	}
 
 	traceId := contextx.GetTraceId(ctx)
-	logger.Infof(ctx, "[FunctionGenService] 处理回调 - RecordID: %d, MessageID: %d, Success: %v, FullGroupCodes: %v, AppCode: %s, TraceID: %s",
-		callback.RecordID, callback.MessageID, callback.Success, callback.FullGroupCodes, callback.AppCode, traceId)
+	logger.Infof(ctx, "[FunctionGenService] 处理回调 - RecordID: %d, MessageID: %d, Success: %v, FullCodePaths: %v, AppCode: %s, TraceID: %s",
+		callback.RecordID, callback.MessageID, callback.Success, callback.FullCodePaths, callback.AppCode, traceId)
 
 	if callback.Success {
-		// 更新记录状态为完成
-		if err := s.functionGenRepo.UpdateStatus(callback.RecordID, model.FunctionGenStatusCompleted, ""); err != nil {
+		// 更新记录状态为完成（包含 FullCodePaths）
+		if err := s.functionGenRepo.UpdateStatusWithFullCodePaths(callback.RecordID, model.FunctionGenStatusCompleted, "", callback.FullCodePaths); err != nil {
 			logger.Errorf(ctx, "[FunctionGenService] 更新记录状态失败 - RecordID: %d, TraceID: %s, Error: %v", callback.RecordID, traceId, err)
 			return fmt.Errorf("更新记录状态失败: %w", err)
 		}
-		logger.Infof(ctx, "[FunctionGenService] 记录状态已更新为完成 - RecordID: %d, FullGroupCodes: %v, TraceID: %s",
-			callback.RecordID, callback.FullGroupCodes, traceId)
+		logger.Infof(ctx, "[FunctionGenService] 记录状态已更新为完成 - RecordID: %d, FullCodePaths: %v, TraceID: %s",
+			callback.RecordID, callback.FullCodePaths, traceId)
 	} else {
 		// 更新记录状态为失败
 		errorMsg := callback.Error
