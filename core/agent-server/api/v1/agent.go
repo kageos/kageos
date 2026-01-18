@@ -67,7 +67,7 @@ func (h *Agent) List(c *gin.Context) {
 					"Timeout":         agent.Timeout,
 					"KnowledgeBaseID": agent.KnowledgeBaseID,
 					"LLMConfigID":      agent.LLMConfigID,
-					"PluginID":        agent.PluginID,
+					"PluginFunctionPath": agent.PluginFunctionPath,
 					"SystemPromptTemplate": fmt.Sprintf("<len:%d>", len(agent.SystemPromptTemplate)),
 				}
 				safeAgents = append(safeAgents, safeAgent)
@@ -122,23 +122,6 @@ func (h *Agent) List(c *gin.Context) {
 			}
 		}
 
-		// 构建插件信息（如果已预加载）
-		var pluginInfo *dto.PluginInfo
-		if agent.Plugin != nil && agent.Plugin.ID > 0 {
-			pluginInfo = &dto.PluginInfo{
-				ID:          agent.Plugin.ID,
-				Name:        agent.Plugin.Name,
-				Code:        agent.Plugin.Code,
-				Description: agent.Plugin.Description,
-				Enabled:     agent.Plugin.Enabled,
-				FormPath:    agent.Plugin.FormPath,
-				Config:      agent.Plugin.Config,
-				User:        agent.Plugin.User,
-				CreatedAt:   time.Time(agent.Plugin.CreatedAt).Format("2006-01-02T15:04:05Z"),
-				UpdatedAt:   time.Time(agent.Plugin.UpdatedAt).Format("2006-01-02T15:04:05Z"),
-			}
-		}
-
 		agentInfos = append(agentInfos, dto.AgentInfo{
 			ID:                   agent.ID,
 			Name:                 agent.Name,
@@ -147,8 +130,7 @@ func (h *Agent) List(c *gin.Context) {
 			Enabled:              agent.Enabled,
 			Description:          agent.Description,
 			Timeout:              agent.Timeout,
-			PluginID:             agent.PluginID,
-			Plugin:               pluginInfo,
+			PluginFunctionPath:   agent.PluginFunctionPath,
 			KnowledgeBaseID:      agent.KnowledgeBaseID,
 			GenerationCount:      agent.GenerationCount,
 			KnowledgeBase:        kbInfo,
@@ -235,23 +217,6 @@ func (h *Agent) Get(c *gin.Context) {
 		}
 	}
 
-		// 构建插件信息（如果已预加载）
-		var pluginInfo *dto.PluginInfo
-		if agent.Plugin != nil && agent.Plugin.ID > 0 {
-			pluginInfo = &dto.PluginInfo{
-				ID:          agent.Plugin.ID,
-				Name:        agent.Plugin.Name,
-				Code:        agent.Plugin.Code,
-				Description: agent.Plugin.Description,
-				Enabled:     agent.Plugin.Enabled,
-				FormPath:    agent.Plugin.FormPath,
-				Config:      agent.Plugin.Config,
-				User:        agent.Plugin.User,
-				CreatedAt:   time.Time(agent.Plugin.CreatedAt).Format("2006-01-02T15:04:05Z"),
-				UpdatedAt:   time.Time(agent.Plugin.UpdatedAt).Format("2006-01-02T15:04:05Z"),
-			}
-		}
-
 	resp = &dto.AgentGetResp{
 		AgentInfo: dto.AgentInfo{
 			ID:                   agent.ID,
@@ -261,8 +226,7 @@ func (h *Agent) Get(c *gin.Context) {
 			Enabled:              agent.Enabled,
 			Description:          agent.Description,
 			Timeout:              agent.Timeout,
-			PluginID:             agent.PluginID,
-			Plugin:               pluginInfo,
+			PluginFunctionPath:   agent.PluginFunctionPath,
 			KnowledgeBaseID:      agent.KnowledgeBaseID,
 			KnowledgeBase:        kbInfo,
 			LLMConfigID:          agent.LLMConfigID,
@@ -318,7 +282,7 @@ func (h *Agent) Create(c *gin.Context) {
 		ChatType:             req.ChatType,
 		Description:          req.Description,
 		Timeout:              req.Timeout,
-		PluginID:             req.PluginID,
+		PluginFunctionPath:   req.PluginFunctionPath,
 		KnowledgeBaseID:      req.KnowledgeBaseID,
 		LLMConfigID:          req.LLMConfigID,
 		SystemPromptTemplate: req.SystemPromptTemplate,
@@ -379,7 +343,7 @@ func (h *Agent) Update(c *gin.Context) {
 	agent.ChatType = req.ChatType
 	agent.Description = req.Description
 	agent.Timeout = req.Timeout
-	agent.PluginID = req.PluginID
+		agent.PluginFunctionPath = req.PluginFunctionPath
 	agent.KnowledgeBaseID = req.KnowledgeBaseID
 	agent.LLMConfigID = req.LLMConfigID
 	agent.SystemPromptTemplate = req.SystemPromptTemplate

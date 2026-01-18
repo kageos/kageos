@@ -132,15 +132,6 @@ const router = createRouter({
         requireAuth: true
       }
     },
-    {
-      path: '/agent/plugins',
-      name: 'plugin-management',
-      component: () => import('../views/Agent/PluginManagement.vue'),
-      meta: {
-        title: '插件管理',
-        requireAuth: true
-      }
-    },
 
     // 首页 - 官网
     {

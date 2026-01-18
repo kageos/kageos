@@ -39,15 +39,13 @@ func normalizeMetadata(metadata string) (*string, error) {
 // AgentService 智能体服务
 type AgentService struct {
 	repo          *repository.AgentRepository
-	pluginRepo    *repository.PluginRepository
 	knowledgeRepo *repository.KnowledgeRepository
 }
 
 // NewAgentService 创建智能体服务
-func NewAgentService(repo *repository.AgentRepository, pluginRepo *repository.PluginRepository, knowledgeRepo *repository.KnowledgeRepository) *AgentService {
+func NewAgentService(repo *repository.AgentRepository, knowledgeRepo *repository.KnowledgeRepository) *AgentService {
 	return &AgentService{
 		repo:          repo,
-		pluginRepo:    pluginRepo,
 		knowledgeRepo: knowledgeRepo,
 	}
 }
@@ -98,6 +96,17 @@ func (s *AgentService) CreateAgent(ctx context.Context, agent *model.Agent) erro
 			return fmt.Errorf("知识库不存在")
 		}
 		return fmt.Errorf("验证知识库失败: %w", err)
+	}
+
+	// 如果是 plugin 类型，验证 PluginFunctionPath
+	if agent.AgentType == "plugin" {
+		if agent.PluginFunctionPath == "" {
+			return fmt.Errorf("插件类型智能体必须指定插件函数路径")
+		}
+		// ⭐ 可以在这里验证 PluginFunctionPath 是否存在（可选，需要调用 app-server 的 API）
+	} else {
+		// 非 plugin 类型，清空 PluginFunctionPath
+		agent.PluginFunctionPath = ""
 	}
 
 	// 规范化 metadata 字段
@@ -171,22 +180,15 @@ func (s *AgentService) UpdateAgent(ctx context.Context, agent *model.Agent) erro
 		return fmt.Errorf("验证知识库失败: %w", err)
 	}
 
-	// 如果是 plugin 类型，验证插件是否存在
+	// 如果是 plugin 类型，验证 PluginFunctionPath
 	if agent.AgentType == "plugin" {
-		if agent.PluginID == nil || *agent.PluginID == 0 {
-			return fmt.Errorf("插件类型智能体必须关联插件")
+		if agent.PluginFunctionPath == "" {
+			return fmt.Errorf("插件类型智能体必须指定插件函数路径")
 		}
-		_, err := s.pluginRepo.GetByID(*agent.PluginID)
-		if err != nil {
-			if err == gorm.ErrRecordNotFound {
-				return fmt.Errorf("插件不存在")
-			}
-			return fmt.Errorf("验证插件失败: %w", err)
-		}
-		// plugin 类型已关联插件，无需其他操作
+		// ⭐ 可以在这里验证 PluginFunctionPath 是否存在（可选，需要调用 app-server 的 API）
 	} else {
-		// 非 plugin 类型，清空 PluginID
-		agent.PluginID = nil
+		// 非 plugin 类型，清空 PluginFunctionPath
+		agent.PluginFunctionPath = ""
 	}
 
 	// 规范化 metadata 字段

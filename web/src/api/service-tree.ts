@@ -126,3 +126,43 @@ export function forkServiceTree(id: number, targetAppId: number) {
     app_id: targetAppId
   })
 }
+
+// 搜索函数
+export interface SearchFunctionsReq {
+  user: string
+  app: string
+  keyword?: string
+  template_type?: string
+  page: number
+  page_size: number
+}
+
+export interface FunctionSearchResult {
+  id: number
+  name: string
+  code: string
+  full_code_path: string
+  description: string
+  template_type: string
+  app_id: number
+  app_user: string
+  app_code: string
+}
+
+export interface SearchFunctionsResp {
+  functions: FunctionSearchResult[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export function searchFunctions(req: SearchFunctionsReq) {
+  return get<SearchFunctionsResp>('/workspace/api/v1/service_tree/search_functions', {
+    user: req.user,
+    app: req.app,
+    keyword: req.keyword || '',
+    template_type: req.template_type || '',
+    page: req.page.toString(),
+    page_size: req.page_size.toString()
+  })
+}

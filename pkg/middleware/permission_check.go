@@ -43,6 +43,9 @@ func checkPermission(c *gin.Context, action string, errorMessage string) bool {
 	// 获取用户信息
 	username := contextx.GetRequestUser(c)
 	if username == "" {
+		// ⭐ 添加调试日志，帮助排查用户信息丢失问题
+		logger.Warnf(c, "[PermissionCheck] 用户信息为空 - FullCodePath: %s, Action: %s, X-Request-User Header: %s",
+			fullCodePath, action, c.GetHeader("X-Request-User"))
 		response.PermissionDenied(c, "未提供用户信息", map[string]interface{}{
 			"resource_path": fullCodePath,
 			"action":        action,

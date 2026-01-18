@@ -2630,3 +2630,48 @@ func (s *ServiceTreeService) GetHubInfo(ctx context.Context, req *dto.GetHubInfo
 		PublishedAt:     hubDetail.PublishedAt,
 	}, nil
 }
+
+// SearchFunctions 搜索函数
+func (s *ServiceTreeService) SearchFunctions(ctx context.Context, req *dto.SearchFunctionsReq) (*dto.SearchFunctionsResp, error) {
+	// 调用 Repository 搜索函数
+	functions, total, err := s.serviceTreeRepo.SearchFunctions(
+		req.User,
+		req.App,
+		req.Keyword,
+		req.TemplateType,
+		req.Page,
+		req.PageSize,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("搜索函数失败: %w", err)
+	}
+
+	// 转换为响应格式
+	functionResults := make([]*dto.FunctionSearchResult, 0, len(functions))
+	for _, fn := range functions {
+		result := &dto.FunctionSearchResult{
+			ID:           fn.ID,
+			Name:         fn.Name,
+			Code:         fn.Code,
+			FullCodePath: fn.FullCodePath,
+			Description:  fn.Description,
+			TemplateType: fn.TemplateType,
+			AppID:        fn.AppID,
+		}
+
+		// 如果预加载了 App，填充 AppUser 和 AppCode
+		if fn.App != nil {
+			result.AppUser = fn.App.User
+			result.AppCode = fn.App.Code
+		}
+
+		functionResults = append(functionResults, result)
+	}
+
+	return &dto.SearchFunctionsResp{
+		Functions: functionResults,
+		Total:     total,
+		Page:      req.Page,
+		PageSize:  req.PageSize,
+	}, nil
+}

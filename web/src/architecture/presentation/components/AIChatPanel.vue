@@ -268,11 +268,13 @@ import { ElMessage, ElNotification } from 'element-plus'
 import { Close, User, Loading, ChatRound, Upload, Document, Plus, ArrowDown, ArrowUp } from '@element-plus/icons-vue'
 import * as agentApi from '@/api/agent'
 import type { AgentInfo, ChatSessionInfo } from '@/api/agent'
-import { uploadFile, notifyUploadComplete } from '@/utils/upload'
+import { uploadFile, notifyUploadComplete, type UploadCompleteResult } from '@/utils/upload'
 import { formatDuration } from '@/utils/date'
 import type { UploadFile } from 'element-plus'
 import { marked } from 'marked'
 import AgentSelectDialog from '@/components/Agent/AgentSelectDialog.vue'
+import { useAuthStore } from '@/stores/auth'
+import { WidgetType, DataType } from '@/core/constants/widget'
 
 interface Props {
   agentId: number | null
@@ -296,9 +298,21 @@ const emit = defineEmits<{
 
 const router = useRouter()
 
+// ⭐ ChatFile 与 types.File 保持一致（智能体插件场景）
 interface ChatFile {
-  url: string
-  remark: string
+  name: string              // 文件名
+  source_name: string       // 源文件名称
+  storage: string           // 存储引擎类型（minio/qiniu/xxxxx）
+  description: string      // 文件描述/备注
+  hash: string              // 文件hash
+  size: number              // 文件大小（字节）
+  upload_ts: number         // 上传时间戳（毫秒）
+  local_path: string        // 本地路径（前端不需要，设为空）
+  is_uploaded: boolean    // 是否已上传到云端
+  url: string               // 外部访问地址（前端下载使用）
+  server_url: string        // 内部访问地址（服务端下载使用）
+  downloaded: boolean       // 是否已下载到本地（前端不需要，设为false）
+  upload_user: string       // 上传用户
 }
 
 interface ChatMessage {
@@ -327,6 +341,9 @@ const pollingStates = ref<Map<number, { count: number; startTime: number }>>(new
 // 文件上传相关
 const uploadedFiles = ref<ChatFile[]>([])
 const isDragOver = ref(false)
+
+// 获取当前用户信息（用于文件上传）
+const authStore = useAuthStore()
 
 // 智能体选择相关
 const selectedAgentId = ref<number | null>(props.agentId)
@@ -887,7 +904,11 @@ async function processFile(rawFile: File | null) {
     
     // 通知后端上传完成
     if (uploadResult.fileInfo) {
-      const downloadUrl = await notifyUploadComplete({
+      // ⭐ 获取当前用户信息
+      const currentUser = authStore.user?.username || ''
+      
+      // ⭐ 获取完整文件信息（包括 server_url）
+      const completeResult = await notifyUploadComplete({
         key: uploadResult.fileInfo.key,
         success: true,
         router: uploadResult.fileInfo.router,
@@ -895,12 +916,26 @@ async function processFile(rawFile: File | null) {
         file_size: uploadResult.fileInfo.file_size,
         content_type: uploadResult.fileInfo.content_type,
         hash: uploadResult.fileInfo.hash,
+        storage: uploadResult.storage, // ⭐ 传递存储引擎类型
+        upload_user: currentUser, // ⭐ 传递上传用户
       })
       
-      if (downloadUrl) {
+      if (completeResult) {
+        // ⭐ 保存完整文件信息（与 types.File 保持一致）
         uploadedFiles.value.push({
-          url: downloadUrl,
-          remark: rawFile.name
+          name: completeResult.file_name,
+          source_name: completeResult.file_name,
+          storage: completeResult.storage || 'minio',
+          description: rawFile.name, // 使用原始文件名作为描述
+          hash: completeResult.hash || '',
+          size: completeResult.file_size,
+          upload_ts: Date.now(),
+          local_path: '', // 前端不需要
+          is_uploaded: true,
+          url: completeResult.download_url,
+          server_url: completeResult.server_download_url || completeResult.download_url, // 如果没有 server_url，使用 download_url
+          downloaded: false, // 前端不需要
+          upload_user: currentUser,
         })
         ElMessage.success(`${rawFile.name} 上传成功`)
       } else {
@@ -955,10 +990,28 @@ async function handleSend() {
       existing_files: props.existingFiles || [], // 传递已存在的文件名
       message: {
         content: userMessage || '',
-        files: files.map(f => ({
-          url: f.url,
-          remark: f.remark
-        }))
+        // ⭐ 直接传递 types.Files 格式
+        files: files.length > 0 ? {
+          files: files.map(f => ({
+            name: f.name,
+            source_name: f.source_name,
+            storage: f.storage,
+            description: f.description,
+            hash: f.hash,
+            size: f.size,
+            upload_ts: f.upload_ts,
+            local_path: f.local_path,
+            is_uploaded: f.is_uploaded,
+            url: f.url,
+            server_url: f.server_url,
+            downloaded: f.downloaded,
+            upload_user: f.upload_user,
+          })),
+          widget_type: WidgetType.FILES,
+          data_type: DataType.STRUCT,
+          remark: '',
+          metadata: {},
+        } : undefined,
       }
     })
 

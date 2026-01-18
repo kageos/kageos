@@ -28,8 +28,7 @@ export interface AgentInfo {
   description: string
   system_prompt_template?: string // System Prompt模板，支持{knowledge}变量
   timeout: number
-  plugin_id?: number | null // 插件ID（仅 plugin 类型需要）
-  plugin?: PluginInfo // 预加载的插件信息
+  plugin_function_path?: string // 插件函数路径（full-code-path，仅 plugin 类型需要）
   knowledge_base_id: number
   knowledge_base?: KnowledgeBaseInfo // 预加载的知识库信息
   llm_config_id: number // LLM配置ID，如果为0则使用默认LLM
@@ -51,7 +50,7 @@ export interface AgentListReq {
   enabled?: boolean
   knowledge_base_id?: number // 按知识库ID过滤（可选）
   llm_config_id?: number // 按LLM配置ID过滤（可选，0表示默认LLM）
-  plugin_id?: number // 按插件ID过滤（可选）
+  plugin_function_path?: string // 按插件函数路径过滤（可选）
   scope?: 'mine' | 'market' // mine: 我的, market: 市场
   page: number
   page_size: number
@@ -83,7 +82,7 @@ export interface AgentCreateReq {
   description?: string
   system_prompt_template?: string // System Prompt模板，支持{knowledge}变量
   timeout?: number
-  plugin_id?: number | null // 插件ID（仅 plugin 类型需要）
+  plugin_function_path?: string // 插件函数路径（full-code-path，仅 plugin 类型需要）
   knowledge_base_id: number
   llm_config_id?: number // LLM配置ID，如果为0或不提供则使用默认LLM
   metadata?: string
@@ -108,7 +107,7 @@ export interface AgentUpdateReq {
   chat_type: string
   description?: string
   timeout?: number
-  plugin_id?: number | null // 插件ID（仅 plugin 类型需要）
+  plugin_function_path?: string // 插件函数路径（full-code-path，仅 plugin 类型需要）
   knowledge_base_id: number
   llm_config_id?: number // LLM配置ID，如果为0或不提供则使用默认LLM
   metadata?: string
@@ -773,135 +772,4 @@ export function setDefaultLLM(params: LLMSetDefaultReq) {
   return post('/agent/api/v1/llm/set_default', params)
 }
 
-// ==================== 插件相关 ====================
-
-export interface PluginInfo {
-  id: number
-  name: string
-  code: string
-  description: string
-  enabled: boolean
-  subject: string // NATS主题，自动生成
-  nats_host: string // NATS 服务器地址
-  config?: string | null // 插件配置（JSON）
-  user: string // 创建用户（保留用于向后兼容）
-  visibility: number // 0: 公开, 1: 私有
-  admin: string // 管理员列表（逗号分隔）
-  is_admin: boolean // 当前用户是否是管理员
-  created_at: string
-  updated_at: string
-}
-
-export interface PluginListReq {
-  enabled?: boolean
-  scope?: 'mine' | 'market' // mine: 我的, market: 市场
-  page: number
-  page_size: number
-}
-
-export interface PluginListResp {
-  plugins: PluginInfo[]
-  total: number
-  page: number
-  page_size: number
-}
-
-export interface PluginGetReq {
-  id: number
-}
-
-export interface PluginCreateReq {
-  name: string
-  code: string
-  description?: string
-  enabled?: boolean
-  config?: string | null // 插件配置（JSON）
-  visibility?: number // 0: 公开, 1: 私有（默认0）
-  admin?: string // 管理员列表（逗号分隔，默认创建用户）
-}
-
-export interface PluginCreateResp {
-  code: number
-  data: PluginInfo
-  msg: string
-}
-
-export interface PluginUpdateReq {
-  name: string
-  code: string
-  description?: string
-  enabled?: boolean
-  config?: string | null // 插件配置（JSON）
-  visibility?: number // 0: 公开, 1: 私有
-  admin?: string // 管理员列表（逗号分隔）
-}
-
-export interface PluginUpdateResp {
-  code: number
-  data: PluginInfo
-  msg: string
-}
-
-export interface PluginDeleteReq {
-  id: number
-}
-
-export interface PluginEnableReq {
-  id: number
-}
-
-export interface PluginDisableReq {
-  id: number
-}
-
-/**
- * 获取插件列表
- */
-export function getPluginList(params: PluginListReq) {
-  return axiosInstance.get<PluginListResp>('/agent/api/v1/plugins/list', {
-    params
-  })
-}
-
-/**
- * 获取插件详情
- */
-export function getPlugin(params: PluginGetReq) {
-  return axiosInstance.get<PluginInfo>(`/agent/api/v1/plugins/${params.id}`)
-}
-
-/**
- * 创建插件
- */
-export function createPlugin(data: PluginCreateReq) {
-  return axiosInstance.post<PluginCreateResp>('/agent/api/v1/plugins', data)
-}
-
-/**
- * 更新插件
- */
-export function updatePlugin(id: number, data: PluginUpdateReq) {
-  return axiosInstance.put<PluginUpdateResp>(`/agent/api/v1/plugins/${id}`, data)
-}
-
-/**
- * 删除插件
- */
-export function deletePlugin(params: PluginDeleteReq) {
-  return axiosInstance.delete(`/agent/api/v1/plugins/${params.id}`)
-}
-
-/**
- * 启用插件
- */
-export function enablePlugin(params: PluginEnableReq) {
-  return axiosInstance.post(`/agent/api/v1/plugins/${params.id}/enable`)
-}
-
-/**
- * 禁用插件
- */
-export function disablePlugin(params: PluginDisableReq) {
-  return axiosInstance.post(`/agent/api/v1/plugins/${params.id}/disable`)
-}
 
