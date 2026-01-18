@@ -26,15 +26,6 @@ func (s *Server) setupRoutes() {
 	workspace := s.httpServer.Group("/workspace")
 	apiV1 := workspace.Group("/api/v1")
 
-	// 认证相关路由（不需要JWT验证）
-	auth := apiV1.Group("/auth")
-	authHandler := v1.NewAuth(s.authService, s.emailService)
-	auth.POST("/send_email_code", authHandler.SendEmailCode)
-	auth.POST("/register", authHandler.Register)
-	auth.POST("/login", authHandler.Login)
-	auth.POST("/refresh", authHandler.RefreshToken)
-	auth.POST("/logout", authHandler.Logout)
-
 	// 应用管理路由（需要JWT验证）
 	app := apiV1.Group("/app")
 	app.Use(middleware2.JWTAuth()) // 应用管理需要JWT认证
@@ -107,20 +98,6 @@ func (s *Server) setupRoutes() {
 	// ⭐ 这样后端无需查询数据库即可构造权限点（table:read、form:read、chart:read）
 	function.GET("/info/:func-type/*full-code-path", middleware2.CheckFunctionRead(), functionHandler.GetFunction)
 
-	// 用户管理路由（需要JWT验证）
-	user := apiV1.Group("/user")
-	user.Use(middleware2.JWTAuth()) // 用户管理需要JWT认证
-	userHandler := v1.NewUser(s.userService)
-	user.GET("/info", userHandler.GetUserInfo)
-	user.GET("/query", userHandler.QueryUser)
-	user.GET("/search_fuzzy", userHandler.SearchUsersFuzzy)
-	user.PUT("/update", userHandler.UpdateUser)
-
-	// 批量获取用户（需要JWT验证）
-	users := apiV1.Group("/users")
-	users.Use(middleware2.JWTAuth())
-	users.POST("", userHandler.GetUsersByUsernames)
-
 	// 操作日志路由（需要JWT验证 + 操作日志功能鉴权）
 	operateLog := apiV1.Group("/operate_log")
 	operateLog.Use(middleware2.JWTAuth())                                    // JWT 认证
@@ -170,7 +147,8 @@ func (s *Server) setupRoutes() {
 	permission.Use(middleware2.RequireFeature(enterprise.FeaturePermission)) // 权限管理功能鉴权（企业版）
 	permissionHandler := v1.NewPermission(s.permissionService, s.appRepo)
 	permission.POST("/apply", permissionHandler.ApplyPermission)            // 权限申请（角色申请）
-	permission.GET("/workspace", permissionHandler.GetWorkspacePermissions) // 获取工作空间所有权限
+	permission.GET("/workspace", permissionHandler.GetWorkspacePermissions)   // 获取工作空间所有权限
+	permission.GET("/resource", permissionHandler.GetResourcePermissions)    // 查询资源的所有权限分配
 
 	// ⭐ 权限申请和审批路由（新权限系统）
 	permission.POST("/request/create", permissionHandler.CreatePermissionRequest)   // 创建权限申请

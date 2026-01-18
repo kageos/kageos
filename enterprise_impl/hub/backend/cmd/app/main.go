@@ -28,10 +28,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	_ "github.com/ai-agent-os/hub/backend/docs"
-	"github.com/ai-agent-os/hub/backend/server"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	_ "github.com/ai-agent-os/hub/backend/docs"
+	"github.com/ai-agent-os/hub/backend/server"
 
 	// 导入 API 以确保 swag 扫描到
 	_ "github.com/ai-agent-os/hub/backend/api/v1"
@@ -87,4 +87,3 @@ func main() {
 
 	logger.Infof(ctx, "Hub-server stopped")
 }
-

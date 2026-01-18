@@ -27,10 +27,4 @@ type BaseConfig struct {
 	Response interface{} `json:"response"`
 
 	OnSelectFuzzyMap map[string]OnSelectFuzzy `json:"-"`
-	FunctionGroup    FunctionGroup            `json:"function_group"`
-}
-
-type FunctionGroup struct {
-	Code string `json:"code"`
-	Name string `json:"name"`
 }

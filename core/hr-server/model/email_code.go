@@ -7,7 +7,7 @@ import (
 
 // EmailCode 邮箱验证码记录
 type EmailCode struct {
-	ID        int64          `json:"id" gorm:"primary_key"`
+	ID        int64          `json:"id" gorm:"primaryKey;autoIncrement"`
 	CreatedAt models.Time    `json:"created_at" gorm:"column:created_at;autoCreateTime"`
 	UpdatedAt models.Time    `json:"updated_at" gorm:"column:updated_at;autoUpdateTime"`
 	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`

@@ -40,6 +40,11 @@ export default defineConfig({
         target: 'http://localhost:9090',  // 网关地址
         changeOrigin: true,
       },
+      // ⭐ hr-server API（用户接口等，需要调用主项目的 API）
+      '/hr': {
+        target: 'http://localhost:5173',  // 主项目地址（通过主项目的 Vite 代理到网关）
+        changeOrigin: true,
+      },
     },
   },
 })

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
@@ -23,7 +24,6 @@ import (
 
 type AppService struct {
 	appRuntime                 *AppRuntime
-	userRepo                   *repository.UserRepository
 	appRepo                    *repository.AppRepository
 	functionRepo               *repository.FunctionRepository
 	serviceTreeRepo            *repository.ServiceTreeRepository
@@ -33,10 +33,9 @@ type AppService struct {
 }
 
 // NewAppService 创建 AppService（依赖注入）
-func NewAppService(appRuntime *AppRuntime, userRepo *repository.UserRepository, appRepo *repository.AppRepository, functionRepo *repository.FunctionRepository, serviceTreeRepo *repository.ServiceTreeRepository, operateLogRepo *repository.OperateLogRepository, fileSnapshotRepo *repository.FileSnapshotRepository, directoryUpdateHistoryRepo *repository.DirectoryUpdateHistoryRepository) *AppService {
+func NewAppService(appRuntime *AppRuntime, appRepo *repository.AppRepository, functionRepo *repository.FunctionRepository, serviceTreeRepo *repository.ServiceTreeRepository, operateLogRepo *repository.OperateLogRepository, fileSnapshotRepo *repository.FileSnapshotRepository, directoryUpdateHistoryRepo *repository.DirectoryUpdateHistoryRepository) *AppService {
 	return &AppService{
 		appRuntime:                 appRuntime,
-		userRepo:                   userRepo,
 		appRepo:                    appRepo,
 		functionRepo:               functionRepo,
 		serviceTreeRepo:            serviceTreeRepo,
@@ -71,8 +70,14 @@ func (a *AppService) CreateApp(ctx context.Context, req *dto.CreateAppReq) (*dto
 		}
 	}
 
-	// 验证用户是否存在（不再需要获取 Host 信息）
-	_, err = a.userRepo.GetUserByUsername(tenantUser)
+	// 验证用户是否存在（通过 hr-server 接口验证）
+	// ⭐ 使用服务间调用验证用户，不再直接访问 user 表
+	header := &apicall.Header{
+		Token:       contextx.GetToken(ctx),
+		TraceID:     contextx.GetTraceId(ctx),
+		RequestUser: contextx.GetRequestUser(ctx),
+	}
+	_, err = apicall.GetUserByUsername(header, tenantUser)
 	if err != nil {
 		return nil, fmt.Errorf("租户用户 %s 不存在: %w", tenantUser, err)
 	}
@@ -603,13 +608,10 @@ func (a *AppService) createFunctionNode(appID int64, parentID int64, api *dto.Ap
 		return 0, fmt.Errorf("获取应用信息失败: %w", err)
 	}
 
-	// 构建 FullGroupCode：{full_path}/{group_code}
 	// 创建新的function节点，预加载完整的app对象
 	serviceTree := &model.ServiceTree{
 		AppID:            appID,
 		ParentID:         parentID,
-		FullGroupCode:    api.BuildFullGroupCode(), // 完整函数组代码：{full_path}/{file_name}
-		GroupName:        api.FunctionGroupName,
 		Type:             model.ServiceTreeTypeFunction,
 		Code:             api.Code, // API的code作为ServiceTree的code
 		Name:             api.Name, // API的name作为ServiceTree的name
@@ -730,15 +732,10 @@ func (a *AppService) updateServiceTreesForAPIs(ctx context.Context, appID int64,
 			return fmt.Errorf("查询service_tree失败: %w", err)
 		}
 
-		// 构建 FullGroupCode：{full_path}/{group_code}
-		fullGroupCode := fmt.Sprintf("%s/%s", api.GetParentFullCodePath(), api.FunctionGroupCode)
-
 		// 更新节点信息并设置更新版本号
 		existingTree.RefID = functions[i].ID
 		existingTree.Name = api.Name
 		existingTree.Description = api.Desc
-		existingTree.FullGroupCode = fullGroupCode // 完整函数组代码：{full_path}/{file_name}
-		existingTree.GroupName = api.FunctionGroupName
 		// 更新版本号：如果AddVersionNum为0，说明是新增的，设置为当前版本；否则更新UpdateVersionNum
 		if existingTree.AddVersionNum == 0 {
 			existingTree.AddVersionNum = currentVersionNum
@@ -836,7 +833,7 @@ func (a *AppService) GetApps(ctx context.Context, req *dto.GetAppsReq) (*dto.Get
 	}
 
 	// 从数据库获取应用列表（支持搜索和过滤）
-	apps, totalCount, err := a.appRepo.GetAppsWithPage(req.User, page, pageSize, req.Search, req.IncludeAll)
+	apps, totalCount, err := a.appRepo.GetAppsWithPage(req.User, page, pageSize, req.Search, req.IncludeAll, req.Type)
 	if err != nil {
 		return nil, fmt.Errorf("获取应用列表失败: %w", err)
 	}
@@ -855,6 +852,7 @@ func (a *AppService) GetApps(ctx context.Context, req *dto.GetAppsReq) (*dto.Get
 			HostID:    app.HostID,
 			IsPublic:  app.IsPublic,
 			Admins:    app.Admins,
+			Type:      int(app.Type),
 			CreatedAt: time.Time(app.CreatedAt).Format("2006-01-02 15:04:05"),
 			UpdatedAt: time.Time(app.UpdatedAt).Format("2006-01-02 15:04:05"),
 		}
@@ -1317,7 +1315,7 @@ func (a *AppService) recordDirectoryUpdateHistory(
 	addedSummaries := make([]*model.ApiSummary, 0, len(changes.Add))
 	for _, api := range changes.Add {
 		addedSummaries = append(addedSummaries, &model.ApiSummary{
-			Code:         api.FunctionGroupCode,
+			Code:         api.Code, // 使用 API 的 Code 而不是 FunctionGroupCode
 			Name:         api.Name,
 			Desc:         api.Desc,
 			Router:       api.Router,
@@ -1330,7 +1328,7 @@ func (a *AppService) recordDirectoryUpdateHistory(
 	updatedSummaries := make([]*model.ApiSummary, 0, len(changes.Update))
 	for _, api := range changes.Update {
 		updatedSummaries = append(updatedSummaries, &model.ApiSummary{
-			Code:         api.FunctionGroupCode,
+			Code:         api.Code, // 使用 API 的 Code 而不是 FunctionGroupCode
 			Name:         api.Name,
 			Desc:         api.Desc,
 			Router:       api.Router,
@@ -1343,7 +1341,7 @@ func (a *AppService) recordDirectoryUpdateHistory(
 	deletedSummaries := make([]*model.ApiSummary, 0, len(changes.Delete))
 	for _, api := range changes.Delete {
 		deletedSummaries = append(deletedSummaries, &model.ApiSummary{
-			Code:         api.FunctionGroupCode,
+			Code:         api.Code, // 使用 API 的 Code 而不是 FunctionGroupCode
 			Name:         api.Name,
 			Desc:         api.Desc,
 			Router:       api.Router,

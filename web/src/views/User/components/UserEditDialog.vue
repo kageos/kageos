@@ -44,22 +44,13 @@
           </el-form-item>
 
           <el-form-item label="直接上级">
-            <el-autocomplete
-              v-model="formData.leader_username"
-              :fetch-suggestions="searchLeaderUsers"
-              placeholder="输入用户名搜索 Leader（可选）"
-              clearable
-              style="width: 100%"
-              :trigger-on-focus="false"
-              value-key="username"
-              @select="handleLeaderSelect"
-            >
-              <template #default="{ item }">
-                <div class="user-option">
-                  <UserDisplay :user-info="item" mode="simple" size="small" />
-                </div>
-              </template>
-            </el-autocomplete>
+            <UserWidget
+              :value="leaderFieldValue"
+              :field="leaderField"
+              mode="edit"
+              field-path="leader_username"
+              @update:modelValue="handleLeaderChange"
+            />
           </el-form-item>
         </el-form>
       </div>
@@ -85,9 +76,12 @@ import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { UserInfo } from '@/types'
 import type { Department } from '@/api/department'
-import { assignUserOrganization, searchUsersFuzzy } from '@/api/user'
+import { assignUserOrganization } from '@/api/user'
 import UserDisplay from '@/architecture/presentation/widgets/UserDisplay.vue'
 import DepartmentSelector from '@/components/DepartmentSelector.vue'
+import UserWidget from '@/architecture/presentation/widgets/UserWidget.vue'
+import { WidgetType } from '@/core/constants/widget'
+import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 
 interface Props {
   modelValue: boolean
@@ -114,6 +108,42 @@ const formData = ref({
 
 const submitting = ref(false)
 
+// 直接上级字段配置（用于 UserWidget）
+const leaderField: FieldConfig = {
+  type: WidgetType.USER,
+  name: 'leader_username',
+  label: '直接上级',
+  data: {
+    type: 'string'
+  }
+}
+
+// 直接上级字段值（用于 UserWidget）
+const leaderFieldValue = computed<FieldValue>(() => {
+  if (!formData.value.leader_username) {
+    return {
+      raw: '',
+      display: '',
+      meta: {}
+    }
+  }
+  return {
+    raw: formData.value.leader_username,
+    display: formData.value.leader_username,
+    meta: {}
+  }
+})
+
+// 处理直接上级变化
+const handleLeaderChange = (value: FieldValue) => {
+  // 从 FieldValue 中提取 raw 值（用户名）
+  if (typeof value.raw === 'string') {
+    formData.value.leader_username = value.raw || null
+  } else {
+    formData.value.leader_username = null
+  }
+}
+
 // 部门树数据
 const departmentTreeData = computed(() => {
   return props.departmentTree || []
@@ -129,28 +159,7 @@ watch(() => props.userInfo, (newUserInfo) => {
   }
 }, { immediate: true })
 
-// 搜索 Leader 用户
-async function searchLeaderUsers(queryString: string, cb: (results: UserInfo[]) => void) {
-  if (!queryString || queryString.trim().length < 1) {
-    cb([])
-    return
-  }
-  
-  try {
-    const res = await searchUsersFuzzy(queryString.trim(), 10)
-    // 排除当前用户
-    const filtered = res.users.filter(u => u.username !== props.userInfo?.username)
-    cb(filtered)
-  } catch (error) {
-    console.error('搜索用户失败:', error)
-    cb([])
-  }
-}
-
-// 处理 Leader 选择
-function handleLeaderSelect(item: UserInfo) {
-  formData.value.leader_username = item.username
-}
+// 注意：搜索和选择逻辑已由 UserWidget 组件内部处理，不再需要这些函数
 
 // 提交
 async function handleSubmit() {
@@ -221,12 +230,6 @@ async function handleSubmit() {
   .value {
     color: var(--el-text-color-primary);
   }
-}
-
-
-.user-option {
-  display: flex;
-  align-items: center;
 }
 
 .dialog-footer {

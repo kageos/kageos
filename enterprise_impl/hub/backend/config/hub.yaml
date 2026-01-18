@@ -7,9 +7,9 @@ db:
   type: mysql
   host: 127.0.0.1
   port: 3306
-  user: app
-  password: app
-  name: app_db
+  user: root
+  password: root
+  name: hub
   log_level: warn
   slow_threshold: 200
 

@@ -21,7 +21,7 @@
         </el-input>
       </div>
 
-      <!-- 标签页：我的工作空间 / 全部工作空间 -->
+      <!-- 标签页：我的工作空间 / 全部工作空间 / 系统工作空间 -->
       <el-tabs v-model="activeTab" @tab-change="handleTabChange">
         <el-tab-pane label="我的工作空间" name="mine">
           <div class="workspace-list-container">
@@ -113,7 +113,20 @@
                     </div>
                   </div>
                   <div class="workspace-info">
-                    <div class="workspace-name">{{ app.name || app.code }}</div>
+                    <div class="workspace-name">
+                      {{ app.name || app.code }}
+                      <el-tooltip
+                        v-if="app.type === 1"
+                        content="官方认证工作空间"
+                        placement="top"
+                      >
+                        <img 
+                          src="/官方认证.svg" 
+                          alt="官方认证" 
+                          class="official-badge-icon"
+                        />
+                      </el-tooltip>
+                    </div>
                     <div class="workspace-path">
                       <el-icon><FolderOpened /></el-icon>
                       <span>{{ app.user }}/{{ app.code }}</span>
@@ -126,6 +139,68 @@
                 <div class="card-footer">
                   <div class="footer-left">
                     <el-tag type="success" size="small">公开</el-tag>
+                    <UserDisplay
+                      :username="app.user"
+                      mode="card"
+                      layout="horizontal"
+                      size="small"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </el-tab-pane>
+        
+        <el-tab-pane label="系统工作空间" name="system">
+          <div class="workspace-list-container">
+            <div v-if="loading" class="loading-state">
+              <el-icon class="loading-icon"><Loading /></el-icon>
+              <span>加载中...</span>
+            </div>
+            <div v-else-if="systemWorkspaces.length === 0" class="empty-state">
+              <el-empty description="暂无系统工作空间" />
+            </div>
+            <div v-else class="workspace-grid">
+              <div
+                v-for="app in systemWorkspaces"
+                :key="app.id"
+                class="workspace-card"
+                :class="{ 'is-active': currentApp && app.id === currentApp.id }"
+                @click="handleSelectWorkspace(app)"
+              >
+                <div class="card-header">
+                  <div class="workspace-avatar">
+                    <div class="avatar-icon" :style="{ backgroundColor: getAppColor(app) }">
+                      {{ getAppInitial(app.name || app.code) }}
+                    </div>
+                  </div>
+                  <div class="workspace-info">
+                    <div class="workspace-name">
+                      {{ app.name || app.code }}
+                      <el-tooltip
+                        content="官方认证工作空间"
+                        placement="top"
+                      >
+                        <img 
+                          src="/官方认证.svg" 
+                          alt="官方认证" 
+                          class="official-badge-icon"
+                        />
+                      </el-tooltip>
+                    </div>
+                    <div class="workspace-path">
+                      <el-icon><FolderOpened /></el-icon>
+                      <span>{{ app.user }}/{{ app.code }}</span>
+                    </div>
+                  </div>
+                  <div v-if="currentApp && app.id === currentApp.id" class="active-badge">
+                    <el-icon><Check /></el-icon>
+                  </div>
+                </div>
+                <div class="card-footer">
+                  <div class="footer-left">
+                    <el-tag type="success" size="small">系统</el-tag>
                     <UserDisplay
                       :username="app.user"
                       mode="card"
@@ -179,14 +254,15 @@ const emit = defineEmits<Emits>()
 
 const visible = computed({
   get: () => props.modelValue,
-  set: (value) => emit('update:modelValue', value)
+  set: (value: boolean) => emit('update:modelValue', value)
 })
 
-const activeTab = ref<'mine' | 'all'>('mine')
+const activeTab = ref<'mine' | 'all' | 'system'>('mine')
 const searchKeyword = ref('')
 const loading = ref(false)
 const myWorkspaces = ref<App[]>([])
 const allWorkspaces = ref<App[]>([])
+const systemWorkspaces = ref<App[]>([])
 
 // 应用颜色映射
 const appColors = [
@@ -196,7 +272,7 @@ const appColors = [
 
 // 获取应用颜色
 const getAppColor = (app: App) => {
-  const allApps = [...myWorkspaces.value, ...allWorkspaces.value]
+  const allApps = [...myWorkspaces.value, ...allWorkspaces.value, ...systemWorkspaces.value]
   const index = allApps.findIndex(a => a.id === app.id)
   return appColors[index % appColors.length] || appColors[0]
 }
@@ -219,7 +295,11 @@ const loadWorkspaces = async () => {
     // 加载全部公开的工作空间
     const allApps = await getAppList(200, searchKeyword.value || undefined, true)
     // 过滤掉自己的，只显示其他人的公开工作空间
-    allWorkspaces.value = allApps.filter(app => app.user !== props.currentApp?.user || !myApps.some(my => my.id === app.id))
+    allWorkspaces.value = allApps.filter((app: App) => app.user !== props.currentApp?.user || !myApps.some((my: App) => my.id === app.id))
+    
+    // 加载系统工作空间（type=1）
+    const systemApps = await getAppList(200, searchKeyword.value || undefined, false, 1)
+    systemWorkspaces.value = systemApps
   } catch (error: any) {
     console.error('加载工作空间列表失败:', error)
     ElMessage.error('加载工作空间列表失败')
@@ -265,7 +345,7 @@ const handleClose = () => {
 }
 
 // 监听弹窗显示状态
-watch(visible, (newVal) => {
+watch(visible, (newVal: boolean) => {
   if (newVal) {
     loadWorkspaces()
   }
@@ -433,5 +513,17 @@ watch(visible, (newVal) => {
   justify-content: flex-end;
   gap: 12px;
 }
-</style>
 
+.workspace-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.official-badge-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+</style>

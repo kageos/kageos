@@ -586,24 +586,6 @@ func (s *HubDirectoryService) buildTreeNode(
 	fileMap map[int64][]*model.HubFileSnapshot,
 	nodeMap map[int64]*model.HubServiceTree,
 ) *dto.DirectoryTreeNode {
-	// 构建文件列表（init_.go 已在 runtime 层过滤，这里不需要再过滤）
-	files := make([]*dto.FileSnapshotInfo, 0)
-	if fileList, exists := fileMap[node.ID]; exists {
-		logger.Infof(context.Background(), "[buildTreeNode] 节点 ID=%d (%s) 找到 %d 个文件", node.ID, node.Name, len(fileList))
-		for i, file := range fileList {
-			logger.Infof(context.Background(), "[buildTreeNode] 文件[%d]: FileName=%s, RelativePath=%s, Content长度=%d",
-				i+1, file.FileName, file.RelativePath, len(file.Content))
-			files = append(files, &dto.FileSnapshotInfo{
-				FileName:     file.FileName,
-				RelativePath: file.RelativePath,
-				Content:      file.Content,
-				FileType:     file.FileType,
-				FileVersion:  file.FileVersion,
-			})
-		}
-	} else {
-		logger.Warnf(context.Background(), "[buildTreeNode] ⚠️ 节点 ID=%d (%s) 在 fileMap 中不存在，文件数量=0", node.ID, node.Name)
-	}
 
 	// 构建函数列表
 	functions := make([]*dto.HubFunctionInfo, 0)
@@ -642,7 +624,7 @@ func (s *HubDirectoryService) buildTreeNode(
 		Name:           node.Name, // 目录名称（中文显示名称）
 		Code:           node.Code, // 目录代码（英文标识）
 		Path:           node.FullCodePath,
-		Files:          files,
+		Files:          nil, // ⭐ 设为 nil，使用 omitempty 后 JSON 序列化时不会包含 files 字段
 		Functions:      functions,
 		Subdirectories: subdirectories,
 	}

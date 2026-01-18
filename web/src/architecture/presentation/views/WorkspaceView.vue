@@ -208,8 +208,8 @@
                         :key="`chart-${currentFunction.full_code_path || currentFunction.id}`"
                         :function-detail="currentFunctionDetail"
                       />
-                      <div v-else :key="`empty-${currentFunction.full_code_path || currentFunction.id}`" class="empty-state">
-                        <p>加载中...</p>
+                      <div v-else :key="`empty-${currentFunction.full_code_path || currentFunction.id}`" class="function-loading">
+                        <el-skeleton :rows="8" animated />
                       </div>
                     </template>
                     <!-- 如果函数详情未加载且有权限错误，显示权限错误组件 -->
@@ -217,9 +217,9 @@
                       v-else-if="hasPermissionError"
                       :key="`permission-denied-${currentFunction.full_code_path || currentFunction.id}`"
                     />
-                    <!-- 如果函数详情未加载且没有权限错误，显示加载中 -->
-                    <div v-else :key="`loading-${currentFunction.full_code_path || currentFunction.id}`" class="empty-state">
-                      <p>加载中...</p>
+                    <!-- 如果函数详情未加载且没有权限错误，显示骨架屏 -->
+                    <div v-else :key="`loading-${currentFunction.full_code_path || currentFunction.id}`" class="function-loading">
+                      <el-skeleton :rows="8" animated />
                     </div>
                   </div>
                 </el-tab-pane>
@@ -236,6 +236,22 @@
                       ref="functionPermissionRequestListRef"
                       :resource-path="currentFunction?.full_code_path"
                       :auto-load="functionActiveTab === 'permissionRequest'"
+                    />
+                  </div>
+                </el-tab-pane>
+
+                <!-- 权限管理 tab -->
+                <el-tab-pane name="permissionManage">
+                  <template #label>
+                    <span>权限管理</span>
+                  </template>
+                  <div class="tab-content">
+                    <PermissionManageList
+                      ref="functionPermissionManageListRef"
+                      :resource-path="currentFunction?.full_code_path"
+                      :user="currentApp?.user"
+                      :app="currentApp?.code"
+                      :auto-load="functionActiveTab === 'permissionManage'"
                     />
                   </div>
                 </el-tab-pane>
@@ -267,8 +283,8 @@
                   :key="`chart-${currentFunction.full_code_path || currentFunction.id}`"
                   :function-detail="currentFunctionDetail"
                 />
-                <div v-else :key="`empty-${currentFunction.full_code_path || currentFunction.id}`" class="empty-state">
-                  <p>加载中...</p>
+                <div v-else :key="`empty-${currentFunction.full_code_path || currentFunction.id}`" class="function-loading">
+                  <el-skeleton :rows="8" animated />
                 </div>
               </template>
               <!-- 如果函数详情未加载且有权限错误，显示权限错误组件 -->
@@ -276,9 +292,9 @@
                 v-else-if="hasPermissionError"
                 :key="`permission-denied-${currentFunction.full_code_path || currentFunction.id}`"
               />
-              <!-- 如果函数详情未加载且没有权限错误，显示加载中 -->
-              <div v-else :key="`loading-${currentFunction.full_code_path || currentFunction.id}`" class="empty-state">
-                <p>加载中...</p>
+              <!-- 如果函数详情未加载且没有权限错误，显示骨架屏 -->
+              <div v-else :key="`loading-${currentFunction.full_code_path || currentFunction.id}`" class="function-loading">
+                <el-skeleton :rows="8" animated />
               </div>
             </div>
           </div>
@@ -528,7 +544,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, watch, ref, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox, ElNotification, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon, ElSwitch } from 'element-plus'
+import { ElMessage, ElMessageBox, ElNotification, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon, ElSwitch, ElSkeleton } from 'element-plus'
 import { InfoFilled, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { eventBus, WorkspaceEvent, RouteEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
@@ -556,6 +572,7 @@ import FunctionInfoPanel from '../components/FunctionInfoPanel.vue'
 import UserSearchInput from '@/components/UserSearchInput.vue'
 import UsersWidget from '../widgets/UsersWidget.vue'
 import PermissionRequestList from '@/components/Permission/PermissionRequestList.vue'
+import PermissionManageList from '@/components/Permission/PermissionManageList.vue'
 import type { ServiceTree, App } from '../../domain/services/WorkspaceDomainService'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import { WidgetType } from '@/core/constants/widget'
@@ -823,6 +840,7 @@ const showRightSidebar = ref(true)
 // 函数详情 tab 相关
 const functionActiveTab = ref('content')
 const functionPermissionRequestListRef = ref<InstanceType<typeof PermissionRequestList> | null>(null)
+const functionPermissionManageListRef = ref<InstanceType<typeof PermissionManageList> | null>(null)
 
 // ⭐ 判断是否显示函数权限申请 tab
 // 条件：1. 节点类型是 function  2. 用户是管理员
@@ -851,6 +869,11 @@ const handleFunctionTabChange = (tabName: string) => {
     // 切换到权限申请 tab 时，触发加载
     nextTick(() => {
       functionPermissionRequestListRef.value?.loadRequests()
+    })
+  } else if (tabName === 'permissionManage' && functionPermissionManageListRef.value) {
+    // 切换到权限管理 tab 时，触发加载
+    nextTick(() => {
+      functionPermissionManageListRef.value?.loadPermissions()
     })
   }
 }
@@ -1663,6 +1686,14 @@ watch(
           functionPermissionRequestListRef.value.loadRequests()
         }
       })
+    } else if (tab === 'permissionManage' && showFunctionPermissionRequestTab.value) {
+      functionActiveTab.value = 'permissionManage'
+      // 切换 tab 时触发加载
+      nextTick(() => {
+        if (functionPermissionManageListRef.value) {
+          functionPermissionManageListRef.value.loadPermissions()
+        }
+      })
     }
   },
   { immediate: true }
@@ -2019,5 +2050,11 @@ onUnmounted(() => {
   margin-top: 24px;
   padding-top: 16px;
   border-top: 1px solid var(--el-border-color-lighter);
+}
+
+/* 函数加载骨架屏样式 */
+.function-loading {
+  padding: 24px;
+  width: 100%;
 }
 </style>

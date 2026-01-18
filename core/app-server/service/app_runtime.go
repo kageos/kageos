@@ -10,6 +10,7 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/msgx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
 	"github.com/nats-io/nats.go"
@@ -94,7 +95,7 @@ func (a *AppRuntime) RequestApp(ctx context.Context, natsId int64, req *dto.Requ
 		Header:  make(nats.Header),
 	}
 	msg.Header.Set("trace_id", req.TraceId)
-	msg.Header.Set("request_user", req.RequestUser)
+	msg.Header.Set(contextx.RequestUserHeader, req.RequestUser)
 	msg.Header.Set("user", req.RequestUser)
 	msg.Header.Set("method", req.Method)
 	msg.Header.Set("router", req.Router)

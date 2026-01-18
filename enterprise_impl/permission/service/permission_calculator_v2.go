@@ -14,6 +14,46 @@ import (
 )
 
 // ============================================
+// 权限计算器 V2 - 权限判断逻辑说明
+// ============================================
+//
+// 权限继承方式：方式2（直接函数权限继承）
+//
+// 工作原理：
+//   - 如果父目录配置了 table:write，子函数直接继承 table:write 权限
+//   - 如果父目录配置了 form:read，子函数直接继承 form:read 权限
+//   - 如果父目录配置了 table:admin，子函数直接继承 table:admin 权限（拥有所有表格权限）
+//   - 不需要转换，直接匹配相同的权限点
+//
+// 示例：
+//   父目录：/user/app/dir
+//   角色：目录开发者（配置了 table:write, form:read）
+//
+//   子函数：/user/app/dir/function1
+//   检查 table:write 权限：
+//     ✅ 父目录有 table:write → 子函数继承 table:write
+//
+//   父目录：/user/app/dir
+//   角色：目录管理员（配置了 table:admin, form:admin, chart:admin）
+//
+//   子函数：/user/app/dir/function1
+//   检查 table:read 权限：
+//     ✅ 父目录有 table:admin → 子函数继承 table:admin（包含所有表格权限）
+//
+// 节点权限解析流程（NodePermissionResolver.Resolve）：
+//   1. checkExactPath：检查精确路径匹配
+//   2. checkParentPaths：检查父目录路径（权限继承）- 方式2
+//   3. checkPrefixMatch：检查前缀匹配（支持深层嵌套）- 方式2
+//   4. checkAppLevelPermissions：检查应用级别权限
+//
+// 已废弃的方式1（目录权限转换）：
+//   - directory:read → table:read（已删除 applyDirectoryInheritance 方法）
+//   - directory:write → table:write（已删除）
+//   原因：方式1太混乱，只使用方式2（直接函数权限继承）
+//
+// ============================================
+
+// ============================================
 // 权限计算器接口（统一新旧版本）
 // ============================================
 
@@ -111,6 +151,29 @@ func NewNodePermissionResolver(
 }
 
 // Resolve 解析节点权限
+//
+// ⭐ 权限解析流程（按优先级）：
+//   1. checkExactPath：检查精确路径匹配
+//      - 检查当前资源路径是否有该权限点
+//      - 例如：检查 /user/app/dir/function 是否有 table:read 权限
+//
+//   2. checkParentPaths：检查父目录路径（权限继承 - 方式2：直接函数权限继承）
+//      - 向上查找父目录，检查是否有相同的权限点（直接继承，不需要转换）
+//      - 例如：父目录 /user/app/dir 配置了 table:write，子函数 /user/app/dir/function 直接继承 table:write
+//      - 例如：父目录配置了 table:admin，子函数继承 table:admin（拥有所有表格权限）
+//
+//   3. checkPrefixMatch：检查前缀匹配（支持深层嵌套）
+//      - 检查是否有前缀路径配置了该权限点
+//      - 例如：/user/app/* 配置了 table:read，那么 /user/app/dir/function 继承该权限
+//
+//   4. checkAppLevelPermissions：检查应用级别权限
+//      - 如果用户有 app:admin 权限，拥有该应用下所有资源的权限
+//
+// ⭐ 权限继承方式：方式2（直接函数权限继承）
+//   - 不需要转换，直接匹配相同的权限点
+//   - 例如：父目录配置了 table:write → 子函数直接继承 table:write
+//   - 例如：父目录配置了 form:read → 子函数直接继承 form:read
+//
 func (r *NodePermissionResolver) Resolve(nodePath string) map[string]bool {
 	// 初始化节点权限（默认全部为 false）
 	nodePerms := make(map[string]bool)
@@ -121,7 +184,7 @@ func (r *NodePermissionResolver) Resolve(nodePath string) map[string]bool {
 	// 1. 检查精确路径匹配
 	r.checkExactPath(nodePath, nodePerms)
 
-	// 2. 检查父目录路径（目录权限继承）
+	// 2. 检查父目录路径（目录权限继承 - 方式2：直接函数权限继承）
 	r.checkParentPaths(nodePath, nodePerms)
 
 	// 3. 检查前缀匹配（支持深层嵌套）
@@ -146,7 +209,9 @@ func (r *NodePermissionResolver) checkExactPath(nodePath string, nodePerms map[s
 	}
 }
 
-// checkParentPaths 检查父目录路径（目录权限继承）
+// checkParentPaths 检查父目录路径（权限继承）
+// ⭐ 只支持直接函数权限继承：如果父目录配置了 table:write，子函数直接继承 table:write
+// 例如：父目录 a/b 的开发者角色配置了 table:write，那么子函数 a/b/c 直接继承 table:write 权限
 func (r *NodePermissionResolver) checkParentPaths(nodePath string, nodePerms map[string]bool) {
 	parentPaths := permission.GetParentPaths(nodePath)
 	for _, parentPath := range parentPaths {
@@ -154,16 +219,17 @@ func (r *NodePermissionResolver) checkParentPaths(nodePath string, nodePerms map
 			continue
 		}
 
-		// 检查目录权限继承
-		r.applyDirectoryInheritance(parentPath, nodePerms)
-
-		// 检查该资源类型的权限（直接匹配）
+		// ⭐ 检查父目录直接配置的函数权限（直接继承）
+		// 例如：父目录 a/b 的开发者角色配置了 table:write
+		// 那么子函数 a/b/c 直接继承 table:write 权限
 		rolePerms := r.rolePermissionMap.Get(parentPath, r.resourceType)
-		for actionCode := range rolePerms {
-			for _, requiredAction := range r.requiredActions {
-				if actionCode == requiredAction {
-					nodePerms[requiredAction] = true
-					break
+		if rolePerms != nil {
+			for actionCode := range rolePerms {
+				for _, requiredAction := range r.requiredActions {
+					if actionCode == requiredAction {
+						nodePerms[requiredAction] = true
+						break
+					}
 				}
 			}
 		}
@@ -180,16 +246,17 @@ func (r *NodePermissionResolver) checkPrefixMatch(nodePath string, nodePerms map
 	// 遍历所有角色分配路径，检查是否是节点路径的前缀
 	for assignedPath := range r.rolePermissionMap.data {
 		if strings.HasPrefix(nodePath, assignedPath+"/") || nodePath == assignedPath {
-			// 检查目录权限继承
-			r.applyDirectoryInheritance(assignedPath, nodePerms)
-
-			// 检查该资源类型的权限（直接匹配）
+			// ⭐ 检查父目录直接配置的函数权限（直接继承）
+			// 例如：父目录 a/b 的开发者角色配置了 table:write
+			// 那么子函数 a/b/c 直接继承 table:write 权限
 			rolePerms := r.rolePermissionMap.Get(assignedPath, r.resourceType)
-			for actionCode := range rolePerms {
-				for _, requiredAction := range r.requiredActions {
-					if actionCode == requiredAction {
-						nodePerms[requiredAction] = true
-						break
+			if rolePerms != nil {
+				for actionCode := range rolePerms {
+					for _, requiredAction := range r.requiredActions {
+						if actionCode == requiredAction {
+							nodePerms[requiredAction] = true
+							break
+						}
 					}
 				}
 			}
@@ -210,34 +277,6 @@ func (r *NodePermissionResolver) checkAppLevelPermissions(nodePath string, nodeP
 		// app:admin -> 所有权限
 		for _, requiredAction := range r.requiredActions {
 			nodePerms[requiredAction] = true
-		}
-	}
-}
-
-// applyDirectoryInheritance 应用目录权限继承
-func (r *NodePermissionResolver) applyDirectoryInheritance(parentPath string, nodePerms map[string]bool) {
-	directoryPerms := r.rolePermissionMap.Get(parentPath, permission.ResourceTypeDirectory)
-	for directoryActionCode := range directoryPerms {
-		// 解析目录权限点编码
-		_, actionType, ok := permission.ParseActionCode(directoryActionCode)
-		if !ok {
-			continue
-		}
-
-		// 如果是 admin 权限，直接给所有权限
-		if actionType == "admin" {
-			for _, requiredAction := range r.requiredActions {
-				nodePerms[requiredAction] = true
-			}
-		} else {
-			// 构建该资源类型的权限点编码（directory:read -> table:read）
-			functionActionCode := permission.BuildActionCode(r.resourceType, actionType)
-			for _, requiredAction := range r.requiredActions {
-				if functionActionCode == requiredAction {
-					nodePerms[requiredAction] = true
-					break
-				}
-			}
 		}
 	}
 }

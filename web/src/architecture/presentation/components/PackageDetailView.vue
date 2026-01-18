@@ -340,6 +340,22 @@
               />
             </div>
           </el-tab-pane>
+
+          <!-- 权限管理 tab -->
+          <el-tab-pane name="permissionManage">
+            <template #label>
+              <span>权限管理</span>
+            </template>
+            <div class="tab-content">
+              <PermissionManageList
+                ref="permissionManageListRef"
+                :resource-path="packageNode?.full_code_path"
+                :user="getUserFromPath(packageNode?.full_code_path) || ''"
+                :app="getAppFromPath(packageNode?.full_code_path) || ''"
+                :auto-load="activeTab === 'permissionManage'"
+              />
+            </div>
+          </el-tab-pane>
         </el-tabs>
         </div>
         
@@ -577,6 +593,7 @@ import { WidgetType } from '@/core/constants/widget'
 import { useAuthStore } from '@/stores/auth'
 import { updateServiceTree } from '@/api/service-tree'
 import PermissionRequestList from '@/components/Permission/PermissionRequestList.vue'
+import PermissionManageList from '@/components/Permission/PermissionManageList.vue'
 
 interface Props {
   packageNode?: ServiceTree | null
@@ -596,6 +613,7 @@ const authStore = useAuthStore() // ⭐ 必须在 showPermissionRequestTab 之�
 // Tab 相关
 const activeTab = ref('info')
 const permissionRequestListRef = ref<InstanceType<typeof PermissionRequestList> | null>(null)
+const permissionManageListRef = ref<InstanceType<typeof PermissionManageList> | null>(null)
 
 // ⭐ 判断是否显示权限申请 tab
 // 条件：1. 节点类型是 package  2. 用户是管理员
@@ -618,12 +636,36 @@ const showPermissionRequestTab = computed(() => {
   return admins.includes(authStore.user.username)
 })
 
+// 从路径解析 user 和 app
+const getUserFromPath = (fullCodePath?: string): string => {
+  if (!fullCodePath) return ''
+  const pathParts = fullCodePath.split('/').filter(Boolean)
+  if (pathParts.length > 0 && pathParts[0]) {
+    return pathParts[0]
+  }
+  return ''
+}
+
+const getAppFromPath = (fullCodePath?: string): string => {
+  if (!fullCodePath) return ''
+  const pathParts = fullCodePath.split('/').filter(Boolean)
+  if (pathParts.length > 1 && pathParts[1]) {
+    return pathParts[1]
+  }
+  return ''
+}
+
 // 处理 tab 切换
 const handleTabChange = (tabName: string) => {
   if (tabName === 'permissionRequest' && permissionRequestListRef.value) {
     // 切换到权限申请 tab 时，触发加载
     nextTick(() => {
       permissionRequestListRef.value?.loadRequests()
+    })
+  } else if (tabName === 'permissionManage' && permissionManageListRef.value) {
+    // 切换到权限管理 tab 时，触发加载
+    nextTick(() => {
+      permissionManageListRef.value?.loadPermissions()
     })
   }
 }
@@ -638,6 +680,14 @@ watch(
       nextTick(() => {
         if (permissionRequestListRef.value) {
           permissionRequestListRef.value.loadRequests()
+        }
+      })
+    } else if (tab === 'permissionManage' && showPermissionRequestTab.value) {
+      activeTab.value = 'permissionManage'
+      // 切换 tab 时触发加载
+      nextTick(() => {
+        if (permissionManageListRef.value) {
+          permissionManageListRef.value.loadPermissions()
         }
       })
     }

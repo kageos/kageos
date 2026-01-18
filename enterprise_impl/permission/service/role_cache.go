@@ -6,6 +6,7 @@ import (
 	"time"
 
 	permissionrepo "github.com/ai-agent-os/ai-agent-os/enterprise_impl/permission/repository"
+	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
 
@@ -41,6 +42,10 @@ type Role struct {
 	ResourceType string // ⭐ 资源类型
 	Description string
 	IsSystem    bool
+	IsDefault   bool   // ⭐ 是否默认角色（用于权限申请时的默认推荐）
+	CreatedBy   string // ⭐ 创建者
+	CreatedAt   models.Time // ⭐ 创建时间
+	UpdatedAt   models.Time // ⭐ 更新时间
 	Permissions []string // 权限点列表（从 rolePermissions 获取）
 }
 
@@ -86,6 +91,10 @@ func (c *RoleCache) LoadAllRoles(ctx context.Context) error {
 			ResourceType: role.ResourceType, // ⭐ 保存资源类型
 			Description:  role.Description,
 			IsSystem:     role.IsSystem,
+			IsDefault:    role.IsDefault, // ⭐ 默认角色标记
+			CreatedBy:    role.CreatedBy, // ⭐ 创建者
+			CreatedAt:    role.CreatedAt, // ⭐ 创建时间
+			UpdatedAt:    role.UpdatedAt, // ⭐ 更新时间
 		}
 		// ⭐ 使用 resourceType:code 作为索引，支持同一 code 在不同资源类型中重复
 		indexKey := role.ResourceType + ":" + role.Code
@@ -93,13 +102,22 @@ func (c *RoleCache) LoadAllRoles(ctx context.Context) error {
 	}
 
 	for _, rp := range rolePerms {
+		// ⭐ 通过 ActionID 关联获取权限点信息
+		if rp.ActionModel == nil {
+			logger.Warnf(ctx, "[RoleCache] 角色权限的 Action 关联未加载: role_id=%d, action_id=%d", rp.RoleID, rp.ActionID)
+			continue
+		}
+		
+		actionCode := rp.ActionModel.Code
+		resourceType := rp.ActionModel.ResourceType
+		
 		if c.rolePermissions[rp.RoleID] == nil {
 			c.rolePermissions[rp.RoleID] = make(map[string]map[string]bool)
 		}
-		if c.rolePermissions[rp.RoleID][rp.ResourceType] == nil {
-			c.rolePermissions[rp.RoleID][rp.ResourceType] = make(map[string]bool)
+		if c.rolePermissions[rp.RoleID][resourceType] == nil {
+			c.rolePermissions[rp.RoleID][resourceType] = make(map[string]bool)
 		}
-		c.rolePermissions[rp.RoleID][rp.ResourceType][rp.Action] = true
+		c.rolePermissions[rp.RoleID][resourceType][actionCode] = true
 	}
 
 	// 4. 更新最后更新时间
@@ -231,6 +249,10 @@ func (c *RoleCache) GetAllRoles() []*Role {
 			ResourceType: role.ResourceType, // ⭐ 保存资源类型
 			Description:  role.Description,
 			IsSystem:     role.IsSystem,
+			IsDefault:    role.IsDefault, // ⭐ 默认角色标记
+			CreatedBy:    role.CreatedBy, // ⭐ 创建者
+			CreatedAt:    role.CreatedAt, // ⭐ 创建时间
+			UpdatedAt:    role.UpdatedAt, // ⭐ 更新时间
 		}
 
 		// 添加权限列表（合并所有资源类型的权限）

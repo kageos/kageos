@@ -9,7 +9,6 @@ func InitTables(db *gorm.DB) error {
 	err := db.AutoMigrate(
 		&Nats{},
 		&Host{},
-		&User{},
 		&App{},
 		&ServiceTree{},
 		&Function{},

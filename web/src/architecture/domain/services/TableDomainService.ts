@@ -23,7 +23,7 @@ import { denormalizeSearchValue } from '@/utils/searchValueNormalizer'
 import { parseCommaSeparatedString } from '@/utils/stringUtils'
 import { SearchType } from '@/core/constants/search'
 import { WidgetType } from '@/core/constants/widget'
-import { tableAddRow } from '@/api/function'
+import { tableAddRow, tableDeleteRows } from '@/api/function'
 
 /**
  * 表格数据项类型
@@ -361,8 +361,9 @@ export class TableDomainService {
    * 删除行
    */
   async deleteRow(functionDetail: FunctionDetail, id: number | string): Promise<void> {
-    const url = this.buildCallbackUrl(functionDetail.router, 'OnTableDeleteRows', functionDetail.method)
-    await this.apiClient.post(url, { ids: [id] })
+    // ⭐ 使用标准 API：/table/delete/{full-code-path}
+    const ids = [typeof id === 'string' ? parseInt(id, 10) : id]
+    await tableDeleteRows(functionDetail.method || 'DELETE', functionDetail.router, ids)
 
     // 触发事件
     this.eventBus.emit(TableEvent.rowDeleted, { ids: [id] })
@@ -718,11 +719,6 @@ export class TableDomainService {
     })
     
     return searchParams
-  }
-
-  private buildCallbackUrl(router: string, type: string, method?: string): string {
-    const functionMethod = method?.toUpperCase() || 'GET'
-    return `/workspace/api/v1/callback${router}?_type=${type}&_method=${functionMethod}`
   }
 
   private buildUpdatePayload(

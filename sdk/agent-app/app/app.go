@@ -61,16 +61,11 @@ type App struct {
 	//fileCache
 }
 
-const (
-	MethodPost   = "POST"
-	MethodPut    = "PUT"
-	MethodGet    = "GET"
-	MethodDelete = "DELETE"
-)
+// HTTP 方法常量已移除，直接使用字符串 "POST", "GET", "PUT", "DELETE" 即可
 
 func (a *App) registerRouter(method string, router string, handler HandleFunc, templater Templater) {
 	// 系统路由（如 /_callback）没有 package 路径，传递 nil options
-	// 只有通过 RouterGroup 注册的路由才会有 PackagePath
+	// 通过 PackageContext 注册的路由会有 PackagePath
 	// 使用统一的 addRoute 方法
 	if err := a.addRoute(router, method, handler, templater, nil); err != nil {
 		logger.Errorf(context.Background(), "Failed to register router %s %s: %v", method, router, err)

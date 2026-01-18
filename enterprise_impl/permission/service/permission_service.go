@@ -16,6 +16,28 @@ import (
 	"gorm.io/gorm"
 )
 
+// ============================================
+// 权限服务实现 - 权限判断逻辑说明
+// ============================================
+//
+// CheckPermission 方法：
+//   - 使用 GetUserWorkspacePermissions 获取所有权限记录
+//   - 调用 GetUserWorkspacePermissionsResp.CheckPermission 进行权限检查
+//   - 支持层级权限继承：自动向上查找父节点的权限
+//
+// 权限继承方式：方式2（直接函数权限继承）
+//   - 如果父目录配置了 table:write，子函数直接继承 table:write 权限
+//   - 不需要转换，直接匹配相同的权限点
+//
+// 权限检查流程（GetUserWorkspacePermissionsResp.CheckPermission）：
+//   1. 精确路径匹配：检查当前资源路径是否有该权限点
+//   2. 父目录继承：向上查找父目录，检查是否有相同的权限点（方式2）
+//   3. 前缀匹配：检查是否有前缀路径配置了该权限点
+//   4. 应用级别：检查应用级别权限
+//   5. Admin 权限：检查是否有任何资源类型的 admin 权限
+//
+// ============================================
+
 // PermissionServiceImpl 权限服务实现（企业版）
 // ⭐ 完全移除 Casbin 和 workspace_permission 表，仅使用角色系统
 type PermissionServiceImpl struct {
@@ -74,6 +96,7 @@ func (s *PermissionServiceImpl) Init(opt *enterprise.InitOptions) error {
 		s.roleRepo,
 		s.rolePermissionRepo,
 		s.roleAssignmentRepo,
+		actionRepo, // ⭐ 传入 actionRepo，用于通过 ActionCode 查询 ActionID
 		s.roleCache,
 	)
 
@@ -160,10 +183,56 @@ func (s *PermissionServiceImpl) GetDepartmentRoles(ctx context.Context, req *dto
 	return s.roleService.GetDepartmentRoles(ctx, req)
 }
 
+// GetResourcePermissions 查询资源的所有权限分配
+func (s *PermissionServiceImpl) GetResourcePermissions(ctx context.Context, req *dto.GetResourcePermissionsReq) (*dto.GetResourcePermissionsResp, error) {
+	// 1. 调用 roleService 获取权限分配列表
+	resp, err := s.roleService.GetResourcePermissions(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. 收集所有的 resource_path，批量查询节点名称
+	if len(resp.Assignments) > 0 && s.serviceTreeRepo != nil {
+		resourcePaths := make([]string, 0, len(resp.Assignments))
+		pathSet := make(map[string]bool)
+		for _, assignment := range resp.Assignments {
+			if assignment.ResourcePath != "" && !pathSet[assignment.ResourcePath] {
+				resourcePaths = append(resourcePaths, assignment.ResourcePath)
+				pathSet[assignment.ResourcePath] = true
+			}
+		}
+
+		// 批量查询节点信息
+		if len(resourcePaths) > 0 {
+			nodes, err := s.serviceTreeRepo.GetServiceTreeByFullPaths(resourcePaths)
+			if err != nil {
+				logger.Warnf(ctx, "[PermissionService] 批量查询节点名称失败: error=%v", err)
+				// 查询失败不影响主流程，继续执行
+			} else {
+				// 填充资源名称
+				for _, assignment := range resp.Assignments {
+					if node, exists := nodes[assignment.ResourcePath]; exists && node != nil {
+						assignment.ResourceName = node.Name
+					} else {
+						// 如果查询不到节点，使用路径的最后一部分作为名称
+						parts := strings.Split(strings.Trim(assignment.ResourcePath, "/"), "/")
+						if len(parts) > 0 {
+							assignment.ResourceName = parts[len(parts)-1]
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return resp, nil
+}
+
 // GetRolesForPermissionRequest 获取可用于权限申请的角色列表
 func (s *PermissionServiceImpl) GetRolesForPermissionRequest(ctx context.Context, req *dto.GetRolesForPermissionRequestReq) (*dto.GetRolesForPermissionRequestResp, error) {
 	return s.roleService.GetRolesForPermissionRequest(ctx, req)
 }
+
 
 // PermissionCheck 权限检查项
 type PermissionCheck struct {
@@ -173,8 +242,27 @@ type PermissionCheck struct {
 }
 
 // CheckPermission 检查用户权限（企业版实现）
-// ⭐ 使用 GetUserWorkspacePermissions 获取所有权限，然后在应用层校验
-// 支持层级权限继承：自动向上查找父节点的权限
+//
+// ⭐ 权限判断流程：
+//   1. 优先检查：如果用户是工作空间管理员（app.Admins），直接返回 true（拥有所有权限）
+//   2. 获取权限记录：调用 GetUserWorkspacePermissions 获取用户的所有角色权限记录
+//   3. 权限检查：调用 GetUserWorkspacePermissionsResp.CheckPermission 进行权限判断
+//      - 支持层级权限继承：自动向上查找父节点的权限（方式2：直接函数权限继承）
+//      - 如果父目录配置了 table:write，子函数直接继承 table:write 权限
+//      - 如果父目录配置了 table:admin，子函数继承 table:admin 权限（拥有所有表格权限）
+//
+// ⭐ 权限继承方式：方式2（直接函数权限继承）
+//   - 不需要转换，直接匹配相同的权限点
+//   - 例如：父目录配置了 table:write → 子函数直接继承 table:write
+//   - 例如：父目录配置了 form:read → 子函数直接继承 form:read
+//
+// ⭐ 权限检查优先级（在 CheckPermission 方法中）：
+//   1. 精确路径匹配：检查当前资源路径是否有该权限点
+//   2. 父目录继承：向上查找父目录，检查是否有相同的权限点（方式2）
+//   3. 前缀匹配：检查是否有前缀路径配置了该权限点
+//   4. 应用级别：检查应用级别权限（app:admin）
+//   5. Admin 权限：检查是否有任何资源类型的 admin 权限（如 table:admin, form:admin）
+//
 func (s *PermissionServiceImpl) CheckPermission(ctx context.Context, username string, resourcePath string, action string) (bool, error) {
 	// 从 context 获取组织架构路径
 	departmentPath := contextx.GetRequestDepartmentFullPath(ctx)
@@ -338,6 +426,24 @@ func (s *PermissionServiceImpl) RejectPermissionRequest(ctx context.Context, req
 
 
 // GetUserWorkspacePermissions 获取用户工作空间权限（服务树场景，实现 enterprise.PermissionService 接口）
+//
+// ⭐ 权限获取逻辑：
+//   1. 查询用户角色分配：从 role_assignment 表查询用户和组织架构的角色分配记录
+//   2. 获取角色权限：从内存缓存（roleCache）获取每个角色配置的权限点
+//   3. 构建权限记录：将角色权限转换为 PermissionRecord 列表
+//      - 每个记录包含：资源路径（resourcePath）、权限点（action）、是否授权（granted）
+//
+// ⭐ 角色权限系统：
+//   - 角色（Role）：按资源类型分组（directory、table、form、chart、app）
+//   - 权限点（Action）：格式为 resource_type:action_type（如 table:read、form:write）
+//   - 角色权限（RolePermission）：角色和权限点的关联关系（通过 ActionID 外键关联）
+//   - 角色分配（RoleAssignment）：用户/组织架构和角色的关联关系，指定资源路径生效范围
+//
+// ⭐ 权限继承说明：
+//   - 权限继承在 CheckPermission 方法中处理，不在本方法中处理
+//   - 本方法只返回用户直接分配的角色权限记录
+//   - 继承逻辑：如果父目录配置了 table:write，子函数在 CheckPermission 时会自动继承
+//
 // ⭐ 仅使用角色权限系统，不再查询 workspace_permission 表
 func (s *PermissionServiceImpl) GetUserWorkspacePermissions(ctx context.Context, req *enterprise.GetUserWorkspacePermissionsReq) (*enterprise.GetUserWorkspacePermissionsResp, error) {
 	// ⭐ 使用 user 和 app 查询（不再使用 appID）

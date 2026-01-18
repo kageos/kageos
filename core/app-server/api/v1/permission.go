@@ -13,6 +13,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/pkg/permission"
+	"github.com/ai-agent-os/ai-agent-os/enterprise"
 	"github.com/gin-gonic/gin"
 )
 
@@ -199,6 +200,44 @@ func (p *Permission) CreatePermissionRequest(c *gin.Context) {
 	resp, err := p.permissionService.CreatePermissionRequest(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
+		return
+	}
+
+	response.OkWithData(c, resp)
+}
+
+// GetResourcePermissions 查询资源的所有权限分配
+// @Summary 查询资源权限
+// @Description 查询指定资源路径的所有权限分配（用于权限管理 Tab）
+// @Tags 权限管理
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Param user query string true "租户用户"
+// @Param app query string true "应用代码"
+// @Param resource_path query string true "资源路径（full-code-path）"
+// @Success 200 {object} dto.GetResourcePermissionsResp "查询成功"
+// @Failure 400 {string} string "请求参数错误"
+// @Failure 401 {string} string "未授权"
+// @Failure 500 {string} string "服务器内部错误"
+// @Router /workspace/api/v1/permission/resource [get]
+func (p *Permission) GetResourcePermissions(c *gin.Context) {
+	var req dto.GetResourcePermissionsReq
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+
+	ctx := contextx.ToContext(c)
+	
+	// ⭐ 调用 enterprise.PermissionService 的 GetResourcePermissions 方法
+	enterprisePermissionService := enterprise.GetPermissionService()
+	resp, err := enterprisePermissionService.GetResourcePermissions(ctx, &req)
+	if err != nil {
+		logger.Errorf(ctx, "[GetResourcePermissions] 查询资源权限失败: resource_path=%s, error=%v",
+			req.ResourcePath, err)
+		response.FailWithMessage(c, "查询资源权限失败: "+err.Error())
 		return
 	}
 
