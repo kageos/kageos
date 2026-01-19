@@ -73,7 +73,7 @@
           <!-- ✨ 使用 Vditor 所见即所得编辑器 -->
           <VditorEditor
             v-model="editContent"
-            :height="500"
+            height="100%"
             placeholder="请输入文档内容（支持 Markdown）"
             class="doc-vditor-editor"
           />
@@ -380,25 +380,35 @@ onMounted(() => {
 
 .doc-body {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* 关键：让 flex 子元素可以缩小 */
 }
 
 .doc-editor {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-height: 0; /* 关键：让 flex 子元素可以缩小 */
 }
 
 .doc-title-input {
   font-size: 18px;
   font-weight: 600;
+  flex-shrink: 0; /* 标题输入框不缩小 */
 }
 
 .doc-summary-input {
   font-size: 14px;
+  flex-shrink: 0; /* 摘要输入框不缩小 */
 }
 
 .doc-vditor-editor {
-  margin-top: 8px;
+  flex: 1; /* 占据剩余所有空间 */
+  min-height: 400px; /* 最小高度 */
+  display: flex;
+  flex-direction: column;
 }
 
 .doc-preview {
