@@ -79,6 +79,12 @@ type AddFunctionsResp struct {
 	Error   string `json:"error,omitempty" example:""`     // 错误信息（如果失败）
 }
 
+// AddFunctionsAsyncResp 添加函数响应（异步模式返回）
+type AddFunctionsAsyncResp struct {
+	RecordID int64  `json:"record_id" example:"7"`                              // 生成记录ID
+	Message  string `json:"message" example:"函数添加请求已接收，正在异步处理"` // 提示消息
+}
+
 // PluginRunReq 插件执行请求
 type PluginRunReq struct {
 	Content string       `json:"content" binding:"required" example:"请处理这个Excel文件"` // 用户消息内容

@@ -287,7 +287,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	s.llmService = service.NewLLMService(s.llmRepo)
 
 	// 先初始化函数生成服务（因为 agentChatService 依赖它）
-	s.functionGenService = service.NewFunctionGenService(s.natsConn, s.cfg, s.functionGenRepo)
+	s.functionGenService = service.NewFunctionGenService(s.cfg, s.functionGenRepo)
 
 	// 初始化智能体聊天服务（传入 functionGenService）
 	s.agentChatService = service.NewAgentChatService(s.agentRepo, s.llmRepo, s.knowledgeRepo, s.functionGenService, sessionRepo, messageRepo, s.functionGenRepo)

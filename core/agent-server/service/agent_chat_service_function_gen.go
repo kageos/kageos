@@ -528,57 +528,58 @@ func (s *AgentChatService) asyncCallLLM(ctx context.Context, req *dto.FunctionGe
 
 	go func() {
 		// 创建带超时的子 context
-		llmTimeout := time.Duration(llmConfig.Timeout) * time.Second
-		if llmTimeout <= 0 {
-			llmTimeout = 600 * time.Second
-		}
-		asyncCtx, cancel := context.WithTimeout(context.Background(), llmTimeout)
-		defer cancel()
+		//llmTimeout := time.Duration(llmConfig.Timeout) * time.Second
+		//if llmTimeout <= 0 {
+		//	llmTimeout = 600 * time.Second
+		//}
+		//asyncCtx, cancel := context.WithTimeout(context.Background(), llmTimeout)
+		//defer cancel()
 
-		logger.Infof(asyncCtx, "[FunctionGenChat] 开始调用 LLM - RecordID: %d, Provider: %s, Model: %s, Timeout: %v, MessagesCount: %d, TraceID: %s",
-			record.ID, llmConfig.Provider, llmConfig.Model, llmTimeout, len(chatReq.Messages), traceId)
+		//logger.Infof(ctx, "[FunctionGenChat] 开始调用 LLM - RecordID: %d, Provider: %s, Model: %s, Timeout: %v, MessagesCount: %d, TraceID: %s",
+		//	record.ID, llmConfig.Provider, llmConfig.Model, llmTimeout, len(chatReq.Messages), traceId)
 
 		// 调用 LLM
-		resp, err := client.Chat(asyncCtx, chatReq)
+		resp, err := client.Chat(ctx, chatReq)
 		if err != nil {
-			logger.Errorf(asyncCtx, "[FunctionGen] LLM调用失败: %v, RecordID: %d, AgentID: %d, TraceID: %s",
+			logger.Errorf(ctx, "[FunctionGen] LLM调用失败: %v, RecordID: %d, AgentID: %d, TraceID: %s",
 				err, record.ID, req.AgentID, traceId)
 			s.functionGenRepo.UpdateStatus(record.ID, model.FunctionGenStatusFailed, err.Error())
 			return
 		}
 
 		// 保存 assistant 消息
-		s.saveAssistantMessage(asyncCtx, sessionID, req.AgentID, resp.Content, user, record.ID, traceId)
+		s.saveAssistantMessage(ctx, sessionID, req.AgentID, resp.Content, user, record.ID, traceId)
 
 		// 提取代码
 		extractedCode := s.extractCodeFromLLMResponse(resp.Content)
-		logger.Infof(asyncCtx, "[FunctionGen] 代码提取完成 - 原始长度: %d, 提取后长度: %d, RecordID: %d, TraceID: %s",
+		logger.Infof(ctx, "[FunctionGen] 代码提取完成 - 原始长度: %d, 提取后长度: %d, RecordID: %d, TraceID: %s",
 			len(resp.Content), len(extractedCode), record.ID, traceId)
 
 		// 更新记录
 		if err := s.functionGenRepo.UpdateCode(record.ID, extractedCode); err != nil {
-			logger.Errorf(asyncCtx, "[FunctionGen] 更新代码失败: %v, RecordID: %d, TraceID: %s", err, record.ID, traceId)
+			logger.Errorf(ctx, "[FunctionGen] 更新代码失败: %v, RecordID: %d, TraceID: %s", err, record.ID, traceId)
 		}
-		logger.Infof(asyncCtx, "[FunctionGen] 代码已保存，等待 app-server 处理 - RecordID: %d, TraceID: %s", record.ID, traceId)
 
+		// ⭐ 直接传递代码和父目录 TreeID，让 app-server 处理元数据解析和目录创建
 		// 发布结果到 app-server
 		resultData := &dto.AddFunctionsReq{
 			RecordID:  record.ID,
 			MessageID: record.MessageID,
 			AgentID:   req.AgentID,
-			TreeID:    req.TreeID,
-			User:      user,
+			TreeID:    req.TreeID, // 父目录ID，app-server 会根据元数据创建子目录
+			User:      user,       // 当前用户
 			Code:      extractedCode,
+			SourceCode: extractedCode, // 传递完整代码，app-server 会解析元数据
 		}
 
-		logger.Infof(asyncCtx, "[FunctionGenChat] 发布结果到 app-server - RecordID: %d, CodeLength: %d, TraceID: %s",
+		logger.Infof(ctx, "[FunctionGenChat] 提交生成的代码到 app-server - RecordID: %d, CodeLength: %d, TraceID: %s",
 			record.ID, len(resultData.Code), traceId)
-		if err := s.functionGenService.PublishResult(asyncCtx, resultData, traceId, user); err != nil {
-			logger.Errorf(asyncCtx, "[FunctionGenChat] 发布结果失败 - RecordID: %d, TraceID: %s, Error: %v", record.ID, traceId, err)
+		if err := s.functionGenService.SubmitGeneratedCodeTask(ctx, resultData); err != nil {
+			logger.Errorf(ctx, "[FunctionGenChat] 提交代码失败 - RecordID: %d, TraceID: %s, Error: %v", record.ID, traceId, err)
 			s.functionGenRepo.UpdateStatus(record.ID, model.FunctionGenStatusFailed, err.Error())
 			return
 		}
-		logger.Infof(asyncCtx, "[FunctionGenChat] 结果已发布 - RecordID: %d, TraceID: %s", record.ID, traceId)
+		logger.Infof(ctx, "[FunctionGenChat] 代码已提交 - RecordID: %d, TraceID: %s", record.ID, traceId)
 	}()
 }
 
@@ -640,4 +641,3 @@ func (s *AgentChatService) extractCodeFromLLMResponse(content string) string {
 	// 如果没有找到代码块，返回原始内容
 	return content
 }
-

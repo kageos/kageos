@@ -63,3 +63,32 @@ func SearchFunctions(header *Header, req *dto.SearchFunctionsReq) (*dto.SearchFu
 	}
 	return &result.Data, nil
 }
+
+// CreateServiceTree 创建服务目录（agent-server -> app-server）
+func CreateServiceTree(header *Header, req *dto.CreateServiceTreeReq) (*dto.CreateServiceTreeResp, error) {
+	result, err := callAPI[dto.CreateServiceTreeResp](
+		http.MethodPost,
+		"/workspace/api/v1/service_tree",
+		header,
+		req,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &result.Data, nil
+}
+
+// GetServiceTreeByID 根据ID获取服务目录（agent-server -> app-server）
+func GetServiceTreeByID(header *Header, treeID int64) (*dto.GetServiceTreeResp, error) {
+	path := fmt.Sprintf("/workspace/api/v1/service_tree/%d", treeID)
+	result, err := callAPI[dto.GetServiceTreeResp](
+		http.MethodGet,
+		path,
+		header,
+		nil,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &result.Data, nil
+}

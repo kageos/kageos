@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -13,22 +12,18 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
-	"github.com/nats-io/nats.go"
 )
 
 // FunctionGenService 函数生成服务
-// 负责调用 plugin 处理输入（通过 Form API），以及发布函数生成结果到 app-server（通过 NATS）
+// 负责调用 plugin 处理输入（通过 Form API），以及发布函数生成结果到 app-server（通过 HTTP）
 type FunctionGenService struct {
-	natsConn        *nats.Conn // NATS 连接，用于发布结果
 	cfg             *config.AgentServerConfig
 	functionGenRepo *repository.FunctionGenRepository
 }
 
 // NewFunctionGenService 创建函数生成服务
-func NewFunctionGenService(natsConn *nats.Conn, cfg *config.AgentServerConfig, functionGenRepo *repository.FunctionGenRepository) *FunctionGenService {
+func NewFunctionGenService(cfg *config.AgentServerConfig, functionGenRepo *repository.FunctionGenRepository) *FunctionGenService {
 	return &FunctionGenService{
-		natsConn:        natsConn,
 		cfg:             cfg,
 		functionGenRepo: functionGenRepo,
 	}
@@ -75,12 +70,12 @@ func (s *FunctionGenService) callFormAPI(ctx context.Context, formPath string, r
 	// 3. 构建请求头
 	requestUser := contextx.GetRequestUser(ctx)
 	token := contextx.GetToken(ctx)
-	
+
 	// ⭐ 确保用户信息不为空，否则权限检查会失败
 	if requestUser == "" {
 		logger.Warnf(ctx, "[FunctionGenService] RequestUser 为空，可能导致权限检查失败 - FormPath: %s, TraceID: %s", formPath, traceId)
 	}
-	
+
 	header := &apicall.Header{
 		TraceID:     traceId,
 		RequestUser: requestUser,
@@ -110,49 +105,37 @@ func (s *FunctionGenService) callFormAPI(ctx context.Context, formPath string, r
 	}, nil
 }
 
-// PublishResult 发布函数生成结果到 NATS
-// result: 函数生成结果
-// traceId: 追踪ID（用于设置 NATS header）
-// requestUser: 请求用户（用于设置 NATS header）
-func (s *FunctionGenService) PublishResult(ctx context.Context, result *dto.FunctionGenResult, traceId, requestUser string) error {
-	// 1. 构建结果主题
-	resultSubject := subjects.GetAgentServerFunctionGenSubject()
-	logger.Infof(ctx, "[FunctionGenService] 开始发布结果到 NATS - RecordID: %d, AgentID: %d, TreeID: %d, Subject: %s, TraceID: %s, User: %s",
-		result.RecordID, result.AgentID, result.TreeID, resultSubject, traceId, requestUser)
+// SubmitGeneratedCodeTask 提交生成的函数代码任务到 app-server（通过 HTTP）
+// req: 函数生成请求（包含生成的代码和目录信息）
+func (s *FunctionGenService) SubmitGeneratedCodeTask(ctx context.Context, req *dto.AddFunctionsReq) error {
+	logger.Infof(ctx, "[FunctionGenService] 开始提交生成的代码到 app-server (HTTP) - RecordID: %d, AgentID: %d, TreeID: %d",
+		req.RecordID, req.AgentID, req.TreeID)
 
-	// 2. 序列化结果
-	resultJSON, err := json.Marshal(result)
+	// 1. 构建请求头
+	token := contextx.GetToken(ctx)
+	header := &apicall.Header{
+		TraceID:     contextx.GetTraceId(ctx),
+		RequestUser: contextx.GetRequestUser(ctx),
+		Token:       token,
+	}
+
+	// 2. 设置 Async 为 true，使用异步模式（通过回调通知结果）
+	req.Async = true
+
+	// 3. 调用 HTTP API 提交代码
+	startTime := time.Now()
+
+	_, err := apicall.ServiceTreeAddFunctions(header, req)
+	duration := time.Since(startTime)
+
 	if err != nil {
-		logger.Errorf(ctx, "[FunctionGenService] 序列化结果失败 - RecordID: %d, TraceID: %s, Error: %v",
-			result.RecordID, traceId, err)
-		return fmt.Errorf("序列化结果失败: %w", err)
-	}
-	logger.Debugf(ctx, "[FunctionGenService] 结果序列化成功 - RecordID: %d, JSONLength: %d, CodeLength: %d, TraceID: %s",
-		result.RecordID, len(resultJSON), len(result.Code), traceId)
-
-	// 3. 创建 NATS 消息，并在 header 中设置 trace_id 和 user 信息
-	msg := nats.NewMsg(resultSubject)
-	msg.Data = resultJSON
-
-	// 设置 header，供下游（app-server）使用
-	if traceId != "" {
-		msg.Header.Set("X-Trace-Id", traceId)
-	}
-	if requestUser != "" {
-		msg.Header.Set("X-Request-User", requestUser)
-	}
-	logger.Debugf(ctx, "[FunctionGenService] NATS 消息 Header 设置完成 - RecordID: %d, TraceID: %s, User: %s",
-		result.RecordID, traceId, requestUser)
-
-	// 4. 发布消息
-	if err := s.natsConn.PublishMsg(msg); err != nil {
-		logger.Errorf(ctx, "[FunctionGenService] 发布NATS消息失败 - RecordID: %d, Subject: %s, TraceID: %s, Error: %v",
-			result.RecordID, resultSubject, traceId, err)
-		return fmt.Errorf("发布NATS消息失败: %w", err)
+		logger.Errorf(ctx, "[FunctionGenService] 提交代码到 app-server 失败 - RecordID: %d, Duration: %v, TraceID: %s, Error: %v",
+			req.RecordID, duration, contextx.GetTraceId(ctx), err)
+		return fmt.Errorf("提交代码到 app-server 失败: %w", err)
 	}
 
-	logger.Infof(ctx, "[FunctionGenService] NATS消息发布成功 - RecordID: %d, Subject: %s, TraceID: %s, User: %s, CodeLength: %d",
-		result.RecordID, resultSubject, traceId, requestUser, len(result.Code))
+	logger.Infof(ctx, "[FunctionGenService] 代码提交成功 - RecordID: %d, Duration: %v, TraceID: %s, User: %s, CodeLength: %d",
+		req.RecordID, duration, contextx.GetTraceId(ctx), contextx.GetRequestUser(ctx), len(req.Code))
 
 	return nil
 }
