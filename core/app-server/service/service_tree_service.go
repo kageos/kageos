@@ -135,6 +135,7 @@ type ServiceTreeService struct {
 	fileSnapshotRepo  *repository.FileSnapshotRepository
 	appService        *AppService
 	permissionService *PermissionService // ⭐ 添加 PermissionService 依赖，用于查询权限
+	docService        *DocService        // ⭐ 添加 DocService 依赖，用于创建文档内容
 }
 
 // NewServiceTreeService 创建服务目录服务
@@ -145,6 +146,7 @@ func NewServiceTreeService(
 	fileSnapshotRepo *repository.FileSnapshotRepository,
 	appService *AppService,
 	permissionService *PermissionService, // ⭐ 新增 PermissionService 依赖
+	docService *DocService, // ⭐ 新增 DocService 依赖
 ) *ServiceTreeService {
 	return &ServiceTreeService{
 		serviceTreeRepo:   serviceTreeRepo,
@@ -153,11 +155,17 @@ func NewServiceTreeService(
 		fileSnapshotRepo:  fileSnapshotRepo,
 		appService:        appService,
 		permissionService: permissionService,
+		docService:        docService,
 	}
 }
 
-// CreateServiceTree 创建服务目录
+// CreateServiceTree 创建服务目录（package 类型）
 func (s *ServiceTreeService) CreateServiceTree(ctx context.Context, req *dto.CreateServiceTreeReq) (*dto.CreateServiceTreeResp, error) {
+	// ⭐ 如果指定了类型为 docs，则调用专门的方法
+	if req.Type == model.ServiceTreeTypeDocs {
+		return s.CreateDocsNode(ctx, req)
+	}
+
 	// 获取应用信息
 	app, err := s.appRepo.GetAppByUserName(req.User, req.App)
 	if err != nil {
@@ -192,7 +200,7 @@ func (s *ServiceTreeService) CreateServiceTree(ctx context.Context, req *dto.Cre
 	// 获取创建者用户名
 	requestUser := contextx.GetRequestUser(ctx)
 
-	// 创建服务目录记录
+	// 创建服务目录记录（package 类型）
 	serviceTree := &model.ServiceTree{
 		Name:             req.Name,
 		Code:             req.Code,
@@ -217,7 +225,7 @@ func (s *ServiceTreeService) CreateServiceTree(ctx context.Context, req *dto.Cre
 		return nil, fmt.Errorf("failed to create service tree: %w", err)
 	}
 
-	logger.Infof(ctx, "[ServiceTreeService] Created service tree: %s/%s/%s", req.User, req.App, req.Code)
+	logger.Infof(ctx, "[ServiceTreeService] Created package node: %s/%s/%s", req.User, req.App, req.Code)
 
 	// ⭐ 自动给创建者和管理员分配管理员角色（拥有 directory:manage 权限）
 	// 1. 给创建者分配管理员角色
@@ -244,10 +252,149 @@ func (s *ServiceTreeService) CreateServiceTree(ctx context.Context, req *dto.Cre
 		}
 	}
 
+	// ⭐ package 类型需要创建文件系统目录
 	// 发送NATS消息给app-runtime创建目录结构
 	if err := s.sendCreateServiceTreeMessage(ctx, req.User, req.App, serviceTree); err != nil {
 		logger.Warnf(ctx, "[ServiceTreeService] Failed to send NATS message: %v", err)
 		// 不返回错误，因为数据库记录已创建成功
+	}
+
+	// 返回响应
+	resp := &dto.CreateServiceTreeResp{
+		ID:           serviceTree.ID,
+		Name:         serviceTree.Name,
+		Code:         serviceTree.Code,
+		ParentID:     serviceTree.ParentID,
+		Type:         serviceTree.Type,
+		Description:  serviceTree.Description,
+		Tags:         serviceTree.Tags,
+		AppID:        serviceTree.AppID,
+		FullCodePath: serviceTree.FullCodePath,
+		Version:      serviceTree.Version,
+		VersionNum:   serviceTree.VersionNum,
+		Status:       "created",
+	}
+
+	return resp, nil
+}
+
+// CreateDocsNode 创建文档节点（docs 类型）
+// ⭐ 专门用于创建文档节点，不创建文件系统目录
+func (s *ServiceTreeService) CreateDocsNode(ctx context.Context, req *dto.CreateServiceTreeReq) (*dto.CreateServiceTreeResp, error) {
+	// 获取应用信息
+	app, err := s.appRepo.GetAppByUserName(req.User, req.App)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get app: %w", err)
+	}
+
+	var parentTree *model.ServiceTree
+
+	if req.ParentID != 0 {
+		// 检查父节点是否存在
+		parentTree, err = s.serviceTreeRepo.GetByID(req.ParentID)
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("failed to get parent node: %w", err)
+		}
+		if parentTree == nil {
+			return nil, fmt.Errorf("parent node not found: parent_id=%d", req.ParentID)
+		}
+	}
+
+	// 构建完整路径
+	fullCodePath := fmt.Sprintf("/%s/%s/%s", app.User, app.Code, req.Code)
+	if parentTree != nil {
+		fullCodePath = parentTree.FullCodePath + "/" + req.Code
+	}
+
+	// 检查节点是否已存在
+	exists, err := s.serviceTreeRepo.CheckNameExists(req.ParentID, req.Code, app.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check name exists: %w", err)
+	}
+	if exists {
+		return nil, fmt.Errorf("docs node %s already exists", req.Code)
+	}
+
+	// 提取当前版本号数字
+	currentVersionNum := extractVersionNumForServiceTree(app.Version)
+
+	// 获取创建者用户名
+	requestUser := contextx.GetRequestUser(ctx)
+
+	// 创建文档节点记录（docs 类型）
+	serviceTree := &model.ServiceTree{
+		Name:             req.Name,
+		Code:             req.Code,
+		ParentID:         req.ParentID,
+		Type:             model.ServiceTreeTypeDocs, // ⭐ 固定为 docs 类型
+		Description:      req.Description,
+		Tags:             req.Tags,
+		Admins:           req.Admins, // 设置管理员列表
+		AppID:            app.ID,
+		FullCodePath:     fullCodePath,
+		AddVersionNum:    currentVersionNum, // 设置添加版本号
+		UpdateVersionNum: 0,                 // 新增节点，更新版本号为0
+	}
+
+	// 设置创建者
+	if requestUser != "" {
+		serviceTree.CreatedBy = requestUser
+	}
+
+	// 保存到数据库
+	if err := s.serviceTreeRepo.CreateServiceTreeWithParentPath(serviceTree, ""); err != nil {
+		return nil, fmt.Errorf("failed to create docs node: %w", err)
+	}
+
+	logger.Infof(ctx, "[ServiceTreeService] Created docs node: %s/%s/%s", req.User, req.App, req.Code)
+
+	// ⭐ 自动给创建者和管理员分配管理员角色（拥有 directory:manage 权限）
+	// 1. 给创建者分配管理员角色
+	if requestUser != "" {
+		if err := s.assignAdminRoleToUser(ctx, req.User, req.App, requestUser, serviceTree.FullCodePath); err != nil {
+			// 权限添加失败不应该影响节点创建，只记录警告日志
+			logger.Warnf(ctx, "[ServiceTreeService] 自动添加创建者管理员角色失败: user=%s, app=%s, username=%s, resource=%s, error=%v",
+				req.User, req.App, requestUser, serviceTree.FullCodePath, err)
+		}
+	}
+
+	// 2. 给管理员列表中的用户分配管理员角色
+	if req.Admins != "" {
+		admins := strings.Split(req.Admins, ",")
+		for _, admin := range admins {
+			admin = strings.TrimSpace(admin)
+			if admin != "" && admin != requestUser { // 避免重复分配（创建者已经在上面分配了）
+				if err := s.assignAdminRoleToUser(ctx, req.User, req.App, admin, serviceTree.FullCodePath); err != nil {
+					// 权限添加失败不应该影响节点创建，只记录警告日志
+					logger.Warnf(ctx, "[ServiceTreeService] 自动添加管理员角色失败: user=%s, app=%s, username=%s, resource=%s, error=%v",
+						req.User, req.App, admin, serviceTree.FullCodePath, err)
+				}
+			}
+		}
+	}
+
+	// ⭐ docs 类型不需要创建文件系统目录，只创建数据库记录
+
+	// ⭐ 如果提供了文档内容，立即创建文档记录
+	if req.DocTitle != "" && req.DocContent != "" {
+		docFormat := req.DocFormat
+		if docFormat == "" {
+			docFormat = "markdown"
+		}
+		doc, err := s.docService.CreateDoc(ctx, serviceTree.ID, req.DocTitle, req.DocContent, docFormat, req.DocSummary)
+		if err != nil {
+			// 文档创建失败，记录警告但不影响节点创建
+			logger.Warnf(ctx, "[ServiceTreeService] 创建文档内容失败: %v", err)
+		} else {
+			// 更新 ServiceTree 的 RefID（DocService 内部已经更新，这里确保一致性）
+			if serviceTree.RefID == 0 {
+				serviceTree.RefID = doc.ID
+				if err := s.serviceTreeRepo.UpdateServiceTree(serviceTree); err != nil {
+					logger.Warnf(ctx, "[ServiceTreeService] 更新 ServiceTree RefID 失败: %v", err)
+				}
+			}
+			logger.Infof(ctx, "[ServiceTreeService] 文档内容创建成功 - TreeID: %d, DocID: %d", serviceTree.ID, doc.ID)
+		}
 	}
 
 	// 返回响应

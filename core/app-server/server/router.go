@@ -92,6 +92,15 @@ func (s *Server) setupRoutes() {
 	// 服务间调用路由（不需要JWT验证，但用户信息中间件已在 apiV1 级别统一添加）
 	serviceTree.POST("/add_functions", serviceTreeHandler.AddFunctions) // 向服务目录添加函数（agent-server -> workspace）
 
+	// 文档管理路由（需要JWT验证）
+	doc := apiV1.Group("/service_tree")
+	doc.Use(middleware2.JWTAuth()) // 文档管理需要JWT认证
+	docHandler := v1.NewDoc(s.docService)
+	doc.GET("/:tree_id/doc", docHandler.GetDoc)       // 获取文档内容
+	doc.POST("/:tree_id/doc", docHandler.CreateDoc)   // 创建文档
+	doc.PUT("/:tree_id/doc", docHandler.UpdateDoc)    // 更新文档
+	doc.DELETE("/:tree_id/doc", docHandler.DeleteDoc) // 删除文档
+
 	// 函数管理路由（需要JWT验证）
 	function := apiV1.Group("/function")
 	function.Use(middleware2.JWTAuth()) // 函数管理需要JWT认证

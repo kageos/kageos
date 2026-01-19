@@ -55,9 +55,15 @@ type CreateServiceTreeReq struct {
 	Name        string `json:"name" binding:"required" example:"用户管理"`   // 服务目录名称
 	Code        string `json:"code" binding:"required" example:"user"`   // 服务目录代码
 	ParentID    int64  `json:"parent_id" example:"0"`                    // 父目录ID，0表示根目录
+	Type        string `json:"type" example:"package"`                   // 节点类型: package(服务目录/包), docs(文档), function(函数/文件)
 	Description string `json:"description" example:"用户相关的API接口"`         // 描述
 	Tags        string `json:"tags" example:"user,management"`           // 标签
 	Admins      string `json:"admins" example:"user1,user2"`              // 管理员列表，逗号分隔的用户名
+	// ⭐ 文档相关字段（仅当 type=docs 时使用）
+	DocTitle   string `json:"doc_title" example:"文档标题"`   // 文档标题（仅 docs 类型）
+	DocContent string `json:"doc_content" example:"# 文档内容\n\n这是文档内容..."` // 文档内容（仅 docs 类型）
+	DocFormat  string `json:"doc_format" example:"markdown"`  // 文档格式（仅 docs 类型，默认为 markdown）
+	DocSummary string `json:"doc_summary" example:"文档摘要"` // 文档摘要（仅 docs 类型，可选）
 }
 
 // CreateServiceTreeResp 创建服务目录响应

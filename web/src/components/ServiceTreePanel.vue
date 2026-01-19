@@ -66,6 +66,14 @@
                 <component :is="getFunctionIcon(data)" />
               </el-icon>
             </template>
+            <!-- docs 类型：使用文档图标 -->
+            <img 
+              v-else-if="data.type === 'docs'" 
+              src="/文档.svg" 
+              alt="文档" 
+              class="node-icon docs-icon-img"
+              :class="getNodeIconClass(data)"
+            />
             <!-- 其他类型：显示 fx 文本 -->
             <span v-else class="node-icon fx-icon" :class="getNodeIconClass(data)">fx</span>
             <span class="node-label" :class="{ 'no-permission': !hasAnyPermissionForNode(data) }">{{ node.label }}</span>
@@ -126,6 +134,14 @@
                     <el-icon><Plus /></el-icon>
                     添加服务目录
                   </el-dropdown-item>
+                  <!-- 仅对package类型显示创建文档选项（需要 directory:write 权限） -->
+                  <el-dropdown-item 
+                    v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.write)" 
+                    command="create-docs"
+                  >
+                    <el-icon><Document /></el-icon>
+                    添加文档
+                  </el-dropdown-item>
                   <!-- 仅对package类型显示复制选项（需要 directory:read 权限） -->
                   <el-dropdown-item 
                     v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.read)" 
@@ -160,6 +176,15 @@
                   >
                     <el-icon><Delete /></el-icon>
                     删除
+                  </el-dropdown-item>
+                  <!-- 仅对docs类型显示删除文档选项（需要 directory:write 权限） -->
+                  <el-dropdown-item 
+                    v-if="data.type === 'docs' && hasPermission(data, DirectoryPermissions.write)"
+                    command="delete-doc"
+                    divided
+                  >
+                    <el-icon><Delete /></el-icon>
+                    删除文档
                   </el-dropdown-item>
                   <!-- 仅对package类型显示发布到Hub选项（未发布时，需要 directory:manage 权限） -->
                   <el-dropdown-item 
@@ -270,6 +295,8 @@ interface Props {
 interface Emits {
   (e: 'node-click', node: ServiceTree): void
   (e: 'create-directory', parentNode?: ServiceTree): void
+  (e: 'create-docs', parentNode?: ServiceTree): void
+  (e: 'delete-doc', node: ServiceTree): void
   (e: 'copy-link', node: ServiceTree): void
   (e: 'delete-function', node: ServiceTree): void  // 删除函数
   (e: 'refresh-tree'): void  // 刷新树（复制粘贴后需要刷新）
@@ -710,10 +737,12 @@ const handleManagePermission = (data: ServiceTree) => {
 const handleNodeAction = (command: string, data: ServiceTree) => {
   if (command === 'create-directory') {
     emit('create-directory', data)
+  } else if (command === 'create-docs') {
+    emit('create-docs', data)
   } else if (command === 'copy') {
     handleCopy(data)
   } else if (command === 'paste') {
-    // 粘贴时，如果右键的节点是目录，使用该节点；否则使用当前选中的目录
+    // 粘贴时,如果右键的节点是目录，使用该节点；否则使用当前选中的目录
     if (data.type === 'package') {
       handlePaste(data)
     } else {
@@ -723,6 +752,8 @@ const handleNodeAction = (command: string, data: ServiceTree) => {
     emit('copy-link', data)
   } else if (command === 'delete-function') {
     emit('delete-function', data)
+  } else if (command === 'delete-doc') {
+    emit('delete-doc', data)
   } else if (command === 'publish-to-hub') {
     emit('publish-to-hub', data)
   } else if (command === 'push-to-hub') {
@@ -806,6 +837,8 @@ const getNodeIconClass = (data: ServiceTree) => {
       return 'chart-icon'
     }
     return 'function-icon'
+  } else if (data.type === 'docs') {
+    return 'docs-icon'
   }
   return 'function-icon'
   }
