@@ -922,9 +922,10 @@ async function processFile(rawFile: File | null) {
       
       if (completeResult) {
         // ⭐ 保存完整文件信息（与 types.File 保持一致）
+        // ⭐ 使用原始文件名作为 name 和 source_name，不要使用后端返回的 file_name（可能是 UUID）
         uploadedFiles.value.push({
-          name: completeResult.file_name,
-          source_name: completeResult.file_name,
+          name: rawFile.name, // ⭐ 使用原始文件名
+          source_name: rawFile.name, // ⭐ 使用原始文件名
           storage: completeResult.storage || 'minio',
           description: rawFile.name, // 使用原始文件名作为描述
           hash: completeResult.hash || '',

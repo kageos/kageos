@@ -10,9 +10,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
-	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
@@ -39,14 +37,12 @@ type Server struct {
 	appRuntime                    *service.AppRuntime
 	serviceTreeService            *service.ServiceTreeService
 	functionService               *service.FunctionService
-	functionGenService            *service.FunctionGenService
 	directoryUpdateHistoryService *service.DirectoryUpdateHistoryService
 	permissionService             *service.PermissionService // ⭐ 权限管理服务
 	appRepo                       *repository.AppRepository  // ⭐ 应用仓储（用于其他服务）
 
 	// 上游服务
 	natsService *service.NatsService
-
 
 	// 上下文
 	ctx context.Context
@@ -110,7 +106,6 @@ func NewServer(cfg *config.AppServerConfig) (*Server, error) {
 		return nil, fmt.Errorf("failed to init router: %w", err)
 	}
 
-
 	return s, nil
 }
 
@@ -136,7 +131,6 @@ func (s *Server) Start(ctx context.Context) error {
 // Stop 停止服务器（优雅关闭）
 func (s *Server) Stop(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Stopping app-server...")
-
 
 	// 关闭 AppRuntime 服务（包括 NATS 订阅）
 	if s.appRuntime != nil {
@@ -351,9 +345,6 @@ func (s *Server) initServices(ctx context.Context) error {
 	// 初始化 JWT 服务
 	s.jwtService = service.NewJWTService()
 
-	// 初始化函数生成服务
-	s.functionGenService = service.NewFunctionGenService(s.appService, serviceTreeRepo, s.serviceTreeService, appRepo)
-
 	// ⭐ 初始化权限申请仓储
 	permissionRequestRepo := repository.NewPermissionRequestRepository(s.db)
 
@@ -362,7 +353,8 @@ func (s *Server) initServices(ctx context.Context) error {
 	s.permissionService = service.NewPermissionService(enterprise.GetPermissionService(), serviceTreeRepo, permissionRequestRepo)
 
 	// 初始化服务目录服务（包含目录管理功能：copy、create、remove）
-	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appRuntime, fileSnapshotRepo, s.appService, s.functionGenService, s.permissionService)
+	// ⭐ 函数生成逻辑已移到 ServiceTreeService 中
+	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appRuntime, fileSnapshotRepo, s.appService, s.permissionService)
 
 	// 初始化函数服务
 	s.functionService = service.NewFunctionService(functionRepo, appRepo)
@@ -427,26 +419,7 @@ func (s *Server) GetAppService() *service.AppService {
 	return s.appService
 }
 
-
 // getDirectoryUpdateHistoryRepo 获取目录更新历史Repository（内部方法，用于路由注册）
 func (s *Server) getDirectoryUpdateHistoryRepo() *repository.DirectoryUpdateHistoryRepository {
 	return repository.NewDirectoryUpdateHistoryRepository(s.db)
-}
-
-// HandleFunctionGenResult 处理函数生成结果（HTTP 接口，实现 FunctionGenServer 接口）
-func (s *Server) HandleFunctionGenResult(c *gin.Context, req *dto.AddFunctionsReq) {
-	ctx := contextx.ToContext(c)
-
-	// 打印日志
-	logger.Infof(ctx, "[Server] Received add functions request (HTTP):")
-	logger.Infof(ctx, "[Server]   RecordID: %d", req.RecordID)
-	logger.Infof(ctx, "[Server]   AgentID: %d", req.AgentID)
-	logger.Infof(ctx, "[Server]   TreeID: %d", req.TreeID)
-	logger.Infof(ctx, "[Server]   User: %s", req.User)
-	logger.Infof(ctx, "[Server]   Code length: %d bytes", len(req.Code))
-
-	// 调用 Service 层处理
-	if err := s.functionGenService.ProcessFunctionGenResult(ctx, req); err != nil {
-		logger.Errorf(ctx, "[Server] 处理添加函数请求失败: %v", err)
-	}
 }

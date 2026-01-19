@@ -345,26 +345,22 @@ func (s *AgentChatService) buildSystemMessage(ctx context.Context, req *dto.Func
 		systemPromptContent.WriteString(knowledgeContent.String())
 	}
 
-	// 3. 添加 Package 上下文
-	if req.Package != "" {
-		systemPromptContent.WriteString(fmt.Sprintf("\n\n当前 Package 上下文：%s", req.Package))
-		logger.Infof(ctx, "[FunctionGenChat] Package 上下文已添加 - Package: %s, TraceID: %s", req.Package, traceId)
-	} else {
-		logger.Warnf(ctx, "[FunctionGenChat] Package 信息为空 - TreeID: %d, TraceID: %s", req.TreeID, traceId)
-	}
-
-	// 4. 添加已存在文件的上下文
-	if len(req.ExistingFiles) > 0 {
-		systemPromptContent.WriteString("\n\n## 已存在的文件\n当前 Package 下已存在以下文件（不含 .go 后缀）：\n")
-		for _, fileName := range req.ExistingFiles {
-			systemPromptContent.WriteString(fmt.Sprintf("- %s.go\n", fileName))
+	// 3. 添加已存在的子目录上下文（用于告诉模型已存在的目录）
+	// ⭐ 不再传递 Package 上下文，因为 package 名称应该由元数据中的 directory_code 决定
+	// ⭐ 改为传递已存在的子目录列表（由前端传递），格式如：ticket:工单管理
+	if len(req.ExistingDirectories) > 0 {
+		systemPromptContent.WriteString("\n\n## 当前目录下已存在的子目录\n当前目录下已存在以下子目录（格式：目录代码:目录名称）：\n")
+		for _, dir := range req.ExistingDirectories {
+			systemPromptContent.WriteString(fmt.Sprintf("- %s:%s\n", dir.Code, dir.Name))
 		}
-		systemPromptContent.WriteString("\n**重要**：生成代码时，请确保文件名唯一，不要与已存在的文件重名。如果生成的文件名与已存在的文件冲突，请修改文件名（例如：添加后缀或使用不同的名称）。\n")
-		logger.Infof(ctx, "[FunctionGenChat] 已存在文件上下文已添加 - FilesCount: %d, Files: %v, TraceID: %s", len(req.ExistingFiles), req.ExistingFiles, traceId)
+		systemPromptContent.WriteString("\n**重要**：生成代码时，请确保 `directory_code` 唯一，不要与已存在的子目录重名。如果生成的 `directory_code` 与已存在的子目录冲突，请修改 `directory_code`（例如：添加后缀或使用不同的名称）。\n")
+		logger.Infof(ctx, "[FunctionGenChat] 已存在子目录上下文已添加 - DirectoriesCount: %d, Directories: %v, TraceID: %s", len(req.ExistingDirectories), req.ExistingDirectories, traceId)
+	} else {
+		logger.Infof(ctx, "[FunctionGenChat] 当前目录下没有子目录 - TreeID: %d, TraceID: %s", req.TreeID, traceId)
 	}
 
-	logger.Infof(ctx, "[FunctionGenChat] System message 构建完成 - SystemPromptLength: %d, KnowledgeLength: %d, PackageContext: %s, TotalLength: %d, TraceID: %s",
-		len(template), knowledgeContent.Len(), req.Package, systemPromptContent.Len(), traceId)
+	logger.Infof(ctx, "[FunctionGenChat] System message 构建完成 - SystemPromptLength: %d, KnowledgeLength: %d, TotalLength: %d, TraceID: %s",
+		len(template), knowledgeContent.Len(), systemPromptContent.Len(), traceId)
 
 	return llms.Message{
 		Role:    "system",
@@ -563,12 +559,12 @@ func (s *AgentChatService) asyncCallLLM(ctx context.Context, req *dto.FunctionGe
 		// ⭐ 直接传递代码和父目录 TreeID，让 app-server 处理元数据解析和目录创建
 		// 发布结果到 app-server
 		resultData := &dto.AddFunctionsReq{
-			RecordID:  record.ID,
-			MessageID: record.MessageID,
-			AgentID:   req.AgentID,
-			TreeID:    req.TreeID, // 父目录ID，app-server 会根据元数据创建子目录
-			User:      user,       // 当前用户
-			Code:      extractedCode,
+			RecordID:   record.ID,
+			MessageID:  record.MessageID,
+			AgentID:    req.AgentID,
+			TreeID:     req.TreeID, // 父目录ID，app-server 会根据元数据创建子目录
+			User:       user,       // 当前用户
+			Code:       extractedCode,
 			SourceCode: extractedCode, // 传递完整代码，app-server 会解析元数据
 		}
 

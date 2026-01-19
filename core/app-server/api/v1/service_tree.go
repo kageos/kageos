@@ -13,14 +13,12 @@ import (
 
 type ServiceTree struct {
 	serviceTreeService *service.ServiceTreeService
-	functionGenService *service.FunctionGenService // 仅用于异步处理
 }
 
 // NewServiceTree 创建 ServiceTree 处理器（依赖注入）
-func NewServiceTree(serviceTreeService *service.ServiceTreeService, functionGenService *service.FunctionGenService) *ServiceTree {
+func NewServiceTree(serviceTreeService *service.ServiceTreeService) *ServiceTree {
 	return &ServiceTree{
 		serviceTreeService: serviceTreeService,
-		functionGenService: functionGenService,
 	}
 }
 
@@ -401,7 +399,7 @@ func (s *ServiceTree) AddFunctions(c *gin.Context) {
 		// 异步模式：返回已接收，后台处理，通过回调通知
 		go func() {
 			// 异步处理，不等待结果
-			_ = s.functionGenService.ProcessFunctionGenResultAsync(ctx, &req)
+			_ = s.serviceTreeService.ProcessFunctionGenResult(ctx, &req)
 		}()
 
 		// 立即返回已接收（使用 200 OK 状态码，因为 callAPI 只接受 200）
