@@ -161,6 +161,9 @@ defineExpose({
 <style scoped>
 .vditor-wrapper {
   width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ========== 主题适配 ========== */
@@ -170,6 +173,9 @@ defineExpose({
   border-radius: var(--border-radius-base);
   border-color: var(--border-base);
   background-color: var(--bg-primary);
+  height: 100%; /* 确保占据容器高度 */
+  display: flex;
+  flex-direction: column;
 }
 
 /* 工具栏 */
@@ -208,6 +214,8 @@ defineExpose({
 /* 编辑区（IR 模式） */
 :deep(.vditor-ir) {
   background-color: var(--bg-primary);
+  flex: 1; /* 占据剩余空间 */
+  overflow-y: auto;
 }
 
 :deep(.vditor-ir pre.vditor-reset) {
