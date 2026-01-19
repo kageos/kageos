@@ -114,6 +114,7 @@ declare module 'vue' {
     UserDetailDialog: typeof import('./src/components/UserDetailDialog.vue')['default']
     UserSearchInput: typeof import('./src/components/UserSearchInput.vue')['default']
     UserSelectorDialog: typeof import('./src/components/UserSelectorDialog.vue')['default']
+    VditorEditor: typeof import('./src/components/VditorEditor.vue')['default']
     WorkspaceListDialog: typeof import('./src/components/WorkspaceListDialog.vue')['default']
     WorkspaceSettingsDialog: typeof import('./src/components/WorkspaceSettingsDialog.vue')['default']
   }
@@ -226,6 +227,7 @@ declare global {
   const UserDetailDialog: typeof import('./src/components/UserDetailDialog.vue')['default']
   const UserSearchInput: typeof import('./src/components/UserSearchInput.vue')['default']
   const UserSelectorDialog: typeof import('./src/components/UserSelectorDialog.vue')['default']
+  const VditorEditor: typeof import('./src/components/VditorEditor.vue')['default']
   const WorkspaceListDialog: typeof import('./src/components/WorkspaceListDialog.vue')['default']
   const WorkspaceSettingsDialog: typeof import('./src/components/WorkspaceSettingsDialog.vue')['default']
 }

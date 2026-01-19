@@ -69,18 +69,14 @@
             maxlength="500"
             show-word-limit
           />
-          <el-input
+          
+          <!-- ✨ 使用 Vditor 所见即所得编辑器 -->
+          <VditorEditor
             v-model="editContent"
-            type="textarea"
+            :height="500"
             placeholder="请输入文档内容（支持 Markdown）"
-            class="doc-content-input"
-            :rows="20"
+            class="doc-vditor-editor"
           />
-          <div class="editor-tips">
-            <el-text type="info" size="small">
-              💡 支持 Markdown 格式，可以使用标题、列表、代码块、链接等语法
-            </el-text>
-          </div>
         </div>
 
         <!-- 预览模式 -->
@@ -119,6 +115,7 @@ import { marked } from 'marked'
 import type { ServiceTree } from '@/types'
 import { getDoc, createDoc, updateDoc, deleteDoc } from '@/api/service-tree'
 import { hasPermission, DirectoryPermissions } from '@/utils/permission'
+import VditorEditor from '@/components/VditorEditor.vue'
 
 interface Props {
   node: ServiceTree
@@ -400,14 +397,8 @@ onMounted(() => {
   font-size: 14px;
 }
 
-.doc-content-input {
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-.editor-tips {
-  margin-top: -8px;
+.doc-vditor-editor {
+  margin-top: 8px;
 }
 
 .doc-preview {
