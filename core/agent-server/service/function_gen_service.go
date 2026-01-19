@@ -67,26 +67,17 @@ func (s *FunctionGenService) callFormAPI(ctx context.Context, formPath string, r
 		formReq.InputFiles = req.Files
 	}
 
-	// 3. 构建请求头
+	// 3. ⭐ 确保用户信息不为空，否则权限检查会失败
 	requestUser := contextx.GetRequestUser(ctx)
-	token := contextx.GetToken(ctx)
-
-	// ⭐ 确保用户信息不为空，否则权限检查会失败
 	if requestUser == "" {
 		logger.Warnf(ctx, "[FunctionGenService] RequestUser 为空，可能导致权限检查失败 - FormPath: %s, TraceID: %s", formPath, traceId)
 	}
 
-	header := &apicall.Header{
-		TraceID:     traceId,
-		RequestUser: requestUser,
-		Token:       token,
-	}
-
-	// 4. 调用 Form API（智能体插件场景使用固定格式）
+	// 4. 调用 Form API（智能体插件场景使用固定格式，直接传 ctx）
 	startTime := time.Now()
 	logger.Debugf(ctx, "[FunctionGenService] 发送 Form API 请求 - FormPath: %s, User: %s, TraceID: %s", formPath, requestUser, traceId)
 
-	resp, err := apicall.CallFormAPI[dto.AgentPluginFormReq, dto.AgentPluginFormResp](header, formPath, *formReq)
+	resp, err := apicall.CallFormAPI[dto.AgentPluginFormReq, *dto.AgentPluginFormResp](ctx, formPath, *formReq)
 	duration := time.Since(startTime)
 
 	if err != nil {
@@ -111,21 +102,13 @@ func (s *FunctionGenService) SubmitGeneratedCodeTask(ctx context.Context, req *d
 	logger.Infof(ctx, "[FunctionGenService] 开始提交生成的代码到 app-server (HTTP) - RecordID: %d, AgentID: %d, TreeID: %d",
 		req.RecordID, req.AgentID, req.TreeID)
 
-	// 1. 构建请求头
-	token := contextx.GetToken(ctx)
-	header := &apicall.Header{
-		TraceID:     contextx.GetTraceId(ctx),
-		RequestUser: contextx.GetRequestUser(ctx),
-		Token:       token,
-	}
-
-	// 2. 设置 Async 为 true，使用异步模式（通过回调通知结果）
+	// 1. 设置 Async 为 true，使用异步模式（通过回调通知结果）
 	req.Async = true
 
-	// 3. 调用 HTTP API 提交代码
+	// 2. 调用 HTTP API 提交代码（直接传 ctx，内部会提取 token、trace_id 等）
 	startTime := time.Now()
 
-	_, err := apicall.ServiceTreeAddFunctions(header, req)
+	_, err := apicall.ServiceTreeAddFunctions(ctx, req)
 	duration := time.Since(startTime)
 
 	if err != nil {

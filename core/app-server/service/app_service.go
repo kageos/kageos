@@ -72,12 +72,8 @@ func (a *AppService) CreateApp(ctx context.Context, req *dto.CreateAppReq) (*dto
 
 	// 验证用户是否存在（通过 hr-server 接口验证）
 	// ⭐ 使用服务间调用验证用户，不再直接访问 user 表
-	header := &apicall.Header{
-		Token:       contextx.GetToken(ctx),
-		TraceID:     contextx.GetTraceId(ctx),
-		RequestUser: contextx.GetRequestUser(ctx),
-	}
-	_, err = apicall.GetUserByUsername(header, tenantUser)
+	// 获取用户信息（直接传 ctx，内部会提取 token、trace_id 等）
+	_, err = apicall.GetUserByUsername(ctx, &dto.QueryUserReq{Username: tenantUser})
 	if err != nil {
 		return nil, fmt.Errorf("租户用户 %s 不存在: %w", tenantUser, err)
 	}
