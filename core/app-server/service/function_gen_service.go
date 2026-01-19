@@ -149,19 +149,8 @@ func (s *FunctionGenService) ProcessFunctionGenResult(ctx context.Context, req *
 		Error:         "",
 	}
 
-	// 从 ctx 中获取 traceID 和 token
-	traceID := contextx.GetTraceId(ctx)
-	token := contextx.GetToken(ctx)
-	
-	// 通过 HTTP 发送回调到 agent-server
-	// ⭐ 服务间调用需要 token（用于权限验证），不需要 requestUser（网关会从 token 解析）
-	apicallHeader := &apicall.Header{
-		TraceID:     traceID,
-		RequestUser: "", // 服务间调用不需要 requestUser，网关会从 token 解析
-		Token:       token,
-	}
-
-	if err := apicall.NotifyWorkspaceUpdateComplete(apicallHeader, callbackData); err != nil {
+	// 通过 HTTP 发送回调到 agent-server（直接传 ctx，内部会提取 token、trace_id 等）
+	if err := apicall.NotifyWorkspaceUpdateComplete(ctx, callbackData); err != nil {
 		logger.Errorf(ctx, "[FunctionGenService] 通知工作空间更新完成失败: error=%v", err)
 		// 不中断流程，记录日志即可
 	} else {
@@ -267,18 +256,8 @@ func (s *FunctionGenService) sendCallback(ctx context.Context, req *dto.AddFunct
 		Error:         errorMsg,
 	}
 
-	// 从 ctx 中获取 traceID 和 token
-	traceID := contextx.GetTraceId(ctx)
-	token := contextx.GetToken(ctx)
-	
-	// ⭐ 服务间调用需要 token（用于权限验证），不需要 requestUser（网关会从 token 解析）
-	apicallHeader := &apicall.Header{
-		TraceID:     traceID,
-		RequestUser: "", // 服务间调用不需要 requestUser，网关会从 token 解析
-		Token:       token,
-	}
-
-	if err := apicall.NotifyWorkspaceUpdateComplete(apicallHeader, callbackData); err != nil {
+	// 通过 HTTP 发送回调到 agent-server（直接传 ctx，内部会提取 token、trace_id 等）
+	if err := apicall.NotifyWorkspaceUpdateComplete(ctx, callbackData); err != nil {
 		logger.Errorf(ctx, "[FunctionGenService] 发送回调失败: error=%v", err)
 	} else {
 		logger.Infof(ctx, "[FunctionGenService] 回调已发送 - RecordID: %d, Success: %v", req.RecordID, success)

@@ -267,12 +267,6 @@ func (c *Context) batchUploadFiles(filePaths []string) *types.Files {
 	}
 
 	// 2. 批量获取上传凭证
-	header := &apicall.Header{
-		TraceID:     c.msg.TraceId,
-		RequestUser: c.msg.RequestUser,
-		Token:       c.token,
-	}
-
 	batchTokenReq := &dto.BatchGetUploadTokenReq{
 		Files:        make([]dto.GetUploadTokenReq, 0, len(fileInfos)),
 		UploadSource: dto.UploadSourceServer, // ✨ 服务端上传，使用 server_endpoint
@@ -289,7 +283,10 @@ func (c *Context) batchUploadFiles(filePaths []string) *types.Files {
 		})
 	}
 
-	credsResp, err := apicall.BatchGetUploadToken(header, batchTokenReq)
+	// 使用 apicall.NewContext 创建包含 token 和 traceId 的 context
+	ctx := apicall.NewContext(c.token, c.msg.TraceId)
+
+	credsResp, err := apicall.BatchGetUploadToken(ctx, batchTokenReq)
 	if err != nil {
 		logger.Errorf(c, "[batchUploadFiles] Failed to get batch upload tokens: %v", err)
 		return &types.Files{
@@ -418,7 +415,10 @@ func (c *Context) batchUploadFiles(filePaths []string) *types.Files {
 				Items: completeItems[i:end],
 			}
 
-			completeResp, err := apicall.BatchUploadComplete(header, batchReq)
+			// 使用 apicall.NewContext 创建包含 token 和 traceId 的 context
+			ctx := apicall.NewContext(c.token, c.msg.TraceId)
+
+			completeResp, err := apicall.BatchUploadComplete(ctx, batchReq)
 			if err != nil {
 				logger.Warnf(c, "[batchUploadFiles] Failed to notify batch upload complete (batch %d-%d): %v", i, end-1, err)
 				// 如果通知失败，使用上传时的DownloadURL

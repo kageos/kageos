@@ -151,3 +151,27 @@ type DirectoryFileDTO struct {
 	// 注意：content 不包含在列表中，需要单独获取
 }
 
+
+// GetHubDirectoryListReq 获取 Hub 目录列表请求
+type GetHubDirectoryListReq struct {
+	Page              int    `json:"page" form:"page" binding:"required" example:"1"`                    // 页码
+	PageSize          int    `json:"page_size" form:"page_size" binding:"required" example:"10"`         // 每页数量
+	Search            string `json:"search" form:"search"`                                                 // 搜索关键词（可选）
+	Category          string `json:"category" form:"category"`                                            // 分类（可选）
+	PublisherUsername string `json:"publisher_username" form:"publisher_username"`                       // 发布者用户名（可选）
+}
+
+// GetHubDirectoryDetailReq 获取 Hub 目录详情请求（通过网关）
+type GetHubDirectoryDetailReq struct {
+	FullCodePath string `json:"full_code_path" form:"full_code_path" binding:"required"` // 完整代码路径
+	Version      string `json:"version" form:"version"`                                    // 版本号（可选）
+	IncludeTree  bool   `json:"include_tree" form:"include_tree"`                         // 是否包含目录树（可选，默认false）
+}
+
+// GetHubDirectoryDetailFromHostReq 从指定的 Hub 主机获取目录详情请求（跨 Hub 主机调用）
+type GetHubDirectoryDetailFromHostReq struct {
+	Host         string `json:"host" binding:"required"`         // Hub 主机地址（如 hub.example.com 或 http://hub.example.com）
+	FullCodePath string `json:"full_code_path" binding:"required"` // 完整代码路径
+	Version      string `json:"version"`                        // 版本号（可选）
+	IncludeTree  bool   `json:"include_tree"`                   // 是否包含目录树（可选，默认false）
+}

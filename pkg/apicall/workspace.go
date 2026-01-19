@@ -1,34 +1,24 @@
 package apicall
 
 import (
+	"context"
 	"fmt"
-	"net/http"
 	"net/url"
 	"strconv"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/serviceconfig"
 )
 
 // ServiceTreeAddFunctions 向服务目录添加函数（agent-server -> workspace）
 // 将生成的代码写入到工作空间对应的目录下，并更新工作空间
 // async: true 表示异步处理（通过回调通知），false 表示同步处理（直接返回结果）
-func ServiceTreeAddFunctions(header *Header, req *dto.AddFunctionsReq) (*dto.AddFunctionsResp, error) {
-	result, err := callAPI[dto.AddFunctionsResp](
-		http.MethodPost,
-		"/workspace/api/v1/service_tree/add_functions",
-		header,
-		req,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return &result.Data, nil
+func ServiceTreeAddFunctions(ctx context.Context, req *dto.AddFunctionsReq) (*dto.AddFunctionsResp, error) {
+	return PostAPI[*dto.AddFunctionsReq, *dto.AddFunctionsResp](ctx, "/workspace/api/v1/service_tree/add_functions", req)
 }
 
 // SearchFunctions 搜索函数（agent-server -> app-server）
 // 根据关键词、类型等条件搜索函数，支持分页
-func SearchFunctions(header *Header, req *dto.SearchFunctionsReq) (*dto.SearchFunctionsResp, error) {
+func SearchFunctions(ctx context.Context, req *dto.SearchFunctionsReq) (*dto.SearchFunctionsResp, error) {
 	// 构建查询参数
 	path := "/workspace/api/v1/service_tree/search_functions"
 	params := url.Values{}
@@ -47,48 +37,16 @@ func SearchFunctions(header *Header, req *dto.SearchFunctionsReq) (*dto.SearchFu
 		params.Set("template_type", req.TemplateType)
 	}
 
-	// 构建完整 URL
-	gatewayURL := serviceconfig.GetGatewayURL()
-	fullURL := fmt.Sprintf("%s%s?%s", gatewayURL, path, params.Encode())
-
-	// 使用 callAPIWithURL 调用
-	result, err := callAPIWithURL[dto.SearchFunctionsResp](
-		http.MethodGet,
-		fullURL,
-		header,
-		nil,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return &result.Data, nil
+	return GetAPI[*dto.SearchFunctionsResp](ctx, path, params)
 }
 
 // CreateServiceTree 创建服务目录（agent-server -> app-server）
-func CreateServiceTree(header *Header, req *dto.CreateServiceTreeReq) (*dto.CreateServiceTreeResp, error) {
-	result, err := callAPI[dto.CreateServiceTreeResp](
-		http.MethodPost,
-		"/workspace/api/v1/service_tree",
-		header,
-		req,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return &result.Data, nil
+func CreateServiceTree(ctx context.Context, req *dto.CreateServiceTreeReq) (*dto.CreateServiceTreeResp, error) {
+	return PostAPI[*dto.CreateServiceTreeReq, *dto.CreateServiceTreeResp](ctx, "/workspace/api/v1/service_tree", req)
 }
 
 // GetServiceTreeByID 根据ID获取服务目录（agent-server -> app-server）
-func GetServiceTreeByID(header *Header, treeID int64) (*dto.GetServiceTreeResp, error) {
-	path := fmt.Sprintf("/workspace/api/v1/service_tree/%d", treeID)
-	result, err := callAPI[dto.GetServiceTreeResp](
-		http.MethodGet,
-		path,
-		header,
-		nil,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return &result.Data, nil
+func GetServiceTreeByID(ctx context.Context, req *dto.GetServiceTreeByIDReq) (*dto.GetServiceTreeResp, error) {
+	path := fmt.Sprintf("/workspace/api/v1/service_tree/%d", req.ID)
+	return GetAPI[*dto.GetServiceTreeResp](ctx, path, nil)
 }
