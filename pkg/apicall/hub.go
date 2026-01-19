@@ -2,6 +2,7 @@ package apicall
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,144 +12,104 @@ import (
 	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/serviceconfig"
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 )
 
 // PublishDirectoryToHub 发布目录到 Hub
-func PublishDirectoryToHub(header *Header, req *dto.PublishHubDirectoryReq) (*dto.PublishHubDirectoryResp, error) {
-	result, err := callAPI[dto.PublishHubDirectoryResp](
-		http.MethodPost,
-		"/hub/api/v1/directories/publish",
-		header,
-		req,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return &result.Data, nil
+func PublishDirectoryToHub(ctx context.Context, req *dto.PublishHubDirectoryReq) (*dto.PublishHubDirectoryResp, error) {
+	return PostAPI[*dto.PublishHubDirectoryReq, *dto.PublishHubDirectoryResp](ctx, "/hub/api/v1/directories/publish", req)
 }
 
 // UpdateDirectoryToHub 更新目录到 Hub（用于 push）
-func UpdateDirectoryToHub(header *Header, req *dto.UpdateHubDirectoryReq) (*dto.UpdateHubDirectoryResp, error) {
-	result, err := callAPI[dto.UpdateHubDirectoryResp](
-		http.MethodPut,
-		"/hub/api/v1/directories/update",
-		header,
-		req,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return &result.Data, nil
+func UpdateDirectoryToHub(ctx context.Context, req *dto.UpdateHubDirectoryReq) (*dto.UpdateHubDirectoryResp, error) {
+	return PutAPI[*dto.UpdateHubDirectoryReq, *dto.UpdateHubDirectoryResp](ctx, "/hub/api/v1/directories/update", req)
 }
 
 // GetHubDirectoryList 获取 Hub 目录列表
-func GetHubDirectoryList(header *Header, page, pageSize int, search, category, publisherUsername string) (*dto.HubDirectoryListResp, error) {
+func GetHubDirectoryList(ctx context.Context, req *dto.GetHubDirectoryListReq) (*dto.HubDirectoryListResp, error) {
 	// 构建查询参数
 	path := "/hub/api/v1/directories"
 	params := url.Values{}
-	params.Set("page", strconv.Itoa(page))
-	params.Set("page_size", strconv.Itoa(pageSize))
-	if search != "" {
-		params.Set("search", search)
+	params.Set("page", strconv.Itoa(req.Page))
+	params.Set("page_size", strconv.Itoa(req.PageSize))
+	if req.Search != "" {
+		params.Set("search", req.Search)
 	}
-	if category != "" {
-		params.Set("category", category)
+	if req.Category != "" {
+		params.Set("category", req.Category)
 	}
-	if publisherUsername != "" {
-		params.Set("publisher_username", publisherUsername)
+	if req.PublisherUsername != "" {
+		params.Set("publisher_username", req.PublisherUsername)
 	}
 
-	// 构建完整 URL
-	gatewayURL := serviceconfig.GetGatewayURL()
-	fullURL := fmt.Sprintf("%s%s?%s", gatewayURL, path, params.Encode())
-
-	// 使用 callAPIWithURL 调用（需要新增这个函数，或者直接构建 URL 调用）
-	result, err := callAPIWithURL[dto.HubDirectoryListResp](
-		http.MethodGet,
-		fullURL,
-		header,
-		nil,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return &result.Data, nil
+	return GetAPI[*dto.HubDirectoryListResp](ctx, path, params)
 }
 
 // GetHubDirectoryDetail 获取 Hub 目录详情（通过网关，使用 full_code_path）
-func GetHubDirectoryDetail(header *Header, fullCodePath string, version string, includeTree bool) (*dto.HubDirectoryDetailDetailResp, error) {
+func GetHubDirectoryDetail(ctx context.Context, req *dto.GetHubDirectoryDetailReq) (*dto.HubDirectoryDetailDetailResp, error) {
 	// 构建查询参数
 	path := "/hub/api/v1/directories/detail"
 	params := url.Values{}
-	params.Set("full_code_path", fullCodePath)
-	if version != "" {
-		params.Set("version", version)
+	params.Set("full_code_path", req.FullCodePath)
+	if req.Version != "" {
+		params.Set("version", req.Version)
 	}
-	if includeTree {
+	if req.IncludeTree {
 		params.Set("include_tree", "true")
 	}
 
-	// 构建完整 URL
-	gatewayURL := serviceconfig.GetGatewayURL()
-	fullURL := fmt.Sprintf("%s%s?%s", gatewayURL, path, params.Encode())
-
-	result, err := callAPIWithURL[dto.HubDirectoryDetailDetailResp](
-		http.MethodGet,
-		fullURL,
-		header,
-		nil,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return &result.Data, nil
+	return GetAPI[*dto.HubDirectoryDetailDetailResp](ctx, path, params)
 }
 
 // GetHubDirectoryDetailFromHost 从指定的 Hub 主机获取目录详情（通过 full-code-path，支持版本号）
 // 用于跨 Hub 主机调用，不通过网关
-func GetHubDirectoryDetailFromHost(host string, fullCodePath string, version string, includeTree bool) (*dto.HubDirectoryDetailDetailResp, error) {
+func GetHubDirectoryDetailFromHost(ctx context.Context, req *dto.GetHubDirectoryDetailFromHostReq) (*dto.HubDirectoryDetailDetailResp, error) {
+	// 如果 ctx 为 nil，使用 Background（用于公开接口）
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	// 构建 Hub API URL
-	baseURL := host
-	if !strings.HasPrefix(host, "http://") && !strings.HasPrefix(host, "https://") {
-		baseURL = "http://" + host
+	baseURL := req.Host
+	if !strings.HasPrefix(req.Host, "http://") && !strings.HasPrefix(req.Host, "https://") {
+		baseURL = "http://" + req.Host
 	}
 
 	// 构建查询参数
 	path := "/hub/api/v1/directories/detail"
 	params := url.Values{}
-	params.Set("full_code_path", fullCodePath)
-	if version != "" {
-		params.Set("version", version)
+	params.Set("full_code_path", req.FullCodePath)
+	if req.Version != "" {
+		params.Set("version", req.Version)
 	}
-	if includeTree {
+	if req.IncludeTree {
 		params.Set("include_tree", "true")
 	}
 
 	fullURL := fmt.Sprintf("%s%s?%s", baseURL, path, params.Encode())
 
-	// 使用 callAPIWithURL 调用（不需要 header，因为是公开接口）
-	result, err := callAPIWithURL[dto.HubDirectoryDetailDetailResp](
-		http.MethodGet,
-		fullURL,
-		nil, // 不需要 header
-		nil,
-	)
+	// 使用 callAPIWithURL 调用（不需要 header，因为是公开接口，但保留 ctx 用于超时控制）
+	result, err := callAPIWithURL[*dto.HubDirectoryDetailDetailResp](ctx, http.MethodGet, fullURL, nil)
 	if err != nil {
 		return nil, err
 	}
-	return &result.Data, nil
+	return result.Data, nil
 }
 
 // CallAPIWithURL 使用完整 URL 调用 API（支持查询参数，公开方法）
 // 注意：这里直接使用完整 URL，不通过 serviceconfig.GetGatewayURL()
-func CallAPIWithURL[T any](method, fullURL string, header *Header, reqBody interface{}) (*ApiResult[T], error) {
-	return callAPIWithURL[T](method, fullURL, header, reqBody)
+func CallAPIWithURL[T any](ctx context.Context, method, fullURL string, reqBody interface{}) (*ApiResult[T], error) {
+	return callAPIWithURL[T](ctx, method, fullURL, reqBody)
 }
 
 // callAPIWithURL 使用完整 URL 调用 API（支持查询参数，内部方法）
 // 注意：这里直接使用完整 URL，不通过 serviceconfig.GetGatewayURL()
-func callAPIWithURL[T any](method, fullURL string, header *Header, reqBody interface{}) (*ApiResult[T], error) {
+func callAPIWithURL[T any](ctx context.Context, method, fullURL string, reqBody interface{}) (*ApiResult[T], error) {
+	// 如果 ctx 为 nil，使用 Background
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	var bodyReader io.Reader
 	if reqBody != nil {
 		bodyBytes, err := json.Marshal(reqBody)
@@ -158,20 +119,26 @@ func callAPIWithURL[T any](method, fullURL string, header *Header, reqBody inter
 		bodyReader = bytes.NewReader(bodyBytes)
 	}
 
-	req, err := http.NewRequest(method, fullURL, bodyReader)
+	req, err := http.NewRequestWithContext(ctx, method, fullURL, bodyReader)
 	if err != nil {
 		return nil, fmt.Errorf("创建请求失败: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	if header != nil && header.Token != "" {
-		req.Header.Set("X-Token", header.Token)
+	
+	// ✨ 从 ctx 中提取 Token
+	if token := contextx.GetToken(ctx); token != "" {
+		req.Header.Set("X-Token", token)
 	}
-	if header != nil && header.TraceID != "" {
-		req.Header.Set("X-Trace-Id", header.TraceID)
+	
+	// ✨ 从 ctx 中提取追踪ID
+	if traceID := contextx.GetTraceId(ctx); traceID != "" {
+		req.Header.Set("X-Trace-Id", traceID)
 	}
-	if header != nil && header.RequestUser != "" {
-		req.Header.Set("X-Request-User", header.RequestUser)
+	
+	// ✨ 从 ctx 中提取请求用户
+	if requestUser := contextx.GetRequestUser(ctx); requestUser != "" {
+		req.Header.Set("X-Request-User", requestUser)
 	}
 
 	resp, err := httpClient.Do(req)

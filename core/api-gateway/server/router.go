@@ -301,8 +301,8 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 
 	return func(c *gin.Context) {
 		// ✨ 将 TraceId 从 gin context 设置到请求 header，供后端服务使用
-		// WithTraceId 中间件已经将 TraceId 设置到 gin context 中
-		traceId := c.GetString("trace_id")
+		// WithTraceId 中间件已经将 TraceId 设置到 gin context 中（使用常量 TraceIdHeader）
+		traceId := c.GetString(contextx.TraceIdHeader) // ⭐ 使用常量 TraceIdHeader
 		if traceId != "" {
 			// 设置到请求 header，这样 proxy.Director 就能读取并传递给后端
 			c.Request.Header.Set(contextx.TraceIdHeader, traceId)
