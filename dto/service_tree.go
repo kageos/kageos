@@ -255,3 +255,8 @@ type FunctionSearchResult struct {
 	AppUser      string `json:"app_user" example:"system"`                     // 应用所属用户
 	AppCode      string `json:"app_code" example:"official"`                   // 应用代码
 }
+
+// GetServiceTreeByIDReq 根据ID获取服务目录请求
+type GetServiceTreeByIDReq struct {
+	ID int64 `json:"id" form:"id" binding:"required" example:"1"` // 服务目录ID
+}

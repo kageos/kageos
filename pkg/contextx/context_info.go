@@ -2,6 +2,8 @@ package contextx
 
 import (
 	"context"
+
+	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/nats-io/nats.go"
 
 	"github.com/gin-gonic/gin"
@@ -21,8 +23,9 @@ const DepartmentFullPathHeader = "X-Department-Full-Path"
 const TokenHeader = "X-Token"
 
 // GetTraceId 获取追踪ID
-// 优先级：HTTP Header (X-Trace-Id) > Context (trace_id)
+// 优先级：HTTP Header (X-Trace-Id) > Context (TraceIdHeader)
 // 支持从 *gin.Context 或标准 context.Context 读取
+// ⭐ 只从常量 TraceIdHeader 读取，不再使用 "trace_id" 字符串 key
 func GetTraceId(c context.Context) string {
 	v, ok := c.(*gin.Context)
 	if ok {
@@ -31,24 +34,32 @@ func GetTraceId(c context.Context) string {
 			return traceId
 		}
 
-		// 从 context 读取（由中间件设置）
-		if value := c.Value("trace_id"); value != nil {
+		// 从 context 读取（使用常量 TraceIdHeader）
+		if value := c.Value(TraceIdHeader); value != nil {
 			if traceId, ok := value.(string); ok && traceId != "" {
 				return traceId
 			}
 		}
 
-		// 从 gin context 读取（兼容旧方式）
-		return v.GetString("trace_id")
+		// 从 gin context 读取（使用常量 TraceIdHeader）
+		if traceId := v.GetString(TraceIdHeader); traceId != "" {
+			return traceId
+		}
+
+		// ⭐ 如果都没取到值，打印警告日志
+		logger.Warnf(c, "[GetTraceId] 无法获取 TraceId - Path: %s", v.Request.URL.Path)
+		return ""
 	}
 
-	// 从标准 context.Value 读取（可能是 ToContext 转换后的标准 context）
-	if value := c.Value("trace_id"); value != nil {
+	// 从标准 context.Value 读取（使用常量 TraceIdHeader）
+	if value := c.Value(TraceIdHeader); value != nil {
 		if traceId, ok := value.(string); ok && traceId != "" {
 			return traceId
 		}
 	}
 
+	// ⭐ 如果都没取到值，打印警告日志
+	logger.Warnf(context.Background(), "[GetTraceId] 无法获取 TraceId - Context 类型: %T", c)
 	return ""
 }
 
@@ -56,6 +67,7 @@ func GetTraceId(c context.Context) string {
 // 优先级：HTTP Header (X-Request-User) > Gin Context > Context.Value
 // 网关已解析 token 并设置到 X-Request-User header，直接从 header 读取即可
 // 支持从 *gin.Context 或标准 context.Context 读取
+// ⭐ 统一使用常量 RequestUserHeader
 func GetRequestUser(c context.Context) string {
 	// 首先尝试转换为 *gin.Context（可以读取 header）
 	v, ok := c.(*gin.Context)
@@ -64,18 +76,18 @@ func GetRequestUser(c context.Context) string {
 		if requestUser := v.GetHeader(RequestUserHeader); requestUser != "" {
 			return requestUser
 		}
-		// 备用：从 X-Username header 读取
-		if requestUser := v.GetHeader("X-Username"); requestUser != "" {
+		// ⭐ 降级：从 gin context 读取（使用常量 RequestUserHeader）
+		if requestUser := v.GetString(RequestUserHeader); requestUser != "" {
 			return requestUser
 		}
-		// ⭐ 降级：从 context.Value 读取（不要直接返回空，先降级查询）
-		// 即使传入的是 *gin.Context，如果 header 都没有，也应该尝试从底层的 context.Value 中读取
+		// ⭐ 降级：从 context.Value 读取
 		if value := c.Value(RequestUserHeader); value != nil {
 			if requestUser, ok := value.(string); ok && requestUser != "" {
 				return requestUser
 			}
 		}
-		// 如果都查不到，才返回空
+		// ⭐ 如果都没取到值，打印警告日志
+		logger.Warnf(c, "[GetRequestUser] 无法获取 RequestUser - Path: %s", v.Request.URL.Path)
 		return ""
 	}
 
@@ -87,6 +99,8 @@ func GetRequestUser(c context.Context) string {
 		}
 	}
 
+	// ⭐ 如果都没取到值，打印警告日志
+	logger.Warnf(context.Background(), "[GetRequestUser] 无法获取 RequestUser - Context 类型: %T", c)
 	return ""
 }
 
@@ -126,30 +140,42 @@ func GetRequestDepartmentFullPath(c context.Context) string {
 }
 
 // GetToken 获取认证 Token（从 HTTP header 或 context）
+// ⭐ 只从常量 TokenHeader 读取，不再使用 "token" 字符串 key
 func GetToken(c context.Context) string {
 	v, ok := c.(*gin.Context)
 	if ok {
-		// 优先从 context 获取（由 JWT 中间件设置）
-		value := c.Value("token")
-		if value != nil {
+		// 优先从 gin context 获取（使用常量 TokenHeader）
+		if token := v.GetString(TokenHeader); token != "" {
+			return token
+		}
+		// 降级：从 context.Value 获取
+		if value := c.Value(TokenHeader); value != nil {
 			if token, ok := value.(string); ok && token != "" {
 				return token
 			}
 		}
-		// 从 HTTP header 获取
-		return v.GetHeader(TokenHeader)
+		// 降级：从 HTTP header 获取
+		if token := v.GetHeader(TokenHeader); token != "" {
+			return token
+		}
+		// ⭐ 如果都没取到值，打印警告日志
+		logger.Warnf(c, "[GetToken] 无法获取 Token - Path: %s", v.Request.URL.Path)
+		return ""
 	}
-	// 从 context.Value 获取（可能是 ToContext 转换后的标准 context）
-	if value := c.Value("token"); value != nil {
+	// 从 context.Value 获取（使用常量 TokenHeader）
+	if value := c.Value(TokenHeader); value != nil {
 		if token, ok := value.(string); ok && token != "" {
 			return token
 		}
 	}
+	// ⭐ 如果都没取到值，打印警告日志
+	logger.Warnf(context.Background(), "[GetToken] 无法获取 Token - Context 类型: %T", c)
 	return ""
 }
 
 // ToContext 将 gin.Context 转换为标准 context.Context
-// 解析 header 中的关键信息（trace_id, requestUser, token）并放入 context.Value
+// 解析 header 中的关键信息并放入 context.Value
+// ⭐ 统一使用常量 key（TraceIdHeader、RequestUserHeader、TokenHeader、DepartmentFullPathHeader）
 // 这样即使内部使用 context.WithValue 包装，也能通过 context.Value 获取到这些值
 func ToContext(c *gin.Context) context.Context {
 	ctx := context.Background()
@@ -157,30 +183,28 @@ func ToContext(c *gin.Context) context.Context {
 	// 1. 解析 TraceId（优先从 header，然后从 gin context）
 	traceId := c.GetHeader(TraceIdHeader)
 	if traceId == "" {
-		traceId = c.GetString("trace_id")
+		traceId = c.GetString(TraceIdHeader) // ⭐ 使用常量 TraceIdHeader
 	}
 	if traceId != "" {
-		ctx = context.WithValue(ctx, "trace_id", traceId)
-		ctx = context.WithValue(ctx, TraceIdHeader, traceId)
+		ctx = context.WithValue(ctx, TraceIdHeader, traceId) // ⭐ 只使用常量 TraceIdHeader
 	}
 
 	// 2. 解析 RequestUser（优先从 header，然后从 gin context）
 	requestUser := c.GetHeader(RequestUserHeader)
 	if requestUser == "" {
-		requestUser = c.GetHeader("X-Username")
+		requestUser = c.GetString(RequestUserHeader) // ⭐ 使用常量 RequestUserHeader
 	}
 	if requestUser != "" {
 		ctx = context.WithValue(ctx, RequestUserHeader, requestUser)
 	}
 
 	// 3. 解析 Token（优先从 gin context，然后从 header）
-	token := c.GetString("token")
+	token := c.GetString(TokenHeader) // ⭐ 使用常量 TokenHeader
 	if token == "" {
 		token = c.GetHeader(TokenHeader)
 	}
 	if token != "" {
-		ctx = context.WithValue(ctx, "token", token)
-		ctx = context.WithValue(ctx, TokenHeader, token)
+		ctx = context.WithValue(ctx, TokenHeader, token) // ⭐ 只使用常量 TokenHeader
 	}
 
 	// 4. 解析 DepartmentFullPath（优先从 header，然后从 gin context）

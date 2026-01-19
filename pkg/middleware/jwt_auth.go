@@ -28,9 +28,9 @@ func JWTAuth() gin.HandlerFunc {
 			requestUser = c.GetHeader("X-Username") // 备用
 		}
 		if requestUser != "" {
-			// 网关已解析token，直接使用header中的username
-			c.Set("request_user", requestUser)
-			c.Set("user", requestUser) // 保持向后兼容
+			// ⭐ 网关已解析token，直接使用header中的username
+			// ⭐ 统一使用常量 RequestUserHeader，不再使用 "request_user" 和 "user" 字符串 key
+			c.Set(contextx.RequestUserHeader, requestUser)
 			
 			// ⭐ 从 header 获取组织架构信息（网关已设置）
 			// ⭐ 统一使用 DepartmentFullPathHeader 常量
@@ -59,13 +59,12 @@ func JWTAuth() gin.HandlerFunc {
 				return
 			}
 
-			// 设置用户信息到上下文
+			// ⭐ 设置用户信息到上下文（统一使用常量）
 			c.Set("user_id", claims.UserID)
 			c.Set("username", claims.Username)
 			c.Set("email", claims.Email)
-			c.Set("request_user", claims.Username) // 保持向后兼容
-			c.Set("user", claims.Username)         // 保持向后兼容
-			c.Set("token", token)                  // ✅ 保存 token 到 context，供透传使用
+			c.Set(contextx.RequestUserHeader, claims.Username) // ⭐ 统一使用常量 RequestUserHeader
+			c.Set(contextx.TokenHeader, token)                // ⭐ 统一使用常量 TokenHeader
 			
 			// ⭐ 设置组织架构信息到上下文（token 中一定包含这些字段，如果用户有组织架构信息）
 			// ⭐ 统一使用 DepartmentFullPathHeader 常量
@@ -82,20 +81,21 @@ func JWTAuth() gin.HandlerFunc {
 			// 从header获取用户信息（SDK传入）
 			requestUser := c.GetHeader(contextx.RequestUserHeader)
 			if requestUser == "" {
+				logger.Warnf(c, "[JWTAuth] 内网请求缺少 %s header - Path: %s, IP: %s", contextx.RequestUserHeader, c.Request.URL.Path, c.ClientIP())
 				response.FailWithMessage(c, "内网请求必须提供X-Request-User头")
 				c.Abort()
 				return
 			}
 
-			// 设置用户信息（仅设置用户名，不设置user_id等）
-			c.Set("request_user", requestUser)
-			c.Set("user", requestUser) // 保持向后兼容
+			// ⭐ 设置用户信息（统一使用常量 RequestUserHeader）
+			c.Set(contextx.RequestUserHeader, requestUser)
 
 			c.Next()
 			return
 		}
 
 		// 外部请求且没有token，拒绝
+		logger.Warnf(c, "[JWTAuth] 外部请求缺少认证令牌 - Path: %s, IP: %s", c.Request.URL.Path, c.ClientIP())
 		response.FailWithMessage(c, "未提供认证令牌")
 		c.Abort()
 	}
