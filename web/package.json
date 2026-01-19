@@ -52,6 +52,7 @@
     "pinia-plugin-persistedstate": "^4.5.0",
     "prosemirror-transform": "^1.10.5",
     "turndown": "^7.2.2",
+    "vditor": "^3.11.2",
     "vue": "^3.5.22",
     "vue-echarts": "^8.0.1",
     "vue-router": "^4.6.3",
