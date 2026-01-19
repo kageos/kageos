@@ -2139,17 +2139,20 @@ func (s *ServiceTreeService) AddFunctions(ctx context.Context, req *dto.AddFunct
 
 	sourceCode := req.SourceCode
 	if sourceCode == "" {
-		logger.Warnf(ctx, "[ServiceTreeService] agent-server 未处理代码，使用原始代码")
-		sourceCode = req.Code
+		logger.Errorf(ctx, "[ServiceTreeService] SourceCode 为空，无法创建函数")
+		return &dto.AddFunctionsResp{
+			Success: false,
+			Error:   "SourceCode 不能为空",
+		}, fmt.Errorf("SourceCode 不能为空")
 	}
 
-	logger.Infof(ctx, "[ServiceTreeService] 添加函数: Package=%s, FileName=%s, SourceCodeLength=%d", packagePath, fileName, len(sourceCode))
+	logger.Infof(ctx, "[ServiceTreeService] 添加函数: DirectoryPath=%s, FileName=%s, SourceCodeLength=%d", packagePath, fileName, len(sourceCode))
 
 	// 4. 构建 CreateFunctionInfo
 	createFunction := &dto.CreateFunctionInfo{
-		Package:    packagePath,
-		GroupCode:  fileName,
-		SourceCode: sourceCode,
+		DirectoryPath: packagePath,
+		FileName:      fileName,
+		SourceCode:    sourceCode,
 	}
 
 	// 5. 调用 AppService.UpdateApp
@@ -2199,9 +2202,8 @@ func (s *ServiceTreeService) ProcessFunctionGenResult(ctx context.Context, req *
 	// 2. ⭐ 解析代码中的元数据
 	sourceCode := req.SourceCode
 	if sourceCode == "" {
-		// 如果 agent-server 没有处理代码，使用原始代码（向后兼容）
-		logger.Warnf(ctx, "[ServiceTreeService] agent-server 未处理代码，使用原始代码")
-		sourceCode = req.Code
+		logger.Errorf(ctx, "[ServiceTreeService] SourceCode 为空，无法处理函数生成结果")
+		return fmt.Errorf("SourceCode 不能为空")
 	}
 
 	var meta metadata.Metadata
@@ -2262,15 +2264,15 @@ func (s *ServiceTreeService) ProcessFunctionGenResult(ctx context.Context, req *
 	// 4. 从目标目录中提取 package 路径
 	packagePath := targetTree.GetPackagePathForFileCreation()
 
-	logger.Infof(ctx, "[ServiceTreeService] 处理完成 - TargetTreeID: %d, Package: %s, FileName: %s, SourceCodeLength: %d",
+	logger.Infof(ctx, "[ServiceTreeService] 处理完成 - TargetTreeID: %d, DirectoryPath: %s, FileName: %s, SourceCodeLength: %d",
 		targetTree.ID, packagePath, fileName, len(sourceCode))
 
 	// 5. 构建 CreateFunctionInfo
 	// ⭐ 不再修复 package 声明，应该保证生成的代码是正确的（package 名称应该由元数据中的 directory_code 决定）
 	createFunction := &dto.CreateFunctionInfo{
-		Package:    packagePath,
-		GroupCode:  fileName,
-		SourceCode: sourceCode,
+		DirectoryPath: packagePath,
+		FileName:      fileName,
+		SourceCode:    sourceCode,
 	}
 
 	// 6. 调用 AppService.UpdateApp，传入 CreateFunctions
@@ -2280,7 +2282,7 @@ func (s *ServiceTreeService) ProcessFunctionGenResult(ctx context.Context, req *
 		CreateFunctions: []*dto.CreateFunctionInfo{createFunction},
 	}
 
-	logger.Infof(ctx, "[ServiceTreeService] 调用 AppService.UpdateApp: User=%s, App=%s, Package=%s, FileName=%s",
+	logger.Infof(ctx, "[ServiceTreeService] 调用 AppService.UpdateApp: User=%s, App=%s, DirectoryPath=%s, FileName=%s",
 		updateReq.User, updateReq.App, packagePath, fileName)
 
 	updateResp, err := s.appService.UpdateApp(ctx, updateReq)
@@ -2289,7 +2291,7 @@ func (s *ServiceTreeService) ProcessFunctionGenResult(ctx context.Context, req *
 		return err
 	}
 
-	logger.Infof(ctx, "[ServiceTreeService] 函数创建成功: Package=%s, FileName=%s", packagePath, fileName)
+	logger.Infof(ctx, "[ServiceTreeService] 函数创建成功: DirectoryPath=%s, FileName=%s", packagePath, fileName)
 
 	// 7. 获取新增的 FullCodePaths
 	fullCodePaths := make([]string, 0)

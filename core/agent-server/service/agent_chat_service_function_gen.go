@@ -562,14 +562,13 @@ func (s *AgentChatService) asyncCallLLM(ctx context.Context, req *dto.FunctionGe
 			RecordID:   record.ID,
 			MessageID:  record.MessageID,
 			AgentID:    req.AgentID,
-			TreeID:     req.TreeID, // 父目录ID，app-server 会根据元数据创建子目录
-			User:       user,       // 当前用户
-			Code:       extractedCode,
+			TreeID:     req.TreeID,    // 父目录ID，app-server 会根据元数据创建子目录
+			User:       user,          // 当前用户
 			SourceCode: extractedCode, // 传递完整代码，app-server 会解析元数据
 		}
 
-		logger.Infof(ctx, "[FunctionGenChat] 提交生成的代码到 app-server - RecordID: %d, CodeLength: %d, TraceID: %s",
-			record.ID, len(resultData.Code), traceId)
+		logger.Infof(ctx, "[FunctionGenChat] 提交生成的代码到 app-server - RecordID: %d, SourceCodeLength: %d, TraceID: %s",
+			record.ID, len(resultData.SourceCode), traceId)
 		if err := s.functionGenService.SubmitGeneratedCodeTask(ctx, resultData); err != nil {
 			logger.Errorf(ctx, "[FunctionGenChat] 提交代码失败 - RecordID: %d, TraceID: %s, Error: %v", record.ID, traceId, err)
 			s.functionGenRepo.UpdateStatus(record.ID, model.FunctionGenStatusFailed, err.Error())

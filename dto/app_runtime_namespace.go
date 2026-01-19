@@ -66,9 +66,9 @@ func (r *RequestAppResp) IsError() bool {
 
 // CreateFunctionInfo 创建函数信息
 type CreateFunctionInfo struct {
-	Package    string `json:"package"`     // 目标 package 路径（如 "crm" 或 "plugins/cashier"）
-	GroupCode  string `json:"group_code"`  // 函数组代码（文件名，不含 .go）
-	SourceCode string `json:"source_code"` // 源代码内容
+	DirectoryPath string `json:"directory_path"` // 目标目录路径（相对于 code/api，如 "crm" 或 "plugins/cashier"）
+	FileName      string `json:"file_name"`      // 文件名（不含 .go 扩展名）
+	SourceCode    string `json:"source_code"`    // 源代码内容
 }
 
 // CreateFunctionsResp 创建函数响应
