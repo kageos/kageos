@@ -15,11 +15,12 @@ type JWTService struct {
 }
 
 // NewJWTService 创建JWT服务
+// ⭐ 使用全局配置（与 hr-server 保持一致，因为 token 是由 hr-server 生成的）
 func NewJWTService() *JWTService {
-	appConfig := appconfig.GetAppServerConfig()
-	jwtConfig := appConfig.GetJWT()
+	// ⚠️ 使用全局配置获取 JWT 配置（与 hr-server 共享）
+	globalConfig := appconfig.GetGlobalSharedConfig()
 	return &JWTService{
-		config: &jwtConfig,
+		config: &globalConfig.JWT,
 	}
 }
 

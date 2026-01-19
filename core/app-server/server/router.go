@@ -26,6 +26,9 @@ func (s *Server) setupRoutes() {
 	workspace := s.httpServer.Group("/workspace")
 	apiV1 := workspace.Group("/api/v1")
 
+	// ⭐ 统一添加用户信息中间件，所有接口都需要（网关会透传 token，解析后设置到 X-Request-User header）
+	apiV1.Use(middleware2.WithUserInfo())
+
 	// 应用管理路由（需要JWT验证）
 	app := apiV1.Group("/app")
 	app.Use(middleware2.JWTAuth()) // 应用管理需要JWT认证
@@ -67,7 +70,7 @@ func (s *Server) setupRoutes() {
 
 	// 服务目录管理路由（需要JWT验证）
 	serviceTree := apiV1.Group("/service_tree")
-	serviceTreeHandler := v1.NewServiceTree(s.serviceTreeService, s.functionGenService)
+	serviceTreeHandler := v1.NewServiceTree(s.serviceTreeService)
 
 	// 需要JWT验证的路由
 	serviceTreeAuth := serviceTree.Group("")
@@ -86,7 +89,7 @@ func (s *Server) setupRoutes() {
 	serviceTreeAuth.GET("/hub_info", serviceTreeHandler.GetHubInfo)                   // 获取目录的 Hub 信息
 	serviceTreeAuth.POST("/pull_from_hub", serviceTreeHandler.PullDirectoryFromHub)   // 从 Hub 拉取目录
 
-	// 服务间调用路由（不需要JWT验证）
+	// 服务间调用路由（不需要JWT验证，但用户信息中间件已在 apiV1 级别统一添加）
 	serviceTree.POST("/add_functions", serviceTreeHandler.AddFunctions) // 向服务目录添加函数（agent-server -> workspace）
 
 	// 函数管理路由（需要JWT验证）
