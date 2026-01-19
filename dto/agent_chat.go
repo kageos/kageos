@@ -65,7 +65,6 @@ type AddFunctionsReq struct {
 	AgentID   int64  `json:"agent_id" example:"1"`                                        // 智能体ID
 	TreeID    int64  `json:"tree_id" example:"629"`                                       // 服务目录ID
 	User      string `json:"user" example:"beiluo"`                                       // 用户标识
-	Code      string `json:"code" example:"package main\n\nfunc main() {\n\t// 生成的代码\n}"` // 生成的代码内容（原始代码，已废弃，保留用于兼容）
 	// 处理后的结构化数据（agent-server 处理后的结果）
 	FileName   string `json:"file_name" example:"crm_ticket"`   // 从代码中提取的文件名
 	SourceCode string `json:"source_code" example:"package..."`  // 处理后的源代码（从 Markdown 中提取）

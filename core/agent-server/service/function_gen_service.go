@@ -117,8 +117,8 @@ func (s *FunctionGenService) SubmitGeneratedCodeTask(ctx context.Context, req *d
 		return fmt.Errorf("提交代码到 app-server 失败: %w", err)
 	}
 
-	logger.Infof(ctx, "[FunctionGenService] 代码提交成功 - RecordID: %d, Duration: %v, TraceID: %s, User: %s, CodeLength: %d",
-		req.RecordID, duration, contextx.GetTraceId(ctx), contextx.GetRequestUser(ctx), len(req.Code))
+	logger.Infof(ctx, "[FunctionGenService] 代码提交成功 - RecordID: %d, Duration: %v, TraceID: %s, User: %s, SourceCodeLength: %d",
+		req.RecordID, duration, contextx.GetTraceId(ctx), contextx.GetRequestUser(ctx), len(req.SourceCode))
 
 	return nil
 }
