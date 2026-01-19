@@ -44,8 +44,8 @@ func JWTAuth() gin.HandlerFunc {
 		}
 
 		// 如果header中没有username，尝试解析token（向后兼容）
-		// 从X-Token头获取Token
-		token := c.GetHeader("X-Token")
+		// ⭐ 只从 header 读取 token
+		token := c.GetHeader(contextx.TokenHeader)
 
 		// ✅ 如果有token，使用token验证（Web端调用）
 		if token != "" {

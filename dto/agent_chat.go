@@ -15,12 +15,17 @@ type AgentChatReq struct {
 }
 
 type FunctionGenAgentChatReq struct {
-	AgentID      int64    `json:"agent_id" binding:"required" example:"1"`        // 智能体ID
-	TreeID       int64    `json:"tree_id" binding:"required" example:"629"`      // 服务目录ID
-	Package      string   `json:"package" example:"crm"`                        // Package 名称（从前端传递）
-	SessionID    string   `json:"session_id" example:""`                        // 会话ID（UUID），首次为空，后端自动生成
-	ExistingFiles []string `json:"existing_files" example:"[\"crm_ticket\",\"crm_user\"]"` // 当前 package 下已存在的文件名（不含 .go 后缀）
-	Message      Message  `json:"message" binding:"required"`                   // 单条消息（历史记录后端自动加载）
+	AgentID            int64                    `json:"agent_id" binding:"required" example:"1"`        // 智能体ID
+	TreeID             int64                    `json:"tree_id" binding:"required" example:"629"`      // 服务目录ID
+	SessionID          string                   `json:"session_id" example:""`                        // 会话ID（UUID），首次为空，后端自动生成
+	ExistingDirectories []ExistingDirectoryInfo `json:"existing_directories" example:"[{\"code\":\"ticket\",\"name\":\"工单管理\"}]"` // 当前目录下已存在的子目录列表（格式：目录代码:目录名称）
+	Message            Message                  `json:"message" binding:"required"`                   // 单条消息（历史记录后端自动加载）
+}
+
+// ExistingDirectoryInfo 已存在的子目录信息
+type ExistingDirectoryInfo struct {
+	Code string `json:"code" example:"ticket"`   // 目录代码
+	Name string `json:"name" example:"工单管理"` // 目录名称
 }
 
 // Message 对话消息

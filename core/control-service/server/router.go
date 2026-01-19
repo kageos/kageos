@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/pkg/middleware"
 	"github.com/ai-agent-os/ai-agent-os/pkg/pprof"
 	"github.com/gin-gonic/gin"
 )
@@ -23,7 +24,9 @@ func (s *Server) initRouter(ctx context.Context) error {
 	control := s.httpServer.Group("/control")
 
 	// API v1 路由组
+	// ⭐ 添加用户信息中间件，从 header 中读取用户信息（网关已解析 token 并设置到 header）
 	apiV1 := control.Group("/api/v1")
+	apiV1.Use(middleware.WithUserInfo())
 
 	// License 相关路由
 	license := apiV1.Group("/license")
