@@ -25,6 +25,8 @@
           :expanded-keys="expandedKeys"
           @node-click="handleNodeClick"
           @create-directory="handleCreateDirectory"
+          @create-docs="handleCreateDocs"
+          @delete-doc="handleDeleteDoc"
           @fork-group="handleForkGroup"
           @copy-link="handleCopyLink"
           @delete-function="handleDeleteFunction"
@@ -147,6 +149,13 @@
         
         <!-- 🔥 Detail 模式：显示详情抽屉（通过 URL 参数打开） -->
         <!-- 注意：detail 模式使用抽屉显示，不需要单独的页面 -->
+        
+        <!-- 🔥 文档详情页面 -->
+        <DocView
+          v-else-if="currentFunction && currentFunction.type === 'docs'"
+          :node="currentFunction"
+          @deleted="handleDocDeleted"
+        />
         
         <!-- 🔥 服务目录详情页面 -->
         <PackageDetailView
@@ -427,6 +436,92 @@
       @close="handleDetailDrawerClose"
     />
 
+    <!-- 创建文档节点对话框 -->
+    <el-dialog
+      v-model="createDocsDialogVisible"
+      :title="currentDocsParentNode ? `在「${currentDocsParentNode.name || currentDocsParentNode.code}」下创建文档` : '创建文档'"
+      width="600px"
+      :close-on-click-modal="false"
+      @close="handleCloseCreateDocsDialog"
+    >
+      <el-form :model="createDocsForm" label-width="90px">
+        <el-form-item label="文档名称" required>
+          <el-input
+            v-model="createDocsForm.name"
+            placeholder="请输入文档名称"
+            maxlength="100"
+            show-word-limit
+            clearable
+          />
+        </el-form-item>
+        <el-form-item label="文档代码" required>
+          <el-input
+            v-model="createDocsForm.code"
+            placeholder="请输入文档代码（英文，用于URL）"
+            maxlength="50"
+            show-word-limit
+            clearable
+            @input="createDocsForm.code = createDocsForm.code.toLowerCase().replace(/[^a-z0-9_]/g, '')"
+          />
+          <div class="form-tip">
+            <el-icon><InfoFilled /></el-icon>
+            文档代码只能包含小写字母、数字和下划线
+          </div>
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input
+            v-model="createDocsForm.description"
+            type="textarea"
+            placeholder="请输入文档描述（可选）"
+            :rows="3"
+            maxlength="500"
+            show-word-limit
+          />
+        </el-form-item>
+        <el-form-item label="标签">
+          <el-input
+            v-model="createDocsForm.tags"
+            placeholder="请输入标签，多个标签用逗号分隔（可选）"
+            maxlength="200"
+            clearable
+          />
+        </el-form-item>
+        <el-form-item label="文档内容" required>
+          <el-input
+            v-model="createDocsForm.content"
+            type="textarea"
+            placeholder="请输入文档内容（支持 Markdown 格式）"
+            :rows="15"
+            maxlength="50000"
+            show-word-limit
+          />
+          <div class="form-tip">
+            <el-icon><InfoFilled /></el-icon>
+            支持 Markdown 格式，可以使用标题、列表、代码块、链接等语法
+          </div>
+        </el-form-item>
+        <el-form-item label="文档摘要">
+          <el-input
+            v-model="createDocsForm.summary"
+            type="textarea"
+            placeholder="请输入文档摘要（可选）"
+            :rows="2"
+            maxlength="500"
+            show-word-limit
+          />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="createDocsDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="handleSubmitCreateDocs" :loading="creatingDocs">
+            创建
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
+
     <!-- 创建服务目录对话框 -->
     <el-dialog
       v-model="createDirectoryDialogVisible"
@@ -568,6 +663,7 @@ import PermissionDeniedView from '../components/PermissionDeniedView.vue'
 import AIChatPanel from '../components/AIChatPanel.vue'
 import AgentSelectDialog from '@/components/Agent/AgentSelectDialog.vue'
 import PackageDetailView from '../components/PackageDetailView.vue'
+import DocView from '../components/DocView.vue'
 import FunctionInfoPanel from '../components/FunctionInfoPanel.vue'
 import UserSearchInput from '@/components/UserSearchInput.vue'
 import UsersWidget from '../widgets/UsersWidget.vue'
@@ -1227,9 +1323,196 @@ const handleSubmitCreateDirectory = async () => {
   await serviceTreeHandleSubmitCreateDirectory(() => currentApp.value)
 }
 
+// 创建文档对话框相关状态
+const createDocsDialogVisible = ref(false)
+const creatingDocs = ref(false)
+const currentDocsParentNode = ref<ServiceTreeType | null>(null)
+const createDocsForm = ref({
+  name: '',
+  code: '',
+  description: '',
+  tags: '',
+  content: '',    // ⭐ 文档内容
+  summary: ''     // ⭐ 文档摘要
+})
+
+// 处理创建文档节点（打开对话框）
+const handleCreateDocs = (parentNode?: ServiceTreeType) => {
+  if (!currentApp.value) {
+    ElMessage.warning('请先选择应用')
+    return
+  }
+  currentDocsParentNode.value = parentNode || null
+  createDocsForm.value = {
+    name: '',
+    code: '',
+    description: '',
+    tags: '',
+    content: '',
+    summary: ''
+  }
+  createDocsDialogVisible.value = true
+}
+
+// 提交创建文档
+const handleSubmitCreateDocs = async () => {
+  if (!currentApp.value) {
+    ElMessage.warning('请先选择应用')
+    return
+  }
+
+  if (!createDocsForm.value.name.trim()) {
+    ElMessage.warning('请输入文档名称')
+    return
+  }
+
+  if (!createDocsForm.value.code.trim()) {
+    ElMessage.warning('请输入文档代码')
+    return
+  }
+
+  // 验证代码格式（只能包含小写字母、数字和下划线）
+  const codePattern = /^[a-z0-9_]+$/
+  if (!codePattern.test(createDocsForm.value.code)) {
+    ElMessage.warning('文档代码只能包含小写字母、数字和下划线')
+    return
+  }
+
+  // ⭐ 验证文档内容
+  if (!createDocsForm.value.content.trim()) {
+    ElMessage.warning('请输入文档内容')
+    return
+  }
+
+  creatingDocs.value = true
+  try {
+    const { createServiceTree } = await import('@/api/service-tree')
+    const parentId = currentDocsParentNode.value?.id || 0
+    const response = await createServiceTree({
+      user: currentApp.value.user,
+      app: currentApp.value.code,
+      name: createDocsForm.value.name.trim(),
+      code: createDocsForm.value.code.trim(),
+      parent_id: parentId,
+      type: 'docs',
+      description: createDocsForm.value.description.trim() || '',
+      tags: createDocsForm.value.tags.trim() || '',
+      doc_title: createDocsForm.value.name.trim(),  // ⭐ 使用名称作为文档标题
+      doc_content: createDocsForm.value.content.trim(),  // ⭐ 文档内容
+      doc_format: 'markdown',  // ⭐ 文档格式
+      doc_summary: createDocsForm.value.summary.trim() || ''  // ⭐ 文档摘要
+    })
+
+    // ⭐ 响应拦截器已经处理了，成功时返回的是 data 对象（ServiceTree），不是 { data: ServiceTree }
+    if (response && response.id) {
+      ElMessage.success('文档节点创建成功')
+      // ⭐ 立即关闭弹窗，不等待后续操作
+      createDocsDialogVisible.value = false
+      
+      // 刷新服务树（异步执行，不阻塞弹窗关闭）
+      handleRefreshTree().then(() => {
+        // 点击新创建的节点
+        if (response.id) {
+          const newNode = findNodeById(serviceTree.value, response.id)
+          if (newNode) {
+            handleNodeClick(newNode)
+          }
+        }
+      }).catch((err) => {
+        console.error('刷新服务树失败:', err)
+        // 即使刷新失败，也尝试点击新创建的节点
+        if (response.id) {
+          const newNode = findNodeById(serviceTree.value, response.id)
+          if (newNode) {
+            handleNodeClick(newNode)
+          }
+        }
+      })
+    } else {
+      // 如果响应数据为空，也关闭弹窗并提示
+      ElMessage.warning('创建文档节点成功，但未返回节点信息')
+      createDocsDialogVisible.value = false
+    }
+  } catch (error: any) {
+    ElMessage.error('创建文档节点失败: ' + (error.message || '未知错误'))
+  } finally {
+    creatingDocs.value = false
+  }
+}
+
+// 处理关闭创建文档对话框
+const handleCloseCreateDocsDialog = () => {
+  createDocsForm.value = {
+    name: '',
+    code: '',
+    description: '',
+    tags: '',
+    content: '',
+    summary: ''
+  }
+  currentDocsParentNode.value = null
+}
+
 // 处理关闭创建目录对话框
 const handleCloseCreateDirectoryDialog = () => {
   resetCreateDirectoryForm(() => currentApp.value)
+}
+
+// 处理删除文档
+const handleDeleteDoc = async (node: ServiceTreeType) => {
+  if (node.type !== 'docs') {
+    ElMessage.warning('只能删除文档节点')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除文档 "${node.name}" 吗？此操作将删除文档内容和文档节点，且无法恢复。`,
+      '确认删除',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+
+    const { deleteDoc } = await import('@/api/service-tree')
+    await deleteDoc(node.id)
+    
+    ElMessage.success('文档删除成功')
+    
+    // 刷新服务树
+    await handleRefreshTree()
+    
+    // 如果当前选中的是已删除的文档，清空选中状态
+    if (currentFunction.value && currentFunction.value.id === node.id) {
+      // 可以跳转到父节点或清空选中
+      const parentPath = node.full_code_path?.split('/').slice(0, -1).join('/') || ''
+      if (parentPath) {
+        const targetPath = `/workspace${parentPath}`
+        router.push(targetPath)
+      }
+    }
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error('删除文档失败: ' + (error.message || '未知错误'))
+    }
+  }
+}
+
+// 处理文档删除后（从 DocView 组件触发）
+const handleDocDeleted = async () => {
+  // 刷新服务树
+  await handleRefreshTree()
+  
+  // 如果当前选中的是已删除的文档，清空选中状态或跳转到父节点
+  if (currentFunction.value && currentFunction.value.type === 'docs') {
+    const parentPath = currentFunction.value.full_code_path?.split('/').slice(0, -1).join('/') || ''
+    if (parentPath) {
+      const targetPath = `/workspace${parentPath}`
+      router.push(targetPath)
+    }
+  }
 }
 
 // 处理 Fork 函数组

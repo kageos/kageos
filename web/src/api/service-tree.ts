@@ -12,16 +12,35 @@ export function getServiceTree(user: string, app: string, typeFilter?: 'package'
 }
 
 // 创建服务目录（使用user和app参数）
-export function createServiceTree(data: CreateServiceTreeRequest) {
-  return post<ServiceTree>('/workspace/api/v1/service_tree', {
+export function createServiceTree(data: CreateServiceTreeRequest & { type?: string }) {
+  const payload: any = {
     user: data.user,
     app: data.app,
     name: data.name,
     code: data.code,
     parent_id: data.parent_id || 0,
+    type: data.type || 'package',
     description: data.description || '',
     tags: data.tags || ''
-  })
+  }
+  
+  // ⭐ 如果是 docs 类型，添加文档相关字段
+  if (data.type === 'docs') {
+    if (data.doc_title) {
+      payload.doc_title = data.doc_title
+    }
+    if (data.doc_content) {
+      payload.doc_content = data.doc_content
+    }
+    if (data.doc_format) {
+      payload.doc_format = data.doc_format
+    }
+    if (data.doc_summary) {
+      payload.doc_summary = data.doc_summary
+    }
+  }
+  
+  return post<ServiceTree>('/workspace/api/v1/service_tree', payload)
 }
 
 // 更新服务目录
@@ -36,6 +55,40 @@ export function updateServiceTree(id: number, data: { name?: string; admins?: st
 // 删除服务目录
 export function deleteServiceTree(id: number) {
   return del(`/workspace/api/v1/service_tree/${id}`)
+}
+
+// 文档相关 API
+export interface Doc {
+  id: number
+  title: string
+  content: string
+  format: string
+  app_id: number
+  tree_id: number
+  summary?: string
+  category?: string
+  created_at: string
+  updated_at: string
+}
+
+// 获取文档内容
+export function getDoc(treeId: number) {
+  return get<Doc>(`/workspace/api/v1/service_tree/${treeId}/doc`)
+}
+
+// 创建文档
+export function createDoc(treeId: number, data: { title: string; content: string; format?: string; summary?: string }) {
+  return post<Doc>(`/workspace/api/v1/service_tree/${treeId}/doc`, data)
+}
+
+// 更新文档
+export function updateDoc(treeId: number, data: { title?: string; content?: string; format?: string; summary?: string }) {
+  return put<Doc>(`/workspace/api/v1/service_tree/${treeId}/doc`, data)
+}
+
+// 删除文档
+export function deleteDoc(treeId: number) {
+  return del(`/workspace/api/v1/service_tree/${treeId}/doc`)
 }
 
 // 获取服务目录详情（包含权限信息）

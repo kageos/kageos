@@ -37,6 +37,7 @@ type Server struct {
 	appRuntime                    *service.AppRuntime
 	serviceTreeService            *service.ServiceTreeService
 	functionService               *service.FunctionService
+	docService                    *service.DocService
 	directoryUpdateHistoryService *service.DirectoryUpdateHistoryService
 	permissionService             *service.PermissionService // ⭐ 权限管理服务
 	appRepo                       *repository.AppRepository  // ⭐ 应用仓储（用于其他服务）
@@ -352,9 +353,13 @@ func (s *Server) initServices(ctx context.Context) error {
 	// ⭐ 完全移除 Casbin，使用新的权限系统（不再需要 appRepo，从 resourcePath 解析 user 和 app）
 	s.permissionService = service.NewPermissionService(enterprise.GetPermissionService(), serviceTreeRepo, permissionRequestRepo)
 
+	// 初始化文档服务（需要在 ServiceTreeService 之前初始化，因为 ServiceTreeService 依赖它）
+	docRepo := repository.NewDocRepository(s.db)
+	s.docService = service.NewDocService(docRepo, serviceTreeRepo, appRepo)
+
 	// 初始化服务目录服务（包含目录管理功能：copy、create、remove）
 	// ⭐ 函数生成逻辑已移到 ServiceTreeService 中
-	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appRuntime, fileSnapshotRepo, s.appService, s.permissionService)
+	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appRuntime, fileSnapshotRepo, s.appService, s.permissionService, s.docService)
 
 	// 初始化函数服务
 	s.functionService = service.NewFunctionService(functionRepo, appRepo)

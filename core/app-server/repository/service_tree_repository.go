@@ -17,6 +17,37 @@ func NewServiceTreeRepository(db *gorm.DB) *ServiceTreeRepository {
 	return &ServiceTreeRepository{db: db}
 }
 
+// GetDocsNodesByParentID 根据父节点ID获取所有 docs 类型的子节点（递归）
+func (r *ServiceTreeRepository) GetDocsNodesByParentID(parentID int64) ([]*model.ServiceTree, error) {
+	var nodes []*model.ServiceTree
+	
+	// 递归查询所有子节点中的 docs 类型节点
+	var findAllDocsNodes func(int64) error
+	findAllDocsNodes = func(pid int64) error {
+		var children []*model.ServiceTree
+		if err := r.db.Where("parent_id = ?", pid).Find(&children).Error; err != nil {
+			return err
+		}
+		
+		for _, child := range children {
+			if child.Type == model.ServiceTreeTypeDocs {
+				nodes = append(nodes, child)
+			}
+			// 递归查询子节点的子节点
+			if err := findAllDocsNodes(child.ID); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	
+	if err := findAllDocsNodes(parentID); err != nil {
+		return nil, err
+	}
+	
+	return nodes, nil
+}
+
 // CreateServiceTreeWithParentPath 创建服务目录
 func (r *ServiceTreeRepository) CreateServiceTreeWithParentPath(serviceTree *model.ServiceTree, parentFullIDPath string) error {
 	// 直接创建，不再计算FullIDPath

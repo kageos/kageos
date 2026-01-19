@@ -1,0 +1,527 @@
+<template>
+  <div class="doc-view" v-loading="loading">
+    <div v-if="doc" class="doc-content">
+      <!-- 文档头部 -->
+      <div class="doc-header">
+        <div class="doc-title-section">
+          <h1 class="doc-title">{{ doc.title }}</h1>
+          <div class="doc-meta">
+            <el-tag v-if="doc.format" size="small" type="info">{{ doc.format }}</el-tag>
+            <span v-if="doc.category" class="doc-category">{{ doc.category }}</span>
+          </div>
+        </div>
+        <div class="doc-actions" v-if="hasEditPermission">
+          <el-button 
+            type="primary" 
+            :icon="Edit" 
+            @click="handleEdit"
+            v-if="!isEditing"
+          >
+            编辑文档
+          </el-button>
+          <el-button 
+            v-else
+            :icon="Check"
+            @click="handleSave"
+            :loading="saving"
+          >
+            保存
+          </el-button>
+          <el-button 
+            v-if="isEditing"
+            @click="handleCancel"
+          >
+            取消
+          </el-button>
+          <el-button 
+            type="danger" 
+            :icon="Delete" 
+            @click="handleDelete"
+            v-if="!isEditing"
+          >
+            删除文档
+          </el-button>
+        </div>
+      </div>
+
+      <!-- 文档摘要 -->
+      <div v-if="doc.summary && !isEditing" class="doc-summary">
+        <p>{{ doc.summary }}</p>
+      </div>
+
+      <!-- 文档内容 -->
+      <div class="doc-body">
+        <!-- 编辑模式 -->
+        <div v-if="isEditing" class="doc-editor">
+          <el-input
+            v-model="editTitle"
+            placeholder="文档标题"
+            class="doc-title-input"
+            maxlength="255"
+            show-word-limit
+          />
+          <el-input
+            v-model="editSummary"
+            type="textarea"
+            placeholder="文档摘要（可选）"
+            class="doc-summary-input"
+            :rows="2"
+            maxlength="500"
+            show-word-limit
+          />
+          <el-input
+            v-model="editContent"
+            type="textarea"
+            placeholder="请输入文档内容（支持 Markdown）"
+            class="doc-content-input"
+            :rows="20"
+          />
+          <div class="editor-tips">
+            <el-text type="info" size="small">
+              💡 支持 Markdown 格式，可以使用标题、列表、代码块、链接等语法
+            </el-text>
+          </div>
+        </div>
+
+        <!-- 预览模式 -->
+        <div v-else class="doc-preview">
+          <div 
+            v-if="doc.format === 'markdown'"
+            v-html="renderedContent"
+            class="markdown-content"
+          />
+          <pre v-else class="plain-text-content">{{ doc.content }}</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- 空状态 -->
+    <div v-else-if="!loading" class="doc-empty">
+      <el-empty description="文档不存在或尚未创建">
+        <el-button 
+          v-if="hasEditPermission"
+          type="primary" 
+          :icon="Plus"
+          @click="handleCreate"
+        >
+          创建文档
+        </el-button>
+      </el-empty>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, watch, onMounted } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Edit, Check, Plus, Delete } from '@element-plus/icons-vue'
+import { marked } from 'marked'
+import type { ServiceTree } from '@/types'
+import { getDoc, createDoc, updateDoc, deleteDoc } from '@/api/service-tree'
+import { hasPermission, DirectoryPermissions } from '@/utils/permission'
+
+interface Props {
+  node: ServiceTree
+}
+
+interface Emits {
+  (e: 'deleted'): void  // ⭐ 文档删除后触发，通知父组件刷新
+}
+
+const props = defineProps<Props>()
+const emit = defineEmits<Emits>()
+
+// 文档数据
+const doc = ref<any>(null)
+const loading = ref(false)
+const saving = ref(false)
+
+// 编辑状态
+const isEditing = ref(false)
+const editTitle = ref('')
+const editSummary = ref('')
+const editContent = ref('')
+
+// 权限检查
+const hasEditPermission = computed(() => {
+  return props.node && hasPermission(props.node, DirectoryPermissions.write)
+})
+
+// 渲染后的 Markdown 内容
+const renderedContent = computed(() => {
+  if (!doc.value || !doc.value.content) {
+    return ''
+  }
+  try {
+    return marked(doc.value.content)
+  } catch (error) {
+    console.error('Markdown 渲染失败:', error)
+    return doc.value.content
+  }
+})
+
+// 加载文档
+const loadDoc = async () => {
+  if (!props.node || !props.node.id) {
+    return
+  }
+
+  loading.value = true
+  try {
+    // 响应拦截器已经解包了，直接使用返回值
+    const data = await getDoc(props.node.id)
+    doc.value = data || null
+  } catch (error: any) {
+    if (error.response?.status === 404) {
+      // 文档不存在，这是正常情况（节点已创建但文档内容未创建）
+      doc.value = null
+    } else {
+      ElMessage.error('加载文档失败: ' + (error.message || '未知错误'))
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+// 创建文档
+const handleCreate = () => {
+  isEditing.value = true
+  editTitle.value = props.node.name || ''
+  editSummary.value = ''
+  editContent.value = ''
+}
+
+// 编辑文档
+const handleEdit = () => {
+  if (doc.value) {
+    isEditing.value = true
+    editTitle.value = doc.value.title || ''
+    editSummary.value = doc.value.summary || ''
+    editContent.value = doc.value.content || ''
+  }
+}
+
+// 保存文档
+const handleSave = async () => {
+  if (!editTitle.value.trim()) {
+    ElMessage.warning('请输入文档标题')
+    return
+  }
+
+  if (!editContent.value.trim()) {
+    ElMessage.warning('请输入文档内容')
+    return
+  }
+
+  saving.value = true
+  try {
+    if (doc.value) {
+      // 更新文档（响应拦截器已经解包了，直接使用返回值）
+      const data = await updateDoc(props.node.id, {
+        title: editTitle.value.trim(),
+        content: editContent.value.trim(),
+        summary: editSummary.value.trim() || undefined,
+        format: 'markdown'
+      })
+      doc.value = data
+      ElMessage.success('文档保存成功')
+    } else {
+      // 创建文档（响应拦截器已经解包了，直接使用返回值）
+      const data = await createDoc(props.node.id, {
+        title: editTitle.value.trim(),
+        content: editContent.value.trim(),
+        summary: editSummary.value.trim() || undefined,
+        format: 'markdown'
+      })
+      doc.value = data
+      ElMessage.success('文档创建成功')
+    }
+    isEditing.value = false
+  } catch (error: any) {
+    ElMessage.error('保存文档失败: ' + (error.message || '未知错误'))
+  } finally {
+    saving.value = false
+  }
+}
+
+// 取消编辑
+const handleCancel = async () => {
+  if (doc.value) {
+    // 有文档内容，确认是否放弃修改
+    try {
+      await ElMessageBox.confirm('确定要放弃修改吗？', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      })
+      isEditing.value = false
+    } catch {
+      // 用户取消
+    }
+  } else {
+    // 没有文档内容，直接取消
+    isEditing.value = false
+  }
+}
+
+// 删除文档
+const handleDelete = async () => {
+  if (!doc.value) {
+    ElMessage.warning('文档不存在')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除文档"${doc.value.title}"吗？此操作不可恢复。`,
+      '确认删除',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+
+    loading.value = true
+    try {
+      await deleteDoc(props.node.id)
+      ElMessage.success('文档删除成功')
+      doc.value = null
+      // ⭐ 通知父组件文档已删除
+      emit('deleted')
+    } catch (error: any) {
+      ElMessage.error('删除文档失败: ' + (error.message || '未知错误'))
+    } finally {
+      loading.value = false
+    }
+  } catch {
+    // 用户取消删除
+  }
+}
+
+// 监听节点变化
+watch(() => props.node?.id, () => {
+  if (props.node?.id) {
+    loadDoc()
+    isEditing.value = false
+  }
+}, { immediate: true })
+
+// 组件挂载时加载文档
+onMounted(() => {
+  if (props.node?.id) {
+    loadDoc()
+  }
+})
+</script>
+
+<style scoped lang="scss">
+.doc-view {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 8px;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.doc-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.doc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e4e7ed;
+}
+
+.doc-title-section {
+  flex: 1;
+}
+
+.doc-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #303133;
+  margin: 0 0 12px 0;
+}
+
+.doc-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.doc-category {
+  font-size: 14px;
+  color: #909399;
+}
+
+.doc-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.doc-summary {
+  margin-bottom: 24px;
+  padding: 16px;
+  background: #f5f7fa;
+  border-radius: 4px;
+  
+  p {
+    margin: 0;
+    color: #606266;
+    line-height: 1.6;
+  }
+}
+
+.doc-body {
+  flex: 1;
+}
+
+.doc-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.doc-title-input {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.doc-summary-input {
+  font-size: 14px;
+}
+
+.doc-content-input {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.editor-tips {
+  margin-top: -8px;
+}
+
+.doc-preview {
+  min-height: 400px;
+}
+
+.markdown-content {
+  font-size: 16px;
+  line-height: 1.8;
+  color: #303133;
+  
+  :deep(h1) {
+    font-size: 28px;
+    font-weight: 600;
+    margin: 24px 0 16px 0;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #e4e7ed;
+  }
+  
+  :deep(h2) {
+    font-size: 24px;
+    font-weight: 600;
+    margin: 20px 0 12px 0;
+  }
+  
+  :deep(h3) {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 16px 0 8px 0;
+  }
+  
+  :deep(p) {
+    margin: 12px 0;
+  }
+  
+  :deep(ul), :deep(ol) {
+    margin: 12px 0;
+    padding-left: 24px;
+  }
+  
+  :deep(li) {
+    margin: 6px 0;
+  }
+  
+  :deep(code) {
+    background: #f5f7fa;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 14px;
+  }
+  
+  :deep(pre) {
+    background: #f5f7fa;
+    padding: 16px;
+    border-radius: 4px;
+    overflow-x: auto;
+    margin: 16px 0;
+    
+    code {
+      background: transparent;
+      padding: 0;
+    }
+  }
+  
+  :deep(blockquote) {
+    border-left: 4px solid #409eff;
+    padding-left: 16px;
+    margin: 16px 0;
+    color: #606266;
+  }
+  
+  :deep(a) {
+    color: #409eff;
+    text-decoration: none;
+    
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+  
+  :deep(table) {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    
+    th, td {
+      border: 1px solid #e4e7ed;
+      padding: 8px 12px;
+      text-align: left;
+    }
+    
+    th {
+      background: #f5f7fa;
+      font-weight: 600;
+    }
+  }
+}
+
+.plain-text-content {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  background: #f5f7fa;
+  padding: 16px;
+  border-radius: 4px;
+}
+
+.doc-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+}
+</style>

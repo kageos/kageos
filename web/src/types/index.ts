@@ -76,7 +76,7 @@ export interface ServiceTree {
   name: string
   code: string
   parent_id: number
-  type: 'package' | 'function'
+  type: 'package' | 'function' | 'docs'
   description: string
   tags: string
   admins?: string  // 节点管理员列表，逗号分隔的用户名
@@ -105,9 +105,15 @@ export interface CreateServiceTreeRequest {
   name: string
   code: string
   parent_id?: number
+  type?: string  // 节点类型: 'package' | 'docs' | 'function'
   description?: string
   tags?: string
   admins?: string  // 管理员列表，逗号分隔的用户名
+  // ⭐ 文档相关字段（仅当 type=docs 时使用）
+  doc_title?: string   // 文档标题
+  doc_content?: string  // 文档内容
+  doc_format?: string   // 文档格式（默认为 markdown）
+  doc_summary?: string  // 文档摘要（可选）
 }
 
 // 🔥 统一类型系统：从 core/types/field 重新导出 Widget 相关类型
