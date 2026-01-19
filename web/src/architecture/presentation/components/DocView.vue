@@ -320,8 +320,8 @@ onMounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #fff;
-  border-radius: 8px;
+  background: var(--bg-primary);
+  border-radius: var(--border-radius-lg);
   padding: 24px;
   overflow-y: auto;
 }
@@ -338,7 +338,7 @@ onMounted(() => {
   align-items: flex-start;
   margin-bottom: 24px;
   padding-bottom: 16px;
-  border-bottom: 1px solid #e4e7ed;
+  border-bottom: 1px solid var(--border-base);
 }
 
 .doc-title-section {
@@ -348,7 +348,7 @@ onMounted(() => {
 .doc-title {
   font-size: 28px;
   font-weight: 600;
-  color: #303133;
+  color: var(--text-primary);
   margin: 0 0 12px 0;
 }
 
@@ -360,7 +360,7 @@ onMounted(() => {
 
 .doc-category {
   font-size: 14px;
-  color: #909399;
+  color: var(--text-secondary);
 }
 
 .doc-actions {
@@ -371,12 +371,12 @@ onMounted(() => {
 .doc-summary {
   margin-bottom: 24px;
   padding: 16px;
-  background: #f5f7fa;
-  border-radius: 4px;
+  background: var(--bg-secondary);
+  border-radius: var(--border-radius-base);
   
   p {
     margin: 0;
-    color: #606266;
+    color: var(--text-regular);
     line-height: 1.6;
   }
 }
@@ -417,35 +417,40 @@ onMounted(() => {
 .markdown-content {
   font-size: 16px;
   line-height: 1.8;
-  color: #303133;
+  color: var(--text-primary);
   
   :deep(h1) {
     font-size: 28px;
     font-weight: 600;
     margin: 24px 0 16px 0;
     padding-bottom: 8px;
-    border-bottom: 2px solid #e4e7ed;
+    border-bottom: 2px solid var(--border-base);
+    color: var(--text-primary);
   }
   
   :deep(h2) {
     font-size: 24px;
     font-weight: 600;
     margin: 20px 0 12px 0;
+    color: var(--text-primary);
   }
   
   :deep(h3) {
     font-size: 20px;
     font-weight: 600;
     margin: 16px 0 8px 0;
+    color: var(--text-primary);
   }
   
   :deep(p) {
     margin: 12px 0;
+    color: var(--text-regular);
   }
   
   :deep(ul), :deep(ol) {
     margin: 12px 0;
     padding-left: 24px;
+    color: var(--text-regular);
   }
   
   :deep(li) {
@@ -453,39 +458,50 @@ onMounted(() => {
   }
   
   :deep(code) {
-    background: #f5f7fa;
+    background: var(--bg-tertiary);
+    color: var(--color-primary);
     padding: 2px 6px;
-    border-radius: 3px;
+    border-radius: var(--border-radius-sm);
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
     font-size: 14px;
+    font-weight: 500;
   }
   
   :deep(pre) {
-    background: #f5f7fa;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-base);
     padding: 16px;
-    border-radius: 4px;
+    border-radius: var(--border-radius-base);
     overflow-x: auto;
     margin: 16px 0;
     
     code {
       background: transparent;
+      color: var(--text-primary);
       padding: 0;
+      font-weight: normal;
     }
   }
   
   :deep(blockquote) {
-    border-left: 4px solid #409eff;
+    border-left: 4px solid var(--color-primary);
     padding-left: 16px;
     margin: 16px 0;
-    color: #606266;
+    color: var(--text-regular);
+    background: var(--bg-secondary);
+    padding: 12px 16px;
+    border-radius: var(--border-radius-base);
   }
   
   :deep(a) {
-    color: #409eff;
+    color: var(--color-primary);
     text-decoration: none;
+    font-weight: 500;
+    transition: all 0.2s ease;
     
     &:hover {
       text-decoration: underline;
+      opacity: 0.8;
     }
   }
   
@@ -495,14 +511,19 @@ onMounted(() => {
     margin: 16px 0;
     
     th, td {
-      border: 1px solid #e4e7ed;
+      border: 1px solid var(--border-base);
       padding: 8px 12px;
       text-align: left;
     }
     
     th {
-      background: #f5f7fa;
+      background: var(--bg-secondary);
+      color: var(--text-primary);
       font-weight: 600;
+    }
+    
+    td {
+      color: var(--text-regular);
     }
   }
 }
@@ -513,9 +534,11 @@ onMounted(() => {
   line-height: 1.6;
   white-space: pre-wrap;
   word-wrap: break-word;
-  background: #f5f7fa;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-base);
+  color: var(--text-primary);
   padding: 16px;
-  border-radius: 4px;
+  border-radius: var(--border-radius-base);
 }
 
 .doc-empty {
