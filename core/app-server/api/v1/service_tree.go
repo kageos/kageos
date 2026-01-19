@@ -404,13 +404,10 @@ func (s *ServiceTree) AddFunctions(c *gin.Context) {
 			_ = s.functionGenService.ProcessFunctionGenResultAsync(ctx, &req)
 		}()
 
-		// 立即返回已接收（使用 202 Accepted 状态码表示已接受但未处理完成）
-		c.JSON(202, map[string]interface{}{
-			"code":    0,
-			"message": "函数添加请求已接收，正在异步处理",
-			"data": map[string]interface{}{
-				"record_id": req.RecordID,
-			},
+		// 立即返回已接收（使用 200 OK 状态码，因为 callAPI 只接受 200）
+		response.OkWithData(c, &dto.AddFunctionsAsyncResp{
+			RecordID: req.RecordID,
+			Message:  "函数添加请求已接收，正在异步处理",
 		})
 	} else {
 		// 同步模式：等待处理完成，直接返回结果

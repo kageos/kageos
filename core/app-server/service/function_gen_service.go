@@ -2,66 +2,61 @@ package service
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
+	"github.com/ai-agent-os/ai-agent-os/pkg/codegen/metadata"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
 
 // FunctionGenService 函数生成服务
 type FunctionGenService struct {
-	appService      *AppService
-	serviceTreeRepo *repository.ServiceTreeRepository
-	appRepo         *repository.AppRepository
+	appService        *AppService
+	serviceTreeRepo   *repository.ServiceTreeRepository
+	serviceTreeService *ServiceTreeService // ⭐ 新增：用于创建目录
+	appRepo           *repository.AppRepository
 }
 
 // NewFunctionGenService 创建函数生成服务
 func NewFunctionGenService(
 	appService *AppService,
 	serviceTreeRepo *repository.ServiceTreeRepository,
+	serviceTreeService *ServiceTreeService, // ⭐ 新增：用于创建目录
 	appRepo *repository.AppRepository,
 ) *FunctionGenService {
 	return &FunctionGenService{
-		appService:      appService,
-		serviceTreeRepo: serviceTreeRepo,
-		appRepo:         appRepo,
+		appService:        appService,
+		serviceTreeRepo:   serviceTreeRepo,
+		serviceTreeService: serviceTreeService,
+		appRepo:           appRepo,
 	}
 }
 
 // ProcessFunctionGenResult 处理函数生成结果（接收 agent-server 处理后的结构化数据）
 func (s *FunctionGenService) ProcessFunctionGenResult(ctx context.Context, req *dto.AddFunctionsReq) error {
-	// 1. 根据 TreeID 获取 ServiceTree（需要预加载 App）
-	serviceTree, err := s.serviceTreeRepo.GetByID(req.TreeID)
+	// 1. 根据 TreeID 获取父目录 ServiceTree（需要预加载 App）
+	parentTree, err := s.serviceTreeRepo.GetByID(req.TreeID)
 	if err != nil {
-		logger.Errorf(ctx, "[FunctionGenService] 获取 ServiceTree 失败: TreeID=%d, error=%v", req.TreeID, err)
+		logger.Errorf(ctx, "[FunctionGenService] 获取父目录 ServiceTree 失败: TreeID=%d, error=%v", req.TreeID, err)
 		return err
 	}
 
 	// 预加载 App 信息（如果还没有加载）
-	if serviceTree.App == nil {
-		app, err := s.appRepo.GetAppByID(serviceTree.AppID)
+	if parentTree.App == nil {
+		app, err := s.appRepo.GetAppByID(parentTree.AppID)
 		if err != nil {
-			logger.Errorf(ctx, "[FunctionGenService] 获取 App 失败: AppID=%d, error=%v", serviceTree.AppID, err)
+			logger.Errorf(ctx, "[FunctionGenService] 获取 App 失败: AppID=%d, error=%v", parentTree.AppID, err)
 			return err
 		}
-		serviceTree.App = app
+		parentTree.App = app
 	}
 
-	// 2. 从 ServiceTree 中提取 package 路径（使用 model 方法）
-	packagePath := serviceTree.GetPackagePathForFileCreation()
-
-	// 3. 使用 agent-server 处理后的结构化数据
-	// agent-server 已经处理了代码（提取代码、解析文件名）
-	fileName := req.FileName
-	if fileName == "" {
-		// 如果 agent-server 没有提取到文件名，使用 ServiceTree.Code 作为 fallback
-		logger.Warnf(ctx, "[FunctionGenService] agent-server 未提取到文件名，使用 ServiceTree.Code 作为 fallback: %s", serviceTree.Code)
-		fileName = serviceTree.Code
-	}
-
+	// 2. ⭐ 解析代码中的元数据
 	sourceCode := req.SourceCode
 	if sourceCode == "" {
 		// 如果 agent-server 没有处理代码，使用原始代码（向后兼容）
@@ -69,19 +64,58 @@ func (s *FunctionGenService) ProcessFunctionGenResult(ctx context.Context, req *
 		sourceCode = req.Code
 	}
 
-	logger.Infof(ctx, "[FunctionGenService] 接收处理后的数据: Package=%s, FileName=%s, SourceCodeLength=%d", packagePath, fileName, len(sourceCode))
+	var meta metadata.Metadata
+	var targetTree *model.ServiceTree = parentTree // 默认使用父目录
+	var fileName string
 
-	// 4. 构建 CreateFunctionInfo
+	// 尝试解析元数据
+	if err := metadata.ParseMetadata(sourceCode, &meta); err == nil {
+		// 元数据解析成功
+		logger.Infof(ctx, "[FunctionGenService] 元数据解析成功 - DirectoryCode: %s, DirectoryName: %s, File: %s",
+			meta.DirectoryCode, meta.DirectoryName, meta.File)
+
+		// 验证必需字段
+		if meta.DirectoryCode != "" && meta.File != "" {
+			// 3. ⭐ 根据元数据创建或查找目录
+			targetTree, err = s.createOrFindDirectory(ctx, parentTree, &meta)
+			if err != nil {
+				logger.Errorf(ctx, "[FunctionGenService] 创建或查找目录失败: %v", err)
+				return err
+			}
+
+			// 从元数据中提取文件名（去掉 .go 后缀）
+			fileName = strings.TrimSuffix(meta.File, ".go")
+		} else {
+			logger.Warnf(ctx, "[FunctionGenService] 元数据缺少必需字段，使用父目录 - DirectoryCode: %s, File: %s",
+				meta.DirectoryCode, meta.File)
+		}
+	} else {
+		logger.Warnf(ctx, "[FunctionGenService] 元数据解析失败，使用父目录: %v", err)
+	}
+
+	// 如果文件名仍为空，使用 ServiceTree.Code 作为 fallback
+	if fileName == "" {
+		logger.Warnf(ctx, "[FunctionGenService] 未从元数据提取到文件名，使用 ServiceTree.Code 作为 fallback: %s", targetTree.Code)
+		fileName = targetTree.Code
+	}
+
+	// 4. 从目标目录中提取 package 路径
+	packagePath := targetTree.GetPackagePathForFileCreation()
+
+	logger.Infof(ctx, "[FunctionGenService] 处理完成 - TargetTreeID: %d, Package: %s, FileName: %s, SourceCodeLength: %d",
+		targetTree.ID, packagePath, fileName, len(sourceCode))
+
+	// 5. 构建 CreateFunctionInfo
 	createFunction := &dto.CreateFunctionInfo{
 		Package:    packagePath,
-		GroupCode:  fileName, // 使用 FileName 作为 GroupCode（向后兼容）
-		SourceCode: sourceCode, // 使用 agent-server 处理后的代码
+		GroupCode:  fileName,
+		SourceCode: sourceCode,
 	}
 
 	// 6. 调用 AppService.UpdateApp，传入 CreateFunctions
 	updateReq := &dto.UpdateAppReq{
 		User:            req.User,
-		App:             serviceTree.App.Code,
+		App:             targetTree.App.Code,
 		CreateFunctions: []*dto.CreateFunctionInfo{createFunction},
 	}
 
@@ -110,8 +144,8 @@ func (s *FunctionGenService) ProcessFunctionGenResult(ctx context.Context, req *
 		MessageID:     req.MessageID,
 		Success:       true,
 		FullCodePaths: fullCodePaths,
-		AppID:         serviceTree.App.ID,
-		AppCode:       serviceTree.App.Code,
+		AppID:         targetTree.App.ID,
+		AppCode:       targetTree.App.Code,
 		Error:         "",
 	}
 
@@ -130,91 +164,79 @@ func (s *FunctionGenService) ProcessFunctionGenResult(ctx context.Context, req *
 	if err := apicall.NotifyWorkspaceUpdateComplete(apicallHeader, callbackData); err != nil {
 		logger.Errorf(ctx, "[FunctionGenService] 通知工作空间更新完成失败: error=%v", err)
 		// 不中断流程，记录日志即可
+	} else {
+		if len(fullCodePaths) > 0 {
+			logger.Infof(ctx, "[FunctionGenService] 工作空间更新完成通知已发送 (HTTP) - RecordID: %d, MessageID: %d, FullCodePaths: %v, AppCode: %s",
+				req.RecordID, req.MessageID, fullCodePaths, targetTree.App.Code)
 		} else {
-			if len(fullCodePaths) > 0 {
-				logger.Infof(ctx, "[FunctionGenService] 工作空间更新完成通知已发送 (HTTP) - RecordID: %d, MessageID: %d, FullCodePaths: %v, AppCode: %s",
-					req.RecordID, req.MessageID, fullCodePaths, serviceTree.App.Code)
-			} else {
-				logger.Infof(ctx, "[FunctionGenService] 工作空间更新完成通知已发送 (HTTP) - RecordID: %d, MessageID: %d, FullCodePaths: [] (无新增函数), AppCode: %s",
-					req.RecordID, req.MessageID, serviceTree.App.Code)
-			}
+			logger.Infof(ctx, "[FunctionGenService] 工作空间更新完成通知已发送 (HTTP) - RecordID: %d, MessageID: %d, FullCodePaths: [] (无新增函数), AppCode: %s",
+				req.RecordID, req.MessageID, targetTree.App.Code)
 		}
+	}
 
 	return nil
 }
 
+// createOrFindDirectory 根据元数据创建或查找目录
+func (s *FunctionGenService) createOrFindDirectory(ctx context.Context, parentTree *model.ServiceTree, meta *metadata.Metadata) (*model.ServiceTree, error) {
+	// 1. 先尝试查找目录是否已存在（通过 FullCodePath）
+	expectedFullCodePath := parentTree.FullCodePath + "/" + meta.DirectoryCode
+	existingTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(expectedFullCodePath)
+	if err == nil && existingTree != nil {
+		logger.Infof(ctx, "[FunctionGenService] 目录已存在 - TreeID: %d, FullCodePath: %s", existingTree.ID, expectedFullCodePath)
+		return existingTree, nil
+	}
+
+	// 2. 目录不存在，创建新目录
+	// 从父目录的 FullCodePath 提取 User 和 App
+	fullCodePath := parentTree.FullCodePath
+	pathParts := strings.Split(strings.Trim(fullCodePath, "/"), "/")
+	if len(pathParts) < 2 {
+		return nil, fmt.Errorf("无效的 FullCodePath: %s", fullCodePath)
+	}
+	targetUser := pathParts[0]
+	targetApp := pathParts[1]
+
+	createReq := &dto.CreateServiceTreeReq{
+		User:        targetUser,
+		App:         targetApp,
+		Name:        meta.DirectoryName,
+		Code:        meta.DirectoryCode,
+		ParentID:    parentTree.ID,
+		Description: meta.DirectoryDesc,
+		Tags:        strings.Join(meta.Tags, ","),
+		Admins:      contextx.GetRequestUser(ctx), // 将当前用户设置为管理员
+	}
+
+	createResp, err := s.serviceTreeService.CreateServiceTree(ctx, createReq)
+	if err != nil {
+		// 如果目录已存在（并发创建的情况），再次尝试查找
+		if strings.Contains(err.Error(), "already exists") {
+			existingTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(expectedFullCodePath)
+			if err == nil && existingTree != nil {
+				logger.Infof(ctx, "[FunctionGenService] 目录已存在（并发创建） - TreeID: %d, FullCodePath: %s", existingTree.ID, expectedFullCodePath)
+				return existingTree, nil
+			}
+		}
+		return nil, fmt.Errorf("创建目录失败: %w", err)
+	}
+
+	// 3. 获取创建的目录信息
+	newTree, err := s.serviceTreeRepo.GetByID(createResp.ID)
+	if err != nil {
+		return nil, fmt.Errorf("获取新创建的目录信息失败: %w", err)
+	}
+
+	logger.Infof(ctx, "[FunctionGenService] 目录创建成功 - TreeID: %d, DirectoryCode: %s, FullCodePath: %s",
+		newTree.ID, meta.DirectoryCode, newTree.FullCodePath)
+
+	return newTree, nil
+}
+
 // ProcessFunctionGenResultAsync 异步处理函数生成结果（通过回调通知结果）
 func (s *FunctionGenService) ProcessFunctionGenResultAsync(ctx context.Context, req *dto.AddFunctionsReq) error {
-	// 1. 根据 TreeID 获取 ServiceTree（需要预加载 App）
-	serviceTree, err := s.serviceTreeRepo.GetByID(req.TreeID)
-	if err != nil {
-		logger.Errorf(ctx, "[FunctionGenService] 获取 ServiceTree 失败: TreeID=%d, error=%v", req.TreeID, err)
-		// 发送失败回调（serviceTree 可能为 nil，但 sendCallback 会处理）
-		s.sendCallback(ctx, req, nil, false, []string{}, err.Error())
-		return err
-	}
-
-	// 预加载 App 信息（如果还没有加载）
-	if serviceTree.App == nil {
-		app, err := s.appRepo.GetAppByID(serviceTree.AppID)
-		if err != nil {
-			logger.Errorf(ctx, "[FunctionGenService] 获取 App 失败: AppID=%d, error=%v", serviceTree.AppID, err)
-			s.sendCallback(ctx, req, serviceTree, false, []string{}, err.Error())
-			return err
-		}
-		serviceTree.App = app
-	}
-
-	// 2. 从 ServiceTree 中提取 package 路径
-	packagePath := serviceTree.GetPackagePathForFileCreation()
-
-	// 3. 使用 agent-server 处理后的结构化数据
-	fileName := req.FileName
-	if fileName == "" {
-		logger.Warnf(ctx, "[FunctionGenService] agent-server 未提取到文件名，使用 ServiceTree.Code 作为 fallback: %s", serviceTree.Code)
-		fileName = serviceTree.Code
-	}
-
-	sourceCode := req.SourceCode
-	if sourceCode == "" {
-		logger.Warnf(ctx, "[FunctionGenService] agent-server 未处理代码，使用原始代码")
-		sourceCode = req.Code
-	}
-
-	logger.Infof(ctx, "[FunctionGenService] 异步处理: Package=%s, FileName=%s, SourceCodeLength=%d", packagePath, fileName, len(sourceCode))
-
-	// 4. 构建 CreateFunctionInfo
-	createFunction := &dto.CreateFunctionInfo{
-		Package:    packagePath,
-		GroupCode:  fileName,
-		SourceCode: sourceCode,
-	}
-
-	// 5. 调用 AppService.UpdateApp
-	updateReq := &dto.UpdateAppReq{
-		User:            req.User,
-		App:             serviceTree.App.Code,
-		CreateFunctions: []*dto.CreateFunctionInfo{createFunction},
-	}
-
-	updateResp, err := s.appService.UpdateApp(ctx, updateReq)
-	if err != nil {
-		logger.Errorf(ctx, "[FunctionGenService] AppService.UpdateApp 失败: error=%v", err)
-		s.sendCallback(ctx, req, serviceTree, false, []string{}, err.Error())
-		return err
-	}
-
-	// 6. 获取新增的 FullCodePaths
-	fullCodePaths := make([]string, 0)
-	if updateResp.Diff != nil {
-		fullCodePaths = updateResp.Diff.GetAddFullCodePaths()
-		logger.Infof(ctx, "[FunctionGenService] 异步处理完成 - Count: %d, FullCodePaths: %v", len(fullCodePaths), fullCodePaths)
-	}
-
-	// 7. 发送回调通知（异步模式必须发送回调）
-	s.sendCallback(ctx, req, serviceTree, true, fullCodePaths, "")
-
-	return nil
+	// 复用同步处理的逻辑
+	return s.ProcessFunctionGenResult(ctx, req)
 }
 
 // sendCallback 发送回调通知（内部辅助方法）
