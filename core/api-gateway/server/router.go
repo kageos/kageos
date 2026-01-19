@@ -204,39 +204,8 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 			logger.Debugf(s.ctx, "[Proxy] TraceId not found in request header")
 		}
 
-		// ✨ 解析 JWT Token 并提取 username，设置到 X-Request-User header
-		// ⭐ 直接覆盖 RequestUserHeader，以 token 为准，忽略请求中的 X-Request-User
-		// 这样确保每次都能正确解析 token 并设置用户信息和组织架构信息
-		token := req.Header.Get(contextx.TokenHeader)
-		if token != "" {
-			// ⭐ 新增：检查 token 是否在黑名单中
-			if s.tokenBlacklist.IsBlacklisted(token) {
-				logger.Warnf(s.ctx, "[Proxy] Token is blacklisted, rejecting request")
-				// 设置标记，在 ModifyResponse 中拦截
-				req.Header.Set("X-Token-Blacklisted", "true")
-				// 不继续解析 token，直接返回
-				return
-			}
-
-			// 解析 token 获取 username 和组织架构信息
-			jwtService := service.NewJWTService()
-			claims, err := jwtService.ValidateToken(token)
-			if err == nil {
-				// 解析成功，直接覆盖 username 到 header（忽略请求中的 X-Request-User）
-				req.Header.Set(contextx.RequestUserHeader, claims.Username)
-				logger.Debugf(s.ctx, "[Proxy] Extracted username from token: %s", claims.Username)
-
-				// ⭐ 设置组织架构信息到 header（token 中一定包含这些字段，如果用户有组织架构信息）
-				// ⭐ 统一使用 DepartmentFullPathHeader 常量
-				if claims.DepartmentFullPath != nil && *claims.DepartmentFullPath != "" {
-					req.Header.Set(contextx.DepartmentFullPathHeader, *claims.DepartmentFullPath)
-					logger.Debugf(s.ctx, "[Proxy] Extracted department_full_path from token: %s", *claims.DepartmentFullPath)
-				}
-			} else {
-				// token 解析失败，但不阻止请求（可能是不需要认证的接口）
-				logger.Debugf(s.ctx, "[Proxy] Failed to parse token: %v", err)
-			}
-		}
+		// ⭐ 注意：JWT Token 解析和用户信息设置已移至 gin handler 中（在调用 proxy.ServeHTTP 之前）
+		// 这样可以确保 header 被正确传递，就像 TraceId 一样
 
 		// 注意：X-Token 和其他请求头会被 httputil.ReverseProxy 自动转发，无需手动处理
 
@@ -308,15 +277,54 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 			c.Request.Header.Set(contextx.TraceIdHeader, traceId)
 		}
 
-		// ✨ 如果请求中已有 X-Token，在 proxy.Director 中会解析并设置 X-Request-User 和 X-Department-Full-Path
-		// 这里确保 X-Token 被正确传递到 proxy.Director
-		// 注意：X-Token 会被 httputil.ReverseProxy 自动转发，proxy.Director 中会读取并解析
+		// ✨ 解析 JWT Token 并提取 username，设置到 X-Request-User header（在调用 proxy 之前设置）
+		// ⭐ 按照 TraceId 的方式，直接在 gin handler 中设置 header，确保被正确传递
+		token := c.Request.Header.Get(contextx.TokenHeader)
+		if token != "" {
+			// ⭐ 新增：检查 token 是否在黑名单中
+			if s.tokenBlacklist.IsBlacklisted(token) {
+				logger.Warnf(s.ctx, "[Proxy] Token is blacklisted, rejecting request")
+				c.JSON(http.StatusUnauthorized, response.GetTokenBlacklistedResponse())
+				c.Abort()
+				return
+			}
+
+			// 解析 token 获取 username 和组织架构信息
+			// ⭐ 使用全局配置的 JWTService（与 hr-server 保持一致，因为 token 是由 hr-server 生成的）
+			jwtService := service.NewJWTService()
+			claims, err := jwtService.ValidateToken(token)
+			if err == nil {
+				// 解析成功，直接覆盖 username 到 header（忽略请求中的 X-Request-User）
+				// ⭐ 按照 TraceId 的方式，直接在 c.Request.Header 中设置
+				c.Request.Header.Set(contextx.RequestUserHeader, claims.Username)
+				logger.Infof(s.ctx, "[Proxy] Extracted username from token: %s, Path: %s", claims.Username, c.Request.URL.Path)
+
+				// ⭐ 设置组织架构信息到 header（token 中一定包含这些字段，如果用户有组织架构信息）
+				if claims.DepartmentFullPath != nil && *claims.DepartmentFullPath != "" {
+					c.Request.Header.Set(contextx.DepartmentFullPathHeader, *claims.DepartmentFullPath)
+					logger.Debugf(s.ctx, "[Proxy] Extracted department_full_path from token: %s", *claims.DepartmentFullPath)
+				}
+			} else {
+				// token 解析失败，但不阻止请求（可能是不需要认证的接口）
+				tokenPrefix := ""
+				if len(token) > 20 {
+					tokenPrefix = token[:20] + "..."
+				} else {
+					tokenPrefix = token
+				}
+				globalConfig := config.GetGlobalSharedConfig()
+				logger.Warnf(s.ctx, "[Proxy] Failed to parse token - Path: %s, Error: %v, TokenLength: %d, TokenPrefix: %s, JWTSecretLength: %d, JWTIssuer: %s",
+					c.Request.URL.Path, err, len(token), tokenPrefix, len(globalConfig.JWT.Secret), globalConfig.JWT.Issuer)
+			}
+		}
 
 		// ✅ 创建带超时的 Context，避免高并发时请求堆积
 		ctx, cancel := context.WithTimeout(c.Request.Context(), time.Duration(timeout)*time.Second)
 		defer cancel()
 
 		// ✅ 使用带超时的 Context 创建新请求
+		// ⭐ 注意：WithContext 会创建一个新请求，但 Header 是共享的（引用类型）
+		// 所以之前设置的 header（TraceId、X-Request-User 等）会被正确传递到后端服务
 		req := c.Request.WithContext(ctx)
 		proxy.ServeHTTP(c.Writer, req)
 	}

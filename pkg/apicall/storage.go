@@ -48,10 +48,10 @@ func callAPI[T any](ctx context.Context, method, path string, reqBody interface{
 
 	// 1. 获取Gateway URL（方式1：从环境变量获取）
 	gatewayURL := serviceconfig.GetGatewayURL()
-	
+
 	// 2. 构建完整URL
 	url := gatewayURL + path
-	
+
 	// 3. 序列化请求体
 	var bodyReader io.Reader
 	if reqBody != nil {
@@ -61,29 +61,24 @@ func callAPI[T any](ctx context.Context, method, path string, reqBody interface{
 		}
 		bodyReader = bytes.NewReader(bodyBytes)
 	}
-	
+
 	// 4. 创建HTTP请求（使用 ctx，支持超时和取消）
 	req, err := http.NewRequestWithContext(ctx, method, url, bodyReader)
 	if err != nil {
 		return nil, fmt.Errorf("创建请求失败: %w", err)
 	}
-	
+
 	// 5. 设置请求头
 	req.Header.Set("Content-Type", "application/json")
 
 	// ✨ 从 ctx 中提取 Token（透传前端传过来的token）
 	if token := contextx.GetToken(ctx); token != "" {
-		req.Header.Set("X-Token", token)
+		req.Header.Set(contextx.TokenHeader, token)
 	}
 
 	// ✨ 从 ctx 中提取追踪ID（使用统一的header key）
 	if traceID := contextx.GetTraceId(ctx); traceID != "" {
-		req.Header.Set("X-Trace-Id", traceID)
-	}
-
-	// ✨ 从 ctx 中提取请求用户（用于区分前端请求和容器内SDK请求）
-	if requestUser := contextx.GetRequestUser(ctx); requestUser != "" {
-		req.Header.Set("X-Request-User", requestUser)
+		req.Header.Set(contextx.TraceIdHeader, traceID)
 	}
 	
 	// 6. 发送请求
@@ -92,29 +87,29 @@ func callAPI[T any](ctx context.Context, method, path string, reqBody interface{
 		return nil, fmt.Errorf("请求失败: %w", err)
 	}
 	defer resp.Body.Close()
-	
+
 	// 7. 读取响应体
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("读取响应失败: %w", err)
 	}
-	
+
 	// 8. 检查HTTP状态码
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("HTTP错误: %d %s, 响应: %s", resp.StatusCode, resp.Status, string(bodyBytes))
 	}
-	
+
 	// 9. 解析响应（直接使用ApiResult[T]泛型）
 	var result ApiResult[T]
 	if err := json.Unmarshal(bodyBytes, &result); err != nil {
 		return nil, fmt.Errorf("解析响应失败: %w, 响应内容: %s", err, string(bodyBytes))
 	}
-	
+
 	// 10. 检查业务错误（code != 0）
 	if result.Code != 0 {
 		return &result, fmt.Errorf("业务错误 [%d]: %s", result.Code, result.Msg)
 	}
-	
+
 	// 11. 返回成功结果
 	return &result, nil
 }
