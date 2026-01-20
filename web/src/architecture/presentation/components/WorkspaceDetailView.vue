@@ -165,6 +165,7 @@
               </h3>
               <PermissionRequestList
                 :resource-path="workspaceFullPath"
+                :resource-type="'app'"
                 :show-my-requests="true"
               />
             </div>
