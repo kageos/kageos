@@ -49,17 +49,9 @@
                 >
                   <template #default="{ node, data }">
                     <span class="tree-node" :class="{ 'is-selected': selectedResourcePath === data.full_code_path }">
-                      <!-- app 类型：显示工作空间图标 -->
+                      <!-- app 和 package 类型：统一使用目录图标 -->
                       <img 
-                        v-if="data.type === 'app'" 
-                        src="/service-tree/app-copy.svg" 
-                        alt="工作空间" 
-                        class="node-icon app-icon-img"
-                        :class="getNodeIconClass(data)"
-                      />
-                      <!-- package 类型：统一使用目录图标 -->
-                      <img 
-                        v-else-if="data.type === 'package'" 
+                        v-if="data.type === 'app' || data.type === 'package'" 
                         src="/service-tree/custom-folder.svg" 
                         alt="目录" 
                         class="node-icon package-icon-img"
@@ -509,7 +501,6 @@ const checkedNodeKeys = computed(() => {
   }
   // 调试信息
   if (process.env.NODE_ENV === 'development' && selectedResourcePaths.value.length > 0) {
-    console.log('[PermissionApply] checkedNodeKeys 计算:', {
       selectedPaths: [...selectedResourcePaths.value],
       computedKeys: keys
     })
@@ -950,33 +941,11 @@ onMounted(async () => {
         updateTreeDisabledState()
       }
       
-      // 构建包含工作空间节点的树结构
-      const appNode: ServiceTree = {
-        id: 0, // 临时 ID，实际不会使用
-        name: treeResponse.app?.name || app,
-        code: app,
-        parent_id: 0,
-        type: 'package' as any, // 临时使用 package 类型，但会在模板中通过 data.type === 'app' 判断
-        description: '',
-        tags: '',
-        app_id: treeResponse.app?.id || 0,
-        ref_id: 0,
-        full_code_path: `/${user}/${app}`,
-        created_at: treeResponse.app?.created_at || '',
-        updated_at: treeResponse.app?.updated_at || '',
-        children: treeResponse.service_tree || []
-      } as any
-      
-      // 扩展类型，添加 app 类型标识
-      ;(appNode as any).type = 'app'
-      
-      serviceTree.value = [appNode]
-      
-      console.log('✅ [定位节点] 服务树数据已加载，节点数:', serviceTree.value[0]?.children?.length || 0)
+      // 🔥 直接使用后端返回的 service_tree（后端已经包含了 app 根节点）
+      serviceTree.value = treeResponse.service_tree || []
       
       // 设置默认选中的资源
       selectedResourcePath.value = resourcePath
-      console.log('✅ [定位节点] 已设置 selectedResourcePath:', resourcePath)
       
       // ⭐ 将资源路径添加到选中数组中（用于复选框显示）
       if (!selectedResourcePaths.value.includes(resourcePath)) {
@@ -986,7 +955,6 @@ onMounted(async () => {
       // ⭐ 查找所有子资源（子目录和函数），并添加到选中数组
       // 注意：需要在服务树加载完成后才能查找子资源
       const childResources = findAllChildResources(resourcePath)
-      console.log('✅ [定位节点] 找到子资源数量:', childResources.length, childResources)
       childResources.forEach(childPath => {
         if (!selectedResourcePaths.value.includes(childPath)) {
           selectedResourcePaths.value.push(childPath)
@@ -999,7 +967,6 @@ onMounted(async () => {
           if (treeRef.value) {
             // 设置当前节点复选框为选中状态
             treeRef.value.setChecked(resourcePath, true, false)
-            console.log('✅ [定位节点] 已设置复选框选中状态:', resourcePath)
             
             // ⭐ 设置所有子节点的复选框为选中状态
             childResources.forEach(childPath => {
@@ -1010,7 +977,6 @@ onMounted(async () => {
               if (!childHasAnyExistingPerm) {
                 // 设置子节点为选中状态
                 treeRef.value.setChecked(childPath, true, false)
-                console.log('✅ [定位节点] 已设置子节点复选框选中状态:', childPath)
               }
             })
           }
@@ -1055,7 +1021,6 @@ onMounted(async () => {
       }
       
       defaultExpandedKeys.value = expandedPaths
-      console.log('✅ [定位节点] 已设置 defaultExpandedKeys:', expandedPaths)
       
       // 注意：不在 onMounted 中直接定位，而是通过 watch 监听 treeRef 和 serviceTree 的变化
       // 在树完全渲染后再执行定位逻辑
@@ -1263,11 +1228,9 @@ const updateTreeDisabledState = () => {
 // 定位节点的函数（提取为独立函数，可复用）
 const scrollToResourceNode = (resourcePath: string) => {
   if (!resourcePath || !treeRef.value) {
-    console.log('⏳ [定位节点] 等待条件满足，resourcePath:', resourcePath, 'treeRef:', !!treeRef.value)
     return false
   }
   
-  console.log('🔍 [定位节点] 开始定位，resourcePath:', resourcePath)
   
   try {
     // 使用 el-tree 的内部 store 确保节点可见并展开所有父节点
@@ -1291,7 +1254,6 @@ const scrollToResourceNode = (resourcePath: string) => {
     // 设置当前节点（高亮显示）- 确保在展开和滚动之前设置
     if (treeRef.value) {
       treeRef.value.setCurrentKey(resourcePath)
-      console.log('✅ [定位节点] 已设置 setCurrentKey:', resourcePath)
     }
     
     // 等待节点渲染和展开完成（减少延迟）
@@ -1299,7 +1261,6 @@ const scrollToResourceNode = (resourcePath: string) => {
       setTimeout(() => {
         // 使用更可靠的方法：通过 el-tree 的内部 store 和 DOM 查找
         const scrollToNode = (attempt = 0) => {
-          console.log(`🔍 [定位节点] 尝试 ${attempt + 1}，resourcePath:`, resourcePath)
           
           if (attempt > 10) {
             console.warn('❌ [定位节点] 无法定位到节点:', resourcePath, '已尝试', attempt, '次')
@@ -1307,7 +1268,6 @@ const scrollToResourceNode = (resourcePath: string) => {
           }
           
           if (!treeRef.value) {
-            console.log('⏳ [定位节点] treeRef 未就绪，等待重试...')
             setTimeout(() => scrollToNode(attempt + 1), 100) // 从 150ms 减少到 100ms
             return
           }
@@ -1328,12 +1288,10 @@ const scrollToResourceNode = (resourcePath: string) => {
             nextTick(() => {
               const treeEl = treeRef.value?.$el
               if (!treeEl) {
-                console.log('⏳ [定位节点] treeEl 未就绪，等待重试...')
                 setTimeout(() => scrollToNode(attempt + 1), 100) // 从 150ms 减少到 100ms
                 return
               }
               
-              console.log('✅ [定位节点] treeEl 已就绪，开始查找节点')
               
               // 方法1: 通过 el-tree 的内部 store 获取节点，然后找到对应的 DOM 元素
               let targetElement: HTMLElement | null = null
@@ -1398,7 +1356,6 @@ const scrollToResourceNode = (resourcePath: string) => {
               }
               
               if (targetElement) {
-                console.log('✅ [定位节点] 找到目标节点，准备滚动:', resourcePath)
                 // 找到节点后，使用 scrollIntoView 滚动
                 targetElement.scrollIntoView({
                   behavior: 'smooth',
@@ -1420,15 +1377,12 @@ const scrollToResourceNode = (resourcePath: string) => {
                       const containerHeight = containerRect.height
                       const targetScrollTop = nodeTop - (containerHeight / 2) + (nodeHeight / 2)
                       container.scrollTop = Math.max(0, targetScrollTop)
-                      console.log('✅ [定位节点] 手动滚动到位置:', targetScrollTop)
                     } else {
-                      console.log('✅ [定位节点] 节点已成功滚动到可视区域')
                     }
                   }
                 }, 200) // 从 300ms 减少到 200ms
               } else {
                 // 如果找不到，继续尝试
-                console.log('⚠️ [定位节点] 未找到目标节点，继续尝试，attempt:', attempt + 1)
                 setTimeout(() => scrollToNode(attempt + 1), 150) // 从 250ms 减少到 150ms
               }
             })
@@ -1454,7 +1408,6 @@ let scrollTimeout: ReturnType<typeof setTimeout> | null = null
 watch([() => treeRef.value, () => selectedResourcePath.value, () => serviceTree.value.length], 
   ([newTreeRef, newPath, treeLength]) => {
     if (newTreeRef && newPath && treeLength > 0) {
-      console.log('✅ [定位节点] 条件满足，开始定位，treeRef:', !!newTreeRef, 'path:', newPath, 'treeLength:', treeLength)
       // 清除之前的延迟
       if (scrollTimeout) {
         clearTimeout(scrollTimeout)
@@ -1920,7 +1873,6 @@ const handleTreeNodeCheck = (data: ServiceTree, checked: { checkedKeys: string[]
       // ⭐ 强制继承：自动选中所有子节点（包括子目录和子函数）
       const childResources = findAllChildResources(resourcePath)
       if (childResources.length > 0) {
-        console.log(`[强制继承] 父节点选中: ${resourcePath}, 子节点数量: ${childResources.length}`, childResources)
         
         nextTick(() => {
           if (treeRef.value) {
@@ -1959,7 +1911,6 @@ const handleTreeNodeCheck = (data: ServiceTree, checked: { checkedKeys: string[]
       
       // ⭐ 强制继承：取消所有子节点（包括子目录和子函数）
       const childResources = findAllChildResources(resourcePath)
-      console.log(`[强制继承] 父节点取消选中: ${resourcePath}, 子节点数量: ${childResources.length}`, childResources)
       
       childResources.forEach(childPath => {
         // ⭐ 从选中数组中移除子节点
@@ -2124,7 +2075,6 @@ const loadAvailableRoles = async (nodeType: string, templateType: string) => {
       return
     }
     
-    console.log('[PermissionApply] 加载角色列表，nodeType:', nodeType, 'templateType:', templateType)
     
     // 调用 API 获取可用角色
     const resp = await getRolesForPermissionRequest({
@@ -2132,17 +2082,14 @@ const loadAvailableRoles = async (nodeType: string, templateType: string) => {
       template_type: templateType && templateType.trim() !== '' ? templateType : undefined,
     })
     
-    console.log('[PermissionApply] 角色列表 API 响应:', resp)
     
     if (resp && resp.roles) {
       availableRoles.value = resp.roles
-      console.log('[PermissionApply] 已加载角色列表，数量:', resp.roles.length)
       
       // ⭐ 自动选择默认角色（如果有的话）
       const defaultRole = resp.roles.find((role: Role) => role.is_default)
       if (defaultRole && !selectedRoleId.value) {
         selectedRoleId.value = defaultRole.id
-        console.log('[PermissionApply] 自动选择默认角色:', defaultRole.name)
       }
     } else {
       availableRoles.value = []
