@@ -176,14 +176,6 @@
                     <el-icon><Edit /></el-icon>
                     重命名
                   </el-dropdown-item>
-                  <!-- 复制链接（需要 directory:read、app:read、docs:read 或 function:read 权限） -->
-                  <el-dropdown-item 
-                    v-if="hasPermission(data, data.type === 'app' ? AppPermissions.read : (data.type === 'package' ? DirectoryPermissions.read : (data.type === 'docs' ? 'docs:read' : 'function:read')))"
-                    command="copy-link"
-                  >
-                    <el-icon><Link /></el-icon>
-                    复制链接
-                  </el-dropdown-item>
                   <!-- 仅对function类型显示删除选项（需要 function:delete 权限） -->
                   <el-dropdown-item 
                     v-if="data.type === 'function' && hasPermission(data, 'function:delete')"
@@ -313,7 +305,6 @@ interface Emits {
   (e: 'create-directory', parentNode?: ServiceTree): void
   (e: 'create-docs', parentNode?: ServiceTree): void
   (e: 'delete-doc', node: ServiceTree): void
-  (e: 'copy-link', node: ServiceTree): void
   (e: 'delete-function', node: ServiceTree): void  // 删除函数
   (e: 'refresh-tree'): void  // 刷新树（复制粘贴后需要刷新）
   (e: 'update-history', node?: ServiceTree): void  // 显示变更记录（工作空间或目录）
@@ -820,8 +811,6 @@ const handleNodeAction = (command: string, data: ServiceTree) => {
     } else {
       handlePaste() // 使用当前选中的目录
     }
-  } else if (command === 'copy-link') {
-    emit('copy-link', data)
   } else if (command === 'delete-function') {
     emit('delete-function', data)
   } else if (command === 'delete-doc') {
