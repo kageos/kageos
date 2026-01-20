@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
+	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
@@ -76,18 +77,14 @@ func (s *Doc) CreateDoc(c *gin.Context) {
 		return
 	}
 
-	var req struct {
-		Title   string `json:"title" binding:"required"`
-		Content string `json:"content" binding:"required"`
-		Format  string `json:"format"` // 可选，默认为 markdown
-	}
+	var req dto.CreateDocReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.FailWithMessage(c, "参数错误: "+err.Error())
 		return
 	}
 
 	ctx := contextx.ToContext(c)
-	doc, err := s.docService.CreateDoc(ctx, treeID, req.Title, req.Content, req.Format)
+	doc, err := s.docService.CreateDoc(ctx, treeID, &req)
 	if err != nil {
 		logger.Errorf(c, "[Doc API] 创建文档失败: treeID=%d, error=%v", treeID, err)
 		response.FailWithMessage(c, "创建文档失败: "+err.Error())
@@ -120,19 +117,14 @@ func (s *Doc) UpdateDoc(c *gin.Context) {
 		return
 	}
 
-	var req struct {
-		Title   string `json:"title"`
-		Content string `json:"content"`
-		Format  string `json:"format"`
-		Summary string `json:"summary"`
-	}
+	var req dto.UpdateDocReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.FailWithMessage(c, "参数错误: "+err.Error())
 		return
 	}
 
 	ctx := contextx.ToContext(c)
-	doc, err := s.docService.UpdateDoc(ctx, treeID, req.Title, req.Content, req.Format, req.Summary)
+	doc, err := s.docService.UpdateDoc(ctx, treeID, &req)
 	if err != nil {
 		logger.Errorf(c, "[Doc API] 更新文档失败: treeID=%d, error=%v", treeID, err)
 		response.FailWithMessage(c, "更新文档失败: "+err.Error())
@@ -230,19 +222,14 @@ func (s *Doc) UpdateDocByPath(c *gin.Context) {
 		return
 	}
 
-	var req struct {
-		Title   string `json:"title"`
-		Content string `json:"content"`
-		Format  string `json:"format"`
-		Summary string `json:"summary"`
-	}
+	var req dto.UpdateDocReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.FailWithMessage(c, "参数错误: "+err.Error())
 		return
 	}
 
 	ctx := contextx.ToContext(c)
-	doc, err := s.docService.UpdateDocByPath(ctx, fullCodePath, req.Title, req.Content, req.Format, req.Summary)
+	doc, err := s.docService.UpdateDocByPath(ctx, fullCodePath, &req)
 	if err != nil {
 		logger.Errorf(c, "[Doc API] 更新文档失败: fullCodePath=%s, error=%v", fullCodePath, err)
 		response.FailWithMessage(c, "更新文档失败: "+err.Error())
