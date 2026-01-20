@@ -92,14 +92,21 @@ func (s *Server) setupRoutes() {
 	// 服务间调用路由（不需要JWT验证，但用户信息中间件已在 apiV1 级别统一添加）
 	serviceTree.POST("/add_functions", serviceTreeHandler.AddFunctions) // 向服务目录添加函数（agent-server -> workspace）
 
-	// 文档管理路由（需要JWT验证）
-	doc := apiV1.Group("/service_tree")
-	doc.Use(middleware2.JWTAuth()) // 文档管理需要JWT认证
+	// 文档管理路由（旧接口，保留向后兼容）
+	oldDoc := apiV1.Group("/service_tree")
+	oldDoc.Use(middleware2.JWTAuth()) // 文档管理需要JWT认证
 	docHandler := v1.NewDoc(s.docService)
-	doc.GET("/:tree_id/doc", docHandler.GetDoc)       // 获取文档内容
-	doc.POST("/:tree_id/doc", docHandler.CreateDoc)   // 创建文档
-	doc.PUT("/:tree_id/doc", docHandler.UpdateDoc)    // 更新文档
-	doc.DELETE("/:tree_id/doc", docHandler.DeleteDoc) // 删除文档
+	oldDoc.GET("/:tree_id/doc", docHandler.GetDoc)       // 获取文档内容（旧接口）
+	oldDoc.POST("/:tree_id/doc", docHandler.CreateDoc)   // 创建文档（旧接口）
+	oldDoc.PUT("/:tree_id/doc", docHandler.UpdateDoc)    // 更新文档（旧接口）
+	oldDoc.DELETE("/:tree_id/doc", docHandler.DeleteDoc) // 删除文档（旧接口）
+
+	// ⭐ 文档管理路由（新接口，基于路径，与 table/form/chart 风格一致）
+	doc := apiV1.Group("/doc")
+	doc.Use(middleware2.JWTAuth())
+	doc.GET("/*full-code-path", middleware2.CheckDocRead(), docHandler.GetDocByPath)       // 获取文档
+	doc.PUT("/*full-code-path", middleware2.CheckDocWrite(), docHandler.UpdateDocByPath)  // 更新文档
+	doc.DELETE("/*full-code-path", middleware2.CheckDocDelete(), docHandler.DeleteDocByPath) // 删除文档
 
 	// 函数管理路由（需要JWT验证）
 	function := apiV1.Group("/function")

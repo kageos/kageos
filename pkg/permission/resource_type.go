@@ -6,6 +6,7 @@ const (
 	ResourceTypeTable     = "table"     // 表格函数
 	ResourceTypeForm      = "form"      // 表单函数
 	ResourceTypeChart     = "chart"     // 图表函数
+	ResourceTypeDocs      = "docs"      // 文档
 	ResourceTypeApp       = "app"       // 工作空间
 )
 
@@ -24,6 +25,8 @@ func GetResourceType(nodeType string, templateType string) string {
 		default:
 			return ResourceTypeTable // 默认使用 table
 		}
+	} else if nodeType == "docs" {
+		return ResourceTypeDocs
 	} else if nodeType == "app" {
 		return ResourceTypeApp
 	}
@@ -62,6 +65,14 @@ func GetActionsForResourceType(resourceType string) []string {
 		return []string{
 			BuildActionCode(ResourceTypeChart, "read"),
 			BuildActionCode(ResourceTypeChart, "admin"),
+		}
+	case ResourceTypeDocs:
+		// Docs 文档支持 read、write、delete、admin
+		return []string{
+			BuildActionCode(ResourceTypeDocs, "read"),
+			BuildActionCode(ResourceTypeDocs, "write"),
+			BuildActionCode(ResourceTypeDocs, "delete"),
+			BuildActionCode(ResourceTypeDocs, "admin"),
 		}
 	case ResourceTypeApp:
 		return []string{
@@ -103,6 +114,7 @@ func GetAllResourceTypes() []string {
 		ResourceTypeTable,
 		ResourceTypeForm,
 		ResourceTypeChart,
+		ResourceTypeDocs,
 		ResourceTypeApp,
 	}
 }

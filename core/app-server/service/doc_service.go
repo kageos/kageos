@@ -231,3 +231,56 @@ func (s *DocService) GetDocsByFullCodePath(ctx context.Context, fullCodePath str
 
 	return docs, nil
 }
+
+// ==================== 基于路径的文档操作（新接口，用于 /doc/*full-code-path） ====================
+
+// GetDocByPath 根据完整路径获取文档
+func (s *DocService) GetDocByPath(ctx context.Context, fullCodePath string) (*model.Doc, error) {
+	// 1. 根据路径获取 ServiceTree 节点
+	tree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(fullCodePath)
+	if err != nil {
+		return nil, fmt.Errorf("获取服务树节点失败: %w", err)
+	}
+
+	// 2. 验证节点类型为 docs
+	if !tree.IsDocs() {
+		return nil, fmt.Errorf("节点类型错误，期望 docs，实际 %s", tree.Type)
+	}
+
+	// 3. 获取文档内容
+	return s.GetDoc(ctx, tree.ID)
+}
+
+// UpdateDocByPath 根据完整路径更新文档
+func (s *DocService) UpdateDocByPath(ctx context.Context, fullCodePath, title, content, format, summary string) (*model.Doc, error) {
+	// 1. 根据路径获取 ServiceTree 节点
+	tree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(fullCodePath)
+	if err != nil {
+		return nil, fmt.Errorf("获取服务树节点失败: %w", err)
+	}
+
+	// 2. 验证节点类型为 docs
+	if !tree.IsDocs() {
+		return nil, fmt.Errorf("节点类型错误，期望 docs，实际 %s", tree.Type)
+	}
+
+	// 3. 更新文档内容
+	return s.UpdateDoc(ctx, tree.ID, title, content, format, summary)
+}
+
+// DeleteDocByPath 根据完整路径删除文档
+func (s *DocService) DeleteDocByPath(ctx context.Context, fullCodePath string) error {
+	// 1. 根据路径获取 ServiceTree 节点
+	tree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(fullCodePath)
+	if err != nil {
+		return fmt.Errorf("获取服务树节点失败: %w", err)
+	}
+
+	// 2. 验证节点类型为 docs
+	if !tree.IsDocs() {
+		return fmt.Errorf("节点类型错误，期望 docs，实际 %s", tree.Type)
+	}
+
+	// 3. 删除文档内容和节点
+	return s.DeleteDoc(ctx, tree.ID)
+}

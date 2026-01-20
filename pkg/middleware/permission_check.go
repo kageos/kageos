@@ -540,3 +540,41 @@ func buildPermissionApplyURL(resourcePath string, action string) string {
 	// 格式：/permissions/apply?resource={resourcePath}&action={action}
 	return "/permissions/apply?resource=" + resourcePath + "&action=" + action
 }
+
+// ==================== 文档权限中间件 ====================
+
+// CheckDocRead 检查文档读取权限
+// 权限点：docs:read
+func CheckDocRead() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDocs, permissionconstants.ActionRead)
+		if !checkPermission(c, action, "无权限查看该文档") {
+			return
+		}
+		c.Next()
+	}
+}
+
+// CheckDocWrite 检查文档写入权限
+// 权限点：docs:write
+func CheckDocWrite() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDocs, permissionconstants.ActionWrite)
+		if !checkPermission(c, action, "无权限编辑该文档") {
+			return
+		}
+		c.Next()
+	}
+}
+
+// CheckDocDelete 检查文档删除权限
+// 权限点：docs:delete
+func CheckDocDelete() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDocs, permissionconstants.ActionDelete)
+		if !checkPermission(c, action, "无权限删除该文档") {
+			return
+		}
+		c.Next()
+	}
+}
