@@ -106,7 +106,7 @@ type GetServiceTreeResp struct {
 	HubVersionNum  int                   `json:"hub_version_num,omitempty" example:"0"`                 // Hub目录版本号（数字部分），用于版本比较
 	HasFunction    bool                  `json:"has_function,omitempty" example:"true"`                 // ⭐ 是否有函数（仅对package类型有效）：如果该package下直接或间接包含function类型的子节点，则为true
 	IsAdmin        bool                  `json:"is_admin,omitempty" example:"true"`                     // ⭐ 是否是管理员（企业版功能）：如果用户是工作空间管理员，则为 true，前端优先判断此字段，无需构造每个节点的权限
-	Permissions    map[string]bool       `json:"permissions,omitempty"`                                 // ⭐ 权限信息（企业版功能）：权限点 -> 是否有权限
+	Permissions    map[string]bool       `json:"permissions"`                                           // ⭐ 权限信息（企业版功能）：权限点 -> 是否有权限（即使为空也返回 {}，避免前端 undefined）
 	Children       []*GetServiceTreeResp `json:"children,omitempty"`                                    // 子目录列表
 }
 
@@ -134,7 +134,7 @@ type GetServiceTreeDetailResp struct {
 	HubDirectoryID int64             `json:"hub_directory_id,omitempty" example:"0"`      // 关联的Hub目录ID
 	HubVersion     string            `json:"hub_version,omitempty" example:""`            // Hub目录版本
 	HubVersionNum  int               `json:"hub_version_num,omitempty" example:"0"`         // Hub目录版本号（数字部分）
-	Permissions    map[string]bool   `json:"permissions,omitempty"`                       // ⭐ 权限标识（企业版功能）：权限点 -> 是否有权限
+	Permissions    map[string]bool   `json:"permissions"`                                 // ⭐ 权限标识（企业版功能）：权限点 -> 是否有权限（即使为空也返回 {}）
 }
 
 // GetPackageInfoReq 获取目录信息请求（仅用于获取目录权限，不包含函数）
@@ -149,7 +149,7 @@ type GetPackageInfoResp struct {
 	Name         string          `json:"name" example:"用户管理"`                         // 目录名称
 	Code         string          `json:"code" example:"user"`                         // 目录代码
 	FullCodePath string          `json:"full_code_path" example:"/beiluo/myapp/user"` // 完整代码路径
-	Permissions  map[string]bool `json:"permissions,omitempty"`                       // ⭐ 权限信息（企业版功能）：directory:read, directory:create, directory:update, directory:delete, directory:manage
+	Permissions  map[string]bool `json:"permissions"`                                 // ⭐ 权限信息（企业版功能）：directory:read, directory:create, directory:update, directory:delete, directory:manage（即使为空也返回 {}）
 }
 
 // UpdateServiceTreeMetadataReq 更新服务目录元数据请求
