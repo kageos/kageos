@@ -152,14 +152,15 @@ type GetPackageInfoResp struct {
 	Permissions  map[string]bool `json:"permissions,omitempty"`                       // ⭐ 权限信息（企业版功能）：directory:read, directory:create, directory:update, directory:delete, directory:manage
 }
 
-// UpdateServiceTreeMetadataReq 更新服务目录元数据请求（旧接口，保留兼容性）
+// UpdateServiceTreeMetadataReq 更新服务目录元数据请求
+// 使用指针类型支持增量更新和字段清空
 type UpdateServiceTreeMetadataReq struct {
-	ID          int64  `json:"id" binding:"required" example:"1"` // 服务目录ID
-	Name        string `json:"name" example:"用户管理"`               // 服务目录名称
-	Code        string `json:"code" example:"user"`               // 服务目录代码
-	Description string `json:"description" example:"用户相关的API接口"`  // 描述
-	Tags        string `json:"tags" example:"user,management"`    // 标签
-	Admins      string `json:"admins" example:"user1,user2"`      // 管理员列表，逗号分隔的用户名
+	ID          int64   `json:"id" binding:"required" example:"1"`      // 服务目录ID
+	Name        *string `json:"name,omitempty" example:"用户管理"`         // 服务目录名称（指针类型，nil=不更新，""=清空）
+	Code        *string `json:"code,omitempty" example:"user"`         // 服务目录代码（指针类型，nil=不更新，""=清空）
+	Description *string `json:"description,omitempty" example:"用户相关的API接口"` // 描述（指针类型，nil=不更新，""=清空）
+	Tags        *string `json:"tags,omitempty" example:"user,management"` // 标签（指针类型，nil=不更新，""=清空）
+	Admins      *string `json:"admins,omitempty" example:"user1,user2"` // 管理员列表（指针类型，nil=不更新，""=清空）
 }
 
 // DeleteServiceTreeReq 删除服务目录请求
