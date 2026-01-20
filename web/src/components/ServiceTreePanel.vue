@@ -486,7 +486,6 @@ const handleCopy = (node: ServiceTree) => {
       }
     } catch (error) {
       // 剪贴板访问失败，忽略（可能是权限问题）
-      console.debug('无法读取剪贴板:', error)
     }
     
     // 如果剪贴板没有 Hub 链接，检查已保存的 Hub 链接
@@ -951,8 +950,6 @@ const expandNodesWithPendingCount = async (treeData: ServiceTree[]) => {
     return
   }
   
-  console.log(`[ServiceTreePanel] 找到 ${nodesWithPending.length} 个待审批节点，自动展开`)
-  
   // 收集所有需要展开的节点 ID（包括节点本身及其所有父节点）
   const expandNodeIds = new Set<number>()
   
@@ -967,7 +964,6 @@ const expandNodesWithPendingCount = async (treeData: ServiceTree[]) => {
   // 展开所有收集到的节点
   if (expandNodeIds.size > 0) {
     const expandKeys = Array.from(expandNodeIds)
-    console.log(`[ServiceTreePanel] 展开 ${expandKeys.length} 个节点:`, expandKeys)
     
     // 使用 Element Plus Tree 的 setExpandedKeys 方法批量展开
     await nextTick()
@@ -1056,12 +1052,6 @@ const expandKeysNow = async (keys: number[]) => {
   const keysStr = JSON.stringify(keys.sort())
   const lastKeysStr = JSON.stringify(lastExpandedKeys.sort())
   if (isExpanding || keysStr === lastKeysStr) {
-    console.log('[ServiceTreePanel] 跳过重复展开:', {
-      isExpanding,
-      keysStr,
-      lastKeysStr,
-      isSame: keysStr === lastKeysStr
-    })
     return
   }
   
@@ -1070,7 +1060,6 @@ const expandKeysNow = async (keys: number[]) => {
   
   try {
     if (!treeRef.value) {
-      console.warn('[ServiceTreePanel] treeRef.value 未初始化，等待...')
       // 等待 treeRef 初始化
       await nextTick()
       await new Promise(resolve => setTimeout(resolve, 100))
@@ -1081,7 +1070,6 @@ const expandKeysNow = async (keys: number[]) => {
     }
     
     if (!groupedTreeData.value.length) {
-      console.warn('[ServiceTreePanel] groupedTreeData 为空，等待数据加载...')
       // 等待数据加载
       await nextTick()
       await new Promise(resolve => setTimeout(resolve, 100))
@@ -1091,13 +1079,6 @@ const expandKeysNow = async (keys: number[]) => {
       }
     }
     
-    console.log(`[ServiceTreePanel] 准备展开 ${keys.length} 个节点:`, keys)
-    console.log('[ServiceTreePanel] treeRef.value 状态:', {
-      exists: !!treeRef.value,
-      hasSetExpandedKeys: !!(treeRef.value && treeRef.value.setExpandedKeys),
-      dataLength: groupedTreeData.value.length
-    })
-    
     // 等待 DOM 渲染完成
     await nextTick()
     await new Promise(resolve => setTimeout(resolve, 200)) // 给树组件一些时间渲染
@@ -1105,12 +1086,9 @@ const expandKeysNow = async (keys: number[]) => {
     if (treeRef.value && treeRef.value.setExpandedKeys) {
       try {
         treeRef.value.setExpandedKeys(keys, false) // false 表示不触发 expand 事件
-        console.log(`[ServiceTreePanel] ✅ 已调用 setExpandedKeys，展开节点数:`, keys.length)
       } catch (error) {
         console.error('[ServiceTreePanel] setExpandedKeys 调用失败:', error)
         // 回退方案：使用 expandPathOnly 批量展开（不选中节点，避免节点切换）
-        console.warn('[ServiceTreePanel] 回退到 expandPathOnly 方式')
-        // ⭐ 批量展开所有路径，而不是逐个展开，减少节点切换
         const paths: number[][] = []
         for (const nodeId of keys) {
           const path = findPathToNode(groupedTreeData.value, nodeId)
@@ -1124,7 +1102,6 @@ const expandKeysNow = async (keys: number[]) => {
         }
       }
     } else {
-      console.warn('[ServiceTreePanel] treeRef.value.setExpandedKeys 不可用，尝试使用 expandPathOnly')
       // 回退方案：使用 expandPathOnly 批量展开（不选中节点，避免节点切换）
       const paths: number[][] = []
       for (const nodeId of keys) {
@@ -1150,15 +1127,8 @@ watch(() => props.expandedKeys, async (keys: number[] | undefined, oldKeys: numb
     const keysStr = JSON.stringify(keys.sort())
     const oldKeysStr = oldKeys ? JSON.stringify(oldKeys.sort()) : ''
     if (keysStr === oldKeysStr) {
-      console.log('[ServiceTreePanel] expandedKeys 未变化，跳过展开')
       return
     }
-    
-    console.log(`[ServiceTreePanel] expandedKeys 变化:`, {
-      oldKeys: oldKeys?.length || 0,
-      newKeys: keys.length,
-      keys: keys
-    })
     // 无论树数据是否已加载，都尝试展开（expandKeysNow 内部会等待）
     await expandKeysNow(keys)
   }
@@ -1171,7 +1141,6 @@ watch(() => groupedTreeData.value, async (newTreeData: ServiceTree[]) => {
     
     // ⭐ 优先使用后端返回的 expanded_keys（如果存在）
     if (props.expandedKeys && props.expandedKeys.length > 0) {
-      console.log(`[ServiceTreePanel] 服务树数据变化，使用后端返回的 expanded_keys，展开 ${props.expandedKeys.length} 个节点`)
       await expandKeysNow(props.expandedKeys)
     } else {
       // ⭐ 如果没有后端返回的 expanded_keys，使用前端计算的方式（兼容旧逻辑）
