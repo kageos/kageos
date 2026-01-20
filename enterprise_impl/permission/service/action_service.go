@@ -22,18 +22,9 @@ func NewActionService(actionRepo *permissionrepo.ActionRepository) *ActionServic
 	}
 }
 
-// InitDefaultActions 初始化默认权限点
+// InitDefaultActions 初始化默认权限点（支持增量添加）
+// ⭐ 改为增量添加模式：检查每个权限点是否存在，不存在则创建
 func (s *ActionService) InitDefaultActions(ctx context.Context) error {
-	// 检查是否已初始化
-	count, err := s.actionRepo.CountActions(ctx)
-	if err != nil {
-		return err
-	}
-	if count > 0 {
-		logger.Infof(ctx, "[ActionService] 预设权限点已存在，跳过初始化")
-		return nil
-	}
-
 	// ⭐ 预设权限点配置（格式：resource_type:action_type）
 	defaultActions := []struct {
 		code         string
@@ -67,10 +58,28 @@ func (s *ActionService) InitDefaultActions(ctx context.Context) error {
 		{code: "app:update", name: "工作空间更新", resourceType: permissionpkg.ResourceTypeApp, actionType: "update", description: "更新工作空间的权限"},
 		{code: "app:delete", name: "工作空间删除", resourceType: permissionpkg.ResourceTypeApp, actionType: "delete", description: "删除工作空间的权限"},
 		{code: "app:admin", name: "工作空间管理员", resourceType: permissionpkg.ResourceTypeApp, actionType: "admin", description: "工作空间管理员权限（拥有所有工作空间权限）"},
+		// Docs 权限点（文档）
+		{code: "docs:read", name: "文档查看", resourceType: permissionpkg.ResourceTypeDocs, actionType: "read", description: "查看文档的权限"},
+		{code: "docs:write", name: "文档编辑", resourceType: permissionpkg.ResourceTypeDocs, actionType: "write", description: "编辑文档的权限"},
+		{code: "docs:delete", name: "文档删除", resourceType: permissionpkg.ResourceTypeDocs, actionType: "delete", description: "删除文档的权限"},
+		{code: "docs:admin", name: "文档管理员", resourceType: permissionpkg.ResourceTypeDocs, actionType: "admin", description: "文档管理员权限（拥有所有文档权限）"},
 	}
 
-	// 创建预设权限点
+	// ⭐ 增量添加预设权限点（检查每个权限点是否存在）
+	createdCount := 0
+	skippedCount := 0
+	
 	for _, actionConfig := range defaultActions {
+		// 检查权限点是否已存在
+		existingAction, err := s.actionRepo.GetActionByCode(ctx, actionConfig.code)
+		if err == nil && existingAction != nil {
+			// 权限点已存在，跳过
+			skippedCount++
+			logger.Debugf(ctx, "[ActionService] 权限点已存在，跳过创建: code=%s", actionConfig.code)
+			continue
+		}
+		
+		// 权限点不存在，创建新权限点
 		action := &model.Action{
 			Code:         actionConfig.code,
 			Name:         actionConfig.name,
@@ -85,9 +94,11 @@ func (s *ActionService) InitDefaultActions(ctx context.Context) error {
 			return fmt.Errorf("创建预设权限点失败: code=%s, %w", actionConfig.code, err)
 		}
 
+		createdCount++
 		logger.Infof(ctx, "[ActionService] 创建预设权限点成功: code=%s, name=%s", action.Code, action.Name)
 	}
 
-	logger.Infof(ctx, "[ActionService] 预设权限点初始化完成，共 %d 个权限点", len(defaultActions))
+	logger.Infof(ctx, "[ActionService] 预设权限点初始化完成，共 %d 个权限点，创建 %d 个，跳过 %d 个", 
+		len(defaultActions), createdCount, skippedCount)
 	return nil
 }
