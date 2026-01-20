@@ -50,59 +50,23 @@ export class ServiceTreeLoaderImpl implements IServiceTreeLoader {
         let appInfo: App | null = null
         let expandedKeys: number[] | undefined = undefined
         
-        if (response && typeof response === 'object') {
-          // 如果是合并接口的响应格式
-          if ('service_tree' in response && Array.isArray(response.service_tree)) {
-            tree = response.service_tree
-            // 🔥 修复：提取应用信息（包括正确的 id）
-            if ('app' in response && response.app) {
-              appInfo = response.app as App
-            }
-            // ⭐ 提取 expanded_keys（如果后端返回了）
-            if ('expanded_keys' in response && Array.isArray(response.expanded_keys)) {
-              expandedKeys = response.expanded_keys
-            }
+        // 处理合并接口的响应格式：{ app: App, service_tree: ServiceTree[], expanded_keys?: number[] }
+        if (response && typeof response === 'object' && 'service_tree' in response && Array.isArray(response.service_tree)) {
+          tree = response.service_tree
+          // 提取应用信息（包括正确的 id）
+          if ('app' in response && response.app) {
+            appInfo = response.app as App
           }
-          // 兼容旧的单独接口格式（数组或分页对象）
-          else if (Array.isArray(response)) {
-          tree = response
-          } else if ('items' in response && Array.isArray(response.items)) {
-          tree = response.items || []
-          } else if ('data' in response && Array.isArray(response.data)) {
-            tree = response.data || []
+          // 提取 expanded_keys（如果后端返回了）
+          if ('expanded_keys' in response && Array.isArray(response.expanded_keys)) {
+            expandedKeys = response.expanded_keys
           }
         }
-        
-        // 🔥 修复：如果获取到了应用信息，需要更新应用状态
-        // 注意：这里不能直接更新状态，因为 ServiceTreeLoader 不应该依赖 Domain Service
-        // 所以我们将应用信息存储在返回的数据中，由调用方处理
-        // 但是，由于接口定义只返回 ServiceTree[]，我们需要通过其他方式传递应用信息
-        // 方案：在 loadServiceTree 中处理应用信息的更新
         
         return tree
       } catch (error) {
         Logger.error('ServiceTreeLoader', '加载服务目录树失败', error)
-        // 如果合并接口失败，回退到旧的单独接口
-        try {
-          const fallbackResponse = await this.apiClient.get<any>('/workspace/api/v1/service_tree', {
-            user: app.user,
-            app: app.code
-          })
-          
-          let tree: ServiceTree[] = []
-          if (Array.isArray(fallbackResponse)) {
-            tree = fallbackResponse
-          } else if (fallbackResponse && typeof fallbackResponse === 'object' && 'items' in fallbackResponse) {
-            tree = fallbackResponse.items || []
-          } else if (fallbackResponse && typeof fallbackResponse === 'object' && 'data' in fallbackResponse) {
-            tree = Array.isArray(fallbackResponse.data) ? fallbackResponse.data : []
-          }
-          
-          return tree
-        } catch (fallbackError) {
-          Logger.error('ServiceTreeLoader', '回退接口也失败', fallbackError)
         return []
-        }
       } finally {
         // 加载完成后，从 Map 中移除
         this.loadingPromises.delete(cacheKey)
