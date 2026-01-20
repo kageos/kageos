@@ -115,7 +115,7 @@ func (s *DocService) CreateDoc(ctx context.Context, treeID int64, title, content
 }
 
 // UpdateDoc 更新文档
-func (s *DocService) UpdateDoc(ctx context.Context, treeID int64, title, content, format string) (*model.Doc, error) {
+func (s *DocService) UpdateDoc(ctx context.Context, treeID int64, title, content, format, summary string) (*model.Doc, error) {
 	user := contextx.GetRequestUser(ctx)
 	if user == "" {
 		return nil, fmt.Errorf("请求用户信息不能为空")
@@ -152,6 +152,9 @@ func (s *DocService) UpdateDoc(ctx context.Context, treeID int64, title, content
 	}
 	if format != "" {
 		doc.Format = format
+	}
+	if summary != "" {
+		doc.Summary = summary
 	}
 	doc.UpdatedBy = user
 
