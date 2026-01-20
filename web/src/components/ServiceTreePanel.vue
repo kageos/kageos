@@ -160,6 +160,14 @@
                     <el-icon><Document /></el-icon>
                     粘贴
                   </el-dropdown-item>
+                  <!-- 仅对package类型显示重命名选项（需要 directory:write 权限） -->
+                  <el-dropdown-item 
+                    v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.write)"
+                    command="rename"
+                  >
+                    <el-icon><Edit /></el-icon>
+                    重命名
+                  </el-dropdown-item>
                   <!-- 复制链接（需要 directory:read 或 function:read 权限） -->
                   <el-dropdown-item 
                     v-if="hasPermission(data, data.type === 'package' ? DirectoryPermissions.read : 'function:read')"
@@ -264,14 +272,14 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Plus, MoreFilled, Link, CopyDocument, Document, Clock, Upload, Download, Delete, Key, User, DocumentChecked } from '@element-plus/icons-vue'
+import { Plus, MoreFilled, Link, CopyDocument, Document, Clock, Upload, Download, Delete, Key, User, DocumentChecked, Edit } from '@element-plus/icons-vue'
 import ChartIcon from './icons/ChartIcon.vue'
 import TableIcon from './icons/TableIcon.vue'
 import FormIcon from './icons/FormIcon.vue'
 import { ElTag, ElLink, ElMessageBox, ElMessage } from 'element-plus'
 import type { ServiceTree } from '@/types'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
-import { copyDirectory } from '@/api/service-tree'
+import { copyDirectory, updateServiceTree } from '@/api/service-tree'
 import {
   findPathToNode,
   expandParentNodes,
@@ -393,6 +401,53 @@ onMounted(() => {
   restoreCopiedDirectory()
   window.addEventListener('keydown', handleKeyDown)
 })
+
+// 重命名目录
+const handleRename = async (node: ServiceTree) => {
+  if (node.type !== 'package') {
+    ElMessage.warning('只能重命名目录（package类型）')
+    return
+  }
+  
+  try {
+    const { value: newName } = await ElMessageBox.prompt(
+      `请输入新的名称（当前：${node.name}）`,
+      '重命名目录',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        inputPattern: /^.+$/,
+        inputErrorMessage: '名称不能为空',
+        inputValue: node.name
+      }
+    )
+    
+    if (!newName || newName.trim() === '') {
+      ElMessage.warning('名称不能为空')
+      return
+    }
+    
+    const trimmedName = newName.trim()
+    
+    // 如果名称没有变化，直接返回
+    if (trimmedName === node.name) {
+      return
+    }
+    
+    try {
+      await updateServiceTree(node.id, { name: trimmedName })
+      ElMessage.success('重命名成功')
+      
+      // 刷新树
+      emit('refresh-tree')
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || error?.message || '重命名失败'
+      ElMessage.error(errorMessage)
+    }
+  } catch (error) {
+    // 用户取消了输入
+  }
+}
 
 // 复制目录
 const handleCopy = (node: ServiceTree) => {
@@ -739,6 +794,8 @@ const handleNodeAction = (command: string, data: ServiceTree) => {
     emit('create-directory', data)
   } else if (command === 'create-docs') {
     emit('create-docs', data)
+  } else if (command === 'rename') {
+    handleRename(data)
   } else if (command === 'copy') {
     handleCopy(data)
   } else if (command === 'paste') {
