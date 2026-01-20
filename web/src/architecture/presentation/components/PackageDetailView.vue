@@ -802,7 +802,7 @@ const adminsFieldValue = computed<FieldValue>(() => {
   }
 })
 
-// ⭐ 检查是否没有任何目录权限
+// ⭐ 检查是否没有任何权限（根据节点类型检查对应的权限）
 const hasNoDirectoryPermissions = computed(() => {
   if (!props.packageNode) {
     return false
@@ -816,16 +816,30 @@ const hasNoDirectoryPermissions = computed(() => {
     return false
   }
   
-  const directoryPermissions = [
-    'directory:read',
-    'directory:write',
-    'directory:update',
-    'directory:delete',
-    'directory:manage'
-  ]
+  // ⭐ 根据节点类型确定要检查的权限列表
+  let permissionsToCheck: string[]
+  if (props.packageNode.type === 'app') {
+    // app 类型检查 app:xxx 权限
+    permissionsToCheck = [
+      'app:read',
+      'app:write',
+      'app:update',
+      'app:delete',
+      'app:admin'
+    ]
+  } else {
+    // package 类型检查 directory:xxx 权限
+    permissionsToCheck = [
+      'directory:read',
+      'directory:write',
+      'directory:update',
+      'directory:delete',
+      'directory:manage'
+    ]
+  }
   
-  // 如果所有目录权限都是 false，则显示权限不足
-  const hasNoPerms = directoryPermissions.every(perm => {
+  // 如果所有权限都是 false，则显示权限不足
+  const hasNoPerms = permissionsToCheck.every(perm => {
     // 如果权限字段不存在，也视为 false
     return permissions![perm] === false || permissions![perm] === undefined
   })
@@ -840,8 +854,11 @@ function handleApplyPermission() {
     return
   }
   
-  // 跳转到权限申请页面，默认申请目录查看权限
-  const applyURL = buildPermissionApplyURL(props.packageNode.full_code_path, 'directory:read', undefined)
+  // ⭐ 根据节点类型确定申请的权限类型
+  const defaultAction = props.packageNode.type === 'app' ? 'app:read' : 'directory:read'
+  
+  // 跳转到权限申请页面
+  const applyURL = buildPermissionApplyURL(props.packageNode.full_code_path, defaultAction, undefined)
   router.push(applyURL)
 }
 

@@ -41,10 +41,10 @@
       >
         <template #default="{ node, data }">
           <span class="tree-node">
-            <!-- app 类型：工作空间图标 -->
+            <!-- app 类型：使用目录图标（与 package 保持一致） -->
             <img 
               v-if="data.type === 'app'" 
-              src="/工作空间.svg" 
+              src="/service-tree/custom-folder.svg" 
               alt="工作空间" 
               class="node-icon app-icon-img"
               :class="getNodeIconClass(data)"
