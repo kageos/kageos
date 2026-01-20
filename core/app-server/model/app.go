@@ -20,6 +20,9 @@ type App struct {
 	
 	// ⭐ 新增：应用类型（0:用户空间, 1:系统空间）
 	Type AppType `json:"type" gorm:"column:type;type:tinyint;default:0;index;comment:应用类型(0:用户空间,1:系统空间)"`
+	
+	// ⭐ app 级别的待审批权限申请数量
+	PendingCount int `json:"pending_count" gorm:"column:pending_count;default:0;comment:app级别待审批的权限申请数量"`
 }
 
 func (App) TableName() string {

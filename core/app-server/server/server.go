@@ -350,8 +350,9 @@ func (s *Server) initServices(ctx context.Context) error {
 	permissionRequestRepo := repository.NewPermissionRequestRepository(s.db)
 
 	// ⭐ 初始化权限管理服务（需要在 initEnterprise 之后，因为需要 enterprise.GetPermissionService()）
-	// ⭐ 完全移除 Casbin，使用新的权限系统（不再需要 appRepo，从 resourcePath 解析 user 和 app）
-	s.permissionService = service.NewPermissionService(enterprise.GetPermissionService(), serviceTreeRepo, permissionRequestRepo)
+	// ⭐ 完全移除 Casbin，使用新的权限系统
+	// ⭐ 添加 appRepo 用于更新 app 表的 pending_count（支持 app 级别的权限申请）
+	s.permissionService = service.NewPermissionService(enterprise.GetPermissionService(), serviceTreeRepo, permissionRequestRepo, appRepo)
 
 	// 初始化文档服务（需要在 ServiceTreeService 之前初始化，因为 ServiceTreeService 依赖它）
 	docRepo := repository.NewDocRepository(s.db)

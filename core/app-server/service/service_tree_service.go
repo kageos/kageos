@@ -479,10 +479,11 @@ func (s *ServiceTreeService) getServiceTreeByAppModel(ctx context.Context, appMo
 	// ⭐ 构造 app 根节点，将所有 service_tree 节点作为其子节点
 	appFullCodePath := fmt.Sprintf("/%s/%s", appModel.User, appModel.Code)
 	
-	// 计算 app 根节点的 pending_count（所有子节点的 pending_count 之和）
-	appPendingCount := 0
+	// 计算 app 根节点的 pending_count
+	// = app 表的 pending_count（app 级别的权限申请） + 所有子节点的 pending_count 之和
+	appPendingCount := appModel.PendingCount // ⭐ app 级别的待审批权限申请数量
 	for _, child := range childNodes {
-		appPendingCount += calculateTotalPendingCount(child)
+		appPendingCount += calculateTotalPendingCount(child) // 累加所有子节点的 pending_count
 	}
 	
 	// 获取 app 根节点的权限
