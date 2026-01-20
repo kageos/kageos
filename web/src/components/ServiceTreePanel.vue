@@ -1161,52 +1161,16 @@ watch(() => props.expandedKeys, async (keys: number[] | undefined, oldKeys: numb
   }
 })
 
-// 调试计数器
-let watchGroupedTreeDataCallCount = 0
-
-// 🔥 监听服务树数据变化，如果 currentNodeId 存在但还没展开，重新尝试
-watch(() => groupedTreeData.value, async (newTreeData: ServiceTree[], oldTreeData: ServiceTree[] | undefined) => {
-  watchGroupedTreeDataCallCount++
-  console.log(`[watch groupedTreeData] 触发次数: ${watchGroupedTreeDataCallCount}, newLength:`, newTreeData.length, 'oldLength:', oldTreeData?.length)
-  
-  if (newTreeData.length > 0 && treeRef.value) {
-    // ⭐ 防止重复处理：如果树数据没有实质性变化，跳过
-    // 比较数组长度和第一个元素的 id，避免不必要的处理
-    if (oldTreeData && oldTreeData.length > 0) {
-      const isSameTree = newTreeData.length === oldTreeData.length && 
-                         newTreeData[0]?.id === oldTreeData[0]?.id
-      if (isSameTree) {
-        console.log('[watch groupedTreeData] 树数据相同，跳过')
-        return
-      }
-    }
-    
-    await nextTick()
-    
-    // ⭐ 优先使用后端返回的 expanded_keys（如果存在）
-    if (props.expandedKeys && props.expandedKeys.length > 0) {
-      console.log('[watch groupedTreeData] 调用 expandKeysNow，expandedKeys:', props.expandedKeys)
-      await expandKeysNow(props.expandedKeys)
-    } else {
-      console.log('[watch groupedTreeData] 调用 expandNodesWithPendingCount')
-      // ⭐ 如果没有后端返回的 expanded_keys，使用前端计算的方式（兼容旧逻辑）
-      await expandNodesWithPendingCount(newTreeData)
-    }
-    
-    // 如果 currentNodeId 存在，展开并选中当前节点
-    if (props.currentNodeId) {
-      const path = findPathToNode(newTreeData, props.currentNodeId)
-      if (path.length > 0) {
-        await expandPathAndSelect(
-          treeRef.value,
-          newTreeData,
-          path,
-          Number(props.currentNodeId)
-        )
-      }
-    }
-  }
-})
+// ✅ 暂时禁用这个 watch，因为我们已经有 watch expandedKeys 了
+// 这个 watch 可能导致重复调用 expandKeysNow，引发无限循环
+// 
+// // 调试计数器
+// let watchGroupedTreeDataCallCount = 0
+// 
+// // 🔥 监听服务树数据变化，如果 currentNodeId 存在但还没展开，重新尝试
+// watch(() => groupedTreeData.value, async (newTreeData: ServiceTree[], oldTreeData: ServiceTree[] | undefined) => {
+//   // ... 代码省略 ...
+// })
 
 // 暴露方法给父组件
 defineExpose({
