@@ -21,7 +21,7 @@
         <div class="hero-info">
           <div class="hero-icon-wrapper">
             <img
-              src="/service-tree/app.svg"
+              src="/工作空间.svg"
               alt="工作空间"
               class="hero-icon-img"
             />
