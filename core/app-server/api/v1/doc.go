@@ -124,6 +124,7 @@ func (s *Doc) UpdateDoc(c *gin.Context) {
 		Title   string `json:"title"`
 		Content string `json:"content"`
 		Format  string `json:"format"`
+		Summary string `json:"summary"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.FailWithMessage(c, "参数错误: "+err.Error())
@@ -131,7 +132,7 @@ func (s *Doc) UpdateDoc(c *gin.Context) {
 	}
 
 	ctx := contextx.ToContext(c)
-	doc, err := s.docService.UpdateDoc(ctx, treeID, req.Title, req.Content, req.Format)
+	doc, err := s.docService.UpdateDoc(ctx, treeID, req.Title, req.Content, req.Format, req.Summary)
 	if err != nil {
 		logger.Errorf(c, "[Doc API] 更新文档失败: treeID=%d, error=%v", treeID, err)
 		response.FailWithMessage(c, "更新文档失败: "+err.Error())
