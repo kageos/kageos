@@ -1873,8 +1873,9 @@ onMounted(async () => {
   unsubscribeServiceTreeLoaded = eventBus.on(WorkspaceEvent.serviceTreeLoaded, (payload: { app: any, tree: any[], expandedKeys?: number[] }) => {
     // 状态已通过 StateManager 自动更新
     // ⭐ 更新 expandedKeys（如果后端返回了）
+    // 注意：使用展开运算符创建新数组，避免引用共享导致的响应式问题
     if (payload.expandedKeys && payload.expandedKeys.length > 0) {
-      expandedKeys.value = payload.expandedKeys
+      expandedKeys.value = [...payload.expandedKeys]
     } else {
       expandedKeys.value = []
     }
