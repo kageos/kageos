@@ -336,6 +336,7 @@
               <PermissionRequestList
                 ref="permissionRequestListRef"
                 :resource-path="packageNode?.full_code_path"
+                :resource-type="resourceType"
                 :auto-load="activeTab === 'permissionRequest'"
               />
             </div>
@@ -350,6 +351,7 @@
               <PermissionManageList
                 ref="permissionManageListRef"
                 :resource-path="packageNode?.full_code_path"
+                :resource-type="resourceType"
                 :user="getUserFromPath(packageNode?.full_code_path) || ''"
                 :app="getAppFromPath(packageNode?.full_code_path) || ''"
                 :auto-load="activeTab === 'permissionManage'"
@@ -618,14 +620,14 @@ const permissionRequestListRef = ref<InstanceType<typeof PermissionRequestList> 
 const permissionManageListRef = ref<InstanceType<typeof PermissionManageList> | null>(null)
 
 // ⭐ 判断是否显示权限申请 tab
-// 条件：1. 节点类型是 package  2. 用户是管理员
+// 条件：1. 节点类型是 package 或 app  2. 用户是管理员
 const showPermissionRequestTab = computed(() => {
   if (!props.packageNode) {
     return false
   }
   
-  // 必须是 package 类型
-  if (props.packageNode.type !== 'package') {
+  // 必须是 package 或 app 类型
+  if (props.packageNode.type !== 'package' && props.packageNode.type !== 'app') {
     return false
   }
   
@@ -636,6 +638,14 @@ const showPermissionRequestTab = computed(() => {
   
   const admins = props.packageNode.admins.split(',').map((a: string) => a.trim()).filter(Boolean)
   return admins.includes(authStore.user.username)
+})
+
+// ⭐ 计算资源类型（用于权限组件）
+const resourceType = computed<'app' | 'directory'>(() => {
+  if (props.packageNode?.type === 'app') {
+    return 'app'
+  }
+  return 'directory'  // package 类型对应 directory
 })
 
 // 从路径解析 user 和 app

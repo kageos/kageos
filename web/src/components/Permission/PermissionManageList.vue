@@ -145,6 +145,7 @@ import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 
 interface Props {
   resourcePath?: string  // 资源路径（可选，如果提供则使用该路径，否则从路由获取）
+  resourceType?: 'function' | 'directory' | 'app'  // 资源类型（可选）
   user?: string  // 租户用户（可选，如果提供则使用，否则从 resourcePath 解析）
   app?: string  // 应用代码（可选，如果提供则使用，否则从 resourcePath 解析）
   autoLoad?: boolean  // 是否自动加载
