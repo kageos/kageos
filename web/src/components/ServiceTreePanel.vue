@@ -1004,32 +1004,12 @@ const expandPaths = async (paths: string[]) => {
   }
 }
 
-// 监听 currentNodeId 变化，自动展开并选中节点
-watch(() => props.currentNodeId, async (nodeId) => {
-  if (nodeId && treeRef.value && groupedTreeData.value.length > 0) {
-    // 🔥 使用 nextTick 确保 DOM 已渲染
-    await nextTick()
-      // 查找路径（使用分组后的数据）
-      const path = findPathToNode(groupedTreeData.value, nodeId)
-      
-      if (path.length > 0) {
-      // 展开路径并选中节点
-      await expandPathAndSelect(
-        treeRef.value,
-        groupedTreeData.value,
-        path,
-        Number(nodeId)
-      )
-          
-          // 🔥 滚动到选中节点（可见）
-      await nextTick()
-            const selectedNode = treeRef.value.store.nodesMap[nodeId]
-            if (selectedNode) {
-              selectedNode.visible = true
-            }
-      }
-  }
-}, { immediate: true })
+// ✅ 暂时完全禁用这个 watch，彻底排查问题
+// 
+// // 监听 currentNodeId 变化，自动展开并选中节点
+// watch(() => props.currentNodeId, async (nodeId) => {
+//   // ... 代码省略 ...
+// }, { immediate: true })
 
 // ⭐ 防重复展开标志
 let isExpanding = false
@@ -1138,28 +1118,15 @@ const expandKeysNow = async (keys: number[]): Promise<void> => {
   await expandKeysPromise
 }
 
-// 调试计数器
-let watchExpandedKeysCallCount = 0
-
-// 🔥 监听 expandedKeys 变化，自动展开节点
-watch(() => props.expandedKeys, async (keys: number[] | undefined, oldKeys: number[] | undefined) => {
-  watchExpandedKeysCallCount++
-  console.log(`[watch expandedKeys] 触发次数: ${watchExpandedKeysCallCount}, keys:`, keys, 'oldKeys:', oldKeys)
-  
-  if (keys && keys.length > 0) {
-    // ⭐ 防重复：如果 keys 和 oldKeys 相同，跳过
-    // 注意：使用展开运算符创建副本再排序，避免修改原数组触发无限循环
-    const keysStr = JSON.stringify([...keys].sort())
-    const oldKeysStr = oldKeys ? JSON.stringify([...oldKeys].sort()) : ''
-    if (keysStr === oldKeysStr) {
-      console.log('[watch expandedKeys] keys 与 oldKeys 相同，跳过')
-      return
-    }
-    console.log('[watch expandedKeys] 调用 expandKeysNow')
-    // 无论树数据是否已加载，都尝试展开（expandKeysNow 内部会等待）
-    await expandKeysNow(keys)
-  }
-})
+// ✅ 暂时完全禁用这个 watch，彻底排查问题
+// 
+// // 调试计数器
+// let watchExpandedKeysCallCount = 0
+// 
+// // 🔥 监听 expandedKeys 变化，自动展开节点
+// watch(() => props.expandedKeys, async (keys: number[] | undefined, oldKeys: number[] | undefined) => {
+//   // ... 代码省略 ...
+// })
 
 // ✅ 暂时禁用这个 watch，因为我们已经有 watch expandedKeys 了
 // 这个 watch 可能导致重复调用 expandKeysNow，引发无限循环
