@@ -44,7 +44,7 @@
             <!-- app 类型：工作空间图标 -->
             <img 
               v-if="data.type === 'app'" 
-              src="/service-tree/app.svg" 
+              src="/工作空间.svg" 
               alt="工作空间" 
               class="node-icon app-icon-img"
               :class="getNodeIconClass(data)"
