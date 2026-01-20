@@ -1038,8 +1038,9 @@ const expandKeysNow = async (keys: number[]) => {
   }
   
   // ⭐ 防重复展开：如果正在展开或 keys 相同，跳过
-  const keysStr = JSON.stringify(keys.sort())
-  const lastKeysStr = JSON.stringify(lastExpandedKeys.sort())
+  // 注意：使用展开运算符创建副本再排序，避免修改原数组触发无限循环
+  const keysStr = JSON.stringify([...keys].sort())
+  const lastKeysStr = JSON.stringify([...lastExpandedKeys].sort())
   if (isExpanding || keysStr === lastKeysStr) {
     return
   }
