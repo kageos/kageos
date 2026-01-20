@@ -83,8 +83,11 @@ func (s *Doc) CreateDoc(c *gin.Context) {
 		return
 	}
 
+	// 从 URL 路径参数填充 TreeID 到 DTO
+	req.TreeID = treeID
+
 	ctx := contextx.ToContext(c)
-	doc, err := s.docService.CreateDoc(ctx, treeID, &req)
+	doc, err := s.docService.CreateDoc(ctx, &req)
 	if err != nil {
 		logger.Errorf(c, "[Doc API] 创建文档失败: treeID=%d, error=%v", treeID, err)
 		response.FailWithMessage(c, "创建文档失败: "+err.Error())
@@ -123,8 +126,11 @@ func (s *Doc) UpdateDoc(c *gin.Context) {
 		return
 	}
 
+	// 从 URL 路径参数填充 TreeID 到 DTO
+	req.TreeID = treeID
+
 	ctx := contextx.ToContext(c)
-	doc, err := s.docService.UpdateDoc(ctx, treeID, &req)
+	doc, err := s.docService.UpdateDoc(ctx, &req)
 	if err != nil {
 		logger.Errorf(c, "[Doc API] 更新文档失败: treeID=%d, error=%v", treeID, err)
 		response.FailWithMessage(c, "更新文档失败: "+err.Error())
@@ -228,8 +234,11 @@ func (s *Doc) UpdateDocByPath(c *gin.Context) {
 		return
 	}
 
+	// 从 URL 路径参数填充 FullCodePath 到 DTO
+	req.FullCodePath = fullCodePath
+
 	ctx := contextx.ToContext(c)
-	doc, err := s.docService.UpdateDocByPath(ctx, fullCodePath, &req)
+	doc, err := s.docService.UpdateDocByPath(ctx, &req)
 	if err != nil {
 		logger.Errorf(c, "[Doc API] 更新文档失败: fullCodePath=%s, error=%v", fullCodePath, err)
 		response.FailWithMessage(c, "更新文档失败: "+err.Error())

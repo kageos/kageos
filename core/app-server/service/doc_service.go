@@ -56,14 +56,14 @@ func (s *DocService) GetDoc(ctx context.Context, treeID int64) (*model.Doc, erro
 }
 
 // CreateDoc 创建文档
-func (s *DocService) CreateDoc(ctx context.Context, treeID int64, req *dto.CreateDocReq) (*model.Doc, error) {
+func (s *DocService) CreateDoc(ctx context.Context, req *dto.CreateDocReq) (*model.Doc, error) {
 	user := contextx.GetRequestUser(ctx)
 	if user == "" {
 		return nil, fmt.Errorf("请求用户信息不能为空")
 	}
 
 	// 1. 验证 ServiceTree 节点存在且为 docs 类型
-	tree, err := s.serviceTreeRepo.GetByID(treeID)
+	tree, err := s.serviceTreeRepo.GetByID(req.TreeID)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, fmt.Errorf("ServiceTree 节点不存在")
@@ -76,7 +76,7 @@ func (s *DocService) CreateDoc(ctx context.Context, treeID int64, req *dto.Creat
 	}
 
 	// 2. 检查文档是否已存在
-	existingDoc, err := s.docRepo.GetByTreeID(treeID)
+	existingDoc, err := s.docRepo.GetByTreeID(req.TreeID)
 	if err == nil && existingDoc != nil {
 		return nil, fmt.Errorf("文档已存在，请使用更新接口")
 	}
@@ -89,15 +89,15 @@ func (s *DocService) CreateDoc(ctx context.Context, treeID int64, req *dto.Creat
 
 	// 4. 创建文档
 	doc := &model.Doc{
-		Title:     req.Title,
-		Content:   req.Content,
-		Format:    format,
-		Summary:   req.Summary,
-		AppID:     tree.AppID,
-		TreeID:    treeID,
-		CreatedBy: user,
-		UpdatedBy: user,
+		Title:   req.Title,
+		Content: req.Content,
+		Format:  format,
+		Summary: req.Summary,
+		AppID:   tree.AppID,
+		TreeID:  req.TreeID,
 	}
+	doc.CreatedBy = user
+	doc.UpdatedBy = user
 
 	if err := s.docRepo.Create(doc); err != nil {
 		return nil, fmt.Errorf("创建文档失败: %w", err)
@@ -110,19 +110,29 @@ func (s *DocService) CreateDoc(ctx context.Context, treeID int64, req *dto.Creat
 		// 不返回错误，因为文档已创建成功
 	}
 
-	logger.Infof(ctx, "[DocService] 文档创建成功 - TreeID: %d, DocID: %d, Title: %s", treeID, doc.ID, req.Title)
+	logger.Infof(ctx, "[DocService] 文档创建成功 - TreeID: %d, DocID: %d, Title: %s", req.TreeID, doc.ID, req.Title)
 	return doc, nil
 }
 
-// UpdateDoc 更新文档
-func (s *DocService) UpdateDoc(ctx context.Context, treeID int64, req *dto.UpdateDocReq) (*model.Doc, error) {
+// UpdateDoc 更新文档（基于 TreeID）
+func (s *DocService) UpdateDoc(ctx context.Context, req *dto.UpdateDocReq) (*model.Doc, error) {
 	user := contextx.GetRequestUser(ctx)
 	if user == "" {
 		return nil, fmt.Errorf("请求用户信息不能为空")
 	}
 
+	// 如果提供了 FullCodePath，则使用基于路径的更新
+	if req.FullCodePath != "" {
+		return s.updateDocByPath(ctx, req)
+	}
+
+	// 否则使用基于 TreeID 的更新
+	if req.TreeID == 0 {
+		return nil, fmt.Errorf("TreeID 和 FullCodePath 必须提供其中一个")
+	}
+
 	// 1. 验证 ServiceTree 节点存在且为 docs 类型
-	tree, err := s.serviceTreeRepo.GetByID(treeID)
+	tree, err := s.serviceTreeRepo.GetByID(req.TreeID)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, fmt.Errorf("ServiceTree 节点不存在")
@@ -135,7 +145,7 @@ func (s *DocService) UpdateDoc(ctx context.Context, treeID int64, req *dto.Updat
 	}
 
 	// 2. 获取文档
-	doc, err := s.docRepo.GetByTreeID(treeID)
+	doc, err := s.docRepo.GetByTreeID(req.TreeID)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, fmt.Errorf("文档不存在")
@@ -162,8 +172,27 @@ func (s *DocService) UpdateDoc(ctx context.Context, treeID int64, req *dto.Updat
 		return nil, fmt.Errorf("更新文档失败: %w", err)
 	}
 
-	logger.Infof(ctx, "[DocService] 文档更新成功 - TreeID: %d, DocID: %d, Title: %s", treeID, doc.ID, doc.Title)
+	logger.Infof(ctx, "[DocService] 文档更新成功 - TreeID: %d, DocID: %d, Title: %s", req.TreeID, doc.ID, doc.Title)
 	return doc, nil
+}
+
+// updateDocByPath 基于路径更新文档（内部方法）
+func (s *DocService) updateDocByPath(ctx context.Context, req *dto.UpdateDocReq) (*model.Doc, error) {
+	// 1. 根据路径获取 ServiceTree 节点
+	tree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(req.FullCodePath)
+	if err != nil {
+		return nil, fmt.Errorf("获取服务树节点失败: %w", err)
+	}
+
+	// 2. 验证节点类型为 docs
+	if !tree.IsDocs() {
+		return nil, fmt.Errorf("节点类型错误，期望 docs，实际 %s", tree.Type)
+	}
+
+	// 3. 填充 TreeID 并调用基于 ID 的更新逻辑
+	req.TreeID = tree.ID
+	req.FullCodePath = "" // 清空路径，避免死循环
+	return s.UpdateDoc(ctx, req)
 }
 
 // DeleteDoc 删除文档
@@ -254,21 +283,10 @@ func (s *DocService) GetDocByPath(ctx context.Context, fullCodePath string) (*mo
 	return s.GetDoc(ctx, tree.ID)
 }
 
-// UpdateDocByPath 根据完整路径更新文档
-func (s *DocService) UpdateDocByPath(ctx context.Context, fullCodePath string, req *dto.UpdateDocReq) (*model.Doc, error) {
-	// 1. 根据路径获取 ServiceTree 节点
-	tree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(fullCodePath)
-	if err != nil {
-		return nil, fmt.Errorf("获取服务树节点失败: %w", err)
-	}
-
-	// 2. 验证节点类型为 docs
-	if !tree.IsDocs() {
-		return nil, fmt.Errorf("节点类型错误，期望 docs，实际 %s", tree.Type)
-	}
-
-	// 3. 更新文档内容
-	return s.UpdateDoc(ctx, tree.ID, req)
+// UpdateDocByPath 根据完整路径更新文档（兼容性方法）
+func (s *DocService) UpdateDocByPath(ctx context.Context, req *dto.UpdateDocReq) (*model.Doc, error) {
+	// 直接调用 UpdateDoc，逻辑已整合
+	return s.UpdateDoc(ctx, req)
 }
 
 // DeleteDocByPath 根据完整路径删除文档
