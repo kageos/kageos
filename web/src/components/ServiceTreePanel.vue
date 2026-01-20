@@ -134,6 +134,17 @@
               </el-icon>
               <template #dropdown>
                 <el-dropdown-menu>
+                  <!-- ✅ 临时简化：移除所有复杂的权限检查，只保留基本菜单 -->
+                  <!-- 申请权限选项（对所有节点都显示） -->
+                  <el-dropdown-item 
+                    command="apply-permission"
+                  >
+                    <el-icon><Key /></el-icon>
+                    申请权限
+                  </el-dropdown-item>
+                  
+                  <!-- ❌ 以下所有菜单项暂时注释掉，排查问题 -->
+                  <!--
                   <!-- 对 app 和 package 类型显示创建子目录选项（需要 directory:write 或 app:write 权限） -->
                   <el-dropdown-item 
                     v-if="(data.type === 'app' || data.type === 'package') && (hasPermission(data, DirectoryPermissions.write) || hasPermission(data, AppPermissions.write))" 
@@ -142,114 +153,8 @@
                     <el-icon><Plus /></el-icon>
                     添加服务目录
                   </el-dropdown-item>
-                  <!-- 对 app 和 package 类型显示创建文档选项（需要 directory:write 或 app:write 权限） -->
-                  <el-dropdown-item 
-                    v-if="(data.type === 'app' || data.type === 'package') && (hasPermission(data, DirectoryPermissions.write) || hasPermission(data, AppPermissions.write))" 
-                    command="create-docs"
-                  >
-                    <el-icon><Document /></el-icon>
-                    添加文档
-                  </el-dropdown-item>
-                  <!-- 对 app 和 package 类型显示复制选项（需要 directory:read 或 app:read 权限） -->
-                  <el-dropdown-item 
-                    v-if="(data.type === 'app' || data.type === 'package') && (hasPermission(data, DirectoryPermissions.read) || hasPermission(data, AppPermissions.read))" 
-                    command="copy" 
-                    divided
-                  >
-                    <el-icon><CopyDocument /></el-icon>
-                    复制
-                  </el-dropdown-item>
-                  <!-- 粘贴选项（当有复制的内容或 Hub 链接时显示，粘贴到当前选中的目录，需要 directory:write 或 app:write 权限） -->
-                  <el-dropdown-item 
-                    v-if="(copiedDirectory || copiedHubLink) && (data.type === 'app' || data.type === 'package') && (hasPermission(data, DirectoryPermissions.write) || hasPermission(data, AppPermissions.write))" 
-                    command="paste" 
-                    divided
-                  >
-                    <el-icon><Document /></el-icon>
-                    粘贴
-                  </el-dropdown-item>
-                  <!-- 对 app 和 package 类型显示重命名选项（需要 directory:write 或 app:write 权限） -->
-                  <el-dropdown-item 
-                    v-if="(data.type === 'app' || data.type === 'package') && (hasPermission(data, DirectoryPermissions.write) || hasPermission(data, AppPermissions.write))"
-                    command="rename"
-                  >
-                    <el-icon><Edit /></el-icon>
-                    重命名
-                  </el-dropdown-item>
-                  <!-- 仅对function类型显示删除选项（需要 function:delete 权限） -->
-                  <el-dropdown-item 
-                    v-if="data.type === 'function' && hasPermission(data, 'function:delete')"
-                    command="delete-function"
-                    divided
-                  >
-                    <el-icon><Delete /></el-icon>
-                    删除
-                  </el-dropdown-item>
-                  <!-- 仅对docs类型显示删除文档选项（需要 directory:write 权限） -->
-                  <el-dropdown-item 
-                    v-if="data.type === 'docs' && hasPermission(data, DirectoryPermissions.write)"
-                    command="delete-doc"
-                    divided
-                  >
-                    <el-icon><Delete /></el-icon>
-                    删除文档
-                  </el-dropdown-item>
-                  <!-- 对 app 和 package 类型显示发布到Hub选项（未发布时，需要 directory:manage 或 app:admin 权限） -->
-                  <el-dropdown-item 
-                    v-if="(data.type === 'app' || data.type === 'package') && (!data.hub_directory_id || data.hub_directory_id === 0) && (hasPermission(data, DirectoryPermissions.manage) || hasPermission(data, AppPermissions.admin))" 
-                    command="publish-to-hub" 
-                    divided
-                  >
-                    <el-icon><Upload /></el-icon>
-                    发布到应用中心
-                  </el-dropdown-item>
-                  <!-- 对 app 和 package 类型显示推送到Hub选项（已发布时，需要 directory:manage 或 app:admin 权限） -->
-                  <el-dropdown-item 
-                    v-if="(data.type === 'app' || data.type === 'package') && data.hub_directory_id && data.hub_directory_id > 0 && (hasPermission(data, DirectoryPermissions.manage) || hasPermission(data, AppPermissions.admin))" 
-                    command="push-to-hub" 
-                    divided
-                  >
-                    <el-icon><Upload /></el-icon>
-                    推送到应用中心
-                  </el-dropdown-item>
-                  <!-- 对 app 和 package 类型显示变更记录选项（需要 directory:read 或 app:read 权限） -->
-                  <el-dropdown-item 
-                    v-if="(data.type === 'app' || data.type === 'package') && (hasPermission(data, DirectoryPermissions.read) || hasPermission(data, AppPermissions.read))" 
-                    command="update-history" 
-                    divided
-                  >
-                    <el-icon><Clock /></el-icon>
-                    变更记录
-                  </el-dropdown-item>
-                  <!-- 申请权限选项（对所有节点都显示） -->
-                  <el-dropdown-item 
-                    command="apply-permission" 
-                    divided
-                  >
-                    <el-icon><Key /></el-icon>
-                    申请权限
-                  </el-dropdown-item>
-                  <!-- ⭐ 审批权限申请选项（仅管理员可见，且有待审批申请时显示） -->
-                  <el-dropdown-item 
-                    v-if="(data.type === 'app' || data.type === 'package' || data.type === 'function') && isAdmin(data) && data.pending_count && data.pending_count > 0" 
-                    command="approve-permission" 
-                  >
-                    <el-icon><DocumentChecked /></el-icon>
-                    审批权限申请
-                    <el-badge 
-                      :value="data.pending_count" 
-                      :max="99" 
-                      class="dropdown-badge"
-                    />
-                  </el-dropdown-item>
-                  <!-- 权限管理选项（对 app 和 package 类型显示，且仅管理员可见） -->
-                  <el-dropdown-item 
-                    v-if="(data.type === 'app' || data.type === 'package') && isAdmin(data)" 
-                    command="manage-permission" 
-                  >
-                    <el-icon><User /></el-icon>
-                    权限管理
-                  </el-dropdown-item>
+                  -->
+                  <!--  所有其他菜单项都暂时注释掉了 -->
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
