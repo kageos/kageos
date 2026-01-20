@@ -108,7 +108,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Edit, Check, Plus, Delete } from '@element-plus/icons-vue'
 import { marked } from 'marked'
@@ -297,19 +297,14 @@ const handleDelete = async () => {
 }
 
 // 监听节点变化
+// 监听节点 ID 变化，自动加载文档
+// immediate: true 会在组件挂载时立即执行一次，无需在 onMounted 中重复调用
 watch(() => props.node?.id, () => {
   if (props.node?.id) {
     loadDoc()
     isEditing.value = false
   }
 }, { immediate: true })
-
-// 组件挂载时加载文档
-onMounted(() => {
-  if (props.node?.id) {
-    loadDoc()
-  }
-})
 </script>
 
 <style scoped lang="scss">
