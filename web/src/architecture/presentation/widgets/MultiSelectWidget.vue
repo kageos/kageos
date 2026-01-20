@@ -861,6 +861,17 @@ watch(
   },
   { immediate: true }
 )
+
+// 🔥 组件卸载时取消注册初始化器
+onUnmounted(() => {
+  if (hasRemoteSearch.value) {
+    widgetInitializerRegistry.unregister('multiselect')
+    Logger.debug('[MultiSelectWidget]', 'onUnmounted - 取消注册初始化器', {
+      fieldCode: props.field.code,
+      widgetType: 'multiselect'
+    })
+  }
+})
 </script>
 
 <style scoped>
