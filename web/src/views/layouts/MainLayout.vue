@@ -6,7 +6,6 @@ import { InfoFilled } from '@element-plus/icons-vue'
 import { extractWorkspacePath } from '@/utils/route'
 import { Logger } from '@/core/utils/logger'
 import { getAppList, createApp, updateApp, deleteApp, getAppDetailByUserAndCode, getAppWithServiceTree } from '@/api'
-import { getServiceTree } from '@/api/service-tree'
 import type { App, CreateAppRequest } from '@/types'
 import AppSwitcher from '@/components/AppSwitcher.vue'
 import UserSearchInput from '@/components/UserSearchInput.vue'
@@ -188,24 +187,11 @@ const loadServiceTree = async (app: App) => {
       
       // 发送服务目录树更新事件到Workspace页面
       window.dispatchEvent(new CustomEvent('service-tree-updated', { detail: { tree: serviceTree.value } }))
-    } else {
-      // 如果合并接口返回数据不完整，回退到单独加载服务目录树
-    const tree = await getServiceTree(app.user, app.code)
-    serviceTree.value = tree || []
-    window.dispatchEvent(new CustomEvent('service-tree-updated', { detail: { tree: serviceTree.value } }))
     }
   } catch (error) {
     console.error('[MainLayout] 获取工作空间数据失败:', error)
-    // 如果合并接口失败，回退到单独加载服务目录树
-    try {
-      const tree = await getServiceTree(app.user, app.code)
-      serviceTree.value = tree || []
-      window.dispatchEvent(new CustomEvent('service-tree-updated', { detail: { tree: serviceTree.value } }))
-    } catch (fallbackError) {
-      console.error('[MainLayout] 获取服务目录树失败:', fallbackError)
     ElMessage.error('获取服务目录树失败')
     serviceTree.value = []
-    }
   } finally {
     loadingTree.value = false
   }
