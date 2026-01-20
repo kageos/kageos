@@ -1858,11 +1858,6 @@ onMounted(async () => {
     () => null  // 🔥 Tab 功能已删除
   )
   
-  // 🔥 开发环境下启用调试日志
-  if (import.meta.env.DEV) {
-    routeManager.setDebugLog(true)
-  }
-  
   // 监听函数加载完成事件
   // 🔥 监听函数加载完成事件，更新 currentFunctionDetail
   unsubscribeFunctionLoaded = eventBus.on(WorkspaceEvent.functionLoaded, (payload: { node: any, detail: FunctionDetail }) => {

@@ -49,8 +49,6 @@ export const useThemeStore = defineStore('theme', () => {
     
     // 保存到 localStorage
     localStorage.setItem(THEME_STORAGE_KEY, theme.name)
-    
-    console.log('[ThemeStore] 应用主题:', theme)
   }
   
   /**
