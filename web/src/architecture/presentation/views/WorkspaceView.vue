@@ -150,6 +150,15 @@
         <!-- 🔥 Detail 模式：显示详情抽屉（通过 URL 参数打开） -->
         <!-- 注意：detail 模式使用抽屉显示，不需要单独的页面 -->
         
+        <!-- 🔥 工作空间详情页面 -->
+        <WorkspaceDetailView
+          v-if="currentFunction && currentFunction.type === 'app'"
+          :user="route.params.user as string"
+          :app="route.params.app as string"
+          @back="handleBackFromWorkspaceDetail"
+          @edit="handleEditWorkspace"
+        />
+        
         <!-- 🔥 文档详情页面 -->
         <DocView
           v-else-if="currentFunction && currentFunction.type === 'docs'"
@@ -663,6 +672,7 @@ import PermissionDeniedView from '../components/PermissionDeniedView.vue'
 import AIChatPanel from '../components/AIChatPanel.vue'
 import AgentSelectDialog from '@/components/Agent/AgentSelectDialog.vue'
 import PackageDetailView from '../components/PackageDetailView.vue'
+import WorkspaceDetailView from '../components/WorkspaceDetailView.vue'
 import DocView from '../components/DocView.vue'
 import FunctionInfoPanel from '../components/FunctionInfoPanel.vue'
 import UserSearchInput from '@/components/UserSearchInput.vue'
@@ -1527,6 +1537,19 @@ const handleDocDeleted = async () => {
       router.push(targetPath)
     }
   }
+}
+
+// 从工作空间详情返回
+const handleBackFromWorkspaceDetail = () => {
+  // 清空当前选中的节点
+  currentFunction.value = null
+  // 可以选择跳转到某个默认页面，或者什么都不做
+}
+
+// 编辑工作空间
+const handleEditWorkspace = () => {
+  // TODO: 打开编辑工作空间对话框
+  ElMessage.info('编辑工作空间功能开发中...')
 }
 
 // 处理 Fork 函数组
