@@ -1258,6 +1258,7 @@ defineExpose({
   gap: 8px;
   flex: 1;
   width: 100%;
+  min-width: 0; // ⭐ 允许 flexbox 子元素正确收缩
   
   .node-icon {
     width: 16px;
@@ -1338,6 +1339,7 @@ defineExpose({
     font-size: 14px;
     color: var(--el-text-color-primary);
     flex: 1;
+    min-width: 0; // ⭐ 允许文本正确收缩并显示省略号
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1390,6 +1392,13 @@ defineExpose({
       margin-left: 2px;
       font-weight: 500;
     }
+  }
+  
+  // ⭐ 待审批数量 badge - 防止被挤压
+  .pending-count-badge {
+    flex-shrink: 0;
+    margin-left: 6px;
+    cursor: pointer;
   }
   
   .node-more-actions {
