@@ -202,8 +202,9 @@ export function hasPermission(node: ServiceTree | undefined, action: string): bo
   // 直接使用节点上的权限信息（后端返回的最新数据，已包含继承）
   const permissions = node.permissions
 
-  // 如果没有权限信息，拒绝访问
-  if (!permissions) {
+  // 🔥 修复：如果没有权限信息或权限为空对象，拒绝访问
+  // 避免空 map 导致的无限循环问题
+  if (!permissions || Object.keys(permissions).length === 0) {
     return false
   }
 

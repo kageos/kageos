@@ -811,8 +811,9 @@ const hasNoDirectoryPermissions = computed(() => {
   // 直接使用节点上的权限信息（后端返回的最新数据，已包含继承）
   const permissions = props.packageNode.permissions
   
-  // 如果没有权限信息，返回 false（不显示权限不足）
-  if (!permissions) {
+  // 🔥 修复：如果没有权限信息或权限为空对象，返回 false（不显示权限不足）
+  // 避免空 map 导致的无限循环问题
+  if (!permissions || Object.keys(permissions).length === 0) {
     return false
   }
   
@@ -841,7 +842,7 @@ const hasNoDirectoryPermissions = computed(() => {
   // 如果所有权限都是 false，则显示权限不足
   const hasNoPerms = permissionsToCheck.every(perm => {
     // 如果权限字段不存在，也视为 false
-    return permissions![perm] === false || permissions![perm] === undefined
+    return permissions[perm] === false || permissions[perm] === undefined
   })
   
   return hasNoPerms

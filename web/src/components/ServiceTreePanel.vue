@@ -134,7 +134,6 @@
               </el-icon>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <!-- ✅ 临时简化：移除所有复杂的权限检查，只保留基本菜单 -->
                   <!-- 申请权限选项（对所有节点都显示） -->
                   <el-dropdown-item 
                     command="apply-permission"
@@ -143,18 +142,93 @@
                     申请权限
                   </el-dropdown-item>
                   
-                  <!-- ❌ 以下所有菜单项暂时注释掉，排查问题 -->
-                  <!--
                   <!-- 对 app 和 package 类型显示创建子目录选项（需要 directory:write 或 app:write 权限） -->
                   <el-dropdown-item 
-                    v-if="(data.type === 'app' || data.type === 'package') && (hasPermission(data, DirectoryPermissions.write) || hasPermission(data, AppPermissions.write))" 
+                    v-if="(data.type === 'app' || data.type === 'package') && (hasPermission(data, DirectoryPermissions.write) || hasPermission(data, AppPermissions.WRITE))" 
                     command="create-directory"
                   >
                     <el-icon><Plus /></el-icon>
                     添加服务目录
                   </el-dropdown-item>
-                  -->
-                  <!--  所有其他菜单项都暂时注释掉了 -->
+                  
+                  <!-- 创建文档选项（需要 directory:write 权限） -->
+                  <el-dropdown-item 
+                    v-if="(data.type === 'app' || data.type === 'package') && hasPermission(data, DirectoryPermissions.write)" 
+                    command="create-docs"
+                  >
+                    <el-icon><Document /></el-icon>
+                    创建文档
+                  </el-dropdown-item>
+                  
+                  <!-- 重命名选项（仅对 package 类型） -->
+                  <el-dropdown-item 
+                    v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.update)" 
+                    command="rename"
+                  >
+                    <el-icon><Edit /></el-icon>
+                    重命名
+                  </el-dropdown-item>
+                  
+                  <!-- 复制选项（仅对 package 类型） -->
+                  <el-dropdown-item 
+                    v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.read)" 
+                    command="copy"
+                  >
+                    <el-icon><CopyDocument /></el-icon>
+                    复制
+                  </el-dropdown-item>
+                  
+                  <!-- 粘贴选项（需要目标目录有 write 权限，且有已复制的内容） -->
+                  <el-dropdown-item 
+                    v-if="(data.type === 'app' || data.type === 'package') && (copiedDirectory || copiedHubLink) && hasPermission(data, DirectoryPermissions.write)" 
+                    command="paste"
+                  >
+                    <el-icon><DocumentChecked /></el-icon>
+                    粘贴
+                  </el-dropdown-item>
+                  
+                  <!-- 删除函数选项（仅对 function 类型） -->
+                  <el-dropdown-item 
+                    v-if="data.type === 'function' && hasPermission(data, TablePermissions.delete)" 
+                    command="delete-function"
+                  >
+                    <el-icon><Delete /></el-icon>
+                    删除函数
+                  </el-dropdown-item>
+                  
+                  <!-- 删除文档选项（仅对 docs 类型） -->
+                  <el-dropdown-item 
+                    v-if="data.type === 'docs' && hasPermission(data, DirectoryPermissions.delete)" 
+                    command="delete-doc"
+                  >
+                    <el-icon><Delete /></el-icon>
+                    删除文档
+                  </el-dropdown-item>
+                  
+                  <!-- Hub 相关操作 -->
+                  <el-dropdown-item 
+                    v-if="data.type === 'package' && !data.hub_directory_id && hasPermission(data, DirectoryPermissions.read)" 
+                    command="publish-to-hub"
+                  >
+                    <el-icon><Upload /></el-icon>
+                    发布到 Hub
+                  </el-dropdown-item>
+                  
+                  <el-dropdown-item 
+                    v-if="data.type === 'package' && data.hub_directory_id && hasPermission(data, DirectoryPermissions.write)" 
+                    command="push-to-hub"
+                  >
+                    <el-icon><Upload /></el-icon>
+                    推送到 Hub
+                  </el-dropdown-item>
+                  
+                  <!-- 变更记录 -->
+                  <el-dropdown-item 
+                    command="update-history"
+                  >
+                    <el-icon><Clock /></el-icon>
+                    变更记录
+                  </el-dropdown-item>
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
@@ -1023,26 +1097,29 @@ const expandKeysNow = async (keys: number[]): Promise<void> => {
   await expandKeysPromise
 }
 
-// ✅ 暂时完全禁用这个 watch，彻底排查问题
-// 
-// // 调试计数器
-// let watchExpandedKeysCallCount = 0
-// 
-// // 🔥 监听 expandedKeys 变化，自动展开节点
-// watch(() => props.expandedKeys, async (keys: number[] | undefined, oldKeys: number[] | undefined) => {
-//   // ... 代码省略 ...
-// })
-
-// ✅ 暂时禁用这个 watch，因为我们已经有 watch expandedKeys 了
-// 这个 watch 可能导致重复调用 expandKeysNow，引发无限循环
-// 
-// // 调试计数器
-// let watchGroupedTreeDataCallCount = 0
-// 
-// // 🔥 监听服务树数据变化，如果 currentNodeId 存在但还没展开，重新尝试
-// watch(() => groupedTreeData.value, async (newTreeData: ServiceTree[], oldTreeData: ServiceTree[] | undefined) => {
-//   // ... 代码省略 ...
-// })
+// 🔥 监听 expandedKeys 变化，自动展开节点
+watch(() => props.expandedKeys, async (keys: number[] | undefined, oldKeys: number[] | undefined) => {
+  // 如果没有 keys 或者 keys 为空，跳过
+  if (!keys || keys.length === 0) {
+    return
+  }
+  
+  // 如果 keys 和 oldKeys 相同，跳过（避免重复展开）
+  if (oldKeys && keys.length === oldKeys.length && keys.every((k, i) => k === oldKeys[i])) {
+    return
+  }
+  
+  console.log('[ServiceTreePanel] expandedKeys 变化，准备展开节点:', keys)
+  
+  // 等待树完全渲染
+  await nextTick()
+  
+  // 使用 setExpandedKeys 方法批量展开节点
+  if (treeRef.value && treeRef.value.setExpandedKeys) {
+    console.log('[ServiceTreePanel] 调用 setExpandedKeys 展开节点:', keys)
+    treeRef.value.setExpandedKeys(keys, false) // false 表示不触发 expand 事件
+  }
+}, { immediate: true })
 
 // 暴露方法给父组件
 defineExpose({
