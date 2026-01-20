@@ -1030,9 +1030,10 @@ watch(() => props.currentNodeId, async (nodeId) => {
 // ⭐ 防重复展开标志
 let isExpanding = false
 let lastExpandedKeys: number[] = []
+let expandKeysPromise: Promise<void> | null = null
 
-// ⭐ 展开节点的辅助函数
-const expandKeysNow = async (keys: number[]) => {
+// ⭐ 展开节点的辅助函数（带重入保护）
+const expandKeysNow = async (keys: number[]): Promise<void> => {
   if (keys.length === 0) {
     return
   }
@@ -1041,43 +1042,65 @@ const expandKeysNow = async (keys: number[]) => {
   // 注意：使用展开运算符创建副本再排序，避免修改原数组触发无限循环
   const keysStr = JSON.stringify([...keys].sort())
   const lastKeysStr = JSON.stringify([...lastExpandedKeys].sort())
-  if (isExpanding || keysStr === lastKeysStr) {
+  if (keysStr === lastKeysStr) {
     return
   }
   
-  isExpanding = true
-  lastExpandedKeys = [...keys]
+  // ⭐ 重入保护：如果已经有正在执行的展开操作，等待它完成
+  if (expandKeysPromise) {
+    await expandKeysPromise
+    return
+  }
   
-  try {
-    if (!treeRef.value) {
-      // 等待 treeRef 初始化
-      await nextTick()
-      await new Promise(resolve => setTimeout(resolve, 100))
+  // ⭐ 创建新的 Promise 用于重入保护
+  expandKeysPromise = (async () => {
+    isExpanding = true
+    lastExpandedKeys = [...keys]
+    
+    try {
       if (!treeRef.value) {
-        console.error('[ServiceTreePanel] treeRef.value 仍未初始化，无法展开节点')
-        return
+        // 等待 treeRef 初始化
+        await nextTick()
+        await new Promise(resolve => setTimeout(resolve, 100))
+        if (!treeRef.value) {
+          console.error('[ServiceTreePanel] treeRef.value 仍未初始化，无法展开节点')
+          return
+        }
       }
-    }
-    
-    if (!groupedTreeData.value.length) {
-      // 等待数据加载
-      await nextTick()
-      await new Promise(resolve => setTimeout(resolve, 100))
+      
       if (!groupedTreeData.value.length) {
-        console.error('[ServiceTreePanel] groupedTreeData 仍为空，无法展开节点')
-        return
+        // 等待数据加载
+        await nextTick()
+        await new Promise(resolve => setTimeout(resolve, 100))
+        if (!groupedTreeData.value.length) {
+          console.error('[ServiceTreePanel] groupedTreeData 仍为空，无法展开节点')
+          return
+        }
       }
-    }
-    
-    // 等待 DOM 渲染完成
-    await nextTick()
-    await new Promise(resolve => setTimeout(resolve, 200)) // 给树组件一些时间渲染
-    
-    if (treeRef.value && treeRef.value.setExpandedKeys) {
-      try {
-        treeRef.value.setExpandedKeys(keys, false) // false 表示不触发 expand 事件
-      } catch (error) {
-        console.error('[ServiceTreePanel] setExpandedKeys 调用失败:', error)
+      
+      // 等待 DOM 渲染完成
+      await nextTick()
+      await new Promise(resolve => setTimeout(resolve, 200)) // 给树组件一些时间渲染
+      
+      if (treeRef.value && treeRef.value.setExpandedKeys) {
+        try {
+          treeRef.value.setExpandedKeys(keys, false) // false 表示不触发 expand 事件
+        } catch (error) {
+          console.error('[ServiceTreePanel] setExpandedKeys 调用失败:', error)
+          // 回退方案：使用 expandPathOnly 批量展开（不选中节点，避免节点切换）
+          const paths: number[][] = []
+          for (const nodeId of keys) {
+            const path = findPathToNode(groupedTreeData.value, nodeId)
+            if (path.length > 0) {
+              paths.push(path)
+            }
+          }
+          // 一次性展开所有路径（不选中节点）
+          for (const path of paths) {
+            await expandPathOnly(treeRef.value, path)
+          }
+        }
+      } else {
         // 回退方案：使用 expandPathOnly 批量展开（不选中节点，避免节点切换）
         const paths: number[][] = []
         for (const nodeId of keys) {
@@ -1091,30 +1114,20 @@ const expandKeysNow = async (keys: number[]) => {
           await expandPathOnly(treeRef.value, path)
         }
       }
-    } else {
-      // 回退方案：使用 expandPathOnly 批量展开（不选中节点，避免节点切换）
-      const paths: number[][] = []
-      for (const nodeId of keys) {
-        const path = findPathToNode(groupedTreeData.value, nodeId)
-        if (path.length > 0) {
-          paths.push(path)
-        }
-      }
-      // 一次性展开所有路径（不选中节点）
-      for (const path of paths) {
-        await expandPathOnly(treeRef.value, path)
-      }
+    } finally {
+      isExpanding = false
+      expandKeysPromise = null
     }
-  } finally {
-    isExpanding = false
-  }
+  })()
+  
+  await expandKeysPromise
 }
 
 // 🔥 监听 expandedKeys 变化，自动展开节点
 watch(() => props.expandedKeys, async (keys: number[] | undefined, oldKeys: number[] | undefined) => {
   if (keys && keys.length > 0) {
     // ⭐ 防重复：如果 keys 和 oldKeys 相同，跳过
-    // 注意：使用 slice() 创建副本再排序，避免修改原数组触发无限循环
+    // 注意：使用展开运算符创建副本再排序，避免修改原数组触发无限循环
     const keysStr = JSON.stringify([...keys].sort())
     const oldKeysStr = oldKeys ? JSON.stringify([...oldKeys].sort()) : ''
     if (keysStr === oldKeysStr) {
@@ -1123,11 +1136,21 @@ watch(() => props.expandedKeys, async (keys: number[] | undefined, oldKeys: numb
     // 无论树数据是否已加载，都尝试展开（expandKeysNow 内部会等待）
     await expandKeysNow(keys)
   }
-}, { immediate: true })
+})
 
 // 🔥 监听服务树数据变化，如果 currentNodeId 存在但还没展开，重新尝试
-watch(() => groupedTreeData.value, async (newTreeData: ServiceTree[]) => {
+watch(() => groupedTreeData.value, async (newTreeData: ServiceTree[], oldTreeData: ServiceTree[] | undefined) => {
   if (newTreeData.length > 0 && treeRef.value) {
+    // ⭐ 防止重复处理：如果树数据没有实质性变化，跳过
+    // 比较数组长度和第一个元素的 id，避免不必要的处理
+    if (oldTreeData && oldTreeData.length > 0) {
+      const isSameTree = newTreeData.length === oldTreeData.length && 
+                         newTreeData[0]?.id === oldTreeData[0]?.id
+      if (isSameTree) {
+        return
+      }
+    }
+    
     await nextTick()
     
     // ⭐ 优先使用后端返回的 expanded_keys（如果存在）
