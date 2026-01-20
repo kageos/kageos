@@ -26,9 +26,5 @@ export function registerWidgetInitializers(): void {
   
   // 注册 TableWidget 初始化器（处理嵌套结构）
   widgetInitializerRegistry.register('table', new TableWidgetInitializer())
-  
-  Logger.debug('[registerWidgetInitializers]', '所有 Widget 初始化器已注册', {
-    registeredTypes: ['select', 'multiselect', 'form', 'table']
-  })
 }
 
