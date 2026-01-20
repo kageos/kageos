@@ -379,8 +379,8 @@ onMounted(() => {
 
 /* 顶部横幅区域 */
 .hero-section {
-  background: linear-gradient(135deg, var(--el-color-primary-light-9) 0%, var(--el-color-primary-light-8) 100%);
-  border-bottom: 1px solid var(--el-border-color-light);
+  background: var(--el-bg-color-page);
+  border-bottom: 1px solid var(--el-border-color);
   padding: 32px;
   flex-shrink: 0;
 }
@@ -395,11 +395,11 @@ onMounted(() => {
 
 .back-button {
   flex-shrink: 0;
-  background-color: white;
+  background-color: var(--el-fill-color-light);
   border: 1px solid var(--el-border-color);
   
   &:hover {
-    background-color: var(--el-color-primary-light-9);
+    background-color: var(--el-fill-color);
     border-color: var(--el-color-primary);
     color: var(--el-color-primary);
   }
@@ -419,9 +419,9 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: white;
+  background: var(--el-fill-color-light);
   border-radius: 16px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border: 1px solid var(--el-border-color-lighter);
 }
 
 .hero-icon-img {
@@ -460,10 +460,11 @@ onMounted(() => {
 
 .path-text {
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-  background-color: rgba(0, 0, 0, 0.05);
+  background-color: var(--el-fill-color);
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 13px;
+  color: var(--el-text-color-primary);
 }
 
 .path-copy-btn,
@@ -499,10 +500,10 @@ onMounted(() => {
 
 /* 基本信息 */
 .info-section {
-  background: white;
+  background: var(--el-bg-color);
   border-radius: 8px;
   padding: 24px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--el-border-color-lighter);
 }
 
 .admin-tag,
@@ -525,6 +526,17 @@ onMounted(() => {
 
 .apply-form-card {
   border-radius: 8px;
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-lighter);
+  
+  :deep(.el-card__header) {
+    background: var(--el-fill-color-light);
+    border-bottom: 1px solid var(--el-border-color-lighter);
+  }
+  
+  :deep(.el-card__body) {
+    background: var(--el-bg-color);
+  }
   
   .card-header {
     display: flex;
@@ -555,9 +567,9 @@ onMounted(() => {
 
 /* 权限管理 */
 .manage-section {
-  background: white;
+  background: var(--el-bg-color);
   border-radius: 8px;
   padding: 24px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--el-border-color-lighter);
 }
 </style>
