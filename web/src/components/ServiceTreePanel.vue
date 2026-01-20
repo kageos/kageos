@@ -1032,9 +1032,16 @@ let isExpanding = false
 let lastExpandedKeys: number[] = []
 let expandKeysPromise: Promise<void> | null = null
 
+// 调试计数器
+let expandKeysNowCallCount = 0
+
 // ⭐ 展开节点的辅助函数（带重入保护）
 const expandKeysNow = async (keys: number[]): Promise<void> => {
+  expandKeysNowCallCount++
+  console.log(`[expandKeysNow] 调用次数: ${expandKeysNowCallCount}, keys:`, keys)
+  
   if (keys.length === 0) {
+    console.log('[expandKeysNow] keys 为空，跳过')
     return
   }
   
@@ -1043,14 +1050,18 @@ const expandKeysNow = async (keys: number[]): Promise<void> => {
   const keysStr = JSON.stringify([...keys].sort())
   const lastKeysStr = JSON.stringify([...lastExpandedKeys].sort())
   if (keysStr === lastKeysStr) {
+    console.log('[expandKeysNow] keys 与上次相同，跳过')
     return
   }
   
   // ⭐ 重入保护：如果已经有正在执行的展开操作，等待它完成
   if (expandKeysPromise) {
+    console.log('[expandKeysNow] 已有正在执行的操作，等待完成')
     await expandKeysPromise
     return
   }
+  
+  console.log('[expandKeysNow] 开始执行展开操作')
   
   // ⭐ 创建新的 Promise 用于重入保护
   expandKeysPromise = (async () => {
@@ -1123,23 +1134,37 @@ const expandKeysNow = async (keys: number[]): Promise<void> => {
   await expandKeysPromise
 }
 
+// 调试计数器
+let watchExpandedKeysCallCount = 0
+
 // 🔥 监听 expandedKeys 变化，自动展开节点
 watch(() => props.expandedKeys, async (keys: number[] | undefined, oldKeys: number[] | undefined) => {
+  watchExpandedKeysCallCount++
+  console.log(`[watch expandedKeys] 触发次数: ${watchExpandedKeysCallCount}, keys:`, keys, 'oldKeys:', oldKeys)
+  
   if (keys && keys.length > 0) {
     // ⭐ 防重复：如果 keys 和 oldKeys 相同，跳过
     // 注意：使用展开运算符创建副本再排序，避免修改原数组触发无限循环
     const keysStr = JSON.stringify([...keys].sort())
     const oldKeysStr = oldKeys ? JSON.stringify([...oldKeys].sort()) : ''
     if (keysStr === oldKeysStr) {
+      console.log('[watch expandedKeys] keys 与 oldKeys 相同，跳过')
       return
     }
+    console.log('[watch expandedKeys] 调用 expandKeysNow')
     // 无论树数据是否已加载，都尝试展开（expandKeysNow 内部会等待）
     await expandKeysNow(keys)
   }
 })
 
+// 调试计数器
+let watchGroupedTreeDataCallCount = 0
+
 // 🔥 监听服务树数据变化，如果 currentNodeId 存在但还没展开，重新尝试
 watch(() => groupedTreeData.value, async (newTreeData: ServiceTree[], oldTreeData: ServiceTree[] | undefined) => {
+  watchGroupedTreeDataCallCount++
+  console.log(`[watch groupedTreeData] 触发次数: ${watchGroupedTreeDataCallCount}, newLength:`, newTreeData.length, 'oldLength:', oldTreeData?.length)
+  
   if (newTreeData.length > 0 && treeRef.value) {
     // ⭐ 防止重复处理：如果树数据没有实质性变化，跳过
     // 比较数组长度和第一个元素的 id，避免不必要的处理
@@ -1147,6 +1172,7 @@ watch(() => groupedTreeData.value, async (newTreeData: ServiceTree[], oldTreeDat
       const isSameTree = newTreeData.length === oldTreeData.length && 
                          newTreeData[0]?.id === oldTreeData[0]?.id
       if (isSameTree) {
+        console.log('[watch groupedTreeData] 树数据相同，跳过')
         return
       }
     }
@@ -1155,8 +1181,10 @@ watch(() => groupedTreeData.value, async (newTreeData: ServiceTree[], oldTreeDat
     
     // ⭐ 优先使用后端返回的 expanded_keys（如果存在）
     if (props.expandedKeys && props.expandedKeys.length > 0) {
+      console.log('[watch groupedTreeData] 调用 expandKeysNow，expandedKeys:', props.expandedKeys)
       await expandKeysNow(props.expandedKeys)
     } else {
+      console.log('[watch groupedTreeData] 调用 expandNodesWithPendingCount')
       // ⭐ 如果没有后端返回的 expanded_keys，使用前端计算的方式（兼容旧逻辑）
       await expandNodesWithPendingCount(newTreeData)
     }
