@@ -218,7 +218,7 @@ func (r *AppRepository) UpdatePendingCount(appID int64, delta int) error {
 		r.InvalidateAppCacheBoth(app.User, app.Code, appID)
 	} else {
 		// 如果查询失败，至少清理 appID 缓存
-		r.InvalidateAppIDCache(appID)
+		r.InvalidateAppCacheByID(appID)
 	}
 	
 	return nil
