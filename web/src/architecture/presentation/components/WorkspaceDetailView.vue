@@ -198,7 +198,7 @@ import {
   List
 } from '@element-plus/icons-vue'
 import { useClipboard } from '@vueuse/core'
-import { getAppDetail } from '@/api'
+import { getAppDetailByUserAndCode } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import PermissionRequestList from '@/components/Permission/PermissionRequestList.vue'
 import PermissionManageList from '@/components/Permission/PermissionManageList.vue'
@@ -293,7 +293,7 @@ const canManagePermission = computed(() => {
 const loadWorkspaceInfo = async () => {
   loading.value = true
   try {
-    const response = await getAppDetail(props.user, props.app)
+    const response = await getAppDetailByUserAndCode(props.user, props.app)
     workspaceInfo.value = response
   } catch (error: any) {
     console.error('加载工作空间信息失败:', error)
