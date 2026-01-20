@@ -1909,30 +1909,28 @@ onMounted(async () => {
   setupRouteWatch()
 })
 
-// ✅ 暂时禁用这个 watch，排查无限循环问题
-// 
-// // 🔥 监听服务树变化，展开目录树
-// watch(() => serviceTree.value.length, (newLength: number) => {
-//   if (newLength > 0 && currentApp.value) {
-//     // 展开目录树
-//     if (route.query._forked) {
-//     checkAndExpandForkedPaths()
-//     } else {
-//       expandCurrentRoutePath()
-//   }
-//   }
-// }, { immediate: true })
+// 🔥 监听服务树变化，展开目录树
+watch(() => serviceTree.value.length, (newLength: number) => {
+  if (newLength > 0 && currentApp.value) {
+    console.log('[WorkspaceView] serviceTree 变化，准备展开目录树')
+    // 展开目录树
+    if (route.query._forked) {
+      checkAndExpandForkedPaths()
+    } else {
+      expandCurrentRoutePath()
+    }
+  }
+}, { immediate: true })
 
-// ✅ 暂时禁用这个 watch，排查无限循环问题
-// 
-// // 🔥 监听当前应用变化，检查 _forked 参数
-// watch(currentApp, () => {
-//   if (serviceTree.value.length > 0 && currentApp.value && route.query._forked) {
-//     nextTick(() => {
-//       checkAndExpandForkedPaths()
-//     })
-//   }
-// })
+// 🔥 监听当前应用变化，检查 _forked 参数
+watch(currentApp, () => {
+  if (serviceTree.value.length > 0 && currentApp.value && route.query._forked) {
+    console.log('[WorkspaceView] currentApp 变化，检查 _forked 参数')
+    nextTick(() => {
+      checkAndExpandForkedPaths()
+    })
+  }
+})
 
 // 🔥 监听当前函数变化，清除旧的函数详情和权限错误
 watch(() => currentFunction.value?.id, (newId: number | undefined, oldId: number | undefined) => {
