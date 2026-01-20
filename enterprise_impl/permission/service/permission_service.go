@@ -109,6 +109,7 @@ func (s *PermissionServiceImpl) Init(opt *enterprise.InitOptions) error {
 	s.approvalService = NewApprovalService(
 		s.permissionRequestRepo,
 		s.serviceTreeRepo,
+		s.appRepo,     // ⭐ 传入 app repository，用于查询 app 管理员
 		s.roleService, // ⭐ 传入角色服务，用于审批通过后分配角色
 		s.roleCache,   // ⭐ 传入角色缓存，用于从 RoleID 获取 RoleCode
 	)

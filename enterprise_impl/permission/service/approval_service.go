@@ -20,6 +20,7 @@ import (
 type ApprovalService struct {
 	permissionRequestRepo *permissionrepo.PermissionRequestRepository
 	serviceTreeRepo       *repository.ServiceTreeRepository // ⭐ 使用社区版的 repository，不重复造轮子
+	appRepo               *repository.AppRepository         // ⭐ app repository，用于查询 app 管理员
 	roleService           *RoleService                       // ⭐ 角色服务，用于分配角色
 	roleCache             *RoleCache                         // ⭐ 角色缓存，用于从 RoleID 获取 RoleCode
 }
@@ -28,12 +29,14 @@ type ApprovalService struct {
 func NewApprovalService(
 	permissionRequestRepo *permissionrepo.PermissionRequestRepository,
 	serviceTreeRepo *repository.ServiceTreeRepository, // ⭐ 使用社区版的 repository
-	roleService *RoleService, // ⭐ 角色服务
-	roleCache *RoleCache, // ⭐ 角色缓存
+	appRepo *repository.AppRepository,                 // ⭐ app repository
+	roleService *RoleService,                           // ⭐ 角色服务
+	roleCache *RoleCache,                               // ⭐ 角色缓存
 ) *ApprovalService {
 	return &ApprovalService{
 		permissionRequestRepo: permissionRequestRepo,
 		serviceTreeRepo:       serviceTreeRepo,
+		appRepo:               appRepo,
 		roleService:           roleService,
 		roleCache:             roleCache,
 	}
@@ -98,7 +101,7 @@ func (s *ApprovalService) ApproveRequest(ctx context.Context, requestID int64, a
 	}
 
 	// 3. 检查审批人权限（是否是节点管理员）
-	admins, err := s.serviceTreeRepo.GetNodeAdmins(ctx, request.ResourcePath)
+	admins, err := s.getNodeAdmins(ctx, request.ResourcePath)
 	if err != nil {
 		return fmt.Errorf("查询节点管理员失败: %w", err)
 	}
@@ -224,7 +227,7 @@ func (s *ApprovalService) RejectRequest(ctx context.Context, requestID int64, ap
 	}
 
 	// 3. 检查审批人权限（是否是节点管理员）
-	admins, err := s.serviceTreeRepo.GetNodeAdmins(ctx, request.ResourcePath)
+	admins, err := s.getNodeAdmins(ctx, request.ResourcePath)
 	if err != nil {
 		return fmt.Errorf("查询节点管理员失败: %w", err)
 	}
@@ -255,12 +258,46 @@ func (s *ApprovalService) RejectRequest(ctx context.Context, requestID int64, ap
 // resolveApprovers 解析审批人（目前只支持节点管理员）
 func (s *ApprovalService) resolveApprovers(ctx context.Context, resourcePath string) ([]string, error) {
 	// 获取节点管理员
-	admins, err := s.serviceTreeRepo.GetNodeAdmins(ctx, resourcePath)
+	admins, err := s.getNodeAdmins(ctx, resourcePath)
 	if err != nil {
 		return nil, fmt.Errorf("查询节点管理员失败: %w", err)
 	}
 
 	return admins, nil
+}
+
+// getNodeAdmins 获取节点管理员（支持 app 和 service_tree 节点）
+func (s *ApprovalService) getNodeAdmins(ctx context.Context, resourcePath string) ([]string, error) {
+	// 判断是否是 app 类型（路径格式：/user/app）
+	parts := strings.Split(strings.Trim(resourcePath, "/"), "/")
+	if len(parts) == 2 {
+		// 是 app 类型，从 app 表查询
+		user := parts[0]
+		app := parts[1]
+		
+		appModel, err := s.appRepo.GetAppByUserName(user, app)
+		if err != nil {
+			return nil, fmt.Errorf("查询应用失败: %w", err)
+		}
+		
+		// 解析 app 的 admins 字段
+		if appModel.Admins == "" {
+			return []string{}, nil
+		}
+		
+		admins := strings.Split(appModel.Admins, ",")
+		result := make([]string, 0, len(admins))
+		for _, admin := range admins {
+			admin = strings.TrimSpace(admin)
+			if admin != "" {
+				result = append(result, admin)
+			}
+		}
+		return result, nil
+	}
+	
+	// 不是 app 类型，从 service_tree 表查询
+	return s.serviceTreeRepo.GetNodeAdmins(ctx, resourcePath)
 }
 
 // getResourceTypeFromServiceTree 从 ServiceTree 查询资源类型
