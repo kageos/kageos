@@ -199,7 +199,6 @@ import {
 } from '@element-plus/icons-vue'
 import { useClipboard } from '@vueuse/core'
 import { getAppDetail } from '@/api'
-import { hasPermission, AppPermissions } from '@/utils/permission'
 import { useAuthStore } from '@/stores/auth'
 import PermissionRequestList from '@/components/Permission/PermissionRequestList.vue'
 import PermissionManageList from '@/components/Permission/PermissionManageList.vue'
@@ -273,11 +272,21 @@ const tagList = computed(() => {
 })
 
 const canEdit = computed(() => {
-  return hasPermission(AppPermissions.ADMIN, workspaceFullPath.value)
+  // 检查当前用户是否是工作空间管理员
+  if (!workspaceInfo.value || !authStore.user?.username) {
+    return false
+  }
+  const admins = adminList.value
+  return admins.includes(authStore.user.username)
 })
 
 const canManagePermission = computed(() => {
-  return hasPermission(AppPermissions.ADMIN, workspaceFullPath.value)
+  // 检查当前用户是否是工作空间管理员
+  if (!workspaceInfo.value || !authStore.user?.username) {
+    return false
+  }
+  const admins = adminList.value
+  return admins.includes(authStore.user.username)
 })
 
 // 方法
