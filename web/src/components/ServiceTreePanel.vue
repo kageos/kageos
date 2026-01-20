@@ -96,9 +96,9 @@
               @click.stop="handleNoPermissionClick(data)"
             />
             
-            <!-- Hub 标记 - 已发布到 Hub 的目录显示 -->
+            <!-- Hub 标记 - 已发布到 Hub 的 app 或目录显示 -->
             <span
-              v-if="data.type === 'package' && data.hub_directory_id && data.hub_directory_id > 0"
+              v-if="(data.type === 'app' || data.type === 'package') && data.hub_directory_id && data.hub_directory_id > 0"
               class="hub-badge"
               @click.stop="handleHubBadgeClick(data)"
               :title="data.hub_version ? `已发布到应用中心 ${data.hub_version}` : '已发布到应用中心'"
@@ -107,9 +107,9 @@
               <span v-if="data.hub_version" class="hub-version">{{ data.hub_version }}</span>
             </span>
             
-            <!-- ⭐ 待审批数量 badge - 仅管理员可见（package 和 function 类型都显示） -->
+            <!-- ⭐ 待审批数量 badge - 仅管理员可见（app、package 和 function 类型都显示） -->
             <el-badge
-              v-if="(data.type === 'package' || data.type === 'function') && isAdmin(data) && data.pending_count && data.pending_count > 0"
+              v-if="(data.type === 'app' || data.type === 'package' || data.type === 'function') && isAdmin(data) && data.pending_count && data.pending_count > 0"
               :value="data.pending_count"
               :max="99"
               class="pending-count-badge"
@@ -134,51 +134,51 @@
               </el-icon>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <!-- 仅对package类型显示创建子目录选项（需要 directory:write 权限） -->
+                  <!-- 对 app 和 package 类型显示创建子目录选项（需要 directory:write 或 app:write 权限） -->
                   <el-dropdown-item 
-                    v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.write)" 
+                    v-if="(data.type === 'app' || data.type === 'package') && (hasPermission(data, DirectoryPermissions.write) || hasPermission(data, AppPermissions.write))" 
                     command="create-directory"
                   >
                     <el-icon><Plus /></el-icon>
                     添加服务目录
                   </el-dropdown-item>
-                  <!-- 仅对package类型显示创建文档选项（需要 directory:write 权限） -->
+                  <!-- 对 app 和 package 类型显示创建文档选项（需要 directory:write 或 app:write 权限） -->
                   <el-dropdown-item 
-                    v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.write)" 
+                    v-if="(data.type === 'app' || data.type === 'package') && (hasPermission(data, DirectoryPermissions.write) || hasPermission(data, AppPermissions.write))" 
                     command="create-docs"
                   >
                     <el-icon><Document /></el-icon>
                     添加文档
                   </el-dropdown-item>
-                  <!-- 仅对package类型显示复制选项（需要 directory:read 权限） -->
+                  <!-- 对 app 和 package 类型显示复制选项（需要 directory:read 或 app:read 权限） -->
                   <el-dropdown-item 
-                    v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.read)" 
+                    v-if="(data.type === 'app' || data.type === 'package') && (hasPermission(data, DirectoryPermissions.read) || hasPermission(data, AppPermissions.read))" 
                     command="copy" 
                     divided
                   >
                     <el-icon><CopyDocument /></el-icon>
                     复制
                   </el-dropdown-item>
-                  <!-- 粘贴选项（当有复制的内容或 Hub 链接时显示，粘贴到当前选中的目录，需要 directory:write 权限） -->
+                  <!-- 粘贴选项（当有复制的内容或 Hub 链接时显示，粘贴到当前选中的目录，需要 directory:write 或 app:write 权限） -->
                   <el-dropdown-item 
-                    v-if="(copiedDirectory || copiedHubLink) && data.type === 'package' && hasPermission(data, DirectoryPermissions.write)" 
+                    v-if="(copiedDirectory || copiedHubLink) && (data.type === 'app' || data.type === 'package') && (hasPermission(data, DirectoryPermissions.write) || hasPermission(data, AppPermissions.write))" 
                     command="paste" 
                     divided
                   >
                     <el-icon><Document /></el-icon>
                     粘贴
                   </el-dropdown-item>
-                  <!-- 仅对package类型显示重命名选项（需要 directory:write 权限） -->
+                  <!-- 对 app 和 package 类型显示重命名选项（需要 directory:write 或 app:write 权限） -->
                   <el-dropdown-item 
-                    v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.write)"
+                    v-if="(data.type === 'app' || data.type === 'package') && (hasPermission(data, DirectoryPermissions.write) || hasPermission(data, AppPermissions.write))"
                     command="rename"
                   >
                     <el-icon><Edit /></el-icon>
                     重命名
                   </el-dropdown-item>
-                  <!-- 复制链接（需要 directory:read 或 function:read 权限） -->
+                  <!-- 复制链接（需要 directory:read、app:read 或 function:read 权限） -->
                   <el-dropdown-item 
-                    v-if="hasPermission(data, data.type === 'package' ? DirectoryPermissions.read : 'function:read')"
+                    v-if="hasPermission(data, data.type === 'app' ? AppPermissions.read : (data.type === 'package' ? DirectoryPermissions.read : 'function:read'))"
                     command="copy-link"
                   >
                     <el-icon><Link /></el-icon>
@@ -202,27 +202,27 @@
                     <el-icon><Delete /></el-icon>
                     删除文档
                   </el-dropdown-item>
-                  <!-- 仅对package类型显示发布到Hub选项（未发布时，需要 directory:manage 权限） -->
+                  <!-- 对 app 和 package 类型显示发布到Hub选项（未发布时，需要 directory:manage 或 app:admin 权限） -->
                   <el-dropdown-item 
-                    v-if="data.type === 'package' && (!data.hub_directory_id || data.hub_directory_id === 0) && hasPermission(data, DirectoryPermissions.manage)" 
+                    v-if="(data.type === 'app' || data.type === 'package') && (!data.hub_directory_id || data.hub_directory_id === 0) && (hasPermission(data, DirectoryPermissions.manage) || hasPermission(data, AppPermissions.admin))" 
                     command="publish-to-hub" 
                     divided
                   >
                     <el-icon><Upload /></el-icon>
                     发布到应用中心
                   </el-dropdown-item>
-                  <!-- 仅对package类型显示推送到Hub选项（已发布时，需要 directory:manage 权限） -->
+                  <!-- 对 app 和 package 类型显示推送到Hub选项（已发布时，需要 directory:manage 或 app:admin 权限） -->
                   <el-dropdown-item 
-                    v-if="data.type === 'package' && data.hub_directory_id && data.hub_directory_id > 0 && hasPermission(data, DirectoryPermissions.manage)" 
+                    v-if="(data.type === 'app' || data.type === 'package') && data.hub_directory_id && data.hub_directory_id > 0 && (hasPermission(data, DirectoryPermissions.manage) || hasPermission(data, AppPermissions.admin))" 
                     command="push-to-hub" 
                     divided
                   >
                     <el-icon><Upload /></el-icon>
                     推送到应用中心
                   </el-dropdown-item>
-                  <!-- 仅对package类型显示变更记录选项（需要 directory:read 权限） -->
+                  <!-- 对 app 和 package 类型显示变更记录选项（需要 directory:read 或 app:read 权限） -->
                   <el-dropdown-item 
-                    v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.read)" 
+                    v-if="(data.type === 'app' || data.type === 'package') && (hasPermission(data, DirectoryPermissions.read) || hasPermission(data, AppPermissions.read))" 
                     command="update-history" 
                     divided
                   >
@@ -239,7 +239,7 @@
                   </el-dropdown-item>
                   <!-- ⭐ 审批权限申请选项（仅管理员可见，且有待审批申请时显示） -->
                   <el-dropdown-item 
-                    v-if="(data.type === 'package' || data.type === 'function') && isAdmin(data) && data.pending_count && data.pending_count > 0" 
+                    v-if="(data.type === 'app' || data.type === 'package' || data.type === 'function') && isAdmin(data) && data.pending_count && data.pending_count > 0" 
                     command="approve-permission" 
                   >
                     <el-icon><DocumentChecked /></el-icon>
@@ -250,9 +250,9 @@
                       class="dropdown-badge"
                     />
                   </el-dropdown-item>
-                  <!-- 权限管理选项（仅对目录显示，且仅管理员可见） -->
+                  <!-- 权限管理选项（对 app 和 package 类型显示，且仅管理员可见） -->
                   <el-dropdown-item 
-                    v-if="data.type === 'package' && isAdmin(data)" 
+                    v-if="(data.type === 'app' || data.type === 'package') && isAdmin(data)" 
                     command="manage-permission" 
                   >
                     <el-icon><User /></el-icon>
@@ -296,7 +296,7 @@ import {
   expandPathOnly
 } from '@/utils/serviceTreeUtils'
 import { navigateToHubDirectoryDetail } from '@/utils/hub-navigation'
-import { hasPermission, hasAnyPermissionForNode, DirectoryPermissions, TablePermissions, buildPermissionApplyURL } from '@/utils/permission'
+import { hasPermission, hasAnyPermissionForNode, DirectoryPermissions, AppPermissions, TablePermissions, buildPermissionApplyURL } from '@/utils/permission'
 import { useAuthStore } from '@/stores/auth'
 import { eventBus, RouteEvent } from '@/architecture/infrastructure/eventBus'
 
@@ -725,11 +725,11 @@ const defaultExpandedKeysWithWorkspace = computed(() => {
 const handleNoPermissionClick = (data: ServiceTree) => {
   // 跳转到权限申请页面
   const resourcePath = data.full_code_path
-  const resourceType = data.type === 'package' ? 'directory' : 'function'
+  const resourceType = data.type === 'app' ? 'app' : (data.type === 'package' ? 'directory' : 'function')
   const templateType = data.template_type
   
   // 构建权限申请 URL
-  const defaultAction = resourceType === 'directory' ? 'directory:read' : 'function:read'
+  const defaultAction = resourceType === 'app' ? 'app:read' : (resourceType === 'directory' ? 'directory:read' : 'function:read')
   const url = `/permissions/apply?resource=${encodeURIComponent(resourcePath)}&action=${encodeURIComponent(defaultAction)}`
   const finalUrl = templateType ? `${url}&templateType=${encodeURIComponent(templateType)}` : url
   
@@ -754,8 +754,8 @@ const isAdmin = (node: ServiceTree): boolean => {
 // 处理申请权限
 const handleApplyPermission = (data: ServiceTree) => {
   const resourcePath = data.full_code_path
-  const resourceType = data.type === 'package' ? 'directory' : 'function'
-  const defaultAction = resourceType === 'directory' ? 'directory:read' : 'function:read'
+  const resourceType = data.type === 'app' ? 'app' : (data.type === 'package' ? 'directory' : 'function')
+  const defaultAction = resourceType === 'app' ? 'app:read' : (resourceType === 'directory' ? 'directory:read' : 'function:read')
   const url = buildPermissionApplyURL(resourcePath, defaultAction, data.template_type)
   router.push(url)
 }
@@ -798,8 +798,8 @@ const handleApprovePermission = (data: ServiceTree) => {
 // 处理权限管理
 const handleManagePermission = (data: ServiceTree) => {
   const resourcePath = data.full_code_path
-  const resourceType = data.type === 'package' ? 'directory' : 'function'
-  const defaultAction = resourceType === 'directory' ? 'directory:read' : 'function:read'
+  const resourceType = data.type === 'app' ? 'app' : (data.type === 'package' ? 'directory' : 'function')
+  const defaultAction = resourceType === 'app' ? 'app:read' : (resourceType === 'directory' ? 'directory:read' : 'function:read')
   // 权限管理页面，默认显示授权模式
   const url = buildPermissionApplyURL(resourcePath, defaultAction, data.template_type) + '&mode=grant'
   router.push(url)
@@ -815,8 +815,8 @@ const handleNodeAction = (command: string, data: ServiceTree) => {
   } else if (command === 'copy') {
     handleCopy(data)
   } else if (command === 'paste') {
-    // 粘贴时,如果右键的节点是目录，使用该节点；否则使用当前选中的目录
-    if (data.type === 'package') {
+    // 粘贴时,如果右键的节点是目录或 app，使用该节点；否则使用当前选中的目录
+    if (data.type === 'app' || data.type === 'package') {
       handlePaste(data)
     } else {
       handlePaste() // 使用当前选中的目录
@@ -898,7 +898,7 @@ const getFunctionIcon = (data: ServiceTree) => {
 
 // 获取节点图标样式类
 const getNodeIconClass = (data: ServiceTree) => {
-  if (data.type === 'package') {
+  if (data.type === 'app' || data.type === 'package') {
     return 'package-icon'
   } else if (data.type === 'function') {
     // 根据 template_type 返回不同的样式类
