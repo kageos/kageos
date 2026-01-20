@@ -471,12 +471,76 @@ func (s *ServiceTreeService) getServiceTreeByAppModel(ctx context.Context, appMo
 	}
 
 	// 转换为响应格式，并合并权限信息
-	var resp []*dto.GetServiceTreeResp
+	var childNodes []*dto.GetServiceTreeResp
 	for _, tree := range trees {
-		resp = append(resp, s.convertToGetServiceTreeResp(ctx, tree, permissionsMap, isAdmin))
+		childNodes = append(childNodes, s.convertToGetServiceTreeResp(ctx, tree, permissionsMap, isAdmin))
 	}
 
-	return resp, nil
+	// ⭐ 构造 app 根节点，将所有 service_tree 节点作为其子节点
+	appFullCodePath := fmt.Sprintf("/%s/%s", appModel.User, appModel.Code)
+	
+	// 计算 app 根节点的 pending_count（所有子节点的 pending_count 之和）
+	appPendingCount := 0
+	for _, child := range childNodes {
+		appPendingCount += calculateTotalPendingCount(child)
+	}
+	
+	// 获取 app 根节点的权限
+	appPermissions := make(map[string]bool)
+	if permissionsMap != nil {
+		if nodePerms, ok := permissionsMap[appFullCodePath]; ok {
+			appPermissions = nodePerms
+		} else if isAdmin {
+			// 如果是管理员，设置所有权限
+			appPermissions = map[string]bool{
+				"app:read":   true,
+				"app:write":  true,
+				"app:update": true,
+				"app:delete": true,
+				"app:admin":  true,
+			}
+		}
+	} else if isAdmin {
+		// 权限功能未启用但是管理员，设置所有权限
+		appPermissions = map[string]bool{
+			"app:read":   true,
+			"app:write":  true,
+			"app:update": true,
+			"app:delete": true,
+			"app:admin":  true,
+		}
+	}
+	
+	appRootNode := &dto.GetServiceTreeResp{
+		ID:           appModel.ID,  // 使用 app 的 ID
+		Name:         appModel.Name, // ⭐ 使用 app 的 name，而不是 code
+		Code:         appModel.Code,
+		ParentID:     0,
+		Type:         "app", // ⭐ 类型为 app
+		Description:  "",    // App 模型没有 Description 字段
+		Tags:         "",    // App 模型没有 Tags 字段
+		Admins:       appModel.Admins,
+		PendingCount: appPendingCount, // ⭐ 所有子节点的 pending_count 之和
+		Owner:        appModel.CreatedBy,
+		AppID:        appModel.ID,
+		FullCodePath: appFullCodePath,
+		TemplateType: "",
+		IsAdmin:      isAdmin,
+		Permissions:  appPermissions,
+		Children:     childNodes, // ⭐ 所有 service_tree 节点作为子节点
+	}
+
+	// ⭐ 返回包含 app 根节点的数组（单元素数组）
+	return []*dto.GetServiceTreeResp{appRootNode}, nil
+}
+
+// calculateTotalPendingCount 递归计算节点及其所有子节点的 pending_count 总和
+func calculateTotalPendingCount(node *dto.GetServiceTreeResp) int {
+	total := node.PendingCount
+	for _, child := range node.Children {
+		total += calculateTotalPendingCount(child)
+	}
+	return total
 }
 
 // GetServiceTree 获取服务目录
@@ -1078,6 +1142,13 @@ func (s *ServiceTreeService) convertToGetServiceTreeResp(ctx context.Context, tr
 // ⭐ 包含所有 pending_count > 0 的节点及其所有父节点
 func (s *ServiceTreeService) calculateExpandedKeys(trees []*dto.GetServiceTreeResp) []int64 {
 	expandedKeysMap := make(map[int64]bool)
+
+	// ⭐ 如果树的根节点是 app 类型，默认展开它
+	for _, tree := range trees {
+		if tree.Type == "app" {
+			expandedKeysMap[tree.ID] = true
+		}
+	}
 
 	// 递归查找所有 pending_count > 0 的节点，并收集其路径上的所有节点ID
 	var findNodesWithPending func(nodes []*dto.GetServiceTreeResp, parentPath []int64)
