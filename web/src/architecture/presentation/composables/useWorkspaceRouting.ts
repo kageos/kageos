@@ -46,7 +46,6 @@ export function useWorkspaceRouting(
   const syncRouteToTab = async () => {
     // 🔥 防重复调用保护
     if (isSyncingRouteToTab) {
-      Logger.debug('useWorkspaceRouting', 'syncRouteToTab 正在执行，跳过重复调用', { path: route.path })
       return
     }
     
@@ -59,11 +58,9 @@ export function useWorkspaceRouting(
     
     // 🔥 检查是否是函数组详情页面（_node_type=function_group）
     if (isFunctionGroupDetail(route.query)) {
-      Logger.debug('useWorkspaceRouting', '检测到函数组详情页面，跳过', { path: route.path })
       return
     }
     
-    Logger.debug('useWorkspaceRouting', 'syncRouteToTab 开始执行', { path: route.path, fullPath })
     isSyncingRouteToTab = true
     
     try {
@@ -102,7 +99,6 @@ export function useWorkspaceRouting(
       }
     } finally {
       isSyncingRouteToTab = false
-      Logger.debug('useWorkspaceRouting', 'syncRouteToTab 执行完成', { path: route.path })
     }
   }
 
@@ -138,7 +134,6 @@ export function useWorkspaceRouting(
       // 检查当前应用是否已经是目标应用（通过 user 和 code 匹配，因为 id 可能还没有）
       if (currentAppState && currentAppState.user === user && currentAppState.code === appCode) {
         // 当前应用已经是目标应用，不需要切换
-        Logger.debug('useWorkspaceRouting', '当前应用已经是目标应用，跳过切换', { user, appCode })
         return
       }
       
@@ -361,12 +356,6 @@ export function useWorkspaceRouting(
           }
         })
         
-        Logger.debug('useWorkspaceRouting', 'link-widget 完成，准备清除 _link_type 并同步路由', {
-          originalQuery: payload.query,
-          preservedQuery,
-          path: payload.path
-        })
-        
         // 🔥 先同步路由到 Tab（确保 Tab 和函数已更新，页面会刷新）
         // 使用 nextTick 确保路由已经更新完成
         await nextTick()
@@ -397,10 +386,6 @@ export function useWorkspaceRouting(
         if (lastProcessedUpdateCompleted && 
             lastProcessedUpdateCompleted.path === payload.path && 
             lastProcessedUpdateCompleted.source === payload.source) {
-          Logger.debug('useWorkspaceRouting', '跳过重复的 updateCompleted 事件', { 
-            source: payload.source, 
-            path: payload.path 
-          })
           return
         }
         lastProcessedUpdateCompleted = { path: payload.path, source: payload.source }

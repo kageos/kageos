@@ -55,10 +55,6 @@ if (import.meta.env.DEV) {
     themeStore,
     userInfoStore
   }
-  console.log('[Dev] Stores 已挂载到 window.__stores__，可以在控制台访问：')
-  console.log('  - window.__stores__.userInfoStore.getCacheStats()')
-  console.log('  - window.__stores__.userInfoStore.clearCache()')
-  console.log('  - window.__stores__.userInfoStore.refreshCache()')
 }
 
     // 所有组件注册完成，挂载应用

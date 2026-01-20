@@ -1671,13 +1671,6 @@ const handleUpdateHistory = (node?: ServiceTreeType) => {
     updateHistoryFullCodePath.value = ''
   }
   
-  console.log('[WorkspaceView] 打开变更记录对话框', {
-    mode: updateHistoryMode.value,
-    appId: updateHistoryAppId.value,
-    appVersion: updateHistoryAppVersion.value,
-    fullCodePath: updateHistoryFullCodePath.value
-  })
-  
   updateHistoryDialogVisible.value = true
 }
 
@@ -1887,17 +1880,10 @@ onMounted(async () => {
   unsubscribeServiceTreeLoaded = eventBus.on(WorkspaceEvent.serviceTreeLoaded, (payload: { app: any, tree: any[], expandedKeys?: number[] }) => {
     // 状态已通过 StateManager 自动更新
     // ⭐ 更新 expandedKeys（如果后端返回了）
-    console.log('[WorkspaceView] serviceTreeLoaded 事件收到:', {
-      treeLength: payload.tree?.length || 0,
-      expandedKeysLength: payload.expandedKeys?.length || 0,
-      expandedKeys: payload.expandedKeys
-    })
     if (payload.expandedKeys && payload.expandedKeys.length > 0) {
       expandedKeys.value = payload.expandedKeys
-      console.log('[WorkspaceView] ✅ 已更新 expandedKeys:', expandedKeys.value)
     } else {
       expandedKeys.value = []
-      console.log('[WorkspaceView] expandedKeys 为空，清空')
     }
   })
   

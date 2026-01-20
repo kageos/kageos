@@ -177,18 +177,15 @@ export class WorkspaceApplicationService {
         if (workspaceData && workspaceData.app) {
           // ⭐ 使用完整的 app 对象，包含所有字段（包括 admins）
           appToSwitch = workspaceData.app as App
-          console.log('[WorkspaceApplicationService] 从合并接口获取到应用信息', appToSwitch)
           
           // 🔥 修复：如果已经获取了服务目录树，直接使用，避免重复调用
           if (workspaceData.service_tree && Array.isArray(workspaceData.service_tree)) {
             preloadedServiceTree = workspaceData.service_tree
-            console.log('[WorkspaceApplicationService] 从合并接口获取到服务目录树，节点数:', preloadedServiceTree.length)
           }
           
           // ⭐ 保存 expanded_keys（如果后端返回了）
           if (workspaceData.expanded_keys && Array.isArray(workspaceData.expanded_keys)) {
             preloadedExpandedKeys = workspaceData.expanded_keys
-            console.log('[WorkspaceApplicationService] 从合并接口获取到 expanded_keys，节点数:', preloadedExpandedKeys.length)
           }
           
           // 🔥 修复：发出应用信息更新事件，让 Presentation Layer 更新 appList
