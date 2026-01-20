@@ -28,7 +28,6 @@
           @create-docs="handleCreateDocs"
           @delete-doc="handleDeleteDoc"
           @fork-group="handleForkGroup"
-          @copy-link="handleCopyLink"
           @delete-function="handleDeleteFunction"
           @publish-to-hub="handlePublishToHub"
           @push-to-hub="handlePushToHub"
@@ -753,8 +752,7 @@ const {
   resetCreateDirectoryForm,
   handleSubmitCreateDirectory: serviceTreeHandleSubmitCreateDirectory,
   expandCurrentRoutePath: serviceTreeExpandCurrentRoutePath,
-  checkAndExpandForkedPaths: serviceTreeCheckAndExpandForkedPaths,
-  handleCopyLink
+  checkAndExpandForkedPaths: serviceTreeCheckAndExpandForkedPaths
 } = useWorkspaceServiceTree()
 
 // 管理员字段配置（用于 UsersWidget）

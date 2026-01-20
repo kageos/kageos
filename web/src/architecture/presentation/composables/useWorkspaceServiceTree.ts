@@ -241,21 +241,6 @@ export function useWorkspaceServiceTree(
     }
   }
 
-  // 处理复制链接
-  const handleCopyLink = (node: ServiceTreeType) => {
-    const link = `${window.location.origin}/workspace${node.full_code_path}`
-    navigator.clipboard.writeText(link).then(() => {
-      ElNotification.success({
-        title: '成功',
-        message: '链接已复制到剪贴板'
-      })
-    }).catch(() => {
-      ElNotification.error({
-        title: '错误',
-        message: '复制链接失败'
-      })
-    })
-  }
 
   return {
     // 状态
@@ -269,8 +254,7 @@ export function useWorkspaceServiceTree(
     resetCreateDirectoryForm,
     handleSubmitCreateDirectory,
     expandCurrentRoutePath,
-    checkAndExpandForkedPaths,
-    handleCopyLink
+    checkAndExpandForkedPaths
   }
 }
 
