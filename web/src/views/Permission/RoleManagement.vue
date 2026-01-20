@@ -487,7 +487,7 @@ const assignFormRules: FormRules = {
 // ==================== 资源类型和权限配置 ====================
 
 // 资源类型列表
-const resourceTypes = ['directory', 'table', 'form', 'chart', 'app']
+const resourceTypes = ['directory', 'table', 'form', 'chart', 'docs', 'app']
 
 // 资源类型标签映射
 const resourceTypeLabels: Record<string, string> = {
@@ -495,6 +495,7 @@ const resourceTypeLabels: Record<string, string> = {
   table: '表格函数',
   form: '表单函数',
   chart: '图表函数',
+  docs: '文档',
   app: '工作空间',
 }
 
@@ -523,6 +524,12 @@ const permissionConfig: Record<string, Array<{ value: string; label: string }>> 
   chart: [
     { value: 'chart:read', label: '查看图表' },
     { value: 'chart:admin', label: '所有权' },
+  ],
+  docs: [
+    { value: 'docs:read', label: '查看文档' },
+    { value: 'docs:write', label: '编辑文档' },
+    { value: 'docs:delete', label: '删除文档' },
+    { value: 'docs:admin', label: '所有权' },
   ],
   app: [
     { value: 'app:read', label: '查看工作空间' },
