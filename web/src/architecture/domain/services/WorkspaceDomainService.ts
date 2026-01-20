@@ -39,6 +39,9 @@ export interface WorkspaceState {
   loading: boolean // 加载状态
 }
 
+// 🔥 空服务树常量：避免每次创建新数组导致引用变化
+const EMPTY_SERVICE_TREE: ServiceTree[] = []
+
 /**
  * 工作空间领域服务
  */
@@ -130,7 +133,7 @@ export class WorkspaceDomainService {
       currentApp: app,
       currentFunction: null,
       currentDirectory: null,
-      serviceTree: [], // 清空服务树，等待重新加载
+      serviceTree: EMPTY_SERVICE_TREE, // 🔥 使用常量空数组，避免引用变化
       loading: true    // 开始加载
     })
 
@@ -168,13 +171,13 @@ export class WorkspaceDomainService {
       const state = this.stateManager.getState()
       this.stateManager.setState({
         ...state,
-        serviceTree: [],
+        serviceTree: EMPTY_SERVICE_TREE, // 🔥 使用常量空数组，避免引用变化
         loading: false // 🔥 加载失败，结束 loading
       })
 
       // 即使失败也要触发事件，确保 loading 状态能正确更新
-      this.eventBus.emit(WorkspaceEvent.serviceTreeLoaded, { app, tree: [], expandedKeys: undefined })
-      return []
+      this.eventBus.emit(WorkspaceEvent.serviceTreeLoaded, { app, tree: EMPTY_SERVICE_TREE, expandedKeys: undefined })
+      return EMPTY_SERVICE_TREE
     }
   }
 
@@ -214,13 +217,13 @@ export class WorkspaceDomainService {
       const state = this.stateManager.getState()
       this.stateManager.setState({
         ...state,
-        serviceTree: [],
+        serviceTree: EMPTY_SERVICE_TREE, // 🔥 使用常量空数组，避免引用变化
         loading: false // 🔥 加载失败，结束 loading
       })
       
       // 即使失败也要触发事件，确保 loading 状态能正确更新
-      this.eventBus.emit(WorkspaceEvent.serviceTreeLoaded, { app, tree: [] })
-      return []
+      this.eventBus.emit(WorkspaceEvent.serviceTreeLoaded, { app, tree: EMPTY_SERVICE_TREE })
+      return EMPTY_SERVICE_TREE
     }
   }
 

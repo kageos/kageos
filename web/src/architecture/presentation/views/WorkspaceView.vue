@@ -1869,23 +1869,20 @@ onMounted(async () => {
     }
   })
 
-  // ✅ 暂时禁用这个事件监听器，排查无限循环问题
-  // 这个监听器会更新 expandedKeys，可能触发连锁反应
-  //
-  // // 监听服务树加载完成事件
-  // unsubscribeServiceTreeLoaded = eventBus.on(WorkspaceEvent.serviceTreeLoaded, (payload: { app: any, tree: any[], expandedKeys?: number[] }) => {
-  //   console.log('[WorkspaceView] serviceTreeLoaded 事件触发，expandedKeys:', payload.expandedKeys)
-  //   // 状态已通过 StateManager 自动更新
-  //   // ⭐ 更新 expandedKeys（如果后端返回了）
-  //   // 注意：使用展开运算符创建新数组，避免引用共享导致的响应式问题
-  //   if (payload.expandedKeys && payload.expandedKeys.length > 0) {
-  //     console.log('[WorkspaceView] 更新 expandedKeys.value 为:', payload.expandedKeys)
-  //     expandedKeys.value = [...payload.expandedKeys]
-  //   } else {
-  //     console.log('[WorkspaceView] 清空 expandedKeys.value')
-  //     expandedKeys.value = []
-  //   }
-  // })
+  // 监听服务树加载完成事件
+  unsubscribeServiceTreeLoaded = eventBus.on(WorkspaceEvent.serviceTreeLoaded, (payload: { app: any, tree: any[], expandedKeys?: number[] }) => {
+    console.log('[WorkspaceView] serviceTreeLoaded 事件触发，expandedKeys:', payload.expandedKeys)
+    // 状态已通过 StateManager 自动更新
+    // ⭐ 更新 expandedKeys（如果后端返回了）
+    // 注意：使用展开运算符创建新数组，避免引用共享导致的响应式问题
+    if (payload.expandedKeys && payload.expandedKeys.length > 0) {
+      console.log('[WorkspaceView] 更新 expandedKeys.value 为:', payload.expandedKeys)
+      expandedKeys.value = [...payload.expandedKeys]
+    } else {
+      console.log('[WorkspaceView] 清空 expandedKeys.value')
+      expandedKeys.value = []
+    }
+  })
   
   // 监听应用切换事件，开始加载服务树
   unsubscribeAppSwitched = eventBus.on(WorkspaceEvent.appSwitched, (payload: { app: any }) => {
