@@ -550,6 +550,17 @@ export const DirectoryPermissions = {
 } as const
 
 /**
+ * 应用（工作空间）权限常量
+ */
+export const AppPermissions = {
+  READ: 'app:read',
+  WRITE: 'app:write',
+  UPDATE: 'app:update',
+  DELETE: 'app:delete',
+  ADMIN: 'app:admin',
+} as const
+
+/**
  * 解析资源路径，提取父级路径
  * @param resourcePath 资源路径（full-code-path）
  * @returns 父级路径信息
