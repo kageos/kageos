@@ -501,6 +501,7 @@ const checkedNodeKeys = computed(() => {
   }
   // 调试信息
   if (process.env.NODE_ENV === 'development' && selectedResourcePaths.value.length > 0) {
+    console.log({
       selectedPaths: [...selectedResourcePaths.value],
       computedKeys: keys
     })
