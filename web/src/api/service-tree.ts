@@ -71,25 +71,7 @@ export interface Doc {
   updated_at: string
 }
 
-// 获取文档内容
-export function getDoc(treeId: number) {
-  return get<Doc>(`/workspace/api/v1/service_tree/${treeId}/doc`)
-}
-
-// 创建文档
-export function createDoc(treeId: number, data: { title: string; content: string; format?: string; summary?: string }) {
-  return post<Doc>(`/workspace/api/v1/service_tree/${treeId}/doc`, data)
-}
-
-// 更新文档
-export function updateDoc(treeId: number, data: { title?: string; content?: string; format?: string; summary?: string }) {
-  return put<Doc>(`/workspace/api/v1/service_tree/${treeId}/doc`, data)
-}
-
-// 删除文档
-export function deleteDoc(treeId: number) {
-  return del(`/workspace/api/v1/service_tree/${treeId}/doc`)
-}
+// 文档相关 API 已迁移到 @/api/doc.ts，使用基于 full_code_path 的新接口
 
 // 获取服务目录详情（包含权限信息）
 export interface ServiceTreeDetail {

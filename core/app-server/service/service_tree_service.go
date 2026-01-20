@@ -382,11 +382,11 @@ func (s *ServiceTreeService) CreateDocsNode(ctx context.Context, req *dto.Create
 			docFormat = "markdown"
 		}
 		docReq := &dto.CreateDocReq{
-			TreeID:  serviceTree.ID,
-			Title:   req.DocTitle,
-			Content: req.DocContent,
-			Format:  docFormat,
-			Summary: req.DocSummary,
+			FullCodePath: serviceTree.FullCodePath, // ✅ 使用 full_code_path
+			Title:        req.DocTitle,
+			Content:      req.DocContent,
+			Format:       docFormat,
+			Summary:      req.DocSummary,
 		}
 		doc, err := s.docService.CreateDoc(ctx, docReq)
 		if err != nil {
@@ -400,7 +400,7 @@ func (s *ServiceTreeService) CreateDocsNode(ctx context.Context, req *dto.Create
 					logger.Warnf(ctx, "[ServiceTreeService] 更新 ServiceTree RefID 失败: %v", err)
 				}
 			}
-			logger.Infof(ctx, "[ServiceTreeService] 文档内容创建成功 - TreeID: %d, DocID: %d", serviceTree.ID, doc.ID)
+			logger.Infof(ctx, "[ServiceTreeService] 文档内容创建成功 - FullCodePath: %s, DocID: %d", serviceTree.FullCodePath, doc.ID)
 		}
 	}
 
