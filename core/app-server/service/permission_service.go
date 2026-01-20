@@ -20,16 +20,18 @@ import (
 // ⭐ 完全移除 Casbin，使用新的权限系统
 type PermissionService struct {
 	permissionService     enterprise.PermissionService
-	serviceTreeRepo       *repository.ServiceTreeRepository       // ⭐ 用于更新 pending_count
+	serviceTreeRepo       *repository.ServiceTreeRepository       // ⭐ 用于更新 service_tree 的 pending_count
 	permissionRequestRepo *repository.PermissionRequestRepository // ⭐ 用于查询 permission_request 表
+	appRepo               *repository.AppRepository               // ⭐ 用于更新 app 的 pending_count
 }
 
 // NewPermissionService 创建权限管理服务
-func NewPermissionService(permissionService enterprise.PermissionService, serviceTreeRepo *repository.ServiceTreeRepository, permissionRequestRepo *repository.PermissionRequestRepository) *PermissionService {
+func NewPermissionService(permissionService enterprise.PermissionService, serviceTreeRepo *repository.ServiceTreeRepository, permissionRequestRepo *repository.PermissionRequestRepository, appRepo *repository.AppRepository) *PermissionService {
 	return &PermissionService{
 		permissionService:     permissionService,
 		serviceTreeRepo:       serviceTreeRepo,
 		permissionRequestRepo: permissionRequestRepo,
+		appRepo:               appRepo,
 	}
 }
 
@@ -352,6 +354,7 @@ func (s *PermissionService) GetPermissionRequests(ctx context.Context, req *dto.
 
 // updateServiceTreePendingCount 更新服务树节点的 pending_count
 // ⭐ 使用原子操作更新，防止并发问题
+// ⭐ 支持 app 级别权限申请（更新 app 表的 pending_count）
 func (s *PermissionService) updateServiceTreePendingCount(ctx context.Context, appID int64, resourcePath string, delta int) error {
 	if s.serviceTreeRepo == nil {
 		return fmt.Errorf("serviceTreeRepo 未初始化")
@@ -361,21 +364,35 @@ func (s *PermissionService) updateServiceTreePendingCount(ctx context.Context, a
 	tree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(resourcePath)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			// 节点不存在，记录警告但不返回错误（可能是新创建的节点还未同步）
-			logger.Warnf(ctx, "[PermissionService] 节点不存在，无法更新 pending_count: resource_path=%s", resourcePath)
+			// 节点不存在，可能是 app 级别的权限申请（如 /system/official）
+			// app 根节点不在 service_tree 表中，而在 app 表中
+			logger.Infof(ctx, "[PermissionService] service_tree 节点不存在，尝试更新 app 表的 pending_count: resource_path=%s", resourcePath)
+			
+			// 更新 app 表的 pending_count
+			if s.appRepo == nil {
+				logger.Warnf(ctx, "[PermissionService] appRepo 未初始化，无法更新 app 的 pending_count")
+				return nil
+			}
+			
+			err := s.appRepo.UpdatePendingCount(appID, delta)
+			if err != nil {
+				return fmt.Errorf("更新 app pending_count 失败: %w", err)
+			}
+			
+			logger.Debugf(ctx, "[PermissionService] 更新 app pending_count 成功: app_id=%d, delta=%d", appID, delta)
 			return nil
 		}
 		return fmt.Errorf("查询节点失败: %w", err)
 	}
 
-	// 更新 pending_count（使用原子操作，防止并发问题）
+	// 更新 service_tree 的 pending_count（使用原子操作，防止并发问题）
 	// 使用 ServiceTreeRepository 的 UpdatePendingCount 方法进行原子更新
 	err = s.serviceTreeRepo.UpdatePendingCount(tree.ID, delta)
 	if err != nil {
-		return fmt.Errorf("更新 pending_count 失败: %w", err)
+		return fmt.Errorf("更新 service_tree pending_count 失败: %w", err)
 	}
 
-	logger.Debugf(ctx, "[PermissionService] 更新节点 pending_count 成功: resource_path=%s, delta=%d",
+	logger.Debugf(ctx, "[PermissionService] 更新 service_tree pending_count 成功: resource_path=%s, delta=%d",
 		resourcePath, delta)
 
 	return nil
