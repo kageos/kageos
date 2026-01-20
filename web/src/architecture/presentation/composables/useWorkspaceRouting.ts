@@ -176,6 +176,41 @@ export function useWorkspaceRouting(
       // 标记已切换（用于后续处理）
       let appSwitched = true
 
+      // ⭐ 处理根路径（只有 user 和 app，如 /system/official）
+      if (pathSegments.length === 2) {
+        const appPath = '/' + pathSegments.join('/') // 构造完整路径，如 /system/official
+        
+        const trySelectAppRoot = () => {
+          const tree = options.serviceTree()
+          if (tree && tree.length > 0) {
+            const node = options.findNodeByPath(tree, appPath)
+            if (node) {
+              const serviceNode: ServiceTree = node as any
+              // 设置当前函数（app 根节点）
+              applicationService.triggerNodeClick(serviceNode)
+            }
+          }
+        }
+        
+        if (appSwitched) {
+          // 🔥 使用事件监听，等待服务树加载完成后选中根节点
+          const unsubscribe = eventBus.on(WorkspaceEvent.serviceTreeLoaded, async () => {
+            unsubscribe()
+            await nextTick()
+            trySelectAppRoot()
+          })
+          // 如果服务树已经加载，直接执行
+          if (options.serviceTree().length > 0) {
+            unsubscribe()
+            trySelectAppRoot()
+          }
+        } else {
+          trySelectAppRoot()
+        }
+        
+        return // 根路径处理完成
+      }
+
       // 处理子路径（打开 Tab）
       if (pathSegments.length > 2) {
         const functionPath = '/' + pathSegments.join('/') // 构造完整路径，如 /luobei/demo/crm/list
