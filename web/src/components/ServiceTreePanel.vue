@@ -34,16 +34,24 @@
         :props="{ children: 'children', label: 'name' }"
         node-key="id"
         :default-expand-all="false"
-        :default-expanded-keys="expandedKeys || []"
+        :default-expanded-keys="defaultExpandedKeysWithWorkspace"
         :expand-on-click-node="false"
         :highlight-current="true"
         @node-click="handleNodeClick"
       >
         <template #default="{ node, data }">
           <span class="tree-node">
+            <!-- app 类型：工作空间图标 -->
+            <img 
+              v-if="data.type === 'app'" 
+              src="/service-tree/app.svg" 
+              alt="工作空间" 
+              class="node-icon app-icon-img"
+              :class="getNodeIconClass(data)"
+            />
             <!-- package 类型：统一使用目录图标 -->
             <img 
-              v-if="data.type === 'package'" 
+              v-else-if="data.type === 'package'" 
               src="/service-tree/custom-folder.svg" 
               alt="目录" 
               class="node-icon package-icon-img"
@@ -703,7 +711,48 @@ const handlePasteHubLink = async (hubLink: string, targetNode?: ServiceTree) => 
 
 
 // 直接使用原始树数据，不再进行分组处理
-const groupedTreeData = computed(() => props.treeData)
+const groupedTreeData = computed(() => {
+  // 从路由中获取当前工作空间信息
+  const user = route.params.user as string
+  const app = route.params.app as string
+  
+  if (!user || !app) {
+    return props.treeData
+  }
+  
+  // 创建工作空间根节点
+  const workspaceRootNode: ServiceTree = {
+    id: -1, // 使用负数 ID 表示这是虚拟节点
+    name: app, // 使用 app 代码作为名称，实际显示时会从 API 获取真实名称
+    code: app,
+    type: 'app', // 工作空间类型
+    full_code_path: `/${user}/${app}`,
+    children: props.treeData,
+    parent_id: 0,
+    template_type: '',
+    ref_id: 0,
+    add_version_num: 0,
+    update_version_num: 0,
+    app_id: 0,
+    created_at: '',
+    updated_at: '',
+    description: '',
+    tags: '',
+    admins: '',
+    pending_count: 0
+  }
+  
+  // 返回包含工作空间根节点的树
+  return [workspaceRootNode]
+})
+
+// 默认展开的节点（包括工作空间根节点）
+const defaultExpandedKeysWithWorkspace = computed(() => {
+  const keys = [...(props.expandedKeys || [])]
+  // 工作空间根节点默认展开
+  keys.push(-1)
+  return keys
+})
 
 // 处理无权限节点点击
 const handleNoPermissionClick = (data: ServiceTree) => {
