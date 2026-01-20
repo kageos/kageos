@@ -172,37 +172,10 @@ export function useWorkspaceRouting(
       let appSwitched = true
 
       // ⭐ 处理根路径（只有 user 和 app，如 /system/official）
+      // ✅ 简化：不再特殊处理，根节点在树中会自动展开，用户可以手动点击
       if (pathSegments.length === 2) {
-        const appPath = '/' + pathSegments.join('/') // 构造完整路径，如 /system/official
-        
-        const trySelectAppRoot = () => {
-          const tree = options.serviceTree()
-          if (tree && tree.length > 0) {
-            const node = options.findNodeByPath(tree, appPath)
-            if (node) {
-              const serviceNode: ServiceTree = node as any
-              // 设置当前函数（app 根节点）
-              applicationService.triggerNodeClick(serviceNode)
-            }
-          }
-        }
-        
-        if (appSwitched) {
-          // 🔥 使用事件监听，等待服务树加载完成后选中根节点
-          const unsubscribe = eventBus.on(WorkspaceEvent.serviceTreeLoaded, async () => {
-            unsubscribe()
-            await nextTick()
-            trySelectAppRoot()
-          })
-          // 如果服务树已经加载，直接执行
-          if (options.serviceTree().length > 0) {
-            unsubscribe()
-            trySelectAppRoot()
-          }
-        } else {
-          trySelectAppRoot()
-        }
-        
+        // 根路径不需要特殊处理，树会自动加载和展开
+        // 如果需要显示根节点详情，用户可以点击根节点
         return // 根路径处理完成
       }
 
