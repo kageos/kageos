@@ -732,13 +732,17 @@ const handleNodeClick = (data: ServiceTree) => {
   emit('node-click', data)
 }
 
-// 判断是否是管理员
+// 缓存当前用户名，避免在模板中重复访问响应式对象
+const currentUsername = computed(() => authStore.user?.username || '')
+
+// 判断是否是管理员（使用缓存的用户名）
 const isAdmin = (node: ServiceTree): boolean => {
-  if (!node.admins || !authStore.user?.username) {
+  const username = currentUsername.value
+  if (!node.admins || !username) {
     return false
   }
   const admins = node.admins.split(',').map(a => a.trim()).filter(Boolean)
-  return admins.includes(authStore.user.username)
+  return admins.includes(username)
 }
 
 // 处理申请权限
