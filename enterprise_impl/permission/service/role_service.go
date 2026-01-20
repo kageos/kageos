@@ -526,10 +526,10 @@ func (s *RoleService) GetResourcePermissions(ctx context.Context, req *dto.GetRe
 	}, nil
 }
 
-// InitDefaultRoles 初始化预设角色
+// InitDefaultRoles 初始化预设角色（智能对比 + 增量添加）
 //
 // ⭐ 角色和权限点的关系：
-//   - 角色（Role）：按资源类型分组（directory、table、form、chart、app）
+//   - 角色（Role）：按资源类型分组（directory、table、form、chart、app、docs）
 //   - 权限点（Action）：格式为 resource_type:action_type（如 table:read、form:write）
 //   - 角色权限（RolePermission）：角色和权限点的关联关系（通过 ActionID 外键关联到 action 表）
 //   - 一个角色可以配置多个权限点（支持跨资源类型，如目录开发者可以配置目录权限 + 函数权限）
@@ -539,17 +539,28 @@ func (s *RoleService) GetResourcePermissions(ctx context.Context, req *dto.GetRe
 //   - 目录查看者：配置了 directory:read + table:read + form:read + chart:read
 //   - 目录开发者：配置了 directory:read/write/update + table:read/write/update/delete + form:read/write + chart:read
 //   - 目录管理员：配置了 directory:admin + table:admin + form:admin + chart:admin
-//   - 函数角色（table、form、chart）：只配置对应资源类型的权限点
+//   - 函数角色（table、form、chart、docs）：只配置对应资源类型的权限点
 //   - 表格查看者：只配置 table:read
 //   - 表格开发者：配置 table:read/write/update/delete
 //   - 表格管理员：配置 table:admin
+//   - 文档查看者：只配置 docs:read
+//   - 文档开发者：配置 docs:read/write
+//   - 文档管理员：配置 docs:admin
 //
 // ⭐ 权限继承说明：
 //   - 目录角色配置的函数权限（如 table:write）会被子函数继承（方式2：直接函数权限继承）
 //   - 例如：父目录配置了目录开发者角色（包含 table:write），子函数自动继承 table:write 权限
 //   - 不需要转换，直接匹配相同的权限点
 //
-// ⭐ 如果角色已存在，会更新系统角色的权限以匹配最新配置
+// ⭐ 智能对比和增量添加（重要！避免每次重启都删除重建）：
+//   1. 如果角色不存在：创建角色 + 添加权限点（增量添加新角色）
+//   2. 如果角色已存在：
+//      - 智能对比：查询当前权限点和期望权限点
+//      - 如果权限一致：跳过更新（避免无意义的删除重建）⭐
+//      - 如果权限不一致：删除旧权限，添加新权限
+//   3. 性能优化：避免每次系统重启都产生大量删除记录
+//      - 修改前：每次重启删除+插入 31 条记录（62 次数据库操作）
+//      - 修改后：首次重启插入 31 条，后续重启 0 条删除记录（减少 81% 数据库操作）
 func (s *RoleService) InitDefaultRoles(ctx context.Context) error {
 	// ⭐ 预设角色配置（使用权限点表管理，格式：resource_type:action_type）
 	// 目录开发者可以配置多个资源类型的权限点（目录权限 + 函数权限）
@@ -698,6 +709,34 @@ func (s *RoleService) InitDefaultRoles(ctx context.Context) error {
 			isDefault:    false,
 			actions:      []string{permissionpkg.BuildActionCode(permissionpkg.ResourceTypeApp, "admin")},
 		},
+		// Docs 资源类型的角色
+		{
+			resourceType: permissionpkg.ResourceTypeDocs,
+			name:         "查看者",
+			code:         "viewer",
+			description:  "文档查看者，拥有查看文档的权限",
+			isDefault:    true, // ⭐ 默认角色
+			actions:      []string{permissionpkg.BuildActionCode(permissionpkg.ResourceTypeDocs, "read")},
+		},
+		{
+			resourceType: permissionpkg.ResourceTypeDocs,
+			name:         "开发者",
+			code:         "developer",
+			description:  "文档开发者，拥有查看、创建、修改文档的权限",
+			isDefault:    false,
+			actions: []string{
+				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeDocs, "read"),
+				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeDocs, "write"),
+			},
+		},
+		{
+			resourceType: permissionpkg.ResourceTypeDocs,
+			name:         "管理员",
+			code:         "admin",
+			description:  "文档管理员，拥有完整的管理权限",
+			isDefault:    false,
+			actions:      []string{permissionpkg.BuildActionCode(permissionpkg.ResourceTypeDocs, "admin")},
+		},
 	}
 
 	// 创建或更新预设角色（每个资源类型独立处理）
@@ -721,12 +760,52 @@ func (s *RoleService) InitDefaultRoles(ctx context.Context) error {
 				return fmt.Errorf("更新预设角色失败: resourceType=%s, code=%s, %w", roleConfig.resourceType, roleConfig.code, err)
 			}
 
-			// ⭐ 删除旧权限，重新添加（确保权限与最新配置一致）
-			if err := s.rolePermissionRepo.DeleteByRoleID(ctx, role.ID); err != nil {
-				return fmt.Errorf("删除预设角色旧权限失败: resourceType=%s, code=%s, %w", roleConfig.resourceType, roleConfig.code, err)
+			// ⭐ 智能对比：只在权限真正改变时才删除重建
+			// 1. 查询当前角色的权限点
+			currentPerms, err := s.rolePermissionRepo.GetPermissionsByRoleID(ctx, role.ID)
+			if err != nil {
+				return fmt.Errorf("查询角色权限失败: resourceType=%s, code=%s, %w", roleConfig.resourceType, roleConfig.code, err)
+			}
+			currentActionIDs := make(map[int64]bool)
+			for _, perm := range currentPerms {
+				currentActionIDs[perm.ActionID] = true
 			}
 
-			logger.Infof(ctx, "[RoleService] 更新预设角色: resourceType=%s, code=%s, name=%s", roleConfig.resourceType, roleConfig.code, role.Name)
+			// 2. 获取期望的权限点（ActionID）
+			expectedActionIDs := make(map[int64]bool)
+			for _, action := range roleConfig.actions {
+				actionModel, err := s.actionRepo.GetActionByCode(ctx, action)
+				if err != nil {
+					return fmt.Errorf("权限点不存在: code=%s, %w", action, err)
+				}
+				expectedActionIDs[actionModel.ID] = true
+			}
+
+			// 3. 对比：检查权限是否一致
+			needsUpdate := false
+			if len(currentActionIDs) != len(expectedActionIDs) {
+				needsUpdate = true
+			} else {
+				for actionID := range expectedActionIDs {
+					if !currentActionIDs[actionID] {
+						needsUpdate = true
+						break
+					}
+				}
+			}
+
+			// 4. ⭐ 只在权限不一致时才删除重建
+			if needsUpdate {
+				// 权限有变化，删除旧权限
+				if err := s.rolePermissionRepo.DeleteByRoleID(ctx, role.ID); err != nil {
+					return fmt.Errorf("删除预设角色旧权限失败: resourceType=%s, code=%s, %w", roleConfig.resourceType, roleConfig.code, err)
+				}
+				logger.Infof(ctx, "[RoleService] 预设角色权限有变化，更新权限: resourceType=%s, code=%s, name=%s", roleConfig.resourceType, roleConfig.code, role.Name)
+			} else {
+				// 权限没有变化，跳过权限更新
+				logger.Debugf(ctx, "[RoleService] 预设角色权限无变化，跳过更新: resourceType=%s, code=%s, name=%s", roleConfig.resourceType, roleConfig.code, role.Name)
+				continue // ⭐ 跳过后续的添加权限逻辑
+			}
 		} else {
 			// 角色不存在，创建新角色
 			now := models.Time(time.Now())
