@@ -223,11 +223,14 @@ import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 
 interface Props {
   resourcePath?: string  // 资源路径（可选，如果提供则只显示该资源的申请）
+  resourceType?: 'function' | 'directory' | 'app'  // 资源类型（可选）
+  showMyRequests?: boolean  // 是否只显示我的申请
   autoLoad?: boolean  // 是否自动加载
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  autoLoad: true
+  autoLoad: true,
+  showMyRequests: false
 })
 
 // 权限申请信息接口
@@ -301,6 +304,14 @@ const loadRequests = async () => {
     
     if (props.resourcePath) {
       params.resource_path = props.resourcePath
+    }
+    
+    if (props.resourceType) {
+      params.resource_type = props.resourceType
+    }
+    
+    if (props.showMyRequests) {
+      params.show_my_requests = true
     }
     
     const response = await getPermissionRequests(params)
