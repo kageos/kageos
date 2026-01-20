@@ -382,12 +382,13 @@ func (s *ServiceTreeService) CreateDocsNode(ctx context.Context, req *dto.Create
 			docFormat = "markdown"
 		}
 		docReq := &dto.CreateDocReq{
+			TreeID:  serviceTree.ID,
 			Title:   req.DocTitle,
 			Content: req.DocContent,
 			Format:  docFormat,
 			Summary: req.DocSummary,
 		}
-		doc, err := s.docService.CreateDoc(ctx, serviceTree.ID, docReq)
+		doc, err := s.docService.CreateDoc(ctx, docReq)
 		if err != nil {
 			// 文档创建失败，记录警告但不影响节点创建
 			logger.Warnf(ctx, "[ServiceTreeService] 创建文档内容失败: %v", err)
