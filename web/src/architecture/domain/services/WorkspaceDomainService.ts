@@ -143,11 +143,13 @@ export class WorkspaceDomainService {
    */
   async loadServiceTreeWithData(app: App, tree: ServiceTree[], expandedKeys?: number[]): Promise<ServiceTree[]> {
     try {
+      console.log('[WorkspaceDomainService] loadServiceTreeWithData 开始，expandedKeys:', expandedKeys)
       const state = this.stateManager.getState()
 
       // 使用已获取的服务目录树和 expanded_keys
 
       // 更新状态
+      console.log('[WorkspaceDomainService] 调用 setState 更新 serviceTree')
       this.stateManager.setState({
         ...state,
         serviceTree: tree || [],
@@ -155,6 +157,7 @@ export class WorkspaceDomainService {
       })
 
       // 触发事件（包含 expandedKeys）
+      console.log('[WorkspaceDomainService] 触发 serviceTreeLoaded 事件，expandedKeys:', expandedKeys)
       this.eventBus.emit(WorkspaceEvent.serviceTreeLoaded, { app, tree: tree || [], expandedKeys })
 
       return tree || []
