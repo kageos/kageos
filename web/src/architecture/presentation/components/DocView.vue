@@ -113,7 +113,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Edit, Check, Plus, Delete } from '@element-plus/icons-vue'
 import { marked } from 'marked'
 import type { ServiceTree } from '@/types'
-import { getDoc, createDoc, updateDoc, deleteDoc } from '@/api/service-tree'
+import { getDoc, updateDoc, deleteDoc } from '@/api/doc'  // ✅ 使用新的文档 API
 import { hasPermission, DirectoryPermissions } from '@/utils/permission'
 import VditorEditor from '@/components/VditorEditor.vue'
 
@@ -159,14 +159,14 @@ const renderedContent = computed(() => {
 
 // 加载文档
 const loadDoc = async () => {
-  if (!props.node || !props.node.id) {
+  if (!props.node?.full_code_path) {
     return
   }
 
   loading.value = true
   try {
-    // 响应拦截器已经解包了，直接使用返回值
-    const data = await getDoc(props.node.id)
+    // ✅ 使用 full_code_path 调用新接口
+    const data = await getDoc(props.node.full_code_path)
     doc.value = data || null
   } catch (error: any) {
     if (error.response?.status === 404) {
@@ -200,6 +200,11 @@ const handleEdit = () => {
 
 // 保存文档
 const handleSave = async () => {
+  if (!props.node?.full_code_path) {
+    ElMessage.error('文档路径不存在')
+    return
+  }
+
   if (!editTitle.value.trim()) {
     ElMessage.warning('请输入文档标题')
     return
@@ -213,8 +218,8 @@ const handleSave = async () => {
   saving.value = true
   try {
     if (doc.value) {
-      // 更新文档（响应拦截器已经解包了，直接使用返回值）
-      const data = await updateDoc(props.node.id, {
+      // ✅ 更新文档（使用 full_code_path）
+      const data = await updateDoc(props.node.full_code_path, {
         title: editTitle.value.trim(),
         content: editContent.value.trim(),
         summary: editSummary.value.trim() || undefined,
@@ -222,18 +227,11 @@ const handleSave = async () => {
       })
       doc.value = data
       ElMessage.success('文档保存成功')
+      isEditing.value = false
     } else {
-      // 创建文档（响应拦截器已经解包了，直接使用返回值）
-      const data = await createDoc(props.node.id, {
-        title: editTitle.value.trim(),
-        content: editContent.value.trim(),
-        summary: editSummary.value.trim() || undefined,
-        format: 'markdown'
-      })
-      doc.value = data
-      ElMessage.success('文档创建成功')
+      // ❌ 文档不存在时，需要通过 service_tree 创建
+      ElMessage.error('文档不存在，请先在服务树中创建文档节点')
     }
-    isEditing.value = false
   } catch (error: any) {
     ElMessage.error('保存文档失败: ' + (error.message || '未知错误'))
   } finally {
@@ -263,6 +261,11 @@ const handleCancel = async () => {
 
 // 删除文档
 const handleDelete = async () => {
+  if (!props.node?.full_code_path) {
+    ElMessage.error('文档路径不存在')
+    return
+  }
+
   if (!doc.value) {
     ElMessage.warning('文档不存在')
     return
@@ -270,7 +273,7 @@ const handleDelete = async () => {
 
   try {
     await ElMessageBox.confirm(
-      `确定要删除文档"${doc.value.title}"吗？此操作不可恢复。`,
+      `确定要删除文档"${doc.value.title}"吗？此操作将删除文档内容和文档节点，且无法恢复。`,
       '确认删除',
       {
         confirmButtonText: '确定',
@@ -281,7 +284,8 @@ const handleDelete = async () => {
 
     loading.value = true
     try {
-      await deleteDoc(props.node.id)
+      // ✅ 使用 full_code_path 调用新接口
+      await deleteDoc(props.node.full_code_path)
       ElMessage.success('文档删除成功')
       doc.value = null
       // ⭐ 通知父组件文档已删除
