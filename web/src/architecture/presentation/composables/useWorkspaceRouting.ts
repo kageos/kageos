@@ -199,21 +199,23 @@ export function useWorkspaceRouting(
             }
           }
           
-          if (appSwitched) {
-            // 🔥 使用事件监听替代 setInterval 轮询，减少不必要的重复调用
-            const unsubscribe = eventBus.on(WorkspaceEvent.serviceTreeLoaded, async () => {
-              unsubscribe()
-              await nextTick()
-              tryLoadFunction()
-            })
-            // 如果服务树已经加载，直接执行
-            if (options.serviceTree().length > 0) {
-              unsubscribe()
-                tryLoadFunction()
-              }
-          } else {
-            tryLoadFunction()
-          }
+          // ✅ 暂时禁用事件监听器，避免无限循环
+          // 
+          // if (appSwitched) {
+          //   // 🔥 使用事件监听替代 setInterval 轮询，减少不必要的重复调用
+          //   const unsubscribe = eventBus.on(WorkspaceEvent.serviceTreeLoaded, async () => {
+          //     unsubscribe()
+          //     await nextTick()
+          //     tryLoadFunction()
+          //   })
+          //   // 如果服务树已经加载，直接执行
+          //   if (options.serviceTree().length > 0) {
+          //     unsubscribe()
+          //       tryLoadFunction()
+          //     }
+          // } else {
+          //   tryLoadFunction()
+          // }
           
           // 检查 _forked 参数，自动展开路径
           if (route.query._forked) {
@@ -264,21 +266,23 @@ export function useWorkspaceRouting(
           applicationService.triggerNodeClick(serviceNode)
         }
 
-        // 🔥 使用事件监听替代 setInterval 轮询，减少不必要的重复调用
-        if (appSwitched) {
-          const unsubscribe = eventBus.on(WorkspaceEvent.serviceTreeLoaded, async () => {
-            unsubscribe()
-            await nextTick()
-            await tryOpenTab()
-          })
-          // 如果服务树已经加载，直接执行
-          if (options.serviceTree().length > 0) {
-            unsubscribe()
-              await tryOpenTab()
-            }
-        } else {
-          await tryOpenTab()
-        }
+        // ✅ 暂时禁用事件监听器，避免无限循环
+        // 
+        // // 🔥 使用事件监听替代 setInterval 轮询，减少不必要的重复调用
+        // if (appSwitched) {
+        //   const unsubscribe = eventBus.on(WorkspaceEvent.serviceTreeLoaded, async () => {
+        //     unsubscribe()
+        //     await nextTick()
+        //     await tryOpenTab()
+        //   })
+        //   // 如果服务树已经加载，直接执行
+        //   if (options.serviceTree().length > 0) {
+        //     unsubscribe()
+        //       await tryOpenTab()
+        //     }
+        // } else {
+        //   await tryOpenTab()
+        // }
         
         // 展开目录树
         if (route.query._forked) {
