@@ -176,9 +176,9 @@
                     <el-icon><Edit /></el-icon>
                     重命名
                   </el-dropdown-item>
-                  <!-- 复制链接（需要 directory:read、app:read 或 function:read 权限） -->
+                  <!-- 复制链接（需要 directory:read、app:read、docs:read 或 function:read 权限） -->
                   <el-dropdown-item 
-                    v-if="hasPermission(data, data.type === 'app' ? AppPermissions.read : (data.type === 'package' ? DirectoryPermissions.read : 'function:read'))"
+                    v-if="hasPermission(data, data.type === 'app' ? AppPermissions.read : (data.type === 'package' ? DirectoryPermissions.read : (data.type === 'docs' ? 'docs:read' : 'function:read')))"
                     command="copy-link"
                   >
                     <el-icon><Link /></el-icon>
