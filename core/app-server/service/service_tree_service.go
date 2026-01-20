@@ -146,7 +146,7 @@ func NewServiceTreeService(
 	fileSnapshotRepo *repository.FileSnapshotRepository,
 	appService *AppService,
 	permissionService *PermissionService, // ⭐ 新增 PermissionService 依赖
-	docService *DocService, // ⭐ 新增 DocService 依赖
+	docService *DocService,               // ⭐ 新增 DocService 依赖
 ) *ServiceTreeService {
 	return &ServiceTreeService{
 		serviceTreeRepo:   serviceTreeRepo,
@@ -851,86 +851,133 @@ func (s *ServiceTreeService) UpdateServiceTreeMetadata(ctx context.Context, req 
 		return fmt.Errorf("failed to get service tree: %w", err)
 	}
 
-	// 更新字段
-	if req.Name != "" {
-		serviceTree.Name = req.Name
+	// ⭐ 使用指针类型判断，支持字段清空
+	// nil 表示不更新，非 nil 表示更新（包括空字符串）
+
+	// 更新名称
+	if req.Name != nil {
+		serviceTree.Name = *req.Name
 	}
-	if req.Code != "" {
-		// 检查新名称是否已存在
-		exists, err := s.serviceTreeRepo.CheckNameExists(serviceTree.ParentID, req.Code, serviceTree.AppID)
-		if err != nil {
-			return fmt.Errorf("failed to check name exists: %w", err)
+
+	// 更新代码
+	if req.Code != nil {
+		newCode := *req.Code
+		// 如果修改了 code，检查新名称是否已存在
+		if newCode != serviceTree.Code && newCode != "" {
+			exists, err := s.serviceTreeRepo.CheckNameExists(serviceTree.ParentID, newCode, serviceTree.AppID)
+			if err != nil {
+				return fmt.Errorf("failed to check name exists: %w", err)
+			}
+			if exists {
+				return fmt.Errorf("service tree name '%s' already exists in this parent directory", newCode)
+			}
 		}
-		if exists {
-			return fmt.Errorf("service tree name '%s' already exists in this parent directory", req.Code)
-		}
-		serviceTree.Code = req.Code
+		serviceTree.Code = newCode
 	}
-	if req.Description != "" {
-		serviceTree.Description = req.Description
+
+	// 更新描述
+	if req.Description != nil {
+		serviceTree.Description = *req.Description
 	}
-	if req.Tags != "" {
-		serviceTree.Tags = req.Tags
+
+	// 更新标签
+	if req.Tags != nil {
+		serviceTree.Tags = *req.Tags
 	}
+
 	// ⭐ 更新管理员列表并同步更新角色分配
 	oldAdminsStr := serviceTree.Admins
-	newAdminsStr := req.Admins
-
-	// 解析旧管理员列表
-	oldAdmins := make(map[string]bool)
-	if oldAdminsStr != "" {
-		for _, admin := range strings.Split(oldAdminsStr, ",") {
-			admin = strings.TrimSpace(admin)
-			if admin != "" {
-				oldAdmins[admin] = true
-			}
-		}
+	var newAdminsStr string
+	if req.Admins != nil {
+		newAdminsStr = *req.Admins
+	} else {
+		newAdminsStr = oldAdminsStr // 如果没有传 Admins，保持不变
 	}
 
-	// 解析新管理员列表
-	newAdmins := make(map[string]bool)
-	if newAdminsStr != "" {
-		for _, admin := range strings.Split(newAdminsStr, ",") {
-			admin = strings.TrimSpace(admin)
-			if admin != "" {
-				newAdmins[admin] = true
-			}
-		}
-	}
-
-	// 更新数据库中的管理员列表
-	serviceTree.Admins = req.Admins
-	if err := s.serviceTreeRepo.UpdateServiceTree(serviceTree); err != nil {
-		return fmt.Errorf("failed to update service tree: %w", err)
-	}
-
-	// ⭐ 同步更新角色分配
-	// 从 FullCodePath 解析 user 和 app
-	parts := strings.Split(strings.Trim(serviceTree.FullCodePath, "/"), "/")
-	if len(parts) >= 2 {
-		user := parts[0]
-		app := parts[1]
-
-		// 1. 移除不再担任管理员的用户角色
-		for oldAdmin := range oldAdmins {
-			if !newAdmins[oldAdmin] {
-				// 该用户不再是管理员，移除其管理员角色
-				if err := s.removeAdminRoleFromUserWithUserApp(ctx, user, app, oldAdmin, serviceTree.FullCodePath); err != nil {
-					// 角色移除失败不应该影响更新，只记录警告日志
-					logger.Warnf(ctx, "[ServiceTreeService] 移除管理员角色失败: resource=%s, username=%s, error=%v",
-						serviceTree.FullCodePath, oldAdmin, err)
+	// ⭐ 只有当传入了 Admins 字段时才更新管理员
+	if req.Admins != nil {
+		// 解析旧管理员列表
+		oldAdmins := make(map[string]bool)
+		if oldAdminsStr != "" {
+			for _, admin := range strings.Split(oldAdminsStr, ",") {
+				admin = strings.TrimSpace(admin)
+				if admin != "" {
+					oldAdmins[admin] = true
 				}
 			}
 		}
 
-		// 2. 给新管理员分配角色
-		for newAdmin := range newAdmins {
-			if !oldAdmins[newAdmin] {
-				// 该用户是新管理员，分配管理员角色
-				if err := s.assignAdminRoleToUser(ctx, user, app, newAdmin, serviceTree.FullCodePath); err != nil {
-					// 角色分配失败不应该影响更新，只记录警告日志
-					logger.Warnf(ctx, "[ServiceTreeService] 分配管理员角色失败: resource=%s, username=%s, error=%v",
-						serviceTree.FullCodePath, newAdmin, err)
+		// 解析新管理员列表
+		newAdmins := make(map[string]bool)
+		if newAdminsStr != "" {
+			for _, admin := range strings.Split(newAdminsStr, ",") {
+				admin = strings.TrimSpace(admin)
+				if admin != "" {
+					newAdmins[admin] = true
+				}
+			}
+		}
+
+		// 更新数据库中的管理员列表
+		serviceTree.Admins = newAdminsStr
+	}
+	
+	// 保存更新
+	if err := s.serviceTreeRepo.UpdateServiceTree(serviceTree); err != nil {
+		return fmt.Errorf("failed to update service tree: %w", err)
+	}
+
+	// ⭐ 只有当更新了管理员时才同步角色分配
+	if req.Admins != nil {
+		// 重新解析管理员列表（确保使用最新数据）
+		oldAdmins := make(map[string]bool)
+		if oldAdminsStr != "" {
+			for _, admin := range strings.Split(oldAdminsStr, ",") {
+				admin = strings.TrimSpace(admin)
+				if admin != "" {
+					oldAdmins[admin] = true
+				}
+			}
+		}
+
+		newAdmins := make(map[string]bool)
+		if newAdminsStr != "" {
+			for _, admin := range strings.Split(newAdminsStr, ",") {
+				admin = strings.TrimSpace(admin)
+				if admin != "" {
+					newAdmins[admin] = true
+				}
+			}
+		}
+
+		// 同步更新角色分配
+		// 从 FullCodePath 解析 user 和 app
+		parts := strings.Split(strings.Trim(serviceTree.FullCodePath, "/"), "/")
+		if len(parts) >= 2 {
+			user := parts[0]
+			app := parts[1]
+
+			// 1. 移除不再担任管理员的用户角色
+			for oldAdmin := range oldAdmins {
+				if !newAdmins[oldAdmin] {
+					// 该用户不再是管理员，移除其管理员角色
+					if err := s.removeAdminRoleFromUserWithUserApp(ctx, user, app, oldAdmin, serviceTree.FullCodePath); err != nil {
+						// 角色移除失败不应该影响更新，只记录警告日志
+						logger.Warnf(ctx, "[ServiceTreeService] 移除管理员角色失败: resource=%s, username=%s, error=%v",
+							serviceTree.FullCodePath, oldAdmin, err)
+					}
+				}
+			}
+
+			// 2. 给新管理员分配角色
+			for newAdmin := range newAdmins {
+				if !oldAdmins[newAdmin] {
+					// 该用户是新管理员，分配管理员角色
+					if err := s.assignAdminRoleToUser(ctx, user, app, newAdmin, serviceTree.FullCodePath); err != nil {
+						// 角色分配失败不应该影响更新，只记录警告日志
+						logger.Warnf(ctx, "[ServiceTreeService] 分配管理员角色失败: resource=%s, username=%s, error=%v",
+							serviceTree.FullCodePath, newAdmin, err)
+					}
 				}
 			}
 		}
@@ -1284,7 +1331,7 @@ func (s *ServiceTreeService) applyPermissionInheritance(
 	nodeType string,
 	templateType string,
 	parentPerms map[string]bool, // 父目录的权限（格式：actionCode -> true，如 directory:read -> true）
-	nodePerms map[string]bool, // 子节点的权限（格式：actionCode -> true，如 table:read -> true）
+	nodePerms map[string]bool,   // 子节点的权限（格式：actionCode -> true，如 table:read -> true）
 ) {
 	// 获取子节点的资源类型
 	resourceType := permission.GetResourceType(nodeType, templateType)
