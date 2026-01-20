@@ -6,6 +6,7 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
+	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"gorm.io/gorm"
@@ -55,7 +56,7 @@ func (s *DocService) GetDoc(ctx context.Context, treeID int64) (*model.Doc, erro
 }
 
 // CreateDoc 创建文档
-func (s *DocService) CreateDoc(ctx context.Context, treeID int64, title, content, format string, summary ...string) (*model.Doc, error) {
+func (s *DocService) CreateDoc(ctx context.Context, treeID int64, req *dto.CreateDocReq) (*model.Doc, error) {
 	user := contextx.GetRequestUser(ctx)
 	if user == "" {
 		return nil, fmt.Errorf("请求用户信息不能为空")
@@ -81,23 +82,22 @@ func (s *DocService) CreateDoc(ctx context.Context, treeID int64, title, content
 	}
 
 	// 3. 设置默认格式
+	format := req.Format
 	if format == "" {
 		format = "markdown"
 	}
 
 	// 4. 创建文档
 	doc := &model.Doc{
-		Title:   title,
-		Content: content,
-		Format:  format,
-		AppID:   tree.AppID,
-		TreeID:  treeID,
+		Title:     req.Title,
+		Content:   req.Content,
+		Format:    format,
+		Summary:   req.Summary,
+		AppID:     tree.AppID,
+		TreeID:    treeID,
+		CreatedBy: user,
+		UpdatedBy: user,
 	}
-	if len(summary) > 0 && summary[0] != "" {
-		doc.Summary = summary[0]
-	}
-	doc.CreatedBy = user
-	doc.UpdatedBy = user
 
 	if err := s.docRepo.Create(doc); err != nil {
 		return nil, fmt.Errorf("创建文档失败: %w", err)
@@ -110,12 +110,12 @@ func (s *DocService) CreateDoc(ctx context.Context, treeID int64, title, content
 		// 不返回错误，因为文档已创建成功
 	}
 
-	logger.Infof(ctx, "[DocService] 文档创建成功 - TreeID: %d, DocID: %d, Title: %s", treeID, doc.ID, title)
+	logger.Infof(ctx, "[DocService] 文档创建成功 - TreeID: %d, DocID: %d, Title: %s", treeID, doc.ID, req.Title)
 	return doc, nil
 }
 
 // UpdateDoc 更新文档
-func (s *DocService) UpdateDoc(ctx context.Context, treeID int64, title, content, format, summary string) (*model.Doc, error) {
+func (s *DocService) UpdateDoc(ctx context.Context, treeID int64, req *dto.UpdateDocReq) (*model.Doc, error) {
 	user := contextx.GetRequestUser(ctx)
 	if user == "" {
 		return nil, fmt.Errorf("请求用户信息不能为空")
@@ -143,18 +143,18 @@ func (s *DocService) UpdateDoc(ctx context.Context, treeID int64, title, content
 		return nil, fmt.Errorf("获取文档失败: %w", err)
 	}
 
-	// 3. 更新文档
-	if title != "" {
-		doc.Title = title
+	// 3. 更新文档（只更新非空字段）
+	if req.Title != "" {
+		doc.Title = req.Title
 	}
-	if content != "" {
-		doc.Content = content
+	if req.Content != "" {
+		doc.Content = req.Content
 	}
-	if format != "" {
-		doc.Format = format
+	if req.Format != "" {
+		doc.Format = req.Format
 	}
-	if summary != "" {
-		doc.Summary = summary
+	if req.Summary != "" {
+		doc.Summary = req.Summary
 	}
 	doc.UpdatedBy = user
 
@@ -255,7 +255,7 @@ func (s *DocService) GetDocByPath(ctx context.Context, fullCodePath string) (*mo
 }
 
 // UpdateDocByPath 根据完整路径更新文档
-func (s *DocService) UpdateDocByPath(ctx context.Context, fullCodePath, title, content, format, summary string) (*model.Doc, error) {
+func (s *DocService) UpdateDocByPath(ctx context.Context, fullCodePath string, req *dto.UpdateDocReq) (*model.Doc, error) {
 	// 1. 根据路径获取 ServiceTree 节点
 	tree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(fullCodePath)
 	if err != nil {
@@ -268,7 +268,7 @@ func (s *DocService) UpdateDocByPath(ctx context.Context, fullCodePath, title, c
 	}
 
 	// 3. 更新文档内容
-	return s.UpdateDoc(ctx, tree.ID, title, content, format, summary)
+	return s.UpdateDoc(ctx, tree.ID, req)
 }
 
 // DeleteDocByPath 根据完整路径删除文档
