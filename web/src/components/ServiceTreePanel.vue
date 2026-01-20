@@ -1113,8 +1113,9 @@ const expandKeysNow = async (keys: number[]) => {
 watch(() => props.expandedKeys, async (keys: number[] | undefined, oldKeys: number[] | undefined) => {
   if (keys && keys.length > 0) {
     // ⭐ 防重复：如果 keys 和 oldKeys 相同，跳过
-    const keysStr = JSON.stringify(keys.sort())
-    const oldKeysStr = oldKeys ? JSON.stringify(oldKeys.sort()) : ''
+    // 注意：使用 slice() 创建副本再排序，避免修改原数组触发无限循环
+    const keysStr = JSON.stringify([...keys].sort())
+    const oldKeysStr = oldKeys ? JSON.stringify([...oldKeys].sort()) : ''
     if (keysStr === oldKeysStr) {
       return
     }
