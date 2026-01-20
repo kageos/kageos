@@ -102,7 +102,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, nextTick, onMounted, withDefaults } from 'vue'
+import { computed, ref, watch, nextTick, onMounted, onUnmounted, withDefaults } from 'vue'
 import { ElInput, ElTag, ElIcon } from 'element-plus'
 import { ArrowDown, Close } from '@element-plus/icons-vue'
 import FuzzySearchDialog from './FuzzySearchDialog.vue'
