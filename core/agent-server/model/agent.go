@@ -1,6 +1,8 @@
 package model
 
 import (
+	"encoding/json"
+
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 	"gorm.io/gorm"
 )
@@ -23,9 +25,10 @@ type Agent struct {
 	// 例如：/system/official/agent/plugin/excel_or_csv/table_parse
 	PluginFunctionPath string `gorm:"type:varchar(512);index;comment:插件函数路径(full-code-path)" json:"plugin_function_path"`
 	
-	// 知识库关联（两种类型都需要）
-	KnowledgeBaseID int64        `gorm:"type:bigint;not null;index;comment:知识库ID" json:"knowledge_base_id"`
-	KnowledgeBase   KnowledgeBase `gorm:"foreignKey:KnowledgeBaseID;references:ID" json:"knowledge_base,omitempty"` // 预加载关联
+	// 文档路径数组（JSON 格式，替代原 KnowledgeBaseID）
+	// 例如：["​/system/official/sdk", "/system/official/plugins", "/user/myapp/docs"]
+	// 支持选择多个文档路径，AI 会批量加载这些路径下的所有 docs 节点
+	DocsPaths string `gorm:"type:text;comment:文档路径数组（JSON格式）" json:"docs_paths"`
 
 	// LLM 配置关联（如果为空，则使用默认 LLM 配置）
 	LLMConfigID int64    `gorm:"type:bigint;index;comment:LLM配置ID" json:"llm_config_id"`
@@ -68,5 +71,39 @@ func (a *Agent) AfterCreate(tx *gorm.DB) error {
 		}
 	}
 	return nil
+}
+
+// GetDocsPaths 获取文档路径数组
+// 从 JSON 字符串解析为字符串数组
+func (a *Agent) GetDocsPaths() []string {
+	var paths []string
+	if a.DocsPaths == "" {
+		return paths
+	}
+	if err := json.Unmarshal([]byte(a.DocsPaths), &paths); err != nil {
+		return []string{}
+	}
+	return paths
+}
+
+// SetDocsPaths 设置文档路径数组
+// 将字符串数组序列化为 JSON 字符串
+func (a *Agent) SetDocsPaths(paths []string) error {
+	if len(paths) == 0 {
+		a.DocsPaths = "[]"
+		return nil
+	}
+	data, err := json.Marshal(paths)
+	if err != nil {
+		return err
+	}
+	a.DocsPaths = string(data)
+	return nil
+}
+
+// HasDocsPaths 判断是否配置了文档路径
+func (a *Agent) HasDocsPaths() bool {
+	paths := a.GetDocsPaths()
+	return len(paths) > 0
 }
 
