@@ -44,6 +44,17 @@ watch(adminsArray, (newVal) => {
   createAppForm.value.admins = newVal.length > 0 ? newVal.join(',') : ''
 }, { immediate: true })
 
+// 监听对话框显示状态，在打开时初始化管理员
+watch(createAppDialogVisible, (isVisible) => {
+  if (isVisible) {
+    // 对话框打开时，默认添加当前用户为管理员
+    const currentUsername = authStore.user?.username
+    if (currentUsername && adminsArray.value.length === 0) {
+      adminsArray.value = [currentUsername]
+    }
+  }
+})
+
 // 从路由中解析应用信息
 const parseAppFromRoute = () => {
   // 直接从 window.location.pathname 获取完整路径（最可靠的方式）
