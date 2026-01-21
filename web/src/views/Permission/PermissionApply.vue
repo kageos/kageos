@@ -49,9 +49,9 @@
                 >
                   <template #default="{ node, data }">
                     <span class="tree-node" :class="{ 'is-selected': selectedResourcePath === data.full_code_path }">
-                      <!-- app 和 package 类型：统一使用目录图标 -->
+                      <!-- package 类型（包括根节点）：统一使用目录图标 -->
                       <img 
-                        v-if="data.type === 'app' || data.type === 'package'" 
+                        v-if="data.type === 'package'" 
                         src="/service-tree/custom-folder.svg" 
                         alt="目录" 
                         class="node-icon package-icon-img"
@@ -556,9 +556,9 @@ const hasManagePermission = computed(() => {
   if (node.type === 'function') {
     return hasPermission(node, 'function:manage')
   } else if (node.type === 'package') {
-    return hasPermission(node, 'directory:manage')
-  } else if ((node as any).type === 'app') {
-    return hasPermission(node, 'app:manage')
+    // ⭐ 判断是否是根节点：parent_id=0 使用 app:manage，否则使用 directory:manage
+    const isRootNode = (node as any).parent_id === 0
+    return isRootNode ? hasPermission(node, 'app:manage') : hasPermission(node, 'directory:manage')
   }
   return false
 })
@@ -829,9 +829,7 @@ const getFunctionIcon = (data: ServiceTree) => {
 
 // 获取节点图标样式类
 const getNodeIconClass = (data: ServiceTree) => {
-  if (data.type === 'app') {
-    return 'app-icon'
-  } else if (data.type === 'package') {
+  if (data.type === 'package') {
     return 'package-icon'
   } else if (data.type === 'function') {
     // 根据 template_type 返回不同的样式类

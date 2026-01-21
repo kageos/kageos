@@ -41,9 +41,9 @@
       >
         <template #default="{ node, data }">
           <span class="tree-node">
-            <!-- app 类型：使用目录图标（与 package 保持一致） -->
+            <!-- 根节点：使用目录图标（兼容 type='app' 和 type='package' && parent_id=0） -->
             <img 
-              v-if="data.type === 'app'" 
+              v-if="data.type === 'app' || (data.type === 'package' && data.parent_id === 0)" 
               src="/service-tree/custom-folder.svg" 
               alt="工作空间" 
               class="node-icon app-icon-img"
@@ -96,9 +96,9 @@
               @click.stop="handleNoPermissionClick(data)"
             />
             
-            <!-- Hub 标记 - 已发布到 Hub 的 app 或目录显示 -->
+            <!-- Hub 标记 - 已发布到 Hub 的根节点或目录显示 -->
             <span
-              v-if="(data.type === 'app' || data.type === 'package') && data.hub_directory_id && data.hub_directory_id > 0"
+              v-if="data.type === 'package' && data.hub_directory_id && data.hub_directory_id > 0"
               class="hub-badge"
               @click.stop="handleHubBadgeClick(data)"
               :title="data.hub_version ? `已发布到应用中心 ${data.hub_version}` : '已发布到应用中心'"
@@ -107,9 +107,9 @@
               <span v-if="data.hub_version" class="hub-version">{{ data.hub_version }}</span>
             </span>
             
-            <!-- ⭐ 待审批数量 badge - 仅管理员可见（app、package 和 function 类型都显示） -->
+            <!-- ⭐ 待审批数量 badge - 仅管理员可见（package 和 function 类型都显示） -->
             <el-badge
-              v-if="(data.type === 'app' || data.type === 'package' || data.type === 'function') && isAdmin(data) && data.pending_count && data.pending_count > 0"
+              v-if="(data.type === 'package' || data.type === 'function') && isAdmin(data) && data.pending_count && data.pending_count > 0"
               :value="data.pending_count"
               :max="99"
               class="pending-count-badge"
@@ -142,9 +142,9 @@
                     申请权限
                   </el-dropdown-item>
                   
-                  <!-- 对 app 和 package 类型显示创建子目录选项（需要 directory:write 或 app:write 权限） -->
+                  <!-- 对 package 类型显示创建子目录选项（包括根节点和普通目录，需要 directory:write 或 app:write 权限） -->
                   <el-dropdown-item 
-                    v-if="(data.type === 'app' || data.type === 'package') && (hasPermission(data, DirectoryPermissions.write) || hasPermission(data, AppPermissions.WRITE))" 
+                    v-if="data.type === 'package' && (hasPermission(data, DirectoryPermissions.write) || hasPermission(data, AppPermissions.WRITE))" 
                     command="create-directory"
                   >
                     <el-icon><Plus /></el-icon>
@@ -153,7 +153,7 @@
                   
                   <!-- 创建文档选项（需要 directory:write 权限） -->
                   <el-dropdown-item 
-                    v-if="(data.type === 'app' || data.type === 'package') && hasPermission(data, DirectoryPermissions.write)" 
+                    v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.write)" 
                     command="create-docs"
                   >
                     <el-icon><Document /></el-icon>
@@ -180,7 +180,7 @@
                   
                   <!-- 粘贴选项（需要目标目录有 write 权限，且有已复制的内容） -->
                   <el-dropdown-item 
-                    v-if="(data.type === 'app' || data.type === 'package') && (copiedDirectory || copiedHubLink) && hasPermission(data, DirectoryPermissions.write)" 
+                    v-if="data.type === 'package' && (copiedDirectory || copiedHubLink) && hasPermission(data, DirectoryPermissions.write)" 
                     command="paste"
                   >
                     <el-icon><DocumentChecked /></el-icon>
@@ -694,7 +694,9 @@ const defaultExpandedKeysWithWorkspace = computed(() => {
 const handleNoPermissionClick = (data: ServiceTree) => {
   // 跳转到权限申请页面
   const resourcePath = data.full_code_path
-  const resourceType = data.type === 'app' ? 'app' : (data.type === 'package' ? 'directory' : 'function')
+  // ⭐ 判断是否是根节点
+  const isRootNode = data.type === 'app' || (data.type === 'package' && data.parent_id === 0)
+  const resourceType = isRootNode ? 'app' : (data.type === 'package' ? 'directory' : 'function')
   const templateType = data.template_type
   
   // 构建权限申请 URL
@@ -727,7 +729,9 @@ const isAdmin = (node: ServiceTree): boolean => {
 // 处理申请权限
 const handleApplyPermission = (data: ServiceTree) => {
   const resourcePath = data.full_code_path
-  const resourceType = data.type === 'app' ? 'app' : (data.type === 'package' ? 'directory' : 'function')
+  // ⭐ 判断是否是根节点
+  const isRootNode = data.type === 'app' || (data.type === 'package' && data.parent_id === 0)
+  const resourceType = isRootNode ? 'app' : (data.type === 'package' ? 'directory' : 'function')
   const defaultAction = resourceType === 'app' ? 'app:read' : (resourceType === 'directory' ? 'directory:read' : 'function:read')
   const url = buildPermissionApplyURL(resourcePath, defaultAction, data.template_type)
   router.push(url)
@@ -771,7 +775,9 @@ const handleApprovePermission = (data: ServiceTree) => {
 // 处理权限管理
 const handleManagePermission = (data: ServiceTree) => {
   const resourcePath = data.full_code_path
-  const resourceType = data.type === 'app' ? 'app' : (data.type === 'package' ? 'directory' : 'function')
+  // ⭐ 判断是否是根节点
+  const isRootNode = data.type === 'app' || (data.type === 'package' && data.parent_id === 0)
+  const resourceType = isRootNode ? 'app' : (data.type === 'package' ? 'directory' : 'function')
   const defaultAction = resourceType === 'app' ? 'app:read' : (resourceType === 'directory' ? 'directory:read' : 'function:read')
   // 权限管理页面，默认显示授权模式
   const url = buildPermissionApplyURL(resourcePath, defaultAction, data.template_type) + '&mode=grant'
@@ -788,8 +794,8 @@ const handleNodeAction = (command: string, data: ServiceTree) => {
   } else if (command === 'copy') {
     handleCopy(data)
   } else if (command === 'paste') {
-    // 粘贴时,如果右键的节点是目录或 app，使用该节点；否则使用当前选中的目录
-    if (data.type === 'app' || data.type === 'package') {
+    // 粘贴时,如果右键的节点是 package，使用该节点；否则使用当前选中的目录
+    if (data.type === 'package') {
       handlePaste(data)
     } else {
       handlePaste() // 使用当前选中的目录
@@ -869,7 +875,7 @@ const getFunctionIcon = (data: ServiceTree) => {
 
 // 获取节点图标样式类
 const getNodeIconClass = (data: ServiceTree) => {
-  if (data.type === 'app' || data.type === 'package') {
+  if (data.type === 'package') {
     return 'package-icon'
   } else if (data.type === 'function') {
     // 根据 template_type 返回不同的样式类

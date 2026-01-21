@@ -156,9 +156,9 @@
           @deleted="handleDocDeleted"
         />
         
-        <!-- 🔥 服务目录详情页面（包括 app 根节点和 package 节点） -->
+        <!-- 🔥 服务目录详情页面（包括根节点和 package 节点） -->
         <PackageDetailView
-          v-else-if="currentFunction && (currentFunction.type === 'package' || currentFunction.type === 'app') && !selectedAgent"
+          v-else-if="currentFunction && currentFunction.type === 'package' && !selectedAgent"
           :package-node="currentFunction"
           @generate-system="handlePackageGenerateSystem"
           @refresh="handleRefreshTree"
@@ -1289,17 +1289,6 @@ const handleNodeClick = (node: ServiceTreeType) => {
       applicationService.triggerNodeClick(serviceTree)
       handlePackageNodeRoute(serviceTree, 'workspace-node-click-docs')
     }
-  } else if (serviceTree.type === 'app') {
-    // ⭐ app 类型节点（工作空间根节点），更新路由并触发节点点击
-    const targetPath = buildWorkspacePath(serviceTree.full_code_path || '')
-    if (route.path === targetPath) {
-      // 路由已匹配，直接触发节点点击
-      applicationService.triggerNodeClick(serviceTree)
-    } else {
-      // 路由未匹配，先触发节点点击，然后更新路由
-      applicationService.triggerNodeClick(serviceTree)
-      handlePackageNodeRoute(serviceTree, 'workspace-node-click-app')
-    }
   } else {
     // 其他类型节点，只设置当前函数
     applicationService.triggerNodeClick(serviceTree)
@@ -1331,9 +1320,6 @@ const handleBreadcrumbNodeClick = (node: ServiceTree) => {
   } else if (node.type === 'docs') {
     // ⭐ docs 类型节点，也需要更新路由
     handlePackageNodeRoute(node, 'breadcrumb-node-click-docs')
-  } else if (node.type === 'app') {
-    // ⭐ app 类型节点（工作空间根节点），更新路由
-    handlePackageNodeRoute(node, 'breadcrumb-node-click-app')
   } else {
     applicationService.triggerNodeClick(node)
   }
