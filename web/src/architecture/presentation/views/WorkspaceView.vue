@@ -572,12 +572,6 @@
           />
         </el-form-item>
         <el-form-item label="管理员">
-          <!-- 🔍 调试信息 -->
-          <div style="padding: 8px; background: #f0f0f0; margin-bottom: 8px; font-size: 12px;">
-            调试：createDirectoryForm.admins = "{{ createDirectoryForm.admins }}"<br>
-            adminsFieldValue.raw = {{ adminsFieldValue.raw }}
-          </div>
-          
           <UsersWidget
             :field="adminsField"
             :value="adminsFieldValue"

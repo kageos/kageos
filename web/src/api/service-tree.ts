@@ -21,7 +21,8 @@ export function createServiceTree(data: CreateServiceTreeRequest & { type?: stri
     parent_id: data.parent_id || 0,
     type: data.type || 'package',
     description: data.description || '',
-    tags: data.tags || ''
+    tags: data.tags || '',
+    admins: data.admins || '' // ⭐ 添加管理员字段
   }
   
   // ⭐ 如果是 docs 类型，添加文档相关字段
