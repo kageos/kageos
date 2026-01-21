@@ -47,10 +47,14 @@ watch(adminsArray, (newVal) => {
 // 监听对话框显示状态，在打开时初始化管理员
 watch(createAppDialogVisible, (isVisible) => {
   if (isVisible) {
+    console.log('[Watch] 对话框打开，当前 adminsArray:', adminsArray.value)
     // 对话框打开时，默认添加当前用户为管理员
     const currentUsername = authStore.user?.username
+    console.log('[Watch] 当前用户:', currentUsername)
+    
     if (currentUsername && adminsArray.value.length === 0) {
       adminsArray.value = [currentUsername]
+      console.log('[Watch] 已设置管理员数组:', adminsArray.value)
     }
   }
 })
@@ -221,10 +225,15 @@ const handleCreateApp = () => {
   
   // ⭐ 默认把当前登录用户添加到管理员列表
   const currentUsername = authStore.user?.username
+  console.log('[创建工作空间] 当前用户:', currentUsername)
+  console.log('[创建工作空间] authStore.user:', authStore.user)
+  
   if (currentUsername) {
     adminsArray.value = [currentUsername]
+    console.log('[创建工作空间] 已设置管理员数组:', adminsArray.value)
   } else {
     adminsArray.value = []
+    console.log('[创建工作空间] 警告：当前用户为空，无法设置默认管理员')
   }
   
   createAppDialogVisible.value = true
@@ -459,13 +468,14 @@ onUnmounted(() => {
       width="800px"
       :close-on-click-modal="false"
       @close="() => {
-        createAppForm = {
+        console.log('[对话框关闭] 重置表单')
+        createAppForm.value = {
           code: '',
           name: '',
           is_public: true,
           admins: ''
         }
-        adminsArray = []
+        adminsArray.value = []
       }"
     >
       <el-form :model="createAppForm" label-width="90px">
