@@ -223,6 +223,7 @@
                           :field="ownerField"
                           :value="ownerFieldValue"
                           mode="detail"
+                          field-path="owner"
                         />
                       </div>
                     </div>
@@ -414,6 +415,7 @@
                   :field="ownerField"
                   :value="ownerFieldValue"
                   mode="detail"
+                  field-path="owner"
                 />
               </div>
             </div>
