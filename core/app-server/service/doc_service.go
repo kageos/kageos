@@ -239,5 +239,41 @@ func (s *DocService) GetDocsByFullCodePath(ctx context.Context, fullCodePath str
 	return docs, nil
 }
 
+// GetDocsByPaths 根据路径列表批量获取文档
+// paths: 文档路径列表，如 ["/system/official/sdk", "/user/myapp/docs"]
+// 会查询这些路径及其子路径下的所有文档
+func (s *DocService) GetDocsByPaths(ctx context.Context, paths []string) (*dto.GetDocsByPathsResp, error) {
+	if len(paths) == 0 {
+		return &dto.GetDocsByPathsResp{Docs: []*dto.DocItem{}}, nil
+	}
+	
+	logger.Infof(ctx, "[DocService] 批量获取文档 - Paths: %v", paths)
+	
+	// 直接根据 full_code_path 批量查询文档
+	docs, err := s.docRepo.GetByFullCodePaths(paths)
+	if err != nil {
+		logger.Errorf(ctx, "[DocService] 批量获取文档失败 - Paths: %v, Error: %v", paths, err)
+		return nil, fmt.Errorf("批量获取文档失败: %w", err)
+	}
+	
+	// 转换为 DTO
+	docItems := make([]*dto.DocItem, 0, len(docs))
+	for _, doc := range docs {
+		docItems = append(docItems, &dto.DocItem{
+			ID:           doc.ID,
+			Name:         doc.Name,
+			Content:      doc.Content,
+			Format:       doc.Format,
+			FullCodePath: doc.FullCodePath,
+			Summary:      doc.Summary,
+			Category:     doc.Category,
+		})
+	}
+	
+	logger.Infof(ctx, "[DocService] 批量获取文档成功 - Paths: %v, DocsCount: %d", paths, len(docItems))
+	
+	return &dto.GetDocsByPathsResp{Docs: docItems}, nil
+}
+
 // ==================== 基于路径的文档操作（新接口，用于 /docs/*full-code-path） ====================
 

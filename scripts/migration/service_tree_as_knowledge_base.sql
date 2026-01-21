@@ -69,6 +69,24 @@ CREATE INDEX idx_is_standard_lib ON service_tree(is_standard_lib);
 CREATE INDEX idx_full_code_path ON service_tree(full_code_path(255));
 
 -- ========================================
+-- Step 2.5: 修改 docs 表
+-- ========================================
+
+-- 2.5.1 新增 full_code_path 字段（与 service_tree 保持一致）
+ALTER TABLE docs
+  ADD COLUMN full_code_path VARCHAR(500) COMMENT '完整路径（与ServiceTree保持一致）',
+  ADD COLUMN name VARCHAR(255) COMMENT '文档名称（显示用）';
+
+-- 2.5.2 从 service_tree 同步 full_code_path 和 name
+UPDATE docs d
+INNER JOIN service_tree st ON d.tree_id = st.id
+SET d.full_code_path = st.full_code_path,
+    d.name = COALESCE(d.title, st.name);  -- 使用 title 或 tree.name
+
+-- 2.5.3 创建索引
+CREATE INDEX idx_docs_full_code_path ON docs(full_code_path);
+
+-- ========================================
 -- Step 3: 创建标准库目录结构
 -- ========================================
 

@@ -1,7 +1,7 @@
 package model
 
 import (
-	"encoding/json"
+	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 	"gorm.io/gorm"
@@ -25,10 +25,10 @@ type Agent struct {
 	// 例如：/system/official/agent/plugin/excel_or_csv/table_parse
 	PluginFunctionPath string `gorm:"type:varchar(512);index;comment:插件函数路径(full-code-path)" json:"plugin_function_path"`
 	
-	// 文档路径数组（JSON 格式，替代原 KnowledgeBaseID）
-	// 例如：["​/system/official/sdk", "/system/official/plugins", "/user/myapp/docs"]
+	// 文档路径（逗号分隔，替代原 KnowledgeBaseID）
+	// 例如："/system/official/sdk,/system/official/plugins,/user/myapp/docs"
 	// 支持选择多个文档路径，AI 会批量加载这些路径下的所有 docs 节点
-	DocsPaths string `gorm:"type:text;comment:文档路径数组（JSON格式）" json:"docs_paths"`
+	DocsPaths string `gorm:"type:varchar(1000);comment:文档路径（逗号分隔）" json:"docs_paths"`
 
 	// LLM 配置关联（如果为空，则使用默认 LLM 配置）
 	LLMConfigID int64    `gorm:"type:bigint;index;comment:LLM配置ID" json:"llm_config_id"`
@@ -74,31 +74,45 @@ func (a *Agent) AfterCreate(tx *gorm.DB) error {
 }
 
 // GetDocsPaths 获取文档路径数组
-// 从 JSON 字符串解析为字符串数组
+// 从逗号分隔的字符串解析为字符串数组
 func (a *Agent) GetDocsPaths() []string {
-	var paths []string
 	if a.DocsPaths == "" {
-		return paths
-	}
-	if err := json.Unmarshal([]byte(a.DocsPaths), &paths); err != nil {
 		return []string{}
 	}
-	return paths
+	
+	// 按逗号分割
+	paths := strings.Split(a.DocsPaths, ",")
+	
+	// 去除空白字符
+	result := make([]string, 0, len(paths))
+	for _, path := range paths {
+		path = strings.TrimSpace(path)
+		if path != "" {
+			result = append(result, path)
+		}
+	}
+	
+	return result
 }
 
 // SetDocsPaths 设置文档路径数组
-// 将字符串数组序列化为 JSON 字符串
-func (a *Agent) SetDocsPaths(paths []string) error {
+// 将字符串数组用逗号连接为字符串
+func (a *Agent) SetDocsPaths(paths []string) {
 	if len(paths) == 0 {
-		a.DocsPaths = "[]"
-		return nil
+		a.DocsPaths = ""
+		return
 	}
-	data, err := json.Marshal(paths)
-	if err != nil {
-		return err
+	
+	// 去除空白字符
+	cleanPaths := make([]string, 0, len(paths))
+	for _, path := range paths {
+		path = strings.TrimSpace(path)
+		if path != "" {
+			cleanPaths = append(cleanPaths, path)
+		}
 	}
-	a.DocsPaths = string(data)
-	return nil
+	
+	a.DocsPaths = strings.Join(cleanPaths, ",")
 }
 
 // HasDocsPaths 判断是否配置了文档路径
