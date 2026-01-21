@@ -171,61 +171,36 @@ export function useWorkspaceRouting(
       // 标记已切换（用于后续处理）
       let appSwitched = true
 
-      // ⭐ 处理根路径（只有 user 和 app，如 /system/official）
-      if (pathSegments.length === 2) {
-        // 🔥 需要选中根节点并显示详情
-        const trySelectAppRoot = () => {
+      // ⭐ 处理根路径和子路径（统一逻辑）
+      // 根路径：pathSegments.length === 2，如 /system/official
+      // 子路径：pathSegments.length > 2，如 /system/official/agent/plugin
+      if (pathSegments.length >= 2) {
+        const functionPath = '/' + pathSegments.join('/') // 构造完整路径，如 /luobei/demo 或 /luobei/demo/crm/list
+        
+        // 🔥 统一的节点加载逻辑（适用于 app/package/function）
+        const tryLoadNode = () => {
           const tree = options.serviceTree()
           if (tree && tree.length > 0) {
-            // 服务树的第一个节点就是根节点（app 节点）
-            const rootNode = tree[0] as ServiceTree
-            if (rootNode) {
-              Logger.debug('[useWorkspaceRouting]', '选中根节点', { 
-                rootNodeId: rootNode.id, 
-                rootNodeName: rootNode.name 
+            const node = options.findNodeByPath(tree, functionPath)
+            if (node) {
+              const serviceNode: ServiceTree = node as any
+              Logger.debug('[useWorkspaceRouting]', '选中节点', { 
+                nodeId: serviceNode.id, 
+                nodeName: serviceNode.name,
+                nodeType: serviceNode.type,
+                nodePath: functionPath
               })
-              // 触发节点点击，选中根节点并显示详情
-              applicationService.triggerNodeClick(rootNode)
+              // 触发节点点击，选中节点并显示详情
+              applicationService.handleNodeClick(serviceNode)
             }
           }
         }
-        
-        // 🔥 使用 once 监听器，确保只执行一次
-        if (appSwitched) {
-          eventBus.once(WorkspaceEvent.serviceTreeLoaded, async () => {
-            await nextTick()
-            trySelectAppRoot()
-          })
-          // 如果服务树已经加载，直接执行
-          if (options.serviceTree().length > 0) {
-            trySelectAppRoot()
-          }
-        } else {
-          trySelectAppRoot()
-        }
-        
-        return // 根路径处理完成
-      }
-
-      // 处理子路径（打开 Tab）
-      if (pathSegments.length > 2) {
-        const functionPath = '/' + pathSegments.join('/') // 构造完整路径，如 /luobei/demo/crm/list
         
         // 检查是否有 _tab 参数（create/edit/detail/OnTableAddRow 模式）
         const tabParam = route.query._tab as string
         if (tabParam === 'create' || tabParam === 'edit' || tabParam === 'detail' || tabParam === 'OnTableAddRow') {
-          // create/edit/detail/OnTableAddRow 模式不需要打开 Tab，直接加载函数详情
-          const tryLoadFunction = () => {
-            const tree = options.serviceTree()
-            if (tree && tree.length > 0) {
-              const node = options.findNodeByPath(tree, functionPath)
-              if (node) {
-                const serviceNode: ServiceTree = node as any
-                // 设置当前函数，但不打开 Tab
-                applicationService.handleNodeClick(serviceNode)
-              }
-            }
-          }
+          // create/edit/detail/OnTableAddRow 模式不需要打开 Tab，直接加载节点详情
+          const tryLoadFunction = tryLoadNode
           
           // 🔥 使用 once 监听器，确保只执行一次，避免无限循环
           if (appSwitched) {
@@ -252,6 +227,25 @@ export function useWorkspaceRouting(
           return // create/edit/detail/OnTableAddRow 模式不打开 Tab
         }
         
+        // 🔥 根路径（app 节点）：只选中节点，不打开 Tab
+        if (pathSegments.length === 2) {
+          // 使用 once 监听器，确保只执行一次
+          if (appSwitched) {
+            eventBus.once(WorkspaceEvent.serviceTreeLoaded, async () => {
+              await nextTick()
+              tryLoadNode()
+            })
+            // 如果服务树已经加载，直接执行
+            if (options.serviceTree().length > 0) {
+              tryLoadNode()
+            }
+          } else {
+            tryLoadNode()
+          }
+          
+          return // 根路径处理完成
+        }
+        
         // 检查 _forked 参数，自动展开路径
         if (route.query._forked) {
           nextTick(() => {
@@ -259,7 +253,7 @@ export function useWorkspaceRouting(
           })
         }
         
-        // 尝试查找节点并打开/激活 Tab
+        // 🔥 子路径（package/function 节点）：打开/激活 Tab
         // 使用早期返回优化条件判断
         const tryOpenTab = async () => {
           const tree = options.serviceTree()
