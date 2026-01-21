@@ -133,12 +133,12 @@ func (h *AgentChat) ListSessions(c *gin.Context) {
 				Name:            session.Agent.Name,
 				AgentType:       session.Agent.AgentType,
 				ChatType:        session.Agent.ChatType,
-				Enabled:         session.Agent.Enabled,
-				Description:     session.Agent.Description,
-				Timeout:         session.Agent.Timeout,
-				KnowledgeBaseID: session.Agent.KnowledgeBaseID,
-				LLMConfigID:     session.Agent.LLMConfigID,
-				Logo:            session.Agent.Logo,
+			Enabled:         session.Agent.Enabled,
+			Description:     session.Agent.Description,
+			Timeout:         session.Agent.Timeout,
+			DocsPaths:       session.Agent.DocsPaths,
+			LLMConfigID:     session.Agent.LLMConfigID,
+			Logo:            session.Agent.Logo,
 			}
 			sessionInfo.Agent = agentInfo
 		}

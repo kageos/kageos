@@ -39,21 +39,7 @@ func (s *Server) setupRoutes() {
 	agents.POST("/enable", agentHandler.Enable)   // 启用智能体
 	agents.POST("/disable", agentHandler.Disable) // 禁用智能体
 
-	// 知识库管理路由
-	knowledge := apiV1.Group("/knowledge")
-	knowledgeHandler := v1.NewKnowledge(s.knowledgeService)
-	knowledge.GET("/list", knowledgeHandler.List)                      // 获取知识库列表
-	knowledge.GET("/get", knowledgeHandler.Get)                        // 获取知识库详情
-	knowledge.POST("/create", knowledgeHandler.Create)                 // 创建知识库
-	knowledge.POST("/update", knowledgeHandler.Update)                 // 更新知识库
-	knowledge.POST("/delete", knowledgeHandler.Delete)                 // 删除知识库
-	knowledge.POST("/add_document", knowledgeHandler.AddDocument)          // 添加文档
-	knowledge.GET("/list_documents", knowledgeHandler.ListDocuments)      // 获取文档列表（平铺）
-	knowledge.GET("/get_documents_tree", knowledgeHandler.GetDocumentsTree) // 获取文档树（目录结构）
-	knowledge.GET("/get_document", knowledgeHandler.GetDocument)            // 获取文档详情
-	knowledge.POST("/update_document", knowledgeHandler.UpdateDocument)    // 更新文档
-	knowledge.POST("/update_documents_sort", knowledgeHandler.UpdateDocumentsSort) // 批量更新文档排序
-	knowledge.POST("/delete_document", knowledgeHandler.DeleteDocument)     // 删除文档
+	// 知识库管理路由已废弃，使用服务树管理文档
 
 	// LLM 配置管理路由
 	llm := apiV1.Group("/llm")

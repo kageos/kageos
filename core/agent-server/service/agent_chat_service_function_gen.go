@@ -107,8 +107,8 @@ func (s *AgentChatService) validateAndGetAgent(ctx context.Context, agentID int6
 		return nil, fmt.Errorf("获取智能体失败: %w", err)
 	}
 
-	logger.Infof(ctx, "[FunctionGenChat] 智能体信息 - AgentID: %d, Name: %s, Type: %s, ChatType: %s, Enabled: %v, KBID: %d, LLMConfigID: %d",
-		agent.ID, agent.Name, agent.AgentType, agent.ChatType, agent.Enabled, agent.KnowledgeBaseID, agent.LLMConfigID)
+	logger.Infof(ctx, "[FunctionGenChat] 智能体信息 - AgentID: %d, Name: %s, Type: %s, ChatType: %s, Enabled: %v, DocsPaths: %s, LLMConfigID: %d",
+		agent.ID, agent.Name, agent.AgentType, agent.ChatType, agent.Enabled, agent.DocsPaths, agent.LLMConfigID)
 
 	if !agent.Enabled {
 		logger.Warnf(ctx, "[FunctionGenChat] 智能体已禁用 - AgentID: %d, TraceID: %s", agentID, traceId)
