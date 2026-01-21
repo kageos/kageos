@@ -10,9 +10,11 @@ import type { App, CreateAppRequest } from '@/types'
 import AppSwitcher from '@/components/AppSwitcher.vue'
 import UserSearchInput from '@/components/UserSearchInput.vue'
 import type { ServiceTree } from '@/types'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 
 // 当前选中的应用
 const currentApp = ref<App | null>(null)
@@ -205,7 +207,15 @@ const handleCreateApp = () => {
     is_public: true,
     admins: ''
   }
-  adminsArray.value = []
+  
+  // ⭐ 默认把当前登录用户添加到管理员列表
+  const currentUsername = authStore.user?.username
+  if (currentUsername) {
+    adminsArray.value = [currentUsername]
+  } else {
+    adminsArray.value = []
+  }
+  
   createAppDialogVisible.value = true
 }
 
