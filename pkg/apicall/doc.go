@@ -2,8 +2,6 @@ package apicall
 
 import (
 	"context"
-	"net/url"
-	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
 )
@@ -16,9 +14,11 @@ func GetDocsByPaths(ctx context.Context, paths []string) (*dto.GetDocsByPathsRes
 		return &dto.GetDocsByPathsResp{Docs: []*dto.DocItem{}}, nil
 	}
 	
-	// 构建查询参数（逗号分隔）
-	params := url.Values{}
-	params.Set("paths", strings.Join(paths, ","))
+	// 构建请求体
+	req := dto.GetDocsByPathsReq{
+		Paths: paths,
+	}
 	
-	return GetAPI[*dto.GetDocsByPathsResp](ctx, "/workspace/api/v1/docs/batch", params)
+	// POST 请求（避免 Gin wildcard 路由冲突）
+	return PostAPI[dto.GetDocsByPathsReq, *dto.GetDocsByPathsResp](ctx, "/workspace/api/v1/docs/query", req)
 }
