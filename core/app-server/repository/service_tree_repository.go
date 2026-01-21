@@ -17,6 +17,11 @@ func NewServiceTreeRepository(db *gorm.DB) *ServiceTreeRepository {
 	return &ServiceTreeRepository{db: db}
 }
 
+// Create 创建服务树节点（通用方法）
+func (r *ServiceTreeRepository) Create(serviceTree *model.ServiceTree) error {
+	return r.db.Create(serviceTree).Error
+}
+
 // GetDocsNodesByParentID 根据父节点ID获取所有 docs 类型的子节点（递归）
 func (r *ServiceTreeRepository) GetDocsNodesByParentID(parentID int64) ([]*model.ServiceTree, error) {
 	var nodes []*model.ServiceTree
