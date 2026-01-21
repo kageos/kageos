@@ -93,12 +93,12 @@ func (s *Server) setupRoutes() {
 	serviceTree.POST("/add_functions", serviceTreeHandler.AddFunctions) // 向服务目录添加函数（agent-server -> workspace）
 
 	// ⭐ 文档管理路由（基于完整路径，与 table/form/chart 风格一致）
-	doc := apiV1.Group("/doc")
-	doc.Use(middleware2.JWTAuth())
+	docs := apiV1.Group("/docs")
+	docs.Use(middleware2.JWTAuth())
 	docHandler := v1.NewDoc(s.docService)
-	doc.GET("/*full-code-path", middleware2.CheckDocRead(), docHandler.GetDoc)       // 获取文档
-	doc.PUT("/*full-code-path", middleware2.CheckDocWrite(), docHandler.UpdateDoc)   // 更新文档
-	doc.DELETE("/*full-code-path", middleware2.CheckDocDelete(), docHandler.DeleteDoc) // 删除文档
+	docs.GET("/*full-code-path", middleware2.CheckDocRead(), docHandler.GetDoc)       // 获取文档
+	docs.PUT("/*full-code-path", middleware2.CheckDocWrite(), docHandler.UpdateDoc)   // 更新文档
+	docs.DELETE("/*full-code-path", middleware2.CheckDocDelete(), docHandler.DeleteDoc) // 删除文档
 
 	// 函数管理路由（需要JWT验证）
 	function := apiV1.Group("/function")
