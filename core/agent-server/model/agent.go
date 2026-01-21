@@ -2,7 +2,6 @@ package model
 
 import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
-	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
 	"gorm.io/gorm"
 )
 
@@ -20,22 +19,17 @@ type Agent struct {
 	Description string `gorm:"type:text" json:"description"`
 	Timeout     int    `gorm:"default:30" json:"timeout"` // 超时时间（秒）
 	
-	// 插件关联（仅 plugin 类型需要）
-	PluginID  *int64  `gorm:"type:bigint;index;comment:插件ID" json:"plugin_id"`
-	Plugin    *Plugin `gorm:"foreignKey:PluginID" json:"plugin,omitempty"`
-	
-	// 消息主题（已废弃，使用 Plugin.Subject）
-	// 格式：agent.{chat_type}.{创建用户}.{智能体id}
-	// 注意：新架构中应该使用 Plugin.Subject，此字段保留用于向后兼容
-	MsgSubject string `gorm:"type:varchar(512);index" json:"msg_subject"` // 消息主题（已废弃）
+	// 插件函数路径（仅 plugin 类型需要）
+	// 例如：/system/official/agent/plugin/excel_or_csv/table_parse
+	PluginFunctionPath string `gorm:"type:varchar(512);index;comment:插件函数路径(full-code-path)" json:"plugin_function_path"`
 	
 	// 知识库关联（两种类型都需要）
 	KnowledgeBaseID int64        `gorm:"type:bigint;not null;index;comment:知识库ID" json:"knowledge_base_id"`
-	KnowledgeBase   KnowledgeBase `gorm:"foreignKey:KnowledgeBaseID" json:"knowledge_base,omitempty"` // 预加载关联
+	KnowledgeBase   KnowledgeBase `gorm:"foreignKey:KnowledgeBaseID;references:ID" json:"knowledge_base,omitempty"` // 预加载关联
 
 	// LLM 配置关联（如果为空，则使用默认 LLM 配置）
 	LLMConfigID int64    `gorm:"type:bigint;index;comment:LLM配置ID" json:"llm_config_id"`
-	LLMConfig   LLMConfig `gorm:"foreignKey:LLMConfigID" json:"llm_config,omitempty"` // 预加载关联
+	LLMConfig   LLMConfig `gorm:"foreignKey:LLMConfigID;references:ID" json:"llm_config,omitempty"` // 预加载关联
 
 	// System Prompt 模板（支持 {knowledge} 变量，会被替换为知识库内容）
 	// 如果为空，使用默认模板："你是一个专业的代码生成助手。以下是相关的知识库内容，请参考这些内容来生成代码：\n{knowledge}"
@@ -64,24 +58,14 @@ func (Agent) TableName() string {
 	return "agents"
 }
 
-// AfterCreate GORM 钩子：创建后自动生成消息主题和设置默认管理员
+// AfterCreate GORM 钩子：创建后设置默认管理员
 func (a *Agent) AfterCreate(tx *gorm.DB) error {
-	// 1. 设置默认管理员（如果为空，设置为创建用户）
+	// 设置默认管理员（如果为空，设置为创建用户）
 	if a.Admin == "" {
 		a.Admin = a.CreatedBy
 		if err := tx.Model(a).Update("admin", a.Admin).Error; err != nil {
 			return err
 		}
-	}
-
-	// 2. 生成消息主题（已废弃，新架构使用 Plugin.Subject）
-	// 注意：新架构中，plugin 类型的智能体应该关联 Plugin，使用 Plugin.Subject
-	// 此钩子保留用于向后兼容，如果 Agent 没有关联 Plugin，则使用旧的逻辑
-	if a.AgentType == "plugin" && a.MsgSubject == "" && (a.PluginID == nil || *a.PluginID == 0) {
-		// 使用 subjects 包统一生成消息主题（向后兼容）
-		a.MsgSubject = subjects.BuildAgentMsgSubject(a.ChatType, a.CreatedBy, a.ID)
-		// 更新数据库
-		return tx.Model(a).Update("msg_subject", a.MsgSubject).Error
 	}
 	return nil
 }

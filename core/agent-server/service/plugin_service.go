@@ -8,7 +8,6 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/utils"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
 	"gorm.io/gorm"
 )
 
@@ -65,16 +64,15 @@ func (s *PluginService) CreatePlugin(ctx context.Context, plugin *model.Plugin) 
 		plugin.Admin = user
 	}
 
-	// 创建插件（AfterCreate 钩子会自动生成 NATS 主题）
+	// 验证 FormPath
+	if plugin.FormPath == "" {
+		return fmt.Errorf("FormPath 不能为空")
+	}
+
+	// 创建插件
 	err = s.repo.Create(plugin)
 	if err != nil {
 		return err
-	}
-
-	// 如果创建成功，确保主题已生成（AfterCreate 钩子应该已经处理，这里作为兜底）
-	if plugin.Subject == "" {
-		plugin.Subject = subjects.BuildPluginSubject(plugin.CreatedBy, plugin.ID)
-		return s.repo.Update(plugin)
 	}
 
 	return nil
@@ -116,6 +114,11 @@ func (s *PluginService) UpdatePlugin(ctx context.Context, plugin *model.Plugin) 
 		return fmt.Errorf("插件代码已被其他插件使用: %s", plugin.Code)
 	}
 
+	// 验证 FormPath
+	if plugin.FormPath == "" {
+		return fmt.Errorf("FormPath 不能为空")
+	}
+
 	// 规范化 config 字段
 	configStr := ""
 	if plugin.Config != nil {
@@ -126,11 +129,6 @@ func (s *PluginService) UpdatePlugin(ctx context.Context, plugin *model.Plugin) 
 		return err
 	}
 	plugin.Config = normalizedConfig
-
-	// 如果主题为空，自动生成（不应该发生，但作为兜底）
-	if plugin.Subject == "" {
-		plugin.Subject = subjects.BuildPluginSubject(plugin.CreatedBy, plugin.ID)
-	}
 
 	return s.repo.Update(plugin)
 }

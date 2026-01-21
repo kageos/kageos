@@ -128,7 +128,7 @@ func (s *Server) initDatabase(ctx context.Context) error {
 
 	// 连接数据库
 	db, err := gorm.Open(sqlite.Open(absPath), &gorm.Config{
-		Logger: gormLogger.Default.LogMode(gormLogger.Info),
+		Logger: gormLogger.Default.LogMode(gormLogger.Silent),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)

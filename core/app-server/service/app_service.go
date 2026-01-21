@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
-	enterpriseDto "github.com/ai-agent-os/ai-agent-os/dto/enterprise"
 	"github.com/ai-agent-os/ai-agent-os/enterprise"
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 	"github.com/ai-agent-os/ai-agent-os/pkg/license"
@@ -24,7 +24,6 @@ import (
 
 type AppService struct {
 	appRuntime                 *AppRuntime
-	userRepo                   *repository.UserRepository
 	appRepo                    *repository.AppRepository
 	functionRepo               *repository.FunctionRepository
 	serviceTreeRepo            *repository.ServiceTreeRepository
@@ -34,10 +33,9 @@ type AppService struct {
 }
 
 // NewAppService 创建 AppService（依赖注入）
-func NewAppService(appRuntime *AppRuntime, userRepo *repository.UserRepository, appRepo *repository.AppRepository, functionRepo *repository.FunctionRepository, serviceTreeRepo *repository.ServiceTreeRepository, operateLogRepo *repository.OperateLogRepository, fileSnapshotRepo *repository.FileSnapshotRepository, directoryUpdateHistoryRepo *repository.DirectoryUpdateHistoryRepository) *AppService {
+func NewAppService(appRuntime *AppRuntime, appRepo *repository.AppRepository, functionRepo *repository.FunctionRepository, serviceTreeRepo *repository.ServiceTreeRepository, operateLogRepo *repository.OperateLogRepository, fileSnapshotRepo *repository.FileSnapshotRepository, directoryUpdateHistoryRepo *repository.DirectoryUpdateHistoryRepository) *AppService {
 	return &AppService{
 		appRuntime:                 appRuntime,
-		userRepo:                   userRepo,
 		appRepo:                    appRepo,
 		functionRepo:               functionRepo,
 		serviceTreeRepo:            serviceTreeRepo,
@@ -72,8 +70,10 @@ func (a *AppService) CreateApp(ctx context.Context, req *dto.CreateAppReq) (*dto
 		}
 	}
 
-	// 验证用户是否存在（不再需要获取 Host 信息）
-	_, err = a.userRepo.GetUserByUsername(tenantUser)
+	// 验证用户是否存在（通过 hr-server 接口验证）
+	// ⭐ 使用服务间调用验证用户，不再直接访问 user 表
+	// 获取用户信息（直接传 ctx，内部会提取 token、trace_id 等）
+	_, err = apicall.GetUserByUsername(ctx, &dto.QueryUserReq{Username: tenantUser})
 	if err != nil {
 		return nil, fmt.Errorf("租户用户 %s 不存在: %w", tenantUser, err)
 	}
@@ -112,38 +112,60 @@ func (a *AppService) CreateApp(ctx context.Context, req *dto.CreateAppReq) (*dto
 	}
 
 	// 写入数据库记录
+	isPublic := true // 默认公开
+	if req.IsPublic != nil {
+		isPublic = *req.IsPublic
+	}
 	app := model.App{
 		Base: models.Base{
 			CreatedBy: requestUser, // 记录实际请求用户（谁发起的请求）
 		},
-		Version: "v1",
-		Code:    req.Code,
-		Name:    req.Name,   // 应用名称
-		User:    tenantUser, // 记录租户用户（应用所有者）
-		NatsID:  selectedHost.NatsID,
-		HostID:  selectedHost.ID,
-		Status:  "enabled",
+		Version:  "v1",
+		Code:     req.Code,
+		Name:     req.Name,   // 应用名称
+		User:     tenantUser, // 记录租户用户（应用所有者）
+		NatsID:   selectedHost.NatsID,
+		HostID:   selectedHost.ID,
+		Status:   "enabled",
+		IsPublic: isPublic,   // 是否公开
+		Admins:   req.Admins, // 管理员列表，逗号分隔的用户名
 	}
 	err = a.appRepo.CreateApp(&app)
 	if err != nil {
 		return nil, err
 	}
 
-	// ⭐ 自动给创建者添加应用管理权限
-	// 资源路径：/{user}/{app}，权限：app:manage
+	// ⭐ 自动给创建者和管理员分配应用管理员角色（拥有 app:admin 权限）
 	resourcePath := fmt.Sprintf("/%s/%s", tenantUser, req.Code)
-	if err := a.grantCreatorPermission(ctx, tenantUser, resourcePath, "app:manage"); err != nil {
+
+	// 1. 给创建者分配应用管理员角色
+	if err := a.assignAppAdminRoleToUser(ctx, tenantUser, req.Code, tenantUser, resourcePath); err != nil {
 		// 权限添加失败不应该影响应用创建，只记录警告日志
-		logger.Warnf(ctx, "[AppService] 自动添加创建者权限失败: user=%s, resource=%s, action=app:manage, error=%v",
-			tenantUser, resourcePath, err)
+		logger.Warnf(ctx, "[AppService] 自动添加创建者应用管理员角色失败: user=%s, app=%s, username=%s, resource=%s, error=%v",
+			tenantUser, req.Code, tenantUser, resourcePath, err)
+	}
+
+	// 2. 给管理员列表中的用户分配应用管理员角色
+	if req.Admins != "" {
+		admins := strings.Split(req.Admins, ",")
+		for _, admin := range admins {
+			admin = strings.TrimSpace(admin)
+			if admin != "" && admin != tenantUser { // 避免重复分配（创建者已经在上面分配了）
+				if err := a.assignAppAdminRoleToUser(ctx, tenantUser, req.Code, admin, resourcePath); err != nil {
+					// 权限添加失败不应该影响应用创建，只记录警告日志
+					logger.Warnf(ctx, "[AppService] 自动添加应用管理员角色失败: user=%s, app=%s, username=%s, resource=%s, error=%v",
+						tenantUser, req.Code, admin, resourcePath, err)
+				}
+			}
+		}
 	}
 
 	return resp, nil
 }
 
-// grantCreatorPermission 给创建者授予权限（如果权限功能启用）
-// ⭐ 优化：同时设置 g2 资源继承关系
-func (a *AppService) grantCreatorPermission(ctx context.Context, username, resourcePath, action string) error {
+// assignAppAdminRoleToUser 给用户分配应用管理员角色
+// ⭐ 使用角色系统，分配"admin"角色（拥有 app:admin 权限）
+func (a *AppService) assignAppAdminRoleToUser(ctx context.Context, user, app, username, resourcePath string) error {
 	// 检查权限功能是否启用（企业版）
 	licenseMgr := license.GetManager()
 	if !licenseMgr.HasFeature(enterprise.FeaturePermission) {
@@ -157,28 +179,66 @@ func (a *AppService) grantCreatorPermission(ctx context.Context, username, resou
 		return fmt.Errorf("权限服务未初始化")
 	}
 
-	// ⭐ 优化：使用通配符路径策略，自动覆盖所有子资源
-	// 对于目录：/luobei/operations → /luobei/operations/*
-	// 对于函数：/luobei/operations/tools/videos/convert → 使用精确路径（函数不需要通配符）
-	policyPath := resourcePath
-	if action == "directory:manage" || action == "app:manage" {
-		// 目录和应用权限使用通配符，自动覆盖所有子资源
-		policyPath = resourcePath + "/*"
-	}
-	// 函数权限使用精确路径（因为函数是叶子节点，不需要通配符）
-	
-	// 添加权限
-	err := permissionService.AddPolicy(ctx, username, policyPath, action)
-	if err != nil {
-		return fmt.Errorf("添加权限失败: %w", err)
+	// ⭐ 使用角色系统，分配"admin"角色（拥有 app:admin 权限）
+	// 应用级别使用 app 资源类型
+	assignReq := &dto.AssignRoleToUserReq{
+		User:         user,
+		App:          app,
+		Username:     username,
+		RoleCode:     "admin", // 管理员角色
+		ResourceType: "app",   // ⭐ 应用级别使用 app 资源类型
+		ResourcePath: resourcePath,
+		StartTime:    nil, // 永久权限
+		EndTime:      nil, // 永久权限
 	}
 
-	logger.Infof(ctx, "[AppService] 自动添加创建者权限成功: user=%s, resource=%s, action=%s",
-		username, resourcePath, action)
+	_, err := permissionService.AssignRoleToUser(ctx, assignReq)
+	if err != nil {
+		return fmt.Errorf("分配应用管理员角色失败: %w", err)
+	}
+
+	logger.Infof(ctx, "[AppService] 分配应用管理员角色成功: user=%s, app=%s, username=%s, resource=%s",
+		user, app, username, resourcePath)
 	return nil
 }
 
-// UpdateApp 更新应用
+// removeAppAdminRoleFromUser 移除用户的应用管理员角色
+func (a *AppService) removeAppAdminRoleFromUser(ctx context.Context, user, app, username, resourcePath string) error {
+	// 检查权限功能是否启用（企业版）
+	licenseMgr := license.GetManager()
+	if !licenseMgr.HasFeature(enterprise.FeaturePermission) {
+		// 权限功能未启用，跳过
+		return nil
+	}
+
+	// 获取权限服务
+	permissionService := enterprise.GetPermissionService()
+	if permissionService == nil {
+		return fmt.Errorf("权限服务未初始化")
+	}
+
+	// ⭐ 使用角色系统，移除"admin"角色
+	// 应用级别使用 app 资源类型
+	removeReq := &dto.RemoveRoleFromUserReq{
+		User:         user,
+		App:          app,
+		Username:     username,
+		RoleCode:     "admin", // 管理员角色
+		ResourceType: "app",   // ⭐ 应用级别使用 app 资源类型
+		ResourcePath: resourcePath,
+	}
+
+	err := permissionService.RemoveRoleFromUser(ctx, removeReq)
+	if err != nil {
+		return fmt.Errorf("移除应用管理员角色失败: %w", err)
+	}
+
+	logger.Infof(ctx, "[AppService] 移除应用管理员角色成功: user=%s, app=%s, username=%s, resource=%s",
+		user, app, username, resourcePath)
+	return nil
+}
+
+// UpdateApp 更新应用（更新应用代码并重新编译部署）
 func (a *AppService) UpdateApp(ctx context.Context, req *dto.UpdateAppReq) (*dto.UpdateAppResp, error) {
 	// 记录开始时间（用于计算变更耗时）
 	startTime := time.Now()
@@ -235,9 +295,6 @@ func extractVersionNum(version string) int {
 
 // RequestApp 请求应用
 func (a *AppService) RequestApp(ctx context.Context, req *dto.RequestAppReq) (*dto.RequestAppResp, error) {
-	// 记录操作日志（如果支持）
-	a.recordOperateLog(ctx, req, "request_app")
-
 	app, err := a.appRepo.GetAppByUserName(req.User, req.App)
 	if err != nil {
 		return nil, err
@@ -251,49 +308,6 @@ func (a *AppService) RequestApp(ctx context.Context, req *dto.RequestAppReq) (*d
 	return resp, nil
 }
 
-// recordOperateLog 记录操作日志
-// 策略：
-//   - 社区版：也记录完整的操作日志（与企业版一样存储，无保留时间限制）
-//   - 企业版：记录完整的操作日志（与企业版一样存储，无保留时间限制）
-//   - 查看权限：只有企业版可以查看操作日志（通过 operate_log 查询接口的企业版鉴权中间件控制）
-//
-// 目的：
-//   - 升级后能看到完整的历史数据，提升升级体验
-//   - 通过查看权限控制来区分社区版和企业版，而不是通过记录策略
-func (a *AppService) recordOperateLog(ctx context.Context, req *dto.RequestAppReq, action string) {
-	// 无论社区版还是企业版，都记录完整的操作日志（存储方式相同）
-	// 区别仅在于查看权限：
-	//   - 社区版：记录了日志，但无法查看（operate_log 查询接口会进行企业版鉴权）
-	//   - 企业版：记录了日志，可以查看（通过企业版鉴权）
-
-	// 获取请求用户信息
-	requestUser := contextx.GetRequestUser(ctx)
-	if requestUser == "" {
-		requestUser = req.RequestUser
-	}
-
-	// 记录操作日志
-	operateLogger := enterprise.GetOperateLogger()
-	operateLogReq := &enterpriseDto.CreateOperateLoggerReq{
-		User:       requestUser,
-		Action:     action,
-		Resource:   "app",
-		ResourceID: fmt.Sprintf("%s/%s", req.User, req.App),
-		Changes: map[string]interface{}{
-			"router":  req.Router,
-			"method":  req.Method,
-			"version": req.Version,
-		},
-	}
-
-	// 异步记录操作日志（不阻塞主流程）
-	go func() {
-		if _, err := operateLogger.CreateOperateLogger(operateLogReq); err != nil {
-			logger.Warnf(ctx, "[RequestApp] 记录操作日志失败: %v", err)
-		}
-	}()
-}
-
 // RecordTableOperateLog 记录 Table 操作日志（OnTableAddRow, OnTableUpdateRow, OnTableDeleteRows）
 // 策略：社区版和企业版都记录完整日志，但只有企业版可以查看
 func (a *AppService) RecordTableOperateLog(ctx context.Context, req *dto.RecordTableOperateLogReq) error {
@@ -303,52 +317,30 @@ func (a *AppService) RecordTableOperateLog(ctx context.Context, req *dto.RecordT
 		return fmt.Errorf("获取应用信息失败: %w", err)
 	}
 
-	// 构建 full_code_path
-	fullCodePath := fmt.Sprintf("/%s/%s/%s", req.TenantUser, req.App, strings.TrimPrefix(req.Router, "/"))
+	// 直接使用企业版的操作日志记录器
+	operateLogger := enterprise.GetOperateLogger()
 
 	// 根据操作类型处理不同的记录逻辑
 	switch req.Action {
-	// case "OnTableAddRow":
-	// 	// 新增操作：记录 body（新增的数据）
-	// 	// ⚠️ 已注释：OnTableAddRow 不记录操作日志（主要是新增记录，不需要记录）
-	// 	log := &model.TableOperateLog{
-	// 		TenantUser:  req.TenantUser,
-	// 		RequestUser: req.RequestUser,
-	// 		Action:      req.Action,
-	// 		IPAddress:   req.IPAddress,
-	// 		UserAgent:   req.UserAgent,
-	// 		App:         req.App,
-	// 		FullCodePath: fullCodePath,
-	// 		RowID:       0, // 新增时还没有 row_id
-	// 		Updates:     req.Body, // 新增的数据作为 updates
-	// 		OldValues:   nil,      // 新增时没有旧值
-	// 		TraceID:     req.TraceID,
-	// 		Version:     app.Version,
-	// 	}
-	// 	go func() {
-	// 		if err := a.operateLogRepo.CreateTableOperateLog(log); err != nil {
-	// 			logger.Warnf(ctx, "[RecordTableOperateLog] 记录 Table 新增操作日志失败: %v", err)
-	// 		}
-	// 	}()
-
 	case "OnTableUpdateRow":
 		// 更新操作：记录 updates 和 old_values
-		log := &model.TableOperateLog{
-			TenantUser:   req.TenantUser,
-			RequestUser:  req.RequestUser,
-			Action:       req.Action,
-			IPAddress:    req.IPAddress,
-			UserAgent:    req.UserAgent,
-			App:          req.App,
-			FullCodePath: fullCodePath,
-			RowID:        req.RowID,
-			Updates:      req.Updates,
-			OldValues:    req.OldValues,
-			TraceID:      req.TraceID,
-			Version:      app.Version,
+		operateLogReq := &dto.CreateOperateLoggerReq{
+			User:       req.RequestUser,
+			Action:     req.Action,
+			Resource:   "table",
+			ResourceID: fmt.Sprintf("%s/%s/%s", req.TenantUser, req.App, strings.TrimPrefix(req.Router, "/")),
+			RowID:      req.RowID,
+			Updates:    req.Updates,
+			OldValues:  req.OldValues,
+			Version:    app.Version,
+			TraceID:    req.TraceID,
+			IPAddress:  req.IPAddress,
+			UserAgent:  req.UserAgent,
 		}
+
+		// 异步记录操作日志（不阻塞主流程）
 		go func() {
-			if err := a.operateLogRepo.CreateTableOperateLog(log); err != nil {
+			if _, err := operateLogger.CreateOperateLogger(operateLogReq); err != nil {
 				logger.Warnf(ctx, "[RecordTableOperateLog] 记录 Table 更新操作日志失败: %v", err)
 			}
 		}()
@@ -356,22 +348,21 @@ func (a *AppService) RecordTableOperateLog(ctx context.Context, req *dto.RecordT
 	case "OnTableDeleteRows":
 		// 删除操作：为每个删除的记录创建一条日志
 		for _, rowID := range req.RowIDs {
-			log := &model.TableOperateLog{
-				TenantUser:   req.TenantUser,
-				RequestUser:  req.RequestUser,
-				Action:       req.Action,
-				IPAddress:    req.IPAddress,
-				UserAgent:    req.UserAgent,
-				App:          req.App,
-				FullCodePath: fullCodePath,
-				RowID:        rowID,
-				Updates:      nil, // 删除时没有新值
-				OldValues:    nil, // 删除时暂时不记录旧值（如果需要可以后续添加）
-				TraceID:      req.TraceID,
-				Version:      app.Version,
+			operateLogReq := &dto.CreateOperateLoggerReq{
+				User:       req.RequestUser,
+				Action:     req.Action,
+				Resource:   "table",
+				ResourceID: fmt.Sprintf("%s/%s/%s", req.TenantUser, req.App, strings.TrimPrefix(req.Router, "/")),
+				RowID:      rowID,
+				Version:    app.Version,
+				TraceID:    req.TraceID,
+				IPAddress:  req.IPAddress,
+				UserAgent:  req.UserAgent,
 			}
+
+			// 异步记录操作日志（不阻塞主流程）
 			go func(id int64) {
-				if err := a.operateLogRepo.CreateTableOperateLog(log); err != nil {
+				if _, err := operateLogger.CreateOperateLogger(operateLogReq); err != nil {
 					logger.Warnf(ctx, "[RecordTableOperateLog] 记录 Table 删除操作日志失败: %v", err)
 				}
 			}(rowID)
@@ -545,23 +536,36 @@ func (a *AppService) createServiceTreesForAPIs(ctx context.Context, appID int64,
 			parentID = parent.ID
 		}
 
+		// 获取父节点的 Admins（如果有父节点）
+		var parentAdmins string
+		if parentID > 0 {
+			if parent, exists := parentNodes[parentPath]; exists {
+				parentAdmins = parent.Admins
+			}
+		}
+
 		// 创建function节点，使用Function的ID作为RefID
-		treeID, err := a.createFunctionNode(appID, parentID, api, functions[i].ID)
+		treeID, err := a.createFunctionNode(ctx, appID, parentID, api, functions[i].ID, parentAdmins)
 		if err != nil {
 			return fmt.Errorf("创建function节点失败: %w", err)
 		}
 		// 赋值TreeID，方便后续写快照时入库
 		api.TreeID = treeID
 
-		// ⭐ 自动给创建者添加函数执行权限
-		// 资源路径：函数的 FullCodePath，权限：function:manage（所有权）
-		// grantCreatorPermission 会自动设置 g2 资源继承关系
+		// ⭐ 自动给创建者添加函数执行权限（使用角色系统）
+		// 资源路径：函数的 FullCodePath，权限：function:admin（所有权）
+		// 注意：函数权限分配暂时跳过，因为函数权限应该通过目录权限继承
+		// 如果需要单独给函数分配权限，可以后续添加
 		requestUser := contextx.GetRequestUser(ctx)
 		if requestUser != "" && api.FullCodePath != "" {
-			if err := a.grantCreatorPermission(ctx, requestUser, api.FullCodePath, "function:manage"); err != nil {
-				// 权限添加失败不应该影响函数创建，只记录警告日志
-				logger.Warnf(ctx, "[AppService] 自动添加创建者权限失败: user=%s, resource=%s, action=function:manage, error=%v",
-					requestUser, api.FullCodePath, err)
+			// 从 FullCodePath 解析 user 和 app
+			parts := strings.Split(strings.Trim(api.FullCodePath, "/"), "/")
+			if len(parts) >= 2 {
+				user := parts[0]
+				app := parts[1]
+				// 暂时跳过函数权限分配，因为函数权限应该通过目录权限继承
+				logger.Debugf(ctx, "[AppService] 函数权限通过目录权限继承，跳过单独分配: user=%s, app=%s, resource=%s",
+					user, app, api.FullCodePath)
 			}
 		}
 	}
@@ -569,7 +573,7 @@ func (a *AppService) createServiceTreesForAPIs(ctx context.Context, appID int64,
 }
 
 // createFunctionNode 创建function节点，返回创建的TreeID
-func (a *AppService) createFunctionNode(appID int64, parentID int64, api *dto.ApiInfo, functionID int64) (int64, error) {
+func (a *AppService) createFunctionNode(ctx context.Context, appID int64, parentID int64, api *dto.ApiInfo, functionID int64, parentAdmins string) (int64, error) {
 	// 检查是否已存在（full_name_path全局唯一）
 	existingNode, err := a.serviceTreeRepo.GetServiceTreeByFullPath(api.FullCodePath)
 	if err == nil {
@@ -608,13 +612,19 @@ func (a *AppService) createFunctionNode(appID int64, parentID int64, api *dto.Ap
 		return 0, fmt.Errorf("获取应用信息失败: %w", err)
 	}
 
-	// 构建 FullGroupCode：{full_path}/{group_code}
+	// 获取创建者用户名
+	requestUser := contextx.GetRequestUser(ctx)
+
+	// 确定 Admins 字段：优先使用父节点的 Admins，如果没有父节点或父节点没有 Admins，则使用当前用户
+	admins := parentAdmins
+	if admins == "" && requestUser != "" {
+		admins = requestUser
+	}
+
 	// 创建新的function节点，预加载完整的app对象
 	serviceTree := &model.ServiceTree{
 		AppID:            appID,
 		ParentID:         parentID,
-		FullGroupCode:    api.BuildFullGroupCode(), // 完整函数组代码：{full_path}/{file_name}
-		GroupName:        api.FunctionGroupName,
 		Type:             model.ServiceTreeTypeFunction,
 		Code:             api.Code, // API的code作为ServiceTree的code
 		Name:             api.Name, // API的name作为ServiceTree的name
@@ -624,6 +634,12 @@ func (a *AppService) createFunctionNode(appID int64, parentID int64, api *dto.Ap
 		FullCodePath:     api.FullCodePath,       // 直接使用api.FullCodePath，不需要重新计算
 		AddVersionNum:    app.GetVersionNumber(), // 设置添加版本号
 		UpdateVersionNum: 0,                      // 新增节点，更新版本号为0
+		Admins:           admins,                 // 设置管理员列表（从父节点继承，或使用当前用户）
+	}
+
+	// 设置创建者
+	if requestUser != "" {
+		serviceTree.CreatedBy = requestUser
 	}
 
 	if len(api.Tags) > 0 {
@@ -717,14 +733,16 @@ func (a *AppService) updateServiceTreesForAPIs(ctx context.Context, appID int64,
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				// 如果不存在，创建新的节点（这种情况不应该发生，但为了容错处理）
 				var parentID int64 = 0
+				var parentAdmins string
 				parentPath := api.GetParentFullCodePath()
 				if parentPath != "" {
 					parent, exists := parentNodes[parentPath]
 					if exists {
 						parentID = parent.ID
+						parentAdmins = parent.Admins
 					}
 				}
-				treeID, err := a.createFunctionNode(appID, parentID, api, functions[i].ID)
+				treeID, err := a.createFunctionNode(ctx, appID, parentID, api, functions[i].ID, parentAdmins)
 				if err != nil {
 					return fmt.Errorf("创建function节点失败: %w", err)
 				}
@@ -735,15 +753,10 @@ func (a *AppService) updateServiceTreesForAPIs(ctx context.Context, appID int64,
 			return fmt.Errorf("查询service_tree失败: %w", err)
 		}
 
-		// 构建 FullGroupCode：{full_path}/{group_code}
-		fullGroupCode := fmt.Sprintf("%s/%s", api.GetParentFullCodePath(), api.FunctionGroupCode)
-
 		// 更新节点信息并设置更新版本号
 		existingTree.RefID = functions[i].ID
 		existingTree.Name = api.Name
 		existingTree.Description = api.Desc
-		existingTree.FullGroupCode = fullGroupCode // 完整函数组代码：{full_path}/{file_name}
-		existingTree.GroupName = api.FunctionGroupName
 		// 更新版本号：如果AddVersionNum为0，说明是新增的，设置为当前版本；否则更新UpdateVersionNum
 		if existingTree.AddVersionNum == 0 {
 			existingTree.AddVersionNum = currentVersionNum
@@ -840,10 +853,30 @@ func (a *AppService) GetApps(ctx context.Context, req *dto.GetAppsReq) (*dto.Get
 		pageSize = 10 // 默认每页10条
 	}
 
-	// 从数据库获取用户的分页应用列表（支持搜索）
-	apps, totalCount, err := a.appRepo.GetAppsByUserWithPage(req.User, page, pageSize, req.Search)
+	// 从数据库获取应用列表（支持搜索和过滤）
+	apps, totalCount, err := a.appRepo.GetAppsWithPage(req.User, page, pageSize, req.Search, req.IncludeAll, req.Type)
 	if err != nil {
 		return nil, fmt.Errorf("获取应用列表失败: %w", err)
+	}
+
+	// 转换为 AppInfo 列表
+	appInfos := make([]*dto.AppInfo, len(apps))
+	for i, app := range apps {
+		appInfos[i] = &dto.AppInfo{
+			ID:        app.ID,
+			User:      app.User,
+			Code:      app.Code,
+			Name:      app.Name,
+			Status:    app.Status,
+			Version:   app.Version,
+			NatsID:    app.NatsID,
+			HostID:    app.HostID,
+			IsPublic:  app.IsPublic,
+			Admins:    app.Admins,
+			Type:      int(app.Type),
+			CreatedAt: time.Time(app.CreatedAt).Format("2006-01-02 15:04:05"),
+			UpdatedAt: time.Time(app.UpdatedAt).Format("2006-01-02 15:04:05"),
+		}
 	}
 
 	return &dto.GetAppsResp{
@@ -851,7 +884,7 @@ func (a *AppService) GetApps(ctx context.Context, req *dto.GetAppsReq) (*dto.Get
 			Page:       page,
 			PageSize:   pageSize,
 			TotalCount: int(totalCount),
-			Items:      apps,
+			Items:      appInfos,
 		},
 	}, nil
 }
@@ -878,6 +911,8 @@ func (a *AppService) GetAppDetail(ctx context.Context, req *dto.GetAppDetailReq)
 			Version:   app.Version,
 			NatsID:    app.NatsID,
 			HostID:    app.HostID,
+			IsPublic:  app.IsPublic,
+			Admins:    app.Admins,
 			CreatedAt: time.Time(app.CreatedAt).Format("2006-01-02 15:04:05"),
 			UpdatedAt: time.Time(app.UpdatedAt).Format("2006-01-02 15:04:05"),
 		},
@@ -887,6 +922,82 @@ func (a *AppService) GetAppDetail(ctx context.Context, req *dto.GetAppDetailReq)
 // GetAppByUserName 根据用户名和应用名获取应用信息
 func (a *AppService) GetAppByUserName(ctx context.Context, user, app string) (*model.App, error) {
 	return a.appRepo.GetAppByUserName(user, app)
+}
+
+// UpdateWorkspace 更新工作空间（只更新 MySQL 记录，不涉及容器更新）
+func (a *AppService) UpdateWorkspace(ctx context.Context, req *dto.UpdateWorkspaceReq) (*dto.UpdateWorkspaceResp, error) {
+	// 获取应用信息
+	app, err := a.appRepo.GetAppByUserName(req.User, req.App)
+	if err != nil {
+		return nil, fmt.Errorf("获取应用信息失败: %w", err)
+	}
+
+	// ⭐ 更新管理员列表并同步更新角色分配
+	oldAdminsStr := app.Admins
+	newAdminsStr := req.Admins
+
+	// 解析旧管理员列表
+	oldAdmins := make(map[string]bool)
+	if oldAdminsStr != "" {
+		for _, admin := range strings.Split(oldAdminsStr, ",") {
+			admin = strings.TrimSpace(admin)
+			if admin != "" {
+				oldAdmins[admin] = true
+			}
+		}
+	}
+
+	// 解析新管理员列表
+	newAdmins := make(map[string]bool)
+	if newAdminsStr != "" {
+		for _, admin := range strings.Split(newAdminsStr, ",") {
+			admin = strings.TrimSpace(admin)
+			if admin != "" {
+				newAdmins[admin] = true
+			}
+		}
+	}
+
+	// 更新数据库中的管理员列表
+	app.Admins = req.Admins
+	if err := a.appRepo.UpdateApp(app); err != nil {
+		return nil, fmt.Errorf("更新工作空间失败: %w", err)
+	}
+
+	// ⭐ 同步更新角色分配
+	resourcePath := fmt.Sprintf("/%s/%s", req.User, req.App)
+
+	// 1. 移除不再担任管理员的用户角色
+	for oldAdmin := range oldAdmins {
+		if !newAdmins[oldAdmin] {
+			// 该用户不再是管理员，移除其应用管理员角色
+			if err := a.removeAppAdminRoleFromUser(ctx, req.User, req.App, oldAdmin, resourcePath); err != nil {
+				// 角色移除失败不应该影响更新，只记录警告日志
+				logger.Warnf(ctx, "[AppService] 移除应用管理员角色失败: resource=%s, username=%s, error=%v",
+					resourcePath, oldAdmin, err)
+			}
+		}
+	}
+
+	// 2. 给新管理员分配角色
+	for newAdmin := range newAdmins {
+		if !oldAdmins[newAdmin] {
+			// 该用户是新管理员，分配应用管理员角色
+			if err := a.assignAppAdminRoleToUser(ctx, req.User, req.App, newAdmin, resourcePath); err != nil {
+				// 角色分配失败不应该影响更新，只记录警告日志
+				logger.Warnf(ctx, "[AppService] 分配应用管理员角色失败: resource=%s, username=%s, error=%v",
+					resourcePath, newAdmin, err)
+			}
+		}
+	}
+
+	logger.Infof(ctx, "[AppService] 更新工作空间成功: user=%s, app=%s, admins=%s", req.User, req.App, req.Admins)
+
+	return &dto.UpdateWorkspaceResp{
+		User:   req.User,
+		App:    req.App,
+		Admins: req.Admins,
+	}, nil
 }
 
 // GetFunctionByFullCodePath 根据 full-code-path 获取函数信息
@@ -1225,7 +1336,7 @@ func (a *AppService) recordDirectoryUpdateHistory(
 	addedSummaries := make([]*model.ApiSummary, 0, len(changes.Add))
 	for _, api := range changes.Add {
 		addedSummaries = append(addedSummaries, &model.ApiSummary{
-			Code:         api.FunctionGroupCode,
+			Code:         api.Code, // 使用 API 的 Code 而不是 FunctionGroupCode
 			Name:         api.Name,
 			Desc:         api.Desc,
 			Router:       api.Router,
@@ -1238,7 +1349,7 @@ func (a *AppService) recordDirectoryUpdateHistory(
 	updatedSummaries := make([]*model.ApiSummary, 0, len(changes.Update))
 	for _, api := range changes.Update {
 		updatedSummaries = append(updatedSummaries, &model.ApiSummary{
-			Code:         api.FunctionGroupCode,
+			Code:         api.Code, // 使用 API 的 Code 而不是 FunctionGroupCode
 			Name:         api.Name,
 			Desc:         api.Desc,
 			Router:       api.Router,
@@ -1251,7 +1362,7 @@ func (a *AppService) recordDirectoryUpdateHistory(
 	deletedSummaries := make([]*model.ApiSummary, 0, len(changes.Delete))
 	for _, api := range changes.Delete {
 		deletedSummaries = append(deletedSummaries, &model.ApiSummary{
-			Code:         api.FunctionGroupCode,
+			Code:         api.Code, // 使用 API 的 Code 而不是 FunctionGroupCode
 			Name:         api.Name,
 			Desc:         api.Desc,
 			Router:       api.Router,

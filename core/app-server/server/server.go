@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -11,13 +10,10 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
-	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
-	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
 	"github.com/gin-gonic/gin"
 	"github.com/nats-io/nats.go"
 	"gorm.io/driver/mysql"
@@ -37,24 +33,17 @@ type Server struct {
 
 	// 服务
 	appService                    *service.AppService
-	authService                   *service.AuthService
-	emailService                  *service.EmailService
 	jwtService                    *service.JWTService
 	appRuntime                    *service.AppRuntime
 	serviceTreeService            *service.ServiceTreeService
 	functionService               *service.FunctionService
-	functionGenService            *service.FunctionGenService
-	userService                   *service.UserService
-	operateLogService             *service.OperateLogService
+	docService                    *service.DocService
 	directoryUpdateHistoryService *service.DirectoryUpdateHistoryService
 	permissionService             *service.PermissionService // ⭐ 权限管理服务
-	appRepo                       *repository.AppRepository  // ⭐ 应用仓储（用于权限服务查询 app.id）
+	appRepo                       *repository.AppRepository  // ⭐ 应用仓储（用于其他服务）
 
 	// 上游服务
 	natsService *service.NatsService
-
-	// NATS 订阅
-	functionGenSub *nats.Subscription
 
 	// 上下文
 	ctx context.Context
@@ -106,13 +95,16 @@ func NewServer(cfg *config.AppServerConfig) (*Server, error) {
 		return nil, fmt.Errorf("failed to init services: %w", err)
 	}
 
-	if err := s.initRouter(ctx); err != nil {
-		return nil, fmt.Errorf("failed to init router: %w", err)
+	// ⭐ 初始化系统工作空间（只初始化 official 工作空间）
+	// 注意：system 用户应该在 hr-server 中初始化
+	// 在服务初始化之后，路由初始化之前
+	if err := service.InitSystemWorkspace(ctx, s.appService); err != nil {
+		logger.Warnf(ctx, "[Server] 初始化系统工作空间失败: %v", err)
+		// 不中断启动，记录警告即可
 	}
 
-	// 初始化 NATS 订阅
-	if err := s.initNATSSubscriptions(ctx); err != nil {
-		return nil, fmt.Errorf("failed to init NATS subscriptions: %w", err)
+	if err := s.initRouter(ctx); err != nil {
+		return nil, fmt.Errorf("failed to init router: %w", err)
 	}
 
 	return s, nil
@@ -140,15 +132,6 @@ func (s *Server) Start(ctx context.Context) error {
 // Stop 停止服务器（优雅关闭）
 func (s *Server) Stop(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Stopping app-server...")
-
-	// 关闭 NATS 订阅
-	if s.functionGenSub != nil {
-		if err := s.functionGenSub.Unsubscribe(); err != nil {
-			logger.Warnf(ctx, "[Server] Failed to unsubscribe function gen: %v", err)
-		} else {
-			logger.Infof(ctx, "[Server] Function gen subscription closed")
-		}
-	}
 
 	// 关闭 AppRuntime 服务（包括 NATS 订阅）
 	if s.appRuntime != nil {
@@ -270,33 +253,8 @@ func (s *Server) initDatabase(ctx context.Context) error {
 
 	// 配置 GORM 日志
 	gormConfig := &gorm.Config{}
-
-	// 如果启用了数据库日志
-	if dbCfg.LogLevel != "silent" {
-		var logLevel gormLogger.LogLevel
-		switch dbCfg.LogLevel {
-		case "error":
-			logLevel = gormLogger.Error
-		case "warn":
-			logLevel = gormLogger.Warn
-		case "info":
-			logLevel = gormLogger.Info
-		default:
-			logLevel = gormLogger.Warn
-		}
-
-		// 配置慢查询阈值
-		slowThreshold := time.Duration(dbCfg.SlowThreshold) * time.Millisecond
-		if slowThreshold == 0 {
-			slowThreshold = 200 * time.Millisecond // 默认200毫秒
-		}
-
-		// 使用 GORM 默认日志配置
-		gormConfig.Logger = gormLogger.Default.LogMode(logLevel)
-	} else {
-		// 禁用日志
-		gormConfig.Logger = gormLogger.Default.LogMode(gormLogger.Silent)
-	}
+	// 关闭 GORM 控制台日志
+	gormConfig.Logger = gormLogger.Default.LogMode(gormLogger.Silent)
 
 	var err error
 	switch dbCfg.Type {
@@ -373,47 +331,41 @@ func (s *Server) initServices(ctx context.Context) error {
 	s.appRuntime = service.NewAppRuntimeService(s.cfg, s.natsService)
 
 	// 初始化应用服务
-	userRepo := repository.NewUserRepository(s.db)
 	s.appRepo = repository.NewAppRepository(s.db) // ⭐ 保存到 Server 结构体，供权限服务使用
 	appRepo := s.appRepo                          // 局部变量，用于传递给其他服务
 	//hostRepo := repository.NewHostRepository(s.db)
-	userSessionRepo := repository.NewUserSessionRepository(s.db)
 	functionRepo := repository.NewFunctionRepository(s.db)
 	serviceTreeRepo := repository.NewServiceTreeRepository(s.db)
 	operateLogRepo := repository.NewOperateLogRepository(s.db)
 	fileSnapshotRepo := repository.NewFileSnapshotRepository(s.db)
 	directoryUpdateHistoryRepo := repository.NewDirectoryUpdateHistoryRepository(s.db)
-	s.appService = service.NewAppService(s.appRuntime, userRepo, appRepo, functionRepo, serviceTreeRepo, operateLogRepo, fileSnapshotRepo, directoryUpdateHistoryRepo)
+	s.appService = service.NewAppService(s.appRuntime, appRepo, functionRepo, serviceTreeRepo, operateLogRepo, fileSnapshotRepo, directoryUpdateHistoryRepo)
 
-	// 初始化认证服务
-	s.authService = service.NewAuthService(userRepo, userSessionRepo)
-
-	// 初始化邮件服务
-	emailCodeRepo := repository.NewEmailCodeRepository(s.db)
-	s.emailService = service.NewEmailService(emailCodeRepo)
+	// ⭐ 邮件服务已迁移到 hr-server，不再需要初始化
 
 	// 初始化 JWT 服务
 	s.jwtService = service.NewJWTService()
 
-	// 初始化函数生成服务
-	s.functionGenService = service.NewFunctionGenService(s.appService, serviceTreeRepo, appRepo)
+	// ⭐ 初始化权限申请仓储
+	permissionRequestRepo := repository.NewPermissionRequestRepository(s.db)
 
 	// ⭐ 初始化权限管理服务（需要在 initEnterprise 之后，因为需要 enterprise.GetPermissionService()）
-	// ⭐ 需要传入 casbinRuleRepo、appRepo，用于查询权限记录和填充 app_id
-	casbinRuleRepo := repository.NewCasbinRuleRepository(s.db)
-	s.permissionService = service.NewPermissionService(enterprise.GetPermissionService(), casbinRuleRepo, s.appRepo)
+	// ⭐ 完全移除 Casbin，使用新的权限系统
+	// ⭐ 添加 appRepo 用于更新 app 表的 pending_count（支持 app 级别的权限申请）
+	s.permissionService = service.NewPermissionService(enterprise.GetPermissionService(), serviceTreeRepo, permissionRequestRepo, appRepo)
+
+	// 初始化文档服务（需要在 ServiceTreeService 之前初始化，因为 ServiceTreeService 依赖它）
+	docRepo := repository.NewDocRepository(s.db)
+	s.docService = service.NewDocService(docRepo, serviceTreeRepo, appRepo)
 
 	// 初始化服务目录服务（包含目录管理功能：copy、create、remove）
-	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appRuntime, fileSnapshotRepo, s.appService, s.functionGenService, s.permissionService)
+	// ⭐ 函数生成逻辑已移到 ServiceTreeService 中
+	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appRuntime, fileSnapshotRepo, s.appService, s.permissionService, s.docService)
 
 	// 初始化函数服务
 	s.functionService = service.NewFunctionService(functionRepo, appRepo)
 
-	// 初始化用户服务
-	s.userService = service.NewUserService(userRepo)
-
-	// 初始化操作日志服务
-	s.operateLogService = service.NewOperateLogService(operateLogRepo)
+	// 操作日志服务已迁移到企业版，通过 enterprise.GetOperateLogger() 获取
 
 	// 初始化目录更新历史服务
 	s.directoryUpdateHistoryService = service.NewDirectoryUpdateHistoryService(directoryUpdateHistoryRepo, serviceTreeRepo)
@@ -473,75 +425,7 @@ func (s *Server) GetAppService() *service.AppService {
 	return s.appService
 }
 
-// GetAuthService 获取认证服务
-func (s *Server) GetAuthService() *service.AuthService {
-	return s.authService
-}
-
 // getDirectoryUpdateHistoryRepo 获取目录更新历史Repository（内部方法，用于路由注册）
 func (s *Server) getDirectoryUpdateHistoryRepo() *repository.DirectoryUpdateHistoryRepository {
 	return repository.NewDirectoryUpdateHistoryRepository(s.db)
-}
-
-// initNATSSubscriptions 初始化 NATS 订阅
-func (s *Server) initNATSSubscriptions(ctx context.Context) error {
-	logger.Infof(ctx, "[Server] Initializing NATS subscriptions...")
-
-	// 订阅 agent-server 的函数生成结果主题
-	subject := subjects.GetAgentServerFunctionGenSubject()
-	sub, err := s.natsConn.Subscribe(subject, s.handleFunctionGenResult)
-	if err != nil {
-		return fmt.Errorf("failed to subscribe to %s: %w", subject, err)
-	}
-	s.functionGenSub = sub
-	logger.Infof(ctx, "[Server] Subscribed to %s", subject)
-
-	return nil
-}
-
-// handleFunctionGenResult 处理函数生成结果消息（NATS 订阅）
-func (s *Server) handleFunctionGenResult(msg *nats.Msg) {
-	ctx := context.Background()
-
-	// 从消息 header 中获取 trace_id 和 user
-	traceID := msg.Header.Get("X-Trace-Id")
-	requestUser := msg.Header.Get("X-Request-User")
-
-	// 如果有 trace_id，设置到 context 中
-	if traceID != "" {
-		ctx = context.WithValue(ctx, "trace_id", traceID)
-	}
-	if requestUser != "" {
-		ctx = context.WithValue(ctx, "request_user", requestUser)
-	}
-
-	// 解析消息体
-	var req dto.AddFunctionsReq
-	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		logger.Errorf(ctx, "[Server] Failed to unmarshal add functions request: %v, Data: %s", err, string(msg.Data))
-		return
-	}
-
-	// 调用 Service 层处理
-	if err := s.functionGenService.ProcessFunctionGenResult(ctx, &req); err != nil {
-		logger.Errorf(ctx, "[Server] 处理函数生成结果失败: %v", err)
-	}
-}
-
-// HandleFunctionGenResult 处理函数生成结果（HTTP 接口，实现 FunctionGenServer 接口）
-func (s *Server) HandleFunctionGenResult(c *gin.Context, req *dto.AddFunctionsReq) {
-	ctx := contextx.ToContext(c)
-
-	// 打印日志
-	logger.Infof(ctx, "[Server] Received add functions request (HTTP):")
-	logger.Infof(ctx, "[Server]   RecordID: %d", req.RecordID)
-	logger.Infof(ctx, "[Server]   AgentID: %d", req.AgentID)
-	logger.Infof(ctx, "[Server]   TreeID: %d", req.TreeID)
-	logger.Infof(ctx, "[Server]   User: %s", req.User)
-	logger.Infof(ctx, "[Server]   Code length: %d bytes", len(req.Code))
-
-	// 调用 Service 层处理
-	if err := s.functionGenService.ProcessFunctionGenResult(ctx, req); err != nil {
-		logger.Errorf(ctx, "[Server] 处理添加函数请求失败: %v", err)
-	}
 }

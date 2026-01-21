@@ -99,7 +99,7 @@
         >
           <template v-if="!canCreate">
             <el-icon><Lock /></el-icon>
-            导入（需权限）
+            导入（需{{ getPermissionShortName('function:write') }}）
           </template>
           <template v-else>导入</template>
         </el-button>
@@ -115,7 +115,7 @@
         >
           <template v-if="!canCreate">
             <el-icon><Lock /></el-icon>
-            新增（需权限）
+            新增（需{{ getPermissionShortName('function:write') }}）
           </template>
           <template v-else>新增</template>
         </el-button>
@@ -129,7 +129,7 @@
           class="action-btn"
           :class="{ 'action-btn-no-permission': !canDelete }"
         >
-          {{ canDelete ? '批量删除' : '批量删除（需权限）' }}
+          {{ canDelete ? '批量删除' : `批量删除（需${getPermissionShortName('function:delete')}）` }}
         </el-button>
         <template v-if="hasDeleteCallback && isBatchDeleteMode">
           <el-button 
@@ -343,7 +343,7 @@
               @click.stop="canUpdate ? handleDetail(row) : handleApplyPermissionForAction('function:update')"
             >
               <el-icon><component :is="canUpdate ? Edit : Lock" /></el-icon>
-              {{ canUpdate ? '更新' : '更新（需权限）' }}
+              {{ canUpdate ? '更新' : `更新（需${getPermissionShortName('function:update')}）` }}
             </el-button>
             <!-- 删除按钮：需要 table:delete 权限，无权限时可点击跳转申请 -->
             <el-button 
@@ -356,7 +356,7 @@
               @click.stop="canDelete ? handleDelete(row) : handleApplyPermissionForAction('function:delete')"
             >
               <el-icon><component :is="canDelete ? Delete : Lock" /></el-icon>
-              {{ canDelete ? '删除' : '删除（需权限）' }}
+              {{ canDelete ? '删除' : `删除（需${getPermissionShortName('function:delete')}）` }}
             </el-button>
           </div>
         </template>
@@ -543,7 +543,7 @@ import { useUserInfoStore } from '@/stores/userInfo'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
 import type { TableRow, SearchParams, SortParams, SortItem } from '../../domain/services/TableDomainService'
 import type { UserInfo } from '@/types'
-import { hasPermission, TablePermissions, buildPermissionApplyURL } from '@/utils/permission'
+import { hasPermission, TablePermissions, buildPermissionApplyURL, getPermissionShortName } from '@/utils/permission'
 import { usePermissionErrorStore } from '@/stores/permissionError'
 import type { PermissionInfo } from '@/utils/permission'
 import { parseExcelFile } from '@/utils/excelImport'
@@ -1284,14 +1284,6 @@ const syncToURL = (): void => {
   const hasQueryParams = Object.keys(route.query).length > 0
     const isLinkNav = isLinkNavigation(route.query as Record<string, any>)
   
-  console.log('🔍 [TableView.syncToURL] 开始同步到 URL', {
-    hasQueryParams,
-    currentQuery: route.query,
-    currentQueryKeys: Object.keys(route.query),
-    isLinkNavigation: isLinkNav,
-    newQuery: query
-  })
-  
   // 获取 request 字段代码集合（用于过滤）
   const requestFields = Array.isArray(props.functionDetail.request) ? props.functionDetail.request : []
   const requestFieldCodes = new Set<string>()
@@ -1303,30 +1295,14 @@ const syncToURL = (): void => {
   let newQuery: Record<string, string | string[]>
     if (!hasQueryParams && !isLinkNav) {
     // 刚切换函数，URL 是空的，直接使用新的查询参数
-    console.log('🔍 [TableView.syncToURL] URL 没有查询参数，不保留旧参数，直接使用新参数')
     newQuery = { ...query }
   } else {
     // URL 有查询参数，保留现有参数并合并新的 table 参数
     newQuery = preserveExistingParams(requestFieldCodes)
     Object.assign(newQuery, query)
-    console.log('🔍 [TableView.syncToURL] URL 有查询参数，保留现有参数', {
-      preservedQuery: newQuery,
-      preservedQueryKeys: Object.keys(newQuery)
-    })
   }
   
   // 🔥 阶段2：改为发出事件，通过 RouteManager 统一处理路由更新
-  console.log('🔍 [TableView.syncToURL] 发出路由更新请求', {
-    query: newQuery,
-    queryKeys: Object.keys(newQuery),
-    queryLength: Object.keys(newQuery).length,
-    preserveParams: {
-      table: true,
-      search: true,
-      state: true,
-      linkNavigation: isLinkNav
-    }
-  })
   
   eventBus.emit(RouteEvent.updateRequested, {
     query: newQuery,
@@ -1728,12 +1704,6 @@ function handleReSelectFile(): void {
 
 // 提交导入
 async function handleSubmitImport(): Promise<void> {
-  console.log('[TableView] 开始提交导入')
-  console.log('[TableView] importData.value:', importData.value)
-  console.log('[TableView] importData.value.length:', importData.value.length)
-  console.log('[TableView] editableFields.value:', editableFields.value)
-  console.log('[TableView] editableFields.value 中是否有 null:', editableFields.value?.some(f => f === null || f === undefined))
-  
   if (importData.value.length === 0) {
     ElMessage.warning('没有可导入的数据')
     return
@@ -1779,12 +1749,9 @@ async function handleSubmitImport(): Promise<void> {
     })
     
     const fullCodePath = props.functionDetail.router.startsWith('/') ? props.functionDetail.router : `/${props.functionDetail.router}`
-    console.log('[TableView] 准备发送请求，URL:', `/workspace/api/v1/table/batch-create${fullCodePath}`)
-    console.log('[TableView] 准备发送的数据:', processedData)
     const result = await post(`/workspace/api/v1/table/batch-create${fullCodePath}`, {
       data: processedData
     })
-    console.log('[TableView] 请求响应:', result)
     
     // 响应拦截器已经处理了 code，成功时直接返回 data
     // result 就是 OnTableCreateInBatchesResp 的数据

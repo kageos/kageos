@@ -6,7 +6,7 @@ type AgentListReq struct {
 	Enabled          *bool  `json:"enabled" form:"enabled"`                          // true, false
 	KnowledgeBaseID  *int64 `json:"knowledge_base_id" form:"knowledge_base_id"`      // 按知识库ID过滤（可选）
 	LLMConfigID      *int64 `json:"llm_config_id" form:"llm_config_id"`              // 按LLM配置ID过滤（可选，0表示默认LLM）
-	PluginID         *int64 `json:"plugin_id" form:"plugin_id"`                     // 按插件ID过滤（可选）
+	PluginFunctionPath string `json:"plugin_function_path" form:"plugin_function_path"`                     // 按插件函数路径过滤（可选）
 	Scope            string `json:"scope" form:"scope"`                              // mine: 我的, market: 市场
 	Page             int    `json:"page" form:"page" binding:"required" example:"1"`
 	PageSize         int    `json:"page_size" form:"page_size" binding:"required" example:"10"`
@@ -22,8 +22,7 @@ type AgentInfo struct {
 	Author          string             `json:"author" example:"beiluo"`
 	Description     string             `json:"description" example:"基于Excel文件生成管理系统"`
 	Timeout         int                `json:"timeout" example:"30"`
-	PluginID        *int64             `json:"plugin_id" example:"1"`                                        // 插件ID（仅 plugin 类型需要）
-	Plugin          *PluginInfo        `json:"plugin,omitempty"`                                            // 预加载的插件信息
+	PluginFunctionPath string             `json:"plugin_function_path" example:"/system/official/agent/plugin/excel_or_csv/table_parse"` // 插件函数路径（full-code-path，仅 plugin 类型需要）
 	KnowledgeBaseID     int64              `json:"knowledge_base_id" example:"1"`
 	KnowledgeBase       *KnowledgeBaseInfo `json:"knowledge_base,omitempty"`  // 预加载的知识库信息
 	LLMConfigID         int64              `json:"llm_config_id" example:"1"` // LLM配置ID，如果为0则使用默认LLM
@@ -83,7 +82,7 @@ type AgentCreateReq struct {
 	Author          string `json:"author" example:"beiluo"`
 	Description     string `json:"description" example:"基于Excel文件生成管理系统"`
 	Timeout         int    `json:"timeout" example:"30"`
-	PluginID        *int64 `json:"plugin_id" example:"1"` // 插件ID（仅 plugin 类型需要）
+	PluginFunctionPath string `json:"plugin_function_path" example:"/system/official/agent/plugin/excel_or_csv/table_parse"` // 插件函数路径（full-code-path，仅 plugin 类型需要）
 	KnowledgeBaseID     int64  `json:"knowledge_base_id" binding:"required" example:"1"`
 	LLMConfigID         int64  `json:"llm_config_id" example:"1"` // LLM配置ID，如果为0则使用默认LLM
 	SystemPromptTemplate string `json:"system_prompt_template" example:"你是一个专业的代码生成助手。以下是相关的知识库内容，请参考这些内容来生成代码：\n{knowledge}"` // System Prompt模板，支持{knowledge}变量
@@ -109,7 +108,7 @@ type AgentUpdateReq struct {
 	Author          string `json:"author" example:"beiluo"`
 	Description     string `json:"description" example:"基于Excel文件生成管理系统"`
 	Timeout         int    `json:"timeout" example:"30"`
-	PluginID        *int64 `json:"plugin_id" example:"1"` // 插件ID（仅 plugin 类型需要）
+	PluginFunctionPath string `json:"plugin_function_path" example:"/system/official/agent/plugin/excel_or_csv/table_parse"` // 插件函数路径（full-code-path，仅 plugin 类型需要）
 	KnowledgeBaseID     int64  `json:"knowledge_base_id" binding:"required" example:"1"`
 	LLMConfigID         int64  `json:"llm_config_id" example:"1"` // LLM配置ID，如果为0则使用默认LLM
 	SystemPromptTemplate string `json:"system_prompt_template" example:"你是一个专业的代码生成助手。以下是相关的知识库内容，请参考这些内容来生成代码：\n{knowledge}"` // System Prompt模板，支持{knowledge}变量

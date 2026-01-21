@@ -112,6 +112,59 @@ func (a *App) UpdateApp(c *gin.Context) {
 	response.OkWithData(c, resp)
 }
 
+// UpdateWorkspace 更新工作空间
+// @Summary 更新工作空间
+// @Description 更新工作空间配置（只更新 MySQL 记录，不涉及容器更新）。A 用户可以更新 B 租户的工作空间（如果有 app:admin 权限）
+// @Tags 应用管理
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Param user path string true "租户用户名"
+// @Param app path string true "应用名"
+// @Param request body dto.UpdateWorkspaceReq true "更新工作空间请求"
+// @Success 200 {object} dto.UpdateWorkspaceResp "更新成功"
+// @Failure 400 {string} string "请求参数错误"
+// @Failure 401 {string} string "未授权"
+// @Failure 403 {string} string "无权限"
+// @Failure 500 {string} string "服务器内部错误"
+// @Router /api/v1/app/workspace/:user/:app [put]
+func (a *App) UpdateWorkspace(c *gin.Context) {
+	// 从路径参数获取租户和应用信息
+	user := c.Param("user")
+	app := c.Param("app")
+	if user == "" {
+		response.FailWithMessage(c, "user parameter is required")
+		return
+	}
+	if app == "" {
+		response.FailWithMessage(c, "app parameter is required")
+		return
+	}
+
+	// 绑定请求体
+	var req dto.UpdateWorkspaceReq
+	// ⭐ user 和 app 从路径参数获取，不在请求体中
+	req.User = user
+	req.App = app
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+	// ⭐ 确保 User 和 App 始终来自路径参数（防止请求体中覆盖，虽然 JSON tag 是 "-" 不会绑定）
+	req.User = user
+	req.App = app
+
+	ctx := contextx.ToContext(c)
+	resp, err := a.appService.UpdateWorkspace(ctx, &req)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+
+	response.OkWithData(c, resp)
+}
+
 // RequestApp
 // @Tags 应用接口请求(运行函数)
 // @Accept json
@@ -439,6 +492,16 @@ func (a *App) GetApps(c *gin.Context) {
 	page := c.DefaultQuery("page", "1")
 	pageSize := c.DefaultQuery("page_size", "10")
 	search := c.Query("search")
+	includeAll := c.DefaultQuery("include_all", "false") == "true"
+	typeStr := c.Query("type")
+
+	// 解析应用类型（可选）
+	var appType *int
+	if typeStr != "" {
+		if typeVal := parseIntWithDefault(typeStr, -1); typeVal >= 0 {
+			appType = &typeVal
+		}
+	}
 
 	// 构建请求对象
 	req = dto.GetAppsReq{
@@ -446,8 +509,10 @@ func (a *App) GetApps(c *gin.Context) {
 			Page:     parseIntWithDefault(page, 1),
 			PageSize: parseIntWithDefault(pageSize, 10),
 		},
-		User:   user,
-		Search: search,
+		User:       user,
+		Search:     search,
+		IncludeAll: includeAll,
+		Type:       appType,
 	}
 
 	ctx := contextx.ToContext(c)

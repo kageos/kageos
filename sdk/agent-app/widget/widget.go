@@ -8,6 +8,7 @@ const (
 	TypeSwitch      = "switch"
 	TypeTimestamp   = "timestamp"
 	TypeUser        = "user"
+	TypeUsers       = "users"
 	TypeID          = "ID"
 	TypeNumber      = "number"
 	TypeFloat       = "float"
@@ -68,6 +69,8 @@ func NewWidget(widgetType string, widgetParsed map[string]string) Widget {
 		return newTimestamp(widgetParsed)
 	case TypeUser:
 		return newUser(widgetParsed)
+	case TypeUsers:
+		return newUsers(widgetParsed)
 	case TypeID:
 		return newID(widgetParsed)
 	case TypeNumber:

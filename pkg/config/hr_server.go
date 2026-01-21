@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"sync"
 )
 
@@ -33,11 +34,17 @@ func GetHRServerConfig() *HRServerConfig {
 
 // HRServerConfig hr-server 配置
 type HRServerConfig struct {
-	Server HRServerServerConfig `mapstructure:"server"`
-	Email  EmailConfig          `mapstructure:"email"`
-	DB     DBConfig             `mapstructure:"db"`
+	Server     HRServerServerConfig `mapstructure:"server"`
+	Email      EmailConfig          `mapstructure:"email"`
+	DB         DBConfig             `mapstructure:"db"`
+	SystemUser SystemUserConfig     `mapstructure:"system_user"` // ⭐ 系统账号配置
 	// 注意：JWT 配置已移至全局配置，不再在此处配置
 	// 数据库配置保留在服务配置中，因为微服务后续每个服务一个库
+}
+
+// SystemUserConfig 系统账号配置
+type SystemUserConfig struct {
+	Password string `mapstructure:"password"` // 系统账号密码（可选，如果为空则生成随机密码）
 }
 
 // HRServerServerConfig hr-server 服务器配置
@@ -124,3 +131,12 @@ func (c *HRServerConfig) GetEmail() EmailConfig {
 	return c.Email
 }
 
+// GetSystemUserPassword 获取系统账号密码（优先从环境变量获取，其次从配置文件）
+func (c *HRServerConfig) GetSystemUserPassword() string {
+	// 优先从环境变量获取（容器化部署推荐）
+	if envPassword := os.Getenv("SYSTEM_USER_PASSWORD"); envPassword != "" {
+		return envPassword
+	}
+	// 其次从配置文件获取
+	return c.SystemUser.Password
+}

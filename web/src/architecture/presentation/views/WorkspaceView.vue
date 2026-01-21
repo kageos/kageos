@@ -15,17 +15,19 @@
 
     <div class="workspace-view">
       <!-- 左侧服务目录树 -->
-      <div class="left-sidebar">
+      <div class="left-sidebar" :class="{ 'sidebar-collapsed': !showLeftSidebar }">
         <ServiceTreePanel
           ref="serviceTreePanelRef"
           :tree-data="serviceTree"
           :loading="loading"
           :current-node-id="currentFunction?.id || null"
           :current-function="currentFunction"
+          :expanded-keys="expandedKeys"
           @node-click="handleNodeClick"
           @create-directory="handleCreateDirectory"
+          @create-docs="handleCreateDocs"
+          @delete-doc="handleDeleteDoc"
           @fork-group="handleForkGroup"
-          @copy-link="handleCopyLink"
           @delete-function="handleDeleteFunction"
           @publish-to-hub="handlePublishToHub"
           @push-to-hub="handlePushToHub"
@@ -35,8 +37,59 @@
         />
       </div>
 
+      <!-- 左侧边栏控制按钮 -->
+      <div class="left-sidebar-controls">
+        <el-button
+          v-if="!showLeftSidebar"
+          link
+          @click="toggleLeftSidebar"
+          class="sidebar-toggle"
+          title="显示服务目录"
+        >
+          <el-icon><ArrowRight /></el-icon>
+          显示目录
+        </el-button>
+        
+        <el-button
+          v-if="showLeftSidebar"
+          link
+          @click="toggleLeftSidebar"
+          class="sidebar-toggle"
+          title="隐藏服务目录"
+        >
+          <el-icon><ArrowLeft /></el-icon>
+          隐藏目录
+        </el-button>
+      </div>
+
       <!-- 中间函数渲染区域 -->
       <div class="function-renderer">
+        <!-- 右侧边栏控制按钮 -->
+        <div class="sidebar-controls" v-if="currentFunction && currentFunction.type === 'function'">
+          <div class="right-controls">
+            <el-button
+              v-if="!showRightSidebar"
+              link
+              @click="toggleRightSidebar"
+              class="sidebar-toggle"
+              title="显示函数信息"
+            >
+              <el-icon><ArrowLeft /></el-icon>
+              显示函数信息
+            </el-button>
+            
+            <el-button
+              v-if="showRightSidebar"
+              link
+              @click="toggleRightSidebar"
+              class="sidebar-toggle"
+              title="隐藏函数信息"
+            >
+              <el-icon><ArrowRight /></el-icon>
+              隐藏函数信息
+            </el-button>
+          </div>
+        </div>
         <!-- 面包屑导航（只在显示函数详情时显示） -->
         <FunctionBreadcrumb
           v-if="currentFunction && currentFunction.type === 'function'"
@@ -96,11 +149,19 @@
         <!-- 🔥 Detail 模式：显示详情抽屉（通过 URL 参数打开） -->
         <!-- 注意：detail 模式使用抽屉显示，不需要单独的页面 -->
         
-        <!-- 🔥 服务目录详情页面 -->
+        <!-- 🔥 文档详情页面 -->
+        <DocView
+          v-if="currentFunction && currentFunction.type === 'docs'"
+          :node="currentFunction"
+          @deleted="handleDocDeleted"
+        />
+        
+        <!-- 🔥 服务目录详情页面（包括 app 根节点和 package 节点） -->
         <PackageDetailView
-          v-else-if="currentFunction && currentFunction.type === 'package' && !selectedAgent"
+          v-else-if="currentFunction && (currentFunction.type === 'package' || currentFunction.type === 'app') && !selectedAgent"
           :package-node="currentFunction"
           @generate-system="handlePackageGenerateSystem"
+          @refresh="handleRefreshTree"
         />
         
         <!-- 🔥 点击目录节点时根据选择的智能体显示不同的聊天面板 -->
@@ -123,47 +184,144 @@
         <!-- 函数详情区域（正常模式 - 函数节点） -->
         <div v-else-if="currentFunction && currentFunction.type === 'function'" class="function-content-wrapper">
           <div class="function-content">
-            <!-- ⭐ 如果函数详情已加载，显示对应的视图 -->
-            <!-- ⚠️ 重要：只有当 currentFunctionDetail 的 id 或 router 与 currentFunction 匹配时才显示 -->
-            <template v-if="currentFunctionDetail && 
-                           currentFunction && 
-                           (currentFunctionDetail.id === currentFunction.ref_id || 
-                            currentFunctionDetail.router === currentFunction.full_code_path)">
-              <!-- 🔥 移除 keep-alive，每次切换函数时重新渲染，保证数据一致性 -->
-              <!-- 🔥 使用 full_code_path 作为 key，确保函数切换时组件正确重建 -->
-              <FormView
-                v-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.FORM"
-                :key="`form-${currentFunction.full_code_path || currentFunction.id}`"
-                :function-detail="currentFunctionDetail"
+            <!-- ⭐ 权限申请 tab（仅管理员可见） -->
+            <div v-if="showFunctionPermissionRequestTab" class="function-tabs-wrapper">
+              <el-tabs v-model="functionActiveTab" type="card" @tab-change="handleFunctionTabChange" class="function-detail-tabs">
+                <!-- 函数内容 tab -->
+                <el-tab-pane name="content">
+                  <template #label>
+                    <span>函数内容</span>
+                  </template>
+                  <div class="tab-content">
+                    <!-- ⭐ 如果函数详情已加载，显示对应的视图 -->
+                    <!-- ⚠️ 重要：只有当 currentFunctionDetail 的 id 或 router 与 currentFunction 匹配时才显示 -->
+                    <template v-if="currentFunctionDetail && 
+                                   currentFunction && 
+                                   (currentFunctionDetail.id === currentFunction.ref_id || 
+                                    currentFunctionDetail.router === currentFunction.full_code_path)">
+                      <!-- 🔥 移除 keep-alive，每次切换函数时重新渲染，保证数据一致性 -->
+                      <!-- 🔥 使用 full_code_path 作为 key，确保函数切换时组件正确重建 -->
+                      <FormView
+                        v-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.FORM"
+                        :key="`form-${currentFunction.full_code_path || currentFunction.id}`"
+                        :function-detail="currentFunctionDetail"
+                      />
+                      <TableView
+                        v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.TABLE"
+                        :key="`table-${currentFunction.full_code_path || currentFunction.id}`"
+                        :function-detail="currentFunctionDetail"
+                      />
+                      <ChartView
+                        v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.CHART"
+                        :key="`chart-${currentFunction.full_code_path || currentFunction.id}`"
+                        :function-detail="currentFunctionDetail"
+                      />
+                      <div v-else :key="`empty-${currentFunction.full_code_path || currentFunction.id}`" class="function-loading">
+                        <el-skeleton :rows="8" animated />
+                      </div>
+                    </template>
+                    <!-- 如果函数详情未加载且有权限错误，显示权限错误组件 -->
+                    <PermissionDeniedView
+                      v-else-if="hasPermissionError"
+                      :key="`permission-denied-${currentFunction.full_code_path || currentFunction.id}`"
+                    />
+                    <!-- 如果函数详情未加载且没有权限错误，显示骨架屏 -->
+                    <div v-else :key="`loading-${currentFunction.full_code_path || currentFunction.id}`" class="function-loading">
+                      <el-skeleton :rows="8" animated />
+                    </div>
+                  </div>
+                </el-tab-pane>
+
+                <!-- 权限申请 tab -->
+                <el-tab-pane name="permissionRequest">
+                  <template #label>
+                    <el-badge :value="currentFunction?.pending_count || 0" :hidden="!currentFunction?.pending_count || currentFunction.pending_count === 0" :max="99">
+                      <span>权限申请</span>
+                    </el-badge>
+                  </template>
+                  <div class="tab-content">
+                    <PermissionRequestList
+                      ref="functionPermissionRequestListRef"
+                      :resource-path="currentFunction?.full_code_path"
+                      :auto-load="functionActiveTab === 'permissionRequest'"
+                    />
+                  </div>
+                </el-tab-pane>
+
+                <!-- 权限管理 tab -->
+                <el-tab-pane name="permissionManage">
+                  <template #label>
+                    <span>权限管理</span>
+                  </template>
+                  <div class="tab-content">
+                    <PermissionManageList
+                      ref="functionPermissionManageListRef"
+                      :resource-path="currentFunction?.full_code_path"
+                      :user="currentApp?.user"
+                      :app="currentApp?.code"
+                      :auto-load="functionActiveTab === 'permissionManage'"
+                    />
+                  </div>
+                </el-tab-pane>
+              </el-tabs>
+            </div>
+
+            <!-- 非管理员或没有权限申请 tab 时，显示原来的内容 -->
+            <div v-else>
+              <!-- ⭐ 如果函数详情已加载，显示对应的视图 -->
+              <!-- ⚠️ 重要：只有当 currentFunctionDetail 的 id 或 router 与 currentFunction 匹配时才显示 -->
+              <template v-if="currentFunctionDetail && 
+                             currentFunction && 
+                             (currentFunctionDetail.id === currentFunction.ref_id || 
+                              currentFunctionDetail.router === currentFunction.full_code_path)">
+                <!-- 🔥 移除 keep-alive，每次切换函数时重新渲染，保证数据一致性 -->
+                <!-- 🔥 使用 full_code_path 作为 key，确保函数切换时组件正确重建 -->
+                <FormView
+                  v-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.FORM"
+                  :key="`form-${currentFunction.full_code_path || currentFunction.id}`"
+                  :function-detail="currentFunctionDetail"
+                />
+                <TableView
+                  v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.TABLE"
+                  :key="`table-${currentFunction.full_code_path || currentFunction.id}`"
+                  :function-detail="currentFunctionDetail"
+                />
+                <ChartView
+                  v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.CHART"
+                  :key="`chart-${currentFunction.full_code_path || currentFunction.id}`"
+                  :function-detail="currentFunctionDetail"
+                />
+                <div v-else :key="`empty-${currentFunction.full_code_path || currentFunction.id}`" class="function-loading">
+                  <el-skeleton :rows="8" animated />
+                </div>
+              </template>
+              <!-- 如果函数详情未加载且有权限错误，显示权限错误组件 -->
+              <PermissionDeniedView
+                v-else-if="hasPermissionError"
+                :key="`permission-denied-${currentFunction.full_code_path || currentFunction.id}`"
               />
-              <TableView
-                v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.TABLE"
-                :key="`table-${currentFunction.full_code_path || currentFunction.id}`"
-                :function-detail="currentFunctionDetail"
-              />
-              <ChartView
-                v-else-if="currentFunctionDetail.template_type === TEMPLATE_TYPE.CHART"
-                :key="`chart-${currentFunction.full_code_path || currentFunction.id}`"
-                :function-detail="currentFunctionDetail"
-              />
-              <div v-else :key="`empty-${currentFunction.full_code_path || currentFunction.id}`" class="empty-state">
-                <p>加载中...</p>
+              <!-- 如果函数详情未加载且没有权限错误，显示骨架屏 -->
+              <div v-else :key="`loading-${currentFunction.full_code_path || currentFunction.id}`" class="function-loading">
+                <el-skeleton :rows="8" animated />
               </div>
-            </template>
-            <!-- 如果函数详情未加载且有权限错误，显示权限错误组件 -->
-            <PermissionDeniedView
-              v-else-if="hasPermissionError"
-              :key="`permission-denied-${currentFunction.full_code_path || currentFunction.id}`"
-            />
-            <!-- 如果函数详情未加载且没有权限错误，显示加载中 -->
-            <div v-else :key="`loading-${currentFunction.full_code_path || currentFunction.id}`" class="empty-state">
-              <p>加载中...</p>
             </div>
           </div>
         </div>
         <div v-else class="empty-state">
           <p>请在左侧选择功能或目录</p>
         </div>
+      </div>
+
+      <!-- 右侧函数信息面板 -->
+      <div 
+        v-if="currentFunction && currentFunction.type === 'function' && showRightSidebar" 
+        class="right-sidebar"
+        :class="{ 'sidebar-collapsed': !showRightSidebar }"
+      >
+        <FunctionInfoPanel 
+          :function-data="currentFunctionDetail" 
+          :function-node="currentFunction"
+        />
       </div>
     </div>
 
@@ -182,6 +340,7 @@
       :current-app="currentApp"
       :app-list="appList"
       :loading-apps="loadingApps"
+      :service-tree="serviceTree"
       @switch-app="handleSwitchApp"
       @create-app="showCreateAppDialog"
       @update-app="handleUpdateApp"
@@ -221,6 +380,28 @@
             英文标识只能包含小写字母、数字和下划线，长度 2-50 个字符
           </div>
         </el-form-item>
+        <el-form-item label="是否公开">
+          <el-switch
+            v-model="createAppForm.is_public"
+            active-text="公开"
+            inactive-text="私有"
+          />
+          <div class="form-tip">
+            <el-icon><InfoFilled /></el-icon>
+            公开的工作空间可以被其他用户搜索到，私有的工作空间只有您自己可以看到
+          </div>
+        </el-form-item>
+        <el-form-item label="管理员">
+          <UserSearchInput
+            v-model="adminsArray"
+            placeholder="搜索并选择管理员（可多选）"
+            :multiple="true"
+          />
+          <div class="form-tip">
+            <el-icon><InfoFilled /></el-icon>
+            可以设置多个管理员，用逗号分隔。管理员拥有工作空间的管理权限
+          </div>
+        </el-form-item>
       </el-form>
 
       <template #footer>
@@ -253,6 +434,92 @@
       @submit="(formRendererRef) => submitDrawerEdit(formRendererRef)"
       @close="handleDetailDrawerClose"
     />
+
+    <!-- 创建文档节点对话框 -->
+    <el-dialog
+      v-model="createDocsDialogVisible"
+      :title="currentDocsParentNode ? `在「${currentDocsParentNode.name || currentDocsParentNode.code}」下创建文档` : '创建文档'"
+      width="600px"
+      :close-on-click-modal="false"
+      @close="handleCloseCreateDocsDialog"
+    >
+      <el-form :model="createDocsForm" label-width="90px">
+        <el-form-item label="文档名称" required>
+          <el-input
+            v-model="createDocsForm.name"
+            placeholder="请输入文档名称"
+            maxlength="100"
+            show-word-limit
+            clearable
+          />
+        </el-form-item>
+        <el-form-item label="文档代码" required>
+          <el-input
+            v-model="createDocsForm.code"
+            placeholder="请输入文档代码（英文，用于URL）"
+            maxlength="50"
+            show-word-limit
+            clearable
+            @input="createDocsForm.code = createDocsForm.code.toLowerCase().replace(/[^a-z0-9_]/g, '')"
+          />
+          <div class="form-tip">
+            <el-icon><InfoFilled /></el-icon>
+            文档代码只能包含小写字母、数字和下划线
+          </div>
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input
+            v-model="createDocsForm.description"
+            type="textarea"
+            placeholder="请输入文档描述（可选）"
+            :rows="3"
+            maxlength="500"
+            show-word-limit
+          />
+        </el-form-item>
+        <el-form-item label="标签">
+          <el-input
+            v-model="createDocsForm.tags"
+            placeholder="请输入标签，多个标签用逗号分隔（可选）"
+            maxlength="200"
+            clearable
+          />
+        </el-form-item>
+        <el-form-item label="文档内容" required>
+          <el-input
+            v-model="createDocsForm.content"
+            type="textarea"
+            placeholder="请输入文档内容（支持 Markdown 格式）"
+            :rows="15"
+            maxlength="50000"
+            show-word-limit
+          />
+          <div class="form-tip">
+            <el-icon><InfoFilled /></el-icon>
+            支持 Markdown 格式，可以使用标题、列表、代码块、链接等语法
+          </div>
+        </el-form-item>
+        <el-form-item label="文档摘要">
+          <el-input
+            v-model="createDocsForm.summary"
+            type="textarea"
+            placeholder="请输入文档摘要（可选）"
+            :rows="2"
+            maxlength="500"
+            show-word-limit
+          />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="createDocsDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="handleSubmitCreateDocs" :loading="creatingDocs">
+            创建
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
 
     <!-- 创建服务目录对话框 -->
     <el-dialog
@@ -303,6 +570,18 @@
             maxlength="100"
             clearable
           />
+        </el-form-item>
+        <el-form-item label="管理员">
+          <UsersWidget
+            :field="adminsField"
+            :value="adminsFieldValue"
+            mode="edit"
+            @update:modelValue="handleAdminsChange"
+          />
+          <div class="form-tip">
+            <el-icon><InfoFilled /></el-icon>
+            默认当前用户为管理员，可以添加其他用户
+          </div>
         </el-form-item>
       </el-form>
 
@@ -359,8 +638,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, watch, ref, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox, ElNotification, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon } from 'element-plus'
-import { InfoFilled, ArrowLeft } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox, ElNotification, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon, ElSwitch, ElSkeleton } from 'element-plus'
+import { InfoFilled, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { eventBus, WorkspaceEvent, RouteEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
@@ -383,10 +662,17 @@ import PermissionDeniedView from '../components/PermissionDeniedView.vue'
 import AIChatPanel from '../components/AIChatPanel.vue'
 import AgentSelectDialog from '@/components/Agent/AgentSelectDialog.vue'
 import PackageDetailView from '../components/PackageDetailView.vue'
+import DocView from '../components/DocView.vue'
+import FunctionInfoPanel from '../components/FunctionInfoPanel.vue'
+import UserSearchInput from '@/components/UserSearchInput.vue'
+import UsersWidget from '../widgets/UsersWidget.vue'
+import PermissionRequestList from '@/components/Permission/PermissionRequestList.vue'
+import PermissionManageList from '@/components/Permission/PermissionManageList.vue'
 import type { ServiceTree, App } from '../../domain/services/WorkspaceDomainService'
+import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
+import { WidgetType } from '@/core/constants/widget'
 import type { FunctionDetail } from '../../domain/interfaces/IFunctionLoader'
 import type { App as AppType, ServiceTree as ServiceTreeType } from '@/types'
-import type { FieldConfig, FieldValue } from '../../domain/types'
 // 🔥 导入 Composable
 import { useWorkspaceRouting } from '../composables/useWorkspaceRouting'
 import { RouteSource } from '@/utils/routeSource'
@@ -416,6 +702,9 @@ const serviceTree = computed(() => stateManager.getServiceTree())
 const currentFunction = computed(() => stateManager.getCurrentFunction())
 const currentAppFromState = computed(() => stateManager.getCurrentApp())
 
+// ⭐ 需要自动展开的节点ID列表（从后端返回）
+const expandedKeys = ref<number[]>([])
+
 // 🔥 不再使用 Tab 功能，简化系统
 
 const currentApp = computed<AppType | null>(() => {
@@ -428,12 +717,13 @@ const currentApp = computed<AppType | null>(() => {
     user: app.user,
     code: app.code,
     name: app.name,
-    nats_id: 0,
-    host_id: 0,
-    status: 'enabled' as const,
-    version: '',
-    created_at: '',
-    updated_at: ''
+    nats_id: app.nats_id || 0,
+    host_id: app.host_id || 0,
+    status: (app.status || 'enabled') as 'enabled' | 'disabled',
+    version: app.version || '',
+    created_at: app.created_at || '',
+    updated_at: app.updated_at || '',
+    admins: app.admins || '' // ⭐ 包含 admins 字段
   }
 })
 
@@ -443,6 +733,7 @@ const {
   createAppDialogVisible,
   creatingApp,
   createAppForm,
+  adminsArray,
   loadAppList,
   handleSwitchApp: appHandleSwitchApp,
   showCreateAppDialog,
@@ -461,9 +752,41 @@ const {
   resetCreateDirectoryForm,
   handleSubmitCreateDirectory: serviceTreeHandleSubmitCreateDirectory,
   expandCurrentRoutePath: serviceTreeExpandCurrentRoutePath,
-  checkAndExpandForkedPaths: serviceTreeCheckAndExpandForkedPaths,
-  handleCopyLink
+  checkAndExpandForkedPaths: serviceTreeCheckAndExpandForkedPaths
 } = useWorkspaceServiceTree()
+
+// 管理员字段配置（用于 UsersWidget）
+const adminsField = computed<FieldConfig>(() => ({
+  code: 'admins',
+  name: '管理员',
+  widget: {
+    type: WidgetType.USERS,
+    config: {}
+  }
+}))
+
+// 管理员字段值（用于 UsersWidget）
+const adminsFieldValue = computed<FieldValue>(() => {
+  if (!createDirectoryForm.value.admins || !createDirectoryForm.value.admins.trim()) {
+    return {
+      raw: null,
+      display: '',
+      meta: {}
+    }
+  }
+  
+  const admins = createDirectoryForm.value.admins.split(',').map(s => s.trim()).filter(s => s)
+  return {
+    raw: admins.join(','),
+    display: admins.join(', '),
+    meta: {}
+  }
+})
+
+// 处理管理员字段变化
+function handleAdminsChange(value: FieldValue) {
+  createDirectoryForm.value.admins = value.raw || ''
+}
 
 // 🔥 移除缓存后，通过事件获取函数详情
 const currentFunctionDetail = ref<FunctionDetail | null>(null)
@@ -602,6 +925,67 @@ const updateHistoryFullCodePath = ref('')
 // ServiceTreePanel 引用（用于展开路径）
 const serviceTreePanelRef = ref<InstanceType<typeof ServiceTreePanel> | null>(null)
 
+// 左侧服务目录树显示状态
+const showLeftSidebar = ref(true)
+
+// 右侧函数信息面板显示状态
+const showRightSidebar = ref(true)
+
+// 函数详情 tab 相关
+const functionActiveTab = ref('content')
+const functionPermissionRequestListRef = ref<InstanceType<typeof PermissionRequestList> | null>(null)
+const functionPermissionManageListRef = ref<InstanceType<typeof PermissionManageList> | null>(null)
+
+// ⭐ 判断是否显示函数权限申请 tab
+// 条件：1. 节点类型是 function  2. 用户是管理员
+const showFunctionPermissionRequestTab = computed(() => {
+  if (!currentFunction.value) {
+    return false
+  }
+  
+  // 必须是 function 类型
+  if (currentFunction.value.type !== 'function') {
+    return false
+  }
+  
+  // 检查是否是管理员
+  if (!currentFunction.value.admins || !authStore.user?.username) {
+    return false
+  }
+  
+  const admins = currentFunction.value.admins.split(',').map((a: string) => a.trim()).filter(Boolean)
+  return admins.includes(authStore.user.username)
+})
+
+// 处理函数 tab 切换
+const handleFunctionTabChange = (tabName: string) => {
+  if (tabName === 'permissionRequest' && functionPermissionRequestListRef.value) {
+    // 切换到权限申请 tab 时，触发加载
+    nextTick(() => {
+      functionPermissionRequestListRef.value?.loadRequests()
+    })
+  } else if (tabName === 'permissionManage' && functionPermissionManageListRef.value) {
+    // 切换到权限管理 tab 时，触发加载
+    nextTick(() => {
+      functionPermissionManageListRef.value?.loadPermissions()
+    })
+  }
+}
+
+// 切换左侧边栏显示
+const toggleLeftSidebar = () => {
+  showLeftSidebar.value = !showLeftSidebar.value
+  // 保存到 localStorage 持久化
+  localStorage.setItem('workspace-left-sidebar', String(showLeftSidebar.value))
+}
+
+// 切换右侧边栏显示
+const toggleRightSidebar = () => {
+  showRightSidebar.value = !showRightSidebar.value
+  // 保存到 localStorage 持久化
+  localStorage.setItem('workspace-right-sidebar', String(showRightSidebar.value))
+}
+
 // AI 对话框相关
 const agentSelectDialogVisible = ref(false)
 const selectedAgent = ref<AgentInfo | null>(null)
@@ -731,6 +1115,18 @@ const handleGlobalPaste = async (event: ClipboardEvent) => {
 }
 
 onMounted(() => {
+  // 从 localStorage 恢复左侧边栏状态
+  const savedLeft = localStorage.getItem('workspace-left-sidebar')
+  if (savedLeft !== null) {
+    showLeftSidebar.value = savedLeft === 'true'
+  }
+  
+  // 从 localStorage 恢复右侧边栏状态
+  const savedRight = localStorage.getItem('workspace-right-sidebar')
+  if (savedRight !== null) {
+    showRightSidebar.value = savedRight === 'true'
+  }
+  
   // 🔥 监听表格详情事件（使用 Composable）
   eventBus.on('table:detail-row', async ({ row, index, tableData }: { row: Record<string, any>, index?: number, tableData?: any[] }) => {
     await openDetailDrawer(row, index, tableData)
@@ -840,18 +1236,19 @@ const handleFunctionNodeRoute = (node: ServiceTree, source: string): void => {
  * 处理目录节点的路由更新
  * ⭐ 优化：不再在这里调用 triggerNodeClick，因为已经在 handleNodeClick 中调用过了
  */
-const handlePackageNodeRoute = (node: ServiceTree, source: string): void => {
+const handlePackageNodeRoute = (node: ServiceTree, source: string, customQuery?: Record<string, any>): void => {
   if (!node.full_code_path) return
   
   const targetPath = buildWorkspacePath(node.full_code_path)
   // ⭐ 如果路由已匹配，不需要更新路由（节点点击已经在 handleNodeClick 中处理了）
-  if (route.path === targetPath) {
+  // 但如果 source 是 approve-permission-click，需要更新 query 参数
+  if (route.path === targetPath && !customQuery) {
     return
   }
   
   eventBus.emit(RouteEvent.updateRequested, {
     path: targetPath,
-    query: {},
+    query: customQuery || {},
     replace: true,
     preserveParams: {
       table: false,
@@ -881,10 +1278,46 @@ const handleNodeClick = (node: ServiceTreeType) => {
       applicationService.triggerNodeClick(serviceTree)
       handlePackageNodeRoute(serviceTree, RouteSource.WORKSPACE_NODE_CLICK_PACKAGE)
     }
+  } else if (serviceTree.type === 'docs') {
+    // ⭐ docs 类型节点，也需要更新路由
+    const targetPath = buildWorkspacePath(serviceTree.full_code_path || '')
+    if (route.path === targetPath) {
+      // 路由已匹配，直接触发节点点击
+      applicationService.triggerNodeClick(serviceTree)
+    } else {
+      // 路由未匹配，先触发节点点击，然后更新路由
+      applicationService.triggerNodeClick(serviceTree)
+      handlePackageNodeRoute(serviceTree, 'workspace-node-click-docs')
+    }
+  } else if (serviceTree.type === 'app') {
+    // ⭐ app 类型节点（工作空间根节点），更新路由并触发节点点击
+    const targetPath = buildWorkspacePath(serviceTree.full_code_path || '')
+    if (route.path === targetPath) {
+      // 路由已匹配，直接触发节点点击
+      applicationService.triggerNodeClick(serviceTree)
+    } else {
+      // 路由未匹配，先触发节点点击，然后更新路由
+      applicationService.triggerNodeClick(serviceTree)
+      handlePackageNodeRoute(serviceTree, 'workspace-node-click-app')
+    }
   } else {
     // 其他类型节点，只设置当前函数
     applicationService.triggerNodeClick(serviceTree)
   }
+}
+
+// ⭐ 处理审批权限申请（从 ServiceTreePanel 调用）
+const handleApprovePermission = (node: ServiceTreeType) => {
+  const serviceTree: ServiceTree = node as any
+  if (!serviceTree.full_code_path) return
+  
+  // 先触发节点点击，确保节点详情已加载
+  applicationService.triggerNodeClick(serviceTree)
+  
+  // 然后更新路由，添加 tab 参数
+  handlePackageNodeRoute(serviceTree, 'approve-permission-click', {
+    tab: 'permissionRequest'
+  })
 }
 
 /**
@@ -895,6 +1328,12 @@ const handleBreadcrumbNodeClick = (node: ServiceTree) => {
     handleFunctionNodeRoute(node, RouteSource.WORKSPACE_NODE_CLICK)
   } else if (node.type === 'package') {
     handlePackageNodeRoute(node, RouteSource.WORKSPACE_NODE_CLICK_PACKAGE)
+  } else if (node.type === 'docs') {
+    // ⭐ docs 类型节点，也需要更新路由
+    handlePackageNodeRoute(node, 'breadcrumb-node-click-docs')
+  } else if (node.type === 'app') {
+    // ⭐ app 类型节点（工作空间根节点），更新路由
+    handlePackageNodeRoute(node, 'breadcrumb-node-click-app')
   } else {
     applicationService.triggerNodeClick(node)
   }
@@ -910,9 +1349,196 @@ const handleSubmitCreateDirectory = async () => {
   await serviceTreeHandleSubmitCreateDirectory(() => currentApp.value)
 }
 
+// 创建文档对话框相关状态
+const createDocsDialogVisible = ref(false)
+const creatingDocs = ref(false)
+const currentDocsParentNode = ref<ServiceTreeType | null>(null)
+const createDocsForm = ref({
+  name: '',
+  code: '',
+  description: '',
+  tags: '',
+  content: '',    // ⭐ 文档内容
+  summary: ''     // ⭐ 文档摘要
+})
+
+// 处理创建文档节点（打开对话框）
+const handleCreateDocs = (parentNode?: ServiceTreeType) => {
+  if (!currentApp.value) {
+    ElMessage.warning('请先选择应用')
+    return
+  }
+  currentDocsParentNode.value = parentNode || null
+  createDocsForm.value = {
+    name: '',
+    code: '',
+    description: '',
+    tags: '',
+    content: '',
+    summary: ''
+  }
+  createDocsDialogVisible.value = true
+}
+
+// 提交创建文档
+const handleSubmitCreateDocs = async () => {
+  if (!currentApp.value) {
+    ElMessage.warning('请先选择应用')
+    return
+  }
+
+  if (!createDocsForm.value.name.trim()) {
+    ElMessage.warning('请输入文档名称')
+    return
+  }
+
+  if (!createDocsForm.value.code.trim()) {
+    ElMessage.warning('请输入文档代码')
+    return
+  }
+
+  // 验证代码格式（只能包含小写字母、数字和下划线）
+  const codePattern = /^[a-z0-9_]+$/
+  if (!codePattern.test(createDocsForm.value.code)) {
+    ElMessage.warning('文档代码只能包含小写字母、数字和下划线')
+    return
+  }
+
+  // ⭐ 验证文档内容
+  if (!createDocsForm.value.content.trim()) {
+    ElMessage.warning('请输入文档内容')
+    return
+  }
+
+  creatingDocs.value = true
+  try {
+    const { createServiceTree } = await import('@/api/service-tree')
+    const parentId = currentDocsParentNode.value?.id || 0
+    const response = await createServiceTree({
+      user: currentApp.value.user,
+      app: currentApp.value.code,
+      name: createDocsForm.value.name.trim(),
+      code: createDocsForm.value.code.trim(),
+      parent_id: parentId,
+      type: 'docs',
+      description: createDocsForm.value.description.trim() || '',
+      tags: createDocsForm.value.tags.trim() || '',
+      doc_title: createDocsForm.value.name.trim(),  // ⭐ 使用名称作为文档标题
+      doc_content: createDocsForm.value.content.trim(),  // ⭐ 文档内容
+      doc_format: 'markdown',  // ⭐ 文档格式
+      doc_summary: createDocsForm.value.summary.trim() || ''  // ⭐ 文档摘要
+    })
+
+    // ⭐ 响应拦截器已经处理了，成功时返回的是 data 对象（ServiceTree），不是 { data: ServiceTree }
+    if (response && response.id) {
+      ElMessage.success('文档节点创建成功')
+      // ⭐ 立即关闭弹窗，不等待后续操作
+      createDocsDialogVisible.value = false
+      
+      // 刷新服务树（异步执行，不阻塞弹窗关闭）
+      handleRefreshTree().then(() => {
+        // 点击新创建的节点
+        if (response.id) {
+          const newNode = findNodeById(serviceTree.value, response.id)
+          if (newNode) {
+            handleNodeClick(newNode)
+          }
+        }
+      }).catch((err) => {
+        console.error('刷新服务树失败:', err)
+        // 即使刷新失败，也尝试点击新创建的节点
+        if (response.id) {
+          const newNode = findNodeById(serviceTree.value, response.id)
+          if (newNode) {
+            handleNodeClick(newNode)
+          }
+        }
+      })
+    } else {
+      // 如果响应数据为空，也关闭弹窗并提示
+      ElMessage.warning('创建文档节点成功，但未返回节点信息')
+      createDocsDialogVisible.value = false
+    }
+  } catch (error: any) {
+    ElMessage.error('创建文档节点失败: ' + (error.message || '未知错误'))
+  } finally {
+    creatingDocs.value = false
+  }
+}
+
+// 处理关闭创建文档对话框
+const handleCloseCreateDocsDialog = () => {
+  createDocsForm.value = {
+    name: '',
+    code: '',
+    description: '',
+    tags: '',
+    content: '',
+    summary: ''
+  }
+  currentDocsParentNode.value = null
+}
+
 // 处理关闭创建目录对话框
 const handleCloseCreateDirectoryDialog = () => {
   resetCreateDirectoryForm(() => currentApp.value)
+}
+
+// 处理删除文档
+const handleDeleteDoc = async (node: ServiceTreeType) => {
+  if (node.type !== 'docs') {
+    ElMessage.warning('只能删除文档节点')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除文档 "${node.name}" 吗？此操作将删除文档内容和文档节点，且无法恢复。`,
+      '确认删除',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+
+    const { deleteDoc } = await import('@/api/service-tree')
+    await deleteDoc(node.id)
+    
+    ElMessage.success('文档删除成功')
+    
+    // 刷新服务树
+    await handleRefreshTree()
+    
+    // 如果当前选中的是已删除的文档，清空选中状态
+    if (currentFunction.value && currentFunction.value.id === node.id) {
+      // 可以跳转到父节点或清空选中
+      const parentPath = node.full_code_path?.split('/').slice(0, -1).join('/') || ''
+      if (parentPath) {
+        const targetPath = `/workspace${parentPath}`
+        router.push(targetPath)
+      }
+    }
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error('删除文档失败: ' + (error.message || '未知错误'))
+    }
+  }
+}
+
+// 处理文档删除后（从 DocView 组件触发）
+const handleDocDeleted = async () => {
+  // 刷新服务树
+  await handleRefreshTree()
+  
+  // 如果当前选中的是已删除的文档，清空选中状态或跳转到父节点
+  if (currentFunction.value && currentFunction.value.type === 'docs') {
+    const parentPath = currentFunction.value.full_code_path?.split('/').slice(0, -1).join('/') || ''
+    if (parentPath) {
+      const targetPath = `/workspace${parentPath}`
+      router.push(targetPath)
+    }
+  }
 }
 
 // 处理 Fork 函数组
@@ -1042,13 +1668,6 @@ const handleUpdateHistory = (node?: ServiceTreeType) => {
     updateHistoryAppVersion.value = '' // 空表示返回所有版本
     updateHistoryFullCodePath.value = ''
   }
-  
-  console.log('[WorkspaceView] 打开变更记录对话框', {
-    mode: updateHistoryMode.value,
-    appId: updateHistoryAppId.value,
-    appVersion: updateHistoryAppVersion.value,
-    fullCodePath: updateHistoryFullCodePath.value
-  })
   
   updateHistoryDialogVisible.value = true
 }
@@ -1237,11 +1856,6 @@ onMounted(async () => {
     () => null  // 🔥 Tab 功能已删除
   )
   
-  // 🔥 开发环境下启用调试日志
-  if (import.meta.env.DEV) {
-    routeManager.setDebugLog(true)
-  }
-  
   // 监听函数加载完成事件
   // 🔥 监听函数加载完成事件，更新 currentFunctionDetail
   unsubscribeFunctionLoaded = eventBus.on(WorkspaceEvent.functionLoaded, (payload: { node: any, detail: FunctionDetail }) => {
@@ -1256,8 +1870,18 @@ onMounted(async () => {
   })
 
   // 监听服务树加载完成事件
-  unsubscribeServiceTreeLoaded = eventBus.on(WorkspaceEvent.serviceTreeLoaded, (payload: { app: any, tree: any[] }) => {
+  unsubscribeServiceTreeLoaded = eventBus.on(WorkspaceEvent.serviceTreeLoaded, (payload: { app: any, tree: any[], expandedKeys?: number[] }) => {
+    console.log('[WorkspaceView] serviceTreeLoaded 事件触发，expandedKeys:', payload.expandedKeys)
     // 状态已通过 StateManager 自动更新
+    // ⭐ 更新 expandedKeys（如果后端返回了）
+    // 注意：使用展开运算符创建新数组，避免引用共享导致的响应式问题
+    if (payload.expandedKeys && payload.expandedKeys.length > 0) {
+      console.log('[WorkspaceView] 更新 expandedKeys.value 为:', payload.expandedKeys)
+      expandedKeys.value = [...payload.expandedKeys]
+    } else {
+      console.log('[WorkspaceView] 清空 expandedKeys.value')
+      expandedKeys.value = []
+    }
   })
   
   // 监听应用切换事件，开始加载服务树
@@ -1288,18 +1912,20 @@ onMounted(async () => {
 // 🔥 监听服务树变化，展开目录树
 watch(() => serviceTree.value.length, (newLength: number) => {
   if (newLength > 0 && currentApp.value) {
+    console.log('[WorkspaceView] serviceTree 变化，准备展开目录树')
     // 展开目录树
     if (route.query._forked) {
-    checkAndExpandForkedPaths()
+      checkAndExpandForkedPaths()
     } else {
       expandCurrentRoutePath()
-  }
+    }
   }
 }, { immediate: true })
 
 // 🔥 监听当前应用变化，检查 _forked 参数
 watch(currentApp, () => {
   if (serviceTree.value.length > 0 && currentApp.value && route.query._forked) {
+    console.log('[WorkspaceView] currentApp 变化，检查 _forked 参数')
     nextTick(() => {
       checkAndExpandForkedPaths()
     })
@@ -1343,6 +1969,31 @@ watch(queryTab, async (newTab: string, oldTab: string) => {
     // detail 模式会在另一个 watch 中处理（监听 route.query.id）
   }
 }, { immediate: false })
+
+// ⭐ 监听路由 query 参数，支持通过 tab 参数指定要打开的函数 tab
+watch(
+  () => route.query.tab,
+  (tab: string | string[] | null) => {
+    if (tab === 'permissionRequest' && showFunctionPermissionRequestTab.value) {
+      functionActiveTab.value = 'permissionRequest'
+      // 切换 tab 时触发加载
+      nextTick(() => {
+        if (functionPermissionRequestListRef.value) {
+          functionPermissionRequestListRef.value.loadRequests()
+        }
+      })
+    } else if (tab === 'permissionManage' && showFunctionPermissionRequestTab.value) {
+      functionActiveTab.value = 'permissionManage'
+      // 切换 tab 时触发加载
+      nextTick(() => {
+        if (functionPermissionManageListRef.value) {
+          functionPermissionManageListRef.value.loadPermissions()
+        }
+      })
+    }
+  },
+  { immediate: true }
+)
 
 // 🔥 监听路由 query 变化，处理 _tab 参数
 watch(() => route.query._tab, async (newTab: any) => {
@@ -1390,7 +2041,7 @@ onUnmounted(() => {
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .workspace-container {
   display: flex;
   flex-direction: column;
@@ -1414,11 +2065,131 @@ onUnmounted(() => {
 
 .function-content {
   flex: 1;
-  overflow-y: auto !important; /* 🔥 强制允许垂直滚动，让搜索框和数据区一起滚动 */
-  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
   min-height: 0; /* 🔥 关键：允许 flex 子元素缩小 */
-  height: 0; /* 🔥 关键：配合 flex: 1 和 min-height: 0，让滚动容器正确计算高度 */
-  -webkit-overflow-scrolling: touch; /* 🔥 iOS 平滑滚动 */
+  overflow: hidden; /* 🔥 外层容器隐藏溢出，内层处理滚动 */
+  
+  // 当有 tab 结构时，需要特殊处理
+  .function-tabs-wrapper {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  // 当没有 tab 结构时，直接显示内容（允许滚动）
+  > div:not(.function-tabs-wrapper) {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto !important;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    height: 0; /* 🔥 关键：配合 flex: 1 和 min-height: 0，让滚动容器正确计算高度 */
+  }
+}
+
+// 函数 tab 包装器（已在 function-content 中定义，这里不需要重复）
+
+// 函数详情 tab 样式（参考旧版本的 card 样式）
+.function-detail-tabs {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  :deep(.el-tabs__header) {
+    margin-top: 20px; /* 与面包屑保持距离 */
+    margin-bottom: 20px;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1; /* 确保 tab header 在面包屑之上 */
+    overflow: visible; /* 确保 badge 不被裁剪 */
+  }
+
+  :deep(.el-tabs__nav-wrap) {
+    overflow: visible !important; /* 确保 badge 不被裁剪 */
+  }
+
+  :deep(.el-tabs__nav-scroll) {
+    overflow: visible !important; /* 确保 badge 不被裁剪 */
+  }
+
+  :deep(.el-tabs__nav) {
+    border: none;
+    overflow: visible; /* 确保 badge 不被裁剪 */
+  }
+
+  :deep(.el-tabs__item) {
+    height: 40px;
+    line-height: 40px;
+    font-size: 14px;
+    color: var(--el-text-color-regular);
+    border: none;
+    background: var(--el-bg-color-overlay);
+    margin-right: 4px;
+    border-radius: 4px 4px 0 0;
+    transition: all 0.3s;
+    padding: 0 20px;
+    overflow: visible; /* 确保 badge 不被裁剪 */
+
+    &:hover {
+      color: var(--el-color-primary);
+      opacity: 0.8;
+    }
+
+    &.is-active {
+      color: var(--el-color-primary);
+      background: var(--el-bg-color);
+      font-weight: 500;
+      opacity: 1;
+    }
+  }
+
+  :deep(.el-tabs__active-bar) {
+    display: none; /* card 类型不需要 active-bar */
+  }
+
+  :deep(.el-tabs__content) {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  :deep(.el-tab-pane) {
+    height: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  // Badge 样式
+  :deep(.el-badge) {
+    position: relative;
+    display: inline-block;
+    
+    .el-badge__content {
+      font-size: 11px;
+      height: 18px;
+      line-height: 18px;
+      padding: 0 6px;
+      min-width: 18px;
+      border-radius: 9px;
+      z-index: 10; /* 确保 badge 在最上层 */
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* 添加阴影，增强可见性 */
+    }
+  }
+}
+
+.function-tabs-wrapper .tab-content {
+  padding: 0;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 /* 保留旧的类名以兼容（如果还有地方使用） */
@@ -1441,7 +2212,38 @@ onUnmounted(() => {
 
 .left-sidebar {
   width: 300px;
+  min-width: 300px;
   border-right: 1px solid var(--el-border-color);
+  transition: all 0.3s ease;
+  overflow: hidden;
+  
+  &.sidebar-collapsed {
+    width: 0;
+    min-width: 0;
+    overflow: hidden;
+    border-right: none;
+  }
+}
+
+// 左侧边栏控制按钮
+.left-sidebar-controls {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 10;
+  transition: left 0.3s ease;
+  
+  // 当左侧边栏收起时，按钮位置保持不变
+  .sidebar-toggle {
+    background: var(--el-bg-color);
+    border: 1px solid var(--el-border-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    
+    &:hover {
+      background: var(--el-fill-color-light);
+      border-color: var(--el-color-primary);
+    }
+  }
 }
 
 .function-renderer {
@@ -1450,6 +2252,51 @@ onUnmounted(() => {
   flex-direction: column;
   overflow: hidden;
   min-height: 0;
+  position: relative;
+}
+
+// 右侧边栏控制按钮
+.sidebar-controls {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 10;
+  
+  .right-controls {
+    display: flex;
+    gap: 8px;
+  }
+  
+  .sidebar-toggle {
+    background: var(--el-bg-color);
+    border: 1px solid var(--el-border-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    
+    &:hover {
+      background: var(--el-fill-color-light);
+      border-color: var(--el-color-primary);
+    }
+  }
+}
+
+// 右侧函数信息面板
+.right-sidebar {
+  width: 350px;
+  min-width: 350px;
+  background-color: var(--el-bg-color);
+  border-left: 1px solid var(--el-border-color-light);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  
+  &.sidebar-collapsed {
+    width: 0;
+    min-width: 0;
+    overflow: hidden;
+    border-left: none;
+  }
 }
 
 .ai-chat-wrapper {
@@ -1499,5 +2346,11 @@ onUnmounted(() => {
   margin-top: 24px;
   padding-top: 16px;
   border-top: 1px solid var(--el-border-color-lighter);
+}
+
+/* 函数加载骨架屏样式 */
+.function-loading {
+  padding: 24px;
+  width: 100%;
 }
 </style>

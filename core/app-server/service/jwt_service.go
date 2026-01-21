@@ -15,11 +15,12 @@ type JWTService struct {
 }
 
 // NewJWTService 创建JWT服务
+// ⭐ 使用全局配置（与 hr-server 保持一致，因为 token 是由 hr-server 生成的）
 func NewJWTService() *JWTService {
-	appConfig := appconfig.GetAppServerConfig()
-	jwtConfig := appConfig.GetJWT()
+	// ⚠️ 使用全局配置获取 JWT 配置（与 hr-server 共享）
+	globalConfig := appconfig.GetGlobalSharedConfig()
 	return &JWTService{
-		config: &jwtConfig,
+		config: &globalConfig.JWT,
 	}
 }
 
@@ -29,6 +30,12 @@ type JWTClaims struct {
 	UserID   int64  `json:"user_id"`
 	Username string `json:"username"`
 	Email    string `json:"email"`
+	
+	// ⭐ 组织架构信息（与 hr-server 的 JWTClaims 保持一致）
+	// token 由 hr-server 生成，一定包含这些字段（如果用户有组织架构信息）
+	DepartmentFullPath *string `json:"department_full_path,omitempty"`
+	LeaderUsername    *string `json:"leader_username,omitempty"`
+	
 	jwt.RegisteredClaims
 }
 

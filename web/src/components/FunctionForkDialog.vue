@@ -12,13 +12,17 @@
 import { ref, computed, watch, h, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElDialog, ElButton, ElMessage, ElNotification, ElTag, ElEmpty, ElTree, ElForm, ElFormItem, ElDropdown, ElDropdownMenu, ElDropdownItem, ElInput } from 'element-plus'
-import { Delete, ArrowRight, Folder, FolderOpened, Plus, MoreFilled, Loading } from '@element-plus/icons-vue'
+import { Delete, ArrowRight, Folder, FolderOpened, Plus, MoreFilled, Loading, InfoFilled } from '@element-plus/icons-vue'
 import { getServiceTree, createServiceTree } from '@/api/service-tree'
 import { forkFunctionGroup } from '@/api/function'
 import { createGroupNode, groupFunctionsByCode, getGroupName } from '@/utils/tree-utils'
 import { Logger } from '@/core/utils/logger'
 import type { App, ServiceTree as ServiceTreeType, CreateServiceTreeRequest } from '@/types'
 import AppSelector from './AppSelector.vue'
+import { useAuthStore } from '@/stores/auth'
+import UsersWidget from '@/architecture/presentation/widgets/UsersWidget.vue'
+import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
+import { WidgetType } from '@/core/constants/widget'
 
 // 导入工具类
 import { MappingManager, type ForkMapping } from '@/utils/fork-dialog/MappingManager'
@@ -43,6 +47,7 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 const route = useRoute()
+const authStore = useAuthStore()
 
 // 🔥 判断是否在新版本路由（统一使用 /workspace）
 const isV2Route = computed(() => {
@@ -118,6 +123,12 @@ const connectionLines = ref<ConnectionLine[]>([])
 
 // 创建目录对话框
 const createDirectoryDialogVisible = ref(false)
+
+// 获取当前用户名作为默认管理员
+const getDefaultAdmins = () => {
+  return authStore.user?.username || ''
+}
+
 const createDirectoryForm = ref<CreateServiceTreeRequest>({
   user: '',
   app: '',
@@ -125,10 +136,44 @@ const createDirectoryForm = ref<CreateServiceTreeRequest>({
   code: '',
   parent_id: 0,
   description: '',
-  tags: ''
+  tags: '',
+  admins: getDefaultAdmins()  // 默认当前用户为管理员
 })
 const creatingDirectory = ref(false)
 const currentParentNode = ref<ServiceTreeType | null>(null)
+
+// 管理员字段配置（用于 UsersWidget）
+const adminsField = computed<FieldConfig>(() => ({
+  code: 'admins',
+  name: '管理员',
+  widget: {
+    type: WidgetType.USERS,
+    config: {}
+  }
+}))
+
+// 管理员字段值（用于 UsersWidget）
+const adminsFieldValue = computed<FieldValue>(() => {
+  if (!createDirectoryForm.value.admins || !createDirectoryForm.value.admins.trim()) {
+    return {
+      raw: null,
+      display: '',
+      meta: {}
+    }
+  }
+  
+  const admins = createDirectoryForm.value.admins.split(',').map(s => s.trim()).filter(s => s)
+  return {
+    raw: admins.join(','),
+    display: admins.join(', '),
+    meta: {}
+  }
+})
+
+// 处理管理员字段变化
+function handleAdminsChange(value: FieldValue) {
+  createDirectoryForm.value.admins = value.raw || ''
+}
 
 // 加载应用列表
 // 处理应用选择
@@ -381,7 +426,8 @@ const handleCreateDirectory = (parentNode?: ServiceTreeType) => {
     code: '',
     parent_id: parentNode ? Number(parentNode.id) : 0,
     description: '',
-    tags: ''
+    tags: '',
+    admins: getDefaultAdmins()  // 默认当前用户为管理员
   }
   createDirectoryDialogVisible.value = true
 }
@@ -929,7 +975,8 @@ onUnmounted(() => {
         code: '',
         parent_id: 0,
         description: '',
-        tags: ''
+        tags: '',
+        admins: getDefaultAdmins()  // 默认当前用户为管理员
       }
       currentParentNode = null
     }"
@@ -974,6 +1021,18 @@ onUnmounted(() => {
           maxlength="100"
           clearable
         />
+      </ElFormItem>
+      <ElFormItem label="管理员">
+        <UsersWidget
+          :field="adminsField"
+          :value="adminsFieldValue"
+          mode="edit"
+          @update:modelValue="handleAdminsChange"
+        />
+        <div class="form-tip">
+          <el-icon><InfoFilled /></el-icon>
+          默认当前用户为管理员，可以添加其他用户
+        </div>
       </ElFormItem>
     </ElForm>
 

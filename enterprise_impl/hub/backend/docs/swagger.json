@@ -1,0 +1,570 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "Hub 应用市场 API 文档",
+        "title": "Hub API",
+        "termsOfService": "http://swagger.io/terms/",
+        "contact": {
+            "name": "API Support",
+            "url": "http://www.swagger.io/support",
+            "email": "support@swagger.io"
+        },
+        "license": {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
+        },
+        "version": "1.0"
+    },
+    "host": "localhost:9094",
+    "basePath": "/api/v1/hub",
+    "paths": {
+        "/api/v1/hub/hub_apps": {
+            "get": {
+                "description": "获取 Hub 应用市场中的应用列表，支持分页、搜索、分类筛选",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Hub 应用管理"
+                ],
+                "summary": "获取 Hub 应用列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "每页数量",
+                        "name": "page_size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "搜索关键词（名称或描述）",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "分类",
+                        "name": "category",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "发布者用户名",
+                        "name": "publisher_username",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.HubAppListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/hub_apps/delete": {
+            "delete": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "删除 Hub 应用市场中的应用（软删除）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Hub 应用管理"
+                ],
+                "summary": "删除 Hub 应用",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Hub 应用ID",
+                        "name": "hub_app_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "删除成功",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Hub 应用不存在",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/hub_apps/detail": {
+            "get": {
+                "description": "根据 Hub 应用ID获取应用详细信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Hub 应用管理"
+                ],
+                "summary": "获取 Hub 应用详情",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Hub 应用ID",
+                        "name": "hub_app_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.HubAppDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Hub 应用不存在",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/hub_apps/publish": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "将应用发布到 Hub 市场，支持 SaaS 和私有化部署两种类型",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Hub 应用管理"
+                ],
+                "summary": "发布 Hub 应用",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "发布 Hub 应用请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.PublishHubAppRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "发布成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.PublishHubAppResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/hub_apps/update": {
+            "put": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "更新 Hub 应用信息，支持更新名称、描述、分类、标签、服务费等",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Hub 应用管理"
+                ],
+                "summary": "更新 Hub 应用",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Hub 应用ID（可选，如果 body 中有则不需要）",
+                        "name": "hub_app_id",
+                        "in": "query"
+                    },
+                    {
+                        "description": "更新 Hub 应用请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateHubAppRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新成功",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Hub 应用不存在",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "dto.HubAppDTO": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "download_count": {
+                    "description": "统计信息",
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "description": "基本信息",
+                    "type": "string"
+                },
+                "published_at": {
+                    "type": "string"
+                },
+                "publisher_username": {
+                    "description": "发布信息",
+                    "type": "string"
+                },
+                "rating": {
+                    "type": "number"
+                },
+                "service_fee_enterprise": {
+                    "type": "number"
+                },
+                "service_fee_personal": {
+                    "description": "服务费信息",
+                    "type": "number"
+                },
+                "source_app": {
+                    "type": "string"
+                },
+                "source_type": {
+                    "description": "源应用信息",
+                    "type": "string"
+                },
+                "source_url": {
+                    "type": "string"
+                },
+                "source_user": {
+                    "type": "string"
+                },
+                "tags": {
+                    "description": "标签数组",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "trial_count": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "version": {
+                    "description": "版本信息",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.HubAppListResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.HubAppDTO"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.PackageSourceCode": {
+            "type": "object",
+            "properties": {
+                "full_group_code": {
+                    "description": "完整函数组代码，如：/luobei/demo/tools/cashier",
+                    "type": "string"
+                },
+                "package": {
+                    "description": "函数组路径，如：tools/cashier",
+                    "type": "string"
+                },
+                "source_code": {
+                    "description": "Go 源代码内容",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.PublishHubAppRequest": {
+            "type": "object",
+            "properties": {
+                "api_key": {
+                    "description": "API Key（私有化部署需要）",
+                    "type": "string"
+                },
+                "category": {
+                    "description": "分类",
+                    "type": "string"
+                },
+                "description": {
+                    "description": "应用描述",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "应用名称",
+                    "type": "string"
+                },
+                "packages": {
+                    "description": "函数组源代码列表（前端已获取）",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.PackageSourceCode"
+                    }
+                },
+                "service_fee_enterprise": {
+                    "description": "企业用户服务费",
+                    "type": "number"
+                },
+                "service_fee_personal": {
+                    "description": "个人用户服务费",
+                    "type": "number"
+                },
+                "source_app": {
+                    "description": "源应用",
+                    "type": "string"
+                },
+                "source_user": {
+                    "description": "源用户",
+                    "type": "string"
+                },
+                "tags": {
+                    "description": "标签",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "version": {
+                    "description": "版本号",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.PublishHubAppResponse": {
+            "type": "object",
+            "properties": {
+                "hub_app_id": {
+                    "type": "integer"
+                },
+                "hub_app_url": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.UpdateHubAppRequest": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "hub_app_id": {
+                    "description": "Hub 应用ID",
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "service_fee_enterprise": {
+                    "type": "number"
+                },
+                "service_fee_personal": {
+                    "type": "number"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "ApiKeyAuth": {
+            "type": "apiKey",
+            "name": "X-Token",
+            "in": "header"
+        }
+    },
+    "externalDocs": {
+        "description": "OpenAPI",
+        "url": "https://swagger.io/resources/open-api/"
+    }
+}

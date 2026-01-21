@@ -122,6 +122,11 @@ func (r *FunctionGenRepository) Update(record *model.FunctionGenRecord) error {
 
 // UpdateStatus 更新状态（自动计算耗时）
 func (r *FunctionGenRepository) UpdateStatus(id int64, status, errorMsg string) error {
+	return r.UpdateStatusWithFullCodePaths(id, status, errorMsg, nil)
+}
+
+// UpdateStatusWithFullCodePaths 更新状态和完整代码路径列表（自动计算耗时）
+func (r *FunctionGenRepository) UpdateStatusWithFullCodePaths(id int64, status, errorMsg string, fullCodePaths []string) error {
 	// 获取记录以计算耗时
 	var record model.FunctionGenRecord
 	if err := r.db.Where("id = ?", id).First(&record).Error; err != nil {
@@ -137,6 +142,11 @@ func (r *FunctionGenRepository) UpdateStatus(id int64, status, errorMsg string) 
 	}
 	if errorMsg != "" {
 		updates["error_msg"] = errorMsg
+	}
+	if fullCodePaths != nil {
+		// 转换为逗号分隔的字符串
+		record.SetFullCodePaths(fullCodePaths)
+		updates["full_code_paths"] = record.FullCodePaths
 	}
 	return r.db.Model(&model.FunctionGenRecord{}).
 		Where("id = ?", id).

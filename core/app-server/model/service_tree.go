@@ -10,33 +10,35 @@ import (
 const (
 	ServiceTreeTypePackage  = "package"
 	ServiceTreeTypeFunction = "function"
+	ServiceTreeTypeDocs     = "docs"
 )
 
 // ServiceTree 表示服务树模型，一个app下可以有无数个package，一个package下面有无数个function，ServiceTree是一个抽象的树干，这个树干上可以挂载各种实体
 // 例如我有个tools的app，然后，我有个excel的package（目录对应go的package），然后下面有多个function（go文件）
 type ServiceTree struct {
 	models.Base
-	Name          string `json:"name"`
-	Code          string `json:"code"`
-	ParentID      int64  `json:"parent_id" gorm:"default:0"`
-	Type          string `json:"type"` // 节点类型: package(服务目录/包), function(函数/文件), api(API接口), service(服务), module(模块)
-	Description   string `json:"description,omitempty"`
-	Tags          string `json:"tags"`
-	AppID         int64  `json:"app_id"`
-	FullGroupCode string `json:"full_group_code" gorm:"type:varchar(500);comment:完整函数组代码：{full_path}/{file_name}"` // 完整函数组代码：{full_path}/{file_name}
-	GroupName     string `json:"group_name"`
-	RefID         int64  `json:"ref_id" gorm:"default:0"`                   // 引用ID：指向真实资源的ID，如果是package类型指向package的ID，如果是function类型指向function的ID
-	App           *App   `json:"app" gorm:"foreignKey:AppID;references:ID"` // 预加载的完整应用对象
-	TemplateType  string `json:"template_type"`                             //函数的类型
+	Name         string `json:"name"`
+	Code         string `json:"code"`
+	ParentID     int64  `json:"parent_id" gorm:"default:0"`
+	Type         string `json:"type"` // 节点类型: package(服务目录/包), function(函数/文件), api(API接口), service(服务), module(模块)
+	Description  string `json:"description,omitempty"`
+	Tags         string `json:"tags"`
+	Admins       string `json:"admins" gorm:"type:varchar(150);comment:节点管理员列表，逗号分隔的用户名（如 user1,user2,user3）"` // 节点管理员列表
+	PendingCount int    `json:"pending_count" gorm:"default:0;comment:待审批的权限申请数量"`                             // ⭐ 待审批的权限申请数量
+	AppID        int64  `json:"app_id"`
+	// FullGroupCode 和 GroupName 已移除，不再需要
+	RefID        int64  `json:"ref_id" gorm:"default:0"`                   // 引用ID：指向真实资源的ID，如果是package类型指向package的ID，如果是function类型指向function的ID
+	App          *App   `json:"app" gorm:"foreignKey:AppID;references:ID"` // 预加载的完整应用对象
+	TemplateType string `json:"template_type"`                             //函数的类型
 	//下面字段是数据库
 	FullCodePath     string         `json:"full_code_path"`                                                                              // /$user/$app/plugins/pdf 这种
 	AddVersionNum    int            `json:"add_version_num"`                                                                             // 添加版本号（数字部分，如 v1 -> 1），用于版本回滚时过滤
 	UpdateVersionNum int            `json:"update_version_num"`                                                                          // 更新版本号（数字部分，如 v2 -> 2），用于版本回滚时过滤
 	Version          string         `json:"version" gorm:"type:varchar(50);comment:节点当前版本号（如 v1, v2），package类型表示目录版本，function类型表示函数版本等"` // 节点当前版本号
 	VersionNum       int            `json:"version_num" gorm:"comment:节点当前版本号（数字部分）"`                                                    // 节点当前版本号（数字部分）
-	HubDirectoryID   int64          `json:"hub_directory_id" gorm:"index;default:0;comment:关联的Hub目录ID（如果已发布到Hub）"` // 关联的Hub目录ID
-	HubVersion       string         `json:"hub_version" gorm:"type:varchar(50);default:'';comment:Hub目录版本（如 v1.0.0），用于版本检测和升级"` // Hub目录版本
-	HubVersionNum    int            `json:"hub_version_num" gorm:"default:0;comment:Hub目录版本号（数字部分），用于版本比较"` // Hub目录版本号（数字部分）
+	HubDirectoryID   int64          `json:"hub_directory_id" gorm:"index;default:0;comment:关联的Hub目录ID（如果已发布到Hub）"`                       // 关联的Hub目录ID
+	HubVersion       string         `json:"hub_version" gorm:"type:varchar(50);default:'';comment:Hub目录版本（如 v1.0.0），用于版本检测和升级"`          // Hub目录版本
+	HubVersionNum    int            `json:"hub_version_num" gorm:"default:0;comment:Hub目录版本号（数字部分），用于版本比较"`                              // Hub目录版本号（数字部分）
 	Children         []*ServiceTree `json:"children" gorm:"-"`
 }
 
@@ -53,6 +55,11 @@ func (st *ServiceTree) IsPackage() bool {
 // IsFunction 判断是否为function类型
 func (st *ServiceTree) IsFunction() bool {
 	return st.Type == ServiceTreeTypeFunction
+}
+
+// IsDocs 判断是否为docs类型
+func (st *ServiceTree) IsDocs() bool {
+	return st.Type == ServiceTreeTypeDocs
 }
 
 // HasRefID 判断是否有引用ID

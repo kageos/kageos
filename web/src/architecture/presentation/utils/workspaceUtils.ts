@@ -5,7 +5,7 @@
 import type { ServiceTree as ServiceTreeType } from '@/types'
 
 /**
- * 递归查找节点（支持函数和目录节点）
+ * 递归查找节点（支持工作空间、函数、目录和文档节点）
  */
 export function findNodeByPath(tree: ServiceTreeType[], path: string): ServiceTreeType | null {
   for (const node of tree) {
@@ -13,8 +13,8 @@ export function findNodeByPath(tree: ServiceTreeType[], path: string): ServiceTr
     const nodePath = (node.full_code_path || '').replace(/^\/+/, '')
     const targetPath = path.replace(/^\/+/, '')
     
-    // 🔥 支持函数和目录节点
-    if (nodePath === targetPath && (node.type === 'function' || node.type === 'package')) {
+    // 🔥 支持工作空间、函数、目录和文档节点
+    if (nodePath === targetPath && (node.type === 'app' || node.type === 'function' || node.type === 'package' || node.type === 'docs')) {
       return node
     }
     if (node.children && node.children.length > 0) {

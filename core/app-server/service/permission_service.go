@@ -6,198 +6,422 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/enterprise"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
+	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/pkg/permission"
+	"gorm.io/gorm"
 )
 
 // PermissionService 权限管理服务
+// ⭐ 完全移除 Casbin，使用新的权限系统
 type PermissionService struct {
-	permissionService enterprise.PermissionService
-	casbinRuleRepo    *repository.CasbinRuleRepository // ⭐ 添加 CasbinRuleRepository，用于操作 casbin_rule 表
-	appRepo           *repository.AppRepository        // ⭐ 添加 AppRepository，用于查询 app.id
+	permissionService     enterprise.PermissionService
+	serviceTreeRepo       *repository.ServiceTreeRepository       // ⭐ 用于更新 service_tree 的 pending_count
+	permissionRequestRepo *repository.PermissionRequestRepository // ⭐ 用于查询 permission_request 表
+	appRepo               *repository.AppRepository               // ⭐ 用于更新 app 的 pending_count
 }
 
 // NewPermissionService 创建权限管理服务
-func NewPermissionService(permissionService enterprise.PermissionService, casbinRuleRepo *repository.CasbinRuleRepository, appRepo *repository.AppRepository) *PermissionService {
+func NewPermissionService(permissionService enterprise.PermissionService, serviceTreeRepo *repository.ServiceTreeRepository, permissionRequestRepo *repository.PermissionRequestRepository, appRepo *repository.AppRepository) *PermissionService {
 	return &PermissionService{
-		permissionService: permissionService,
-		casbinRuleRepo:    casbinRuleRepo,
-		appRepo:           appRepo,
+		permissionService:     permissionService,
+		serviceTreeRepo:       serviceTreeRepo,
+		permissionRequestRepo: permissionRequestRepo,
+		appRepo:               appRepo,
 	}
 }
 
-// AddPermission 添加权限
-func (s *PermissionService) AddPermission(ctx context.Context, req *dto.AddPermissionReq) error {
-	// ⭐ 从 ResourcePath 解析出 user 和 app，查询 app.id
-	appID, err := s.getAppIDFromResourcePath(ctx, req.ResourcePath)
-	if err != nil {
-		logger.Warnf(ctx, "[PermissionService] 获取 app.id 失败: resource=%s, error=%v，继续添加权限（不填充 app_id）",
-			req.ResourcePath, err)
-		// 如果获取 app.id 失败，记录警告但不中断流程（向后兼容）
-		appID = 0
-	}
-
-	// ⭐ 如果是目录权限，同时添加精确路径和通配符路径的策略
-	// 精确路径：用于匹配目录本身的权限（如 /task, directory:read）
-	// 通配符路径：用于匹配子资源的权限（如 /task/*, directory:read）
-	if strings.HasPrefix(req.Action, "directory:") || strings.HasPrefix(req.Action, "app:") {
-		// 1. 先添加精确路径策略（用于匹配目录本身的权限）
-		err := s.permissionService.AddPolicy(ctx, req.Username, req.ResourcePath, req.Action)
-		if err != nil {
-			logger.Errorf(ctx, "[PermissionService] 添加精确路径权限失败: user=%s, resource=%s, action=%s, error=%v",
-				req.Username, req.ResourcePath, req.Action, err)
-			return fmt.Errorf("添加权限失败: %w", err)
-		}
-
-		// ⭐ 更新精确路径策略的 app_id（带重试机制，解决时序问题）
-		if appID > 0 {
-			if err := s.updateAppIDWithRetry(ctx, req.Username, req.ResourcePath, req.Action, appID, "精确路径"); err != nil {
-				logger.Warnf(ctx, "[PermissionService] 更新精确路径策略 app_id 失败: user=%s, resource=%s, action=%s, app_id=%d, error=%v",
-					req.Username, req.ResourcePath, req.Action, appID, err)
-				// 不中断流程，记录警告即可（可通过补偿脚本修复）
-			}
-		}
-
-		// 2. 再添加通配符路径策略（用于匹配子资源的权限）
-		wildcardPath := req.ResourcePath + "/*"
-		err = s.permissionService.AddPolicy(ctx, req.Username, wildcardPath, req.Action)
-		if err != nil {
-			logger.Errorf(ctx, "[PermissionService] 添加通配符路径权限失败: user=%s, resource=%s, action=%s, error=%v",
-				req.Username, wildcardPath, req.Action, err)
-			// 如果通配符路径添加失败，尝试删除已添加的精确路径策略（回滚）
-			_ = s.permissionService.RemovePolicy(ctx, req.Username, req.ResourcePath, req.Action)
-			return fmt.Errorf("添加权限失败: %w", err)
-		}
-
-		// ⭐ 更新通配符路径策略的 app_id（带重试机制，解决时序问题）
-		if appID > 0 {
-			if err := s.updateAppIDWithRetry(ctx, req.Username, wildcardPath, req.Action, appID, "通配符路径"); err != nil {
-				logger.Warnf(ctx, "[PermissionService] 更新通配符路径策略 app_id 失败: user=%s, resource=%s, action=%s, app_id=%d, error=%v",
-					req.Username, wildcardPath, req.Action, appID, err)
-				// 不中断流程，记录警告即可（可通过补偿脚本修复）
-			}
-		}
-
-		logger.Infof(ctx, "[PermissionService] 添加目录权限成功: user=%s, resource=%s (exact=%s, wildcard=%s), action=%s, app_id=%d",
-			req.Username, req.ResourcePath, req.ResourcePath, wildcardPath, req.Action, appID)
-		return nil
-	}
-
-	// 函数权限使用精确路径（因为函数是叶子节点，不需要通配符）
-	err = s.permissionService.AddPolicy(ctx, req.Username, req.ResourcePath, req.Action)
-	if err != nil {
-		logger.Errorf(ctx, "[PermissionService] 添加权限失败: user=%s, resource=%s, action=%s, error=%v",
-			req.Username, req.ResourcePath, req.Action, err)
-		return fmt.Errorf("添加权限失败: %w", err)
-	}
-
-	// ⭐ 更新函数权限策略的 app_id（带重试机制，解决时序问题）
-	if appID > 0 {
-		if err := s.updateAppIDWithRetry(ctx, req.Username, req.ResourcePath, req.Action, appID, "函数权限"); err != nil {
-			logger.Warnf(ctx, "[PermissionService] 更新函数权限策略 app_id 失败: user=%s, resource=%s, action=%s, app_id=%d, error=%v",
-				req.Username, req.ResourcePath, req.Action, appID, err)
-			// 不中断流程，记录警告即可（可通过补偿脚本修复）
-		}
-	}
-
-	logger.Infof(ctx, "[PermissionService] 添加权限成功: user=%s, resource=%s, action=%s, app_id=%d",
-		req.Username, req.ResourcePath, req.Action, appID)
-	return nil
-}
 
 // GetWorkspacePermissions 获取工作空间的所有权限
-// ⭐ 直接通过 app_id + 用户信息查询权限记录并返回原始数据，让前端处理
+// ⭐ 优化：支持查询用户权限和组织架构权限（v0 可以是用户名或组织架构路径）
+// ⭐ 一次性查询用户及其组织架构的所有权限，性能更好
+// ⭐ 支持传递用户和组织架构参数，使方法可复用（既可以获取当前用户权限，也可以获取其他用户权限）
 func (s *PermissionService) GetWorkspacePermissions(ctx context.Context, req *dto.GetWorkspacePermissionsReq) (*dto.GetWorkspacePermissionsResp, error) {
-	// ⭐ 参数验证：必须提供 app_id
-	if req.AppID <= 0 {
-		return nil, fmt.Errorf("必须提供 app_id 参数")
+	// ⭐ 参数验证：必须提供 user 和 app
+	if req.User == "" || req.App == "" {
+		return nil, fmt.Errorf("必须提供 user 和 app 参数")
 	}
 
-	// ⭐ 从 context 中获取当前用户名（JWT 中间件已设置）
-	username := contextx.GetRequestUser(ctx)
+	// ⭐ 获取用户名：优先使用请求参数，否则从 context 获取（向后兼容）
+	username := req.Username
 	if username == "" {
-		return nil, fmt.Errorf("无法获取当前用户信息")
+		username = contextx.GetRequestUser(ctx)
+		if username == "" {
+			return nil, fmt.Errorf("无法获取用户信息（请提供 username 参数或确保 context 中包含用户信息）")
+		}
 	}
 
-	// ⭐ 直接通过 app_id + user 查询权限记录，返回原始数据
-	permissionRecords, err := s.casbinRuleRepo.GetPermissionsByAppIDAndUser(req.AppID, username)
+	// ⭐ 获取组织架构路径：优先使用请求参数，否则从 context 获取（向后兼容）
+	deptPath := req.DepartmentFullPath
+	if deptPath == "" {
+		deptPath = contextx.GetRequestDepartmentFullPath(ctx)
+	}
+
+	// ⭐ 计算组织架构路径及其所有父级路径（用于日志记录）
+	var deptPaths []string
+	if deptPath != "" {
+		deptPaths = s.getAllParentDeptPaths(deptPath)
+		logger.Debugf(ctx, "[PermissionService] 查询权限: user=%s, deptPath=%s, parentPaths=%v",
+			username, deptPath, deptPaths)
+	} else {
+		logger.Debugf(ctx, "[PermissionService] 用户无组织架构信息: user=%s，仅查询用户直接权限", username)
+	}
+
+	// ⭐ 直接使用 user 和 app，无需查询 app 表（性能优化）
+	// ⭐ 注意：DepartmentPath 只需要传递当前路径，GetUserWorkspacePermissions 内部会重新计算所有父级路径
+	// ⭐ 这样可以确保父级路径的计算逻辑统一（在 getUserRolePermissions 中处理）
+	enterpriseReq := &enterprise.GetUserWorkspacePermissionsReq{
+		User:           req.User,
+		App:            req.App,
+		Username:       username,
+		DepartmentPath: deptPath, // ⭐ 只传递当前路径，父级路径在内部计算
+	}
+
+	enterpriseResp, err := s.permissionService.GetUserWorkspacePermissions(ctx, enterpriseReq)
 	if err != nil {
-		logger.Errorf(ctx, "[PermissionService] 查询权限记录失败: app_id=%d, user=%s, error=%v", req.AppID, username, err)
+		logger.Errorf(ctx, "[PermissionService] 查询权限记录失败: user=%s, app=%s, username=%s, error=%v", req.User, req.App, username, err)
 		return nil, fmt.Errorf("查询权限记录失败: %w", err)
 	}
 
 	// ⭐ 转换为 DTO 格式
-	records := make([]dto.PermissionRecord, 0, len(permissionRecords))
-	for _, record := range permissionRecords {
+	records := make([]dto.PermissionRecord, 0, len(enterpriseResp.Records))
+	for _, record := range enterpriseResp.Records {
 		records = append(records, dto.PermissionRecord{
-			ID:       record.ID,
-			User:     record.V0,
-			Resource: record.V1,
-			Action:   record.V2,
-			AppID:    record.AppID,
+			ID:       0,  // 新系统不需要 ID
+			User:     "", // 从 record.Resource 和 record.Action 中提取
+			Resource: record.Resource,
+			Action:   record.Action,
+			AppID:    0, // 不再使用 AppID
 		})
 	}
 
-	// ⭐ 直接返回原始权限记录，让前端处理
+	logger.Debugf(ctx, "[PermissionService] 查询权限成功: user=%s, app=%s, username=%s, total_records=%d", req.User, req.App, username, len(records))
+
+	// ⭐ 返回所有权限记录（包括用户权限和组织架构权限）
 	return &dto.GetWorkspacePermissionsResp{
 		Records: records,
 	}, nil
 }
 
-// getAppIDFromResourcePath 从资源路径解析出 app.id
-// 例如：/luobei/demo/docs → 查询 app where user='luobei' and code='demo' → 返回 app.id
-func (s *PermissionService) getAppIDFromResourcePath(ctx context.Context, resourcePath string) (int64, error) {
-	// 解析 full_code_path，提取 user 和 app
-	_, user, app, _ := permission.ParseFullCodePath(resourcePath)
-	if user == "" || app == "" {
-		return 0, fmt.Errorf("无法从资源路径解析出 user 和 app: %s", resourcePath)
+// getAllParentDeptPaths 获取组织架构路径及其所有父级路径
+// 例如：/org/master/bizit → [/org/master/bizit, /org/master, /org]
+func (s *PermissionService) getAllParentDeptPaths(deptPath string) []string {
+	if deptPath == "" {
+		return []string{}
 	}
 
-	// 查询 app.id
-	appModel, err := s.appRepo.GetAppByUserName(user, app)
-	if err != nil {
-		return 0, fmt.Errorf("查询应用失败: user=%s, app=%s, error=%w", user, app, err)
+	// 移除开头的斜杠
+	path := strings.TrimPrefix(deptPath, "/")
+	if path == "" {
+		return []string{}
 	}
 
-	return appModel.ID, nil
+	// 分割路径
+	parts := strings.Split(path, "/")
+	if len(parts) == 0 {
+		return []string{}
+	}
+
+	// 构建所有父级路径（包括自身）
+	parentPaths := make([]string, 0, len(parts))
+	for i := 1; i <= len(parts); i++ {
+		parentPath := "/" + strings.Join(parts[:i], "/")
+		parentPaths = append(parentPaths, parentPath)
+	}
+
+	return parentPaths
 }
 
-// updateAppIDWithRetry 更新 app_id，带重试机制（解决时序/竞态问题）
-// ⭐ 由于 AddPolicy 和 UpdateAppID 是两次独立的数据库操作，可能存在时序问题
-// 如果第一次更新返回 0 行（记录还未写入），延迟后重试
-func (s *PermissionService) updateAppIDWithRetry(ctx context.Context, username, resourcePath, action string, appID int64, logPrefix string) error {
-	const maxRetries = 3
-	const retryDelay = 100 * time.Millisecond
+// CreatePermissionRequest 创建权限申请
+func (s *PermissionService) CreatePermissionRequest(ctx context.Context, req *dto.CreatePermissionRequestReq) (*dto.CreatePermissionRequestResp, error) {
+	// 获取当前用户名
+	username := contextx.GetRequestUser(ctx)
+	if username == "" {
+		return nil, fmt.Errorf("无法获取当前用户信息")
+	}
 
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		rowsAffected, err := s.casbinRuleRepo.UpdateAppID(username, resourcePath, action, appID)
-		if err != nil {
-			return fmt.Errorf("更新 app_id 失败: %w", err)
-		}
+	// 处理时间字段：dto 已经使用 models.Time，直接使用
+	startTime := req.StartTime
+	if time.Time(startTime).IsZero() {
+		startTime = models.Time(time.Now()) // 默认为当前时间
+	}
+	endTime := req.EndTime // dto.CreatePermissionRequestReq.EndTime 已经是 *models.Time
 
-		// 如果更新成功（至少更新了 1 行），直接返回
-		if rowsAffected > 0 {
-			if attempt > 0 {
-				logger.Infof(ctx, "[PermissionService] %s策略 app_id 更新成功（重试 %d 次）: user=%s, resource=%s, action=%s, app_id=%d",
-					logPrefix, attempt, username, resourcePath, action, appID)
-			}
-			return nil
-		}
+	// 构建企业版请求（添加 ApplicantUsername）
+	enterpriseReq := &dto.CreatePermissionRequestReq{
+		AppID:             req.AppID, // ⭐ 传递 AppID（从 resourcePath 解析得到）
+		ResourcePath:      req.ResourcePath,
+		RoleID:            req.RoleID, // ⭐ 角色ID（必填）
+		SubjectType:       req.SubjectType,
+		Subject:           req.Subject,
+		ApplicantUsername: username, // ⭐ 从 context 获取的申请人用户名
+		StartTime:         startTime, // ⭐ 使用 models.Time
+		EndTime:           endTime,   // ⭐ 使用 *models.Time（nil 表示永久）
+		Reason:            req.Reason,
+	}
 
-		// 如果更新了 0 行，可能是记录还未写入，延迟后重试
-		if attempt < maxRetries-1 {
-			logger.Debugf(ctx, "[PermissionService] %s策略 app_id 更新返回 0 行，延迟 %v 后重试（第 %d 次）: user=%s, resource=%s, action=%s",
-				logPrefix, retryDelay, attempt+1, username, resourcePath, action)
-			time.Sleep(retryDelay)
+	// 调用企业版接口
+	requestID, err := s.permissionService.CreatePermissionRequest(ctx, enterpriseReq)
+	if err != nil {
+		return nil, fmt.Errorf("创建权限申请失败: %w", err)
+	}
+
+	// ⭐ 更新对应节点的 pending_count（+1）
+	if err := s.updateServiceTreePendingCount(ctx, req.AppID, req.ResourcePath, 1); err != nil {
+		// 记录日志，但不影响申请创建
+		logger.Warnf(ctx, "[PermissionService] 更新节点 pending_count 失败: app_id=%d, resource_path=%s, error=%v",
+			req.AppID, req.ResourcePath, err)
+	}
+
+	return &dto.CreatePermissionRequestResp{
+		RequestID: requestID,
+		Status:    model.PermissionRequestStatusPending,
+		Message:   "权限申请已提交，等待审批",
+	}, nil
+}
+
+// ApprovePermissionRequest 审批通过权限申请
+func (s *PermissionService) ApprovePermissionRequest(ctx context.Context, req *dto.ApprovePermissionRequestReq) error {
+	// 获取当前用户名（审批人）
+	approverUsername := contextx.GetRequestUser(ctx)
+	if approverUsername == "" {
+		return fmt.Errorf("无法获取当前用户信息")
+	}
+
+	// ⭐ 先获取申请记录信息，用于更新 pending_count
+	requestInfo, err := s.getPermissionRequestInfo(ctx, req.RequestID)
+	if err != nil {
+		logger.Warnf(ctx, "[PermissionService] 获取申请记录信息失败: request_id=%d, error=%v", req.RequestID, err)
+		// 继续执行审批，不因为获取信息失败而中断
+	}
+
+	// 调用企业版接口
+	err = s.permissionService.ApprovePermissionRequest(ctx, req.RequestID, approverUsername)
+	if err != nil {
+		return err
+	}
+
+	// ⭐ 审批成功后，更新对应节点的 pending_count（-1）
+	if requestInfo != nil {
+		if err := s.updateServiceTreePendingCount(ctx, requestInfo.AppID, requestInfo.ResourcePath, -1); err != nil {
+			// 记录日志，但不影响审批流程
+			logger.Warnf(ctx, "[PermissionService] 更新节点 pending_count 失败: app_id=%d, resource_path=%s, error=%v",
+				requestInfo.AppID, requestInfo.ResourcePath, err)
 		}
 	}
 
-	// 所有重试都失败，返回警告（不报错，可通过补偿脚本修复）
-	logger.Warnf(ctx, "[PermissionService] %s策略 app_id 更新失败（重试 %d 次后仍返回 0 行）: user=%s, resource=%s, action=%s, app_id=%d，可能需要补偿脚本修复",
-		logPrefix, maxRetries, username, resourcePath, action, appID)
-	return nil // 不返回错误，记录警告即可
+	return nil
+}
+
+// RejectPermissionRequest 审批拒绝权限申请
+func (s *PermissionService) RejectPermissionRequest(ctx context.Context, req *dto.RejectPermissionRequestReq) error {
+	// 获取当前用户名（审批人）
+	approverUsername := contextx.GetRequestUser(ctx)
+	if approverUsername == "" {
+		return fmt.Errorf("无法获取当前用户信息")
+	}
+
+	// ⭐ 先获取申请记录信息，用于更新 pending_count
+	requestInfo, err := s.getPermissionRequestInfo(ctx, req.RequestID)
+	if err != nil {
+		logger.Warnf(ctx, "[PermissionService] 获取申请记录信息失败: request_id=%d, error=%v", req.RequestID, err)
+		// 继续执行审批，不因为获取信息失败而中断
+	}
+
+	// 调用企业版接口
+	err = s.permissionService.RejectPermissionRequest(ctx, req.RequestID, approverUsername, req.Reason)
+	if err != nil {
+		return err
+	}
+
+	// ⭐ 审批拒绝后，更新对应节点的 pending_count（-1）
+	if requestInfo != nil {
+		if err := s.updateServiceTreePendingCount(ctx, requestInfo.AppID, requestInfo.ResourcePath, -1); err != nil {
+			// 记录日志，但不影响审批流程
+			logger.Warnf(ctx, "[PermissionService] 更新节点 pending_count 失败: app_id=%d, resource_path=%s, error=%v",
+				requestInfo.AppID, requestInfo.ResourcePath, err)
+		}
+	}
+
+	return nil
+}
+
+
+// GetPermissionRequests 获取权限申请列表
+func (s *PermissionService) GetPermissionRequests(ctx context.Context, req *dto.GetPermissionRequestsReq) (*dto.GetPermissionRequestsResp, error) {
+	if s.permissionRequestRepo == nil {
+		return nil, fmt.Errorf("permissionRequestRepo 未初始化")
+	}
+
+	// 查询权限申请列表
+	requests, total, err := s.permissionRequestRepo.GetPermissionRequestsWithPage(
+		req.AppID,
+		req.Status,
+		req.Applicant,
+		req.ResourcePath,
+		req.Page,
+		req.PageSize,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("查询权限申请列表失败: %w", err)
+	}
+
+	// 转换为 DTO
+	records := make([]dto.PermissionRequestInfo, 0, len(requests))
+	for _, req := range requests {
+		info := dto.PermissionRequestInfo{
+			ID:                req.ID,
+			AppID:             req.AppID,
+			ApplicantUsername: req.ApplicantUsername,
+			SubjectType:       req.SubjectType,
+			Subject:           req.Subject,
+			ResourcePath:      req.ResourcePath,
+			ResourceName:      "", // ⭐ 默认空，后面从 service_tree 获取
+			RoleID:            req.RoleID, // ⭐ 角色ID
+			StartTime:         req.StartTime, // ⭐ 直接赋值，无需转换
+			EndTime:           req.EndTime,   // ⭐ 直接赋值，无需转换
+			Reason:            req.Reason,
+			Status:            req.Status,
+			CreatedAt:         req.CreatedAt,
+			Approvers:         []string{}, // ⭐ 默认空，后面从 service_tree 获取
+		}
+
+		// 处理审批信息
+		if req.ApprovedAt != nil {
+			info.ApprovedAt = req.ApprovedAt // ⭐ 直接赋值，无需转换
+		}
+		if req.ApprovedBy != "" {
+			info.ApprovedBy = req.ApprovedBy
+		}
+
+		// 处理拒绝信息
+		if req.RejectedAt != nil {
+			info.RejectedAt = req.RejectedAt // ⭐ 直接赋值，无需转换
+		}
+		if req.RejectedBy != "" {
+			info.RejectedBy = req.RejectedBy
+		}
+		if req.RejectReason != "" {
+			info.RejectReason = req.RejectReason
+		}
+
+		// ⭐ 从 service_tree 获取资源名称和审批人列表
+		if s.serviceTreeRepo != nil && req.ResourcePath != "" {
+			tree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(req.ResourcePath)
+			if err == nil && tree != nil {
+				// 获取资源名称（中文）
+				info.ResourceName = tree.Name
+
+				// 获取审批人列表（节点管理员）
+				if tree.Admins != "" {
+					admins := strings.Split(tree.Admins, ",")
+					for _, admin := range admins {
+						admin = strings.TrimSpace(admin)
+						if admin != "" {
+							info.Approvers = append(info.Approvers, admin)
+						}
+					}
+				}
+			}
+		}
+
+		// ⭐ 从角色服务获取角色名称
+		if req.RoleID > 0 {
+			roleResp, err := s.permissionService.GetRole(ctx, req.RoleID)
+			if err == nil && roleResp != nil && roleResp.Role != nil {
+				info.RoleName = roleResp.Role.Name
+			} else {
+				// 如果获取失败，记录警告但不影响返回
+				logger.Warnf(ctx, "[PermissionService] 获取角色信息失败: role_id=%d, error=%v", req.RoleID, err)
+				info.RoleName = "" // 默认为空
+			}
+		}
+
+		records = append(records, info)
+	}
+
+	return &dto.GetPermissionRequestsResp{
+		Total:    total,
+		Page:     req.Page,
+		PageSize: req.PageSize,
+		Records:  records,
+	}, nil
+}
+
+// updateServiceTreePendingCount 更新服务树节点的 pending_count
+// ⭐ 使用原子操作更新，防止并发问题
+// ⭐ 支持 app 级别权限申请（更新 app 表的 pending_count）
+func (s *PermissionService) updateServiceTreePendingCount(ctx context.Context, appID int64, resourcePath string, delta int) error {
+	if s.serviceTreeRepo == nil {
+		return fmt.Errorf("serviceTreeRepo 未初始化")
+	}
+
+	// 根据 resource_path 查找对应的 service_tree 节点
+	tree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(resourcePath)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			// 节点不存在，可能是 app 级别的权限申请（如 /system/official）
+			// app 根节点不在 service_tree 表中，而在 app 表中
+			logger.Infof(ctx, "[PermissionService] service_tree 节点不存在，尝试更新 app 表的 pending_count: resource_path=%s", resourcePath)
+			
+			// 更新 app 表的 pending_count
+			if s.appRepo == nil {
+				logger.Warnf(ctx, "[PermissionService] appRepo 未初始化，无法更新 app 的 pending_count")
+				return nil
+			}
+			
+			err := s.appRepo.UpdatePendingCount(appID, delta)
+			if err != nil {
+				return fmt.Errorf("更新 app pending_count 失败: %w", err)
+			}
+			
+			logger.Debugf(ctx, "[PermissionService] 更新 app pending_count 成功: app_id=%d, delta=%d", appID, delta)
+			return nil
+		}
+		return fmt.Errorf("查询节点失败: %w", err)
+	}
+
+	// 更新 service_tree 的 pending_count（使用原子操作，防止并发问题）
+	// 使用 ServiceTreeRepository 的 UpdatePendingCount 方法进行原子更新
+	err = s.serviceTreeRepo.UpdatePendingCount(tree.ID, delta)
+	if err != nil {
+		return fmt.Errorf("更新 service_tree pending_count 失败: %w", err)
+	}
+
+	logger.Debugf(ctx, "[PermissionService] 更新 service_tree pending_count 成功: resource_path=%s, delta=%d",
+		resourcePath, delta)
+
+	return nil
+}
+
+// getPermissionRequestInfo 获取权限申请记录信息
+// ⭐ 用于在审批时获取申请信息（app_id 和 resource_path）
+func (s *PermissionService) getPermissionRequestInfo(ctx context.Context, requestID int64) (*struct {
+	AppID        int64
+	ResourcePath string
+}, error) {
+	if s.permissionRequestRepo == nil {
+		return nil, fmt.Errorf("permissionRequestRepo 未初始化")
+	}
+
+	// 通过 repository 查询申请记录
+	request, err := s.permissionRequestRepo.GetPermissionRequestByID(requestID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("申请记录不存在: request_id=%d", requestID)
+		}
+		return nil, fmt.Errorf("查询申请记录失败: %w", err)
+	}
+
+	return &struct {
+		AppID        int64
+		ResourcePath string
+	}{
+		AppID:        request.AppID,
+		ResourcePath: request.ResourcePath,
+	}, nil
 }

@@ -9,8 +9,17 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
 	"github.com/gin-gonic/gin"
 )
+
+// getFilesCount 获取文件数量（辅助函数）
+func getFilesCount(files *types.Files) int {
+	if files == nil {
+		return 0
+	}
+	return len(files.Files)
+}
 
 // AgentChat 智能体聊天 API 处理器
 type AgentChat struct {
@@ -49,7 +58,7 @@ func (h *AgentChat) FunctionGenChat(c *gin.Context) {
 
 	// 记录请求日志
 	logger.Infof(ctx, "[AgentChat] 收到聊天请求 - AgentID: %d, TreeID: %d, SessionID: %s, User: %s, TraceID: %s, MessageLength: %d, FilesCount: %d",
-		req.AgentID, req.TreeID, req.SessionID, user, traceId, len(req.Message.Content), len(req.Message.Files))
+		req.AgentID, req.TreeID, req.SessionID, user, traceId, len(req.Message.Content), getFilesCount(req.Message.Files))
 
 	defer func() {
 		if err != nil {
@@ -243,23 +252,23 @@ func (h *AgentChat) GetFunctionGenStatus(c *gin.Context) {
 		return
 	}
 
-	// 解析 FullGroupCodes（逗号分隔的字符串）
-	fullGroupCodes := record.GetFullGroupCodes()
-
 	// 计算耗时（如果状态为 generating 或 Duration 为 0，实时计算）
 	duration := record.Duration
 	if duration == 0 || record.Status == model.FunctionGenStatusGenerating {
 		duration = int(time.Since(time.Time(record.CreatedAt)).Seconds())
 	}
 
+	// 解析 FullCodePaths（逗号分隔的字符串）
+	fullCodePaths := record.GetFullCodePaths()
+
 	// 转换为响应格式
 	resp = &dto.FunctionGenStatusResp{
-		RecordID:       record.ID,
-		Status:         record.Status,
-		Duration:       duration,
-		CreatedAt:      time.Time(record.CreatedAt).Format(time.DateTime),
-		UpdatedAt:      time.Time(record.UpdatedAt).Format(time.DateTime),
-		FullGroupCodes: fullGroupCodes,
+		RecordID:      record.ID,
+		Status:        record.Status,
+		Duration:      duration,
+		CreatedAt:     time.Time(record.CreatedAt).Format(time.DateTime),
+		UpdatedAt:     time.Time(record.UpdatedAt).Format(time.DateTime),
+		FullCodePaths: fullCodePaths,
 	}
 
 	// 根据状态返回不同的字段

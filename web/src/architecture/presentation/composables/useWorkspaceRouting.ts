@@ -46,7 +46,6 @@ export function useWorkspaceRouting(
   const syncRouteToTab = async () => {
     // 🔥 防重复调用保护
     if (isSyncingRouteToTab) {
-      Logger.debug('useWorkspaceRouting', 'syncRouteToTab 正在执行，跳过重复调用', { path: route.path })
       return
     }
     
@@ -59,11 +58,9 @@ export function useWorkspaceRouting(
     
     // 🔥 检查是否是函数组详情页面（_node_type=function_group）
     if (isFunctionGroupDetail(route.query)) {
-      Logger.debug('useWorkspaceRouting', '检测到函数组详情页面，跳过', { path: route.path })
       return
     }
     
-    Logger.debug('useWorkspaceRouting', 'syncRouteToTab 开始执行', { path: route.path, fullPath })
     isSyncingRouteToTab = true
     
     try {
@@ -102,7 +99,6 @@ export function useWorkspaceRouting(
       }
     } finally {
       isSyncingRouteToTab = false
-      Logger.debug('useWorkspaceRouting', 'syncRouteToTab 执行完成', { path: route.path })
     }
   }
 
@@ -138,7 +134,6 @@ export function useWorkspaceRouting(
       // 检查当前应用是否已经是目标应用（通过 user 和 code 匹配，因为 id 可能还没有）
       if (currentAppState && currentAppState.user === user && currentAppState.code === appCode) {
         // 当前应用已经是目标应用，不需要切换
-        Logger.debug('useWorkspaceRouting', '当前应用已经是目标应用，跳过切换', { user, appCode })
         return
       }
       
@@ -176,38 +171,48 @@ export function useWorkspaceRouting(
       // 标记已切换（用于后续处理）
       let appSwitched = true
 
-      // 处理子路径（打开 Tab）
-      if (pathSegments.length > 2) {
-        const functionPath = '/' + pathSegments.join('/') // 构造完整路径，如 /luobei/demo/crm/list
+      // ⭐ 处理根路径和子路径（统一逻辑）
+      // 根路径：pathSegments.length === 2，如 /system/official
+      // 子路径：pathSegments.length > 2，如 /system/official/agent/plugin
+      if (pathSegments.length >= 2) {
+        const functionPath = '/' + pathSegments.join('/') // 构造完整路径，如 /luobei/demo 或 /luobei/demo/crm/list
+        
+        // 🔥 统一的节点加载逻辑（适用于 app/package/function）
+        const tryLoadNode = () => {
+          const tree = options.serviceTree()
+          if (tree && tree.length > 0) {
+            const node = options.findNodeByPath(tree, functionPath)
+            if (node) {
+              const serviceNode: ServiceTree = node as any
+              Logger.debug('[useWorkspaceRouting]', '选中节点', { 
+                nodeId: serviceNode.id, 
+                nodeName: serviceNode.name,
+                nodeType: serviceNode.type,
+                nodePath: functionPath
+              })
+              // 触发节点点击，选中节点并显示详情
+              applicationService.handleNodeClick(serviceNode)
+            }
+          }
+        }
         
         // 检查是否有 _tab 参数（create/edit/detail/OnTableAddRow 模式）
         const tabParam = route.query._tab as string
         if (tabParam === 'create' || tabParam === 'edit' || tabParam === 'detail' || tabParam === 'OnTableAddRow') {
-          // create/edit/detail/OnTableAddRow 模式不需要打开 Tab，直接加载函数详情
-          const tryLoadFunction = () => {
-            const tree = options.serviceTree()
-            if (tree && tree.length > 0) {
-              const node = options.findNodeByPath(tree, functionPath)
-              if (node) {
-                const serviceNode: ServiceTree = node as any
-                // 设置当前函数，但不打开 Tab
-                applicationService.handleNodeClick(serviceNode)
-              }
-            }
-          }
+          // create/edit/detail/OnTableAddRow 模式不需要打开 Tab，直接加载节点详情
+          const tryLoadFunction = tryLoadNode
           
+          // 🔥 使用 once 监听器，确保只执行一次，避免无限循环
           if (appSwitched) {
-            // 🔥 使用事件监听替代 setInterval 轮询，减少不必要的重复调用
-            const unsubscribe = eventBus.on(WorkspaceEvent.serviceTreeLoaded, async () => {
-              unsubscribe()
+            // 使用 once 替代 on，确保监听器只执行一次
+            eventBus.once(WorkspaceEvent.serviceTreeLoaded, async () => {
               await nextTick()
               tryLoadFunction()
             })
             // 如果服务树已经加载，直接执行
             if (options.serviceTree().length > 0) {
-              unsubscribe()
-                tryLoadFunction()
-              }
+              tryLoadFunction()
+            }
           } else {
             tryLoadFunction()
           }
@@ -222,6 +227,25 @@ export function useWorkspaceRouting(
           return // create/edit/detail/OnTableAddRow 模式不打开 Tab
         }
         
+        // 🔥 根路径（app 节点）：只选中节点，不打开 Tab
+        if (pathSegments.length === 2) {
+          // 使用 once 监听器，确保只执行一次
+          if (appSwitched) {
+            eventBus.once(WorkspaceEvent.serviceTreeLoaded, async () => {
+              await nextTick()
+              tryLoadNode()
+            })
+            // 如果服务树已经加载，直接执行
+            if (options.serviceTree().length > 0) {
+              tryLoadNode()
+            }
+          } else {
+            tryLoadNode()
+          }
+          
+          return // 根路径处理完成
+        }
+        
         // 检查 _forked 参数，自动展开路径
         if (route.query._forked) {
           nextTick(() => {
@@ -229,7 +253,7 @@ export function useWorkspaceRouting(
           })
         }
         
-        // 尝试查找节点并打开/激活 Tab
+        // 🔥 子路径（package/function 节点）：打开/激活 Tab
         // 使用早期返回优化条件判断
         const tryOpenTab = async () => {
           const tree = options.serviceTree()
@@ -261,18 +285,17 @@ export function useWorkspaceRouting(
           applicationService.triggerNodeClick(serviceNode)
         }
 
-        // 🔥 使用事件监听替代 setInterval 轮询，减少不必要的重复调用
+        // 🔥 使用 once 监听器，确保只执行一次，避免无限循环
         if (appSwitched) {
-          const unsubscribe = eventBus.on(WorkspaceEvent.serviceTreeLoaded, async () => {
-            unsubscribe()
+          // 使用 once 替代 on，确保监听器只执行一次
+          eventBus.once(WorkspaceEvent.serviceTreeLoaded, async () => {
             await nextTick()
             await tryOpenTab()
           })
           // 如果服务树已经加载，直接执行
           if (options.serviceTree().length > 0) {
-            unsubscribe()
-              await tryOpenTab()
-            }
+            await tryOpenTab()
+          }
         } else {
           await tryOpenTab()
         }
@@ -326,12 +349,6 @@ export function useWorkspaceRouting(
           }
         })
         
-        Logger.debug('useWorkspaceRouting', 'link-widget 完成，准备清除 _link_type 并同步路由', {
-          originalQuery: payload.query,
-          preservedQuery,
-          path: payload.path
-        })
-        
         // 🔥 先同步路由到 Tab（确保 Tab 和函数已更新，页面会刷新）
         // 使用 nextTick 确保路由已经更新完成
         await nextTick()
@@ -362,10 +379,6 @@ export function useWorkspaceRouting(
         if (lastProcessedUpdateCompleted && 
             lastProcessedUpdateCompleted.path === payload.path && 
             lastProcessedUpdateCompleted.source === payload.source) {
-          Logger.debug('useWorkspaceRouting', '跳过重复的 updateCompleted 事件', { 
-            source: payload.source, 
-            path: payload.path 
-          })
           return
         }
         lastProcessedUpdateCompleted = { path: payload.path, source: payload.source }

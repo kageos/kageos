@@ -150,12 +150,27 @@ export class FormDomainService {
     // 更新字段配置
     this.fields = fields
 
+    // 🔥 关键修复：从 formStore.data 获取当前数据，而不是从 state.data
+    // 因为刷新后 state.data 可能是空的，但 formStore.data 可能有数据（从 URL 参数恢复或用户输入）
+    const stateManager = this.stateManager as any
+    let currentData: Map<string, FieldValue>
+    
+    if (stateManager && stateManager.formStore && stateManager.formStore.data) {
+      // 从 formStore.data 获取当前数据（这是真实的数据源）
+      currentData = new Map(stateManager.formStore.data)
+    } else {
+      // 如果 formStore 不可用，从 state 获取（向后兼容）
+      const state = this.stateManager.getState()
+      currentData = new Map(state.data || new Map())
+    }
+
     const state = this.stateManager.getState()
     const newData = new Map<string, FieldValue>()
 
     fields.forEach(field => {
       const fieldCode = field.code
-      const existingValue = state.data?.get(fieldCode)
+      // 🔥 优先从 currentData（formStore.data）获取，如果没有则从 state.data 获取
+      const existingValue = currentData.get(fieldCode) || state.data?.get(fieldCode)
       const hasInitialData = initialData && initialData.hasOwnProperty(fieldCode)
       const initialRawValue = hasInitialData ? initialData[fieldCode] : undefined
       
@@ -224,24 +239,55 @@ export class FormDomainService {
    * 🔥 更新字段值时，立即清除该字段的所有错误，避免显示过时的错误消息
    */
   updateFieldValue(fieldCode: string, value: FieldValue): void {
-    const state = this.stateManager.getState()
-    const newData = new Map(state.data)
-    newData.set(fieldCode, value)
+    // 🔥 关键修复：直接从 formStore 获取当前数据，而不是从 state.data
+    // 因为刷新后 state.data 可能是空的，但 formStore.data 可能有数据（从 URL 参数恢复）
+    const stateManager = this.stateManager as any
+    let currentData: Map<string, FieldValue>
+    
+    if (stateManager && stateManager.formStore && stateManager.formStore.data) {
+      // 从 formStore.data 获取当前数据（这是真实的数据源）
+      // 🔥 创建新的 Map，确保不会修改原始 Map
+      currentData = new Map(stateManager.formStore.data)
+    } else {
+      // 如果 formStore 不可用，从 state 获取（向后兼容）
+      const state = this.stateManager.getState()
+      currentData = new Map(state.data || new Map())
+    }
+    
+    // 🔥 调试日志：检查更新前的数据
+    Logger.debug('FormDomainService', 'updateFieldValue 开始', {
+      fieldCode,
+      valueRaw: value?.raw,
+      currentDataSize: currentData.size,
+      currentDataKeys: Array.from(currentData.keys())
+    })
+    
+    // 更新字段值
+    currentData.set(fieldCode, value)
 
     // 🔥 更新字段值时，立即清除该字段的所有错误（不进行实时验证）
     // 验证只在提交时进行，避免在输入/选择时显示错误
+    const state = this.stateManager.getState()
     const newErrors = new Map(state.errors)
     newErrors.delete(fieldCode)  // 清除该字段的所有错误
 
-    // 更新状态
+    // 🔥 更新状态：只传递 data 和 errors，不传递其他字段，避免覆盖
+    // setState 会合并更新，不会清空 formStore.data
     this.stateManager.setState({ 
-      ...state,
-      data: newData,
-      errors: newErrors  // 🔥 使用清除后的错误 Map
+      data: currentData,
+      errors: newErrors
+    } as any)
+
+    // 🔥 调试日志：检查更新后的数据
+    Logger.debug('FormDomainService', 'updateFieldValue 完成', {
+      fieldCode,
+      valueRaw: value?.raw,
+      formStoreDataSize: stateManager?.formStore?.data?.size || 0,
+      formStoreDataKeys: stateManager?.formStore?.data ? Array.from(stateManager.formStore.data.keys()) : []
     })
 
     // 处理字段依赖
-    this.handleDependency(fieldCode, newData)
+    this.handleDependency(fieldCode, currentData)
 
     // 触发事件
     this.eventBus.emit(FormEvent.fieldValueUpdated, { fieldCode, value })
@@ -387,13 +433,25 @@ export class FormDomainService {
 
   /**
    * 设置提交状态
+   * 🔥 只更新 submitting 字段，不更新 data，避免清空表单数据
    */
   setSubmitting(submitting: boolean): void {
-    const state = this.stateManager.getState()
-    this.stateManager.setState({
-      ...state,
-      submitting
-    })
+    // 🔥 直接调用 StateManager 的 setSubmitting 方法，而不是 setState
+    // 这样可以避免传递整个 state 对象，防止意外清空数据
+    const stateManager = this.stateManager as any
+    if (stateManager && typeof stateManager.setSubmitting === 'function') {
+      stateManager.setSubmitting(submitting)
+    } else {
+      // 如果 StateManager 没有 setSubmitting 方法，使用 setState 但只传递 submitting
+      // ⚠️ 注意：不传递 data 字段，这样 setState 不会清空数据
+      const state = this.stateManager.getState()
+      this.stateManager.setState({
+        ...state,
+        submitting,
+        // 🔥 不传递 data 字段，保持原有数据不变
+        data: undefined as any
+      } as any)
+    }
   }
 
   /**

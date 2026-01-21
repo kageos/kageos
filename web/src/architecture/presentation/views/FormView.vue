@@ -138,15 +138,14 @@
         </el-button>
         <el-button
           v-else-if="showSubmitButton"
-          type="primary"
+          type="default"
           size="large"
           :disabled="false"
-          plain
           class="submit-button-full-width action-btn-no-permission"
           @click="handleApplyPermissionForSubmit"
         >
           <el-icon><Lock /></el-icon>
-          提交（需权限）
+          提交（需{{ getPermissionShortName('function:write') }}）
         </el-button>
         <el-button v-if="showResetButton" size="large" @click="handleReset">
           <el-icon><RefreshLeft /></el-icon>
@@ -288,67 +287,6 @@
       </el-tabs>
     </el-dialog>
       </div>
-      <!-- 右侧：函数详情面板 -->
-      <div class="form-view-sidebar" v-if="functionDetail && currentFunctionNode">
-        <el-card class="function-detail-card" shadow="hover">
-          <template #header>
-            <div class="function-detail-header">
-              <el-icon><InfoFilled /></el-icon>
-              <span>函数介绍</span>
-            </div>
-          </template>
-          
-          <!-- 创建用户信息 -->
-          <div class="detail-section" v-if="functionDetail.created_by">
-            <div class="detail-section-title">
-              <el-icon><User /></el-icon>
-              <span>创建者</span>
-            </div>
-            <div class="creator-info">
-              <UserDisplay 
-                :username="functionDetail.created_by" 
-                mode="rich"
-                layout="horizontal"
-              />
-            </div>
-          </div>
-          
-          <!-- 函数名称 -->
-          <div class="detail-section">
-            <div class="function-name">{{ functionDetail.name || currentFunctionNode.name || '-' }}</div>
-          </div>
-
-          <!-- 函数描述 -->
-          <div class="detail-section" v-if="currentFunctionNode.description">
-            <div class="description-wrapper">
-              <div class="description-content">{{ currentFunctionNode.description }}</div>
-            </div>
-          </div>
-
-          <!-- 标签 -->
-          <div class="detail-section" v-if="currentFunctionNode.tags">
-            <div class="detail-section-title">
-              <el-icon><PriceTag /></el-icon>
-              <span>标签</span>
-            </div>
-            <div class="tags-list">
-              <el-tag
-                v-for="tag in (currentFunctionNode.tags?.split(',') || []).filter((t: string) => t.trim())"
-                :key="tag"
-                size="small"
-                class="tag-item"
-              >
-                {{ tag.trim() }}
-              </el-tag>
-            </div>
-          </div>
-
-          <!-- 如果没有描述和标签，显示提示 -->
-          <div v-if="!currentFunctionNode.description && !currentFunctionNode.tags" class="empty-tip">
-            <el-empty description="暂无介绍信息" :image-size="80" />
-          </div>
-        </el-card>
-      </div>
     </div>
   </div>
 </template>
@@ -357,12 +295,11 @@
 import { computed, onMounted, onUnmounted, watch, ref, nextTick, withDefaults } from 'vue'
 import type { ComputedRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Promotion, RefreshLeft, View, DocumentCopy, InfoFilled, Lock, Document, List, PriceTag, User } from '@element-plus/icons-vue'
+import { Promotion, RefreshLeft, View, DocumentCopy, InfoFilled, Lock, Document, List, User } from '@element-plus/icons-vue'
 import { ElIcon, ElTag, ElNotification, ElMessage, ElAlert, ElMessageBox, ElText, ElCheckbox, ElCard, ElEmpty } from 'element-plus'
 import { eventBus, FormEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
-import UserDisplay from '../widgets/UserDisplay.vue'
 import { Logger } from '@/core/utils/logger'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
@@ -371,7 +308,7 @@ import { useFormDataStore } from '@/core/stores-v2/formData'
 import { useResponseDataStore } from '@/core/stores-v2/responseData'
 import { useFunctionParamInitialization } from '../composables/useFunctionParamInitialization'
 import { useFormParamURLSync } from '../composables/useFormParamURLSync'
-import { hasPermission, FormPermissions, buildPermissionApplyURL } from '@/utils/permission'
+import { hasPermission, FormPermissions, buildPermissionApplyURL, getPermissionShortName } from '@/utils/permission'
 import { usePermissionErrorStore } from '@/stores/permissionError'
 import type { PermissionInfo } from '@/utils/permission'
 import PermissionDeniedView from '../components/PermissionDeniedView.vue'
@@ -453,12 +390,22 @@ const handleApplyPermissionForSubmit = () => {
 // URL 参数会在 useFunctionParamInitialization 中统一处理
 
 // 🔥 为所有字段创建响应式的值 Map
+// ⭐ 直接访问 formDataStore.data，确保响应式更新
+// ⚠️ 注意：Vue 3 的 reactive Map 的 .get() 可能不会建立响应式依赖，需要使用 forEach 遍历
 const fieldValues = computed(() => {
-  const state = stateManager.getState()
   const values: Record<string, FieldValue> = {}
+  // ⭐ 先遍历 formDataStore.data 建立响应式依赖
+  formDataStore.data.forEach((value, key) => {
+    // 只包含 requestFields 中的字段
+    if (requestFields.value.some((f: FieldConfig) => f.code === key)) {
+      values[key] = value
+    }
+  })
+  // ⭐ 确保所有 requestFields 中的字段都有值（即使 formDataStore 中没有）
   requestFields.value.forEach((field: FieldConfig) => {
-    const fieldValue = state.data?.get(field.code) || { raw: null, display: '', meta: {} }
-    values[field.code] = fieldValue
+    if (!values[field.code]) {
+      values[field.code] = { raw: null, display: '', meta: {} }
+    }
   })
   return values
 })
@@ -960,6 +907,14 @@ onMounted(async () => {
    * 先清空 stateManager，然后直接使用 initialData 初始化，避免默认值干扰
    */
   const initializeFormWithData = (fields: FieldConfig[], initialData: Record<string, any>) => {
+    Logger.debug('FormView', 'initializeFormWithData 被调用', {
+      fieldsCount: fields.length,
+      fieldCodes: fields.map((f: FieldConfig) => f.code),
+      initialDataKeys: Object.keys(initialData),
+      initialDataCount: Object.keys(initialData).length,
+      initialDataSample: JSON.parse(JSON.stringify(Object.fromEntries(Object.entries(initialData).slice(0, 5))))
+    })
+    
     // 🔥 重要：先清空 stateManager，避免已有值影响 initialData 的初始化
     const currentState = stateManager.getState()
     stateManager.setState({
@@ -972,6 +927,11 @@ onMounted(async () => {
     // 🔥 直接调用 initializeForm，不使用 syncFormDataStoreToStateManager
     // 因为 formDataStore 可能是空的，会设置默认值，影响 initialData 的初始化
     applicationService.initializeForm(fields, initialData)
+    
+    Logger.debug('FormView', 'initializeFormWithData 完成', {
+      stateDataSize: stateManager.getState().data.size,
+      stateDataKeys: Array.from(stateManager.getState().data.keys())
+    })
   }
 
   /**
@@ -1178,6 +1138,11 @@ onMounted(async () => {
       return
     }
     
+    // ⭐ 如果 oldInitialData 为空，说明是首次设置，跳过（由 onMounted 处理）
+    if (!oldInitialData || Object.keys(oldInitialData).length === 0) {
+      return
+    }
+    
     if (!hasInitialDataChanged(newInitialData, oldInitialData)) {
       return
     }
@@ -1192,27 +1157,29 @@ onMounted(async () => {
     }
   }, { deep: true })
 
-  // 🔥 监听 functionDetail 和 initialData 的组合变化，确保在编辑模式下能够正确初始化
+  // 🔥 监听 functionDetail 变化，确保在编辑模式下能够正确初始化
   // 当切换到编辑模式时，functionDetail 可能会变化，此时需要重新初始化表单
+  // ⚠️ 注意：initialData 的变化由上面的 watch 处理，这里只处理 functionDetail 的变化
   watch(
-    () => [props.functionDetail?.id, props.functionDetail?.request, Object.keys(props.initialData || {})],
-    async ([newId, newRequest, newInitialDataKeys], [oldId, oldRequest, oldInitialDataKeys]) => {
-      // 只在 functionDetail 准备好且有 initialData 时才初始化
+    () => [props.functionDetail?.id, props.functionDetail?.request],
+    async ([newId, newRequest], [oldId, oldRequest]) => {
+      // 只在 functionDetail 准备好时才初始化
       // ⚠️ 注意：id 可能为 0（FormDialog 中设置），所以不能直接用 truthy 判断
       if (!functionDetail.value || !functionDetail.value.request || (functionDetail.value.id === undefined || functionDetail.value.id === null)) {
         return
       }
       
-      // 检查是否有新的 initialData（从空变为有值）
-      const hasNewInitialData = newInitialDataKeys && newInitialDataKeys.length > 0 && 
-        (!oldInitialDataKeys || oldInitialDataKeys.length === 0)
+      // ⭐ 如果 oldId 为空，说明是首次设置，跳过（由 onMounted 处理）
+      if (oldId === undefined || oldId === null) {
+        return
+      }
       
       // 检查 functionDetail 是否变化了（id 或 request 变化）
       const functionDetailChanged = newId !== oldId || 
         (newRequest && oldRequest && JSON.stringify(newRequest) !== JSON.stringify(oldRequest))
       
-      // 如果 functionDetail 变化了，或者有新的 initialData，重新初始化
-      if (functionDetailChanged || hasNewInitialData) {
+      // 如果 functionDetail 变化了，重新初始化
+      if (functionDetailChanged) {
         const fields = (functionDetail.value.request || []) as FieldConfig[]
         if (fields.length > 0) {
           const initialData = Object.keys(props.initialData).length > 0 
@@ -1260,113 +1227,25 @@ onUnmounted(() => {
   min-width: 0; // 防止 flex 子元素溢出
 }
 
-.form-view-sidebar {
-  width: 360px;
-  flex-shrink: 0;
-  position: sticky;
-  top: 20px;
-  max-height: calc(100vh - 40px);
-  overflow-y: auto;
-}
-
-.function-detail-card {
-  .function-detail-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-weight: 600;
-    font-size: 16px;
-    color: var(--el-text-color-primary);
-  }
-}
-
-.detail-section {
-  margin-bottom: 24px;
-  
-  .detail-section-title {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--el-text-color-regular);
-    margin-bottom: 12px;
-  }
-  
-  .creator-info {
-    display: flex;
-    align-items: flex-start;
-    width: 100%;
-  }
-  
-  &:last-child {
-    margin-bottom: 0;
-  }
-}
-
-.function-name {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-  margin-bottom: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-}
-
-.detail-section-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-  font-size: 14px;
-  color: var(--el-text-color-primary);
-  margin-bottom: 12px;
-}
-
-.description-wrapper {
-  position: relative;
-}
-
-.description-content {
-  font-size: 14px;
-  color: var(--el-text-color-primary);
-  line-height: 1.8;
-  white-space: pre-wrap;
-  word-break: break-word;
-  padding: 16px 20px;
-  background: linear-gradient(135deg, rgba(64, 158, 255, 0.05) 0%, rgba(64, 158, 255, 0.02) 100%);
-  border-radius: 8px;
-  border-left: 3px solid var(--el-color-primary);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  position: relative;
-  
-  &::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 3px;
-    background: linear-gradient(180deg, var(--el-color-primary) 0%, rgba(64, 158, 255, 0.6) 100%);
-    border-radius: 8px 0 0 8px;
-  }
-}
-
-.tags-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.tag-item {
-  margin: 0;
-}
-
-.empty-tip {
-  padding: 20px 0;
-}
 
 /* 🔥 权限错误显示样式已移至 PermissionDeniedView 组件 */
+
+/* 无权限按钮样式优化 */
+.action-btn-no-permission {
+  color: var(--el-text-color-secondary) !important;
+  border-color: var(--el-border-color-light) !important;
+  background-color: var(--el-fill-color-lighter) !important;
+  
+  &:hover {
+    color: var(--el-text-color-secondary) !important;
+    border-color: var(--el-border-color-light) !important;
+    background-color: var(--el-fill-color-light) !important;
+  }
+  
+  .el-icon {
+    margin-right: 4px;
+  }
+}
 
 /* Debug 弹窗样式 */
 .debug-section {

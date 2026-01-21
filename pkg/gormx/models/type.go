@@ -3,7 +3,7 @@ package models
 import "gorm.io/gorm"
 
 type Base struct {
-	ID        int64          `json:"id" gorm:"primary_key"`
+	ID        int64          `json:"id" gorm:"primaryKey;autoIncrement"`
 	CreatedAt Time           `json:"created_at" gorm:"column:created_at;autoCreateTime"`
 	UpdatedAt Time           `json:"updated_at" gorm:"column:updated_at;autoUpdateTime"`
 	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`

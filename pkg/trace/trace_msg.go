@@ -38,5 +38,5 @@ type Msg struct {
 }
 
 func (m *Msg) GetFullRouter() string {
-	return fmt.Sprintf("%s/%s/%s", m.User, m.App, strings.Trim(m.Router, "/"))
+	return fmt.Sprintf("/%s/%s/%s", m.User, m.App, strings.Trim(m.Router, "/"))
 }

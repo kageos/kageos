@@ -48,7 +48,10 @@ export interface App {
   nats_id: number
   host_id: number
   status: 'enabled' | 'disabled'
+  type?: number  // 应用类型：0=用户空间，1=系统空间
   version: string
+  is_public: boolean
+  admins?: string
   created_at: string
   updated_at: string
 }
@@ -56,6 +59,8 @@ export interface App {
 export interface CreateAppRequest {
   code: string
   name: string
+  is_public?: boolean
+  admins?: string
 }
 
 // 创建应用响应（后端实际返回的结构）
@@ -71,9 +76,12 @@ export interface ServiceTree {
   name: string
   code: string
   parent_id: number
-  type: 'package' | 'function'
+  type: 'package' | 'function' | 'docs'
   description: string
   tags: string
+  admins?: string  // 节点管理员列表，逗号分隔的用户名
+  pending_count?: number  // ⭐ 待审批的权限申请数量
+  owner?: string   // 节点创建者（owner）
   app_id: number
   ref_id: number
   full_code_path: string
@@ -84,6 +92,7 @@ export interface ServiceTree {
   hub_version?: string  // Hub 目录版本（如 v1.0.0）
   hub_version_num?: number  // Hub 目录版本号（数字部分）
   has_function?: boolean  // ⭐ 是否有函数（仅对package类型有效）：如果该package下直接或间接包含function类型的子节点，则为true
+  is_admin?: boolean  // ⭐ 是否是管理员（企业版功能）：如果用户是工作空间管理员，则为 true，前端优先判断此字段，无需构造每个节点的权限
   permissions?: Record<string, boolean>  // ⭐ 权限标识（企业版功能）：权限点 -> 是否有权限
   created_at: string
   updated_at: string
@@ -96,8 +105,15 @@ export interface CreateServiceTreeRequest {
   name: string
   code: string
   parent_id?: number
+  type?: string  // 节点类型: 'package' | 'docs' | 'function'
   description?: string
   tags?: string
+  admins?: string  // 管理员列表，逗号分隔的用户名
+  // ⭐ 文档相关字段（仅当 type=docs 时使用）
+  doc_title?: string   // 文档标题
+  doc_content?: string  // 文档内容
+  doc_format?: string   // 文档格式（默认为 markdown）
+  doc_summary?: string  // 文档摘要（可选）
 }
 
 // 🔥 统一类型系统：从 core/types/field 重新导出 Widget 相关类型

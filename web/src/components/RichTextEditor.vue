@@ -442,7 +442,7 @@ const editor = useEditor({
               
               // 通知后端上传完成
               if (uploadResult.fileInfo) {
-                const downloadUrl = await notifyUploadComplete({
+                const completeResult = await notifyUploadComplete({
                   key: uploadResult.fileInfo.key,
                   success: true,
                   router: uploadResult.fileInfo.router,
@@ -452,6 +452,7 @@ const editor = useEditor({
                   hash: uploadResult.fileInfo.hash,
                 })
                 
+                const downloadUrl = completeResult?.download_url
                 if (downloadUrl && editor.value) {
                   // 判断文件类型并插入
                   const isImage = file.type.startsWith('image/')
@@ -537,7 +538,7 @@ const editor = useEditor({
           
           // 通知后端上传完成
           if (uploadResult.fileInfo) {
-            const downloadUrl = await notifyUploadComplete({
+            const completeResult = await notifyUploadComplete({
               key: uploadResult.fileInfo.key,
               success: true,
               router: uploadResult.fileInfo.router,
@@ -547,6 +548,7 @@ const editor = useEditor({
               hash: uploadResult.fileInfo.hash,
             })
             
+            const downloadUrl = completeResult?.download_url
             if (downloadUrl && editor.value) {
               // 判断文件类型并插入
               const isImage = file.type.startsWith('image/')

@@ -6,7 +6,7 @@ import (
 )
 
 type User struct {
-	ID            int64          `json:"id" gorm:"primary_key"`
+	ID            int64          `json:"id" gorm:"primaryKey;autoIncrement"`
 	CreatedAt     models.Time    `json:"created_at" gorm:"column:created_at;autoCreateTime"`
 	UpdatedAt     models.Time    `json:"updated_at" gorm:"column:updated_at;autoUpdateTime"`
 	DeletedAt     gorm.DeletedAt `json:"-" gorm:"index"`
@@ -27,6 +27,9 @@ type User struct {
 	DepartmentFullPath string `json:"department_full_path" gorm:"type:varchar(500);index;comment:所属部门完整路径（可选，可以为空）"`
 	LeaderUsername     string `json:"leader_username" gorm:"type:varchar(255);index;comment:直接上级用户名（可选，可以为空）"`
 	
+	// ⭐ 新增：用户类型（0:普通用户, 1:系统用户, 2:智能体用户）
+	Type UserType `json:"type" gorm:"column:type;type:tinyint;default:0;index;comment:用户类型(0:普通用户,1:系统用户,2:智能体用户)"`
+	
 	// ⚠️ 注意：Host 和 Nats 绑定在 App 上，不在 User 上
 }
 
@@ -41,7 +44,8 @@ func (u *User) CheckEmailVerificationRequired() bool {
 
 // IsPasswordLoginSupported 检查用户是否支持密码登录
 func (u *User) IsPasswordLoginSupported() bool {
-	return u.RegisterType == "email" && u.PasswordHash != ""
+	// 系统账号和邮箱注册账号都支持密码登录（只要有密码）
+	return u.PasswordHash != "" && (u.RegisterType == "email" || u.RegisterType == "system")
 }
 
 // IsActive 检查用户是否为激活状态
@@ -52,5 +56,20 @@ func (u *User) IsActive() bool {
 // IsPending 检查用户是否为待验证状态
 func (u *User) IsPending() bool {
 	return u.Status == "pending"
+}
+
+// IsSystemUser 检查是否为系统用户
+func (u *User) IsSystemUser() bool {
+	return u.Type.IsSystem()
+}
+
+// IsAgentUser 检查是否为智能体用户
+func (u *User) IsAgentUser() bool {
+	return u.Type.IsAgent()
+}
+
+// IsNormalUser 检查是否为普通用户
+func (u *User) IsNormalUser() bool {
+	return u.Type.IsNormal()
 }
 

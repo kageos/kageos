@@ -16,8 +16,8 @@ type FunctionGroupAgent struct {
 	User          string `gorm:"type:varchar(128);not null;index;comment:创建用户" json:"user"`
 
 	// 关联
-	Agent  *Agent            `gorm:"foreignKey:AgentID" json:"agent,omitempty"`
-	Record *FunctionGenRecord `gorm:"foreignKey:RecordID" json:"record,omitempty"`
+	Agent  *Agent            `gorm:"foreignKey:AgentID;references:ID" json:"agent,omitempty"`
+	Record *FunctionGenRecord `gorm:"foreignKey:RecordID;references:ID" json:"record,omitempty"`
 }
 
 // TableName 指定表名

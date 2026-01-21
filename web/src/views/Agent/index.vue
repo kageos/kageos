@@ -152,46 +152,6 @@
             </div>
           </el-card>
 
-          <!-- 插件管理 -->
-          <el-card
-            shadow="hover"
-            class="module-card module-card--plugins"
-            @click="navigateTo('/agent/plugins')"
-          >
-            <div class="module-card__header">
-              <div class="module-card__icon-wrapper">
-                <div class="module-card__icon">
-                  <el-icon :size="32">
-                    <Connection />
-                  </el-icon>
-                </div>
-                <div class="module-card__badge">
-                  <el-badge :value="stats.plugins.total" :max="99" />
-                </div>
-              </div>
-            </div>
-            <div class="module-card__body">
-              <h4 class="module-card__title">插件管理</h4>
-              <p class="module-card__description">
-                管理插件配置，支持插件复用和独立管理，可启用或禁用插件
-              </p>
-              <div class="module-card__stats">
-                <div class="module-card__stat-item">
-                  <el-icon><CircleCheck /></el-icon>
-                  <span>已启用: {{ stats.plugins.enabled }}</span>
-                </div>
-                <div class="module-card__stat-item">
-                  <el-icon><Operation /></el-icon>
-                  <span>使用中: {{ stats.plugins.inUse }}</span>
-                </div>
-              </div>
-            </div>
-            <div class="module-card__footer">
-              <el-button type="primary" :icon="ArrowRight" @click.stop="navigateTo('/agent/plugins')">
-                进入管理
-              </el-button>
-            </div>
-          </el-card>
         </div>
       </div>
     </el-card>
@@ -215,8 +175,7 @@ import {
 import {
   getAgentList,
   getKnowledgeList,
-  getLLMList,
-  getPluginList
+  getLLMList
 } from '@/api/agent'
 
 const router = useRouter()
@@ -238,22 +197,16 @@ const stats = ref({
     default: 0,
     providers: 0
   },
-  plugins: {
-    total: 0,
-    enabled: 0,
-    inUse: 0
-  }
 })
 
 // 加载统计数据
 async function loadStats() {
   try {
     // 并行加载所有统计数据
-    const [agentsRes, knowledgeRes, llmRes, pluginsRes] = await Promise.all([
+    const [agentsRes, knowledgeRes, llmRes] = await Promise.all([
       getAgentList({ page: 1, page_size: 1 }),
       getKnowledgeList({ page: 1, page_size: 1 }),
-      getLLMList({ page: 1, page_size: 1 }),
-      getPluginList({ page: 1, page_size: 1 })
+      getLLMList({ page: 1, page_size: 1 })
     ])
 
     // 更新智能体统计（响应拦截器已解包，直接使用 data）
@@ -285,21 +238,6 @@ async function loadStats() {
       stats.value.llm.providers = providerSet.size
     }
 
-    // 更新插件统计（响应拦截器已解包）
-    stats.value.plugins.total = pluginsRes.total || 0
-    if (pluginsRes.plugins) {
-      stats.value.plugins.enabled = pluginsRes.plugins.filter(p => p.enabled).length
-      // 获取使用中的插件数量（需要查询智能体）
-      const agentsForPlugins = await getAgentList({ page: 1, page_size: 1000 })
-      if (agentsForPlugins.agents) {
-        const inUsePlugins = new Set(
-          agentsForPlugins.agents
-            .filter(a => a.agent_type === 'plugin' && a.plugin_id)
-            .map(a => a.plugin_id!)
-        )
-        stats.value.plugins.inUse = inUsePlugins.size
-      }
-    }
   } catch (error: any) {
     console.error('加载统计数据失败:', error)
     // 静默失败，不影响页面展示

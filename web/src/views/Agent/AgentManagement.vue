@@ -199,35 +199,44 @@
         </el-form-item>
         <el-form-item
           v-if="formData.agent_type === 'plugin'"
-          label="插件"
-          prop="plugin_id"
+          label="插件函数路径"
+          prop="plugin_function_path"
         >
           <el-select
-            v-model="formData.plugin_id"
+            v-model="formData.plugin_function_path"
             filterable
-            :loading="pluginLoading"
-            placeholder="请选择插件（必填）"
+            remote
+            :remote-method="searchFunctions"
+            :loading="functionSearchLoading"
+            placeholder="搜索并选择插件函数（支持关键词搜索）"
             style="width: 100%"
             clearable
-            @focus="handlePluginSelectFocus"
+            @focus="handleFunctionSelectFocus"
           >
             <el-option
-              v-for="plugin in pluginOptions"
-              :key="plugin.id"
-              :label="plugin.name"
-              :value="plugin.id"
-              :disabled="!plugin.enabled"
+              v-for="func in functionOptions"
+              :key="func.full_code_path"
+              :label="`${func.name} (${func.full_code_path})`"
+              :value="func.full_code_path"
             >
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span>{{ plugin.name }}</span>
-                <el-tag size="small" :type="plugin.enabled ? 'success' : 'danger'" style="margin-left: 8px;">
-                  {{ plugin.enabled ? '已启用' : '已禁用' }}
-                </el-tag>
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <span style="font-weight: 500;">{{ func.name }}</span>
+                  <el-tag size="small" type="info" style="margin-left: 8px;">
+                    {{ func.template_type }}
+                  </el-tag>
+                </div>
+                <div style="font-size: 12px; color: #909399;">
+                  {{ func.full_code_path }}
+                </div>
+                <div v-if="func.description" style="font-size: 12px; color: #909399; margin-top: 2px;">
+                  {{ func.description }}
+                </div>
               </div>
             </el-option>
           </el-select>
           <div style="margin-top: 8px; font-size: 12px; color: #909399;">
-            提示：插件类型智能体必须关联一个已启用的插件
+            提示：插件类型智能体必须指定一个插件函数路径（full-code-path），支持搜索
           </div>
         </el-form-item>
         <el-form-item label="LLM 配置">
@@ -369,15 +378,18 @@ import {
   disableAgent,
   getKnowledgeList,
   getLLMList,
-  getPluginList,
   type AgentInfo,
   type AgentListReq,
   type AgentCreateReq,
   type AgentUpdateReq,
   type KnowledgeInfo,
   type LLMInfo,
-  type PluginInfo
 } from '@/api/agent'
+import {
+  searchFunctions as searchFunctionsAPI,
+  type FunctionSearchResult,
+  type SearchFunctionsReq,
+} from '@/api/service-tree'
 import type { FormRules } from 'element-plus'
 
 const router = useRouter()
@@ -428,7 +440,7 @@ const formData = reactive<AgentCreateReq & { id?: number }>({
   chat_type: 'function_gen', // 默认值
   description: '',
   timeout: 30,
-  plugin_id: null, // 插件ID（仅 plugin 类型需要）
+  plugin_function_path: '', // 插件函数路径（仅 plugin 类型需要）
   knowledge_base_id: 0,
   llm_config_id: 0, // 0 表示使用默认 LLM
   metadata: '',
@@ -444,9 +456,9 @@ const knowledgeBaseOptions = ref<KnowledgeInfo[]>([])
 const llmOptions = ref<LLMInfo[]>([])
 const llmLoading = ref(false)
 
-// 插件配置
-const pluginOptions = ref<PluginInfo[]>([])
-const pluginLoading = ref(false)
+// 函数搜索
+const functionSearchLoading = ref(false)
+const functionOptions = ref<FunctionSearchResult[]>([])
 
 // 搜索知识库
 async function searchKnowledgeBases(keyword: string) {
@@ -504,52 +516,27 @@ async function loadAllKnowledgeBases() {
 const rules: FormRules = {
   name: [{ required: true, message: '请输入智能体名称', trigger: 'blur' }],
   agent_type: [{ required: true, message: '请选择智能体类型', trigger: 'change' }],
-  plugin_id: [
+  plugin_function_path: [
     {
       validator: (rule: any, value: any, callback: any) => {
-        if (formData.agent_type === 'plugin' && (!value || value === 0)) {
-          callback(new Error('插件类型智能体必须选择插件'))
+        if (formData.agent_type === 'plugin' && (!value || value.trim() === '')) {
+          callback(new Error('插件类型智能体必须指定插件函数路径'))
         } else {
           callback()
         }
       },
-      trigger: 'change'
+      trigger: 'blur'
     }
   ],
   knowledge_base_id: [{ required: true, message: '请选择知识库', trigger: 'change' }]
 }
 
-// 加载插件列表
-async function loadPlugins() {
-  pluginLoading.value = true
-  try {
-    const res = await getPluginList({
-      page: 1,
-      page_size: 1000, // 加载所有
-      enabled: true // 只加载已启用的插件
-    })
-    pluginOptions.value = res.plugins || []
-  } catch (error: any) {
-    console.error('加载插件列表失败:', error)
-    ElMessage.error(error.message || '加载插件列表失败')
-    pluginOptions.value = []
-  } finally {
-    pluginLoading.value = false
-  }
-}
-
-// 插件选择器获得焦点时加载插件列表
-async function handlePluginSelectFocus() {
-  if (pluginOptions.value.length === 0) {
-    await loadPlugins()
-  }
-}
 
 // 智能体类型变化时的处理
 function handleAgentTypeChange() {
-  // 如果切换到非 plugin 类型，清空 plugin_id
+  // 如果切换到非 plugin 类型，清空 plugin_function_path
   if (formData.agent_type !== 'plugin') {
-    formData.plugin_id = null
+    formData.plugin_function_path = ''
   }
 }
 
@@ -651,7 +638,8 @@ async function handleDialogOpened() {
   // 🔥 强制重新加载，确保数据是最新的（并行加载提高效率）
   await Promise.all([
     loadAllLLMs(),
-    loadAllKnowledgeBases()
+    loadAllKnowledgeBases(),
+    loadDefaultFunctions() // 加载默认函数列表
   ])
 }
 
@@ -694,6 +682,64 @@ async function handleLLMSelectFocus() {
   // 如果 LLM 选项为空，加载所有 LLM 配置
   if (llmOptions.value.length === 0) {
     await loadAllLLMs()
+  }
+}
+
+// 搜索函数（远程搜索）
+async function searchFunctions(keyword: string) {
+  if (!keyword || keyword.trim() === '') {
+    // 如果关键词为空，加载默认函数列表（只搜索 form 类型）
+    await loadDefaultFunctions()
+    return
+  }
+
+  functionSearchLoading.value = true
+  try {
+    const req: SearchFunctionsReq = {
+      user: 'system',
+      app: 'official',
+      keyword: keyword.trim(),
+      template_type: 'form', // 只搜索 form 类型的函数
+      page: 1,
+      page_size: 50
+    }
+    const res = await searchFunctionsAPI(req)
+    functionOptions.value = res.functions || []
+  } catch (error: any) {
+    ElMessage.error(error.message || '搜索函数失败')
+    functionOptions.value = []
+  } finally {
+    functionSearchLoading.value = false
+  }
+}
+
+// 加载默认函数列表（只搜索 form 类型）
+async function loadDefaultFunctions() {
+  functionSearchLoading.value = true
+  try {
+    const req: SearchFunctionsReq = {
+      user: 'system',
+      app: 'official',
+      template_type: 'form', // 只搜索 form 类型的函数
+      page: 1,
+      page_size: 50
+    }
+    const res = await searchFunctionsAPI(req)
+    functionOptions.value = res.functions || []
+  } catch (error: any) {
+    console.error('加载函数列表失败:', error)
+    ElMessage.error(error.message || '加载函数列表失败，请稍后重试')
+    functionOptions.value = []
+  } finally {
+    functionSearchLoading.value = false
+  }
+}
+
+// 函数选择框获得焦点时（确保数据已加载）
+async function handleFunctionSelectFocus() {
+  // 如果函数选项为空，加载默认函数列表
+  if (functionOptions.value.length === 0) {
+    await loadDefaultFunctions()
   }
 }
 
@@ -745,7 +791,7 @@ async function handleEdit(row: AgentInfo) {
   formData.description = row.description
   formData.system_prompt_template = row.system_prompt_template || ''
   formData.timeout = row.timeout
-  formData.plugin_id = row.plugin_id || null
+  formData.plugin_function_path = row.plugin_function_path || ''
   formData.knowledge_base_id = row.knowledge_base_id
   formData.llm_config_id = row.llm_config_id || 0
   formData.metadata = row.metadata || ''
@@ -753,11 +799,6 @@ async function handleEdit(row: AgentInfo) {
   formData.greeting_type = (row.greeting_type as 'text' | 'md' | 'html') || 'text'
   formData.visibility = row.visibility ?? 0
   formData.admin = row.admin || ''
-  
-  // 如果是 plugin 类型，确保插件列表已加载
-  if (row.agent_type === 'plugin' && pluginOptions.value.length === 0) {
-    await loadPlugins()
-  }
   
   dialogVisible.value = true
 }
@@ -774,7 +815,7 @@ async function handleCopy(row: AgentInfo) {
   formData.description = row.description
   formData.system_prompt_template = row.system_prompt_template || ''
   formData.timeout = row.timeout
-  formData.plugin_id = row.plugin_id || null
+  formData.plugin_function_path = row.plugin_function_path || ''
   formData.knowledge_base_id = row.knowledge_base_id
   formData.llm_config_id = row.llm_config_id || 0
   formData.metadata = row.metadata || ''
@@ -782,11 +823,6 @@ async function handleCopy(row: AgentInfo) {
   formData.greeting_type = (row.greeting_type as 'text' | 'md' | 'html') || 'text'
   formData.visibility = row.visibility ?? 0
   formData.admin = row.admin || ''
-  
-  // 如果是 plugin 类型，确保插件列表已加载
-  if (row.agent_type === 'plugin' && pluginOptions.value.length === 0) {
-    await loadPlugins()
-  }
   
   dialogVisible.value = true
 }
@@ -864,7 +900,7 @@ async function handleSubmit() {
         description: formData.description,
         system_prompt_template: formData.system_prompt_template || '',
         timeout: formData.timeout,
-        plugin_id: formData.agent_type === 'plugin' ? formData.plugin_id : null,
+        plugin_function_path: formData.agent_type === 'plugin' ? formData.plugin_function_path : undefined,
         knowledge_base_id: formData.knowledge_base_id,
         llm_config_id: formData.llm_config_id || 0,
         metadata: formData.metadata,
@@ -886,7 +922,7 @@ async function handleSubmit() {
         description: formData.description,
         system_prompt_template: formData.system_prompt_template || '',
         timeout: formData.timeout,
-        plugin_id: formData.agent_type === 'plugin' ? formData.plugin_id : null,
+        plugin_function_path: formData.agent_type === 'plugin' ? formData.plugin_function_path : undefined,
         knowledge_base_id: formData.knowledge_base_id,
         llm_config_id: formData.llm_config_id || 0,
         metadata: formData.metadata,

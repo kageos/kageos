@@ -23,6 +23,9 @@ export class StateManagerImpl<T> implements IStateManager<T> {
   
   private subscribers: Set<(state: T) => void> = new Set()
   private watchStopHandle: WatchStopHandle | null = null
+  
+  // 🔥 防重入标志：防止在 setState 中再次调用 setState 导致无限循环
+  private isSettingState: boolean = false
 
   constructor(initialState: T) {
     this.stateRef = shallowRef(initialState)
@@ -40,11 +43,25 @@ export class StateManagerImpl<T> implements IStateManager<T> {
    * 设置状态
    */
   setState(newState: T): void {
-    // 更新 ref 的值，触发 Vue 的响应式更新
-    this.stateRef.value = newState
+    // 🔥 防重入：如果正在设置状态，跳过（防止无限循环）
+    if (this.isSettingState) {
+      Logger.warn('StateManager', '检测到重入的 setState 调用，已跳过以防止无限循环', {
+        stackTrace: new Error().stack
+      })
+      return
+    }
     
-    // 通知手动订阅者（非 Vue 组件）
-    this.notifySubscribers()
+    try {
+      this.isSettingState = true
+      
+      // 更新 ref 的值，触发 Vue 的响应式更新
+      this.stateRef.value = newState
+      
+      // 通知手动订阅者（非 Vue 组件）
+      this.notifySubscribers()
+    } finally {
+      this.isSettingState = false
+    }
   }
 
   /**
@@ -80,7 +97,7 @@ export class StateManagerImpl<T> implements IStateManager<T> {
   private notifySubscribers(): void {
     this.subscribers.forEach(callback => {
       try {
-        callback(this.state)
+        callback(this.stateRef.value)
       } catch (error) {
         Logger.error('StateManager', '订阅者回调执行失败', error)
       }
@@ -101,7 +118,7 @@ export class StateManagerImpl<T> implements IStateManager<T> {
     this.watchStopHandle = watch(
       getter,
       (newState) => {
-        this.state = newState
+        this.stateRef.value = newState
         this.notifySubscribers()
       },
       { deep: true, immediate: true }

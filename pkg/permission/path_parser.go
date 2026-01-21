@@ -10,8 +10,8 @@ import (
 //   - pathParts: ["luobei", "operations", "procurement", "order", "cashier_product_list"]
 //   - user: "luobei"
 //   - app: "operations"
-//   - isFunction: true (路径深度 >= 4)
-func ParseFullCodePath(fullCodePath string) (pathParts []string, user string, app string, isFunction bool) {
+// ⭐ 注意：不返回 isFunction，因为无法通过路径深度判断资源类型，需要通过 ServiceTree 查询确定
+func ParseFullCodePath(fullCodePath string) (pathParts []string, user string, app string) {
 	pathParts = strings.Split(strings.Trim(fullCodePath, "/"), "/")
 	
 	if len(pathParts) >= 2 {
@@ -19,10 +19,7 @@ func ParseFullCodePath(fullCodePath string) (pathParts []string, user string, ap
 		app = pathParts[1]
 	}
 	
-	// 路径深度 >= 4 时，可能是函数（/user/app/dir/function）
-	isFunction = len(pathParts) >= 4
-	
-	return pathParts, user, app, isFunction
+	return pathParts, user, app
 }
 
 // GetParentPaths 获取所有父目录路径（从直接父目录到应用级别）
@@ -56,16 +53,18 @@ func GetAppPath(fullCodePath string) string {
 	return ""
 }
 
-// GetDirectoryPath 获取目录路径（如果是函数，返回父目录；如果是目录，返回自身）
+// GetDirectoryPath 获取目录路径
+// ⭐ 注意：此函数假设路径深度 >= 4 时最后一段是函数名，返回父目录；否则返回自身
+// 实际使用时应该通过 ServiceTree 查询确定资源类型，而不是通过路径深度猜测
 func GetDirectoryPath(fullCodePath string) string {
 	pathParts := strings.Split(strings.Trim(fullCodePath, "/"), "/")
 	if len(pathParts) >= 3 {
-		// 如果是函数（>= 4），返回父目录；如果是目录（= 3），返回自身
+		// ⭐ 警告：这里通过路径深度猜测，不准确！应该通过 ServiceTree 查询确定
+		// 如果路径深度 >= 4，假设最后一段是函数名，返回父目录
 		if len(pathParts) >= 4 {
-			// 函数，返回父目录
 			return "/" + strings.Join(pathParts[:len(pathParts)-1], "/")
 		}
-		// 目录，返回自身
+		// 否则返回自身
 		return "/" + strings.Join(pathParts, "/")
 	}
 	return ""

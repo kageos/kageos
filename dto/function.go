@@ -60,9 +60,7 @@ type GetFunctionGroupInfoResp struct {
 	Description string `json:"description" example:"收银相关的工具函数"`       // 描述信息
 
 	// 快照信息（方便排查问题）
-	FullGroupCode string         `json:"full_group_code" example:"/luobei/testgroup/plugins/tools_cashier"` // 完整函数组代码
-	GroupCode     string         `json:"group_code" example:"tools_cashier"`                                // 函数组代码
-	GroupName     string         `json:"group_name" example:"收银工具"`                                         // 函数组名称
+	// FullGroupCode、GroupCode 和 GroupName 已移除，不再需要
 	FullPath      string         `json:"full_path" example:"/luobei/testgroup/plugins"`                     // 完整路径
 	Version       string         `json:"version" example:"v1"`                                              // 版本号
 	AppID         int64          `json:"app_id" example:"123"`                                              // 应用ID

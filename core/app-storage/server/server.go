@@ -113,18 +113,8 @@ func (s *Server) initDatabase(ctx context.Context) error {
 
 	// 配置 GORM 日志
 	gormConfig := &gorm.Config{}
-	var logLevel gormLogger.LogLevel
-	switch dbCfg.LogLevel {
-	case "error":
-		logLevel = gormLogger.Error
-	case "warn":
-		logLevel = gormLogger.Warn
-	case "info":
-		logLevel = gormLogger.Info
-	default:
-		logLevel = gormLogger.Warn
-	}
-	gormConfig.Logger = gormLogger.Default.LogMode(logLevel)
+	// 关闭 GORM 控制台日志
+	gormConfig.Logger = gormLogger.Default.LogMode(gormLogger.Silent)
 
 	var err error
 	switch dbCfg.Type {
@@ -146,7 +136,7 @@ func (s *Server) initDatabase(ctx context.Context) error {
 	}
 
 	logger.Infof(ctx, "[Server] Database initialized successfully")
-	logger.Infof(ctx, "[Server] Tables created: file_uploads, file_downloads, file_metadata, file_references")
+	logger.Infof(ctx, "[Server] Tables created: file_uploads, file_downloads")
 	return nil
 }
 

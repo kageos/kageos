@@ -1,0 +1,382 @@
+basePath: /api/v1/hub
+definitions:
+  dto.HubAppDTO:
+    properties:
+      category:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      download_count:
+        description: 统计信息
+        type: integer
+      id:
+        type: integer
+      name:
+        description: 基本信息
+        type: string
+      published_at:
+        type: string
+      publisher_username:
+        description: 发布信息
+        type: string
+      rating:
+        type: number
+      service_fee_enterprise:
+        type: number
+      service_fee_personal:
+        description: 服务费信息
+        type: number
+      source_app:
+        type: string
+      source_type:
+        description: 源应用信息
+        type: string
+      source_url:
+        type: string
+      source_user:
+        type: string
+      tags:
+        description: 标签数组
+        items:
+          type: string
+        type: array
+      trial_count:
+        type: integer
+      updated_at:
+        type: string
+      version:
+        description: 版本信息
+        type: string
+    type: object
+  dto.HubAppListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/dto.HubAppDTO'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+    type: object
+  dto.PackageSourceCode:
+    properties:
+      full_group_code:
+        description: 完整函数组代码，如：/luobei/demo/plugins/cashier
+        type: string
+      package:
+        description: 函数组路径，如：plugins/cashier
+        type: string
+      source_code:
+        description: Go 源代码内容
+        type: string
+    type: object
+  dto.PublishHubAppRequest:
+    properties:
+      api_key:
+        description: API Key（私有化部署需要）
+        type: string
+      category:
+        description: 分类
+        type: string
+      description:
+        description: 应用描述
+        type: string
+      name:
+        description: 应用名称
+        type: string
+      packages:
+        description: 函数组源代码列表（前端已获取）
+        items:
+          $ref: '#/definitions/dto.PackageSourceCode'
+        type: array
+      service_fee_enterprise:
+        description: 企业用户服务费
+        type: number
+      service_fee_personal:
+        description: 个人用户服务费
+        type: number
+      source_app:
+        description: 源应用
+        type: string
+      source_user:
+        description: 源用户
+        type: string
+      tags:
+        description: 标签
+        items:
+          type: string
+        type: array
+      version:
+        description: 版本号
+        type: string
+    type: object
+  dto.PublishHubAppResponse:
+    properties:
+      hub_app_id:
+        type: integer
+      hub_app_url:
+        type: string
+    type: object
+  dto.UpdateHubAppRequest:
+    properties:
+      category:
+        type: string
+      description:
+        type: string
+      hub_app_id:
+        description: Hub 应用ID
+        type: integer
+      name:
+        type: string
+      service_fee_enterprise:
+        type: number
+      service_fee_personal:
+        type: number
+      tags:
+        items:
+          type: string
+        type: array
+      version:
+        type: string
+    type: object
+externalDocs:
+  description: OpenAPI
+  url: https://swagger.io/resources/open-api/
+host: localhost:9094
+info:
+  contact:
+    email: support@swagger.io
+    name: API Support
+    url: http://www.swagger.io/support
+  description: Hub 应用市场 API 文档
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: Hub API
+  version: "1.0"
+paths:
+  /api/v1/hub/hub_apps:
+    get:
+      consumes:
+      - application/json
+      description: 获取 Hub 应用市场中的应用列表，支持分页、搜索、分类筛选
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - description: 搜索关键词（名称或描述）
+        in: query
+        name: search
+        type: string
+      - description: 分类
+        in: query
+        name: category
+        type: string
+      - description: 发布者用户名
+        in: query
+        name: publisher_username
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            $ref: '#/definitions/dto.HubAppListResponse'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      summary: 获取 Hub 应用列表
+      tags:
+      - Hub 应用管理
+  /api/v1/hub_apps/delete:
+    delete:
+      consumes:
+      - application/json
+      description: 删除 Hub 应用市场中的应用（软删除）
+      parameters:
+      - description: JWT Token
+        in: header
+        name: X-Token
+        required: true
+        type: string
+      - description: Hub 应用ID
+        in: query
+        name: hub_app_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            type: string
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "401":
+          description: 未授权
+          schema:
+            type: string
+        "404":
+          description: Hub 应用不存在
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: 删除 Hub 应用
+      tags:
+      - Hub 应用管理
+  /api/v1/hub_apps/detail:
+    get:
+      consumes:
+      - application/json
+      description: 根据 Hub 应用ID获取应用详细信息
+      parameters:
+      - description: Hub 应用ID
+        in: query
+        name: hub_app_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            $ref: '#/definitions/dto.HubAppDTO'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "404":
+          description: Hub 应用不存在
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      summary: 获取 Hub 应用详情
+      tags:
+      - Hub 应用管理
+  /api/v1/hub_apps/publish:
+    post:
+      consumes:
+      - application/json
+      description: 将应用发布到 Hub 市场，支持 SaaS 和私有化部署两种类型
+      parameters:
+      - description: JWT Token
+        in: header
+        name: X-Token
+        required: true
+        type: string
+      - description: 发布 Hub 应用请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.PublishHubAppRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 发布成功
+          schema:
+            $ref: '#/definitions/dto.PublishHubAppResponse'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "401":
+          description: 未授权
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: 发布 Hub 应用
+      tags:
+      - Hub 应用管理
+  /api/v1/hub_apps/update:
+    put:
+      consumes:
+      - application/json
+      description: 更新 Hub 应用信息，支持更新名称、描述、分类、标签、服务费等
+      parameters:
+      - description: JWT Token
+        in: header
+        name: X-Token
+        required: true
+        type: string
+      - description: Hub 应用ID（可选，如果 body 中有则不需要）
+        in: query
+        name: hub_app_id
+        type: integer
+      - description: 更新 Hub 应用请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateHubAppRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            type: string
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "401":
+          description: 未授权
+          schema:
+            type: string
+        "404":
+          description: Hub 应用不存在
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: 更新 Hub 应用
+      tags:
+      - Hub 应用管理
+securityDefinitions:
+  ApiKeyAuth:
+    in: header
+    name: X-Token
+    type: apiKey
+swagger: "2.0"

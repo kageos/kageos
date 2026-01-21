@@ -7,7 +7,7 @@ import (
 
 // UserSession 用户会话记录
 type UserSession struct {
-	ID        int64          `json:"id" gorm:"primary_key"`
+	ID        int64          `json:"id" gorm:"primaryKey;autoIncrement"`
 	CreatedAt models.Time    `json:"created_at" gorm:"column:created_at;autoCreateTime"`
 	UpdatedAt models.Time    `json:"updated_at" gorm:"column:updated_at;autoUpdateTime"`
 	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
@@ -19,9 +19,6 @@ type UserSession struct {
 	UserAgent    string      `json:"user_agent" gorm:"column:user_agent;type:varchar(500)"`
 	IPAddress    string      `json:"ip_address" gorm:"column:ip_address;type:varchar(45)"`
 	IsActive     bool        `json:"is_active" gorm:"column:is_active;type:boolean;default:true"`
-
-	// 关联字段
-	User *User `json:"user" gorm:"foreignKey:UserID;references:ID"`
 }
 
 func (UserSession) TableName() string {

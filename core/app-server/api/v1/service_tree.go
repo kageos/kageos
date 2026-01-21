@@ -13,14 +13,12 @@ import (
 
 type ServiceTree struct {
 	serviceTreeService *service.ServiceTreeService
-	functionGenService *service.FunctionGenService // 仅用于异步处理
 }
 
 // NewServiceTree 创建 ServiceTree 处理器（依赖注入）
-func NewServiceTree(serviceTreeService *service.ServiceTreeService, functionGenService *service.FunctionGenService) *ServiceTree {
+func NewServiceTree(serviceTreeService *service.ServiceTreeService) *ServiceTree {
 	return &ServiceTree{
 		serviceTreeService: serviceTreeService,
-		functionGenService: functionGenService,
 	}
 }
 
@@ -401,16 +399,13 @@ func (s *ServiceTree) AddFunctions(c *gin.Context) {
 		// 异步模式：返回已接收，后台处理，通过回调通知
 		go func() {
 			// 异步处理，不等待结果
-			_ = s.functionGenService.ProcessFunctionGenResultAsync(ctx, &req)
+			_ = s.serviceTreeService.ProcessFunctionGenResult(ctx, &req)
 		}()
 
-		// 立即返回已接收（使用 202 Accepted 状态码表示已接受但未处理完成）
-		c.JSON(202, map[string]interface{}{
-			"code":    0,
-			"message": "函数添加请求已接收，正在异步处理",
-			"data": map[string]interface{}{
-				"record_id": req.RecordID,
-			},
+		// 立即返回已接收（使用 200 OK 状态码，因为 callAPI 只接受 200）
+		response.OkWithData(c, &dto.AddFunctionsAsyncResp{
+			RecordID: req.RecordID,
+			Message:  "函数添加请求已接收，正在异步处理",
 		})
 	} else {
 		// 同步模式：等待处理完成，直接返回结果
@@ -482,6 +477,53 @@ func (s *ServiceTree) PullDirectoryFromHub(c *gin.Context) {
 	resp, err := s.serviceTreeService.PullDirectoryFromHub(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
+		return
+	}
+
+	response.OkWithData(c, resp)
+}
+
+// SearchFunctions 搜索函数
+// @Summary 搜索函数
+// @Description 根据关键词、类型等条件搜索函数，支持分页
+// @Tags 服务目录
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Param user query string false "用户名（可选，用于过滤应用）"
+// @Param app query string false "应用名（可选，用于过滤应用）"
+// @Param keyword query string false "搜索关键词（可选，用于搜索名称和路径）"
+// @Param template_type query string false "模板类型过滤（可选，如：form、table、chart）"
+// @Param page query int true "页码" default(1)
+// @Param page_size query int true "每页数量" default(10)
+// @Success 200 {object} dto.SearchFunctionsResp "搜索成功"
+// @Failure 400 {string} string "请求参数错误"
+// @Failure 401 {string} string "未授权"
+// @Failure 500 {string} string "服务器内部错误"
+// @Router /api/v1/service_tree/search_functions [get]
+func (s *ServiceTree) SearchFunctions(c *gin.Context) {
+	var req dto.SearchFunctionsReq
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.FailWithMessage(c, "参数错误: "+err.Error())
+		return
+	}
+
+	// 验证分页参数
+	if req.Page <= 0 {
+		req.Page = 1
+	}
+	if req.PageSize <= 0 {
+		req.PageSize = 10
+	}
+	if req.PageSize > 100 {
+		req.PageSize = 100 // 限制最大每页数量
+	}
+
+	ctx := contextx.ToContext(c)
+	resp, err := s.serviceTreeService.SearchFunctions(ctx, &req)
+	if err != nil {
+		response.FailWithMessage(c, "搜索函数失败: "+err.Error())
 		return
 	}
 

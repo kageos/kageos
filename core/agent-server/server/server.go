@@ -155,33 +155,8 @@ func (s *Server) initDatabase(ctx context.Context) error {
 
 	// 配置 GORM 日志
 	gormConfig := &gorm.Config{}
-
-	// 如果启用了数据库日志
-	if dbCfg.LogLevel != "silent" {
-		var logLevel gormLogger.LogLevel
-		switch dbCfg.LogLevel {
-		case "error":
-			logLevel = gormLogger.Error
-		case "warn":
-			logLevel = gormLogger.Warn
-		case "info":
-			logLevel = gormLogger.Info
-		default:
-			logLevel = gormLogger.Warn
-		}
-
-		// 配置慢查询阈值
-		slowThreshold := time.Duration(dbCfg.SlowThreshold) * time.Millisecond
-		if slowThreshold == 0 {
-			slowThreshold = 200 * time.Millisecond // 默认200毫秒
-		}
-
-		// 使用 GORM 默认日志配置
-		gormConfig.Logger = gormLogger.Default.LogMode(logLevel)
-	} else {
-		// 禁用日志
-		gormConfig.Logger = gormLogger.Default.LogMode(gormLogger.Silent)
-	}
+	// 关闭 GORM 控制台日志
+	gormConfig.Logger = gormLogger.Default.LogMode(gormLogger.Silent)
 
 	var err error
 	switch dbCfg.Type {
@@ -306,13 +281,13 @@ func (s *Server) initServices(ctx context.Context) error {
 	s.functionGroupAgentRepo = repository.NewFunctionGroupAgentRepository(s.db)
 
 	// 初始化 Service
-	s.agentService = service.NewAgentService(s.agentRepo, s.pluginRepo, s.knowledgeRepo)
+	s.agentService = service.NewAgentService(s.agentRepo, s.knowledgeRepo)
 	s.pluginService = service.NewPluginService(s.pluginRepo)
 	s.knowledgeService = service.NewKnowledgeService(s.knowledgeRepo)
 	s.llmService = service.NewLLMService(s.llmRepo)
 
 	// 先初始化函数生成服务（因为 agentChatService 依赖它）
-	s.functionGenService = service.NewFunctionGenService(s.natsConn, s.cfg, s.functionGenRepo)
+	s.functionGenService = service.NewFunctionGenService(s.cfg, s.functionGenRepo)
 
 	// 初始化智能体聊天服务（传入 functionGenService）
 	s.agentChatService = service.NewAgentChatService(s.agentRepo, s.llmRepo, s.knowledgeRepo, s.functionGenService, sessionRepo, messageRepo, s.functionGenRepo)
@@ -358,8 +333,8 @@ func (s *Server) GetDB() *gorm.DB {
 func (s *Server) HandleFunctionGenCallback(c *gin.Context, callback *dto.FunctionGenCallback) {
 	ctx := contextx.ToContext(c)
 
-	logger.Infof(ctx, "[Server] 收到回调消息 (HTTP) - RecordID: %d, MessageID: %d, Success: %v, FullGroupCodes: %v, AppCode: %s",
-		callback.RecordID, callback.MessageID, callback.Success, callback.FullGroupCodes, callback.AppCode)
+	logger.Infof(ctx, "[Server] 收到回调消息 (HTTP) - RecordID: %d, MessageID: %d, Success: %v, FullCodePaths: %v, AppCode: %s",
+		callback.RecordID, callback.MessageID, callback.Success, callback.FullCodePaths, callback.AppCode)
 
 	// 调用 Service 层处理
 	if err := s.functionGenService.ProcessFunctionGenCallback(ctx, callback); err != nil {

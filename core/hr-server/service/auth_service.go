@@ -264,3 +264,45 @@ func (s *AuthService) saveUserSessionWithExpire(userID int64, token, refreshToke
 
 	return nil
 }
+
+// GetUserByEmail 根据邮箱获取用户
+func (s *AuthService) GetUserByEmail(email string) (*model.User, error) {
+	user, err := s.userRepo.GetUserByEmail(email)
+	if err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
+// GeneratePasswordResetToken 生成密码重置token
+func (s *AuthService) GeneratePasswordResetToken(userID int64, username, email string) (string, error) {
+	return s.jwtService.GeneratePasswordResetToken(userID, username, email)
+}
+
+// ResetPasswordByEmail 通过邮箱重置密码（简化版，用于测试阶段）
+func (s *AuthService) ResetPasswordByEmail(email, newPassword string) error {
+	// 获取用户信息
+	user, err := s.userRepo.GetUserByEmail(email)
+	if err != nil {
+		logger.Errorf(nil, "[AuthService] Failed to get user by email %s: %v", email, err)
+		return fmt.Errorf("用户不存在")
+	}
+
+	// 加密新密码
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		logger.Errorf(nil, "[AuthService] Failed to hash password: %v", err)
+		return fmt.Errorf("密码加密失败")
+	}
+
+	// 更新用户密码
+	user.PasswordHash = string(hashedPassword)
+	err = s.userRepo.UpdateUser(user)
+	if err != nil {
+		logger.Errorf(nil, "[AuthService] Failed to update user password: %v", err)
+		return fmt.Errorf("密码更新失败")
+	}
+
+	logger.Infof(nil, "[AuthService] Password reset successfully for user: %s", user.Username)
+	return nil
+}

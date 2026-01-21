@@ -12,9 +12,18 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/llms"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
+
+// getFilesCount 获取文件数量（辅助函数）
+func getFilesCount(files *types.Files) int {
+	if files == nil {
+		return 0
+	}
+	return len(files.Files)
+}
 
 // FunctionGenChat 函数生成智能体聊天（完整的对话流程）
 func (s *AgentChatService) FunctionGenChat(ctx context.Context, req *dto.FunctionGenAgentChatReq) (*dto.FunctionGenAgentChatResp, error) {
@@ -209,7 +218,7 @@ func (s *AgentChatService) getAndValidateSession(ctx context.Context, sessionID,
 // saveUserMessage 保存用户消息
 func (s *AgentChatService) saveUserMessage(ctx context.Context, req *dto.FunctionGenAgentChatReq, sessionID, user, traceId string) (*model.AgentChatMessage, error) {
 	logger.Debugf(ctx, "[FunctionGenChat] 保存用户消息 - SessionID: %s, AgentID: %d, ContentLength: %d, FilesCount: %d, TraceID: %s",
-		sessionID, req.AgentID, len(req.Message.Content), len(req.Message.Files), traceId)
+		sessionID, req.AgentID, len(req.Message.Content), getFilesCount(req.Message.Files), traceId)
 
 	userMessage := &model.AgentChatMessage{
 		SessionID: sessionID,
@@ -220,7 +229,7 @@ func (s *AgentChatService) saveUserMessage(ctx context.Context, req *dto.Functio
 	}
 
 	// 处理文件列表
-	if len(req.Message.Files) > 0 {
+	if req.Message.Files != nil && len(req.Message.Files.Files) > 0 {
 		filesJSON, err := json.Marshal(req.Message.Files)
 		if err != nil {
 			logger.Errorf(ctx, "[FunctionGenChat] 序列化文件列表失败 - SessionID: %s, TraceID: %s, Error: %v", sessionID, traceId, err)
@@ -336,26 +345,22 @@ func (s *AgentChatService) buildSystemMessage(ctx context.Context, req *dto.Func
 		systemPromptContent.WriteString(knowledgeContent.String())
 	}
 
-	// 3. 添加 Package 上下文
-	if req.Package != "" {
-		systemPromptContent.WriteString(fmt.Sprintf("\n\n当前 Package 上下文：%s", req.Package))
-		logger.Infof(ctx, "[FunctionGenChat] Package 上下文已添加 - Package: %s, TraceID: %s", req.Package, traceId)
-	} else {
-		logger.Warnf(ctx, "[FunctionGenChat] Package 信息为空 - TreeID: %d, TraceID: %s", req.TreeID, traceId)
-	}
-
-	// 4. 添加已存在文件的上下文
-	if len(req.ExistingFiles) > 0 {
-		systemPromptContent.WriteString("\n\n## 已存在的文件\n当前 Package 下已存在以下文件（不含 .go 后缀）：\n")
-		for _, fileName := range req.ExistingFiles {
-			systemPromptContent.WriteString(fmt.Sprintf("- %s.go\n", fileName))
+	// 3. 添加已存在的子目录上下文（用于告诉模型已存在的目录）
+	// ⭐ 不再传递 Package 上下文，因为 package 名称应该由元数据中的 directory_code 决定
+	// ⭐ 改为传递已存在的子目录列表（由前端传递），格式如：ticket:工单管理
+	if len(req.ExistingDirectories) > 0 {
+		systemPromptContent.WriteString("\n\n## 当前目录下已存在的子目录\n当前目录下已存在以下子目录（格式：目录代码:目录名称）：\n")
+		for _, dir := range req.ExistingDirectories {
+			systemPromptContent.WriteString(fmt.Sprintf("- %s:%s\n", dir.Code, dir.Name))
 		}
-		systemPromptContent.WriteString("\n**重要**：生成代码时，请确保文件名唯一，不要与已存在的文件重名。如果生成的文件名与已存在的文件冲突，请修改文件名（例如：添加后缀或使用不同的名称）。\n")
-		logger.Infof(ctx, "[FunctionGenChat] 已存在文件上下文已添加 - FilesCount: %d, Files: %v, TraceID: %s", len(req.ExistingFiles), req.ExistingFiles, traceId)
+		systemPromptContent.WriteString("\n**重要**：生成代码时，请确保 `directory_code` 唯一，不要与已存在的子目录重名。如果生成的 `directory_code` 与已存在的子目录冲突，请修改 `directory_code`（例如：添加后缀或使用不同的名称）。\n")
+		logger.Infof(ctx, "[FunctionGenChat] 已存在子目录上下文已添加 - DirectoriesCount: %d, Directories: %v, TraceID: %s", len(req.ExistingDirectories), req.ExistingDirectories, traceId)
+	} else {
+		logger.Infof(ctx, "[FunctionGenChat] 当前目录下没有子目录 - TreeID: %d, TraceID: %s", req.TreeID, traceId)
 	}
 
-	logger.Infof(ctx, "[FunctionGenChat] System message 构建完成 - SystemPromptLength: %d, KnowledgeLength: %d, PackageContext: %s, TotalLength: %d, TraceID: %s",
-		len(template), knowledgeContent.Len(), req.Package, systemPromptContent.Len(), traceId)
+	logger.Infof(ctx, "[FunctionGenChat] System message 构建完成 - SystemPromptLength: %d, KnowledgeLength: %d, TotalLength: %d, TraceID: %s",
+		len(template), knowledgeContent.Len(), systemPromptContent.Len(), traceId)
 
 	return llms.Message{
 		Role:    "system",
@@ -370,19 +375,12 @@ func (s *AgentChatService) processPlugin(ctx context.Context, req *dto.FunctionG
 	}
 
 	logger.Infof(ctx, "[FunctionGenChat] 调用 Plugin - AgentID: %d, MessageLength: %d, FilesCount: %d, TraceID: %s",
-		agent.ID, len(req.Message.Content), len(req.Message.Files), traceId)
+		agent.ID, len(req.Message.Content), getFilesCount(req.Message.Files), traceId)
 
-	// 构建 plugin 请求
-	pluginFiles := make([]dto.PluginFile, 0, len(req.Message.Files))
-	for _, f := range req.Message.Files {
-		pluginFiles = append(pluginFiles, dto.PluginFile{
-			Url:    f.Url,
-			Remark: f.Remark,
-		})
-	}
+	// 构建 plugin 请求（直接使用 types.Files）
 	pluginReq := &dto.PluginRunReq{
-		Message: req.Message.Content,
-		Files:   pluginFiles,
+		Content: req.Message.Content,
+		Files:   req.Message.Files, // 直接传递 types.Files
 	}
 
 	// 调用 plugin
@@ -526,57 +524,57 @@ func (s *AgentChatService) asyncCallLLM(ctx context.Context, req *dto.FunctionGe
 
 	go func() {
 		// 创建带超时的子 context
-		llmTimeout := time.Duration(llmConfig.Timeout) * time.Second
-		if llmTimeout <= 0 {
-			llmTimeout = 600 * time.Second
-		}
-		asyncCtx, cancel := context.WithTimeout(context.Background(), llmTimeout)
-		defer cancel()
+		//llmTimeout := time.Duration(llmConfig.Timeout) * time.Second
+		//if llmTimeout <= 0 {
+		//	llmTimeout = 600 * time.Second
+		//}
+		//asyncCtx, cancel := context.WithTimeout(context.Background(), llmTimeout)
+		//defer cancel()
 
-		logger.Infof(asyncCtx, "[FunctionGenChat] 开始调用 LLM - RecordID: %d, Provider: %s, Model: %s, Timeout: %v, MessagesCount: %d, TraceID: %s",
-			record.ID, llmConfig.Provider, llmConfig.Model, llmTimeout, len(chatReq.Messages), traceId)
+		//logger.Infof(ctx, "[FunctionGenChat] 开始调用 LLM - RecordID: %d, Provider: %s, Model: %s, Timeout: %v, MessagesCount: %d, TraceID: %s",
+		//	record.ID, llmConfig.Provider, llmConfig.Model, llmTimeout, len(chatReq.Messages), traceId)
 
 		// 调用 LLM
-		resp, err := client.Chat(asyncCtx, chatReq)
+		resp, err := client.Chat(ctx, chatReq)
 		if err != nil {
-			logger.Errorf(asyncCtx, "[FunctionGen] LLM调用失败: %v, RecordID: %d, AgentID: %d, TraceID: %s",
+			logger.Errorf(ctx, "[FunctionGen] LLM调用失败: %v, RecordID: %d, AgentID: %d, TraceID: %s",
 				err, record.ID, req.AgentID, traceId)
 			s.functionGenRepo.UpdateStatus(record.ID, model.FunctionGenStatusFailed, err.Error())
 			return
 		}
 
 		// 保存 assistant 消息
-		s.saveAssistantMessage(asyncCtx, sessionID, req.AgentID, resp.Content, user, record.ID, traceId)
+		s.saveAssistantMessage(ctx, sessionID, req.AgentID, resp.Content, user, record.ID, traceId)
 
 		// 提取代码
 		extractedCode := s.extractCodeFromLLMResponse(resp.Content)
-		logger.Infof(asyncCtx, "[FunctionGen] 代码提取完成 - 原始长度: %d, 提取后长度: %d, RecordID: %d, TraceID: %s",
+		logger.Infof(ctx, "[FunctionGen] 代码提取完成 - 原始长度: %d, 提取后长度: %d, RecordID: %d, TraceID: %s",
 			len(resp.Content), len(extractedCode), record.ID, traceId)
 
 		// 更新记录
 		if err := s.functionGenRepo.UpdateCode(record.ID, extractedCode); err != nil {
-			logger.Errorf(asyncCtx, "[FunctionGen] 更新代码失败: %v, RecordID: %d, TraceID: %s", err, record.ID, traceId)
+			logger.Errorf(ctx, "[FunctionGen] 更新代码失败: %v, RecordID: %d, TraceID: %s", err, record.ID, traceId)
 		}
-		logger.Infof(asyncCtx, "[FunctionGen] 代码已保存，等待 app-server 处理 - RecordID: %d, TraceID: %s", record.ID, traceId)
 
+		// ⭐ 直接传递代码和父目录 TreeID，让 app-server 处理元数据解析和目录创建
 		// 发布结果到 app-server
 		resultData := &dto.AddFunctionsReq{
-			RecordID:  record.ID,
-			MessageID: record.MessageID,
-			AgentID:   req.AgentID,
-			TreeID:    req.TreeID,
-			User:      user,
-			Code:      extractedCode,
+			RecordID:   record.ID,
+			MessageID:  record.MessageID,
+			AgentID:    req.AgentID,
+			TreeID:     req.TreeID,    // 父目录ID，app-server 会根据元数据创建子目录
+			User:       user,          // 当前用户
+			SourceCode: extractedCode, // 传递完整代码，app-server 会解析元数据
 		}
 
-		logger.Infof(asyncCtx, "[FunctionGenChat] 发布结果到 app-server - RecordID: %d, CodeLength: %d, TraceID: %s",
-			record.ID, len(resultData.Code), traceId)
-		if err := s.functionGenService.PublishResult(asyncCtx, resultData, traceId, user); err != nil {
-			logger.Errorf(asyncCtx, "[FunctionGenChat] 发布结果失败 - RecordID: %d, TraceID: %s, Error: %v", record.ID, traceId, err)
+		logger.Infof(ctx, "[FunctionGenChat] 提交生成的代码到 app-server - RecordID: %d, SourceCodeLength: %d, TraceID: %s",
+			record.ID, len(resultData.SourceCode), traceId)
+		if err := s.functionGenService.SubmitGeneratedCodeTask(ctx, resultData); err != nil {
+			logger.Errorf(ctx, "[FunctionGenChat] 提交代码失败 - RecordID: %d, TraceID: %s, Error: %v", record.ID, traceId, err)
 			s.functionGenRepo.UpdateStatus(record.ID, model.FunctionGenStatusFailed, err.Error())
 			return
 		}
-		logger.Infof(asyncCtx, "[FunctionGenChat] 结果已发布 - RecordID: %d, TraceID: %s", record.ID, traceId)
+		logger.Infof(ctx, "[FunctionGenChat] 代码已提交 - RecordID: %d, TraceID: %s", record.ID, traceId)
 	}()
 }
 
@@ -638,4 +636,3 @@ func (s *AgentChatService) extractCodeFromLLMResponse(content string) string {
 	// 如果没有找到代码块，返回原始内容
 	return content
 }
-

@@ -35,7 +35,7 @@
               @click="handleToggleMode('edit')"
             >
               <el-icon><component :is="canEdit ? Edit : Lock" /></el-icon>
-              {{ canEdit ? '编辑' : '编辑（需权限）' }}
+              {{ canEdit ? '编辑' : `编辑（需${getPermissionShortName('function:update')}）` }}
             </el-button>
             <el-button
               v-if="mode === 'edit'"
@@ -292,21 +292,38 @@
               />
             </div>
           </el-tab-pane>
+
+          <!-- 权限申请 tab（仅管理员可见） -->
+          <el-tab-pane v-if="showPermissionRequestTab" label="权限申请" name="permissionRequest">
+            <div class="tab-content">
+              <PermissionRequestList
+                ref="permissionRequestListRef"
+                :resource-path="fullCodePath"
+                :auto-load="activeTab === 'permissionRequest'"
+              />
+            </div>
+          </el-tab-pane>
         </el-tabs>
       </div>
 
       <!-- 编辑模式（复用 FormRenderer） -->
       <div v-else class="edit-form-wrapper" v-loading="submitting">
         <FormView
-          v-if="editFunctionDetail && mode === 'edit'"
+          v-if="editFunctionDetail && mode === 'edit' && Object.keys(filteredInitialData).length > 0"
           ref="formViewRef"
-          :key="`detail-edit-${rowData?.id || ''}-${mode}`"
+          :key="`detail-edit-${rowData?.id || ''}-${mode}-${editFunctionDetail?.router || ''}-${editFunctionDetail?.id || ''}`"
           :function-detail="editFunctionDetail"
           :initial-data="filteredInitialData"
           :show-submit-button="false"
           :show-reset-button="false"
         />
         <el-empty v-else-if="!editFunctionDetail" description="无法构建编辑表单" />
+        <div v-else-if="editFunctionDetail && Object.keys(filteredInitialData).length === 0" class="form-loading">
+          <el-skeleton :rows="5" animated />
+          <div style="text-align: center; margin-top: 16px; color: var(--el-text-color-secondary);">
+            正在加载编辑表单数据...
+          </div>
+        </div>
         <div v-else class="form-loading">
           <el-skeleton :rows="5" animated />
         </div>
@@ -325,13 +342,16 @@
 import { ref, computed, nextTick, watch } from 'vue'
 import { Edit, ArrowLeft, ArrowRight, Grid, List, Lock } from '@element-plus/icons-vue'
 import { ElMessage, ElTabs, ElTabPane } from 'element-plus'
-import { useRouter } from 'vue-router'
-import { buildPermissionApplyURL } from '@/utils/permission'
+import { useRouter, useRoute } from 'vue-router'
+import { buildPermissionApplyURL, getPermissionShortName } from '@/utils/permission'
 import FormView from '@/architecture/presentation/views/FormView.vue'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
 import LinkWidget from '@/architecture/presentation/widgets/LinkWidget.vue'
 import OperateLogSection from '@/components/OperateLogSection.vue'
+import PermissionRequestList from '@/components/Permission/PermissionRequestList.vue'
 import { WidgetType } from '@/core/constants/widget'
+import { Logger } from '@/core/utils/logger'
+import { useAuthStore } from '@/stores/auth'
 import type { FieldConfig, FieldValue } from '../../domain/types'
 import type { FunctionDetail } from '../../domain/interfaces/IFunctionLoader'
 
@@ -371,6 +391,7 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<Emits>()
 
 const router = useRouter()
+const authStore = useAuthStore()
 
 const formViewRef = ref<InstanceType<typeof FormView> | null>(null)
 const isFormViewReady = ref(false)
@@ -421,12 +442,37 @@ const toggleDetailLayout = (): void => {
 // Tab 相关
 const activeTab = ref('detail')
 const operateLogSectionRef = ref<InstanceType<typeof OperateLogSection> | null>(null)
+const permissionRequestListRef = ref<InstanceType<typeof PermissionRequestList> | null>(null)
+
+// ⭐ 判断是否显示权限申请 tab
+// 条件：1. 节点类型是 package 或 function  2. 用户是管理员
+const showPermissionRequestTab = computed(() => {
+  if (!props.currentFunction) {
+    return false
+  }
+  
+  // 必须是 package 或 function 类型
+  if (props.currentFunction.type !== 'package' && props.currentFunction.type !== 'function') {
+    return false
+  }
+  
+  // 检查是否是管理员
+  if (!props.currentFunction.admins || !authStore.user?.username) {
+    return false
+  }
+  
+  const admins = props.currentFunction.admins.split(',').map((a: string) => a.trim()).filter(Boolean)
+  return admins.includes(authStore.user.username)
+})
 
 // 处理 tab 切换
 const handleTabChange = (tabName: string) => {
   if (tabName === 'operateLog' && operateLogSectionRef.value) {
     // 切换到操作日志 tab 时，触发加载
     operateLogSectionRef.value.load()
+  } else if (tabName === 'permissionRequest' && permissionRequestListRef.value) {
+    // 切换到权限申请 tab 时，触发加载
+    permissionRequestListRef.value.loadRequests()
   }
 }
 
@@ -436,6 +482,24 @@ watch(
   () => {
     activeTab.value = 'detail'
   }
+)
+
+// ⭐ 监听路由 query 参数，支持通过 tab 参数指定要打开的 tab
+const route = useRoute()
+watch(
+  () => route.query.tab,
+  (tab) => {
+    if (tab === 'permissionRequest' && showPermissionRequestTab.value) {
+      activeTab.value = 'permissionRequest'
+      // 切换 tab 时触发加载
+      nextTick(() => {
+        if (permissionRequestListRef.value) {
+          permissionRequestListRef.value.loadRequests()
+        }
+      })
+    }
+  },
+  { immediate: true }
 )
 
 // 监听 formViewRef 的变化
@@ -452,6 +516,29 @@ watch(() => props.mode, (newMode) => {
     isFormViewReady.value = false
   }
 })
+
+// ⭐ 监听 editFunctionDetail 和 rowData 变化，确保数据准备好后再渲染 FormView
+watch([() => props.editFunctionDetail, () => props.rowData, () => props.mode], async () => {
+  if (props.mode === 'edit' && props.editFunctionDetail && props.rowData) {
+    Logger.debug('[TableRowDetailDrawer] watch 触发，检查 editFunctionDetail 和 rowData', {
+      hasEditFunctionDetail: !!props.editFunctionDetail,
+      hasRequest: !!(props.editFunctionDetail?.request),
+      requestLength: props.editFunctionDetail?.request?.length || 0,
+      hasRowData: !!props.rowData,
+      rowDataKeys: props.rowData ? Object.keys(props.rowData) : [],
+      filteredInitialDataKeys: Object.keys(filteredInitialData.value),
+      filteredInitialDataCount: Object.keys(filteredInitialData.value).length
+    })
+    // 等待 filteredInitialData 准备好
+    await nextTick()
+    // 如果 filteredInitialData 为空，说明 editFunctionDetail.request 可能还没准备好
+    // 这种情况下，FormView 不会渲染（因为 v-if 条件不满足）
+    Logger.debug('[TableRowDetailDrawer] watch 完成，filteredInitialData 状态', {
+      filteredInitialDataKeys: Object.keys(filteredInitialData.value),
+      filteredInitialDataCount: Object.keys(filteredInitialData.value).length
+    })
+  }
+}, { immediate: true })
 
 const visible = computed({
   get: () => props.visible,
@@ -541,6 +628,13 @@ const getFieldValue = (fieldCode: string): FieldValue => {
  */
 const filteredInitialData = computed(() => {
   if (!props.rowData || !props.editFunctionDetail || !props.editFunctionDetail.request) {
+    Logger.debug('[TableRowDetailDrawer] filteredInitialData 为空', {
+      hasRowData: !!props.rowData,
+      hasEditFunctionDetail: !!props.editFunctionDetail,
+      hasRequest: !!(props.editFunctionDetail?.request),
+      requestLength: props.editFunctionDetail?.request?.length || 0,
+      rowDataKeys: props.rowData ? Object.keys(props.rowData) : []
+    })
     return {}
   }
   
@@ -553,6 +647,14 @@ const filteredInitialData = computed(() => {
     if (editableFieldCodes.has(key)) {
       filtered[key] = props.rowData[key]
     }
+  })
+  
+  Logger.debug('[TableRowDetailDrawer] filteredInitialData 计算完成', {
+    editableFieldCodes: Array.from(editableFieldCodes),
+    filteredKeys: Object.keys(filtered),
+    filteredCount: Object.keys(filtered).length,
+    rowDataKeys: Object.keys(props.rowData),
+    filteredData: JSON.parse(JSON.stringify(filtered)) // 深拷贝以便在日志中查看
   })
   
   return filtered
@@ -649,20 +751,81 @@ const rowId = computed(() => {
   return 0
 })
 
-const handleToggleMode = (newMode: 'read' | 'edit') => {
+const handleToggleMode = async (newMode: 'read' | 'edit') => {
   // 如果尝试进入编辑模式但没有权限，跳转到权限申请页面
   if (newMode === 'edit' && !props.canEdit) {
     const path = fullCodePath.value
     if (path) {
       // 获取 template_type（从 currentFunctionDetail 或 functionDetail）
       const templateType = props.currentFunctionDetail?.template_type || props.functionDetail?.template_type
-      const applyURL = buildPermissionApplyURL(path, 'table:update', templateType)
+      const applyURL = buildPermissionApplyURL(path, 'function:update', templateType)
       router.push(applyURL)
     } else {
       ElMessage.warning('无法获取资源路径，无法申请权限')
     }
     return
   }
+  
+  // ⭐ 如果切换到编辑模式，等待 editFunctionDetail 准备好
+  if (newMode === 'edit') {
+    Logger.debug('[TableRowDetailDrawer] handleToggleMode 切换到编辑模式', {
+      hasEditFunctionDetail: !!props.editFunctionDetail,
+      hasRequest: !!(props.editFunctionDetail?.request),
+      requestLength: props.editFunctionDetail?.request?.length || 0,
+      requestFieldCodes: props.editFunctionDetail?.request?.map((f: FieldConfig) => f.code) || [],
+      hasRowData: !!props.rowData,
+      rowDataKeys: props.rowData ? Object.keys(props.rowData) : [],
+      rowDataSample: props.rowData ? Object.fromEntries(Object.entries(props.rowData).slice(0, 5)) : {},
+      currentFunctionDetailResponseLength: props.currentFunctionDetail?.response?.length || 0
+    })
+    
+    if (!props.editFunctionDetail || !props.editFunctionDetail.request) {
+      Logger.debug('[TableRowDetailDrawer] editFunctionDetail 未准备好', {
+        hasEditFunctionDetail: !!props.editFunctionDetail,
+        hasRequest: !!(props.editFunctionDetail?.request),
+        currentFunctionDetailResponseLength: props.currentFunctionDetail?.response?.length || 0
+      })
+      ElMessage.warning('编辑表单正在初始化，请稍后再试')
+      return
+    }
+    
+    // 等待一个 tick，确保 editFunctionDetail 和 filteredInitialData 都已准备好
+    await nextTick()
+    
+    Logger.debug('[TableRowDetailDrawer] 第一次 nextTick 后', {
+      filteredInitialDataKeys: Object.keys(filteredInitialData.value),
+      filteredInitialDataCount: Object.keys(filteredInitialData.value).length,
+      filteredInitialDataSample: JSON.parse(JSON.stringify(Object.fromEntries(Object.entries(filteredInitialData.value).slice(0, 5)))),
+      requestFieldCodes: props.editFunctionDetail?.request?.map((f: FieldConfig) => f.code) || []
+    })
+    
+    // 再次检查 filteredInitialData 是否有数据
+    if (Object.keys(filteredInitialData.value).length === 0 && props.rowData) {
+      Logger.debug('[TableRowDetailDrawer] filteredInitialData 为空，等待重试', {
+        rowDataKeys: Object.keys(props.rowData),
+        requestFieldCodes: props.editFunctionDetail?.request?.map((f: FieldConfig) => f.code) || []
+      })
+      // 如果 filteredInitialData 为空，但 rowData 有数据，说明 editFunctionDetail.request 可能还没准备好
+      // 等待一下再检查
+      await new Promise(resolve => setTimeout(resolve, 200))
+      
+      Logger.debug('[TableRowDetailDrawer] 等待 200ms 后', {
+        filteredInitialDataKeys: Object.keys(filteredInitialData.value),
+        filteredInitialDataCount: Object.keys(filteredInitialData.value).length
+      })
+      
+      if (Object.keys(filteredInitialData.value).length === 0) {
+        Logger.debug('[TableRowDetailDrawer] filteredInitialData 仍然为空', {
+          rowDataKeys: Object.keys(props.rowData),
+          requestFieldCodes: props.editFunctionDetail?.request?.map((f: FieldConfig) => f.code) || [],
+          requestFieldCodesInRowData: props.editFunctionDetail?.request?.map((f: FieldConfig) => f.code).filter((code: string) => code in (props.rowData || {})) || []
+        })
+        ElMessage.warning('编辑表单数据正在加载，请稍后再试')
+        return
+      }
+    }
+  }
+  
   emit('update:mode', newMode)
 }
 

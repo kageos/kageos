@@ -34,15 +34,24 @@
         :props="{ children: 'children', label: 'name' }"
         node-key="id"
         :default-expand-all="false"
+        :default-expanded-keys="defaultExpandedKeysWithWorkspace"
         :expand-on-click-node="false"
         :highlight-current="true"
         @node-click="handleNodeClick"
       >
         <template #default="{ node, data }">
           <span class="tree-node">
+            <!-- app 类型：使用目录图标（与 package 保持一致） -->
+            <img 
+              v-if="data.type === 'app'" 
+              src="/service-tree/custom-folder.svg" 
+              alt="工作空间" 
+              class="node-icon app-icon-img"
+              :class="getNodeIconClass(data)"
+            />
             <!-- package 类型：统一使用目录图标 -->
             <img 
-              v-if="data.type === 'package'" 
+              v-else-if="data.type === 'package'" 
               src="/service-tree/custom-folder.svg" 
               alt="目录" 
               class="node-icon package-icon-img"
@@ -65,23 +74,31 @@
                 <component :is="getFunctionIcon(data)" />
               </el-icon>
             </template>
+            <!-- docs 类型：使用文档图标 -->
+            <img 
+              v-else-if="data.type === 'docs'" 
+              src="/文档.svg" 
+              alt="文档" 
+              class="node-icon docs-icon-img"
+              :class="getNodeIconClass(data)"
+            />
             <!-- 其他类型：显示 fx 文本 -->
             <span v-else class="node-icon fx-icon" :class="getNodeIconClass(data)">fx</span>
             <span class="node-label" :class="{ 'no-permission': !hasAnyPermissionForNode(data) }">{{ node.label }}</span>
             
             <!-- 无权限标识 - 没有权限的节点显示 -->
-            <el-icon 
+            <img 
               v-if="!hasAnyPermissionForNode(data)" 
+              src="/锁定.svg" 
+              alt="无权限" 
               class="no-permission-icon" 
               :title="'该节点没有权限，点击申请权限'"
               @click.stop="handleNoPermissionClick(data)"
-            >
-              <Lock />
-            </el-icon>
+            />
             
-            <!-- Hub 标记 - 已发布到 Hub 的目录显示 -->
+            <!-- Hub 标记 - 已发布到 Hub 的 app 或目录显示 -->
             <span
-              v-if="data.type === 'package' && data.hub_directory_id && data.hub_directory_id > 0"
+              v-if="(data.type === 'app' || data.type === 'package') && data.hub_directory_id && data.hub_directory_id > 0"
               class="hub-badge"
               @click.stop="handleHubBadgeClick(data)"
               :title="data.hub_version ? `已发布到应用中心 ${data.hub_version}` : '已发布到应用中心'"
@@ -89,6 +106,16 @@
               <el-icon class="hub-icon"><Link /></el-icon>
               <span v-if="data.hub_version" class="hub-version">{{ data.hub_version }}</span>
             </span>
+            
+            <!-- ⭐ 待审批数量 badge - 仅管理员可见（app、package 和 function 类型都显示） -->
+            <el-badge
+              v-if="(data.type === 'app' || data.type === 'package' || data.type === 'function') && isAdmin(data) && data.pending_count && data.pending_count > 0"
+              :value="data.pending_count"
+              :max="99"
+              class="pending-count-badge"
+              @click.stop="handlePendingCountClick(data)"
+              :title="`有 ${data.pending_count} 个待审批的权限申请`"
+            />
             
             <!-- 更多操作按钮 - 鼠标悬停时显示 -->
             <el-dropdown
@@ -107,72 +134,97 @@
               </el-icon>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <!-- 仅对package类型显示创建子目录选项（需要 directory:write 权限） -->
+                  <!-- 申请权限选项（对所有节点都显示） -->
                   <el-dropdown-item 
-                    v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.write)" 
+                    command="apply-permission"
+                  >
+                    <el-icon><Key /></el-icon>
+                    申请权限
+                  </el-dropdown-item>
+                  
+                  <!-- 对 app 和 package 类型显示创建子目录选项（需要 directory:write 或 app:write 权限） -->
+                  <el-dropdown-item 
+                    v-if="(data.type === 'app' || data.type === 'package') && (hasPermission(data, DirectoryPermissions.write) || hasPermission(data, AppPermissions.WRITE))" 
                     command="create-directory"
                   >
                     <el-icon><Plus /></el-icon>
                     添加服务目录
                   </el-dropdown-item>
-                  <!-- 仅对package类型显示复制选项（需要 directory:read 权限） -->
+                  
+                  <!-- 创建文档选项（需要 directory:write 权限） -->
+                  <el-dropdown-item 
+                    v-if="(data.type === 'app' || data.type === 'package') && hasPermission(data, DirectoryPermissions.write)" 
+                    command="create-docs"
+                  >
+                    <el-icon><Document /></el-icon>
+                    创建文档
+                  </el-dropdown-item>
+                  
+                  <!-- 重命名选项（仅对 package 类型） -->
+                  <el-dropdown-item 
+                    v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.update)" 
+                    command="rename"
+                  >
+                    <el-icon><Edit /></el-icon>
+                    重命名
+                  </el-dropdown-item>
+                  
+                  <!-- 复制选项（仅对 package 类型） -->
                   <el-dropdown-item 
                     v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.read)" 
-                    command="copy" 
-                    divided
+                    command="copy"
                   >
                     <el-icon><CopyDocument /></el-icon>
                     复制
                   </el-dropdown-item>
-                  <!-- 粘贴选项（当有复制的内容或 Hub 链接时显示，粘贴到当前选中的目录，需要 directory:write 权限） -->
+                  
+                  <!-- 粘贴选项（需要目标目录有 write 权限，且有已复制的内容） -->
                   <el-dropdown-item 
-                    v-if="(copiedDirectory || copiedHubLink) && data.type === 'package' && hasPermission(data, DirectoryPermissions.write)" 
-                    command="paste" 
-                    divided
+                    v-if="(data.type === 'app' || data.type === 'package') && (copiedDirectory || copiedHubLink) && hasPermission(data, DirectoryPermissions.write)" 
+                    command="paste"
                   >
-                    <el-icon><Document /></el-icon>
+                    <el-icon><DocumentChecked /></el-icon>
                     粘贴
                   </el-dropdown-item>
-                  <!-- 复制链接（需要 directory:read 或 function:read 权限） -->
+                  
+                  <!-- 删除函数选项（仅对 function 类型） -->
                   <el-dropdown-item 
-                    v-if="hasPermission(data, data.type === 'package' ? DirectoryPermissions.read : 'function:read')"
-                    command="copy-link"
-                  >
-                    <el-icon><Link /></el-icon>
-                    复制链接
-                  </el-dropdown-item>
-                  <!-- 仅对function类型显示删除选项（需要 function:delete 权限） -->
-                  <el-dropdown-item 
-                    v-if="data.type === 'function' && hasPermission(data, 'function:delete')"
+                    v-if="data.type === 'function' && hasPermission(data, TablePermissions.delete)" 
                     command="delete-function"
-                    divided
                   >
                     <el-icon><Delete /></el-icon>
-                    删除
+                    删除函数
                   </el-dropdown-item>
-                  <!-- 仅对package类型显示发布到Hub选项（未发布时，需要 directory:manage 权限） -->
+                  
+                  <!-- 删除文档选项（仅对 docs 类型） -->
                   <el-dropdown-item 
-                    v-if="data.type === 'package' && (!data.hub_directory_id || data.hub_directory_id === 0) && hasPermission(data, DirectoryPermissions.manage)" 
-                    command="publish-to-hub" 
-                    divided
+                    v-if="data.type === 'docs' && hasPermission(data, DirectoryPermissions.delete)" 
+                    command="delete-doc"
+                  >
+                    <el-icon><Delete /></el-icon>
+                    删除文档
+                  </el-dropdown-item>
+                  
+                  <!-- Hub 相关操作 -->
+                  <el-dropdown-item 
+                    v-if="data.type === 'package' && !data.hub_directory_id && hasPermission(data, DirectoryPermissions.read)" 
+                    command="publish-to-hub"
                   >
                     <el-icon><Upload /></el-icon>
-                    发布到应用中心
+                    发布到 Hub
                   </el-dropdown-item>
-                  <!-- 仅对package类型显示推送到Hub选项（已发布时，需要 directory:manage 权限） -->
+                  
                   <el-dropdown-item 
-                    v-if="data.type === 'package' && data.hub_directory_id && data.hub_directory_id > 0 && hasPermission(data, DirectoryPermissions.manage)" 
-                    command="push-to-hub" 
-                    divided
+                    v-if="data.type === 'package' && data.hub_directory_id && hasPermission(data, DirectoryPermissions.write)" 
+                    command="push-to-hub"
                   >
                     <el-icon><Upload /></el-icon>
-                    推送到应用中心
+                    推送到 Hub
                   </el-dropdown-item>
-                  <!-- 仅对package类型显示变更记录选项（需要 directory:read 权限） -->
+                  
+                  <!-- 变更记录 -->
                   <el-dropdown-item 
-                    v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.read)" 
-                    command="update-history" 
-                    divided
+                    command="update-history"
                   >
                     <el-icon><Clock /></el-icon>
                     变更记录
@@ -199,34 +251,39 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Plus, MoreFilled, Link, CopyDocument, Document, Clock, Upload, Download, Lock, Delete } from '@element-plus/icons-vue'
+import { Plus, MoreFilled, Link, CopyDocument, Document, Clock, Upload, Download, Delete, Key, User, DocumentChecked, Edit } from '@element-plus/icons-vue'
 import ChartIcon from './icons/ChartIcon.vue'
 import TableIcon from './icons/TableIcon.vue'
 import FormIcon from './icons/FormIcon.vue'
 import { ElTag, ElLink, ElMessageBox, ElMessage } from 'element-plus'
 import type { ServiceTree } from '@/types'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
-import { copyDirectory } from '@/api/service-tree'
+import { copyDirectory, updateServiceTree } from '@/api/service-tree'
 import {
   findPathToNode,
   expandParentNodes,
   findNodeByPath,
-  expandPathAndSelect
+  expandPathAndSelect,
+  expandPathOnly
 } from '@/utils/serviceTreeUtils'
 import { navigateToHubDirectoryDetail } from '@/utils/hub-navigation'
-import { hasPermission, hasAnyPermissionForNode, DirectoryPermissions, TablePermissions } from '@/utils/permission'
+import { hasPermission, hasAnyPermissionForNode, DirectoryPermissions, AppPermissions, TablePermissions, buildPermissionApplyURL } from '@/utils/permission'
+import { useAuthStore } from '@/stores/auth'
+import { eventBus, RouteEvent } from '@/architecture/infrastructure/eventBus'
 
 interface Props {
   treeData: ServiceTree[]
   loading?: boolean
   currentNodeId?: number | string | null
   currentFunction?: ServiceTree | null  // 当前选中的节点（用于判断是否可以克隆）
+  expandedKeys?: number[] // ⭐ 需要自动展开的节点ID列表（从后端返回）
 }
 
 interface Emits {
   (e: 'node-click', node: ServiceTree): void
   (e: 'create-directory', parentNode?: ServiceTree): void
-  (e: 'copy-link', node: ServiceTree): void
+  (e: 'create-docs', parentNode?: ServiceTree): void
+  (e: 'delete-doc', node: ServiceTree): void
   (e: 'delete-function', node: ServiceTree): void  // 删除函数
   (e: 'refresh-tree'): void  // 刷新树（复制粘贴后需要刷新）
   (e: 'update-history', node?: ServiceTree): void  // 显示变更记录（工作空间或目录）
@@ -240,6 +297,9 @@ const emit = defineEmits<Emits>()
 
 const router = useRouter()
 const route = useRoute()
+
+// 获取当前用户信息
+const authStore = useAuthStore()
 
 // el-tree 的引用
 const treeRef = ref()
@@ -320,6 +380,53 @@ onMounted(() => {
   window.addEventListener('keydown', handleKeyDown)
 })
 
+// 重命名目录
+const handleRename = async (node: ServiceTree) => {
+  if (node.type !== 'package') {
+    ElMessage.warning('只能重命名目录（package类型）')
+    return
+  }
+  
+  try {
+    const { value: newName } = await ElMessageBox.prompt(
+      `请输入新的名称（当前：${node.name}）`,
+      '重命名目录',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        inputPattern: /^.+$/,
+        inputErrorMessage: '名称不能为空',
+        inputValue: node.name
+      }
+    )
+    
+    if (!newName || newName.trim() === '') {
+      ElMessage.warning('名称不能为空')
+      return
+    }
+    
+    const trimmedName = newName.trim()
+    
+    // 如果名称没有变化，直接返回
+    if (trimmedName === node.name) {
+      return
+    }
+    
+    try {
+      await updateServiceTree(node.id, { name: trimmedName })
+      ElMessage.success('重命名成功')
+      
+      // 刷新树
+      emit('refresh-tree')
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || error?.message || '重命名失败'
+      ElMessage.error(errorMessage)
+    }
+  } catch (error) {
+    // 用户取消了输入
+  }
+}
+
 // 复制目录
 const handleCopy = (node: ServiceTree) => {
   if (node.type !== 'package') {
@@ -349,7 +456,6 @@ const handleCopy = (node: ServiceTree) => {
       }
     } catch (error) {
       // 剪贴板访问失败，忽略（可能是权限问题）
-      console.debug('无法读取剪贴板:', error)
     }
     
     // 如果剪贴板没有 Hub 链接，检查已保存的 Hub 链接
@@ -573,18 +679,26 @@ const handlePasteHubLink = async (hubLink: string, targetNode?: ServiceTree) => 
 }
 
 
-// 直接使用原始树数据，不再进行分组处理
-const groupedTreeData = computed(() => props.treeData)
+// ⭐ 直接使用后端返回的树数据（已包含 app 根节点）
+const groupedTreeData = computed(() => {
+  return props.treeData
+})
+
+// ⭐ 默认展开的节点（后端返回的 expandedKeys 中已包含 app 根节点）
+const defaultExpandedKeysWithWorkspace = computed(() => {
+  // 直接使用后端返回的 expandedKeys
+  return props.expandedKeys || []
+})
 
 // 处理无权限节点点击
 const handleNoPermissionClick = (data: ServiceTree) => {
   // 跳转到权限申请页面
   const resourcePath = data.full_code_path
-  const resourceType = data.type === 'package' ? 'directory' : 'function'
+  const resourceType = data.type === 'app' ? 'app' : (data.type === 'package' ? 'directory' : 'function')
   const templateType = data.template_type
   
   // 构建权限申请 URL
-  const defaultAction = resourceType === 'directory' ? 'directory:read' : 'function:read'
+  const defaultAction = resourceType === 'app' ? 'app:read' : (resourceType === 'directory' ? 'directory:read' : 'function:read')
   const url = `/permissions/apply?resource=${encodeURIComponent(resourcePath)}&action=${encodeURIComponent(defaultAction)}`
   const finalUrl = templateType ? `${url}&templateType=${encodeURIComponent(templateType)}` : url
   
@@ -597,28 +711,105 @@ const handleNodeClick = (data: ServiceTree) => {
   emit('node-click', data)
 }
 
+// 缓存当前用户名，避免在模板中重复访问响应式对象
+const currentUsername = computed(() => authStore.user?.username || '')
+
+// 判断是否是管理员（使用缓存的用户名）
+const isAdmin = (node: ServiceTree): boolean => {
+  const username = currentUsername.value
+  if (!node.admins || !username) {
+    return false
+  }
+  const admins = node.admins.split(',').map(a => a.trim()).filter(Boolean)
+  return admins.includes(username)
+}
+
+// 处理申请权限
+const handleApplyPermission = (data: ServiceTree) => {
+  const resourcePath = data.full_code_path
+  const resourceType = data.type === 'app' ? 'app' : (data.type === 'package' ? 'directory' : 'function')
+  const defaultAction = resourceType === 'app' ? 'app:read' : (resourceType === 'directory' ? 'directory:read' : 'function:read')
+  const url = buildPermissionApplyURL(resourcePath, defaultAction, data.template_type)
+  router.push(url)
+}
+
+// 处理待审批数量点击
+const handlePendingCountClick = (data: ServiceTree) => {
+  // 点击待审批数量时，跳转到节点详情页面的权限申请 tab
+  // 这里先触发 node-click 事件，让父组件处理路由跳转
+  // 后续可以在详情页面添加权限申请 tab
+  emit('node-click', data)
+  // TODO: 在详情页面添加权限申请 tab，显示待审批的申请列表
+}
+
+// 处理审批权限申请
+const handleApprovePermission = (data: ServiceTree) => {
+  // 先触发节点点击，确保节点详情已加载
+  emit('node-click', data)
+  
+  // 然后通过事件总线更新路由，添加 tab 参数
+  // 使用 nextTick 确保节点点击事件已处理
+  nextTick(() => {
+    const targetPath = `/workspace${data.full_code_path}`
+    eventBus.emit(RouteEvent.updateRequested, {
+      path: targetPath,
+      query: {
+        tab: 'permissionRequest'  // 指定要打开的 tab
+      },
+      replace: true,
+      preserveParams: {
+        table: false,
+        search: false,
+        state: false,
+        linkNavigation: false
+      },
+      source: 'approve-permission-click'
+    })
+  })
+}
+
+// 处理权限管理
+const handleManagePermission = (data: ServiceTree) => {
+  const resourcePath = data.full_code_path
+  const resourceType = data.type === 'app' ? 'app' : (data.type === 'package' ? 'directory' : 'function')
+  const defaultAction = resourceType === 'app' ? 'app:read' : (resourceType === 'directory' ? 'directory:read' : 'function:read')
+  // 权限管理页面，默认显示授权模式
+  const url = buildPermissionApplyURL(resourcePath, defaultAction, data.template_type) + '&mode=grant'
+  router.push(url)
+}
+
 const handleNodeAction = (command: string, data: ServiceTree) => {
   if (command === 'create-directory') {
     emit('create-directory', data)
+  } else if (command === 'create-docs') {
+    emit('create-docs', data)
+  } else if (command === 'rename') {
+    handleRename(data)
   } else if (command === 'copy') {
     handleCopy(data)
   } else if (command === 'paste') {
-    // 粘贴时，如果右键的节点是目录，使用该节点；否则使用当前选中的目录
-    if (data.type === 'package') {
+    // 粘贴时,如果右键的节点是目录或 app，使用该节点；否则使用当前选中的目录
+    if (data.type === 'app' || data.type === 'package') {
       handlePaste(data)
     } else {
       handlePaste() // 使用当前选中的目录
     }
-  } else if (command === 'copy-link') {
-    emit('copy-link', data)
   } else if (command === 'delete-function') {
     emit('delete-function', data)
+  } else if (command === 'delete-doc') {
+    emit('delete-doc', data)
   } else if (command === 'publish-to-hub') {
     emit('publish-to-hub', data)
   } else if (command === 'push-to-hub') {
     emit('push-to-hub', data)
   } else if (command === 'update-history') {
     emit('update-history', data)
+  } else if (command === 'apply-permission') {
+    handleApplyPermission(data)
+  } else if (command === 'approve-permission') {
+    handleApprovePermission(data)
+  } else if (command === 'manage-permission') {
+    handleManagePermission(data)
   }
 }
 
@@ -678,7 +869,7 @@ const getFunctionIcon = (data: ServiceTree) => {
 
 // 获取节点图标样式类
 const getNodeIconClass = (data: ServiceTree) => {
-  if (data.type === 'package') {
+  if (data.type === 'app' || data.type === 'package') {
     return 'package-icon'
   } else if (data.type === 'function') {
     // 根据 template_type 返回不同的样式类
@@ -690,10 +881,83 @@ const getNodeIconClass = (data: ServiceTree) => {
       return 'chart-icon'
     }
     return 'function-icon'
+  } else if (data.type === 'docs') {
+    return 'docs-icon'
   }
   return 'function-icon'
   }
   
+// ⭐ 递归查找所有 pending_count > 0 的节点
+const findAllNodesWithPendingCount = (nodes: ServiceTree[]): ServiceTree[] => {
+  const result: ServiceTree[] = []
+  
+  const traverse = (nodeList: ServiceTree[]) => {
+    for (const node of nodeList) {
+      // 检查当前节点是否有 pending_count > 0
+      if (node.pending_count && node.pending_count > 0) {
+        result.push(node)
+      }
+      
+      // 递归处理子节点
+      if (node.children && node.children.length > 0) {
+        traverse(node.children)
+      }
+    }
+  }
+  
+  traverse(nodes)
+  return result
+}
+
+// ⭐ 自动展开所有 pending_count > 0 的节点及其父节点
+const expandNodesWithPendingCount = async (treeData: ServiceTree[]) => {
+  if (!treeRef.value || !treeData.length) {
+    return
+  }
+  
+  // 查找所有 pending_count > 0 的节点
+  const nodesWithPending = findAllNodesWithPendingCount(treeData)
+  
+  if (nodesWithPending.length === 0) {
+    return
+  }
+  
+  // 收集所有需要展开的节点 ID（包括节点本身及其所有父节点）
+  const expandNodeIds = new Set<number>()
+  
+  for (const node of nodesWithPending) {
+    const nodeId = Number(node.id)
+    // 找到从根到该节点的路径
+    const path = findPathToNode(treeData, nodeId)
+    // 将路径中的所有节点 ID 添加到展开集合中
+    path.forEach(id => expandNodeIds.add(id))
+  }
+  
+  // 展开所有收集到的节点
+  if (expandNodeIds.size > 0) {
+    const expandKeys = Array.from(expandNodeIds)
+    
+    // 使用 Element Plus Tree 的 setExpandedKeys 方法批量展开
+    await nextTick()
+    if (treeRef.value && treeRef.value.setExpandedKeys) {
+      treeRef.value.setExpandedKeys(expandKeys, false) // false 表示不触发 expand 事件
+    } else {
+      // 如果 setExpandedKeys 不可用，使用 expandPathAndSelect 逐个展开
+      for (const nodeId of expandKeys) {
+        const path = findPathToNode(treeData, nodeId)
+        if (path.length > 0) {
+          await expandPathAndSelect(
+            treeRef.value,
+            treeData,
+            path,
+            nodeId
+          )
+        }
+      }
+    }
+  }
+}
+
 // 展开多个路径
 const expandPaths = async (paths: string[]) => {
   if (!treeRef.value || !groupedTreeData.value.length) {
@@ -719,48 +983,143 @@ const expandPaths = async (paths: string[]) => {
   }
 }
 
-// 监听 currentNodeId 变化，自动展开并选中节点
-watch(() => props.currentNodeId, async (nodeId) => {
-  if (nodeId && treeRef.value && groupedTreeData.value.length > 0) {
-    // 🔥 使用 nextTick 确保 DOM 已渲染
-    await nextTick()
-      // 查找路径（使用分组后的数据）
-      const path = findPathToNode(groupedTreeData.value, nodeId)
-      
-      if (path.length > 0) {
-      // 展开路径并选中节点
-      await expandPathAndSelect(
-        treeRef.value,
-        groupedTreeData.value,
-        path,
-        Number(nodeId)
-      )
-          
-          // 🔥 滚动到选中节点（可见）
-      await nextTick()
-            const selectedNode = treeRef.value.store.nodesMap[nodeId]
-            if (selectedNode) {
-              selectedNode.visible = true
-            }
+// ✅ 暂时完全禁用这个 watch，彻底排查问题
+// 
+// // 监听 currentNodeId 变化，自动展开并选中节点
+// watch(() => props.currentNodeId, async (nodeId) => {
+//   // ... 代码省略 ...
+// }, { immediate: true })
+
+// ⭐ 防重复展开标志
+let isExpanding = false
+let lastExpandedKeys: number[] = []
+let expandKeysPromise: Promise<void> | null = null
+
+// 调试计数器
+let expandKeysNowCallCount = 0
+
+// ⭐ 展开节点的辅助函数（带重入保护）
+const expandKeysNow = async (keys: number[]): Promise<void> => {
+  expandKeysNowCallCount++
+  console.log(`[expandKeysNow] 调用次数: ${expandKeysNowCallCount}, keys:`, keys)
+  
+  if (keys.length === 0) {
+    console.log('[expandKeysNow] keys 为空，跳过')
+    return
+  }
+  
+  // ⭐ 防重复展开：如果正在展开或 keys 相同，跳过
+  // 注意：使用展开运算符创建副本再排序，避免修改原数组触发无限循环
+  const keysStr = JSON.stringify([...keys].sort())
+  const lastKeysStr = JSON.stringify([...lastExpandedKeys].sort())
+  if (keysStr === lastKeysStr) {
+    console.log('[expandKeysNow] keys 与上次相同，跳过')
+    return
+  }
+  
+  // ⭐ 重入保护：如果已经有正在执行的展开操作，等待它完成
+  if (expandKeysPromise) {
+    console.log('[expandKeysNow] 已有正在执行的操作，等待完成')
+    await expandKeysPromise
+    return
+  }
+  
+  console.log('[expandKeysNow] 开始执行展开操作')
+  
+  // ⭐ 创建新的 Promise 用于重入保护
+  expandKeysPromise = (async () => {
+    isExpanding = true
+    lastExpandedKeys = [...keys]
+    
+    try {
+      if (!treeRef.value) {
+        // 等待 treeRef 初始化
+        await nextTick()
+        await new Promise(resolve => setTimeout(resolve, 100))
+        if (!treeRef.value) {
+          console.error('[ServiceTreePanel] treeRef.value 仍未初始化，无法展开节点')
+          return
+        }
       }
+      
+      if (!groupedTreeData.value.length) {
+        // 等待数据加载
+        await nextTick()
+        await new Promise(resolve => setTimeout(resolve, 100))
+        if (!groupedTreeData.value.length) {
+          console.error('[ServiceTreePanel] groupedTreeData 仍为空，无法展开节点')
+          return
+        }
+      }
+      
+      // 等待 DOM 渲染完成
+      await nextTick()
+      await new Promise(resolve => setTimeout(resolve, 200)) // 给树组件一些时间渲染
+      
+      if (treeRef.value && treeRef.value.setExpandedKeys) {
+        try {
+          treeRef.value.setExpandedKeys(keys, false) // false 表示不触发 expand 事件
+        } catch (error) {
+          console.error('[ServiceTreePanel] setExpandedKeys 调用失败:', error)
+          // 回退方案：使用 expandPathOnly 批量展开（不选中节点，避免节点切换）
+          const paths: number[][] = []
+          for (const nodeId of keys) {
+            const path = findPathToNode(groupedTreeData.value, nodeId)
+            if (path.length > 0) {
+              paths.push(path)
+            }
+          }
+          // 一次性展开所有路径（不选中节点）
+          for (const path of paths) {
+            await expandPathOnly(treeRef.value, path)
+          }
+        }
+      } else {
+        // 回退方案：使用 expandPathOnly 批量展开（不选中节点，避免节点切换）
+        const paths: number[][] = []
+        for (const nodeId of keys) {
+          const path = findPathToNode(groupedTreeData.value, nodeId)
+          if (path.length > 0) {
+            paths.push(path)
+          }
+        }
+        // 一次性展开所有路径（不选中节点）
+        for (const path of paths) {
+          await expandPathOnly(treeRef.value, path)
+        }
+      }
+    } finally {
+      isExpanding = false
+      expandKeysPromise = null
+    }
+  })()
+  
+  await expandKeysPromise
+}
+
+// 🔥 监听 expandedKeys 变化，自动展开节点
+watch(() => props.expandedKeys, async (keys: number[] | undefined, oldKeys: number[] | undefined) => {
+  // 如果没有 keys 或者 keys 为空，跳过
+  if (!keys || keys.length === 0) {
+    return
+  }
+  
+  // 如果 keys 和 oldKeys 相同，跳过（避免重复展开）
+  if (oldKeys && keys.length === oldKeys.length && keys.every((k, i) => k === oldKeys[i])) {
+    return
+  }
+  
+  console.log('[ServiceTreePanel] expandedKeys 变化，准备展开节点:', keys)
+  
+  // 等待树完全渲染
+  await nextTick()
+  
+  // 使用 setExpandedKeys 方法批量展开节点
+  if (treeRef.value && treeRef.value.setExpandedKeys) {
+    console.log('[ServiceTreePanel] 调用 setExpandedKeys 展开节点:', keys)
+    treeRef.value.setExpandedKeys(keys, false) // false 表示不触发 expand 事件
   }
 }, { immediate: true })
-
-// 🔥 监听服务树数据变化，如果 currentNodeId 存在但还没展开，重新尝试
-watch(() => groupedTreeData.value, async (newTreeData) => {
-  if (newTreeData.length > 0 && props.currentNodeId && treeRef.value) {
-    await nextTick()
-      const path = findPathToNode(newTreeData, props.currentNodeId)
-      if (path.length > 0) {
-      await expandPathAndSelect(
-        treeRef.value,
-        newTreeData,
-        path,
-        Number(props.currentNodeId)
-      )
-      }
-  }
-})
 
 // 暴露方法给父组件
 defineExpose({
@@ -843,6 +1202,7 @@ defineExpose({
   gap: 8px;
   flex: 1;
   width: 100%;
+  min-width: 0; /* ⭐ 允许 flexbox 子元素正确收缩 */
   
   .node-icon {
     width: 16px;
@@ -923,6 +1283,7 @@ defineExpose({
     font-size: 14px;
     color: var(--el-text-color-primary);
     flex: 1;
+    min-width: 0; /* ⭐ 允许文本正确收缩并显示省略号 */
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -934,15 +1295,16 @@ defineExpose({
   }
   
   .no-permission-icon {
-    color: var(--el-color-warning);
-    font-size: 14px;
+    width: 16px;
+    height: 16px;
     margin-left: 4px;
     cursor: pointer;
-    transition: color 0.2s ease;
+    opacity: 0.7;
     flex-shrink: 0;
+    transition: opacity 0.2s ease;
     
     &:hover {
-      color: var(--el-color-warning-dark-2);
+      opacity: 1;
     }
   }
   
@@ -974,6 +1336,13 @@ defineExpose({
       margin-left: 2px;
       font-weight: 500;
     }
+  }
+  
+  /* ⭐ 待审批数量 badge - 防止被挤压 */
+  .pending-count-badge {
+    flex-shrink: 0;
+    margin-left: 6px;
+    cursor: pointer;
   }
   
   .node-more-actions {

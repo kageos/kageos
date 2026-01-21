@@ -30,8 +30,9 @@ plan/
 .cursor/
 .claude/
 blueprint/
-enterprise_impl/
-hub/
+# enterprise_impl/ 和 hub/ 现在是 Git Submodule，不需要忽略
+# enterprise_impl/
+# hub/
 tools/
 licenses/
 license.json

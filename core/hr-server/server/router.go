@@ -25,12 +25,13 @@ func (s *Server) setupRoutes() {
 
 	// 认证相关路由（不需要JWT验证）
 	auth := apiV1.Group("/auth")
-	authHandler := v1.NewAuth(s.authService, s.emailService)
+	authHandler := v1.NewAuth(s.authService, s.emailService, s.userService, s.departmentService)
 	auth.POST("/send_email_code", authHandler.SendEmailCode)
 	auth.POST("/register", authHandler.Register)
 	auth.POST("/login", authHandler.Login)
 	auth.POST("/refresh", authHandler.RefreshToken)
 	auth.POST("/logout", authHandler.Logout)
+	auth.POST("/forgot_password", authHandler.ForgotPassword)
 
 	// 用户管理路由（需要JWT验证）
 	user := apiV1.Group("/user")
