@@ -104,15 +104,13 @@ SELECT
 -- ========================================
 
 -- 更新原有根级子节点，将其 parent_id 指向新创建的根节点
+-- ⭐ 使用 JOIN 代替子查询，避免 MySQL "You can't specify target table for update in FROM clause" 错误
 UPDATE service_tree st
-SET parent_id = (
-    SELECT st_root.id 
-    FROM service_tree st_root 
-    WHERE st_root.app_id = st.app_id 
-      AND st_root.parent_id = 0
-      AND st_root.ref_id = st.app_id
-    LIMIT 1
-)
+INNER JOIN service_tree st_root 
+  ON st_root.app_id = st.app_id 
+  AND st_root.parent_id = 0
+  AND st_root.ref_id = st.app_id
+SET st.parent_id = st_root.id
 WHERE st.parent_id = 0
   AND (st.ref_id IS NULL OR st.ref_id != st.app_id)  -- 不是根节点本身
   AND st.app_id IS NOT NULL;

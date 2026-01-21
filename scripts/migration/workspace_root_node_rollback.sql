@@ -38,15 +38,14 @@ WHERE st_child.parent_id IN (
 -- ========================================
 
 -- 将原本指向根节点的子节点的 parent_id 改回 0
+-- ⭐ 使用 JOIN 代替子查询，避免 MySQL "You can't specify target table for update in FROM clause" 错误
 UPDATE service_tree st_child
-SET parent_id = 0
-WHERE st_child.parent_id IN (
-    SELECT st_root.id 
-    FROM service_tree st_root
-    WHERE st_root.parent_id = 0 
-      AND st_root.ref_id IS NOT NULL
-      AND st_root.ref_id = st_root.app_id
-);
+INNER JOIN service_tree st_root
+  ON st_child.parent_id = st_root.id
+  AND st_root.parent_id = 0 
+  AND st_root.ref_id IS NOT NULL
+  AND st_root.ref_id = st_root.app_id
+SET st_child.parent_id = 0;
 
 -- 显示更新结果
 SELECT 
