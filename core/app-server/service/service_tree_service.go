@@ -1122,9 +1122,9 @@ func (s *ServiceTreeService) convertToGetServiceTreeResp(ctx context.Context, tr
 func (s *ServiceTreeService) calculateExpandedKeys(trees []*dto.GetServiceTreeResp) []int64 {
 	expandedKeysMap := make(map[int64]bool)
 
-	// ⭐ 如果树的根节点是 app 类型，默认展开它
+	// ⭐ 默认展开根节点（app 类型或 parent_id=0 的 package 类型）
 	for _, tree := range trees {
-		if tree.Type == "app" {
+		if tree.Type == "app" || (tree.Type == "package" && tree.ParentID == 0) {
 			expandedKeysMap[tree.ID] = true
 		}
 	}
