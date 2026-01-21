@@ -552,13 +552,13 @@ const hasManagePermission = computed(() => {
     return true
   }
   
-  // 检查是否有 manage 权限（根据资源类型）
+  // 检查是否有 admin 权限（根据资源类型）
   if (node.type === 'function') {
-    return hasPermission(node, 'function:manage')
+    return hasPermission(node, 'function:admin')
   } else if (node.type === 'package') {
-    // ⭐ 判断是否是根节点：parent_id=0 使用 app:manage，否则使用 directory:manage
+    // ⭐ 判断是否是根节点：parent_id=0 使用 app:admin，否则使用 directory:admin
     const isRootNode = (node as any).parent_id === 0
-    return isRootNode ? hasPermission(node, 'app:manage') : hasPermission(node, 'directory:manage')
+    return isRootNode ? hasPermission(node, 'app:admin') : hasPermission(node, 'directory:admin')
   }
   return false
 })
@@ -1157,10 +1157,10 @@ const loadResourcePermissions = async (resourcePath: string, defaultAction?: str
       actions: permissions.map(p => p.action)
     } : resourceType === 'directory' ? {
       label: '申请此目录的管理权限',
-      actions: ['directory:manage']
+      actions: ['directory:admin']
     } : {
       label: '申请此工作空间的管理权限',
-      actions: ['app:manage']
+      actions: ['app:admin']
     }
   }
   
@@ -1514,12 +1514,12 @@ const getInheritanceText = (action: string): string => {
     'directory:write': '写入权限',
     'directory:update': '更新权限',
     'directory:delete': '删除权限',
-    'directory:manage': '所有权',
+    'directory:admin': '所有权',
     'app:read': '查看权限',
     'app:create': '创建权限',
     'app:update': '更新权限',
     'app:delete': '删除权限',
-    'app:manage': '所有权',
+    'app:admin': '所有权',
   }
   
   const permissionName = permissionNameMap[action] || '对应权限'
@@ -1585,19 +1585,19 @@ const getPermissionShortLabel = (action: string): string | null => {
     'directory:write': '写',
     'directory:update': '改',
     'directory:delete': '删',
-    'directory:manage': '所有权',
+    'directory:admin': '所有权',
     // 工作空间权限
     'app:read': '读',
     'app:create': '创建',
     'app:update': '改',
     'app:delete': '删',
-    'app:manage': '所有权',
+    'app:admin': '所有权',
     // 函数权限
     'function:read': '读',
     'function:write': '写',
     'function:update': '改',
     'function:delete': '删',
-    'function:manage': '所有权',
+    'function:admin': '所有权',
   }
   return labelMap[action] || null
 }
@@ -1622,7 +1622,7 @@ const getNodePermissionDisplayText = (resourcePath: string): string | null => {
   
   // ⭐ 只显示已有权限（使用简短标识）
     // 检查是否有管理权限（优先级最高）
-    if (existingPermissionsList.some(p => p === 'directory:manage' || p === 'app:manage' || p === 'function:manage')) {
+    if (existingPermissionsList.some(p => p === 'directory:admin' || p === 'app:admin' || p === 'function:admin')) {
     return '所有权'
   }
   
@@ -1701,12 +1701,12 @@ const mapPermissionsForChild = (childPath: string, childNode: ServiceTree, paren
           childPermissions.push('function:read')
         }
       }
-    } else if (parentAction === 'directory:manage' || parentAction === 'app:manage') {
+    } else if (parentAction === 'directory:admin' || parentAction === 'app:admin') {
       // 管理权限：子节点显示"所有权"
       if (childNode.type === 'package') {
-        // 子目录：保存 directory:manage（显示时会显示为"所有权"）
-        if (!childPermissions.includes('directory:manage')) {
-          childPermissions.push('directory:manage')
+        // 子目录：保存 directory:admin（显示时会显示为"所有权"）
+        if (!childPermissions.includes('directory:admin')) {
+          childPermissions.push('directory:admin')
         }
       } else if (childNode.type === 'function') {
         // 子函数：保存所有相关权限，但显示时会显示为"所有权"
@@ -1732,10 +1732,10 @@ const mapPermissionsForChild = (childPath: string, childNode: ServiceTree, paren
           if (!childPermissions.includes('function:delete')) childPermissions.push('function:delete')
         }
         // 所有权权限
-        if (!childPermissions.includes('function:manage')) childPermissions.push('function:manage')
+        if (!childPermissions.includes('function:admin')) childPermissions.push('function:admin')
         // 添加一个特殊标记，表示这是管理权限下的子节点
-        if (!childPermissions.includes('_has_manage_permission')) {
-          childPermissions.push('_has_manage_permission')
+        if (!childPermissions.includes('_has_admin_permission')) {
+          childPermissions.push('_has_admin_permission')
         }
       }
     } else if (parentAction === 'directory:write') {

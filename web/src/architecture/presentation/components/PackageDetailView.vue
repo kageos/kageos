@@ -846,7 +846,7 @@ const hasNoDirectoryPermissions = computed(() => {
       'directory:write',
       'directory:update',
       'directory:delete',
-      'directory:manage'
+      'directory:admin'
     ]
   }
   

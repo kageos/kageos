@@ -113,7 +113,7 @@ export interface PackageInfo {
   name: string
   code: string
   full_code_path: string
-  permissions?: Record<string, boolean>  // ⭐ 权限信息：directory:read, directory:write, directory:update, directory:delete, directory:manage
+  permissions?: Record<string, boolean>  // ⭐ 权限信息：directory:read, directory:write, directory:update, directory:delete, directory:admin
 }
 
 // 获取目录信息（支持 ID 或 full_code_path）
