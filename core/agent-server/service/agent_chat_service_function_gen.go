@@ -9,6 +9,7 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
 	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/llms"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
@@ -644,32 +645,18 @@ func (s *AgentChatService) extractCodeFromLLMResponse(content string) string {
 	return content
 }
 
-// getDocsByPaths 批量获取文档（调用 apicall）
+// getDocsByPaths 批量获取文档（通过 apicall 调用 app-server）
 func (s *AgentChatService) getDocsByPaths(ctx context.Context, paths []string, traceId string) (*dto.GetDocsByPathsResp, error) {
 	logger.Infof(ctx, "[FunctionGenChat] 调用批量获取文档 API - Paths: %v, TraceID: %s", paths, traceId)
 	
-	// 调用 app-server 的批量获取文档接口
-	resp, err := s.docRepo.GetByFullCodePaths(paths)
+	// 通过 apicall 调用 app-server 的批量获取文档接口
+	resp, err := apicall.GetDocsByPaths(ctx, paths)
 	if err != nil {
 		logger.Errorf(ctx, "[FunctionGenChat] 批量获取文档失败 - Paths: %v, TraceID: %s, Error: %v", paths, traceId, err)
 		return nil, err
 	}
 	
-	// 转换为 DTO
-	docItems := make([]*dto.DocItem, 0, len(resp))
-	for _, doc := range resp {
-		docItems = append(docItems, &dto.DocItem{
-			ID:           doc.ID,
-			Name:         doc.Name,
-			Content:      doc.Content,
-			Format:       doc.Format,
-			FullCodePath: doc.FullCodePath,
-			Summary:      doc.Summary,
-			Category:     doc.Category,
-		})
-	}
+	logger.Infof(ctx, "[FunctionGenChat] 批量获取文档成功 - Paths: %v, DocsCount: %d, TraceID: %s", paths, len(resp.Docs), traceId)
 	
-	logger.Infof(ctx, "[FunctionGenChat] 批量获取文档成功 - Paths: %v, DocsCount: %d, TraceID: %s", paths, len(docItems), traceId)
-	
-	return &dto.GetDocsByPathsResp{Docs: docItems}, nil
+	return resp, nil
 }

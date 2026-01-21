@@ -29,7 +29,7 @@ func NewDocService(docRepo *repository.DocRepository, serviceTreeRepo *repositor
 }
 
 // GetDoc 获取文档（基于完整路径）
-func (s *DocService) GetDoc(ctx context.Context, fullCodePath string) (*model.Doc, error) {
+func (s *DocService) GetDoc(ctx context.Context, fullCodePath string) (*model.Docs, error) {
 	// 1. 根据完整路径获取 ServiceTree 节点
 	tree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(fullCodePath)
 	if err != nil {
@@ -57,7 +57,7 @@ func (s *DocService) GetDoc(ctx context.Context, fullCodePath string) (*model.Do
 }
 
 // CreateDoc 创建文档（基于完整路径）
-func (s *DocService) CreateDoc(ctx context.Context, req *dto.CreateDocReq) (*model.Doc, error) {
+func (s *DocService) CreateDoc(ctx context.Context, req *dto.CreateDocReq) (*model.Docs, error) {
 	user := contextx.GetRequestUser(ctx)
 	if user == "" {
 		return nil, fmt.Errorf("请求用户信息不能为空")
@@ -90,7 +90,7 @@ func (s *DocService) CreateDoc(ctx context.Context, req *dto.CreateDocReq) (*mod
 	}
 
 	// 5. 创建文档
-	doc := &model.Doc{
+	doc := &model.Docs{
 		Title:   req.Title,
 		Content: req.Content,
 		Format:  format,
@@ -117,7 +117,7 @@ func (s *DocService) CreateDoc(ctx context.Context, req *dto.CreateDocReq) (*mod
 }
 
 // UpdateDoc 更新文档（基于完整路径）
-func (s *DocService) UpdateDoc(ctx context.Context, req *dto.UpdateDocReq) (*model.Doc, error) {
+func (s *DocService) UpdateDoc(ctx context.Context, req *dto.UpdateDocReq) (*model.Docs, error) {
 	user := contextx.GetRequestUser(ctx)
 	if user == "" {
 		return nil, fmt.Errorf("请求用户信息不能为空")
@@ -201,7 +201,7 @@ func (s *DocService) DeleteDoc(ctx context.Context, fullCodePath string) error {
 }
 
 // GetDocsByFullCodePath 根据 FullCodePath 获取文档列表（用于知识库加载）
-func (s *DocService) GetDocsByFullCodePath(ctx context.Context, fullCodePath string) ([]*model.Doc, error) {
+func (s *DocService) GetDocsByFullCodePath(ctx context.Context, fullCodePath string) ([]*model.Docs, error) {
 	// 1. 根据 FullCodePath 获取 ServiceTree 节点
 	tree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(fullCodePath)
 	if err != nil {
@@ -215,7 +215,7 @@ func (s *DocService) GetDocsByFullCodePath(ctx context.Context, fullCodePath str
 	}
 
 	if len(docsNodes) == 0 {
-		return []*model.Doc{}, nil
+		return []*model.Docs{}, nil
 	}
 
 	// 3. 获取所有 TreeID（只获取有 RefID 的节点，即已创建文档的节点）
@@ -227,7 +227,7 @@ func (s *DocService) GetDocsByFullCodePath(ctx context.Context, fullCodePath str
 	}
 
 	if len(treeIDs) == 0 {
-		return []*model.Doc{}, nil
+		return []*model.Docs{}, nil
 	}
 
 	// 4. 批量获取文档内容

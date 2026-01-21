@@ -16,13 +16,13 @@ func NewDocRepository(db *gorm.DB) *DocRepository {
 }
 
 // Create 创建文档
-func (r *DocRepository) Create(doc *model.Doc) error {
+func (r *DocRepository) Create(doc *model.Docs) error {
 	return r.db.Create(doc).Error
 }
 
 // GetByID 根据 ID 获取文档
-func (r *DocRepository) GetByID(id int64) (*model.Doc, error) {
-	var doc model.Doc
+func (r *DocRepository) GetByID(id int64) (*model.Docs, error) {
+	var doc model.Docs
 	if err := r.db.Where("id = ?", id).First(&doc).Error; err != nil {
 		return nil, err
 	}
@@ -30,8 +30,8 @@ func (r *DocRepository) GetByID(id int64) (*model.Doc, error) {
 }
 
 // GetByTreeID 根据 TreeID 获取文档
-func (r *DocRepository) GetByTreeID(treeID int64) (*model.Doc, error) {
-	var doc model.Doc
+func (r *DocRepository) GetByTreeID(treeID int64) (*model.Docs, error) {
+	var doc model.Docs
 	if err := r.db.Where("tree_id = ?", treeID).First(&doc).Error; err != nil {
 		return nil, err
 	}
@@ -39,26 +39,26 @@ func (r *DocRepository) GetByTreeID(treeID int64) (*model.Doc, error) {
 }
 
 // Update 更新文档
-func (r *DocRepository) Update(doc *model.Doc) error {
+func (r *DocRepository) Update(doc *model.Docs) error {
 	return r.db.Save(doc).Error
 }
 
 // Delete 删除文档
 func (r *DocRepository) Delete(id int64) error {
-	return r.db.Where("id = ?", id).Delete(&model.Doc{}).Error
+	return r.db.Where("id = ?", id).Delete(&model.Docs{}).Error
 }
 
 // DeleteByTreeID 根据 TreeID 删除文档
 func (r *DocRepository) DeleteByTreeID(treeID int64) error {
-	return r.db.Where("tree_id = ?", treeID).Delete(&model.Doc{}).Error
+	return r.db.Where("tree_id = ?", treeID).Delete(&model.Docs{}).Error
 }
 
 // ListByAppID 根据 AppID 获取文档列表
-func (r *DocRepository) ListByAppID(appID int64, offset, limit int) ([]*model.Doc, int64, error) {
-	var docs []*model.Doc
+func (r *DocRepository) ListByAppID(appID int64, offset, limit int) ([]*model.Docs, int64, error) {
+	var docs []*model.Docs
 	var total int64
 
-	query := r.db.Model(&model.Doc{}).Where("app_id = ?", appID)
+	query := r.db.Model(&model.Docs{}).Where("app_id = ?", appID)
 
 	// 获取总数
 	if err := query.Count(&total).Error; err != nil {
@@ -74,8 +74,8 @@ func (r *DocRepository) ListByAppID(appID int64, offset, limit int) ([]*model.Do
 }
 
 // ListByTreeIDs 根据 TreeID 列表批量获取文档
-func (r *DocRepository) ListByTreeIDs(treeIDs []int64) ([]*model.Doc, error) {
-	var docs []*model.Doc
+func (r *DocRepository) ListByTreeIDs(treeIDs []int64) ([]*model.Docs, error) {
+	var docs []*model.Docs
 	if err := r.db.Where("tree_id IN ?", treeIDs).Find(&docs).Error; err != nil {
 		return nil, err
 	}
@@ -83,41 +83,28 @@ func (r *DocRepository) ListByTreeIDs(treeIDs []int64) ([]*model.Doc, error) {
 }
 
 // GetByIDs 根据 ID 列表批量获取文档
-func (r *DocRepository) GetByIDs(ids []int64) ([]*model.Doc, error) {
+func (r *DocRepository) GetByIDs(ids []int64) ([]*model.Docs, error) {
 	if len(ids) == 0 {
-		return []*model.Doc{}, nil
+		return []*model.Docs{}, nil
 	}
 	
-	var docs []*model.Doc
+	var docs []*model.Docs
 	if err := r.db.Where("id IN ?", ids).Find(&docs).Error; err != nil {
 		return nil, err
 	}
 	return docs, nil
 }
 
-// GetByFullCodePaths 根据路径列表批量获取文档（支持路径前缀匹配）
+// GetByFullCodePaths 根据路径列表批量获取文档
 // paths: 路径列表，如 ["/system/official/sdk", "/user/myapp/docs"]
-// 会查询这些路径及其子路径下的所有文档
-func (r *DocRepository) GetByFullCodePaths(paths []string) ([]*model.Doc, error) {
+// 直接根据 full_code_path 使用 IN 查询
+func (r *DocRepository) GetByFullCodePaths(paths []string) ([]*model.Docs, error) {
 	if len(paths) == 0 {
-		return []*model.Doc{}, nil
+		return []*model.Docs{}, nil
 	}
 	
-	// 构建查询条件：full_code_path LIKE '/path1/%' OR full_code_path LIKE '/path2/%'
-	query := r.db.Model(&model.Doc{})
-	
-	for i, path := range paths {
-		if i == 0 {
-			// 第一个条件使用 Where
-			query = query.Where("full_code_path LIKE ? OR full_code_path = ?", path+"/%", path)
-		} else {
-			// 后续条件使用 Or
-			query = query.Or("full_code_path LIKE ? OR full_code_path = ?", path+"/%", path)
-		}
-	}
-	
-	var docs []*model.Doc
-	if err := query.Find(&docs).Error; err != nil {
+	var docs []*model.Docs
+	if err := r.db.Where("full_code_path IN ?", paths).Find(&docs).Error; err != nil {
 		return nil, err
 	}
 	

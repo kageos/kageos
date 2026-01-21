@@ -34,7 +34,6 @@ type Server struct {
 	// Repository
 	agentRepo              *repository.AgentRepository
 	pluginRepo             *repository.PluginRepository
-	knowledgeRepo          *repository.KnowledgeRepository
 	llmRepo                *repository.LLMRepository
 	functionGenRepo        *repository.FunctionGenRepository
 	functionGroupAgentRepo *repository.FunctionGroupAgentRepository
@@ -44,7 +43,6 @@ type Server struct {
 	// 服务
 	agentService       *service.AgentService
 	pluginService      *service.PluginService
-	knowledgeService   *service.KnowledgeService
 	llmService         *service.LLMService
 	agentChatService   *service.AgentChatService
 	functionGenService *service.FunctionGenService
@@ -271,7 +269,6 @@ func (s *Server) initServices(ctx context.Context) error {
 	// 初始化 Repository
 	s.agentRepo = repository.NewAgentRepository(s.db)
 	s.pluginRepo = repository.NewPluginRepository(s.db)
-	s.knowledgeRepo = repository.NewKnowledgeRepository(s.db)
 	s.llmRepo = repository.NewLLMRepository(s.db)
 	sessionRepo := repository.NewChatSessionRepository(s.db)
 	messageRepo := repository.NewChatMessageRepository(s.db)
@@ -281,16 +278,15 @@ func (s *Server) initServices(ctx context.Context) error {
 	s.functionGroupAgentRepo = repository.NewFunctionGroupAgentRepository(s.db)
 
 	// 初始化 Service
-	s.agentService = service.NewAgentService(s.agentRepo, s.knowledgeRepo)
+	s.agentService = service.NewAgentService(s.agentRepo)
 	s.pluginService = service.NewPluginService(s.pluginRepo)
-	s.knowledgeService = service.NewKnowledgeService(s.knowledgeRepo)
 	s.llmService = service.NewLLMService(s.llmRepo)
 
 	// 先初始化函数生成服务（因为 agentChatService 依赖它）
 	s.functionGenService = service.NewFunctionGenService(s.cfg, s.functionGenRepo)
 
-	// 初始化智能体聊天服务（传入 functionGenService）
-	s.agentChatService = service.NewAgentChatService(s.agentRepo, s.llmRepo, s.knowledgeRepo, s.functionGenService, sessionRepo, messageRepo, s.functionGenRepo)
+	// 初始化智能体聊天服务（通过 apicall 调用 app-server，不直接依赖 repo）
+	s.agentChatService = service.NewAgentChatService(s.agentRepo, s.llmRepo, s.functionGenService, sessionRepo, messageRepo, s.functionGenRepo)
 
 	logger.Infof(ctx, "[Server] Services initialized successfully")
 	return nil
