@@ -267,7 +267,15 @@ import {
   expandPathOnly
 } from '@/utils/serviceTreeUtils'
 import { navigateToHubDirectoryDetail } from '@/utils/hub-navigation'
-import { hasPermission, hasAnyPermissionForNode, DirectoryPermissions, TablePermissions, buildPermissionApplyURL } from '@/utils/permission'
+import { 
+  hasPermission, 
+  hasAnyPermissionForNode, 
+  DirectoryPermission,
+  DirectoryPermissions, 
+  FunctionPermission,
+  TablePermissions, 
+  buildPermissionApplyURL 
+} from '@/utils/permission'
 import { useAuthStore } from '@/stores/auth'
 import { eventBus, RouteEvent } from '@/architecture/infrastructure/eventBus'
 
@@ -699,7 +707,7 @@ const handleNoPermissionClick = (data: ServiceTree) => {
   const templateType = data.template_type
   
   // 构建权限申请 URL
-  const defaultAction = resourceType === 'directory' ? 'directory:read' : 'function:read'
+  const defaultAction = resourceType === 'directory' ? DirectoryPermission.read : FunctionPermission.read
   const url = `/permissions/apply?resource=${encodeURIComponent(resourcePath)}&action=${encodeURIComponent(defaultAction)}`
   const finalUrl = templateType ? `${url}&templateType=${encodeURIComponent(templateType)}` : url
   
@@ -730,7 +738,7 @@ const handleApplyPermission = (data: ServiceTree) => {
   const resourcePath = data.full_code_path
   // ⭐ 根据节点类型确定资源类型（package 统一为 directory）
   const resourceType = data.type === 'package' ? 'directory' : 'function'
-  const defaultAction = resourceType === 'directory' ? 'directory:read' : 'function:read'
+  const defaultAction = resourceType === 'directory' ? DirectoryPermission.read : FunctionPermission.read
   const url = buildPermissionApplyURL(resourcePath, defaultAction, data.template_type)
   router.push(url)
 }
@@ -775,7 +783,7 @@ const handleManagePermission = (data: ServiceTree) => {
   const resourcePath = data.full_code_path
   // ⭐ 根据节点类型确定资源类型（package 统一为 directory）
   const resourceType = data.type === 'package' ? 'directory' : 'function'
-  const defaultAction = resourceType === 'directory' ? 'directory:read' : 'function:read'
+  const defaultAction = resourceType === 'directory' ? DirectoryPermission.read : FunctionPermission.read
   // 权限管理页面，默认显示授权模式
   const url = buildPermissionApplyURL(resourcePath, defaultAction, data.template_type) + '&mode=grant'
   router.push(url)

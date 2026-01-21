@@ -546,46 +546,25 @@ export {
  * 旧版本兼容：保持原有的导出名称
  * @deprecated 请使用 DirectoryPermission 代替
  */
-export const DirectoryPermissions = {
-  read: 'directory:read',
-  write: 'directory:write',
-  update: 'directory:update',
-  delete: 'directory:delete',
-  admin: 'directory:admin',
-} as const
+export const DirectoryPermissions = DirectoryPermission
 
 /**
  * 旧版本兼容：保持原有的导出名称
  * @deprecated 请使用 TablePermission 代替
  */
-export const TablePermissions = {
-  read: 'table:read',
-  write: 'table:write',
-  update: 'table:update',
-  delete: 'table:delete',
-  manage: 'table:admin', // 保持向后兼容
-  admin: 'table:admin',
-} as const
+export const TablePermissions = TablePermission
 
 /**
  * 旧版本兼容：保持原有的导出名称
  * @deprecated 请使用 FormPermission 代替
  */
-export const FormPermissions = {
-  write: 'form:write',
-  manage: 'form:admin', // 保持向后兼容
-  admin: 'form:admin',
-} as const
+export const FormPermissions = FormPermission
 
 /**
  * 旧版本兼容：保持原有的导出名称
  * @deprecated 请使用 ChartPermission 代替
  */
-export const ChartPermissions = {
-  read: 'chart:read',
-  manage: 'chart:admin', // 保持向后兼容
-  admin: 'chart:admin',
-} as const
+export const ChartPermissions = ChartPermission
 
 /**
  * 解析资源路径，提取父级路径

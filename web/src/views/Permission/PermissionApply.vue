@@ -404,6 +404,8 @@ import {
   getPermissionDescription,
   hasAnyPermissionForNode,
   hasPermission,
+  DirectoryPermission,
+  FunctionPermission,
   type PermissionScope
 } from '@/utils/permission'
 import { applyPermission, getWorkspacePermissions, addPermission, type AddPermissionReq } from '@/api/permission'
@@ -554,10 +556,10 @@ const hasManagePermission = computed(() => {
   
   // 检查是否有 admin 权限（根据资源类型）
   if (node.type === 'function') {
-    return hasPermission(node, 'function:admin')
+    return hasPermission(node, FunctionPermission.admin)
   } else if (node.type === 'package') {
     // ⭐ 所有 package 类型统一使用 directory:admin 权限（包括根目录/工作空间）
-    return hasPermission(node, 'directory:admin')
+    return hasPermission(node, DirectoryPermission.admin)
   }
   return false
 })

@@ -591,7 +591,7 @@ import ChartIcon from '@/components/icons/ChartIcon.vue'
 import TableIcon from '@/components/icons/TableIcon.vue'
 import FormIcon from '@/components/icons/FormIcon.vue'
 import DirectoryUpdateHistoryDialog from '@/components/DirectoryUpdateHistoryDialog.vue'
-import { buildPermissionApplyURL } from '@/utils/permission'
+import { buildPermissionApplyURL, DirectoryPermission } from '@/utils/permission'
 import UsersWidget from '@/architecture/presentation/widgets/UsersWidget.vue'
 import UserWidget from '@/architecture/presentation/widgets/UserWidget.vue'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
@@ -819,11 +819,11 @@ const hasNoDirectoryPermissions = computed(() => {
   
   // ⭐ 所有 package 类型统一检查 directory 权限（包括根目录/工作空间）
   const permissionsToCheck: string[] = [
-    'directory:read',
-    'directory:write',
-    'directory:update',
-    'directory:delete',
-    'directory:admin'
+    DirectoryPermission.read,
+    DirectoryPermission.write,
+    DirectoryPermission.update,
+    DirectoryPermission.delete,
+    DirectoryPermission.admin
   ]
   
   // 如果所有权限都是 false，则显示权限不足
@@ -843,7 +843,7 @@ function handleApplyPermission() {
   }
   
   // ⭐ 所有 package 类型统一申请 directory:read 权限（包括根目录/工作空间）
-  const defaultAction = 'directory:read'
+  const defaultAction = DirectoryPermission.read
   
   // 跳转到权限申请页面
   const applyURL = buildPermissionApplyURL(props.packageNode.full_code_path, defaultAction, undefined)
