@@ -135,6 +135,36 @@ func (a *AppService) CreateApp(ctx context.Context, req *dto.CreateAppReq) (*dto
 		return nil, err
 	}
 
+	// ⭐ 创建 service_tree 根节点（新架构）
+	// 每个 app 都在 service_tree 表中有对应的根节点
+	rootNode := &model.ServiceTree{
+		Name:         app.Name,
+		Code:         app.Code,
+		ParentID:     0,  // 根节点
+		Type:         model.ServiceTreeTypePackage,  // 统一为 package 类型
+		Admins:       app.Admins,
+		PendingCount: 0,
+		AppID:        app.ID,
+		RefID:        app.ID,  // ⭐ ref_id 指向 app 表，标识这是根节点
+		FullCodePath: fmt.Sprintf("/%s/%s", tenantUser, req.Code),
+		Version:      "v1",
+		VersionNum:   1,
+		Base: models.Base{
+			CreatedBy: requestUser,
+			UpdatedBy: requestUser,
+		},
+	}
+
+	err = a.serviceTreeRepo.Create(rootNode)
+	if err != nil {
+		logger.Warnf(ctx, "[AppService] 创建 service_tree 根节点失败: app_id=%d, error=%v", app.ID, err)
+		// ⚠️ 根节点创建失败不影响应用创建，但会影响服务树显示
+		// 后续通过 GetOrCreateRootNode 兼容逻辑可以自动创建
+	} else {
+		logger.Infof(ctx, "[AppService] 创建 service_tree 根节点成功: app_id=%d, root_id=%d, full_code_path=%s", 
+			app.ID, rootNode.ID, rootNode.FullCodePath)
+	}
+
 	// ⭐ 自动给创建者和管理员分配应用管理员角色（拥有 app:admin 权限）
 	resourcePath := fmt.Sprintf("/%s/%s", tenantUser, req.Code)
 
