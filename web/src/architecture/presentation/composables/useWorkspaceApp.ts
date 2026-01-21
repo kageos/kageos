@@ -136,7 +136,6 @@ export function useWorkspaceApp(
     const currentUsername = authStore.user?.username
     if (currentUsername) {
       adminsArray.value = [currentUsername]
-      console.log('[useWorkspaceApp] 默认添加当前用户为管理员:', currentUsername)
     }
     
     createAppDialogVisible.value = true
