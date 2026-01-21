@@ -17,6 +17,19 @@ import { useUserInfoStore } from './stores/userInfo'
 import { registerWidgetInitializers } from './architecture/presentation/widgets/initializers/registerInitializers'
 import { ensureInitialized } from './architecture/infrastructure/widgetRegistry'
 
+// 🔥 开发环境：过滤掉 Element Plus 的 passive event listener 警告
+// 这是 Element Plus 内部的性能建议，不影响功能，可以安全忽略
+if (import.meta.env.DEV) {
+  const originalError = console.error
+  console.error = (...args: any[]) => {
+    // 过滤掉 passive event listener 相关的警告
+    if (typeof args[0] === 'string' && args[0].includes('Added non-passive event listener')) {
+      return
+    }
+    originalError.apply(console, args)
+  }
+}
+
 const app = createApp(App)
 const pinia = createPinia()
 
