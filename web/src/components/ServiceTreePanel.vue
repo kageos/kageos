@@ -41,9 +41,9 @@
       >
         <template #default="{ node, data }">
           <span class="tree-node">
-            <!-- 根节点：使用目录图标（兼容 type='app' 和 type='package' && parent_id=0） -->
+            <!-- 根节点：使用工作空间图标（package 类型且 parent_id=0） -->
             <img 
-              v-if="data.type === 'app' || (data.type === 'package' && data.parent_id === 0)" 
+              v-if="data.type === 'package' && data.parent_id === 0" 
               src="/service-tree/custom-folder.svg" 
               alt="工作空间" 
               class="node-icon app-icon-img"
@@ -694,8 +694,8 @@ const defaultExpandedKeysWithWorkspace = computed(() => {
 const handleNoPermissionClick = (data: ServiceTree) => {
   // 跳转到权限申请页面
   const resourcePath = data.full_code_path
-  // ⭐ 判断是否是根节点
-  const isRootNode = data.type === 'app' || (data.type === 'package' && data.parent_id === 0)
+  // ⭐ 判断是否是根节点（package 类型且 parent_id=0）
+  const isRootNode = data.type === 'package' && data.parent_id === 0
   const resourceType = isRootNode ? 'app' : (data.type === 'package' ? 'directory' : 'function')
   const templateType = data.template_type
   
@@ -729,8 +729,8 @@ const isAdmin = (node: ServiceTree): boolean => {
 // 处理申请权限
 const handleApplyPermission = (data: ServiceTree) => {
   const resourcePath = data.full_code_path
-  // ⭐ 判断是否是根节点
-  const isRootNode = data.type === 'app' || (data.type === 'package' && data.parent_id === 0)
+  // ⭐ 判断是否是根节点（package 类型且 parent_id=0）
+  const isRootNode = data.type === 'package' && data.parent_id === 0
   const resourceType = isRootNode ? 'app' : (data.type === 'package' ? 'directory' : 'function')
   const defaultAction = resourceType === 'app' ? 'app:read' : (resourceType === 'directory' ? 'directory:read' : 'function:read')
   const url = buildPermissionApplyURL(resourcePath, defaultAction, data.template_type)
@@ -775,8 +775,8 @@ const handleApprovePermission = (data: ServiceTree) => {
 // 处理权限管理
 const handleManagePermission = (data: ServiceTree) => {
   const resourcePath = data.full_code_path
-  // ⭐ 判断是否是根节点
-  const isRootNode = data.type === 'app' || (data.type === 'package' && data.parent_id === 0)
+  // ⭐ 判断是否是根节点（package 类型且 parent_id=0）
+  const isRootNode = data.type === 'package' && data.parent_id === 0
   const resourceType = isRootNode ? 'app' : (data.type === 'package' ? 'directory' : 'function')
   const defaultAction = resourceType === 'app' ? 'app:read' : (resourceType === 'directory' ? 'directory:read' : 'function:read')
   // 权限管理页面，默认显示授权模式

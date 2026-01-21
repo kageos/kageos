@@ -628,8 +628,8 @@ const showPermissionRequestTab = computed(() => {
     return false
   }
   
-  // 必须是 package 或 app 类型
-  if (props.packageNode.type !== 'package' && props.packageNode.type !== 'app') {
+  // 必须是 package 类型
+  if (props.packageNode.type !== 'package') {
     return false
   }
   
@@ -643,11 +643,9 @@ const showPermissionRequestTab = computed(() => {
 })
 
 // ⭐ 计算资源类型（用于权限组件）
-// ⭐ 兼容新架构：根节点（parent_id=0）仍然是 app 资源类型，但 type 是 package
 const resourceType = computed<'app' | 'directory'>(() => {
-  // 判断是否是根节点：type='app' 或 (type='package' && parent_id=0)
-  const isRootNode = props.packageNode?.type === 'app' || 
-                     (props.packageNode?.type === 'package' && props.packageNode?.parent_id === 0)
+  // 判断是否是根节点：package 类型且 parent_id=0
+  const isRootNode = props.packageNode?.type === 'package' && props.packageNode?.parent_id === 0
   
   if (isRootNode) {
     return 'app'
@@ -825,10 +823,9 @@ const hasNoDirectoryPermissions = computed(() => {
   }
   
   // ⭐ 根据节点类型确定要检查的权限列表
-  // ⭐ 兼容新架构：根节点（parent_id=0）使用 app 权限，普通 package 使用 directory 权限
+  // ⭐ 根节点（parent_id=0）使用 app 权限，普通 package 使用 directory 权限
   let permissionsToCheck: string[]
-  const isRootNode = props.packageNode.type === 'app' || 
-                     (props.packageNode.type === 'package' && props.packageNode.parent_id === 0)
+  const isRootNode = props.packageNode.type === 'package' && props.packageNode.parent_id === 0
   
   if (isRootNode) {
     // 根节点检查 app:xxx 权限
@@ -867,9 +864,8 @@ function handleApplyPermission() {
   }
   
   // ⭐ 根据节点类型确定申请的权限类型
-  // ⭐ 兼容新架构：根节点（parent_id=0）申请 app:read，普通 package 申请 directory:read
-  const isRootNode = props.packageNode.type === 'app' || 
-                     (props.packageNode.type === 'package' && props.packageNode.parent_id === 0)
+  // ⭐ 根节点（parent_id=0）申请 app:read，普通 package 申请 directory:read
+  const isRootNode = props.packageNode.type === 'package' && props.packageNode.parent_id === 0
   const defaultAction = isRootNode ? 'app:read' : 'directory:read'
   
   // 跳转到权限申请页面
