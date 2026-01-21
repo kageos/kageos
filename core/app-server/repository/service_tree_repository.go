@@ -98,6 +98,7 @@ func (r *ServiceTreeRepository) GetServiceTreesByAppID(appID int64) ([]*model.Se
 // GetRootNodeByAppID 获取应用的根节点
 // 根节点特征：parent_id = 0 AND ref_id = app_id
 // ⭐ 新架构：每个 app 在 service_tree 表中都有对应的根节点
+// ⭐ 迁移完成后，所有 app 都必须有根节点，如果不存在则返回错误
 func (r *ServiceTreeRepository) GetRootNodeByAppID(appID int64) (*model.ServiceTree, error) {
 	var root model.ServiceTree
 	err := r.db.Where("app_id = ? AND parent_id = 0 AND ref_id = ?", appID, appID).
@@ -107,51 +108,6 @@ func (r *ServiceTreeRepository) GetRootNodeByAppID(appID int64) (*model.ServiceT
 		return nil, err
 	}
 	return &root, nil
-}
-
-// GetOrCreateRootNode 获取或创建应用的根节点（兼容逻辑）
-// ⭐ 用于迁移期间的兼容性：如果根节点不存在，自动创建
-// ⭐ 迁移完成后，所有 app 都有根节点，这个方法可以简化为 GetRootNodeByAppID
-func (r *ServiceTreeRepository) GetOrCreateRootNode(ctx context.Context, appID int64, app *model.App) (*model.ServiceTree, error) {
-	// 先尝试获取
-	root, err := r.GetRootNodeByAppID(appID)
-	if err == nil {
-		return root, nil
-	}
-	
-	// 如果不是 "记录不存在" 错误，直接返回
-	if err != gorm.ErrRecordNotFound {
-		return nil, fmt.Errorf("查询根节点失败: %w", err)
-	}
-	
-	// 不存在则创建（兼容逻辑）
-	root = &model.ServiceTree{
-		Name:         app.Name,
-		Code:         app.Code,
-		ParentID:     0,  // 根节点
-		Type:         model.ServiceTreeTypePackage,  // 统一为 package 类型
-		Admins:       app.Admins,
-		PendingCount: app.PendingCount,
-		AppID:        app.ID,
-		RefID:        app.ID,  // ⭐ ref_id 指向 app 表，标识这是根节点
-		FullCodePath: fmt.Sprintf("/%s/%s", app.User, app.Code),
-		Version:      "v1",
-		VersionNum:   1,
-	}
-	
-	// 创建根节点
-	err = r.db.Create(root).Error
-	if err != nil {
-		return nil, fmt.Errorf("创建根节点失败: %w", err)
-	}
-	
-	// 重新加载，预加载 App 关联
-	root, err = r.GetRootNodeByAppID(appID)
-	if err != nil {
-		return nil, fmt.Errorf("重新加载根节点失败: %w", err)
-	}
-	
-	return root, nil
 }
 
 // GetServiceTreesByAppIDAndType 根据应用ID和类型获取服务目录

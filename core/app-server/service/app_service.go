@@ -157,13 +157,14 @@ func (a *AppService) CreateApp(ctx context.Context, req *dto.CreateAppReq) (*dto
 
 	err = a.serviceTreeRepo.Create(rootNode)
 	if err != nil {
-		logger.Warnf(ctx, "[AppService] 创建 service_tree 根节点失败: app_id=%d, error=%v", app.ID, err)
-		// ⚠️ 根节点创建失败不影响应用创建，但会影响服务树显示
-		// 后续通过 GetOrCreateRootNode 兼容逻辑可以自动创建
-	} else {
-		logger.Infof(ctx, "[AppService] 创建 service_tree 根节点成功: app_id=%d, root_id=%d, full_code_path=%s", 
-			app.ID, rootNode.ID, rootNode.FullCodePath)
+		logger.Errorf(ctx, "[AppService] 创建 service_tree 根节点失败: app_id=%d, error=%v", app.ID, err)
+		// ⚠️ 根节点创建失败会导致服务树无法显示，应该返回错误
+		// TODO: 将根节点创建失败改为阻塞性错误，并回滚应用创建
+		return nil, fmt.Errorf("创建工作空间根节点失败: %w", err)
 	}
+	
+	logger.Infof(ctx, "[AppService] 创建 service_tree 根节点成功: app_id=%d, root_id=%d, full_code_path=%s", 
+		app.ID, rootNode.ID, rootNode.FullCodePath)
 
 	// ⭐ 自动给创建者和管理员分配应用管理员角色（拥有 app:admin 权限）
 	resourcePath := fmt.Sprintf("/%s/%s", tenantUser, req.Code)

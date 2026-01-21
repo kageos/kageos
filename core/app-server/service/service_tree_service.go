@@ -440,30 +440,14 @@ func (s *ServiceTreeService) getServiceTreeByAppModel(ctx context.Context, appMo
 		return nil, fmt.Errorf("failed to build service tree: %w", err)
 	}
 	
-	// ⭐ 兼容逻辑：如果没有根节点，自动创建
-	if len(trees) == 0 || trees[0].ParentID != 0 || trees[0].RefID != appModel.ID {
-		logger.Warnf(ctx, "[ServiceTreeService] 未找到根节点，自动创建: app_id=%d", appModel.ID)
-		rootNode, err := s.serviceTreeRepo.GetOrCreateRootNode(ctx, appModel.ID, appModel)
-		if err != nil {
-			return nil, fmt.Errorf("创建根节点失败: %w", err)
-		}
-		
-		// 重新构建树
-		if nodeType != "" {
-			trees, err = s.serviceTreeRepo.BuildServiceTreeByType(appModel.ID, nodeType)
-		} else {
-			trees, err = s.serviceTreeRepo.BuildServiceTree(appModel.ID)
-		}
-		if err != nil {
-			return nil, fmt.Errorf("重新构建服务树失败: %w", err)
-		}
-		
-		logger.Debugf(ctx, "[ServiceTreeService] 根节点创建成功: root_id=%d, app_id=%d", rootNode.ID, appModel.ID)
+	// ⭐ 确保有根节点（如果没有根节点，说明数据异常，应该报错）
+	if len(trees) == 0 {
+		return nil, fmt.Errorf("服务树为空，app_id=%d，请检查根节点是否已创建", appModel.ID)
 	}
 	
-	// ⭐ 确保有根节点
-	if len(trees) == 0 {
-		return nil, fmt.Errorf("服务树为空，app_id=%d", appModel.ID)
+	// ⭐ 验证根节点有效性
+	if trees[0].ParentID != 0 || trees[0].RefID != appModel.ID {
+		return nil, fmt.Errorf("根节点无效，app_id=%d, parent_id=%d, ref_id=%d", appModel.ID, trees[0].ParentID, trees[0].RefID)
 	}
 	
 	rootNode := trees[0]
@@ -1122,9 +1106,9 @@ func (s *ServiceTreeService) convertToGetServiceTreeResp(ctx context.Context, tr
 func (s *ServiceTreeService) calculateExpandedKeys(trees []*dto.GetServiceTreeResp) []int64 {
 	expandedKeysMap := make(map[int64]bool)
 
-	// ⭐ 默认展开根节点（app 类型或 parent_id=0 的 package 类型）
+	// ⭐ 默认展开根节点（package 类型且 parent_id=0）
 	for _, tree := range trees {
-		if tree.Type == "app" || (tree.Type == "package" && tree.ParentID == 0) {
+		if tree.Type == "package" && tree.ParentID == 0 {
 			expandedKeysMap[tree.ID] = true
 		}
 	}
