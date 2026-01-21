@@ -268,6 +268,7 @@ func (s *ServiceTreeService) CreateServiceTree(ctx context.Context, req *dto.Cre
 		Type:         serviceTree.Type,
 		Description:  serviceTree.Description,
 		Tags:         serviceTree.Tags,
+		Admins:       serviceTree.Admins, // ⭐ 返回管理员列表
 		AppID:        serviceTree.AppID,
 		FullCodePath: serviceTree.FullCodePath,
 		Version:      serviceTree.Version,
