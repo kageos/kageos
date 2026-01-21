@@ -11,17 +11,17 @@
  *    - 前端只需要直接使用 `node.permissions` 字段即可
  * 
  * 2. **权限继承规则**（后端已处理）：
- *    - `directory:manage` → 子节点自动拥有所有权限
+ *    - `directory:admin` → 子节点自动拥有所有权限
  *    - `directory:write` → 子节点自动拥有 `table:write`、`form:write` 等
  *    - `directory:update` → 子节点自动拥有 `table:update` 等
  *    - `directory:delete` → 子节点自动拥有 `table:delete` 等
  *    - `directory:read` → 子节点自动拥有 `table:read`、`form:read`、`chart:read` 等
- *    - `app:manage` → 应用下所有资源自动拥有所有权限
+ *    - `app:admin` → 应用下所有资源自动拥有所有权限
  * 
  * 3. **权限层级关系**（前端双重保险）：
  *    - `table:admin`、`form:admin`、`chart:admin` 包含对应的所有权限
- *    - `directory:manage` 包含所有目录权限
- *    - `app:manage` 包含所有应用权限
+ *    - `directory:admin` 包含所有目录权限
+ *    - `app:admin` 包含所有应用权限
  * 
  * ============================================
  * 🎯 设计思路
@@ -81,6 +81,26 @@
  */
 
 import type { ServiceTree } from '@/types'
+import {
+  // 权限常量对象
+  DirectoryPermission,
+  FunctionPermission,
+  TablePermission,
+  FormPermission,
+  ChartPermission,
+  DocsPermission,
+  // 资源类型和操作类型
+  ResourceType,
+  ActionType,
+  // 工具函数
+  buildPermission,
+  parsePermission,
+  getPermissionsByResourceType,
+  // TypeScript 类型
+  type PermissionString,
+  type ResourceTypeString,
+  type ActionTypeString,
+} from '@/constants/permissions'
 
 /**
  * 获取权限的详细说明
@@ -112,7 +132,7 @@ export function getPermissionDescription(
       description: '删除目录及子资源',
       inheritance: '子资源继承删除权限'
     },
-    'directory:manage': {
+    'directory:admin': {
       description: '拥有目录所有权限',
       inheritance: '子资源继承所有权限'
     },
@@ -131,7 +151,7 @@ export function getPermissionDescription(
     'app:delete': {
       description: '删除工作空间及资源'
     },
-    'app:manage': {
+    'app:admin': {
       description: '拥有工作空间所有权限',
       inheritance: '子资源继承所有权限'
     },
@@ -149,7 +169,7 @@ export function getPermissionDescription(
     'function:delete': {
       description: '删除记录'
     },
-    'function:manage': {
+    'function:admin': {
       description: '拥有函数所有权限'
     },
   }
@@ -171,9 +191,9 @@ export interface PermissionInfo {
 /**
  * 检查节点是否有指定权限
  * ⭐ 优化：优先从权限缓存中获取，如果没有则从节点本身的 permissions 字段获取
- * ⭐ 支持权限层级关系：manage 权限包含所有其他权限
+ * ⭐ 支持权限层级关系：admin 权限包含所有其他权限
  * @param node 服务树节点
- * @param action 权限点（如 table:search、function:manage）
+ * @param action 权限点（如 table:search、function:admin）
  * @returns 是否有权限
  */
 /**
@@ -231,23 +251,23 @@ export function hasPermission(node: ServiceTree | undefined, action: string): bo
       return true
     }
   }
-  // ⭐ 兼容旧格式（function:manage、function:read 等）
+  // ⭐ function:admin 包含所有 function 权限
   if (action.startsWith('function:')) {
-    if (permissions['function:manage'] === true) {
+    if (permissions['function:admin'] === true) {
       return true
     }
   }
 
-  // directory:manage 包含 directory:read、directory:write、directory:update、directory:delete
+  // directory:admin 包含 directory:read、directory:write、directory:update、directory:delete
   if (action.startsWith('directory:')) {
-    if (permissions['directory:manage'] === true) {
+    if (permissions['directory:admin'] === true) {
       return true
     }
   }
 
-  // app:manage 包含 app:read、app:create、app:update、app:delete
+  // app:admin 包含 app:read、app:create、app:update、app:delete
   if (action.startsWith('app:')) {
-    if (permissions['app:manage'] === true) {
+    if (permissions['app:admin'] === true) {
       return true
     }
   }
@@ -328,19 +348,19 @@ export function getPermissionDisplayName(action: string): string {
     'function:write': '写入函数',
     'function:update': '更新函数',
     'function:delete': '删除函数',
-    'function:manage': '所有权',
+    'function:admin': '所有权',
     // Directory 操作
     'directory:read': '查看目录',
     'directory:write': '写入目录',
     'directory:update': '更新目录',
     'directory:delete': '删除目录',
-    'directory:manage': '所有权',
+    'directory:admin': '所有权',
     // App 操作（工作空间）
     'app:read': '查看工作空间',
     'app:create': '创建工作空间',
     'app:update': '更新工作空间',
     'app:delete': '删除工作空间',
-    'app:manage': '所有权',
+    'app:admin': '所有权',
   }
   return displayNames[action] || action
 }
@@ -370,17 +390,17 @@ export function getPermissionShortName(action: string): string {
     'function:write': 'write权限',
     'function:update': 'update权限',
     'function:delete': 'delete权限',
-    'function:manage': 'manage权限',
+    'function:admin': 'admin权限',
     'directory:read': 'read权限',
     'directory:write': 'write权限',
     'directory:update': 'update权限',
     'directory:delete': 'delete权限',
-    'directory:manage': 'manage权限',
+    'directory:admin': 'admin权限',
     'app:read': 'read权限',
     'app:create': 'create权限',
     'app:update': 'update权限',
     'app:delete': 'delete权限',
-    'app:manage': 'manage权限',
+    'app:admin': 'admin权限',
   }
   return shortNames[action] || `${action.split(':')[1] || action}权限`
 }
@@ -474,7 +494,7 @@ export function getAvailablePermissions(
     )
     // 大权限（所有权）放在最后
     permissions.push(
-      { action: 'directory:manage', displayName: '所有权', isMinimal: false, isManage: true }
+      { action: 'directory:admin', displayName: '所有权', isMinimal: false, isManage: true }
     )
   } else if (resourceType === 'app') {
     // 工作空间相关权限：小权限在前
@@ -486,13 +506,13 @@ export function getAvailablePermissions(
     )
     // 大权限（所有权）放在最后
     permissions.push(
-      { action: 'app:manage', displayName: '所有权', isMinimal: false, isManage: true }
+      { action: 'app:admin', displayName: '所有权', isMinimal: false, isManage: true }
     )
   } else {
     // 未知类型，返回通用权限
     permissions.push(
       { action: 'function:read', displayName: '查看函数', isMinimal: true },
-      { action: 'function:manage', displayName: '所有权', isMinimal: false, isManage: true }
+      { action: 'function:admin', displayName: '所有权', isMinimal: false, isManage: true }
     )
   }
 
@@ -513,53 +533,58 @@ export function getDefaultSelectedPermissions(
 }
 
 /**
- * 检查 Table 函数的相关权限（使用新的权限点格式：table:read、table:write 等）
+ * ⭐ 权限常量统一管理
+ * 从 @/constants/permissions 导入，避免重复定义和硬编码
+ * 
+ * 使用示例：
+ * - DirectoryPermission.read  // 'directory:read'
+ * - TablePermission.write     // 'table:write'
+ * - DocsPermission.admin      // 'docs:admin'
  */
-export const TablePermissions = {
-  read: 'table:read',
-  write: 'table:write',
-  update: 'table:update',
-  delete: 'table:delete',
-  manage: 'table:admin', // ⭐ 使用 admin 而不是 manage
-} as const
+export {
+  // 权限常量对象
+  DirectoryPermission,
+  FunctionPermission,
+  TablePermission,
+  FormPermission,
+  ChartPermission,
+  DocsPermission,
+  // 资源类型和操作类型
+  ResourceType,
+  ActionType,
+  // 工具函数
+  buildPermission,
+  parsePermission,
+  getPermissionsByResourceType,
+  // TypeScript 类型
+  type PermissionString,
+  type ResourceTypeString,
+  type ActionTypeString,
+}
 
 /**
- * 检查 Form 函数的相关权限（使用新的权限点格式：form:write 等）
+ * 旧版本兼容：保持原有的导出名称
+ * @deprecated 请使用 DirectoryPermission 代替
  */
-export const FormPermissions = {
-  write: 'form:write',
-  manage: 'form:admin', // ⭐ 使用 admin 而不是 manage
-} as const
+export const DirectoryPermissions = DirectoryPermission
 
 /**
- * 检查 Chart 函数的相关权限（使用新的权限点格式：chart:read 等）
+ * 旧版本兼容：保持原有的导出名称
+ * @deprecated 请使用 TablePermission 代替
  */
-export const ChartPermissions = {
-  read: 'chart:read',
-  manage: 'chart:admin', // ⭐ 使用 admin 而不是 manage
-} as const
+export const TablePermissions = TablePermission
 
 /**
- * 检查目录的相关权限
+ * 旧版本兼容：保持原有的导出名称
+ * @deprecated 请使用 FormPermission 代替
  */
-export const DirectoryPermissions = {
-  read: 'directory:read',
-  write: 'directory:write',
-  update: 'directory:update',
-  delete: 'directory:delete',
-  manage: 'directory:manage',
-} as const
+export const FormPermissions = FormPermission
 
 /**
- * 应用（工作空间）权限常量
+ * 旧版本兼容：保持原有的导出名称
+ * @deprecated 请使用 ChartPermission 代替
  */
-export const AppPermissions = {
-  READ: 'app:read',
-  WRITE: 'app:write',
-  UPDATE: 'app:update',
-  DELETE: 'app:delete',
-  ADMIN: 'app:admin',
-} as const
+export const ChartPermissions = ChartPermission
 
 /**
  * 解析资源路径，提取父级路径
@@ -684,7 +709,7 @@ export function getPermissionScopes(
       permissions: directoryPermissions,
       quickSelect: {
         label: '申请此目录的管理权限',
-        actions: ['directory:manage']
+        actions: ['directory:admin']
       },
     })
   }
@@ -700,7 +725,7 @@ export function getPermissionScopes(
       permissions: appPermissions,
       quickSelect: {
         label: '申请此工作空间的管理权限',
-        actions: ['app:manage']
+        actions: ['app:admin']
       },
     })
   }

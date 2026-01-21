@@ -20,5 +20,5 @@ type Doc struct {
 
 // TableName 指定表名
 func (Doc) TableName() string {
-	return "doc"
+	return "docs"
 }

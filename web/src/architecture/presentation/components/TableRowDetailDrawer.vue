@@ -35,7 +35,7 @@
               @click="handleToggleMode('edit')"
             >
               <el-icon><component :is="canEdit ? Edit : Lock" /></el-icon>
-              {{ canEdit ? '编辑' : `编辑（需${getPermissionShortName('function:update')}）` }}
+              {{ canEdit ? '编辑' : `编辑（需${getPermissionShortName(FunctionPermission.update)}）` }}
             </el-button>
             <el-button
               v-if="mode === 'edit'"
@@ -343,7 +343,7 @@ import { ref, computed, nextTick, watch } from 'vue'
 import { Edit, ArrowLeft, ArrowRight, Grid, List, Lock } from '@element-plus/icons-vue'
 import { ElMessage, ElTabs, ElTabPane } from 'element-plus'
 import { useRouter, useRoute } from 'vue-router'
-import { buildPermissionApplyURL, getPermissionShortName } from '@/utils/permission'
+import { buildPermissionApplyURL, getPermissionShortName, FunctionPermission } from '@/utils/permission'
 import FormView from '@/architecture/presentation/views/FormView.vue'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
 import LinkWidget from '@/architecture/presentation/widgets/LinkWidget.vue'
@@ -758,7 +758,7 @@ const handleToggleMode = async (newMode: 'read' | 'edit') => {
     if (path) {
       // 获取 template_type（从 currentFunctionDetail 或 functionDetail）
       const templateType = props.currentFunctionDetail?.template_type || props.functionDetail?.template_type
-      const applyURL = buildPermissionApplyURL(path, 'function:update', templateType)
+      const applyURL = buildPermissionApplyURL(path, FunctionPermission.update, templateType)
       router.push(applyURL)
     } else {
       ElMessage.warning('无法获取资源路径，无法申请权限')

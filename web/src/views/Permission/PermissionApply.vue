@@ -49,9 +49,9 @@
                 >
                   <template #default="{ node, data }">
                     <span class="tree-node" :class="{ 'is-selected': selectedResourcePath === data.full_code_path }">
-                      <!-- app 和 package 类型：统一使用目录图标 -->
+                      <!-- package 类型（包括根节点）：统一使用目录图标 -->
                       <img 
-                        v-if="data.type === 'app' || data.type === 'package'" 
+                        v-if="data.type === 'package'" 
                         src="/service-tree/custom-folder.svg" 
                         alt="目录" 
                         class="node-icon package-icon-img"
@@ -75,6 +75,14 @@
                           :class="getNodeIconClass(data)"
                         />
                       </template>
+                      <!-- docs 类型：使用文档图标 -->
+                      <img 
+                        v-else-if="data.type === 'docs'" 
+                        src="/文档.svg" 
+                        alt="文档" 
+                        class="node-icon docs-icon-img"
+                        :class="getNodeIconClass(data)"
+                      />
                       <!-- 其他类型：显示 fx 文本 -->
                       <span v-else class="node-icon fx-icon" :class="getNodeIconClass(data)">fx</span>
                       <span class="node-label" :class="{ 'no-permission': !hasAnyPermissionForNode(data) }">{{ node.label }}</span>
@@ -115,9 +123,9 @@
                   <span class="scope-name-main">{{ currentScope.displayName }}</span>
                     <el-tag
                     size="small" 
-                    :type="currentScope.resourceType === 'function' ? 'primary' : currentScope.resourceType === 'directory' ? 'success' : currentScope.resourceType === 'app' ? 'warning' : 'info'"
+                    :type="currentScope.resourceType === 'function' ? 'primary' : 'success'"
                   >
-                    {{ currentScope.resourceType === 'function' ? '函数' : currentScope.resourceType === 'directory' ? '目录' : currentScope.resourceType === 'app' ? '工作空间' : '应用' }}
+                    {{ currentScope.resourceType === 'function' ? '函数' : '目录' }}
                     </el-tag>
                   </div>
                 </div>
@@ -404,6 +412,8 @@ import {
   getPermissionDescription,
   hasAnyPermissionForNode,
   hasPermission,
+  DirectoryPermission,
+  FunctionPermission,
   type PermissionScope
 } from '@/utils/permission'
 import { applyPermission, getWorkspacePermissions, addPermission, type AddPermissionReq } from '@/api/permission'
@@ -552,13 +562,12 @@ const hasManagePermission = computed(() => {
     return true
   }
   
-  // 检查是否有 manage 权限（根据资源类型）
+  // 检查是否有 admin 权限（根据资源类型）
   if (node.type === 'function') {
-    return hasPermission(node, 'function:manage')
+    return hasPermission(node, FunctionPermission.admin)
   } else if (node.type === 'package') {
-    return hasPermission(node, 'directory:manage')
-  } else if ((node as any).type === 'app') {
-    return hasPermission(node, 'app:manage')
+    // ⭐ 所有 package 类型统一使用 directory:admin 权限（包括根目录/工作空间）
+    return hasPermission(node, DirectoryPermission.admin)
   }
   return false
 })
@@ -829,9 +838,7 @@ const getFunctionIcon = (data: ServiceTree) => {
 
 // 获取节点图标样式类
 const getNodeIconClass = (data: ServiceTree) => {
-  if (data.type === 'app') {
-    return 'app-icon'
-  } else if (data.type === 'package') {
+  if (data.type === 'package') {
     return 'package-icon'
   } else if (data.type === 'function') {
     // 根据 template_type 返回不同的样式类
@@ -843,6 +850,8 @@ const getNodeIconClass = (data: ServiceTree) => {
       return 'chart-icon'
     }
     return 'function-icon'
+  } else if (data.type === 'docs') {
+    return 'docs-icon'
   }
   return 'function-icon'
 }
@@ -1159,10 +1168,10 @@ const loadResourcePermissions = async (resourcePath: string, defaultAction?: str
       actions: permissions.map(p => p.action)
     } : resourceType === 'directory' ? {
       label: '申请此目录的管理权限',
-      actions: ['directory:manage']
+      actions: ['directory:admin']
     } : {
       label: '申请此工作空间的管理权限',
-      actions: ['app:manage']
+      actions: ['app:admin']
     }
   }
   
@@ -1516,12 +1525,12 @@ const getInheritanceText = (action: string): string => {
     'directory:write': '写入权限',
     'directory:update': '更新权限',
     'directory:delete': '删除权限',
-    'directory:manage': '所有权',
+    'directory:admin': '所有权',
     'app:read': '查看权限',
     'app:create': '创建权限',
     'app:update': '更新权限',
     'app:delete': '删除权限',
-    'app:manage': '所有权',
+    'app:admin': '所有权',
   }
   
   const permissionName = permissionNameMap[action] || '对应权限'
@@ -1587,19 +1596,19 @@ const getPermissionShortLabel = (action: string): string | null => {
     'directory:write': '写',
     'directory:update': '改',
     'directory:delete': '删',
-    'directory:manage': '所有权',
+    'directory:admin': '所有权',
     // 工作空间权限
     'app:read': '读',
     'app:create': '创建',
     'app:update': '改',
     'app:delete': '删',
-    'app:manage': '所有权',
+    'app:admin': '所有权',
     // 函数权限
     'function:read': '读',
     'function:write': '写',
     'function:update': '改',
     'function:delete': '删',
-    'function:manage': '所有权',
+    'function:admin': '所有权',
   }
   return labelMap[action] || null
 }
@@ -1624,7 +1633,7 @@ const getNodePermissionDisplayText = (resourcePath: string): string | null => {
   
   // ⭐ 只显示已有权限（使用简短标识）
     // 检查是否有管理权限（优先级最高）
-    if (existingPermissionsList.some(p => p === 'directory:manage' || p === 'app:manage' || p === 'function:manage')) {
+    if (existingPermissionsList.some(p => p === 'directory:admin' || p === 'app:admin' || p === 'function:admin')) {
     return '所有权'
   }
   
@@ -1703,12 +1712,12 @@ const mapPermissionsForChild = (childPath: string, childNode: ServiceTree, paren
           childPermissions.push('function:read')
         }
       }
-    } else if (parentAction === 'directory:manage' || parentAction === 'app:manage') {
+    } else if (parentAction === 'directory:admin' || parentAction === 'app:admin') {
       // 管理权限：子节点显示"所有权"
       if (childNode.type === 'package') {
-        // 子目录：保存 directory:manage（显示时会显示为"所有权"）
-        if (!childPermissions.includes('directory:manage')) {
-          childPermissions.push('directory:manage')
+        // 子目录：保存 directory:admin（显示时会显示为"所有权"）
+        if (!childPermissions.includes('directory:admin')) {
+          childPermissions.push('directory:admin')
         }
       } else if (childNode.type === 'function') {
         // 子函数：保存所有相关权限，但显示时会显示为"所有权"
@@ -1734,10 +1743,10 @@ const mapPermissionsForChild = (childPath: string, childNode: ServiceTree, paren
           if (!childPermissions.includes('function:delete')) childPermissions.push('function:delete')
         }
         // 所有权权限
-        if (!childPermissions.includes('function:manage')) childPermissions.push('function:manage')
+        if (!childPermissions.includes('function:admin')) childPermissions.push('function:admin')
         // 添加一个特殊标记，表示这是管理权限下的子节点
-        if (!childPermissions.includes('_has_manage_permission')) {
-          childPermissions.push('_has_manage_permission')
+        if (!childPermissions.includes('_has_admin_permission')) {
+          childPermissions.push('_has_admin_permission')
         }
       }
     } else if (parentAction === 'directory:write') {
@@ -2363,6 +2372,18 @@ const clearRoleSelection = () => {
                   
                   &.chart-icon {
                     color: #f59e0b; /* amber-500 - 图表用橙色 */
+                    opacity: 0.9;
+                  }
+                  
+                  &.docs-icon {
+                    color: #9b42f8; /* purple-500 - 文档用紫色 */
+                    opacity: 0.9;
+                  }
+                  
+                  &.docs-icon-img {
+                    width: 16px;
+                    height: 16px;
+                    object-fit: contain;
                     opacity: 0.9;
                   }
                   

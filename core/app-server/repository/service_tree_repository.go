@@ -17,6 +17,11 @@ func NewServiceTreeRepository(db *gorm.DB) *ServiceTreeRepository {
 	return &ServiceTreeRepository{db: db}
 }
 
+// Create 创建服务树节点（通用方法）
+func (r *ServiceTreeRepository) Create(serviceTree *model.ServiceTree) error {
+	return r.db.Create(serviceTree).Error
+}
+
 // GetDocsNodesByParentID 根据父节点ID获取所有 docs 类型的子节点（递归）
 func (r *ServiceTreeRepository) GetDocsNodesByParentID(parentID int64) ([]*model.ServiceTree, error) {
 	var nodes []*model.ServiceTree
@@ -88,6 +93,21 @@ func (r *ServiceTreeRepository) GetServiceTreesByAppID(appID int64) ([]*model.Se
 		return nil, err
 	}
 	return serviceTrees, nil
+}
+
+// GetRootNodeByAppID 获取应用的根节点
+// 根节点特征：parent_id = 0 AND ref_id = app_id
+// ⭐ 新架构：每个 app 在 service_tree 表中都有对应的根节点
+// ⭐ 迁移完成后，所有 app 都必须有根节点，如果不存在则返回错误
+func (r *ServiceTreeRepository) GetRootNodeByAppID(appID int64) (*model.ServiceTree, error) {
+	var root model.ServiceTree
+	err := r.db.Where("app_id = ? AND parent_id = 0 AND ref_id = ?", appID, appID).
+		Preload("App").
+		First(&root).Error
+	if err != nil {
+		return nil, err
+	}
+	return &root, nil
 }
 
 // GetServiceTreesByAppIDAndType 根据应用ID和类型获取服务目录
