@@ -81,3 +81,16 @@ func (r *DocRepository) ListByTreeIDs(treeIDs []int64) ([]*model.Doc, error) {
 	}
 	return docs, nil
 }
+
+// GetByIDs 根据 ID 列表批量获取文档
+func (r *DocRepository) GetByIDs(ids []int64) ([]*model.Doc, error) {
+	if len(ids) == 0 {
+		return []*model.Doc{}, nil
+	}
+	
+	var docs []*model.Doc
+	if err := r.db.Where("id IN ?", ids).Find(&docs).Error; err != nil {
+		return nil, err
+	}
+	return docs, nil
+}
