@@ -4,7 +4,7 @@ package dto
 type AgentListReq struct {
 	AgentType        string `json:"agent_type" form:"agent_type"`                    // knowledge_only, plugin
 	Enabled          *bool  `json:"enabled" form:"enabled"`                          // true, false
-	KnowledgeBaseID  *int64 `json:"knowledge_base_id" form:"knowledge_base_id"`      // 按知识库ID过滤（可选）
+	DocsPaths        string `json:"docs_paths" form:"docs_paths"`                   // 按文档路径过滤（可选）
 	LLMConfigID      *int64 `json:"llm_config_id" form:"llm_config_id"`              // 按LLM配置ID过滤（可选，0表示默认LLM）
 	PluginFunctionPath string `json:"plugin_function_path" form:"plugin_function_path"`                     // 按插件函数路径过滤（可选）
 	Scope            string `json:"scope" form:"scope"`                              // mine: 我的, market: 市场
@@ -23,8 +23,7 @@ type AgentInfo struct {
 	Description     string             `json:"description" example:"基于Excel文件生成管理系统"`
 	Timeout         int                `json:"timeout" example:"30"`
 	PluginFunctionPath string             `json:"plugin_function_path" example:"/system/official/agent/plugin/excel_or_csv/table_parse"` // 插件函数路径（full-code-path，仅 plugin 类型需要）
-	KnowledgeBaseID     int64              `json:"knowledge_base_id" example:"1"`
-	KnowledgeBase       *KnowledgeBaseInfo `json:"knowledge_base,omitempty"`  // 预加载的知识库信息
+	DocsPaths          string             `json:"docs_paths" example:"/system/official/sdk,/system/official/plugins"` // 文档路径（逗号分隔）
 	LLMConfigID         int64              `json:"llm_config_id" example:"1"` // LLM配置ID，如果为0则使用默认LLM
 	LLMConfig           *LLMConfigInfo     `json:"llm_config,omitempty"`      // 预加载的LLM配置信息
 	SystemPromptTemplate string            `json:"system_prompt_template" example:"你是一个专业的代码生成助手。以下是相关的知识库内容，请参考这些内容来生成代码：\n{knowledge}"` // System Prompt模板，支持{knowledge}变量
@@ -38,15 +37,6 @@ type AgentInfo struct {
 	IsAdmin             bool               `json:"is_admin" example:"true"` // 当前用户是否是管理员（前端计算或后端返回）
 	CreatedAt       string             `json:"created_at" example:"2024-01-01T00:00:00Z"`
 	UpdatedAt       string             `json:"updated_at" example:"2024-01-01T00:00:00Z"`
-}
-
-// KnowledgeBaseInfo 知识库信息（用于预加载）
-type KnowledgeBaseInfo struct {
-	ID            int64  `json:"id" example:"1"`
-	Name          string `json:"name" example:"Excel知识库"`
-	Description   string `json:"description" example:"Excel相关文档"`
-	Status        string `json:"status" example:"active"`
-	DocumentCount int    `json:"document_count" example:"10"`
 }
 
 // LLMConfigInfo LLM配置信息（用于预加载）
@@ -83,7 +73,7 @@ type AgentCreateReq struct {
 	Description     string `json:"description" example:"基于Excel文件生成管理系统"`
 	Timeout         int    `json:"timeout" example:"30"`
 	PluginFunctionPath string `json:"plugin_function_path" example:"/system/official/agent/plugin/excel_or_csv/table_parse"` // 插件函数路径（full-code-path，仅 plugin 类型需要）
-	KnowledgeBaseID     int64  `json:"knowledge_base_id" binding:"required" example:"1"`
+	DocsPaths          string `json:"docs_paths" example:"/system/official/sdk,/system/official/plugins"` // 文档路径（逗号分隔）
 	LLMConfigID         int64  `json:"llm_config_id" example:"1"` // LLM配置ID，如果为0则使用默认LLM
 	SystemPromptTemplate string `json:"system_prompt_template" example:"你是一个专业的代码生成助手。以下是相关的知识库内容，请参考这些内容来生成代码：\n{knowledge}"` // System Prompt模板，支持{knowledge}变量
 	Metadata            string `json:"metadata" example:"{}"`
@@ -109,7 +99,7 @@ type AgentUpdateReq struct {
 	Description     string `json:"description" example:"基于Excel文件生成管理系统"`
 	Timeout         int    `json:"timeout" example:"30"`
 	PluginFunctionPath string `json:"plugin_function_path" example:"/system/official/agent/plugin/excel_or_csv/table_parse"` // 插件函数路径（full-code-path，仅 plugin 类型需要）
-	KnowledgeBaseID     int64  `json:"knowledge_base_id" binding:"required" example:"1"`
+	DocsPaths          string `json:"docs_paths" example:"/system/official/sdk,/system/official/plugins"` // 文档路径（逗号分隔）
 	LLMConfigID         int64  `json:"llm_config_id" example:"1"` // LLM配置ID，如果为0则使用默认LLM
 	SystemPromptTemplate string `json:"system_prompt_template" example:"你是一个专业的代码生成助手。以下是相关的知识库内容，请参考这些内容来生成代码：\n{knowledge}"` // System Prompt模板，支持{knowledge}变量
 	Metadata            string `json:"metadata" example:"{}"`

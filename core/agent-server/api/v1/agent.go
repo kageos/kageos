@@ -65,7 +65,7 @@ func (h *Agent) List(c *gin.Context) {
 					"Enabled":         agent.Enabled,
 					"Description":     agent.Description,
 					"Timeout":         agent.Timeout,
-					"KnowledgeBaseID": agent.KnowledgeBaseID,
+					"DocsPaths": agent.DocsPaths,
 					"LLMConfigID":      agent.LLMConfigID,
 					"PluginFunctionPath": agent.PluginFunctionPath,
 					"SystemPromptTemplate": fmt.Sprintf("<len:%d>", len(agent.SystemPromptTemplate)),
@@ -98,18 +98,6 @@ func (h *Agent) List(c *gin.Context) {
 			metadata = *agent.Metadata
 		}
 
-		// 构建知识库信息（如果已预加载）
-		var kbInfo *dto.KnowledgeBaseInfo
-		if agent.KnowledgeBase.ID > 0 {
-			kbInfo = &dto.KnowledgeBaseInfo{
-				ID:            agent.KnowledgeBase.ID,
-				Name:          agent.KnowledgeBase.Name,
-				Description:   agent.KnowledgeBase.Description,
-				Status:        agent.KnowledgeBase.Status,
-				DocumentCount: agent.KnowledgeBase.DocumentCount,
-			}
-		}
-
 		// 构建 LLM 配置信息（如果已预加载）
 		var llmInfo *dto.LLMConfigInfo
 		if agent.LLMConfig.ID > 0 {
@@ -131,9 +119,8 @@ func (h *Agent) List(c *gin.Context) {
 			Description:          agent.Description,
 			Timeout:              agent.Timeout,
 			PluginFunctionPath:   agent.PluginFunctionPath,
-			KnowledgeBaseID:      agent.KnowledgeBaseID,
+			DocsPaths:            agent.DocsPaths,
 			GenerationCount:      agent.GenerationCount,
-			KnowledgeBase:        kbInfo,
 			LLMConfigID:          agent.LLMConfigID,
 			LLMConfig:            llmInfo,
 			SystemPromptTemplate: agent.SystemPromptTemplate,
@@ -193,18 +180,6 @@ func (h *Agent) Get(c *gin.Context) {
 		metadata = *agent.Metadata
 	}
 
-	// 构建知识库信息（如果已预加载）
-	var kbInfo *dto.KnowledgeBaseInfo
-	if agent.KnowledgeBase.ID > 0 {
-		kbInfo = &dto.KnowledgeBaseInfo{
-			ID:            agent.KnowledgeBase.ID,
-			Name:          agent.KnowledgeBase.Name,
-			Description:   agent.KnowledgeBase.Description,
-			Status:        agent.KnowledgeBase.Status,
-			DocumentCount: agent.KnowledgeBase.DocumentCount,
-		}
-	}
-
 	// 构建 LLM 配置信息（如果已预加载）
 	var llmInfo *dto.LLMConfigInfo
 	if agent.LLMConfig.ID > 0 {
@@ -225,12 +200,11 @@ func (h *Agent) Get(c *gin.Context) {
 			ChatType:             agent.ChatType,
 			Enabled:              agent.Enabled,
 			Description:          agent.Description,
-			Timeout:              agent.Timeout,
-			PluginFunctionPath:   agent.PluginFunctionPath,
-			KnowledgeBaseID:      agent.KnowledgeBaseID,
-			KnowledgeBase:        kbInfo,
-			LLMConfigID:          agent.LLMConfigID,
-			LLMConfig:            llmInfo,
+		Timeout:              agent.Timeout,
+		PluginFunctionPath:   agent.PluginFunctionPath,
+		DocsPaths:            agent.DocsPaths,
+		LLMConfigID:          agent.LLMConfigID,
+		LLMConfig:            llmInfo,
 			SystemPromptTemplate: agent.SystemPromptTemplate,
 			Metadata:             metadata,
 			Logo:                 agent.Logo,
@@ -283,7 +257,7 @@ func (h *Agent) Create(c *gin.Context) {
 		Description:          req.Description,
 		Timeout:              req.Timeout,
 		PluginFunctionPath:   req.PluginFunctionPath,
-		KnowledgeBaseID:      req.KnowledgeBaseID,
+		DocsPaths:            req.DocsPaths,
 		LLMConfigID:          req.LLMConfigID,
 		SystemPromptTemplate: req.SystemPromptTemplate,
 		Metadata:             metadata,
@@ -343,8 +317,8 @@ func (h *Agent) Update(c *gin.Context) {
 	agent.ChatType = req.ChatType
 	agent.Description = req.Description
 	agent.Timeout = req.Timeout
-		agent.PluginFunctionPath = req.PluginFunctionPath
-	agent.KnowledgeBaseID = req.KnowledgeBaseID
+	agent.PluginFunctionPath = req.PluginFunctionPath
+	agent.DocsPaths = req.DocsPaths
 	agent.LLMConfigID = req.LLMConfigID
 	agent.SystemPromptTemplate = req.SystemPromptTemplate
 	agent.Logo = req.Logo

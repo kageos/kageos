@@ -65,8 +65,8 @@ func (r *AgentRepository) List(req dto.AgentListReq, currentUser string) ([]*mod
 		dbQuery = dbQuery.Where("enabled = ?", *req.Enabled)
 	}
 
-	if req.KnowledgeBaseID != nil && *req.KnowledgeBaseID > 0 {
-		dbQuery = dbQuery.Where("knowledge_base_id = ?", *req.KnowledgeBaseID)
+	if req.DocsPaths != "" {
+		dbQuery = dbQuery.Where("docs_paths LIKE ?", "%"+req.DocsPaths+"%")
 	}
 
 	if req.LLMConfigID != nil {

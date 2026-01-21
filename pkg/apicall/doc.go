@@ -4,41 +4,21 @@ import (
 	"context"
 	"net/url"
 	"strings"
+
+	"github.com/ai-agent-os/ai-agent-os/dto"
 )
 
-// GetDocsByPathsReq 根据路径批量获取文档请求
-type GetDocsByPathsReq struct {
-	Paths []string `json:"paths"` // 文档路径列表，如 ["/system/official/sdk", "/user/myapp/docs"]
-}
-
-// DocItem 文档项
-type DocItem struct {
-	ID           int64  `json:"id"`
-	Name         string `json:"name"`
-	Content      string `json:"content"`
-	Format       string `json:"format"`
-	FullCodePath string `json:"full_code_path"`
-	Summary      string `json:"summary"`
-	Category     string `json:"category"`
-}
-
-// GetDocsByPathsResp 根据路径批量获取文档响应
-type GetDocsByPathsResp struct {
-	Docs []*DocItem `json:"docs"` // 文档列表
-}
-
 // GetDocsByPaths 根据路径批量获取文档（agent-server -> app-server）
-// paths: 文档路径列表，支持路径前缀匹配
+// paths: 文档路径列表，直接根据 full_code_path IN 查询
 // 例如：["/system/official/sdk", "/user/myapp/docs"]
-// 会返回这些路径及其子路径下的所有文档
-func GetDocsByPaths(ctx context.Context, paths []string) (*GetDocsByPathsResp, error) {
+func GetDocsByPaths(ctx context.Context, paths []string) (*dto.GetDocsByPathsResp, error) {
 	if len(paths) == 0 {
-		return &GetDocsByPathsResp{Docs: []*DocItem{}}, nil
+		return &dto.GetDocsByPathsResp{Docs: []*dto.DocItem{}}, nil
 	}
 	
-	// 构建查询参数
+	// 构建查询参数（逗号分隔）
 	params := url.Values{}
 	params.Set("paths", strings.Join(paths, ","))
 	
-	return GetAPI[*GetDocsByPathsResp](ctx, "/workspace/api/v1/docs/batch", params)
+	return GetAPI[*dto.GetDocsByPathsResp](ctx, "/workspace/api/v1/docs/batch", params)
 }

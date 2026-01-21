@@ -25,7 +25,7 @@ func InitTables(db *gorm.DB) error {
 		// 目录更新历史表（用于记录API变更历史）
 		&DirectoryUpdateHistory{},
 		// 文档表（用于存储文档内容）
-		&Doc{},
+		&Docs{},
 		// 权限系统相关表
 		// ⭐ WorkspacePermission 已废弃，不再使用 workspace_permission 表，仅使用角色系统
 		&PermissionRequest{},
