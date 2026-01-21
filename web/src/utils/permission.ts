@@ -513,35 +513,38 @@ export function getDefaultSelectedPermissions(
 }
 
 /**
- * 检查 Table 函数的相关权限（使用新的权限点格式：table:read、table:write 等）
+ * ⭐ 权限常量统一管理
+ * 从 @/constants/permissions 导入，避免重复定义和硬编码
+ * 
+ * 使用示例：
+ * - DirectoryPermission.read  // 'directory:read'
+ * - TablePermission.write     // 'table:write'
+ * - DocsPermission.admin      // 'docs:admin'
  */
-export const TablePermissions = {
-  read: 'table:read',
-  write: 'table:write',
-  update: 'table:update',
-  delete: 'table:delete',
-  manage: 'table:admin', // ⭐ 使用 admin 而不是 manage
-} as const
+export {
+  // 权限常量对象
+  DirectoryPermission,
+  FunctionPermission,
+  TablePermission,
+  FormPermission,
+  ChartPermission,
+  DocsPermission,
+  // 资源类型和操作类型
+  ResourceType,
+  ActionType,
+  // 工具函数
+  buildPermission,
+  parsePermission,
+  getPermissionsByResourceType,
+  // TypeScript 类型
+  type PermissionString,
+  type ResourceTypeString,
+  type ActionTypeString,
+} from '@/constants/permissions'
 
 /**
- * 检查 Form 函数的相关权限（使用新的权限点格式：form:write 等）
- */
-export const FormPermissions = {
-  write: 'form:write',
-  manage: 'form:admin', // ⭐ 使用 admin 而不是 manage
-} as const
-
-/**
- * 检查 Chart 函数的相关权限（使用新的权限点格式：chart:read 等）
- */
-export const ChartPermissions = {
-  read: 'chart:read',
-  manage: 'chart:admin', // ⭐ 使用 admin 而不是 manage
-} as const
-
-/**
- * 目录权限常量（包括根目录/工作空间）
- * ⭐ 工作空间就是根目录，使用相同的权限体系
+ * 旧版本兼容：保持原有的导出名称
+ * @deprecated 请使用 DirectoryPermission 代替
  */
 export const DirectoryPermissions = {
   read: 'directory:read',
@@ -549,6 +552,39 @@ export const DirectoryPermissions = {
   update: 'directory:update',
   delete: 'directory:delete',
   admin: 'directory:admin',
+} as const
+
+/**
+ * 旧版本兼容：保持原有的导出名称
+ * @deprecated 请使用 TablePermission 代替
+ */
+export const TablePermissions = {
+  read: 'table:read',
+  write: 'table:write',
+  update: 'table:update',
+  delete: 'table:delete',
+  manage: 'table:admin', // 保持向后兼容
+  admin: 'table:admin',
+} as const
+
+/**
+ * 旧版本兼容：保持原有的导出名称
+ * @deprecated 请使用 FormPermission 代替
+ */
+export const FormPermissions = {
+  write: 'form:write',
+  manage: 'form:admin', // 保持向后兼容
+  admin: 'form:admin',
+} as const
+
+/**
+ * 旧版本兼容：保持原有的导出名称
+ * @deprecated 请使用 ChartPermission 代替
+ */
+export const ChartPermissions = {
+  read: 'chart:read',
+  manage: 'chart:admin', // 保持向后兼容
+  admin: 'chart:admin',
 } as const
 
 /**
