@@ -1477,6 +1477,11 @@ const handleDeleteDoc = async (node: ServiceTreeType) => {
     return
   }
 
+  if (!node.full_code_path) {
+    ElMessage.error('文档路径不存在')
+    return
+  }
+
   try {
     await ElMessageBox.confirm(
       `确定要删除文档 "${node.name}" 吗？此操作将删除文档内容和文档节点，且无法恢复。`,
@@ -1488,8 +1493,8 @@ const handleDeleteDoc = async (node: ServiceTreeType) => {
       }
     )
 
-    const { deleteDoc } = await import('@/api/service-tree')
-    await deleteDoc(node.id)
+    const { deleteDoc } = await import('@/api/doc')
+    await deleteDoc(node.full_code_path)
     
     ElMessage.success('文档删除成功')
     
