@@ -10,7 +10,7 @@ type Action struct {
 	models.Base
 	Code         string `json:"code" gorm:"type:varchar(50);not null;uniqueIndex;comment:权限点编码（如 form:read, table:write）"`
 	Name         string `json:"name" gorm:"type:varchar(100);not null;comment:权限点名称（如 表单查看、表格写入）"`
-	ResourceType string `json:"resource_type" gorm:"type:varchar(20);not null;index;comment:资源类型（form、table、chart、directory）"`
+	ResourceType string `json:"resource_type" gorm:"type:varchar(20);not null;index;comment:资源类型（directory、function、table、form、chart、docs）"`
 	ActionType   string `json:"action_type" gorm:"type:varchar(20);not null;index;comment:操作类型（read、write、update、delete、admin）"`
 	Description  string `json:"description" gorm:"type:varchar(500);comment:权限点描述"`
 	IsSystem     bool   `json:"is_system" gorm:"type:tinyint(1);not null;default:0;comment:是否系统预设"`

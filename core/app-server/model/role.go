@@ -13,7 +13,7 @@ type Role struct {
 	models.Base
 	Name         string `json:"name" gorm:"type:varchar(100);not null;comment:角色名称"`
 	Code         string `json:"code" gorm:"type:varchar(50);not null;index:idx_resource_code;comment:角色编码"`
-	ResourceType string `json:"resource_type" gorm:"type:varchar(20);not null;index:idx_resource_code;comment:资源类型：directory、table、form、chart（角色适用的资源类型）"`
+	ResourceType string `json:"resource_type" gorm:"type:varchar(20);not null;index:idx_resource_code;comment:资源类型：directory、function、table、form、chart、docs（角色适用的资源类型）"`
 	Description  string `json:"description" gorm:"type:varchar(500);comment:角色描述"`
 	IsSystem     bool   `json:"is_system" gorm:"type:tinyint(1);not null;default:0;comment:是否系统预设角色"`
 	IsDefault    bool   `json:"is_default" gorm:"type:tinyint(1);not null;default:0;comment:是否默认角色（用于权限申请时的默认推荐）"`
