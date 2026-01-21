@@ -308,7 +308,7 @@ import { useFormDataStore } from '@/core/stores-v2/formData'
 import { useResponseDataStore } from '@/core/stores-v2/responseData'
 import { useFunctionParamInitialization } from '../composables/useFunctionParamInitialization'
 import { useFormParamURLSync } from '../composables/useFormParamURLSync'
-import { hasPermission, FormPermissions, buildPermissionApplyURL, getPermissionShortName } from '@/utils/permission'
+import { hasPermission, FormPermissions, FunctionPermission, buildPermissionApplyURL, getPermissionShortName } from '@/utils/permission'
 import { usePermissionErrorStore } from '@/stores/permissionError'
 import type { PermissionInfo } from '@/utils/permission'
 import PermissionDeniedView from '../components/PermissionDeniedView.vue'
@@ -382,7 +382,7 @@ const handleApplyPermissionForSubmit = () => {
   if (!node || !node.full_code_path) return
   
   // 构建权限申请 URL（传递 template_type 以便正确显示权限选项）
-        const applyUrl = buildPermissionApplyURL(node.full_code_path, 'function:write', node.template_type)
+  const applyUrl = buildPermissionApplyURL(node.full_code_path, FunctionPermission.write, node.template_type)
   router.push(applyUrl)
 }
 

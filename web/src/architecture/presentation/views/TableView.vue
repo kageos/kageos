@@ -92,14 +92,14 @@
           v-if="hasAddCallback"
           :type="canCreate ? 'default' : 'default'"
           :plain="!canCreate"
-          @click="canCreate ? handleImport() : handleApplyPermissionForAction('function:write')"
+          @click="canCreate ? handleImport() : handleApplyPermissionForAction(FunctionPermission.write)"
           :icon="Upload"
           class="action-btn"
           :class="{ 'action-btn-no-permission': !canCreate }"
         >
           <template v-if="!canCreate">
             <el-icon><Lock /></el-icon>
-            导入（需{{ getPermissionShortName('function:write') }}）
+            导入（需{{ getPermissionShortName(FunctionPermission.write) }}）
           </template>
           <template v-else>导入</template>
         </el-button>
@@ -108,14 +108,14 @@
           v-if="hasAddCallback" 
           :type="canCreate ? 'primary' : 'default'"
           :plain="!canCreate"
-          @click="canCreate ? handleAdd() : handleApplyPermissionForAction('function:write')" 
+          @click="canCreate ? handleAdd() : handleApplyPermissionForAction(FunctionPermission.write)" 
           :icon="Plus"
           class="action-btn"
           :class="{ 'action-btn-no-permission': !canCreate }"
         >
           <template v-if="!canCreate">
             <el-icon><Lock /></el-icon>
-            新增（需{{ getPermissionShortName('function:write') }}）
+            新增（需{{ getPermissionShortName(FunctionPermission.write) }}）
           </template>
           <template v-else>新增</template>
         </el-button>
@@ -124,12 +124,12 @@
           v-if="hasDeleteCallback && !isBatchDeleteMode" 
           :type="canDelete ? 'danger' : 'default'"
           :plain="!canDelete"
-          @click="canDelete ? enterBatchDeleteMode() : handleApplyPermissionForAction('function:delete')"
+          @click="canDelete ? enterBatchDeleteMode() : handleApplyPermissionForAction(FunctionPermission.delete)"
           :icon="canDelete ? Delete : Lock"
           class="action-btn"
           :class="{ 'action-btn-no-permission': !canDelete }"
         >
-          {{ canDelete ? '批量删除' : `批量删除（需${getPermissionShortName('function:delete')}）` }}
+          {{ canDelete ? '批量删除' : `批量删除（需${getPermissionShortName(FunctionPermission.delete)}）` }}
         </el-button>
         <template v-if="hasDeleteCallback && isBatchDeleteMode">
           <el-button 
@@ -340,10 +340,10 @@
               size="small"
               class="update-btn"
               :class="{ 'action-btn-no-permission': !canUpdate }"
-              @click.stop="canUpdate ? handleDetail(row) : handleApplyPermissionForAction('function:update')"
+              @click.stop="canUpdate ? handleDetail(row) : handleApplyPermissionForAction(FunctionPermission.update)"
             >
               <el-icon><component :is="canUpdate ? Edit : Lock" /></el-icon>
-              {{ canUpdate ? '更新' : `更新（需${getPermissionShortName('function:update')}）` }}
+              {{ canUpdate ? '更新' : `更新（需${getPermissionShortName(FunctionPermission.update)}）` }}
             </el-button>
             <!-- 删除按钮：需要 table:delete 权限，无权限时可点击跳转申请 -->
             <el-button 
@@ -353,10 +353,10 @@
               size="small"
               class="delete-btn"
               :class="{ 'action-btn-no-permission': !canDelete }"
-              @click.stop="canDelete ? handleDelete(row) : handleApplyPermissionForAction('function:delete')"
+              @click.stop="canDelete ? handleDelete(row) : handleApplyPermissionForAction(FunctionPermission.delete)"
             >
               <el-icon><component :is="canDelete ? Delete : Lock" /></el-icon>
-              {{ canDelete ? '删除' : `删除（需${getPermissionShortName('function:delete')}）` }}
+              {{ canDelete ? '删除' : `删除（需${getPermissionShortName(FunctionPermission.delete)}）` }}
             </el-button>
           </div>
         </template>
@@ -543,7 +543,7 @@ import { useUserInfoStore } from '@/stores/userInfo'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
 import type { TableRow, SearchParams, SortParams, SortItem } from '../../domain/services/TableDomainService'
 import type { UserInfo } from '@/types'
-import { hasPermission, TablePermissions, buildPermissionApplyURL, getPermissionShortName } from '@/utils/permission'
+import { hasPermission, TablePermissions, FunctionPermission, buildPermissionApplyURL, getPermissionShortName } from '@/utils/permission'
 import { usePermissionErrorStore } from '@/stores/permissionError'
 import type { PermissionInfo } from '@/utils/permission'
 import { parseExcelFile } from '@/utils/excelImport'

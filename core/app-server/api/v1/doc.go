@@ -33,7 +33,7 @@ func NewDoc(docService *service.DocService) *Doc {
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 404 {string} string "文档不存在"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/doc/{full-code-path} [get]
+// @Router /api/v1/docs/{full-code-path} [get]
 func (s *Doc) GetDoc(c *gin.Context) {
 	fullCodePath := c.Param("full-code-path")
 	if fullCodePath == "" {
@@ -66,7 +66,7 @@ func (s *Doc) GetDoc(c *gin.Context) {
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 404 {string} string "文档不存在"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/doc/{full-code-path} [put]
+// @Router /api/v1/docs/{full-code-path} [put]
 func (s *Doc) UpdateDoc(c *gin.Context) {
 	fullCodePath := c.Param("full-code-path")
 	if fullCodePath == "" {
@@ -107,7 +107,7 @@ func (s *Doc) UpdateDoc(c *gin.Context) {
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 404 {string} string "文档不存在"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/doc/{full-code-path} [delete]
+// @Router /api/v1/docs/{full-code-path} [delete]
 func (s *Doc) DeleteDoc(c *gin.Context) {
 	fullCodePath := c.Param("full-code-path")
 	if fullCodePath == "" {

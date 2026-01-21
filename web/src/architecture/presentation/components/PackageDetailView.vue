@@ -591,7 +591,7 @@ import ChartIcon from '@/components/icons/ChartIcon.vue'
 import TableIcon from '@/components/icons/TableIcon.vue'
 import FormIcon from '@/components/icons/FormIcon.vue'
 import DirectoryUpdateHistoryDialog from '@/components/DirectoryUpdateHistoryDialog.vue'
-import { buildPermissionApplyURL } from '@/utils/permission'
+import { buildPermissionApplyURL, DirectoryPermission } from '@/utils/permission'
 import UsersWidget from '@/architecture/presentation/widgets/UsersWidget.vue'
 import UserWidget from '@/architecture/presentation/widgets/UserWidget.vue'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
@@ -628,8 +628,8 @@ const showPermissionRequestTab = computed(() => {
     return false
   }
   
-  // 必须是 package 或 app 类型
-  if (props.packageNode.type !== 'package' && props.packageNode.type !== 'app') {
+  // 必须是 package 类型
+  if (props.packageNode.type !== 'package') {
     return false
   }
   
@@ -643,11 +643,9 @@ const showPermissionRequestTab = computed(() => {
 })
 
 // ⭐ 计算资源类型（用于权限组件）
-const resourceType = computed<'app' | 'directory'>(() => {
-  if (props.packageNode?.type === 'app') {
-    return 'app'
-  }
-  return 'directory'  // package 类型对应 directory
+// ⭐ 所有 package 类型统一使用 directory 资源类型（包括根目录/工作空间）
+const resourceType = computed<'directory'>(() => {
+  return 'directory'
 })
 
 // 从路径解析 user 和 app
@@ -819,27 +817,14 @@ const hasNoDirectoryPermissions = computed(() => {
     return false
   }
   
-  // ⭐ 根据节点类型确定要检查的权限列表
-  let permissionsToCheck: string[]
-  if (props.packageNode.type === 'app') {
-    // app 类型检查 app:xxx 权限
-    permissionsToCheck = [
-      'app:read',
-      'app:write',
-      'app:update',
-      'app:delete',
-      'app:admin'
-    ]
-  } else {
-    // package 类型检查 directory:xxx 权限
-    permissionsToCheck = [
-      'directory:read',
-      'directory:write',
-      'directory:update',
-      'directory:delete',
-      'directory:manage'
-    ]
-  }
+  // ⭐ 所有 package 类型统一检查 directory 权限（包括根目录/工作空间）
+  const permissionsToCheck: string[] = [
+    DirectoryPermission.read,
+    DirectoryPermission.write,
+    DirectoryPermission.update,
+    DirectoryPermission.delete,
+    DirectoryPermission.admin
+  ]
   
   // 如果所有权限都是 false，则显示权限不足
   const hasNoPerms = permissionsToCheck.every(perm => {
@@ -857,8 +842,8 @@ function handleApplyPermission() {
     return
   }
   
-  // ⭐ 根据节点类型确定申请的权限类型
-  const defaultAction = props.packageNode.type === 'app' ? 'app:read' : 'directory:read'
+  // ⭐ 所有 package 类型统一申请 directory:read 权限（包括根目录/工作空间）
+  const defaultAction = DirectoryPermission.read
   
   // 跳转到权限申请页面
   const applyURL = buildPermissionApplyURL(props.packageNode.full_code_path, defaultAction, undefined)

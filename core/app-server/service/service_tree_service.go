@@ -268,6 +268,7 @@ func (s *ServiceTreeService) CreateServiceTree(ctx context.Context, req *dto.Cre
 		Type:         serviceTree.Type,
 		Description:  serviceTree.Description,
 		Tags:         serviceTree.Tags,
+		Admins:       serviceTree.Admins, // ⭐ 返回管理员列表
 		AppID:        serviceTree.AppID,
 		FullCodePath: serviceTree.FullCodePath,
 		Version:      serviceTree.Version,
@@ -424,9 +425,10 @@ func (s *ServiceTreeService) CreateDocsNode(ctx context.Context, req *dto.Create
 }
 
 // getServiceTreeByAppModel 根据 appModel 获取服务目录树（内部方法，避免重复获取 appModel）
-// ⭐ 优化：在服务树中直接返回权限信息，一次性获取所有权限（只需要8ms）
+// ⭐ 新架构：工作空间根节点也在 service_tree 表中，统一查询和权限处理
 func (s *ServiceTreeService) getServiceTreeByAppModel(ctx context.Context, appModel *model.App, nodeType string) ([]*dto.GetServiceTreeResp, error) {
-	// 构建树形结构（如果指定了类型，则只返回该类型的节点）
+	// ⭐ Step 1: 构建树形结构（包含根节点和所有子节点）
+	// BuildServiceTree 会返回 parent_id=0 的节点（即根节点）及其所有子节点
 	var trees []*model.ServiceTree
 	var err error
 	if nodeType != "" {
@@ -437,9 +439,22 @@ func (s *ServiceTreeService) getServiceTreeByAppModel(ctx context.Context, appMo
 	if err != nil {
 		return nil, fmt.Errorf("failed to build service tree: %w", err)
 	}
-
-	// ⭐ 查询权限（如果权限功能启用且 PermissionService 可用）
-	// ⭐ 使用 GetWorkspacePermissions 获取原始权限记录（只需要8ms），然后自己实现权限继承
+	
+	// ⭐ 确保有根节点（如果没有根节点，说明数据异常，应该报错）
+	if len(trees) == 0 {
+		return nil, fmt.Errorf("服务树为空，app_id=%d，请检查根节点是否已创建", appModel.ID)
+	}
+	
+	// ⭐ 验证根节点有效性
+	if trees[0].ParentID != 0 || trees[0].RefID != appModel.ID {
+		return nil, fmt.Errorf("根节点无效，app_id=%d, parent_id=%d, ref_id=%d", appModel.ID, trees[0].ParentID, trees[0].RefID)
+	}
+	
+	rootNode := trees[0]
+	logger.Debugf(ctx, "[ServiceTreeService] 获取服务树成功: root_id=%d, app_id=%d, full_code_path=%s, children_count=%d", 
+		rootNode.ID, appModel.ID, rootNode.FullCodePath, len(rootNode.Children))
+	
+	// ⭐ Step 2: 查询权限（如果权限功能启用且 PermissionService 可用）
 	var permissionsMap map[string]map[string]bool // resourcePath -> action -> bool
 	var isAdmin bool                              // ⭐ 是否是管理员
 	licenseMgr := license.GetManager()
@@ -460,6 +475,7 @@ func (s *ServiceTreeService) getServiceTreeByAppModel(ctx context.Context, appMo
 		}
 
 		// 直接计算权限（不使用缓存）
+		// ⭐ 注意：trees[0] 是根节点，包含所有子节点，权限计算会统一处理
 		permsMap, err := s.calculatePermissions(ctx, appModel.User, appModel.Code, trees, appModel.Admins, username)
 		if err != nil {
 			logger.Warnf(ctx, "[ServiceTreeService] 计算权限失败: app_id=%d, error=%v，继续返回服务树（无权限信息）", appModel.ID, err)
@@ -470,67 +486,15 @@ func (s *ServiceTreeService) getServiceTreeByAppModel(ctx context.Context, appMo
 		}
 	}
 
-	// 转换为响应格式，并合并权限信息
-	var childNodes []*dto.GetServiceTreeResp
-	for _, tree := range trees {
-		childNodes = append(childNodes, s.convertToGetServiceTreeResp(ctx, tree, permissionsMap, isAdmin))
-	}
+	// ⭐ Step 3: 使用统一的转换方法转换根节点（包括所有子节点）
+	// 所有节点（包括根节点）都使用相同的转换逻辑，无需特殊处理
+	rootResp := s.convertToGetServiceTreeResp(ctx, rootNode, permissionsMap, isAdmin)
+	
+	logger.Debugf(ctx, "[ServiceTreeService] 服务树转换完成: root_id=%d, children_count=%d", 
+		rootNode.ID, len(rootResp.Children))
 
-	// ⭐ 构造 app 根节点，将所有 service_tree 节点作为其子节点
-	appFullCodePath := fmt.Sprintf("/%s/%s", appModel.User, appModel.Code)
-	
-	// app 根节点的 pending_count = app 表的 pending_count（只显示 app 级别的权限申请）
-	// ⭐ 不需要累加子节点的 pending_count，每层只显示自己的待办数量
-	// ⭐ 前端会自动展开有待办的节点，用户可以看到每一层的待办情况
-	appPendingCount := appModel.PendingCount
-	
-	// 获取 app 根节点的权限
-	appPermissions := make(map[string]bool)
-	if permissionsMap != nil {
-		if nodePerms, ok := permissionsMap[appFullCodePath]; ok {
-			appPermissions = nodePerms
-		} else if isAdmin {
-			// 如果是管理员，设置所有权限
-			appPermissions = map[string]bool{
-				"app:read":   true,
-				"app:write":  true,
-				"app:update": true,
-				"app:delete": true,
-				"app:admin":  true,
-			}
-		}
-	} else if isAdmin {
-		// 权限功能未启用但是管理员，设置所有权限
-		appPermissions = map[string]bool{
-			"app:read":   true,
-			"app:write":  true,
-			"app:update": true,
-			"app:delete": true,
-			"app:admin":  true,
-		}
-	}
-	
-	appRootNode := &dto.GetServiceTreeResp{
-		ID:           appModel.ID,  // 使用 app 的 ID
-		Name:         appModel.Name, // ⭐ 使用 app 的 name，而不是 code
-		Code:         appModel.Code,
-		ParentID:     0,
-		Type:         "app", // ⭐ 类型为 app
-		Description:  "",    // App 模型没有 Description 字段
-		Tags:         "",    // App 模型没有 Tags 字段
-		Admins:       appModel.Admins,
-		PendingCount: appPendingCount, // ⭐ 所有子节点的 pending_count 之和
-		Owner:        appModel.CreatedBy,
-		AppID:        appModel.ID,
-		FullCodePath: appFullCodePath,
-		TemplateType: "",
-		IsAdmin:      isAdmin,
-		Permissions:  appPermissions,
-		Children:     childNodes, // ⭐ 所有 service_tree 节点作为子节点
-	}
-
-	// ⭐ 返回包含 app 根节点的数组（单元素数组）
-	return []*dto.GetServiceTreeResp{appRootNode}, nil
+	// ⭐ 返回包含根节点的数组（单元素数组）
+	return []*dto.GetServiceTreeResp{rootResp}, nil
 }
 
 // calculateTotalPendingCount 递归计算节点及其所有子节点的 pending_count 总和
@@ -1142,9 +1106,9 @@ func (s *ServiceTreeService) convertToGetServiceTreeResp(ctx context.Context, tr
 func (s *ServiceTreeService) calculateExpandedKeys(trees []*dto.GetServiceTreeResp) []int64 {
 	expandedKeysMap := make(map[int64]bool)
 
-	// ⭐ 如果树的根节点是 app 类型，默认展开它
+	// ⭐ 默认展开根节点（package 类型且 parent_id=0）
 	for _, tree := range trees {
-		if tree.Type == "app" {
+		if tree.Type == "package" && tree.ParentID == 0 {
 			expandedKeysMap[tree.ID] = true
 		}
 	}

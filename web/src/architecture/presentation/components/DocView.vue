@@ -114,7 +114,7 @@ import { Edit, Check, Plus, Delete } from '@element-plus/icons-vue'
 import { marked } from 'marked'
 import type { ServiceTree } from '@/types'
 import { getDoc, updateDoc, deleteDoc } from '@/api/doc'  // ✅ 使用新的文档 API
-import { hasPermission, DirectoryPermissions } from '@/utils/permission'
+import { hasPermission, DocsPermission } from '@/utils/permission'
 import VditorEditor from '@/components/VditorEditor.vue'
 
 interface Props {
@@ -141,7 +141,7 @@ const editContent = ref('')
 
 // 权限检查
 const hasEditPermission = computed(() => {
-  return props.node && hasPermission(props.node, DirectoryPermissions.write)
+  return props.node && hasPermission(props.node, DocsPermission.write)
 })
 
 // 渲染后的 Markdown 内容

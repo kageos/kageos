@@ -239,5 +239,5 @@ func (s *DocService) GetDocsByFullCodePath(ctx context.Context, fullCodePath str
 	return docs, nil
 }
 
-// ==================== 基于路径的文档操作（新接口，用于 /doc/*full-code-path） ====================
+// ==================== 基于路径的文档操作（新接口，用于 /docs/*full-code-path） ====================
 

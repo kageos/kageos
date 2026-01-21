@@ -135,6 +135,37 @@ func (a *AppService) CreateApp(ctx context.Context, req *dto.CreateAppReq) (*dto
 		return nil, err
 	}
 
+	// ⭐ 创建 service_tree 根节点（新架构）
+	// 每个 app 都在 service_tree 表中有对应的根节点
+	rootNode := &model.ServiceTree{
+		Name:         app.Name,
+		Code:         app.Code,
+		ParentID:     0,  // 根节点
+		Type:         model.ServiceTreeTypePackage,  // 统一为 package 类型
+		Admins:       app.Admins,
+		PendingCount: 0,
+		AppID:        app.ID,
+		RefID:        app.ID,  // ⭐ ref_id 指向 app 表，标识这是根节点
+		FullCodePath: fmt.Sprintf("/%s/%s", tenantUser, req.Code),
+		Version:      "v1",
+		VersionNum:   1,
+		Base: models.Base{
+			CreatedBy: requestUser,
+			UpdatedBy: requestUser,
+		},
+	}
+
+	err = a.serviceTreeRepo.Create(rootNode)
+	if err != nil {
+		logger.Errorf(ctx, "[AppService] 创建 service_tree 根节点失败: app_id=%d, error=%v", app.ID, err)
+		// ⚠️ 根节点创建失败会导致服务树无法显示，应该返回错误
+		// TODO: 将根节点创建失败改为阻塞性错误，并回滚应用创建
+		return nil, fmt.Errorf("创建工作空间根节点失败: %w", err)
+	}
+	
+	logger.Infof(ctx, "[AppService] 创建 service_tree 根节点成功: app_id=%d, root_id=%d, full_code_path=%s", 
+		app.ID, rootNode.ID, rootNode.FullCodePath)
+
 	// ⭐ 自动给创建者和管理员分配应用管理员角色（拥有 app:admin 权限）
 	resourcePath := fmt.Sprintf("/%s/%s", tenantUser, req.Code)
 
@@ -179,14 +210,14 @@ func (a *AppService) assignAppAdminRoleToUser(ctx context.Context, user, app, us
 		return fmt.Errorf("权限服务未初始化")
 	}
 
-	// ⭐ 使用角色系统，分配"admin"角色（拥有 app:admin 权限）
-	// 应用级别使用 app 资源类型
+	// ⭐ 使用角色系统，分配"admin"角色（拥有 directory:admin 权限）
+	// 根目录使用 directory 资源类型（工作空间 = 根目录）
 	assignReq := &dto.AssignRoleToUserReq{
 		User:         user,
 		App:          app,
 		Username:     username,
 		RoleCode:     "admin", // 管理员角色
-		ResourceType: "app",   // ⭐ 应用级别使用 app 资源类型
+		ResourceType: "directory",   // ⭐ 根目录使用 directory 资源类型
 		ResourcePath: resourcePath,
 		StartTime:    nil, // 永久权限
 		EndTime:      nil, // 永久权限
@@ -218,13 +249,13 @@ func (a *AppService) removeAppAdminRoleFromUser(ctx context.Context, user, app, 
 	}
 
 	// ⭐ 使用角色系统，移除"admin"角色
-	// 应用级别使用 app 资源类型
+	// 根目录使用 directory 资源类型（工作空间 = 根目录）
 	removeReq := &dto.RemoveRoleFromUserReq{
 		User:         user,
 		App:          app,
 		Username:     username,
 		RoleCode:     "admin", // 管理员角色
-		ResourceType: "app",   // ⭐ 应用级别使用 app 资源类型
+		ResourceType: "directory",   // ⭐ 根目录使用 directory 资源类型
 		ResourcePath: resourcePath,
 	}
 
