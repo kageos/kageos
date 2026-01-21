@@ -75,6 +75,14 @@
                           :class="getNodeIconClass(data)"
                         />
                       </template>
+                      <!-- docs 类型：使用文档图标 -->
+                      <img 
+                        v-else-if="data.type === 'docs'" 
+                        src="/文档.svg" 
+                        alt="文档" 
+                        class="node-icon docs-icon-img"
+                        :class="getNodeIconClass(data)"
+                      />
                       <!-- 其他类型：显示 fx 文本 -->
                       <span v-else class="node-icon fx-icon" :class="getNodeIconClass(data)">fx</span>
                       <span class="node-label" :class="{ 'no-permission': !hasAnyPermissionForNode(data) }">{{ node.label }}</span>
@@ -842,6 +850,8 @@ const getNodeIconClass = (data: ServiceTree) => {
       return 'chart-icon'
     }
     return 'function-icon'
+  } else if (data.type === 'docs') {
+    return 'docs-icon'
   }
   return 'function-icon'
 }
@@ -2362,6 +2372,18 @@ const clearRoleSelection = () => {
                   
                   &.chart-icon {
                     color: #f59e0b; /* amber-500 - 图表用橙色 */
+                    opacity: 0.9;
+                  }
+                  
+                  &.docs-icon {
+                    color: #9b42f8; /* purple-500 - 文档用紫色 */
+                    opacity: 0.9;
+                  }
+                  
+                  &.docs-icon-img {
+                    width: 16px;
+                    height: 16px;
+                    object-fit: contain;
                     opacity: 0.9;
                   }
                   
