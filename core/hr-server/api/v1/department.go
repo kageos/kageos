@@ -49,7 +49,7 @@ func (d *Department) CreateDepartment(c *gin.Context) {
 
 	// 调用服务层
 	ctx := c.Request.Context()
-	department, err := d.deptService.CreateDepartment(ctx, req.Name, req.Code, req.ParentID, req.Description)
+	department, err := d.deptService.CreateDepartment(ctx, req.Name, req.Code, req.ParentID, req.Description, req.Managers)
 	if err != nil {
 		response.FailWithMessage(c, "创建部门失败: "+err.Error())
 		return

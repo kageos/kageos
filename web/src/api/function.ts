@@ -2,14 +2,23 @@ import { get, post, put, del } from '@/utils/request'
 import type { Function, SearchParams, TableResponse } from '@/types'
 import type { FieldConfig } from '@/core/types/field'
 
-// 获取函数详情
-export function getFunctionDetail(functionId: number) {
-  return get<Function>(`/workspace/api/v1/function/get`, { function_id: functionId })
+// 获取函数详情（根据路径和函数类型）
+// ⭐ 使用新的路由：/function/info/:func-type/*full-code-path
+// @param fullCodePath 函数完整路径
+// @param funcType 函数类型：table、form、chart（从 node.template_type 获取）
+export function getFunctionByPath(fullCodePath: string, funcType: string = 'table') {
+  // 确保路径以 / 开头
+  const path = fullCodePath.startsWith('/') ? fullCodePath : `/${fullCodePath}`
+  // ⭐ 函数类型作为路径参数，这样后端无需查询数据库即可构造权限点
+  return get<Function>(`/workspace/api/v1/function/info/${funcType}${path}`)
 }
 
-// 根据路径获取函数详情
-export function getFunctionByPath(fullCodePath: string) {
-  return get<Function>(`/workspace/api/v1/function/by-path`, { path: fullCodePath })
+// 获取函数详情（根据ID，已废弃，建议使用 getFunctionByPath）
+// ⭐ 注意：新路由只支持 full-code-path，如果只有 function_id，需要先查询 full-code-path
+export function getFunctionDetail(functionId: number) {
+  // ⭐ 临时兼容：使用旧的 API（如果后端还支持）
+  // TODO: 建议改为先查询 function_id 对应的 full-code-path，然后调用 getFunctionByPath
+  return get<Function>(`/workspace/api/v1/function/get`, { function_id: functionId })
 }
 
 // 获取应用下所有函数
@@ -123,20 +132,6 @@ export function tableDeleteRows(method: string, router: string, ids: number[]) {
   const data = { ids }
   return del(url, data)  // DELETE 请求带 body
 }
-
-// ⭐ 旧版本（已注释，保留用于参考）
-// export function tableAddRow_OLD(method: string, router: string, data: any) {
-//   const url = `/workspace/api/v1/callback${router}?_type=OnTableAddRow&_method=${method.toUpperCase()}`
-//   return post(url, data)
-// }
-// export function tableUpdateRow_OLD(method: string, router: string, data: any) {
-//   const url = `/workspace/api/v1/callback${router}?_type=OnTableUpdateRow&_method=${method.toUpperCase()}`
-//   return post(url, data)
-// }
-// export function tableDeleteRows_OLD(method: string, router: string, ids: number[]) {
-//   const url = `/workspace/api/v1/callback${router}?_type=OnTableDeleteRows&_method=${method.toUpperCase()}`
-//   return post(url, { ids })
-// }
 
 /**
  * Select 回调操作 - 模糊查询选项

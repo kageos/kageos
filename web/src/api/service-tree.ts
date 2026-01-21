@@ -12,27 +12,66 @@ export function getServiceTree(user: string, app: string, typeFilter?: 'package'
 }
 
 // 创建服务目录（使用user和app参数）
-export function createServiceTree(data: CreateServiceTreeRequest) {
-  return post<ServiceTree>('/workspace/api/v1/service_tree', {
+export function createServiceTree(data: CreateServiceTreeRequest & { type?: string }) {
+  const payload: any = {
     user: data.user,
     app: data.app,
     name: data.name,
     code: data.code,
     parent_id: data.parent_id || 0,
+    type: data.type || 'package',
     description: data.description || '',
     tags: data.tags || ''
-  })
+  }
+  
+  // ⭐ 如果是 docs 类型，添加文档相关字段
+  if (data.type === 'docs') {
+    if (data.doc_title) {
+      payload.doc_title = data.doc_title
+    }
+    if (data.doc_content) {
+      payload.doc_content = data.doc_content
+    }
+    if (data.doc_format) {
+      payload.doc_format = data.doc_format
+    }
+    if (data.doc_summary) {
+      payload.doc_summary = data.doc_summary
+    }
+  }
+  
+  return post<ServiceTree>('/workspace/api/v1/service_tree', payload)
 }
 
 // 更新服务目录
-export function updateServiceTree(id: number, data: Partial<ServiceTree>) {
-  return put(`/workspace/api/v1/service_tree/${id}`, data)
+export function updateServiceTree(id: number, data: { name?: string; admins?: string }) {
+  return put('/workspace/api/v1/service_tree', {
+    id,
+    name: data.name,
+    admins: data.admins
+  })
 }
 
 // 删除服务目录
 export function deleteServiceTree(id: number) {
   return del(`/workspace/api/v1/service_tree/${id}`)
 }
+
+// 文档相关 API
+export interface Doc {
+  id: number
+  title: string
+  content: string
+  format: string
+  app_id: number
+  tree_id: number
+  summary?: string
+  category?: string
+  created_at: string
+  updated_at: string
+}
+
+// 文档相关 API 已迁移到 @/api/doc.ts，使用基于 full_code_path 的新接口
 
 // 获取服务目录详情（包含权限信息）
 export interface ServiceTreeDetail {
@@ -120,5 +159,45 @@ export function copyServiceTree(id: number, targetAppId: number, targetParentId?
 export function forkServiceTree(id: number, targetAppId: number) {
   return post(`/workspace/api/v1/service_tree/${id}/fork`, {
     app_id: targetAppId
+  })
+}
+
+// 搜索函数
+export interface SearchFunctionsReq {
+  user: string
+  app: string
+  keyword?: string
+  template_type?: string
+  page: number
+  page_size: number
+}
+
+export interface FunctionSearchResult {
+  id: number
+  name: string
+  code: string
+  full_code_path: string
+  description: string
+  template_type: string
+  app_id: number
+  app_user: string
+  app_code: string
+}
+
+export interface SearchFunctionsResp {
+  functions: FunctionSearchResult[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export function searchFunctions(req: SearchFunctionsReq) {
+  return get<SearchFunctionsResp>('/workspace/api/v1/service_tree/search_functions', {
+    user: req.user,
+    app: req.app,
+    keyword: req.keyword || '',
+    template_type: req.template_type || '',
+    page: req.page.toString(),
+    page_size: req.page_size.toString()
   })
 }

@@ -849,19 +849,24 @@ onMounted(() => {
   // 🔥 如果未来需要保留这个监听器，需要添加防重复调用的机制
 })
 
-// 🔥 组件卸载时取消注册监听器
+// 🔥 组件卸载时取消注册监听器和初始化器
 onUnmounted(() => {
-  // 🔥 只在已注册的情况下才取消注册
+  // 取消注册表单监听器
   if (unsubscribeFormInitialized) {
     Logger.debug('[SelectWidget]', 'onUnmounted - 取消注册监听器', { 
       fieldCode: props.field.code
     })
     unregisterFormInitializedListener()
   }
-})
-
-onUnmounted(() => {
-  unregisterFormInitializedListener()
+  
+  // 🔥 取消注册初始化器（防止内存泄漏）
+  if (hasCallback.value) {
+    widgetInitializerRegistry.unregister('select')
+    Logger.debug('[SelectWidget]', 'onUnmounted - 取消注册初始化器', {
+      fieldCode: props.field.code,
+      widgetType: 'select'
+    })
+  }
 })
 
 // 🔥 监听 value 和 formRenderer 变化，如果值变化了，重新触发回调获取标签

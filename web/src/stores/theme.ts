@@ -35,8 +35,6 @@ export const useThemeStore = defineStore('theme', () => {
     
     // 应用主题
     applyTheme(currentTheme.value)
-    
-    console.log('[ThemeStore] 主题初始化完成:', currentTheme.value)
   }
   
   /**
@@ -51,8 +49,6 @@ export const useThemeStore = defineStore('theme', () => {
     
     // 保存到 localStorage
     localStorage.setItem(THEME_STORAGE_KEY, theme.name)
-    
-    console.log('[ThemeStore] 应用主题:', theme)
   }
   
   /**
@@ -92,7 +88,7 @@ export const useThemeStore = defineStore('theme', () => {
   watch(
     () => currentTheme.value,
     (newTheme) => {
-      console.log('[ThemeStore] 主题已更改:', newTheme)
+      // 主题已更改
     }
   )
   

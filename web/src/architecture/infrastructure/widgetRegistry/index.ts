@@ -100,6 +100,7 @@ import RichTextWidget from '@/architecture/presentation/widgets/RichTextWidget.v
 // FormWidget 和 TableWidget 都导入了 widgetComponentFactory，会导致循环依赖
 // 解决方案：在函数内部动态导入，而不是在模块顶层导入
 import UserWidget from '@/architecture/presentation/widgets/UserWidget.vue'
+import UsersWidget from '@/architecture/presentation/widgets/UsersWidget.vue'
 import LinkWidget from '@/architecture/presentation/widgets/LinkWidget.vue'
 import ProgressWidget from '@/architecture/presentation/widgets/ProgressWidget.vue'
 
@@ -136,6 +137,7 @@ function registerBasicComponents(): void {
   widgetComponentFactory.registerRequestComponent(WidgetType.FILES, FilesWidget)
   
   widgetComponentFactory.registerRequestComponent(WidgetType.USER, UserWidget)
+  widgetComponentFactory.registerRequestComponent(WidgetType.USERS, UsersWidget)
   
   // 链接组件
   widgetComponentFactory.registerRequestComponent(WidgetType.LINK, LinkWidget)

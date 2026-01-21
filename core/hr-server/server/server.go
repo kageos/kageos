@@ -55,6 +55,12 @@ func NewServer(cfg *config.HRServerConfig) (*Server, error) {
 		return nil, fmt.Errorf("failed to init services: %w", err)
 	}
 
+	// ⭐ 初始化 system 用户（系统内置用户，用于管理官方库）
+	if err := service.InitSystemUser(ctx, s.db); err != nil {
+		logger.Warnf(ctx, "[Server] 初始化 system 用户失败: %v", err)
+		// 不中断启动，记录警告即可
+	}
+
 	// ⭐ 初始化默认组织（根节点和未分配组织）
 	if err := s.departmentService.InitDefaultDepartments(ctx); err != nil {
 		return nil, fmt.Errorf("failed to init default departments: %w", err)
@@ -119,33 +125,8 @@ func (s *Server) initDatabase(ctx context.Context) error {
 
 	// 配置 GORM 日志
 	gormConfig := &gorm.Config{}
-
-	// 如果启用了数据库日志
-	if s.cfg.IsDBLogEnabled() {
-		var logLevel gormLogger.LogLevel
-		switch s.cfg.GetDBLogLevel() {
-		case "error":
-			logLevel = gormLogger.Error
-		case "warn":
-			logLevel = gormLogger.Warn
-		case "info":
-			logLevel = gormLogger.Info
-		default:
-			logLevel = gormLogger.Warn
-		}
-
-		// 配置慢查询阈值
-		slowThreshold := time.Duration(s.cfg.GetDBSlowThreshold()) * time.Millisecond
-		if slowThreshold == 0 {
-			slowThreshold = 200 * time.Millisecond // 默认200毫秒
-		}
-
-		// 使用 GORM 默认日志配置
-		gormConfig.Logger = gormLogger.Default.LogMode(logLevel)
-	} else {
-		// 禁用日志
-		gormConfig.Logger = gormLogger.Default.LogMode(gormLogger.Silent)
-	}
+	// 关闭 GORM 控制台日志
+	gormConfig.Logger = gormLogger.Default.LogMode(gormLogger.Silent)
 
 	// 构建 DSN
 	dsn := s.cfg.GetDatabaseDSN()

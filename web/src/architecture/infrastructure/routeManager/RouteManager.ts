@@ -371,27 +371,11 @@ export class RouteManager {
         source: request.source 
       })
       
-      console.log('🔍 [handleUpdateRequest] 准备执行路由更新', {
-        targetPath,
-        newQuery,
-        newQueryKeys: Object.keys(newQuery),
-        newQueryLength: Object.keys(newQuery).length,
-        replace,
-        source: request.source
-      })
-      
       if (replace) {
         await this.router.replace({ path: targetPath, query: newQuery })
       } else {
         await this.router.push({ path: targetPath, query: newQuery })
       }
-      
-      console.log('🔍 [handleUpdateRequest] 路由更新完成', {
-        targetPath,
-        finalQuery: newQuery,
-        finalQueryKeys: Object.keys(newQuery),
-        finalQueryLength: Object.keys(newQuery).length
-      })
       
       // 🔥 Tab 功能已删除，不再保存 Tab 路由状态
       

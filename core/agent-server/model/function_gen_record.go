@@ -18,9 +18,9 @@ type FunctionGenRecord struct {
 	Code         string `gorm:"type:longtext;comment:生成的代码" json:"code"`
 	ErrorMsg     string `gorm:"type:text;comment:错误信息" json:"error_msg"`
 	
-	// 生成的函数组代码列表（逗号分隔的字符串，便于使用 FIND_IN_SET 查询）
-	// 例如："/luobei/testgroup/plugins/tools_cashier,/luobei/testgroup/plugins/tools_excel"
-	FullGroupCodes string `gorm:"type:text;comment:生成的函数组代码列表（逗号分隔）" json:"full_group_codes"`
+	// 生成的函数完整代码路径列表（JSON 数组，逗号分隔的字符串存储）
+	// 例如："/user/app/function1,/user/app/function2"
+	FullCodePaths string `gorm:"type:text;comment:生成的函数完整代码路径列表（逗号分隔）" json:"full_code_paths"`
 	
 	// 生成过程的元数据（JSON）
 	// 包含：用户消息、上传的文件、插件处理结果等
@@ -33,13 +33,13 @@ type FunctionGenRecord struct {
 	User string `gorm:"type:varchar(128);not null;index;comment:创建用户" json:"user"`
 }
 
-// GetFullGroupCodes 获取 FullGroupCodes 列表（从逗号分隔的字符串解析）
-func (r *FunctionGenRecord) GetFullGroupCodes() []string {
-	if r.FullGroupCodes == "" {
+// GetFullCodePaths 获取 FullCodePaths 列表（从逗号分隔的字符串解析）
+func (r *FunctionGenRecord) GetFullCodePaths() []string {
+	if r.FullCodePaths == "" {
 		return []string{}
 	}
 	// 使用逗号分隔，并过滤空字符串
-	codes := strings.Split(r.FullGroupCodes, ",")
+	codes := strings.Split(r.FullCodePaths, ",")
 	result := make([]string, 0, len(codes))
 	for _, code := range codes {
 		code = strings.TrimSpace(code)
@@ -50,21 +50,21 @@ func (r *FunctionGenRecord) GetFullGroupCodes() []string {
 	return result
 }
 
-// SetFullGroupCodes 设置 FullGroupCodes 列表（转换为逗号分隔的字符串）
-func (r *FunctionGenRecord) SetFullGroupCodes(codes []string) {
-	if len(codes) == 0 {
-		r.FullGroupCodes = ""
+// SetFullCodePaths 设置 FullCodePaths 列表（转换为逗号分隔的字符串）
+func (r *FunctionGenRecord) SetFullCodePaths(paths []string) {
+	if len(paths) == 0 {
+		r.FullCodePaths = ""
 		return
 	}
 	// 过滤空字符串并连接
-	validCodes := make([]string, 0, len(codes))
-	for _, code := range codes {
-		code = strings.TrimSpace(code)
-		if code != "" {
-			validCodes = append(validCodes, code)
+	validPaths := make([]string, 0, len(paths))
+	for _, path := range paths {
+		path = strings.TrimSpace(path)
+		if path != "" {
+			validPaths = append(validPaths, path)
 		}
 	}
-	r.FullGroupCodes = strings.Join(validCodes, ",")
+	r.FullCodePaths = strings.Join(validPaths, ",")
 }
 
 // GetMetadata 获取元数据

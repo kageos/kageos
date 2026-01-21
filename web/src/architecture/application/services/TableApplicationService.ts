@@ -137,9 +137,7 @@ export class TableApplicationService {
       // 渲染时，UserDisplay 组件调用 getUserInfo 或 batchGetUserInfo 都能命中缓存
       const userInfoStore = useUserInfoStore()
       const usernamesArray = [...usernames]
-      console.log('[TableApplicationService] 预加载用户信息开始', { usernames: usernamesArray, count: usernamesArray.length })
       await userInfoStore.batchGetUserInfo(usernamesArray)
-      console.log('[TableApplicationService] 预加载用户信息完成', { usernames: usernamesArray, count: usernamesArray.length })
     } catch (error) {
       // 静默失败，不影响表格数据加载
       console.error('[TableApplicationService] 预加载用户信息失败', error)

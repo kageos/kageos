@@ -256,17 +256,18 @@ func (a *App) getApis() (apis []*ApiInfo, createTables []interface{}, err error)
 
 		// 读取源代码文件内容
 		var sourceCode string
-		if sourceCodeFilePath != "" && info.Options != nil && info.Options.RouterGroup != nil {
-			// 构建实际的文件路径：在容器内，使用 /app/code/api/{package}/{group_code}.go
+		if sourceCodeFilePath != "" && info.Options != nil {
+			// 直接使用 PackagePath 构建文件路径
+			// 不再需要 groupCode，目录本身就是管理单元
 			packagePath := strings.Trim(info.Options.PackagePath, "/")
-			groupCode := info.Options.RouterGroup.GroupCode
 
-			// 文件路径：/app/code/api/{package}/{group_code}.go
+			// 文件路径：/app/code/api/{package}/init_.go（目录的 init_.go 文件）
+			// 或者可以根据实际需求调整，例如读取目录下的所有 .go 文件
 			var filePath string
 			if packagePath == "" {
-				filePath = fmt.Sprintf("/app/code/api/%s.go", groupCode)
+				filePath = "/app/code/api/init_.go"
 			} else {
-				filePath = fmt.Sprintf("/app/code/api/%s/%s.go", packagePath, groupCode)
+				filePath = fmt.Sprintf("/app/code/api/%s/init_.go", packagePath)
 			}
 
 			// 读取文件内容
@@ -277,8 +278,8 @@ func (a *App) getApis() (apis []*ApiInfo, createTables []interface{}, err error)
 				logger.Warnf(context.Background(), "Failed to read source code file %s: %v", filePath, err)
 			}
 		} else {
-			logger.Warnf(context.Background(), "Cannot read source code: sourceCodeFilePath=%s, Options=%v, RouterGroup=%v",
-				sourceCodeFilePath, info.Options != nil, info.Options != nil && info.Options.RouterGroup != nil)
+			logger.Warnf(context.Background(), "Cannot read source code: sourceCodeFilePath=%s, Options=%v",
+				sourceCodeFilePath, info.Options != nil)
 		}
 
 		api := &ApiInfo{
@@ -288,8 +289,6 @@ func (a *App) getApis() (apis []*ApiInfo, createTables []interface{}, err error)
 			Tags:               base.Tags,
 			Router:             info.Router,
 			Method:             info.Method,
-			FunctionGroupCode:  base.FunctionGroup.Code,
-			FunctionGroupName:  base.FunctionGroup.Name,
 			User:               env.User,
 			App:                env.App,
 			FullCodePath:       fmt.Sprintf("/%s/%s/%s", env.User, env.App, strings.Trim(info.Router, "/")),

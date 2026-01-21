@@ -58,6 +58,11 @@ const goToRegister = () => {
   router.push('/register')
 }
 
+// 跳转到忘记密码页
+const goToForgotPassword = () => {
+  router.push('/forgot-password')
+}
+
 // 处理回车键
 const handleKeyPress = (event: KeyboardEvent) => {
   if (event.key === 'Enter') {
@@ -184,10 +189,17 @@ const handleKeyPress = (event: KeyboardEvent) => {
           </el-form-item>
 
           <div class="login-footer">
+            <div class="footer-top">
+              <el-button type="text" @click="goToForgotPassword" class="forgot-password-link">
+                忘记密码？
+              </el-button>
+            </div>
+            <div class="footer-bottom">
             <span class="login-tip">还没有账号？</span>
             <el-button type="text" @click="goToRegister" class="register-link">
               立即注册
             </el-button>
+            </div>
           </div>
         </el-form>
       </div>
@@ -556,9 +568,31 @@ const handleKeyPress = (event: KeyboardEvent) => {
 .login-footer {
   text-align: center;
   display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.footer-top {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.footer-bottom {
+  display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+}
+
+.forgot-password-link {
+  font-size: 14px;
+  color: #718096;
+  padding: 0;
+  transition: all 0.3s ease;
+}
+
+.forgot-password-link:hover {
+  color: #667eea;
 }
 
 .login-tip {

@@ -1,5 +1,9 @@
 package dto
 
+import (
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
+)
+
 // AgentChatReq 智能体聊天请求
 type AgentChatReq struct {
 	AgentID   int64  `json:"agent_id" binding:"required" example:"1"` // 智能体ID
@@ -11,21 +15,23 @@ type AgentChatReq struct {
 }
 
 type FunctionGenAgentChatReq struct {
-	AgentID      int64    `json:"agent_id" binding:"required" example:"1"`        // 智能体ID
-	TreeID       int64    `json:"tree_id" binding:"required" example:"629"`      // 服务目录ID
-	Package      string   `json:"package" example:"crm"`                        // Package 名称（从前端传递）
-	SessionID    string   `json:"session_id" example:""`                        // 会话ID（UUID），首次为空，后端自动生成
-	ExistingFiles []string `json:"existing_files" example:"[\"crm_ticket\",\"crm_user\"]"` // 当前 package 下已存在的文件名（不含 .go 后缀）
-	Message      Message  `json:"message" binding:"required"`                   // 单条消息（历史记录后端自动加载）
+	AgentID            int64                    `json:"agent_id" binding:"required" example:"1"`        // 智能体ID
+	TreeID             int64                    `json:"tree_id" binding:"required" example:"629"`      // 服务目录ID
+	SessionID          string                   `json:"session_id" example:""`                        // 会话ID（UUID），首次为空，后端自动生成
+	ExistingDirectories []ExistingDirectoryInfo `json:"existing_directories" example:"[{\"code\":\"ticket\",\"name\":\"工单管理\"}]"` // 当前目录下已存在的子目录列表（格式：目录代码:目录名称）
+	Message            Message                  `json:"message" binding:"required"`                   // 单条消息（历史记录后端自动加载）
+}
+
+// ExistingDirectoryInfo 已存在的子目录信息
+type ExistingDirectoryInfo struct {
+	Code string `json:"code" example:"ticket"`   // 目录代码
+	Name string `json:"name" example:"工单管理"` // 目录名称
 }
 
 // Message 对话消息
 type Message struct {
-	Content string `json:"content" binding:"required" example:"你好"` // 消息内容
-	Files   []struct {
-		Url    string `json:"url"` //文件url
-		Remark string `json:"remark"`
-	} `json:"files"`
+	Content string      `json:"content" binding:"required" example:"你好"` // 消息内容
+	Files   *types.Files `json:"files,omitempty"`                            // 文件列表（直接使用 types.Files）
 }
 
 // AgentChatResp 智能体聊天响应
@@ -59,7 +65,6 @@ type AddFunctionsReq struct {
 	AgentID   int64  `json:"agent_id" example:"1"`                                        // 智能体ID
 	TreeID    int64  `json:"tree_id" example:"629"`                                       // 服务目录ID
 	User      string `json:"user" example:"beiluo"`                                       // 用户标识
-	Code      string `json:"code" example:"package main\n\nfunc main() {\n\t// 生成的代码\n}"` // 生成的代码内容（原始代码，已废弃，保留用于兼容）
 	// 处理后的结构化数据（agent-server 处理后的结果）
 	FileName   string `json:"file_name" example:"crm_ticket"`   // 从代码中提取的文件名
 	SourceCode string `json:"source_code" example:"package..."`  // 处理后的源代码（从 Markdown 中提取）
@@ -72,29 +77,41 @@ type FunctionGenResult = AddFunctionsReq
 
 // AddFunctionsResp 添加函数响应（同步模式返回）
 type AddFunctionsResp struct {
-	Success        bool     `json:"success" example:"true"`           // 是否成功
-	FullGroupCodes []string `json:"full_group_codes,omitempty" example:"[\"/user/app/function\"]"` // 生成的函数组代码列表
-	AppID          int64    `json:"app_id" example:"1"`                // 应用ID
-	AppCode        string   `json:"app_code" example:"myapp"`          // 应用代码
-	Error          string   `json:"error,omitempty" example:""`         // 错误信息（如果失败）
+	Success bool   `json:"success" example:"true"`         // 是否成功
+	AppID   int64  `json:"app_id" example:"1"`             // 应用ID
+	AppCode string `json:"app_code" example:"myapp"`      // 应用代码
+	Error   string `json:"error,omitempty" example:""`     // 错误信息（如果失败）
 }
 
-// PluginFile 插件文件信息
-type PluginFile struct {
-	Url    string `json:"url" example:"https://example.com/file.xlsx"` // 文件URL
-	Remark string `json:"remark" example:"Excel文件"`                    // 文件备注
+// AddFunctionsAsyncResp 添加函数响应（异步模式返回）
+type AddFunctionsAsyncResp struct {
+	RecordID int64  `json:"record_id" example:"7"`                              // 生成记录ID
+	Message  string `json:"message" example:"函数添加请求已接收，正在异步处理"` // 提示消息
 }
 
 // PluginRunReq 插件执行请求
 type PluginRunReq struct {
-	Message string       `json:"message" binding:"required" example:"请处理这个Excel文件"`                                    // 用户消息
-	Files   []PluginFile `json:"files" example:"[{\"url\":\"https://example.com/file.xlsx\",\"remark\":\"Excel文件\"}]"` // 文件列表
+	Content string       `json:"content" binding:"required" example:"请处理这个Excel文件"` // 用户消息内容
+	Files   *types.Files `json:"files,omitempty"`                                         // 文件列表（直接使用 types.Files）
 }
 
 // PluginRunResp 插件执行响应
 type PluginRunResp struct {
 	Data  string `json:"data" example:"工单标题,问题描述,优先级,工单状态\n工单1,描述1,低,待处理"` // 处理后的数据（格式化后的文本，供LLM理解）
 	Error string `json:"error,omitempty" example:"文件解析失败: 读取 CSV 行失败"`              // 错误信息（如果有），如果设置了此字段，表示插件处理失败，不应调用 LLM
+}
+
+// AgentPluginFormReq 智能体插件场景的 Form API 请求（固定格式）
+// 用于调用 Form API 时的请求结构
+type AgentPluginFormReq struct {
+	Content    string       `json:"content,omitempty"`      // 文本输入（可选）
+	InputFiles *types.Files `json:"input_files,omitempty"` // 文件输入（可选）
+}
+
+// AgentPluginFormResp 智能体插件场景的 Form API 响应（固定格式）
+// 用于调用 Form API 时的响应结构
+type AgentPluginFormResp struct {
+	Result string `json:"result"` // 文本输出
 }
 
 // ChatSessionListReq 获取会话列表请求
@@ -148,13 +165,13 @@ type ChatMessageListResp struct {
 
 // FunctionGenCallback 函数生成回调（app-server -> agent-server）
 type FunctionGenCallback struct {
-	RecordID       int64    `json:"record_id"`        // 生成记录ID
-	MessageID      int64    `json:"message_id"`       // 消息ID
-	Success        bool     `json:"success"`           // 是否成功
-	FullGroupCodes []string `json:"full_group_codes"`  // 生成的函数组代码列表
-	AppID          int64    `json:"app_id"`           // 应用ID
-	AppCode        string   `json:"app_code"`         // 应用代码（冗余存储，提高查询效率）
-	Error          string   `json:"error,omitempty"`   // 错误信息（如果失败）
+	RecordID      int64    `json:"record_id"`        // 生成记录ID
+	MessageID     int64    `json:"message_id"`       // 消息ID
+	Success       bool     `json:"success"`           // 是否成功
+	FullCodePaths []string `json:"full_code_paths,omitempty" example:"[\"/user/app/function\"]"` // 生成的函数完整代码路径列表
+	AppID         int64    `json:"app_id"`           // 应用ID
+	AppCode       string   `json:"app_code"`         // 应用代码（冗余存储，提高查询效率）
+	Error         string   `json:"error,omitempty"`   // 错误信息（如果失败）
 }
 
 // FunctionGenStatusReq 查询代码生成状态请求
@@ -164,12 +181,12 @@ type FunctionGenStatusReq struct {
 
 // FunctionGenStatusResp 查询代码生成状态响应
 type FunctionGenStatusResp struct {
-	RecordID       int64    `json:"record_id" example:"1"`                              // 生成记录ID
-	Status         string   `json:"status" example:"generating"`                         // 状态：generating/completed/failed
-	Code           string   `json:"code,omitempty" example:"package main\n\nfunc main() {}"` // 生成的代码（仅在 completed 时返回）
-	ErrorMsg       string   `json:"error_msg,omitempty" example:"生成失败"`                // 错误信息（仅在 failed 时返回）
-	FullGroupCodes []string `json:"full_group_codes,omitempty" example:"[\"/user/app/function\"]"` // 生成的函数组代码列表（仅在 completed 时返回）
-	Duration       int      `json:"duration" example:"30"`                              // 生成耗时（秒）
-	CreatedAt      string   `json:"created_at" example:"2006-01-02T15:04:05Z"`           // 创建时间
-	UpdatedAt      string   `json:"updated_at" example:"2006-01-02T15:04:05Z"`         // 更新时间
+	RecordID      int64    `json:"record_id" example:"1"`                              // 生成记录ID
+	Status        string   `json:"status" example:"generating"`                         // 状态：generating/completed/failed
+	Code          string   `json:"code,omitempty" example:"package main\n\nfunc main() {}"` // 生成的代码（仅在 completed 时返回）
+	ErrorMsg      string   `json:"error_msg,omitempty" example:"生成失败"`                // 错误信息（仅在 failed 时返回）
+	FullCodePaths []string `json:"full_code_paths,omitempty" example:"[\"/user/app/function\"]"` // 生成的函数完整代码路径列表（仅在 completed 时返回）
+	Duration      int      `json:"duration" example:"30"`                              // 生成耗时（秒）
+	CreatedAt     string   `json:"created_at" example:"2006-01-02T15:04:05Z"`           // 创建时间
+	UpdatedAt     string   `json:"updated_at" example:"2006-01-02T15:04:05Z"`         // 更新时间
 }

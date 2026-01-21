@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -14,6 +15,37 @@ type ServiceTreeRepository struct {
 
 func NewServiceTreeRepository(db *gorm.DB) *ServiceTreeRepository {
 	return &ServiceTreeRepository{db: db}
+}
+
+// GetDocsNodesByParentID 根据父节点ID获取所有 docs 类型的子节点（递归）
+func (r *ServiceTreeRepository) GetDocsNodesByParentID(parentID int64) ([]*model.ServiceTree, error) {
+	var nodes []*model.ServiceTree
+	
+	// 递归查询所有子节点中的 docs 类型节点
+	var findAllDocsNodes func(int64) error
+	findAllDocsNodes = func(pid int64) error {
+		var children []*model.ServiceTree
+		if err := r.db.Where("parent_id = ?", pid).Find(&children).Error; err != nil {
+			return err
+		}
+		
+		for _, child := range children {
+			if child.Type == model.ServiceTreeTypeDocs {
+				nodes = append(nodes, child)
+			}
+			// 递归查询子节点的子节点
+			if err := findAllDocsNodes(child.ID); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	
+	if err := findAllDocsNodes(parentID); err != nil {
+		return nil, err
+	}
+	
+	return nodes, nil
 }
 
 // CreateServiceTreeWithParentPath 创建服务目录
@@ -150,6 +182,16 @@ func (r *ServiceTreeRepository) UpdateServiceTree(serviceTree *model.ServiceTree
 	return r.db.Save(serviceTree).Error
 }
 
+// UpdatePendingCount 原子更新节点的 pending_count
+// ⭐ 使用 SQL 表达式进行原子更新，防止并发问题
+func (r *ServiceTreeRepository) UpdatePendingCount(id int64, delta int) error {
+	// 使用 GORM 的 Update 方法进行原子更新，直接使用 SQL 表达式
+	// GREATEST(0, pending_count + delta) 确保结果不为负数
+	return r.db.Model(&model.ServiceTree{}).
+		Where("id = ?", id).
+		Update("pending_count", gorm.Expr("GREATEST(0, pending_count + ?)", delta)).Error
+}
+
 // DeleteServiceTree 删除服务目录（级联删除子目录）
 func (r *ServiceTreeRepository) DeleteServiceTree(id int64) error {
 	// 先删除所有子目录
@@ -193,6 +235,88 @@ func (r *ServiceTreeRepository) GetServiceTreeByFullPath(fullPath string) (*mode
 	return &serviceTree, nil
 }
 
+// GetNodeByPath 根据路径查询节点（带 context，企业版使用）
+func (r *ServiceTreeRepository) GetNodeByPath(ctx context.Context, resourcePath string) (*model.ServiceTree, error) {
+	return r.GetServiceTreeByFullPath(resourcePath)
+}
+
+// GetNodeAdmins 获取节点的管理员列表
+func (r *ServiceTreeRepository) GetNodeAdmins(ctx context.Context, resourcePath string) ([]string, error) {
+	var node model.ServiceTree
+	err := r.db.WithContext(ctx).
+		Where("full_code_path = ?", resourcePath).
+		Select("admins").
+		First(&node).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// 解析逗号分隔的管理员列表
+	if node.Admins == "" {
+		return []string{}, nil
+	}
+
+	admins := strings.Split(node.Admins, ",")
+	result := make([]string, 0, len(admins))
+	for _, admin := range admins {
+		admin = strings.TrimSpace(admin)
+		if admin != "" {
+			result = append(result, admin)
+		}
+	}
+
+	return result, nil
+}
+
+// AddNodeAdmin 添加节点管理员
+func (r *ServiceTreeRepository) AddNodeAdmin(ctx context.Context, resourcePath string, adminUsername string) error {
+	// 获取当前管理员列表
+	admins, err := r.GetNodeAdmins(ctx, resourcePath)
+	if err != nil {
+		return err
+	}
+
+	// 检查是否已存在
+	for _, admin := range admins {
+		if admin == adminUsername {
+			return nil // 已存在，静默成功
+		}
+	}
+
+	// 添加新管理员
+	admins = append(admins, adminUsername)
+	adminsStr := strings.Join(admins, ",")
+
+	return r.db.WithContext(ctx).
+		Model(&model.ServiceTree{}).
+		Where("full_code_path = ?", resourcePath).
+		Update("admins", adminsStr).Error
+}
+
+// RemoveNodeAdmin 删除节点管理员
+func (r *ServiceTreeRepository) RemoveNodeAdmin(ctx context.Context, resourcePath string, adminUsername string) error {
+	// 获取当前管理员列表
+	admins, err := r.GetNodeAdmins(ctx, resourcePath)
+	if err != nil {
+		return err
+	}
+
+	// 移除管理员
+	newAdmins := make([]string, 0, len(admins))
+	for _, admin := range admins {
+		if admin != adminUsername {
+			newAdmins = append(newAdmins, admin)
+		}
+	}
+
+	adminsStr := strings.Join(newAdmins, ",")
+
+	return r.db.WithContext(ctx).
+		Model(&model.ServiceTree{}).
+		Where("full_code_path = ?", resourcePath).
+		Update("admins", adminsStr).Error
+}
+
 // GetServiceTreeByFullPaths 批量根据完整路径获取服务目录
 func (r *ServiceTreeRepository) GetServiceTreeByFullPaths(fullPaths []string) (map[string]*model.ServiceTree, error) {
 	if len(fullPaths) == 0 {
@@ -234,33 +358,22 @@ func (r *ServiceTreeRepository) GetByID(parentId int64) (*model.ServiceTree, err
 	return &tree, nil
 }
 
-// GetServiceTreesByFullGroupCode 根据完整函数组代码获取服务目录列表（同一个函数组下可能有多个函数，每个函数一条记录）
-func (r *ServiceTreeRepository) GetServiceTreesByFullGroupCode(fullGroupCode string) ([]*model.ServiceTree, error) {
-	var serviceTrees []*model.ServiceTree
-	err := r.db.Where("full_group_code = ? AND type = ?", fullGroupCode, model.ServiceTreeTypeFunction).
-		Find(&serviceTrees).Error
-	if err != nil {
-		return nil, err
-	}
-	return serviceTrees, nil
-}
-
 // GetDescendantDirectories 递归获取所有子目录（包括嵌套）
 // 使用路径前缀匹配，一次查询获取所有子目录
 func (r *ServiceTreeRepository) GetDescendantDirectories(appID int64, parentFullCodePath string) ([]*model.ServiceTree, error) {
 	// 标准化路径（确保以 / 结尾，用于前缀匹配）
 	normalizedPath := strings.TrimSuffix(parentFullCodePath, "/") + "/"
-	
+
 	var descendants []*model.ServiceTree
 	err := r.db.Where("app_id = ? AND full_code_path LIKE ? AND type = ?",
 		appID, normalizedPath+"%", model.ServiceTreeTypePackage).
 		Order("full_code_path ASC").
 		Find(&descendants).Error
-	
+
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// 过滤：只返回真正的子目录（路径必须以 parentFullCodePath/ 开头）
 	result := make([]*model.ServiceTree, 0)
 	for _, dir := range descendants {
@@ -268,6 +381,52 @@ func (r *ServiceTreeRepository) GetDescendantDirectories(appID int64, parentFull
 			result = append(result, dir)
 		}
 	}
-	
+
 	return result, nil
+}
+
+// SearchFunctions 搜索函数（支持按名称、路径、类型过滤）
+func (r *ServiceTreeRepository) SearchFunctions(user, app, keyword, templateType string, page, pageSize int) ([]*model.ServiceTree, int64, error) {
+	var functions []*model.ServiceTree
+	var total int64
+
+	// 构建查询
+	query := r.db.Model(&model.ServiceTree{}).
+		Where("service_tree.type = ?", model.ServiceTreeTypeFunction)
+
+	// 如果指定了 user 和 app，需要先获取 app_id
+	if user != "" && app != "" {
+		// 需要关联 app 表来过滤（表名是 app，不是 apps）
+		query = query.Joins("JOIN app ON service_tree.app_id = app.id").
+			Where("app.user = ? AND app.code = ?", user, app)
+	}
+
+	// 模板类型过滤
+	if templateType != "" {
+		query = query.Where("service_tree.template_type = ?", templateType)
+	}
+
+	// 关键词搜索（名称或路径）
+	if keyword != "" {
+		keywordPattern := "%" + keyword + "%"
+		query = query.Where("service_tree.name LIKE ? OR service_tree.full_code_path LIKE ?", keywordPattern, keywordPattern)
+	}
+
+	// 获取总数
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 分页查询
+	offset := (page - 1) * pageSize
+	if err := query.
+		Preload("App").
+		Offset(offset).
+		Limit(pageSize).
+		Order("service_tree.created_at DESC").
+		Find(&functions).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return functions, total, nil
 }

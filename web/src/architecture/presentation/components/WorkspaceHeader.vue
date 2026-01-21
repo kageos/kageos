@@ -9,9 +9,6 @@
 
 <template>
   <div class="workspace-header">
-    <div class="header-left">
-      <div class="logo">AI Agent OS</div>
-    </div>
     <div class="header-right">
       <!-- 🔥 开发工具：Debug 弹窗按钮 -->
       <el-button
@@ -71,6 +68,26 @@
         智能体管理
       </el-button>
       
+      <el-button
+        type="primary"
+        size="small"
+        :icon="OfficeBuilding"
+        @click="navigateToOrganization"
+        title="组织架构和用户管理"
+      >
+        组织架构和用户管理
+      </el-button>
+      
+      <el-button
+        type="primary"
+        size="small"
+        :icon="UserFilled"
+        @click="navigateToRoleManagement"
+        title="角色管理"
+      >
+        角色管理
+      </el-button>
+      
       <ThemeToggle />
       <el-dropdown @command="handleUserCommand">
         <span class="user-profile">
@@ -101,7 +118,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowDown, Delete } from '@element-plus/icons-vue'
+import { ArrowDown, Delete, OfficeBuilding, UserFilled } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { useLicenseStore } from '@/stores/license'
@@ -161,6 +178,16 @@ const navigateToAgent = () => {
   router.push('/agent')
 }
 
+// 导航到组织架构和用户管理
+const navigateToOrganization = () => {
+  router.push('/organization')
+}
+
+// 导航到角色管理
+const navigateToRoleManagement = () => {
+  router.push('/permissions/roles')
+}
+
 // 升级企业版对话框
 const showUpgradeDialog = ref(false)
 
@@ -214,24 +241,13 @@ onMounted(async () => {
 <style scoped lang="scss">
 .workspace-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
   height: 60px;
   padding: 0 24px;
   background: var(--el-bg-color);
   border-bottom: 1px solid var(--el-border-color-lighter);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-}
-
-.logo {
-  font-size: 20px;
-  font-weight: 600;
-  color: #6366f1; /* ✅ 与服务目录 fx 图标颜色一致（indigo-500） */
 }
 
 .header-right {

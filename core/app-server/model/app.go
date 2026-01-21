@@ -8,13 +8,21 @@ import (
 
 type App struct {
 	models.Base
-	User    string `json:"user" gorm:"column:user;type:varchar(255);not null"`
-	Code    string `json:"code" gorm:"column:code;type:varchar(255);not null"` //英文标识
-	Name    string `json:"name" gorm:"column:name;type:varchar(255);not null"` //中文名称
-	NatsID  int64  `gorm:"column:nats_id;type:bigint" json:"nats_id"`          //不同的nats 会把流量分发到不同的机房
-	HostID  int64  `gorm:"column:host_id;type:bigint" json:"host_id"`
-	Status  string `gorm:"column:status;type:varchar(50)" json:"status"` // 应用状态: enabled(启用), disabled(禁用)
-	Version string `gorm:"column:version;type:varchar(50)" json:"version"`
+	User     string `json:"user" gorm:"column:user;type:varchar(255);not null"`
+	Code     string `json:"code" gorm:"column:code;type:varchar(255);not null"` //英文标识
+	Name     string `json:"name" gorm:"column:name;type:varchar(255);not null"` //中文名称
+	NatsID   int64  `gorm:"column:nats_id;type:bigint" json:"nats_id"`          //不同的nats 会把流量分发到不同的机房
+	HostID   int64  `gorm:"column:host_id;type:bigint" json:"host_id"`
+	Status   string `gorm:"column:status;type:varchar(50)" json:"status"` // 应用状态: enabled(启用), disabled(禁用)
+	Version  string `gorm:"column:version;type:varchar(50)" json:"version"`
+	IsPublic bool   `gorm:"column:is_public;type:boolean;default:true" json:"is_public"` // 是否公开，默认公开
+	Admins   string `gorm:"column:admins;type:text" json:"admins"`                      // 管理员列表，逗号分隔的用户名
+	
+	// ⭐ 新增：应用类型（0:用户空间, 1:系统空间）
+	Type AppType `json:"type" gorm:"column:type;type:tinyint;default:0;index;comment:应用类型(0:用户空间,1:系统空间)"`
+	
+	// ⭐ app 级别的待审批权限申请数量
+	PendingCount int `json:"pending_count" gorm:"column:pending_count;default:0;comment:app级别待审批的权限申请数量"`
 }
 
 func (App) TableName() string {
@@ -53,4 +61,14 @@ func (a *App) GetVersionNumber() int {
 		return 0
 	}
 	return num
+}
+
+// IsSystemApp 检查是否为系统空间
+func (a *App) IsSystemApp() bool {
+	return a.Type.IsSystem()
+}
+
+// IsUserApp 检查是否为用户空间
+func (a *App) IsUserApp() bool {
+	return a.Type.IsUser()
 }

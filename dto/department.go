@@ -8,6 +8,7 @@ type CreateDepartmentReq struct {
 	Code        string `json:"code" binding:"required" example:"tech"`        // 部门编码
 	ParentID    int64  `json:"parent_id" example:"0"`                         // 父部门ID（0表示根部门）
 	Description string `json:"description" example:"负责技术研发"`                // 部门描述
+	Managers    string `json:"managers,omitempty" example:"zhangsan,lisi"`   // 部门负责人（可选，多个用户名逗号分隔）
 }
 
 // CreateDepartmentResp 创建部门响应

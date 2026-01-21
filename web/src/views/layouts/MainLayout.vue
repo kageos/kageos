@@ -6,9 +6,9 @@ import { InfoFilled } from '@element-plus/icons-vue'
 import { extractWorkspacePath } from '@/utils/route'
 import { Logger } from '@/core/utils/logger'
 import { getAppList, createApp, updateApp, deleteApp, getAppDetailByUserAndCode, getAppWithServiceTree } from '@/api'
-import { getServiceTree } from '@/api/service-tree'
 import type { App, CreateAppRequest } from '@/types'
 import AppSwitcher from '@/components/AppSwitcher.vue'
+import UserSearchInput from '@/components/UserSearchInput.vue'
 import type { ServiceTree } from '@/types'
 
 const route = useRoute()
@@ -28,9 +28,19 @@ const loadingTree = ref(false)
 const createAppDialogVisible = ref(false)
 const creatingApp = ref(false)
 const createAppForm = ref<CreateAppRequest>({
+  is_public: true, // 默认公开
   code: '',
-  name: ''
+  name: '',
+  admins: '' // 管理员列表，逗号分隔的用户名
 })
+
+// 管理员数组（用于 UserSearchInput 组件，多选模式返回数组）
+const adminsArray = ref<string[]>([])
+
+// 监听 adminsArray 变化，转换为逗号分隔的字符串
+watch(adminsArray, (newVal) => {
+  createAppForm.value.admins = newVal.length > 0 ? newVal.join(',') : ''
+}, { immediate: true })
 
 // 从路由中解析应用信息
 const parseAppFromRoute = () => {
@@ -39,7 +49,6 @@ const parseAppFromRoute = () => {
   let fullPath = ''
   
   const currentPath = window.location.pathname
-  Logger.debug('MainLayout', 'window.location.pathname', currentPath)
   
   if (currentPath.startsWith('/workspace/')) {
     // 从完整路径中提取 workspace 之后的部分
@@ -53,32 +62,21 @@ const parseAppFromRoute = () => {
     }
   }
   
-  Logger.debug('MainLayout', 'route.path', route.path)
-  Logger.debug('MainLayout', 'route.fullPath', route.fullPath)
-  Logger.debug('MainLayout', 'route.params.path', route.params.path)
-  Logger.debug('MainLayout', '提取的完整路径', fullPath)
-  
   if (!fullPath) {
-    Logger.debug('MainLayout', '路径为空')
     return null
   }
   
   // 分割路径段，过滤空字符串
   const pathSegments = fullPath.split('/').filter(Boolean)
-  console.log('[MainLayout] 路径段:', pathSegments)
   
   if (pathSegments.length < 2) {
-    console.log('[MainLayout] 路径段不足（需要至少 user 和 app）')
     return null
   }
   
   const [user, appCode] = pathSegments
-  console.log('[MainLayout] 解析出 user:', user, 'appCode:', appCode)
-  console.log('[MainLayout] 应用列表:', appList.value.map((a: App) => ({ user: a.user, code: a.code })))
   
   // 从应用列表中找到匹配的应用
   const app = appList.value.find((a: App) => a.user === user && a.code === appCode)
-  console.log('[MainLayout] 找到的应用:', app)
   return app || null
 }
 
@@ -89,23 +87,14 @@ const fetchAppList = async () => {
     const items = await getAppList()
     appList.value = items
     
-    console.log('[MainLayout] ========== 应用列表加载完成 ==========')
-    console.log('[MainLayout] 应用数量:', items.length)
-    console.log('[MainLayout] 应用列表:', items.map((a: App) => `${a.user}/${a.code}`))
-    console.log('[MainLayout] 当前 URL:', window.location.href)
-    console.log('[MainLayout] 当前 pathname:', window.location.pathname)
-    
     // 尝试从路由中获取应用信息
     const routeApp = parseAppFromRoute()
     if (routeApp) {
-      console.log('[MainLayout] ✅ 从路由解析到应用:', routeApp.user + '/' + routeApp.code)
       // 不更新路由，因为路由已经有完整路径
       await switchApp(routeApp, false)
     } else {
-      console.log('[MainLayout] ⚠️ 无法从路由解析应用')
       if (!currentApp.value && items.length > 0 && items[0]) {
         // 如果没有路由应用且有应用列表，选择第一个并更新路由
-        console.log('[MainLayout] 选择第一个应用:', items[0].user + '/' + items[0].code)
         await switchApp(items[0], true)
       }
     }
@@ -120,12 +109,10 @@ const fetchAppList = async () => {
 // 监听路由变化，自动切换应用
 watch(() => route.fullPath, async () => {
   const currentPath = window.location.pathname
-  console.log('[MainLayout] 路由变化（fullPath）:', route.fullPath, 'pathname:', currentPath)
   // 如果应用列表已加载，尝试根据路由切换应用
   if (appList.value.length > 0 && currentPath.startsWith('/workspace/')) {
     const routeApp = parseAppFromRoute()
     if (routeApp && (!currentApp.value || currentApp.value.id !== routeApp.id)) {
-      console.log('[MainLayout] 路由变化，切换应用:', routeApp)
       // 不更新路由，因为路由已经有完整路径
       await switchApp(routeApp, false)
     }
@@ -134,14 +121,10 @@ watch(() => route.fullPath, async () => {
 
 // 切换应用（可选：是否更新路由）
 const switchApp = async (app: App, updateRoute = true) => {
-  console.log('[MainLayout] ========== 切换应用 ==========')
-  console.log('[MainLayout] 目标应用:', app.user + '/' + app.code)
-  console.log('[MainLayout] 是否更新路由:', updateRoute)
   currentApp.value = app
   // 加载服务目录树并发送事件
   await loadServiceTree(app)
   // 发送应用切换事件
-  console.log('[MainLayout] 发送 app-switched 事件')
   window.dispatchEvent(new CustomEvent('app-switched', { detail: { app } }))
   // 只有在需要更新路由且当前路由不匹配时才更新
   if (updateRoute) {
@@ -180,7 +163,6 @@ const loadServiceTree = async (app: App) => {
   }
   
   try {
-    console.log('[MainLayout] 开始加载工作空间数据:', app.user + '/' + app.code)
     loadingTree.value = true
     
     // ⭐ 使用合并接口获取应用详情和服务目录树（减少请求次数）
@@ -202,32 +184,14 @@ const loadServiceTree = async (app: App) => {
       
       // 设置服务目录树
       serviceTree.value = workspaceData.service_tree || []
-      console.log('[MainLayout] 工作空间数据加载完成，节点数:', serviceTree.value.length)
       
       // 发送服务目录树更新事件到Workspace页面
-      console.log('[MainLayout] 发送 service-tree-updated 事件')
       window.dispatchEvent(new CustomEvent('service-tree-updated', { detail: { tree: serviceTree.value } }))
-    } else {
-      // 如果合并接口返回数据不完整，回退到单独加载服务目录树
-      console.warn('[MainLayout] 合并接口返回数据不完整，回退到单独加载服务目录树')
-    const tree = await getServiceTree(app.user, app.code)
-    serviceTree.value = tree || []
-    console.log('[MainLayout] 服务目录树加载完成，节点数:', serviceTree.value.length)
-    window.dispatchEvent(new CustomEvent('service-tree-updated', { detail: { tree: serviceTree.value } }))
     }
   } catch (error) {
     console.error('[MainLayout] 获取工作空间数据失败:', error)
-    // 如果合并接口失败，回退到单独加载服务目录树
-    try {
-      console.log('[MainLayout] 尝试单独加载服务目录树')
-      const tree = await getServiceTree(app.user, app.code)
-      serviceTree.value = tree || []
-      window.dispatchEvent(new CustomEvent('service-tree-updated', { detail: { tree: serviceTree.value } }))
-    } catch (fallbackError) {
-      console.error('[MainLayout] 获取服务目录树失败:', fallbackError)
     ElMessage.error('获取服务目录树失败')
     serviceTree.value = []
-    }
   } finally {
     loadingTree.value = false
   }
@@ -237,8 +201,11 @@ const loadServiceTree = async (app: App) => {
 const handleCreateApp = () => {
   createAppForm.value = {
     code: '',
-    name: ''
+    name: '',
+    is_public: true,
+    admins: ''
   }
+  adminsArray.value = []
   createAppDialogVisible.value = true
 }
 
@@ -264,9 +231,7 @@ const handleSubmitCreateApp = async () => {
 
   try {
     creatingApp.value = true
-    console.log('[MainLayout] 创建应用请求:', createAppForm.value)
     const createResponse = await createApp(createAppForm.value)
-    console.log('[MainLayout] 应用创建成功:', createResponse)
     ElMessage.success('工作空间创建成功')
     createAppDialogVisible.value = false
     
@@ -286,12 +251,10 @@ const handleSubmitCreateApp = async () => {
             appList.value.push(newApp)
           }
           
-      console.log('[MainLayout] 跳转到新应用工作空间:', `${newApp.user}/${newApp.code}`)
       currentApp.value = newApp
           
           // 设置服务目录树（从合并接口获取）
           serviceTree.value = workspaceData.service_tree || []
-          console.log('[MainLayout] 服务目录树加载完成，节点数:', serviceTree.value.length)
           
       // 先跳转路由
       await router.push(`/workspace/${newApp.user}/${newApp.code}`)
@@ -303,7 +266,6 @@ const handleSubmitCreateApp = async () => {
       window.dispatchEvent(new CustomEvent('app-switched', { detail: { app: newApp } }))
         } else {
           // 如果获取详情失败，使用创建响应中的信息直接跳转
-          console.warn('[MainLayout] 获取工作空间数据返回的数据不完整，使用创建响应中的信息')
           await router.push(`/workspace/${createResponse.user}/${createResponse.app}`)
         }
       } catch (error) {
@@ -331,18 +293,12 @@ const handleRefreshServiceTree = () => {
 
 // 监听 Workspace 组件就绪事件，重新发送当前状态
 const handleWorkspaceReady = () => {
-  console.log('[MainLayout] ========== 收到 workspace-ready 事件 ==========')
-  console.log('[MainLayout] 当前应用:', currentApp.value ? `${currentApp.value.user}/${currentApp.value.code}` : 'null')
-  console.log('[MainLayout] 服务树节点数:', serviceTree.value.length)
-  
   if (currentApp.value) {
     // 重新发送应用切换事件
-    console.log('[MainLayout] 重新发送 app-switched 事件')
     window.dispatchEvent(new CustomEvent('app-switched', { detail: { app: currentApp.value } }))
     
     // 重新发送服务树更新事件
     if (serviceTree.value.length > 0) {
-      console.log('[MainLayout] 重新发送 service-tree-updated 事件')
       window.dispatchEvent(new CustomEvent('service-tree-updated', { detail: { tree: serviceTree.value } }))
     }
   }
@@ -351,7 +307,6 @@ const handleWorkspaceReady = () => {
 // 更新应用（重新编译）
 const handleUpdateApp = async (app: App) => {
   try {
-    console.log('[MainLayout] 开始更新应用:', app.code)
     // 使用 ElMessage.info 显示加载提示，并设置较长的持续时间
     const loadingMessage = ElMessage({
       message: '正在重新编译工作空间...',
@@ -365,7 +320,6 @@ const handleUpdateApp = async (app: App) => {
     // 关闭加载提示
     loadingMessage.close()
     ElMessage.success('应用更新成功')
-    console.log('[MainLayout] 应用更新成功:', app.code)
     
     // 刷新应用列表
     await fetchAppList()
@@ -397,7 +351,6 @@ const handleDeleteApp = async (app: App) => {
       }
     )
     
-    console.log('[MainLayout] 开始删除应用:', app.code)
     const loadingMessage = ElMessage({
       message: '正在删除应用...',
       type: 'info',
@@ -409,7 +362,6 @@ const handleDeleteApp = async (app: App) => {
     
     loadingMessage.close()
     ElMessage.success('应用删除成功')
-    console.log('[MainLayout] 应用删除成功:', app.code)
     
     // 如果删除的是当前应用，需要切换到其他应用
     if (currentApp.value && currentApp.value.code === app.code) {
@@ -445,7 +397,6 @@ const handleDeleteApp = async (app: App) => {
 onMounted(() => {
   // 🔥 如果是测试路由，不加载应用列表
   if (route.path.startsWith('/test/')) {
-    console.log('[MainLayout] 测试路由，跳过应用列表加载')
     return
   }
   
@@ -472,6 +423,7 @@ onUnmounted(() => {
       :current-app="currentApp"
       :app-list="appList"
       :loading-apps="loadingApps"
+      :service-tree="serviceTree"
       @switch-app="switchApp"
       @create-app="handleCreateApp"
       @update-app="handleUpdateApp"
@@ -488,8 +440,11 @@ onUnmounted(() => {
       @close="() => {
         createAppForm = {
           code: '',
-          name: ''
+          name: '',
+          is_public: true,
+          admins: ''
         }
+        adminsArray = []
       }"
     >
       <el-form :model="createAppForm" label-width="90px">
@@ -514,6 +469,28 @@ onUnmounted(() => {
           <div class="form-tip">
             <el-icon><InfoFilled /></el-icon>
             英文标识只能包含小写字母、数字和下划线，长度 2-50 个字符
+          </div>
+        </el-form-item>
+        <el-form-item label="是否公开">
+          <el-switch
+            v-model="createAppForm.is_public"
+            active-text="公开"
+            inactive-text="私有"
+          />
+          <div class="form-tip">
+            <el-icon><InfoFilled /></el-icon>
+            公开的工作空间可以被其他用户搜索到，私有的工作空间只有您自己可以看到
+          </div>
+        </el-form-item>
+        <el-form-item label="管理员">
+          <UserSearchInput
+            v-model="adminsArray"
+            placeholder="搜索并选择管理员（可多选）"
+            :multiple="true"
+          />
+          <div class="form-tip">
+            <el-icon><InfoFilled /></el-icon>
+            可以设置多个管理员，管理员拥有工作空间的管理权限
           </div>
         </el-form-item>
       </el-form>

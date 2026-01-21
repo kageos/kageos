@@ -60,21 +60,13 @@ export class WidgetInitializerRegistry {
   async initialize(context: WidgetInitContext): Promise<FieldValue> {
     const widgetType = context.field.widget?.type
     if (!widgetType) {
-      console.log(`🔍 [WidgetInitializerRegistry] 字段 ${context.field.code} 没有组件类型，跳过初始化`)
       return context.currentValue  // 没有组件类型，返回原始值
     }
     
     const initializer = this.initializers.get(widgetType)
     if (!initializer) {
-      console.log(`🔍 [WidgetInitializerRegistry] 字段 ${context.field.code} 没有注册初始化器（widgetType: ${widgetType}），跳过初始化`)
       return context.currentValue  // 没有注册初始化器，返回原始值
     }
-    
-    console.log(`🔍 [WidgetInitializerRegistry] 调用组件初始化器`, {
-      fieldCode: context.field.code,
-      widgetType,
-      hasInitializer: !!initializer
-    })
     
     try {
       // 🔥 调用抽象接口，不关心具体实现
@@ -82,24 +74,7 @@ export class WidgetInitializerRegistry {
       
       // 如果组件返回 null，表示不需要初始化，返回原始值
       if (initializedValue === null) {
-        console.log(`🔍 [WidgetInitializerRegistry] 字段 ${context.field.code} 组件返回 null，不需要初始化`)
         return context.currentValue
-      }
-      
-      if (initializedValue !== context.currentValue) {
-        console.log(`✅ [WidgetInitializerRegistry] 字段 ${context.field.code} 组件初始化完成`, {
-          widgetType,
-          oldValue: {
-            raw: context.currentValue.raw,
-            display: context.currentValue.display
-          },
-          newValue: {
-            raw: initializedValue.raw,
-            display: initializedValue.display
-          }
-        })
-      } else {
-        console.log(`🔍 [WidgetInitializerRegistry] 字段 ${context.field.code} 组件返回原始值，未发生变化`)
       }
       
       return initializedValue

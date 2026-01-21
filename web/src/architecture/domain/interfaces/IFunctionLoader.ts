@@ -38,9 +38,10 @@ export interface IFunctionLoader {
   /**
    * 根据路径加载函数详情
    * @param path 函数路径（如：/workspace/tenant/app/service/function）
+   * @param funcType 函数类型：table、form、chart（可选，默认为 table）
    * @returns Promise<FunctionDetail>
    */
-  loadByPath(path: string): Promise<FunctionDetail>
+  loadByPath(path: string, funcType?: string): Promise<FunctionDetail>
 
   /**
    * 获取缓存的函数详情

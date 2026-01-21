@@ -203,7 +203,7 @@ func (s *DepartmentService) GetUnassignedDepartmentPath() string {
 }
 
 // CreateDepartment 创建部门
-func (s *DepartmentService) CreateDepartment(ctx context.Context, name, code string, parentID int64, description string) (*model.Department, error) {
+func (s *DepartmentService) CreateDepartment(ctx context.Context, name, code string, parentID int64, description string, managers string) (*model.Department, error) {
 	// 构建 FullCodePath
 	fullCodePath, err := s.buildFullCodePath(ctx, code, parentID)
 	if err != nil {
@@ -235,6 +235,7 @@ func (s *DepartmentService) CreateDepartment(ctx context.Context, name, code str
 		FullCodePath: fullCodePath,
 		FullNamePath: fullNamePath,
 		Description:  description,
+		Managers:     managers,
 		Status:       "active",
 		Sort:         0,
 	}

@@ -93,7 +93,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import UserDisplay from './UserDisplay.vue'
 import UserSearchDialog from './UserSearchDialog.vue'
 import { ElAvatar, ElButton, ElIcon } from 'element-plus'
@@ -185,118 +185,13 @@ const selectedUserForDisplay = computed(() => {
   return null
 })
 
-// 处理远程搜索（防抖）
-function handleRemoteSearch(query: string): void {
-  if (searchTimer) {
-    clearTimeout(searchTimer)
-  }
-  
-  searchTimer = setTimeout(async () => {
-    if (!query || query.trim() === '') {
-      userOptions.value = []
-      return
-    }
-    
-    try {
-      loading.value = true
-      const response = await searchUsersFuzzy(query.trim(), 20)
-      // 🔥 调试日志：检查响应数据
-      Logger.debug('UserWidget', '搜索用户响应', { query, response, users: response.users })
-      
-      // 🔥 确保正确提取 users 数组
-      // 注意：request.ts 的响应拦截器已经解包了 data，所以 response 直接就是 data
-      // searchUsersFuzzy 的返回类型是 SearchUsersFuzzyResp = { users: UserInfo[] }
-      // 所以 response 应该是 { users: UserInfo[] }
-      let users: UserInfo[] = []
-      if (response && typeof response === 'object') {
-        if (Array.isArray(response)) {
-          // 如果 response 直接是数组（不应该发生，但兼容处理）
-          users = response
-        } else if (response.users && Array.isArray(response.users)) {
-          // 标准情况：response 是 { users: [...] }
-          users = response.users
-        } else if (response.data && response.data.users && Array.isArray(response.data.users)) {
-          // 兼容处理：response 是 { data: { users: [...] } }
-          users = response.data.users
-        }
-      }
-      
-      // 🔥 强制更新：使用 nextTick 确保 Vue 响应式更新
-      userOptions.value = []
-      await nextTick()
-      // 🔥 强制更新：使用 nextTick 确保 Vue 响应式更新
-      userOptions.value = []
-      await nextTick()
-      userOptions.value = users
-      
-      // 🔥 调试日志：检查更新后的选项
-      Logger.debug(COMPONENT_NAME, '搜索用户完成', { 
-        query, 
-        responseType: typeof response,
-        responseKeys: response ? Object.keys(response) : [],
-        usersCount: users.length,
-        userOptionsCount: userOptions.value.length,
-        firstUser: users[0]?.username || 'none'
-      })
-    } catch (error) {
-      // 搜索用户失败，静默处理
-      Logger.error('UserWidget', '搜索用户失败', { query, error })
-      userOptions.value = []
-    } finally {
-      loading.value = false
-    }
-  }, 300) // 300ms 防抖
-}
-
-// 处理选择变化
-function handleChange(value: any): void {
-  // 已经在 internalValue 的 setter 中处理
-  // 如果选中了用户，确保 userOptions 中包含该用户（用于显示）
-  if (value) {
-    const existingUser = userOptions.value.find((u: UserInfo) => u.username === value)
-    if (!existingUser) {
-      // 如果 userOptions 中没有，尝试从 meta 中获取或重新加载
-      if (props.value?.meta?.userInfo && props.value.meta.userInfo.username === value) {
-        userOptions.value.push(props.value.meta.userInfo)
-      } else {
-        // 如果没有，尝试加载用户信息
-        loadUserInfo(value).then((user) => {
-          if (user && !userOptions.value.find((u: UserInfo) => u.username === value)) {
-            userOptions.value.push(user)
-          }
-        })
-      }
-    }
-  }
-}
-
-// 处理聚焦（如果有初始值，加载用户信息）
-function handleFocus(): void {
-  if (props.value?.raw && userOptions.value.length === 0) {
-    // 如果有值但没有选项，尝试搜索
-    handleRemoteSearch(String(props.value.raw))
-  } else if (!props.value?.raw) {
-    // 如果没有值，清空选项列表，等待用户输入
-    userOptions.value = []
-  }
-}
-
-// 处理下拉框显示/隐藏
-function handleVisibleChange(visible: boolean): void {
-  if (visible) {
-    // 下拉框打开时，如果有值但没有选项，尝试加载
-    if (props.value?.raw && userOptions.value.length === 0) {
-      handleRemoteSearch(String(props.value.raw))
-    }
-  }
-}
-
-// 处理清空选择
-function handleClear(): void {
-  // 清空时，保留 userOptions（不清空搜索结果）
-  // 这样用户再次打开下拉框时，还能看到之前的搜索结果
-  // 清空操作已经在 el-select 的 v-model 中自动处理了
-}
+// ⭐ 注意：UserWidget 现在使用 UserSearchDialog 弹窗，不再使用 el-select 下拉框
+// 以下代码已移除，因为不再需要：
+// - handleRemoteSearch（搜索逻辑在 UserSearchDialog 中）
+// - handleChange（选择逻辑在 UserSearchDialog 中）
+// - handleFocus（聚焦逻辑在 UserSearchDialog 中）
+// - handleVisibleChange（下拉框显示逻辑已移除）
+// - handleClear（清空逻辑在 UserSearchDialog 中）
 
 // 加载用户信息（用于显示）
 async function loadUserInfo(username: string | null): Promise<UserInfo | null> {
@@ -368,33 +263,48 @@ watch(() => props.mode, (newMode: string) => {
 // 🔥 同时检查是否有动态默认值（如 $me）
 onMounted(async () => {
   // 🔥 检查是否有动态默认值需要设置（$me）
-  // 注意：如果 value.raw 是 null、undefined、空字符串，或者是 $me 字符串，都应该设置默认值
+  // ⚠️ 重要：只有在新增模式下才使用默认值，编辑模式下不应该使用默认值
   if (props.mode === 'edit') {
-    const currentRaw = props.value?.raw
-    const shouldSetDefault = !currentRaw || currentRaw === '' || currentRaw === '$me'
+    // ⚠️ 使用 nextTick 等待一下，确保 initializeForm 已经完成
+    // 这样可以避免在编辑模式下错误地使用默认值
+    await nextTick()
     
-    if (shouldSetDefault) {
-      const config = props.field.widget?.config
-      if (config && typeof config === 'object' && 'default' in config) {
-        const defaultValue = (config as Record<string, any>).default
-        if (typeof defaultValue === 'string' && defaultValue === '$me') {
-          // 动态默认值：$me（当前登录用户）
-          const { useAuthStore } = await import('@/stores/auth')
-          const authStore = useAuthStore()
-          const currentUsername = authStore.user?.username
-          if (currentUsername) {
-            // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
-            const newFieldValue = createFieldValue(
-              props.field,
-              currentUsername,
-              currentUsername
-            )
-            formDataStore.setValue(props.fieldPath, newFieldValue)
-            emit('update:modelValue', newFieldValue)
-            // 加载用户信息
-            loadUserInfo(currentUsername)
-            return
-          }
+    const currentRaw = props.value?.raw
+    const existingValue = formDataStore.getValue(props.fieldPath)
+    
+    // 🔥 检查是否需要解析 $me 动态变量
+    // 情况1：value.raw 是 "$me" 字符串（FormDomainService 还没有解析）
+    // 情况2：value.raw 是 null/undefined/空字符串，且配置中有 "$me" 默认值
+    const needsResolveMe = currentRaw === '$me' || 
+      ((!currentRaw || currentRaw === '') && 
+       props.field.widget?.config?.default === '$me')
+    
+    if (needsResolveMe) {
+      // ⚠️ 检查是否是编辑模式：如果 existingValue 存在且 raw 不是 "$me"，说明是编辑模式
+      // 编辑模式下，existingValue.raw 应该是实际的用户名，不应该是 "$me"
+      const isEditMode = existingValue && 
+                        existingValue.raw !== null && 
+                        existingValue.raw !== undefined && 
+                        existingValue.raw !== '' && 
+                        existingValue.raw !== '$me'
+      
+      // 只有在新增模式下才解析 $me
+      if (!isEditMode) {
+        const { useAuthStore } = await import('@/stores/auth')
+        const authStore = useAuthStore()
+        const currentUsername = authStore.user?.username
+        if (currentUsername) {
+          // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
+          const newFieldValue = createFieldValue(
+            props.field,
+            currentUsername,
+            currentUsername
+          )
+          formDataStore.setValue(props.fieldPath, newFieldValue)
+          emit('update:modelValue', newFieldValue)
+          // 加载用户信息
+          loadUserInfo(currentUsername)
+          return
         }
       }
     }

@@ -9,37 +9,294 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
 	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	permissionchecker "github.com/ai-agent-os/ai-agent-os/pkg/permission"
 	permissionconstants "github.com/ai-agent-os/ai-agent-os/pkg/permission"
 	"github.com/gin-gonic/gin"
 )
 
-// checkPermission 通用权限检查函数（内部使用，支持企业版控制）
-// 从 URL 中自动提取 full-code-path
+// checkPermission 通用权限检查函数（内部使用）
+// ⭐ 使用新的权限系统，自动支持权限继承（目录权限自动继承到子资源）
 func checkPermission(c *gin.Context, action string, errorMessage string) bool {
-	// 从 URL 中提取 full-code-path
-	fullCodePath := extractFullCodePathFromURL(c.Request.URL.Path)
+	// 从 URL 路径参数提取 full-code-path
+	fullCodePath := c.Param("full-code-path")
 	if fullCodePath == "" {
-		response.PermissionDenied(c, "无法从 URL 中提取资源路径", map[string]interface{}{
+		response.PermissionDenied(c, "无法获取资源路径", map[string]interface{}{
 			"resource_path": "",
 			"action":        action,
 		})
 		return false
 	}
 
-	return checkPermissionWithPath(c, fullCodePath, action, errorMessage)
+	// 确保路径以 / 开头
+	if !strings.HasPrefix(fullCodePath, "/") {
+		fullCodePath = "/" + fullCodePath
+	}
+
+	// ⭐ 运行时动态检查：根据当前 license 状态决定是否启用权限检查
+	licenseMgr := license.GetManager()
+	if !licenseMgr.HasFeature(enterprise.FeaturePermission) {
+		// 社区版：不做权限控制，直接通过
+		logger.Debugf(c, "[PermissionCheck] 社区版，跳过权限检查")
+		return true
+	}
+
+	// 企业版：正常进行权限检查
+	// 获取用户信息
+	username := contextx.GetRequestUser(c)
+	if username == "" {
+		// ⭐ 添加调试日志，帮助排查用户信息丢失问题
+		logger.Warnf(c, "[PermissionCheck] 用户信息为空 - FullCodePath: %s, Action: %s, X-Request-User Header: %s",
+			fullCodePath, action, c.GetHeader("X-Request-User"))
+		response.PermissionDenied(c, "未提供用户信息", map[string]interface{}{
+			"resource_path": fullCodePath,
+			"action":        action,
+		})
+		return false
+	}
+
+	// ⭐ 使用新的权限系统（直接调用 CheckPermission，内部已支持权限继承）
+	permissionService := enterprise.GetPermissionService()
+	ctx := contextx.ToContext(c)
+	hasPermission, err := permissionService.CheckPermission(ctx, username, fullCodePath, action)
+	if err != nil {
+		permissionInfo := buildPermissionInfo(fullCodePath, action, "权限检查失败: "+err.Error())
+		response.PermissionDenied(c, "权限检查失败: "+err.Error(), permissionInfo)
+		return false
+	}
+
+	if !hasPermission {
+		permissionInfo := buildPermissionInfo(fullCodePath, action, errorMessage)
+		response.PermissionDenied(c, errorMessage, permissionInfo)
+		return false
+	}
+
+	return true
 }
 
-// CheckPermissionWithPath 通用权限检查函数（导出，供其他包使用）
-// 使用指定的 full-code-path
-func CheckPermissionWithPath(c *gin.Context, fullCodePath string, action string, errorMessage string) bool {
-	return checkPermissionWithPath(c, fullCodePath, action, errorMessage)
+// CheckTableSearch 检查表格查询权限（使用 table:read）
+func CheckTableSearch() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeTable, "read")
+		if !checkPermission(c, action, "无权限查看该表格") {
+			return
+		}
+		c.Next()
+	}
 }
 
-// checkPermissionWithPath 通用权限检查函数（内部使用，支持企业版控制）
-// 使用指定的 full-code-path
-// ⭐ 支持权限继承：批量查询所有可能的权限点（当前资源 + 所有父目录的 directory:manage）
-func checkPermissionWithPath(c *gin.Context, fullCodePath string, action string, errorMessage string) bool {
+// CheckTableRead 检查表格读取权限（使用 table:read）
+func CheckTableRead() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeTable, "read")
+		if !checkPermission(c, action, "无权限查看该表格") {
+			return
+		}
+		c.Next()
+	}
+}
+
+// CheckTableWrite 检查表格写入权限（使用 table:write）
+func CheckTableWrite() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeTable, "write")
+		if !checkPermission(c, action, "无权限新增该表格记录") {
+			return
+		}
+		c.Next()
+	}
+}
+
+// CheckTableUpdate 检查表格更新权限（使用 table:update）
+func CheckTableUpdate() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeTable, "update")
+		if !checkPermission(c, action, "无权限更新该表格") {
+			return
+		}
+		c.Next()
+	}
+}
+
+// CheckTableDelete 检查表格删除权限（使用 table:delete）
+func CheckTableDelete() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeTable, "delete")
+		if !checkPermission(c, action, "无权限删除该表格") {
+			return
+		}
+		c.Next()
+	}
+}
+
+// CheckFormWrite 检查表单写入权限（使用 form:write）
+func CheckFormWrite() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeForm, "write")
+		if !checkPermission(c, action, "无权限提交该表单") {
+			return
+		}
+		c.Next()
+	}
+}
+
+// CheckChartQuery 检查图表查询权限（使用 chart:read）
+func CheckChartQuery() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeChart, "read")
+		if !checkPermission(c, action, "无权限查看该图表") {
+			return
+		}
+		c.Next()
+	}
+}
+
+// CheckFunctionRead 检查函数读取权限（根据函数类型动态确定权限点：table:read、form:read、chart:read）
+// ⭐ 函数类型直接从 URL 路径参数获取（/info/:func-type/*full-code-path），无需查询数据库
+func CheckFunctionRead() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// 从 URL 路径参数提取函数类型和 full-code-path
+		funcType := c.Param("func-type")
+		fullCodePath := c.Param("full-code-path")
+		
+		if fullCodePath == "" {
+			response.PermissionDenied(c, "无法获取资源路径", map[string]interface{}{
+				"resource_path": "",
+				"action":        "",
+			})
+			return
+		}
+
+		// 确保路径以 / 开头
+		if !strings.HasPrefix(fullCodePath, "/") {
+			fullCodePath = "/" + fullCodePath
+		}
+
+		// ⭐ 运行时动态检查：根据当前 license 状态决定是否启用权限检查
+		licenseMgr := license.GetManager()
+		if !licenseMgr.HasFeature(enterprise.FeaturePermission) {
+			// 社区版：不做权限控制，直接通过
+			logger.Debugf(c, "[PermissionCheck] 社区版，跳过权限检查")
+			c.Next()
+			return
+		}
+
+		// 企业版：正常进行权限检查
+		// 获取用户信息
+		username := contextx.GetRequestUser(c)
+		if username == "" {
+			response.PermissionDenied(c, "未提供用户信息", map[string]interface{}{
+				"resource_path": fullCodePath,
+				"action":        "",
+			})
+			return
+		}
+
+		// ⭐ 根据函数类型直接构造权限点（无需查询数据库）
+		var action string
+		var errorMessage string
+
+		// 根据函数类型确定资源类型和权限点
+		resourceType := permissionconstants.GetResourceType("function", funcType)
+		if resourceType != "" {
+			action = permissionconstants.BuildActionCode(resourceType, "read")
+			errorMessage = "无权限查看该函数详情"
+		} else {
+			// 如果函数类型无效，使用默认的 table:read（兼容旧逻辑）
+			action = permissionconstants.BuildActionCode(permissionconstants.ResourceTypeTable, "read")
+			errorMessage = "无权限查看该函数详情"
+		}
+
+		// ⭐ 使用新的权限系统（直接调用 CheckPermission，内部已支持权限继承）
+		permissionService := enterprise.GetPermissionService()
+		ctx := contextx.ToContext(c)
+		hasPermission, err := permissionService.CheckPermission(ctx, username, fullCodePath, action)
+		if err != nil {
+			permissionInfo := buildPermissionInfo(fullCodePath, action, "权限检查失败: "+err.Error())
+			response.PermissionDenied(c, "权限检查失败: "+err.Error(), permissionInfo)
+			return
+		}
+
+		if !hasPermission {
+			permissionInfo := buildPermissionInfo(fullCodePath, action, errorMessage)
+			response.PermissionDenied(c, errorMessage, permissionInfo)
+			return
+		}
+
+		c.Next()
+	}
+}
+
+// CheckAppUpdate 检查应用更新权限
+func CheckAppUpdate() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// 从路径参数获取应用信息，构建 full-code-path
+		app := c.Param("app")
+		user := contextx.GetRequestUser(c)
+		if user == "" || app == "" {
+			response.PermissionDenied(c, "无法获取用户信息或应用信息", map[string]interface{}{
+				"resource_path": "",
+				"action":        "app:update",
+			})
+			return
+		}
+		fullCodePath := "/" + user + "/" + app
+		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeApp, permissionconstants.ActionUpdate)
+		if !checkPermissionForPath(c, fullCodePath, action, "无权限更新该应用") {
+			return
+		}
+		c.Next()
+	}
+}
+
+// CheckAppDelete 检查应用删除权限
+func CheckAppDelete() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// 从路径参数获取应用信息，构建 full-code-path
+		app := c.Param("app")
+		user := contextx.GetRequestUser(c)
+		if user == "" || app == "" {
+			response.PermissionDenied(c, "无法获取用户信息或应用信息", map[string]interface{}{
+				"resource_path": "",
+				"action":        "app:delete",
+			})
+			return
+		}
+		fullCodePath := "/" + user + "/" + app
+		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeApp, permissionconstants.ActionDelete)
+		if !checkPermissionForPath(c, fullCodePath, action, "无权限删除该应用") {
+			return
+		}
+		c.Next()
+	}
+}
+
+// CheckWorkspaceUpdate 检查工作空间更新权限（需要 app:admin 权限）
+func CheckWorkspaceUpdate() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// 从路径参数获取租户和应用信息
+		user := c.Param("user")
+		app := c.Param("app")
+		if user == "" || app == "" {
+			response.PermissionDenied(c, "无法获取租户或应用信息", map[string]interface{}{
+				"resource_path": "",
+				"action":        "app:admin",
+			})
+			return
+		}
+		
+		// 构建 full-code-path
+		fullCodePath := "/" + user + "/" + app
+		
+		// 检查是否有 app:admin 权限
+		actionCode := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeApp, permissionconstants.ActionAdmin)
+		if !checkPermissionForPath(c, fullCodePath, actionCode, "无权限更新该工作空间") {
+			return
+		}
+		c.Next()
+	}
+}
+
+// checkPermissionForPath 检查指定路径的权限（内部使用）
+func checkPermissionForPath(c *gin.Context, fullCodePath string, action string, errorMessage string) bool {
 	// ⭐ 运行时动态检查：根据当前 license 状态决定是否启用权限检查
 	licenseMgr := license.GetManager()
 	if !licenseMgr.HasFeature(enterprise.FeaturePermission) {
@@ -67,78 +324,7 @@ func checkPermissionWithPath(c *gin.Context, fullCodePath string, action string,
 		return false
 	}
 
-	// ⭐ 使用统一的权限检查函数（支持权限继承）
-	permissionService := enterprise.GetPermissionService()
-	ctx := contextx.ToContext(c)
-	hasPermission, err := permissionchecker.CheckPermissionWithInheritance(ctx, permissionService, username, fullCodePath, action)
-	if err != nil {
-		permissionInfo := buildPermissionInfo(fullCodePath, action, "权限检查失败: "+err.Error())
-		response.PermissionDenied(c, "权限检查失败: "+err.Error(), permissionInfo)
-		return false
-	}
-
-	if hasPermission {
-		return true
-	}
-
-	// 所有检查都失败，返回权限不足
-	permissionInfo := buildPermissionInfo(fullCodePath, action, errorMessage)
-	response.PermissionDenied(c, errorMessage, permissionInfo)
-	return false
-}
-
-// checkPermissionDynamic 动态权限检查函数（根据函数类型和HTTP方法自动确定权限点）
-func checkPermissionDynamic(c *gin.Context, getFunctionDetail func(ctx context.Context, fullCodePath string) (templateType string, err error)) bool {
-	// ⭐ 运行时动态检查：根据当前 license 状态决定是否启用权限检查
-	licenseMgr := license.GetManager()
-	if !licenseMgr.HasFeature(enterprise.FeaturePermission) {
-		// 社区版：不做权限控制，直接通过
-		logger.Debugf(c, "[PermissionCheck] 社区版，跳过权限检查")
-		return true
-	}
-
-	// 企业版：正常进行权限检查
-	// 从 URL 中提取 full-code-path
-	fullCodePath := extractFullCodePathFromURL(c.Request.URL.Path)
-	if fullCodePath == "" {
-		response.PermissionDenied(c, "无法从 URL 中提取资源路径", map[string]interface{}{
-			"resource_path": "",
-			"action":        "",
-		})
-		return false
-	}
-
-	// 获取用户信息
-	username := contextx.GetRequestUser(c)
-	if username == "" {
-		response.PermissionDenied(c, "未提供用户信息", map[string]interface{}{
-			"resource_path": fullCodePath,
-			"action":        "",
-		})
-		return false
-	}
-
-	// 根据函数类型和HTTP方法，动态确定权限点
-	var action string
-	var errorMessage string
-
-	// 尝试获取函数详情（如果提供了函数详情获取函数）
-	if getFunctionDetail != nil {
-		ctx := contextx.ToContext(c)
-		templateType, err := getFunctionDetail(ctx, fullCodePath)
-		if err == nil {
-			// 根据模板类型和HTTP方法确定权限点
-			action, errorMessage = determinePermissionAction(templateType, c.Request.Method)
-		}
-	}
-
-	// 如果无法确定权限点，使用默认的 manage 权限（所有权）
-	if action == "" {
-		action = "function:manage"
-		errorMessage = "无权限执行该函数"
-	}
-
-	// 检查权限（使用 enterprise 接口）
+	// ⭐ 使用新的权限系统（直接调用 CheckPermission，内部已支持权限继承）
 	permissionService := enterprise.GetPermissionService()
 	ctx := contextx.ToContext(c)
 	hasPermission, err := permissionService.CheckPermission(ctx, username, fullCodePath, action)
@@ -155,222 +341,6 @@ func checkPermissionDynamic(c *gin.Context, getFunctionDetail func(ctx context.C
 	}
 
 	return true
-}
-
-// determinePermissionAction 根据模板类型和HTTP方法确定权限点和错误消息
-// ⭐ 统一权限点：所有函数类型统一使用 function:read/write/update/delete
-func determinePermissionAction(templateType string, httpMethod string) (action string, errorMessage string) {
-	// ⭐ 优化：使用权限常量，避免硬编码
-	switch httpMethod {
-	case "GET":
-		// 所有类型的查询都使用 function:read
-		switch templateType {
-		case "table":
-			return permissionconstants.FunctionRead, "无权限查看该表格"
-		case "chart":
-			return permissionconstants.FunctionRead, "无权限查看该图表"
-		default:
-			return permissionconstants.FunctionRead, "无权限查看该函数"
-		}
-	case "POST":
-		// 所有类型的创建/提交都使用 function:write
-		switch templateType {
-		case "table":
-			return permissionconstants.FunctionWrite, "无权限新增该表格记录"
-		case "form":
-			return permissionconstants.FunctionWrite, "无权限提交该表单"
-		default:
-			return permissionconstants.FunctionWrite, "无权限执行该操作"
-		}
-	case "PUT", "PATCH":
-		// 所有类型的更新都使用 function:update
-		switch templateType {
-		case "table":
-			return permissionconstants.FunctionUpdate, "无权限更新该表格"
-		default:
-			return permissionconstants.FunctionUpdate, "无权限更新该函数"
-		}
-	case "DELETE":
-		// 所有类型的删除都使用 function:delete
-		switch templateType {
-		case "table":
-			return permissionconstants.FunctionDelete, "无权限删除该表格"
-		default:
-			return permissionconstants.FunctionDelete, "无权限删除该函数"
-		}
-	default:
-		// 其他方法：使用 function:manage（所有权）
-		return permissionconstants.FunctionManage, "无权限执行该函数"
-	}
-}
-
-// CheckTableSearch 检查表格查询权限（使用 function:read）
-// ⭐ 优化：使用权限常量，避免硬编码
-func CheckTableSearch() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if !checkPermission(c, permissionconstants.FunctionRead, "无权限查看该表格") {
-			return
-		}
-		c.Next()
-	}
-}
-
-// CheckTableRead 检查表格读取权限（使用 function:read）
-// 用于下载模板等读取操作
-func CheckTableRead() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if !checkPermission(c, permissionconstants.FunctionRead, "无权限查看该表格") {
-			return
-		}
-		c.Next()
-	}
-}
-
-// CheckTableWrite 检查表格写入权限（使用 function:write）
-func CheckTableWrite() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if !checkPermission(c, permissionconstants.FunctionWrite, "无权限新增该表格记录") {
-			return
-		}
-		c.Next()
-	}
-}
-
-// CheckTableUpdate 检查表格更新权限（使用 function:update）
-func CheckTableUpdate() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if !checkPermission(c, permissionconstants.FunctionUpdate, "无权限更新该表格") {
-			return
-		}
-		c.Next()
-	}
-}
-
-// CheckTableDelete 检查表格删除权限（使用 function:delete）
-func CheckTableDelete() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if !checkPermission(c, permissionconstants.FunctionDelete, "无权限删除该表格") {
-			return
-		}
-		c.Next()
-	}
-}
-
-// CheckFormWrite 检查表单写入权限（使用 function:write）
-func CheckFormWrite() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if !checkPermission(c, permissionconstants.FunctionWrite, "无权限提交该表单") {
-			return
-		}
-		c.Next()
-	}
-}
-
-// CheckChartQuery 检查图表查询权限（使用 function:read）
-func CheckChartQuery() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if !checkPermission(c, permissionconstants.FunctionRead, "无权限查看该图表") {
-			return
-		}
-		c.Next()
-	}
-}
-
-// CheckAppUpdate 检查应用更新权限
-func CheckAppUpdate() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// 从路径参数获取应用信息，构建 full-code-path
-		app := c.Param("app")
-		user := contextx.GetRequestUser(c)
-		if user == "" || app == "" {
-			response.PermissionDenied(c, "无法获取用户信息或应用信息", map[string]interface{}{
-				"resource_path": "",
-				"action":        "app:update",
-			})
-			return
-		}
-		fullCodePath := "/" + user + "/" + app
-		if !checkPermissionWithPath(c, fullCodePath, "app:update", "无权限更新该应用") {
-			return
-		}
-		c.Next()
-	}
-}
-
-// CheckAppDelete 检查应用删除权限
-func CheckAppDelete() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// 从路径参数获取应用信息，构建 full-code-path
-		app := c.Param("app")
-		user := contextx.GetRequestUser(c)
-		if user == "" || app == "" {
-			response.PermissionDenied(c, "无法获取用户信息或应用信息", map[string]interface{}{
-				"resource_path": "",
-				"action":        "app:delete",
-			})
-			return
-		}
-		fullCodePath := "/" + user + "/" + app
-		if !checkPermissionWithPath(c, fullCodePath, "app:delete", "无权限删除该应用") {
-			return
-		}
-		c.Next()
-	}
-}
-
-// CheckCallback 检查回调接口权限（已废弃，on_select_fuzzy 不再需要权限检查）
-// 保留此函数以兼容旧代码，但不再使用
-func CheckCallback() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// 回调接口不再需要权限检查，直接通过
-		c.Next()
-	}
-}
-
-// CheckFunctionExecute 检查函数执行权限（动态根据函数类型和HTTP方法确定权限点）
-// 注意：这个中间件需要能够获取函数详情（template_type），可能需要查询数据库
-// 如果无法获取函数详情，则使用默认的 function:manage 权限（所有权）
-func CheckFunctionExecute(getFunctionDetail func(ctx context.Context, fullCodePath string) (templateType string, err error)) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if !checkPermissionDynamic(c, getFunctionDetail) {
-			return
-		}
-		c.Next()
-	}
-}
-
-// ============================================
-// 辅助函数
-// ============================================
-
-// extractFullCodePathFromURL 从 URL 中提取 full-code-path
-func extractFullCodePathFromURL(urlPath string) string {
-	// 移除 /workspace/api/v1 前缀
-	urlPath = strings.TrimPrefix(urlPath, "/workspace/api/v1")
-
-	// 移除操作前缀（如 /table/search、/form/submit、/chart/query、/callback/on_select_fuzzy、/run、/callback 等）
-	urlPath = strings.TrimPrefix(urlPath, "/table/search")
-	urlPath = strings.TrimPrefix(urlPath, "/table/template")
-	urlPath = strings.TrimPrefix(urlPath, "/table/create")
-	urlPath = strings.TrimPrefix(urlPath, "/table/batch-create")
-	urlPath = strings.TrimPrefix(urlPath, "/table/update")
-	urlPath = strings.TrimPrefix(urlPath, "/table/delete")
-	urlPath = strings.TrimPrefix(urlPath, "/form/submit")
-	urlPath = strings.TrimPrefix(urlPath, "/chart/query")
-	urlPath = strings.TrimPrefix(urlPath, "/callback/on_select_fuzzy")
-	urlPath = strings.TrimPrefix(urlPath, "/run")
-	urlPath = strings.TrimPrefix(urlPath, "/callback")
-
-	// 移除开头的斜杠
-	urlPath = strings.TrimPrefix(urlPath, "/")
-
-	// 如果路径为空，返回空
-	if urlPath == "" {
-		return ""
-	}
-
-	// 构建 full-code-path（必须以 / 开头）
-	return "/" + urlPath
 }
 
 // buildPermissionInfo 构建权限详细信息，方便前端构造申请权限的提示
@@ -391,28 +361,34 @@ func buildPermissionInfo(resourcePath string, action string, errorMessage string
 }
 
 // getActionDisplayName 获取操作显示名称
-// ⭐ 优化：使用权限常量作为 key，更安全
 func getActionDisplayName(action string) string {
+	// ⭐ 使用权限点编码（resource_type:action_type）作为 key，避免重复
 	displayNames := map[string]string{
-		// Function 操作（统一权限点）
-		permissionconstants.FunctionRead:   "函数查看",
-		permissionconstants.FunctionWrite:  "函数写入",
-		permissionconstants.FunctionUpdate: "函数更新",
-		permissionconstants.FunctionDelete: "函数删除",
-		permissionconstants.FunctionManage: "所有权",
+		// Table 函数操作
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeTable, permissionconstants.ActionRead):   "表格查看",
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeTable, permissionconstants.ActionWrite):  "表格写入",
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeTable, permissionconstants.ActionUpdate): "表格更新",
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeTable, permissionconstants.ActionDelete): "表格删除",
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeTable, permissionconstants.ActionAdmin): "表格管理",
+		// Form 函数操作
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeForm, permissionconstants.ActionRead):   "表单查看",
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeForm, permissionconstants.ActionWrite):  "表单提交",
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeForm, permissionconstants.ActionAdmin): "表单管理",
+		// Chart 函数操作
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeChart, permissionconstants.ActionRead):   "图表查看",
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeChart, permissionconstants.ActionAdmin): "图表管理",
 		// Directory 操作
-		permissionconstants.DirectoryRead:   "目录查看",
-		permissionconstants.DirectoryWrite:  "目录写入",
-		permissionconstants.DirectoryUpdate: "目录更新",
-		permissionconstants.DirectoryDelete: "目录删除",
-		permissionconstants.DirectoryManage: "目录管理",
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDirectory, permissionconstants.ActionRead):   "目录查看",
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDirectory, permissionconstants.ActionWrite):  "目录写入",
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDirectory, permissionconstants.ActionUpdate): "目录更新",
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDirectory, permissionconstants.ActionDelete): "目录删除",
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDirectory, permissionconstants.ActionAdmin): "目录管理",
 		// App 操作
-		permissionconstants.AppRead:   "应用查看",
-		permissionconstants.AppCreate: "应用创建",
-		permissionconstants.AppUpdate: "应用更新",
-		permissionconstants.AppDelete: "应用删除",
-		permissionconstants.AppManage: "应用管理",
-		permissionconstants.AppDeploy: "应用部署",
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeApp, permissionconstants.ActionRead):   "工作空间查看",
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeApp, permissionconstants.ActionWrite):  "工作空间创建",
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeApp, permissionconstants.ActionUpdate): "工作空间更新",
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeApp, permissionconstants.ActionDelete): "工作空间删除",
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeApp, permissionconstants.ActionAdmin): "工作空间管理",
 	}
 
 	if displayName, ok := displayNames[action]; ok {
@@ -423,9 +399,182 @@ func getActionDisplayName(action string) string {
 	return action
 }
 
+// CheckFunctionExecute 检查函数执行权限（动态根据函数类型和HTTP方法确定权限点）
+// ⭐ 用于 /api/v1/run/*router 路由
+func CheckFunctionExecute(getFunctionDetail func(ctx context.Context, fullCodePath string) (templateType string, err error)) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// 从 URL 路径参数提取 full-code-path
+		fullCodePath := c.Param("router")
+		if fullCodePath == "" {
+			response.PermissionDenied(c, "无法获取资源路径", map[string]interface{}{
+				"resource_path": "",
+				"action":        "",
+			})
+			return
+		}
+
+		// 确保路径以 / 开头
+		if !strings.HasPrefix(fullCodePath, "/") {
+			fullCodePath = "/" + fullCodePath
+		}
+
+		// ⭐ 运行时动态检查：根据当前 license 状态决定是否启用权限检查
+		licenseMgr := license.GetManager()
+		if !licenseMgr.HasFeature(enterprise.FeaturePermission) {
+			// 社区版：不做权限控制，直接通过
+			logger.Debugf(c, "[PermissionCheck] 社区版，跳过权限检查")
+			c.Next()
+			return
+		}
+
+		// 企业版：正常进行权限检查
+		// 获取用户信息
+		username := contextx.GetRequestUser(c)
+		if username == "" {
+			response.PermissionDenied(c, "未提供用户信息", map[string]interface{}{
+				"resource_path": fullCodePath,
+				"action":        "",
+			})
+			return
+		}
+
+		// 根据函数类型和HTTP方法，动态确定权限点
+		var action string
+		var errorMessage string
+
+		// 尝试获取函数详情（如果提供了函数详情获取函数）
+		if getFunctionDetail != nil {
+			ctx := contextx.ToContext(c)
+			templateType, err := getFunctionDetail(ctx, fullCodePath)
+			if err == nil {
+				// 根据模板类型和HTTP方法确定权限点
+				action, errorMessage = determinePermissionAction(templateType, c.Request.Method)
+			}
+		}
+
+		// 如果无法确定权限点，使用默认的 table:admin 权限（所有权）
+		if action == "" {
+			action = permissionconstants.BuildActionCode(permissionconstants.ResourceTypeTable, permissionconstants.ActionAdmin)
+			errorMessage = "无权限执行该函数"
+		}
+
+		// ⭐ 使用新的权限系统（直接调用 CheckPermission，内部已支持权限继承）
+		permissionService := enterprise.GetPermissionService()
+		ctx := contextx.ToContext(c)
+		hasPermission, err := permissionService.CheckPermission(ctx, username, fullCodePath, action)
+		if err != nil {
+			permissionInfo := buildPermissionInfo(fullCodePath, action, "权限检查失败: "+err.Error())
+			response.PermissionDenied(c, "权限检查失败: "+err.Error(), permissionInfo)
+			return
+		}
+
+		if !hasPermission {
+			permissionInfo := buildPermissionInfo(fullCodePath, action, errorMessage)
+			response.PermissionDenied(c, errorMessage, permissionInfo)
+			return
+		}
+
+		c.Next()
+	}
+}
+
+// determinePermissionAction 根据模板类型和HTTP方法确定权限点和错误消息
+func determinePermissionAction(templateType string, httpMethod string) (action string, errorMessage string) {
+	// 根据模板类型确定资源类型
+	resourceType := permissionconstants.GetResourceType("function", templateType)
+	if resourceType == "" {
+		resourceType = permissionconstants.ResourceTypeTable // 默认使用 table
+	}
+
+	switch httpMethod {
+	case "GET":
+		// 所有类型的查询都使用 read
+		action = permissionconstants.BuildActionCode(resourceType, permissionconstants.ActionRead)
+		switch templateType {
+		case "table":
+			return action, "无权限查看该表格"
+		case "chart":
+			return action, "无权限查看该图表"
+		default:
+			return action, "无权限查看该函数"
+		}
+	case "POST":
+		// 所有类型的创建/提交都使用 write
+		action = permissionconstants.BuildActionCode(resourceType, permissionconstants.ActionWrite)
+		switch templateType {
+		case "table":
+			return action, "无权限新增该表格记录"
+		case "form":
+			return action, "无权限提交该表单"
+		default:
+			return action, "无权限执行该操作"
+		}
+	case "PUT", "PATCH":
+		// 所有类型的更新都使用 update
+		action = permissionconstants.BuildActionCode(resourceType, permissionconstants.ActionUpdate)
+		switch templateType {
+		case "table":
+			return action, "无权限更新该表格"
+		default:
+			return action, "无权限更新该函数"
+		}
+	case "DELETE":
+		// 所有类型的删除都使用 delete
+		action = permissionconstants.BuildActionCode(resourceType, permissionconstants.ActionDelete)
+		switch templateType {
+		case "table":
+			return action, "无权限删除该表格"
+		default:
+			return action, "无权限删除该函数"
+		}
+	default:
+		// 其他方法：使用 admin（所有权）
+		action = permissionconstants.BuildActionCode(resourceType, permissionconstants.ActionAdmin)
+		return action, "无权限执行该函数"
+	}
+}
+
 // buildPermissionApplyURL 构建申请权限的 URL
 func buildPermissionApplyURL(resourcePath string, action string) string {
 	// 前端可以根据这个 URL 跳转到权限申请页面
 	// 格式：/permissions/apply?resource={resourcePath}&action={action}
 	return "/permissions/apply?resource=" + resourcePath + "&action=" + action
+}
+
+// ==================== 文档权限中间件 ====================
+
+// CheckDocRead 检查文档读取权限
+// 权限点：docs:read
+func CheckDocRead() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDocs, permissionconstants.ActionRead)
+		if !checkPermission(c, action, "无权限查看该文档") {
+			return
+		}
+		c.Next()
+	}
+}
+
+// CheckDocWrite 检查文档写入权限
+// 权限点：docs:write
+func CheckDocWrite() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDocs, permissionconstants.ActionWrite)
+		if !checkPermission(c, action, "无权限编辑该文档") {
+			return
+		}
+		c.Next()
+	}
+}
+
+// CheckDocDelete 检查文档删除权限
+// 权限点：docs:delete
+func CheckDocDelete() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDocs, permissionconstants.ActionDelete)
+		if !checkPermission(c, action, "无权限删除该文档") {
+			return
+		}
+		c.Next()
+	}
 }

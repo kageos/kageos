@@ -204,35 +204,8 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 			logger.Debugf(s.ctx, "[Proxy] TraceId not found in request header")
 		}
 
-		// ✨ 解析 JWT Token 并提取 username，设置到 X-Request-User header
-		// 如果 header 中已有 X-Request-User，则不覆盖（允许手动指定）
-		if req.Header.Get(contextx.RequestUserHeader) == "" {
-			token := req.Header.Get("X-Token")
-			if token != "" {
-						// ⭐ 新增：检查 token 是否在黑名单中
-				if s.tokenBlacklist.IsBlacklisted(token) {
-					logger.Warnf(s.ctx, "[Proxy] Token is blacklisted, rejecting request")
-					// 设置标记，在 ModifyResponse 中拦截
-					req.Header.Set("X-Token-Blacklisted", "true")
-					// 不继续解析 token，直接返回
-					return
-				}
-				
-				{
-					// 解析 token 获取 username
-					jwtService := service.NewJWTService()
-					claims, err := jwtService.ValidateToken(token)
-					if err == nil {
-						// 解析成功，设置 username 到 header
-						req.Header.Set(contextx.RequestUserHeader, claims.Username)
-						logger.Debugf(s.ctx, "[Proxy] Extracted username from token: %s", claims.Username)
-					} else {
-						// token 解析失败，但不阻止请求（可能是不需要认证的接口）
-						logger.Debugf(s.ctx, "[Proxy] Failed to parse token: %v", err)
-					}
-				}
-			}
-		}
+		// ⭐ 注意：JWT Token 解析和用户信息设置已移至 gin handler 中（在调用 proxy.ServeHTTP 之前）
+		// 这样可以确保 header 被正确传递，就像 TraceId 一样
 
 		// 注意：X-Token 和其他请求头会被 httputil.ReverseProxy 自动转发，无需手动处理
 
@@ -297,11 +270,52 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 
 	return func(c *gin.Context) {
 		// ✨ 将 TraceId 从 gin context 设置到请求 header，供后端服务使用
-		// WithTraceId 中间件已经将 TraceId 设置到 gin context 中
-		traceId := c.GetString("trace_id")
+		// WithTraceId 中间件已经将 TraceId 设置到 gin context 中（使用常量 TraceIdHeader）
+		traceId := c.GetString(contextx.TraceIdHeader) // ⭐ 使用常量 TraceIdHeader
 		if traceId != "" {
 			// 设置到请求 header，这样 proxy.Director 就能读取并传递给后端
 			c.Request.Header.Set(contextx.TraceIdHeader, traceId)
+		}
+
+		// ✨ 解析 JWT Token 并提取 username，设置到 X-Request-User header（在调用 proxy 之前设置）
+		// ⭐ 按照 TraceId 的方式，直接在 gin handler 中设置 header，确保被正确传递
+		token := c.Request.Header.Get(contextx.TokenHeader)
+		if token != "" {
+			// ⭐ 新增：检查 token 是否在黑名单中
+			if s.tokenBlacklist.IsBlacklisted(token) {
+				logger.Warnf(s.ctx, "[Proxy] Token is blacklisted, rejecting request")
+				c.JSON(http.StatusUnauthorized, response.GetTokenBlacklistedResponse())
+				c.Abort()
+				return
+			}
+
+			// 解析 token 获取 username 和组织架构信息
+			// ⭐ 使用全局配置的 JWTService（与 hr-server 保持一致，因为 token 是由 hr-server 生成的）
+			jwtService := service.NewJWTService()
+			claims, err := jwtService.ValidateToken(token)
+			if err == nil {
+				// 解析成功，直接覆盖 username 到 header（忽略请求中的 X-Request-User）
+				// ⭐ 按照 TraceId 的方式，直接在 c.Request.Header 中设置
+				c.Request.Header.Set(contextx.RequestUserHeader, claims.Username)
+				logger.Infof(s.ctx, "[Proxy] Extracted username from token: %s, Path: %s", claims.Username, c.Request.URL.Path)
+
+				// ⭐ 设置组织架构信息到 header（token 中一定包含这些字段，如果用户有组织架构信息）
+				if claims.DepartmentFullPath != nil && *claims.DepartmentFullPath != "" {
+					c.Request.Header.Set(contextx.DepartmentFullPathHeader, *claims.DepartmentFullPath)
+					logger.Debugf(s.ctx, "[Proxy] Extracted department_full_path from token: %s", *claims.DepartmentFullPath)
+				}
+			} else {
+				// token 解析失败，但不阻止请求（可能是不需要认证的接口）
+				tokenPrefix := ""
+				if len(token) > 20 {
+					tokenPrefix = token[:20] + "..."
+				} else {
+					tokenPrefix = token
+				}
+				globalConfig := config.GetGlobalSharedConfig()
+				logger.Warnf(s.ctx, "[Proxy] Failed to parse token - Path: %s, Error: %v, TokenLength: %d, TokenPrefix: %s, JWTSecretLength: %d, JWTIssuer: %s",
+					c.Request.URL.Path, err, len(token), tokenPrefix, len(globalConfig.JWT.Secret), globalConfig.JWT.Issuer)
+			}
 		}
 
 		// ✅ 创建带超时的 Context，避免高并发时请求堆积
@@ -309,6 +323,8 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 		defer cancel()
 
 		// ✅ 使用带超时的 Context 创建新请求
+		// ⭐ 注意：WithContext 会创建一个新请求，但 Header 是共享的（引用类型）
+		// 所以之前设置的 header（TraceId、X-Request-User 等）会被正确传递到后端服务
 		req := c.Request.WithContext(ctx)
 		proxy.ServeHTTP(c.Writer, req)
 	}

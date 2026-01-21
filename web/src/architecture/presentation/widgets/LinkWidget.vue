@@ -18,7 +18,7 @@
     <!-- 表格/详情模式：作为按钮显示（在操作区域） -->
     <el-button
       v-else-if="resolvedUrl && (mode === 'table-cell' || mode === 'detail')"
-      :type="linkConfig.type || 'primary'"
+      :type="linkConfig.type === 'link' ? 'primary' : (linkConfig.type || 'primary')"
       size="small"
       :link="mode === 'table-cell' || linkConfig.type === 'link'"
       :plain="mode === 'detail'"

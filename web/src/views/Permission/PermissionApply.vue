@@ -43,24 +43,15 @@
                   show-checkbox
                   :check-strictly="true"
                   :checked-keys="checkedNodeKeys"
-                  :default-checked-keys="checkedNodeKeys"
                   @node-click="handleTreeNodeClick"
                   @check="handleTreeNodeCheck"
                   class="resource-tree"
                 >
                   <template #default="{ node, data }">
                     <span class="tree-node" :class="{ 'is-selected': selectedResourcePath === data.full_code_path }">
-                      <!-- app 类型：显示工作空间图标 -->
+                      <!-- app 和 package 类型：统一使用目录图标 -->
                       <img 
-                        v-if="data.type === 'app'" 
-                        src="/service-tree/app-copy.svg" 
-                        alt="工作空间" 
-                        class="node-icon app-icon-img"
-                        :class="getNodeIconClass(data)"
-                      />
-                      <!-- package 类型：统一使用目录图标 -->
-                      <img 
-                        v-else-if="data.type === 'package'" 
+                        v-if="data.type === 'app' || data.type === 'package'" 
                         src="/service-tree/custom-folder.svg" 
                         alt="目录" 
                         class="node-icon package-icon-img"
@@ -89,13 +80,13 @@
                       <span class="node-label" :class="{ 'no-permission': !hasAnyPermissionForNode(data) }">{{ node.label }}</span>
                       
                       <!-- 无权限标识 - 没有权限的节点显示 -->
-                      <el-icon 
+                      <img 
                         v-if="!hasAnyPermissionForNode(data)" 
+                        src="/锁定.svg" 
+                        alt="无权限" 
                         class="no-permission-icon" 
                         :title="'该节点没有权限'"
-                      >
-                        <Lock />
-                      </el-icon>
+                      />
                       
                       <!-- 节点元信息：只显示已选择的权限提示 -->
                       <div class="node-meta">
@@ -122,194 +113,77 @@
                 <div class="scope-title-main">
                     <el-icon><Document /></el-icon>
                   <span class="scope-name-main">{{ currentScope.displayName }}</span>
-                  <!-- 显示已选择的权限提示 -->
-                  <div v-if="selectedPermissions.length > 0" class="selected-permissions-display">
                     <el-tag
-                      v-for="action in selectedPermissions"
-                      :key="action"
-                      size="small"
-                      type="success"
-                      class="selected-permission-tag"
-                    >
-                      {{ getPermissionDisplayName(action) }}
-                    </el-tag>
-                  </div>
-                  <el-tag 
-                    v-else
                     size="small" 
                     :type="currentScope.resourceType === 'function' ? 'primary' : currentScope.resourceType === 'directory' ? 'success' : currentScope.resourceType === 'app' ? 'warning' : 'info'"
                   >
                     {{ currentScope.resourceType === 'function' ? '函数' : currentScope.resourceType === 'directory' ? '目录' : currentScope.resourceType === 'app' ? '工作空间' : '应用' }}
                     </el-tag>
                   </div>
-                  <el-button 
-                  v-if="currentScope.quickSelect"
-                    type="primary" 
-                    size="small"
-                  @click="handleQuickSelect"
-                  >
-                  {{ currentScope.quickSelect.label }}
-                  </el-button>
                 </div>
-                
               <div class="scope-path-main">
                 <code>{{ currentScope.resourcePath }}</code>
                 </div>
                 
               <div class="permission-list">
-                <div class="permission-list-header">
-                  <h4 class="permission-list-title">可申请的权限</h4>
-                  <el-alert
-                    type="info"
-                    :closable="false"
-                    show-icon
-                    class="permission-tip"
-                  >
-                    <template #default>
-                      <div class="tip-content">
-                        <p class="tip-text">💡 <strong>默认已选择最小权限</strong>，如需完整权限，请选择下方的"所有权权限"</p>
-                        <p class="tip-text">📋 权限会自动继承给子资源，选择父目录权限后，子目录和子函数会自动获得相应权限</p>
-                      </div>
-                    </template>
-                  </el-alert>
-                </div>
-                
-                <!-- 小权限（具体操作权限） -->
-                <div v-if="getSmallPermissions().length > 0" class="permission-section small-permissions">
-                <el-checkbox-group 
-                    v-model="selectedPermissions"
-                  class="permission-checkbox-group"
-                    @change="handlePermissionChange"
-                >
-                  <el-checkbox
-                      v-for="permission in getSmallPermissions()"
-                    :key="permission.action"
-                    :label="permission.action"
-                    :disabled="hasExistingPermission(permission.action)"
-                    class="permission-checkbox"
-                    :class="{ 
-                      'has-existing-selected': hasExistingPermission(permission.action) && selectedPermissions.includes(permission.action),
-                      'has-new-selected': !hasExistingPermission(permission.action) && selectedPermissions.includes(permission.action),
-                      'has-existing-unselected': hasExistingPermission(permission.action) && !selectedPermissions.includes(permission.action)
-                    }"
-                  >
-                    <div class="permission-option">
-                      <div class="permission-header">
-                      <span class="permission-name">{{ permission.displayName }}</span>
-                      <div class="permission-tags">
-                      <el-tag 
-                          v-if="hasExistingPermission(permission.action)" 
-                          size="small" 
-                          type="success" 
-                          class="existing-tag"
-                        >
-                          已有权限
-                        </el-tag>
-                        <el-tag 
-                          v-if="!hasExistingPermission(permission.action) && selectedPermissions.includes(permission.action)" 
-                          size="small" 
-                          type="primary" 
-                          class="new-selected-tag"
-                        >
-                          新选
-                        </el-tag>
-                        <el-tag 
-                          v-if="permission.isMinimal && !hasExistingPermission(permission.action)" 
-                        size="small" 
-                        type="info" 
-                        class="minimal-tag"
-                      >
-                          默认选择
-                      </el-tag>
-                      </div>
-                      </div>
-                      <p class="permission-description">
-                        {{ getPermissionDescription(permission.action, currentScope?.resourceType, currentScope?.resourceType === 'function' ? (findNodeInTree(serviceTree, currentScope?.resourcePath || '')?.template_type) : undefined).description }}
-                      </p>
-                      <div v-if="getPermissionDescription(permission.action, currentScope?.resourceType, currentScope?.resourceType === 'function' ? (findNodeInTree(serviceTree, currentScope?.resourcePath || '')?.template_type) : undefined).inheritance" class="permission-inheritance">
-                        <el-icon class="inheritance-icon"><Folder /></el-icon>
-                        <span class="inheritance-text">{{ getPermissionDescription(permission.action, currentScope?.resourceType, currentScope?.resourceType === 'function' ? (findNodeInTree(serviceTree, currentScope?.resourcePath || '')?.template_type) : undefined).inheritance }}</span>
-                      </div>
-                      <code class="permission-code">{{ permission.action }}</code>
-                    </div>
-                  </el-checkbox>
-                </el-checkbox-group>
-              </div>
-                
-                <!-- 分隔线 -->
-                <el-divider v-if="getSmallPermissions().length > 0 && getManagePermissions().length > 0" />
-                
-                <!-- 大权限（所有权/管理权限） -->
-                <div v-if="getManagePermissions().length > 0" class="permission-section manage-permissions">
-                  <div class="manage-permissions-header">
-                    <el-icon><Lock /></el-icon>
-                    <span class="manage-permissions-title">所有权权限</span>
-                    <el-tag size="small" type="warning" class="manage-tag">最完整权限</el-tag>
-                  </div>
-                  <el-alert
-                    type="warning"
-                    :closable="false"
-                    show-icon
-                    class="manage-alert"
-                  >
-                    <template #default>
-                      <div class="alert-content">
-                        <p class="alert-text"><strong>选择所有权后，将自动获得该资源的所有操作权限</strong>，无需再单独选择其他权限</p>
-                        <p class="alert-text">所有权会自动继承给所有子资源，<strong>子目录和子函数都会获得完整权限</strong></p>
-                      </div>
-                    </template>
-                  </el-alert>
-                  <el-checkbox-group 
-                    v-model="selectedPermissions"
-                    class="permission-checkbox-group"
-                    @change="handlePermissionChange"
-                  >
-                    <el-checkbox
-                      v-for="permission in getManagePermissions()"
-                      :key="permission.action"
-                      :label="permission.action"
-                      :disabled="hasExistingPermission(permission.action)"
-                      class="permission-checkbox manage-checkbox"
-                      :class="{ 
-                        'has-existing-selected': hasExistingPermission(permission.action) && selectedPermissions.includes(permission.action),
-                        'has-new-selected': !hasExistingPermission(permission.action) && selectedPermissions.includes(permission.action),
-                        'has-existing-unselected': hasExistingPermission(permission.action) && !selectedPermissions.includes(permission.action)
-                      }"
+                <!-- 角色选择区域 -->
+                <div v-if="availableRoles.length > 0" class="role-selection-section">
+                  <div class="role-selection-header">
+                    <h4 class="role-selection-title">
+                      <el-icon><UserFilled /></el-icon>
+                      快速选择角色
+                    </h4>
+                    <el-alert
+                      type="info"
+                      :closable="false"
+                      show-icon
+                      class="role-tip"
                     >
-                      <div class="permission-option">
-                        <div class="permission-header">
-                          <span class="permission-name">{{ permission.displayName }}</span>
-                          <div class="permission-tags">
-                            <el-tag 
-                              v-if="hasExistingPermission(permission.action)" 
-                              size="small" 
-                              type="success" 
-                              class="existing-tag"
-                            >
-                              已有权限
-                            </el-tag>
-                            <el-tag 
-                              v-if="!hasExistingPermission(permission.action) && selectedPermissions.includes(permission.action)" 
-                              size="small" 
-                              type="primary" 
-                              class="new-selected-tag"
-                            >
-                              新选
-                            </el-tag>
+                      <template #default>
+                        <p class="tip-text">💡 选择角色后，系统会自动填充该角色的所有权限点</p>
+                      </template>
+                    </el-alert>
+                  </div>
+                  <div class="role-list">
+                    <div class="role-cards">
+                      <div
+                        v-for="role in availableRoles"
+                        :key="role.id"
+                        class="role-card"
+                        :class="{ 'is-selected': selectedRoleId === role.id }"
+                        @click="handleRoleCardClick(role.id)"
+                      >
+                        <div class="role-card-header">
+                          <span class="role-name">{{ role.name }}</span>
+                          <div class="role-tags">
+                            <el-tag v-if="role.is_default" type="warning" size="small">默认</el-tag>
+                            <el-tag v-if="role.is_system" type="success" size="small">系统角色</el-tag>
                           </div>
                         </div>
-                        <p class="permission-description">
-                          {{ getPermissionDescription(permission.action, currentScope?.resourceType, currentScope?.resourceType === 'function' ? (findNodeInTree(serviceTree, currentScope?.resourcePath || '')?.template_type) : undefined).description }}
-                        </p>
-                        <div v-if="getPermissionDescription(permission.action, currentScope?.resourceType, currentScope?.resourceType === 'function' ? (findNodeInTree(serviceTree, currentScope?.resourcePath || '')?.template_type) : undefined).inheritance" class="permission-inheritance">
-                          <el-icon class="inheritance-icon"><Folder /></el-icon>
-                          <span class="inheritance-text">{{ getPermissionDescription(permission.action, currentScope?.resourceType, currentScope?.resourceType === 'function' ? (findNodeInTree(serviceTree, currentScope?.resourcePath || '')?.template_type) : undefined).inheritance }}</span>
+                        <p class="role-description">{{ role.description || '无描述' }}</p>
+                        <div class="role-permissions-preview">
+                          <el-tag
+                            v-for="(actions, resourceType) in getRolePermissions(role)"
+                            :key="resourceType"
+                            size="small"
+                            class="permission-tag"
+                          >
+                            {{ getResourceTypeLabel(resourceType) }}: {{ actions.length }} 个权限
+                          </el-tag>
                         </div>
-                        <code class="permission-code">{{ permission.action }}</code>
                       </div>
-                    </el-checkbox>
-                  </el-checkbox-group>
+                    </div>
+                    <div v-if="selectedRoleId" class="role-selected-actions">
+                      <el-button size="small" @click="clearRoleSelection">清除角色选择</el-button>
+                    </div>
+                  </div>
                 </div>
+                
+                <!-- 如果没有可用角色，显示提示信息 -->
+                <template v-if="availableRoles.length === 0 && !rolesLoading">
+                  <el-divider />
+                  <el-empty description="暂无可用角色" />
+                </template>
               </div>
             </div>
             <div v-else class="empty-state">
@@ -337,8 +211,8 @@
                     class="grant-target-type-radio"
                   >
                     <el-radio label="self">给自己申请</el-radio>
-                    <el-radio label="user" :disabled="!hasManagePermission">给其他用户</el-radio>
-                    <el-radio label="department" :disabled="!hasManagePermission">给部门</el-radio>
+                    <el-radio label="user">给其他用户申请</el-radio>
+                    <el-radio label="department">给部门申请</el-radio>
                   </el-radio-group>
                   
                   <!-- 当前用户显示 -->
@@ -364,74 +238,101 @@
                     </div>
                   </div>
                   
-                  <!-- 用户选择 -->
+                  <!-- 用户选择（多选） -->
                   <div v-if="grantTargetType === 'user'" class="grant-target-input">
-                    <div v-if="!hasManagePermission" class="disabled-overlay">
-                      <el-alert
-                        type="warning"
-                        :closable="false"
-                        show-icon
-                      >
-                        <template #default>
-                          <div class="tip-content">
-                            <p class="tip-text">您没有该资源的管理权限，无法给其他用户赋权</p>
-                          </div>
-                        </template>
-                      </el-alert>
-                    </div>
-                    <div v-else>
-                      <UserSearchInput
-                        v-model="grantTargetUserUsername"
-                        placeholder="搜索并选择要赋权的用户"
-                        :multiple="false"
-                      />
-                      <!-- 显示选中用户的详细信息 -->
-                      <div v-if="grantTargetUser" class="selected-user-details">
-                        <div v-if="grantTargetUser.department_name || grantTargetUser.department_full_path" class="user-org-info">
-                          <el-icon><OfficeBuilding /></el-icon>
-                          <span>{{ grantTargetUser.department_name || grantTargetUser.department_full_path }}</span>
-                        </div>
-                        <div v-if="grantTargetUser.leader_display_name || grantTargetUser.leader_username" class="user-leader-info">
-                          <el-icon><UserFilled /></el-icon>
-                          <span>{{ grantTargetUser.leader_display_name || grantTargetUser.leader_username }}</span>
-                        </div>
-                      </div>
-                    </div>
+                    <UsersWidget
+                      :value="grantTargetUsersValue"
+                      :field="grantTargetUsersField"
+                      mode="edit"
+                      field-path="grantTargetUsers"
+                      @update:modelValue="handleGrantTargetUsersChange"
+                    />
                   </div>
                   
                   <!-- 部门选择 -->
                   <div v-if="grantTargetType === 'department'" class="grant-target-input">
-                    <el-select
-                      v-model="grantTargetDepartment"
-                      placeholder="请选择要赋权的部门"
-                      filterable
-                      clearable
-                      :disabled="!hasManagePermission"
-                      style="width: 100%"
-                    >
-                      <el-option
-                        v-for="dept in flatDepartmentList"
-                        :key="dept.full_code_path"
-                        :label="`${dept.name} (${dept.full_code_path})`"
-                        :value="dept.full_code_path"
-                      />
-                    </el-select>
-                    <el-alert
-                      type="info"
-                      :closable="false"
-                      show-icon
-                      style="margin-top: 12px"
-                    >
-                      <template #default>
-                        <div class="tip-content">
-                          <p class="tip-text">选择部门后，将给该部门下的所有用户赋权</p>
-                          <p v-if="!hasManagePermission" class="tip-text" style="color: var(--el-color-warning); margin-top: 4px;">
-                            ⚠️ 您没有该资源的管理权限，无法给部门赋权
-                          </p>
+                    <div>
+                      <el-button
+                        type="primary"
+                        @click="showDepartmentSelector = true"
+                        style="width: 100%"
+                        :icon="selectedDepartment ? null : OfficeBuilding"
+                      >
+                        {{ selectedDepartment ? `已选择: ${selectedDepartment.name}` : '选择组织架构' }}
+                      </el-button>
+                      <!-- 显示选中部门的详细信息 -->
+                      <div v-if="selectedDepartment" class="selected-department-details">
+                        <div class="selected-department-card">
+                          <div class="department-content">
+                            <img src="/组织架构.svg" alt="部门" class="department-icon" />
+                            <div class="department-info">
+                              <div class="department-name">{{ selectedDepartment.name }}</div>
+                              <div class="department-meta">
+                                <span class="department-path">{{ selectedDepartment.full_code_path }}</span>
+                                <span v-if="selectedDepartment.full_name_path && selectedDepartment.full_name_path !== selectedDepartment.name" class="department-full-name">
+                                  {{ selectedDepartment.full_name_path }}
+                                </span>
+                                <span v-if="selectedDepartment.managers" class="department-managers">
+                                  <el-icon><UserFilled /></el-icon>
+                                  负责人: {{ selectedDepartment.managers }}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <el-button
+                            text
+                            type="danger"
+                            @click="selectedDepartment = null; grantTargetDepartment = ''"
+                            :icon="Close"
+                            circle
+                            class="remove-btn"
+                          />
                         </div>
-                      </template>
-                    </el-alert>
+                      </div>
+                      <el-alert
+                        type="info"
+                        :closable="false"
+                        show-icon
+                        style="margin-top: 12px"
+                      >
+                        <template #default>
+                          <div class="tip-content">
+                            <p class="tip-text">选择部门后，将给该部门下的所有用户赋权</p>
+                          </div>
+                        </template>
+                      </el-alert>
+                    </div>
                   </div>
+                </el-form-item>
+
+                <!-- 审批人显示 -->
+                <el-form-item label="审批人" v-if="approvers.length > 0">
+                  <div class="approvers-display">
+                    <UsersWidget
+                      :value="approversFieldValue"
+                      :field="approversField"
+                      mode="detail"
+                    />
+                  </div>
+                </el-form-item>
+
+                <!-- 有效期选择 -->
+                <el-form-item label="有效期">
+                  <el-radio-group v-model="formData.isPermanent">
+                    <el-radio :label="true">永久</el-radio>
+                    <el-radio :label="false">指定有效期</el-radio>
+                  </el-radio-group>
+                  <el-date-picker
+                    v-if="!formData.isPermanent"
+                    v-model="formData.endTime"
+                    type="datetime"
+                    placeholder="选择权限到期时间"
+                    format="YYYY-MM-DD HH:mm:ss"
+                    value-format="YYYY-MM-DDTHH:mm:ssZ"
+                    style="width: 100%; margin-top: 12px"
+                    :disabled-date="(date: Date) => date.getTime() < Date.now()"
+                    :shortcuts="datePickerShortcuts"
+                  />
                 </el-form-item>
 
                 <el-form-item label="申请理由" prop="reason">
@@ -470,13 +371,28 @@
     </el-card>
     </div>
   </div>
+
+  <!-- 用户选择器对话框 -->
+  <UserSelectorDialog
+    v-model="showUserSelector"
+    :selected-user="grantTargetUser"
+    @select="handleUserSelect"
+  />
+
+  <!-- 组织架构选择器对话框 -->
+  <DepartmentSelectorDialog
+    v-model="showDepartmentSelector"
+    :selected-department="selectedDepartment"
+    :department-tree="departmentTree"
+    @select="handleDepartmentSelect"
+  />
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElText, ElIcon, ElTree, ElDivider } from 'element-plus'
-import { Document, Folder, Lock, OfficeBuilding, UserFilled } from '@element-plus/icons-vue'
+import { Document, Folder, Lock, OfficeBuilding, UserFilled, User, Close } from '@element-plus/icons-vue'
 import ChartIcon from '@/components/icons/ChartIcon.vue'
 import TableIcon from '@/components/icons/TableIcon.vue'
 import FormIcon from '@/components/icons/FormIcon.vue'
@@ -494,10 +410,15 @@ import { applyPermission, getWorkspacePermissions, addPermission, type AddPermis
 import { getDepartmentTree, getUsersByDepartment, type Department } from '@/api/department'
 import type { FormInstance, FormRules } from 'element-plus'
 import { getAppWithServiceTree } from '@/api/app'
+import { getRolesForPermissionRequest, type Role, type RolePermission } from '@/api/role'
 import { useAuthStore } from '@/stores/auth'
 import type { ServiceTree, App } from '@/types'
-import UserSearchInput from '@/components/UserSearchInput.vue'
+import UserSelectorDialog from '@/components/UserSelectorDialog.vue'
+import DepartmentSelectorDialog from '@/components/DepartmentSelectorDialog.vue'
 import type { UserInfo } from '@/types'
+import UsersWidget from '@/architecture/presentation/widgets/UsersWidget.vue'
+import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
+import { WidgetType } from '@/core/constants/widget'
 
 const route = useRoute()
 const router = useRouter()
@@ -533,14 +454,16 @@ const defaultExpandedKeys = ref<string[]>([])
 // 当前选中资源的权限范围
 const currentScope = ref<PermissionScope | null>(null)
 
-// 当前资源选中的权限点
-const selectedPermissions = ref<string[]>([])
+// 角色选择相关
+const availableRoles = ref<Role[]>([]) // 当前资源可用的角色列表
+const selectedRoleId = ref<number | null>(null) // 选中的角色ID
+const rolesLoading = ref(false) // 加载角色列表的状态
 
-// 所有资源的权限选择状态（用于级联选择）
-// key: resourcePath, value: 该资源已选择的权限列表
-const allResourcePermissions = ref<Map<string, string[]>>(new Map())
+// 用户选择的资源路径（用于申请权限的资源）
+// ⭐ 使用数组而不是 Set，确保 Vue 响应式系统能正确追踪变化
+const selectedResourcePaths = ref<string[]>([])
 
-// 所有资源的已有权限（从后端获取）
+// 所有资源的已有权限（从后端获取，仅用于显示）
 // key: resourcePath, value: 该资源已有的权限（action -> hasPermission）
 const existingPermissions = ref<Map<string, Record<string, boolean>>>(new Map())
 
@@ -548,6 +471,8 @@ const existingPermissions = ref<Map<string, Record<string, boolean>>>(new Map())
 const formRef = ref<FormInstance>()
 const formData = ref({
   reason: '',
+  isPermanent: true,  // 是否永久权限
+  endTime: null as string | null,  // 有效期结束时间（ISO 8601 格式）
 })
 
 // 表单验证规则
@@ -557,21 +482,29 @@ const rules: FormRules = {
   ],
 }
 
-// 检查是否至少选择了一个权限
-const hasSelectedPermissions = computed(() => {
-  return selectedPermissions.value.length > 0
-})
-
-// 计算应该选中的节点（基于 allResourcePermissions）
+// 计算应该选中的节点（基于已有权限和用户选择的资源）
 const checkedNodeKeys = computed(() => {
   const keys: string[] = []
-  // 遍历所有资源的权限选择状态
-  for (const [resourcePath, permissions] of allResourcePermissions.value.entries()) {
-    // 如果该资源有权限选择（过滤掉内部标记），则选中该节点
-    const realPermissions = permissions.filter(p => !p.startsWith('_'))
-    if (realPermissions.length > 0) {
+  // 遍历所有资源的已有权限
+  for (const [resourcePath, existingPerms] of existingPermissions.value.entries()) {
+    // 如果该资源有任何已有权限，则选中该节点
+    const hasAnyExistingPerm = Object.values(existingPerms).some(hasPerm => hasPerm === true)
+    if (hasAnyExistingPerm) {
       keys.push(resourcePath)
     }
+  }
+  // 添加用户选择的资源（用于申请权限）
+  for (const resourcePath of selectedResourcePaths.value) {
+    if (!keys.includes(resourcePath)) {
+      keys.push(resourcePath)
+    }
+  }
+  // 调试信息
+  if (process.env.NODE_ENV === 'development' && selectedResourcePaths.value.length > 0) {
+    console.log({
+      selectedPaths: [...selectedResourcePaths.value],
+      computedKeys: keys
+    })
   }
   return keys
 })
@@ -596,13 +529,28 @@ const disabledNodeKeys = computed(() => {
 const authStore = useAuthStore()
 const currentUser = computed(() => authStore.user)
 
+// 检查是否是管理员
+const isAdmin = (node: ServiceTree): boolean => {
+  if (!node.admins || !currentUser.value?.username) {
+    return false
+  }
+  const admins = node.admins.split(',').map(a => a.trim()).filter(Boolean)
+  return admins.includes(currentUser.value.username)
+}
+
 // 检查当前节点是否有 manage 权限
+// ⭐ 管理员也应该能够赋权，即使没有显式的 manage 权限
 const hasManagePermission = computed(() => {
   if (!selectedResourcePath.value || !serviceTree.value.length) {
     return false
   }
   const node = findNodeInTree(serviceTree.value, selectedResourcePath.value)
   if (!node) return false
+  
+  // ⭐ 首先检查是否是管理员（管理员可以赋权）
+  if (isAdmin(node)) {
+    return true
+  }
   
   // 检查是否有 manage 权限（根据资源类型）
   if (node.type === 'function') {
@@ -621,6 +569,14 @@ const grantTargetType = ref<'self' | 'user' | 'department'>('self')
 // 赋权目标：个人（用户对象）或组织架构（部门路径）
 const grantTargetUser = ref<UserInfo | null>(null)
 const grantTargetUserUsername = ref<string | null>(null)
+const grantTargetDepartment = ref<string>('')
+
+// 选中部门对象（用于显示详细信息）
+const selectedDepartment = ref<Department | null>(null)
+
+// 对话框状态
+const showUserSelector = ref(false)
+const showDepartmentSelector = ref(false)
 
 // 监听 grantTargetUserUsername 变化，更新 grantTargetUser
 watch(grantTargetUserUsername, async (username) => {
@@ -640,7 +596,146 @@ watch(grantTargetUserUsername, async (username) => {
   }
 })
 
-const grantTargetDepartment = ref<string>('')
+// 监听部门路径变化，更新部门对象
+watch(grantTargetDepartment, (path) => {
+  if (!path) {
+    selectedDepartment.value = null
+    return
+  }
+  // 从部门树中查找对应的部门对象
+  const findDepartment = (depts: Department[], targetPath: string): Department | null => {
+    for (const dept of depts) {
+      if (dept.full_code_path === targetPath) {
+        return dept
+      }
+      if (dept.children && dept.children.length > 0) {
+        const found = findDepartment(dept.children, targetPath)
+        if (found) return found
+      }
+    }
+    return null
+  }
+  selectedDepartment.value = findDepartment(departmentTree.value, path)
+})
+
+// 处理用户选择
+const handleUserSelect = (user: UserInfo) => {
+  grantTargetUser.value = user
+  grantTargetUserUsername.value = user.username
+}
+
+// 处理部门选择
+const handleDepartmentSelect = (department: Department) => {
+  selectedDepartment.value = department
+  grantTargetDepartment.value = department.full_code_path
+}
+
+// 日期选择器快捷选项
+const datePickerShortcuts = computed(() => {
+  const now = new Date()
+  
+  return [
+    {
+      text: '1天后',
+      value: () => {
+        const date = new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000)
+        return date
+      }
+    },
+    {
+      text: '3天后',
+      value: () => {
+        const date = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
+        return date
+      }
+    },
+    {
+      text: '7天后',
+      value: () => {
+        const date = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+        return date
+      }
+    },
+    {
+      text: '15天后',
+      value: () => {
+        const date = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000)
+        return date
+      }
+    },
+    {
+      text: '1个月后',
+      value: () => {
+        const date = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
+        return date
+      }
+    },
+    {
+      text: '3个月后',
+      value: () => {
+        const date = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000)
+        return date
+      }
+    },
+    {
+      text: '6个月后',
+      value: () => {
+        const date = new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000)
+        return date
+      }
+    },
+    {
+      text: '1年后',
+      value: () => {
+        const date = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000)
+        return date
+      }
+    },
+    {
+      text: '2年后',
+      value: () => {
+        const date = new Date(now.getTime() + 730 * 24 * 60 * 60 * 1000)
+        return date
+      }
+    },
+    {
+      text: '3年后',
+      value: () => {
+        const date = new Date(now.getTime() + 1095 * 24 * 60 * 60 * 1000)
+        return date
+      }
+    },
+  ]
+})
+
+// 审批人（从当前选中资源的 admins 字段获取）
+const approvers = computed(() => {
+  if (!selectedResourcePath.value) return []
+  const node = findNodeInTree(serviceTree.value, selectedResourcePath.value)
+  if (!node || !node.admins) return []
+  // admins 是逗号分隔的字符串
+  return node.admins.split(',').filter(Boolean).map(u => u.trim())
+})
+
+// 审批人字段配置（用于 UsersWidget）
+const approversField = computed<FieldConfig>(() => ({
+  code: 'approvers',
+  name: '审批人',
+  widget: {
+    type: WidgetType.USERS,
+    config: {}
+  },
+  data: {
+    type: 'string'
+  }
+}))
+
+// 审批人字段值（用于 UsersWidget）
+const approversFieldValue = computed<FieldValue>(() => ({
+  raw: approvers.value.join(','),
+  display: approvers.value.join(','),
+  meta: {}
+}))
 
 // 部门列表（用于组织架构赋权）
 const departmentTree = ref<Department[]>([])
@@ -667,17 +762,43 @@ function formatUserDisplayName(user: UserInfo | null): string {
   return user.username
 }
 
+// 赋权目标用户字段配置（用于 UsersWidget，支持多选）
+const grantTargetUsersField = computed<FieldConfig>(() => ({
+  code: 'grantTargetUsers',
+  name: '申请权限的用户',
+  widget: {
+    type: WidgetType.USERS,
+    config: {}
+  },
+  data: {
+    type: 'string'
+  }
+}))
+
+// 赋权目标用户字段值（用于 UsersWidget）
+const grantTargetUsersValue = ref<FieldValue>({
+  raw: '',
+  display: '',
+  meta: {}
+})
+
+// 处理赋权目标用户变化
+const handleGrantTargetUsersChange = (value: FieldValue) => {
+  grantTargetUsersValue.value = value
+}
+
 // 是否可以提交
 const canSubmit = computed(() => {
-  if (selectedPermissions.value.length === 0) {
+  // ⭐ 必须选择了角色才能提交
+  if (!selectedRoleId.value) {
     return false
   }
   if (grantTargetType.value === 'user') {
-    return grantTargetUser.value !== null
+    return grantTargetUsersValue.value?.raw && String(grantTargetUsersValue.value.raw).trim() !== ''
   } else if (grantTargetType.value === 'department') {
     return grantTargetDepartment.value !== ''
   }
-  // self 类型总是可以提交
+  // self 类型总是可以提交（如果已选择角色）
   return true
 })
 
@@ -752,6 +873,12 @@ onMounted(async () => {
   const resource = route.query.resource as string
   const action = route.query.action as string  // 可选，用于默认选中
   const templateType = route.query.templateType as string  // 可选，函数类型（table、form、chart）
+  const mode = route.query.mode as string  // 可选，模式：grant（授权模式）或 apply（申请模式，默认）
+
+  // 如果 mode=grant，默认设置为授权模式（给其他用户赋权）
+  if (mode === 'grant') {
+    grantTargetType.value = 'user'
+  }
 
   if (!resource) {
     error.value = '缺少必要的参数：resource'
@@ -780,21 +907,14 @@ onMounted(async () => {
 
   // 加载服务树和工作空间信息
   try {
-    // ⭐ 先加载服务树，获取 app_id 后传递给权限接口（性能更好）
+    // ⭐ 加载服务树
     const treeResponse = await getAppWithServiceTree(user, app)
     
-    // ⭐ 使用 app_id 查询权限（利用索引，性能更好，用户信息从 context 中获取）
-    const permissionsResponse = await (async () => {
-      if (treeResponse?.app?.id) {
-        return getWorkspacePermissions({ app_id: treeResponse.app.id }).catch(err => {
+    // ⭐ 直接使用 user 和 app 查询权限（无需查询 app_id，性能更好）
+    const permissionsResponse = await getWorkspacePermissions({ user, app }).catch(err => {
           console.warn('获取工作空间权限失败:', err)
           return null
         })
-      } else {
-        console.warn('无法获取 app_id，跳过权限查询')
-        return null
-      }
-    })()
     
     if (treeResponse) {
       // 保存工作空间信息
@@ -822,30 +942,47 @@ onMounted(async () => {
         updateTreeDisabledState()
       }
       
-      // 构建包含工作空间节点的树结构
-      const appNode: ServiceTree = {
-        id: 0, // 临时 ID，实际不会使用
-        name: treeResponse.app?.name || app,
-        code: app,
-        parent_id: 0,
-        type: 'package' as any, // 临时使用 package 类型，但会在模板中通过 data.type === 'app' 判断
-        description: '',
-        tags: '',
-        app_id: treeResponse.app?.id || 0,
-        ref_id: 0,
-        full_code_path: `/${user}/${app}`,
-        created_at: treeResponse.app?.created_at || '',
-        updated_at: treeResponse.app?.updated_at || '',
-        children: treeResponse.service_tree || []
-      } as any
-      
-      // 扩展类型，添加 app 类型标识
-      ;(appNode as any).type = 'app'
-      
-      serviceTree.value = [appNode]
+      // 🔥 直接使用后端返回的 service_tree（后端已经包含了 app 根节点）
+      serviceTree.value = treeResponse.service_tree || []
       
       // 设置默认选中的资源
       selectedResourcePath.value = resourcePath
+      
+      // ⭐ 将资源路径添加到选中数组中（用于复选框显示）
+      if (!selectedResourcePaths.value.includes(resourcePath)) {
+        selectedResourcePaths.value.push(resourcePath)
+      }
+      
+      // ⭐ 查找所有子资源（子目录和函数），并添加到选中数组
+      // 注意：需要在服务树加载完成后才能查找子资源
+      const childResources = findAllChildResources(resourcePath)
+      childResources.forEach(childPath => {
+        if (!selectedResourcePaths.value.includes(childPath)) {
+          selectedResourcePaths.value.push(childPath)
+        }
+      })
+      
+      // ⭐ 在树渲染完成后设置复选框为选中状态（包括所有子节点）
+      nextTick(() => {
+        setTimeout(() => {
+          if (treeRef.value) {
+            // 设置当前节点复选框为选中状态
+            treeRef.value.setChecked(resourcePath, true, false)
+            
+            // ⭐ 设置所有子节点的复选框为选中状态
+            childResources.forEach(childPath => {
+              // 检查子节点是否已有权限（已有权限的节点不应该被操作）
+              const childExistingPerms = existingPermissions.value.get(childPath)
+              const childHasAnyExistingPerm = childExistingPerms && Object.values(childExistingPerms).some(hasPerm => hasPerm === true)
+              
+              if (!childHasAnyExistingPerm) {
+                // 设置子节点为选中状态
+                treeRef.value.setChecked(childPath, true, false)
+              }
+            })
+          }
+        }, 300) // 延迟一点，确保树完全渲染（增加到 300ms 以确保子节点也能被正确选中）
+      })
       
       // 展开到选中节点的路径（包括工作空间节点）
       const expandedPaths: string[] = []
@@ -885,6 +1022,9 @@ onMounted(async () => {
       }
       
       defaultExpandedKeys.value = expandedPaths
+      
+      // 注意：不在 onMounted 中直接定位，而是通过 watch 监听 treeRef 和 serviceTree 的变化
+      // 在树完全渲染后再执行定位逻辑
       
       // 加载选中资源的权限范围
       await loadResourcePermissions(resourcePath, action, templateType)
@@ -1026,50 +1166,53 @@ const loadResourcePermissions = async (resourcePath: string, defaultAction?: str
     }
   }
   
-  // 设置默认选中的权限点
-  const minimalPermissions = permissions
-    .filter(p => p.isMinimal === true)
-    .map(p => p.action)
-  
-  if (defaultAction && !minimalPermissions.includes(defaultAction)) {
-    minimalPermissions.push(defaultAction)
-  }
-  
-  // ⭐ 检查该资源的已有权限，并自动选中
-  const existingPerms = existingPermissions.value.get(resourcePath)
-  const existingActions: string[] = []
-  if (existingPerms) {
-    for (const [action, hasPerm] of Object.entries(existingPerms)) {
-      if (hasPerm) {
-        existingActions.push(action)
-      }
+  // ⭐ 映射 URL 中的 action 到实际的权限点（向后兼容旧格式）
+  // 注意：现在统一使用 function:* 格式，此映射仅用于向后兼容
+  // table:update -> function:update
+  // table:delete -> function:delete
+  // table:read -> function:read
+  // form:write -> function:write
+  // chart:query -> function:read
+  const mapActionToPermission = (action: string, templateType?: string): string => {
+    // 向后兼容：映射旧格式到新格式
+    if (action === 'table:update') {
+      return 'function:update'
+    } else if (action === 'table:delete') {
+      return 'function:delete'
+    } else if (action === 'table:read') {
+      return 'function:read'
+    } else if (action === 'form:write') {
+      return 'function:write'
+    } else if (action === 'chart:query') {
+      return 'function:read'
     }
+    // 如果已经是 function:* 格式，直接返回
+    return action
   }
   
-  // 检查是否有已保存的权限选择
-  const savedPermissions = allResourcePermissions.value.get(resourcePath)
-  if (savedPermissions && savedPermissions.length > 0) {
-    // 如果有已保存的权限选择，恢复它，并合并已有权限
-    const mergedPermissions = [...new Set([...savedPermissions, ...existingActions])]
-    selectedPermissions.value = mergedPermissions
-    // 更新权限选择状态
-    updateResourcePermissions(resourcePath, mergedPermissions)
+  // ⭐ 加载可用角色列表（根据资源类型过滤）
+  if (node) {
+    loadAvailableRoles(node.type, node.template_type || '')
   } else {
-    // 合并最小权限和已有权限
-    const mergedPermissions = [...new Set([...minimalPermissions, ...existingActions])]
-    selectedPermissions.value = mergedPermissions
-    // 更新权限选择状态
-    updateResourcePermissions(resourcePath, mergedPermissions)
+    // 如果找不到节点，根据 resourceType 推断
+    if (resourceType === 'app') {
+      loadAvailableRoles('app', '')
+    } else if (resourceType === 'directory') {
+      loadAvailableRoles('package', '')
+    } else {
+      loadAvailableRoles('function', templateType || '')
+    }
   }
 }
 
-// 更新树数据中的 disabled 字段（已有权限的节点应该禁用）
+// 更新树数据中的 disabled 字段（只有已有权限的节点应该禁用，子节点不禁用以便可以点击）
 const updateTreeDisabledState = () => {
-  const updateNodeDisabled = (nodes: ServiceTree[]): void => {
+  const updateNodeDisabled = (nodes: ServiceTree[]) => {
     for (const node of nodes) {
       const existingPerms = existingPermissions.value.get(node.full_code_path)
       const hasAnyExistingPerm = existingPerms && Object.values(existingPerms).some(hasPerm => hasPerm === true)
-      // 设置 disabled 字段
+      
+      // 只禁用已有权限的节点（不能取消选中），子节点不禁用以便可以点击查看权限
       ;(node as any).disabled = hasAnyExistingPerm
       
       // 递归处理子节点
@@ -1082,91 +1225,307 @@ const updateTreeDisabledState = () => {
   updateNodeDisabled(serviceTree.value)
 }
 
-// 更新资源的权限选择状态
-const updateResourcePermissions = (resourcePath: string, permissions: string[]) => {
-  if (permissions.length === 0) {
-    // 如果权限为空，删除该资源的权限记录，这样树节点上的权限提示就会消失
-    allResourcePermissions.value.delete(resourcePath)
-    // 取消选中树节点（如果节点不是禁用的）
-    nextTick(() => {
-      if (treeRef.value) {
-        const existingPerms = existingPermissions.value.get(resourcePath)
-        const hasAnyExistingPerm = existingPerms && Object.values(existingPerms).some(hasPerm => hasPerm === true)
-        // 只有非禁用的节点才能取消选中
-        if (!hasAnyExistingPerm) {
-          treeRef.value.setChecked(resourcePath, false, false)
+
+// 定位节点的函数（提取为独立函数，可复用）
+const scrollToResourceNode = (resourcePath: string) => {
+  if (!resourcePath || !treeRef.value) {
+    return false
+  }
+  
+  
+  try {
+    // 使用 el-tree 的内部 store 确保节点可见并展开所有父节点
+    try {
+      const node = (treeRef.value as any).store?.nodesMap?.[resourcePath]
+      if (node) {
+        node.visible = true
+        // 确保所有父节点都展开
+        let parent = node.parent
+        while (parent) {
+          if (!parent.expanded) {
+            parent.expand()
+          }
+          parent = parent.parent
         }
       }
-    })
-  } else {
-    // 否则更新权限列表
-    allResourcePermissions.value.set(resourcePath, [...permissions])
-    // 选中树节点
+    } catch (e) {
+      console.warn('无法访问 el-tree store:', e)
+    }
+    
+    // 设置当前节点（高亮显示）- 确保在展开和滚动之前设置
+    if (treeRef.value) {
+      treeRef.value.setCurrentKey(resourcePath)
+    }
+    
+    // 等待节点渲染和展开完成（减少延迟）
     nextTick(() => {
-      if (treeRef.value) {
-        treeRef.value.setChecked(resourcePath, true, false)
-      }
+      setTimeout(() => {
+        // 使用更可靠的方法：通过 el-tree 的内部 store 和 DOM 查找
+        const scrollToNode = (attempt = 0) => {
+          
+          if (attempt > 10) {
+            console.warn('❌ [定位节点] 无法定位到节点:', resourcePath, '已尝试', attempt, '次')
+            return
+          }
+          
+          if (!treeRef.value) {
+            setTimeout(() => scrollToNode(attempt + 1), 100) // 从 150ms 减少到 100ms
+            return
+          }
+          
+          try {
+            // 确保当前节点被正确选中（多次调用确保生效）
+            if (treeRef.value) {
+              treeRef.value.setCurrentKey(resourcePath)
+              // 再次调用，确保样式生效
+              nextTick(() => {
+                if (treeRef.value) {
+                  treeRef.value.setCurrentKey(resourcePath)
+                }
+              })
+            }
+            
+            // 等待 DOM 更新
+            nextTick(() => {
+              const treeEl = treeRef.value?.$el
+              if (!treeEl) {
+                setTimeout(() => scrollToNode(attempt + 1), 100) // 从 150ms 减少到 100ms
+                return
+              }
+              
+              
+              // 方法1: 通过 el-tree 的内部 store 获取节点，然后找到对应的 DOM 元素
+              let targetElement: HTMLElement | null = null
+              try {
+                const store = (treeRef.value as any).store
+                if (store && store.nodesMap) {
+                  const node = store.nodesMap[resourcePath]
+                  if (node) {
+                    // 确保节点可见并展开父节点
+                    node.visible = true
+                    let parent = node.parent
+                    while (parent) {
+                      if (!parent.expanded) {
+                        parent.expand()
+                      }
+                      parent = parent.parent
+                    }
+                    
+                    // 通过节点的 key 查找 DOM 元素
+                    // el-tree 会在节点元素上添加 data-key 属性（对应 node-key 的值）
+                    targetElement = treeEl.querySelector(`[data-key="${resourcePath}"]`) as HTMLElement
+                    
+                    // 如果找不到 data-key，尝试通过节点的 index 或其他方式查找
+                    if (!targetElement) {
+                      // 遍历所有节点，通过 Vue 实例匹配
+                      const allNodes = treeEl.querySelectorAll('.el-tree-node')
+                      for (const nodeEl of Array.from(allNodes)) {
+                        const vueInstance = (nodeEl as any).__vueParentComponent
+                        if (vueInstance) {
+                          const nodeData = vueInstance.props?.data || vueInstance.ctx?.data
+                          if (nodeData && nodeData.full_code_path === resourcePath) {
+                            targetElement = nodeEl as HTMLElement
+                            break
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              } catch (e) {
+                console.warn('无法访问 el-tree store:', e)
+              }
+              
+              // 方法2: 如果还是找不到，通过 is-current 类查找
+              if (!targetElement) {
+                targetElement = treeEl.querySelector('.el-tree-node.is-current') as HTMLElement
+              }
+              
+              // 方法3: 如果还是找不到，通过节点标签文本匹配
+              if (!targetElement) {
+                const pathParts = resourcePath.split('/').filter(Boolean)
+                const targetName = pathParts[pathParts.length - 1]
+                const allNodes = treeEl.querySelectorAll('.el-tree-node')
+                for (const node of Array.from(allNodes)) {
+                  const nodeEl = node as HTMLElement
+                  const nodeLabel = nodeEl.querySelector('.node-label')?.textContent?.trim()
+                  if (nodeLabel && nodeLabel === targetName) {
+                    targetElement = nodeEl
+                    break
+                  }
+                }
+              }
+              
+              if (targetElement) {
+                // 找到节点后，使用 scrollIntoView 滚动
+                targetElement.scrollIntoView({
+                  behavior: 'smooth',
+                  block: 'center',
+                  inline: 'nearest'
+                })
+                
+                // 验证滚动是否成功（延迟检查）
+                setTimeout(() => {
+                  const rect = targetElement!.getBoundingClientRect()
+                  const container = document.querySelector('.tree-container') as HTMLElement
+                  if (container) {
+                    const containerRect = container.getBoundingClientRect()
+                    const isVisible = rect.top >= containerRect.top && rect.bottom <= containerRect.bottom
+                    if (!isVisible && attempt < 5) {
+                      // 如果不可见，手动计算滚动位置
+                      const nodeTop = rect.top - containerRect.top + container.scrollTop
+                      const nodeHeight = rect.height
+                      const containerHeight = containerRect.height
+                      const targetScrollTop = nodeTop - (containerHeight / 2) + (nodeHeight / 2)
+                      container.scrollTop = Math.max(0, targetScrollTop)
+                    } else {
+                    }
+                  }
+                }, 200) // 从 300ms 减少到 200ms
+              } else {
+                // 如果找不到，继续尝试
+                setTimeout(() => scrollToNode(attempt + 1), 150) // 从 250ms 减少到 150ms
+              }
+            })
+          } catch (error) {
+            console.error('❌ [定位节点] 定位失败:', error)
+            setTimeout(() => scrollToNode(attempt + 1), 150) // 从 200ms 减少到 150ms
+          }
+        }
+        
+        scrollToNode()
+      }, 200) // 从 500ms 减少到 200ms
     })
+    
+    return true
+  } catch (error) {
+    console.error('❌ [定位节点] 定位失败:', error)
+    return false
   }
 }
 
+// 监听 treeRef 和 selectedResourcePath 的变化，在树渲染完成后自动定位
+let scrollTimeout: ReturnType<typeof setTimeout> | null = null
+watch([() => treeRef.value, () => selectedResourcePath.value, () => serviceTree.value.length], 
+  ([newTreeRef, newPath, treeLength]) => {
+    if (newTreeRef && newPath && treeLength > 0) {
+      // 清除之前的延迟
+      if (scrollTimeout) {
+        clearTimeout(scrollTimeout)
+      }
+      // 延迟执行，确保 DOM 完全渲染（减少延迟时间）
+      nextTick(() => {
+        scrollTimeout = setTimeout(() => {
+          scrollToResourceNode(newPath)
+        }, 100) // 从 300ms 减少到 100ms
+      })
+    }
+  },
+  { immediate: true }
+)
+
+// 监听 selectedResourcePath 变化，自动滚动到对应节点
+watch(() => selectedResourcePath.value, (newPath) => {
+  if (!newPath || !treeRef.value) return
+  
+  // 等待 DOM 更新
+  nextTick(() => {
+    setTimeout(() => {
+      try {
+        // 确保当前节点被正确选中
+        treeRef.value?.setCurrentKey(newPath)
+        
+        nextTick(() => {
+          const treeEl = treeRef.value?.$el
+          if (!treeEl) return
+          
+          // 通过 is-current 类查找
+          let targetElement = treeEl.querySelector('.el-tree-node.is-current') as HTMLElement
+          
+          // 如果找不到，遍历所有节点查找
+          if (!targetElement) {
+            const allNodes = treeEl.querySelectorAll('.el-tree-node')
+            for (const node of Array.from(allNodes)) {
+              const nodeEl = node as HTMLElement
+              const vueInstance = (nodeEl as any).__vueParentComponent
+              if (vueInstance) {
+                const nodeData = vueInstance.props?.data || vueInstance.ctx?.data
+                if (nodeData && nodeData.full_code_path === newPath) {
+                  targetElement = nodeEl
+                  nodeEl.classList.add('is-current')
+                  break
+                }
+              }
+            }
+          }
+          
+          if (targetElement) {
+            targetElement.scrollIntoView({
+              behavior: 'smooth',
+              block: 'center',
+              inline: 'nearest'
+            })
+          }
+        })
+      } catch (error) {
+        console.error('监听 selectedResourcePath 变化时定位失败:', error)
+      }
+    }, 300)
+  })
+}, { immediate: false })
+
 // 监听已有权限变化，更新树节点的选中和禁用状态
-watch([existingPermissions, allResourcePermissions], () => {
+watch([existingPermissions], () => {
   // 更新树数据中的 disabled 字段
   updateTreeDisabledState()
   
-  // 更新树节点的选中状态
+  // 更新树节点的选中状态（仅基于已有权限）
   nextTick(() => {
     if (!treeRef.value) return
     
     // 遍历所有资源，设置选中状态
-    const allPaths = new Set<string>()
-    // 收集所有资源路径
-    for (const path of existingPermissions.value.keys()) {
-      allPaths.add(path)
-    }
-    for (const path of allResourcePermissions.value.keys()) {
-      allPaths.add(path)
-    }
-    
-    // 设置每个节点的选中状态
-    for (const resourcePath of allPaths) {
-      const existingPerms = existingPermissions.value.get(resourcePath)
-      const hasAnyExistingPerm = existingPerms && Object.values(existingPerms).some(hasPerm => hasPerm === true)
-      
-      const selectedPerms = allResourcePermissions.value.get(resourcePath)
-      const realSelectedPerms = selectedPerms ? selectedPerms.filter(p => !p.startsWith('_')) : []
-      const shouldBeChecked = realSelectedPerms.length > 0 || hasAnyExistingPerm
-      
-      // 设置选中状态
-      treeRef.value.setChecked(resourcePath, shouldBeChecked, false)
+    for (const [resourcePath, existingPerms] of existingPermissions.value.entries()) {
+      const hasAnyExistingPerm = Object.values(existingPerms).some(hasPerm => hasPerm === true)
+      // 设置选中状态（仅基于已有权限）
+      treeRef.value.setChecked(resourcePath, hasAnyExistingPerm, false)
     }
   })
 }, { deep: true })
 
-// 获取节点已选择的权限
-const getSelectedPermissionsForNode = (resourcePath: string): string[] => {
-  return allResourcePermissions.value.get(resourcePath) || []
+
+
+// 检查权限是否有继承（目录和工作空间权限会继承到子资源）
+const hasInheritance = (action: string, resourceType?: string): boolean => {
+  // 目录权限会继承到子资源
+  if (action.startsWith('directory:')) {
+    return true
+  }
+  // 工作空间权限会继承到子资源
+  if (action.startsWith('app:')) {
+    return true
+  }
+  // 函数权限不会继承到子资源（但会被父资源继承）
+  return false
 }
 
-// 获取小权限（具体操作权限，不包括管理权限）
-const getSmallPermissions = () => {
-  if (!currentScope.value) return []
-  return currentScope.value.permissions.filter(p => !(p as any).isManage)
-}
-
-// 获取管理权限（所有权/管理权限）
-const getManagePermissions = () => {
-  if (!currentScope.value) return []
-  return currentScope.value.permissions.filter(p => (p as any).isManage)
-}
-
-// 检查权限是否已存在
-const hasExistingPermission = (action: string): boolean => {
-  if (!currentScope.value) return false
-  const existingPerms = existingPermissions.value.get(currentScope.value.resourcePath)
-  if (!existingPerms) return false
-  return existingPerms[action] === true
+// 获取继承权限对应的子资源权限描述
+const getInheritanceText = (action: string): string => {
+  // 根据权限类型获取对应的子资源权限名称
+  const permissionNameMap: Record<string, string> = {
+    'directory:read': '查看权限',
+    'directory:write': '写入权限',
+    'directory:update': '更新权限',
+    'directory:delete': '删除权限',
+    'directory:manage': '所有权',
+    'app:read': '查看权限',
+    'app:create': '创建权限',
+    'app:update': '更新权限',
+    'app:delete': '删除权限',
+    'app:manage': '所有权',
+  }
+  
+  const permissionName = permissionNameMap[action] || '对应权限'
+  return `包含子资源${permissionName}`
 }
 
 // 获取权限的简化显示名称（用于树节点显示，去掉前缀）
@@ -1220,7 +1579,32 @@ const getSimplifiedPermissionName = (action: string): string => {
   return simplified
 }
 
-// 获取节点权限显示文本（用于树节点显示）
+// 获取权限的简短标识（用于树节点显示）
+const getPermissionShortLabel = (action: string): string | null => {
+  const labelMap: Record<string, string> = {
+    // 目录权限
+    'directory:read': '读',
+    'directory:write': '写',
+    'directory:update': '改',
+    'directory:delete': '删',
+    'directory:manage': '所有权',
+    // 工作空间权限
+    'app:read': '读',
+    'app:create': '创建',
+    'app:update': '改',
+    'app:delete': '删',
+    'app:manage': '所有权',
+    // 函数权限
+    'function:read': '读',
+    'function:write': '写',
+    'function:update': '改',
+    'function:delete': '删',
+    'function:manage': '所有权',
+  }
+  return labelMap[action] || null
+}
+
+// 获取节点权限显示文本（用于树节点显示，显示简短标识：读、写、改、删、所有权）
 const getNodePermissionDisplayText = (resourcePath: string): string | null => {
   // ⭐ 收集已有权限
   const existingPerms = existingPermissions.value.get(resourcePath)
@@ -1233,68 +1617,31 @@ const getNodePermissionDisplayText = (resourcePath: string): string | null => {
     }
   }
   
-  // ⭐ 收集新选择的权限
-  const selectedPermissionsList = getSelectedPermissionsForNode(resourcePath)
-  // 过滤掉内部标记（如 _has_manage_permission）
-  const realSelectedPermissions = selectedPermissionsList.filter(p => !p.startsWith('_'))
-  
-  // ⭐ 过滤掉已经存在的权限（避免重复显示）
-  const newSelectedPermissions = realSelectedPermissions.filter(action => {
-    // 如果已有权限中包含该权限，则不显示
-    if (existingPerms && existingPerms[action] === true) {
-      return false
-    }
-    return true
-  })
-  
-  // 如果既没有已有权限也没有新选择的权限，返回 null
-  if (existingPermissionsList.length === 0 && newSelectedPermissions.length === 0) {
+  // 如果既没有已有权限，返回 null
+  if (existingPermissionsList.length === 0) {
     return null
   }
   
-  // ⭐ 合并显示已有权限和新选择的权限
-  const parts: string[] = []
-  
-  // 处理已有权限
-  if (existingPermissionsList.length > 0) {
+  // ⭐ 只显示已有权限（使用简短标识）
     // 检查是否有管理权限（优先级最高）
     if (existingPermissionsList.some(p => p === 'directory:manage' || p === 'app:manage' || p === 'function:manage')) {
-      parts.push('已有：所有权')
-    } else {
-      // 显示所有已有权限的简化名称（过滤掉技术性权限点，只显示友好的名称）
-      const friendlyNames = existingPermissionsList
-        .map(action => getSimplifiedPermissionName(action))
-        .filter(name => name && name !== '') // 过滤掉空字符串（技术性权限点）
-      if (friendlyNames.length > 0) {
-        parts.push('已有：' + friendlyNames.join('，'))
-      } else {
-        // 如果都是技术性权限点，显示"已有权限"
-        parts.push('已有权限')
-      }
-    }
+    return '所有权'
   }
   
-  // 处理新选择的权限（只显示不重复的）
-  if (newSelectedPermissions.length > 0) {
-    // 检查是否有管理权限（优先级最高）
-    if (newSelectedPermissions.includes('directory:manage') || newSelectedPermissions.includes('app:manage') || newSelectedPermissions.includes('function:manage')) {
-      parts.push('已选：所有权')
-    } else {
-      // 显示所有新选择权限的简化名称（过滤掉技术性权限点）
-      const friendlyNames = newSelectedPermissions
-        .map(action => getSimplifiedPermissionName(action))
-        .filter(name => name && name !== '') // 过滤掉空字符串（技术性权限点）
-      if (friendlyNames.length > 0) {
-        parts.push('已选：' + friendlyNames.join('，'))
-      }
-      // 如果都是技术性权限点，不显示（避免显示 chart:read 这种）
-    }
+      // 显示所有已有权限的简短标识
+      const labels = existingPermissionsList
+        .map(action => getPermissionShortLabel(action))
+        .filter(label => label !== null) as string[]
+  
+  if (labels.length === 0) {
+    return null
   }
   
-  return parts.length > 0 ? parts.join(' | ') : null
+  // 最多显示3个权限标识
+  return labels.slice(0, 3).join('、')
 }
 
-// 获取节点权限标签的类型（已有权限用 info，新选择的权限用 success）
+// 获取节点权限标签的类型（已有权限用 info）
 const getNodePermissionTagType = (resourcePath: string): 'info' | 'success' => {
   const existingPerms = existingPermissions.value.get(resourcePath)
   if (existingPerms) {
@@ -1303,76 +1650,9 @@ const getNodePermissionTagType = (resourcePath: string): 'info' | 'success' => {
       return 'info'  // 已有权限用 info 类型（蓝色）
     }
   }
-  return 'success'  // 新选择的权限用 success 类型（绿色）
+  return 'info'  // 默认使用 info 类型
 }
 
-// 处理权限选择变化（实现级联选择）
-const handlePermissionChange = (selectedActions: string[]) => {
-  if (!currentScope.value) return
-  
-  const resourcePath = currentScope.value.resourcePath
-  const resourceType = currentScope.value.resourceType
-  
-  // ⭐ 如果选择了管理权限，移除其他权限（管理权限是最大权限）
-  let finalSelectedActions = [...selectedActions]
-  
-  if (resourceType === 'directory') {
-    // 目录类型：如果选择了 directory:manage，移除其他目录权限
-    if (finalSelectedActions.includes('directory:manage')) {
-      finalSelectedActions = finalSelectedActions.filter(action => 
-        action === 'directory:manage' || !action.startsWith('directory:')
-      )
-    }
-  } else if (resourceType === 'app') {
-    // 工作空间类型：如果选择了 app:manage，移除其他工作空间权限
-    if (finalSelectedActions.includes('app:manage')) {
-      finalSelectedActions = finalSelectedActions.filter(action => 
-        action === 'app:manage' || !action.startsWith('app:')
-      )
-    }
-  }
-  
-  // 更新 selectedPermissions（确保界面上的复选框状态正确）
-  if (JSON.stringify(finalSelectedActions.sort()) !== JSON.stringify(selectedActions.sort())) {
-    selectedPermissions.value = finalSelectedActions
-  }
-  
-  // 更新当前资源的权限（如果为空数组，也要更新，表示取消所有权限）
-  updateResourcePermissions(resourcePath, finalSelectedActions)
-  
-  // 如果是目录或应用，需要级联到子资源
-  if (resourceType === 'directory' || resourceType === 'app') {
-    // 查找所有子资源
-    const childResources = findAllChildResources(resourcePath)
-    
-    // 如果当前资源取消了所有权限，也要取消子资源的权限
-    if (finalSelectedActions.length === 0) {
-      childResources.forEach(childPath => {
-        updateResourcePermissions(childPath, [])
-      })
-      } else {
-      // 对每个子资源应用相同的权限（使用处理后的权限列表）
-      childResources.forEach(childPath => {
-        // 获取子资源的类型
-        const childNode = findNodeInTree(serviceTree.value, childPath)
-        if (!childNode) {
-          console.warn(`找不到子节点: ${childPath}`)
-          return
-        }
-        
-        // 根据子资源类型和选择的权限，确定应该应用的权限（使用处理后的权限列表）
-        const childPermissions = mapPermissionsForChild(childPath, childNode, finalSelectedActions)
-        // 无论是否有权限，都要更新（可能是清空）
-        updateResourcePermissions(childPath, childPermissions)
-      })
-      
-      // 调试信息（开发时使用，生产环境可删除）
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`级联权限更新: 父资源=${resourcePath}, 子资源数量=${childResources.length}`, childResources)
-      }
-    }
-  }
-}
 
 // 查找所有子资源（递归）
 const findAllChildResources = (parentPath: string): string[] => {
@@ -1409,7 +1689,21 @@ const mapPermissionsForChild = (childPath: string, childNode: ServiceTree, paren
   
   // 检查父资源选择的权限
   for (const parentAction of parentPermissions) {
-    if (parentAction === 'directory:manage' || parentAction === 'app:manage') {
+    if (parentAction === 'directory:read') {
+      // 查看权限：子节点继承查看权限
+      if (childNode.type === 'package') {
+        // 子目录：继承 directory:read
+        if (!childPermissions.includes('directory:read')) {
+          childPermissions.push('directory:read')
+        }
+      } else if (childNode.type === 'function') {
+        // ⭐ 统一权限点：所有函数类型统一使用 function:read
+        // 子函数：映射为 function:read
+        if (!childPermissions.includes('function:read')) {
+          childPermissions.push('function:read')
+        }
+      }
+    } else if (parentAction === 'directory:manage' || parentAction === 'app:manage') {
       // 管理权限：子节点显示"所有权"
       if (childNode.type === 'package') {
         // 子目录：保存 directory:manage（显示时会显示为"所有权"）
@@ -1501,9 +1795,10 @@ const mapPermissionsForChild = (childPath: string, childNode: ServiceTree, paren
         }
         // form、chart 和其他类型：不继承 delete 权限（只有 table 有 delete）
       }
-    } else if (parentAction === 'directory:read' || parentAction === 'app:read') {
-      // 查看权限：子节点显示"查看权限"
+    } else if (parentAction === 'app:read') {
+      // 工作空间查看权限：子节点继承查看权限
       if (childNode.type === 'package') {
+        // 子目录：继承 directory:read
         if (!childPermissions.includes('directory:read')) {
           childPermissions.push('directory:read')
         }
@@ -1525,19 +1820,24 @@ const mapPermissionsForChild = (childPath: string, childNode: ServiceTree, paren
 // 处理树节点点击
 const handleTreeNodeClick = (data: ServiceTree) => {
   selectedResourcePath.value = data.full_code_path
-  
-  // 加载权限时，如果有已保存的权限选择，恢复它
-  const savedPermissions = allResourcePermissions.value.get(data.full_code_path)
-  if (savedPermissions && savedPermissions.length > 0) {
-    loadResourcePermissions(data.full_code_path)
-    // 恢复已选择的权限
-    selectedPermissions.value = savedPermissions
-  } else {
-    loadResourcePermissions(data.full_code_path)
+  // ⭐ 将选中的资源添加到选中数组中（用于复选框显示）
+  if (!selectedResourcePaths.value.includes(data.full_code_path)) {
+    selectedResourcePaths.value.push(data.full_code_path)
   }
+    loadResourcePermissions(data.full_code_path)
+  // ⭐ 加载可用角色列表（根据资源类型过滤）
+  loadAvailableRoles(data.type, data.template_type || '')
+  
+  // ⭐ 设置复选框为选中状态（在 nextTick 中执行，确保响应式更新完成）
+  nextTick(() => {
+    if (treeRef.value) {
+      // 使用 setChecked 方法确保复选框被选中
+      treeRef.value.setChecked(data.full_code_path, true, false)
+    }
+  })
 }
 
-// 处理树节点复选框变化
+// 处理树节点复选框变化（强制继承：父节点选中/取消时，子节点必须跟随）
 const handleTreeNodeCheck = (data: ServiceTree, checked: { checkedKeys: string[], halfCheckedKeys: string[] }) => {
   const resourcePath = data.full_code_path
   const isChecked = checked.checkedKeys.includes(resourcePath)
@@ -1546,24 +1846,91 @@ const handleTreeNodeCheck = (data: ServiceTree, checked: { checkedKeys: string[]
   const existingPerms = existingPermissions.value.get(resourcePath)
   const hasAnyExistingPerm = existingPerms && Object.values(existingPerms).some(hasPerm => hasPerm === true)
   
+  // ⭐ 允许所有节点（包括目录节点）直接操作复选框
+  // 不再阻止有父节点的节点操作复选框，因为用户需要能够选中目录节点来申请权限
+  
+  // 如果节点已有权限，不允许取消选中（应该通过禁用来防止）
+  if (hasAnyExistingPerm && !isChecked) {
+    // 恢复选中状态
+    nextTick(() => {
+      if (treeRef.value) {
+        treeRef.value.setChecked(resourcePath, true, false)
+      }
+    })
+    return
+  }
+  
   if (isChecked) {
-    // 节点被选中
+    // 节点被选中：加载该节点的权限范围
     // 如果节点已有权限，不需要做任何操作（因为已有权限的节点应该是禁用且选中的）
     if (!hasAnyExistingPerm) {
-      // 如果节点没有已有权限，加载该节点的权限范围并选中最小权限
+      // ⭐ 添加到选中数组
+      if (!selectedResourcePaths.value.includes(resourcePath)) {
+        selectedResourcePaths.value.push(resourcePath)
+      }
+      // 如果节点没有已有权限，加载该节点的权限范围
       loadResourcePermissions(resourcePath)
+      
+      // ⭐ 强制继承：自动选中所有子节点（包括子目录和子函数）
+      const childResources = findAllChildResources(resourcePath)
+      if (childResources.length > 0) {
+        
+        nextTick(() => {
+          if (treeRef.value) {
+            childResources.forEach(childPath => {
+              // 检查子节点是否已有权限（已有权限的节点不应该被操作）
+              const childExistingPerms = existingPermissions.value.get(childPath)
+              const childHasAnyExistingPerm = childExistingPerms && Object.values(childExistingPerms).some(hasPerm => hasPerm === true)
+              
+              if (!childHasAnyExistingPerm) {
+                // 设置子节点为选中状态
+                treeRef.value.setChecked(childPath, true, false)
+                // 添加到选中数组
+                if (!selectedResourcePaths.value.includes(childPath)) {
+                  selectedResourcePaths.value.push(childPath)
+                }
+              }
+            })
+          }
+        })
+      }
     }
   } else {
-    // 节点被取消选中
+    // 父节点被取消选中：强制取消所有子节点
     // 如果节点已有权限，不允许取消选中（应该通过禁用来防止）
     if (!hasAnyExistingPerm) {
-      // 如果节点没有已有权限，清除该节点的权限选择
-      allResourcePermissions.value.delete(resourcePath)
-      // 如果当前选中的资源就是这个节点，清空权限选择
-      if (selectedResourcePath.value === resourcePath) {
-        selectedPermissions.value = []
-        currentScope.value = null
+      // ⭐ 从选中数组中移除
+      const index = selectedResourcePaths.value.indexOf(resourcePath)
+      if (index > -1) {
+        selectedResourcePaths.value.splice(index, 1)
       }
+      // 如果当前选中的资源就是这个节点，清空当前范围
+      if (selectedResourcePath.value === resourcePath) {
+        currentScope.value = null
+        selectedRoleId.value = null
+      }
+      
+      // ⭐ 强制继承：取消所有子节点（包括子目录和子函数）
+      const childResources = findAllChildResources(resourcePath)
+      
+      childResources.forEach(childPath => {
+        // ⭐ 从选中数组中移除子节点
+        const childIndex = selectedResourcePaths.value.indexOf(childPath)
+        if (childIndex > -1) {
+          selectedResourcePaths.value.splice(childIndex, 1)
+        }
+        // 取消选中子节点的复选框
+        nextTick(() => {
+          if (treeRef.value) {
+            const childExistingPerms = existingPermissions.value.get(childPath)
+            const childHasAnyExistingPerm = childExistingPerms && Object.values(childExistingPerms).some(hasPerm => hasPerm === true)
+            // 只有非禁用的子节点才能取消选中
+            if (!childHasAnyExistingPerm) {
+              treeRef.value.setChecked(childPath, false, false)
+            }
+          }
+        })
+      })
     } else {
       // 如果节点已有权限但用户尝试取消选中，重新选中它
       nextTick(() => {
@@ -1575,23 +1942,25 @@ const handleTreeNodeCheck = (data: ServiceTree, checked: { checkedKeys: string[]
   }
 }
 
-// ⭐ 快捷选择（选择当前资源的全部权限）
-const handleQuickSelect = () => {
-  if (currentScope.value?.quickSelect) {
-    selectedPermissions.value = [...currentScope.value.quickSelect.actions]
-    // 触发级联选择
-    handlePermissionChange(selectedPermissions.value)
-    ElMessage.success(`已选择：${currentScope.value.quickSelect.label}`)
+// 获取父节点路径
+const getParentPath = (resourcePath: string): string | null => {
+  const pathParts = resourcePath.split('/').filter(Boolean)
+  if (pathParts.length <= 2) {
+    // 根节点或工作空间节点，没有父节点
+    return null
   }
+  // 返回父节点路径（去掉最后一个部分）
+  return '/' + pathParts.slice(0, -1).join('/')
 }
+
 
 // 提交申请/赋权
 const handleSubmit = async () => {
   if (!formRef.value) return
 
-  // 检查是否至少选择了一个权限
-  if (!hasSelectedPermissions.value) {
-    ElMessage.warning('请至少选择一个权限')
+  // ⭐ 检查是否选择了角色（权限申请必须通过角色）
+  if (!selectedRoleId.value) {
+    ElMessage.warning('请先选择一个角色')
     return
   }
 
@@ -1614,112 +1983,67 @@ const handleSubmit = async () => {
   submitting.value = true
 
   try {
-    if (!currentScope.value || selectedPermissions.value.length === 0) {
-      ElMessage.warning('请至少选择一个权限')
+    // ⭐ 检查是否选择了角色（权限申请必须通过角色）
+    if (!selectedRoleId.value) {
+      ElMessage.warning('请先选择一个角色')
+      return
+    }
+
+    if (!currentScope.value) {
+      ElMessage.warning('请选择一个资源')
       return
     }
 
     const resourcePath = currentScope.value.resourcePath
-    const actions = selectedPermissions.value
 
-    // 根据赋权对象类型决定是申请还是赋权
+    // 准备有效期参数
+    const endTime = formData.value.isPermanent ? undefined : (formData.value.endTime || undefined)
+
+    // ⭐ 统一使用申请流程（不再区分申请和赋权）
+    // 所有权限申请都需要经过审批流程
+    let subjectType: 'user' | 'department' = 'user'
+    let subject: string = ''
+    
     if (grantTargetType.value === 'self') {
       // 给自己申请权限
-      await applyPermission({
-        resource_path: resourcePath,
-        actions: actions,
-        reason: formData.value.reason,
-      })
-      ElMessage.success('权限申请已提交')
+      subjectType = 'user'
+      subject = '' // 后端会使用当前用户
     } else if (grantTargetType.value === 'user') {
-      // 给其他用户赋权
-      if (!grantTargetUser.value) {
-        ElMessage.warning('请选择要赋权的用户')
+      // 给其他用户申请权限（支持多选）
+      const selectedUsernames = grantTargetUsersValue.value?.raw
+      if (!selectedUsernames || !String(selectedUsernames).trim()) {
+        ElMessage.warning('请至少选择一个要申请权限的用户')
         return
       }
-
-      let successCount = 0
-      let failedActions: string[] = []
-
-      for (const action of actions) {
-        try {
-          await addPermission({
-            username: grantTargetUser.value.username,
-            resource_path: resourcePath,
-            action: action
-          })
-          successCount++
-        } catch (err: any) {
-          failedActions.push(action)
-          console.error(`赋权失败: ${action}`, err)
-        }
-      }
-
-      if (successCount === 0) {
-        ElMessage.error('赋权失败，所有权限点都添加失败')
-        return
-      }
-
-      if (successCount === actions.length) {
-        ElMessage.success(`已成功给用户 "${grantTargetUser.value.username}" 赋权 ${successCount} 个权限`)
-      } else {
-        ElMessage.warning(`赋权部分成功，已成功添加 ${successCount}/${actions.length} 个权限，失败：${failedActions.join(', ')}`)
-      }
+      subjectType = 'user'
+      subject = String(selectedUsernames).trim() // 多个用户名用逗号分隔
     } else if (grantTargetType.value === 'department') {
-      // 给部门赋权
+      // 给部门申请权限
       if (!grantTargetDepartment.value) {
-        ElMessage.warning('请选择要赋权的部门')
+        ElMessage.warning('请选择要申请权限的部门')
         return
       }
-
-      // 获取部门下的所有用户
-      const deptUsersRes = await getUsersByDepartment(grantTargetDepartment.value)
-      const deptUsers = deptUsersRes.users || []
-
-      if (deptUsers.length === 0) {
-        ElMessage.warning('该部门下没有用户')
-        return
-      }
-
-      // 批量给部门下的所有用户赋权
-      let totalSuccess = 0
-      let totalFailed = 0
-      const failedUsers: string[] = []
-
-      for (const user of deptUsers) {
-        for (const action of actions) {
-          try {
-            await addPermission({
-              username: user.username,
-              resource_path: resourcePath,
-              action: action
-            })
-            totalSuccess++
-          } catch (err: any) {
-            totalFailed++
-            if (!failedUsers.includes(user.username)) {
-              failedUsers.push(user.username)
-            }
-            console.error(`给用户 ${user.username} 赋权失败: ${action}`, err)
-          }
-        }
-      }
-
-      const totalAttempts = deptUsers.length * actions.length
-      if (totalSuccess === 0) {
-        ElMessage.error('赋权失败，所有权限点都添加失败')
-        return
-      }
-
-      if (totalSuccess === totalAttempts) {
-        ElMessage.success(`已成功给部门 "${grantTargetDepartment.value}" 下的 ${deptUsers.length} 个用户赋权，共 ${totalSuccess} 个权限`)
-      } else {
-        ElMessage.warning(
-          `赋权部分成功，已成功添加 ${totalSuccess}/${totalAttempts} 个权限，` +
-          `失败用户：${failedUsers.length > 0 ? failedUsers.join(', ') : '无'}`
-        )
-      }
+      subjectType = 'department'
+      subject = grantTargetDepartment.value
     }
+
+    // ⭐ 提交权限申请（必须通过角色申请）
+    await applyPermission({
+      resource_path: resourcePath,
+      role_id: selectedRoleId.value,
+      subject_type: subjectType,
+      subject: subject,
+      reason: formData.value.reason,
+      end_time: endTime,
+    })
+    
+    const targetText = grantTargetType.value === 'self' 
+      ? '自己' 
+      : grantTargetType.value === 'user' 
+      ? `用户 "${grantTargetUsersValue.value?.display || grantTargetUsersValue.value?.raw || ''}"` 
+      : `部门 "${grantTargetDepartment.value}"`
+    
+    ElMessage.success(`已为${targetText}提交权限申请，等待审批`)
     
     // 延迟后返回上一页
     setTimeout(() => {
@@ -1737,6 +2061,107 @@ const handleSubmit = async () => {
 // 取消申请
 const handleCancel = () => {
   router.back()
+}
+
+// ⭐ 加载可用角色列表（根据资源类型过滤）
+const loadAvailableRoles = async (nodeType: string, templateType: string) => {
+  try {
+    rolesLoading.value = true
+    selectedRoleId.value = null // 清空之前的选择
+    
+    // 检查 nodeType 是否为空
+    if (!nodeType || nodeType.trim() === '') {
+      console.warn('[PermissionApply] nodeType 为空，跳过加载角色列表')
+      availableRoles.value = []
+      return
+    }
+    
+    
+    // 调用 API 获取可用角色
+    const resp = await getRolesForPermissionRequest({
+      node_type: nodeType,
+      template_type: templateType && templateType.trim() !== '' ? templateType : undefined,
+    })
+    
+    
+    if (resp && resp.roles) {
+      availableRoles.value = resp.roles
+      
+      // ⭐ 自动选择默认角色（如果有的话）
+      const defaultRole = resp.roles.find((role: Role) => role.is_default)
+      if (defaultRole && !selectedRoleId.value) {
+        selectedRoleId.value = defaultRole.id
+      }
+    } else {
+      availableRoles.value = []
+      console.warn('[PermissionApply] 角色列表为空')
+    }
+  } catch (error: any) {
+    console.error('[PermissionApply] 加载角色列表失败:', error)
+    // 不显示错误提示，因为角色功能是可选的
+    availableRoles.value = []
+  } finally {
+    rolesLoading.value = false
+  }
+}
+
+// ⭐ 获取角色的权限点（按资源类型分组）
+const getRolePermissions = (role: Role): Record<string, string[]> => {
+  if (!role.permissions || role.permissions.length === 0) {
+    return {}
+  }
+  
+  // 按资源类型分组
+  const grouped: Record<string, string[]> = {}
+  for (const perm of role.permissions) {
+    if (!grouped[perm.resource_type]) {
+      grouped[perm.resource_type] = []
+    }
+    grouped[perm.resource_type].push(perm.action)
+  }
+  
+  return grouped
+}
+
+// ⭐ 获取资源类型标签
+const getResourceTypeLabel = (resourceType: string): string => {
+  const labels: Record<string, string> = {
+    'app': '工作空间',
+    'directory': '目录',
+    'function': '函数',
+    'function:table': '表格',
+    'function:form': '表单',
+    'function:chart': '图表',
+  }
+  return labels[resourceType] || resourceType
+}
+
+// ⭐ 处理角色卡片点击
+const handleRoleCardClick = (roleId: number) => {
+  if (selectedRoleId.value === roleId) {
+    // 如果点击的是已选中的角色，取消选择
+    clearRoleSelection()
+  } else {
+    // 选择新角色
+    selectedRoleId.value = roleId
+    handleRoleSelect(roleId)
+  }
+}
+
+// ⭐ 处理角色选择
+const handleRoleSelect = (roleId: number) => {
+  const role = availableRoles.value.find(r => r.id === roleId)
+  if (!role) {
+    return
+  }
+  
+  ElMessage.success(`已选择角色"${role.name}"`)
+}
+
+// ⭐ 清除角色选择
+const clearRoleSelection = () => {
+  selectedRoleId.value = null
+  ElMessage.info('已清除角色选择')
 }
 
 </script>
@@ -1798,9 +2223,18 @@ const handleCancel = () => {
     .apply-content {
       .apply-layout {
         display: grid;
-        grid-template-columns: 400px 1fr 320px;
+        grid-template-columns: 400px 1fr 480px;
         gap: 24px;
         align-items: start;
+        
+        // 响应式调整
+        @media (max-width: 1600px) {
+          grid-template-columns: 350px 1fr 450px;
+        }
+        
+        @media (max-width: 1400px) {
+          grid-template-columns: 320px 1fr 400px;
+        }
       }
 
       .apply-sidebar {
@@ -1962,10 +2396,16 @@ const handleCancel = () => {
                 }
                 
                 .no-permission-icon {
-                  color: var(--el-color-warning);
-                  font-size: 14px;
+                  width: 16px;
+                  height: 16px;
                   margin-left: 4px;
+                  opacity: 0.7;
                   flex-shrink: 0;
+                  transition: opacity 0.2s ease;
+                  
+                  &:hover {
+                    opacity: 1;
+                  }
                 }
                 
                 .node-meta {
@@ -2087,7 +2527,152 @@ const handleCancel = () => {
               }
           }
 
+          // ⭐ 角色选择区域样式
+          .role-selection-section {
+            margin-bottom: 24px;
+            padding: 24px;
+            background: var(--el-fill-color-lighter);
+            border-radius: 12px;
+            border: 1px solid var(--el-border-color-lighter);
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            display: block;
+            overflow: hidden;
+            position: relative;
+
+            .role-selection-header {
+              margin-bottom: 20px;
+
+              .role-selection-title {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                margin: 0 0 12px 0;
+                font-size: 16px;
+                font-weight: 600;
+                color: var(--el-text-color-primary);
+              }
+
+              .role-tip {
+                margin-top: 12px;
+              }
+            }
+
+            .role-list {
+              width: 100%;
+              display: block;
+              box-sizing: border-box;
+
+              .role-cards {
+                display: flex;
+                flex-direction: column;
+                gap: 16px;
+                width: 100%;
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+
+                .role-card {
+                  padding: 20px;
+                  border: 2px solid var(--el-border-color);
+                  border-radius: 10px;
+                  background: var(--el-bg-color);
+                  cursor: pointer;
+                  transition: all 0.3s ease;
+                  position: relative;
+                  display: block;
+                  width: 100%;
+                  box-sizing: border-box;
+                  margin: 0;
+                  overflow: hidden;
+
+                  // 添加选中指示器
+                  &::before {
+                    content: '';
+                    position: absolute;
+                    left: 0;
+                    top: 0;
+                    bottom: 0;
+                    width: 4px;
+                    background: transparent;
+                    transition: background 0.3s ease;
+                  }
+
+                  &:hover {
+                    border-color: var(--el-color-primary-light-5);
+                  }
+
+                  &.is-selected {
+                    border-color: var(--el-color-primary);
+                    border-width: 2px;
+
+                    &::before {
+                      background: var(--el-color-primary);
+                      width: 4px;
+                    }
+                  }
+
+                  .role-card-header {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    margin-bottom: 12px;
+                    flex-wrap: nowrap;
+                    gap: 12px;
+
+                    .role-name {
+                      font-size: 16px;
+                      font-weight: 600;
+                      color: var(--el-text-color-primary);
+                      flex: 1;
+                      min-width: 0;
+                      line-height: 1.4;
+                    }
+                  }
+
+                  .role-description {
+                    margin: 0 0 12px 0;
+                    font-size: 14px;
+                    color: var(--el-text-color-regular);
+                    line-height: 1.6;
+                    word-break: break-word;
+                    min-height: 20px;
+                  }
+
+                  .role-permissions-preview {
+                    margin-top: 12px;
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 6px;
+                    align-items: center;
+                    min-height: 24px;
+
+                    .permission-tag {
+                      margin: 0;
+                    }
+                  }
+                }
+              }
+
+              .role-selected-actions {
+                margin-top: 20px;
+                padding-top: 16px;
+                border-top: 1px solid var(--el-border-color-lighter);
+                display: flex;
+                gap: 12px;
+                justify-content: flex-end;
+              }
+            }
+          }
+
           .permission-list {
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            display: block;
+            overflow: visible;
+            
             .permission-list-header {
               margin-bottom: 20px;
               
@@ -2185,7 +2770,7 @@ const handleCancel = () => {
             .permission-checkbox-group {
               display: flex;
               flex-direction: column;
-              gap: 12px;
+              gap: 8px;
               width: 100%;
 
               :deep(.el-checkbox) {
@@ -2228,9 +2813,9 @@ const handleCancel = () => {
                 width: 100%;
                 max-width: 100%;
                 margin: 0;
-                padding: 16px;
+                padding: 10px 12px;
                 border: 1px solid var(--el-border-color-lighter);
-                border-radius: 8px;
+                border-radius: 6px;
                 transition: all 0.2s ease;
                 background: var(--el-fill-color-lighter);
                 min-height: auto;
@@ -2305,25 +2890,25 @@ const handleCancel = () => {
                   display: flex;
                   flex-direction: column;
                   align-items: flex-start;
-                  gap: 8px;
+                  gap: 4px;
                   width: 100%;
                   max-width: 100%;
                   min-width: 0;
 
                   .permission-header {
                     display: flex;
-                    align-items: flex-start;
-                    gap: 12px;
+                    align-items: center;
+                    gap: 8px;
                     width: 100%;
                     max-width: 100%;
                     min-width: 0;
                     flex-wrap: wrap;
 
                   .permission-name {
-                      font-weight: 600;
+                      font-weight: 500;
                     color: var(--el-text-color-primary);
-                      font-size: 15px;
-                    line-height: 1.4;
+                      font-size: 14px;
+                    line-height: 1.3;
                     word-break: break-word;
                       overflow-wrap: break-word;
                       flex: 1;
@@ -2347,56 +2932,31 @@ const handleCancel = () => {
                   
                   .permission-description {
                     margin: 0;
-                    font-size: 13px;
-                    color: var(--el-text-color-regular);
-                    line-height: 1.6;
+                    font-size: 12px;
+                    color: var(--el-text-color-secondary);
+                    line-height: 1.4;
                     word-break: break-word;
                     overflow-wrap: break-word;
                     width: 100%;
                   }
                   
-                  .permission-inheritance {
-                    display: flex;
-                    align-items: flex-start;
-                    gap: 8px;
-                    padding: 10px 12px;
+                  .inheritance-badge {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 4px;
+                    margin-left: 8px;
+                    padding: 2px 6px;
                     background: var(--el-fill-color-darker);
-                    border-radius: 6px;
-                    border: 1px solid var(--el-border-color);
-                    width: 100%;
-                    box-sizing: border-box;
-                    margin-top: 4px;
+                    border-radius: 3px;
+                    font-size: 11px;
+                    color: var(--el-text-color-secondary);
                     
-                    .inheritance-icon {
-                      color: var(--el-text-color-regular);
-                      font-size: 14px;
-                      margin-top: 2px;
-                      flex-shrink: 0;
-                    }
-                    
-                    .inheritance-text {
+                    .inheritance-icon-small {
                       font-size: 12px;
-                      color: var(--el-text-color-regular);
-                      line-height: 1.6;
-                      flex: 1;
-                      min-width: 0;
-                      width: 0;
-                      word-break: break-word;
-                      overflow-wrap: break-word;
+                      flex-shrink: 0;
                     }
                   }
 
-                  .permission-code {
-                    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-                    font-size: 11px;
-                    color: var(--el-text-color-secondary);
-                    background: var(--el-fill-color);
-                    padding: 2px 6px;
-                    border-radius: 4px;
-                    border: 1px solid var(--el-border-color-lighter);
-                    align-self: flex-start;
-                    word-break: break-all;
-                  }
                   }
                 }
               }
@@ -2440,8 +3000,27 @@ const handleCancel = () => {
         }
 
         .apply-form {
+          width: 100%;
+          max-width: 100%;
+          overflow: hidden;
+          box-sizing: border-box;
+
           .form-item-tip {
             margin-top: 8px;
+          }
+
+          :deep(.el-form-item) {
+            width: 100%;
+            max-width: 100%;
+            overflow: hidden;
+            box-sizing: border-box;
+          }
+
+          :deep(.el-form-item__content) {
+            width: 100%;
+            max-width: 100%;
+            overflow: hidden;
+            box-sizing: border-box;
           }
 
           :deep(.el-form-item__label) {
@@ -2461,6 +3040,7 @@ const handleCancel = () => {
             }
           }
 
+
           :deep(.el-button) {
             border-radius: 8px;
             padding: 10px 20px;
@@ -2477,31 +3057,46 @@ const handleCancel = () => {
 
           .grant-target-display {
             margin-top: 12px;
-            padding: 14px 16px;
+            padding: 12px;
             background: var(--el-fill-color-lighter);
-            border-radius: 6px;
+            border-radius: 8px;
             border: 1px solid var(--el-border-color-lighter);
+            width: 100%;
+            max-width: 100%;
+            overflow: hidden;
+            box-sizing: border-box;
 
             .current-user-info {
               display: flex;
-              align-items: center;
+              align-items: flex-start;
               gap: 12px;
+              width: 100%;
+              max-width: 100%;
+              overflow: hidden;
 
               .el-avatar {
                 flex-shrink: 0;
-                border: 2px solid var(--el-border-color);
+                width: 36px !important;
+                height: 36px !important;
+                border: 1px solid var(--el-border-color);
               }
 
               .user-details {
                 flex: 1;
                 min-width: 0;
+                max-width: 100%;
+                overflow: hidden;
 
                 .user-name {
                   font-size: 14px;
-                  font-weight: 500;
+                  font-weight: 600;
                   color: var(--el-text-color-primary);
-                  line-height: 1.5;
+                  line-height: 1.4;
                   margin-bottom: 4px;
+                  white-space: nowrap;
+                  overflow: hidden;
+                  text-overflow: ellipsis;
+                  width: 100%;
                 }
 
                 .user-email {
@@ -2511,21 +3106,35 @@ const handleCancel = () => {
                   overflow: hidden;
                   text-overflow: ellipsis;
                   white-space: nowrap;
-                  margin-bottom: 6px;
+                  margin-bottom: 4px;
+                  width: 100%;
                 }
 
                 .user-org-info,
                 .user-leader-info {
                   display: flex;
                   align-items: center;
-                  gap: 6px;
+                  gap: 4px;
                   font-size: 12px;
                   color: var(--el-text-color-regular);
                   margin-top: 4px;
+                  line-height: 1.4;
+                  width: 100%;
+                  max-width: 100%;
+                  overflow: hidden;
 
                   .el-icon {
-                    font-size: 14px;
+                    font-size: 12px;
                     color: var(--el-text-color-secondary);
+                    flex-shrink: 0;
+                  }
+
+                  span {
+                    flex: 1;
+                    min-width: 0;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
                   }
                 }
               }
@@ -2534,33 +3143,246 @@ const handleCancel = () => {
 
           .selected-user-details {
             margin-top: 12px;
-            padding: 10px 12px;
-            background: var(--el-fill-color-extra-light);
-            border-radius: 4px;
-            border: 1px solid var(--el-border-color-lighter);
+            width: 100%;
+            max-width: 100%;
+            overflow: hidden;
 
-            .user-org-info,
-            .user-leader-info {
-              display: flex;
-              align-items: center;
-              gap: 6px;
-              font-size: 12px;
-              color: var(--el-text-color-regular);
-              margin-bottom: 6px;
+            .selected-user-card {
+              position: relative;
+              padding: 12px;
+              padding-right: 36px;
+              background: var(--el-bg-color);
+              border: 1px solid var(--el-color-primary-light-7);
+              border-radius: 8px;
+              box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+              width: 100%;
+              max-width: 100%;
+              box-sizing: border-box;
+              overflow: hidden;
 
-              &:last-child {
-                margin-bottom: 0;
+              .user-content {
+                display: flex;
+                gap: 12px;
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+                overflow: hidden;
+
+                .user-avatar {
+                  flex-shrink: 0;
+                  width: 36px !important;
+                  height: 36px !important;
+                  border: 1px solid var(--el-color-primary-light-5);
+                }
+
+                .user-info {
+                  flex: 1;
+                  min-width: 0;
+                  max-width: 100%;
+                  overflow: hidden;
+
+                  .user-name {
+                    font-size: 14px;
+                    font-weight: 600;
+                    color: var(--el-text-color-primary);
+                    margin-bottom: 4px;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    width: 100%;
+                    max-width: 100%;
+                  }
+
+                  .user-meta {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 8px;
+                    font-size: 12px;
+                    color: var(--el-text-color-secondary);
+                    margin-bottom: 4px;
+                    line-height: 1.4;
+                    width: 100%;
+                    max-width: 100%;
+                    overflow: hidden;
+
+                    .user-nickname {
+                      color: var(--el-text-color-regular);
+                      white-space: nowrap;
+                      overflow: hidden;
+                      text-overflow: ellipsis;
+                      max-width: 120px;
+                    }
+
+                    .user-email {
+                      color: var(--el-text-color-secondary);
+                      white-space: nowrap;
+                      overflow: hidden;
+                      text-overflow: ellipsis;
+                      max-width: 150px;
+                    }
+                  }
+
+                  .user-org-info,
+                  .user-leader-info {
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                    font-size: 12px;
+                    color: var(--el-text-color-regular);
+                    margin-top: 4px;
+                    line-height: 1.4;
+                    width: 100%;
+                    max-width: 100%;
+                    overflow: hidden;
+
+                    .el-icon {
+                      font-size: 13px;
+                      color: var(--el-text-color-secondary);
+                      flex-shrink: 0;
+                    }
+
+                    span {
+                      flex: 1;
+                      min-width: 0;
+                      overflow: hidden;
+                      text-overflow: ellipsis;
+                      white-space: nowrap;
+                    }
+                  }
+                }
               }
 
-              .el-icon {
-                font-size: 14px;
-                color: var(--el-text-color-secondary);
+              .remove-btn {
+                position: absolute;
+                top: 8px;
+                right: 8px;
+                width: 24px;
+                height: 24px;
+                padding: 0;
+                flex-shrink: 0;
+                z-index: 1;
+              }
+            }
+          }
+
+          .selected-department-details {
+            margin-top: 12px;
+            width: 100%;
+            max-width: 100%;
+            overflow: hidden;
+
+            .selected-department-card {
+              position: relative;
+              padding: 12px;
+              padding-right: 36px;
+              background: var(--el-bg-color);
+              border: 1px solid var(--el-color-primary-light-7);
+              border-radius: 8px;
+              box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+              width: 100%;
+              max-width: 100%;
+              box-sizing: border-box;
+              overflow: hidden;
+
+              .department-content {
+                display: flex;
+                gap: 12px;
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+                overflow: hidden;
+
+                .department-icon {
+                  flex-shrink: 0;
+                  width: 36px;
+                  height: 36px;
+                  object-fit: contain;
+                }
+
+                .department-info {
+                  flex: 1;
+                  min-width: 0;
+                  max-width: 100%;
+                  overflow: hidden;
+
+                  .department-name {
+                    font-size: 14px;
+                    font-weight: 600;
+                    color: var(--el-text-color-primary);
+                    margin-bottom: 4px;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    width: 100%;
+                    max-width: 100%;
+                  }
+
+                  .department-meta {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 8px;
+                    font-size: 12px;
+                    color: var(--el-text-color-secondary);
+                    line-height: 1.4;
+                    width: 100%;
+                    max-width: 100%;
+                    overflow: hidden;
+
+                    .department-path {
+                      font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+                      color: var(--el-text-color-secondary);
+                      white-space: nowrap;
+                      overflow: hidden;
+                      text-overflow: ellipsis;
+                      max-width: 200px;
+                    }
+
+                    .department-full-name {
+                      color: var(--el-text-color-regular);
+                      white-space: nowrap;
+                      overflow: hidden;
+                      text-overflow: ellipsis;
+                      max-width: 150px;
+                    }
+
+                    .department-managers {
+                      display: inline-flex;
+                      align-items: center;
+                      gap: 4px;
+                      color: var(--el-text-color-secondary);
+                      white-space: nowrap;
+                      overflow: hidden;
+                      text-overflow: ellipsis;
+                      max-width: 180px;
+
+                      .el-icon {
+                        font-size: 12px;
+                        flex-shrink: 0;
+                      }
+                    }
+                  }
+                }
+              }
+
+              .remove-btn {
+                position: absolute;
+                top: 8px;
+                right: 8px;
+                width: 24px;
+                height: 24px;
+                padding: 0;
+                flex-shrink: 0;
+                z-index: 1;
               }
             }
           }
 
           .grant-target-input {
             margin-top: 12px;
+            width: 100%;
+            max-width: 100%;
+            overflow: hidden;
+            box-sizing: border-box;
 
             .disabled-overlay {
               opacity: 0.6;

@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -108,15 +107,13 @@ func getOrInitDB(dbName string) (*gorm.DB, error) {
 		logFile = os.Stdout
 	}
 
-	// 🔥 创建多写入器，同时写入文件和控制台
-	multiWriter := io.MultiWriter(logFile, os.Stdout)
-
+	// 🔥 只写入文件，不输出到控制台
 	// 设置GORM日志配置
 	gormLogger := gormLogger.New(
-		log.New(multiWriter, "\r\n", log.LstdFlags),
+		log.New(logFile, "\r\n", log.LstdFlags),
 		gormLogger.Config{
 			SlowThreshold:             200 * time.Millisecond,
-			LogLevel:                  gormLogger.Info, // 🔥 改为 Info 级别，记录所有 SQL 语句
+			LogLevel:                  gormLogger.Info, // 记录所有 SQL 语句到文件
 			IgnoreRecordNotFoundError: true,
 			Colorful:                  false,
 		},

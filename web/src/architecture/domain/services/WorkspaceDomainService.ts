@@ -39,6 +39,9 @@ export interface WorkspaceState {
   loading: boolean // 加载状态
 }
 
+// 🔥 空服务树常量：避免每次创建新数组导致引用变化
+const EMPTY_SERVICE_TREE: ServiceTree[] = []
+
 /**
  * 工作空间领域服务
  */
@@ -66,33 +69,16 @@ export class WorkspaceDomainService {
     // 直接加载函数详情，不使用缓存
     let detail: FunctionDetail
     try {
-      if (node.ref_id && node.ref_id > 0) {
-        // 🔥 优先使用 ref_id（函数 ID）加载函数详情
-        console.log('🔍 [WorkspaceDomainService] 使用 ref_id 加载函数详情', {
-          refId: node.ref_id,
-          nodeId: node.id,
-          fullCodePath: node.full_code_path
-        })
+      // ⭐ 优先使用 full_code_path 加载（新 API 只支持 full-code-path）
+      if (node.full_code_path) {
+        // ⭐ 从 node.template_type 获取函数类型，传递给 API（后端无需查询数据库即可构造权限点）
+        const funcType = node.template_type || 'table'
+        detail = await this.functionLoader.loadByPath(node.full_code_path, funcType)
+      } else if (node.ref_id && node.ref_id > 0) {
+        // ⭐ 如果没有 full_code_path，使用 ref_id 加载（向后兼容，但建议后端总是返回 full_code_path）
         detail = await this.functionLoader.loadById(node.ref_id)
-        console.log('✅ [WorkspaceDomainService] 成功加载函数详情', {
-          functionId: detail.id,
-          router: detail.router,
-          requestFieldsCount: detail.request?.length || 0
-        })
-      } else if (node.full_code_path) {
-        // 如果没有 ref_id，使用 full_code_path 加载
-        console.log('🔍 [WorkspaceDomainService] 使用 full_code_path 加载函数详情', {
-          fullCodePath: node.full_code_path,
-          nodeId: node.id
-        })
-        detail = await this.functionLoader.loadByPath(node.full_code_path)
-        console.log('✅ [WorkspaceDomainService] 成功加载函数详情', {
-          functionId: detail.id,
-          router: detail.router,
-          requestFieldsCount: detail.request?.length || 0
-        })
       } else {
-        throw new Error('节点没有 ref_id 和 full_code_path，无法加载函数详情')
+        throw new Error('节点没有 full_code_path 和 ref_id，无法加载函数详情')
       }
 
       // ⭐ 权限信息已从树接口返回，不需要缓存
@@ -105,11 +91,6 @@ export class WorkspaceDomainService {
     } catch (error: any) {
       // ⭐ 捕获错误（包括 403 权限不足）
       // 即使加载失败，也已经设置了 currentFunction，详情页面可以显示权限错误
-      console.warn('⚠️ [WorkspaceDomainService] 加载函数详情失败', {
-        nodeId: node.id,
-        fullCodePath: node.full_code_path,
-        error: error?.message || error
-      })
       
       // 重新抛出错误，让调用方知道加载失败
       // 但 currentFunction 已经设置，详情页面可以显示权限错误
@@ -152,7 +133,7 @@ export class WorkspaceDomainService {
       currentApp: app,
       currentFunction: null,
       currentDirectory: null,
-      serviceTree: [], // 清空服务树，等待重新加载
+      serviceTree: EMPTY_SERVICE_TREE, // 🔥 使用常量空数组，避免引用变化
       loading: true    // 开始加载
     })
 
@@ -163,23 +144,24 @@ export class WorkspaceDomainService {
   /**
    * 加载服务目录树（使用已获取的数据，避免重复调用 API）
    */
-  async loadServiceTreeWithData(app: App, tree: ServiceTree[]): Promise<ServiceTree[]> {
+  async loadServiceTreeWithData(app: App, tree: ServiceTree[], expandedKeys?: number[]): Promise<ServiceTree[]> {
     try {
+      console.log('[WorkspaceDomainService] loadServiceTreeWithData 开始，expandedKeys:', expandedKeys)
       const state = this.stateManager.getState()
 
-      console.log('[WorkspaceDomainService] 使用已获取的服务目录树，节点数:', tree?.length || 0)
+      // 使用已获取的服务目录树和 expanded_keys
 
       // 更新状态
+      console.log('[WorkspaceDomainService] 调用 setState 更新 serviceTree')
       this.stateManager.setState({
         ...state,
         serviceTree: tree || [],
         loading: false // 🔥 加载完成
       })
 
-      // 触发事件
-      this.eventBus.emit(WorkspaceEvent.serviceTreeLoaded, { app, tree: tree || [] })
-
-      console.log('[WorkspaceDomainService] 已触发 serviceTreeLoaded 事件')
+      // 触发事件（包含 expandedKeys）
+      console.log('[WorkspaceDomainService] 触发 serviceTreeLoaded 事件，expandedKeys:', expandedKeys)
+      this.eventBus.emit(WorkspaceEvent.serviceTreeLoaded, { app, tree: tree || [], expandedKeys })
 
       return tree || []
     } catch (error) {
@@ -189,13 +171,13 @@ export class WorkspaceDomainService {
       const state = this.stateManager.getState()
       this.stateManager.setState({
         ...state,
-        serviceTree: [],
+        serviceTree: EMPTY_SERVICE_TREE, // 🔥 使用常量空数组，避免引用变化
         loading: false // 🔥 加载失败，结束 loading
       })
 
       // 即使失败也要触发事件，确保 loading 状态能正确更新
-      this.eventBus.emit(WorkspaceEvent.serviceTreeLoaded, { app, tree: [] })
-      return []
+      this.eventBus.emit(WorkspaceEvent.serviceTreeLoaded, { app, tree: EMPTY_SERVICE_TREE, expandedKeys: undefined })
+      return EMPTY_SERVICE_TREE
     }
   }
 
@@ -204,19 +186,14 @@ export class WorkspaceDomainService {
    */
   async loadServiceTree(app: App): Promise<ServiceTree[]> {
     if (!this.serviceTreeLoader) {
-      console.warn('[WorkspaceDomainService] ServiceTreeLoader 未注入，无法加载服务目录树')
       return []
     }
 
     try {
       const state = this.stateManager.getState()
       
-      console.log('[WorkspaceDomainService] 开始加载服务目录树:', app.user, app.code, 'app.id:', app.id)
-      
       // 从 ServiceTreeLoader 加载服务目录树
       const tree = await this.serviceTreeLoader.load(app)
-      
-      console.log('[WorkspaceDomainService] 服务目录树加载完成，节点数:', tree?.length || 0)
 
       // 🔥 注意：如果 app.id 是 0（临时值），应用信息的更新由 Application Service 层处理
       // 这里只更新服务树，应用信息的更新在 handleAppSwitch 中处理
@@ -231,8 +208,6 @@ export class WorkspaceDomainService {
 
       // 触发事件
       this.eventBus.emit(WorkspaceEvent.serviceTreeLoaded, { app: updatedApp, tree: tree || [] })
-      
-      console.log('[WorkspaceDomainService] 已触发 serviceTreeLoaded 事件')
 
       return tree || []
     } catch (error) {
@@ -242,13 +217,13 @@ export class WorkspaceDomainService {
       const state = this.stateManager.getState()
       this.stateManager.setState({
         ...state,
-        serviceTree: [],
+        serviceTree: EMPTY_SERVICE_TREE, // 🔥 使用常量空数组，避免引用变化
         loading: false // 🔥 加载失败，结束 loading
       })
       
       // 即使失败也要触发事件，确保 loading 状态能正确更新
-      this.eventBus.emit(WorkspaceEvent.serviceTreeLoaded, { app, tree: [] })
-      return []
+      this.eventBus.emit(WorkspaceEvent.serviceTreeLoaded, { app, tree: EMPTY_SERVICE_TREE })
+      return EMPTY_SERVICE_TREE
     }
   }
 

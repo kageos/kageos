@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -112,6 +113,7 @@ func (s *ServiceTreeService) generateInitFile(packageDir string, serviceTree *dt
 	}
 
 	// 生成init_.go文件内容（新格式：使用PackageContext）
+	// 使用 strconv.Quote 转义字符串，防止特殊字符破坏代码
 	content := fmt.Sprintf(`package %s
 
 import (
@@ -119,9 +121,11 @@ import (
 )
 
 var packageContext = &app.PackageContext{
-	RouterGroup: "%s",
+	RouterGroup: %s,
+	Name:        %s,
+	Desc:        %s,
 }
-`, serviceTree.Code, routerGroup)
+`, serviceTree.Code, strconv.Quote(routerGroup), strconv.Quote(serviceTree.Name), strconv.Quote(serviceTree.Description))
 
 	// 写入文件
 	initFilePath := filepath.Join(packageDir, "init_.go")
@@ -564,6 +568,17 @@ func extractPackagePath(fullCodePath string) string {
 	return strings.Join(subParts, "/")
 }
 
+// extractGroupCodeFromPath 从路径中提取 GroupCode（路径最后一段）
+// 例如："/tools/pdftools" -> "pdftools"
+func extractGroupCodeFromPath(path string) string {
+	// 去掉首尾斜杠并分割路径
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+	if len(parts) > 0 {
+		return parts[len(parts)-1]
+	}
+	return ""
+}
+
 // getParentPath 获取父目录路径
 func getParentPath(fullCodePath string) string {
 	pathParts := strings.Split(strings.Trim(fullCodePath, "/"), "/")
@@ -701,7 +716,8 @@ func (s *ServiceTreeService) generateInitFileForPath(
 		routerGroup = "/" + routerGroup
 	}
 
-	// 生成 init_.go 文件内容
+	// 生成 init_.go 文件内容（新格式：使用PackageContext）
+	// 使用 strconv.Quote 转义字符串，防止特殊字符破坏代码
 	content := fmt.Sprintf(`package %s
 
 import (
@@ -709,9 +725,11 @@ import (
 )
 
 var packageContext = &app.PackageContext{
-	RouterGroup: "%s",
+	RouterGroup: %s,
+	Name:        %s,
+	Desc:        %s,
 }
-`, dirCode, routerGroup)
+`, dirCode, strconv.Quote(routerGroup), strconv.Quote(item.Name), strconv.Quote(item.Description))
 
 	// 写入文件
 	initFilePath := filepath.Join(packageDir, "init_.go")

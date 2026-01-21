@@ -9,6 +9,8 @@ import (
 	"math/big"
 	"mime/multipart"
 	"net/smtp"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/core/hr-server/repository"
@@ -105,6 +107,8 @@ func (s *EmailService) getSubject(codeType string) string {
 	switch codeType {
 	case "register":
 		return "AI Agent OS 注册验证码"
+	case "forgot_password":
+		return "AI Agent OS 重置密码"
 	default:
 		return "AI Agent OS 验证码"
 	}
@@ -128,6 +132,24 @@ func (s *EmailService) getBody(code, codeType string) string {
 				<p style="color: #666; font-size: 12px;">此邮件由系统自动发送，请勿回复。</p>
 			</div>
 		`, code, s.config.Verification.CodeExpire/60)
+	case "forgot_password":
+		// code 在这里是重置密码的链接
+		return fmt.Sprintf(`
+			<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+				<h2 style="color: #333;">AI Agent OS 重置密码</h2>
+				<p>您好！</p>
+				<p>您正在重置 AI Agent OS 账户密码，请点击以下链接重置密码：</p>
+				<div style="text-align: center; margin: 30px 0;">
+					<a href="%s" style="display: inline-block; padding: 12px 30px; background-color: #007bff; color: #ffffff; text-decoration: none; border-radius: 5px; font-weight: bold;">重置密码</a>
+				</div>
+				<p>如果按钮无法点击，请复制以下链接到浏览器打开：</p>
+				<p style="word-break: break-all; color: #666; font-size: 12px;">%s</p>
+				<p>链接有效期为 1 小时，请及时使用。</p>
+				<p>如果这不是您的操作，请忽略此邮件。</p>
+				<hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+				<p style="color: #666; font-size: 12px;">此邮件由系统自动发送，请勿回复。</p>
+			</div>
+		`, code, code)
 	default:
 		return fmt.Sprintf("您的验证码是：%s", code)
 	}
@@ -216,5 +238,32 @@ func (s *EmailService) sendEmail(to, subject, body string) error {
 		return fmt.Errorf("发送邮件内容失败: %v", err)
 	}
 
+	return nil
+}
+
+// SendPasswordResetEmail 发送密码重置邮件
+func (s *EmailService) SendPasswordResetEmail(email, resetToken string) error {
+	// 构建重置密码链接
+	// 从环境变量获取前端URL，如果没有则使用相对路径（前端会自动补全）
+	frontendURL := os.Getenv("FRONTEND_URL")
+	resetLink := fmt.Sprintf("/reset-password?token=%s", resetToken)
+	
+	// 如果有配置前端URL，使用完整URL
+	if frontendURL != "" {
+		// 确保URL不以/结尾
+		frontendURL = strings.TrimSuffix(frontendURL, "/")
+		resetLink = fmt.Sprintf("%s/reset-password?token=%s", frontendURL, resetToken)
+	}
+	
+	subject := s.getSubject("forgot_password")
+	body := s.getBody(resetLink, "forgot_password")
+	
+	err := s.sendEmail(email, subject, body)
+	if err != nil {
+		logger.Errorf(nil, "[EmailService] Failed to send password reset email: %v", err)
+		return err
+	}
+	
+	logger.Infof(nil, "[EmailService] Password reset email sent to %s", email)
 	return nil
 }

@@ -3,6 +3,15 @@
 # 设置时区
 export TZ=Asia/Shanghai
 
+# 加载 Python 已安装包列表环境变量（用于快速检查包是否已安装）
+if [ -f /etc/profile.d/python-packages.sh ]; then
+    . /etc/profile.d/python-packages.sh
+fi
+# 如果 profile 脚本不存在，尝试从文件读取
+if [ -z "$PYTHON_INSTALLED_PACKAGES" ] && [ -f /etc/python-installed-packages.txt ]; then
+    export PYTHON_INSTALLED_PACKAGES=$(cat /etc/python-installed-packages.txt)
+fi
+
 # 进入应用目录
 cd /app/workplace/bin
 

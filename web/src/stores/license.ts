@@ -124,8 +124,6 @@ export const useLicenseStore = defineStore('license', () => {
         }
       })
     }, CHECK_INTERVAL)
-
-    console.log('[License Store] 已启动定时检查，间隔: 1小时')
   }
 
   // 停止定时检查

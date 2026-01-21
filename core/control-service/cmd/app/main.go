@@ -25,8 +25,8 @@ func main() {
 		close(stopCh)
 	}()
 
-	// 调用 Main 函数
-	if err := runner.Main(ctx, stopCh); err != nil {
+	// 调用 Main 函数（独立启动时 readyCh 为 nil）
+	if err := runner.Main(ctx, stopCh, nil); err != nil {
 		fmt.Printf("Control-service error: %v\n", err)
 		os.Exit(1)
 	}

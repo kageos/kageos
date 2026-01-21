@@ -102,7 +102,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, nextTick, onMounted, withDefaults } from 'vue'
+import { computed, ref, watch, nextTick, onMounted, onUnmounted, withDefaults } from 'vue'
 import { ElInput, ElTag, ElIcon } from 'element-plus'
 import { ArrowDown, Close } from '@element-plus/icons-vue'
 import FuzzySearchDialog from './FuzzySearchDialog.vue'
@@ -861,6 +861,17 @@ watch(
   },
   { immediate: true }
 )
+
+// 🔥 组件卸载时取消注册初始化器
+onUnmounted(() => {
+  if (hasRemoteSearch.value) {
+    widgetInitializerRegistry.unregister('multiselect')
+    Logger.debug('[MultiSelectWidget]', 'onUnmounted - 取消注册初始化器', {
+      fieldCode: props.field.code,
+      widgetType: 'multiselect'
+    })
+  }
+})
 </script>
 
 <style scoped>

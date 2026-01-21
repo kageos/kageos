@@ -15,8 +15,7 @@ type PluginInfo struct {
 	Code        string  `json:"code" example:"excel_parser"`
 	Description string  `json:"description" example:"解析Excel文件为Markdown表格"`
 	Enabled     bool    `json:"enabled" example:"true"`
-	Subject     string  `json:"subject" example:"plugins.beiluo.1"` // NATS主题，自动生成
-	NatsHost    string  `json:"nats_host" example:"nats://127.0.0.1:4222"` // NATS 服务器地址
+	FormPath    string  `json:"form_path" example:"/system/official/agent/plugin/table_parse"` // Form函数路径（full-code-path）
 	Config      *string `json:"config" example:"{\"timeout\": 30, \"max_file_size\": 10485760}"` // 插件配置（JSON）
 	User        string  `json:"user" example:"beiluo"` // 创建用户（保留用于向后兼容）
 	Visibility  int     `json:"visibility" example:"0"` // 0: 公开, 1: 私有
@@ -40,6 +39,7 @@ type CreatePluginReq struct {
 	Code        string  `json:"code" binding:"required" example:"excel_parser"`
 	Description string  `json:"description" example:"解析Excel文件为Markdown表格"`
 	Enabled     bool    `json:"enabled" example:"true"`
+	FormPath    string  `json:"form_path" binding:"required" example:"/system/official/agent/plugin/table_parse"` // Form函数路径（full-code-path）
 	Config      *string `json:"config" example:"{\"timeout\": 30, \"max_file_size\": 10485760}"` // 插件配置（JSON）
 	Visibility  int     `json:"visibility" example:"0"` // 0: 公开, 1: 私有（默认0）
 	Admin       string  `json:"admin" example:"user1,user2"` // 管理员列表（逗号分隔，默认创建用户）
@@ -51,6 +51,7 @@ type UpdatePluginReq struct {
 	Code        string  `json:"code" binding:"required" example:"excel_parser"`
 	Description string  `json:"description" example:"解析Excel文件为Markdown表格"`
 	Enabled     bool    `json:"enabled" example:"true"`
+	FormPath    string  `json:"form_path" binding:"required" example:"/system/official/agent/plugin/table_parse"` // Form函数路径（full-code-path）
 	Config      *string `json:"config" example:"{\"timeout\": 30, \"max_file_size\": 10485760}"` // 插件配置（JSON）
 	Visibility  int     `json:"visibility" example:"0"` // 0: 公开, 1: 私有
 	Admin       string  `json:"admin" example:"user1,user2"` // 管理员列表（逗号分隔）

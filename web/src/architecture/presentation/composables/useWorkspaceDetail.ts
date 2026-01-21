@@ -130,6 +130,7 @@ export function useWorkspaceDetail(
         const permission = field.table_permission
         return !permission || permission === '' || permission === 'update'
       })
+      
       return {
         ...current,
         template_type: 'form',

@@ -12,6 +12,7 @@ export const WidgetType = {
   SWITCH: 'switch',
   TIMESTAMP: 'timestamp',
   USER: 'user',
+  USERS: 'users',
   ID: 'ID',
   NUMBER: 'number',
   FLOAT: 'float',

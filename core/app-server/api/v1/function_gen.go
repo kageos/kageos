@@ -8,22 +8,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// FunctionGen 函数生成相关 API
+// FunctionGen 函数生成相关 API（已废弃，保留用于兼容）
 type FunctionGen struct {
-	appService *service.AppService
-	server     FunctionGenServer // 需要访问 server 的方法
-}
-
-// FunctionGenServer 定义需要从 Server 访问的方法接口
-type FunctionGenServer interface {
-	HandleFunctionGenResult(ctx *gin.Context, req *dto.AddFunctionsReq)
+	serviceTreeService *service.ServiceTreeService
 }
 
 // NewFunctionGen 创建 FunctionGen 处理器
-func NewFunctionGen(appService *service.AppService, server FunctionGenServer) *FunctionGen {
+func NewFunctionGen(serviceTreeService *service.ServiceTreeService) *FunctionGen {
 	return &FunctionGen{
-		appService: appService,
-		server:     server,
+		serviceTreeService: serviceTreeService,
 	}
 }
 
@@ -38,8 +31,14 @@ func (f *FunctionGen) ReceiveFunctionGenResult(c *gin.Context) {
 		return
 	}
 
-	// 调用 server 的处理方法
-	f.server.HandleFunctionGenResult(c, &req)
+	// 直接调用 ServiceTreeService.ProcessFunctionGenResult（兼容旧接口）
+	ctx := c.Request.Context()
+	if err := f.serviceTreeService.ProcessFunctionGenResult(ctx, &req); err != nil {
+		logger.Errorf(c, "[FunctionGen API] 处理失败: %v", err)
+		response.FailWithMessage(c, "处理失败: "+err.Error())
+		return
+	}
+
 	response.OkWithData(c, map[string]interface{}{
 		"message": "函数生成结果已接收并处理",
 	})

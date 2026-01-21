@@ -9,7 +9,6 @@ func InitTables(db *gorm.DB) error {
 	err := db.AutoMigrate(
 		&Nats{},
 		&Host{},
-		&User{},
 		&App{},
 		&ServiceTree{},
 		&Function{},
@@ -25,6 +24,19 @@ func InitTables(db *gorm.DB) error {
 		&FormOperateLog{},
 		// 目录更新历史表（用于记录API变更历史）
 		&DirectoryUpdateHistory{},
+		// 文档表（用于存储文档内容）
+		&Doc{},
+		// 权限系统相关表
+		// ⭐ WorkspacePermission 已废弃，不再使用 workspace_permission 表，仅使用角色系统
+		&PermissionRequest{},
+		&PermissionGrantLog{},
+		&ApprovalPolicy{},
+		// 角色系统相关表（企业版功能）
+		&Role{},
+		&RolePermission{},
+		&RoleAssignment{},
+		// 权限点表（企业版功能）
+		&Action{},
 	)
 	if err != nil {
 		return err

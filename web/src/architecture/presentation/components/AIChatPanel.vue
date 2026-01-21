@@ -268,11 +268,13 @@ import { ElMessage, ElNotification } from 'element-plus'
 import { Close, User, Loading, ChatRound, Upload, Document, Plus, ArrowDown, ArrowUp } from '@element-plus/icons-vue'
 import * as agentApi from '@/api/agent'
 import type { AgentInfo, ChatSessionInfo } from '@/api/agent'
-import { uploadFile, notifyUploadComplete } from '@/utils/upload'
+import { uploadFile, notifyUploadComplete, type UploadCompleteResult } from '@/utils/upload'
 import { formatDuration } from '@/utils/date'
 import type { UploadFile } from 'element-plus'
 import { marked } from 'marked'
 import AgentSelectDialog from '@/components/Agent/AgentSelectDialog.vue'
+import { useAuthStore } from '@/stores/auth'
+import { WidgetType, DataType } from '@/core/constants/widget'
 
 interface Props {
   agentId: number | null
@@ -296,9 +298,21 @@ const emit = defineEmits<{
 
 const router = useRouter()
 
+// ⭐ ChatFile 与 types.File 保持一致（智能体插件场景）
 interface ChatFile {
-  url: string
-  remark: string
+  name: string              // 文件名
+  source_name: string       // 源文件名称
+  storage: string           // 存储引擎类型（minio/qiniu/xxxxx）
+  description: string      // 文件描述/备注
+  hash: string              // 文件hash
+  size: number              // 文件大小（字节）
+  upload_ts: number         // 上传时间戳（毫秒）
+  local_path: string        // 本地路径（前端不需要，设为空）
+  is_uploaded: boolean    // 是否已上传到云端
+  url: string               // 外部访问地址（前端下载使用）
+  server_url: string        // 内部访问地址（服务端下载使用）
+  downloaded: boolean       // 是否已下载到本地（前端不需要，设为false）
+  upload_user: string       // 上传用户
 }
 
 interface ChatMessage {
@@ -327,6 +341,9 @@ const pollingStates = ref<Map<number, { count: number; startTime: number }>>(new
 // 文件上传相关
 const uploadedFiles = ref<ChatFile[]>([])
 const isDragOver = ref(false)
+
+// 获取当前用户信息（用于文件上传）
+const authStore = useAuthStore()
 
 // 智能体选择相关
 const selectedAgentId = ref<number | null>(props.agentId)
@@ -887,7 +904,11 @@ async function processFile(rawFile: File | null) {
     
     // 通知后端上传完成
     if (uploadResult.fileInfo) {
-      const downloadUrl = await notifyUploadComplete({
+      // ⭐ 获取当前用户信息
+      const currentUser = authStore.user?.username || ''
+      
+      // ⭐ 获取完整文件信息（包括 server_url）
+      const completeResult = await notifyUploadComplete({
         key: uploadResult.fileInfo.key,
         success: true,
         router: uploadResult.fileInfo.router,
@@ -895,12 +916,27 @@ async function processFile(rawFile: File | null) {
         file_size: uploadResult.fileInfo.file_size,
         content_type: uploadResult.fileInfo.content_type,
         hash: uploadResult.fileInfo.hash,
+        storage: uploadResult.storage, // ⭐ 传递存储引擎类型
+        upload_user: currentUser, // ⭐ 传递上传用户
       })
       
-      if (downloadUrl) {
+      if (completeResult) {
+        // ⭐ 保存完整文件信息（与 types.File 保持一致）
+        // ⭐ 使用原始文件名作为 name 和 source_name，不要使用后端返回的 file_name（可能是 UUID）
         uploadedFiles.value.push({
-          url: downloadUrl,
-          remark: rawFile.name
+          name: rawFile.name, // ⭐ 使用原始文件名
+          source_name: rawFile.name, // ⭐ 使用原始文件名
+          storage: completeResult.storage || 'minio',
+          description: rawFile.name, // 使用原始文件名作为描述
+          hash: completeResult.hash || '',
+          size: completeResult.file_size,
+          upload_ts: Date.now(),
+          local_path: '', // 前端不需要
+          is_uploaded: true,
+          url: completeResult.download_url,
+          server_url: completeResult.server_download_url || completeResult.download_url, // 如果没有 server_url，使用 download_url
+          downloaded: false, // 前端不需要
+          upload_user: currentUser,
         })
         ElMessage.success(`${rawFile.name} 上传成功`)
       } else {
@@ -955,10 +991,28 @@ async function handleSend() {
       existing_files: props.existingFiles || [], // 传递已存在的文件名
       message: {
         content: userMessage || '',
-        files: files.map(f => ({
-          url: f.url,
-          remark: f.remark
-        }))
+        // ⭐ 直接传递 types.Files 格式
+        files: files.length > 0 ? {
+          files: files.map(f => ({
+            name: f.name,
+            source_name: f.source_name,
+            storage: f.storage,
+            description: f.description,
+            hash: f.hash,
+            size: f.size,
+            upload_ts: f.upload_ts,
+            local_path: f.local_path,
+            is_uploaded: f.is_uploaded,
+            url: f.url,
+            server_url: f.server_url,
+            downloaded: f.downloaded,
+            upload_user: f.upload_user,
+          })),
+          widget_type: WidgetType.FILES,
+          data_type: DataType.STRUCT,
+          remark: '',
+          metadata: {},
+        } : undefined,
       }
     })
 
@@ -1060,17 +1114,15 @@ function handleMessageLinkClick(event: MouseEvent) {
  * 智能轮询策略：根据已用时间和轮询次数动态调整间隔
  * 
  * 策略说明：
- * - 初始阶段（预计30秒-1.5分钟）：用较长间隔（30秒），因为还没到完成时间
- * - 临近完成：加快频率（5秒、2秒），因为这时候更可能完成
+ * - 模型升级后，20秒内有可能就成功，所以需要更快的响应
+ * - 第一次：8秒后轮询（快速开始检查）
+ * - 后续每次：3秒间隔（保持快速响应）
  * - 超时后（超过2分钟）：降低频率（10秒），因为可能出问题了
  * 
  * 具体策略：
- * - 第1次：30秒后轮询（初始等待）
- * - 第2次：5秒后轮询（开始接近预计完成时间）
- * - 第3次：5秒后轮询
- * - 第4次：5秒后轮询
- * - 第5次：2秒后轮询（临近完成，加快频率）
- * - 第6次及以后：如果超过2分钟，改为10秒间隔（可能出问题，降低频率）
+ * - 第1次：8秒后轮询（快速开始）
+ * - 第2次及以后：3秒后轮询（保持快速响应）
+ * - 超过2分钟：10秒间隔（可能出问题，降低频率）
  */
 function getPollInterval(count: number, elapsed: number): number {
   // 超时阈值：2分钟（120秒）
@@ -1082,21 +1134,12 @@ function getPollInterval(count: number, elapsed: number): number {
   }
   
   // 根据轮询次数决定间隔
-  switch (count) {
-    case 1:
-      // 第1次：30秒后轮询（初始等待）
-      return 30 * 1000
-    case 2:
-    case 3:
-    case 4:
-      // 第2-4次：5秒后轮询（开始接近预计完成时间）
-      return 5 * 1000
-    case 5:
-      // 第5次：2秒后轮询（临近完成，加快频率）
-      return 2 * 1000
-    default:
-      // 第6次及以后：如果还没超时，继续用2秒（保持快速响应）
-      return 2 * 1000
+  if (count === 1) {
+    // 第1次：8秒后轮询（快速开始检查）
+    return 8 * 1000
+  } else {
+    // 第2次及以后：3秒后轮询（保持快速响应）
+    return 3 * 1000
   }
 }
 
@@ -1146,19 +1189,19 @@ function startPolling(recordId: number) {
         // 发送成功通知
         const durationText = res.duration ? `（耗时：${formatDuration(res.duration)}）` : ''
         
-        // 构建通知消息，包含函数组按钮和耗时
+        // 构建通知消息，包含函数完整代码路径按钮和耗时
         let notificationMessage = `代码生成已完成${durationText}`
-        if (res.full_group_codes && res.full_group_codes.length > 0) {
-          const buttons = res.full_group_codes.map((code: string, index: number) => {
-            // 构建函数组详情页面 URL：域名 + /workspace + 函数组路径 + ?_node_type=function_group
-            const fullGroupCode = code.startsWith('/') ? code : `/${code}`
-            const url = `${window.location.origin}/workspace${fullGroupCode}?_node_type=function_group`
+        if (res.full_code_paths && res.full_code_paths.length > 0) {
+          const buttons = res.full_code_paths.map((code: string, index: number) => {
+            // 构建函数详情页面 URL：域名 + /workspace + 函数路径 + ?_node_type=function
+            const fullCodePath = code.startsWith('/') ? code : `/${code}`
+            const url = `${window.location.origin}/workspace${fullCodePath}?_node_type=function`
             // 按钮只显示4个字
             const buttonText = '查看详情'
             // 使用按钮样式的链接，点击在新窗口打开
             return `<a href="${url}" target="_blank" onclick="event.preventDefault(); window.open('${url}', '_blank'); return false;" style="display: inline-block; padding: 6px 12px; margin: 4px 8px 4px 0; background-color: #67C23A; color: white; text-decoration: none; border-radius: 4px; cursor: pointer; font-size: 12px; transition: background-color 0.3s;" onmouseover="this.style.backgroundColor='#5daf34'" onmouseout="this.style.backgroundColor='#67C23A'">${buttonText}</a>`
           }).join('')
-          notificationMessage = `已生成 ${res.full_group_codes.length} 个函数组${durationText}：<br><div style="margin-top: 8px;">${buttons}</div>`
+          notificationMessage = `已生成 ${res.full_code_paths.length} 个函数${durationText}：<br><div style="margin-top: 8px;">${buttons}</div>`
         }
         
         ElNotification({
@@ -1168,14 +1211,14 @@ function startPolling(recordId: number) {
           type: 'success',
           duration: 0, // 不自动关闭，需要手动点击关闭或点击跳转
           onClick: () => {
-            // 点击通知时，如果有函数组地址，跳转到第一个
-            if (res.full_group_codes && res.full_group_codes.length > 0) {
-              const firstCode = res.full_group_codes[0]
-              const fullGroupCode = firstCode.startsWith('/') ? firstCode : `/${firstCode}`
+            // 点击通知时，如果有函数路径，跳转到第一个
+            if (res.full_code_paths && res.full_code_paths.length > 0) {
+              const firstCode = res.full_code_paths[0]
+              const fullCodePath = firstCode.startsWith('/') ? firstCode : `/${firstCode}`
               router.push({
-                path: `/workspace${fullGroupCode}`,
+                path: `/workspace${fullCodePath}`,
                 query: {
-                  _node_type: 'function_group'
+                  _node_type: 'function'
                 }
               })
             }
