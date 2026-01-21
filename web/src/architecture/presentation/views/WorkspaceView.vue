@@ -392,6 +392,12 @@
           </div>
         </el-form-item>
         <el-form-item label="管理员">
+          <!-- 🔍 调试信息 -->
+          <div style="padding: 8px; background: #f0f0f0; margin-bottom: 8px; font-size: 12px;">
+            调试信息：adminsArray = {{ JSON.stringify(adminsArray) }}<br>
+            createAppForm.admins = {{ createAppForm.admins }}
+          </div>
+          
           <UserSearchInput
             v-model="adminsArray"
             placeholder="搜索并选择管理员（可多选）"

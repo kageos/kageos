@@ -17,6 +17,7 @@ import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
 import type { App } from '../../domain/services/WorkspaceDomainService'
 import type { App as AppType, CreateAppRequest } from '@/types'
 import { getAppDetailByUserAndCode, getAppWithServiceTree } from '@/api/app'
+import { useAuthStore } from '@/stores/auth'
 
 export function useWorkspaceApp(
   serviceProvider: IServiceProvider = serviceFactory  // 🔥 通过参数注入，提高可测试性
@@ -129,6 +130,15 @@ export function useWorkspaceApp(
   // 显示创建工作空间对话框
   const showCreateAppDialog = (): void => {
     resetCreateAppForm()
+    
+    // ⭐ 默认把当前登录用户添加到管理员列表
+    const authStore = useAuthStore()
+    const currentUsername = authStore.user?.username
+    if (currentUsername) {
+      adminsArray.value = [currentUsername]
+      console.log('[useWorkspaceApp] 默认添加当前用户为管理员:', currentUsername)
+    }
+    
     createAppDialogVisible.value = true
   }
 
