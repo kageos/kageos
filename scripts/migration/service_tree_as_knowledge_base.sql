@@ -32,24 +32,24 @@ FROM agents;
 -- Step 1: 修改 agents 表
 -- ========================================
 
--- 1.1 新增 docs_paths 字段（JSON 数组格式）
+-- 1.1 新增 docs_paths 字段（逗号分隔格式）
 ALTER TABLE agents
-  ADD COLUMN docs_paths TEXT COMMENT '文档路径数组（JSON 格式，如 ["​/system/official/sdk", "/user/myapp/docs"]）';
+  ADD COLUMN docs_paths VARCHAR(1000) COMMENT '文档路径（逗号分隔，如：/system/official/sdk,/user/myapp/docs）';
 
 -- 1.2 迁移现有数据（将 knowledge_base_id 转换为 docs_paths）
 -- 假设 knowledge_base_id = 1 对应标准库
 UPDATE agents 
-SET docs_paths = '["​/system/official/sdk"]'
+SET docs_paths = '/system/official/sdk'
 WHERE knowledge_base_id = 1;
 
 -- 其他知识库的智能体，暂时也指向标准库（后续可以手动调整）
 UPDATE agents 
-SET docs_paths = '["​/system/official/sdk"]'
+SET docs_paths = '/system/official/sdk'
 WHERE knowledge_base_id IS NOT NULL AND knowledge_base_id != 1;
 
 -- 未绑定知识库的智能体，使用默认标准库
 UPDATE agents 
-SET docs_paths = '["​/system/official/sdk"]'
+SET docs_paths = '/system/official/sdk'
 WHERE knowledge_base_id IS NULL OR knowledge_base_id = 0;
 
 -- 1.3 删除 knowledge_base_id 字段

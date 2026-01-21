@@ -4,9 +4,9 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 )
 
-// Doc 文档模型
+// Docs 文档模型
 // 文档内容存储在数据库中，通过 ServiceTree 的 RefID 关联
-type Doc struct {
+type Docs struct {
 	models.Base
 	Name         string `json:"name" gorm:"type:varchar(255);not null;comment:文档名称"`        // 文档名称（显示用）
 	Content      string `json:"content" gorm:"type:longtext;comment:文档内容（Markdown格式）"` // 文档内容（Markdown）
@@ -23,6 +23,6 @@ type Doc struct {
 }
 
 // TableName 指定表名
-func (Doc) TableName() string {
+func (Docs) TableName() string {
 	return "docs"
 }

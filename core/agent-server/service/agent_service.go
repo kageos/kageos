@@ -38,15 +38,13 @@ func normalizeMetadata(metadata string) (*string, error) {
 
 // AgentService 智能体服务
 type AgentService struct {
-	repo          *repository.AgentRepository
-	knowledgeRepo *repository.KnowledgeRepository
+	repo *repository.AgentRepository
 }
 
 // NewAgentService 创建智能体服务
-func NewAgentService(repo *repository.AgentRepository, knowledgeRepo *repository.KnowledgeRepository) *AgentService {
+func NewAgentService(repo *repository.AgentRepository) *AgentService {
 	return &AgentService{
-		repo:          repo,
-		knowledgeRepo: knowledgeRepo,
+		repo: repo,
 	}
 }
 
@@ -85,18 +83,8 @@ func (s *AgentService) CreateAgent(ctx context.Context, agent *model.Agent) erro
 	if agent.ChatType == "" {
 		return fmt.Errorf("聊天类型不能为空")
 	}
-	if agent.KnowledgeBaseID == 0 {
-		return fmt.Errorf("知识库ID不能为空")
-	}
-
-	// 验证知识库是否存在
-	_, err := s.knowledgeRepo.GetByID(agent.KnowledgeBaseID)
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return fmt.Errorf("知识库不存在")
-		}
-		return fmt.Errorf("验证知识库失败: %w", err)
-	}
+	// DocsPaths 可以为空，使用默认路径（/system/official/sdk）
+	// 无需验证
 
 	// 如果是 plugin 类型，验证 PluginFunctionPath
 	if agent.AgentType == "plugin" {
@@ -167,18 +155,8 @@ func (s *AgentService) UpdateAgent(ctx context.Context, agent *model.Agent) erro
 	if agent.ChatType == "" {
 		return fmt.Errorf("聊天类型不能为空")
 	}
-	if agent.KnowledgeBaseID == 0 {
-		return fmt.Errorf("知识库ID不能为空")
-	}
-
-	// 验证知识库是否存在
-	_, err = s.knowledgeRepo.GetByID(agent.KnowledgeBaseID)
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return fmt.Errorf("知识库不存在")
-		}
-		return fmt.Errorf("验证知识库失败: %w", err)
-	}
+	// DocsPaths 可以为空，使用默认路径（/system/official/sdk）
+	// 无需验证
 
 	// 如果是 plugin 类型，验证 PluginFunctionPath
 	if agent.AgentType == "plugin" {

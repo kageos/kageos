@@ -8,7 +8,6 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/repository"
-	appRepo "github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/pkg/llms"
 	"gorm.io/gorm"
 )
@@ -23,9 +22,6 @@ type AgentChatService struct {
 	sessionRepo     *repository.ChatSessionRepository
 	messageRepo     *repository.ChatMessageRepository
 	functionGenRepo *repository.FunctionGenRepository
-	
-	// Repository for docs (用于从服务树批量加载文档)
-	docRepo *appRepo.DocRepository
 }
 
 // NewAgentChatService 创建智能体聊天服务
@@ -36,7 +32,6 @@ func NewAgentChatService(
 	sessionRepo *repository.ChatSessionRepository,
 	messageRepo *repository.ChatMessageRepository,
 	functionGenRepo *repository.FunctionGenRepository,
-	docRepo *appRepo.DocRepository,
 ) *AgentChatService {
 	return &AgentChatService{
 		agentRepo:          agentRepo,
@@ -45,7 +40,6 @@ func NewAgentChatService(
 		sessionRepo:        sessionRepo,
 		messageRepo:        messageRepo,
 		functionGenRepo:    functionGenRepo,
-		docRepo:            docRepo,
 	}
 }
 
