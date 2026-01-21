@@ -81,6 +81,26 @@
  */
 
 import type { ServiceTree } from '@/types'
+import {
+  // 权限常量对象
+  DirectoryPermission,
+  FunctionPermission,
+  TablePermission,
+  FormPermission,
+  ChartPermission,
+  DocsPermission,
+  // 资源类型和操作类型
+  ResourceType,
+  ActionType,
+  // 工具函数
+  buildPermission,
+  parsePermission,
+  getPermissionsByResourceType,
+  // TypeScript 类型
+  type PermissionString,
+  type ResourceTypeString,
+  type ActionTypeString,
+} from '@/constants/permissions'
 
 /**
  * 获取权限的详细说明
@@ -540,7 +560,7 @@ export {
   type PermissionString,
   type ResourceTypeString,
   type ActionTypeString,
-} from '@/constants/permissions'
+}
 
 /**
  * 旧版本兼容：保持原有的导出名称
