@@ -21,7 +21,6 @@ type Agent struct {
 	cfg     *config.AgentServerConfig
 }
 
-
 // NewAgent 创建智能体 API 处理器
 func NewAgent(service *service.AgentService, cfg *config.AgentServerConfig) *Agent {
 	return &Agent{service: service, cfg: cfg}
@@ -58,16 +57,16 @@ func (h *Agent) List(c *gin.Context) {
 			safeAgents := make([]map[string]interface{}, 0, len(resp.Agents))
 			for _, agent := range resp.Agents {
 				safeAgent := map[string]interface{}{
-					"ID":              agent.ID,
-					"Name":            agent.Name,
-					"AgentType":       agent.AgentType,
-					"ChatType":        agent.ChatType,
-					"Enabled":         agent.Enabled,
-					"Description":     agent.Description,
-					"Timeout":         agent.Timeout,
-					"DocsPaths": agent.DocsPaths,
-					"LLMConfigID":      agent.LLMConfigID,
-					"PluginFunctionPath": agent.PluginFunctionPath,
+					"ID":                   agent.ID,
+					"Name":                 agent.Name,
+					"AgentType":            agent.AgentType,
+					"ChatType":             agent.ChatType,
+					"Enabled":              agent.Enabled,
+					"Description":          agent.Description,
+					"Timeout":              agent.Timeout,
+					"DocsPaths":            agent.DocsPaths,
+					"LLMConfigID":          agent.LLMConfigID,
+					"PluginFunctionPath":   agent.PluginFunctionPath,
 					"SystemPromptTemplate": fmt.Sprintf("<len:%d>", len(agent.SystemPromptTemplate)),
 				}
 				safeAgents = append(safeAgents, safeAgent)
@@ -128,9 +127,9 @@ func (h *Agent) List(c *gin.Context) {
 			Logo:                 agent.Logo,
 			Greeting:             agent.Greeting,
 			GreetingType:         agent.GreetingType,
-			Visibility:            agent.Visibility,
+			Visibility:           agent.Visibility,
 			Admin:                agent.Admin,
-			IsAdmin:               utils.IsAdmin(agent.Admin, currentUser),
+			IsAdmin:              utils.IsAdmin(agent.Admin, currentUser),
 			CreatedAt:            time.Time(agent.CreatedAt).Format("2006-01-02T15:04:05Z"),
 			UpdatedAt:            time.Time(agent.UpdatedAt).Format("2006-01-02T15:04:05Z"),
 		})
@@ -200,11 +199,11 @@ func (h *Agent) Get(c *gin.Context) {
 			ChatType:             agent.ChatType,
 			Enabled:              agent.Enabled,
 			Description:          agent.Description,
-		Timeout:              agent.Timeout,
-		PluginFunctionPath:   agent.PluginFunctionPath,
-		DocsPaths:            agent.DocsPaths,
-		LLMConfigID:          agent.LLMConfigID,
-		LLMConfig:            llmInfo,
+			Timeout:              agent.Timeout,
+			PluginFunctionPath:   agent.PluginFunctionPath,
+			DocsPaths:            agent.DocsPaths,
+			LLMConfigID:          agent.LLMConfigID,
+			LLMConfig:            llmInfo,
 			SystemPromptTemplate: agent.SystemPromptTemplate,
 			Metadata:             metadata,
 			Logo:                 agent.Logo,

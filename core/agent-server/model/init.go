@@ -11,13 +11,10 @@ func InitTables(db *gorm.DB) error {
 	if err := db.AutoMigrate(
 		// 第一层：基础表（不被其他表引用）
 		&Plugin{},        // 被 Agent 引用
-		&KnowledgeBase{}, // 被 Agent、KnowledgeDocument、KnowledgeChunk 引用
 		&LLMConfig{},     // 被 Agent 引用
 		
 		// 第二层：依赖基础表的表
-		&Agent{},         // 引用 Plugin、KnowledgeBase、LLMConfig
-		&KnowledgeDocument{}, // 引用 KnowledgeBase
-		&KnowledgeChunk{},    // 引用 KnowledgeBase
+		&Agent{},         // 引用 Plugin、LLMConfig
 		
 		// 第三层：依赖 Agent 的表
 		&AgentChatSession{}, // 引用 Agent
