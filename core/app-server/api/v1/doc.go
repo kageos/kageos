@@ -1,8 +1,6 @@
 package v1
 
 import (
-	"strings"
-
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
@@ -129,42 +127,33 @@ func (s *Doc) DeleteDoc(c *gin.Context) {
 
 // GetDocsBatch 根据路径列表批量获取文档
 // @Summary 根据路径列表批量获取文档
-// @Description 根据路径列表批量获取文档内容，支持路径前缀匹配
+// @Description 根据路径列表批量获取文档内容（POST 请求，避免与 wildcard 路由冲突）
 // @Tags 文档
 // @Accept json
 // @Produce json
 // @Security ApiKeyAuth
 // @Param X-Token header string true "JWT Token"
-// @Param paths query string true "文档路径列表（逗号分隔，如：/system/official/sdk,/user/myapp/docs）"
+// @Param body body dto.GetDocsByPathsReq true "文档路径列表"
 // @Success 200 {object} dto.GetDocsByPathsResp "文档列表"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/docs/batch [get]
+// @Router /api/v1/docs/query [post]
 func (s *Doc) GetDocsBatch(c *gin.Context) {
-	pathsStr := c.Query("paths")
-	if pathsStr == "" {
-		response.FailWithMessage(c, "paths 参数不能为空")
+	var req dto.GetDocsByPathsReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "参数错误: "+err.Error())
 		return
 	}
 
-	// 解析路径列表（逗号分隔）
-	paths := make([]string, 0)
-	for _, path := range strings.Split(pathsStr, ",") {
-		path = strings.TrimSpace(path)
-		if path != "" {
-			paths = append(paths, path)
-		}
-	}
-
-	if len(paths) == 0 {
-		response.FailWithMessage(c, "路径列表为空")
+	if len(req.Paths) == 0 {
+		response.FailWithMessage(c, "路径列表不能为空")
 		return
 	}
 
 	ctx := contextx.ToContext(c)
-	resp, err := s.docService.GetDocsByPaths(ctx, paths)
+	resp, err := s.docService.GetDocsByPaths(ctx, req.Paths)
 	if err != nil {
-		logger.Errorf(c, "[Doc API] 批量获取文档失败: paths=%v, error=%v", paths, err)
+		logger.Errorf(c, "[Doc API] 批量获取文档失败: paths=%v, error=%v", req.Paths, err)
 		response.FailWithMessage(c, "批量获取文档失败: "+err.Error())
 		return
 	}
