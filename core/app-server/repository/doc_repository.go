@@ -94,3 +94,32 @@ func (r *DocRepository) GetByIDs(ids []int64) ([]*model.Doc, error) {
 	}
 	return docs, nil
 }
+
+// GetByFullCodePaths 根据路径列表批量获取文档（支持路径前缀匹配）
+// paths: 路径列表，如 ["/system/official/sdk", "/user/myapp/docs"]
+// 会查询这些路径及其子路径下的所有文档
+func (r *DocRepository) GetByFullCodePaths(paths []string) ([]*model.Doc, error) {
+	if len(paths) == 0 {
+		return []*model.Doc{}, nil
+	}
+	
+	// 构建查询条件：full_code_path LIKE '/path1/%' OR full_code_path LIKE '/path2/%'
+	query := r.db.Model(&model.Doc{})
+	
+	for i, path := range paths {
+		if i == 0 {
+			// 第一个条件使用 Where
+			query = query.Where("full_code_path LIKE ? OR full_code_path = ?", path+"/%", path)
+		} else {
+			// 后续条件使用 Or
+			query = query.Or("full_code_path LIKE ? OR full_code_path = ?", path+"/%", path)
+		}
+	}
+	
+	var docs []*model.Doc
+	if err := query.Find(&docs).Error; err != nil {
+		return nil, err
+	}
+	
+	return docs, nil
+}

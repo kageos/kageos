@@ -313,24 +313,31 @@ func (s *AgentChatService) buildLLMMessages(ctx context.Context, req *dto.Functi
 
 // buildSystemMessage 构建系统消息
 func (s *AgentChatService) buildSystemMessage(ctx context.Context, req *dto.FunctionGenAgentChatReq, agent *model.Agent, traceId string) (llms.Message, error) {
-	// 1. 加载知识库内容
-	logger.Infof(ctx, "[FunctionGenChat] 加载知识库 - KBID: %d, TraceID: %s", agent.KnowledgeBaseID, traceId)
-	docs, err := s.knowledgeRepo.GetAllDocumentsByKBID(agent.KnowledgeBaseID)
+	// 1. 获取文档路径数组
+	docsPaths := agent.GetDocsPaths()
+	if len(docsPaths) == 0 {
+		// 使用默认路径（标准库）
+		docsPaths = []string{"/system/official/sdk"}
+		logger.Warnf(ctx, "[FunctionGenChat] agent.docs_paths 为空，使用默认路径: %v, TraceID: %s", docsPaths, traceId)
+	}
+	
+	logger.Infof(ctx, "[FunctionGenChat] 开始批量加载文档 - Paths: %v, TraceID: %s", docsPaths, traceId)
+	
+	// 2. 批量获取文档（一次 API 调用）
+	docsResp, err := s.getDocsByPaths(ctx, docsPaths, traceId)
 	if err != nil {
-		logger.Errorf(ctx, "[FunctionGenChat] 加载知识库文档失败 - KBID: %d, TraceID: %s, Error: %v", agent.KnowledgeBaseID, traceId, err)
-		return llms.Message{}, fmt.Errorf("加载知识库文档失败: %w", err)
+		logger.Errorf(ctx, "[FunctionGenChat] 批量获取文档失败 - Paths: %v, TraceID: %s, Error: %v", docsPaths, traceId, err)
+		// 不中断流程，继续使用空知识库
+		docsResp = &dto.GetDocsByPathsResp{Docs: []*dto.DocItem{}}
 	}
-
+	
+	// 3. 构建知识库内容
 	var knowledgeContent strings.Builder
-	completedCount := 0
-	for _, doc := range docs {
-		if doc.Status == "completed" {
-			knowledgeContent.WriteString(fmt.Sprintf("\n## %s\n%s\n", doc.Title, doc.Content))
-			completedCount++
-		}
+	for _, doc := range docsResp.Docs {
+		knowledgeContent.WriteString(fmt.Sprintf("\n## %s\n%s\n", doc.Name, doc.Content))
 	}
-	logger.Infof(ctx, "[FunctionGenChat] 知识库内容构建完成 - KBID: %d, CompletedDocs: %d, ContentLength: %d, TraceID: %s",
-		agent.KnowledgeBaseID, completedCount, knowledgeContent.Len(), traceId)
+	logger.Infof(ctx, "[FunctionGenChat] 知识库内容构建完成 - TotalDocs: %d, ContentLength: %d, TraceID: %s",
+		len(docsResp.Docs), knowledgeContent.Len(), traceId)
 
 	// 2. 构建系统提示词
 	var systemPromptContent strings.Builder
@@ -635,4 +642,34 @@ func (s *AgentChatService) extractCodeFromLLMResponse(content string) string {
 
 	// 如果没有找到代码块，返回原始内容
 	return content
+}
+
+// getDocsByPaths 批量获取文档（调用 apicall）
+func (s *AgentChatService) getDocsByPaths(ctx context.Context, paths []string, traceId string) (*dto.GetDocsByPathsResp, error) {
+	logger.Infof(ctx, "[FunctionGenChat] 调用批量获取文档 API - Paths: %v, TraceID: %s", paths, traceId)
+	
+	// 调用 app-server 的批量获取文档接口
+	resp, err := s.docRepo.GetByFullCodePaths(paths)
+	if err != nil {
+		logger.Errorf(ctx, "[FunctionGenChat] 批量获取文档失败 - Paths: %v, TraceID: %s, Error: %v", paths, traceId, err)
+		return nil, err
+	}
+	
+	// 转换为 DTO
+	docItems := make([]*dto.DocItem, 0, len(resp))
+	for _, doc := range resp {
+		docItems = append(docItems, &dto.DocItem{
+			ID:           doc.ID,
+			Name:         doc.Name,
+			Content:      doc.Content,
+			Format:       doc.Format,
+			FullCodePath: doc.FullCodePath,
+			Summary:      doc.Summary,
+			Category:     doc.Category,
+		})
+	}
+	
+	logger.Infof(ctx, "[FunctionGenChat] 批量获取文档成功 - Paths: %v, DocsCount: %d, TraceID: %s", paths, len(docItems), traceId)
+	
+	return &dto.GetDocsByPathsResp{Docs: docItems}, nil
 }

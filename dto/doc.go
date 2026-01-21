@@ -17,3 +17,24 @@ type UpdateDocReq struct {
 	Format       string `json:"format"`                            // 文档格式（可选）
 	Summary      string `json:"summary"`                           // 文档摘要（可选）
 }
+
+// DocItem 文档项
+type DocItem struct {
+	ID           int64  `json:"id"`
+	Name         string `json:"name"`
+	Content      string `json:"content"`
+	Format       string `json:"format"`
+	FullCodePath string `json:"full_code_path"`
+	Summary      string `json:"summary"`
+	Category     string `json:"category"`
+}
+
+// GetDocsByPathsReq 根据路径批量获取文档请求
+type GetDocsByPathsReq struct {
+	Paths []string `json:"paths"` // 文档路径列表
+}
+
+// GetDocsByPathsResp 根据路径批量获取文档响应
+type GetDocsByPathsResp struct {
+	Docs []*DocItem `json:"docs"` // 文档列表
+}
