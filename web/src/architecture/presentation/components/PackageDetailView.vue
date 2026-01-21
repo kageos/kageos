@@ -643,14 +643,9 @@ const showPermissionRequestTab = computed(() => {
 })
 
 // ⭐ 计算资源类型（用于权限组件）
-const resourceType = computed<'app' | 'directory'>(() => {
-  // 判断是否是根节点：package 类型且 parent_id=0
-  const isRootNode = props.packageNode?.type === 'package' && props.packageNode?.parent_id === 0
-  
-  if (isRootNode) {
-    return 'app'
-  }
-  return 'directory'  // 普通 package 类型对应 directory
+// ⭐ 所有 package 类型统一使用 directory 资源类型（包括根目录/工作空间）
+const resourceType = computed<'directory'>(() => {
+  return 'directory'
 })
 
 // 从路径解析 user 和 app
@@ -822,30 +817,14 @@ const hasNoDirectoryPermissions = computed(() => {
     return false
   }
   
-  // ⭐ 根据节点类型确定要检查的权限列表
-  // ⭐ 根节点（parent_id=0）使用 app 权限，普通 package 使用 directory 权限
-  let permissionsToCheck: string[]
-  const isRootNode = props.packageNode.type === 'package' && props.packageNode.parent_id === 0
-  
-  if (isRootNode) {
-    // 根节点检查 app:xxx 权限
-    permissionsToCheck = [
-      'app:read',
-      'app:write',
-      'app:update',
-      'app:delete',
-      'app:admin'
-    ]
-  } else {
-    // 普通 package 检查 directory:xxx 权限
-    permissionsToCheck = [
-      'directory:read',
-      'directory:write',
-      'directory:update',
-      'directory:delete',
-      'directory:admin'
-    ]
-  }
+  // ⭐ 所有 package 类型统一检查 directory 权限（包括根目录/工作空间）
+  const permissionsToCheck: string[] = [
+    'directory:read',
+    'directory:write',
+    'directory:update',
+    'directory:delete',
+    'directory:admin'
+  ]
   
   // 如果所有权限都是 false，则显示权限不足
   const hasNoPerms = permissionsToCheck.every(perm => {
@@ -863,10 +842,8 @@ function handleApplyPermission() {
     return
   }
   
-  // ⭐ 根据节点类型确定申请的权限类型
-  // ⭐ 根节点（parent_id=0）申请 app:read，普通 package 申请 directory:read
-  const isRootNode = props.packageNode.type === 'package' && props.packageNode.parent_id === 0
-  const defaultAction = isRootNode ? 'app:read' : 'directory:read'
+  // ⭐ 所有 package 类型统一申请 directory:read 权限（包括根目录/工作空间）
+  const defaultAction = 'directory:read'
   
   // 跳转到权限申请页面
   const applyURL = buildPermissionApplyURL(props.packageNode.full_code_path, defaultAction, undefined)

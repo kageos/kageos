@@ -210,14 +210,14 @@ func (a *AppService) assignAppAdminRoleToUser(ctx context.Context, user, app, us
 		return fmt.Errorf("权限服务未初始化")
 	}
 
-	// ⭐ 使用角色系统，分配"admin"角色（拥有 app:admin 权限）
-	// 应用级别使用 app 资源类型
+	// ⭐ 使用角色系统，分配"admin"角色（拥有 directory:admin 权限）
+	// 根目录使用 directory 资源类型（工作空间 = 根目录）
 	assignReq := &dto.AssignRoleToUserReq{
 		User:         user,
 		App:          app,
 		Username:     username,
 		RoleCode:     "admin", // 管理员角色
-		ResourceType: "app",   // ⭐ 应用级别使用 app 资源类型
+		ResourceType: "directory",   // ⭐ 根目录使用 directory 资源类型
 		ResourcePath: resourcePath,
 		StartTime:    nil, // 永久权限
 		EndTime:      nil, // 永久权限
@@ -249,13 +249,13 @@ func (a *AppService) removeAppAdminRoleFromUser(ctx context.Context, user, app, 
 	}
 
 	// ⭐ 使用角色系统，移除"admin"角色
-	// 应用级别使用 app 资源类型
+	// 根目录使用 directory 资源类型（工作空间 = 根目录）
 	removeReq := &dto.RemoveRoleFromUserReq{
 		User:         user,
 		App:          app,
 		Username:     username,
 		RoleCode:     "admin", // 管理员角色
-		ResourceType: "app",   // ⭐ 应用级别使用 app 资源类型
+		ResourceType: "directory",   // ⭐ 根目录使用 directory 资源类型
 		ResourcePath: resourcePath,
 	}
 

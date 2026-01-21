@@ -540,7 +540,8 @@ export const ChartPermissions = {
 } as const
 
 /**
- * 检查目录的相关权限
+ * 目录权限常量（包括根目录/工作空间）
+ * ⭐ 工作空间就是根目录，使用相同的权限体系
  */
 export const DirectoryPermissions = {
   read: 'directory:read',
@@ -548,17 +549,6 @@ export const DirectoryPermissions = {
   update: 'directory:update',
   delete: 'directory:delete',
   admin: 'directory:admin',
-} as const
-
-/**
- * 应用（工作空间）权限常量
- */
-export const AppPermissions = {
-  READ: 'app:read',
-  WRITE: 'app:write',
-  UPDATE: 'app:update',
-  DELETE: 'app:delete',
-  ADMIN: 'app:admin',
 } as const
 
 /**

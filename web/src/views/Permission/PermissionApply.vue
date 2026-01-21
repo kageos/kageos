@@ -115,9 +115,9 @@
                   <span class="scope-name-main">{{ currentScope.displayName }}</span>
                     <el-tag
                     size="small" 
-                    :type="currentScope.resourceType === 'function' ? 'primary' : currentScope.resourceType === 'directory' ? 'success' : currentScope.resourceType === 'app' ? 'warning' : 'info'"
+                    :type="currentScope.resourceType === 'function' ? 'primary' : 'success'"
                   >
-                    {{ currentScope.resourceType === 'function' ? '函数' : currentScope.resourceType === 'directory' ? '目录' : currentScope.resourceType === 'app' ? '工作空间' : '应用' }}
+                    {{ currentScope.resourceType === 'function' ? '函数' : '目录' }}
                     </el-tag>
                   </div>
                 </div>
@@ -556,9 +556,8 @@ const hasManagePermission = computed(() => {
   if (node.type === 'function') {
     return hasPermission(node, 'function:admin')
   } else if (node.type === 'package') {
-    // ⭐ 判断是否是根节点：parent_id=0 使用 app:admin，否则使用 directory:admin
-    const isRootNode = (node as any).parent_id === 0
-    return isRootNode ? hasPermission(node, 'app:admin') : hasPermission(node, 'directory:admin')
+    // ⭐ 所有 package 类型统一使用 directory:admin 权限（包括根目录/工作空间）
+    return hasPermission(node, 'directory:admin')
   }
   return false
 })

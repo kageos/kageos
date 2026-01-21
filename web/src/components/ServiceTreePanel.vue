@@ -142,9 +142,9 @@
                     申请权限
                   </el-dropdown-item>
                   
-                  <!-- 对 package 类型显示创建子目录选项（包括根节点和普通目录，需要 directory:write 或 app:write 权限） -->
+                  <!-- 对 package 类型显示创建子目录选项（包括根目录和普通目录，需要 directory:write 权限） -->
                   <el-dropdown-item 
-                    v-if="data.type === 'package' && (hasPermission(data, DirectoryPermissions.write) || hasPermission(data, AppPermissions.WRITE))" 
+                    v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.write)" 
                     command="create-directory"
                   >
                     <el-icon><Plus /></el-icon>
@@ -267,7 +267,7 @@ import {
   expandPathOnly
 } from '@/utils/serviceTreeUtils'
 import { navigateToHubDirectoryDetail } from '@/utils/hub-navigation'
-import { hasPermission, hasAnyPermissionForNode, DirectoryPermissions, AppPermissions, TablePermissions, buildPermissionApplyURL } from '@/utils/permission'
+import { hasPermission, hasAnyPermissionForNode, DirectoryPermissions, TablePermissions, buildPermissionApplyURL } from '@/utils/permission'
 import { useAuthStore } from '@/stores/auth'
 import { eventBus, RouteEvent } from '@/architecture/infrastructure/eventBus'
 
@@ -694,13 +694,12 @@ const defaultExpandedKeysWithWorkspace = computed(() => {
 const handleNoPermissionClick = (data: ServiceTree) => {
   // 跳转到权限申请页面
   const resourcePath = data.full_code_path
-  // ⭐ 判断是否是根节点（package 类型且 parent_id=0）
-  const isRootNode = data.type === 'package' && data.parent_id === 0
-  const resourceType = isRootNode ? 'app' : (data.type === 'package' ? 'directory' : 'function')
+  // ⭐ 根据节点类型确定资源类型（package 统一为 directory）
+  const resourceType = data.type === 'package' ? 'directory' : 'function'
   const templateType = data.template_type
   
   // 构建权限申请 URL
-  const defaultAction = resourceType === 'app' ? 'app:read' : (resourceType === 'directory' ? 'directory:read' : 'function:read')
+  const defaultAction = resourceType === 'directory' ? 'directory:read' : 'function:read'
   const url = `/permissions/apply?resource=${encodeURIComponent(resourcePath)}&action=${encodeURIComponent(defaultAction)}`
   const finalUrl = templateType ? `${url}&templateType=${encodeURIComponent(templateType)}` : url
   
@@ -729,10 +728,9 @@ const isAdmin = (node: ServiceTree): boolean => {
 // 处理申请权限
 const handleApplyPermission = (data: ServiceTree) => {
   const resourcePath = data.full_code_path
-  // ⭐ 判断是否是根节点（package 类型且 parent_id=0）
-  const isRootNode = data.type === 'package' && data.parent_id === 0
-  const resourceType = isRootNode ? 'app' : (data.type === 'package' ? 'directory' : 'function')
-  const defaultAction = resourceType === 'app' ? 'app:read' : (resourceType === 'directory' ? 'directory:read' : 'function:read')
+  // ⭐ 根据节点类型确定资源类型（package 统一为 directory）
+  const resourceType = data.type === 'package' ? 'directory' : 'function'
+  const defaultAction = resourceType === 'directory' ? 'directory:read' : 'function:read'
   const url = buildPermissionApplyURL(resourcePath, defaultAction, data.template_type)
   router.push(url)
 }
@@ -775,10 +773,9 @@ const handleApprovePermission = (data: ServiceTree) => {
 // 处理权限管理
 const handleManagePermission = (data: ServiceTree) => {
   const resourcePath = data.full_code_path
-  // ⭐ 判断是否是根节点（package 类型且 parent_id=0）
-  const isRootNode = data.type === 'package' && data.parent_id === 0
-  const resourceType = isRootNode ? 'app' : (data.type === 'package' ? 'directory' : 'function')
-  const defaultAction = resourceType === 'app' ? 'app:read' : (resourceType === 'directory' ? 'directory:read' : 'function:read')
+  // ⭐ 根据节点类型确定资源类型（package 统一为 directory）
+  const resourceType = data.type === 'package' ? 'directory' : 'function'
+  const defaultAction = resourceType === 'directory' ? 'directory:read' : 'function:read'
   // 权限管理页面，默认显示授权模式
   const url = buildPermissionApplyURL(resourcePath, defaultAction, data.template_type) + '&mode=grant'
   router.push(url)
