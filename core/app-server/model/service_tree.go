@@ -20,11 +20,16 @@ type ServiceTree struct {
 	Name         string `json:"name"`
 	Code         string `json:"code"`
 	ParentID     int64  `json:"parent_id" gorm:"default:0"`
-	Type         string `json:"type"` // 节点类型: package(服务目录/包), function(函数/文件), api(API接口), service(服务), module(模块)
+	Type         string `json:"type"` // 节点类型: package(服务目录/包), function(函数/文件), docs(文档), api(API接口), service(服务), module(模块)
 	Description  string `json:"description,omitempty"`
 	Tags         string `json:"tags"`
 	Admins       string `json:"admins" gorm:"type:varchar(150);comment:节点管理员列表，逗号分隔的用户名（如 user1,user2,user3）"` // 节点管理员列表
 	PendingCount int    `json:"pending_count" gorm:"default:0;comment:待审批的权限申请数量"`                             // ⭐ 待审批的权限申请数量
+	
+	// 是否标准库节点（自动对所有用户开放 read、write 权限）
+	// 标准库节点路径示例：/system/official/sdk、/system/official/plugins
+	IsStandardLib bool `json:"is_standard_lib" gorm:"default:false;index;comment:是否标准库节点"`
+	
 	AppID        int64  `json:"app_id"`
 	// FullGroupCode 和 GroupName 已移除，不再需要
 	RefID        int64  `json:"ref_id" gorm:"default:0"`                   // 引用ID：指向真实资源的ID，如果是package类型指向package的ID，如果是function类型指向function的ID
@@ -370,6 +375,16 @@ func (st *ServiceTree) GetPathSegments() []string {
 		return []string{}
 	}
 	return strings.Split(path, "/")
+}
+
+// IsStandardLibNode 判断是否为标准库节点
+func (st *ServiceTree) IsStandardLibNode() bool {
+	return st.IsStandardLib
+}
+
+// IsInStandardLib 判断节点是否在标准库路径下
+func (st *ServiceTree) IsInStandardLib() bool {
+	return strings.HasPrefix(st.FullCodePath, "/system/official/")
 }
 
 // GetFunctionPath 获取function的完整路径（仅对function节点有效）
