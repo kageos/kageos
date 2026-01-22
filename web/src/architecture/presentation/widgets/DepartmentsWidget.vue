@@ -764,61 +764,34 @@ async function loadDepartmentTree(): Promise<void> {
   min-width: 0;
 }
 
-.departments-tags-list {
+.departments-table-cell-list {
   display: flex;
   flex-direction: row;
   flex-wrap: nowrap;
-  gap: 6px;
+  gap: 8px;
   align-items: center;
   width: 100%;
   min-width: 0;
 }
 
-.departments-tags-list :deep(.el-popover__reference) {
-  display: inline-flex;
+.department-table-cell-item {
   flex-shrink: 0;
 }
 
-.departments-tags-list > .el-popover {
-  display: inline-flex;
-  flex-shrink: 0;
-}
-
-.department-tag {
+.more-indicator {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  cursor: default;
-  margin: 0;
+  padding: 2px 6px;
+  font-size: 12px;
+  color: var(--el-text-color-regular);
+  cursor: pointer;
+  transition: all 0.2s;
+  border-radius: 4px;
   
-  &.clickable {
-    cursor: pointer;
-    transition: all 0.2s;
-    
-    &:hover {
-      opacity: 0.8;
-      transform: translateY(-1px);
-    }
-  }
-  
-  &.more-indicator {
-    cursor: pointer;
+  &:hover {
     background-color: var(--el-fill-color-light);
-    border-color: var(--el-border-color);
-    color: var(--el-text-color-regular);
-    
-    &:hover {
-      background-color: var(--el-fill-color);
-      border-color: var(--el-color-primary);
-      color: var(--el-color-primary);
-    }
+    color: var(--el-color-primary);
   }
-}
-
-.department-icon-small {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
 }
 
 /* 详情模式样式 */
