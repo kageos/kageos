@@ -417,9 +417,9 @@ watch(() => props.mode, (newMode: string) => {
 })
 
 // 组件挂载时，如果有初始值，加载用户信息
-// 🔥 同时检查是否有动态默认值（如 me()）
+// 🔥 同时检查是否有动态默认值（如 Me()）
 onMounted(async () => {
-  // 🔥 检查是否有动态默认值需要设置（me()）
+  // 🔥 检查是否有动态默认值需要设置（Me()）
   // ⚠️ 重要：只有在新增模式下才使用默认值，编辑模式下不应该使用默认值
   if (props.mode === 'edit') {
     // ⚠️ 使用 nextTick 等待一下，确保 initializeForm 已经完成
@@ -433,25 +433,25 @@ onMounted(async () => {
       ? (config as Record<string, any>).default 
       : undefined
     
-    // 🔥 检查是否需要解析 me() 函数调用
-    // 情况1：value.raw 是 "me()" 字符串（FormDomainService 还没有解析）
-    // 情况2：value.raw 包含 "me()"（如 "me(),user2"）
-    // 情况3：value.raw 是 null/undefined/空字符串，且配置中有 "me()" 默认值
-    // 兼容旧数据：也支持 "$me" 格式（向后兼容）
-    const needsResolveMe = (typeof currentRaw === 'string' && (currentRaw.includes('me()') || currentRaw.includes('$me'))) ||
+    // 🔥 检查是否需要解析 Me() 函数调用
+    // 情况1：value.raw 是 "Me()" 或 "me()" 字符串（FormDomainService 还没有解析）
+    // 情况2：value.raw 包含 "Me()" 或 "me()"（如 "Me(),user2"）
+    // 情况3：value.raw 是 null/undefined/空字符串，且配置中有 "Me()" 或 "me()" 默认值
+    // 兼容旧数据：也支持 "me()" 和 "$me" 格式（向后兼容）
+    const needsResolveMe = (typeof currentRaw === 'string' && (currentRaw.includes('Me()') || currentRaw.includes('me()') || currentRaw.includes('$me'))) ||
       ((!currentRaw || currentRaw === '') && 
-       typeof defaultValue === 'string' && (defaultValue.includes('me()') || defaultValue.includes('$me')))
+       typeof defaultValue === 'string' && (defaultValue.includes('Me()') || defaultValue.includes('me()') || defaultValue.includes('$me')))
     
     if (needsResolveMe) {
-      // ⚠️ 检查是否是编辑模式：如果 existingValue 存在且 raw 不是 "me()" 且不包含 "me()"，说明是编辑模式
-      // 编辑模式下，existingValue.raw 应该是实际的用户名，不应该是 "me()"
+      // ⚠️ 检查是否是编辑模式：如果 existingValue 存在且 raw 不包含 "Me()" 或 "me()"，说明是编辑模式
+      // 编辑模式下，existingValue.raw 应该是实际的用户名，不应该是 "Me()" 或 "me()"
       const isEditMode = existingValue && 
                         existingValue.raw !== null && 
                         existingValue.raw !== undefined && 
                         existingValue.raw !== '' && 
-                        (typeof existingValue.raw !== 'string' || (!existingValue.raw.includes('me()') && !existingValue.raw.includes('$me')))
+                        (typeof existingValue.raw !== 'string' || (!existingValue.raw.includes('Me()') && !existingValue.raw.includes('me()') && !existingValue.raw.includes('$me')))
       
-      // 只有在新增模式下才解析 me()
+      // 只有在新增模式下才解析 Me()
       if (!isEditMode) {
         const { useAuthStore } = await import('@/stores/auth')
         const authStore = useAuthStore()
@@ -460,19 +460,19 @@ onMounted(async () => {
         if (currentUsername) {
           let processedValue: string
           
-          // 优先处理新格式 me()，兼容旧格式 $me
-          if (typeof defaultValue === 'string' && (defaultValue === 'me()' || defaultValue === '$me')) {
-            // 单个 me() 或 $me
+          // 优先处理新格式 Me()，兼容旧格式 me() 和 $me
+          if (typeof defaultValue === 'string' && (defaultValue === 'Me()' || defaultValue === 'me()' || defaultValue === '$me')) {
+            // 单个 Me()、me() 或 $me
             processedValue = currentUsername
           } else if (typeof defaultValue === 'string' && defaultValue.includes(',')) {
-            // 多个默认值，用逗号分隔（如 "me(),user2" 或 "$me,user2"）
-            processedValue = defaultValue.replace(/me\(\)/g, currentUsername).replace(/\$me/g, currentUsername)
-          } else if (typeof currentRaw === 'string' && (currentRaw === 'me()' || currentRaw === '$me')) {
-            // value.raw 是 "me()" 或 "$me"，直接替换
+            // 多个默认值，用逗号分隔（如 "Me(),user2" 或 "me(),user2" 或 "$me,user2"）
+            processedValue = defaultValue.replace(/Me\(\)/g, currentUsername).replace(/me\(\)/g, currentUsername).replace(/\$me/g, currentUsername)
+          } else if (typeof currentRaw === 'string' && (currentRaw === 'Me()' || currentRaw === 'me()' || currentRaw === '$me')) {
+            // value.raw 是 "Me()"、"me()" 或 "$me"，直接替换
             processedValue = currentUsername
-          } else if (typeof currentRaw === 'string' && (currentRaw.includes('me()') || currentRaw.includes('$me'))) {
-            // value.raw 包含 "me()" 或 "$me"（如 "me(),user2" 或 "$me,user2"）
-            processedValue = currentRaw.replace(/me\(\)/g, currentUsername).replace(/\$me/g, currentUsername)
+          } else if (typeof currentRaw === 'string' && (currentRaw.includes('Me()') || currentRaw.includes('me()') || currentRaw.includes('$me'))) {
+            // value.raw 包含 "Me()"、"me()" 或 "$me"（如 "Me(),user2" 或 "me(),user2" 或 "$me,user2"）
+            processedValue = currentRaw.replace(/Me\(\)/g, currentUsername).replace(/me\(\)/g, currentUsername).replace(/\$me/g, currentUsername)
           } else {
             processedValue = currentUsername
           }

@@ -3,7 +3,7 @@
  * 
  * 支持函数调用形式：
  * - 时间函数：Now()、Today()、Tomorrow()、Yesterday()
- * - 用户函数：me()
+ * - 用户函数：Me()
  * 
  * 函数参数格式（参数不需要引号）：
  * - Now(+1h): 一小时后
@@ -67,7 +67,7 @@ function parseTimeOffset(offset: string): number {
 
 /**
  * 解析函数调用
- * @param funcCall 函数调用字符串，如 "Now()", "Now(+1h)", "me()"
+ * @param funcCall 函数调用字符串，如 "Now()", "Now(+1h)", "Me()"
  * @returns 解析后的函数名和参数
  * 
  * 注意：参数不需要引号，如 Now(+1h) 而不是 Now("+1h")
@@ -119,7 +119,7 @@ function parseFunctionCall(funcCall: string): { name: string; args: string[] } |
 
 /**
  * 解析动态默认值
- * @param defaultValue 默认值（可能是函数调用，如 Now()、me() 等）
+ * @param defaultValue 默认值（可能是函数调用，如 Now()、Me() 等）
  * @param widgetType 组件类型
  * @param getAuthStore 获取 authStore 的函数（可选，用于延迟获取）
  * @returns 解析后的值
@@ -196,7 +196,7 @@ export function resolveDynamicDefaultValue(
   // 用户选择器：支持用户函数
   if (widgetType === 'user' || widgetType === 'users') {
     if (funcName === 'me') {
-      // me() - 当前登录用户
+      // Me() 或 me() - 当前登录用户（兼容旧格式 me()）
       if (getAuthStore) {
         const authStore = getAuthStore()
         return authStore?.user?.username || null

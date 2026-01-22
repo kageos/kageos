@@ -4,24 +4,24 @@ package widget
 //
 // 功能：
 // - 支持多个用户搜索和选择
-// - 支持动态默认值函数：me()（当前登录用户）
+// - 支持动态默认值函数：Me()（当前登录用户）
 // - 值使用逗号分隔的字符串格式存储（如 "user1,user2,user3"）
 //
 // 使用示例：
-//   widget:"name:审核人;type:users;default:me()"
+//   widget:"name:审核人;type:users;default:Me()"
 //   widget:"name:管理员;type:users;max_count:5"
 //
 // 动态默认值函数说明：
-//   - me(): 自动填充当前登录用户的用户名，用户无需手动选择
-//   - 支持多个默认值，用逗号分隔：me(),user2
+//   - Me(): 自动填充当前登录用户的用户名，用户无需手动选择
+//   - 支持多个默认值，用逗号分隔：Me(),user2
 //
 // 注意：
-//   - default 参数支持函数调用（如 me()）
-//   - 如果用户未登录，me() 会返回 null
+//   - default 参数支持函数调用（如 Me()）
+//   - 如果用户未登录，Me() 会返回 null
 //   - 值存储格式：逗号分隔的字符串（如 "user1,user2"），便于存储到数据库
 //   - 前端会自动处理字符串和数组之间的转换
 type Users struct {
-	Default  string `json:"default,omitempty"`   // 默认值，支持函数调用 me()（当前登录用户），多个值用逗号分隔
+	Default  string `json:"default,omitempty"`   // 默认值，支持函数调用 Me()（当前登录用户），多个值用逗号分隔
 	MaxCount int    `json:"max_count,omitempty"` // 最大选择数量，0表示不限制
 }
 
