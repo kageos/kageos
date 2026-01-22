@@ -14,11 +14,18 @@ func GetDocsByPaths(ctx context.Context, paths []string) (*dto.GetDocsByPathsRes
 		return &dto.GetDocsByPathsResp{Docs: []*dto.DocItem{}}, nil
 	}
 	
-	// 构建请求体
-	req := dto.GetDocsByPathsReq{
-		Paths: paths,
+	// 构建请求体（使用新的统一接口）
+	req := dto.QueryDocsReq{
+		Paths:          paths,
+		IncludeContent: true, // 智能体需要完整内容
 	}
 	
-	// POST 请求（避免 Gin wildcard 路由冲突）
-	return PostAPI[dto.GetDocsByPathsReq, *dto.GetDocsByPathsResp](ctx, "/workspace/api/v1/docs/query", req)
+	// POST 请求
+	resp, err := PostAPI[dto.QueryDocsReq, *dto.QueryDocsResp](ctx, "/workspace/api/v1/docs/query", req)
+	if err != nil {
+		return nil, err
+	}
+	
+	// 转换为旧格式（向后兼容）
+	return &dto.GetDocsByPathsResp{Docs: resp.Docs}, nil
 }
