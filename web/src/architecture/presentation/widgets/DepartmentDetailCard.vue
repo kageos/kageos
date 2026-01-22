@@ -263,7 +263,7 @@ function handleGoToOrganizationPage() {
 }
 
 .tree-container {
-  max-height: 200px;
+  max-height: 400px;
   overflow-y: auto;
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 4px;
