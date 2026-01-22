@@ -4,20 +4,20 @@ package widget
 //
 // 功能：
 // - 支持用户搜索和选择
-// - 支持动态默认值：$me（当前登录用户）
+// - 支持动态默认值函数：me()（当前登录用户）
 //
 // 使用示例：
-//   widget:"name:预约人;type:user;default:$me"
+//   widget:"name:预约人;type:user;default:me()"
 //
-// 动态默认值说明：
-//   - $me: 自动填充当前登录用户的用户名，用户无需手动选择
+// 动态默认值函数说明：
+//   - me(): 自动填充当前登录用户的用户名，用户无需手动选择
 //   适用于：预约人、创建人、负责人等字段，大部分情况下默认是自己
 //
 // 注意：
-//   - default 参数支持动态变量（以 $ 开头）
-//   - 如果用户未登录，$me 会返回 null
+//   - default 参数支持函数调用（如 me()）
+//   - 如果用户未登录，me() 会返回 null
 type User struct {
-	Default string `json:"default,omitempty"` // 默认值，支持动态变量 $me（当前登录用户）
+	Default string `json:"default,omitempty"` // 默认值，支持函数调用 me()（当前登录用户）
 }
 
 func (u *User) Config() interface{} {
