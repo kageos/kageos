@@ -19,7 +19,7 @@ import { resolveDynamicDefaultValue } from '@/architecture/presentation/widgets/
  * 
  * @param field 字段配置
  * @param customConverter 自定义转换函数（可选，用于组件特定的转换逻辑）
- * @param getAuthStore 获取 authStore 的函数（可选，用于解析 Me()）
+ * @param getAuthStore 获取 authStore 的函数（可选，用于解析 Me()、MyDepartment()）
  * @returns 默认的 FieldValue
  */
 export function getWidgetDefaultValue(
@@ -45,7 +45,7 @@ export function getWidgetDefaultValue(
     })
     
     if (defaultValue !== undefined && defaultValue !== null && defaultValue !== '') {
-      // 🔥 解析函数调用（如 Me(), Now(), Today() 等）
+      // 🔥 解析函数调用（如 Me(), MyDepartment(), Now(), Today() 等）
       const widgetType = field.widget?.type || ''
       defaultValue = resolveDynamicDefaultValue(defaultValue, widgetType, getAuthStore)
       console.log(`🔍 [getWidgetDefaultValue] 字段 ${field.code} 解析动态变量后`, {

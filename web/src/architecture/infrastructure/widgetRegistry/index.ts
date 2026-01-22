@@ -101,6 +101,8 @@ import RichTextWidget from '@/architecture/presentation/widgets/RichTextWidget.v
 // 解决方案：在函数内部动态导入，而不是在模块顶层导入
 import UserWidget from '@/architecture/presentation/widgets/UserWidget.vue'
 import UsersWidget from '@/architecture/presentation/widgets/UsersWidget.vue'
+import DepartmentWidget from '@/architecture/presentation/widgets/DepartmentWidget.vue'
+import DepartmentsWidget from '@/architecture/presentation/widgets/DepartmentsWidget.vue'
 import LinkWidget from '@/architecture/presentation/widgets/LinkWidget.vue'
 import ProgressWidget from '@/architecture/presentation/widgets/ProgressWidget.vue'
 
@@ -118,7 +120,6 @@ function registerBasicComponents(): void {
   widgetComponentFactory.registerRequestComponent(WidgetType.FLOAT, FloatWidget)
   
   widgetComponentFactory.registerRequestComponent(WidgetType.TEXT_AREA, TextAreaWidget)
-  widgetComponentFactory.registerRequestComponent('textarea', TextAreaWidget)  // 兼容旧命名
   
   widgetComponentFactory.registerRequestComponent(WidgetType.SWITCH, SwitchWidget)
   
@@ -138,6 +139,8 @@ function registerBasicComponents(): void {
   
   widgetComponentFactory.registerRequestComponent(WidgetType.USER, UserWidget)
   widgetComponentFactory.registerRequestComponent(WidgetType.USERS, UsersWidget)
+  widgetComponentFactory.registerRequestComponent(WidgetType.DEPARTMENT, DepartmentWidget)
+  widgetComponentFactory.registerRequestComponent(WidgetType.DEPARTMENTS, DepartmentsWidget)
   
   // 链接组件
   widgetComponentFactory.registerRequestComponent(WidgetType.LINK, LinkWidget)

@@ -13,6 +13,8 @@ export const WidgetType = {
   TIMESTAMP: 'timestamp',
   USER: 'user',
   USERS: 'users',
+  DEPARTMENT: 'department',
+  DEPARTMENTS: 'departments',
   ID: 'ID',
   NUMBER: 'number',
   FLOAT: 'float',

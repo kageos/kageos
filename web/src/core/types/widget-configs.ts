@@ -361,6 +361,66 @@ export interface UserWidgetConfig {
 }
 
 /**
+ * Users Widget 配置
+ * 对应后端：sdk/agent-app/widget/users.go
+ * 
+ * 功能：
+ * - 支持多个用户搜索和选择
+ * - 支持动态默认值函数：Me()（当前登录用户）
+ * - 值使用逗号分隔的字符串格式存储（如 "user1,user2"）
+ */
+export interface UsersWidgetConfig {
+  /** 
+   * 默认值
+   * 支持函数调用 Me()（当前登录用户），多个值用逗号分隔
+   */
+  default?: string
+  
+  /** 最大选择数量，0表示不限制 */
+  max_count?: number
+  
+  /** 详情模式最多显示的头像数量（默认 5 个） */
+  max_display_count?: number
+}
+
+/**
+ * Department Widget 配置
+ * 对应后端：sdk/agent-app/widget/department.go
+ * 
+ * 功能：
+ * - 支持组织架构搜索和选择
+ * - 支持动态默认值函数：MyDepartment()（当前用户所在部门）
+ */
+export interface DepartmentWidgetConfig {
+  /** 
+   * 默认值
+   * 支持函数调用 MyDepartment()（当前用户所在部门）
+   * 适用于：所属部门、创建部门等字段
+   */
+  default?: string
+}
+
+/**
+ * Departments Widget 配置
+ * 对应后端：sdk/agent-app/widget/departments.go
+ * 
+ * 功能：
+ * - 支持多个组织架构搜索和选择
+ * - 支持动态默认值函数：MyDepartment()（当前用户所在部门）
+ * - 值使用逗号分隔的字符串格式存储（如 "/dept1,/dept2"）
+ */
+export interface DepartmentsWidgetConfig {
+  /** 
+   * 默认值
+   * 支持函数调用 MyDepartment()（当前用户所在部门），多个值用逗号分隔
+   */
+  default?: string
+  
+  /** 最大选择数量，0表示不限制 */
+  max_count?: number
+}
+
+/**
  * Text Widget 配置
  * 对应后端：sdk/agent-app/widget/text.go
  * 
@@ -427,6 +487,9 @@ export type WidgetConfigMap = {
   checkbox: CheckboxWidgetConfig
   radio: RadioWidgetConfig
   user: UserWidgetConfig
+  users: UsersWidgetConfig
+  department: DepartmentWidgetConfig
+  departments: DepartmentsWidgetConfig
   text: TextWidgetConfig
   ID: IDWidgetConfig
   table: TableWidgetConfig
@@ -466,6 +529,9 @@ export type AnyWidgetConfig =
   | CheckboxWidgetConfig
   | RadioWidgetConfig
   | UserWidgetConfig
+  | UsersWidgetConfig
+  | DepartmentWidgetConfig
+  | DepartmentsWidgetConfig
   | TextWidgetConfig
   | IDWidgetConfig
   | TableWidgetConfig
