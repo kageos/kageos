@@ -748,6 +748,14 @@ async function loadDepartmentTree(): Promise<void> {
   align-items: center;
 }
 
+.departments-tags-list :deep(.el-popover__reference) {
+  display: inline-block;
+}
+
+.departments-tags-list > .el-popover {
+  display: inline-block;
+}
+
 .department-tag {
   display: inline-flex;
   align-items: center;
