@@ -100,7 +100,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { ElButton, ElDialog, ElTree, ElTag, ElInput, ElIcon, ElMessage } from 'element-plus'
 import { Document, Folder, Search } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/types'
@@ -256,15 +256,20 @@ const handleRemovePath = (index: number) => {
   const newPaths = [...selectedPaths.value]
   newPaths.splice(index, 1)
   selectedPaths.value = newPaths
+  pathsInput.value = newPaths.join(',')
 }
 </script>
 
 <style scoped lang="scss">
 .docs-path-selector {
   .selected-paths {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
+    width: 100%;
+    
+    .path-tags {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+    }
   }
   
   .selector-content {
