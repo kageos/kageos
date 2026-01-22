@@ -23,8 +23,9 @@
             <template #reference>
               <el-tag
                 closable
-                @close.stop="handleRemoveDepartment(dept)"
+                @close="handleRemoveDepartment(dept)"
                 style="margin-right: 8px; margin-bottom: 4px; cursor: pointer;"
+                @click.stop
               >
                 <img src="/组织架构.svg" alt="组织架构" class="department-icon-small" />
                 <span class="department-display-text">
@@ -506,7 +507,8 @@ onMounted(async () => {
   }
   
   // 加载部门树（用于详情卡片显示）
-  if (props.mode === 'table-cell' || props.mode === 'response' || props.mode === 'detail') {
+  // edit/search 模式下也需要加载，因为可以点击查看详情
+  if (props.mode === 'table-cell' || props.mode === 'response' || props.mode === 'detail' || props.mode === 'edit' || props.mode === 'search') {
     loadDepartmentTree()
   }
 })
