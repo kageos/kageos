@@ -30,15 +30,15 @@ type DocItem struct {
 // QueryDocsReq 查询文档请求（统一接口，支持路径批量查询和关键词搜索）
 type QueryDocsReq struct {
 	// 路径批量查询模式：提供 paths
-	Paths []string `json:"paths"` // 文档路径列表（与 keyword 二选一）
+	Paths []string `form:"paths" json:"paths"` // 文档路径列表（与 keyword 二选一，支持 paths[]=value1&paths[]=value2 或 paths=value1&paths=value2）
 	
 	// 关键词搜索模式：提供 keyword
-	Keyword  string `json:"keyword"`  // 搜索关键词（可选，用于搜索名称和路径，与 paths 二选一）
-	Page     int    `json:"page"`    // 页码（搜索模式时使用，默认 1）
-	PageSize int    `json:"page_size"` // 每页数量（搜索模式时使用，默认 10，最大 100）
+	Keyword  string `form:"keyword" json:"keyword"`  // 搜索关键词（可选，用于搜索名称和路径，与 paths 二选一）
+	Page     int    `form:"page" json:"page"`    // 页码（搜索模式时使用，默认 1）
+	PageSize int    `form:"page_size" json:"page_size"` // 每页数量（搜索模式时使用，默认 10，最大 100）
 	
 	// 通用参数
-	IncludeContent bool `json:"include_content"` // 是否包含文档内容（默认 true，设为 false 时只返回元数据，适合列表展示）
+	IncludeContent bool `form:"include_content" json:"include_content"` // 是否包含文档内容（默认 true，设为 false 时只返回元数据，适合列表展示）
 }
 
 // QueryDocsResp 查询文档响应

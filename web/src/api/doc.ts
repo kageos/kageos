@@ -80,13 +80,34 @@ export interface QueryDocsResp {
  * @param req 查询请求
  */
 export function queryDocs(req: QueryDocsReq) {
-  return post<QueryDocsResp>('/workspace/api/v1/docs/query', {
-    paths: req.paths || [],
-    keyword: req.keyword || '',
-    page: req.page || 1,
-    page_size: req.page_size || 20,
-    include_content: req.include_content !== false // 默认 true
-  })
+  const params = new URLSearchParams()
+  
+  // 路径批量查询模式
+  if (req.paths && req.paths.length > 0) {
+    req.paths.forEach(path => {
+      params.append('paths', path)
+    })
+  }
+  
+  // 关键词搜索模式
+  if (req.keyword) {
+    params.append('keyword', req.keyword)
+  }
+  
+  // 分页参数（搜索模式时使用）
+  if (req.page) {
+    params.append('page', req.page.toString())
+  }
+  if (req.page_size) {
+    params.append('page_size', req.page_size.toString())
+  }
+  
+  // 通用参数
+  if (req.include_content !== undefined) {
+    params.append('include_content', req.include_content.toString())
+  }
+  
+  return get<QueryDocsResp>(`/workspace/api/v1/docs/query?${params.toString()}`)
 }
 
 /**

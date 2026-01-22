@@ -133,14 +133,18 @@ func (s *Doc) DeleteDoc(c *gin.Context) {
 // @Produce json
 // @Security ApiKeyAuth
 // @Param X-Token header string true "JWT Token"
-// @Param body body dto.QueryDocsReq true "查询请求"
+// @Param paths query []string false "文档路径列表（与 keyword 二选一，支持 paths[]=value1&paths[]=value2）"
+// @Param keyword query string false "搜索关键词（与 paths 二选一）"
+// @Param page query int false "页码（搜索模式时使用，默认 1）"
+// @Param page_size query int false "每页数量（搜索模式时使用，默认 10，最大 100）"
+// @Param include_content query bool false "是否包含文档内容（默认 true）"
 // @Success 200 {object} dto.QueryDocsResp "查询成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/docs/query [post]
+// @Router /api/v1/docs/query [get]
 func (s *Doc) QueryDocs(c *gin.Context) {
 	var req dto.QueryDocsReq
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBindQuery(&req); err != nil {
 		response.FailWithMessage(c, "参数错误: "+err.Error())
 		return
 	}
