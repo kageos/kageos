@@ -400,13 +400,11 @@ const handleRemovePath = (index: number) => {
     
     .close-btn {
       padding: 4px;
-      border-radius: 6px;
-      transition: all 0.2s;
+      transition: color 0.2s;
       color: var(--el-text-color-secondary);
       
       &:hover {
         color: var(--el-text-color-primary);
-        background: var(--el-fill-color-light);
       }
     }
   }
