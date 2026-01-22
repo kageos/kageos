@@ -4,51 +4,56 @@ package widget
 //
 // 功能：
 // - 支持日期时间选择
-// - 支持动态默认值：$now、$today、$tomorrow、$yesterday
+// - 支持动态默认值函数：Now()、Today()、Tomorrow()、Yesterday() 等
 //
 // 使用示例：
-//   widget:"name:开始时间;type:timestamp;default:$now;format:YYYY-MM-DD HH:mm:ss"
-//   widget:"name:创建时间;type:timestamp;default:$today;format:YYYY-MM-DD HH:mm:ss"
-//   widget:"name:截止日期;type:timestamp;default:$tomorrow;format:YYYY-MM-DD"
+//   widget:"name:开始时间;type:timestamp;default:Now();format:YYYY-MM-DD HH:mm:ss"
+//   widget:"name:创建时间;type:timestamp;default:Today();format:YYYY-MM-DD HH:mm:ss"
+//   widget:"name:截止日期;type:timestamp;default:Tomorrow();format:YYYY-MM-DD"
+//   widget:"name:一小时后;type:timestamp;default:Now(\"+1h\");format:YYYY-MM-DD HH:mm:ss"
+//   widget:"name:两天后;type:timestamp;default:Now(\"+2d\");format:YYYY-MM-DD HH:mm:ss"
 //
-// 动态默认值说明：
-//   基础时间：
-//   - $now: 当前时间（毫秒时间戳），适用于：开始时间、创建时间等
-//   - $today: 今天开始时间 00:00:00（毫秒时间戳），适用于：创建日期、开始日期等
-//   - $tomorrow: 明天开始时间 00:00:00（毫秒时间戳），适用于：截止日期、到期日期等
-//   - $yesterday: 昨天开始时间 00:00:00（毫秒时间戳），适用于：历史记录查询等
-//   相对时间（此刻）：
-//   - $yesterday_now: 昨天此刻
-//   - $tomorrow_now: 明天此刻
-//   相对时间（小时）：
-//   - $after_1h, $after_2h, $after_3h, $after_6h, $after_12h: 1/2/3/6/12小时后
-//   - $before_1h, $before_2h, $before_3h: 1/2/3小时前
-//   相对时间（天）：
-//   - $after_1d, $after_2d, $after_3d, $after_7d, $after_30d: 1/2/3/7/30天后
-//   - $before_1d, $before_2d, $before_7d, $before_30d: 1/2/7/30天前
-//   相对时间（周）：
-//   - $next_week: 下周一开始（00:00:00）
-//   - $last_week: 上周一开始（00:00:00）
-//   相对时间（月）：
-//   - $next_month: 下个月1号（00:00:00）
-//   - $last_month: 上个月1号（00:00:00）
-//   相对时间（年）：
-//   - $next_year: 明年1月1日（00:00:00）
-//   - $last_year: 去年1月1日（00:00:00）
+// 动态默认值函数说明：
+//   基础时间函数：
+//   - Now(): 当前时间（毫秒时间戳），适用于：开始时间、创建时间等
+//   - Today(): 今天开始时间 00:00:00（毫秒时间戳），适用于：创建日期、开始日期等
+//   - Tomorrow(): 明天开始时间 00:00:00（毫秒时间戳），适用于：截止日期、到期日期等
+//   - Yesterday(): 昨天开始时间 00:00:00（毫秒时间戳），适用于：历史记录查询等
+//
+//   相对时间函数（Now() 支持参数）：
+//   - Now("+1h"): 一小时后（当前时间 + 1小时）
+//   - Now("-1h"): 一小时前（当前时间 - 1小时）
+//   - Now("+2d"): 两天后（当前时间 + 2天）
+//   - Now("-2d"): 两天前（当前时间 - 2天）
+//   - Now("+1w"): 一周后（当前时间 + 1周）
+//   - Now("-1w"): 一周前（当前时间 - 1周）
+//   - Now("+1m"): 一个月后（当前时间 + 1月）
+//   - Now("-1m"): 一个月前（当前时间 - 1月）
+//   - Now("+1y"): 一年后（当前时间 + 1年）
+//   - Now("-1y"): 一年前（当前时间 - 1年）
+//   - Now("+3600s"): 3600秒后（当前时间 + 3600秒）
+//   - Now("-3600s"): 3600秒前（当前时间 - 3600秒）
+//   - Now("+2"): 2小时后（如果只写数字，默认单位是小时）
+//
+//   参数格式说明：
+//   - 支持正负号：+ 表示未来，- 表示过去
+//   - 支持单位：s(秒)、h(小时)、d(天)、w(周)、m(月)、y(年)
+//   - 如果只写数字（如 "+2"），默认单位是小时
+//   - 示例：Now("+1h"), Now("-2d"), Now("+1w"), Now("-1m"), Now("+3600s")
 //
 // 参数说明：
 //   - format: 日期格式，如 YYYY-MM-DD HH:mm:ss、YYYY-MM-DD 等
 //   - disabled: 是否禁用（只读模式）
-//   - default: 默认值，支持动态变量（以 $ 开头）或具体时间戳
+//   - default: 默认值，支持函数调用（如 Now()、Today()）或具体时间戳
 //
 // 注意：
-//   - 所有动态变量返回的是毫秒级时间戳
+//   - 所有函数返回的是毫秒级时间戳
 //   - 如果字段已有值（编辑模式），不会覆盖已有值
 //   - 只有在字段为空时，才会使用默认值
 type Timestamp struct {
 	Format   string `json:"format,omitempty"`   // 日期格式，如 YYYY-MM-DD HH:mm:ss
 	Disabled bool   `json:"disabled,omitempty"` // 是否禁用
-	Default  string `json:"default,omitempty"`  // 默认值，支持动态变量 $now、$today、$tomorrow、$yesterday
+	Default  string `json:"default,omitempty"`  // 默认值，支持函数调用 Now()、Today()、Tomorrow()、Yesterday() 等
 }
 
 func (t *Timestamp) Config() interface{} {
