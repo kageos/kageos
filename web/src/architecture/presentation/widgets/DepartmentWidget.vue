@@ -8,9 +8,34 @@
   <div class="department-widget">
     <!-- 编辑模式：组织架构选择器（使用弹窗搜索） -->
     <div v-if="mode === 'edit' || mode === 'search'" class="department-select-wrapper">
-      <!-- 选中后的显示 -->
+      <!-- 搜索模式下支持多选时的显示 -->
       <div
-        v-if="selectedDepartmentForDisplay"
+        v-if="mode === 'search' && supportsMultipleSelection && selectedDepartmentsForDisplay.length > 0"
+        class="departments-select-display"
+        @click="handleOpenDialog()"
+      >
+        <div class="selected-departments-list">
+          <div
+            v-for="(dept, index) in selectedDepartmentsForDisplay"
+            :key="dept.full_code_path"
+            class="selected-department-tag"
+          >
+            <img src="/组织架构.svg" alt="组织架构" class="department-icon-small" />
+            <span class="department-display-text">
+              {{ dept.name }}
+            </span>
+            <el-icon class="remove-icon" @click.stop="handleRemoveDepartment(dept)">
+              <Close />
+            </el-icon>
+          </div>
+        </div>
+        <el-icon class="edit-icon">
+          <Edit />
+        </el-icon>
+      </div>
+      <!-- 单选模式或未选中时的显示 -->
+      <div
+        v-else-if="selectedDepartmentForDisplay"
         class="department-select-display"
         :class="{ 'is-disabled': false }"
         @click="handleOpenDialog()"
@@ -96,7 +121,7 @@ import DepartmentDisplay from './DepartmentDisplay.vue'
 import DepartmentSelectorDialog from '@/components/DepartmentSelectorDialog.vue'
 import DepartmentsSearchDialog from './DepartmentsSearchDialog.vue'
 import { ElButton, ElIcon } from 'element-plus'
-import { OfficeBuilding, Edit } from '@element-plus/icons-vue'
+import { OfficeBuilding, Edit, Close } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { useDepartmentInfoStore } from '@/stores/departmentInfo'
@@ -194,43 +219,122 @@ function formatDepartmentDisplayName(dept: Department): string {
   return dept.name
 }
 
-// 选中组织架构（用于显示）
-// 注意：搜索模式下如果支持多选，可能返回多个部门，这里只返回第一个用于显示
+// 选中的部门列表（用于多选模式显示）
+const selectedDepartmentsForDisplay = computed(() => {
+  if (props.mode === 'search' && supportsMultipleSelection.value) {
+    // 优先从 meta 中获取
+    if (props.value?.meta?.departmentInfoList && Array.isArray(props.value.meta.departmentInfoList)) {
+      return props.value.meta.departmentInfoList
+    }
+    // 如果 value.raw 是逗号分隔的字符串，尝试加载
+    if (props.value?.raw) {
+      const paths = String(props.value.raw).split(',').map(p => p.trim()).filter(p => p)
+      if (paths.length > 0) {
+        // 异步加载部门信息（这里只返回空数组，实际显示会通过 loadDepartmentsInfo 更新）
+        loadDepartmentsInfoForMultiSelect(paths)
+      }
+    }
+  }
+  return []
+})
+
+// 选中组织架构（用于单选模式显示）
 const selectedDepartmentForDisplay = computed(() => {
-  if (props.mode === 'edit' || props.mode === 'search') {
+  if (props.mode === 'edit' || (props.mode === 'search' && !supportsMultipleSelection.value)) {
     const currentValue = props.value?.raw
     if (currentValue) {
-      // 搜索模式下支持多选，可能 value.raw 是逗号分隔的字符串
-      if (props.mode === 'search' && supportsMultipleSelection.value) {
-        // 多选模式：从 meta.departmentInfoList 中获取第一个
-        if (props.value?.meta?.departmentInfoList && Array.isArray(props.value.meta.departmentInfoList) && props.value.meta.departmentInfoList.length > 0) {
-          departmentInfo.value = props.value.meta.departmentInfoList[0]
-          return props.value.meta.departmentInfoList[0]
-        }
-        // 如果 meta 中没有，尝试从第一个路径加载
-        const paths = String(currentValue).split(',').map(p => p.trim()).filter(p => p)
-        if (paths.length > 0) {
-          // 加载第一个部门信息用于显示
-          loadDepartmentInfo(paths[0])
-        }
-      } else {
-        // 单选模式：从 meta 中获取（优先）
-        if (props.value?.meta?.departmentInfo && props.value.meta.departmentInfo.full_code_path === currentValue) {
-          departmentInfo.value = props.value.meta.departmentInfo
-          return props.value.meta.departmentInfo
-        }
-        
-        // 从 departmentInfo 中获取（可能是刚加载的）
-        if (departmentInfo.value && departmentInfo.value.full_code_path === currentValue) {
-          return departmentInfo.value
-        }
-        
-        // 🔥 如果都没有，loadDepartmentInfo 会从 API 加载
+      // 单选模式：从 meta 中获取（优先）
+      if (props.value?.meta?.departmentInfo && props.value.meta.departmentInfo.full_code_path === currentValue) {
+        departmentInfo.value = props.value.meta.departmentInfo
+        return props.value.meta.departmentInfo
       }
+      
+      // 从 departmentInfo 中获取（可能是刚加载的）
+      if (departmentInfo.value && departmentInfo.value.full_code_path === currentValue) {
+        return departmentInfo.value
+      }
+      
+      // 🔥 如果都没有，loadDepartmentInfo 会从 API 加载
     }
   }
   return null
 })
+
+// 多选模式下加载部门信息列表
+const departmentInfoListForMultiSelect = ref<Department[]>([])
+
+async function loadDepartmentsInfoForMultiSelect(paths: string[]): Promise<void> {
+  if (paths.length === 0) {
+    departmentInfoListForMultiSelect.value = []
+    return
+  }
+  
+  try {
+    const departments: Department[] = []
+    
+    // 🔥 先从缓存中获取已有的部门信息
+    const cachedDepartments: Department[] = []
+    const uncachedPaths: string[] = []
+    
+    paths.forEach(path => {
+      const cachedDept = departmentInfoStore.departmentInfoCache.get(path)
+      if (cachedDept) {
+        cachedDepartments.push(cachedDept)
+      } else {
+        uncachedPaths.push(path)
+      }
+    })
+    
+    // 🔥 如果有未缓存的路径，批量获取（会自动处理缓存和降级策略）
+    if (uncachedPaths.length > 0) {
+      const fetchedDepartments = await departmentInfoStore.batchGetDepartmentInfo(uncachedPaths)
+      departments.push(...fetchedDepartments)
+    }
+    
+    // 合并缓存和获取的部门信息，按原始顺序排列
+    paths.forEach(path => {
+      const dept = [...cachedDepartments, ...departments].find(d => d.full_code_path === path)
+      if (dept && !departmentInfoListForMultiSelect.value.find(d => d.full_code_path === path)) {
+        departmentInfoListForMultiSelect.value.push(dept)
+      }
+    })
+  } catch (error) {
+    Logger.error(COMPONENT_NAME, '加载组织架构信息列表失败', { paths, error })
+    departmentInfoListForMultiSelect.value = []
+  }
+}
+
+// 移除单个组织架构（多选模式）
+async function handleRemoveDepartment(dept: Department): Promise<void> {
+  const currentPaths = props.value?.raw ? String(props.value.raw).split(',').map(p => p.trim()).filter(p => p) : []
+  const newPaths = currentPaths.filter(p => p !== dept.full_code_path)
+  
+  if (newPaths.length > 0) {
+    await loadDepartmentsInfoForMultiSelect(newPaths)
+    const displayNames = departmentInfoListForMultiSelect.value.map(d => d.full_name_path || d.name).join(', ')
+    
+    const newFieldValue = createFieldValue(
+      props.field,
+      newPaths.join(','),
+      displayNames,
+      {
+        departmentInfoList: departmentInfoListForMultiSelect.value
+      }
+    )
+    formDataStore.setValue(props.fieldPath, newFieldValue)
+    emit('update:modelValue', newFieldValue)
+  } else {
+    const newFieldValue = createFieldValue(
+      props.field,
+      '',
+      '',
+      {}
+    )
+    formDataStore.setValue(props.fieldPath, newFieldValue)
+    emit('update:modelValue', newFieldValue)
+    departmentInfoListForMultiSelect.value = []
+  }
+}
 
 // 加载组织架构信息（用于显示）
 async function loadDepartmentInfo(fullCodePath: string | null): Promise<Department | null> {
@@ -304,11 +408,21 @@ const departmentDisplayName = computed(() => {
 
 // 监听值变化，加载组织架构信息
 watch(() => props.value?.raw, (newValue: any) => {
-  // 🔥 所有模式都需要加载部门信息（包括 table-cell）
-  if (newValue) {
-    loadDepartmentInfo(String(newValue))
+  // 搜索模式下支持多选时，加载多个部门信息
+  if (props.mode === 'search' && supportsMultipleSelection.value) {
+    if (newValue) {
+      const paths = String(newValue).split(',').map(p => p.trim()).filter(p => p)
+      loadDepartmentsInfoForMultiSelect(paths)
+    } else {
+      departmentInfoListForMultiSelect.value = []
+    }
   } else {
-    departmentInfo.value = null
+    // 其他模式：加载单个部门信息
+    if (newValue) {
+      loadDepartmentInfo(String(newValue))
+    } else {
+      departmentInfo.value = null
+    }
   }
 }, { immediate: true })
 
@@ -442,6 +556,77 @@ onMounted(async () => {
 }
 
 .department-select-display:hover:not(.is-disabled) .edit-icon {
+  color: var(--el-color-primary);
+}
+
+/* 多选模式下的显示样式 */
+.departments-select-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
+  background-color: var(--el-bg-color);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.departments-select-display:hover {
+  border-color: var(--el-color-primary);
+  background-color: var(--el-fill-color-light);
+}
+
+.selected-departments-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+  align-items: center;
+}
+
+.selected-department-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background-color: var(--el-fill-color-light);
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.selected-department-tag .department-icon-small {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.selected-department-tag .department-display-text {
+  color: var(--el-text-color-primary);
+  white-space: nowrap;
+}
+
+.selected-department-tag .remove-icon {
+  cursor: pointer;
+  color: var(--el-text-color-secondary);
+  font-size: 14px;
+  margin-left: 4px;
+  transition: color 0.2s;
+}
+
+.selected-department-tag .remove-icon:hover {
+  color: var(--el-color-primary);
+}
+
+.departments-select-display .edit-icon {
+  flex-shrink: 0;
+  color: var(--el-text-color-secondary);
+  font-size: 16px;
+  transition: color 0.2s;
+}
+
+.departments-select-display:hover .edit-icon {
   color: var(--el-color-primary);
 }
 
