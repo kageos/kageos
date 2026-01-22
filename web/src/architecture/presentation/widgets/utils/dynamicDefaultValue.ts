@@ -196,7 +196,7 @@ export function resolveDynamicDefaultValue(
   // 用户选择器：支持用户函数
   if (widgetType === 'user' || widgetType === 'users') {
     if (funcName === 'me') {
-      // Me() 或 me() - 当前登录用户（兼容旧格式 me()）
+      // Me() - 当前登录用户
       if (getAuthStore) {
         const authStore = getAuthStore()
         return authStore?.user?.username || null

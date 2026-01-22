@@ -1664,8 +1664,8 @@ async function handleParseExcelFile(file: File): Promise<void> {
         processedRow.created_at = currentTimestamp
       }
       
-      // 处理创建用户：如果为空或 Me()/me()/$me，使用当前用户名（兼容旧格式）
-      if (!processedRow.create_by || processedRow.create_by === 'Me()' || processedRow.create_by === 'me()' || processedRow.create_by === '$me' || processedRow.create_by === null || processedRow.create_by === '') {
+      // 处理创建用户：如果为空或 Me()，使用当前用户名
+      if (!processedRow.create_by || processedRow.create_by === 'Me()' || processedRow.create_by === null || processedRow.create_by === '') {
         processedRow.create_by = currentUsername
       }
       
@@ -1674,8 +1674,8 @@ async function handleParseExcelFile(file: File): Promise<void> {
         processedRow.updated_at = currentTimestamp
       }
       
-      // 处理更新用户：如果为空或 Me()/me()/$me，使用当前用户名（兼容旧格式）
-      if (!processedRow.updated_by || processedRow.updated_by === 'Me()' || processedRow.updated_by === 'me()' || processedRow.updated_by === '$me' || processedRow.updated_by === null || processedRow.updated_by === '') {
+      // 处理更新用户：如果为空或 Me()，使用当前用户名
+      if (!processedRow.updated_by || processedRow.updated_by === 'Me()' || processedRow.updated_by === null || processedRow.updated_by === '') {
         processedRow.updated_by = currentUsername
       }
       

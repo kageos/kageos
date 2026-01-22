@@ -162,10 +162,10 @@ export function parseExcelFile(file: File, fields: FieldConfig[]): Promise<Impor
               // 处理 Me() 占位符（创建用户/更新用户字段）
               // 注意：Me() 应该在提交前处理，这里先保留原值
               finalValue = convertedValue
-              // 如果遇到 Me()、me() 或 $me（兼容旧格式），先保留，在提交前统一处理
+              // 如果遇到 Me()，先保留，在提交前统一处理
               if ((field.code === 'create_by' || field.code === 'updated_by') && 
-                  typeof convertedValue === 'string' && (convertedValue === 'Me()' || convertedValue === 'me()' || convertedValue === '$me')) {
-                // Me() 占位符保留，在提交前处理（兼容旧格式 me() 和 $me）
+                  typeof convertedValue === 'string' && convertedValue === 'Me()') {
+                // Me() 占位符保留，在提交前处理
                 finalValue = 'Me()'
               }
             }
