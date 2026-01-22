@@ -56,9 +56,9 @@
     <!-- 表格单元格模式（使用 DepartmentDisplay 组件） -->
     <DepartmentDisplay
       v-else-if="mode === 'table-cell'"
-      :department-info="departmentInfo"
+      :department-info="departmentInfoForDisplay"
       :full-code-path="value?.raw"
-      :display-name="value?.display"
+      :display-name="departmentDisplayName"
       mode="card"
       layout="horizontal"
       size="small"
@@ -204,22 +204,47 @@ async function loadDepartmentInfo(fullCodePath: string | null): Promise<Departme
   }
 }
 
+// 用于显示的部门信息（所有模式都使用）
+const departmentInfoForDisplay = computed(() => {
+  // 优先使用 departmentInfo（已加载的）
+  if (departmentInfo.value) {
+    return departmentInfo.value
+  }
+  // 如果 meta 中有部门信息，使用它
+  if (props.value?.meta?.departmentInfo) {
+    return props.value.meta.departmentInfo
+  }
+  // 如果 store 缓存中有，使用它
+  if (props.value?.raw) {
+    const cachedDept = departmentInfoStore.departmentInfoCache.get(props.value.raw)
+    if (cachedDept) {
+      return cachedDept
+    }
+  }
+  return null
+})
+
+// 用于显示的部门名称
+const departmentDisplayName = computed(() => {
+  const dept = departmentInfoForDisplay.value
+  if (dept) {
+    return dept.full_name_path || dept.name
+  }
+  // 如果 value.display 有值且不是 full-code-path，使用它
+  if (props.value?.display && props.value.display !== props.value?.raw) {
+    return props.value.display
+  }
+  // 否则返回 null，让 DepartmentDisplay 自己处理
+  return null
+})
+
 // 监听值变化，加载组织架构信息
 watch(() => props.value?.raw, (newValue: any) => {
-  if (props.mode === 'edit' || props.mode === 'search') {
-    // 编辑模式：如果有值，加载组织架构信息用于显示
-    if (newValue) {
-      loadDepartmentInfo(String(newValue))
-    } else {
-      departmentInfo.value = null
-    }
+  // 🔥 所有模式都需要加载部门信息（包括 table-cell）
+  if (newValue) {
+    loadDepartmentInfo(String(newValue))
   } else {
-    // 显示模式：加载组织架构信息用于显示
-    if (newValue) {
-      loadDepartmentInfo(String(newValue))
-    } else {
-      departmentInfo.value = null
-    }
+    departmentInfo.value = null
   }
 }, { immediate: true })
 
