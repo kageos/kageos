@@ -8,35 +8,36 @@
 <template>
   <div class="docs-path-selector">
     <!-- 已选中的路径显示 -->
-    <div v-if="selectedPaths.length > 0" class="selected-paths">
-      <el-tag
-        v-for="(path, index) in selectedPaths"
-        :key="index"
-        closable
-        @close="handleRemovePath(index)"
-        style="margin-right: 8px; margin-bottom: 8px;"
+    <div class="selected-paths">
+      <el-input
+        v-model="pathsInput"
+        type="textarea"
+        :rows="2"
+        placeholder="请输入文档路径，多个路径用逗号分隔，如：/system/official/sdk,/system/official/plugins"
+        @blur="handleInputBlur"
       >
-        {{ path }}
-      </el-tag>
-      <el-button
-        type="primary"
-        link
-        size="small"
-        @click="dialogVisible = true"
-        style="margin-left: 8px;"
-      >
-        添加路径
-      </el-button>
+        <template #append>
+          <el-button
+            :icon="Document"
+            @click="dialogVisible = true"
+            :disabled="!canSelectFromTree"
+          >
+            从服务树选择
+          </el-button>
+        </template>
+      </el-input>
+      <div v-if="selectedPaths.length > 0" class="path-tags" style="margin-top: 8px;">
+        <el-tag
+          v-for="(path, index) in selectedPaths"
+          :key="index"
+          closable
+          @close="handleRemovePath(index)"
+          style="margin-right: 8px; margin-bottom: 4px;"
+        >
+          {{ path }}
+        </el-tag>
+      </div>
     </div>
-    
-    <!-- 未选择时显示按钮 -->
-    <el-button
-      v-else
-      :icon="Document"
-      @click="dialogVisible = true"
-    >
-      选择文档路径
-    </el-button>
     
     <!-- 文档路径选择对话框 -->
     <el-dialog
@@ -104,12 +105,11 @@ import { ElButton, ElDialog, ElTree, ElTag, ElInput, ElIcon, ElMessage } from 'e
 import { Document, Folder, Search } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/types'
 import { getServiceTree } from '@/api/service-tree'
-import { useAppStore } from '@/stores/app'
 
 interface Props {
   modelValue: string // 逗号分隔的路径字符串，如："/system/official/sdk,/user/myapp/docs"
-  user?: string // 用户（可选，如果不提供则使用当前应用的用户）
-  app?: string // 应用（可选，如果不提供则使用当前应用）
+  user?: string // 用户（可选，如果不提供则只显示标准库路径）
+  app?: string // 应用（可选，如果不提供则只显示标准库路径）
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -121,18 +121,23 @@ const emit = defineEmits<{
   'update:modelValue': [value: string]
 }>()
 
-const appStore = useAppStore()
 const dialogVisible = ref(false)
 const treeRef = ref<InstanceType<typeof ElTree>>()
 const filterText = ref('')
 const serviceTreeData = ref<ServiceTree[]>([])
 const loading = ref(false)
 const tempSelectedPaths = ref<string[]>([])
+const pathsInput = ref('')
 
 const treeProps = {
   children: 'children',
   label: 'name'
 }
+
+// 是否可以从服务树选择（需要提供 user 和 app）
+const canSelectFromTree = computed(() => {
+  return !!(props.user && props.app)
+})
 
 // 当前选中的路径数组
 const selectedPaths = computed({
@@ -144,6 +149,18 @@ const selectedPaths = computed({
     emit('update:modelValue', value.length > 0 ? value.join(',') : '')
   }
 })
+
+// 同步输入框和选中路径
+watch(() => props.modelValue, (newVal) => {
+  pathsInput.value = newVal || ''
+}, { immediate: true })
+
+// 处理输入框失焦
+const handleInputBlur = () => {
+  // 从输入框更新 modelValue
+  const paths = pathsInput.value.split(',').map(p => p.trim()).filter(p => p)
+  selectedPaths.value = paths
+}
 
 // 过滤后的树数据（只显示 package 和 docs 类型节点）
 const filteredTreeData = computed(() => {
@@ -192,17 +209,14 @@ watch(filterText, (val) => {
 const loadServiceTree = async () => {
   if (loading.value) return
   
+  if (!props.user || !props.app) {
+    ElMessage.warning('需要指定应用才能从服务树选择路径')
+    return
+  }
+  
   loading.value = true
   try {
-    const user = props.user || appStore.currentApp?.user || ''
-    const app = props.app || appStore.currentApp?.code || ''
-    
-    if (!user || !app) {
-      ElMessage.warning('请先选择应用')
-      return
-    }
-    
-    const tree = await getServiceTree(user, app)
+    const tree = await getServiceTree(props.user, props.app)
     serviceTreeData.value = tree || []
   } catch (error: any) {
     console.error('加载服务树失败:', error)
@@ -228,7 +242,12 @@ const handleNodeCheck = (data: ServiceTree, checked: { checkedKeys: string[], ha
 
 // 确认选择
 const handleConfirm = () => {
-  selectedPaths.value = tempSelectedPaths.value
+  // 合并已选中的路径和从服务树选择的路径（去重）
+  const existingPaths = selectedPaths.value
+  const newPaths = tempSelectedPaths.value
+  const mergedPaths = Array.from(new Set([...existingPaths, ...newPaths]))
+  selectedPaths.value = mergedPaths
+  pathsInput.value = mergedPaths.join(',')
   dialogVisible.value = false
 }
 

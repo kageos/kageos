@@ -277,11 +277,9 @@
         <el-form-item label="文档路径">
           <DocsPathSelector
             v-model="formData.docs_paths"
-            :user="currentApp?.user"
-            :app="currentApp?.code"
           />
           <div style="margin-top: 8px; font-size: 12px; color: #909399;">
-            提示：选择服务树中的文档路径，支持多选。AI 会批量加载这些路径下的所有文档节点。
+            提示：可以手动输入文档路径（逗号分隔），如：/system/official/sdk,/system/official/plugins。也可以点击按钮选择服务树中的路径（需要指定应用）。
           </div>
         </el-form-item>
         <el-form-item label="描述">
@@ -382,13 +380,8 @@ import {
   type SearchFunctionsReq,
 } from '@/api/service-tree'
 import type { FormRules } from 'element-plus'
-import { useAppStore } from '@/stores/app'
 
 const router = useRouter()
-const appStore = useAppStore()
-
-// 当前应用
-const currentApp = computed(() => appStore.currentApp)
 
 // 表格数据
 const loading = ref(false)
