@@ -23,7 +23,9 @@ podman run -d \
   -p $CONSOLE_PORT:9001 \
   -e "MINIO_ROOT_USER=$ROOT_USER" \
   -e "MINIO_ROOT_PASSWORD=$ROOT_PASSWORD" \
+  -e "TZ=Asia/Shanghai" \
   -v $DATA_DIR:/data:z \
+  -v /etc/localtime:/etc/localtime:ro \
   docker.io/minio/minio:latest \
   server /data --console-address ":9001"
 
