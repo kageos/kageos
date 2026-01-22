@@ -97,6 +97,9 @@ func (a *AppRuntime) RequestApp(ctx context.Context, natsId int64, req *dto.Requ
 	msg.Header.Set("trace_id", req.TraceId)
 	msg.Header.Set(contextx.RequestUserHeader, req.RequestUser)
 	msg.Header.Set("user", req.RequestUser)
+	if req.RequestUserDept != "" {
+		msg.Header.Set(contextx.DepartmentFullPathHeader, req.RequestUserDept)
+	}
 	msg.Header.Set("method", req.Method)
 	msg.Header.Set("router", req.Router)
 	msg.Header.Set("app", req.App)

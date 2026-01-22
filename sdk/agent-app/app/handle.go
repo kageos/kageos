@@ -49,6 +49,9 @@ func (a *App) handleMessage(msg *nats.Msg) {
 	if req.RequestUser == "" {
 		req.RequestUser = msg.Header.Get(contextx.RequestUserHeader)
 	}
+	if req.RequestUserDept == "" {
+		req.RequestUserDept = msg.Header.Get(contextx.DepartmentFullPathHeader)
+	}
 
 	// 增加运行中函数计数
 	a.incrementRunningCount()

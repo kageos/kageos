@@ -201,13 +201,14 @@ func (a *App) RequestApp(c *gin.Context) {
 
 	// 构建请求对象
 	req = dto.RequestAppReq{
-		User:        user,
-		App:         app,
-		Router:      strings.Join(r, "/"), // 路由路径
-		Method:      c.Request.Method,     // 应用内部方法名（可选）
-		TraceId:     contextx.GetTraceId(c),
-		RequestUser: contextx.GetRequestUser(c),
-		Token:       contextx.GetToken(c), // ✅ 透传 token 到 SDK
+		User:            user,
+		App:             app,
+		Router:          strings.Join(r, "/"), // 路由路径
+		Method:          c.Request.Method,     // 应用内部方法名（可选）
+		TraceId:         contextx.GetTraceId(c),
+		RequestUser:     contextx.GetRequestUser(c),
+		RequestUserDept: contextx.GetRequestDepartmentFullPath(c),
+		Token:           contextx.GetToken(c), // ✅ 透传 token 到 SDK
 	}
 
 	// 绑定请求体（POST、PUT、PATCH 等方法通常有请求体）
@@ -296,13 +297,14 @@ func (a *App) CallbackApp(c *gin.Context) {
 
 	// 构建请求对象
 	req = dto.RequestAppReq{
-		User:        user,
-		App:         app,
-		Router:      "/_callback", // 路由路径
-		Method:      method,       // 应用内部方法名（可选）
-		TraceId:     contextx.GetTraceId(c),
-		RequestUser: contextx.GetRequestUser(c),
-		Token:       contextx.GetToken(c), // ✅ 透传 token 到 SDK
+		User:            user,
+		App:             app,
+		Router:          "/_callback", // 路由路径
+		Method:          method,       // 应用内部方法名（可选）
+		TraceId:         contextx.GetTraceId(c),
+		RequestUser:     contextx.GetRequestUser(c),
+		RequestUserDept: contextx.GetRequestDepartmentFullPath(c),
+		Token:           contextx.GetToken(c), // ✅ 透传 token 到 SDK
 	}
 	// 绑定请求体（POST、PUT、PATCH 等方法通常有请求体）
 
