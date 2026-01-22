@@ -226,13 +226,9 @@ const selectedDepartmentsForDisplay = computed(() => {
     if (props.value?.meta?.departmentInfoList && Array.isArray(props.value.meta.departmentInfoList)) {
       return props.value.meta.departmentInfoList
     }
-    // 如果 value.raw 是逗号分隔的字符串，尝试加载
-    if (props.value?.raw) {
-      const paths = String(props.value.raw).split(',').map(p => p.trim()).filter(p => p)
-      if (paths.length > 0) {
-        // 异步加载部门信息（这里只返回空数组，实际显示会通过 loadDepartmentsInfo 更新）
-        loadDepartmentsInfoForMultiSelect(paths)
-      }
+    // 如果已加载的部门信息列表有数据，使用它
+    if (departmentInfoListForMultiSelect.value.length > 0) {
+      return departmentInfoListForMultiSelect.value
     }
   }
   return []
