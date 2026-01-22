@@ -5,6 +5,7 @@
       v-if="shouldUseUserSearchWidget"
       :field="field"
       :model-value="localValue"
+      :search-type="searchType"
       @update:model-value="handleInput"
     />
     
@@ -13,6 +14,7 @@
       v-else-if="shouldUseDepartmentSearchWidget"
       :field="field"
       :model-value="localValue"
+      :search-type="searchType"
       @update:model-value="handleInput"
     />
     
