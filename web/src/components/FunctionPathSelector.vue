@@ -38,7 +38,7 @@
       :show-close="false"
       :close-on-click-modal="true"
       :close-on-press-escape="true"
-      width="600px"
+      width="800px"
       top="10vh"
       class="function-selector-dialog"
       append-to-body
