@@ -386,10 +386,6 @@ onMounted(() => {
       color: var(--el-color-primary);
     }
 
-      background: var(--el-color-success-light-9);
-      color: var(--el-color-success);
-    }
-
     &--llm .module-card__icon {
       background: var(--el-color-info-light-9);
       color: var(--el-color-info);
