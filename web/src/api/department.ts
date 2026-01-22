@@ -128,6 +128,50 @@ export function getDepartmentByPath(fullCodePath: string) {
 }
 
 /**
+ * 批量获取部门信息（根据 full_code_path 列表）
+ */
+export interface GetDepartmentsByPathsReq {
+  full_code_paths: string[]
+}
+
+export interface GetDepartmentsByPathsResp {
+  departments: Department[]
+}
+
+/**
+ * 批量获取部门信息
+ * 先获取部门树，然后根据 full_code_path 列表过滤
+ */
+export function getDepartmentsByPaths(fullCodePaths: string[]): Promise<GetDepartmentsByPathsResp> {
+  if (!fullCodePaths || fullCodePaths.length === 0) {
+    return Promise.resolve({ departments: [] })
+  }
+  
+  return getDepartmentTree().then(res => {
+    // 扁平化部门树
+    const flattenDepartments = (depts: Department[]): Department[] => {
+      const result: Department[] = []
+      const traverse = (list: Department[]) => {
+        for (const dept of list) {
+          result.push(dept)
+          if (dept.children && dept.children.length > 0) {
+            traverse(dept.children)
+          }
+        }
+      }
+      traverse(depts)
+      return result
+    }
+    
+    const allDepartments = flattenDepartments(res.departments)
+    const pathSet = new Set(fullCodePaths)
+    const departments = allDepartments.filter(dept => pathSet.has(dept.full_code_path))
+    
+    return { departments }
+  })
+}
+
+/**
  * 创建部门
  */
 export function createDepartment(data: CreateDepartmentReq) {

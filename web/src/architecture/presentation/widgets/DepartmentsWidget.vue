@@ -81,7 +81,7 @@
           size="small"
           class="department-tag"
         >
-          {{ dept.name }}
+          {{ dept.full_name_path || dept.name }}
         </el-tag>
       </div>
       <span v-else class="empty-text">-</span>
@@ -115,6 +115,7 @@ import { ElButton, ElIcon, ElTag } from 'element-plus'
 import { OfficeBuilding, Edit } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/core/stores-v2/formData'
+import { useDepartmentInfoStore } from '@/stores/departmentInfo'
 import type { Department } from '@/api/department'
 import { getDepartmentTree, getDepartmentByPath } from '@/api/department'
 import { Logger } from '@/core/utils/logger'
@@ -132,6 +133,7 @@ const props = withDefaults(defineProps<WidgetComponentProps>(), {
 const emit = defineEmits<WidgetComponentEmits>()
 
 const formDataStore = useFormDataStore()
+const departmentInfoStore = useDepartmentInfoStore()
 
 // 弹窗显示状态
 const dialogVisible = ref(false)
@@ -253,22 +255,36 @@ async function loadDepartmentsInfo(paths: string): Promise<void> {
     return
   }
   
-  // 并行加载所有组织架构信息
+  // 🔥 优先从 store 缓存中批量获取（如果预加载已完成，这里会命中缓存）
   try {
     const departments: Department[] = []
     
-    await Promise.all(
-      pathList.map(async (path) => {
-        try {
-          const res = await getDepartmentByPath(path)
-          if (res.department) {
-            departments.push(res.department)
-          }
-        } catch (error) {
-          Logger.error(COMPONENT_NAME, '加载组织架构信息失败', { path, error })
-        }
-      })
-    )
+    // 🔥 先从缓存中获取已有的部门信息
+    const cachedDepartments: Department[] = []
+    const uncachedPaths: string[] = []
+    
+    pathList.forEach(path => {
+      const cachedDept = departmentInfoStore.departmentInfoCache.get(path)
+      if (cachedDept) {
+        cachedDepartments.push(cachedDept)
+      } else {
+        uncachedPaths.push(path)
+      }
+    })
+    
+    // 🔥 如果有未缓存的路径，批量获取（会自动处理缓存和降级策略）
+    if (uncachedPaths.length > 0) {
+      const fetchedDepartments = await departmentInfoStore.batchGetDepartmentInfo(uncachedPaths)
+      departments.push(...fetchedDepartments)
+    }
+    
+    // 合并缓存和获取的部门信息，按原始顺序排列
+    pathList.forEach(path => {
+      const dept = [...cachedDepartments, ...departments].find(d => d.full_code_path === path)
+      if (dept && !departments.find(d => d.full_code_path === path)) {
+        departments.push(dept)
+      }
+    })
     
     departmentInfoList.value = departments
   } catch (error) {

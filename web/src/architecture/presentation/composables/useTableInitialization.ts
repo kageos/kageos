@@ -34,6 +34,8 @@ export interface UseTableInitializationOptions {
   isMounted?: { value: boolean }
   /** 🔥 时机 1：预加载搜索表单中的用户信息（在 decideRestoreStrategy 完成后调用） */
   preloadUserInfoFromSearchForm?: (functionDetail: FunctionDetail, searchForm: Record<string, any>) => Promise<void>
+  /** 🔥 时机 1：预加载搜索表单中的部门信息（在 decideRestoreStrategy 完成后调用） */
+  preloadDepartmentInfoFromSearchForm?: (functionDetail: FunctionDetail, searchForm: Record<string, any>) => Promise<void>
 }
 
 export function useTableInitialization(options: UseTableInitializationOptions) {
@@ -242,6 +244,13 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
       if (preloadUserInfoFromSearchForm) {
         const currentState = stateManager.getState()
         await preloadUserInfoFromSearchForm(functionDetailValue, currentState.searchForm)
+      }
+      
+      // 🔥 时机 1：预加载搜索表单中的部门信息
+      // 此时 searchForm 已经包含了从 URL 解析出来的所有搜索条件（如 in=department:/dept1）
+      if (preloadDepartmentInfoFromSearchForm) {
+        const currentState = stateManager.getState()
+        await preloadDepartmentInfoFromSearchForm(functionDetailValue, currentState.searchForm)
       }
       
       // 🔥 步骤 2：加载数据
