@@ -90,9 +90,6 @@ const props = withDefaults(defineProps<Props>(), {
 // 🔥 使用部门信息缓存 Store
 const departmentInfoStore = useDepartmentInfoStore()
 
-// 🔥 使用部门信息缓存 Store
-const departmentInfoStore = useDepartmentInfoStore()
-
 // 使用 ref 存储组织架构信息，确保响应式更新
 const cachedDepartmentInfo = ref<Department | null>(null)
 // 使用 computed 来获取部门树：优先使用 props.departmentTree，否则使用内部的 ref
