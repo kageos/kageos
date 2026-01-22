@@ -14,14 +14,19 @@
 
 /**
  * 解析时间偏移参数
- * @param offset 偏移字符串，如 "+1h", "-2d", "+3600s", "+2"
+ * @param offset 偏移字符串，如 "+1h", "-2d", "+3600s", "+2", "24h", "2d", "-3600s"
  * @returns 偏移的毫秒数
+ * 
+ * 支持格式：
+ * - 带符号："+1h", "-2d", "+3600s"
+ * - 不带符号（默认为正）："24h", "2d", "3600s"
+ * - 只写数字（默认单位是小时）："+2", "-2", "2"
  */
 function parseTimeOffset(offset: string): number {
   if (!offset) return 0
   
-  // 移除空格
-  offset = offset.trim()
+  // 移除空格和引号
+  offset = offset.trim().replace(/^["']|["']$/g, '')
   
   // 提取符号和数值
   const sign = offset.startsWith('-') ? -1 : 1
@@ -71,7 +76,7 @@ function parseFunctionCall(funcCall: string): { name: string; args: string[] } |
   const [, name, argsStr] = match
   const args: string[] = []
   
-  // 解析参数（支持引号字符串）
+  // 解析参数（支持引号字符串，也支持不带引号的参数）
   if (argsStr.trim()) {
     let current = ''
     let inQuotes = false
@@ -91,7 +96,9 @@ function parseFunctionCall(funcCall: string): { name: string; args: string[] } |
           current += char
         }
       } else if (char === ',' && !inQuotes) {
-        args.push(current.trim())
+        if (current.trim()) {
+          args.push(current.trim())
+        }
         current = ''
       } else {
         current += char
