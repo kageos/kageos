@@ -765,21 +765,6 @@ onMounted(async () => {
   }
 }
 
-.users-more-indicator:hover {
-  background-color: var(--el-color-primary-light-9);
-  border-color: var(--el-color-primary);
-  color: var(--el-color-primary);
-}
-
-.users-more-indicator .more-text {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--el-text-color-regular);
-}
-
-.users-more-indicator:hover .more-text {
-  color: var(--el-color-primary);
-}
 
 /* 全部用户列表弹窗 */
 .users-full-list {
@@ -800,15 +785,19 @@ onMounted(async () => {
 }
 
 .users-full-list-item {
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  
+  &:hover {
+    background-color: var(--el-fill-color-lighter);
+  }
+}
+
+.user-item-content {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 16px;
-  transition: background-color 0.2s;
-}
-
-.users-full-list-item:hover {
-  background-color: var(--el-fill-color-light);
 }
 
 .users-full-list-item .user-avatar {
