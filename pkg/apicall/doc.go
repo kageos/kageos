@@ -2,6 +2,8 @@ package apicall
 
 import (
 	"context"
+	"net/url"
+	"strconv"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
 )
@@ -14,14 +16,15 @@ func GetDocsByPaths(ctx context.Context, paths []string) (*dto.GetDocsByPathsRes
 		return &dto.GetDocsByPathsResp{Docs: []*dto.DocItem{}}, nil
 	}
 	
-	// 构建请求体（使用新的统一接口）
-	req := dto.QueryDocsReq{
-		Paths:          paths,
-		IncludeContent: true, // 智能体需要完整内容
+	// 构建查询参数（使用新的统一接口）
+	queryParams := url.Values{}
+	for _, path := range paths {
+		queryParams.Add("paths", path) // 使用 Add 支持多个 paths 参数
 	}
+	queryParams.Set("include_content", "true") // 智能体需要完整内容
 	
-	// POST 请求
-	resp, err := PostAPI[dto.QueryDocsReq, *dto.QueryDocsResp](ctx, "/workspace/api/v1/docs/query", req)
+	// GET 请求，使用 query 参数
+	resp, err := GetAPI[*dto.QueryDocsResp](ctx, "/workspace/api/v1/docs/query", queryParams)
 	if err != nil {
 		return nil, err
 	}
