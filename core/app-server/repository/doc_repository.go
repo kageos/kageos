@@ -110,3 +110,35 @@ func (r *DocRepository) GetByFullCodePaths(paths []string) ([]*model.Docs, error
 	
 	return docs, nil
 }
+
+// SearchDocs 搜索文档（支持按名称、路径搜索，支持跨应用搜索）
+func (r *DocRepository) SearchDocs(keyword string, page, pageSize int) ([]*model.Docs, int64, error) {
+	var docs []*model.Docs
+	var total int64
+
+	// 构建查询
+	query := r.db.Model(&model.Docs{})
+
+	// 关键词搜索（名称或路径）
+	if keyword != "" {
+		keywordPattern := "%" + keyword + "%"
+		query = query.Where("name LIKE ? OR full_code_path LIKE ?", keywordPattern, keywordPattern)
+	}
+
+	// 获取总数
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 分页查询
+	offset := (page - 1) * pageSize
+	if err := query.
+		Offset(offset).
+		Limit(pageSize).
+		Order("created_at DESC").
+		Find(&docs).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return docs, total, nil
+}

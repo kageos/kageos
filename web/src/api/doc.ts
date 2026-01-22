@@ -41,3 +41,37 @@ export function deleteDoc(fullCodePath: string) {
   const path = fullCodePath.startsWith('/') ? fullCodePath : `/${fullCodePath}`
   return del(`/workspace/api/v1/docs${path}`)
 }
+
+/**
+ * 搜索文档
+ */
+export interface SearchDocsReq {
+  keyword?: string
+  page: number
+  page_size: number
+}
+
+export interface DocSearchResult {
+  id: number
+  name: string
+  content: string
+  format: string
+  full_code_path: string
+  summary?: string
+  category?: string
+}
+
+export interface SearchDocsResp {
+  docs: DocSearchResult[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export function searchDocs(req: SearchDocsReq) {
+  return get<SearchDocsResp>('/workspace/api/v1/docs/search', {
+    keyword: req.keyword || '',
+    page: req.page.toString(),
+    page_size: req.page_size.toString()
+  })
+}
