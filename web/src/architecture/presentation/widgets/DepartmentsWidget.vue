@@ -97,7 +97,7 @@
           :key="dept.full_code_path || index"
           :department-info="dept"
           :full-code-path="dept.full_code_path"
-          :display-name="dept.full_name_path || dept.name"
+          :display-name="dept.name"
           :department-tree="departmentTree"
           :show-full-path="false"
           mode="card"
