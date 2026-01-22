@@ -495,26 +495,10 @@ async function loadData() {
     tableData.value = res.agents || []
     pagination.total = res.total || 0
     
-    // 🔥 从智能体列表中提取知识库和 LLM 选项（去重）
-    const kbMap = new Map<number, KnowledgeInfo>()
+    // 🔥 从智能体列表中提取 LLM 选项（去重）
     const llmMap = new Map<number, LLMInfo>()
     
     res.agents?.forEach(agent => {
-      // 提取知识库信息
-      if (agent.knowledge_base && !kbMap.has(agent.knowledge_base.id)) {
-        kbMap.set(agent.knowledge_base.id, {
-          id: agent.knowledge_base.id,
-          name: agent.knowledge_base.name,
-          description: agent.knowledge_base.description || '',
-          status: agent.knowledge_base.status,
-          document_count: agent.knowledge_base.document_count,
-          content_hash: '',
-          user: '',
-          created_at: '',
-          updated_at: ''
-        })
-      }
-      
       // 提取 LLM 配置信息
       if (agent.llm_config && !llmMap.has(agent.llm_config.id)) {
         llmMap.set(agent.llm_config.id, {
@@ -534,7 +518,6 @@ async function loadData() {
     })
     
     // 更新选项列表（合并，不覆盖已有数据）
-    knowledgeBaseOptions.value = Array.from(kbMap.values())
     llmOptions.value = Array.from(llmMap.values())
   } catch (error: any) {
     ElMessage.error(error.message || '获取列表失败')
