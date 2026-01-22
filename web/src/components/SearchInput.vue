@@ -42,7 +42,7 @@
     <!-- 🔥 下拉选择 -->
     <!-- 🔥 单选组件：简化实现，不显示颜色，避免重叠问题 -->
     <el-select
-      v-if="!inputConfig.props?.multiple && isSelectWidget"
+      v-if="!shouldUseUserSearchWidget && !shouldUseDepartmentSearchWidget && !inputConfig.props?.multiple && isSelectWidget"
       v-model="selectValue"
       :placeholder="inputConfig.props?.placeholder"
       :clearable="inputConfig.props?.clearable"
@@ -78,7 +78,7 @@
     </el-select>
     <!-- 🔥 普通单选组件（没有颜色配置） -->
     <el-select
-      v-else-if="inputConfig.component === SearchComponent.EL_SELECT && !inputConfig.props?.multiple"
+      v-else-if="!shouldUseUserSearchWidget && !shouldUseDepartmentSearchWidget && inputConfig.component === SearchComponent.EL_SELECT && !inputConfig.props?.multiple"
       v-model="selectValue"
       :placeholder="inputConfig.props?.placeholder"
       :clearable="inputConfig.props?.clearable"
@@ -123,7 +123,7 @@
     </el-select>
     <!-- 🔥 多选组件 -->
     <el-select
-      v-else-if="inputConfig.component === SearchComponent.EL_SELECT && inputConfig.props?.multiple"
+      v-else-if="!shouldUseUserSearchWidget && !shouldUseDepartmentSearchWidget && inputConfig.component === SearchComponent.EL_SELECT && inputConfig.props?.multiple"
       v-model="selectValue"
       :placeholder="inputConfig.props?.placeholder"
       :clearable="inputConfig.props?.clearable"
