@@ -53,7 +53,7 @@
       size="small"
     />
     
-    <!-- 表格单元格模式（使用 DepartmentDisplay 组件） -->
+    <!-- 表格单元格模式（使用 DepartmentDisplay 组件，显示最后一段） -->
     <DepartmentDisplay
       v-else-if="mode === 'table-cell'"
       :department-info="departmentInfoForDisplay"
@@ -62,6 +62,7 @@
       mode="card"
       layout="horizontal"
       size="small"
+      :show-full-path="false"
     />
     
     <!-- 详情模式（使用 DepartmentDisplay 组件） -->
@@ -225,16 +226,14 @@ const departmentInfoForDisplay = computed(() => {
 })
 
 // 用于显示的部门名称
+// 注意：table-cell 模式下，DepartmentDisplay 会根据 showFullPath 配置来决定显示什么
+// 这里返回 null，让 DepartmentDisplay 自己根据 showFullPath 处理
 const departmentDisplayName = computed(() => {
-  const dept = departmentInfoForDisplay.value
-  if (dept) {
-    return dept.full_name_path || dept.name
-  }
   // 如果 value.display 有值且不是 full-code-path，使用它
   if (props.value?.display && props.value.display !== props.value?.raw) {
     return props.value.display
   }
-  // 否则返回 null，让 DepartmentDisplay 自己处理
+  // 返回 null，让 DepartmentDisplay 自己根据 showFullPath 处理
   return null
 })
 

@@ -75,6 +75,8 @@ interface Props {
   size?: 'small' | 'medium' | 'large' | number
   /** 部门树（可选，如果传入则使用传入的，避免重复加载） */
   departmentTree?: Department[]
+  /** 是否显示全路径名称（默认 false，显示最后一段名称，精简显示） */
+  showFullPath?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -84,7 +86,8 @@ const props = withDefaults(defineProps<Props>(), {
   mode: 'simple',
   layout: 'horizontal',
   size: 'medium',
-  departmentTree: () => []
+  departmentTree: () => [],
+  showFullPath: false
 })
 
 // 🔥 使用部门信息缓存 Store
@@ -187,7 +190,13 @@ const displayName = computed(() => {
   
   const dept = actualDepartmentInfo.value
   if (dept) {
-    return dept.full_name_path || dept.name
+    // 根据 showFullPath 配置决定显示全路径还是最后一段
+    if (props.showFullPath) {
+      return dept.full_name_path || dept.name
+    } else {
+      // 默认显示最后一段（精简显示）
+      return dept.name
+    }
   }
   
   // 如果只有路径且没有显示名称，显示"加载中..."而不是英文路径
