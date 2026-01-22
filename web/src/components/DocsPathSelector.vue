@@ -572,14 +572,15 @@ const handleRemovePath = (index: number) => {
     align-items: center;
     gap: 8px;
     padding: 12px 24px;
-    background: var(--el-color-primary-light-9);
-    border-top: 1px solid var(--el-border-color-lighter);
+    background: var(--el-bg-color);
+    border-top: 2px solid var(--el-color-primary);
     color: var(--el-color-primary);
     font-size: 14px;
-    font-weight: 500;
+    font-weight: 600;
     
     .el-icon {
       font-size: 16px;
+      color: var(--el-color-primary);
     }
   }
 }
