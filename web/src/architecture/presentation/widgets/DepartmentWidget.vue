@@ -67,9 +67,9 @@
     <!-- 详情模式（使用 DepartmentDisplay 组件） -->
     <div v-else-if="mode === 'detail'" class="department-detail">
       <DepartmentDisplay
-        :department-info="departmentInfo"
+        :department-info="departmentInfoForDisplay"
         :full-code-path="value?.raw"
-        :display-name="value?.display"
+        :display-name="departmentDisplayName"
         mode="card"
         layout="horizontal"
         size="large"
