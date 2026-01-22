@@ -113,7 +113,7 @@
 import { ref, computed, watch } from 'vue'
 import { ElButton, ElDialog, ElTag, ElInput, ElIcon, ElMessage, ElCheckbox, ElCheckboxGroup, ElPagination, ElEmpty } from 'element-plus'
 import { Document, Search } from '@element-plus/icons-vue'
-import { searchDocs, type DocSearchResult } from '@/api/doc'
+import { queryDocs, type DocSearchResult } from '@/api/doc'
 
 interface Props {
   modelValue: string // 逗号分隔的路径字符串，如："/system/official/sdk,/user/myapp/docs"
@@ -191,10 +191,11 @@ const handleSearch = async () => {
   
   searchLoading.value = true
   try {
-    const resp = await searchDocs({
+    const resp = await queryDocs({
       keyword: searchKeyword.value.trim(),
       page: searchPage.value,
-      page_size: searchPageSize.value
+      page_size: searchPageSize.value,
+      include_content: false // 列表展示不需要内容，减少数据传输
     })
     searchResults.value = resp.docs || []
     searchTotal.value = resp.total || 0

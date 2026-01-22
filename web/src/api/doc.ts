@@ -1,4 +1,4 @@
-import { get, put, del } from '@/utils/request'
+import { get, put, del, post } from '@/utils/request'
 
 export interface Doc {
   id: number
