@@ -278,7 +278,10 @@ func (s *MinIOStorage) EnsureBucket(ctx context.Context, bucket, region string) 
 		if strings.Contains(errMsg, "difference between the request time") ||
 			strings.Contains(errMsg, "time is too large") ||
 			strings.Contains(errMsg, "RequestTimeTooSkewed") {
-			return fmt.Errorf("时间同步错误：客户端与MinIO服务器的时间差过大（通常超过15分钟）。请检查系统时间是否正确，如果使用容器部署，请确保容器时间与宿主机同步: %w", err)
+			// 记录当前系统时间，帮助诊断
+			currentTime := time.Now().Format("2006-01-02 15:04:05 MST")
+			logger.Errorf(ctx, "[MinIOStorage] 时间同步错误 - 当前系统时间: %s", currentTime)
+			return fmt.Errorf("时间同步错误：客户端与MinIO服务器的时间差过大（通常超过15分钟）。当前系统时间: %s。请检查系统时间是否正确，如果使用容器部署，请确保容器时间与宿主机同步。解决方案：1) 同步系统时间（macOS: sudo sntp -sS time.apple.com, Linux: sudo timedatectl set-ntp true）2) 容器挂载时区文件（-v /etc/localtime:/etc/localtime:ro）: %w", currentTime, err)
 		}
 		return fmt.Errorf("无法连接到MinIO或权限不足，请检查access_key和secret_key配置: %w", err)
 	}
