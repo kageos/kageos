@@ -34,17 +34,17 @@ func (a *App) handleMessage(msg *nats.Msg) {
 
 	var req dto.RequestAppReq
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
-		a.sendErrResponse(&dto.RequestAppResp{Error: err.Error(), TraceId: msg.Header.Get("trace_id")})
+		a.sendErrResponse(&dto.RequestAppResp{Error: err.Error(), TraceId: msg.Header.Get(contextx.TraceIdHeader)})
 		logger.Errorf(context.Background(), err.Error())
 		return
 	}
 
 	// ✅ 从 header 优先读取 trace_id 和 token（如果 body 中没有，使用 header 中的值）
 	if req.TraceId == "" {
-		req.TraceId = msg.Header.Get("trace_id")
+		req.TraceId = msg.Header.Get(contextx.TraceIdHeader)
 	}
 	if req.Token == "" {
-		req.Token = msg.Header.Get("X-Token")
+		req.Token = msg.Header.Get(contextx.TokenHeader)
 	}
 	if req.RequestUser == "" {
 		req.RequestUser = msg.Header.Get(contextx.RequestUserHeader)

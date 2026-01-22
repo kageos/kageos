@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/discovery"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
@@ -303,7 +304,7 @@ func (a *App) sendResponse(resp *dto.RequestAppResp) {
 
 	// 设置 trace_id header
 	if resp.TraceId != "" {
-		msg.Header.Set("trace_id", resp.TraceId)
+		msg.Header.Set(contextx.TraceIdHeader, resp.TraceId)
 	}
 	msg.Header.Set("code", "0")
 
@@ -327,7 +328,7 @@ func (a *App) sendErrResponse(resp *dto.RequestAppResp) {
 
 	// 设置 trace_id header
 	if resp.TraceId != "" {
-		msg.Header.Set("trace_id", resp.TraceId)
+		msg.Header.Set(contextx.TraceIdHeader, resp.TraceId)
 	}
 	msg.Header.Set("code", "-1")
 	msg.Header.Set("msg", resp.Error)
