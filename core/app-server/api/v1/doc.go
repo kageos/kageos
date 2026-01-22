@@ -160,3 +160,37 @@ func (s *Doc) GetDocsBatch(c *gin.Context) {
 
 	response.OkWithData(c, resp)
 }
+
+// SearchDocs 搜索文档
+// @Summary 搜索文档
+// @Description 根据关键词搜索文档，支持跨应用搜索
+// @Tags 文档
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Param keyword query string false "搜索关键词（可选，用于搜索名称和路径）"
+// @Param page query int true "页码" default(1)
+// @Param page_size query int true "每页数量" default(10)
+// @Success 200 {object} dto.SearchDocsResp "搜索成功"
+// @Failure 400 {string} string "请求参数错误"
+// @Failure 401 {string} string "未授权"
+// @Failure 500 {string} string "服务器内部错误"
+// @Router /api/v1/docs/search [get]
+func (s *Doc) SearchDocs(c *gin.Context) {
+	var req dto.SearchDocsReq
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.FailWithMessage(c, "参数错误: "+err.Error())
+		return
+	}
+
+	ctx := contextx.ToContext(c)
+	resp, err := s.docService.SearchDocs(ctx, &req)
+	if err != nil {
+		logger.Errorf(c, "[Doc API] 搜索文档失败: keyword=%s, error=%v", req.Keyword, err)
+		response.FailWithMessage(c, "搜索文档失败: "+err.Error())
+		return
+	}
+
+	response.OkWithData(c, resp)
+}

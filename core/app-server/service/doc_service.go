@@ -275,5 +275,51 @@ func (s *DocService) GetDocsByPaths(ctx context.Context, paths []string) (*dto.G
 	return &dto.GetDocsByPathsResp{Docs: docItems}, nil
 }
 
+// SearchDocs 搜索文档
+func (s *DocService) SearchDocs(ctx context.Context, req *dto.SearchDocsReq) (*dto.SearchDocsResp, error) {
+	// 验证分页参数
+	if req.Page <= 0 {
+		req.Page = 1
+	}
+	if req.PageSize <= 0 {
+		req.PageSize = 10
+	}
+	if req.PageSize > 100 {
+		req.PageSize = 100 // 限制最大每页数量
+	}
+
+	logger.Infof(ctx, "[DocService] 搜索文档 - Keyword: %s, Page: %d, PageSize: %d", req.Keyword, req.Page, req.PageSize)
+
+	// 调用 Repository 搜索文档
+	docs, total, err := s.docRepo.SearchDocs(req.Keyword, req.Page, req.PageSize)
+	if err != nil {
+		logger.Errorf(ctx, "[DocService] 搜索文档失败 - Keyword: %s, Error: %v", req.Keyword, err)
+		return nil, fmt.Errorf("搜索文档失败: %w", err)
+	}
+
+	// 转换为 DTO
+	docItems := make([]*dto.DocItem, 0, len(docs))
+	for _, doc := range docs {
+		docItems = append(docItems, &dto.DocItem{
+			ID:           doc.ID,
+			Name:         doc.Name,
+			Content:      doc.Content,
+			Format:       doc.Format,
+			FullCodePath: doc.FullCodePath,
+			Summary:      doc.Summary,
+			Category:     doc.Category,
+		})
+	}
+
+	logger.Infof(ctx, "[DocService] 搜索文档成功 - Keyword: %s, Total: %d, DocsCount: %d", req.Keyword, total, len(docItems))
+
+	return &dto.SearchDocsResp{
+		Docs:     docItems,
+		Total:    total,
+		Page:     req.Page,
+		PageSize: req.PageSize,
+	}, nil
+}
+
 // ==================== 基于路径的文档操作（新接口，用于 /docs/*full-code-path） ====================
 

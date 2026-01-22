@@ -47,40 +47,51 @@
     >
       <div class="selector-content">
         <el-input
-          v-model="filterText"
-          placeholder="搜索节点..."
+          v-model="searchKeyword"
+          placeholder="搜索文档路径或名称..."
           clearable
           style="margin-bottom: 12px;"
+          @input="handleSearchInput"
         >
           <template #prefix>
             <el-icon><Search /></el-icon>
           </template>
         </el-input>
         
-        <el-tree
-          ref="treeRef"
-          :data="filteredTreeData"
-          :props="treeProps"
-          :default-expand-all="false"
-          show-checkbox
-          node-key="full_code_path"
-          :default-checked-keys="selectedPaths"
-          :filter-node-method="filterNode"
-          class="docs-path-select-tree"
-          @check="handleNodeCheck"
-        >
-          <template #default="{ node, data }">
-            <div class="tree-node">
-              <el-icon v-if="data.type === 'docs'" class="node-icon"><Document /></el-icon>
-              <el-icon v-else class="node-icon"><Folder /></el-icon>
-              <span class="node-label">{{ data.name }}</span>
-              <el-tag size="small" :type="getNodeTypeTag(data.type)" style="margin-left: 8px;">
-                {{ getNodeTypeLabel(data.type) }}
-              </el-tag>
-              <span class="node-path">({{ data.full_code_path }})</span>
+        <div v-loading="searchLoading" style="min-height: 200px;">
+          <div v-if="searchResults.length === 0 && !searchLoading" class="empty-state">
+            <el-empty description="请输入关键词搜索文档" />
+          </div>
+          
+          <el-checkbox-group v-model="tempSelectedPaths" v-else>
+            <div
+              v-for="doc in searchResults"
+              :key="doc.full_code_path"
+              class="doc-item"
+            >
+              <el-checkbox :label="doc.full_code_path">
+                <div class="doc-item-content">
+                  <el-icon class="doc-icon"><Document /></el-icon>
+                  <span class="doc-name">{{ doc.name }}</span>
+                  <span class="doc-path">({{ doc.full_code_path }})</span>
+                </div>
+              </el-checkbox>
             </div>
-          </template>
-        </el-tree>
+          </el-checkbox-group>
+          
+          <!-- 分页 -->
+          <el-pagination
+            v-if="searchTotal > 0"
+            v-model:current-page="searchPage"
+            v-model:page-size="searchPageSize"
+            :total="searchTotal"
+            :page-sizes="[10, 20, 50, 100]"
+            layout="total, sizes, prev, pager, next"
+            style="margin-top: 16px; justify-content: center;"
+            @size-change="handleSearch"
+            @current-change="handleSearch"
+          />
+        </div>
       </div>
       
       <template #footer>
@@ -100,10 +111,9 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { ElButton, ElDialog, ElTree, ElTag, ElInput, ElIcon, ElMessage } from 'element-plus'
-import { Document, Folder, Search } from '@element-plus/icons-vue'
-import type { ServiceTree } from '@/types'
-import { getServiceTree } from '@/api/service-tree'
+import { ElButton, ElDialog, ElTag, ElInput, ElIcon, ElMessage, ElCheckbox, ElCheckboxGroup, ElPagination, ElEmpty } from 'element-plus'
+import { Document, Search } from '@element-plus/icons-vue'
+import { searchDocs, type DocSearchResult } from '@/api/doc'
 
 interface Props {
   modelValue: string // 逗号分隔的路径字符串，如："/system/official/sdk,/user/myapp/docs"
@@ -157,48 +167,49 @@ const handleInputBlur = () => {
   selectedPaths.value = paths
 }
 
-// 过滤后的树数据（只显示 package 和 docs 类型节点）
-const filteredTreeData = computed(() => {
-  const filterNode = (nodes: ServiceTree[]): ServiceTree[] => {
-    return nodes
-      .filter(node => node.type === 'package' || node.type === 'docs')
-      .map(node => ({
-        ...node,
-        children: node.children ? filterNode(node.children) : undefined
-      }))
+// 搜索文档（防抖）
+let searchTimer: ReturnType<typeof setTimeout> | null = null
+const handleSearchInput = () => {
+  if (searchTimer) {
+    clearTimeout(searchTimer)
   }
-  return filterNode(serviceTreeData.value)
-})
-
-// 获取节点类型标签
-const getNodeTypeLabel = (type: string) => {
-  const typeMap: Record<string, string> = {
-    package: '目录',
-    docs: '文档'
-  }
-  return typeMap[type] || type
+  searchTimer = setTimeout(() => {
+    if (searchKeyword.value.trim()) {
+      searchPage.value = 1
+      handleSearch()
+    } else {
+      searchResults.value = []
+      searchTotal.value = 0
+    }
+  }, 300) // 300ms 防抖
 }
 
-// 获取节点类型标签样式
-const getNodeTypeTag = (type: string) => {
-  const typeMap: Record<string, string> = {
-    package: 'primary',
-    docs: 'success'
+// 执行搜索
+const handleSearch = async () => {
+  if (!searchKeyword.value.trim()) {
+    searchResults.value = []
+    searchTotal.value = 0
+    return
   }
-  return typeMap[type] || 'info'
+  
+  searchLoading.value = true
+  try {
+    const resp = await searchDocs({
+      keyword: searchKeyword.value.trim(),
+      page: searchPage.value,
+      page_size: searchPageSize.value
+    })
+    searchResults.value = resp.docs || []
+    searchTotal.value = resp.total || 0
+  } catch (error: any) {
+    console.error('搜索文档失败:', error)
+    ElMessage.error(error.message || '搜索文档失败')
+    searchResults.value = []
+    searchTotal.value = 0
+  } finally {
+    searchLoading.value = false
+  }
 }
-
-// 过滤节点
-const filterNode = (value: string, data: ServiceTree) => {
-  if (!value) return true
-  return data.name.toLowerCase().includes(value.toLowerCase()) ||
-         data.full_code_path.toLowerCase().includes(value.toLowerCase())
-}
-
-// 监听过滤文本变化
-watch(filterText, (val) => {
-  treeRef.value?.filter(val)
-})
 
 // 加载服务树数据
 const loadServiceTree = async () => {
@@ -219,29 +230,17 @@ const loadServiceTree = async () => {
 
 // 打开对话框
 const handleOpenTreeDialog = () => {
-  if (!props.user || !props.app) {
-    ElMessage.warning('需要指定应用才能从服务树选择路径。请手动输入路径，如：/system/official/sdk')
-    return
-  }
   dialogVisible.value = true
-}
-
-// 打开对话框时加载数据
-watch(dialogVisible, (visible) => {
-  if (visible) {
-    tempSelectedPaths.value = [...selectedPaths.value]
-    loadServiceTree()
-  }
-})
-
-// 处理节点选择
-const handleNodeCheck = (data: ServiceTree, checked: { checkedKeys: string[], halfCheckedKeys: string[] }) => {
-  tempSelectedPaths.value = checked.checkedKeys
+  searchKeyword.value = ''
+  searchResults.value = []
+  searchTotal.value = 0
+  searchPage.value = 1
+  tempSelectedPaths.value = [...selectedPaths.value]
 }
 
 // 确认选择
 const handleConfirm = () => {
-  // 合并已选中的路径和从服务树选择的路径（去重）
+  // 合并已选中的路径和从搜索选择的路径（去重）
   const existingPaths = selectedPaths.value
   const newPaths = tempSelectedPaths.value
   const mergedPaths = Array.from(new Set([...existingPaths, ...newPaths]))
@@ -281,29 +280,37 @@ const handleRemovePath = (index: number) => {
   }
   
   .selector-content {
-    max-height: 400px;
-    overflow-y: auto;
-  }
-  
-  .docs-path-select-tree {
-    .tree-node {
-      display: flex;
-      align-items: center;
-      flex: 1;
+    .empty-state {
+      padding: 40px 0;
+      text-align: center;
+    }
+    
+    .doc-item {
+      padding: 8px 0;
+      border-bottom: 1px solid var(--el-border-color-lighter);
       
-      .node-icon {
-        margin-right: 6px;
-        color: var(--el-text-color-secondary);
+      &:last-child {
+        border-bottom: none;
       }
       
-      .node-label {
-        font-weight: 500;
-      }
-      
-      .node-path {
-        margin-left: 8px;
-        font-size: 12px;
-        color: var(--el-text-color-secondary);
+      .doc-item-content {
+        display: flex;
+        align-items: center;
+        
+        .doc-icon {
+          margin-right: 8px;
+          color: var(--el-color-primary);
+        }
+        
+        .doc-name {
+          font-weight: 500;
+          margin-right: 8px;
+        }
+        
+        .doc-path {
+          font-size: 12px;
+          color: var(--el-text-color-secondary);
+        }
       }
     }
   }
