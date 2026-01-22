@@ -428,7 +428,7 @@ const handleClose = () => {
 
 .users-search-dialog-item.is-selected {
   border-color: var(--el-color-primary);
-  background-color: var(--el-color-primary-light-9);
+  background-color: var(--el-fill-color-light);
 }
 
 .user-avatar {
