@@ -89,14 +89,15 @@ func (s *DocService) CreateDoc(ctx context.Context, req *dto.CreateDocReq) (*mod
 		format = "markdown"
 	}
 
-	// 5. 创建文档
+	// 5. 创建文档（名称从 ServiceTree 获取）
 	doc := &model.Docs{
-		Title:   req.Title,
-		Content: req.Content,
-		Format:  format,
-		Summary: req.Summary,
-		AppID:   tree.AppID,
-		TreeID:  tree.ID,
+		Name:         tree.Name, // 使用 ServiceTree 的名称
+		Content:      req.Content,
+		Format:       format,
+		Summary:      req.Summary,
+		AppID:        tree.AppID,
+		TreeID:       tree.ID,
+		FullCodePath: tree.FullCodePath, // 同步完整路径
 	}
 	doc.CreatedBy = user
 	doc.UpdatedBy = user
@@ -112,7 +113,7 @@ func (s *DocService) CreateDoc(ctx context.Context, req *dto.CreateDocReq) (*mod
 		// 不返回错误，因为文档已创建成功
 	}
 
-	logger.Infof(ctx, "[DocService] 文档创建成功 - FullCodePath: %s, DocID: %d, Title: %s", req.FullCodePath, doc.ID, req.Title)
+	logger.Infof(ctx, "[DocService] 文档创建成功 - FullCodePath: %s, DocID: %d, Name: %s", req.FullCodePath, doc.ID, doc.Name)
 	return doc, nil
 }
 
@@ -147,9 +148,7 @@ func (s *DocService) UpdateDoc(ctx context.Context, req *dto.UpdateDocReq) (*mod
 	}
 
 	// 4. 更新文档（只更新非空字段）
-	if req.Title != "" {
-		doc.Title = req.Title
-	}
+	// 注意：文档名称应该通过更新 ServiceTree 来修改，这里不更新 Name
 	if req.Content != "" {
 		doc.Content = req.Content
 	}
@@ -165,7 +164,7 @@ func (s *DocService) UpdateDoc(ctx context.Context, req *dto.UpdateDocReq) (*mod
 		return nil, fmt.Errorf("更新文档失败: %w", err)
 	}
 
-	logger.Infof(ctx, "[DocService] 文档更新成功 - FullCodePath: %s, DocID: %d, Title: %s", req.FullCodePath, doc.ID, doc.Title)
+	logger.Infof(ctx, "[DocService] 文档更新成功 - FullCodePath: %s, DocID: %d, Name: %s", req.FullCodePath, doc.ID, doc.Name)
 	return doc, nil
 }
 

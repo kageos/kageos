@@ -17,9 +17,6 @@ type Docs struct {
 	// 可选字段
 	Summary  string `json:"summary" gorm:"type:text;comment:文档摘要"`      // 文档摘要
 	Category string `json:"category" gorm:"type:varchar(128);comment:文档分类"` // 文档分类
-	
-	// 保留 Title 字段用于向后兼容（已废弃，使用 Name 代替）
-	Title string `json:"title" gorm:"type:varchar(255);comment:文档标题（已废弃，使用Name）"` // 文档标题（已废弃）
 }
 
 // TableName 指定表名

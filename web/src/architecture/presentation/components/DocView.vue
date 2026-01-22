@@ -4,7 +4,7 @@
       <!-- 文档头部 -->
       <div class="doc-header">
         <div class="doc-title-section">
-          <h1 class="doc-title">{{ doc.title }}</h1>
+          <h1 class="doc-title">{{ doc.name || props.node?.name || '未命名文档' }}</h1>
           <div class="doc-meta">
             <el-tag v-if="doc.format" size="small" type="info">{{ doc.format }}</el-tag>
             <span v-if="doc.category" class="doc-category">{{ doc.category }}</span>
@@ -53,13 +53,6 @@
       <div class="doc-body">
         <!-- 编辑模式 -->
         <div v-if="isEditing" class="doc-editor">
-          <el-input
-            v-model="editTitle"
-            placeholder="文档标题"
-            class="doc-title-input"
-            maxlength="255"
-            show-word-limit
-          />
           <el-input
             v-model="editSummary"
             type="textarea"
@@ -135,7 +128,6 @@ const saving = ref(false)
 
 // 编辑状态
 const isEditing = ref(false)
-const editTitle = ref('')
 const editSummary = ref('')
 const editContent = ref('')
 
@@ -183,7 +175,6 @@ const loadDoc = async () => {
 // 创建文档
 const handleCreate = () => {
   isEditing.value = true
-  editTitle.value = props.node.name || ''
   editSummary.value = ''
   editContent.value = ''
 }
@@ -192,7 +183,6 @@ const handleCreate = () => {
 const handleEdit = () => {
   if (doc.value) {
     isEditing.value = true
-    editTitle.value = doc.value.title || ''
     editSummary.value = doc.value.summary || ''
     editContent.value = doc.value.content || ''
   }
@@ -202,11 +192,6 @@ const handleEdit = () => {
 const handleSave = async () => {
   if (!props.node?.full_code_path) {
     ElMessage.error('文档路径不存在')
-    return
-  }
-
-  if (!editTitle.value.trim()) {
-    ElMessage.warning('请输入文档标题')
     return
   }
 
@@ -220,7 +205,6 @@ const handleSave = async () => {
     if (doc.value) {
       // ✅ 更新文档（使用 full_code_path）
       const data = await updateDoc(props.node.full_code_path, {
-        title: editTitle.value.trim(),
         content: editContent.value.trim(),
         summary: editSummary.value.trim() || undefined,
         format: 'markdown'
@@ -273,7 +257,7 @@ const handleDelete = async () => {
 
   try {
     await ElMessageBox.confirm(
-      `确定要删除文档"${doc.value.title}"吗？此操作将删除文档内容和文档节点，且无法恢复。`,
+      `确定要删除文档"${doc.value.name || props.node?.name || '未命名文档'}"吗？此操作将删除文档内容和文档节点，且无法恢复。`,
       '确认删除',
       {
         confirmButtonText: '确定',
