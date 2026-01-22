@@ -514,13 +514,10 @@ function handlePageChange() {
   loadData()
 }
 
-// 对话框打开时（确保 LLM 和知识库选项已加载）
+// 对话框打开时（确保 LLM 选项已加载）
 async function handleDialogOpened() {
-  // 🔥 强制重新加载，确保数据是最新的（并行加载提高效率）
-  await Promise.all([
-    loadAllLLMs(),
-    loadDefaultFunctions() // 加载默认函数列表
-  ])
+  // 🔥 强制重新加载，确保数据是最新的
+  await loadAllLLMs()
 }
 
 // 加载所有 LLM 配置（合并到现有列表，不去重覆盖）
