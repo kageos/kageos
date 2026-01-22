@@ -217,7 +217,7 @@ export class FormDomainService {
       }
       
       // 3. 保留已有值（如果 initialData 中没有该字段）
-      // 🔥 关键修复：如果 existingValue 是空值（raw 为 null/undefined/空字符串），且没有 initialData，应该使用默认值
+      // 🔥 关键修复：如果 existingValue 是空值（raw 为 null/undefined/空字符串），且 initialData 中没有该字段，应该使用默认值
       // 这样可以确保新增模式下默认值能生效，而更新模式下不会覆盖 initialData
       if (existingValue) {
         // 检查 existingValue 是否是空值
@@ -227,9 +227,10 @@ export class FormDomainService {
                             (Array.isArray(existingValue.raw) && existingValue.raw.length === 0) ||
                             (typeof existingValue.raw === 'object' && Object.keys(existingValue.raw).length === 0)
         
-        // 如果是空值且没有 initialData（新增模式），使用默认值
-        // 如果有 initialData（编辑模式），保留 existingValue（可能是空值，但 initialData 会覆盖）
-        if (isEmptyValue && !initialData) {
+        // 🔥 关键：使用 !hasInitialData 而不是 !initialData，因为 initialData 可能是空对象 {}
+        // 如果是空值且 initialData 中没有该字段（新增模式），使用默认值
+        // 如果 initialData 中有该字段（编辑模式），保留 existingValue（initialData 会覆盖）
+        if (isEmptyValue && !hasInitialData) {
           // 新增模式且值为空，使用默认值
           const defaultValue = this.getDefaultValue(field)
           newData.set(fieldCode, defaultValue)
