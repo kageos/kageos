@@ -409,14 +409,14 @@ onMounted(async () => {
   padding: 8px 12px;
   border: 1px solid var(--el-border-color);
   border-radius: 4px;
-  background-color: var(--el-bg-color);
+  background-color: transparent;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .departments-select-display:hover {
   border-color: var(--el-color-primary);
-  background-color: var(--el-fill-color-light);
+  background-color: transparent;
 }
 
 .selected-departments-list {
