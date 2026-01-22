@@ -363,9 +363,9 @@ watch(visible, (newVal) => {
         }
         
         &.selected {
-          background: var(--el-color-primary-light-9);
           border-color: var(--el-color-primary);
-          box-shadow: 0 4px 16px rgba(var(--el-color-primary-rgb), 0.2);
+          border-width: 2px;
+          box-shadow: 0 0 0 2px rgba(var(--el-color-primary-rgb), 0.1);
         }
       }
       
