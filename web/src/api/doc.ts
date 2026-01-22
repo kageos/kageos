@@ -43,18 +43,12 @@ export function deleteDoc(fullCodePath: string) {
 }
 
 /**
- * 查询文档（统一接口，支持路径批量查询和关键词搜索）
+ * 搜索文档（模糊搜索）
  */
-export interface QueryDocsReq {
-  // 路径批量查询模式：提供 paths
-  paths?: string[]
-  
-  // 关键词搜索模式：提供 keyword
-  keyword?: string
+export interface SearchDocsReq {
+  keyword: string
   page?: number
   page_size?: number
-  
-  // 通用参数
   include_content?: boolean // 是否包含文档内容（默认 true，设为 false 时只返回元数据，适合列表展示）
 }
 
@@ -68,7 +62,7 @@ export interface DocSearchResult {
   category?: string
 }
 
-export interface QueryDocsResp {
+export interface SearchDocsResp {
   docs: DocSearchResult[]
   total: number
   page: number
@@ -76,49 +70,52 @@ export interface QueryDocsResp {
 }
 
 /**
- * 查询文档（统一接口）
- * @param req 查询请求
+ * 批量获取文档（精确查询）
  */
-export function queryDocs(req: QueryDocsReq) {
+export interface BatchGetDocsReq {
+  paths: string[]
+  include_content?: boolean // 是否包含文档内容（默认 true）
+}
+
+export interface BatchGetDocsResp {
+  docs: DocSearchResult[]
+}
+
+/**
+ * 搜索文档（模糊搜索）
+ * @param req 搜索请求
+ */
+export function searchDocs(req: SearchDocsReq) {
   const params = new URLSearchParams()
+  params.append('keyword', req.keyword)
   
-  // 路径批量查询模式
-  if (req.paths && req.paths.length > 0) {
-    req.paths.forEach(path => {
-      params.append('paths', path)
-    })
-  }
-  
-  // 关键词搜索模式
-  if (req.keyword) {
-    params.append('keyword', req.keyword)
-  }
-  
-  // 分页参数（搜索模式时使用）
   if (req.page) {
     params.append('page', req.page.toString())
   }
   if (req.page_size) {
     params.append('page_size', req.page_size.toString())
   }
-  
-  // 通用参数
   if (req.include_content !== undefined) {
     params.append('include_content', req.include_content.toString())
   }
   
-  return get<QueryDocsResp>(`/workspace/api/v1/docs/query?${params.toString()}`)
+  return get<SearchDocsResp>(`/workspace/api/v1/docs/search?${params.toString()}`)
 }
 
 /**
- * 搜索文档（兼容旧接口，内部调用 queryDocs）
- * @deprecated 使用 queryDocs 代替
+ * 批量获取文档（精确查询）
+ * @param req 批量查询请求
  */
-export function searchDocs(req: { keyword?: string; page: number; page_size: number; include_content?: boolean }) {
-  return queryDocs({
-    keyword: req.keyword,
-    page: req.page,
-    page_size: req.page_size,
-    include_content: req.include_content !== false
+export function batchGetDocs(req: BatchGetDocsReq) {
+  const params = new URLSearchParams()
+  
+  req.paths.forEach(path => {
+    params.append('paths', path)
   })
+  
+  if (req.include_content !== undefined) {
+    params.append('include_content', req.include_content.toString())
+  }
+  
+  return get<BatchGetDocsResp>(`/workspace/api/v1/docs/batch?${params.toString()}`)
 }

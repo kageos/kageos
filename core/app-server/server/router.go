@@ -96,7 +96,8 @@ func (s *Server) setupRoutes() {
 	docs := apiV1.Group("/docs")
 	docs.Use(middleware2.JWTAuth())
 	docHandler := v1.NewDoc(s.docService)
-	docs.GET("/query", docHandler.QueryDocs)                                       // 统一查询接口（支持路径批量查询和关键词搜索）
+	docs.GET("/search", docHandler.SearchDocs)                                       // 搜索文档（模糊搜索）
+	docs.GET("/batch", docHandler.BatchGetDocs)                                     // 批量获取文档（精确查询）
 	docs.GET("/info/*full-code-path", middleware2.CheckDocRead(), docHandler.GetDoc)       // 获取文档
 	docs.PUT("/info/*full-code-path", middleware2.CheckDocWrite(), docHandler.UpdateDoc)   // 更新文档
 	docs.DELETE("/info/*full-code-path", middleware2.CheckDocDelete(), docHandler.DeleteDoc) // 删除文档
