@@ -3,7 +3,7 @@ import { get, put, del } from '@/utils/request'
 export interface Doc {
   id: number
   tree_id: number
-  title: string
+  name: string
   content: string
   format: string
   summary?: string
@@ -27,7 +27,7 @@ export function getDoc(fullCodePath: string) {
  */
 export function updateDoc(
   fullCodePath: string,
-  data: { title?: string; content?: string; format?: string; summary?: string }
+  data: { content?: string; format?: string; summary?: string }
 ) {
   const path = fullCodePath.startsWith('/') ? fullCodePath : `/${fullCodePath}`
   return put<Doc>(`/workspace/api/v1/docs${path}`, data)

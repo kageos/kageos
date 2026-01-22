@@ -27,9 +27,6 @@ export function createServiceTree(data: CreateServiceTreeRequest & { type?: stri
   
   // ⭐ 如果是 docs 类型，添加文档相关字段
   if (data.type === 'docs') {
-    if (data.doc_title) {
-      payload.doc_title = data.doc_title
-    }
     if (data.doc_content) {
       payload.doc_content = data.doc_content
     }

@@ -377,14 +377,13 @@ func (s *ServiceTreeService) CreateDocsNode(ctx context.Context, req *dto.Create
 	// ⭐ docs 类型不需要创建文件系统目录，只创建数据库记录
 
 	// ⭐ 如果提供了文档内容，立即创建文档记录
-	if req.DocTitle != "" && req.DocContent != "" {
+	if req.DocContent != "" {
 		docFormat := req.DocFormat
 		if docFormat == "" {
 			docFormat = "markdown"
 		}
 		docReq := &dto.CreateDocReq{
 			FullCodePath: serviceTree.FullCodePath, // ✅ 使用 full_code_path
-			Title:        req.DocTitle,
 			Content:      req.DocContent,
 			Format:       docFormat,
 			Summary:      req.DocSummary,

@@ -1409,7 +1409,6 @@ const handleSubmitCreateDocs = async () => {
       type: 'docs',
       description: createDocsForm.value.description.trim() || '',
       tags: createDocsForm.value.tags.trim() || '',
-      doc_title: createDocsForm.value.name.trim(),  // ⭐ 使用名称作为文档标题
       doc_content: createDocsForm.value.content.trim(),  // ⭐ 文档内容
       doc_format: 'markdown',  // ⭐ 文档格式
       doc_summary: createDocsForm.value.summary.trim() || ''  // ⭐ 文档摘要

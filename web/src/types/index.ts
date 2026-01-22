@@ -110,7 +110,6 @@ export interface CreateServiceTreeRequest {
   tags?: string
   admins?: string  // 管理员列表，逗号分隔的用户名
   // ⭐ 文档相关字段（仅当 type=docs 时使用）
-  doc_title?: string   // 文档标题
   doc_content?: string  // 文档内容
   doc_format?: string   // 文档格式（默认为 markdown）
   doc_summary?: string  // 文档摘要（可选）

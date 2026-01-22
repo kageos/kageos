@@ -60,7 +60,6 @@ type CreateServiceTreeReq struct {
 	Tags        string `json:"tags" example:"user,management"`             // 标签
 	Admins      string `json:"admins" example:"user1,user2"`               // 管理员列表，逗号分隔的用户名
 	// ⭐ 文档相关字段（仅当 type=docs 时使用）
-	DocTitle   string `json:"doc_title" example:"文档标题"`                        // 文档标题（仅 docs 类型）
 	DocContent string `json:"doc_content" example:"# 文档内容\n\n这是文档内容..."` // 文档内容（仅 docs 类型）
 	DocFormat  string `json:"doc_format" example:"markdown"`                       // 文档格式（仅 docs 类型，默认为 markdown）
 	DocSummary string `json:"doc_summary" example:"文档摘要"`                      // 文档摘要（仅 docs 类型，可选）
