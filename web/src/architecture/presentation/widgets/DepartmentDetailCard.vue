@@ -296,6 +296,7 @@ function handleGoToOrganizationPage() {
     }
     
     .node-icon {
+      color: #6366f1;  /* 与服务目录保持一致的主题色 */
       opacity: 0.8;
     }
   }
