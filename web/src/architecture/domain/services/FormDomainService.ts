@@ -81,6 +81,8 @@ import type { FieldConfig, FieldValue } from '../types'
 import { ValidationEngine, createDefaultValidatorRegistry } from '@/core/validation'
 import type { ReactiveFormDataManager } from '@/core/managers/ReactiveFormDataManager'
 import { Logger } from '@/core/utils/logger'
+import { getWidgetDefaultValue } from '@/architecture/presentation/widgets/composables/useWidgetDefaultValue'
+import { useAuthStore } from '@/stores/auth'
 
 /**
  * 验证结果类型（简化，实际应该从 validation 导入）
@@ -339,31 +341,11 @@ export class FormDomainService {
 
   /**
    * 获取默认值
+   * 🔥 使用 getWidgetDefaultValue 来解析动态默认值（如 Me(), MyDepartment() 等）
    */
   private getDefaultValue(field: FieldConfig): FieldValue {
-    // 检查是否有配置的默认值
-    const configDefault = field.widget?.config?.default
-    if (configDefault !== undefined) {
-      return {
-        raw: configDefault,
-        display: typeof configDefault === 'object' ? JSON.stringify(configDefault) : String(configDefault),
-        meta: {}
-      }
-    }
-
-    // 🔥 根据字段类型返回合适的默认值
-    // table 类型字段：默认值是空数组
-    if (field.widget?.type === 'table') {
-      return { raw: [], display: '', meta: {} }
-    }
-    
-    // form 类型字段：默认值是空对象
-    if (field.widget?.type === 'form') {
-      return { raw: {}, display: '', meta: {} }
-    }
-
-    // 其他字段：返回 null
-    return { raw: null, display: '', meta: {} }
+    // 🔥 使用 getWidgetDefaultValue 来获取默认值，它会自动解析动态默认值（如 Me(), MyDepartment()）
+    return getWidgetDefaultValue(field, undefined, () => useAuthStore())
   }
 
   /**
