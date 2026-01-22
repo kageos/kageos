@@ -9,23 +9,23 @@
   <div class="docs-path-selector">
     <!-- 已选中的路径显示 -->
     <div class="selected-paths">
-      <el-input
-        v-model="pathsInput"
-        type="textarea"
-        :rows="2"
-        placeholder="请输入文档路径，多个路径用逗号分隔，如：/system/official/sdk,/system/official/plugins"
-        @blur="handleInputBlur"
-      >
-        <template #append>
-          <el-button
-            :icon="Document"
-            @click="dialogVisible = true"
-            :disabled="!canSelectFromTree"
-          >
-            从服务树选择
-          </el-button>
-        </template>
-      </el-input>
+      <div class="input-wrapper">
+        <el-input
+          v-model="pathsInput"
+          type="textarea"
+          :rows="2"
+          placeholder="请输入文档路径，多个路径用逗号分隔，如：/system/official/sdk,/system/official/plugins"
+          @blur="handleInputBlur"
+        />
+        <el-button
+          :icon="Document"
+          @click="dialogVisible = true"
+          :disabled="!canSelectFromTree"
+          style="margin-left: 8px;"
+        >
+          从服务树选择
+        </el-button>
+      </div>
       <div v-if="selectedPaths.length > 0" class="path-tags" style="margin-top: 8px;">
         <el-tag
           v-for="(path, index) in selectedPaths"
@@ -264,6 +264,15 @@ const handleRemovePath = (index: number) => {
 .docs-path-selector {
   .selected-paths {
     width: 100%;
+    
+    .input-wrapper {
+      display: flex;
+      align-items: flex-start;
+      
+      .el-textarea {
+        flex: 1;
+      }
+    }
     
     .path-tags {
       display: flex;
