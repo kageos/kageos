@@ -56,7 +56,7 @@
 import { computed, watch, ref, onMounted } from 'vue'
 import { ElPopover } from 'element-plus'
 import type { Department } from '@/api/department'
-import { getDepartmentTree, getDepartmentByPath } from '@/api/department'
+import { getDepartmentTree } from '@/api/department'
 import { useDepartmentInfoStore } from '@/stores/departmentInfo'
 import DepartmentDetailCard from './DepartmentDetailCard.vue'
 
@@ -92,15 +92,14 @@ const departmentInfoStore = useDepartmentInfoStore()
 
 // 使用 ref 存储组织架构信息，确保响应式更新
 const cachedDepartmentInfo = ref<Department | null>(null)
-// 使用 computed 来获取部门树：优先使用 props.departmentTree，否则使用内部的 ref
-const internalDepartmentTree = ref<Department[]>([])
+// 使用 computed 来获取部门树：优先使用 props.departmentTree
 const departmentTree = computed(() => {
   // 如果传入了 departmentTree prop，优先使用
   if (props.departmentTree && props.departmentTree.length > 0) {
     return props.departmentTree
   }
-  // 否则使用内部的 ref
-  return internalDepartmentTree.value
+  // 否则返回空数组（不再需要内部加载部门树）
+  return []
 })
 
 // 更新缓存的组织架构信息
@@ -122,35 +121,15 @@ const updateCachedDepartmentInfo = async () => {
       }
       
       // 🔥 如果缓存中没有，使用 getDepartmentInfo（会自动处理缓存和降级策略）
+      // store 内部会调用批量接口，不需要我们手动调用 getDepartmentTree
       const dept = await departmentInfoStore.getDepartmentInfo(props.fullCodePath)
       if (dept) {
         cachedDepartmentInfo.value = dept
         return
       }
       
-      // 如果 store 中也没有，尝试从 API 获取（降级策略）
-      // 先加载部门树（如果还没有加载，且没有传入 prop）
-      if (departmentTree.value.length === 0) {
-        const treeRes = await getDepartmentTree()
-        internalDepartmentTree.value = treeRes.departments
-      }
-      
-      // 从树中查找部门
-      const findDepartment = (depts: Department[], path: string): Department | null => {
-        for (const dept of depts) {
-          if (dept.full_code_path === path) {
-            return dept
-          }
-          if (dept.children) {
-            const found = findDepartment(dept.children, path)
-            if (found) return found
-          }
-        }
-        return null
-      }
-      
-      const department = findDepartment(departmentTree.value, props.fullCodePath)
-      cachedDepartmentInfo.value = department
+      // 如果 store 中也没有，说明部门不存在
+      cachedDepartmentInfo.value = null
     } catch (error) {
       console.error('[DepartmentDisplay] 加载组织架构信息失败', error)
       cachedDepartmentInfo.value = null
@@ -217,26 +196,10 @@ const displayName = computed(() => {
   return '未分配'
 })
 
-// 组件挂载时，如果有 fullCodePath 且没有传入 departmentTree prop，才加载部门树
+// 组件挂载时，更新缓存信息
+// 🔥 不再需要加载部门树，store 会处理所有缓存逻辑
 onMounted(async () => {
-  // 如果传入了 departmentTree prop，不需要加载
-  if (props.departmentTree && props.departmentTree.length > 0) {
-    // 直接更新缓存信息
-    await updateCachedDepartmentInfo()
-    return
-  }
-  
-  // 如果没有传入 departmentTree prop，且有 fullCodePath，才加载部门树
-  if (props.fullCodePath && departmentTree.value.length === 0) {
-    try {
-      const treeRes = await getDepartmentTree()
-      internalDepartmentTree.value = treeRes.departments
-      // 加载后更新组织架构信息
-      await updateCachedDepartmentInfo()
-    } catch (error) {
-      console.error('[DepartmentDisplay] 加载部门树失败', error)
-    }
-  }
+  await updateCachedDepartmentInfo()
 })
 </script>
 
