@@ -20,8 +20,7 @@ package widget
 //   - 值存储格式：full_code_path（如 "/dept/subdept"）
 //   - show_full_path: 是否显示全路径（默认 false，显示最后一段名称）
 type Department struct {
-	Default      string `json:"default,omitempty"`       // 默认值，支持函数调用 MyDepartment()（当前用户所在部门）
-	ShowFullPath bool   `json:"show_full_path,omitempty"` // 是否显示全路径（默认 false，显示最后一段名称）
+	Default string `json:"default,omitempty"` // 默认值，支持函数调用 MyDepartment()（当前用户所在部门）
 }
 
 func (d *Department) Config() interface{} {

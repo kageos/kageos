@@ -15,7 +15,7 @@
   - 用户编辑页面显示组织架构（horizontal）
 -->
 <template>
-  <div class="department-display-wrapper">
+  <div v-if="displayName" class="department-display-wrapper">
     <!-- 简单模式：只显示组织架构名称 -->
     <div v-if="mode === 'simple'" class="department-display-simple" :class="[sizeClass, layoutClass]">
       <img src="/组织架构.svg" alt="组织架构" class="department-icon" :style="{ width: iconSize + 'px', height: iconSize + 'px' }" />
@@ -204,7 +204,8 @@ const displayName = computed(() => {
     return '加载中...'
   }
   
-  return '未分配'
+  // 没有数据时返回 null，不显示任何内容
+  return null
 })
 
 // 加载部门树（用于详情卡片显示）
