@@ -5,11 +5,13 @@
  * - 时间函数：Now()、Today()、Tomorrow()、Yesterday()
  * - 用户函数：me()
  * 
- * 函数参数格式：
- * - Now("+1h"): 一小时后
- * - Now("-2d"): 两天前
- * - Now("+3600s"): 3600秒后
- * - Now("+2"): 2小时后（默认单位是小时）
+ * 函数参数格式（参数不需要引号）：
+ * - Now(+1h): 一小时后
+ * - Now(-2d): 两天前
+ * - Now(+3600s): 3600秒后
+ * - Now(+2): 2小时后（默认单位是小时）
+ * - Now(24h): 24小时后（不带+号，默认为正）
+ * - Now(-2): 2小时前
  */
 
 /**
@@ -65,8 +67,10 @@ function parseTimeOffset(offset: string): number {
 
 /**
  * 解析函数调用
- * @param funcCall 函数调用字符串，如 "Now()", "Now(\"+1h\")", "me()"
+ * @param funcCall 函数调用字符串，如 "Now()", "Now(+1h)", "me()"
  * @returns 解析后的函数名和参数
+ * 
+ * 注意：参数不需要引号，如 Now(+1h) 而不是 Now("+1h")
  */
 function parseFunctionCall(funcCall: string): { name: string; args: string[] } | null {
   // 匹配函数调用：函数名(参数1,参数2,...)
@@ -151,8 +155,8 @@ export function resolveDynamicDefaultValue(
     switch (funcName) {
       case 'now': {
         // Now() - 当前时间
-        // Now("+1h") - 一小时后
-        // Now("-2d") - 两天前
+        // Now(+1h) - 一小时后
+        // Now(-2d) - 两天前
         if (args.length === 0) {
           return now.getTime()
         }
@@ -166,7 +170,7 @@ export function resolveDynamicDefaultValue(
         if (args.length === 0) {
           return today.getTime()
         }
-        // Today("+1d") - 明天 00:00:00
+        // Today(+1d) - 明天 00:00:00
         const offset = parseTimeOffset(args[0])
         return today.getTime() + offset
       }

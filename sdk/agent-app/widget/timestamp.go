@@ -10,8 +10,9 @@ package widget
 //   widget:"name:开始时间;type:timestamp;default:Now();format:YYYY-MM-DD HH:mm:ss"
 //   widget:"name:创建时间;type:timestamp;default:Today();format:YYYY-MM-DD HH:mm:ss"
 //   widget:"name:截止日期;type:timestamp;default:Tomorrow();format:YYYY-MM-DD"
-//   widget:"name:一小时后;type:timestamp;default:Now(\"+1h\");format:YYYY-MM-DD HH:mm:ss"
-//   widget:"name:两天后;type:timestamp;default:Now(\"+2d\");format:YYYY-MM-DD HH:mm:ss"
+//   widget:"name:一小时后;type:timestamp;default:Now(+1h);format:YYYY-MM-DD HH:mm:ss"
+//   widget:"name:两天后;type:timestamp;default:Now(+2d);format:YYYY-MM-DD HH:mm:ss"
+//   widget:"name:3600秒前;type:timestamp;default:Now(-3600s);format:YYYY-MM-DD HH:mm:ss"
 //
 // 动态默认值函数说明：
 //   基础时间函数：
@@ -20,26 +21,30 @@ package widget
 //   - Tomorrow(): 明天开始时间 00:00:00（毫秒时间戳），适用于：截止日期、到期日期等
 //   - Yesterday(): 昨天开始时间 00:00:00（毫秒时间戳），适用于：历史记录查询等
 //
-//   相对时间函数（Now() 支持参数）：
-//   - Now("+1h"): 一小时后（当前时间 + 1小时）
-//   - Now("-1h"): 一小时前（当前时间 - 1小时）
-//   - Now("+2d"): 两天后（当前时间 + 2天）
-//   - Now("-2d"): 两天前（当前时间 - 2天）
-//   - Now("+1w"): 一周后（当前时间 + 1周）
-//   - Now("-1w"): 一周前（当前时间 - 1周）
-//   - Now("+1m"): 一个月后（当前时间 + 1月）
-//   - Now("-1m"): 一个月前（当前时间 - 1月）
-//   - Now("+1y"): 一年后（当前时间 + 1年）
-//   - Now("-1y"): 一年前（当前时间 - 1年）
-//   - Now("+3600s"): 3600秒后（当前时间 + 3600秒）
-//   - Now("-3600s"): 3600秒前（当前时间 - 3600秒）
-//   - Now("+2"): 2小时后（如果只写数字，默认单位是小时）
+//   相对时间函数（Now() 支持参数，参数不需要引号）：
+//   - Now(+1h): 一小时后（当前时间 + 1小时）
+//   - Now(-1h): 一小时前（当前时间 - 1小时）
+//   - Now(+2d): 两天后（当前时间 + 2天）
+//   - Now(-2d): 两天前（当前时间 - 2天）
+//   - Now(+1w): 一周后（当前时间 + 1周）
+//   - Now(-1w): 一周前（当前时间 - 1周）
+//   - Now(+1m): 一个月后（当前时间 + 1月）
+//   - Now(-1m): 一个月前（当前时间 - 1月）
+//   - Now(+1y): 一年后（当前时间 + 1年）
+//   - Now(-1y): 一年前（当前时间 - 1年）
+//   - Now(+3600s): 3600秒后（当前时间 + 3600秒）
+//   - Now(-3600s): 3600秒前（当前时间 - 3600秒）
+//   - Now(+2): 2小时后（如果只写数字，默认单位是小时）
+//   - Now(24h): 24小时后（不带+号，默认为正）
+//   - Now(-2): 2小时前
 //
 //   参数格式说明：
+//   - 参数不需要引号，直接写在括号内即可
 //   - 支持正负号：+ 表示未来，- 表示过去
+//   - 不带符号默认为正：Now(24h) = Now(+24h)
 //   - 支持单位：s(秒)、h(小时)、d(天)、w(周)、m(月)、y(年)
-//   - 如果只写数字（如 "+2"），默认单位是小时
-//   - 示例：Now("+1h"), Now("-2d"), Now("+1w"), Now("-1m"), Now("+3600s")
+//   - 如果只写数字（如 +2 或 -2），默认单位是小时
+//   - 示例：Now(+1h), Now(-2d), Now(+1w), Now(-1m), Now(+3600s), Now(24h), Now(-2)
 //
 // 参数说明：
 //   - format: 日期格式，如 YYYY-MM-DD HH:mm:ss、YYYY-MM-DD 等
