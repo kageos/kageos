@@ -3,6 +3,7 @@ package v1
 import (
 	"strconv"
 
+	"github.com/ai-agent-os/ai-agent-os/core/hr-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/hr-server/service"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
