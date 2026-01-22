@@ -96,7 +96,13 @@
               <div class="function-info">
                 <div class="function-name">{{ func.name }}</div>
                 <div class="function-meta">
-                  <span class="function-path">{{ func.full_code_path }}</span>
+                  <span 
+                    class="function-path clickable-path" 
+                    @click.stop="handlePathClick(func.full_code_path)"
+                    :title="`点击跳转到: ${func.full_code_path}`"
+                  >
+                    {{ func.full_code_path }}
+                  </span>
                   <el-tag v-if="func.template_type" size="small" type="info" style="margin-left: 8px;">
                     {{ func.template_type }}
                   </el-tag>
@@ -155,9 +161,12 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElButton, ElDialog, ElTag, ElInput, ElIcon, ElMessage, ElPagination } from 'element-plus'
 import { Operation, Search, Close, Check } from '@element-plus/icons-vue'
 import { searchFunctions, type FunctionSearchResult } from '@/api/service-tree'
+
+const router = useRouter()
 
 interface Props {
   modelValue: string // 函数路径（单选）
@@ -283,6 +292,15 @@ const handleConfirm = () => {
 const handleClear = () => {
   selectedPath.value = ''
   pathInput.value = ''
+}
+
+// 处理路径点击跳转
+const handlePathClick = (fullCodePath: string) => {
+  if (!fullCodePath) return
+  const targetPath = `/workspace${fullCodePath.startsWith('/') ? fullCodePath : `/${fullCodePath}`}`
+  router.push(targetPath)
+  // 关闭对话框
+  handleClose()
 }
 </script>
 
@@ -485,6 +503,19 @@ const handleClear = () => {
           .function-path {
             color: var(--el-text-color-secondary);
             font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+            
+            &.clickable-path {
+              color: var(--el-color-primary);
+              cursor: pointer;
+              text-decoration: underline;
+              text-decoration-color: transparent;
+              transition: all 0.2s;
+              
+              &:hover {
+                color: var(--el-color-primary-dark-2);
+                text-decoration-color: var(--el-color-primary);
+              }
+            }
           }
         }
         
