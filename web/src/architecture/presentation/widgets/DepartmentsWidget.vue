@@ -23,9 +23,8 @@
             <template #reference>
               <el-tag
                 closable
-                @close="handleRemoveDepartment(dept)"
+                @close.stop="handleRemoveDepartment(dept)"
                 style="margin-right: 8px; margin-bottom: 4px; cursor: pointer;"
-                @click.stop
               >
                 <img src="/组织架构.svg" alt="组织架构" class="department-icon-small" />
                 <span class="department-display-text">
