@@ -19,8 +19,7 @@
         />
         <el-button
           :icon="Document"
-          @click="dialogVisible = true"
-          :disabled="!canSelectFromTree"
+          @click="handleOpenTreeDialog"
           style="margin-left: 8px;"
         >
           从服务树选择
@@ -134,10 +133,6 @@ const treeProps = {
   label: 'name'
 }
 
-// 是否可以从服务树选择（需要提供 user 和 app）
-const canSelectFromTree = computed(() => {
-  return !!(props.user && props.app)
-})
 
 // 当前选中的路径数组
 const selectedPaths = computed({
@@ -209,14 +204,9 @@ watch(filterText, (val) => {
 const loadServiceTree = async () => {
   if (loading.value) return
   
-  if (!props.user || !props.app) {
-    ElMessage.warning('需要指定应用才能从服务树选择路径')
-    return
-  }
-  
   loading.value = true
   try {
-    const tree = await getServiceTree(props.user, props.app)
+    const tree = await getServiceTree(props.user!, props.app!)
     serviceTreeData.value = tree || []
   } catch (error: any) {
     console.error('加载服务树失败:', error)
@@ -225,6 +215,15 @@ const loadServiceTree = async () => {
   } finally {
     loading.value = false
   }
+}
+
+// 打开对话框
+const handleOpenTreeDialog = () => {
+  if (!props.user || !props.app) {
+    ElMessage.warning('需要指定应用才能从服务树选择路径。请手动输入路径，如：/system/official/sdk')
+    return
+  }
+  dialogVisible.value = true
 }
 
 // 打开对话框时加载数据
