@@ -9,9 +9,13 @@
   <div class="departments-widget">
     <!-- 编辑模式：多组织架构选择器（使用弹窗搜索） -->
     <div v-if="mode === 'edit' || mode === 'search'" class="departments-select-wrapper">
-      <!-- 选中后的显示（参考 DocsPathSelector 的实现） -->
-      <div v-if="selectedDepartmentsForDisplay.length > 0" class="selected-departments">
-        <div class="departments-tags">
+      <!-- 选中后的显示（参考 DepartmentSearchWidget 的实现） -->
+      <div
+        v-if="selectedDepartmentsForDisplay.length > 0"
+        class="departments-select-display"
+        @click="handleOpenDialog()"
+      >
+        <div class="selected-departments-list">
           <el-popover
             v-for="(dept, index) in selectedDepartmentsForDisplay"
             :key="dept.full_code_path"
@@ -21,16 +25,18 @@
             popper-class="department-info-popover"
           >
             <template #reference>
-              <el-tag
-                closable
-                @close.stop="handleRemoveDepartment(dept)"
-                style="margin-right: 8px; margin-bottom: 4px; cursor: pointer;"
+              <div
+                class="selected-department-tag"
+                @click.stop
               >
                 <img src="/组织架构.svg" alt="组织架构" class="department-icon-small" />
                 <span class="department-display-text">
-                  {{ formatDepartmentDisplayName(dept) }}
+                  {{ dept.name }}
                 </span>
-              </el-tag>
+                <el-icon class="remove-icon" @click.stop="handleRemoveDepartment(dept)">
+                  <Close />
+                </el-icon>
+              </div>
             </template>
             <DepartmentDetailCard 
               :department-info="dept" 
@@ -39,13 +45,9 @@
             />
           </el-popover>
         </div>
-        <el-button
-          :icon="Edit"
-          @click="handleOpenDialog()"
-          style="margin-top: 8px;"
-        >
-          选择组织架构
-        </el-button>
+        <el-icon class="edit-icon">
+          <Edit />
+        </el-icon>
       </div>
       <!-- 未选中时显示按钮 -->
       <el-button
@@ -198,7 +200,7 @@ import DepartmentDisplay from './DepartmentDisplay.vue'
 import DepartmentDetailCard from './DepartmentDetailCard.vue'
 import DepartmentsSearchDialog from './DepartmentsSearchDialog.vue'
 import { ElButton, ElIcon, ElTag, ElPopover } from 'element-plus'
-import { OfficeBuilding, Edit } from '@element-plus/icons-vue'
+import { OfficeBuilding, Edit, Close } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { useDepartmentInfoStore } from '@/stores/departmentInfo'
@@ -551,40 +553,76 @@ async function loadDepartmentTree(): Promise<void> {
   width: 100%;
 }
 
-/* 选中后的显示（参考 DocsPathSelector 的实现） */
-.selected-departments {
-  width: 100%;
+/* 选中后的显示（参考 DepartmentSearchWidget 的实现） */
+.departments-select-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
+  background-color: var(--el-bg-color);
+  cursor: pointer;
+  transition: all 0.2s;
+  min-height: 40px;
 }
 
-.departments-tags {
+.departments-select-display:hover {
+  border-color: var(--el-color-primary);
+  background-color: var(--el-fill-color-light);
+}
+
+.selected-departments-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 0;
+  gap: 6px;
+  flex: 1;
+  align-items: center;
 }
 
-/* 修复 el-tag 背景色过白的问题 */
-.departments-tags :deep(.el-tag) {
-  background-color: var(--el-fill-color-light) !important;
-  border-color: var(--el-border-color);
-  color: var(--el-text-color-primary);
-}
-
-.departments-tags :deep(.el-tag:hover) {
-  background-color: var(--el-fill-color) !important;
-  border-color: var(--el-color-primary);
+.selected-department-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background-color: var(--el-fill-color-light);
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
+  font-size: 12px;
 }
 
 .department-icon-small {
   width: 14px;
   height: 14px;
   flex-shrink: 0;
-  margin-right: 4px;
 }
 
 .department-display-text {
-  font-size: 12px;
   color: var(--el-text-color-primary);
   white-space: nowrap;
+}
+
+.remove-icon {
+  cursor: pointer;
+  color: var(--el-text-color-secondary);
+  font-size: 14px;
+  margin-left: 4px;
+  transition: color 0.2s;
+}
+
+.remove-icon:hover {
+  color: var(--el-color-primary);
+}
+
+.edit-icon {
+  flex-shrink: 0;
+  color: var(--el-text-color-secondary);
+  font-size: 16px;
+  transition: color 0.2s;
+}
+
+.departments-select-display:hover .edit-icon {
+  color: var(--el-color-primary);
 }
 
 /* 部门列表弹窗样式 */
