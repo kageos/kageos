@@ -399,13 +399,14 @@ const handleRemovePath = (index: number) => {
     }
     
     .close-btn {
-      padding: 8px;
-      border-radius: 12px;
+      padding: 4px;
+      border-radius: 6px;
       transition: all 0.2s;
+      color: var(--el-text-color-secondary);
       
       &:hover {
-        background: var(--el-color-danger-light-9);
-        transform: scale(1.1);
+        color: var(--el-text-color-primary);
+        background: var(--el-fill-color-light);
       }
     }
   }
@@ -573,7 +574,6 @@ const handleRemovePath = (index: number) => {
     gap: 8px;
     padding: 12px 24px;
     background: var(--el-bg-color);
-    border-top: 2px solid var(--el-color-primary);
     color: var(--el-color-primary);
     font-size: 14px;
     font-weight: 600;
