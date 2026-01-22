@@ -43,35 +43,61 @@ export function deleteDoc(fullCodePath: string) {
 }
 
 /**
- * 搜索文档
+ * 查询文档（统一接口，支持路径批量查询和关键词搜索）
  */
-export interface SearchDocsReq {
+export interface QueryDocsReq {
+  // 路径批量查询模式：提供 paths
+  paths?: string[]
+  
+  // 关键词搜索模式：提供 keyword
   keyword?: string
-  page: number
-  page_size: number
+  page?: number
+  page_size?: number
+  
+  // 通用参数
+  include_content?: boolean // 是否包含文档内容（默认 true，设为 false 时只返回元数据，适合列表展示）
 }
 
 export interface DocSearchResult {
   id: number
   name: string
-  content: string
+  content?: string // 可选，根据 include_content 决定
   format: string
   full_code_path: string
   summary?: string
   category?: string
 }
 
-export interface SearchDocsResp {
+export interface QueryDocsResp {
   docs: DocSearchResult[]
   total: number
   page: number
   page_size: number
 }
 
-export function searchDocs(req: SearchDocsReq) {
-  return get<SearchDocsResp>('/workspace/api/v1/docs/search', {
+/**
+ * 查询文档（统一接口）
+ * @param req 查询请求
+ */
+export function queryDocs(req: QueryDocsReq) {
+  return post<QueryDocsResp>('/workspace/api/v1/docs/query', {
+    paths: req.paths || [],
     keyword: req.keyword || '',
-    page: req.page.toString(),
-    page_size: req.page_size.toString()
+    page: req.page || 1,
+    page_size: req.page_size || 20,
+    include_content: req.include_content !== false // 默认 true
+  })
+}
+
+/**
+ * 搜索文档（兼容旧接口，内部调用 queryDocs）
+ * @deprecated 使用 queryDocs 代替
+ */
+export function searchDocs(req: { keyword?: string; page: number; page_size: number; include_content?: boolean }) {
+  return queryDocs({
+    keyword: req.keyword,
+    page: req.page,
+    page_size: req.page_size,
+    include_content: req.include_content !== false
   })
 }

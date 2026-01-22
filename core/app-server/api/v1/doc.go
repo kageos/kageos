@@ -125,70 +125,37 @@ func (s *Doc) DeleteDoc(c *gin.Context) {
 	response.OkWithMessage(c, "文档删除成功")
 }
 
-// GetDocsBatch 根据路径列表批量获取文档
-// @Summary 根据路径列表批量获取文档
-// @Description 根据路径列表批量获取文档内容（POST 请求，避免与 wildcard 路由冲突）
+// QueryDocs 统一查询文档接口（支持路径批量查询和关键词搜索）
+// @Summary 查询文档（统一接口）
+// @Description 支持两种查询模式：1) 路径批量查询：提供 paths 参数；2) 关键词搜索：提供 keyword 参数。可通过 include_content 控制是否返回文档内容。
 // @Tags 文档
 // @Accept json
 // @Produce json
 // @Security ApiKeyAuth
 // @Param X-Token header string true "JWT Token"
-// @Param body body dto.GetDocsByPathsReq true "文档路径列表"
-// @Success 200 {object} dto.GetDocsByPathsResp "文档列表"
+// @Param body body dto.QueryDocsReq true "查询请求"
+// @Success 200 {object} dto.QueryDocsResp "查询成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
 // @Router /api/v1/docs/query [post]
-func (s *Doc) GetDocsBatch(c *gin.Context) {
-	var req dto.GetDocsByPathsReq
+func (s *Doc) QueryDocs(c *gin.Context) {
+	var req dto.QueryDocsReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.FailWithMessage(c, "参数错误: "+err.Error())
 		return
 	}
 
-	if len(req.Paths) == 0 {
-		response.FailWithMessage(c, "路径列表不能为空")
+	// 验证：至少提供一种查询方式
+	if len(req.Paths) == 0 && req.Keyword == "" {
+		response.FailWithMessage(c, "请提供 paths（路径列表）或 keyword（搜索关键词）")
 		return
 	}
 
 	ctx := contextx.ToContext(c)
-	resp, err := s.docService.GetDocsByPaths(ctx, req.Paths)
+	resp, err := s.docService.QueryDocs(ctx, &req)
 	if err != nil {
-		logger.Errorf(c, "[Doc API] 批量获取文档失败: paths=%v, error=%v", req.Paths, err)
-		response.FailWithMessage(c, "批量获取文档失败: "+err.Error())
-		return
-	}
-
-	response.OkWithData(c, resp)
-}
-
-// SearchDocs 搜索文档
-// @Summary 搜索文档
-// @Description 根据关键词搜索文档，支持跨应用搜索
-// @Tags 文档
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Param X-Token header string true "JWT Token"
-// @Param keyword query string false "搜索关键词（可选，用于搜索名称和路径）"
-// @Param page query int true "页码" default(1)
-// @Param page_size query int true "每页数量" default(10)
-// @Success 200 {object} dto.SearchDocsResp "搜索成功"
-// @Failure 400 {string} string "请求参数错误"
-// @Failure 401 {string} string "未授权"
-// @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/docs/search [get]
-func (s *Doc) SearchDocs(c *gin.Context) {
-	var req dto.SearchDocsReq
-	if err := c.ShouldBindQuery(&req); err != nil {
-		response.FailWithMessage(c, "参数错误: "+err.Error())
-		return
-	}
-
-	ctx := contextx.ToContext(c)
-	resp, err := s.docService.SearchDocs(ctx, &req)
-	if err != nil {
-		logger.Errorf(c, "[Doc API] 搜索文档失败: keyword=%s, error=%v", req.Keyword, err)
-		response.FailWithMessage(c, "搜索文档失败: "+err.Error())
+		logger.Errorf(c, "[Doc API] 查询文档失败: paths=%v, keyword=%s, error=%v", req.Paths, req.Keyword, err)
+		response.FailWithMessage(c, "查询文档失败: "+err.Error())
 		return
 	}
 
