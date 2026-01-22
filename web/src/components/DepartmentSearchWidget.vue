@@ -208,6 +208,21 @@ watch(() => [props.modelValue, supportsMultiple], () => {
   min-height: 40px;
 }
 
+.department-search-display .department-icon-small {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.department-search-display .department-display-text {
+  flex: 1;
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .department-search-display:hover {
   border-color: var(--el-color-primary);
   background-color: var(--el-fill-color-light);

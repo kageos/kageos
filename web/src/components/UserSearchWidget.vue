@@ -249,6 +249,19 @@ watch(() => [props.modelValue, supportsMultiple], () => {
   min-height: 40px;
 }
 
+.user-search-display .user-avatar-small {
+  flex-shrink: 0;
+}
+
+.user-search-display .user-display-text {
+  flex: 1;
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .user-search-display:hover {
   border-color: var(--el-color-primary);
   background-color: var(--el-fill-color-light);
