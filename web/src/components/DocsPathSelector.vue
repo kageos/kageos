@@ -465,9 +465,23 @@ const handleRemovePath = (index: number) => {
         }
         
         &.selected {
-          background: var(--el-color-primary-light-9);
+          background: var(--el-color-primary-light-8);
           border-color: var(--el-color-primary);
-          box-shadow: 0 4px 16px rgba(var(--el-color-primary-rgb), 0.2);
+          box-shadow: 0 4px 16px rgba(var(--el-color-primary-rgb), 0.3);
+          
+          .doc-name {
+            color: var(--el-color-primary);
+            font-weight: 600;
+          }
+          
+          .doc-icon-wrapper {
+            background: var(--el-color-primary-light-7);
+            border-color: var(--el-color-primary-light-5);
+            
+            .doc-icon {
+              color: var(--el-color-primary);
+            }
+          }
         }
       }
       
