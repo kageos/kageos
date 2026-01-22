@@ -534,6 +534,18 @@ async function loadDepartmentTree(): Promise<void> {
   gap: 0;
 }
 
+/* 修复 el-tag 背景色过白的问题 */
+.departments-tags :deep(.el-tag) {
+  background-color: var(--el-fill-color-light) !important;
+  border-color: var(--el-border-color);
+  color: var(--el-text-color-primary);
+}
+
+.departments-tags :deep(.el-tag:hover) {
+  background-color: var(--el-fill-color) !important;
+  border-color: var(--el-color-primary);
+}
+
 .department-icon-small {
   width: 14px;
   height: 14px;
