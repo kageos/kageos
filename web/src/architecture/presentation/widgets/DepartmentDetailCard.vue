@@ -282,11 +282,11 @@ function handleGoToOrganizationPage() {
 }
 
 .department-tree :deep(.el-tree-node__content:hover) {
-  background-color: var(--el-fill-color);
+  background-color: var(--el-fill-color-light);
 }
 
 :deep(.el-tree-node.is-current > .el-tree-node__content) {
-  background-color: var(--el-fill-color);
+  background-color: var(--el-fill-color-lighter);
   border-left: 2px solid #6366f1;
   
   .tree-node {
