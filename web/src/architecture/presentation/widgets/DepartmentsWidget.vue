@@ -98,6 +98,7 @@
           :department-info="dept"
           :full-code-path="dept.full_code_path"
           :display-name="dept.full_name_path || dept.name"
+          :department-tree="departmentTree"
           :show-full-path="false"
           mode="card"
           layout="horizontal"
