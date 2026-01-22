@@ -273,23 +273,20 @@ onMounted(async () => {
     const existingValue = formDataStore.getValue(props.fieldPath)
     
     // 🔥 检查是否需要解析 Me() 函数调用
-    // 情况1：value.raw 是 "Me()" 或 "me()" 字符串（FormDomainService 还没有解析）
-    // 情况2：value.raw 是 null/undefined/空字符串，且配置中有 "Me()" 或 "me()" 默认值
-    // 兼容旧数据：也支持 "me()" 和 "$me" 格式（向后兼容）
-    const needsResolveMe = currentRaw === 'Me()' || currentRaw === 'me()' || currentRaw === '$me' || 
+    // 情况1：value.raw 是 "Me()" 字符串（FormDomainService 还没有解析）
+    // 情况2：value.raw 是 null/undefined/空字符串，且配置中有 "Me()" 默认值
+    const needsResolveMe = currentRaw === 'Me()' || 
       ((!currentRaw || currentRaw === '') && 
-       (props.field.widget?.config?.default === 'Me()' || props.field.widget?.config?.default === 'me()' || props.field.widget?.config?.default === '$me'))
+       props.field.widget?.config?.default === 'Me()')
     
     if (needsResolveMe) {
-      // ⚠️ 检查是否是编辑模式：如果 existingValue 存在且 raw 不是 "Me()" 或 "me()"，说明是编辑模式
-      // 编辑模式下，existingValue.raw 应该是实际的用户名，不应该是 "Me()" 或 "me()"
+      // ⚠️ 检查是否是编辑模式：如果 existingValue 存在且 raw 不是 "Me()"，说明是编辑模式
+      // 编辑模式下，existingValue.raw 应该是实际的用户名，不应该是 "Me()"
       const isEditMode = existingValue && 
                         existingValue.raw !== null && 
                         existingValue.raw !== undefined && 
                         existingValue.raw !== '' && 
-                        existingValue.raw !== 'Me()' &&
-                        existingValue.raw !== 'me()' &&
-                        existingValue.raw !== '$me'
+                        existingValue.raw !== 'Me()'
       
       // 只有在新增模式下才解析 $me
       if (!isEditMode) {
