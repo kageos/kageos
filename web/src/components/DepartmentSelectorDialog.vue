@@ -63,7 +63,13 @@
             <div class="department-info">
               <div class="department-name">{{ dept.name }}</div>
               <div class="department-meta">
-                <span class="department-path">{{ dept.full_code_path }}</span>
+                <span 
+                  class="department-path clickable-path" 
+                  @click.stop="handlePathClick(dept.full_code_path)"
+                  :title="`点击跳转到: ${dept.full_code_path}`"
+                >
+                  {{ dept.full_code_path }}
+                </span>
                 <span v-if="dept.full_name_path && dept.full_name_path !== dept.name" class="department-full-name">
                   {{ dept.full_name_path }}
                 </span>
@@ -100,9 +106,12 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { Close, Search, OfficeBuilding, UserFilled } from '@element-plus/icons-vue'
 import { getDepartmentTree } from '@/api/department'
 import type { Department } from '@/api/department'
+
+const router = useRouter()
 
 // Props
 interface Props {
@@ -205,6 +214,15 @@ const handleClose = () => {
   
   // 重置状态
   searchKeyword.value = ''
+}
+
+// 处理路径点击跳转
+const handlePathClick = (fullCodePath: string) => {
+  if (!fullCodePath) return
+  const targetPath = `/workspace${fullCodePath.startsWith('/') ? fullCodePath : `/${fullCodePath}`}`
+  router.push(targetPath)
+  // 关闭对话框
+  handleClose()
 }
 
 // 监听弹窗打开，加载部门树
@@ -412,6 +430,19 @@ watch(visible, (newVal) => {
           .department-path {
             color: var(--el-text-color-secondary);
             font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+            
+            &.clickable-path {
+              color: var(--el-color-primary);
+              cursor: pointer;
+              text-decoration: underline;
+              text-decoration-color: transparent;
+              transition: all 0.2s;
+              
+              &:hover {
+                color: var(--el-color-primary-dark-2);
+                text-decoration-color: var(--el-color-primary);
+              }
+            }
           }
           
           .department-full-name {

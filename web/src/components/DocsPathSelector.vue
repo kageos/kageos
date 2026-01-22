@@ -103,7 +103,13 @@
               <div class="doc-info">
                 <div class="doc-name">{{ doc.name }}</div>
                 <div class="doc-meta">
-                  <span class="doc-path">{{ doc.full_code_path }}</span>
+                  <span 
+                    class="doc-path clickable-path" 
+                    @click.stop="handlePathClick(doc.full_code_path)"
+                    :title="`点击跳转到: ${doc.full_code_path}`"
+                  >
+                    {{ doc.full_code_path }}
+                  </span>
                   <span v-if="doc.summary" class="doc-summary">{{ doc.summary }}</span>
                 </div>
               </div>
@@ -164,9 +170,12 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElButton, ElDialog, ElTag, ElInput, ElIcon, ElMessage, ElCheckbox, ElPagination } from 'element-plus'
 import { Document, Search, Close, Check } from '@element-plus/icons-vue'
 import { searchDocs, type DocSearchResult } from '@/api/doc'
+
+const router = useRouter()
 
 interface Props {
   modelValue: string // 逗号分隔的路径字符串，如："/system/official/sdk,/user/myapp/docs"
@@ -303,6 +312,15 @@ const handleRemovePath = (index: number) => {
   newPaths.splice(index, 1)
   selectedPaths.value = newPaths
   pathsInput.value = newPaths.join(',')
+}
+
+// 处理路径点击跳转
+const handlePathClick = (fullCodePath: string) => {
+  if (!fullCodePath) return
+  const targetPath = `/workspace${fullCodePath.startsWith('/') ? fullCodePath : `/${fullCodePath}`}`
+  router.push(targetPath)
+  // 关闭对话框
+  handleClose()
 }
 </script>
 
@@ -513,6 +531,19 @@ const handleRemovePath = (index: number) => {
           .doc-path {
             color: var(--el-text-color-secondary);
             font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+            
+            &.clickable-path {
+              color: var(--el-color-primary);
+              cursor: pointer;
+              text-decoration: underline;
+              text-decoration-color: transparent;
+              transition: all 0.2s;
+              
+              &:hover {
+                color: var(--el-color-primary-dark-2);
+                text-decoration-color: var(--el-color-primary);
+              }
+            }
           }
           
           .doc-summary {
