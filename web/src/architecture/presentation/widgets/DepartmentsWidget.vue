@@ -274,13 +274,26 @@ function handleDepartmentsSelected(departments: Department[]): void {
 }
 
 // 移除单个组织架构
-function handleRemoveDepartment(dept: Department): void {
+async function handleRemoveDepartment(dept: Department): Promise<void> {
   const currentPaths = props.value?.raw ? String(props.value.raw).split(',').map(p => p.trim()).filter(p => p) : []
   const newPaths = currentPaths.filter(p => p !== dept.full_code_path)
   
   // 重新加载组织架构信息
   if (newPaths.length > 0) {
-    loadDepartmentsInfo(newPaths.join(','))
+    await loadDepartmentsInfo(newPaths.join(','))
+    const displayNames = departmentInfoList.value.map(d => d.full_name_path || d.name).join(', ')
+    
+    // 🔥 更新 FieldValue，确保包含更新后的 departmentInfoList
+    const newFieldValue = createFieldValue(
+      props.field,
+      newPaths.join(','),
+      displayNames,
+      {
+        departmentInfoList: departmentInfoList.value
+      }
+    )
+    formDataStore.setValue(props.fieldPath, newFieldValue)
+    emit('update:modelValue', newFieldValue)
   } else {
     // 清空
     const newFieldValue = createFieldValue(
