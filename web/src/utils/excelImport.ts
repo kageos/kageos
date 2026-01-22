@@ -159,14 +159,14 @@ export function parseExcelFile(file: File, fields: FieldConfig[]): Promise<Impor
               // 转换数据类型
               const convertedValue = convertFieldValue(field, cellValue)
               
-              // 处理 $me 占位符（创建用户/更新用户字段）
-              // 注意：$me 应该在提交前处理，这里先保留原值
+              // 处理 me() 占位符（创建用户/更新用户字段）
+              // 注意：me() 应该在提交前处理，这里先保留原值
               finalValue = convertedValue
-              // 如果遇到 $me，先保留，在提交前统一处理
+              // 如果遇到 me() 或 $me（兼容旧格式），先保留，在提交前统一处理
               if ((field.code === 'create_by' || field.code === 'updated_by') && 
-                  typeof convertedValue === 'string' && convertedValue === '$me') {
-                // $me 占位符保留，在提交前处理
-                finalValue = '$me'
+                  typeof convertedValue === 'string' && (convertedValue === 'me()' || convertedValue === '$me')) {
+                // me() 占位符保留，在提交前处理（兼容旧格式 $me）
+                finalValue = 'me()'
               }
             }
             
