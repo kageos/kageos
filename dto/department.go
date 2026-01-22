@@ -62,9 +62,9 @@ type GetUsersByDepartmentResp struct {
 	Users []UserInfo `json:"users"` // 用户列表
 }
 
-// GetDepartmentsByPathsReq 批量获取部门请求
+// GetDepartmentsByPathsReq 批量获取部门请求（GET 请求，使用 query 参数）
 type GetDepartmentsByPathsReq struct {
-	FullCodePaths []string `json:"full_code_paths" binding:"required" example:"/tech/backend,/tech/frontend"` // 部门完整路径列表
+	FullCodePaths string `form:"full_code_paths" binding:"required" example:"/tech/backend,/tech/frontend"` // 部门完整路径列表（逗号分隔）
 }
 
 // GetDepartmentsByPathsResp 批量获取部门响应
