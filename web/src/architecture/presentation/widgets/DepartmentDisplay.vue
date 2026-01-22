@@ -92,14 +92,16 @@ const departmentInfoStore = useDepartmentInfoStore()
 
 // 使用 ref 存储组织架构信息，确保响应式更新
 const cachedDepartmentInfo = ref<Department | null>(null)
+// 使用 ref 存储部门树（用于详情卡片显示）
+const internalDepartmentTree = ref<Department[]>([])
 // 使用 computed 来获取部门树：优先使用 props.departmentTree
 const departmentTree = computed(() => {
   // 如果传入了 departmentTree prop，优先使用
   if (props.departmentTree && props.departmentTree.length > 0) {
     return props.departmentTree
   }
-  // 否则返回空数组（不再需要内部加载部门树）
-  return []
+  // 否则使用内部加载的部门树（用于 card 模式）
+  return internalDepartmentTree.value
 })
 
 // 更新缓存的组织架构信息
