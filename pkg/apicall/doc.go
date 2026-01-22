@@ -16,7 +16,7 @@ func GetDocsByPaths(ctx context.Context, paths []string) (*dto.GetDocsByPathsRes
 		return &dto.GetDocsByPathsResp{Docs: []*dto.DocItem{}}, nil
 	}
 	
-	// 构建查询参数（使用新的统一接口）
+	// 构建查询参数（使用批量查询接口）
 	queryParams := url.Values{}
 	for _, path := range paths {
 		queryParams.Add("paths", path) // 使用 Add 支持多个 paths 参数
@@ -24,7 +24,7 @@ func GetDocsByPaths(ctx context.Context, paths []string) (*dto.GetDocsByPathsRes
 	queryParams.Set("include_content", "true") // 智能体需要完整内容
 	
 	// GET 请求，使用 query 参数
-	resp, err := GetAPI[*dto.QueryDocsResp](ctx, "/workspace/api/v1/docs/query", queryParams)
+	resp, err := GetAPI[*dto.BatchGetDocsResp](ctx, "/workspace/api/v1/docs/batch", queryParams)
 	if err != nil {
 		return nil, err
 	}

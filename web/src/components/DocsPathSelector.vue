@@ -113,7 +113,7 @@
 import { ref, computed, watch } from 'vue'
 import { ElButton, ElDialog, ElTag, ElInput, ElIcon, ElMessage, ElCheckbox, ElCheckboxGroup, ElPagination, ElEmpty } from 'element-plus'
 import { Document, Search } from '@element-plus/icons-vue'
-import { queryDocs, type DocSearchResult } from '@/api/doc'
+import { searchDocs, type DocSearchResult } from '@/api/doc'
 
 interface Props {
   modelValue: string // 逗号分隔的路径字符串，如："/system/official/sdk,/user/myapp/docs"
