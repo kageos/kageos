@@ -191,7 +191,7 @@ const handleSearch = async () => {
   
   searchLoading.value = true
   try {
-    const resp = await queryDocs({
+    const resp = await searchDocs({
       keyword: searchKeyword.value.trim(),
       page: searchPage.value,
       page_size: searchPageSize.value,
