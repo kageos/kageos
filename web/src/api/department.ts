@@ -147,9 +147,11 @@ export function getDepartmentsByPaths(fullCodePaths: string[]): Promise<GetDepar
     return Promise.resolve({ departments: [] })
   }
   
-  return post<GetDepartmentsByPathsResp>('/hr/api/v1/departments', {
-    full_code_paths: fullCodePaths
-  })
+  // 使用 GET 接口，参数通过查询参数传递
+  const params = new URLSearchParams()
+  params.append('full_code_paths', fullCodePaths.join(','))
+  
+  return get<GetDepartmentsByPathsResp>(`/hr/api/v1/departments?${params.toString()}`)
 }
 
 /**

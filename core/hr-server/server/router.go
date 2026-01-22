@@ -60,7 +60,7 @@ func (s *Server) setupRoutes() {
 	// 批量获取部门路由（需要JWT验证）
 	departments := apiV1.Group("/departments")
 	departments.Use(middleware2.JWTAuth())
-	departments.POST("", departmentHandler.GetDepartmentsByPaths)
+	departments.GET("", departmentHandler.GetDepartmentsByPaths)
 
 	// 用户分配路由（需要JWT验证）
 	userAllocationHandler := v1.NewUserAllocation(s.userService, s.departmentService)
