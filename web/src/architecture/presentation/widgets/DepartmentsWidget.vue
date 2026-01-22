@@ -117,7 +117,7 @@ import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import { useDepartmentInfoStore } from '@/stores/departmentInfo'
 import type { Department } from '@/api/department'
-import { getDepartmentTree, getDepartmentByPath } from '@/api/department'
+import { getDepartmentTree } from '@/api/department'
 import { Logger } from '@/core/utils/logger'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
 
@@ -352,8 +352,8 @@ onMounted(async () => {
         const authStore = useAuthStore()
         const currentUserDepartmentPath = authStore.user?.department_full_path
         if (currentUserDepartmentPath) {
-          // 加载组织架构信息
-          const dept = await getDepartmentByPath(currentUserDepartmentPath).then(res => res.department).catch(() => null)
+          // 🔥 使用 store 获取组织架构信息（避免调用 getDepartmentTree）
+          const dept = await departmentInfoStore.getDepartmentInfo(currentUserDepartmentPath)
           if (dept) {
             let processedValue: string
             
