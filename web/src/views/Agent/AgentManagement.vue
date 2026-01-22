@@ -223,29 +223,10 @@
           </div>
         </el-form-item>
         <el-form-item label="LLM 配置">
-          <el-select
+          <LLMSelector
             v-model="formData.llm_config_id"
-            filterable
-            :loading="llmLoading"
-            placeholder="选择 LLM 配置（留空则使用默认 LLM）"
-            style="width: 100%"
-            clearable
-            @focus="handleLLMSelectFocus"
-          >
-            <el-option
-              v-for="llm in llmOptions"
-              :key="llm.id"
-              :label="`${llm.name} (${llm.provider}/${llm.model})`"
-              :value="llm.id"
-            >
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span>{{ llm.name }}</span>
-                <el-tag size="small" :type="llm.is_default ? 'success' : 'info'" style="margin-left: 8px;">
-                  {{ llm.provider }}/{{ llm.model }}{{ llm.is_default ? ' (默认)' : '' }}
-                </el-tag>
-              </div>
-            </el-option>
-          </el-select>
+            scope="market"
+          />
         </el-form-item>
         <el-form-item label="文档路径">
           <DocsPathSelector
@@ -333,6 +314,7 @@ import AgentCard from '@/components/Agent/AgentCard.vue'
 import RichTextEditor from '@/components/RichTextEditor.vue'
 import DocsPathSelector from '@/components/DocsPathSelector.vue'
 import FunctionPathSelector from '@/components/FunctionPathSelector.vue'
+import LLMSelector from '@/components/LLMSelector.vue'
 import {
   getAgentList,
   getAgent,
@@ -341,12 +323,10 @@ import {
   deleteAgent,
   enableAgent,
   disableAgent,
-  getLLMList,
   type AgentInfo,
   type AgentListReq,
   type AgentCreateReq,
   type AgentUpdateReq,
-  type LLMInfo,
 } from '@/api/agent'
 import type { FormRules } from 'element-plus'
 
@@ -406,9 +386,6 @@ const formData = reactive<AgentCreateReq & { id?: number }>({
   admin: '' // 默认空，后端会自动设置为创建用户
 })
 
-// LLM 配置
-const llmOptions = ref<LLMInfo[]>([])
-const llmLoading = ref(false)
 
 
 // 表单验证规则
@@ -514,44 +491,9 @@ function handlePageChange() {
   loadData()
 }
 
-// 对话框打开时（确保 LLM 选项已加载）
+// 对话框打开时
 async function handleDialogOpened() {
-  // 🔥 强制重新加载，确保数据是最新的
-  await loadAllLLMs()
-}
-
-// 加载所有 LLM 配置（合并到现有列表，不去重覆盖）
-async function loadAllLLMs() {
-  llmLoading.value = true
-  try {
-    const res = await getLLMList({
-      page: 1,
-      page_size: 1000 // 加载所有
-    })
-    const newLLMs = res.configs || []
-    // 合并到现有列表，避免重复
-    const llmMap = new Map<number, LLMInfo>()
-    llmOptions.value.forEach(llm => llmMap.set(llm.id, llm))
-    newLLMs.forEach(llm => {
-      if (!llmMap.has(llm.id)) {
-        llmMap.set(llm.id, llm)
-      }
-    })
-    llmOptions.value = Array.from(llmMap.values())
-  } catch (error: any) {
-    console.error('加载 LLM 配置失败:', error)
-    ElMessage.error(error.message || '加载 LLM 配置失败，请稍后重试')
-  } finally {
-    llmLoading.value = false
-  }
-}
-
-// LLM 选择框获得焦点时（确保数据已加载）
-async function handleLLMSelectFocus() {
-  // 如果 LLM 选项为空，加载所有 LLM 配置
-  if (llmOptions.value.length === 0) {
-    await loadAllLLMs()
-  }
+  // LLM 选择器组件内部会处理数据加载
 }
 
 
@@ -789,12 +731,7 @@ function handleBack() {
 
 // 初始化
 onMounted(async () => {
-  // 🔥 并行加载：智能体列表、知识库列表和 LLM 配置列表
-  // 这样可以确保即使智能体列表为空，也能有选项可以选择
-  await Promise.all([
-    loadData(),
-    loadAllLLMs()
-  ])
+  await loadData()
 })
 </script>
 
