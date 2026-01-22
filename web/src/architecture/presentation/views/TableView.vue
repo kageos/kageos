@@ -540,6 +540,7 @@ import LinkWidget from '@/architecture/presentation/widgets/LinkWidget.vue'
 import { TABLE_PARAM_KEYS, SEARCH_PARAM_KEYS } from '@/utils/urlParams'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { useUserInfoStore } from '@/stores/userInfo'
+import { useDepartmentInfoStore } from '@/stores/departmentInfo'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
 import type { TableRow, SearchParams, SortParams, SortItem } from '../../domain/services/TableDomainService'
 import type { UserInfo } from '@/types'
@@ -821,7 +822,7 @@ const userInfoStore = useUserInfoStore()
  * 🔥 预加载用户信息（时机 1：搜索表单中的用户信息）
  * 在数据加载前预加载，确保搜索表单渲染时已有用户信息
  */
-async function preloadUserInfoFromSearchForm(functionDetail: FunctionDetail, searchFormData: Record<string, any>): Promise<void> {
+const preloadUserInfoFromSearchForm = async (functionDetail: FunctionDetail, searchFormData: Record<string, any>): Promise<void> => {
   try {
     // 1. 识别所有用户字段（request + response）
     // 🔥 确保 request 和 response 是数组
@@ -870,7 +871,7 @@ async function preloadUserInfoFromSearchForm(functionDetail: FunctionDetail, sea
  * 🔥 预加载用户信息（时机 2：表格数据中的用户信息）
  * 在数据加载后预加载，确保表格渲染时已有用户信息
  */
-async function preloadUserInfoFromTableData(functionDetail: FunctionDetail, tableDataArray: TableRow[]): Promise<void> {
+const preloadUserInfoFromTableData = async (functionDetail: FunctionDetail, tableDataArray: TableRow[]): Promise<void> => {
   try {
     // 1. 识别所有用户字段（response 字段）
     // 🔥 确保 response 是数组
@@ -906,15 +907,13 @@ async function preloadUserInfoFromTableData(functionDetail: FunctionDetail, tabl
 
 // ==================== 部门信息预加载 ====================
 
-import { useDepartmentInfoStore } from '@/stores/departmentInfo'
-
 const departmentInfoStore = useDepartmentInfoStore()
 
 /**
  * 🔥 预加载部门信息（时机 1：搜索表单中的部门信息）
  * 在数据加载前预加载，确保搜索表单渲染时已有部门信息
  */
-async function preloadDepartmentInfoFromSearchForm(functionDetail: FunctionDetail, searchFormData: Record<string, any>): Promise<void> {
+const preloadDepartmentInfoFromSearchForm = async (functionDetail: FunctionDetail, searchFormData: Record<string, any>): Promise<void> => {
   try {
     // 1. 识别所有部门字段（request + response）
     // 🔥 确保 request 和 response 是数组
@@ -965,11 +964,13 @@ async function preloadDepartmentInfoFromSearchForm(functionDetail: FunctionDetai
   }
 }
 
+// 导出函数供 useTableInitialization 使用
+
 /**
  * 🔥 预加载部门信息（时机 2：表格数据中的部门信息）
  * 在数据加载后预加载，确保表格渲染时已有部门信息
  */
-async function preloadDepartmentInfoFromTableData(functionDetail: FunctionDetail, tableDataArray: TableRow[]): Promise<void> {
+const preloadDepartmentInfoFromTableData = async (functionDetail: FunctionDetail, tableDataArray: TableRow[]): Promise<void> => {
   try {
     // 1. 识别所有部门字段（response 字段）
     // 🔥 确保 response 是数组
