@@ -1,9 +1,9 @@
 <!--
   DocsPathSelector - 文档路径选择器组件
   功能：
-  - 支持多选服务树中的文档路径（package 或 docs 类型节点）
+  - 支持多选文档路径
   - 显示已选中的路径
-  - 点击后弹出对话框，显示服务树供选择
+  - 点击后弹出对话框，搜索并选择文档
 -->
 <template>
   <div class="docs-path-selector">
@@ -19,7 +19,7 @@
         />
         <el-button
           :icon="Document"
-          @click="handleOpenTreeDialog"
+          @click="handleOpenDialog"
           style="margin-left: 8px;"
         >
           搜索文档
@@ -38,70 +38,123 @@
       </div>
     </div>
     
-    <!-- 文档路径选择对话框 -->
+    <!-- 文档选择对话框 -->
     <el-dialog
       v-model="dialogVisible"
-      title="选择文档路径"
+      title=""
+      :show-close="false"
+      :close-on-click-modal="true"
+      :close-on-press-escape="true"
       width="600px"
-      :close-on-click-modal="false"
+      top="10vh"
+      class="docs-selector-dialog"
+      append-to-body
+      @close="handleClose"
     >
-      <div class="selector-content">
-        <el-input
-          v-model="searchKeyword"
-          placeholder="搜索文档路径或名称..."
-          clearable
-          style="margin-bottom: 12px;"
-          @input="handleSearchInput"
-        >
-          <template #prefix>
-            <el-icon><Search /></el-icon>
-          </template>
-        </el-input>
-        
-        <div v-loading="searchLoading" style="min-height: 200px;">
-          <div v-if="searchResults.length === 0 && !searchLoading" class="empty-state">
-            <el-empty description="请输入关键词搜索文档" />
+      <div class="docs-selector-modal">
+        <!-- 头部 -->
+        <div class="docs-selector-header">
+          <div class="header-content">
+            <el-icon class="header-icon"><Document /></el-icon>
+            <h3 class="header-title">选择文档</h3>
           </div>
-          
-          <el-checkbox-group v-model="tempSelectedPaths" v-else>
+          <el-button
+            text
+            type="primary"
+            @click="handleClose"
+            class="close-btn"
+          >
+            <el-icon size="18"><Close /></el-icon>
+          </el-button>
+        </div>
+
+        <!-- 搜索框 -->
+        <div class="docs-search-section">
+          <el-input
+            v-model="searchKeyword"
+            placeholder="搜索文档名称或路径..."
+            size="large"
+            class="docs-search-input"
+            @input="handleSearchInput"
+            clearable
+          >
+            <template #prefix>
+              <el-icon class="search-icon"><Search /></el-icon>
+            </template>
+          </el-input>
+        </div>
+
+        <!-- 文档列表 -->
+        <div class="docs-list-section" v-loading="searchLoading">
+          <div class="docs-list">
             <div
               v-for="doc in searchResults"
               :key="doc.full_code_path"
               class="doc-item"
+              :class="{ 'selected': tempSelectedPaths.includes(doc.full_code_path) }"
+              @click="handleToggleDoc(doc.full_code_path)"
             >
-              <el-checkbox :label="doc.full_code_path">
-                <div class="doc-item-content">
-                  <el-icon class="doc-icon"><Document /></el-icon>
-                  <span class="doc-name">{{ doc.name }}</span>
-                  <span class="doc-path">({{ doc.full_code_path }})</span>
+              <!-- 文档图标 -->
+              <div class="doc-icon-wrapper">
+                <el-icon class="doc-icon"><Document /></el-icon>
+              </div>
+
+              <!-- 文档信息 -->
+              <div class="doc-info">
+                <div class="doc-name">{{ doc.name }}</div>
+                <div class="doc-meta">
+                  <span class="doc-path">{{ doc.full_code_path }}</span>
+                  <span v-if="doc.summary" class="doc-summary">{{ doc.summary }}</span>
                 </div>
-              </el-checkbox>
+              </div>
+
+              <!-- 选择按钮 -->
+              <div class="doc-action">
+                <el-checkbox
+                  :model-value="tempSelectedPaths.includes(doc.full_code_path)"
+                  @change="handleToggleDoc(doc.full_code_path)"
+                  @click.stop
+                />
+              </div>
             </div>
-          </el-checkbox-group>
+            
+            <!-- 空状态 -->
+            <div v-if="searchResults.length === 0 && !searchLoading" class="docs-empty">
+              <el-icon class="empty-icon"><Document /></el-icon>
+              <div class="empty-text">{{ searchKeyword ? '未找到文档' : '请输入关键词搜索文档' }}</div>
+              <div class="empty-desc">{{ searchKeyword ? '请尝试其他搜索关键词' : '搜索文档名称或路径' }}</div>
+            </div>
+          </div>
           
           <!-- 分页 -->
-          <el-pagination
-            v-if="searchTotal > 0"
-            v-model:current-page="searchPage"
-            v-model:page-size="searchPageSize"
-            :total="searchTotal"
-            :page-sizes="[10, 20, 50, 100]"
-            layout="total, sizes, prev, pager, next"
-            style="margin-top: 16px; justify-content: center;"
-            @size-change="handleSearch"
-            @current-change="handleSearch"
-          />
+          <div v-if="searchTotal > 0" class="docs-pagination">
+            <el-pagination
+              v-model:current-page="searchPage"
+              v-model:page-size="searchPageSize"
+              :total="searchTotal"
+              :page-sizes="[10, 20, 50, 100]"
+              layout="total, sizes, prev, pager, next"
+              @size-change="handleSearch"
+              @current-change="handleSearch"
+            />
+          </div>
+        </div>
+        
+        <!-- 已选择提示 -->
+        <div v-if="tempSelectedPaths.length > 0" class="docs-selected-info">
+          <el-icon><Check /></el-icon>
+          <span>已选择 {{ tempSelectedPaths.length }} 个文档</span>
         </div>
       </div>
       
       <template #footer>
         <div class="dialog-footer">
-          <el-button @click="dialogVisible = false">取消</el-button>
+          <el-button @click="handleClose">取消</el-button>
           <el-button
             type="primary"
             @click="handleConfirm"
           >
-            确定
+            确定 ({{ tempSelectedPaths.length }})
           </el-button>
         </div>
       </template>
@@ -111,14 +164,14 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { ElButton, ElDialog, ElTag, ElInput, ElIcon, ElMessage, ElCheckbox, ElCheckboxGroup, ElPagination, ElEmpty } from 'element-plus'
-import { Document, Search } from '@element-plus/icons-vue'
+import { ElButton, ElDialog, ElTag, ElInput, ElIcon, ElMessage, ElCheckbox, ElPagination } from 'element-plus'
+import { Document, Search, Close, Check } from '@element-plus/icons-vue'
 import { searchDocs, type DocSearchResult } from '@/api/doc'
 
 interface Props {
   modelValue: string // 逗号分隔的路径字符串，如："/system/official/sdk,/user/myapp/docs"
-  user?: string // 用户（可选，如果不提供则只显示标准库路径）
-  app?: string // 应用（可选，如果不提供则只显示标准库路径）
+  user?: string // 用户（可选）
+  app?: string // 应用（可选）
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -140,7 +193,6 @@ const searchPageSize = ref(20)
 const tempSelectedPaths = ref<string[]>([])
 const pathsInput = ref('')
 
-
 // 当前选中的路径数组
 const selectedPaths = computed({
   get: () => {
@@ -159,7 +211,6 @@ watch(() => props.modelValue, (newVal) => {
 
 // 处理输入框失焦
 const handleInputBlur = () => {
-  // 从输入框更新 modelValue
   const paths = pathsInput.value.split(',').map(p => p.trim()).filter(p => p)
   selectedPaths.value = paths
 }
@@ -209,14 +260,38 @@ const handleSearch = async () => {
   }
 }
 
+// 切换文档选择
+const handleToggleDoc = (path: string) => {
+  const index = tempSelectedPaths.value.indexOf(path)
+  if (index > -1) {
+    tempSelectedPaths.value.splice(index, 1)
+  } else {
+    tempSelectedPaths.value.push(path)
+  }
+}
+
 // 打开对话框
-const handleOpenTreeDialog = () => {
+const handleOpenDialog = () => {
   dialogVisible.value = true
   searchKeyword.value = ''
   searchResults.value = []
   searchTotal.value = 0
   searchPage.value = 1
   tempSelectedPaths.value = [...selectedPaths.value]
+  
+  // 延迟聚焦搜索框
+  setTimeout(() => {
+    const input = document.querySelector('.docs-search-input input') as HTMLInputElement
+    if (input) {
+      input.focus()
+    }
+  }, 200)
+}
+
+// 关闭对话框
+const handleClose = () => {
+  dialogVisible.value = false
+  searchKeyword.value = ''
 }
 
 // 确认选择
@@ -227,7 +302,7 @@ const handleConfirm = () => {
   const mergedPaths = Array.from(new Set([...existingPaths, ...newPaths]))
   selectedPaths.value = mergedPaths
   pathsInput.value = mergedPaths.join(',')
-  dialogVisible.value = false
+  handleClose()
 }
 
 // 移除路径
@@ -239,7 +314,46 @@ const handleRemovePath = (index: number) => {
 }
 </script>
 
-<style scoped lang="scss">
+<style lang="scss" scoped>
+:deep(.docs-selector-dialog) {
+  .el-dialog {
+    border-radius: 20px;
+    overflow: hidden;
+    backdrop-filter: blur(20px);
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+    animation: docsSelectorFadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .el-dialog__header {
+    padding: 0;
+    margin: 0;
+  }
+  
+  .el-dialog__body {
+    padding: 0;
+  }
+  
+  @media (prefers-color-scheme: dark) {
+    .el-dialog {
+      background: rgba(30, 30, 30, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+  }
+}
+
+@keyframes docsSelectorFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
 .docs-path-selector {
   .selected-paths {
     width: 100%;
@@ -259,41 +373,242 @@ const handleRemovePath = (index: number) => {
       align-items: center;
     }
   }
-  
-  .selector-content {
-    .empty-state {
-      padding: 40px 0;
-      text-align: center;
-    }
+}
+
+.docs-selector-modal {
+  .docs-selector-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 24px 24px 16px;
+    border-bottom: 1px solid var(--el-border-color-lighter);
+    background: var(--el-bg-color);
     
-    .doc-item {
-      padding: 8px 0;
-      border-bottom: 1px solid var(--el-border-color-lighter);
+    .header-content {
+      display: flex;
+      align-items: center;
+      gap: 12px;
       
-      &:last-child {
-        border-bottom: none;
+      .header-icon {
+        font-size: 24px;
+        color: var(--el-color-primary);
+        background: var(--el-color-primary-light-9);
+        padding: 8px;
+        border-radius: 12px;
+        opacity: 0.8;
       }
       
-      .doc-item-content {
-        display: flex;
-        align-items: center;
-        
-        .doc-icon {
-          margin-right: 8px;
-          color: var(--el-color-primary);
-        }
-        
-        .doc-name {
-          font-weight: 500;
-          margin-right: 8px;
-        }
-        
-        .doc-path {
-          font-size: 12px;
-          color: var(--el-text-color-secondary);
-        }
+      .header-title {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 600;
+        color: var(--el-text-color-primary);
+      }
+    }
+    
+    .close-btn {
+      padding: 8px;
+      border-radius: 12px;
+      transition: all 0.2s;
+      
+      &:hover {
+        background: var(--el-color-danger-light-9);
+        transform: scale(1.1);
       }
     }
   }
+
+  .docs-search-section {
+    padding: 24px;
+    background: var(--el-bg-color);
+    
+    .docs-search-input {
+      :deep(.el-input__wrapper) {
+        border-radius: 16px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        border: 2px solid transparent;
+        transition: all 0.3s;
+        
+        &:hover {
+          box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+        }
+        
+        &.is-focus {
+          border-color: var(--el-color-primary);
+          box-shadow: 0 6px 20px rgba(var(--el-color-primary-rgb), 0.3);
+        }
+      }
+      
+      .search-icon {
+        color: var(--el-color-primary);
+        font-size: 18px;
+      }
+    }
+  }
+
+  .docs-list-section {
+    max-height: 500px;
+    overflow-y: auto;
+    padding: 0 24px;
+    
+    .docs-list {
+      .doc-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px;
+        margin-bottom: 8px;
+        cursor: pointer;
+        border-radius: 12px;
+        background: var(--el-bg-color);
+        border: 2px solid var(--el-border-color-lighter);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+        
+        &:hover {
+          background: var(--el-fill-color-light);
+          border-color: var(--el-color-primary-light-5);
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        &.selected {
+          background: var(--el-color-primary-light-9);
+          border-color: var(--el-color-primary);
+          box-shadow: 0 4px 16px rgba(var(--el-color-primary-rgb), 0.2);
+        }
+      }
+      
+      .doc-icon-wrapper {
+        flex-shrink: 0;
+        margin-right: 16px;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--el-fill-color-lighter);
+        border-radius: 10px;
+        border: 1px solid var(--el-border-color-light);
+        
+        .doc-icon {
+          font-size: 20px;
+          color: var(--el-color-primary);
+        }
+      }
+      
+      .doc-info {
+        flex: 1;
+        overflow: hidden;
+        min-width: 0;
+        
+        .doc-name {
+          font-size: 15px;
+          font-weight: 600;
+          color: var(--el-text-color-primary);
+          margin-bottom: 6px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        
+        .doc-meta {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          font-size: 12px;
+          color: var(--el-text-color-secondary);
+          
+          .doc-path {
+            color: var(--el-text-color-secondary);
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+          }
+          
+          .doc-summary {
+            color: var(--el-text-color-regular);
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+        }
+      }
+      
+      .doc-action {
+        flex-shrink: 0;
+        margin-left: 16px;
+      }
+      
+      .docs-empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 60px 24px;
+        text-align: center;
+        
+        .empty-icon {
+          font-size: 64px;
+          color: var(--el-text-color-placeholder);
+          margin-bottom: 16px;
+          opacity: 0.4;
+        }
+        
+        .empty-text {
+          font-size: 16px;
+          font-weight: 500;
+          color: var(--el-text-color-secondary);
+          margin-bottom: 8px;
+        }
+        
+        .empty-desc {
+          font-size: 14px;
+          color: var(--el-text-color-placeholder);
+        }
+      }
+    }
+    
+    .docs-pagination {
+      padding: 16px 0 24px;
+      display: flex;
+      justify-content: center;
+    }
+  }
+  
+  .docs-selected-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    background: var(--el-color-primary-light-9);
+    border-top: 1px solid var(--el-border-color-lighter);
+    color: var(--el-color-primary);
+    font-size: 14px;
+    font-weight: 500;
+    
+    .el-icon {
+      font-size: 16px;
+    }
+  }
+}
+
+// 滚动条样式
+.docs-list-section::-webkit-scrollbar {
+  width: 6px;
+}
+
+.docs-list-section::-webkit-scrollbar-track {
+  background: var(--el-bg-color-page);
+  border-radius: 3px;
+}
+
+.docs-list-section::-webkit-scrollbar-thumb {
+  background: var(--el-border-color-dark);
+  border-radius: 3px;
+  transition: background 0.2s;
+}
+
+.docs-list-section::-webkit-scrollbar-thumb:hover {
+  background: var(--el-text-color-placeholder);
 }
 </style>
