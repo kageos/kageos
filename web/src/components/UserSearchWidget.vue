@@ -90,7 +90,7 @@
       v-model="dialogVisible"
       :title="`选择${field.name || '用户'}`"
       :placeholder="field.desc || '请输入用户名或邮箱搜索'"
-      :initial-usernames="modelValue"
+      :initial-usernames="normalizedModelValue"
       @confirm="handleUsersSelected"
     />
     
@@ -141,6 +141,15 @@ const selectedUser = ref<UserInfo | null>(null)
 const supportsMultiple = computed(() => {
   const searchType = props.searchType || ''
   return hasSearchType(searchType, SearchType.IN)
+})
+
+// 规范化 modelValue 为字符串格式（用于传递给对话框）
+const normalizedModelValue = computed(() => {
+  if (!props.modelValue) return null
+  if (Array.isArray(props.modelValue)) {
+    return props.modelValue.map(v => String(v).trim()).filter(v => v).join(',') || null
+  }
+  return String(props.modelValue).trim() || null
 })
 
 // 处理打开弹窗
