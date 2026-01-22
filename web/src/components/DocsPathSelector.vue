@@ -121,8 +121,8 @@
             <!-- 空状态 -->
             <div v-if="searchResults.length === 0 && !searchLoading" class="docs-empty">
               <el-icon class="empty-icon"><Document /></el-icon>
-              <div class="empty-text">{{ searchKeyword ? '未找到文档' : '请输入关键词搜索文档' }}</div>
-              <div class="empty-desc">{{ searchKeyword ? '请尝试其他搜索关键词' : '搜索文档名称或路径' }}</div>
+              <div class="empty-text">{{ searchKeyword ? '未找到文档' : '暂无文档' }}</div>
+              <div class="empty-desc">{{ searchKeyword ? '请尝试其他搜索关键词' : '系统中暂无文档，请先创建文档' }}</div>
             </div>
           </div>
           
@@ -222,28 +222,17 @@ const handleSearchInput = () => {
     clearTimeout(searchTimer)
   }
   searchTimer = setTimeout(() => {
-    if (searchKeyword.value.trim()) {
-      searchPage.value = 1
-      handleSearch()
-    } else {
-      searchResults.value = []
-      searchTotal.value = 0
-    }
+    searchPage.value = 1
+    handleSearch()
   }, 300) // 300ms 防抖
 }
 
-// 执行搜索
+// 执行搜索（支持空关键词，返回最近的数据）
 const handleSearch = async () => {
-  if (!searchKeyword.value.trim()) {
-    searchResults.value = []
-    searchTotal.value = 0
-    return
-  }
-  
   searchLoading.value = true
   try {
     const resp = await searchDocs({
-      keyword: searchKeyword.value.trim(),
+      keyword: searchKeyword.value.trim(), // 空字符串时返回最近的数据
       page: searchPage.value,
       page_size: searchPageSize.value,
       include_content: false // 列表展示不需要内容，减少数据传输
@@ -278,6 +267,9 @@ const handleOpenDialog = () => {
   searchTotal.value = 0
   searchPage.value = 1
   tempSelectedPaths.value = [...selectedPaths.value]
+  
+  // 自动执行一次搜索（空关键词，返回最近的数据）
+  handleSearch()
   
   // 延迟聚焦搜索框
   setTimeout(() => {

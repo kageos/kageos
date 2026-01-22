@@ -29,7 +29,7 @@ type DocItem struct {
 
 // SearchDocsReq 搜索文档请求（模糊搜索）
 type SearchDocsReq struct {
-	Keyword  string `form:"keyword" json:"keyword" binding:"required"`  // 搜索关键词（必填，用于搜索名称和路径）
+	Keyword  string `form:"keyword" json:"keyword"`  // 搜索关键词（可选，为空时返回最近创建的文档）
 	Page     int    `form:"page" json:"page"`    // 页码（默认 1）
 	PageSize int    `form:"page_size" json:"page_size"` // 每页数量（默认 10，最大 100）
 	IncludeContent bool `form:"include_content" json:"include_content"` // 是否包含文档内容（默认 true，设为 false 时只返回元数据，适合列表展示）

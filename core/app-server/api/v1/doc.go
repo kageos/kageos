@@ -127,13 +127,13 @@ func (s *Doc) DeleteDoc(c *gin.Context) {
 
 // SearchDocs 搜索文档（模糊搜索）
 // @Summary 搜索文档
-// @Description 根据关键词搜索文档，支持跨应用搜索。可通过 include_content 控制是否返回文档内容。
+// @Description 根据关键词搜索文档，支持跨应用搜索。关键词为空时返回最近创建的文档。可通过 include_content 控制是否返回文档内容。
 // @Tags 文档
 // @Accept json
 // @Produce json
 // @Security ApiKeyAuth
 // @Param X-Token header string true "JWT Token"
-// @Param keyword query string true "搜索关键词（必填，用于搜索名称和路径）"
+// @Param keyword query string false "搜索关键词（可选，为空时返回最近创建的文档）"
 // @Param page query int false "页码（默认 1）"
 // @Param page_size query int false "每页数量（默认 10，最大 100）"
 // @Param include_content query bool false "是否包含文档内容（默认 true）"
