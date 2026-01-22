@@ -9,19 +9,15 @@
   <div class="departments-widget">
     <!-- 编辑模式：多组织架构选择器（使用弹窗搜索） -->
     <div v-if="mode === 'edit' || mode === 'search'" class="departments-select-wrapper">
-      <!-- 选中后的显示 -->
-      <div
-        v-if="selectedDepartmentsForDisplay.length > 0"
-        class="departments-select-display"
-        @click="handleOpenDialog()"
-      >
-        <div class="selected-departments-list">
+      <!-- 选中后的显示（参考 DocsPathSelector 的实现） -->
+      <div v-if="selectedDepartmentsForDisplay.length > 0" class="selected-departments">
+        <div class="departments-tags">
           <el-tag
             v-for="(dept, index) in selectedDepartmentsForDisplay"
             :key="dept.full_code_path"
             closable
             @close.stop="handleRemoveDepartment(dept)"
-            class="selected-department-tag"
+            style="margin-right: 8px; margin-bottom: 4px;"
           >
             <img src="/组织架构.svg" alt="组织架构" class="department-icon-small" />
             <span class="department-display-text">
@@ -29,9 +25,13 @@
             </span>
           </el-tag>
         </div>
-        <el-icon class="edit-icon">
-          <Edit />
-        </el-icon>
+        <el-button
+          :icon="Edit"
+          @click="handleOpenDialog()"
+          style="margin-top: 8px;"
+        >
+          选择组织架构
+        </el-button>
       </div>
       <!-- 未选中时显示按钮 -->
       <el-button
@@ -400,83 +400,28 @@ onMounted(async () => {
   width: 100%;
 }
 
-/* 选中后的显示（可点击） */
-.departments-select-display {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 8px 12px;
-  border: 1px solid var(--el-border-color);
-  border-radius: 4px;
-  background-color: var(--el-fill-color-lighter);
-  cursor: pointer;
-  transition: all 0.2s;
-  min-height: 40px;
+/* 选中后的显示（参考 DocsPathSelector 的实现） */
+.selected-departments {
+  width: 100%;
 }
 
-.departments-select-display:hover {
-  border-color: var(--el-color-primary);
-  background-color: var(--el-fill-color-light);
-}
-
-.selected-departments-list {
+.departments-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  flex: 1;
-}
-
-.selected-department-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-right: 8px;
-  margin-bottom: 4px;
-}
-
-.selected-department-tag .department-icon-small {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-}
-
-.selected-department-tag .department-display-text {
-  font-size: 12px;
-  color: var(--el-text-color-primary);
-  white-space: nowrap;
+  gap: 0;
 }
 
 .department-icon-small {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   flex-shrink: 0;
+  margin-right: 4px;
 }
 
 .department-display-text {
+  font-size: 12px;
   color: var(--el-text-color-primary);
   white-space: nowrap;
-}
-
-.remove-icon {
-  cursor: pointer;
-  color: var(--el-text-color-secondary);
-  font-size: 14px;
-  transition: color 0.2s;
-}
-
-.remove-icon:hover {
-  color: var(--el-color-danger);
-}
-
-.edit-icon {
-  flex-shrink: 0;
-  color: var(--el-text-color-secondary);
-  font-size: 16px;
-  transition: color 0.2s;
-}
-
-.departments-select-display:hover .edit-icon {
-  color: var(--el-color-primary);
 }
 
 /* 响应模式样式 */
