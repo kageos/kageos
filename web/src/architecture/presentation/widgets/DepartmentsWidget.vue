@@ -95,7 +95,7 @@
           </template>
           <DepartmentDetailCard 
             :department-info="dept" 
-            :department-tree="[]"
+            :department-tree="departmentTree"
             :current-path="dept.full_code_path"
           />
         </el-popover>
@@ -146,7 +146,7 @@
                   </template>
                   <DepartmentDetailCard 
                     :department-info="dept" 
-                    :department-tree="[]"
+                    :department-tree="departmentTree"
                     :current-path="dept.full_code_path"
                   />
                 </el-popover>
@@ -212,6 +212,9 @@ const dialogVisible = ref(false)
 
 // 当前组织架构信息列表（用于显示）
 const departmentInfoList = ref<Department[]>([])
+
+// 部门树（用于详情卡片显示）
+const departmentTree = ref<Department[]>([])
 
 // 获取配置
 const config = computed(() => {
@@ -487,7 +490,26 @@ onMounted(async () => {
     // 加载组织架构信息用于显示
     loadDepartmentsInfo(String(props.value.raw))
   }
+  
+  // 加载部门树（用于详情卡片显示）
+  if (props.mode === 'table-cell' || props.mode === 'response' || props.mode === 'detail') {
+    loadDepartmentTree()
+  }
 })
+
+// 加载部门树（用于详情卡片显示）
+async function loadDepartmentTree(): Promise<void> {
+  if (departmentTree.value.length > 0) {
+    return // 已经加载过，不需要重复加载
+  }
+  
+  try {
+    const treeRes = await getDepartmentTree()
+    departmentTree.value = treeRes.departments || []
+  } catch (error) {
+    Logger.error(COMPONENT_NAME, '加载部门树失败', error)
+  }
+}
 </script>
 
 <style scoped>
