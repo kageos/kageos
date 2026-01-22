@@ -285,8 +285,10 @@ function handleGoToOrganizationPage() {
   background-color: var(--el-fill-color-light);
 }
 
-:deep(.el-tree-node.is-current > .el-tree-node__content) {
-  background-color: var(--el-fill-color-light);
+:deep(.el-tree-node.is-current > .el-tree-node__content),
+:deep(.el-tree-node.is-expanded.is-current > .el-tree-node__content),
+:deep(.el-tree-node.is-expanded.is-current.is-focusable > .el-tree-node__content) {
+  background-color: var(--el-fill-color-light) !important;
   border-left: 2px solid #6366f1;
   
   .tree-node {
