@@ -72,6 +72,9 @@ export interface SearchDocsResp {
 /**
  * 批量获取文档（精确查询）
  */
+/**
+ * 批量获取文档（精确查询）
+ */
 export interface BatchGetDocsReq {
   paths: string[]
   include_content?: boolean // 是否包含文档内容（默认 true）

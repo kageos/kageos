@@ -3,7 +3,6 @@ package apicall
 import (
 	"context"
 	"net/url"
-	"strconv"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
 )
@@ -15,20 +14,20 @@ func GetDocsByPaths(ctx context.Context, paths []string) (*dto.GetDocsByPathsRes
 	if len(paths) == 0 {
 		return &dto.GetDocsByPathsResp{Docs: []*dto.DocItem{}}, nil
 	}
-	
+
 	// 构建查询参数（使用批量查询接口）
 	queryParams := url.Values{}
 	for _, path := range paths {
 		queryParams.Add("paths", path) // 使用 Add 支持多个 paths 参数
 	}
 	queryParams.Set("include_content", "true") // 智能体需要完整内容
-	
+
 	// GET 请求，使用 query 参数
 	resp, err := GetAPI[*dto.BatchGetDocsResp](ctx, "/workspace/api/v1/docs/batch", queryParams)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// 转换为旧格式（向后兼容）
 	return &dto.GetDocsByPathsResp{Docs: resp.Docs}, nil
 }
