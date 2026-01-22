@@ -82,11 +82,50 @@ export interface AssignUserResp {
 
 // ==================== API 调用 ====================
 
+// 🔥 部门树缓存（避免重复调用）
+let departmentTreeCache: GetDepartmentTreeResp | null = null
+let departmentTreeLoadingPromise: Promise<GetDepartmentTreeResp> | null = null
+const DEPARTMENT_TREE_CACHE_EXPIRY = 5 * 60 * 1000 // 5分钟缓存
+let departmentTreeCacheTime = 0
+
 /**
  * 获取部门树
+ * 🔥 添加缓存机制，避免重复调用
  */
-export function getDepartmentTree() {
-  return get<GetDepartmentTreeResp>('/hr/api/v1/department/tree')
+export function getDepartmentTree(forceRefresh: boolean = false): Promise<GetDepartmentTreeResp> {
+  const now = Date.now()
+  
+  // 如果强制刷新，清除缓存
+  if (forceRefresh) {
+    departmentTreeCache = null
+    departmentTreeLoadingPromise = null
+    departmentTreeCacheTime = 0
+  }
+  
+  // 如果缓存有效，直接返回
+  if (departmentTreeCache && (now - departmentTreeCacheTime) < DEPARTMENT_TREE_CACHE_EXPIRY) {
+    return Promise.resolve(departmentTreeCache)
+  }
+  
+  // 如果正在加载，返回同一个 Promise（去重）
+  if (departmentTreeLoadingPromise) {
+    return departmentTreeLoadingPromise
+  }
+  
+  // 创建新的加载 Promise
+  departmentTreeLoadingPromise = get<GetDepartmentTreeResp>('/hr/api/v1/department/tree')
+    .then(response => {
+      departmentTreeCache = response
+      departmentTreeCacheTime = now
+      departmentTreeLoadingPromise = null
+      return response
+    })
+    .catch(error => {
+      departmentTreeLoadingPromise = null
+      throw error
+    })
+  
+  return departmentTreeLoadingPromise
 }
 
 /**
