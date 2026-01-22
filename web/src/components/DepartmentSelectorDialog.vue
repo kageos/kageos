@@ -297,13 +297,14 @@ watch(visible, (newVal) => {
     }
     
     .close-btn {
-      padding: 8px;
-      border-radius: 12px;
+      padding: 4px;
+      border-radius: 6px;
       transition: all 0.2s;
+      color: var(--el-text-color-secondary);
       
       &:hover {
-        background: var(--el-color-danger-light-9);
-        transform: scale(1.1);
+        color: var(--el-text-color-primary);
+        background: var(--el-fill-color-light);
       }
     }
   }
