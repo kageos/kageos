@@ -86,10 +86,10 @@
       <span v-else class="empty-text">-</span>
     </div>
     
-    <!-- 表格单元格模式：显示组织架构名称（最多3个，超过折叠） -->
+    <!-- 表格单元格模式：显示组织架构名称（最多2个，超过折叠） -->
     <div v-else-if="mode === 'table-cell'" class="departments-table-cell">
       <div v-if="displayDepartments.length > 0" class="departments-tags-list">
-        <!-- 显示的部门（最多3个） -->
+        <!-- 显示的部门（最多2个） -->
         <el-popover
           v-for="(dept, index) in displayedDepartments"
           :key="dept.full_code_path || index"
@@ -128,7 +128,7 @@
               class="department-tag more-indicator"
               @click.stop
             >
-              +{{ displayDepartments.length - 3 }}
+              +{{ displayDepartments.length - 2 }}
             </el-tag>
           </template>
           <div class="departments-full-list">
@@ -344,17 +344,17 @@ const displayDepartments = computed(() => {
   return []
 })
 
-// 表格单元格模式下显示的部门（最多3个）
+// 表格单元格模式下显示的部门（最多2个）
 const displayedDepartments = computed(() => {
   if (props.mode === 'table-cell') {
-    return displayDepartments.value.slice(0, 3)
+    return displayDepartments.value.slice(0, 2)
   }
   return displayDepartments.value
 })
 
-// 是否有更多部门（超过3个）
+// 是否有更多部门（超过2个）
 const hasMoreDepartments = computed(() => {
-  return props.mode === 'table-cell' && displayDepartments.value.length > 3
+  return props.mode === 'table-cell' && displayDepartments.value.length > 2
 })
 
 // 加载组织架构信息列表（用于显示）
