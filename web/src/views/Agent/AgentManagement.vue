@@ -212,39 +212,12 @@
           label="插件函数路径"
           prop="plugin_function_path"
         >
-          <el-select
+          <FunctionPathSelector
             v-model="formData.plugin_function_path"
-            filterable
-            remote
-            :remote-method="searchFunctions"
-            :loading="functionSearchLoading"
-            placeholder="搜索并选择插件函数（支持关键词搜索）"
-            style="width: 100%"
-            clearable
-            @focus="handleFunctionSelectFocus"
-          >
-            <el-option
-              v-for="func in functionOptions"
-              :key="func.full_code_path"
-              :label="`${func.name} (${func.full_code_path})`"
-              :value="func.full_code_path"
-            >
-              <div style="display: flex; flex-direction: column; gap: 4px;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                  <span style="font-weight: 500;">{{ func.name }}</span>
-                  <el-tag size="small" type="info" style="margin-left: 8px;">
-                    {{ func.template_type }}
-                  </el-tag>
-                </div>
-                <div style="font-size: 12px; color: #909399;">
-                  {{ func.full_code_path }}
-                </div>
-                <div v-if="func.description" style="font-size: 12px; color: #909399; margin-top: 2px;">
-                  {{ func.description }}
-                </div>
-              </div>
-            </el-option>
-          </el-select>
+            user="system"
+            app="official"
+            template-type="form"
+          />
           <div style="margin-top: 8px; font-size: 12px; color: #909399;">
             提示：插件类型智能体必须指定一个插件函数路径（full-code-path），支持搜索
           </div>
@@ -359,6 +332,7 @@ import StatCard from '@/components/Agent/StatCard.vue'
 import AgentCard from '@/components/Agent/AgentCard.vue'
 import RichTextEditor from '@/components/RichTextEditor.vue'
 import DocsPathSelector from '@/components/DocsPathSelector.vue'
+import FunctionPathSelector from '@/components/FunctionPathSelector.vue'
 import {
   getAgentList,
   getAgent,
@@ -374,11 +348,6 @@ import {
   type AgentUpdateReq,
   type LLMInfo,
 } from '@/api/agent'
-import {
-  searchFunctions as searchFunctionsAPI,
-  type FunctionSearchResult,
-  type SearchFunctionsReq,
-} from '@/api/service-tree'
 import type { FormRules } from 'element-plus'
 
 const router = useRouter()
@@ -440,10 +409,6 @@ const formData = reactive<AgentCreateReq & { id?: number }>({
 // LLM 配置
 const llmOptions = ref<LLMInfo[]>([])
 const llmLoading = ref(false)
-
-// 函数搜索
-const functionSearchLoading = ref(false)
-const functionOptions = ref<FunctionSearchResult[]>([])
 
 
 // 表单验证规则
@@ -592,63 +557,6 @@ async function handleLLMSelectFocus() {
   }
 }
 
-// 搜索函数（远程搜索）
-async function searchFunctions(keyword: string) {
-  if (!keyword || keyword.trim() === '') {
-    // 如果关键词为空，加载默认函数列表（只搜索 form 类型）
-    await loadDefaultFunctions()
-    return
-  }
-
-  functionSearchLoading.value = true
-  try {
-    const req: SearchFunctionsReq = {
-      user: 'system',
-      app: 'official',
-      keyword: keyword.trim(),
-      template_type: 'form', // 只搜索 form 类型的函数
-      page: 1,
-      page_size: 50
-    }
-    const res = await searchFunctionsAPI(req)
-    functionOptions.value = res.functions || []
-  } catch (error: any) {
-    ElMessage.error(error.message || '搜索函数失败')
-    functionOptions.value = []
-  } finally {
-    functionSearchLoading.value = false
-  }
-}
-
-// 加载默认函数列表（只搜索 form 类型）
-async function loadDefaultFunctions() {
-  functionSearchLoading.value = true
-  try {
-    const req: SearchFunctionsReq = {
-      user: 'system',
-      app: 'official',
-      template_type: 'form', // 只搜索 form 类型的函数
-      page: 1,
-      page_size: 50
-    }
-    const res = await searchFunctionsAPI(req)
-    functionOptions.value = res.functions || []
-  } catch (error: any) {
-    console.error('加载函数列表失败:', error)
-    ElMessage.error(error.message || '加载函数列表失败，请稍后重试')
-    functionOptions.value = []
-  } finally {
-    functionSearchLoading.value = false
-  }
-}
-
-// 函数选择框获得焦点时（确保数据已加载）
-async function handleFunctionSelectFocus() {
-  // 如果函数选项为空，加载默认函数列表
-  if (functionOptions.value.length === 0) {
-    await loadDefaultFunctions()
-  }
-}
 
 // 详情
 async function handleDetail(row: AgentInfo) {
