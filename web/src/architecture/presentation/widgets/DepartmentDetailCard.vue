@@ -209,9 +209,9 @@ function handleGoToOrganizationPage() {
 
 <style scoped>
 .department-detail-card {
-  padding: 16px;
-  min-width: 460px;
-  max-width: 600px;
+  padding: 20px;
+  min-width: 600px;
+  max-width: 800px;
 }
 
 .department-header {

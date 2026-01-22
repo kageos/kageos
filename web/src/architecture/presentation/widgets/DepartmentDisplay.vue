@@ -27,7 +27,7 @@
       <el-popover
         v-if="actualDepartmentInfo"
         placement="bottom-start"
-        :width="520"
+        :width="650"
         trigger="click"
         popper-class="department-info-popover"
       >
