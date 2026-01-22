@@ -182,264 +182,142 @@
     <el-dialog
       v-model="dialogVisible"
       :title="dialogTitle"
-      width="900px"
+      width="800px"
       :close-on-click-modal="false"
-      class="agent-form-dialog"
       @close="handleDialogClose"
       @opened="handleDialogOpened"
     >
-      <div class="agent-form-container">
-        <el-form
-          ref="formRef"
-          :model="formData"
-          :rules="rules"
-          label-width="140px"
-          class="agent-form"
+      <el-form
+        ref="formRef"
+        :model="formData"
+        :rules="rules"
+        label-width="120px"
+      >
+        <el-form-item label="名称" prop="name">
+          <el-input v-model="formData.name" placeholder="请输入智能体名称" />
+        </el-form-item>
+        <el-form-item label="智能体类型" prop="agent_type">
+          <el-select
+            v-model="formData.agent_type"
+            placeholder="请选择智能体类型"
+            style="width: 100%"
+            @change="handleAgentTypeChange"
+          >
+            <el-option label="纯知识库类型" value="knowledge_only" />
+            <el-option label="插件调用类型" value="plugin" />
+          </el-select>
+        </el-form-item>
+        <el-form-item
+          v-if="formData.agent_type === 'plugin'"
+          label="插件函数路径"
+          prop="plugin_function_path"
         >
-        <!-- 基础信息 -->
-        <div class="form-section">
-          <div class="section-header">
-            <el-icon class="section-icon"><Connection /></el-icon>
-            <span class="section-title">基础信息</span>
+          <FunctionPathSelector
+            v-model="formData.plugin_function_path"
+            user="system"
+            app="official"
+            template-type="form"
+          />
+          <div style="margin-top: 8px; font-size: 12px; color: #909399;">
+            提示：插件类型智能体必须指定一个插件函数路径（full-code-path），支持搜索
           </div>
-          <div class="section-content">
-            <el-form-item label="名称" prop="name">
-              <el-input
-                v-model="formData.name"
-                placeholder="请输入智能体名称"
-                size="large"
-                clearable
-              >
-                <template #prefix>
-                  <el-icon><Document /></el-icon>
-                </template>
-              </el-input>
-            </el-form-item>
-            <el-form-item label="智能体类型" prop="agent_type">
-              <el-select
-                v-model="formData.agent_type"
-                placeholder="请选择智能体类型"
-                size="large"
-                style="width: 100%"
-                @change="handleAgentTypeChange"
-              >
-                <el-option label="纯知识库类型" value="knowledge_only">
-                  <div style="display: flex; align-items: center; gap: 8px;">
-                    <el-icon><Document /></el-icon>
-                    <span>纯知识库类型</span>
-                  </div>
-                </el-option>
-                <el-option label="插件调用类型" value="plugin">
-                  <div style="display: flex; align-items: center; gap: 8px;">
-                    <el-icon><Operation /></el-icon>
-                    <span>插件调用类型</span>
-                  </div>
-                </el-option>
-              </el-select>
-            </el-form-item>
-          </div>
-        </div>
-        <!-- 功能配置 -->
-        <div class="form-section" v-if="formData.agent_type === 'plugin'">
-          <div class="section-header">
-            <el-icon class="section-icon"><Operation /></el-icon>
-            <span class="section-title">插件配置</span>
-          </div>
-          <div class="section-content">
-            <el-form-item
-              label="插件函数路径"
-              prop="plugin_function_path"
+        </el-form-item>
+        <el-form-item label="LLM 配置">
+          <el-select
+            v-model="formData.llm_config_id"
+            filterable
+            :loading="llmLoading"
+            placeholder="选择 LLM 配置（留空则使用默认 LLM）"
+            style="width: 100%"
+            clearable
+            @focus="handleLLMSelectFocus"
+          >
+            <el-option
+              v-for="llm in llmOptions"
+              :key="llm.id"
+              :label="`${llm.name} (${llm.provider}/${llm.model})`"
+              :value="llm.id"
             >
-              <FunctionPathSelector
-                v-model="formData.plugin_function_path"
-                user="system"
-                app="official"
-                template-type="form"
-              />
-              <div class="form-tip">
-                <el-icon><InfoFilled /></el-icon>
-                <span>插件类型智能体必须指定一个插件函数路径（full-code-path），支持搜索</span>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span>{{ llm.name }}</span>
+                <el-tag size="small" :type="llm.is_default ? 'success' : 'info'" style="margin-left: 8px;">
+                  {{ llm.provider }}/{{ llm.model }}{{ llm.is_default ? ' (默认)' : '' }}
+                </el-tag>
               </div>
-            </el-form-item>
+            </el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="文档路径">
+          <DocsPathSelector
+            v-model="formData.docs_paths"
+          />
+          <div style="margin-top: 8px; font-size: 12px; color: #909399;">
+            提示：可以手动输入文档路径（逗号分隔），如：/system/official/sdk,/system/official/plugins。也可以点击按钮选择服务树中的路径（需要指定应用）。
           </div>
-        </div>
-
-        <!-- 知识库配置 -->
-        <div class="form-section">
-          <div class="section-header">
-            <el-icon class="section-icon"><Document /></el-icon>
-            <span class="section-title">知识库配置</span>
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input
+            v-model="formData.description"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入描述"
+          />
+        </el-form-item>
+        <el-form-item label="系统提示词模板">
+          <el-input
+            v-model="formData.system_prompt_template"
+            type="textarea"
+            :rows="5"
+            placeholder="请输入系统提示词模板，支持 {knowledge} 变量，例如：你是一个专业的代码生成助手。以下是相关的知识库内容，请参考这些内容来生成代码：\n{knowledge}"
+          />
+        </el-form-item>
+        <el-form-item label="开场白">
+          <RichTextEditor
+            v-model="formData.greeting"
+            placeholder="请输入开场白内容，用于显示智能体的使用教程等（可选）"
+          />
+          <div style="margin-top: 8px; font-size: 12px; color: #909399;">
+            提示：开场白会在用户选择智能体时显示，使用富文本编辑器编辑，自动保存为 HTML 格式
           </div>
-          <div class="section-content">
-            <el-form-item label="文档路径">
-              <DocsPathSelector
-                v-model="formData.docs_paths"
-              />
-              <div class="form-tip">
-                <el-icon><InfoFilled /></el-icon>
-                <span>可以手动输入文档路径（逗号分隔），如：/system/official/sdk,/system/official/plugins。也可以点击按钮选择服务树中的路径</span>
-              </div>
-            </el-form-item>
+        </el-form-item>
+        <el-form-item label="超时时间（秒）">
+          <el-input-number
+            v-model="formData.timeout"
+            :min="1"
+            :max="300"
+            placeholder="默认30秒"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="元数据（JSON）">
+          <el-input
+            v-model="formData.metadata"
+            type="textarea"
+            :rows="3"
+            placeholder='请输入JSON格式的元数据，如：{"category": "office"}'
+          />
+        </el-form-item>
+        <el-form-item label="可见性">
+          <el-radio-group v-model="formData.visibility">
+            <el-radio :label="0">公开（所有人可见）</el-radio>
+            <el-radio :label="1">私有（仅管理员可见）</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="管理员">
+          <el-input
+            v-model="formData.admin"
+            placeholder="管理员列表（逗号分隔，如：user1,user2）"
+          />
+          <div style="margin-top: 8px; font-size: 12px; color: #909399;">
+            提示：多个管理员用逗号分隔，留空则默认为创建用户
           </div>
-        </div>
-
-        <!-- LLM 配置 -->
-        <div class="form-section">
-          <div class="section-header">
-            <el-icon class="section-icon"><CircleCheck /></el-icon>
-            <span class="section-title">LLM 配置</span>
-          </div>
-          <div class="section-content">
-            <el-form-item label="LLM 配置">
-              <el-select
-                v-model="formData.llm_config_id"
-                filterable
-                :loading="llmLoading"
-                placeholder="选择 LLM 配置（留空则使用默认 LLM）"
-                size="large"
-                style="width: 100%"
-                clearable
-                @focus="handleLLMSelectFocus"
-              >
-                <el-option
-                  v-for="llm in llmOptions"
-                  :key="llm.id"
-                  :label="`${llm.name} (${llm.provider}/${llm.model})`"
-                  :value="llm.id"
-                >
-                  <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span>{{ llm.name }}</span>
-                    <el-tag size="small" :type="llm.is_default ? 'success' : 'info'" style="margin-left: 8px;">
-                      {{ llm.provider }}/{{ llm.model }}{{ llm.is_default ? ' (默认)' : '' }}
-                    </el-tag>
-                  </div>
-                </el-option>
-              </el-select>
-              <div class="form-tip">
-                <el-icon><InfoFilled /></el-icon>
-                <span>留空则使用系统默认 LLM 配置</span>
-              </div>
-            </el-form-item>
-          </div>
-        </div>
-        <!-- 内容配置 -->
-        <div class="form-section">
-          <div class="section-header">
-            <el-icon class="section-icon"><DocumentCopy /></el-icon>
-            <span class="section-title">内容配置</span>
-          </div>
-          <div class="section-content">
-            <el-form-item label="描述">
-              <el-input
-                v-model="formData.description"
-                type="textarea"
-                :rows="3"
-                placeholder="请输入智能体的描述信息"
-                show-word-limit
-                maxlength="500"
-              />
-            </el-form-item>
-            <el-form-item label="系统提示词模板">
-              <el-input
-                v-model="formData.system_prompt_template"
-                type="textarea"
-                :rows="5"
-                placeholder="请输入系统提示词模板，支持 {knowledge} 变量，例如：你是一个专业的代码生成助手。以下是相关的知识库内容，请参考这些内容来生成代码：\n{knowledge}"
-                show-word-limit
-                maxlength="2000"
-              />
-            </el-form-item>
-            <el-form-item label="开场白">
-              <RichTextEditor
-                v-model="formData.greeting"
-                placeholder="请输入开场白内容，用于显示智能体的使用教程等（可选）"
-              />
-              <div class="form-tip">
-                <el-icon><InfoFilled /></el-icon>
-                <span>开场白会在用户选择智能体时显示，使用富文本编辑器编辑，自动保存为 HTML 格式</span>
-              </div>
-            </el-form-item>
-          </div>
-        </div>
-
-        <!-- 高级配置 -->
-        <div class="form-section">
-          <div class="section-header">
-            <el-icon class="section-icon"><Setting /></el-icon>
-            <span class="section-title">高级配置</span>
-          </div>
-          <div class="section-content">
-            <el-form-item label="超时时间（秒）">
-              <el-input-number
-                v-model="formData.timeout"
-                :min="1"
-                :max="300"
-                placeholder="默认30秒"
-                size="large"
-                style="width: 100%"
-              />
-            </el-form-item>
-            <el-form-item label="元数据（JSON）">
-              <el-input
-                v-model="formData.metadata"
-                type="textarea"
-                :rows="3"
-                placeholder='请输入JSON格式的元数据，如：{"category": "office"}'
-              />
-            </el-form-item>
-          </div>
-        </div>
-
-        <!-- 权限配置 -->
-        <div class="form-section">
-          <div class="section-header">
-            <el-icon class="section-icon"><Lock /></el-icon>
-            <span class="section-title">权限配置</span>
-          </div>
-          <div class="section-content">
-            <el-form-item label="可见性">
-              <el-radio-group v-model="formData.visibility">
-                <el-radio :label="0">
-                  <div style="display: flex; align-items: center; gap: 6px;">
-                    <el-icon><Unlock /></el-icon>
-                    <span>公开（所有人可见）</span>
-                  </div>
-                </el-radio>
-                <el-radio :label="1">
-                  <div style="display: flex; align-items: center; gap: 6px;">
-                    <el-icon><Lock /></el-icon>
-                    <span>私有（仅管理员可见）</span>
-                  </div>
-                </el-radio>
-              </el-radio-group>
-            </el-form-item>
-            <el-form-item label="管理员">
-              <el-input
-                v-model="formData.admin"
-                placeholder="管理员列表（逗号分隔，如：user1,user2）"
-                size="large"
-                clearable
-              >
-                <template #prefix>
-                  <el-icon><User /></el-icon>
-                </template>
-              </el-input>
-              <div class="form-tip">
-                <el-icon><InfoFilled /></el-icon>
-                <span>多个管理员用逗号分隔，留空则默认为创建用户</span>
-              </div>
-            </el-form-item>
-          </div>
-        </div>
-        </el-form>
-      </div>
+        </el-form-item>
+      </el-form>
       <template #footer>
-        <div class="dialog-footer">
-          <el-button size="large" @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" size="large" :loading="submitting" @click="handleSubmit">
-            确定
-          </el-button>
-        </div>
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="submitting" @click="handleSubmit">
+          确定
+        </el-button>
       </template>
     </el-dialog>
   </div>
@@ -449,7 +327,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElForm } from 'element-plus'
-import { ArrowLeft, Plus, Search, Refresh, DocumentCopy, Operation, CircleCheck, Document, Connection, InfoFilled, Setting, Lock, Unlock, User } from '@element-plus/icons-vue'
+import { ArrowLeft, Plus, Search, Refresh, DocumentCopy, Operation, CircleCheck, Document, Connection } from '@element-plus/icons-vue'
 import StatCard from '@/components/Agent/StatCard.vue'
 import AgentCard from '@/components/Agent/AgentCard.vue'
 import RichTextEditor from '@/components/RichTextEditor.vue'
@@ -976,175 +854,6 @@ onMounted(async () => {
   margin-top: 20px;
   display: flex;
   justify-content: flex-end;
-}
-/* 表单美化样式 */
-:deep(.agent-form-dialog) {
-  .el-dialog {
-    border-radius: 16px;
-    overflow: hidden;
-  }
-  
-  .el-dialog__header {
-    padding: 24px 24px 16px;
-    border-bottom: 1px solid var(--el-border-color-lighter);
-    background: var(--el-bg-color-page);
-  }
-  
-  .el-dialog__title {
-    font-size: 20px;
-    font-weight: 600;
-    color: var(--el-text-color-primary);
-  }
-  
-  .el-dialog__body {
-    padding: 0;
-    max-height: calc(90vh - 120px);
-    overflow-y: auto;
-  }
-  
-  .el-dialog__footer {
-    padding: 16px 24px;
-    border-top: 1px solid var(--el-border-color-lighter);
-    background: var(--el-bg-color-page);
-  }
-}
-
-.agent-form-container {
-  padding: 24px;
-}
-
-.agent-form {
-  .el-form-item {
-    margin-bottom: 24px;
-  }
-  
-  .el-form-item__label {
-    font-weight: 500;
-    color: var(--el-text-color-primary);
-  }
-}
-
-/* 表单分组样式 */
-.form-section {
-  margin-bottom: 32px;
-  background: var(--el-bg-color);
-  border-radius: 12px;
-  border: 1px solid var(--el-border-color-lighter);
-  overflow: hidden;
-  transition: all 0.3s;
-  
-  &:hover {
-    border-color: var(--el-border-color);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  }
-  
-  .section-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 16px 20px;
-    background: var(--el-fill-color-light);
-    border-bottom: 1px solid var(--el-border-color-lighter);
-    
-    .section-icon {
-      font-size: 18px;
-      color: var(--el-color-primary);
-    }
-    
-    .section-title {
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--el-text-color-primary);
-    }
-  }
-  
-  .section-content {
-    padding: 20px;
-    
-    .el-form-item {
-      margin-bottom: 20px;
-      
-      &:last-child {
-        margin-bottom: 0;
-      }
-    }
-  }
-}
-
-/* 提示文字样式 */
-.form-tip {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  margin-top: 8px;
-  padding: 8px 12px;
-  background: var(--el-fill-color-lighter);
-  border-radius: 6px;
-  font-size: 12px;
-  color: var(--el-text-color-regular);
-  line-height: 1.5;
-  
-  .el-icon {
-    font-size: 14px;
-    color: var(--el-color-info);
-    margin-top: 2px;
-    flex-shrink: 0;
-  }
-}
-
-/* 输入框美化 */
-:deep(.agent-form) {
-  .el-input__wrapper {
-    border-radius: 8px;
-    transition: all 0.3s;
-    
-    &:hover {
-      box-shadow: 0 0 0 1px var(--el-input-hover-border-color) inset;
-    }
-  }
-  
-  .el-textarea__inner {
-    border-radius: 8px;
-    transition: all 0.3s;
-  }
-  
-  .el-select {
-    .el-input__wrapper {
-      border-radius: 8px;
-    }
-  }
-}
-
-/* 对话框底部按钮 */
-.dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  
-  .el-button {
-    min-width: 100px;
-    border-radius: 8px;
-  }
-}
-
-/* 滚动条样式 */
-.agent-form-container::-webkit-scrollbar {
-  width: 6px;
-}
-
-.agent-form-container::-webkit-scrollbar-track {
-  background: var(--el-bg-color-page);
-  border-radius: 3px;
-}
-
-.agent-form-container::-webkit-scrollbar-thumb {
-  background: var(--el-border-color-dark);
-  border-radius: 3px;
-  transition: background 0.2s;
-}
-
-.agent-form-container::-webkit-scrollbar-thumb:hover {
-  background: var(--el-text-color-placeholder);
 }
 </style>
 
