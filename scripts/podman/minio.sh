@@ -17,6 +17,12 @@ echo "==> 创建数据目录"
 mkdir -p $DATA_DIR
 
 echo "==> 启动 MinIO 容器"
+# 构建挂载参数（如果 /etc/timezone 存在则挂载）
+MOUNT_ARGS="-v $DATA_DIR:/data:z -v /etc/localtime:/etc/localtime:ro"
+if [ -f /etc/timezone ]; then
+  MOUNT_ARGS="$MOUNT_ARGS -v /etc/timezone:/etc/timezone:ro"
+fi
+
 podman run -d \
   --name $CONTAINER_NAME \
   --tz=local \
@@ -25,8 +31,7 @@ podman run -d \
   -e "MINIO_ROOT_USER=$ROOT_USER" \
   -e "MINIO_ROOT_PASSWORD=$ROOT_PASSWORD" \
   -e "TZ=Asia/Shanghai" \
-  -v $DATA_DIR:/data:z \
-  -v /etc/localtime:/etc/localtime:ro \
+  $MOUNT_ARGS \
   docker.io/minio/minio:latest \
   server /data --console-address ":9001"
 
