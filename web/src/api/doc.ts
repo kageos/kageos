@@ -17,7 +17,7 @@ export interface Doc {
  */
 export function getDoc(fullCodePath: string) {
   const path = fullCodePath.startsWith('/') ? fullCodePath : `/${fullCodePath}`
-  return get<Doc>(`/workspace/api/v1/docs${path}`)
+  return get<Doc>(`/workspace/api/v1/docs/info${path}`)
 }
 
 /**
@@ -30,7 +30,7 @@ export function updateDoc(
   data: { content?: string; format?: string; summary?: string }
 ) {
   const path = fullCodePath.startsWith('/') ? fullCodePath : `/${fullCodePath}`
-  return put<Doc>(`/workspace/api/v1/docs${path}`, data)
+  return put<Doc>(`/workspace/api/v1/docs/info${path}`, data)
 }
 
 /**
@@ -39,7 +39,7 @@ export function updateDoc(
  */
 export function deleteDoc(fullCodePath: string) {
   const path = fullCodePath.startsWith('/') ? fullCodePath : `/${fullCodePath}`
-  return del(`/workspace/api/v1/docs${path}`)
+  return del(`/workspace/api/v1/docs/info${path}`)
 }
 
 /**
