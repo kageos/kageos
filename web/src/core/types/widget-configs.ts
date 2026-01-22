@@ -349,12 +349,12 @@ export interface RadioWidgetConfig {
  * 
  * 功能：
  * - 支持用户搜索和选择
- * - 支持动态默认值函数：me()（当前登录用户）
+ * - 支持动态默认值函数：Me()（当前登录用户）
  */
 export interface UserWidgetConfig {
   /** 
    * 默认值
-   * 支持函数调用 me()（当前登录用户）
+   * 支持函数调用 Me()（当前登录用户）
    * 适用于：预约人、创建人、负责人等字段
    */
   default?: string
