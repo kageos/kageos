@@ -742,6 +742,7 @@ async function loadDepartmentTree(): Promise<void> {
 
 .departments-tags-list {
   display: flex;
+  flex-direction: row;
   flex-wrap: wrap;
   gap: 6px;
   align-items: center;
