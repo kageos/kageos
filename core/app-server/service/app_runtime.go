@@ -94,20 +94,19 @@ func (a *AppRuntime) RequestApp(ctx context.Context, natsId int64, req *dto.Requ
 		Data:    data,
 		Header:  make(nats.Header),
 	}
-	msg.Header.Set("trace_id", req.TraceId)
+	msg.Header.Set(contextx.TraceIdHeader, req.TraceId)
 	msg.Header.Set(contextx.RequestUserHeader, req.RequestUser)
-	msg.Header.Set("user", req.RequestUser)
 	if req.RequestUserDept != "" {
 		msg.Header.Set(contextx.DepartmentFullPathHeader, req.RequestUserDept)
 	}
 	msg.Header.Set("method", req.Method)
 	msg.Header.Set("router", req.Router)
 	msg.Header.Set("app", req.App)
-	msg.Header.Set("user", req.User)
+	msg.Header.Set("user", req.User) // 租户用户（注意：这里使用 "user" 而不是 RequestUserHeader，因为 app-runtime 需要区分租户用户和请求用户）
 	msg.Header.Set("version", req.Version)
 	// ✅ 透传 token 到 SDK（用于调用 storage 等服务）
 	if req.Token != "" {
-		msg.Header.Set("X-Token", req.Token)
+		msg.Header.Set(contextx.TokenHeader, req.Token)
 	}
 	// 发送消息（不等待响应）
 	if err := conn.PublishMsg(msg); err != nil {
@@ -239,7 +238,7 @@ func (a *AppRuntime) HandleApp2FunctionServerResponse(msg *nats.Msg) {
 	}
 
 	// 从消息头获取 traceId（如果有）
-	if traceId := msg.Header.Get("trace_id"); traceId != "" {
+	if traceId := msg.Header.Get(contextx.TraceIdHeader); traceId != "" {
 		resp.TraceId = traceId
 	}
 
