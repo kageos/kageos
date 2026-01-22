@@ -16,19 +16,18 @@
         @click="handleOpenDialog()"
       >
         <div class="selected-departments-list">
-          <div
+          <el-tag
             v-for="(dept, index) in selectedDepartmentsForDisplay"
             :key="dept.full_code_path"
+            closable
+            @close.stop="handleRemoveDepartment(dept)"
             class="selected-department-tag"
           >
             <img src="/组织架构.svg" alt="组织架构" class="department-icon-small" />
             <span class="department-display-text">
               {{ formatDepartmentDisplayName(dept) }}
             </span>
-            <el-icon class="remove-icon" @click.stop="handleRemoveDepartment(dept)">
-              <Close />
-            </el-icon>
-          </div>
+          </el-tag>
         </div>
         <el-icon class="edit-icon">
           <Edit />
@@ -113,7 +112,7 @@ import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import DepartmentDisplay from './DepartmentDisplay.vue'
 import DepartmentsSearchDialog from './DepartmentsSearchDialog.vue'
 import { ElButton, ElIcon, ElTag } from 'element-plus'
-import { OfficeBuilding, Edit, Close } from '@element-plus/icons-vue'
+import { OfficeBuilding, Edit } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/core/stores-v2/formData'
 import type { Department } from '@/api/department'
@@ -427,14 +426,23 @@ onMounted(async () => {
 }
 
 .selected-department-tag {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 8px;
-  background-color: transparent;
-  border: 1px solid var(--el-border-color);
-  border-radius: 4px;
+  margin-right: 8px;
+  margin-bottom: 4px;
+}
+
+.selected-department-tag .department-icon-small {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.selected-department-tag .department-display-text {
   font-size: 12px;
+  color: var(--el-text-color-primary);
+  white-space: nowrap;
 }
 
 .department-icon-small {
