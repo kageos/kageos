@@ -2,20 +2,7 @@
  * workspaceUtils - 工作空间工具函数
  */
 
-import { useRouter } from 'vue-router'
 import type { ServiceTree as ServiceTreeType } from '@/types'
-
-/**
- * 跳转到服务目录节点
- * @param fullCodePath 完整路径，如：/system/official/sdk
- */
-export function navigateToServiceNode(fullCodePath: string) {
-  if (!fullCodePath) return
-  
-  const router = useRouter()
-  const targetPath = `/workspace${fullCodePath.startsWith('/') ? fullCodePath : `/${fullCodePath}`}`
-  router.push(targetPath)
-}
 
 /**
  * 递归查找节点（支持工作空间、函数、目录和文档节点）
