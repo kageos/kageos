@@ -72,17 +72,88 @@
       <span v-else class="empty-text">-</span>
     </div>
     
-    <!-- 表格单元格模式：显示组织架构名称 -->
+    <!-- 表格单元格模式：显示组织架构名称（最多3个，超过折叠） -->
     <div v-else-if="mode === 'table-cell'" class="departments-table-cell">
       <div v-if="displayDepartments.length > 0" class="departments-tags-list">
-        <el-tag
-          v-for="(dept, index) in displayDepartments"
+        <!-- 显示的部门（最多3个） -->
+        <el-popover
+          v-for="(dept, index) in displayedDepartments"
           :key="dept.full_code_path || index"
-          size="small"
-          class="department-tag"
+          placement="top"
+          :width="520"
+          trigger="click"
+          popper-class="department-info-popover"
         >
-          {{ dept.full_name_path || dept.name }}
-        </el-tag>
+          <template #reference>
+            <el-tag
+              size="small"
+              class="department-tag clickable"
+            >
+              <img src="/组织架构.svg" alt="组织架构" class="department-icon-small" />
+              {{ dept.name }}
+            </el-tag>
+          </template>
+          <DepartmentDetailCard 
+            :department-info="dept" 
+            :department-tree="[]"
+            :current-path="dept.full_code_path"
+          />
+        </el-popover>
+        
+        <!-- 省略号：点击显示全部 -->
+        <el-popover
+          v-if="hasMoreDepartments"
+          placement="top"
+          :width="400"
+          trigger="click"
+          popper-class="departments-popover"
+        >
+          <template #reference>
+            <el-tag
+              size="small"
+              class="department-tag more-indicator"
+              @click.stop
+            >
+              +{{ displayDepartments.length - 3 }}
+            </el-tag>
+          </template>
+          <div class="departments-full-list">
+            <div class="departments-full-list-header">
+              <span>全部部门 ({{ displayDepartments.length }})</span>
+            </div>
+            <div class="departments-full-list-content">
+              <div
+                v-for="(dept, index) in displayDepartments"
+                :key="dept.full_code_path || index"
+                class="departments-full-list-item"
+              >
+                <el-popover
+                  placement="right"
+                  :width="520"
+                  trigger="click"
+                  popper-class="department-info-popover"
+                >
+                  <template #reference>
+                    <div class="department-item-content">
+                      <img src="/组织架构.svg" alt="组织架构" class="department-icon" />
+                      <div class="department-info">
+                        <div class="department-name">{{ dept.name }}</div>
+                        <div v-if="dept.full_name_path && dept.full_name_path !== dept.name" class="department-path">
+                          {{ dept.full_name_path }}
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+                  <DepartmentDetailCard 
+                    :department-info="dept" 
+                    :department-tree="[]"
+                    :current-path="dept.full_code_path"
+                  />
+                </el-popover>
+              </div>
+            </div>
+          </div>
+        </el-popover>
       </div>
       <span v-else class="empty-text">-</span>
     </div>
@@ -110,8 +181,9 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import DepartmentDisplay from './DepartmentDisplay.vue'
+import DepartmentDetailCard from './DepartmentDetailCard.vue'
 import DepartmentsSearchDialog from './DepartmentsSearchDialog.vue'
-import { ElButton, ElIcon, ElTag } from 'element-plus'
+import { ElButton, ElIcon, ElTag, ElPopover } from 'element-plus'
 import { OfficeBuilding, Edit } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/core/stores-v2/formData'
@@ -240,6 +312,19 @@ const displayDepartments = computed(() => {
     return departmentInfoList.value
   }
   return []
+})
+
+// 表格单元格模式下显示的部门（最多3个）
+const displayedDepartments = computed(() => {
+  if (props.mode === 'table-cell') {
+    return displayDepartments.value.slice(0, 3)
+  }
+  return displayDepartments.value
+})
+
+// 是否有更多部门（超过3个）
+const hasMoreDepartments = computed(() => {
+  return props.mode === 'table-cell' && displayDepartments.value.length > 3
 })
 
 // 加载组织架构信息列表（用于显示）
@@ -438,6 +523,70 @@ onMounted(async () => {
   font-size: 12px;
   color: var(--el-text-color-primary);
   white-space: nowrap;
+}
+
+/* 部门列表弹窗样式 */
+.departments-full-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.departments-full-list-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.departments-full-list-content {
+  padding: 8px 0;
+}
+
+.departments-full-list-item {
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  
+  &:hover {
+    background-color: var(--el-fill-color-lighter);
+  }
+}
+
+.department-item-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.department-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+.department-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.department-name {
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.department-path {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 响应模式样式 */
