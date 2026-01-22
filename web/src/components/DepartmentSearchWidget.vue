@@ -7,9 +7,9 @@
 -->
 <template>
   <div class="department-search-widget">
-    <!-- 选中后的显示 -->
+    <!-- 选中后的显示（多选模式） -->
     <div
-      v-if="selectedDepartments.length > 0"
+      v-if="supportsMultiple && selectedDepartments.length > 0"
       class="department-search-display"
       @click="handleOpenDialog()"
     >
@@ -32,6 +32,21 @@
         <Edit />
       </el-icon>
     </div>
+    
+    <!-- 选中后的显示（单选模式） -->
+    <div
+      v-else-if="!supportsMultiple && selectedDepartment"
+      class="department-search-display"
+      @click="handleOpenDialog()"
+    >
+      <img src="/组织架构.svg" alt="组织架构" class="department-icon-small" />
+      <span class="department-display-text">
+        {{ selectedDepartment.name }}
+      </span>
+      <el-icon class="edit-icon">
+        <Edit />
+      </el-icon>
+    </div>
     <!-- 未选中时显示按钮 -->
     <el-button
       v-else
@@ -41,13 +56,22 @@
       {{ field.desc || `请选择${field.name}` }}
     </el-button>
     
-    <!-- 多组织架构搜索弹窗 -->
+    <!-- 多组织架构搜索弹窗（支持 IN 查询时使用） -->
     <DepartmentsSearchDialog
+      v-if="supportsMultiple"
       v-model="dialogVisible"
       :title="`选择${field.name || '组织架构'}`"
       :placeholder="field.desc || '搜索部门名称或路径...'"
       :initial-paths="modelValue"
       @confirm="handleDepartmentsSelected"
+    />
+    
+    <!-- 单组织架构搜索弹窗（EQ 查询时使用） -->
+    <DepartmentSelectorDialog
+      v-else
+      v-model="dialogVisible"
+      :selected-department="selectedDepartment"
+      @select="handleDepartmentSelected"
     />
   </div>
 </template>
@@ -56,15 +80,18 @@
 import { ref, computed, watch } from 'vue'
 import { ElButton, ElIcon } from 'element-plus'
 import { OfficeBuilding, Edit, Close } from '@element-plus/icons-vue'
+import DepartmentSelectorDialog from '@/components/DepartmentSelectorDialog.vue'
 import DepartmentsSearchDialog from '@/architecture/presentation/widgets/DepartmentsSearchDialog.vue'
 import { useDepartmentInfoStore } from '@/stores/departmentInfo'
 import type { Department } from '@/api/department'
 import type { FieldConfig } from '@/core/types/field'
 import { Logger } from '@/core/utils/logger'
+import { SearchType, hasSearchType } from '@/core/constants/search'
 
 interface Props {
   field: FieldConfig
   modelValue: string | string[] | null  // 搜索表单的原始值格式（逗号分隔的字符串或数组）
+  searchType?: string  // 搜索类型，用于判断单选还是多选
 }
 
 interface Emits {
@@ -77,18 +104,31 @@ const emit = defineEmits<Emits>()
 const departmentInfoStore = useDepartmentInfoStore()
 const dialogVisible = ref(false)
 const selectedDepartments = ref<Department[]>([])
+const selectedDepartment = ref<Department | null>(null)
+
+// 是否支持多选（根据 search 类型判断）
+const supportsMultiple = computed(() => {
+  const searchType = props.searchType || ''
+  return hasSearchType(searchType, SearchType.IN)
+})
 
 // 处理打开弹窗
 function handleOpenDialog(): void {
   dialogVisible.value = true
 }
 
-// 处理部门选择
+// 处理部门选择（多选）
 function handleDepartmentsSelected(departments: Department[]): void {
   // 直接返回原始值格式（逗号分隔的字符串）
   const paths = departments.map(d => d.full_code_path).join(',')
   selectedDepartments.value = departments
   emit('update:modelValue', paths || null)
+}
+
+// 处理部门选择（单选）
+function handleDepartmentSelected(department: Department | null): void {
+  selectedDepartment.value = department
+  emit('update:modelValue', department ? department.full_code_path : null)
 }
 
 // 移除单个部门
@@ -110,24 +150,42 @@ function getPathsFromValue(value: string | string[] | null): string[] {
 
 // 加载已选部门信息
 async function loadSelectedDepartments(): Promise<void> {
-  const paths = getPathsFromValue(props.modelValue)
-  if (paths.length === 0) {
-    selectedDepartments.value = []
-    return
-  }
-  
-  try {
-    // 从 store 批量获取部门信息
-    const departments = await departmentInfoStore.batchGetDepartmentInfo(paths)
-    selectedDepartments.value = departments
-  } catch (error) {
-    Logger.error('DepartmentSearchWidget', '加载已选部门信息失败', { error })
-    selectedDepartments.value = []
+  if (supportsMultiple.value) {
+    // 多选模式
+    const paths = getPathsFromValue(props.modelValue)
+    if (paths.length === 0) {
+      selectedDepartments.value = []
+      return
+    }
+    
+    try {
+      // 从 store 批量获取部门信息
+      const departments = await departmentInfoStore.batchGetDepartmentInfo(paths)
+      selectedDepartments.value = departments
+    } catch (error) {
+      Logger.error('DepartmentSearchWidget', '加载已选部门信息失败', { error })
+      selectedDepartments.value = []
+    }
+  } else {
+    // 单选模式
+    const path = props.modelValue ? String(props.modelValue).trim() : null
+    if (!path) {
+      selectedDepartment.value = null
+      return
+    }
+    
+    try {
+      const department = await departmentInfoStore.getDepartmentInfo(path)
+      selectedDepartment.value = department || null
+    } catch (error) {
+      Logger.error('DepartmentSearchWidget', '加载部门信息失败', { path, error })
+      selectedDepartment.value = null
+    }
   }
 }
 
 // 监听值变化，加载部门信息
-watch(() => props.modelValue, () => {
+watch(() => [props.modelValue, supportsMultiple], () => {
   loadSelectedDepartments()
 }, { immediate: true })
 </script>
