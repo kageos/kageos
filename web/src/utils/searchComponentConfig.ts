@@ -587,6 +587,125 @@ function createDepartmentsComponentConfig(field: FieldConfig, searchType: string
 }
 
 /**
+ * 创建组织架构远程搜索方法
+ */
+function createDepartmentRemoteMethod(): (query: string) => Promise<Array<{ label: string; value: any; departmentInfo?: any }>> {
+  // 缓存部门树，避免重复加载
+  let cachedDepartmentTree: any[] | null = null
+  
+  return async (query: string) => {
+    try {
+      // 加载部门树（如果还没有缓存）
+      if (!cachedDepartmentTree) {
+        const { getDepartmentTree } = await import('@/api/department')
+        const response = await getDepartmentTree()
+        cachedDepartmentTree = response.departments || []
+      }
+      
+      // 扁平化部门列表
+      const flattenDepartments = (depts: any[]): any[] => {
+        const result: any[] = []
+        const traverse = (list: any[]) => {
+          for (const dept of list) {
+            result.push(dept)
+            if (dept.children && dept.children.length > 0) {
+              traverse(dept.children)
+            }
+          }
+        }
+        traverse(depts)
+        return result
+      }
+      
+      const allDepartments = flattenDepartments(cachedDepartmentTree || [])
+      
+      // 如果没有搜索关键词，返回所有部门（限制数量）
+      if (!query || query.trim() === '') {
+        return allDepartments.slice(0, SearchConfig.DEFAULT_PAGE_SIZE).map((dept: any) => ({
+          label: dept.full_name_path || dept.name,
+          value: dept.full_code_path,
+          departmentInfo: dept
+        }))
+      }
+      
+      // 过滤部门
+      const keyword = query.trim().toLowerCase()
+      const filtered = allDepartments.filter((dept: any) => {
+        return (
+          dept.name.toLowerCase().includes(keyword) ||
+          dept.full_code_path.toLowerCase().includes(keyword) ||
+          (dept.full_name_path && dept.full_name_path.toLowerCase().includes(keyword)) ||
+          (dept.code && dept.code.toLowerCase().includes(keyword))
+        )
+      })
+      
+      return filtered.slice(0, SearchConfig.DEFAULT_PAGE_SIZE).map((dept: any) => ({
+        label: dept.full_name_path || dept.name,
+        value: dept.full_code_path,
+        departmentInfo: dept
+      }))
+    } catch (error) {
+      console.error('[SearchInput] 搜索组织架构失败', error)
+      return []
+    }
+  }
+}
+
+/**
+ * 创建多组织架构初始化选项方法（用于初始化已选中的组织架构）
+ */
+function createDepartmentsInitOptions(): (value: any) => Promise<Array<{ label: string; value: any; departmentInfo?: any }>> {
+  return async (value: any) => {
+    if (!value) {
+      return []
+    }
+    
+    // 如果是数组，转换为逗号分隔的字符串
+    const paths = Array.isArray(value) ? value : String(value).split(',').map(p => p.trim()).filter(p => p)
+    if (paths.length === 0) {
+      return []
+    }
+    
+    try {
+      const { getDepartmentTree } = await import('@/api/department')
+      const response = await getDepartmentTree()
+      const departmentTree = response.departments || []
+      
+      // 扁平化部门列表
+      const flattenDepartments = (depts: any[]): any[] => {
+        const result: any[] = []
+        const traverse = (list: any[]) => {
+          for (const dept of list) {
+            result.push(dept)
+            if (dept.children && dept.children.length > 0) {
+              traverse(dept.children)
+            }
+          }
+        }
+        traverse(depts)
+        return result
+      }
+      
+      const allDepartments = flattenDepartments(departmentTree)
+      
+      // 根据路径查找部门
+      const departments = paths
+        .map(path => allDepartments.find((dept: any) => dept.full_code_path === path))
+        .filter(Boolean)
+      
+      return departments.map((dept: any) => ({
+        label: dept.full_name_path || dept.name,
+        value: dept.full_code_path,
+        departmentInfo: dept
+      }))
+    } catch (error) {
+      console.error('[SearchInput] 初始化组织架构选项失败', error)
+      return []
+    }
+  }
+}
+
+/**
  * 创建多用户初始化选项方法（用于初始化已选中的用户）
  */
 function createUsersInitOptions(): (values: string | string[]) => Promise<Array<{ label: string; value: any; userInfo?: any }>> {
