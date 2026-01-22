@@ -403,19 +403,20 @@ onMounted(async () => {
 /* 选中后的显示（可点击） */
 .departments-select-display {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   padding: 8px 12px;
   border: 1px solid var(--el-border-color);
   border-radius: 4px;
-  background-color: transparent;
+  background-color: var(--el-fill-color-lighter);
   cursor: pointer;
   transition: all 0.2s;
+  min-height: 40px;
 }
 
 .departments-select-display:hover {
   border-color: var(--el-color-primary);
-  background-color: transparent;
+  background-color: var(--el-fill-color-light);
 }
 
 .selected-departments-list {
