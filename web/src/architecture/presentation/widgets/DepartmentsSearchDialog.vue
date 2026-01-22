@@ -401,19 +401,24 @@ const handleClose = () => {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  border: 1px solid var(--el-border-color);
-  border-radius: 4px;
+  border: 2px solid var(--el-border-color-lighter);
+  border-radius: 12px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: var(--el-bg-color);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   
   &:hover {
-    border-color: var(--el-color-primary);
-    background-color: var(--el-fill-color-light);
+    background: var(--el-fill-color-light);
+    border-color: var(--el-color-primary-light-5);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   }
   
   &.is-selected {
     border-color: var(--el-color-primary);
-    background-color: var(--el-color-primary-light-9);
+    border-width: 2px;
+    box-shadow: 0 0 0 2px rgba(var(--el-color-primary-rgb), 0.1);
   }
 }
 
