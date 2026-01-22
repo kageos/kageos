@@ -97,10 +97,10 @@ func (s *Server) setupRoutes() {
 	docs.Use(middleware2.JWTAuth())
 	docHandler := v1.NewDoc(s.docService)
 	docs.POST("/query", docHandler.GetDocsBatch)                                     // 批量获取文档（POST 避免与 wildcard 冲突）
-	docs.GET("/search", docHandler.SearchDocs)                                       // 搜索文档（放在 wildcard 路由之前）
-	docs.GET("/*full-code-path", middleware2.CheckDocRead(), docHandler.GetDoc)       // 获取文档
-	docs.PUT("/*full-code-path", middleware2.CheckDocWrite(), docHandler.UpdateDoc)   // 更新文档
-	docs.DELETE("/*full-code-path", middleware2.CheckDocDelete(), docHandler.DeleteDoc) // 删除文档
+	docs.GET("/search", docHandler.SearchDocs)                                       // 搜索文档
+	docs.GET("/info/*full-code-path", middleware2.CheckDocRead(), docHandler.GetDoc)       // 获取文档
+	docs.PUT("/info/*full-code-path", middleware2.CheckDocWrite(), docHandler.UpdateDoc)   // 更新文档
+	docs.DELETE("/info/*full-code-path", middleware2.CheckDocDelete(), docHandler.DeleteDoc) // 删除文档
 
 	// 函数管理路由（需要JWT验证）
 	function := apiV1.Group("/function")
