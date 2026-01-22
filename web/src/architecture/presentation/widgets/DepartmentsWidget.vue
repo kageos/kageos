@@ -12,18 +12,32 @@
       <!-- 选中后的显示（参考 DocsPathSelector 的实现） -->
       <div v-if="selectedDepartmentsForDisplay.length > 0" class="selected-departments">
         <div class="departments-tags">
-          <el-tag
+          <el-popover
             v-for="(dept, index) in selectedDepartmentsForDisplay"
             :key="dept.full_code_path"
-            closable
-            @close.stop="handleRemoveDepartment(dept)"
-            style="margin-right: 8px; margin-bottom: 4px;"
+            placement="top"
+            :width="650"
+            trigger="click"
+            popper-class="department-info-popover"
           >
-            <img src="/组织架构.svg" alt="组织架构" class="department-icon-small" />
-            <span class="department-display-text">
-              {{ formatDepartmentDisplayName(dept) }}
-            </span>
-          </el-tag>
+            <template #reference>
+              <el-tag
+                closable
+                @close.stop="handleRemoveDepartment(dept)"
+                style="margin-right: 8px; margin-bottom: 4px; cursor: pointer;"
+              >
+                <img src="/组织架构.svg" alt="组织架构" class="department-icon-small" />
+                <span class="department-display-text">
+                  {{ formatDepartmentDisplayName(dept) }}
+                </span>
+              </el-tag>
+            </template>
+            <DepartmentDetailCard 
+              :department-info="dept" 
+              :department-tree="departmentTree"
+              :current-path="dept.full_code_path"
+            />
+          </el-popover>
         </div>
         <el-button
           :icon="Edit"
