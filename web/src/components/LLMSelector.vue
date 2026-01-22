@@ -186,19 +186,37 @@ const searchPage = ref(1)
 const searchPageSize = ref(20)
 const tempSelectedLLMId = ref<number | null>(null)
 const llmInput = ref('')
+const allLLMs = ref<LLMInfo[]>([]) // 所有已加载的 LLM 列表，用于查找
 
 // 当前选中的 LLM
 const selectedLLM = computed(() => {
   if (!props.modelValue || props.modelValue === 0) return null
-  return searchResults.value.find(llm => llm.id === props.modelValue) || null
+  return allLLMs.value.find(llm => llm.id === props.modelValue) || null
 })
 
 // 同步输入框和选中 LLM
-watch(() => props.modelValue, (newVal) => {
+watch(() => props.modelValue, async (newVal) => {
   if (newVal === 0 || !newVal) {
     llmInput.value = '使用默认 LLM'
   } else {
-    const llm = searchResults.value.find(l => l.id === newVal)
+    // 先从已加载的列表中查找
+    let llm = allLLMs.value.find(l => l.id === newVal)
+    
+    // 如果找不到，尝试加载
+    if (!llm) {
+      try {
+        const resp = await getLLMList({
+          scope: props.scope,
+          page: 1,
+          page_size: 1000
+        })
+        allLLMs.value = resp.configs || []
+        llm = allLLMs.value.find(l => l.id === newVal)
+      } catch (error) {
+        console.error('加载 LLM 配置失败:', error)
+      }
+    }
+    
     if (llm) {
       llmInput.value = `${llm.name} (${llm.provider}/${llm.model})`
     } else {
@@ -230,6 +248,12 @@ const handleSearch = async () => {
     })
     
     let llms = resp.configs || []
+    
+    // 更新所有 LLM 列表（合并，避免重复）
+    const llmMap = new Map<number, LLMInfo>()
+    allLLMs.value.forEach(llm => llmMap.set(llm.id, llm))
+    llms.forEach(llm => llmMap.set(llm.id, llm))
+    allLLMs.value = Array.from(llmMap.values())
     
     // 如果有搜索关键词，进行过滤
     if (searchKeyword.value.trim()) {
