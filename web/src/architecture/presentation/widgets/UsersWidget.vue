@@ -442,13 +442,16 @@ onMounted(async () => {
        typeof defaultValue === 'string' && defaultValue.includes('Me()'))
     
     if (needsResolveMe) {
-      // ⚠️ 检查是否是编辑模式：如果 existingValue 存在且 raw 不包含 "Me()"，说明是编辑模式
+      // ⚠️ 检查是否是编辑模式：
+      // 1. 如果 meta.fromInitialData 为 true，说明字段来自 initialData（编辑模式）
+      // 2. 如果 existingValue 存在且 raw 不包含 "Me()"，说明是编辑模式
       // 编辑模式下，existingValue.raw 应该是实际的用户名，不应该是 "Me()"
-      const isEditMode = existingValue && 
-                        existingValue.raw !== null && 
-                        existingValue.raw !== undefined && 
-                        existingValue.raw !== '' && 
-                        (typeof existingValue.raw !== 'string' || !existingValue.raw.includes('Me()'))
+      const isEditMode = props.value?.meta?.fromInitialData === true ||
+                        (existingValue && 
+                         existingValue.raw !== null && 
+                         existingValue.raw !== undefined && 
+                         existingValue.raw !== '' && 
+                         (typeof existingValue.raw !== 'string' || !existingValue.raw.includes('Me()')))
       
       // 只有在新增模式下才解析 Me()
       if (!isEditMode) {

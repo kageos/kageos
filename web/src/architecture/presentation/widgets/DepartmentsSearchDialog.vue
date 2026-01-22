@@ -88,11 +88,7 @@
           <div class="department-info">
             <div class="department-name">{{ dept.name }}</div>
             <div class="department-meta">
-              <span 
-                class="department-path clickable-path" 
-                @click.stop="handlePathClick(dept.full_code_path)"
-                :title="`点击跳转到: ${dept.full_code_path}`"
-              >
+              <span class="department-path">
                 {{ dept.full_code_path }}
               </span>
               <span v-if="dept.full_name_path && dept.full_name_path !== dept.name" class="department-full-name">
@@ -115,14 +111,11 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
 import { ElDialog, ElInput, ElButton, ElIcon, ElEmpty, ElCheckbox } from 'element-plus'
 import { Search, Close } from '@element-plus/icons-vue'
 import { getDepartmentTree } from '@/api/department'
 import type { Department } from '@/api/department'
 import { Logger } from '@/core/utils/logger'
-
-const router = useRouter()
 
 interface Props {
   modelValue: boolean
@@ -322,13 +315,9 @@ const handleClose = () => {
   searchKeyword.value = ''
 }
 
-// 处理路径点击跳转
-const handlePathClick = (fullCodePath: string) => {
-  if (!fullCodePath) return
-  const targetPath = `/workspace${fullCodePath.startsWith('/') ? fullCodePath : `/${fullCodePath}`}`
-  router.push(targetPath)
-  // 不关闭对话框，让用户继续选择
-}
+// ⚠️ 注意：部门路径（full_code_path）不是服务目录路径，不能跳转到服务目录
+// 如果需要跳转功能，需要先根据部门路径查找对应的服务目录节点
+// 暂时移除跳转功能，避免错误
 </script>
 
 <style lang="scss" scoped>
@@ -443,18 +432,6 @@ const handlePathClick = (fullCodePath: string) => {
   color: var(--el-text-color-secondary);
 }
 
-.clickable-path {
-  color: var(--el-color-primary);
-  cursor: pointer;
-  text-decoration: underline;
-  text-decoration-color: transparent;
-  transition: all 0.2s;
-  
-  &:hover {
-    color: var(--el-color-primary-dark-2);
-    text-decoration-color: var(--el-color-primary);
-  }
-}
 
 .departments-search-dialog-empty {
   padding: 40px 0;
