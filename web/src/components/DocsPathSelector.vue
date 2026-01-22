@@ -22,7 +22,7 @@
           @click="handleOpenTreeDialog"
           style="margin-left: 8px;"
         >
-          从服务树选择
+          搜索文档
         </el-button>
       </div>
       <div v-if="selectedPaths.length > 0" class="path-tags" style="margin-top: 8px;">
@@ -131,17 +131,14 @@ const emit = defineEmits<{
 }>()
 
 const dialogVisible = ref(false)
-const treeRef = ref<InstanceType<typeof ElTree>>()
-const filterText = ref('')
-const serviceTreeData = ref<ServiceTree[]>([])
-const loading = ref(false)
+const searchKeyword = ref('')
+const searchLoading = ref(false)
+const searchResults = ref<DocSearchResult[]>([])
+const searchTotal = ref(0)
+const searchPage = ref(1)
+const searchPageSize = ref(20)
 const tempSelectedPaths = ref<string[]>([])
 const pathsInput = ref('')
-
-const treeProps = {
-  children: 'children',
-  label: 'name'
-}
 
 
 // 当前选中的路径数组
@@ -208,23 +205,6 @@ const handleSearch = async () => {
     searchTotal.value = 0
   } finally {
     searchLoading.value = false
-  }
-}
-
-// 加载服务树数据
-const loadServiceTree = async () => {
-  if (loading.value) return
-  
-  loading.value = true
-  try {
-    const tree = await getServiceTree(props.user!, props.app!)
-    serviceTreeData.value = tree || []
-  } catch (error: any) {
-    console.error('加载服务树失败:', error)
-    ElMessage.error(error.message || '加载服务树失败')
-    serviceTreeData.value = []
-  } finally {
-    loading.value = false
   }
 }
 
