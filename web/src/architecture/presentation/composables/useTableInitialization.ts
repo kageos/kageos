@@ -46,7 +46,8 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     syncToURL,
     loadTableData,
     isMounted,
-    preloadUserInfoFromSearchForm
+    preloadUserInfoFromSearchForm,
+    preloadDepartmentInfoFromSearchForm
   } = options
 
   const route = useRoute()
