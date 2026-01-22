@@ -1,8 +1,24 @@
 <template>
   <div class="search-input">
-    <!-- 🔥 用户搜索组件（自定义组件） -->
+    <!-- 🔥 用户搜索专用组件（弹窗搜索，体验更好） -->
+    <UserSearchWidget
+      v-if="shouldUseUserSearchWidget"
+      :field="field"
+      :model-value="localValue"
+      @update:model-value="handleInput"
+    />
+    
+    <!-- 🔥 部门搜索专用组件（弹窗搜索，体验更好） -->
+    <DepartmentSearchWidget
+      v-else-if="shouldUseDepartmentSearchWidget"
+      :field="field"
+      :model-value="localValue"
+      @update:model-value="handleInput"
+    />
+    
+    <!-- 🔥 用户搜索组件（自定义组件，降级方案） -->
     <UserSearchInput
-      v-if="inputConfig.component === SearchComponent.USER_SEARCH_INPUT"
+      v-else-if="inputConfig.component === SearchComponent.USER_SEARCH_INPUT"
       v-model="localValue"
       :placeholder="inputConfig.props?.placeholder"
       :multiple="inputConfig.props?.multiple"
@@ -279,12 +295,14 @@ import { ref, computed, watch, nextTick, onMounted } from 'vue'
 import { ElAvatar, ElIcon, ElTag } from 'element-plus'
 import { Close } from '@element-plus/icons-vue'
 import UserSearchInput from './UserSearchInput.vue'
+import UserSearchWidget from './UserSearchWidget.vue'
+import DepartmentSearchWidget from './DepartmentSearchWidget.vue'
 import { widgetComponentFactory } from '@/architecture/infrastructure/widgetRegistry'
 import { ErrorHandler } from '@/core/utils/ErrorHandler'
 import { convertToFieldValue } from '@/utils/field'
 import { normalizeSearchValue, denormalizeSearchValue } from '@/utils/searchValueNormalizer'
 import { createSearchComponentConfig } from '@/utils/searchComponentConfig'
-import { SearchConfig, SearchComponent, SearchType } from '@/core/constants/search'
+import { SearchConfig, SearchComponent, SearchType, hasSearchType } from '@/core/constants/search'
 import { WidgetType } from '@/core/constants/widget'
 import { parseCommaSeparatedString } from '@/utils/stringUtils'
 import { isStandardColor, getStandardColorCSSVar, type StandardColorType } from '@/core/constants/select'
@@ -358,6 +376,24 @@ const selectOptions = ref<Array<{ label: string; value: any }>>([])
 
 // 下拉加载状态
 const selectLoading = ref(false)
+
+// 🔥 判断是否使用用户搜索专用组件
+const shouldUseUserSearchWidget = computed(() => {
+  const widgetType = props.field.widget?.type
+  const searchType = props.searchType || ''
+  // 用户字段，且支持 IN 查询（多选）或 EQ 查询（单选）
+  return (widgetType === WidgetType.USER || widgetType === WidgetType.USERS) && 
+         (hasSearchType(searchType, SearchType.IN) || hasSearchType(searchType, SearchType.EQ))
+})
+
+// 🔥 判断是否使用部门搜索专用组件
+const shouldUseDepartmentSearchWidget = computed(() => {
+  const widgetType = props.field.widget?.type
+  const searchType = props.searchType || ''
+  // 部门字段，且支持 IN 查询（多选）或 EQ 查询（单选）
+  return (widgetType === WidgetType.DEPARTMENT || widgetType === WidgetType.DEPARTMENTS) && 
+         (hasSearchType(searchType, SearchType.IN) || hasSearchType(searchType, SearchType.EQ))
+})
 
 // 🔥 判断是否是多选组件
 const isMultiselectWidget = computed(() => {
