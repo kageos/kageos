@@ -926,7 +926,8 @@ onMounted(async () => {
     
     // 🔥 直接调用 initializeForm，不使用 syncFormDataStoreToStateManager
     // 因为 formDataStore 可能是空的，会设置默认值，影响 initialData 的初始化
-    applicationService.initializeForm(fields, initialData)
+    // 🔥 传递 isUpdateMode=true，表示这是更新模式，不会使用默认值覆盖空值
+    applicationService.initializeForm(fields, initialData, true)
     
     Logger.debug('FormView', 'initializeFormWithData 完成', {
       stateDataSize: stateManager.getState().data.size,
@@ -954,7 +955,8 @@ onMounted(async () => {
       const initialData = Object.keys(props.initialData).length > 0 
         ? props.initialData 
         : buildInitialDataFromFormDataStore(fields)
-      applicationService.initializeForm(fields, initialData)
+      // 🔥 新增模式：传递 isUpdateMode=false，允许使用默认值
+      applicationService.initializeForm(fields, initialData, false)
     }
     
     // 🔥 恢复响应数据（在表单初始化之后，避免被覆盖）
@@ -1010,7 +1012,8 @@ onMounted(async () => {
           
           // 🔥 构建 initialData 并调用 initializeForm
           const initialData = buildInitialDataFromFormDataStore(fields)
-          applicationService.initializeForm(fields, initialData)
+          // 🔥 新增模式：传递 isUpdateMode=false，允许使用默认值
+          applicationService.initializeForm(fields, initialData, false)
         }
         
         // 🔥 恢复响应数据（在表单初始化之后，避免被覆盖）
@@ -1100,7 +1103,9 @@ onMounted(async () => {
             propsInitialData: props.initialData,
             fromProps: Object.keys(props.initialData).length > 0
           })
-          applicationService.initializeForm(fields, initialData)
+          // 🔥 判断模式：如果 props.initialData 有值，是更新模式；否则是新增模式
+          const isUpdateMode = Object.keys(props.initialData).length > 0
+          applicationService.initializeForm(fields, initialData, isUpdateMode)
           
           // 🔥 恢复响应数据（在表单初始化之后，避免被覆盖）
           if (metadata?.responseParams && stateManager && typeof (stateManager as any).setResponse === 'function') {
@@ -1150,9 +1155,10 @@ onMounted(async () => {
     const fields = (functionDetail.value.request || []) as FieldConfig[]
     if (fields.length > 0 && newInitialData && Object.keys(newInitialData).length > 0) {
       // 🔥 使用新的 initialData 重新初始化表单
+      // 🔥 这是更新模式（initialData 变化），传递 isUpdateMode=true
       nextTick(() => {
         syncFormDataStoreToStateManager(fields)
-        applicationService.initializeForm(fields, newInitialData)
+        applicationService.initializeForm(fields, newInitialData, true)
       })
     }
   }, { deep: true })
@@ -1186,10 +1192,13 @@ onMounted(async () => {
             ? props.initialData 
             : buildInitialDataFromFormDataStore(fields)
           
+          // 🔥 判断模式：如果 props.initialData 有值，是更新模式；否则是新增模式
+          const isUpdateMode = Object.keys(props.initialData).length > 0
+          
           if (Object.keys(initialData).length > 0) {
             nextTick(() => {
               syncFormDataStoreToStateManager(fields)
-              applicationService.initializeForm(fields, initialData)
+              applicationService.initializeForm(fields, initialData, isUpdateMode)
             })
           }
         }

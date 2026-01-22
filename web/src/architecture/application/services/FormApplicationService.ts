@@ -220,10 +220,13 @@ export class FormApplicationService {
 
   /**
    * 初始化表单（供外部调用）
+   * @param fields 字段配置列表
+   * @param initialData 初始数据（编辑模式）
+   * @param isUpdateMode 是否为更新模式（true=更新模式，false=新增模式）
    */
-  initializeForm(fields: FieldConfig[], initialData?: Record<string, any>): void {
+  initializeForm(fields: FieldConfig[], initialData?: Record<string, any>, isUpdateMode: boolean = false): void {
     this.domainService.setFields(fields)
-    this.domainService.initializeForm(fields, initialData)
+    this.domainService.initializeForm(fields, initialData, isUpdateMode)
   }
 
   /**

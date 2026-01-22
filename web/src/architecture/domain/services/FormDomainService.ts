@@ -141,8 +141,11 @@ export class FormDomainService {
 
   /**
    * 初始化表单
+   * @param fields 字段配置列表
+   * @param initialData 初始数据（编辑模式）
+   * @param isUpdateMode 是否为更新模式（true=更新模式，false=新增模式）
    */
-  initializeForm(fields: FieldConfig[], initialData?: Record<string, any>): void {
+  initializeForm(fields: FieldConfig[], initialData?: Record<string, any>, isUpdateMode: boolean = false): void {
     Logger.debug('FormDomainService', 'initializeForm 被调用', {
       fieldsCount: fields.length,
       fieldCodes: fields.map(f => f.code),
@@ -192,19 +195,24 @@ export class FormDomainService {
       // 2. 如果 initialData 中有该字段，使用 initialData（但保留已有的 display 和 meta）
       if (hasInitialData) {
         // 🔥 关键修复：检查 initialRawValue 是否为空值
-        // 如果 initialRawValue 是空值（null/undefined/空字符串/空数组/空对象），且没有其他来源，使用默认值
+        // 如果 initialRawValue 是空值（null/undefined/空字符串/空数组/空对象），且是新增模式，使用默认值
+        // 如果是更新模式，即使值为空也要保留（不能覆盖）
         const isEmptyInitialValue = initialRawValue === null || 
                                    initialRawValue === undefined || 
                                    initialRawValue === '' ||
                                    (Array.isArray(initialRawValue) && initialRawValue.length === 0) ||
                                    (typeof initialRawValue === 'object' && initialRawValue !== null && Object.keys(initialRawValue).length === 0)
         
-        // 如果是空值，使用默认值（新增模式）
-        if (isEmptyInitialValue) {
+        // 🔥 只有在新增模式且值为空时，才使用默认值
+        // 更新模式下，即使值为空也要保留，不能覆盖
+        if (isEmptyInitialValue && !isUpdateMode) {
           const defaultValue = this.getDefaultValue(field)
           newData.set(fieldCode, defaultValue)
           return
         }
+        
+        // 🔥 更新模式：即使值为空，也要保留（使用 initialRawValue）
+        // 新增模式：如果值不为空，正常使用
         
         // 如果 raw 值相同，保留已有的 display 和 meta（可能已经通过 SelectWidgetInitializer 初始化）
         if (existingValue && existingValue.raw === initialRawValue) {
