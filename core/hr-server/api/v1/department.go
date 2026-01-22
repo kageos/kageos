@@ -2,6 +2,7 @@ package v1
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/core/hr-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/hr-server/service"
@@ -235,29 +236,42 @@ func (d *Department) DeleteDepartment(c *gin.Context) {
 // @Summary 批量获取部门信息
 // @Description 根据 full_code_path 列表批量获取部门信息
 // @Tags 部门管理
-// @Accept json
 // @Produce json
 // @Param X-Token header string true "JWT Token"
-// @Param request body dto.GetDepartmentsByPathsReq true "批量获取部门请求"
+// @Param full_code_paths query string true "部门完整路径列表，多个路径用逗号分隔" example:"/tech/backend,/tech/frontend"
 // @Success 200 {object} dto.GetDepartmentsByPathsResp
-// @Router /hr/api/v1/departments [post]
+// @Router /hr/api/v1/departments [get]
 func (d *Department) GetDepartmentsByPaths(c *gin.Context) {
-	var req dto.GetDepartmentsByPathsReq
 	var resp *dto.GetDepartmentsByPathsResp
 	var err error
 	defer func() {
-		logger.Infof(c, "GetDepartmentsByPaths req:%+v resp:%+v err:%v", req, resp, err)
+		logger.Infof(c, "GetDepartmentsByPaths resp:%+v err:%v", resp, err)
 	}()
 
-	// 绑定请求参数
-	if err = c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+	// 从查询参数获取路径列表
+	fullCodePathsStr := c.Query("full_code_paths")
+	if fullCodePathsStr == "" {
+		response.FailWithMessage(c, "请求参数错误: full_code_paths 不能为空")
+		return
+	}
+
+	// 解析逗号分隔的路径列表
+	fullCodePaths := []string{}
+	for _, path := range strings.Split(fullCodePathsStr, ",") {
+		trimmed := strings.TrimSpace(path)
+		if trimmed != "" {
+			fullCodePaths = append(fullCodePaths, trimmed)
+		}
+	}
+
+	if len(fullCodePaths) == 0 {
+		response.FailWithMessage(c, "请求参数错误: full_code_paths 不能为空")
 		return
 	}
 
 	// 调用服务层
 	ctx := contextx.ToContext(c)
-	deptMap, err := d.deptService.GetDepartmentsByFullCodePaths(ctx, req.FullCodePaths)
+	deptMap, err := d.deptService.GetDepartmentsByFullCodePaths(ctx, fullCodePaths)
 	if err != nil {
 		response.FailWithMessage(c, "批量获取部门失败: "+err.Error())
 		return
@@ -265,7 +279,7 @@ func (d *Department) GetDepartmentsByPaths(c *gin.Context) {
 
 	// 将 map 转换为 slice，保持顺序
 	departments := make([]*model.Department, 0, len(deptMap))
-	for _, path := range req.FullCodePaths {
+	for _, path := range fullCodePaths {
 		if dept, ok := deptMap[path]; ok {
 			departments = append(departments, dept)
 		}
