@@ -286,7 +286,7 @@ function handleGoToOrganizationPage() {
 }
 
 :deep(.el-tree-node.is-current > .el-tree-node__content) {
-  background-color: var(--el-fill-color-light);
+  background-color: var(--el-fill-color);
   border-left: 2px solid #6366f1;
   
   .tree-node {
