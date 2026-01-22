@@ -58,13 +58,14 @@ func (s *StandardAPI) buildRequestAppReq(c *gin.Context, fullCodePath string) (*
 	}
 
 	req := &dto.RequestAppReq{
-		User:        user,
-		App:         app,
-		Router:      router,
-		Method:      c.Request.Method,
-		TraceId:     contextx.GetTraceId(c),
-		RequestUser: contextx.GetRequestUser(c),
-		Token:       contextx.GetToken(c),
+		User:            user,
+		App:             app,
+		Router:          router,
+		Method:          c.Request.Method,
+		TraceId:         contextx.GetTraceId(c),
+		RequestUser:     contextx.GetRequestUser(c),
+		RequestUserDept: contextx.GetRequestDepartmentFullPath(c),
+		Token:           contextx.GetToken(c),
 	}
 
 	// 绑定请求体（POST、PUT、PATCH、DELETE 等方法通常有请求体）
@@ -91,13 +92,14 @@ func (s *StandardAPI) buildCallbackAppReq(c *gin.Context, fullCodePath string, c
 	}
 
 	req := &dto.RequestAppReq{
-		User:        user,
-		App:         app,
-		Router:      "/_callback",
-		Method:      c.Request.Method,
-		TraceId:     contextx.GetTraceId(c),
-		RequestUser: contextx.GetRequestUser(c),
-		Token:       contextx.GetToken(c),
+		User:            user,
+		App:             app,
+		Router:          "/_callback",
+		Method:          c.Request.Method,
+		TraceId:         contextx.GetTraceId(c),
+		RequestUser:     contextx.GetRequestUser(c),
+		RequestUserDept: contextx.GetRequestDepartmentFullPath(c),
+		Token:           contextx.GetToken(c),
 	}
 
 	// 读取请求体

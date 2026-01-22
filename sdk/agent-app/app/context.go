@@ -27,13 +27,14 @@ func newCallbackContext(info *routerInfo) *Context {
 }
 func (a *App) NewContext(ctx context.Context, req *dto.RequestAppReq) (*Context, error) {
 	msgInfo := trace.Msg{
-		User:        env.User,
-		App:         env.App,
-		Version:     env.Version,
-		Method:      req.Method,
-		Router:      req.Router,
-		RequestUser: req.RequestUser,
-		TraceId:     req.TraceId,
+		User:           env.User,
+		App:            env.App,
+		Version:        env.Version,
+		Method:         req.Method,
+		Router:         req.Router,
+		RequestUser:    req.RequestUser,
+		RequestUserDept: req.RequestUserDept,
+		TraceId:        req.TraceId,
 	}
 	//var req dto.RequestAppReq
 	//if err := json.Unmarshal(msg.Data, &req); err != nil {
