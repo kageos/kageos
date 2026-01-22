@@ -191,6 +191,21 @@ export class FormDomainService {
       
       // 2. 如果 initialData 中有该字段，使用 initialData（但保留已有的 display 和 meta）
       if (hasInitialData) {
+        // 🔥 关键修复：检查 initialRawValue 是否为空值
+        // 如果 initialRawValue 是空值（null/undefined/空字符串/空数组/空对象），且没有其他来源，使用默认值
+        const isEmptyInitialValue = initialRawValue === null || 
+                                   initialRawValue === undefined || 
+                                   initialRawValue === '' ||
+                                   (Array.isArray(initialRawValue) && initialRawValue.length === 0) ||
+                                   (typeof initialRawValue === 'object' && initialRawValue !== null && Object.keys(initialRawValue).length === 0)
+        
+        // 如果是空值，使用默认值（新增模式）
+        if (isEmptyInitialValue) {
+          const defaultValue = this.getDefaultValue(field)
+          newData.set(fieldCode, defaultValue)
+          return
+        }
+        
         // 如果 raw 值相同，保留已有的 display 和 meta（可能已经通过 SelectWidgetInitializer 初始化）
         if (existingValue && existingValue.raw === initialRawValue) {
           // 🔥 标记该字段来自 initialData（编辑模式），确保默认值不会覆盖
