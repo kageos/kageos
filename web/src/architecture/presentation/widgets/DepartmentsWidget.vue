@@ -589,6 +589,70 @@ onMounted(async () => {
   text-overflow: ellipsis;
 }
 
+/* 部门列表弹窗样式 */
+.departments-full-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.departments-full-list-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.departments-full-list-content {
+  padding: 8px 0;
+}
+
+.departments-full-list-item {
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  
+  &:hover {
+    background-color: var(--el-fill-color-lighter);
+  }
+}
+
+.department-item-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.department-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+.department-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.department-name {
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.department-path {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* 响应模式样式 */
 .departments-response {
   width: 100%;
@@ -617,11 +681,45 @@ onMounted(async () => {
 .departments-tags-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 6px;
+  align-items: center;
 }
 
 .department-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: default;
   margin: 0;
+  
+  &.clickable {
+    cursor: pointer;
+    transition: all 0.2s;
+    
+    &:hover {
+      opacity: 0.8;
+      transform: translateY(-1px);
+    }
+  }
+  
+  &.more-indicator {
+    cursor: pointer;
+    background-color: var(--el-fill-color-light);
+    border-color: var(--el-border-color);
+    color: var(--el-text-color-regular);
+    
+    &:hover {
+      background-color: var(--el-fill-color);
+      border-color: var(--el-color-primary);
+      color: var(--el-color-primary);
+    }
+  }
+}
+
+.department-icon-small {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
 }
 
 /* 详情模式样式 */
