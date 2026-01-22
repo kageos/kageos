@@ -431,7 +431,7 @@ onMounted(async () => {
   align-items: center;
   gap: 6px;
   padding: 4px 8px;
-  background-color: var(--el-fill-color-light);
+  background-color: transparent;
   border: 1px solid var(--el-border-color);
   border-radius: 4px;
   font-size: 12px;
