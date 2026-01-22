@@ -80,7 +80,7 @@
           v-for="(dept, index) in displayedDepartments"
           :key="dept.full_code_path || index"
           placement="top"
-          :width="520"
+          :width="650"
           trigger="click"
           popper-class="department-info-popover"
         >
@@ -129,7 +129,7 @@
               >
                 <el-popover
                   placement="right"
-                  :width="520"
+                  :width="650"
                   trigger="click"
                   popper-class="department-info-popover"
                 >
