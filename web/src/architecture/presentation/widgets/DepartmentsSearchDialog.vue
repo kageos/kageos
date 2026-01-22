@@ -418,6 +418,7 @@ const handleClose = () => {
   &.is-selected {
     border-color: var(--el-color-primary);
     border-width: 2px;
+    background-color: var(--el-fill-color-light);
     box-shadow: 0 0 0 2px rgba(var(--el-color-primary-rgb), 0.1);
   }
 }
