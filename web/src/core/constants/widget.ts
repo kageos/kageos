@@ -96,3 +96,19 @@ export function normalizeWidgetType(type: string | undefined | null): string {
   return WidgetTypeAliases[type] || type
 }
 
+/**
+ * 动态默认值函数名常量
+ * 🔥 用于动态默认值解析，避免硬编码
+ */
+export const DynamicFunctionName = {
+  // 时间函数
+  NOW: 'now',
+  TODAY: 'today',
+  TOMORROW: 'tomorrow',
+  YESTERDAY: 'yesterday',
+  // 用户函数
+  ME: 'me',
+  // 组织架构函数
+  MY_DEPARTMENT: 'mydepartment'
+} as const
+

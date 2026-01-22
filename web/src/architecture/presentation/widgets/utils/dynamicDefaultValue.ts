@@ -15,6 +15,8 @@
  * - Now(-2): 2小时前
  */
 
+import { WidgetType, DynamicFunctionName } from '@/core/constants/widget'
+
 /**
  * 解析时间偏移参数
  * @param offset 偏移字符串，如 "+1h", "-2d", "+3600s", "+2", "24h", "2d", "-3600s"
@@ -150,11 +152,11 @@ export function resolveDynamicDefaultValue(
   const funcName = name.toLowerCase()
 
   // 时间戳组件：支持时间函数
-  if (widgetType === 'timestamp') {
+  if (widgetType === WidgetType.TIMESTAMP) {
     const now = new Date()
     
     switch (funcName) {
-      case 'now': {
+      case DynamicFunctionName.NOW: {
         // Now() - 当前时间
         // Now(+1h) - 一小时后
         // Now(-2d) - 两天前
@@ -165,7 +167,7 @@ export function resolveDynamicDefaultValue(
         return now.getTime() + offset
       }
       
-      case 'today': {
+      case DynamicFunctionName.TODAY: {
         // Today() - 今天 00:00:00
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
         if (args.length === 0) {
@@ -176,13 +178,13 @@ export function resolveDynamicDefaultValue(
         return today.getTime() + offset
       }
       
-      case 'tomorrow': {
+      case DynamicFunctionName.TOMORROW: {
         // Tomorrow() - 明天 00:00:00
         const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
         return tomorrow.getTime()
       }
       
-      case 'yesterday': {
+      case DynamicFunctionName.YESTERDAY: {
         // Yesterday() - 昨天 00:00:00
         const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)
         return yesterday.getTime()
@@ -195,8 +197,8 @@ export function resolveDynamicDefaultValue(
   }
 
   // 用户选择器：支持用户函数
-  if (widgetType === 'user' || widgetType === 'users') {
-    if (funcName === 'me') {
+  if (widgetType === WidgetType.USER || widgetType === WidgetType.USERS) {
+    if (funcName === DynamicFunctionName.ME) {
       // Me() - 当前登录用户
       if (getAuthStore) {
         const authStore = getAuthStore()
@@ -208,8 +210,8 @@ export function resolveDynamicDefaultValue(
   }
 
   // 组织架构选择器：支持组织架构函数
-  if (widgetType === 'department' || widgetType === 'departments') {
-    if (funcName === 'mydepartment') {
+  if (widgetType === WidgetType.DEPARTMENT || widgetType === WidgetType.DEPARTMENTS) {
+    if (funcName === DynamicFunctionName.MY_DEPARTMENT) {
       // MyDepartment() - 当前用户所在部门
       if (getAuthStore) {
         const authStore = getAuthStore()
