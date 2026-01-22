@@ -33,6 +33,13 @@
           </el-button>
           <el-button
             type="danger"
+            @click="handleClearDepartmentCache"
+            :loading="clearingDepartmentCache"
+          >
+            清理部门信息缓存
+          </el-button>
+          <el-button
+            type="danger"
             @click="handleClearAllCache"
             :loading="clearingAllCache"
           >
@@ -61,6 +68,19 @@
           <div class="stat-item">
             <span class="stat-label">正在加载的用户：</span>
             <span class="stat-value">{{ userCacheStats.loading }} 个</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">部门信息缓存：</span>
+            <span class="stat-value">
+              {{ departmentCacheStats.total }} 个
+              <span v-if="departmentCacheStats.expired > 0" class="expired-count">
+                （{{ departmentCacheStats.expired }} 个已过期）
+              </span>
+            </span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">正在加载的部门：</span>
+            <span class="stat-value">{{ departmentCacheStats.loading }} 个</span>
           </div>
         </div>
       </div>
@@ -159,6 +179,59 @@
         </div>
       </div>
 
+      <!-- 部门信息缓存列表 -->
+      <div class="debug-section">
+        <div class="section-title">
+          部门信息缓存
+          <el-button
+            text
+            type="primary"
+            size="small"
+            @click="showDepartmentCacheDetails = !showDepartmentCacheDetails"
+            style="margin-left: 8px;"
+          >
+            {{ showDepartmentCacheDetails ? '收起' : '展开' }}
+          </el-button>
+        </div>
+        <div v-if="showDepartmentCacheDetails" class="cache-details">
+          <el-table
+            :data="departmentCacheList"
+            stripe
+            size="small"
+            max-height="400"
+            style="width: 100%"
+          >
+            <el-table-column prop="path" label="部门路径" min-width="200" show-overflow-tooltip />
+            <el-table-column prop="name" label="部门名称" width="150" show-overflow-tooltip />
+            <el-table-column prop="status" label="状态" width="100">
+              <template #default="{ row }">
+                <el-tag
+                  :type="row.isExpired ? 'warning' : 'success'"
+                  size="small"
+                >
+                  {{ row.isExpired ? '已过期' : '有效' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="cachedTime" label="缓存时间" width="180" />
+            <el-table-column prop="expiredTime" label="过期时间" width="180">
+              <template #default="{ row }">
+                <span :class="{ 'expired-text': row.isExpired }">
+                  {{ row.expiredTime }}
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="age" label="缓存时长" width="120">
+              <template #default="{ row }">
+                <span :class="{ 'expired-text': row.isExpired }">
+                  {{ row.age }}
+                </span>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+      </div>
+
       <!-- 其他工具区域 -->
       <div class="debug-section">
         <div class="section-title">其他工具</div>
@@ -190,6 +263,7 @@ import { ref, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { functionLoader } from '../../infrastructure/functionLoader'
 import { useUserInfoStore } from '@/stores/userInfo'
+import { useDepartmentInfoStore } from '@/stores/departmentInfo'
 import { cacheManager } from '../../infrastructure/cacheManager'
 
 interface Props {
@@ -207,19 +281,28 @@ const visible = computed({
 })
 
 const userInfoStore = useUserInfoStore()
+const departmentInfoStore = useDepartmentInfoStore()
 
 // 加载状态
 const clearingFunctionCache = ref(false)
 const clearingUserCache = ref(false)
+const clearingDepartmentCache = ref(false)
 const clearingAllCache = ref(false)
 
 // 显示/隐藏详情
 const showFunctionCacheDetails = ref(false)
 const showUserCacheDetails = ref(false)
+const showDepartmentCacheDetails = ref(false)
 
 // 缓存统计
 const functionCacheCount = ref(0)
 const userCacheStats = ref({
+  total: 0,
+  valid: 0,
+  expired: 0,
+  loading: 0
+})
+const departmentCacheStats = ref({
   total: 0,
   valid: 0,
   expired: 0,
@@ -243,8 +326,18 @@ interface UserCacheItem {
   age: string
 }
 
+interface DepartmentCacheItem {
+  path: string
+  name: string
+  isExpired: boolean
+  cachedTime: string
+  expiredTime: string
+  age: string
+}
+
 const functionCacheList = ref<FunctionCacheItem[]>([])
 const userCacheList = ref<UserCacheItem[]>([])
+const departmentCacheList = ref<DepartmentCacheItem[]>([])
 
 // 格式化时间
 const formatTime = (timestamp: number): string => {
@@ -325,6 +418,34 @@ const updateCacheStats = () => {
       console.warn('[DebugDialog] 无法获取用户信息缓存详情', error)
       userCacheList.value = []
     }
+    
+    // 获取部门信息缓存统计
+    const deptStats = departmentInfoStore.getCacheStats()
+    departmentCacheStats.value = deptStats
+    
+    // 构建部门信息缓存列表
+    // 使用 departmentInfoStore 的 getCacheDetails 方法获取详情
+    try {
+      const details = departmentInfoStore.getCacheDetails()
+      departmentCacheList.value = details.map((item: {
+        path: string
+        name: string
+        isExpired: boolean
+        cachedTime: number
+        expiredTime: number
+        age: number
+      }) => ({
+        path: item.path,
+        name: item.name || '-',
+        isExpired: item.isExpired,
+        cachedTime: formatTime(item.cachedTime),
+        expiredTime: formatTime(item.expiredTime),
+        age: formatAge(item.age)
+      }))
+    } catch (error) {
+      console.warn('[DebugDialog] 无法获取部门信息缓存详情', error)
+      departmentCacheList.value = []
+    }
   } catch (error) {
     console.error('[DebugDialog] 获取缓存统计失败', error)
   }
@@ -385,11 +506,35 @@ const handleClearUserCache = async () => {
   }
 }
 
+// 清理部门信息缓存
+const handleClearDepartmentCache = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '确定要清理部门信息缓存吗？这将清除所有部门信息缓存（包括 localStorage）。',
+      '清理部门信息缓存',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    clearingDepartmentCache.value = true
+    departmentInfoStore.clearCache()
+    ElMessage.success('部门信息缓存已清理')
+    updateCacheStats()
+  } catch (error) {
+    // 忽略取消操作
+  } finally {
+    clearingDepartmentCache.value = false
+  }
+}
+
 // 清理所有缓存
 const handleClearAllCache = async () => {
   try {
     await ElMessageBox.confirm(
-      '确定要清理所有缓存吗？这将清除函数详情缓存和用户信息缓存，需要重新加载页面。',
+      '确定要清理所有缓存吗？这将清除函数详情缓存、用户信息缓存和部门信息缓存，需要重新加载页面。',
       '清理所有缓存',
       {
         confirmButtonText: '确定',
@@ -401,6 +546,7 @@ const handleClearAllCache = async () => {
     clearingAllCache.value = true
     functionLoader.clearCache()
     userInfoStore.clearCache()
+    departmentInfoStore.clearCache()
     ElMessage.success('所有缓存已清理')
     updateCacheStats()
     
@@ -428,6 +574,7 @@ const handleCopyCacheInfo = async () => {
         count: functionCacheCount.value
       },
       userCache: userCacheStats.value,
+      departmentCache: departmentCacheStats.value,
       timestamp: new Date().toISOString()
     }
     
