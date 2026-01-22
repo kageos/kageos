@@ -138,8 +138,18 @@
         </el-descriptions-item>
         <el-descriptions-item label="超时时间">{{ detailData.timeout }} 秒</el-descriptions-item>
         <el-descriptions-item label="描述" :span="2">{{ detailData.description || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="知识库" :span="2">
-          {{ detailData.docs_paths || '未配置' }}
+        <el-descriptions-item label="文档路径" :span="2">
+          <div v-if="detailData.docs_paths && detailData.docs_paths.trim()">
+            <el-tag
+              v-for="(path, index) in detailData.docs_paths.split(',').filter(p => p.trim())"
+              :key="index"
+              size="small"
+              style="margin-right: 8px; margin-bottom: 4px;"
+            >
+              {{ path.trim() }}
+            </el-tag>
+          </div>
+          <span v-else style="color: #909399;">未配置</span>
         </el-descriptions-item>
         <el-descriptions-item label="LLM 配置" :span="2">
           <span v-if="detailData.llm_config">
@@ -264,6 +274,16 @@
             </el-option>
           </el-select>
         </el-form-item>
+        <el-form-item label="文档路径">
+          <DocsPathSelector
+            v-model="formData.docs_paths"
+            :user="currentApp?.user"
+            :app="currentApp?.code"
+          />
+          <div style="margin-top: 8px; font-size: 12px; color: #909399;">
+            提示：选择服务树中的文档路径，支持多选。AI 会批量加载这些路径下的所有文档节点。
+          </div>
+        </el-form-item>
         <el-form-item label="描述">
           <el-input
             v-model="formData.description"
@@ -333,13 +353,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElForm } from 'element-plus'
 import { ArrowLeft, Plus, Search, Refresh, DocumentCopy, Operation, CircleCheck, Document, Connection } from '@element-plus/icons-vue'
 import StatCard from '@/components/Agent/StatCard.vue'
 import AgentCard from '@/components/Agent/AgentCard.vue'
 import RichTextEditor from '@/components/RichTextEditor.vue'
+import DocsPathSelector from '@/components/DocsPathSelector.vue'
 import {
   getAgentList,
   getAgent,
@@ -361,8 +382,13 @@ import {
   type SearchFunctionsReq,
 } from '@/api/service-tree'
 import type { FormRules } from 'element-plus'
+import { useAppStore } from '@/stores/app'
 
 const router = useRouter()
+const appStore = useAppStore()
+
+// 当前应用
+const currentApp = computed(() => appStore.currentApp)
 
 // 表格数据
 const loading = ref(false)
@@ -860,7 +886,7 @@ function resetForm() {
   formData.system_prompt_template = ''
   formData.timeout = 30
   formData.plugin_id = null
-  formData.docs_paths = 0
+  formData.docs_paths = ''
   formData.llm_config_id = 0
   formData.metadata = ''
   formData.greeting = ''
