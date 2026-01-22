@@ -242,22 +242,22 @@ func (d *Department) DeleteDepartment(c *gin.Context) {
 // @Success 200 {object} dto.GetDepartmentsByPathsResp
 // @Router /hr/api/v1/departments [get]
 func (d *Department) GetDepartmentsByPaths(c *gin.Context) {
+	var req dto.GetDepartmentsByPathsReq
 	var resp *dto.GetDepartmentsByPathsResp
 	var err error
 	defer func() {
-		logger.Infof(c, "GetDepartmentsByPaths resp:%+v err:%v", resp, err)
+		logger.Infof(c, "GetDepartmentsByPaths req:%+v resp:%+v err:%v", req, resp, err)
 	}()
 
-	// 从查询参数获取路径列表
-	fullCodePathsStr := c.Query("full_code_paths")
-	if fullCodePathsStr == "" {
-		response.FailWithMessage(c, "请求参数错误: full_code_paths 不能为空")
+	// 绑定查询参数
+	if err = c.ShouldBindQuery(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
 		return
 	}
 
 	// 解析逗号分隔的路径列表
 	fullCodePaths := []string{}
-	for _, path := range strings.Split(fullCodePathsStr, ",") {
+	for _, path := range strings.Split(req.FullCodePaths, ",") {
 		trimmed := strings.TrimSpace(path)
 		if trimmed != "" {
 			fullCodePaths = append(fullCodePaths, trimmed)
