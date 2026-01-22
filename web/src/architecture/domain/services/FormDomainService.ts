@@ -191,7 +191,14 @@ export class FormDomainService {
       if (hasInitialData) {
         // 如果 raw 值相同，保留已有的 display 和 meta（可能已经通过 SelectWidgetInitializer 初始化）
         if (existingValue && existingValue.raw === initialRawValue) {
-          newData.set(fieldCode, existingValue)
+          // 🔥 标记该字段来自 initialData（编辑模式），确保默认值不会覆盖
+          newData.set(fieldCode, {
+            ...existingValue,
+            meta: {
+              ...existingValue.meta,
+              fromInitialData: true
+            }
+          })
         } else {
           // 🔥 对于有 OnSelectFuzzy 回调的字段，display 暂时设置为空字符串
           // 让 SelectWidgetInitializer 通过 by_value 来获取 label
@@ -199,7 +206,9 @@ export class FormDomainService {
           newData.set(fieldCode, {
             raw: initialRawValue,
             display: hasOnSelectFuzzy ? '' : (typeof initialRawValue === 'object' ? JSON.stringify(initialRawValue) : String(initialRawValue)),
-            meta: {}
+            meta: {
+              fromInitialData: true  // 🔥 标记该字段来自 initialData（编辑模式）
+            }
           })
         }
         return
