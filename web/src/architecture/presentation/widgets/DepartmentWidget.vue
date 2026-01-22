@@ -86,6 +86,7 @@ import { ElButton, ElIcon } from 'element-plus'
 import { OfficeBuilding, Edit } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/core/stores-v2/formData'
+import { useDepartmentInfoStore } from '@/stores/departmentInfo'
 import type { Department } from '@/api/department'
 import { getDepartmentTree, getDepartmentByPath } from '@/api/department'
 import { Logger } from '@/core/utils/logger'
@@ -103,6 +104,7 @@ const props = withDefaults(defineProps<WidgetComponentProps>(), {
 const emit = defineEmits<WidgetComponentEmits>()
 
 const formDataStore = useFormDataStore()
+const departmentInfoStore = useDepartmentInfoStore()
 
 // 弹窗显示状态
 const dialogVisible = ref(false)
@@ -177,12 +179,19 @@ async function loadDepartmentInfo(fullCodePath: string | null): Promise<Departme
     return props.value.meta.departmentInfo
   }
   
-  // 从 API 获取组织架构信息
+  // 🔥 优先从 store 缓存中获取（如果预加载已完成，这里会命中缓存）
+  const cachedDept = departmentInfoStore.departmentInfoCache.get(fullCodePath)
+  if (cachedDept) {
+    departmentInfo.value = cachedDept
+    return cachedDept
+  }
+  
+  // 🔥 如果缓存中没有，使用 getDepartmentInfo（会自动处理缓存和降级策略）
   try {
-    const res = await getDepartmentByPath(fullCodePath)
-    if (res.department) {
-      departmentInfo.value = res.department
-      return res.department
+    const dept = await departmentInfoStore.getDepartmentInfo(fullCodePath)
+    if (dept) {
+      departmentInfo.value = dept
+      return dept
     } else {
       departmentInfo.value = null
       return null

@@ -18,6 +18,7 @@ import { WorkspaceEvent, TableEvent } from '../../domain/interfaces/IEventBus'
 import type { FunctionDetail } from '../../domain/types'
 import type { SearchParams, SortParams, TableRow } from '../../domain/services/TableDomainService'
 import { useUserInfoStore } from '@/stores/userInfo'
+import { useDepartmentInfoStore } from '@/stores/departmentInfo'
 import type { UserInfo } from '@/types'
 
 /**
@@ -47,14 +48,13 @@ export class TableApplicationService {
       priority: 100, // 优先级，越小越早执行
       execute: this.preloadUserInfoFromTableData.bind(this)
     })
-
-    // 🔥 扩展点：后续可以注册其他类型的预加载钩子
-    // 例如：
-    // this.domainService.beforeRender({
-    //   name: 'preload-department-info',
-    //   priority: 200,
-    //   execute: this.preloadDepartmentInfo.bind(this)
-    // })
+    
+    // 注册部门信息预加载钩子
+    this.domainService.beforeRender({
+      name: 'preload-department-info',
+      priority: 110, // 优先级，在用户信息之后执行
+      execute: this.preloadDepartmentInfoFromTableData.bind(this)
+    })
   }
 
 
@@ -141,6 +141,57 @@ export class TableApplicationService {
     } catch (error) {
       // 静默失败，不影响表格数据加载
       console.error('[TableApplicationService] 预加载用户信息失败', error)
+    }
+  }
+
+  /**
+   * 🔥 预加载表格数据中的部门信息到 store 缓存
+   * 在数据更新后、渲染前调用，确保渲染时所有部门信息都在缓存中
+   * 这个方法被设置为 TableDomainService 的预加载回调
+   */
+  private async preloadDepartmentInfoFromTableData(functionDetail: FunctionDetail, tableData: TableRow[]): Promise<void> {
+    try {
+      // 1. 识别所有部门字段（response 字段）
+      const responseFields = Array.isArray(functionDetail.response) ? functionDetail.response : []
+      const departmentFields = responseFields.filter(f => f.widget?.type === 'department' || f.widget?.type === 'departments')
+      
+      if (departmentFields.length === 0 || !tableData || tableData.length === 0) {
+        return
+      }
+      
+      // 2. 从表格数据中收集所有部门路径
+      const paths = new Set<string>()
+      tableData.forEach(row => {
+        departmentFields.forEach(field => {
+          const value = row[field.code]
+          if (value !== null && value !== undefined && value !== '') {
+            if (typeof value === 'string' && value.includes(',')) {
+              // 处理逗号分隔的字符串（如 departments:/dept1,/dept2）
+              value.split(',').forEach(v => {
+                const trimmed = v.trim()
+                if (trimmed) paths.add(trimmed)
+              })
+            } else {
+              // 处理单个字符串（如 department=/dept1）
+              paths.add(String(value))
+            }
+          }
+        })
+      })
+      
+      if (paths.size === 0) {
+        return
+      }
+      
+      // 3. 🔥 批量查询部门信息到 store 缓存（这是关键！）
+      // 调用 batchGetDepartmentInfo 会把部门信息加载到 departmentInfoStore 的缓存中
+      // 渲染时，DepartmentDisplay 组件调用 getDepartmentInfo 或 batchGetDepartmentInfo 都能命中缓存
+      const departmentInfoStore = useDepartmentInfoStore()
+      const pathsArray = [...paths]
+      await departmentInfoStore.batchGetDepartmentInfo(pathsArray)
+    } catch (error) {
+      // 静默失败，不影响表格数据加载
+      console.error('[TableApplicationService] 预加载部门信息失败', error)
     }
   }
 

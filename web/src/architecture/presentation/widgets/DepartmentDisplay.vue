@@ -57,6 +57,7 @@ import { computed, watch, ref, onMounted } from 'vue'
 import { ElPopover } from 'element-plus'
 import type { Department } from '@/api/department'
 import { getDepartmentTree, getDepartmentByPath } from '@/api/department'
+import { useDepartmentInfoStore } from '@/stores/departmentInfo'
 import DepartmentDetailCard from './DepartmentDetailCard.vue'
 
 interface Props {
@@ -86,6 +87,12 @@ const props = withDefaults(defineProps<Props>(), {
   departmentTree: () => []
 })
 
+// 🔥 使用部门信息缓存 Store
+const departmentInfoStore = useDepartmentInfoStore()
+
+// 🔥 使用部门信息缓存 Store
+const departmentInfoStore = useDepartmentInfoStore()
+
 // 使用 ref 存储组织架构信息，确保响应式更新
 const cachedDepartmentInfo = ref<Department | null>(null)
 // 使用 computed 来获取部门树：优先使用 props.departmentTree，否则使用内部的 ref
@@ -107,9 +114,24 @@ const updateCachedDepartmentInfo = async () => {
     return
   }
   
-  // 如果有 fullCodePath，从 API 获取
+  // 🔥 如果有 fullCodePath，优先从 store 缓存读取
   if (props.fullCodePath) {
     try {
+      // 🔥 先从 store 缓存中获取（如果预加载已完成，这里会命中缓存）
+      const cachedDept = departmentInfoStore.departmentInfoCache.get(props.fullCodePath)
+      if (cachedDept) {
+        cachedDepartmentInfo.value = cachedDept
+        return
+      }
+      
+      // 🔥 如果缓存中没有，使用 getDepartmentInfo（会自动处理缓存和降级策略）
+      const dept = await departmentInfoStore.getDepartmentInfo(props.fullCodePath)
+      if (dept) {
+        cachedDepartmentInfo.value = dept
+        return
+      }
+      
+      // 如果 store 中也没有，尝试从 API 获取（降级策略）
       // 先加载部门树（如果还没有加载，且没有传入 prop）
       if (departmentTree.value.length === 0) {
         const treeRes = await getDepartmentTree()

@@ -904,6 +904,114 @@ async function preloadUserInfoFromTableData(functionDetail: FunctionDetail, tabl
   }
 }
 
+// ==================== 部门信息预加载 ====================
+
+import { useDepartmentInfoStore } from '@/stores/departmentInfo'
+
+const departmentInfoStore = useDepartmentInfoStore()
+
+/**
+ * 🔥 预加载部门信息（时机 1：搜索表单中的部门信息）
+ * 在数据加载前预加载，确保搜索表单渲染时已有部门信息
+ */
+async function preloadDepartmentInfoFromSearchForm(functionDetail: FunctionDetail, searchFormData: Record<string, any>): Promise<void> {
+  try {
+    // 1. 识别所有部门字段（request + response）
+    // 🔥 确保 request 和 response 是数组
+    const requestFields = Array.isArray(functionDetail.request) ? functionDetail.request : []
+    const responseFields = Array.isArray(functionDetail.response) ? functionDetail.response : []
+    
+    const departmentFields = [
+      ...requestFields.filter(f => f.widget?.type === 'department' || f.widget?.type === 'departments'),
+      ...responseFields.filter(f => f.widget?.type === 'department' || f.widget?.type === 'departments')
+    ]
+    
+    if (departmentFields.length === 0) {
+      return
+    }
+    
+    // 2. 从搜索表单中收集所有部门路径
+    const paths = new Set<string>()
+    departmentFields.forEach(field => {
+      const value = searchFormData[field.code]
+      if (value) {
+        // 处理数组（如 in=department:/dept1,/dept2）
+        if (Array.isArray(value)) {
+          value.forEach(v => {
+            if (v) paths.add(String(v))
+          })
+        } else if (typeof value === 'string' && value.includes(',')) {
+          // 处理逗号分隔的字符串（如 departments:/dept1,/dept2）
+          value.split(',').forEach(v => {
+            const trimmed = v.trim()
+            if (trimmed) paths.add(trimmed)
+          })
+        } else {
+          // 处理单个字符串（如 department=/dept1）
+          paths.add(String(value))
+        }
+      }
+    })
+    
+    if (paths.size === 0) {
+      return
+    }
+    
+    // 3. 批量查询部门信息（使用 batchGetDepartmentInfo，自动处理过期数据）
+    // 🔥 预加载到 store 缓存即可，DepartmentDisplay 组件会直接从 store 读取
+    await departmentInfoStore.batchGetDepartmentInfo([...paths])
+  } catch (error) {
+    console.error('[TableView] 预加载搜索表单中的部门信息失败', error)
+  }
+}
+
+/**
+ * 🔥 预加载部门信息（时机 2：表格数据中的部门信息）
+ * 在数据加载后预加载，确保表格渲染时已有部门信息
+ */
+async function preloadDepartmentInfoFromTableData(functionDetail: FunctionDetail, tableDataArray: TableRow[]): Promise<void> {
+  try {
+    // 1. 识别所有部门字段（response 字段）
+    // 🔥 确保 response 是数组
+    const responseFields = Array.isArray(functionDetail.response) ? functionDetail.response : []
+    const departmentFields = responseFields.filter(f => f.widget?.type === 'department' || f.widget?.type === 'departments')
+    
+    if (departmentFields.length === 0 || !tableDataArray || tableDataArray.length === 0) {
+      return
+    }
+    
+    // 2. 从表格数据中收集所有部门路径
+    const paths = new Set<string>()
+    tableDataArray.forEach(row => {
+      departmentFields.forEach(field => {
+        const value = row[field.code]
+        if (value !== null && value !== undefined && value !== '') {
+          if (typeof value === 'string' && value.includes(',')) {
+            // 处理逗号分隔的字符串（如 departments:/dept1,/dept2）
+            value.split(',').forEach(v => {
+              const trimmed = v.trim()
+              if (trimmed) paths.add(trimmed)
+            })
+          } else {
+            // 处理单个字符串（如 department=/dept1）
+            paths.add(String(value))
+          }
+        }
+      })
+    })
+    
+    if (paths.size === 0) {
+      return
+    }
+    
+    // 3. 批量查询部门信息（使用 batchGetDepartmentInfo，自动处理过期数据）
+    // 🔥 预加载到 store 缓存即可，DepartmentDisplay 组件会直接从 store 读取
+    await departmentInfoStore.batchGetDepartmentInfo([...paths])
+  } catch (error) {
+    console.error('[TableView] 预加载表格数据中的部门信息失败', error)
+  }
+}
+
 // ==================== 字段计算属性 ====================
 
 /**
@@ -1946,7 +2054,8 @@ const { initializeTable, setupQueryWatch } = useTableInitialization({
   syncToURL,
   loadTableData,
   isMounted, // 🔥 传递挂载状态，用于防止卸载后继续加载数据
-  preloadUserInfoFromSearchForm // 🔥 时机 1：预加载搜索表单中的用户信息
+  preloadUserInfoFromSearchForm, // 🔥 时机 1：预加载搜索表单中的用户信息
+  preloadDepartmentInfoFromSearchForm // 🔥 时机 1：预加载搜索表单中的部门信息
 })
 
 onMounted(async () => {
