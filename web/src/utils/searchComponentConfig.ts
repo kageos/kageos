@@ -514,6 +514,7 @@ function createDepartmentComponentConfig(field: FieldConfig, searchType: string 
         clearable: true,
         filterable: true,
         remote: true,
+        multiple: hasSearchType(searchType, SearchType.IN), // 🔥 支持 IN 查询时启用多选
         style: { width: SearchConfig.DEFAULT_INPUT_WIDTH }
       },
       onRemoteMethod: createDepartmentRemoteMethod()
