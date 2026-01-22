@@ -139,7 +139,7 @@
         <el-descriptions-item label="超时时间">{{ detailData.timeout }} 秒</el-descriptions-item>
         <el-descriptions-item label="描述" :span="2">{{ detailData.description || '-' }}</el-descriptions-item>
         <el-descriptions-item label="知识库" :span="2">
-          {{ detailData.knowledge_base?.name || `ID: ${detailData.knowledge_base_id}` }}
+          {{ detailData.docs_paths || '未配置' }}
         </el-descriptions-item>
         <el-descriptions-item label="LLM 配置" :span="2">
           <span v-if="detailData.llm_config">
@@ -264,31 +264,6 @@
             </el-option>
           </el-select>
         </el-form-item>
-        <el-form-item label="知识库" prop="knowledge_base_id">
-          <el-select
-            v-model="formData.knowledge_base_id"
-            filterable
-            :loading="knowledgeSearchLoading"
-            placeholder="搜索并选择知识库"
-            style="width: 100%"
-            clearable
-            @focus="handleKnowledgeSelectFocus"
-          >
-            <el-option
-              v-for="kb in knowledgeBaseOptions"
-              :key="kb.id"
-              :label="kb.name"
-              :value="kb.id"
-            >
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span>{{ kb.name }}</span>
-                <el-tag size="small" type="info" style="margin-left: 8px;">
-                  ID: {{ kb.id }}
-                </el-tag>
-              </div>
-            </el-option>
-          </el-select>
-        </el-form-item>
         <el-form-item label="描述">
           <el-input
             v-model="formData.description"
@@ -304,9 +279,6 @@
             :rows="5"
             placeholder="请输入系统提示词模板，支持 {knowledge} 变量，例如：你是一个专业的代码生成助手。以下是相关的知识库内容，请参考这些内容来生成代码：\n{knowledge}"
           />
-          <div style="margin-top: 8px; font-size: 12px; color: #909399;">
-            提示：使用 {knowledge} 变量会自动替换为知识库内容
-          </div>
         </el-form-item>
         <el-form-item label="开场白">
           <RichTextEditor
@@ -376,13 +348,11 @@ import {
   deleteAgent,
   enableAgent,
   disableAgent,
-  getKnowledgeList,
   getLLMList,
   type AgentInfo,
   type AgentListReq,
   type AgentCreateReq,
   type AgentUpdateReq,
-  type KnowledgeInfo,
   type LLMInfo,
 } from '@/api/agent'
 import {
@@ -441,16 +411,12 @@ const formData = reactive<AgentCreateReq & { id?: number }>({
   description: '',
   timeout: 30,
   plugin_function_path: '', // 插件函数路径（仅 plugin 类型需要）
-  knowledge_base_id: 0,
+  docs_paths: '', // 文档路径（逗号分隔）
   llm_config_id: 0, // 0 表示使用默认 LLM
   metadata: '',
   visibility: 0, // 默认公开
   admin: '' // 默认空，后端会自动设置为创建用户
 })
-
-// 知识库搜索
-const knowledgeSearchLoading = ref(false)
-const knowledgeBaseOptions = ref<KnowledgeInfo[]>([])
 
 // LLM 配置
 const llmOptions = ref<LLMInfo[]>([])
@@ -460,57 +426,6 @@ const llmLoading = ref(false)
 const functionSearchLoading = ref(false)
 const functionOptions = ref<FunctionSearchResult[]>([])
 
-// 搜索知识库
-async function searchKnowledgeBases(keyword: string) {
-  if (!keyword || keyword.trim() === '') {
-    // 如果关键词为空，加载所有知识库
-    await loadAllKnowledgeBases()
-    return
-  }
-
-  knowledgeSearchLoading.value = true
-  try {
-    const res = await getKnowledgeList({
-      page: 1,
-      page_size: 50
-    })
-    // 过滤匹配的知识库
-    knowledgeBaseOptions.value = res.knowledge_bases.filter(kb =>
-      kb.name.toLowerCase().includes(keyword.toLowerCase())
-    )
-  } catch (error: any) {
-    ElMessage.error(error.message || '搜索知识库失败')
-    knowledgeBaseOptions.value = []
-  } finally {
-    knowledgeSearchLoading.value = false
-  }
-}
-
-// 加载所有知识库（合并到现有列表，不去重覆盖）
-async function loadAllKnowledgeBases() {
-  knowledgeSearchLoading.value = true
-  try {
-    const res = await getKnowledgeList({
-      page: 1,
-      page_size: 1000 // 加载所有
-    })
-    const newKBs = res.knowledge_bases || []
-    // 合并到现有列表，避免重复
-    const kbMap = new Map<number, KnowledgeInfo>()
-    knowledgeBaseOptions.value.forEach(kb => kbMap.set(kb.id, kb))
-    newKBs.forEach(kb => {
-      if (!kbMap.has(kb.id)) {
-        kbMap.set(kb.id, kb)
-      }
-    })
-    knowledgeBaseOptions.value = Array.from(kbMap.values())
-  } catch (error: any) {
-    console.error('加载知识库失败:', error)
-    ElMessage.error(error.message || '加载知识库失败，请稍后重试')
-  } finally {
-    knowledgeSearchLoading.value = false
-  }
-}
 
 // 表单验证规则
 const rules: FormRules = {
@@ -528,7 +443,6 @@ const rules: FormRules = {
       trigger: 'blur'
     }
   ],
-  knowledge_base_id: [{ required: true, message: '请选择知识库', trigger: 'change' }]
 }
 
 
@@ -638,17 +552,8 @@ async function handleDialogOpened() {
   // 🔥 强制重新加载，确保数据是最新的（并行加载提高效率）
   await Promise.all([
     loadAllLLMs(),
-    loadAllKnowledgeBases(),
     loadDefaultFunctions() // 加载默认函数列表
   ])
-}
-
-// 知识库选择框获得焦点时（确保数据已加载）
-async function handleKnowledgeSelectFocus() {
-  // 如果知识库选项为空，加载所有知识库
-  if (knowledgeBaseOptions.value.length === 0) {
-    await loadAllKnowledgeBases()
-  }
 }
 
 // 加载所有 LLM 配置（合并到现有列表，不去重覆盖）
@@ -792,7 +697,7 @@ async function handleEdit(row: AgentInfo) {
   formData.system_prompt_template = row.system_prompt_template || ''
   formData.timeout = row.timeout
   formData.plugin_function_path = row.plugin_function_path || ''
-  formData.knowledge_base_id = row.knowledge_base_id
+  formData.docs_paths = row.docs_paths
   formData.llm_config_id = row.llm_config_id || 0
   formData.metadata = row.metadata || ''
   formData.greeting = row.greeting || ''
@@ -816,7 +721,7 @@ async function handleCopy(row: AgentInfo) {
   formData.system_prompt_template = row.system_prompt_template || ''
   formData.timeout = row.timeout
   formData.plugin_function_path = row.plugin_function_path || ''
-  formData.knowledge_base_id = row.knowledge_base_id
+  formData.docs_paths = row.docs_paths
   formData.llm_config_id = row.llm_config_id || 0
   formData.metadata = row.metadata || ''
   formData.greeting = row.greeting || ''
@@ -901,7 +806,7 @@ async function handleSubmit() {
         system_prompt_template: formData.system_prompt_template || '',
         timeout: formData.timeout,
         plugin_function_path: formData.agent_type === 'plugin' ? formData.plugin_function_path : undefined,
-        knowledge_base_id: formData.knowledge_base_id,
+        docs_paths: formData.docs_paths,
         llm_config_id: formData.llm_config_id || 0,
         metadata: formData.metadata,
         greeting: formData.greeting || '',
@@ -923,7 +828,7 @@ async function handleSubmit() {
         system_prompt_template: formData.system_prompt_template || '',
         timeout: formData.timeout,
         plugin_function_path: formData.agent_type === 'plugin' ? formData.plugin_function_path : undefined,
-        knowledge_base_id: formData.knowledge_base_id,
+        docs_paths: formData.docs_paths,
         llm_config_id: formData.llm_config_id || 0,
         metadata: formData.metadata,
         greeting: formData.greeting || '',
@@ -955,7 +860,7 @@ function resetForm() {
   formData.system_prompt_template = ''
   formData.timeout = 30
   formData.plugin_id = null
-  formData.knowledge_base_id = 0
+  formData.docs_paths = 0
   formData.llm_config_id = 0
   formData.metadata = ''
   formData.greeting = ''
@@ -981,7 +886,6 @@ onMounted(async () => {
   // 这样可以确保即使智能体列表为空，也能有选项可以选择
   await Promise.all([
     loadData(),
-    loadAllKnowledgeBases(),
     loadAllLLMs()
   ])
 })

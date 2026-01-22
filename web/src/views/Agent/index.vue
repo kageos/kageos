@@ -70,47 +70,6 @@
             </div>
           </el-card>
 
-          <!-- 知识库管理 -->
-          <el-card
-            shadow="hover"
-            class="module-card module-card--knowledge"
-            @click="navigateTo('/agent/knowledge')"
-          >
-            <div class="module-card__header">
-              <div class="module-card__icon-wrapper">
-                <div class="module-card__icon">
-                  <el-icon :size="32">
-                    <Document />
-                  </el-icon>
-                </div>
-                <div class="module-card__badge">
-                  <el-badge :value="stats.knowledge.total" :max="99" />
-                </div>
-              </div>
-            </div>
-            <div class="module-card__body">
-              <h4 class="module-card__title">知识库管理</h4>
-              <p class="module-card__description">
-                管理知识库配置和文档，支持文档的添加、编辑、删除和树形结构展示
-              </p>
-              <div class="module-card__stats">
-                <div class="module-card__stat-item">
-                  <el-icon><CircleCheck /></el-icon>
-                  <span>激活: {{ stats.knowledge.active }}</span>
-                </div>
-                <div class="module-card__stat-item">
-                  <el-icon><Document /></el-icon>
-                  <span>文档总数: {{ stats.knowledge.documents }}</span>
-                </div>
-              </div>
-            </div>
-            <div class="module-card__footer">
-              <el-button type="primary" :icon="ArrowRight" @click.stop="navigateTo('/agent/knowledge')">
-                进入管理
-              </el-button>
-            </div>
-          </el-card>
-
           <!-- LLM 管理 -->
           <el-card
             shadow="hover"
@@ -174,7 +133,6 @@ import {
 } from '@element-plus/icons-vue'
 import {
   getAgentList,
-  getKnowledgeList,
   getLLMList
 } from '@/api/agent'
 
@@ -187,11 +145,6 @@ const stats = ref({
     knowledgeOnly: 0,
     plugin: 0
   },
-  knowledge: {
-    total: 0,
-    active: 0,
-    documents: 0
-  },
   llm: {
     total: 0,
     default: 0,
@@ -203,9 +156,8 @@ const stats = ref({
 async function loadStats() {
   try {
     // 并行加载所有统计数据
-    const [agentsRes, knowledgeRes, llmRes] = await Promise.all([
+    const [agentsRes, llmRes] = await Promise.all([
       getAgentList({ page: 1, page_size: 1 }),
-      getKnowledgeList({ page: 1, page_size: 1 }),
       getLLMList({ page: 1, page_size: 1 })
     ])
 
@@ -217,17 +169,6 @@ async function loadStats() {
       stats.value.agents.enabled = agentsDetailRes.agents.filter(a => a.enabled).length
       stats.value.agents.knowledgeOnly = agentsDetailRes.agents.filter(a => a.agent_type === 'knowledge_only').length
       stats.value.agents.plugin = agentsDetailRes.agents.filter(a => a.agent_type === 'plugin').length
-    }
-
-    // 更新知识库统计（响应拦截器已解包）
-    stats.value.knowledge.total = knowledgeRes.total || 0
-    const knowledgeDetailRes = await getKnowledgeList({ page: 1, page_size: 1000 })
-    if (knowledgeDetailRes.knowledge_bases) {
-      stats.value.knowledge.active = knowledgeDetailRes.knowledge_bases.filter(k => k.status === 'active').length
-      stats.value.knowledge.documents = knowledgeDetailRes.knowledge_bases.reduce(
-        (sum, k) => sum + (k.document_count || 0),
-        0
-      )
     }
 
     // 更新LLM统计（响应拦截器已解包）
@@ -445,7 +386,6 @@ onMounted(() => {
       color: var(--el-color-primary);
     }
 
-    &--knowledge .module-card__icon {
       background: var(--el-color-success-light-9);
       color: var(--el-color-success);
     }
