@@ -1611,9 +1611,9 @@ const getColumnWidth = (field: FieldConfig): number => {
   if (field.widget?.type === WidgetType.TIMESTAMP) return 180
   if (field.widget?.type === WidgetType.TEXT_AREA) return 300
   // 部门字段需要更宽的列宽，以便横向显示多个部门标签
-  if (field.widget?.type === 'department' || field.widget?.type === 'departments') return 250
+  if (field.widget?.type === 'department' || field.widget?.type === 'departments') return 300
   // 用户字段也需要更宽的列宽
-  if (field.widget?.type === 'user' || field.widget?.type === 'users') return 200
+  if (field.widget?.type === 'user' || field.widget?.type === 'users') return 250
   return 150
 }
 
