@@ -19,6 +19,7 @@ mkdir -p $DATA_DIR
 echo "==> 启动 MinIO 容器"
 podman run -d \
   --name $CONTAINER_NAME \
+  --tz=local \
   -p $MINIO_PORT:9000 \
   -p $CONSOLE_PORT:9001 \
   -e "MINIO_ROOT_USER=$ROOT_USER" \
