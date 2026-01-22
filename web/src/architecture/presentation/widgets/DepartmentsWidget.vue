@@ -738,22 +738,27 @@ async function loadDepartmentTree(): Promise<void> {
 /* 表格单元格模式样式 */
 .departments-table-cell {
   width: 100%;
+  min-width: 0;
 }
 
 .departments-tags-list {
   display: flex;
   flex-direction: row;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 6px;
   align-items: center;
+  width: 100%;
+  min-width: 0;
 }
 
 .departments-tags-list :deep(.el-popover__reference) {
-  display: inline-block;
+  display: inline-flex;
+  flex-shrink: 0;
 }
 
 .departments-tags-list > .el-popover {
-  display: inline-block;
+  display: inline-flex;
+  flex-shrink: 0;
 }
 
 .department-tag {
