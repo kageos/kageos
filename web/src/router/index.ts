@@ -106,24 +106,6 @@ const router = createRouter({
       }
     },
     {
-      path: '/agent/knowledge',
-      name: 'knowledge-management',
-      component: () => import('../views/Agent/KnowledgeManagement.vue'),
-      meta: {
-        title: '知识库管理',
-        requireAuth: true
-      }
-    },
-    {
-      path: '/agent/knowledge/:id',
-      name: 'knowledge-detail',
-      component: () => import('../views/Agent/KnowledgeDetail.vue'),
-      meta: {
-        title: '知识库详情',
-        requireAuth: true
-      }
-    },
-    {
       path: '/agent/llm',
       name: 'llm-management',
       component: () => import('../views/Agent/LLMManagement.vue'),

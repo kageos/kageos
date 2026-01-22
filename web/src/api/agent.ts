@@ -3,14 +3,6 @@ import axiosInstance from '@/utils/request'
 
 // ==================== 智能体相关 ====================
 
-export interface KnowledgeBaseInfo {
-  id: number
-  name: string
-  description: string
-  status: string
-  document_count: number
-}
-
 export interface LLMConfigInfo {
   id: number
   name: string
@@ -29,8 +21,7 @@ export interface AgentInfo {
   system_prompt_template?: string // System Prompt模板，支持{knowledge}变量
   timeout: number
   plugin_function_path?: string // 插件函数路径（full-code-path，仅 plugin 类型需要）
-  knowledge_base_id: number
-  knowledge_base?: KnowledgeBaseInfo // 预加载的知识库信息
+  docs_paths?: string // 文档路径（逗号分隔）
   llm_config_id: number // LLM配置ID，如果为0则使用默认LLM
   llm_config?: LLMConfigInfo // 预加载的LLM配置信息
   metadata: string
@@ -48,7 +39,7 @@ export interface AgentInfo {
 export interface AgentListReq {
   agent_type?: 'knowledge_only' | 'plugins'
   enabled?: boolean
-  knowledge_base_id?: number // 按知识库ID过滤（可选）
+  docs_paths?: string // 按文档路径过滤（可选）
   llm_config_id?: number // 按LLM配置ID过滤（可选，0表示默认LLM）
   plugin_function_path?: string // 按插件函数路径过滤（可选）
   scope?: 'mine' | 'market' // mine: 我的, market: 市场
@@ -83,7 +74,7 @@ export interface AgentCreateReq {
   system_prompt_template?: string // System Prompt模板，支持{knowledge}变量
   timeout?: number
   plugin_function_path?: string // 插件函数路径（full-code-path，仅 plugin 类型需要）
-  knowledge_base_id: number
+  docs_paths?: string // 文档路径（逗号分隔）
   llm_config_id?: number // LLM配置ID，如果为0或不提供则使用默认LLM
   metadata?: string
   greeting?: string // 开场白内容（可选）
@@ -108,7 +99,7 @@ export interface AgentUpdateReq {
   description?: string
   timeout?: number
   plugin_function_path?: string // 插件函数路径（full-code-path，仅 plugin 类型需要）
-  knowledge_base_id: number
+  docs_paths?: string // 文档路径（逗号分隔）
   llm_config_id?: number // LLM配置ID，如果为0或不提供则使用默认LLM
   metadata?: string
   greeting?: string // 开场白内容（可选）
@@ -184,281 +175,6 @@ export function enableAgent(params: AgentEnableReq) {
  */
 export function disableAgent(params: AgentDisableReq) {
   return post('/agent/api/v1/agents/disable', params)
-}
-
-// ==================== 知识库相关 ====================
-
-export interface KnowledgeInfo {
-  id: number
-  name: string
-  description: string
-  status: string
-  document_count: number
-  content_hash: string
-  user: string // 保留用于向后兼容
-  visibility: number // 0: 公开, 1: 私有
-  admin: string // 管理员列表（逗号分隔）
-  is_admin: boolean // 当前用户是否是管理员
-  created_at: string
-  updated_at: string
-}
-
-export interface KnowledgeListReq {
-  scope?: 'mine' | 'market' // mine: 我的, market: 市场
-  page: number
-  page_size: number
-}
-
-export interface KnowledgeListResp {
-  code: number
-  data: {
-    knowledge_bases: KnowledgeInfo[]
-    total: number
-  }
-  msg: string
-}
-
-export interface KnowledgeGetReq {
-  id: number
-}
-
-export interface KnowledgeGetResp {
-  code: number
-  data: KnowledgeInfo
-  msg: string
-}
-
-export interface KnowledgeCreateReq {
-  name: string
-  description?: string
-  status?: string
-  visibility?: number // 0: 公开, 1: 私有（默认0）
-  admin?: string // 管理员列表（逗号分隔，默认创建用户）
-}
-
-export interface KnowledgeCreateResp {
-  code: number
-  data: {
-    id: number
-  }
-  msg: string
-}
-
-export interface KnowledgeUpdateReq {
-  id: number
-  name: string
-  description?: string
-  status?: string
-  visibility?: number // 0: 公开, 1: 私有
-  admin?: string // 管理员列表（逗号分隔）
-}
-
-export interface KnowledgeUpdateResp {
-  code: number
-  data: {
-    id: number
-  }
-  msg: string
-}
-
-export interface KnowledgeDeleteReq {
-  id: number
-}
-
-export interface KnowledgeAddDocumentReq {
-  knowledge_base_id: number
-  parent_id?: number
-  title: string
-  content: string
-  file_type?: string
-  sort_order?: number
-}
-
-export interface KnowledgeAddDocumentResp {
-  code: number
-  data: {
-    id: number
-  }
-  msg: string
-}
-
-export interface DocumentInfo {
-  id: number
-  knowledge_base_id: number
-  parent_id: number
-  doc_id: string
-  title: string
-  content: string
-  file_type: string
-  file_size: number
-  status: string
-  sort_order: number
-  path: string
-  user: string
-  created_at: string
-  updated_at: string
-  children?: DocumentInfo[]
-}
-
-export interface KnowledgeListDocumentsReq {
-  knowledge_base_id: number
-  page: number
-  page_size: number
-}
-
-export interface KnowledgeListDocumentsResp {
-  code: number
-  data: {
-    documents: DocumentInfo[]
-    total: number
-  }
-  msg: string
-}
-
-/**
- * 获取知识库列表
- */
-export function getKnowledgeList(params: KnowledgeListReq) {
-  return get<KnowledgeListResp>('/agent/api/v1/knowledge/list', params)
-}
-
-/**
- * 获取知识库详情
- */
-export function getKnowledge(params: KnowledgeGetReq) {
-  return get<KnowledgeGetResp>('/agent/api/v1/knowledge/get', params)
-}
-
-/**
- * 创建知识库
- */
-export function createKnowledge(data: KnowledgeCreateReq) {
-  return post<KnowledgeCreateResp>('/agent/api/v1/knowledge/create', data)
-}
-
-/**
- * 更新知识库
- */
-export function updateKnowledge(data: KnowledgeUpdateReq) {
-  return post<KnowledgeUpdateResp>('/agent/api/v1/knowledge/update', data)
-}
-
-/**
- * 删除知识库
- */
-export function deleteKnowledge(params: KnowledgeDeleteReq) {
-  return post('/agent/api/v1/knowledge/delete', { id: params.id })
-}
-
-/**
- * 添加文档
- */
-export function addKnowledgeDocument(data: KnowledgeAddDocumentReq) {
-  return post<KnowledgeAddDocumentResp>('/agent/api/v1/knowledge/add_document', data)
-}
-
-/**
- * 获取文档列表
- */
-export function getKnowledgeDocuments(params: KnowledgeListDocumentsReq) {
-  return get<KnowledgeListDocumentsResp>('/agent/api/v1/knowledge/list_documents', {
-    knowledge_base_id: params.knowledge_base_id,
-    page: params.page,
-    page_size: params.page_size
-  })
-}
-
-export interface KnowledgeGetDocumentReq {
-  id: number
-}
-
-export interface KnowledgeGetDocumentResp {
-  code: number
-  data: DocumentInfo
-  msg: string
-}
-
-export interface KnowledgeUpdateDocumentReq {
-  id: number
-  parent_id?: number
-  title: string
-  content: string
-  file_type?: string
-  status?: string
-  sort_order?: number
-}
-
-export interface KnowledgeUpdateDocumentResp {
-  code: number
-  data: {
-    id: number
-  }
-  msg: string
-}
-
-export interface KnowledgeDeleteDocumentReq {
-  id: number
-}
-
-/**
- * 获取文档详情
- */
-export function getKnowledgeDocument(params: KnowledgeGetDocumentReq) {
-  return get<KnowledgeGetDocumentResp>('/agent/api/v1/knowledge/get_document', params)
-}
-
-/**
- * 更新文档
- */
-export function updateKnowledgeDocument(data: KnowledgeUpdateDocumentReq) {
-  return post<KnowledgeUpdateDocumentResp>('/agent/api/v1/knowledge/update_document', data)
-}
-
-/**
- * 删除文档
- */
-export function deleteKnowledgeDocument(params: KnowledgeDeleteDocumentReq) {
-  return post('/agent/api/v1/knowledge/delete_document', { id: params.id })
-}
-
-export interface KnowledgeGetDocumentsTreeReq {
-  knowledge_base_id: number
-}
-
-export interface KnowledgeGetDocumentsTreeResp {
-  code: number
-  data: {
-    documents: DocumentInfo[]
-  }
-  msg: string
-}
-
-/**
- * 获取知识库文档树（目录结构）
- */
-export function getKnowledgeDocumentsTree(params: KnowledgeGetDocumentsTreeReq) {
-  return get<KnowledgeGetDocumentsTreeResp>('/agent/api/v1/knowledge/get_documents_tree', {
-    knowledge_base_id: params.knowledge_base_id
-  })
-}
-
-export interface KnowledgeDocumentSortUpdate {
-  id: number
-  parent_id: number
-  sort_order: number
-  path: string
-}
-
-export interface KnowledgeUpdateDocumentsSortReq {
-  knowledge_base_id: number
-  updates: KnowledgeDocumentSortUpdate[]
-}
-
-/**
- * 批量更新文档排序
- */
-export function updateKnowledgeDocumentsSort(data: KnowledgeUpdateDocumentsSortReq) {
-  return post('/agent/api/v1/knowledge/update_documents_sort', data)
 }
 
 // ==================== Agent Chat 相关 ====================
