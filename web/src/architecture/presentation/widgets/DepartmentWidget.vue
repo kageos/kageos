@@ -35,7 +35,18 @@
       </el-button>
       
       <!-- 组织架构选择弹窗 -->
+      <!-- 搜索模式下，如果支持 IN 查询，使用多选对话框 -->
+      <DepartmentsSearchDialog
+        v-if="mode === 'search' && supportsMultipleSelection"
+        v-model="dialogVisible"
+        :title="`选择${field.name || '组织架构'}`"
+        :placeholder="field.desc || '搜索部门名称或路径...'"
+        :initial-paths="value?.raw"
+        @confirm="handleDepartmentsSelected"
+      />
+      <!-- 其他情况使用单选对话框 -->
       <DepartmentSelectorDialog
+        v-else
         v-model="dialogVisible"
         :selected-department="selectedDepartmentForDisplay"
         @select="handleDepartmentSelected"
@@ -83,6 +94,7 @@
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import DepartmentDisplay from './DepartmentDisplay.vue'
 import DepartmentSelectorDialog from '@/components/DepartmentSelectorDialog.vue'
+import DepartmentsSearchDialog from './DepartmentsSearchDialog.vue'
 import { ElButton, ElIcon } from 'element-plus'
 import { OfficeBuilding, Edit } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
@@ -92,6 +104,7 @@ import type { Department } from '@/api/department'
 import { getDepartmentTree, getDepartmentByPath } from '@/api/department'
 import { Logger } from '@/core/utils/logger'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
+import { SearchType, hasSearchType } from '@/core/constants/search'
 
 const COMPONENT_NAME = 'DepartmentWidget'
 
@@ -118,7 +131,16 @@ function handleOpenDialog(): void {
   dialogVisible.value = true
 }
 
-// 处理组织架构选择
+// 是否支持多选（搜索模式下且支持 IN 查询）
+const supportsMultipleSelection = computed(() => {
+  if (props.mode !== 'search') {
+    return false
+  }
+  const searchType = props.field.search || ''
+  return hasSearchType(searchType, SearchType.IN)
+})
+
+// 处理组织架构选择（单选）
 function handleDepartmentSelected(department: Department): void {
   // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
   const newFieldValue = createFieldValue(
@@ -137,6 +159,33 @@ function handleDepartmentSelected(department: Department): void {
   departmentInfo.value = department
 }
 
+// 处理组织架构选择（多选，搜索模式下使用）
+function handleDepartmentsSelected(departments: Department[]): void {
+  // 将组织架构列表转换为逗号分隔的字符串
+  const paths = departments.map(d => d.full_code_path).join(',')
+  const displayNames = departments.map(d => d.full_name_path || d.name).join(', ')
+  
+  // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
+  const newFieldValue = createFieldValue(
+    props.field,
+    paths, // 提交时使用逗号分隔的字符串
+    displayNames,
+    {
+      departmentInfoList: departments // 保存组织架构信息列表到 meta，用于显示
+    }
+  )
+  
+  formDataStore.setValue(props.fieldPath, newFieldValue)
+  emit('update:modelValue', newFieldValue)
+  
+  // 更新 departmentInfo 用于显示（多选模式下，取第一个）
+  if (departments.length > 0) {
+    departmentInfo.value = departments[0]
+  } else {
+    departmentInfo.value = null
+  }
+}
+
 // 格式化组织架构显示名称
 function formatDepartmentDisplayName(dept: Department): string {
   if (dept.full_name_path && dept.full_name_path !== dept.name) {
@@ -146,22 +195,38 @@ function formatDepartmentDisplayName(dept: Department): string {
 }
 
 // 选中组织架构（用于显示）
+// 注意：搜索模式下如果支持多选，可能返回多个部门，这里只返回第一个用于显示
 const selectedDepartmentForDisplay = computed(() => {
   if (props.mode === 'edit' || props.mode === 'search') {
     const currentValue = props.value?.raw
     if (currentValue) {
-      // 从 meta 中获取（优先）
-      if (props.value?.meta?.departmentInfo && props.value.meta.departmentInfo.full_code_path === currentValue) {
-        departmentInfo.value = props.value.meta.departmentInfo
-        return props.value.meta.departmentInfo
+      // 搜索模式下支持多选，可能 value.raw 是逗号分隔的字符串
+      if (props.mode === 'search' && supportsMultipleSelection.value) {
+        // 多选模式：从 meta.departmentInfoList 中获取第一个
+        if (props.value?.meta?.departmentInfoList && Array.isArray(props.value.meta.departmentInfoList) && props.value.meta.departmentInfoList.length > 0) {
+          departmentInfo.value = props.value.meta.departmentInfoList[0]
+          return props.value.meta.departmentInfoList[0]
+        }
+        // 如果 meta 中没有，尝试从第一个路径加载
+        const paths = String(currentValue).split(',').map(p => p.trim()).filter(p => p)
+        if (paths.length > 0) {
+          // 加载第一个部门信息用于显示
+          loadDepartmentInfo(paths[0])
+        }
+      } else {
+        // 单选模式：从 meta 中获取（优先）
+        if (props.value?.meta?.departmentInfo && props.value.meta.departmentInfo.full_code_path === currentValue) {
+          departmentInfo.value = props.value.meta.departmentInfo
+          return props.value.meta.departmentInfo
+        }
+        
+        // 从 departmentInfo 中获取（可能是刚加载的）
+        if (departmentInfo.value && departmentInfo.value.full_code_path === currentValue) {
+          return departmentInfo.value
+        }
+        
+        // 🔥 如果都没有，loadDepartmentInfo 会从 API 加载
       }
-      
-      // 从 departmentInfo 中获取（可能是刚加载的）
-      if (departmentInfo.value && departmentInfo.value.full_code_path === currentValue) {
-        return departmentInfo.value
-      }
-      
-      // 🔥 如果都没有，loadDepartmentInfo 会从 API 加载
     }
   }
   return null
