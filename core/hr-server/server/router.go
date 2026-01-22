@@ -57,6 +57,11 @@ func (s *Server) setupRoutes() {
 	department.PUT("/:id", departmentHandler.UpdateDepartment)
 	department.DELETE("/:id", departmentHandler.DeleteDepartment)
 
+	// 批量获取部门路由（需要JWT验证）
+	departments := apiV1.Group("/departments")
+	departments.Use(middleware2.JWTAuth())
+	departments.POST("", departmentHandler.GetDepartmentsByPaths)
+
 	// 用户分配路由（需要JWT验证）
 	userAllocationHandler := v1.NewUserAllocation(s.userService, s.departmentService)
 	user.POST("/assign", userAllocationHandler.AssignUser)

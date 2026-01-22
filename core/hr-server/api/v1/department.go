@@ -229,3 +229,49 @@ func (d *Department) DeleteDepartment(c *gin.Context) {
 
 	response.OkWithMessage(c, "删除成功")
 }
+
+// GetDepartmentsByPaths 批量获取部门信息
+// @Summary 批量获取部门信息
+// @Description 根据 full_code_path 列表批量获取部门信息
+// @Tags 部门管理
+// @Accept json
+// @Produce json
+// @Param X-Token header string true "JWT Token"
+// @Param request body dto.GetDepartmentsByPathsReq true "批量获取部门请求"
+// @Success 200 {object} dto.GetDepartmentsByPathsResp
+// @Router /hr/api/v1/departments [post]
+func (d *Department) GetDepartmentsByPaths(c *gin.Context) {
+	var req dto.GetDepartmentsByPathsReq
+	var resp *dto.GetDepartmentsByPathsResp
+	var err error
+	defer func() {
+		logger.Infof(c, "GetDepartmentsByPaths req:%+v resp:%+v err:%v", req, resp, err)
+	}()
+
+	// 绑定请求参数
+	if err = c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+
+	// 调用服务层
+	ctx := contextx.ToContext(c)
+	deptMap, err := d.deptService.GetDepartmentsByFullCodePaths(ctx, req.FullCodePaths)
+	if err != nil {
+		response.FailWithMessage(c, "批量获取部门失败: "+err.Error())
+		return
+	}
+
+	// 将 map 转换为 slice，保持顺序
+	departments := make([]*model.Department, 0, len(deptMap))
+	for _, path := range req.FullCodePaths {
+		if dept, ok := deptMap[path]; ok {
+			departments = append(departments, dept)
+		}
+	}
+
+	resp = &dto.GetDepartmentsByPathsResp{
+		Departments: departments,
+	}
+	response.OkWithData(c, resp)
+}
