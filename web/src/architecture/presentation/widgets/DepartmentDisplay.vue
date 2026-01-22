@@ -196,10 +196,32 @@ const displayName = computed(() => {
   return '未分配'
 })
 
+// 加载部门树（用于详情卡片显示）
+const loadDepartmentTreeForCard = async () => {
+  // 如果已经传入了 departmentTree prop，不需要加载
+  if (props.departmentTree && props.departmentTree.length > 0) {
+    return
+  }
+  
+  // 如果没有传入且需要显示详情卡片，加载部门树
+  if (props.mode === 'card' && departmentTree.value.length === 0) {
+    try {
+      const treeRes = await getDepartmentTree()
+      internalDepartmentTree.value = treeRes.departments || []
+    } catch (error) {
+      console.error('[DepartmentDisplay] 加载部门树失败', error)
+    }
+  }
+}
+
 // 组件挂载时，更新缓存信息
 // 🔥 不再需要加载部门树，store 会处理所有缓存逻辑
 onMounted(async () => {
   await updateCachedDepartmentInfo()
+  // 如果是 card 模式，加载部门树用于详情卡片
+  if (props.mode === 'card') {
+    await loadDepartmentTreeForCard()
+  }
 })
 </script>
 
