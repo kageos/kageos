@@ -4,6 +4,7 @@
  * 支持函数调用形式：
  * - 时间函数：Now()、Today()、Tomorrow()、Yesterday()
  * - 用户函数：Me()
+ * - 组织架构函数：MyDepartment()
  * 
  * 函数参数格式（参数不需要引号）：
  * - Now(+1h): 一小时后
@@ -119,7 +120,7 @@ function parseFunctionCall(funcCall: string): { name: string; args: string[] } |
 
 /**
  * 解析动态默认值
- * @param defaultValue 默认值（可能是函数调用，如 Now()、Me() 等）
+ * @param defaultValue 默认值（可能是函数调用，如 Now()、Me()、MyDepartment() 等）
  * @param widgetType 组件类型
  * @param getAuthStore 获取 authStore 的函数（可选，用于延迟获取）
  * @returns 解析后的值
@@ -200,6 +201,19 @@ export function resolveDynamicDefaultValue(
       if (getAuthStore) {
         const authStore = getAuthStore()
         return authStore?.user?.username || null
+      }
+      // 如果没有提供 getAuthStore，返回原值（让组件自己处理）
+      return defaultValue
+    }
+  }
+
+  // 组织架构选择器：支持组织架构函数
+  if (widgetType === 'department' || widgetType === 'departments') {
+    if (funcName === 'mydepartment') {
+      // MyDepartment() - 当前用户所在部门
+      if (getAuthStore) {
+        const authStore = getAuthStore()
+        return authStore?.user?.department_full_path || null
       }
       // 如果没有提供 getAuthStore，返回原值（让组件自己处理）
       return defaultValue

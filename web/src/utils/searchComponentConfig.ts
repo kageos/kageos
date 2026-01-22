@@ -44,6 +44,16 @@ export function createSearchComponentConfig(
     return createUsersComponentConfig(field, searchType)
   }
 
+  // 组织架构组件
+  if (widgetType === WidgetType.DEPARTMENT) {
+    return createDepartmentComponentConfig(field, searchType)
+  }
+
+  // 多组织架构组件
+  if (widgetType === WidgetType.DEPARTMENTS) {
+    return createDepartmentsComponentConfig(field, searchType)
+  }
+
   // 时间戳组件
   if (widgetType === WidgetType.TIMESTAMP) {
     return createTimestampComponentConfig(field, searchType)
@@ -488,6 +498,91 @@ function createUserRemoteMethod(): (query: string) => Promise<Array<{ label: str
       console.error('[SearchInput] 搜索用户失败', error)
       return []
     }
+  }
+}
+
+/**
+ * 创建组织架构组件配置
+ */
+function createDepartmentComponentConfig(field: FieldConfig, searchType: string | undefined): ComponentConfig {
+  // 如果 search 标签是 "in" 或 "eq"，使用组织架构搜索
+  if (hasSearchType(searchType, SearchType.IN) || hasSearchType(searchType, SearchType.EQ)) {
+    return {
+      component: SearchComponent.EL_SELECT,
+      props: {
+        placeholder: generatePlaceholder(field.name, 'select'),
+        clearable: true,
+        filterable: true,
+        remote: true,
+        style: { width: SearchConfig.DEFAULT_INPUT_WIDTH }
+      },
+      onRemoteMethod: createDepartmentRemoteMethod()
+    }
+  }
+
+  // 如果 search 标签是 "like"，渲染普通文本输入框
+  if (hasSearchType(searchType, SearchType.LIKE)) {
+    return createDefaultInputConfig(field)
+  }
+
+  // 默认：使用精确搜索（eq），渲染组织架构选择器
+  return {
+    component: SearchComponent.EL_SELECT,
+    props: {
+      placeholder: generatePlaceholder(field.name, 'select'),
+      clearable: true,
+      filterable: true,
+      remote: true,
+      style: { width: SearchConfig.DEFAULT_INPUT_WIDTH }
+    },
+    onRemoteMethod: createDepartmentRemoteMethod()
+  }
+}
+
+/**
+ * 创建多组织架构组件配置
+ */
+function createDepartmentsComponentConfig(field: FieldConfig, searchType: string | undefined): ComponentConfig {
+  // 多组织架构组件默认支持多选搜索（contains/in）
+  // 如果 search 标签是 "contains" 或 "in"，使用多选组织架构搜索
+  if (hasSearchType(searchType, SearchType.CONTAINS) || hasSearchType(searchType, SearchType.IN)) {
+    return {
+      component: SearchComponent.EL_SELECT,
+      props: {
+        placeholder: generatePlaceholder(field.name, 'select'),
+        clearable: true,
+        filterable: true,
+        remote: true,
+        multiple: true,
+        style: { width: SearchConfig.DEFAULT_INPUT_WIDTH },
+        collapseTags: true,
+        maxCollapseTags: SearchConfig.MAX_COLLAPSE_TAGS
+      },
+      onRemoteMethod: createDepartmentRemoteMethod(),
+      onInitOptions: createDepartmentsInitOptions()
+    }
+  }
+
+  // 如果 search 标签是 "like"，渲染普通文本输入框
+  if (hasSearchType(searchType, SearchType.LIKE)) {
+    return createDefaultInputConfig(field)
+  }
+
+  // 默认：使用多选搜索（contains），渲染多组织架构选择器
+  return {
+    component: SearchComponent.EL_SELECT,
+    props: {
+      placeholder: generatePlaceholder(field.name, 'select'),
+      clearable: true,
+      filterable: true,
+      remote: true,
+      multiple: true,
+      style: { width: SearchConfig.DEFAULT_INPUT_WIDTH },
+      collapseTags: true,
+      maxCollapseTags: SearchConfig.MAX_COLLAPSE_TAGS
+    },
+    onRemoteMethod: createDepartmentRemoteMethod(),
+    onInitOptions: createDepartmentsInitOptions()
   }
 }
 

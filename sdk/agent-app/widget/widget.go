@@ -9,6 +9,8 @@ const (
 	TypeTimestamp   = "timestamp"
 	TypeUser        = "user"
 	TypeUsers       = "users"
+	TypeDepartment  = "department"
+	TypeDepartments = "departments"
 	TypeID          = "ID"
 	TypeNumber      = "number"
 	TypeFloat       = "float"
@@ -71,6 +73,10 @@ func NewWidget(widgetType string, widgetParsed map[string]string) Widget {
 		return newUser(widgetParsed)
 	case TypeUsers:
 		return newUsers(widgetParsed)
+	case TypeDepartment:
+		return newDepartment(widgetParsed)
+	case TypeDepartments:
+		return newDepartments(widgetParsed)
 	case TypeID:
 		return newID(widgetParsed)
 	case TypeNumber:
