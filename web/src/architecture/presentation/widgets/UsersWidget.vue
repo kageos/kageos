@@ -86,15 +86,16 @@
       <span v-else class="empty-text">-</span>
     </div>
     
-    <!-- 表格单元格模式：只显示头像，hover 显示详细信息 -->
+    <!-- 表格单元格模式：只显示头像（最多3个，超过折叠） -->
     <div v-else-if="mode === 'table-cell'" class="users-table-cell">
       <div v-if="displayUsers.length > 0" class="users-avatars-list">
+        <!-- 显示的头像（最多3个） -->
         <el-popover
-          v-for="(user, index) in displayUsers"
+          v-for="(user, index) in displayedUsersInTable"
           :key="user.username || index"
           placement="top"
           :width="380"
-          trigger="hover"
+          trigger="click"
           popper-class="users-popover"
         >
           <template #reference>
@@ -115,6 +116,65 @@
             </el-avatar>
           </template>
           <UserDetailCard :user-info="user" />
+        </el-popover>
+        
+        <!-- 省略号：点击显示全部 -->
+        <el-popover
+          v-if="hasMoreUsersInTable"
+          placement="top"
+          :width="400"
+          trigger="click"
+          popper-class="users-popover"
+        >
+          <template #reference>
+            <div class="users-more-indicator" @click.stop>
+              <span class="more-text">+{{ displayUsers.length - 3 }}</span>
+            </div>
+          </template>
+          <div class="users-full-list">
+            <div class="users-full-list-header">
+              <span>全部用户 ({{ displayUsers.length }})</span>
+            </div>
+            <div class="users-full-list-content">
+              <div
+                v-for="(user, index) in displayUsers"
+                :key="user.username || index"
+                class="users-full-list-item"
+              >
+                <el-popover
+                  placement="right"
+                  :width="380"
+                  trigger="click"
+                  popper-class="users-popover"
+                >
+                  <template #reference>
+                    <div class="user-item-content">
+                      <el-avatar 
+                        v-if="user.avatar" 
+                        :src="user.avatar" 
+                        :size="40"
+                        class="user-avatar"
+                      >
+                        {{ user.username?.[0]?.toUpperCase() || 'U' }}
+                      </el-avatar>
+                      <el-avatar 
+                        v-else
+                        :size="40"
+                        class="user-avatar"
+                      >
+                        {{ user.username?.[0]?.toUpperCase() || 'U' }}
+                      </el-avatar>
+                      <div class="user-info">
+                        <div class="user-name">{{ user.username }}</div>
+                        <div v-if="user.nickname" class="user-nickname">{{ user.nickname }}</div>
+                      </div>
+                    </div>
+                  </template>
+                  <UserDetailCard :user-info="user" />
+                </el-popover>
+              </div>
+            </div>
+          </div>
         </el-popover>
       </div>
       <span v-else class="empty-text">-</span>
@@ -335,6 +395,19 @@ const displayUsers = computed(() => {
     return userInfoList.value
   }
   return []
+})
+
+// 表格单元格模式：显示的头像列表（最多3个）
+const displayedUsersInTable = computed(() => {
+  if (props.mode === 'table-cell') {
+    return displayUsers.value.slice(0, 3)
+  }
+  return displayUsers.value
+})
+
+// 表格单元格模式：是否有更多用户（超过3个）
+const hasMoreUsersInTable = computed(() => {
+  return props.mode === 'table-cell' && displayUsers.value.length > 3
 })
 
 // 详情模式：显示的头像列表（最多 maxDisplayCount 个）
@@ -667,14 +740,29 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background-color: var(--el-fill-color-light);
   border: 1px solid var(--el-border-color);
   cursor: pointer;
   transition: all 0.2s;
   flex-shrink: 0;
+  
+  .more-text {
+    font-size: 12px;
+    color: var(--el-text-color-regular);
+    font-weight: 500;
+  }
+  
+  &:hover {
+    background-color: var(--el-fill-color);
+    border-color: var(--el-color-primary);
+    
+    .more-text {
+      color: var(--el-color-primary);
+    }
+  }
 }
 
 .users-more-indicator:hover {
