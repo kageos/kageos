@@ -90,31 +90,20 @@
     
     <!-- 表格单元格模式：显示组织架构名称（最多2个，超过折叠） -->
     <div v-else-if="mode === 'table-cell'" class="departments-table-cell">
-      <div v-if="displayDepartments.length > 0" class="departments-tags-list">
-        <!-- 显示的部门（最多2个） -->
-        <el-popover
+      <div v-if="displayDepartments.length > 0" class="departments-table-cell-list">
+        <!-- 显示的部门（最多2个，使用 DepartmentDisplay 组件） -->
+        <DepartmentDisplay
           v-for="(dept, index) in displayedDepartments"
           :key="dept.full_code_path || index"
-          placement="top"
-          :width="650"
-          trigger="click"
-          popper-class="department-info-popover"
-        >
-          <template #reference>
-            <el-tag
-              size="small"
-              class="department-tag clickable"
-            >
-              <img src="/组织架构.svg" alt="组织架构" class="department-icon-small" />
-              {{ dept.name }}
-            </el-tag>
-          </template>
-          <DepartmentDetailCard 
-            :department-info="dept" 
-            :department-tree="departmentTree"
-            :current-path="dept.full_code_path"
-          />
-        </el-popover>
+          :department-info="dept"
+          :full-code-path="dept.full_code_path"
+          :display-name="dept.full_name_path || dept.name"
+          :show-full-path="false"
+          mode="card"
+          layout="horizontal"
+          size="small"
+          class="department-table-cell-item"
+        />
         
         <!-- 省略号：点击显示全部 -->
         <el-popover
@@ -125,13 +114,9 @@
           popper-class="departments-popover"
         >
           <template #reference>
-            <el-tag
-              size="small"
-              class="department-tag more-indicator"
-              @click.stop
-            >
+            <span class="more-indicator">
               +{{ displayDepartments.length - 2 }}
-            </el-tag>
+            </span>
           </template>
           <div class="departments-full-list">
             <div class="departments-full-list-header">
