@@ -108,6 +108,7 @@ export const DynamicFunctionName = {
   YESTERDAY: 'yesterday',
   // 用户函数
   ME: 'me',
+  MY_LEADER: 'myleader',
   // 组织架构函数
   MY_DEPARTMENT: 'mydepartment'
 } as const
