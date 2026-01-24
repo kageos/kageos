@@ -349,13 +349,14 @@ export interface RadioWidgetConfig {
  * 
  * 功能：
  * - 支持用户搜索和选择
- * - 支持动态默认值函数：Me()（当前登录用户）
+ * - 支持动态默认值函数：Me()（当前登录用户）、MyLeader()（当前用户的上级领导）
  */
 export interface UserWidgetConfig {
   /** 
    * 默认值
-   * 支持函数调用 Me()（当前登录用户）
-   * 适用于：预约人、创建人、负责人等字段
+   * 支持函数调用：
+   * - Me()：当前登录用户，适用于预约人、创建人、负责人等字段
+   * - MyLeader()：当前用户的上级领导，适用于审批人、抄送人、上级领导等字段
    */
   default?: string
 }
@@ -366,13 +367,16 @@ export interface UserWidgetConfig {
  * 
  * 功能：
  * - 支持多个用户搜索和选择
- * - 支持动态默认值函数：Me()（当前登录用户）
+ * - 支持动态默认值函数：Me()（当前登录用户）、MyLeader()（当前用户的上级领导）
  * - 值使用逗号分隔的字符串格式存储（如 "user1,user2"）
  */
 export interface UsersWidgetConfig {
   /** 
    * 默认值
-   * 支持函数调用 Me()（当前登录用户），多个值用逗号分隔
+   * 支持函数调用：
+   * - Me()：当前登录用户
+   * - MyLeader()：当前用户的上级领导
+   * 多个值用逗号分隔，如 "Me(),MyLeader(),user2"
    */
   default?: string
   

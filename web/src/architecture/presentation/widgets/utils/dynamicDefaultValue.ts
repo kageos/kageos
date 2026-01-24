@@ -3,7 +3,7 @@
  * 
  * 支持函数调用形式：
  * - 时间函数：Now()、Today()、Tomorrow()、Yesterday()
- * - 用户函数：Me()
+ * - 用户函数：Me()、MyLeader()
  * - 组织架构函数：MyDepartment()
  * 
  * 函数参数格式（参数不需要引号）：
@@ -137,6 +137,56 @@ export function resolveDynamicDefaultValue(
     return defaultValue
   }
 
+  // 🔥 对于 users 组件，支持多个函数调用（用逗号分隔），如 "Me(),MyLeader()"
+  if (widgetType === WidgetType.USERS && defaultValue.includes(',')) {
+    // 分割字符串，分别处理每个部分
+    const parts = defaultValue.split(',').map(s => s.trim())
+    const resolvedParts: string[] = []
+    
+    for (const part of parts) {
+      // 检查是否是函数调用
+      if (part.includes('(') && part.includes(')')) {
+        const funcCall = parseFunctionCall(part)
+        if (funcCall) {
+          const { name } = funcCall
+          const funcName = name.toLowerCase()
+          
+          if (funcName === DynamicFunctionName.ME) {
+            // Me() - 当前登录用户
+            if (getAuthStore) {
+              const authStore = getAuthStore()
+              const username = authStore?.user?.username
+              if (username) {
+                resolvedParts.push(username)
+              }
+            }
+          } else if (funcName === DynamicFunctionName.MY_LEADER) {
+            // MyLeader() - 当前登录用户的上级领导
+            if (getAuthStore) {
+              const authStore = getAuthStore()
+              const leaderUsername = authStore?.user?.leader_username
+              if (leaderUsername) {
+                resolvedParts.push(leaderUsername)
+              }
+            }
+          } else {
+            // 其他函数调用，保留原值
+            resolvedParts.push(part)
+          }
+        } else {
+          // 不是函数调用，保留原值
+          resolvedParts.push(part)
+        }
+      } else {
+        // 不是函数调用，保留原值
+        resolvedParts.push(part)
+      }
+    }
+    
+    // 返回处理后的值（用逗号连接）
+    return resolvedParts.filter(Boolean).join(',')
+  }
+
   // 检查是否是函数调用（包含括号）
   if (!defaultValue.includes('(') || !defaultValue.includes(')')) {
     return defaultValue
@@ -203,6 +253,16 @@ export function resolveDynamicDefaultValue(
       if (getAuthStore) {
         const authStore = getAuthStore()
         return authStore?.user?.username || null
+      }
+      // 如果没有提供 getAuthStore，返回原值（让组件自己处理）
+      return defaultValue
+    }
+    
+    if (funcName === DynamicFunctionName.MY_LEADER) {
+      // MyLeader() - 当前登录用户的上级领导
+      if (getAuthStore) {
+        const authStore = getAuthStore()
+        return authStore?.user?.leader_username || null
       }
       // 如果没有提供 getAuthStore，返回原值（让组件自己处理）
       return defaultValue

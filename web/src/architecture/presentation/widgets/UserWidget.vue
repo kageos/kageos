@@ -272,14 +272,16 @@ onMounted(async () => {
     const currentRaw = props.value?.raw
     const existingValue = formDataStore.getValue(props.fieldPath)
     
-    // 🔥 检查是否需要解析 Me() 函数调用
-    // 情况1：value.raw 是 "Me()" 字符串（FormDomainService 还没有解析）
-    // 情况2：value.raw 是 null/undefined/空字符串，且配置中有 "Me()" 默认值
+    // 🔥 检查是否需要解析 Me() 或 MyLeader() 函数调用
+    // 情况1：value.raw 是 "Me()" 或 "MyLeader()" 字符串（FormDomainService 还没有解析）
+    // 情况2：value.raw 是 null/undefined/空字符串，且配置中有 "Me()" 或 "MyLeader()" 默认值
+    const defaultValue = props.field.widget?.config?.default
     const needsResolveMe = currentRaw === 'Me()' || 
-      ((!currentRaw || currentRaw === '') && 
-       props.field.widget?.config?.default === 'Me()')
+      ((!currentRaw || currentRaw === '') && defaultValue === 'Me()')
+    const needsResolveMyLeader = currentRaw === 'MyLeader()' || 
+      ((!currentRaw || currentRaw === '') && defaultValue === 'MyLeader()')
     
-    if (needsResolveMe) {
+    if (needsResolveMe || needsResolveMyLeader) {
       // ⚠️ 检查是否是编辑模式：
       // 1. 如果 meta.fromInitialData 为 true，说明字段来自 initialData（编辑模式）
       // 2. 如果 existingValue 存在且 raw 不是 "Me()"，说明是编辑模式
@@ -291,22 +293,32 @@ onMounted(async () => {
                          existingValue.raw !== '' && 
                          existingValue.raw !== 'Me()')
       
-      // 只有在新增模式下才解析 Me()
+      // 只有在新增模式下才解析 Me() 或 MyLeader()
       if (!isEditMode) {
         const { useAuthStore } = await import('@/stores/auth')
         const authStore = useAuthStore()
-        const currentUsername = authStore.user?.username
-        if (currentUsername) {
+        
+        let targetUsername: string | null = null
+        
+        if (needsResolveMe) {
+          // Me() - 当前登录用户
+          targetUsername = authStore.user?.username || null
+        } else if (needsResolveMyLeader) {
+          // MyLeader() - 当前用户的上级领导
+          targetUsername = authStore.user?.leader_username || null
+        }
+        
+        if (targetUsername) {
           // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
           const newFieldValue = createFieldValue(
             props.field,
-            currentUsername,
-            currentUsername
+            targetUsername,
+            targetUsername
           )
           formDataStore.setValue(props.fieldPath, newFieldValue)
           emit('update:modelValue', newFieldValue)
           // 加载用户信息
-          loadUserInfo(currentUsername)
+          loadUserInfo(targetUsername)
           return
         }
       }

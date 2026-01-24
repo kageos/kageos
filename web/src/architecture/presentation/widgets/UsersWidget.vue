@@ -506,65 +506,88 @@ onMounted(async () => {
       ? (config as Record<string, any>).default 
       : undefined
     
-    // 🔥 检查是否需要解析 Me() 函数调用
-    // 情况1：value.raw 是 "Me()" 字符串（FormDomainService 还没有解析）
-    // 情况2：value.raw 包含 "Me()"（如 "Me(),user2"）
-    // 情况3：value.raw 是 null/undefined/空字符串，且配置中有 "Me()" 默认值
+    // 🔥 检查是否需要解析 Me() 或 MyLeader() 函数调用
+    // 情况1：value.raw 是 "Me()" 或 "MyLeader()" 字符串（FormDomainService 还没有解析）
+    // 情况2：value.raw 包含 "Me()" 或 "MyLeader()"（如 "Me(),user2" 或 "MyLeader(),user2"）
+    // 情况3：value.raw 是 null/undefined/空字符串，且配置中有 "Me()" 或 "MyLeader()" 默认值
     const needsResolveMe = (typeof currentRaw === 'string' && currentRaw.includes('Me()')) ||
       ((!currentRaw || currentRaw === '') && 
        typeof defaultValue === 'string' && defaultValue.includes('Me()'))
+    const needsResolveMyLeader = (typeof currentRaw === 'string' && currentRaw.includes('MyLeader()')) ||
+      ((!currentRaw || currentRaw === '') && 
+       typeof defaultValue === 'string' && defaultValue.includes('MyLeader()'))
     
-    if (needsResolveMe) {
+    if (needsResolveMe || needsResolveMyLeader) {
       // ⚠️ 检查是否是编辑模式：
       // 1. 如果 meta.fromInitialData 为 true，说明字段来自 initialData（编辑模式）
-      // 2. 如果 existingValue 存在且 raw 不包含 "Me()"，说明是编辑模式
-      // 编辑模式下，existingValue.raw 应该是实际的用户名，不应该是 "Me()"
+      // 2. 如果 existingValue 存在且 raw 不包含 "Me()" 或 "MyLeader()"，说明是编辑模式
+      // 编辑模式下，existingValue.raw 应该是实际的用户名，不应该是 "Me()" 或 "MyLeader()"
       const isEditMode = props.value?.meta?.fromInitialData === true ||
                         (existingValue && 
                          existingValue.raw !== null && 
                          existingValue.raw !== undefined && 
                          existingValue.raw !== '' && 
-                         (typeof existingValue.raw !== 'string' || !existingValue.raw.includes('Me()')))
+                         (typeof existingValue.raw !== 'string' || 
+                          (!existingValue.raw.includes('Me()') && !existingValue.raw.includes('MyLeader()'))))
       
-      // 只有在新增模式下才解析 Me()
+      // 只有在新增模式下才解析 Me() 或 MyLeader()
       if (!isEditMode) {
         const { useAuthStore } = await import('@/stores/auth')
         const authStore = useAuthStore()
-        const currentUsername = authStore.user?.username
         
-        if (currentUsername) {
-          let processedValue: string
-          
-          // 处理 Me() 格式
-          if (typeof defaultValue === 'string' && defaultValue === 'Me()') {
-            // 单个 Me()
-            processedValue = currentUsername
-          } else if (typeof defaultValue === 'string' && defaultValue.includes(',')) {
-            // 多个默认值，用逗号分隔（如 "Me(),user2"）
-            processedValue = defaultValue.replace(/Me\(\)/g, currentUsername)
-          } else if (typeof currentRaw === 'string' && currentRaw === 'Me()') {
-            // value.raw 是 "Me()"，直接替换
-            processedValue = currentUsername
-          } else if (typeof currentRaw === 'string' && currentRaw.includes('Me()')) {
-            // value.raw 包含 "Me()"（如 "Me(),user2"）
-            processedValue = currentRaw.replace(/Me\(\)/g, currentUsername)
+        // 🔥 统一处理逻辑：先确定要处理的源字符串，然后依次替换 Me() 和 MyLeader()
+        let sourceValue: string = ''
+        
+        // 确定源字符串：优先使用 currentRaw，如果为空则使用 defaultValue
+        if (typeof currentRaw === 'string' && currentRaw) {
+          sourceValue = currentRaw
+        } else if (typeof defaultValue === 'string' && defaultValue) {
+          sourceValue = defaultValue
+        }
+        
+        if (!sourceValue) {
+          // 如果没有源字符串，直接返回
+          return
+        }
+        
+        let processedValue: string = sourceValue
+        const currentUsername = authStore.user?.username
+        const leaderUsername = authStore.user?.leader_username
+        
+        // 先处理 Me()
+        if (needsResolveMe && currentUsername) {
+          processedValue = processedValue.replace(/Me\(\)/g, currentUsername)
+        }
+        
+        // 再处理 MyLeader()（在处理后的 processedValue 上处理）
+        if (needsResolveMyLeader) {
+          if (leaderUsername) {
+            processedValue = processedValue.replace(/MyLeader\(\)/g, leaderUsername)
           } else {
-            processedValue = currentUsername
+            // 如果 leader_username 为空，移除 MyLeader() 占位符
+            processedValue = processedValue.replace(/MyLeader\(\)/g, '').replace(/,,/g, ',').replace(/^,|,$/g, '')
           }
-          
-          if (processedValue && processedValue.trim()) {
-            // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
-            const newFieldValue = createFieldValue(
-              props.field,
-              processedValue,
-              processedValue
-            )
-            formDataStore.setValue(props.fieldPath, newFieldValue)
-            emit('update:modelValue', newFieldValue)
-            // 加载用户信息
-            loadUsersInfo(processedValue)
-            return
-          }
+        }
+        
+        // 清理可能的多余逗号和空格
+        processedValue = processedValue
+          .split(',')
+          .map(s => s.trim())
+          .filter(s => s !== '')
+          .join(',')
+        
+        if (processedValue && processedValue.trim()) {
+          // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
+          const newFieldValue = createFieldValue(
+            props.field,
+            processedValue,
+            processedValue
+          )
+          formDataStore.setValue(props.fieldPath, newFieldValue)
+          emit('update:modelValue', newFieldValue)
+          // 加载用户信息
+          loadUsersInfo(processedValue)
+          return
         }
       }
     }
