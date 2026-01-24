@@ -11,14 +11,23 @@
 import type { App, ServiceTree } from '@/types'
 
 /**
+ * 服务目录树加载结果
+ */
+export interface ServiceTreeLoadResult {
+  tree: ServiceTree[]
+  expandedKeys?: number[]
+  app?: App
+}
+
+/**
  * 服务目录树加载器接口
  */
 export interface IServiceTreeLoader {
   /**
    * 加载服务目录树
    * @param app 应用信息
-   * @returns Promise<ServiceTree[]>
+   * @returns Promise<ServiceTreeLoadResult> 包含树数据、expandedKeys 和应用信息
    */
-  load(app: App): Promise<ServiceTree[]>
+  load(app: App): Promise<ServiceTreeLoadResult>
 }
 

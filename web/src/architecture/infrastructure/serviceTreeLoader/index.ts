@@ -6,8 +6,8 @@ import { ServiceTreeLoaderImpl } from './ServiceTreeLoaderImpl'
 import type { IServiceTreeLoader } from '../../domain/interfaces/IServiceTreeLoader'
 import { apiClient } from '../apiClient'
 
-// 导出接口
-export type { IServiceTreeLoader } from '../../domain/interfaces/IServiceTreeLoader'
+// 导出接口和类型
+export type { IServiceTreeLoader, ServiceTreeLoadResult } from '../../domain/interfaces/IServiceTreeLoader'
 
 // 导出实现
 export { ServiceTreeLoaderImpl }

@@ -681,7 +681,7 @@ import { useWorkspaceApp } from '../composables/useWorkspaceApp'
 import { useWorkspaceServiceTree } from '../composables/useWorkspaceServiceTree'
 import { findNodeByPath, findNodeById, getDirectChildFunctionCodes } from '../utils/workspaceUtils'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
-import { resolveWorkspaceUrl } from '@/utils/route'
+import { resolveWorkspaceUrl, extractWorkspacePath } from '@/utils/route'
 import { getAgentList, type AgentInfo } from '@/api/agent'
 import { isLinkNavigation as checkLinkNavigation, LINK_TYPE_QUERY_KEY } from '@/utils/linkNavigation'
 import { hasPermission, TablePermissions, buildPermissionApplyURL } from '@/utils/permission'
@@ -1860,7 +1860,7 @@ onMounted(async () => {
   })
 
   // 监听服务树加载完成事件
-  unsubscribeServiceTreeLoaded = eventBus.on(WorkspaceEvent.serviceTreeLoaded, (payload: { app: any, tree: any[], expandedKeys?: number[] }) => {
+  unsubscribeServiceTreeLoaded = eventBus.on(WorkspaceEvent.serviceTreeLoaded, async (payload: { app: any, tree: any[], expandedKeys?: number[] }) => {
     console.log('[WorkspaceView] serviceTreeLoaded 事件触发，expandedKeys:', payload.expandedKeys)
     // 状态已通过 StateManager 自动更新
     // ⭐ 更新 expandedKeys（如果后端返回了）
@@ -1871,6 +1871,23 @@ onMounted(async () => {
     } else {
       console.log('[WorkspaceView] 清空 expandedKeys.value')
       expandedKeys.value = []
+    }
+    
+    // 🔥 切换工作空间后，如果是根路径，自动选中根节点显示详情
+    await nextTick()
+    const fullPath = extractWorkspacePath(route.path)
+    if (fullPath) {
+      const pathSegments = fullPath.split('/').filter(Boolean)
+      // 如果是根路径（只有 user/app），自动选中根节点
+      if (pathSegments.length === 2 && payload.tree && payload.tree.length > 0) {
+        const rootPath = '/' + pathSegments.join('/')
+        const rootNode = findNodeByPath(payload.tree, rootPath)
+        if (rootNode && rootNode.type === 'package') {
+          console.log('[WorkspaceView] 切换工作空间后，自动选中根节点:', rootNode.name, rootPath)
+          // 触发节点点击，显示根目录详情
+          applicationService.handleNodeClick(rootNode as any)
+        }
+      }
     }
   })
   

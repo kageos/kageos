@@ -10,23 +10,23 @@
 
 import { Logger } from '@/core/utils/logger'
 import type { IApiClient } from '../../domain/interfaces/IApiClient'
-import type { IServiceTreeLoader } from '../../domain/interfaces/IServiceTreeLoader'
+import type { IServiceTreeLoader, ServiceTreeLoadResult } from '../../domain/interfaces/IServiceTreeLoader'
 import type { App, ServiceTree } from '@/types'
 
 /**
  * 服务目录树加载器实现
  */
 export class ServiceTreeLoaderImpl implements IServiceTreeLoader {
-  private loadingPromises = new Map<string, Promise<ServiceTree[]>>()
+  private loadingPromises = new Map<string, Promise<ServiceTreeLoadResult>>()
   
   constructor(private apiClient: IApiClient) {}
 
   /**
    * 加载服务目录树（带防抖和去重）
    */
-  async load(app: App): Promise<ServiceTree[]> {
+  async load(app: App): Promise<ServiceTreeLoadResult> {
     if (!app || !app.user || !app.code) {
-      return []
+      return { tree: [] }
     }
 
     // 生成缓存键，用于去重
@@ -39,7 +39,7 @@ export class ServiceTreeLoaderImpl implements IServiceTreeLoader {
     }
 
     // 创建新的加载 Promise
-    const loadPromise = (async () => {
+    const loadPromise = (async (): Promise<ServiceTreeLoadResult> => {
       try {
         // ⭐ 使用合并接口获取应用详情和服务目录树（减少请求次数）
         // 接口路径：/workspace/api/v1/app/{user}/{app}/tree
@@ -63,10 +63,10 @@ export class ServiceTreeLoaderImpl implements IServiceTreeLoader {
           }
         }
         
-        return tree
+        return { tree, expandedKeys, app: appInfo || undefined }
       } catch (error) {
         Logger.error('ServiceTreeLoader', '加载服务目录树失败', error)
-        return []
+        return { tree: [] }
       } finally {
         // 加载完成后，从 Map 中移除
         this.loadingPromises.delete(cacheKey)
