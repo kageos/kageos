@@ -7,12 +7,14 @@ import (
 // AgentChatSession 智能体聊天会话模型
 type AgentChatSession struct {
 	models.Base
-	TreeID    int64  `gorm:"type:bigint;not null;index;comment:服务目录ID" json:"tree_id"`
-	SessionID string `gorm:"type:varchar(64);not null;uniqueIndex;comment:会话ID（UUID）" json:"session_id"`
-	AgentID   int64  `gorm:"type:bigint;not null;index;comment:智能体ID" json:"agent_id"` // 关联的智能体ID
-	Title     string `gorm:"type:varchar(255);comment:会话标题" json:"title"`              // 自动生成或用户自定义
-	Status    string `gorm:"type:varchar(32);not null;default:'active';index;comment:会话状态(active/generating/done)" json:"status"` // 会话状态
-	User      string `gorm:"type:varchar(128);not null;index;comment:创建用户" json:"user"`
+	TreeID       int64  `gorm:"type:bigint;not null;index;comment:服务目录ID" json:"tree_id"`
+	FullCodePath string `gorm:"type:varchar(512);index;comment:服务目录完整路径（workspace 用，有语意）" json:"full_code_path"`
+	Source       string `gorm:"type:varchar(32);index;comment:来源(workspace=工作台,空=function_gen)" json:"source"`
+	SessionID    string `gorm:"type:varchar(64);not null;uniqueIndex;comment:会话ID（UUID）" json:"session_id"`
+	AgentID      *int64 `gorm:"type:bigint;index;comment:智能体ID，工作台会话可为空" json:"agent_id"` // 关联的智能体ID
+	Title        string `gorm:"type:varchar(255);comment:会话标题" json:"title"`              // 自动生成或用户自定义
+	Status       string `gorm:"type:varchar(32);not null;default:'active';index;comment:会话状态(active/generating/done)" json:"status"` // 会话状态
+	User         string `gorm:"type:varchar(128);not null;index;comment:创建用户" json:"user"`
 	
 	// 关联的智能体（预加载）
 	Agent *Agent `gorm:"foreignKey:AgentID;references:ID" json:"agent,omitempty"`

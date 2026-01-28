@@ -89,8 +89,28 @@ func (s *Server) setupRoutes() {
 	serviceTreeAuth.GET("/hub_info", serviceTreeHandler.GetHubInfo)                   // 获取目录的 Hub 信息
 	serviceTreeAuth.POST("/pull_from_hub", serviceTreeHandler.PullDirectoryFromHub)   // 从 Hub 拉取目录
 
-	// 服务间调用路由（不需要JWT验证，但用户信息中间件已在 apiV1 级别统一添加）
-	serviceTree.POST("/add_functions", serviceTreeHandler.AddFunctions) // 向服务目录添加函数（agent-server -> workspace）
+	// ⭐ 按类型分离的 CRUD 接口（推荐使用）
+	// ==================== Package 类型接口 ====================
+	packagesAuth := apiV1.Group("/packages")
+	packagesAuth.Use(middleware2.JWTAuth())
+	packagesAuth.POST("", serviceTreeHandler.CreatePackage)                    // POST /api/v1/packages
+	packagesAuth.PUT("/:id", serviceTreeHandler.UpdatePackage)                // PUT /api/v1/packages/:id
+	packagesAuth.DELETE("/:id", serviceTreeHandler.DeletePackage)             // DELETE /api/v1/packages/:id
+
+	// ==================== Function 类型接口 ====================
+	functionsAuth := apiV1.Group("/functions")
+	functionsAuth.Use(middleware2.JWTAuth())
+	functionsAuth.POST("", serviceTreeHandler.CreateFunction)                 // POST /api/v1/functions
+	functionsAuth.PUT("/:id", serviceTreeHandler.UpdateFunction)             // PUT /api/v1/functions/:id
+	functionsAuth.DELETE("/:id", serviceTreeHandler.DeleteFunction)           // DELETE /api/v1/functions/:id
+
+	// ==================== Docs 类型接口 ====================
+	// ⭐ docs CRUD 接口（使用 /docs/crud 避免与文档管理路由冲突）
+	docsCrudAuth := apiV1.Group("/docs/crud")
+	docsCrudAuth.Use(middleware2.JWTAuth())
+	docsCrudAuth.POST("", serviceTreeHandler.CreateDocs)                       // POST /api/v1/docs/crud
+	docsCrudAuth.PUT("/:id", serviceTreeHandler.UpdateDocs)                    // PUT /api/v1/docs/crud/:id
+	docsCrudAuth.DELETE("/:id", serviceTreeHandler.DeleteDocs)                 // DELETE /api/v1/docs/crud/:id
 
 	// ⭐ 文档管理路由（基于完整路径，与 table/form/chart 风格一致）
 	docs := apiV1.Group("/docs")
@@ -101,6 +121,14 @@ func (s *Server) setupRoutes() {
 	docs.GET("/info/*full-code-path", middleware2.CheckDocRead(), docHandler.GetDoc)       // 获取文档
 	docs.PUT("/info/*full-code-path", middleware2.CheckDocWrite(), docHandler.UpdateDoc)   // 更新文档
 	docs.DELETE("/info/*full-code-path", middleware2.CheckDocDelete(), docHandler.DeleteDoc) // 删除文档
+
+	// ==================== 服务间调用路由 ====================
+	// 服务间调用路由（不需要JWT验证，但用户信息中间件已在 apiV1 级别统一添加）
+	serviceTree.POST("/add_functions", serviceTreeHandler.AddFunctions) // 向服务目录添加函数（agent-server -> workspace）
+
+	// 工作台环境信息路由（不需要JWT验证，但用户信息中间件已在 apiV1 级别统一添加）
+	workspaceGroup := apiV1.Group("/workspace")
+	workspaceGroup.GET("/context", serviceTreeHandler.GetWorkspaceContext) // 获取工作台环境信息（agent-server -> workspace）
 
 	// 函数管理路由（需要JWT验证）
 	function := apiV1.Group("/function")

@@ -174,11 +174,19 @@ func (s *Server) initSharedTransport() {
 		defaultTimeout = 300 * time.Second // 默认 300 秒（5分钟）
 	}
 
+	// ⭐ 对于 SSE 流式接口，ResponseHeaderTimeout 需要更长
+	// 但为了性能，我们使用共享 Transport，超时由 Context 控制
+	// ResponseHeaderTimeout 设置为 30 分钟，足够支持长时间流式响应
+	streamingTimeout := 30 * time.Minute
+	if defaultTimeout > streamingTimeout {
+		streamingTimeout = defaultTimeout
+	}
+	
 	s.sharedTransport = &http.Transport{
 		MaxIdleConns:          200,              // ✅ 优化：增加到 200，提高并发处理能力
 		MaxIdleConnsPerHost:   50,              // ✅ 优化：增加到 50，支持更高并发
 		IdleConnTimeout:       90 * time.Second,
-		ResponseHeaderTimeout: defaultTimeout,  // ✅ 优化：设置响应头超时，避免连接长时间等待
+		ResponseHeaderTimeout: streamingTimeout, // ✅ 优化：设置响应头超时为 30 分钟，支持 SSE 流式响应
 		ExpectContinueTimeout: 1 * time.Second, // ✅ 优化：设置 Expect 100-continue 超时
 		TLSHandshakeTimeout:   10 * time.Second, // ✅ 优化：设置 TLS 握手超时
 	}

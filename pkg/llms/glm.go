@@ -533,7 +533,7 @@ func (g *GLMClient) ChatStream(ctx context.Context, req *ChatRequest) (<-chan *S
 				logger.Errorf(ctx, "[GLM] HTTP请求失败，状态码: %d, 响应体: %s", resp.StatusCode, bodyStr)
 			}
 			chunkChan <- &StreamChunk{
-				Error: fmt.Sprintf("HTTP请求失败，状态码: %d", resp.StatusCode),
+				Error: fmt.Sprintf("HTTP请求失败，状态码: %d %s", resp.StatusCode, string(body)),
 				Done:  true,
 			}
 			return

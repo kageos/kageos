@@ -82,9 +82,9 @@
             {{ agent.description }}
           </div>
           <div class="agent-info">
-            <div v-if="agent.knowledge_base" class="info-item">
+            <div v-if="agent.docs_paths && agent.docs_paths.trim()" class="info-item">
               <el-icon><Document /></el-icon>
-              <span>知识库：{{ agent.knowledge_base.name }}</span>
+              <span>知识库：{{ getKnowledgeBaseDisplay(agent.docs_paths) }}</span>
             </div>
             <div v-if="agent.llm_config" class="info-item">
               <el-icon><Cpu /></el-icon>
@@ -111,14 +111,14 @@ import { getAgentList, type AgentInfo, type AgentListReq } from '@/api/agent'
 
 interface Props {
   modelValue: boolean
-  treeId?: number | null // 服务目录ID
+  fullCodePath?: string | null // 服务目录完整路径
   package?: string // Package 名称
   currentNodeName?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
   modelValue: false,
-  treeId: null,
+  fullCodePath: null,
   package: '',
   currentNodeName: ''
 })
@@ -202,6 +202,23 @@ function getAgentLogoText(agent: AgentInfo): string {
   // 取第一个字符（支持中文）
   const firstChar = agent.name.charAt(0)
   return firstChar.toUpperCase()
+}
+
+// 格式化知识库路径显示
+function getKnowledgeBaseDisplay(docsPaths: string): string {
+  if (!docsPaths || !docsPaths.trim()) {
+    return '未关联'
+  }
+  const paths = docsPaths.split(',').map(p => p.trim()).filter(p => p)
+  if (paths.length === 0) {
+    return '未关联'
+  }
+  // 如果只有一个路径，直接显示路径
+  if (paths.length === 1) {
+    return paths[0]
+  }
+  // 如果有多个路径，显示路径数量和第一个路径
+  return `${paths[0]} 等 ${paths.length} 个路径`
 }
 
 // 加载智能体列表

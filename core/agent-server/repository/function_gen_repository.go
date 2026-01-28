@@ -125,16 +125,21 @@ func (r *FunctionGenRepository) UpdateStatus(id int64, status, errorMsg string) 
 	return r.UpdateStatusWithFullCodePaths(id, status, errorMsg, nil)
 }
 
-// UpdateStatusWithFullCodePaths 更新状态和完整代码路径列表（自动计算耗时）
-func (r *FunctionGenRepository) UpdateStatusWithFullCodePaths(id int64, status, errorMsg string, fullCodePaths []string) error {
-	// 获取记录以计算耗时
+// calculateDuration 计算耗时（从创建时间到当前时间的秒数）
+func (r *FunctionGenRepository) calculateDuration(id int64) (int, error) {
 	var record model.FunctionGenRecord
 	if err := r.db.Where("id = ?", id).First(&record).Error; err != nil {
+		return 0, err
+	}
+	return int(time.Since(time.Time(record.CreatedAt)).Seconds()), nil
+}
+
+// UpdateStatusWithFullCodePaths 更新状态和完整代码路径列表（自动计算耗时）
+func (r *FunctionGenRepository) UpdateStatusWithFullCodePaths(id int64, status, errorMsg string, fullCodePaths []string) error {
+	duration, err := r.calculateDuration(id)
+	if err != nil {
 		return err
 	}
-	
-	// 计算耗时（从创建时间到当前时间的秒数）
-	duration := int(time.Since(time.Time(record.CreatedAt)).Seconds())
 	
 	updates := map[string]interface{}{
 		"status":   status,
@@ -145,6 +150,10 @@ func (r *FunctionGenRepository) UpdateStatusWithFullCodePaths(id int64, status, 
 	}
 	if fullCodePaths != nil {
 		// 转换为逗号分隔的字符串
+		var record model.FunctionGenRecord
+		if err := r.db.Where("id = ?", id).First(&record).Error; err != nil {
+			return err
+		}
 		record.SetFullCodePaths(fullCodePaths)
 		updates["full_code_paths"] = record.FullCodePaths
 	}
@@ -162,14 +171,10 @@ func (r *FunctionGenRepository) UpdateCode(id int64, code string) error {
 
 // UpdateCodeAndStatus 更新代码和状态（自动计算耗时，用于兼容旧代码）
 func (r *FunctionGenRepository) UpdateCodeAndStatus(id int64, code string, status string) error {
-	// 获取记录以计算耗时
-	var record model.FunctionGenRecord
-	if err := r.db.Where("id = ?", id).First(&record).Error; err != nil {
+	duration, err := r.calculateDuration(id)
+	if err != nil {
 		return err
 	}
-	
-	// 计算耗时（从创建时间到当前时间的秒数）
-	duration := int(time.Since(time.Time(record.CreatedAt)).Seconds())
 	
 	updates := map[string]interface{}{
 		"code":     code,

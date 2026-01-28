@@ -253,7 +253,7 @@
     <!-- 智能体选择对话框 -->
     <AgentSelectDialog
       v-model="agentSelectDialogVisible"
-      :tree-id="treeId"
+      :full-code-path="fullCodePath"
       :package="package"
       :current-node-name="currentNodeName"
       @confirm="handleAgentSelect"
@@ -278,7 +278,7 @@ import { WidgetType, DataType } from '@/core/constants/widget'
 
 interface Props {
   agentId: number | null
-  treeId: number | null // 服务目录ID（TreeID）
+  fullCodePath: string | null // 服务目录完整路径
   package?: string // Package 名称
   currentNodeName?: string
   existingFiles?: string[] // 当前 package 下已存在的文件名（不含 .go 后缀）
@@ -286,7 +286,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   agentId: null,
-  treeId: null,
+  fullCodePath: null,
   package: '',
   currentNodeName: '',
   existingFiles: () => []
@@ -448,7 +448,7 @@ async function loadAgents() {
 
 // 加载会话列表
 async function loadSessionList() {
-  if (!props.treeId) {
+  if (!props.fullCodePath) {
     sessionList.value = []
     return
   }
@@ -456,7 +456,7 @@ async function loadSessionList() {
   loadingSessions.value = true
   try {
     const res = await agentApi.getChatSessionList({
-      tree_id: props.treeId,
+      full_code_path: props.fullCodePath,
       page: 1,
       page_size: 50 // 加载最近50个会话
     })
@@ -591,8 +591,8 @@ async function loadSessionFromBackend() {
     return
   }
   
-  if (!props.treeId) {
-    // 如果没有 treeId，显示欢迎消息
+  if (!props.fullCodePath) {
+    // 如果没有 fullCodePath，显示欢迎消息
     if (messages.value.length === 0) {
       if (props.currentNodeName) {
         addMessage('assistant', `你好！我是 AI 助手，可以帮助你处理「${props.currentNodeName}」相关的问题。有什么可以帮助你的吗？`)
@@ -638,10 +638,10 @@ async function loadSessionFromBackend() {
 
 // 新建会话
 function handleNewSession() {
-  console.log('[AIChatPanel] 新建会话被点击, treeId:', props.treeId)
+  console.log('[AIChatPanel] 新建会话被点击, fullCodePath:', props.fullCodePath)
   
-  if (!props.treeId) {
-    ElMessage.warning('缺少服务目录ID，无法创建会话')
+  if (!props.fullCodePath) {
+    ElMessage.warning('缺少服务目录路径，无法创建会话')
     return
   }
   
@@ -792,8 +792,8 @@ onMounted(async () => {
 
 // 监听目录切换，恢复会话记录
 watch(
-  () => [props.treeId, props.package, props.currentNodeName, selectedAgentId.value],
-  async ([newTreeId, newPackage, newNodeName, newAgentId], [oldTreeId, oldPackage, oldNodeName, oldAgentId]) => {
+  () => [props.fullCodePath, props.package, props.currentNodeName, selectedAgentId.value],
+  async ([newFullCodePath, newPackage, newNodeName, newAgentId], [oldFullCodePath, oldPackage, oldNodeName, oldAgentId]) => {
     // 如果正在手动切换会话，不触发自动加载
     if (isManualSwitching.value) {
       return
@@ -804,8 +804,8 @@ watch(
       return
     }
     
-    // 如果 treeId、package 或 agentId 变化，说明切换了目录或智能体
-    if (newTreeId !== oldTreeId || newPackage !== oldPackage || newAgentId !== oldAgentId) {
+    // 如果 fullCodePath、package 或 agentId 变化，说明切换了目录或智能体
+    if (newFullCodePath !== oldFullCodePath || newPackage !== oldPackage || newAgentId !== oldAgentId) {
       // 清空当前状态
       messages.value = []
       sessionId.value = ''
@@ -965,8 +965,8 @@ async function handleSend() {
     return
   }
 
-  if (!props.treeId) {
-    ElMessage.warning('缺少服务目录ID')
+  if (!props.fullCodePath) {
+    ElMessage.warning('缺少服务目录路径')
     return
   }
 
@@ -985,7 +985,7 @@ async function handleSend() {
   try {
     const res = await agentApi.functionGenChat({
       agent_id: selectedAgentId.value,
-      tree_id: props.treeId,
+      full_code_path: props.fullCodePath,
       package: props.package || '', // 传递 Package 名称
       session_id: sessionId.value || '', // 首次为空，后端自动生成
       existing_files: props.existingFiles || [], // 传递已存在的文件名

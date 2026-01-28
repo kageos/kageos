@@ -186,6 +186,9 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 	// 使用共享 Transport（提高性能）
 	// 注意：ResponseHeaderTimeout 需要根据每个路由的超时时间动态设置
 	// 由于 Transport 是共享的，我们使用配置的超时时间，但实际超时由 Context 控制
+	// ⭐ 对于 SSE 流式接口，需要更长的 ResponseHeaderTimeout
+	// 由于 Transport 是共享的，我们为 SSE 请求创建单独的 Transport
+	// 但为了性能，我们仍然使用共享 Transport，超时由 Context 控制
 	proxy.Transport = s.sharedTransport
 
 	// 自定义请求修改（支持路径重写和TraceId传递）
@@ -319,7 +322,23 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 		}
 
 		// ✅ 创建带超时的 Context，避免高并发时请求堆积
-		ctx, cancel := context.WithTimeout(c.Request.Context(), time.Duration(timeout)*time.Second)
+		// ⭐ 特殊处理：对于 SSE 流式接口（如 /chat/stream），使用更长的超时时间或不设置超时
+		var ctx context.Context
+		var cancel context.CancelFunc
+		
+		// 检测是否是 SSE 流式接口（通过路径判断）
+		isStreamingRequest := strings.Contains(c.Request.URL.Path, "/stream") || 
+			strings.Contains(c.Request.URL.Path, "/chat/stream")
+		
+		if isStreamingRequest {
+			// SSE 流式接口：使用更长的超时时间（30分钟）或不设置超时
+			// 使用 30 分钟超时，避免无限等待，但足够长以支持长时间流式响应
+			ctx, cancel = context.WithTimeout(c.Request.Context(), 30*time.Minute)
+			logger.Debugf(s.ctx, "[Proxy] SSE streaming request detected, using extended timeout (30min): %s", c.Request.URL.Path)
+		} else {
+			// 普通请求：使用配置的超时时间
+			ctx, cancel = context.WithTimeout(c.Request.Context(), time.Duration(timeout)*time.Second)
+		}
 		defer cancel()
 
 		// ✅ 使用带超时的 Context 创建新请求

@@ -148,16 +148,36 @@ const agentTypeTagType = computed(() => {
 })
 
 const knowledgeBaseName = computed(() => {
-  return props.agent.knowledge_base?.name || `ID: ${props.agent.knowledge_base_id}`
+  // 使用 docs_paths（服务树节点路径，逗号分隔）
+  if (props.agent.docs_paths && props.agent.docs_paths.trim()) {
+    const paths = props.agent.docs_paths.split(',').map(p => p.trim()).filter(p => p)
+    if (paths.length > 0) {
+      // 如果只有一个路径，直接显示路径
+      if (paths.length === 1) {
+        return paths[0]
+      }
+      // 如果有多个路径，显示路径数量和第一个路径
+      return `${paths[0]} 等 ${paths.length} 个路径`
+    }
+  }
+  return '未关联'
 })
 
 const pluginName = computed(() => {
-  return props.agent.plugin?.name || '未关联'
+  // 使用 plugin_function_path（服务树函数路径）
+  if (props.agent.plugin_function_path && props.agent.plugin_function_path.trim()) {
+    return props.agent.plugin_function_path
+  }
+  return '未关联'
 })
 
 const llmName = computed(() => {
   if (props.agent.llm_config) {
     return `${props.agent.llm_config.name}${props.agent.llm_config.is_default ? ' (默认)' : ''}`
+  }
+  // 如果 llm_config_id 是 undefined 或 null，显示"未配置"
+  if (props.agent.llm_config_id === undefined || props.agent.llm_config_id === null) {
+    return '未配置'
   }
   return props.agent.llm_config_id === 0 ? '默认LLM' : `ID: ${props.agent.llm_config_id}`
 })

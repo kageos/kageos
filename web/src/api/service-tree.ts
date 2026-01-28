@@ -11,7 +11,80 @@ export function getServiceTree(user: string, app: string, typeFilter?: 'package'
   return get<ServiceTree[]>('/workspace/api/v1/service_tree', params)
 }
 
+// ⭐ 创建 package 类型节点（推荐使用）
+export function createPackage(data: CreateServiceTreeRequest) {
+  const payload = {
+    user: data.user,
+    app: data.app,
+    name: data.name,
+    code: data.code,
+    parent_id: data.parent_id || 0,
+    description: data.description || '',
+    tags: data.tags || '',
+    admins: data.admins || ''
+  }
+  return post<ServiceTree>('/workspace/api/v1/packages', payload)
+}
+
+// ⭐ 创建 docs 类型节点（推荐使用）
+export function createDocs(data: CreateServiceTreeRequest & {
+  content?: string
+  format?: string
+  summary?: string
+}) {
+  const payload: any = {
+    user: data.user,
+    app: data.app,
+    name: data.name,
+    code: data.code,
+    parent_id: data.parent_id || 0,
+    description: data.description || '',
+    tags: data.tags || '',
+    admins: data.admins || ''
+  }
+  
+  if (data.content) {
+    payload.content = data.content
+  }
+  if (data.format) {
+    payload.format = data.format
+  }
+  if (data.summary) {
+    payload.summary = data.summary
+  }
+  
+  return post<ServiceTree>('/workspace/api/v1/docs/crud', payload)
+}
+
+// ⭐ 创建 function 类型节点（推荐使用）
+// 注意：为了避免与 function.ts 中的 createFunction 冲突，这里命名为 createServiceTreeFunction
+export function createServiceTreeFunction(data: {
+  user: string
+  app: string
+  name: string
+  code: string
+  directory_path: string
+  template_type?: string
+  source_code: string
+  description?: string
+  tags?: string
+}) {
+  const payload = {
+    user: data.user,
+    app: data.app,
+    name: data.name,
+    code: data.code,
+    directory_path: data.directory_path,
+    template_type: data.template_type || '',
+    source_code: data.source_code,
+    description: data.description || '',
+    tags: data.tags || ''
+  }
+  return post<ServiceTree>('/workspace/api/v1/functions', payload)
+}
+
 // 创建服务目录（使用user和app参数）
+// ⚠️ 保留向后兼容，推荐使用 createPackage、createDocs、createFunction
 export function createServiceTree(data: CreateServiceTreeRequest & { type?: string }) {
   const payload: any = {
     user: data.user,
@@ -41,7 +114,40 @@ export function createServiceTree(data: CreateServiceTreeRequest & { type?: stri
   return post<ServiceTree>('/workspace/api/v1/service_tree', payload)
 }
 
+// ⭐ 更新 package 类型节点（推荐使用）
+export function updatePackage(id: number, data: { name?: string; code?: string; description?: string; tags?: string; admins?: string }) {
+  return put(`/workspace/api/v1/packages/${id}`, data)
+}
+
+// ⭐ 删除 package 类型节点（推荐使用）
+export function deletePackage(id: number) {
+  return del(`/workspace/api/v1/packages/${id}`)
+}
+
+// ⭐ 更新 function 类型节点（推荐使用）
+// 注意：为了避免与 function.ts 中的 updateFunction 冲突，这里命名为 updateServiceTreeFunction
+export function updateServiceTreeFunction(id: number, data: { name?: string; code?: string; description?: string; tags?: string }) {
+  return put(`/workspace/api/v1/functions/${id}`, data)
+}
+
+// ⭐ 删除 function 类型节点（推荐使用）
+// 注意：为了避免与 function.ts 中的 deleteFunction 冲突，这里命名为 deleteServiceTreeFunction
+export function deleteServiceTreeFunction(id: number) {
+  return del(`/workspace/api/v1/functions/${id}`)
+}
+
+// ⭐ 更新 docs 类型节点（推荐使用）
+export function updateDocs(id: number, data: { name?: string; code?: string; description?: string; tags?: string; admins?: string; content?: string; format?: string; summary?: string }) {
+  return put(`/workspace/api/v1/docs/crud/${id}`, data)
+}
+
+// ⭐ 删除 docs 类型节点（推荐使用）
+export function deleteDocs(id: number) {
+  return del(`/workspace/api/v1/docs/crud/${id}`)
+}
+
 // 更新服务目录
+// ⚠️ 保留向后兼容，推荐使用 updatePackage、updateFunction、updateDocs
 export function updateServiceTree(id: number, data: { name?: string; admins?: string }) {
   return put('/workspace/api/v1/service_tree', {
     id,
@@ -51,6 +157,7 @@ export function updateServiceTree(id: number, data: { name?: string; admins?: st
 }
 
 // 删除服务目录
+// ⚠️ 保留向后兼容，推荐使用 deletePackage、deleteFunction、deleteDocs
 export function deleteServiceTree(id: number) {
   return del(`/workspace/api/v1/service_tree/${id}`)
 }
@@ -150,13 +257,6 @@ export function copyServiceTree(id: number, targetAppId: number, targetParentId?
   return post(`/workspace/api/v1/service_tree/${id}/copy`, {
     app_id: targetAppId,
     parent_id: targetParentId
-  })
-}
-
-// Fork服务目录
-export function forkServiceTree(id: number, targetAppId: number) {
-  return post(`/workspace/api/v1/service_tree/${id}/fork`, {
-    app_id: targetAppId
   })
 }
 

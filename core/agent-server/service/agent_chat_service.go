@@ -152,13 +152,13 @@ func (s *AgentChatService) Chat(ctx context.Context, agentID int64, messages []l
 }
 
 // ListSessions 获取会话列表
-func (s *AgentChatService) ListSessions(ctx context.Context, treeID int64, page, pageSize int) ([]*model.AgentChatSession, int64, error) {
+func (s *AgentChatService) ListSessions(ctx context.Context, fullCodePath string, page, pageSize int) ([]*model.AgentChatSession, int64, error) {
 	if s.sessionRepo == nil {
 		return nil, 0, fmt.Errorf("会话Repository未初始化")
 	}
 
 	offset := (page - 1) * pageSize
-	sessions, total, err := s.sessionRepo.ListByTreeID(treeID, offset, pageSize)
+	sessions, total, err := s.sessionRepo.ListByFullCodePath(fullCodePath, offset, pageSize)
 	if err != nil {
 		return nil, 0, fmt.Errorf("获取会话列表失败: %w", err)
 	}

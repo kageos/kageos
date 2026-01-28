@@ -1194,6 +1194,9 @@ func (a *AppService) createDirectorySnapshots(ctx context.Context, appID int64, 
 				}
 			}
 
+			// 计算文件行数
+			lineCount := calculateLineCount(file.Content)
+			
 			// 创建文件快照（所有文件都创建新快照，记录新的目录版本）
 			fileSnapshot := &model.FileSnapshot{
 				AppID:          appID,
@@ -1210,6 +1213,7 @@ func (a *AppService) createDirectorySnapshots(ctx context.Context, appID int64, 
 				AppVersionNum:  currentAppVersionNum,
 				FileType:       fileType,
 				IsCurrent:      true, // 新快照标记为当前版本
+				LineCount:      lineCount,
 			}
 
 			// 如果目录节点存在，赋值 ServiceTreeID（方便后续查询和构建目录树）
@@ -1484,4 +1488,18 @@ func (a *AppService) readDirectoryFilesFromFS(ctx context.Context, user, app, fu
 
 	logger.Infof(ctx, "[readDirectoryFilesFromFS] 通过 NATS 读取目录文件成功: path=%s, fileCount=%d", fullCodePath, len(files))
 	return files, nil
+}
+
+// calculateLineCount 计算文件内容的总行数
+func calculateLineCount(content string) int {
+	if content == "" {
+		return 0
+	}
+	lines := strings.Split(content, "\n")
+	lineCount := len(lines)
+	// 如果最后一行是空行（文件末尾有换行符），不计入总行数
+	if lineCount > 0 && lines[lineCount-1] == "" {
+		lineCount--
+	}
+	return lineCount
 }

@@ -54,6 +54,93 @@ func (s *ServiceTree) CreateServiceTree(c *gin.Context) {
 	response.OkWithData(c, resp)
 }
 
+// CreatePackage 创建 package 类型节点（专门的接口）
+// @Summary 创建目录
+// @Description 创建 package 类型的服务目录节点
+// @Tags 服务目录
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Param request body dto.CreatePackageReq true "创建目录请求"
+// @Success 200 {object} dto.CreatePackageResp
+// @Failure 400 {string} string "请求参数错误"
+// @Router /api/v1/packages [post]
+func (s *ServiceTree) CreatePackage(c *gin.Context) {
+	var req dto.CreatePackageReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "参数错误: "+err.Error())
+		return
+	}
+
+	ctx := contextx.ToContext(c)
+	resp, err := s.serviceTreeService.CreatePackage(ctx, &req)
+	if err != nil {
+		response.FailWithMessage(c, "创建目录失败: "+err.Error())
+		return
+	}
+
+	response.OkWithData(c, resp)
+}
+
+// CreateFunction 创建 function 类型节点（专门的接口）
+// @Summary 创建函数
+// @Description 创建 function 类型的函数节点
+// @Tags 服务目录
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Param request body dto.CreateFunctionReq true "创建函数请求"
+// @Success 200 {object} dto.CreateFunctionResp
+// @Failure 400 {string} string "请求参数错误"
+// @Router /api/v1/functions [post]
+func (s *ServiceTree) CreateFunction(c *gin.Context) {
+	var req dto.CreateFunctionReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "参数错误: "+err.Error())
+		return
+	}
+
+	ctx := contextx.ToContext(c)
+	resp, err := s.serviceTreeService.CreateFunction(ctx, &req)
+	if err != nil {
+		response.FailWithMessage(c, "创建函数失败: "+err.Error())
+		return
+	}
+
+	response.OkWithData(c, resp)
+}
+
+// CreateDocs 创建 docs 类型节点（专门的接口）
+// @Summary 创建文档
+// @Description 创建 docs 类型的文档节点
+// @Tags 服务目录
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Param request body dto.CreateDocsReq true "创建文档请求"
+// @Success 200 {object} dto.CreateDocsResp
+// @Failure 400 {string} string "请求参数错误"
+// @Router /api/v1/docs/crud [post]
+func (s *ServiceTree) CreateDocs(c *gin.Context) {
+	var req dto.CreateDocsReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "参数错误: "+err.Error())
+		return
+	}
+
+	ctx := contextx.ToContext(c)
+	resp, err := s.serviceTreeService.CreateDocs(ctx, &req)
+	if err != nil {
+		response.FailWithMessage(c, "创建文档失败: "+err.Error())
+		return
+	}
+
+	response.OkWithData(c, resp)
+}
+
 // GetServiceTree 获取服务目录树
 // @Summary 获取服务目录树
 // @Description 获取指定应用的服务目录树形结构，支持按类型过滤（如只显示 package 类型的节点）
@@ -243,6 +330,204 @@ func (s *ServiceTree) DeleteServiceTree(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 	if err := s.serviceTreeService.DeleteServiceTree(ctx, req.ID); err != nil {
 		response.FailWithMessage(c, "删除服务目录失败: "+err.Error())
+		return
+	}
+
+	response.OkWithMessage(c, "删除成功")
+}
+
+// UpdatePackage 更新 package 类型节点（专门的接口）
+// @Summary 更新目录
+// @Description 更新 package 类型的服务目录节点
+// @Tags 服务目录
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Param id path int true "目录ID"
+// @Param request body dto.UpdatePackageReq true "更新目录请求"
+// @Success 200 {string} string "更新成功"
+// @Failure 400 {string} string "请求参数错误"
+// @Router /api/v1/packages/{id} [put]
+func (s *ServiceTree) UpdatePackage(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		response.FailWithMessage(c, "参数错误: 无效的ID")
+		return
+	}
+
+	var req dto.UpdatePackageReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "参数错误: "+err.Error())
+		return
+	}
+	req.ID = id
+
+	ctx := contextx.ToContext(c)
+	if err := s.serviceTreeService.UpdatePackage(ctx, &req); err != nil {
+		response.FailWithMessage(c, "更新目录失败: "+err.Error())
+		return
+	}
+
+	response.OkWithMessage(c, "更新成功")
+}
+
+// DeletePackage 删除 package 类型节点（专门的接口）
+// @Summary 删除目录
+// @Description 删除 package 类型的服务目录节点
+// @Tags 服务目录
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Param id path int true "目录ID"
+// @Success 200 {string} string "删除成功"
+// @Failure 400 {string} string "请求参数错误"
+// @Router /api/v1/packages/{id} [delete]
+func (s *ServiceTree) DeletePackage(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		response.FailWithMessage(c, "参数错误: 无效的ID")
+		return
+	}
+
+	ctx := contextx.ToContext(c)
+	if err := s.serviceTreeService.DeletePackage(ctx, id); err != nil {
+		response.FailWithMessage(c, "删除目录失败: "+err.Error())
+		return
+	}
+
+	response.OkWithMessage(c, "删除成功")
+}
+
+// UpdateFunction 更新 function 类型节点（专门的接口）
+// @Summary 更新函数
+// @Description 更新 function 类型的函数节点
+// @Tags 服务目录
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Param id path int true "函数ID"
+// @Param request body dto.UpdateFunctionReq true "更新函数请求"
+// @Success 200 {string} string "更新成功"
+// @Failure 400 {string} string "请求参数错误"
+// @Router /api/v1/functions/{id} [put]
+func (s *ServiceTree) UpdateFunction(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		response.FailWithMessage(c, "参数错误: 无效的ID")
+		return
+	}
+
+	var req dto.UpdateFunctionReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "参数错误: "+err.Error())
+		return
+	}
+	req.ID = id
+
+	ctx := contextx.ToContext(c)
+	if err := s.serviceTreeService.UpdateFunction(ctx, &req); err != nil {
+		response.FailWithMessage(c, "更新函数失败: "+err.Error())
+		return
+	}
+
+	response.OkWithMessage(c, "更新成功")
+}
+
+// DeleteFunction 删除 function 类型节点（专门的接口）
+// @Summary 删除函数
+// @Description 删除 function 类型的函数节点
+// @Tags 服务目录
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Param id path int true "函数ID"
+// @Success 200 {string} string "删除成功"
+// @Failure 400 {string} string "请求参数错误"
+// @Router /api/v1/functions/{id} [delete]
+func (s *ServiceTree) DeleteFunction(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		response.FailWithMessage(c, "参数错误: 无效的ID")
+		return
+	}
+
+	ctx := contextx.ToContext(c)
+	if err := s.serviceTreeService.DeleteFunction(ctx, id); err != nil {
+		response.FailWithMessage(c, "删除函数失败: "+err.Error())
+		return
+	}
+
+	response.OkWithMessage(c, "删除成功")
+}
+
+// UpdateDocs 更新 docs 类型节点（专门的接口）
+// @Summary 更新文档
+// @Description 更新 docs 类型的文档节点
+// @Tags 服务目录
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Param id path int true "文档ID"
+// @Param request body dto.UpdateDocsReq true "更新文档请求"
+// @Success 200 {string} string "更新成功"
+// @Failure 400 {string} string "请求参数错误"
+// @Router /api/v1/docs/crud/{id} [put]
+func (s *ServiceTree) UpdateDocs(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		response.FailWithMessage(c, "参数错误: 无效的ID")
+		return
+	}
+
+	var req dto.UpdateDocsReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "参数错误: "+err.Error())
+		return
+	}
+	req.ID = id
+
+	ctx := contextx.ToContext(c)
+	if err := s.serviceTreeService.UpdateDocs(ctx, &req); err != nil {
+		response.FailWithMessage(c, "更新文档失败: "+err.Error())
+		return
+	}
+
+	response.OkWithMessage(c, "更新成功")
+}
+
+// DeleteDocs 删除 docs 类型节点（专门的接口）
+// @Summary 删除文档
+// @Description 删除 docs 类型的文档节点
+// @Tags 服务目录
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Param id path int true "文档ID"
+// @Success 200 {string} string "删除成功"
+// @Failure 400 {string} string "请求参数错误"
+// @Router /api/v1/docs/crud/{id} [delete]
+func (s *ServiceTree) DeleteDocs(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		response.FailWithMessage(c, "参数错误: 无效的ID")
+		return
+	}
+
+	ctx := contextx.ToContext(c)
+	if err := s.serviceTreeService.DeleteDocs(ctx, id); err != nil {
+		response.FailWithMessage(c, "删除文档失败: "+err.Error())
 		return
 	}
 
@@ -524,6 +809,26 @@ func (s *ServiceTree) SearchFunctions(c *gin.Context) {
 	resp, err := s.serviceTreeService.SearchFunctions(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, "搜索函数失败: "+err.Error())
+		return
+	}
+
+	response.OkWithData(c, resp)
+}
+
+// GetWorkspaceContext 获取工作台环境信息
+// GET /api/v1/workspace/context?full_code_path=...
+func (s *ServiceTree) GetWorkspaceContext(c *gin.Context) {
+	var req dto.GetWorkspaceContextReq
+	req.FullCodePath = c.Query("full_code_path")
+	if req.FullCodePath == "" {
+		response.FailWithMessage(c, "full_code_path 必填")
+		return
+	}
+
+	ctx := contextx.ToContext(c)
+	resp, err := s.serviceTreeService.GetWorkspaceContext(ctx, &req)
+	if err != nil {
+		response.FailWithMessage(c, "获取工作台环境信息失败: "+err.Error())
 		return
 	}
 

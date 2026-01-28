@@ -137,6 +137,16 @@ const router = createRouter({
         requireAuth: true
       }
     },
+    // 智能工作台（需放在 /workspace/:user/:app 之前，避免被误匹配）
+    {
+      path: '/workspace/workstation',
+      name: 'workspace-workstation',
+      component: () => import('../architecture/presentation/views/WorkstationView.vue'),
+      meta: {
+        title: '智能工作台',
+        requireAuth: true
+      }
+    },
     {
       // 匹配 /workspace/:user/:app 等页面路由，但不匹配 /workspace/api/*
       // 使用更精确的路径匹配，排除 /api 开头的路径

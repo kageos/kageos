@@ -62,6 +62,17 @@
                 编辑
               </el-button>
             </p>
+            <div v-if="packageNode?.full_code_path" class="hero-workstation-row">
+              <el-button
+                type="primary"
+                :icon="ChatDotRound"
+                @click="handleOpenWorkstation"
+                size="small"
+                title="在此目录下对话、调用工具"
+              >
+                打开工作台
+              </el-button>
+            </div>
             <p class="hero-description" v-if="packageNode?.description">
               {{ packageNode.description }}
             </p>
@@ -577,7 +588,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ArrowLeft, MagicStick, Folder, Document, CopyDocument, Key, Link, Files, Clock, Lock, Avatar, Edit, Star } from '@element-plus/icons-vue'
+import { ArrowLeft, MagicStick, Folder, Document, CopyDocument, Key, Link, Files, Clock, Lock, Avatar, Edit, Star, ChatDotRound } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { ServiceTree } from '@/types'
 import type { AgentInfo, AgentListReq } from '@/api/agent'
@@ -597,7 +608,7 @@ import UserWidget from '@/architecture/presentation/widgets/UserWidget.vue'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import { WidgetType } from '@/core/constants/widget'
 import { useAuthStore } from '@/stores/auth'
-import { updateServiceTree } from '@/api/service-tree'
+import { updatePackage } from '@/api/service-tree'
 import PermissionRequestList from '@/components/Permission/PermissionRequestList.vue'
 import PermissionManageList from '@/components/Permission/PermissionManageList.vue'
 
@@ -610,6 +621,7 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   'generate-system': [agent: AgentInfo]
   'refresh': []
+  'open-workstation': []
 }>()
 
 const router = useRouter()
@@ -1038,6 +1050,11 @@ function handleEditAdminsChange(value: FieldValue): void {
   }
 }
 
+// 打开工作台：emit 由父级 WorkspaceView 接住，在右侧内嵌展示对话，不新开标签
+function handleOpenWorkstation(): void {
+  emit('open-workstation')
+}
+
 // 处理编辑按钮点击
 function handleEdit(): void {
   if (!props.packageNode) {
@@ -1072,7 +1089,7 @@ async function handleSubmitEdit(): Promise<void> {
   
   editSubmitting.value = true
   try {
-    await updateServiceTree(props.packageNode.id, {
+    await updatePackage(props.packageNode.id, {
       name: editForm.value.name.trim(),
       admins: editForm.value.admins.trim()
     })
@@ -1292,6 +1309,10 @@ function handleChildClick(child: ServiceTree): void {
                 color: var(--el-color-primary);
               }
             }
+          }
+
+          .hero-workstation-row {
+            margin-top: 8px;
           }
 
           .hero-description {

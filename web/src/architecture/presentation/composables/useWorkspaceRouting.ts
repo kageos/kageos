@@ -27,7 +27,6 @@ export function useWorkspaceRouting(
     appList: () => AppType[]
     loadAppList: () => Promise<void>
     findNodeByPath: (tree: ServiceTreeType[], path: string) => ServiceTreeType | null
-    checkAndExpandForkedPaths: () => void
     expandCurrentRoutePath: () => void
   },
   serviceProvider: IServiceProvider = serviceFactory  // 🔥 通过参数注入，提高可测试性
@@ -217,13 +216,6 @@ export function useWorkspaceRouting(
             tryLoadFunction()
           }
           
-          // 检查 _forked 参数，自动展开路径
-          if (route.query._forked) {
-            nextTick(() => {
-              options.checkAndExpandForkedPaths()
-            })
-          }
-          
           return // create/edit/detail/OnTableAddRow 模式不打开 Tab
         }
         
@@ -244,13 +236,6 @@ export function useWorkspaceRouting(
           }
           
           return // 根路径处理完成
-        }
-        
-        // 检查 _forked 参数，自动展开路径
-        if (route.query._forked) {
-          nextTick(() => {
-            options.checkAndExpandForkedPaths()
-          })
         }
         
         // 🔥 子路径（package/function 节点）：打开/激活 Tab
@@ -301,13 +286,7 @@ export function useWorkspaceRouting(
         }
         
         // 展开目录树
-        if (route.query._forked) {
-          nextTick(() => {
-            options.checkAndExpandForkedPaths()
-          })
-        } else {
-          options.expandCurrentRoutePath()
-        }
+        options.expandCurrentRoutePath()
       }
     } catch (error) {
       // 静默失败

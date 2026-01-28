@@ -4,7 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, FolderOpen, Setting } from '@element-plus/icons-vue'
 import ServiceTree from './ServiceTree.vue'
 import ServiceNodeForm from './ServiceNodeForm.vue'
-import { createServiceTree, updateServiceTree, deleteServiceTree } from '@/api/service-tree'
+import { createPackage, createServiceTreeFunction, createDocs, updatePackage, updateServiceTreeFunction, updateDocs, deletePackage, deleteServiceTreeFunction, deleteDocs } from '@/api/service-tree'
 import type { ServiceTree } from '@/types'
 
 interface Props {
@@ -257,8 +257,17 @@ const handleNodeDelete = async (data: ServiceTree) => {
 
     loading.value = true
 
-    // 调用删除API
-    // await deleteServiceTree(data.id)
+    // ⭐ 根据节点类型调用对应的删除接口
+    if (data.type === 'package') {
+      await deletePackage(data.id)
+    } else if (data.type === 'function') {
+      await deleteServiceTreeFunction(data.id)
+    } else if (data.type === 'docs') {
+      await deleteDocs(data.id)
+    } else {
+      ElMessage.warning('不支持的节点类型')
+      return
+    }
 
     // 从本地数据中移除
     removeNodeFromTree(treeData.value, data.id)
@@ -336,16 +345,51 @@ const handleFormSubmit = async (data: Partial<ServiceTree>) => {
       data.full_code_path = generateFullCodePath(parentNode.value, data.code!)
       data.app_id = props.appId
 
-      // 调用创建API
-      // const newNode = await createServiceTree(data)
-
-      // 模拟创建
-      const newNode: ServiceTree = {
-        ...data as ServiceTree,
-        id: Date.now(),
-        ref_id: 0,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+      // ⭐ 根据节点类型调用对应的创建接口
+      let newNode: ServiceTree
+      if (data.type === 'package') {
+        const resp = await createPackage({
+          user: '', // 需要从 props 或 context 获取
+          app: props.appCode,
+          name: data.name!,
+          code: data.code!,
+          parent_id: data.parent_id || 0,
+          description: data.description || '',
+          tags: data.tags || '',
+          admins: ''
+        })
+        newNode = resp as ServiceTree
+      } else if (data.type === 'function') {
+        ElMessage.warning('暂不支持通过此方式创建函数')
+        return
+      } else if (data.type === 'docs') {
+        const resp = await createDocs({
+          user: '', // 需要从 props 或 context 获取
+          app: props.appCode,
+          name: data.name!,
+          code: data.code!,
+          parent_id: data.parent_id || 0,
+          description: data.description || '',
+          tags: data.tags || '',
+          admins: '',
+          content: '',
+          format: 'markdown',
+          summary: ''
+        })
+        newNode = resp as ServiceTree
+      } else {
+        // 默认使用 package
+        const resp = await createPackage({
+          user: '',
+          app: props.appCode,
+          name: data.name!,
+          code: data.code!,
+          parent_id: data.parent_id || 0,
+          description: data.description || '',
+          tags: data.tags || '',
+          admins: ''
+        })
+        newNode = resp as ServiceTree
       }
 
       // 添加到本地数据
@@ -365,8 +409,17 @@ const handleFormSubmit = async (data: Partial<ServiceTree>) => {
         data.full_code_path = generateFullCodePath(newParent, data.code!)
       }
 
-      // 调用更新API
-      // await updateServiceTree(data.id!, data)
+      // ⭐ 根据节点类型调用对应的更新接口
+      if (data.type === 'package') {
+        await updatePackage(data.id!, { name: data.name, code: data.code, description: data.description, tags: data.tags, admins: data.admins })
+      } else if (data.type === 'function') {
+        await updateServiceTreeFunction(data.id!, { name: data.name, code: data.code, description: data.description, tags: data.tags })
+      } else if (data.type === 'docs') {
+        await updateDocs(data.id!, { name: data.name, code: data.code, description: data.description, tags: data.tags, admins: data.admins })
+      } else {
+        ElMessage.warning('不支持的节点类型')
+        return
+      }
 
       // 更新本地数据
       updateNodeInTree(treeData.value, data.id!, data)

@@ -54,6 +54,31 @@ func (r *ChatSessionRepository) ListByTreeID(treeID int64, offset, limit int) ([
 	return sessions, total, nil
 }
 
+// ListByFullCodePath 根据 FullCodePath 获取会话列表（工作台使用，包含智能体信息）
+func (r *ChatSessionRepository) ListByFullCodePath(fullCodePath string, offset, limit int) ([]*model.AgentChatSession, int64, error) {
+	var sessions []*model.AgentChatSession
+	var total int64
+
+	query := r.db.Model(&model.AgentChatSession{}).Where("full_code_path = ?", fullCodePath)
+
+	// 获取总数
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 获取列表（预加载智能体信息）
+	if err := query.
+		Preload("Agent"). // 预加载智能体信息
+		Offset(offset).
+		Limit(limit).
+		Order("created_at DESC").
+		Find(&sessions).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return sessions, total, nil
+}
+
 
 // Update 更新会话
 func (r *ChatSessionRepository) Update(session *model.AgentChatSession) error {
