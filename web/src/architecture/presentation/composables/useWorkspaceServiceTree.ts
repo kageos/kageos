@@ -13,7 +13,7 @@ import { extractWorkspacePath } from '@/utils/route'
 import { ElNotification } from 'element-plus'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
-import { createServiceTree } from '@/api/service-tree'
+import { createPackage, createServiceTree } from '@/api/service-tree'
 import type { ServiceTree as ServiceTreeType, CreateServiceTreeRequest } from '@/types'
 import type { App } from '../../domain/services/WorkspaceDomainService'
 import ServiceTreePanel from '@/components/ServiceTreePanel.vue'
@@ -133,7 +133,8 @@ export function useWorkspaceServiceTree(
         admins: createDirectoryForm.value.admins || getDefaultAdmins()  // 包含管理员字段
       }
       
-      await createServiceTree(requestData)
+      // ⭐ 使用新的分离接口
+      await createPackage(requestData)
       ElNotification.success({
         title: '成功',
         message: '创建服务目录成功'
@@ -197,51 +198,6 @@ export function useWorkspaceServiceTree(
     })
   }
 
-  // 检查并展开 forked 路径
-  const checkAndExpandForkedPaths = (
-    serviceTree: () => ServiceTreeType[],
-    serviceTreePanelRef: () => InstanceType<typeof ServiceTreePanel> | null,
-    currentApp: () => any
-  ) => {
-    const forkedParam = route.query._forked as string
-    if (!forkedParam) return
-    
-    // 检查当前应用是否匹配 URL 中的应用
-    const pathSegments = extractWorkspacePath(route.path).split('/').filter(Boolean)
-    if (pathSegments.length >= 2) {
-      const [urlUser, urlApp] = pathSegments
-      if (currentApp() && (currentApp().user !== urlUser || currentApp().code !== urlApp)) {
-        return // 应用不匹配，不展开
-      }
-    }
-    
-    if (forkedParam && serviceTree().length > 0 && serviceTreePanelRef() && currentApp()) {
-      const forkedPaths = decodeURIComponent(forkedParam).split(',').filter(Boolean)
-      
-      // 验证路径是否属于当前应用
-      const validPaths = forkedPaths.filter(path => {
-        const pathMatch = path.match(/^\/([^/]+)\/([^/]+)/)
-        if (pathMatch) {
-          const [, pathUser, pathApp] = pathMatch
-          const isValid = pathUser === currentApp()?.user && pathApp === currentApp()?.code
-          return isValid
-        }
-        return false
-      })
-      
-      if (validPaths.length > 0) {
-        nextTick(() => {
-          setTimeout(() => {
-            if (serviceTreePanelRef() && serviceTreePanelRef()!.expandPaths) {
-              serviceTreePanelRef()!.expandPaths(validPaths)
-            }
-          }, 500) // 延迟确保树完全渲染
-        })
-      }
-    }
-  }
-
-
   return {
     // 状态
     createDirectoryDialogVisible,
@@ -254,7 +210,6 @@ export function useWorkspaceServiceTree(
     resetCreateDirectoryForm,
     handleSubmitCreateDirectory,
     expandCurrentRoutePath,
-    checkAndExpandForkedPaths
   }
 }
 

@@ -157,6 +157,7 @@
             <el-tag v-if="detailData.llm_config.is_default" size="small" type="success" style="margin-left: 8px;">默认</el-tag>
           </span>
           <span v-else-if="detailData.llm_config_id === 0">使用默认 LLM</span>
+          <span v-else-if="detailData.llm_config_id === undefined || detailData.llm_config_id === null">未配置</span>
           <span v-else>ID: {{ detailData.llm_config_id }}</span>
         </el-descriptions-item>
         <el-descriptions-item label="系统提示词模板" :span="2">
@@ -182,7 +183,7 @@
     <el-dialog
       v-model="dialogVisible"
       :title="dialogTitle"
-      width="800px"
+      width="1200px"
       :close-on-click-modal="false"
       @close="handleDialogClose"
       @opened="handleDialogOpened"
@@ -211,27 +212,34 @@
           v-if="formData.agent_type === 'plugin'"
           label="插件函数路径"
           prop="plugin_function_path"
+          class="wide-form-item"
         >
-          <FunctionPathSelector
-            v-model="formData.plugin_function_path"
-            user="system"
-            app="official"
-            template-type="form"
-          />
+          <div style="width: 100%;">
+            <FunctionPathSelector
+              v-model="formData.plugin_function_path"
+              user="system"
+              app="official"
+              template-type="form"
+            />
+          </div>
           <div style="margin-top: 8px; font-size: 12px; color: #909399;">
             提示：插件类型智能体必须指定一个插件函数路径（full-code-path），支持搜索
           </div>
         </el-form-item>
-        <el-form-item label="LLM 配置">
-          <LLMSelector
-            v-model="formData.llm_config_id"
-            scope="market"
-          />
+        <el-form-item label="LLM 配置" class="wide-form-item">
+          <div style="width: 100%;">
+            <LLMSelector
+              v-model="formData.llm_config_id"
+              scope="market"
+            />
+          </div>
         </el-form-item>
-        <el-form-item label="文档路径">
-          <DocsPathSelector
-            v-model="formData.docs_paths"
-          />
+        <el-form-item label="文档路径" class="wide-form-item">
+          <div style="width: 100%;">
+            <DocsPathSelector
+              v-model="formData.docs_paths"
+            />
+          </div>
           <div style="margin-top: 8px; font-size: 12px; color: #909399;">
             提示：可以手动输入文档路径（逗号分隔），如：/system/official/sdk,/system/official/plugins。也可以点击按钮选择服务树中的路径（需要指定应用）。
           </div>
@@ -327,6 +335,7 @@ import {
   type AgentListReq,
   type AgentCreateReq,
   type AgentUpdateReq,
+  type LLMInfo,
 } from '@/api/agent'
 import type { FormRules } from 'element-plus'
 
@@ -370,6 +379,9 @@ const submitting = ref(false)
 // 详情对话框
 const detailDialogVisible = ref(false)
 const detailData = ref<AgentInfo | null>(null)
+
+// LLM 选项列表（从智能体列表中提取）
+const llmOptions = ref<LLMInfo[]>([])
 
 // 表单数据
 const formData = reactive<AgentCreateReq & { id?: number }>({
@@ -791,6 +803,26 @@ onMounted(async () => {
   margin-top: 20px;
   display: flex;
   justify-content: flex-end;
+}
+
+/* 让特定字段的输入框更宽 */
+.wide-form-item :deep(.el-input),
+.wide-form-item :deep(.el-textarea__inner),
+.wide-form-item :deep(.el-input__wrapper) {
+  width: 100%;
+}
+
+.wide-form-item :deep(.function-path-selector),
+.wide-form-item :deep(.llm-selector),
+.wide-form-item :deep(.docs-path-selector) {
+  width: 100%;
+}
+
+.wide-form-item :deep(.function-path-selector .el-input),
+.wide-form-item :deep(.llm-selector .el-input),
+.wide-form-item :deep(.docs-path-selector .el-input),
+.wide-form-item :deep(.docs-path-selector .el-textarea) {
+  width: 100%;
 }
 </style>
 

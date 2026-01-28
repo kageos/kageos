@@ -9,6 +9,14 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/dto"
 )
 
+// GetServiceTreeDetailByFullCodePath 根据 full_code_path 获取服务目录详情（agent-server -> app-server）
+// 用于从 full_code_path 解析出节点信息（含 id/tree_id），供 add_functions、权限等使用
+func GetServiceTreeDetailByFullCodePath(ctx context.Context, fullCodePath string) (*dto.GetServiceTreeDetailResp, error) {
+	params := url.Values{}
+	params.Set("full_code_path", fullCodePath)
+	return GetAPI[*dto.GetServiceTreeDetailResp](ctx, "/workspace/api/v1/service_tree/detail", params)
+}
+
 // ServiceTreeAddFunctions 向服务目录添加函数（agent-server -> workspace）
 // 将生成的代码写入到工作空间对应的目录下，并更新工作空间
 // async: true 表示异步处理（通过回调通知），false 表示同步处理（直接返回结果）
@@ -49,4 +57,11 @@ func CreateServiceTree(ctx context.Context, req *dto.CreateServiceTreeReq) (*dto
 func GetServiceTreeByID(ctx context.Context, req *dto.GetServiceTreeByIDReq) (*dto.GetServiceTreeResp, error) {
 	path := fmt.Sprintf("/workspace/api/v1/service_tree/%d", req.ID)
 	return GetAPI[*dto.GetServiceTreeResp](ctx, path, nil)
+}
+
+// GetWorkspaceContext 获取工作台环境信息（agent-server -> app-server）
+func GetWorkspaceContext(ctx context.Context, fullCodePath string) (*dto.GetWorkspaceContextResp, error) {
+	params := url.Values{}
+	params.Set("full_code_path", fullCodePath)
+	return GetAPI[*dto.GetWorkspaceContextResp](ctx, "/workspace/api/v1/workspace/context", params)
 }

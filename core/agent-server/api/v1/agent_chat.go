@@ -57,16 +57,16 @@ func (h *AgentChat) FunctionGenChat(c *gin.Context) {
 	traceId := contextx.GetTraceId(ctx)
 
 	// 记录请求日志
-	logger.Infof(ctx, "[AgentChat] 收到聊天请求 - AgentID: %d, TreeID: %d, SessionID: %s, User: %s, TraceID: %s, MessageLength: %d, FilesCount: %d",
-		req.AgentID, req.TreeID, req.SessionID, user, traceId, len(req.Message.Content), getFilesCount(req.Message.Files))
+	logger.Infof(ctx, "[AgentChat] 收到聊天请求 - AgentID: %d, FullCodePath: %s, SessionID: %s, User: %s, TraceID: %s, MessageLength: %d, FilesCount: %d",
+		req.AgentID, req.FullCodePath, req.SessionID, user, traceId, len(req.Message.Content), getFilesCount(req.Message.Files))
 
 	defer func() {
 		if err != nil {
-			logger.Errorf(ctx, "[AgentChat] 处理失败 - AgentID: %d, TreeID: %d, SessionID: %s, User: %s, TraceID: %s, Error: %v",
-				req.AgentID, req.TreeID, req.SessionID, user, traceId, err)
+			logger.Errorf(ctx, "[AgentChat] 处理失败 - AgentID: %d, FullCodePath: %s, SessionID: %s, User: %s, TraceID: %s, Error: %v",
+				req.AgentID, req.FullCodePath, req.SessionID, user, traceId, err)
 		} else {
-			logger.Infof(ctx, "[AgentChat] 处理成功 - AgentID: %d, TreeID: %d, SessionID: %s, User: %s, TraceID: %s, ResponseSessionID: %s, RecordID: %d, Status: %s",
-				req.AgentID, req.TreeID, req.SessionID, user, traceId, resp.SessionID, resp.RecordID, resp.Status)
+			logger.Infof(ctx, "[AgentChat] 处理成功 - AgentID: %d, FullCodePath: %s, SessionID: %s, User: %s, TraceID: %s, ResponseSessionID: %s, RecordID: %d, Status: %s",
+				req.AgentID, req.FullCodePath, req.SessionID, user, traceId, resp.SessionID, resp.RecordID, resp.Status)
 		}
 	}()
 
@@ -105,7 +105,7 @@ func (h *AgentChat) ListSessions(c *gin.Context) {
 	}
 
 	ctx := contextx.ToContext(c)
-	sessions, total, err := h.service.ListSessions(ctx, req.TreeID, req.Page, req.PageSize)
+	sessions, total, err := h.service.ListSessions(ctx, req.FullCodePath, req.Page, req.PageSize)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -114,11 +114,15 @@ func (h *AgentChat) ListSessions(c *gin.Context) {
 	// 转换为响应格式
 	sessionInfos := make([]dto.ChatSessionInfo, 0, len(sessions))
 	for _, session := range sessions {
+		var agentID int64
+		if session.AgentID != nil {
+			agentID = *session.AgentID
+		}
 		sessionInfo := dto.ChatSessionInfo{
 			ID:        session.ID,
 			TreeID:    session.TreeID,
 			SessionID: session.SessionID,
-			AgentID:   session.AgentID,
+			AgentID:   agentID,
 			Title:     session.Title,
 			Status:    session.Status,
 			User:      session.User,
@@ -188,10 +192,14 @@ func (h *AgentChat) ListMessages(c *gin.Context) {
 		if msg.Files != nil {
 			filesStr = *msg.Files
 		}
+		var agentID int64
+		if msg.AgentID != nil {
+			agentID = *msg.AgentID
+		}
 		messageInfos = append(messageInfos, dto.ChatMessageInfo{
 			ID:        msg.ID,
 			SessionID: msg.SessionID,
-			AgentID:   msg.AgentID, // 处理该消息的智能体ID
+			AgentID:   agentID,
 			Role:      msg.Role,
 			Content:   msg.Content,
 			Files:     filesStr,

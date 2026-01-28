@@ -69,10 +69,36 @@ func (o *ClientOptions) WithModel(model string) *ClientOptions {
 	return o
 }
 
-// Message 对话消息结构
+// ToolDef 工具定义（标准 OpenAI 格式）
+type ToolDef struct {
+	Type     string                 `json:"type"`     // 固定为 "function"
+	Function ToolFunctionDef         `json:"function"` // 函数定义
+}
+
+// ToolFunctionDef 工具函数定义
+type ToolFunctionDef struct {
+	Name        string                 `json:"name"`        // 函数名
+	Description string                 `json:"description"` // 函数描述
+	Parameters  map[string]interface{} `json:"parameters"`  // JSON Schema 参数定义
+	Strict      *bool                  `json:"strict,omitempty"` // strict 模式（DeepSeek 特有）
+}
+
+// ToolCall 工具调用（标准 OpenAI 格式）
+type ToolCall struct {
+	ID       string `json:"id"`       // 工具调用 ID（用于关联 tool 消息）
+	Type     string `json:"type"`      // 固定为 "function"
+	Function struct {
+		Name      string `json:"name"`      // 函数名
+		Arguments string `json:"arguments"` // JSON 字符串格式的参数
+	} `json:"function"`
+}
+
+// Message 对话消息结构（扩展支持 tool 角色和 tool_calls）
 type Message struct {
-	Role    string `json:"role"`    // system, user, assistant
-	Content string `json:"content"` // 消息内容
+	Role       string      `json:"role"`                 // system, user, assistant, tool
+	Content    string      `json:"content,omitempty"`     // 消息内容（tool 角色时可为空）
+	ToolCallID string      `json:"tool_call_id,omitempty"` // tool 角色的 tool_call_id
+	ToolCalls  []ToolCall  `json:"tool_calls,omitempty"`  // assistant 角色的工具调用列表
 }
 
 // ChatRequest 聊天请求
@@ -83,13 +109,16 @@ type ChatRequest struct {
 	Temperature float64        `json:"temperature"`            // 温度参数（可选）
 	Timeout     *time.Duration `json:"timeout,omitempty"`      // 请求超时时间（可选，覆盖客户端默认超时）
 	UseThinking *bool          `json:"use_thinking,omitempty"` // 是否使用思考模式（可选，GLM特有功能）
+	Tools       []ToolDef      `json:"tools,omitempty"`        // 工具定义列表（标准 Tool Calls）
+	ToolChoice  interface{}    `json:"tool_choice,omitempty"`  // 工具选择策略（auto/required/none 或具体工具名）
 }
 
 // ChatResponse 聊天响应
 type ChatResponse struct {
-	Content string `json:"content"` // AI回答内容
-	Error   string `json:"error"`   // 错误信息（如果有）
-	Usage   *Usage `json:"usage"`   // 使用统计（可选）
+	Content   string     `json:"content"`              // AI回答内容
+	ToolCalls []ToolCall `json:"tool_calls,omitempty"` // 工具调用列表（如果有）
+	Error     string     `json:"error"`                // 错误信息（如果有）
+	Usage     *Usage     `json:"usage"`                // 使用统计（可选）
 }
 
 // Usage 使用统计
@@ -101,10 +130,11 @@ type Usage struct {
 
 // StreamChunk 流式响应数据块
 type StreamChunk struct {
-	Content string `json:"content"`         // 流式内容片段
-	Done    bool   `json:"done"`            // 是否完成
-	Error   string `json:"error,omitempty"` // 错误信息（如果有）
-	Usage   *Usage `json:"usage,omitempty"` // 使用统计（完成时提供）
+	Content   string     `json:"content"`              // 流式内容片段
+	ToolCalls []ToolCall `json:"tool_calls,omitempty"` // 工具调用列表（流式输出中可能包含）
+	Done      bool       `json:"done"`                 // 是否完成
+	Error     string     `json:"error,omitempty"`       // 错误信息（如果有）
+	Usage     *Usage     `json:"usage,omitempty"`      // 使用统计（完成时提供）
 }
 
 // LLMClient 大模型客户端接口

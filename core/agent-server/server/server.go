@@ -45,7 +45,9 @@ type Server struct {
 	pluginService      *service.PluginService
 	llmService         *service.LLMService
 	agentChatService   *service.AgentChatService
-	functionGenService *service.FunctionGenService
+	functionGenService   *service.FunctionGenService
+	toolRegistry         *service.ToolRegistry
+	workspaceChatService *service.WorkspaceChatService
 
 	// 上下文
 	ctx context.Context
@@ -287,6 +289,11 @@ func (s *Server) initServices(ctx context.Context) error {
 
 	// 初始化智能体聊天服务（通过 apicall 调用 app-server，不直接依赖 repo）
 	s.agentChatService = service.NewAgentChatService(s.agentRepo, s.llmRepo, s.functionGenService, sessionRepo, messageRepo, s.functionGenRepo)
+
+	// 智能工作台 ToolRegistry（list_tools、call_tool）
+	s.toolRegistry = service.NewToolRegistry(s.pluginRepo)
+	// 智能工作台 WorkspaceChatService（会话、编排、Tool 循环；复用 LLM 配置 + ChatStream）
+	s.workspaceChatService = service.NewWorkspaceChatService(s.toolRegistry, sessionRepo, messageRepo, s.llmRepo, s.agentRepo)
 
 	logger.Infof(ctx, "[Server] Services initialized successfully")
 	return nil

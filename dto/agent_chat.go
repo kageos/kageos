@@ -16,7 +16,7 @@ type AgentChatReq struct {
 
 type FunctionGenAgentChatReq struct {
 	AgentID            int64                    `json:"agent_id" binding:"required" example:"1"`        // 智能体ID
-	TreeID             int64                    `json:"tree_id" binding:"required" example:"629"`      // 服务目录ID
+	FullCodePath       string                   `json:"full_code_path" binding:"required" example:"/luobei/demo/crm"` // 服务目录完整路径（必填）
 	SessionID          string                   `json:"session_id" example:""`                        // 会话ID（UUID），首次为空，后端自动生成
 	ExistingDirectories []ExistingDirectoryInfo `json:"existing_directories" example:"[{\"code\":\"ticket\",\"name\":\"工单管理\"}]"` // 当前目录下已存在的子目录列表（格式：目录代码:目录名称）
 	Message            Message                  `json:"message" binding:"required"`                   // 单条消息（历史记录后端自动加载）
@@ -63,8 +63,9 @@ type AddFunctionsReq struct {
 	RecordID  int64  `json:"record_id" example:"1"`                                       // function_gen 记录ID
 	MessageID int64  `json:"message_id" example:"1"`                                      // 消息ID（关联到 AgentChatMessage.ID）
 	AgentID   int64  `json:"agent_id" example:"1"`                                        // 智能体ID
-	TreeID    int64  `json:"tree_id" example:"629"`                                       // 服务目录ID
-	User      string `json:"user" example:"beiluo"`                                       // 用户标识
+	// 目录标识：使用 full_code_path（有语意、像函数名）
+	FullCodePath string `json:"full_code_path" example:"/luobei/demo/crm" binding:"required"` // 服务目录完整路径（必填）
+	User         string `json:"user" example:"beiluo"`                                       // 用户标识
 	// 处理后的结构化数据（agent-server 处理后的结果）
 	FileName   string `json:"file_name" example:"crm_ticket"`   // 从代码中提取的文件名
 	SourceCode string `json:"source_code" example:"package..."`  // 处理后的源代码（从 Markdown 中提取）
@@ -116,9 +117,9 @@ type AgentPluginFormResp struct {
 
 // ChatSessionListReq 获取会话列表请求
 type ChatSessionListReq struct {
-	TreeID   int64 `json:"tree_id" form:"tree_id" binding:"required" example:"629"`     // 服务目录ID
-	Page     int   `json:"page" form:"page" binding:"required" example:"1"`            // 页码
-	PageSize int   `json:"page_size" form:"page_size" binding:"required" example:"10"` // 每页数量
+	FullCodePath string `json:"full_code_path" form:"full_code_path" binding:"required" example:"/luobei/demo/crm"` // 服务目录完整路径
+	Page         int    `json:"page" form:"page" binding:"required" example:"1"`                                     // 页码
+	PageSize     int    `json:"page_size" form:"page_size" binding:"required" example:"10"`                           // 每页数量
 }
 
 // ChatSessionInfo 会话信息

@@ -31,8 +31,8 @@ func (s *AgentChatService) FunctionGenChat(ctx context.Context, req *dto.Functio
 	user := contextx.GetRequestUser(ctx)
 	traceId := contextx.GetTraceId(ctx)
 
-	logger.Infof(ctx, "[FunctionGenChat] 开始处理 - AgentID: %d, TreeID: %d, SessionID: %s, User: %s, TraceID: %s",
-		req.AgentID, req.TreeID, req.SessionID, user, traceId)
+	logger.Infof(ctx, "[FunctionGenChat] 开始处理 - AgentID: %d, FullCodePath: %s, SessionID: %s, User: %s, TraceID: %s",
+		req.AgentID, req.FullCodePath, req.SessionID, user, traceId)
 
 	// 1. 验证并获取智能体
 	agent, err := s.validateAndGetAgent(ctx, req.AgentID, traceId)
@@ -158,15 +158,31 @@ func (s *AgentChatService) manageSession(ctx context.Context, req *dto.FunctionG
 // createNewSession 创建新会话
 func (s *AgentChatService) createNewSession(ctx context.Context, req *dto.FunctionGenAgentChatReq, user, traceId string) (*model.AgentChatSession, error) {
 	sessionID := uuid.New().String()
-	logger.Infof(ctx, "[FunctionGenChat] 创建新会话 - SessionID: %s, TreeID: %d, TraceID: %s", sessionID, req.TreeID, traceId)
+	
+	// 根据 full_code_path 获取 TreeID（用于数据库存储）
+	var treeID int64
+	if req.FullCodePath != "" {
+		detail, err := apicall.GetServiceTreeDetailByFullCodePath(ctx, req.FullCodePath)
+		if err != nil || detail == nil {
+			return nil, fmt.Errorf("无效的 full_code_path: %s", req.FullCodePath)
+		}
+		treeID = detail.ID
+	} else {
+		return nil, fmt.Errorf("full_code_path 必填")
+	}
+	
+	logger.Infof(ctx, "[FunctionGenChat] 创建新会话 - SessionID: %s, FullCodePath: %s, TreeID: %d, TraceID: %s", 
+		sessionID, req.FullCodePath, treeID, traceId)
 
+	aid := req.AgentID
 	session := &model.AgentChatSession{
-		TreeID:    req.TreeID,
-		SessionID: sessionID,
-		AgentID:   req.AgentID,
-		Title:     "",
-		Status:    model.ChatSessionStatusGenerating,
-		User:      user,
+		TreeID:       treeID,
+		FullCodePath: req.FullCodePath,
+		SessionID:    sessionID,
+		AgentID:      &aid,
+		Title:        "",
+		Status:       model.ChatSessionStatusGenerating,
+		User:         user,
 	}
 	session.CreatedBy = user
 	session.UpdatedBy = user
@@ -221,9 +237,10 @@ func (s *AgentChatService) saveUserMessage(ctx context.Context, req *dto.Functio
 	logger.Debugf(ctx, "[FunctionGenChat] 保存用户消息 - SessionID: %s, AgentID: %d, ContentLength: %d, FilesCount: %d, TraceID: %s",
 		sessionID, req.AgentID, len(req.Message.Content), getFilesCount(req.Message.Files), traceId)
 
+	aid := req.AgentID
 	userMessage := &model.AgentChatMessage{
 		SessionID: sessionID,
-		AgentID:   req.AgentID,
+		AgentID:   &aid,
 		Role:      "user",
 		Content:   req.Message.Content,
 		User:      user,
@@ -364,7 +381,7 @@ func (s *AgentChatService) buildSystemMessage(ctx context.Context, req *dto.Func
 		systemPromptContent.WriteString("\n**重要**：生成代码时，请确保 `directory_code` 唯一，不要与已存在的子目录重名。如果生成的 `directory_code` 与已存在的子目录冲突，请修改 `directory_code`（例如：添加后缀或使用不同的名称）。\n")
 		logger.Infof(ctx, "[FunctionGenChat] 已存在子目录上下文已添加 - DirectoriesCount: %d, Directories: %v, TraceID: %s", len(req.ExistingDirectories), req.ExistingDirectories, traceId)
 	} else {
-		logger.Infof(ctx, "[FunctionGenChat] 当前目录下没有子目录 - TreeID: %d, TraceID: %s", req.TreeID, traceId)
+		logger.Infof(ctx, "[FunctionGenChat] 当前目录下没有子目录 - FullCodePath: %s, TraceID: %s", req.FullCodePath, traceId)
 	}
 
 	logger.Infof(ctx, "[FunctionGenChat] System message 构建完成 - SystemPromptLength: %d, KnowledgeLength: %d, TotalLength: %d, TraceID: %s",
@@ -489,14 +506,26 @@ func (s *AgentChatService) prepareLLMRequest(ctx context.Context, agent *model.A
 
 // createFunctionGenRecord 创建函数生成记录
 func (s *AgentChatService) createFunctionGenRecord(ctx context.Context, req *dto.FunctionGenAgentChatReq, sessionID string, messageID int64, user string, pluginResp *dto.PluginRunResp, traceId string) (*model.FunctionGenRecord, error) {
-	logger.Infof(ctx, "[FunctionGenChat] 创建生成记录 - SessionID: %s, MessageID: %d, AgentID: %d, TreeID: %d, TraceID: %s",
-		sessionID, messageID, req.AgentID, req.TreeID, traceId)
+	// 根据 full_code_path 获取 TreeID（用于数据库存储）
+	var treeID int64
+	if req.FullCodePath != "" {
+		detail, err := apicall.GetServiceTreeDetailByFullCodePath(ctx, req.FullCodePath)
+		if err != nil || detail == nil {
+			return nil, fmt.Errorf("无效的 full_code_path: %s", req.FullCodePath)
+		}
+		treeID = detail.ID
+	} else {
+		return nil, fmt.Errorf("full_code_path 必填")
+	}
+	
+	logger.Infof(ctx, "[FunctionGenChat] 创建生成记录 - SessionID: %s, MessageID: %d, AgentID: %d, FullCodePath: %s, TreeID: %d, TraceID: %s",
+		sessionID, messageID, req.AgentID, req.FullCodePath, treeID, traceId)
 
 	record := &model.FunctionGenRecord{
 		SessionID: sessionID,
 		MessageID: messageID,
 		AgentID:   req.AgentID,
-		TreeID:    req.TreeID,
+		TreeID:    treeID,
 		Status:    model.FunctionGenStatusGenerating,
 		User:      user,
 	}
@@ -564,15 +593,15 @@ func (s *AgentChatService) asyncCallLLM(ctx context.Context, req *dto.FunctionGe
 			logger.Errorf(ctx, "[FunctionGen] 更新代码失败: %v, RecordID: %d, TraceID: %s", err, record.ID, traceId)
 		}
 
-		// ⭐ 直接传递代码和父目录 TreeID，让 app-server 处理元数据解析和目录创建
+		// ⭐ 直接传递代码和父目录（full_code_path 优先，否则 tree_id），让 app-server 处理元数据解析和目录创建
 		// 发布结果到 app-server
 		resultData := &dto.AddFunctionsReq{
-			RecordID:   record.ID,
-			MessageID:  record.MessageID,
-			AgentID:    req.AgentID,
-			TreeID:     req.TreeID,    // 父目录ID，app-server 会根据元数据创建子目录
-			User:       user,          // 当前用户
-			SourceCode: extractedCode, // 传递完整代码，app-server 会解析元数据
+			RecordID:     record.ID,
+			MessageID:    record.MessageID,
+			AgentID:      req.AgentID,
+			FullCodePath: req.FullCodePath, // 必填
+			User:         user,
+			SourceCode:   extractedCode, // 传递完整代码，app-server 会解析元数据
 		}
 
 		logger.Infof(ctx, "[FunctionGenChat] 提交生成的代码到 app-server - RecordID: %d, SourceCodeLength: %d, TraceID: %s",
@@ -588,9 +617,10 @@ func (s *AgentChatService) asyncCallLLM(ctx context.Context, req *dto.FunctionGe
 
 // saveAssistantMessage 保存 assistant 消息
 func (s *AgentChatService) saveAssistantMessage(ctx context.Context, sessionID string, agentID int64, content, user string, recordID int64, traceId string) {
+	aid := agentID
 	assistantMsg := &model.AgentChatMessage{
 		SessionID: sessionID,
-		AgentID:   agentID,
+		AgentID:   &aid,
 		Role:      "assistant",
 		Content:   content,
 		User:      user,

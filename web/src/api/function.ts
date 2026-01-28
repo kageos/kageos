@@ -234,14 +234,6 @@ export function importData(router: string, formData: FormData) {
   })
 }
 
-// Fork 函数组（支持批量）
-export function forkFunctionGroup(data: {
-  source_to_target_map: Record<string, string>
-  target_app_id: number
-}) {
-  return post<{ message: string }>('/workspace/api/v1/function/fork', data)
-}
-
 /**
  * 获取函数组信息（用于 Hub 发布）
  * @param fullGroupCode 完整函数组代码，例如：/luobei/testgroup/plugins/tools_cashier

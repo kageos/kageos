@@ -3,13 +3,12 @@ package server
 import (
 	"context"
 	"fmt"
-	"time"
 
+	"github.com/ai-agent-os/ai-agent-os/pkg/config"
+	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/hub/backend/model"
 	"github.com/ai-agent-os/hub/backend/repository"
 	"github.com/ai-agent-os/hub/backend/service"
-	"github.com/ai-agent-os/ai-agent-os/pkg/config"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -108,7 +107,7 @@ func (s *Server) initDatabase(ctx context.Context) error {
 	// 连接 MySQL
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local",
 		dbCfg.User, dbCfg.Password, dbCfg.Host, dbCfg.Port, dbCfg.Name)
-	
+
 	var err error
 	s.db, err = gorm.Open(mysql.Open(dsn), gormConfig)
 	if err != nil {
@@ -128,21 +127,21 @@ func (s *Server) initDatabase(ctx context.Context) error {
 func (s *Server) initServices(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Initializing services...")
 
-		// 初始化 Repository
-		hubDirectoryRepo := repository.NewHubDirectoryRepository(s.db)
-		hubServiceTreeRepo := repository.NewHubServiceTreeRepository(s.db)
-		hubSnapshotRepo := repository.NewHubSnapshotRepository(s.db)
-		hubFileSnapshotRepo := repository.NewHubFileSnapshotRepository(s.db)
-		// constructionLogRepo := repository.NewConstructionLogRepository(s.db)
-		// paymentRepo := repository.NewPaymentRepository(s.db)
+	// 初始化 Repository
+	hubDirectoryRepo := repository.NewHubDirectoryRepository(s.db)
+	hubServiceTreeRepo := repository.NewHubServiceTreeRepository(s.db)
+	hubSnapshotRepo := repository.NewHubSnapshotRepository(s.db)
+	hubFileSnapshotRepo := repository.NewHubFileSnapshotRepository(s.db)
+	// constructionLogRepo := repository.NewConstructionLogRepository(s.db)
+	// paymentRepo := repository.NewPaymentRepository(s.db)
 
-		// 初始化 Service
-		s.hubDirectoryService = service.NewHubDirectoryService(
-			hubDirectoryRepo,
-			hubServiceTreeRepo,
-			hubSnapshotRepo,
-			hubFileSnapshotRepo,
-		)
+	// 初始化 Service
+	s.hubDirectoryService = service.NewHubDirectoryService(
+		hubDirectoryRepo,
+		hubServiceTreeRepo,
+		hubSnapshotRepo,
+		hubFileSnapshotRepo,
+	)
 	// s.authService = service.NewAuthService(s.osClient)
 	// s.paymentService = service.NewPaymentService(paymentRepo)
 
@@ -181,4 +180,3 @@ func (s *Server) healthHandler(c *gin.Context) {
 		"service": "hub-server",
 	})
 }
-

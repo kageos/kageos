@@ -162,6 +162,15 @@
                     创建文档
                   </el-dropdown-item>
                   
+                  <!-- 打开工作台（package 类型，含根目录） -->
+                  <el-dropdown-item 
+                    v-if="data.type === 'package'" 
+                    command="open-workstation"
+                  >
+                    <el-icon><ChatDotRound /></el-icon>
+                    打开工作台
+                  </el-dropdown-item>
+                  
                   <!-- 重命名选项（仅对 package 类型） -->
                   <el-dropdown-item 
                     v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.update)" 
@@ -253,14 +262,14 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Plus, MoreFilled, Link, CopyDocument, Document, Clock, Upload, Download, Delete, Key, User, DocumentChecked, Edit } from '@element-plus/icons-vue'
+import { Plus, MoreFilled, Link, CopyDocument, Document, Clock, Upload, Download, Delete, Key, User, DocumentChecked, Edit, ChatDotRound } from '@element-plus/icons-vue'
 import ChartIcon from './icons/ChartIcon.vue'
 import TableIcon from './icons/TableIcon.vue'
 import FormIcon from './icons/FormIcon.vue'
 import { ElTag, ElLink, ElMessageBox, ElMessage } from 'element-plus'
 import type { ServiceTree } from '@/types'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
-import { copyDirectory, updateServiceTree } from '@/api/service-tree'
+import { copyDirectory, updatePackage, updateServiceTreeFunction, updateDocs } from '@/api/service-tree'
 import {
   findPathToNode,
   expandParentNodes,
@@ -423,7 +432,17 @@ const handleRename = async (node: ServiceTree) => {
     }
     
     try {
-      await updateServiceTree(node.id, { name: trimmedName })
+      // ⭐ 根据节点类型调用对应的更新接口
+      if (node.type === 'package') {
+        await updatePackage(node.id, { name: trimmedName })
+      } else if (node.type === 'function') {
+        await updateServiceTreeFunction(node.id, { name: trimmedName })
+      } else if (node.type === 'docs') {
+        await updateDocs(node.id, { name: trimmedName })
+      } else {
+        ElMessage.warning('不支持的节点类型')
+        return
+      }
       ElMessage.success('重命名成功')
       
       // 刷新树
@@ -890,6 +909,10 @@ const handleNodeAction = (command: string, data: ServiceTree) => {
     handleApprovePermission(data)
   } else if (command === 'manage-permission') {
     handleManagePermission(data)
+  } else if (command === 'open-workstation') {
+    const q = data.full_code_path || ''
+    const url = window.location.origin + '/workspace/workstation' + (q ? '?full_code_path=' + encodeURIComponent(q) : '')
+    window.open(url, '_blank')
   }
 }
 

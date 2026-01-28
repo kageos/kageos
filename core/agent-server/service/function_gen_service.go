@@ -99,8 +99,8 @@ func (s *FunctionGenService) callFormAPI(ctx context.Context, formPath string, r
 // SubmitGeneratedCodeTask 提交生成的函数代码任务到 app-server（通过 HTTP）
 // req: 函数生成请求（包含生成的代码和目录信息）
 func (s *FunctionGenService) SubmitGeneratedCodeTask(ctx context.Context, req *dto.AddFunctionsReq) error {
-	logger.Infof(ctx, "[FunctionGenService] 开始提交生成的代码到 app-server (HTTP) - RecordID: %d, AgentID: %d, TreeID: %d",
-		req.RecordID, req.AgentID, req.TreeID)
+	logger.Infof(ctx, "[FunctionGenService] 开始提交生成的代码到 app-server (HTTP) - RecordID: %d, AgentID: %d, FullCodePath: %s",
+		req.RecordID, req.AgentID, req.FullCodePath)
 
 	// 1. 设置 Async 为 true，使用异步模式（通过回调通知结果）
 	req.Async = true

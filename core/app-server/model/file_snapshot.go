@@ -22,6 +22,7 @@ type FileSnapshot struct {
 	AppVersionNum  int    `json:"app_version_num" gorm:"index:idx_app_version;comment:应用版本号（数字部分，如 101）"`
 	FileType       string `json:"file_type" gorm:"type:varchar(50);comment:文件类型（如 go, json, yaml等）"`
 	IsCurrent      bool   `json:"is_current" gorm:"default:false;index:idx_is_current;comment:是否为当前版本（用于快速查询当前在用的快照）"`
+	LineCount      int    `json:"line_count" gorm:"default:0;comment:文件总行数"`
 }
 
 func (FileSnapshot) TableName() string {

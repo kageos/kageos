@@ -97,7 +97,30 @@ func (r *AgentRepository) List(req dto.AgentListReq, currentUser string) ([]*mod
 
 // Update 更新智能体
 func (r *AgentRepository) Update(agent *model.Agent) error {
-	return r.db.Save(agent).Error
+
+	mp := map[string]interface{}{
+		"name":                   agent.Name,
+		"agent_type":             agent.AgentType,
+		"chat_type":              agent.ChatType,
+		"enabled":                agent.Enabled,
+		"author":                 agent.Author,
+		"description":            agent.Description,
+		"timeout":                agent.Timeout,
+		"plugin_function_path":   agent.PluginFunctionPath,
+		"docs_paths":             agent.DocsPaths,
+		"llm_config_id":          agent.LLMConfigID, // 确保 LLMConfigID 被更新
+		"system_prompt_template": agent.SystemPromptTemplate,
+		"metadata":               agent.Metadata,
+		"visibility":             agent.Visibility,
+		"admin":                  agent.Admin,
+		"logo":                   agent.Logo,
+		"greeting":               agent.Greeting,
+		"greeting_type":          agent.GreetingType,
+		"updated_by":             agent.UpdatedBy,
+	}
+	// 使用 Updates 显式更新所有字段，确保 LLMConfigID 等字段被正确更新
+	return r.db.Model(&model.Agent{}).Where("id = ?", agent.ID).
+		Updates(mp).Error
 }
 
 // IncrementGenerationCount 增加智能体的生成次数（原子操作）
@@ -121,4 +144,3 @@ func (r *AgentRepository) Enable(id int64) error {
 func (r *AgentRepository) Disable(id int64) error {
 	return r.db.Model(&model.Agent{}).Where("id = ?", id).Update("enabled", false).Error
 }
-

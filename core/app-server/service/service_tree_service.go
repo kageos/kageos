@@ -279,6 +279,163 @@ func (s *ServiceTreeService) CreateServiceTree(ctx context.Context, req *dto.Cre
 	return resp, nil
 }
 
+// CreatePackage 创建 package 类型节点（专门的接口）
+func (s *ServiceTreeService) CreatePackage(ctx context.Context, req *dto.CreatePackageReq) (*dto.CreatePackageResp, error) {
+	// 转换为通用请求格式
+	createReq := &dto.CreateServiceTreeReq{
+		User:        req.User,
+		App:         req.App,
+		Name:        req.Name,
+		Code:        req.Code,
+		ParentID:    req.ParentID,
+		Type:        model.ServiceTreeTypePackage,
+		Description: req.Description,
+		Tags:        req.Tags,
+		Admins:      req.Admins,
+	}
+
+	// 调用通用创建方法
+	resp, err := s.CreateServiceTree(ctx, createReq)
+	if err != nil {
+		return nil, err
+	}
+
+	// 转换为专门的响应格式
+	return &dto.CreatePackageResp{
+		ID:           resp.ID,
+		Name:         resp.Name,
+		Code:         resp.Code,
+		ParentID:     resp.ParentID,
+		Type:         resp.Type,
+		Description:  resp.Description,
+		Tags:         resp.Tags,
+		AppID:        resp.AppID,
+		FullCodePath: resp.FullCodePath,
+		Version:      resp.Version,
+		VersionNum:   resp.VersionNum,
+		Admins:       resp.Admins,
+	}, nil
+}
+
+// CreateFunction 创建 function 类型节点（专门的接口）
+func (s *ServiceTreeService) CreateFunction(ctx context.Context, req *dto.CreateFunctionReq) (*dto.CreateFunctionResp, error) {
+	// 根据 directory_path 获取父目录
+	parentTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(req.DirectoryPath)
+	if err != nil {
+		return nil, fmt.Errorf("获取父目录失败: %w", err)
+	}
+
+	// 预加载 App 信息（如果还没有加载）
+	if parentTree.App == nil {
+		app, err := s.appRepo.GetAppByID(parentTree.AppID)
+		if err != nil {
+			return nil, fmt.Errorf("获取应用信息失败: %w", err)
+		}
+		parentTree.App = app
+	}
+
+	// 构建 AddFunctionsReq（复用现有逻辑）
+	addFunctionsReq := &dto.AddFunctionsReq{
+		FullCodePath: req.DirectoryPath,
+		User:         req.User,
+		FileName:     req.Code, // 使用 code 作为文件名
+		SourceCode:   req.SourceCode,
+	}
+
+	// 调用 AddFunctions 方法
+	addResp, err := s.AddFunctions(ctx, addFunctionsReq)
+	if err != nil {
+		return nil, fmt.Errorf("创建函数失败: %w", err)
+	}
+
+	if !addResp.Success {
+		return nil, fmt.Errorf("创建函数失败: %s", addResp.Error)
+	}
+
+	// 获取创建的 function 节点（通过路径查找）
+	expectedPath := req.DirectoryPath + "/" + req.Code
+	functionTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(expectedPath)
+	if err != nil {
+		// 如果找不到，返回基本信息（函数可能已创建但 ServiceTree 记录可能还未同步）
+		// 这种情况可能发生在异步处理时，返回基本信息让调用方知道函数已创建
+		logger.Warnf(ctx, "[CreateFunction] 无法通过路径查找函数节点: %s, error: %v，返回基本信息", expectedPath, err)
+		return &dto.CreateFunctionResp{
+			ID:           0,
+			Name:         req.Name,
+			Code:         req.Code,
+			ParentID:     parentTree.ID,
+			Type:         model.ServiceTreeTypeFunction,
+			TemplateType: req.TemplateType,
+			Description:  req.Description,
+			Tags:         req.Tags,
+			AppID:        parentTree.AppID,
+			FullCodePath: expectedPath,
+			Version:      "v1",
+			VersionNum:   1,
+		}, nil
+	}
+
+	// 转换为专门的响应格式
+	return &dto.CreateFunctionResp{
+		ID:           functionTree.ID,
+		Name:         functionTree.Name,
+		Code:         functionTree.Code,
+		ParentID:     functionTree.ParentID,
+		Type:         functionTree.Type,
+		TemplateType: functionTree.TemplateType,
+		Description:  functionTree.Description,
+		Tags:         functionTree.Tags,
+		AppID:        functionTree.AppID,
+		RefID:        functionTree.RefID,
+		FullCodePath: functionTree.FullCodePath,
+		Version:      functionTree.Version,
+		VersionNum:   functionTree.VersionNum,
+	}, nil
+}
+
+// CreateDocs 创建 docs 类型节点（专门的接口）
+func (s *ServiceTreeService) CreateDocs(ctx context.Context, req *dto.CreateDocsReq) (*dto.CreateDocsResp, error) {
+	// 转换为通用请求格式
+	createReq := &dto.CreateServiceTreeReq{
+		User:        req.User,
+		App:         req.App,
+		Name:        req.Name,
+		Code:        req.Code,
+		ParentID:    req.ParentID,
+		Type:        model.ServiceTreeTypeDocs,
+		Description: req.Description,
+		Tags:        req.Tags,
+		Admins:      req.Admins,
+		DocContent:  req.Content,
+		DocFormat:   req.Format,
+		DocSummary:  req.Summary,
+	}
+
+	// 调用通用创建方法
+	resp, err := s.CreateDocsNode(ctx, createReq)
+	if err != nil {
+		return nil, err
+	}
+
+	// 获取创建的文档记录ID（从 ServiceTree.RefID 获取）
+	docID := resp.RefID
+
+	// 转换为专门的响应格式
+	return &dto.CreateDocsResp{
+		ID:           resp.ID,
+		Name:         resp.Name,
+		Code:         resp.Code,
+		ParentID:     resp.ParentID,
+		Type:         resp.Type,
+		Description:  resp.Description,
+		Tags:         resp.Tags,
+		AppID:        resp.AppID,
+		FullCodePath: resp.FullCodePath,
+		Admins:       resp.Admins,
+		DocID:        docID,
+	}, nil
+}
+
 // CreateDocsNode 创建文档节点（docs 类型）
 // ⭐ 专门用于创建文档节点，不创建文件系统目录
 func (s *ServiceTreeService) CreateDocsNode(ctx context.Context, req *dto.CreateServiceTreeReq) (*dto.CreateServiceTreeResp, error) {
@@ -1018,6 +1175,170 @@ func (s *ServiceTreeService) UpdateServiceTreeMetadata(ctx context.Context, req 
 
 	logger.Infof(ctx, "[ServiceTreeService] Updated service tree: ID=%d", req.ID)
 	return nil
+}
+
+// UpdatePackage 更新 package 类型节点（专门的接口）
+func (s *ServiceTreeService) UpdatePackage(ctx context.Context, req *dto.UpdatePackageReq) error {
+	// 转换为通用请求格式
+	updateReq := &dto.UpdateServiceTreeMetadataReq{
+		ID:          req.ID,
+		Name:        req.Name,
+		Code:        req.Code,
+		Description: req.Description,
+		Tags:        req.Tags,
+		Admins:      req.Admins,
+	}
+
+	// 调用通用更新方法
+	return s.UpdateServiceTreeMetadata(ctx, updateReq)
+}
+
+// UpdateFunction 更新 function 类型节点（专门的接口）
+func (s *ServiceTreeService) UpdateFunction(ctx context.Context, req *dto.UpdateFunctionReq) error {
+	// 转换为通用请求格式
+	updateReq := &dto.UpdateServiceTreeMetadataReq{
+		ID:          req.ID,
+		Name:        req.Name,
+		Code:        req.Code,
+		Description: req.Description,
+		Tags:        req.Tags,
+		// function 类型不支持 Admins 字段
+	}
+
+	// 调用通用更新方法
+	return s.UpdateServiceTreeMetadata(ctx, updateReq)
+}
+
+// UpdateDocs 更新 docs 类型节点（专门的接口）
+func (s *ServiceTreeService) UpdateDocs(ctx context.Context, req *dto.UpdateDocsReq) error {
+	// 转换为通用请求格式
+	updateReq := &dto.UpdateServiceTreeMetadataReq{
+		ID:          req.ID,
+		Name:        req.Name,
+		Code:        req.Code,
+		Description: req.Description,
+		Tags:        req.Tags,
+		Admins:      req.Admins,
+	}
+
+	// 调用通用更新方法
+	err := s.UpdateServiceTreeMetadata(ctx, updateReq)
+	if err != nil {
+		return err
+	}
+
+	// 如果提供了文档内容相关字段，更新文档内容
+	if req.Content != nil || req.Format != nil || req.Summary != nil {
+		// 获取 ServiceTree 节点
+		serviceTree, err := s.serviceTreeRepo.GetServiceTreeByID(req.ID)
+		if err != nil {
+			return fmt.Errorf("获取文档节点失败: %w", err)
+		}
+
+		// 验证节点类型为 docs
+		if serviceTree.Type != model.ServiceTreeTypeDocs {
+			return fmt.Errorf("节点类型不是 docs，当前类型: %s", serviceTree.Type)
+		}
+
+		// 获取文档记录
+		_, err = s.docService.GetDoc(ctx, serviceTree.FullCodePath)
+		if err != nil {
+			// 如果错误是"不存在"，创建新文档
+			if strings.Contains(err.Error(), "不存在") {
+				docReq := &dto.CreateDocReq{
+					FullCodePath: serviceTree.FullCodePath,
+					Content:      "",
+					Format:       "markdown",
+					Summary:      "",
+				}
+				if req.Content != nil {
+					docReq.Content = *req.Content
+				}
+				if req.Format != nil {
+					docReq.Format = *req.Format
+				}
+				if req.Summary != nil {
+					docReq.Summary = *req.Summary
+				}
+
+				_, err = s.docService.CreateDoc(ctx, docReq)
+				if err != nil {
+					return fmt.Errorf("创建文档内容失败: %w", err)
+				}
+			} else {
+				return fmt.Errorf("获取文档记录失败: %w", err)
+			}
+		} else {
+			// 更新文档内容
+			updateDocReq := &dto.UpdateDocReq{
+				FullCodePath: serviceTree.FullCodePath,
+			}
+			if req.Content != nil {
+				updateDocReq.Content = *req.Content
+			}
+			if req.Format != nil {
+				updateDocReq.Format = *req.Format
+			}
+			if req.Summary != nil {
+				updateDocReq.Summary = *req.Summary
+			}
+
+			_, err = s.docService.UpdateDoc(ctx, updateDocReq)
+			if err != nil {
+				return fmt.Errorf("更新文档内容失败: %w", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// DeletePackage 删除 package 类型节点（专门的接口）
+func (s *ServiceTreeService) DeletePackage(ctx context.Context, id int64) error {
+	// 验证节点类型
+	serviceTree, err := s.serviceTreeRepo.GetServiceTreeByID(id)
+	if err != nil {
+		return fmt.Errorf("获取节点失败: %w", err)
+	}
+
+	if serviceTree.Type != model.ServiceTreeTypePackage {
+		return fmt.Errorf("节点类型不是 package，当前类型: %s", serviceTree.Type)
+	}
+
+	// 调用通用删除方法
+	return s.DeleteServiceTree(ctx, id)
+}
+
+// DeleteFunction 删除 function 类型节点（专门的接口）
+func (s *ServiceTreeService) DeleteFunction(ctx context.Context, id int64) error {
+	// 验证节点类型
+	serviceTree, err := s.serviceTreeRepo.GetServiceTreeByID(id)
+	if err != nil {
+		return fmt.Errorf("获取节点失败: %w", err)
+	}
+
+	if serviceTree.Type != model.ServiceTreeTypeFunction {
+		return fmt.Errorf("节点类型不是 function，当前类型: %s", serviceTree.Type)
+	}
+
+	// 调用通用删除方法
+	return s.DeleteServiceTree(ctx, id)
+}
+
+// DeleteDocs 删除 docs 类型节点（专门的接口）
+func (s *ServiceTreeService) DeleteDocs(ctx context.Context, id int64) error {
+	// 验证节点类型
+	serviceTree, err := s.serviceTreeRepo.GetServiceTreeByID(id)
+	if err != nil {
+		return fmt.Errorf("获取节点失败: %w", err)
+	}
+
+	if serviceTree.Type != model.ServiceTreeTypeDocs {
+		return fmt.Errorf("节点类型不是 docs，当前类型: %s", serviceTree.Type)
+	}
+
+	// 调用通用删除方法（会级联删除文档内容）
+	return s.DeleteServiceTree(ctx, id)
 }
 
 // DeleteServiceTree 删除服务目录
@@ -2337,11 +2658,15 @@ func getParentPath(fullCodePath string) string {
 }
 
 // AddFunctions 向服务目录添加函数（同步处理）
+// 目录由 full_code_path 指定；若 SourceCode 含元数据且 directory_code 与当前目录不同，则自动创建/查找子目录后写入（与 ProcessFunctionGenResult 行为一致）
 func (s *ServiceTreeService) AddFunctions(ctx context.Context, req *dto.AddFunctionsReq) (*dto.AddFunctionsResp, error) {
-	// 1. 根据 TreeID 获取 ServiceTree（需要预加载 App）
-	serviceTree, err := s.serviceTreeRepo.GetByID(req.TreeID)
+	// 1. 根据 full_code_path 获取父目录 ServiceTree（需要预加载 App）
+	if strings.TrimSpace(req.FullCodePath) == "" {
+		return &dto.AddFunctionsResp{Success: false, Error: "full_code_path 必填"}, fmt.Errorf("full_code_path 必填")
+	}
+	parentTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(strings.TrimSpace(req.FullCodePath))
 	if err != nil {
-		logger.Errorf(ctx, "[ServiceTreeService] 获取 ServiceTree 失败: TreeID=%d, error=%v", req.TreeID, err)
+		logger.Errorf(ctx, "[ServiceTreeService] 获取 ServiceTree 失败: FullCodePath=%s, error=%v", req.FullCodePath, err)
 		return &dto.AddFunctionsResp{
 			Success: false,
 			Error:   err.Error(),
@@ -2349,26 +2674,16 @@ func (s *ServiceTreeService) AddFunctions(ctx context.Context, req *dto.AddFunct
 	}
 
 	// 预加载 App 信息（如果还没有加载）
-	if serviceTree.App == nil {
-		app, err := s.appRepo.GetAppByID(serviceTree.AppID)
+	if parentTree.App == nil {
+		app, err := s.appRepo.GetAppByID(parentTree.AppID)
 		if err != nil {
-			logger.Errorf(ctx, "[ServiceTreeService] 获取 App 失败: AppID=%d, error=%v", serviceTree.AppID, err)
+			logger.Errorf(ctx, "[ServiceTreeService] 获取 App 失败: AppID=%d, error=%v", parentTree.AppID, err)
 			return &dto.AddFunctionsResp{
 				Success: false,
 				Error:   err.Error(),
 			}, err
 		}
-		serviceTree.App = app
-	}
-
-	// 2. 从 ServiceTree 中提取 package 路径（使用 model 方法）
-	packagePath := serviceTree.GetPackagePathForFileCreation()
-
-	// 3. 使用 agent-server 处理后的结构化数据
-	fileName := req.FileName
-	if fileName == "" {
-		logger.Warnf(ctx, "[ServiceTreeService] agent-server 未提取到文件名，使用 ServiceTree.Code 作为 fallback: %s", serviceTree.Code)
-		fileName = serviceTree.Code
+		parentTree.App = app
 	}
 
 	sourceCode := req.SourceCode
@@ -2380,19 +2695,48 @@ func (s *ServiceTreeService) AddFunctions(ctx context.Context, req *dto.AddFunct
 		}, fmt.Errorf("SourceCode 不能为空")
 	}
 
+	// 2. 解析元数据，按需创建/查找子目录（与 ProcessFunctionGenResult 一致）
+	targetTree := parentTree
+	fileName := req.FileName
+
+	var meta metadata.Metadata
+	if err := metadata.ParseMetadata(sourceCode, &meta); err == nil && meta.DirectoryCode != "" && meta.File != "" {
+		// 元数据有效：创建或查找子目录，写入到子目录
+		targetTree, err = s.createOrFindDirectory(ctx, parentTree, &meta)
+		if err != nil {
+			logger.Errorf(ctx, "[ServiceTreeService] 创建或查找目录失败: %v", err)
+			return &dto.AddFunctionsResp{Success: false, Error: err.Error()}, err
+		}
+		if targetTree.App == nil {
+			app, err := s.appRepo.GetAppByID(targetTree.AppID)
+			if err != nil {
+				logger.Errorf(ctx, "[ServiceTreeService] 获取 App 失败: AppID=%d, error=%v", targetTree.AppID, err)
+				return &dto.AddFunctionsResp{Success: false, Error: err.Error()}, err
+			}
+			targetTree.App = app
+		}
+		fileName = strings.TrimSuffix(meta.File, ".go")
+		logger.Infof(ctx, "[ServiceTreeService] 同步添加函数：按元数据写入子目录 - DirectoryCode: %s, File: %s", meta.DirectoryCode, fileName)
+	}
+
+	if fileName == "" {
+		logger.Warnf(ctx, "[ServiceTreeService] 未从元数据或请求得到文件名，使用 ServiceTree.Code 作为 fallback: %s", targetTree.Code)
+		fileName = targetTree.Code
+	}
+
+	// 3. 从目标目录提取 package 路径并构建 CreateFunctionInfo
+	packagePath := targetTree.GetPackagePathForFileCreation()
 	logger.Infof(ctx, "[ServiceTreeService] 添加函数: DirectoryPath=%s, FileName=%s, SourceCodeLength=%d", packagePath, fileName, len(sourceCode))
 
-	// 4. 构建 CreateFunctionInfo
 	createFunction := &dto.CreateFunctionInfo{
 		DirectoryPath: packagePath,
 		FileName:      fileName,
 		SourceCode:    sourceCode,
 	}
 
-	// 5. 调用 AppService.UpdateApp
 	updateReq := &dto.UpdateAppReq{
 		User:            req.User,
-		App:             serviceTree.App.Code,
+		App:             targetTree.App.Code,
 		CreateFunctions: []*dto.CreateFunctionInfo{createFunction},
 	}
 
@@ -2405,21 +2749,23 @@ func (s *ServiceTreeService) AddFunctions(ctx context.Context, req *dto.AddFunct
 		}, err
 	}
 
-	// 6. 返回同步结果（不发送回调）
 	return &dto.AddFunctionsResp{
 		Success: true,
-		AppID:   serviceTree.App.ID,
-		AppCode: serviceTree.App.Code,
+		AppID:   targetTree.App.ID,
+		AppCode: targetTree.App.Code,
 	}, nil
 }
 
 // ProcessFunctionGenResult 处理函数生成结果（接收 agent-server 处理后的结构化数据）
-// 解析元数据、创建目录、创建函数文件、发送回调
+// 解析元数据、创建目录、创建函数文件、发送回调；目录由 full_code_path 指定
 func (s *ServiceTreeService) ProcessFunctionGenResult(ctx context.Context, req *dto.AddFunctionsReq) error {
-	// 1. 根据 TreeID 获取父目录 ServiceTree（需要预加载 App）
-	parentTree, err := s.serviceTreeRepo.GetByID(req.TreeID)
+	// 1. 根据 full_code_path 获取父目录 ServiceTree（需要预加载 App）
+	if strings.TrimSpace(req.FullCodePath) == "" {
+		return fmt.Errorf("full_code_path 必填")
+	}
+	parentTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(strings.TrimSpace(req.FullCodePath))
 	if err != nil {
-		logger.Errorf(ctx, "[ServiceTreeService] 获取父目录 ServiceTree 失败: TreeID=%d, error=%v", req.TreeID, err)
+		logger.Errorf(ctx, "[ServiceTreeService] 获取父目录 ServiceTree 失败: FullCodePath=%s, error=%v", req.FullCodePath, err)
 		return err
 	}
 
@@ -3108,5 +3454,87 @@ func (s *ServiceTreeService) SearchFunctions(ctx context.Context, req *dto.Searc
 		Total:     total,
 		Page:      req.Page,
 		PageSize:  req.PageSize,
+	}, nil
+}
+
+// GetWorkspaceContext 获取工作台环境信息（用于构建 LLM 上下文）
+func (s *ServiceTreeService) GetWorkspaceContext(ctx context.Context, req *dto.GetWorkspaceContextReq) (*dto.GetWorkspaceContextResp, error) {
+	// 1. 获取目录详情
+	detail, err := s.GetServiceTreeDetail(ctx, &dto.GetServiceTreeDetailReq{
+		FullCodePath: req.FullCodePath,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("获取目录详情失败: %w", err)
+	}
+
+	// 2. 获取子节点列表
+	children, err := s.serviceTreeRepo.GetServiceTreeChildren(detail.ID)
+	if err != nil {
+		return nil, fmt.Errorf("获取子节点列表失败: %w", err)
+	}
+
+	// 3. 转换为响应格式
+	childrenNodes := make([]dto.WorkspaceContextNode, 0, len(children))
+	for _, child := range children {
+		childrenNodes = append(childrenNodes, dto.WorkspaceContextNode{
+			ID:          child.ID,
+			Name:        child.Name,
+			Code:        child.Code,
+			Type:        child.Type,
+			Description: child.Description,
+			FullCodePath: child.FullCodePath,
+		})
+	}
+
+	// 4. 获取当前用户
+	username := contextx.GetRequestUser(ctx)
+
+	// 5. 获取目录下的代码文件快照（当前版本）
+	var files []dto.WorkspaceContextFile
+	if detail.AppID > 0 {
+		fileSnapshots, err := s.fileSnapshotRepo.GetCurrentSnapshotsByDirectory(detail.AppID, req.FullCodePath)
+		if err != nil {
+			logger.Warnf(ctx, "[GetWorkspaceContext] 获取文件快照失败: fullCodePath=%s, error=%v", req.FullCodePath, err)
+			// 如果获取失败，继续处理，只是没有文件列表
+			files = []dto.WorkspaceContextFile{}
+		} else {
+			// 转换为响应格式
+			files = make([]dto.WorkspaceContextFile, 0, len(fileSnapshots))
+			for _, snapshot := range fileSnapshots {
+				// 降级处理：如果数据库中没有存储行数（旧数据），则动态计算
+				lineCount := snapshot.LineCount
+				if lineCount == 0 && snapshot.Content != "" {
+					lines := strings.Split(snapshot.Content, "\n")
+					lineCount = len(lines)
+					// 如果最后一行是空行（文件末尾有换行符），不计入总行数
+					if lineCount > 0 && lines[lineCount-1] == "" {
+						lineCount--
+					}
+				}
+				
+				files = append(files, dto.WorkspaceContextFile{
+					FileName:      snapshot.FileName,
+					RelativePath:  snapshot.RelativePath,
+					FileType:      snapshot.FileType,
+					Content:       snapshot.Content,
+					ContentLength: len(snapshot.Content),
+					LineCount:     lineCount,
+				})
+			}
+		}
+	}
+
+	return &dto.GetWorkspaceContextResp{
+		User: username,
+		Directory: dto.WorkspaceContextDirectory{
+			ID:          detail.ID,
+			Name:        detail.Name,
+			Code:        detail.Code,
+			FullCodePath: detail.FullCodePath,
+			Description: detail.Description,
+			Type:        detail.Type,
+		},
+		Children: childrenNodes,
+		Files:    files,
 	}, nil
 }

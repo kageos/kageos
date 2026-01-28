@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -22,8 +23,10 @@ type DeepSeekAPIResponse struct {
 	} `json:"error,omitempty"`
 	Choices []struct {
 		Message struct {
-			Content string `json:"content"`
+			Content   string     `json:"content"`
+			ToolCalls []ToolCall `json:"tool_calls,omitempty"` // 工具调用列表
 		} `json:"message"`
+		FinishReason string `json:"finish_reason,omitempty"` // "tool_calls" 表示需要调用工具
 	} `json:"choices,omitempty"`
 	Usage *struct {
 		PromptTokens     float64 `json:"prompt_tokens"`
@@ -42,10 +45,11 @@ type DeepSeekStreamResponse struct {
 	} `json:"error,omitempty"`
 	Choices []struct {
 		Delta struct {
-			Role    string `json:"role,omitempty"`
-			Content string `json:"content"`
+			Role      string     `json:"role,omitempty"`
+			Content   string     `json:"content"`
+			ToolCalls []ToolCall `json:"tool_calls,omitempty"` // 流式输出中的工具调用
 		} `json:"delta"`
-		FinishReason *string `json:"finish_reason,omitempty"`
+		FinishReason *string `json:"finish_reason,omitempty"` // "tool_calls" 表示需要调用工具
 	} `json:"choices,omitempty"`
 	Usage *struct {
 		PromptTokens     float64 `json:"prompt_tokens"`
@@ -125,6 +129,15 @@ func (d *DeepSeekClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespo
 		"max_tokens":  req.MaxTokens,
 		"temperature": req.Temperature,
 	}
+	
+	// 添加 tools 参数（如果提供）
+	if len(req.Tools) > 0 {
+		apiReq["tools"] = req.Tools
+		// 如果指定了 tool_choice，也添加
+		if req.ToolChoice != nil {
+			apiReq["tool_choice"] = req.ToolChoice
+		}
+	}
 
 	if req.Model == "" {
 		apiReq["model"] = "deepseek-reasoner"
@@ -201,15 +214,14 @@ func (d *DeepSeekClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespo
 		return nil, fmt.Errorf("DeepSeek API错误: %s - %s", apiResp.Error.Code, apiResp.Error.Message)
 	}
 
-	// 提取回答内容
+	// 提取回答内容和工具调用
 	if len(apiResp.Choices) == 0 {
 		return nil, fmt.Errorf("响应格式错误：没有找到choices")
 	}
 
-	content := apiResp.Choices[0].Message.Content
-	if content == "" {
-		return nil, fmt.Errorf("响应格式错误：content为空")
-	}
+	choice := apiResp.Choices[0]
+	content := choice.Message.Content
+	toolCalls := choice.Message.ToolCalls
 
 	// 提取使用统计
 	var usage *Usage
@@ -227,8 +239,9 @@ func (d *DeepSeekClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespo
 	}
 
 	return &ChatResponse{
-		Content: content,
-		Usage:   usage,
+		Content:   content,
+		ToolCalls: toolCalls,
+		Usage:     usage,
 	}, nil
 }
 
@@ -248,6 +261,15 @@ func (d *DeepSeekClient) ChatStream(ctx context.Context, req *ChatRequest) (<-ch
 			"max_tokens":  req.MaxTokens,
 			"temperature": req.Temperature,
 			"stream":      true, // 启用流式
+		}
+		
+		// 添加 tools 参数（如果提供）
+		if len(req.Tools) > 0 {
+			apiReq["tools"] = req.Tools
+			// 如果指定了 tool_choice，也添加
+			if req.ToolChoice != nil {
+				apiReq["tool_choice"] = req.ToolChoice
+			}
 		}
 
 		// 设置默认值
@@ -321,8 +343,13 @@ func (d *DeepSeekClient) ChatStream(ctx context.Context, req *ChatRequest) (<-ch
 
 		// 检查HTTP状态码
 		if resp.StatusCode != http.StatusOK {
+
+			all, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return
+			}
 			chunkChan <- &StreamChunk{
-				Error: fmt.Sprintf("HTTP请求失败，状态码: %d", resp.StatusCode),
+				Error: fmt.Sprintf("HTTP请求失败，状态码: %d body:%s", resp.StatusCode, string(all)),
 				Done:  true,
 			}
 			return
@@ -387,9 +414,16 @@ func (d *DeepSeekClient) ChatStream(ctx context.Context, req *ChatRequest) (<-ch
 						}
 					}
 
+					// 发送工具调用（如果有）
+					if len(choice.Delta.ToolCalls) > 0 {
+						chunkChan <- &StreamChunk{
+							ToolCalls: choice.Delta.ToolCalls,
+							Done:      false,
+						}
+					}
+
 					// 检查是否完成
 					if choice.FinishReason != nil && *choice.FinishReason != "" {
-
 						// 保存使用统计
 						if streamResp.Usage != nil {
 							finalUsage = &Usage{
@@ -399,10 +433,11 @@ func (d *DeepSeekClient) ChatStream(ctx context.Context, req *ChatRequest) (<-ch
 							}
 						}
 
-						// 发送完成信号
+						// 发送完成信号（包含最终的 tool_calls，如果有）
 						chunkChan <- &StreamChunk{
-							Usage: finalUsage,
-							Done:  true,
+							ToolCalls: choice.Delta.ToolCalls, // 最后的 tool_calls（如果有）
+							Usage:     finalUsage,
+							Done:      true,
 						}
 						break
 					}

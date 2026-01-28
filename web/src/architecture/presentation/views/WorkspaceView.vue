@@ -27,7 +27,6 @@
           @create-directory="handleCreateDirectory"
           @create-docs="handleCreateDocs"
           @delete-doc="handleDeleteDoc"
-          @fork-group="handleForkGroup"
           @delete-function="handleDeleteFunction"
           @publish-to-hub="handlePublishToHub"
           @push-to-hub="handlePushToHub"
@@ -155,6 +154,15 @@
           :node="currentFunction"
           @deleted="handleDocDeleted"
         />
+
+        <!-- 🔥 工作台对话（内嵌）：目录下点击「打开工作台」后替换为对话，不新开标签 -->
+        <div v-else-if="currentFunction && currentFunction.type === 'package' && workstationMode" class="workstation-chat-wrapper">
+          <WorkstationChat
+            :full-code-path="currentFunction.full_code_path || ''"
+            :embedded="true"
+            @back="workstationMode = false"
+          />
+        </div>
         
         <!-- 🔥 服务目录详情页面（包括根节点和 package 节点） -->
         <PackageDetailView
@@ -162,6 +170,7 @@
           :package-node="currentFunction"
           @generate-system="handlePackageGenerateSystem"
           @refresh="handleRefreshTree"
+          @open-workstation="workstationMode = true"
         />
         
         <!-- 🔥 点击目录节点时根据选择的智能体显示不同的聊天面板 -->
@@ -171,7 +180,7 @@
             v-if="selectedAgent.chat_type === 'function_gen'"
             ref="aiChatPanelRef"
             :agent-id="selectedAgent.id"
-            :tree-id="currentFunction.id"
+            :full-code-path="currentFunction.full_code_path"
             :package="currentFunction.code"
             :current-node-name="currentFunction.name"
             :existing-files="existingFilesInPackage"
@@ -328,7 +337,7 @@
     <!-- 智能体选择对话框 -->
     <AgentSelectDialog
       v-model="agentSelectDialogVisible"
-      :tree-id="currentFunction?.id || null"
+      :full-code-path="currentFunction?.full_code_path || null"
       :package="currentFunction?.code || ''"
       :current-node-name="currentFunction?.name || ''"
       @confirm="handleAgentSelect"
@@ -595,15 +604,6 @@
       </template>
     </el-dialog>
 
-    <!-- Fork 函数组对话框 -->
-    <FunctionForkDialog
-      v-model="forkDialogVisible"
-      :source-full-group-code="forkSourceGroupCode || undefined"
-      :source-group-name="forkSourceGroupName || undefined"
-      :current-app="currentApp || undefined"
-      @success="handleForkSuccess"
-    />
-
     <!-- 发布到应用中心对话框 -->
     <PublishToHubDialog
       v-model="publishToHubDialogVisible"
@@ -647,7 +647,6 @@ import { RouteManager } from '../../infrastructure/routeManager'
 import { useAuthStore } from '@/stores/auth'
 import ServiceTreePanel from '@/components/ServiceTreePanel.vue'
 import AppSwitcher from '@/components/AppSwitcher.vue'
-import FunctionForkDialog from '@/components/FunctionForkDialog.vue'
 import PublishToHubDialog from '@/components/PublishToHubDialog.vue'
 import PushToHubDialog from '@/components/PushToHubDialog.vue'
 import PullFromHubDialog from '@/components/PullFromHubDialog.vue'
@@ -662,6 +661,7 @@ import PermissionDeniedView from '../components/PermissionDeniedView.vue'
 import AIChatPanel from '../components/AIChatPanel.vue'
 import AgentSelectDialog from '@/components/Agent/AgentSelectDialog.vue'
 import PackageDetailView from '../components/PackageDetailView.vue'
+import WorkstationChat from '../components/WorkstationChat.vue'
 import DocView from '../components/DocView.vue'
 import FunctionInfoPanel from '../components/FunctionInfoPanel.vue'
 import UserSearchInput from '@/components/UserSearchInput.vue'
@@ -752,7 +752,6 @@ const {
   resetCreateDirectoryForm,
   handleSubmitCreateDirectory: serviceTreeHandleSubmitCreateDirectory,
   expandCurrentRoutePath: serviceTreeExpandCurrentRoutePath,
-  checkAndExpandForkedPaths: serviceTreeCheckAndExpandForkedPaths
 } = useWorkspaceServiceTree()
 
 // 管理员字段配置（用于 UsersWidget）
@@ -825,11 +824,6 @@ const {
   appList: () => appList.value,
   loadAppList,
   findNodeByPath,
-  checkAndExpandForkedPaths: () => serviceTreeCheckAndExpandForkedPaths(
-    () => serviceTree.value,
-    () => serviceTreePanelRef.value,
-    () => currentApp.value
-  ),
   expandCurrentRoutePath: () => serviceTreeExpandCurrentRoutePath(
     () => serviceTree.value,
     () => serviceTreePanelRef.value,
@@ -903,10 +897,6 @@ const editInitialData = computed(() => {
 
 
 // Fork 函数组相关
-const forkDialogVisible = ref(false)
-const forkSourceGroupCode = ref('')
-const forkSourceGroupName = ref('')
-
 // 发布到应用中心对话框
 const publishToHubDialogVisible = ref(false)
 const publishSelectedNode = ref<ServiceTreeType | null>(null)
@@ -990,6 +980,8 @@ const toggleRightSidebar = () => {
 const agentSelectDialogVisible = ref(false)
 const selectedAgent = ref<AgentInfo | null>(null)
 const aiChatPanelRef = ref<InstanceType<typeof AIChatPanel> | null>(null)
+/** 工作台模式：在目录详情下点击「打开工作台」后，右侧展示 WorkstationChat 而非 PackageDetailView */
+const workstationMode = ref(false)
 
 // 处理智能体选择
 function handleAgentSelect(agent: AgentInfo) {
@@ -1398,20 +1390,20 @@ const handleSubmitCreateDocs = async () => {
 
   creatingDocs.value = true
   try {
-    const { createServiceTree } = await import('@/api/service-tree')
+    const { createDocs } = await import('@/api/service-tree')
     const parentId = currentDocsParentNode.value?.id || 0
-    const response = await createServiceTree({
+    // ⭐ 使用新的分离接口
+    const response = await createDocs({
       user: currentApp.value.user,
       app: currentApp.value.code,
       name: createDocsForm.value.name.trim(),
       code: createDocsForm.value.code.trim(),
       parent_id: parentId,
-      type: 'docs',
       description: createDocsForm.value.description.trim() || '',
       tags: createDocsForm.value.tags.trim() || '',
-      doc_content: createDocsForm.value.content.trim(),  // ⭐ 文档内容
-      doc_format: 'markdown',  // ⭐ 文档格式
-      doc_summary: createDocsForm.value.summary.trim() || ''  // ⭐ 文档摘要
+      content: createDocsForm.value.content.trim(),  // ⭐ 文档内容
+      format: 'markdown',  // ⭐ 文档格式
+      summary: createDocsForm.value.summary.trim() || ''  // ⭐ 文档摘要
     })
 
     // ⭐ 响应拦截器已经处理了，成功时返回的是 data 对象（ServiceTree），不是 { data: ServiceTree }
@@ -1476,11 +1468,6 @@ const handleDeleteDoc = async (node: ServiceTreeType) => {
     return
   }
 
-  if (!node.full_code_path) {
-    ElMessage.error('文档路径不存在')
-    return
-  }
-
   try {
     await ElMessageBox.confirm(
       `确定要删除文档 "${node.name}" 吗？此操作将删除文档内容和文档节点，且无法恢复。`,
@@ -1492,8 +1479,9 @@ const handleDeleteDoc = async (node: ServiceTreeType) => {
       }
     )
 
-    const { deleteDoc } = await import('@/api/doc')
-    await deleteDoc(node.full_code_path)
+    // ⭐ 使用新的分离接口
+    const { deleteDocs } = await import('@/api/service-tree')
+    await deleteDocs(node.id)
     
     ElMessage.success('文档删除成功')
     
@@ -1532,26 +1520,6 @@ const handleDocDeleted = async () => {
 }
 
 // 处理 Fork 函数组
-const handleForkGroup = (node: ServiceTreeType | null) => {
-  // 如果传入了节点，使用它；否则打开对话框让用户选择
-  if (node) {
-    if (!node.full_group_code) {
-      ElNotification.warning({
-        title: '提示',
-        message: '该节点没有函数组代码，无法克隆'
-      })
-      return
-    }
-    forkSourceGroupCode.value = node.full_group_code
-    forkSourceGroupName.value = node.group_name || node.name || ''
-  } else {
-    // 没有传入节点，清空预设值，让用户在对话框中选择
-    forkSourceGroupCode.value = ''
-    forkSourceGroupName.value = ''
-  }
-  forkDialogVisible.value = true
-}
-
 // 处理发布到应用中心
 const handlePublishToHub = (node: ServiceTreeType) => {
   publishSelectedNode.value = node
@@ -1588,9 +1556,9 @@ const handleDeleteFunction = async (node: ServiceTreeType) => {
       }
     )
 
-    // 调用删除 API
-    const { deleteFunction } = await import('@/api/function')
-    await deleteFunction(node.id)
+    // ⭐ 使用新的分离接口
+    const { deleteFunction: deleteServiceTreeFunction } = await import('@/api/service-tree')
+    await deleteServiceTreeFunction(node.id)
 
     ElMessage.success('删除成功')
 
@@ -1706,42 +1674,10 @@ const handlePullSuccess = async () => {
   }
 }
 
-// Fork 成功后的回调
-const handleForkSuccess = () => {
-  // 刷新服务目录树
-  if (currentApp.value) {
-    const appForService: App = {
-      id: currentApp.value.id,
-      user: currentApp.value.user,
-      code: currentApp.value.code,
-      name: currentApp.value.name,
-      nats_id: currentApp.value.nats_id || 0,
-      host_id: currentApp.value.host_id || 0,
-      status: currentApp.value.status || 'enabled',
-      version: currentApp.value.version || '',
-      created_at: currentApp.value.created_at || '',
-      updated_at: currentApp.value.updated_at || ''
-    }
-    applicationService.triggerAppSwitch(appForService)
-  }
-  ElNotification.success({
-    title: '成功',
-    message: '克隆完成！请刷新页面查看新功能'
-  })
-}
 
 // 🔥 展开当前路由对应的路径（使用 Composable）
 const expandCurrentRoutePath = () => {
   serviceTreeExpandCurrentRoutePath(
-    () => serviceTree.value,
-    () => serviceTreePanelRef.value,
-    () => currentApp.value
-  )
-}
-
-// 🔥 检查并展开 forked 路径（使用 Composable）
-const checkAndExpandForkedPaths = () => {
-  serviceTreeCheckAndExpandForkedPaths(
     () => serviceTree.value,
     () => serviceTreePanelRef.value,
     () => currentApp.value
@@ -1921,23 +1857,10 @@ watch(() => serviceTree.value.length, (newLength: number) => {
   if (newLength > 0 && currentApp.value) {
     console.log('[WorkspaceView] serviceTree 变化，准备展开目录树')
     // 展开目录树
-    if (route.query._forked) {
-      checkAndExpandForkedPaths()
-    } else {
-      expandCurrentRoutePath()
-    }
+    expandCurrentRoutePath()
   }
 }, { immediate: true })
 
-// 🔥 监听当前应用变化，检查 _forked 参数
-watch(currentApp, () => {
-  if (serviceTree.value.length > 0 && currentApp.value && route.query._forked) {
-    console.log('[WorkspaceView] currentApp 变化，检查 _forked 参数')
-    nextTick(() => {
-      checkAndExpandForkedPaths()
-    })
-  }
-})
 
 // 🔥 监听当前函数变化，清除旧的函数详情和权限错误
 watch(() => currentFunction.value?.id, (newId: number | undefined, oldId: number | undefined) => {
@@ -1948,6 +1871,8 @@ watch(() => currentFunction.value?.id, (newId: number | undefined, oldId: number
     // 清除旧的权限错误（新的权限错误会在加载失败时重新设置）
     permissionErrorStore.clearError()
   }
+  // 切换节点时退出工作台模式，回到目录详情
+  workstationMode.value = false
 })
 
 // 🔥 监听 queryTab 变化，处理 create/edit/detail 模式
@@ -2306,7 +2231,8 @@ onUnmounted(() => {
   }
 }
 
-.ai-chat-wrapper {
+.ai-chat-wrapper,
+.workstation-chat-wrapper {
   flex: 1;
   display: flex;
   flex-direction: column;

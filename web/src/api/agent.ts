@@ -211,7 +211,7 @@ export interface FunctionGenChatMessage {
 
 export interface FunctionGenAgentChatReq {
   agent_id: number
-  tree_id: number
+  full_code_path: string
   package?: string // Package 名称
   session_id?: string
   existing_files?: string[] // 当前 package 下已存在的文件名（不含 .go 后缀）
@@ -260,7 +260,7 @@ export interface ChatSessionInfo {
 }
 
 export interface ChatSessionListReq {
-  tree_id: number
+  full_code_path: string
   page: number
   page_size: number
 }
