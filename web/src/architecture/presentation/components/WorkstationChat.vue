@@ -109,7 +109,10 @@
           :key="i"
           :class="['message', m.role]"
         >
-          <span class="role">{{ m.role === 'user' ? '我' : '工作台' }}</span>
+          <div class="message-header">
+            <span class="role">{{ m.role === 'user' ? '我' : '工作台' }}</span>
+            <span v-if="m.created_at" class="message-time">{{ formatMessageTime(m.created_at) }}</span>
+          </div>
           <div v-if="m.role === 'assistant' && m.tool_calls?.length" class="tool-calls">
             <ToolCallCard
               v-for="(tc, j) in m.tool_calls"
@@ -117,7 +120,10 @@
               :tool-call="tc"
             />
           </div>
-          <div class="content">{{ m.content }}<span v-if="sending && i === messages.length - 1 && m.role === 'assistant' && !m.content" class="streaming-cursor">▌</span></div>
+          <div class="content">
+            <div class="message-text" v-html="renderMarkdown(m.content)"></div>
+            <span v-if="sending && i === messages.length - 1 && m.role === 'assistant'" class="streaming-cursor">▌</span>
+          </div>
         </div>
       </div>
 
@@ -148,11 +154,20 @@
 import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, ArrowRight, Plus } from '@element-plus/icons-vue'
+import { marked } from 'marked'
 import { workspaceChatStream, getWorkspaceSessions, getWorkspaceMessages, type WorkspaceSessionItem } from '@/api/workspace'
 import { getAgentList } from '@/api/agent'
 import ToolCallCard from './ToolCallCard.vue'
 import type { AgentInfo } from '@/api/agent'
 import { ElMessage } from 'element-plus'
+
+// 配置 marked：支持换行、GFM
+marked.setOptions({
+  breaks: true,
+  gfm: true,
+  headerIds: false,
+  mangle: false,
+})
 
 const props = withDefaults(
   defineProps<{
@@ -168,7 +183,7 @@ const router = useRouter()
 const inputText = ref('')
 const sending = ref(false)
 const messages = ref<
-  Array<{ role: 'user' | 'assistant'; content: string; tool_calls?: Array<{ name: string; status: string }> }>
+  Array<{ role: 'user' | 'assistant'; content: string; tool_calls?: Array<{ name: string; status: string }>; created_at?: string }>
 >([])
 const sessionId = ref<string | undefined>(undefined)
 const messagesRef = ref<HTMLElement | null>(null)
@@ -237,6 +252,7 @@ async function loadSessionMessages(targetSessionId: string) {
         role: msg.role as 'user' | 'assistant',
         content: msg.content,
         tool_calls: msg.tool_calls || [],
+        created_at: msg.created_at,
       }))
     // 滚动到底部
     setTimeout(() => {
@@ -310,12 +326,34 @@ watch(() => props.fullCodePath, (newPath) => {
   }
 })
 
+function renderMarkdown(content: string): string {
+  if (!content) return ''
+  try {
+    return marked.parse(content) as string
+  } catch {
+    return content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')
+  }
+}
+
+function formatMessageTime(isoString: string): string {
+  if (!isoString) return ''
+  const date = new Date(isoString)
+  const y = date.getFullYear()
+  const M = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  const h = String(date.getHours()).padStart(2, '0')
+  const m = String(date.getMinutes()).padStart(2, '0')
+  const s = String(date.getSeconds()).padStart(2, '0')
+  return `${y}-${M}-${d} ${h}:${m}:${s}`
+}
+
 async function send() {
   const text = inputText.value.trim()
   if (!text || !props.fullCodePath) return
   inputText.value = ''
-  messages.value.push({ role: 'user', content: text })
-  messages.value.push({ role: 'assistant', content: '', tool_calls: [] })
+  const now = new Date().toISOString()
+  messages.value.push({ role: 'user', content: text, created_at: now })
+  messages.value.push({ role: 'assistant', content: '', tool_calls: [], created_at: now })
   sending.value = true
   const idx = messages.value.length - 1
   try {
@@ -534,10 +572,81 @@ async function send() {
   background: var(--el-fill-color-lighter);
   border-color: var(--el-border-color-lighter);
 }
+.message-header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
 .message .role { font-weight: 600; font-size: 13px; color: var(--el-text-color-primary); }
 .message.user .role { color: var(--el-color-primary); }
-.message .content { white-space: pre-wrap; word-break: break-word; width: 100%; font-size: 14px; line-height: 1.5; color: var(--el-text-color-regular); }
-.streaming-cursor { animation: blink 0.8s step-end infinite; color: var(--el-color-primary); }
+.message-time {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  font-weight: normal;
+  opacity: 0.85;
+}
+.message .content {
+  width: 100%;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--el-text-color-regular);
+}
+.message .message-text {
+  word-break: break-word;
+}
+.message .message-text :deep(code) {
+  background: rgba(0, 0, 0, 0.08);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+}
+.message .message-text :deep(pre) {
+  background: rgba(0, 0, 0, 0.05);
+  padding: 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 8px 0;
+  border: 1px solid var(--el-border-color);
+}
+.message .message-text :deep(pre code) {
+  background: transparent;
+  padding: 0;
+  font-size: 0.9em;
+  line-height: 1.5;
+}
+.message .message-text :deep(h1), .message .message-text :deep(h2), .message .message-text :deep(h3),
+.message .message-text :deep(h4), .message .message-text :deep(h5), .message .message-text :deep(h6) {
+  margin: 14px 0 6px 0;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.message .message-text :deep(h1) { font-size: 1.4em; border-bottom: 2px solid var(--el-border-color); padding-bottom: 6px; }
+.message .message-text :deep(h2) { font-size: 1.25em; border-bottom: 1px solid var(--el-border-color); padding-bottom: 4px; }
+.message .message-text :deep(h3) { font-size: 1.1em; }
+.message .message-text :deep(p) { margin: 8px 0; line-height: 1.6; }
+.message .message-text :deep(ul), .message .message-text :deep(ol) { margin: 8px 0; padding-left: 24px; }
+.message .message-text :deep(li) { margin: 4px 0; line-height: 1.6; }
+.message .message-text :deep(blockquote) {
+  margin: 8px 0;
+  padding: 8px 14px;
+  border-left: 4px solid var(--el-color-primary);
+  background: var(--el-fill-color-lighter);
+  border-radius: 4px;
+}
+.message .message-text :deep(table) { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 0.9em; }
+.message .message-text :deep(th), .message .message-text :deep(td) {
+  border: 1px solid var(--el-border-color);
+  padding: 6px 10px;
+  text-align: left;
+}
+.message .message-text :deep(th) { background: var(--el-fill-color-light); font-weight: 600; }
+.message .message-text :deep(a) { color: var(--el-color-primary); text-decoration: none; }
+.message .message-text :deep(a:hover) { text-decoration: underline; }
+.message .message-text :deep(hr) { border: none; border-top: 1px solid var(--el-border-color); margin: 12px 0; }
+.message .message-text :deep(img) { max-width: 100%; height: auto; border-radius: 4px; margin: 6px 0; }
+.streaming-cursor { animation: blink 0.8s step-end infinite; color: var(--el-color-primary); display: inline-block; margin-left: 2px; }
 @keyframes blink { 50% { opacity: 0; } }
 .tool-calls { 
   display: flex; 
