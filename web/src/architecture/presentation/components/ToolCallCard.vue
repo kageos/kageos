@@ -3,15 +3,19 @@
   类似 Cursor 的工具调用显示，支持展开/折叠，显示详细信息
 -->
 <template>
-  <div :class="['tool-call-card', { 'tool-call-card--expanded': expanded, 'tool-call-card--error': toolCall.status === 'error' }]">
+  <div :class="['tool-call-card', { 'tool-call-card--expanded': expanded, 'tool-call-card--error': toolCall.status === 'error', 'tool-call-card--running': toolCall.status === 'running', 'tool-call-card--streaming': toolCall.status === 'streaming' }]">
     <div class="tool-call-header" @click="toggleExpand">
       <div class="tool-call-info">
-        <el-icon :class="['tool-call-icon', toolCall.status === 'ok' ? 'success' : 'error']">
+        <el-icon :class="['tool-call-icon', toolCall.status === 'ok' ? 'success' : toolCall.status === 'running' ? 'running' : toolCall.status === 'streaming' ? 'streaming' : 'error']">
           <Check v-if="toolCall.status === 'ok'" />
+          <Loading v-else-if="toolCall.status === 'running'" class="is-loading" />
+          <Loading v-else-if="toolCall.status === 'streaming'" class="is-loading" />
           <Close v-else />
         </el-icon>
         <span class="tool-call-name">{{ toolCall.name }}</span>
-        <el-tag :type="toolCall.status === 'ok' ? 'success' : 'danger'" size="small" class="tool-call-status">
+        <el-tag v-if="toolCall.status === 'streaming'" type="info" size="small" class="tool-call-status">解析中</el-tag>
+        <el-tag v-else-if="toolCall.status === 'running'" type="info" size="small" class="tool-call-status">执行中</el-tag>
+        <el-tag v-else :type="toolCall.status === 'ok' ? 'success' : 'danger'" size="small" class="tool-call-status">
           {{ toolCall.status === 'ok' ? '成功' : '失败' }}
         </el-tag>
       </div>
@@ -65,7 +69,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Check, Close, ArrowDown, Document, CircleCheck, Warning, CopyDocument } from '@element-plus/icons-vue'
+import { Check, Close, Loading, ArrowDown, Document, CircleCheck, Warning, CopyDocument } from '@element-plus/icons-vue'
 import type { WorkspaceChatToolCallSummary } from '@/api/workspace'
 
 const props = defineProps<{
@@ -127,6 +131,10 @@ async function copyResult() {
   &--error {
     border-color: var(--el-color-error-light-7);
   }
+
+  &--streaming {
+    border-color: var(--el-color-primary-light-5);
+  }
 }
 
 .tool-call-header {
@@ -154,6 +162,11 @@ async function copyResult() {
 
   &.success {
     color: var(--el-color-success);
+  }
+
+  &.running,
+  &.streaming {
+    color: var(--el-color-primary);
   }
 
   &.error {

@@ -1556,8 +1556,8 @@ const handleDeleteFunction = async (node: ServiceTreeType) => {
       }
     )
 
-    // ⭐ 使用新的分离接口
-    const { deleteFunction: deleteServiceTreeFunction } = await import('@/api/service-tree')
+    // ⭐ 使用新的分离接口（API 导出名为 deleteServiceTreeFunction）
+    const { deleteServiceTreeFunction } = await import('@/api/service-tree')
     await deleteServiceTreeFunction(node.id)
 
     ElMessage.success('删除成功')

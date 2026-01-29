@@ -183,7 +183,7 @@ const router = useRouter()
 const inputText = ref('')
 const sending = ref(false)
 const messages = ref<
-  Array<{ role: 'user' | 'assistant'; content: string; tool_calls?: Array<{ name: string; status: string }>; created_at?: string }>
+  Array<{ role: 'user' | 'assistant'; content: string; tool_calls?: Array<{ name: string; status: string; arguments?: string }>; created_at?: string }>
 >([])
 const sessionId = ref<string | undefined>(undefined)
 const messagesRef = ref<HTMLElement | null>(null)
@@ -370,8 +370,29 @@ async function send() {
       if (event === 'session' && typeof data.session_id === 'string') sessionId.value = data.session_id
       if (event === 'agent_id' && data.agent_id != null && Number(data.agent_id) > 0)
         selectedAgentId.value = Number(data.agent_id)
+      if (event === 'tool_calls_stream' && Array.isArray(data.tool_calls)) {
+        // 后端推送的「当前全部 tool_call」流式列表，统一展示为 streaming
+        const list = (data.tool_calls as Array<{ name?: string; arguments?: string }>).map((t) => ({
+          name: typeof t.name === 'string' ? t.name : '',
+          status: 'streaming' as const,
+          arguments: typeof t.arguments === 'string' ? t.arguments : undefined,
+        }))
+        messages.value[idx] = { ...m, tool_calls: list }
+      }
       if (event === 'tool_call' && typeof data.name === 'string') {
-        const list = [...(m.tool_calls || []), { name: data.name, status: String(data.status || 'ok') }]
+        const status = String(data.status || 'ok')
+        const argumentsStr = typeof data.arguments === 'string' ? data.arguments : undefined
+        const prev = m.tool_calls || []
+        // running/ok/error：按「同名」找到最后一条并更新，避免多工具时更新错卡片
+        const lastSameNameIndex = prev.map((t, i) => (t.name === data.name ? i : -1)).filter((i) => i >= 0).pop()
+        let list: Array<{ name: string; status: string; arguments?: string }>
+        if (lastSameNameIndex !== undefined) {
+          list = prev.map((t, i) =>
+            i === lastSameNameIndex ? { name: data.name, status, arguments: argumentsStr ?? t.arguments } : t
+          )
+        } else {
+          list = [...prev, { name: data.name, status, arguments: argumentsStr }]
+        }
         messages.value[idx] = { ...m, tool_calls: list }
       }
       if (event === 'content' && typeof data.content === 'string') {

@@ -33,18 +33,21 @@ const (
 
 // 工具调用状态常量
 const (
-	ToolCallStatusOK    = "ok"
-	ToolCallStatusError = "error"
+	ToolCallStatusOK        = "ok"
+	ToolCallStatusError     = "error"
+	ToolCallStatusRunning   = "running"   // 工具正在执行，用于流式反馈到前端
+	ToolCallStatusStreaming = "streaming" // LLM 流式输出 tool_call（name/arguments 逐段到达），推送到前端实时展示
 )
 
 // 流式事件类型常量
 const (
-	EventSession  = "session"
-	EventAgentID  = "agent_id"
-	EventToolCall = "tool_call"
-	EventContent  = "content"
-	EventDone     = "done"
-	EventError    = "error"
+	EventSession         = "session"
+	EventAgentID         = "agent_id"
+	EventToolCall        = "tool_call"
+	EventToolCallsStream = "tool_calls_stream" // LLM 流式输出的 tool_calls 当前列表（name+arguments），前端实时展示
+	EventContent         = "content"
+	EventDone            = "done"
+	EventError           = "error"
 )
 
 // WorkspaceChatService 工作台对话编排：会话、历史、LLM、Tool 循环；复用 prepareLLMRequest 逻辑与 pkg/llms ChatStream
@@ -91,8 +94,20 @@ type StreamEventAgentID struct {
 
 // StreamEventToolCall tool_call 事件数据
 type StreamEventToolCall struct {
-	Name   string `json:"name"`
-	Status string `json:"status"` // ok / error
+	Name      string `json:"name"`
+	Status    string `json:"status"`    // ok / error / running / streaming
+	Arguments string `json:"arguments"` // 流式或最终参数（streaming 时逐段推送，供前端实时展示）
+}
+
+// StreamEventToolCallsStream 流式 tool_calls 列表（当前已合并的全部 tool_call，供前端实时展示）
+type StreamEventToolCallsStream struct {
+	ToolCalls []StreamEventToolCallItem `json:"tool_calls"`
+}
+
+// StreamEventToolCallItem 流式单项（仅 name + arguments）
+type StreamEventToolCallItem struct {
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
 }
 
 // StreamEventContent content 事件数据
@@ -713,6 +728,9 @@ func (s *WorkspaceChatService) executeToolCalls(
 		logger.Infof(ctx, "[WorkspaceChatStream] [%d/%d] 执行工具调用 - ToolCallID: %s, ToolName: %s, Arguments: %q",
 			i+1, len(allToolCalls), tc.ID, tc.Function.Name, tc.Function.Arguments)
 
+		// 先发送「执行中」事件，让前端立即显示进度，避免长时间无输出像卡住
+		sendEvent(EventToolCall, StreamEventToolCall{Name: tc.Function.Name, Status: ToolCallStatusRunning})
+
 		args := s.parseToolCallArgs(ctx, tc)
 		var res, st string
 
@@ -919,19 +937,17 @@ func (s *WorkspaceChatService) processStreamChunks(
 		}
 		// 收集 tool_calls（如果同一个 tool_call 分散在多个 chunk，需要按 ID 合并）
 		if len(ch.ToolCalls) > 0 {
-			// 调试日志：记录每个 chunk 中的所有 tool_calls
-			for _, tc := range ch.ToolCalls {
-				logger.Infof(ctx, "[WorkspaceChatStream] 收到 tool_call chunk - ToolCallID: %s, Name: %s, Arguments: %q (长度: %d)", 
-					tc.ID, tc.Function.Name, tc.Function.Arguments, len(tc.Function.Arguments))
-			}
 			allToolCalls, toolCallsIndex = mergeToolCalls(ch.ToolCalls, allToolCalls, toolCallsIndex)
-			
-			// 调试日志：记录合并后的状态
-			for _, tc := range allToolCalls {
-				if tc.Function.Name == "generate_code" {
-					logger.Infof(ctx, "[WorkspaceChatStream] 合并后 generate_code - ToolCallID: %s, Arguments: %q (长度: %d)", 
-						tc.ID, tc.Function.Arguments, len(tc.Function.Arguments))
+			// 流式推送到前端：把当前已合并的「全部」tool_call（name+arguments）推出去，前端实时展示
+			if len(allToolCalls) > 0 {
+				items := make([]StreamEventToolCallItem, 0, len(allToolCalls))
+				for i := range allToolCalls {
+					items = append(items, StreamEventToolCallItem{
+						Name:      allToolCalls[i].Function.Name,
+						Arguments: allToolCalls[i].Function.Arguments,
+					})
 				}
+				sendEvent(EventToolCallsStream, StreamEventToolCallsStream{ToolCalls: items})
 			}
 		}
 		// 不在这里 break：generate_code 调用后，代码内容可能在后续 chunk 中才流式输出，
@@ -940,17 +956,11 @@ func (s *WorkspaceChatService) processStreamChunks(
 	}
 
 	content := strings.TrimSpace(buf.String())
-	
-	// 调试日志：检查 tool_calls 的 arguments 是否完整
 	for _, tc := range allToolCalls {
-		if tc.Function.Name == "generate_code" {
-			logger.Infof(ctx, "[WorkspaceChatStream] 流式输出完成 - generate_code ToolCallID: %s, Arguments: %q (长度: %d), Content长度: %d", 
-				tc.ID, tc.Function.Arguments, len(tc.Function.Arguments), len(content))
-		} else if tc.Function.Arguments == "" {
+		if tc.Function.Arguments == "" {
 			logger.Warnf(ctx, "[WorkspaceChatStream] tool_call arguments 为空，ToolCallID: %s, ToolName: %s", tc.ID, tc.Function.Name)
 		}
 	}
-	
 	return content, allToolCalls, nil
 }
 
