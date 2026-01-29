@@ -7,6 +7,8 @@ export interface WorkspaceChatReq {
   message: { content: string; files?: unknown }
   session_id?: string
   agent_id?: number
+  /** 工作台模式 code（如 dev/modify/execute），空则用默认 */
+  mode?: string
 }
 
 /** 工作台会话项 */
@@ -33,6 +35,122 @@ export interface ListWorkspaceSessionsResp {
   total: number
   page: number
   page_size: number
+}
+
+/** 工作台模式项（列表/详情） */
+export interface WorkspaceModeItem {
+  id: number
+  code: string
+  name: string
+  description?: string
+  system_prompt_fragment?: string
+  tool_names?: string[]
+  agent_id?: number | null
+  sort_order: number
+  is_builtin: boolean
+}
+
+/** 工作台模式列表响应 */
+export interface ListWorkspaceModesResp {
+  list: WorkspaceModeItem[]
+  total: number
+  page: number
+  page_size: number
+}
+
+/**
+ * 获取工作台模式列表（供下拉选择或管理页）
+ */
+export async function getWorkspaceModes(params?: { page?: number; page_size?: number }): Promise<ListWorkspaceModesResp> {
+  const base = import.meta.env.VITE_API_BASE_URL || ''
+  const url = `${base}/agent/api/v1/workspace/modes`
+  const res = await axiosInstance.get<ListWorkspaceModesResp>(url, { params: params || {} })
+  return res as unknown as ListWorkspaceModesResp
+}
+
+/** 创建工作台模式请求 */
+export interface CreateWorkspaceModeReq {
+  code: string
+  name: string
+  description?: string
+  system_prompt_fragment?: string
+  tool_names?: string[]
+  agent_id?: number | null
+  sort_order?: number
+}
+
+/** 更新工作台模式请求 */
+export interface UpdateWorkspaceModeReq {
+  name?: string
+  description?: string
+  system_prompt_fragment?: string
+  tool_names?: string[]
+  agent_id?: number | null
+  sort_order?: number
+}
+
+/** 获取工作台工具名列表响应（供模式配置多选） */
+export interface ListWorkspaceToolNamesResp {
+  names: string[]
+}
+
+/** 工作台工具定义（list_tools 返回） */
+export interface WorkspaceToolDef {
+  name: string
+  description?: string
+  input_schema?: Record<string, unknown>
+  output_schema?: Record<string, unknown>
+}
+
+/** 工作台工具列表响应 */
+export interface ListWorkspaceToolsResp {
+  tools: WorkspaceToolDef[]
+}
+
+/** 获取工作台工具列表（完整定义，供管理页右侧展示） */
+export async function getWorkspaceTools(): Promise<WorkspaceToolDef[]> {
+  const base = import.meta.env.VITE_API_BASE_URL || ''
+  const res = await axiosInstance.get<ListWorkspaceToolsResp>(`${base}/agent/api/v1/workspace/tools`)
+  const o = res as unknown as ListWorkspaceToolsResp
+  return o?.tools ?? []
+}
+
+/** 获取工作台模式详情（按 id） */
+export async function getWorkspaceMode(id: number): Promise<WorkspaceModeItem> {
+  const base = import.meta.env.VITE_API_BASE_URL || ''
+  return axiosInstance.get<WorkspaceModeItem>(`${base}/agent/api/v1/workspace/modes/${id}`) as Promise<WorkspaceModeItem>
+}
+
+/** 按 code 获取工作台模式 */
+export async function getWorkspaceModeByCode(code: string): Promise<WorkspaceModeItem> {
+  const base = import.meta.env.VITE_API_BASE_URL || ''
+  return axiosInstance.get<WorkspaceModeItem>(`${base}/agent/api/v1/workspace/modes/by-code`, { params: { code } }) as Promise<WorkspaceModeItem>
+}
+
+/** 创建工作台模式 */
+export async function createWorkspaceMode(req: CreateWorkspaceModeReq): Promise<WorkspaceModeItem> {
+  const base = import.meta.env.VITE_API_BASE_URL || ''
+  return axiosInstance.post<WorkspaceModeItem>(`${base}/agent/api/v1/workspace/modes`, req) as Promise<WorkspaceModeItem>
+}
+
+/** 更新工作台模式 */
+export async function updateWorkspaceMode(id: number, req: UpdateWorkspaceModeReq): Promise<WorkspaceModeItem> {
+  const base = import.meta.env.VITE_API_BASE_URL || ''
+  return axiosInstance.put<WorkspaceModeItem>(`${base}/agent/api/v1/workspace/modes/${id}`, req) as Promise<WorkspaceModeItem>
+}
+
+/** 删除工作台模式（内置不可删） */
+export async function deleteWorkspaceMode(id: number): Promise<void> {
+  const base = import.meta.env.VITE_API_BASE_URL || ''
+  await axiosInstance.delete(`${base}/agent/api/v1/workspace/modes/${id}`)
+}
+
+/** 获取工作台工具名列表（供模式配置时多选） */
+export async function listWorkspaceToolNames(): Promise<string[]> {
+  const base = import.meta.env.VITE_API_BASE_URL || ''
+  const res = await axiosInstance.get<ListWorkspaceToolNamesResp>(`${base}/agent/api/v1/workspace/tools/names`)
+  const o = res as unknown as ListWorkspaceToolNamesResp
+  return o?.names ?? []
 }
 
 /** 流式事件回调：event 为 session|agent_id|tool_call|content|done|error，data 为对应负载 */

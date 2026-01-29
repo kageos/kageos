@@ -77,10 +77,18 @@ func (s *Server) setupRoutes() {
 	workspace.POST("/update/callback", workspaceHandler.ReceiveCallback) // 接收工作空间更新回调（app-server -> agent-server）
 
 	// 智能工作台（Step 3 接入 WorkspaceChatService）
-	workspaceChatHandler := v1.NewWorkspace(s.toolRegistry, s.workspaceChatService)
-	workspace.GET("/tools", workspaceChatHandler.ListTools)      // 列出工具（临时，验证 list_tools）
-	workspace.POST("/call_tool", workspaceChatHandler.CallTool)  // 执行工具（临时，验证 call_tool）
-	workspace.GET("/sessions", workspaceChatHandler.ListSessions) // 获取会话列表（根据 full_code_path）
-	workspace.GET("/messages", workspaceChatHandler.ListMessages)  // 获取会话消息列表（根据 session_id）
+	workspaceChatHandler := v1.NewWorkspace(s.toolRegistry, s.modeRepo, s.workspaceChatService)
+	workspace.GET("/tools", workspaceChatHandler.ListTools)           // 列出工具
+	workspace.GET("/tools/names", workspaceChatHandler.ListToolNames) // 工具名列表（供模式配置多选）
+	workspace.POST("/call_tool", workspaceChatHandler.CallTool)       // 执行工具（临时，验证 call_tool）
+	workspace.GET("/sessions", workspaceChatHandler.ListSessions)    // 获取会话列表（根据 full_code_path）
+	workspace.GET("/messages", workspaceChatHandler.ListMessages)    // 获取会话消息列表（根据 session_id）
 	workspace.POST("/chat/stream", workspaceChatHandler.ChatStream)
+	// 工作台模式 CRUD
+	workspace.GET("/modes", workspaceChatHandler.ListModes)                    // 模式列表
+	workspace.GET("/modes/by-code", workspaceChatHandler.GetModeByCode)        // 按 code 获取模式
+	workspace.GET("/modes/:id", workspaceChatHandler.GetMode)                   // 按 id 获取模式
+	workspace.POST("/modes", workspaceChatHandler.CreateMode)                   // 创建模式
+	workspace.PUT("/modes/:id", workspaceChatHandler.UpdateMode)                // 更新模式
+	workspace.DELETE("/modes/:id", workspaceChatHandler.DeleteMode)              // 删除模式（内置不可删）
 }

@@ -23,6 +23,8 @@ func InitTables(db *gorm.DB) error {
 		
 		// 第四层：依赖 AgentChatSession 的表
 		&AgentChatMessage{}, // 引用 AgentChatSession
+		// 工作台模式（独立表，无外键）
+		&WorkspaceMode{},
 	); err != nil {
 		return err
 	}

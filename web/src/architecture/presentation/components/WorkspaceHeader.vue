@@ -22,14 +22,14 @@
         Debug
       </el-button>
       
-      <!-- 智能工作台：需从服务目录选目录后带 full_code_path 使用，此处先进入再按提示操作 -->
+      <!-- 智能工作台管理：纯粹模式列表与配置；工作台对话已迁移到详情（服务目录 ⋮ → 打开工作台） -->
       <el-button
         type="primary"
         size="small"
-        @click="navigateToWorkstation"
-        title="智能工作台：从服务目录点目录旁的 ⋮ → 打开工作台 可带入当前目录"
+        @click="() => navigateToWorkstation()"
+        title="智能工作台管理：模式列表与配置；工作台对话请在服务目录点 ⋮ → 打开工作台"
       >
-        智能工作台
+        智能工作台管理
       </el-button>
       
       <!-- Hub 和 Agent 路由链接 -->
@@ -178,9 +178,9 @@ const isDevelopment = computed(() => {
 
 const showDebugDialog = ref(false)
 
-// 在新窗口打开智能工作台；fullCodePath 为空时页内会提示从服务目录进入
+// 打开智能工作台管理（纯粹管理，不带目录）；工作台对话在详情里由服务目录 ⋮ → 打开工作台 带入 full_code_path
 const navigateToWorkstation = (fullCodePath?: string) => {
-  const q = fullCodePath || ''
+  const q = typeof fullCodePath === 'string' && fullCodePath.trim() ? fullCodePath.trim() : ''
   const url = window.location.origin + '/workspace/workstation' + (q ? '?full_code_path=' + encodeURIComponent(q) : '')
   window.open(url, '_blank')
 }

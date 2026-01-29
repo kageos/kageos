@@ -7,10 +7,11 @@ import (
 
 // WorkspaceChatReq 工作台对话请求
 type WorkspaceChatReq struct {
-	FullCodePath string         `json:"full_code_path" binding:"required"`       // 目录完整路径（必填）
-	Message      WorkspaceMsg   `json:"message" binding:"required"`              // 本条消息
-	SessionID    string         `json:"session_id"`                              // 会话 ID，空则新建
-	AgentID      int64          `json:"agent_id"`                                // 智能体 ID，可选
+	FullCodePath string       `json:"full_code_path" binding:"required"` // 目录完整路径（必填）
+	Message      WorkspaceMsg `json:"message" binding:"required"`        // 本条消息
+	SessionID    string       `json:"session_id"`                        // 会话 ID，空则新建
+	AgentID      int64        `json:"agent_id"`                         // 智能体 ID，可选
+	Mode         string       `json:"mode"`                             // 工作台模式 code（如 dev/modify/execute），空则用默认
 }
 
 // WorkspaceMsg 工作台单条消息
@@ -99,6 +100,56 @@ type ToolDef struct {
 // GET /agent/api/v1/workspace/tools
 type ListToolsResp struct {
 	Tools []ToolDef `json:"tools"`
+}
+
+// ----- 工作台模式 CRUD -----
+
+// ListWorkspaceModesReq 工作台模式列表请求
+type ListWorkspaceModesReq struct {
+	Page     int `json:"page" form:"page"`
+	PageSize int `json:"page_size" form:"page_size"`
+}
+
+// WorkspaceModeItem 工作台模式项（列表/详情）
+type WorkspaceModeItem struct {
+	ID                   int64    `json:"id"`
+	Code                 string   `json:"code"`
+	Name                 string   `json:"name"`
+	Description          string   `json:"description"`
+	SystemPromptFragment string   `json:"system_prompt_fragment"`
+	ToolNames            []string `json:"tool_names"`
+	AgentID              *int64   `json:"agent_id"`
+	SortOrder            int      `json:"sort_order"`
+	IsBuiltin            bool     `json:"is_builtin"`
+}
+
+// ListWorkspaceModesResp 工作台模式列表响应
+type ListWorkspaceModesResp struct {
+	List     []WorkspaceModeItem `json:"list"`
+	Total    int64               `json:"total"`
+	Page     int                 `json:"page"`
+	PageSize int                 `json:"page_size"`
+}
+
+// CreateWorkspaceModeReq 创建工作台模式请求
+type CreateWorkspaceModeReq struct {
+	Code                 string   `json:"code" binding:"required"`
+	Name                 string   `json:"name" binding:"required"`
+	Description          string   `json:"description"`
+	SystemPromptFragment string   `json:"system_prompt_fragment"`
+	ToolNames            []string `json:"tool_names"`
+	AgentID              *int64   `json:"agent_id"`
+	SortOrder            int      `json:"sort_order"`
+}
+
+// UpdateWorkspaceModeReq 更新工作台模式请求
+type UpdateWorkspaceModeReq struct {
+	Name                 string   `json:"name"`
+	Description          string   `json:"description"`
+	SystemPromptFragment string   `json:"system_prompt_fragment"`
+	ToolNames            []string `json:"tool_names"`
+	AgentID              *int64   `json:"agent_id"`
+	SortOrder            *int     `json:"sort_order"`
 }
 
 // CallToolReq 工作台 call_tool 请求（临时测试 /workspace/call_tool 或后续 LLM tool 循环）

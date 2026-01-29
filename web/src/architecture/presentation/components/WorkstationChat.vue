@@ -69,6 +69,16 @@
         <span v-if="fullCodePath" class="path">当前目录：{{ fullCodePath }}</span>
         <span v-else class="path empty">暂无目录</span>
         <el-select
+          v-model="selectedModeCode"
+          placeholder="模式"
+          clearable
+          class="mode-select"
+          :loading="modeLoading"
+          :disabled="!fullCodePath"
+        >
+          <el-option v-for="m in modeList" :key="m.code" :value="m.code" :label="m.name" />
+        </el-select>
+        <el-select
           v-model="selectedAgentId"
           placeholder="选择智能体（不选则用默认 LLM）"
           clearable
@@ -81,9 +91,19 @@
         <el-link type="primary" :underline="false" @click="handleBack" class="back">返回详情</el-link>
       </template>
       <template v-else>
-        <span class="title">智能工作台</span>
+        <span class="title">工作台对话</span>
         <span v-if="fullCodePath" class="path">当前目录：{{ fullCodePath }}</span>
         <span v-else class="path empty">请先「返回工作空间」，在左侧服务目录对任意目录节点悬停点 ⋮ → 打开工作台</span>
+        <el-select
+          v-model="selectedModeCode"
+          placeholder="模式"
+          clearable
+          class="mode-select"
+          :loading="modeLoading"
+          :disabled="!fullCodePath"
+        >
+          <el-option v-for="m in modeList" :key="m.code" :value="m.code" :label="m.name" />
+        </el-select>
         <el-select
           v-model="selectedAgentId"
           placeholder="选择智能体（不选则用默认 LLM）"
@@ -155,7 +175,7 @@ import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, ArrowRight, Plus } from '@element-plus/icons-vue'
 import { marked } from 'marked'
-import { workspaceChatStream, getWorkspaceSessions, getWorkspaceMessages, type WorkspaceSessionItem } from '@/api/workspace'
+import { workspaceChatStream, getWorkspaceSessions, getWorkspaceMessages, getWorkspaceModes, type WorkspaceSessionItem, type WorkspaceModeItem } from '@/api/workspace'
 import { getAgentList } from '@/api/agent'
 import ToolCallCard from './ToolCallCard.vue'
 import type { AgentInfo } from '@/api/agent'
@@ -191,6 +211,9 @@ const messagesRef = ref<HTMLElement | null>(null)
 const agentList = ref<AgentInfo[]>([])
 const agentLoading = ref(false)
 const selectedAgentId = ref<number | null>(null)
+const modeList = ref<WorkspaceModeItem[]>([])
+const modeLoading = ref(false)
+const selectedModeCode = ref<string>('dev')
 
 // 会话列表相关
 const sessionList = ref<WorkspaceSessionItem[]>([])
@@ -202,6 +225,21 @@ function handleBack() {
     emit('back')
   } else {
     router.push({ name: 'workspace' })
+  }
+}
+
+async function loadModes() {
+  modeLoading.value = true
+  try {
+    const res = await getWorkspaceModes({ page: 1, page_size: 50 })
+    modeList.value = res.list || []
+    if (modeList.value.length > 0 && !selectedModeCode.value) {
+      selectedModeCode.value = modeList.value[0].code
+    }
+  } catch {
+    modeList.value = []
+  } finally {
+    modeLoading.value = false
   }
 }
 
@@ -306,6 +344,7 @@ function formatRelativeTime(timeStr: string): string {
 }
 
 onMounted(() => {
+  loadModes()
   loadAgents()
   if (props.fullCodePath) {
     loadSessions()
@@ -361,8 +400,9 @@ async function send() {
       full_code_path: props.fullCodePath,
       message: { content: text },
       session_id: sessionId.value,
-    } as { full_code_path: string; message: { content: string }; session_id?: string; agent_id?: number }
+    } as { full_code_path: string; message: { content: string }; session_id?: string; agent_id?: number; mode?: string }
     if (selectedAgentId.value != null) payload.agent_id = selectedAgentId.value
+    if (selectedModeCode.value) payload.mode = selectedModeCode.value
 
     await workspaceChatStream(payload, (event, data) => {
       const m = messages.value[idx]
@@ -559,6 +599,7 @@ async function send() {
 .workstation-chat-header .title { font-weight: 600; color: var(--el-text-color-primary); }
 .workstation-chat-header .path { color: var(--el-text-color-regular); font-size: 13px; }
 .workstation-chat-header .path.empty { color: var(--el-text-color-placeholder); }
+.workstation-chat-header .mode-select { min-width: 120px; margin-right: 8px; }
 .workstation-chat-header .agent-select { min-width: 180px; }
 .workstation-chat-header .back { margin-left: auto; }
 .workstation-chat-main {
