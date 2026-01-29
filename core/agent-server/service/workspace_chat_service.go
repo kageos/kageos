@@ -53,6 +53,7 @@ const (
 // WorkspaceChatService 工作台对话编排：会话、历史、LLM、Tool 循环；复用 prepareLLMRequest 逻辑与 pkg/llms ChatStream
 type WorkspaceChatService struct {
 	toolReg     *ToolRegistry
+	modeRepo    *repository.WorkspaceModeRepository
 	sessionRepo *repository.ChatSessionRepository
 	messageRepo *repository.ChatMessageRepository
 	llmRepo     *repository.LLMRepository
@@ -62,6 +63,7 @@ type WorkspaceChatService struct {
 // NewWorkspaceChatService 创建 WorkspaceChatService
 func NewWorkspaceChatService(
 	toolReg *ToolRegistry,
+	modeRepo *repository.WorkspaceModeRepository,
 	sessionRepo *repository.ChatSessionRepository,
 	messageRepo *repository.ChatMessageRepository,
 	llmRepo *repository.LLMRepository,
@@ -69,6 +71,7 @@ func NewWorkspaceChatService(
 ) *WorkspaceChatService {
 	return &WorkspaceChatService{
 		toolReg:     toolReg,
+		modeRepo:    modeRepo,
 		sessionRepo: sessionRepo,
 		messageRepo: messageRepo,
 		llmRepo:     llmRepo,
@@ -201,9 +204,28 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	}
 
 		sessionID := session.SessionID
-		
-		// 统一获取 agentID：优先使用 session.AgentID，如果为0则使用请求中的 req.AgentID
+
+		// 解析模式：按 req.Mode（code）查库，未传或查不到则用 dev
+		modeCode := strings.TrimSpace(req.Mode)
+		if modeCode == "" {
+			modeCode = "dev"
+		}
+		mode, _ := s.modeRepo.GetByCode(modeCode)
+		if mode == nil {
+			mode, _ = s.modeRepo.GetByCode("dev")
+		}
+		var toolNames []string
+		var systemPromptFragment string
+		if mode != nil {
+			toolNames = mode.GetToolNames()
+			systemPromptFragment = strings.TrimSpace(mode.SystemPromptFragment)
+		}
+
+		// 有效 agentID：模式绑定了智能体则用模式的，否则用 session/req
 		agentID := s.getAgentID(session.AgentID, req.AgentID)
+		if mode != nil && mode.AgentID != nil && *mode.AgentID > 0 {
+			agentID = *mode.AgentID
+		}
 		agentIDPtr := s.getAgentIDPtr(agentID)
 
 		// 3) 保存 user 消息
@@ -241,8 +263,8 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	sendEvent(EventSession, StreamEventSession{SessionID: sessionID})
 	sendEvent(EventAgentID, StreamEventAgentID{AgentID: agentID})
 
-	// 构建 LLM 消息和工具定义（传入已获取的环境信息，避免重复调用）
-	msgs, tools, e := s.buildLLMMessages(ctx, sessionID, fullCodePath, directoryName, agentID, workspaceCtx)
+	// 构建 LLM 消息和工具定义（按模式过滤工具、拼模式专属提示）
+	msgs, tools, e := s.buildLLMMessages(ctx, sessionID, fullCodePath, directoryName, agentID, workspaceCtx, toolNames, systemPromptFragment)
 	if e != nil {
 		return s.handleError(sendEvent, e.Error(), e)
 	}
@@ -269,8 +291,8 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		// 执行工具调用
 		toolSummaries := s.executeToolCalls(ctx, allToolCalls, sessionID, fullCodePath, agentIDPtr, user, req.Message.Files, sendEvent)
 
-		// 继续下一轮对话：将 tool 结果发送给 LLM，让模型基于工具结果继续回复
-		return s.continueToolCallLoop(ctx, sessionID, fullCodePath, agentID, agentIDPtr, user, 1, toolSummaries, sendEvent)
+		// 继续下一轮对话：将 tool 结果发送给 LLM，让模型基于工具结果继续回复（沿用当前模式的工具集与提示）
+		return s.continueToolCallLoop(ctx, sessionID, fullCodePath, agentID, agentIDPtr, user, 1, toolSummaries, sendEvent, toolNames, systemPromptFragment)
 	}
 
 	// 普通回复：保存 assistant 消息
@@ -292,6 +314,8 @@ func (s *WorkspaceChatService) continueToolCallLoop(
 	round int,
 	previousToolSummaries []dto.WorkspaceChatToolCallSummary,
 	sendEvent func(string, interface{}),
+	toolNames []string,
+	systemPromptFragment string,
 ) error {
 	// 防止无限循环
 	if round >= MaxToolRounds {
@@ -314,8 +338,8 @@ func (s *WorkspaceChatService) continueToolCallLoop(
 			directoryName = workspaceCtx.Directory.Code
 		}
 
-		// 构建 LLM 消息（包含 tool 结果，传入已获取的环境信息）
-		msgs, tools, e := s.buildLLMMessages(ctx, sessionID, fullCodePath, directoryName, agentID, workspaceCtx)
+		// 构建 LLM 消息（沿用当前模式的工具集与提示）
+		msgs, tools, e := s.buildLLMMessages(ctx, sessionID, fullCodePath, directoryName, agentID, workspaceCtx, toolNames, systemPromptFragment)
 		if e != nil {
 			return s.handleError(sendEvent, e.Error(), e)
 		}
@@ -346,7 +370,7 @@ func (s *WorkspaceChatService) continueToolCallLoop(
 		toolSummaries = append(previousToolSummaries, toolSummaries...)
 
 		// 递归调用，继续下一轮
-		return s.continueToolCallLoop(ctx, sessionID, fullCodePath, agentID, agentIDPtr, user, round+1, toolSummaries, sendEvent)
+		return s.continueToolCallLoop(ctx, sessionID, fullCodePath, agentID, agentIDPtr, user, round+1, toolSummaries, sendEvent, toolNames, systemPromptFragment)
 	}
 
 	// 保存最终回复并结束
@@ -445,12 +469,12 @@ func convertToLLMTools(toolsDesc []dto.ToolDef) []llms.ToolDef {
 	return llmTools
 }
 
-func (s *WorkspaceChatService) buildLLMMessages(ctx context.Context, sessionID, fullCodePath, directoryName string, agentID int64, workspaceCtx *dto.GetWorkspaceContextResp) ([]llms.Message, []llms.ToolDef, error) {
+func (s *WorkspaceChatService) buildLLMMessages(ctx context.Context, sessionID, fullCodePath, directoryName string, agentID int64, workspaceCtx *dto.GetWorkspaceContextResp, toolNames []string, systemPromptFragment string) ([]llms.Message, []llms.ToolDef, error) {
 	list, err := s.messageRepo.ListBySessionID(sessionID)
 	if err != nil {
 		return nil, nil, err
 	}
-	toolsDesc, _ := s.toolReg.ListTools(ctx)
+	toolsDesc, _ := s.toolReg.ListTools(ctx, toolNames)
 	llmTools := convertToLLMTools(toolsDesc)
 
 	// 构建环境信息块（使用已传入的环境信息，避免重复调用）
@@ -586,6 +610,10 @@ func (s *WorkspaceChatService) buildLLMMessages(ctx context.Context, sessionID, 
 			}
 			system += "\n\n" + workstationCtxStr
 		}
+	}
+	// 模式专属补充提示（拼在 Agent 提示后）
+	if systemPromptFragment != "" {
+		system += "\n\n" + systemPromptFragment
 	}
 
 	msgs := []llms.Message{{Role: "system", Content: system}}

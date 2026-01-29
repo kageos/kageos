@@ -39,6 +39,7 @@ type Server struct {
 	functionGroupAgentRepo *repository.FunctionGroupAgentRepository
 	sessionRepo            *repository.ChatSessionRepository
 	messageRepo            *repository.ChatMessageRepository
+	modeRepo               *repository.WorkspaceModeRepository
 
 	// 服务
 	agentService       *service.AgentService
@@ -175,6 +176,10 @@ func (s *Server) initDatabase(ctx context.Context) error {
 	if err := model.InitTables(s.db); err != nil {
 		return fmt.Errorf("failed to migrate database: %w", err)
 	}
+	// 初始化工作台内置 3 个模式（若不存在则插入）
+	if err := model.InitWorkspaceModes(s.db); err != nil {
+		return fmt.Errorf("failed to init workspace modes: %w", err)
+	}
 
 	logger.Infof(ctx, "[Server] Database initialized successfully")
 	return nil
@@ -276,6 +281,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	messageRepo := repository.NewChatMessageRepository(s.db)
 	s.sessionRepo = sessionRepo
 	s.messageRepo = messageRepo
+	s.modeRepo = repository.NewWorkspaceModeRepository(s.db)
 	s.functionGenRepo = repository.NewFunctionGenRepository(s.db)
 	s.functionGroupAgentRepo = repository.NewFunctionGroupAgentRepository(s.db)
 
@@ -293,7 +299,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	// 智能工作台 ToolRegistry（list_tools、call_tool）
 	s.toolRegistry = service.NewToolRegistry(s.pluginRepo)
 	// 智能工作台 WorkspaceChatService（会话、编排、Tool 循环；复用 LLM 配置 + ChatStream）
-	s.workspaceChatService = service.NewWorkspaceChatService(s.toolRegistry, sessionRepo, messageRepo, s.llmRepo, s.agentRepo)
+	s.workspaceChatService = service.NewWorkspaceChatService(s.toolRegistry, s.modeRepo, sessionRepo, messageRepo, s.llmRepo, s.agentRepo)
 
 	logger.Infof(ctx, "[Server] Services initialized successfully")
 	return nil

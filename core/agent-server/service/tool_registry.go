@@ -24,8 +24,8 @@ func NewToolRegistry(pluginRepo *repository.PluginRepository) *ToolRegistry {
 	return &ToolRegistry{pluginRepo: pluginRepo}
 }
 
-// ListTools 返回所有可用工具定义（内置 + 启用插件）
-func (r *ToolRegistry) ListTools(ctx context.Context) ([]dto.ToolDef, error) {
+// ListTools 返回可用工具定义（内置 + 启用插件）。toolNames 非空时只返回 name 在列表中的工具，空则返回全部。
+func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto.ToolDef, error) {
 	enabled := true
 	plugins, _, err := r.pluginRepo.List("", "", &enabled, 0, 200)
 	if err != nil {
@@ -220,6 +220,20 @@ func (r *ToolRegistry) ListTools(ctx context.Context) ([]dto.ToolDef, error) {
 		})
 	}
 
+	// 按模式过滤：若指定了 toolNames，只保留 name 在列表中的工具
+	if len(toolNames) > 0 {
+		nameSet := make(map[string]struct{}, len(toolNames))
+		for _, n := range toolNames {
+			nameSet[n] = struct{}{}
+		}
+		filtered := make([]dto.ToolDef, 0, len(out))
+		for _, t := range out {
+			if _, ok := nameSet[t.Name]; ok {
+				filtered = append(filtered, t)
+			}
+		}
+		return filtered, nil
+	}
 	return out, nil
 }
 

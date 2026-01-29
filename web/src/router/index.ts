@@ -137,13 +137,13 @@ const router = createRouter({
         requireAuth: true
       }
     },
-    // 智能工作台（需放在 /workspace/:user/:app 之前，避免被误匹配）
+    // 智能工作台管理（模式列表与配置；带 full_code_path 时同页显示工作台对话）
     {
       path: '/workspace/workstation',
       name: 'workspace-workstation',
       component: () => import('../architecture/presentation/views/WorkstationView.vue'),
       meta: {
-        title: '智能工作台',
+        title: '智能工作台管理',
         requireAuth: true
       }
     },
