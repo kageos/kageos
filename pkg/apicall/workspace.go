@@ -65,3 +65,24 @@ func GetWorkspaceContext(ctx context.Context, fullCodePath string) (*dto.GetWork
 	params.Set("full_code_path", fullCodePath)
 	return GetAPI[*dto.GetWorkspaceContextResp](ctx, "/workspace/api/v1/workspace/context", params)
 }
+
+// CreateDocs 创建 docs 类型节点（agent-server -> app-server）
+// 使用现有接口 POST /workspace/api/v1/docs/crud
+func CreateDocs(ctx context.Context, req *dto.CreateDocsReq) (*dto.CreateDocsResp, error) {
+	return PostAPI[*dto.CreateDocsReq, *dto.CreateDocsResp](ctx, "/workspace/api/v1/docs/crud", req)
+}
+
+// UpdateDocs 更新 docs 类型节点（含文档内容）（agent-server -> app-server）
+// 使用现有接口 PUT /workspace/api/v1/docs/crud/:id
+func UpdateDocs(ctx context.Context, id int64, req *dto.UpdateDocsReq) error {
+	path := fmt.Sprintf("/workspace/api/v1/docs/crud/%d", id)
+	req.ID = id
+	_, err := PutAPI[*dto.UpdateDocsReq, map[string]interface{}](ctx, path, req)
+	return err
+}
+
+// CreatePackage 创建 package 类型节点（目录）（agent-server -> app-server）
+// 使用现有接口 POST /workspace/api/v1/packages
+func CreatePackage(ctx context.Context, req *dto.CreatePackageReq) (*dto.CreatePackageResp, error) {
+	return PostAPI[*dto.CreatePackageReq, *dto.CreatePackageResp](ctx, "/workspace/api/v1/packages", req)
+}

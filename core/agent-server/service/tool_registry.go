@@ -123,6 +123,66 @@ func (r *ToolRegistry) ListTools(ctx context.Context) ([]dto.ToolDef, error) {
 			"required": []interface{}{"file_name"},
 		},
 	})
+	out = append(out, dto.ToolDef{
+		Name:        "write_doc",
+		Description: "在指定路径下写入或更新文档（markdown 等）。文档不要乱放：应优先放在合适的文件夹下（如「文档」文件夹）；若没有请先 create_directory。与 create_directory 一致：树节点必有 code（URL 标识）和 name（中文描述）。写文档到文件夹下时传 full_code_path（文件夹路径）、code（如 readme）、name（如「项目文档」）、content；不传 code 则 full_code_path 视为文档完整路径（最后一段为 code，name 可选）。content 必填。",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"full_code_path": map[string]interface{}{
+					"type":        "string",
+					"description": "父目录路径或文档完整路径（可选）。写文档到文件夹下时填文件夹路径并同时传 code、name；否则填文档完整路径如 /user/app/工单/文档/readme。不传则使用当前目录",
+				},
+				"code": map[string]interface{}{
+					"type":        "string",
+					"description": "文档的 code（URL 标识），如 readme、project_doc。写文档到文件夹下时必填；不填则 full_code_path 视为文档完整路径（最后一段为 code）",
+				},
+				"name": map[string]interface{}{
+					"type":        "string",
+					"description": "文档的 name（中文描述），如「项目文档」「README」。创建节点时用作显示名；不填则用 code",
+				},
+				"content": map[string]interface{}{
+					"type":        "string",
+					"description": "文档内容（必填），支持 markdown",
+				},
+				"format": map[string]interface{}{
+					"type":        "string",
+					"description": "文档格式（可选），默认 markdown",
+				},
+			},
+			"required": []interface{}{"content"},
+		},
+	})
+	out = append(out, dto.ToolDef{
+		Name:        "create_directory",
+		Description: "在当前目录或指定 full_code_path（父目录）下创建一个子目录（package 类型）。参数 name 为显示名称（如「文档」），code 为代码标识（如 docs）。description 为目录描述（可选）；admins 为管理员列表逗号分隔（可选，不填则默认为当前用户，需要帮他人加管理员时可填写）。",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"full_code_path": map[string]interface{}{
+					"type":        "string",
+					"description": "父目录完整路径（可选），不传则使用当前目录",
+				},
+				"name": map[string]interface{}{
+					"type":        "string",
+					"description": "目录显示名称，如「文档」",
+				},
+				"code": map[string]interface{}{
+					"type":        "string",
+					"description": "目录代码标识，如 docs",
+				},
+				"description": map[string]interface{}{
+					"type":        "string",
+					"description": "目录描述（可选），如「存放项目文档」",
+				},
+				"admins": map[string]interface{}{
+					"type":        "string",
+					"description": "管理员列表，逗号分隔（可选）；不填则默认为当前用户；需要为他人加管理员时可填写，如 user1,user2",
+				},
+			},
+			"required": []interface{}{"name", "code"},
+		},
+	})
 
 	// write_file 不暴露给大模型，仅内部使用
 
@@ -178,6 +238,10 @@ func (r *ToolRegistry) CallTool(ctx context.Context, name string, args map[strin
 	case "write_package_code":
 		// write_package_code 由工作台对话流程在 executeToolCalls 中处理（需 sessionID、messageRepo），不在此处执行
 		return "write_package_code 应在工作台对话流程中调用，不经过 CallTool。", true
+	case "write_doc":
+		return RunWriteDocTool(ctx, args, fullCodePath)
+	case "create_directory":
+		return RunCreateDirectoryTool(ctx, args, fullCodePath)
 	case "get_current_time":
 		return r.callGetCurrentTime(ctx, args)
 	}
