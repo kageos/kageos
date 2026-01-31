@@ -201,9 +201,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/app/update/{app}": {
+        "/api/v1/app/update/{user}/{app}": {
             "post": {
-                "description": "更新应用代码并重新编译部署",
+                "description": "更新应用代码并重新编译部署。路径传 user（租户）和 app（应用名），请求体传 CreateFunctions、SkipBuild 等。",
                 "consumes": [
                     "application/json"
                 ],
@@ -215,6 +215,13 @@ const docTemplate = `{
                 ],
                 "summary": "更新应用",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "description": "租户用户名",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
                     {
                         "type": "string",
                         "description": "应用名",

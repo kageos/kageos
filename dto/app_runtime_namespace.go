@@ -31,18 +31,18 @@ type CreateAppResp struct {
 
 // RequestAppReq 请求应用
 type RequestAppReq struct {
-	TraceId        string `json:"trace_id" example:"req-123456"` // 追踪ID（由中间件自动填充）
-	IsCallback     bool   `json:"is_callback" example:"true"`
-	RequestUser    string `json:"request_user" swaggerignore:"true"`          // 请求用户（由中间件自动填充）
-	RequestUserDept string `json:"request_user_dept" swaggerignore:"true"`   // 请求用户部门（由中间件自动填充）
-	Token          string `json:"token" swaggerignore:"true"`                 // 认证 Token（由中间件自动填充，透传到 SDK）
-	User           string `json:"user" binding:"required" example:"beiluo"`   // 租户用户名（应用所有者）
-	App            string `json:"app" binding:"required" example:"myapp"`     // 应用名
-	Version        string `json:"version" binding:"required" example:"v1"`    // 版本号
-	Router         string `json:"router" binding:"required" example:"/users"` // 路由路径
-	Method         string `json:"method" example:"GET"`                       // 应用内部方法名（可选）
-	Body           []byte `json:"body" example:"eyJpZCI6MX0="`                // 请求体（Base64编码）
-	UrlQuery       string `json:"url_query" example:"page=1&size=10"`         // URL 查询参数
+	TraceId         string `json:"trace_id" example:"req-123456"` // 追踪ID（由中间件自动填充）
+	IsCallback      bool   `json:"is_callback" example:"true"`
+	RequestUser     string `json:"request_user" swaggerignore:"true"`          // 请求用户（由中间件自动填充）
+	RequestUserDept string `json:"request_user_dept" swaggerignore:"true"`     // 请求用户部门（由中间件自动填充）
+	Token           string `json:"token" swaggerignore:"true"`                 // 认证 Token（由中间件自动填充，透传到 SDK）
+	User            string `json:"user" binding:"required" example:"beiluo"`   // 租户用户名（应用所有者）
+	App             string `json:"app" binding:"required" example:"myapp"`     // 应用名
+	Version         string `json:"version" binding:"required" example:"v1"`    // 版本号
+	Router          string `json:"router" binding:"required" example:"/users"` // 路由路径
+	Method          string `json:"method" example:"GET"`                       // 应用内部方法名（可选）
+	Body            []byte `json:"body" example:"eyJpZCI6MX0="`                // 请求体（Base64编码）
+	UrlQuery        string `json:"url_query" example:"page=1&size=10"`         // URL 查询参数
 }
 
 // CallbackAppReq 回调请求
@@ -81,13 +81,14 @@ type CreateFunctionsResp struct {
 
 // UpdateAppReq 更新应用请求（更新应用代码并重新编译部署）
 type UpdateAppReq struct {
-	User              string                `json:"user" swaggerignore:"true"`              // 用户名
-	App               string                `json:"app" binding:"required" example:"myapp"` // 应用名
-	ForkPackages      []*ForkPackageInfo    `json:"fork_packages,omitempty"`                // 可选的 Fork 包列表（如果有，先执行 fork 再更新）
-	CreateFunctions   []*CreateFunctionInfo `json:"create_functions,omitempty"`             // 可选的新建函数列表（如果有，先执行创建函数再更新）
-	Requirement       string                `json:"requirement,omitempty"`                  // 变更需求（用户在前端输入的）
-	ChangeDescription string                `json:"change_description,omitempty"`           // 变更描述（大模型输出的）
-	Summary           string                `json:"summary,omitempty"`                      // 变更摘要（详情），兼容旧字段，如果未提供则使用 Requirement + ChangeDescription 组合
+	User              string                `json:"user,omitempty"`               // 租户用户名（应用所属），不传则用 JWT）
+	App               string                `json:"app,omitempty"`                // 应用名，不传则用路径参数
+	ForkPackages      []*ForkPackageInfo    `json:"fork_packages,omitempty"`      // 可选的 Fork 包列表（如果有，先执行 fork 再更新）
+	CreateFunctions   []*CreateFunctionInfo `json:"create_functions,omitempty"`   // 可选的新建函数列表（如果有，先执行创建函数再更新）
+	Requirement       string                `json:"requirement,omitempty"`        // 变更需求（用户在前端输入的）
+	ChangeDescription string                `json:"change_description,omitempty"` // 变更描述（大模型输出的）
+	Summary           string                `json:"summary,omitempty"`            // 变更摘要（详情），兼容旧字段，如果未提供则使用 Requirement + ChangeDescription 组合
+	SkipBuild         bool                  `json:"skip_build,omitempty"`         // 为 true 时仅执行写文件（CreateFunctions/ForkPackages），不编译不部署
 }
 
 // UpdateAppResp 更新应用响应
@@ -119,7 +120,7 @@ func (d *DiffData) GetAddFullCodePaths() []string {
 	if d == nil || len(d.Add) == 0 {
 		return []string{}
 	}
-	
+
 	fullCodePaths := make([]string, 0, len(d.Add))
 	for _, api := range d.Add {
 		if api != nil {
@@ -215,14 +216,14 @@ func (a *ApiInfo) GetPackageChain() []string {
 }
 
 type ApiInfo struct {
-	Code              string   `json:"code"`
-	Name              string   `json:"name"`
-	Desc              string   `json:"desc"`
-	Tags              []string `json:"tags"`
-	Router            string   `json:"router"`
-	Method            string   `json:"method"`
-	CreateTables      []string `json:"create_tables"`
-	Callback          []string `json:"callback"`
+	Code         string   `json:"code"`
+	Name         string   `json:"name"`
+	Desc         string   `json:"desc"`
+	Tags         []string `json:"tags"`
+	Router       string   `json:"router"`
+	Method       string   `json:"method"`
+	CreateTables []string `json:"create_tables"`
+	Callback     []string `json:"callback"`
 	// FunctionGroupCode 和 FunctionGroupName 已移除，不再需要
 
 	Request        []*widget.Field `json:"request"`
@@ -305,7 +306,7 @@ type GetAppWithServiceTreeReq struct {
 
 // GetAppWithServiceTreeResp 获取应用详情和服务目录树响应
 type GetAppWithServiceTreeResp struct {
-	App         AppInfo               `json:"app"`          // 应用详情
-	ServiceTree []*GetServiceTreeResp `json:"service_tree"` // 服务目录树
-	ExpandedKeys []int64              `json:"expanded_keys,omitempty"` // ⭐ 需要自动展开的节点ID列表（包含所有 pending_count > 0 的节点及其父节点）
+	App          AppInfo               `json:"app"`                     // 应用详情
+	ServiceTree  []*GetServiceTreeResp `json:"service_tree"`            // 服务目录树
+	ExpandedKeys []int64               `json:"expanded_keys,omitempty"` // ⭐ 需要自动展开的节点ID列表（包含所有 pending_count > 0 的节点及其父节点）
 }

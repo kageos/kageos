@@ -133,16 +133,22 @@
             <span class="role">{{ m.role === 'user' ? '我' : '工作台' }}</span>
             <span v-if="m.created_at" class="message-time">{{ formatMessageTime(m.created_at) }}</span>
           </div>
-          <div v-if="m.role === 'assistant' && m.tool_calls?.length" class="tool-calls">
-            <ToolCallCard
-              v-for="(tc, j) in m.tool_calls"
-              :key="tc.id || j"
-              :tool-call="tc"
-            />
-          </div>
           <div class="content">
             <div class="message-text" v-html="renderMarkdown(m.content)"></div>
             <span v-if="sending && i === messages.length - 1 && m.role === 'assistant'" class="streaming-cursor">▌</span>
+          </div>
+          <!-- 本消息发起的工具调用：放在消息下方，可折叠，时间线更清晰 -->
+          <div v-if="m.role === 'assistant' && m.tool_calls?.length" class="message-tool-calls-wrap">
+            <details class="message-tool-calls-details">
+              <summary class="message-tool-calls-summary">本消息发起的调用（{{ m.tool_calls.length }} 个）</summary>
+              <div class="tool-calls">
+                <ToolCallCard
+                  v-for="(tc, j) in m.tool_calls"
+                  :key="tc.id || j"
+                  :tool-call="tc"
+                />
+              </div>
+            </details>
           </div>
         </div>
       </div>
@@ -180,6 +186,7 @@ import { getAgentList } from '@/api/agent'
 import ToolCallCard from './ToolCallCard.vue'
 import type { AgentInfo } from '@/api/agent'
 import { ElMessage } from 'element-plus'
+import { useWorkspaceChatStream } from '@/architecture/presentation/composables/useWorkspaceChatStream'
 
 // 配置 marked：支持换行、GFM
 marked.setOptions({
@@ -200,13 +207,14 @@ const emit = defineEmits<{ (e: 'back'): void }>()
 
 const router = useRouter()
 
+const { messages, sending, sessionId, agentId, send: sendMessage, handleEvent, setMessages } = useWorkspaceChatStream()
 const inputText = ref('')
-const sending = ref(false)
-const messages = ref<
-  Array<{ role: 'user' | 'assistant'; content: string; tool_calls?: Array<{ name: string; status: string; arguments?: string }>; created_at?: string }>
->([])
-const sessionId = ref<string | undefined>(undefined)
 const messagesRef = ref<HTMLElement | null>(null)
+
+// 后端下发 agent_id 时同步到选择器
+watch(agentId, (v) => {
+  if (v != null) selectedAgentId.value = v
+})
 
 const agentList = ref<AgentInfo[]>([])
 const agentLoading = ref(false)
@@ -283,35 +291,31 @@ async function loadSessions() {
 async function loadSessionMessages(targetSessionId: string) {
   try {
     const res = await getWorkspaceMessages({ session_id: targetSessionId })
-    // 转换消息格式，过滤掉 tool 角色的消息（不需要在界面显示）
-    messages.value = res.messages
-      .filter(msg => msg.role === 'user' || msg.role === 'assistant')
-      .map(msg => ({
+    const msgs = res.messages
+      .filter((msg) => msg.role === 'user' || msg.role === 'assistant')
+      .map((msg) => ({
         role: msg.role as 'user' | 'assistant',
         content: msg.content,
         tool_calls: msg.tool_calls || [],
         created_at: msg.created_at,
       }))
-    // 滚动到底部
+    setMessages(msgs)
     setTimeout(() => {
       if (messagesRef.value) {
         messagesRef.value.scrollTop = messagesRef.value.scrollHeight
       }
     }, 100)
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('加载会话消息失败:', e)
     ElMessage.error('加载会话消息失败')
-    messages.value = []
+    setMessages([])
   }
 }
 
 // 新建会话
 function handleNewSession() {
-  // 清空当前会话ID和消息
   sessionId.value = undefined
-  messages.value = []
-  // 保持当前选中的智能体（如果已选择）
-  // 不重置 selectedAgentId，让用户继续使用之前选择的智能体
+  setMessages([])
   ElMessage.success('已创建新会话，发送第一条消息后将自动保存')
 }
 
@@ -352,18 +356,20 @@ onMounted(() => {
 })
 
 // 监听 fullCodePath 变化，自动加载会话列表
-watch(() => props.fullCodePath, (newPath) => {
-  if (newPath) {
-    loadSessions()
-    // 切换目录时重置会话和消息
-    sessionId.value = undefined
-    messages.value = []
-  } else {
-    sessionList.value = []
-    sessionId.value = undefined
-    messages.value = []
+watch(
+  () => props.fullCodePath,
+  (newPath) => {
+    if (newPath) {
+      loadSessions()
+      sessionId.value = undefined
+      setMessages([])
+    } else {
+      sessionList.value = []
+      sessionId.value = undefined
+      setMessages([])
+    }
   }
-})
+)
 
 function renderMarkdown(content: string): string {
   if (!content) return ''
@@ -390,75 +396,25 @@ async function send() {
   const text = inputText.value.trim()
   if (!text || !props.fullCodePath) return
   inputText.value = ''
-  const now = new Date().toISOString()
-  messages.value.push({ role: 'user', content: text, created_at: now })
-  messages.value.push({ role: 'assistant', content: '', tool_calls: [], created_at: now })
-  sending.value = true
-  const idx = messages.value.length - 1
-  try {
-    const payload = {
-      full_code_path: props.fullCodePath,
-      message: { content: text },
-      session_id: sessionId.value,
-    } as { full_code_path: string; message: { content: string }; session_id?: string; agent_id?: number; mode?: string }
-    if (selectedAgentId.value != null) payload.agent_id = selectedAgentId.value
-    if (selectedModeCode.value) payload.mode = selectedModeCode.value
+  const payload = {
+    full_code_path: props.fullCodePath,
+    message: { content: text },
+    session_id: sessionId.value,
+  } as { full_code_path: string; message: { content: string }; session_id?: string; agent_id?: number; mode?: string }
+  if (selectedAgentId.value != null) payload.agent_id = selectedAgentId.value
+  if (selectedModeCode.value) payload.mode = selectedModeCode.value
 
+  const streamFn = async (onEvent: (event: string, data: Record<string, unknown>) => void) => {
     await workspaceChatStream(payload, (event, data) => {
-      const m = messages.value[idx]
-      if (!m || m.role !== 'assistant') return
-      if (event === 'session' && typeof data.session_id === 'string') sessionId.value = data.session_id
-      if (event === 'agent_id' && data.agent_id != null && Number(data.agent_id) > 0)
-        selectedAgentId.value = Number(data.agent_id)
-      if (event === 'tool_calls_stream' && Array.isArray(data.tool_calls)) {
-        // 后端推送的「当前全部 tool_call」流式列表，统一展示为 streaming
-        const list = (data.tool_calls as Array<{ name?: string; arguments?: string }>).map((t) => ({
-          name: typeof t.name === 'string' ? t.name : '',
-          status: 'streaming' as const,
-          arguments: typeof t.arguments === 'string' ? t.arguments : undefined,
-        }))
-        messages.value[idx] = { ...m, tool_calls: list }
-      }
-      if (event === 'tool_call' && typeof data.name === 'string') {
-        const status = String(data.status || 'ok')
-        const argumentsStr = typeof data.arguments === 'string' ? data.arguments : undefined
-        const prev = m.tool_calls || []
-        // running/ok/error：按「同名」找到最后一条并更新，避免多工具时更新错卡片
-        const lastSameNameIndex = prev.map((t, i) => (t.name === data.name ? i : -1)).filter((i) => i >= 0).pop()
-        let list: Array<{ name: string; status: string; arguments?: string }>
-        if (lastSameNameIndex !== undefined) {
-          list = prev.map((t, i) =>
-            i === lastSameNameIndex ? { name: data.name, status, arguments: argumentsStr ?? t.arguments } : t
-          )
-        } else {
-          list = [...prev, { name: data.name, status, arguments: argumentsStr }]
-        }
-        messages.value[idx] = { ...m, tool_calls: list }
-      }
-      if (event === 'content' && typeof data.content === 'string') {
-        messages.value[idx] = { ...m, content: m.content + data.content }
-      }
-      if (event === 'done') {
-        sending.value = false
-        if (Array.isArray(data.tool_calls)) {
-          messages.value[idx] = { ...m, tool_calls: data.tool_calls as Array<{ name: string; status: string }> }
-        }
-        // 对话完成后刷新会话列表
-        loadSessions()
-      }
-      if (event === 'error') {
-        messages.value[idx] = { ...m, content: m.content || String(data.message || '请求失败') }
-        sending.value = false
-        ElMessage.error(String(data.message || '发送失败'))
-      }
+      onEvent(event, data as Record<string, unknown>)
+      if (event === 'done') loadSessions()
+      if (event === 'error') ElMessage.error(String((data as { message?: string })?.message || '发送失败'))
     })
-  } catch (e: any) {
-    const m = messages.value[idx]
-    if (m && m.role === 'assistant')
-      messages.value[idx] = { ...m, content: m.content || '请求失败：' + (e?.message || String(e)) }
+  }
+  try {
+    await sendMessage(text, streamFn)
+  } catch {
     ElMessage.error('发送失败')
-  } finally {
-    sending.value = false
   }
 }
 </script>
@@ -710,12 +666,51 @@ async function send() {
 .message .message-text :deep(img) { max-width: 100%; height: auto; border-radius: 4px; margin: 6px 0; }
 .streaming-cursor { animation: blink 0.8s step-end infinite; color: var(--el-color-primary); display: inline-block; margin-left: 2px; }
 @keyframes blink { 50% { opacity: 0; } }
-.tool-calls { 
-  display: flex; 
-  flex-direction: column; 
-  gap: 8px; 
+/* 本消息发起的调用：放在消息下方、可折叠 */
+.message-tool-calls-wrap {
   width: 100%;
   margin-top: 8px;
+}
+.message-tool-calls-details {
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: var(--el-border-radius-base);
+  background: var(--el-fill-color-lighter);
+  overflow: hidden;
+}
+.message-tool-calls-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.message-tool-calls-summary::-webkit-details-marker { display: none; }
+.message-tool-calls-summary::before {
+  content: '▶';
+  font-size: 10px;
+  transition: transform 0.2s;
+  color: var(--el-text-color-placeholder);
+}
+.message-tool-calls-details[open] .message-tool-calls-summary::before {
+  transform: rotate(90deg);
+}
+.message-tool-calls-summary:hover {
+  background: var(--el-fill-color);
+  color: var(--el-text-color-regular);
+}
+.message-tool-calls-details .tool-calls {
+  padding: 8px 12px 12px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+.tool-calls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
 }
 .input-area { display: flex; flex-direction: column; gap: 8px; }
 .input-area .el-button { align-self: flex-end; }

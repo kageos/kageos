@@ -16,7 +16,6 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/enterprise"
 	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
-	"github.com/ai-agent-os/ai-agent-os/pkg/codegen/metadata"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
@@ -146,7 +145,7 @@ func NewServiceTreeService(
 	fileSnapshotRepo *repository.FileSnapshotRepository,
 	appService *AppService,
 	permissionService *PermissionService, // ⭐ 新增 PermissionService 依赖
-	docService *DocService,               // ⭐ 新增 DocService 依赖
+	docService *DocService, // ⭐ 新增 DocService 依赖
 ) *ServiceTreeService {
 	return &ServiceTreeService{
 		serviceTreeRepo:   serviceTreeRepo,
@@ -595,21 +594,21 @@ func (s *ServiceTreeService) getServiceTreeByAppModel(ctx context.Context, appMo
 	if err != nil {
 		return nil, fmt.Errorf("failed to build service tree: %w", err)
 	}
-	
+
 	// ⭐ 确保有根节点（如果没有根节点，说明数据异常，应该报错）
 	if len(trees) == 0 {
 		return nil, fmt.Errorf("服务树为空，app_id=%d，请检查根节点是否已创建", appModel.ID)
 	}
-	
+
 	// ⭐ 验证根节点有效性
 	if trees[0].ParentID != 0 || trees[0].RefID != appModel.ID {
 		return nil, fmt.Errorf("根节点无效，app_id=%d, parent_id=%d, ref_id=%d", appModel.ID, trees[0].ParentID, trees[0].RefID)
 	}
-	
+
 	rootNode := trees[0]
-	logger.Debugf(ctx, "[ServiceTreeService] 获取服务树成功: root_id=%d, app_id=%d, full_code_path=%s, children_count=%d", 
+	logger.Debugf(ctx, "[ServiceTreeService] 获取服务树成功: root_id=%d, app_id=%d, full_code_path=%s, children_count=%d",
 		rootNode.ID, appModel.ID, rootNode.FullCodePath, len(rootNode.Children))
-	
+
 	// ⭐ Step 2: 查询权限（如果权限功能启用且 PermissionService 可用）
 	var permissionsMap map[string]map[string]bool // resourcePath -> action -> bool
 	var isAdmin bool                              // ⭐ 是否是管理员
@@ -645,8 +644,8 @@ func (s *ServiceTreeService) getServiceTreeByAppModel(ctx context.Context, appMo
 	// ⭐ Step 3: 使用统一的转换方法转换根节点（包括所有子节点）
 	// 所有节点（包括根节点）都使用相同的转换逻辑，无需特殊处理
 	rootResp := s.convertToGetServiceTreeResp(ctx, rootNode, permissionsMap, isAdmin)
-	
-	logger.Debugf(ctx, "[ServiceTreeService] 服务树转换完成: root_id=%d, children_count=%d", 
+
+	logger.Debugf(ctx, "[ServiceTreeService] 服务树转换完成: root_id=%d, children_count=%d",
 		rootNode.ID, len(rootResp.Children))
 
 	// ⭐ 返回包含根节点的数组（单元素数组）
@@ -1111,7 +1110,7 @@ func (s *ServiceTreeService) UpdateServiceTreeMetadata(ctx context.Context, req 
 		// 更新数据库中的管理员列表
 		serviceTree.Admins = newAdminsStr
 	}
-	
+
 	// 保存更新
 	if err := s.serviceTreeRepo.UpdateServiceTree(serviceTree); err != nil {
 		return fmt.Errorf("failed to update service tree: %w", err)
@@ -1692,7 +1691,7 @@ func (s *ServiceTreeService) applyPermissionInheritance(
 	nodeType string,
 	templateType string,
 	parentPerms map[string]bool, // 父目录的权限（格式：actionCode -> true，如 directory:read -> true）
-	nodePerms map[string]bool,   // 子节点的权限（格式：actionCode -> true，如 table:read -> true）
+	nodePerms map[string]bool, // 子节点的权限（格式：actionCode -> true，如 table:read -> true）
 ) {
 	// 获取子节点的资源类型
 	resourceType := permission.GetResourceType(nodeType, templateType)
@@ -2658,13 +2657,13 @@ func getParentPath(fullCodePath string) string {
 }
 
 // AddFunctions 向服务目录添加函数（同步处理）
-// 目录由 full_code_path 指定；若 SourceCode 含元数据且 directory_code 与当前目录不同，则自动创建/查找子目录后写入（与 ProcessFunctionGenResult 行为一致）
+// 目录由 full_code_path 指定，文件名由 file_name 指定（或 fallback 为目录 Code）；不再解析代码内元数据，由调用方（工作台/模型）负责目录与文件名
 func (s *ServiceTreeService) AddFunctions(ctx context.Context, req *dto.AddFunctionsReq) (*dto.AddFunctionsResp, error) {
-	// 1. 根据 full_code_path 获取父目录 ServiceTree（需要预加载 App）
+	// 1. 根据 full_code_path 获取目录 ServiceTree（需要预加载 App）
 	if strings.TrimSpace(req.FullCodePath) == "" {
 		return &dto.AddFunctionsResp{Success: false, Error: "full_code_path 必填"}, fmt.Errorf("full_code_path 必填")
 	}
-	parentTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(strings.TrimSpace(req.FullCodePath))
+	targetTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(strings.TrimSpace(req.FullCodePath))
 	if err != nil {
 		logger.Errorf(ctx, "[ServiceTreeService] 获取 ServiceTree 失败: FullCodePath=%s, error=%v", req.FullCodePath, err)
 		return &dto.AddFunctionsResp{
@@ -2674,16 +2673,16 @@ func (s *ServiceTreeService) AddFunctions(ctx context.Context, req *dto.AddFunct
 	}
 
 	// 预加载 App 信息（如果还没有加载）
-	if parentTree.App == nil {
-		app, err := s.appRepo.GetAppByID(parentTree.AppID)
+	if targetTree.App == nil {
+		app, err := s.appRepo.GetAppByID(targetTree.AppID)
 		if err != nil {
-			logger.Errorf(ctx, "[ServiceTreeService] 获取 App 失败: AppID=%d, error=%v", parentTree.AppID, err)
+			logger.Errorf(ctx, "[ServiceTreeService] 获取 App 失败: AppID=%d, error=%v", targetTree.AppID, err)
 			return &dto.AddFunctionsResp{
 				Success: false,
 				Error:   err.Error(),
 			}, err
 		}
-		parentTree.App = app
+		targetTree.App = app
 	}
 
 	sourceCode := req.SourceCode
@@ -2695,33 +2694,16 @@ func (s *ServiceTreeService) AddFunctions(ctx context.Context, req *dto.AddFunct
 		}, fmt.Errorf("SourceCode 不能为空")
 	}
 
-	// 2. 解析元数据，按需创建/查找子目录（与 ProcessFunctionGenResult 一致）
-	targetTree := parentTree
-	fileName := req.FileName
-
-	var meta metadata.Metadata
-	if err := metadata.ParseMetadata(sourceCode, &meta); err == nil && meta.DirectoryCode != "" && meta.File != "" {
-		// 元数据有效：创建或查找子目录，写入到子目录
-		targetTree, err = s.createOrFindDirectory(ctx, parentTree, &meta)
-		if err != nil {
-			logger.Errorf(ctx, "[ServiceTreeService] 创建或查找目录失败: %v", err)
-			return &dto.AddFunctionsResp{Success: false, Error: err.Error()}, err
-		}
-		if targetTree.App == nil {
-			app, err := s.appRepo.GetAppByID(targetTree.AppID)
-			if err != nil {
-				logger.Errorf(ctx, "[ServiceTreeService] 获取 App 失败: AppID=%d, error=%v", targetTree.AppID, err)
-				return &dto.AddFunctionsResp{Success: false, Error: err.Error()}, err
-			}
-			targetTree.App = app
-		}
-		fileName = strings.TrimSuffix(meta.File, ".go")
-		logger.Infof(ctx, "[ServiceTreeService] 同步添加函数：按元数据写入子目录 - DirectoryCode: %s, File: %s", meta.DirectoryCode, fileName)
+	// 2. 文件名：优先 req.FileName，否则 fallback 为目录 Code（不再解析代码内元数据）
+	fileName := strings.TrimSpace(req.FileName)
+	if fileName != "" {
+		fileName = strings.TrimSuffix(fileName, ".go")
 	}
-
 	if fileName == "" {
-		logger.Warnf(ctx, "[ServiceTreeService] 未从元数据或请求得到文件名，使用 ServiceTree.Code 作为 fallback: %s", targetTree.Code)
 		fileName = targetTree.Code
+		logger.Infof(ctx, "[ServiceTreeService] 同步添加函数：未传 file_name，使用目录 Code - FullCodePath: %s, FileName: %s", req.FullCodePath, fileName)
+	} else {
+		logger.Infof(ctx, "[ServiceTreeService] 同步添加函数：直接写入 full_code_path - FullCodePath: %s, FileName: %s", req.FullCodePath, fileName)
 	}
 
 	// 3. 从目标目录提取 package 路径并构建 CreateFunctionInfo
@@ -2738,6 +2720,7 @@ func (s *ServiceTreeService) AddFunctions(ctx context.Context, req *dto.AddFunct
 		User:            req.User,
 		App:             targetTree.App.Code,
 		CreateFunctions: []*dto.CreateFunctionInfo{createFunction},
+		SkipBuild:       req.SkipBuild,
 	}
 
 	_, err = s.appService.UpdateApp(ctx, updateReq)
@@ -2757,81 +2740,19 @@ func (s *ServiceTreeService) AddFunctions(ctx context.Context, req *dto.AddFunct
 }
 
 // ProcessFunctionGenResult 处理函数生成结果（接收 agent-server 处理后的结构化数据）
-// 解析元数据、创建目录、创建函数文件、发送回调；目录由 full_code_path 指定
+// 目录由 full_code_path 指定，文件名由 file_name 指定（或 fallback 为目录 Code）；不再解析代码内元数据
 func (s *ServiceTreeService) ProcessFunctionGenResult(ctx context.Context, req *dto.AddFunctionsReq) error {
-	// 1. 根据 full_code_path 获取父目录 ServiceTree（需要预加载 App）
+	// 1. 根据 full_code_path 获取目录 ServiceTree（需要预加载 App）
 	if strings.TrimSpace(req.FullCodePath) == "" {
 		return fmt.Errorf("full_code_path 必填")
 	}
-	parentTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(strings.TrimSpace(req.FullCodePath))
+	targetTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(strings.TrimSpace(req.FullCodePath))
 	if err != nil {
-		logger.Errorf(ctx, "[ServiceTreeService] 获取父目录 ServiceTree 失败: FullCodePath=%s, error=%v", req.FullCodePath, err)
+		logger.Errorf(ctx, "[ServiceTreeService] 获取 ServiceTree 失败: FullCodePath=%s, error=%v", req.FullCodePath, err)
 		return err
 	}
 
 	// 预加载 App 信息（如果还没有加载）
-	if parentTree.App == nil {
-		app, err := s.appRepo.GetAppByID(parentTree.AppID)
-		if err != nil {
-			logger.Errorf(ctx, "[ServiceTreeService] 获取 App 失败: AppID=%d, error=%v", parentTree.AppID, err)
-			return err
-		}
-		parentTree.App = app
-	}
-
-	// 2. ⭐ 解析代码中的元数据
-	sourceCode := req.SourceCode
-	if sourceCode == "" {
-		logger.Errorf(ctx, "[ServiceTreeService] SourceCode 为空，无法处理函数生成结果")
-		return fmt.Errorf("SourceCode 不能为空")
-	}
-
-	var meta metadata.Metadata
-	var targetTree *model.ServiceTree = parentTree // 默认使用父目录
-	var fileName string
-
-	// 尝试解析元数据
-	if err := metadata.ParseMetadata(sourceCode, &meta); err == nil {
-		// 元数据解析成功
-		logger.Infof(ctx, "[ServiceTreeService] 元数据解析成功 - DirectoryCode: %s, DirectoryName: %s, File: %s",
-			meta.DirectoryCode, meta.DirectoryName, meta.File)
-
-		// 验证必需字段
-		if meta.DirectoryCode != "" && meta.File != "" {
-			// 3. ⭐ 根据元数据创建或查找目录
-			targetTree, err = s.createOrFindDirectory(ctx, parentTree, &meta)
-			if err != nil {
-				logger.Errorf(ctx, "[ServiceTreeService] 创建或查找目录失败: %v", err)
-				return err
-			}
-
-			// ⭐ 确保 targetTree 的 App 已加载（createOrFindDirectory 返回的目录可能没有预加载 App）
-			if targetTree.App == nil {
-				app, err := s.appRepo.GetAppByID(targetTree.AppID)
-				if err != nil {
-					logger.Errorf(ctx, "[ServiceTreeService] 获取 App 失败: AppID=%d, error=%v", targetTree.AppID, err)
-					return err
-				}
-				targetTree.App = app
-			}
-
-			// 从元数据中提取文件名（去掉 .go 后缀）
-			fileName = strings.TrimSuffix(meta.File, ".go")
-		} else {
-			logger.Warnf(ctx, "[ServiceTreeService] 元数据缺少必需字段，使用父目录 - DirectoryCode: %s, File: %s",
-				meta.DirectoryCode, meta.File)
-		}
-	} else {
-		logger.Warnf(ctx, "[ServiceTreeService] 元数据解析失败，使用父目录: %v", err)
-	}
-
-	// 如果文件名仍为空，使用 ServiceTree.Code 作为 fallback
-	if fileName == "" {
-		logger.Warnf(ctx, "[ServiceTreeService] 未从元数据提取到文件名，使用 ServiceTree.Code 作为 fallback: %s", targetTree.Code)
-		fileName = targetTree.Code
-	}
-
-	// ⭐ 确保 targetTree 的 App 已加载（即使使用父目录，也要确保 App 已加载）
 	if targetTree.App == nil {
 		app, err := s.appRepo.GetAppByID(targetTree.AppID)
 		if err != nil {
@@ -2841,25 +2762,43 @@ func (s *ServiceTreeService) ProcessFunctionGenResult(ctx context.Context, req *
 		targetTree.App = app
 	}
 
-	// 4. 从目标目录中提取 package 路径
+	sourceCode := req.SourceCode
+	if sourceCode == "" {
+		logger.Errorf(ctx, "[ServiceTreeService] SourceCode 为空，无法处理函数生成结果")
+		return fmt.Errorf("SourceCode 不能为空")
+	}
+
+	// 2. 文件名：优先 req.FileName，否则 fallback 为目录 Code（不再解析代码内元数据）
+	fileName := strings.TrimSpace(req.FileName)
+	if fileName != "" {
+		fileName = strings.TrimSuffix(fileName, ".go")
+	}
+	if fileName == "" {
+		fileName = targetTree.Code
+		logger.Infof(ctx, "[ServiceTreeService] 异步处理：未传 file_name，使用目录 Code - FullCodePath: %s, FileName: %s", req.FullCodePath, fileName)
+	} else {
+		logger.Infof(ctx, "[ServiceTreeService] 异步处理：直接写入 full_code_path - FullCodePath: %s, FileName: %s", req.FullCodePath, fileName)
+	}
+
+	// 3. 从目标目录中提取 package 路径
 	packagePath := targetTree.GetPackagePathForFileCreation()
 
 	logger.Infof(ctx, "[ServiceTreeService] 处理完成 - TargetTreeID: %d, DirectoryPath: %s, FileName: %s, SourceCodeLength: %d",
 		targetTree.ID, packagePath, fileName, len(sourceCode))
 
-	// 5. 构建 CreateFunctionInfo
-	// ⭐ 不再修复 package 声明，应该保证生成的代码是正确的（package 名称应该由元数据中的 directory_code 决定）
+	// 4. 构建 CreateFunctionInfo（package 名称由目录决定）
 	createFunction := &dto.CreateFunctionInfo{
 		DirectoryPath: packagePath,
 		FileName:      fileName,
 		SourceCode:    sourceCode,
 	}
 
-	// 6. 调用 AppService.UpdateApp，传入 CreateFunctions
+	// 5. 调用 AppService.UpdateApp，传入 CreateFunctions
 	updateReq := &dto.UpdateAppReq{
 		User:            req.User,
 		App:             targetTree.App.Code,
 		CreateFunctions: []*dto.CreateFunctionInfo{createFunction},
+		SkipBuild:       req.SkipBuild,
 	}
 
 	logger.Infof(ctx, "[ServiceTreeService] 调用 AppService.UpdateApp: User=%s, App=%s, DirectoryPath=%s, FileName=%s",
@@ -2873,15 +2812,14 @@ func (s *ServiceTreeService) ProcessFunctionGenResult(ctx context.Context, req *
 
 	logger.Infof(ctx, "[ServiceTreeService] 函数创建成功: DirectoryPath=%s, FileName=%s", packagePath, fileName)
 
-	// 7. 获取新增的 FullCodePaths
+	// 6. 获取新增的 FullCodePaths
 	fullCodePaths := make([]string, 0)
 	if updateResp.Diff != nil {
 		fullCodePaths = updateResp.Diff.GetAddFullCodePaths()
 		logger.Infof(ctx, "[ServiceTreeService] 获取新增函数完整代码路径 - Count: %d, FullCodePaths: %v", len(fullCodePaths), fullCodePaths)
 	}
 
-	// 8. 发送回调消息给 agent-server
-	// ⭐ 只要处理成功就发送回调，确保状态能正确更新为 completed
+	// 7. 发送回调消息给 agent-server
 	callbackData := &dto.FunctionGenCallback{
 		RecordID:      req.RecordID,
 		MessageID:     req.MessageID,
@@ -2907,62 +2845,6 @@ func (s *ServiceTreeService) ProcessFunctionGenResult(ctx context.Context, req *
 	}
 
 	return nil
-}
-
-// createOrFindDirectory 根据元数据创建或查找目录
-func (s *ServiceTreeService) createOrFindDirectory(ctx context.Context, parentTree *model.ServiceTree, meta *metadata.Metadata) (*model.ServiceTree, error) {
-	// 1. 先尝试查找目录是否已存在（通过 FullCodePath）
-	expectedFullCodePath := parentTree.FullCodePath + "/" + meta.DirectoryCode
-	existingTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(expectedFullCodePath)
-	if err == nil && existingTree != nil {
-		logger.Infof(ctx, "[ServiceTreeService] 目录已存在 - TreeID: %d, FullCodePath: %s", existingTree.ID, expectedFullCodePath)
-		return existingTree, nil
-	}
-
-	// 2. 目录不存在，创建新目录
-	// 从父目录的 FullCodePath 提取 User 和 App
-	fullCodePath := parentTree.FullCodePath
-	pathParts := strings.Split(strings.Trim(fullCodePath, "/"), "/")
-	if len(pathParts) < 2 {
-		return nil, fmt.Errorf("无效的 FullCodePath: %s", fullCodePath)
-	}
-	targetUser := pathParts[0]
-	targetApp := pathParts[1]
-
-	createReq := &dto.CreateServiceTreeReq{
-		User:        targetUser,
-		App:         targetApp,
-		Name:        meta.DirectoryName,
-		Code:        meta.DirectoryCode,
-		ParentID:    parentTree.ID,
-		Description: meta.DirectoryDesc,
-		Tags:        strings.Join(meta.Tags, ","),
-		Admins:      contextx.GetRequestUser(ctx), // 将当前用户设置为管理员
-	}
-
-	createResp, err := s.CreateServiceTree(ctx, createReq)
-	if err != nil {
-		// 如果目录已存在（并发创建的情况），再次尝试查找
-		if strings.Contains(err.Error(), "already exists") {
-			existingTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(expectedFullCodePath)
-			if err == nil && existingTree != nil {
-				logger.Infof(ctx, "[ServiceTreeService] 目录已存在（并发创建） - TreeID: %d, FullCodePath: %s", existingTree.ID, expectedFullCodePath)
-				return existingTree, nil
-			}
-		}
-		return nil, fmt.Errorf("创建目录失败: %w", err)
-	}
-
-	// 3. 获取创建的目录信息
-	newTree, err := s.serviceTreeRepo.GetByID(createResp.ID)
-	if err != nil {
-		return nil, fmt.Errorf("获取新创建的目录信息失败: %w", err)
-	}
-
-	logger.Infof(ctx, "[ServiceTreeService] 目录创建成功 - TreeID: %d, DirectoryCode: %s, FullCodePath: %s",
-		newTree.ID, meta.DirectoryCode, newTree.FullCodePath)
-
-	return newTree, nil
 }
 
 // buildDirectoryTree 构建目录树结构（递归，包含函数）
@@ -3477,11 +3359,11 @@ func (s *ServiceTreeService) GetWorkspaceContext(ctx context.Context, req *dto.G
 	childrenNodes := make([]dto.WorkspaceContextNode, 0, len(children))
 	for _, child := range children {
 		childrenNodes = append(childrenNodes, dto.WorkspaceContextNode{
-			ID:          child.ID,
-			Name:        child.Name,
-			Code:        child.Code,
-			Type:        child.Type,
-			Description: child.Description,
+			ID:           child.ID,
+			Name:         child.Name,
+			Code:         child.Code,
+			Type:         child.Type,
+			Description:  child.Description,
 			FullCodePath: child.FullCodePath,
 		})
 	}
@@ -3511,7 +3393,7 @@ func (s *ServiceTreeService) GetWorkspaceContext(ctx context.Context, req *dto.G
 						lineCount--
 					}
 				}
-				
+
 				files = append(files, dto.WorkspaceContextFile{
 					FileName:      snapshot.FileName,
 					RelativePath:  snapshot.RelativePath,
@@ -3527,12 +3409,12 @@ func (s *ServiceTreeService) GetWorkspaceContext(ctx context.Context, req *dto.G
 	return &dto.GetWorkspaceContextResp{
 		User: username,
 		Directory: dto.WorkspaceContextDirectory{
-			ID:          detail.ID,
-			Name:        detail.Name,
-			Code:        detail.Code,
+			ID:           detail.ID,
+			Name:         detail.Name,
+			Code:         detail.Code,
 			FullCodePath: detail.FullCodePath,
-			Description: detail.Description,
-			Type:        detail.Type,
+			Description:  detail.Description,
+			Type:         detail.Type,
 		},
 		Children: childrenNodes,
 		Files:    files,

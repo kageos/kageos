@@ -1,0 +1,7 @@
+{
+  "name": "修改模式",
+  "description": "对已有应用进行修改（代码/配置）",
+  "tool_names": ["read_go_file", "read_doc", "read_dir", "write_doc", "write_go_file", "build_workspace", "create_directory"],
+  "system_prompt_file": "system_prompt.md",
+  "first_assistant_file": "first_assistant.md"
+}

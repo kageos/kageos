@@ -119,15 +119,12 @@ func RunWriteDocTool(ctx context.Context, args map[string]interface{}, defaultFu
 	return fmt.Sprintf("文档已创建: %s", resp.FullCodePath), false
 }
 
-// RunCreateDirectoryTool 创建目录工具：在 full_code_path（父目录）下创建 package 类型子目录
-// args: full_code_path（可选）、name（必填）、code（必填）、description（可选）、admins（可选，不填则默认为当前用户）
+// RunCreateDirectoryTool 创建目录工具：在 directory（父目录）下创建 package 类型子目录
+// args: directory（可选）、name（必填）、code（必填）、description、tags、admins 可选
 func RunCreateDirectoryTool(ctx context.Context, args map[string]interface{}, defaultFullCodePath string) (content string, isError bool) {
-	fullCodePath := strings.TrimSpace(GetStringArg(args, "full_code_path"))
+	fullCodePath := getDirectory(args, defaultFullCodePath)
 	if fullCodePath == "" {
-		fullCodePath = strings.TrimSpace(defaultFullCodePath)
-	}
-	if fullCodePath == "" {
-		return "create_directory 需要 full_code_path（或当前目录上下文）", true
+		return "create_directory 需要 directory（或当前目录上下文）", true
 	}
 	name := GetStringArg(args, "name")
 	code := GetStringArg(args, "code")
@@ -135,6 +132,7 @@ func RunCreateDirectoryTool(ctx context.Context, args map[string]interface{}, de
 		return "create_directory 缺少必需参数 name 或 code（目录名称与代码，如 name=\"文档\" code=\"docs\"）", true
 	}
 	description := GetStringArg(args, "description")
+	tags := strings.TrimSpace(GetStringArg(args, "tags"))
 	admins := strings.TrimSpace(GetStringArg(args, "admins"))
 	if admins == "" {
 		admins = contextx.GetRequestUser(ctx)
@@ -149,7 +147,7 @@ func RunCreateDirectoryTool(ctx context.Context, args map[string]interface{}, de
 	parent, err := apicall.GetServiceTreeDetailByFullCodePath(ctx, pathForAPI)
 	if err != nil || parent == nil {
 		logger.Warnf(ctx, "[CreateDirectoryTool] 父目录不存在 - FullCodePath: %s, error: %v", pathForAPI, err)
-		return "父目录不存在，请确认 full_code_path 正确。", true
+		return "父目录不存在，请确认 directory 正确。", true
 	}
 
 	pathParts := strings.Split(fullCodePath, "/")
@@ -165,6 +163,7 @@ func RunCreateDirectoryTool(ctx context.Context, args map[string]interface{}, de
 		Code:        code,
 		ParentID:    parent.ID,
 		Description: description,
+		Tags:        tags,
 		Admins:      admins,
 	}
 	resp, err := apicall.CreatePackage(ctx, req)
@@ -173,5 +172,5 @@ func RunCreateDirectoryTool(ctx context.Context, args map[string]interface{}, de
 		return "create_directory 创建目录失败: " + err.Error(), true
 	}
 	logger.Infof(ctx, "[CreateDirectoryTool] 目录已创建 - FullCodePath: %s, ID: %d", resp.FullCodePath, resp.ID)
-	return fmt.Sprintf("目录已创建: %s（可在该目录下使用 write_doc 写文档）", resp.FullCodePath), false
+	return fmt.Sprintf("目录已创建: %s（可在该目录下使用 write_go_file 写代码、write_doc 写文档）", resp.FullCodePath), false
 }

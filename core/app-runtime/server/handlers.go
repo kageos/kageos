@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"time"
+
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-runtime/service"
 	"github.com/ai-agent-os/ai-agent-os/dto"
@@ -106,8 +107,8 @@ func (s *Server) handleAppUpdate(msg *nats.Msg) {
 	//logger.Infof(ctx, "[handleAppUpdate] *** ENTRY *** Received app update request: tenantUser=%s, requestUser=%s, app=%s, reply=%s",
 	//	tenantUser, msgInfo.RequestUser, msgInfo.Data.App, msg.Reply)
 
-	// 调用应用管理服务更新应用（传递 ForkPackages、CreateFunctions、Requirement 和 ChangeDescription）
-	result, err := s.appManageService.UpdateApp(traceContext, tenantUser, msgInfo.Data.App, msgInfo.Data.ForkPackages, msgInfo.Data.CreateFunctions, msgInfo.Data.Requirement, msgInfo.Data.ChangeDescription)
+	// 调用应用管理服务更新应用（传递 ForkPackages、CreateFunctions、Requirement、ChangeDescription、SkipBuild）
+	result, err := s.appManageService.UpdateApp(traceContext, tenantUser, msgInfo.Data.App, msgInfo.Data.ForkPackages, msgInfo.Data.CreateFunctions, msgInfo.Data.Requirement, msgInfo.Data.ChangeDescription, msgInfo.Data.SkipBuild)
 	if err != nil {
 		logger.Errorf(ctx, "[handleAppUpdate] Failed to update app: %v", err)
 		msgx.RespFailMsg(msg, err)

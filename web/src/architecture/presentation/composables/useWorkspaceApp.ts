@@ -16,7 +16,7 @@ import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
 import type { App } from '../../domain/services/WorkspaceDomainService'
 import type { App as AppType, CreateAppRequest } from '@/types'
-import { getAppDetailByUserAndCode, getAppWithServiceTree } from '@/api/app'
+import { getAppDetailByUserAndCode, getAppWithServiceTree, updateApp } from '@/api/app'
 import { useAuthStore } from '@/stores/auth'
 
 export function useWorkspaceApp(
@@ -231,10 +231,10 @@ export function useWorkspaceApp(
     }
   }
 
-  // 更新工作空间（重新编译）
+  // 更新工作空间（重新编译）。显式传 user 和 app，避免应用是别人时误用当前用户为租户
   const handleUpdateApp = async (app: AppType): Promise<void> => {
     try {
-      await apiClient.post(`/workspace/api/v1/app/update/${app.code}`, {})
+      await updateApp(app.user, app.code)
       ElNotification.success({
         title: '成功',
         message: '工作空间更新成功'

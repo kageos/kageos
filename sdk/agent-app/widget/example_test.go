@@ -14,17 +14,20 @@ func ExampleDecodeTable() {
 	}
 
 	// 模拟CrmTicket结构体（适配MVP简化后的widget组件）
+	// 含截止时间、剩余时间：剩余时间为只读计算字段，在 GORM AfterFind 中根据当前时间与截止时间计算，仅用于列表/详情展示。
 	type CrmTicket struct {
-		ID          int    `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:ID;type:ID" permission:"read"`
-		CreatedAt   int64  `json:"created_at" gorm:"autoCreateTime:milli;column:created_at" widget:"name:创建时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" permission:"read"`
-		UpdatedAt   int64  `json:"updated_at" gorm:"autoUpdateTime:milli;column:updated_at" widget:"name:更新时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" permission:"read"`
-		DeletedAt   string `json:"deleted_at" gorm:"column:deleted_at" widget:"-"` // 隐藏字段
-		Title       string `json:"title" gorm:"column:title" widget:"name:工单标题;type:input" search:"like" validate:"required,min=2,max=200"`
-		Description string `json:"description" gorm:"column:description" widget:"name:问题描述;type:text_area" validate:"required,min=10"`
-		Priority    string `json:"priority" gorm:"column:priority" widget:"name:优先级;type:select;options:低,中,高;default:中" validate:"required,oneof=低 中 高"`
-		Status      string `json:"status" gorm:"column:status" widget:"name:工单状态;type:select;options:待处理,处理中,已完成,已关闭;default:待处理" validate:"required,oneof=待处理 处理中 已完成 已关闭"`
-		Phone       string `json:"phone" gorm:"column:phone" widget:"name:联系电话;type:input" validate:"required,min=11,max=20"`
-		CreateBy    string `json:"create_by" gorm:"column:create_by" widget:"name:创建用户;type:user" permission:"read"`
+		ID            int    `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:ID;type:ID" permission:"read"`
+		CreatedAt     int64  `json:"created_at" gorm:"autoCreateTime:milli;column:created_at" widget:"name:创建时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" permission:"read"`
+		UpdatedAt     int64  `json:"updated_at" gorm:"autoUpdateTime:milli;column:updated_at" widget:"name:更新时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" permission:"read"`
+		DeletedAt     string `json:"deleted_at" gorm:"column:deleted_at" widget:"-"` // 隐藏字段
+		Title         string `json:"title" gorm:"column:title" widget:"name:工单标题;type:input" search:"like" validate:"required,min=2,max=200"`
+		Description   string `json:"description" gorm:"column:description" widget:"name:问题描述;type:text_area" validate:"required,min=10"`
+		Priority      string `json:"priority" gorm:"column:priority" widget:"name:优先级;type:select;options:低,中,高;default:中" validate:"required,oneof=低 中 高"`
+		Status        string `json:"status" gorm:"column:status" widget:"name:工单状态;type:select;options:待处理,处理中,已完成,已关闭;default:待处理" validate:"required,oneof=待处理 处理中 已完成 已关闭"`
+		Phone         string `json:"phone" gorm:"column:phone" widget:"name:联系电话;type:input" validate:"required,min=11,max=20"`
+		CreateBy      string `json:"create_by" gorm:"column:create_by" widget:"name:创建用户;type:user" permission:"read"`
+		Deadline      int64  `json:"deadline" gorm:"column:deadline" widget:"name:截止时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss"`
+		RemainingTime string `json:"remaining_time" gorm:"-" widget:"name:剩余时间;type:input" permission:"read"` // 仅展示，AfterFind 计算
 	}
 
 	// 调用DecodeTable

@@ -56,9 +56,9 @@ export function createApp(data: CreateAppRequest) {
   return post<CreateAppResponse>('/workspace/api/v1/app/create', payload)
 }
 
-// 更新工作空间（重新编译）
-export function updateApp(code: string) {
-  return post(`/workspace/api/v1/app/update/${code}`, {})
+// 更新工作空间（重新编译）。路径传 user、app 即可，body 传 {}，无需其他参数
+export function updateApp(user: string, app: string) {
+  return post(`/workspace/api/v1/app/update/${encodeURIComponent(user)}/${encodeURIComponent(app)}`, {})
 }
 
 // 删除工作空间

@@ -1,0 +1,7 @@
+[
+  {
+    "name": "agent-app SDK使用手册",
+    "full_code_path": "/builtin/agent_app_sdk/docs",
+    "when_to_use": "当你需要生成系统/应用/代码时，请先调用 read_doc(directory: \"/builtin/agent_app_sdk/docs\") 获取本文档，再按文档规范动手。"
+  }
+]
