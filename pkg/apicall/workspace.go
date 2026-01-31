@@ -9,6 +9,9 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/dto"
 )
 
+// UpdateAppResp 与 app_runtime_namespace 中定义一致，避免循环依赖时使用
+var _ = (*dto.UpdateAppResp)(nil)
+
 // GetServiceTreeDetailByFullCodePath 根据 full_code_path 获取服务目录详情（agent-server -> app-server）
 // 用于从 full_code_path 解析出节点信息（含 id/tree_id），供 add_functions、权限等使用
 func GetServiceTreeDetailByFullCodePath(ctx context.Context, fullCodePath string) (*dto.GetServiceTreeDetailResp, error) {
@@ -85,4 +88,11 @@ func UpdateDocs(ctx context.Context, id int64, req *dto.UpdateDocsReq) error {
 // 使用现有接口 POST /workspace/api/v1/packages
 func CreatePackage(ctx context.Context, req *dto.CreatePackageReq) (*dto.CreatePackageResp, error) {
 	return PostAPI[*dto.CreatePackageReq, *dto.CreatePackageResp](ctx, "/workspace/api/v1/packages", req)
+}
+
+// UpdateAppBuild 触发工作空间编译（仅编译不写文件，agent-server -> app-server）
+// 路径为 /api/v1/app/update/{user}/{app}，body 传 {} 即可，只需 user 和 app 即可更新
+func UpdateAppBuild(ctx context.Context, user, app string) (*dto.UpdateAppResp, error) {
+	path := "/workspace/api/v1/app/update/" + url.PathEscape(user) + "/" + url.PathEscape(app)
+	return PostAPI[*dto.UpdateAppReq, *dto.UpdateAppResp](ctx, path, &dto.UpdateAppReq{})
 }

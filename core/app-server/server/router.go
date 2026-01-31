@@ -40,7 +40,7 @@ func (s *Server) setupRoutes() {
 	app.GET("/:user/:app/tree", middleware2.Gzip(), appHandler.GetAppWithServiceTree)
 	app.POST("/create", appHandler.CreateApp)
 	// ⭐ 更新应用接口（debug 功能，生产环境不存在，无需权限检查）
-	app.POST("/update/:app", appHandler.UpdateApp)
+	app.POST("/update/:user/:app", appHandler.UpdateApp)
 	// ⭐ 更新工作空间接口（只更新 MySQL 记录，不涉及容器更新，需要 app:admin 权限）
 	//app.PUT("/workspace/:user/:app", middleware2.CheckWorkspaceUpdate(), appHandler.UpdateWorkspace)
 	app.PUT("/workspace/:user/:app", appHandler.UpdateWorkspace)
@@ -78,8 +78,8 @@ func (s *Server) setupRoutes() {
 	serviceTreeAuth.POST("", serviceTreeHandler.CreateServiceTree)
 	// 服务树接口使用 gzip 压缩
 	serviceTreeAuth.GET("", middleware2.Gzip(), serviceTreeHandler.GetServiceTree)
-	serviceTreeAuth.GET("/detail", serviceTreeHandler.GetServiceTreeDetail) // ⭐ 获取服务目录详情（包含权限，兼容旧接口）
-	serviceTreeAuth.GET("/package_info", serviceTreeHandler.GetPackageInfo) // ⭐ 获取目录信息（仅用于获取目录权限，函数权限从函数详情接口获取）
+	serviceTreeAuth.GET("/detail", serviceTreeHandler.GetServiceTreeDetail)      // ⭐ 获取服务目录详情（包含权限，兼容旧接口）
+	serviceTreeAuth.GET("/package_info", serviceTreeHandler.GetPackageInfo)      // ⭐ 获取目录信息（仅用于获取目录权限，函数权限从函数详情接口获取）
 	serviceTreeAuth.GET("/search_functions", serviceTreeHandler.SearchFunctions) // ⭐ 搜索函数
 	serviceTreeAuth.PUT("", serviceTreeHandler.UpdateServiceTree)
 	serviceTreeAuth.DELETE("", serviceTreeHandler.DeleteServiceTree)
@@ -93,33 +93,33 @@ func (s *Server) setupRoutes() {
 	// ==================== Package 类型接口 ====================
 	packagesAuth := apiV1.Group("/packages")
 	packagesAuth.Use(middleware2.JWTAuth())
-	packagesAuth.POST("", serviceTreeHandler.CreatePackage)                    // POST /api/v1/packages
-	packagesAuth.PUT("/:id", serviceTreeHandler.UpdatePackage)                // PUT /api/v1/packages/:id
-	packagesAuth.DELETE("/:id", serviceTreeHandler.DeletePackage)             // DELETE /api/v1/packages/:id
+	packagesAuth.POST("", serviceTreeHandler.CreatePackage)       // POST /api/v1/packages
+	packagesAuth.PUT("/:id", serviceTreeHandler.UpdatePackage)    // PUT /api/v1/packages/:id
+	packagesAuth.DELETE("/:id", serviceTreeHandler.DeletePackage) // DELETE /api/v1/packages/:id
 
 	// ==================== Function 类型接口 ====================
 	functionsAuth := apiV1.Group("/functions")
 	functionsAuth.Use(middleware2.JWTAuth())
-	functionsAuth.POST("", serviceTreeHandler.CreateFunction)                 // POST /api/v1/functions
-	functionsAuth.PUT("/:id", serviceTreeHandler.UpdateFunction)             // PUT /api/v1/functions/:id
-	functionsAuth.DELETE("/:id", serviceTreeHandler.DeleteFunction)           // DELETE /api/v1/functions/:id
+	functionsAuth.POST("", serviceTreeHandler.CreateFunction)       // POST /api/v1/functions
+	functionsAuth.PUT("/:id", serviceTreeHandler.UpdateFunction)    // PUT /api/v1/functions/:id
+	functionsAuth.DELETE("/:id", serviceTreeHandler.DeleteFunction) // DELETE /api/v1/functions/:id
 
 	// ==================== Docs 类型接口 ====================
 	// ⭐ docs CRUD 接口（使用 /docs/crud 避免与文档管理路由冲突）
 	docsCrudAuth := apiV1.Group("/docs/crud")
 	docsCrudAuth.Use(middleware2.JWTAuth())
-	docsCrudAuth.POST("", serviceTreeHandler.CreateDocs)                       // POST /api/v1/docs/crud
-	docsCrudAuth.PUT("/:id", serviceTreeHandler.UpdateDocs)                    // PUT /api/v1/docs/crud/:id
-	docsCrudAuth.DELETE("/:id", serviceTreeHandler.DeleteDocs)                 // DELETE /api/v1/docs/crud/:id
+	docsCrudAuth.POST("", serviceTreeHandler.CreateDocs)       // POST /api/v1/docs/crud
+	docsCrudAuth.PUT("/:id", serviceTreeHandler.UpdateDocs)    // PUT /api/v1/docs/crud/:id
+	docsCrudAuth.DELETE("/:id", serviceTreeHandler.DeleteDocs) // DELETE /api/v1/docs/crud/:id
 
 	// ⭐ 文档管理路由（基于完整路径，与 table/form/chart 风格一致）
 	docs := apiV1.Group("/docs")
 	docs.Use(middleware2.JWTAuth())
 	docHandler := v1.NewDoc(s.docService)
-	docs.GET("/search", docHandler.SearchDocs)                                       // 搜索文档（模糊搜索）
-	docs.GET("/batch", docHandler.BatchGetDocs)                                     // 批量获取文档（精确查询）
-	docs.GET("/info/*full-code-path", middleware2.CheckDocRead(), docHandler.GetDoc)       // 获取文档
-	docs.PUT("/info/*full-code-path", middleware2.CheckDocWrite(), docHandler.UpdateDoc)   // 更新文档
+	docs.GET("/search", docHandler.SearchDocs)                                               // 搜索文档（模糊搜索）
+	docs.GET("/batch", docHandler.BatchGetDocs)                                              // 批量获取文档（精确查询）
+	docs.GET("/info/*full-code-path", middleware2.CheckDocRead(), docHandler.GetDoc)         // 获取文档
+	docs.PUT("/info/*full-code-path", middleware2.CheckDocWrite(), docHandler.UpdateDoc)     // 更新文档
 	docs.DELETE("/info/*full-code-path", middleware2.CheckDocDelete(), docHandler.DeleteDoc) // 删除文档
 
 	// ==================== 服务间调用路由 ====================
@@ -189,8 +189,8 @@ func (s *Server) setupRoutes() {
 	permission.Use(middleware2.RequireFeature(enterprise.FeaturePermission)) // 权限管理功能鉴权（企业版）
 	permissionHandler := v1.NewPermission(s.permissionService, s.appRepo)
 	permission.POST("/apply", permissionHandler.ApplyPermission)            // 权限申请（角色申请）
-	permission.GET("/workspace", permissionHandler.GetWorkspacePermissions)   // 获取工作空间所有权限
-	permission.GET("/resource", permissionHandler.GetResourcePermissions)    // 查询资源的所有权限分配
+	permission.GET("/workspace", permissionHandler.GetWorkspacePermissions) // 获取工作空间所有权限
+	permission.GET("/resource", permissionHandler.GetResourcePermissions)   // 查询资源的所有权限分配
 
 	// ⭐ 权限申请和审批路由（新权限系统）
 	permission.POST("/request/create", permissionHandler.CreatePermissionRequest)   // 创建权限申请

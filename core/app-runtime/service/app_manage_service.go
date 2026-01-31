@@ -445,7 +445,8 @@ func (s *AppManageService) DeleteApp(ctx context.Context, user, app string) erro
 // UpdateApp 更新应用（重新编译并重启容器）
 // 如果提供了 CreateFunctions，先执行创建函数操作
 // 如果提供了 ForkPackages，先执行 fork 操作，再执行更新
-func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, forkPackages []*sharedDto.ForkPackageInfo, createFunctions []*sharedDto.CreateFunctionInfo, requirement, changeDescription string) (*sharedDto.UpdateAppResp, error) {
+// skipBuild 为 true 时仅执行写文件（CreateFunctions/ForkPackages），不编译不部署
+func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, forkPackages []*sharedDto.ForkPackageInfo, createFunctions []*sharedDto.CreateFunctionInfo, requirement, changeDescription string, skipBuild bool) (*sharedDto.UpdateAppResp, error) {
 
 	logStr := strings.Builder{}
 	logStr.WriteString(fmt.Sprintf("[UpdateApp] Starting update: %s/%s\t", user, app))
@@ -532,6 +533,16 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, fork
 	if err != nil {
 		logStr.WriteString(fmt.Sprintf("Failed to get current version: %v\t", err))
 		oldVersion = "unknown"
+	}
+
+	if skipBuild {
+		logger.Infof(ctx, "[UpdateApp] SkipBuild=true，仅写文件不编译不部署")
+		return &sharedDto.UpdateAppResp{
+			User:       user,
+			App:        app,
+			OldVersion: oldVersion,
+			NewVersion: oldVersion,
+		}, nil
 	}
 
 	// 2. 重新编译应用（Builder 会自动生成新版本号）

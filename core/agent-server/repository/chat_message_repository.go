@@ -37,12 +37,12 @@ func (r *ChatMessageRepository) GetByID(id int64) (*model.AgentChatMessage, erro
 	return &message, nil
 }
 
-// ListBySessionID 根据 SessionID 获取消息列表（按创建时间升序）
+// ListBySessionID 根据 SessionID 获取消息列表（按 id 升序，保证 assistant 在对应 tool 之前，避免 API 报错「tool 必须紧接在含 tool_calls 的 assistant 之后」）
 func (r *ChatMessageRepository) ListBySessionID(sessionID string) ([]*model.AgentChatMessage, error) {
 	var messages []*model.AgentChatMessage
 	if err := r.db.
 		Where("session_id = ?", sessionID).
-		Order("created_at ASC").
+		Order("id ASC").
 		Find(&messages).Error; err != nil {
 		return nil, err
 	}
@@ -75,4 +75,3 @@ func (r *ChatMessageRepository) DeleteBySessionID(sessionID string) error {
 func (r *ChatMessageRepository) Delete(id int64) error {
 	return r.db.Where("id = ?", id).Delete(&model.AgentChatMessage{}).Error
 }
-

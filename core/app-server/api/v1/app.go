@@ -65,43 +65,37 @@ func (a *App) CreateApp(c *gin.Context) {
 
 // UpdateApp 更新应用
 // @Summary 更新应用
-// @Description 更新应用代码并重新编译部署
+// @Description 更新应用代码并重新编译部署。路径传 user（租户）和 app（应用名），请求体传 CreateFunctions、SkipBuild 等。
 // @Tags 应用管理
 // @Accept json
 // @Produce json
+// @Param user path string true "租户用户名"
 // @Param app path string true "应用名"
+// @Param body body dto.UpdateAppReq false "CreateFunctions、SkipBuild 等"
 // @Success 200 {object} dto.UpdateAppResp "更新成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /api/v1/app/update/{app} [post]
+// @Router /api/v1/app/update/{user}/{app} [post]
 func (a *App) UpdateApp(c *gin.Context) {
 	var resp *dto.UpdateAppResp
 	var err error
 
-	// 从JWT Token获取用户信息
-	user := contextx.GetRequestUser(c)
-	if user == "" {
+	if contextx.GetRequestUser(c) == "" {
 		response.FailWithMessage(c, "无法获取用户信息")
 		return
 	}
 
-	// 从路径参数获取应用信息
+	user := c.Param("user")
 	app := c.Param("app")
-
-	if app == "" {
-		response.FailWithMessage(c, "app parameter is required")
+	if user == "" || app == "" {
+		response.FailWithMessage(c, "user 和 app 路径参数必填")
 		return
 	}
 
-	// 绑定请求体（包含 Requirement、ChangeDescription 等字段）
-	req := &dto.UpdateAppReq{
-		User: user,
-		App:  app,
-	}
-	if err := c.ShouldBindJSON(req); err != nil {
-		// 如果绑定失败，使用默认值（兼容旧版本，只设置 User 和 App）
-		// req 已经初始化了 User 和 App，无需额外处理
-	}
+	req := &dto.UpdateAppReq{}
+	_ = c.ShouldBindJSON(req)
+	req.User = user
+	req.App = app
 
 	ctx := contextx.ToContext(c)
 	resp, err = a.appService.UpdateApp(ctx, req)

@@ -42,10 +42,10 @@ type Server struct {
 	modeRepo               *repository.WorkspaceModeRepository
 
 	// 服务
-	agentService       *service.AgentService
-	pluginService      *service.PluginService
-	llmService         *service.LLMService
-	agentChatService   *service.AgentChatService
+	agentService         *service.AgentService
+	pluginService        *service.PluginService
+	llmService           *service.LLMService
+	agentChatService     *service.AgentChatService
 	functionGenService   *service.FunctionGenService
 	toolRegistry         *service.ToolRegistry
 	workspaceChatService *service.WorkspaceChatService
