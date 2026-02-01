@@ -156,23 +156,12 @@
           @deleted="handleDocDeleted"
         />
 
-        <!-- 🔥 工作台对话（内嵌）：目录下点击「打开工作台」后替换为对话，不新开标签 -->
-        <div v-else-if="currentFunction && currentFunction.type === 'package' && workstationMode" class="workstation-chat-wrapper">
-          <WorkstationChat
-            :full-code-path="currentFunction.full_code_path || ''"
-            :embedded="true"
-            @back="workstationMode = false"
-            @tool-call-ok="handleWorkstationToolCallOk"
-          />
-        </div>
-        
-        <!-- 🔥 服务目录详情页面（包括根节点和 package 节点） -->
+        <!-- 🔥 服务目录详情页面（包括根节点和 package 节点）；工作台改为右侧抽屉，不占主区域 -->
         <PackageDetailView
           v-else-if="currentFunction && currentFunction.type === 'package' && !selectedAgent"
           :package-node="currentFunction"
           @generate-system="handlePackageGenerateSystem"
           @refresh="handleRefreshTree"
-          @open-workstation="workstationMode = true"
         />
         
         <!-- 🔥 点击目录节点时根据选择的智能体显示不同的聊天面板 -->
@@ -634,6 +623,77 @@
       :app-version="updateHistoryAppVersion"
       :full-code-path="updateHistoryFullCodePath"
     />
+
+    <!-- 🔥 工作台抽屉：右侧滑出，不阻塞主区域；支持折叠为窄条 -->
+    <el-drawer
+      v-model="workstationMode"
+      title="工作台"
+      direction="rtl"
+      :size="workstationDrawerCollapsed ? 48 : '75%'"
+      append-to-body
+      :show-close="false"
+      class="workstation-drawer"
+      :class="{ 'workstation-drawer--collapsed': workstationDrawerCollapsed }"
+      @close="handleWorkstationDrawerClose"
+    >
+      <template #header>
+        <div class="workstation-drawer-header">
+          <span v-if="!workstationDrawerCollapsed" class="drawer-title">工作台</span>
+          <span v-if="!workstationDrawerCollapsed" class="drawer-path" :title="currentFunction?.full_code_path">{{ currentFunction?.full_code_path || '—' }}</span>
+          <div class="drawer-actions">
+            <el-button
+              v-if="!workstationDrawerCollapsed"
+              link
+              type="primary"
+              size="small"
+              @click="workstationDrawerCollapsed = true"
+              title="折叠"
+            >
+              <el-icon><Fold /></el-icon>
+            </el-button>
+            <el-button
+              v-if="workstationDrawerCollapsed"
+              link
+              type="primary"
+              size="small"
+              @click="workstationDrawerCollapsed = false"
+              title="展开"
+            >
+              <el-icon><Expand /></el-icon>
+            </el-button>
+            <el-button link type="primary" size="small" @click="handleWorkstationDrawerClose" title="关闭">
+              <el-icon><Close /></el-icon>
+            </el-button>
+          </div>
+        </div>
+      </template>
+      <div v-show="!workstationDrawerCollapsed" class="workstation-drawer-body">
+        <WorkstationChat
+          v-if="currentFunction && currentFunction.full_code_path"
+          :full-code-path="currentFunction.full_code_path"
+          :embedded="true"
+          @back="handleWorkstationDrawerClose"
+          @tool-call-ok="handleWorkstationToolCallOk"
+          @update:sending="workstationSending = $event"
+        />
+      </div>
+      <div v-show="workstationDrawerCollapsed" class="workstation-drawer-strip">
+        <span class="strip-text">工作台</span>
+      </div>
+    </el-drawer>
+
+    <!-- 🔥 右下角常驻「打开工作台」浮动按钮；执行中时显示加载图标区分 -->
+    <transition name="el-fade-in">
+      <div
+        v-show="showWorkstationFloatingButton"
+        class="workstation-floating-btn"
+        @click="handleOpenWorkstationDrawer"
+      >
+        <el-icon v-if="workstationSending" :size="22" class="is-loading"><Loading /></el-icon>
+        <el-icon v-else :size="22"><ChatDotRound /></el-icon>
+        <span class="floating-btn-text">{{ workstationSending ? '工作台执行中' : '打开工作台' }}</span>
+      </div>
+    </transition>
   </div>
 </template>
 
@@ -641,7 +701,7 @@
 import { computed, onMounted, onUnmounted, watch, ref, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElNotification, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon, ElSwitch, ElSkeleton } from 'element-plus'
-import { InfoFilled, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
+import { InfoFilled, ArrowLeft, ArrowRight, Fold, Expand, Close, ChatDotRound, Loading } from '@element-plus/icons-vue'
 import { eventBus, WorkspaceEvent, RouteEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
@@ -982,8 +1042,45 @@ const toggleRightSidebar = () => {
 const agentSelectDialogVisible = ref(false)
 const selectedAgent = ref<AgentInfo | null>(null)
 const aiChatPanelRef = ref<InstanceType<typeof AIChatPanel> | null>(null)
-/** 工作台模式：在目录详情下点击「打开工作台」后，右侧展示 WorkstationChat 而非 PackageDetailView */
+/** 工作台模式：以右侧抽屉展示，不占主区域；目录详情始终可见 */
 const workstationMode = ref(false)
+/** 工作台抽屉是否折叠为窄条（折叠后主区域更宽） */
+const workstationDrawerCollapsed = ref(false)
+/** 工作台是否正在执行（发送/工具调用中），用于抽屉关闭时显示浮动按钮 */
+const workstationSending = ref(false)
+
+/** 是否显示「打开工作台」浮动按钮：当前在目录节点且抽屉已关闭时一直显示 */
+const showWorkstationFloatingButton = computed(() => {
+  return Boolean(currentFunction.value?.type === 'package' && !workstationMode.value)
+})
+
+function handleOpenWorkstationDrawer() {
+  workstationMode.value = true
+  workstationDrawerCollapsed.value = false
+}
+
+function handleWorkstationDrawerClose() {
+  workstationMode.value = false
+  workstationDrawerCollapsed.value = false
+}
+
+/** 服务树「打开工作台」事件：导航到该目录并打开抽屉（不新开标签） */
+function handleWorkspaceOpenWorkstation(payload: { full_code_path?: string }) {
+  const fullCodePath = (payload?.full_code_path || '').trim()
+  if (!fullCodePath) return
+  const targetPath = buildWorkspacePath(fullCodePath)
+  if (route.path !== targetPath) {
+    router.push(targetPath).then(() => {
+      nextTick(() => {
+        workstationMode.value = true
+        workstationDrawerCollapsed.value = false
+      })
+    })
+  } else {
+    workstationMode.value = true
+    workstationDrawerCollapsed.value = false
+  }
+}
 
 // 处理智能体选择
 function handleAgentSelect(agent: AgentInfo) {
@@ -1133,11 +1230,15 @@ onMounted(() => {
   
   // 🔥 添加全局粘贴监听
   document.addEventListener('paste', handleGlobalPaste)
+
+  // 🔥 服务目录树「打开工作台」：在本页打开抽屉并定位到该目录（不新开标签）
+  eventBus.on('workspace:open-workstation', handleWorkspaceOpenWorkstation)
 })
 
 onUnmounted(() => {
   // 🔥 移除全局粘贴监听
   document.removeEventListener('paste', handleGlobalPaste)
+  eventBus.off('workspace:open-workstation', handleWorkspaceOpenWorkstation)
 })
 
 
@@ -2294,13 +2395,101 @@ onUnmounted(() => {
   }
 }
 
-.ai-chat-wrapper,
-.workstation-chat-wrapper {
+.ai-chat-wrapper {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   min-height: 0;
+}
+
+/* 工作台抽屉：右侧滑出，可折叠为窄条 */
+.workstation-drawer .el-drawer__header {
+  margin-bottom: 12px;
+  padding: 12px 16px;
+}
+.workstation-drawer-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+.workstation-drawer-header .drawer-title {
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+.workstation-drawer-header .drawer-path {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.workstation-drawer-header .drawer-actions {
+  flex-shrink: 0;
+}
+.workstation-drawer-body {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.workstation-drawer-body .workstation-chat {
+  flex: 1;
+  min-height: 0;
+}
+.workstation-drawer--collapsed .el-drawer__body {
+  padding: 0;
+  overflow: hidden;
+}
+.workstation-drawer-strip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 200px;
+}
+.workstation-drawer-strip .strip-text {
+  writing-mode: vertical-rl;
+  letter-spacing: 0.2em;
+  font-size: 14px;
+  color: var(--el-text-color-regular);
+}
+
+/* 工作台执行中浮动按钮：抽屉关闭时显示，点击重新打开抽屉 */
+.workstation-floating-btn {
+  position: fixed;
+  right: 24px;
+  bottom: 80px;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--el-bg-color-overlay);
+  border: 1px solid var(--el-border-color);
+  border-radius: 8px;
+  box-shadow: var(--el-box-shadow-light);
+  cursor: pointer;
+  color: var(--el-color-primary);
+  font-size: 13px;
+  transition: background 0.2s, box-shadow 0.2s;
+}
+.workstation-floating-btn:hover {
+  background: var(--el-fill-color-light);
+  box-shadow: var(--el-box-shadow);
+}
+.workstation-floating-btn .el-icon.is-loading {
+  animation: rotating 1.5s linear infinite;
+}
+@keyframes rotating {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.workstation-floating-btn .floating-btn-text {
+  white-space: nowrap;
 }
 
 /* 新增/编辑页面样式 */

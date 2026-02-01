@@ -203,7 +203,7 @@ const props = withDefaults(
   }>(),
   { embedded: false }
 )
-const emit = defineEmits<{ (e: 'back'): void; (e: 'tool-call-ok', payload: { name: string }): void }>()
+const emit = defineEmits<{ (e: 'back'): void; (e: 'tool-call-ok', payload: { name: string }): void; (e: 'update:sending', value: boolean): void }>()
 
 const router = useRouter()
 
@@ -215,6 +215,11 @@ const messagesRef = ref<HTMLElement | null>(null)
 watch(agentId, (v) => {
   if (v != null) selectedAgentId.value = v
 })
+
+// 向父组件上报执行中状态（用于抽屉关闭时显示浮动按钮）
+watch(sending, (v) => {
+  emit('update:sending', v)
+}, { immediate: true })
 
 const agentList = ref<AgentInfo[]>([])
 const agentLoading = ref(false)

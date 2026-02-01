@@ -922,9 +922,8 @@ const handleNodeAction = (command: string, data: ServiceTree) => {
   } else if (command === 'manage-permission') {
     handleManagePermission(data)
   } else if (command === 'open-workstation') {
-    const q = data.full_code_path || ''
-    const url = window.location.origin + '/workspace/workstation' + (q ? '?full_code_path=' + encodeURIComponent(q) : '')
-    window.open(url, '_blank')
+    // 在本页以右侧抽屉打开工作台，不新开标签；WorkspaceView 监听此事件
+    eventBus.emit('workspace:open-workstation', { full_code_path: data.full_code_path || '' })
   }
 }
 
