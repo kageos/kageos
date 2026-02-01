@@ -60,7 +60,7 @@ var (
 )
 
 func init() {
-	for _, code := range []string{"dev", "modify", "execute"} {
+	for _, code := range []string{"dev", "modify", "execute", "agent"} {
 		if p := loadModeProvider(code); p != nil {
 			registry[code] = p
 		}

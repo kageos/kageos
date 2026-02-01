@@ -246,8 +246,10 @@ async function loadModes() {
   try {
     const res = await getWorkspaceModes({ page: 1, page_size: 50 })
     modeList.value = res.list || []
-    if (modeList.value.length > 0 && !selectedModeCode.value) {
-      selectedModeCode.value = modeList.value[0].code
+    if (modeList.value.length > 0) {
+      const hasDev = modeList.value.some((m) => m.code === 'dev')
+      if (hasDev) selectedModeCode.value = 'dev'
+      else if (!selectedModeCode.value) selectedModeCode.value = modeList.value[0].code
     }
   } catch {
     modeList.value = []

@@ -108,37 +108,39 @@ func GetBuiltinDocContentByName(name string) (docName, content string) {
 
 // WorkspaceEnvData 工作台环境模板占位数据，与 工作台环境模板.md 中的占位符一一对应
 type WorkspaceEnvData struct {
-	User            string // {{USER}}
-	CurrentTime     string // {{CURRENT_TIME}}
-	CurrentDate     string // {{CURRENT_DATE}}
-	Timestamp       string // {{TIMESTAMP}}
-	DirName         string // {{DIR_NAME}}
-	DirCode         string // {{DIR_CODE}}
-	FullCodePath    string // {{FULL_CODE_PATH}}
-	DirType         string // {{DIR_TYPE}}
-	DirDescription  string // {{DIR_DESCRIPTION}}
-	ChildrenSection string // {{CHILDREN_SECTION}}
-	FilesSection    string // {{FILES_SECTION}}
-	DirectoryList   string // {{DIRECTORY_LIST}}
-	InitGoSection   string // {{INIT_GO_SECTION}} 当前目录的 init_.go 内容（由 full_code_path 构造），便于模型知道已有该文件、无需再写
+	User             string // {{USER}}
+	CurrentTime      string // {{CURRENT_TIME}}
+	CurrentDate      string // {{CURRENT_DATE}}
+	Timestamp        string // {{TIMESTAMP}}
+	DirName          string // {{DIR_NAME}}
+	DirCode          string // {{DIR_CODE}}
+	FullCodePath     string // {{FULL_CODE_PATH}}
+	DirType          string // {{DIR_TYPE}}
+	DirDescription   string // {{DIR_DESCRIPTION}}
+	ChildrenSection  string // {{CHILDREN_SECTION}}
+	FunctionsSection string // {{FUNCTIONS_SECTION}} 当前目录下的可执行函数（table/form/chart + full_code_path），执行模式可直接用
+	FilesSection     string // {{FILES_SECTION}}
+	DirectoryList    string // {{DIRECTORY_LIST}}
+	InitGoSection    string // {{INIT_GO_SECTION}} 当前目录的 init_.go 内容（由 full_code_path 构造），便于模型知道已有该文件、无需再写
 }
 
 // FillWorkspaceEnvTemplate 用结构体填充工作台环境模板；占位符格式 {{KEY}}，与 WorkspaceEnvData 字段对应
 func FillWorkspaceEnvTemplate(data *WorkspaceEnvData) string {
 	m := map[string]string{
-		"USER":             data.User,
-		"CURRENT_TIME":     data.CurrentTime,
-		"CURRENT_DATE":     data.CurrentDate,
-		"TIMESTAMP":        data.Timestamp,
-		"DIR_NAME":         data.DirName,
-		"DIR_CODE":         data.DirCode,
-		"FULL_CODE_PATH":   data.FullCodePath,
-		"DIR_TYPE":         data.DirType,
-		"DIR_DESCRIPTION":  data.DirDescription,
-		"CHILDREN_SECTION": data.ChildrenSection,
-		"FILES_SECTION":    data.FilesSection,
-		"DIRECTORY_LIST":   data.DirectoryList,
-		"INIT_GO_SECTION":  data.InitGoSection,
+		"USER":              data.User,
+		"CURRENT_TIME":      data.CurrentTime,
+		"CURRENT_DATE":      data.CurrentDate,
+		"TIMESTAMP":         data.Timestamp,
+		"DIR_NAME":          data.DirName,
+		"DIR_CODE":          data.DirCode,
+		"FULL_CODE_PATH":    data.FullCodePath,
+		"DIR_TYPE":          data.DirType,
+		"DIR_DESCRIPTION":   data.DirDescription,
+		"CHILDREN_SECTION":  data.ChildrenSection,
+		"FUNCTIONS_SECTION": data.FunctionsSection,
+		"FILES_SECTION":     data.FilesSection,
+		"DIRECTORY_LIST":    data.DirectoryList,
+		"INIT_GO_SECTION":   data.InitGoSection,
 	}
 	s := WorkspaceEnvTemplate
 	for k, v := range m {

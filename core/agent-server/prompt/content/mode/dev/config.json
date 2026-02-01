@@ -1,7 +1,7 @@
 {
   "name": "开发模式",
-  "description": "生成新应用、新模块、新文件",
-  "tool_names": ["read_go_file", "read_go_file_lines", "read_doc", "read_dir", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace", "create_directory"],
+  "description": "生成新应用、新模块、新文件，也可查数据、提交表单、查图表、新增记录",
+  "tool_names": ["read_go_file", "read_go_file_lines", "read_doc", "read_dir", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace", "create_directory", "run_table_search", "run_table_create", "run_form_submit", "run_chart_query"],
   "system_prompt_file": "system_prompt.md",
   "first_assistant_file": "first_assistant.md"
 }
