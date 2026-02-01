@@ -167,6 +167,11 @@ Attachment *types.Files `gorm:"type:json" widget:"name:附件;type:files"`
 | form | 子表单（Form 响应） | 嵌套结构体展示 |
 | link | 跳转链接 | 列表/表单中跳转到另一 GET 或 Form、或外链；不落库，后端 BuildFunctionUrlWithText 赋值 |
 
+**timestamp 组件约定（必读）**：后端**无需在代码里做日期格式化**，直接使用 **int64** 类型存、传**毫秒时间戳**即可，前端会根据 widget 的 `format` 自动格式化展示。
+
+- **正确**：`BidTime int64 \`json:"bid_time" widget:"name:出价时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss"\`` —— 字段类型为 int64，后端只读写时间戳，不转字符串。
+- **错误**：`BidTime string \`json:"bid_time" widget:"name:出价时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss"\`` —— 不要用 string 类型，也不要后端格式化成 "YYYY-MM-DD HH:mm:ss" 等字符串；timestamp 的 format 仅用于前端展示，后端只返回时间戳。
+
 #### link 组件（跳转链接）
 
 用于在**列表**或**表单**中展示可点击链接，点击后跳转到另一个 GET（Table/Chart）、Form，或打开外链。字段通常**不落库**（`gorm:"-"`）、**只读**（`permission:"read"`），值由后端在 **List 函数 Build 之后**或 **Form 响应**里用 `ctx.BuildFunctionUrlWithText(target, params, linkText)` 赋值。

@@ -3406,6 +3406,7 @@ func (s *ServiceTreeService) GetWorkspaceContext(ctx context.Context, req *dto.G
 			Type:         child.Type,
 			Description:  child.Description,
 			FullCodePath: child.FullCodePath,
+			TemplateType: child.TemplateType,
 		})
 	}
 

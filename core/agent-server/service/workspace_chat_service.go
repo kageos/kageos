@@ -385,10 +385,12 @@ func workspaceCtxToEnvInput(c *dto.GetWorkspaceContextResp) *prompt.WorkspaceEnv
 	children := make([]prompt.WorkspaceEnvNode, 0, len(c.Children))
 	for _, n := range c.Children {
 		children = append(children, prompt.WorkspaceEnvNode{
-			Name:        n.Name,
-			Code:        n.Code,
-			Description: n.Description,
-			Type:        n.Type,
+			Name:         n.Name,
+			Code:         n.Code,
+			Description:  n.Description,
+			Type:         n.Type,
+			FullCodePath: n.FullCodePath,
+			TemplateType: n.TemplateType,
 		})
 	}
 	files := make([]prompt.WorkspaceEnvFile, 0, len(c.Files))

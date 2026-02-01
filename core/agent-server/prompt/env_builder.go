@@ -21,10 +21,12 @@ type WorkspaceEnvInput struct {
 
 // WorkspaceEnvNode 环境子节点（目录或函数）
 type WorkspaceEnvNode struct {
-	Name        string
-	Code        string
-	Description string
-	Type        string
+	Name         string
+	Code         string
+	Description  string
+	Type         string
+	FullCodePath string // 完整路径（执行模式 run_table_search/run_form_submit/run_chart_query 用）
+	TemplateType string // 函数类型（仅 function 有效）：table、form、chart
 }
 
 // WorkspaceEnvFile 环境中的代码文件
@@ -65,12 +67,13 @@ var packageContext = &app.PackageContext{
 // 约定：所有构造内容均为完整输出，不截断、不省略（ChildrenSection/FilesSection/DirectoryList/InitGoSection 等）。
 func BuildWorkspaceEnvData(in *WorkspaceEnvInput, directoryName, fullCodePath string, now time.Time) *WorkspaceEnvData {
 	data := &WorkspaceEnvData{
-		CurrentTime:     now.Format("2006-01-02 15:04:05"),
-		CurrentDate:     now.Format("2006-01-02"),
-		Timestamp:       fmt.Sprintf("%d", now.Unix()),
-		DirName:         directoryName,
-		FullCodePath:    fullCodePath,
-		ChildrenSection: "当前目录下没有子节点。",
+		CurrentTime:       now.Format("2006-01-02 15:04:05"),
+		CurrentDate:       now.Format("2006-01-02"),
+		Timestamp:         fmt.Sprintf("%d", now.Unix()),
+		DirName:           directoryName,
+		FullCodePath:      fullCodePath,
+		ChildrenSection:   "当前目录下没有子节点。",
+		FunctionsSection:  "",
 	}
 	if in != nil {
 		data.User = in.User
@@ -78,6 +81,7 @@ func BuildWorkspaceEnvData(in *WorkspaceEnvInput, directoryName, fullCodePath st
 		data.DirType = in.DirType
 		data.DirDescription = in.DirDescription
 		data.ChildrenSection = buildChildrenSection(in.Children)
+		data.FunctionsSection = buildFunctionsSection(in.Children)
 		data.FilesSection = buildFilesSection(in.Files)
 	}
 	data.DirectoryList = buildDirectoryList(GetDocCatalog())
@@ -122,11 +126,44 @@ func buildChildrenSection(children []WorkspaceEnvNode) string {
 	if len(functions) > 0 {
 		b.WriteString("\n**函数/文件：**\n")
 		for _, f := range functions {
+			tpl := f.TemplateType
+			if tpl == "" {
+				tpl = "function"
+			}
 			b.WriteString(fmt.Sprintf("- %s（%s）", f.Name, f.Code))
+			if f.FullCodePath != "" {
+				b.WriteString(fmt.Sprintf("：`%s` [%s]", f.FullCodePath, tpl))
+			}
 			if f.Description != "" {
-				b.WriteString(fmt.Sprintf("：%s", f.Description))
+				b.WriteString(fmt.Sprintf(" — %s", f.Description))
 			}
 			b.WriteString("\n")
+		}
+	}
+	return b.String()
+}
+
+// buildFunctionsSection 输出当前目录下所有函数及其 full_code_path、template_type（table/form/chart），供开发/执行模式 run_table_search/run_form_submit/run_chart_query/run_table_create 直接使用
+func buildFunctionsSection(children []WorkspaceEnvNode) string {
+	var functions []WorkspaceEnvNode
+	for _, c := range children {
+		if c.Type == "function" && c.FullCodePath != "" {
+			functions = append(functions, c)
+		}
+	}
+	if len(functions) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("\n**当前目录下的可执行函数（可直接用下列 full_code_path 调用 run_table_search / run_form_submit / run_chart_query / run_table_create）：**\n")
+	for _, f := range functions {
+		tpl := f.TemplateType
+		if tpl == "" {
+			tpl = "function"
+		}
+		b.WriteString(fmt.Sprintf("- **%s** %s（%s）：`%s`\n", tpl, f.Name, f.Code, f.FullCodePath))
+		if f.Description != "" {
+			b.WriteString(fmt.Sprintf("  - %s\n", f.Description))
 		}
 	}
 	return b.String()
@@ -139,7 +176,7 @@ func buildFilesSection(files []WorkspaceEnvFile) string {
 	}
 	var b strings.Builder
 	b.WriteString("\n\n### 当前可读代码文件（用 read_go_file 读取）\n")
-	b.WriteString("以下文件可直接用 `read_go_file(directory, file_name)` 读取内容（不传 directory 则默认当前目录）：\n")
+	b.WriteString("以下文件可直接用 `read_go_file(directory, file_name)` 读取内容（不传 directory 则默认当前目录；file_name 可单文件如 a.go 或逗号分隔多文件如 a.go,b.go）：\n")
 	for _, f := range files {
 		b.WriteString(fmt.Sprintf("- %s（%s，%d 行）\n", f.RelativePath, f.FileType, f.LineCount))
 	}

@@ -472,6 +472,9 @@ Rating float64 `widget:"name:评价;type:rate;max:5;allow_half:true;texts:很差
 
 #### timestamp - 日期时间选择器
 
+- **约定**：后端**无需在代码里做日期格式化**，字段类型用 **int64**，直接存、传**毫秒时间戳**即可；前端会根据 widget 的 `format` 自动格式化展示。
+- **错误写法**：使用 `string` 类型并在后端格式化为 "YYYY-MM-DD HH:mm:ss" 等字符串（如 `BidTime string` + 代码里 `time.Format(...)`）。timestamp 的 `format` 仅用于前端展示，后端只返回时间戳。
+
 ```go
 // 自动填充（创建时间、更新时间）
 CreatedAt int64 `gorm:"autoCreateTime:milli" widget:"name:创建时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" permission:"read"`

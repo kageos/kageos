@@ -2,8 +2,11 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
@@ -12,6 +15,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/pkg/timex"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
 )
 
@@ -39,7 +43,7 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 	// 1. 读代码文件：read_go_file（仅工作区 Go 代码）
 	out = append(out, dto.ToolDef{
 		Name:        "read_go_file",
-		Description: "读取工作区内指定目录下的 Go 代码文件内容。参数：directory（可选，不传则当前工作目录）、file_name（可选，如 biz_vote_system 或 biz_vote_system.go；不传则返回该目录下所有代码文件）。",
+		Description: "读取工作区内指定目录下的 Go 代码文件内容。参数：directory（可选，不传则当前工作目录）、file_name（可选，单文件如 a.go，或多文件逗号分隔如 a.go,b.go；不传则返回该目录下所有代码文件）。",
 		InputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
@@ -49,7 +53,7 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 				},
 				"file_name": map[string]interface{}{
 					"type":        "string",
-					"description": "文件名（可选），如 biz_vote_system 或 biz_vote_system.go；不传则返回该目录下所有代码文件",
+					"description": "文件名（可选），单文件如 a.go，或多文件逗号分隔如 a.go,b.go；不传则返回该目录下所有代码文件",
 				},
 			},
 			"required": []interface{}{},
@@ -80,16 +84,16 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 		},
 	})
 
-	// 2. 读文档：read_doc（directory 唯一定位，内置或工作区）
+	// 2. 读文档：read_doc（directory 唯一定位，内置或工作区；支持逗号分隔多路径）
 	out = append(out, dto.ToolDef{
 		Name:        "read_doc",
-		Description: "读取文档内容。传 directory 唯一定位文档（内置如 /builtin/doc/sdk/agent-app-sdk-readme，工作区如 /user/app/docs/guide）。系统消息中会列出可读文档的 directory 及名称（名称仅说明文档用途）。",
+		Description: "读取文档内容。传 directory 定位文档（单路径如 /builtin/doc/sdk/agent-app-sdk-readme，或多路径逗号分隔如 /builtin/doc/a,/builtin/doc/b）。系统消息中会列出可读文档的 directory 及名称。",
 		InputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
 				"directory": map[string]interface{}{
 					"type":        "string",
-					"description": "文档唯一路径，如 /builtin/doc/sdk/agent-app-sdk-readme 或 /user/app/docs/guide",
+					"description": "文档路径，单路径或逗号分隔多路径，如 /builtin/doc/sdk/agent-app-sdk-readme 或 /builtin/doc/a,/builtin/doc/b",
 				},
 			},
 			"required": []interface{}{"directory"},
@@ -298,6 +302,93 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 		},
 	})
 
+	// 执行模式专用：查表 / 提交表单 / 查图表（调用工作区标准接口）
+	// Table 搜索参数遵循 pkg/gormx/query 约定，可搜字段由表格 model 的 search 标签决定（见 readme）
+	out = append(out, dto.ToolDef{
+		Name:        "run_table_search",
+		Description: "执行工作区内 Table 查询接口，返回分页表格数据。full_code_path 必须为「具体表格函数的完整路径」，包含函数名（如 .../nps/nps_questionnaire_list），不能只填包路径（如 .../nps），否则会查不到数据。若只知包路径，请先用 read_dir 看该包下 .go 文件，根据 init() 中 GET(\"xxx_list\",...) 确定函数名，再拼成 full_code_path=.../包名/函数名。查询参数遵循 pkg/gormx/query：page、page_size、sorts、eq/like/in/gte/lte 等；可传 url_query 或单独传 page、page_size、sorts。",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"full_code_path": map[string]interface{}{
+					"type":        "string",
+					"description": "表格函数的完整路径，必须包含函数名，如 /luobei/myapp/nps/nps_questionnaire_list；不能只填包路径如 .../nps，否则返回空。",
+				},
+				"url_query": map[string]interface{}{
+					"type":        "string",
+					"description": "完整 URL 查询串（可选），与 pkg/gormx/query 一致。时间范围可用时间函数，工具内部会转为时间戳：Now() 当前时间、Today() 今天 0 点、Yesterday() 昨天 0 点、Now(-7d) 七天前、Now(2026-02-01 13:05:05) 指定时间。例：page=1&page_size=20&gte=created_at:Now(-7d)&lte=created_at:Now()。不传则用默认分页。",
+				},
+				"page": map[string]interface{}{
+					"type":        "integer",
+					"description": "页码（可选，默认 1）；若已传 url_query 则优先用 url_query 内参数",
+				},
+				"page_size": map[string]interface{}{
+					"type":        "integer",
+					"description": "每页条数（可选，默认 20）",
+				},
+				"sorts": map[string]interface{}{
+					"type":        "string",
+					"description": "排序（可选），如 id:desc,name:asc 或 -updated_at",
+				},
+			},
+			"required": []interface{}{"full_code_path"},
+		},
+	})
+	out = append(out, dto.ToolDef{
+		Name:        "run_form_submit",
+		Description: "执行工作区内 Form 函数的提交接口，提交表单数据。full_code_path 为表单函数的完整路径，如 /luobei/myapp/plugins/cashier_desk。body 为 JSON 对象字符串，包含表单字段（如 {\"name\":\"张三\",\"amount\":100}）；若表单无必填字段可传 {}。",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"full_code_path": map[string]interface{}{
+					"type":        "string",
+					"description": "表单函数的完整路径，如 /luobei/myapp/plugins/cashier_desk",
+				},
+				"body": map[string]interface{}{
+					"type":        "string",
+					"description": "表单字段的 JSON 字符串（可选），如 {\"name\":\"张三\",\"amount\":100}；无字段时传 {}",
+				},
+			},
+			"required": []interface{}{"full_code_path"},
+		},
+	})
+		out = append(out, dto.ToolDef{
+		Name:        "run_chart_query",
+		Description: "执行工作区内 Chart 查询接口，返回图表数据。full_code_path 为图表函数路径，如 /luobei/myapp/charts/sales。图表查询参数不固定，由具体 Chart 的 handler 定义（如 year、month、dimension 等），请用 read_go_file 查看对应 .go 的 Req 结构。传 url_query 为完整查询串（如 year=2024&month=1），不传则无额外参数。",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"full_code_path": map[string]interface{}{
+					"type":        "string",
+					"description": "图表函数的完整路径，如 /luobei/myapp/charts/sales",
+				},
+				"url_query": map[string]interface{}{
+					"type":        "string",
+					"description": "完整 URL 查询串（可选），参数由该 Chart handler 定义，不固定，如 year=2024&month=1&dimension=region",
+				},
+			},
+			"required": []interface{}{"full_code_path"},
+		},
+	})
+	out = append(out, dto.ToolDef{
+		Name:        "run_table_create",
+		Description: "执行工作区内 Table 新增接口，新增一条表格记录。full_code_path 为表格函数的完整路径（必须包含函数名，如 /luobei/myapp/nps/nps_questionnaire_list），与 run_table_search 一致。body 为该表格单条记录的字段 JSON，字段名与表格 model 的 json 标签一致；必填字段需包含，可选项可省略。环境中的「当前目录下的可执行函数」会列出 table 类型及 full_code_path，可直接使用。",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"full_code_path": map[string]interface{}{
+					"type":        "string",
+					"description": "表格函数的完整路径（必须包含函数名），如 /luobei/myapp/nps/nps_questionnaire_list",
+				},
+				"body": map[string]interface{}{
+					"type":        "string",
+					"description": "单条记录的字段 JSON 字符串，如 {\"title\":\"问卷标题\",\"description\":\"描述\",\"target_group\":\"全部用户\",\"start_time\":1738339200000,\"end_time\":1738944000000}。字段名与表格 model 的 json 标签一致，必填项需包含。",
+				},
+			},
+			"required": []interface{}{"full_code_path", "body"},
+		},
+	})
+
 	// 3. 插件：每个 Plugin 一条
 	for _, p := range plugins {
 		if p.FormPath == "" {
@@ -360,6 +451,14 @@ func (r *ToolRegistry) CallTool(ctx context.Context, name string, args map[strin
 		return r.callSearchReplaceFile(ctx, args, fullCodePath)
 	case "delete_file":
 		return r.callDeleteFile(ctx, args, fullCodePath)
+	case "run_table_search":
+		return r.callRunTableSearch(ctx, args, fullCodePath)
+	case "run_form_submit":
+		return r.callRunFormSubmit(ctx, args, fullCodePath)
+	case "run_chart_query":
+		return r.callRunChartQuery(ctx, args, fullCodePath)
+	case "run_table_create":
+		return r.callRunTableCreate(ctx, args, fullCodePath)
 	}
 	// 按插件 code 查找
 	p, err := r.pluginRepo.GetByCode(name)
@@ -403,19 +502,35 @@ func (r *ToolRegistry) callReadGoFile(ctx context.Context, args map[string]inter
 
 	var matchedFiles []dto.WorkspaceContextFile
 	if fileName != "" {
-		for _, file := range workspaceCtx.Files {
-			if file.FileName == fileName {
-				matchedFiles = append(matchedFiles, file)
+		// 支持逗号分隔多文件，如 a.go,b.go
+		names := splitFileNames(fileName)
+		seen := make(map[string]bool)
+		for _, name := range names {
+			name = strings.TrimSpace(name)
+			if name == "" {
 				continue
 			}
-			fullFileName := file.FileName + "." + file.FileType
-			if fullFileName == fileName {
-				matchedFiles = append(matchedFiles, file)
-				continue
-			}
-			if file.RelativePath == fileName {
-				matchedFiles = append(matchedFiles, file)
-				continue
+			for _, file := range workspaceCtx.Files {
+				key := file.RelativePath
+				if seen[key] {
+					continue
+				}
+				if file.FileName == name {
+					matchedFiles = append(matchedFiles, file)
+					seen[key] = true
+					continue
+				}
+				fullFileName := file.FileName + "." + file.FileType
+				if fullFileName == name {
+					matchedFiles = append(matchedFiles, file)
+					seen[key] = true
+					continue
+				}
+				if file.RelativePath == name {
+					matchedFiles = append(matchedFiles, file)
+					seen[key] = true
+					continue
+				}
 			}
 		}
 		if len(matchedFiles) == 0 {
@@ -576,38 +691,73 @@ func parseLineRanges(s string, totalLines int) []lineRange {
 	return out
 }
 
-// callReadDocTool 读取文档（directory 唯一定位，内置或工作区）
+// callReadDocTool 读取文档（directory 唯一定位，内置或工作区；支持逗号分隔多路径）
 func (r *ToolRegistry) callReadDocTool(ctx context.Context, args map[string]interface{}, currentFullCodePath string) (string, bool) {
-	fullCodePath := strings.TrimSpace(GetStringArg(args, "directory"))
-	if fullCodePath == "" {
-		fullCodePath = strings.TrimSpace(getDirectory(args, currentFullCodePath))
+	dirArg := strings.TrimSpace(GetStringArg(args, "directory"))
+	if dirArg == "" {
+		dirArg = strings.TrimSpace(getDirectory(args, currentFullCodePath))
 	}
-	if fullCodePath == "" {
+	if dirArg == "" {
 		return "read_doc 需传 directory。", true
 	}
-	if !strings.HasPrefix(fullCodePath, "/") {
-		fullCodePath = "/" + fullCodePath
+	// 支持逗号分隔多路径，去重且保持顺序
+	paths := splitDirectoryPaths(dirArg)
+	if len(paths) == 0 {
+		return "read_doc 需传 directory。", true
 	}
 
-	if strings.HasPrefix(fullCodePath, "/builtin/") {
-		docName, content := prompt.GetBuiltinDocContent(fullCodePath)
-		if content == "" {
-			return fmt.Sprintf("未找到：directory=%s。请使用系统消息中列出的 directory。", fullCodePath), true
+	var sb strings.Builder
+	var hasError bool
+	for i, fullCodePath := range paths {
+		if fullCodePath == "" {
+			continue
 		}
-		if docName == "" {
-			docName = fullCodePath
+		if !strings.HasPrefix(fullCodePath, "/") {
+			fullCodePath = "/" + fullCodePath
 		}
-		return fmt.Sprintf("## %s\n\n%s", docName, content), false
-	}
 
-	doc, err := apicall.GetDoc(ctx, fullCodePath)
-	if err != nil {
-		return fmt.Sprintf("获取文档失败: %v", err), true
+		if strings.HasPrefix(fullCodePath, "/builtin/") {
+			docName, content := prompt.GetBuiltinDocContent(fullCodePath)
+			if content == "" {
+				if i > 0 {
+					sb.WriteString("\n\n")
+				}
+				sb.WriteString(fmt.Sprintf("## %s\n\n未找到：directory=%s。请使用系统消息中列出的 directory。", fullCodePath, fullCodePath))
+				hasError = true
+				continue
+			}
+			if docName == "" {
+				docName = fullCodePath
+			}
+			if i > 0 {
+				sb.WriteString("\n\n")
+			}
+			sb.WriteString(fmt.Sprintf("## %s\n\n%s", docName, content))
+			continue
+		}
+
+		doc, err := apicall.GetDoc(ctx, fullCodePath)
+		if err != nil {
+			if i > 0 {
+				sb.WriteString("\n\n")
+			}
+			sb.WriteString(fmt.Sprintf("## %s\n\n获取文档失败: %v", fullCodePath, err))
+			hasError = true
+			continue
+		}
+		if doc == nil || doc.Content == "" {
+			if i > 0 {
+				sb.WriteString("\n\n")
+			}
+			sb.WriteString(fmt.Sprintf("## %s\n\n文档《%s》无正文内容。", fullCodePath, fullCodePath))
+			continue
+		}
+		if i > 0 {
+			sb.WriteString("\n\n")
+		}
+		sb.WriteString(fmt.Sprintf("## %s\n\n%s", doc.Name, doc.Content))
 	}
-	if doc == nil || doc.Content == "" {
-		return fmt.Sprintf("文档《%s》无正文内容。", fullCodePath), false
-	}
-	return fmt.Sprintf("## %s\n\n%s", doc.Name, doc.Content), false
+	return sb.String(), hasError
 }
 
 // callReadFile 已废弃，请使用 read_go_file / read_doc
@@ -822,14 +972,19 @@ func (r *ToolRegistry) buildListFormat(ctx context.Context, workspaceCtx *dto.Ge
 		}
 	}
 
-	// 构建函数部分
+	// 构建函数部分（含 template_type，与 env 中「当前目录下的可执行函数」一致，便于 run_table_search 等直接使用 full_code_path）
 	funcsSection := ""
 	if len(functions) > 0 {
 		funcsSection = fmt.Sprintf("### 函数/文件（共 %d 个）\n\n", len(functions))
 		for i, fn := range functions {
+			tpl := fn.TemplateType
+			if tpl == "" {
+				tpl = "function"
+			}
 			funcsSection += fmt.Sprintf(`#### 函数 %d: %s
 - 函数代码：%s
-- 完整路径：%s`, i+1, fn.Name, fn.Code, fn.FullCodePath)
+- 类型：%s
+- 完整路径：%s`, i+1, fn.Name, fn.Code, tpl, fn.FullCodePath)
 			if fn.Description != "" {
 				funcsSection += fmt.Sprintf("\n- 描述：%s", fn.Description)
 			}
@@ -971,7 +1126,7 @@ func (r *ToolRegistry) buildTreeLines(ctx context.Context, workspaceCtx *dto.Get
 		}
 	}
 
-	// 输出函数节点
+	// 输出函数节点（含 template_type 与 full_code_path，与 env「当前目录下的可执行函数」一致）
 	if includeFunctions && len(functions) > 0 {
 		for i, fn := range functions {
 			isLast := i == len(functions)-1 && (!includeFiles || len(files) == 0)
@@ -979,12 +1134,19 @@ func (r *ToolRegistry) buildTreeLines(ctx context.Context, workspaceCtx *dto.Get
 			if isLast {
 				connector = "└── "
 			}
-
+			tpl := fn.TemplateType
+			if tpl == "" {
+				tpl = "function"
+			}
 			descPart := ""
 			if fn.Description != "" {
 				descPart = "-" + fn.Description
 			}
-			result += fmt.Sprintf("%s%s%s(%s%s)[function]\n", prefix, connector, fn.Code, fn.Name, descPart)
+			result += fmt.Sprintf("%s%s%s(%s%s)[%s]", prefix, connector, fn.Code, fn.Name, descPart, tpl)
+			if fn.FullCodePath != "" {
+				result += fmt.Sprintf(" → %s", fn.FullCodePath)
+			}
+			result += "\n"
 		}
 	}
 
@@ -1175,6 +1337,174 @@ func (r *ToolRegistry) callDeleteFile(ctx context.Context, args map[string]inter
 	return fmt.Sprintf("已删除: 目录=%s, 文件=%s", targetPath, fileName), false
 }
 
+// callRunTableSearch 执行 Table 查询（执行模式专用）；参数遵循 pkg/gormx/query，可传 url_query 或 page/page_size/sorts
+func (r *ToolRegistry) callRunTableSearch(ctx context.Context, args map[string]interface{}, currentFullCodePath string) (string, bool) {
+	fullCodePath := strings.TrimSpace(GetStringArg(args, "full_code_path"))
+	if fullCodePath == "" {
+		fullCodePath = currentFullCodePath
+	}
+	if fullCodePath != "" && !strings.HasPrefix(fullCodePath, "/") {
+		fullCodePath = "/" + fullCodePath
+	}
+	if fullCodePath == "" {
+		return "run_table_search 需传 full_code_path（表格函数路径，如 /luobei/myapp/tables/hr）。", true
+	}
+	var params url.Values
+	if q := strings.TrimSpace(GetStringArg(args, "url_query")); q != "" {
+		parsed, err := url.ParseQuery(q)
+		if err != nil {
+			return "run_table_search 的 url_query 需为合法查询串: " + err.Error(), true
+		}
+		params = parsed
+		if params.Get("page") == "" {
+			params.Set("page", "1")
+		}
+		if params.Get("page_size") == "" {
+			params.Set("page_size", "20")
+		}
+	} else {
+		params = url.Values{}
+		params.Set("page", "1")
+		params.Set("page_size", "20")
+		if v, ok := args["page"]; ok {
+			if n, ok := toInt(v); ok {
+				params.Set("page", strconv.Itoa(n))
+			}
+		}
+		if v, ok := args["page_size"]; ok {
+			if n, ok := toInt(v); ok {
+				params.Set("page_size", strconv.Itoa(n))
+			}
+		}
+		if s := GetStringArg(args, "sorts"); s != "" {
+			params.Set("sorts", s)
+		}
+	}
+	// 将 url_query 中的时间表达式（Now()、Today()、Now(2026-02-01 13:05:05)、Now(-7d) 等）替换为毫秒时间戳
+	for key := range params {
+		params.Set(key, timex.ReplaceTimeExprsInParamValue(params.Get(key)))
+	}
+	result, err := apicall.TableSearch(ctx, fullCodePath, params)
+	if err != nil {
+		logger.Errorf(ctx, "[RunTableSearch] TableSearch 失败: %v", err)
+		return "run_table_search 调用失败: " + err.Error(), true
+	}
+	return formatJSONResult(result)
+}
+
+// callRunFormSubmit 执行 Form 提交（执行模式专用）
+func (r *ToolRegistry) callRunFormSubmit(ctx context.Context, args map[string]interface{}, currentFullCodePath string) (string, bool) {
+	fullCodePath := strings.TrimSpace(GetStringArg(args, "full_code_path"))
+	if fullCodePath == "" {
+		fullCodePath = currentFullCodePath
+	}
+	if fullCodePath != "" && !strings.HasPrefix(fullCodePath, "/") {
+		fullCodePath = "/" + fullCodePath
+	}
+	if fullCodePath == "" {
+		return "run_form_submit 需传 full_code_path（表单函数路径，如 /luobei/myapp/plugins/xxx）。", true
+	}
+	bodyStr := GetStringArg(args, "body")
+	var body interface{}
+	if bodyStr != "" {
+		if err := json.Unmarshal([]byte(bodyStr), &body); err != nil {
+			return "run_form_submit 的 body 需为合法 JSON 字符串: " + err.Error(), true
+		}
+	} else {
+		body = map[string]interface{}{}
+	}
+	result, err := apicall.FormSubmit(ctx, fullCodePath, body)
+	if err != nil {
+		logger.Errorf(ctx, "[RunFormSubmit] FormSubmit 失败: %v", err)
+		return "run_form_submit 调用失败: " + err.Error(), true
+	}
+	return formatJSONResult(result)
+}
+
+// callRunChartQuery 执行 Chart 查询（执行模式专用）；图表参数不固定，由 handler 定义，可传 url_query
+func (r *ToolRegistry) callRunChartQuery(ctx context.Context, args map[string]interface{}, currentFullCodePath string) (string, bool) {
+	fullCodePath := strings.TrimSpace(GetStringArg(args, "full_code_path"))
+	if fullCodePath == "" {
+		fullCodePath = currentFullCodePath
+	}
+	if fullCodePath != "" && !strings.HasPrefix(fullCodePath, "/") {
+		fullCodePath = "/" + fullCodePath
+	}
+	if fullCodePath == "" {
+		return "run_chart_query 需传 full_code_path（图表函数路径，如 /luobei/myapp/charts/xxx）。", true
+	}
+	var params url.Values
+	if q := strings.TrimSpace(GetStringArg(args, "url_query")); q != "" {
+		parsed, err := url.ParseQuery(q)
+		if err != nil {
+			return "run_chart_query 的 url_query 需为合法查询串: " + err.Error(), true
+		}
+		params = parsed
+	} else {
+		params = url.Values{}
+	}
+	result, err := apicall.ChartQuery(ctx, fullCodePath, params)
+	if err != nil {
+		logger.Errorf(ctx, "[RunChartQuery] ChartQuery 失败: %v", err)
+		return "run_chart_query 调用失败: " + err.Error(), true
+	}
+	return formatJSONResult(result)
+}
+
+// callRunTableCreate 执行 Table 新增（执行模式专用）；body 为单条记录字段 JSON，触发 OnTableAddRow
+func (r *ToolRegistry) callRunTableCreate(ctx context.Context, args map[string]interface{}, currentFullCodePath string) (string, bool) {
+	fullCodePath := strings.TrimSpace(GetStringArg(args, "full_code_path"))
+	if fullCodePath == "" {
+		fullCodePath = currentFullCodePath
+	}
+	if fullCodePath != "" && !strings.HasPrefix(fullCodePath, "/") {
+		fullCodePath = "/" + fullCodePath
+	}
+	if fullCodePath == "" {
+		return "run_table_create 需传 full_code_path（表格函数路径，如 /luobei/myapp/nps/nps_questionnaire_list）。", true
+	}
+	bodyStr := GetStringArg(args, "body")
+	if bodyStr == "" {
+		return "run_table_create 需传 body（单条记录的字段 JSON 字符串）。", true
+	}
+	var body interface{}
+	if err := json.Unmarshal([]byte(bodyStr), &body); err != nil {
+		return "run_table_create 的 body 需为合法 JSON 字符串: " + err.Error(), true
+	}
+	result, err := apicall.TableCreate(ctx, fullCodePath, body)
+	if err != nil {
+		logger.Errorf(ctx, "[RunTableCreate] TableCreate 失败: %v", err)
+		return "run_table_create 调用失败: " + err.Error(), true
+	}
+	return formatJSONResult(result)
+}
+
+// toInt 从 interface{} 转 int（支持 float64/int）
+func toInt(v interface{}) (int, bool) {
+	switch n := v.(type) {
+	case int:
+		return n, true
+	case int64:
+		return int(n), true
+	case float64:
+		return int(n), true
+	default:
+		return 0, false
+	}
+}
+
+// formatJSONResult 将 map 序列化为可读字符串
+func formatJSONResult(m map[string]interface{}) (string, bool) {
+	if m == nil {
+		return "{}", false
+	}
+	b, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return fmt.Sprintf("%v", m), false
+	}
+	return string(b), false
+}
+
 // callWriteFile 已废弃，请使用 write_doc / write_go_file
 func (r *ToolRegistry) callWriteFile(ctx context.Context, args map[string]interface{}, currentFullCodePath string) (string, bool) {
 	fileName := strings.TrimSpace(GetStringArg(args, "file_name"))
@@ -1285,6 +1615,49 @@ func GetStringArg(args map[string]interface{}, key string) string {
 		}
 	}
 	return ""
+}
+
+// splitFileNames 将 file_name 按逗号拆成多个文件名（如 "a.go,b.go" -> ["a.go","b.go"]），单文件返回单元素
+func splitFileNames(fileName string) []string {
+	fileName = strings.TrimSpace(fileName)
+	if fileName == "" {
+		return nil
+	}
+	parts := strings.Split(fileName, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// splitDirectoryPaths 将 directory 按逗号拆成多个路径并去重（如 "/a,/b,/a" -> ["/a","/b"]），保持顺序
+func splitDirectoryPaths(directory string) []string {
+	directory = strings.TrimSpace(directory)
+	if directory == "" {
+		return nil
+	}
+	parts := strings.Split(directory, ",")
+	seen := make(map[string]bool)
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		if !strings.HasPrefix(p, "/") {
+			p = "/" + p
+		}
+		if seen[p] {
+			continue
+		}
+		seen[p] = true
+		out = append(out, p)
+	}
+	return out
 }
 
 // getDirectory 取目录参数：模型侧用 directory，兼容旧参数 full_code_path；未传则用 defaultPath
