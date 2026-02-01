@@ -816,10 +816,11 @@ func (s *ServiceTree) SearchFunctions(c *gin.Context) {
 }
 
 // GetWorkspaceContext 获取工作台环境信息
-// GET /api/v1/workspace/context?full_code_path=...
+// GET /api/v1/workspace/context?full_code_path=...&file_source=snapshot|runtime
 func (s *ServiceTree) GetWorkspaceContext(c *gin.Context) {
 	var req dto.GetWorkspaceContextReq
 	req.FullCodePath = c.Query("full_code_path")
+	req.FileSource = c.Query("file_source")
 	if req.FullCodePath == "" {
 		response.FailWithMessage(c, "full_code_path 必填")
 		return
@@ -832,5 +833,51 @@ func (s *ServiceTree) GetWorkspaceContext(c *gin.Context) {
 		return
 	}
 
+	response.OkWithData(c, resp)
+}
+
+// ReplaceFileContent 工作台文件 search-replace（实时写盘）
+// POST /api/v1/workspace/files/replace
+func (s *ServiceTree) ReplaceFileContent(c *gin.Context) {
+	var req dto.ReplaceFileContentReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "参数错误: "+err.Error())
+		return
+	}
+	if req.FullCodePath == "" || req.FileName == "" || req.SearchString == "" {
+		response.FailWithMessage(c, "full_code_path、file_name、search_string 必填")
+		return
+	}
+	ctx := contextx.ToContext(c)
+	resp, err := s.serviceTreeService.ReplaceFileContent(ctx, &req)
+	if err != nil {
+		response.FailWithMessage(c, "替换文件失败: "+err.Error())
+		return
+	}
+	if !resp.Success {
+		response.FailWithDetailed(c, resp, resp.Message)
+		return
+	}
+	response.OkWithData(c, resp)
+}
+
+// DeleteFile 工作台删除文件（删磁盘+删节点）
+// POST /api/v1/workspace/files/delete
+func (s *ServiceTree) DeleteFile(c *gin.Context) {
+	var req dto.DeleteFileReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "参数错误: "+err.Error())
+		return
+	}
+	if req.FullCodePath == "" || req.FileName == "" {
+		response.FailWithMessage(c, "full_code_path、file_name 必填")
+		return
+	}
+	ctx := contextx.ToContext(c)
+	resp, err := s.serviceTreeService.DeleteFile(ctx, &req)
+	if err != nil {
+		response.FailWithMessage(c, "删除文件失败: "+err.Error())
+		return
+	}
 	response.OkWithData(c, resp)
 }

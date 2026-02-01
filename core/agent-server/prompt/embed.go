@@ -1,37 +1,58 @@
 package prompt
 
 import (
+	"embed"
 	"encoding/json"
 	"strings"
-
-	_ "embed"
 )
 
-// WorkspacePrompt 工作台操作提示词（从 工作台操作提示词.md 嵌入，供 buildLLMMessages 拼入 system）
-//
-//go:embed 工作台操作提示词.md
+// 整个 prompt 目录下需嵌入的内容放在 content/ 下，一条 embed 直接嵌入，即可读取 content 下所有文件
+
+//go:embed content
+var promptFS embed.FS
+
+// WorkspacePrompt 工作台操作提示词（从 content/doc/工作台操作提示词.md 加载，供 buildLLMMessages 拼入 system）
 var WorkspacePrompt string
 
-//go:embed 工作台环境模板.md
+// WorkspaceEnvTemplate 工作台环境模板（从 content/doc/工作台环境模板.md 加载）
 var WorkspaceEnvTemplate string
 
-//go:embed 文档目录.json
+// docCatalogJSON 文档目录（从 content/doc/文档目录.json 加载）
 var docCatalogJSON []byte
-
-//go:embed agent-os的sdk使用文档.md
-var builtinDocSDKManual string
 
 // DocCatalogEntry 文档目录项（full_code_path 唯一定位文档，name 仅说明用途）
 type DocCatalogEntry struct {
 	Name         string `json:"name"`           // 文档用途说明
-	FullCodePath string `json:"full_code_path"` // 文档唯一路径，如 /builtin/agent_app_sdk/docs 或 /user/app/docs/guide
+	FullCodePath string `json:"full_code_path"` // 文档唯一路径，如 /builtin/sdk/agent-app-sdk-readme 或 /user/app/docs/guide
 	WhenToUse    string `json:"when_to_use"`    // 何时使用，注入系统消息
 }
 
 var docCatalog []DocCatalogEntry
 
 func init() {
+	// 从嵌入的 promptFS（content/ 下 doc/、mode/ 等）加载公用提示词
+	if b, _ := promptFS.ReadFile("content/doc/工作台操作提示词.md"); len(b) > 0 {
+		WorkspacePrompt = string(b)
+	}
+	if b, _ := promptFS.ReadFile("content/doc/工作台环境模板.md"); len(b) > 0 {
+		WorkspaceEnvTemplate = string(b)
+	}
+	if b, _ := promptFS.ReadFile("content/doc/文档目录.json"); len(b) > 0 {
+		docCatalogJSON = b
+	}
 	_ = json.Unmarshal(docCatalogJSON, &docCatalog)
+}
+
+// ReadContent 从嵌入的 content/ 下读取文件，path 为相对 content/ 的路径（如 "doc/xxx.md" 或 "提示词现状分析.md"）
+func ReadContent(path string) ([]byte, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return nil, nil
+	}
+	if !strings.HasPrefix(path, "content/") {
+		path = "content/" + path
+	}
+	return promptFS.ReadFile(path)
 }
 
 // GetDocCatalog 返回文档目录列表（供系统消息「可用文档」块使用）
@@ -54,8 +75,19 @@ func GetBuiltinDocContent(fullCodePath string) (name, content string) {
 }
 
 func getBuiltinDocContentByEntry(e *DocCatalogEntry) string {
-	if strings.TrimSpace(e.FullCodePath) == "/builtin/agent_app_sdk/docs" {
-		return builtinDocSDKManual
+	fp := strings.TrimSpace(e.FullCodePath)
+	// 所有 /builtin/ 路径：从 content/builtin/ 下按路径读文档；暴露路径与目录对齐，如 /builtin/doc/sdk/agent-app-sdk-readme、/builtin/doc/case_catalog/table/ticket，实际文件在 content/builtin/doc/sdk/、content/builtin/doc/case_catalog/ 下
+	if strings.HasPrefix(fp, "/builtin/") {
+		rel := strings.TrimPrefix(fp, "/builtin/")
+		rel = strings.Trim(rel, "/")
+		if rel == "" {
+			return ""
+		}
+		for _, suffix := range []string{rel + "/prd.md", rel + ".md", rel + "/README.md"} {
+			if b, _ := promptFS.ReadFile("content/builtin/" + suffix); len(b) > 0 {
+				return string(b)
+			}
+		}
 	}
 	return ""
 }
@@ -88,6 +120,7 @@ type WorkspaceEnvData struct {
 	ChildrenSection string // {{CHILDREN_SECTION}}
 	FilesSection    string // {{FILES_SECTION}}
 	DirectoryList   string // {{DIRECTORY_LIST}}
+	InitGoSection   string // {{INIT_GO_SECTION}} 当前目录的 init_.go 内容（由 full_code_path 构造），便于模型知道已有该文件、无需再写
 }
 
 // FillWorkspaceEnvTemplate 用结构体填充工作台环境模板；占位符格式 {{KEY}}，与 WorkspaceEnvData 字段对应
@@ -105,6 +138,7 @@ func FillWorkspaceEnvTemplate(data *WorkspaceEnvData) string {
 		"CHILDREN_SECTION": data.ChildrenSection,
 		"FILES_SECTION":    data.FilesSection,
 		"DIRECTORY_LIST":   data.DirectoryList,
+		"INIT_GO_SECTION":  data.InitGoSection,
 	}
 	s := WorkspaceEnvTemplate
 	for k, v := range m {

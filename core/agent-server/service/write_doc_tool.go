@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ai-agent-os/ai-agent-os/core/agent-server/prompt"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
@@ -172,5 +173,19 @@ func RunCreateDirectoryTool(ctx context.Context, args map[string]interface{}, de
 		return "create_directory 创建目录失败: " + err.Error(), true
 	}
 	logger.Infof(ctx, "[CreateDirectoryTool] 目录已创建 - FullCodePath: %s, ID: %d", resp.FullCodePath, resp.ID)
-	return fmt.Sprintf("目录已创建: %s（可在该目录下使用 write_go_file 写代码、write_doc 写文档）", resp.FullCodePath), false
+	// 返回时必须带 init_.go 的完整真实代码，不能省略；若 API 返回的 FullCodePath 不足以构造，用父路径+code 拼出
+	pathForInit := strings.Trim(resp.FullCodePath, "/")
+	if pathForInit == "" {
+		pathForInit = strings.Trim(fullCodePath, "/") + "/" + code
+	}
+	initGo := prompt.BuildInitGoContent(pathForInit, resp.Name, resp.Description)
+	if initGo == "" {
+		initGo = prompt.BuildInitGoContent(strings.Trim(fullCodePath, "/")+"/"+code, name, description)
+	}
+	// 始终返回带完整 init_.go 真实代码的那句，不返回“省略”版短句
+	return fmt.Sprintf(`目录已创建: %s。
+
+系统已自动在该目录下生成 `+"`init_.go`"+`，完整内容如下（无需再 write_go_file 创建 init.go 或 init_.go，可直接在该目录下写业务 .go 并用 packageContext.GET(...) 注册路由）：
+
+`+"```go\n%s\n```", resp.FullCodePath, initGo), false
 }

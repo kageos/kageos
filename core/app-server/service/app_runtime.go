@@ -175,6 +175,36 @@ func (a *AppRuntime) ReadDirectoryFiles(ctx context.Context, hostId int64, req *
 	return &resp, nil
 }
 
+// ReplaceInFile 文件 search-replace（app-server -> app-runtime）
+func (a *AppRuntime) ReplaceInFile(ctx context.Context, hostId int64, req *dto.ReplaceInFileRuntimeReq) (*dto.ReplaceInFileRuntimeResp, error) {
+	var resp dto.ReplaceInFileRuntimeResp
+	timeout := time.Duration(a.config.GetNatsRequestTimeout()) * time.Second
+	conn, err := a.natsService.GetNatsByHost(hostId)
+	if err != nil {
+		return nil, err
+	}
+	_, err = msgx.RequestMsgWithTimeout(ctx, conn, subjects.GetAppServer2AppRuntimeReplaceInFileRequestSubject(), req, &resp, timeout)
+	if err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// DeleteFile 删除磁盘文件（app-server -> app-runtime）
+func (a *AppRuntime) DeleteFile(ctx context.Context, hostId int64, req *dto.DeleteFileRuntimeReq) (*dto.DeleteFileRuntimeResp, error) {
+	var resp dto.DeleteFileRuntimeResp
+	timeout := time.Duration(a.config.GetNatsRequestTimeout()) * time.Second
+	conn, err := a.natsService.GetNatsByHost(hostId)
+	if err != nil {
+		return nil, err
+	}
+	_, err = msgx.RequestMsgWithTimeout(ctx, conn, subjects.GetAppServer2AppRuntimeDeleteFileRequestSubject(), req, &resp, timeout)
+	if err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 // BatchCreateDirectoryTree 批量创建目录树（app-server -> app-runtime）
 func (a *AppRuntime) BatchCreateDirectoryTree(ctx context.Context, hostId int64, req *dto.BatchCreateDirectoryTreeRuntimeReq) (*dto.BatchCreateDirectoryTreeRuntimeResp, error) {
 	var resp dto.BatchCreateDirectoryTreeRuntimeResp

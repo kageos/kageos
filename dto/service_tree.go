@@ -170,9 +170,9 @@ type DeleteServiceTreeReq struct {
 
 // ==================== 按类型分离的更新和删除接口 DTO ====================
 
-// UpdatePackageReq 更新 package 类型节点请求
+// UpdatePackageReq 更新 package 类型节点请求（ID 由 path /packages/:id 提供，body 可不传）
 type UpdatePackageReq struct {
-	ID          int64   `json:"id" binding:"required" example:"1"`                 // 目录ID
+	ID          int64   `json:"id,omitempty" example:"1"`                         // 目录ID（由 path 提供，body 可不传）
 	Name        *string `json:"name,omitempty" example:"用户管理"`                 // 目录名称（指针类型，nil=不更新，""=清空）
 	Code        *string `json:"code,omitempty" example:"user"`                     // 目录代码（指针类型，nil=不更新，""=清空）
 	Description *string `json:"description,omitempty" example:"用户相关的API接口"` // 描述（指针类型，nil=不更新，""=清空）
@@ -180,18 +180,18 @@ type UpdatePackageReq struct {
 	Admins      *string `json:"admins,omitempty" example:"user1,user2"`            // 管理员列表（指针类型，nil=不更新，""=清空）
 }
 
-// UpdateFunctionReq 更新 function 类型节点请求
+// UpdateFunctionReq 更新 function 类型节点请求（ID 由 path /functions/:id 提供，body 可不传）
 type UpdateFunctionReq struct {
-	ID          int64   `json:"id" binding:"required" example:"1"`                 // 函数ID
+	ID          int64   `json:"id,omitempty" example:"1"`                         // 函数ID（由 path 提供，body 可不传）
 	Name        *string `json:"name,omitempty" example:"用户列表"`                 // 函数名称（指针类型，nil=不更新，""=清空）
 	Code        *string `json:"code,omitempty" example:"user_list"`                // 函数代码（指针类型，nil=不更新，""=清空）
 	Description *string `json:"description,omitempty" example:"获取用户列表"`      // 描述（指针类型，nil=不更新，""=清空）
 	Tags        *string `json:"tags,omitempty" example:"user,list"`               // 标签（指针类型，nil=不更新，""=清空）
 }
 
-// UpdateDocsReq 更新 docs 类型节点请求
+// UpdateDocsReq 更新 docs 类型节点请求（ID 由 path /docs/crud/:id 提供，body 可不传）
 type UpdateDocsReq struct {
-	ID          int64   `json:"id" binding:"required" example:"1"`                 // 文档ID
+	ID          int64   `json:"id,omitempty" example:"1"`                         // 文档ID（由 path 提供，body 可不传）
 	Name        *string `json:"name,omitempty" example:"API文档"`                 // 文档名称（指针类型，nil=不更新，""=清空）
 	Code        *string `json:"code,omitempty" example:"api_docs"`                // 文档代码（指针类型，nil=不更新，""=清空）
 	Description *string `json:"description,omitempty" example:"API接口文档"`      // 描述（指针类型，nil=不更新，""=清空）

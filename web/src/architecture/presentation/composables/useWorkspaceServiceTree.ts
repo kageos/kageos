@@ -15,7 +15,6 @@ import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import { createPackage, createServiceTree } from '@/api/service-tree'
 import type { ServiceTree as ServiceTreeType, CreateServiceTreeRequest } from '@/types'
-import type { App } from '../../domain/services/WorkspaceDomainService'
 import ServiceTreePanel from '@/components/ServiceTreePanel.vue'
 import { useAuthStore } from '@/stores/auth'
 
@@ -142,23 +141,8 @@ export function useWorkspaceServiceTree(
       createDirectoryDialogVisible.value = false
       resetCreateDirectoryForm(currentApp)
       
-      // 刷新服务目录树
-      if (currentApp()) {
-        const app = currentApp()
-        const appForService: App = {
-          id: app.id,
-          user: app.user,
-          code: app.code,
-          name: app.name,
-          nats_id: app.nats_id || 0,
-          host_id: app.host_id || 0,
-          status: (app.status || 'enabled') as 'enabled' | 'disabled',
-          version: app.version || '',
-          created_at: app.created_at || '',
-          updated_at: app.updated_at || ''
-        }
-        await applicationService.triggerAppSwitch(appForService)
-      }
+      // 刷新服务目录树，使左侧树展示最新目录（当前应用未变，triggerAppSwitch 会跳过，故用 refreshServiceTree）
+      await applicationService.refreshServiceTree()
     } catch (error: any) {
       // 🔥 统一使用 msg 字段
       const errorMessage = error?.response?.data?.msg || error?.message || '创建服务目录失败'

@@ -139,7 +139,7 @@
           </div>
           <!-- 本消息发起的工具调用：放在消息下方，可折叠，时间线更清晰 -->
           <div v-if="m.role === 'assistant' && m.tool_calls?.length" class="message-tool-calls-wrap">
-            <details class="message-tool-calls-details">
+            <details class="message-tool-calls-details" open>
               <summary class="message-tool-calls-summary">本消息发起的调用（{{ m.tool_calls.length }} 个）</summary>
               <div class="tool-calls">
                 <ToolCallCard
@@ -203,7 +203,7 @@ const props = withDefaults(
   }>(),
   { embedded: false }
 )
-const emit = defineEmits<{ (e: 'back'): void }>()
+const emit = defineEmits<{ (e: 'back'): void; (e: 'tool-call-ok', payload: { name: string }): void }>()
 
 const router = useRouter()
 
@@ -409,6 +409,10 @@ async function send() {
       onEvent(event, data as Record<string, unknown>)
       if (event === 'done') loadSessions()
       if (event === 'error') ElMessage.error(String((data as { message?: string })?.message || '发送失败'))
+      // 工具执行成功时通知父组件（用于刷新服务树：create_directory / write_doc / build_workspace / write_go_file）
+      if (event === 'tool_call' && (data as { status?: string })?.status === 'ok' && typeof (data as { name?: string })?.name === 'string') {
+        emit('tool-call-ok', { name: (data as { name: string }).name })
+      }
     })
   }
   try {

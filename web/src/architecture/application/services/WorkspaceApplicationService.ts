@@ -244,5 +244,15 @@ export class WorkspaceApplicationService {
   triggerAppSwitch(app: App): void {
     this.eventBus.emit(WorkspaceEvent.appSwitched, { app })
   }
+
+  /**
+   * 刷新当前应用的服务目录树（不切换应用，仅重新拉取树数据）
+   * 用于创建/删除目录后让左侧树展示最新数据
+   */
+  async refreshServiceTree(): Promise<void> {
+    const currentApp = this.domainService.getCurrentApp()
+    if (!currentApp) return
+    await this.domainService.loadServiceTree(currentApp)
+  }
 }
 

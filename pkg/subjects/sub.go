@@ -125,6 +125,16 @@ func GetAppServer2AppRuntimeReadDirectoryFilesRequestSubject() string {
 	return "app_server.app_runtime.read_directory_files"
 }
 
+// GetAppServer2AppRuntimeReplaceInFileRequestSubject 获取 app_server 到 app_runtime 文件 search-replace 请求的订阅主题
+func GetAppServer2AppRuntimeReplaceInFileRequestSubject() string {
+	return "app_server.app_runtime.replace_in_file"
+}
+
+// GetAppServer2AppRuntimeDeleteFileRequestSubject 获取 app_server 到 app_runtime 删除磁盘文件请求的订阅主题
+func GetAppServer2AppRuntimeDeleteFileRequestSubject() string {
+	return "app_server.app_runtime.delete_file"
+}
+
 // GetAppServer2AppRuntimeBatchCreateDirectoryTreeRequestSubject 获取 app_server 到 app_runtime 批量创建目录树请求的订阅主题
 func GetAppServer2AppRuntimeBatchCreateDirectoryTreeRequestSubject() string {
 	return "app_server.app_runtime.batch_create_directory_tree"

@@ -46,5 +46,31 @@ func RunAddFunctionsTool(ctx context.Context, args map[string]interface{}, fullC
 	if !resp.Success {
 		return "write_go_file 失败: " + resp.Error, true
 	}
-	return fmt.Sprintf("已落盘: app_id=%d, app_code=%s, file_name=%s", resp.AppID, resp.AppCode, fileName), false
+	return formatWriteGoFileResult(fileName, buildWorkspace, resp), false
+}
+
+// formatWriteGoFileResult 根据是否编译、以及编译/变更信息，返回对用户友好的提示
+func formatWriteGoFileResult(fileName string, buildWorkspace bool, resp *dto.AddFunctionsResp) string {
+	if !buildWorkspace {
+		return fmt.Sprintf("已落盘: %s。当前未编译工作空间，仅修改了代码。改完后请调用 build_workspace 更新工作空间。", fileName)
+	}
+	// 已编译
+	msg := fmt.Sprintf("已落盘并已编译部署: %s", fileName)
+	if resp.BuildNewVersion != "" {
+		if resp.BuildOldVersion != "" {
+			msg += fmt.Sprintf("；版本 %s → %s", resp.BuildOldVersion, resp.BuildNewVersion)
+		} else {
+			msg += fmt.Sprintf("；当前版本 %s", resp.BuildNewVersion)
+		}
+	}
+	if len(resp.BuildDiffAdd) > 0 {
+		msg += "；新增接口: " + strings.Join(resp.BuildDiffAdd, ", ")
+	}
+	if len(resp.BuildDiffUpdate) > 0 {
+		msg += "；变更接口: " + strings.Join(resp.BuildDiffUpdate, ", ")
+	}
+	if len(resp.BuildDiffDelete) > 0 {
+		msg += "；删除接口: " + strings.Join(resp.BuildDiffDelete, ", ")
+	}
+	return msg + "。"
 }

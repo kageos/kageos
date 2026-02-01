@@ -24,18 +24,19 @@
       </el-icon>
     </div>
     <div v-if="expanded" class="tool-call-details">
-      <!-- 参数显示 -->
-      <div v-if="toolCall.arguments" class="tool-call-section">
+      <!-- 参数显示：有值则展示并支持复制，无值则显示占位 -->
+      <div class="tool-call-section">
         <div class="section-title">
           <el-icon><Document /></el-icon>
           <span>参数</span>
-          <el-button text size="small" @click.stop="copyArguments" class="copy-btn">
+          <el-button v-if="toolCall.arguments" text size="small" @click.stop="copyArguments" class="copy-btn">
             <el-icon><CopyDocument /></el-icon>
             复制
           </el-button>
         </div>
         <div class="section-content">
-          <pre class="json-content">{{ formatJSON(toolCall.arguments) }}</pre>
+          <pre v-if="toolCall.arguments" class="json-content">{{ formatJSON(toolCall.arguments) }}</pre>
+          <pre v-else class="json-content json-content--empty">（无参数或加载中）</pre>
         </div>
       </div>
       <!-- 结果显示 -->
@@ -76,7 +77,7 @@ const props = defineProps<{
   toolCall: WorkspaceChatToolCallSummary
 }>()
 
-const expanded = ref(false)
+const expanded = ref(true)
 
 function toggleExpand() {
   expanded.value = !expanded.value
@@ -263,6 +264,10 @@ async function copyResult() {
 .json-content {
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
   color: var(--el-text-color-regular);
+}
+.json-content--empty {
+  color: var(--el-text-color-secondary);
+  font-style: italic;
 }
 
 .result-content {

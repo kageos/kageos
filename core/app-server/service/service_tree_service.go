@@ -2723,7 +2723,7 @@ func (s *ServiceTreeService) AddFunctions(ctx context.Context, req *dto.AddFunct
 		SkipBuild:       req.SkipBuild,
 	}
 
-	_, err = s.appService.UpdateApp(ctx, updateReq)
+	updateResp, err := s.appService.UpdateApp(ctx, updateReq)
 	if err != nil {
 		logger.Errorf(ctx, "[ServiceTreeService] AppService.UpdateApp 失败: error=%v", err)
 		return &dto.AddFunctionsResp{
@@ -2732,11 +2732,52 @@ func (s *ServiceTreeService) AddFunctions(ctx context.Context, req *dto.AddFunct
 		}, err
 	}
 
-	return &dto.AddFunctionsResp{
+	addResp := &dto.AddFunctionsResp{
 		Success: true,
 		AppID:   targetTree.App.ID,
 		AppCode: targetTree.App.Code,
-	}, nil
+	}
+	// 当执行了编译时，把编译/变更信息带回，供 write_go_file 返回友好提示
+	if !req.SkipBuild && updateResp != nil {
+		addResp.BuildOldVersion = updateResp.OldVersion
+		addResp.BuildNewVersion = updateResp.NewVersion
+		if updateResp.Diff != nil {
+			for _, api := range updateResp.Diff.Add {
+				if api != nil {
+					route := api.Router
+					if route == "" {
+						route = api.Code
+					}
+					if route != "" {
+						addResp.BuildDiffAdd = append(addResp.BuildDiffAdd, route)
+					}
+				}
+			}
+			for _, api := range updateResp.Diff.Update {
+				if api != nil {
+					route := api.Router
+					if route == "" {
+						route = api.Code
+					}
+					if route != "" {
+						addResp.BuildDiffUpdate = append(addResp.BuildDiffUpdate, route)
+					}
+				}
+			}
+			for _, api := range updateResp.Diff.Delete {
+				if api != nil {
+					route := api.Router
+					if route == "" {
+						route = api.Code
+					}
+					if route != "" {
+						addResp.BuildDiffDelete = append(addResp.BuildDiffDelete, route)
+					}
+				}
+			}
+		}
+	}
+	return addResp, nil
 }
 
 // ProcessFunctionGenResult 处理函数生成结果（接收 agent-server 处理后的结构化数据）
@@ -3371,37 +3412,70 @@ func (s *ServiceTreeService) GetWorkspaceContext(ctx context.Context, req *dto.G
 	// 4. 获取当前用户
 	username := contextx.GetRequestUser(ctx)
 
-	// 5. 获取目录下的代码文件快照（当前版本）
+	// 5. 获取目录下的代码文件：file_source=runtime 时从 app-runtime 磁盘实时读，否则从快照表读
 	var files []dto.WorkspaceContextFile
 	if detail.AppID > 0 {
-		fileSnapshots, err := s.fileSnapshotRepo.GetCurrentSnapshotsByDirectory(detail.AppID, req.FullCodePath)
-		if err != nil {
-			logger.Warnf(ctx, "[GetWorkspaceContext] 获取文件快照失败: fullCodePath=%s, error=%v", req.FullCodePath, err)
-			// 如果获取失败，继续处理，只是没有文件列表
-			files = []dto.WorkspaceContextFile{}
-		} else {
-			// 转换为响应格式
-			files = make([]dto.WorkspaceContextFile, 0, len(fileSnapshots))
-			for _, snapshot := range fileSnapshots {
-				// 降级处理：如果数据库中没有存储行数（旧数据），则动态计算
-				lineCount := snapshot.LineCount
-				if lineCount == 0 && snapshot.Content != "" {
-					lines := strings.Split(snapshot.Content, "\n")
-					lineCount = len(lines)
-					// 如果最后一行是空行（文件末尾有换行符），不计入总行数
-					if lineCount > 0 && lines[lineCount-1] == "" {
-						lineCount--
-					}
+		if strings.TrimSpace(req.FileSource) == "runtime" {
+			appModel, errApp := s.appRepo.GetAppByID(detail.AppID)
+			if errApp == nil && appModel != nil && appModel.HostID > 0 {
+				runtimeReq := &dto.ReadDirectoryFilesRuntimeReq{
+					User:          appModel.User,
+					App:           appModel.Code,
+					DirectoryPath: req.FullCodePath,
 				}
-
-				files = append(files, dto.WorkspaceContextFile{
-					FileName:      snapshot.FileName,
-					RelativePath:  snapshot.RelativePath,
-					FileType:      snapshot.FileType,
-					Content:       snapshot.Content,
-					ContentLength: len(snapshot.Content),
-					LineCount:     lineCount,
-				})
+				runtimeResp, errRt := s.appRuntime.ReadDirectoryFiles(ctx, appModel.HostID, runtimeReq)
+				if errRt == nil && runtimeResp != nil && runtimeResp.Success {
+					files = make([]dto.WorkspaceContextFile, 0, len(runtimeResp.Files))
+					for _, f := range runtimeResp.Files {
+						lineCount := 0
+						if f.Content != "" {
+							lines := strings.Split(f.Content, "\n")
+							lineCount = len(lines)
+							if lineCount > 0 && lines[lineCount-1] == "" {
+								lineCount--
+							}
+						}
+						files = append(files, dto.WorkspaceContextFile{
+							FileName:      f.FileName,
+							RelativePath:  f.RelativePath,
+							FileType:      "go",
+							Content:       f.Content,
+							ContentLength: len(f.Content),
+							LineCount:     lineCount,
+						})
+					}
+					logger.Infof(ctx, "[GetWorkspaceContext] 从 runtime 实时读取目录文件: fullCodePath=%s, fileCount=%d", req.FullCodePath, len(files))
+				}
+			}
+			if files == nil {
+				logger.Warnf(ctx, "[GetWorkspaceContext] file_source=runtime 未成功，回退到快照: fullCodePath=%s", req.FullCodePath)
+			}
+		}
+		if files == nil {
+			fileSnapshots, err := s.fileSnapshotRepo.GetCurrentSnapshotsByDirectory(detail.AppID, req.FullCodePath)
+			if err != nil {
+				logger.Warnf(ctx, "[GetWorkspaceContext] 获取文件快照失败: fullCodePath=%s, error=%v", req.FullCodePath, err)
+				files = []dto.WorkspaceContextFile{}
+			} else {
+				files = make([]dto.WorkspaceContextFile, 0, len(fileSnapshots))
+				for _, snapshot := range fileSnapshots {
+					lineCount := snapshot.LineCount
+					if lineCount == 0 && snapshot.Content != "" {
+						lines := strings.Split(snapshot.Content, "\n")
+						lineCount = len(lines)
+						if lineCount > 0 && lines[lineCount-1] == "" {
+							lineCount--
+						}
+					}
+					files = append(files, dto.WorkspaceContextFile{
+						FileName:      snapshot.FileName,
+						RelativePath:  snapshot.RelativePath,
+						FileType:      snapshot.FileType,
+						Content:       snapshot.Content,
+						ContentLength: len(snapshot.Content),
+						LineCount:     lineCount,
+					})
+				}
 			}
 		}
 	}
@@ -3419,4 +3493,90 @@ func (s *ServiceTreeService) GetWorkspaceContext(ctx context.Context, req *dto.G
 		Children: childrenNodes,
 		Files:    files,
 	}, nil
+}
+
+// ReplaceFileContent 工作台文件 search-replace（调 app-runtime 实时写盘）
+func (s *ServiceTreeService) ReplaceFileContent(ctx context.Context, req *dto.ReplaceFileContentReq) (*dto.ReplaceFileContentResp, error) {
+	detail, err := s.GetServiceTreeDetail(ctx, &dto.GetServiceTreeDetailReq{FullCodePath: req.FullCodePath})
+	if err != nil {
+		return nil, fmt.Errorf("获取目录详情失败: %w", err)
+	}
+	if detail.AppID <= 0 {
+		return nil, fmt.Errorf("该目录不属于应用，无法替换文件")
+	}
+	appModel, err := s.appRepo.GetAppByID(detail.AppID)
+	if err != nil || appModel == nil {
+		return nil, fmt.Errorf("获取应用失败: %w", err)
+	}
+	if appModel.HostID <= 0 {
+		return nil, fmt.Errorf("应用未关联 runtime，无法替换文件")
+	}
+	runtimeReq := &dto.ReplaceInFileRuntimeReq{
+		User:              appModel.User,
+		App:               appModel.Code,
+		DirectoryPath:     req.FullCodePath,
+		FileName:          req.FileName,
+		SearchString:      req.SearchString,
+		ReplaceString:     req.ReplaceString,
+		ReplaceAll:        req.ReplaceAll,
+		ReturnFullContent: req.ReturnFullContent,
+	}
+	resp, err := s.appRuntime.ReplaceInFile(ctx, appModel.HostID, runtimeReq)
+	if err != nil {
+		return nil, fmt.Errorf("替换文件失败: %w", err)
+	}
+	if !resp.Success {
+		return &dto.ReplaceFileContentResp{Success: false, Message: resp.Message, ReplaceCount: resp.ReplaceCount}, nil
+	}
+	out := &dto.ReplaceFileContentResp{Success: true, Message: resp.Message, ReplaceCount: resp.ReplaceCount}
+	if req.ReturnFullContent {
+		out.FullContent = resp.FullContent
+	}
+	return out, nil
+}
+
+// DeleteFile 工作台删除文件（先删 runtime 磁盘，再删 DB 节点）
+func (s *ServiceTreeService) DeleteFile(ctx context.Context, req *dto.DeleteFileReq) (*dto.DeleteFileResp, error) {
+	detail, err := s.GetServiceTreeDetail(ctx, &dto.GetServiceTreeDetailReq{FullCodePath: req.FullCodePath})
+	if err != nil {
+		return nil, fmt.Errorf("获取目录详情失败: %w", err)
+	}
+	children, err := s.serviceTreeRepo.GetServiceTreeChildren(detail.ID)
+	if err != nil {
+		return nil, fmt.Errorf("获取子节点失败: %w", err)
+	}
+	fileNameCode := strings.TrimSuffix(req.FileName, ".go")
+	var functionNode *model.ServiceTree
+	for _, c := range children {
+		if c.Type == model.ServiceTreeTypeFunction && (c.Code == fileNameCode || c.Code == req.FileName) {
+			functionNode = c
+			break
+		}
+	}
+	if functionNode == nil {
+		return nil, fmt.Errorf("未找到文件对应的节点: %s", req.FileName)
+	}
+	if detail.AppID <= 0 {
+		return nil, fmt.Errorf("该目录不属于应用")
+	}
+	appModel, err := s.appRepo.GetAppByID(detail.AppID)
+	if err != nil || appModel == nil {
+		return nil, fmt.Errorf("获取应用失败: %w", err)
+	}
+	if appModel.HostID > 0 {
+		runtimeReq := &dto.DeleteFileRuntimeReq{
+			User:          appModel.User,
+			App:           appModel.Code,
+			DirectoryPath: req.FullCodePath,
+			FileName:      req.FileName,
+		}
+		_, err = s.appRuntime.DeleteFile(ctx, appModel.HostID, runtimeReq)
+		if err != nil {
+			logger.Warnf(ctx, "[DeleteFile] runtime 删文件失败: %v，继续删 DB 节点", err)
+		}
+	}
+	if err := s.DeleteServiceTree(ctx, functionNode.ID); err != nil {
+		return nil, fmt.Errorf("删除节点失败: %w", err)
+	}
+	return &dto.DeleteFileResp{Success: true, Message: "已删除"}, nil
 }

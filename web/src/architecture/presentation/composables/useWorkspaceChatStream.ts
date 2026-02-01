@@ -11,7 +11,7 @@ import { ref, type Ref } from 'vue'
 export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
-  tool_calls?: Array<{ name: string; status: string; arguments?: string }>
+  tool_calls?: Array<{ name: string; status: string; arguments?: string; result?: string; error?: string }>
   created_at?: string
 }
 
@@ -49,25 +49,52 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
     if (!m || m.role !== 'assistant') return
 
     if (event === 'tool_calls_stream' && Array.isArray(data.tool_calls)) {
-      const list = (data.tool_calls as Array<{ name?: string; arguments?: string }>).map((t) => ({
+      const streamList = (data.tool_calls as Array<{ name?: string; arguments?: string }>).map((t) => ({
         name: typeof t.name === 'string' ? t.name : '',
         status: 'streaming' as const,
         arguments: typeof t.arguments === 'string' ? t.arguments : undefined,
       }))
+      // 合并：已有 running/ok/error 的项不覆盖为 streaming，但参数以新流为准（流式会逐渐补全）
+      const prev = m.tool_calls || []
+      const list = streamList.map((item, i) => {
+        const existing = prev[i]
+        const args = (item.arguments && item.arguments.trim()) ? item.arguments : (existing?.arguments ?? item.arguments)
+        if (existing && ['running', 'ok', 'error'].includes(existing.status))
+          return { ...item, status: existing.status, arguments: args }
+        return { ...item, arguments: args }
+      })
       messages.value[lastIdx] = { ...m, tool_calls: list }
     }
     if (event === 'tool_call' && typeof data.name === 'string') {
       const status = String(data.status || 'ok')
       const argumentsStr = typeof data.arguments === 'string' ? data.arguments : undefined
       const prev = m.tool_calls || []
-      const lastSameNameIndex = prev.map((t, i) => (t.name === data.name ? i : -1)).filter((i) => i >= 0).pop()
-      let list: Array<{ name: string; status: string; arguments?: string }>
+      // 先找「第一个同名且未完成」的槽位，避免连续两次同名工具时只更新最后一个
+      const pendingSameNameIndex = prev.findIndex(
+        (t) => t.name === data.name && (t.status === 'streaming' || t.status === 'running')
+      )
+      const lastSameNameIndex =
+        pendingSameNameIndex >= 0
+          ? pendingSameNameIndex
+          : prev.map((t, i) => (t.name === data.name ? i : -1)).filter((i) => i >= 0).pop()
+      const keepArgs = (argumentsStr && argumentsStr.trim()) ? argumentsStr : undefined
+      const resultStr = typeof data.result === 'string' ? data.result : undefined
+      const errorStr = typeof data.error === 'string' ? data.error : undefined
+      let list: Array<{ name: string; status: string; arguments?: string; result?: string; error?: string }>
       if (lastSameNameIndex !== undefined) {
         list = prev.map((t, i) =>
-          i === lastSameNameIndex ? { name: data.name as string, status, arguments: argumentsStr ?? t.arguments } : t
+          i === lastSameNameIndex
+            ? {
+                name: data.name as string,
+                status,
+                arguments: keepArgs ?? t.arguments,
+                result: resultStr ?? t.result,
+                error: errorStr ?? t.error,
+              }
+            : t
         )
       } else {
-        list = [...prev, { name: data.name as string, status, arguments: argumentsStr }]
+        list = [...prev, { name: data.name as string, status, arguments: keepArgs, result: resultStr, error: errorStr }]
       }
       messages.value[lastIdx] = { ...m, tool_calls: list }
     }
@@ -77,7 +104,15 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
     if (event === 'done') {
       sending.value = false
       if (Array.isArray(data.tool_calls)) {
-        messages.value[lastIdx] = { ...m, tool_calls: data.tool_calls as Array<{ name: string; status: string }> }
+        const doneList = data.tool_calls as Array<{ name: string; status: string; arguments?: string; result?: string; error?: string }>
+        // 与会话结束后通过 message 列表加载时一致：保留已有 arguments/result/error，补全 name/status 等
+        const merged = doneList.map((tc, i) => ({
+          ...tc,
+          arguments: tc.arguments ?? m.tool_calls?.[i]?.arguments,
+          result: tc.result ?? m.tool_calls?.[i]?.result,
+          error: tc.error ?? m.tool_calls?.[i]?.error,
+        }))
+        messages.value[lastIdx] = { ...m, tool_calls: merged }
       }
     }
     if (event === 'error') {

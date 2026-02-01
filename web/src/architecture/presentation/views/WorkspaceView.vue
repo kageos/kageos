@@ -28,6 +28,7 @@
           @create-docs="handleCreateDocs"
           @delete-doc="handleDeleteDoc"
           @delete-function="handleDeleteFunction"
+          @delete-directory="handleDeleteDirectory"
           @publish-to-hub="handlePublishToHub"
           @push-to-hub="handlePushToHub"
           @pull-from-hub="handlePullFromHub"
@@ -161,6 +162,7 @@
             :full-code-path="currentFunction.full_code_path || ''"
             :embedded="true"
             @back="workstationMode = false"
+            @tool-call-ok="handleWorkstationToolCallOk"
           />
         </div>
         
@@ -1538,6 +1540,57 @@ const handlePullFromHub = () => {
   pullFromHubDialogVisible.value = true
 }
 
+// 处理删除目录（非根 package）
+const handleDeleteDirectory = async (node: ServiceTreeType) => {
+  if (node.type !== 'package') {
+    ElMessage.warning('只能删除目录节点')
+    return
+  }
+  if (node.parent_id === 0) {
+    ElMessage.warning('不能删除工作空间根目录')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除目录 "${node.name}" 吗？此操作将删除该目录及其下所有子目录、函数和文档，且无法恢复。`,
+      '确认删除',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+
+    const { deletePackage } = await import('@/api/service-tree')
+    await deletePackage(node.id)
+
+    ElMessage.success('目录删除成功')
+
+    // 如果当前选中的是该目录或其子节点，清空或跳转到父级
+    const deletedPath = node.full_code_path || ''
+    if (currentFunction.value) {
+      const currentPath = currentFunction.value.full_code_path || ''
+      if (currentPath === deletedPath || currentPath.startsWith(deletedPath + '/')) {
+        currentFunction.value = null
+        const parentPath = deletedPath.split('/').slice(0, -1).join('/') || ''
+        if (parentPath) {
+          router.replace({ path: `/workspace${parentPath}`, query: { ...route.query } })
+        } else {
+          router.replace({ path: route.path, query: { ...route.query, _id: undefined, _tab: undefined } })
+        }
+      }
+    }
+
+    await handleRefreshTree()
+  } catch (error: any) {
+    if (error !== 'cancel' && error !== 'close') {
+      const errorMessage = error?.response?.data?.msg || error?.message || '删除目录失败'
+      ElMessage.error(errorMessage)
+    }
+  }
+}
+
 // 处理删除函数
 const handleDeleteFunction = async (node: ServiceTreeType) => {
   if (node.type !== 'function') {
@@ -1592,6 +1645,16 @@ const handleRefreshTree = async () => {
       name: currentApp.value.name
     }
     await domainService.loadServiceTree(app)
+  }
+}
+
+// 会改变服务目录结构的工具名（创建目录、写文档、写代码、编译工作空间）
+const TREE_AFFECTING_TOOLS = ['create_directory', 'write_doc', 'write_go_file', 'build_workspace']
+
+// 工作台工具调用成功时：若为改树工具则刷新服务树
+const handleWorkstationToolCallOk = (payload: { name: string }) => {
+  if (payload?.name && TREE_AFFECTING_TOOLS.includes(payload.name)) {
+    handleRefreshTree()
   }
 }
 

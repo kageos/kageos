@@ -86,6 +86,12 @@ type AddFunctionsResp struct {
 	AppID   int64  `json:"app_id" example:"1"`         // 应用ID
 	AppCode string `json:"app_code" example:"myapp"`   // 应用代码
 	Error   string `json:"error,omitempty" example:""` // 错误信息（如果失败）
+	// 当 SkipBuild=false 且编译成功时，由 app-server 填充以下编译/变更信息，供 write_go_file 返回友好提示
+	BuildOldVersion string   `json:"build_old_version,omitempty"` // 编译前版本
+	BuildNewVersion string   `json:"build_new_version,omitempty"` // 编译后版本
+	BuildDiffAdd    []string `json:"build_diff_add,omitempty"`    // 新增的接口/路由（如 task）
+	BuildDiffUpdate []string `json:"build_diff_update,omitempty"` // 变更的接口/路由
+	BuildDiffDelete []string `json:"build_diff_delete,omitempty"` // 删除的接口/路由
 }
 
 // AddFunctionsAsyncResp 添加函数响应（异步模式返回）

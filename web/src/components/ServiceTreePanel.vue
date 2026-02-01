@@ -171,6 +171,15 @@
                     打开工作台
                   </el-dropdown-item>
                   
+                  <!-- 删除目录选项（仅对非根 package 类型，需要 directory:delete 权限） -->
+                  <el-dropdown-item 
+                    v-if="data.type === 'package' && data.parent_id !== 0 && hasPermission(data, DirectoryPermissions.delete)" 
+                    command="delete-directory"
+                  >
+                    <el-icon><Delete /></el-icon>
+                    删除目录
+                  </el-dropdown-item>
+                  
                   <!-- 重命名选项（仅对 package 类型） -->
                   <el-dropdown-item 
                     v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.update)" 
@@ -304,6 +313,7 @@ interface Emits {
   (e: 'create-docs', parentNode?: ServiceTree): void
   (e: 'delete-doc', node: ServiceTree): void
   (e: 'delete-function', node: ServiceTree): void  // 删除函数
+  (e: 'delete-directory', node: ServiceTree): void  // 删除目录（非根 package）
   (e: 'refresh-tree'): void  // 刷新树（复制粘贴后需要刷新）
   (e: 'update-history', node?: ServiceTree): void  // 显示变更记录（工作空间或目录）
   (e: 'publish-to-hub', node: ServiceTree): void  // 发布到 Hub
@@ -897,6 +907,8 @@ const handleNodeAction = (command: string, data: ServiceTree) => {
     emit('delete-function', data)
   } else if (command === 'delete-doc') {
     emit('delete-doc', data)
+  } else if (command === 'delete-directory') {
+    emit('delete-directory', data)
   } else if (command === 'publish-to-hub') {
     emit('publish-to-hub', data)
   } else if (command === 'push-to-hub') {

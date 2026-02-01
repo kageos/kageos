@@ -157,6 +157,52 @@ func (s *Server) handleReadDirectoryFiles(msg *nats.Msg) {
 	logger.Infof(ctx, "[handleReadDirectoryFiles] Read directory files successfully: fileCount=%d", len(files))
 }
 
+// handleReplaceInFile 处理文件 search-replace 请求
+func (s *Server) handleReplaceInFile(msg *nats.Msg) {
+	ctx := context.Background()
+	msgInfo, err := msgx.DecodeNatsMsg[dto.ReplaceInFileRuntimeReq](msg)
+	if err != nil {
+		logger.Errorf(ctx, "[handleReplaceInFile] Failed to decode message: %v", err)
+		msgx.RespFailMsg(msg, err)
+		return
+	}
+	req := &msgInfo.Data
+	replaceAll := req.ReplaceAll
+	replaceCount, fullContent, err := s.appManageService.ReplaceInFile(ctx, req.User, req.App, req.DirectoryPath, req.FileName, req.SearchString, req.ReplaceString, replaceAll)
+	if err != nil {
+		logger.Errorf(ctx, "[handleReplaceInFile] ReplaceInFile failed: %v", err)
+		msgx.RespFailMsg(msg, err)
+		return
+	}
+	resp := dto.ReplaceInFileRuntimeResp{Success: true, Message: "替换成功", ReplaceCount: replaceCount}
+	if req.ReturnFullContent {
+		resp.FullContent = fullContent
+	}
+	msgx.RespSuccessMsg(msg, resp)
+	logger.Infof(ctx, "[handleReplaceInFile] ReplaceInFile success: path=%s, file=%s, count=%d", req.DirectoryPath, req.FileName, replaceCount)
+}
+
+// handleDeleteFile 处理删除磁盘文件请求
+func (s *Server) handleDeleteFile(msg *nats.Msg) {
+	ctx := context.Background()
+	msgInfo, err := msgx.DecodeNatsMsg[dto.DeleteFileRuntimeReq](msg)
+	if err != nil {
+		logger.Errorf(ctx, "[handleDeleteFile] Failed to decode message: %v", err)
+		msgx.RespFailMsg(msg, err)
+		return
+	}
+	req := &msgInfo.Data
+	err = s.appManageService.DeleteFile(ctx, req.User, req.App, req.DirectoryPath, req.FileName)
+	if err != nil {
+		logger.Errorf(ctx, "[handleDeleteFile] DeleteFile failed: %v", err)
+		msgx.RespFailMsg(msg, err)
+		return
+	}
+	resp := dto.DeleteFileRuntimeResp{Success: true, Message: "已删除"}
+	msgx.RespSuccessMsg(msg, resp)
+	logger.Infof(ctx, "[handleDeleteFile] DeleteFile success: path=%s, file=%s", req.DirectoryPath, req.FileName)
+}
+
 // handleBatchCreateDirectoryTree 处理批量创建目录树请求
 func (s *Server) handleBatchCreateDirectoryTree(msg *nats.Msg) {
 	ctx := context.Background()
