@@ -174,27 +174,42 @@ Attachment *types.Files `gorm:"type:json" widget:"name:附件;type:files"`
 - **widget 配置**：`type:link`；可选 `target:_blank`（新窗口）或 `_self`（当前窗口）；可选 `text`、`type`（样式 primary/success 等）、`icon`。
 - **赋值 API**：`ctx.BuildFunctionUrlWithText(target string, params interface{}, linkText string) (string, error)`  
   - **target**：函数路径（如 `"meeting_room_list"`、`"vote_submit"`、`"vote_result"`），或带查询（如 `"hr_resume_list?_tab=OnTableAddRow"` 表示打开该列表并切到「新增」Tab），或**外链**（如 `"https://example.com"`）。  
-  - **params**：结构体参数，用于拼成 URL 查询（如 `MeetingRoom{ID: roomID}`）；外链时传 `nil`。  
+  - **params**：见下「params 类型约定」；外链时传 `nil`。  
   - **linkText**：链接展示文本（如「查看会议室详情」「点击参与投票」「查看投票结果」）。
+
+- **params 类型约定（必读，不可混用）**：  
+  - **跳转到 Table（GET 列表）**：params 必须是**目标 Table 对应的列表 Model**，即该 GET 路由的 `AutoCrudTable` 指向的结构体。前端打开列表时会用 params 的字段（如 ID）做筛选/定位。  
+    - 例：target 为 `"meeting_room_list"` 时，params 用 `MeetingRoom{ID: roomID}`，其中 **MeetingRoom** 是会议室表（meeting_room_list）的 **Model**，不能写成别的结构体。  
+    - 例：target 为 `"hr_resume_list?_tab=OnTableAddRow"` 时，params 用 `HrJob{ID: jobID}`（职位表的 Model），打开简历列表并预填职位 ID。  
+  - **跳转到 Form（POST 表单）**：params 必须是**目标 Form 的请求结构体**，即该 POST 路由的 `Request` 结构体。前端打开表单时会预填 params 的字段。  
+    - 例：target 为 `"vote_result"` 时，params 用 `VoteResultReq{TopicID: topicID}`，其中 **VoteResultReq** 是查看结果 Form 的 **请求结构体**，不能写成 VoteTopic（Model）。  
+    - 例：target 为 `"vote_submit"` 时，params 用 `VoteSubmitReq{TopicID: topicID}`（提交投票 Form 的请求结构体）。  
+  - **外链**：params 传 `nil`。  
+  - 总结：**跳 Table 用该表的 Model，跳 Form 用该 Form 的 Request 结构体**，二者不要搞混。
+
 - **典型场景**：  
-  1. **Table 列表「查看详情」列**：当前行关联另一张表，链接跳转到该表并带上当前行 ID（如预约列表的「会议室详情」→ 跳会议室列表并带 `RoomID`）。  
-  2. **Table 列表「操作」列**：根据状态动态生成链接（如投票主题列表「投票操作」→ 进行中且未投票时「点击参与投票」跳 `vote_submit`，否则「查看投票结果」跳 `vote_result`；职位列表「投递简历」→ 跳简历列表并打开新增 Tab 且带职位 ID）。  
-  3. **Form 响应**：提交后返回一个「查看结果」链接（如投票提交后返回「查看投票结果」跳 `vote_result`）。
+  1. **Table 列表「查看详情」列**：当前行关联另一张表，链接跳转到该表并带上当前行 ID（如预约列表的「会议室详情」→ 跳会议室列表，params 用 **MeetingRoom{ID: RoomID}**，MeetingRoom 是目标表的 Model）。  
+  2. **Table 列表「操作」列**：根据状态动态生成链接（如投票主题列表「投票操作」→ 跳 `vote_submit` 用 **VoteSubmitReq**，跳 `vote_result` 用 **VoteResultReq**；职位列表「投递简历」→ 跳简历列表用 **HrJob{ID: JobID}** 并 `_tab=OnTableAddRow`）。  
+  3. **Form 响应**：提交后返回一个「查看结果」链接（如投票提交后返回「查看投票结果」，params 用 **VoteResultReq{TopicID: req.TopicID}**）。
 
 ```go
 // Table 列表：不落库、只读，List Build 之后对每条记录赋值
 RoomLink string `json:"room_link" gorm:"-" widget:"name:会议室详情;type:link;target:_blank" permission:"read"`
 
-// List 函数内，Build 之后：
+// List 函数内，Build 之后：跳转到 Table 必须用目标表的 Model
+// meeting_room_list 的 AutoCrudTable 是 MeetingRoom，故 params 用 MeetingRoom{ID: ...}
 for i := range bookings {
-    params := MeetingRoom{ID: bookings[i].RoomID}
+    params := MeetingRoom{ID: bookings[i].RoomID}  // MeetingRoom 是会议室表的 Model
     bookings[i].RoomLink, _ = ctx.BuildFunctionUrlWithText("meeting_room_list", params, "查看会议室详情")
 }
 
-// 带 _tab 参数：打开列表并切到「新增」Tab（如投递简历）
+// 带 _tab 参数：打开列表并切到「新增」Tab（如投递简历），params 用目标表 Model
+params := HrJob{ID: jobs[i].ID}  // HrJob 是职位表的 Model
 jobs[i].ApplyLink, _ = ctx.BuildFunctionUrlWithText("hr_resume_list?_tab=OnTableAddRow", params, "投递简历")
 
-// Form 响应：提交后返回链接
+// Form 响应：跳转到 Form 必须用该 Form 的请求结构体
+// vote_result 的 Request 是 VoteResultReq，故 params 用 VoteResultReq{TopicID: ...}
+params := VoteResultReq{TopicID: req.TopicID}
 functionLink, _ := ctx.BuildFunctionUrlWithText("vote_result", params, "查看投票结果")
 return resp.Form(&VoteSubmitResp{..., FunctionLink: functionLink}).Build()
 ```
