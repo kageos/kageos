@@ -1,0 +1,57 @@
+[
+  {
+    "name": "agent-app SDK使用手册",
+    "full_code_path": "/builtin/doc/sdk/agent-app-sdk-readme",
+    "when_to_use": "当你需要生成系统/应用/代码时，请先调用 read_doc(directory: \"/builtin/doc/sdk/agent-app-sdk-readme\") 获取本文档，再按文档规范动手。"
+  },
+  {
+    "name": "案例：Excel/CSV 工具（单 Form）",
+    "full_code_path": "/builtin/doc/case_catalog/form/excelorcsv",
+    "when_to_use": "本案例有四个模块，分别是**Excel 转 CSV**（POST）、**Excel 转 JSON**（POST）、**填列**（POST）、**CSV 转 Excel**（POST），均为 files 上传 + 可选参数 → 响应 text_area 或 files。 files 上传、多 POST 同目录、excelize。 可 read_doc(directory: \"/builtin/doc/case_catalog/form/excelorcsv\") 获取本案例 PRD。"
+  },
+  {
+    "name": "案例：图片工具（单 Form）",
+    "full_code_path": "/builtin/doc/case_catalog/form/images",
+    "when_to_use": "本案例有三个模块，分别是**格式转换**（POST `images_convert`）、**尺寸调整**（POST `images_resize`）、**颜色提取**（POST `images_colors`），均为 files 上传 + 参数 → 响应 files 或 text_area。 files 上传、图片处理、多 POST 同目录。 可 read_doc(directory: \"/builtin/doc/case_catalog/form/images\") 获取本案例 PRD。"
+  },
+  {
+    "name": "案例：NLP 工具（单 Form）",
+    "full_code_path": "/builtin/doc/case_catalog/form/nlp",
+    "when_to_use": "本案例有一个模块：**分词/词频**（POST `jieba_segment`），请求为待分词文本 + 分词模式/关键词数量/移除停用词等，响应为分词结果、关键词列表、词频统计（table）。 text_area/select/number/switch、响应里 table。 可 read_doc(directory: \"/builtin/doc/case_catalog/form/nlp\") 获取本案例 PRD。"
+  },
+  {
+    "name": "案例：PDF 工具（单 Form）",
+    "full_code_path": "/builtin/doc/case_catalog/form/pdf",
+    "when_to_use": "本案例有三个模块，分别是**提取文本**（POST `pdf_extract_text`）、**合并 PDF**（POST `pdf_merge`）、**转图片**（POST `pdf_to_images`），均为 files 上传 + 可选参数 → 响应 text_area 或 files。 files 上传、响应 text_area 或 files。 可 read_doc(directory: \"/builtin/doc/case_catalog/form/pdf\") 获取本案例 PRD。"
+  },
+  {
+    "name": "案例：视频工具（单 Form）",
+    "full_code_path": "/builtin/doc/case_catalog/form/videos",
+    "when_to_use": "本案例有一个模块：**视频转换**（POST `video_convert`），请求为上传视频 + 目标格式，FFmpeg 转换后返回文件。 files 上传、GetFS、exec、响应 files。 可 read_doc(directory: \"/builtin/doc/case_catalog/form/videos\") 获取本案例 PRD。"
+  },
+  {
+    "name": "案例：收银台（Table + Form + Chart）",
+    "full_code_path": "/builtin/doc/case_catalog/form_table_chart/cashier",
+    "when_to_use": "本案例有五个模块，分别是**商品管理**（GET 商品列表）、**会员管理**（GET 会员列表）、**支付记录列表**（GET）、**收银台**（POST `cashier_desk`，请求里 table 子项 + 会员 select）、**统计/图表**（GET 多个 statistics：销售趋势、分类销售、客单价等折线图）。 FormTemplate 请求中 table 子组件、OnSelectFuzzy、主从表、统计/图表。 可 read_doc(directory: \"/builtin/doc/case_catalog/form_table_chart/cashier\") 获取本案例 PRD。"
+  },
+  {
+    "name": "案例：投票系统（Table + Form）",
+    "full_code_path": "/builtin/doc/case_catalog/formandtable/vote",
+    "when_to_use": "本案例有五个模块，分别是**投票主题管理**（GET `vote_topic_list`）、**投票选项管理**（GET `vote_option_list`）、**投票记录查询**（GET `vote_record_list`）、**提交投票**（POST `vote_submit`）、**查看结果**（POST `vote_result`）。 主从多表、multiselect+depend_on、OnSelectFuzzy、link、时间状态、POST 提交与得票率。 可 read_doc(directory: \"/builtin/doc/case_catalog/formandtable/vote\") 获取本案例 PRD。"
+  },
+  {
+    "name": "案例：工单管理（单 Table）",
+    "full_code_path": "/builtin/doc/case_catalog/table/ticket",
+    "when_to_use": "本案例有一个模块：**工单管理**（GET `ticket_list`），单表 CRUD。 单表 CRUD、input/select/switch/slider/rate/radio/number、search 筛选、AutoCrudTable。 可 read_doc(directory: \"/builtin/doc/case_catalog/table/ticket\") 获取本案例 PRD。"
+  },
+  {
+    "name": "案例：招聘投递系统（多 Table）",
+    "full_code_path": "/builtin/doc/case_catalog/tables/hr",
+    "when_to_use": "本案例有两个模块，分别是**职位管理**（GET `hr_job_list`）、**简历/投递管理**（GET `hr_resume_list`），主从两表。 主从表、两 .go 两 GET、link、select 关联另一表、files。 可 read_doc(directory: \"/builtin/doc/case_catalog/tables/hr\") 获取本案例 PRD。"
+  },
+  {
+    "name": "案例：会议室预约（多 Table）",
+    "full_code_path": "/builtin/doc/case_catalog/tables/meeting",
+    "when_to_use": "本案例有两个模块，分别是**会议室管理**（GET `meeting_room_list`）、**预约管理**（GET `meeting_room_booking_list`），主从两表。 主从两表、两 .go 两 GET、OnSelectFuzzy、link、时间状态计算、列表筛外表字段。 可 read_doc(directory: \"/builtin/doc/case_catalog/tables/meeting\") 获取本案例 PRD。"
+  }
+]

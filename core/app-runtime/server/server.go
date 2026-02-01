@@ -366,6 +366,28 @@ func (s *Server) subscribeNATS(ctx context.Context) error {
 	}
 	s.subscriptions = append(s.subscriptions, sub)
 
+	// 订阅文件 search-replace 请求
+	sub, err = s.natsConn.QueueSubscribe(
+		subjects.GetAppServer2AppRuntimeReplaceInFileRequestSubject(),
+		"app-runtime-replace-in-file-workers",
+		s.handleReplaceInFile,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to subscribe to replace in file: %w", err)
+	}
+	s.subscriptions = append(s.subscriptions, sub)
+
+	// 订阅删除磁盘文件请求
+	sub, err = s.natsConn.QueueSubscribe(
+		subjects.GetAppServer2AppRuntimeDeleteFileRequestSubject(),
+		"app-runtime-delete-file-workers",
+		s.handleDeleteFile,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to subscribe to delete file: %w", err)
+	}
+	s.subscriptions = append(s.subscriptions, sub)
+
 	// 订阅批量创建目录树请求（使用队列组）
 	sub, err = s.natsConn.QueueSubscribe(
 		subjects.GetAppServer2AppRuntimeBatchCreateDirectoryTreeRequestSubject(),

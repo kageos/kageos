@@ -72,17 +72,17 @@ func InitWorkspaceModes(db *gorm.DB) error {
 			m.Name = "开发模式"
 			m.Description = "生成新应用、新模块、新文件"
 			m.SystemPromptFragment = "当前为开发模式，请协助用户生成新代码、新模块。"
-			m.SetToolNames([]string{"read_go_file", "read_doc", "read_dir", "write_doc", "write_go_file", "build_workspace", "create_directory"})
+			m.SetToolNames([]string{"read_go_file", "read_go_file_lines", "read_doc", "read_dir", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace", "create_directory"})
 		case "modify":
 			m.Name = "修改模式"
 			m.Description = "对已有应用进行修改（代码/配置）"
 			m.SystemPromptFragment = "当前为修改模式，请协助用户修改已有代码或配置。"
-			m.SetToolNames([]string{"read_go_file", "read_doc", "read_dir", "write_doc", "write_go_file", "build_workspace", "create_directory"})
+			m.SetToolNames([]string{"read_go_file", "read_go_file_lines", "read_doc", "read_dir", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace", "create_directory"})
 		case "execute":
 			m.Name = "执行模式"
 			m.Description = "操作已生成应用（查数据、分析等）"
 			m.SystemPromptFragment = "当前为执行模式，请协助用户查看数据、分析结果等。"
-			m.SetToolNames([]string{"read_go_file", "read_doc", "read_dir"})
+			m.SetToolNames([]string{"read_go_file", "read_go_file_lines", "read_doc", "read_dir"})
 		}
 		if err := db.Create(&m).Error; err != nil {
 			return err

@@ -63,9 +63,13 @@ func GetServiceTreeByID(ctx context.Context, req *dto.GetServiceTreeByIDReq) (*d
 }
 
 // GetWorkspaceContext 获取工作台环境信息（agent-server -> app-server）
-func GetWorkspaceContext(ctx context.Context, fullCodePath string) (*dto.GetWorkspaceContextResp, error) {
+// fileSource 可选："" 或 "snapshot" 从快照表读；"runtime" 从 app-runtime 磁盘实时读（更准）
+func GetWorkspaceContext(ctx context.Context, fullCodePath string, fileSource string) (*dto.GetWorkspaceContextResp, error) {
 	params := url.Values{}
 	params.Set("full_code_path", fullCodePath)
+	if fileSource != "" {
+		params.Set("file_source", fileSource)
+	}
 	return GetAPI[*dto.GetWorkspaceContextResp](ctx, "/workspace/api/v1/workspace/context", params)
 }
 
@@ -88,6 +92,16 @@ func UpdateDocs(ctx context.Context, id int64, req *dto.UpdateDocsReq) error {
 // 使用现有接口 POST /workspace/api/v1/packages
 func CreatePackage(ctx context.Context, req *dto.CreatePackageReq) (*dto.CreatePackageResp, error) {
 	return PostAPI[*dto.CreatePackageReq, *dto.CreatePackageResp](ctx, "/workspace/api/v1/packages", req)
+}
+
+// ReplaceFileContent 工作台文件 search-replace（agent-server -> app-server -> app-runtime 实时写盘）
+func ReplaceFileContent(ctx context.Context, req *dto.ReplaceFileContentReq) (*dto.ReplaceFileContentResp, error) {
+	return PostAPI[*dto.ReplaceFileContentReq, *dto.ReplaceFileContentResp](ctx, "/workspace/api/v1/workspace/files/replace", req)
+}
+
+// DeleteFile 工作台删除文件（删磁盘+删节点）（agent-server -> app-server）
+func DeleteFile(ctx context.Context, req *dto.DeleteFileReq) (*dto.DeleteFileResp, error) {
+	return PostAPI[*dto.DeleteFileReq, *dto.DeleteFileResp](ctx, "/workspace/api/v1/workspace/files/delete", req)
 }
 
 // UpdateAppBuild 触发工作空间编译（仅编译不写文件，agent-server -> app-server）

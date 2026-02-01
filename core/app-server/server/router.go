@@ -128,7 +128,9 @@ func (s *Server) setupRoutes() {
 
 	// 工作台环境信息路由（不需要JWT验证，但用户信息中间件已在 apiV1 级别统一添加）
 	workspaceGroup := apiV1.Group("/workspace")
-	workspaceGroup.GET("/context", serviceTreeHandler.GetWorkspaceContext) // 获取工作台环境信息（agent-server -> workspace）
+	workspaceGroup.GET("/context", serviceTreeHandler.GetWorkspaceContext)       // 获取工作台环境信息（agent-server -> workspace）
+	workspaceGroup.POST("/files/replace", serviceTreeHandler.ReplaceFileContent) // 工作台文件 search-replace（实时写盘）
+	workspaceGroup.POST("/files/delete", serviceTreeHandler.DeleteFile)          // 工作台删除文件（删磁盘+删节点）
 
 	// 函数管理路由（需要JWT验证）
 	function := apiV1.Group("/function")

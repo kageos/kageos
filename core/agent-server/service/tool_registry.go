@@ -56,16 +56,40 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 		},
 	})
 
-	// 2. 读文档：read_doc（directory 唯一定位，内置或工作区）
+	// 1.2 按行号读取代码文件：read_go_file_lines（带行号，便于对照编译错误）
 	out = append(out, dto.ToolDef{
-		Name:        "read_doc",
-		Description: "读取文档内容。传 directory 唯一定位文档（内置如 /builtin/agent_app_sdk/docs，工作区如 /user/app/docs/guide）。系统消息中会列出可读文档的 directory 及名称（名称仅说明文档用途）。",
+		Name:        "read_go_file_lines",
+		Description: "按指定行号范围读取工作区内的 Go 代码文件，输出带行号，便于对照编译错误信息。参数：directory（可选）、file_name（必填）、line_ranges（可选，如 \"10-12,20-30\" 表示第 10-12 行和第 20-30 行；不传则返回整个文件并带行号）。",
 		InputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
 				"directory": map[string]interface{}{
 					"type":        "string",
-					"description": "文档唯一路径，如 /builtin/agent_app_sdk/docs 或 /user/app/docs/guide",
+					"description": "目录（可选），不传则当前工作目录",
+				},
+				"file_name": map[string]interface{}{
+					"type":        "string",
+					"description": "文件名，如 task.go 或 task",
+				},
+				"line_ranges": map[string]interface{}{
+					"type":        "string",
+					"description": "行号范围（可选），如 10-12,20-30 表示只返回第 10-12 行和第 20-30 行；不传则返回整个文件（带行号）",
+				},
+			},
+			"required": []interface{}{"file_name"},
+		},
+	})
+
+	// 2. 读文档：read_doc（directory 唯一定位，内置或工作区）
+	out = append(out, dto.ToolDef{
+		Name:        "read_doc",
+		Description: "读取文档内容。传 directory 唯一定位文档（内置如 /builtin/doc/sdk/agent-app-sdk-readme，工作区如 /user/app/docs/guide）。系统消息中会列出可读文档的 directory 及名称（名称仅说明文档用途）。",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"directory": map[string]interface{}{
+					"type":        "string",
+					"description": "文档唯一路径，如 /builtin/doc/sdk/agent-app-sdk-readme 或 /user/app/docs/guide",
 				},
 			},
 			"required": []interface{}{"directory"},
@@ -75,7 +99,7 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 	// 1.1. 读取目录工具：read_dir
 	out = append(out, dto.ToolDef{
 		Name:        "read_dir",
-		Description: "读取指定目录下的所有子节点（子目录和函数）的信息。支持两种模式：1) 列表模式（默认）：显示当前目录的详细信息；2) 树形模式（recursive=true）：递归显示所有子目录的树形结构。系统消息已包含当前工作目录结构，仅查看当前目录时无需调用。不传 directory 则使用当前工作目录。",
+		Description: "读取指定目录下的所有子目录和文件，以树形方式展开。默认返回当前目录及其下一层的目录、函数、代码文件（tree 格式）。recursive=true 时递归显示整棵目录树；include_files 默认 true 会列出 .go 等代码文件。不传 directory 则使用当前工作目录。",
 		InputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
@@ -85,7 +109,7 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 				},
 				"recursive": map[string]interface{}{
 					"type":        "boolean",
-					"description": "是否递归显示子目录（可选，默认 false）。如果设置为 true，会递归显示所有子目录的树形结构，类似 tree 命令。",
+					"description": "是否递归显示子目录（可选，默认 false）。true 时递归显示所有子目录的树形结构，类似 tree 命令。",
 				},
 				"max_depth": map[string]interface{}{
 					"type":        "integer",
@@ -93,19 +117,19 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 				},
 				"output_format": map[string]interface{}{
 					"type":        "string",
-					"description": "输出格式（可选，默认 list）。可选值：list（列表格式，适合详细查看）、tree（树形格式，适合快速浏览）",
+					"description": "输出格式（可选，默认 tree）。可选值：tree（树形格式，推荐）、list（列表格式，适合详细查看）",
 				},
 				"include_functions": map[string]interface{}{
 					"type":        "boolean",
-					"description": "是否包含函数节点（可选，默认 true），展示函数可以快速了解功能，因为函数有描述信息",
+					"description": "是否包含函数节点（可选，默认 true），展示函数可以快速了解功能",
 				},
 				"include_files": map[string]interface{}{
 					"type":        "boolean",
-					"description": "是否包含代码文件（可选，默认 false），如果需要查看代码文件，建议使用 read_go_file 工具",
+					"description": "是否包含代码文件（可选，默认 true），会列出目录下的 .go 等文件；设为 false 则只显示目录和函数节点",
 				},
 				"include_code": map[string]interface{}{
 					"type":        "boolean",
-					"description": "是否包含代码内容（可选，默认 false）。如果设置为 true，会包含所有代码文件的内容，适合需要深入理解项目、修改代码或分析业务逻辑时使用。注意：包含代码会消耗更多 token。",
+					"description": "是否包含代码内容（可选，默认 false）。true 时在列表中带出文件内容，消耗更多 token。",
 				},
 			},
 			"required": []interface{}{},
@@ -218,6 +242,62 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 		},
 	})
 
+	// search_replace_file：文件内容 search-replace（不整文件覆盖，实时写盘；仅改代码不编译）
+	out = append(out, dto.ToolDef{
+		Name:        "search_replace_file",
+		Description: "在指定目录下的 .go 文件中做「查找并替换」：只改匹配到的片段，不重写整文件。必填：directory（或当前目录）、file_name、search_string、replace_string。可选：replace_all（是否替换全部出现，默认 true）。search_string 必须与文件内容完全一致（含空格、制表符、换行），否则替换不生效；使用前建议先用 read_go_file 读取文件，从实际内容中复制要替换的原文作为 search_string。仅修改代码、不编译工作空间；若需生效改完后需调用 build_workspace。编辑文件时优先用此工具，避免整文件覆盖。",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"directory": map[string]interface{}{
+					"type":        "string",
+					"description": "目录（可选），不传则当前工作目录，如 /user/app/pkg1",
+				},
+				"file_name": map[string]interface{}{
+					"type":        "string",
+					"description": "文件名，如 handler 或 handler.go",
+				},
+				"search_string": map[string]interface{}{
+					"type":        "string",
+					"description": "要被替换的原文（必须与文件内容完全一致，含空格/制表符/换行；建议先用 read_go_file 读取后从实际内容复制，否则空格数量不一致会导致替换失败）",
+				},
+				"replace_string": map[string]interface{}{
+					"type":        "string",
+					"description": "替换后的内容",
+				},
+				"replace_all": map[string]interface{}{
+					"type":        "boolean",
+					"description": "是否替换全部出现（可选，默认 true）",
+				},
+				"return_full_content": map[string]interface{}{
+					"type":        "boolean",
+					"description": "是否在结果中返回替换后的完整文件内容，便于确认（可选，默认 true）",
+				},
+			},
+			"required": []interface{}{"file_name", "search_string"},
+		},
+	})
+
+	// delete_file：删除目录下指定 .go 文件（删磁盘+删节点）
+	out = append(out, dto.ToolDef{
+		Name:        "delete_file",
+		Description: "删除指定目录下的一个 .go 代码文件。必填：directory（或当前目录）、file_name。会同时删除磁盘文件和 DB 节点。不能删除 init_.go。",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"directory": map[string]interface{}{
+					"type":        "string",
+					"description": "目录（可选），不传则当前工作目录",
+				},
+				"file_name": map[string]interface{}{
+					"type":        "string",
+					"description": "文件名，如 handler 或 handler.go",
+				},
+			},
+			"required": []interface{}{"file_name"},
+		},
+	})
+
 	// 3. 插件：每个 Plugin 一条
 	for _, p := range plugins {
 		if p.FormPath == "" {
@@ -262,6 +342,8 @@ func (r *ToolRegistry) CallTool(ctx context.Context, name string, args map[strin
 	switch name {
 	case "read_go_file":
 		return r.callReadGoFile(ctx, args, fullCodePath)
+	case "read_go_file_lines":
+		return r.callReadGoFileLines(ctx, args, fullCodePath)
 	case "read_doc":
 		return r.callReadDocTool(ctx, args, fullCodePath)
 	case "read_dir":
@@ -274,6 +356,10 @@ func (r *ToolRegistry) CallTool(ctx context.Context, name string, args map[strin
 		return RunCreateDirectoryTool(ctx, args, fullCodePath)
 	case "build_workspace":
 		return r.callWorkspaceBuild(ctx, args, fullCodePath)
+	case "search_replace_file":
+		return r.callSearchReplaceFile(ctx, args, fullCodePath)
+	case "delete_file":
+		return r.callDeleteFile(ctx, args, fullCodePath)
 	}
 	// 按插件 code 查找
 	p, err := r.pluginRepo.GetByCode(name)
@@ -283,12 +369,30 @@ func (r *ToolRegistry) CallTool(ctx context.Context, name string, args map[strin
 	return r.callPlugin(ctx, p, args, files)
 }
 
-// callReadGoFile 读取工作区 Go 代码文件（不处理 /builtin/）
+// callReadGoFile 读取工作区 Go 代码文件；若传入的是文档路径则降级为用 read_doc 拉取并提示
 func (r *ToolRegistry) callReadGoFile(ctx context.Context, args map[string]interface{}, currentFullCodePath string) (string, bool) {
 	targetPath := getDirectory(args, currentFullCodePath)
 	fileName := GetStringArg(args, "file_name")
 
-	workspaceCtx, err := apicall.GetWorkspaceContext(ctx, targetPath)
+	// 降级：若 directory 是内置文档路径，用文档工具拉取内容并提示应使用 read_doc
+	if strings.HasPrefix(targetPath, "/builtin/") {
+		docPath := strings.TrimSpace(targetPath)
+		if !strings.HasPrefix(docPath, "/") {
+			docPath = "/" + docPath
+		}
+		docName, content := prompt.GetBuiltinDocContent(docPath)
+		if content != "" {
+			hint := "【提示】你当前用 read_go_file 读取的是文档路径。应使用 read_doc(directory: \"" + docPath + "\") 读取文档；已为你拉取内容，下次请用 read_doc。\n\n"
+			if docName == "" {
+				docName = docPath
+			}
+			return hint + "## " + docName + "\n\n" + content, false
+		}
+		return "该路径是内置文档路径，请使用 read_doc(directory: \"" + docPath + "\") 读取，不要用 read_go_file。", true
+	}
+
+	// 读代码文件时从 runtime 磁盘实时读，保证内容与当前磁盘一致（快照表可能不准）
+	workspaceCtx, err := apicall.GetWorkspaceContext(ctx, targetPath, "runtime")
 	if err != nil {
 		return fmt.Sprintf("获取代码失败: %v", err), true
 	}
@@ -353,6 +457,125 @@ func (r *ToolRegistry) callReadGoFile(ctx context.Context, args map[string]inter
 	return header + filesContent, false
 }
 
+// callReadGoFileLines 按行号范围读取工作区 Go 文件，输出带行号（便于对照编译错误）
+func (r *ToolRegistry) callReadGoFileLines(ctx context.Context, args map[string]interface{}, currentFullCodePath string) (string, bool) {
+	targetPath := getDirectory(args, currentFullCodePath)
+	fileName := GetStringArg(args, "file_name")
+	lineRangesStr := strings.TrimSpace(GetStringArg(args, "line_ranges"))
+
+	if fileName == "" {
+		return "read_go_file_lines 需传 file_name。", true
+	}
+
+	// 降级：内置文档路径不处理
+	if strings.HasPrefix(targetPath, "/builtin/") {
+		return "read_go_file_lines 仅用于工作区 Go 文件，不能读内置文档路径；请用 read_doc 读取文档。", true
+	}
+
+	workspaceCtx, err := apicall.GetWorkspaceContext(ctx, targetPath, "runtime")
+	if err != nil {
+		return fmt.Sprintf("获取代码失败: %v", err), true
+	}
+	if len(workspaceCtx.Files) == 0 {
+		return fmt.Sprintf("目录 %s 下没有代码文件。", targetPath), false
+	}
+
+	var matched *dto.WorkspaceContextFile
+	for i := range workspaceCtx.Files {
+		f := &workspaceCtx.Files[i]
+		if f.FileName == fileName || f.FileName+"."+f.FileType == fileName || f.RelativePath == fileName {
+			matched = f
+			break
+		}
+	}
+	if matched == nil {
+		return fmt.Sprintf("在目录 %s 下未找到文件：%s", targetPath, fileName), false
+	}
+
+	lines := strings.Split(matched.Content, "\n")
+	totalLines := len(lines)
+	if totalLines > 0 && lines[totalLines-1] == "" {
+		totalLines--
+	}
+
+	// 解析 line_ranges：如 "10-12,20-30" -> [{10,12},{20,30}]，行号 1-based
+	ranges := parseLineRanges(lineRangesStr, totalLines)
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("文件 %s（目录：%s）共 %d 行\n\n", matched.RelativePath, targetPath, totalLines))
+
+	// 行号显示宽度
+	width := 1
+	for n := totalLines; n >= 10; n /= 10 {
+		width++
+	}
+
+	for idx, rng := range ranges {
+		for i := rng.Start; i <= rng.End && i <= totalLines; i++ {
+			lineContent := ""
+			if i-1 < len(lines) {
+				lineContent = lines[i-1]
+			}
+			sb.WriteString(fmt.Sprintf("%*d | %s\n", width, i, lineContent))
+		}
+		if len(ranges) > 1 && idx < len(ranges)-1 {
+			sb.WriteString("...\n")
+		}
+	}
+
+	return sb.String(), false
+}
+
+// lineRange 行号范围，1-based 包含两端
+type lineRange struct{ Start, End int }
+
+// parseLineRanges 解析 "10-12,20-30" 或 "10,20-22"；空字符串表示全文，返回 []{1, totalLines}
+func parseLineRanges(s string, totalLines int) []lineRange {
+	s = strings.TrimSpace(s)
+	if totalLines <= 0 {
+		totalLines = 1
+	}
+	if s == "" {
+		return []lineRange{{1, totalLines}}
+	}
+	var out []lineRange
+	for _, part := range strings.Split(s, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		idx := strings.Index(part, "-")
+		if idx < 0 {
+			// 单行，如 "10"
+			var n int
+			if _, err := fmt.Sscanf(part, "%d", &n); err == nil && n >= 1 {
+				if n > totalLines {
+					n = totalLines
+				}
+				out = append(out, lineRange{n, n})
+			}
+			continue
+		}
+		var start, end int
+		if _, err := fmt.Sscanf(part, "%d-%d", &start, &end); err == nil && start >= 1 {
+			if start > totalLines {
+				start = totalLines
+			}
+			if end < start {
+				end = start
+			}
+			if end > totalLines {
+				end = totalLines
+			}
+			out = append(out, lineRange{start, end})
+		}
+	}
+	if len(out) == 0 {
+		return []lineRange{{1, totalLines}}
+	}
+	return out
+}
+
 // callReadDocTool 读取文档（directory 唯一定位，内置或工作区）
 func (r *ToolRegistry) callReadDocTool(ctx context.Context, args map[string]interface{}, currentFullCodePath string) (string, bool) {
 	fullCodePath := strings.TrimSpace(GetStringArg(args, "directory"))
@@ -398,8 +621,8 @@ func (r *ToolRegistry) callReadFile(ctx context.Context, args map[string]interfa
 
 	// 工作区：targetPath 为目录，fileName 为文件名
 
-	// 调用 app-server 的 GetWorkspaceContext 接口获取代码文件
-	workspaceCtx, err := apicall.GetWorkspaceContext(ctx, targetPath)
+	// 调用 app-server 的 GetWorkspaceContext 接口获取代码文件（已废弃，走 read_go_file 时用 runtime）
+	workspaceCtx, err := apicall.GetWorkspaceContext(ctx, targetPath, "runtime")
 	if err != nil {
 		return fmt.Sprintf("获取代码失败: %v", err), true
 	}
@@ -495,7 +718,7 @@ func (r *ToolRegistry) callReadDir(ctx context.Context, args map[string]interfac
 		maxDepth = int(maxDepthArg)
 	}
 
-	outputFormat := "list" // 默认列表格式
+	outputFormat := "tree" // 默认树形格式，便于展开查看目录和文件
 	if formatArg, ok := args["output_format"].(string); ok && formatArg != "" {
 		outputFormat = formatArg
 	}
@@ -505,7 +728,7 @@ func (r *ToolRegistry) callReadDir(ctx context.Context, args map[string]interfac
 		includeFunctions = includeFunctionsArg
 	}
 
-	includeFiles := false // 默认不包含文件
+	includeFiles := true // 默认包含代码文件，与「读取该文件夹下所有文件和目录」预期一致
 	if includeFilesArg, ok := args["include_files"].(bool); ok {
 		includeFiles = includeFilesArg
 	}
@@ -515,22 +738,33 @@ func (r *ToolRegistry) callReadDir(ctx context.Context, args map[string]interfac
 		includeCode = includeCodeArg
 	}
 
-	// 调用 app-server 的 GetWorkspaceContext 接口获取目录信息
-	workspaceCtx, err := apicall.GetWorkspaceContext(ctx, targetPath)
+	// 需要文件列表时用 runtime 从磁盘读，否则用快照；默认读取文件
+	fileSource := ""
+	if includeFiles {
+		fileSource = "runtime"
+	}
+	workspaceCtx, err := apicall.GetWorkspaceContext(ctx, targetPath, fileSource)
 	if err != nil {
 		return fmt.Sprintf("获取目录信息失败: %v", err), true
 	}
 
-	// 如果 recursive=true，使用树形格式递归显示
+	// 树形格式：recursive=true 时整棵树，recursive=false 时只展开当前一层（max_depth=1）
+	if outputFormat == "tree" {
+		treeMaxDepth := maxDepth
+		if !recursive {
+			treeMaxDepth = 1
+		}
+		return r.buildRecursiveTree(ctx, workspaceCtx, targetPath, 0, treeMaxDepth, includeFunctions, includeFiles, fileSource, outputFormat)
+	}
 	if recursive {
-		return r.buildRecursiveTree(ctx, workspaceCtx, targetPath, 0, maxDepth, includeFunctions, includeFiles, outputFormat)
+		return r.buildRecursiveTree(ctx, workspaceCtx, targetPath, 0, maxDepth, includeFunctions, includeFiles, fileSource, outputFormat)
 	}
 
-	// 否则使用列表格式显示当前目录
+	// 列表格式显示当前目录
 	return r.buildListFormat(ctx, workspaceCtx, targetPath, includeFunctions, includeFiles, includeCode, outputFormat)
 }
 
-// callReadDoc 按文档名称从 prompt/文档目录 查 full_code_path 后返回内置文档正文（兼容 doc_name 调用）
+// callReadDoc 按文档名称从嵌入的 content/doc/文档目录 查 full_code_path 后返回内置文档正文（兼容 doc_name 调用）
 func (r *ToolRegistry) callReadDoc(ctx context.Context, args map[string]interface{}) (string, bool) {
 	docName := strings.TrimSpace(GetStringArg(args, "doc_name"))
 	if docName == "" {
@@ -646,14 +880,14 @@ func (r *ToolRegistry) buildListFormat(ctx context.Context, workspaceCtx *dto.Ge
 }
 
 // buildRecursiveTree 构建递归树形结构
-func (r *ToolRegistry) buildRecursiveTree(ctx context.Context, workspaceCtx *dto.GetWorkspaceContextResp, targetPath string, currentDepth int, maxDepth int, includeFunctions bool, includeFiles bool, outputFormat string) (string, bool) {
+func (r *ToolRegistry) buildRecursiveTree(ctx context.Context, workspaceCtx *dto.GetWorkspaceContextResp, targetPath string, currentDepth int, maxDepth int, includeFunctions bool, includeFiles bool, fileSource string, outputFormat string) (string, bool) {
 	// 检查深度限制
 	if maxDepth >= 0 && currentDepth >= maxDepth {
 		return "", false
 	}
 
 	// 构建树形结构
-	treeLines := r.buildTreeLines(ctx, workspaceCtx, targetPath, 0, maxDepth, includeFunctions, includeFiles, "")
+	treeLines := r.buildTreeLines(ctx, workspaceCtx, targetPath, 0, maxDepth, includeFunctions, includeFiles, fileSource, "")
 
 	if outputFormat == "tree" {
 		return fmt.Sprintf(`目录树：%s
@@ -668,7 +902,7 @@ func (r *ToolRegistry) buildRecursiveTree(ctx context.Context, workspaceCtx *dto
 }
 
 // buildTreeLines 递归构建树形结构的字符串（不使用 strings.Builder）
-func (r *ToolRegistry) buildTreeLines(ctx context.Context, workspaceCtx *dto.GetWorkspaceContextResp, currentPath string, currentDepth int, maxDepth int, includeFunctions bool, includeFiles bool, prefix string) string {
+func (r *ToolRegistry) buildTreeLines(ctx context.Context, workspaceCtx *dto.GetWorkspaceContextResp, currentPath string, currentDepth int, maxDepth int, includeFunctions bool, includeFiles bool, fileSource string, prefix string) string {
 	// 检查深度限制
 	if maxDepth >= 0 && currentDepth >= maxDepth {
 		return ""
@@ -683,7 +917,13 @@ func (r *ToolRegistry) buildTreeLines(ctx context.Context, workspaceCtx *dto.Get
 
 	// 获取当前目录的子节点
 	children := workspaceCtx.Children
-	files := workspaceCtx.Files
+	// 只展示当前目录直接下的文件（RelativePath 不含 "/"），避免 app-runtime 递归返回的子目录文件被重复列在根下
+	files := make([]dto.WorkspaceContextFile, 0, len(workspaceCtx.Files))
+	for _, f := range workspaceCtx.Files {
+		if f.RelativePath != "" && !strings.Contains(f.RelativePath, "/") {
+			files = append(files, f)
+		}
+	}
 
 	// 处理子目录和函数
 	directories := make([]dto.WorkspaceContextNode, 0)
@@ -722,10 +962,10 @@ func (r *ToolRegistry) buildTreeLines(ctx context.Context, workspaceCtx *dto.Get
 		}
 		result += fmt.Sprintf("%s%s%s(%s%s)[%s]\n", prefix, connector, dir.Code, dir.Name, descPart, dir.Type)
 
-		// 递归查询子目录的内容
-		childCtx, err := apicall.GetWorkspaceContext(ctx, dir.FullCodePath)
+		// 递归查询子目录的内容（需要文件时用 runtime 从磁盘读）
+		childCtx, err := apicall.GetWorkspaceContext(ctx, dir.FullCodePath, fileSource)
 		if err == nil {
-			result += r.buildTreeLines(ctx, childCtx, dir.FullCodePath, currentDepth+1, maxDepth, includeFunctions, includeFiles, nextPrefix)
+			result += r.buildTreeLines(ctx, childCtx, dir.FullCodePath, currentDepth+1, maxDepth, includeFunctions, includeFiles, fileSource, nextPrefix)
 		} else {
 			result += fmt.Sprintf("%s    (无法获取子目录内容: %v)\n", nextPrefix, err)
 		}
@@ -850,6 +1090,89 @@ func (r *ToolRegistry) callWorkspaceBuild(ctx context.Context, args map[string]i
 		return "build_workspace 调用失败: " + err.Error(), true
 	}
 	return fmt.Sprintf("工作空间已编译并部署: app=%s, 旧版本=%s, 新版本=%s", resp.App, resp.OldVersion, resp.NewVersion), false
+}
+
+// callSearchReplaceFile 文件 search-replace（实时写盘，不整文件覆盖）
+func (r *ToolRegistry) callSearchReplaceFile(ctx context.Context, args map[string]interface{}, currentFullCodePath string) (string, bool) {
+	targetPath := getDirectory(args, currentFullCodePath)
+	targetPath = strings.TrimRight(targetPath, "/")
+	if targetPath == "" {
+		targetPath = currentFullCodePath
+	}
+	if targetPath != "" && !strings.HasPrefix(targetPath, "/") {
+		targetPath = "/" + targetPath
+	}
+	fileName := strings.TrimSpace(GetStringArg(args, "file_name"))
+	searchString := GetStringArg(args, "search_string")
+	if fileName == "" {
+		return "search_replace_file 缺少参数 file_name。", true
+	}
+	if searchString == "" {
+		return "search_replace_file 缺少参数 search_string。", true
+	}
+	replaceString := GetStringArg(args, "replace_string")
+	replaceAll := true
+	if v, ok := args["replace_all"]; ok {
+		if b, ok := v.(bool); ok {
+			replaceAll = b
+		}
+	}
+	returnFullContent := true
+	if v, ok := args["return_full_content"]; ok {
+		if b, ok := v.(bool); ok {
+			returnFullContent = b
+		}
+	}
+	req := &dto.ReplaceFileContentReq{
+		FullCodePath:      targetPath,
+		FileName:          fileName,
+		SearchString:      searchString,
+		ReplaceString:     replaceString,
+		ReplaceAll:        replaceAll,
+		ReturnFullContent: returnFullContent,
+	}
+	resp, err := apicall.ReplaceFileContent(ctx, req)
+	if err != nil {
+		logger.Errorf(ctx, "[SearchReplaceFile] ReplaceFileContent 失败: %v", err)
+		return "search_replace_file 调用失败: " + err.Error(), true
+	}
+	if !resp.Success {
+		return "search_replace_file: " + resp.Message, true
+	}
+	msg := fmt.Sprintf("已替换: 目录=%s, 文件=%s, 替换次数=%d。修改已落盘，但未编译工作空间；若需生效请调用 build_workspace 更新工作空间。", targetPath, fileName, resp.ReplaceCount)
+	if resp.FullContent != "" {
+		msg += "\n\n替换后完整内容：\n```go\n" + resp.FullContent + "\n```"
+	}
+	return msg, false
+}
+
+// callDeleteFile 删除目录下指定 .go 文件（删磁盘+删节点）
+func (r *ToolRegistry) callDeleteFile(ctx context.Context, args map[string]interface{}, currentFullCodePath string) (string, bool) {
+	targetPath := getDirectory(args, currentFullCodePath)
+	targetPath = strings.TrimRight(targetPath, "/")
+	if targetPath == "" {
+		targetPath = currentFullCodePath
+	}
+	if targetPath != "" && !strings.HasPrefix(targetPath, "/") {
+		targetPath = "/" + targetPath
+	}
+	fileName := strings.TrimSpace(GetStringArg(args, "file_name"))
+	if fileName == "" {
+		return "delete_file 缺少参数 file_name。", true
+	}
+	req := &dto.DeleteFileReq{
+		FullCodePath: targetPath,
+		FileName:     fileName,
+	}
+	resp, err := apicall.DeleteFile(ctx, req)
+	if err != nil {
+		logger.Errorf(ctx, "[DeleteFile] DeleteFile 失败: %v", err)
+		return "delete_file 调用失败: " + err.Error(), true
+	}
+	if !resp.Success {
+		return "delete_file: " + resp.Message, true
+	}
+	return fmt.Sprintf("已删除: 目录=%s, 文件=%s", targetPath, fileName), false
 }
 
 // callWriteFile 已废弃，请使用 write_doc / write_go_file

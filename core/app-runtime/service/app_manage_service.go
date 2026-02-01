@@ -1481,56 +1481,9 @@ func (s *AppManageService) ReadDirectoryFiles(ctx context.Context, user, app, fu
 
 	var files []sharedDto.DirectoryFileInfo
 
-	// 遍历目录下的所有 .go 文件
-	err := filepath.Walk(directoryPath, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		// 只读取 .go 文件，跳过目录
-		if info.IsDir() {
-			return nil
-		}
-
-		if !strings.HasSuffix(path, ".go") {
-			return nil
-		}
-
-		// 忽略 init_.go 文件（运行时生成的文件，类似于 .idea）
-		baseName := filepath.Base(path)
-		if baseName == "init_.go" {
-			return nil
-		}
-
-		// 读取文件内容
-		content, err := os.ReadFile(path)
-		if err != nil {
-			logger.Warnf(ctx, "[ReadDirectoryFiles] 读取文件失败: path=%s, error=%v", path, err)
-			return nil // 跳过读取失败的文件，继续处理其他文件
-		}
-
-		// 计算相对路径（相对于目录）
-		relPath, err := filepath.Rel(directoryPath, path)
-		if err != nil {
-			relPath = filepath.Base(path)
-		}
-
-		// 从路径提取文件名（不含 .go）
-		fileName := strings.TrimSuffix(baseName, ".go")
-
-		files = append(files, sharedDto.DirectoryFileInfo{
-			FileName:     fileName,
-			RelativePath: relPath,
-			Content:      string(content),
-			// 向后兼容：同时设置 group_code
-			GroupCode: fileName,
-		})
-
-		return nil
-	})
-
+	// 只读取当前目录直接下的 .go 文件（不递归子目录），避免 read_dir 树形展示时根下重复列出子目录文件
+	entries, err := os.ReadDir(directoryPath)
 	if err != nil {
-		// 如果目录不存在，返回空列表（可能是新目录，还没有文件）
 		if os.IsNotExist(err) {
 			logger.Warnf(ctx, "[ReadDirectoryFiles] 目录不存在: path=%s", directoryPath)
 			return []sharedDto.DirectoryFileInfo{}, nil
@@ -1538,8 +1491,117 @@ func (s *AppManageService) ReadDirectoryFiles(ctx context.Context, user, app, fu
 		return nil, err
 	}
 
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".go") {
+			continue
+		}
+
+		path := filepath.Join(directoryPath, name)
+		content, err := os.ReadFile(path)
+		if err != nil {
+			logger.Warnf(ctx, "[ReadDirectoryFiles] 读取文件失败: path=%s, error=%v", path, err)
+			continue
+		}
+
+		fileName := strings.TrimSuffix(name, ".go")
+		files = append(files, sharedDto.DirectoryFileInfo{
+			FileName:     fileName,
+			RelativePath: name,
+			Content:      string(content),
+			GroupCode:    fileName,
+		})
+	}
+
 	logger.Infof(ctx, "[ReadDirectoryFiles] 读取目录文件完成: path=%s, fileCount=%d", directoryPath, len(files))
 	return files, nil
+}
+
+// ReplaceInFile 在指定文件中做 search-replace，实时读盘、替换、写回（不整文件覆盖）
+// 返回：替换次数、替换后的完整内容（供按需返回给调用方）、错误
+func (s *AppManageService) ReplaceInFile(ctx context.Context, user, app, directoryPath, fileName, searchString, replaceString string, replaceAll bool) (replaceCount int, newContent string, err error) {
+	logger.Infof(ctx, "[ReplaceInFile] user=%s, app=%s, path=%s, file=%s, replaceAll=%v", user, app, directoryPath, fileName, replaceAll)
+
+	appDir := filepath.Join(s.config.AppDir.BasePath, user, app)
+	apiDir := filepath.Join(appDir, "code", "api")
+	appPrefix := fmt.Sprintf("/%s/%s", user, app)
+	relativePath := strings.TrimPrefix(strings.TrimPrefix(directoryPath, appPrefix), "/")
+	dirPath := filepath.Join(apiDir, relativePath)
+
+	baseName := fileName
+	if !strings.HasSuffix(baseName, ".go") {
+		baseName = baseName + ".go"
+	}
+	if baseName == "init_.go" {
+		return 0, "", fmt.Errorf("不允许修改 init_.go，由脚手架生成")
+	}
+	filePath := filepath.Join(dirPath, baseName)
+
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, "", fmt.Errorf("文件不存在: %s", filePath)
+		}
+		return 0, "", err
+	}
+	oldContent := string(content)
+	if searchString == "" {
+		return 0, "", fmt.Errorf("search_string 不能为空")
+	}
+	var resultContent string
+	if replaceAll {
+		resultContent = strings.ReplaceAll(oldContent, searchString, replaceString)
+		replaceCount = strings.Count(oldContent, searchString)
+	} else {
+		idx := strings.Index(oldContent, searchString)
+		if idx < 0 {
+			return 0, "", fmt.Errorf("未找到要替换的内容")
+		}
+		resultContent = oldContent[:idx] + replaceString + oldContent[idx+len(searchString):]
+		replaceCount = 1
+	}
+	if resultContent == oldContent {
+		logger.Infof(ctx, "[ReplaceInFile] 未发生替换: %s", filePath)
+		return 0, resultContent, nil
+	}
+	if err := os.WriteFile(filePath, []byte(resultContent), 0644); err != nil {
+		return 0, "", err
+	}
+	logger.Infof(ctx, "[ReplaceInFile] 替换完成: path=%s, count=%d", filePath, replaceCount)
+	return replaceCount, resultContent, nil
+}
+
+// DeleteFile 删除指定磁盘文件（不删 DB 节点，由 app-server 删节点时调用）
+func (s *AppManageService) DeleteFile(ctx context.Context, user, app, directoryPath, fileName string) error {
+	logger.Infof(ctx, "[DeleteFile] user=%s, app=%s, path=%s, file=%s", user, app, directoryPath, fileName)
+
+	appDir := filepath.Join(s.config.AppDir.BasePath, user, app)
+	apiDir := filepath.Join(appDir, "code", "api")
+	appPrefix := fmt.Sprintf("/%s/%s", user, app)
+	relativePath := strings.TrimPrefix(strings.TrimPrefix(directoryPath, appPrefix), "/")
+	dirPath := filepath.Join(apiDir, relativePath)
+
+	baseName := fileName
+	if !strings.HasSuffix(baseName, ".go") {
+		baseName = baseName + ".go"
+	}
+	if baseName == "init_.go" {
+		return fmt.Errorf("不允许删除 init_.go，由脚手架生成")
+	}
+	filePath := filepath.Join(dirPath, baseName)
+
+	if err := os.Remove(filePath); err != nil {
+		if os.IsNotExist(err) {
+			logger.Warnf(ctx, "[DeleteFile] 文件已不存在: %s", filePath)
+			return nil
+		}
+		return err
+	}
+	logger.Infof(ctx, "[DeleteFile] 已删除: %s", filePath)
+	return nil
 }
 
 // GitCommitMessage Git 提交消息结构体

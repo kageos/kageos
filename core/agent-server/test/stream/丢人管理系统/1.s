@@ -185,55 +185,55 @@ event:tool_calls_stream
 data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/agent_app_sdk"}]}
 
 event:tool_calls_stream
-data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/agent_app_sdk/docs"}]}
+data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/sdk/agent-app-sdk-readme"}]}
 
 event:tool_calls_stream
-data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/agent_app_sdk/docs\""}]}
+data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/sdk/agent-app-sdk-readme\""}]}
 
 event:tool_calls_stream
-data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/agent_app_sdk/docs\", "}]}
+data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/sdk/agent-app-sdk-readme\", "}]}
 
 event:tool_calls_stream
-data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/agent_app_sdk/docs\", \""}]}
+data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/sdk/agent-app-sdk-readme\", \""}]}
 
 event:tool_calls_stream
-data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/agent_app_sdk/docs\", \"file"}]}
+data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/sdk/agent-app-sdk-readme\", \"file"}]}
 
 event:tool_calls_stream
-data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/agent_app_sdk/docs\", \"file_name"}]}
+data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/sdk/agent-app-sdk-readme\", \"file_name"}]}
 
 event:tool_calls_stream
-data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/agent_app_sdk/docs\", \"file_name\""}]}
+data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/sdk/agent-app-sdk-readme\", \"file_name\""}]}
 
 event:tool_calls_stream
-data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/agent_app_sdk/docs\", \"file_name\": "}]}
+data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/sdk/agent-app-sdk-readme\", \"file_name\": "}]}
 
 event:tool_calls_stream
-data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/agent_app_sdk/docs\", \"file_name\": \""}]}
+data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/sdk/agent-app-sdk-readme\", \"file_name\": \""}]}
 
 event:tool_calls_stream
-data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/agent_app_sdk/docs\", \"file_name\": \"agent"}]}
+data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/sdk/agent-app-sdk-readme\", \"file_name\": \"agent"}]}
 
 event:tool_calls_stream
-data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/agent_app_sdk/docs\", \"file_name\": \"agent-app"}]}
+data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/sdk/agent-app-sdk-readme\", \"file_name\": \"agent-app"}]}
 
 event:tool_calls_stream
-data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/agent_app_sdk/docs\", \"file_name\": \"agent-app SDK"}]}
+data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/sdk/agent-app-sdk-readme\", \"file_name\": \"agent-app SDK"}]}
 
 event:tool_calls_stream
-data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/agent_app_sdk/docs\", \"file_name\": \"agent-app SDK使用"}]}
+data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/sdk/agent-app-sdk-readme\", \"file_name\": \"agent-app SDK使用"}]}
 
 event:tool_calls_stream
-data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/agent_app_sdk/docs\", \"file_name\": \"agent-app SDK使用手册"}]}
+data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/sdk/agent-app-sdk-readme\", \"file_name\": \"agent-app SDK使用手册"}]}
 
 event:tool_calls_stream
-data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/agent_app_sdk/docs\", \"file_name\": \"agent-app SDK使用手册.md"}]}
+data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/sdk/agent-app-sdk-readme\", \"file_name\": \"agent-app SDK使用手册.md"}]}
 
 event:tool_calls_stream
-data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/agent_app_sdk/docs\", \"file_name\": \"agent-app SDK使用手册.md\""}]}
+data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/sdk/agent-app-sdk-readme\", \"file_name\": \"agent-app SDK使用手册.md\""}]}
 
 event:tool_calls_stream
-data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/agent_app_sdk/docs\", \"file_name\": \"agent-app SDK使用手册.md\"}"}]}
+data:{"tool_calls":[{"name":"read_file","arguments":"{\"directory\": \"/builtin/sdk/agent-app-sdk-readme\", \"file_name\": \"agent-app SDK使用手册.md\"}"}]}
 
 event:tool_call
 data:{"name":"read_file","status":"running","arguments":""}

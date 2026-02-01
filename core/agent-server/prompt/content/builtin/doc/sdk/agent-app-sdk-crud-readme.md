@@ -795,6 +795,8 @@ func CrmTicketList(ctx *app.Context, resp response.Response) error {
         logger.Errorf(ctx, "CrmTicketList err: %v", err)
         return err
     }
+	// 此时lists已经有数据了，可以对字段进行处理了，例如对某些read字段进行计算，等等，或者对某些字段脱敏等等
+	
     return nil
 }
 ```

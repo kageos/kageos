@@ -26,7 +26,7 @@ const (
 	MaxToolRounds   = 15 // 与 streamloop.MaxToolRounds 保持一致，仅作注释/文档用，实际以 streamloop 为准
 )
 
-// 工作台操作提示词已迁移至 core/agent-server/prompt/工作台操作提示词.md，通过 embed 加载（见 prompt 包）
+// 工作台操作提示词在 core/agent-server/prompt/content/doc/ 下，由 //go:embed content 嵌入，通过 prompt 包加载（见 prompt.ReadContent / init）
 
 // 消息角色常量
 const (
@@ -104,6 +104,8 @@ type StreamEventToolCall struct {
 	Name      string `json:"name"`
 	Status    string `json:"status"`    // ok / error / running / streaming
 	Arguments string `json:"arguments"` // 流式或最终参数（streaming 时逐段推送，供前端实时展示）
+	Result    string `json:"result"`    // 工具返回结果（status=ok 时可选）
+	Error     string `json:"error"`    // 错误信息（status=error 时可选）
 }
 
 // StreamEventToolCallsStream 流式 tool_calls 列表（当前已合并的全部 tool_call，供前端实时展示）
@@ -161,7 +163,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	}
 
 	// 1) 获取工作台环境信息（包含目录详情、子节点等，一次性获取，避免重复调用）
-	workspaceCtx, e := apicall.GetWorkspaceContext(ctx, fullCodePath)
+	workspaceCtx, e := apicall.GetWorkspaceContext(ctx, fullCodePath, "")
 	if e != nil || workspaceCtx == nil {
 		return s.handleError(sendEvent, "无效的 full_code_path，无法解析目录", e)
 	}
@@ -220,9 +222,13 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	}
 	var toolNames []string
 	var systemPromptFragment string
+	var modeProvider prompt.WorkspaceModePromptProvider
 	if mode != nil {
-		toolNames = mode.GetToolNames()
-		systemPromptFragment = strings.TrimSpace(mode.SystemPromptFragment)
+		modeProvider = prompt.GetModeProvider(mode.Code)
+		if modeProvider == nil {
+			toolNames = mode.GetToolNames()
+			systemPromptFragment = strings.TrimSpace(mode.SystemPromptFragment)
+		}
 	}
 
 	// 有效 agentID：模式绑定了智能体则用模式的，否则用 session/req
@@ -275,6 +281,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		agentID:              agentID,
 		agentIDPtr:           agentIDPtr,
 		user:                 user,
+		modeProvider:         modeProvider,
 		toolNames:            toolNames,
 		systemPromptFragment: systemPromptFragment,
 		files:                req.Message.Files,
@@ -366,110 +373,75 @@ func convertToLLMTools(toolsDesc []dto.ToolDef) []llms.ToolDef {
 	return llmTools
 }
 
-func (s *WorkspaceChatService) buildLLMMessages(ctx context.Context, sessionID, fullCodePath, directoryName string, agentID int64, workspaceCtx *dto.GetWorkspaceContextResp, toolNames []string, systemPromptFragment string) ([]llms.Message, []llms.ToolDef, error) {
+// workspaceCtxToEnvInput 将 dto 工作台上下文转为 prompt 包的环境输入，供 BuildWorkspaceEnvData 使用
+func workspaceCtxToEnvInput(c *dto.GetWorkspaceContextResp) *prompt.WorkspaceEnvInput {
+	if c == nil {
+		return nil
+	}
+	dirDesc := ""
+	if c.Directory.Description != "" {
+		dirDesc = "\n- 目录介绍：" + c.Directory.Description
+	}
+	children := make([]prompt.WorkspaceEnvNode, 0, len(c.Children))
+	for _, n := range c.Children {
+		children = append(children, prompt.WorkspaceEnvNode{
+			Name:        n.Name,
+			Code:        n.Code,
+			Description: n.Description,
+			Type:        n.Type,
+		})
+	}
+	files := make([]prompt.WorkspaceEnvFile, 0, len(c.Files))
+	for _, f := range c.Files {
+		files = append(files, prompt.WorkspaceEnvFile{
+			RelativePath: f.RelativePath,
+			FileType:     f.FileType,
+			LineCount:    f.LineCount,
+		})
+	}
+	return &prompt.WorkspaceEnvInput{
+		User:           c.User,
+		DirName:        c.Directory.Name,
+		DirCode:        c.Directory.Code,
+		FullCodePath:   c.Directory.FullCodePath,
+		DirType:        c.Directory.Type,
+		DirDescription: dirDesc,
+		Children:       children,
+		Files:          files,
+	}
+}
+
+func (s *WorkspaceChatService) buildLLMMessages(ctx context.Context, sessionID, fullCodePath, directoryName string, agentID int64, workspaceCtx *dto.GetWorkspaceContextResp, modeProvider prompt.WorkspaceModePromptProvider, fallbackToolNames []string, fallbackSystemPrompt string) ([]llms.Message, []llms.ToolDef, error) {
 	list, err := s.messageRepo.ListBySessionID(sessionID)
 	if err != nil {
 		return nil, nil, err
 	}
+	var toolNames []string
+	var systemPromptFragment string
+	var firstAssistantContent string
+	if modeProvider != nil {
+		toolNames = modeProvider.ToolNames()
+		systemPromptFragment = "" // 在 env 填好后由 provider.SystemPrompt(data) 产出
+		firstAssistantContent = modeProvider.FirstAssistantContent()
+	} else {
+		toolNames = fallbackToolNames
+		systemPromptFragment = fallbackSystemPrompt
+	}
 	toolsDesc, _ := s.toolReg.ListTools(ctx, toolNames)
 	llmTools := convertToLLMTools(toolsDesc)
 
-	// 从 prompt/工作台环境模板.md 填充占位符，提示词维护在文档里
+	// 环境数据与 env 块统一由 prompt 包构建，避免在此处手写 ChildrenSection/FilesSection/DirectoryList
 	now := time.Now()
-	data := &prompt.WorkspaceEnvData{
-		User:            "",
-		CurrentTime:     now.Format("2006-01-02 15:04:05"),
-		CurrentDate:     now.Format("2006-01-02"),
-		Timestamp:       fmt.Sprintf("%d", now.Unix()),
-		DirName:         directoryName,
-		DirCode:         "",
-		FullCodePath:    fullCodePath,
-		DirType:         "",
-		DirDescription:  "",
-		ChildrenSection: "当前目录下没有子节点。",
-		FilesSection:    "",
-		DirectoryList:   "",
-	}
+	var envInput *prompt.WorkspaceEnvInput
 	if workspaceCtx != nil {
-		data.User = workspaceCtx.User
-		data.DirName = workspaceCtx.Directory.Name
-		data.DirCode = workspaceCtx.Directory.Code
-		data.FullCodePath = workspaceCtx.Directory.FullCodePath
-		data.DirType = workspaceCtx.Directory.Type
-		if workspaceCtx.Directory.Description != "" {
-			data.DirDescription = "\n- 目录介绍：" + workspaceCtx.Directory.Description
-		}
-		var children strings.Builder
-		if len(workspaceCtx.Children) > 0 {
-			packages := make([]dto.WorkspaceContextNode, 0)
-			functions := make([]dto.WorkspaceContextNode, 0)
-			for _, child := range workspaceCtx.Children {
-				if child.Type == "package" {
-					packages = append(packages, child)
-				} else if child.Type == "function" {
-					functions = append(functions, child)
-				}
-			}
-			if len(packages) > 0 {
-				children.WriteString("\n**子目录：**\n")
-				for _, pkg := range packages {
-					children.WriteString(fmt.Sprintf("- %s（%s）", pkg.Name, pkg.Code))
-					if pkg.Description != "" {
-						children.WriteString(fmt.Sprintf("：%s", pkg.Description))
-					}
-					children.WriteString("\n")
-				}
-			}
-			if len(functions) > 0 {
-				children.WriteString("\n**函数/文件：**\n")
-				for _, fn := range functions {
-					children.WriteString(fmt.Sprintf("- %s（%s）", fn.Name, fn.Code))
-					if fn.Description != "" {
-						children.WriteString(fmt.Sprintf("：%s", fn.Description))
-					}
-					children.WriteString("\n")
-				}
-			}
-		} else {
-			children.WriteString("当前目录下没有子节点。")
-		}
-		data.ChildrenSection = children.String()
-		var files strings.Builder
-		if len(workspaceCtx.Files) > 0 {
-			files.WriteString("\n\n### 当前可读代码文件（用 read_go_file 读取）\n")
-			files.WriteString("以下文件可直接用 `read_go_file(directory, file_name)` 读取内容（不传 directory 则默认当前目录）：\n")
-			for _, file := range workspaceCtx.Files {
-				files.WriteString(fmt.Sprintf("- %s（%s，%d 行）\n", file.RelativePath, file.FileType, file.LineCount))
-			}
-		}
-		data.FilesSection = files.String()
+		envInput = workspaceCtxToEnvInput(workspaceCtx)
 	}
-	if catalog := prompt.GetDocCatalog(); len(catalog) > 0 {
-		var dirList strings.Builder
-		for _, e := range catalog {
-			if e.FullCodePath == "" {
-				continue
-			}
-			dirList.WriteString(fmt.Sprintf("- **%s**（%s）\n", e.FullCodePath, e.Name))
-		}
-		data.DirectoryList = dirList.String()
-	}
-	envBlock := prompt.FillWorkspaceEnvTemplate(data)
-	if workspaceCtx == nil {
-		// 降级：无 workspaceCtx 时用简化说明
-		envBlock = fmt.Sprintf(`当前工作目录：
-- 目录名称：%s
-- 完整路径：%s
+	data := prompt.BuildWorkspaceEnvData(envInput, directoryName, fullCodePath, now)
+	envBlock := prompt.BuildWorkspaceEnvBlock(data, workspaceCtx != nil, directoryName, fullCodePath)
 
-你可以使用提供的工具来帮助用户完成任务。
-
----
-
-## 可读的目录（部分）
-
-%s
-
-要生成系统/应用时，必须先 read_doc 拉取上述目录下的 SDK 文档，再按规范写 Go 代码；禁止用 HTML/CSS/JS、localStorage、纯前端等方案。`, directoryName, fullCodePath, data.DirectoryList)
+	// 模式专属提示：多态时由 provider 产出，否则用 fallback 的 systemPromptFragment
+	if modeProvider != nil {
+		systemPromptFragment = modeProvider.SystemPrompt(data)
 	}
 
 	var system string
@@ -492,10 +464,22 @@ func (s *WorkspaceChatService) buildLLMMessages(ctx context.Context, sessionID, 
 	if systemPromptFragment != "" {
 		system += "\n\n" + systemPromptFragment
 	}
-	// 工作台操作提示词：从 prompt/工作台操作提示词.md 嵌入加载（含规则、变量约定、SOP、PRD 先行等）
-	system += "\n\n" + strings.TrimSpace(prompt.WorkspacePrompt)
+	// 操作提示词：有 modeProvider 时用其 OperationPrompt（可为空）；无 modeProvider 时用公用 WorkspacePrompt（doc/工作台操作提示词.md）。mode 未提供 OperationPrompt 时不再追加（规则已在 system_prompt 中）
+	var operationPrompt string
+	if modeProvider != nil {
+		operationPrompt = strings.TrimSpace(modeProvider.OperationPrompt())
+	} else {
+		operationPrompt = strings.TrimSpace(prompt.WorkspacePrompt)
+	}
+	if operationPrompt != "" {
+		system += "\n\n" + operationPrompt
+	}
 
 	msgs := []llms.Message{{Role: "system", Content: system}}
+	// 首条 assistant：多态时由 provider 提供，会话开始时注入
+	if firstAssistantContent != "" {
+		msgs = append(msgs, llms.Message{Role: RoleAssistant, Content: firstAssistantContent})
+	}
 	for _, m := range list {
 		switch m.Role {
 		case RoleUser:
@@ -586,13 +570,23 @@ func (s *WorkspaceChatService) executeToolCalls(
 		logger.Infof(ctx, "[WorkspaceChatStream] [%d/%d] 执行工具调用 - ToolCallID: %s, ToolName: %s, Arguments: %q",
 			i+1, len(allToolCalls), tc.ID, tc.Function.Name, tc.Function.Arguments)
 
-		sendEvent(EventToolCall, StreamEventToolCall{Name: tc.Function.Name, Status: ToolCallStatusRunning})
+		sendEvent(EventToolCall, StreamEventToolCall{Name: tc.Function.Name, Status: ToolCallStatusRunning, Arguments: tc.Function.Arguments})
 
 		args := s.parseToolCallArgs(ctx, tc)
 		res, st := s.callOtherTool(ctx, tc.Function.Name, args, fullCodePath, files, i+1, len(allToolCalls))
 
-		toolSummaries = append(toolSummaries, dto.WorkspaceChatToolCallSummary{Name: tc.Function.Name, Status: st})
-		sendEvent(EventToolCall, StreamEventToolCall{Name: tc.Function.Name, Status: st})
+		resultStr, errStr := "", ""
+		if st == ToolCallStatusOK {
+			resultStr = res
+		} else {
+			errStr = res
+		}
+		toolSummaries = append(toolSummaries, dto.WorkspaceChatToolCallSummary{
+			Name: tc.Function.Name, Status: st, Arguments: tc.Function.Arguments, Result: resultStr, Error: errStr,
+		})
+		sendEvent(EventToolCall, StreamEventToolCall{
+			Name: tc.Function.Name, Status: st, Arguments: tc.Function.Arguments, Result: resultStr, Error: errStr,
+		})
 		s.saveToolMessage(ctx, sessionID, agentIDPtr, tc.ID, tc.Function.Name, res, user)
 	}
 
