@@ -175,7 +175,7 @@ func (a *AppRuntime) ReadDirectoryFiles(ctx context.Context, hostId int64, req *
 	return &resp, nil
 }
 
-// ReplaceInFile 文件 search-replace（app-server -> app-runtime）
+// ReplaceInFile 文件 search-replace（app-server -> app-runtime）（已废弃，请用 ReplaceInFileBatch）
 func (a *AppRuntime) ReplaceInFile(ctx context.Context, hostId int64, req *dto.ReplaceInFileRuntimeReq) (*dto.ReplaceInFileRuntimeResp, error) {
 	var resp dto.ReplaceInFileRuntimeResp
 	timeout := time.Duration(a.config.GetNatsRequestTimeout()) * time.Second
@@ -184,6 +184,21 @@ func (a *AppRuntime) ReplaceInFile(ctx context.Context, hostId int64, req *dto.R
 		return nil, err
 	}
 	_, err = msgx.RequestMsgWithTimeout(ctx, conn, subjects.GetAppServer2AppRuntimeReplaceInFileRequestSubject(), req, &resp, timeout)
+	if err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// ReplaceInFileBatch 文件批量 search-replace（app-server -> app-runtime）；内存替换、全部校验通过才落盘
+func (a *AppRuntime) ReplaceInFileBatch(ctx context.Context, hostId int64, req *dto.ReplaceInFileBatchReq) (*dto.ReplaceInFileBatchResp, error) {
+	var resp dto.ReplaceInFileBatchResp
+	timeout := time.Duration(a.config.GetNatsRequestTimeout()) * time.Second
+	conn, err := a.natsService.GetNatsByHost(hostId)
+	if err != nil {
+		return nil, err
+	}
+	_, err = msgx.RequestMsgWithTimeout(ctx, conn, subjects.GetAppServer2AppRuntimeReplaceInFileBatchRequestSubject(), req, &resp, timeout)
 	if err != nil {
 		return nil, err
 	}

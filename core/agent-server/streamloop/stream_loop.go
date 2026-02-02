@@ -13,7 +13,7 @@ const (
 	EventContent         = "content"
 	EventToolCallsStream = "tool_calls_stream"
 	EventError           = "error"
-	MaxToolRounds        = 15 // 最大工具调用轮数，防止无限循环；过小易中断，过大增加耗时与成本
+	MaxToolRounds        = 30 // 最大工具调用轮数，防止无限循环；过小易中断，过大增加耗时与成本
 )
 
 // RunStreamLoop 流式工具对话循环：从 BuildMessages 开始，调 LLM 流式，若有 tool_calls 则执行并递归，否则结束

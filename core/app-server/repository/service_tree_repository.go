@@ -25,7 +25,7 @@ func (r *ServiceTreeRepository) Create(serviceTree *model.ServiceTree) error {
 // GetDocsNodesByParentID 根据父节点ID获取所有 docs 类型的子节点（递归）
 func (r *ServiceTreeRepository) GetDocsNodesByParentID(parentID int64) ([]*model.ServiceTree, error) {
 	var nodes []*model.ServiceTree
-	
+
 	// 递归查询所有子节点中的 docs 类型节点
 	var findAllDocsNodes func(int64) error
 	findAllDocsNodes = func(pid int64) error {
@@ -33,7 +33,7 @@ func (r *ServiceTreeRepository) GetDocsNodesByParentID(parentID int64) ([]*model
 		if err := r.db.Where("parent_id = ?", pid).Find(&children).Error; err != nil {
 			return err
 		}
-		
+
 		for _, child := range children {
 			if child.Type == model.ServiceTreeTypeDocs {
 				nodes = append(nodes, child)
@@ -45,11 +45,11 @@ func (r *ServiceTreeRepository) GetDocsNodesByParentID(parentID int64) ([]*model
 		}
 		return nil
 	}
-	
+
 	if err := findAllDocsNodes(parentID); err != nil {
 		return nil, err
 	}
-	
+
 	return nodes, nil
 }
 
@@ -245,8 +245,22 @@ func (r *ServiceTreeRepository) calculatePathsWithAppPrefix(serviceTree *model.S
 	return nil
 }
 
+// normalizeFullCodePath 规范化 full_code_path：去首尾空格、去尾斜杠、保证以单个 / 开头（便于与 DB 一致匹配）
+func normalizeFullCodePath(p string) string {
+	p = strings.TrimSpace(p)
+	p = strings.TrimSuffix(p, "/")
+	if p != "" && !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+	return p
+}
+
 // GetServiceTreeByFullPath 根据完整路径获取服务目录（full_code_path全局唯一）
 func (r *ServiceTreeRepository) GetServiceTreeByFullPath(fullPath string) (*model.ServiceTree, error) {
+	fullPath = normalizeFullCodePath(fullPath)
+	if fullPath == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
 	var serviceTree model.ServiceTree
 	err := r.db.Where("full_code_path = ?", fullPath).First(&serviceTree).Error
 	if err != nil {

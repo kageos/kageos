@@ -101,8 +101,8 @@ func (s *Server) initDatabase(ctx context.Context) error {
 
 	// 配置 GORM 日志
 	gormConfig := &gorm.Config{}
-	// 关闭 GORM 控制台日志
-	gormConfig.Logger = gormLogger.Default.LogMode(gormLogger.Silent)
+	// 开启 SQL 日志便于排查
+	gormConfig.Logger = gormLogger.Default.LogMode(gormLogger.Info)
 
 	// 连接 MySQL
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local",

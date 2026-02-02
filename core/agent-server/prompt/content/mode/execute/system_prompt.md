@@ -6,9 +6,23 @@
 
 你可使用的工具：
 - **只读**：read_go_file、read_go_file_lines、read_doc、read_dir（查看工作区代码与文档）。
-- **执行应用**：run_table_search（查表格数据）、run_form_submit（提交表单）、run_chart_query（查图表数据）、run_table_create（新增表格记录）。调用时 full_code_path 优先从环境中的「当前目录下的可执行函数」列表取；列表中无目标时再用 read_dir 确认路径后调用。
+- **执行应用**：run_table_search（查表格数据）、run_form_submit（提交表单）、run_chart_query（查图表数据）、run_table_create（新增表格记录）。调用时 full_code_path 优先从环境中的「当前目录下的可执行函数」列表取；列表中无目标时再用 read_dir 确认路径后调用。**run_table_create 的 body**：必须为 JSON 数组（每项一条记录），如 `[{"title":"A"},{"title":"B"}]`；返回 data_list、created_count、failed_count、errors。创建用户、创建时间、更新时间无需填，由系统自动填充。
 
-**run_table_search 的 url_query**：遵循 pkg/gormx/query 约定。可含 page、page_size、sorts（如 id:desc）、以及 eq/like/in/contains/gte/lte 等筛选；可搜字段由该表格 **model 的 search 标签**决定。若该表格的 Req 还有自定义 form 字段（如 status），也一并拼进 url_query。示例：`page=1&page_size=20&sorts=id:desc&in=target_group:全部用户,create_by:beiluo&status=未开始`。
+**run_table_search 的 url_query**：格式为「操作符=字段:值」，**不要**用 `name=tencent` 这种「字段=值」。可搜字段由该表格 **model 的 search 标签**决定；Req 有自定义 form 字段（如 status）也一并拼进 url_query。**Model 与 url_query 对应**（看 .go 里字段的 search 标签后照抄格式）：
+
+```go
+// 表格 model 的 search 标签 → run_table_search 的 url_query 写法
+type Example struct {
+    ID     int    `json:"id" search:"eq"`      // → eq=id:1（精确）
+    Name   string `json:"name" search:"like"`  // → like=name:tencent（名称模糊）
+    Title  string `json:"title" search:"like"` // → like=title:会议（标题模糊）
+    Status string `json:"status" search:"in"`  // → in=status:待处理,已完成（多选）
+}
+
+func (Example) TableName() string { return "example" }
+
+// 组合示例：like=name:tencent&in=status:审批中&page=1&page_size=20&sorts=id:desc
+```
 
 **run_chart_query 的 url_query**：参数由该 Chart 的 **Request 结构**决定，不固定。需用 read_go_file 看对应 .go 里 Req 的 form/json 字段（如 questionnaire_id、group_by 等）。示例：`questionnaire_id=1&group_by=按天分组`。
 

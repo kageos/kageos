@@ -1,14 +1,14 @@
 /**
  * Chart 相关类型定义
- * 与后端 types.Chart 对齐
+ * 与后端图表接口返回结构对齐（后端使用 types.LineChart/BarChart/PieChart/GaugeChart，序列化后结构一致）
  */
 
 /**
- * Chart 数据结构（与后端 types.Chart 对齐）
+ * Chart 数据结构（与后端图表接口返回的 JSON 对齐）
  */
 export interface Chart {
-  // 图表类型（必需）
-  chart_type: string  // 'bar' | 'line' | 'pie' | 'gauge' | 'scatter' | 'area'
+  // 图表类型（必需），后端只支持 4 种：'line' | 'bar' | 'pie' | 'gauge'
+  chart_type: string
   
   // 图表标题
   title?: string
@@ -18,9 +18,6 @@ export interface Chart {
   
   // 数据系列（必需）
   series: ChartSeries[]
-  
-  // ECharts 配置（可选，用于高级定制）
-  echarts_config?: Record<string, any>
   
   // 元数据（可选，用于扩展，使用中文键名）
   metadata?: Record<string, any>
@@ -39,13 +36,12 @@ export interface ChartSeries {
   
   // 数据点（必需）
   // 不同类型图表的数据格式：
-  // - bar/line/area: []interface{}，如 [100, 200, 150]
-  // - pie: []map[string]interface{}，如 [{"name": "A", "value": 100}]
-  // - gauge: []interface{}，如 [75]（单个数值，表示百分比）
-  // - scatter: []interface{}，如 [[10, 20], [15, 25]]（二维数组，表示坐标点）
+  // - line/bar: 与 x_axis 一一对应，如 [100, 200, 150]
+  // - pie: []{ name, value }，如 [{"name": "A", "value": 100}]
+  // - gauge: 单值，如 [75]
   data: any[]
   
-  // 系列类型（可选，默认使用 ChartType）
+  // 系列类型（可选，后端会在返回前注入，与 chart_type 一致）
   type?: string
   
   // 系列配置（可选，用于单个系列的样式配置）

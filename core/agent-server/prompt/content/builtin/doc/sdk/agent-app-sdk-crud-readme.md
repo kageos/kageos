@@ -472,8 +472,9 @@ Rating float64 `widget:"name:评价;type:rate;max:5;allow_half:true;texts:很差
 
 #### timestamp - 日期时间选择器
 
-- **约定**：后端**无需在代码里做日期格式化**，字段类型用 **int64**，直接存、传**毫秒时间戳**即可；前端会根据 widget 的 `format` 自动格式化展示。
-- **错误写法**：使用 `string` 类型并在后端格式化为 "YYYY-MM-DD HH:mm:ss" 等字符串（如 `BidTime string` + 代码里 `time.Format(...)`）。timestamp 的 `format` 仅用于前端展示，后端只返回时间戳。
+- **严格要求**：**timestamp 组件必须使用毫秒时间戳（毫秒级 Unix 时间戳），禁止使用秒级时间戳。** 若使用秒级（如 `time.Now().Unix()`），前端展示、筛选、排序会错误；须用毫秒级（如 `time.Now().UnixMilli()` 或 gorm 的 `autoCreateTime:milli` / `autoUpdateTime:milli`）。
+- **约定**：后端无需在代码里做日期格式化，字段类型用 **int64**，直接存、传**毫秒时间戳**即可；前端会根据 widget 的 `format` 自动格式化展示。
+- **错误写法**：使用 `string` 类型并在后端格式化为 "YYYY-MM-DD HH:mm:ss" 等字符串（如 `BidTime string` + 代码里 `time.Format(...)`）。timestamp 的 `format` 仅用于前端展示，后端只返回时间戳。使用秒级时间戳（如 `time.Now().Unix()`）也属错误，必须用毫秒级。
 
 ```go
 // 自动填充（创建时间、更新时间）
@@ -565,6 +566,8 @@ ThemeColor string `widget:"name:主题颜色;type:color;format:hex;default:#409E
 ```
 
 #### files - 文件上传
+
+使用 files 类型需在文件顶部 **import** 包：`import "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"`。否则会编译报错「undefined: types」。
 
 ```go
 // 注意：字段类型必须是 *types.Files，数据库类型必须是 json

@@ -1574,6 +1574,74 @@ func (s *AppManageService) ReplaceInFile(ctx context.Context, user, app, directo
 	return replaceCount, resultContent, nil
 }
 
+// ReplaceInFileBatch 在指定文件中做多组 search-replace：读入内存、按顺序执行、校验 expected_count，全部通过才落盘
+func (s *AppManageService) ReplaceInFileBatch(ctx context.Context, user, app, directoryPath, fileName string, replacements []sharedDto.ReplaceItemRuntime, allOrNothing, returnFullContent bool) (totalCount int, newContent string, details []sharedDto.ReplaceItemResultRuntime, err error) {
+	appDir := filepath.Join(s.config.AppDir.BasePath, user, app)
+	apiDir := filepath.Join(appDir, "code", "api")
+	appPrefix := fmt.Sprintf("/%s/%s", user, app)
+	relativePath := strings.TrimPrefix(strings.TrimPrefix(directoryPath, appPrefix), "/")
+	dirPath := filepath.Join(apiDir, relativePath)
+
+	baseName := fileName
+	if !strings.HasSuffix(baseName, ".go") {
+		baseName = baseName + ".go"
+	}
+	if baseName == "init_.go" {
+		return 0, "", nil, fmt.Errorf("不允许修改 init_.go，由脚手架生成")
+	}
+	filePath := filepath.Join(dirPath, baseName)
+
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, "", nil, fmt.Errorf("文件不存在: %s", filePath)
+		}
+		return 0, "", nil, err
+	}
+	current := string(content)
+
+	// 第一轮：仅校验每项 actual_count 与 expected_count（allOrNothing 时）
+	for i, item := range replacements {
+		if item.SearchString == "" {
+			return 0, "", nil, fmt.Errorf("第 %d 项 search_string 不能为空", i+1)
+		}
+		expected := item.ExpectedCount
+		if expected <= 0 {
+			expected = 1
+		}
+		actual := strings.Count(current, item.SearchString)
+		if allOrNothing && actual != expected {
+			details = append(details, sharedDto.ReplaceItemResultRuntime{Index: i, ExpectedCount: expected, ActualCount: actual})
+		}
+		// 先不修改 current，下一轮再统一替换
+	}
+
+	if allOrNothing && len(details) > 0 {
+		return 0, "", details, fmt.Errorf("有 %d 项实际匹配次数与预期不符，未落盘", len(details))
+	}
+
+	// 第二轮：按顺序执行替换并累计次数
+	for _, item := range replacements {
+		n := strings.Count(current, item.SearchString)
+		totalCount += n
+		current = strings.ReplaceAll(current, item.SearchString, item.ReplaceString)
+	}
+
+	if current == string(content) {
+		logger.Infof(ctx, "[ReplaceInFileBatch] 未发生替换: %s", filePath)
+		return 0, current, nil, nil
+	}
+	if err := os.WriteFile(filePath, []byte(current), 0644); err != nil {
+		return 0, "", nil, err
+	}
+	logger.Infof(ctx, "[ReplaceInFileBatch] 替换完成: path=%s, totalCount=%d", filePath, totalCount)
+	outContent := current
+	if !returnFullContent {
+		outContent = ""
+	}
+	return totalCount, outContent, nil, nil
+}
+
 // DeleteFile 删除指定磁盘文件（不删 DB 节点，由 app-server 删节点时调用）
 func (s *AppManageService) DeleteFile(ctx context.Context, user, app, directoryPath, fileName string) error {
 	logger.Infof(ctx, "[DeleteFile] user=%s, app=%s, path=%s, file=%s", user, app, directoryPath, fileName)

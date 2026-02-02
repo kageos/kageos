@@ -23,7 +23,7 @@ import (
 
 const (
 	SourceWorkspace = "workspace"
-	MaxToolRounds   = 15 // 与 streamloop.MaxToolRounds 保持一致，仅作注释/文档用，实际以 streamloop 为准
+	MaxToolRounds   = 30 // 与 streamloop.MaxToolRounds 保持一致，仅作注释/文档用，实际以 streamloop 为准
 )
 
 // 工作台操作提示词在 core/agent-server/prompt/content/doc/ 下，由 //go:embed content 嵌入，通过 prompt 包加载（见 prompt.ReadContent / init）

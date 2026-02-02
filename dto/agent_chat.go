@@ -58,14 +58,14 @@ type Usage struct {
 }
 
 // AddFunctionsReq 添加函数请求（agent-server -> workspace）
-// 用于向服务目录添加函数，将生成的代码写入到工作空间对应的目录下
+// 用于向服务目录添加函数，将生成的代码写入到工作空间对应的目录下。
+// 租户（user/app）由服务端从 full_code_path 解析出的 ServiceTree.App 确定，不传 User，避免访问他人应用时按当前用户查 app 导致 record not found。
 type AddFunctionsReq struct {
 	RecordID  int64 `json:"record_id" example:"1"`  // function_gen 记录ID
 	MessageID int64 `json:"message_id" example:"1"` // 消息ID（关联到 AgentChatMessage.ID）
 	AgentID   int64 `json:"agent_id" example:"1"`   // 智能体ID
-	// 目录标识：使用 full_code_path（有语意、像函数名）
+	// 目录标识：使用 full_code_path（有语意、像函数名）；服务端据此查 ServiceTree，并从 targetTree.App 取租户
 	FullCodePath string `json:"full_code_path" example:"/luobei/demo/crm" binding:"required"` // 服务目录完整路径（必填）
-	User         string `json:"user" example:"beiluo"`                                        // 用户标识
 	// 处理后的结构化数据（agent-server 处理后的结果）
 	FileName   string `json:"file_name" example:"crm_ticket"`   // 从代码中提取的文件名（可带 .go 后缀）
 	SourceCode string `json:"source_code" example:"package..."` // 处理后的源代码（从 Markdown 中提取）

@@ -246,10 +246,10 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 		},
 	})
 
-	// search_replace_file：文件内容 search-replace（不整文件覆盖，实时写盘；仅改代码不编译）
+	// search_replace_file：文件内容 search-replace（统一批量：多组替换同一文件，全部生效才落盘）
 	out = append(out, dto.ToolDef{
 		Name:        "search_replace_file",
-		Description: "在指定目录下的 .go 文件中做「查找并替换」：只改匹配到的片段，不重写整文件。必填：directory（或当前目录）、file_name、search_string、replace_string。可选：replace_all（是否替换全部出现，默认 true）。search_string 必须与文件内容完全一致（含空格、制表符、换行），否则替换不生效；使用前建议先用 read_go_file 读取文件，从实际内容中复制要替换的原文作为 search_string。仅修改代码、不编译工作空间；若需生效改完后需调用 build_workspace。编辑文件时优先用此工具，避免整文件覆盖。",
+		Description: "在指定目录下的 .go 文件中做「查找并替换」：只改匹配到的片段，不重写整文件。必填：directory（或当前目录）、file_name、replacements（替换列表，每项含 search_string、replace_string、expected_count 可选默认 1）。all_or_nothing 默认 true：仅当所有项的实际匹配次数等于 expected_count 时才落盘，否则不写入。search_string 必须与文件内容完全一致（含空格、制表符、换行）；使用前建议先用 read_go_file 读取后从实际内容复制。示例：replacements: [{ \"search_string\": \"原文\", \"replace_string\": \"新文\", \"expected_count\": 1 }]。仅修改代码、不编译工作空间；若需生效改完后需调用 build_workspace。",
 		InputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
@@ -261,24 +261,29 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 					"type":        "string",
 					"description": "文件名，如 handler 或 handler.go",
 				},
-				"search_string": map[string]interface{}{
-					"type":        "string",
-					"description": "要被替换的原文（必须与文件内容完全一致，含空格/制表符/换行；建议先用 read_go_file 读取后从实际内容复制，否则空格数量不一致会导致替换失败）",
+				"replacements": map[string]interface{}{
+					"type":        "array",
+					"description": "替换列表，按顺序执行；每项含 search_string（必填）、replace_string、expected_count（可选，默认 1，表示该项预期匹配次数；若实际次数不符且 all_or_nothing 则不落盘）",
+					"items": map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"search_string":  map[string]interface{}{"type": "string", "description": "要被替换的原文（必须与文件内容完全一致）"},
+							"replace_string": map[string]interface{}{"type": "string", "description": "替换后的内容"},
+							"expected_count": map[string]interface{}{"type": "integer", "description": "该项预期匹配次数，不传或 0 表示 1"},
+						},
+						"required": []interface{}{"search_string"},
+					},
 				},
-				"replace_string": map[string]interface{}{
-					"type":        "string",
-					"description": "替换后的内容",
-				},
-				"replace_all": map[string]interface{}{
+				"all_or_nothing": map[string]interface{}{
 					"type":        "boolean",
-					"description": "是否替换全部出现（可选，默认 true）",
+					"description": "为 true 时仅当所有项 actual_count==expected_count 才落盘，默认 true",
 				},
 				"return_full_content": map[string]interface{}{
 					"type":        "boolean",
-					"description": "是否在结果中返回替换后的完整文件内容，便于确认（可选，默认 true）",
+					"description": "是否在结果中返回替换后的完整文件内容（可选，默认 true）",
 				},
 			},
-			"required": []interface{}{"file_name", "search_string"},
+			"required": []interface{}{"file_name", "replacements"},
 		},
 	})
 
@@ -352,7 +357,7 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 			"required": []interface{}{"full_code_path"},
 		},
 	})
-		out = append(out, dto.ToolDef{
+	out = append(out, dto.ToolDef{
 		Name:        "run_chart_query",
 		Description: "执行工作区内 Chart 查询接口，返回图表数据。full_code_path 为图表函数路径，如 /luobei/myapp/charts/sales。图表查询参数不固定，由具体 Chart 的 handler 定义（如 year、month、dimension 等），请用 read_go_file 查看对应 .go 的 Req 结构。传 url_query 为完整查询串（如 year=2024&month=1），不传则无额外参数。",
 		InputSchema: map[string]interface{}{
@@ -372,7 +377,7 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 	})
 	out = append(out, dto.ToolDef{
 		Name:        "run_table_create",
-		Description: "执行工作区内 Table 新增接口，新增一条表格记录。full_code_path 为表格函数的完整路径（必须包含函数名，如 /luobei/myapp/nps/nps_questionnaire_list），与 run_table_search 一致。body 为该表格单条记录的字段 JSON，字段名与表格 model 的 json 标签一致；必填字段需包含，可选项可省略。环境中的「当前目录下的可执行函数」会列出 table 类型及 full_code_path，可直接使用。",
+		Description: "执行工作区内 Table 新增接口，批量新增表格记录（每条都会触发 OnTableAddRow）。full_code_path 为表格函数的完整路径（必须包含函数名，如 /luobei/myapp/nps/nps_questionnaire_list）。body 必须为 JSON 数组字符串，每项为一条记录的字段对象，如 [{\"title\":\"问卷A\"},{\"title\":\"问卷B\"}]；字段名与表格 model 的 json 标签一致，必填项需包含。返回 data_list 为成功插入的每条记录（后端返回的数据列表），以及 created_count、failed_count、errors。",
 		InputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
@@ -382,7 +387,7 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 				},
 				"body": map[string]interface{}{
 					"type":        "string",
-					"description": "单条记录的字段 JSON 字符串，如 {\"title\":\"问卷标题\",\"description\":\"描述\",\"target_group\":\"全部用户\",\"start_time\":1738339200000,\"end_time\":1738944000000}。字段名与表格 model 的 json 标签一致，必填项需包含。",
+					"description": "必须为 JSON 数组字符串，每项为一条记录，如 [{\"title\":\"问卷A\",\"description\":\"描述\"},{\"title\":\"问卷B\"}]。字段名与表格 model 的 json 标签一致。",
 				},
 			},
 			"required": []interface{}{"full_code_path", "body"},
@@ -557,9 +562,11 @@ func (r *ToolRegistry) callReadGoFile(ctx context.Context, args map[string]inter
 				lineCount--
 			}
 		}
+		// 文件路径：展示完整路径（目录 + 相对路径），便于定位；后端可能只返回文件名
+		fullFilePath := strings.TrimRight(targetPath, "/") + "/" + file.RelativePath
 		fileHeader := ""
 		if len(matchedFiles) > 1 {
-			fileHeader = fmt.Sprintf("## 文件 %d: %s\n", i+1, file.RelativePath)
+			fileHeader = fmt.Sprintf("## 文件 %d: %s\n", i+1, fullFilePath)
 		}
 		filesContent += fmt.Sprintf(`%s- 文件名: %s
 - 文件路径: %s
@@ -567,7 +574,7 @@ func (r *ToolRegistry) callReadGoFile(ctx context.Context, args map[string]inter
 - 总行数: %d 行
 - 内容长度: %d 字符
 - 代码内容:
-`+"```%s\n%s\n```\n\n", fileHeader, file.FileName, file.RelativePath, file.FileType, lineCount, file.ContentLength, file.FileType, file.Content)
+`+"```%s\n%s\n```\n\n", fileHeader, file.FileName, fullFilePath, file.FileType, lineCount, file.ContentLength, file.FileType, file.Content)
 	}
 	return header + filesContent, false
 }
@@ -835,10 +842,11 @@ func (r *ToolRegistry) callReadFile(ctx context.Context, args map[string]interfa
 				lineCount--
 			}
 		}
-
+		// 文件路径：展示完整路径（目录 + 相对路径），便于定位；后端可能只返回文件名
+		fullFilePath := strings.TrimRight(targetPath, "/") + "/" + file.RelativePath
 		fileHeader := ""
 		if len(matchedFiles) > 1 {
-			fileHeader = fmt.Sprintf("## 文件 %d: %s\n", i+1, file.RelativePath)
+			fileHeader = fmt.Sprintf("## 文件 %d: %s\n", i+1, fullFilePath)
 		}
 
 		filesContent += fmt.Sprintf(`%s- 文件名: %s
@@ -847,7 +855,7 @@ func (r *ToolRegistry) callReadFile(ctx context.Context, args map[string]interfa
 - 总行数: %d 行
 - 内容长度: %d 字符
 - 代码内容:
-`+"```%s\n%s\n```\n\n", fileHeader, file.FileName, file.RelativePath, file.FileType, lineCount, file.ContentLength, file.FileType, file.Content)
+`+"```%s\n%s\n```\n\n", fileHeader, file.FileName, fullFilePath, file.FileType, lineCount, file.ContentLength, file.FileType, file.Content)
 	}
 
 	return header + filesContent, false
@@ -1254,7 +1262,45 @@ func (r *ToolRegistry) callWorkspaceBuild(ctx context.Context, args map[string]i
 	return fmt.Sprintf("工作空间已编译并部署: app=%s, 旧版本=%s, 新版本=%s", resp.App, resp.OldVersion, resp.NewVersion), false
 }
 
-// callSearchReplaceFile 文件 search-replace（实时写盘，不整文件覆盖）
+// parseReplacementsFromArgs 从工具参数中解析 replacements 数组为 []dto.ReplaceItem
+func parseReplacementsFromArgs(args map[string]interface{}) ([]dto.ReplaceItem, bool) {
+	raw, ok := args["replacements"]
+	if !ok {
+		return nil, false
+	}
+	slice, ok := raw.([]interface{})
+	if !ok || len(slice) == 0 {
+		return nil, false
+	}
+	out := make([]dto.ReplaceItem, 0, len(slice))
+	for _, v := range slice {
+		item, ok := v.(map[string]interface{})
+		if !ok {
+			return nil, false
+		}
+		search := GetStringArg(item, "search_string")
+		if search == "" {
+			return nil, false
+		}
+		expected := 0
+		if n, ok := item["expected_count"]; ok {
+			switch t := n.(type) {
+			case float64:
+				expected = int(t)
+			case int:
+				expected = t
+			}
+		}
+		out = append(out, dto.ReplaceItem{
+			SearchString:  search,
+			ReplaceString: GetStringArg(item, "replace_string"),
+			ExpectedCount: expected,
+		})
+	}
+	return out, true
+}
+
+// callSearchReplaceFile 文件 search-replace（统一批量：多组替换同一文件，全部生效才落盘）
 func (r *ToolRegistry) callSearchReplaceFile(ctx context.Context, args map[string]interface{}, currentFullCodePath string) (string, bool) {
 	targetPath := getDirectory(args, currentFullCodePath)
 	targetPath = strings.TrimRight(targetPath, "/")
@@ -1265,18 +1311,17 @@ func (r *ToolRegistry) callSearchReplaceFile(ctx context.Context, args map[strin
 		targetPath = "/" + targetPath
 	}
 	fileName := strings.TrimSpace(GetStringArg(args, "file_name"))
-	searchString := GetStringArg(args, "search_string")
 	if fileName == "" {
 		return "search_replace_file 缺少参数 file_name。", true
 	}
-	if searchString == "" {
-		return "search_replace_file 缺少参数 search_string。", true
+	replacements, ok := parseReplacementsFromArgs(args)
+	if !ok || len(replacements) == 0 {
+		return "search_replace_file 缺少参数 replacements（替换列表，每项含 search_string、replace_string、expected_count 可选）。", true
 	}
-	replaceString := GetStringArg(args, "replace_string")
-	replaceAll := true
-	if v, ok := args["replace_all"]; ok {
+	allOrNothing := true
+	if v, ok := args["all_or_nothing"]; ok {
 		if b, ok := v.(bool); ok {
-			replaceAll = b
+			allOrNothing = b
 		}
 	}
 	returnFullContent := true
@@ -1288,9 +1333,8 @@ func (r *ToolRegistry) callSearchReplaceFile(ctx context.Context, args map[strin
 	req := &dto.ReplaceFileContentReq{
 		FullCodePath:      targetPath,
 		FileName:          fileName,
-		SearchString:      searchString,
-		ReplaceString:     replaceString,
-		ReplaceAll:        replaceAll,
+		Replacements:      replacements,
+		AllOrNothing:      allOrNothing,
 		ReturnFullContent: returnFullContent,
 	}
 	resp, err := apicall.ReplaceFileContent(ctx, req)
@@ -1299,9 +1343,15 @@ func (r *ToolRegistry) callSearchReplaceFile(ctx context.Context, args map[strin
 		return "search_replace_file 调用失败: " + err.Error(), true
 	}
 	if !resp.Success {
-		return "search_replace_file: " + resp.Message, true
+		msg := "search_replace_file: " + resp.Message
+		if len(resp.Details) > 0 {
+			for _, d := range resp.Details {
+				msg += fmt.Sprintf("\n第 %d 项预期匹配 %d 次，实际匹配 %d 次；请将该项 expected_count 改为 %d 或核对内容后再调用。", d.Index+1, d.ExpectedCount, d.ActualCount, d.ActualCount)
+			}
+		}
+		return msg, true
 	}
-	msg := fmt.Sprintf("已替换: 目录=%s, 文件=%s, 替换次数=%d。修改已落盘，但未编译工作空间；若需生效请调用 build_workspace 更新工作空间。", targetPath, fileName, resp.ReplaceCount)
+	msg := fmt.Sprintf("已替换: 目录=%s, 文件=%s, 共 %d 处。修改已落盘，但未编译工作空间；若需生效请调用 build_workspace 更新工作空间。", targetPath, fileName, resp.ReplaceCount)
 	if resp.FullContent != "" {
 		msg += "\n\n替换后完整内容：\n```go\n" + resp.FullContent + "\n```"
 	}
@@ -1451,7 +1501,7 @@ func (r *ToolRegistry) callRunChartQuery(ctx context.Context, args map[string]in
 	return formatJSONResult(result)
 }
 
-// callRunTableCreate 执行 Table 新增（执行模式专用）；body 为单条记录字段 JSON，触发 OnTableAddRow
+// callRunTableCreate 执行 Table 新增（执行模式专用）；body 必须为 JSON 数组，逐条调用 table/create 触发 OnTableAddRow，返回 data_list（成功记录列表）及汇总
 func (r *ToolRegistry) callRunTableCreate(ctx context.Context, args map[string]interface{}, currentFullCodePath string) (string, bool) {
 	fullCodePath := strings.TrimSpace(GetStringArg(args, "full_code_path"))
 	if fullCodePath == "" {
@@ -1465,18 +1515,70 @@ func (r *ToolRegistry) callRunTableCreate(ctx context.Context, args map[string]i
 	}
 	bodyStr := GetStringArg(args, "body")
 	if bodyStr == "" {
-		return "run_table_create 需传 body（单条记录的字段 JSON 字符串）。", true
+		return "run_table_create 需传 body（JSON 数组字符串，每项为一条记录）。", true
 	}
-	var body interface{}
-	if err := json.Unmarshal([]byte(bodyStr), &body); err != nil {
-		return "run_table_create 的 body 需为合法 JSON 字符串: " + err.Error(), true
+	var bodyArr []interface{}
+	if err := json.Unmarshal([]byte(bodyStr), &bodyArr); err != nil {
+		return "run_table_create 的 body 需为合法 JSON 数组: " + err.Error(), true
 	}
-	result, err := apicall.TableCreate(ctx, fullCodePath, body)
-	if err != nil {
-		logger.Errorf(ctx, "[RunTableCreate] TableCreate 失败: %v", err)
-		return "run_table_create 调用失败: " + err.Error(), true
+	if len(bodyArr) == 0 {
+		return "run_table_create 的 body 不能为空数组。", true
 	}
-	return formatJSONResult(result)
+
+	dataList := make([]interface{}, 0, len(bodyArr))
+	var errorsList []map[string]interface{}
+	createdCount := 0
+	failedCount := 0
+
+	for i, row := range bodyArr {
+		// 每条必须是对象（map），否则后端无法当作单条记录处理
+		if row == nil {
+			failedCount++
+			errorsList = append(errorsList, map[string]interface{}{"index": i, "error": "元素不能为 null"})
+			continue
+		}
+		if _, ok := row.(map[string]interface{}); !ok {
+			failedCount++
+			errorsList = append(errorsList, map[string]interface{}{"index": i, "error": "每条必须为 JSON 对象，不能为数组、数字或字符串"})
+			continue
+		}
+		result, err := apicall.TableCreate(ctx, fullCodePath, row)
+		if err != nil {
+			logger.Errorf(ctx, "[RunTableCreate] 第 %d 条 TableCreate 失败: %v", i+1, err)
+			failedCount++
+			errorsList = append(errorsList, map[string]interface{}{
+				"index": i,
+				"error": err.Error(),
+			})
+			continue
+		}
+		createdCount++
+		// 后端 table/create 返回的 result 是 ApiResult 的 data 部分，即 OnTableAddRowResp 序列化：{ "data": <行数据> }，需取出 result["data"] 作为单条记录
+		record := extractTableCreateRecord(result)
+		dataList = append(dataList, record)
+	}
+
+	out := map[string]interface{}{
+		"created_count": createdCount,
+		"failed_count":  failedCount,
+		"data_list":     dataList,
+	}
+	if len(errorsList) > 0 {
+		out["errors"] = errorsList
+	}
+	return formatJSONResult(out)
+}
+
+// extractTableCreateRecord 从 table/create 的返回值中提取单条记录。
+// 后端返回的 result 是 ApiResult 的 data 部分：OnTableAddRowResp 序列化为 { "data": <行数据> }，取小写 "data" 作为行数据。
+func extractTableCreateRecord(result map[string]interface{}) interface{} {
+	if result == nil {
+		return result
+	}
+	if v, ok := result["data"]; ok && v != nil {
+		return v
+	}
+	return result
 }
 
 // toInt 从 interface{} 转 int（支持 float64/int）

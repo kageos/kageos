@@ -5,11 +5,6 @@
     "when_to_use": "当你需要生成系统/应用/代码时，请先调用 read_doc(directory: \"/builtin/doc/sdk/agent-app-sdk-readme\") 获取本文档，再按文档规范动手。"
   },
   {
-    "name": "工作台执行能力说明（执行模式 SDK）",
-    "full_code_path": "/builtin/doc/sdk/workspace-execute-sdk",
-    "when_to_use": "当你在执行模式下需要查询列表、提交表单、查询图表等操作时，请先 read_doc(directory: \"/builtin/doc/sdk/workspace-execute-sdk\") 获取本文档，再按文档说明调用对应工具（run_table_search、run_form_submit、run_chart_query）与传参。"
-  },
-  {
     "name": "案例：Excel/CSV 工具（单 Form）",
     "full_code_path": "/builtin/doc/case_catalog/form/excelorcsv",
     "when_to_use": "本案例有四个模块，分别是**Excel 转 CSV**（POST）、**Excel 转 JSON**（POST）、**填列**（POST）、**CSV 转 Excel**（POST），均为 files 上传 + 可选参数 → 响应 text_area 或 files。 files 上传、多 POST 同目录、excelize。 可 read_doc(directory: \"/builtin/doc/case_catalog/form/excelorcsv\") 获取本案例 PRD。"

@@ -194,12 +194,12 @@ type GetWorkspaceContextReq struct {
 // WorkspaceContextNode 工作台环境节点信息
 type WorkspaceContextNode struct {
 	ID           int64  `json:"id"`
-	Name         string `json:"name"`            // 节点名称
-	Code         string `json:"code"`            // 节点代码
-	Type         string `json:"type"`            // 节点类型：package（目录）或 function（函数）
-	Description  string `json:"description"`     // 节点描述
-	FullCodePath string `json:"full_code_path"`  // 完整路径
-	TemplateType string `json:"template_type"`    // 函数类型（仅 function 有效）：table、form、chart
+	Name         string `json:"name"`           // 节点名称
+	Code         string `json:"code"`           // 节点代码
+	Type         string `json:"type"`           // 节点类型：package（目录）或 function（函数）
+	Description  string `json:"description"`    // 节点描述
+	FullCodePath string `json:"full_code_path"` // 完整路径
+	TemplateType string `json:"template_type"`  // 函数类型（仅 function 有效）：table、form、chart
 }
 
 // WorkspaceContextDirectory 工作台环境目录信息
@@ -230,22 +230,36 @@ type GetWorkspaceContextResp struct {
 	Files     []WorkspaceContextFile    `json:"files"`     // 代码文件列表
 }
 
-// ReplaceFileContentReq 工作台文件 search-replace 请求
+// ReplaceItem 单次替换项（预期次数不传或 0 表示默认 1）
+type ReplaceItem struct {
+	SearchString  string `json:"search_string" binding:"required"` // 要被替换的原文
+	ReplaceString string `json:"replace_string"`                   // 替换后的内容
+	ExpectedCount int    `json:"expected_count"`                   // 预期匹配次数，不传或 0 表示 1；若实际次数不符且 all_or_nothing 则不落盘
+}
+
+// ReplaceFileContentReq 工作台文件 search-replace 请求（统一批量：多组替换同一文件，全部生效才落盘）
 type ReplaceFileContentReq struct {
-	FullCodePath      string `json:"full_code_path" form:"full_code_path" binding:"required"` // 目录完整路径
-	FileName          string `json:"file_name" form:"file_name" binding:"required"`           // 文件名（如 handler 或 handler.go）
-	SearchString      string `json:"search_string" form:"search_string" binding:"required"`   // 要被替换的原文
-	ReplaceString     string `json:"replace_string" form:"replace_string"`                    // 替换后的内容
-	ReplaceAll        bool   `json:"replace_all" form:"replace_all"`                          // 是否替换全部，默认 true
-	ReturnFullContent bool   `json:"return_full_content" form:"return_full_content"`          // 是否在响应中返回替换后的完整文件内容，方便大模型确认
+	FullCodePath      string        `json:"full_code_path" form:"full_code_path" binding:"required"` // 目录完整路径
+	FileName          string        `json:"file_name" form:"file_name" binding:"required"`           // 文件名（如 handler 或 handler.go）
+	Replacements      []ReplaceItem `json:"replacements" form:"replacements" binding:"required"`     // 替换列表，按顺序执行；每项可设 expected_count，不传或 0 视为 1
+	AllOrNothing      bool          `json:"all_or_nothing" form:"all_or_nothing"`                    // 为 true 时仅当所有项 actual_count==expected_count 才落盘，默认 true
+	ReturnFullContent bool          `json:"return_full_content" form:"return_full_content"`          // 是否在响应中返回替换后的完整文件内容
+}
+
+// ReplaceItemResult 单次替换结果（用于校验失败时返回哪一项不符）
+type ReplaceItemResult struct {
+	Index         int `json:"index"`          // 替换项下标（从 0 开始）
+	ExpectedCount int `json:"expected_count"` // 预期匹配次数
+	ActualCount   int `json:"actual_count"`   // 实际匹配次数
 }
 
 // ReplaceFileContentResp 工作台文件 search-replace 响应
 type ReplaceFileContentResp struct {
-	Success      bool   `json:"success"`
-	Message      string `json:"message"`
-	ReplaceCount int    `json:"replace_count"`
-	FullContent  string `json:"full_content,omitempty"` // 替换后的完整文件内容（仅当请求中 return_full_content=true 时返回）
+	Success      bool                `json:"success"`
+	Message      string              `json:"message"`
+	ReplaceCount int                 `json:"replace_count"`          // 总替换次数
+	FullContent  string              `json:"full_content,omitempty"` // 替换后的完整文件内容（成功且 return_full_content 时返回）
+	Details      []ReplaceItemResult `json:"details,omitempty"`      // 未落盘时返回哪几项 expected_count 不符
 }
 
 // DeleteFileReq 工作台删除文件请求（删节点+删磁盘）
