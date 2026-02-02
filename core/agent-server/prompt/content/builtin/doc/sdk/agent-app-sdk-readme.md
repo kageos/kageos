@@ -56,9 +56,11 @@ func init() {
 3. **配置 FormTemplate**：`BaseConfig`（Name、Request、Response）+ 可选 `OnSelectFuzzyMap` 等。
 4. **注册**：`init()` 中 `packageContext.POST("路由名", Handler, FormTemplate)`。
 
-最小可用片段示例：
+最小可用片段示例（使用 files 时需 import `github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types`）：
 
 ```go
+import "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
+
 type ExcelOrCsvReq struct {
     File *types.Files `json:"file" widget:"name:上传文件;type:files" validate:"required"`
 }
@@ -86,9 +88,22 @@ func init() {
 
 ### Chart 模式（GET，统计/图表）
 
+**⚠️ 重要约束：一个路由一次只能返回一个图表。** 一个 GET 路由只能返回**一张**图，不能在一个函数里返回多张图。需要多张图时，每张图单独一个 GET 路由（如收银台：`cashier_sales_trend_statistics`、`cashier_sales_bar_statistics`、`cashier_category_sales_statistics`、`cashier_average_order_amount_statistics` 各一个路由），每个 Handler 内只 `return resp.Chart(chart).Build()` 一次。
+
+**图表返回值必须使用以下 4 种类型之一（必须填写，不可使用其他类型）：**
+
+| 必须使用的类型 | 说明 |
+|----------------|------|
+| `*types.LineChart` | 折线图 |
+| `*types.BarChart` | 柱状图 |
+| `*types.PieChart` | 饼图 |
+| `*types.GaugeChart` | 仪表盘 |
+
+即：处理函数里构造的 `chart` 只能是 `&types.LineChart{}`、`&types.BarChart{}`、`&types.PieChart{}`、`&types.GaugeChart{}` 其中之一，ChartTemplate 的 Response 也填对应的同一种类型（如折线图用 `Response: &types.LineChart{}`）。
+
 1. **定义请求结构体**：图表筛选条件（如时间范围、状态）加 `widget` 标签，前端会渲染成图表筛选表单。
-2. **写统计函数**：`ctx.ShouldBind(&req)` 绑定参数，查库/聚合得到数据，构造 `types.Chart`（ChartType、Title、XAxis、Series、Metadata），`return resp.Chart(chart).Build()`。
-3. **配置 ChartTemplate**：`BaseConfig`（Name、Request、Response: `&types.Chart{}`）；无回调，只读展示。
+2. **写统计函数**：`ctx.ShouldBind(&req)` 绑定参数，查库/聚合得到数据，构造**具体图表类型**（`&types.LineChart{}`、`&types.BarChart{}`、`&types.PieChart{}`、`&types.GaugeChart{}` 之一），只填 Title、XAxis、Series、Metadata，**无需填 ChartType 或 Series[].Type**（由框架在 `resp.Chart()` 时注入），`return resp.Chart(chart).Build()`。
+3. **配置 ChartTemplate**：`BaseConfig`（Name、Request、Response 填**与返回值一致的具体类型**，如 `Response: &types.LineChart{}`）；无回调，只读展示。
 4. **注册**：`init()` 中 `packageContext.GET("路由名", ChartHandler, ChartTemplate)`。
 
 最小可用片段示例：
@@ -104,19 +119,18 @@ func SalesTrendChart(ctx *app.Context, resp response.Response) error {
     if err := ctx.ShouldBind(&req); err != nil { return err }
     db := ctx.GetGormDB()
     // 聚合查询得到 dateLabels、seriesData...
-    chart := &types.Chart{
-        ChartType: "line",
-        Title:     "销售趋势",
-        XAxis:     dateLabels,
-        Series:    []types.ChartSeries{{Name: "销售额", Type: "line", Data: seriesData}},
-        Metadata:  map[string]interface{}{"总销售额": total},
+    chart := &types.LineChart{
+        Title:  "销售趋势",
+        XAxis:  dateLabels,
+        Series: []types.ChartSeries{{Name: "销售额", Data: seriesData}},
+        Metadata: map[string]interface{}{"总销售额": total},
     }
     return resp.Chart(chart).Build()
 }
 
 func init() {
     packageContext.GET("sales_trend_statistics", SalesTrendChart, &app.ChartTemplate{
-        BaseConfig: app.BaseConfig{Name: "销售趋势", Request: &SalesStatisticsReq{}, Response: &types.Chart{}},
+        BaseConfig: app.BaseConfig{Name: "销售趋势", Request: &SalesStatisticsReq{}, Response: &types.LineChart{}},
     })
 }
 ```
@@ -158,19 +172,22 @@ Attachment *types.Files `gorm:"type:json" widget:"name:附件;type:files"`
 | slider | 滑块 | 进度、评分（min/max/step/unit） |
 | rate | 星级 | 评价（max、allow_half、texts） |
 | switch | 开关 | 是否启用 |
-| timestamp | 日期时间 | 创建时间、截止时间（毫秒时间戳；autoCreateTime/autoUpdateTime 自动填充） |
+| timestamp | 日期时间 | 创建时间、截止时间；**严格要求毫秒时间戳**（见下「timestamp 组件约定」） |
 | color | 颜色 | format:hex，default:#xxx |
-| files | 文件上传 | 字段类型 `*types.Files`，gorm `type:json` |
+| files | 文件上传 | 字段类型 `*types.Files`，gorm `type:json`；**需 import** `github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types` |
 | user / users | 用户选择 | default:Me()、Me(),MyLeader() 等 |
 | department / departments | 部门选择 | default:MyDepartment()，max_count 等 |
 | table | 子表（Form 请求） | 数组结构体，可配 OnSelectFuzzy |
 | form | 子表单（Form 响应） | 嵌套结构体展示 |
 | link | 跳转链接 | 列表/表单中跳转到另一 GET 或 Form、或外链；不落库，后端 BuildFunctionUrlWithText 赋值 |
 
-**timestamp 组件约定（必读）**：后端**无需在代码里做日期格式化**，直接使用 **int64** 类型存、传**毫秒时间戳**即可，前端会根据 widget 的 `format` 自动格式化展示。
+**timestamp 组件约定（必读）**：**timestamp 组件严格要求使用毫秒时间戳（毫秒级 Unix 时间戳），禁止使用秒级时间戳。** 后端无需在代码里做日期格式化，直接使用 **int64** 类型存、传**毫秒时间戳**即可，前端会根据 widget 的 `format` 自动格式化展示；若误用秒级时间戳，前端展示、筛选、排序会错误。
 
-- **正确**：`BidTime int64 \`json:"bid_time" widget:"name:出价时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss"\`` —— 字段类型为 int64，后端只读写时间戳，不转字符串。
+- **正确**：`BidTime int64 \`json:"bid_time" widget:"name:出价时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss"\`` —— 字段类型为 int64，值为毫秒时间戳，后端只读写时间戳，不转字符串。
 - **错误**：`BidTime string \`json:"bid_time" widget:"name:出价时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss"\`` —— 不要用 string 类型，也不要后端格式化成 "YYYY-MM-DD HH:mm:ss" 等字符串；timestamp 的 format 仅用于前端展示，后端只返回时间戳。
+- **错误**：使用秒级时间戳（如 `time.Now().Unix()`）—— 必须用毫秒级（如 `time.Now().UnixMilli()` 或 gorm 的 `autoCreateTime:milli` / `autoUpdateTime:milli`）。
+
+**files 类型约定**：使用 `type:files` 时字段类型必须为 `*types.Files`，需在文件顶部 **import** 包：`import "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"`。否则会编译报错「undefined: types」。
 
 #### link 组件（跳转链接）
 
@@ -445,9 +462,32 @@ func TaskList(ctx *app.Context, resp response.Response) error {
 ## 六、Form 模式要点
 
 - **请求/响应结构体**：字段加 `widget`、`validate`；请求可含 `type:table`（子表）、`type:select` + `callback:"OnSelectFuzzy"` 等。
-- **处理函数**：`ctx.ShouldBindValidate(&req)`；业务逻辑；成功 `return resp.Form(&respStruct).Build()`，失败 `return resp.BizErrorf("错误信息").Build()`。如需读文件：`ctx.GetFS()`，DownloadFiles/RemoveFiles。
+- **处理函数**：`ctx.ShouldBindValidate(&req)`；业务逻辑；成功 `return resp.Form(&respStruct).Build()`，失败用 `resp.BizErrorf(...).Build()`（见下「业务错误：BizErrorf」）。如需读文件：`ctx.GetFS()`，DownloadFiles/RemoveFiles。
 - **FormTemplate**：`BaseConfig` 含 Name、Request、Response；若请求中有下拉需联动后端数据，配 `OnSelectFuzzyMap`。
 - **注册**：`packageContext.POST("路由名", Handler, FormTemplate)`。
+
+#### 业务错误：BizErrorf
+
+Form 处理函数里要区分**业务错误**和**系统错误**，否则前端会当成系统异常处理，体验不对。
+
+- **业务错误**：用户可理解的错误（参数不合法、余额不足、已投过票、记录不存在等）。**不要** `return err`，应使用 `return resp.BizErrorf("错误信息").Build()`。支持 `fmt.Sprintf` 占位符，如 `resp.BizErrorf("余额不足，需要 ¥%.2f，当前 ¥%.2f", need, balance).Build()`。框架会设置 `ErrCode = -1`，把消息返回给前端展示。
+- **系统错误**：数据库异常、网络超时、未预期的 panic 等。应直接 `return err`，框架会按系统错误处理。
+
+**易错点 1**：业务校验失败时若写了 `return err`，前端会收到系统错误提示而不是你期望的文案；应统一用 `resp.BizErrorf("...").Build()`。
+
+**易错点 2**：必须用**处理函数的入参 `resp`** 调用，即 `resp.BizErrorf(...)`。**不要**写 `response.BizErrorf(...)`——`response` 是包名，`BizErrorf` 是 `Response` 接口的方法，只能通过入参 `resp`（类型为 `response.Response`）调用，写 `response.BizErrorf` 会编译报错「未定义」。
+
+```go
+// 业务错误：用 resp.BizErrorf（resp 为处理函数入参，不要写 response.BizErrorf）
+if balance < total {
+    return resp.BizErrorf("余额不足，需要 ¥%.2f，当前余额 ¥%.2f，请充值后重试", total, balance).Build()
+}
+// 系统错误：直接 return err
+if err := db.Create(&row).Error; err != nil {
+    return err
+}
+return resp.Form(&respStruct).Build()
+```
 
 #### OnSelectFuzzy（下拉联动后端数据）
 
@@ -627,89 +667,111 @@ Form 请求中 table 子表、OnSelectFuzzy、多 POST 同目录等：read_doc `
 
 ## 七、Chart 模式要点
 
-Chart 用于**只读的统计/图表**（BI），GET 请求，前端根据请求体渲染筛选表单，根据返回的 `types.Chart` 渲染图表。
+Chart 用于**只读的统计/图表**（BI），GET 请求，前端根据请求体渲染筛选表单，根据返回的图表数据渲染。**返回值必须是以下 4 种类型之一，不可使用其他类型：**
 
-- **ChartTemplate**：`BaseConfig` 含 Name、Request、Response（`&types.Chart{}`）；无 OnTableAddRow 等回调，图表只读。
+| 必须使用的类型 | 说明 |
+|----------------|------|
+| `*types.LineChart` | 折线图 |
+| `*types.BarChart` | 柱状图 |
+| `*types.PieChart` | 饼图 |
+| `*types.GaugeChart` | 仪表盘 |
+
+- **ChartTemplate**：`BaseConfig` 含 Name、Request、Response（**Response 填与返回值一致的上表类型**，如折线图用 `Response: &types.LineChart{}`，饼图用 `Response: &types.PieChart{}`）；无 OnTableAddRow 等回调，图表只读。
 - **请求结构体**：筛选条件（如开始时间、结束时间、状态）加 `widget` 标签，前端会渲染成图表上方的筛选表单；`ctx.ShouldBind(&req)` 绑定。
-- **处理函数**：绑定参数 → 查库/聚合（如按日期 GROUP BY、SUM/COUNT）→ 构造 `types.Chart` → `return resp.Chart(chart).Build()`。
-- **types.Chart 结构**：
-  - `ChartType`：图表类型，如 `line`（折线）、`bar`（柱状）、`pie`（饼图）、`gauge`（仪表盘）、`area`、`scatter`。
-  - `Title`：图表标题。
-  - `XAxis`：可选，X 轴刻度（如日期列表），用于 line/bar/area。
-  - `Series`：数据系列，`[]types.ChartSeries`，每项含 `Name`、`Type`（可与 ChartType 一致或混合如 line+bar）、`Data`、可选 `Config`（如 gauge 的 min/max/detail 格式化）。
-  - `Metadata`：可选，键值对，用于图表旁展示汇总信息（如总销售额、总订单数、数据更新时间）。
+- **处理函数**：绑定参数 → 查库/聚合（如按日期 GROUP BY、SUM/COUNT）→ 构造**具体图表类型**（`&types.LineChart{}` 等）→ `return resp.Chart(chart).Build()`。**无需在业务代码里填 ChartType 或 Series[].Type**，由框架在 `resp.Chart()` 时根据具体类型注入。
+- **图表类型（4 种）**：使用**具体结构体**区分类型，每种对应一种图表：
+  - **折线图**：`types.LineChart`，字段 Title、XAxis、Series、Metadata；Series 的 Data 与 XAxis 一一对应。
+  - **柱状图**：`types.BarChart`，字段同 LineChart。
+  - **饼图**：`types.PieChart`，字段 Title、Series、Metadata；Series 的 Data 为 `[]interface{}{ map[string]interface{}{"name":"分类","value":数值}, ... }`。
+  - **仪表盘**：`types.GaugeChart`，字段 Title、Series、Metadata；Series 的 Data 为单值 `[]interface{}{ 单值 }`，可选 Series.Config 的 min、max、detail.formatter 等。
 - **Series 的 Data 格式**：
-  - **line/bar/area**：`[]interface{}`，如 `[]interface{}{100, 200, 150}`，与 XAxis 一一对应。
-  - **pie**：`[]interface{}`，元素为 `map[string]interface{}{"name": "分类名", "value": 数值}`。
-  - **gauge**：`[]interface{}` 单值如 `[]interface{}{75}`，可选 `Config` 中 `min`、`max`、`detail.formatter` 等。
-- **注册**：`packageContext.GET("路由名", ChartHandler, ChartTemplate)`；同一包内可注册多个 GET 图表路由。
+  - **LineChart/BarChart**：`[]interface{}{y1, y2, ...}`，与 XAxis 长度一致。
+  - **PieChart**：`[]interface{}`，元素为 `map[string]interface{}{"name": "分类名", "value": 数值}`。
+  - **GaugeChart**：`[]interface{}{ 单值 }`，可选 Config 中 min、max、detail.formatter 等。
+- **注册**：`packageContext.GET("路由名", ChartHandler, ChartTemplate)`；同一包内可注册多个 GET 图表路由（每个路由对应一个图表，不是在一个函数里返回多张图）。
+
+#### 图表开发 Badcase（务必避免）
+
+以下为大模型常见错误，写图表代码时请勿出现：
+
+1. **一个函数返回多张图**  
+   - **错误**：在一个 Handler 里构造多个图表，或写 `resp.Charts(...)`、`resp.Chart(chart1, chart2)` 等。  
+   - **事实**：SDK 没有 `resp.Charts`；`resp.Chart(chart).Build()` 只接受**一个**图表，且 chart 必须是上表 4 种类型之一（`*types.LineChart`、`*types.BarChart`、`*types.PieChart`、`*types.GaugeChart`）。  
+   - **正确**：每张图一个 GET 路由、一个 Handler，每个 Handler 内只 `return resp.Chart(chart).Build()` 一次。参考收银台：`cashier_sales_trend_statistics`、`cashier_sales_bar_statistics`、`cashier_category_sales_statistics`、`cashier_average_order_amount_statistics` 分别为四个路由、四个函数。
+
+2. **手填 ChartType 或 Series[].Type**  
+   - **错误**：使用 `&types.Chart{ ChartType: "line", ... }` 或给 Series 填 `Type: "line"`。  
+   - **正确**：使用具体类型 `&types.LineChart{}`、`&types.BarChart{}` 等，只填 Title、XAxis、Series（Name、Data、可选 Config），不填 ChartType 和 Series[].Type；框架会在 `resp.Chart()` 时自动注入。
+
+3. **误用 sdk/agent-app 下的 query 包**  
+   - **错误**：`import "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/query"`，导致编译报错「包找不到」。  
+   - **正确**：查询/分页等应使用 `github.com/ai-agent-os/ai-agent-os/pkg/gormx/query`（或项目内实际提供的 query 包），不要使用 `sdk/agent-app/query`。
+
+4. **不确定时先看案例**  
+   - 图表个数、路由拆分、返回格式，以收银台案例为准：read_doc `/builtin/doc/case_catalog/form_table_chart/cashier`，看每个图表是如何「一个 GET 路由 + 一个具体图表类型返回值」实现的。
 
 #### 图表类型说明
 
-| ChartType | 说明 | 典型场景 | XAxis | Series Data 格式 |
-|-----------|------|----------|-------|------------------|
-| `line` | 折线图 | 时间趋势、多指标随时间的走势 | 必需，如日期列表 | `[]interface{}{y1, y2, ...}`，与 XAxis 一一对应 |
-| `bar` | 柱状图 | 分类对比、各维度数量/金额 | 必需，如分类名 | `[]interface{}{v1, v2, ...}`，与 XAxis 一一对应 |
-| `pie` | 饼图 | 占比分布、构成比例 | 不需要 | `[]interface{}{ map[string]interface{}{"name":"分类","value":数值}, ... }` |
-| `gauge` | 仪表盘 | 单指标（完成率、平均值、达标值） | 不需要 | `[]interface{}{ 单值 }`，可选 Series.Config 的 min/max/detail |
-| `area` | 面积图 | 同折线，带填充，强调累计/趋势 | 同 line | 同 line |
-| `scatter` | 散点图 | 两维分布、相关性 | 可选 | `[]interface{}{ [x,y], [x,y], ... }` 坐标点 |
+Chart 只支持 **4 种** 类型，必须从下表选一种使用（即 chart 只能是这 4 种之一，可传给 `resp.Chart(chart)`）：
 
-**line（折线图）**：按时间或类别展示趋势，可多系列（如销售额 + 订单数）。XAxis 为刻度（如日期），每个 Series 的 Data 与 XAxis 长度一致。
+| 必须使用的类型 | 说明 | 典型场景 | XAxis | Series Data 格式 |
+|------|------|----------|-------|------------------|
+| `types.LineChart` | 折线图 | 时间趋势、多指标随时间的走势 | 必需，如日期列表 | `[]interface{}{y1, y2, ...}`，与 XAxis 一一对应 |
+| `types.BarChart` | 柱状图 | 分类对比、各维度数量/金额 | 必需，如分类名 | `[]interface{}{v1, v2, ...}`，与 XAxis 一一对应 |
+| `types.PieChart` | 饼图 | 占比分布、构成比例 | 不需要 | `[]interface{}{ map[string]interface{}{"name":"分类","value":数值}, ... }` |
+| `types.GaugeChart` | 仪表盘 | 单指标（完成率、平均值、达标值） | 不需要 | `[]interface{}{ 单值 }`，可选 Series.Config 的 min/max/detail |
+
+**LineChart（折线图）**：按时间或类别展示趋势，可多系列。XAxis 为刻度（如日期），每个 Series 的 Data 与 XAxis 长度一致。
 
 ```go
-chart := &types.Chart{
-    ChartType: "line",
-    Title:     "工单趋势统计",
-    XAxis:     dateLabels,  // []string{"2025-01-01", "2025-01-02", ...}
+chart := &types.LineChart{
+    Title:  "工单趋势统计",
+    XAxis:  dateLabels,  // []string{"2025-01-01", "2025-01-02", ...}
     Series: []types.ChartSeries{
-        {Name: "工单数量", Type: "line", Data: []interface{}{10, 25, 18, ...}},
-        {Name: "已完成数", Type: "line", Data: []interface{}{5, 12, 10, ...}},  // 可多系列
+        {Name: "工单数量", Data: []interface{}{10, 25, 18, ...}},
+        {Name: "已完成数", Data: []interface{}{5, 12, 10, ...}},
     },
     Metadata: map[string]interface{}{"总工单数": totalCount, "数据更新时间": time.Now().Format("2006-01-02 15:04:05")},
 }
+return resp.Chart(chart).Build()
 ```
 
-**bar（柱状图）**：分类对比，如优先级/状态/部门下的数量或金额。XAxis 为分类名，Data 为对应数值。
+**BarChart（柱状图）**：分类对比，XAxis 为分类名，Data 为对应数值。
 
 ```go
-chart := &types.Chart{
-    ChartType: "bar",
-    Title:     "工单优先级分布统计",
-    XAxis:     []string{"低", "中", "高"},
-    Series: []types.ChartSeries{
-        {Name: "工单数量", Type: "bar", Data: []interface{}{8, 20, 5}},
-    },
+chart := &types.BarChart{
+    Title:  "工单优先级分布统计",
+    XAxis:  []string{"低", "中", "高"},
+    Series: []types.ChartSeries{{Name: "工单数量", Data: []interface{}{8, 20, 5}}},
     Metadata: map[string]interface{}{"总工单数": totalCount, "完成率": "66.67%", ...},
 }
+return resp.Chart(chart).Build()
 ```
 
-**pie（饼图）**：展示占比，不需要 XAxis。Data 中每个元素为 `{"name": "分类名", "value": 数值}`。
+**PieChart（饼图）**：展示占比，不需要 XAxis。Data 中每个元素为 `{"name": "分类名", "value": 数值}`。
 
 ```go
 pieData := make([]interface{}, 0)
 for _, stat := range statusStats {
     pieData = append(pieData, map[string]interface{}{"name": stat.Status, "value": stat.Count})
 }
-chart := &types.Chart{
-    ChartType: "pie",
-    Title:     "工单状态分布",
-    Series:    []types.ChartSeries{{Name: "工单状态", Type: "pie", Data: pieData}},
-    Metadata:  map[string]interface{}{"总工单数": totalCount, "待处理数": statusMap["待处理"], ...},
+chart := &types.PieChart{
+    Title:   "工单状态分布",
+    Series:  []types.ChartSeries{{Name: "工单状态", Data: pieData}},
+    Metadata: map[string]interface{}{"总工单数": totalCount, "待处理数": statusMap["待处理"], ...},
 }
+return resp.Chart(chart).Build()
 ```
 
-**gauge（仪表盘）**：单指标，如完成率 0～100、平均订单金额。Data 为单元素数组；可选 Config 指定 min、max、detail.formatter（如 `"¥{value}"`）。
+**GaugeChart（仪表盘）**：单指标，Data 为单元素数组；可选 Config 指定 min、max、detail.formatter（如 `"¥{value}"`）。
 
 ```go
-chart := &types.Chart{
-    ChartType: "gauge",
-    Title:     "工单完成率",
+chart := &types.GaugeChart{
+    Title: "工单完成率",
     Series: []types.ChartSeries{
         {
             Name:   "完成率",
-            Type:   "gauge",
-            Data:   []interface{}{completionRate},  // 如 66.5
+            Data:   []interface{}{completionRate},
             Config: map[string]interface{}{
                 "min": 0, "max": 100,
                 "detail": map[string]interface{}{"formatter": "{value}%", "fontSize": 20},
@@ -718,13 +780,10 @@ chart := &types.Chart{
     },
     Metadata: map[string]interface{}{"总工单数": totalCount, "已完成数": completedCount, "完成率": "66.50%", ...},
 }
+return resp.Chart(chart).Build()
 ```
 
-**area（面积图）**：与 line 相同数据结构，Type 设为 `area`，前端会渲染为带填充的面积图，适合强调趋势或累计。
-
-**scatter（散点图）**：每点为 `[x, y]`，用于两维分布或相关性；XAxis 可选。
-
-完整示例：工单统计（bar/饼图/gauge/折线图）可参考项目内 `namespace/luobei/operations/code/api/crm/ticket/crm_ticket.go`；收银台统计（折线/饼图/仪表盘）read_doc `/builtin/doc/case_catalog/form_table_chart/cashier`。
+完整示例：收银台统计（LineChart/BarChart/PieChart/GaugeChart）read_doc `/builtin/doc/case_catalog/form_table_chart/cashier`。
 
 ---
 
@@ -744,6 +803,6 @@ chart := &types.Chart{
 - **单 Form**：`/builtin/doc/case_catalog/form/excelorcsv`、`/builtin/doc/case_catalog/form/images`、`/builtin/doc/case_catalog/form/pdf`、`/builtin/doc/case_catalog/form/nlp`、`/builtin/doc/case_catalog/form/videos`
 - **多 Table**：`/builtin/doc/case_catalog/tables/meeting`、`/builtin/doc/case_catalog/tables/hr`
 - **Table + Form**：`/builtin/doc/case_catalog/formandtable/vote`
-- **Table + Form + Chart**：`/builtin/doc/case_catalog/form_table_chart/cashier`
+- **Table + Form + Chart**：`/builtin/doc/case_catalog/form_table_chart/cashier` （全部类型的图表都有在这个里面呈现）
 
 生成新应用时：先 read_doc 本 SDK，再按需求 read_doc 对应类型案例，再出 PRD 与代码。

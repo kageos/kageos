@@ -97,6 +97,7 @@ func (b *Builder) Build(ctx context.Context, user, app string, opts *BuildOpts) 
 	// 先执行 go mod tidy 确保依赖是最新的
 	if err := b.runGoModTidy(ctx, opts.SourceDir); err != nil {
 		logger.Warnf(ctx, "go mod tidy failed, continuing with build: %v", err)
+		return nil, err
 	}
 
 	// 构建 Go 命令
@@ -105,7 +106,7 @@ func (b *Builder) Build(ctx context.Context, user, app string, opts *BuildOpts) 
 	// 执行编译
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("failed to build: %w, output: %s", err, string(output))
+		return nil, fmt.Errorf("go mod tidy 失败： err:%s: output:%s ", err, string(output))
 	}
 
 	// 获取文件信息

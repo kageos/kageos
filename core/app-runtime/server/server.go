@@ -126,9 +126,9 @@ func (s *Server) initDatabase(ctx context.Context) error {
 		return fmt.Errorf("failed to create database directory: %w", err)
 	}
 
-	// 连接数据库
+	// 连接数据库（开启 SQL 日志便于排查）
 	db, err := gorm.Open(sqlite.Open(absPath), &gorm.Config{
-		Logger: gormLogger.Default.LogMode(gormLogger.Silent),
+		Logger: gormLogger.Default.LogMode(gormLogger.Info),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
@@ -374,6 +374,17 @@ func (s *Server) subscribeNATS(ctx context.Context) error {
 	)
 	if err != nil {
 		return fmt.Errorf("failed to subscribe to replace in file: %w", err)
+	}
+	s.subscriptions = append(s.subscriptions, sub)
+
+	// 订阅文件批量 search-replace 请求
+	sub, err = s.natsConn.QueueSubscribe(
+		subjects.GetAppServer2AppRuntimeReplaceInFileBatchRequestSubject(),
+		"app-runtime-replace-in-file-batch-workers",
+		s.handleReplaceInFileBatch,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to subscribe to replace in file batch: %w", err)
 	}
 	s.subscriptions = append(s.subscriptions, sub)
 

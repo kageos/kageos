@@ -9,7 +9,7 @@
 | 操作           | 工具               | 说明 |
 |----------------|--------------------|------|
 | 查询列表数据   | run_table_search   | 调用 Table 查询接口，支持分页、排序、筛选（eq/like/in 等） |
-| 新增表格记录   | run_table_create   | 调用 Table 新增接口，传单条记录 JSON body，触发 OnTableAddRow |
+| 新增表格记录   | run_table_create   | 调用 Table 新增接口，body 必须为 JSON 数组（每项一条记录），逐条触发 OnTableAddRow，返回 data_list |
 | 提交表单       | run_form_submit    | 调用 Form 提交接口，传 JSON body |
 | 查询图表数据   | run_chart_query    | 调用 Chart 查询接口，参数由该 Chart 的 Req 决定 |
 | 编辑/删除列表行 | 见下文「列表增删改」 | 若后续提供 run_table_update / run_table_delete 则按工具文档调用；当前可通过对应 Form 或前端表格操作完成 |
@@ -58,6 +58,9 @@
 
 **可搜字段**由该表格** model 结构体的 search 标签**决定（如 `search:"eq"`、`search:"like"`、`search:"in"`）。若该 Table 的 Req 还有**自定义 form 字段**（如 `status`），也一并拼进 url_query。
 
+**易错点：筛选必须用「操作符=字段:值」，不要用 field=value。**  
+表格筛选**必须**按 model 的 **search 标签**使用对应操作符：`search:"like"` 的字段用 `like=字段名:值`（如 `like=name:tencent`），`search:"eq"` 用 `eq=字段名:值`，`search:"in"` 用 `in=字段名:v1,v2`。**不要**写成 `name=tencent`、`title=会议` 这类「字段=值」——后端不会按模糊/精确筛选处理，可能被忽略或当其它参数，导致查不到预期数据。正确示例：按名称模糊查「tencent」→ `like=name:tencent`；按标题模糊查「会议」→ `like=title:会议`。
+
 ### 2.4 示例（按 model 与 URL 对照，更直观）
 
 **示例一：仅分页 / 分页 + 排序**
@@ -85,8 +88,9 @@ type Questionnaire struct {
 
 | 需求           | url_query 片段 | 含义 |
 |----------------|----------------|------|
+| ⚠️ 错误写法（勿用） | `name=tencent`、`title=会议` | 字段=值 不会按筛选生效；必须用下面操作符格式 |
 | 精确查某 ID    | `eq=id:123` | 查询 id 等于 123 的记录 |
-| 标题模糊       | `like=title:会议` | 查询标题中包含「会议」的记录 |
+| 名称/标题模糊  | `like=name:tencent`、`like=title:会议` | 查询名称/标题中包含该字符串的记录（model 该字段需有 search:"like"） |
 | 状态多选       | `in=status:待处理,已完成` | 查询状态为「待处理」或「已完成」的记录 |
 | 多字段 IN      | `in=target_group:全部用户,create_by:beiluo` | 查询目标用户组为「全部用户」且创建人为 beiluo 的记录（多字段 IN 时格式为 field1:v1,v2,field2:v3,v4） |
 | 时间范围（推荐用时间函数） | `gte=created_at:Now(-7d)&lte=created_at:Now()` | 查询创建时间在「七天前至今」的记录；工具内部会把 Now(-7d)、Now() 转为毫秒时间戳 |
@@ -135,25 +139,35 @@ type QuestionnaireListReq struct {
 
 ### 3.1 用途
 
-请求工作区 Table 函数的**新增接口**，新增一条表格记录。会触发该表格的 OnTableAddRow 回调。例如：新增问卷、新增工单、新增简历。
+请求工作区 Table 函数的**新增接口**，**批量**新增表格记录（工具内逐条调用 table/create，每条都会触发 OnTableAddRow）。例如：批量新增问卷、工单、简历。返回 **data_list**（成功插入的每条记录列表）及 created_count、failed_count、errors。
 
 ### 3.2 工具参数
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | full_code_path | string | 是 | 表格函数的**完整路径（必须包含函数名）**，与 run_table_search 一致，如 `/luobei/myapp/nps/nps_questionnaire_list` |
-| body | string | 是 | 单条记录的**字段 JSON 字符串**，键为表格 model 的 json 标签，必填字段需包含，可选项可省略 |
+| body | string | 是 | **必须为 JSON 数组字符串**，每项为一条记录的字段对象，如 `[{"title":"问卷A"},{"title":"问卷B"}]`；键为表格 model 的 json 标签 |
 
 ### 3.3 传参说明
 
 - `full_code_path` 与 run_table_search 相同，必须是**具体表格函数**的完整路径（不能只填包路径）。环境中的「当前目录下的可执行函数」会列出 table 类型及 full_code_path，可直接使用。
-- `body` 为 JSON 对象字符串，键名与表格 **model 结构体的 json 标签**一致（与 OnTableAddRow 绑定的结构体一致）。必填字段需包含，否则后端校验可能失败；可选项可省略。
-- 时间字段若为毫秒时间戳，需传数字；若表格支持字符串格式，按该表格约定传。
+- **body 必须为 JSON 数组**，即使只新增 1 条也传 `[{...}]`。数组中每项为一条记录，键名与表格 **model 结构体的 json 标签**一致。必填字段需包含，可选项可省略。
+- **创建用户（create_by）、创建时间（created_at）、更新时间（updated_at）由系统自动填充，无需在 body 中填写。** 每条只填业务字段即可。
+- 业务时间字段（如截止时间、开始时间）：**严格要求毫秒时间戳**（int64 毫秒级），禁止秒级；需传数字。
 
-### 3.4 示例
+### 3.4 返回格式
 
-- 新增 NPS 问卷：`full_code_path` = `/luobei/myapp/nps/nps_questionnaire_list`，`body` = `{"title":"2025Q1 满意度","description":"第一季度用户满意度调研","target_group":"全部用户","start_time":1738339200000,"end_time":1738944000000,"send_reminder":true}`（字段名与 NPSQuestionnaire 的 json 标签一致）。
-- 新增 NPS 响应：`full_code_path` = `/luobei/myapp/nps/nps_response_list`（表格列表函数路径），`body` = 单条 NPSResponse 字段 JSON，如 `{"questionnaire_id":1,"score":9,"category":"推荐者","feedback":"很好用","user_id":"u1","user_group":"付费用户","channel":"Web网页"}`。
+| 字段 | 说明 |
+|------|------|
+| created_count | 成功插入条数 |
+| failed_count | 失败条数 |
+| data_list | 成功插入的**数据列表**，每项为后端返回的该条记录（含 id、created_at 等） |
+| errors | 失败时的错误列表，每项含 `index`（数组下标）、`error`（错误信息） |
+
+### 3.5 示例
+
+- 批量新增 NPS 问卷：`full_code_path` = `/luobei/myapp/nps/nps_questionnaire_list`，`body` = `[{"title":"2025Q1 满意度","description":"第一季度调研","target_group":"全部用户","start_time":1738339200000,"end_time":1738944000000},{"title":"2025Q2 满意度","description":"第二季度调研","target_group":"全部用户","start_time":1741017600000,"end_time":1741622400000}]`。
+- 单条新增：body 仍为数组，如 `[{"title":"问卷A","description":"描述","target_group":"全部用户","start_time":1738339200000,"end_time":1738944000000}]`。
 
 ---
 
@@ -189,6 +203,8 @@ type QuestionnaireListReq struct {
 
 请求工作区 Chart 函数的查询接口，返回图表所需数据。例如：NPS 趋势、评分分布、当前 NPS 仪表盘。
 
+**约定**：一个 Chart 路由一次只返回一张图；full_code_path 须到**具体图表函数名**（如 `/luobei/myapp/nps/nps_sales_trend_statistics`），不能到包路径；多张图时每张图有各自的路由与 full_code_path，需分别调用 run_chart_query。
+
 ### 5.2 工具参数
 
 | 参数 | 类型 | 必填 | 说明 |
@@ -210,7 +226,7 @@ type QuestionnaireListReq struct {
 
 ## 五、列表增删改（当前说明）
 
-- **新增一行**：标准接口为 `POST /workspace/api/v1/table/create/{full-code-path}`，请求体为新增记录的字段。执行模式若后续提供 `run_table_create` 等工具，则按该工具文档传参。
+- **新增一行或多行**：使用 `run_table_create`，body 必须为 JSON 数组（每项一条记录），返回 data_list（成功插入的数据列表）及 created_count、failed_count、errors。
 - **编辑/删除**：通过表格回调（OnTableUpdateRow / OnTableDeleteRows）对应接口完成。执行模式若后续提供专用工具，则按工具文档调用。
 - 当前执行模式主要提供：**run_table_search**（查列表）、**run_form_submit**（提交表单）、**run_chart_query**（查图表）。其他操作可结合 read_go_file 查看接口定义后，按需扩展工具或由产品侧说明。
 

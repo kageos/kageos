@@ -23,24 +23,58 @@ type ReadDirectoryFilesRuntimeResp struct {
 	Files   []DirectoryFileInfo `json:"files"`                  // 文件列表
 }
 
-// ReplaceInFileRuntimeReq 文件内容 search-replace 请求（app-server -> app-runtime）
-type ReplaceInFileRuntimeReq struct {
-	User              string `json:"user" binding:"required"`           // 租户用户名
-	App               string `json:"app" binding:"required"`            // 应用名
-	DirectoryPath     string `json:"directory_path" binding:"required"` // 目录完整路径（如 /user/app/pkg1）
-	FileName          string `json:"file_name" binding:"required"`      // 文件名（如 handler 或 handler.go）
-	SearchString      string `json:"search_string" binding:"required"`  // 要被替换的原文
-	ReplaceString     string `json:"replace_string"`                    // 替换后的内容
-	ReplaceAll        bool   `json:"replace_all"`                       // 是否替换全部出现，默认 true
-	ReturnFullContent bool   `json:"return_full_content"`               // 是否在响应中返回替换后的完整文件内容
+// ReplaceItemRuntime 单次替换项（app-server -> app-runtime）
+type ReplaceItemRuntime struct {
+	SearchString  string `json:"search_string" binding:"required"`
+	ReplaceString string `json:"replace_string"`
+	ExpectedCount int    `json:"expected_count"` // 0 表示默认 1
 }
 
-// ReplaceInFileRuntimeResp 文件内容 search-replace 响应
+// ReplaceInFileBatchReq 文件内容批量 search-replace 请求（app-server -> app-runtime）；内存中按顺序执行，全部校验通过才落盘
+type ReplaceInFileBatchReq struct {
+	User              string               `json:"user" binding:"required"`
+	App               string               `json:"app" binding:"required"`
+	DirectoryPath     string               `json:"directory_path" binding:"required"`
+	FileName          string               `json:"file_name" binding:"required"`
+	Replacements      []ReplaceItemRuntime `json:"replacements" binding:"required"`
+	AllOrNothing      bool                 `json:"all_or_nothing"` // 默认 true，仅当所有项 actual==expected 才写盘
+	ReturnFullContent bool                 `json:"return_full_content"`
+}
+
+// ReplaceItemResultRuntime 单次替换结果（用于未落盘时返回）
+type ReplaceItemResultRuntime struct {
+	Index         int `json:"index"`
+	ExpectedCount int `json:"expected_count"`
+	ActualCount   int `json:"actual_count"`
+}
+
+// ReplaceInFileBatchResp 批量 search-replace 响应
+type ReplaceInFileBatchResp struct {
+	Success      bool                       `json:"success"`
+	Message      string                     `json:"message"`
+	ReplaceCount int                        `json:"replace_count"`
+	FullContent  string                     `json:"full_content,omitempty"`
+	Details      []ReplaceItemResultRuntime `json:"details,omitempty"` // 未落盘时哪几项不符
+}
+
+// ReplaceInFileRuntimeReq 已废弃，请使用 ReplaceInFileBatchReq
+type ReplaceInFileRuntimeReq struct {
+	User              string `json:"user" binding:"required"`
+	App               string `json:"app" binding:"required"`
+	DirectoryPath     string `json:"directory_path" binding:"required"`
+	FileName          string `json:"file_name" binding:"required"`
+	SearchString      string `json:"search_string" binding:"required"`
+	ReplaceString     string `json:"replace_string"`
+	ReplaceAll        bool   `json:"replace_all"`
+	ReturnFullContent bool   `json:"return_full_content"`
+}
+
+// ReplaceInFileRuntimeResp 已废弃，请使用 ReplaceInFileBatchResp
 type ReplaceInFileRuntimeResp struct {
 	Success      bool   `json:"success"`
 	Message      string `json:"message"`
-	ReplaceCount int    `json:"replace_count"` // 替换次数
-	FullContent  string `json:"full_content"`  // 替换后的完整文件内容（仅当请求 return_full_content=true 时填充）
+	ReplaceCount int    `json:"replace_count"`
+	FullContent  string `json:"full_content"`
 }
 
 // DeleteFileRuntimeReq 删除磁盘文件请求（app-server -> app-runtime）

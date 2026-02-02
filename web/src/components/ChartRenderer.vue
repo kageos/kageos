@@ -720,25 +720,6 @@ const buildEChartsOption = (chart: Chart): EChartsOption => {
       return {}
   }
 
-  // 合并自定义 ECharts 配置
-  // 注意：tooltip 配置已经在 switch case 中设置，如果 echarts_config 中有 tooltip，需要保护我们的配置
-  if (chart.echarts_config) {
-    const echartsConfig = { ...chart.echarts_config }
-    // 如果 echarts_config 中有 tooltip，删除它，使用我们在 switch case 中设置的 tooltip
-    if (echartsConfig.tooltip) {
-      console.log('[ChartRenderer] 警告：echarts_config 中有 tooltip，将被忽略')
-      delete echartsConfig.tooltip
-    }
-    // 使用深度合并，但保护 tooltip 配置
-    // 先合并其他配置，然后确保 tooltip 不被覆盖
-    const savedTooltip = option.tooltip
-    Object.assign(option, echartsConfig)
-    if (savedTooltip) {
-      option.tooltip = savedTooltip
-    }
-    console.log('[ChartRenderer] 合并 echarts_config 后，tooltip:', option.tooltip)
-  }
-
   return option
 }
 

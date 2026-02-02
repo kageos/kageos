@@ -182,6 +182,31 @@ func (s *Server) handleReplaceInFile(msg *nats.Msg) {
 	logger.Infof(ctx, "[handleReplaceInFile] ReplaceInFile success: path=%s, file=%s, count=%d", req.DirectoryPath, req.FileName, replaceCount)
 }
 
+// handleReplaceInFileBatch 处理文件批量 search-replace 请求（内存替换、全部校验通过才落盘）
+func (s *Server) handleReplaceInFileBatch(msg *nats.Msg) {
+	ctx := context.Background()
+	msgInfo, err := msgx.DecodeNatsMsg[dto.ReplaceInFileBatchReq](msg)
+	if err != nil {
+		logger.Errorf(ctx, "[handleReplaceInFileBatch] Failed to decode message: %v", err)
+		msgx.RespFailMsg(msg, err)
+		return
+	}
+	req := &msgInfo.Data
+	allOrNothing := req.AllOrNothing
+	totalCount, fullContent, details, err := s.appManageService.ReplaceInFileBatch(ctx, req.User, req.App, req.DirectoryPath, req.FileName, req.Replacements, allOrNothing, req.ReturnFullContent)
+	if err != nil {
+		resp := dto.ReplaceInFileBatchResp{Success: false, Message: err.Error(), Details: details}
+		msgx.RespSuccessMsg(msg, resp)
+		return
+	}
+	resp := dto.ReplaceInFileBatchResp{Success: true, Message: "替换成功", ReplaceCount: totalCount}
+	if req.ReturnFullContent && fullContent != "" {
+		resp.FullContent = fullContent
+	}
+	msgx.RespSuccessMsg(msg, resp)
+	logger.Infof(ctx, "[handleReplaceInFileBatch] success: path=%s, file=%s, totalCount=%d", req.DirectoryPath, req.FileName, totalCount)
+}
+
 // handleDeleteFile 处理删除磁盘文件请求
 func (s *Server) handleDeleteFile(msg *nats.Msg) {
 	ctx := context.Background()

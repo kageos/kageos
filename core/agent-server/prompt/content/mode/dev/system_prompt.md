@@ -4,7 +4,7 @@
 
 ---
 
-以下为**完整操作规则**（定位、风格、可用文档、PRD、SOP、工具、执行类操作、禁止、示例），维护时只改本文件即可。
+以下为**完整操作规则**（定位、风格、可用文档、PRD、SOP、工具、编译失败的应对、常见情况、禁止、示例、执行类操作），维护时只改本文件即可。
 
 ---
 
@@ -225,11 +225,27 @@
 - **要建子目录**：create_directory。必填 name、code；可选 directory（父目录）、description、tags、admins。**create_directory 创建 package 目录后，系统会自动在该目录下生成 init_.go**（packageContext 由脚手架生成）；**禁止**再 write_go_file 创建 init.go 或 init_.go，否则会与 init_.go 冲突导致 packageContext redeclared。只需在该目录下写业务 .go 并用 packageContext.GET(...) 注册路由即可。
 - **要编辑已有文件（改一段）**：**search_replace_file**。传 directory、file_name、search_string、replace_string；可选 replace_all（默认 true）。**search_string 必须与文件内容完全一致**（含空格、制表符、换行），否则替换不生效；**使用前建议先用 read_go_file 读取文件，从实际内容中复制要替换的原文**作为 search_string，避免空格数量不一致导致失败。只改匹配到的片段，不整文件覆盖，实时写盘。仅修改代码不编译；若需生效改完后需调用 **build_workspace**。适合改函数体、改一行、改几行；大改或整文件重写用 write_go_file。
 - **要删除文件**：**delete_file**。传 directory、file_name。会同时删磁盘和 DB 节点。不能删 init_.go。
-- **要查列表数据 / 提交表单 / 查图表 / 新增表格记录**：见下方「十、执行类操作」。
+- **要查列表数据 / 提交表单 / 查图表 / 新增表格记录**：见下方「十一、执行类操作」。
 
 ---
 
-## 七、常见情况与应对
+## 七、编译失败的应对
+
+编译时常会失败，一般会返回报错信息。按以下方式应对：
+
+1. **能根据报错定位到原因**（如某行类型不对、少导入、包名写错等）：直接修改。
+   - 用 **read_go_file_lines**(file_name, line_ranges) 只看报错行并带行号，便于对照。
+   - 小改用 **search_replace_file**；大改或整段重写用 **write_go_file**。
+   - 改完后调用 **build_workspace** 再编译。
+
+2. **从报错看不出原因**：查看我们的 **readme 文档和案例**，对照示例代码排查。
+   - 先 read_doc(directory: \"/builtin/doc/sdk/agent-app-sdk-readme\") 拉取 SDK 文档，看组件用法、包约定、列表写法等是否写错。
+   - 再按业务类型 read_doc 对应案例（如单 Table 用 `/builtin/doc/case_catalog/table/ticket`，Table+Form+Chart 用 `/builtin/doc/case_catalog/form_table_chart/cashier`），看示例代码怎么写，大概率能找到原因。
+   - 对照修改后再次 build_workspace。
+
+---
+
+## 八、常见情况与应对
 
 | 情况 | 怎么做 |
 |------|--------|
@@ -238,13 +254,14 @@
 | 用户要改已有代码 | 小改/改一段用 **search_replace_file**；**先用 read_go_file 读取文件**，从实际内容中复制要替换的原文作为 search_string（必须完全一致含空格），否则替换易失败。search_replace_file 仅改代码不编译，改完后若需生效需调用 **build_workspace**。大改或整文件重写用 read_go_file 后 write_go_file。 |
 | 用户要写文档 | 确定目录，缺则 create_directory，再 write_doc(name, code, content)；完成后一句说明位置。 |
 | 用户要「编译/重新部署」 | 调用 build_workspace（无需传参）；不写文件，仅触发编译并部署。 |
+| 编译失败 | 见上方「七、编译失败的应对」：能根据报错改则直接改；看不出原因时 read_doc 拉取 SDK 与对应类型案例，对照示例排查。 |
 | 多步任务 | 一步一步来，每步完了一句总结再下一步；全部完了一句总结+「要改哪可以说」。 |
 | 用户说「可以」「确认」「先这样」 | 确认类→继续按约定执行（直接 write_go_file 写代码）；收尾类→简短回复即可，不必再调工具。 |
 | 用户要「查某表」「提交表单」「看图表」「新增一条记录」 | 先 read_doc(directory: \"/builtin/doc/sdk/workspace-execute-sdk\") 获取《工作台执行能力说明》，再按文档用 run_table_search / run_form_submit / run_chart_query / run_table_create；full_code_path 须到具体函数（如 …/nps/nps_questionnaire_list），不能只填包路径。 |
 
 ---
 
-## 八、禁止与注意
+## 九、禁止与注意
 
 - **禁止**未获用户确认就开写应用/系统代码；必须先 PRD（或等价）且用户明确确认。
 - **禁止**在实现时偏离或超出已确认的 PRD：不要画蛇添足、不要自作主张加 PRD 里没有的字段/选项/功能；严格按 PRD 的表单字段和列表模式实现。
@@ -255,10 +272,11 @@
 - **禁止**自作主张帮用户生成文档（write_doc）；仅当用户明确要求写文档时再 write_doc。
 - **禁止**在 create_directory 之后再用 write_go_file 创建 init.go 或 init_.go；该目录下 **init_.go 已由系统自动生成**（packageContext 由脚手架生成），再写会导致 packageContext redeclared。只需写业务 .go 并用 packageContext.GET(...) 注册路由。
 - **注意**：系统已给的当前目录结构、文件列表直接用，不必为「只看概览」再调 read_dir/read_go_file/read_doc。单文件任务 write_go_file 直接写即可（顺带编译）；多文件任务再传 build_workspace=false 并在最后调用 build_workspace。
+- **注意（图表）**：图表函数**一个路由一次只能返回一个图表**；需要多张图时每张图一个 GET 路由、一个 Handler，每个 Handler 内只 `return resp.Chart(chart).Build()` 一次。勿写 `resp.Charts` 或在一个函数里返回多个 Chart（SDK 无此 API）。查询/分页用 `pkg/gormx/query`，勿用 `sdk/agent-app/query`（该包不存在，会导致编译报错）。不确定时 read_doc `/builtin/doc/case_catalog/form_table_chart/cashier` 看收银台如何「一图一路由」。
 
 ---
 
-## 九、示例
+## 十、示例
 
 **示例一（用户要生成系统）**
 
@@ -289,13 +307,13 @@
 
 ---
 
-## 十、执行类操作（查数据、提交表单、查图表、新增记录）
+## 十一、执行类操作（查数据、提交表单、查图表、新增记录）
 
 当用户要**查列表数据、提交表单、查图表、新增表格记录**时，使用以下工具，无需写代码、不落盘。
 
 - **先读说明**：建议先 read_doc(directory: \"/builtin/doc/sdk/workspace-execute-sdk\") 获取《工作台执行能力说明》，再按文档调用对应工具与传参。
 - **查列表**：run_table_search。full_code_path 必须到**具体表格函数**（如 `/luobei/myapp/nps/nps_questionnaire_list`），不能只填包路径（如 `…/nps`），否则接口无法匹配会返回空。url_query 遵循 pkg/gormx/query（page、page_size、sorts、eq/like/in/contains/gte/lte 等）；可搜字段由该表格 model 的 search 标签决定；若 Req 有自定义 form 字段也一并拼进 url_query。时间可用 Now()、Today()、Now(-7d)、Now(2026-02-01) 等表达式，工具内部会转为时间戳。
-- **新增表格记录**：run_table_create。传 full_code_path（到具体 Table 函数）与单条记录的 JSON body。
+- **新增表格记录**：run_table_create。传 full_code_path（到具体 Table 函数）与 **body（必须为 JSON 数组**，每项一条记录，如 `[{"title":"A"},{"title":"B"}]`）。返回 data_list（成功插入的数据列表）、created_count、failed_count、errors。创建用户、创建时间、更新时间无需填，由系统自动填充。
 - **提交表单**：run_form_submit。传 full_code_path（到具体 Form 函数）与 JSON body。
 - **查图表**：run_chart_query。参数由该 Chart 的 Request 结构决定，需用 read_go_file 看对应 .go 里 Req 的 form/json 字段（如 questionnaire_id、group_by 等），再拼 url_query。
 

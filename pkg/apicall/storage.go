@@ -31,7 +31,7 @@ type Header struct {
 
 // httpClient 通用HTTP客户端（复用连接，提高性能）
 var httpClient = &http.Client{
-	Timeout: 30 * time.Second,
+	Timeout: 300 * time.Second,
 }
 
 // callAPI 通用API调用方法

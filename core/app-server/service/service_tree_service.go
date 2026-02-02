@@ -333,10 +333,9 @@ func (s *ServiceTreeService) CreateFunction(ctx context.Context, req *dto.Create
 		parentTree.App = app
 	}
 
-	// 构建 AddFunctionsReq（复用现有逻辑）
+	// 构建 AddFunctionsReq（复用现有逻辑）；租户由 AddFunctions 内从 full_code_path 解析
 	addFunctionsReq := &dto.AddFunctionsReq{
 		FullCodePath: req.DirectoryPath,
-		User:         req.User,
 		FileName:     req.Code, // 使用 code 作为文件名
 		SourceCode:   req.SourceCode,
 	}
@@ -2659,7 +2658,7 @@ func getParentPath(fullCodePath string) string {
 // AddFunctions 向服务目录添加函数（同步处理）
 // 目录由 full_code_path 指定，文件名由 file_name 指定（或 fallback 为目录 Code）；不再解析代码内元数据，由调用方（工作台/模型）负责目录与文件名
 func (s *ServiceTreeService) AddFunctions(ctx context.Context, req *dto.AddFunctionsReq) (*dto.AddFunctionsResp, error) {
-	// 1. 根据 full_code_path 获取目录 ServiceTree（需要预加载 App）
+	// 1. 根据 full_code_path 获取目录 ServiceTree（需要预加载 App）；中间层与底层均做路径规范化，双重兜底
 	if strings.TrimSpace(req.FullCodePath) == "" {
 		return &dto.AddFunctionsResp{Success: false, Error: "full_code_path 必填"}, fmt.Errorf("full_code_path 必填")
 	}
@@ -2716,8 +2715,9 @@ func (s *ServiceTreeService) AddFunctions(ctx context.Context, req *dto.AddFunct
 		SourceCode:    sourceCode,
 	}
 
+	// 租户（user/app）从 full_code_path 对应的目录所属应用取，不依赖请求方传的 User，避免访问他人应用时 record not found
 	updateReq := &dto.UpdateAppReq{
-		User:            req.User,
+		User:            targetTree.App.User,
 		App:             targetTree.App.Code,
 		CreateFunctions: []*dto.CreateFunctionInfo{createFunction},
 		SkipBuild:       req.SkipBuild,
@@ -2783,7 +2783,7 @@ func (s *ServiceTreeService) AddFunctions(ctx context.Context, req *dto.AddFunct
 // ProcessFunctionGenResult 处理函数生成结果（接收 agent-server 处理后的结构化数据）
 // 目录由 full_code_path 指定，文件名由 file_name 指定（或 fallback 为目录 Code）；不再解析代码内元数据
 func (s *ServiceTreeService) ProcessFunctionGenResult(ctx context.Context, req *dto.AddFunctionsReq) error {
-	// 1. 根据 full_code_path 获取目录 ServiceTree（需要预加载 App）
+	// 1. 根据 full_code_path 获取目录 ServiceTree（需要预加载 App）；中间层与底层均做路径规范化，双重兜底
 	if strings.TrimSpace(req.FullCodePath) == "" {
 		return fmt.Errorf("full_code_path 必填")
 	}
@@ -2834,9 +2834,9 @@ func (s *ServiceTreeService) ProcessFunctionGenResult(ctx context.Context, req *
 		SourceCode:    sourceCode,
 	}
 
-	// 5. 调用 AppService.UpdateApp，传入 CreateFunctions
+	// 5. 调用 AppService.UpdateApp，传入 CreateFunctions；租户从 full_code_path 对应应用取，不依赖 req.User
 	updateReq := &dto.UpdateAppReq{
-		User:            req.User,
+		User:            targetTree.App.User,
 		App:             targetTree.App.Code,
 		CreateFunctions: []*dto.CreateFunctionInfo{createFunction},
 		SkipBuild:       req.SkipBuild,
@@ -3496,8 +3496,11 @@ func (s *ServiceTreeService) GetWorkspaceContext(ctx context.Context, req *dto.G
 	}, nil
 }
 
-// ReplaceFileContent 工作台文件 search-replace（调 app-runtime 实时写盘）
+// ReplaceFileContent 工作台文件 search-replace（统一批量：调 app-runtime 内存替换、全部校验通过才落盘）
 func (s *ServiceTreeService) ReplaceFileContent(ctx context.Context, req *dto.ReplaceFileContentReq) (*dto.ReplaceFileContentResp, error) {
+	if len(req.Replacements) == 0 {
+		return &dto.ReplaceFileContentResp{Success: false, Message: "replacements 不能为空"}, nil
+	}
 	detail, err := s.GetServiceTreeDetail(ctx, &dto.GetServiceTreeDetailReq{FullCodePath: req.FullCodePath})
 	if err != nil {
 		return nil, fmt.Errorf("获取目录详情失败: %w", err)
@@ -3512,25 +3515,40 @@ func (s *ServiceTreeService) ReplaceFileContent(ctx context.Context, req *dto.Re
 	if appModel.HostID <= 0 {
 		return nil, fmt.Errorf("应用未关联 runtime，无法替换文件")
 	}
-	runtimeReq := &dto.ReplaceInFileRuntimeReq{
+	items := make([]dto.ReplaceItemRuntime, 0, len(req.Replacements))
+	for _, r := range req.Replacements {
+		items = append(items, dto.ReplaceItemRuntime{
+			SearchString:  r.SearchString,
+			ReplaceString: r.ReplaceString,
+			ExpectedCount: r.ExpectedCount,
+		})
+	}
+	allOrNothing := req.AllOrNothing
+	if !allOrNothing {
+		allOrNothing = true
+	}
+	runtimeReq := &dto.ReplaceInFileBatchReq{
 		User:              appModel.User,
 		App:               appModel.Code,
 		DirectoryPath:     req.FullCodePath,
 		FileName:          req.FileName,
-		SearchString:      req.SearchString,
-		ReplaceString:     req.ReplaceString,
-		ReplaceAll:        req.ReplaceAll,
+		Replacements:      items,
+		AllOrNothing:      allOrNothing,
 		ReturnFullContent: req.ReturnFullContent,
 	}
-	resp, err := s.appRuntime.ReplaceInFile(ctx, appModel.HostID, runtimeReq)
+	resp, err := s.appRuntime.ReplaceInFileBatch(ctx, appModel.HostID, runtimeReq)
 	if err != nil {
 		return nil, fmt.Errorf("替换文件失败: %w", err)
 	}
 	if !resp.Success {
-		return &dto.ReplaceFileContentResp{Success: false, Message: resp.Message, ReplaceCount: resp.ReplaceCount}, nil
+		details := make([]dto.ReplaceItemResult, 0, len(resp.Details))
+		for _, d := range resp.Details {
+			details = append(details, dto.ReplaceItemResult{Index: d.Index, ExpectedCount: d.ExpectedCount, ActualCount: d.ActualCount})
+		}
+		return &dto.ReplaceFileContentResp{Success: false, Message: resp.Message, Details: details}, nil
 	}
 	out := &dto.ReplaceFileContentResp{Success: true, Message: resp.Message, ReplaceCount: resp.ReplaceCount}
-	if req.ReturnFullContent {
+	if req.ReturnFullContent && resp.FullContent != "" {
 		out.FullContent = resp.FullContent
 	}
 	return out, nil

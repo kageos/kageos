@@ -158,7 +158,7 @@ func (s *AgentChatService) manageSession(ctx context.Context, req *dto.FunctionG
 // createNewSession 创建新会话
 func (s *AgentChatService) createNewSession(ctx context.Context, req *dto.FunctionGenAgentChatReq, user, traceId string) (*model.AgentChatSession, error) {
 	sessionID := uuid.New().String()
-	
+
 	// 根据 full_code_path 获取 TreeID（用于数据库存储）
 	var treeID int64
 	if req.FullCodePath != "" {
@@ -170,8 +170,8 @@ func (s *AgentChatService) createNewSession(ctx context.Context, req *dto.Functi
 	} else {
 		return nil, fmt.Errorf("full_code_path 必填")
 	}
-	
-	logger.Infof(ctx, "[FunctionGenChat] 创建新会话 - SessionID: %s, FullCodePath: %s, TreeID: %d, TraceID: %s", 
+
+	logger.Infof(ctx, "[FunctionGenChat] 创建新会话 - SessionID: %s, FullCodePath: %s, TreeID: %d, TraceID: %s",
 		sessionID, req.FullCodePath, treeID, traceId)
 
 	aid := req.AgentID
@@ -338,9 +338,9 @@ func (s *AgentChatService) buildSystemMessage(ctx context.Context, req *dto.Func
 		docsPaths = []string{"/system/official/sdk"}
 		logger.Warnf(ctx, "[FunctionGenChat] agent.docs_paths 为空，使用默认路径: %v, TraceID: %s", docsPaths, traceId)
 	}
-	
+
 	logger.Infof(ctx, "[FunctionGenChat] 开始批量加载文档 - Paths: %v, TraceID: %s", docsPaths, traceId)
-	
+
 	// 2. 批量获取文档（一次 API 调用）
 	docsResp, err := s.getDocsByPaths(ctx, docsPaths, traceId)
 	if err != nil {
@@ -348,7 +348,7 @@ func (s *AgentChatService) buildSystemMessage(ctx context.Context, req *dto.Func
 		// 不中断流程，继续使用空知识库
 		docsResp = &dto.GetDocsByPathsResp{Docs: []*dto.DocItem{}}
 	}
-	
+
 	// 3. 构建知识库内容
 	var knowledgeContent strings.Builder
 	for _, doc := range docsResp.Docs {
@@ -517,7 +517,7 @@ func (s *AgentChatService) createFunctionGenRecord(ctx context.Context, req *dto
 	} else {
 		return nil, fmt.Errorf("full_code_path 必填")
 	}
-	
+
 	logger.Infof(ctx, "[FunctionGenChat] 创建生成记录 - SessionID: %s, MessageID: %d, AgentID: %d, FullCodePath: %s, TreeID: %d, TraceID: %s",
 		sessionID, messageID, req.AgentID, req.FullCodePath, treeID, traceId)
 
@@ -593,15 +593,14 @@ func (s *AgentChatService) asyncCallLLM(ctx context.Context, req *dto.FunctionGe
 			logger.Errorf(ctx, "[FunctionGen] 更新代码失败: %v, RecordID: %d, TraceID: %s", err, record.ID, traceId)
 		}
 
-		// ⭐ 直接传递代码和父目录（full_code_path 优先，否则 tree_id），让 app-server 处理元数据解析和目录创建
+		// ⭐ 直接传递代码和父目录（full_code_path）；租户由 app-server 从 full_code_path 解析，不传 User
 		// 发布结果到 app-server
 		resultData := &dto.AddFunctionsReq{
 			RecordID:     record.ID,
 			MessageID:    record.MessageID,
 			AgentID:      req.AgentID,
 			FullCodePath: req.FullCodePath, // 必填
-			User:         user,
-			SourceCode:   extractedCode, // 传递完整代码，app-server 会解析元数据
+			SourceCode:   extractedCode,    // 传递完整代码，app-server 会解析元数据
 		}
 
 		logger.Infof(ctx, "[FunctionGenChat] 提交生成的代码到 app-server - RecordID: %d, SourceCodeLength: %d, TraceID: %s",
@@ -678,15 +677,15 @@ func (s *AgentChatService) extractCodeFromLLMResponse(content string) string {
 // getDocsByPaths 批量获取文档（通过 apicall 调用 app-server）
 func (s *AgentChatService) getDocsByPaths(ctx context.Context, paths []string, traceId string) (*dto.GetDocsByPathsResp, error) {
 	logger.Infof(ctx, "[FunctionGenChat] 调用批量获取文档 API - Paths: %v, TraceID: %s", paths, traceId)
-	
+
 	// 通过 apicall 调用 app-server 的批量获取文档接口
 	resp, err := apicall.GetDocsByPaths(ctx, paths)
 	if err != nil {
 		logger.Errorf(ctx, "[FunctionGenChat] 批量获取文档失败 - Paths: %v, TraceID: %s, Error: %v", paths, traceId, err)
 		return nil, err
 	}
-	
+
 	logger.Infof(ctx, "[FunctionGenChat] 批量获取文档成功 - Paths: %v, DocsCount: %d, TraceID: %s", paths, len(resp.Docs), traceId)
-	
+
 	return resp, nil
 }

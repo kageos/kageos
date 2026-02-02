@@ -844,8 +844,8 @@ func (s *ServiceTree) ReplaceFileContent(c *gin.Context) {
 		response.FailWithMessage(c, "参数错误: "+err.Error())
 		return
 	}
-	if req.FullCodePath == "" || req.FileName == "" || req.SearchString == "" {
-		response.FailWithMessage(c, "full_code_path、file_name、search_string 必填")
+	if req.FullCodePath == "" || req.FileName == "" || len(req.Replacements) == 0 {
+		response.FailWithMessage(c, "full_code_path、file_name、replacements 必填")
 		return
 	}
 	ctx := contextx.ToContext(c)

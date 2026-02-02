@@ -24,9 +24,9 @@ type Server struct {
 	cfg *config.AppStorageConfig
 
 	// 核心组件
-	db          *gorm.DB
-	storage     storage.Storage  // ✅ 存储接口（抽象）
-	httpServer  *gin.Engine
+	db         *gorm.DB
+	storage    storage.Storage // ✅ 存储接口（抽象）
+	httpServer *gin.Engine
 
 	// 服务
 	storageService *service.StorageService
@@ -113,8 +113,8 @@ func (s *Server) initDatabase(ctx context.Context) error {
 
 	// 配置 GORM 日志
 	gormConfig := &gorm.Config{}
-	// 关闭 GORM 控制台日志
-	gormConfig.Logger = gormLogger.Default.LogMode(gormLogger.Silent)
+	// 开启 SQL 日志便于排查
+	gormConfig.Logger = gormLogger.Default.LogMode(gormLogger.Info)
 
 	var err error
 	switch dbCfg.Type {
@@ -147,7 +147,7 @@ func (s *Server) initStorage(ctx context.Context) error {
 	// 通过工厂创建存储实例
 	factory := storage.NewFactory()
 	storageConfig := config.NewStorageConfigAdapter(s.cfg)
-	
+
 	storageInstance, err := factory.CreateStorage(s.cfg.Storage.Type, storageConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create storage: %w", err)
@@ -181,7 +181,7 @@ func (s *Server) initServices(ctx context.Context) error {
 
 	// 初始化 Service 层（依赖抽象接口）
 	s.storageService = service.NewStorageService(s.storage, s.cfg, fileRepo)
-	
+
 	// 检查审计配置
 	if s.cfg.Audit.UploadTracking.Enabled {
 		if fileRepo == nil {
@@ -190,7 +190,7 @@ func (s *Server) initServices(ctx context.Context) error {
 			logger.Infof(ctx, "[Server] Upload tracking enabled")
 		}
 	}
-	
+
 	if s.cfg.Audit.DownloadTracking.Enabled {
 		if fileRepo == nil {
 			logger.Warnf(ctx, "[Server] Download tracking is enabled but database is not connected, records will not be saved")
@@ -223,7 +223,6 @@ func (s *Server) initRouter(ctx context.Context) error {
 	return nil
 }
 
-
 // healthHandler 健康检查处理器
 func (s *Server) healthHandler(c *gin.Context) {
 	c.JSON(200, gin.H{
@@ -232,4 +231,3 @@ func (s *Server) healthHandler(c *gin.Context) {
 		"service":   "app-storage",
 	})
 }
-
