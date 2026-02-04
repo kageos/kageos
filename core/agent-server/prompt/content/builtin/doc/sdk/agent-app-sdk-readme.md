@@ -26,7 +26,7 @@
 // 结构体（系统字段 + 业务字段，此处省略系统字段）
 type CrmTicket struct {
     Title    string `json:"title" gorm:"column:title" widget:"name:标题;type:input" search:"like" validate:"required,min=2,max=200"`
-    Status   string `json:"status" gorm:"column:status" widget:"name:状态;type:select;options:待处理,已完成;default:待处理" search:"in"`
+    Status   string `json:"status" gorm:"column:status" widget:"name:状态;type:select;options:待处理,已完成;options_colors:warning,success;default:待处理" search:"in"`
     // ... ID, CreatedAt, DeletedAt 等见案例
 }
 
@@ -145,15 +145,18 @@ func init() {
 
 格式：`widget:"name:显示名;type:组件类型;配置项:值"`。常用配置：`default`、`options`、`options_colors`、`min`/`max`/`step`/`unit`、`format`、`precision` 等。
 
+**select / multiselect 与 options_colors（必填）**：**使用 select 或 multiselect 时，务必同时配置 `options_colors`**，与 `options` 一一对应（逗号分隔，顺序一致），前端会用颜色标签区分选项，不填则难以区分。支持**预设**：`default`、`primary`、`success`、`warning`、`danger`、`info`；也支持**自定义十六进制颜色**，如 `#FF9800` 橙色、`#9C27B0` 紫色、`#4CAF50` 绿色，同一颜色可重复使用。示例：`options:待处理,进行中,已完成` 对应 `options_colors:warning,primary,success`；自定义颜色示例：`options:VIP,普通,体验` 对应 `options_colors:#E91E63,#9E9E9E,#4CAF50`。
+
 片段示例：
 
 ```go
 Title    string `widget:"name:标题;type:input" search:"like" validate:"required,min=2,max=200"`
-Status   string `widget:"name:状态;type:select;options:待处理,已完成;default:待处理" search:"in" validate:"oneof=待处理 已完成"`
+Status   string `widget:"name:状态;type:select;options:待处理,已完成;options_colors:warning,success;default:待处理" search:"in" validate:"oneof=待处理 已完成"`
 Priority string `widget:"name:优先级;type:select;options:低,中,高;options_colors:success,warning,danger;default:中"`
 Handler  string `widget:"name:处理人;type:user;default:Me()" search:"in"`
 CreateBy string `widget:"name:创建用户;type:user" permission:"read"`  // 只读，在 OnTableAddRow 里 ctx.GetRequestUser() 赋值
-Tags     string `widget:"name:标签;type:multiselect;options:紧急,重要" search:"contains"`  // 多选用 string 逗号分隔
+Tags     string `widget:"name:标签;type:multiselect;options:紧急,重要;options_colors:danger,warning" search:"contains"`  // 多选用 string 逗号分隔，须配 options_colors
+Level    string `widget:"name:级别;type:select;options:VIP,普通,体验;options_colors:#E91E63,#9E9E9E,#4CAF50;default:普通"`  // 自定义颜色示例：十六进制
 Progress int    `widget:"name:进度;type:slider;min:0;max:100;unit:%" search:"gte,lte"`
 Deadline int64  `widget:"name:截止时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte"`
 Attachment *types.Files `gorm:"type:json" widget:"name:附件;type:files"`
@@ -164,9 +167,9 @@ Attachment *types.Files `gorm:"type:json" widget:"name:附件;type:files"`
 | input | 单行文本 | 标题、电话、邮箱 |
 | text_area | 多行文本 | 描述、备注 |
 | richtext | 富文本 | 详细内容 |
-| select | 下拉单选 | 状态、优先级（options 多时） |
+| select | 下拉单选 | 状态、优先级；**须配 options_colors**（与 options 顺序一致），前端用颜色区分选项 |
 | radio | 单选 | 来源、性别（2–5 个选项） |
-| multiselect | 多选 | 标签（string，逗号分隔） |
+| multiselect | 多选 | 标签（string，逗号分隔）；**须配 options_colors**（与 options 顺序一致） |
 | number | 整数 | 数量、工时 |
 | float | 小数 | 价格、金额 |
 | slider | 滑块 | 进度、评分（min/max/step/unit） |
@@ -253,6 +256,8 @@ Email string `validate:"required,email"`
 
 ### 3. search 标签
 
+**有搜索需求的字段必须加上 `search` 标签，并配上适合的搜索方式。** 只有配了 `search` 标签的字段才支持 Table 列表的搜索/筛选；不配 `search` 的字段不支持搜索，前端不会出现该字段的搜索条件。
+
 | 值 | 含义 | 适用 |
 |----|------|------|
 | like | 模糊 | input、text_area |
@@ -260,6 +265,29 @@ Email string `validate:"required,email"`
 | contains | FIND_IN_SET | multiselect、users、departments |
 | eq | 精确 = | ID、switch |
 | gte,lte | 范围 | timestamp、number、float、slider |
+
+示例：需要支持搜索的字段都配上 `search`，未配的字段列表里不可搜。系统字段（ID、创建时间、更新时间）若有搜索需求也要配；参考工单等 Table 结构体。
+
+```go
+type CrmTicket struct {
+    // 系统字段：仅列表展示，新增/修改表单不展示；配 search 后列表可搜索
+    ID        int   `json:"id" gorm:"primaryKey;column:id" widget:"name:ID;type:ID" permission:"read" search:"eq"`           // 仅列表展示、不可编辑，列表支持按 ID 精确搜索
+    CreatedAt int64 `json:"created_at" gorm:"autoCreateTime:milli;column:created_at" widget:"name:创建时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" permission:"read"` // 仅列表展示、不可编辑，列表支持按创建时间范围搜索
+    UpdatedAt int64 `json:"updated_at" gorm:"autoUpdateTime:milli;column:updated_at" widget:"name:更新时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" permission:"read"` // 仅列表展示、不可编辑，列表支持按更新时间范围搜索
+
+    // 业务字段：配 search 的列表可搜索，未配则不可搜（展示/可编辑由 permission 或不设置决定，见下方 permission 标签）
+    Title       string `json:"title" gorm:"column:title" widget:"name:工单标题;type:input" search:"like"`           // 列表支持模糊搜索
+    Description string `json:"description" gorm:"column:description" widget:"name:问题描述;type:text_area" search:"like"` // 列表支持模糊搜索
+    Priority    string `json:"priority" gorm:"column:priority" widget:"name:优先级;type:select;options:低,中,高;options_colors:success,warning,danger" search:"in"`   // 列表支持精确筛选
+    Status      string `json:"status" gorm:"column:status" widget:"name:状态;type:select;options:待处理,处理中,已完成;options_colors:info,warning,success" search:"in"` // 列表支持精确筛选
+    IsUrgent    bool   `json:"is_urgent" gorm:"column:is_urgent" widget:"name:是否紧急;type:switch" search:"eq"`   // 列表支持精确筛选
+    Progress    int    `json:"progress" gorm:"column:progress" widget:"name:完成进度;type:slider;min:0;max:100;unit:%" search:"gte,lte"` // 列表支持范围搜索
+    Handler     string `json:"handler" gorm:"column:handler" widget:"name:处理人;type:user" search:"in"`           // 列表支持精确筛选
+    CcUsers     string `json:"cc_users" gorm:"column:cc_users" widget:"name:抄送人;type:users" search:"contains"`  // 列表支持 FIND_IN_SET 搜索
+    Deadline    int64  `json:"deadline" gorm:"column:deadline" widget:"name:截止时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte"` // 列表支持范围搜索
+    Remark      string `json:"remark" gorm:"column:remark" widget:"name:备注;type:text_area"`                     // 未配 search，列表不可搜索
+}
+```
 
 ### 4. permission 标签
 
@@ -411,9 +439,14 @@ OnTableDeleteRows: func(ctx *app.Context, req *callback.OnTableDeleteRowsReq) (*
 }
 ```
 
-### 4. List 函数内对列表数据的后处理
+### 4. List 函数：Build 前处理与 Build 后处理
 
-Build 之后可对 `lists` 做计算、脱敏等。下面是一个**完整最小示例**：3～5 个字段，列表里增加一个「仅展示、不落库」的剩余时间。
+List 函数可在 **Build 之前** 和 **Build 之后** 两处做自定义处理：
+
+- **Build 之前**：在调用 `AutoSearchFilterPaged` 之前，对 `queryDB` 做 Where（外表筛选、计算字段的筛选条件）、Preload 等，再传入 `AutoSearchFilterPaged(queryDB, ...)`。
+- **Build 之后**：对返回的 `lists` 逐条做计算、填充不落库字段（如剩余时间、状态、关联表名称、link URL）等。
+
+下面先给一个**仅后处理**的最小示例（剩余时间），再给一个**前处理 + 后处理**的示例（会议室预约：外表/状态筛选 + 填充会议室名称/状态/link）。
 
 ```go
 // 结构体：ID、标题、截止时间（落库），剩余时间（不落库，仅展示）
@@ -456,6 +489,85 @@ func TaskList(ctx *app.Context, resp response.Response) error {
 ```
 
 要点：计算字段用 `gorm:"-"`，不写库；`permission:"read"` 表示仅列表展示、表单不编辑。
+
+**示例二：Build 前处理 + 后处理（会议室预约）**
+
+请求里包含**外表筛选**（会议室名称）和**计算字段筛选**（预约状态：待开始/进行中/已结束，由开始/结束时间与当前时间算出）。需在 Build 前对 `queryDB` 做 Where；Build 后填充不落库字段（会议室名称、状态、详情 link）。参考：`namespace/luobei/operations/code/api/servercenter/meeting/meeting_room_booking.go`。
+
+```go
+// 列表结构体：RoomName、Status、RoomLink 为不落库展示字段（gorm:"-"）
+type MeetingRoomBooking struct {
+    ID        int    `json:"id" gorm:"primaryKey;column:id" widget:"name:预约ID;type:ID" permission:"read" search:"eq"`
+    RoomID    int    `json:"room_id" gorm:"column:room_id" widget:"name:会议室;type:select" callback:"OnSelectFuzzy"`
+    Room      *MeetingRoom `json:"-" gorm:"foreignKey:RoomID"`
+    RoomName  string `json:"room_name" gorm:"-" widget:"name:会议室名称;type:text" permission:"read"`   // 后处理从 Room 取
+    RoomLink  string `json:"room_link" gorm:"-" widget:"name:会议室详情;type:link" permission:"read"`  // 后处理 BuildFunctionUrlWithText
+    StartTime int64  `json:"start_time" gorm:"column:start_time" widget:"name:开始时间;type:timestamp" search:"gte,lte"`
+    EndTime   int64  `json:"end_time" gorm:"column:end_time" widget:"name:结束时间;type:timestamp" search:"gte,lte"`
+    Status    string `json:"status" gorm:"-" widget:"name:预约状态;type:select;options:待开始,进行中,已结束;options_colors:info,primary,success" permission:"read"` // 后处理按时间计算
+}
+
+// 列表请求：RoomName、Status 为筛选条件，非表字段，需在 List 内手写 Where
+type MeetingRoomBookingListReq struct {
+    RoomName string `json:"room_name" form:"room_name"` // 按会议室名称模糊查
+    Status   string `json:"status" form:"status"`       // 按预约状态筛选（待开始/进行中/已结束）
+    query.SearchFilterPageReq
+}
+
+func MeetingRoomBookingList(ctx *app.Context, resp response.Response) error {
+    db := ctx.GetGormDB()
+    var req MeetingRoomBookingListReq
+    if err := ctx.ShouldBind(&req); err != nil { return err }
+
+    queryDB := db.Model(&MeetingRoomBooking{})
+
+    // Build 前处理 1：按会议室名称筛选（查外表得 roomIDs，再 Where room_id IN ?）
+    if req.RoomName != "" {
+        var roomIDs []int
+        if err := db.Model(&MeetingRoom{}).Where("name LIKE ?", "%"+req.RoomName+"%").
+            Pluck("id", &roomIDs).Error; err == nil && len(roomIDs) > 0 {
+            queryDB = queryDB.Where("room_id IN ?", roomIDs)
+        } else {
+            return resp.Table(&[]MeetingRoomBooking{}).Build()
+        }
+    }
+
+    // Build 前处理 2：按预约状态筛选（计算字段，用 start_time/end_time 与当前时间比较）
+    if req.Status != "" {
+        now := time.Now().UnixMilli()
+        switch req.Status {
+        case "待开始": queryDB = queryDB.Where("start_time > ?", now)
+        case "进行中": queryDB = queryDB.Where("start_time <= ? AND end_time > ?", now, now)
+        case "已结束": queryDB = queryDB.Where("end_time <= ?", now)
+        }
+    }
+
+    queryDB = queryDB.Preload("Room")
+    var bookings []MeetingRoomBooking
+    if err := resp.Table(&bookings).AutoSearchFilterPaged(queryDB, &MeetingRoomBooking{}, &req.SearchFilterPageReq).Build(); err != nil {
+        return err
+    }
+
+    // Build 后处理：填充不落库字段（会议室名称、状态、详情 link）
+    for i := range bookings {
+        if bookings[i].Room != nil {
+            bookings[i].RoomName = bookings[i].Room.Name
+        }
+        bookings[i].Status = calculateBookingStatus(bookings[i].StartTime, bookings[i].EndTime)
+        bookings[i].RoomLink, _ = ctx.BuildFunctionUrlWithText("meeting_room_list", MeetingRoom{ID: bookings[i].RoomID}, "查看会议室详情")
+    }
+    return nil
+}
+
+func calculateBookingStatus(startTime, endTime int64) string {
+    now := time.Now().UnixMilli()
+    if now < startTime { return "待开始" }
+    if now < endTime { return "进行中" }
+    return "已结束"
+}
+```
+
+要点：**前处理**用自定义 `queryDB`（外表 Where、计算字段 Where、Preload）再传 `AutoSearchFilterPaged(queryDB, ...)`；**后处理**在 Build 之后遍历 `lists` 填 `RoomName`、`Status`、`RoomLink` 等不落库字段。
 
 ---
 
@@ -565,8 +677,8 @@ func onSelectFuzzyProduct(ctx *app.Context, req *callback.OnSelectFuzzyReq) (*ca
 
 当 OnSelectFuzzy 用于 **table 子表**中的 select（如收银台商品清单里的「商品」）时，Statistics 里可用：
 
-- **`statistics.Sum(expression)`**：对当前 table 所有行按表达式求和。表达式格式：**空格分隔**，`*` 表示乘，字段名来自 `SelectFuzzyItem.DisplayInfo` 的 key 或行内字段名（如 `quantity`）。  
-  例：`statistics.Sum("价格")`、`statistics.Sum("价格 * quantity")`（价格×数量）、`statistics.Sum("价格 * quantity * 折扣率")`（折扣后金额）、`statistics.Sum("价格 * quantity * (1 - 折扣率)")`（优惠金额）。
+- **`statistics.Sum(expression)`**：对当前 table 所有行按表达式求和。表达式与 **MySQL/SQL 一致**：空格分隔、`*` 表示乘，字段名来自 `SelectFuzzyItem.DisplayInfo` 的 key 或行内字段名（如 `quantity`）。条件用 **MySQL IF(cond, thenExpr, elseExpr)**。  
+  例：`statistics.Sum("价格")`、`statistics.Sum("价格 * quantity")`、`statistics.Sum("IF(price > 0, price * quantity, 销售价 * quantity)")`（有输入价用输入价×数量，否则用默认销售价×数量）、`statistics.Sum("价格 * quantity * (1 - 折扣率)")`（优惠金额）。
 - **`statistics.Count(field)`**：对当前行按某字段非空计数，如 `statistics.Count("价格")` 表示「选了几种商品」。
 - **`statistics.Avg(field, ...)`**、**`statistics.Min(field)`**、**`statistics.Max(field)`**：平均值、最小值、最大值。
 
@@ -791,7 +903,7 @@ return resp.Chart(chart).Build()
 
 - **init()**：在业务 .go 中写；`packageContext.GET("路由名", ListFunc, TableTemplate)` 或 `packageContext.POST("路由名", Handler, FormTemplate)` 或 `packageContext.GET("路由名", ChartHandler, ChartTemplate)`。`packageContext` 由脚手架生成，不要重复声明。
 - **init_.go**：由系统生成，不要用 write_go_file 创建或修改。
-- **目录**：一个包一个目录，路由名与业务含义对应；多表/多 Form 可在同包多文件，各自 GET/POST 注册。参考「可读的目录」中案例路径与 system_prompt 中「参考项目目录结构」。
+- **目录**：一个包一个目录，路由名与业务含义对应；多表/多 Form 可在同包多文件，各自 GET/POST 注册。参考「可读的目录」中案例路径或 read_doc("/builtin/doc/workspace/create-project") 文档末尾的案例分类。
 
 ---
 

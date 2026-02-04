@@ -13,8 +13,7 @@
 ```
   [商品表] ──┐
             ├──► [收银台 Form] ──► [支付记录表] ──┬──► 销售趋势（折线图）
-  [会员表] ──┘    POST cashier_desk               ├──► 每日销售额柱状图
-                                                 ├──► 分类销售（饼图）
+  [会员表] ──┘    POST cashier_desk               ├──► 分类销售（饼图）
                                                  └──► 平均订单金额（仪表盘）
 ```
 
@@ -23,14 +22,12 @@
 | 图表         | 类型     | 路由名 |
 |--------------|----------|--------|
 | 销售趋势     | line 折线图 | cashier_sales_trend_statistics |
-| 每日销售额柱状图 | bar 柱状图 | cashier_sales_bar_statistics |
 | 分类销售     | pie 饼图   | cashier_category_sales_statistics |
 | 平均订单金额 | gauge 仪表盘 | cashier_average_order_amount_statistics |
 
 **图表效果简述**（供大模型理解每个图长什么样，写其他项目 PRD 时可照此用文本描述）
 
 - **销售趋势（折线图）**：横轴为日期（按日聚合），纵轴两条线——销售额(元)、订单数；下方 Metadata 展示总销售额、总订单数、统计天数、平均日销售额。
-- **每日销售额柱状图**：横轴为日期（按日聚合），纵轴两组柱子——销售额(元)、订单数；Metadata 展示总销售额、总订单数、统计天数、平均日销售额。
 - **分类销售（饼图）**：四类扇区——饮料/零食/日用品/其他，数值为各类销售额；Metadata 展示总销售额、总订单数。
 - **平均订单金额（仪表盘）**：单值仪表盘，中心显示平均订单金额（元），有 min/max 刻度；Metadata 展示总订单数、总销售额、平均/最高/最低订单金额。
 
@@ -120,18 +117,7 @@
 
 ### 5. 统计/图表（cashier_statistics）
 
-**约束：一个 GET 路由只返回一个图表。** 一个路由只能返回一张图，不能在一个函数里返回多张图；需要多张图时每张图单独一个 GET 路由（本案即：销售趋势、每日销售额柱状图、分类销售、平均订单金额各一个路由）。每个 Handler 内只 `return resp.Chart(chart).Build()` 一次。
-
-**图表返回值必须使用以下 4 种类型之一（必须填写，不可使用其他类型）：**
-
-| 必须使用的类型 | 说明 |
-|----------------|------|
-| `*types.LineChart` | 折线图 |
-| `*types.BarChart` | 柱状图 |
-| `*types.PieChart` | 饼图 |
-| `*types.GaugeChart` | 仪表盘 |
-
-多个 GET 图表接口（每个接口一个图表），共用同一请求结构；支持时间范围、支付状态筛选，响应为上表 4 种类型之一。
+多个 GET 图表接口，共用同一请求结构；支持时间范围、支付状态筛选，响应为 Chart 数据（折线图/饼图/仪表盘）。
 
 **请求（各图表通用）**
 
@@ -145,12 +131,11 @@
 
 | 路由名 | 图表类型 | 说明 |
 |--------|----------|------|
-| cashier_sales_trend_statistics | LineChart 折线图 | 按日汇总：X 轴日期，双系列「销售额(元)」「订单数」；Metadata：总销售额、总订单数、统计天数、平均日销售额 |
-| cashier_sales_bar_statistics | BarChart 柱状图 | 按日汇总：X 轴日期，双系列「销售额(元)」「订单数」；Metadata：总销售额、总订单数、统计天数、平均日销售额 |
-| cashier_category_sales_statistics | PieChart 饼图 | 按商品分类汇总销售额占比（饮料/零食/日用品/其他）；Metadata：总销售额、总订单数 |
-| cashier_average_order_amount_statistics | GaugeChart 仪表盘 | 平均订单金额仪表盘；Series.Config 含 min/max、detail.formatter（如 ¥{value}）；Metadata：总订单数、总销售额、平均/最高/最低订单金额 |
+| cashier_sales_trend_statistics | line 折线图 | 按日汇总：X 轴日期，双系列「销售额(元)」「订单数」；Metadata：总销售额、总订单数、统计天数、平均日销售额 |
+| cashier_category_sales_statistics | pie 饼图 | 按商品分类汇总销售额占比（饮料/零食/日用品/其他）；Metadata：总销售额、总订单数 |
+| cashier_average_order_amount_statistics | gauge 仪表盘 | 平均订单金额仪表盘；Series.Config 含 min/max、detail.formatter（如 ¥{value}）；Metadata：总订单数、总销售额、平均/最高/最低订单金额 |
 
-**实现要点**：请求体用同一结构体（如 `CashierSalesStatisticsReq`）+ widget 标签；**每个图表一个 GET 路由、一个 Handler**，每个处理函数内只组装**上表 4 种类型之一**（`&types.LineChart{}`、`&types.BarChart{}`、`&types.PieChart{}`、`&types.GaugeChart{}`），只填 Title、XAxis、Series、Metadata，**不填 ChartType 与 Series[].Type**（由框架在 `resp.Chart()` 时注入），并 `return resp.Chart(chart).Build()`；ChartTemplate 的 Response 填与返回值一致的类型（如折线图用 `Response: &types.LineChart{}`）；多个图表用多个 `packageContext.GET(路由名, Handler, ChartTemplate)` 分别注册。
+**实现要点**：请求体用同一结构体（如 `CashierSalesStatisticsReq`）+ widget 标签；处理函数内按时间/状态筛选支付记录与明细，聚合后组装 `types.Chart`（ChartType、Title、XAxis、Series、Metadata），`resp.Chart(chart).Build()` 返回；多个图表用 `packageContext.GET(路由名, Handler, ChartTemplate)` 注册。
 
 ---
 
@@ -1063,6 +1048,7 @@ func CashierSalesTrendStatistics(ctx *app.Context, resp response.Response) error
 	chart := &types.LineChart{
 		Title: "销售额趋势统计",
 		XAxis: dateLabels,
+		// Series：数据系列，每项为一条折线，Name 为图例名，Data 与 XAxis 一一对应
 		Series: []types.ChartSeries{
 			{Name: "销售额(元)", Data: salesData},
 			{Name: "订单数", Data: orderData},
@@ -1085,27 +1071,33 @@ func CashierSalesBarStatistics(ctx *app.Context, resp response.Response) error {
 		logger.Errorf(ctx, "CashierSalesBarStatistics ShouldBind err: %v", err)
 		return err
 	}
+
 	db := ctx.GetGormDB()
 	if db == nil {
 		return fmt.Errorf("数据库连接失败")
 	}
+
 	if req.StartTime == 0 {
 		req.StartTime = time.Now().AddDate(0, 0, -30).UnixMilli()
 	}
 	if req.EndTime == 0 {
 		req.EndTime = time.Now().UnixMilli()
 	}
+
 	var trendStats []struct {
 		Date   string  `gorm:"column:date"`
 		Amount float64 `gorm:"column:amount"`
 		Count  int64   `gorm:"column:count"`
 	}
+
 	trendQuery := db.Model(&CashierPaymentRecord{}).
 		Where("created_at >= ?", req.StartTime).
 		Where("created_at <= ?", req.EndTime)
+
 	if req.Status != "" {
 		trendQuery = trendQuery.Where("status = ?", req.Status)
 	}
+
 	dateFormatExpr, groupByExpr := CashierGetDateFormatSQL(db)
 	err := trendQuery.
 		Select(fmt.Sprintf("%s as date, COALESCE(SUM(final_amount), 0) as amount, COUNT(*) as count", dateFormatExpr)).
@@ -1116,6 +1108,7 @@ func CashierSalesBarStatistics(ctx *app.Context, resp response.Response) error {
 		logger.Errorf(ctx, "CashierSalesBarStatistics Scan err: %v", err)
 		trendStats = nil
 	}
+
 	dateLabels := make([]string, 0, len(trendStats))
 	salesData := make([]interface{}, 0, len(trendStats))
 	orderData := make([]interface{}, 0, len(trendStats))
@@ -1128,9 +1121,11 @@ func CashierSalesBarStatistics(ctx *app.Context, resp response.Response) error {
 		totalAmount += stat.Amount
 		totalCount += stat.Count
 	}
+
 	chart := &types.BarChart{
 		Title: "每日销售额柱状图",
 		XAxis: dateLabels,
+		// Series：数据系列，每项为一组柱子，Name 为图例名，Data 与 XAxis 一一对应
 		Series: []types.ChartSeries{
 			{Name: "销售额(元)", Data: salesData},
 			{Name: "订单数", Data: orderData},
@@ -1238,6 +1233,7 @@ func CashierCategorySalesStatistics(ctx *app.Context, resp response.Response) er
 
 	chart := &types.PieChart{
 		Title: "商品分类销售额统计",
+		// Series：饼图一般一条系列，Data 为 []{name, value} 表示各扇区
 		Series: []types.ChartSeries{
 			{Name: "销售额", Data: pieData},
 		},
@@ -1301,6 +1297,7 @@ func CashierAverageOrderAmountStatistics(ctx *app.Context, resp response.Respons
 
 	chart := &types.GaugeChart{
 		Title: "平均订单金额统计",
+		// Series：仪表盘一般一条系列，Data 为单值，Config 可配 min/max/detail 等
 		Series: []types.ChartSeries{
 			{
 				Name:   "平均订单金额",
@@ -1341,6 +1338,7 @@ var CashierSalesTrendStatisticsTemplate = &app.ChartTemplate{
 		Request:  &CashierSalesStatisticsReq{},
 		Response: &types.LineChart{},
 	},
+	ChartType: app.ChartTypeLine,
 }
 
 // CashierSalesBarStatisticsTemplate 每日销售额柱状图统计图表模板
@@ -1352,6 +1350,7 @@ var CashierSalesBarStatisticsTemplate = &app.ChartTemplate{
 		Request:  &CashierSalesStatisticsReq{},
 		Response: &types.BarChart{},
 	},
+	ChartType: app.ChartTypeBar,
 }
 
 // CashierCategorySalesStatisticsTemplate 商品分类销售额统计图表模板
@@ -1363,6 +1362,7 @@ var CashierCategorySalesStatisticsTemplate = &app.ChartTemplate{
 		Request:  &CashierSalesStatisticsReq{},
 		Response: &types.PieChart{},
 	},
+	ChartType: app.ChartTypePie,
 }
 
 // CashierAverageOrderAmountStatisticsTemplate 平均订单金额统计图表模板
@@ -1374,12 +1374,17 @@ var CashierAverageOrderAmountStatisticsTemplate = &app.ChartTemplate{
 		Request:  &CashierSalesStatisticsReq{},
 		Response: &types.GaugeChart{},
 	},
+	ChartType: app.ChartTypeGauge,
 }
 
 func init() {
+	// 销售额趋势统计：按日期展示销售额、订单数折线图，支持时间范围、支付状态筛选
 	packageContext.GET("cashier_sales_trend_statistics", CashierSalesTrendStatistics, CashierSalesTrendStatisticsTemplate)
+	// 每日销售额柱状图：按日期展示销售额、订单数柱状图，支持时间范围、支付状态筛选
 	packageContext.GET("cashier_sales_bar_statistics", CashierSalesBarStatistics, CashierSalesBarStatisticsTemplate)
+	// 商品分类销售额统计：各分类销售额占比饼图，支持时间范围、支付状态筛选
 	packageContext.GET("cashier_category_sales_statistics", CashierCategorySalesStatistics, CashierCategorySalesStatisticsTemplate)
+	// 平均订单金额统计：平均订单金额、总销售额等指标仪表盘，支持时间范围、支付状态筛选
 	packageContext.GET("cashier_average_order_amount_statistics", CashierAverageOrderAmountStatistics, CashierAverageOrderAmountStatisticsTemplate)
 }
 ```

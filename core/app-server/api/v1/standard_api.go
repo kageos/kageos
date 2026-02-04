@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -48,6 +49,64 @@ func parseFullCodePath(fullCodePath string) (user, app string, router string, er
 	router = strings.Join(parts[2:], "/")
 
 	return user, app, router, nil
+}
+
+// needFillOldValues 判断 table/update 请求体是否缺少 old_values，需要内部自动查表填充
+func needFillOldValues(bodyData map[string]interface{}) bool {
+	if bodyData == nil {
+		return false
+	}
+	if _, hasID := bodyData["id"]; !hasID {
+		return false
+	}
+	oldValues, ok := bodyData["old_values"].(map[string]interface{})
+	return !ok || len(oldValues) == 0
+}
+
+// getBodyID 从 table/update body 中取出 id 的字符串形式（用于 eq=id:xxx）
+func getBodyID(bodyData map[string]interface{}) (string, bool) {
+	if bodyData == nil {
+		return "", false
+	}
+	id, ok := getBodyIDInt64(bodyData)
+	return strconv.FormatInt(id, 10), ok
+}
+
+// getBodyIDInt64 从 body 中解析 id（支持 float64/int）
+func getBodyIDInt64(bodyData map[string]interface{}) (int64, bool) {
+	if bodyData == nil {
+		return 0, false
+	}
+	switch v := bodyData["id"].(type) {
+	case float64:
+		return int64(v), true
+	case int:
+		return int64(v), true
+	case int64:
+		return v, true
+	default:
+		return 0, false
+	}
+}
+
+// extractFirstItemFromSearchResult 从 table/search 返回的 result 中取 items[0]，作为当前行（old_values）
+func extractFirstItemFromSearchResult(result interface{}) map[string]interface{} {
+	if result == nil {
+		return nil
+	}
+	m, ok := result.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	items, ok := m["items"].([]interface{})
+	if !ok || len(items) == 0 {
+		return nil
+	}
+	first, ok := items[0].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	return first
 }
 
 // buildRequestAppReq 构建 RequestAppReq 请求对象
@@ -351,7 +410,7 @@ func (s *StandardAPI) TableTemplate(c *gin.Context) {
 
 	// 获取当前用户信息（用于创建用户字段的默认值）
 	username := contextx.GetRequestUser(c)
-	
+
 	// 过滤可编辑字段（table_permission 为空或 update，排除 ID 字段）
 	// 同时包含系统字段（created_at, create_by 等，即使 permission="read" 也导出）
 	editableFields := make([]*widget.Field, 0)
@@ -363,8 +422,8 @@ func (s *StandardAPI) TableTemplate(c *gin.Context) {
 
 		// 检查是否是系统字段（created_at, create_by 等）
 		isSystemField := false
-		if field.Code == "created_at" || field.Code == "create_by" || 
-		   field.Code == "updated_at" || field.Code == "updated_by" {
+		if field.Code == "created_at" || field.Code == "create_by" ||
+			field.Code == "updated_at" || field.Code == "updated_by" {
 			isSystemField = true
 		}
 
@@ -405,7 +464,7 @@ func (s *StandardAPI) TableTemplate(c *gin.Context) {
 
 	// 生成示例数据行（传入当前用户和时间，用于系统字段的默认值）
 	exampleRows := generateExampleRows(editableFields, username)
-	
+
 	// 写入示例数据行（从第二行开始）
 	for rowIndex, row := range exampleRows {
 		for colIndex, value := range row {
@@ -424,23 +483,23 @@ func (s *StandardAPI) TableTemplate(c *gin.Context) {
 
 	// 设置响应头
 	c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	
+
 	// 从 full-code-path 中提取函数名（最后一段）
 	pathParts := strings.Split(strings.Trim(fullCodePath, "/"), "/")
 	funcName := "template"
 	if len(pathParts) > 0 {
 		funcName = pathParts[len(pathParts)-1]
 	}
-	
+
 	// 文件名编码处理（支持中文文件名）
 	fileName := fmt.Sprintf("%s_导入模板.xlsx", funcName)
 	// 使用 RFC 5987 格式支持中文文件名（兼容性更好）
 	encodedFileName := url.QueryEscape(fileName)
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"; filename*=UTF-8''%s", fileName, encodedFileName))
-	
+
 	// 设置状态码
 	c.Status(200)
-	
+
 	// 写入响应（直接写入，不使用 JSON 包装器）
 	if err := excelFile.Write(c.Writer); err != nil {
 		logger.Errorf(ctx, "[TableTemplate] 生成 Excel 模板失败: %v", err)
@@ -456,7 +515,7 @@ func (s *StandardAPI) TableTemplate(c *gin.Context) {
 func generateExampleRows(fields []*widget.Field, username string) [][]interface{} {
 	// 找出需要生成多行的字段（select/multiselect 和 bool/switch）
 	var maxRows int = 1 // 最大行数
-	
+
 	for _, field := range fields {
 		rowCount := 1
 		switch field.Widget.Type {
@@ -474,12 +533,12 @@ func generateExampleRows(fields []*widget.Field, username string) [][]interface{
 			// bool 类型：显示"是"和"否"两行
 			rowCount = 2
 		}
-		
+
 		if rowCount > maxRows {
 			maxRows = rowCount
 		}
 	}
-	
+
 	// 生成示例数据行
 	rows := make([][]interface{}, maxRows)
 	for rowIndex := 0; rowIndex < maxRows; rowIndex++ {
@@ -489,7 +548,7 @@ func generateExampleRows(fields []*widget.Field, username string) [][]interface{
 		}
 		rows[rowIndex] = row
 	}
-	
+
 	return rows
 }
 
@@ -500,10 +559,10 @@ func generateExampleValueForRow(field *widget.Field, rowIndex int, maxRows int, 
 	if field.Data != nil {
 		dataType = field.Data.Type
 	}
-	
+
 	widgetType := field.Widget.Type
 	config, ok := field.Widget.Config.(map[string]interface{})
-	
+
 	// 处理系统字段
 	switch field.Code {
 	case "created_at", "updated_at":
@@ -517,7 +576,7 @@ func generateExampleValueForRow(field *widget.Field, rowIndex int, maxRows int, 
 		}
 		return "" // 如果获取不到用户名，返回空字符串（前端会处理）
 	}
-	
+
 	switch widgetType {
 	case widget.TypeSelect, widget.TypeMultiSelect:
 		// 获取所有选项，按行索引返回对应选项
@@ -548,14 +607,14 @@ func generateExampleValueForRow(field *widget.Field, rowIndex int, maxRows int, 
 		}
 		// 没有选项，返回默认值
 		return fmt.Sprintf("选项%d", rowIndex+1)
-		
+
 	case widget.TypeSwitch:
 		// bool 类型：第一行显示"是"，第二行显示"否"
 		if rowIndex == 0 {
 			return "是"
 		}
 		return "否"
-		
+
 	case widget.TypeNumber, widget.TypeFloat:
 		// 数字类型：使用默认值或示例数字
 		if ok {
@@ -564,7 +623,7 @@ func generateExampleValueForRow(field *widget.Field, rowIndex int, maxRows int, 
 			}
 		}
 		return 123
-		
+
 	case widget.TypeTimestamp:
 		// 日期类型：如果是创建时间/更新时间字段，使用当前时间；否则使用默认值或示例日期
 		if field.Code == "created_at" || field.Code == "updated_at" {
@@ -577,7 +636,7 @@ func generateExampleValueForRow(field *widget.Field, rowIndex int, maxRows int, 
 			}
 		}
 		return "2024-01-01"
-		
+
 	case widget.TypeTextArea:
 		// 多行文本：使用默认值或示例文本
 		if ok {
@@ -586,11 +645,11 @@ func generateExampleValueForRow(field *widget.Field, rowIndex int, maxRows int, 
 			}
 		}
 		return fmt.Sprintf("示例文本%d", rowIndex+1)
-		
+
 	case widget.TypeFiles:
 		// 文件类型：显示为空
 		return ""
-		
+
 	case widget.TypeUser:
 		// 用户类型：如果是创建用户/更新用户字段，使用当前用户名；否则使用默认值
 		if field.Code == "create_by" || field.Code == "updated_by" {
@@ -605,7 +664,7 @@ func generateExampleValueForRow(field *widget.Field, rowIndex int, maxRows int, 
 			}
 		}
 		return "" // 默认值为空字符串
-		
+
 	default:
 		// 其他类型：根据 dataType 判断
 		if dataType == widget.DataTypeInt || dataType == widget.DataTypeFloat {
@@ -625,7 +684,6 @@ func generateExampleValueForRow(field *widget.Field, rowIndex int, maxRows int, 
 		return fmt.Sprintf("示例文本%d", rowIndex+1)
 	}
 }
-
 
 // TableUpdate Table 更新接口
 // @Summary Table 更新
@@ -650,13 +708,65 @@ func (s *StandardAPI) TableUpdate(c *gin.Context) {
 		return
 	}
 
-	// 读取请求体，用于记录操作日志
+	// 读取请求体
 	bodyBytes, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		response.FailWithMessage(c, "读取请求体失败: "+err.Error())
 		return
 	}
-	c.Request.Body = io.NopCloser(strings.NewReader(string(bodyBytes))) // 重新设置请求体，供后续使用
+
+	var bodyData map[string]interface{}
+	if err := json.Unmarshal(bodyBytes, &bodyData); err != nil {
+		response.FailWithMessage(c, "请求体必须是合法 JSON")
+		return
+	}
+
+	// 能力下沉：若调用方未传 old_values，则内部按 id 查表取当前行并自动填充，方便上层只传 id + updates
+	if needFillOldValues(bodyData) {
+		ctx := contextx.ToContext(c)
+		idStr, ok := getBodyID(bodyData)
+		if !ok || idStr == "" {
+			response.FailWithMessage(c, "请求体缺少有效 id，无法自动填充 old_values")
+			return
+		}
+		user, app, router, err := parseFullCodePath(fullCodePath)
+		if err != nil {
+			response.FailWithMessage(c, "解析路径失败: "+err.Error())
+			return
+		}
+		searchReq := &dto.RequestAppReq{
+			User:            user,
+			App:             app,
+			Router:          router,
+			Method:          "GET",
+			UrlQuery:        "eq=id:" + url.QueryEscape(idStr) + "&page=1&page_size=1",
+			TraceId:         contextx.GetTraceId(c),
+			RequestUser:     contextx.GetRequestUser(c),
+			RequestUserDept: contextx.GetRequestDepartmentFullPath(c),
+			Token:           contextx.GetToken(c),
+		}
+		searchResp, err := s.appService.RequestApp(ctx, searchReq)
+		if err != nil {
+			response.FailWithMessage(c, "自动查询当前行失败: "+err.Error())
+			return
+		}
+		if searchResp.Error != "" {
+			response.FailWithMessage(c, "自动查询当前行失败: "+searchResp.Error)
+			return
+		}
+		oldRow := extractFirstItemFromSearchResult(searchResp.Result)
+		if oldRow == nil {
+			response.FailWithMessage(c, "记录不存在（eq=id 未查到数据），无法填充 old_values")
+			return
+		}
+		bodyData["old_values"] = oldRow
+		newBodyBytes, err := json.Marshal(bodyData)
+		if err != nil {
+			response.FailWithMessage(c, "构造 old_values 后序列化失败: "+err.Error())
+			return
+		}
+		c.Request.Body = io.NopCloser(bytes.NewReader(newBodyBytes))
+	}
 
 	// 构建回调请求对象（调用 OnTableUpdateRow）
 	req, err := s.buildCallbackAppReq(c, fullCodePath, "OnTableUpdateRow")
@@ -665,9 +775,8 @@ func (s *StandardAPI) TableUpdate(c *gin.Context) {
 		return
 	}
 
-	// 解析请求体，用于记录操作日志
-	var bodyData map[string]interface{}
-	if err := json.Unmarshal(bodyBytes, &bodyData); err == nil {
+	// 使用已解析的 bodyData（可能已自动填充 old_values）记录操作日志
+	if bodyData != nil {
 		user, app, router, _ := parseFullCodePath(fullCodePath)
 		logReq := &dto.RecordTableOperateLogReq{
 			TenantUser:  user,
@@ -685,8 +794,8 @@ func (s *StandardAPI) TableUpdate(c *gin.Context) {
 			if id, err := strconv.ParseInt(rowIDStr, 10, 64); err == nil {
 				logReq.RowID = id
 			}
-		} else if id, ok := bodyData["id"].(float64); ok {
-			logReq.RowID = int64(id)
+		} else if id, ok := getBodyIDInt64(bodyData); ok {
+			logReq.RowID = id
 		}
 
 		// 获取 updates 和 old_values
@@ -1023,4 +1132,3 @@ func (s *StandardAPI) CallbackOnSelectFuzzy(c *gin.Context) {
 
 	response.OkWithData(c, resp.Result, metadata)
 }
-

@@ -1,25 +1,21 @@
 /**
  * ExpressionParserV2 - 新一代聚合计算表达式解析引擎
  * 
- * 支持的新语法：
+ * 表达式语法与 MySQL/SQL 保持一致，避免大模型混淆。
+ * 
+ * 支持语法：
  * 1. 自然数学表达式：价格 * quantity, price * quantity * 0.9
- * 2. SQL 风格 IF：IF amount > 0 THEN amount * quantity ELSE price * quantity
- * 3. COALESCE 函数：COALESCE(amount, price * quantity)
+ * 2. MySQL IF(cond, thenExpr, elseExpr)：sum(IF(price > 0, price * quantity, 销售价 * quantity))
+ * 3. COALESCE(expr1, expr2, ...)、IFNULL(expr1, expr2)
  * 4. 括号支持：(1 - 折扣率), (price + tax) * quantity
  * 5. 操作符优先级：*, / 优先于 +, -
  * 
- * 示例：
+ * 示例（推荐统一用 MySQL 风格）：
  * - sum(价格 * quantity)
- * - sum(价格 * quantity * (1 - 折扣率))
+ * - sum(IF(price > 0, price * quantity, 销售价 * quantity))
  * - sum(COALESCE(amount, price * quantity))
- * - sum(IF amount > 0 THEN amount * quantity ELSE price * quantity)
- * - sum(IF amount > 0 AND amount < 1000 THEN amount ELSE price * quantity)
  * 
- * 设计原则：
- * 1. 保持向后兼容（旧解析器继续工作）
- * 2. 新解析器独立运行，可以逐步替换
- * 3. 支持自然数学表达式，更易读易写
- * 4. 支持复杂条件判断，解决业务痛点
+ * 兼容旧写法（不推荐）：IF cond THEN a ELSE b 仍可解析。
  */
 
 import { Logger } from './logger'
@@ -401,6 +397,14 @@ class Parser {
   }
 
   /**
+   * 查看下一个 Token（不移动 position），用于区分 IF(cond,a,b) 与 IF cond THEN a ELSE b
+   */
+  private peekNextToken(): Token | null {
+    const nextPos = this.position + 1
+    return nextPos < this.tokens.length ? this.tokens[nextPos] : null
+  }
+
+  /**
    * 期望特定 Token 类型
    */
   private expect(type: TokenType): Token {
@@ -555,8 +559,12 @@ class Parser {
       return { type: 'Field', name: token.value as string } as FieldNode
     }
     
-    // IF 表达式
+    // MySQL 风格 IF(cond, thenExpr, elseExpr) 与 类 SQL IF cond THEN a ELSE b 二选一
     if (this.check(TokenType.IF)) {
+      const next = this.peekNextToken()
+      if (next?.type === TokenType.LPAREN) {
+        return this.parseIfFunction()
+      }
       return this.parseIf()
     }
     
@@ -582,7 +590,23 @@ class Parser {
   }
 
   /**
-   * 解析 IF 表达式
+   * 解析 MySQL 风格 IF 函数
+   * IF(condition, thenExpr, elseExpr)
+   */
+  private parseIfFunction(): ASTNode {
+    this.expect(TokenType.IF)
+    this.expect(TokenType.LPAREN)
+    const condition = this.parseExpression()
+    this.expect(TokenType.COMMA)
+    const thenBranch = this.parseExpression()
+    this.expect(TokenType.COMMA)
+    const elseBranch = this.parseExpression()
+    this.expect(TokenType.RPAREN)
+    return { type: 'FunctionCall', name: 'IF', args: [condition, thenBranch, elseBranch] } as FunctionCallNode
+  }
+
+  /**
+   * 解析 IF 表达式（类 SQL，已不推荐，请用 IF(cond,a,b)）
    * IF condition THEN value1 ELSE value2
    */
   private parseIf(): ASTNode {
@@ -753,22 +777,29 @@ class Evaluator {
    * 计算函数调用
    */
   private static evaluateFunctionCall(node: FunctionCallNode, row: any): any {
-    const args = node.args.map(arg => this.evaluate(arg, row))
-    
     switch (node.name.toUpperCase()) {
+      case 'IF':
+        // MySQL IF(cond, thenExpr, elseExpr)：条件为真取第二参数，否则取第三参数
+        if (node.args.length !== 3) throw new Error('IF requires 3 arguments: IF(cond, thenExpr, elseExpr)')
+        const condVal = this.evaluate(node.args[0], row)
+        const truthy = condVal !== null && condVal !== undefined && condVal !== '' && condVal !== 0 && condVal !== false
+        return truthy ? this.evaluate(node.args[1], row) : this.evaluate(node.args[2], row)
+      
       case 'COALESCE':
         // 返回第一个非空值
-        for (const arg of args) {
-          if (arg !== null && arg !== undefined && arg !== '') {
-            return arg
+        for (const arg of node.args) {
+          const val = this.evaluate(arg, row)
+          if (val !== null && val !== undefined && val !== '') {
+            return val
           }
         }
         return null
       
       case 'IFNULL':
         // 如果第一个参数为空，返回第二个参数
-        if (args.length < 2) throw new Error('IFNULL requires 2 arguments')
-        return (args[0] !== null && args[0] !== undefined && args[0] !== '') ? args[0] : args[1]
+        if (node.args.length < 2) throw new Error('IFNULL requires 2 arguments')
+        const first = this.evaluate(node.args[0], row)
+        return (first !== null && first !== undefined && first !== '') ? first : this.evaluate(node.args[1], row)
       
       default:
         throw new Error(`Unknown function: ${node.name}`)

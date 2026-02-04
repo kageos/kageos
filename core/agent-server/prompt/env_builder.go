@@ -9,14 +9,16 @@ import (
 
 // WorkspaceEnvInput 构建环境数据所需的输入，调用方从 workspaceCtx 等填充后传入；nil 表示无上下文，仅用 directoryName/fullCodePath 做降级
 type WorkspaceEnvInput struct {
-	User           string
-	DirName        string
-	DirCode        string
-	FullCodePath   string
-	DirType        string
-	DirDescription string
-	Children       []WorkspaceEnvNode
-	Files          []WorkspaceEnvFile
+	User                   string
+	DepartmentFullPath     string // 当前用户部门完整路径（存储/逻辑用，英文 code 路径）
+	DepartmentFullNamePath string // 当前用户部门中文名称路径（仅展示用）
+	DirName                string
+	DirCode                string
+	FullCodePath           string
+	DirType                string
+	DirDescription         string
+	Children               []WorkspaceEnvNode
+	Files                  []WorkspaceEnvFile
 }
 
 // WorkspaceEnvNode 环境子节点（目录或函数）
@@ -67,16 +69,18 @@ var packageContext = &app.PackageContext{
 // 约定：所有构造内容均为完整输出，不截断、不省略（ChildrenSection/FilesSection/DirectoryList/InitGoSection 等）。
 func BuildWorkspaceEnvData(in *WorkspaceEnvInput, directoryName, fullCodePath string, now time.Time) *WorkspaceEnvData {
 	data := &WorkspaceEnvData{
-		CurrentTime:       now.Format("2006-01-02 15:04:05"),
-		CurrentDate:       now.Format("2006-01-02"),
-		Timestamp:         fmt.Sprintf("%d", now.Unix()),
-		DirName:           directoryName,
-		FullCodePath:      fullCodePath,
-		ChildrenSection:   "当前目录下没有子节点。",
-		FunctionsSection:  "",
+		CurrentTime:      now.Format("2006-01-02 15:04:05"),
+		CurrentDate:      now.Format("2006-01-02"),
+		Timestamp:        fmt.Sprintf("%d", now.Unix()),
+		DirName:          directoryName,
+		FullCodePath:     fullCodePath,
+		ChildrenSection:  "当前目录下没有子节点。",
+		FunctionsSection: "",
 	}
 	if in != nil {
 		data.User = in.User
+		data.DepartmentFullPath = in.DepartmentFullPath
+		data.DepartmentFullNamePath = in.DepartmentFullNamePath
 		data.DirCode = in.DirCode
 		data.DirType = in.DirType
 		data.DirDescription = in.DirDescription
@@ -155,7 +159,7 @@ func buildFunctionsSection(children []WorkspaceEnvNode) string {
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString("\n**当前目录下的可执行函数（可直接用下列 full_code_path 调用 run_table_search / run_form_submit / run_chart_query / run_table_create）：**\n")
+	b.WriteString("\n**当前目录下的可执行函数（可直接用下列 full_code_path 调用 run_table_search / run_form_submit / run_chart_query / run_table_create / run_table_update）：**\n")
 	for _, f := range functions {
 		tpl := f.TemplateType
 		if tpl == "" {

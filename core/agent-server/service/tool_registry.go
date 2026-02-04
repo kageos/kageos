@@ -393,6 +393,24 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 			"required": []interface{}{"full_code_path", "body"},
 		},
 	})
+	out = append(out, dto.ToolDef{
+		Name:        "run_table_update",
+		Description: "执行工作区内 Table 更新接口，批量更新表格记录（每条都会触发 OnTableUpdateRow）。full_code_path 为表格函数的完整路径（必须包含函数名）。body 必须为 JSON 数组字符串，每项为 { \"id\": 行ID, \"updates\": { \"字段名\": 新值, ... } }；不传 old_values，由 app-server 自动查表填充。返回 updated_count、data_list、failed_count、errors。",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"full_code_path": map[string]interface{}{
+					"type":        "string",
+					"description": "表格函数的完整路径（必须包含函数名），如 /luobei/myapp/nps/nps_questionnaire_list",
+				},
+				"body": map[string]interface{}{
+					"type":        "string",
+					"description": "必须为 JSON 数组字符串，每项为 { \"id\": 行ID, \"updates\": { \"字段名\": 新值 } }，如 [{\"id\":1,\"updates\":{\"status\":\"已处理\"}},{\"id\":2,\"updates\":{\"status\":\"已关闭\"}}]",
+				},
+			},
+			"required": []interface{}{"full_code_path", "body"},
+		},
+	})
 
 	// 3. 插件：每个 Plugin 一条
 	for _, p := range plugins {
@@ -464,6 +482,8 @@ func (r *ToolRegistry) CallTool(ctx context.Context, name string, args map[strin
 		return r.callRunChartQuery(ctx, args, fullCodePath)
 	case "run_table_create":
 		return r.callRunTableCreate(ctx, args, fullCodePath)
+	case "run_table_update":
+		return r.callRunTableUpdate(ctx, args, fullCodePath)
 	}
 	// 按插件 code 查找
 	p, err := r.pluginRepo.GetByCode(name)
@@ -1560,6 +1580,75 @@ func (r *ToolRegistry) callRunTableCreate(ctx context.Context, args map[string]i
 
 	out := map[string]interface{}{
 		"created_count": createdCount,
+		"failed_count":  failedCount,
+		"data_list":     dataList,
+	}
+	if len(errorsList) > 0 {
+		out["errors"] = errorsList
+	}
+	return formatJSONResult(out)
+}
+
+// callRunTableUpdate 执行 Table 批量更新（执行模式专用）；body 为 JSON 数组，每项 { id, updates }，app-server 自动填充 old_values
+func (r *ToolRegistry) callRunTableUpdate(ctx context.Context, args map[string]interface{}, currentFullCodePath string) (string, bool) {
+	fullCodePath := strings.TrimSpace(GetStringArg(args, "full_code_path"))
+	if fullCodePath == "" {
+		fullCodePath = currentFullCodePath
+	}
+	if fullCodePath != "" && !strings.HasPrefix(fullCodePath, "/") {
+		fullCodePath = "/" + fullCodePath
+	}
+	if fullCodePath == "" {
+		return "run_table_update 需传 full_code_path（表格函数路径，如 /luobei/myapp/nps/nps_questionnaire_list）。", true
+	}
+	bodyStr := GetStringArg(args, "body")
+	if bodyStr == "" {
+		return "run_table_update 需传 body（JSON 数组字符串，每项为 { \"id\": 行ID, \"updates\": { \"字段\": 新值 } }）。", true
+	}
+	var bodyArr []interface{}
+	if err := json.Unmarshal([]byte(bodyStr), &bodyArr); err != nil {
+		return "run_table_update 的 body 需为合法 JSON 数组: " + err.Error(), true
+	}
+	if len(bodyArr) == 0 {
+		return "run_table_update 的 body 不能为空数组。", true
+	}
+
+	dataList := make([]interface{}, 0, len(bodyArr))
+	var errorsList []map[string]interface{}
+	updatedCount := 0
+	failedCount := 0
+
+	for i, row := range bodyArr {
+		rowMap, ok := row.(map[string]interface{})
+		if !ok || rowMap == nil {
+			failedCount++
+			errorsList = append(errorsList, map[string]interface{}{"index": i, "error": "每项必须为 JSON 对象，且含 id 与 updates"})
+			continue
+		}
+		if _, hasID := rowMap["id"]; !hasID {
+			failedCount++
+			errorsList = append(errorsList, map[string]interface{}{"index": i, "error": "缺少 id"})
+			continue
+		}
+		updates, ok := rowMap["updates"].(map[string]interface{})
+		if !ok || updates == nil {
+			failedCount++
+			errorsList = append(errorsList, map[string]interface{}{"index": i, "error": "缺少 updates 或 updates 非对象"})
+			continue
+		}
+		result, err := apicall.TableUpdate(ctx, fullCodePath, rowMap)
+		if err != nil {
+			logger.Errorf(ctx, "[RunTableUpdate] 第 %d 条 TableUpdate 失败: %v", i+1, err)
+			failedCount++
+			errorsList = append(errorsList, map[string]interface{}{"index": i, "error": err.Error()})
+			continue
+		}
+		updatedCount++
+		dataList = append(dataList, result)
+	}
+
+	out := map[string]interface{}{
+		"updated_count": updatedCount,
 		"failed_count":  failedCount,
 		"data_list":     dataList,
 	}

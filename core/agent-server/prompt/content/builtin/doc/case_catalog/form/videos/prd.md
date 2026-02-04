@@ -72,8 +72,8 @@ type VideoConvertReq struct {
 	// 框架标签：widget:"type:files;accept:video/*;max_size:500MB;max_count:10" - 文件上传组件，支持多文件上传
 	InputFiles *types.Files `json:"input_files" widget:"name:上传视频文件;type:files;accept:video/*;max_size:500MB;max_count:10" validate:"required"`
 
-	// 框架标签：widget:"type:select;options:mp4,webm,avi,mkv;default:mp4" - 输出格式
-	OutputFormat string `json:"output_format" widget:"name:目标格式;type:select;options:mp4,webm,avi,mkv;default:mp4" validate:"required,oneof=mp4 webm avi mkv"`
+	// 框架标签：select 须配 options_colors，与 options 一一对应，前端用颜色区分选项
+	OutputFormat string `json:"output_format" widget:"name:目标格式;type:select;options:mp4,webm,avi,mkv;options_colors:primary,success,info,warning;default:mp4" validate:"required,oneof=mp4 webm avi mkv"`
 }
 
 // VideoConvertResp 视频格式转换响应结构体
@@ -205,6 +205,5 @@ func init() {
 	// 注册Form函数 - 视频格式转换
 	packageContext.POST("convert", VideoConvert, VideoConvertTemplate)
 }
-
 ```
 

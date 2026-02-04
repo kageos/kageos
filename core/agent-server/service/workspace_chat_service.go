@@ -23,7 +23,7 @@ import (
 
 const (
 	SourceWorkspace = "workspace"
-	MaxToolRounds   = 30 // 与 streamloop.MaxToolRounds 保持一致，仅作注释/文档用，实际以 streamloop 为准
+	MaxToolRounds   = 100 // 与 streamloop.MaxToolRounds 保持一致，仅作注释/文档用，实际以 streamloop 为准
 )
 
 // 工作台操作提示词在 core/agent-server/prompt/content/doc/ 下，由 //go:embed content 嵌入，通过 prompt 包加载（见 prompt.ReadContent / init）
@@ -105,7 +105,7 @@ type StreamEventToolCall struct {
 	Status    string `json:"status"`    // ok / error / running / streaming
 	Arguments string `json:"arguments"` // 流式或最终参数（streaming 时逐段推送，供前端实时展示）
 	Result    string `json:"result"`    // 工具返回结果（status=ok 时可选）
-	Error     string `json:"error"`    // 错误信息（status=error 时可选）
+	Error     string `json:"error"`     // 错误信息（status=error 时可选）
 }
 
 // StreamEventToolCallsStream 流式 tool_calls 列表（当前已合并的全部 tool_call，供前端实时展示）
@@ -402,14 +402,16 @@ func workspaceCtxToEnvInput(c *dto.GetWorkspaceContextResp) *prompt.WorkspaceEnv
 		})
 	}
 	return &prompt.WorkspaceEnvInput{
-		User:           c.User,
-		DirName:        c.Directory.Name,
-		DirCode:        c.Directory.Code,
-		FullCodePath:   c.Directory.FullCodePath,
-		DirType:        c.Directory.Type,
-		DirDescription: dirDesc,
-		Children:       children,
-		Files:          files,
+		User:                   c.User,
+		DepartmentFullPath:     c.DepartmentFullPath,
+		DepartmentFullNamePath: c.DepartmentFullNamePath,
+		DirName:                c.Directory.Name,
+		DirCode:                c.Directory.Code,
+		FullCodePath:           c.Directory.FullCodePath,
+		DirType:                c.Directory.Type,
+		DirDescription:         dirDesc,
+		Children:               children,
+		Files:                  files,
 	}
 }
 

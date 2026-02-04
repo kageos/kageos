@@ -6,9 +6,9 @@ import (
 	"encoding/base64"
 	"fmt"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	hrmodel "github.com/ai-agent-os/ai-agent-os/core/hr-server/model"
 	hrrepository "github.com/ai-agent-os/ai-agent-os/core/hr-server/repository"
+	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -19,35 +19,55 @@ const (
 	SystemUsername = "system"
 	// SystemUserEmail 系统用户邮箱
 	SystemUserEmail = "system@ai-agent-os.local"
+
+	// TestUsername 测试用户名（用于执行/测试场景兜底）
+	TestUsername = "test_user"
+	// TestUserEmail 测试用户邮箱
+	TestUserEmail = "test_user@ai-agent-os.local"
+	// TestUserDepartmentPath 测试用户默认归属部门（虚拟组织/测试组）
+	TestUserDepartmentPath = "/org/virtual/test"
 )
 
-// InitSystemUser 初始化 system 用户
-// 在 hr-server 启动时调用，确保 system 用户存在
+// InitDefaultUsers 初始化默认用户：system + test_user（密码与 system 共用，test_user 归属 /org/virtual/test）
+// 在 hr-server 启动时调用，且应在 InitDefaultDepartments 之后调用（保证虚拟组织/测试组已存在）
+func InitDefaultUsers(ctx context.Context, db *gorm.DB) error {
+	cfg := config.GetHRServerConfig()
+	password, generated := getSystemUserPassword(cfg, ctx)
+
+	if err := initSystemUserWithPassword(ctx, db, password, generated); err != nil {
+		return err
+	}
+	if err := initTestUserWithPassword(ctx, db, password, generated); err != nil {
+		return err
+	}
+	return nil
+}
+
+// InitSystemUser 初始化 system 用户（兼容旧调用；新逻辑请用 InitDefaultUsers）
 func InitSystemUser(ctx context.Context, db *gorm.DB) error {
+	cfg := config.GetHRServerConfig()
+	password, generated := getSystemUserPassword(cfg, ctx)
+	return initSystemUserWithPassword(ctx, db, password, generated)
+}
+
+// initSystemUserWithPassword 创建或更新 system 用户，使用给定密码
+func initSystemUserWithPassword(ctx context.Context, db *gorm.DB, password string, generated bool) error {
 	logger.Infof(ctx, "[SystemUser] 开始初始化 system 用户...")
 
 	userRepo := hrrepository.NewUserRepository(db)
-	cfg := config.GetHRServerConfig()
 
-	// 检查 system 用户是否已存在
 	existingUser, err := userRepo.GetUserByUsername(SystemUsername)
 	if err == nil && existingUser != nil {
-		// 已存在，检查类型是否正确
 		if existingUser.Type != hrmodel.UserTypeSystem {
-			// 更新类型为系统用户
 			existingUser.Type = hrmodel.UserTypeSystem
 			if err := userRepo.UpdateUser(existingUser); err != nil {
 				return fmt.Errorf("更新 system 用户类型失败: %w", err)
 			}
 			logger.Infof(ctx, "[SystemUser] 已更新 system 用户类型为系统用户")
 		}
-		
-		// ⭐ 如果系统账号没有密码，尝试设置密码
 		if existingUser.PasswordHash == "" {
-			password, generated := getSystemUserPassword(cfg, ctx)
 			if err := setSystemUserPassword(ctx, userRepo, existingUser, password, generated); err != nil {
 				logger.Warnf(ctx, "[SystemUser] 设置系统账号密码失败: %v", err)
-				// 不中断启动，记录警告即可
 			}
 		} else {
 			logger.Infof(ctx, "[SystemUser] system 用户已存在，类型正确，已有密码")
@@ -55,10 +75,6 @@ func InitSystemUser(ctx context.Context, db *gorm.DB) error {
 		return nil
 	}
 
-	// 不存在，创建 system 用户
-	password, generated := getSystemUserPassword(cfg, ctx)
-	
-	// 加密密码
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return fmt.Errorf("密码加密失败: %w", err)
@@ -67,10 +83,10 @@ func InitSystemUser(ctx context.Context, db *gorm.DB) error {
 	systemUser := &hrmodel.User{
 		Username:      SystemUsername,
 		Email:         SystemUserEmail,
-		PasswordHash:  string(hashedPassword), // ⭐ 设置密码
-		Status:        "active",              // 系统用户默认激活
-		EmailVerified: true,                   // 系统用户默认已验证
-		RegisterType:  "system",              // 注册类型为 system
+		PasswordHash:  string(hashedPassword),
+		Status:        "active",
+		EmailVerified: true,
+		RegisterType:  "system",
 		Type:          hrmodel.UserTypeSystem,
 		CreatedBy:     "system",
 		Nickname:      "系统",
@@ -81,7 +97,6 @@ func InitSystemUser(ctx context.Context, db *gorm.DB) error {
 		return fmt.Errorf("创建 system 用户失败: %w", err)
 	}
 
-	// ⭐ 如果密码是生成的，输出到日志
 	if generated {
 		logger.Warnf(ctx, "[SystemUser] ⚠️  系统账号密码已自动生成，请妥善保管：")
 		logger.Warnf(ctx, "[SystemUser] ⚠️  用户名: %s", SystemUsername)
@@ -90,7 +105,62 @@ func InitSystemUser(ctx context.Context, db *gorm.DB) error {
 	} else {
 		logger.Infof(ctx, "[SystemUser] 已创建 system 用户: %s（密码已从配置加载）", SystemUsername)
 	}
-	
+	return nil
+}
+
+// initTestUserWithPassword 创建或更新 test_user，密码与 system 共用，归属 /org/virtual/test
+func initTestUserWithPassword(ctx context.Context, db *gorm.DB, password string, generated bool) error {
+	logger.Infof(ctx, "[TestUser] 开始初始化 test_user...")
+
+	userRepo := hrrepository.NewUserRepository(db)
+
+	existingUser, err := userRepo.GetUserByUsername(TestUsername)
+	if err == nil && existingUser != nil {
+		if existingUser.DepartmentFullPath != TestUserDepartmentPath {
+			existingUser.DepartmentFullPath = TestUserDepartmentPath
+			if err := userRepo.UpdateUser(existingUser); err != nil {
+				logger.Warnf(ctx, "[TestUser] 更新 test_user 部门失败: %v", err)
+			}
+		}
+		if existingUser.PasswordHash == "" {
+			hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+			if err != nil {
+				logger.Warnf(ctx, "[TestUser] 设置 test_user 密码失败: %v", err)
+				return nil
+			}
+			existingUser.PasswordHash = string(hashed)
+			if err := userRepo.UpdateUser(existingUser); err != nil {
+				logger.Warnf(ctx, "[TestUser] 更新 test_user 密码失败: %v", err)
+			}
+		}
+		logger.Infof(ctx, "[TestUser] test_user 已存在，已确保归属 %s", TestUserDepartmentPath)
+		return nil
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("test_user 密码加密失败: %w", err)
+	}
+
+	testUser := &hrmodel.User{
+		Username:           TestUsername,
+		Email:              TestUserEmail,
+		PasswordHash:       string(hashedPassword),
+		Status:             "active",
+		EmailVerified:      true,
+		RegisterType:       "system",
+		Type:               hrmodel.UserTypeNormal,
+		CreatedBy:          SystemUsername,
+		Nickname:           "测试用户",
+		Signature:          "执行/测试场景兜底用户，归属虚拟组织/测试组",
+		DepartmentFullPath: TestUserDepartmentPath,
+	}
+
+	if err := userRepo.CreateUser(testUser); err != nil {
+		return fmt.Errorf("创建 test_user 失败: %w", err)
+	}
+
+	logger.Infof(ctx, "[TestUser] 已创建 test_user，归属 %s，密码与 system 共用", TestUserDepartmentPath)
 	return nil
 }
 
@@ -100,14 +170,14 @@ func getSystemUserPassword(cfg *config.HRServerConfig, ctx context.Context) (str
 	if password := cfg.GetSystemUserPassword(); password != "" {
 		return password, false
 	}
-	
+
 	// 生成随机密码（16字节，base64编码后约24字符）
 	randomBytes := make([]byte, 16)
 	if _, err := rand.Read(randomBytes); err != nil {
 		logger.Warnf(ctx, "[SystemUser] 生成随机密码失败，使用默认密码: %v", err)
 		return "System@123456", true // 默认密码（不安全，仅用于开发）
 	}
-	
+
 	password := base64.URLEncoding.EncodeToString(randomBytes)
 	return password, true
 }

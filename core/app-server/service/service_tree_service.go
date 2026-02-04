@@ -3413,7 +3413,17 @@ func (s *ServiceTreeService) GetWorkspaceContext(ctx context.Context, req *dto.G
 	// 4. 获取当前用户
 	username := contextx.GetRequestUser(ctx)
 
-	// 5. 获取目录下的代码文件：file_source=runtime 时从 app-runtime 磁盘实时读，否则从快照表读
+	// 5. 获取当前用户部门：存储用 full_code_path，展示用中文 FullNamePath（调 hr 解析）
+	departmentFullPath := contextx.GetRequestDepartmentFullPath(ctx)
+	departmentFullNamePath := ""
+	if departmentFullPath != "" {
+		deptResp, errDept := apicall.GetDepartmentsByPaths(ctx, []string{departmentFullPath})
+		if errDept == nil && deptResp != nil && len(deptResp.Departments) > 0 && deptResp.Departments[0].FullNamePath != "" {
+			departmentFullNamePath = deptResp.Departments[0].FullNamePath
+		}
+	}
+
+	// 6. 获取目录下的代码文件：file_source=runtime 时从 app-runtime 磁盘实时读，否则从快照表读
 	var files []dto.WorkspaceContextFile
 	if detail.AppID > 0 {
 		if strings.TrimSpace(req.FileSource) == "runtime" {
@@ -3482,7 +3492,9 @@ func (s *ServiceTreeService) GetWorkspaceContext(ctx context.Context, req *dto.G
 	}
 
 	return &dto.GetWorkspaceContextResp{
-		User: username,
+		User:                   username,
+		DepartmentFullPath:     departmentFullPath,
+		DepartmentFullNamePath: departmentFullNamePath,
 		Directory: dto.WorkspaceContextDirectory{
 			ID:           detail.ID,
 			Name:         detail.Name,

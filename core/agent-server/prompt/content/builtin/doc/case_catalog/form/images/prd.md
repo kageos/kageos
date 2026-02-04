@@ -269,9 +269,9 @@ type ImagesConvertReq struct {
 	// 框架标签：widget:"type:files;accept:image/*;max_size:50MB;max_count:10" - 文件上传组件，支持多文件上传
 	InputFiles *types.Files `json:"input_files" widget:"name:上传图片;type:files;accept:image/*;max_size:50MB;max_count:10" validate:"required"`
 
-	// 框架标签：widget:"type:select;options:jpeg,png,gif,bmp,tiff;default:png" - 下拉选择组件
+	// 框架标签：widget:"type:select;options:...;options_colors:..." - 下拉选择须配 options_colors，与 options 一一对应，前端用颜色区分选项
 	// 注意：jpeg 和 jpg 是同一格式，统一使用 jpeg
-	TargetFormat string `json:"target_format" widget:"name:目标格式;type:select;options:jpeg,png,gif,bmp,tiff;default:png" validate:"required,oneof=jpeg png gif bmp tiff"`
+	TargetFormat string `json:"target_format" widget:"name:目标格式;type:select;options:jpeg,png,gif,bmp,tiff;options_colors:#E91E63,#4CAF50,#FF9800,#2196F3,#9E9E9E;default:png" validate:"required,oneof=jpeg png gif bmp tiff"`
 }
 
 // ImagesConvertResp 图片格式转换响应结构体
@@ -430,14 +430,14 @@ type ImagesResizeReq struct {
 	// 框架标签：widget:"type:files;accept:image/*;max_size:50MB;max_count:10" - 文件上传组件，支持多文件上传
 	InputFiles *types.Files `json:"input_files" widget:"name:上传图片;type:files;accept:image/*;max_size:50MB;max_count:10" validate:"required"`
 
-	// 框架标签：widget:"type:select;options:1920x1080,1280x720,800x600,640x480,自定义;default:1920x1080" - 目标尺寸
-	TargetSize string `json:"target_size" widget:"name:目标尺寸;type:select;options:1920x1080,1280x720,800x600,640x480,自定义;default:1920x1080" validate:"required"`
+	// 框架标签：select 须配 options_colors，与 options 一一对应，前端用颜色区分选项
+	TargetSize string `json:"target_size" widget:"name:目标尺寸;type:select;options:1920x1080,1280x720,800x600,640x480,自定义;options_colors:primary,success,info,warning,#9E9E9E;default:1920x1080" validate:"required"`
 
 	// 框架标签：widget:"type:input;placeholder:例如:800x600" - 自定义尺寸（当选择"自定义"时使用）
 	CustomSize string `json:"custom_size" widget:"name:自定义尺寸;type:input;placeholder:例如:800x600"`
 
-	// 框架标签：widget:"type:select;options:保持宽高比,拉伸填充,裁剪填充;default:保持宽高比" - 缩放模式
-	ResizeMode string `json:"resize_mode" widget:"name:缩放模式;type:select;options:保持宽高比,拉伸填充,裁剪填充;default:保持宽高比" validate:"required,oneof=保持宽高比 拉伸填充 裁剪填充"`
+	// 框架标签：select 须配 options_colors，与 options 一一对应，前端用颜色区分选项
+	ResizeMode string `json:"resize_mode" widget:"name:缩放模式;type:select;options:保持宽高比,拉伸填充,裁剪填充;options_colors:success,primary,warning;default:保持宽高比" validate:"required,oneof=保持宽高比 拉伸填充 裁剪填充"`
 }
 
 // ImagesResizeResp 图片裁剪/缩放响应结构体
@@ -588,6 +588,5 @@ func init() {
 	// 注册Form函数 - 图片裁剪/缩放
 	packageContext.POST("resize", ImagesResize, ImagesResizeTemplate)
 }
-
 ```
 

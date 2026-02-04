@@ -17,12 +17,12 @@
   {
     "name": "案例：NLP 工具（单 Form）",
     "full_code_path": "/builtin/doc/case_catalog/form/nlp",
-    "when_to_use": "本案例有一个模块：**分词/词频**（POST `jieba_segment`），请求为待分词文本 + 分词模式/关键词数量/移除停用词等，响应为分词结果、关键词列表、词频统计（table）。 text_area/select/number/switch、响应里 table。 可 read_doc(directory: \"/builtin/doc/case_catalog/form/nlp\") 获取本案例 PRD。"
+    "when_to_use": "本案例有一个模块：**分词/词频**（POST `jieba_segment`）此功能内部调用了python的jieba库，请求为待分词文本 + 分词模式/关键词数量/移除停用词等，响应为分词结果、关键词列表、词频统计（table）。 text_area/select/number/switch、响应里 table。如果有调用python需求的也可参考这个。 可 read_doc(directory: \"/builtin/doc/case_catalog/form/nlp\") 获取本案例 PRD。"
   },
   {
     "name": "案例：PDF 工具（单 Form）",
     "full_code_path": "/builtin/doc/case_catalog/form/pdf",
-    "when_to_use": "本案例有三个模块，分别是**提取文本**（POST `pdf_extract_text`）、**合并 PDF**（POST `pdf_merge`）、**转图片**（POST `pdf_to_images`），均为 files 上传 + 可选参数 → 响应 text_area 或 files。 files 上传、响应 text_area 或 files。 可 read_doc(directory: \"/builtin/doc/case_catalog/form/pdf\") 获取本案例 PRD。"
+    "when_to_use": "本案例有三个模块：**提取文本**（POST `extract_text`，用 **pdftotext**）、**合并 PDF**（POST `merge`，用 **Ghostscript**）、**转图片**（POST `to_images`，用 **pdftoppm**）。均为 files 上传 + 可选参数 → 响应 text_area 或 files。 可 read_doc(directory: \"/builtin/doc/case_catalog/form/pdf\") 获取本案例 PRD。"
   },
   {
     "name": "案例：视频工具（单 Form）",
@@ -53,5 +53,25 @@
     "name": "案例：会议室预约（多 Table）",
     "full_code_path": "/builtin/doc/case_catalog/tables/meeting",
     "when_to_use": "本案例有两个模块，分别是**会议室管理**（GET `meeting_room_list`）、**预约管理**（GET `meeting_room_booking_list`），主从两表。 主从两表、两 .go 两 GET、OnSelectFuzzy、link、时间状态计算、列表筛外表字段。 可 read_doc(directory: \"/builtin/doc/case_catalog/tables/meeting\") 获取本案例 PRD。"
+  },
+  {
+    "name": "工作台-创建项目",
+    "full_code_path": "/builtin/doc/workspace/create-project",
+    "when_to_use": "当用户要「做一个 XXX 系统」「新建 XXX 管理」「生成应用」时，先 read_doc(\"/builtin/doc/workspace/create-project\") 拉取创建项目规范（PRD 格式、确认流程、SOP、禁止项），再按文档执行。"
+  },
+  {
+    "name": "工作台-修改项目",
+    "full_code_path": "/builtin/doc/workspace/modify-project",
+    "when_to_use": "当用户要改已有代码或写项目文档（README、使用说明）时，先 read_doc(\"/builtin/doc/workspace/modify-project\") 拉取修改项目规范（先出修改 PRD、用户确认后再改、search_replace_file 优先等），再按文档执行。"
+  },
+  {
+    "name": "工作台-操作项目",
+    "full_code_path": "/builtin/doc/workspace/execute",
+    "when_to_use": "当用户要「查列表」「提交表单」「查图表」「新增记录」时，先 read_doc(\"/builtin/doc/workspace/execute\") 拉取操作 SOP 与易错点，再按文档调用 run_table_search / run_form_submit 等。"
+  },
+  {
+    "name": "工作台-了解项目",
+    "full_code_path": "/builtin/doc/workspace/explain-project",
+    "when_to_use": "当用户问「这个项目有什么能力」「怎么用」「能做什么」时，可 read_doc(\"/builtin/doc/workspace/explain-project\") 获取作答规范（大白话、结构化、邀请用户说具体需求）；仅作答说明，不写代码、不调执行类工具。"
   }
 ]

@@ -1040,13 +1040,14 @@ import (
 
 // VoteTopic 投票主题表
 type VoteTopic struct {
-	ID              int              `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:主题ID;type:ID" permission:"read" search:"eq"`
-	CreatedAt       int64            `json:"created_at" gorm:"autoCreateTime:milli;column:created_at" widget:"name:创建时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" permission:"read"`
-	UpdatedAt       int64            `json:"updated_at" gorm:"autoUpdateTime:milli;column:updated_at" widget:"name:更新时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" permission:"read"`
-	DeletedAt       gorm.DeletedAt   `json:"deleted_at" gorm:"index;column:deleted_at" widget:"-"`
-	Title           string           `json:"title" gorm:"column:title;comment:投票标题" widget:"name:投票标题;type:input" search:"like" validate:"required,min=2,max=100"`
-	Description     string           `json:"description" gorm:"column:description;comment:投票描述" widget:"name:投票描述;type:text_area" search:"like" validate:"required,min=5,max=500"`
-	VoteType        string           `json:"vote_type" gorm:"column:vote_type;comment:投票类型" widget:"name:投票类型;type:select;options:单选,多选;default:单选" search:"in" validate:"required,oneof=单选 多选"`
+	ID          int            `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:主题ID;type:ID" permission:"read" search:"eq"`
+	CreatedAt   int64          `json:"created_at" gorm:"autoCreateTime:milli;column:created_at" widget:"name:创建时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" permission:"read"`
+	UpdatedAt   int64          `json:"updated_at" gorm:"autoUpdateTime:milli;column:updated_at" widget:"name:更新时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" permission:"read"`
+	DeletedAt   gorm.DeletedAt `json:"deleted_at" gorm:"index;column:deleted_at" widget:"-"`
+	Title       string         `json:"title" gorm:"column:title;comment:投票标题" widget:"name:投票标题;type:input" search:"like" validate:"required,min=2,max=100"`
+	Description string         `json:"description" gorm:"column:description;comment:投票描述" widget:"name:投票描述;type:text_area" search:"like" validate:"required,min=5,max=500"`
+	// select 须配 options_colors，与 options 一一对应，前端用颜色区分选项
+	VoteType        string           `json:"vote_type" gorm:"column:vote_type;comment:投票类型" widget:"name:投票类型;type:select;options:单选,多选;options_colors:primary,success;default:单选" search:"in" validate:"required,oneof=单选 多选"`
 	MaxSelections   int              `json:"max_selections" gorm:"column:max_selections;comment:最多选择数" widget:"name:最多选择数;type:number;unit:个;default:1" validate:"required_if=VoteType 多选,min=1,max=10"`
 	IsAnonymous     bool             `json:"is_anonymous" gorm:"column:is_anonymous;comment:是否匿名;default:false" widget:"name:是否匿名投票;type:switch"`
 	ShowResult      bool             `json:"show_result" gorm:"column:show_result;comment:是否显示结果;default:true" widget:"name:是否显示实时结果;type:switch"`

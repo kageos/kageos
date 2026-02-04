@@ -140,3 +140,10 @@ func TableCreate(ctx context.Context, fullCodePath string, body interface{}) (ma
 	path := "/workspace/api/v1/table/create" + fullCodePath
 	return PostAPI[interface{}, map[string]interface{}](ctx, path, body)
 }
+
+// TableUpdate 调用工作区 Table 更新接口（PUT table/update/{full-code-path}）
+// fullCodePath 为表格函数完整路径；body 为 { "id": 行ID, "updates": { "field": "value", ... } }，不传 old_values 时由 app-server 自动查表填充
+func TableUpdate(ctx context.Context, fullCodePath string, body interface{}) (map[string]interface{}, error) {
+	path := "/workspace/api/v1/table/update" + fullCodePath
+	return PutAPI[interface{}, map[string]interface{}](ctx, path, body)
+}

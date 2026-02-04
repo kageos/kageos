@@ -72,8 +72,8 @@ type JiebaSegmentReq struct {
 	// 框架标签：widget:"type:text_area;placeholder:请输入待分词的中文文本..." - 文本输入框
 	Text string `json:"text" widget:"name:待分词文本;type:text_area;placeholder:请输入待分词的中文文本..." validate:"required"`
 
-	// 框架标签：widget:"type:select;options:精确模式,全模式,搜索引擎模式" - 分词模式
-	Mode string `json:"mode" widget:"name:分词模式;type:select;options:精确模式,全模式,搜索引擎模式;default:精确模式"`
+	// 框架标签：select 须配 options_colors，与 options 一一对应，前端用颜色区分选项
+	Mode string `json:"mode" widget:"name:分词模式;type:select;options:精确模式,全模式,搜索引擎模式;options_colors:success,primary,info;default:精确模式"`
 
 	// 框架标签：widget:"type:number;placeholder:10" - 关键词数量
 	TopK int `json:"top_k" widget:"name:关键词数量;type:number;placeholder:10（默认10个）"`
@@ -146,19 +146,19 @@ func JiebaSegment(ctx *app.Context, resp response.Response) error {
 
 	// 创建请求结构体
 	type PythonRequest struct {
-		Text           string `json:"text"`
-		CutAll         bool   `json:"cut_all"`
-		UseHMM         bool   `json:"use_hmm"`
-		RemoveStopwords bool  `json:"remove_stopwords"`
-		TopK           int    `json:"top_k"`
+		Text            string `json:"text"`
+		CutAll          bool   `json:"cut_all"`
+		UseHMM          bool   `json:"use_hmm"`
+		RemoveStopwords bool   `json:"remove_stopwords"`
+		TopK            int    `json:"top_k"`
 	}
 
 	pythonReq := PythonRequest{
-		Text:           req.Text,
-		CutAll:         cutAll,
-		UseHMM:         useHMM,
+		Text:            req.Text,
+		CutAll:          cutAll,
+		UseHMM:          useHMM,
 		RemoveStopwords: req.RemoveStopwords,
-		TopK:           req.TopK,
+		TopK:            req.TopK,
 	}
 
 	// 创建 Python 执行器（jieba 已预装，无需 WithPackages）
