@@ -357,8 +357,8 @@ type PdfToImagesReq struct {
 	// 框架标签：widget:"type:files;accept:.pdf;max_size:100MB;max_count:10" - 文件上传组件，支持多文件上传
 	InputFiles *types.Files `json:"input_files" widget:"name:上传PDF文件;type:files;accept:.pdf;max_size:100MB;max_count:10" validate:"required"`
 
-	// 框架标签：widget:"type:select;options:png,jpeg;default:png" - 输出格式
-	OutputFormat string `json:"output_format" widget:"name:输出格式;type:select;options:png,jpeg;default:png" validate:"required,oneof=png jpeg"`
+	// 框架标签：select 须配 options_colors，与 options 一一对应，前端用颜色区分选项
+	OutputFormat string `json:"output_format" widget:"name:输出格式;type:select;options:png,jpeg;options_colors:primary,success;default:png" validate:"required,oneof=png jpeg"`
 }
 
 // PdfToImagesResp PDF转图片响应结构体

@@ -10,9 +10,10 @@
 |----------------|--------------------|------|
 | 查询列表数据   | run_table_search   | 调用 Table 查询接口，支持分页、排序、筛选（eq/like/in 等） |
 | 新增表格记录   | run_table_create   | 调用 Table 新增接口，body 必须为 JSON 数组（每项一条记录），逐条触发 OnTableAddRow，返回 data_list |
+| 更新表格记录   | run_table_update   | 调用 Table 更新接口，body 为 JSON 数组，每项含 id、updates；支持批量；old_values 由 app-server 自动查表填充 |
 | 提交表单       | run_form_submit    | 调用 Form 提交接口，传 JSON body |
 | 查询图表数据   | run_chart_query    | 调用 Chart 查询接口，参数由该 Chart 的 Req 决定 |
-| 编辑/删除列表行 | 见下文「列表增删改」 | 若后续提供 run_table_update / run_table_delete 则按工具文档调用；当前可通过对应 Form 或前端表格操作完成 |
+| 删除列表行     | 见下文「列表增删改」 | 当前可通过对应 Form 或前端表格操作完成；若后续提供 run_table_delete 则按工具文档调用 |
 
 ---
 
@@ -224,15 +225,42 @@ type QuestionnaireListReq struct {
 
 ---
 
-## 五、列表增删改（当前说明）
+## 六、更新表格记录（run_table_update）
 
-- **新增一行或多行**：使用 `run_table_create`，body 必须为 JSON 数组（每项一条记录），返回 data_list（成功插入的数据列表）及 created_count、failed_count、errors。
-- **编辑/删除**：通过表格回调（OnTableUpdateRow / OnTableDeleteRows）对应接口完成。执行模式若后续提供专用工具，则按工具文档调用。
-- 当前执行模式主要提供：**run_table_search**（查列表）、**run_form_submit**（提交表单）、**run_chart_query**（查图表）。其他操作可结合 read_go_file 查看接口定义后，按需扩展工具或由产品侧说明。
+### 6.1 用途
+
+批量更新表格记录，每条触发 OnTableUpdateRow。调用方只需传 **id + updates**，不传 old_values；**app-server 会按 id 查表自动填充 old_values**（能力下沉），上层调用方便。
+
+### 6.2 工具参数
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| full_code_path | string | 是 | 表格函数的完整路径（必须包含函数名），与 run_table_search / run_table_create 一致 |
+| body | string | 是 | **JSON 数组字符串**，每项为 `{ "id": 行ID, "updates": { "字段名": 新值, ... } }`；单条也写成数组一项 |
+
+### 6.3 示例
+
+- **单条更新**：`body` = `[{"id":1,"updates":{"status":"已处理","title":"新标题"}}]`
+- **批量更新**：`body` = `[{"id":1,"updates":{"status":"已处理"}},{"id":2,"updates":{"status":"已关闭"}}]`
+
+### 6.4 返回
+
+- `updated_count`：成功更新条数  
+- `failed_count`：失败条数  
+- `data_list`：每条更新接口返回的结果列表  
+- `errors`：失败条目的 index 与 error 说明  
 
 ---
 
-## 六、如何获知路径与参数
+## 七、列表增删改（小结）
+
+- **新增一行或多行**：`run_table_create`，body 为 JSON 数组（每项一条记录），返回 data_list、created_count、failed_count、errors。
+- **更新一行或多行**：`run_table_update`，body 为 JSON 数组（每项含 id、updates），old_values 由 app-server 自动填充，返回 data_list、updated_count、failed_count、errors。
+- **删除**：当前可通过对应 Form 或前端表格操作完成；若后续提供 run_table_delete 则按工具文档调用。
+
+---
+
+## 八、如何获知路径与参数
 
 1. **列表/图表/表单路径**：在工作区目录下执行 `read_dir`，查看有哪些 `tables/xxx`、`plugins/xxx`、或 charts 等路径；full_code_path 一般为 `/用户/app/.../函数名`（如 `/luobei/myapp/nps/nps_questionnaire_list`）。
 2. **Table 可搜字段与 Req 自定义字段**：`read_go_file` 打开该 Table 对应的 .go，看 model 的 **search 标签**（eq/like/in/gte/lte 等）和 List Req 的 **form 标签**（如 status）。
@@ -241,9 +269,11 @@ type QuestionnaireListReq struct {
 
 ---
 
-## 七、小结
+## 九、小结
 
 - **查列表**：run_table_search，url_query 遵循 pkg/gormx/query，可搜字段看 model 的 search 标签，自定义条件看 Req 的 form 字段。
+- **新增记录**：run_table_create，body 为 JSON 数组（每项一条记录）。
+- **更新记录**：run_table_update，body 为 JSON 数组（每项含 id、updates），支持批量，old_values 由 app-server 自动填充。
 - **提交表单**：run_form_submit，body 为 JSON 字符串，字段名与 Request 的 json 一致。
 - **查图表**：run_chart_query，url_query 由该 Chart 的 Request 决定，不固定，需看对应 .go。
 - 执行前用 read_dir / read_go_file 确认路径与参数结构，再调用对应工具并按要求传参。

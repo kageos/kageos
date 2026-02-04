@@ -82,12 +82,12 @@ func InitWorkspaceModes(db *gorm.DB) error {
 			m.Name = "执行模式"
 			m.Description = "操作已生成应用（查数据、提交表单、查图表等）"
 			m.SystemPromptFragment = "当前为执行模式，请协助用户查看数据、提交表单、查询图表、分析结果等；不写代码、不落盘。"
-			m.SetToolNames([]string{"read_go_file", "read_go_file_lines", "read_doc", "read_dir", "run_table_search", "run_table_create", "run_form_submit", "run_chart_query"})
+			m.SetToolNames([]string{"read_go_file", "read_go_file_lines", "read_doc", "read_dir", "run_table_search", "run_table_create", "run_table_update", "run_form_submit", "run_chart_query"})
 		case "agent":
 			m.Name = "Agent 模式"
 			m.Description = "既可开发修改项目，也可执行查数据/提交表单/查图表，无需切换模式"
-			m.SystemPromptFragment = "当前为 Agent 模式，既可开发（写代码、建目录、编译），也可执行（查表、提交表单、查图表、新增记录）；根据用户意图选择对应工具。"
-			m.SetToolNames([]string{"read_go_file", "read_go_file_lines", "read_doc", "read_dir", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace", "create_directory", "run_table_search", "run_table_create", "run_form_submit", "run_chart_query"})
+			m.SystemPromptFragment = "当前为 Agent 模式，既可开发（写代码、建目录、编译），也可执行（查表、提交表单、查图表、新增/更新记录）；根据用户意图选择对应工具。"
+			m.SetToolNames([]string{"read_go_file", "read_go_file_lines", "read_doc", "read_dir", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace", "create_directory", "run_table_search", "run_table_create", "run_table_update", "run_form_submit", "run_chart_query"})
 		}
 		if err := db.Create(&m).Error; err != nil {
 			return err

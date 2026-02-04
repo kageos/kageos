@@ -224,10 +224,12 @@ type WorkspaceContextFile struct {
 
 // GetWorkspaceContextResp 获取工作台环境信息响应
 type GetWorkspaceContextResp struct {
-	User      string                    `json:"user"`      // 当前用户
-	Directory WorkspaceContextDirectory `json:"directory"` // 当前目录信息
-	Children  []WorkspaceContextNode    `json:"children"`  // 子节点列表
-	Files     []WorkspaceContextFile    `json:"files"`     // 代码文件列表
+	User                   string                    `json:"user"`                      // 当前用户
+	DepartmentFullPath     string                    `json:"department_full_path"`      // 当前用户部门完整路径（存储/逻辑用，英文 code 路径）
+	DepartmentFullNamePath string                    `json:"department_full_name_path"` // 当前用户部门中文名称路径（仅展示用，如 技术部/后端组）
+	Directory              WorkspaceContextDirectory `json:"directory"`                 // 当前目录信息
+	Children               []WorkspaceContextNode    `json:"children"`                  // 子节点列表
+	Files                  []WorkspaceContextFile    `json:"files"`                     // 代码文件列表
 }
 
 // ReplaceItem 单次替换项（预期次数不传或 0 表示默认 1）

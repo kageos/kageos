@@ -55,15 +55,15 @@ func NewServer(cfg *config.HRServerConfig) (*Server, error) {
 		return nil, fmt.Errorf("failed to init services: %w", err)
 	}
 
-	// ⭐ 初始化 system 用户（系统内置用户，用于管理官方库）
-	if err := service.InitSystemUser(ctx, s.db); err != nil {
-		logger.Warnf(ctx, "[Server] 初始化 system 用户失败: %v", err)
-		// 不中断启动，记录警告即可
-	}
-
-	// ⭐ 初始化默认组织（根节点和未分配组织）
+	// ⭐ 初始化默认组织（根节点、未分配组织、虚拟组织/测试组）；须在默认用户之前，以便 test_user 归属 /org/virtual/test
 	if err := s.departmentService.InitDefaultDepartments(ctx); err != nil {
 		return nil, fmt.Errorf("failed to init default departments: %w", err)
+	}
+
+	// ⭐ 初始化默认用户：system + test_user（test_user 归属 /org/virtual/test，密码与 system 共用）
+	if err := service.InitDefaultUsers(ctx, s.db); err != nil {
+		logger.Warnf(ctx, "[Server] 初始化默认用户失败: %v", err)
+		// 不中断启动，记录警告即可
 	}
 
 	if err := s.initRouter(ctx); err != nil {

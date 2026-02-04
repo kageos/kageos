@@ -35,7 +35,7 @@
 
 ## 可用文档的维护逻辑
 
-**核心原则**：`system_prompt.md` 里的「可用文档」、案例分类、参考项目目录结构等，**都以本仓库的示例项目为准**；文档是围着这个项目转的，保证「说的」和「跑的」一致。
+**核心原则**：`system_prompt.md` 里的「可用文档」、案例分类等，**都以本仓库的示例项目为准**；文档是围着这个项目转的，保证「说的」和「跑的」一致。
 
 ### 示例项目（实例）位置
 
@@ -56,7 +56,7 @@
 
 - **更新项目时**：只改代码 + 改 `prd.md` + 改 `summary.md`，**无需**去改 `system_prompt.md` 或 `文档目录.json`。
 - **文档大纲**：由维护工具根据各案例目录下的 **summary.md** 自动生成（或更新 `文档目录.json`）；模型看到的「可读的目录」来自摘要，与示例项目一致。
-- **流程**：前端验证 → 改代码 / prd.md / summary.md（只在案例目录内）→ 运行工具 → 工具把目录结构、PRD、摘要同步到提示词与文档大纲；提示词与文档不再手改，实现解耦。
+- **流程**：前端验证 → 改代码 / prd.md / summary.md（只在案例目录内）→ 运行工具 → 工具把案例目录、PRD、摘要同步到提示词与文档大纲；提示词与文档不再手改，实现解耦。
 
 参考示例目录：`namespace/luobei/demos/code/api/tables/meeting/`（内含 go、prd.md、summary.md）。
 
@@ -82,15 +82,15 @@
    - 各案例的 **name**、**full_code_path**（与目录对齐，如 `/builtin/doc/case_catalog/table/ticket`）、**when_to_use**（来自 summary.md 的「适合参考」）。
    - 供系统消息「可读的目录」注入，模型据此调用 read_doc。
 
-3. **system_prompt.md** 中两段由工具生成，**请勿手改**：
-   - **案例按类型归类**（`<!-- BEGIN CASE CATALOG -->` … `<!-- END CASE CATALOG -->`）：按 summary.md 的名称、类型、适合参考生成，只保留 read_doc 路径，不写「代码路径」。
-   - **参考项目目录结构**（`<!-- BEGIN DIRECTORY TREE -->` … `<!-- END DIRECTORY TREE -->`）：按 `api/` 目录扫描生成树（仅 .go 与子目录，排除 prd.md/summary.md 及隐藏目录如 .git）。
+3. **create-project/01-create-project.md** 末尾一段由工具生成，**请勿手改**：
+   - **案例按类型归类**（`<!-- BEGIN CASE CATALOG -->` … `<!-- END CASE CATALOG -->`）：按 summary.md 的名称、类型、适合参考生成，只保留 read_doc 路径。
+   **system_prompt.md** 中仅保留一句说明：案例分类见 read_doc("/builtin/doc/workspace/create-project") 文档末尾，由工具生成。
 
 **推荐流程**：
 
 1. 在前端验证 demos 项目（跑真实功能、看列表/表单/路由等）。
 2. 发现问题 → 在示例项目**对应案例目录**内改 **代码**、**prd.md**、**summary.md**（摘要可含「本案例有 X 个模块，分别是 xxx」等说明）。
 3. **运行文档工具**：`go run ./scripts/sync-case-catalog`。
-4. 文档与 system_prompt 两段立即反映最新示例。
+4. 文档与 create-project/01-create-project.md 末尾案例目录段立即反映最新示例。
 
 这样形成闭环：**示例项目是唯一事实来源**，每个案例目录 **3 类（go + prd.md + summary.md）** → 只改这 3 类 → 工具同步到 builtin、文档目录、system_prompt → **解耦**，无需手改提示词或文档目录。

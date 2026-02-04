@@ -14,7 +14,7 @@ import (
 type DepartmentService struct {
 	deptRepo *repository.DepartmentRepository
 	userRepo *repository.UserRepository
-	
+
 	// 内存缓存：fullCodePath -> Department
 	deptCache     map[string]*model.Department
 	deptCacheMu   sync.RWMutex
@@ -35,24 +35,24 @@ func NewDepartmentService(deptRepo *repository.DepartmentRepository, userRepo *r
 func (s *DepartmentService) loadDepartmentCache(ctx context.Context) error {
 	s.deptCacheMu.Lock()
 	defer s.deptCacheMu.Unlock()
-	
+
 	// 如果已经初始化，直接返回
 	if s.deptCacheInit {
 		return nil
 	}
-	
+
 	// 从数据库加载所有部门
 	departments, err := s.deptRepo.GetAllDepartments()
 	if err != nil {
 		return fmt.Errorf("加载部门缓存失败: %w", err)
 	}
-	
+
 	// 构建缓存：fullCodePath -> Department
 	s.deptCache = make(map[string]*model.Department, len(departments))
 	for _, dept := range departments {
 		s.deptCache[dept.FullCodePath] = dept
 	}
-	
+
 	s.deptCacheInit = true
 	logger.Infof(ctx, "[DepartmentService] 部门缓存已加载，共 %d 个部门", len(s.deptCache))
 	return nil
@@ -64,15 +64,15 @@ func (s *DepartmentService) GetDepartmentByFullCodePath(ctx context.Context, ful
 	if err := s.loadDepartmentCache(ctx); err != nil {
 		return nil, err
 	}
-	
+
 	s.deptCacheMu.RLock()
 	defer s.deptCacheMu.RUnlock()
-	
+
 	dept, ok := s.deptCache[fullCodePath]
 	if !ok {
 		return nil, fmt.Errorf("部门不存在: %s", fullCodePath)
 	}
-	
+
 	return dept, nil
 }
 
@@ -82,10 +82,10 @@ func (s *DepartmentService) GetDepartmentsByFullCodePaths(ctx context.Context, f
 	if err := s.loadDepartmentCache(ctx); err != nil {
 		return nil, err
 	}
-	
+
 	s.deptCacheMu.RLock()
 	defer s.deptCacheMu.RUnlock()
-	
+
 	result := make(map[string]*model.Department)
 	for _, path := range fullCodePaths {
 		if path == "" {
@@ -95,7 +95,7 @@ func (s *DepartmentService) GetDepartmentsByFullCodePaths(ctx context.Context, f
 			result[path] = dept
 		}
 	}
-	
+
 	return result, nil
 }
 
@@ -103,12 +103,12 @@ func (s *DepartmentService) GetDepartmentsByFullCodePaths(ctx context.Context, f
 func (s *DepartmentService) InvalidateDepartmentCache() {
 	s.deptCacheMu.Lock()
 	defer s.deptCacheMu.Unlock()
-	
+
 	s.deptCacheInit = false
 	s.deptCache = make(map[string]*model.Department)
 }
 
-// InitDefaultDepartments 初始化默认组织（根节点和未分配组织）
+// InitDefaultDepartments 初始化默认组织（根节点、未分配组织、虚拟组织/测试组）
 // 如果已存在则不重复创建
 func (s *DepartmentService) InitDefaultDepartments(ctx context.Context) error {
 	// 检查根节点是否已存在
@@ -117,12 +117,23 @@ func (s *DepartmentService) InitDefaultDepartments(ctx context.Context) error {
 		// 根节点已存在，检查未分配组织
 		unassignedDept, err := s.deptRepo.GetDepartmentByCode("unassigned")
 		if err == nil && unassignedDept != nil {
-			// 两个默认组织都已存在
-			logger.Infof(ctx, "[DepartmentService] 默认组织已存在，跳过初始化")
+			// 根与未分配都已存在，仍需确保虚拟组织/测试组存在
+			if err := s.createVirtualTestDepartment(ctx, rootDept.ID); err != nil {
+				return err
+			}
+			s.InvalidateDepartmentCache()
+			logger.Infof(ctx, "[DepartmentService] 默认组织已存在，已确保虚拟组织/测试组")
 			return nil
 		}
-		// 根节点存在但未分配组织不存在，创建未分配组织
-		return s.createUnassignedDepartment(ctx, rootDept.ID)
+		// 根节点存在但未分配组织不存在，创建未分配组织后再确保虚拟组织/测试组
+		if err := s.createUnassignedDepartment(ctx, rootDept.ID); err != nil {
+			return err
+		}
+		if err := s.createVirtualTestDepartment(ctx, rootDept.ID); err != nil {
+			return err
+		}
+		s.InvalidateDepartmentCache()
+		return nil
 	}
 
 	// 创建根节点（默认组织）
@@ -146,6 +157,11 @@ func (s *DepartmentService) InitDefaultDepartments(ctx context.Context) error {
 
 	// 创建未分配组织
 	if err := s.createUnassignedDepartment(ctx, rootDept.ID); err != nil {
+		return err
+	}
+
+	// 创建虚拟组织/测试组
+	if err := s.createVirtualTestDepartment(ctx, rootDept.ID); err != nil {
 		return err
 	}
 
@@ -200,6 +216,58 @@ func (s *DepartmentService) createUnassignedDepartment(ctx context.Context, root
 // GetUnassignedDepartmentPath 获取未分配组织的完整路径
 func (s *DepartmentService) GetUnassignedDepartmentPath() string {
 	return "/org/unassigned"
+}
+
+// VirtualTestDepartmentPath 虚拟组织/测试组的完整路径（用于 test_user 等测试账号）
+func (s *DepartmentService) VirtualTestDepartmentPath() string {
+	return "/org/virtual/test"
+}
+
+// createVirtualTestDepartment 创建虚拟组织与测试组（org -> 虚拟组织 -> 测试组），若已存在则跳过
+func (s *DepartmentService) createVirtualTestDepartment(ctx context.Context, rootID int64) error {
+	rootDept, err := s.deptRepo.GetDepartmentByID(rootID)
+	if err != nil || rootDept == nil {
+		return fmt.Errorf("获取根节点失败: %w", err)
+	}
+	// 虚拟组织
+	virtualDept, err := s.deptRepo.GetDepartmentByFullCodePath("/org/virtual")
+	if err != nil || virtualDept == nil {
+		virtualDept = &model.Department{
+			Name:            "虚拟组织",
+			Code:            "virtual",
+			ParentID:        &rootID,
+			FullCodePath:    "/org/virtual",
+			FullNamePath:    fmt.Sprintf("%s/虚拟组织", rootDept.FullNamePath),
+			Description:     "虚拟/测试用组织",
+			Status:          "active",
+			Sort:            10,
+			IsSystemDefault: true,
+		}
+		if err := s.deptRepo.CreateDepartment(virtualDept); err != nil {
+			return fmt.Errorf("创建虚拟组织失败: %w", err)
+		}
+		logger.Infof(ctx, "[DepartmentService] 虚拟组织创建成功: %s", virtualDept.Name)
+	}
+	// 测试组
+	testDept, err := s.deptRepo.GetDepartmentByFullCodePath("/org/virtual/test")
+	if err != nil || testDept == nil {
+		testDept := &model.Department{
+			Name:            "测试组",
+			Code:            "test",
+			ParentID:        &virtualDept.ID,
+			FullCodePath:    "/org/virtual/test",
+			FullNamePath:    fmt.Sprintf("%s/测试组", virtualDept.FullNamePath),
+			Description:     "测试用户默认归属",
+			Status:          "active",
+			Sort:            0,
+			IsSystemDefault: true,
+		}
+		if err := s.deptRepo.CreateDepartment(testDept); err != nil {
+			return fmt.Errorf("创建测试组失败: %w", err)
+		}
+		logger.Infof(ctx, "[DepartmentService] 测试组创建成功: %s", testDept.Name)
+	}
+	return nil
 }
 
 // CreateDepartment 创建部门
@@ -446,4 +514,3 @@ func (s *DepartmentService) updateChildrenFullNamePath(ctx context.Context, pare
 
 	return nil
 }
-

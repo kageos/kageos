@@ -73,6 +73,13 @@ export function runTests() {
   if (test('IF - 复杂条件', 'sum(IF amount > 0 AND amount < 100 THEN amount ELSE price * quantity)', 
     10*2 + 50 + 15*1)) passed++
 
+  // 测试3.1：MySQL IF(cond, thenExpr, elseExpr)
+  total++
+  if (test('MySQL IF(cond,a,b) - 简单', 'sum(IF(price > 0, price * quantity, 价格 * quantity))', 10*2 + 20*3 + 15*1)) passed++
+
+  total++
+  if (test('MySQL IF(cond,a,b) - amount 优先', 'sum(IF(amount > 0, amount, price * quantity))', 10*2 + 50 + 15*1)) passed++
+
   // 测试4：Count
   total++
   if (test('Count - 统计种类数', 'count(price)', 3)) passed++

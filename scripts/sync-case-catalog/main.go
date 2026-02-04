@@ -12,28 +12,16 @@ import (
 )
 
 const (
-	apiRoot           = "namespace/luobei/demos/code/api"
-	builtinDir        = "core/agent-server/prompt/content/builtin/doc/case_catalog"
-	catalogPath       = "core/agent-server/prompt/content/doc/文档目录.json"
-	systemPromptPath  = "core/agent-server/prompt/content/mode/dev/system_prompt.md"
-	sdkEntryName      = "agent-app SDK使用手册"
-	sdkPath           = "/builtin/doc/sdk/agent-app-sdk-readme"
-	sdkWhenToUse      = "当你需要生成系统/应用/代码时，请先调用 read_doc(directory: \"/builtin/doc/sdk/agent-app-sdk-readme\") 获取本文档，再按文档规范动手。"
-	caseCatalogBegin   = "<!-- BEGIN CASE CATALOG -->"
-	caseCatalogEnd     = "<!-- END CASE CATALOG -->"
-	dirTreeBegin       = "<!-- BEGIN DIRECTORY TREE -->"
-	dirTreeEnd         = "<!-- END DIRECTORY TREE -->"
-	treeRootLabel      = "/builtin/doc/case_catalog/"
+	apiRoot              = "namespace/luobei/demos/code/api"
+	builtinDir           = "core/agent-server/prompt/content/builtin/doc/case_catalog"
+	catalogPath          = "core/agent-server/prompt/content/doc/文档目录.json"
+	createProjectDocPath = "core/agent-server/prompt/content/builtin/doc/workspace/create-project/01-create-project.md"
+	sdkEntryName         = "agent-app SDK使用手册"
+	sdkPath              = "/builtin/doc/sdk/agent-app-sdk-readme"
+	sdkWhenToUse         = "当你需要生成系统/应用/代码时，请先调用 read_doc(directory: \"/builtin/doc/sdk/agent-app-sdk-readme\") 获取本文档，再按文档规范动手。"
+	caseCatalogBegin     = "<!-- BEGIN CASE CATALOG -->"
+	caseCatalogEnd       = "<!-- END CASE CATALOG -->"
 )
-
-// topLevelDirComment 顶级目录在树中的注释（可选）
-var topLevelDirComment = map[string]string{
-	"form":            "# 单 Form 包，RouterGroup: /form",
-	"form_table_chart": "# Form + Table + Chart",
-	"formandtable":    "# Form + Table",
-	"table":           "# 单 Table",
-	"tables":          "# 多 Table",
-}
 
 type DocCatalogEntry struct {
 	Name         string `json:"name"`
@@ -80,21 +68,13 @@ func main() {
 	}
 	fmt.Printf("sync ok: %d case entries, catalog written to %s\n", len(entries), catalogPath)
 
-	// 根据摘要生成「可用文档」段落并写回 system_prompt.md
+	// 根据摘要生成「案例按类型归类」段落并写回 create-project/01-create-project.md
 	section := buildCaseCatalogSection(caseInfos)
-	if err := patchSystemPrompt(repoRoot, caseCatalogBegin, caseCatalogEnd, section); err != nil {
-		fmt.Fprintf(os.Stderr, "patch system_prompt case catalog: %v\n", err)
+	if err := patchDoc(repoRoot, createProjectDocPath, caseCatalogBegin, caseCatalogEnd, section); err != nil {
+		fmt.Fprintf(os.Stderr, "patch create-project case catalog: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Printf("system_prompt.md case catalog section updated\n")
-
-	// 根据示例项目目录生成「参考项目目录结构」树并写回 system_prompt.md
-	treeContent := buildDirectoryTree(apiRootAbs)
-	if err := patchSystemPrompt(repoRoot, dirTreeBegin, dirTreeEnd, "```\n"+treeContent+"\n```"); err != nil {
-		fmt.Fprintf(os.Stderr, "patch system_prompt directory tree: %v\n", err)
-		os.Exit(1)
-	}
-	fmt.Printf("system_prompt.md directory tree updated\n")
+	fmt.Printf("01-create-project.md case catalog section updated\n")
 }
 
 // cleanOldFlatCaseDocs 删除 builtin/case_catalog 下旧的扁平 .md（如 form_excelorcsv.md），只保留与目录对齐的子路径文档
@@ -300,50 +280,73 @@ var categoryOrder = []struct {
 	{"Table + Form + Chart", "### 5. Table + Form + Chart（Table + Form + 统计图表）"},
 }
 
+// categoryTableLabel 类型列在表格中的显示（1. 单 Table 等）
+var categoryTableLabel = map[string]string{
+	"单 Table":              "1. 单 Table",
+	"单 Form":               "2. 单 Form",
+	"多 Table":              "3. 多 Table",
+	"Table + Form":         "4. Table + Form",
+	"Table + Form + Chart": "5. Table + Form + Chart",
+}
+
+// escapeTableCell 去掉单元格内换行和管道符，避免破坏 Markdown 表格
+func escapeTableCell(s string) string {
+	s = strings.ReplaceAll(s, "\n", " ")
+	s = strings.ReplaceAll(s, "|", "｜")
+	return strings.TrimSpace(s)
+}
+
 func buildCaseCatalogSection(infos []caseInfo) string {
 	byCat := make(map[string][]caseInfo)
 	for _, c := range infos {
 		byCat[c.Category] = append(byCat[c.Category], c)
 	}
 	var b strings.Builder
+	b.WriteString("| 类型 | 案例名 | read_doc 路径 | 说明 |\n")
+	b.WriteString("|------|--------|----------------|------|\n")
 	for _, co := range categoryOrder {
 		cases := byCat[co.Key]
 		if len(cases) == 0 {
 			continue
 		}
-		b.WriteString(co.Title)
-		b.WriteString("\n")
+		typeLabel := categoryTableLabel[co.Key]
+		if typeLabel == "" {
+			typeLabel = co.Key
+		}
 		for _, c := range cases {
 			docPath := "/builtin/doc/case_catalog/" + c.Rel
-			b.WriteString("- **")
-			b.WriteString(c.Name)
-			b.WriteString("**（read_doc 路径 `")
-			b.WriteString(docPath)
-			b.WriteString("`）：")
+			caseName := strings.TrimPrefix(c.Name, "案例：")
 			desc := c.ModuleDesc
 			if desc != "" {
 				if !strings.HasSuffix(desc, "。") {
 					desc += "。"
 				}
-				b.WriteString(desc)
 				if c.WhenToUse != "" {
-					b.WriteString(" ")
-					b.WriteString(c.WhenToUse)
+					desc += " " + c.WhenToUse
 				}
 			} else if c.WhenToUse != "" {
-				b.WriteString(c.WhenToUse)
+				desc = c.WhenToUse
 			} else {
-				b.WriteString("可 read_doc 获取本案例 PRD 与代码。")
+				desc = "可 read_doc 获取本案例 PRD 与代码。"
 			}
-			b.WriteString("\n")
+			desc = escapeTableCell(desc)
+			b.WriteString("| ")
+			b.WriteString(typeLabel)
+			b.WriteString(" | ")
+			b.WriteString(escapeTableCell(caseName))
+			b.WriteString(" | `")
+			b.WriteString(docPath)
+			b.WriteString("` | ")
+			b.WriteString(desc)
+			b.WriteString(" |\n")
 		}
-		b.WriteString("\n")
 	}
 	return strings.TrimSuffix(b.String(), "\n")
 }
 
-func patchSystemPrompt(repoRoot, beginMarker, endMarker, section string) error {
-	path := filepath.Join(repoRoot, systemPromptPath)
+// patchDoc 在指定文档中替换 beginMarker 与 endMarker 之间的内容为 section
+func patchDoc(repoRoot, relPath, beginMarker, endMarker, section string) error {
+	path := filepath.Join(repoRoot, relPath)
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return err
@@ -352,102 +355,9 @@ func patchSystemPrompt(repoRoot, beginMarker, endMarker, section string) error {
 	begin := strings.Index(content, beginMarker)
 	end := strings.Index(content, endMarker)
 	if begin == -1 || end == -1 || end <= begin {
-		return fmt.Errorf("system_prompt.md: 未找到 %s / %s", beginMarker, endMarker)
+		return fmt.Errorf("%s: 未找到 %s / %s", relPath, beginMarker, endMarker)
 	}
 	afterBegin := begin + len(beginMarker)
 	newContent := content[:afterBegin] + "\n" + section + "\n" + content[end:]
 	return os.WriteFile(path, []byte(newContent), 0644)
-}
-
-// buildDirectoryTree 遍历示例项目目录，生成树形文本（仅含 .go 与子目录，排除 prd.md/summary.md）
-func buildDirectoryTree(root string) string {
-	var b strings.Builder
-	b.WriteString(treeRootLabel)
-	b.WriteByte('\n')
-	entries := sortedDirEntries(root)
-	for i, e := range entries {
-		writeTreeEntry(&b, root, "", e, i == len(entries)-1, true)
-	}
-	return strings.TrimSuffix(b.String(), "\n")
-}
-
-func sortedDirEntries(dir string) []os.DirEntry {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil
-	}
-	var dirs, files []os.DirEntry
-	for _, e := range entries {
-		if e.Name() == "prd.md" || e.Name() == "summary.md" {
-			continue
-		}
-		if strings.HasPrefix(e.Name(), ".") {
-			continue
-		}
-		if e.IsDir() {
-			dirs = append(dirs, e)
-		} else if strings.HasSuffix(e.Name(), ".go") {
-			files = append(files, e)
-		}
-	}
-	sort.Slice(dirs, func(i, j int) bool { return dirs[i].Name() < dirs[j].Name() })
-	// 文件：init_.go 排最前，其余按名字
-	sort.Slice(files, func(i, j int) bool {
-		if files[i].Name() == "init_.go" {
-			return true
-		}
-		if files[j].Name() == "init_.go" {
-			return false
-		}
-		return files[i].Name() < files[j].Name()
-	})
-	// 与手写树风格一致：先文件（如 init_.go）再子目录
-	var out []os.DirEntry
-	out = append(out, files...)
-	out = append(out, dirs...)
-	return out
-}
-
-func writeTreeEntry(b *strings.Builder, root, prefix string, e os.DirEntry, isLast bool, topLevel bool) {
-	conn := "├── "
-	if isLast {
-		conn = "└── "
-	}
-	name := e.Name()
-	comment := ""
-	if topLevel && e.IsDir() {
-		comment = topLevelDirComment[name]
-	}
-	b.WriteString(prefix)
-	b.WriteString(conn)
-	b.WriteString(name)
-	if e.IsDir() {
-		b.WriteString("/")
-	}
-	if comment != "" {
-		b.WriteString(strings.Repeat(" ", max(0, 26-len(name))))
-		b.WriteString(comment)
-	}
-	b.WriteByte('\n')
-	if !e.IsDir() {
-		return
-	}
-	subPath := filepath.Join(root, name)
-	subEntries := sortedDirEntries(subPath)
-	subPrefix := prefix
-	if isLast {
-		subPrefix += "    "
-	} else {
-		subPrefix += "│   "
-	}
-	for i, sub := range subEntries {
-		writeTreeEntry(b, subPath, subPrefix, sub, i == len(subEntries)-1, false)
-	}
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }

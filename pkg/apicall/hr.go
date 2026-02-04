@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
 )
@@ -46,4 +47,16 @@ func SearchUsersFuzzy(ctx context.Context, req *dto.SearchUsersFuzzyReq) ([]dto.
 		return nil, err
 	}
 	return result.Users, nil
+}
+
+// GetDepartmentsByPaths 根据部门 full_code_path 列表批量获取部门信息（app-server -> hr-server）
+// 用于解析部门中文名称路径（FullNamePath）供展示；存储/逻辑仍用 full_code_path。
+func GetDepartmentsByPaths(ctx context.Context, fullCodePaths []string) (*dto.GetDepartmentsByPathsResp, error) {
+	if len(fullCodePaths) == 0 {
+		return &dto.GetDepartmentsByPathsResp{Departments: nil}, nil
+	}
+	path := "/hr/api/v1/departments"
+	params := url.Values{}
+	params.Set("full_code_paths", strings.Join(fullCodePaths, ","))
+	return GetAPI[*dto.GetDepartmentsByPathsResp](ctx, path, params)
 }

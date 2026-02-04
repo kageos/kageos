@@ -2,7 +2,7 @@
 
 **从环境里拿函数**：系统消息上方的「工作环境信息」中已有**当前目录下的可执行函数**列表（table/form/chart + 名称、code、full_code_path）。查列表、提交表单、查图表、新增记录时，**可直接用该列表里的 full_code_path** 作为 run_table_search / run_form_submit / run_chart_query / run_table_create 的 full_code_path 参数，无需先调 read_dir。只有要查**子目录**下的表/表单/图表或列表中找不到目标时，再用 read_dir 确认路径。
 
-执行「查列表、提交表单、查图表」等操作时，建议先 read_doc(directory: \"/builtin/doc/sdk/workspace-execute-sdk\") 获取《工作台执行能力说明》，再按文档调用对应工具与传参。
+执行「查列表、提交表单、查图表、新增/更新记录」等操作时，建议先 read_doc(directory: \"/builtin/doc/workspace/execute\") 获取操作 SOP、易错点与工具用法，再按文档调用对应工具与传参。
 
 你可使用的工具：
 - **只读**：read_go_file、read_go_file_lines、read_doc、read_dir（查看工作区代码与文档）。

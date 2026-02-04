@@ -87,14 +87,23 @@ statistics.Sum("价格,*quantity")
 statistics.Sum("价格,*quantity,*0.9")
 ```
 
-### 场景2：计数
+### 场景2：条件表达式（与 MySQL/SQL 一致）
+
+表达式语法与 MySQL/SQL 保持一致，避免大模型混淆。条件用 **MySQL IF(cond, thenExpr, elseExpr)**：
+
+```go
+// 有输入价用 输入价×数量，否则用默认销售价×数量
+statistics.Sum("IF(price > 0, price * quantity, 销售价 * quantity)")
+```
+
+### 场景3：计数
 
 ```go
 // 计算选中了几种不同的商品
 statistics.Count("价格")
 ```
 
-### 场景3：平均值
+### 场景4：平均值
 
 ```go
 // 计算平均价格
@@ -104,7 +113,7 @@ statistics.Avg("价格")
 statistics.Avg("价格,*quantity")
 ```
 
-### 场景4：最值
+### 场景5：最值
 
 ```go
 // 最低价格
@@ -114,7 +123,7 @@ statistics.Min("价格")
 statistics.Max("价格")
 ```
 
-### 场景5：List 层聚合（MultiSelect 二层聚合）
+### 场景6：List 层聚合（MultiSelect 二层聚合）
 
 ```go
 // 对所有行的"用户总价"字段求和
@@ -127,7 +136,7 @@ statistics.ListAvg("用户总价")
 statistics.ListCount()
 ```
 
-### 场景6：显示选中项的字段值（动态值）
+### 场景7：显示选中项的字段值（动态值）
 
 ```go
 // 显示当前选中会员卡的"余额"
