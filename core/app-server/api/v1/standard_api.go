@@ -766,6 +766,9 @@ func (s *StandardAPI) TableUpdate(c *gin.Context) {
 			return
 		}
 		c.Request.Body = io.NopCloser(bytes.NewReader(newBodyBytes))
+	} else {
+		// 调用方已传 old_values，body 已在上面被 ReadAll 消费，需恢复供 buildCallbackAppReq 再次读取
+		c.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 	}
 
 	// 构建回调请求对象（调用 OnTableUpdateRow）
