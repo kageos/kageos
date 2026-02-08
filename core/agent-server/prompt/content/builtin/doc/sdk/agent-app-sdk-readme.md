@@ -274,6 +274,9 @@ type CrmTicket struct {
     ID        int   `json:"id" gorm:"primaryKey;column:id" widget:"name:ID;type:ID" permission:"read" search:"eq"`           // 仅列表展示、不可编辑，列表支持按 ID 精确搜索
     CreatedAt int64 `json:"created_at" gorm:"autoCreateTime:milli;column:created_at" widget:"name:创建时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" permission:"read"` // 仅列表展示、不可编辑，列表支持按创建时间范围搜索
     UpdatedAt int64 `json:"updated_at" gorm:"autoUpdateTime:milli;column:updated_at" widget:"name:更新时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss" search:"gte,lte" permission:"read"` // 仅列表展示、不可编辑，列表支持按更新时间范围搜索
+    // 软删除：gorm.DeletedAt + widget:"-" 不在前端展示，GORM 查询时自动过滤已删除记录
+    DeletedAt gorm.DeletedAt `json:"deleted_at" gorm:"index;column:deleted_at" widget:"-"` // 不做展示
+    DeletedBy string         `json:"deleted_by" gorm:"column:deleted_by" widget:"-"`       // 删除操作人，不做展示（可选）
 
     // 业务字段：配 search 的列表可搜索，未配则不可搜（展示/可编辑由 permission 或不设置决定，见下方 permission 标签）
     Title       string `json:"title" gorm:"column:title" widget:"name:工单标题;type:input" search:"like"`           // 列表支持模糊搜索
@@ -357,6 +360,7 @@ CostPrice    float64 `json:"cost_price" gorm:"column:cost_price" widget:"name:�
 ## 四、Table 模式要点
 
 - **TableTemplate**：`BaseConfig` 含 Name、Request、Response、CreateTables；`AutoCrudTable` 指向列表结构体；可选 `OnTableAddRow`、`OnTableUpdateRow`、`OnTableDeleteRows`；若新增/编辑表单中有 select 需后端动态选项，配 `OnSelectFuzzyMap`（用法见「六、Form 模式要点 → OnSelectFuzzy」）。
+- **AutoCrudTable 的 model 可落库字段类型**：model 里凡是有 **gorm 列**（会被 GORM 写入数据库）的字段，**只能是**以下可落库类型：**基础类型**（int、string、bool、int64、float64 等）、**files.Files**（`gorm:"type:json"`）、**gorm.DeletedAt**（软删除，GORM 特例）。除此以外，**其他 struct、slice（如 type:table / type:form）不能作为一列写入数据库**；若在 model 里出现这类 struct/slice，须为：**外键关联**（如 `Room *MeetingRoom` 配 `gorm:"foreignKey:RoomID;references:ID"`，实际存的是 RoomID，不占一列）或 **gorm:"-"**（不落库，仅展示/表单用，如 RoomName、Status、Options、link 等）。否则 GORM 无法把该列写进数据库。
 - **List 函数**：请求体包含 `*query.SearchFilterPageReq`，使用 `resp.Table(&lists).AutoSearchFilterPaged(db, &Model{}, req.SearchFilterPageReq).Build()`；Build 后可在内存中给计算字段赋值（如剩余时间、**link 跳转 URL**，见「三、结构体与标签 → link 组件」）。
 - 主键、CreatedAt、UpdatedAt、DeletedAt、DeletedBy 等系统字段约定见案例；init_.go 由脚手架生成，不要手写。
 

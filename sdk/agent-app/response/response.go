@@ -73,8 +73,13 @@ func (r *RunFunctionResp) Build() error {
 	}
 
 	// 如果是 table 类型且有自动分页参数，执行查询
-	if r.Type == "table" && r.autoPagedDB != nil && r.autoPagedModel != nil {
-		return r.executeAutoSearchFilterPaged()
+	if r.Type == "table" {
+		if r.autoPagedDB != nil && r.autoPagedModel != nil {
+			return r.executeAutoSearchFilterPaged()
+		} else {
+			//todo 
+		}
+
 	}
 
 	return nil
