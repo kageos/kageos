@@ -22,14 +22,14 @@
         Debug
       </el-button>
       
-      <!-- 智能工作台管理：纯粹模式列表与配置；工作台对话已迁移到详情（服务目录 ⋮ → 打开工作台） -->
+      <!-- 工作台：无目录时提示从服务目录打开；有目录时直接对话 -->
       <el-button
         type="primary"
         size="small"
         @click="() => navigateToWorkstation()"
-        title="智能工作台管理：模式列表与配置；工作台对话请在服务目录点 ⋮ → 打开工作台"
+        title="工作台对话请在服务目录点 ⋮ → 打开工作台"
       >
-        智能工作台管理
+        工作台
       </el-button>
       
       <!-- Hub 和 Agent 路由链接 -->

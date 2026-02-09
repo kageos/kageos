@@ -8,8 +8,8 @@
               <el-icon :size="28"><Operation /></el-icon>
             </div>
             <div>
-              <h2>Agent-Server 管理</h2>
-              <p class="header-description">统一管理智能体、知识库、LLM配置和插件，构建强大的AI应用生态</p>
+              <h2>LLM 与工作台</h2>
+              <p class="header-description">管理 LLM 配置，工作台对话时选择使用的模型</p>
             </div>
           </div>
         </div>
@@ -25,51 +25,6 @@
           <p class="section-description">选择下方模块进入对应的管理页面</p>
         </div>
         <div class="modules-grid">
-          <!-- 智能体管理 -->
-          <el-card
-            shadow="hover"
-            class="module-card module-card--agents"
-            @click="navigateTo('/agent/agents')"
-          >
-            <div class="module-card__header">
-              <div class="module-card__icon-wrapper">
-                <div class="module-card__icon">
-                  <el-icon :size="32">
-                    <Operation />
-                  </el-icon>
-                </div>
-                <div class="module-card__badge">
-                  <el-badge :value="stats.agents.total" :max="99" />
-                </div>
-              </div>
-            </div>
-            <div class="module-card__body">
-              <h4 class="module-card__title">智能体管理</h4>
-              <p class="module-card__description">
-                管理智能体配置，包括纯知识库类型和插件调用类型，支持智能体的创建、编辑、启用和禁用
-              </p>
-              <div class="module-card__stats">
-                <div class="module-card__stat-item">
-                  <el-icon><CircleCheck /></el-icon>
-                  <span>已启用: {{ stats.agents.enabled }}</span>
-                </div>
-                <div class="module-card__stat-item">
-                  <el-icon><Document /></el-icon>
-                  <span>知识库类型: {{ stats.agents.knowledgeOnly }}</span>
-                </div>
-                <div class="module-card__stat-item">
-                  <el-icon><Connection /></el-icon>
-                  <span>插件类型: {{ stats.agents.plugin }}</span>
-                </div>
-              </div>
-            </div>
-            <div class="module-card__footer">
-              <el-button type="primary" :icon="ArrowRight" @click.stop="navigateTo('/agent/agents')">
-                进入管理
-              </el-button>
-            </div>
-          </el-card>
-
           <!-- LLM 管理 -->
           <el-card
             shadow="hover"
@@ -122,29 +77,17 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   Operation,
-  Document,
   Cpu,
-  Connection,
   ArrowRight,
   Grid,
-  CircleCheck,
   Star,
   Shop
 } from '@element-plus/icons-vue'
-import {
-  getAgentList,
-  getLLMList
-} from '@/api/agent'
+import { getLLMList } from '@/api/agent'
 
 const router = useRouter()
 
 const stats = ref({
-  agents: {
-    total: 0,
-    enabled: 0,
-    knowledgeOnly: 0,
-    plugin: 0
-  },
   llm: {
     total: 0,
     default: 0,
@@ -155,33 +98,15 @@ const stats = ref({
 // 加载统计数据
 async function loadStats() {
   try {
-    // 并行加载所有统计数据
-    const [agentsRes, llmRes] = await Promise.all([
-      getAgentList({ page: 1, page_size: 1 }),
-      getLLMList({ page: 1, page_size: 1 })
-    ])
-
-    // 更新智能体统计（响应拦截器已解包，直接使用 data）
-    stats.value.agents.total = agentsRes.total || 0
-    // 获取详细统计需要加载更多数据
-    const agentsDetailRes = await getAgentList({ page: 1, page_size: 1000 })
-    if (agentsDetailRes.agents) {
-      stats.value.agents.enabled = agentsDetailRes.agents.filter(a => a.enabled).length
-      stats.value.agents.knowledgeOnly = agentsDetailRes.agents.filter(a => a.agent_type === 'knowledge_only').length
-      stats.value.agents.plugin = agentsDetailRes.agents.filter(a => a.agent_type === 'plugin').length
-    }
-
-    // 更新LLM统计（响应拦截器已解包）
+    const llmRes = await getLLMList({ page: 1, page_size: 100 }) as { configs?: { is_default?: boolean; provider?: string }[]; total?: number }
     stats.value.llm.total = llmRes.total || 0
     if (llmRes.configs) {
       stats.value.llm.default = llmRes.configs.filter(l => l.is_default).length
-      const providerSet = new Set(llmRes.configs.map(l => l.provider))
+      const providerSet = new Set(llmRes.configs.map(l => l.provider).filter(Boolean))
       stats.value.llm.providers = providerSet.size
     }
-
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('加载统计数据失败:', error)
-    // 静默失败，不影响页面展示
   }
 }
 

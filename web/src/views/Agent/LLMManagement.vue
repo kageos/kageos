@@ -53,7 +53,6 @@
           v-for="llm in tableData"
           :key="llm.id"
           :llm="llm"
-          :agents="agentsByLLM.get(llm.id) || []"
           @detail="handleDetail"
           @edit="handleEdit"
           @set-default="handleSetDefault"
@@ -200,12 +199,10 @@ import {
   updateLLM,
   deleteLLM,
   setDefaultLLM,
-  getAgentList,
   type LLMInfo,
   type LLMListReq,
   type LLMCreateReq,
-  type LLMUpdateReq,
-  type AgentInfo
+  type LLMUpdateReq
 } from '@/api/agent'
 import type { FormRules } from 'element-plus'
 
@@ -214,9 +211,6 @@ const router = useRouter()
 // 表格数据
 const loading = ref(false)
 const tableData = ref<LLMInfo[]>([])
-
-// 每个LLM对应的智能体列表（key: llm_id, value: AgentInfo[]）
-const agentsByLLM = ref<Map<number, AgentInfo[]>>(new Map())
 
 // 标签页
 const activeTab = ref<'mine' | 'market'>('mine')
@@ -285,46 +279,11 @@ async function loadData() {
     // 响应拦截器已经返回了 data，所以 res 就是 { configs: [], total: 0 }
     tableData.value = res.configs || []
     pagination.total = res.total || 0
-    
-    // 为每个LLM加载使用它的智能体列表
-    await loadAgentsForLLMs()
   } catch (error: any) {
     ElMessage.error(error.message || '获取列表失败')
   } finally {
     loading.value = false
   }
-}
-
-// 获取使用指定LLM配置的智能体列表
-async function getAgentsByLLMConfig(llmConfigId: number): Promise<AgentInfo[]> {
-  try {
-    const res = await getAgentList({
-      page: 1,
-      page_size: 1000, // 通常不会太多
-      llm_config_id: llmConfigId
-    })
-    // 响应拦截器已经返回了 data，所以 res 就是 { agents: [], total: 0 }
-    const agents = res.agents || []
-    console.log(`[LLMManagement] LLM ID ${llmConfigId} 关联的智能体数量:`, agents.length, agents)
-    return agents
-  } catch (error: any) {
-    console.error(`[LLMManagement] 加载 LLM ID ${llmConfigId} 的智能体列表失败:`, error)
-    return []
-  }
-}
-
-// 为所有LLM加载使用它们的智能体列表
-async function loadAgentsForLLMs() {
-  agentsByLLM.value.clear()
-  console.log('[LLMManagement] 开始加载所有LLM的智能体列表，LLM数量:', tableData.value.length)
-  // 并行加载所有LLM的智能体列表
-  const promises = tableData.value.map(async (llm) => {
-    const agents = await getAgentsByLLMConfig(llm.id)
-    agentsByLLM.value.set(llm.id, agents)
-    console.log(`[LLMManagement] LLM "${llm.name}" (ID: ${llm.id}) 关联了 ${agents.length} 个智能体`)
-  })
-  await Promise.all(promises)
-  console.log('[LLMManagement] 所有LLM的智能体列表加载完成，agentsByLLM:', Array.from(agentsByLLM.value.entries()))
 }
 
 // 分页变化

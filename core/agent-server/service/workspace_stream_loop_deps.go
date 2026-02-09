@@ -11,18 +11,17 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
 )
 
-// workspaceStreamLoopDeps 工作台对流式工具对话循环的依赖实现
+// workspaceStreamLoopDeps 工作台对流式工具对话循环的依赖实现（只认 LLM，单模式）
 type workspaceStreamLoopDeps struct {
 	ctx                  context.Context
 	sendEvent            func(string, interface{})
 	sessionID            string
 	fullCodePath         string
-	agentID              int64
-	agentIDPtr           *int64
+	llmConfigID         int64
 	user                 string
-	modeProvider         prompt.WorkspaceModePromptProvider // 多态：按模式从嵌入的 content/mode/<code>/ 加载；nil 时用 fallback
-	toolNames            []string                           // modeProvider 为 nil 时使用
-	systemPromptFragment string                             // modeProvider 为 nil 时使用
+	modeProvider         prompt.WorkspaceModePromptProvider
+	toolNames            []string
+	systemPromptFragment string
 	files                *types.Files
 	service              *WorkspaceChatService
 }
@@ -38,11 +37,11 @@ func (d *workspaceStreamLoopDeps) BuildMessages(ctx context.Context) ([]llms.Mes
 	if directoryName == "" {
 		directoryName = workspaceCtx.Directory.Code
 	}
-	return d.service.buildLLMMessages(ctx, d.sessionID, d.fullCodePath, directoryName, d.agentID, workspaceCtx, d.modeProvider, d.toolNames, d.systemPromptFragment)
+	return d.service.buildLLMMessages(ctx, d.sessionID, d.fullCodePath, directoryName, workspaceCtx, d.modeProvider, d.toolNames, d.systemPromptFragment)
 }
 
 func (d *workspaceStreamLoopDeps) PrepareLLM(ctx context.Context, msgs []llms.Message, tools []llms.ToolDef) (llms.LLMClient, *llms.ChatRequest, error) {
-	_, client, chatReq, err := d.service.prepareLLMRequest(ctx, d.agentID, msgs, tools)
+	_, client, chatReq, err := d.service.prepareLLMRequest(ctx, d.llmConfigID, msgs, tools)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -54,15 +53,15 @@ func (d *workspaceStreamLoopDeps) SendEvent(event string, data interface{}) {
 }
 
 func (d *workspaceStreamLoopDeps) SaveAssistantMessage(ctx context.Context, content string) error {
-	return d.service.saveAssistantMessage(ctx, d.sessionID, d.agentIDPtr, content, d.user)
+	return d.service.saveAssistantMessage(ctx, d.sessionID, nil, content, d.user)
 }
 
 func (d *workspaceStreamLoopDeps) SaveAssistantMessageWithToolCalls(ctx context.Context, content string, toolCalls []llms.ToolCall) error {
-	return d.service.saveAssistantMessageWithToolCalls(ctx, d.sessionID, d.agentIDPtr, content, toolCalls, d.user)
+	return d.service.saveAssistantMessageWithToolCalls(ctx, d.sessionID, nil, content, toolCalls, d.user)
 }
 
 func (d *workspaceStreamLoopDeps) ExecuteToolCalls(ctx context.Context, allToolCalls []llms.ToolCall, currentAssistantContent string, sendEvent func(string, interface{})) ([]streamloop.ToolCallSummary, error) {
-	summaries := d.service.executeToolCalls(ctx, allToolCalls, currentAssistantContent, d.sessionID, d.fullCodePath, d.agentIDPtr, d.user, d.files, sendEvent)
+	summaries := d.service.executeToolCalls(ctx, allToolCalls, currentAssistantContent, d.sessionID, d.fullCodePath, nil, d.user, d.files, sendEvent)
 	out := make([]streamloop.ToolCallSummary, len(summaries))
 	for i := range summaries {
 		out[i] = streamloop.ToolCallSummary{
@@ -81,5 +80,5 @@ func (d *workspaceStreamLoopDeps) OnDone(summaries []streamloop.ToolCallSummary)
 			Arguments: summaries[i].Arguments, Result: summaries[i].Result, Error: summaries[i].Error,
 		}
 	}
-	d.sendEvent(EventDone, StreamEventDone{SessionID: d.sessionID, AgentID: d.agentID, ToolCalls: toolCalls})
+	d.sendEvent(EventDone, StreamEventDone{SessionID: d.sessionID, ToolCalls: toolCalls})
 }

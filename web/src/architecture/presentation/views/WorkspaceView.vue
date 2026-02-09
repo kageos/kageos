@@ -156,30 +156,12 @@
           @deleted="handleDocDeleted"
         />
 
-        <!-- 🔥 服务目录详情页面（包括根节点和 package 节点）；工作台改为右侧抽屉，不占主区域 -->
+        <!-- 🔥 服务目录详情页面（包括根节点和 package 节点）；对话统一用右侧抽屉「打开工作台」 -->
         <PackageDetailView
-          v-else-if="currentFunction && currentFunction.type === 'package' && !selectedAgent"
+          v-else-if="currentFunction && currentFunction.type === 'package'"
           :package-node="currentFunction"
-          @generate-system="handlePackageGenerateSystem"
           @refresh="handleRefreshTree"
         />
-        
-        <!-- 🔥 点击目录节点时根据选择的智能体显示不同的聊天面板 -->
-        <div v-else-if="currentFunction && currentFunction.type === 'package' && selectedAgent" class="ai-chat-wrapper">
-          <!-- 根据 chat_type 选择不同的渲染方式 -->
-          <AIChatPanel
-            v-if="selectedAgent.chat_type === 'function_gen'"
-            ref="aiChatPanelRef"
-            :agent-id="selectedAgent.id"
-            :full-code-path="currentFunction.full_code_path"
-            :package="currentFunction.code"
-            :current-node-name="currentFunction.name"
-            :existing-files="existingFilesInPackage"
-            @close="handleCloseAIChat"
-          />
-          <!-- 可以在这里添加其他 chat_type 的渲染组件 -->
-          <!-- 例如：<TaskChatPanel v-else-if="selectedAgent.chat_type === 'chat-task'" ... /> -->
-        </div>
         
         <!-- 函数详情区域（正常模式 - 函数节点） -->
         <div v-else-if="currentFunction && currentFunction.type === 'function'" class="function-content-wrapper">
@@ -324,15 +306,6 @@
         />
       </div>
     </div>
-
-    <!-- 智能体选择对话框 -->
-    <AgentSelectDialog
-      v-model="agentSelectDialogVisible"
-      :full-code-path="currentFunction?.full_code_path || null"
-      :package="currentFunction?.code || ''"
-      :current-node-name="currentFunction?.name || ''"
-      @confirm="handleAgentSelect"
-    />
 
     <!-- 应用切换器（底部固定） -->
     <!-- 始终显示，即使应用列表为空，让用户可以创建应用 -->
@@ -720,8 +693,6 @@ import WorkspaceHeader from '../components/WorkspaceHeader.vue'
 import FunctionBreadcrumb from '../components/FunctionBreadcrumb.vue'
 import TableRowDetailDrawer from '../components/TableRowDetailDrawer.vue'
 import PermissionDeniedView from '../components/PermissionDeniedView.vue'
-import AIChatPanel from '../components/AIChatPanel.vue'
-import AgentSelectDialog from '@/components/Agent/AgentSelectDialog.vue'
 import PackageDetailView from '../components/PackageDetailView.vue'
 import WorkstationChat from '../components/WorkstationChat.vue'
 import DocView from '../components/DocView.vue'
@@ -741,10 +712,9 @@ import { RouteSource } from '@/utils/routeSource'
 import { useWorkspaceDetail } from '../composables/useWorkspaceDetail'
 import { useWorkspaceApp } from '../composables/useWorkspaceApp'
 import { useWorkspaceServiceTree } from '../composables/useWorkspaceServiceTree'
-import { findNodeByPath, findNodeById, getDirectChildFunctionCodes } from '../utils/workspaceUtils'
+import { findNodeByPath, findNodeById } from '../utils/workspaceUtils'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { resolveWorkspaceUrl, extractWorkspacePath } from '@/utils/route'
-import { getAgentList, type AgentInfo } from '@/api/agent'
 import { isLinkNavigation as checkLinkNavigation, LINK_TYPE_QUERY_KEY } from '@/utils/linkNavigation'
 import { hasPermission, TablePermissions, buildPermissionApplyURL } from '@/utils/permission'
 import { usePermissionErrorStore } from '@/stores/permissionError'
@@ -1038,10 +1008,6 @@ const toggleRightSidebar = () => {
   localStorage.setItem('workspace-right-sidebar', String(showRightSidebar.value))
 }
 
-// AI 对话框相关
-const agentSelectDialogVisible = ref(false)
-const selectedAgent = ref<AgentInfo | null>(null)
-const aiChatPanelRef = ref<InstanceType<typeof AIChatPanel> | null>(null)
 /** 工作台模式：以右侧抽屉展示，不占主区域；目录详情始终可见 */
 const workstationMode = ref(false)
 /** 工作台抽屉是否折叠为窄条（折叠后主区域更宽） */
@@ -1081,79 +1047,6 @@ function handleWorkspaceOpenWorkstation(payload: { full_code_path?: string }) {
     workstationDrawerCollapsed.value = false
   }
 }
-
-// 处理智能体选择
-function handleAgentSelect(agent: AgentInfo) {
-  selectedAgent.value = agent
-  agentSelectDialogVisible.value = false
-  
-  // 选择智能体后，通知 AIChatPanel 创建新会话
-  // 使用 nextTick 确保组件已渲染
-  nextTick(() => {
-    if (aiChatPanelRef.value && typeof (aiChatPanelRef.value as any).handleAgentSelect === 'function') {
-      (aiChatPanelRef.value as any).handleAgentSelect(agent)
-    }
-  })
-  
-  // 如果路由不匹配，更新路由
-  if (currentFunction.value?.full_code_path && currentApp.value) {
-    const targetPath = buildWorkspacePath(currentFunction.value.full_code_path)
-    if (route.path !== targetPath) {
-      eventBus.emit(RouteEvent.updateRequested, {
-        path: targetPath,
-        query: {},
-        replace: true,
-        preserveParams: {
-          state: false,
-          table: false,
-          search: false
-        },
-        source: RouteSource.AGENT_SELECT
-      })
-    }
-  }
-}
-
-// 处理服务目录的生成系统按钮点击
-function handlePackageGenerateSystem(agent: AgentInfo) {
-  selectedAgent.value = agent
-  // 设置当前函数（确保 AIChatPanel 能正确显示）
-  if (currentFunction.value && currentFunction.value.type === 'package') {
-    applicationService.triggerNodeClick(currentFunction.value)
-  }
-  // 触发 AIChatPanel 新建会话（使用 nextTick 确保组件已渲染）
-  nextTick(() => {
-    if (aiChatPanelRef.value && typeof (aiChatPanelRef.value as any).handleAgentSelect === 'function') {
-      // 调用 handleAgentSelect 会创建新会话（清空 sessionId，显示欢迎消息）
-      (aiChatPanelRef.value as any).handleAgentSelect(agent)
-    }
-  })
-}
-
-// 关闭 AI 聊天面板
-function handleCloseAIChat() {
-  selectedAgent.value = null
-  // 如果当前是目录节点，清除当前函数选择
-  if (currentFunction.value?.type === 'package') {
-    applicationService.triggerNodeClick(null as any)
-  }
-}
-
-// 获取当前 package 下的子节点文件名（用于确保生成的文件名唯一）
-const existingFilesInPackage = computed(() => {
-  if (!currentFunction.value || currentFunction.value.type !== 'package') {
-    return []
-  }
-  
-  // 从 serviceTree 中查找当前节点
-  const currentNode = findNodeById(serviceTree.value, currentFunction.value.id)
-  if (!currentNode) {
-    return []
-  }
-  
-  // 获取直接子节点（只收集一级子节点，type 为 'function' 的）
-  return getDirectChildFunctionCodes(currentNode)
-})
 
 // ⭐ 权限检查：是否有表格更新权限
 const canUpdateTable = computed(() => {
@@ -2010,7 +1903,6 @@ onMounted(async () => {
   await routingLoadAppFromRoute()
   
   // 注意：应用列表在用户点击应用切换器时才加载（AppSwitcher 的 handleVisibleChange 会触发 load-apps 事件）
-  // 智能体列表在目录（package）节点时才加载（PackageDetailView 中处理）
   
   // 🔥 设置路由监听
   setupRouteWatch()

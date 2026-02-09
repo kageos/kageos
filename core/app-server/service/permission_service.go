@@ -13,16 +13,40 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/pkg/permission"
 	"gorm.io/gorm"
 )
 
+// appIDResolver 实现 enterprise.AppIDResolver，从 resource_path 解析 app_id（依赖 app-server 的 appRepo）
+type appIDResolver struct {
+	appRepo *repository.AppRepository
+}
+
+func (r *appIDResolver) GetAppIDFromResourcePath(ctx context.Context, resourcePath string) (int64, error) {
+	_, user, app := permission.ParseFullCodePath(resourcePath)
+	if user == "" || app == "" {
+		return 0, fmt.Errorf("资源路径格式错误，无法解析 user 和 app: %s", resourcePath)
+	}
+	appModel, err := r.appRepo.GetAppByUserName(user, app)
+	if err != nil {
+		return 0, fmt.Errorf("查询应用失败: user=%s, app=%s: %w", user, app, err)
+	}
+	return appModel.ID, nil
+}
+
+// NewAppIDResolver 创建 AppIDResolver（供 server 在初始化企业版时注入到 enterprise.InitOptions）
+func NewAppIDResolver(appRepo *repository.AppRepository) enterprise.AppIDResolver {
+	return &appIDResolver{appRepo: appRepo}
+}
+
 // PermissionService 权限管理服务
-// ⭐ 完全移除 Casbin，使用新的权限系统
+// ⭐ 权限逻辑在企业版目录（enterprise）；本层只做编排、调用企业版、更新 app-server 侧数据（如 pending_count）
+// ⭐ AppIDResolver 在 server 初始化企业版时注入到 enterprise.InitOptions，本层不再持有
 type PermissionService struct {
 	permissionService     enterprise.PermissionService
-	serviceTreeRepo       *repository.ServiceTreeRepository       // ⭐ 用于更新 service_tree 的 pending_count
-	permissionRequestRepo *repository.PermissionRequestRepository // ⭐ 用于查询 permission_request 表
-	appRepo               *repository.AppRepository               // ⭐ 用于更新 app 的 pending_count
+	serviceTreeRepo       *repository.ServiceTreeRepository
+	permissionRequestRepo *repository.PermissionRequestRepository
+	appRepo               *repository.AppRepository
 }
 
 // NewPermissionService 创建权限管理服务
@@ -33,6 +57,26 @@ func NewPermissionService(permissionService enterprise.PermissionService, servic
 		permissionRequestRepo: permissionRequestRepo,
 		appRepo:               appRepo,
 	}
+}
+
+// ApplyPermission 权限申请（逻辑在 enterprise_impl 实现 ApplyPermissionByResourcePath），本层只做编排与 pending_count 更新
+func (s *PermissionService) ApplyPermission(ctx context.Context, req *dto.ApplyPermissionReq) (*dto.CreatePermissionRequestResp, error) {
+	applicantUsername := contextx.GetRequestUser(ctx)
+	if applicantUsername == "" {
+		return nil, fmt.Errorf("无法获取当前用户信息")
+	}
+	requestID, appID, err := s.permissionService.ApplyPermissionByResourcePath(ctx, req, applicantUsername)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.updateServiceTreePendingCount(ctx, appID, req.ResourcePath, 1); err != nil {
+		logger.Warnf(ctx, "[PermissionService] 更新节点 pending_count 失败: app_id=%d, resource_path=%s, error=%v", appID, req.ResourcePath, err)
+	}
+	return &dto.CreatePermissionRequestResp{
+		RequestID: requestID,
+		Status:    model.PermissionRequestStatusPending,
+		Message:   "权限申请已提交，等待审批",
+	}, nil
 }
 
 
@@ -134,6 +178,50 @@ func (s *PermissionService) getAllParentDeptPaths(deptPath string) []string {
 	}
 
 	return parentPaths
+}
+
+// GetResourcePermissions 查询资源的所有权限分配（委托给 enterprise.PermissionService，供 api 层统一走 service）
+func (s *PermissionService) GetResourcePermissions(ctx context.Context, req *dto.GetResourcePermissionsReq) (*dto.GetResourcePermissionsResp, error) {
+	return s.permissionService.GetResourcePermissions(ctx, req)
+}
+
+// 以下为角色相关方法的委托，使 *PermissionService 可实现 enterprise.PermissionService 的角色部分，供 Role handler 统一从 Server 注入
+
+func (s *PermissionService) GetRoles(ctx context.Context, resourceType string) (*dto.GetRolesResp, error) {
+	return s.permissionService.GetRoles(ctx, resourceType)
+}
+func (s *PermissionService) GetRole(ctx context.Context, roleID int64) (*dto.GetRoleResp, error) {
+	return s.permissionService.GetRole(ctx, roleID)
+}
+func (s *PermissionService) CreateRole(ctx context.Context, req *dto.CreateRoleReq) (*dto.CreateRoleResp, error) {
+	return s.permissionService.CreateRole(ctx, req)
+}
+func (s *PermissionService) UpdateRole(ctx context.Context, roleID int64, req *dto.UpdateRoleReq) (*dto.UpdateRoleResp, error) {
+	return s.permissionService.UpdateRole(ctx, roleID, req)
+}
+func (s *PermissionService) DeleteRole(ctx context.Context, roleID int64) error {
+	return s.permissionService.DeleteRole(ctx, roleID)
+}
+func (s *PermissionService) AssignRoleToUser(ctx context.Context, req *dto.AssignRoleToUserReq) (*dto.AssignRoleToUserResp, error) {
+	return s.permissionService.AssignRoleToUser(ctx, req)
+}
+func (s *PermissionService) AssignRoleToDepartment(ctx context.Context, req *dto.AssignRoleToDepartmentReq) (*dto.AssignRoleToDepartmentResp, error) {
+	return s.permissionService.AssignRoleToDepartment(ctx, req)
+}
+func (s *PermissionService) RemoveRoleFromUser(ctx context.Context, req *dto.RemoveRoleFromUserReq) error {
+	return s.permissionService.RemoveRoleFromUser(ctx, req)
+}
+func (s *PermissionService) RemoveRoleFromDepartment(ctx context.Context, req *dto.RemoveRoleFromDepartmentReq) error {
+	return s.permissionService.RemoveRoleFromDepartment(ctx, req)
+}
+func (s *PermissionService) GetUserRoles(ctx context.Context, req *dto.GetUserRolesReq) (*dto.GetUserRolesResp, error) {
+	return s.permissionService.GetUserRoles(ctx, req)
+}
+func (s *PermissionService) GetDepartmentRoles(ctx context.Context, req *dto.GetDepartmentRolesReq) (*dto.GetDepartmentRolesResp, error) {
+	return s.permissionService.GetDepartmentRoles(ctx, req)
+}
+func (s *PermissionService) GetRolesForPermissionRequest(ctx context.Context, req *dto.GetRolesForPermissionRequestReq) (*dto.GetRolesForPermissionRequestResp, error) {
+	return s.permissionService.GetRolesForPermissionRequest(ctx, req)
 }
 
 // CreatePermissionRequest 创建权限申请

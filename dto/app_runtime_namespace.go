@@ -83,12 +83,11 @@ type CreateFunctionsResp struct {
 type UpdateAppReq struct {
 	User              string                `json:"user,omitempty"`               // 租户用户名（应用所属），不传则用 JWT）
 	App               string                `json:"app,omitempty"`                // 应用名，不传则用路径参数
-	ForkPackages      []*ForkPackageInfo    `json:"fork_packages,omitempty"`      // 可选的 Fork 包列表（如果有，先执行 fork 再更新）
 	CreateFunctions   []*CreateFunctionInfo `json:"create_functions,omitempty"`   // 可选的新建函数列表（如果有，先执行创建函数再更新）
 	Requirement       string                `json:"requirement,omitempty"`        // 变更需求（用户在前端输入的）
 	ChangeDescription string                `json:"change_description,omitempty"` // 变更描述（大模型输出的）
 	Summary           string                `json:"summary,omitempty"`            // 变更摘要（详情），兼容旧字段，如果未提供则使用 Requirement + ChangeDescription 组合
-	SkipBuild         bool                  `json:"skip_build,omitempty"`         // 为 true 时仅执行写文件（CreateFunctions/ForkPackages），不编译不部署
+	SkipBuild         bool                  `json:"skip_build,omitempty"`         // 为 true 时仅执行写文件（CreateFunctions），不编译不部署
 }
 
 // UpdateAppResp 更新应用响应

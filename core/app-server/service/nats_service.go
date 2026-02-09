@@ -72,6 +72,17 @@ func (n *NatsService) GetNatsByNatsId(natsId int64) (*nats.Conn, error) {
 	return conn, nil
 }
 
+// HostIds 返回所有 hostId 列表（供 appcall.Client 订阅响应主题用）
+func (n *NatsService) HostIds() []int64 {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	ids := make([]int64, 0, len(n.hostIdMap))
+	for id := range n.hostIdMap {
+		ids = append(ids, id)
+	}
+	return ids
+}
+
 func (n *NatsService) Close() error {
 	n.mu.Lock()
 	defer n.mu.Unlock()

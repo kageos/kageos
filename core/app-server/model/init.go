@@ -27,7 +27,6 @@ func InitTables(db *gorm.DB) error {
 		// 文档表（用于存储文档内容）
 		&Docs{},
 		// 权限系统相关表
-		// ⭐ WorkspacePermission 已废弃，不再使用 workspace_permission 表，仅使用角色系统
 		&PermissionRequest{},
 		&PermissionGrantLog{},
 		&ApprovalPolicy{},

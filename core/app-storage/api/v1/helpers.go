@@ -71,7 +71,6 @@ func createUploadRecord(
 		FileSize:    fileSize,
 		ContentType: contentType,
 		Hash:        hash,
-		UserID:      nil,
 		Username:    username,
 		Tenant:      tenant,
 		Status:      "completed",

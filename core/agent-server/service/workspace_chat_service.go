@@ -46,7 +46,6 @@ const (
 // 流式事件类型常量
 const (
 	EventSession         = "session"
-	EventAgentID         = "agent_id"
 	EventToolCall        = "tool_call"
 	EventToolCallsStream = "tool_calls_stream" // LLM 流式输出的 tool_calls 当前列表（name+arguments），前端实时展示
 	EventContent         = "content"
@@ -54,32 +53,26 @@ const (
 	EventError           = "error"
 )
 
-// WorkspaceChatService 工作台对话编排：会话、历史、LLM、Tool 循环；复用 prepareLLMRequest 逻辑与 pkg/llms ChatStream
+// WorkspaceChatService 工作台对话编排：会话、历史、LLM、Tool 循环；只认 LLM + 单模式（dev）
 type WorkspaceChatService struct {
 	toolReg     *ToolRegistry
-	modeRepo    *repository.WorkspaceModeRepository
 	sessionRepo *repository.ChatSessionRepository
 	messageRepo *repository.ChatMessageRepository
 	llmRepo     *repository.LLMRepository
-	agentRepo   *repository.AgentRepository
 }
 
 // NewWorkspaceChatService 创建 WorkspaceChatService
 func NewWorkspaceChatService(
 	toolReg *ToolRegistry,
-	modeRepo *repository.WorkspaceModeRepository,
 	sessionRepo *repository.ChatSessionRepository,
 	messageRepo *repository.ChatMessageRepository,
 	llmRepo *repository.LLMRepository,
-	agentRepo *repository.AgentRepository,
 ) *WorkspaceChatService {
 	return &WorkspaceChatService{
 		toolReg:     toolReg,
-		modeRepo:    modeRepo,
 		sessionRepo: sessionRepo,
 		messageRepo: messageRepo,
 		llmRepo:     llmRepo,
-		agentRepo:   agentRepo,
 	}
 }
 
@@ -94,10 +87,6 @@ type StreamEventSession struct {
 	SessionID string `json:"session_id"`
 }
 
-// StreamEventAgentID agent_id 事件数据
-type StreamEventAgentID struct {
-	AgentID int64 `json:"agent_id"`
-}
 
 // StreamEventToolCall tool_call 事件数据
 type StreamEventToolCall struct {
@@ -127,7 +116,6 @@ type StreamEventContent struct {
 // StreamEventDone done 事件数据
 type StreamEventDone struct {
 	SessionID string                             `json:"session_id"`
-	AgentID   int64                              `json:"agent_id"`
 	ToolCalls []dto.WorkspaceChatToolCallSummary `json:"tool_calls"`
 }
 
@@ -172,7 +160,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		directoryName = workspaceCtx.Directory.Code // 如果没有中文名称，使用 code 作为备选
 	}
 
-	// 2) 解析或创建 session
+	// 2) 解析或创建 session（工作台不再绑定智能体，AgentID 恒为 nil）
 	var session *model.AgentChatSession
 	if req.SessionID != "" {
 		var e error
@@ -180,24 +168,13 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		if e != nil || session == nil {
 			return s.handleError(sendEvent, fmt.Sprintf("会话不存在: %s", req.SessionID), e)
 		}
-		if req.AgentID > 0 {
-			aid := req.AgentID
-			session.AgentID = &aid
-			session.UpdatedBy = user
-			_ = s.sessionRepo.Update(session)
-		}
 	} else {
-		var agentIDForSession *int64
-		if req.AgentID > 0 {
-			aid := req.AgentID
-			agentIDForSession = &aid
-		}
 		session = &model.AgentChatSession{
 			TreeID:       workspaceCtx.Directory.ID,
 			FullCodePath: fullCodePath,
 			Source:       SourceWorkspace,
 			SessionID:    uuid.New().String(),
-			AgentID:      agentIDForSession,
+			AgentID:      nil,
 			Title:        "",
 			Status:       model.ChatSessionStatusActive,
 			User:         user,
@@ -211,36 +188,21 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 
 	sessionID := session.SessionID
 
-	// 解析模式：按 req.Mode（code）查库，未传或查不到则用 dev
-	modeCode := strings.TrimSpace(req.Mode)
-	if modeCode == "" {
-		modeCode = "dev"
-	}
-	mode, _ := s.modeRepo.GetByCode(modeCode)
-	if mode == nil {
-		mode, _ = s.modeRepo.GetByCode("dev")
-	}
+	// 单模式：固定使用 dev 模式（工具列表 + 提示词由 prompt 包提供）
+	modeProvider := prompt.GetModeProvider("dev")
 	var toolNames []string
 	var systemPromptFragment string
-	var modeProvider prompt.WorkspaceModePromptProvider
-	if mode != nil {
-		modeProvider = prompt.GetModeProvider(mode.Code)
-		if modeProvider == nil {
-			toolNames = mode.GetToolNames()
-			systemPromptFragment = strings.TrimSpace(mode.SystemPromptFragment)
-		}
+	if modeProvider == nil {
+		// 兜底：与 init 时 dev 一致
+		toolNames = []string{"read_go_file", "read_go_file_lines", "read_doc", "read_dir", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace", "create_directory"}
+		systemPromptFragment = "当前为开发模式，请协助用户生成新代码、新模块。"
 	}
 
-	// 有效 agentID：模式绑定了智能体则用模式的，否则用 session/req
-	agentID := s.getAgentID(session.AgentID, req.AgentID)
-	if mode != nil && mode.AgentID != nil && *mode.AgentID > 0 {
-		agentID = *mode.AgentID
-	}
-	agentIDPtr := s.getAgentIDPtr(agentID)
+	llmConfigID := req.LLMConfigID
 
 	// 3) 保存 user 消息
 	userMsg := &model.AgentChatMessage{
-		SessionID: sessionID, AgentID: agentIDPtr, Role: RoleUser,
+		SessionID: sessionID, AgentID: nil, Role: RoleUser,
 		Content: req.Message.Content, User: user,
 	}
 	userMsg.CreatedBy = user
@@ -271,15 +233,13 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	}
 
 	sendEvent(EventSession, StreamEventSession{SessionID: sessionID})
-	sendEvent(EventAgentID, StreamEventAgentID{AgentID: agentID})
 
 	deps := &workspaceStreamLoopDeps{
 		ctx:                  ctx,
 		sendEvent:            sendEvent,
 		sessionID:            sessionID,
 		fullCodePath:         fullCodePath,
-		agentID:              agentID,
-		agentIDPtr:           agentIDPtr,
+		llmConfigID:          llmConfigID,
 		user:                 user,
 		modeProvider:         modeProvider,
 		toolNames:            toolNames,
@@ -290,18 +250,15 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	return streamloop.RunStreamLoop(ctx, deps)
 }
 
-// prepareLLMRequest 复用与 function_gen/agent_chat 一致的 LLM 配置逻辑：agent.LLMConfigID -> 否则默认；ExtraConfig、MaxTokens、Temperature、UseThinking
-func (s *WorkspaceChatService) prepareLLMRequest(ctx context.Context, agentID int64, msgs []llms.Message, tools []llms.ToolDef) (*model.LLMConfig, llms.LLMClient, *llms.ChatRequest, error) {
+// prepareLLMRequest 工作台只认 LLM：llmConfigID > 0 用该配置，否则用默认
+func (s *WorkspaceChatService) prepareLLMRequest(ctx context.Context, llmConfigID int64, msgs []llms.Message, tools []llms.ToolDef) (*model.LLMConfig, llms.LLMClient, *llms.ChatRequest, error) {
 	var llmConfig *model.LLMConfig
 	var err error
 
-	if agentID > 0 {
-		agent, aErr := s.agentRepo.GetByID(agentID)
-		if aErr == nil && agent != nil && agent.LLMConfigID > 0 {
-			llmConfig, err = s.llmRepo.GetByID(agent.LLMConfigID)
-			if err != nil {
-				return nil, nil, nil, fmt.Errorf("获取智能体绑定的 LLM 配置失败: %w", err)
-			}
+	if llmConfigID > 0 {
+		llmConfig, err = s.llmRepo.GetByID(llmConfigID)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("获取 LLM 配置失败: %w", err)
 		}
 	}
 	if llmConfig == nil {
@@ -415,7 +372,7 @@ func workspaceCtxToEnvInput(c *dto.GetWorkspaceContextResp) *prompt.WorkspaceEnv
 	}
 }
 
-func (s *WorkspaceChatService) buildLLMMessages(ctx context.Context, sessionID, fullCodePath, directoryName string, agentID int64, workspaceCtx *dto.GetWorkspaceContextResp, modeProvider prompt.WorkspaceModePromptProvider, fallbackToolNames []string, fallbackSystemPrompt string) ([]llms.Message, []llms.ToolDef, error) {
+func (s *WorkspaceChatService) buildLLMMessages(ctx context.Context, sessionID, fullCodePath, directoryName string, workspaceCtx *dto.GetWorkspaceContextResp, modeProvider prompt.WorkspaceModePromptProvider, fallbackToolNames []string, fallbackSystemPrompt string) ([]llms.Message, []llms.ToolDef, error) {
 	list, err := s.messageRepo.ListBySessionID(sessionID)
 	if err != nil {
 		return nil, nil, err
@@ -434,7 +391,7 @@ func (s *WorkspaceChatService) buildLLMMessages(ctx context.Context, sessionID, 
 	toolsDesc, _ := s.toolReg.ListTools(ctx, toolNames)
 	llmTools := convertToLLMTools(toolsDesc)
 
-	// 环境数据与 env 块统一由 prompt 包构建，避免在此处手写 ChildrenSection/FilesSection/DirectoryList
+	// 环境数据与 env 块统一由 prompt 包构建
 	now := time.Now()
 	var envInput *prompt.WorkspaceEnvInput
 	if workspaceCtx != nil {
@@ -443,28 +400,12 @@ func (s *WorkspaceChatService) buildLLMMessages(ctx context.Context, sessionID, 
 	data := prompt.BuildWorkspaceEnvData(envInput, directoryName, fullCodePath, now)
 	envBlock := prompt.BuildWorkspaceEnvBlock(data, workspaceCtx != nil, directoryName, fullCodePath)
 
-	// 模式专属提示：多态时由 provider 产出，否则用 fallback 的 systemPromptFragment
 	if modeProvider != nil {
 		systemPromptFragment = modeProvider.SystemPrompt(data)
 	}
 
-	var system string
-	if agentID == 0 {
-		system = "你是智能工作台的助手。\n\n" + envBlock
-	} else {
-		agent, err := s.agentRepo.GetByID(agentID)
-		if err != nil || agent == nil {
-			logger.Warnf(ctx, "[WorkspaceChat] 获取智能体失败, agentID=%d: %v，退化为默认工作台助手", agentID, err)
-			system = "你是智能工作台的助手。\n\n" + envBlock
-		} else {
-			template := agent.SystemPromptTemplate
-			if template == "" {
-				template = "你是智能工作台的助手。"
-			}
-			system = template + "\n\n" + envBlock
-		}
-	}
-	// 模式专属补充提示（拼在 Agent 提示后）
+	// 工作台固定系统提示词（不再依赖智能体）
+	system := "你是智能工作台的助手。\n\n" + envBlock
 	if systemPromptFragment != "" {
 		system += "\n\n" + systemPromptFragment
 	}
@@ -533,19 +474,14 @@ func (s *WorkspaceChatService) ListSessions(ctx context.Context, fullCodePath st
 	// 转换为响应格式
 	items := make([]*dto.WorkspaceSessionItem, 0, len(sessions))
 	for _, session := range sessions {
-		item := &dto.WorkspaceSessionItem{
+		items = append(items, &dto.WorkspaceSessionItem{
 			SessionID: session.SessionID,
 			Title:     session.Title,
 			AgentID:   session.AgentID,
 			Status:    session.Status,
 			CreatedAt: session.CreatedAt,
 			UpdatedAt: session.UpdatedAt,
-		}
-		// 如果有关联的智能体，填充智能体名称
-		if session.Agent != nil {
-			item.AgentName = session.Agent.Name
-		}
-		items = append(items, item)
+		})
 	}
 
 	return items, total, nil
@@ -699,25 +635,6 @@ func (s *WorkspaceChatService) saveAssistantMessage(
 	asstMsg.CreatedBy = user
 	asstMsg.UpdatedBy = user
 	return s.messageRepo.Create(asstMsg)
-}
-
-// getAgentID 统一获取 agentID：优先使用 session.AgentID，如果为0则使用请求中的 req.AgentID
-func (s *WorkspaceChatService) getAgentID(sessionAgentID *int64, reqAgentID int64) int64 {
-	if sessionAgentID != nil && *sessionAgentID > 0 {
-		return *sessionAgentID
-	}
-	if reqAgentID > 0 {
-		return reqAgentID
-	}
-	return 0
-}
-
-// getAgentIDPtr 根据 agentID 创建指针（用于保存消息时使用）
-func (s *WorkspaceChatService) getAgentIDPtr(agentID int64) *int64 {
-	if agentID == 0 {
-		return nil
-	}
-	return &agentID
 }
 
 // handleError 统一错误处理：发送错误事件并返回错误

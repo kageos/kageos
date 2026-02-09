@@ -1,33 +1,25 @@
 package v1
 
 import (
-	"context"
 	"fmt"
-	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
-	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/pkg/permission"
-	"github.com/ai-agent-os/ai-agent-os/enterprise"
 	"github.com/gin-gonic/gin"
 )
 
-// Permission 权限管理处理器
+// Permission 权限管理处理器（仅依赖 permissionService，不直接依赖 repository）
 type Permission struct {
 	permissionService *service.PermissionService
-	appRepo           *repository.AppRepository // ⭐ 用于解析 app_id
 }
 
 // NewPermission 创建权限管理处理器
-func NewPermission(permissionService *service.PermissionService, appRepo *repository.AppRepository) *Permission {
+func NewPermission(permissionService *service.PermissionService) *Permission {
 	return &Permission{
 		permissionService: permissionService,
-		appRepo:           appRepo,
 	}
 }
 
@@ -55,48 +47,8 @@ func (p *Permission) ApplyPermission(c *gin.Context) {
 
 	ctx := contextx.ToContext(c)
 
-	// ⭐ 从 context 中获取当前用户名（JWT 中间件已设置）
-	username := contextx.GetRequestUser(c)
-	if username == "" {
-		response.FailWithMessage(c, "无法获取当前用户信息")
-		return
-	}
-
-	// ⭐ 从 resource_path 解析 app_id
-	// resource_path 格式：/user/app/...，需要解析出 user 和 app，然后查询 app_id
-	appID, err := p.parseAppIDFromResourcePath(ctx, req.ResourcePath)
-	if err != nil {
-		response.FailWithMessage(c, "无法从资源路径解析应用ID: "+err.Error())
-		return
-	}
-
-	// ⭐ 确定权限主体类型和主体
-	subjectType := req.SubjectType
-	if subjectType == "" {
-		subjectType = "user" // 默认为用户
-	}
-
-	subject := req.Subject
-	if subject == "" {
-		subject = username // 默认为当前用户
-	}
-
-	// ⭐ 设置开始时间为当前时间（使用 models.Time）
-	startTime := models.Time(time.Now())
-
-	// ⭐ 创建角色申请记录
-	createReq := dto.CreatePermissionRequestReq{
-		AppID:        appID,
-		ResourcePath: req.ResourcePath,
-		RoleID:       req.RoleID, // ⭐ 角色ID（必填）
-		SubjectType:  subjectType,
-		Subject:      subject,
-		StartTime:    startTime,
-		EndTime:      req.EndTime,
-		Reason:       req.Reason,
-	}
-
-	resp, err := p.permissionService.CreatePermissionRequest(ctx, &createReq)
+	// ⭐ 权限申请逻辑在企业版目录（enterprise_impl ApplyPermissionByResourcePath），api 只调 service
+	resp, err := p.permissionService.ApplyPermission(ctx, &req)
 	if err != nil {
 		logger.Errorf(ctx, "[ApplyPermission] 创建角色申请失败: role_id=%d, resource_path=%s, error=%v",
 			req.RoleID, req.ResourcePath, err)
@@ -105,32 +57,10 @@ func (p *Permission) ApplyPermission(c *gin.Context) {
 	}
 
 	response.OkWithData(c, dto.ApplyPermissionResp{
-		ID:      fmt.Sprintf("%d", resp),
+		ID:      fmt.Sprintf("%d", resp.RequestID),
 		Status:  "pending",
 		Message: "角色申请已提交，等待审批",
 	})
-}
-
-// parseAppIDFromResourcePath 从资源路径解析 app_id
-// resource_path 格式：/user/app/...，需要解析出 user 和 app，然后查询 app_id
-func (p *Permission) parseAppIDFromResourcePath(ctx context.Context, resourcePath string) (int64, error) {
-	if p.appRepo == nil {
-		return 0, fmt.Errorf("appRepo 未初始化")
-	}
-
-	// 使用 pkg/permission/path_parser.go 中的 ParseFullCodePath 解析
-	_, user, app := permission.ParseFullCodePath(resourcePath)
-	if user == "" || app == "" {
-		return 0, fmt.Errorf("资源路径格式错误，无法解析 user 和 app: %s", resourcePath)
-	}
-
-	// 查询 app_id
-	appModel, err := p.appRepo.GetAppByUserName(user, app)
-	if err != nil {
-		return 0, fmt.Errorf("查询应用失败: user=%s, app=%s, error=%w", user, app, err)
-	}
-
-	return appModel.ID, nil
 }
 
 // GetWorkspacePermissions 获取工作空间的所有权限
@@ -230,10 +160,7 @@ func (p *Permission) GetResourcePermissions(c *gin.Context) {
 	}
 
 	ctx := contextx.ToContext(c)
-	
-	// ⭐ 调用 enterprise.PermissionService 的 GetResourcePermissions 方法
-	enterprisePermissionService := enterprise.GetPermissionService()
-	resp, err := enterprisePermissionService.GetResourcePermissions(ctx, &req)
+	resp, err := p.permissionService.GetResourcePermissions(ctx, &req)
 	if err != nil {
 		logger.Errorf(ctx, "[GetResourcePermissions] 查询资源权限失败: resource_path=%s, error=%v",
 			req.ResourcePath, err)

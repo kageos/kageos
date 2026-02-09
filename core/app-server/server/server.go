@@ -10,7 +10,9 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
+	"github.com/ai-agent-os/ai-agent-os/pkg/appcall"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
+	"github.com/ai-agent-os/ai-agent-os/pkg/waiter"
 	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
@@ -34,7 +36,7 @@ type Server struct {
 	// 服务
 	appService                    *service.AppService
 	jwtService                    *service.JWTService
-	appRuntime                    *service.AppRuntime
+	appCall                       *appcall.Client // 调用 app-runtime 的 SDK 客户端（替代原 AppRuntime）
 	serviceTreeService            *service.ServiceTreeService
 	functionService               *service.FunctionService
 	docService                    *service.DocService
@@ -133,10 +135,10 @@ func (s *Server) Start(ctx context.Context) error {
 func (s *Server) Stop(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Stopping app-server...")
 
-	// 关闭 AppRuntime 服务（包括 NATS 订阅）
-	if s.appRuntime != nil {
-		s.appRuntime.Close()
-		logger.Infof(ctx, "[Server] AppRuntime service closed")
+	// 关闭 appcall 客户端（取消 NATS 订阅）
+	if s.appCall != nil {
+		_ = s.appCall.Close()
+		logger.Infof(ctx, "[Server] appcall client closed")
 	}
 
 	// 关闭 NATS 服务
@@ -327,19 +329,26 @@ func (s *Server) initServices(ctx context.Context) error {
 	// 初始化 NATS 服务 - 其他服务的基础依赖
 	s.natsService = service.NewNatsServiceWithDB(s.db)
 
-	// 初始化应用运行时服务
-	s.appRuntime = service.NewAppRuntimeService(s.cfg, s.natsService)
+	// 初始化 appcall 客户端（调用 app-runtime 的 SDK 风格客户端，依赖注入）
+	s.appCall = appcall.New(appcall.Options{
+		ConnProvider:       s.natsService,
+		NatsRequestTimeout: time.Duration(s.cfg.GetNatsRequestTimeout()) * time.Second,
+		AppRequestTimeout:  time.Duration(s.cfg.GetAppRequestTimeout()) * time.Second,
+		Waiter:             waiter.GetDefaultWaiter(),
+	})
 
-	// 初始化应用服务
-	s.appRepo = repository.NewAppRepository(s.db) // ⭐ 保存到 Server 结构体，供权限服务使用
-	appRepo := s.appRepo                          // 局部变量，用于传递给其他服务
+	// 初始化应用服务（若企业版已创建 appRepo 则复用）
+	if s.appRepo == nil {
+		s.appRepo = repository.NewAppRepository(s.db)
+	}
+	appRepo := s.appRepo // 局部变量，用于传递给其他服务
 	//hostRepo := repository.NewHostRepository(s.db)
 	functionRepo := repository.NewFunctionRepository(s.db)
 	serviceTreeRepo := repository.NewServiceTreeRepository(s.db)
 	operateLogRepo := repository.NewOperateLogRepository(s.db)
 	fileSnapshotRepo := repository.NewFileSnapshotRepository(s.db)
 	directoryUpdateHistoryRepo := repository.NewDirectoryUpdateHistoryRepository(s.db)
-	s.appService = service.NewAppService(s.appRuntime, appRepo, functionRepo, serviceTreeRepo, operateLogRepo, fileSnapshotRepo, directoryUpdateHistoryRepo)
+	s.appService = service.NewAppService(s.appCall, appRepo, functionRepo, serviceTreeRepo, operateLogRepo, fileSnapshotRepo, directoryUpdateHistoryRepo)
 
 	// ⭐ 邮件服务已迁移到 hr-server，不再需要初始化
 
@@ -360,7 +369,7 @@ func (s *Server) initServices(ctx context.Context) error {
 
 	// 初始化服务目录服务（包含目录管理功能：copy、create、remove）
 	// ⭐ 函数生成逻辑已移到 ServiceTreeService 中
-	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appRuntime, fileSnapshotRepo, s.appService, s.permissionService, s.docService)
+	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appCall, fileSnapshotRepo, s.appService, s.permissionService, s.docService)
 
 	// 初始化函数服务
 	s.functionService = service.NewFunctionService(functionRepo, appRepo)

@@ -68,7 +68,6 @@ type AppManageService struct {
 	appDiscoveryService   *AppDiscoveryService        // 应用发现服务，用于获取运行状态
 	natsConn              *nats.Conn                  // NATS 连接，用于发送关闭命令
 	QPSTracker            *QPSTracker                 // QPS 跟踪器
-	forkService           *ForkService                // Fork 服务
 	createFunctionService *CreateFunctionService      // 创建函数服务
 
 	// 启动等待器 - 用于等待应用启动完成通知
@@ -157,7 +156,7 @@ func (s *AppManageService) notifyStartupWaiter(user, app, version string, notifi
 }
 
 // NewAppManageService 创建应用管理服务（依赖注入）
-func NewAppManageService(builder *builder.Builder, config *appconfig.AppManageServiceConfig, runtimeConfig *appconfig.AppRuntimeConfig, containerService ContainerOperator, appRepo *repository.AppRepository, appDiscoveryService *AppDiscoveryService, natsConn *nats.Conn, forkService *ForkService, createFunctionService *CreateFunctionService) *AppManageService {
+func NewAppManageService(builder *builder.Builder, config *appconfig.AppManageServiceConfig, runtimeConfig *appconfig.AppRuntimeConfig, containerService ContainerOperator, appRepo *repository.AppRepository, appDiscoveryService *AppDiscoveryService, natsConn *nats.Conn, createFunctionService *CreateFunctionService) *AppManageService {
 	return &AppManageService{
 		builder:               builder,
 		config:                config,
@@ -167,7 +166,6 @@ func NewAppManageService(builder *builder.Builder, config *appconfig.AppManageSe
 		appDiscoveryService:   appDiscoveryService,
 		natsConn:              natsConn,
 		QPSTracker:            NewQPSTracker(60*time.Second, 10*time.Second), // 60秒窗口，10秒检查间隔
-		forkService:           forkService,
 		createFunctionService: createFunctionService,
 		startupWaiters:        make(map[string]chan *StartupNotification),
 		closeWaiters:          make(map[string]chan *CloseNotification),
@@ -444,9 +442,8 @@ func (s *AppManageService) DeleteApp(ctx context.Context, user, app string) erro
 
 // UpdateApp 更新应用（重新编译并重启容器）
 // 如果提供了 CreateFunctions，先执行创建函数操作
-// 如果提供了 ForkPackages，先执行 fork 操作，再执行更新
-// skipBuild 为 true 时仅执行写文件（CreateFunctions/ForkPackages），不编译不部署
-func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, forkPackages []*sharedDto.ForkPackageInfo, createFunctions []*sharedDto.CreateFunctionInfo, requirement, changeDescription string, skipBuild bool) (*sharedDto.UpdateAppResp, error) {
+// skipBuild 为 true 时仅执行写文件（CreateFunctions），不编译不部署
+func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, createFunctions []*sharedDto.CreateFunctionInfo, requirement, changeDescription string, skipBuild bool) (*sharedDto.UpdateAppResp, error) {
 
 	logStr := strings.Builder{}
 	logStr.WriteString(fmt.Sprintf("[UpdateApp] Starting update: %s/%s\t", user, app))
@@ -473,37 +470,6 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, fork
 
 		writtenFiles = createResp.WrittenFiles
 		logger.Infof(ctx, "[UpdateApp] 创建函数成功: fileCount=%d", len(writtenFiles))
-	}
-
-	// 1. 如果有 ForkPackages，执行 fork 操作
-	var forkWrittenFiles []string
-	if len(forkPackages) > 0 {
-		logger.Infof(ctx, "[UpdateApp] 检测到 ForkPackages，先执行 fork 操作: packageCount=%d", len(forkPackages))
-
-		forkReq := &sharedDto.ForkFunctionGroupRuntimeReq{
-			TargetUser: user,
-			TargetApp:  app,
-			Packages:   forkPackages,
-		}
-
-		forkResp, err := s.forkService.ForkFunctionGroup(ctx, forkReq)
-		if err != nil {
-			logger.Errorf(ctx, "[UpdateApp] Fork 操作失败: error=%v", err)
-			return nil, fmt.Errorf("fork 操作失败: %w", err)
-		}
-
-		if !forkResp.Success {
-			logger.Errorf(ctx, "[UpdateApp] Fork 操作失败: %s", forkResp.Message)
-			// Fork 失败时，删除已写入的文件（如果有）
-			if len(forkResp.WrittenFiles) > 0 {
-				s.rollbackForkFiles(ctx, user, app, forkResp.WrittenFiles)
-			}
-			return nil, fmt.Errorf("fork 操作失败: %s", forkResp.Message)
-		}
-
-		forkWrittenFiles = forkResp.WrittenFiles
-		writtenFiles = append(writtenFiles, forkWrittenFiles...)
-		logger.Infof(ctx, "[UpdateApp] Fork 操作成功: fileCount=%d", len(forkWrittenFiles))
 	}
 
 	// 1. 获取当前版本
@@ -558,30 +524,10 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, fork
 
 	buildResult, err := s.BuildApp(ctx, user, app, buildOpts)
 	if err != nil {
-		// 编译失败时，如果有创建的文件或 fork 的文件，删除它们
+		// 编译失败时，如果有创建的文件，回滚
 		if len(writtenFiles) > 0 {
 			logger.Warnf(ctx, "[UpdateApp] 编译失败，开始回滚已创建的文件: fileCount=%d", len(writtenFiles))
-			// 区分回滚：先回滚 fork 的文件，再回滚创建的文件
-			if len(forkWrittenFiles) > 0 {
-				s.rollbackForkFiles(ctx, user, app, forkWrittenFiles)
-			}
-			// 回滚创建的函数文件
-			createFunctionFiles := make([]string, 0)
-			for _, file := range writtenFiles {
-				isForkFile := false
-				for _, forkFile := range forkWrittenFiles {
-					if file == forkFile {
-						isForkFile = true
-						break
-					}
-				}
-				if !isForkFile {
-					createFunctionFiles = append(createFunctionFiles, file)
-				}
-			}
-			if len(createFunctionFiles) > 0 {
-				s.rollbackCreateFunctionFiles(ctx, user, app, createFunctionFiles)
-			}
+			s.rollbackCreateFunctionFiles(ctx, user, app, writtenFiles)
 		}
 		return nil, fmt.Errorf("failed to build app: %w", err)
 	}
@@ -746,29 +692,6 @@ func (s *AppManageService) rollbackCreateFunctionFiles(ctx context.Context, user
 	}
 
 	logger.Infof(ctx, "[UpdateApp] 函数文件回滚完成: deletedCount=%d, totalCount=%d", deletedCount, len(filePaths))
-}
-
-// rollbackForkFiles 回滚已 Fork 的文件（内部方法，失败时调用）
-func (s *AppManageService) rollbackForkFiles(ctx context.Context, user, app string, filePaths []string) {
-	logger.Warnf(ctx, "[UpdateApp] 开始回滚已 fork 的文件: fileCount=%d", len(filePaths))
-
-	appDir := filepath.Join(s.config.AppDir.BasePath, user, app)
-
-	deletedCount := 0
-	for _, relPath := range filePaths {
-		filePath := filepath.Join(appDir, relPath)
-		if err := os.Remove(filePath); err != nil {
-			if os.IsNotExist(err) {
-				continue
-			}
-			logger.Errorf(ctx, "[UpdateApp] 删除文件失败: file=%s, error=%v", filePath, err)
-		} else {
-			deletedCount++
-			logger.Infof(ctx, "[UpdateApp] 已删除文件: %s", filePath)
-		}
-	}
-
-	logger.Infof(ctx, "[UpdateApp] 回滚完成: deletedCount=%d, totalCount=%d", deletedCount, len(filePaths))
 }
 
 // updateAppStatusToActive 将应用状态更新为active（已激活）
@@ -1518,60 +1441,6 @@ func (s *AppManageService) ReadDirectoryFiles(ctx context.Context, user, app, fu
 
 	logger.Infof(ctx, "[ReadDirectoryFiles] 读取目录文件完成: path=%s, fileCount=%d", directoryPath, len(files))
 	return files, nil
-}
-
-// ReplaceInFile 在指定文件中做 search-replace，实时读盘、替换、写回（不整文件覆盖）
-// 返回：替换次数、替换后的完整内容（供按需返回给调用方）、错误
-func (s *AppManageService) ReplaceInFile(ctx context.Context, user, app, directoryPath, fileName, searchString, replaceString string, replaceAll bool) (replaceCount int, newContent string, err error) {
-	logger.Infof(ctx, "[ReplaceInFile] user=%s, app=%s, path=%s, file=%s, replaceAll=%v", user, app, directoryPath, fileName, replaceAll)
-
-	appDir := filepath.Join(s.config.AppDir.BasePath, user, app)
-	apiDir := filepath.Join(appDir, "code", "api")
-	appPrefix := fmt.Sprintf("/%s/%s", user, app)
-	relativePath := strings.TrimPrefix(strings.TrimPrefix(directoryPath, appPrefix), "/")
-	dirPath := filepath.Join(apiDir, relativePath)
-
-	baseName := fileName
-	if !strings.HasSuffix(baseName, ".go") {
-		baseName = baseName + ".go"
-	}
-	if baseName == "init_.go" {
-		return 0, "", fmt.Errorf("不允许修改 init_.go，由脚手架生成")
-	}
-	filePath := filepath.Join(dirPath, baseName)
-
-	content, err := os.ReadFile(filePath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return 0, "", fmt.Errorf("文件不存在: %s", filePath)
-		}
-		return 0, "", err
-	}
-	oldContent := string(content)
-	if searchString == "" {
-		return 0, "", fmt.Errorf("search_string 不能为空")
-	}
-	var resultContent string
-	if replaceAll {
-		resultContent = strings.ReplaceAll(oldContent, searchString, replaceString)
-		replaceCount = strings.Count(oldContent, searchString)
-	} else {
-		idx := strings.Index(oldContent, searchString)
-		if idx < 0 {
-			return 0, "", fmt.Errorf("未找到要替换的内容")
-		}
-		resultContent = oldContent[:idx] + replaceString + oldContent[idx+len(searchString):]
-		replaceCount = 1
-	}
-	if resultContent == oldContent {
-		logger.Infof(ctx, "[ReplaceInFile] 未发生替换: %s", filePath)
-		return 0, resultContent, nil
-	}
-	if err := os.WriteFile(filePath, []byte(resultContent), 0644); err != nil {
-		return 0, "", err
-	}
-	logger.Infof(ctx, "[ReplaceInFile] 替换完成: path=%s, count=%d", filePath, replaceCount)
-	return replaceCount, resultContent, nil
 }
 
 // ReplaceInFileBatch 在指定文件中做多组 search-replace：读入内存、按顺序执行、校验 expected_count，全部通过才落盘

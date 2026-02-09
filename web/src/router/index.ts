@@ -86,22 +86,13 @@ const router = createRouter({
       }
     },
 
-    // Agent-Server 管理页面
+    // LLM 与工作台管理
     {
       path: '/agent',
       name: 'agent-index',
       component: () => import('../views/Agent/index.vue'),
       meta: {
-        title: 'Agent-Server 管理',
-        requireAuth: true
-      }
-    },
-    {
-      path: '/agent/agents',
-      name: 'agent-management',
-      component: () => import('../views/Agent/AgentManagement.vue'),
-      meta: {
-        title: '智能体管理',
+        title: 'LLM 与工作台',
         requireAuth: true
       }
     },

@@ -189,7 +189,7 @@ func (s *Server) setupRoutes() {
 	permission := apiV1.Group("/permission")
 	permission.Use(middleware2.JWTAuth())                                    // JWT 认证
 	permission.Use(middleware2.RequireFeature(enterprise.FeaturePermission)) // 权限管理功能鉴权（企业版）
-	permissionHandler := v1.NewPermission(s.permissionService, s.appRepo)
+	permissionHandler := v1.NewPermission(s.permissionService)
 	permission.POST("/apply", permissionHandler.ApplyPermission)            // 权限申请（角色申请）
 	permission.GET("/workspace", permissionHandler.GetWorkspacePermissions) // 获取工作空间所有权限
 	permission.GET("/resource", permissionHandler.GetResourcePermissions)   // 查询资源的所有权限分配
@@ -204,9 +204,8 @@ func (s *Server) setupRoutes() {
 	role := apiV1.Group("/role")
 	role.Use(middleware2.JWTAuth())                                    // JWT 认证
 	role.Use(middleware2.RequireFeature(enterprise.FeaturePermission)) // 权限管理功能鉴权（企业版）
-	// 直接使用 PermissionService 的角色管理方法
-	permissionService := enterprise.GetPermissionService()
-	roleHandler := v1.NewRoleHandlerFromPermissionService(permissionService)
+	// 角色管理使用与 Permission 一致的 permissionService（从 Server 注入）
+	roleHandler := v1.NewRoleHandlerFromPermissionService(s.permissionService)
 	role.GET("", roleHandler.GetRoles)                                    // 获取所有角色
 	role.GET("/:id", roleHandler.GetRole)                                 // 获取角色详情
 	role.POST("", roleHandler.CreateRole)                                 // 创建角色

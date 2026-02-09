@@ -5,13 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"path/filepath"
 	"strconv"
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/prompt"
-	"github.com/ai-agent-os/ai-agent-os/core/agent-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
@@ -19,26 +16,18 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
 )
 
-// ToolRegistry 工作台 MCP 形态的工具注册与调用
-// list_tools：内置 + 插件；call_tool(name, args, full_code_path) 路由到对应实现
-type ToolRegistry struct {
-	pluginRepo *repository.PluginRepository
-}
+// ToolRegistry 工作台工具注册与调用（仅内置工具，已移除插件）
+// list_tools：仅内置；call_tool(name, args, full_code_path) 路由到对应实现
+type ToolRegistry struct{}
 
 // NewToolRegistry 创建 ToolRegistry
-func NewToolRegistry(pluginRepo *repository.PluginRepository) *ToolRegistry {
-	return &ToolRegistry{pluginRepo: pluginRepo}
+func NewToolRegistry() *ToolRegistry {
+	return &ToolRegistry{}
 }
 
-// ListTools 返回可用工具定义（内置 + 启用插件）。toolNames 非空时只返回 name 在列表中的工具，空则返回全部。
+// ListTools 返回可用工具定义（仅内置）。toolNames 非空时只返回 name 在列表中的工具，空则返回全部。
 func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto.ToolDef, error) {
-	enabled := true
-	plugins, _, err := r.pluginRepo.List("", "", &enabled, 0, 200)
-	if err != nil {
-		return nil, fmt.Errorf("list plugins: %w", err)
-	}
-
-	out := make([]dto.ToolDef, 0, 6+len(plugins))
+	out := make([]dto.ToolDef, 0, 32)
 
 	// 1. 读代码文件：read_go_file（仅工作区 Go 代码）
 	out = append(out, dto.ToolDef{
@@ -412,27 +401,6 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 		},
 	})
 
-	// 3. 插件：每个 Plugin 一条
-	for _, p := range plugins {
-		if p.FormPath == "" {
-			continue
-		}
-		desc := p.Description
-		if desc == "" {
-			desc = p.Name
-		}
-		out = append(out, dto.ToolDef{
-			Name:        p.Code,
-			Description: desc,
-			InputSchema: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"content": map[string]interface{}{"type": "string", "description": "文本说明或上下文"},
-				},
-			},
-		})
-	}
-
 	// 按模式过滤：若指定了 toolNames，只保留 name 在列表中的工具
 	if len(toolNames) > 0 {
 		nameSet := make(map[string]struct{}, len(toolNames))
@@ -485,12 +453,7 @@ func (r *ToolRegistry) CallTool(ctx context.Context, name string, args map[strin
 	case "run_table_update":
 		return r.callRunTableUpdate(ctx, args, fullCodePath)
 	}
-	// 按插件 code 查找
-	p, err := r.pluginRepo.GetByCode(name)
-	if err != nil || p == nil {
-		return "tool not found: " + name, true
-	}
-	return r.callPlugin(ctx, p, args, files)
+	return "tool not found: " + name, true
 }
 
 // callReadGoFile 读取工作区 Go 代码文件；若传入的是文档路径则降级为用 read_doc 拉取并提示
@@ -785,100 +748,6 @@ func (r *ToolRegistry) callReadDocTool(ctx context.Context, args map[string]inte
 		sb.WriteString(fmt.Sprintf("## %s\n\n%s", doc.Name, doc.Content))
 	}
 	return sb.String(), hasError
-}
-
-// callReadFile 已废弃，请使用 read_go_file / read_doc
-func (r *ToolRegistry) callReadFile(ctx context.Context, args map[string]interface{}, currentFullCodePath string) (string, bool) {
-	targetPath := getDirectory(args, currentFullCodePath)
-	fileName := GetStringArg(args, "file_name")
-
-	if strings.HasPrefix(targetPath, "/builtin/") {
-		return r.callReadDocTool(ctx, map[string]interface{}{"directory": targetPath}, currentFullCodePath)
-	}
-
-	// 工作区：targetPath 为目录，fileName 为文件名
-
-	// 调用 app-server 的 GetWorkspaceContext 接口获取代码文件（已废弃，走 read_go_file 时用 runtime）
-	workspaceCtx, err := apicall.GetWorkspaceContext(ctx, targetPath, "runtime")
-	if err != nil {
-		return fmt.Sprintf("获取代码失败: %v", err), true
-	}
-
-	if len(workspaceCtx.Files) == 0 {
-		return fmt.Sprintf("目录 %s 下没有代码文件。", targetPath), false
-	}
-
-	// 如果指定了文件名，则只返回匹配的文件
-	var matchedFiles []dto.WorkspaceContextFile
-	if fileName != "" {
-		// 匹配文件：支持多种格式
-		// 1. 文件名（不含扩展名），如 biz_vote_system
-		// 2. 完整文件名（含扩展名），如 biz_vote_system.go
-		// 3. 相对路径，如 vote/biz_vote_system.go
-		for _, file := range workspaceCtx.Files {
-			// 匹配文件名（不含扩展名）
-			if file.FileName == fileName {
-				matchedFiles = append(matchedFiles, file)
-				continue
-			}
-			// 匹配完整文件名（含扩展名）
-			fullFileName := file.FileName + "." + file.FileType
-			if fullFileName == fileName {
-				matchedFiles = append(matchedFiles, file)
-				continue
-			}
-			// 匹配相对路径
-			if file.RelativePath == fileName {
-				matchedFiles = append(matchedFiles, file)
-				continue
-			}
-		}
-
-		if len(matchedFiles) == 0 {
-			return fmt.Sprintf("在目录 %s 下未找到文件：%s", targetPath, fileName), false
-		}
-	} else {
-		// 如果没有指定文件名，返回所有文件
-		matchedFiles = workspaceCtx.Files
-	}
-
-	// 格式化输出代码文件列表和内容
-	var header string
-	if fileName != "" {
-		header = fmt.Sprintf("文件 %s 的内容（目录：%s）：\n\n", fileName, targetPath)
-	} else {
-		header = fmt.Sprintf("目录 %s 下的代码文件（共 %d 个）：\n\n", targetPath, len(matchedFiles))
-	}
-
-	var filesContent string
-	for i, file := range matchedFiles {
-		// 降级处理：如果行数为0（可能是旧数据），则动态计算
-		lineCount := file.LineCount
-		if lineCount == 0 && file.Content != "" {
-			lines := strings.Split(file.Content, "\n")
-			lineCount = len(lines)
-			// 如果最后一行是空行（文件末尾有换行符），不计入总行数
-			if lineCount > 0 && lines[lineCount-1] == "" {
-				lineCount--
-			}
-		}
-		// 文件路径：展示完整路径（目录 + 相对路径），便于定位；后端可能只返回文件名
-		fullFilePath := strings.TrimRight(targetPath, "/") + "/" + file.RelativePath
-		fileHeader := ""
-		if len(matchedFiles) > 1 {
-			fileHeader = fmt.Sprintf("## 文件 %d: %s\n", i+1, fullFilePath)
-		}
-
-		filesContent += fmt.Sprintf(`%s- 文件名: %s
-- 文件路径: %s
-- 文件类型: %s
-- 总行数: %d 行
-- 内容长度: %d 字符
-- 代码内容:
-`+"```%s\n%s\n```\n\n", fileHeader, file.FileName, fullFilePath, file.FileType, lineCount, file.ContentLength, file.FileType, file.Content)
-	}
-
-	return header + filesContent, false
 }
 
 // callReadDir 读取目录工具：读取指定目录下所有子节点和文件，支持列表模式和递归树形模式
@@ -1694,96 +1563,6 @@ func formatJSONResult(m map[string]interface{}) (string, bool) {
 		return fmt.Sprintf("%v", m), false
 	}
 	return string(b), false
-}
-
-// callWriteFile 已废弃，请使用 write_doc / write_go_file
-func (r *ToolRegistry) callWriteFile(ctx context.Context, args map[string]interface{}, currentFullCodePath string) (string, bool) {
-	fileName := strings.TrimSpace(GetStringArg(args, "file_name"))
-	if fileName == "" {
-		return "write_file 缺少参数 file_name。", true
-	}
-	content := GetStringArg(args, "content")
-	if content == "" {
-		content = GetStringArg(args, "source_code")
-	}
-	if content == "" {
-		return "write_file 缺少参数 content。", true
-	}
-
-	targetPath := getDirectory(args, currentFullCodePath)
-	targetPath = strings.TrimRight(targetPath, "/")
-	if targetPath == "" {
-		targetPath = currentFullCodePath
-	} else if !strings.HasPrefix(targetPath, "/") {
-		targetPath = "/" + targetPath
-	}
-
-	if strings.HasSuffix(fileName, ".md") {
-		return r.callWriteFileDoc(ctx, fileName, content, targetPath)
-	}
-	if !strings.HasSuffix(fileName, ".go") {
-		return "write_file 的 file_name 需带 .go（代码）或 .md（文档）后缀。", true
-	}
-	nameWithoutExt := strings.TrimSuffix(fileName, ".go")
-	if nameWithoutExt == "init_" {
-		return "不允许创建该文件，由脚手架自动生成。", true
-	}
-	writeArgs := map[string]interface{}{
-		"file_name":   fileName,
-		"source_code": content,
-	}
-	return RunAddFunctionsTool(ctx, writeArgs, targetPath, true, true)
-}
-
-// callWriteFileDoc 将 markdown 内容写入文档节点（write_file 且 file_name 为 .md 时）
-func (r *ToolRegistry) callWriteFileDoc(ctx context.Context, fileName, content, targetPath string) (string, bool) {
-	docCode := strings.TrimSuffix(filepath.Base(fileName), ".md")
-	if docCode == "" {
-		return "write_file 的 .md 文件名无效。", true
-	}
-	docPath := strings.TrimRight(targetPath, "/") + "/" + docCode
-	if !strings.HasPrefix(docPath, "/") {
-		docPath = "/" + docPath
-	}
-	detail, err := apicall.GetServiceTreeDetailByFullCodePath(ctx, docPath)
-	if err == nil && detail != nil && detail.Type == "docs" {
-		format := "markdown"
-		err = apicall.UpdateDocs(ctx, detail.ID, &dto.UpdateDocsReq{Content: &content, Format: &format})
-		if err != nil {
-			logger.Errorf(ctx, "[WriteFile] UpdateDocs 失败: %v", err)
-			return "write_file 更新文档失败: " + err.Error(), true
-		}
-		return fmt.Sprintf("文档已更新: %s", docPath), false
-	}
-	parent, err := apicall.GetServiceTreeDetailByFullCodePath(ctx, targetPath)
-	if err != nil || parent == nil {
-		return "父目录不存在，请先 create_directory 再 write_file。", true
-	}
-	pathParts := strings.Split(strings.Trim(targetPath, "/"), "/")
-	if len(pathParts) < 2 {
-		return "write_file directory 格式无效", true
-	}
-	user, app := pathParts[0], pathParts[1]
-	req := &dto.CreateDocsReq{
-		User:     user,
-		App:      app,
-		Name:     docCode,
-		Code:     docCode,
-		ParentID: parent.ID,
-		Content:  content,
-		Format:   "markdown",
-	}
-	_, err = apicall.CreateDocs(ctx, req)
-	if err != nil {
-		logger.Errorf(ctx, "[WriteFile] CreateDocs 失败: %v", err)
-		return "write_file 创建文档失败: " + err.Error(), true
-	}
-	return fmt.Sprintf("文档已创建: %s", docPath), false
-}
-
-// callPlugin 插件工具：CallFormAPI(FormPath, {Content, InputFiles})
-func (r *ToolRegistry) callPlugin(ctx context.Context, p *model.Plugin, args map[string]interface{}, files *types.Files) (string, bool) {
-	return RunPluginTool(ctx, p, args, files)
 }
 
 // ToToolArgs 将 interface{} 转为 map[string]interface{}，供 CallTool 使用

@@ -9,8 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
-
+	v1 "github.com/ai-agent-os/ai-agent-os/core/app-runtime/api/v1"
 	"github.com/ai-agent-os/ai-agent-os/core/app-runtime/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-runtime/repository"
 	"github.com/ai-agent-os/ai-agent-os/core/app-runtime/service"
@@ -37,7 +36,6 @@ type Server struct {
 	appManageService    *service.AppManageService
 	appDiscoveryService *service.AppDiscoveryService
 	serviceTreeService  *service.ServiceTreeService
-	forkService         *service.ForkService
 
 	// HTTP 健康检查服务器
 	httpServer *http.Server
@@ -203,9 +201,6 @@ func (s *Server) initServices(ctx context.Context) error {
 		return fmt.Errorf("failed to start app discovery service: %w", err)
 	}
 
-	// 初始化 Fork 服务（需要在 AppManageService 之前）
-	s.forkService = service.NewForkService(&s.cfg.AppManage)
-
 	// 初始化创建函数服务（需要在 AppManageService 之前）
 	createFunctionService := service.NewCreateFunctionService(&s.cfg.AppManage)
 
@@ -219,7 +214,6 @@ func (s *Server) initServices(ctx context.Context) error {
 		appRepo,
 		s.appDiscoveryService,
 		s.natsConn,
-		s.forkService,         // 传入 Fork 服务
 		createFunctionService, // 传入创建函数服务
 	)
 
@@ -282,152 +276,16 @@ func (s *Server) stopServices(ctx context.Context) {
 	}
 }
 
-// subscribeNATS 订阅所有 NATS 主题
+// subscribeNATS 订阅所有 NATS 主题（Gin 风格：api/v1 放 handler，router 里注册）
 func (s *Server) subscribeNATS(ctx context.Context) error {
-
-	// 暂时导入 subject 包以使用现有的 handler
-	// TODO: 后续可以考虑将 handler 改为 Server 的方法
-	var err error
-	var sub *nats.Subscription
-
-	// 订阅应用创建请求（使用队列组）
-	sub, err = s.natsConn.QueueSubscribe(
-		subjects.GetAppRuntime2AppCreateRequestSubject(),
-		"app-runtime-create-workers",
-		s.handleAppCreate,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to subscribe to app create: %w", err)
+	appH := v1.NewAppHandler(s.appManageService)
+	serviceTreeH := v1.NewServiceTreeHandler(s.serviceTreeService)
+	workspaceH := v1.NewWorkspaceHandler(s.appManageService)
+	requestH := v1.NewRequestHandler(s.appManageService, s) // s 实现 RequestRouter
+	if err := RegisterNATS(ctx, s.natsConn, &s.subscriptions, appH, serviceTreeH, workspaceH, requestH); err != nil {
+		return err
 	}
-	s.subscriptions = append(s.subscriptions, sub)
-
-	// 订阅应用更新请求（使用队列组）
-	sub, err = s.natsConn.QueueSubscribe(
-		subjects.GetAppRuntime2AppUpdateRequestSubject(),
-		"app-runtime-update-workers",
-		s.handleAppUpdate,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to subscribe to app update: %w", err)
-	}
-	s.subscriptions = append(s.subscriptions, sub)
-
-	// 订阅服务目录创建请求（使用队列组）
-	sub, err = s.natsConn.QueueSubscribe(
-		subjects.GetAppRuntime2ServiceTreeCreateRequestSubject(),
-		"app-runtime-service-tree-workers",
-		s.handleServiceTreeCreate,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to subscribe to service tree create: %w", err)
-	}
-	s.subscriptions = append(s.subscriptions, sub)
-
-	// 订阅来自 app-server 的请求（使用队列组）
-	sub, err = s.natsConn.QueueSubscribe(
-		subjects.GetFunctionServer2AppRuntimeRequestSubject(),
-		"app-runtime-request-workers",
-		s.handleFunctionServerRequest,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to subscribe to function server request: %w", err)
-	}
-	s.subscriptions = append(s.subscriptions, sub)
-
-	//// 订阅应用发现响应
-	//sub, err = s.natsConn.Subscribe(
-	//	subjects.GetAppDiscoveryResponseSubject(),
-	//	s.handleAppDiscoveryResponse,
-	//)
-	//if err != nil {
-	//	return fmt.Errorf("failed to subscribe to app discovery response: %w", err)
-	//}
-	//s.subscriptions = append(s.subscriptions, sub)
-
-	// 订阅应用删除请求（使用队列组）
-	sub, err = s.natsConn.QueueSubscribe(
-		subjects.GetAppServer2AppRuntimeDeleteRequestSubject(),
-		"app-runtime-delete-workers",
-		s.handleAppDelete,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to subscribe to app delete: %w", err)
-	}
-	s.subscriptions = append(s.subscriptions, sub)
-
-	// 订阅读取目录文件请求（使用队列组）
-	sub, err = s.natsConn.QueueSubscribe(
-		subjects.GetAppServer2AppRuntimeReadDirectoryFilesRequestSubject(),
-		"app-runtime-read-directory-files-workers",
-		s.handleReadDirectoryFiles,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to subscribe to read directory files: %w", err)
-	}
-	s.subscriptions = append(s.subscriptions, sub)
-
-	// 订阅文件 search-replace 请求
-	sub, err = s.natsConn.QueueSubscribe(
-		subjects.GetAppServer2AppRuntimeReplaceInFileRequestSubject(),
-		"app-runtime-replace-in-file-workers",
-		s.handleReplaceInFile,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to subscribe to replace in file: %w", err)
-	}
-	s.subscriptions = append(s.subscriptions, sub)
-
-	// 订阅文件批量 search-replace 请求
-	sub, err = s.natsConn.QueueSubscribe(
-		subjects.GetAppServer2AppRuntimeReplaceInFileBatchRequestSubject(),
-		"app-runtime-replace-in-file-batch-workers",
-		s.handleReplaceInFileBatch,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to subscribe to replace in file batch: %w", err)
-	}
-	s.subscriptions = append(s.subscriptions, sub)
-
-	// 订阅删除磁盘文件请求
-	sub, err = s.natsConn.QueueSubscribe(
-		subjects.GetAppServer2AppRuntimeDeleteFileRequestSubject(),
-		"app-runtime-delete-file-workers",
-		s.handleDeleteFile,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to subscribe to delete file: %w", err)
-	}
-	s.subscriptions = append(s.subscriptions, sub)
-
-	// 订阅批量创建目录树请求（使用队列组）
-	sub, err = s.natsConn.QueueSubscribe(
-		subjects.GetAppServer2AppRuntimeBatchCreateDirectoryTreeRequestSubject(),
-		"app-runtime-batch-create-directory-tree-workers",
-		s.handleBatchCreateDirectoryTree,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to subscribe to batch create directory tree: %w", err)
-	}
-	s.subscriptions = append(s.subscriptions, sub)
-
-	// 注意：UpdateServiceTree 已废弃，不再订阅
-	// 请使用 BatchCreateDirectoryTree 和 BatchWriteFiles 替代
-
-	// 订阅批量写文件请求（使用队列组）
-	sub, err = s.natsConn.QueueSubscribe(
-		subjects.GetAppServer2AppRuntimeBatchWriteFilesRequestSubject(),
-		"app-runtime-batch-write-files-workers",
-		s.handleBatchWriteFiles,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to subscribe to batch write files: %w", err)
-	}
-	s.subscriptions = append(s.subscriptions, sub)
-
-	// Runtime 状态主题由 AppDiscoveryService 统一处理，不需要重复订阅
-
-	// 旧的订阅已移除，现在通过 runtime.status 主题统一处理
-
+	// Runtime 状态主题由 AppDiscoveryService 统一处理，不需要在此订阅
 	return nil
 }
 

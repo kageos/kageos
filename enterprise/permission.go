@@ -8,6 +8,12 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/dto"
 )
 
+// AppIDResolver 从资源路径解析 app_id 的接口（由 app-server 等实现）
+// 实现放在 enterprise_impl；企业版注册 PermissionService 时由调用方注入此 resolver
+type AppIDResolver interface {
+	GetAppIDFromResourcePath(ctx context.Context, resourcePath string) (int64, error)
+}
+
 // ============================================
 // 权限判断逻辑说明
 // ============================================
@@ -102,6 +108,10 @@ type PermissionService interface {
 	//   - 社区版实现返回错误（不支持权限申请）
 	//   - 企业版实现会创建申请记录，状态为 pending
 	CreatePermissionRequest(ctx context.Context, req *dto.CreatePermissionRequestReq) (int64, error)
+
+	// ApplyPermissionByResourcePath 根据 resource_path 创建权限申请（实现放在 enterprise_impl）
+	// 从 resource_path 解析 app_id、拼装请求后调用 CreatePermissionRequest，返回 requestID 与 appID（供调用方更新 pending_count 等）
+	ApplyPermissionByResourcePath(ctx context.Context, req *dto.ApplyPermissionReq, applicantUsername string) (requestID int64, appID int64, err error)
 
 	// ApprovePermissionRequest 审批通过权限申请
 	// 参数：
@@ -559,6 +569,12 @@ func (u *UnImplPermissionService) CheckPermission(ctx context.Context, username 
 // 社区版实现：返回错误（不支持权限申请）
 func (u *UnImplPermissionService) CreatePermissionRequest(ctx context.Context, req *dto.CreatePermissionRequestReq) (int64, error) {
 	return 0, fmt.Errorf("权限申请功能仅在企业版可用")
+}
+
+// ApplyPermissionByResourcePath 根据 resource_path 创建权限申请（实现放在 enterprise_impl）
+// 社区版实现：返回错误
+func (u *UnImplPermissionService) ApplyPermissionByResourcePath(ctx context.Context, req *dto.ApplyPermissionReq, applicantUsername string) (int64, int64, error) {
+	return 0, 0, fmt.Errorf("权限申请功能仅在企业版可用")
 }
 
 // ApprovePermissionRequest 审批通过权限申请
