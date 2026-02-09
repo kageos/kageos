@@ -50,9 +50,6 @@
           <div class="session-card-header">
             <span class="session-card-title">{{ session.title || '未命名会话' }}</span>
           </div>
-          <div v-if="session.agent_name" class="session-card-agent">
-            <span class="agent-name">{{ session.agent_name }}</span>
-          </div>
           <div class="session-card-time">
             <span>{{ formatRelativeTime(session.updated_at) }}</span>
           </div>
@@ -69,24 +66,14 @@
         <span v-if="fullCodePath" class="path">当前目录：{{ fullCodePath }}</span>
         <span v-else class="path empty">暂无目录</span>
         <el-select
-          v-model="selectedModeCode"
-          placeholder="模式"
+          v-model="selectedLLMConfigId"
+          placeholder="选择 LLM（不选则用默认）"
           clearable
-          class="mode-select"
-          :loading="modeLoading"
+          class="llm-select"
+          :loading="llmLoading"
           :disabled="!fullCodePath"
         >
-          <el-option v-for="m in modeList" :key="m.code" :value="m.code" :label="m.name" />
-        </el-select>
-        <el-select
-          v-model="selectedAgentId"
-          placeholder="选择智能体（不选则用默认 LLM）"
-          clearable
-          class="agent-select"
-          :loading="agentLoading"
-          :disabled="!fullCodePath"
-        >
-          <el-option v-for="a in agentList" :key="a.id" :value="a.id" :label="a.name" />
+          <el-option v-for="l in llmList" :key="l.id" :value="l.id" :label="l.name" />
         </el-select>
         <el-link type="primary" :underline="false" @click="handleBack" class="back">返回详情</el-link>
       </template>
@@ -95,24 +82,14 @@
         <span v-if="fullCodePath" class="path">当前目录：{{ fullCodePath }}</span>
         <span v-else class="path empty">请先「返回工作空间」，在左侧服务目录对任意目录节点悬停点 ⋮ → 打开工作台</span>
         <el-select
-          v-model="selectedModeCode"
-          placeholder="模式"
+          v-model="selectedLLMConfigId"
+          placeholder="选择 LLM（不选则用默认）"
           clearable
-          class="mode-select"
-          :loading="modeLoading"
+          class="llm-select"
+          :loading="llmLoading"
           :disabled="!fullCodePath"
         >
-          <el-option v-for="m in modeList" :key="m.code" :value="m.code" :label="m.name" />
-        </el-select>
-        <el-select
-          v-model="selectedAgentId"
-          placeholder="选择智能体（不选则用默认 LLM）"
-          clearable
-          class="agent-select"
-          :loading="agentLoading"
-          :disabled="!fullCodePath"
-        >
-          <el-option v-for="a in agentList" :key="a.id" :value="a.id" :label="a.name" />
+          <el-option v-for="l in llmList" :key="l.id" :value="l.id" :label="l.name" />
         </el-select>
         <el-link type="primary" :underline="false" @click="handleBack" class="back">返回工作空间</el-link>
       </template>
@@ -181,10 +158,9 @@ import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, ArrowRight, Plus } from '@element-plus/icons-vue'
 import { marked } from 'marked'
-import { workspaceChatStream, getWorkspaceSessions, getWorkspaceMessages, getWorkspaceModes, type WorkspaceSessionItem, type WorkspaceModeItem } from '@/api/workspace'
-import { getAgentList } from '@/api/agent'
+import { workspaceChatStream, getWorkspaceSessions, getWorkspaceMessages, type WorkspaceSessionItem, type WorkspaceChatReq } from '@/api/workspace'
+import { getLLMList, type LLMInfo } from '@/api/agent'
 import ToolCallCard from './ToolCallCard.vue'
-import type { AgentInfo } from '@/api/agent'
 import { ElMessage } from 'element-plus'
 import { useWorkspaceChatStream } from '@/architecture/presentation/composables/useWorkspaceChatStream'
 
@@ -207,26 +183,18 @@ const emit = defineEmits<{ (e: 'back'): void; (e: 'tool-call-ok', payload: { nam
 
 const router = useRouter()
 
-const { messages, sending, sessionId, agentId, send: sendMessage, handleEvent, setMessages } = useWorkspaceChatStream()
+const { messages, sending, sessionId, send: sendMessage, handleEvent, setMessages } = useWorkspaceChatStream()
 const inputText = ref('')
 const messagesRef = ref<HTMLElement | null>(null)
-
-// 后端下发 agent_id 时同步到选择器
-watch(agentId, (v) => {
-  if (v != null) selectedAgentId.value = v
-})
 
 // 向父组件上报执行中状态（用于抽屉关闭时显示浮动按钮）
 watch(sending, (v) => {
   emit('update:sending', v)
 }, { immediate: true })
 
-const agentList = ref<AgentInfo[]>([])
-const agentLoading = ref(false)
-const selectedAgentId = ref<number | null>(null)
-const modeList = ref<WorkspaceModeItem[]>([])
-const modeLoading = ref(false)
-const selectedModeCode = ref<string>('dev')
+const llmList = ref<LLMInfo[]>([])
+const llmLoading = ref(false)
+const selectedLLMConfigId = ref<number | null>(null)
 
 // 会话列表相关
 const sessionList = ref<WorkspaceSessionItem[]>([])
@@ -241,33 +209,16 @@ function handleBack() {
   }
 }
 
-async function loadModes() {
-  modeLoading.value = true
+async function loadLLMs() {
+  llmLoading.value = true
   try {
-    const res = await getWorkspaceModes({ page: 1, page_size: 50 })
-    modeList.value = res.list || []
-    if (modeList.value.length > 0) {
-      const hasDev = modeList.value.some((m) => m.code === 'dev')
-      if (hasDev) selectedModeCode.value = 'dev'
-      else if (!selectedModeCode.value) selectedModeCode.value = modeList.value[0].code
-    }
-  } catch {
-    modeList.value = []
+    const res = await getLLMList({ scope: 'market', page: 1, page_size: 200 }) as { configs?: LLMInfo[]; total?: number }
+    llmList.value = res?.configs ?? []
+  } catch (e: unknown) {
+    console.error('加载 LLM 列表失败:', e)
+    llmList.value = []
   } finally {
-    modeLoading.value = false
-  }
-}
-
-async function loadAgents() {
-  agentLoading.value = true
-  try {
-    const res = (await getAgentList({ enabled: true, page: 1, page_size: 200 })) as any
-    agentList.value = res?.data?.agents ?? res?.agents ?? []
-  } catch (e: any) {
-    console.error('加载智能体列表失败:', e)
-    agentList.value = []
-  } finally {
-    agentLoading.value = false
+    llmLoading.value = false
   }
 }
 
@@ -330,12 +281,6 @@ function handleNewSession() {
 async function handleSelectSession(targetSessionId: string) {
   if (targetSessionId === sessionId.value) return
   sessionId.value = targetSessionId
-  // 如果会话有关联的智能体，更新选中的智能体
-  const session = sessionList.value.find(s => s.session_id === targetSessionId)
-  if (session?.agent_id) {
-    selectedAgentId.value = session.agent_id
-  }
-  // 加载会话消息
   await loadSessionMessages(targetSessionId)
 }
 
@@ -355,8 +300,7 @@ function formatRelativeTime(timeStr: string): string {
 }
 
 onMounted(() => {
-  loadModes()
-  loadAgents()
+  loadLLMs()
   if (props.fullCodePath) {
     loadSessions()
   }
@@ -403,13 +347,14 @@ async function send() {
   const text = inputText.value.trim()
   if (!text || !props.fullCodePath) return
   inputText.value = ''
-  const payload = {
+  const payload: WorkspaceChatReq = {
     full_code_path: props.fullCodePath,
     message: { content: text },
     session_id: sessionId.value,
-  } as { full_code_path: string; message: { content: string }; session_id?: string; agent_id?: number; mode?: string }
-  if (selectedAgentId.value != null) payload.agent_id = selectedAgentId.value
-  if (selectedModeCode.value) payload.mode = selectedModeCode.value
+  }
+  if (selectedLLMConfigId.value != null && selectedLLMConfigId.value > 0) {
+    payload.llm_config_id = selectedLLMConfigId.value
+  }
 
   const streamFn = async (onEvent: (event: string, data: Record<string, unknown>) => void) => {
     await workspaceChatStream(payload, (event, data) => {
@@ -537,14 +482,6 @@ async function send() {
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
-}
-.session-card-agent {
-  margin-bottom: 6px;
-  font-size: 12px;
-  color: var(--el-text-color-regular);
-}
-.agent-name {
-  color: var(--el-text-color-regular);
 }
 .session-card-time {
   font-size: 12px;

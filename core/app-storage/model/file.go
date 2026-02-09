@@ -14,8 +14,7 @@ type FileUpload struct {
 	ContentType string `gorm:"type:varchar(100);comment:MIME类型" json:"content_type"`
 	Hash        string `gorm:"type:varchar(64);index;comment:文件hash（用于秒传）" json:"hash"`
 
-	// 用户信息（username 不可变，无需记录 user_id）
-	UserID   *int64 `gorm:"index;comment:上传用户ID（已废弃，username 不可变）" json:"user_id,omitempty"`
+	// 用户信息（username 不可变）
 	Username string `gorm:"type:varchar(100);not null;comment:上传用户名" json:"username"`
 	Tenant   string `gorm:"type:varchar(100);not null;index;comment:租户" json:"tenant"`
 

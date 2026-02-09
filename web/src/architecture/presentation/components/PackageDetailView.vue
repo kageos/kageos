@@ -3,7 +3,6 @@
 
   职责：
   - 显示服务目录信息
-  - 提供"生成系统"按钮，点击后打开智能体选择对话框
 -->
 <template>
   <div class="package-detail-view">
@@ -70,63 +69,8 @@
       </div>
     </div>
 
-    <!-- 主要内容区域：左右分栏 -->
+    <!-- 主要内容区域 -->
     <div class="main-content">
-      <!-- 左侧：智能体列表 -->
-      <div class="agent-sidebar">
-        <div class="sidebar-header">
-          <h3 class="sidebar-title">
-            <el-icon class="sidebar-icon"><MagicStick /></el-icon>
-            选择智能体
-          </h3>
-        </div>
-        <div v-loading="agentLoading" class="agent-list">
-          <div
-            v-for="agent in agentList"
-            :key="agent.id"
-            class="agent-card"
-            @click="handleAgentClick(agent)"
-          >
-            <div class="agent-card-header">
-              <el-avatar
-                :size="48"
-                :src="getAgentLogo(agent)"
-                class="agent-avatar"
-              >
-                <span class="agent-avatar-text">{{ getAgentLogoText(agent) }}</span>
-              </el-avatar>
-              <div class="agent-card-title">
-                <div class="agent-name">{{ agent.name }}</div>
-                <div class="agent-tags">
-                  <el-tag
-                    :type="agent.agent_type === 'plugin' ? 'warning' : 'success'"
-                    size="small"
-                  >
-                    {{ agent.agent_type === 'plugin' ? '插件' : agent.agent_type === 'knowledge_only' ? '知识库' : agent.agent_type }}
-                  </el-tag>
-                  <el-tag
-                    type="info"
-                    size="small"
-                    style="margin-left: 4px;"
-                  >
-                    {{ getChatTypeLabel(agent.chat_type) }}
-                  </el-tag>
-                </div>
-              </div>
-            </div>
-            <div class="agent-description" v-if="agent.description">
-              {{ agent.description }}
-            </div>
-          </div>
-          <el-empty
-            v-if="!agentLoading && agentList.length === 0"
-            description="暂无可用智能体"
-            :image-size="80"
-          />
-        </div>
-      </div>
-
-      <!-- 右侧：目录详情内容 -->
       <div class="detail-content">
         <!-- ⭐ 权限不足提示：当目录没有任何权限时显示 -->
         <div v-if="hasNoDirectoryPermissions" class="permission-error-wrapper">
@@ -575,13 +519,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ArrowLeft, MagicStick, Folder, Document, CopyDocument, Key, Link, Files, Clock, Lock, Avatar, Edit, Star } from '@element-plus/icons-vue'
+import { ArrowLeft, Folder, Document, CopyDocument, Key, Link, Files, Clock, Lock, Avatar, Edit, Star } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { ServiceTree } from '@/types'
-import type { AgentInfo, AgentListReq } from '@/api/agent'
-import { getAgentList } from '@/api/agent'
 import { extractWorkspacePath } from '@/utils/route'
 import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
@@ -608,7 +550,6 @@ interface Props {
 const props = defineProps<Props>()
 
 const emit = defineEmits<{
-  'generate-system': [agent: AgentInfo]
   'refresh': []
 }>()
 
@@ -706,10 +647,6 @@ watch(
   },
   { immediate: true }
 )
-
-// 智能体列表相关
-const agentLoading = ref(false)
-const agentList = ref<AgentInfo[]>([])
 
 // 变更记录对话框
 const updateHistoryDialogVisible = ref(false)
@@ -870,81 +807,6 @@ function handleBack() {
   }
 }
 
-// 加载智能体列表
-async function loadAgents() {
-  agentLoading.value = true
-  try {
-    const params: AgentListReq = {
-      enabled: true,
-      scope: 'market', // 显示市场中的公开智能体
-      page: 1,
-      page_size: 1000
-    }
-    const res = await getAgentList(params)
-    // 响应拦截器已返回 data 部分，所以 res 就是 { agents, total }
-    agentList.value = (res as any).agents || []
-  } catch (error: any) {
-    console.error('加载智能体列表失败:', error)
-    ElMessage.error(error.message || '加载智能体列表失败')
-    agentList.value = []
-  } finally {
-    agentLoading.value = false
-  }
-}
-
-// 获取聊天类型标签
-function getChatTypeLabel(chatType: string): string {
-  const labels: Record<string, string> = {
-    function_gen: '函数生成',
-    'chat-task': '任务对话'
-  }
-  return labels[chatType] || chatType
-}
-
-// 获取智能体 Logo（如果有则使用，否则使用默认生成的）
-function getAgentLogo(agent: AgentInfo): string {
-  if (agent.logo) {
-    return agent.logo
-  }
-  // 生成默认 Logo（使用智能体 ID 生成唯一颜色）
-  return generateDefaultLogo(agent.id, agent.name)
-}
-
-// 生成默认 Logo URL（使用智能体 ID 生成唯一颜色）
-function generateDefaultLogo(agentId: number, agentName: string): string {
-  // 使用智能体 ID 生成一个稳定的颜色
-  const colors = [
-    '#409EFF', '#67C23A', '#E6A23C', '#F56C6C', '#909399',
-    '#606266', '#303133', '#409EFF', '#67C23A', '#E6A23C'
-  ]
-  const colorIndex = agentId % colors.length
-  const color = colors[colorIndex]
-
-  // 生成 SVG data URL
-  const svg = `
-    <svg width="48" height="48" xmlns="http://www.w3.org/2000/svg">
-      <rect width="48" height="48" fill="${color}" rx="8"/>
-      <text x="24" y="32" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="white" text-anchor="middle">${getAgentLogoText({ id: agentId, name: agentName } as AgentInfo)}</text>
-    </svg>
-  `.trim()
-
-  return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`
-}
-
-// 获取智能体 Logo 文本（取名称首字符）
-function getAgentLogoText(agent: AgentInfo): string {
-  if (!agent.name) return 'A'
-  // 取第一个字符（支持中文）
-  const firstChar = agent.name.charAt(0)
-  return firstChar.toUpperCase()
-}
-
-// 点击智能体（直接触发生成系统）
-function handleAgentClick(agent: AgentInfo) {
-  // 触发生成系统事件，让父组件处理
-  emit('generate-system', agent)
-}
-
 // 复制完整路径
 async function handleCopyPath() {
   if (!props.packageNode?.full_code_path) {
@@ -1092,11 +954,6 @@ async function handleSubmitEdit(): Promise<void> {
     editSubmitting.value = false
   }
 }
-
-// 组件挂载时加载智能体列表
-onMounted(() => {
-  loadAgents()
-})
 
 // 处理子项点击（跳转到对应的目录或函数）
 function handleChildClick(child: ServiceTree): void {
@@ -1309,130 +1166,12 @@ function handleChildClick(child: ServiceTree): void {
     }
   }
 
-  // 主要内容区域：左右分栏
+  // 主要内容区域
   .main-content {
     flex: 1;
     display: flex;
     overflow: hidden;
 
-    // 左侧：智能体列表
-    .agent-sidebar {
-      width: 320px;
-      flex-shrink: 0;
-      background: var(--el-bg-color);
-      border-right: 1px solid var(--el-border-color-lighter);
-      display: flex;
-      flex-direction: column;
-
-      .sidebar-header {
-        padding: 20px;
-        border-bottom: 1px solid var(--el-border-color-lighter);
-
-        .sidebar-title {
-          margin: 0;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-size: 16px;
-          font-weight: 600;
-          color: var(--el-text-color-primary);
-
-          .sidebar-icon {
-            font-size: 18px;
-            color: var(--el-color-primary);
-          }
-        }
-      }
-
-      .agent-list {
-        flex: 1;
-        overflow-y: auto;
-        padding: 16px;
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-
-        .agent-card {
-          background: var(--el-bg-color);
-          border: 2px solid var(--el-border-color-light);
-          border-radius: 12px;
-          padding: 16px;
-          cursor: pointer;
-          transition: all 0.3s ease;
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
-
-          &:hover {
-            border-color: var(--el-color-primary);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            transform: translateY(-2px);
-          }
-
-          &:active {
-            transform: translateY(0);
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-          }
-
-          .agent-card-header {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-
-            .agent-avatar {
-              flex-shrink: 0;
-              border: 2px solid var(--el-border-color-lighter);
-              box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-
-              .agent-avatar-text {
-                font-size: 20px;
-                font-weight: bold;
-                color: white;
-              }
-            }
-
-            .agent-card-title {
-              flex: 1;
-              min-width: 0;
-
-              .agent-name {
-                font-size: 16px;
-                font-weight: 600;
-                color: var(--el-text-color-primary);
-                margin-bottom: 6px;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                white-space: nowrap;
-                line-height: 1.4;
-              }
-
-              .agent-tags {
-                display: flex;
-                align-items: center;
-                gap: 6px;
-                flex-wrap: wrap;
-              }
-            }
-          }
-
-          .agent-description {
-            font-size: 13px;
-            color: var(--el-text-color-regular);
-            line-height: 1.5;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            padding-top: 8px;
-            border-top: 1px solid var(--el-border-color-lighter);
-          }
-        }
-      }
-    }
-
-    // 右侧：目录详情内容
     .detail-content {
       flex: 1;
       overflow-y: auto;
@@ -1870,13 +1609,6 @@ function handleChildClick(child: ServiceTree): void {
 
     .main-content {
       flex-direction: column;
-
-      .agent-sidebar {
-        width: 100%;
-        border-right: none;
-        border-bottom: 1px solid var(--el-border-color-lighter);
-        max-height: 300px;
-      }
 
       .detail-content {
         padding: 24px 20px;

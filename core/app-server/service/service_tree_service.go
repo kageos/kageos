@@ -16,6 +16,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/enterprise"
 	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
+	"github.com/ai-agent-os/ai-agent-os/pkg/appcall"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
@@ -130,7 +131,7 @@ func (s *ServiceTreeService) removeAdminRoleFromUserWithUserApp(ctx context.Cont
 type ServiceTreeService struct {
 	serviceTreeRepo   *repository.ServiceTreeRepository
 	appRepo           *repository.AppRepository
-	appRuntime        *AppRuntime
+	appCall           *appcall.Client
 	fileSnapshotRepo  *repository.FileSnapshotRepository
 	appService        *AppService
 	permissionService *PermissionService // ⭐ 添加 PermissionService 依赖，用于查询权限
@@ -141,7 +142,7 @@ type ServiceTreeService struct {
 func NewServiceTreeService(
 	serviceTreeRepo *repository.ServiceTreeRepository,
 	appRepo *repository.AppRepository,
-	appRuntime *AppRuntime,
+	appCall *appcall.Client,
 	fileSnapshotRepo *repository.FileSnapshotRepository,
 	appService *AppService,
 	permissionService *PermissionService, // ⭐ 新增 PermissionService 依赖
@@ -150,7 +151,7 @@ func NewServiceTreeService(
 	return &ServiceTreeService{
 		serviceTreeRepo:   serviceTreeRepo,
 		appRepo:           appRepo,
-		appRuntime:        appRuntime,
+		appCall:           appCall,
 		fileSnapshotRepo:  fileSnapshotRepo,
 		appService:        appService,
 		permissionService: permissionService,
@@ -1799,7 +1800,7 @@ func (s *ServiceTreeService) sendCreateServiceTreeMessage(ctx context.Context, u
 	}
 
 	// 调用 app-runtime 创建服务目录，使用应用所属的 HostID
-	_, err = s.appRuntime.CreateServiceTree(ctx, appModel.HostID, &req)
+	_, err = s.appCall.CreateServiceTree(ctx, appModel.HostID, &req)
 	if err != nil {
 		return fmt.Errorf("failed to create service tree via app-runtime: %w", err)
 	}
@@ -2559,7 +2560,7 @@ func (s *ServiceTreeService) BatchCreateDirectoryTree(
 	}
 
 	// 3. 调用 runtime 批量创建
-	runtimeResp, err := s.appRuntime.BatchCreateDirectoryTree(ctx, app.HostID, runtimeReq)
+	runtimeResp, err := s.appCall.BatchCreateDirectoryTree(ctx, app.HostID, runtimeReq)
 	if err != nil {
 		return nil, fmt.Errorf("批量创建目录树失败: %w", err)
 	}
@@ -2860,31 +2861,7 @@ func (s *ServiceTreeService) ProcessFunctionGenResult(ctx context.Context, req *
 		logger.Infof(ctx, "[ServiceTreeService] 获取新增函数完整代码路径 - Count: %d, FullCodePaths: %v", len(fullCodePaths), fullCodePaths)
 	}
 
-	// 7. 发送回调消息给 agent-server
-	callbackData := &dto.FunctionGenCallback{
-		RecordID:      req.RecordID,
-		MessageID:     req.MessageID,
-		Success:       true,
-		FullCodePaths: fullCodePaths,
-		AppID:         targetTree.App.ID,
-		AppCode:       targetTree.App.Code,
-		Error:         "",
-	}
-
-	// 通过 HTTP 发送回调到 agent-server（直接传 ctx，内部会提取 token、trace_id 等）
-	if err := apicall.NotifyWorkspaceUpdateComplete(ctx, callbackData); err != nil {
-		logger.Errorf(ctx, "[ServiceTreeService] 通知工作空间更新完成失败: error=%v", err)
-		// 不中断流程，记录日志即可
-	} else {
-		if len(fullCodePaths) > 0 {
-			logger.Infof(ctx, "[ServiceTreeService] 工作空间更新完成通知已发送 (HTTP) - RecordID: %d, MessageID: %d, FullCodePaths: %v, AppCode: %s",
-				req.RecordID, req.MessageID, fullCodePaths, targetTree.App.Code)
-		} else {
-			logger.Infof(ctx, "[ServiceTreeService] 工作空间更新完成通知已发送 (HTTP) - RecordID: %d, MessageID: %d, FullCodePaths: [] (无新增函数), AppCode: %s",
-				req.RecordID, req.MessageID, targetTree.App.Code)
-		}
-	}
-
+	// function_gen 已废弃，不再回调 agent-server
 	return nil
 }
 
@@ -3154,7 +3131,7 @@ func (s *ServiceTreeService) BatchWriteFiles(ctx context.Context, req *dto.Batch
 	}
 
 	// 3. 调用 runtime 批量写文件
-	runtimeResp, err := s.appRuntime.BatchWriteFiles(ctx, app.HostID, runtimeReq)
+	runtimeResp, err := s.appCall.BatchWriteFiles(ctx, app.HostID, runtimeReq)
 	if err != nil {
 		return nil, fmt.Errorf("批量写文件失败: %w", err)
 	}
@@ -3434,7 +3411,7 @@ func (s *ServiceTreeService) GetWorkspaceContext(ctx context.Context, req *dto.G
 					App:           appModel.Code,
 					DirectoryPath: req.FullCodePath,
 				}
-				runtimeResp, errRt := s.appRuntime.ReadDirectoryFiles(ctx, appModel.HostID, runtimeReq)
+				runtimeResp, errRt := s.appCall.ReadDirectoryFiles(ctx, appModel.HostID, runtimeReq)
 				if errRt == nil && runtimeResp != nil && runtimeResp.Success {
 					files = make([]dto.WorkspaceContextFile, 0, len(runtimeResp.Files))
 					for _, f := range runtimeResp.Files {
@@ -3548,7 +3525,7 @@ func (s *ServiceTreeService) ReplaceFileContent(ctx context.Context, req *dto.Re
 		AllOrNothing:      allOrNothing,
 		ReturnFullContent: req.ReturnFullContent,
 	}
-	resp, err := s.appRuntime.ReplaceInFileBatch(ctx, appModel.HostID, runtimeReq)
+	resp, err := s.appCall.ReplaceInFileBatch(ctx, appModel.HostID, runtimeReq)
 	if err != nil {
 		return nil, fmt.Errorf("替换文件失败: %w", err)
 	}
@@ -3601,7 +3578,7 @@ func (s *ServiceTreeService) DeleteFile(ctx context.Context, req *dto.DeleteFile
 			DirectoryPath: req.FullCodePath,
 			FileName:      req.FileName,
 		}
-		_, err = s.appRuntime.DeleteFile(ctx, appModel.HostID, runtimeReq)
+		_, err = s.appCall.DeleteFile(ctx, appModel.HostID, runtimeReq)
 		if err != nil {
 			logger.Warnf(ctx, "[DeleteFile] runtime 删文件失败: %v，继续删 DB 节点", err)
 		}

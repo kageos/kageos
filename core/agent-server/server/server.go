@@ -8,9 +8,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/service"
-	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
@@ -32,21 +30,12 @@ type Server struct {
 	natsConn   *nats.Conn // NATS 连接，用于 plugin 调用
 
 	// Repository
-	agentRepo              *repository.AgentRepository
-	pluginRepo             *repository.PluginRepository
-	llmRepo                *repository.LLMRepository
-	functionGenRepo        *repository.FunctionGenRepository
-	functionGroupAgentRepo *repository.FunctionGroupAgentRepository
-	sessionRepo            *repository.ChatSessionRepository
-	messageRepo            *repository.ChatMessageRepository
-	modeRepo               *repository.WorkspaceModeRepository
+	llmRepo         *repository.LLMRepository
+	sessionRepo     *repository.ChatSessionRepository
+	messageRepo     *repository.ChatMessageRepository
 
 	// 服务
-	agentService         *service.AgentService
-	pluginService        *service.PluginService
 	llmService           *service.LLMService
-	agentChatService     *service.AgentChatService
-	functionGenService   *service.FunctionGenService
 	toolRegistry         *service.ToolRegistry
 	workspaceChatService *service.WorkspaceChatService
 
@@ -274,32 +263,18 @@ func (s *Server) initServices(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Initializing services...")
 
 	// 初始化 Repository
-	s.agentRepo = repository.NewAgentRepository(s.db)
-	s.pluginRepo = repository.NewPluginRepository(s.db)
 	s.llmRepo = repository.NewLLMRepository(s.db)
 	sessionRepo := repository.NewChatSessionRepository(s.db)
 	messageRepo := repository.NewChatMessageRepository(s.db)
 	s.sessionRepo = sessionRepo
 	s.messageRepo = messageRepo
-	s.modeRepo = repository.NewWorkspaceModeRepository(s.db)
-	s.functionGenRepo = repository.NewFunctionGenRepository(s.db)
-	s.functionGroupAgentRepo = repository.NewFunctionGroupAgentRepository(s.db)
 
 	// 初始化 Service
-	s.agentService = service.NewAgentService(s.agentRepo)
-	s.pluginService = service.NewPluginService(s.pluginRepo)
 	s.llmService = service.NewLLMService(s.llmRepo)
 
-	// 先初始化函数生成服务（因为 agentChatService 依赖它）
-	s.functionGenService = service.NewFunctionGenService(s.cfg, s.functionGenRepo)
-
-	// 初始化智能体聊天服务（通过 apicall 调用 app-server，不直接依赖 repo）
-	s.agentChatService = service.NewAgentChatService(s.agentRepo, s.llmRepo, s.functionGenService, sessionRepo, messageRepo, s.functionGenRepo)
-
-	// 智能工作台 ToolRegistry（list_tools、call_tool）
-	s.toolRegistry = service.NewToolRegistry(s.pluginRepo)
-	// 智能工作台 WorkspaceChatService（会话、编排、Tool 循环；复用 LLM 配置 + ChatStream）
-	s.workspaceChatService = service.NewWorkspaceChatService(s.toolRegistry, s.modeRepo, sessionRepo, messageRepo, s.llmRepo, s.agentRepo)
+	// 智能工作台 ToolRegistry、WorkspaceChatService（只认 LLM，单模式；已移除插件）
+	s.toolRegistry = service.NewToolRegistry()
+	s.workspaceChatService = service.NewWorkspaceChatService(s.toolRegistry, sessionRepo, messageRepo, s.llmRepo)
 
 	logger.Infof(ctx, "[Server] Services initialized successfully")
 	return nil
@@ -336,17 +311,4 @@ func (s *Server) healthHandler(c *gin.Context) {
 // GetDB 获取数据库连接
 func (s *Server) GetDB() *gorm.DB {
 	return s.db
-}
-
-// HandleFunctionGenCallback 处理函数生成回调（HTTP 接口）
-func (s *Server) HandleFunctionGenCallback(c *gin.Context, callback *dto.FunctionGenCallback) {
-	ctx := contextx.ToContext(c)
-
-	logger.Infof(ctx, "[Server] 收到回调消息 (HTTP) - RecordID: %d, MessageID: %d, Success: %v, FullCodePaths: %v, AppCode: %s",
-		callback.RecordID, callback.MessageID, callback.Success, callback.FullCodePaths, callback.AppCode)
-
-	// 调用 Service 层处理
-	if err := s.functionGenService.ProcessFunctionGenCallback(ctx, callback); err != nil {
-		logger.Errorf(ctx, "[Server] 处理回调失败: %v", err)
-	}
 }

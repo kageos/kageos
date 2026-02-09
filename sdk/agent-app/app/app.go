@@ -115,12 +115,9 @@ type Subjects struct {
 	AppResponse string // app.function_server.{user}.{app}.{version} - 应用响应
 
 	// 简化的状态通知主题
-	AppStatus     string // app.status.{user}.{app}.{version} - 处理 shutdown、discovery
+	AppStatus     string // app.status.{user}.{app}.{version} - 处理 shutdown、discovery、onAppUpdate
 	RuntimeStatus string // runtime.status.{user}.{app}.{version} - 处理 startup、close、discovery
 	Discovery     string // ai-agent-os.runtime.discovery 处理服务发现
-
-	// Request/Reply 主题
-	UpdateCallback string // app.update.callback.{user}.{app}.{version} - 更新回调请求
 }
 
 // NewApp 创建新的应用实例
@@ -185,13 +182,10 @@ func NewApp() (*App, error) {
 			AppRequest:  subjects.BuildAppRuntime2AppSubject(env.User, env.App, env.Version),
 			AppResponse: subjects.BuildApp2FunctionServerSubject(env.User, env.App, env.Version),
 
-			// 简化的状态通知主题
+			// 简化的状态通知主题（AppStatus 也用于 app-runtime 的 update 回调请求）
 			AppStatus:     subjects.BuildAppStatusSubject(env.User, env.App, env.Version),
 			RuntimeStatus: subjects.BuildRuntimeStatusSubject(env.User, env.App, env.Version),
 			Discovery:     subjects.GetRuntimeDiscoverySubject(),
-
-			// Request/Reply 主题
-			UpdateCallback: subjects.GetAppUpdateCallbackRequestSubject(env.User, env.App, env.Version),
 		},
 	}
 
@@ -199,42 +193,10 @@ func NewApp() (*App, error) {
 	initRouter(newApp)
 	logger.Infof(context.Background(), "Router initialized")
 
-	// 订阅应用请求主题（保持独立，复杂逻辑）
-	logger.Infof(context.Background(), "Subscribing to app request: %s", newApp.subjects.AppRequest)
-	requestSub, err := newApp.conn.Subscribe(newApp.subjects.AppRequest, newApp.handleMessageAsync)
-	if err != nil {
-		logger.Errorf(context.Background(), "Failed to subscribe to app request: %v", err)
-		return nil, fmt.Errorf("failed to subscribe to %s: %w", newApp.subjects.AppRequest, err)
+	// 注册 NATS 订阅（subject 硬编码在 nats_router.go，方便阅读）
+	if err := registerNATS(newApp); err != nil {
+		return nil, err
 	}
-	newApp.subs = append(newApp.subs, requestSub)
-
-	// 订阅 App 状态主题（处理 shutdown、discovery）
-	logger.Infof(context.Background(), "Subscribing to app status: %s", newApp.subjects.AppStatus)
-	appStatusSub, err := newApp.conn.Subscribe(newApp.subjects.AppStatus, newApp.handleAppStatusMessage)
-	if err != nil {
-		logger.Errorf(context.Background(), "Failed to subscribe to app status: %v", err)
-		return nil, fmt.Errorf("failed to subscribe to %s: %w", newApp.subjects.AppStatus, err)
-	}
-	newApp.subs = append(newApp.subs, appStatusSub)
-
-	// 订阅服务发现主题（接收 discovery 广播）
-	discoverySub, err := newApp.conn.Subscribe(newApp.subjects.Discovery, newApp.handleDiscovery)
-	if err != nil {
-		logger.Errorf(context.Background(), "Failed to subscribe to discovery: %v", err)
-		return nil, fmt.Errorf("failed to subscribe to discovery: %w", err)
-	}
-	newApp.subs = append(newApp.subs, discoverySub)
-	logger.Infof(context.Background(), "Discovery subscription successful")
-
-	// 订阅 Update Callback 主题（Request/Reply 模式）
-	//logger.Infof(context.Background(), "Subscribing to update callback: %s", newApp.subjects.UpdateCallback)
-	//updateCallbackSub, err := newApp.conn.Subscribe(newApp.subjects.UpdateCallback, newApp.handleUpdateCallbackRequest)
-	//if err != nil {
-	//	logger.Errorf(context.Background(), "Failed to subscribe to update callback: %v", err)
-	//	return nil, fmt.Errorf("failed to subscribe to %s: %w", newApp.subjects.UpdateCallback, err)
-	//}
-	//newApp.subs = append(newApp.subs, updateCallbackSub)
-	//logger.Infof(context.Background(), "Update callback subscription successful")
 
 	// 启动 pprof HTTP 服务器（用于性能分析）
 	// 监听在 6060 端口，可以通过 http://localhost:6060/debug/pprof/ 访问

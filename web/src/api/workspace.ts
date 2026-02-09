@@ -1,14 +1,13 @@
 import { useAuthStore } from '@/stores/auth'
 import axiosInstance from '@/utils/request'
 
-/** 工作台对话请求 */
+/** 工作台对话请求（只认 LLM，单模式） */
 export interface WorkspaceChatReq {
   full_code_path: string
   message: { content: string; files?: unknown }
   session_id?: string
-  agent_id?: number
-  /** 工作台模式 code（如 dev/modify/execute），空则用默认 */
-  mode?: string
+  /** LLM 配置 ID，0 表示使用默认 LLM */
+  llm_config_id?: number
 }
 
 /** 工作台会话项 */

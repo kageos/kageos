@@ -41,9 +41,7 @@ func (r *ChatSessionRepository) ListByTreeID(treeID int64, offset, limit int) ([
 		return nil, 0, err
 	}
 
-	// 获取列表（预加载智能体信息）
 	if err := query.
-		Preload("Agent"). // 预加载智能体信息
 		Offset(offset).
 		Limit(limit).
 		Order("created_at DESC").
@@ -54,7 +52,7 @@ func (r *ChatSessionRepository) ListByTreeID(treeID int64, offset, limit int) ([
 	return sessions, total, nil
 }
 
-// ListByFullCodePath 根据 FullCodePath 获取会话列表（工作台使用，包含智能体信息）
+// ListByFullCodePath 根据 FullCodePath 获取会话列表（工作台使用）
 func (r *ChatSessionRepository) ListByFullCodePath(fullCodePath string, offset, limit int) ([]*model.AgentChatSession, int64, error) {
 	var sessions []*model.AgentChatSession
 	var total int64
@@ -66,9 +64,7 @@ func (r *ChatSessionRepository) ListByFullCodePath(fullCodePath string, offset, 
 		return nil, 0, err
 	}
 
-	// 获取列表（预加载智能体信息）
 	if err := query.
-		Preload("Agent"). // 预加载智能体信息
 		Offset(offset).
 		Limit(limit).
 		Order("created_at DESC").
@@ -78,7 +74,6 @@ func (r *ChatSessionRepository) ListByFullCodePath(fullCodePath string, offset, 
 
 	return sessions, total, nil
 }
-
 
 // Update 更新会话
 func (r *ChatSessionRepository) Update(session *model.AgentChatSession) error {

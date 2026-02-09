@@ -148,17 +148,9 @@ func NatsTraceContext(msg *nats.Msg) context.Context {
 	ctx := context.WithValue(background, RequestUserHeader, msg.Header.Get(RequestUserHeader))
 	ctx = context.WithValue(ctx, TokenHeader, msg.Header.Get(TokenHeader))
 	ctx = context.WithValue(ctx, TraceIdHeader, msg.Header.Get(TraceIdHeader))
+	ctx = context.WithValue(ctx, DepartmentFullPathHeader, msg.Header.Get(DepartmentFullPathHeader))
 
 	return ctx
-}
-
-// NewNatsMsg 需要携带尽可能多的信息，例如请求用户，trace_id
-func NewNatsTraceMsg(subject string, requestUser string, traceID string, token string) *nats.Msg {
-	msg := nats.NewMsg(subject)
-	msg.Header.Set(TraceIdHeader, traceID)
-	msg.Header.Set(TokenHeader, token)
-	msg.Header.Set(RequestUserHeader, requestUser)
-	return msg
 }
 
 func CtxToTraceNats(c context.Context, subject string) *nats.Msg {

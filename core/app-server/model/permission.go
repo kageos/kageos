@@ -6,8 +6,6 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 )
 
-// ⭐ WorkspacePermission 已废弃，不再使用 workspace_permission 表，仅使用角色系统
-
 // PermissionRequest 权限申请审批表（角色申请）
 type PermissionRequest struct {
 	models.Base

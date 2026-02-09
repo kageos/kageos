@@ -198,33 +198,6 @@
               <el-option v-for="name in allToolNames" :key="name" :value="name" :label="name" />
             </el-select>
           </el-form-item>
-          <el-form-item label="绑定智能体" prop="agent_id">
-            <div class="agent-selector-trigger">
-              <el-input
-                :model-value="selectedAgentDisplay"
-                placeholder="请选择智能体（留空则使用默认 LLM）"
-                readonly
-                clearable
-                @click="agentSelectVisible = true"
-                @clear="handleClearAgent"
-              >
-                <template #append>
-                  <el-button :icon="UserFilled" @click="agentSelectVisible = true">
-                    选择智能体
-                  </el-button>
-                </template>
-              </el-input>
-              <div v-if="form.agent_id && selectedAgentDisplay" class="agent-selector-tag">
-                <el-tag closable type="primary" effect="plain" @close="handleClearAgent">
-                  {{ selectedAgentDisplay }}
-                </el-tag>
-              </div>
-            </div>
-            <AgentSelectDialog
-              v-model="agentSelectVisible"
-              @confirm="handleAgentSelectConfirm"
-            />
-          </el-form-item>
           <el-form-item label="排序" prop="sort_order">
             <el-input-number v-model="form.sort_order" :min="0" style="width: 120px" />
           </el-form-item>
@@ -243,9 +216,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { Plus, UserFilled } from '@element-plus/icons-vue'
-import AgentSelectDialog from '@/components/Agent/AgentSelectDialog.vue'
-import { getAgent, type AgentInfo } from '@/api/agent'
+import { Plus } from '@element-plus/icons-vue'
 import type { WorkspaceModeItem, CreateWorkspaceModeReq, UpdateWorkspaceModeReq, WorkspaceToolDef } from '@/api/workspace'
 import {
   getWorkspaceModes,
@@ -341,15 +312,6 @@ const dialogVisible = ref(false)
 const submitLoading = ref(false)
 const editingId = ref<number | null>(null)
 const formRef = ref<FormInstance>()
-const agentSelectVisible = ref(false)
-const selectedAgentName = ref('')
-
-const selectedAgentDisplay = computed(() => {
-  if (selectedAgentName.value) return selectedAgentName.value
-  if (form.value.agent_id) return `ID: ${form.value.agent_id}`
-  return ''
-})
-
 const form = ref<CreateWorkspaceModeReq & { id?: number }>({
   code: '',
   name: '',
@@ -418,15 +380,6 @@ async function handleEdit(row: WorkspaceModeItem) {
     agent_id: row.agent_id ?? undefined,
     sort_order: row.sort_order ?? 0
   }
-  selectedAgentName.value = ''
-  if (row.agent_id) {
-    try {
-      const a = await getAgent({ id: row.agent_id }) as unknown as AgentInfo
-      selectedAgentName.value = a?.name ?? ''
-    } catch {
-      selectedAgentName.value = ''
-    }
-  }
   loadToolNames()
   dialogVisible.value = true
 }
@@ -441,19 +394,7 @@ function resetForm() {
     agent_id: undefined,
     sort_order: 0
   }
-  selectedAgentName.value = ''
   formRef.value?.clearValidate()
-}
-
-function handleAgentSelectConfirm(agent: AgentInfo) {
-  form.value.agent_id = agent.id
-  selectedAgentName.value = agent.name
-  agentSelectVisible.value = false
-}
-
-function handleClearAgent() {
-  form.value.agent_id = undefined
-  selectedAgentName.value = ''
 }
 
 async function handleSubmit() {

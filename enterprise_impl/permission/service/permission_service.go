@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
@@ -11,6 +12,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/enterprise"
 	permissionrepo "github.com/ai-agent-os/ai-agent-os/enterprise_impl/permission/repository"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
+	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	permissionpkg "github.com/ai-agent-os/ai-agent-os/pkg/permission"
 	"gorm.io/gorm"
@@ -53,6 +55,8 @@ type PermissionServiceImpl struct {
 	roleAssignmentRepo    *permissionrepo.RoleAssignmentRepository
 	roleCache             *RoleCache
 	roleService           *RoleService
+	// ⭐ 由 app-server 注入，用于 ApplyPermissionByResourcePath 从 resource_path 解析 app_id
+	appIDResolver enterprise.AppIDResolver
 }
 
 // NewPermissionService 创建权限服务（企业版）
@@ -65,6 +69,7 @@ func NewPermissionService(db *gorm.DB) (*PermissionServiceImpl, error) {
 // Init 初始化权限服务
 func (s *PermissionServiceImpl) Init(opt *enterprise.InitOptions) error {
 	s.db = opt.DB
+	s.appIDResolver = opt.AppIDResolver
 
 	// 初始化仓储层（不再使用 permissionRepo，仅使用角色系统）
 	s.permissionRequestRepo = permissionrepo.NewPermissionRequestRepository(opt.DB)
@@ -398,6 +403,42 @@ func (s *PermissionServiceImpl) CreatePermissionRequest(ctx context.Context, req
 	}
 
 	return request.ID, nil
+}
+
+// ApplyPermissionByResourcePath 根据 resource_path 创建权限申请（实现 enterprise.PermissionService 接口）
+// 使用注入的 AppIDResolver 解析 app_id，拼装 CreatePermissionRequestReq 后调用 CreatePermissionRequest
+func (s *PermissionServiceImpl) ApplyPermissionByResourcePath(ctx context.Context, req *dto.ApplyPermissionReq, applicantUsername string) (requestID int64, appID int64, err error) {
+	if s.appIDResolver == nil {
+		return 0, 0, fmt.Errorf("AppIDResolver 未配置，无法根据资源路径解析 app_id")
+	}
+	appID, err = s.appIDResolver.GetAppIDFromResourcePath(ctx, req.ResourcePath)
+	if err != nil {
+		return 0, 0, fmt.Errorf("解析资源路径 app_id 失败: %w", err)
+	}
+	subjectType := req.SubjectType
+	if subjectType == "" {
+		subjectType = "user"
+	}
+	subject := req.Subject
+	if subject == "" {
+		subject = applicantUsername
+	}
+	createReq := &dto.CreatePermissionRequestReq{
+		AppID:             appID,
+		ResourcePath:      req.ResourcePath,
+		RoleID:            req.RoleID,
+		SubjectType:       subjectType,
+		Subject:           subject,
+		ApplicantUsername: applicantUsername,
+		StartTime:         models.Time(time.Now()),
+		EndTime:           req.EndTime,
+		Reason:            req.Reason,
+	}
+	requestID, err = s.CreatePermissionRequest(ctx, createReq)
+	if err != nil {
+		return 0, appID, err
+	}
+	return requestID, appID, nil
 }
 
 // CreateApprovalRequest 创建权限申请（审批流程，实现 enterprise.PermissionService 接口）

@@ -5,13 +5,12 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
 )
 
-// WorkspaceChatReq 工作台对话请求
+// WorkspaceChatReq 工作台对话请求（只认 LLM，单模式）
 type WorkspaceChatReq struct {
-	FullCodePath string       `json:"full_code_path" binding:"required"` // 目录完整路径（必填）
-	Message      WorkspaceMsg `json:"message" binding:"required"`        // 本条消息
-	SessionID    string       `json:"session_id"`                        // 会话 ID，空则新建
-	AgentID      int64        `json:"agent_id"`                          // 智能体 ID，可选
-	Mode         string       `json:"mode"`                              // 工作台模式 code（如 dev/modify/execute），空则用默认
+	FullCodePath  string       `json:"full_code_path" binding:"required"` // 目录完整路径（必填）
+	Message       WorkspaceMsg `json:"message" binding:"required"`         // 本条消息
+	SessionID     string       `json:"session_id"`                         // 会话 ID，空则新建
+	LLMConfigID   int64        `json:"llm_config_id"`                      // LLM 配置 ID，0 表示使用默认 LLM
 }
 
 // WorkspaceMsg 工作台单条消息
@@ -22,10 +21,9 @@ type WorkspaceMsg struct {
 
 // WorkspaceChatResp 工作台对话响应
 type WorkspaceChatResp struct {
-	SessionID string                         `json:"session_id"`
-	Content   string                         `json:"content"`
-	ToolCalls []WorkspaceChatToolCallSummary `json:"tool_calls,omitempty"`
-	AgentID   int64                          `json:"agent_id,omitempty"` // 当前会话关联的智能体 ID，0 表示未选
+	SessionID   string                         `json:"session_id"`
+	Content     string                         `json:"content"`
+	ToolCalls   []WorkspaceChatToolCallSummary `json:"tool_calls,omitempty"`
 }
 
 // WorkspaceChatToolCallSummary 工作台单次 tool 调用摘要（供前端展示）

@@ -763,13 +763,3 @@ func sortItemsByPath(items []*dto.DirectoryTreeItem) []*dto.DirectoryTreeItem {
 
 	return sorted
 }
-
-// UpdateServiceTreeMetadata 更新服务树元数据（已废弃）
-// 注意：此方法已废弃，请使用 BatchCreateDirectoryTree 和 BatchWriteFiles 替代
-// 此方法保留用于向后兼容，但不应再使用
-func (s *ServiceTreeService) UpdateServiceTreeMetadata(
-	ctx context.Context,
-	req interface{}, // 使用 interface{} 避免依赖已删除的 DTO
-) (interface{}, error) {
-	return nil, fmt.Errorf("UpdateServiceTreeMetadata 已废弃，请使用 BatchCreateDirectoryTree 和 BatchWriteFiles 替代")
-}

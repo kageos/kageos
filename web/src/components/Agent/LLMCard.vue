@@ -55,28 +55,6 @@
         </div>
       </div>
 
-      <el-divider />
-
-      <!-- 使用该LLM的智能体 -->
-      <div class="llm-card__agents">
-        <div class="llm-card__agents-title">
-          <el-icon class="llm-card__info-icon"><Operation /></el-icon>
-          <span>使用该LLM的智能体：</span>
-        </div>
-        <div v-if="agentList.length > 0" class="llm-card__agents-list">
-          <div v-for="agent in agentList" :key="agent.id" class="llm-card__agent-item">
-            <el-icon class="llm-card__agent-icon">
-              <CircleCheck v-if="agent.enabled" />
-              <CircleClose v-else />
-            </el-icon>
-            <span class="llm-card__agent-name">{{ agent.name }}</span>
-            <el-tag :type="agent.enabled ? 'success' : 'danger'" size="small">
-              {{ agent.enabled ? '已启用' : '已禁用' }}
-            </el-tag>
-          </div>
-        </div>
-        <div v-else class="llm-card__empty">暂无智能体使用</div>
-      </div>
     </div>
 
     <template #footer>
@@ -118,18 +96,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { Shop, Cpu, Operation, CircleCheck, CircleClose, User } from '@element-plus/icons-vue'
-import type { LLMInfo, AgentInfo } from '@/api/agent'
+import { Shop, Cpu, User } from '@element-plus/icons-vue'
+import type { LLMInfo } from '@/api/agent'
 
 interface Props {
   llm: LLMInfo
-  agents?: AgentInfo[] // 使用该LLM的智能体列表
 }
 
-const props = withDefaults(defineProps<Props>(), {
-  agents: () => []
-})
+const props = defineProps<Props>()
 
 const emit = defineEmits<{
   detail: [llm: LLMInfo]
@@ -137,9 +111,6 @@ const emit = defineEmits<{
   setDefault: [llm: LLMInfo]
   delete: [llm: LLMInfo]
 }>()
-
-// 使用传入的智能体列表
-const agentList = computed(() => props.agents || [])
 
 function handleDetail() {
   emit('detail', props.llm)

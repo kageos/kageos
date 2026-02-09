@@ -1,6 +1,8 @@
 package server
 
 import (
+	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
+	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
 	"github.com/ai-agent-os/ai-agent-os/enterprise"
 	"github.com/ai-agent-os/ai-agent-os/pkg/license"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
@@ -51,7 +53,14 @@ func (s *Server) initEnterprise() error {
 	// 初始化权限管理功能（如果 License 支持）
 	if licenseMgr.HasFeature(enterprise.FeaturePermission) {
 		logger.Infof(ctx, "[Enterprise] Initializing permission feature...")
-		err := enterprise.InitPermissionService(&enterprise.InitOptions{DB: s.db})
+		// ⭐ 企业版 ApplyPermissionByResourcePath 需要 AppIDResolver，由 app-server 注入（依赖 appRepo）
+		if s.appRepo == nil {
+			s.appRepo = repository.NewAppRepository(s.db)
+		}
+		err := enterprise.InitPermissionService(&enterprise.InitOptions{
+			DB:            s.db,
+			AppIDResolver: service.NewAppIDResolver(s.appRepo),
+		})
 		if err != nil {
 			return err
 		}

@@ -1,24 +1,40 @@
 package v1
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/enterprise"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
 	"github.com/gin-gonic/gin"
 )
 
-// Role 角色管理 API
-type Role struct {
-	permissionService enterprise.PermissionService
+// RoleService 角色管理所需能力（*service.PermissionService 已实现，供 Role 统一从 Server 注入）
+type RoleService interface {
+	GetRoles(ctx context.Context, resourceType string) (*dto.GetRolesResp, error)
+	GetRole(ctx context.Context, roleID int64) (*dto.GetRoleResp, error)
+	CreateRole(ctx context.Context, req *dto.CreateRoleReq) (*dto.CreateRoleResp, error)
+	UpdateRole(ctx context.Context, roleID int64, req *dto.UpdateRoleReq) (*dto.UpdateRoleResp, error)
+	DeleteRole(ctx context.Context, roleID int64) error
+	AssignRoleToUser(ctx context.Context, req *dto.AssignRoleToUserReq) (*dto.AssignRoleToUserResp, error)
+	AssignRoleToDepartment(ctx context.Context, req *dto.AssignRoleToDepartmentReq) (*dto.AssignRoleToDepartmentResp, error)
+	RemoveRoleFromUser(ctx context.Context, req *dto.RemoveRoleFromUserReq) error
+	RemoveRoleFromDepartment(ctx context.Context, req *dto.RemoveRoleFromDepartmentReq) error
+	GetUserRoles(ctx context.Context, req *dto.GetUserRolesReq) (*dto.GetUserRolesResp, error)
+	GetDepartmentRoles(ctx context.Context, req *dto.GetDepartmentRolesReq) (*dto.GetDepartmentRolesResp, error)
+	GetRolesForPermissionRequest(ctx context.Context, req *dto.GetRolesForPermissionRequestReq) (*dto.GetRolesForPermissionRequestResp, error)
 }
 
-// NewRoleHandlerFromPermissionService 创建角色管理 API 处理器（从 PermissionService 创建）
-func NewRoleHandlerFromPermissionService(permissionService enterprise.PermissionService) *Role {
+// Role 角色管理 API
+type Role struct {
+	roleService RoleService
+}
+
+// NewRoleHandlerFromPermissionService 创建角色管理 API 处理器（从 Server 注入的 permissionService 实现 RoleService）
+func NewRoleHandlerFromPermissionService(roleService RoleService) *Role {
 	return &Role{
-		permissionService: permissionService,
+		roleService: roleService,
 	}
 }
 
@@ -44,7 +60,7 @@ func (r *Role) CreateRole(c *gin.Context) {
 	}
 
 	ctx := contextx.ToContext(c)
-	resp, err := r.permissionService.CreateRole(ctx, &req)
+	resp, err := r.roleService.CreateRole(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -83,7 +99,7 @@ func (r *Role) UpdateRole(c *gin.Context) {
 	}
 
 	ctx := contextx.ToContext(c)
-	resp, err := r.permissionService.UpdateRole(ctx, id, &req)
+	resp, err := r.roleService.UpdateRole(ctx, id, &req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -115,7 +131,7 @@ func (r *Role) DeleteRole(c *gin.Context) {
 	}
 
 	ctx := contextx.ToContext(c)
-	if err := r.permissionService.DeleteRole(ctx, id); err != nil {
+	if err := r.roleService.DeleteRole(ctx, id); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
@@ -146,7 +162,7 @@ func (r *Role) GetRole(c *gin.Context) {
 	}
 
 	ctx := contextx.ToContext(c)
-	resp, err := r.permissionService.GetRole(ctx, id)
+	resp, err := r.roleService.GetRole(ctx, id)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -172,7 +188,7 @@ func (r *Role) GetRoles(c *gin.Context) {
 	resourceType := c.Query("resource_type")
 	
 	ctx := contextx.ToContext(c)
-	resp, err := r.permissionService.GetRoles(ctx, resourceType)
+	resp, err := r.roleService.GetRoles(ctx, resourceType)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -203,7 +219,7 @@ func (r *Role) AssignRoleToUser(c *gin.Context) {
 	}
 
 	ctx := contextx.ToContext(c)
-	resp, err := r.permissionService.AssignRoleToUser(ctx, &req)
+	resp, err := r.roleService.AssignRoleToUser(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -234,7 +250,7 @@ func (r *Role) AssignRoleToDepartment(c *gin.Context) {
 	}
 
 	ctx := contextx.ToContext(c)
-	resp, err := r.permissionService.AssignRoleToDepartment(ctx, &req)
+	resp, err := r.roleService.AssignRoleToDepartment(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -265,7 +281,7 @@ func (r *Role) RemoveRoleFromUser(c *gin.Context) {
 	}
 
 	ctx := contextx.ToContext(c)
-	if err := r.permissionService.RemoveRoleFromUser(ctx, &req); err != nil {
+	if err := r.roleService.RemoveRoleFromUser(ctx, &req); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
@@ -295,7 +311,7 @@ func (r *Role) RemoveRoleFromDepartment(c *gin.Context) {
 	}
 
 	ctx := contextx.ToContext(c)
-	if err := r.permissionService.RemoveRoleFromDepartment(ctx, &req); err != nil {
+	if err := r.roleService.RemoveRoleFromDepartment(ctx, &req); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
@@ -325,7 +341,7 @@ func (r *Role) GetUserRoles(c *gin.Context) {
 	}
 
 	ctx := contextx.ToContext(c)
-	resp, err := r.permissionService.GetUserRoles(ctx, &req)
+	resp, err := r.roleService.GetUserRoles(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -356,7 +372,7 @@ func (r *Role) GetDepartmentRoles(c *gin.Context) {
 	}
 
 	ctx := contextx.ToContext(c)
-	resp, err := r.permissionService.GetDepartmentRoles(ctx, &req)
+	resp, err := r.roleService.GetDepartmentRoles(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -394,7 +410,7 @@ func (r *Role) GetRolesForPermissionRequest(c *gin.Context) {
 	}
 
 	ctx := contextx.ToContext(c)
-	resp, err := r.permissionService.GetRolesForPermissionRequest(ctx, &req)
+	resp, err := r.roleService.GetRolesForPermissionRequest(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return

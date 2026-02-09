@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
+	"github.com/ai-agent-os/ai-agent-os/pkg/appcall"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
@@ -23,7 +24,7 @@ import (
 )
 
 type AppService struct {
-	appRuntime                 *AppRuntime
+	appCall                    *appcall.Client
 	appRepo                    *repository.AppRepository
 	functionRepo               *repository.FunctionRepository
 	serviceTreeRepo            *repository.ServiceTreeRepository
@@ -33,9 +34,9 @@ type AppService struct {
 }
 
 // NewAppService 创建 AppService（依赖注入）
-func NewAppService(appRuntime *AppRuntime, appRepo *repository.AppRepository, functionRepo *repository.FunctionRepository, serviceTreeRepo *repository.ServiceTreeRepository, operateLogRepo *repository.OperateLogRepository, fileSnapshotRepo *repository.FileSnapshotRepository, directoryUpdateHistoryRepo *repository.DirectoryUpdateHistoryRepository) *AppService {
+func NewAppService(appCall *appcall.Client, appRepo *repository.AppRepository, functionRepo *repository.FunctionRepository, serviceTreeRepo *repository.ServiceTreeRepository, operateLogRepo *repository.OperateLogRepository, fileSnapshotRepo *repository.FileSnapshotRepository, directoryUpdateHistoryRepo *repository.DirectoryUpdateHistoryRepository) *AppService {
 	return &AppService{
-		appRuntime:                 appRuntime,
+		appCall:                    appCall,
 		appRepo:                    appRepo,
 		functionRepo:               functionRepo,
 		serviceTreeRepo:            serviceTreeRepo,
@@ -106,7 +107,7 @@ func (a *AppService) CreateApp(ctx context.Context, req *dto.CreateAppReq) (*dto
 	}
 
 	// 创建包含用户信息的请求对象（内部使用）
-	resp, err := a.appRuntime.CreateApp(ctx, selectedHost.ID, req)
+	resp, err := a.appCall.CreateApp(ctx, selectedHost.ID, req)
 	if err != nil {
 		return nil, err
 	}
@@ -281,7 +282,7 @@ func (a *AppService) UpdateApp(ctx context.Context, req *dto.UpdateAppReq) (*dto
 	}
 
 	// 调用 app-runtime 更新应用，使用应用所属的 HostID
-	resp, err := a.appRuntime.UpdateApp(ctx, app.HostID, req)
+	resp, err := a.appCall.UpdateApp(ctx, app.HostID, req)
 	if err != nil {
 		return nil, err
 	}
@@ -331,7 +332,7 @@ func (a *AppService) RequestApp(ctx context.Context, req *dto.RequestAppReq) (*d
 		return nil, err
 	}
 	req.Version = app.Version
-	resp, err := a.appRuntime.RequestApp(ctx, app.NatsID, req)
+	resp, err := a.appCall.RequestApp(ctx, app.NatsID, req)
 	if err != nil {
 		return nil, err
 	}
@@ -858,7 +859,7 @@ func (a *AppService) DeleteApp(ctx context.Context, req *dto.DeleteAppReq) (*dto
 	}
 
 	// 调用 app-runtime 删除应用
-	resp, err := a.appRuntime.DeleteApp(ctx, app.HostID, req)
+	resp, err := a.appCall.DeleteApp(ctx, app.HostID, req)
 	if err != nil {
 		return nil, err
 	}
@@ -1467,7 +1468,7 @@ func (a *AppService) readDirectoryFilesFromFS(ctx context.Context, user, app, fu
 	}
 
 	// 通过 NATS 调用 app-runtime 读取目录文件
-	resp, err := a.appRuntime.ReadDirectoryFiles(ctx, appModel.HostID, req)
+	resp, err := a.appCall.ReadDirectoryFiles(ctx, appModel.HostID, req)
 	if err != nil {
 		return nil, fmt.Errorf("读取目录文件失败: %w", err)
 	}

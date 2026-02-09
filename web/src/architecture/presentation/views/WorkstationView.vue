@@ -1,8 +1,11 @@
 <template>
   <div class="workstation-view">
-    <!-- 有有效目录时显示工作台对话；无目录或无效 query（如 [object PointerEvent]）时显示模式列表与配置 -->
+    <!-- 有有效目录时显示工作台对话；无目录时提示从工作空间打开 -->
     <WorkstationChat v-if="validFullCodePath" :full-code-path="validFullCodePath" :embedded="false" />
-    <WorkstationModeManagement v-else />
+    <div v-else class="workstation-empty">
+      <p>请从工作空间打开工作台</p>
+      <p class="hint">在左侧服务目录对任意目录节点悬停，点击「打开工作台」即可开始对话</p>
+    </div>
   </div>
 </template>
 
@@ -10,7 +13,6 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import WorkstationChat from '../components/WorkstationChat.vue'
-import WorkstationModeManagement from '../components/WorkstationModeManagement.vue'
 
 const route = useRoute()
 
@@ -36,5 +38,19 @@ const validFullCodePath = computed(() => {
   height: 100%;
   min-height: 100vh;
   background: var(--el-bg-color-page);
+}
+
+.workstation-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+  color: var(--el-text-color-secondary);
+}
+.workstation-empty .hint {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--el-text-color-placeholder);
 }
 </style>
