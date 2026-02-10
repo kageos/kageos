@@ -149,38 +149,65 @@
       </div>
     </div>
 
-    <!-- 搜索栏 -->
-    <div v-if="searchableFields.length > 0" class="search-bar">
-      <el-form :inline="true" :model="searchForm" class="search-form">
-        <template v-for="field in searchableFields" :key="field.code">
-          <el-form-item :label="field.name">
-            <SearchInput
-              :field="field"
-              :search-type="field.search || ''"
-              :model-value="getSearchValue(field)"
-              :function-method="props.functionDetail.method || 'GET'"
-              :function-router="props.functionDetail.router"
-              @update:model-value="(value: any) => {
-                // 🔥 修复：用户选择选项时应该立即触发搜索（无论选择还是清空）
-                // 之前的逻辑是 isClearing 时才搜索，这是完全错误的
-                // 正确的逻辑是：任何值变化都应该立即触发搜索
-                updateSearchValue(field, value, true)
-              }"
-            />
-          </el-form-item>
-        </template>
+    <!-- 搜索栏：科幻风折叠，默认收起 -->
+    <div v-if="searchableFields.length > 0" class="search-bar-wrapper">
+      <!-- 收起时：终端条样式 -->
+      <div
+        v-if="!searchBarExpanded"
+        class="search-bar-collapsed sci-fi-panel"
+        @click="searchBarExpanded = true"
+      >
+        <span class="sci-fi-accent-bar" />
+        <span class="sci-fi-dot" />
+        <span class="search-bar-toggle">
+          <el-icon class="sci-fi-icon"><ArrowDown /></el-icon>
+          <span class="sci-fi-label">展开搜索</span>
+          <span v-if="activeSearchCount > 0" class="sci-fi-badge">
+            {{ activeSearchCount }} 个筛选
+          </span>
+        </span>
+      </div>
+      <!-- 展开时：完整表单 + 收起控制 -->
+      <div v-else class="search-bar sci-fi-panel sci-fi-panel-expanded">
+        <span class="sci-fi-accent-bar" />
+        <div class="search-bar-inner">
+          <el-form :inline="true" :model="searchForm" class="search-form">
+            <template v-for="field in searchableFields" :key="field.code">
+              <el-form-item :label="field.name">
+                <SearchInput
+                  :field="field"
+                  :search-type="field.search || ''"
+                  :model-value="getSearchValue(field)"
+                  :function-method="props.functionDetail.method || 'GET'"
+                  :function-router="props.functionDetail.router"
+                  @update:model-value="(value: any) => {
+                    updateSearchValue(field, value, true)
+                  }"
+                />
+              </el-form-item>
+            </template>
 
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">
-            <el-icon><Search /></el-icon>
-            搜索
-          </el-button>
-          <el-button @click="handleReset">
-            <el-icon><Refresh /></el-icon>
-            重置
-          </el-button>
-        </el-form-item>
-      </el-form>
+            <el-form-item class="search-actions">
+              <el-button type="primary" @click="handleSearch" class="sci-fi-btn-primary">
+                <el-icon><Search /></el-icon>
+                搜索
+              </el-button>
+              <el-button @click="handleReset" class="sci-fi-btn-secondary">
+                <el-icon><Refresh /></el-icon>
+                重置
+              </el-button>
+              <button
+                type="button"
+                class="sci-fi-fold-btn"
+                @click.stop="searchBarExpanded = false"
+              >
+                <el-icon><ArrowUp /></el-icon>
+                <span>收起</span>
+              </button>
+            </el-form-item>
+          </el-form>
+        </div>
+      </div>
     </div>
 
     <!-- 🔥 排序信息条：显示当前排序状态 -->
@@ -218,10 +245,14 @@
       </div>
     </div>
 
+    <!-- 加载中：表格骨架屏 -->
+    <div v-if="loading" class="table-skeleton-wrap">
+      <el-skeleton :rows="20" animated class="table-skeleton" />
+    </div>
     <!-- 表格 -->
     <el-table
+      v-else
       ref="tableRef"
-      v-loading="loading"
       :data="tableData"
       :stripe="false"
       style="width: 100%"
@@ -280,85 +311,65 @@
         </template>
       </el-table-column>
 
-      <!-- 操作列 -->
+      <!-- 操作列：统一为「更多」下拉，所有操作（链接 / 更新 / 删除）均放入下拉 -->
       <el-table-column 
-        v-if="hasDeleteCallback || linkFields.length > 0" 
+        v-if="hasDeleteCallback || hasUpdateCallback || linkFields.length > 0" 
         label="操作" 
         fixed="right" 
         :width="getActionColumnWidth()"
         class-name="action-column"
       >
         <template #default="{ row }">
-          <div class="action-buttons">
-            <!-- 链接区域：只有 1 个链接时直接显示，超过 1 个时使用下拉菜单 -->
-            <template v-if="linkFields.length === 1">
-              <LinkWidget
-                :field="linkFields[0]"
-                :value="convertToFieldValue(row[linkFields[0].code], linkFields[0])"
-                :field-path="linkFields[0].code"
-                mode="table-cell"
-                class="action-link"
-              />
+          <el-dropdown
+            trigger="click"
+            placement="bottom-end"
+            @command="(cmd: string) => handleActionCommand(cmd, row)"
+          >
+            <el-button link type="primary" size="small" class="action-more-btn">
+              <el-icon><More /></el-icon>
+              更多
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <!-- 链接项：1 个或多个都放下拉 -->
+                <el-dropdown-item
+                  v-for="linkField in linkFields"
+                  :key="linkField.code"
+                  :command="'link:' + linkField.code"
+                >
+                  <div class="dropdown-link-content">
+                    <el-icon v-if="linkField.widget?.config?.icon" class="link-icon">
+                      <component :is="linkField.widget.config.icon" />
+                    </el-icon>
+                    <el-icon v-else class="link-icon internal-icon"><Right /></el-icon>
+                    <span>{{ getLinkText(linkField, row[linkField.code]) }}</span>
+                  </div>
+                </el-dropdown-item>
+                <!-- 更新：需要 table:update 权限 -->
+                <el-dropdown-item
+                  v-if="hasUpdateCallback"
+                  :command="'update'"
+                  :divided="linkFields.length > 0"
+                >
+                  <span class="dropdown-action-item">
+                    <el-icon><component :is="canUpdate ? Edit : Lock" /></el-icon>
+                    {{ canUpdate ? '更新' : `更新（需${getPermissionShortName(FunctionPermission.update)}）` }}
+                  </span>
+                </el-dropdown-item>
+                <!-- 删除：需要 table:delete 权限 -->
+                <el-dropdown-item
+                  v-if="hasDeleteCallback"
+                  :command="'delete'"
+                  :divided="linkFields.length > 0 || hasUpdateCallback"
+                >
+                  <span class="dropdown-action-item delete-action-text">
+                    <el-icon><component :is="canDelete ? Delete : Lock" /></el-icon>
+                    {{ canDelete ? '删除' : `删除（需${getPermissionShortName(FunctionPermission.delete)}）` }}
+                  </span>
+                </el-dropdown-item>
+              </el-dropdown-menu>
             </template>
-            
-            <!-- 多个链接下拉菜单（超过 1 个时显示） -->
-            <el-dropdown
-              v-else-if="linkFields.length > 1"
-              trigger="click"
-              placement="bottom-end"
-              @command="(fieldCode: string) => handleLinkClick(fieldCode, row)"
-            >
-              <el-button link type="primary" size="small" class="more-links-btn">
-                <el-icon><More /></el-icon>
-                更多
-              </el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item
-                    v-for="linkField in linkFields"
-                    :key="linkField.code"
-                    :command="linkField.code"
-                  >
-                    <div class="dropdown-link-content">
-                      <el-icon v-if="linkField.widget?.config?.icon" class="link-icon">
-                        <component :is="linkField.widget.config.icon" />
-                      </el-icon>
-                      <el-icon v-else class="link-icon internal-icon"><Right /></el-icon>
-                      <span>{{ getLinkText(linkField, row[linkField.code]) }}</span>
-                    </div>
-                  </el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-            
-            <!-- 更新按钮：需要 table:update 权限，无权限时可点击跳转申请 -->
-            <!-- 注意：更新操作通过详情抽屉实现，这里点击打开详情抽屉 -->
-            <el-button 
-              v-if="hasUpdateCallback"
-              link 
-              :type="canUpdate ? 'primary' : 'default'"
-              size="small"
-              class="update-btn"
-              :class="{ 'action-btn-no-permission': !canUpdate }"
-              @click.stop="canUpdate ? handleDetail(row) : handleApplyPermissionForAction(FunctionPermission.update)"
-            >
-              <el-icon><component :is="canUpdate ? Edit : Lock" /></el-icon>
-              {{ canUpdate ? '更新' : `更新（需${getPermissionShortName(FunctionPermission.update)}）` }}
-            </el-button>
-            <!-- 删除按钮：需要 table:delete 权限，无权限时可点击跳转申请 -->
-            <el-button 
-              v-if="hasDeleteCallback"
-              link 
-              :type="canDelete ? 'danger' : 'default'"
-              size="small"
-              class="delete-btn"
-              :class="{ 'action-btn-no-permission': !canDelete }"
-              @click.stop="canDelete ? handleDelete(row) : handleApplyPermissionForAction(FunctionPermission.delete)"
-            >
-              <el-icon><component :is="canDelete ? Delete : Lock" /></el-icon>
-              {{ canDelete ? '删除' : `删除（需${getPermissionShortName(FunctionPermission.delete)}）` }}
-            </el-button>
-          </div>
+          </el-dropdown>
         </template>
       </el-table-column>
     </el-table>
@@ -521,7 +532,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox, ElIcon, ElTable, ElNotification, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElText, ElCard, ElUpload, ElAlert } from 'element-plus'
+import { ElMessage, ElMessageBox, ElIcon, ElTable, ElNotification, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElText, ElCard, ElUpload, ElAlert, ElSkeleton } from 'element-plus'
 import { Search, Refresh, Delete, Plus, ArrowUp, ArrowDown, More, Right, Lock, Document, Key, Edit, Upload, Download } from '@element-plus/icons-vue'
 import { eventBus, TableEvent, WorkspaceEvent, RouteEvent } from '../../infrastructure/eventBus'
 import { RouteSource } from '@/utils/routeSource'
@@ -612,6 +623,52 @@ const pageSize = computed({
   }
 })
 const total = computed(() => pagination.value.total)
+
+// ==================== 搜索区域折叠（持久化到 localStorage） ====================
+
+const STORAGE_KEY_PREFIX = 'table-search-bar-expanded:'
+
+/** 当前表格的存储 key（按 router 区分，不同表格独立记忆） */
+const searchBarStorageKey = computed(() => {
+  const router = props.functionDetail?.router
+  return router ? `${STORAGE_KEY_PREFIX}${router}` : ''
+})
+
+/** 从本地恢复搜索区域展开状态 */
+const loadSearchBarExpanded = (): boolean => {
+  const key = searchBarStorageKey.value
+  if (!key) return false
+  try {
+    const raw = localStorage.getItem(key)
+    if (raw === 'true') return true
+    if (raw === 'false') return false
+  } catch (_) {}
+  return false
+}
+
+/** 搜索区域是否展开（默认收起；有可搜索字段时从 localStorage 恢复上次选择） */
+const searchBarExpanded = ref(false)
+
+/** 持久化搜索区域展开状态 */
+const saveSearchBarExpanded = (value: boolean): void => {
+  const key = searchBarStorageKey.value
+  if (!key) return
+  try {
+    localStorage.setItem(key, String(value))
+  } catch (_) {}
+}
+
+// 表格（router）变化时从本地恢复搜索区展开状态
+watch(
+  searchBarStorageKey,
+  (key) => {
+    if (key) searchBarExpanded.value = loadSearchBarExpanded()
+  },
+  { immediate: true }
+)
+
+// 用户展开/收起时写入本地
+watch(searchBarExpanded, (v) => saveSearchBarExpanded(v))
 
 // ==================== 批量选择相关 ====================
 
@@ -1029,6 +1086,19 @@ const searchableFields = computed(() => {
   return domainService.getSearchableFields(props.functionDetail)
 })
 
+/** 当前生效的筛选条件数量（收起时在「展开搜索」旁显示） */
+const activeSearchCount = computed(() => {
+  const form = stateManager.getState().searchForm
+  if (!form || typeof form !== 'object') return 0
+  return Object.keys(form).filter((k) => {
+    const v = form[k]
+    if (v === undefined || v === null) return false
+    if (typeof v === 'string' && v.trim() === '') return false
+    if (Array.isArray(v) && v.length === 0) return false
+    return true
+  }).length
+})
+
 /**
  * 可见字段（根据 table_permission 过滤）
  */
@@ -1432,21 +1502,36 @@ const syncToURL = (): void => {
 // 🔥 组件挂载状态（用于防止卸载后继续加载数据）
 const isMounted = ref(false)
 
+/** 🔥 打开详情时置为 true，下一次 loadTableData 被调用时直接 return，不请求接口、不出现骨架屏 */
+const skipNextTableLoad = ref(false)
+
 /**
  * 加载表格数据
  */
 const loadTableData = async (): Promise<void> => {
   const functionId = props.functionDetail.id
   const router = props.functionDetail.router
-  
+
   // 🔥 检查组件是否还在挂载状态，如果已卸载，不加载数据
   if (!isMounted.value) {
     return
   }
-  
+
+  // 🔥 打开详情后若被误触发重载（如 URL 变化），跳过本次请求，并确保不出现/保持骨架屏
+  if (skipNextTableLoad.value) {
+    skipNextTableLoad.value = false
+    const state = stateManager.getState()
+    stateManager.setState({ ...state, loading: false })
+    return
+  }
+
+  // 🔥 立即设置 loading，避免刷新时先出现「暂无数据」再出现 loading
+  const stateBeforeLoad = stateManager.getState()
+  stateManager.setState({ ...stateBeforeLoad, loading: true })
+
   // 构建搜索参数
   const searchParams: SearchParams = {}
-  
+
   // 🔥 从 StateManager 获取状态
   const currentState = stateManager.getState()
   
@@ -1505,21 +1590,35 @@ const getRowFieldValue = (row: TableRow, fieldCode: string): FieldValue => {
 }
 
 /**
- * 获取操作列宽度
- * 根据是否有删除回调和链接字段动态计算宽度
+ * 获取操作列宽度（统一「更多」下拉，固定宽度）
  */
 const getActionColumnWidth = (): number => {
-  let width = 60  // 基础宽度
-  if (hasDeleteCallback.value) width += 60  // 删除按钮宽度
-  
-  // 只有 1 个链接时直接显示，超过 1 个时使用下拉菜单
-  if (linkFields.value.length === 1) {
-    width += 80  // 单个链接约 80px
-  } else if (linkFields.value.length > 1) {
-    width += 50  // 下拉菜单按钮宽度
+  return 90
+}
+
+/**
+ * 操作列统一下拉命令分发：link:字段码 | update | delete
+ */
+const handleActionCommand = (command: string, row: TableRow): void => {
+  if (command.startsWith('link:')) {
+    handleLinkClick(command.slice(5), row)
+    return
   }
-  
-  return Math.min(Math.max(width, 140), 200)  // 最小 140px，最大 200px
+  if (command === 'update') {
+    if (canUpdate.value) {
+      handleDetail(row, 'edit')
+    } else {
+      handleApplyPermissionForAction(FunctionPermission.update)
+    }
+    return
+  }
+  if (command === 'delete') {
+    if (canDelete.value) {
+      handleDelete(row)
+    } else {
+      handleApplyPermissionForAction(FunctionPermission.delete)
+    }
+  }
 }
 
 /**
@@ -1921,21 +2020,26 @@ const handleCreateDialogClose = (): void => {
   }
 }
 
-const handleDetail = (row: TableRow): void => {
-  // 🔥 获取当前表格数据和索引
-  // 注意：TableStateManager 使用 data 字段存储表格数据，不是 tableData
+/**
+ * 打开详情抽屉
+ * @param row 行数据
+ * @param initialMode 初始模式：'read' 仅查看（如点击 #id），'edit' 直接编辑（如点击「更新」）
+ */
+const handleDetail = (row: TableRow, initialMode: 'read' | 'edit' = 'read'): void => {
+  // 🔥 标记「接下来一次」表格加载跳过，避免打开详情时 URL 变化触发的 loadTableData 再次请求和骨架屏
+  skipNextTableLoad.value = true
+
   const tableData = stateManager.getData() || []
   const index = tableData.findIndex((r: any) => {
-    // 尝试通过 id 字段匹配
     if (r.id && row.id && r.id === row.id) return true
-    // 如果没有 id，尝试通过所有字段匹配
     return JSON.stringify(r) === JSON.stringify(row)
   })
-  
-  eventBus.emit('table:detail-row', { 
-    row, 
+
+  eventBus.emit('table:detail-row', {
+    row,
     index: index >= 0 ? index : undefined,
-    tableData: tableData.length > 0 ? tableData : undefined
+    tableData: tableData.length > 0 ? tableData : undefined,
+    initialMode
   })
 }
 
@@ -2191,12 +2295,155 @@ onUnmounted(() => {
   align-items: center;
 }
 
-.search-bar {
-  margin-bottom: 20px;
-  padding: 20px;
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-lighter);
+/* ========== 科幻风搜索栏折叠 ========== */
+.search-bar-wrapper {
+  margin-bottom: 16px;
+}
+
+/* 共用：带左边高亮条与微光的面板 */
+.sci-fi-panel {
+  position: relative;
   border-radius: 8px;
+  border: 1px solid var(--el-border-color-lighter);
+  background: var(--el-fill-color-light);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+  transition: box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+
+/* 左侧高亮条（电源/状态条） */
+.sci-fi-accent-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: linear-gradient(180deg, rgba(0, 212, 255, 0.9), rgba(0, 212, 255, 0.4));
+  box-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+}
+
+/* 收起态：终端条，可点击整行 */
+.search-bar-collapsed {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px 10px 20px;
+  cursor: pointer;
+  min-height: 40px;
+  transition: background 0.2s ease;
+}
+
+
+/* 状态小点（可选呼吸感） */
+.sci-fi-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(0, 212, 255, 0.8);
+  box-shadow: 0 0 8px rgba(0, 212, 255, 0.6);
+  flex-shrink: 0;
+  animation: sci-fi-pulse 2s ease-in-out infinite;
+}
+
+@keyframes sci-fi-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 8px rgba(0, 212, 255, 0.6); }
+  50% { opacity: 0.6; box-shadow: 0 0 4px rgba(0, 212, 255, 0.4); }
+}
+
+.search-bar-collapsed .search-bar-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+}
+
+.sci-fi-icon {
+  color: rgba(0, 212, 255, 0.9);
+  font-size: 16px;
+  transition: transform 0.2s ease;
+}
+
+.search-bar-collapsed:hover .sci-fi-icon {
+  transform: translateY(1px);
+  color: rgb(0, 212, 255);
+}
+
+.sci-fi-label {
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+.sci-fi-badge {
+  margin-left: 8px;
+  padding: 2px 8px;
+  font-size: 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 212, 255, 0.5);
+  background: rgba(0, 212, 255, 0.08);
+  color: rgba(0, 212, 255, 0.95);
+  letter-spacing: 0.3px;
+}
+
+/* 展开态面板 */
+.sci-fi-panel-expanded {
+  background: var(--el-bg-color);
+}
+
+.sci-fi-panel-expanded .sci-fi-accent-bar {
+  display: none;
+}
+
+.search-bar-inner {
+  padding: 20px 20px 20px 24px;
+}
+
+.search-bar {
+  margin-bottom: 0;
+}
+
+.search-bar .search-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.search-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 收起按钮：终端风格 */
+.sci-fi-fold-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  margin-left: 4px;
+  font-size: 13px;
+  color: rgba(0, 212, 255, 0.9);
+  background: transparent;
+  border: 1px solid rgba(0, 212, 255, 0.4);
+  border-radius: 6px;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.sci-fi-fold-btn:hover {
+  background: rgba(0, 212, 255, 0.1);
+  border-color: rgba(0, 212, 255, 0.7);
+  color: rgb(0, 212, 255);
+}
+
+.sci-fi-btn-primary {
+  border-color: var(--el-color-primary);
+}
+
+.sci-fi-btn-secondary {
+  border-color: var(--el-border-color);
 }
 
 /* 🔥 排序信息条样式 */
@@ -2265,6 +2512,20 @@ onUnmounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
+}
+
+/* 表格骨架屏（加载中） */
+.table-skeleton-wrap {
+  min-height: 320px;
+  padding: 16px 0;
+}
+
+.table-skeleton-wrap .table-skeleton {
+  width: 100%;
+}
+
+.table-skeleton-wrap .el-skeleton__item {
+  margin-bottom: 12px;
 }
 
 .pagination-wrapper {
@@ -2352,23 +2613,14 @@ onUnmounted(() => {
   background-color: var(--el-color-primary-light-9);
 }
 
-.action-buttons {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  justify-content: flex-end;
-}
-
-.action-link {
+.action-more-btn {
   margin: 0;
+  padding: 0 4px;
 }
 
-.more-links-btn {
-  margin: 0;
-}
-
-.dropdown-link-content {
-  display: flex;
+.dropdown-link-content,
+.dropdown-action-item {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
 }
@@ -2381,10 +2633,8 @@ onUnmounted(() => {
   color: var(--el-color-primary);
 }
 
-.delete-btn {
-  flex-shrink: 0;
-  white-space: nowrap;
-  min-width: fit-content;
+.delete-action-text {
+  color: var(--el-color-danger);
 }
 
 /* 🔥 权限错误显示样式已移至 PermissionDeniedView 组件 */

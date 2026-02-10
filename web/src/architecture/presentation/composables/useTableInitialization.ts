@@ -231,6 +231,10 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
       })
     }
 
+    // 🔥 立即显示加载状态（骨架屏），避免先出现「暂无数据」再出现 loading
+    const stateForLoading = stateManager.getState()
+    stateManager.setState({ ...stateForLoading, loading: true })
+
     isInitializing.value = true
 
     try {
@@ -266,23 +270,41 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
   }
 
   /**
+   * 当前 URL 是否处于「详情已打开」状态（有 _tab=detail 且 _id）。
+   * 此时列表数据已存在，不应再触发表格接口重载和骨架屏。
+   */
+  const isDetailViewQuery = (q: Record<string, any>): boolean => {
+    return !!(q && (q._tab === 'detail' && q._id))
+  }
+
+  /**
+   * 仅当变化是「只增删 _tab/_id」时返回 true（关闭详情或仅详情开关）。
+   * 用于关闭详情时也不重载表格。
+   */
+  const isOnlyDetailParamsChanged = (oldQuery: Record<string, any>, newQuery: Record<string, any>): boolean => {
+    const omit = (o: Record<string, any>) => {
+      const copy = { ...o }
+      delete copy._tab
+      delete copy._id
+      return copy
+    }
+    return JSON.stringify(omit(oldQuery || {})) === JSON.stringify(omit(newQuery || {}))
+  }
+
+  /**
    * 监听 URL 变化（用户操作浏览器前进/后退时）
-   * 🔥 阶段4：改为监听 RouteEvent.queryChanged 事件，而不是直接 watch route.query
-   * 这样可以避免程序触发的路由更新导致循环
+   * 🔥 打开详情或仅 _tab/_id 变化时不重载表格，避免多余请求和骨架屏
    */
   const setupQueryWatch = () => {
     eventBus.on(RouteEvent.queryChanged, async (payload: { query: any, oldQuery: any, source: string }) => {
-      // 🔥 只处理用户操作（浏览器前进/后退）或外部变化，不处理程序触发的更新
       if (payload.source === 'router-change') {
         const functionDetailValue = 'value' in functionDetail ? functionDetail.value : functionDetail
         const router = functionDetailValue?.router
 
-        // 🔥 检查当前函数类型，如果是 form 函数，不应该处理 URL 变化
         if (functionDetailValue?.template_type !== TEMPLATE_TYPE.TABLE) {
           return
         }
 
-        // 检查当前路由是否匹配当前函数的 router
         const currentPath = extractWorkspacePath(route.path)
         const expectedPath = (router || '').replace(/^\/+/, '')
         const pathMatches = currentPath === expectedPath || currentPath.startsWith(expectedPath + '?')
@@ -291,12 +313,23 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
           return
         }
 
-        // 🔥 检查组件是否还在挂载状态
         if (isMounted && !isMounted.value) {
           return
         }
 
         if (isSyncingToURL.value || isRestoringFromURL.value || isInitializing.value) {
+          return
+        }
+
+        const newQuery = payload.query || {}
+        const oldQuery = payload.oldQuery || {}
+
+        // 🔥 当前是详情页：说明是「点击详情」导致的 URL 变化，列表数据已有，不重载
+        if (isDetailViewQuery(newQuery)) {
+          return
+        }
+        // 🔥 仅 _tab/_id 变化（例如关闭详情）：列表数据仍在，不重载
+        if (isOnlyDetailParamsChanged(oldQuery, newQuery)) {
           return
         }
 

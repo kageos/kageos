@@ -17,6 +17,8 @@
     :close-on-click-modal="true"
     class="detail-drawer"
     :show-close="true"
+    :z-index="DETAIL_DRAWER_Z_INDEX"
+    append-to-body
     @close="handleClose"
   >
     <template #header>
@@ -345,6 +347,9 @@ import { ElMessage, ElTabs, ElTabPane } from 'element-plus'
 import { useRouter, useRoute } from 'vue-router'
 import { buildPermissionApplyURL, getPermissionShortName, FunctionPermission } from '@/utils/permission'
 import FormView from '@/architecture/presentation/views/FormView.vue'
+
+// 详情抽屉 z-index：低于表单内弹窗（如 FuzzySearchDialog 3001），避免 Select 等弹窗被抽屉盖住
+const DETAIL_DRAWER_Z_INDEX = 2000
 import WidgetComponent from '../widgets/WidgetComponent.vue'
 import LinkWidget from '@/architecture/presentation/widgets/LinkWidget.vue'
 import OperateLogSection from '@/components/OperateLogSection.vue'

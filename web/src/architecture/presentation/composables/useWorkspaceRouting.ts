@@ -82,9 +82,13 @@ export function useWorkspaceRouting(
           currentFunction.id === serviceNode.id || 
           currentFunction.full_code_path === serviceNode.full_code_path
         )) {
+          // 🔥 已是目标节点：仅当 URL 只是打开/关闭详情（_tab=detail&_id）时不重新加载，避免表格 initializeTable 和骨架屏
+          const onlyDetailParams = route.query._tab === 'detail' && route.query._id
+          if (onlyDetailParams && serviceNode.type === 'function') {
+            return
+          }
           // 已经是目标节点，直接触发节点点击（会加载函数详情）
           if (serviceNode.type === 'function') {
-            // 🔥 移除缓存后，不再检查缓存，直接加载函数详情
             applicationService.handleNodeClick(serviceNode)
           }
           return
