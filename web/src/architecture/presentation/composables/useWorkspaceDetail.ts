@@ -456,8 +456,14 @@ export function useWorkspaceDetail(
     }
   }
 
-  // 打开详情抽屉（从表格行点击）
-  const openDetailDrawer = async (row: Record<string, any>, index?: number, tableData?: any[]) => {
+  // 打开详情抽屉（从表格行点击）；initialMode 为 'edit' 时直接进入编辑模式（用于「更新」）
+  // 列表的 row + tableData 直接当 props 用，同步设 refs 并打开抽屉；URL 同步更新（仅 _tab/_id 变化不会触发表格重载）
+  const openDetailDrawer = (
+    row: Record<string, any>,
+    index?: number,
+    tableData?: any[],
+    initialMode: 'read' | 'edit' = 'read'
+  ) => {
     const currentDetail = options.currentFunctionDetail()
     if (!currentDetail) return
     
@@ -465,53 +471,7 @@ export function useWorkspaceDetail(
     detailOriginalRow.value = deepClone(row)
     detailDrawerTitle.value = currentDetail.name || '详情'
     detailFields.value = (currentDetail.response || []) as FieldConfig[]
-    
-    // 更新 URL 为 ?_tab=detail&_id=xxx（用于分享）
-    // 🔥 阶段3：改为事件驱动，通过 RouteManager 统一处理路由更新
-    if (options.currentFunction()) {
-      const id = row.id || row._id
-      if (id) {
-        // 🔥 获取编辑模式的字段代码集合，用于清除表单字段参数
-        const editableFieldCodes = new Set<string>()
-        if (editFunctionDetail.value && editFunctionDetail.value.request) {
-          editFunctionDetail.value.request.forEach((field: FieldConfig) => {
-            editableFieldCodes.add(field.code)
-          })
-        }
-        
-        const query: Record<string, string | string[]> = {}
-        // 保留现有参数（除了表单字段参数）
-        Object.keys(route.query).forEach(key => {
-          // 🔥 清除所有表单字段参数（详情和编辑模式下都不应该显示这些参数）
-          if (editableFieldCodes.has(key)) {
-            return
-          }
-          
-          const value = route.query[key]
-          if (value !== null && value !== undefined) {
-            query[key] = Array.isArray(value) 
-              ? value.filter(v => v !== null).map(v => String(v))
-              : String(value)
-          }
-        })
-        // 添加详情参数
-        query._tab = 'detail'
-        query._id = String(id)
-        
-        // 🔥 发出路由更新请求事件
-        eventBus.emit(RouteEvent.updateRequested, {
-          query,
-          replace: true,
-          preserveParams: {
-            table: true,   // 保留 table 参数
-            search: true,  // 保留搜索参数
-            state: true    // 保留状态参数
-          },
-          source: 'detail-drawer-open'
-        })
-      }
-    }
-    
+
     // 保存表格数据和索引（用于上一条下一条导航）
     if (tableData && Array.isArray(tableData) && tableData.length > 0) {
       detailTableData.value = tableData
@@ -554,41 +514,61 @@ export function useWorkspaceDetail(
         currentDetailIndex.value = -1
       }
     }
-    
-    // 收集详情中的用户字段，批量查询用户信息
+
+    detailDrawerMode.value = initialMode
+    detailDrawerVisible.value = true
+
+    // URL 同步更新（分享用）；仅 _tab/_id 变化时 query 监听会跳过表格 load，不会闪
+    if (options.currentFunction()) {
+      const id = row.id || row._id
+      if (id) {
+        const editableFieldCodes = new Set<string>()
+        if (editFunctionDetail.value?.request) {
+          editFunctionDetail.value.request.forEach((field: FieldConfig) => editableFieldCodes.add(field.code))
+        }
+        const query: Record<string, string | string[]> = {}
+        Object.keys(route.query).forEach(key => {
+          if (editableFieldCodes.has(key)) return
+          const value = route.query[key]
+          if (value !== null && value !== undefined) {
+            query[key] = Array.isArray(value)
+              ? value.filter((v: any) => v !== null).map((v: any) => String(v))
+              : String(value)
+          }
+        })
+        query._tab = 'detail'
+        query._id = String(id)
+        eventBus.emit(RouteEvent.updateRequested, {
+          query,
+          replace: true,
+          preserveParams: { table: true, search: true, state: true },
+          source: 'detail-drawer-open'
+        })
+      }
+    }
+
+    // 用户信息后台加载，不阻塞抽屉展示
     const userFields = detailFields.value.filter(f => f.widget?.type === 'user')
     if (userFields.length > 0) {
       const usernames: string[] = []
       userFields.forEach(field => {
         const value = row[field.code]
         if (value) {
-          if (Array.isArray(value)) {
-            usernames.push(...value.map(v => String(v)))
-          } else {
-            usernames.push(String(value))
-          }
+          if (Array.isArray(value)) usernames.push(...value.map(v => String(v)))
+          else usernames.push(String(value))
         }
       })
-      
       if (usernames.length > 0) {
-        try {
-          const { useUserInfoStore } = await import('@/stores/userInfo')
-          const userInfoStore = useUserInfoStore()
-          const users = await userInfoStore.batchGetUserInfo([...new Set(usernames)])
-          // 更新到 detailUserInfoMap
-          detailUserInfoMap.value = new Map()
-          users.forEach(user => {
-            detailUserInfoMap.value.set(user.username, user)
+        import('@/stores/userInfo')
+          .then(({ useUserInfoStore }) => useUserInfoStore().batchGetUserInfo([...new Set(usernames)]))
+          .then(users => {
+            const map = new Map<string, any>()
+            users.forEach((u: any) => map.set(u.username, u))
+            detailUserInfoMap.value = map
           })
-        } catch (error) {
-          // 静默失败
-        }
+          .catch(() => {})
       }
     }
-    
-    // 重置为只读模式
-    detailDrawerMode.value = 'read'
-    detailDrawerVisible.value = true
   }
 
   // 打开详情抽屉的辅助函数（从 URL 参数）

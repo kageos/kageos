@@ -1112,8 +1112,9 @@ onMounted(() => {
   }
   
   // 🔥 监听表格详情事件（使用 Composable）
-  eventBus.on('table:detail-row', async ({ row, index, tableData }: { row: Record<string, any>, index?: number, tableData?: any[] }) => {
-    await openDetailDrawer(row, index, tableData)
+  eventBus.on('table:detail-row', async (payload: { row: Record<string, any>, index?: number, tableData?: any[], initialMode?: 'read' | 'edit' }) => {
+    const { row, index, tableData, initialMode = 'read' } = payload
+    await openDetailDrawer(row, index, tableData, initialMode)
   })
   
   // 🔥 Tab 功能已删除，相关事件监听已移除
