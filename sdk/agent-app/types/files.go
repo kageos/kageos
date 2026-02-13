@@ -10,8 +10,8 @@ type Files struct {
 	Files      []*File                `json:"files"`
 	WidgetType string                 `json:"widget_type"`
 	DataType   string                 `json:"data_type"`
-	Remark     string                 `json:"remark"`
-	Metadata   map[string]interface{} `json:"metadata"`
+	Remark     string                 `json:"remark,omitempty"`
+	Metadata   map[string]interface{} `json:"metadata,omitempty"`
 }
 
 func (f *Files) GetFiles() []*File {
@@ -22,7 +22,7 @@ type File struct {
 	Name        string `json:"name"`
 	SourceName  string `json:"source_name"` //源文件名称
 	Storage     string `json:"storage"`     //minio/qiniu/xxxxx 存储引擎
-	Description string `json:"description"`
+	Description string `json:"description,omitempty"`
 	Hash        string `json:"hash"`
 	Size        int64  `json:"size"`
 	UploadTs    int64  `json:"upload_ts"`

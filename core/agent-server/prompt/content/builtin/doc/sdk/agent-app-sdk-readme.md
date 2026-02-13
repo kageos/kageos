@@ -43,7 +43,7 @@ func CrmTicketList(ctx *app.Context, resp response.Response) error {
 }
 
 func init() {
-    packageContext.GET("crm_ticket", CrmTicketList, CrmTicketTemplate)
+    packageContext.GET("crm_ticket.table", CrmTicketList, CrmTicketTemplate)
 }
 ```
 
@@ -78,7 +78,7 @@ func ExcelOrCsvHandler(ctx *app.Context, resp response.Response) error {
 }
 
 func init() {
-    packageContext.POST("excel_or_csv", ExcelOrCsvHandler, &app.FormTemplate{
+    packageContext.POST("excel_or_csv.form", ExcelOrCsvHandler, &app.FormTemplate{
         BaseConfig: app.BaseConfig{Name: "Excel/CSV 解析", Request: &ExcelOrCsvReq{}, Response: &ExcelOrCsvResp{}},
     })
 }
@@ -88,7 +88,7 @@ func init() {
 
 ### Chart 模式（GET，统计/图表）
 
-**⚠️ 重要约束：一个路由一次只能返回一个图表。** 一个 GET 路由只能返回**一张**图，不能在一个函数里返回多张图。需要多张图时，每张图单独一个 GET 路由（如收银台：`cashier_sales_trend_statistics`、`cashier_sales_bar_statistics`、`cashier_category_sales_statistics`、`cashier_average_order_amount_statistics` 各一个路由），每个 Handler 内只 `return resp.Chart(chart).Build()` 一次。
+**⚠️ 重要约束：一个路由一次只能返回一个图表。** 一个 GET 路由只能返回**一张**图，不能在一个函数里返回多张图。需要多张图时，每张图单独一个 GET 路由（如收银台：`cashier_sales_trend_statistics.chart`、`cashier_sales_bar_statistics.chart`、`cashier_category_sales_statistics.chart`、`cashier_average_order_amount_statistics.chart` 各一个路由），每个 Handler 内只 `return resp.Chart(chart).Build()` 一次。
 
 **图表返回值必须使用以下 4 种类型之一（必须填写，不可使用其他类型）：**
 
@@ -129,7 +129,7 @@ func SalesTrendChart(ctx *app.Context, resp response.Response) error {
 }
 
 func init() {
-    packageContext.GET("sales_trend_statistics", SalesTrendChart, &app.ChartTemplate{
+    packageContext.GET("sales_trend_statistics.chart", SalesTrendChart, &app.ChartTemplate{
         BaseConfig: app.BaseConfig{Name: "销售趋势", Request: &SalesStatisticsReq{}, Response: &types.LineChart{}},
     })
 }
@@ -198,17 +198,17 @@ Attachment *types.Files `gorm:"type:json" widget:"name:附件;type:files"`
 
 - **widget 配置**：`type:link`；可选 `target:_blank`（新窗口）或 `_self`（当前窗口）；可选 `text`、`type`（样式 primary/success 等）、`icon`。
 - **赋值 API**：`ctx.BuildFunctionUrlWithText(target string, params interface{}, linkText string) (string, error)`  
-  - **target**：函数路径（如 `"meeting_room_list"`、`"vote_submit"`、`"vote_result"`），或带查询（如 `"hr_resume_list?_tab=OnTableAddRow"` 表示打开该列表并切到「新增」Tab），或**外链**（如 `"https://example.com"`）。  
+  - **target**：函数路径（如 `"meeting_room_list.table"`、`"vote_submit.form"`、`"vote_result.form"`），或带查询（如 `"hr_resume_list.table?_tab=OnTableAddRow"` 表示打开该列表并切到「新增」Tab），或**外链**（如 `"https://example.com"`）。路由名需带类型后缀（.table / .form / .chart），与注册约定一致。  
   - **params**：见下「params 类型约定」；外链时传 `nil`。  
   - **linkText**：链接展示文本（如「查看会议室详情」「点击参与投票」「查看投票结果」）。
 
 - **params 类型约定（必读，不可混用）**：  
   - **跳转到 Table（GET 列表）**：params 必须是**目标 Table 对应的列表 Model**，即该 GET 路由的 `AutoCrudTable` 指向的结构体。前端打开列表时会用 params 的字段（如 ID）做筛选/定位。  
-    - 例：target 为 `"meeting_room_list"` 时，params 用 `MeetingRoom{ID: roomID}`，其中 **MeetingRoom** 是会议室表（meeting_room_list）的 **Model**，不能写成别的结构体。  
-    - 例：target 为 `"hr_resume_list?_tab=OnTableAddRow"` 时，params 用 `HrJob{ID: jobID}`（职位表的 Model），打开简历列表并预填职位 ID。  
+    - 例：target 为 `"meeting_room_list.table"` 时，params 用 `MeetingRoom{ID: roomID}`，其中 **MeetingRoom** 是会议室表（meeting_room_list.table）的 **Model**，不能写成别的结构体。  
+    - 例：target 为 `"hr_resume_list.table?_tab=OnTableAddRow"` 时，params 用 `HrJob{ID: jobID}`（职位表的 Model），打开简历列表并预填职位 ID。  
   - **跳转到 Form（POST 表单）**：params 必须是**目标 Form 的请求结构体**，即该 POST 路由的 `Request` 结构体。前端打开表单时会预填 params 的字段。  
-    - 例：target 为 `"vote_result"` 时，params 用 `VoteResultReq{TopicID: topicID}`，其中 **VoteResultReq** 是查看结果 Form 的 **请求结构体**，不能写成 VoteTopic（Model）。  
-    - 例：target 为 `"vote_submit"` 时，params 用 `VoteSubmitReq{TopicID: topicID}`（提交投票 Form 的请求结构体）。  
+    - 例：target 为 `"vote_result.form"` 时，params 用 `VoteResultReq{TopicID: topicID}`，其中 **VoteResultReq** 是查看结果 Form 的 **请求结构体**，不能写成 VoteTopic（Model）。  
+    - 例：target 为 `"vote_submit.form"` 时，params 用 `VoteSubmitReq{TopicID: topicID}`（提交投票 Form 的请求结构体）。  
   - **外链**：params 传 `nil`。  
   - 总结：**跳 Table 用该表的 Model，跳 Form 用该 Form 的 Request 结构体**，二者不要搞混。
 
@@ -222,20 +222,20 @@ Attachment *types.Files `gorm:"type:json" widget:"name:附件;type:files"`
 RoomLink string `json:"room_link" gorm:"-" widget:"name:会议室详情;type:link;target:_blank" permission:"read"`
 
 // List 函数内，Build 之后：跳转到 Table 必须用目标表的 Model
-// meeting_room_list 的 AutoCrudTable 是 MeetingRoom，故 params 用 MeetingRoom{ID: ...}
+// meeting_room_list.table 的 AutoCrudTable 是 MeetingRoom，故 params 用 MeetingRoom{ID: ...}
 for i := range bookings {
     params := MeetingRoom{ID: bookings[i].RoomID}  // MeetingRoom 是会议室表的 Model
-    bookings[i].RoomLink, _ = ctx.BuildFunctionUrlWithText("meeting_room_list", params, "查看会议室详情")
+    bookings[i].RoomLink, _ = ctx.BuildFunctionUrlWithText("meeting_room_list.table", params, "查看会议室详情")
 }
 
 // 带 _tab 参数：打开列表并切到「新增」Tab（如投递简历），params 用目标表 Model
 params := HrJob{ID: jobs[i].ID}  // HrJob 是职位表的 Model
-jobs[i].ApplyLink, _ = ctx.BuildFunctionUrlWithText("hr_resume_list?_tab=OnTableAddRow", params, "投递简历")
+jobs[i].ApplyLink, _ = ctx.BuildFunctionUrlWithText("hr_resume_list.table?_tab=OnTableAddRow", params, "投递简历")
 
 // Form 响应：跳转到 Form 必须用该 Form 的请求结构体
-// vote_result 的 Request 是 VoteResultReq，故 params 用 VoteResultReq{TopicID: ...}
+// vote_result.form 的 Request 是 VoteResultReq，故 params 用 VoteResultReq{TopicID: ...}
 params := VoteResultReq{TopicID: req.TopicID}
-functionLink, _ := ctx.BuildFunctionUrlWithText("vote_result", params, "查看投票结果")
+functionLink, _ := ctx.BuildFunctionUrlWithText("vote_result.form", params, "查看投票结果")
 return resp.Form(&VoteSubmitResp{..., FunctionLink: functionLink}).Build()
 ```
 
@@ -813,7 +813,7 @@ Chart 用于**只读的统计/图表**（BI），GET 请求，前端根据请求
 1. **一个函数返回多张图**  
    - **错误**：在一个 Handler 里构造多个图表，或写 `resp.Charts(...)`、`resp.Chart(chart1, chart2)` 等。  
    - **事实**：SDK 没有 `resp.Charts`；`resp.Chart(chart).Build()` 只接受**一个**图表，且 chart 必须是上表 4 种类型之一（`*types.LineChart`、`*types.BarChart`、`*types.PieChart`、`*types.GaugeChart`）。  
-   - **正确**：每张图一个 GET 路由、一个 Handler，每个 Handler 内只 `return resp.Chart(chart).Build()` 一次。参考收银台：`cashier_sales_trend_statistics`、`cashier_sales_bar_statistics`、`cashier_category_sales_statistics`、`cashier_average_order_amount_statistics` 分别为四个路由、四个函数。
+   - **正确**：每张图一个 GET 路由、一个 Handler，每个 Handler 内只 `return resp.Chart(chart).Build()` 一次。参考收银台：`cashier_sales_trend_statistics.chart`、`cashier_sales_bar_statistics.chart`、`cashier_category_sales_statistics.chart`、`cashier_average_order_amount_statistics.chart` 分别为四个路由、四个函数。
 
 2. **手填 ChartType 或 Series[].Type**  
    - **错误**：使用 `&types.Chart{ ChartType: "line", ... }` 或给 Series 填 `Type: "line"`。  
@@ -908,6 +908,20 @@ return resp.Chart(chart).Build()
 - **init()**：在业务 .go 中写；`packageContext.GET("路由名", ListFunc, TableTemplate)` 或 `packageContext.POST("路由名", Handler, FormTemplate)` 或 `packageContext.GET("路由名", ChartHandler, ChartTemplate)`。`packageContext` 由脚手架生成，不要重复声明。
 - **init_.go**：由系统生成，不要用 write_go_file 创建或修改。
 - **目录**：一个包一个目录，路由名与业务含义对应；多表/多 Form 可在同包多文件，各自 GET/POST 注册。参考「可读的目录」中案例路径或 read_doc("/builtin/doc/workspace/create-project") 文档末尾的案例分类。
+
+### 路由命名约定（类型后缀，必须）
+
+**生成代码时，路由名必须带类型后缀。** 这样从 full_code_path / URL 即可看出函数类型（自解释、大模型友好）：**看到后缀即知类型**，无需再查 DB 或文档。
+
+| 类型 | 后缀 | 含义 | 示例 |
+|------|------|------|------|
+| Form | `.form` | 表单（POST） | `cashier_desk.form`、`vote_submit.form` |
+| Table | `.table` | 表格列表（GET） | `ticket_list.table`、`meeting_room_list.table` |
+| Chart | `.chart` | 图表（GET） | `cashier_sales_trend_statistics.chart` |
+
+- **注册时必须带后缀**：`packageContext.POST("cashier_desk.form", ...)`；`packageContext.GET("ticket_list.table", ...)`；`packageContext.GET("sales_trend_statistics.chart", ...)`。禁止注册无后缀的路由名。
+- **link 的 target**：跳转到其他函数时，target 需与注册的路由名一致（含后缀），如 `"meeting_room_list.table"`、`"vote_result.form"`。
+- 示例与案例（如 `/builtin/doc/case_catalog`）均按此约定命名。
 
 ---
 

@@ -3,8 +3,8 @@
 ## 一、项目概要
 
 - **类型**：多表（主题 + 选项 + 记录）+ 两个 POST Form（提交投票、查看结果）。
-- **GET Table**：`vote_topic_list`（投票主题管理）、`vote_option_list`（投票选项管理）、`vote_record_list`（投票记录查询）。
-- **POST Form**：`vote_submit`（选择主题 + 选择选项 **multiselect；depend_on:topic_id** + 备注）、`vote_result`（选择主题 → 返回结果：选项得票数、得票率 table）。
+- **GET Table**：`vote_topic_list.table`（投票主题管理）、`vote_option_list.table`（投票选项管理）、`vote_record_list.table`（投票记录查询）。
+- **POST Form**：`vote_submit.form`（选择主题 + 选择选项 **multiselect；depend_on:topic_id** + 备注）、`vote_result.form`（选择主题 → 返回结果：选项得票数、得票率 table）。
 - **关系**：主题 1:N 选项，主题 1:N 记录；选项选主题用 OnSelectFuzzy；提交时选主题用 OnSelectFuzzy（仅「进行中」），选选项用 **multiselect + depend_on:topic_id**（选项列表随主题变化）。
 - **状态**：主题状态不落库，按开始/结束时间**实时计算**（未开始/进行中/已结束）；列表可筛「投票状态」时在 Handler 里用时间条件过滤。
 - **link**：主题列表带「选项列表」link（跳转 vote_option_list）、「投票操作」link（进行中且未投→vote_submit，已投或已结束→vote_result）。
@@ -75,7 +75,7 @@
 
 ---
 
-### 4. 提交投票 Form（vote_submit，POST）
+### 4. 提交投票 Form（vote_submit.form，POST）
 
 **请求**：选择投票主题（OnSelectFuzzy，仅「进行中」）、选择投票选项（multiselect + depend_on:topic_id）、投票备注（可选）。
 
@@ -85,7 +85,7 @@
 
 ---
 
-### 5. 查看结果 Form（vote_result，POST）
+### 5. 查看结果 Form（vote_result.form，POST）
 
 **请求**：选择投票主题（OnSelectFuzzy）。
 
@@ -107,13 +107,13 @@
 
 ## 四、文件与路由
 
-| 文件               | 说明           | 注册 |
-|--------------------|----------------|------|
-| vote_topic_list.go | 投票主题管理   | GET `vote_topic_list` |
-| vote_option_list.go| 投票选项管理   | GET `vote_option_list` |
-| vote_record_list.go| 投票记录查询   | GET `vote_record_list` |
-| vote_submit.go     | 提交投票       | POST `vote_submit` |
-| vote_result.go     | 查看结果       | POST `vote_result` |
+| 文件               | 说明           | 注册路由              |
+|--------------------|----------------|-----------------------|
+| vote_topic_list.go | 投票主题管理   | GET vote_topic_list.table  |
+| vote_option_list.go| 投票选项管理   | GET vote_option_list.table |
+| vote_record_list.go| 投票记录查询   | GET vote_record_list.table  |
+| vote_submit.go     | 提交投票       | POST vote_submit.form     |
+| vote_result.go     | 查看结果       | POST vote_result.form     |
 
 **OnSelectFuzzyMap**：选项表 topic_id、vote_submit 主题与选项；选项 multiselect + depend_on:topic_id。
 
@@ -384,7 +384,7 @@ var VoteOptionListTemplate = &app.TableTemplate{
 // ================ API 注册 ================
 
 func init() {
-	packageContext.GET("vote_option_list", VoteOptionList, VoteOptionListTemplate)
+	packageContext.GET("vote_option_list.table", VoteOptionList, VoteOptionListTemplate)
 }
 ```
 
@@ -513,7 +513,7 @@ var VoteRecordListTemplate = &app.TableTemplate{
 // ================ API 注册 ================
 
 func init() {
-	packageContext.GET("vote_record_list", VoteRecordList, VoteRecordListTemplate)
+	packageContext.GET("vote_record_list.table", VoteRecordList, VoteRecordListTemplate)
 }
 ```
 
@@ -638,7 +638,7 @@ var VoteResultTemplate = &app.FormTemplate{
 // ================ API 注册 ================
 
 func init() {
-	packageContext.POST("vote_result", VoteResult, VoteResultTemplate)
+	packageContext.POST("vote_result.form", VoteResult, VoteResultTemplate)
 }
 ```
 
@@ -1011,7 +1011,7 @@ var VoteSubmitTemplate = &app.FormTemplate{
 // ================ API 注册 ================
 
 func init() {
-	packageContext.POST("vote_submit", VoteSubmit, VoteSubmitTemplate)
+	packageContext.POST("vote_submit.form", VoteSubmit, VoteSubmitTemplate)
 }
 ```
 
@@ -1322,7 +1322,7 @@ var VoteTopicListTemplate = &app.TableTemplate{
 // ================ API 注册 ================
 
 func init() {
-	packageContext.GET("vote_topic_list", VoteTopicList, VoteTopicListTemplate)
+	packageContext.GET("vote_topic_list.table", VoteTopicList, VoteTopicListTemplate)
 }
 ```
 

@@ -18,7 +18,8 @@ type Function struct {
 	CreateTables string          `json:"create_tables"`                                      //创建该api时候会自动帮忙创建这个数据库表gorm的model列表
 	Callbacks    string          `json:"callbacks"`
 	TemplateType string          `json:"widget"`                                  // 渲染类型
-	App          *App            `json:"-" gorm:"foreignKey:AppID;references:ID"` // 预加载的完整应用对象
+	App *App `json:"-" gorm:"foreignKey:AppID;references:ID"` // 预加载
+	// 不在此处关联 ServiceTree，避免 AutoMigrate 为 tree_id 建外键导致历史脏数据迁移失败；搜索函数改为查 ServiceTree 并 Preload Function
 }
 
 func (Function) TableName() string {

@@ -53,6 +53,24 @@ const (
 	EventError           = "error"
 )
 
+// buildUserMessageContentWithFiles 当用户上传了文件时，将消息内容格式化为：
+// <files>\n{JSON}\n</files> + 说明 + 用户需求，便于 Agent 把 <files> 内的 JSON 当作 run_form_submit 的 input_files 使用。
+func buildUserMessageContentWithFiles(files *types.Files, userContent string) string {
+	if files == nil || len(files.Files) == 0 {
+		return userContent
+	}
+	raw, err := json.Marshal(files)
+	if err != nil {
+		return userContent
+	}
+	instruction := "以上 <files> 标签中的 JSON 为本轮用户上传的文件数据，可作为表单函数的 files 参数使用。"
+	demand := strings.TrimSpace(userContent)
+	if demand == "" {
+		demand = "用户需求：请处理上述文件"
+	}
+	return "<files>\n" + string(raw) + "\n</files>\n\n" + instruction + "\n\n" + demand
+}
+
 // WorkspaceChatService 工作台对话编排：会话、历史、LLM、Tool 循环；只认 LLM + 单模式（dev）
 type WorkspaceChatService struct {
 	toolReg     *ToolRegistry
@@ -193,17 +211,18 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	var toolNames []string
 	var systemPromptFragment string
 	if modeProvider == nil {
-		// 兜底：与 init 时 dev 一致
-		toolNames = []string{"read_go_file", "read_go_file_lines", "read_doc", "read_dir", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace", "create_directory"}
+		// 兜底：与 init 时 dev 一致（含 search_tools 便于杂活先搜后用）
+		toolNames = []string{"read_go_file", "read_go_file_lines", "read_doc", "read_dir", "search_tools", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace", "create_directory"}
 		systemPromptFragment = "当前为开发模式，请协助用户生成新代码、新模块。"
 	}
 
 	llmConfigID := req.LLMConfigID
 
-	// 3) 保存 user 消息
+	// 3) 保存 user 消息：若有上传文件，将内容格式化为 <files>JSON</files>\n\n用户需求：...，便于 Agent 将 <files> 内 JSON 照抄到 run_form_submit 的 input_files
+	userContent := buildUserMessageContentWithFiles(req.Message.Files, req.Message.Content)
 	userMsg := &model.AgentChatMessage{
 		SessionID: sessionID, AgentID: nil, Role: RoleUser,
-		Content: req.Message.Content, User: user,
+		Content: userContent, User: user,
 	}
 	userMsg.CreatedBy = user
 	userMsg.UpdatedBy = user
@@ -211,7 +230,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		return s.handleError(sendEvent, "保存用户消息失败", e)
 	}
 
-	// 3.1) 如果是新会话且标题为空，使用第一条用户消息作为标题
+	// 3.1) 如果是新会话且标题为空，使用第一条用户消息作为标题（用用户输入文字部分，不含 <files>）
 	if session.Title == "" {
 		title := strings.TrimSpace(req.Message.Content)
 		// 移除换行符，替换为空格

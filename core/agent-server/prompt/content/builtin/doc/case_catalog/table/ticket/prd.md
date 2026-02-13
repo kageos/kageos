@@ -3,7 +3,7 @@
 ## 一、项目概要
 
 - **类型**：单表，一个 GET Table，一个 .go，纯列表 CRUD。
-- **路由**：`ticket_list`（工单管理）。
+- **路由**：`ticket_list.table`（工单管理）。
 - **适合参考**：单表 CRUD、input/text_area/select/switch/slider/rate/radio/number、search 筛选、AutoCrudTable、OnTableAddRow/UpdateRow/DeleteRows 回调。
 
 ---
@@ -54,9 +54,9 @@
 
 ## 三、文件与路由
 
-| 文件       | 说明     | 注册 |
-|------------|----------|------|
-| ticket.go  | 工单管理 | GET `ticket_list` |
+| 文件       | 说明     | 注册路由            |
+|------------|----------|---------------------|
+| ticket.go  | 工单管理 | GET ticket_list.table |
 
 ---
 
@@ -372,7 +372,7 @@ func TicketList(ctx *app.Context, resp response.Response) error {
 
 func init() {
 	// 💡packageContext 是在当前目录下系统自动创建的变量，直接用即可，无需定义
-	packageContext.GET("ticket_list", TicketList, TicketTemplate)
+	packageContext.GET("ticket_list.table", TicketList, TicketTemplate)
 
 }
 ```

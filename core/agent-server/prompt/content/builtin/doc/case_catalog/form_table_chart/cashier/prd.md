@@ -3,7 +3,7 @@
 ## 一、项目概要
 
 - **类型**：多 Table（商品、会员、支付记录）+ 收银台 Form（请求里 table 子项 + 会员 select）+ 多个统计 Form（销售趋势、分类销售、客单价等折线图）。
-- **路由**：POST `cashier_desk`，GET 多个 list + 多个 statistics；路由组 `/form_table_chart/cashier`。
+- **路由**：POST `cashier_desk.form`，GET 多个 list.table + 多个 statistics.chart；路由组 `/form_table_chart/cashier`。
 - **适合参考**：FormTemplate 请求中 table 子组件、OnSelectFuzzy、主从表、统计/图表。
 
 ### 图形化展示
@@ -13,7 +13,7 @@
 ```
   [商品表] ──┐
             ├──► [收银台 Form] ──► [支付记录表] ──┬──► 销售趋势（折线图）
-  [会员表] ──┘    POST cashier_desk               ├──► 分类销售（饼图）
+  [会员表] ──┘    POST cashier_desk.form          ├──► 分类销售（饼图）
                                                  └──► 平均订单金额（仪表盘）
 ```
 
@@ -89,7 +89,7 @@
 
 ---
 
-### 4. 收银台 Form（cashier_desk，POST）
+### 4. 收银台 Form（cashier_desk.form，POST）
 
 **请求**
 
@@ -135,19 +135,19 @@
 | cashier_category_sales_statistics | pie 饼图 | 按商品分类汇总销售额占比（饮料/零食/日用品/其他）；Metadata：总销售额、总订单数 |
 | cashier_average_order_amount_statistics | gauge 仪表盘 | 平均订单金额仪表盘；Series.Config 含 min/max、detail.formatter（如 ¥{value}）；Metadata：总订单数、总销售额、平均/最高/最低订单金额 |
 
-**实现要点**：请求体用同一结构体（如 `CashierSalesStatisticsReq`）+ widget 标签；处理函数内按时间/状态筛选支付记录与明细，聚合后组装 `types.Chart`（ChartType、Title、XAxis、Series、Metadata），`resp.Chart(chart).Build()` 返回；多个图表用 `packageContext.GET(路由名, Handler, ChartTemplate)` 注册。
+**实现要点**：请求体用同一结构体（如 `CashierSalesStatisticsReq`）+ widget 标签；处理函数内按时间/状态筛选支付记录与明细，聚合后组装 `types.Chart`（ChartType、Title、XAxis、Series、Metadata），`resp.Chart(chart).Build()` 返回；多个图表用 `packageContext.GET(路由名.chart, Handler, ChartTemplate)` 注册。
 
 ---
 
 ## 三、文件与路由
 
-| 文件                         | 说明           | 注册 |
-|------------------------------|----------------|------|
-| cashier_desk.go              | 收银台 Form    | POST `cashier_desk` |
-| cashier_product_list.go      | 商品列表       | GET |
-| cashier_member_list.go       | 会员列表       | GET |
-| cashier_payment_record_list.go | 支付记录列表 | GET |
-| cashier_statistics.go        | 统计/图表      | GET 多个 statistics |
+| 文件                         | 说明           | 注册路由                    |
+|------------------------------|----------------|-----------------------------|
+| cashier_desk.go              | 收银台 Form    | POST cashier_desk.form      |
+| cashier_product_list.go      | 商品列表       | GET cashier_product_list.table  |
+| cashier_member_list.go       | 会员列表       | GET cashier_member_list.table   |
+| cashier_payment_record_list.go | 支付记录列表 | GET cashier_payment_record_list.table |
+| cashier_statistics.go        | 统计/图表      | GET 多个 xxx_statistics.chart   |
 
 ---
 
@@ -553,7 +553,7 @@ func onSelectFuzzyMember(ctx *app.Context, req *callback.OnSelectFuzzyReq) (*cal
 }
 
 func init() {
-	packageContext.POST("cashier_desk", CashierDesk, CashierDeskTemplate)
+	packageContext.POST("cashier_desk.form", CashierDesk, CashierDeskTemplate)
 }
 ```
 
@@ -662,7 +662,7 @@ var CashierMemberListTemplate = &app.TableTemplate{
 }
 
 func init() {
-	packageContext.GET("cashier_member_list", CashierMemberList, CashierMemberListTemplate)
+	packageContext.GET("cashier_member_list.table", CashierMemberList, CashierMemberListTemplate)
 }
 ```
 
@@ -796,7 +796,7 @@ var CashierPaymentRecordListTemplate = &app.TableTemplate{
 }
 
 func init() {
-	packageContext.GET("cashier_payment_record_list", CashierPaymentRecordList, CashierPaymentRecordListTemplate)
+	packageContext.GET("cashier_payment_record_list.table", CashierPaymentRecordList, CashierPaymentRecordListTemplate)
 }
 ```
 
@@ -907,7 +907,7 @@ var CashierProductListTemplate = &app.TableTemplate{
 }
 
 func init() {
-	packageContext.GET("cashier_product_list", CashierProductList, CashierProductListTemplate)
+	packageContext.GET("cashier_product_list.table", CashierProductList, CashierProductListTemplate)
 }
 ```
 
@@ -1379,13 +1379,13 @@ var CashierAverageOrderAmountStatisticsTemplate = &app.ChartTemplate{
 
 func init() {
 	// 销售额趋势统计：按日期展示销售额、订单数折线图，支持时间范围、支付状态筛选
-	packageContext.GET("cashier_sales_trend_statistics", CashierSalesTrendStatistics, CashierSalesTrendStatisticsTemplate)
+	packageContext.GET("cashier_sales_trend_statistics.chart", CashierSalesTrendStatistics, CashierSalesTrendStatisticsTemplate)
 	// 每日销售额柱状图：按日期展示销售额、订单数柱状图，支持时间范围、支付状态筛选
-	packageContext.GET("cashier_sales_bar_statistics", CashierSalesBarStatistics, CashierSalesBarStatisticsTemplate)
+	packageContext.GET("cashier_sales_bar_statistics.chart", CashierSalesBarStatistics, CashierSalesBarStatisticsTemplate)
 	// 商品分类销售额统计：各分类销售额占比饼图，支持时间范围、支付状态筛选
-	packageContext.GET("cashier_category_sales_statistics", CashierCategorySalesStatistics, CashierCategorySalesStatisticsTemplate)
+	packageContext.GET("cashier_category_sales_statistics.chart", CashierCategorySalesStatistics, CashierCategorySalesStatisticsTemplate)
 	// 平均订单金额统计：平均订单金额、总销售额等指标仪表盘，支持时间范围、支付状态筛选
-	packageContext.GET("cashier_average_order_amount_statistics", CashierAverageOrderAmountStatistics, CashierAverageOrderAmountStatisticsTemplate)
+	packageContext.GET("cashier_average_order_amount_statistics.chart", CashierAverageOrderAmountStatistics, CashierAverageOrderAmountStatisticsTemplate)
 }
 ```
 

@@ -1,10 +1,34 @@
 import { useAuthStore } from '@/stores/auth'
 import axiosInstance from '@/utils/request'
 
+/** 工作台消息中上传文件：与后端 sdk/agent-app/types.Files 对齐，供后端注入到 <files> 并供大模型拼到 run_form_submit 的 body */
+export interface WorkspaceChatMessageFile {
+  name: string
+  source_name?: string
+  storage?: string
+  description?: string
+  hash?: string
+  size?: number
+  upload_ts?: number
+  local_path?: string
+  is_uploaded?: boolean
+  url: string
+  server_url?: string
+  upload_user?: string
+}
+
+export interface WorkspaceChatMessageFiles {
+  files: WorkspaceChatMessageFile[]
+  widget_type?: string
+  data_type?: string
+  remark?: string
+  metadata?: Record<string, unknown>
+}
+
 /** 工作台对话请求（只认 LLM，单模式） */
 export interface WorkspaceChatReq {
   full_code_path: string
-  message: { content: string; files?: unknown }
+  message: { content: string; files?: WorkspaceChatMessageFiles }
   session_id?: string
   /** LLM 配置 ID，0 表示使用默认 LLM */
   llm_config_id?: number
