@@ -3,14 +3,14 @@
 ## 一、项目概要
 
 - **类型**：单 Form，POST，无 Table。
-- **路由**：上传视频 + 目标格式，FFmpeg 转换后返回文件；路由组 `/form/videos`。
+- **路由**：convert.form（视频转换）；路由组 `/form/videos`。
 - **适合参考**：files 上传、GetFS、exec、响应 files。
 
 ---
 
 ## 二、PRD 要点（表格格式）
 
-### 视频转换（video_convert，POST）
+### 视频转换（convert.form，POST）
 
 **请求**
 
@@ -30,9 +30,9 @@
 
 ## 三、文件与路由
 
-| 文件               | 说明     | 注册 |
-|--------------------|----------|------|
-| video_convert.go   | 视频转换 | POST |
+| 文件               | 说明     | 注册路由       |
+|--------------------|----------|----------------|
+| video_convert.go   | 视频转换 | POST convert.form |
 
 ---
 
@@ -203,7 +203,7 @@ var VideoConvertTemplate = &app.FormTemplate{
 
 func init() {
 	// 注册Form函数 - 视频格式转换
-	packageContext.POST("convert", VideoConvert, VideoConvertTemplate)
+	packageContext.POST("convert.form", VideoConvert, VideoConvertTemplate)
 }
 ```
 

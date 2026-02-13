@@ -27,14 +27,14 @@
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| full_code_path | string | 是 | 表格函数的**完整路径（必须包含函数名）**，如 `/luobei/myapp/nps/nps_questionnaire_list`；**不能只填包路径**如 `/luobei/myapp/nps`，否则接口无法匹配到具体表格，会返回空数据。 |
+| full_code_path | string | 是 | 表格函数的**完整路径（必须包含函数名）**，如 `/luobei/myapp/nps/nps_questionnaire_list.table`；**不能只填包路径**如 `/luobei/myapp/nps`，否则接口无法匹配到具体表格，会返回空数据。**路由名一定带类型后缀**：`.table` = 表格列表，`.form` = 表单，`.chart` = 图表；看到后缀即可知该函数类型。 |
 | url_query | string | 否 | 完整 URL 查询串，与 pkg/gormx/query 约定一致（见下）；不传则默认 page=1&page_size=20 |
 | page | number | 否 | 页码，默认 1；若已传 url_query 则优先用 url_query 内参数 |
 | page_size | number | 否 | 每页条数，默认 20 |
 | sorts | string | 否 | 排序，如 `id:desc` 或 `-updated_at` |
 
 **重要：full_code_path 必须到「具体表格函数」**  
-后端按 full_code_path 精确匹配一个 Table 函数（每个函数在 init 里注册，如 `GET("nps_questionnaire_list", ...)`）。若只传包路径（如 `.../nps`），没有函数与之对应，会返回空。正确做法：先 `read_dir` 看包下有哪些 .go，再打开对应列表的 .go 看 `init()` 里注册的函数名（如 `nps_questionnaire_list`），把 full_code_path 拼成 `.../nps/nps_questionnaire_list`。
+后端按 full_code_path 精确匹配一个 Table 函数（每个函数在 init 里注册，如 `GET("nps_questionnaire_list.table", ...)`）。若只传包路径（如 `.../nps`），没有函数与之对应，会返回空。正确做法：先 `read_dir` 看包下有哪些 .go，再打开对应列表的 .go 看 `init()` 里注册的函数名（如 `nps_questionnaire_list.table`），把 full_code_path 拼成 `.../nps/nps_questionnaire_list.table`。**路由名一定带类型后缀**：`.table` = 表格列表，`.form` = 表单，`.chart` = 图表；看到后缀即可知该函数类型。
 
 ### 2.3 查询串约定（url_query）
 

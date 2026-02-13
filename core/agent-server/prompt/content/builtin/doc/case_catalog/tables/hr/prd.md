@@ -3,7 +3,7 @@
 ## 一、项目概要
 
 - **类型**：主从两表，两个 GET Table，无独立 POST Form（或 Form 仅辅助投递）。
-- **路由**：`hr_job_list`（职位列表）、`hr_resume_list`（简历/投递列表）；路由组 `/tables/hr`。
+- **路由**：`hr_job_list.table`（职位列表）、`hr_resume_list.table`（简历/投递列表）；路由组 `/tables/hr`。
 - **关系**：职位 1:N 投递；职位列表可带「投递简历」link；投递选职位用 **OnSelectFuzzy**。
 - **适合参考**：主从表、两 .go 两 GET、link、select 关联另一表、files（简历附件）。
 
@@ -78,10 +78,10 @@
 
 ## 三、文件与路由
 
-| 文件               | 说明           | 注册 |
-|--------------------|----------------|------|
-| hr_job_list.go     | 职位管理       | GET `hr_job_list` |
-| hr_resume_list.go  | 简历/投递管理  | GET `hr_resume_list` |
+| 文件               | 说明           | 注册路由            |
+|--------------------|----------------|---------------------|
+| hr_job_list.go     | 职位管理       | GET hr_job_list.table   |
+| hr_resume_list.go  | 简历/投递管理  | GET hr_resume_list.table |
 
 ---
 
@@ -305,7 +305,7 @@ var HrJobListTemplate = &app.TableTemplate{
 }
 
 func init() {
-	packageContext.GET("hr_job_list", HrJobList, HrJobListTemplate)
+	packageContext.GET("hr_job_list.table", HrJobList, HrJobListTemplate)
 }
 ```
 
@@ -598,7 +598,7 @@ func onSelectFuzzyJob(ctx *app.Context, req *callback.OnSelectFuzzyReq) (*callba
 }
 
 func init() {
-	packageContext.GET("hr_resume_list", HrResumeList, HrResumeListTemplate)
+	packageContext.GET("hr_resume_list.table", HrResumeList, HrResumeListTemplate)
 }
 ```
 

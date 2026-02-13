@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -144,8 +145,16 @@ func (s *Server) initRouter(ctx context.Context) error {
 	// 创建 gin 引擎
 	s.httpServer = gin.New()
 
-	// 添加中间件
-	s.httpServer.Use(gin.Recovery())
+	// 添加中间件：自定义 Recovery，对客户端断开导致的 ErrAbortHandler 不打印堆栈（ReverseProxy 预期行为）
+	s.httpServer.Use(gin.CustomRecovery(func(c *gin.Context, recovered interface{}) {
+		if err, ok := recovered.(error); ok && errors.Is(err, http.ErrAbortHandler) {
+			logger.Debugf(ctx, "[Recovery] Client connection closed (ErrAbortHandler), path: %s", c.Request.URL.Path)
+			c.Abort()
+			return
+		}
+		logger.Errorf(ctx, "[Recovery] panic recovered: %v", recovered)
+		c.AbortWithStatus(http.StatusInternalServerError)
+	}))
 	s.httpServer.Use(middleware2.Cors())
 	s.httpServer.Use(middleware2.WithTraceId())
 	s.httpServer.Use(middleware2.AccessLog()) // 访问日志中间件，记录所有请求（包括 agent-server）

@@ -280,6 +280,10 @@ export interface FunctionSearchResult {
   app_id: number
   app_user: string
   app_code: string
+  /** 请求参数（表单/接口入参结构），便于构造 run_form_submit 的 body */
+  request?: unknown[]
+  /** 响应参数（返回结构说明） */
+  response?: unknown[]
 }
 
 export interface SearchFunctionsResp {

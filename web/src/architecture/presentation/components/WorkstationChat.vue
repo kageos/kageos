@@ -130,23 +130,58 @@
         </div>
       </div>
 
-      <div class="input-area">
-        <el-input
-          v-model="inputText"
-          type="textarea"
-          :rows="3"
-          placeholder="描述你的需求…"
-          :disabled="!fullCodePath"
-          @keydown.ctrl.enter="send"
-        />
-        <el-button
-          type="primary"
-          :loading="sending"
-          :disabled="!fullCodePath || !inputText.trim()"
-          @click="send"
-        >
-          发送
-        </el-button>
+      <div
+        class="input-area-drop-zone"
+        :class="{ 'is-dragging': isDraggingOver }"
+        @dragover.prevent="isDraggingOver = true"
+        @dragleave.prevent="isDraggingOver = false"
+        @drop.prevent="onDropFiles"
+      >
+        <div class="input-area">
+          <div class="input-area-attach">
+            <el-upload
+              :auto-upload="false"
+              :show-file-list="false"
+              :disabled="!fullCodePath || uploading"
+              accept="*"
+              multiple
+              @change="onAttachFileChange"
+            >
+              <el-button type="default" size="small" :loading="uploading" :disabled="!fullCodePath">
+                <el-icon><Paperclip /></el-icon>
+                上传文件
+              </el-button>
+            </el-upload>
+            <div v-if="attachedFiles.length > 0" class="attached-files">
+              <el-tag
+                v-for="(f, idx) in attachedFiles"
+                :key="idx"
+                size="small"
+                closable
+                class="attached-tag"
+                @close="removeAttachedFile(idx)"
+              >
+                {{ f.name }}
+              </el-tag>
+            </div>
+          </div>
+          <el-input
+            v-model="inputText"
+            type="textarea"
+            :rows="3"
+            placeholder="描述你的需求…（可上传文件后在此说明，如：需要帮我转换成 png 格式；支持拖拽文件到此处）"
+            :disabled="!fullCodePath"
+            @keydown.ctrl.enter="send"
+          />
+          <el-button
+            type="primary"
+            :loading="sending"
+            :disabled="!fullCodePath || (!inputText.trim() && attachedFiles.length === 0)"
+            @click="send"
+          >
+            发送
+          </el-button>
+        </div>
       </div>
     </main>
     </div>
@@ -156,13 +191,16 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, ArrowRight, Plus } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight, Plus, Paperclip } from '@element-plus/icons-vue'
 import { marked } from 'marked'
-import { workspaceChatStream, getWorkspaceSessions, getWorkspaceMessages, type WorkspaceSessionItem, type WorkspaceChatReq } from '@/api/workspace'
+import { workspaceChatStream, getWorkspaceSessions, getWorkspaceMessages, type WorkspaceSessionItem, type WorkspaceChatReq, type WorkspaceChatMessageFile } from '@/api/workspace'
 import { getLLMList, type LLMInfo } from '@/api/agent'
 import ToolCallCard from './ToolCallCard.vue'
 import { ElMessage } from 'element-plus'
 import { useWorkspaceChatStream } from '@/architecture/presentation/composables/useWorkspaceChatStream'
+import { uploadFile, notifyUploadComplete } from '@/utils/upload'
+import type { UploadProgress } from '@/utils/upload/types'
+import { useAuthStore } from '@/stores/auth'
 
 // 配置 marked：支持换行、GFM
 marked.setOptions({
@@ -186,6 +224,96 @@ const router = useRouter()
 const { messages, sending, sessionId, send: sendMessage, handleEvent, setMessages } = useWorkspaceChatStream()
 const inputText = ref('')
 const messagesRef = ref<HTMLElement | null>(null)
+
+/** 工作台上传文件 router，与存储路径一致 */
+const WORKSPACE_CHAT_UPLOAD_ROUTER = 'workspace/chat'
+
+/** 本条消息附带的文件（上传后加入，发送时随 message.files 提交，发送成功后清空） */
+const attachedFiles = ref<WorkspaceChatMessageFile[]>([])
+const uploading = ref(false)
+/** 拖拽悬停时高亮输入区 */
+const isDraggingOver = ref(false)
+
+/** 上传单个文件并加入附件列表（按钮选择与拖拽共用） */
+async function addFileAsAttachment(file: File): Promise<void> {
+  if (!file || !props.fullCodePath) return
+  const uploadResult = await uploadFile(
+    WORKSPACE_CHAT_UPLOAD_ROUTER,
+    file,
+    (_progress: UploadProgress) => {}
+  )
+  if (!uploadResult.fileInfo) {
+    throw new Error('上传失败')
+  }
+  const completeResult = await notifyUploadComplete({
+    key: uploadResult.fileInfo.key,
+    success: true,
+    router: uploadResult.fileInfo.router,
+    file_name: uploadResult.fileInfo.file_name,
+    file_size: uploadResult.fileInfo.file_size,
+    content_type: uploadResult.fileInfo.content_type,
+    hash: uploadResult.fileInfo.hash,
+    upload_user: useAuthStore().userName || undefined,
+  })
+  if (!completeResult?.download_url) {
+    throw new Error('获取下载地址失败')
+  }
+  const item: WorkspaceChatMessageFile = {
+    name: completeResult.file_name,
+    source_name: file.name,
+    storage: completeResult.storage || uploadResult.storage,
+    hash: completeResult.hash || uploadResult.fileInfo.hash || '',
+    size: completeResult.file_size,
+    upload_ts: Math.floor(Date.now() / 1000),
+    is_uploaded: true,
+    url: completeResult.download_url,
+    server_url: completeResult.server_download_url,
+    upload_user: useAuthStore().userName || undefined,
+  }
+  attachedFiles.value = [...attachedFiles.value, item]
+  ElMessage.success(`已添加：${file.name}`)
+}
+
+async function onAttachFileChange(uploadFileObj: { raw?: File; name?: string }) {
+  const file = uploadFileObj?.raw
+  if (!file || !props.fullCodePath) return
+  uploading.value = true
+  try {
+    await addFileAsAttachment(file)
+  } catch (e: unknown) {
+    console.error('[WorkstationChat] 上传失败:', e)
+    ElMessage.error(e instanceof Error ? e.message : '上传失败')
+  } finally {
+    uploading.value = false
+  }
+}
+
+/** 拖拽放下：将文件加入附件并上传（多个文件逐个上传，单个失败不影响其余） */
+async function onDropFiles(e: DragEvent) {
+  isDraggingOver.value = false
+  if (!props.fullCodePath || uploading.value) return
+  const files = e.dataTransfer?.files
+  if (!files?.length) return
+  const fileList = Array.from(files)
+  uploading.value = true
+  try {
+    for (const file of fileList) {
+      if (!file.name) continue
+      try {
+        await addFileAsAttachment(file)
+      } catch (err: unknown) {
+        console.error('[WorkstationChat] 拖拽上传失败:', file.name, err)
+        ElMessage.error(`${file.name} 上传失败：${err instanceof Error ? err.message : '未知错误'}`)
+      }
+    }
+  } finally {
+    uploading.value = false
+  }
+}
+
+function removeAttachedFile(index: number) {
+  attachedFiles.value = attachedFiles.value.filter((_, i) => i !== index)
+}
 
 // 向父组件上报执行中状态（用于抽屉关闭时显示浮动按钮）
 watch(sending, (v) => {
@@ -345,11 +473,26 @@ function formatMessageTime(isoString: string): string {
 
 async function send() {
   const text = inputText.value.trim()
-  if (!text || !props.fullCodePath) return
+  const files = attachedFiles.value.length > 0 ? attachedFiles.value : null
+  if (!props.fullCodePath || (!text && !files?.length)) return
   inputText.value = ''
+  // 发送后清空附件，便于下一条消息重新选文件
+  attachedFiles.value = []
+  const content = text || ''
   const payload: WorkspaceChatReq = {
     full_code_path: props.fullCodePath,
-    message: { content: text },
+    message: {
+      content,
+      ...(files?.length
+        ? {
+            files: {
+              files,
+              widget_type: 'files',
+              data_type: 'struct',
+            },
+          }
+        : {}),
+    },
     session_id: sessionId.value,
   }
   if (selectedLLMConfigId.value != null && selectedLLMConfigId.value > 0) {
@@ -368,7 +511,7 @@ async function send() {
     })
   }
   try {
-    await sendMessage(text, streamFn)
+    await sendMessage(content || (files?.length ? '已上传文件' : ''), streamFn)
   } catch {
     ElMessage.error('发送失败')
   }
@@ -660,6 +803,23 @@ async function send() {
   gap: 8px;
   width: 100%;
 }
+.input-area-drop-zone {
+  border-radius: var(--el-border-radius-base);
+  border: 2px dashed transparent;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+.input-area-drop-zone.is-dragging {
+  border-color: var(--el-color-primary);
+  background-color: var(--el-color-primary-light-9);
+}
 .input-area { display: flex; flex-direction: column; gap: 8px; }
 .input-area .el-button { align-self: flex-end; }
+.input-area-attach {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.attached-files { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.attached-tag { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

@@ -253,9 +253,10 @@ func (s *Server) initDatabase(ctx context.Context) error {
 
 	dbCfg := s.cfg.GetDB()
 
-	// 配置 GORM 日志
-	gormConfig := &gorm.Config{}
-	// 开启 SQL 日志便于排查
+	// 配置 GORM：迁移时不创建外键约束，避免历史脏数据（如 function.tree_id、service_tree.ref_id 孤儿引用）导致 1452
+	gormConfig := &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+	}
 	gormConfig.Logger = gormLogger.Default.LogMode(gormLogger.Info)
 
 	var err error
@@ -369,7 +370,7 @@ func (s *Server) initServices(ctx context.Context) error {
 
 	// 初始化服务目录服务（包含目录管理功能：copy、create、remove）
 	// ⭐ 函数生成逻辑已移到 ServiceTreeService 中
-	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appCall, fileSnapshotRepo, s.appService, s.permissionService, s.docService)
+	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, functionRepo, appRepo, s.appCall, fileSnapshotRepo, s.appService, s.permissionService, s.docService)
 
 	// 初始化函数服务
 	s.functionService = service.NewFunctionService(functionRepo, appRepo)

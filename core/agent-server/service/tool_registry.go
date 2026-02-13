@@ -383,6 +383,29 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 		},
 	})
 	out = append(out, dto.ToolDef{
+		Name:        "search_tools",
+		Description: "按关键词搜索「可用能力」：包括内置工具（读文件、写代码、执行表单等）和平台内已注册的表单/表格/图表函数。用于在不确定是否有现成能力时先搜索，再决定直接调用或创建。支持多关键词：用竖线 | 分隔，如 视频|video|流媒体 表示命中任一关键词即可。",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"keyword": map[string]interface{}{
+					"type":        "string",
+					"description": "搜索关键词，支持多关键词用竖线 | 分隔（OR 语义），如 图片|png|转换 或 视频|video|流媒体",
+				},
+				"template_type": map[string]interface{}{
+					"type":        "string",
+					"description": "限定类型（可选）：form / table / chart，空表示全部",
+				},
+				"limit": map[string]interface{}{
+					"type":        "integer",
+					"description": "最多返回条数（可选，默认 20）",
+				},
+			},
+			"required": []interface{}{"keyword"},
+		},
+	})
+
+	out = append(out, dto.ToolDef{
 		Name:        "run_table_update",
 		Description: "执行工作区内 Table 更新接口，批量更新表格记录（每条都会触发 OnTableUpdateRow）。full_code_path 为表格函数的完整路径（必须包含函数名）。body 必须为 JSON 数组字符串，每项为 { \"id\": 行ID, \"updates\": { \"字段名\": 新值, ... } }；不传 old_values，由 app-server 自动查表填充。返回 updated_count、data_list、failed_count、errors。",
 		InputSchema: map[string]interface{}{
@@ -452,6 +475,8 @@ func (r *ToolRegistry) CallTool(ctx context.Context, name string, args map[strin
 		return r.callRunTableCreate(ctx, args, fullCodePath)
 	case "run_table_update":
 		return r.callRunTableUpdate(ctx, args, fullCodePath)
+	case "search_tools":
+		return r.callSearchTools(ctx, args, fullCodePath)
 	}
 	return "tool not found: " + name, true
 }
@@ -1331,7 +1356,141 @@ func (r *ToolRegistry) callRunTableSearch(ctx context.Context, args map[string]i
 	return formatJSONResult(result)
 }
 
-// callRunFormSubmit 执行 Form 提交（执行模式专用）
+// splitSearchKeywords 将 keyword 按竖线 | 拆成多个关键词并去空，如 "视频|video|流媒体" -> ["视频","video","流媒体"]
+func splitSearchKeywords(keyword string) []string {
+	keyword = strings.TrimSpace(keyword)
+	if keyword == "" {
+		return nil
+	}
+	parts := strings.Split(keyword, "|")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// callSearchTools 按关键词搜索可用能力（内置工具 + 已注册 Form），支持多关键词用 | 分隔（OR 语义）
+func (r *ToolRegistry) callSearchTools(ctx context.Context, args map[string]interface{}, fullCodePath string) (string, bool) {
+	keywordRaw := strings.TrimSpace(GetStringArg(args, "keyword"))
+	if keywordRaw == "" {
+		return "search_tools 需传 keyword（支持多关键词用竖线 | 分隔，如 视频|video|流媒体）。", true
+	}
+	keywords := splitSearchKeywords(keywordRaw)
+	if len(keywords) == 0 {
+		return "search_tools 的 keyword 不能为空。", true
+	}
+	templateType := strings.TrimSpace(GetStringArg(args, "template_type"))
+	limit := 20
+	if v, ok := args["limit"]; ok {
+		if n, ok := toInt(v); ok && n > 0 {
+			if n > 50 {
+				n = 50
+			}
+			limit = n
+		}
+	}
+	var buf strings.Builder
+
+	// 1. 内置工具：按 name/description 匹配任一关键词
+	allTools, _ := r.ListTools(ctx, nil)
+	lowerKeywords := make([]string, len(keywords))
+	for i, k := range keywords {
+		lowerKeywords[i] = strings.ToLower(k)
+	}
+	var matchedTools []dto.ToolDef
+	for _, t := range allTools {
+		text := strings.ToLower(t.Name + " " + t.Description)
+		for _, k := range lowerKeywords {
+			if strings.Contains(text, k) {
+				matchedTools = append(matchedTools, t)
+				break
+			}
+		}
+	}
+	if len(matchedTools) > 0 {
+		buf.WriteString("【内置工具】\n")
+		for _, t := range matchedTools {
+			buf.WriteString("- ")
+			buf.WriteString(t.Name)
+			buf.WriteString("：")
+			buf.WriteString(t.Description)
+			buf.WriteString("\n")
+		}
+		buf.WriteString("\n")
+	}
+
+	// 2. 已注册 Form/Table/Chart：全局搜索（不传 user/app），多关键词由 app-server 按 | 拆分并 OR 查询
+	// 若传当前工作区 user/app 则只搜当前应用，图片转换等可能在 system/official 等其它应用下，会搜不到
+	resp, err := apicall.SearchFunctions(ctx, &dto.SearchFunctionsReq{
+		User:         "", // 空表示全局搜索，与 Postman 不传 user/app 行为一致
+		App:          "",
+		Keyword:      keywordRaw,
+		TemplateType: templateType,
+		Page:         1,
+		PageSize:     limit,
+	})
+	functions := make([]*dto.FunctionSearchResult, 0)
+	if err != nil {
+		logger.Warnf(ctx, "[SearchTools] SearchFunctions err: %v", err)
+	} else if resp != nil {
+		functions = resp.Functions
+	}
+	if len(functions) > 0 {
+		buf.WriteString("【已注册函数】\n")
+		for i, fn := range functions {
+			buf.WriteString(fmt.Sprintf("%d. %s\n", i+1, fn.Name))
+			buf.WriteString("   full_code_path: ")
+			buf.WriteString(fn.FullCodePath)
+			buf.WriteString("\n")
+			if fn.Description != "" {
+				buf.WriteString("   description: ")
+				buf.WriteString(fn.Description)
+				buf.WriteString("\n")
+			}
+			if fn.TemplateType != "" {
+				buf.WriteString("   type: ")
+				buf.WriteString(fn.TemplateType)
+				buf.WriteString("（调用时 form 用 run_form_submit，table 用 run_table_search/run_table_create/run_table_update，chart 用 run_chart_query）\n")
+			}
+			if len(fn.Request) > 0 {
+				if reqJSON, err := json.MarshalIndent(fn.Request, "   ", "  "); err == nil {
+					buf.WriteString("   request: ")
+					buf.Write(reqJSON)
+					buf.WriteString("\n")
+				}
+			}
+			if len(fn.Response) > 0 {
+				if respJSON, err := json.MarshalIndent(fn.Response, "   ", "  "); err == nil {
+					buf.WriteString("   response: ")
+					buf.Write(respJSON)
+					buf.WriteString("\n")
+				}
+			}
+		}
+	} else if buf.Len() == 0 {
+		buf.WriteString("未匹配到任何内置工具或已注册函数，可考虑创建新目录并按「创建项目」流程（先 PRD、用户确认后再写代码）。")
+	}
+	return buf.String(), false
+}
+
+// parseAppFromFullCodePath 从 full_code_path 解析 app（第二段），如 /luobei/demos/xxx -> demos
+func parseAppFromFullCodePath(fullCodePath string) string {
+	fullCodePath = strings.TrimPrefix(strings.TrimSpace(fullCodePath), "/")
+	if fullCodePath == "" {
+		return ""
+	}
+	parts := strings.SplitN(fullCodePath, "/", 3)
+	if len(parts) < 2 {
+		return ""
+	}
+	return strings.TrimSpace(parts[1])
+}
+
+// callRunFormSubmit 执行 Form 提交（执行模式专用）。body 完全由大模型根据用户消息中的 <files> 及表单参数定义自行拼装（各表单的 files 参数字段名不同，如 input_files、csv_file、logo 等）。
 func (r *ToolRegistry) callRunFormSubmit(ctx context.Context, args map[string]interface{}, currentFullCodePath string) (string, bool) {
 	fullCodePath := strings.TrimSpace(GetStringArg(args, "full_code_path"))
 	if fullCodePath == "" {

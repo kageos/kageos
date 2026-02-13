@@ -3,14 +3,14 @@
 ## 一、项目概要
 
 - **类型**：单 Form，POST，无 Table。
-- **路由**：jieba 分词 + 关键词/词频；路由组 `/form/nlp`。
+- **路由**：jieba_segment.form（分词/词频）；路由组 `/form/nlp`。
 - **适合参考**：无 files 或可选、text_area/select/number/switch、响应里 table、Python runtime（若用 jieba）。
 
 ---
 
 ## 二、PRD 要点（表格格式）
 
-### 分词（jieba_segment，POST）
+### 分词（jieba_segment.form，POST）
 
 **请求**
 
@@ -33,9 +33,9 @@
 
 ## 三、文件与路由
 
-| 文件               | 说明     | 注册 |
-|--------------------|----------|------|
-| jieba_segment.go   | 分词/词频 | POST |
+| 文件               | 说明     | 注册路由            |
+|--------------------|----------|---------------------|
+| jieba_segment.go   | 分词/词频 | POST jieba_segment.form |
 
 ---
 
@@ -267,7 +267,7 @@ var JiebaSegmentTemplate = &app.FormTemplate{
 
 func init() {
 	// 注册Form函数 - 中文分词与关键词提取
-	packageContext.POST("jieba_segment", JiebaSegment, JiebaSegmentTemplate)
+	packageContext.POST("jieba_segment.form", JiebaSegment, JiebaSegmentTemplate)
 }
 ```
 

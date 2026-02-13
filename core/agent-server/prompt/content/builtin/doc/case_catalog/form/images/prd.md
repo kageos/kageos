@@ -3,14 +3,14 @@
 ## 一、项目概要
 
 - **类型**：单 Form，多个 POST，无 Table。
-- **路由**：convert、resize、colors；路由组 `/form/images`。
+- **路由**：convert.form、resize.form、colors.form；路由组 `/form/images`。
 - **适合参考**：files 上传、图片处理、多 POST 同目录。
 
 ---
 
 ## 二、PRD 要点（表格格式）
 
-### 格式转换（images_convert，POST）
+### 格式转换（convert.form，POST）
 
 **请求**
 
@@ -32,11 +32,11 @@
 
 ## 三、文件与路由
 
-| 文件               | 说明     | 注册 |
-|--------------------|----------|------|
-| images_convert.go  | 格式转换 | POST |
-| images_resize.go   | 尺寸调整 | POST |
-| images_colors.go   | 颜色提取 | POST |
+| 文件               | 说明     | 注册路由        |
+|--------------------|----------|-----------------|
+| images_convert.go  | 格式转换 | POST convert.form  |
+| images_resize.go   | 尺寸调整 | POST resize.form   |
+| images_colors.go   | 颜色提取 | POST colors.form   |
 
 ---
 
@@ -239,7 +239,7 @@ var ImagesColorsTemplate = &app.FormTemplate{
 
 func init() {
 	// 注册Form函数 - 图片颜色提取
-	packageContext.POST("colors", ImagesColors, ImagesColorsTemplate)
+	packageContext.POST("colors.form", ImagesColors, ImagesColorsTemplate)
 }
 
 ```
@@ -400,7 +400,7 @@ var ImagesConvertTemplate = &app.FormTemplate{
 
 func init() {
 	// 💡 packageContext 是在当前目录下系统自动创建的变量，直接用即可，无需定义
-	packageContext.POST("convert", ImagesConvert, ImagesConvertTemplate)
+	packageContext.POST("convert.form", ImagesConvert, ImagesConvertTemplate)
 }
 ```
 
@@ -586,7 +586,7 @@ var ImagesResizeTemplate = &app.FormTemplate{
 
 func init() {
 	// 注册Form函数 - 图片裁剪/缩放
-	packageContext.POST("resize", ImagesResize, ImagesResizeTemplate)
+	packageContext.POST("resize.form", ImagesResize, ImagesResizeTemplate)
 }
 ```
 

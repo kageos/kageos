@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"runtime/debug"
+	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
@@ -123,16 +124,18 @@ func (a *App) handle(req *dto.RequestAppReq) (resp *dto.RequestAppResp, err erro
 	err = handleFunc(newContext, &res)
 	appResp := dto.RequestAppResp{Result: res.Data(), TraceId: newContext.msg.TraceId}
 	if err != nil {
-		v, ok := err.(*response.BizErr)
-		if ok {
-			//appResp := dto.RequestAppResp{Result: res.Data(), TraceId: newContext.msg.TraceId}
-			if res.BizError != nil {
-				appResp.ErrCode = -1
-				appResp.Error = fmt.Sprintf("%v", v.Error())
-			}
+		// 根据是否含 [系统错误] 区分：不含的视为业务错误（ErrCode=-1，不触发智能体）；含的视为系统错误（ErrCode=1，需智能体介入排查）。
+		if v, ok := err.(*response.BizErr); ok {
+			appResp.ErrCode = -1
+			appResp.Error = v.Error()
 			return &appResp, nil
 		}
-		//todo
+		if !strings.Contains(err.Error(), "[系统错误]") {
+			appResp.ErrCode = -1
+			appResp.Error = err.Error()
+			return &appResp, nil
+		}
+		// 系统错误：需智能体介入，框架按 ErrCode=1 返回并记录日志（业务侧应在返回前已打足上下文）。
 		logger.Errorf(ctx, "handleFunc err:%s", err.Error())
 		return &dto.RequestAppResp{Result: nil, ErrCode: 1, Error: err.Error(), TraceId: newContext.msg.TraceId}, err
 	}

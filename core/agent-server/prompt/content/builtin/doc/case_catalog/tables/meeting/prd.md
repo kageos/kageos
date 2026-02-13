@@ -3,7 +3,7 @@
 ## 一、项目概要
 
 - **类型**：主从两表，两个 GET Table，无独立 POST Form。
-- **路由**：`meeting_room_list`（会议室管理）、`meeting_room_booking_list`（预约管理）。
+- **路由**：`meeting_room_list.table`（会议室管理）、`meeting_room_booking_list.table`（预约管理）。
 - **关系**：预约表关联会议室；预约时选会议室用 **OnSelectFuzzy**（只筛「可用」会议室）；预约列表可带「会议室详情」**link** 跳转到会议室列表。
 - **状态**：预约状态不落库，按开始/结束时间**实时计算**（待开始/进行中/已结束）；列表请求可筛「预约状态」时在 Handler 里用时间条件过滤。
 - **列表筛**：预约列表请求带「会议室名称」「预约状态」等**外表/计算字段**，需在 Handler 里手动拼条件（如按会议室 name like 查 room_id、按状态用 start_time/end_time 条件）。
@@ -75,10 +75,10 @@
 
 ## 四、文件与路由
 
-| 文件                   | 说明           | 注册 |
-|------------------------|----------------|------|
-| meeting_room.go        | 会议室管理     | GET `meeting_room_list` |
-| meeting_room_booking.go | 预约管理     | GET `meeting_room_booking_list` |
+| 文件                   | 说明           | 注册路由                    |
+|------------------------|----------------|-----------------------------|
+| meeting_room.go        | 会议室管理     | GET meeting_room_list.table     |
+| meeting_room_booking.go | 预约管理     | GET meeting_room_booking_list.table |
 
 **OnSelectFuzzyMap**：预约表 Template 中 `"room_id": onSelectFuzzyMeetingRoom`，会议室下拉只显示状态为「可用」的会议室。
 
@@ -260,7 +260,7 @@ func onSelectFuzzyMeetingRoom(ctx *app.Context, req *callback.OnSelectFuzzyReq) 
 // ================ API 注册 ================
 
 func init() {
-	packageContext.GET("meeting_room_list", MeetingRoomList, MeetingRoomListTemplate)
+	packageContext.GET("meeting_room_list.table", MeetingRoomList, MeetingRoomListTemplate)
 }
 ```
 
@@ -574,7 +574,7 @@ func calculateBookingStatus(startTime, endTime int64) string {
 // ================ API 注册 ================
 
 func init() {
-	packageContext.GET("meeting_room_booking_list", MeetingRoomBookingList, MeetingRoomBookingListTemplate)
+	packageContext.GET("meeting_room_booking_list.table", MeetingRoomBookingList, MeetingRoomBookingListTemplate)
 }
 ```
 

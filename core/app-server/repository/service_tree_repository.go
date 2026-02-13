@@ -419,48 +419,67 @@ func (r *ServiceTreeRepository) GetDescendantDirectories(appID int64, parentFull
 	return result, nil
 }
 
-// SearchFunctions 搜索函数（支持按名称、路径、类型过滤）
-func (r *ServiceTreeRepository) SearchFunctions(user, app, keyword, templateType string, page, pageSize int) ([]*model.ServiceTree, int64, error) {
-	var functions []*model.ServiceTree
-	var total int64
-
-	// 构建查询
-	query := r.db.Model(&model.ServiceTree{}).
-		Where("service_tree.type = ?", model.ServiceTreeTypeFunction)
-
-	// 如果指定了 user 和 app，需要先获取 app_id
-	if user != "" && app != "" {
-		// 需要关联 app 表来过滤（表名是 app，不是 apps）
-		query = query.Joins("JOIN app ON service_tree.app_id = app.id").
-			Where("app.user = ? AND app.code = ?", user, app)
+// splitSearchKeywords 将 keyword 按竖线 | 拆成多个关键词并去空，如 "视频|video|流媒体" -> ["视频","video","流媒体"]
+func splitSearchKeywords(keyword string) []string {
+	keyword = strings.TrimSpace(keyword)
+	if keyword == "" {
+		return nil
 	}
+	parts := strings.Split(keyword, "|")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
 
-	// 模板类型过滤
+// SearchFunctions 搜索函数节点：只查 ServiceTree（type=function），按 code/name/description/tags 匹配，预加载 App、Function
+func (r *ServiceTreeRepository) SearchFunctions(user, app, keyword, templateType string, page, pageSize int) ([]*model.ServiceTree, int64, error) {
+	query := r.db.Model(&model.ServiceTree{}).
+		Where("service_tree.type = ?", model.ServiceTreeTypeFunction).
+		Joins("App")
+
+	if user != "" && app != "" {
+		query = query.Where("app.user = ? AND app.code = ?", user, app)
+	}
 	if templateType != "" {
 		query = query.Where("service_tree.template_type = ?", templateType)
 	}
-
-	// 关键词搜索（名称或路径）
 	if keyword != "" {
-		keywordPattern := "%" + keyword + "%"
-		query = query.Where("service_tree.name LIKE ? OR service_tree.full_code_path LIKE ?", keywordPattern, keywordPattern)
+		keywords := splitSearchKeywords(keyword)
+		if len(keywords) > 0 {
+			var orConditions []string
+			var args []interface{}
+			for _, k := range keywords {
+				pattern := "%" + k + "%"
+				orConditions = append(orConditions, "(service_tree.code LIKE ? OR service_tree.name LIKE ? OR service_tree.description LIKE ? OR service_tree.tags LIKE ?)")
+				args = append(args, pattern, pattern, pattern, pattern)
+			}
+			query = query.Where(strings.Join(orConditions, " OR "), args...)
+		}
 	}
 
-	// 获取总数
+	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
+	if total == 0 {
+		return nil, 0, nil
+	}
 
-	// 分页查询
 	offset := (page - 1) * pageSize
+	var list []*model.ServiceTree
 	if err := query.
 		Preload("App").
+		Preload("Function").
 		Offset(offset).
 		Limit(pageSize).
 		Order("service_tree.created_at DESC").
-		Find(&functions).Error; err != nil {
+		Find(&list).Error; err != nil {
 		return nil, 0, err
 	}
-
-	return functions, total, nil
+	return list, total, nil
 }

@@ -3,26 +3,26 @@
 ## 一、项目概要
 
 - **类型**：单 Form，多个 POST，无 Table。
-- **路由**：extract_text、merge、to_images；路由组 `/form/pdf`。
+- **路由**：extract_text.form、merge.form、to_images.form；路由组 `/form/pdf`。
 - **适合参考**：files 上传、响应 text_area 或 files、PDF 解析。
 
 ---
 
 ## 二、PRD 要点（表格格式）
 
-### 提取文本（pdf_extract_text，POST）
+### 提取文本（extract_text.form，POST）
 
 **请求**：上传 PDF 文件（必填）+ 可选页码/范围等参数。
 
 **响应**：提取的文本（text_area）+ 统计（页数、字符数等）。
 
-### 合并 PDF（pdf_merge，POST）
+### 合并 PDF（merge.form，POST）
 
 **请求**：上传多个 PDF 文件（必填，至少 2 个）。
 
 **响应**：合并后的 PDF 文件（files）或错误提示。
 
-### 转图片（pdf_to_images，POST）
+### 转图片（to_images.form，POST）
 
 **请求**：上传 PDF 文件（必填）+ 可选分辨率、页码等。
 
@@ -32,11 +32,11 @@
 
 ## 三、文件与路由
 
-| 文件                 | 说明         | 注册 |
-|----------------------|--------------|------|
-| pdf_extract_text.go  | 提取文本     | POST |
-| pdf_merge.go         | 合并 PDF     | POST |
-| pdf_to_images.go     | 转图片       | POST |
+| 文件                 | 说明         | 注册路由           |
+|----------------------|--------------|--------------------|
+| pdf_extract_text.go  | 提取文本     | POST extract_text.form |
+| pdf_merge.go         | 合并 PDF     | POST merge.form    |
+| pdf_to_images.go     | 转图片       | POST to_images.form |
 
 ---
 
@@ -188,7 +188,7 @@ var PdfExtractTextTemplate = &app.FormTemplate{
 
 func init() {
 	// 直接使用 packageContext.POST 注册（新方式）
-	packageContext.POST("extract_text", PdfExtractText, PdfExtractTextTemplate)
+	packageContext.POST("extract_text.form", PdfExtractText, PdfExtractTextTemplate)
 }
 ```
 
@@ -328,7 +328,7 @@ var PdfMergeTemplate = &app.FormTemplate{
 
 func init() {
 	// 注册Form函数 - PDF合并
-	packageContext.POST("merge", PdfMerge, PdfMergeTemplate)
+	packageContext.POST("merge.form", PdfMerge, PdfMergeTemplate)
 }
 ```
 
@@ -488,7 +488,7 @@ var PdfToImagesTemplate = &app.FormTemplate{
 
 func init() {
 	// 注册Form函数 - PDF转图片
-	packageContext.POST("to_images", PdfToImages, PdfToImagesTemplate)
+	packageContext.POST("to_images.form", PdfToImages, PdfToImagesTemplate)
 }
 ```
 

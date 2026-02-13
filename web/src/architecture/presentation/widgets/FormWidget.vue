@@ -191,7 +191,6 @@
         :title="field.name"
         :size="DRAWER_CONFIG.size"
         destroy-on-close
-        :z-index="DRAWER_CONFIG.zIndex"
         append-to-body
       >
         <template #default>
@@ -283,8 +282,7 @@ import { validateFieldValue, validateFormWidgetNestedFields, type WidgetValidati
 
 // 抽屉配置常量
 const DRAWER_CONFIG = {
-  size: '60%',
-  zIndex: 3000
+  size: '60%'
 } as const
 
 const props = defineProps<WidgetComponentProps>()

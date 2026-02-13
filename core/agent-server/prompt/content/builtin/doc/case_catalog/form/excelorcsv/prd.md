@@ -3,16 +3,16 @@
 ## 一、项目概要
 
 - **类型**：单 Form，多个 POST，无 Table。
-- **路由**：Excel↔CSV、填列、转 JSON 等；路由组 `/form/excelorcsv`。
+- **路由**：office_excel_to_csv.form、office_excel_to_json.form、office_excel_fill_column.form、office_csv_to_excel.form 等；路由组 `/form/excelorcsv`。
 - **适合参考**：files 上传、多 POST 同目录、excelize、GetFS、响应 text_area 或 table。
 
 ---
 
 ## 二、PRD 要点（表格格式）
 
-以 **Excel 转 JSON**（office_excel_to_json）为例，其余 POST 类似：请求为 files + 可选参数，响应为 text_area 或 table。
+以 **Excel 转 JSON**（office_excel_to_json.form）为例，其余 POST 类似：请求为 files + 可选参数，响应为 text_area 或 table。
 
-### Excel 转 JSON（POST）
+### Excel 转 JSON（office_excel_to_json.form，POST）
 
 **请求**
 
@@ -36,12 +36,12 @@
 
 ## 三、文件与路由
 
-| 文件                     | 说明           | 注册 |
-|--------------------------|----------------|------|
-| office_excel_to_csv.go   | Excel 转 CSV   | POST |
-| office_excel_to_json.go  | Excel 转 JSON  | POST |
-| office_excel_fill_column.go | 填列        | POST |
-| office_csv_to_excel.go   | CSV 转 Excel   | POST |
+| 文件                     | 说明           | 注册路由                    |
+|--------------------------|----------------|-----------------------------|
+| office_excel_to_csv.go   | Excel 转 CSV   | POST office_excel_to_csv.form 等 |
+| office_excel_to_json.go  | Excel 转 JSON  | POST office_excel_to_json.form、office_excel_extract_column.form |
+| office_excel_fill_column.go | 填列        | POST office_excel_fill_column.form |
+| office_csv_to_excel.go   | CSV 转 Excel   | POST office_csv_to_excel.form、office_csv_text_to_excel.form |
 
 ---
 
@@ -419,10 +419,10 @@ func init() {
 	// 💡 packageContext 是在当前目录下系统自动创建的变量，直接用即可，无需定义
 	// CsvToExcelRouterGroup 这个要用固定的格式，文件名称的小写开头的驼峰+RouterGroup
 	// 注册Form函数 - CSV转Excel
-	packageContext.POST("office_csv_to_excel", CsvToExcel, CsvToExcelTemplate)
+	packageContext.POST("office_csv_to_excel.form", CsvToExcel, CsvToExcelTemplate)
 
 	// 注册Form函数 - CSV文本转Excel
-	packageContext.POST("office_csv_text_to_excel", CsvTextToExcel, CsvTextToExcelTemplate)
+	packageContext.POST("office_csv_text_to_excel.form", CsvTextToExcel, CsvTextToExcelTemplate)
 }
 
 // CsvTextToExcelTemplate CSV文本转Excel配置
@@ -684,7 +684,7 @@ var ExcelFillColumnTemplate = &app.FormTemplate{
 func init() {
 	// 💡 packageContext 是在当前目录下系统自动创建的变量，直接用即可，无需定义
 	// 注册Form函数 - Excel列值填充
-	packageContext.POST("office_excel_fill_column", ExcelFillColumn, ExcelFillColumnTemplate)
+	packageContext.POST("office_excel_fill_column.form", ExcelFillColumn, ExcelFillColumnTemplate)
 }
 ```
 
@@ -1006,10 +1006,10 @@ var ExcelToCsvTextTemplate = &app.FormTemplate{
 
 func init() {
 	// 💡 packageContext 是在当前目录下系统自动创建的变量，直接用即可，无需定义
-	packageContext.POST("office_excel_to_csv", ExcelToCsv, ExcelToCsvTemplate)
+	packageContext.POST("office_excel_to_csv.form", ExcelToCsv, ExcelToCsvTemplate)
 
 	// 注册Form函数 - Excel转CSV文本
-	packageContext.POST("office_excel_to_csv_text", ExcelToCsvText, ExcelToCsvTextTemplate)
+	packageContext.POST("office_excel_to_csv_text.form", ExcelToCsvText, ExcelToCsvTextTemplate)
 }
 ```
 
@@ -1478,10 +1478,10 @@ var ExcelExtractColumnTemplate = &app.FormTemplate{
 func init() {
 	// 💡 packageContext 是在当前目录下系统自动创建的变量，直接用即可，无需定义
 	// 注册Form函数 - Excel转JSON
-	packageContext.POST("office_excel_to_json", ExcelToJson, ExcelToJsonTemplate)
+	packageContext.POST("office_excel_to_json.form", ExcelToJson, ExcelToJsonTemplate)
 
 	// 注册Form函数 - Excel提取指定列
-	packageContext.POST("office_excel_extract_column", ExcelExtractColumn, ExcelExtractColumnTemplate)
+	packageContext.POST("office_excel_extract_column.form", ExcelExtractColumn, ExcelExtractColumnTemplate)
 }
 ```
 

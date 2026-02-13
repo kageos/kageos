@@ -10,7 +10,7 @@
 
 1. **确认路径与参数**：环境中的「当前目录下的可执行函数」会列出 table/form/chart 的 full_code_path，可直接用。若需确认可搜字段、Req 自定义参数或 Chart 的 Request 结构，用 read_dir / read_go_file 看对应 .go。
 2. **选对工具**：查列表 → run_table_search；新增表格记录 → run_table_create；更新表格记录 → run_table_update；提交表单 → run_form_submit；查图表 → run_chart_query。
-3. **传参**：full_code_path 须到**具体函数名**（如 `/luobei/myapp/nps/nps_questionnaire_list`），**不能只填包路径**（如 `.../nps`），否则接口无法匹配、会返回空。url_query、body 等约定见本文档下方易错点与表格。
+3. **传参**：full_code_path 须到**具体函数名**（如 `/luobei/myapp/nps/nps_questionnaire_list.table`），**不能只填包路径**（如 `.../nps`），否则接口无法匹配、会返回空。**路由名一定会带类型后缀**：`.table` = 表格列表，`.form` = 表单，`.chart` = 图表；看到后缀即可知该函数类型。url_query、body 等约定见本文档下方易错点与表格。
 4. **调用**：按文档传参后调用对应工具即可。
 
 ---
@@ -83,19 +83,19 @@
 
 ### 1. full_code_path 必须到具体函数名
 
-后端按 full_code_path 精确匹配一个 Table/Form/Chart 函数（每个函数在 init 里注册，如 `GET("nps_questionnaire_list", ...)`）。若只传包路径，没有函数与之对应，会返回空。
+后端按 full_code_path 精确匹配一个 Table/Form/Chart 函数（每个函数在 init 里注册，如 `GET("nps_questionnaire_list.table", ...)`）。若只传包路径，没有函数与之对应，会返回空。
 
 **错误示例**（只填包路径，查不到数据）：
 - `full_code_path: "/luobei/testfunctioncall/testwork/testcfxprj/nps"` → 查不到问卷列表或响应列表，返回 `{}` 或 `items: []`。
 
-**正确做法**：先 read_dir 看包 `nps` 下有哪些 .go；再 read_go_file 看 `nps_questionnaire.go` 的 `init()`，得到函数名 `nps_questionnaire_list`，则 full_code_path 填 `/luobei/.../nps/nps_questionnaire_list`；查响应列表则用 `nps_response_list`，即 `/luobei/.../nps/nps_response_list`。
+**正确做法**：先 read_dir 看包 `nps` 下有哪些 .go；再 read_go_file 看 `nps_questionnaire.go` 的 `init()`，得到函数名（如 `nps_questionnaire_list.table`），则 full_code_path 填 `/luobei/.../nps/nps_questionnaire_list.table`；查响应列表则用 `nps_response_list.table`，即 `/luobei/.../nps/nps_response_list.table`。**路由名一定会带类型后缀**：`.table` = 表格列表，`.form` = 表单，`.chart` = 图表；看到后缀即可知该函数类型。
 
-**正确示例**（必须包含 init 里注册的函数名）：
-- 查问卷列表：`full_code_path: "/luobei/myapp/nps/nps_questionnaire_list"`
-- 查问卷响应列表：`full_code_path: "/luobei/myapp/nps/nps_response_list"`
-- 查工单列表：`full_code_path: "/luobei/myapp/crm/ticket/crm_ticket_list"`
-- 表单：`full_code_path: "/luobei/myapp/plugins/cashier_desk"`
-- 图表：`full_code_path: "/luobei/myapp/nps/nps_current_score_statistics"`（不能到包路径，多张图每张图有各自路由，需分别调用）
+**正确示例**（必须包含 init 里注册的函数名；路由名一定带类型后缀，看到后缀即知类型）：
+- 查问卷列表：`full_code_path: "/luobei/myapp/nps/nps_questionnaire_list.table"`
+- 查问卷响应列表：`full_code_path: "/luobei/myapp/nps/nps_response_list.table"`
+- 查工单列表：`full_code_path: "/luobei/myapp/crm/ticket/crm_ticket_list.table"`
+- 表单：`full_code_path: "/luobei/myapp/plugins/cashier_desk.form"`
+- 图表：`full_code_path: "/luobei/myapp/nps/nps_current_score_statistics.chart"`（不能到包路径，多张图每张图有各自路由，需分别调用）
 
 ---
 
@@ -158,12 +158,12 @@ type QuestionnaireListReq struct {
 
 **完整调用示例（与真实请求一致）**
 
-- full_code_path：`/luobei/myapp/nps/nps_questionnaire_list`
+- full_code_path：`/luobei/myapp/nps/nps_questionnaire_list.table`
 - url_query：`in=target_group:全部用户,create_by:beiluo&status=未开始&page=1&page_size=20&sorts=id:desc`
 - **含义**：查询 NPS 问卷列表 — 目标用户组为「全部用户」、创建人为 beiluo、问卷状态为「未开始」、第 1 页每页 20 条、按 id 降序。
 
 实际请求为：  
-`GET /workspace/api/v1/table/search/luobei/myapp/nps/nps_questionnaire_list?in=target_group:全部用户,create_by:beiluo&status=未开始&page=1&page_size=20&sorts=id:desc`
+`GET /workspace/api/v1/table/search/luobei/myapp/nps/nps_questionnaire_list.table?in=target_group:全部用户,create_by:beiluo&status=未开始&page=1&page_size=20&sorts=id:desc`
 
 调用 run_table_search 时：full_code_path 填表格路径，url_query 填上述查询串即可。
 
@@ -179,11 +179,11 @@ type QuestionnaireListReq struct {
 **正确示例**（即使只新增一条也必须是数组）
 
 - **单条新增**：  
-  `full_code_path`: `/luobei/myapp/nps/nps_questionnaire_list`  
+  `full_code_path`: `/luobei/myapp/nps/nps_questionnaire_list.table`  
   `body`: `[{"title":"问卷A","description":"描述","target_group":"全部用户","start_time":1738339200000,"end_time":1738944000000}]`
 
 - **批量新增**：  
-  `full_code_path`: `/luobei/myapp/nps/nps_questionnaire_list`  
+  `full_code_path`: `/luobei/myapp/nps/nps_questionnaire_list.table`  
   `body`: `[{"title":"2025Q1 满意度","description":"第一季度调研","target_group":"全部用户","start_time":1738339200000,"end_time":1738944000000},{"title":"2025Q2 满意度","description":"第二季度调研","target_group":"全部用户","start_time":1741017600000,"end_time":1741622400000}]`
 
 **传参说明**：键名与表格 **model 的 json 标签**一致；必填字段需包含，可选项可省略。**create_by、created_at、updated_at 由系统自动填充，无需在 body 中填写。** 业务时间字段（如 start_time、end_time）**必须为毫秒时间戳**（int64），禁止秒级。
@@ -203,7 +203,7 @@ type QuestionnaireListReq struct {
 
 ### 5. 查询图表（run_chart_query）：url_query 由该 Chart 的 Request 决定
 
-**约定**：一个 Chart 路由一次只返回一张图；full_code_path 须到**具体图表函数名**（如 `/luobei/myapp/nps/nps_sales_trend_statistics`），不能到包路径；多张图时每张图有各自的路由与 full_code_path，需分别调用 run_chart_query。
+**约定**：一个 Chart 路由一次只返回一张图；full_code_path 须到**具体图表函数名**（如 `/luobei/myapp/nps/nps_sales_trend_statistics.chart`），不能到包路径；多张图时每张图有各自的路由与 full_code_path，需分别调用 run_chart_query。
 
 **正确做法**：用 read_go_file 查看对应 .go 里 Chart 的 **Request 结构**（form 标签），以确定可传参数名与取值。每个 Chart 的 Req 不同，没有统一格式。
 
@@ -242,7 +242,7 @@ type QuestionnaireListReq struct {
 
 ## 如何获知路径与参数
 
-1. **列表/图表/表单路径**：在工作区目录下 `read_dir`，看有哪些 `tables/xxx`、`plugins/xxx`、charts 等；full_code_path 一般为 `/用户/app/.../函数名`（如 `/luobei/myapp/nps/nps_questionnaire_list`）。
+1. **列表/图表/表单路径**：在工作区目录下 `read_dir`，看有哪些 `tables/xxx`、`plugins/xxx`、charts 等；full_code_path 一般为 `/用户/app/.../函数名`（如 `/luobei/myapp/nps/nps_questionnaire_list.table`）。**函数名一定带类型后缀**：`.table` = 表格列表，`.form` = 表单，`.chart` = 图表；看到后缀即可知该函数类型。
 2. **Table 可搜字段与 Req 自定义字段**：`read_go_file` 打开该 Table 对应的 .go，看 **model 的 search 标签**（eq/like/in/gte/lte 等）和 List Req 的 **form 标签**（如 status）。
 3. **Chart 参数**：`read_go_file` 打开该 Chart 对应的 .go，看 Chart 的 **Request 结构**（如 questionnaire_id、group_by）。
 4. **Form 字段**：`read_go_file` 打开该 Form 对应的 .go，看 **Request 结构**的 json 标签，body 的键与 json 名一致。

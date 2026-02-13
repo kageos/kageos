@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -130,6 +131,7 @@ func (s *ServiceTreeService) removeAdminRoleFromUserWithUserApp(ctx context.Cont
 
 type ServiceTreeService struct {
 	serviceTreeRepo   *repository.ServiceTreeRepository
+	functionRepo      *repository.FunctionRepository // 用于 SearchFunctions 查函数表并返回 Request/Response
 	appRepo           *repository.AppRepository
 	appCall           *appcall.Client
 	fileSnapshotRepo  *repository.FileSnapshotRepository
@@ -141,6 +143,7 @@ type ServiceTreeService struct {
 // NewServiceTreeService 创建服务目录服务
 func NewServiceTreeService(
 	serviceTreeRepo *repository.ServiceTreeRepository,
+	functionRepo *repository.FunctionRepository,
 	appRepo *repository.AppRepository,
 	appCall *appcall.Client,
 	fileSnapshotRepo *repository.FileSnapshotRepository,
@@ -150,9 +153,10 @@ func NewServiceTreeService(
 ) *ServiceTreeService {
 	return &ServiceTreeService{
 		serviceTreeRepo:   serviceTreeRepo,
-		appRepo:           appRepo,
+		functionRepo:      functionRepo,
+		appRepo:          appRepo,
 		appCall:           appCall,
-		fileSnapshotRepo:  fileSnapshotRepo,
+		fileSnapshotRepo: fileSnapshotRepo,
 		appService:        appService,
 		permissionService: permissionService,
 		docService:        docService,
@@ -3312,10 +3316,9 @@ func (s *ServiceTreeService) GetHubInfo(ctx context.Context, req *dto.GetHubInfo
 	}, nil
 }
 
-// SearchFunctions 搜索函数
+// SearchFunctions 搜索函数：查 ServiceTree（type=function），预加载 App、Function，返回带请求/响应参数的结果
 func (s *ServiceTreeService) SearchFunctions(ctx context.Context, req *dto.SearchFunctionsReq) (*dto.SearchFunctionsResp, error) {
-	// 调用 Repository 搜索函数
-	functions, total, err := s.serviceTreeRepo.SearchFunctions(
+	trees, total, err := s.serviceTreeRepo.SearchFunctions(
 		req.User,
 		req.App,
 		req.Keyword,
@@ -3327,25 +3330,36 @@ func (s *ServiceTreeService) SearchFunctions(ctx context.Context, req *dto.Searc
 		return nil, fmt.Errorf("搜索函数失败: %w", err)
 	}
 
-	// 转换为响应格式
-	functionResults := make([]*dto.FunctionSearchResult, 0, len(functions))
-	for _, fn := range functions {
+	functionResults := make([]*dto.FunctionSearchResult, 0, len(trees))
+	for _, tree := range trees {
 		result := &dto.FunctionSearchResult{
-			ID:           fn.ID,
-			Name:         fn.Name,
-			Code:         fn.Code,
-			FullCodePath: fn.FullCodePath,
-			Description:  fn.Description,
-			TemplateType: fn.TemplateType,
-			AppID:        fn.AppID,
+			Name:         tree.Name,
+			Code:         tree.Code,
+			Description:  tree.Description,
+			TemplateType: tree.TemplateType,
+			FullCodePath: tree.FullCodePath,
 		}
-
-		// 如果预加载了 App，填充 AppUser 和 AppCode
-		if fn.App != nil {
-			result.AppUser = fn.App.User
-			result.AppCode = fn.App.Code
+		if tree.App != nil {
+			result.AppID = tree.AppID
+			result.AppUser = tree.App.User
+			result.AppCode = tree.App.Code
 		}
-
+		if tree.Function != nil {
+			result.ID = tree.Function.ID
+			result.FullCodePath = tree.Function.Router // 以 function.router 为准
+			if len(tree.Function.Request) > 0 {
+				var reqArr []interface{}
+				if err := json.Unmarshal(tree.Function.Request, &reqArr); err == nil {
+					result.Request = reqArr
+				}
+			}
+			if len(tree.Function.Response) > 0 {
+				var respArr []interface{}
+				if err := json.Unmarshal(tree.Function.Response, &respArr); err == nil {
+					result.Response = respArr
+				}
+			}
+		}
 		functionResults = append(functionResults, result)
 	}
 

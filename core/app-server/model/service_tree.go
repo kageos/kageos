@@ -32,9 +32,10 @@ type ServiceTree struct {
 	
 	AppID        int64  `json:"app_id"`
 	// FullGroupCode 和 GroupName 已移除，不再需要
-	RefID        int64  `json:"ref_id" gorm:"default:0"`                   // 引用ID：指向真实资源的ID，如果是package类型指向package的ID，如果是function类型指向function的ID
-	App          *App   `json:"app" gorm:"foreignKey:AppID;references:ID"` // 预加载的完整应用对象
-	TemplateType string `json:"template_type"`                             //函数的类型
+	RefID        int64      `json:"ref_id" gorm:"default:0"`                   // 引用ID：function 类型时指向 function 的 ID
+	App          *App       `json:"app" gorm:"foreignKey:AppID;references:ID"` // 预加载
+	Function     *Function   `json:"-" gorm:"foreignKey:RefID;references:ID;constraint:false"` // 预加载，仅 type=function 时有值；不建 DB 外键
+	TemplateType string     `json:"template_type"`                             // 函数的类型
 	//下面字段是数据库
 	FullCodePath     string         `json:"full_code_path"`                                                                              // /$user/$app/plugins/pdf 这种
 	AddVersionNum    int            `json:"add_version_num"`                                                                             // 添加版本号（数字部分，如 v1 -> 1），用于版本回滚时过滤
