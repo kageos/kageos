@@ -8,9 +8,18 @@
 
 import { ref, type Ref } from 'vue'
 
+export interface ChatMessageFile {
+  name: string
+  source_name?: string
+  url?: string
+  [key: string]: unknown
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
+  /** 仅 user 消息：附带文件列表（发送时展示、加载会话时由接口解析） */
+  files?: ChatMessageFile[]
   tool_calls?: Array<{ name: string; status: string; arguments?: string; result?: string; error?: string }>
   created_at?: string
 }
@@ -24,8 +33,8 @@ export interface UseWorkspaceChatStreamReturn {
   agentId: Ref<number | null>
   /** 由调用方在 SSE 回调里调用，用于更新最后一条 assistant 消息及 sessionId/agentId */
   handleEvent: StreamEventHandler
-  /** 发送一条用户消息并跑流：追加 user + assistant，调用 streamFn(handleEvent)，streamFn 内调 API 并传 handleEvent */
-  send: (content: string, streamFn: (onEvent: StreamEventHandler) => Promise<void>) => Promise<void>
+  /** 发送一条用户消息并跑流：追加 user + assistant，调用 streamFn(handleEvent)。可选传 files 以便发送后立即展示附件 */
+  send: (content: string, streamFn: (onEvent: StreamEventHandler) => Promise<void>, files?: ChatMessageFile[]) => Promise<void>
   /** 加载/覆盖消息列表（如切换会话时） */
   setMessages: (msgs: ChatMessage[]) => void
 }
@@ -121,10 +130,10 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
     }
   }
 
-  async function send(content: string, streamFn: (onEvent: StreamEventHandler) => Promise<void>) {
+  async function send(content: string, streamFn: (onEvent: StreamEventHandler) => Promise<void>, files?: ChatMessageFile[]) {
     if (sending.value) return
     const now = new Date().toISOString()
-    messages.value.push({ role: 'user', content, created_at: now })
+    messages.value.push({ role: 'user', content, files: files?.length ? files : undefined, created_at: now })
     messages.value.push({ role: 'assistant', content: '', tool_calls: [], created_at: now })
     sending.value = true
     const idx = messages.value.length - 1
