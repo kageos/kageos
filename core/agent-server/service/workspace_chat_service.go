@@ -53,8 +53,11 @@ const (
 	EventError           = "error"
 )
 
+const filesInstruction = "以上 <files> 标签中的 JSON 为本轮用户上传的文件数据，可作为表单函数的 files 参数使用。"
+
 // buildUserMessageContentWithFiles 当用户上传了文件时，将消息内容格式化为：
 // <files>\n{JSON}\n</files> + 说明 + 用户需求，便于 Agent 把 <files> 内的 JSON 当作 run_form_submit 的 input_files 使用。
+// 仅用于拼装发给 LLM 的完整内容，不入库。
 func buildUserMessageContentWithFiles(files *types.Files, userContent string) string {
 	if files == nil || len(files.Files) == 0 {
 		return userContent
@@ -63,12 +66,41 @@ func buildUserMessageContentWithFiles(files *types.Files, userContent string) st
 	if err != nil {
 		return userContent
 	}
-	instruction := "以上 <files> 标签中的 JSON 为本轮用户上传的文件数据，可作为表单函数的 files 参数使用。"
 	demand := strings.TrimSpace(userContent)
 	if demand == "" {
 		demand = "用户需求：请处理上述文件"
 	}
-	return "<files>\n" + string(raw) + "\n</files>\n\n" + instruction + "\n\n" + demand
+	return "<files>\n" + string(raw) + "\n</files>\n\n" + filesInstruction + "\n\n" + demand
+}
+
+// userContentForStorage 入库用：只保留用户文字到 Content，文件单独到 Files（JSON）。
+// 返回 (content, filesJSON)；无文件时 filesJSON 为 nil。
+func userContentForStorage(files *types.Files, userContent string) (content string, filesJSON *string) {
+	demand := strings.TrimSpace(userContent)
+	if files == nil || len(files.Files) == 0 {
+		return demand, nil
+	}
+	raw, err := json.Marshal(files)
+	if err != nil {
+		return demand, nil
+	}
+	if demand == "" {
+		demand = "用户需求：请处理上述文件"
+	}
+	s := string(raw)
+	return demand, &s
+}
+
+// userContentForLLM 从库中取出的 user 消息：若有 Files 则拼出完整内容（<files>+说明+content）供 LLM 使用。
+func userContentForLLM(content string, filesJSON *string) string {
+	if filesJSON == nil || *filesJSON == "" {
+		return content
+	}
+	demand := strings.TrimSpace(content)
+	if demand == "" {
+		demand = "用户需求：请处理上述文件"
+	}
+	return "<files>\n" + *filesJSON + "\n</files>\n\n" + filesInstruction + "\n\n" + demand
 }
 
 // WorkspaceChatService 工作台对话编排：会话、历史、LLM、Tool 循环；只认 LLM + 单模式（dev）
@@ -218,11 +250,11 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 
 	llmConfigID := req.LLMConfigID
 
-	// 3) 保存 user 消息：若有上传文件，将内容格式化为 <files>JSON</files>\n\n用户需求：...，便于 Agent 将 <files> 内 JSON 照抄到 run_form_submit 的 input_files
-	userContent := buildUserMessageContentWithFiles(req.Message.Files, req.Message.Content)
+	// 3) 保存 user 消息：Content 只存用户文字，文件单独存 Files（JSON），避免前端展示时出现整段 JSON 与说明文
+	storageContent, storageFiles := userContentForStorage(req.Message.Files, req.Message.Content)
 	userMsg := &model.AgentChatMessage{
 		SessionID: sessionID, AgentID: nil, Role: RoleUser,
-		Content: userContent, User: user,
+		Content: storageContent, Files: storageFiles, User: user,
 	}
 	userMsg.CreatedBy = user
 	userMsg.UpdatedBy = user
@@ -447,7 +479,8 @@ func (s *WorkspaceChatService) buildLLMMessages(ctx context.Context, sessionID, 
 	for _, m := range list {
 		switch m.Role {
 		case RoleUser:
-			msgs = append(msgs, llms.Message{Role: RoleUser, Content: m.Content})
+			userContent := userContentForLLM(m.Content, m.Files)
+			msgs = append(msgs, llms.Message{Role: RoleUser, Content: userContent})
 		case RoleAssistant:
 			// 检查是否有 tool_calls（从 ToolCalls JSON 字段解析）
 			msg := llms.Message{Role: RoleAssistant, Content: m.Content}

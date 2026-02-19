@@ -39,7 +39,7 @@
           <pre v-else class="json-content json-content--empty">（无参数或加载中）</pre>
         </div>
       </div>
-      <!-- 结果显示 -->
+      <!-- 结果显示（完整 JSON，可复制）；输出文件由父级在工具调用下方统一展示 -->
       <div v-if="toolCall.result" class="tool-call-section">
         <div class="section-title">
           <el-icon><CircleCheck /></el-icon>
@@ -50,7 +50,7 @@
           </el-button>
         </div>
         <div class="section-content">
-          <pre class="result-content">{{ toolCall.result }}</pre>
+          <pre class="result-content">{{ formatJSON(toolCall.result) }}</pre>
         </div>
       </div>
       <!-- 错误显示 -->
@@ -77,7 +77,8 @@ const props = defineProps<{
   toolCall: WorkspaceChatToolCallSummary
 }>()
 
-const expanded = ref(true)
+/** 默认折叠，点击展开看参数/结果详情（跑马灯视口只显示一行） */
+const expanded = ref(false)
 
 function toggleExpand() {
   expanded.value = !expanded.value

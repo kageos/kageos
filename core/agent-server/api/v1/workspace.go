@@ -164,6 +164,7 @@ func (h *Workspace) ListMessages(c *gin.Context) {
 			SessionID: msg.SessionID,
 			Role:      msg.Role,
 			Content:   msg.Content,
+			Files:     msg.Files,
 			CreatedAt: msg.CreatedAt,
 		}
 		if msg.AgentID != nil {

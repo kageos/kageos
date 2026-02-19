@@ -111,22 +111,22 @@
             <span v-if="m.created_at" class="message-time">{{ formatMessageTime(m.created_at) }}</span>
           </div>
           <div class="content">
-            <div class="message-text" v-html="renderMarkdown(m.content)"></div>
+            <!-- 用户消息附带文件：与输出文件同款展示（卡片、图片预览、打开/下载） -->
+            <OutputFilesDisplay
+              v-if="m.role === 'user' && m.files?.length"
+              :file-groups="[{ label: '', files: m.files }]"
+              section-title="上传的文件"
+              class="message-files"
+            />
+            <div class="message-text" v-html="renderMarkdown(getMessageDisplayContent(m))"></div>
             <span v-if="sending && i === messages.length - 1 && m.role === 'assistant'" class="streaming-cursor">▌</span>
           </div>
-          <!-- 本消息发起的工具调用：放在消息下方，可折叠，时间线更清晰 -->
-          <div v-if="m.role === 'assistant' && m.tool_calls?.length" class="message-tool-calls-wrap">
-            <details class="message-tool-calls-details" open>
-              <summary class="message-tool-calls-summary">本消息发起的调用（{{ m.tool_calls.length }} 个）</summary>
-              <div class="tool-calls">
-                <ToolCallCard
-                  v-for="(tc, j) in m.tool_calls"
-                  :key="tc.id || j"
-                  :tool-call="tc"
-                />
-              </div>
-            </details>
-          </div>
+          <!-- 工具调用：由 MessageToolCalls 统一负责跑马灯视口、自动滚动、输出文件 -->
+          <MessageToolCalls
+            v-if="m.role === 'assistant' && m.tool_calls?.length"
+            :tool-calls="m.tool_calls"
+            :file-groups="getMessageFileGroups(m)"
+          />
         </div>
       </div>
 
@@ -195,9 +195,11 @@ import { ArrowLeft, ArrowRight, Plus, Paperclip } from '@element-plus/icons-vue'
 import { marked } from 'marked'
 import { workspaceChatStream, getWorkspaceSessions, getWorkspaceMessages, type WorkspaceSessionItem, type WorkspaceChatReq, type WorkspaceChatMessageFile } from '@/api/workspace'
 import { getLLMList, type LLMInfo } from '@/api/agent'
-import ToolCallCard from './ToolCallCard.vue'
+import MessageToolCalls from './MessageToolCalls.vue'
+import OutputFilesDisplay from './OutputFilesDisplay.vue'
+import { extractFileGroupsFromResult, type OutputFileGroup } from '@/architecture/presentation/composables/useOutputFileGroups'
 import { ElMessage } from 'element-plus'
-import { useWorkspaceChatStream } from '@/architecture/presentation/composables/useWorkspaceChatStream'
+import { useWorkspaceChatStream, type ChatMessage } from '@/architecture/presentation/composables/useWorkspaceChatStream'
 import { uploadFile, notifyUploadComplete } from '@/utils/upload'
 import type { UploadProgress } from '@/utils/upload/types'
 import { useAuthStore } from '@/stores/auth'
@@ -373,6 +375,32 @@ async function loadSessions() {
   }
 }
 
+/** 从接口返回的 files JSON 解析出文件列表（用于展示用户消息附件） */
+function parseMessageFiles(filesStr: string | null | undefined): WorkspaceChatMessageFile[] {
+  if (!filesStr) return []
+  try {
+    const o = JSON.parse(filesStr) as { files?: WorkspaceChatMessageFile[] }
+    return Array.isArray(o?.files) ? o.files : []
+  } catch {
+    return []
+  }
+}
+
+/** 历史消息中可能含 <files>...</files> 与说明文，展示时去掉，只留用户文字 */
+function stripFilesBlockForDisplay(content: string): string {
+  if (!content) return ''
+  const stripped = content
+    .replace(/<files>[\s\S]*?<\/files>/i, '')
+    .replace(/\s*以上\s*<files>\s*标签中的 JSON[^。]*。\s*/g, '')
+    .trim()
+  return stripped || content
+}
+
+/** 用于展示的消息正文：用户消息去掉 <files> 块，避免出现整段 JSON */
+function getMessageDisplayContent(m: { role: string; content: string }): string {
+  return m.role === 'user' ? stripFilesBlockForDisplay(m.content) : m.content
+}
+
 // 加载会话消息
 async function loadSessionMessages(targetSessionId: string) {
   try {
@@ -382,10 +410,11 @@ async function loadSessionMessages(targetSessionId: string) {
       .map((msg) => ({
         role: msg.role as 'user' | 'assistant',
         content: msg.content,
+        files: parseMessageFiles(msg.files),
         tool_calls: msg.tool_calls || [],
         created_at: msg.created_at,
       }))
-    setMessages(msgs)
+    setMessages(msgs as ChatMessage[])
     setTimeout(() => {
       if (messagesRef.value) {
         messagesRef.value.scrollTop = messagesRef.value.scrollHeight
@@ -459,6 +488,16 @@ function renderMarkdown(content: string): string {
   }
 }
 
+/** 聚合本消息所有工具调用的 result 中的输出文件，供下方独立展示（不展开工具详情也能看到） */
+function getMessageFileGroups(m: ChatMessage): OutputFileGroup[] {
+  const list = m.tool_calls ?? []
+  const groups: OutputFileGroup[] = []
+  for (const tc of list) {
+    groups.push(...extractFileGroupsFromResult(tc.result))
+  }
+  return groups
+}
+
 function formatMessageTime(isoString: string): string {
   if (!isoString) return ''
   const date = new Date(isoString)
@@ -511,7 +550,7 @@ async function send() {
     })
   }
   try {
-    await sendMessage(content || (files?.length ? '已上传文件' : ''), streamFn)
+    await sendMessage(content || (files?.length ? '已上传文件' : ''), streamFn, files?.length ? files : undefined)
   } catch {
     ElMessage.error('发送失败')
   }
@@ -701,6 +740,9 @@ async function send() {
   line-height: 1.5;
   color: var(--el-text-color-regular);
 }
+.message-files {
+  margin-bottom: 8px;
+}
 .message .message-text {
   word-break: break-word;
 }
@@ -757,52 +799,7 @@ async function send() {
 .message .message-text :deep(img) { max-width: 100%; height: auto; border-radius: 4px; margin: 6px 0; }
 .streaming-cursor { animation: blink 0.8s step-end infinite; color: var(--el-color-primary); display: inline-block; margin-left: 2px; }
 @keyframes blink { 50% { opacity: 0; } }
-/* 本消息发起的调用：放在消息下方、可折叠 */
-.message-tool-calls-wrap {
-  width: 100%;
-  margin-top: 8px;
-}
-.message-tool-calls-details {
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: var(--el-border-radius-base);
-  background: var(--el-fill-color-lighter);
-  overflow: hidden;
-}
-.message-tool-calls-summary {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
-  cursor: pointer;
-  list-style: none;
-  user-select: none;
-}
-.message-tool-calls-summary::-webkit-details-marker { display: none; }
-.message-tool-calls-summary::before {
-  content: '▶';
-  font-size: 10px;
-  transition: transform 0.2s;
-  color: var(--el-text-color-placeholder);
-}
-.message-tool-calls-details[open] .message-tool-calls-summary::before {
-  transform: rotate(90deg);
-}
-.message-tool-calls-summary:hover {
-  background: var(--el-fill-color);
-  color: var(--el-text-color-regular);
-}
-.message-tool-calls-details .tool-calls {
-  padding: 8px 12px 12px;
-  border-top: 1px solid var(--el-border-color-lighter);
-}
-.tool-calls {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: 100%;
-}
+
 .input-area-drop-zone {
   border-radius: var(--el-border-radius-base);
   border: 2px dashed transparent;

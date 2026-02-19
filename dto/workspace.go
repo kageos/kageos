@@ -78,7 +78,8 @@ type WorkspaceMessageInfo struct {
 	SessionID string                         `json:"session_id"`           // 会话ID
 	AgentID   int64                          `json:"agent_id"`             // 智能体ID（0表示未关联）
 	Role      string                         `json:"role"`                 // 角色：user/assistant/tool
-	Content   string                         `json:"content"`              // 消息内容
+	Content   string                         `json:"content"`              // 消息内容（user 仅存用户文字，不含 <files> 块）
+	Files     *string                        `json:"files,omitempty"`      // 用户消息附带的文件列表 JSON（与 sdk types.Files 一致），仅 user 角色可能有
 	ToolCalls []WorkspaceChatToolCallSummary `json:"tool_calls,omitempty"` // 工具调用列表（仅assistant角色）
 	CreatedAt models.Time                    `json:"created_at"`           // 创建时间
 }
