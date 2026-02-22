@@ -275,7 +275,7 @@ import { Plus, MoreFilled, Link, CopyDocument, Document, Clock, Upload, Download
 import ChartIcon from './icons/ChartIcon.vue'
 import TableIcon from './icons/TableIcon.vue'
 import FormIcon from './icons/FormIcon.vue'
-import { ElTag, ElLink, ElMessageBox, ElMessage } from 'element-plus'
+import { ElTag, ElLink, ElMessageBox, ElMessage, ElNotification } from 'element-plus'
 import type { ServiceTree } from '@/types'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { copyDirectory, updatePackage, updateServiceTreeFunction, updateDocs } from '@/api/service-tree'
@@ -585,8 +585,15 @@ const handleCopy = (node: ServiceTree) => {
         }
       )
       
-      // 执行粘贴
+      // 执行粘贴：右上角显示加载中通知
       isPasting.value = true
+      const loadingNotify = ElNotification({
+        title: '复制中',
+        message: '正在复制目录，请稍候…',
+        type: 'info',
+        position: 'top-right',
+        duration: 0
+      })
       try {
         // 解析目标应用信息（从 finalTargetNode.full_code_path 中提取）
         const targetPathParts = finalTargetNode.full_code_path.split('/').filter(Boolean)
@@ -607,7 +614,12 @@ const handleCopy = (node: ServiceTree) => {
           target_app_id: targetAppId
         })
       
-      ElMessage.success('目录复制成功')
+        loadingNotify.close()
+        ElNotification.success({
+          title: '复制完成',
+          message: '目录已复制成功',
+          position: 'top-right'
+        })
       
       // 触发刷新树事件
       emit('refresh-tree')
@@ -615,6 +627,7 @@ const handleCopy = (node: ServiceTree) => {
       // 清空复制状态（可选，也可以保留以便多次粘贴）
       // copiedDirectory.value = null
     } catch (error: any) {
+      loadingNotify.close()
       // 用户取消操作不显示错误
       if (error !== 'cancel' && error !== 'close') {
         const errorMessage = error?.response?.data?.message || error?.message || '复制失败'
@@ -680,8 +693,15 @@ const handlePasteHubLink = async (hubLink: string, targetNode?: ServiceTree) => 
       }
     )
     
-    // 执行粘贴
+    // 执行粘贴：右上角显示加载中通知
     isPasting.value = true
+    const loadingNotify = ElNotification({
+      title: '复制中',
+      message: '正在从 Hub 复制目录，请稍候…',
+      type: 'info',
+      position: 'top-right',
+      duration: 0
+    })
     try {
       // 获取目标应用ID
       if (!finalTargetNode.app_id) {
@@ -697,13 +717,19 @@ const handlePasteHubLink = async (hubLink: string, targetNode?: ServiceTree) => 
         target_app_id: targetAppId
       })
     
-      ElMessage.success('目录复制成功')
+      loadingNotify.close()
+      ElNotification.success({
+        title: '复制完成',
+        message: '目录已从 Hub 复制成功',
+        position: 'top-right'
+      })
       
       // 触发刷新树事件
       emit('refresh-tree')
       
       // 保留 Hub 链接以便多次粘贴
     } catch (error: any) {
+      loadingNotify.close()
       // 用户取消操作不显示错误
       if (error !== 'cancel' && error !== 'close') {
         const errorMessage = error?.response?.data?.message || error?.message || '复制失败'

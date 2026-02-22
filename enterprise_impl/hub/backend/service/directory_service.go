@@ -116,7 +116,7 @@ func (s *HubDirectoryService) PublishDirectory(ctx context.Context, req *dto.Pub
 		return nil, fmt.Errorf("创建快照失败: %w", err)
 	}
 
-	// 9. 构建服务树节点和文件快照（递归处理）
+	// 9. 构建服务树节点和文件快照（递归处理，文件 file_version 由 Hub 内部用当前快照版本填充）
 	if err := s.buildServiceTreeAndSnapshots(ctx, req.DirectoryTree, directory.ID, snapshot.ID, rootPath, 0, 0); err != nil {
 		return nil, fmt.Errorf("构建服务树和快照失败: %w", err)
 	}
@@ -230,7 +230,7 @@ func (s *HubDirectoryService) UpdateDirectory(ctx context.Context, req *dto.Upda
 		return nil, fmt.Errorf("删除旧服务树节点失败: %w", err)
 	}
 
-	// 12. 构建新的服务树节点和文件快照
+	// 12. 构建新的服务树节点和文件快照（文件 file_version 由 Hub 内部用当前快照版本填充）
 	if err := s.buildServiceTreeAndSnapshots(ctx, req.DirectoryTree, existingDirectory.ID, snapshot.ID, rootPath, 0, 0); err != nil {
 		return nil, fmt.Errorf("构建服务树和快照失败: %w", err)
 	}
@@ -424,6 +424,7 @@ func (s *HubDirectoryService) countDirectoryTreeStats(node *dto.DirectoryTreeNod
 }
 
 // buildServiceTreeAndSnapshots 递归构建服务树节点和文件快照
+// 文件的 file_version 不依赖上游传递，由 Hub 内部用当前快照版本自动填充（自动递增即快照版本 v1/v2/...）
 func (s *HubDirectoryService) buildServiceTreeAndSnapshots(
 	ctx context.Context,
 	node *dto.DirectoryTreeNode,
@@ -433,6 +434,11 @@ func (s *HubDirectoryService) buildServiceTreeAndSnapshots(
 	parentID int64,
 	level int,
 ) error {
+	// 0. 若尚未取过快照版本，则查一次（仅首层调用时需查，递归时复用；为简单起见每层都查一次，可后续优化为参数下传）
+	snapshotVersion := ""
+	if snap, err := s.snapshotRepo.GetByID(ctx, snapshotID); err == nil && snap != nil {
+		snapshotVersion = snap.Version
+	}
 	// 1. 创建目录节点（package 类型）
 	dirNode := &model.HubServiceTree{
 		HubDirectoryID:     hubDirectoryID,
@@ -478,6 +484,10 @@ func (s *HubDirectoryService) buildServiceTreeAndSnapshots(
 	for i, fileInfo := range node.Files {
 		logger.Infof(ctx, "[buildServiceTreeAndSnapshots] 处理文件[%d]: FileName=%s, RelativePath=%s, FileType=%s, Content长度=%d",
 			i+1, fileInfo.FileName, fileInfo.RelativePath, fileInfo.FileType, len(fileInfo.Content))
+		fileVersion := fileInfo.FileVersion
+		if fileVersion == "" {
+			fileVersion = snapshotVersion // 上游不传版本，由 Hub 内部用当前快照版本（v1/v2/... 自动递增）填充
+		}
 		fileSnapshot := &model.HubFileSnapshot{
 			HubSnapshotID:    snapshotID,
 			HubServiceTreeID: dirNode.ID,
@@ -485,8 +495,8 @@ func (s *HubDirectoryService) buildServiceTreeAndSnapshots(
 			RelativePath:     fileInfo.RelativePath,
 			FileType:         fileInfo.FileType,
 			Content:          fileInfo.Content,
-			FileVersion:      fileInfo.FileVersion,
-			FileVersionNum:   extractVersionNum(fileInfo.FileVersion),
+			FileVersion:      fileVersion,
+			FileVersionNum:   extractVersionNum(fileVersion),
 			FileSize:         len(fileInfo.Content),
 			ContentHash:      utils.HashString(fileInfo.Content),
 		}
@@ -619,12 +629,26 @@ func (s *HubDirectoryService) buildTreeNode(
 		}
 	}
 
+	// 构建该目录下的文件列表（copyFromHub 等依赖此字段写入目标）
+	files := make([]*dto.FileSnapshotInfo, 0)
+	if list, ok := fileMap[node.ID]; ok {
+		for _, f := range list {
+			files = append(files, &dto.FileSnapshotInfo{
+				FileName:     f.FileName,
+				RelativePath: f.RelativePath,
+				Content:      f.Content,
+				FileType:     f.FileType,
+				FileVersion:  f.FileVersion,
+			})
+		}
+	}
+
 	return &dto.DirectoryTreeNode{
 		Type:           "package", // DirectoryTreeNode 始终是 package 类型
 		Name:           node.Name, // 目录名称（中文显示名称）
 		Code:           node.Code, // 目录代码（英文标识）
 		Path:           node.FullCodePath,
-		Files:          nil, // ⭐ 设为 nil，使用 omitempty 后 JSON 序列化时不会包含 files 字段
+		Files:          files, // 填充文件内容，供 copyFromHub / 拉取 使用
 		Functions:      functions,
 		Subdirectories: subdirectories,
 	}

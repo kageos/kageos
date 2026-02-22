@@ -63,48 +63,49 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
         status: 'streaming' as const,
         arguments: typeof t.arguments === 'string' ? t.arguments : undefined,
       }))
-      // 合并：已有 running/ok/error 的项不覆盖为 streaming，但参数以新流为准（流式会逐渐补全）
       const prev = m.tool_calls || []
-      const list = streamList.map((item, i) => {
+      // 合并：已有 running/ok/error 的项保留 status/result/error，不覆盖；且不截断：若 prev 更长则保留多出的项，这样执行过程中已产生的文件历史不会丢
+      const fromStream = streamList.map((item, i) => {
         const existing = prev[i]
         const args = (item.arguments && item.arguments.trim()) ? item.arguments : (existing?.arguments ?? item.arguments)
-        if (existing && ['running', 'ok', 'error'].includes(existing.status))
-          return { ...item, status: existing.status, arguments: args }
+        if (existing && ['running', 'ok', 'error'].includes(existing.status)) {
+          return {
+            ...item,
+            status: existing.status,
+            arguments: args,
+            result: existing.result,
+            error: existing.error,
+          }
+        }
         return { ...item, arguments: args }
       })
+      const list = prev.length > streamList.length
+        ? fromStream.concat(prev.slice(streamList.length))
+        : fromStream
       messages.value[lastIdx] = { ...m, tool_calls: list }
     }
     if (event === 'tool_call' && typeof data.name === 'string') {
       const status = String(data.status || 'ok')
-      const argumentsStr = typeof data.arguments === 'string' ? data.arguments : undefined
-      const prev = m.tool_calls || []
-      // 先找「第一个同名且未完成」的槽位，避免连续两次同名工具时只更新最后一个
-      const pendingSameNameIndex = prev.findIndex(
-        (t) => t.name === data.name && (t.status === 'streaming' || t.status === 'running')
-      )
-      const lastSameNameIndex =
-        pendingSameNameIndex >= 0
-          ? pendingSameNameIndex
-          : prev.map((t, i) => (t.name === data.name ? i : -1)).filter((i) => i >= 0).pop()
-      const keepArgs = (argumentsStr && argumentsStr.trim()) ? argumentsStr : undefined
+      const argumentsStr = (typeof data.arguments === 'string' && data.arguments.trim()) ? data.arguments : undefined
       const resultStr = typeof data.result === 'string' ? data.result : undefined
       const errorStr = typeof data.error === 'string' ? data.error : undefined
-      let list: Array<{ name: string; status: string; arguments?: string; result?: string; error?: string }>
-      if (lastSameNameIndex !== undefined) {
-        list = prev.map((t, i) =>
-          i === lastSameNameIndex
-            ? {
-                name: data.name as string,
-                status,
-                arguments: keepArgs ?? t.arguments,
-                result: resultStr ?? t.result,
-                error: errorStr ?? t.error,
-              }
-            : t
-        )
-      } else {
-        list = [...prev, { name: data.name as string, status, arguments: keepArgs, result: resultStr, error: errorStr }]
-      }
+      const prev = m.tool_calls || []
+      // 按顺序更新：后端按执行顺序发 tool_call，用「第一个未完成」的槽位，避免同名/错位导致只保留最后一个
+      const pendingIndex = prev.findIndex((t) => t.status === 'streaming' || t.status === 'running')
+      const list: Array<{ name: string; status: string; arguments?: string; result?: string; error?: string }> =
+        pendingIndex >= 0
+          ? prev.map((t, i) =>
+              i === pendingIndex
+                ? {
+                    name: data.name as string,
+                    status,
+                    arguments: argumentsStr ?? t.arguments,
+                    result: resultStr ?? t.result,
+                    error: errorStr ?? t.error,
+                  }
+                : t
+            )
+          : [...prev, { name: data.name as string, status, arguments: argumentsStr, result: resultStr, error: errorStr }]
       messages.value[lastIdx] = { ...m, tool_calls: list }
     }
     if (event === 'content' && typeof data.content === 'string') {
@@ -114,13 +115,25 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
       sending.value = false
       if (Array.isArray(data.tool_calls)) {
         const doneList = data.tool_calls as Array<{ name: string; status: string; arguments?: string; result?: string; error?: string }>
-        // 与会话结束后通过 message 列表加载时一致：保留已有 arguments/result/error，补全 name/status 等
-        const merged = doneList.map((tc, i) => ({
-          ...tc,
-          arguments: tc.arguments ?? m.tool_calls?.[i]?.arguments,
-          result: tc.result ?? m.tool_calls?.[i]?.result,
-          error: tc.error ?? m.tool_calls?.[i]?.error,
-        }))
+        const prev = m.tool_calls || []
+        // 以当前已有 tool_calls 为基准合并，不因 doneList 更短而丢失已更新的 result（避免只展示最后一个）
+        const merged = prev.map((t, i) => {
+          const dc = doneList[i]
+          if (!dc) return t
+          return {
+            ...t,
+            ...dc,
+            arguments: dc.arguments ?? t.arguments,
+            result: dc.result ?? t.result,
+            error: dc.error ?? t.error,
+          }
+        })
+        // 若 done 列表更长则追加
+        if (doneList.length > prev.length) {
+          for (let i = prev.length; i < doneList.length; i++) {
+            merged.push({ ...doneList[i] })
+          }
+        }
         messages.value[lastIdx] = { ...m, tool_calls: merged }
       }
     }

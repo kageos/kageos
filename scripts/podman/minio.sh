@@ -1,6 +1,11 @@
 #!/bin/bash
 
 # MinIO Podman 部署脚本
+#
+# 若遇到「客户端与 MinIO 服务器的时间差过大」错误，多半是 Podman Mac 上 VM 时间未与宿主机同步。
+# 解决：重启 podman machine 后再启动 MinIO：
+#   podman machine stop && podman machine start
+#   podman start minio
 
 CONTAINER_NAME="minio"
 DATA_DIR="${HOME}/minio-data"

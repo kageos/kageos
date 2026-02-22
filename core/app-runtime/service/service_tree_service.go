@@ -472,32 +472,25 @@ func (s *ServiceTreeService) BatchWriteFiles(
 	// 7. 获取 diff（通过启动应用并获取回调，参考 UpdateApp 的逻辑）
 	var diff *dto.DiffData
 	if s.appManageService != nil {
-		// 创建新版本容器并启动（用于获取 diff）
 		waiterChan := s.appManageService.registerStartupWaiter(req.User, req.App, newVersion)
 		defer s.appManageService.unregisterStartupWaiter(req.User, req.App, newVersion)
 
 		if s.appManageService.containerService != nil {
-			// 创建新版本容器
 			appDirRel := filepath.Join(s.config.AppDir.BasePath, req.User, req.App)
 			if err := s.appManageService.createVersionContainer(ctx, req.User, req.App, newVersion, appDirRel); err != nil {
 				logger.Warnf(ctx, "[BatchWriteFiles] 创建容器失败: %v，继续执行（不获取 diff）", err)
 			} else {
-				// 等待新版本启动
 				logger.Infof(ctx, "[BatchWriteFiles] 等待新版本启动: %s/%s/%s", req.User, req.App, newVersion)
 				select {
 				case <-waiterChan:
 					logger.Infof(ctx, "[BatchWriteFiles] ✅ 新版本启动成功: %s/%s/%s", req.User, req.App, newVersion)
 
-					// 发送更新回调请求获取 diff
 					updateCallbackResponse, callbackErr := s.appManageService.sendUpdateCallbackAndWait(ctx, req.User, req.App, newVersion)
 					if callbackErr != nil {
 						logger.Warnf(ctx, "[BatchWriteFiles] ❌ 获取 diff 失败: %v", callbackErr)
 					} else {
 						logger.Infof(ctx, "[BatchWriteFiles] ✅ 获取 diff 成功: %+v", updateCallbackResponse)
-						// 将 updateCallbackResponse.Data (interface{}) 转换为 *dto.DiffData
-						// 因为 JSON 反序列化时，Data 被解析为 map[string]interface{}，需要重新序列化/反序列化
 						if updateCallbackResponse.Data != nil {
-							// 先序列化为 JSON，再反序列化为 DiffData
 							dataBytes, err := json.Marshal(updateCallbackResponse.Data)
 							if err == nil {
 								var tempDiffData dto.DiffData
@@ -512,7 +505,6 @@ func (s *ServiceTreeService) BatchWriteFiles(
 						}
 					}
 
-					// 停止并删除临时容器（因为我们只是用来获取 diff）
 					if err := s.appManageService.stopOldVersionContainer(ctx, req.User, req.App, newVersion); err != nil {
 						logger.Warnf(ctx, "[BatchWriteFiles] 停止临时容器失败: %v", err)
 					}
