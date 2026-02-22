@@ -2967,10 +2967,13 @@ func (s *ServiceTreeService) buildDirectoryTreeNode(
 	idToTree map[int64]*model.ServiceTree,
 	functionMap map[int64][]*model.ServiceTree,
 ) *dto.DirectoryTreeNode {
-	// 构建文件列表（init_.go 已在 app-runtime 层过滤，这里不需要再过滤）
+	// 构建文件列表（发布/推送到 Hub 时不包含 init_.go，避免 copy 时路径重复）
 	files := make([]*dto.FileSnapshotInfo, 0)
 	if fileSnapshots, exists := directoryFiles[tree.FullCodePath]; exists {
 		for _, file := range fileSnapshots {
+			if file.FileName == "init_" || file.RelativePath == "init_.go" || strings.HasSuffix(file.RelativePath, "/init_.go") {
+				continue
+			}
 			files = append(files, &dto.FileSnapshotInfo{
 				FileName:     file.FileName,
 				RelativePath: file.RelativePath,
@@ -3298,11 +3301,15 @@ func (s *ServiceTreeService) buildItemsFromTree(
 	// 计算当前目录的目标路径（使用代码名称）
 	currentTargetPath := fmt.Sprintf("%s/%s", targetBasePath, dirCode)
 
-	// 添加目录项（使用代码名称作为 Name，但保留原始 Name 作为显示名称）
+	// 目录显示名优先用 Name（中文），为空时回退到 Code（英文）
+	dirName := node.Name
+	if dirName == "" {
+		dirName = dirCode
+	}
 	*directoryItems = append(*directoryItems, &dto.DirectoryTreeItem{
 		FullCodePath: currentTargetPath,
 		Type:         "directory",
-		Name:         dirCode, // 使用代码名称（从 Path 提取）
+		Name:         dirName, // 使用 Hub 的 Name（中文），便于界面显示
 		Description:  "",      // Hub 目录树可能没有描述
 		Tags:         "",      // Hub 目录树可能没有标签
 	})
