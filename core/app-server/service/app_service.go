@@ -406,9 +406,8 @@ func (a *AppService) RecordTableOperateLog(ctx context.Context, req *dto.RecordT
 
 // processAPIDiff 处理API差异，包括新增、更新、删除
 func (a *AppService) processAPIDiff(ctx context.Context, appID int64, diffData *dto.DiffData, req *dto.UpdateAppReq, duration int64, gitCommitHash string) error {
-	// 获取应用信息（用于获取版本号）
-	app, err := a.appRepo.GetAppByID(appID)
-	if err != nil {
+	// 校验应用存在
+	if _, err := a.appRepo.GetAppByID(appID); err != nil {
 		return fmt.Errorf("获取应用信息失败: %w", err)
 	}
 
@@ -465,12 +464,8 @@ func (a *AppService) processAPIDiff(ctx context.Context, appID int64, diffData *
 		}
 	}
 
-	// 5. 创建目录快照（检测目录变更并创建快照）
-	err = a.createDirectorySnapshots(ctx, appID, app, diffData, req, duration, gitCommitHash)
-	if err != nil {
-		// 快照创建失败不应该影响主流程，记录日志即可
-		logger.Warnf(ctx, "[processAPIDiff] 创建目录快照失败: %v", err)
-	}
+	// 5. 已移除：不再写入快照表，发布/推送 Hub 与工作台均从 runtime 实时读目录文件
+	// err = a.createDirectorySnapshots(...)
 
 	return nil
 }
