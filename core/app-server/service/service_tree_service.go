@@ -1882,6 +1882,80 @@ func (s *ServiceTreeService) GetDirectorySnapshotsRecursively(ctx context.Contex
 	return result, nil
 }
 
+// GetDirectoryFilesFromRuntimeRecursively 从 app-runtime 实时递归读取目录及其所有子目录下的文件（不依赖快照表）
+// 返回：map[目录完整路径][]*FileSnapshot（仅填充 FileName、RelativePath、Content、FileType、FileVersion，用于 buildDirectoryTree）
+func (s *ServiceTreeService) GetDirectoryFilesFromRuntimeRecursively(ctx context.Context, appID int64, rootDirectoryPath string) (map[string][]*model.FileSnapshot, error) {
+	app, err := s.appRepo.GetAppByID(appID)
+	if err != nil {
+		return nil, fmt.Errorf("获取应用失败: %w", err)
+	}
+	if app.HostID <= 0 {
+		return nil, fmt.Errorf("应用未关联 runtime，无法读取目录文件")
+	}
+
+	rootTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(rootDirectoryPath)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			logger.Warnf(ctx, "[ServiceTreeService] 根目录节点不存在: path=%s", rootDirectoryPath)
+			return make(map[string][]*model.FileSnapshot), nil
+		}
+		return nil, fmt.Errorf("获取根目录节点失败: %w", err)
+	}
+
+	descendants, err := s.serviceTreeRepo.GetDescendantDirectories(appID, rootDirectoryPath)
+	if err != nil {
+		return nil, fmt.Errorf("查询子目录失败: %w", err)
+	}
+
+	allTrees := make([]*model.ServiceTree, 0, len(descendants)+1)
+	allTrees = append(allTrees, rootTree)
+	allTrees = append(allTrees, descendants...)
+
+	result := make(map[string][]*model.FileSnapshot)
+	for _, tree := range allTrees {
+		result[tree.FullCodePath] = make([]*model.FileSnapshot, 0)
+	}
+
+	for _, tree := range allTrees {
+		runtimeReq := &dto.ReadDirectoryFilesRuntimeReq{
+			User:          app.User,
+			App:           app.Code,
+			DirectoryPath: tree.FullCodePath,
+		}
+		runtimeResp, err := s.appCall.ReadDirectoryFiles(ctx, app.HostID, runtimeReq)
+		if err != nil {
+			return nil, fmt.Errorf("从 runtime 读取目录文件失败 path=%s: %w", tree.FullCodePath, err)
+		}
+		if runtimeResp == nil || !runtimeResp.Success {
+			logger.Warnf(ctx, "[ServiceTreeService] runtime 返回失败或空: path=%s", tree.FullCodePath)
+			continue
+		}
+		for _, f := range runtimeResp.Files {
+			fileType := "go"
+			if f.RelativePath != "" {
+				if strings.HasSuffix(f.RelativePath, ".go") {
+					fileType = "go"
+				}
+			}
+			result[tree.FullCodePath] = append(result[tree.FullCodePath], &model.FileSnapshot{
+				FileName:     f.FileName,
+				RelativePath: f.RelativePath,
+				Content:      f.Content,
+				FileType:     fileType,
+				FileVersion:  "",
+			})
+		}
+	}
+
+	totalFiles := 0
+	for _, files := range result {
+		totalFiles += len(files)
+	}
+	logger.Infof(ctx, "[ServiceTreeService] 从 runtime 递归读取目录文件完成: 根目录=%s, 目录数=%d, 总文件数=%d",
+		rootDirectoryPath, len(allTrees), totalFiles)
+	return result, nil
+}
+
 // extractPackageFromPath 从完整路径提取 package 路径（去掉应用前缀）
 func extractPackageFromPath(fullCodePath string) string {
 	// 格式：/user/app/package1/package2
@@ -1949,14 +2023,14 @@ func (s *ServiceTreeService) copyFromLocal(ctx context.Context, req *dto.CopyDir
 		sourceTrees[desc.FullCodePath] = desc
 	}
 
-	// 5. 递归获取所有目录的文件快照（包括根目录和所有子目录）
-	directoryFiles, err := s.GetDirectorySnapshotsRecursively(ctx, sourceApp.ID, req.SourceDirectoryPath)
+	// 5. 从 runtime 实时读取所有目录的文件（不依赖快照表）
+	directoryFiles, err := s.GetDirectoryFilesFromRuntimeRecursively(ctx, sourceApp.ID, req.SourceDirectoryPath)
 	if err != nil {
-		return nil, fmt.Errorf("获取目录快照失败: %w", err)
+		return nil, fmt.Errorf("从 runtime 读取目录文件失败: %w", err)
 	}
 
 	if len(directoryFiles) == 0 {
-		return nil, fmt.Errorf("未找到任何目录快照，请确保源目录已创建快照")
+		return nil, fmt.Errorf("未找到任何目录，请确认源目录存在")
 	}
 
 	// 6. 获取目标根目录的 ServiceTree（用于确定父目录ID和完整路径）
@@ -2331,14 +2405,14 @@ func (s *ServiceTreeService) PublishDirectoryToHub(ctx context.Context, req *dto
 		idToTree[tree.ID] = tree
 	}
 
-	// 4. 递归获取所有目录的文件快照（包括根目录和所有子目录）
-	directoryFiles, err := s.GetDirectorySnapshotsRecursively(ctx, sourceApp.ID, req.SourceDirectoryPath)
+	// 4. 从 runtime 实时读取所有目录的文件（不依赖快照表）
+	directoryFiles, err := s.GetDirectoryFilesFromRuntimeRecursively(ctx, sourceApp.ID, req.SourceDirectoryPath)
 	if err != nil {
-		return nil, fmt.Errorf("获取目录快照失败: %w", err)
+		return nil, fmt.Errorf("从 runtime 读取目录文件失败: %w", err)
 	}
 
 	if len(directoryFiles) == 0 {
-		return nil, fmt.Errorf("未找到任何目录快照，请确保源目录已创建快照")
+		return nil, fmt.Errorf("未找到任何目录，请确认源目录存在")
 	}
 
 	// 5. 获取所有函数节点（function 类型，属于当前目录树下的）
@@ -2464,14 +2538,14 @@ func (s *ServiceTreeService) PushDirectoryToHub(ctx context.Context, req *dto.Pu
 		idToTree[tree.ID] = tree
 	}
 
-	// 5. 递归获取所有目录的文件快照（包括根目录和所有子目录）
-	directoryFiles, err := s.GetDirectorySnapshotsRecursively(ctx, sourceApp.ID, req.SourceDirectoryPath)
+	// 5. 从 runtime 实时读取所有目录的文件（不依赖快照表）
+	directoryFiles, err := s.GetDirectoryFilesFromRuntimeRecursively(ctx, sourceApp.ID, req.SourceDirectoryPath)
 	if err != nil {
-		return nil, fmt.Errorf("获取目录快照失败: %w", err)
+		return nil, fmt.Errorf("从 runtime 读取目录文件失败: %w", err)
 	}
 
 	if len(directoryFiles) == 0 {
-		return nil, fmt.Errorf("未找到任何目录快照，请确保源目录已创建快照")
+		return nil, fmt.Errorf("未找到任何目录，请确认源目录存在")
 	}
 
 	// 6. 获取所有函数节点（function 类型，属于当前目录树下的）
@@ -3414,71 +3488,42 @@ func (s *ServiceTreeService) GetWorkspaceContext(ctx context.Context, req *dto.G
 		}
 	}
 
-	// 6. 获取目录下的代码文件：file_source=runtime 时从 app-runtime 磁盘实时读，否则从快照表读
+	// 6. 获取目录下的代码文件：仅从 app-runtime 磁盘实时读（已移除快照表回退）
 	var files []dto.WorkspaceContextFile
 	if detail.AppID > 0 {
-		if strings.TrimSpace(req.FileSource) == "runtime" {
-			appModel, errApp := s.appRepo.GetAppByID(detail.AppID)
-			if errApp == nil && appModel != nil && appModel.HostID > 0 {
-				runtimeReq := &dto.ReadDirectoryFilesRuntimeReq{
-					User:          appModel.User,
-					App:           appModel.Code,
-					DirectoryPath: req.FullCodePath,
-				}
-				runtimeResp, errRt := s.appCall.ReadDirectoryFiles(ctx, appModel.HostID, runtimeReq)
-				if errRt == nil && runtimeResp != nil && runtimeResp.Success {
-					files = make([]dto.WorkspaceContextFile, 0, len(runtimeResp.Files))
-					for _, f := range runtimeResp.Files {
-						lineCount := 0
-						if f.Content != "" {
-							lines := strings.Split(f.Content, "\n")
-							lineCount = len(lines)
-							if lineCount > 0 && lines[lineCount-1] == "" {
-								lineCount--
-							}
-						}
-						files = append(files, dto.WorkspaceContextFile{
-							FileName:      f.FileName,
-							RelativePath:  f.RelativePath,
-							FileType:      "go",
-							Content:       f.Content,
-							ContentLength: len(f.Content),
-							LineCount:     lineCount,
-						})
-					}
-					logger.Infof(ctx, "[GetWorkspaceContext] 从 runtime 实时读取目录文件: fullCodePath=%s, fileCount=%d", req.FullCodePath, len(files))
-				}
+		appModel, errApp := s.appRepo.GetAppByID(detail.AppID)
+		if errApp == nil && appModel != nil && appModel.HostID > 0 {
+			runtimeReq := &dto.ReadDirectoryFilesRuntimeReq{
+				User:          appModel.User,
+				App:           appModel.Code,
+				DirectoryPath: req.FullCodePath,
 			}
-			if files == nil {
-				logger.Warnf(ctx, "[GetWorkspaceContext] file_source=runtime 未成功，回退到快照: fullCodePath=%s", req.FullCodePath)
-			}
-		}
-		if files == nil {
-			fileSnapshots, err := s.fileSnapshotRepo.GetCurrentSnapshotsByDirectory(detail.AppID, req.FullCodePath)
-			if err != nil {
-				logger.Warnf(ctx, "[GetWorkspaceContext] 获取文件快照失败: fullCodePath=%s, error=%v", req.FullCodePath, err)
-				files = []dto.WorkspaceContextFile{}
-			} else {
-				files = make([]dto.WorkspaceContextFile, 0, len(fileSnapshots))
-				for _, snapshot := range fileSnapshots {
-					lineCount := snapshot.LineCount
-					if lineCount == 0 && snapshot.Content != "" {
-						lines := strings.Split(snapshot.Content, "\n")
+			runtimeResp, errRt := s.appCall.ReadDirectoryFiles(ctx, appModel.HostID, runtimeReq)
+			if errRt == nil && runtimeResp != nil && runtimeResp.Success {
+				files = make([]dto.WorkspaceContextFile, 0, len(runtimeResp.Files))
+				for _, f := range runtimeResp.Files {
+					lineCount := 0
+					if f.Content != "" {
+						lines := strings.Split(f.Content, "\n")
 						lineCount = len(lines)
 						if lineCount > 0 && lines[lineCount-1] == "" {
 							lineCount--
 						}
 					}
 					files = append(files, dto.WorkspaceContextFile{
-						FileName:      snapshot.FileName,
-						RelativePath:  snapshot.RelativePath,
-						FileType:      snapshot.FileType,
-						Content:       snapshot.Content,
-						ContentLength: len(snapshot.Content),
+						FileName:      f.FileName,
+						RelativePath:  f.RelativePath,
+						FileType:      "go",
+						Content:       f.Content,
+						ContentLength: len(f.Content),
 						LineCount:     lineCount,
 					})
 				}
+				logger.Infof(ctx, "[GetWorkspaceContext] 从 runtime 读取目录文件: fullCodePath=%s, fileCount=%d", req.FullCodePath, len(files))
 			}
+		}
+		if files == nil {
+			files = []dto.WorkspaceContextFile{}
 		}
 	}
 
