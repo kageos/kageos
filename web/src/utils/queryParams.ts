@@ -97,28 +97,3 @@ export function preserveQueryParamsForForm(
     preserveStateParams: true
   })
 }
-
-/**
- * 检查是否是函数组详情页面（已废弃，不再使用）
- * @deprecated 函数组功能已移除，此函数始终返回 false
- */
-export function isFunctionGroupDetail(query: Record<string, any>): boolean {
-  return false
-}
-
-/**
- * 清除函数组相关参数（已废弃，不再使用）
- * @deprecated 函数组功能已移除，此函数直接返回原查询参数
- */
-export function clearFunctionGroupParams(query: Record<string, any>): Record<string, any> {
-  return query
-}
-
-/**
- * 构建函数组路由查询参数（已废弃，不再使用）
- * @deprecated 函数组功能已移除，此函数返回空对象
- */
-export function buildFunctionGroupQuery(): Record<string, string> {
-  return {}
-}
-

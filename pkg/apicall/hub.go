@@ -45,19 +45,22 @@ func GetHubDirectoryList(ctx context.Context, req *dto.GetHubDirectoryListReq) (
 	return GetAPI[*dto.HubDirectoryListResp](ctx, path, params)
 }
 
-// GetHubDirectoryDetail 获取 Hub 目录详情（通过网关，使用 full_code_path）
+// GetHubDirectoryDetail 获取 Hub 目录详情（通过网关，支持 hub_directory_id 或 full_code_path）
+// 有 HubDirectoryID 时优先用 ID 查（复制目录后从 b 推送时用 ID 才能命中原来从 a 发布的记录）
 func GetHubDirectoryDetail(ctx context.Context, req *dto.GetHubDirectoryDetailReq) (*dto.HubDirectoryDetailDetailResp, error) {
-	// 构建查询参数
 	path := "/hub/api/v1/directories/detail"
 	params := url.Values{}
-	params.Set("full_code_path", req.FullCodePath)
+	if req.HubDirectoryID > 0 {
+		params.Set("hub_directory_id", strconv.FormatInt(req.HubDirectoryID, 10))
+	} else if req.FullCodePath != "" {
+		params.Set("full_code_path", req.FullCodePath)
+	}
 	if req.Version != "" {
 		params.Set("version", req.Version)
 	}
 	if req.IncludeTree {
 		params.Set("include_tree", "true")
 	}
-
 	return GetAPI[*dto.HubDirectoryDetailDetailResp](ctx, path, params)
 }
 

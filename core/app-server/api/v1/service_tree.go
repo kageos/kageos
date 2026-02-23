@@ -646,6 +646,34 @@ func (s *ServiceTree) PushDirectoryToHub(c *gin.Context) {
 	response.OkWithData(c, resp)
 }
 
+// GetHubPushFormInfo 获取推送表单信息（当前已发布信息 + 下一版本号，用于推送对话框预填）
+// @Summary 获取推送表单信息
+// @Description 根据目录路径获取当前在 Hub 的已发布信息及下一版本号，用于推送对话框预填与自动版本
+// @Tags 服务目录
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Param source_user query string true "源用户"
+// @Param source_app query string true "源应用"
+// @Param source_directory_path query string true "源目录完整路径"
+// @Success 200 {object} dto.GetHubPushFormInfoResp "获取成功"
+// @Router /api/v1/service_tree/hub_push_form_info [get]
+func (s *ServiceTree) GetHubPushFormInfo(c *gin.Context) {
+	var req dto.GetHubPushFormInfoReq
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+	ctx := contextx.ToContext(c)
+	resp, err := s.serviceTreeService.GetHubPushFormInfo(ctx, &req)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.OkWithData(c, resp)
+}
+
 // AddFunctions 向服务目录添加函数（服务间调用，不需要JWT验证）
 // @Summary 向服务目录添加函数
 // @Description 接收来自 agent-server 的代码，写入到工作空间对应的目录下，并更新工作空间

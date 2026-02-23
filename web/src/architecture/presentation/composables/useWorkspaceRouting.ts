@@ -10,7 +10,7 @@
 import { watch, ref, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { extractWorkspacePath } from '@/utils/route'
-import { preserveQueryParamsForTable, preserveQueryParamsForForm, isFunctionGroupDetail } from '@/utils/queryParams'
+import { preserveQueryParamsForTable, preserveQueryParamsForForm } from '@/utils/queryParams'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import { eventBus, RouteEvent, WorkspaceEvent } from '../../infrastructure/eventBus'
@@ -54,12 +54,7 @@ export function useWorkspaceRouting(
       // 空路径，不处理
       return
     }
-    
-    // 🔥 检查是否是函数组详情页面（_node_type=function_group）
-    if (isFunctionGroupDetail(route.query)) {
-      return
-    }
-    
+
     isSyncingRouteToTab = true
     
     try {
@@ -354,7 +349,6 @@ export function useWorkspaceRouting(
       
       // 处理 workspace-node-click：需要加载函数详情
       // 处理 workspace-node-click-package：需要设置当前函数（package 类型）
-      // 🔥 Tab 功能已删除，tab-switch 相关事件已废弃
       if (payload.source === RouteSource.WORKSPACE_NODE_CLICK || 
           payload.source === RouteSource.WORKSPACE_NODE_CLICK_PACKAGE) {
         // 🔥 防重复处理：如果已经处理过相同的 updateCompleted 事件，跳过

@@ -31,8 +31,9 @@ func (s *Server) setupRoutes() {
 	hubDirectoryHandler := v1.NewDirectory(s.hubDirectoryService)
 
 	// 公开接口（不需要认证）
-	hubDirectory.GET("", hubDirectoryHandler.GetDirectoryList)          // 获取目录列表
-	hubDirectory.GET("/detail", hubDirectoryHandler.GetDirectoryDetail) // 获取目录详情 ?hub_directory_id=xxx
+	hubDirectory.GET("", hubDirectoryHandler.GetDirectoryList)           // 获取目录列表
+	hubDirectory.GET("/detail", hubDirectoryHandler.GetDirectoryDetail)  // 获取目录详情 ?hub_directory_id=xxx
+	hubDirectory.GET("/versions", hubDirectoryHandler.GetDirectoryVersions) // 获取目录版本列表 ?hub_directory_id=xxx
 
 	// 需要认证的接口
 	hubDirectoryAuth := hubDirectory.Group("")

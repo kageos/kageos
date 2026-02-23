@@ -168,3 +168,44 @@ func (d *Directory) GetDirectoryDetail(c *gin.Context) {
 
 	response.OkWithData(c, resp)
 }
+
+// GetDirectoryVersions 获取目录版本列表
+// @Summary 获取目录版本列表
+// @Description 获取指定 Hub 目录的所有历史版本（用于详情页右侧展示）
+// @Tags Hub目录管理
+// @Accept json
+// @Produce json
+// @Param hub_directory_id query int false "Hub 目录ID（与 full_code_path 二选一）"
+// @Param full_code_path query string false "目录完整路径（与 hub_directory_id 二选一）"
+// @Success 200 {object} dto.GetHubDirectoryVersionsResponse "获取成功"
+// @Failure 400 {string} string "请求参数错误"
+// @Failure 500 {string} string "服务器内部错误"
+// @Router /api/v1/hub/directories/versions [get]
+func (d *Directory) GetDirectoryVersions(c *gin.Context) {
+	var req dto.GetHubDirectoryVersionsRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+	ctx := contextx.ToContext(c)
+	hubDirectoryID := req.HubDirectoryID
+	if hubDirectoryID <= 0 && req.FullCodePath != "" {
+		dir, err := d.directoryService.GetDirectoryDetail(ctx, 0, req.FullCodePath, "", false)
+		if err != nil || dir == nil {
+			response.FailWithMessage(c, "根据 full_code_path 获取目录失败")
+			return
+		}
+		hubDirectoryID = dir.ID
+	}
+	if hubDirectoryID <= 0 {
+		response.FailWithMessage(c, "必须提供 hub_directory_id 或 full_code_path 之一")
+		return
+	}
+	resp, err := d.directoryService.ListDirectoryVersions(ctx, hubDirectoryID)
+	if err != nil {
+		logger.Errorf(ctx, "[Directory] 获取目录版本列表失败: %v", err)
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.OkWithData(c, resp)
+}

@@ -288,7 +288,7 @@ const handleSubmit = async () => {
       // 提供跳转到 Hub 的选项
       try {
         await ElMessageBox.confirm(
-          `目录已成功发布到应用中心！\n\n目录ID: ${response.hub_directory_id}\n包含 ${response.directory_count} 个子目录，${response.file_count} 个文件\n\n是否跳转到应用中心查看？`,
+          `目录已成功发布到应用中心！\n\n包含 ${response.directory_count} 个子目录，${response.file_count} 个文件\n\n是否跳转到应用中心查看？`,
           '发布成功',
           {
             confirmButtonText: '跳转查看',
@@ -299,7 +299,7 @@ const handleSubmit = async () => {
 
         // 用户确认，跳转到 Hub 目录详情页
         const { navigateToHubDirectoryDetail } = await import('@/utils/hub-navigation')
-        navigateToHubDirectoryDetail(response.hub_directory_id)
+        navigateToHubDirectoryDetail(response.hub_full_code_path)
       } catch {
         // 用户取消，不做任何操作
       }

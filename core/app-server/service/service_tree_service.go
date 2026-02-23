@@ -759,11 +759,10 @@ func (s *ServiceTreeService) GetServiceTreeDetail(ctx context.Context, req *dto.
 		RefID:          tree.RefID,
 		FullCodePath:   tree.FullCodePath,
 		TemplateType:   tree.TemplateType,
-		Version:        tree.Version,
-		VersionNum:     tree.VersionNum,
-		HubDirectoryID: tree.HubDirectoryID,
-		HubVersion:     tree.HubVersion,
-		HubVersionNum:  tree.HubVersionNum,
+		Version:         tree.Version,
+		VersionNum:      tree.VersionNum,
+		HubFullCodePath: tree.HubFullCodePath,
+		HubVersionNum:   tree.HubVersionNum,
 	}
 
 	// ⭐ 查询权限信息（企业版功能）
@@ -1379,12 +1378,11 @@ func (s *ServiceTreeService) convertToGetServiceTreeResp(ctx context.Context, tr
 		AppID:          tree.AppID,
 		FullCodePath:   tree.FullCodePath,
 		TemplateType:   tree.TemplateType,
-		Version:        tree.Version,
-		VersionNum:     tree.VersionNum,
-		HubDirectoryID: tree.HubDirectoryID,
-		HubVersion:     tree.HubVersion,
-		HubVersionNum:  tree.HubVersionNum,
-		IsAdmin:        isAdmin, // ⭐ 是否是管理员（前端优先判断此字段）
+		Version:         tree.Version,
+		VersionNum:      tree.VersionNum,
+		HubFullCodePath: tree.HubFullCodePath,
+		HubVersionNum:   tree.HubVersionNum,
+		IsAdmin:         isAdmin, // ⭐ 是否是管理员（前端优先判断此字段）
 	}
 
 	// ⭐ 设置权限信息
@@ -2341,16 +2339,15 @@ func (s *ServiceTreeService) copyFromHub(ctx context.Context, req *dto.CopyDirec
 		logger.Warnf(ctx, "[CopyServiceTree] 获取根目录 ServiceTree 失败: path=%s, error=%v", rootDirPath, err)
 	}
 
-	// 9. 建立双向绑定：更新根目录节点的 HubDirectoryID 和版本信息
-	if rootTree != nil && hubDetail.ID > 0 {
-		rootTree.HubDirectoryID = hubDetail.ID
-		rootTree.HubVersion = hubDetail.Version
+	// 9. 建立双向绑定：更新根目录节点的 HubFullCodePath、版本信息
+	if rootTree != nil && hubDetail.FullCodePath != "" {
+		rootTree.HubFullCodePath = hubDetail.FullCodePath
 		rootTree.HubVersionNum = hubDetail.VersionNum
 		if err := s.serviceTreeRepo.UpdateServiceTree(rootTree); err != nil {
-			logger.Warnf(ctx, "[CopyServiceTree] 更新ServiceTree的Hub信息失败: treeID=%d, hubDirectoryID=%d, hubVersion=%s, error=%v",
-				rootTree.ID, hubDetail.ID, hubDetail.Version, err)
+			logger.Warnf(ctx, "[CopyServiceTree] 更新ServiceTree的Hub信息失败: treeID=%d, hubFullCodePath=%s, error=%v",
+				rootTree.ID, hubDetail.FullCodePath, err)
 		} else {
-			logger.Infof(ctx, "[CopyServiceTree] 成功建立双向绑定: treeID=%d, hubDirectoryID=%d, hubVersion=%s", rootTree.ID, hubDetail.ID, hubDetail.Version)
+			logger.Infof(ctx, "[CopyServiceTree] 成功建立双向绑定: treeID=%d, hubFullCodePath=%s, hubVersion=%s", rootTree.ID, hubDetail.FullCodePath, fmt.Sprintf("v%d", rootTree.HubVersionNum))
 		}
 	}
 
@@ -2438,8 +2435,25 @@ func (s *ServiceTreeService) PublishDirectoryToHub(ctx context.Context, req *dto
 		}
 	}
 
-	// 6. 构建树形结构（包含函数）
-	directoryTree := s.buildDirectoryTree(rootTree, allTrees, directoryFiles, idToTree, functionMap)
+	// 5.1 批量加载 Function（RefID -> *Function），用于填充 request/response 等完整信息到 Hub
+	refIDs := make([]int64, 0, len(allFunctions))
+	for _, fn := range allFunctions {
+		if fn.RefID > 0 {
+			refIDs = append(refIDs, fn.RefID)
+		}
+	}
+	refIDToFunction := make(map[int64]*model.Function)
+	if len(refIDs) > 0 {
+		functions, err := s.functionRepo.GetFunctionsByIDs(refIDs)
+		if err == nil {
+			for _, f := range functions {
+				refIDToFunction[f.ID] = f
+			}
+		}
+	}
+
+	// 6. 构建树形结构（包含函数及 request/response 等完整信息）
+	directoryTree := s.buildDirectoryTree(rootTree, allTrees, directoryFiles, idToTree, functionMap, refIDToFunction)
 
 	// 6. 构建 Hub 请求
 	hubReq := &dto.PublishHubDirectoryReq{
@@ -2462,36 +2476,30 @@ func (s *ServiceTreeService) PublishDirectoryToHub(ctx context.Context, req *dto
 		return nil, fmt.Errorf("调用 Hub API 失败: %w", err)
 	}
 
-	// 8. 建立双向绑定：更新根目录节点的 HubDirectoryID 和版本信息
-	// 需要查询 Hub 获取版本信息（因为 hubResp 可能不包含版本）
+	// 8. 建立双向绑定：更新根目录节点的 HubFullCodePath、版本信息
 	hubDetail, err := apicall.GetHubDirectoryDetail(ctx, &dto.GetHubDirectoryDetailReq{
 		FullCodePath: req.SourceDirectoryPath,
 		Version:      "",
 		IncludeTree:  false,
 	})
 	if err != nil {
-		logger.Warnf(ctx, "[PublishDirectoryToHub] 获取Hub目录详情失败，无法记录版本信息: hubDirectoryID=%d, error=%v", hubResp.HubDirectoryID, err)
-		// 即使获取详情失败，也记录 HubDirectoryID
-		rootTree.HubDirectoryID = hubResp.HubDirectoryID
+		logger.Warnf(ctx, "[PublishDirectoryToHub] 获取Hub目录详情失败，无法记录版本信息: error=%v", err)
+		rootTree.HubFullCodePath = req.SourceDirectoryPath // 发布时源路径即 Hub 的 full_code_path
 	} else {
-		// 记录 Hub 信息（ID 和版本）
-		rootTree.HubDirectoryID = hubDetail.ID
-		rootTree.HubVersion = hubDetail.Version
+		rootTree.HubFullCodePath = hubDetail.FullCodePath
 		rootTree.HubVersionNum = hubDetail.VersionNum
 	}
 
 	if err := s.serviceTreeRepo.UpdateServiceTree(rootTree); err != nil {
-		logger.Warnf(ctx, "[PublishDirectoryToHub] 更新ServiceTree的Hub信息失败: treeID=%d, hubDirectoryID=%d, hubVersion=%s, error=%v",
-			rootTree.ID, rootTree.HubDirectoryID, rootTree.HubVersion, err)
-		// 不返回错误，因为发布已经成功，只是绑定失败
+		logger.Warnf(ctx, "[PublishDirectoryToHub] 更新ServiceTree的Hub信息失败: treeID=%d, hubFullCodePath=%s, error=%v",
+			rootTree.ID, rootTree.HubFullCodePath, err)
 	} else {
-		logger.Infof(ctx, "[PublishDirectoryToHub] 成功建立双向绑定: treeID=%d, hubDirectoryID=%d, hubVersion=%s", rootTree.ID, rootTree.HubDirectoryID, rootTree.HubVersion)
+		logger.Infof(ctx, "[PublishDirectoryToHub] 成功建立双向绑定: treeID=%d, hubFullCodePath=%s, hubVersion=%s", rootTree.ID, rootTree.HubFullCodePath, fmt.Sprintf("v%d", rootTree.HubVersionNum))
 	}
 
-	// 9. 返回结果
+	// 9. 返回结果（Hub 已改为返回 hub_full_code_path）
 	return &dto.PublishDirectoryToHubResp{
-		HubDirectoryID:  hubResp.HubDirectoryID,
-		HubDirectoryURL: hubResp.HubDirectoryURL,
+		HubFullCodePath: rootTree.HubFullCodePath,
 		DirectoryCount:  hubResp.DirectoryCount,
 		FileCount:       hubResp.FileCount,
 	}, nil
@@ -2511,8 +2519,8 @@ func (s *ServiceTreeService) PushDirectoryToHub(ctx context.Context, req *dto.Pu
 		return nil, fmt.Errorf("获取源目录信息失败: %w", err)
 	}
 
-	// 3. 检查目录是否已发布到 Hub
-	if sourceTree.HubDirectoryID == 0 {
+	// 3. 检查目录是否已发布到 Hub（以 HubFullCodePath 为准）
+	if sourceTree.HubFullCodePath == "" {
 		return nil, fmt.Errorf("目录尚未发布到 Hub，请先使用 PublishDirectoryToHub 发布")
 	}
 
@@ -2571,13 +2579,46 @@ func (s *ServiceTreeService) PushDirectoryToHub(ctx context.Context, req *dto.Pu
 		}
 	}
 
-	// 7. 构建树形结构（包含函数）
-	directoryTree := s.buildDirectoryTree(rootTree, allTrees, directoryFiles, idToTree, functionMap)
+	// 6.1 批量加载 Function（RefID -> *Function），用于填充 request/response 等完整信息到 Hub
+	refIDs := make([]int64, 0, len(allFunctions))
+	for _, fn := range allFunctions {
+		if fn.RefID > 0 {
+			refIDs = append(refIDs, fn.RefID)
+		}
+	}
+	refIDToFunction := make(map[int64]*model.Function)
+	if len(refIDs) > 0 {
+		functions, err := s.functionRepo.GetFunctionsByIDs(refIDs)
+		if err == nil {
+			for _, f := range functions {
+				refIDToFunction[f.ID] = f
+			}
+		}
+	}
 
-	// 7. 构建 Hub 请求
+	// 7. 构建树形结构（包含函数及 request/response 等完整信息）
+	directoryTree := s.buildDirectoryTree(rootTree, allTrees, directoryFiles, idToTree, functionMap, refIDToFunction)
+
+	// 7.1 用 HubFullCodePath 查详情解析出 ID（Update API 需要 hub_directory_id）
+	detailForID, errDetail := apicall.GetHubDirectoryDetail(ctx, &dto.GetHubDirectoryDetailReq{
+		FullCodePath: sourceTree.HubFullCodePath,
+		IncludeTree:  false,
+	})
+	if errDetail != nil || detailForID == nil {
+		return nil, fmt.Errorf("无法获取 Hub 目录详情，请确认目录已发布到 Hub: %w", errDetail)
+	}
+	hubDirectoryIDForUpdate := detailForID.ID
+
+	// 7.2 版本号：未传则自动递增为 v{N+1}
+	nextVersion := req.Version
+	if nextVersion == "" {
+		nextVersion = fmt.Sprintf("v%d", sourceTree.HubVersionNum+1)
+	}
+
+	// 7.3 构建 Hub 请求
 	hubReq := &dto.UpdateHubDirectoryReq{
 		APIKey:               req.APIKey,
-		HubDirectoryID:       sourceTree.HubDirectoryID,
+		HubDirectoryID:       hubDirectoryIDForUpdate,
 		SourceDirectoryPath:  req.SourceDirectoryPath,
 		Name:                 req.Name,
 		Description:          req.Description,
@@ -2585,7 +2626,8 @@ func (s *ServiceTreeService) PushDirectoryToHub(ctx context.Context, req *dto.Pu
 		Tags:                 req.Tags,
 		ServiceFeePersonal:   req.ServiceFeePersonal,
 		ServiceFeeEnterprise: req.ServiceFeeEnterprise,
-		Version:              req.Version,
+		Version:              nextVersion,
+		UpdateDescription:    req.UpdateDescription,
 		DirectoryTree:        directoryTree,
 	}
 
@@ -2597,25 +2639,54 @@ func (s *ServiceTreeService) PushDirectoryToHub(ctx context.Context, req *dto.Pu
 	}
 
 	// 9. 更新根目录节点的版本信息
-	rootTree.HubVersion = hubResp.NewVersion
 	rootTree.HubVersionNum = extractVersionNumForServiceTree(hubResp.NewVersion)
 	if err := s.serviceTreeRepo.UpdateServiceTree(rootTree); err != nil {
-		logger.Warnf(ctx, "[PushDirectoryToHub] 更新ServiceTree的Hub版本信息失败: treeID=%d, hubDirectoryID=%d, newVersion=%s, error=%v",
-			rootTree.ID, hubResp.HubDirectoryID, hubResp.NewVersion, err)
-		// 不返回错误，因为推送已经成功，只是更新版本信息失败
+		logger.Warnf(ctx, "[PushDirectoryToHub] 更新ServiceTree的Hub版本信息失败: treeID=%d, hubFullCodePath=%s, error=%v",
+			rootTree.ID, rootTree.HubFullCodePath, err)
 	} else {
-		logger.Infof(ctx, "[PushDirectoryToHub] 成功更新Hub版本: treeID=%d, hubDirectoryID=%d, oldVersion=%s, newVersion=%s",
-			rootTree.ID, hubResp.HubDirectoryID, hubResp.OldVersion, hubResp.NewVersion)
+		logger.Infof(ctx, "[PushDirectoryToHub] 成功更新Hub版本: treeID=%d, hubFullCodePath=%s, oldVersion=%s, newVersion=%s",
+			rootTree.ID, rootTree.HubFullCodePath, hubResp.OldVersion, hubResp.NewVersion)
 	}
 
 	// 10. 返回结果
 	return &dto.PushDirectoryToHubResp{
-		HubDirectoryID:  hubResp.HubDirectoryID,
-		HubDirectoryURL: hubResp.HubDirectoryURL,
+		HubFullCodePath: rootTree.HubFullCodePath,
 		DirectoryCount:  hubResp.DirectoryCount,
 		FileCount:       hubResp.FileCount,
 		OldVersion:      hubResp.OldVersion,
 		NewVersion:      hubResp.NewVersion,
+	}, nil
+}
+
+// GetHubPushFormInfo 获取推送表单信息（当前已发布信息 + 下一版本号，用于推送对话框预填）
+func (s *ServiceTreeService) GetHubPushFormInfo(ctx context.Context, req *dto.GetHubPushFormInfoReq) (*dto.GetHubPushFormInfoResp, error) {
+	sourceTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(req.SourceDirectoryPath)
+	if err != nil {
+		return nil, fmt.Errorf("获取源目录信息失败: %w", err)
+	}
+	if sourceTree.HubFullCodePath == "" {
+		return nil, fmt.Errorf("目录尚未发布到 Hub，请先使用发布到应用中心")
+	}
+	detail, err := apicall.GetHubDirectoryDetail(ctx, &dto.GetHubDirectoryDetailReq{
+		FullCodePath: sourceTree.HubFullCodePath,
+		IncludeTree:  false,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("获取 Hub 目录详情失败: %w", err)
+	}
+	if detail == nil {
+		return nil, fmt.Errorf("Hub 目录详情为空")
+	}
+	nextVer := fmt.Sprintf("v%d", detail.VersionNum+1)
+	return &dto.GetHubPushFormInfoResp{
+		Name:                 detail.Name,
+		Description:          detail.Description,
+		Category:             detail.Category,
+		Tags:                 detail.Tags,
+		ServiceFeePersonal:   detail.ServiceFeePersonal,
+		ServiceFeeEnterprise: detail.ServiceFeeEnterprise,
+		CurrentVersion:       detail.Version,
+		NextVersion:          nextVer,
 	}, nil
 }
 
@@ -2943,29 +3014,32 @@ func (s *ServiceTreeService) ProcessFunctionGenResult(ctx context.Context, req *
 	return nil
 }
 
-// buildDirectoryTree 构建目录树结构（递归，包含函数）
+// buildDirectoryTree 构建目录树结构（递归，包含函数及 request/response 等完整信息）
 // rootTree: 根目录节点
 // allTrees: 所有目录节点（包括根目录和子目录）
 // directoryFiles: 目录路径到文件快照的映射
 // idToTree: ServiceTreeID 到 ServiceTree 的映射
 // functionMap: 目录ID到函数列表的映射
+// refIDToFunction: RefID -> *Function，用于填充 request/response 等
 func (s *ServiceTreeService) buildDirectoryTree(
 	rootTree *model.ServiceTree,
 	allTrees []*model.ServiceTree,
 	directoryFiles map[string][]*model.FileSnapshot,
 	idToTree map[int64]*model.ServiceTree,
 	functionMap map[int64][]*model.ServiceTree,
+	refIDToFunction map[int64]*model.Function,
 ) *dto.DirectoryTreeNode {
-	return s.buildDirectoryTreeNode(rootTree, allTrees, directoryFiles, idToTree, functionMap)
+	return s.buildDirectoryTreeNode(rootTree, allTrees, directoryFiles, idToTree, functionMap, refIDToFunction)
 }
 
-// buildDirectoryTreeNode 递归构建目录树节点（包含函数）
+// buildDirectoryTreeNode 递归构建目录树节点（包含函数及 request/response 等完整信息）
 func (s *ServiceTreeService) buildDirectoryTreeNode(
 	tree *model.ServiceTree,
 	allTrees []*model.ServiceTree,
 	directoryFiles map[string][]*model.FileSnapshot,
 	idToTree map[int64]*model.ServiceTree,
 	functionMap map[int64][]*model.ServiceTree,
+	refIDToFunction map[int64]*model.Function,
 ) *dto.DirectoryTreeNode {
 	// 构建文件列表（发布/推送到 Hub 时不包含 init_.go，避免 copy 时路径重复）
 	files := make([]*dto.FileSnapshotInfo, 0)
@@ -2984,11 +3058,11 @@ func (s *ServiceTreeService) buildDirectoryTreeNode(
 		}
 	}
 
-	// 构建函数列表
+	// 构建函数列表（含 Schema：request/response 等，便于 Hub 快照函数定义与预览；后续可按 template_type 放不同结构）
 	functions := make([]*dto.HubFunctionInfo, 0)
 	if functionList, exists := functionMap[tree.ID]; exists {
 		for _, fn := range functionList {
-			functions = append(functions, &dto.HubFunctionInfo{
+			info := &dto.HubFunctionInfo{
 				ID:           fn.ID,
 				Name:         fn.Name,
 				Code:         fn.Code,
@@ -2999,7 +3073,24 @@ func (s *ServiceTreeService) buildDirectoryTreeNode(
 				RefID:        fn.RefID,
 				Version:      fn.Version,
 				VersionNum:   fn.VersionNum,
-			})
+			}
+			if refIDToFunction != nil {
+				if refFn, ok := refIDToFunction[fn.RefID]; ok && refFn != nil {
+					info.Method = refFn.Method
+					info.Router = refFn.Router
+					info.CreateTables = refFn.CreateTables
+					info.Callbacks = refFn.Callbacks
+					// Schema：统一扩展字段，内含 request/response，后续可按 template_type 放不同结构
+					schemaObj := map[string]interface{}{
+						"request":  refFn.Request,
+						"response": refFn.Response,
+					}
+					if schemaBytes, err := json.Marshal(schemaObj); err == nil {
+						info.Schema = schemaBytes
+					}
+				}
+			}
+			functions = append(functions, info)
 		}
 	}
 
@@ -3008,7 +3099,7 @@ func (s *ServiceTreeService) buildDirectoryTreeNode(
 	for _, childTree := range allTrees {
 		if childTree.ParentID == tree.ID {
 			// 递归构建子目录节点
-			childNode := s.buildDirectoryTreeNode(childTree, allTrees, directoryFiles, idToTree, functionMap)
+			childNode := s.buildDirectoryTreeNode(childTree, allTrees, directoryFiles, idToTree, functionMap, refIDToFunction)
 			subdirectories = append(subdirectories, childNode)
 		}
 	}
@@ -3164,16 +3255,15 @@ func (s *ServiceTreeService) PullDirectoryFromHub(ctx context.Context, req *dto.
 		logger.Warnf(ctx, "[PullDirectoryFromHub] 获取根目录 ServiceTree 失败: path=%s, error=%v", targetPath, err)
 	}
 
-	// 10. 建立双向绑定：更新根目录节点的 HubDirectoryID 和版本信息
-	if rootTree != nil && hubDetail.ID > 0 {
-		rootTree.HubDirectoryID = hubDetail.ID
-		rootTree.HubVersion = hubDetail.Version
+	// 10. 建立双向绑定：更新根目录节点的 HubFullCodePath、版本信息
+	if rootTree != nil && hubDetail.FullCodePath != "" {
+		rootTree.HubFullCodePath = hubDetail.FullCodePath
 		rootTree.HubVersionNum = hubDetail.VersionNum
 		if err := s.serviceTreeRepo.UpdateServiceTree(rootTree); err != nil {
-			logger.Warnf(ctx, "[PullDirectoryFromHub] 更新ServiceTree的Hub信息失败: treeID=%d, hubDirectoryID=%d, hubVersion=%s, error=%v",
-				rootTree.ID, hubDetail.ID, hubDetail.Version, err)
+			logger.Warnf(ctx, "[PullDirectoryFromHub] 更新ServiceTree的Hub信息失败: treeID=%d, hubFullCodePath=%s, error=%v",
+				rootTree.ID, hubDetail.FullCodePath, err)
 		} else {
-			logger.Infof(ctx, "[PullDirectoryFromHub] 成功建立双向绑定: treeID=%d, hubDirectoryID=%d, hubVersion=%s", rootTree.ID, hubDetail.ID, hubDetail.Version)
+			logger.Infof(ctx, "[PullDirectoryFromHub] 成功建立双向绑定: treeID=%d, hubFullCodePath=%s, hubVersion=%s", rootTree.ID, hubDetail.FullCodePath, fmt.Sprintf("v%d", rootTree.HubVersionNum))
 		}
 	}
 
@@ -3189,9 +3279,7 @@ func (s *ServiceTreeService) PullDirectoryFromHub(ctx context.Context, req *dto.
 				return 0
 			}
 		}(),
-		HubDirectoryID:   hubDetail.ID,
 		HubDirectoryName: hubDetail.Name,
-		HubVersion:       hubDetail.Version,
 		HubVersionNum:    hubDetail.VersionNum,
 	}, nil
 }
@@ -3365,34 +3453,27 @@ func (s *ServiceTreeService) GetHubInfo(ctx context.Context, req *dto.GetHubInfo
 		return nil, fmt.Errorf("获取目录信息失败: %w", err)
 	}
 
-	// 2. 检查是否已发布到 Hub
-	if tree.HubDirectoryID == 0 {
+	// 2. 检查是否已发布到 Hub（以 HubFullCodePath 为准）
+	if tree.HubFullCodePath == "" {
 		return nil, fmt.Errorf("目录未发布到 Hub")
 	}
 
-	// 3. 调用 Hub API 获取目录信息（用于获取 URL 和发布时间）
-	// 获取 Hub 目录详情（直接传 ctx，内部会提取 token、trace_id 等）
+	// 3. 调用 Hub API 获取目录信息（用于获取发布时间）
 	hubDetail, err := apicall.GetHubDirectoryDetail(ctx, &dto.GetHubDirectoryDetailReq{
-		FullCodePath: req.FullCodePath,
+		FullCodePath: tree.HubFullCodePath,
 		Version:      "",
 		IncludeTree:  false,
 	})
 	if err != nil {
 		logger.Warnf(ctx, "[GetHubInfo] 获取 Hub 目录详情失败: fullCodePath=%s, error=%v", req.FullCodePath, err)
-		// 即使获取详情失败，也返回基本信息
 		return &dto.GetHubInfoResp{
-			HubDirectoryID:  tree.HubDirectoryID,
-			HubDirectoryURL: fmt.Sprintf("/hub/directory/%d", tree.HubDirectoryID),
-			PublishedAt:     "", // 无法获取发布时间
+			HubFullCodePath: tree.HubFullCodePath,
+			PublishedAt:     "",
 		}, nil
 	}
 
-	// 4. 构建 Hub URL（使用 full-code-path）
-	hubURL := fmt.Sprintf("/hub/directory/%s", req.FullCodePath)
-
 	return &dto.GetHubInfoResp{
-		HubDirectoryID:  hubDetail.ID,
-		HubDirectoryURL: hubURL,
+		HubFullCodePath: hubDetail.FullCodePath,
 		PublishedAt:     hubDetail.PublishedAt,
 	}, nil
 }

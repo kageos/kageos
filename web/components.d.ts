@@ -12,8 +12,6 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
-    AgentCard: typeof import('./src/components/Agent/AgentCard.vue')['default']
-    AgentSelectDialog: typeof import('./src/components/Agent/AgentSelectDialog.vue')['default']
     AppSelector: typeof import('./src/components/AppSelector.vue')['default']
     AppSwitcher: typeof import('./src/components/AppSwitcher.vue')['default']
     ChartIcon: typeof import('./src/components/icons/ChartIcon.vue')['default']
@@ -127,8 +125,6 @@ declare module 'vue' {
 
 // For TSX support
 declare global {
-  const AgentCard: typeof import('./src/components/Agent/AgentCard.vue')['default']
-  const AgentSelectDialog: typeof import('./src/components/Agent/AgentSelectDialog.vue')['default']
   const AppSelector: typeof import('./src/components/AppSelector.vue')['default']
   const AppSwitcher: typeof import('./src/components/AppSwitcher.vue')['default']
   const ChartIcon: typeof import('./src/components/icons/ChartIcon.vue')['default']

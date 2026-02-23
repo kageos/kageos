@@ -27,8 +27,7 @@ export interface PublishDirectoryToHubReq {
  * 发布目录到 Hub 响应
  */
 export interface PublishDirectoryToHubResp {
-  hub_directory_id: number            // Hub 目录 ID
-  hub_directory_url: string           // Hub 目录 URL
+  hub_full_code_path: string          // Hub 目录完整路径，前端用此拼详情 URL
   directory_count: number             // 包含的子目录数量
   file_count: number                  // 包含的文件数量
 }
@@ -51,6 +50,7 @@ export async function publishDirectoryToHub(
 
 /**
  * 推送目录到 Hub 请求（更新已发布的目录）
+ * version 不传时后端自动递增为 v{N+1}
  */
 export interface PushDirectoryToHubReq {
   source_user: string                 // 源用户
@@ -61,17 +61,48 @@ export interface PushDirectoryToHubReq {
   category?: string                   // 分类（可选）
   tags?: string[]                     // 标签（可选）
   service_fee_personal?: number       // 个人用户服务费（可选）
-  service_fee_enterprise?: number     // 企业用户服务费（可选）
-  version: string                     // 新版本号（必需）
+  service_fee_enterprise?: number      // 企业用户服务费（可选）
+  version?: string                    // 新版本号（可选，不传则自动递增）
+  update_description?: string         // 本版本更新说明（可选，如：新增 xxx 功能）
   api_key?: string                    // API Key（私有化部署需要）
+}
+
+/**
+ * 获取推送表单信息响应（用于推送对话框预填 + 显示下一版本号）
+ */
+export interface GetHubPushFormInfoResp {
+  name: string
+  description: string
+  category: string
+  tags: string[]
+  service_fee_personal: number
+  service_fee_enterprise: number
+  current_version: string             // 当前已发布版本（如 v2）
+  next_version: string                // 下一版本号（自动递增，如 v3）
+}
+
+/**
+ * 获取推送表单信息（当前已发布信息 + 下一版本号，用于推送对话框预填）
+ */
+export async function getHubPushFormInfo(params: {
+  source_user: string
+  source_app: string
+  source_directory_path: string
+}): Promise<GetHubPushFormInfoResp> {
+  if (!isHubEnabled()) {
+    throw new Error('Hub is disabled. Please set VITE_HUB_ENABLED=true')
+  }
+  return get<GetHubPushFormInfoResp>(
+    '/workspace/api/v1/service_tree/hub_push_form_info',
+    params
+  )
 }
 
 /**
  * 推送目录到 Hub 响应
  */
 export interface PushDirectoryToHubResp {
-  hub_directory_id: number            // Hub 目录 ID
-  hub_directory_url: string           // Hub 目录 URL
+  hub_full_code_path: string          // Hub 目录完整路径，前端用此拼详情 URL
   directory_count: number             // 包含的子目录数量
   file_count: number                  // 包含的文件数量
   old_version: string                 // 旧版本号
@@ -111,12 +142,10 @@ export interface PullDirectoryFromHubResp {
   message: string                      // 成功消息
   directory_count: number              // 安装的目录数量
   file_count: number                   // 安装的文件数量
-  target_directory_path: string        // 目标目录路径
-  service_tree_id: number               // 根目录的 ServiceTree ID
-  hub_directory_id: number              // Hub 目录 ID
+  target_directory_path: string       // 目标目录路径
+  service_tree_id: number              // 根目录的 ServiceTree ID
   hub_directory_name: string           // Hub 目录名称
-  hub_version: string                  // Hub 目录版本
-  hub_version_num: number              // Hub 目录版本号（数字部分）
+  hub_version_num: number              // Hub 目录版本号（数字部分），展示时格式化为 v{N}
 }
 
 /**

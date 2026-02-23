@@ -68,15 +68,22 @@
         <el-text type="info">{{ currentVersion || '未知' }}</el-text>
       </el-form-item>
 
-      <el-form-item label="新版本号" prop="version">
-        <el-input
-          v-model="form.version"
-          placeholder="请输入新版本号，必须大于当前版本（如 v1.0.1）"
-          maxlength="50"
-        />
-        <el-text type="info" size="small" style="display: block; margin-top: 5px">
-          新版本号必须大于当前版本号
+      <el-form-item label="下一版本">
+        <el-text type="primary" style="font-weight: 600">{{ nextVersion || '—' }}</el-text>
+        <el-text type="info" size="small" style="display: block; margin-top: 4px">
+          版本将自动递增，无需填写
         </el-text>
+      </el-form-item>
+
+      <el-form-item label="本版本更新说明" prop="update_description">
+        <el-input
+          v-model="form.update_description"
+          type="textarea"
+          :rows="3"
+          placeholder="选填，例如：新增 xxx 功能、修复 xxx 问题。便于在 Hub 历史版本中查看本版本做了哪些改动"
+          maxlength="500"
+          show-word-limit
+        />
       </el-form-item>
 
       <el-form-item label="提示">
@@ -147,7 +154,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { pushDirectoryToHub, type PushDirectoryToHubReq } from '@/api/hub'
+import { pushDirectoryToHub, getHubPushFormInfo, type PushDirectoryToHubReq } from '@/api/hub'
 import type { ServiceTree } from '@/types'
 import type { App } from '@/types'
 import RichTextEditor from './RichTextEditor.vue'
@@ -183,35 +190,20 @@ const form = ref<Partial<PushDirectoryToHubReq>>({
   tags: [],
   service_fee_personal: 0,
   service_fee_enterprise: 0,
-  version: '',
+  update_description: '',
   api_key: '',
 })
 
-// 选中的目录路径和当前版本
+// 选中的目录路径、当前版本、下一版本（自动递增，只读展示）
 const selectedDirectoryPath = ref<string>('')
 const currentVersion = ref<string>('')
+const nextVersion = ref<string>('')
 
 // 常用标签
 const commonTags = ['工具', '业务系统', '数据管理', '工作流', '报表', 'API', '集成']
 
-// 表单验证规则
-const rules = {
-  version: [
-    { required: true, message: '请输入新版本号', trigger: 'blur' },
-    {
-      validator: (rule: any, value: string, callback: Function) => {
-        if (!value || value.trim() === '') {
-          callback(new Error('请输入新版本号'))
-        } else if (!/^v\d+\.\d+\.\d+/.test(value)) {
-          callback(new Error('版本号格式不正确，应为 v1.0.0 格式'))
-        } else {
-          callback()
-        }
-      },
-      trigger: 'blur'
-    }
-  ]
-}
+// 表单验证规则（版本由后端自动递增，无需校验）
+const rules = {}
 
 // 监听对话框打开，初始化表单
 watch(dialogVisible, (visible) => {
@@ -220,7 +212,7 @@ watch(dialogVisible, (visible) => {
   }
 })
 
-// 初始化表单
+// 初始化表单：调用接口获取当前已发布信息并预填，同时拿到下一版本号
 const initForm = async () => {
   if (!props.selectedNode || !props.currentApp) {
     ElMessage.warning('请先选择要推送的目录')
@@ -229,24 +221,22 @@ const initForm = async () => {
 
   const node = props.selectedNode
 
-  // 检查是否是目录节点（package 类型）
   if (node.type !== 'package') {
     ElMessage.warning('请选择目录节点（package 类型）')
     return
   }
 
-  // 检查是否已发布到 Hub
-  if (!node.hub_directory_id || node.hub_directory_id === 0) {
+  if (!node.hub_full_code_path) {
     ElMessage.warning('该目录尚未发布到 Hub，请先使用"发布到应用中心"功能')
     dialogVisible.value = false
     return
   }
 
-  // 设置目录路径和当前版本
   selectedDirectoryPath.value = node.full_code_path || ''
-  currentVersion.value = node.hub_version || '未知'
+  currentVersion.value = node.hub_version_num != null ? `v${node.hub_version_num}` : '未知'
+  nextVersion.value = ''
 
-  // 初始化表单数据（留空表示保持原值）
+  // 先清空表单，再请求预填数据
   form.value = {
     name: '',
     description: '',
@@ -254,8 +244,33 @@ const initForm = async () => {
     tags: [],
     service_fee_personal: 0,
     service_fee_enterprise: 0,
-    version: '',
+    update_description: '',
     api_key: '',
+  }
+
+  loading.value = true
+  try {
+    const info = await getHubPushFormInfo({
+      source_user: props.currentApp.user,
+      source_app: props.currentApp.code,
+      source_directory_path: node.full_code_path || '',
+    })
+    currentVersion.value = info.current_version
+    nextVersion.value = info.next_version
+    form.value = {
+      name: info.name ?? '',
+      description: info.description ?? '',
+      category: info.category ?? '',
+      tags: Array.isArray(info.tags) ? [...info.tags] : [],
+      service_fee_personal: info.service_fee_personal ?? 0,
+      service_fee_enterprise: info.service_fee_enterprise ?? 0,
+      update_description: '',
+      api_key: '',
+    }
+  } catch (e: any) {
+    ElMessage.warning(e?.message || '获取已发布信息失败，可手动填写后推送')
+  } finally {
+    loading.value = false
   }
 }
 
@@ -263,7 +278,7 @@ const initForm = async () => {
 const handleSubmit = async () => {
   if (!formRef.value) return
 
-  await formRef.value.validate(async (valid: boolean) => {
+    await formRef.value.validate(async (valid: boolean) => {
     if (!valid) return
 
     if (!props.currentApp || !props.selectedNode) {
@@ -283,14 +298,14 @@ const handleSubmit = async () => {
         source_user: props.currentApp.user,
         source_app: props.currentApp.code,
         source_directory_path: node.full_code_path,
-        version: form.value.version!,
         ...(form.value.name ? { name: form.value.name } : {}),
         ...(form.value.description ? { description: form.value.description } : {}),
         ...(form.value.category ? { category: form.value.category } : {}),
         ...(form.value.tags && form.value.tags.length > 0 ? { tags: form.value.tags } : {}),
         ...(form.value.service_fee_personal ? { service_fee_personal: form.value.service_fee_personal } : {}),
         ...(form.value.service_fee_enterprise ? { service_fee_enterprise: form.value.service_fee_enterprise } : {}),
-        ...(form.value.api_key ? { api_key: form.value.api_key } : {})
+        ...(form.value.update_description ? { update_description: form.value.update_description } : {}),
+        ...(form.value.api_key ? { api_key: form.value.api_key } : {}),
       }
 
       // 调用推送接口
@@ -301,7 +316,7 @@ const handleSubmit = async () => {
       // 提供跳转到 Hub 的选项
       try {
         await ElMessageBox.confirm(
-          `目录已成功推送到应用中心！\n\n目录ID: ${response.hub_directory_id}\n版本: ${response.old_version} → ${response.new_version}\n包含 ${response.directory_count} 个子目录，${response.file_count} 个文件\n\n是否跳转到应用中心查看？`,
+          `目录已成功推送到应用中心！\n\n版本: ${response.old_version} → ${response.new_version}\n包含 ${response.directory_count} 个子目录，${response.file_count} 个文件\n\n是否跳转到应用中心查看？`,
           '推送成功',
           {
             confirmButtonText: '跳转查看',
@@ -312,7 +327,7 @@ const handleSubmit = async () => {
 
         // 用户确认，跳转到 Hub 目录详情页
         const { navigateToHubDirectoryDetail } = await import('@/utils/hub-navigation')
-        navigateToHubDirectoryDetail(response.hub_directory_id)
+        navigateToHubDirectoryDetail(response.hub_full_code_path)
       } catch {
         // 用户取消，不做任何操作
       }
@@ -337,11 +352,12 @@ const handleClose = () => {
     tags: [],
     service_fee_personal: 0,
     service_fee_enterprise: 0,
-    version: '',
+    update_description: '',
     api_key: '',
   }
   selectedDirectoryPath.value = ''
   currentVersion.value = ''
+  nextVersion.value = ''
   formRef.value?.resetFields()
   emit('update:modelValue', false)
 }

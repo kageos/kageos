@@ -27,8 +27,22 @@ type HubSnapshot struct {
 	FileCount       int `gorm:"default:0" json:"file_count"`      // 文件数量
 	FunctionCount   int `gorm:"default:0" json:"function_count"`  // 函数数量
 
+	// 该版本的详情（切换版本时展示此版本当时的 name/description 等，不读目录表）
+	Name                 string  `gorm:"type:varchar(255)" json:"name"`
+	DetailDescription    string  `gorm:"type:text" json:"detail_description"` // 该版本时的目录描述（与 Description 本版本更新说明 区分）
+	Category             string  `gorm:"type:varchar(50)" json:"category"`
+	Tags                 string  `gorm:"type:text" json:"tags"`
+	ServiceFeePersonal   float64 `gorm:"type:decimal(10,2)" json:"service_fee_personal"`
+	ServiceFeeEnterprise float64 `gorm:"type:decimal(10,2)" json:"service_fee_enterprise"`
+	PublisherUsername    string  `gorm:"type:varchar(100)" json:"publisher_username"` // 该版本的上传人（发布/推送时的用户）
+
 	// 快照元数据（JSON格式，存储完整的树结构，用于快速预览）
-	SnapshotData string `gorm:"type:json" json:"snapshot_data"` // 完整的 ServiceTree 结构（JSON）
+	SnapshotData string `gorm:"type:json" json:"snapshot_data"` // 兼容旧数据；新数据以三字段为准
+
+	// 快照三字段：各司其职，单源
+	SnapshotTree       string `gorm:"type:json" json:"snapshot_tree"`        // 目录结构（展示用：树/列表/面包屑），不含文件 content、不含函数详情
+	SnapshotFiles      string `gorm:"type:json" json:"snapshot_files"`        // 文件列表（复制用：按 relative_path 写文件），平铺 []SnapshotFileEntry
+	SnapshotFunctionDefs string `gorm:"type:json" json:"snapshot_function_defs"` // 函数定义列表（预览用：入参、描述等），平铺 []HubFunctionInfo
 
 	// 是否为当前版本
 	IsCurrent bool `gorm:"default:false;index" json:"is_current"` // 是否为当前版本（用于快速查询）

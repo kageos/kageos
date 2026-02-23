@@ -72,6 +72,19 @@ func (r *FunctionRepository) GetFunctionByID(id int64) (*model.Function, error) 
 	return &function, nil
 }
 
+// GetFunctionsByIDs 根据 ID 列表批量获取函数（用于推送到 Hub 时填充 request/response）
+func (r *FunctionRepository) GetFunctionsByIDs(ids []int64) ([]*model.Function, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var functions []*model.Function
+	err := r.db.Where("id IN ?", ids).Find(&functions).Error
+	if err != nil {
+		return nil, err
+	}
+	return functions, nil
+}
+
 // GetFunctionsByAppID 获取应用的所有函数
 func (r *FunctionRepository) GetFunctionsByAppID(appID int64) ([]*model.Function, error) {
 	var functions []*model.Function

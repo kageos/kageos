@@ -51,10 +51,7 @@ export enum WorkspaceEvent {
   nodeClicked = 'workspace:node-clicked',           // 节点点击
   appSwitched = 'workspace:app-switched',           // 应用切换
   serviceTreeLoaded = 'workspace:service-tree-loaded', // 服务树加载完成
-  functionLoaded = 'workspace:function-loaded',     // 函数加载完成
-  // 🔥 Tab 功能已删除，以下事件已废弃
-  // tabSwitched = 'workspace:tab-switched',
-  // tabSwitchedComplete = 'workspace:tab-switched-complete'
+  functionLoaded = 'workspace:function-loaded'     // 函数加载完成
 }
 
 export enum FormEvent {

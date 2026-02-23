@@ -12,7 +12,7 @@ const router = createRouter({
       }
     },
     {
-      path: '/directory/:id',
+      path: '/directory/:path+',
       name: 'hub-directory-detail',
       component: () => import('../views/HubDirectoryDetail.vue'),
       meta: {

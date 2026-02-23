@@ -193,8 +193,7 @@ export interface ServiceTreeDetail {
   template_type?: string
   version: string
   version_num: number
-  hub_directory_id?: number
-  hub_version?: string
+  hub_full_code_path?: string
   hub_version_num?: number
   permissions?: Record<string, boolean>  // ⭐ 权限信息
 }
