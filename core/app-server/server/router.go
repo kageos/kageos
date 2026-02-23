@@ -86,6 +86,7 @@ func (s *Server) setupRoutes() {
 	serviceTreeAuth.POST("/copy", serviceTreeHandler.CopyServiceTree)                 // 复制服务目录
 	serviceTreeAuth.POST("/publish_to_hub", serviceTreeHandler.PublishDirectoryToHub) // 发布目录到 Hub
 	serviceTreeAuth.POST("/push_to_hub", serviceTreeHandler.PushDirectoryToHub)       // 推送目录到 Hub（更新已发布的目录）
+	serviceTreeAuth.GET("/hub_push_form_info", serviceTreeHandler.GetHubPushFormInfo) // 获取推送表单信息（预填 + 下一版本号）
 	serviceTreeAuth.GET("/hub_info", serviceTreeHandler.GetHubInfo)                   // 获取目录的 Hub 信息
 	serviceTreeAuth.POST("/pull_from_hub", serviceTreeHandler.PullDirectoryFromHub)   // 从 Hub 拉取目录
 

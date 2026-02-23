@@ -88,9 +88,8 @@ export interface ServiceTree {
   full_group_code?: string  // 完整函数组代码：{full_path}/{group_code}，与 source_code.full_group_code 对齐
   group_name?: string  // 组名称（用于展示，不参与路由）
   template_type?: string  // 模板类型（函数的类型，如 form、table）
-  hub_directory_id?: number  // Hub 目录 ID（如果已发布到 Hub）
-  hub_version?: string  // Hub 目录版本（如 v1.0.0）
-  hub_version_num?: number  // Hub 目录版本号（数字部分）
+  hub_full_code_path?: string // Hub 目录完整路径，用于绑定与详情 URL（前端用此拼 /directory/xxx）
+  hub_version_num?: number  // Hub 目录版本号（数字部分），展示时格式化为 v{N}
   has_function?: boolean  // ⭐ 是否有函数（仅对package类型有效）：如果该package下直接或间接包含function类型的子节点，则为true
   is_admin?: boolean  // ⭐ 是否是管理员（企业版功能）：如果用户是工作空间管理员，则为 true，前端优先判断此字段，无需构造每个节点的权限
   permissions?: Record<string, boolean>  // ⭐ 权限标识（企业版功能）：权限点 -> 是否有权限

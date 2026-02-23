@@ -100,13 +100,13 @@
             
             <!-- Hub 标记 - 已发布到 Hub 的根节点或目录显示 -->
             <span
-              v-if="data.type === 'package' && data.hub_directory_id && data.hub_directory_id > 0"
+              v-if="data.type === 'package' && data.hub_full_code_path"
               class="hub-badge"
               @click.stop="handleHubBadgeClick(data)"
-              :title="data.hub_version ? `已发布到应用中心 ${data.hub_version}` : '已发布到应用中心'"
+              :title="data.hub_version_num != null ? `已发布到应用中心 v${data.hub_version_num}` : '已发布到应用中心'"
             >
               <el-icon class="hub-icon"><Link /></el-icon>
-              <span v-if="data.hub_version" class="hub-version">{{ data.hub_version }}</span>
+              <span v-if="data.hub_version_num != null" class="hub-version">v{{ data.hub_version_num }}</span>
             </span>
             
             <!-- ⭐ 待审批数量 badge - 仅管理员可见（package 和 function 类型都显示） -->
@@ -227,7 +227,7 @@
                   
                   <!-- Hub 相关操作 -->
                   <el-dropdown-item 
-                    v-if="data.type === 'package' && !data.hub_directory_id && hasPermission(data, DirectoryPermissions.read)" 
+                    v-if="data.type === 'package' && !data.hub_full_code_path && hasPermission(data, DirectoryPermissions.read)" 
                     command="publish-to-hub"
                   >
                     <el-icon><Upload /></el-icon>
@@ -235,7 +235,7 @@
                   </el-dropdown-item>
                   
                   <el-dropdown-item 
-                    v-if="data.type === 'package' && data.hub_directory_id && hasPermission(data, DirectoryPermissions.write)" 
+                    v-if="data.type === 'package' && data.hub_full_code_path && hasPermission(data, DirectoryPermissions.write)" 
                     command="push-to-hub"
                   >
                     <el-icon><Upload /></el-icon>
@@ -984,8 +984,8 @@ const handleUpdateHistoryClick = () => {
 
 // 处理 Hub 标记点击 - 跳转到 Hub 目录详情页
 const handleHubBadgeClick = (data: ServiceTree) => {
-  if (data.hub_directory_id && data.hub_directory_id > 0) {
-    navigateToHubDirectoryDetail(data.hub_directory_id)
+  if (data.hub_full_code_path) {
+    navigateToHubDirectoryDetail(data.hub_full_code_path)
   }
 }
 

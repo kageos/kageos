@@ -1,5 +1,7 @@
 package dto
 
+import "encoding/json"
+
 // PublishHubDirectoryReq 发布目录到 Hub 请求
 type PublishHubDirectoryReq struct {
 	APIKey               string            `json:"api_key"`                // API Key（私有化部署需要）
@@ -27,18 +29,26 @@ type DirectoryTreeNode struct {
 	Subdirectories []*DirectoryTreeNode `json:"subdirectories"` // 子目录列表（递归）
 }
 
-// HubFunctionInfo 函数信息（用于 Hub 目录树）
+// HubFunctionInfo 函数信息（用于 Hub 目录树与快照函数定义）
+// Schema 为统一扩展字段：内含 request/response，后续可按 template_type 放不同结构（如 form/table/chart 各自 schema）
 type HubFunctionInfo struct {
-	ID           int64    `json:"id"`            // ServiceTree 节点ID
-	Name         string   `json:"name"`          // 函数名称
-	Code         string   `json:"code"`          // 函数代码
-	FullCodePath string   `json:"full_code_path"` // 完整代码路径
-	Description  string   `json:"description"`   // 函数描述
-	TemplateType string   `json:"template_type"` // 函数类型（如 form, table, chart 等）
-	Tags         []string `json:"tags"`          // 标签
-	RefID        int64    `json:"ref_id"`        // 指向真实的 function ID
-	Version      string   `json:"version"`       // 函数版本号
-	VersionNum   int      `json:"version_num"`   // 版本号数字部分
+	ID           int64            `json:"id"`            // ServiceTree 节点ID
+	Name         string           `json:"name"`          // 函数名称
+	Code         string           `json:"code"`          // 函数代码
+	FullCodePath string           `json:"full_code_path"` // 完整代码路径
+	Description  string           `json:"description"`   // 函数描述
+	TemplateType string           `json:"template_type"` // 函数类型（如 form, table, chart 等）
+	Tags         []string         `json:"tags"`          // 标签
+	RefID        int64            `json:"ref_id"`        // 指向真实的 function ID
+	Version      string           `json:"version"`       // 函数版本号
+	VersionNum   int              `json:"version_num"`   // 版本号数字部分
+	// 函数完整定义，推送到 Hub 时存入 SnapshotFunctionDefs JSON
+	Method       string          `json:"method,omitempty"`        // HTTP 方法
+	Router       string          `json:"router,omitempty"`         // 路由（full-code-path）
+	CreateTables string          `json:"create_tables,omitempty"` // 创建表配置
+	Callbacks    string          `json:"callbacks,omitempty"`     // 回调配置
+	// Schema：统一扩展字段，内含 request/response，可按 template_type 放不同结构（JSON 对象）
+	Schema       json.RawMessage `json:"schema,omitempty"`         // 如 {"request":...,"response":...} 或按类型扩展
 }
 
 // FileSnapshotInfo 文件快照信息
@@ -52,10 +62,9 @@ type FileSnapshotInfo struct {
 
 // PublishHubDirectoryResp 发布目录到 Hub 响应
 type PublishHubDirectoryResp struct {
-	HubDirectoryID  int64  `json:"hub_directory_id"`
-	HubDirectoryURL string `json:"hub_directory_url"`
-	DirectoryCount  int    `json:"directory_count"` // 包含的子目录数量
-	FileCount       int    `json:"file_count"`      // 包含的文件数量
+	HubFullCodePath string `json:"hub_full_code_path"` // Hub 目录完整路径，前端用此拼详情 URL
+	DirectoryCount  int    `json:"directory_count"`    // 包含的子目录数量
+	FileCount       int    `json:"file_count"`         // 包含的文件数量
 }
 
 // UpdateHubDirectoryReq 更新目录到 Hub 请求（用于 push）
@@ -70,17 +79,17 @@ type UpdateHubDirectoryReq struct {
 	ServiceFeePersonal   float64           `json:"service_fee_personal"`   // 个人用户服务费（可选）
 	ServiceFeeEnterprise float64           `json:"service_fee_enterprise"` // 企业用户服务费（可选）
 	Version              string            `json:"version"`                // 新版本号（必需）
+	UpdateDescription    string            `json:"update_description"`     // 本版本更新说明（可选，存到快照 Description）
 	DirectoryTree        *DirectoryTreeNode `json:"directory_tree"`        // 目录树结构
 }
 
 // UpdateHubDirectoryResp 更新目录到 Hub 响应
 type UpdateHubDirectoryResp struct {
-	HubDirectoryID  int64  `json:"hub_directory_id"`
-	HubDirectoryURL string `json:"hub_directory_url"`
-	DirectoryCount  int    `json:"directory_count"` // 包含的子目录数量
-	FileCount       int    `json:"file_count"`      // 包含的文件数量
-	OldVersion      string `json:"old_version"`     // 旧版本号
-	NewVersion      string `json:"new_version"`     // 新版本号
+	HubFullCodePath string `json:"hub_full_code_path"` // Hub 目录完整路径，前端用此拼详情 URL
+	DirectoryCount  int    `json:"directory_count"`   // 包含的子目录数量
+	FileCount       int    `json:"file_count"`       // 包含的文件数量
+	OldVersion      string `json:"old_version"`      // 旧版本号
+	NewVersion      string `json:"new_version"`      // 新版本号
 }
 
 // HubDirectoryListResp Hub 目录列表响应
@@ -162,10 +171,12 @@ type GetHubDirectoryListReq struct {
 }
 
 // GetHubDirectoryDetailReq 获取 Hub 目录详情请求（通过网关）
+// HubDirectoryID 与 FullCodePath 二选一：有 ID 时用 ID（复制目录后从 b 推送时用 ID 才能命中原来从 a 发布的记录）
 type GetHubDirectoryDetailReq struct {
-	FullCodePath string `json:"full_code_path" form:"full_code_path" binding:"required"` // 完整代码路径
-	Version      string `json:"version" form:"version"`                                    // 版本号（可选）
-	IncludeTree  bool   `json:"include_tree" form:"include_tree"`                         // 是否包含目录树（可选，默认false）
+	HubDirectoryID int64  `json:"hub_directory_id" form:"hub_directory_id"`             // Hub 目录 ID（可选，与 full_code_path 二选一）
+	FullCodePath   string `json:"full_code_path" form:"full_code_path"`                 // 完整代码路径（可选，与 hub_directory_id 二选一）
+	Version        string `json:"version" form:"version"`                               // 版本号（可选）
+	IncludeTree    bool   `json:"include_tree" form:"include_tree"`                     // 是否包含目录树（可选，默认 false）
 }
 
 // GetHubDirectoryDetailFromHostReq 从指定的 Hub 主机获取目录详情请求（跨 Hub 主机调用）

@@ -15,12 +15,22 @@ export interface ChatMessageFile {
   [key: string]: unknown
 }
 
+/** 单条 assistant 消息内的工具调用项（与 ChatMessage.tool_calls 元素同构） */
+export type ChatMessageToolCall = { name: string; status: string; arguments?: string; result?: string; error?: string }
+
+/** assistant 消息内的块：按事件顺序排列，用于「文本 → 工具调用 → 文本 → …」的层次展示 */
+export type AssistantBlock =
+  | { type: 'content'; text: string }
+  | { type: 'tool_calls'; calls: ChatMessageToolCall[] }
+
 export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   /** 仅 user 消息：附带文件列表（发送时展示、加载会话时由接口解析） */
   files?: ChatMessageFile[]
-  tool_calls?: Array<{ name: string; status: string; arguments?: string; result?: string; error?: string }>
+  tool_calls?: ChatMessageToolCall[]
+  /** assistant 专用：按顺序的 content / tool_calls 块，有则按块渲染，否则退化为上面整段 content + 下面整段 tool_calls */
+  blocks?: AssistantBlock[]
   created_at?: string
 }
 
@@ -63,82 +73,92 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
         status: 'streaming' as const,
         arguments: typeof t.arguments === 'string' ? t.arguments : undefined,
       }))
+      const blocks = m.blocks ?? []
       const prev = m.tool_calls || []
-      // 合并：已有 running/ok/error 的项保留 status/result/error，不覆盖；且不截断：若 prev 更长则保留多出的项，这样执行过程中已产生的文件历史不会丢
       const fromStream = streamList.map((item, i) => {
         const existing = prev[i]
         const args = (item.arguments && item.arguments.trim()) ? item.arguments : (existing?.arguments ?? item.arguments)
         if (existing && ['running', 'ok', 'error'].includes(existing.status)) {
-          return {
-            ...item,
-            status: existing.status,
-            arguments: args,
-            result: existing.result,
-            error: existing.error,
-          }
+          return { ...item, status: existing.status, arguments: args, result: existing.result, error: existing.error }
         }
         return { ...item, arguments: args }
       })
-      const list = prev.length > streamList.length
-        ? fromStream.concat(prev.slice(streamList.length))
-        : fromStream
-      messages.value[lastIdx] = { ...m, tool_calls: list }
+      const list = prev.length > streamList.length ? fromStream.concat(prev.slice(streamList.length)) : fromStream
+      const last = blocks[blocks.length - 1]
+      let nextBlocks: AssistantBlock[]
+      if (last && last.type === 'tool_calls') {
+        nextBlocks = [...blocks.slice(0, -1), { type: 'tool_calls', calls: list }]
+      } else {
+        nextBlocks = [...blocks, { type: 'tool_calls', calls: list }]
+      }
+      messages.value[lastIdx] = { ...m, tool_calls: list, blocks: nextBlocks }
     }
     if (event === 'tool_call' && typeof data.name === 'string') {
       const status = String(data.status || 'ok')
       const argumentsStr = (typeof data.arguments === 'string' && data.arguments.trim()) ? data.arguments : undefined
       const resultStr = typeof data.result === 'string' ? data.result : undefined
       const errorStr = typeof data.error === 'string' ? data.error : undefined
+      const blocks = m.blocks ?? []
       const prev = m.tool_calls || []
-      // 按顺序更新：后端按执行顺序发 tool_call，用「第一个未完成」的槽位，避免同名/错位导致只保留最后一个
       const pendingIndex = prev.findIndex((t) => t.status === 'streaming' || t.status === 'running')
-      const list: Array<{ name: string; status: string; arguments?: string; result?: string; error?: string }> =
+      const list: ChatMessageToolCall[] =
         pendingIndex >= 0
           ? prev.map((t, i) =>
               i === pendingIndex
-                ? {
-                    name: data.name as string,
-                    status,
-                    arguments: argumentsStr ?? t.arguments,
-                    result: resultStr ?? t.result,
-                    error: errorStr ?? t.error,
-                  }
+                ? { name: data.name as string, status, arguments: argumentsStr ?? t.arguments, result: resultStr ?? t.result, error: errorStr ?? t.error }
                 : t
             )
           : [...prev, { name: data.name as string, status, arguments: argumentsStr, result: resultStr, error: errorStr }]
-      messages.value[lastIdx] = { ...m, tool_calls: list }
+      // 更新最后一个 tool_calls 块
+      const tcBlockIdx = blocks.map((b, i) => (b.type === 'tool_calls' ? i : -1)).filter((i) => i >= 0).pop()
+      const nextBlocks =
+        tcBlockIdx !== undefined
+          ? [...blocks.slice(0, tcBlockIdx), { type: 'tool_calls' as const, calls: list }, ...blocks.slice(tcBlockIdx + 1)]
+          : [...blocks, { type: 'tool_calls' as const, calls: list }]
+      messages.value[lastIdx] = { ...m, tool_calls: list, blocks: nextBlocks }
     }
     if (event === 'content' && typeof data.content === 'string') {
-      messages.value[lastIdx] = { ...m, content: m.content + data.content }
+      const blocks = m.blocks ?? []
+      const last = blocks[blocks.length - 1]
+      const newContent = m.content + data.content
+      if (last && last.type === 'content') {
+        const next = [...blocks.slice(0, -1), { type: 'content' as const, text: last.text + data.content }]
+        messages.value[lastIdx] = { ...m, content: newContent, blocks: next }
+      } else {
+        messages.value[lastIdx] = { ...m, content: newContent, blocks: [...blocks, { type: 'content', text: data.content }] }
+      }
     }
     if (event === 'done') {
       sending.value = false
       if (Array.isArray(data.tool_calls)) {
-        const doneList = data.tool_calls as Array<{ name: string; status: string; arguments?: string; result?: string; error?: string }>
+        const doneList = data.tool_calls as ChatMessageToolCall[]
         const prev = m.tool_calls || []
-        // 以当前已有 tool_calls 为基准合并，不因 doneList 更短而丢失已更新的 result（避免只展示最后一个）
         const merged = prev.map((t, i) => {
           const dc = doneList[i]
           if (!dc) return t
-          return {
-            ...t,
-            ...dc,
-            arguments: dc.arguments ?? t.arguments,
-            result: dc.result ?? t.result,
-            error: dc.error ?? t.error,
-          }
+          return { ...t, ...dc, arguments: dc.arguments ?? t.arguments, result: dc.result ?? t.result, error: dc.error ?? t.error }
         })
-        // 若 done 列表更长则追加
         if (doneList.length > prev.length) {
-          for (let i = prev.length; i < doneList.length; i++) {
-            merged.push({ ...doneList[i] })
-          }
+          for (let i = prev.length; i < doneList.length; i++) merged.push({ ...doneList[i] })
         }
-        messages.value[lastIdx] = { ...m, tool_calls: merged }
+        const blocks = m.blocks ?? []
+        const tcBlockIdx = blocks.map((b, i) => (b.type === 'tool_calls' ? i : -1)).filter((i) => i >= 0).pop()
+        const nextBlocks =
+          tcBlockIdx !== undefined
+            ? [...blocks.slice(0, tcBlockIdx), { type: 'tool_calls' as const, calls: merged }, ...blocks.slice(tcBlockIdx + 1)]
+            : [...blocks, { type: 'tool_calls' as const, calls: merged }]
+        messages.value[lastIdx] = { ...m, tool_calls: merged, blocks: nextBlocks }
       }
     }
     if (event === 'error') {
-      messages.value[lastIdx] = { ...m, content: m.content || String(data.message || '请求失败') }
+      const errText = String(data.message || '请求失败')
+      const blocks = m.blocks ?? []
+      const last = blocks[blocks.length - 1]
+      const nextBlocks =
+        last && last.type === 'content'
+          ? [...blocks.slice(0, -1), { type: 'content' as const, text: last.text + (m.content ? '\n\n' : '') + errText }]
+          : [...blocks, { type: 'content' as const, text: errText }]
+      messages.value[lastIdx] = { ...m, content: m.content || errText, blocks: nextBlocks }
       sending.value = false
     }
   }
@@ -147,7 +167,7 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
     if (sending.value) return
     const now = new Date().toISOString()
     messages.value.push({ role: 'user', content, files: files?.length ? files : undefined, created_at: now })
-    messages.value.push({ role: 'assistant', content: '', tool_calls: [], created_at: now })
+    messages.value.push({ role: 'assistant', content: '', tool_calls: [], blocks: [], created_at: now })
     sending.value = true
     const idx = messages.value.length - 1
     try {
@@ -156,7 +176,8 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
       const errMsg = e instanceof Error ? e.message : String(e)
       const msg = messages.value[idx]
       if (msg && msg.role === 'assistant') {
-        messages.value[idx] = { ...msg, content: msg.content || `请求失败：${errMsg}` }
+        const text = msg.content || `请求失败：${errMsg}`
+        messages.value[idx] = { ...msg, content: text, blocks: [{ type: 'content', text }] }
       }
     } finally {
       sending.value = false

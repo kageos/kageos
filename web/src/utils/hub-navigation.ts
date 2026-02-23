@@ -49,10 +49,11 @@ export function navigateToHub(path: string = '/') {
 
 /**
  * 跳转到 Hub 目录详情页
- * @param directoryId Hub 目录ID
+ * @param hubFullCodePath Hub 目录完整路径（如 luobei/demos/xxx 或 /luobei/demos/xxx），内部拼成 /directory/xxx
  */
-export function navigateToHubDirectoryDetail(directoryId: number) {
-  navigateToHub(`/directory/${directoryId}`)
+export function navigateToHubDirectoryDetail(hubFullCodePath: string) {
+  const path = hubFullCodePath.replace(/^\//, '')
+  navigateToHub(path ? `/directory/${path}` : '/directory')
 }
 
 /**

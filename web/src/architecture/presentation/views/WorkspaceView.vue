@@ -1833,12 +1833,7 @@ onMounted(async () => {
   }
   
   // 🔥 初始化 RouteManager（不再使用 Tab）
-  routeManager = new RouteManager(
-    router,
-    route,
-    eventBus,
-    () => null  // 🔥 Tab 功能已删除
-  )
+  routeManager = new RouteManager(router, route, eventBus)
   
   // 监听函数加载完成事件
   // 🔥 监听函数加载完成事件，更新 currentFunctionDetail

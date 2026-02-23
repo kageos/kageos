@@ -81,13 +81,17 @@
                 版本 {{ directoryDetail.version }}
               </el-tag>
             </div>
+            <div v-if="directoryDetail?.version_description" class="hero-version-desc">
+              <span class="version-desc-label">本版本更新说明：</span>
+              <span class="version-desc-text">{{ directoryDetail.version_description }}</span>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- 主要内容区域：左右分栏 -->
-    <div class="main-content">
+    <!-- 主要内容区域：左右分栏（:key 确保切换版本时详情与目录树整体刷新） -->
+    <div class="main-content" :key="selectedVersion || 'latest'">
       <!-- 左侧：目录树 -->
       <div class="tree-sidebar" v-if="directoryDetail?.directory_tree">
         <div class="sidebar-header">
@@ -120,7 +124,7 @@
                   <!-- 表单类型：使用自定义 SVG -->
                   <img 
                     v-if="data.template_type === 'form'"
-                    src="/service-tree/表单 (3).svg" 
+                    src="/service-tree/编辑.svg" 
                     alt="表单" 
                     class="node-icon form-icon-img"
                   />
@@ -268,7 +272,7 @@
                 <div class="child-icon-wrapper function-type">
                   <img
                     v-if="func.template_type === 'form'"
-                    src="/service-tree/表单 (3).svg"
+                    src="/service-tree/编辑.svg"
                     alt="表单"
                     class="child-icon-img"
                   />
@@ -300,6 +304,33 @@
           :image-size="120"
           class="empty-state"
         />
+      </div>
+
+      <!-- 右侧：历史版本 -->
+      <div class="version-sidebar" v-if="versionList.length > 0">
+        <div class="sidebar-header">
+          <h3 class="sidebar-title">
+            <el-icon class="sidebar-icon"><Clock /></el-icon>
+            历史版本
+          </h3>
+        </div>
+        <div class="version-list">
+          <div
+            v-for="v in versionList"
+            :key="v.version"
+            class="version-item"
+            :class="{ active: (selectedVersion || (versionList[0]?.version)) === v.version }"
+            @click="selectVersion(v.version)"
+          >
+            <span class="version-tag">{{ v.version }}</span>
+            <span class="version-time">{{ formatVersionTime(v.snapshot_at) }}</span>
+            <div v-if="v.publisher_username" class="version-uploader">
+              <UserDisplay :username="v.publisher_username" size="small" />
+            </div>
+            <p v-if="v.description" class="version-desc">{{ v.description }}</p>
+            <el-tag v-if="v.is_current" type="success" size="small" class="current-tag">当前</el-tag>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -335,7 +366,7 @@
             <div class="detail-icon-wrapper function-icon-wrapper">
               <img
                 v-if="selectedItem.template_type === 'form'"
-                src="/service-tree/表单 (3).svg"
+                src="/service-tree/编辑.svg"
                 alt="表单"
                 class="detail-icon-img"
               />
@@ -423,10 +454,19 @@ import {
   DataAnalysis,
   CollectionTag,
   Operation,
-  User
+  User,
+  Clock
 } from '@element-plus/icons-vue'
 import { ElMessage, ElTag } from 'element-plus'
-import { getHubDirectoryDetail, type HubDirectoryDetail, type DirectoryTreeNode } from '@/api/hub'
+import {
+  getHubDirectoryDetail,
+  getHubDirectoryDetailByPath,
+  getHubDirectoryVersions,
+  getHubDirectoryVersionsByPath,
+  type HubDirectoryDetail,
+  type DirectoryTreeNode,
+  type HubDirectoryVersionItem
+} from '@/api/hub'
 import ChartIcon from '@/components/icons/ChartIcon.vue'
 import TableIcon from '@/components/icons/TableIcon.vue'
 import UserDisplay from '@/components/UserDisplay.vue'
@@ -438,6 +478,8 @@ const userInfoStore = useUserInfoStore()
 
 const loading = ref(false)
 const directoryDetail = ref<HubDirectoryDetail | null>(null)
+const versionList = ref<HubDirectoryVersionItem[]>([])
+const selectedVersion = ref<string>('') // 空表示当前查看的是「最新版本」
 
 // 详情对话框相关
 const detailDialogVisible = ref(false)
@@ -450,27 +492,98 @@ const detailDialogTitle = computed(() => {
   return '详情'
 })
 
-// 加载目录详情
-const loadDirectoryDetail = async () => {
-  const directoryId = Number(route.params.id)
-  if (!directoryId) {
-    ElMessage.error('目录ID无效')
-    return
-  }
+// 从路由解析 fullCodePath 或 id（path+ 可能是字符串 "luobei/demos/xxx" 或数字 "123"）
+const getPathOrId = () => {
+  const p = route.params.path
+  if (Array.isArray(p)) return p.length ? '/' + (p as string[]).join('/') : ''
+  const s = (p ?? '') as string
+  if (!s) return ''
+  if (/^\d+$/.test(s)) return { id: Number(s) }
+  return s.startsWith('/') ? s : '/' + s
+}
 
-  loading.value = true
+// 加载目录详情（不传 version 即最新版本）
+const loadDetailForVersion = async (version?: string) => {
+  const pathOrId = getPathOrId()
+  if (!pathOrId) return
   try {
-    const detail = await getHubDirectoryDetail(directoryId, true)
+    const detail = typeof pathOrId === 'object' && 'id' in pathOrId
+      ? await getHubDirectoryDetail(pathOrId.id, true, version)
+      : await getHubDirectoryDetailByPath(pathOrId as string, true, version)
     directoryDetail.value = detail
-    
-    // 🔥 预加载发布者的用户信息（使用缓存）
     if (detail.publisher_username) {
       userInfoStore.getUserInfo(detail.publisher_username).catch((error: any) => {
         console.warn('[HubDirectoryDetail] 预加载用户信息失败:', error)
       })
     }
   } catch (error: any) {
-    ElMessage.error(`加载目录详情失败: ${error.message || '未知错误'}`)
+    ElMessage.error(`加载目录详情失败: ${(error as any)?.message || '未知错误'}`)
+    console.error('加载目录详情失败:', error)
+  }
+}
+
+// 选择并切换版本
+const selectVersion = async (version: string) => {
+  if (selectedVersion.value === version) return
+  selectedVersion.value = version
+  loading.value = true
+  try {
+    await loadDetailForVersion(version)
+  } finally {
+    loading.value = false
+  }
+}
+
+// 格式化版本时间
+const formatVersionTime = (snapshotAt: string) => {
+  if (!snapshotAt) return ''
+  try {
+    const d = new Date(snapshotAt)
+    const now = new Date()
+    const diff = now.getTime() - d.getTime()
+    if (diff < 60000) return '刚刚'
+    if (diff < 3600000) return `${Math.floor(diff / 60000)} 分钟前`
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)} 小时前`
+    return d.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit', year: 'numeric' })
+  } catch {
+    return snapshotAt
+  }
+}
+
+// 加载目录详情 + 版本列表（入口：默认看最新版本；支持 path 或 id）
+const loadDirectoryDetail = async () => {
+  const pathOrId = getPathOrId()
+  if (!pathOrId) {
+    ElMessage.error('目录路径无效')
+    return
+  }
+
+  loading.value = true
+  selectedVersion.value = ''
+  try {
+    const isId = typeof pathOrId === 'object' && 'id' in pathOrId
+    const detailPromise = isId
+      ? getHubDirectoryDetail(pathOrId.id, true)
+      : getHubDirectoryDetailByPath(pathOrId as string, true)
+    const versionsPromise = isId
+      ? getHubDirectoryVersions(pathOrId.id)
+      : getHubDirectoryVersionsByPath(pathOrId as string)
+    const [detail, versionsResp] = await Promise.all([detailPromise, versionsPromise])
+    directoryDetail.value = detail
+    versionList.value = versionsResp?.items ?? []
+    // 预加载详情与各版本上传人信息（供 UserDisplay 展示）
+    const usernames = new Set<string>()
+    if (detail.publisher_username) usernames.add(detail.publisher_username)
+    for (const v of versionsResp?.items ?? []) {
+      if (v.publisher_username) usernames.add(v.publisher_username)
+    }
+    for (const u of usernames) {
+      userInfoStore.getUserInfo(u).catch((error: any) => {
+        console.warn('[HubDirectoryDetail] 预加载用户信息失败:', error)
+      })
+    }
+  } catch (error: any) {
+    ElMessage.error(`加载目录详情失败: ${(error as any)?.message || '未知错误'}`)
     console.error('加载目录详情失败:', error)
   } finally {
     loading.value = false
@@ -648,7 +761,7 @@ const DirectoryNodeWrapper = defineComponent({
             h('div', { class: 'child-card-header' }, [
               h('div', { class: 'child-icon-wrapper function-type' }, [
                 func.template_type === 'form'
-                  ? h('img', { src: '/service-tree/表单 (3).svg', alt: '表单', class: 'child-icon-img' })
+                  ? h('img', { src: '/service-tree/编辑.svg', alt: '表单', class: 'child-icon-img' })
                   : func.template_type === 'table'
                   ? h(TableIcon, { class: 'child-icon' })
                   : func.template_type === 'chart'
@@ -1030,7 +1143,23 @@ onMounted(() => {
             flex-wrap: wrap;
             margin-top: 12px;
           }
-          
+
+          .hero-version-desc {
+            margin-top: 12px;
+            padding: 10px 12px;
+            background: var(--el-fill-color-light);
+            border-radius: 8px;
+            font-size: 13px;
+
+            .version-desc-label {
+              color: var(--el-text-color-secondary);
+              margin-right: 6px;
+            }
+
+            .version-desc-text {
+              color: var(--el-text-color-regular);
+            }
+          }
         }
       }
     }
@@ -1150,6 +1279,100 @@ onMounted(() => {
         :deep(.el-tree-node.is-current .el-tree-node__children .el-tree-node__content) {
           background-color: transparent;
           border-left: none;
+        }
+      }
+    }
+
+    // 右侧：历史版本
+    .version-sidebar {
+      width: 220px;
+      flex-shrink: 0;
+      background: var(--el-bg-color);
+      border-left: 1px solid var(--el-border-color-lighter);
+      display: flex;
+      flex-direction: column;
+
+      .sidebar-header {
+        padding: 20px;
+        border-bottom: 1px solid var(--el-border-color-lighter);
+
+        .sidebar-title {
+          margin: 0;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 16px;
+          font-weight: 600;
+          color: var(--el-text-color-primary);
+
+          .sidebar-icon {
+            font-size: 18px;
+            color: var(--el-color-primary);
+          }
+        }
+      }
+
+      .version-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 12px;
+      }
+
+      .version-item {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 12px;
+        margin-bottom: 6px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 0.2s;
+
+        &:hover {
+          background: var(--el-fill-color-light);
+        }
+
+        &.active {
+          border-left: 3px solid var(--el-color-primary);
+          padding-left: 9px; // 12px - 3px 保持内容对齐
+        }
+
+        .version-tag {
+          font-weight: 600;
+          font-size: 14px;
+        }
+
+        .version-time {
+          font-size: 12px;
+          color: var(--el-text-color-secondary);
+          width: 100%;
+        }
+
+        &.active .version-time {
+          color: var(--el-text-color-secondary);
+        }
+
+        .version-uploader {
+          margin-top: 4px;
+          width: 100%;
+        }
+
+        .version-desc {
+          margin: 6px 0 0 0;
+          font-size: 12px;
+          color: var(--el-text-color-secondary);
+          line-height: 1.4;
+          width: 100%;
+          word-break: break-word;
+        }
+
+        &.active .version-desc {
+          color: var(--el-text-color-secondary);
+        }
+
+        .current-tag {
+          flex-shrink: 0;
         }
       }
     }

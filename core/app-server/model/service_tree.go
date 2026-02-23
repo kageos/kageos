@@ -42,9 +42,8 @@ type ServiceTree struct {
 	UpdateVersionNum int            `json:"update_version_num"`                                                                          // 更新版本号（数字部分，如 v2 -> 2），用于版本回滚时过滤
 	Version          string         `json:"version" gorm:"type:varchar(50);comment:节点当前版本号（如 v1, v2），package类型表示目录版本，function类型表示函数版本等"` // 节点当前版本号
 	VersionNum       int            `json:"version_num" gorm:"comment:节点当前版本号（数字部分）"`                                                    // 节点当前版本号（数字部分）
-	HubDirectoryID   int64          `json:"hub_directory_id" gorm:"index;default:0;comment:关联的Hub目录ID（如果已发布到Hub）"`                       // 关联的Hub目录ID
-	HubVersion       string         `json:"hub_version" gorm:"type:varchar(50);default:'';comment:Hub目录版本（如 v1.0.0），用于版本检测和升级"`          // Hub目录版本
-	HubVersionNum    int            `json:"hub_version_num" gorm:"default:0;comment:Hub目录版本号（数字部分），用于版本比较"`                              // Hub目录版本号（数字部分）
+	HubFullCodePath  string         `json:"hub_full_code_path" gorm:"type:varchar(500);default:'';index;comment:Hub 目录完整路径，用于绑定与详情 URL"`   // 绑定与详情 URL 用此字段
+	HubVersionNum    int            `json:"hub_version_num" gorm:"default:0;comment:Hub目录版本号（数字部分），用于版本比较与展示（展示时格式化为 v{N}）"`   // Hub目录版本号（数字部分）
 	Children         []*ServiceTree `json:"children" gorm:"-"`
 }
 

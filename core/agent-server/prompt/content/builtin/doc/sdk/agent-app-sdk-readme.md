@@ -52,7 +52,7 @@ func init() {
 ### Form 模式（POST，无 Table）
 
 1. **定义请求/响应结构体**：字段加 `widget`、`validate`；请求体可含 files、input、select、table 等。
-2. **写处理函数**：`ctx.ShouldBindValidate(&req)`，业务逻辑，`return resp.Form(&respStruct).Build()` 或 `resp.BizErrorf(...).Build()`。
+2. **写处理函数**：`ctx.ShouldBindValidate(&req)`，业务逻辑，`return resp.Form(&respStruct).Build()`；系统错误需加 `[系统错误]` 前缀并带详细参数（见第六节「系统错误」）。
 3. **配置 FormTemplate**：`BaseConfig`（Name、Request、Response）+ 可选 `OnSelectFuzzyMap` 等。
 4. **注册**：`init()` 中 `packageContext.POST("路由名", Handler, FormTemplate)`。
 
@@ -177,7 +177,7 @@ Attachment *types.Files `gorm:"type:json" widget:"name:附件;type:files"`
 | switch | 开关 | 是否启用 |
 | timestamp | 日期时间 | 创建时间、截止时间；**严格要求毫秒时间戳**（见下「timestamp 组件约定」） |
 | color | 颜色 | format:hex，default:#xxx |
-| files | 文件上传 | 字段类型 `*types.Files`，gorm `type:json`；**需 import** `github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types` |
+| files | 文件上传/文件下载 | 字段类型 `*types.Files`，gorm `type:json`；**需 import** `github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types` |
 | user / users | 用户选择 | default:Me()、Me(),MyLeader() 等 |
 | department / departments | 部门选择 | default:MyDepartment()，max_count 等 |
 | table | 子表（Form 请求） | 数组结构体，可配 OnSelectFuzzy |
@@ -190,7 +190,7 @@ Attachment *types.Files `gorm:"type:json" widget:"name:附件;type:files"`
 - **错误**：`BidTime string \`json:"bid_time" widget:"name:出价时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss"\`` —— 不要用 string 类型，也不要后端格式化成 "YYYY-MM-DD HH:mm:ss" 等字符串；timestamp 的 format 仅用于前端展示，后端只返回时间戳。
 - **错误**：使用秒级时间戳（如 `time.Now().Unix()`）—— 必须用毫秒级（如 `time.Now().UnixMilli()` 或 gorm 的 `autoCreateTime:milli` / `autoUpdateTime:milli`）。
 
-**files 类型约定**：使用 `type:files` 时字段类型必须为 `*types.Files`，需在文件顶部 **import** 包：`import "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"`。否则会编译报错「undefined: types」。
+**files 类型约定**：使用 `type:files` 时字段类型必须为 `*types.Files`，需在文件顶部 **import** 包：`import "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"`。否则会编译报错「undefined: types」。完整上传、下载与存储流程见第六节「文件上传、下载与存储」。
 
 #### link 组件（跳转链接）
 
@@ -578,31 +578,63 @@ func calculateBookingStatus(startTime, endTime int64) string {
 ## 六、Form 模式要点
 
 - **请求/响应结构体**：字段加 `widget`、`validate`；请求可含 `type:table`（子表）、`type:select` + `callback:"OnSelectFuzzy"` 等。
-- **处理函数**：`ctx.ShouldBindValidate(&req)`；业务逻辑；成功 `return resp.Form(&respStruct).Build()`，失败用 `resp.BizErrorf(...).Build()`（见下「业务错误：BizErrorf」）。如需读文件：`ctx.GetFS()`，DownloadFiles/RemoveFiles。
+- **处理函数**：`ctx.ShouldBindValidate(&req)`；业务逻辑；成功 `return resp.Form(&respStruct).Build()`。涉及文件读写时见下「文件上传、下载与存储」。
 - **FormTemplate**：`BaseConfig` 含 Name、Request、Response；若请求中有下拉需联动后端数据，配 `OnSelectFuzzyMap`。
 - **注册**：`packageContext.POST("路由名", Handler, FormTemplate)`。
 
-#### 业务错误：BizErrorf
+#### 系统错误（必读）
 
-Form 处理函数里要区分**业务错误**和**系统错误**，否则前端会当成系统异常处理，体验不对。
+系统错误（数据库异常、网络超时、Python/外部调用失败、未预期的 panic 等）需要**统一加上 `[系统错误]` 前缀**，并带上**报错信息和详细参数**（如请求体 `req`），方便大模型定位和排查问题。
 
-- **业务错误**：用户可理解的错误（参数不合法、余额不足、已投过票、记录不存在等）。**不要** `return err`，应使用 `return resp.BizErrorf("错误信息").Build()`。支持 `fmt.Sprintf` 占位符，如 `resp.BizErrorf("余额不足，需要 ¥%.2f，当前 ¥%.2f", need, balance).Build()`。框架会设置 `ErrCode = -1`，把消息返回给前端展示。
-- **系统错误**：数据库异常、网络超时、未预期的 panic 等。应直接 `return err`，框架会按系统错误处理。
-
-**易错点 1**：业务校验失败时若写了 `return err`，前端会收到系统错误提示而不是你期望的文案；应统一用 `resp.BizErrorf("...").Build()`。
-
-**易错点 2**：必须用**处理函数的入参 `resp`** 调用，即 `resp.BizErrorf(...)`。**不要**写 `response.BizErrorf(...)`——`response` 是包名，`BizErrorf` 是 `Response` 接口的方法，只能通过入参 `resp`（类型为 `response.Response`）调用，写 `response.BizErrorf` 会编译报错「未定义」。
+- **规范写法**：`return nil, fmt.Errorf("[系统错误]-[函数名] 简短描述, req: %+v, err: %w", req, err)`；打日志时同样加上 `[系统错误]-[函数名]` 并输出 req、err。
+- **参考实现**：`namespace/luobei/demos/code/api/form/nlp/jieba_segment.go` 中 `DoJiebaSegment` 的 Python 执行失败分支。
 
 ```go
-// 业务错误：用 resp.BizErrorf（resp 为处理函数入参，不要写 response.BizErrorf）
-if balance < total {
-    return resp.BizErrorf("余额不足，需要 ¥%.2f，当前余额 ¥%.2f，请充值后重试", total, balance).Build()
-}
-// 系统错误：直接 return err
-if err := db.Create(&row).Error; err != nil {
-    return err
+// 系统错误：必须带 [系统错误]、函数名、req 与 err，方便大模型排查
+if err := executor.ExecuteJSON(ctx, &result); err != nil {
+    logger.Errorf(ctx, "[系统错误]-[DoJiebaSegment] Python 执行失败, req: %+v, err: %v", req, err)
+    return nil, fmt.Errorf("[系统错误]-[DoJiebaSegment] 执行中文分词失败, req: %+v, err: %w", req, err)
 }
 return resp.Form(&respStruct).Build()
+```
+
+#### 文件上传、下载与存储
+
+- **上传**：请求或 Table 新增/编辑里用 `*types.Files` 字段，widget `type:files`；可选 `accept:.csv`、`max_size:50MB`、`max_count:10` 等。**Table 模式**下该字段落库用 `gorm:"column:xxx;type:json"`，Create/Update 时直接写入 model 即可，框架负责存储与列表/详情展示、下载。
+- **读上传的文件（Form 内）**：需要访问文件内容时（如解析 CSV、转 Excel），用 `fs := ctx.GetFS()`，`inputFiles := fs.DownloadFiles(req.xxx)` 得到带本地路径的 `*types.Files`；遍历 `inputFiles.GetFiles()`，用 `file.LocalPath`（如 `os.Open(file.LocalPath)`）读内容；用完后 **必须** `defer fs.RemoveFiles(inputFiles)` 清理临时文件。
+- **响应里返回文件（供下载）**：业务生成文件到本地路径后，用 `outputFiles := fs.ResponseFiles([]string{outputPath})` 得到 `*types.Files` 填到响应结构体，前端即可下载；用完后可 `defer fs.RemoveFiles(outputFiles)`。若无上传、仅生成文件给用户（如 CSV 文本转 Excel），可先用 `ctx.GetFS().GetTraceOutputDir()` 得到当前 Trace 输出目录，在该目录下生成文件再 `ResponseFiles`。
+- **参考实现**：Table 存储文件字段：`namespace/luobei/demos/code/api/tables/hr/hr_resume_list.go`（`ResumeFile`）；Form 上传读文件 + 响应返回文件：`namespace/luobei/demos/code/api/form/excelorcsv/office_csv_to_excel.go`（`DoCsvToExcel`、`DoCsvTextToExcel`）。
+
+```go
+// Form 内：读上传文件 → 处理 → 返回生成的文件
+func DoCsvToExcel(ctx *app.Context, req *CsvToExcelReq) (*CsvToExcelResp, error) {
+    fs := ctx.GetFS()
+    inputFiles := fs.DownloadFiles(req.InputFiles)
+    defer fs.RemoveFiles(inputFiles)
+
+    var outputFilePaths []string
+    for _, file := range inputFiles.GetFiles() {
+        if file.LocalPath == "" { continue }
+        outPath, err := csvToExcel(ctx, file.LocalPath)
+        if err != nil { /* 记录错误 */ continue }
+        outputFilePaths = append(outputFilePaths, outPath)
+    }
+
+    var outputFiles *types.Files
+    if len(outputFilePaths) > 0 {
+        outputFiles = fs.ResponseFiles(outputFilePaths)
+        defer fs.RemoveFiles(outputFiles)
+    }
+    return &CsvToExcelResp{OutputFiles: outputFiles, ...}, nil
+}
+```
+
+```go
+// Table 模式：文件字段落库，无需 GetFS/Download/Remove
+type HrResume struct {
+    ResumeFile *types.Files `json:"resume_file" gorm:"column:resume_file;type:json" widget:"name:简历附件;type:files"`
+}
+// OnTableAddRow/OnTableUpdateRow 里直接 db.Create(&row) / db.Updates(updates)，ResumeFile 会按 json 存储
 ```
 
 #### OnSelectFuzzy（下拉联动后端数据）

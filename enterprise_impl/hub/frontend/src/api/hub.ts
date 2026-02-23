@@ -105,21 +105,78 @@ export interface DirectoryTreeNode {
  */
 export interface HubDirectoryDetail extends HubDirectoryInfo {
   directory_tree?: DirectoryTreeNode  // 目录树结构（可选）
+  version_description?: string        // 当前查看版本的更新说明（推送时填的「本版本更新说明」）
   // ⭐ files 字段已移除，不再返回和展示文件
 }
 
 /**
- * 获取 Hub 目录详情
+ * 目录版本项（历史版本列表）
  */
-export async function getHubDirectoryDetail(
-  hubDirectoryId: number,
-  includeTree?: boolean
+export interface HubDirectoryVersionItem {
+  version: string
+  version_num: number
+  snapshot_at: string
+  is_current: boolean
+  description?: string               // 本版本更新说明（可选）
+  publisher_username?: string       // 该版本的上传人
+}
+
+/**
+ * 获取 Hub 目录详情
+ * @param version 可选，不传则返回最新版本
+ */
+/** 用 full_code_path 获取详情（推荐，用于详情页 URL 展示） */
+export async function getHubDirectoryDetailByPath(
+  fullCodePath: string,
+  includeTree?: boolean,
+  version?: string
 ): Promise<HubDirectoryDetail> {
   const baseURL = getHubBaseURL()
   const url = `${baseURL}/directories/detail`
+  const params: Record<string, string | number | boolean> = {
+    full_code_path: fullCodePath,
+    include_tree: includeTree ?? false
+  }
+  if (version) params.version = version
+  return get<HubDirectoryDetail>(url, params)
+}
 
-  return get<HubDirectoryDetail>(url, {
+/** 用 hub_directory_id 获取详情（兼容旧链接） */
+export async function getHubDirectoryDetail(
+  hubDirectoryId: number,
+  includeTree?: boolean,
+  version?: string
+): Promise<HubDirectoryDetail> {
+  const baseURL = getHubBaseURL()
+  const url = `${baseURL}/directories/detail`
+  const params: Record<string, string | number | boolean> = {
     hub_directory_id: hubDirectoryId,
-    include_tree: includeTree || false
+    include_tree: includeTree ?? false
+  }
+  if (version) params.version = version
+  return get<HubDirectoryDetail>(url, params)
+}
+
+/**
+ * 获取 Hub 目录版本列表（用于详情页右侧历史版本）
+ */
+/** 用 full_code_path 获取版本列表（推荐） */
+export async function getHubDirectoryVersionsByPath(
+  fullCodePath: string
+): Promise<{ items: HubDirectoryVersionItem[] }> {
+  const baseURL = getHubBaseURL()
+  const url = `${baseURL}/directories/versions`
+  return get<{ items: HubDirectoryVersionItem[] }>(url, {
+    full_code_path: fullCodePath
+  })
+}
+
+export async function getHubDirectoryVersions(
+  hubDirectoryId: number
+): Promise<{ items: HubDirectoryVersionItem[] }> {
+  const baseURL = getHubBaseURL()
+  const url = `${baseURL}/directories/versions`
+  return get<{ items: HubDirectoryVersionItem[] }>(url, {
+    hub_directory_id: hubDirectoryId
   })
 }

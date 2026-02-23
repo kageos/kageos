@@ -127,20 +127,14 @@ func (s *Server) initDatabase(ctx context.Context) error {
 func (s *Server) initServices(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Initializing services...")
 
-	// 初始化 Repository
+	// 初始化 Repository（两表方案：仅目录 + 快照）
 	hubDirectoryRepo := repository.NewHubDirectoryRepository(s.db)
-	hubServiceTreeRepo := repository.NewHubServiceTreeRepository(s.db)
 	hubSnapshotRepo := repository.NewHubSnapshotRepository(s.db)
-	hubFileSnapshotRepo := repository.NewHubFileSnapshotRepository(s.db)
-	// constructionLogRepo := repository.NewConstructionLogRepository(s.db)
-	// paymentRepo := repository.NewPaymentRepository(s.db)
 
 	// 初始化 Service
 	s.hubDirectoryService = service.NewHubDirectoryService(
 		hubDirectoryRepo,
-		hubServiceTreeRepo,
 		hubSnapshotRepo,
-		hubFileSnapshotRepo,
 	)
 	// s.authService = service.NewAuthService(s.osClient)
 	// s.paymentService = service.NewPaymentService(paymentRepo)

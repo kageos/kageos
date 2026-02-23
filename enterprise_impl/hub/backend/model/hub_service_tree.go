@@ -10,7 +10,7 @@ const (
 )
 
 // HubServiceTree Hub 服务树模型（类似 app-server 的 ServiceTree）
-// 用于存储 Hub 目录的完整树结构，包括目录（package）和函数（function）节点
+// 仅存储【当前版本】的树结构（package/function 节点）。每次 push 会 DeleteByHubDirectoryID 后重建，历史版本结构以 hub_snapshots.SnapshotData 为准。
 type HubServiceTree struct {
 	models.Base
 

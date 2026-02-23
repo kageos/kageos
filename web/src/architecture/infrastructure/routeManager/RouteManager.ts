@@ -92,10 +92,9 @@ import { watch, nextTick } from 'vue'
 import type { WatchSource } from 'vue'
 import type { Router, RouteLocationNormalized } from 'vue-router'
 import type { IEventBus } from '../../domain/interfaces/IEventBus'
-import { RouteEvent, WorkspaceEvent } from '../../domain/interfaces/IEventBus'
-// 🔥 Tab 功能已删除，TabStateManager 已废弃
-// import { TabStateManager, type TabRouteState } from './TabStateManager'
+import { RouteEvent } from '../../domain/interfaces/IEventBus'
 import { TABLE_PARAM_KEYS, SEARCH_PARAM_KEYS } from '@/utils/urlParams'
+import { isLinkNavigation as isLinkNavCheck } from '@/utils/linkNavigation'
 import { Logger } from '@/core/utils/logger'
 
 export interface RouteUpdateRequest {
@@ -116,33 +115,20 @@ export class RouteManager {
   private router: Router
   private route: RouteLocationNormalized
   private eventBus: IEventBus
-  // 🔥 Tab 功能已删除，以下属性已废弃
-  // private tabStateManager: TabStateManager
-  // private getCurrentTabId: () => string | null
   private isUpdating = false  // 防止循环更新
   private enableDebugLog = false  // 调试日志开关
-  
+
   constructor(
-    router: Router, 
-    route: RouteLocationNormalized, 
-    eventBus: IEventBus,
-    // getCurrentTabId: () => string | null  // 🔥 Tab 功能已删除
+    router: Router,
+    route: RouteLocationNormalized,
+    eventBus: IEventBus
   ) {
     this.router = router
     this.route = route
     this.eventBus = eventBus
-    // 🔥 Tab 功能已删除，以下代码已废弃
-    // this.getCurrentTabId = getCurrentTabId
-    // this.tabStateManager = new TabStateManager()
-    
-    // 监听路由变化，发出事件
+
     this.setupRouteWatch()
-    
-    // 监听路由更新请求事件
     this.setupUpdateListener()
-    
-    // 🔥 Tab 功能已删除，不再监听 Tab 切换事件
-    
     this.log('RouteManager 初始化完成')
   }
   
@@ -225,128 +211,11 @@ export class RouteManager {
     this.eventBus.off(RouteEvent.updateRequested, this.handleUpdateRequest)
     this.log('RouteManager 已销毁')
   }
-  
-  /**
-   * 🔥 Tab 功能已删除，以下方法已废弃
-   */
-  // private setupTabSwitchListener(): void {
-  //   this.eventBus.on(WorkspaceEvent.tabSwitching, (payload: { oldTabId: string, newTabId: string }) => {
-  //     this.handleTabSwitch(payload.oldTabId, payload.newTabId)
-  //   })
-  // }
-  
-  /**
-   * 🔥 Tab 功能已删除，以下方法已废弃
-   */
-  /*
-  private handleTabSwitch(oldTabId: string, newTabId: string): void {
-    this.log('Tab 切换', { oldTabId, newTabId })
-    
-    // 1. 🔥 保存旧 Tab 的路由状态
-    // 注意：此时 getCurrentTabId() 可能已经返回 newTabId（因为 activateTab 已经更新了状态）
-    // 所以，我们需要先获取旧 Tab 的路由状态（如果已保存），或者使用当前路由
-    // 但是，如果当前路由对应的 Tab 不是 oldTabId，说明路由已经更新了，我们需要使用当前路由
-    const currentRoute = this.getCurrentRoute()
-    const currentTabId = this.getCurrentTabId()
-    
-    this.log('保存旧 Tab 路由状态 - 当前状态', { 
-      oldTabId, 
-      newTabId, 
-      currentTabId, 
-      currentPath: currentRoute.path,
-      currentQuery: currentRoute.query
-    })
-    
-    // 🔥 如果当前 Tab ID 已经是 newTabId，说明 activateTab 已经更新了状态
-    // 此时，我们需要使用当前路由作为 oldTabId 的状态（因为路由还没有更新）
-    // 但是，如果路由已经更新了，我们需要使用当前路由
-    if (currentTabId === newTabId) {
-      // 当前 Tab ID 已经是 newTabId，说明 activateTab 已经更新了状态
-      // 此时，当前路由应该还是旧 Tab 的路由（因为路由更新是异步的）
-      // 所以，我们可以使用当前路由作为 oldTabId 的状态
-      this.tabStateManager.saveTabRouteState(oldTabId, currentRoute)
-      this.log('保存 Tab 路由状态（activateTab 已更新状态）', { tabId: oldTabId, route: currentRoute })
-    } else if (currentTabId === oldTabId) {
-      // 当前 Tab ID 还是 oldTabId，说明状态还没有更新
-      // 直接使用当前路由作为 oldTabId 的状态
-      this.tabStateManager.saveTabRouteState(oldTabId, currentRoute)
-      this.log('保存 Tab 路由状态', { tabId: oldTabId, route: currentRoute })
-    } else {
-      // 当前 Tab ID 既不是 oldTabId 也不是 newTabId，说明状态已经更新到其他 Tab
-      // 这种情况下，我们无法确定 oldTabId 的路由状态，只能使用当前路由
-      this.tabStateManager.saveTabRouteState(oldTabId, currentRoute)
-      this.log('保存 Tab 路由状态（状态已更新到其他 Tab）', { tabId: oldTabId, route: currentRoute, currentTabId })
-    }
-    
-    // 2. 恢复目标 Tab 的路由状态
-    const targetRouteState = this.tabStateManager.getTabRouteState(newTabId)
-    if (targetRouteState) {
-      // 🔥 验证：确保恢复的路由状态路径与 newTabId 对应的 Tab 路径匹配
-      // 如果路径不匹配，说明保存的状态是错误的，应该使用 Tab 的默认路径
-      const expectedPath = `/workspace${newTabId}`
-      const isPathValid = targetRouteState.path === expectedPath || targetRouteState.path.startsWith(expectedPath + '?')
-      
-      this.log('检查恢复的 Tab 路由状态', { 
-        tabId: newTabId, 
-        savedPath: targetRouteState.path, 
-        expectedPath,
-        isPathValid,
-        savedQuery: targetRouteState.query
-      })
-      
-      if (isPathValid) {
-        this.log('恢复 Tab 路由状态', { tabId: newTabId, route: targetRouteState })
-        
-        // 发出路由更新请求，恢复目标 Tab 的路由状态
-        // 🔥 传递 newTabId 作为元数据，用于在路由更新完成后保存新 Tab 的路由状态
-        this.requestUpdate({
-          path: targetRouteState.path,
-          query: targetRouteState.query,
-          source: 'tab-switch',
-          preserveParams: {
-            linkNavigation: false  // Tab 切换不是 link 跳转，使用目标 Tab 保存的状态
-          },
-          // 🔥 传递 newTabId，用于在路由更新完成后保存新 Tab 的路由状态
-          meta: { newTabId }
-        } as RouteUpdateRequest & { meta?: { newTabId: string } })
-      } else {
-        // 路径不匹配，说明保存的状态是错误的，使用 Tab 的默认路径
-        this.log('恢复的 Tab 路由状态路径不匹配，删除错误状态并使用默认路径', { 
-          tabId: newTabId, 
-          savedPath: targetRouteState.path, 
-          expectedPath 
-        })
-        // 删除错误的状态
-        this.tabStateManager.deleteTabRouteState(newTabId)
-        // 🔥 Tab 功能已删除
-      }
-    } else {
-      this.log('Tab 没有保存的路由状态，使用默认路由', { tabId: newTabId })
-      // 🔥 即使没有保存的状态，也需要发出路由更新请求（使用默认路径）
-      // 🔥 Tab 功能已删除
-      const defaultPath = `/workspace${newTabId}`
-      this.requestUpdate({
-        path: defaultPath,
-        query: {},
-        source: 'tab-switch',
-        preserveParams: {
-          linkNavigation: false
-        },
-        meta: { newTabId }
-      } as RouteUpdateRequest & { meta?: { newTabId: string } })
-    }
-  }
-  
+
   /**
    * 处理路由更新请求
    */
   private async handleUpdateRequest(request: RouteUpdateRequest): Promise<void> {
-      // 🔥 Tab 功能已删除，sync-route-to-tab-save-state 已废弃
-    if ((request as any).source === 'sync-route-to-tab-save-state') {
-        // Tab 功能已删除，直接返回
-        return
-    }
-    
     if (this.isUpdating) {
       this.log('路由更新中，跳过重复请求', { source: request.source })
       return
@@ -677,13 +546,5 @@ export class RouteManager {
   isLinkNavigation(): boolean {
     return isLinkNavCheck(this.route.query)
   }
-  
-  /**
-   * 获取 Tab 状态管理器（用于外部访问）
-   */
-  // 🔥 Tab 功能已删除，以下方法已废弃
-  // getTabStateManager(): TabStateManager {
-  //   return this.tabStateManager
-  // }
 }
 

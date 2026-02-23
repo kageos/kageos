@@ -2,10 +2,22 @@ package repository
 
 import (
 	"context"
+	"strings"
 
 	"github.com/ai-agent-os/hub/backend/model"
 	"gorm.io/gorm"
 )
+
+// normalizeFullCodePath 规范化 full_code_path：与 app-server 一致，便于通过网关查询时能命中
+// 去首尾空格、去尾斜杠、保证以单个 / 开头
+func normalizeFullCodePath(p string) string {
+	p = strings.TrimSpace(p)
+	p = strings.TrimSuffix(p, "/")
+	if p != "" && !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+	return p
+}
 
 type HubDirectoryRepository struct {
 	db *gorm.DB
@@ -78,13 +90,26 @@ func (r *HubDirectoryRepository) GetByPackagePath(ctx context.Context, packagePa
 }
 
 // GetByFullCodePath 根据 full_code_path 获取目录（用于通过 Hub 链接查询）
+// 会先规范化路径（与 app-server 一致），再查询；若未命中则尝试无前导斜杠形式，兼容历史数据
 func (r *HubDirectoryRepository) GetByFullCodePath(ctx context.Context, fullCodePath string) (*model.HubDirectory, error) {
-	var directory model.HubDirectory
-	err := r.db.Where("full_code_path = ?", fullCodePath).Order("created_at DESC").First(&directory).Error
-	if err != nil {
-		return nil, err
+	normalized := normalizeFullCodePath(fullCodePath)
+	if normalized == "" {
+		return nil, gorm.ErrRecordNotFound
 	}
-	return &directory, nil
+	var directory model.HubDirectory
+	err := r.db.Where("full_code_path = ?", normalized).Order("created_at DESC").First(&directory).Error
+	if err == nil {
+		return &directory, nil
+	}
+	// 兼容：可能历史数据存的是无前导斜杠（如 beiluo/app/xxx）
+	alt := strings.TrimPrefix(normalized, "/")
+	if alt != normalized {
+		err = r.db.Where("full_code_path = ?", alt).Order("created_at DESC").First(&directory).Error
+		if err == nil {
+			return &directory, nil
+		}
+	}
+	return nil, gorm.ErrRecordNotFound
 }
 
 // Update 更新目录

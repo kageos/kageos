@@ -253,11 +253,18 @@ const handlePageSizeChange = (size: number) => {
   loadDirectoryList()
 }
 
-// 点击目录卡片
+// 点击目录卡片（路由使用 path 参数：/directory/:path+，用 full_code_path 跳转）
 const handleDirectoryClick = (directory: HubDirectoryInfo) => {
+  const pathParam = directory.full_code_path?.startsWith('/')
+    ? directory.full_code_path.slice(1)
+    : (directory.full_code_path ?? '')
+  if (!pathParam) {
+    console.warn('[HubMarket] directory missing full_code_path', directory)
+    return
+  }
   router.push({
     name: 'hub-directory-detail',
-    params: { id: directory.id }
+    params: { path: pathParam }
   })
 }
 

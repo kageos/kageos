@@ -110,23 +110,46 @@
             <span class="role">{{ m.role === 'user' ? '我' : '工作台' }}</span>
             <span v-if="m.created_at" class="message-time">{{ formatMessageTime(m.created_at) }}</span>
           </div>
-          <div class="content">
-            <!-- 用户消息附带文件：与输出文件同款展示（卡片、图片预览、打开/下载） -->
-            <OutputFilesDisplay
-              v-if="m.role === 'user' && m.files?.length"
-              :file-groups="[{ label: '', files: m.files }]"
-              section-title="上传的文件"
-              class="message-files"
+          <!-- 用户消息 -->
+          <template v-if="m.role === 'user'">
+            <div class="content">
+              <OutputFilesDisplay
+                v-if="m.files?.length"
+                :file-groups="[{ label: '', files: m.files }]"
+                section-title="上传的文件"
+                class="message-files"
+              />
+              <div class="message-text" v-html="renderMarkdown(m.content)"></div>
+            </div>
+          </template>
+          <!-- assistant：按块顺序渲染（文本 → 工具调用 → 文本 → …），层次清晰 -->
+          <template v-else-if="m.role === 'assistant' && m.blocks?.length">
+            <div class="content content--blocks">
+              <template v-for="(block, bi) in m.blocks" :key="bi">
+                <template v-if="block.type === 'content'">
+                  <div class="message-text" v-html="renderMarkdown(block.text)"></div>
+                  <span v-if="sending && i === messages.length - 1 && bi === m.blocks!.length - 1" class="streaming-cursor">▌</span>
+                </template>
+                <MessageToolCalls
+                  v-else-if="block.type === 'tool_calls' && block.calls.length"
+                  :tool-calls="block.calls"
+                  :file-groups="getFileGroupsFromCalls(block.calls)"
+                />
+              </template>
+            </div>
+          </template>
+          <!-- assistant 无 blocks 时退化为：整段文本 + 整段工具调用 -->
+          <template v-else-if="m.role === 'assistant'">
+            <div class="content">
+              <div class="message-text" v-html="renderMarkdown(getMessageDisplayContent(m))"></div>
+              <span v-if="sending && i === messages.length - 1" class="streaming-cursor">▌</span>
+            </div>
+            <MessageToolCalls
+              v-if="m.tool_calls?.length"
+              :tool-calls="m.tool_calls"
+              :file-groups="getMessageFileGroups(m)"
             />
-            <div class="message-text" v-html="renderMarkdown(getMessageDisplayContent(m))"></div>
-            <span v-if="sending && i === messages.length - 1 && m.role === 'assistant'" class="streaming-cursor">▌</span>
-          </div>
-          <!-- 工具调用：由 MessageToolCalls 统一负责跑马灯视口、自动滚动、输出文件 -->
-          <MessageToolCalls
-            v-if="m.role === 'assistant' && m.tool_calls?.length"
-            :tool-calls="m.tool_calls"
-            :file-groups="getMessageFileGroups(m)"
-          />
+          </template>
         </div>
       </div>
 
@@ -407,13 +430,29 @@ async function loadSessionMessages(targetSessionId: string) {
     const res = await getWorkspaceMessages({ session_id: targetSessionId })
     const msgs = res.messages
       .filter((msg) => msg.role === 'user' || msg.role === 'assistant')
-      .map((msg) => ({
-        role: msg.role as 'user' | 'assistant',
-        content: msg.content,
-        files: parseMessageFiles(msg.files),
-        tool_calls: msg.tool_calls || [],
-        created_at: msg.created_at,
-      }))
+      .map((msg) => {
+        const role = msg.role as 'user' | 'assistant'
+        const content = msg.content || ''
+        const tool_calls = msg.tool_calls || []
+        let blocks: ChatMessage['blocks'] | undefined
+        if (role === 'assistant' && (content || tool_calls.length)) {
+          if (content && tool_calls.length) {
+            blocks = [{ type: 'content', text: content }, { type: 'tool_calls', calls: tool_calls }]
+          } else if (content) {
+            blocks = [{ type: 'content', text: content }]
+          } else {
+            blocks = [{ type: 'tool_calls', calls: tool_calls }]
+          }
+        }
+        return {
+          role,
+          content,
+          files: parseMessageFiles(msg.files),
+          tool_calls,
+          blocks,
+          created_at: msg.created_at,
+        }
+      })
     setMessages(msgs as ChatMessage[])
     setTimeout(() => {
       if (messagesRef.value) {
@@ -488,14 +527,19 @@ function renderMarkdown(content: string): string {
   }
 }
 
-/** 聚合本消息所有工具调用的 result 中的输出文件，供下方独立展示（不展开工具详情也能看到） */
-function getMessageFileGroups(m: ChatMessage): OutputFileGroup[] {
-  const list = m.tool_calls ?? []
+/** 从一组工具调用的 result 中提取输出文件（用于按块展示时的每个 tool_calls 块） */
+function getFileGroupsFromCalls(calls: Array<{ result?: string }>): OutputFileGroup[] {
   const groups: OutputFileGroup[] = []
-  for (const tc of list) {
+  for (const tc of calls) {
     groups.push(...extractFileGroupsFromResult(tc.result))
   }
   return groups
+}
+
+/** 聚合本消息所有工具调用的 result 中的输出文件，供下方独立展示（不展开工具详情也能看到） */
+function getMessageFileGroups(m: ChatMessage): OutputFileGroup[] {
+  const list = m.tool_calls ?? []
+  return getFileGroupsFromCalls(list)
 }
 
 function formatMessageTime(isoString: string): string {
