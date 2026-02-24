@@ -534,6 +534,76 @@ func (s *ServiceTree) DeleteDocs(c *gin.Context) {
 	response.OkWithMessage(c, "删除成功")
 }
 
+// CreateBoard 创建版块（board）类型节点
+// @Summary 创建版块
+// @Description 创建 board 类型的讨论区节点
+// @Tags 服务目录
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param request body dto.CreateBoardReq true "创建版块请求"
+// @Success 200 {object} dto.CreateBoardResp
+// @Router /api/v1/boards/crud [post]
+func (s *ServiceTree) CreateBoard(c *gin.Context) {
+	var req dto.CreateBoardReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "参数错误: "+err.Error())
+		return
+	}
+	ctx := contextx.ToContext(c)
+	resp, err := s.serviceTreeService.CreateBoard(ctx, &req)
+	if err != nil {
+		response.FailWithMessage(c, "创建版块失败: "+err.Error())
+		return
+	}
+	response.OkWithData(c, resp)
+}
+
+// UpdateBoard 更新版块节点
+// @Summary 更新版块
+// @Param id path int true "版块ID"
+// @Param request body dto.UpdateBoardReq true "更新版块请求"
+// @Router /api/v1/boards/crud/{id} [put]
+func (s *ServiceTree) UpdateBoard(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		response.FailWithMessage(c, "参数错误: 无效的ID")
+		return
+	}
+	var req dto.UpdateBoardReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "参数错误: "+err.Error())
+		return
+	}
+	req.ID = id
+	ctx := contextx.ToContext(c)
+	if err := s.serviceTreeService.UpdateBoard(ctx, &req); err != nil {
+		response.FailWithMessage(c, "更新版块失败: "+err.Error())
+		return
+	}
+	response.OkWithMessage(c, "更新成功")
+}
+
+// DeleteBoard 删除版块节点（会先删除该版块下全部帖子）
+// @Summary 删除版块
+// @Param id path int true "版块ID"
+// @Router /api/v1/boards/crud/{id} [delete]
+func (s *ServiceTree) DeleteBoard(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		response.FailWithMessage(c, "参数错误: 无效的ID")
+		return
+	}
+	ctx := contextx.ToContext(c)
+	if err := s.serviceTreeService.DeleteBoard(ctx, id); err != nil {
+		response.FailWithMessage(c, "删除版块失败: "+err.Error())
+		return
+	}
+	response.OkWithMessage(c, "删除成功")
+}
+
 // CopyServiceTree 复制服务目录（递归复制目录及其所有子目录）
 // @Summary 复制服务目录
 // @Description 递归复制服务目录及其所有子目录到目标目录，保持目录结构

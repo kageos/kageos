@@ -12,12 +12,12 @@
 
 ### 视频转换（convert.form，POST）
 
-**请求**
+**请求**（表单字段五列：字段 | 类型 | 必填 | 默认值 | 说明）
 
-| 字段       | 类型     | 必填 | 说明 |
-|------------|----------|------|------|
-| 上传视频   | 文件上传 | ✓   | 视频文件 |
-| 目标格式   | 下拉选择 | ✓   | 如 mp4/avi/mov 等 |
+| 字段       | 类型     | 必填 | 默认值 | 说明 |
+|------------|----------|------|--------|------|
+| 上传视频   | 文件上传 | ✓   | —      | 视频文件 |
+| 目标格式   | 下拉选择 | ✓   | —      | 如 mp4/avi/mov 等 |
 
 **响应**
 
@@ -38,7 +38,8 @@
 
 ## 四、说明
 
-代码实现见同目录下 video_convert.go；read_doc 本案例时以本 PRD 为准，具体代码可用 read_go_file 按需查看。
+- 运行镜像内为 **GPL FFmpeg**（含 libx264），视频转换（convert.form）及自定义命令（run_command.form）均可使用 libx264 做 H.264 编码（如 mov→mp4）。
+- 代码随本案例一起提供；read_doc 本案例路径（如 `/builtin/doc/case_catalog/form/videos`）即获得 PRD 与代码，无需再调用 read_go_file。
 
 
 ---
@@ -56,6 +57,7 @@ package videos
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -85,35 +87,34 @@ type VideoConvertResp struct {
 	ConvertInfo string `json:"convert_info" widget:"name:转换信息;type:text_area"`
 }
 
-// VideoConvert 视频格式转换函数
+// VideoConvert 视频格式转换入口（SDK 注册用）：解析请求 → 调 DoVideoConvert → 写响应
 func VideoConvert(ctx *app.Context, resp response.Response) error {
 	var req VideoConvertReq
-	err := ctx.ShouldBindValidate(&req)
+	if err := ctx.ShouldBindValidate(&req); err != nil {
+		return err
+	}
+	res, err := DoVideoConvert(ctx, &req)
 	if err != nil {
 		return err
 	}
+	return resp.Form(res).Build()
+}
 
+// DoVideoConvert 视频格式转换业务逻辑：(ctx, req) → (res, err)，便于单测与复用
+func DoVideoConvert(ctx *app.Context, req *VideoConvertReq) (*VideoConvertResp, error) {
 	fs := ctx.GetFS()
-
-	// 1. 下载文件到本地
 	inputFiles := fs.DownloadFiles(req.InputFiles)
 	defer fs.RemoveFiles(inputFiles)
 
 	if len(inputFiles.GetFiles()) == 0 {
-		return fmt.Errorf("没有找到输入文件")
+		return nil, fmt.Errorf("没有找到输入文件")
 	}
 
-	// 2. 使用 FFmpeg 转换视频格式
-	// 从环境变量获取 FFmpeg 路径
-	ffmpegPath := os.Getenv("FFMPEG_PATH")
-	if ffmpegPath == "" {
-		ffmpegPath = "/usr/bin/ffmpeg" // 默认路径
-	}
+	// 直接使用 ffmpeg，依赖 PATH（镜像中 PATH 含 /opt/ffmpeg/bin）
+	ffmpegPath := "ffmpeg"
 
-	// 使用 GetTraceOutputDir 生成唯一的输出目录（内部会自动创建）
 	outputDir := fs.GetTraceOutputDir()
 
-	// 3. 批量处理所有视频文件
 	outputFilePaths := make([]string, 0)
 	successCount := 0
 	failCount := 0
@@ -127,17 +128,19 @@ func VideoConvert(ctx *app.Context, resp response.Response) error {
 			continue
 		}
 
-		// 检查格式是否相同
 		inputExt := strings.ToLower(strings.TrimPrefix(filepath.Ext(file.LocalPath), "."))
 		baseName := strings.TrimSuffix(filepath.Base(file.LocalPath), filepath.Ext(file.LocalPath))
 		outputPath := filepath.Join(outputDir, baseName+"."+req.OutputFormat)
 
 		if inputExt == req.OutputFormat {
-			logger.Infof(ctx, "[VideoConvert] 文件 %s 格式相同，跳过转换: %s", file.Name, inputExt)
-			outputPath = file.LocalPath
+			logger.Infof(ctx, "[VideoConvert] 文件 %s 格式相同，复制到输出目录: %s", file.Name, inputExt)
+			if err := copyFile(file.LocalPath, outputPath); err != nil {
+				logger.Errorf(ctx, "[VideoConvert] 复制失败 %s: %v", file.Name, err)
+				failCount++
+				errors = append(errors, fmt.Sprintf("文件 %s: 复制失败 %v", file.Name, err))
+				continue
+			}
 		} else {
-			// ffmpeg -i input.mp4 -c:v libvpx -c:a libopus output.webm
-			// 根据输出格式选择编码器
 			var args []string
 			args = append(args, "-i", file.LocalPath)
 
@@ -145,19 +148,18 @@ func VideoConvert(ctx *app.Context, resp response.Response) error {
 			case "webm":
 				args = append(args, "-c:v", "libvpx", "-c:a", "libopus")
 			case "mp4":
-				// 使用内置编码器（LGPL-only 构建不支持 libx264）
-				args = append(args, "-c:v", "libvpx", "-c:a", "libopus", "-f", "mp4")
+				// MP4 使用 H.264+AAC，兼容性最好；mov/录屏等转 mp4 不会报错（libvpx+opus 在 mp4 中易导致 exit 234）
+				args = append(args, "-c:v", "libx264", "-preset", "medium", "-crf", "23", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", "-pix_fmt", "yuv420p")
 			default:
-				// 其他格式使用默认编码
 				args = append(args, "-c", "copy")
 			}
 
-			args = append(args, "-y", outputPath) // -y 覆盖输出文件
+			args = append(args, "-y", outputPath)
 
 			cmd := exec.Command(ffmpegPath, args...)
 			output, err := cmd.CombinedOutput()
 			if err != nil {
-				logger.Errorf(ctx, "[VideoConvert] 转换失败 %s: %v, output: %s", file.Name, err, string(output))
+				logger.Errorf(ctx, "[VideoConvert] 转换失败 %s: %v, req: %+v, output: %s", file.Name, err, req, string(output))
 				failCount++
 				errors = append(errors, fmt.Sprintf("文件 %s: %v", file.Name, err))
 				continue
@@ -170,31 +172,47 @@ func VideoConvert(ctx *app.Context, resp response.Response) error {
 		successCount++
 	}
 
-	// 4. 上传转换后的文件
 	var outputFiles *types.Files
 	if len(outputFilePaths) > 0 {
 		outputFiles = fs.ResponseFiles(outputFilePaths)
 		defer fs.RemoveFiles(outputFiles)
 	}
 
-	// 5. 构建转换信息
 	convertInfo := fmt.Sprintf("转换完成！\n成功: %d 个\n失败: %d 个\n输出格式: %s", successCount, failCount, req.OutputFormat)
 	if len(errors) > 0 {
 		convertInfo += "\n\n失败详情:\n" + strings.Join(errors, "\n")
 	}
 
-	// 5. 构建响应
-	return resp.Form(&VideoConvertResp{
+	return &VideoConvertResp{
 		OutputFile:  outputFiles,
 		ConvertInfo: convertInfo,
-	}).Build()
+	}, nil
+}
+
+// copyFile 复制文件，用于同格式时复制到输出目录，避免返回路径被 RemoveFiles(inputFiles) 删除
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return err
+	}
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	_, err = io.Copy(out, in)
+	return err
 }
 
 // VideoConvertTemplate 视频格式转换配置
 var VideoConvertTemplate = &app.FormTemplate{
 	BaseConfig: app.BaseConfig{
 		Name:     "视频格式转换",
-		Desc:     "支持将视频转换为MP4、WebM、AVI、MKV等多种格式。支持批量处理多个视频文件。使用 FFmpeg 进行格式转换，支持VP8/VP9和Opus编码（LGPL-only构建）。应用场景：视频格式统一、兼容性转换、文件大小优化等。",
+		Desc:     "支持将视频转换为MP4、WebM、AVI、MKV等多种格式，支持批量处理。运行环境为 GPL FFmpeg（含 libx264）。MP4 使用 H.264+AAC（mov/录屏等转 mp4 兼容性好）；WebM 使用 VP8/Opus。应用场景：视频格式统一、兼容性转换、文件大小优化等。",
 		Tags:     []string{"视频处理", "格式转换", "工具"},
 		Request:  &VideoConvertReq{},
 		Response: &VideoConvertResp{},
@@ -204,6 +222,148 @@ var VideoConvertTemplate = &app.FormTemplate{
 func init() {
 	// 注册Form函数 - 视频格式转换
 	packageContext.POST("convert.form", VideoConvert, VideoConvertTemplate)
+}
+```
+
+### video_run_command.go
+
+```go
+//<文件名>video_run_command.go</文件名>
+
+package videos
+
+import (
+	"fmt"
+	"os/exec"
+	"path/filepath"
+	"strings"
+
+	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/response"
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
+)
+
+// VideoRunCommandReq 自定义命令请求：上传文件 + 命令模板（占位符替换后执行），便于智能体灵活调用
+type VideoRunCommandReq struct {
+	InputFiles *types.Files `json:"input_files" widget:"name:上传视频/媒体文件;type:files;accept:video/*,*/*;max_size:500MB;max_count:10" validate:"required"`
+
+	// 命令模板，占位符：{{input}}=当前输入文件路径，{{output}}=当前输出文件路径。运行环境为 GPL FFmpeg（含 libx264），可用 -c copy 或 -c:v libx264 -c:a aac 等
+	CommandTemplate string `json:"command_template" widget:"name:命令模板;type:text_area;placeholder:ffmpeg -i {{input}} -c:v libx264 -c:a aac -y {{output}}" validate:"required"`
+
+	// 输出文件扩展名，用于生成 {{output}} 路径
+	OutputExtension string `json:"output_extension" widget:"name:输出扩展名;type:input;default:mp4" validate:"required"`
+}
+
+// VideoRunCommandResp 自定义命令响应
+type VideoRunCommandResp struct {
+	OutputFile *types.Files `json:"output_file" widget:"name:输出文件;type:files"`
+	RunInfo    string       `json:"run_info" widget:"name:执行信息;type:text_area"`
+}
+
+// VideoRunCommand 自定义命令入口（SDK 注册用）
+func VideoRunCommand(ctx *app.Context, resp response.Response) error {
+	var req VideoRunCommandReq
+	if err := ctx.ShouldBindValidate(&req); err != nil {
+		return err
+	}
+	res, err := DoVideoRunCommand(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return resp.Form(res).Build()
+}
+
+// DoVideoRunCommand 自定义命令业务逻辑：按文件逐个替换 {{input}}/{{output}} 并执行，不经过 shell，安全
+func DoVideoRunCommand(ctx *app.Context, req *VideoRunCommandReq) (*VideoRunCommandResp, error) {
+	fs := ctx.GetFS()
+	inputFiles := fs.DownloadFiles(req.InputFiles)
+	defer fs.RemoveFiles(inputFiles)
+
+	files := inputFiles.GetFiles()
+	if len(files) == 0 {
+		return nil, fmt.Errorf("没有找到输入文件")
+	}
+
+	outputExt := strings.TrimSpace(req.OutputExtension)
+	if outputExt == "" {
+		outputExt = "mp4"
+	}
+	outputExt = strings.TrimPrefix(outputExt, ".")
+	outputDir := fs.GetTraceOutputDir()
+
+	var outputPaths []string
+	var runInfos []string
+	for i, file := range files {
+		if file.LocalPath == "" {
+			logger.Warnf(ctx, "[VideoRunCommand] 文件 %s 无本地路径，跳过", file.Name)
+			runInfos = append(runInfos, fmt.Sprintf("跳过 %s: 无本地路径", file.Name))
+			continue
+		}
+		baseName := strings.TrimSuffix(filepath.Base(file.LocalPath), filepath.Ext(file.LocalPath))
+		outputPath := filepath.Join(outputDir, baseName+"."+outputExt)
+
+		// 先按空格拆成参数，再替换占位符，这样路径中含空格时仍为单个参数
+		args := splitCommandLine(req.CommandTemplate)
+		for j := range args {
+			if args[j] == "{{input}}" {
+				args[j] = file.LocalPath
+			} else if args[j] == "{{output}}" {
+				args[j] = outputPath
+			}
+		}
+		if len(args) == 0 {
+			runInfos = append(runInfos, fmt.Sprintf("文件 %s: 命令为空", file.Name))
+			continue
+		}
+		cmd := exec.Command(args[0], args[1:]...)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			logger.Errorf(ctx, "[VideoRunCommand] 执行失败 %s: %v, output: %s", file.Name, err, string(out))
+			runInfos = append(runInfos, fmt.Sprintf("失败 %s: %v\n%s", file.Name, err, string(out)))
+			continue
+		}
+		outputPaths = append(outputPaths, outputPath)
+		runInfos = append(runInfos, fmt.Sprintf("成功 %s -> %s", file.Name, outputPath))
+		if i == 0 && len(out) > 0 {
+			runInfos = append(runInfos, "命令输出:\n"+strings.TrimSpace(string(out)))
+		}
+	}
+
+	var outputFiles *types.Files
+	if len(outputPaths) > 0 {
+		outputFiles = fs.ResponseFiles(outputPaths)
+		defer fs.RemoveFiles(outputFiles)
+	}
+
+	return &VideoRunCommandResp{
+		OutputFile: outputFiles,
+		RunInfo:    strings.Join(runInfos, "\n"),
+	}, nil
+}
+
+// splitCommandLine 按空格拆分命令行为参数列表（占位符已替换为路径，路径中若有空格会拆坏，建议路径不含空格）
+func splitCommandLine(s string) []string {
+	var out []string
+	for _, part := range strings.Fields(s) {
+		out = append(out, part)
+	}
+	return out
+}
+
+// VideoRunCommandTemplate 自定义命令表单配置
+var VideoRunCommandTemplate = &app.FormTemplate{
+	BaseConfig: app.BaseConfig{
+		Name: "视频格式转换自定义命令",
+		Desc: "上传视频/媒体文件后，用自定义命令模板处理（占位符 {{input}}、{{output}} 会替换为实际路径后执行）。不经过 shell，安全。运行环境为 GPL FFmpeg（含 libx264），可用 -c copy 或 -c:v libx264 -c:a aac 等；示例：ffmpeg -i {{input}} -c:v libx264 -c:a aac -y {{output}}。",
+		Tags:     []string{"视频处理", "ffmpeg", "自定义命令", "智能体"},
+		Request:  &VideoRunCommandReq{},
+		Response: &VideoRunCommandResp{},
+	},
+}
+
+func init() {
+	packageContext.POST("run_command.form", VideoRunCommand, VideoRunCommandTemplate)
 }
 ```
 

@@ -83,6 +83,14 @@
                         class="node-icon docs-icon-img"
                         :class="getNodeIconClass(data)"
                       />
+                      <!-- board 类型：使用讨论区图标 -->
+                      <img 
+                        v-else-if="data.type === 'board'" 
+                        src="/讨论区.svg" 
+                        alt="讨论区" 
+                        class="node-icon board-icon-img"
+                        :class="getNodeIconClass(data)"
+                      />
                       <!-- 其他类型：显示 fx 文本 -->
                       <span v-else class="node-icon fx-icon" :class="getNodeIconClass(data)">fx</span>
                       <span class="node-label" :class="{ 'no-permission': !hasAnyPermissionForNode(data) }">{{ node.label }}</span>
@@ -852,6 +860,8 @@ const getNodeIconClass = (data: ServiceTree) => {
     return 'function-icon'
   } else if (data.type === 'docs') {
     return 'docs-icon'
+  } else if (data.type === 'board') {
+    return 'board-icon'
   }
   return 'function-icon'
 }
@@ -1098,23 +1108,25 @@ const loadResourcePermissions = async (resourcePath: string, defaultAction?: str
     return
   }
 
-  let resourceType: 'function' | 'directory' | 'app' | undefined
+  let resourceType: 'function' | 'directory' | 'app' | 'board' | 'docs' | undefined
   let templateType: string | undefined = urlTemplateType
-  
+
   // 从服务树中查找节点
   const node = findNodeInTree(serviceTree.value, resourcePath)
-      
-      if (node) {
-    // 检查节点类型（支持扩展的 app 类型）
+  if (node) {
     const nodeType = (node as any).type || node.type
     if (nodeType === 'app') {
       resourceType = 'app'
     } else if (node.type === 'function') {
-          resourceType = 'function'
+      resourceType = 'function'
       templateType = node.template_type || urlTemplateType
-        } else if (node.type === 'package') {
-          resourceType = 'directory'
-        }
+    } else if (node.type === 'package') {
+      resourceType = 'directory'
+    } else if (node.type === 'board') {
+      resourceType = 'board'
+    } else if (node.type === 'docs') {
+      resourceType = 'docs'
+    }
   } else {
     // 如果找不到节点，根据路径长度判断
     if (pathParts.length === 2) {
@@ -2381,6 +2393,18 @@ const clearRoleSelection = () => {
                   }
                   
                   &.docs-icon-img {
+                    width: 16px;
+                    height: 16px;
+                    object-fit: contain;
+                    opacity: 0.9;
+                  }
+
+                  &.board-icon {
+                    color: #10b981; /* emerald - 讨论区 */
+                    opacity: 0.9;
+                  }
+
+                  &.board-icon-img {
                     width: 16px;
                     height: 16px;
                     object-fit: contain;

@@ -13,7 +13,7 @@ import (
 //go:embed content
 var promptFS embed.FS
 
-// WorkspacePrompt 工作台操作提示词（从 content/doc/工作台操作提示词.md 加载，供 buildLLMMessages 拼入 system）
+// WorkspacePrompt 已废弃（原文件 content/doc/工作台操作提示词.md 已删除，规则迁入 system_prompt + 子文档）；保留变量供兜底分支编译通过，值为空。
 var WorkspacePrompt string
 
 // WorkspaceEnvTemplate 工作台环境模板（从 content/doc/工作台环境模板.md 加载）
@@ -32,10 +32,6 @@ type DocCatalogEntry struct {
 var docCatalog []DocCatalogEntry
 
 func init() {
-	// 从嵌入的 promptFS（content/ 下 doc/、mode/ 等）加载公用提示词
-	if b, _ := promptFS.ReadFile("content/doc/工作台操作提示词.md"); len(b) > 0 {
-		WorkspacePrompt = string(b)
-	}
 	if b, _ := promptFS.ReadFile("content/doc/工作台环境模板.md"); len(b) > 0 {
 		WorkspaceEnvTemplate = string(b)
 	}
@@ -45,7 +41,7 @@ func init() {
 	_ = json.Unmarshal(docCatalogJSON, &docCatalog)
 }
 
-// ReadContent 从嵌入的 content/ 下读取文件，path 为相对 content/ 的路径（如 "doc/xxx.md" 或 "提示词现状分析.md"）
+// ReadContent 从嵌入的 content/ 下读取文件，path 为相对 content/ 的路径（如 "doc/xxx.md"）
 func ReadContent(path string) ([]byte, error) {
 	path = strings.TrimSpace(path)
 	if path == "" {

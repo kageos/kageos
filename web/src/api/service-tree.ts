@@ -146,6 +146,31 @@ export function deleteDocs(id: number) {
   return del(`/workspace/api/v1/docs/crud/${id}`)
 }
 
+// ⭐ 创建 board 类型节点（版块/讨论区）
+export function createBoard(data: CreateServiceTreeRequest) {
+  const payload = {
+    user: data.user,
+    app: data.app,
+    name: data.name,
+    code: data.code,
+    parent_id: data.parent_id || 0,
+    description: data.description || '',
+    tags: data.tags || '',
+    admins: data.admins || ''
+  }
+  return post<ServiceTree>('/workspace/api/v1/boards/crud', payload)
+}
+
+// ⭐ 更新 board 类型节点
+export function updateBoard(id: number, data: { name?: string; description?: string; tags?: string; admins?: string }) {
+  return put(`/workspace/api/v1/boards/crud/${id}`, data)
+}
+
+// ⭐ 删除 board 类型节点（会先删除该版块下全部帖子）
+export function deleteBoard(id: number) {
+  return del(`/workspace/api/v1/boards/crud/${id}`)
+}
+
 // 更新服务目录
 // ⚠️ 保留向后兼容，推荐使用 updatePackage、updateFunction、updateDocs
 export function updateServiceTree(id: number, data: { name?: string; admins?: string }) {

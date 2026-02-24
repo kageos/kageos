@@ -26,6 +26,8 @@ func InitTables(db *gorm.DB) error {
 		&DirectoryUpdateHistory{},
 		// 文档表（用于存储文档内容）
 		&Docs{},
+		// 版块帖子表（讨论区下的帖子，评论回复后续统一做）
+		&BoardPost{},
 		// 权限系统相关表
 		&PermissionRequest{},
 		&PermissionGrantLog{},

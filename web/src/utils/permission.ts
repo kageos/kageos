@@ -89,6 +89,7 @@ import {
   FormPermission,
   ChartPermission,
   DocsPermission,
+  BoardPermission,
   // 资源类型和操作类型
   ResourceType,
   ActionType,
@@ -549,6 +550,7 @@ export {
   FormPermission,
   ChartPermission,
   DocsPermission,
+  BoardPermission,
   // 资源类型和操作类型
   ResourceType,
   ActionType,

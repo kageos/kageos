@@ -737,6 +737,36 @@ func (s *RoleService) InitDefaultRoles(ctx context.Context) error {
 			isDefault:    false,
 			actions:      []string{permissionpkg.BuildActionCode(permissionpkg.ResourceTypeDocs, "admin")},
 		},
+		// Board 资源类型的角色（讨论区/板块）
+		{
+			resourceType: permissionpkg.ResourceTypeBoard,
+			name:         "查看者",
+			code:         "viewer",
+			description:  "讨论区查看者，拥有查看帖子的权限",
+			isDefault:    true, // ⭐ 默认角色
+			actions:      []string{permissionpkg.BuildActionCode(permissionpkg.ResourceTypeBoard, "read")},
+		},
+		{
+			resourceType: permissionpkg.ResourceTypeBoard,
+			name:         "开发者",
+			code:         "developer",
+			description:  "讨论区开发者，拥有查看、发帖、更新、删除帖子的权限",
+			isDefault:    false,
+			actions: []string{
+				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeBoard, "read"),
+				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeBoard, "write"),
+				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeBoard, "update"),
+				permissionpkg.BuildActionCode(permissionpkg.ResourceTypeBoard, "delete"),
+			},
+		},
+		{
+			resourceType: permissionpkg.ResourceTypeBoard,
+			name:         "管理员",
+			code:         "admin",
+			description:  "板块管理员，拥有完整的管理权限",
+			isDefault:    false,
+			actions:      []string{permissionpkg.BuildActionCode(permissionpkg.ResourceTypeBoard, "admin")},
+		},
 	}
 
 	// 创建或更新预设角色（每个资源类型独立处理）

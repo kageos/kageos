@@ -51,6 +51,8 @@ export const ResourceType = {
   chart: 'chart',
   /** 文档 */
   docs: 'docs',
+  /** 讨论区/板块 */
+  board: 'board',
 } as const
 
 // ========================================
@@ -154,6 +156,22 @@ export const DocsPermission = {
   admin: 'docs:admin',
 } as const
 
+/**
+ * 讨论区/板块权限
+ */
+export const BoardPermission = {
+  /** 查看帖子 */
+  read: 'board:read',
+  /** 发帖 */
+  write: 'board:write',
+  /** 更新帖子 */
+  update: 'board:update',
+  /** 删除帖子 */
+  delete: 'board:delete',
+  /** 板块管理员（拥有所有权限） */
+  admin: 'board:admin',
+} as const
+
 // ========================================
 // 统一导出（保持向后兼容）
 // ========================================
@@ -168,6 +186,7 @@ export const Permission = {
   Form: FormPermission,
   Chart: ChartPermission,
   Docs: DocsPermission,
+  Board: BoardPermission,
 } as const
 
 /**
@@ -249,6 +268,8 @@ export function getPermissionsByResourceType(resourceType: string) {
       return ChartPermission
     case ResourceType.docs:
       return DocsPermission
+    case ResourceType.board:
+      return BoardPermission
     default:
       return null
   }
@@ -266,6 +287,7 @@ export type PermissionString =
   | (typeof FormPermission)[keyof typeof FormPermission]
   | (typeof ChartPermission)[keyof typeof ChartPermission]
   | (typeof DocsPermission)[keyof typeof DocsPermission]
+  | (typeof BoardPermission)[keyof typeof BoardPermission]
 
 /** 资源类型的联合类型 */
 export type ResourceTypeString = (typeof ResourceType)[keyof typeof ResourceType]

@@ -5,8 +5,10 @@ import (
 
 	v1 "github.com/ai-agent-os/ai-agent-os/core/app-server/api/v1"
 	"github.com/ai-agent-os/ai-agent-os/enterprise"
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
 	"github.com/ai-agent-os/ai-agent-os/pkg/pprof"
+	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
@@ -112,6 +114,26 @@ func (s *Server) setupRoutes() {
 	docsCrudAuth.POST("", serviceTreeHandler.CreateDocs)       // POST /api/v1/docs/crud
 	docsCrudAuth.PUT("/:id", serviceTreeHandler.UpdateDocs)    // PUT /api/v1/docs/crud/:id
 	docsCrudAuth.DELETE("/:id", serviceTreeHandler.DeleteDocs) // DELETE /api/v1/docs/crud/:id
+
+	// ==================== Board 类型接口（版块/讨论区） ====================
+	boardsCrudAuth := apiV1.Group("/boards/crud")
+	boardsCrudAuth.Use(middleware2.JWTAuth())
+	boardsCrudAuth.POST("", serviceTreeHandler.CreateBoard)       // POST /api/v1/boards/crud
+	boardsCrudAuth.PUT("/:id", serviceTreeHandler.UpdateBoard)    // PUT /api/v1/boards/crud/:id
+	boardsCrudAuth.DELETE("/:id", serviceTreeHandler.DeleteBoard) // DELETE /api/v1/boards/crud/:id
+
+	// ==================== 版块帖子接口（讨论区鉴权：board:read/write/update/delete） ====================
+	postsAuth := apiV1.Group("/posts")
+	postsAuth.Use(middleware2.JWTAuth())
+	boardPostHandler := v1.NewBoardPost(s.boardService)
+	getPostPath := func(c *gin.Context, id int64) (string, error) {
+		return s.boardService.GetPostPath(contextx.ToContext(c), id)
+	}
+	postsAuth.GET("", middleware2.CheckBoardRead(), boardPostHandler.ListPosts)                                    // GET 列表：query full_code_path
+	postsAuth.GET("/:id", middleware2.CheckBoardReadFromPostID(getPostPath), boardPostHandler.GetPost)             // GET 详情
+	postsAuth.POST("", middleware2.CheckBoardWrite(), boardPostHandler.CreatePost)                                 // POST 发帖：body full_code_path
+	postsAuth.PUT("/:id", middleware2.CheckBoardUpdateFromPostID(getPostPath), boardPostHandler.UpdatePost)        // PUT 更新
+	postsAuth.DELETE("/:id", middleware2.CheckBoardDeleteFromPostID(getPostPath), boardPostHandler.DeletePost)    // DELETE 删除
 
 	// ⭐ 文档管理路由（基于完整路径，与 table/form/chart 风格一致）
 	docs := apiV1.Group("/docs")
