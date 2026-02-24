@@ -14,14 +14,14 @@
 
 ### Excel 转 JSON（office_excel_to_json.form，POST）
 
-**请求**
+**请求**（表单字段五列：字段 | 类型 | 必填 | 默认值 | 说明）
 
-| 字段           | 类型     | 必填 | 说明 |
-|----------------|----------|------|------|
-| 上传 Excel 文件 | 文件上传 | ✓   | .xlsx/.xls，最大 50MB，1 个 |
-| 工作表名称     | 文本输入 | ✗   | 留空则第一个工作表 |
-| 使用第一行作为键名 | 开关   | ✗   | 默认 true |
-| 跳过空行       | 开关     | ✗   | 默认 true |
+| 字段           | 类型     | 必填 | 默认值 | 说明 |
+|----------------|----------|------|--------|------|
+| 上传 Excel 文件 | 文件上传 | ✓   | —      | .xlsx/.xls，最大 50MB，1 个 |
+| 工作表名称     | 文本输入 | ✗   | —      | 留空则第一个工作表 |
+| 使用第一行作为键名 | 开关   | ✗   | true   | — |
+| 跳过空行       | 开关     | ✗   | true   | — |
 
 **响应**
 
@@ -47,7 +47,7 @@
 
 ## 四、说明
 
-代码实现见同目录下各 .go 文件；read_doc 本案例时以本 PRD 为准，具体代码可用 read_go_file 按需查看。
+代码随本案例一起提供；read_doc 本案例路径（如 `/builtin/doc/case_catalog/form/excelorcsv`）即获得 PRD 与代码，无需再调用 read_go_file。
 
 
 ---
@@ -94,21 +94,25 @@ type CsvToExcelResp struct {
 	ConvertStats string `json:"convert_stats" widget:"name:转换统计;type:text_area"`
 }
 
-// CsvToExcel CSV转Excel函数
+// CsvToExcel CSV转Excel入口（SDK 注册用）：解析请求 → 调 DoCsvToExcel → 写响应
 func CsvToExcel(ctx *app.Context, resp response.Response) error {
 	var req CsvToExcelReq
-	err := ctx.ShouldBindValidate(&req)
+	if err := ctx.ShouldBindValidate(&req); err != nil {
+		return err
+	}
+	res, err := DoCsvToExcel(ctx, &req)
 	if err != nil {
 		return err
 	}
+	return resp.Form(res).Build()
+}
 
+// DoCsvToExcel CSV转Excel业务逻辑：(ctx, req) → (res, err)，便于单测与复用
+func DoCsvToExcel(ctx *app.Context, req *CsvToExcelReq) (*CsvToExcelResp, error) {
 	fs := ctx.GetFS()
-
-	// 1. 下载文件到本地
 	inputFiles := fs.DownloadFiles(req.InputFiles)
 	defer fs.RemoveFiles(inputFiles)
 
-	// 2. 转换CSV为Excel
 	outputFilePaths := make([]string, 0)
 	successCount := 0
 	failCount := 0
@@ -122,7 +126,6 @@ func CsvToExcel(ctx *app.Context, resp response.Response) error {
 			continue
 		}
 
-		// 转换CSV为Excel
 		outputPath, err := csvToExcel(ctx, file.LocalPath)
 		if err != nil {
 			logger.Errorf(ctx, "[CsvToExcel] 转换CSV失败 %s: %v", file.Name, err)
@@ -135,24 +138,21 @@ func CsvToExcel(ctx *app.Context, resp response.Response) error {
 		successCount++
 	}
 
-	// 3. 上传转换后的文件
 	var outputFiles *types.Files
 	if len(outputFilePaths) > 0 {
 		outputFiles = fs.ResponseFiles(outputFilePaths)
 		defer fs.RemoveFiles(outputFiles)
 	}
 
-	// 4. 构建统计信息
 	stats := fmt.Sprintf("转换完成！\n成功: %d 个\n失败: %d 个", successCount, failCount)
 	if len(errors) > 0 {
 		stats += "\n\n失败详情:\n" + strings.Join(errors, "\n")
 	}
 
-	// 5. 构建响应
-	return resp.Form(&CsvToExcelResp{
+	return &CsvToExcelResp{
 		OutputFiles:  outputFiles,
 		ConvertStats: stats,
-	}).Build()
+	}, nil
 }
 
 // csvToExcel 转换CSV为Excel
@@ -288,38 +288,34 @@ type CsvTextToExcelResp struct {
 	ConvertStats string `json:"convert_stats" widget:"name:转换统计;type:text_area"`
 }
 
-// CsvTextToExcel CSV文本转Excel函数
+// CsvTextToExcel CSV文本转Excel入口（SDK 注册用）：解析请求 → 调 DoCsvTextToExcel → 写响应
 func CsvTextToExcel(ctx *app.Context, resp response.Response) error {
 	var req CsvTextToExcelReq
-	err := ctx.ShouldBindValidate(&req)
+	if err := ctx.ShouldBindValidate(&req); err != nil {
+		return err
+	}
+	res, err := DoCsvTextToExcel(ctx, &req)
 	if err != nil {
 		return err
 	}
+	return resp.Form(res).Build()
+}
 
+// DoCsvTextToExcel CSV文本转Excel业务逻辑：(ctx, req) → (res, err)，便于单测与复用
+func DoCsvTextToExcel(ctx *app.Context, req *CsvTextToExcelReq) (*CsvTextToExcelResp, error) {
 	fs := ctx.GetFS()
 
-	// 1. 转换CSV文本为Excel
 	outputPath, err := csvTextToExcel(ctx, req.CsvText, req.SheetName)
 	if err != nil {
 		logger.Errorf(ctx, "[CsvTextToExcel] 转换CSV文本失败: %v", err)
-		return resp.Form(&CsvTextToExcelResp{
-			OutputFiles:  nil,
-			ConvertStats: fmt.Sprintf("转换失败: %v", err),
-		}).Build()
+		return &CsvTextToExcelResp{OutputFiles: nil, ConvertStats: fmt.Sprintf("转换失败: %v", err)}, nil
 	}
 
-	// 2. 上传转换后的文件
 	outputFiles := fs.ResponseFiles([]string{outputPath})
 	defer fs.RemoveFiles(outputFiles)
 
-	// 3. 构建统计信息
 	stats := fmt.Sprintf("转换完成！\nCSV文本已成功转换为Excel文件。")
-
-	// 4. 构建响应
-	return resp.Form(&CsvTextToExcelResp{
-		OutputFiles:  outputFiles,
-		ConvertStats: stats,
-	}).Build()
+	return &CsvTextToExcelResp{OutputFiles: outputFiles, ConvertStats: stats}, nil
 }
 
 // csvTextToExcel 转换CSV文本为Excel
@@ -493,61 +489,50 @@ type ExcelFillColumnResp struct {
 	FillStats string `json:"fill_stats" widget:"name:填充统计;type:text_area"`
 }
 
-// ExcelFillColumn Excel列值填充函数
+// ExcelFillColumn Excel列值填充入口（SDK 注册用）：解析请求 → 调 DoExcelFillColumn → 写响应
 func ExcelFillColumn(ctx *app.Context, resp response.Response) error {
 	var req ExcelFillColumnReq
-	err := ctx.ShouldBindValidate(&req)
+	if err := ctx.ShouldBindValidate(&req); err != nil {
+		return err
+	}
+	res, err := DoExcelFillColumn(ctx, &req)
 	if err != nil {
 		return err
 	}
+	return resp.Form(res).Build()
+}
 
+// DoExcelFillColumn Excel列值填充业务逻辑：(ctx, req) → (res, err)，便于单测与复用
+func DoExcelFillColumn(ctx *app.Context, req *ExcelFillColumnReq) (*ExcelFillColumnResp, error) {
 	fs := ctx.GetFS()
 
-	// 设置起始行号默认值
 	startRow := req.StartRow
 	if startRow <= 0 {
-		startRow = 2 // 默认从第2行开始（第1行通常是表头）
+		startRow = 2
 	}
 
-	// 1. 下载文件到本地
 	inputFiles := fs.DownloadFiles(req.InputFiles)
 	defer fs.RemoveFiles(inputFiles)
 
-	// 2. 检查文件
 	if len(inputFiles.GetFiles()) == 0 {
-		return resp.Form(&ExcelFillColumnResp{
-			OutputFiles: nil,
-			FillStats:   "错误: 没有找到输入文件",
-		}).Build()
+		return &ExcelFillColumnResp{OutputFiles: nil, FillStats: "错误: 没有找到输入文件"}, nil
 	}
 
 	file := inputFiles.GetFiles()[0]
 	if file.LocalPath == "" {
-		return resp.Form(&ExcelFillColumnResp{
-			OutputFiles: nil,
-			FillStats:   fmt.Sprintf("错误: 文件 %s 没有本地路径", file.Name),
-		}).Build()
+		return &ExcelFillColumnResp{OutputFiles: nil, FillStats: fmt.Sprintf("错误: 文件 %s 没有本地路径", file.Name)}, nil
 	}
 
-	// 3. 填充列值
 	outputPath, stats, err := excelFillColumn(ctx, file.LocalPath, req.SheetName, req.FillItems, startRow)
 	if err != nil {
 		logger.Errorf(ctx, "[ExcelFillColumn] 填充列值失败 %s: %v", file.Name, err)
-		return resp.Form(&ExcelFillColumnResp{
-			OutputFiles: nil,
-			FillStats:   fmt.Sprintf("填充失败: %v", err),
-		}).Build()
+		return &ExcelFillColumnResp{OutputFiles: nil, FillStats: fmt.Sprintf("填充失败: %v", err)}, nil
 	}
 
-	// 4. 上传填充后的文件
 	outputFiles := fs.ResponseFiles([]string{outputPath})
 	defer fs.RemoveFiles(outputFiles)
 
-	// 5. 构建响应
-	return resp.Form(&ExcelFillColumnResp{
-		OutputFiles: outputFiles,
-		FillStats:   stats,
-	}).Build()
+	return &ExcelFillColumnResp{OutputFiles: outputFiles, FillStats: stats}, nil
 }
 
 // excelFillColumn 填充Excel列值
@@ -724,21 +709,25 @@ type ExcelToCsvResp struct {
 	ConvertStats string `json:"convert_stats" widget:"name:转换统计;type:text_area"`
 }
 
-// ExcelToCsv Excel转CSV函数
+// ExcelToCsv Excel转CSV入口（SDK 注册用）：解析请求 → 调 DoExcelToCsv → 写响应
 func ExcelToCsv(ctx *app.Context, resp response.Response) error {
 	var req ExcelToCsvReq
-	err := ctx.ShouldBindValidate(&req)
+	if err := ctx.ShouldBindValidate(&req); err != nil {
+		return err
+	}
+	res, err := DoExcelToCsv(ctx, &req)
 	if err != nil {
 		return err
 	}
+	return resp.Form(res).Build()
+}
 
+// DoExcelToCsv Excel转CSV业务逻辑：(ctx, req) → (res, err)，便于单测与复用
+func DoExcelToCsv(ctx *app.Context, req *ExcelToCsvReq) (*ExcelToCsvResp, error) {
 	fs := ctx.GetFS()
-
-	// 1. 下载文件到本地
 	inputFiles := fs.DownloadFiles(req.InputFiles)
 	defer fs.RemoveFiles(inputFiles)
 
-	// 2. 转换Excel为CSV
 	outputFilePaths := make([]string, 0)
 	successCount := 0
 	failCount := 0
@@ -752,7 +741,6 @@ func ExcelToCsv(ctx *app.Context, resp response.Response) error {
 			continue
 		}
 
-		// 转换Excel为CSV
 		outputPath, err := excelToCsv(ctx, file.LocalPath)
 		if err != nil {
 			logger.Errorf(ctx, "[ExcelToCsv] 转换Excel失败 %s: %v", file.Name, err)
@@ -765,24 +753,21 @@ func ExcelToCsv(ctx *app.Context, resp response.Response) error {
 		successCount++
 	}
 
-	// 3. 上传转换后的文件
 	var outputFiles *types.Files
 	if len(outputFilePaths) > 0 {
 		outputFiles = fs.ResponseFiles(outputFilePaths)
 		defer fs.RemoveFiles(outputFiles)
 	}
 
-	// 4. 构建统计信息
 	stats := fmt.Sprintf("转换完成！\n成功: %d 个\n失败: %d 个", successCount, failCount)
 	if len(errors) > 0 {
 		stats += "\n\n失败详情:\n" + strings.Join(errors, "\n")
 	}
 
-	// 5. 构建响应
-	return resp.Form(&ExcelToCsvResp{
+	return &ExcelToCsvResp{
 		OutputFiles:  outputFiles,
 		ConvertStats: stats,
-	}).Build()
+	}, nil
 }
 
 // excelToCsv 转换Excel为CSV
@@ -878,54 +863,42 @@ type ExcelToCsvTextResp struct {
 	ConvertStats string `json:"convert_stats" widget:"name:转换统计;type:text_area"`
 }
 
-// ExcelToCsvText Excel转CSV文本函数
+// ExcelToCsvText Excel转CSV文本入口（SDK 注册用）：解析请求 → 调 DoExcelToCsvText → 写响应
 func ExcelToCsvText(ctx *app.Context, resp response.Response) error {
 	var req ExcelToCsvTextReq
-	err := ctx.ShouldBindValidate(&req)
+	if err := ctx.ShouldBindValidate(&req); err != nil {
+		return err
+	}
+	res, err := DoExcelToCsvText(ctx, &req)
 	if err != nil {
 		return err
 	}
+	return resp.Form(res).Build()
+}
 
+// DoExcelToCsvText Excel转CSV文本业务逻辑：(ctx, req) → (res, err)，便于单测与复用
+func DoExcelToCsvText(ctx *app.Context, req *ExcelToCsvTextReq) (*ExcelToCsvTextResp, error) {
 	fs := ctx.GetFS()
-
-	// 1. 下载文件到本地
 	inputFiles := fs.DownloadFiles(req.InputFiles)
 	defer fs.RemoveFiles(inputFiles)
 
-	// 2. 转换Excel为CSV文本
 	if len(inputFiles.GetFiles()) == 0 {
-		return resp.Form(&ExcelToCsvTextResp{
-			CsvText:      "",
-			ConvertStats: "错误: 没有找到输入文件",
-		}).Build()
+		return &ExcelToCsvTextResp{CsvText: "", ConvertStats: "错误: 没有找到输入文件"}, nil
 	}
 
 	file := inputFiles.GetFiles()[0]
 	if file.LocalPath == "" {
-		return resp.Form(&ExcelToCsvTextResp{
-			CsvText:      "",
-			ConvertStats: fmt.Sprintf("错误: 文件 %s 没有本地路径", file.Name),
-		}).Build()
+		return &ExcelToCsvTextResp{CsvText: "", ConvertStats: fmt.Sprintf("错误: 文件 %s 没有本地路径", file.Name)}, nil
 	}
 
-	// 转换Excel为CSV文本
 	csvText, err := excelToCsvText(ctx, file.LocalPath)
 	if err != nil {
 		logger.Errorf(ctx, "[ExcelToCsvText] 转换Excel失败 %s: %v", file.Name, err)
-		return resp.Form(&ExcelToCsvTextResp{
-			CsvText:      "",
-			ConvertStats: fmt.Sprintf("转换失败: %v", err),
-		}).Build()
+		return &ExcelToCsvTextResp{CsvText: "", ConvertStats: fmt.Sprintf("转换失败: %v", err)}, nil
 	}
 
-	// 3. 构建统计信息
 	stats := fmt.Sprintf("转换完成！\n文件: %s\n行数: %d", file.Name, strings.Count(csvText, "\n")+1)
-
-	// 4. 构建响应
-	return resp.Form(&ExcelToCsvTextResp{
-		CsvText:      csvText,
-		ConvertStats: stats,
-	}).Build()
+	return &ExcelToCsvTextResp{CsvText: csvText, ConvertStats: stats}, nil
 }
 
 // excelToCsvText 转换Excel为CSV文本
@@ -1056,51 +1029,41 @@ type ExcelToJsonResp struct {
 	ConvertStats string `json:"convert_stats" widget:"name:转换统计;type:text_area"`
 }
 
-// ExcelToJson Excel转JSON函数
+// ExcelToJson Excel转JSON入口（SDK 注册用）：解析请求 → 调 DoExcelToJson → 写响应
 func ExcelToJson(ctx *app.Context, resp response.Response) error {
 	var req ExcelToJsonReq
-	err := ctx.ShouldBindValidate(&req)
+	if err := ctx.ShouldBindValidate(&req); err != nil {
+		return err
+	}
+	res, err := DoExcelToJson(ctx, &req)
 	if err != nil {
 		return err
 	}
+	return resp.Form(res).Build()
+}
 
+// DoExcelToJson Excel转JSON业务逻辑：(ctx, req) → (res, err)，便于单测与复用
+func DoExcelToJson(ctx *app.Context, req *ExcelToJsonReq) (*ExcelToJsonResp, error) {
 	fs := ctx.GetFS()
-
-	// 1. 下载文件到本地
 	inputFiles := fs.DownloadFiles(req.InputFiles)
 	defer fs.RemoveFiles(inputFiles)
 
-	// 2. 转换Excel为JSON
 	if len(inputFiles.GetFiles()) == 0 {
-		return resp.Form(&ExcelToJsonResp{
-			JsonText:     "",
-			ConvertStats: "错误: 没有找到输入文件",
-		}).Build()
+		return &ExcelToJsonResp{JsonText: "", ConvertStats: "错误: 没有找到输入文件"}, nil
 	}
 
 	file := inputFiles.GetFiles()[0]
 	if file.LocalPath == "" {
-		return resp.Form(&ExcelToJsonResp{
-			JsonText:     "",
-			ConvertStats: fmt.Sprintf("错误: 文件 %s 没有本地路径", file.Name),
-		}).Build()
+		return &ExcelToJsonResp{JsonText: "", ConvertStats: fmt.Sprintf("错误: 文件 %s 没有本地路径", file.Name)}, nil
 	}
 
-	// 转换Excel为JSON
 	jsonText, stats, err := excelToJson(ctx, file.LocalPath, req.SheetName, req.UseFirstRowAsKeys, req.SkipEmptyRows)
 	if err != nil {
 		logger.Errorf(ctx, "[ExcelToJson] 转换Excel失败 %s: %v", file.Name, err)
-		return resp.Form(&ExcelToJsonResp{
-			JsonText:     "",
-			ConvertStats: fmt.Sprintf("转换失败: %v", err),
-		}).Build()
+		return &ExcelToJsonResp{JsonText: "", ConvertStats: fmt.Sprintf("转换失败: %v", err)}, nil
 	}
 
-	// 3. 构建响应
-	return resp.Form(&ExcelToJsonResp{
-		JsonText:     jsonText,
-		ConvertStats: stats,
-	}).Build()
+	return &ExcelToJsonResp{JsonText: jsonText, ConvertStats: stats}, nil
 }
 
 // excelToJson 转换Excel为JSON
@@ -1242,51 +1205,41 @@ type ExcelExtractColumnResp struct {
 	ExtractStats string `json:"extract_stats" widget:"name:提取统计;type:text_area"`
 }
 
-// ExcelExtractColumn Excel提取指定列函数
+// ExcelExtractColumn Excel提取指定列入口（SDK 注册用）：解析请求 → 调 DoExcelExtractColumn → 写响应
 func ExcelExtractColumn(ctx *app.Context, resp response.Response) error {
 	var req ExcelExtractColumnReq
-	err := ctx.ShouldBindValidate(&req)
+	if err := ctx.ShouldBindValidate(&req); err != nil {
+		return err
+	}
+	res, err := DoExcelExtractColumn(ctx, &req)
 	if err != nil {
 		return err
 	}
+	return resp.Form(res).Build()
+}
 
+// DoExcelExtractColumn Excel提取指定列业务逻辑：(ctx, req) → (res, err)，便于单测与复用
+func DoExcelExtractColumn(ctx *app.Context, req *ExcelExtractColumnReq) (*ExcelExtractColumnResp, error) {
 	fs := ctx.GetFS()
-
-	// 1. 下载文件到本地
 	inputFiles := fs.DownloadFiles(req.InputFiles)
 	defer fs.RemoveFiles(inputFiles)
 
-	// 2. 提取指定列
 	if len(inputFiles.GetFiles()) == 0 {
-		return resp.Form(&ExcelExtractColumnResp{
-			JsonArray:    "",
-			ExtractStats: "错误: 没有找到输入文件",
-		}).Build()
+		return &ExcelExtractColumnResp{JsonArray: "", ExtractStats: "错误: 没有找到输入文件"}, nil
 	}
 
 	file := inputFiles.GetFiles()[0]
 	if file.LocalPath == "" {
-		return resp.Form(&ExcelExtractColumnResp{
-			JsonArray:    "",
-			ExtractStats: fmt.Sprintf("错误: 文件 %s 没有本地路径", file.Name),
-		}).Build()
+		return &ExcelExtractColumnResp{JsonArray: "", ExtractStats: fmt.Sprintf("错误: 文件 %s 没有本地路径", file.Name)}, nil
 	}
 
-	// 提取指定列
 	jsonArray, stats, err := excelExtractColumn(ctx, file.LocalPath, req.SheetName, req.Column, req.SkipEmptyRows, req.SkipFirstRow)
 	if err != nil {
 		logger.Errorf(ctx, "[ExcelExtractColumn] 提取列失败 %s: %v", file.Name, err)
-		return resp.Form(&ExcelExtractColumnResp{
-			JsonArray:    "",
-			ExtractStats: fmt.Sprintf("提取失败: %v", err),
-		}).Build()
+		return &ExcelExtractColumnResp{JsonArray: "", ExtractStats: fmt.Sprintf("提取失败: %v", err)}, nil
 	}
 
-	// 3. 构建响应
-	return resp.Form(&ExcelExtractColumnResp{
-		JsonArray:    jsonArray,
-		ExtractStats: stats,
-	}).Build()
+	return &ExcelExtractColumnResp{JsonArray: jsonArray, ExtractStats: stats}, nil
 }
 
 // excelExtractColumn 从Excel提取指定列

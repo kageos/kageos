@@ -237,6 +237,17 @@
                             <component :is="getChildFunctionIcon(child)" />
                           </el-icon>
                         </template>
+                        <!-- 讨论区 -->
+                        <img
+                          v-else-if="child.type === 'board'"
+                          src="/讨论区.svg"
+                          alt="讨论区"
+                          class="child-icon-img"
+                        />
+                        <!-- 文档 -->
+                        <el-icon v-else-if="child.type === 'docs'" class="child-icon">
+                          <Document />
+                        </el-icon>
                         <!-- 默认图标 -->
                         <el-icon v-else class="child-icon">
                           <Document />
@@ -250,6 +261,8 @@
                       >
                         {{ getTemplateTypeText(child.template_type) }}
                       </el-tag>
+                      <el-tag v-else-if="child.type === 'board'" size="small" type="success" class="child-type-tag">讨论区</el-tag>
+                      <el-tag v-else-if="child.type === 'docs'" size="small" type="info" class="child-type-tag">文档</el-tag>
                     </div>
                     <div class="child-card-body">
                       <div class="child-name">{{ child.name }}</div>
@@ -428,6 +441,17 @@
                       <component :is="getChildFunctionIcon(child)" />
                     </el-icon>
                   </template>
+                  <!-- 讨论区 -->
+                  <img
+                    v-else-if="child.type === 'board'"
+                    src="/讨论区.svg"
+                    alt="讨论区"
+                    class="child-icon-img"
+                  />
+                  <!-- 文档 -->
+                  <el-icon v-else-if="child.type === 'docs'" class="child-icon">
+                    <Document />
+                  </el-icon>
                   <!-- 默认图标 -->
                   <el-icon v-else class="child-icon">
                     <Document />
@@ -441,6 +465,8 @@
                 >
                   {{ getTemplateTypeText(child.template_type) }}
                 </el-tag>
+                <el-tag v-else-if="child.type === 'board'" size="small" type="success" class="child-type-tag">讨论区</el-tag>
+                <el-tag v-else-if="child.type === 'docs'" size="small" type="info" class="child-type-tag">文档</el-tag>
               </div>
               <div class="child-card-body">
                 <div class="child-name">{{ child.name }}</div>
@@ -1043,6 +1069,21 @@ function handleChildClick(child: ServiceTree): void {
         preserveParams,
         source: 'package-detail-child-click-package'
       })
+    }
+  } else if ((child.type === 'board' || child.type === 'docs') && child.full_code_path) {
+    // 讨论区/文档节点：跳转到对应页面
+    applicationService.triggerNodeClick(child)
+    const targetPath = `/workspace${child.full_code_path}`
+    if (route.path !== targetPath) {
+      eventBus.emit(RouteEvent.updateRequested, {
+        path: targetPath,
+        query: {},
+        replace: true,
+        preserveParams: { table: false, search: false, state: false, linkNavigation: false },
+        source: 'package-detail-child-click-board-docs'
+      })
+    } else {
+      applicationService.triggerNodeClick(child)
     }
   }
 }

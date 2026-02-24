@@ -18,7 +18,7 @@ const (
 	createProjectDocPath = "core/agent-server/prompt/content/builtin/doc/workspace/create-project/01-create-project.md"
 	sdkEntryName         = "agent-app SDK使用手册"
 	sdkPath              = "/builtin/doc/sdk/agent-app-sdk-readme"
-	sdkWhenToUse         = "当你需要生成系统/应用/代码时，请先调用 read_doc(directory: \"/builtin/doc/sdk/agent-app-sdk-readme\") 获取本文档，再按文档规范动手。"
+	sdkWhenToUse         = "生成系统/应用/代码前必读。框架用法：结构体标签、Table/Form/Chart 模式、注册方式、目录约定。"
 	caseCatalogBegin     = "<!-- BEGIN CASE CATALOG -->"
 	caseCatalogEnd       = "<!-- END CASE CATALOG -->"
 )
@@ -29,13 +29,13 @@ type DocCatalogEntry struct {
 	WhenToUse    string `json:"when_to_use"`
 }
 
-// caseInfo 用于生成 system_prompt 中的「案例按类型归类」段落
+// caseInfo 用于生成 create-project 中的案例索引表和文档目录.json
 type caseInfo struct {
-	Rel        string // 相对路径，如 form/excelorcsv，与目录对齐
-	Name       string // 案例名（含类型）
-	Category   string // 类型，如 单 Table
-	ModuleDesc string // 模块说明，如「本案例有四个模块，分别是...」
-	WhenToUse  string // 适合参考 一句
+	Rel         string // 相对路径，如 form/excelorcsv，与目录对齐
+	Name        string // 案例名（含类型）
+	Category    string // 类型，如 单 Table
+	ModuleDesc  string // 模块说明（**模块**：后的内容）
+	KeyFeatures string // 关键特性标签（**关键特性**：后的内容）
 }
 
 func main() {
@@ -133,8 +133,7 @@ func collectCaseEntries(repoRoot, apiRootAbs, builtinAbs string) ([]DocCatalogEn
 			if err != nil {
 				return err
 			}
-			name, moduleDesc, whenToUse, category := parseSummary(summaryContent)
-			// 目录与示例项目对齐，文档名用 prd.md：builtin/case_catalog/form/excelorcsv/prd.md
+			name, moduleDesc, keyFeatures, category := parseSummary(summaryContent)
 			docContent := appendCaseCode(path, prdContent)
 			destDir := filepath.Join(builtinAbs, rel)
 			dest := filepath.Join(destDir, "prd.md")
@@ -146,9 +145,9 @@ func collectCaseEntries(repoRoot, apiRootAbs, builtinAbs string) ([]DocCatalogEn
 				return err
 			}
 			fullPath := "/builtin/doc/case_catalog/" + relSlash
-			whenToUseCat := buildWhenToUse(moduleDesc, whenToUse, fullPath)
+			whenToUseCat := buildWhenToUse(keyFeatures, fullPath)
 			catalog = append(catalog, DocCatalogEntry{Name: name, FullCodePath: fullPath, WhenToUse: whenToUseCat})
-			infos = append(infos, caseInfo{Rel: relSlash, Name: name, Category: category, ModuleDesc: moduleDesc, WhenToUse: whenToUse})
+			infos = append(infos, caseInfo{Rel: relSlash, Name: name, Category: category, ModuleDesc: moduleDesc, KeyFeatures: keyFeatures})
 			fmt.Printf("  %s -> %s/prd.md (%s)\n", rel, relSlash, name)
 		}
 		return nil
@@ -201,9 +200,8 @@ func appendCaseCode(caseDir string, prdContent []byte) []byte {
 	return []byte(b.String())
 }
 
-func parseSummary(b []byte) (name, moduleDesc, whenToUse, category string) {
+func parseSummary(b []byte) (name, moduleDesc, keyFeatures, category string) {
 	lines := strings.Split(strings.TrimSpace(string(b)), "\n")
-	afterTitle := false
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
@@ -216,18 +214,21 @@ func parseSummary(b []byte) (name, moduleDesc, whenToUse, category string) {
 					category = name[i+len("（") : i+j]
 				}
 			}
-			afterTitle = true
 			continue
 		}
-		if idx := strings.Index(line, "适合参考："); idx >= 0 {
-			whenToUse = strings.TrimSpace(line[idx+len("适合参考："):])
-			if whenToUse != "" && !strings.HasSuffix(whenToUse, "。") {
-				whenToUse += "。"
-			}
-			break
+		if strings.HasPrefix(line, "**模块**：") {
+			moduleDesc = strings.TrimPrefix(line, "**模块**：")
+			continue
 		}
-		if afterTitle && moduleDesc == "" {
-			moduleDesc = line
+		if strings.HasPrefix(line, "**关键特性**：") {
+			keyFeatures = strings.TrimPrefix(line, "**关键特性**：")
+			continue
+		}
+		// 兼容旧格式
+		if idx := strings.Index(line, "适合参考："); idx >= 0 {
+			if keyFeatures == "" {
+				keyFeatures = strings.TrimSpace(line[idx+len("适合参考："):])
+			}
 		}
 	}
 	if name == "" {
@@ -236,28 +237,14 @@ func parseSummary(b []byte) (name, moduleDesc, whenToUse, category string) {
 	if !strings.HasPrefix(name, "案例：") {
 		name = "案例：" + name
 	}
-	return name, moduleDesc, whenToUse, category
+	return name, moduleDesc, keyFeatures, category
 }
 
-func buildWhenToUse(moduleDesc, whenToUse, fullPath string) string {
-	var parts []string
-	if moduleDesc != "" {
-		if !strings.HasSuffix(moduleDesc, "。") {
-			moduleDesc += "。"
-		}
-		parts = append(parts, moduleDesc)
+func buildWhenToUse(keyFeatures, fullPath string) string {
+	if keyFeatures == "" {
+		return "关键特性：见 read_doc(\"" + fullPath + "\")。"
 	}
-	if whenToUse != "" {
-		parts = append(parts, whenToUse)
-	}
-	if len(parts) == 0 {
-		return "需要参考本案例时，可 read_doc(directory: \"" + fullPath + "\") 获取 PRD。"
-	}
-	s := strings.Join(parts, " ")
-	if !strings.Contains(s, "read_doc") {
-		s += " 可 read_doc(directory: \"" + fullPath + "\") 获取本案例 PRD。"
-	}
-	return s
+	return "关键特性：" + keyFeatures
 }
 
 func writeCatalog(path string, catalog []DocCatalogEntry) error {
@@ -302,42 +289,26 @@ func buildCaseCatalogSection(infos []caseInfo) string {
 		byCat[c.Category] = append(byCat[c.Category], c)
 	}
 	var b strings.Builder
-	b.WriteString("| 类型 | 案例名 | read_doc 路径 | 说明 |\n")
-	b.WriteString("|------|--------|----------------|------|\n")
+	b.WriteString("| 案例 | read_doc 路径 | 关键特性 |\n")
+	b.WriteString("|------|---------------|----------|\n")
 	for _, co := range categoryOrder {
 		cases := byCat[co.Key]
 		if len(cases) == 0 {
 			continue
 		}
-		typeLabel := categoryTableLabel[co.Key]
-		if typeLabel == "" {
-			typeLabel = co.Key
-		}
 		for _, c := range cases {
 			docPath := "/builtin/doc/case_catalog/" + c.Rel
 			caseName := strings.TrimPrefix(c.Name, "案例：")
-			desc := c.ModuleDesc
-			if desc != "" {
-				if !strings.HasSuffix(desc, "。") {
-					desc += "。"
-				}
-				if c.WhenToUse != "" {
-					desc += " " + c.WhenToUse
-				}
-			} else if c.WhenToUse != "" {
-				desc = c.WhenToUse
-			} else {
-				desc = "可 read_doc 获取本案例 PRD 与代码。"
+			features := c.KeyFeatures
+			if features == "" {
+				features = "见 read_doc"
 			}
-			desc = escapeTableCell(desc)
 			b.WriteString("| ")
-			b.WriteString(typeLabel)
-			b.WriteString(" | ")
 			b.WriteString(escapeTableCell(caseName))
 			b.WriteString(" | `")
 			b.WriteString(docPath)
 			b.WriteString("` | ")
-			b.WriteString(desc)
+			b.WriteString(escapeTableCell(features))
 			b.WriteString(" |\n")
 		}
 	}

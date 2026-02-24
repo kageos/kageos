@@ -1,7 +1,11 @@
 package middleware
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"io"
+	"strconv"
 	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/enterprise"
@@ -13,11 +17,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// checkPermission 通用权限检查函数（内部使用）
-// ⭐ 使用新的权限系统，自动支持权限继承（目录权限自动继承到子资源）
-func checkPermission(c *gin.Context, action string, errorMessage string) bool {
-	// 从 URL 路径参数提取 full-code-path
-	fullCodePath := c.Param("full-code-path")
+// checkPermissionWithPath 通用权限检查（显式传入资源路径，供帖子等从 query/body 取 path 的场景使用）
+func checkPermissionWithPath(c *gin.Context, fullCodePath string, action string, errorMessage string) bool {
+	fullCodePath = strings.TrimSpace(fullCodePath)
 	if fullCodePath == "" {
 		response.PermissionDenied(c, "无法获取资源路径", map[string]interface{}{
 			"resource_path": "",
@@ -25,35 +27,23 @@ func checkPermission(c *gin.Context, action string, errorMessage string) bool {
 		})
 		return false
 	}
-
-	// 确保路径以 / 开头
 	if !strings.HasPrefix(fullCodePath, "/") {
 		fullCodePath = "/" + fullCodePath
 	}
-
-	// ⭐ 运行时动态检查：根据当前 license 状态决定是否启用权限检查
 	licenseMgr := license.GetManager()
 	if !licenseMgr.HasFeature(enterprise.FeaturePermission) {
-		// 社区版：不做权限控制，直接通过
 		logger.Debugf(c, "[PermissionCheck] 社区版，跳过权限检查")
 		return true
 	}
-
-	// 企业版：正常进行权限检查
-	// 获取用户信息
 	username := contextx.GetRequestUser(c)
 	if username == "" {
-		// ⭐ 添加调试日志，帮助排查用户信息丢失问题
-		logger.Warnf(c, "[PermissionCheck] 用户信息为空 - FullCodePath: %s, Action: %s, X-Request-User Header: %s",
-			fullCodePath, action, c.GetHeader("X-Request-User"))
+		logger.Warnf(c, "[PermissionCheck] 用户信息为空 - FullCodePath: %s, Action: %s", fullCodePath, action)
 		response.PermissionDenied(c, "未提供用户信息", map[string]interface{}{
 			"resource_path": fullCodePath,
 			"action":        action,
 		})
 		return false
 	}
-
-	// ⭐ 使用新的权限系统（直接调用 CheckPermission，内部已支持权限继承）
 	permissionService := enterprise.GetPermissionService()
 	ctx := contextx.ToContext(c)
 	hasPermission, err := permissionService.CheckPermission(ctx, username, fullCodePath, action)
@@ -62,14 +52,26 @@ func checkPermission(c *gin.Context, action string, errorMessage string) bool {
 		response.PermissionDenied(c, "权限检查失败: "+err.Error(), permissionInfo)
 		return false
 	}
-
 	if !hasPermission {
 		permissionInfo := buildPermissionInfo(fullCodePath, action, errorMessage)
 		response.PermissionDenied(c, errorMessage, permissionInfo)
 		return false
 	}
-
 	return true
+}
+
+// checkPermission 通用权限检查函数（从 URL 参数 full-code-path 取路径）
+// ⭐ 使用新的权限系统，自动支持权限继承（目录权限自动继承到子资源）
+func checkPermission(c *gin.Context, action string, errorMessage string) bool {
+	fullCodePath := c.Param("full-code-path")
+	if fullCodePath == "" {
+		response.PermissionDenied(c, "无法获取资源路径", map[string]interface{}{
+			"resource_path": "",
+			"action":        action,
+		})
+		return false
+	}
+	return checkPermissionWithPath(c, fullCodePath, action, errorMessage)
 }
 
 // CheckTableSearch 检查表格查询权限（使用 table:read）
@@ -389,6 +391,17 @@ func getActionDisplayName(action string) string {
 		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeApp, permissionconstants.ActionUpdate): "工作空间更新",
 		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeApp, permissionconstants.ActionDelete): "工作空间删除",
 		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeApp, permissionconstants.ActionAdmin): "工作空间管理",
+		// Docs 操作
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDocs, permissionconstants.ActionRead):   "文档查看",
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDocs, permissionconstants.ActionWrite):  "文档编辑",
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDocs, permissionconstants.ActionDelete): "文档删除",
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDocs, permissionconstants.ActionAdmin): "文档管理",
+		// Board 讨论区操作
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeBoard, permissionconstants.ActionRead):   "帖子查看",
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeBoard, permissionconstants.ActionWrite):  "发帖",
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeBoard, permissionconstants.ActionUpdate): "帖子更新",
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeBoard, permissionconstants.ActionDelete): "帖子删除",
+		permissionconstants.BuildActionCode(permissionconstants.ResourceTypeBoard, permissionconstants.ActionAdmin): "板块管理",
 	}
 
 	if displayName, ok := displayNames[action]; ok {
@@ -573,6 +586,104 @@ func CheckDocDelete() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeDocs, permissionconstants.ActionDelete)
 		if !checkPermission(c, action, "无权限删除该文档") {
+			return
+		}
+		c.Next()
+	}
+}
+
+// ==================== 讨论区/板块权限中间件 ====================
+
+// CheckBoardRead 检查讨论区查看权限（从 query full_code_path 取路径）
+// 权限点：board:read
+func CheckBoardRead() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		fullCodePath := c.Query("full_code_path")
+		if fullCodePath == "" {
+			response.PermissionDenied(c, "缺少版块路径参数 full_code_path", map[string]interface{}{
+				"resource_path": "",
+				"action":        "board:read",
+			})
+			return
+		}
+		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeBoard, "read")
+		if !checkPermissionWithPath(c, fullCodePath, action, "无权限查看该讨论区") {
+			return
+		}
+		c.Next()
+	}
+}
+
+// CheckBoardWrite 检查讨论区发帖权限（从 body full_code_path 取路径，不消费 body）
+// 权限点：board:write
+func CheckBoardWrite() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.Request.Body == nil {
+			response.PermissionDenied(c, "请求体为空", map[string]interface{}{"action": "board:write"})
+			return
+		}
+		// 读取并恢复 body，只解析 full_code_path
+		body, err := io.ReadAll(c.Request.Body)
+		if err != nil {
+			response.PermissionDenied(c, "读取请求体失败", map[string]interface{}{"action": "board:write"})
+			return
+		}
+		c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
+		var req struct {
+			FullCodePath string `json:"full_code_path"`
+		}
+		if err := json.Unmarshal(body, &req); err != nil || req.FullCodePath == "" {
+			response.PermissionDenied(c, "缺少版块路径 full_code_path", map[string]interface{}{"action": "board:write"})
+			return
+		}
+		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeBoard, "write")
+		if !checkPermissionWithPath(c, req.FullCodePath, action, "无权限在该讨论区发帖") {
+			return
+		}
+		c.Next()
+	}
+}
+
+// GetPathByPostID 根据帖子 ID 解析版块路径（由 router 注入，依赖 BoardService）
+type GetPathByPostID func(c *gin.Context, id int64) (string, error)
+
+// CheckBoardReadFromPostID 检查讨论区查看权限（根据帖子 id 解析版块路径）
+// 权限点：board:read
+func CheckBoardReadFromPostID(getPath GetPathByPostID) gin.HandlerFunc {
+	return checkBoardPermissionFromPostID(getPath, "read", "无权限查看该帖子")
+}
+
+// CheckBoardUpdateFromPostID 检查讨论区更新权限（根据帖子 id 解析版块路径）
+// 权限点：board:update
+func CheckBoardUpdateFromPostID(getPath GetPathByPostID) gin.HandlerFunc {
+	return checkBoardPermissionFromPostID(getPath, "update", "无权限更新该帖子")
+}
+
+// CheckBoardDeleteFromPostID 检查讨论区删除权限（根据帖子 id 解析版块路径）
+// 权限点：board:delete
+func CheckBoardDeleteFromPostID(getPath GetPathByPostID) gin.HandlerFunc {
+	return checkBoardPermissionFromPostID(getPath, "delete", "无权限删除该帖子")
+}
+
+func checkBoardPermissionFromPostID(getPath GetPathByPostID, actionType string, errorMsg string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		idStr := c.Param("id")
+		id, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil || id <= 0 {
+			response.PermissionDenied(c, "无效的帖子ID", map[string]interface{}{"action": "board:" + actionType})
+			return
+		}
+		fullCodePath, err := getPath(c, id)
+		if err != nil {
+			response.FailWithMessage(c, err.Error())
+			return
+		}
+		if fullCodePath == "" {
+			response.PermissionDenied(c, "无法解析版块路径", map[string]interface{}{"action": "board:" + actionType})
+			return
+		}
+		action := permissionconstants.BuildActionCode(permissionconstants.ResourceTypeBoard, actionType)
+		if !checkPermissionWithPath(c, fullCodePath, action, errorMsg) {
 			return
 		}
 		c.Next()

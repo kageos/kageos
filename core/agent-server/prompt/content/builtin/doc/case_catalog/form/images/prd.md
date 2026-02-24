@@ -12,12 +12,12 @@
 
 ### 格式转换（convert.form，POST）
 
-**请求**
+**请求**（表单字段五列：字段 | 类型 | 必填 | 默认值 | 说明）
 
-| 字段     | 类型     | 必填 | 说明 |
-|----------|----------|------|------|
-| 上传图片 | 文件上传 | ✓   | 图片，最大 50MB，最多 10 个 |
-| 目标格式 | 下拉选择 | ✓   | jpeg/png/gif/bmp/tiff，默认 png |
+| 字段     | 类型     | 必填 | 默认值 | 说明 |
+|----------|----------|------|--------|------|
+| 上传图片 | 文件上传 | ✓   | —      | 图片，最大 50MB，最多 10 个 |
+| 目标格式 | 下拉选择 | ✓   | png    | jpeg/png/gif/bmp/tiff |
 
 **响应**
 
@@ -42,7 +42,7 @@
 
 ## 四、说明
 
-代码实现见同目录下各 .go 文件；read_doc 本案例时以本 PRD 为准，具体代码可用 read_go_file 按需查看。
+代码随本案例一起提供；read_doc 本案例路径（如 `/builtin/doc/case_catalog/form/images`）即获得 PRD 与代码，无需再调用 read_go_file。
 
 
 ---
@@ -110,55 +110,51 @@ type ImagesColorsResp struct {
 	Stats string `json:"stats" widget:"name:处理统计;type:text_area"`
 }
 
-// ImagesColors 图片颜色提取函数
+// ImagesColors 图片颜色提取入口（SDK 注册用）：解析请求 → 调 DoImagesColors → 写响应
 func ImagesColors(ctx *app.Context, resp response.Response) error {
 	var req ImagesColorsReq
-	err := ctx.ShouldBindValidate(&req)
+	if err := ctx.ShouldBindValidate(&req); err != nil {
+		return err
+	}
+	res, err := DoImagesColors(ctx, &req)
 	if err != nil {
 		return err
 	}
+	return resp.Form(res).Build()
+}
 
+// DoImagesColors 图片颜色提取业务逻辑：(ctx, req) → (res, err)，便于单测与复用
+func DoImagesColors(ctx *app.Context, req *ImagesColorsReq) (*ImagesColorsResp, error) {
 	fs := ctx.GetFS()
-
-	// 1. 下载文件到本地
 	inputFiles := fs.DownloadFiles(req.InputFiles)
 	defer fs.RemoveFiles(inputFiles)
 
-	// 2. 验证只上传了一张图片
 	files := inputFiles.GetFiles()
 	if len(files) == 0 {
-		return fmt.Errorf("请上传一张图片")
+		return nil, fmt.Errorf("请上传一张图片")
 	}
 	if len(files) > 1 {
-		return fmt.Errorf("只支持上传一张图片，当前上传了 %d 张", len(files))
+		return nil, fmt.Errorf("只支持上传一张图片，当前上传了 %d 张", len(files))
 	}
-
 	file := files[0]
 	if file.LocalPath == "" {
-		return fmt.Errorf("文件 %s 没有本地路径", file.Name)
+		return nil, fmt.Errorf("文件 %s 没有本地路径", file.Name)
 	}
 
-	// 3. 提取颜色
 	colors, err := extractColors(ctx, file.LocalPath, req.ColorCount)
 	if err != nil {
-		logger.Errorf(ctx, "[ImagesColors] 提取颜色失败 %s: %v", file.Name, err)
-		return fmt.Errorf("提取颜色失败: %v", err)
+		logger.Errorf(ctx, "[系统错误]-[DoImagesColors] 提取颜色失败 %s: %v, req: %+v", file.Name, err, req)
+		return nil, fmt.Errorf("[系统错误]-[DoImagesColors]： 提取颜色失败, req: %+v, err: %v", req, err)
 	}
-
 	logger.Infof(ctx, "[ImagesColors] 提取成功: %s (提取了 %d 种颜色)", file.Name, len(colors))
 
-	// 4. 构建统计信息
 	colorCountDesc := "全部"
 	if req.ColorCount > 0 {
 		colorCountDesc = fmt.Sprintf("%d 个", req.ColorCount)
 	}
 	stats := fmt.Sprintf("提取完成！\n文件名: %s\n提取颜色数量: %s\n实际提取: %d 种颜色", file.Name, colorCountDesc, len(colors))
 
-	// 5. 构建响应
-	return resp.Form(&ImagesColorsResp{
-		Colors: colors,
-		Stats:   stats,
-	}).Build()
+	return &ImagesColorsResp{Colors: colors, Stats: stats}, nil
 }
 
 // extractColors 从图片中提取主要颜色
@@ -253,7 +249,6 @@ package images
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -283,21 +278,25 @@ type ImagesConvertResp struct {
 	ConvertStats string `json:"convert_stats" widget:"name:转换统计;type:text_area"`
 }
 
-// ImagesConvert 图片格式转换函数
+// ImagesConvert 图片格式转换入口（SDK 注册用）：解析请求 → 调 DoImagesConvert → 写响应
 func ImagesConvert(ctx *app.Context, resp response.Response) error {
 	var req ImagesConvertReq
-	err := ctx.ShouldBindValidate(&req)
+	if err := ctx.ShouldBindValidate(&req); err != nil {
+		return err
+	}
+	res, err := DoImagesConvert(ctx, &req)
 	if err != nil {
 		return err
 	}
+	return resp.Form(res).Build()
+}
 
+// DoImagesConvert 图片格式转换业务逻辑：(ctx, req) → (res, err)，便于单测与复用
+func DoImagesConvert(ctx *app.Context, req *ImagesConvertReq) (*ImagesConvertResp, error) {
 	fs := ctx.GetFS()
-
-	// 1. 下载文件到本地
 	inputFiles := fs.DownloadFiles(req.InputFiles)
 	defer fs.RemoveFiles(inputFiles)
 
-	// 2. 转换图片格式
 	outputFilePaths := make([]string, 0)
 	successCount := 0
 	failCount := 0
@@ -311,10 +310,9 @@ func ImagesConvert(ctx *app.Context, resp response.Response) error {
 			continue
 		}
 
-		// 转换图片
 		outputPath, err := convertImageFormat(ctx, fs, file.LocalPath, req.TargetFormat)
 		if err != nil {
-			logger.Errorf(ctx, "[ImagesConvert] 转换图片失败 %s: %v", file.Name, err)
+			logger.Errorf(ctx, "[ImagesConvert] 转换图片失败 %s: %v, req: %+v", file.Name, err, req)
 			failCount++
 			errors = append(errors, fmt.Sprintf("文件 %s: %v", file.Name, err))
 			continue
@@ -324,33 +322,27 @@ func ImagesConvert(ctx *app.Context, resp response.Response) error {
 		successCount++
 	}
 
-	// 3. 上传转换后的文件
 	var outputFiles *types.Files
 	if len(outputFilePaths) > 0 {
 		outputFiles = fs.ResponseFiles(outputFilePaths)
 		defer fs.RemoveFiles(outputFiles)
 	}
 
-	// 4. 构建统计信息
 	stats := fmt.Sprintf("转换完成！\n成功: %d 个\n失败: %d 个", successCount, failCount)
 	if len(errors) > 0 {
 		stats += "\n\n失败详情:\n" + strings.Join(errors, "\n")
 	}
 
-	// 5. 构建响应
-	return resp.Form(&ImagesConvertResp{
+	return &ImagesConvertResp{
 		OutputFiles:  outputFiles,
 		ConvertStats: stats,
-	}).Build()
+	}, nil
 }
 
 // convertImageFormat 转换图片格式（使用 GraphicsMagick）
 func convertImageFormat(ctx *app.Context, fs *app.FS, inputPath string, targetFormat string) (string, error) {
-	// 从环境变量获取 GraphicsMagick 路径
-	gmPath := os.Getenv("GRAPHICSMAGICK_PATH")
-	if gmPath == "" {
-		gmPath = "/usr/bin/gm" // 默认路径
-	}
+	// 直接使用 gm，依赖 PATH（镜像中已安装 graphicsmagick）
+	gmPath := "gm"
 
 	// 标准化格式名称（统一转为小写，JPG 统一为 jpeg）
 	normalizedTarget := strings.ToLower(targetFormat)
@@ -413,7 +405,6 @@ package images
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -449,55 +440,52 @@ type ImagesResizeResp struct {
 	ResizeStats string `json:"resize_stats" widget:"name:处理统计;type:text_area"`
 }
 
-// ImagesResize 图片裁剪/缩放函数
+// ImagesResize 图片裁剪/缩放入口（SDK 注册用）：解析请求 → 调 DoImagesResize → 写响应
 func ImagesResize(ctx *app.Context, resp response.Response) error {
 	var req ImagesResizeReq
-	err := ctx.ShouldBindValidate(&req)
+	if err := ctx.ShouldBindValidate(&req); err != nil {
+		return err
+	}
+	res, err := DoImagesResize(ctx, &req)
 	if err != nil {
 		return err
 	}
+	return resp.Form(res).Build()
+}
 
+// DoImagesResize 图片裁剪/缩放业务逻辑：(ctx, req) → (res, err)，便于单测与复用
+func DoImagesResize(ctx *app.Context, req *ImagesResizeReq) (*ImagesResizeResp, error) {
 	fs := ctx.GetFS()
-
-	// 1. 下载文件到本地
 	inputFiles := fs.DownloadFiles(req.InputFiles)
 	defer fs.RemoveFiles(inputFiles)
 
-	// 2. 确定目标尺寸
 	targetSize := req.TargetSize
 	if targetSize == "自定义" {
 		targetSize = req.CustomSize
 	}
 	if targetSize == "" {
-		return fmt.Errorf("目标尺寸不能为空")
+		return nil, fmt.Errorf("目标尺寸不能为空")
 	}
 
-	// 解析尺寸（格式：宽x高）
 	sizeParts := strings.Split(targetSize, "x")
 	if len(sizeParts) != 2 {
-		return fmt.Errorf("目标尺寸格式错误，应为 宽x高，例如: 1920x1080")
+		return nil, fmt.Errorf("目标尺寸格式错误，应为 宽x高，例如: 1920x1080")
 	}
 	width := strings.TrimSpace(sizeParts[0])
 	height := strings.TrimSpace(sizeParts[1])
 
-	// 验证尺寸
 	if _, err := strconv.Atoi(width); err != nil {
-		return fmt.Errorf("宽度必须是数字: %s", width)
+		return nil, fmt.Errorf("宽度必须是数字: %s", width)
 	}
 	if _, err := strconv.Atoi(height); err != nil {
-		return fmt.Errorf("高度必须是数字: %s", height)
+		return nil, fmt.Errorf("高度必须是数字: %s", height)
 	}
 
-	// 3. 从环境变量获取 GraphicsMagick 路径
-	gmPath := os.Getenv("GRAPHICSMAGICK_PATH")
-	if gmPath == "" {
-		gmPath = "/usr/bin/gm" // 默认路径
-	}
+	// 直接使用 gm，依赖 PATH（镜像中已安装 graphicsmagick）
+	gmPath := "gm"
 
-	// 使用 GetTraceOutputDir 生成唯一的输出目录（内部会自动创建）
 	outputDir := fs.GetTraceOutputDir()
 
-	// 4. 批量处理所有图片文件
 	outputFilePaths := make([]string, 0)
 	successCount := 0
 	failCount := 0
@@ -511,27 +499,20 @@ func ImagesResize(ctx *app.Context, resp response.Response) error {
 			continue
 		}
 
-		// 生成输出文件路径
 		baseName := strings.TrimSuffix(filepath.Base(file.LocalPath), filepath.Ext(file.LocalPath))
 		ext := filepath.Ext(file.LocalPath)
 		outputPath := filepath.Join(outputDir, baseName+"_resized"+ext)
 
-		// 构建 GraphicsMagick 命令
 		var args []string
 		args = append(args, "convert")
 
-		// 根据缩放模式选择参数
 		switch req.ResizeMode {
 		case "保持宽高比":
-			// scale=width:height:force_original_aspect_ratio=decrease 保持宽高比，不拉伸
 			args = append(args, "-resize", fmt.Sprintf("%sx%s", width, height))
 		case "拉伸填充":
-			// scale=width:height! 强制拉伸到目标尺寸
 			args = append(args, "-resize", fmt.Sprintf("%sx%s!", width, height))
 		case "裁剪填充":
-			// 先缩放保持宽高比，然后裁剪到目标尺寸
-			// 使用 -resize 和 -gravity center -crop 组合
-			args = append(args, "-resize", fmt.Sprintf("%sx%s^", width, height)) // ^ 表示至少达到这个尺寸
+			args = append(args, "-resize", fmt.Sprintf("%sx%s^", width, height))
 			args = append(args, "-gravity", "center")
 			args = append(args, "-crop", fmt.Sprintf("%sx%s+0+0", width, height))
 		}
@@ -541,7 +522,7 @@ func ImagesResize(ctx *app.Context, resp response.Response) error {
 		cmd := exec.Command(gmPath, args...)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			logger.Errorf(ctx, "[ImagesResize] 处理图片失败 %s: %v, output: %s", file.Name, err, string(output))
+			logger.Errorf(ctx, "[ImagesResize] 处理图片失败 %s: %v, req: %+v, output: %s", file.Name, err, req, string(output))
 			failCount++
 			errors = append(errors, fmt.Sprintf("文件 %s: %v", file.Name, err))
 			continue
@@ -552,25 +533,22 @@ func ImagesResize(ctx *app.Context, resp response.Response) error {
 		logger.Infof(ctx, "[ImagesResize] 处理成功: %s -> %s (尺寸: %sx%s, 模式: %s)", file.Name, filepath.Base(outputPath), width, height, req.ResizeMode)
 	}
 
-	// 5. 上传处理后的文件
 	var outputFiles *types.Files
 	if len(outputFilePaths) > 0 {
 		outputFiles = fs.ResponseFiles(outputFilePaths)
 		defer fs.RemoveFiles(outputFiles)
 	}
 
-	// 6. 构建统计信息
 	stats := fmt.Sprintf("处理完成！\n成功: %d 个\n失败: %d 个\n目标尺寸: %sx%s\n缩放模式: %s",
 		successCount, failCount, width, height, req.ResizeMode)
 	if len(errors) > 0 {
 		stats += "\n\n失败详情:\n" + strings.Join(errors, "\n")
 	}
 
-	// 7. 构建响应
-	return resp.Form(&ImagesResizeResp{
+	return &ImagesResizeResp{
 		OutputFiles: outputFiles,
 		ResizeStats: stats,
-	}).Build()
+	}, nil
 }
 
 // ImagesResizeTemplate 图片裁剪/缩放配置
@@ -587,6 +565,149 @@ var ImagesResizeTemplate = &app.FormTemplate{
 func init() {
 	// 注册Form函数 - 图片裁剪/缩放
 	packageContext.POST("resize.form", ImagesResize, ImagesResizeTemplate)
+}
+```
+
+### images_run_command.go
+
+```go
+//<文件名>images_run_command.go</文件名>
+
+package images
+
+import (
+	"fmt"
+	"os/exec"
+	"path/filepath"
+	"strings"
+
+	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/response"
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
+)
+
+// ImagesRunCommandReq 自定义命令请求：上传图片 + 命令模板（占位符替换后执行），便于智能体灵活调用
+type ImagesRunCommandReq struct {
+	InputFiles *types.Files `json:"input_files" widget:"name:上传图片;type:files;accept:image/*,*/*;max_size:50MB;max_count:10" validate:"required"`
+
+	// 命令模板，占位符：{{input}}=当前输入文件路径，{{output}}=当前输出文件路径。环境有 gm（GraphicsMagick）等
+	CommandTemplate string `json:"command_template" widget:"name:命令模板;type:text_area;placeholder:gm convert {{input}} -resize 800x600 {{output}}" validate:"required"`
+
+	// 输出文件扩展名，用于生成 {{output}} 路径
+	OutputExtension string `json:"output_extension" widget:"name:输出扩展名;type:input;default:png" validate:"required"`
+}
+
+// ImagesRunCommandResp 自定义命令响应
+type ImagesRunCommandResp struct {
+	OutputFile *types.Files `json:"output_file" widget:"name:输出文件;type:files"`
+	RunInfo    string       `json:"run_info" widget:"name:执行信息;type:text_area"`
+}
+
+// ImagesRunCommand 自定义命令入口（SDK 注册用）
+func ImagesRunCommand(ctx *app.Context, resp response.Response) error {
+	var req ImagesRunCommandReq
+	if err := ctx.ShouldBindValidate(&req); err != nil {
+		return err
+	}
+	res, err := DoImagesRunCommand(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return resp.Form(res).Build()
+}
+
+// DoImagesRunCommand 按文件逐个替换 {{input}}/{{output}} 并执行，不经过 shell，安全
+func DoImagesRunCommand(ctx *app.Context, req *ImagesRunCommandReq) (*ImagesRunCommandResp, error) {
+	fs := ctx.GetFS()
+	inputFiles := fs.DownloadFiles(req.InputFiles)
+	defer fs.RemoveFiles(inputFiles)
+
+	files := inputFiles.GetFiles()
+	if len(files) == 0 {
+		return nil, fmt.Errorf("没有找到输入文件")
+	}
+
+	outputExt := strings.TrimSpace(req.OutputExtension)
+	if outputExt == "" {
+		outputExt = "png"
+	}
+	outputExt = strings.TrimPrefix(outputExt, ".")
+	outputDir := fs.GetTraceOutputDir()
+	hasOutputPlaceholder := strings.Contains(req.CommandTemplate, "{{output}}")
+
+	var outputPaths []string
+	var runInfos []string
+	for i, file := range files {
+		if file.LocalPath == "" {
+			logger.Warnf(ctx, "[ImagesRunCommand] 文件 %s 无本地路径，跳过", file.Name)
+			runInfos = append(runInfos, fmt.Sprintf("跳过 %s: 无本地路径", file.Name))
+			continue
+		}
+		baseName := strings.TrimSuffix(filepath.Base(file.LocalPath), filepath.Ext(file.LocalPath))
+		outputPath := filepath.Join(outputDir, baseName+"."+outputExt)
+
+		args := splitCommandLine(req.CommandTemplate)
+		for j := range args {
+			if args[j] == "{{input}}" {
+				args[j] = file.LocalPath
+			} else if args[j] == "{{output}}" {
+				args[j] = outputPath
+			}
+		}
+		if len(args) == 0 {
+			runInfos = append(runInfos, fmt.Sprintf("文件 %s: 命令为空", file.Name))
+			continue
+		}
+		cmd := exec.Command(args[0], args[1:]...)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			logger.Errorf(ctx, "[ImagesRunCommand] 执行失败 %s: %v, output: %s", file.Name, err, string(out))
+			runInfos = append(runInfos, fmt.Sprintf("失败 %s: %v\n%s", file.Name, err, string(out)))
+			continue
+		}
+		if hasOutputPlaceholder {
+			outputPaths = append(outputPaths, outputPath)
+		}
+		runInfos = append(runInfos, fmt.Sprintf("成功 %s -> %s", file.Name, outputPath))
+		if i == 0 && len(out) > 0 {
+			runInfos = append(runInfos, "命令输出:\n"+strings.TrimSpace(string(out)))
+		}
+	}
+
+	var outputFiles *types.Files
+	if len(outputPaths) > 0 {
+		outputFiles = fs.ResponseFiles(outputPaths)
+		defer fs.RemoveFiles(outputFiles)
+	}
+
+	return &ImagesRunCommandResp{
+		OutputFile: outputFiles,
+		RunInfo:    strings.Join(runInfos, "\n"),
+	}, nil
+}
+
+func splitCommandLine(s string) []string {
+	var out []string
+	for _, part := range strings.Fields(s) {
+		out = append(out, part)
+	}
+	return out
+}
+
+// ImagesRunCommandTemplate 自定义命令表单配置
+var ImagesRunCommandTemplate = &app.FormTemplate{
+	BaseConfig: app.BaseConfig{
+		Name: "图片处理自定义命令",
+		Desc: "上传图片后，用自定义命令模板处理（占位符 {{input}}、{{output}} 会替换为实际路径后执行）。不经过 shell，安全。环境有 gm（GraphicsMagick）等；示例：gm convert {{input}} -resize 800x600 {{output}} 或 gm convert {{input}} -format png {{output}}。",
+		Tags:     []string{"图片处理", "GraphicsMagick", "自定义命令", "智能体"},
+		Request:  &ImagesRunCommandReq{},
+		Response: &ImagesRunCommandResp{},
+	},
+}
+
+func init() {
+	packageContext.POST("run_command.form", ImagesRunCommand, ImagesRunCommandTemplate)
 }
 ```
 

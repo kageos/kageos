@@ -11,6 +11,7 @@ const (
 	ServiceTreeTypePackage  = "package"
 	ServiceTreeTypeFunction = "function"
 	ServiceTreeTypeDocs     = "docs"
+	ServiceTreeTypeBoard    = "board" // 版块/讨论区，下挂多条帖子（board_posts）
 )
 
 // ServiceTree 表示服务树模型，一个app下可以有无数个package，一个package下面有无数个function，ServiceTree是一个抽象的树干，这个树干上可以挂载各种实体
@@ -65,6 +66,11 @@ func (st *ServiceTree) IsFunction() bool {
 // IsDocs 判断是否为docs类型
 func (st *ServiceTree) IsDocs() bool {
 	return st.Type == ServiceTreeTypeDocs
+}
+
+// IsBoard 判断是否为 board 类型（版块/讨论区）
+func (st *ServiceTree) IsBoard() bool {
+	return st.Type == ServiceTreeTypeBoard
 }
 
 // HasRefID 判断是否有引用ID

@@ -14,7 +14,7 @@ export function findNodeByPath(tree: ServiceTreeType[], path: string): ServiceTr
     const targetPath = path.replace(/^\/+/, '')
     
     // 🔥 支持函数、目录（包括根节点）和文档节点
-    if (nodePath === targetPath && (node.type === 'function' || node.type === 'package' || node.type === 'docs')) {
+    if (nodePath === targetPath && (node.type === 'function' || node.type === 'package' || node.type === 'docs' || node.type === 'board')) {
       return node
     }
     if (node.children && node.children.length > 0) {

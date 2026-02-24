@@ -39,21 +39,21 @@
 
 **表单字段（新增/编辑）**
 
-| 字段     | 类型     | 必填 | 说明 |
-|----------|----------|------|------|
-| 商品名称 | 文本输入 | ✓   | 2–50 字 |
-| 商品分类 | 下拉选择 | ✓   | 饮料/零食/日用品/其他 |
-| 售价     | 浮点数   | ✓   | 元，>0 |
-| 库存     | 数字输入 | ✓   | 件，≥0 |
-| 折扣率   | 浮点数   | ✗   | 0–1，默认 0.9 |
-| 状态     | 下拉选择 | ✓   | 上架/下架，默认上架 |
+| 字段     | 类型     | 必填 | 默认值 | 说明 |
+|----------|----------|------|--------|------|
+| 商品名称 | 文本输入 | ✓   | —      | 2–50 字 |
+| 商品分类 | 下拉选择 | ✓   | —      | 饮料/零食/日用品/其他 |
+| 售价     | 浮点数   | ✓   | —      | 元，>0 |
+| 库存     | 数字输入 | ✓   | —      | 件，≥0 |
+| 折扣率   | 浮点数   | ✗   | 0.9    | 0–1 |
+| 状态     | 下拉选择 | ✓   | 上架   | 上架/下架 |
 
 **列表模式**
 
-| 创建时间 | 更新时间 | 商品名称 | 商品分类 | 售价 | 库存 | 折扣率 | 状态 |
-|----------|----------|----------|----------|------|------|--------|------|
-| 2025-01-15 10:00 | 2025-01-15 10:00 | 可口可乐 | 饮料 | 3.50 | 100 | 0.9 | 上架 |
-| 2025-01-15 10:05 | 2025-01-16 09:00 | 薯片 | 零食 | 8.00 | 50 | 0.85 | 上架 |
+| ID | 创建时间 | 更新时间 | 创建人 | 商品名称 | 商品分类 | 售价 | 库存 | 折扣率 | 状态 |
+|----|----------|----------|--------|----------|----------|------|------|--------|------|
+| 1 | 2025-01-15 10:00 | 2025-01-15 10:00 | — | 可口可乐 | 饮料 | 3.50 | 100 | 0.9 | 上架 |
+| 2 | 2025-01-15 10:05 | 2025-01-16 09:00 | — | 薯片 | 零食 | 8.00 | 50 | 0.85 | 上架 |
 
 ---
 
@@ -61,19 +61,19 @@
 
 **表单字段（新增/编辑）**
 
-| 字段     | 类型     | 必填 | 说明 |
-|----------|----------|------|------|
-| 会员卡号 | 文本输入 | ✓   | 6–20 字，唯一 |
-| 客户姓名 | 文本输入 | ✓   | 2–20 字 |
-| 余额     | 浮点数   | ✗   | 元，≥0 |
-| 状态     | 下拉选择 | ✓   | 正常/冻结，默认正常 |
+| 字段     | 类型     | 必填 | 默认值 | 说明 |
+|----------|----------|------|--------|------|
+| 会员卡号 | 文本输入 | ✓   | —      | 6–20 字，唯一 |
+| 客户姓名 | 文本输入 | ✓   | —      | 2–20 字 |
+| 余额     | 浮点数   | ✗   | —      | 元，≥0 |
+| 状态     | 下拉选择 | ✓   | 正常   | 正常/冻结 |
 
 **列表模式**
 
-| 创建时间 | 更新时间 | 会员卡号 | 客户姓名 | 余额 | 状态 |
-|----------|----------|----------|----------|------|------|
-| 2025-01-10 09:00 | 2025-01-10 09:00 | M001 | 张三 | 200.00 | 正常 |
-| 2025-01-12 14:00 | 2025-01-12 14:00 | M002 | 李四 | 0 | 正常 |
+| ID | 创建时间 | 更新时间 | 创建人 | 会员卡号 | 客户姓名 | 余额 | 状态 |
+|----|----------|----------|--------|----------|----------|------|------|
+| 1 | 2025-01-10 09:00 | 2025-01-10 09:00 | — | M001 | 张三 | 200.00 | 正常 |
+| 2 | 2025-01-12 14:00 | 2025-01-12 14:00 | — | M002 | 李四 | 0 | 正常 |
 
 ---
 
@@ -91,13 +91,13 @@
 
 ### 4. 收银台 Form（cashier_desk.form，POST）
 
-**请求**
+**请求**（表单字段五列：字段 | 类型 | 必填 | 默认值 | 说明）
 
-| 字段       | 类型     | 必填 | 说明 |
-|------------|----------|------|------|
-| 商品清单   | 表格     | ✓   | type:table，至少 1 行；每行：商品（OnSelectFuzzy）、数量（≥1） |
-| 会员卡     | 下拉选择 | ✓   | OnSelectFuzzy 从会员表选 |
-| 备注       | 多行文本 | ✗   | 可选 |
+| 字段       | 类型     | 必填 | 默认值 | 说明 |
+|------------|----------|------|--------|------|
+| 商品清单   | 表格     | ✓   | —      | type:table，至少 1 行；每行：商品（OnSelectFuzzy）、数量（≥1） |
+| 会员卡     | 下拉选择 | ✓   | —      | OnSelectFuzzy 从会员表选 |
+| 备注       | 多行文本 | ✗   | —      | 可选 |
 
 **响应**
 
@@ -151,7 +151,7 @@
 
 ---
 
-代码实现见同目录下各 .go 文件；read_doc 本案例时以本 PRD 为准，具体代码可用 read_go_file 按需查看。
+代码随本案例一起提供；read_doc 本案例路径（如 `/builtin/doc/case_catalog/form_table_chart/cashier`）即获得 PRD 与代码，无需再调用 read_go_file。
 
 
 ---
@@ -219,55 +219,68 @@ func roundMoney(amount float64) float64 {
 	return float64(int64(amount*100+0.5)) / 100
 }
 
-// CashierDesk 收银台处理函数
+// CashierDesk 收银台入口（SDK 注册用）：解析请求 → 调 DoCashierDesk → 写响应
 func CashierDesk(ctx *app.Context, resp response.Response) error {
-	db := ctx.GetGormDB()
-	if db == nil {
-		return fmt.Errorf("数据库连接失败")
-	}
-
 	var req CashierDeskReq
 	if err := ctx.ShouldBindValidate(&req); err != nil {
 		return err
 	}
+	res, err := DoCashierDesk(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return resp.Form(res).Build()
+}
+
+// DoCashierDesk 收银台业务逻辑：(ctx, req) → (res, err)，便于单测与复用。
+// 仅需智能体介入的错误加 [系统错误] 前缀（由 SDK 区分）；此类错误打日志时须带足上下文（req/model %+v）便于排查。
+func DoCashierDesk(ctx *app.Context, req *CashierDeskReq) (*CashierDeskResp, error) {
+	db := ctx.GetGormDB()
+	if db == nil {
+		logger.Errorf(ctx, "[系统错误]-[DoCashierDesk] 数据库连接失败, req: %+v", req)
+		return nil, fmt.Errorf("[系统错误]-[DoCashierDesk]： 数据库连接失败, req: %+v", req)
+	}
 
 	member, err := validateMember(db, req.MemberID)
 	if err != nil {
-		return resp.BizErrorf(err.Error()).Build()
+		return nil, fmt.Errorf("%s", err.Error())
 	}
 
 	productList, totalAmount, finalAmount, err := validateAndCalculateProducts(db, req.ProductQuantities)
 	if err != nil {
-		return resp.BizErrorf(err.Error()).Build()
+		return nil, fmt.Errorf("%s", err.Error())
 	}
 
 	discountAmount := roundMoney(totalAmount - finalAmount)
 
 	if member.Balance < finalAmount {
-		return resp.BizErrorf("余额不足，需要支付 ¥%.2f，当前余额 ¥%.2f，缺少 ¥%.2f，请充值后重试",
-			finalAmount, member.Balance, finalAmount-member.Balance).Build()
+		return nil, fmt.Errorf("余额不足，需要支付 ¥%.2f，当前余额 ¥%.2f，缺少 ¥%.2f，请充值后重试",
+			finalAmount, member.Balance, finalAmount-member.Balance)
 	}
 
-	orderNumber, err := processPaymentTransaction(db, member, req, productList, totalAmount, discountAmount, finalAmount)
+	orderNumber, err := processPaymentTransaction(db, member, *req, productList, totalAmount, discountAmount, finalAmount)
 	if err != nil {
-		return fmt.Errorf("支付事务失败 - 会员ID: %d, 实付金额: %.2f, 错误: %v", member.ID, finalAmount, err)
+		// [系统错误] 需智能体介入；打足上下文（member、req）便于根据参数排查
+		logger.Errorf(ctx, "[系统错误]-[DoCashierDesk] 支付事务失败, member: %+v, req: %+v, err: %v", member, req, err)
+		return nil, fmt.Errorf("[系统错误]-[DoCashierDesk]： 支付事务失败, req: %+v, member_id: %d, final_amount: %.2f, err: %v", req, member.ID, finalAmount, err)
 	}
 
 	updatedMember, err := validateMember(db, req.MemberID)
 	if err != nil {
-		logger.Errorf(ctx, "重新查询会员信息失败 - 会员ID: %d, 错误: %v", req.MemberID, err)
+		// [系统错误] 需智能体介入；打足上下文便于排查
+		logger.Errorf(ctx, "[系统错误]-[DoCashierDesk] 重新查询会员信息失败, req: %+v, err: %v", req, err)
 		updatedMember = member
 	}
 
-	return resp.Form(&CashierDeskResp{
-		OrderNumber:    orderNumber,
-		ProductList:    productList,
-		TotalAmount:    totalAmount,
-		DiscountAmount: discountAmount,
-		FinalAmount:    finalAmount,
-		MemberInfo:     &updatedMember,
-		PaymentResult:  fmt.Sprintf("支付成功！订单号：%s，实付金额：¥%.2f", orderNumber, finalAmount),
-	}).Build()
+	return &CashierDeskResp{
+		OrderNumber:     orderNumber,
+		ProductList:     productList,
+		TotalAmount:     totalAmount,
+		DiscountAmount:  discountAmount,
+		FinalAmount:     finalAmount,
+		MemberInfo:      &updatedMember,
+		PaymentResult:   fmt.Sprintf("支付成功！订单号：%s，实付金额：¥%.2f", orderNumber, finalAmount),
+	}, nil
 }
 
 // validateMember 验证会员卡
@@ -632,7 +645,7 @@ var CashierMemberListTemplate = &app.TableTemplate{
 			logger.Errorf(ctx, "Create cashier_member err: %v", err)
 			return nil, err
 		}
-		return &callback.OnTableAddRowResp{}, nil
+		return &callback.OnTableAddRowResp{Data: &row}, nil
 	},
 	OnTableUpdateRow: func(ctx *app.Context, req *callback.OnTableUpdateRowReq) (*callback.OnTableUpdateRowResp, error) {
 		db := ctx.GetGormDB()
@@ -766,7 +779,7 @@ var CashierPaymentRecordListTemplate = &app.TableTemplate{
 			logger.Errorf(ctx, "Create cashier_payment_record err: %v", err)
 			return nil, err
 		}
-		return &callback.OnTableAddRowResp{}, nil
+		return &callback.OnTableAddRowResp{Data: &row}, nil
 	},
 	OnTableUpdateRow: func(ctx *app.Context, req *callback.OnTableUpdateRowReq) (*callback.OnTableUpdateRowResp, error) {
 		db := ctx.GetGormDB()
@@ -877,7 +890,7 @@ var CashierProductListTemplate = &app.TableTemplate{
 			logger.Errorf(ctx, "Create cashier_product err: %v", err)
 			return nil, err
 		}
-		return &callback.OnTableAddRowResp{}, nil
+		return &callback.OnTableAddRowResp{Data: &row}, nil
 	},
 	OnTableUpdateRow: func(ctx *app.Context, req *callback.OnTableUpdateRowReq) (*callback.OnTableUpdateRowResp, error) {
 		db := ctx.GetGormDB()

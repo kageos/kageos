@@ -42,7 +42,7 @@
 
 ## 四、说明
 
-代码实现见同目录下各 .go 文件；read_doc 本案例时以本 PRD 为准，具体代码可用 read_go_file 按需查看。
+代码随本案例一起提供；read_doc 本案例路径（如 `/builtin/doc/case_catalog/form/pdf`）即获得 PRD 与代码，无需再调用 read_go_file。
 
 
 ---
@@ -60,7 +60,6 @@ package pdf
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
 
@@ -85,30 +84,31 @@ type PdfExtractTextResp struct {
 	ExtractStats string `json:"extract_stats" widget:"name:提取统计;type:text_area"`
 }
 
-// PdfExtractText PDF 文本提取函数
+// PdfExtractText PDF 文本提取入口（SDK 注册用）：解析请求 → 调 DoPdfExtractText → 写响应
 func PdfExtractText(ctx *app.Context, resp response.Response) error {
 	var req PdfExtractTextReq
-	err := ctx.ShouldBindValidate(&req)
+	if err := ctx.ShouldBindValidate(&req); err != nil {
+		return err
+	}
+	res, err := DoPdfExtractText(ctx, &req)
 	if err != nil {
 		return err
 	}
+	return resp.Form(res).Build()
+}
 
+// DoPdfExtractText PDF 文本提取业务逻辑：(ctx, req) → (res, err)，便于单测与复用
+func DoPdfExtractText(ctx *app.Context, req *PdfExtractTextReq) (*PdfExtractTextResp, error) {
 	fs := ctx.GetFS()
-
-	// 1. 下载文件到本地
 	inputFiles := fs.DownloadFiles(req.InputFiles)
 	defer fs.RemoveFiles(inputFiles)
 
 	if len(inputFiles.GetFiles()) == 0 {
-		return fmt.Errorf("没有找到输入文件")
+		return nil, fmt.Errorf("没有找到输入文件")
 	}
 
-	// 2. 批量提取文本
-	// 从环境变量获取 pdftotext 路径
-	pdftotextPath := os.Getenv("PDFTOTEXT_PATH")
-	if pdftotextPath == "" {
-		pdftotextPath = "/usr/bin/pdftotext" // 默认路径
-	}
+	// 直接使用 pdftotext，依赖 PATH（镜像中已安装 poppler-utils）
+	pdftotextPath := "pdftotext"
 
 	var allTexts []string
 	successCount := 0
@@ -123,29 +123,22 @@ func PdfExtractText(ctx *app.Context, resp response.Response) error {
 			continue
 		}
 
-		// pdftotext input.pdf - （输出到标准输出）
 		cmd := exec.Command(pdftotextPath, file.LocalPath, "-")
 		output, err := cmd.CombinedOutput()
 
-		// 检查命令执行是否失败
 		if err != nil {
-			// pdftotext 在某些情况下（如扫描版PDF）可能返回非零退出码，但仍有输出
-			// 检查是否有实际输出内容
 			extractedText := strings.TrimSpace(string(output))
 			if extractedText == "" {
-				// 真正的失败：命令失败且无输出
 				logger.Errorf(ctx, "[PdfExtractText] 提取文本失败 %s: %v, output: %s", file.Name, err, string(output))
 				failCount++
 				errors = append(errors, fmt.Sprintf("文件 %s: 提取失败 - %v", file.Name, err))
 				continue
 			}
-			// 命令返回错误但有输出，可能是警告信息，继续处理
 			logger.Warnf(ctx, "[PdfExtractText] 文件 %s 提取时出现警告: %v, 但已提取到文本", file.Name, err)
 		}
 
 		extractedText := strings.TrimSpace(string(output))
 		if extractedText == "" {
-			// 提取成功但文本为空，说明是扫描版PDF或图片PDF
 			allTexts = append(allTexts, fmt.Sprintf("=== %s ===\n（未提取到文本内容，可能是扫描版PDF或图片PDF）", file.Name))
 			logger.Warnf(ctx, "[PdfExtractText] 文件 %s 未提取到文本内容，可能是扫描版PDF", file.Name)
 		} else {
@@ -156,23 +149,20 @@ func PdfExtractText(ctx *app.Context, resp response.Response) error {
 		successCount++
 	}
 
-	// 3. 合并所有文本
 	extractedText := strings.Join(allTexts, "\n\n")
 	if extractedText == "" {
 		extractedText = "（未提取到任何文本内容）"
 	}
 
-	// 4. 构建统计信息
 	stats := fmt.Sprintf("提取完成！\n成功: %d 个\n失败: %d 个", successCount, failCount)
 	if len(errors) > 0 {
 		stats += "\n\n失败详情:\n" + strings.Join(errors, "\n")
 	}
 
-	// 5. 构建响应
-	return resp.Form(&PdfExtractTextResp{
+	return &PdfExtractTextResp{
 		ExtractedText: extractedText,
 		ExtractStats:  stats,
-	}).Build()
+	}, nil
 }
 
 // PdfExtractTextTemplate PDF 文本提取配置
@@ -201,7 +191,6 @@ package pdf
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -227,51 +216,49 @@ type PdfMergeResp struct {
 	MergeInfo string `json:"merge_info" widget:"name:合并信息;type:text_area"`
 }
 
-// PdfMerge PDF合并函数
+// PdfMerge PDF合并入口（SDK 注册用）：解析请求 → 调 DoPdfMerge → 写响应
 func PdfMerge(ctx *app.Context, resp response.Response) error {
 	var req PdfMergeReq
-	err := ctx.ShouldBindValidate(&req)
+	if err := ctx.ShouldBindValidate(&req); err != nil {
+		return err
+	}
+	res, err := DoPdfMerge(ctx, &req)
 	if err != nil {
 		return err
 	}
+	return resp.Form(res).Build()
+}
 
+// DoPdfMerge PDF合并业务逻辑：(ctx, req) → (res, err)，便于单测与复用。
+// 仅需智能体介入的错误加 [系统错误] 前缀；此类错误打日志时须带足上下文（req %+v 等）便于排查。
+func DoPdfMerge(ctx *app.Context, req *PdfMergeReq) (*PdfMergeResp, error) {
 	fs := ctx.GetFS()
-
-	// 1. 下载文件到本地
 	inputFiles := fs.DownloadFiles(req.InputFiles)
 	defer fs.RemoveFiles(inputFiles)
 
 	if len(inputFiles.GetFiles()) == 0 {
-		return fmt.Errorf("没有找到输入文件")
+		return nil, fmt.Errorf("没有找到输入文件")
 	}
 
 	if len(inputFiles.GetFiles()) < 2 {
-		return fmt.Errorf("至少需要 2 个PDF文件才能合并")
+		return nil, fmt.Errorf("至少需要 2 个PDF文件才能合并")
 	}
 
-	// 2. 使用 Ghostscript 合并PDF
-	// 从环境变量获取 Ghostscript 路径
-	gsPath := os.Getenv("GHOSTSCRIPT_PATH")
-	if gsPath == "" {
-		gsPath = "/usr/bin/gs" // 默认路径
-	}
+	// 直接使用 gs，依赖 PATH（镜像中已安装 ghostscript）
+	gsPath := "gs"
 
-	// 使用 GetTraceOutputDir 生成唯一的输出目录（内部会自动创建）
 	outputDir := fs.GetTraceOutputDir()
 	outputPath := filepath.Join(outputDir, "merged.pdf")
 
-	// 3. 构建 Ghostscript 命令
-	// gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -sOutputFile=output.pdf input1.pdf input2.pdf ...
 	var args []string
 	args = append(args,
-		"-dBATCH",                  // 处理完所有文件后退出
-		"-dNOPAUSE",                // 不暂停
-		"-q",                       // 安静模式
-		"-sDEVICE=pdfwrite",        // 输出设备为 PDF
-		"-sOutputFile="+outputPath, // 输出文件
+		"-dBATCH",
+		"-dNOPAUSE",
+		"-q",
+		"-sDEVICE=pdfwrite",
+		"-sOutputFile="+outputPath,
 	)
 
-	// 添加所有输入文件
 	for _, file := range inputFiles.GetFiles() {
 		if file.LocalPath == "" {
 			logger.Warnf(ctx, "[PdfMerge] 文件 %s 没有本地路径，跳过", file.Name)
@@ -281,23 +268,22 @@ func PdfMerge(ctx *app.Context, resp response.Response) error {
 	}
 
 	if len(args) <= 5 {
-		return fmt.Errorf("没有有效的PDF文件可以合并")
+		return nil, fmt.Errorf("没有有效的PDF文件可以合并")
 	}
 
 	cmd := exec.Command(gsPath, args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		logger.Errorf(ctx, "[PdfMerge] 合并PDF失败: %v, output: %s", err, string(output))
-		return fmt.Errorf("合并PDF失败: %v", err)
+		// [系统错误] 便于区分需智能体介入；打足上下文（req、err、output）方便后续排查
+		logger.Errorf(ctx, "[系统错误]-[DoPdfMerge] 合并PDF失败, req: %+v, err: %v, output: %s", req, err, string(output))
+		return nil, fmt.Errorf("[系统错误]-[DoPdfMerge]： 合并PDF失败, req: %+v, err: %v", req, err)
 	}
 
 	logger.Infof(ctx, "[PdfMerge] 成功合并 %d 个PDF文件", len(inputFiles.GetFiles()))
 
-	// 4. 上传合并后的文件
 	outputFiles := fs.ResponseFiles([]string{outputPath})
 	defer fs.RemoveFiles(outputFiles)
 
-	// 5. 构建合并信息
 	fileNames := make([]string, 0)
 	for _, file := range inputFiles.GetFiles() {
 		fileNames = append(fileNames, file.Name)
@@ -308,11 +294,10 @@ func PdfMerge(ctx *app.Context, resp response.Response) error {
 		strings.Join(fileNames, "\n"),
 		filepath.Base(outputPath))
 
-	// 6. 构建响应
-	return resp.Form(&PdfMergeResp{
+	return &PdfMergeResp{
 		OutputFile: outputFiles,
 		MergeInfo:  mergeInfo,
-	}).Build()
+	}, nil
 }
 
 // PdfMergeTemplate PDF合并配置
@@ -332,6 +317,149 @@ func init() {
 }
 ```
 
+### pdf_run_command.go
+
+```go
+//<文件名>pdf_run_command.go</文件名>
+
+package pdf
+
+import (
+	"fmt"
+	"os/exec"
+	"path/filepath"
+	"strings"
+
+	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/response"
+	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
+)
+
+// PdfRunCommandReq 自定义命令请求：上传 PDF + 命令模板（占位符替换后执行），便于智能体灵活调用
+type PdfRunCommandReq struct {
+	InputFiles *types.Files `json:"input_files" widget:"name:上传PDF文件;type:files;accept:.pdf,*/*;max_size:100MB;max_count:20" validate:"required"`
+
+	// 命令模板，占位符：{{input}}=当前输入文件路径，{{output}}=当前输出文件路径。环境有 gs、pdftotext、pdftoppm、pdfinfo、pdfimages 等
+	CommandTemplate string `json:"command_template" widget:"name:命令模板;type:text_area;placeholder:pdftotext {{input}} -" validate:"required"`
+
+	// 输出文件扩展名，用于生成 {{output}} 路径（若命令中不用 {{output}} 可随意填）
+	OutputExtension string `json:"output_extension" widget:"name:输出扩展名;type:input;default:txt" validate:"required"`
+}
+
+// PdfRunCommandResp 自定义命令响应
+type PdfRunCommandResp struct {
+	OutputFile *types.Files `json:"output_file" widget:"name:输出文件;type:files"`
+	RunInfo    string       `json:"run_info" widget:"name:执行信息;type:text_area"`
+}
+
+// PdfRunCommand 自定义命令入口（SDK 注册用）
+func PdfRunCommand(ctx *app.Context, resp response.Response) error {
+	var req PdfRunCommandReq
+	if err := ctx.ShouldBindValidate(&req); err != nil {
+		return err
+	}
+	res, err := DoPdfRunCommand(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return resp.Form(res).Build()
+}
+
+// DoPdfRunCommand 按文件逐个替换 {{input}}/{{output}} 并执行，不经过 shell，安全
+func DoPdfRunCommand(ctx *app.Context, req *PdfRunCommandReq) (*PdfRunCommandResp, error) {
+	fs := ctx.GetFS()
+	inputFiles := fs.DownloadFiles(req.InputFiles)
+	defer fs.RemoveFiles(inputFiles)
+
+	files := inputFiles.GetFiles()
+	if len(files) == 0 {
+		return nil, fmt.Errorf("没有找到输入文件")
+	}
+
+	outputExt := strings.TrimSpace(req.OutputExtension)
+	if outputExt == "" {
+		outputExt = "txt"
+	}
+	outputExt = strings.TrimPrefix(outputExt, ".")
+	outputDir := fs.GetTraceOutputDir()
+	hasOutputPlaceholder := strings.Contains(req.CommandTemplate, "{{output}}")
+
+	var outputPaths []string
+	var runInfos []string
+	for i, file := range files {
+		if file.LocalPath == "" {
+			logger.Warnf(ctx, "[PdfRunCommand] 文件 %s 无本地路径，跳过", file.Name)
+			runInfos = append(runInfos, fmt.Sprintf("跳过 %s: 无本地路径", file.Name))
+			continue
+		}
+		baseName := strings.TrimSuffix(filepath.Base(file.LocalPath), filepath.Ext(file.LocalPath))
+		outputPath := filepath.Join(outputDir, baseName+"."+outputExt)
+
+		args := splitCommandLine(req.CommandTemplate)
+		for j := range args {
+			if args[j] == "{{input}}" {
+				args[j] = file.LocalPath
+			} else if args[j] == "{{output}}" {
+				args[j] = outputPath
+			}
+		}
+		if len(args) == 0 {
+			runInfos = append(runInfos, fmt.Sprintf("文件 %s: 命令为空", file.Name))
+			continue
+		}
+		cmd := exec.Command(args[0], args[1:]...)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			logger.Errorf(ctx, "[PdfRunCommand] 执行失败 %s: %v, output: %s", file.Name, err, string(out))
+			runInfos = append(runInfos, fmt.Sprintf("失败 %s: %v\n%s", file.Name, err, string(out)))
+			continue
+		}
+		if hasOutputPlaceholder {
+			outputPaths = append(outputPaths, outputPath)
+		}
+		runInfos = append(runInfos, fmt.Sprintf("成功 %s", file.Name))
+		if i == 0 && len(out) > 0 {
+			runInfos = append(runInfos, "命令输出:\n"+strings.TrimSpace(string(out)))
+		}
+	}
+
+	var outputFiles *types.Files
+	if len(outputPaths) > 0 {
+		outputFiles = fs.ResponseFiles(outputPaths)
+		defer fs.RemoveFiles(outputFiles)
+	}
+
+	return &PdfRunCommandResp{
+		OutputFile: outputFiles,
+		RunInfo:    strings.Join(runInfos, "\n"),
+	}, nil
+}
+
+func splitCommandLine(s string) []string {
+	var out []string
+	for _, part := range strings.Fields(s) {
+		out = append(out, part)
+	}
+	return out
+}
+
+// PdfRunCommandTemplate 自定义命令表单配置
+var PdfRunCommandTemplate = &app.FormTemplate{
+	BaseConfig: app.BaseConfig{
+		Name: "PDF处理自定义命令",
+		Desc: "上传 PDF 后，用自定义命令模板处理（占位符 {{input}}、{{output}} 会替换为实际路径后执行）。不经过 shell，安全。环境有 gs、pdftotext、pdftoppm、pdfinfo、pdfimages 等；示例：pdftotext {{input}} - 或 pdftoppm -png {{input}} {{output}}。",
+		Tags:     []string{"PDF处理", "自定义命令", "智能体"},
+		Request:  &PdfRunCommandReq{},
+		Response: &PdfRunCommandResp{},
+	},
+}
+
+func init() {
+	packageContext.POST("run_command.form", PdfRunCommand, PdfRunCommandTemplate)
+}
+```
+
 ### pdf_to_images.go
 
 ```go
@@ -341,7 +469,6 @@ package pdf
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -370,41 +497,39 @@ type PdfToImagesResp struct {
 	ConvertStats string `json:"convert_stats" widget:"name:转换统计;type:text_area"`
 }
 
-// PdfToImages PDF转图片函数
+// PdfToImages PDF转图片入口（SDK 注册用）：解析请求 → 调 DoPdfToImages → 写响应
 func PdfToImages(ctx *app.Context, resp response.Response) error {
 	var req PdfToImagesReq
-	err := ctx.ShouldBindValidate(&req)
+	if err := ctx.ShouldBindValidate(&req); err != nil {
+		return err
+	}
+	res, err := DoPdfToImages(ctx, &req)
 	if err != nil {
 		return err
 	}
+	return resp.Form(res).Build()
+}
 
+// DoPdfToImages PDF转图片业务逻辑：(ctx, req) → (res, err)，便于单测与复用
+func DoPdfToImages(ctx *app.Context, req *PdfToImagesReq) (*PdfToImagesResp, error) {
 	fs := ctx.GetFS()
-
-	// 1. 下载文件到本地
 	inputFiles := fs.DownloadFiles(req.InputFiles)
 	defer fs.RemoveFiles(inputFiles)
 
 	if len(inputFiles.GetFiles()) == 0 {
-		return fmt.Errorf("没有找到输入文件")
+		return nil, fmt.Errorf("没有找到输入文件")
 	}
 
-	// 2. 使用 pdftoppm 将PDF页面转换为图片
-	// 从环境变量获取 pdftoppm 路径
-	pdftoppmPath := os.Getenv("PDFTOPPM_PATH")
-	if pdftoppmPath == "" {
-		pdftoppmPath = "/usr/bin/pdftoppm" // 默认路径
-	}
+	// 直接使用 pdftoppm，依赖 PATH（镜像中已安装 poppler-utils）
+	pdftoppmPath := "pdftoppm"
 
-	// 使用 GetTraceOutputDir 生成唯一的输出目录（内部会自动创建）
 	outputDir := fs.GetTraceOutputDir()
 
-	// pdftoppm 格式标志
 	formatFlag := "-png"
 	if req.OutputFormat == "jpeg" {
 		formatFlag = "-jpeg"
 	}
 
-	// 3. 批量处理所有PDF文件
 	outputFilePaths := make([]string, 0)
 	successCount := 0
 	failCount := 0
@@ -419,11 +544,9 @@ func PdfToImages(ctx *app.Context, resp response.Response) error {
 			continue
 		}
 
-		// 生成输出前缀（基于文件名）
 		baseName := strings.TrimSuffix(filepath.Base(file.LocalPath), filepath.Ext(file.LocalPath))
 		outputPrefix := filepath.Join(outputDir, baseName+"_page")
 
-		// pdftoppm -png input.pdf output_prefix （将PDF页面转换为PNG）
 		cmd := exec.Command(pdftoppmPath, formatFlag, file.LocalPath, outputPrefix)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
@@ -433,7 +556,6 @@ func PdfToImages(ctx *app.Context, resp response.Response) error {
 			continue
 		}
 
-		// 查找生成的图片文件
 		outputDirFiles, err := filepath.Glob(outputPrefix + "*")
 		if err != nil {
 			logger.Errorf(ctx, "[PdfToImages] 查找输出文件失败 %s: %v", file.Name, err)
@@ -455,24 +577,21 @@ func PdfToImages(ctx *app.Context, resp response.Response) error {
 		logger.Infof(ctx, "[PdfToImages] 成功转换文件 %s，生成 %d 张图片", file.Name, len(outputDirFiles))
 	}
 
-	// 4. 上传转换后的文件
 	var outputFiles *types.Files
 	if len(outputFilePaths) > 0 {
 		outputFiles = fs.ResponseFiles(outputFilePaths)
 		defer fs.RemoveFiles(outputFiles)
 	}
 
-	// 5. 构建统计信息
 	stats := fmt.Sprintf("转换完成！\n成功: %d 个文件\n失败: %d 个文件\n总图片数: %d 张\n输出格式: %s", successCount, failCount, totalPages, req.OutputFormat)
 	if len(errors) > 0 {
 		stats += "\n\n失败详情:\n" + strings.Join(errors, "\n")
 	}
 
-	// 6. 构建响应
-	return resp.Form(&PdfToImagesResp{
+	return &PdfToImagesResp{
 		OutputFiles:  outputFiles,
 		ConvertStats: stats,
-	}).Build()
+	}, nil
 }
 
 // PdfToImagesTemplate PDF转图片配置

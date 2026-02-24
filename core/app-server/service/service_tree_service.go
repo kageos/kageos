@@ -138,6 +138,7 @@ type ServiceTreeService struct {
 	appService        *AppService
 	permissionService *PermissionService // ⭐ 添加 PermissionService 依赖，用于查询权限
 	docService        *DocService        // ⭐ 添加 DocService 依赖，用于创建文档内容
+	boardPostRepo     *repository.BoardPostRepository // 版块帖子，删版块时需先删帖子
 }
 
 // NewServiceTreeService 创建服务目录服务
@@ -150,6 +151,7 @@ func NewServiceTreeService(
 	appService *AppService,
 	permissionService *PermissionService, // ⭐ 新增 PermissionService 依赖
 	docService *DocService, // ⭐ 新增 DocService 依赖
+	boardPostRepo *repository.BoardPostRepository, // 版块帖子，删版块时需先删帖子
 ) *ServiceTreeService {
 	return &ServiceTreeService{
 		serviceTreeRepo:   serviceTreeRepo,
@@ -160,6 +162,7 @@ func NewServiceTreeService(
 		appService:        appService,
 		permissionService: permissionService,
 		docService:        docService,
+		boardPostRepo:     boardPostRepo,
 	}
 }
 
@@ -168,6 +171,10 @@ func (s *ServiceTreeService) CreateServiceTree(ctx context.Context, req *dto.Cre
 	// ⭐ 如果指定了类型为 docs，则调用专门的方法
 	if req.Type == model.ServiceTreeTypeDocs {
 		return s.CreateDocsNode(ctx, req)
+	}
+	// ⭐ 如果指定了类型为 board，则调用专门的方法
+	if req.Type == model.ServiceTreeTypeBoard {
+		return s.CreateBoardNode(ctx, req)
 	}
 
 	// 获取应用信息
@@ -439,9 +446,16 @@ func (s *ServiceTreeService) CreateDocs(ctx context.Context, req *dto.CreateDocs
 	}, nil
 }
 
+// docs 类型 code 后缀（与 form/table/chart 一致，便于路由与识别）
+const codeSuffixDocs = ".docs"
+
 // CreateDocsNode 创建文档节点（docs 类型）
 // ⭐ 专门用于创建文档节点，不创建文件系统目录
 func (s *ServiceTreeService) CreateDocsNode(ctx context.Context, req *dto.CreateServiceTreeReq) (*dto.CreateServiceTreeResp, error) {
+	// 兜底：code 未带类型后缀时自动补全
+	if req.Code != "" && !strings.HasSuffix(req.Code, codeSuffixDocs) {
+		req.Code = req.Code + codeSuffixDocs
+	}
 	// 获取应用信息
 	app, err := s.appRepo.GetAppByUserName(req.User, req.App)
 	if err != nil {
@@ -581,6 +595,127 @@ func (s *ServiceTreeService) CreateDocsNode(ctx context.Context, req *dto.Create
 	}
 
 	return resp, nil
+}
+
+// CreateBoard 创建版块（board）类型节点（专门接口）
+func (s *ServiceTreeService) CreateBoard(ctx context.Context, req *dto.CreateBoardReq) (*dto.CreateBoardResp, error) {
+	createReq := &dto.CreateServiceTreeReq{
+		User:        req.User,
+		App:         req.App,
+		Name:        req.Name,
+		Code:        req.Code,
+		ParentID:    req.ParentID,
+		Type:        model.ServiceTreeTypeBoard,
+		Description: req.Description,
+		Tags:        req.Tags,
+		Admins:      req.Admins,
+	}
+	resp, err := s.CreateBoardNode(ctx, createReq)
+	if err != nil {
+		return nil, err
+	}
+	return &dto.CreateBoardResp{
+		ID:           resp.ID,
+		Name:         resp.Name,
+		Code:         resp.Code,
+		ParentID:     resp.ParentID,
+		Type:         resp.Type,
+		Description:  resp.Description,
+		Tags:         resp.Tags,
+		AppID:        resp.AppID,
+		FullCodePath: resp.FullCodePath,
+		Admins:       resp.Admins,
+	}, nil
+}
+
+// board 类型 code 后缀（与 form/table/chart 一致）
+const codeSuffixBoard = ".board"
+
+// CreateBoardNode 创建版块节点（board 类型，不建 RefID，帖子在 board_posts 表）
+func (s *ServiceTreeService) CreateBoardNode(ctx context.Context, req *dto.CreateServiceTreeReq) (*dto.CreateServiceTreeResp, error) {
+	// 兜底：code 未带类型后缀时自动补全
+	if req.Code != "" && !strings.HasSuffix(req.Code, codeSuffixBoard) {
+		req.Code = req.Code + codeSuffixBoard
+	}
+	app, err := s.appRepo.GetAppByUserName(req.User, req.App)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get app: %w", err)
+	}
+	var parentTree *model.ServiceTree
+	if req.ParentID != 0 {
+		parentTree, err = s.serviceTreeRepo.GetByID(req.ParentID)
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("failed to get parent node: %w", err)
+		}
+		if parentTree == nil {
+			return nil, fmt.Errorf("parent node not found: parent_id=%d", req.ParentID)
+		}
+	}
+	fullCodePath := fmt.Sprintf("/%s/%s/%s", app.User, app.Code, req.Code)
+	if parentTree != nil {
+		fullCodePath = parentTree.FullCodePath + "/" + req.Code
+	}
+	exists, err := s.serviceTreeRepo.CheckNameExists(req.ParentID, req.Code, app.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check name exists: %w", err)
+	}
+	if exists {
+		return nil, fmt.Errorf("board node %s already exists", req.Code)
+	}
+	currentVersionNum := extractVersionNumForServiceTree(app.Version)
+	requestUser := contextx.GetRequestUser(ctx)
+	serviceTree := &model.ServiceTree{
+		Name:             req.Name,
+		Code:             req.Code,
+		ParentID:         req.ParentID,
+		Type:             model.ServiceTreeTypeBoard,
+		Description:      req.Description,
+		Tags:             req.Tags,
+		Admins:           req.Admins,
+		AppID:            app.ID,
+		FullCodePath:     fullCodePath,
+		AddVersionNum:    currentVersionNum,
+		UpdateVersionNum: 0,
+	}
+	if requestUser != "" {
+		serviceTree.CreatedBy = requestUser
+	}
+	if err := s.serviceTreeRepo.CreateServiceTreeWithParentPath(serviceTree, ""); err != nil {
+		return nil, fmt.Errorf("failed to create board node: %w", err)
+	}
+	logger.Infof(ctx, "[ServiceTreeService] Created board node: %s/%s/%s", req.User, req.App, req.Code)
+	if requestUser != "" {
+		if err := s.assignAdminRoleToUser(ctx, req.User, req.App, requestUser, serviceTree.FullCodePath); err != nil {
+			logger.Warnf(ctx, "[ServiceTreeService] 自动添加创建者管理员角色失败: user=%s, app=%s, username=%s, resource=%s, error=%v",
+				req.User, req.App, requestUser, serviceTree.FullCodePath, err)
+		}
+	}
+	if req.Admins != "" {
+		admins := strings.Split(req.Admins, ",")
+		for _, admin := range admins {
+			admin = strings.TrimSpace(admin)
+			if admin != "" && admin != requestUser {
+				if err := s.assignAdminRoleToUser(ctx, req.User, req.App, admin, serviceTree.FullCodePath); err != nil {
+					logger.Warnf(ctx, "[ServiceTreeService] 自动添加管理员角色失败: user=%s, app=%s, username=%s, resource=%s, error=%v",
+						req.User, req.App, admin, serviceTree.FullCodePath, err)
+				}
+			}
+		}
+	}
+	return &dto.CreateServiceTreeResp{
+		ID:           serviceTree.ID,
+		Name:         serviceTree.Name,
+		Code:         serviceTree.Code,
+		ParentID:     serviceTree.ParentID,
+		Type:         serviceTree.Type,
+		Description:  serviceTree.Description,
+		Tags:         serviceTree.Tags,
+		AppID:        serviceTree.AppID,
+		FullCodePath: serviceTree.FullCodePath,
+		Version:      serviceTree.Version,
+		VersionNum:   serviceTree.VersionNum,
+		Status:       "created",
+	}, nil
 }
 
 // getServiceTreeByAppModel 根据 appModel 获取服务目录树（内部方法，避免重复获取 appModel）
@@ -1340,6 +1475,46 @@ func (s *ServiceTreeService) DeleteDocs(ctx context.Context, id int64) error {
 	}
 
 	// 调用通用删除方法（会级联删除文档内容）
+	return s.DeleteServiceTree(ctx, id)
+}
+
+// UpdateBoard 更新版块节点（名称、描述、标签、管理员）
+func (s *ServiceTreeService) UpdateBoard(ctx context.Context, req *dto.UpdateBoardReq) error {
+	serviceTree, err := s.serviceTreeRepo.GetServiceTreeByID(req.ID)
+	if err != nil {
+		return fmt.Errorf("获取节点失败: %w", err)
+	}
+	if serviceTree.Type != model.ServiceTreeTypeBoard {
+		return fmt.Errorf("节点类型不是 board，当前类型: %s", serviceTree.Type)
+	}
+	updateReq := &dto.UpdateServiceTreeMetadataReq{ID: req.ID}
+	if req.Name != "" {
+		updateReq.Name = &req.Name
+	}
+	if req.Description != "" {
+		updateReq.Description = &req.Description
+	}
+	if req.Tags != "" {
+		updateReq.Tags = &req.Tags
+	}
+	if req.Admins != "" {
+		updateReq.Admins = &req.Admins
+	}
+	return s.UpdateServiceTreeMetadata(ctx, updateReq)
+}
+
+// DeleteBoard 删除版块节点（先删该版块下全部帖子，再删节点）
+func (s *ServiceTreeService) DeleteBoard(ctx context.Context, id int64) error {
+	serviceTree, err := s.serviceTreeRepo.GetServiceTreeByID(id)
+	if err != nil {
+		return fmt.Errorf("获取节点失败: %w", err)
+	}
+	if serviceTree.Type != model.ServiceTreeTypeBoard {
+		return fmt.Errorf("节点类型不是 board，当前类型: %s", serviceTree.Type)
+	}
+	if err := s.boardPostRepo.DeleteByTreeID(id); err != nil {
+		return fmt.Errorf("删除版块帖子失败: %w", err)
+	}
 	return s.DeleteServiceTree(ctx, id)
 }
 

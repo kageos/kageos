@@ -26,7 +26,9 @@
           @node-click="handleNodeClick"
           @create-directory="handleCreateDirectory"
           @create-docs="handleCreateDocs"
+          @create-board="handleCreateBoard"
           @delete-doc="handleDeleteDoc"
+          @delete-board="handleDeleteBoard"
           @delete-function="handleDeleteFunction"
           @delete-directory="handleDeleteDirectory"
           @publish-to-hub="handlePublishToHub"
@@ -64,29 +66,28 @@
 
       <!-- 中间函数渲染区域 -->
       <div class="function-renderer">
-        <!-- 右侧边栏控制按钮 -->
-        <div class="sidebar-controls" v-if="currentFunction && currentFunction.type === 'function'">
+        <!-- 右侧边栏控制按钮（函数=函数信息，讨论区/文档/目录=板块说明） -->
+        <div class="sidebar-controls" v-if="currentFunction && hasRightSidebarForNode">
           <div class="right-controls">
             <el-button
               v-if="!showRightSidebar"
               link
               @click="toggleRightSidebar"
               class="sidebar-toggle"
-              title="显示函数信息"
+              :title="currentFunction.type === 'function' ? '显示函数信息' : '显示板块说明'"
             >
               <el-icon><ArrowLeft /></el-icon>
-              显示函数信息
+              {{ currentFunction.type === 'function' ? '显示函数信息' : '板块说明' }}
             </el-button>
-            
             <el-button
               v-if="showRightSidebar"
               link
               @click="toggleRightSidebar"
               class="sidebar-toggle"
-              title="隐藏函数信息"
+              :title="currentFunction.type === 'function' ? '隐藏函数信息' : '隐藏板块说明'"
             >
               <el-icon><ArrowRight /></el-icon>
-              隐藏函数信息
+              {{ currentFunction.type === 'function' ? '隐藏函数信息' : '隐藏说明' }}
             </el-button>
           </div>
         </div>
@@ -149,19 +150,28 @@
         <!-- 🔥 Detail 模式：显示详情抽屉（通过 URL 参数打开） -->
         <!-- 注意：detail 模式使用抽屉显示，不需要单独的页面 -->
         
-        <!-- 🔥 文档详情页面 -->
-        <DocView
-          v-if="currentFunction && currentFunction.type === 'docs'"
-          :node="currentFunction"
-          @deleted="handleDocDeleted"
-        />
+        <!-- 🔥 文档详情页面（可滚动） -->
+        <div v-if="currentFunction && currentFunction.type === 'docs'" class="main-content-scroll">
+          <DocView
+            :node="currentFunction"
+            @deleted="handleDocDeleted"
+          />
+        </div>
 
-        <!-- 🔥 服务目录详情页面（包括根节点和 package 节点）；对话统一用右侧抽屉「打开工作台」 -->
-        <PackageDetailView
-          v-else-if="currentFunction && currentFunction.type === 'package'"
-          :package-node="currentFunction"
-          @refresh="handleRefreshTree"
-        />
+        <!-- 🔥 版块/讨论区页面（可滚动） -->
+        <div v-else-if="currentFunction && currentFunction.type === 'board'" class="main-content-scroll">
+          <BoardView
+            :node="currentFunction"
+          />
+        </div>
+
+        <!-- 🔥 服务目录详情页面（可滚动） -->
+        <div v-else-if="currentFunction && currentFunction.type === 'package'" class="main-content-scroll">
+          <PackageDetailView
+            :package-node="currentFunction"
+            @refresh="handleRefreshTree"
+          />
+        </div>
         
         <!-- 函数详情区域（正常模式 - 函数节点） -->
         <div v-else-if="currentFunction && currentFunction.type === 'function'" class="function-content-wrapper">
@@ -294,16 +304,18 @@
         </div>
       </div>
 
-      <!-- 右侧函数信息面板 -->
+      <!-- 右侧面板：函数=函数信息，讨论区/文档/目录=板块说明 -->
       <div 
-        v-if="currentFunction && currentFunction.type === 'function' && showRightSidebar" 
+        v-if="currentFunction && hasRightSidebarForNode && showRightSidebar" 
         class="right-sidebar"
         :class="{ 'sidebar-collapsed': !showRightSidebar }"
       >
-        <FunctionInfoPanel 
-          :function-data="currentFunctionDetail" 
+        <FunctionInfoPanel
+          v-if="currentFunction.type === 'function'"
+          :function-data="currentFunctionDetail"
           :function-node="currentFunction"
         />
+        <NodeDescPanel v-else :node="currentFunction" />
       </div>
     </div>
 
@@ -429,15 +441,19 @@
         <el-form-item label="文档代码" required>
           <el-input
             v-model="createDocsForm.code"
-            placeholder="请输入文档代码（英文，用于URL）"
+            placeholder="英文，如 readme"
             maxlength="50"
             show-word-limit
             clearable
             @input="createDocsForm.code = createDocsForm.code.toLowerCase().replace(/[^a-z0-9_]/g, '')"
-          />
+          >
+            <template #suffix>
+              <span class="create-docs-code-suffix">.docs</span>
+            </template>
+          </el-input>
           <div class="form-tip">
             <el-icon><InfoFilled /></el-icon>
-            文档代码只能包含小写字母、数字和下划线
+            只能包含小写字母、数字和下划线，保存后自动带后缀 .docs
           </div>
         </el-form-item>
         <el-form-item label="描述">
@@ -493,6 +509,14 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- 创建讨论区（版块）对话框 - 封装组件 -->
+    <CreateBoardDialog
+      v-model="createBoardDialogVisible"
+      :current-app="currentApp"
+      :parent-node="currentBoardParentNode"
+      @success="afterCreateBoard"
+    />
 
     <!-- 创建服务目录对话框 -->
     <el-dialog
@@ -696,7 +720,10 @@ import PermissionDeniedView from '../components/PermissionDeniedView.vue'
 import PackageDetailView from '../components/PackageDetailView.vue'
 import WorkstationChat from '../components/WorkstationChat.vue'
 import DocView from '../components/DocView.vue'
+import BoardView from '../components/BoardView.vue'
+import CreateBoardDialog from '../components/CreateBoardDialog.vue'
 import FunctionInfoPanel from '../components/FunctionInfoPanel.vue'
+import NodeDescPanel from '../components/NodeDescPanel.vue'
 import UserSearchInput from '@/components/UserSearchInput.vue'
 import UsersWidget from '../widgets/UsersWidget.vue'
 import PermissionRequestList from '@/components/Permission/PermissionRequestList.vue'
@@ -713,6 +740,7 @@ import { useWorkspaceDetail } from '../composables/useWorkspaceDetail'
 import { useWorkspaceApp } from '../composables/useWorkspaceApp'
 import { useWorkspaceServiceTree } from '../composables/useWorkspaceServiceTree'
 import { findNodeByPath, findNodeById } from '../utils/workspaceUtils'
+import { useAfterCreateNode } from '../composables/useAfterCreateNode'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { resolveWorkspaceUrl, extractWorkspacePath } from '@/utils/route'
 import { isLinkNavigation as checkLinkNavigation, LINK_TYPE_QUERY_KEY } from '@/utils/linkNavigation'
@@ -952,6 +980,13 @@ const showLeftSidebar = ref(true)
 
 // 右侧函数信息面板显示状态
 const showRightSidebar = ref(true)
+
+/** 当前节点是否支持右侧面板（函数=函数信息，讨论区/文档/目录=板块说明） */
+const hasRightSidebarForNode = computed(() => {
+  const node = currentFunction.value
+  if (!node) return false
+  return node.type === 'function' || node.type === 'board' || node.type === 'docs' || node.type === 'package'
+})
 
 // 函数详情 tab 相关
 const functionActiveTab = ref('content')
@@ -1271,12 +1306,19 @@ const handleNodeClick = (node: ServiceTreeType) => {
     // ⭐ docs 类型节点，也需要更新路由
     const targetPath = buildWorkspacePath(serviceTree.full_code_path || '')
     if (route.path === targetPath) {
-      // 路由已匹配，直接触发节点点击
       applicationService.triggerNodeClick(serviceTree)
     } else {
-      // 路由未匹配，先触发节点点击，然后更新路由
       applicationService.triggerNodeClick(serviceTree)
       handlePackageNodeRoute(serviceTree, 'workspace-node-click-docs')
+    }
+  } else if (serviceTree.type === 'board') {
+    // ⭐ board 类型节点，更新路由
+    const targetPath = buildWorkspacePath(serviceTree.full_code_path || '')
+    if (route.path === targetPath) {
+      applicationService.triggerNodeClick(serviceTree)
+    } else {
+      applicationService.triggerNodeClick(serviceTree)
+      handlePackageNodeRoute(serviceTree, 'workspace-node-click-board')
     }
   } else {
     // 其他类型节点，只设置当前函数
@@ -1307,8 +1349,9 @@ const handleBreadcrumbNodeClick = (node: ServiceTree) => {
   } else if (node.type === 'package') {
     handlePackageNodeRoute(node, RouteSource.WORKSPACE_NODE_CLICK_PACKAGE)
   } else if (node.type === 'docs') {
-    // ⭐ docs 类型节点，也需要更新路由
     handlePackageNodeRoute(node, 'breadcrumb-node-click-docs')
+  } else if (node.type === 'board') {
+    handlePackageNodeRoute(node, 'breadcrumb-node-click-board')
   } else {
     applicationService.triggerNodeClick(node)
   }
@@ -1336,6 +1379,10 @@ const createDocsForm = ref({
   content: '',    // ⭐ 文档内容
   summary: ''     // ⭐ 文档摘要
 })
+
+// 创建讨论区（版块）对话框 - 仅保留可见性与父节点，逻辑在 CreateBoardDialog 内
+const createBoardDialogVisible = ref(false)
+const currentBoardParentNode = ref<ServiceTreeType | null>(null)
 
 // 处理创建文档节点（打开对话框）
 const handleCreateDocs = (parentNode?: ServiceTreeType) => {
@@ -1379,6 +1426,10 @@ const handleSubmitCreateDocs = async () => {
     return
   }
 
+  // 自动补全 type 后缀（与 form/table/chart 一致）
+  let code = createDocsForm.value.code.trim()
+  if (!code.endsWith('.docs')) code = code + '.docs'
+
   // ⭐ 验证文档内容
   if (!createDocsForm.value.content.trim()) {
     ElMessage.warning('请输入文档内容')
@@ -1394,7 +1445,7 @@ const handleSubmitCreateDocs = async () => {
       user: currentApp.value.user,
       app: currentApp.value.code,
       name: createDocsForm.value.name.trim(),
-      code: createDocsForm.value.code.trim(),
+      code,
       parent_id: parentId,
       description: createDocsForm.value.description.trim() || '',
       tags: createDocsForm.value.tags.trim() || '',
@@ -1403,33 +1454,11 @@ const handleSubmitCreateDocs = async () => {
       summary: createDocsForm.value.summary.trim() || ''  // ⭐ 文档摘要
     })
 
-    // ⭐ 响应拦截器已经处理了，成功时返回的是 data 对象（ServiceTree），不是 { data: ServiceTree }
     if (response && response.id) {
       ElMessage.success('文档节点创建成功')
-      // ⭐ 立即关闭弹窗，不等待后续操作
       createDocsDialogVisible.value = false
-      
-      // 刷新服务树（异步执行，不阻塞弹窗关闭）
-      handleRefreshTree().then(() => {
-        // 点击新创建的节点
-        if (response.id) {
-          const newNode = findNodeById(serviceTree.value, response.id)
-          if (newNode) {
-            handleNodeClick(newNode)
-          }
-        }
-      }).catch((err) => {
-        console.error('刷新服务树失败:', err)
-        // 即使刷新失败，也尝试点击新创建的节点
-        if (response.id) {
-          const newNode = findNodeById(serviceTree.value, response.id)
-          if (newNode) {
-            handleNodeClick(newNode)
-          }
-        }
-      })
+      await afterCreateNode(response)
     } else {
-      // 如果响应数据为空，也关闭弹窗并提示
       ElMessage.warning('创建文档节点成功，但未返回节点信息')
       createDocsDialogVisible.value = false
     }
@@ -1451,6 +1480,41 @@ const handleCloseCreateDocsDialog = () => {
     summary: ''
   }
   currentDocsParentNode.value = null
+}
+
+// 处理创建讨论区（仅打开对话框）
+const handleCreateBoard = (parentNode?: ServiceTreeType) => {
+  if (!currentApp.value) {
+    ElMessage.warning('请先选择应用')
+    return
+  }
+  currentBoardParentNode.value = parentNode ?? null
+  createBoardDialogVisible.value = true
+}
+
+// 处理删除讨论区
+const handleDeleteBoard = async (node: ServiceTreeType) => {
+  if (node.type !== 'board') {
+    ElMessage.warning('只能删除讨论区节点')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除讨论区 "${node.name}" 吗？将同时删除该版块下全部帖子，且无法恢复。`,
+      '确认删除',
+      { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
+    )
+    const { deleteBoard } = await import('@/api/service-tree')
+    await deleteBoard(node.id)
+    ElMessage.success('讨论区已删除')
+    await handleRefreshTree()
+    if (currentFunction.value && currentFunction.value.id === node.id) {
+      const parentPath = node.full_code_path?.split('/').slice(0, -1).join('/') || ''
+      if (parentPath) router.push(`/workspace${parentPath}`)
+    }
+  } catch (error: any) {
+    if (error !== 'cancel') ElMessage.error('删除讨论区失败: ' + (error.message || '未知错误'))
+  }
 }
 
 // 处理关闭创建目录对话框
@@ -1642,6 +1706,15 @@ const handleRefreshTree = async () => {
     await domainService.loadServiceTree(app)
   }
 }
+
+// 创建节点后的统一处理：刷新树 + 选中新节点（文档/讨论区复用，需在 handleRefreshTree 之后定义）
+const afterCreateNode = useAfterCreateNode({
+  handleRefreshTree,
+  serviceTree: () => serviceTree.value,
+  findNodeById,
+  handleNodeClick
+})
+const afterCreateBoard = afterCreateNode
 
 // 会改变服务目录结构的工具名（创建目录、写文档、写代码、编译工作空间）
 const TREE_AFFECTING_TOOLS = ['create_directory', 'write_doc', 'write_go_file', 'build_workspace']
@@ -2026,6 +2099,12 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
+.create-docs-code-suffix {
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  padding-right: 4px;
+}
+
 .workspace-container {
   display: flex;
   flex-direction: column;
@@ -2237,6 +2316,16 @@ onUnmounted(() => {
   overflow: hidden;
   min-height: 0;
   position: relative;
+}
+
+/* 讨论区/文档/目录主内容区：可滚动；右侧留白避免被「板块说明」按钮挡住 */
+.main-content-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 130px; /* 为右上角「板块说明」按钮留出空间，避免挡住发帖等操作 */
 }
 
 // 右侧边栏控制按钮

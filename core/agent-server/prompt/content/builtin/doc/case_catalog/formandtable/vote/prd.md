@@ -18,26 +18,26 @@
 
 **表单字段（新增/编辑）**
 
-| 字段           | 类型     | 必填 | 说明 |
-|----------------|----------|------|------|
-| 投票标题       | 文本输入 | ✓   | 2–100 字 |
-| 投票描述       | 多行文本 | ✓   | 5–500 字 |
-| 投票类型       | 下拉选择 | ✓   | 单选/多选，默认单选 |
-| 最多选择数     | 数字输入 | ✓   | 多选时 1–10，单选时固定 1 |
-| 是否匿名投票   | 开关     | ✗   | 默认否 |
-| 是否显示实时结果 | 开关   | ✗   | 默认是 |
-| 开始时间       | 时间选择 | ✓   | 必填 |
-| 结束时间       | 时间选择 | ✓   | 必须晚于开始时间 |
-| 投票选项       | 表格     | ✓   | type:table，至少 2 条；每行「选项内容」input |
-| 详细内容       | 富文本   | ✗   | type:richtext |
-| 创建人         | 用户选择 | ✗   | 可自动带当前用户 |
+| 字段           | 类型     | 必填 | 默认值 | 说明 |
+|----------------|----------|------|--------|------|
+| 投票标题       | 文本输入 | ✓   | —      | 2–100 字 |
+| 投票描述       | 多行文本 | ✓   | —      | 5–500 字 |
+| 投票类型       | 下拉选择 | ✓   | 单选   | 单选/多选 |
+| 最多选择数     | 数字输入 | ✓   | 1      | 多选时 1–10，单选时固定 1 |
+| 是否匿名投票   | 开关     | ✗   | 否     | — |
+| 是否显示实时结果 | 开关   | ✗   | 是     | — |
+| 开始时间       | 时间选择 | ✓   | —      | — |
+| 结束时间       | 时间选择 | ✓   | —      | 必须晚于开始时间 |
+| 投票选项       | 表格     | ✓   | —      | type:table，至少 2 条；每行「选项内容」input |
+| 详细内容       | 富文本   | ✗   | —      | type:richtext |
+| 创建人         | 用户选择 | ✗   | —      | 只读，可自动带当前用户 |
 
-**列表模式**（可筛：投票状态）
+**列表模式**（可筛：投票状态；状态、总选择次数为仅列表展示/计算）
 
-| 创建时间 | 更新时间 | 投票标题 | 投票类型 | 最多选择 | 开始时间 | 结束时间 | 状态 | 总选择次数 | 创建人 | 操作 |
-|----------|----------|----------|----------|----------|----------|----------|------|------------|--------|------|
-| 2025-01-18 09:00 | 2025-01-18 09:00 | 年度优秀员工评选 | 单选 | 1 | 2025-01-20 00:00 | 2025-01-25 23:59 | 进行中 | 42 | 张三 | 删除、查看选项列表、点击参与投票 |
-| 2025-01-10 14:00 | 2025-01-10 14:00 | 团建地点投票 | 多选 | 3 | 2025-01-08 00:00 | 2025-01-12 23:59 | 已结束 | 28 | 李四 | 删除、查看选项列表、查看投票结果 |
+| ID | 创建时间 | 更新时间 | 创建人 | 投票标题 | 投票描述 | 投票类型 | 最多选择 | 开始时间 | 结束时间 | 状态 | 总选择次数 | 操作 |
+|----|----------|----------|--------|----------|----------|----------|----------|----------|----------|------|------------|------|
+| 1 | 2025-01-18 09:00 | 2025-01-18 09:00 | 张三 | 年度优秀员工评选 | — | 单选 | 1 | 2025-01-20 00:00 | 2025-01-25 23:59 | 进行中 | 42 | 删除、查看选项列表、点击参与投票 |
+| 2 | 2025-01-10 14:00 | 2025-01-10 14:00 | 李四 | 团建地点投票 | — | 多选 | 3 | 2025-01-08 00:00 | 2025-01-12 23:59 | 已结束 | 28 | 删除、查看选项列表、查看投票结果 |
 
 **说明**：状态按开始/结束时间计算（未开始/进行中/已结束）。**操作列**统一在列表右侧，包含删除与 link：查看选项列表（跳转 vote_option_list）、投票操作按状态为「点击参与投票」（vote_submit）或「查看投票结果」（vote_result）。
 
@@ -47,17 +47,17 @@
 
 **表单字段（新增/编辑）**
 
-| 字段     | 类型     | 必填 | 说明 |
-|----------|----------|------|------|
-| 投票主题 | 下拉选择 | ✓   | OnSelectFuzzy，可选仅当前用户创建的主题 |
-| 选项内容 | 文本输入 | ✓   | 1–100 字 |
+| 字段     | 类型     | 必填 | 默认值 | 说明 |
+|----------|----------|------|--------|------|
+| 投票主题 | 下拉选择 | ✓   | —      | OnSelectFuzzy，可选仅当前用户创建的主题 |
+| 选项内容 | 文本输入 | ✓   | —      | 1–100 字 |
 
-**列表模式**
+**列表模式**（得票人数、得票率% 为仅列表展示、后端计算）
 
-| 创建时间 | 选项ID | 投票主题 | 选项内容 | 得票人数 | 得票率% |
-|----------|--------|----------|----------|----------|---------|
-| 2025-01-18 09:05 | 1 | 年度优秀员工评选 | 小王 | 15 | 35.7 |
-| 2025-01-18 09:05 | 2 | 年度优秀员工评选 | 小刘 | 12 | 28.6 |
+| ID | 创建时间 | 更新时间 | 创建人 | 投票主题 | 选项内容 | 得票人数 | 得票率% |
+|----|----------|----------|--------|----------|----------|----------|---------|
+| 1 | 2025-01-18 09:05 | 2025-01-18 09:05 | — | 年度优秀员工评选 | 小王 | 15 | 35.7 |
+| 2 | 2025-01-18 09:05 | 2025-01-18 09:05 | — | 年度优秀员工评选 | 小刘 | 12 | 28.6 |
 
 **说明**：新增/编辑选项时校验：只有主题创建人可增改；只有「未开始」的主题可增改选项。
 
@@ -119,7 +119,7 @@
 
 ---
 
-代码实现见同目录下各 .go 文件；read_doc 本案例时以本 PRD 为准，具体代码可用 read_go_file 按需查看。
+代码随本案例一起提供；read_doc 本案例路径（如 `/builtin/doc/case_catalog/formandtable/vote`）即获得 PRD 与代码，无需再调用 read_go_file。
 
 
 ---
@@ -303,7 +303,7 @@ var VoteOptionListTemplate = &app.TableTemplate{
 			return nil, err
 		}
 
-		return &callback.OnTableAddRowResp{}, nil
+		return &callback.OnTableAddRowResp{Data: &option}, nil
 	},
 
 	OnTableUpdateRow: func(ctx *app.Context, req *callback.OnTableUpdateRowReq) (*callback.OnTableUpdateRowResp, error) {
@@ -527,6 +527,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/response"
 	"gorm.io/gorm"
@@ -562,40 +563,54 @@ type VoteResultResp struct {
 
 // ================ 查看投票结果 ================
 
-// VoteResult 查看投票结果
+// VoteResult 查看投票结果入口（SDK 注册用）：解析请求 → 调 DoVoteResult → 写响应
 func VoteResult(ctx *app.Context, resp response.Response) error {
-	db := ctx.GetGormDB()
-	if db == nil {
-		return fmt.Errorf("数据库连接失败")
-	}
-
 	var req VoteResultReq
 	if err := ctx.ShouldBind(&req); err != nil {
-		return resp.BizErrorf("参数解析失败").Build()
+		return fmt.Errorf("参数解析失败")
+	}
+	res, err := DoVoteResult(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return resp.Form(res).Build()
+}
+
+// DoVoteResult 查看投票结果业务逻辑：(ctx, req) → (res, err)，便于单测与复用。
+// 仅需智能体介入的错误加 [系统错误] 前缀（由 SDK 区分）；此类错误打日志时须带足上下文（req/model %+v）便于排查。
+func DoVoteResult(ctx *app.Context, req *VoteResultReq) (*VoteResultResp, error) {
+	db := ctx.GetGormDB()
+	if db == nil {
+		logger.Errorf(ctx, "[系统错误]-[DoVoteResult] 数据库连接失败, req: %+v", req)
+		return nil, fmt.Errorf("[系统错误]-[DoVoteResult]： 数据库连接失败, req: %+v", req)
 	}
 
 	var topic VoteTopic
 	if err := db.Where("id = ?", req.TopicID).First(&topic).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return resp.BizErrorf("投票主题不存在").Build()
+			return nil, fmt.Errorf("投票主题不存在")
 		}
-		return err
+		// [系统错误] 需智能体介入；打足上下文便于排查
+		logger.Errorf(ctx, "[系统错误]-[DoVoteResult] 查询投票主题失败, req: %+v, err: %v", req, err)
+		return nil, fmt.Errorf("[系统错误]-[DoVoteResult]： 查询投票主题失败, req: %+v, err: %w", req, err)
 	}
 
 	var latestTotalVotes int
 	if err := db.Model(&VoteTopic{}).Where("id = ?", req.TopicID).Select("total_votes").Scan(&latestTotalVotes).Error; err != nil {
-		return err
+		logger.Errorf(ctx, "[系统错误]-[DoVoteResult] 查询总票数失败, req: %+v, topic_id: %d, err: %v", req, req.TopicID, err)
+		return nil, fmt.Errorf("[系统错误]-[DoVoteResult]： 查询总票数失败, req: %+v, err: %w", req, err)
 	}
 	topic.TotalVotes = latestTotalVotes
 
 	status := getTopicStatus(topic.StartTime, topic.EndTime)
 	if !topic.ShowResult && status != "已结束" {
-		return resp.BizErrorf("该投票不允许查看实时结果，请等待投票结束").Build()
+		return nil, fmt.Errorf("该投票不允许查看实时结果，请等待投票结束")
 	}
 
 	var options []*VoteOption
 	if err := db.Where("topic_id = ?", req.TopicID).Order("percentage DESC, id ASC").Find(&options).Error; err != nil {
-		return err
+		logger.Errorf(ctx, "[系统错误]-[DoVoteResult] 查询投票选项失败, req: %+v, err: %v", req, err)
+		return nil, fmt.Errorf("[系统错误]-[DoVoteResult]： 查询投票选项失败, req: %+v, err: %w", req, err)
 	}
 
 	optionResults := make([]*VoteOptionResult, 0)
@@ -607,7 +622,7 @@ func VoteResult(ctx *app.Context, resp response.Response) error {
 		})
 	}
 
-	return resp.Form(&VoteResultResp{
+	return &VoteResultResp{
 		Success:     true,
 		Message:     "查询成功",
 		TopicTitle:  topic.Title,
@@ -618,7 +633,7 @@ func VoteResult(ctx *app.Context, resp response.Response) error {
 		Options:     optionResults,
 		StartTime:   time.UnixMilli(topic.StartTime).Format("2006-01-02 15:04:05"),
 		EndTime:     time.UnixMilli(topic.EndTime).Format("2006-01-02 15:04:05"),
-	}).Build()
+	}, nil
 }
 
 // VoteResultTemplate 查看投票结果配置
@@ -654,6 +669,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/callback"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/response"
@@ -685,27 +701,28 @@ type VoteSubmitResp struct {
 
 // ================ 辅助函数 ================
 
-// checkCanVote 检查是否可以投票
-func checkCanVote(db *gorm.DB, resp response.Response, topicID int, voterName string) error {
+// checkCanVote 检查是否可以投票（供 DoVoteSubmit 使用，不依赖 resp）。
+// 数据库等异常用 [系统错误] 返回，便于区分需智能体介入的错误；业务校验（主题不存在、已投过等）不加标签。
+func checkCanVote(db *gorm.DB, topicID int, voterName string) error {
 	var topic VoteTopic
 	if err := db.Where("id = ?", topicID).First(&topic).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return resp.BizErrorf("投票主题不存在").Build()
+			return fmt.Errorf("投票主题不存在")
 		}
-		return fmt.Errorf("查询投票主题失败: %v", err)
+		return fmt.Errorf("[系统错误]-[checkCanVote]： 查询投票主题失败, topic_id: %d, voter: %s, err: %v", topicID, voterName, err)
 	}
 
 	status := getTopicStatus(topic.StartTime, topic.EndTime)
 	if status != "进行中" {
-		return resp.BizErrorf("投票状态为 %s，无法投票", status).Build()
+		return fmt.Errorf("投票状态为 %s，无法投票", status)
 	}
 
 	var count int64
 	if err := db.Model(&VoteRecord{}).Where("topic_id = ? AND voter_name = ?", topicID, voterName).Count(&count).Error; err != nil {
-		return fmt.Errorf("查询投票记录失败: %v", err)
+		return fmt.Errorf("[系统错误]-[checkCanVote]： 查询投票记录失败, topic_id: %d, voter: %s, err: %v", topicID, voterName, err)
 	}
 	if count > 0 {
-		return resp.BizErrorf("您已经投过票了，每人每个主题只能投一次").Build()
+		return fmt.Errorf("您已经投过票了，每人每个主题只能投一次")
 	}
 
 	return nil
@@ -765,7 +782,8 @@ func updateOptionsPercentage(tx *gorm.DB, topicID int) error {
 func voteOnSelectFuzzyTopicForSubmit(ctx *app.Context, req *callback.OnSelectFuzzyReq) (*callback.OnSelectFuzzyResp, error) {
 	db := ctx.GetGormDB()
 	if db == nil {
-		return nil, fmt.Errorf("数据库连接失败")
+		logger.Errorf(ctx, "[系统错误]-[voteOnSelectFuzzyTopicForSubmit] 数据库连接失败, req: %+v", req)
+		return nil, fmt.Errorf("[系统错误]-[voteOnSelectFuzzyTopicForSubmit]： 数据库连接失败, req: %+v", req)
 	}
 
 	var topics []VoteTopic
@@ -831,7 +849,8 @@ func voteOnSelectFuzzyTopicForSubmit(ctx *app.Context, req *callback.OnSelectFuz
 func voteOnSelectFuzzyOption(ctx *app.Context, req *callback.OnSelectFuzzyReq) (*callback.OnSelectFuzzyResp, error) {
 	db := ctx.GetGormDB()
 	if db == nil {
-		return nil, fmt.Errorf("数据库连接失败")
+		logger.Errorf(ctx, "[系统错误]-[voteOnSelectFuzzyOption] 数据库连接失败, req: %+v", req)
+		return nil, fmt.Errorf("[系统错误]-[voteOnSelectFuzzyOption]： 数据库连接失败, req: %+v", req)
 	}
 
 	var currentData VoteSubmitReq
@@ -888,16 +907,26 @@ func voteOnSelectFuzzyOption(ctx *app.Context, req *callback.OnSelectFuzzyReq) (
 
 // ================ 提交投票 ================
 
-// VoteSubmit 提交投票
+// VoteSubmit 提交投票入口（SDK 注册用）：解析请求 → 调 DoVoteSubmit → 写响应
 func VoteSubmit(ctx *app.Context, resp response.Response) error {
-	db := ctx.GetGormDB()
-	if db == nil {
-		return fmt.Errorf("数据库连接失败")
-	}
-
 	var req VoteSubmitReq
 	if err := ctx.ShouldBindValidate(&req); err != nil {
 		return err
+	}
+	res, err := DoVoteSubmit(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return resp.Form(res).Build()
+}
+
+// DoVoteSubmit 提交投票业务逻辑：(ctx, req) → (res, err)，便于单测与复用。
+// 仅需智能体介入的错误加 [系统错误] 前缀（由 SDK 区分）；此类错误打日志时须带足上下文（req/model %+v）便于排查。
+func DoVoteSubmit(ctx *app.Context, req *VoteSubmitReq) (*VoteSubmitResp, error) {
+	db := ctx.GetGormDB()
+	if db == nil {
+		logger.Errorf(ctx, "[系统错误]-[DoVoteSubmit] 数据库连接失败, req: %+v", req)
+		return nil, fmt.Errorf("[系统错误]-[DoVoteSubmit]： 数据库连接失败, req: %+v", req)
 	}
 
 	userInfo := ctx.GetRequestUser()
@@ -905,30 +934,35 @@ func VoteSubmit(ctx *app.Context, resp response.Response) error {
 	var topic VoteTopic
 	if err := db.Where("id = ?", req.TopicID).First(&topic).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return resp.BizErrorf("投票主题不存在").Build()
+			return nil, fmt.Errorf("投票主题不存在")
 		}
-		return err
+		logger.Errorf(ctx, "[系统错误]-[DoVoteSubmit] 查询投票主题失败, req: %+v, err: %v", req, err)
+		return nil, fmt.Errorf("[系统错误]-[DoVoteSubmit]： 查询投票主题失败, req: %+v, err: %w", req, err)
 	}
 
-	if err := checkCanVote(db, resp, req.TopicID, userInfo); err != nil {
-		return err
+	if err := checkCanVote(db, req.TopicID, userInfo); err != nil {
+		if strings.Contains(err.Error(), "[系统错误]") {
+			logger.Errorf(ctx, "[系统错误]-[DoVoteSubmit] checkCanVote 失败, req: %+v, err: %v", req, err)
+		}
+		return nil, err
 	}
 
 	if topic.VoteType == "单选" && len(req.OptionIDs) != 1 {
-		return resp.BizErrorf("单选投票只能选择1个选项").Build()
+		return nil, fmt.Errorf("单选投票只能选择1个选项")
 	}
 
 	if topic.VoteType == "多选" && len(req.OptionIDs) > topic.MaxSelections {
-		return resp.BizErrorf("多选投票最多选择%d个选项", topic.MaxSelections).Build()
+		return nil, fmt.Errorf("多选投票最多选择%d个选项", topic.MaxSelections)
 	}
 
 	var options []*VoteOption
 	if err := db.Where("id IN ? AND topic_id = ?", req.OptionIDs, req.TopicID).Find(&options).Error; err != nil {
-		return err
+		logger.Errorf(ctx, "[系统错误]-[DoVoteSubmit] 查询投票选项失败, req: %+v, err: %v", req, err)
+		return nil, fmt.Errorf("[系统错误]-[DoVoteSubmit]： 查询投票选项失败, req: %+v, err: %w", req, err)
 	}
 
 	if len(options) != len(req.OptionIDs) {
-		return resp.BizErrorf("部分投票选项不存在或不属于该主题").Build()
+		return nil, fmt.Errorf("部分投票选项不存在或不属于该主题")
 	}
 
 	var selectedOptions string
@@ -976,13 +1010,15 @@ func VoteSubmit(ctx *app.Context, resp response.Response) error {
 	})
 
 	if err != nil {
-		return err
+		// [系统错误] 需智能体介入；打足上下文（req、topic）便于排查
+		logger.Errorf(ctx, "[系统错误]-[DoVoteSubmit] 事务失败, req: %+v, topic: %+v, err: %v", req, topic, err)
+		return nil, fmt.Errorf("[系统错误]-[DoVoteSubmit]： 事务失败, req: %+v, topic: %+v, err: %w", req, topic, err)
 	}
 
 	params := VoteResultReq{TopicID: req.TopicID}
 	functionLink, _ := ctx.BuildFunctionUrlWithText("vote_result", params, "查看投票结果")
 
-	return resp.Form(&VoteSubmitResp{
+	return &VoteSubmitResp{
 		Success:         true,
 		Message:         "投票成功！",
 		TopicTitle:      topic.Title,
@@ -990,7 +1026,7 @@ func VoteSubmit(ctx *app.Context, resp response.Response) error {
 		VoteTime:        time.Now().Format("2006-01-02 15:04:05"),
 		IsAnonymous:     topic.IsAnonymous,
 		FunctionLink:    functionLink,
-	}).Build()
+	}, nil
 }
 
 // VoteSubmitTemplate 提交投票配置
@@ -1279,7 +1315,7 @@ var VoteTopicListTemplate = &app.TableTemplate{
 			return nil, err
 		}
 
-		return &callback.OnTableAddRowResp{}, nil
+		return &callback.OnTableAddRowResp{Data: &topic}, nil
 	},
 
 	OnTableUpdateRow: func(ctx *app.Context, req *callback.OnTableUpdateRowReq) (*callback.OnTableUpdateRowResp, error) {

@@ -12,14 +12,14 @@
 
 ### 分词（jieba_segment.form，POST）
 
-**请求**
+**请求**（表单字段五列：字段 | 类型 | 必填 | 默认值 | 说明）
 
-| 字段       | 类型     | 必填 | 说明 |
-|------------|----------|------|------|
-| 待分词文本 | 多行文本 | ✓   | 中文文本 |
-| 分词模式   | 下拉选择 | ✗   | 精确模式/全模式/搜索引擎模式，默认精确模式 |
-| 关键词数量 | 数字输入 | ✗   | 默认 10 个 |
-| 移除停用词 | 开关     | ✗   | 默认 true |
+| 字段       | 类型     | 必填 | 默认值 | 说明 |
+|------------|----------|------|--------|------|
+| 待分词文本 | 多行文本 | ✓   | —      | 中文文本 |
+| 分词模式   | 下拉选择 | ✗   | 精确模式 | 精确模式/全模式/搜索引擎模式 |
+| 关键词数量 | 数字输入 | ✗   | 10     | 个 |
+| 移除停用词 | 开关     | ✗   | true   | — |
 
 **响应**
 
@@ -41,7 +41,7 @@
 
 ## 四、说明
 
-代码实现见同目录下 jieba_segment.go；read_doc 本案例时以本 PRD 为准，具体代码可用 read_go_file 按需查看。
+代码随本案例一起提供；read_doc 本案例路径（如 `/builtin/doc/case_catalog/form/nlp`）即获得 PRD 与代码，无需再调用 read_go_file。
 
 
 ---
@@ -109,20 +109,21 @@ type JiebaSegmentResp struct {
 	Statistics string `json:"statistics" widget:"name:统计信息;type:text_area" permission:"read"`
 }
 
-// JiebaSegment 中文分词与关键词提取函数
-//
-// 错误处理说明：
-// - 系统错误（Python 执行失败、系统异常等）：直接 return err，框架会记录日志并返回系统错误
-// - 业务错误（参数验证失败等）：使用 resp.BizErrorf().Build()，返回给用户的业务错误提示
-// 本函数主要涉及系统错误（Python 执行），业务错误由 ShouldBindValidate 处理
+// JiebaSegment 中文分词与关键词提取入口（SDK 注册用）：解析请求 → 调 DoJiebaSegment → 写响应
 func JiebaSegment(ctx *app.Context, resp response.Response) error {
 	var req JiebaSegmentReq
-	err := ctx.ShouldBindValidate(&req)
+	if err := ctx.ShouldBindValidate(&req); err != nil {
+		return err
+	}
+	res, err := DoJiebaSegment(ctx, &req)
 	if err != nil {
 		return err
 	}
+	return resp.Form(res).Build()
+}
 
-	// 设置默认值
+// DoJiebaSegment 中文分词与关键词提取业务逻辑：(ctx, req) → (res, err)，便于单测与复用
+func DoJiebaSegment(ctx *app.Context, req *JiebaSegmentReq) (*JiebaSegmentResp, error) {
 	if req.Mode == "" {
 		req.Mode = "精确模式"
 	}
@@ -130,10 +131,8 @@ func JiebaSegment(ctx *app.Context, resp response.Response) error {
 		req.TopK = 10
 	}
 
-	// 构建 Python 代码
 	pythonCode := buildJiebaSegmentCode()
 
-	// 确定分词模式
 	cutAll := false
 	useHMM := true
 	if req.Mode == "全模式" {
@@ -144,7 +143,6 @@ func JiebaSegment(ctx *app.Context, resp response.Response) error {
 		useHMM = true
 	}
 
-	// 创建请求结构体
 	type PythonRequest struct {
 		Text            string `json:"text"`
 		CutAll          bool   `json:"cut_all"`
@@ -161,12 +159,10 @@ func JiebaSegment(ctx *app.Context, resp response.Response) error {
 		TopK:            req.TopK,
 	}
 
-	// 创建 Python 执行器（jieba 已预装，无需 WithPackages）
 	executor := pythonRuntime.NewExecutor(pythonCode).
 		WithRequest(pythonReq).
 		WithTimeout(30 * time.Second)
 
-	// 解析 JSON 输出的结构体
 	var result struct {
 		Words      []string       `json:"words"`
 		Keywords   []KeywordInfo  `json:"keywords"`
@@ -178,28 +174,22 @@ func JiebaSegment(ctx *app.Context, resp response.Response) error {
 		} `json:"statistics"`
 	}
 
-	// 使用 ExecuteJSON 直接解析 JSON 输出（更便捷）
-	err = executor.ExecuteJSON(ctx, &result)
-	if err != nil {
-		logger.Errorf(ctx, "[JiebaSegment] Python 执行失败: %v", err)
-		// 系统错误：Python 执行失败属于系统级错误，直接返回 error
-		// 框架会自动记录日志并返回系统错误响应给用户
-		return fmt.Errorf("执行中文分词失败: %w", err)
+	if err := executor.ExecuteJSON(ctx, &result); err != nil {
+		logger.Errorf(ctx, "[系统错误]-[DoJiebaSegment] Python 执行失败, req: %+v, err: %v", req, err)
+		return nil, fmt.Errorf("[系统错误]-[DoJiebaSegment]： 执行中文分词失败, req: %+v, err: %w", req, err)
 	}
 
-	// 构建统计信息文本
 	statsText := fmt.Sprintf("总字符数: %d\n总词数: %d\n唯一词数: %d",
 		result.Statistics.TotalChars,
 		result.Statistics.TotalWords,
 		result.Statistics.UniqueWords)
 
-	// 构建响应
-	return resp.Form(&JiebaSegmentResp{
+	return &JiebaSegmentResp{
 		Words:      result.Words,
 		Keywords:   result.Keywords,
 		WordFreq:   result.WordFreq,
 		Statistics: statsText,
-	}).Build()
+	}, nil
 }
 
 // buildJiebaSegmentCode 构建中文分词的 Python 代码

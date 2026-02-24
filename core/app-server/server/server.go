@@ -40,6 +40,7 @@ type Server struct {
 	serviceTreeService            *service.ServiceTreeService
 	functionService               *service.FunctionService
 	docService                    *service.DocService
+	boardService                   *service.BoardService     // 版块/帖子服务
 	directoryUpdateHistoryService *service.DirectoryUpdateHistoryService
 	permissionService             *service.PermissionService // ⭐ 权限管理服务
 	appRepo                       *repository.AppRepository  // ⭐ 应用仓储（用于其他服务）
@@ -368,9 +369,13 @@ func (s *Server) initServices(ctx context.Context) error {
 	docRepo := repository.NewDocRepository(s.db)
 	s.docService = service.NewDocService(docRepo, serviceTreeRepo, appRepo)
 
+	// 初始化版块帖子仓储与服务（删版块时需先删帖子，故 ServiceTreeService 依赖 boardPostRepo）
+	boardPostRepo := repository.NewBoardPostRepository(s.db)
+	s.boardService = service.NewBoardService(boardPostRepo, serviceTreeRepo)
+
 	// 初始化服务目录服务（包含目录管理功能：copy、create、remove）
 	// ⭐ 函数生成逻辑已移到 ServiceTreeService 中
-	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, functionRepo, appRepo, s.appCall, fileSnapshotRepo, s.appService, s.permissionService, s.docService)
+	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, functionRepo, appRepo, s.appCall, fileSnapshotRepo, s.appService, s.permissionService, s.docService, boardPostRepo)
 
 	// 初始化函数服务
 	s.functionService = service.NewFunctionService(functionRepo, appRepo)

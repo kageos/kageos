@@ -84,6 +84,14 @@
               class="node-icon docs-icon-img"
               :class="getNodeIconClass(data)"
             />
+            <!-- board 类型：讨论区图标 -->
+            <img 
+              v-else-if="data.type === 'board'" 
+              src="/讨论区.svg" 
+              alt="讨论区" 
+              class="node-icon board-icon-img"
+              :class="getNodeIconClass(data)"
+            />
             <!-- 其他类型：显示 fx 文本 -->
             <span v-else class="node-icon fx-icon" :class="getNodeIconClass(data)">fx</span>
             <span class="node-label" :class="{ 'no-permission': !hasAnyPermissionForNode(data) }">{{ node.label }}</span>
@@ -162,6 +170,15 @@
                     创建文档
                   </el-dropdown-item>
                   
+                  <!-- 创建讨论区选项（需要 directory:write 权限） -->
+                  <el-dropdown-item 
+                    v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.write)" 
+                    command="create-board"
+                  >
+                    <el-icon><ChatDotSquare /></el-icon>
+                    新增讨论区
+                  </el-dropdown-item>
+                  
                   <!-- 打开工作台（package 类型，含根目录） -->
                   <el-dropdown-item 
                     v-if="data.type === 'package'" 
@@ -225,6 +242,15 @@
                     删除文档
                   </el-dropdown-item>
                   
+                  <!-- 删除讨论区选项（仅对 board 类型） -->
+                  <el-dropdown-item 
+                    v-if="data.type === 'board' && hasPermission(data, DirectoryPermissions.delete)" 
+                    command="delete-board"
+                  >
+                    <el-icon><Delete /></el-icon>
+                    删除讨论区
+                  </el-dropdown-item>
+                  
                   <!-- Hub 相关操作 -->
                   <el-dropdown-item 
                     v-if="data.type === 'package' && !data.hub_full_code_path && hasPermission(data, DirectoryPermissions.read)" 
@@ -271,7 +297,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Plus, MoreFilled, Link, CopyDocument, Document, Clock, Upload, Download, Delete, Key, User, DocumentChecked, Edit, ChatDotRound } from '@element-plus/icons-vue'
+import { Plus, MoreFilled, Link, CopyDocument, Document, Clock, Upload, Download, Delete, Key, User, DocumentChecked, Edit, ChatDotRound, ChatDotSquare } from '@element-plus/icons-vue'
 import ChartIcon from './icons/ChartIcon.vue'
 import TableIcon from './icons/TableIcon.vue'
 import FormIcon from './icons/FormIcon.vue'
@@ -311,7 +337,9 @@ interface Emits {
   (e: 'node-click', node: ServiceTree): void
   (e: 'create-directory', parentNode?: ServiceTree): void
   (e: 'create-docs', parentNode?: ServiceTree): void
+  (e: 'create-board', parentNode?: ServiceTree): void
   (e: 'delete-doc', node: ServiceTree): void
+  (e: 'delete-board', node: ServiceTree): void
   (e: 'delete-function', node: ServiceTree): void  // 删除函数
   (e: 'delete-directory', node: ServiceTree): void  // 删除目录（非根 package）
   (e: 'refresh-tree'): void  // 刷新树（复制粘贴后需要刷新）
@@ -918,6 +946,8 @@ const handleNodeAction = (command: string, data: ServiceTree) => {
     emit('create-directory', data)
   } else if (command === 'create-docs') {
     emit('create-docs', data)
+  } else if (command === 'create-board') {
+    emit('create-board', data)
   } else if (command === 'rename') {
     handleRename(data)
   } else if (command === 'copy') {
@@ -933,6 +963,8 @@ const handleNodeAction = (command: string, data: ServiceTree) => {
     emit('delete-function', data)
   } else if (command === 'delete-doc') {
     emit('delete-doc', data)
+  } else if (command === 'delete-board') {
+    emit('delete-board', data)
   } else if (command === 'delete-directory') {
     emit('delete-directory', data)
   } else if (command === 'publish-to-hub') {
@@ -1023,6 +1055,8 @@ const getNodeIconClass = (data: ServiceTree) => {
     return 'function-icon'
   } else if (data.type === 'docs') {
     return 'docs-icon'
+  } else if (data.type === 'board') {
+    return 'board-icon'
   }
   return 'function-icon'
   }
@@ -1396,6 +1430,13 @@ defineExpose({
     }
     
     &.form-icon-img {
+      width: 16px;
+      height: 16px;
+      object-fit: contain;
+      opacity: 0.9;
+    }
+    
+    &.board-icon-img {
       width: 16px;
       height: 16px;
       object-fit: contain;

@@ -63,6 +63,12 @@ func (s *ActionService) InitDefaultActions(ctx context.Context) error {
 		{code: "docs:write", name: "文档编辑", resourceType: permissionpkg.ResourceTypeDocs, actionType: "write", description: "编辑文档的权限"},
 		{code: "docs:delete", name: "文档删除", resourceType: permissionpkg.ResourceTypeDocs, actionType: "delete", description: "删除文档的权限"},
 		{code: "docs:admin", name: "文档管理员", resourceType: permissionpkg.ResourceTypeDocs, actionType: "admin", description: "文档管理员权限（拥有所有文档权限）"},
+		// Board 权限点（讨论区/板块）
+		{code: "board:read", name: "帖子查看", resourceType: permissionpkg.ResourceTypeBoard, actionType: "read", description: "查看讨论区帖子的权限"},
+		{code: "board:write", name: "发帖", resourceType: permissionpkg.ResourceTypeBoard, actionType: "write", description: "在讨论区发帖的权限"},
+		{code: "board:update", name: "帖子更新", resourceType: permissionpkg.ResourceTypeBoard, actionType: "update", description: "更新帖子的权限"},
+		{code: "board:delete", name: "帖子删除", resourceType: permissionpkg.ResourceTypeBoard, actionType: "delete", description: "删除帖子的权限"},
+		{code: "board:admin", name: "板块管理员", resourceType: permissionpkg.ResourceTypeBoard, actionType: "admin", description: "板块管理员权限（拥有所有讨论区权限）"},
 	}
 
 	// ⭐ 增量添加预设权限点（检查每个权限点是否存在）
