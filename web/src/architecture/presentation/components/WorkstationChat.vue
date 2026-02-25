@@ -132,6 +132,7 @@
                 </template>
                 <MessageToolCalls
                   v-else-if="block.type === 'tool_calls' && block.calls.length"
+                  :key="`msg-${i}-block-${bi}`"
                   :tool-calls="block.calls"
                   :file-groups="getFileGroupsFromCalls(block.calls)"
                 />
@@ -146,6 +147,7 @@
             </div>
             <MessageToolCalls
               v-if="m.tool_calls?.length"
+              :key="`msg-${i}-tool_calls`"
               :tool-calls="m.tool_calls"
               :file-groups="getMessageFileGroups(m)"
             />
@@ -212,7 +214,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, ArrowRight, Plus, Paperclip } from '@element-plus/icons-vue'
 import { marked } from 'marked'
@@ -249,6 +251,33 @@ const router = useRouter()
 const { messages, sending, sessionId, send: sendMessage, handleEvent, setMessages } = useWorkspaceChatStream()
 const inputText = ref('')
 const messagesRef = ref<HTMLElement | null>(null)
+
+/** 消息内容变化时自动滚到底部，用 rAF 节流避免抖动 */
+let _scrollRafId = 0
+function scrollMessagesToBottom() {
+  if (_scrollRafId) return
+  _scrollRafId = requestAnimationFrame(() => {
+    _scrollRafId = 0
+    const el = messagesRef.value
+    if (!el) return
+    // 仅当用户在底部附近时才自动滚（避免用户往上翻阅时被强制拉回）
+    const threshold = 150
+    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < threshold
+    if (isNearBottom) {
+      el.scrollTop = el.scrollHeight
+    }
+  })
+}
+watch(messages, () => scrollMessagesToBottom(), { deep: true })
+// 发送消息时强制滚到底
+watch(sending, (v) => {
+  if (v) {
+    nextTick(() => {
+      const el = messagesRef.value
+      if (el) el.scrollTop = el.scrollHeight
+    })
+  }
+})
 
 /** 工作台上传文件 router，与存储路径一致 */
 const WORKSPACE_CHAT_UPLOAD_ROUTER = 'workspace/chat'

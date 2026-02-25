@@ -55,6 +55,73 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
   const sessionId = ref<string | undefined>(undefined)
   const agentId = ref<number | null>(null)
 
+  /** 统计 blocks 中已经分配的 tool_calls 数量（排除指定 blockIndex） */
+  function countCallsInBlocks(blocks: AssistantBlock[], excludeIdx?: number): number {
+    let count = 0
+    for (let i = 0; i < blocks.length; i++) {
+      if (i === excludeIdx) continue
+      const b = blocks[i]
+      if (b.type === 'tool_calls') count += b.calls.length
+    }
+    return count
+  }
+
+  /**
+   * tool_calls_stream 用：更新 blocks 中的 tool_calls 块
+   * - last block 有未完成的 → 更新它
+   * - last block 全部完成且有新的流式 → 创建新 block（每个工具一块）
+   * - last block 不是 tool_calls → 创建新 block
+   */
+  function updateToolCallsBlocks(blocks: AssistantBlock[], list: ChatMessageToolCall[]): AssistantBlock[] {
+    const lastBlock = blocks[blocks.length - 1]
+    if (lastBlock && lastBlock.type === 'tool_calls') {
+      const lastBlockAllDone = lastBlock.calls.every((c) => c.status === 'ok' || c.status === 'error')
+      const prevCount = countCallsInBlocks(blocks, blocks.length - 1)
+      const callsForBlock = list.slice(prevCount)
+
+      if (lastBlockAllDone && callsForBlock.length > lastBlock.calls.length) {
+        // 上一块全部完成，有新的流式工具 → 保留上一块，为新工具创建新 block
+        const newCalls = callsForBlock.slice(lastBlock.calls.length)
+        return [...blocks, { type: 'tool_calls' as const, calls: newCalls }]
+      }
+      // 更新当前块（正在流式的工具参数在变长、或状态在更新）
+      return [...blocks.slice(0, -1), { type: 'tool_calls' as const, calls: callsForBlock }]
+    }
+    const prevCount = countCallsInBlocks(blocks)
+    const newCalls = list.slice(prevCount)
+    return newCalls.length > 0 ? [...blocks, { type: 'tool_calls' as const, calls: newCalls }] : blocks
+  }
+
+  /**
+   * tool_call 事件用：更新「最后一个 tool_calls block」
+   */
+  function updateLastToolCallsBlock(blocks: AssistantBlock[], list: ChatMessageToolCall[]): AssistantBlock[] {
+    const tcBlockIdx = blocks.map((b, i) => (b.type === 'tool_calls' ? i : -1)).filter((i) => i >= 0).pop()
+    if (tcBlockIdx !== undefined) {
+      const prevCount = countCallsInBlocks(blocks, tcBlockIdx)
+      return [...blocks.slice(0, tcBlockIdx), { type: 'tool_calls' as const, calls: list.slice(prevCount) }, ...blocks.slice(tcBlockIdx + 1)]
+    }
+    const prevCount = countCallsInBlocks(blocks)
+    const newCalls = list.slice(prevCount)
+    return newCalls.length > 0 ? [...blocks, { type: 'tool_calls' as const, calls: newCalls }] : blocks
+  }
+
+  /**
+   * done 事件用：保留现有 block 结构，只用 merged 数据更新每个 tool_calls block 的内容
+   */
+  function rebuildAllToolCallsBlocks(blocks: AssistantBlock[], list: ChatMessageToolCall[]): AssistantBlock[] {
+    let offset = 0
+    return blocks.map((block) => {
+      if (block.type === 'tool_calls') {
+        const count = block.calls.length
+        const updated = list.slice(offset, offset + count)
+        offset += count
+        return { type: 'tool_calls' as const, calls: updated }
+      }
+      return block
+    })
+  }
+
   function handleEvent(event: string, data: Record<string, unknown>) {
     if (event === 'session' && typeof data.session_id === 'string') {
       sessionId.value = data.session_id
@@ -75,22 +142,31 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
       }))
       const blocks = m.blocks ?? []
       const prev = m.tool_calls || []
+
+      // 关键：stream 只发「当前轮」的工具（数组长度=1），不是全量列表
+      // 需要把已完成的 tool calls 和当前轮分开：已完成的保留，stream 只合并当前轮
+      let completedCount = 0
+      for (const t of prev) {
+        if (t.status === 'ok' || t.status === 'error') completedCount++
+        else break
+      }
+      const completedCalls = prev.slice(0, completedCount)
+      const currentRoundPrev = prev.slice(completedCount)
+
       const fromStream = streamList.map((item, i) => {
-        const existing = prev[i]
+        const existing = currentRoundPrev[i]
         const args = (item.arguments && item.arguments.trim()) ? item.arguments : (existing?.arguments ?? item.arguments)
         if (existing && ['running', 'ok', 'error'].includes(existing.status)) {
           return { ...item, status: existing.status, arguments: args, result: existing.result, error: existing.error }
         }
         return { ...item, arguments: args }
       })
-      const list = prev.length > streamList.length ? fromStream.concat(prev.slice(streamList.length)) : fromStream
-      const last = blocks[blocks.length - 1]
-      let nextBlocks: AssistantBlock[]
-      if (last && last.type === 'tool_calls') {
-        nextBlocks = [...blocks.slice(0, -1), { type: 'tool_calls', calls: list }]
-      } else {
-        nextBlocks = [...blocks, { type: 'tool_calls', calls: list }]
-      }
+      const currentRound = currentRoundPrev.length > streamList.length
+        ? fromStream.concat(currentRoundPrev.slice(streamList.length))
+        : fromStream
+
+      const list = [...completedCalls, ...currentRound]
+      const nextBlocks = updateToolCallsBlocks(blocks, list)
       messages.value[lastIdx] = { ...m, tool_calls: list, blocks: nextBlocks }
     }
     if (event === 'tool_call' && typeof data.name === 'string') {
@@ -109,12 +185,7 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
                 : t
             )
           : [...prev, { name: data.name as string, status, arguments: argumentsStr, result: resultStr, error: errorStr }]
-      // 更新最后一个 tool_calls 块
-      const tcBlockIdx = blocks.map((b, i) => (b.type === 'tool_calls' ? i : -1)).filter((i) => i >= 0).pop()
-      const nextBlocks =
-        tcBlockIdx !== undefined
-          ? [...blocks.slice(0, tcBlockIdx), { type: 'tool_calls' as const, calls: list }, ...blocks.slice(tcBlockIdx + 1)]
-          : [...blocks, { type: 'tool_calls' as const, calls: list }]
+      const nextBlocks = updateLastToolCallsBlock(blocks, list)
       messages.value[lastIdx] = { ...m, tool_calls: list, blocks: nextBlocks }
     }
     if (event === 'content' && typeof data.content === 'string') {
@@ -142,11 +213,8 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
           for (let i = prev.length; i < doneList.length; i++) merged.push({ ...doneList[i] })
         }
         const blocks = m.blocks ?? []
-        const tcBlockIdx = blocks.map((b, i) => (b.type === 'tool_calls' ? i : -1)).filter((i) => i >= 0).pop()
-        const nextBlocks =
-          tcBlockIdx !== undefined
-            ? [...blocks.slice(0, tcBlockIdx), { type: 'tool_calls' as const, calls: merged }, ...blocks.slice(tcBlockIdx + 1)]
-            : [...blocks, { type: 'tool_calls' as const, calls: merged }]
+        // 保留现有 block 结构，只更新每个 tool_calls block 的数据
+        const nextBlocks = rebuildAllToolCallsBlocks(blocks, merged)
         messages.value[lastIdx] = { ...m, tool_calls: merged, blocks: nextBlocks }
       }
     }
