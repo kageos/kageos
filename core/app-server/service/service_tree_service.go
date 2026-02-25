@@ -2529,6 +2529,14 @@ func (s *ServiceTreeService) copyFromHub(ctx context.Context, req *dto.CopyDirec
 	logger.Infof(ctx, "[CopyServiceTree] 从 Hub 复制目录完成: 目录数=%d, 文件数=%d, oldVersion=%s, newVersion=%s",
 		directoryCount, fileCount, oldVersion, newVersion)
 
+	// 复制成功后通知 Hub 增加下载次数（忽略错误，不影响主流程）
+	if hubDetail.FullCodePath != "" {
+		if errInc := apicall.IncrementDownloadCountOnHost(ctx, hubLinkInfo.Host, hubDetail.FullCodePath); errInc != nil {
+			logger.Warnf(ctx, "[CopyServiceTree] 增加 Hub 下载次数失败: host=%s, path=%s, error=%v",
+				hubLinkInfo.Host, hubDetail.FullCodePath, errInc)
+		}
+	}
+
 	return &dto.CopyDirectoryResp{
 		Message:        fmt.Sprintf("从 Hub 复制目录成功，共复制 %d 个目录，%d 个文件", directoryCount, fileCount),
 		DirectoryCount: directoryCount,
@@ -3790,17 +3798,20 @@ func (s *ServiceTreeService) GetWorkspaceContext(ctx context.Context, req *dto.G
 		}
 	}
 
+	publishedToHub := detail.HubFullCodePath != ""
 	return &dto.GetWorkspaceContextResp{
 		User:                   username,
 		DepartmentFullPath:     departmentFullPath,
 		DepartmentFullNamePath: departmentFullNamePath,
 		Directory: dto.WorkspaceContextDirectory{
-			ID:           detail.ID,
-			Name:         detail.Name,
-			Code:         detail.Code,
-			FullCodePath: detail.FullCodePath,
-			Description:  detail.Description,
-			Type:         detail.Type,
+			ID:              detail.ID,
+			Name:            detail.Name,
+			Code:            detail.Code,
+			FullCodePath:    detail.FullCodePath,
+			Description:     detail.Description,
+			Type:            detail.Type,
+			PublishedToHub:  publishedToHub,
+			HubFullCodePath: detail.HubFullCodePath,
 		},
 		Children: childrenNodes,
 		Files:    files,
@@ -3865,26 +3876,11 @@ func (s *ServiceTreeService) ReplaceFileContent(ctx context.Context, req *dto.Re
 	return out, nil
 }
 
-// DeleteFile 工作台删除文件（先删 runtime 磁盘，再删 DB 节点）
+// DeleteFile 工作台删除文件：仅调用 runtime 删除磁盘上的 Go 文件（与 read_go_file 一致：目录 + file_name 定位，不涉及节点）
 func (s *ServiceTreeService) DeleteFile(ctx context.Context, req *dto.DeleteFileReq) (*dto.DeleteFileResp, error) {
 	detail, err := s.GetServiceTreeDetail(ctx, &dto.GetServiceTreeDetailReq{FullCodePath: req.FullCodePath})
 	if err != nil {
 		return nil, fmt.Errorf("获取目录详情失败: %w", err)
-	}
-	children, err := s.serviceTreeRepo.GetServiceTreeChildren(detail.ID)
-	if err != nil {
-		return nil, fmt.Errorf("获取子节点失败: %w", err)
-	}
-	fileNameCode := strings.TrimSuffix(req.FileName, ".go")
-	var functionNode *model.ServiceTree
-	for _, c := range children {
-		if c.Type == model.ServiceTreeTypeFunction && (c.Code == fileNameCode || c.Code == req.FileName) {
-			functionNode = c
-			break
-		}
-	}
-	if functionNode == nil {
-		return nil, fmt.Errorf("未找到文件对应的节点: %s", req.FileName)
 	}
 	if detail.AppID <= 0 {
 		return nil, fmt.Errorf("该目录不属于应用")
@@ -3893,20 +3889,19 @@ func (s *ServiceTreeService) DeleteFile(ctx context.Context, req *dto.DeleteFile
 	if err != nil || appModel == nil {
 		return nil, fmt.Errorf("获取应用失败: %w", err)
 	}
-	if appModel.HostID > 0 {
-		runtimeReq := &dto.DeleteFileRuntimeReq{
-			User:          appModel.User,
-			App:           appModel.Code,
-			DirectoryPath: req.FullCodePath,
-			FileName:      req.FileName,
-		}
-		_, err = s.appCall.DeleteFile(ctx, appModel.HostID, runtimeReq)
-		if err != nil {
-			logger.Warnf(ctx, "[DeleteFile] runtime 删文件失败: %v，继续删 DB 节点", err)
-		}
+	if appModel.HostID <= 0 {
+		return nil, fmt.Errorf("该应用未绑定 runtime，无法删除文件")
 	}
-	if err := s.DeleteServiceTree(ctx, functionNode.ID); err != nil {
-		return nil, fmt.Errorf("删除节点失败: %w", err)
+	runtimeReq := &dto.DeleteFileRuntimeReq{
+		User:          appModel.User,
+		App:           appModel.Code,
+		DirectoryPath: req.FullCodePath,
+		FileName:      req.FileName,
+	}
+	_, err = s.appCall.DeleteFile(ctx, appModel.HostID, runtimeReq)
+	if err != nil {
+		logger.Warnf(ctx, "[DeleteFile] runtime 删文件失败: %v", err)
+		return nil, fmt.Errorf("删除文件失败: %w", err)
 	}
 	return &dto.DeleteFileResp{Success: true, Message: "已删除"}, nil
 }

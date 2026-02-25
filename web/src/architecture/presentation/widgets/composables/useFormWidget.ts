@@ -35,14 +35,18 @@ export function useFormWidget(props: WidgetComponentProps) {
   
   // 获取子字段的值
   function getSubFieldValue(subFieldCode: string): any {
-    // 🔥 响应模式下，从 props.value.raw 读取数据
-    if (props.mode === 'response') {
+    // 🔥 响应模式 或 table-cell 抽屉（只读数据）：从 props.value.raw 读取
+    // 表格里 form 列传的是 mode=table-cell，抽屉打开时也要用 value.raw，否则会去 formDataStore 取不到
+    const isReadOnlyFromRaw =
+      props.mode === 'response' ||
+      (props.mode === 'table-cell' && props.value?.raw && typeof props.value.raw === 'object' && !Array.isArray(props.value.raw))
+    if (isReadOnlyFromRaw) {
       const rawValue = props.value?.raw
       if (rawValue && typeof rawValue === 'object' && !Array.isArray(rawValue)) {
         const subValue = rawValue[subFieldCode]
         return {
           raw: subValue ?? null,
-          display: subValue !== null && subValue !== undefined 
+          display: subValue !== null && subValue !== undefined
             ? (typeof subValue === 'object' ? JSON.stringify(subValue) : String(subValue))
             : '',
           meta: {}
@@ -50,7 +54,7 @@ export function useFormWidget(props: WidgetComponentProps) {
       }
       return { raw: null, display: '', meta: {} }
     }
-    
+
     // 编辑模式下，从 formDataStore 读取
     const subFieldPath = `${props.fieldPath}.${subFieldCode}`
     return formDataStore.getValue(subFieldPath)

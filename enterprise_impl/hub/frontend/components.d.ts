@@ -14,6 +14,7 @@ declare module 'vue' {
   export interface GlobalComponents {
     ChartIcon: typeof import('./src/components/icons/ChartIcon.vue')['default']
     CommonUpload: typeof import('./src/components/CommonUpload.vue')['default']
+    ElAlert: typeof import('element-plus/es')['ElAlert']
     ElButton: typeof import('element-plus/es')['ElButton']
     ElButtonGroup: typeof import('element-plus/es')['ElButtonGroup']
     ElDialog: typeof import('element-plus/es')['ElDialog']
@@ -32,6 +33,8 @@ declare module 'vue' {
     ElOption: typeof import('element-plus/es')['ElOption']
     ElPagination: typeof import('element-plus/es')['ElPagination']
     ElProgress: typeof import('element-plus/es')['ElProgress']
+    ElRadioButton: typeof import('element-plus/es')['ElRadioButton']
+    ElRadioGroup: typeof import('element-plus/es')['ElRadioGroup']
     ElSelect: typeof import('element-plus/es')['ElSelect']
     ElSkeleton: typeof import('element-plus/es')['ElSkeleton']
     ElTable: typeof import('element-plus/es')['ElTable']
@@ -57,6 +60,7 @@ declare module 'vue' {
 declare global {
   const ChartIcon: typeof import('./src/components/icons/ChartIcon.vue')['default']
   const CommonUpload: typeof import('./src/components/CommonUpload.vue')['default']
+  const ElAlert: typeof import('element-plus/es')['ElAlert']
   const ElButton: typeof import('element-plus/es')['ElButton']
   const ElButtonGroup: typeof import('element-plus/es')['ElButtonGroup']
   const ElDialog: typeof import('element-plus/es')['ElDialog']
@@ -75,6 +79,8 @@ declare global {
   const ElOption: typeof import('element-plus/es')['ElOption']
   const ElPagination: typeof import('element-plus/es')['ElPagination']
   const ElProgress: typeof import('element-plus/es')['ElProgress']
+  const ElRadioButton: typeof import('element-plus/es')['ElRadioButton']
+  const ElRadioGroup: typeof import('element-plus/es')['ElRadioGroup']
   const ElSelect: typeof import('element-plus/es')['ElSelect']
   const ElSkeleton: typeof import('element-plus/es')['ElSkeleton']
   const ElTable: typeof import('element-plus/es')['ElTable']

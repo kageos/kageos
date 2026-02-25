@@ -5,7 +5,7 @@
  */
 
 import { getHubBaseURL } from '@/config/hub'
-import { get } from '@/utils/request'
+import { get, post, del } from '@/utils/request'
 
 /**
  * Hub 目录信息
@@ -14,6 +14,7 @@ export interface HubDirectoryInfo {
   id: number
   created_at: string
   updated_at: string
+  status?: string                 // active=在架；deleted=已下架（列表不展示，通过链接仍可访问）
   name: string
   description: string
   category: string
@@ -34,6 +35,9 @@ export interface HubDirectoryInfo {
   directory_count: number           // 子目录数量
   file_count: number                // 文件数量
   function_count: number            // 函数数量
+  copy_url?: string                 // 复制链接，格式 hub://host/path@version，用于粘贴到工作空间
+  star_count?: number               // 星星数（类似 GitHub star）
+  has_starred?: boolean              // 当前用户是否已加星（仅详情返回，未登录或未加星为 false）
 }
 
 /**
@@ -46,20 +50,30 @@ export interface HubDirectoryListResp {
   total: number
 }
 
+/** 费用筛选：全部 / 免费 / 收费 */
+export type FeeTypeFilter = '' | 'free' | 'paid'
+
 /**
  * 获取 Hub 目录列表
  */
+/** 列表排序：latest=最新，hot=热门，stars=按星数，downloads=按复制数 */
+export type OrderByFilter = 'latest' | 'hot' | 'stars' | 'downloads'
+
 export async function getHubDirectoryList(params?: {
   page?: number
   page_size?: number
   search?: string
   category?: string
   publisher_username?: string
+  fee_type?: FeeTypeFilter
+  order_by?: OrderByFilter
 }): Promise<HubDirectoryListResp> {
   const baseURL = getHubBaseURL()
   const url = `${baseURL}/directories`
-
-  return get<HubDirectoryListResp>(url, params || {})
+  const p = { ...params }
+  if (p.fee_type === '') delete (p as Record<string, unknown>).fee_type
+  if (p.order_by === '') delete (p as Record<string, unknown>).order_by
+  return get<HubDirectoryListResp>(url, p || {})
 }
 
 /**
@@ -179,4 +193,25 @@ export async function getHubDirectoryVersions(
   return get<{ items: HubDirectoryVersionItem[] }>(url, {
     hub_directory_id: hubDirectoryId
   })
+}
+
+/** 为目录加星（需要登录） */
+export async function starHubDirectory(hubDirectoryId: number): Promise<void> {
+  const baseURL = getHubBaseURL()
+  const url = `${baseURL}/directories/${hubDirectoryId}/star`
+  await post(url, {})
+}
+
+/** 取消星星（需要登录） */
+export async function unstarHubDirectory(hubDirectoryId: number): Promise<void> {
+  const baseURL = getHubBaseURL()
+  const url = `${baseURL}/directories/${hubDirectoryId}/star`
+  await del(url)
+}
+
+/** 删除应用（软删除：只改状态，数据保留，通过链接仍可访问；仅发布者可操作，需要登录） */
+export async function deleteHubDirectory(hubDirectoryId: number): Promise<void> {
+  const baseURL = getHubBaseURL()
+  const url = `${baseURL}/directories/${hubDirectoryId}`
+  await del(url)
 }

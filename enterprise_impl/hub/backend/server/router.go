@@ -31,15 +31,19 @@ func (s *Server) setupRoutes() {
 	hubDirectoryHandler := v1.NewDirectory(s.hubDirectoryService)
 
 	// 公开接口（不需要认证）
-	hubDirectory.GET("", hubDirectoryHandler.GetDirectoryList)           // 获取目录列表
-	hubDirectory.GET("/detail", hubDirectoryHandler.GetDirectoryDetail)  // 获取目录详情 ?hub_directory_id=xxx
-	hubDirectory.GET("/versions", hubDirectoryHandler.GetDirectoryVersions) // 获取目录版本列表 ?hub_directory_id=xxx
+	hubDirectory.GET("", hubDirectoryHandler.GetDirectoryList)              // 获取目录列表
+	hubDirectory.GET("/detail", hubDirectoryHandler.GetDirectoryDetail) // 详情（网关已带用户信息，直接 GetRequestUser 即可返回 has_starred）
+	hubDirectory.GET("/versions", hubDirectoryHandler.GetDirectoryVersions)  // 获取目录版本列表 ?hub_directory_id=xxx
+	hubDirectory.POST("/increment_download", hubDirectoryHandler.IncrementDownloadCount) // 复制时增加下载次数
 
 	// 需要认证的接口
 	hubDirectoryAuth := hubDirectory.Group("")
 	hubDirectoryAuth.Use(middleware2.JWTAuth())
-	hubDirectoryAuth.POST("/publish", hubDirectoryHandler.PublishDirectory) // 发布目录
-	hubDirectoryAuth.PUT("/update", hubDirectoryHandler.UpdateDirectory)    // 更新目录（push）
+	hubDirectoryAuth.POST("/publish", hubDirectoryHandler.PublishDirectory)   // 发布目录
+	hubDirectoryAuth.PUT("/update", hubDirectoryHandler.UpdateDirectory)      // 更新目录（push）
+	hubDirectoryAuth.POST("/:id/star", hubDirectoryHandler.Star)               // 加星
+	hubDirectoryAuth.DELETE("/:id/star", hubDirectoryHandler.Unstar)           // 取消星星
+	hubDirectoryAuth.DELETE("/:id", hubDirectoryHandler.DeleteDirectory)      // 删除应用（软删除，仅发布者）
 
 	// TODO: 服务费支付路由（需要JWT验证）
 	// payment := apiV1.Group("/payments")

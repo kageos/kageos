@@ -99,6 +99,22 @@ func GetHubDirectoryDetailFromHost(ctx context.Context, req *dto.GetHubDirectory
 	return result.Data, nil
 }
 
+// IncrementDownloadCountOnHost 在指定 Hub 主机上增加目录的下载次数（复制成功后调用）
+// host 如 hub.example.com 或 http://hub.example.com
+func IncrementDownloadCountOnHost(ctx context.Context, host, fullCodePath string) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	baseURL := host
+	if !strings.HasPrefix(host, "http://") && !strings.HasPrefix(host, "https://") {
+		baseURL = "http://" + host
+	}
+	fullURL := baseURL + "/hub/api/v1/directories/increment_download"
+	body := map[string]string{"full_code_path": fullCodePath}
+	_, err := callAPIWithURL[map[string]interface{}](ctx, http.MethodPost, fullURL, body)
+	return err
+}
+
 // CallAPIWithURL 使用完整 URL 调用 API（支持查询参数，公开方法）
 // 注意：这里直接使用完整 URL，不通过 serviceconfig.GetGatewayURL()
 func CallAPIWithURL[T any](ctx context.Context, method, fullURL string, reqBody interface{}) (*ApiResult[T], error) {

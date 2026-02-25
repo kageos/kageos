@@ -310,8 +310,14 @@ export const useUserInfoStore = defineStore('hubUserInfo', () => {
   
   /**
    * 获取并更新用户信息
+   * 直接打开 Hub（未从主站带 token）时不请求主站接口，避免 5173 报错
    */
   async function fetchAndUpdateUsers(usernames: string[]): Promise<UserInfo[]> {
+    const token = localStorage.getItem('token')?.trim()
+    if (!token) {
+      usernames.forEach(username => loadingUsernames.value.delete(username))
+      return []
+    }
     const loadedUsers = await getUsersByUsernames(usernames)
     
     const now = Date.now()

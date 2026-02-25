@@ -424,6 +424,126 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 		},
 	})
 
+	// publish_to_hub：首次将当前工作区目录或指定目录发布到应用市场（Hub）
+	out = append(out, dto.ToolDef{
+		Name:        "publish_to_hub",
+		Description: "将当前工作区目录或指定目录首次发布到应用市场（Hub）。必填：name（在应用市场上的目录名称）。可选：directory（不传则使用当前工作目录）、description、category、tags（逗号分隔，支持自定义标签）、service_fee_personal（个人用户服务费，元）、service_fee_enterprise（企业用户服务费，元）。发布成功后返回 hub 目录路径与文件统计。",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"directory": map[string]interface{}{
+					"type":        "string",
+					"description": "要发布的目录（可选），不传则使用当前工作目录，如 /user/app 或 /user/app/plugins/pdf",
+				},
+				"name": map[string]interface{}{
+					"type":        "string",
+					"description": "在应用市场上的目录名称，如「视频处理插件」",
+				},
+				"description": map[string]interface{}{
+					"type":        "string",
+					"description": "目录描述（可选）",
+				},
+				"category": map[string]interface{}{
+					"type":        "string",
+					"description": "分类（可选），如 表单、表格、图表",
+				},
+				"tags": map[string]interface{}{
+					"type":        "string",
+					"description": "标签，逗号分隔（可选），支持自定义标签，如 video,media,流媒体",
+				},
+				"service_fee_personal": map[string]interface{}{
+					"type":        "number",
+					"description": "个人用户服务费（可选），单位：元，如 0 或 99.9",
+				},
+				"service_fee_enterprise": map[string]interface{}{
+					"type":        "number",
+					"description": "企业用户服务费（可选），单位：元，如 0 或 199",
+				},
+			},
+			"required": []interface{}{"name"},
+		},
+	})
+
+	// push_to_hub：更新已发布到应用市场的目录（类似 git push，递增版本）
+	out = append(out, dto.ToolDef{
+		Name:        "push_to_hub",
+		Description: "将已发布到应用市场的目录推送更新（版本号由后端自动递增）。可选：directory（不传则当前工作目录）、update_description（本版本更新说明）、service_fee_personal（个人用户服务费，元）、service_fee_enterprise（企业用户服务费，元）。若目录尚未发布过，需先使用 publish_to_hub。",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"directory": map[string]interface{}{
+					"type":        "string",
+					"description": "要推送的目录（可选），不传则使用当前工作目录",
+				},
+				"update_description": map[string]interface{}{
+					"type":        "string",
+					"description": "本版本更新说明（可选），如「新增 xxx 功能」",
+				},
+				"service_fee_personal": map[string]interface{}{
+					"type":        "number",
+					"description": "个人用户服务费（可选），单位：元",
+				},
+				"service_fee_enterprise": map[string]interface{}{
+					"type":        "number",
+					"description": "企业用户服务费（可选），单位：元",
+				},
+			},
+			"required": []interface{}{},
+		},
+	})
+
+	// search_hub：搜索应用中心（Hub）应用，搜到合适的可用 copy_directory 复制到本地
+	out = append(out, dto.ToolDef{
+		Name:        "search_hub",
+		Description: "在应用中心（Hub）搜索应用，或按路径查询单个目录在 Hub 上的信息。① 按关键词搜索：传 search（可选，不传或传空则返回全部应用）、category、page、page_size（可选）。② 按路径查当前目录在 Hub 上的信息：传 full_code_path（如 /user/app/plugins/xxx），可查看该路径是否已上架、copy_url、star_count 等。返回含 copy_url（用于 copy_directory）、star_count、download_count 等。",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"full_code_path": map[string]interface{}{
+					"type":        "string",
+					"description": "目录完整路径（可选），传入则查询该路径在应用中心的信息（是否已上架、复制链接、星数等），如 /luobei/demos/plugins/videos",
+				},
+				"search": map[string]interface{}{
+					"type":        "string",
+					"description": "搜索关键词（可选），不传或传空则返回全部应用；传关键词则按关键词筛选，如「表单」「视频」「PDF」。与 full_code_path 二选一使用。",
+				},
+				"category": map[string]interface{}{
+					"type":        "string",
+					"description": "分类（可选），如 表单、表格、图表",
+				},
+				"page": map[string]interface{}{
+					"type":        "integer",
+					"description": "页码（可选，默认 1）",
+				},
+				"page_size": map[string]interface{}{
+					"type":        "integer",
+					"description": "每页条数（可选，默认 10，最大建议 20）",
+				},
+			},
+			"required": []interface{}{},
+		},
+	})
+
+	// copy_directory：通用复制目录（源可为 Hub 链接或本地路径）。target_directory 为「目标父目录」，系统会在其下自动创建与源同名的子目录。
+	out = append(out, dto.ToolDef{
+		Name:        "copy_directory",
+		Description: "将目录复制到工作区。源：source_directory 为 Hub 链接（hub://host/path@version，来自 search_hub 的 copy_url）或本地完整路径（如 /user/app/plugins/xxx）。目标：target_directory 填「目标父目录」即当前工作区路径（如 /luobei/myapp/server），不要填「父目录+子目录名」；系统会在该父目录下自动创建与源同名的子目录（如源为 .../video_tools 则得到 .../server/video_tools）。复制成功后返回目录数、文件数。",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"source_directory": map[string]interface{}{
+					"type":        "string",
+					"description": "源目录：Hub 链接（hub://host/full_code_path@version）或本地完整路径（如 /luobei/app_a/plugins/pdf）",
+				},
+				"target_directory": map[string]interface{}{
+					"type":        "string",
+					"description": "目标父目录（当前工作区路径），如 /luobei/myapp/server。系统会在此路径下创建与源同名的子目录，不要传 /luobei/myapp/server/子目录名",
+				},
+			},
+			"required": []interface{}{"source_directory", "target_directory"},
+		},
+	})
+
 	// 按模式过滤：若指定了 toolNames，只保留 name 在列表中的工具
 	if len(toolNames) > 0 {
 		nameSet := make(map[string]struct{}, len(toolNames))
@@ -477,6 +597,14 @@ func (r *ToolRegistry) CallTool(ctx context.Context, name string, args map[strin
 		return r.callRunTableUpdate(ctx, args, fullCodePath)
 	case "search_tools":
 		return r.callSearchTools(ctx, args, fullCodePath)
+	case "publish_to_hub":
+		return r.callPublishToHub(ctx, args, fullCodePath)
+	case "push_to_hub":
+		return r.callPushToHub(ctx, args, fullCodePath)
+	case "search_hub":
+		return r.callSearchHub(ctx, args)
+	case "copy_directory":
+		return r.callCopyDirectory(ctx, args)
 	}
 	return "tool not found: " + name, true
 }
@@ -1477,6 +1605,255 @@ func (r *ToolRegistry) callSearchTools(ctx context.Context, args map[string]inte
 	return buf.String(), false
 }
 
+// parseHubSourceFromPath 从目录路径解析 source_user、source_app、source_directory_path。路径格式：/user/app 或 /user/app/xxx
+func parseHubSourceFromPath(dirPath string) (sourceUser, sourceApp, sourceDirectoryPath string, errMsg string) {
+	dirPath = strings.TrimSpace(dirPath)
+	if dirPath == "" {
+		return "", "", "", "目录路径不能为空"
+	}
+	if !strings.HasPrefix(dirPath, "/") {
+		dirPath = "/" + dirPath
+	}
+	trimmed := strings.TrimPrefix(dirPath, "/")
+	if trimmed == "" {
+		return "", "", "", "目录路径至少需要 user/app 两段，如 /user/app"
+	}
+	parts := strings.SplitN(trimmed, "/", 3)
+	if len(parts) < 2 {
+		return "", "", "", "目录路径至少需要 user/app 两段，如 /user/app"
+	}
+	sourceUser = strings.TrimSpace(parts[0])
+	sourceApp = strings.TrimSpace(parts[1])
+	if sourceUser == "" || sourceApp == "" {
+		return "", "", "", "目录路径中 user 和 app 不能为空"
+	}
+	sourceDirectoryPath = "/" + trimmed
+	return sourceUser, sourceApp, sourceDirectoryPath, ""
+}
+
+// callPublishToHub 首次将目录发布到应用市场（Hub）
+func (r *ToolRegistry) callPublishToHub(ctx context.Context, args map[string]interface{}, fullCodePath string) (string, bool) {
+	dirPath := strings.TrimSpace(GetStringArg(args, "directory"))
+	if dirPath == "" {
+		dirPath = fullCodePath
+	}
+	sourceUser, sourceApp, sourceDirectoryPath, errMsg := parseHubSourceFromPath(dirPath)
+	if errMsg != "" {
+		return "publish_to_hub: " + errMsg, true
+	}
+	name := strings.TrimSpace(GetStringArg(args, "name"))
+	if name == "" {
+		return "publish_to_hub 必填 name（在应用市场上的目录名称）。", true
+	}
+	req := &dto.PublishDirectoryToHubReq{
+		SourceUser:          sourceUser,
+		SourceApp:            sourceApp,
+		SourceDirectoryPath: sourceDirectoryPath,
+		Name:                 name,
+		Description:          strings.TrimSpace(GetStringArg(args, "description")),
+		Category:             strings.TrimSpace(GetStringArg(args, "category")),
+	}
+	if tagsStr := strings.TrimSpace(GetStringArg(args, "tags")); tagsStr != "" {
+		for _, t := range strings.Split(tagsStr, ",") {
+			t = strings.TrimSpace(t)
+			if t != "" {
+				req.Tags = append(req.Tags, t)
+			}
+		}
+	}
+	if v, ok := args["service_fee_personal"]; ok && v != nil {
+		if f, ok := toFloat64(v); ok && f >= 0 {
+			req.ServiceFeePersonal = f
+		}
+	}
+	if v, ok := args["service_fee_enterprise"]; ok && v != nil {
+		if f, ok := toFloat64(v); ok && f >= 0 {
+			req.ServiceFeeEnterprise = f
+		}
+	}
+	resp, err := apicall.PublishDirectoryToHubViaWorkspace(ctx, req)
+	if err != nil {
+		logger.Errorf(ctx, "[PublishToHub] 失败: %v", err)
+		return "publish_to_hub 调用失败: " + err.Error(), true
+	}
+	return fmt.Sprintf("发布成功。Hub 目录路径: %s，子目录数: %d，文件数: %d。",
+		resp.HubFullCodePath, resp.DirectoryCount, resp.FileCount), false
+}
+
+// callPushToHub 将已发布的目录推送到 Hub（更新版本）
+func (r *ToolRegistry) callPushToHub(ctx context.Context, args map[string]interface{}, fullCodePath string) (string, bool) {
+	dirPath := strings.TrimSpace(GetStringArg(args, "directory"))
+	if dirPath == "" {
+		dirPath = fullCodePath
+	}
+	sourceUser, sourceApp, sourceDirectoryPath, errMsg := parseHubSourceFromPath(dirPath)
+	if errMsg != "" {
+		return "push_to_hub: " + errMsg, true
+	}
+	req := &dto.PushDirectoryToHubReq{
+		SourceUser:          sourceUser,
+		SourceApp:           sourceApp,
+		SourceDirectoryPath: sourceDirectoryPath,
+		UpdateDescription:   strings.TrimSpace(GetStringArg(args, "update_description")),
+		// Version 由后端自动递增，不传
+	}
+	if v, ok := args["service_fee_personal"]; ok && v != nil {
+		if f, ok := toFloat64(v); ok && f >= 0 {
+			req.ServiceFeePersonal = f
+		}
+	}
+	if v, ok := args["service_fee_enterprise"]; ok && v != nil {
+		if f, ok := toFloat64(v); ok && f >= 0 {
+			req.ServiceFeeEnterprise = f
+		}
+	}
+	resp, err := apicall.PushDirectoryToHubViaWorkspace(ctx, req)
+	if err != nil {
+		logger.Errorf(ctx, "[PushToHub] 失败: %v", err)
+		return "push_to_hub 调用失败: " + err.Error(), true
+	}
+	return fmt.Sprintf("推送成功。Hub 目录路径: %s，版本: %s -> %s，子目录数: %d，文件数: %d。",
+		resp.HubFullCodePath, resp.OldVersion, resp.NewVersion, resp.DirectoryCount, resp.FileCount), false
+}
+
+// callSearchHub 在应用中心（Hub）搜索应用，或按 full_code_path 查询单个目录在 Hub 上的信息
+func (r *ToolRegistry) callSearchHub(ctx context.Context, args map[string]interface{}) (string, bool) {
+	fullCodePath := strings.TrimSpace(GetStringArg(args, "full_code_path"))
+	if fullCodePath != "" {
+		if !strings.HasPrefix(fullCodePath, "/") {
+			fullCodePath = "/" + fullCodePath
+		}
+		detail, err := apicall.GetHubDirectoryDetail(ctx, &dto.GetHubDirectoryDetailReq{
+			FullCodePath: fullCodePath,
+			IncludeTree:  false,
+		})
+		if err != nil {
+			return fmt.Sprintf("该路径在应用中心未找到或未上架：%s。可先用 publish_to_hub 发布后再查询。", fullCodePath), false
+		}
+		if detail == nil {
+			return fmt.Sprintf("路径 %s 在应用中心暂无信息（可能未上架）。", fullCodePath), false
+		}
+		var b strings.Builder
+		b.WriteString(fmt.Sprintf("应用中心 - 路径 %s 的信息：\n\n", detail.FullCodePath))
+		b.WriteString(fmt.Sprintf("名称: %s\n", detail.Name))
+		if detail.Description != "" {
+			desc := detail.Description
+			if len(desc) > 300 {
+				desc = desc[:300] + "..."
+			}
+			b.WriteString("描述: " + desc + "\n")
+		}
+		b.WriteString(fmt.Sprintf("路径: %s | 发布者: %s | 版本: %s\n", detail.FullCodePath, detail.PublisherUsername, detail.Version))
+		b.WriteString(fmt.Sprintf("星 %d | 克隆 %d 次 | 目录 %d / 文件 %d / 函数 %d\n", detail.StarCount, detail.DownloadCount, detail.DirectoryCount, detail.FileCount, detail.FunctionCount))
+		if detail.CopyURL != "" {
+			b.WriteString("复制链接（用于 copy_directory）: " + detail.CopyURL + "\n")
+			b.WriteString("复制时 target_directory 填当前工作区路径（目标父目录），不要填「父路径/子目录名」。\n")
+		}
+		return b.String(), false
+	}
+
+	req := &dto.GetHubDirectoryListReq{
+		Page:     1,
+		PageSize: 10,
+	}
+	if v, ok := args["search"]; ok && v != nil {
+		if s, ok := v.(string); ok && s != "" {
+			req.Search = strings.TrimSpace(s)
+		}
+	}
+	if v, ok := args["category"]; ok && v != nil {
+		if s, ok := v.(string); ok && s != "" {
+			req.Category = strings.TrimSpace(s)
+		}
+	}
+	if v, ok := args["page"]; ok && v != nil {
+		if n, ok := toInt(v); ok && n > 0 {
+			req.Page = n
+		}
+	}
+	if v, ok := args["page_size"]; ok && v != nil {
+		if n, ok := toInt(v); ok && n > 0 {
+			if n > 50 {
+				n = 50
+			}
+			req.PageSize = n
+		}
+	}
+	resp, err := apicall.GetHubDirectoryList(ctx, req)
+	if err != nil {
+		logger.Errorf(ctx, "[SearchHub] GetHubDirectoryList 失败: %v", err)
+		return "search_hub 调用失败: " + err.Error(), true
+	}
+	if len(resp.Items) == 0 {
+		return fmt.Sprintf("应用中心共 %d 条结果，当前页无数据。可调整 search、category 或 page 再试。", resp.Total), false
+	}
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("应用中心搜索结果（共 %d 条，当前第 %d 页）：\n\n", resp.Total, resp.Page))
+	for i, item := range resp.Items {
+		b.WriteString(fmt.Sprintf("【%d】%s\n", i+1, item.Name))
+		if item.Description != "" {
+			desc := item.Description
+			if len(desc) > 200 {
+				desc = desc[:200] + "..."
+			}
+			b.WriteString("  描述: " + desc + "\n")
+		}
+		b.WriteString(fmt.Sprintf("  路径: %s | 发布者: %s | 星 %d | 克隆 %d 次\n", item.FullCodePath, item.PublisherUsername, item.StarCount, item.DownloadCount))
+		if item.CopyURL != "" {
+			b.WriteString("  复制链接（用于 copy_directory）: " + item.CopyURL + "\n")
+		}
+		b.WriteString("\n")
+	}
+	b.WriteString("使用 copy_directory(source_directory=\"上面的复制链接\", target_directory=\"/你的用户/你的应用/当前目录\") 即可将应用复制到本地；target_directory 填当前工作区路径（目标父目录），会在其下自动创建与源同名的子目录，不要填「父目录/子目录名」。")
+	return b.String(), false
+}
+
+// callCopyDirectory 通用复制目录：源可为 Hub 链接（hub://）或本地路径（/user/app/...），后端 CopyServiceTree 统一处理
+func (r *ToolRegistry) callCopyDirectory(ctx context.Context, args map[string]interface{}) (string, bool) {
+	sourcePath := strings.TrimSpace(GetStringArg(args, "source_directory"))
+	if sourcePath == "" {
+		return "copy_directory 必填 source_directory（Hub 链接 hub://host/path@version 或本地完整路径如 /user/app/plugins/xxx）。", true
+	}
+	if !strings.HasPrefix(sourcePath, "hub://") && !strings.HasPrefix(sourcePath, "/") {
+		sourcePath = "/" + sourcePath
+	}
+	targetPath := strings.TrimSpace(GetStringArg(args, "target_directory"))
+	if targetPath == "" {
+		return "copy_directory 必填 target_directory（目标父目录，即当前工作区路径，如 /user/app/server；会在其下创建与源同名的子目录，不要填 .../子目录名）。", true
+	}
+	if !strings.HasPrefix(targetPath, "/") {
+		targetPath = "/" + targetPath
+	}
+	// 解析 target 得到 app 所在路径，用于获取 target_app_id（目标路径或其父路径必须在工作区存在）
+	pathForDetail := targetPath
+	for {
+		detail, err := apicall.GetServiceTreeDetailByFullCodePath(ctx, pathForDetail)
+		if err == nil && detail != nil && detail.AppID > 0 {
+			req := &dto.CopyDirectoryReq{
+				SourceDirectoryPath: sourcePath,
+				TargetDirectoryPath: targetPath,
+				TargetAppID:         detail.AppID,
+			}
+			resp, err := apicall.CopyDirectoryViaWorkspace(ctx, req)
+			if err != nil {
+				logger.Errorf(ctx, "[CopyDirectory] CopyDirectory 失败: %v", err)
+				return "copy_directory 复制失败: " + err.Error(), true
+			}
+			return fmt.Sprintf("复制成功。%s（目录数: %d，文件数: %d）", resp.Message, resp.DirectoryCount, resp.FileCount), false
+		}
+		// 尝试父路径
+		idx := strings.LastIndex(strings.Trim(pathForDetail, "/"), "/")
+		if idx <= 0 {
+			break
+		}
+		pathForDetail = "/" + strings.Trim(pathForDetail, "/")[:idx]
+		if pathForDetail == "" || pathForDetail == "/" {
+			break
+		}
+	}
+	return "copy_directory: 无法解析目标应用（target_directory 为目标父目录，须为工作区已存在路径，如 /user/app/server；不要填 .../子目录名）。", true
+}
+
 // parseAppFromFullCodePath 从 full_code_path 解析 app（第二段），如 /luobei/demos/xxx -> demos
 func parseAppFromFullCodePath(fullCodePath string) string {
 	fullCodePath = strings.TrimPrefix(strings.TrimSpace(fullCodePath), "/")
@@ -1707,6 +2084,20 @@ func toInt(v interface{}) (int, bool) {
 		return int(n), true
 	case float64:
 		return int(n), true
+	default:
+		return 0, false
+	}
+}
+
+// toFloat64 从 interface{} 解析为 float64（JSON 数字多为 float64）
+func toFloat64(v interface{}) (float64, bool) {
+	switch n := v.(type) {
+	case float64:
+		return n, true
+	case int:
+		return float64(n), true
+	case int64:
+		return float64(n), true
 	default:
 		return 0, false
 	}

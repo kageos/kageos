@@ -87,6 +87,10 @@ func (a *App) handle(req *dto.RequestAppReq) (resp *dto.RequestAppResp, err erro
 			// 创建包含堆栈信息的错误
 			err = fmt.Errorf("panic occurred: %s\nStack trace:\n%s", panicMsg, string(stack))
 
+			// panic 时 resp 可能尚未赋值，先确保非 nil 再写字段，避免二次 panic
+			if resp == nil {
+				resp = &dto.RequestAppResp{}
+			}
 			resp.Error = err.Error()
 			resp.TraceId = req.TraceId
 			// 记录详细的 panic 信息到日志

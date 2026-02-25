@@ -244,7 +244,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	var systemPromptFragment string
 	if modeProvider == nil {
 		// 兜底：与 init 时 dev 一致（含 search_tools 便于杂活先搜后用）
-		toolNames = []string{"read_go_file", "read_go_file_lines", "read_doc", "read_dir", "search_tools", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace", "create_directory"}
+		toolNames = []string{"read_go_file", "read_go_file_lines", "read_doc", "read_dir", "search_tools", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace", "create_directory", "publish_to_hub", "push_to_hub", "search_hub", "copy_directory"}
 		systemPromptFragment = "当前为开发模式，请协助用户生成新代码、新模块。"
 	}
 
@@ -418,6 +418,8 @@ func workspaceCtxToEnvInput(c *dto.GetWorkspaceContextResp) *prompt.WorkspaceEnv
 		FullCodePath:           c.Directory.FullCodePath,
 		DirType:                c.Directory.Type,
 		DirDescription:         dirDesc,
+		PublishedToHub:         c.Directory.PublishedToHub,
+		HubFullCodePath:        c.Directory.HubFullCodePath,
 		Children:               children,
 		Files:                  files,
 	}
@@ -544,7 +546,7 @@ func (s *WorkspaceChatService) ListMessages(ctx context.Context, sessionID strin
 	return s.messageRepo.ListBySessionID(sessionID)
 }
 
-// executeToolCalls 执行工具调用并保存消息。
+// executeToolCalls 执行工具调用并保存消息。若 tool 消息保存失败则返回 error，不再进入下一轮，避免 400 insufficient tool messages。
 func (s *WorkspaceChatService) executeToolCalls(
 	ctx context.Context,
 	allToolCalls []llms.ToolCall,
@@ -554,7 +556,7 @@ func (s *WorkspaceChatService) executeToolCalls(
 	user string,
 	files *types.Files,
 	sendEvent func(string, interface{}),
-) []dto.WorkspaceChatToolCallSummary {
+) ([]dto.WorkspaceChatToolCallSummary, error) {
 	toolSummaries := make([]dto.WorkspaceChatToolCallSummary, 0, len(allToolCalls))
 	logger.Infof(ctx, "[WorkspaceChatStream] 开始执行工具调用 - 工具数量: %d, SessionID: %s", len(allToolCalls), sessionID)
 
@@ -579,7 +581,10 @@ func (s *WorkspaceChatService) executeToolCalls(
 		sendEvent(EventToolCall, StreamEventToolCall{
 			Name: tc.Function.Name, Status: st, Arguments: tc.Function.Arguments, Result: resultStr, Error: errStr,
 		})
-		s.saveToolMessage(ctx, sessionID, agentIDPtr, tc.ID, tc.Function.Name, res, user)
+		if err := s.saveToolMessage(ctx, sessionID, agentIDPtr, tc.ID, tc.Function.Name, res, user); err != nil {
+			logger.Warnf(ctx, "[WorkspaceChatStream] 保存 tool 消息失败 ToolCallID=%s: %v（若为 Error 1366 请将表转为 utf8mb4）", tc.ID, err)
+			return toolSummaries, fmt.Errorf("保存 tool 消息失败: %w", err)
+		}
 	}
 
 	successCount, errorCount := 0, 0
@@ -592,7 +597,7 @@ func (s *WorkspaceChatService) executeToolCalls(
 	}
 	logger.Infof(ctx, "[WorkspaceChatStream] 工具调用执行完成 - 总数量: %d, 成功: %d, 失败: %d, SessionID: %s",
 		len(allToolCalls), successCount, errorCount, sessionID)
-	return toolSummaries
+	return toolSummaries, nil
 }
 
 // parseToolCallArgs 解析 tool_call 的 arguments JSON，解析失败时返回空 map
@@ -626,19 +631,33 @@ func (s *WorkspaceChatService) callOtherTool(ctx context.Context, name string, a
 	return res, st
 }
 
-// saveToolMessage 保存一条 role=tool 的消息
-func (s *WorkspaceChatService) saveToolMessage(ctx context.Context, sessionID string, agentIDPtr *int64, toolCallID, toolName, content, user string) {
+// sanitizeContentForMySQLUtf8 去掉 4 字节 UTF-8 字符（BMP 外），避免 MySQL utf8 列报 Error 1366；表为 utf8mb4 时无需此过滤。
+func sanitizeContentForMySQLUtf8(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if r < 0x10000 {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+// saveToolMessage 保存一条 role=tool 的消息。失败时返回 error，调用方应中止下一轮以免 400 insufficient tool messages。
+func (s *WorkspaceChatService) saveToolMessage(ctx context.Context, sessionID string, agentIDPtr *int64, toolCallID, toolName, content, user string) error {
 	toolMsg := &model.AgentChatMessage{
 		SessionID:  sessionID,
 		AgentID:    agentIDPtr,
 		Role:       RoleTool,
-		Content:    content,
+		Content:    sanitizeContentForMySQLUtf8(content),
 		ToolCallID: toolCallID,
 		User:       user,
 	}
 	toolMsg.CreatedBy = user
 	toolMsg.UpdatedBy = user
-	_ = s.messageRepo.Create(toolMsg)
+	if err := s.messageRepo.Create(toolMsg); err != nil {
+		return err
+	}
+	return nil
 }
 
 // saveAssistantMessageWithToolCalls 保存 assistant 消息（包含 tool_calls）

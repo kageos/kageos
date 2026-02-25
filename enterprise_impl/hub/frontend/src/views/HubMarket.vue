@@ -29,52 +29,109 @@
       </div>
     </div>
 
-    <!-- 搜索和筛选栏 -->
-    <div class="filter-section">
-      <div class="filter-content">
-        <div class="search-bar">
+    <!-- 主体：左侧筛选 + 右侧列表 -->
+    <div class="body-section">
+      <!-- 左侧筛选栏 -->
+      <aside class="filter-sidebar">
+        <div class="filter-sidebar-header">
+          <div class="filter-title-row">
+            <el-icon class="filter-title-icon"><Filter /></el-icon>
+            <h2 class="filter-title">应用筛选</h2>
+          </div>
+          <div class="filter-summary">
+            <el-button link type="primary" class="clear-btn" :disabled="selectedFilterCount === 0" @click="handleClearFilters">
+              清除
+            </el-button>
+            <span class="summary-text">已选 {{ selectedFilterCount }} 条件</span>
+            <span class="summary-divider">|</span>
+            <span class="summary-result">{{ total }} 结果</span>
+          </div>
+        </div>
+
+        <div class="filter-block filter-block-search">
+          <div class="filter-block-label">
+            <el-icon><Search /></el-icon>
+            <span>应用搜索</span>
+          </div>
           <el-input
             v-model="searchKeyword"
-            placeholder="搜索目录名称或描述..."
+            placeholder="搜索应用名称或描述"
             clearable
-            size="large"
+            size="default"
+            class="filter-search-input"
             @clear="handleSearch"
             @keyup.enter="handleSearch"
           >
             <template #prefix>
               <el-icon><Search /></el-icon>
             </template>
-            <template #append>
-              <el-button @click="handleSearch" type="primary">搜索</el-button>
-            </template>
           </el-input>
+          <el-button type="primary" size="default" class="search-submit-btn" @click="handleSearch">搜索</el-button>
         </div>
-        <div class="filter-controls">
-          <el-select
-            v-model="selectedCategory"
-            placeholder="全部分类"
-            clearable
-            size="large"
-            style="width: 200px"
-            @change="handleFilterChange"
-          >
-            <el-option label="全部分类" value="" />
-            <el-option label="工具" value="工具" />
-            <el-option label="业务系统" value="业务系统" />
-            <el-option label="数据管理" value="数据管理" />
-            <el-option label="工作流" value="工作流" />
-            <el-option label="报表" value="报表" />
-          </el-select>
-          <el-text type="info" size="large" style="margin-left: 16px">
-            共 {{ total }} 个目录
-          </el-text>
-        </div>
-      </div>
-    </div>
 
-    <!-- 目录列表 -->
-    <div class="main-content">
-      <div class="directory-content">
+        <div class="filter-block filter-block-sort">
+          <div class="filter-block-label">
+            <el-icon><Sort /></el-icon>
+            <span>排序方式</span>
+          </div>
+          <div class="filter-options sort-options">
+            <div
+              v-for="opt in orderOptions"
+              :key="opt.value"
+              :class="['filter-option-item sort-option-item', { active: orderBy === opt.value }]"
+              @click="orderBy = opt.value; handleFilterChange()"
+            >
+              <el-icon class="sort-option-icon"><component :is="opt.icon" /></el-icon>
+              <span>{{ opt.label }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="filter-block">
+          <div class="filter-block-label">
+            <el-icon><Money /></el-icon>
+            <span>费用类型</span>
+          </div>
+          <div class="filter-options fee-options">
+            <div
+              v-for="opt in feeTypeOptions"
+              :key="opt.value"
+              :class="['filter-option-item', { active: feeTypeFilter === opt.value }]"
+              @click="feeTypeFilter = opt.value; handleFilterChange()"
+            >
+              {{ opt.label }}
+            </div>
+          </div>
+        </div>
+
+        <div class="filter-block">
+          <div class="filter-block-label">
+            <el-icon><Folder /></el-icon>
+            <span>所属分类</span>
+          </div>
+          <div class="filter-options category-options">
+            <div
+              :class="['filter-option-item', { active: selectedCategory === '' }]"
+              @click="selectedCategory = ''; handleFilterChange()"
+            >
+              全部分类
+            </div>
+            <div
+              v-for="cat in categoryOptions"
+              :key="cat"
+              :class="['filter-option-item', { active: selectedCategory === cat }]"
+              @click="selectedCategory = cat; handleFilterChange()"
+            >
+              {{ cat }}
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- 右侧：列表 + 分页 -->
+      <div class="right-area">
+      <div class="main-content">
+        <div class="directory-content">
         <div v-loading="loading" class="directory-list">
           <div v-if="directories.length === 0 && !loading" class="empty-state">
             <el-empty description="暂无目录" :image-size="120">
@@ -98,17 +155,18 @@
                   />
                 </div>
                 <div class="directory-header-badges">
-                  <el-tag v-if="directory.category" type="info" size="small">
+                  <el-tag v-if="directory.category" type="info" size="small" class="badge-category">
                     {{ directory.category }}
                   </el-tag>
                   <el-tag
                     v-if="directory.service_fee_personal > 0"
                     type="warning"
                     size="small"
+                    class="badge-fee paid"
                   >
                     ¥{{ directory.service_fee_personal }}
                   </el-tag>
-                  <el-tag v-else type="success" size="small">免费</el-tag>
+                  <el-tag v-else type="success" size="small" class="badge-fee free">免费</el-tag>
                 </div>
               </div>
               <div class="directory-card-body">
@@ -131,23 +189,40 @@
                   </el-tag>
                 </div>
                 <div class="directory-meta">
-                  <div class="meta-item">
+                  <div class="meta-value-row">
+                    <div class="value-stat">
+                      <el-icon class="value-stat-icon star"><Star /></el-icon>
+                      <span class="value-stat-num">{{ directory.star_count ?? 0 }}</span>
+                      <span class="value-stat-label">星</span>
+                    </div>
+                    <div class="value-stat">
+                      <el-icon class="value-stat-icon copy"><CopyDocument /></el-icon>
+                      <span class="value-stat-num">{{ directory.download_count ?? 0 }}</span>
+                      <span class="value-stat-label">复制</span>
+                    </div>
+                  </div>
+                  <div class="meta-item meta-publisher">
                     <UserDisplay 
                       :username="directory.publisher_username" 
                       layout="horizontal" 
                       size="small"
                     />
                   </div>
-                  <div class="meta-item">
-                    <el-icon class="meta-icon"><Download /></el-icon>
-                    <el-text type="info" size="small">{{ directory.download_count }} 次克隆</el-text>
-                  </div>
-                  <div class="meta-item">
-                    <el-icon class="meta-icon"><Files /></el-icon>
-                    <el-text type="info" size="small">
-                      {{ directory.directory_count }} 目录 · {{ directory.file_count }} 文件 · {{ directory.function_count }} 函数
-                    </el-text>
-                  </div>
+                </div>
+                <div class="directory-card-actions" @click.stop>
+                  <span class="actions-time" v-if="directory.published_at">
+                    <el-icon class="meta-icon"><Clock /></el-icon>
+                    发布时间 {{ formatDisplayTime(directory.published_at) }}
+                  </span>
+                  <el-button
+                    link
+                    type="primary"
+                    size="small"
+                    :icon="CopyDocument"
+                    @click="handleCopyLink(directory)"
+                  >
+                    复制链接
+                  </el-button>
                 </div>
               </div>
             </div>
@@ -168,15 +243,84 @@
         @current-change="handlePageChange"
       />
     </div>
+    </div>
+
+    <!-- 右侧栏：热门 + 最新 -->
+    <aside class="right-sidebar">
+      <div class="sidebar-block">
+        <div class="sidebar-block-head">
+          <el-icon class="sidebar-block-icon hot"><Star /></el-icon>
+          <h3 class="sidebar-title">热门应用</h3>
+        </div>
+        <div v-loading="hotLoading" class="sidebar-list">
+          <div
+            v-for="(item, index) in hotList"
+            :key="item.id"
+            class="sidebar-card"
+            @click="handleDirectoryClick(item)"
+          >
+            <span class="sidebar-rank" :class="{ top: index < 3 }">{{ index + 1 }}</span>
+            <div class="sidebar-card-body">
+              <span class="sidebar-card-name">{{ item.name }}</span>
+              <div class="sidebar-card-meta">
+                <span class="hot-score">热度 {{ hotScore(item) }}</span>
+                <span><el-icon><Star /></el-icon> {{ item.star_count ?? 0 }}</span>
+                <span><el-icon><Download /></el-icon> {{ item.download_count ?? 0 }}</span>
+              </div>
+            </div>
+          </div>
+          <div v-if="!hotLoading && hotList.length === 0" class="sidebar-empty">
+            <el-icon class="empty-icon"><Document /></el-icon>
+            <span>暂无热门应用</span>
+          </div>
+        </div>
+      </div>
+      <div class="sidebar-block sidebar-block-latest">
+        <div class="sidebar-block-head">
+          <el-icon class="sidebar-block-icon latest"><Clock /></el-icon>
+          <h3 class="sidebar-title">最新上架</h3>
+        </div>
+        <div v-loading="latestLoading" class="sidebar-list">
+          <div
+            v-for="item in latestList"
+            :key="item.id"
+            class="sidebar-card sidebar-card-latest"
+            @click="handleDirectoryClick(item)"
+          >
+            <div class="sidebar-card-body">
+              <div class="sidebar-card-headline">
+                <span class="sidebar-card-name">{{ item.name }}</span>
+                <span v-if="isNewPublish(item.published_at)" class="new-dot">新</span>
+              </div>
+              <div class="sidebar-card-meta">
+                <span><el-icon><Star /></el-icon> {{ item.star_count ?? 0 }}</span>
+                <span><el-icon><Download /></el-icon> {{ item.download_count ?? 0 }}</span>
+              </div>
+              <div class="sidebar-card-footer">
+                <span class="sidebar-card-time" v-if="item.published_at">
+                  <el-icon><Clock /></el-icon> {{ formatDisplayTime(item.published_at) }}
+                </span>
+                <span v-if="item.category" class="category-dot">{{ item.category }}</span>
+              </div>
+            </div>
+          </div>
+          <div v-if="!latestLoading && latestList.length === 0" class="sidebar-empty">
+            <el-icon class="empty-icon"><Document /></el-icon>
+            <span>暂无最新上架</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Search, User, Download, Files } from '@element-plus/icons-vue'
+import { Search, User, Download, CopyDocument, Star, Clock, Document, Filter, Money, Folder, Sort, TrendCharts } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { getHubDirectoryList, type HubDirectoryInfo } from '@/api/hub'
+import { getHubDirectoryList, type HubDirectoryInfo, type FeeTypeFilter, type OrderByFilter } from '@/api/hub'
 import UserDisplay from '@/components/UserDisplay.vue'
 import { useUserInfoStore } from '@/stores/userInfo'
 
@@ -186,7 +330,75 @@ const userInfoStore = useUserInfoStore()
 // 搜索和筛选
 const searchKeyword = ref('')
 const selectedCategory = ref('')
+const feeTypeFilter = ref<FeeTypeFilter>('')
+const orderBy = ref<OrderByFilter>('hot')
 const loading = ref(false)
+
+const orderOptions: { label: string; value: OrderByFilter; icon: typeof Clock }[] = [
+  { label: '最新上架', value: 'latest', icon: Clock },
+  { label: '热门', value: 'hot', icon: TrendCharts },
+  { label: '按星', value: 'stars', icon: Star },
+  { label: '按复制', value: 'downloads', icon: CopyDocument }
+]
+
+// 已选条件数量（用于左侧「已选 X 条件」）
+const selectedFilterCount = computed(() => {
+  let n = 0
+  if (searchKeyword.value.trim()) n++
+  if (feeTypeFilter.value) n++
+  if (selectedCategory.value) n++
+  return n
+})
+
+const feeTypeOptions = [
+  { label: '全部', value: '' as FeeTypeFilter },
+  { label: '免费', value: 'free' as FeeTypeFilter },
+  { label: '收费', value: 'paid' as FeeTypeFilter }
+]
+
+const categoryOptions = [
+  '表格', '表单', '表单、表格、图表', '企业服务', '数据分析', '视频处理',
+  '工具', '业务系统', '数据管理', '工作流', '报表'
+]
+
+function handleClearFilters () {
+  searchKeyword.value = ''
+  selectedCategory.value = ''
+  feeTypeFilter.value = ''
+  currentPage.value = 1
+  loadDirectoryList()
+}
+
+// 时间展示：优先友好格式，支持 ISO 或 "YYYY-MM-DD HH:mm:ss"
+function formatDisplayTime (raw: string): string {
+  if (!raw || typeof raw !== 'string') return ''
+  const s = raw.trim().replace(/^"|"$/g, '')
+  const date = new Date(s)
+  if (Number.isNaN(date.getTime())) return s
+  const now = new Date()
+  const diff = now.getTime() - date.getTime()
+  const day = 24 * 60 * 60 * 1000
+  if (diff < day) return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  if (diff < 7 * day) return `${Math.floor(diff / day)} 天前`
+  return date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
+}
+
+// 是否「新上架」：发布时间在 3 天内则显示「新」标签
+function isNewPublish (publishedAt: string | undefined): boolean {
+  if (!publishedAt || typeof publishedAt !== 'string') return false
+  const s = publishedAt.trim().replace(/^"|"$/g, '')
+  const date = new Date(s)
+  if (Number.isNaN(date.getTime())) return false
+  const diff = Date.now() - date.getTime()
+  return diff < 3 * 24 * 60 * 60 * 1000
+}
+
+// 热度值（与后端排序公式一致：星星*2 + 下载量*1）
+function hotScore (item: HubDirectoryInfo): number {
+  const star = item.star_count ?? 0
+  const download = item.download_count ?? 0
+  return star * 2 + download * 1
+}
 
 // 分页
 const currentPage = ref(1)
@@ -196,6 +408,36 @@ const total = ref(0)
 // 目录列表
 const directories = ref<HubDirectoryInfo[]>([])
 
+// 右侧栏：热门 / 最新
+const hotList = ref<HubDirectoryInfo[]>([])
+const latestList = ref<HubDirectoryInfo[]>([])
+const hotLoading = ref(false)
+const latestLoading = ref(false)
+
+const loadHotList = async () => {
+  hotLoading.value = true
+  try {
+    const res = await getHubDirectoryList({ page: 1, page_size: 8, order_by: 'hot' })
+    hotList.value = res.items || []
+  } catch {
+    hotList.value = []
+  } finally {
+    hotLoading.value = false
+  }
+}
+
+const loadLatestList = async () => {
+  latestLoading.value = true
+  try {
+    const res = await getHubDirectoryList({ page: 1, page_size: 6 })
+    latestList.value = res.items || []
+  } catch {
+    latestList.value = []
+  } finally {
+    latestLoading.value = false
+  }
+}
+
 // 加载目录列表
 const loadDirectoryList = async () => {
   loading.value = true
@@ -204,7 +446,9 @@ const loadDirectoryList = async () => {
       page: currentPage.value,
       page_size: pageSize.value,
       search: searchKeyword.value || undefined,
-      category: selectedCategory.value || undefined
+      category: selectedCategory.value || undefined,
+      fee_type: feeTypeFilter.value || undefined,
+      order_by: orderBy.value || 'latest'
     })
 
     directories.value = response.items || []
@@ -268,6 +512,38 @@ const handleDirectoryClick = (directory: HubDirectoryInfo) => {
   })
 }
 
+// 复制 Hub 链接（用于在工作空间粘贴安装）
+const handleCopyLink = async (directory: HubDirectoryInfo) => {
+  const copyUrl = directory.copy_url
+  if (!copyUrl && !directory.full_code_path) {
+    ElMessage.warning('复制链接不可用')
+    return
+  }
+  const textToCopy = copyUrl || `hub://${window.location.host}${directory.full_code_path || ''}@${directory.version || ''}`
+  if (!textToCopy || !textToCopy.startsWith('hub://')) {
+    ElMessage.warning('复制链接不可用')
+    return
+  }
+  try {
+    await navigator.clipboard.writeText(textToCopy)
+    ElMessage.success('Hub 链接已复制，可在工作空间「从应用中心安装」中粘贴使用')
+  } catch {
+    const ta = document.createElement('textarea')
+    ta.value = textToCopy
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    try {
+      document.execCommand('copy')
+      ElMessage.success('Hub 链接已复制')
+    } catch {
+      ElMessage.error('复制失败，请手动复制')
+    }
+    document.body.removeChild(ta)
+  }
+}
+
 // 跳转到我的目录管理页面
 const handleGoToManage = () => {
   router.push({ name: 'hub-directory-manage' })
@@ -276,14 +552,16 @@ const handleGoToManage = () => {
 // 监听路由变化，重新加载
 watch(() => router.currentRoute.value.query, () => {
   const query = router.currentRoute.value.query
-  if (query.search) {
-    searchKeyword.value = query.search as string
-  }
-  if (query.category) {
-    selectedCategory.value = query.category as string
-  }
+  if (query.search) searchKeyword.value = query.search as string
+  if (query.category) selectedCategory.value = query.category as string
+  if (query.fee_type === 'free' || query.fee_type === 'paid') feeTypeFilter.value = query.fee_type as FeeTypeFilter
   loadDirectoryList()
 }, { immediate: true })
+
+onMounted(() => {
+  loadHotList()
+  loadLatestList()
+})
 </script>
 
 <style scoped lang="scss">
@@ -355,47 +633,425 @@ watch(() => router.currentRoute.value.query, () => {
     }
   }
 
-  // 搜索和筛选区域
-  .filter-section {
-    background: var(--el-bg-color);
-    border-bottom: 1px solid var(--el-border-color-lighter);
-    padding: 24px 40px;
+  // 主体：左侧筛选 + 右侧列表
+  .body-section {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    width: 100%;
+    max-width: 1800px;
+    margin: 0 auto;
+    align-self: stretch;
+  }
 
-    .filter-content {
-      max-width: 1400px;
-      margin: 0 auto;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
+  .filter-sidebar {
+    width: 280px;
+    flex-shrink: 0;
+    background: linear-gradient(180deg, var(--el-bg-color) 0%, var(--el-fill-color-blank) 100%);
+    border-right: 1px solid var(--el-border-color-lighter);
+    padding: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
 
-      .search-bar {
-        flex: 1;
-        max-width: 600px;
-      }
+    .filter-sidebar-header {
+      padding: 20px 18px 18px;
+      border-bottom: 1px solid var(--el-border-color-lighter);
+      background: var(--el-bg-color);
 
-      .filter-controls {
+      .filter-title-row {
         display: flex;
         align-items: center;
+        gap: 10px;
+        margin-bottom: 12px;
+
+        .filter-title-icon {
+          font-size: 20px;
+          color: var(--el-color-primary);
+        }
+
+        .filter-title {
+          margin: 0;
+          font-size: 16px;
+          font-weight: 600;
+          color: var(--el-text-color-primary);
+          letter-spacing: 0.02em;
+        }
+      }
+
+      .filter-summary {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+        font-size: 12px;
+        color: var(--el-text-color-secondary);
+        padding: 10px 12px;
+        background: var(--el-fill-color-light);
+        border-radius: 10px;
+        border: 1px solid var(--el-border-color-extra-light);
+
+        .clear-btn {
+          padding: 0 4px;
+          font-size: 12px;
+        }
+
+        .summary-divider {
+          color: var(--el-border-color);
+          margin: 0 2px;
+        }
+
+        .summary-result {
+          color: var(--el-text-color-primary);
+          font-weight: 600;
+        }
+      }
+    }
+
+    .filter-block {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--el-border-color-extra-light);
+      background: var(--el-bg-color);
+
+      &:last-child {
+        border-bottom: none;
+      }
+
+      .filter-block-label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--el-text-color-primary);
+        margin-bottom: 10px;
+
+        .el-icon {
+          font-size: 15px;
+          color: var(--el-color-primary);
+        }
+      }
+
+      &.filter-block-search {
+        .filter-search-input {
+          margin-bottom: 10px;
+          border-radius: 8px;
+
+          :deep(.el-input__wrapper) {
+            border-radius: 8px;
+          }
+        }
+
+        .search-submit-btn {
+          width: 100%;
+          border-radius: 8px;
+        }
+      }
+
+      &.filter-block-sort {
+        .sort-option-item {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+
+          .sort-option-icon {
+            font-size: 16px;
+            color: var(--el-text-color-secondary);
+            flex-shrink: 0;
+          }
+
+          &.active .sort-option-icon {
+            color: var(--el-color-primary);
+          }
+        }
+      }
+
+      .filter-options {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .filter-option-item {
+        padding: 10px 12px;
+        border-radius: 10px;
+        font-size: 13px;
+        color: var(--el-text-color-regular);
+        cursor: pointer;
+        transition: background 0.2s, color 0.2s, border-color 0.2s;
+        border: 1px solid transparent;
+
+        &:hover {
+          background: var(--el-fill-color-light);
+          color: var(--el-text-color-primary);
+        }
+
+        &.active {
+          background: color-mix(in srgb, var(--el-color-primary) 14%, transparent);
+          color: var(--el-color-primary);
+          font-weight: 500;
+          border-color: color-mix(in srgb, var(--el-color-primary) 35%, transparent);
+        }
+      }
+
+      .fee-options .filter-option-item.active {
+        background: color-mix(in srgb, var(--el-color-primary) 14%, transparent);
+        color: var(--el-color-primary);
+        border-color: color-mix(in srgb, var(--el-color-primary) 35%, transparent);
+      }
+
+      .category-options .filter-option-item.active {
+        background: color-mix(in srgb, var(--el-color-primary) 14%, transparent);
+        color: var(--el-color-primary);
+        border-color: color-mix(in srgb, var(--el-color-primary) 35%, transparent);
       }
     }
   }
 
-  // 主要内容区域
+  .right-area {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--el-bg-color-page);
+  }
+
+  .right-sidebar {
+    width: 280px;
+    flex-shrink: 0;
+    background: var(--el-bg-color);
+    border-left: 1px solid var(--el-border-color-lighter);
+    padding: 24px 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+
+    .sidebar-block {
+      padding: 0 16px;
+
+      .sidebar-block-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 14px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--el-border-color-lighter);
+
+        .sidebar-block-icon {
+          font-size: 18px;
+          flex-shrink: 0;
+
+          &.hot {
+            color: var(--el-color-warning);
+          }
+
+          &.latest {
+            color: var(--el-color-primary);
+          }
+        }
+
+        .sidebar-title {
+          margin: 0;
+          font-size: 15px;
+          font-weight: 600;
+          color: var(--el-text-color-primary);
+          letter-spacing: 0.02em;
+        }
+      }
+
+      .sidebar-list {
+        min-height: 60px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .sidebar-card {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 12px 14px;
+        border-radius: 10px;
+        border: 1px solid transparent;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        background: var(--el-fill-color-blank);
+
+        &:hover {
+          background: var(--el-fill-color-light);
+          border-color: var(--el-border-color-lighter);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        }
+
+        .sidebar-rank {
+          flex-shrink: 0;
+          width: 22px;
+          height: 22px;
+          line-height: 22px;
+          text-align: center;
+          font-size: 12px;
+          font-weight: 600;
+          color: var(--el-text-color-secondary);
+          background: var(--el-fill-color);
+          border-radius: 6px;
+
+          &.top {
+            color: var(--el-color-white);
+            background: linear-gradient(135deg, var(--el-color-warning), var(--el-color-warning-light-3));
+          }
+        }
+
+        .sidebar-card-body {
+          flex: 1;
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+
+        .sidebar-card-name {
+          font-size: 14px;
+          font-weight: 500;
+          color: var(--el-text-color-primary);
+          line-height: 1.4;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+
+        .sidebar-card-meta {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          font-size: 12px;
+          color: var(--el-text-color-secondary);
+
+          .hot-score {
+            font-weight: 600;
+            color: var(--el-color-warning);
+          }
+
+          .el-icon {
+            font-size: 12px;
+            margin-right: 2px;
+            vertical-align: -0.15em;
+          }
+        }
+
+        .sidebar-card-time {
+          font-size: 12px;
+          color: var(--el-text-color-placeholder);
+          display: flex;
+          align-items: center;
+          gap: 4px;
+
+          .el-icon {
+            font-size: 12px;
+            flex-shrink: 0;
+          }
+        }
+      }
+
+      // 最新上架卡片：与热门同一套样式，无排名；多一行时间+分类，以及星/下载量
+      .sidebar-card-latest {
+        .sidebar-card-headline {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 8px;
+
+          .sidebar-card-name {
+            flex: 1;
+            min-width: 0;
+          }
+
+          .new-dot {
+            flex-shrink: 0;
+            font-size: 11px;
+            color: var(--el-color-success);
+            background: var(--el-color-success-light-8);
+            padding: 2px 6px;
+            border-radius: 4px;
+            line-height: 1.2;
+          }
+        }
+
+        .sidebar-card-meta {
+          margin-top: 2px;
+        }
+
+        .sidebar-card-footer {
+          display: flex;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-top: 4px;
+
+          .sidebar-card-time {
+            font-size: 12px;
+            color: var(--el-text-color-secondary);
+          }
+
+          .category-dot {
+            font-size: 11px;
+            color: var(--el-text-color-secondary);
+            padding: 0 6px;
+            line-height: 20px;
+          }
+        }
+      }
+    }
+
+    .sidebar-block-latest .sidebar-list {
+      .sidebar-card-body {
+        gap: 6px;
+      }
+    }
+
+    .sidebar-block:not(.sidebar-block-latest) .sidebar-card-body {
+      .sidebar-card-meta {
+        margin-top: 0;
+      }
+    }
+
+    .sidebar-block {
+      .sidebar-empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 24px 16px;
+        font-size: 13px;
+        color: var(--el-text-color-placeholder);
+
+        .empty-icon {
+          font-size: 32px;
+          opacity: 0.6;
+        }
+      }
+    }
+  }
+
+  // 右侧列表区域
   .main-content {
     flex: 1;
     min-height: 0;
+    min-width: 0;
     display: flex;
     flex-direction: column;
+    background: var(--el-bg-color-page);
 
     .directory-content {
       flex: 1;
       min-height: 0;
       overflow-y: auto;
-      padding: 32px 40px;
+      padding: 24px 32px;
       min-width: 0;
       width: 100%;
-      max-width: 1400px;
-      margin: 0 auto;
 
       .directory-list {
         min-height: 400px;
@@ -461,6 +1117,25 @@ watch(() => router.currentRoute.value.query, () => {
               gap: 8px;
               flex-wrap: wrap;
               justify-content: flex-end;
+              align-items: center;
+
+              .badge-category {
+                font-size: 12px;
+              }
+
+              .badge-fee {
+                font-weight: 600;
+                &.free {
+                  background: var(--el-color-success-light-9);
+                  color: var(--el-color-success);
+                  border-color: var(--el-color-success-light-5);
+                }
+                &.paid {
+                  background: var(--el-color-warning-light-9);
+                  color: var(--el-color-warning-dark-2);
+                  border-color: var(--el-color-warning-light-5);
+                }
+              }
             }
           }
 
@@ -514,22 +1189,71 @@ watch(() => router.currentRoute.value.query, () => {
             .directory-meta {
               display: flex;
               flex-direction: column;
-              gap: 8px;
+              gap: 10px;
               padding-top: 12px;
               border-top: 1px solid var(--el-border-color-lighter);
               margin-top: auto;
+
+              .meta-value-row {
+                display: flex;
+                align-items: center;
+                gap: 16px;
+                padding: 10px 12px;
+                background: var(--el-fill-color-light);
+                border-radius: 8px;
+              }
+
+              .value-stat {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+
+                .value-stat-icon {
+                  font-size: 18px;
+                  flex-shrink: 0;
+
+                  &.star {
+                    color: var(--el-color-warning);
+                  }
+
+                  &.copy {
+                    color: var(--el-color-primary);
+                  }
+                }
+
+                .value-stat-num {
+                  font-size: 18px;
+                  font-weight: 700;
+                  color: var(--el-text-color-primary);
+                  line-height: 1.2;
+                }
+
+                .value-stat-label {
+                  font-size: 13px;
+                  color: var(--el-text-color-secondary);
+                }
+              }
+
+              .meta-row {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                flex-wrap: wrap;
+
+                .meta-icon {
+                  font-size: 14px;
+                  color: var(--el-text-color-placeholder);
+                  flex-shrink: 0;
+                }
+              }
 
               .meta-item {
                 display: flex;
                 align-items: center;
                 gap: 6px;
+              }
 
-                .meta-icon {
-                  font-size: 14px;
-                  color: var(--el-text-color-secondary);
-                }
-                
-                // UserDisplay 组件样式调整
+              .meta-publisher {
                 :deep(.user-display-wrapper) {
                   .user-name {
                     font-size: 13px;
@@ -538,10 +1262,36 @@ watch(() => router.currentRoute.value.query, () => {
                 }
               }
             }
+
+            .directory-card-actions {
+              margin-top: 8px;
+              padding-top: 8px;
+              border-top: 1px solid var(--el-border-color-lighter);
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 8px;
+
+              .actions-time {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                font-size: 12px;
+                color: var(--el-text-color-placeholder);
+
+                .meta-icon {
+                  font-size: 14px;
+                }
+              }
+            }
           }
         }
       }
     }
+  }
+
+  .pagination-section {
+    flex-shrink: 0;
   }
 
   // 分页区域
@@ -555,6 +1305,37 @@ watch(() => router.currentRoute.value.query, () => {
 }
 
 // 响应式设计
+@media (max-width: 1200px) {
+  .hub-market-view .body-section .right-sidebar {
+    display: none;
+  }
+}
+
+@media (max-width: 1024px) {
+  .hub-market-view .body-section {
+    flex-direction: column;
+
+    .filter-sidebar {
+      width: 100%;
+      border-right: none;
+      border-bottom: 1px solid var(--el-border-color-lighter);
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: 16px;
+      padding: 16px 20px;
+
+      .filter-block {
+        min-width: 160px;
+      }
+
+      .filter-block:first-of-type {
+        flex: 1;
+        min-width: 200px;
+      }
+    }
+  }
+}
+
 @media (max-width: 768px) {
   .hub-market-view {
     .hero-section {
@@ -573,25 +1354,22 @@ watch(() => router.currentRoute.value.query, () => {
       }
     }
 
-    .filter-section {
-      padding: 20px;
+    .body-section .filter-sidebar {
+      .filter-block-label {
+        margin-bottom: 6px;
+      }
 
-      .filter-content {
-        .filter-controls {
-          flex-direction: column;
-          align-items: stretch;
-          gap: 12px;
-        }
+      .filter-options .filter-option-item {
+        padding: 6px 10px;
+        font-size: 13px;
       }
     }
 
-    .main-content {
-      .directory-content {
-        padding: 24px 20px;
+    .main-content .directory-content {
+      padding: 24px 20px;
 
-        .directory-grid {
-          grid-template-columns: 1fr;
-        }
+      .directory-grid {
+        grid-template-columns: 1fr;
       }
     }
 

@@ -10,7 +10,7 @@
 
 **环境中已注入当前目录下的函数信息**（见上方「当前目录下的可执行函数」）：表格/表单/图表的 full_code_path 已列出，查数据、提交表单、查图表、新增记录时可直接使用。
 
-**工作台运行环境**：代码执行在统一 Docker 运行环境中，**已自带一批可执行程序**，生成代码时如需做音视频/PDF/图片/OCR 等处理，可直接用 **Go 的 `exec.Command`** 调用命令名，无需再装软件、不依赖 `FFMPEG_PATH` 等环境变量（PATH 已配置）。自带包括：**FFmpeg**（ffmpeg、ffprobe）、**Ghostscript**（gs）、**Poppler**（pdftotext、pdftoppm、pdfinfo、pdfimages 等）、**GraphicsMagick**（gm）、**Tesseract**（tesseract，OCR，含 chi_sim）、**Python/Lua**（python3、pip3、lua）。调用示例：
+**工作台运行环境**：代码执行在统一 Docker 运行环境中（Ubuntu 22.04），**已自带一批可执行程序**，生成代码时如需做音视频/PDF/Office文档/图片/OCR 等处理，可直接用 **Go 的 `exec.Command`** 调用命令名，无需再装软件、不依赖 `FFMPEG_PATH` 等环境变量（PATH 已配置）。自带包括：**FFmpeg**（ffmpeg、ffprobe，支持中文字幕/drawtext）、**Ghostscript**（gs）、**Poppler**（pdftotext、pdftoppm、pdfinfo、pdfimages 等）、**GraphicsMagick**（gm）、**Tesseract**（tesseract，OCR，含 chi_sim）、**LibreOffice**（libreoffice，headless 模式，支持 Word/Excel/PPT 转 PDF/CSV 等）、**Pandoc**（pandoc，md/html 等转 docx/pdf 等）、**Graphviz**（dot/neato/fdp，用代码画流程图/架构图/关系图）、**Python/Lua**（python3、pip3、lua，Python 含 pandas/numpy/scipy/matplotlib/jieba 等）。中文字体已预装（Noto CJK），matplotlib 出图和 FFmpeg drawtext 均可正常显示中文。调用示例：
 
 ```go
 // FFmpeg 转码
@@ -27,6 +27,11 @@ _ = cmd.Run()
 // GraphicsMagick：图片格式转换、缩放（子命令 convert）
 _ = exec.Command("gm", "convert", inputImg, outputImg).Run()
 _ = exec.Command("gm", "convert", "-resize", "800x600", inputImg, outputImg).Run()
+
+// LibreOffice：Word 转 PDF（headless 模式）
+_ = exec.Command("libreoffice", "--headless", "--convert-to", "pdf", "--outdir", outDir, "input.docx").Run()
+// LibreOffice：Excel 转 CSV
+_ = exec.Command("libreoffice", "--headless", "--convert-to", "csv", "--outdir", outDir, "data.xlsx").Run()
 ```
 
 ---

@@ -58,10 +58,13 @@
           <el-table-column prop="file_count" label="文件数" width="100" align="center" />
           <el-table-column prop="download_count" label="克隆次数" width="100" align="center" />
           <el-table-column prop="published_at" label="发布时间" width="180" />
-          <el-table-column label="操作" width="120" fixed="right">
+          <el-table-column label="操作" width="160" fixed="right">
             <template #default="{ row }">
               <el-button type="primary" link @click="handleViewDetail(row.id)">
                 查看
+              </el-button>
+              <el-button type="danger" link @click="handleDelete(row)">
+                下架
               </el-button>
             </template>
           </el-table-column>
@@ -88,8 +91,8 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, Search } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
-import { getHubDirectoryList, type HubDirectoryInfo } from '@/api/hub'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { getHubDirectoryList, deleteHubDirectory, type HubDirectoryInfo } from '@/api/hub'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 
 const router = useRouter()
@@ -166,6 +169,24 @@ const handleViewDetail = (directoryId: number) => {
     name: 'hub-directory-detail',
     params: { id: directoryId }
   })
+}
+
+// 下架（软删除：列表不再展示，通过链接仍可访问）
+const handleDelete = async (row: HubDirectoryInfo) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要下架「${row.name}」吗？下架后应用中心列表将不再展示，但通过原有链接仍可访问。`,
+      '下架应用',
+      { type: 'warning' }
+    )
+    await deleteHubDirectory(row.id)
+    ElMessage.success('已下架')
+    loadDirectoryList()
+  } catch (e: any) {
+    if (e !== 'cancel') {
+      ElMessage.error(e?.message || '下架失败')
+    }
+  }
 }
 
 // 返回
