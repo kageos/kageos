@@ -149,6 +149,17 @@ func mergeToolCalls(chunkToolCalls []llms.ToolCall, allToolCalls []llms.ToolCall
 				if tc.Function.Arguments != "" {
 					allToolCalls[idx].Function.Arguments += tc.Function.Arguments
 				}
+			} else if len(allToolCalls) > 0 && allToolCalls[len(allToolCalls)-1].ID == "" {
+				// 流式先发 name 再发 id（按 index 分片）：最后一条是 id 为空的同一 tool_call，合并到该条，避免出现两条（一条 id 空）导致 API 报 insufficient tool messages
+				lastIdx := len(allToolCalls) - 1
+				allToolCalls[lastIdx].ID = tc.ID
+				if tc.Function.Name != "" {
+					allToolCalls[lastIdx].Function.Name = tc.Function.Name
+				}
+				if tc.Function.Arguments != "" {
+					allToolCalls[lastIdx].Function.Arguments += tc.Function.Arguments
+				}
+				toolCallsIndex[tc.ID] = lastIdx
 			} else {
 				allToolCalls = append(allToolCalls, tc)
 				toolCallsIndex[tc.ID] = len(allToolCalls) - 1

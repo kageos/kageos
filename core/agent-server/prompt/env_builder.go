@@ -17,6 +17,8 @@ type WorkspaceEnvInput struct {
 	FullCodePath           string
 	DirType                string
 	DirDescription         string
+	PublishedToHub         bool   // 当前目录是否已上架到应用中心（Hub）
+	HubFullCodePath        string // 已上架时在 Hub 的目录路径
 	Children               []WorkspaceEnvNode
 	Files                  []WorkspaceEnvFile
 }
@@ -84,9 +86,16 @@ func BuildWorkspaceEnvData(in *WorkspaceEnvInput, directoryName, fullCodePath st
 		data.DirCode = in.DirCode
 		data.DirType = in.DirType
 		data.DirDescription = in.DirDescription
+		if in.PublishedToHub && in.HubFullCodePath != "" {
+			data.HubSection = fmt.Sprintf("已上架，路径：%s（可使用 push_to_hub 推送更新）", in.HubFullCodePath)
+		} else {
+			data.HubSection = "未上架（可使用 publish_to_hub 发布到应用中心）"
+		}
 		data.ChildrenSection = buildChildrenSection(in.Children)
 		data.FunctionsSection = buildFunctionsSection(in.Children)
 		data.FilesSection = buildFilesSection(in.Files)
+	} else {
+		data.HubSection = "未知（需进入工作目录后刷新环境）"
 	}
 	data.DirectoryList = buildDirectoryList(GetDocCatalog())
 	// 当前目录的 init_.go 完整内容（由 full_code_path + 目录名/描述构造，与 app-runtime 生成一致），便于模型知道已有该文件、无需再写

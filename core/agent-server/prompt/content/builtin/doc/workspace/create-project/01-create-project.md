@@ -88,6 +88,7 @@ PRD 末尾问一句：「请确认以上是否 OK，确认后我再生成代码�
 0. **SDK**：PRD 阶段若已读过 SDK 可直接写；未读过则先 read_doc。**案例**：动手写代码前建议 read_doc 与项目类型匹配的案例（见末尾表格），对照写法再落盘。
 1. **判断放哪里**：当前项目的扩展 → 放当前目录；独立新功能 → 先 `create_directory` 再在子目录下写。
 2. **write_go_file**：directory 填目标目录完整路径。.go 文件内须 `package <目标目录 code>`。单文件直接写（默认编译）；多文件时传 `build_workspace=false`，全部写完后调一次 `build_workspace`。
+   - **依赖**：允许在代码中引用 GitHub 等开源项目的 Go 依赖（在 go.mod 中 require 或代码里 import 后由 go mod 管理）。执行 `build_workspace` 时会**自动拉取依赖**，无需额外操作；需要用到某开源库时可直接在代码中 import，编译时会自动处理。
 3. 简短总结：生成了哪些文件、放在哪、实现了什么。
 
 ---

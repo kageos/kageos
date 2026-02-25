@@ -49,7 +49,7 @@
 ```json
 [{"title":"问卷A","description":"描述","target_group":"全部用户"}]
 ```
-键名与 model 的 json 标签一致。create_by、created_at、updated_at 由系统自动填充。业务时间字段须为**毫秒时间戳**。
+键名与 model 的 json 标签一致。create_by、created_at、updated_at 由系统自动填充。业务时间字段须为**毫秒时间戳**。若 model 有 files 类型字段（如 attachment、resume_file），该字段须传对象 `{ "files": [...] }`，见下方「带上传文件时」。
 
 ### 3. run_form_submit：body 为 JSON 对象
 
@@ -57,6 +57,8 @@
 {"questionnaire_id":1,"score":8,"comment":"满意"}
 ```
 无额外字段时传 `{}`。
+
+**带上传文件时（易错）**：**表单（run_form_submit）和表格（run_table_create、run_table_update）** 里若有 `widget.type === "files"` 的字段（如 input_files、attachment、resume_file），该字段须传**对象**，不能传数组。正确结构：`{ "files": [ { "name": "xxx", "source_name": "原始文件名", "storage": "minio", "url": "...", "server_url": "...", "size": 12345, "is_uploaded": true } ], "widget_type": "files", "data_type": "struct" }`。用户消息附件中的文件放入该对象的 `files` 数组。run_table_create 的 body 数组里每条记录的 files 字段、run_table_update 的 updates 里对 files 字段的赋值，均按此对象结构。错误写法：`"input_files": [ {...} ]` 会报 unmarshal 错误。详见 read_doc("/builtin/doc/workspace/misc-tasks") 中「files 组件传参」。
 
 ### 4. run_chart_query：url_query 由该 Chart 的 Request 决定
 
@@ -68,6 +70,7 @@
 ```json
 [{"id":1,"updates":{"status":"已处理","title":"新标题"}}]
 ```
+若 updates 中含 files 类型字段，该字段须传对象 `{ "files": [...] }`，见上方「带上传文件时」。
 
 ---
 

@@ -157,6 +157,7 @@ type WorkspaceEnvData struct {
 	DirCode                string // {{DIR_CODE}}
 	FullCodePath           string // {{FULL_CODE_PATH}}
 	DirType                string // {{DIR_TYPE}}
+	HubSection             string // {{HUB_SECTION}} 当前目录是否已上架到应用中心（Hub）
 	DirDescription         string // {{DIR_DESCRIPTION}}
 	ChildrenSection        string // {{CHILDREN_SECTION}}
 	FunctionsSection       string // {{FUNCTIONS_SECTION}} 当前目录下的可执行函数（table/form/chart + full_code_path），执行模式可直接用
@@ -178,6 +179,7 @@ func FillWorkspaceEnvTemplate(data *WorkspaceEnvData) string {
 		"DIR_CODE":                  data.DirCode,
 		"FULL_CODE_PATH":            data.FullCodePath,
 		"DIR_TYPE":                  data.DirType,
+		"HUB_SECTION":               data.HubSection,
 		"DIR_DESCRIPTION":           data.DirDescription,
 		"CHILDREN_SECTION":          data.ChildrenSection,
 		"FUNCTIONS_SECTION":         data.FunctionsSection,

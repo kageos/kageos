@@ -1,6 +1,8 @@
 package v1
 
 import (
+	"fmt"
+
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
@@ -38,14 +40,8 @@ func (d *Directory) PublishDirectory(c *gin.Context) {
 		return
 	}
 
-	// 获取发布者用户名（从 context 或请求头）
-	publisherUsername := contextx.GetRequestUser(c)
-	if publisherUsername == "" {
-		publisherUsername = "system" // 默认值
-	}
-
 	ctx := contextx.ToContext(c)
-	resp, err := d.directoryService.PublishDirectory(ctx, &req, publisherUsername)
+	resp, err := d.directoryService.PublishDirectory(ctx, &req)
 	if err != nil {
 		logger.Errorf(ctx, "[Directory] 发布目录失败: %v", err)
 		response.FailWithMessage(c, err.Error())
@@ -73,14 +69,8 @@ func (d *Directory) UpdateDirectory(c *gin.Context) {
 		return
 	}
 
-	// 获取发布者用户名（从 context 或请求头）
-	publisherUsername := contextx.GetRequestUser(c)
-	if publisherUsername == "" {
-		publisherUsername = "system" // 默认值
-	}
-
 	ctx := contextx.ToContext(c)
-	resp, err := d.directoryService.UpdateDirectory(ctx, &req, publisherUsername)
+	resp, err := d.directoryService.UpdateDirectory(ctx, &req)
 	if err != nil {
 		logger.Errorf(ctx, "[Directory] 更新目录失败: %v", err)
 		response.FailWithMessage(c, err.Error())
@@ -119,7 +109,8 @@ func (d *Directory) GetDirectoryList(c *gin.Context) {
 	}
 
 	ctx := contextx.ToContext(c)
-	resp, err := d.directoryService.GetDirectoryList(ctx, req.Page, req.PageSize, req.Search, req.Category, req.PublisherUsername)
+	host := c.Request.Host
+	resp, err := d.directoryService.GetDirectoryList(ctx, req.Page, req.PageSize, req.Search, req.Category, req.PublisherUsername, req.FeeType, req.OrderBy, host)
 	if err != nil {
 		logger.Errorf(ctx, "[Directory] 获取目录列表失败: %v", err)
 		response.FailWithMessage(c, err.Error())
@@ -155,7 +146,8 @@ func (d *Directory) GetDirectoryDetail(c *gin.Context) {
 	}
 
 	ctx := contextx.ToContext(c)
-	resp, err := d.directoryService.GetDirectoryDetail(ctx, req.HubDirectoryID, req.FullCodePath, req.Version, req.IncludeTree)
+	host := c.Request.Host
+	resp, err := d.directoryService.GetDirectoryDetail(ctx, req.HubDirectoryID, req.FullCodePath, req.Version, req.IncludeTree, host)
 	if err != nil {
 		logger.Errorf(ctx, "[Directory] 获取目录详情失败: %v", err)
 		if err.Error() == "record not found" {
@@ -190,7 +182,7 @@ func (d *Directory) GetDirectoryVersions(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 	hubDirectoryID := req.HubDirectoryID
 	if hubDirectoryID <= 0 && req.FullCodePath != "" {
-		dir, err := d.directoryService.GetDirectoryDetail(ctx, 0, req.FullCodePath, "", false)
+		dir, err := d.directoryService.GetDirectoryDetail(ctx, 0, req.FullCodePath, "", false, c.Request.Host)
 		if err != nil || dir == nil {
 			response.FailWithMessage(c, "根据 full_code_path 获取目录失败")
 			return
@@ -208,4 +200,100 @@ func (d *Directory) GetDirectoryVersions(c *gin.Context) {
 		return
 	}
 	response.OkWithData(c, resp)
+}
+
+// IncrementDownloadCount 复制/下载时增加下载次数（公开接口，供 app-server 在 copy 成功后调用）
+func (d *Directory) IncrementDownloadCount(c *gin.Context) {
+	var req struct {
+		FullCodePath string `json:"full_code_path" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "缺少 full_code_path")
+		return
+	}
+	ctx := contextx.ToContext(c)
+	if err := d.directoryService.IncrementDownloadCount(ctx, req.FullCodePath); err != nil {
+		logger.Errorf(ctx, "[Directory] 增加下载次数失败: %v", err)
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.OkWithData(c, gin.H{"message": "ok"})
+}
+
+// Star 为目录加星（类似 GitHub star）
+func (d *Directory) Star(c *gin.Context) {
+	idStr := c.Param("id")
+	if idStr == "" {
+		response.FailWithMessage(c, "缺少目录 ID")
+		return
+	}
+	var id int64
+	if _, err := fmt.Sscanf(idStr, "%d", &id); err != nil || id <= 0 {
+		response.FailWithMessage(c, "无效的目录 ID")
+		return
+	}
+	username := contextx.GetRequestUser(c)
+	if username == "" {
+		response.FailWithMessage(c, "请先登录")
+		return
+	}
+	ctx := contextx.ToContext(c)
+	if err := d.directoryService.Star(ctx, id, username); err != nil {
+		logger.Errorf(ctx, "[Directory] 加星失败: %v", err)
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.OkWithData(c, gin.H{"message": "ok"})
+}
+
+// Unstar 取消星星
+func (d *Directory) Unstar(c *gin.Context) {
+	idStr := c.Param("id")
+	if idStr == "" {
+		response.FailWithMessage(c, "缺少目录 ID")
+		return
+	}
+	var id int64
+	if _, err := fmt.Sscanf(idStr, "%d", &id); err != nil || id <= 0 {
+		response.FailWithMessage(c, "无效的目录 ID")
+		return
+	}
+	username := contextx.GetRequestUser(c)
+	if username == "" {
+		response.FailWithMessage(c, "请先登录")
+		return
+	}
+	ctx := contextx.ToContext(c)
+	if err := d.directoryService.Unstar(ctx, id, username); err != nil {
+		logger.Errorf(ctx, "[Directory] 取消星星失败: %v", err)
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.OkWithData(c, gin.H{"message": "ok"})
+}
+
+// DeleteDirectory 删除应用（软删除：只改状态，数据保留，通过链接仍可访问；仅发布者可操作）
+func (d *Directory) DeleteDirectory(c *gin.Context) {
+	idStr := c.Param("id")
+	if idStr == "" {
+		response.FailWithMessage(c, "缺少目录 ID")
+		return
+	}
+	var id int64
+	if _, err := fmt.Sscanf(idStr, "%d", &id); err != nil || id <= 0 {
+		response.FailWithMessage(c, "无效的目录 ID")
+		return
+	}
+	username := contextx.GetRequestUser(c)
+	if username == "" {
+		response.FailWithMessage(c, "请先登录")
+		return
+	}
+	ctx := contextx.ToContext(c)
+	if err := d.directoryService.DeleteDirectory(ctx, id, username); err != nil {
+		logger.Errorf(ctx, "[Directory] 删除目录失败: %v", err)
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.OkWithData(c, gin.H{"message": "已下架"})
 }

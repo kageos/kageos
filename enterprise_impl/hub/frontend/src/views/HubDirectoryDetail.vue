@@ -27,7 +27,7 @@
             <h1 class="hero-title">{{ directoryDetail?.name || 'Hub 目录' }}</h1>
             <p class="hero-subtitle" v-if="directoryDetail?.full_code_path">
               <el-icon class="path-icon"><Link /></el-icon>
-              <span class="path-text">{{ directoryDetail.full_code_path }}</span>
+              <span class="path-text" :title="directoryDetail.full_code_path">{{ directoryDetail.full_code_path }}</span>
               <el-button
                 text
                 :icon="CopyDocument"
@@ -46,17 +46,6 @@
               >
                 <el-icon><Operation /></el-icon>
                 试用
-              </el-button>
-              <el-button
-                text
-                type="success"
-                @click="handleInstallDirectory"
-                class="action-link-inline"
-                size="small"
-                title="复制 Hub 链接，可在工作空间中粘贴使用"
-              >
-                <el-icon><CopyDocument /></el-icon>
-                复制使用
               </el-button>
             </p>
             <p class="hero-description" v-if="directoryDetail?.description">
@@ -80,6 +69,36 @@
               <el-tag type="info" size="large">
                 版本 {{ directoryDetail.version }}
               </el-tag>
+              <!-- GitHub 风格星标：点击切换加星/取消星 -->
+              <el-button
+                :loading="starLoading"
+                :class="['star-btn', { 'is-starred': localHasStarred }]"
+                size="default"
+                @click="localHasStarred ? handleUnstar() : handleStar()"
+              >
+                <el-icon class="star-icon"><Star /></el-icon>
+                <span class="star-count">{{ directoryDetail.star_count ?? 0 }}</span>
+              </el-button>
+            </div>
+            <!-- 安装链接：直接展示链接，方便用户看到格式 -->
+            <div v-if="installLink" class="install-link-section">
+              <span class="install-link-label">安装链接</span>
+              <div class="install-link-row">
+                <el-input
+                  :model-value="installLink"
+                  readonly
+                  class="install-link-input"
+                  size="default"
+                />
+                <el-button
+                  type="primary"
+                  :icon="CopyDocument"
+                  @click="handleCopyInstallLink"
+                >
+                  复制
+                </el-button>
+              </div>
+              <p class="install-link-hint">在工作空间中点击「从应用中心安装」后粘贴此链接即可</p>
             </div>
             <div v-if="directoryDetail?.version_description" class="hero-version-desc">
               <span class="version-desc-label">本版本更新说明：</span>
@@ -92,6 +111,17 @@
 
     <!-- 主要内容区域：左右分栏（:key 确保切换版本时详情与目录树整体刷新） -->
     <div class="main-content" :key="selectedVersion || 'latest'">
+      <!-- 已下架提示：数据保留，通过链接仍可访问 -->
+      <el-alert
+        v-if="directoryDetail?.status === 'deleted'"
+        type="info"
+        :closable="false"
+        show-icon
+        class="deleted-banner"
+      >
+        <template #title>该应用已下架，仍可通过本链接访问与复制。</template>
+      </el-alert>
+      <div class="main-content-inner">
       <!-- 左侧：目录树 -->
       <div class="tree-sidebar" v-if="directoryDetail?.directory_tree">
         <div class="sidebar-header">
@@ -169,7 +199,7 @@
               </div>
               <div class="overview-content">
                 <div class="overview-label">完整路径</div>
-                <div class="overview-value code-text">{{ directoryDetail.full_code_path }}</div>
+                <div class="overview-value code-text path-truncate" :title="directoryDetail.full_code_path">{{ directoryDetail.full_code_path }}</div>
               </div>
             </div>
 
@@ -183,22 +213,6 @@
                 <div class="overview-label">子项数量</div>
                 <div class="overview-value">
                   {{ getTotalChildrenCount() }} 项
-                </div>
-              </div>
-            </div>
-
-            <div class="overview-divider"></div>
-
-            <div class="overview-item">
-              <div class="overview-icon-wrapper stats-icon">
-                <el-icon class="overview-icon"><DataAnalysis /></el-icon>
-              </div>
-              <div class="overview-content">
-                <div class="overview-label">统计信息</div>
-                <div class="overview-value stats-text">
-                  目录: {{ directoryDetail.directory_count }} | 
-                  文件: {{ directoryDetail.file_count }} | 
-                  函数: {{ directoryDetail.function_count }}
                 </div>
               </div>
             </div>
@@ -332,6 +346,7 @@
           </div>
         </div>
       </div>
+      </div>
     </div>
 
     <!-- 详情对话框 -->
@@ -351,7 +366,7 @@
             </div>
             <div class="detail-header-info">
               <h3 class="detail-title">{{ selectedItem.name }}</h3>
-              <p class="detail-path">{{ selectedItem.path }}</p>
+              <p class="detail-path path-truncate" :title="selectedItem.path">{{ selectedItem.path }}</p>
             </div>
           </div>
           <div class="detail-section" v-if="selectedItem.description">
@@ -381,7 +396,7 @@
                   {{ getTemplateTypeText(selectedItem.template_type) }}
                 </el-tag>
               </div>
-              <p class="detail-path">{{ selectedItem.full_code_path || selectedItem.path }}</p>
+              <p class="detail-path path-truncate" :title="selectedItem.full_code_path || selectedItem.path">{{ selectedItem.full_code_path || selectedItem.path }}</p>
             </div>
           </div>
           <div class="detail-section" v-if="selectedItem.description">
@@ -412,7 +427,7 @@
             </div>
             <div class="detail-header-info">
               <h3 class="detail-title">{{ selectedItem.name || selectedItem.relative_path }}</h3>
-              <p class="detail-path">{{ selectedItem.relative_path }}</p>
+              <p class="detail-path path-truncate" :title="selectedItem.relative_path">{{ selectedItem.relative_path }}</p>
             </div>
           </div>
           <div class="detail-section" v-if="selectedItem.file_type">
@@ -451,11 +466,11 @@ import {
   Key,
   Link,
   Files,
-  DataAnalysis,
   CollectionTag,
   Operation,
   User,
-  Clock
+  Clock,
+  Star
 } from '@element-plus/icons-vue'
 import { ElMessage, ElTag } from 'element-plus'
 import {
@@ -463,6 +478,8 @@ import {
   getHubDirectoryDetailByPath,
   getHubDirectoryVersions,
   getHubDirectoryVersionsByPath,
+  starHubDirectory,
+  unstarHubDirectory,
   type HubDirectoryDetail,
   type DirectoryTreeNode,
   type HubDirectoryVersionItem
@@ -480,6 +497,8 @@ const loading = ref(false)
 const directoryDetail = ref<HubDirectoryDetail | null>(null)
 const versionList = ref<HubDirectoryVersionItem[]>([])
 const selectedVersion = ref<string>('') // 空表示当前查看的是「最新版本」
+const starLoading = ref(false)
+const localHasStarred = ref(false) // 本地加星状态（刷新后不持久，仅当次会话）
 
 // 详情对话框相关
 const detailDialogVisible = ref(false)
@@ -511,6 +530,7 @@ const loadDetailForVersion = async (version?: string) => {
       ? await getHubDirectoryDetail(pathOrId.id, true, version)
       : await getHubDirectoryDetailByPath(pathOrId as string, true, version)
     directoryDetail.value = detail
+    localHasStarred.value = detail.has_starred ?? false
     if (detail.publisher_username) {
       userInfoStore.getUserInfo(detail.publisher_username).catch((error: any) => {
         console.warn('[HubDirectoryDetail] 预加载用户信息失败:', error)
@@ -570,6 +590,7 @@ const loadDirectoryDetail = async () => {
       : getHubDirectoryVersionsByPath(pathOrId as string)
     const [detail, versionsResp] = await Promise.all([detailPromise, versionsPromise])
     directoryDetail.value = detail
+    localHasStarred.value = detail.has_starred ?? false
     versionList.value = versionsResp?.items ?? []
     // 预加载详情与各版本上传人信息（供 UserDisplay 展示）
     const usernames = new Set<string>()
@@ -864,51 +885,75 @@ const handleTryDirectory = () => {
   window.open(targetURL, '_blank')
 }
 
-// 复制 Hub 链接 - 生成 Hub 链接并复制到剪贴板
-const handleInstallDirectory = async () => {
-  if (!directoryDetail.value) {
-    ElMessage.warning('目录信息不可用')
-    return
-  }
-  
-  // 获取当前 Hub 的 host
-  const hubHost = getHubHost()
+// 安装链接（与详情同步，供展示与复制）
+const installLink = computed(() => {
+  if (!directoryDetail.value) return ''
+  const copyUrl = directoryDetail.value.copy_url
   const fullCodePath = directoryDetail.value.full_code_path
   const version = directoryDetail.value.version || ''
-  
-  // 生成 Hub 链接：hub://{host}/{full_code_path}@version
-  let hubLink = `hub://${hubHost}${fullCodePath}`
-  if (version) {
-    hubLink += `@${version}`
+  if (copyUrl && copyUrl.startsWith('hub://')) return copyUrl
+  const hubHost = getHubHost()
+  let link = `hub://${hubHost}${fullCodePath}`
+  if (version) link += `@${version}`
+  return link
+})
+
+// 复制安装链接到剪贴板
+const handleCopyInstallLink = async () => {
+  const link = installLink.value
+  if (!link || !link.startsWith('hub://')) {
+    ElMessage.warning('安装链接不可用')
+    return
   }
-  
   try {
-    // 复制到剪贴板
-    await navigator.clipboard.writeText(hubLink)
-    ElMessage.success({
-      message: `Hub 链接已复制到剪贴板：\n${hubLink}\n\n请在 OS 工作空间中使用"从应用中心安装"功能粘贴此链接`,
-      duration: 5000,
-      showClose: true
-    })
-  } catch (error) {
-    // 降级方案：使用传统方法
+    await navigator.clipboard.writeText(link)
+    ElMessage.success('已复制到剪贴板，可在工作空间「从应用中心安装」中粘贴')
+  } catch {
     const textArea = document.createElement('textarea')
-    textArea.value = hubLink
+    textArea.value = link
     textArea.style.position = 'fixed'
     textArea.style.opacity = '0'
     document.body.appendChild(textArea)
     textArea.select()
     try {
       document.execCommand('copy')
-      ElMessage.success({
-        message: `Hub 安装链接已复制到剪贴板！\n\n链接：${hubLink}\n\n下一步：\n1. 打开 OS 工作空间\n2. 点击"从应用中心安装"\n3. 粘贴此链接即可安装`,
-        duration: 6000,
-        showClose: true
-      })
-    } catch (err) {
-      ElMessage.error('复制失败，请手动复制：' + hubLink)
+      ElMessage.success('已复制到剪贴板')
+    } catch {
+      ElMessage.error('复制失败，请手动复制')
     }
     document.body.removeChild(textArea)
+  }
+}
+
+// 加星（需登录）
+const handleStar = async () => {
+  if (!directoryDetail.value?.id) return
+  starLoading.value = true
+  try {
+    await starHubDirectory(directoryDetail.value.id)
+    localHasStarred.value = true
+    await loadDetailForVersion(selectedVersion.value || undefined)
+    ElMessage.success('已加星')
+  } catch (e: any) {
+    ElMessage.error(e?.message || '加星失败')
+  } finally {
+    starLoading.value = false
+  }
+}
+
+// 取消星（需登录）
+const handleUnstar = async () => {
+  if (!directoryDetail.value?.id) return
+  starLoading.value = true
+  try {
+    await unstarHubDirectory(directoryDetail.value.id)
+    localHasStarred.value = false
+    await loadDetailForVersion(selectedVersion.value || undefined)
+    ElMessage.success('已取消星')
+  } catch (e: any) {
+    ElMessage.error(e?.message || '取消星失败')
+  } finally {
+    starLoading.value = false
   }
 }
 
@@ -1062,9 +1107,12 @@ onMounted(() => {
 
             .path-text {
               flex: 1;
+              min-width: 0;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              white-space: nowrap;
               font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
               color: var(--el-text-color-regular);
-              word-break: break-all;
             }
 
             .path-copy-btn {
@@ -1141,7 +1189,63 @@ onMounted(() => {
             display: flex;
             gap: 8px;
             flex-wrap: wrap;
+            align-items: center;
             margin-top: 12px;
+
+            .star-btn {
+              display: inline-flex;
+              align-items: center;
+              gap: 6px;
+              font-weight: 500;
+
+              .star-icon {
+                font-size: 16px;
+                color: var(--el-text-color-secondary);
+              }
+              .star-count {
+                font-size: 13px;
+              }
+              &.is-starred .star-icon {
+                color: var(--el-color-warning);
+              }
+              &.is-starred {
+                border-color: var(--el-color-warning-light-5);
+                color: var(--el-color-warning);
+              }
+            }
+          }
+
+          .install-link-section {
+            margin-top: 16px;
+            padding: 12px 14px;
+            background: var(--el-fill-color-lighter);
+            border-radius: 8px;
+            border: 1px solid var(--el-border-color-lighter);
+
+            .install-link-label {
+              display: block;
+              font-size: 12px;
+              color: var(--el-text-color-secondary);
+              margin-bottom: 8px;
+            }
+            .install-link-row {
+              display: flex;
+              gap: 8px;
+              align-items: center;
+
+              .install-link-input {
+                flex: 1;
+                :deep(.el-input__wrapper) {
+                  font-family: var(--el-font-family-mono);
+                  font-size: 13px;
+                }
+              }
+            }
+            .install-link-hint {
+              margin: 8px 0 0 0;
+              font-size: 12px;
+              color: var(--el-text-color-secondary);
+            }
           }
 
           .hero-version-desc {
@@ -1170,7 +1274,21 @@ onMounted(() => {
     flex: 1;
     min-height: 0; // 确保 flex 子元素可以收缩
     display: flex;
+    flex-direction: column;
     overflow: hidden;
+
+    .deleted-banner {
+      flex-shrink: 0;
+      margin: 0 24px 16px;
+    }
+
+    // 下方左右分栏容器（树 + 详情）
+    .main-content-inner {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      overflow: hidden;
+    }
 
     // 左侧：目录树
     .tree-sidebar {
@@ -1445,15 +1563,6 @@ onMounted(() => {
                 }
               }
 
-              &.stats-icon {
-                background: linear-gradient(135deg, var(--el-color-info-light-8), var(--el-color-info-light-9));
-
-                .overview-icon {
-                  font-size: 24px;
-                  color: var(--el-color-info);
-                }
-              }
-
               &.user-icon {
                 background: linear-gradient(135deg, var(--el-color-success-light-8), var(--el-color-success-light-9));
 
@@ -1496,9 +1605,11 @@ onMounted(() => {
                   font-size: 16px;
                 }
 
-                &.stats-text {
-                  font-size: 14px;
-                  color: var(--el-text-color-regular);
+                &.path-truncate {
+                  overflow: hidden;
+                  text-overflow: ellipsis;
+                  white-space: nowrap;
+                  max-width: 100%;
                 }
               }
             }
@@ -2000,10 +2111,15 @@ onMounted(() => {
         font-size: 13px;
         color: var(--el-text-color-secondary);
         font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
-        word-break: break-all;
         background: var(--el-fill-color-lighter);
         padding: 8px 12px;
         border-radius: 6px;
+
+        &.path-truncate {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
       }
     }
   }

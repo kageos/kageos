@@ -100,3 +100,28 @@ func JWTAuth() gin.HandlerFunc {
 		c.Abort()
 	}
 }
+
+// JWTAuthOptional 可选 JWT 认证：有 token 则解析并设置用户，无 token 不拦截，始终 c.Next()
+// 用于公开接口（如详情页）需要「有登录则返回 has_starred 等」的场景
+func JWTAuthOptional() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		requestUser := c.GetHeader(contextx.RequestUserHeader)
+		if requestUser == "" {
+			requestUser = c.GetHeader("X-Username")
+		}
+		if requestUser != "" {
+			c.Set(contextx.RequestUserHeader, requestUser)
+			c.Next()
+			return
+		}
+		token := c.GetHeader(contextx.TokenHeader)
+		if token != "" {
+			jwtService := service.NewJWTService()
+			claims, err := jwtService.ValidateToken(token)
+			if err == nil {
+				c.Set(contextx.RequestUserHeader, claims.Username)
+			}
+		}
+		c.Next()
+	}
+}

@@ -24,7 +24,8 @@ func (t Time) GetUnix() int64 {
 }
 
 func (t Time) MarshalJSON() ([]byte, error) {
-	return []byte(t.String()), nil
+	// 输出合法 JSON 字符串值，不要用 String()（%q 会多一层引号导致 API 返回 \"...\"）
+	return []byte(`"` + time.Time(t).Format(ctLayout) + `"`), nil
 }
 
 func (t Time) String() string {

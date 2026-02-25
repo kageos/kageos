@@ -6,10 +6,19 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
 )
 
+// Hub 目录状态（软删除：只改状态保留数据，链接仍可访问）
+const (
+	HubDirectoryStatusActive  = "active"
+	HubDirectoryStatusDeleted = "deleted"
+)
+
 // HubDirectory Hub 目录模型
 // 存储目录的元信息和层级关系
 type HubDirectory struct {
 	models.Base
+
+	// 状态：active=展示在列表；deleted=已下架，列表不展示但通过链接仍可访问
+	Status string `gorm:"type:varchar(20);default:active;index" json:"status"`
 
 	// 基本信息
 	Name        string `gorm:"type:varchar(255);not null" json:"name"`
@@ -36,10 +45,11 @@ type HubDirectory struct {
 	ServiceFeePersonal   float64 `gorm:"type:decimal(10,2)" json:"service_fee_personal"`   // 个人用户服务费
 	ServiceFeeEnterprise float64 `gorm:"type:decimal(10,2)" json:"service_fee_enterprise"` // 企业用户服务费
 
-	// 统计信息
-	DownloadCount int     `gorm:"default:0" json:"download_count"`
-	TrialCount    int     `gorm:"default:0" json:"trial_count"`
-	Rating        float64 `gorm:"type:decimal(3,2)" json:"rating"`
+	// 统计信息（star_count 冗余在表内，便于排序与展示；加星/取消时由服务层维护）
+	StarCount      int     `gorm:"default:0" json:"star_count"`
+	DownloadCount  int     `gorm:"default:0" json:"download_count"`
+	TrialCount     int     `gorm:"default:0" json:"trial_count"`
+	Rating         float64 `gorm:"type:decimal(3,2)" json:"rating"`
 
 	// 版本信息
 	Version    string `gorm:"type:varchar(50);not null" json:"version"` // 目录版本号（如 v1）

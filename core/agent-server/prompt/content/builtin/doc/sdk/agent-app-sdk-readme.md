@@ -171,7 +171,7 @@ Attachment *types.Files `gorm:"type:json" widget:"name:附件;type:files"`
 | user / users | 用户选择 | default:Me()、Me(),MyLeader() 等 |
 | department / departments | 部门选择 | default:MyDepartment()，max_count 等 |
 | table | 子表（Form 请求） | 数组结构体，可配 OnSelectFuzzy |
-| form | 子表单（Form 响应） | 嵌套结构体展示 |
+| form | 子表单（Form 响应） | 嵌套结构体展示；**必须是具名结构体，禁止 map**（见下「form/table 结构约定」） |
 | link | 跳转链接 | 列表/表单中跳转到另一 GET 或 Form、或外链；不落库，后端 BuildFunctionUrlWithText 赋值 |
 
 **timestamp 组件约定（必读）**：**timestamp 组件严格要求使用毫秒时间戳（毫秒级 Unix 时间戳），禁止使用秒级时间戳。** 后端无需在代码里做日期格式化，直接使用 **int64** 类型存、传**毫秒时间戳**即可，前端会根据 widget 的 `format` 自动格式化展示；若误用秒级时间戳，前端展示、筛选、排序会错误。
@@ -179,6 +179,13 @@ Attachment *types.Files `gorm:"type:json" widget:"name:附件;type:files"`
 - **正确**：`BidTime int64 \`json:"bid_time" widget:"name:出价时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss"\`` —— 字段类型为 int64，值为毫秒时间戳，后端只读写时间戳，不转字符串。
 - **错误**：`BidTime string \`json:"bid_time" widget:"name:出价时间;type:timestamp;format:YYYY-MM-DD HH:mm:ss"\`` —— 不要用 string 类型，也不要后端格式化成 "YYYY-MM-DD HH:mm:ss" 等字符串；timestamp 的 format 仅用于前端展示，后端只返回时间戳。
 - **错误**：使用秒级时间戳（如 `time.Now().Unix()`）—— 必须用毫秒级（如 `time.Now().UnixMilli()` 或 gorm 的 `autoCreateTime:milli` / `autoUpdateTime:milli`）。
+
+**form / table 结构约定（禁止 map，必读）**：使用 `type:form`（子表单）或 `type:table`（子表）时，**字段必须是具名、固定字段的结构体类型**，**禁止使用 `map[string]interface{}`**。前端和 SDK 依赖结构体标签（如 `widget`、`json`）来生成表单/表格列；map 的键在编译期不确定，无法解析出固定 schema，会导致展示异常或无法正确渲染。
+
+- **错误（Badcase）**：`BasicInfo map[string]interface{} \`json:"basic_info" widget:"name:基本信息;type:form"\``、`FileInfo map[string]interface{} \`json:"file_info" widget:"name:文件信息;type:form"\`` —— 不要对 form/table 使用 map。
+- **正确**：为「基本信息」「文件信息」等分别定义**具名结构体**，字段固定、带 widget 标签，例如：
+  - 基本信息：`type BasicInfoStruct struct { Format string \`json:"format" widget:"name:图片格式;type:text"\`; Width string \`...\`; Height string \`...\`; ... }`，字段类型用 `BasicInfoStruct`。
+  - 文件信息：`type FileInfoStruct struct { FileName string \`json:"file_name" widget:"name:文件名;type:text"\`; FileSize string \`...\`; ... }`，字段类型用 `FileInfoStruct`。
 
 **files 类型约定**：使用 `type:files` 时字段类型必须为 `*types.Files`，需在文件顶部 **import** 包：`import "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"`。否则会编译报错「undefined: types」。完整上传、下载与存储流程见第六节「文件上传、下载与存储」。
 

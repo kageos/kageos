@@ -142,6 +142,11 @@ type HubDirectoryDTO struct {
 	DirectoryCount int `json:"directory_count"` // 子目录数量
 	FileCount      int `json:"file_count"`      // 文件数量
 	FunctionCount  int `json:"function_count"`  // 函数数量
+
+	// 复制链接（用于 copy_directory 或前端「复制链接」）
+	CopyURL string `json:"copy_url"` // 格式 hub://host/full_code_path@version
+	// 星星数（类似 GitHub star，便于排序与推荐）
+	StarCount int `json:"star_count"`
 }
 
 // HubDirectoryDetailDetailResp Hub 目录详情响应

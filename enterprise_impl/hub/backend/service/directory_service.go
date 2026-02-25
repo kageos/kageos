@@ -8,30 +8,38 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/hub/backend/dto"
 	"github.com/ai-agent-os/hub/backend/model"
 	"github.com/ai-agent-os/hub/backend/repository"
 )
 
-// HubDirectoryService Hub 目录服务（两表方案：仅目录 + 快照）
+// HubDirectoryService Hub 目录服务（两表方案：仅目录 + 快照；星星单独表）
 type HubDirectoryService struct {
 	directoryRepo *repository.HubDirectoryRepository
 	snapshotRepo  *repository.HubSnapshotRepository
+	starRepo      *repository.HubDirectoryStarRepository
 }
 
 // NewHubDirectoryService 创建 Hub 目录服务（依赖注入）
 func NewHubDirectoryService(
 	directoryRepo *repository.HubDirectoryRepository,
 	snapshotRepo *repository.HubSnapshotRepository,
+	starRepo *repository.HubDirectoryStarRepository,
 ) *HubDirectoryService {
 	return &HubDirectoryService{
 		directoryRepo: directoryRepo,
 		snapshotRepo:  snapshotRepo,
+		starRepo:      starRepo,
 	}
 }
 
-// PublishDirectory 发布目录到 Hub
-func (s *HubDirectoryService) PublishDirectory(ctx context.Context, req *dto.PublishHubDirectoryRequest, publisherUsername string) (*dto.PublishHubDirectoryResponse, error) {
+// PublishDirectory 发布目录到 Hub（发布者从 ctx 获取，与 app-server 一致）
+func (s *HubDirectoryService) PublishDirectory(ctx context.Context, req *dto.PublishHubDirectoryRequest) (*dto.PublishHubDirectoryResponse, error) {
+	publisherUsername := contextx.GetRequestUser(ctx)
+	if publisherUsername == "" {
+		return nil, fmt.Errorf("未获取到发布者信息，请确认已登录")
+	}
 	// 1. 解析版本号
 	version := req.Version
 	if version == "" {
@@ -65,18 +73,19 @@ func (s *HubDirectoryService) PublishDirectory(ctx context.Context, req *dto.Pub
 	// 6. 创建 Hub 目录记录
 	now := time.Now()
 	directory := &model.HubDirectory{
-		Name:                 req.Name,
-		Description:          req.Description,
-		Category:             req.Category,
-		Tags:                 strings.Join(req.Tags, ","),
-		PackagePath:          packagePath,
-		FullCodePath:         rootPath,
-		ParentDirID:          0, // 根目录
-		SourceUser:           req.SourceUser,
-		SourceApp:            req.SourceApp,
-		SourceDirectoryPath:  req.SourceDirectoryPath,
-		PublisherUsername:    publisherUsername,
-		PublishedAt:          &now,
+		Status:                model.HubDirectoryStatusActive,
+		Name:                  req.Name,
+		Description:           req.Description,
+		Category:              req.Category,
+		Tags:                  strings.Join(req.Tags, ","),
+		PackagePath:           packagePath,
+		FullCodePath:          rootPath,
+		ParentDirID:           0, // 根目录
+		SourceUser:            req.SourceUser,
+		SourceApp:             req.SourceApp,
+		SourceDirectoryPath:   req.SourceDirectoryPath,
+		PublisherUsername:     publisherUsername,
+		PublishedAt:           &now,
 		ServiceFeePersonal:   req.ServiceFeePersonal,
 		ServiceFeeEnterprise: req.ServiceFeeEnterprise,
 		Version:              version,
@@ -131,8 +140,12 @@ func (s *HubDirectoryService) PublishDirectory(ctx context.Context, req *dto.Pub
 	}, nil
 }
 
-// UpdateDirectory 更新目录到 Hub（用于 push）
-func (s *HubDirectoryService) UpdateDirectory(ctx context.Context, req *dto.UpdateHubDirectoryRequest, publisherUsername string) (*dto.UpdateHubDirectoryResponse, error) {
+// UpdateDirectory 更新目录到 Hub（用于 push；发布者从 ctx 获取）
+func (s *HubDirectoryService) UpdateDirectory(ctx context.Context, req *dto.UpdateHubDirectoryRequest) (*dto.UpdateHubDirectoryResponse, error) {
+	publisherUsername := contextx.GetRequestUser(ctx)
+	if publisherUsername == "" {
+		return nil, fmt.Errorf("未获取到发布者信息，请确认已登录")
+	}
 	// 1. 获取现有目录
 	existingDirectory, err := s.directoryRepo.GetByID(ctx, req.HubDirectoryID)
 	if err != nil {
@@ -244,17 +257,18 @@ func (s *HubDirectoryService) UpdateDirectory(ctx context.Context, req *dto.Upda
 	}, nil
 }
 
-// GetDirectoryList 获取目录列表
-func (s *HubDirectoryService) GetDirectoryList(ctx context.Context, page, pageSize int, search, category, publisherUsername string) (*dto.HubDirectoryListResponse, error) {
-	directories, total, err := s.directoryRepo.GetList(ctx, page, pageSize, search, category, publisherUsername)
+// GetDirectoryList 获取目录列表；host 用于生成每条记录的 copy_url
+// feeType: 空=全部，free=免费，paid=收费；orderBy: 空或 latest=最新，hot=热门
+func (s *HubDirectoryService) GetDirectoryList(ctx context.Context, page, pageSize int, search, category, publisherUsername, feeType, orderBy string, host string) (*dto.HubDirectoryListResponse, error) {
+	directories, total, err := s.directoryRepo.GetList(ctx, page, pageSize, search, category, publisherUsername, feeType, orderBy)
 	if err != nil {
 		return nil, fmt.Errorf("获取目录列表失败: %w", err)
 	}
 
-	// 转换为 DTO
+	// 转换为 DTO（含 copy_url；star_count 取自目录表冗余字段）
 	items := make([]*dto.HubDirectoryDTO, len(directories))
 	for i, dir := range directories {
-		items[i] = s.toDirectoryDTO(dir)
+		items[i] = s.toDirectoryDTO(dir, host)
 	}
 
 	return &dto.HubDirectoryListResponse{
@@ -266,8 +280,9 @@ func (s *HubDirectoryService) GetDirectoryList(ctx context.Context, page, pageSi
 }
 
 // GetDirectoryDetail 获取目录详情（支持通过 ID 或 full-code-path 查询，支持版本号）
-// includeTree: 是否包含目录树结构（如果为 true，DirectoryTree 中的 Files 字段会包含文件内容）
-func (s *HubDirectoryService) GetDirectoryDetail(ctx context.Context, hubDirectoryID int64, fullCodePath string, version string, includeTree bool) (*dto.HubDirectoryDetailDTO, error) {
+// host 用于生成 copy_url；includeTree: 是否包含目录树结构；当前用户从 ctx 获取（与 app-server 一致，网关已带 X-Request-User），有则填充 has_starred
+func (s *HubDirectoryService) GetDirectoryDetail(ctx context.Context, hubDirectoryID int64, fullCodePath string, version string, includeTree bool, host string) (*dto.HubDirectoryDetailDTO, error) {
+	username := contextx.GetRequestUser(ctx)
 	// 1. 获取目录信息（优先使用 full-code-path，如果为空则使用 ID）
 	var directory *model.HubDirectory
 	var err error
@@ -303,9 +318,14 @@ func (s *HubDirectoryService) GetDirectoryDetail(ctx context.Context, hubDirecto
 		}
 	}
 
-	// 3. 构建详情 DTO（若指定了版本，优先用快照里存的该版本详情，否则用目录表）
+	// 3. 构建详情 DTO（star_count 取自目录表；has_starred 需查 star 表）
 	detail := &dto.HubDirectoryDetailDTO{
-		HubDirectoryDTO: *s.toDirectoryDTO(directory),
+		HubDirectoryDTO: *s.toDirectoryDTO(directory, host),
+	}
+	if s.starRepo != nil && username != "" {
+		if ok, _ := s.starRepo.HasStarred(ctx, directory.ID, username); ok {
+			detail.HasStarred = true
+		}
 	}
 	if snapshot != nil && version != "" {
 		detail.Version = snapshot.Version
@@ -392,7 +412,8 @@ func (s *HubDirectoryService) ListDirectoryVersions(ctx context.Context, hubDire
 }
 
 // toDirectoryDTO 转换为目录 DTO
-func (s *HubDirectoryService) toDirectoryDTO(dir *model.HubDirectory) *dto.HubDirectoryDTO {
+// toDirectoryDTO 将模型转为 DTO；host 用于生成 copy_url（格式 hub://host/full_code_path@version），为空则不填 copy_url
+func (s *HubDirectoryService) toDirectoryDTO(dir *model.HubDirectory, host string) *dto.HubDirectoryDTO {
 	tags := []string{}
 	if dir.Tags != "" {
 		tags = strings.Split(dir.Tags, ",")
@@ -403,10 +424,17 @@ func (s *HubDirectoryService) toDirectoryDTO(dir *model.HubDirectory) *dto.HubDi
 		publishedAt = dir.PublishedAt.Format(time.RFC3339)
 	}
 
+	copyURL := ""
+	if host != "" && dir.FullCodePath != "" {
+		path := strings.TrimPrefix(dir.FullCodePath, "/")
+		copyURL = fmt.Sprintf("hub://%s/%s@%s", host, path, dir.Version)
+	}
+
 	return &dto.HubDirectoryDTO{
 		ID:                   dir.ID,
-		CreatedAt:            dir.CreatedAt.String(),
-		UpdatedAt:            dir.UpdatedAt.String(),
+		CreatedAt:            dir.CreatedAt,
+		UpdatedAt:            dir.UpdatedAt,
+		Status:               dir.Status,
 		Name:                 dir.Name,
 		Description:          dir.Description,
 		Category:             dir.Category,
@@ -428,6 +456,8 @@ func (s *HubDirectoryService) toDirectoryDTO(dir *model.HubDirectory) *dto.HubDi
 		DirectoryCount:       dir.DirectoryCount,
 		FileCount:            dir.FileCount,
 		FunctionCount:        dir.FunctionCount,
+		CopyURL:              copyURL,
+		StarCount:            dir.StarCount,
 	}
 }
 
@@ -614,6 +644,59 @@ func extractPackagePath(fullPath, user, app string) string {
 		return strings.TrimPrefix(fullPath, prefix+"/")
 	}
 	return fullPath
+}
+
+// IncrementDownloadCount 复制/下载时增加该目录的下载次数（按 full_code_path 定位）
+func (s *HubDirectoryService) IncrementDownloadCount(ctx context.Context, fullCodePath string) error {
+	return s.directoryRepo.IncrementDownloadCount(ctx, fullCodePath)
+}
+
+// Star 为目录加星（类似 GitHub star）
+func (s *HubDirectoryService) Star(ctx context.Context, hubDirectoryID int64, username string) error {
+	if s.starRepo == nil {
+		return fmt.Errorf("star 功能未启用")
+	}
+	created, err := s.starRepo.Star(ctx, hubDirectoryID, username)
+	if err != nil {
+		return err
+	}
+	if created {
+		return s.directoryRepo.IncrementStarCount(ctx, hubDirectoryID)
+	}
+	return nil
+}
+
+// Unstar 取消星星
+func (s *HubDirectoryService) Unstar(ctx context.Context, hubDirectoryID int64, username string) error {
+	if s.starRepo == nil {
+		return fmt.Errorf("star 功能未启用")
+	}
+	if err := s.starRepo.Unstar(ctx, hubDirectoryID, username); err != nil {
+		return err
+	}
+	return s.directoryRepo.DecrementStarCount(ctx, hubDirectoryID)
+}
+
+// DeleteDirectory 删除应用（软删除：只改状态为 deleted，数据保留，通过链接仍可访问；仅发布者可操作）
+func (s *HubDirectoryService) DeleteDirectory(ctx context.Context, hubDirectoryID int64, username string) error {
+	if hubDirectoryID <= 0 {
+		return fmt.Errorf("目录 ID 无效")
+	}
+	if username == "" {
+		return fmt.Errorf("请先登录")
+	}
+	dir, err := s.directoryRepo.GetByID(ctx, hubDirectoryID)
+	if err != nil || dir == nil {
+		return fmt.Errorf("目录不存在")
+	}
+	if dir.PublisherUsername != username {
+		return fmt.Errorf("仅发布者可下架该应用")
+	}
+	if dir.Status == model.HubDirectoryStatusDeleted {
+		return nil // 已下架，幂等
+	}
+	dir.Status = model.HubDirectoryStatusDeleted
+	return s.directoryRepo.Update(ctx, dir)
 }
 
 // extractVersionNum 从版本号字符串提取数字部分

@@ -27,7 +27,7 @@
 
 ## files 组件传参（易错）
 
-request 里凡是 `widget.type === "files"` 的字段，传参时须为**对象**（不是数组），内含 `files` 数组：
+**表单（run_form_submit）的 request 与表格（run_table_create、run_table_update）的 model** 里凡是 `widget.type === "files"` 的字段，传参时须为**对象**（不是数组），内含 `files` 数组：
 
 **正确**：
 ```json

@@ -45,7 +45,7 @@
           filterable
           allow-create
           default-first-option
-          placeholder="输入标签后按回车添加"
+          placeholder="可输入自定义标签按回车添加，或从常用标签中选择"
           style="width: 100%"
         >
           <el-option
@@ -111,19 +111,6 @@
           企业用户克隆时收取的服务费
         </el-text>
       </el-form-item>
-
-      <!-- 私有化部署（可选） -->
-      <el-form-item label="API Key">
-        <el-input
-          v-model="form.api_key"
-          type="password"
-          placeholder="私有化部署需要填写 API Key（可选）"
-          show-password
-        />
-        <el-text type="info" size="small" style="display: block; margin-top: 5px">
-          如果是私有化部署，需要填写 Hub API Key
-        </el-text>
-      </el-form-item>
     </el-form>
 
     <template #footer>
@@ -174,7 +161,6 @@ const form = ref<Partial<PublishDirectoryToHubReq>>({
   tags: [],
   service_fee_personal: 0,
   service_fee_enterprise: 0,
-  api_key: '',
 })
 
 // 选中的目录路径
@@ -238,7 +224,6 @@ const initForm = async () => {
     tags: node.tags ? node.tags.split(',').filter(Boolean) : [],
     service_fee_personal: 0,
     service_fee_enterprise: 0,
-    api_key: '',
   }
 
   // 设置默认目录名称
@@ -277,7 +262,6 @@ const handleSubmit = async () => {
         tags: form.value.tags || [],
         service_fee_personal: form.value.service_fee_personal || 0,
         service_fee_enterprise: form.value.service_fee_enterprise || 0,
-        ...(form.value.api_key ? { api_key: form.value.api_key } : {})
       }
 
       // 调用发布接口
@@ -324,7 +308,6 @@ const handleClose = () => {
     tags: [],
     service_fee_personal: 0,
     service_fee_enterprise: 0,
-    api_key: '',
   }
   selectedDirectoryPath.value = ''
   formRef.value?.resetFields()

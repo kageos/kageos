@@ -20,8 +20,9 @@ import (
 //     关联：HubDirectoryID -> HubDirectory。
 func InitTables(db *gorm.DB) error {
 	return db.AutoMigrate(
-		&HubDirectory{}, // 1. 已发布目录元信息
-		&HubSnapshot{}, // 2. 每版本一条，三字段 + SnapshotData 兼容
+		&HubDirectory{},     // 1. 已发布目录元信息
+		&HubSnapshot{},     // 2. 每版本一条，三字段 + SnapshotData 兼容
+		&HubDirectoryStar{}, // 3. 目录星星记录（类似 GitHub star）
 	)
 }
 

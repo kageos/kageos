@@ -45,7 +45,7 @@
           filterable
           allow-create
           default-first-option
-          placeholder="留空则保持原值，输入标签后按回车添加"
+          placeholder="留空则保持原值，可输入自定义标签按回车添加，或从常用标签中选择"
           style="width: 100%"
         >
           <el-option
@@ -127,19 +127,6 @@
         />
         <span style="margin-left: 10px; color: #909399">元</span>
       </el-form-item>
-
-      <!-- 私有化部署（可选） -->
-      <el-form-item label="API Key">
-        <el-input
-          v-model="form.api_key"
-          type="password"
-          placeholder="私有化部署需要填写 API Key（可选）"
-          show-password
-        />
-        <el-text type="info" size="small" style="display: block; margin-top: 5px">
-          如果是私有化部署，需要填写 Hub API Key
-        </el-text>
-      </el-form-item>
     </el-form>
 
     <template #footer>
@@ -191,7 +178,6 @@ const form = ref<Partial<PushDirectoryToHubReq>>({
   service_fee_personal: 0,
   service_fee_enterprise: 0,
   update_description: '',
-  api_key: '',
 })
 
 // 选中的目录路径、当前版本、下一版本（自动递增，只读展示）
@@ -265,7 +251,6 @@ const initForm = async () => {
       service_fee_personal: info.service_fee_personal ?? 0,
       service_fee_enterprise: info.service_fee_enterprise ?? 0,
       update_description: '',
-      api_key: '',
     }
   } catch (e: any) {
     ElMessage.warning(e?.message || '获取已发布信息失败，可手动填写后推送')
@@ -305,7 +290,6 @@ const handleSubmit = async () => {
         ...(form.value.service_fee_personal ? { service_fee_personal: form.value.service_fee_personal } : {}),
         ...(form.value.service_fee_enterprise ? { service_fee_enterprise: form.value.service_fee_enterprise } : {}),
         ...(form.value.update_description ? { update_description: form.value.update_description } : {}),
-        ...(form.value.api_key ? { api_key: form.value.api_key } : {}),
       }
 
       // 调用推送接口
@@ -353,7 +337,6 @@ const handleClose = () => {
     service_fee_personal: 0,
     service_fee_enterprise: 0,
     update_description: '',
-    api_key: '',
   }
   selectedDirectoryPath.value = ''
   currentVersion.value = ''

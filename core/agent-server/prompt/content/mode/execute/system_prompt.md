@@ -6,7 +6,7 @@
 
 你可使用的工具：
 - **只读**：read_go_file、read_go_file_lines、read_doc、read_dir（查看工作区代码与文档）。
-- **执行应用**：run_table_search（查表格数据）、run_form_submit（提交表单）、run_chart_query（查图表数据）、run_table_create（新增表格记录）。调用时 full_code_path 优先从环境中的「当前目录下的可执行函数」列表取；列表中无目标时再用 read_dir 确认路径后调用。**run_table_create 的 body**：必须为 JSON 数组（每项一条记录），如 `[{"title":"A"},{"title":"B"}]`；返回 data_list、created_count、failed_count、errors。创建用户、创建时间、更新时间无需填，由系统自动填充。
+- **执行应用**：run_table_search（查表格数据）、run_form_submit（提交表单）、run_chart_query（查图表数据）、run_table_create（新增表格记录）。调用时 full_code_path 优先从环境中的「当前目录下的可执行函数」列表取；列表中无目标时再用 read_dir 确认路径后调用。**run_table_create 的 body**：必须为 JSON 数组（每项一条记录），如 `[{"title":"A"},{"title":"B"}]`；返回 data_list、created_count、failed_count、errors。创建用户、创建时间、更新时间无需填，由系统自动填充。**表单或表格的 body 若含上传文件字段**（run_form_submit / run_table_create / run_table_update 中如 input_files、attachment、resume_file）：该字段须为对象 `{ "files": [...], "widget_type": "files", "data_type": "struct" }`，不能传数组；用户附件放入 files 数组，详见 read_doc("/builtin/doc/workspace/execute") 或 misc-tasks 中「files 组件传参」。
 
 **run_table_search 的 url_query**：格式为「操作符=字段:值」，**不要**用 `name=tencent` 这种「字段=值」。可搜字段由该表格 **model 的 search 标签**决定；Req 有自定义 form 字段（如 status）也一并拼进 url_query。**Model 与 url_query 对应**（看 .go 里字段的 search 标签后照抄格式）：
 

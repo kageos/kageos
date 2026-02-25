@@ -1,6 +1,10 @@
 package dto
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
+)
 
 // DirectoryFileSnapshot 目录文件快照（用于上传）
 type DirectoryFileSnapshot struct {
@@ -125,9 +129,12 @@ type UpdateHubDirectoryResponse struct {
 
 // HubDirectoryDTO Hub 目录 DTO（用于 API 返回）
 type HubDirectoryDTO struct {
-	ID        int64   `json:"id"`
-	CreatedAt string  `json:"created_at"`
-	UpdatedAt string  `json:"updated_at"`
+	ID        int64       `json:"id"`
+	CreatedAt models.Time `json:"created_at"`
+	UpdatedAt models.Time `json:"updated_at"`
+
+	// 状态：active=在架；deleted=已下架（列表不展示，通过链接仍可访问）
+	Status string `json:"status"`
 
 	// 基本信息
 	Name        string   `json:"name"`
@@ -165,6 +172,16 @@ type HubDirectoryDTO struct {
 	DirectoryCount int `json:"directory_count"` // 子目录数量
 	FileCount      int `json:"file_count"`      // 文件数量
 	FunctionCount  int `json:"function_count"`  // 函数数量
+
+	// 复制链接（用于 copy_directory 工具或前端「复制链接」）
+	// 格式：hub://{host}/{full_code_path}@{version}，可直接用于从 Hub 复制到本地
+	CopyURL string `json:"copy_url"`
+
+	// 星星数（类似 GitHub star，便于排序与推荐）
+	StarCount int `json:"star_count"`
+
+	// 当前用户是否已加星（仅详情返回；未登录或未加星为 false）
+	HasStarred bool `json:"has_starred"`
 }
 
 // GetHubDirectoryDetailRequest 获取目录详情请求（通用 DTO）
@@ -214,11 +231,13 @@ type DirectoryFileDTO struct {
 
 // GetHubDirectoryListRequest 获取目录列表请求（通用 DTO）
 type GetHubDirectoryListRequest struct {
-	Page             int    `json:"page" form:"page"`                           // 页码
-	PageSize         int    `json:"page_size" form:"page_size"`                 // 每页数量
-	Search           string `json:"search" form:"search"`                       // 搜索关键词
-	Category         string `json:"category" form:"category"`                   // 分类
-	PublisherUsername string `json:"publisher_username" form:"publisher_username"` // 发布者用户名
+	Page              int    `json:"page" form:"page"`                                   // 页码
+	PageSize          int    `json:"page_size" form:"page_size"`                         // 每页数量
+	Search            string `json:"search" form:"search"`                               // 搜索关键词
+	Category          string `json:"category" form:"category"`                          // 分类
+	PublisherUsername string `json:"publisher_username" form:"publisher_username"`       // 发布者用户名
+	FeeType           string `json:"fee_type" form:"fee_type"`                          // 费用筛选：空=全部，free=免费，paid=收费
+	OrderBy           string `json:"order_by" form:"order_by"`                          // 排序：空或 latest=最新(created_at DESC)，hot=热门(star+download 优先)
 }
 
 // HubDirectoryListResponse Hub 目录列表响应

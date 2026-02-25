@@ -137,7 +137,6 @@
         >
           <div class="field-label">{{ subField.name }}</div>
           <div class="field-value">
-            <!-- 🔥 递归渲染子组件 -->
             <component
               :is="getWidgetComponent(subField.widget?.type || 'input')"
               :field="subField"
@@ -205,13 +204,6 @@
                 :label="subField.name"
                 :required="isFieldRequired(subField)"
               >
-                <!-- 
-                  🔥 递归渲染子组件，根据上下文使用 edit 或 response 模式
-                  
-                  drawerMode 的值由 isInEditContext 决定：
-                  - 编辑上下文：drawerMode = 'edit' → 可编辑，支持数据修改
-                  - 响应上下文：drawerMode = 'response' → 只读，仅展示数据
-                -->
                 <component
                   :is="getWidgetComponent(subField.widget?.type || 'input')"
                   :field="subField"
