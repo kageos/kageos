@@ -380,69 +380,93 @@ func (a *App) getApis() (apis []*ApiInfo, createTables []interface{}, err error)
 
 // onAppUpdate 处理当api更新时候触发
 func (a *App) onAppUpdate(msg *nats.Msg) {
-	logger.Infof(context.Background(), "OnAppUpdate received: %s, Reply: %s", msg.Subject, msg.Reply)
+	ctx := context.Background()
+
+	// panic 保护：捕获任何 panic 并记录到日志，避免 goroutine 静默死亡
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Errorf(ctx, "[onAppUpdate] ❌ PANIC recovered: %v", r)
+			a.sendErrorResponse(msg, fmt.Sprintf("onAppUpdate panic: %v", r))
+		}
+	}()
+
+	logger.Infof(ctx, "OnAppUpdate received: %s, Reply: %s", msg.Subject, msg.Reply)
 
 	// 检查是否有 Reply subject（Request/Reply 模式）
 	if msg.Reply == "" {
-		logger.Warnf(context.Background(), "OnAppUpdate: No reply subject, cannot respond")
+		logger.Warnf(ctx, "OnAppUpdate: No reply subject, cannot respond")
 		return
 	}
+
 	// 1. 获取当前所有API（只调用一次，避免重复遍历和文件读取）
+	logger.Infof(ctx, "[onAppUpdate] Step 1: Getting current APIs...")
 	currentApis, _, err := a.getApis()
 	if err != nil {
-		// 发送错误响应
+		logger.Errorf(ctx, "[onAppUpdate] Step 1 FAILED: %v", err)
 		a.sendErrorResponse(msg, fmt.Sprintf("Failed to get current APIs: %v", err))
 		return
 	}
-	for _, api := range currentApis {
+	logger.Infof(ctx, "[onAppUpdate] Step 1 OK: got %d APIs", len(currentApis))
+
+	// 2. 初始化数据库并自动迁移
+	logger.Infof(ctx, "[onAppUpdate] Step 2: Initializing databases...")
+	for i, api := range currentApis {
 		if api.routerInfo.Options == nil {
-			logger.Infof(context.Background(), "WARNING: No options found for API %s", api.Name)
+			logger.Infof(ctx, "[onAppUpdate] Step 2: API %d (%s) has no options, skipping DB init", i, api.Name)
 			continue
 		}
 		name := api.routerInfo.Options.GetDBName(env.User, env.App)
+		logger.Infof(ctx, "[onAppUpdate] Step 2: API %d (%s) opening DB: %s", i, api.Name, name)
 		db, err := getOrInitDB(name)
 		if err != nil {
-			// 发送错误响应
-			a.sendErrorResponse(msg, fmt.Sprintf(" Failed to getOrInitDB: %v", err))
+			logger.Errorf(ctx, "[onAppUpdate] Step 2 FAILED: getOrInitDB(%s): %v", name, err)
+			a.sendErrorResponse(msg, fmt.Sprintf("Failed to getOrInitDB: %v", err))
 			return
 		}
 
 		for _, createTable := range api.CreateTableModels {
-
 			err = db.AutoMigrate(createTable)
 			if err != nil {
+				logger.Errorf(ctx, "[onAppUpdate] Step 2 FAILED: AutoMigrate: %v", err)
 				a.sendErrorResponse(msg, fmt.Sprintf("Failed to migrate table: %v", err))
 				return
 			}
 		}
-
 	}
+	logger.Infof(ctx, "[onAppUpdate] Step 2 OK: databases initialized")
 
-	// 2. 保存当前版本到API日志
+	// 3. 保存当前版本到API日志
+	logger.Infof(ctx, "[onAppUpdate] Step 3: Saving current version...")
 	if err := a.saveCurrentVersion(currentApis); err != nil {
-		// 发送错误响应
+		logger.Errorf(ctx, "[onAppUpdate] Step 3 FAILED: %v", err)
 		a.sendErrorResponse(msg, fmt.Sprintf("Failed to save current version: %v", err))
 		return
 	}
+	logger.Infof(ctx, "[onAppUpdate] Step 3 OK: version saved")
 
-	// 3. 执行API差异对比（传入已获取的 currentApis，避免重复调用 getApis）
-	add, update, delete, err := a.diffApiWithCurrentApis(currentApis)
+	// 4. 执行API差异对比（传入已获取的 currentApis，避免重复调用 getApis）
+	logger.Infof(ctx, "[onAppUpdate] Step 4: Diffing APIs...")
+	add, update, del, err := a.diffApiWithCurrentApis(currentApis)
 	if err != nil {
-		// 发送错误响应
+		logger.Errorf(ctx, "[onAppUpdate] Step 4 FAILED: %v", err)
 		a.sendErrorResponse(msg, fmt.Sprintf("Failed to diff APIs: %v", err))
 		return
 	}
+	logger.Infof(ctx, "[onAppUpdate] Step 4 OK: add=%d, update=%d, delete=%d", len(add), len(update), len(del))
 
-	// 4. 构建差异结果
+	// 5. 构建差异结果
 	diffData := &DiffData{
 		Add:    add,
 		Update: update,
-		Delete: delete,
+		Delete: del,
 	}
 
+	// 6. 触发 OnApiCreate 回调
+	logger.Infof(ctx, "[onAppUpdate] Step 5: Running OnApiCreate callbacks...")
 	for _, aa := range add {
 		router, err := a.getRoute(aa.Router)
 		if err != nil {
+			logger.Errorf(ctx, "[onAppUpdate] Step 5 FAILED: getRoute(%s): %v", aa.Router, err)
 			a.sendErrorResponse(msg, fmt.Sprintf("Failed to get router: %v", err))
 			return
 		}
@@ -451,11 +475,14 @@ func (a *App) onAppUpdate(msg *nats.Msg) {
 			var req callback.OnApiCreateReq
 			_, err := create(newCallbackContext(router), &req)
 			if err != nil {
+				logger.Errorf(ctx, "[onAppUpdate] Step 5 FAILED: OnApiCreate(%s): %v", aa.Router, err)
 				a.sendErrorResponse(msg, fmt.Sprintf("Failed to create api: %v", err))
 				return
 			}
 		}
 	}
+	logger.Infof(ctx, "[onAppUpdate] Step 5 OK: callbacks done")
+
 	rsp := subjects.Message{
 		User:      env.User,
 		App:       env.App,
@@ -465,9 +492,10 @@ func (a *App) onAppUpdate(msg *nats.Msg) {
 		Data:      diffData,
 	}
 
-	// 5. 发送成功响应
-	//a.sendSuccessResponse(msg, diffData)
+	// 7. 发送成功响应
+	logger.Infof(ctx, "[onAppUpdate] Step 6: Sending success response...")
 	msgx.RespSuccessMsg(msg, rsp)
+	logger.Infof(ctx, "[onAppUpdate] ✅ All done! Response sent successfully")
 }
 
 // 发送成功响应 - 使用原请求消息直接响应
@@ -503,6 +531,8 @@ func (a *App) sendSuccessResponse(msg *nats.Msg, data *DiffData) {
 
 // 发送错误响应
 func (a *App) sendErrorResponse(msg *nats.Msg, message string) {
+	logger.Errorf(context.Background(), "[sendErrorResponse] Sending error: %s", message)
+
 	rsp := subjects.Message{
 		ErrorMsg:  message,
 		Type:      subjects.MessageTypeStatusOnAppUpdate,
@@ -513,14 +543,18 @@ func (a *App) sendErrorResponse(msg *nats.Msg, message string) {
 		Timestamp: time.Now(),
 	}
 
-	responseData, _ := json.Marshal(rsp)
+	responseData, err := json.Marshal(rsp)
+	if err != nil {
+		logger.Errorf(context.Background(), "[sendErrorResponse] Failed to marshal: %v", err)
+		return
+	}
 
-	// 直接响应原请求消息
-	if responseData != nil {
-		// 创建新的响应消息
-		responseMsg := nats.NewMsg(msg.Subject)
-		responseMsg.Header = msg.Header
-		responseMsg.Data = responseData
-		msg.RespondMsg(responseMsg)
+	responseMsg := nats.NewMsg(msg.Subject)
+	responseMsg.Header = msg.Header
+	responseMsg.Data = responseData
+	if err := msg.RespondMsg(responseMsg); err != nil {
+		logger.Errorf(context.Background(), "[sendErrorResponse] Failed to respond: %v", err)
+	} else {
+		logger.Infof(context.Background(), "[sendErrorResponse] Error response sent successfully")
 	}
 }

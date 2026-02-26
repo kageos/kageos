@@ -244,7 +244,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	var systemPromptFragment string
 	if modeProvider == nil {
 		// 兜底：与 init 时 dev 一致（含 search_tools 便于杂活先搜后用）
-		toolNames = []string{"read_go_file", "read_go_file_lines", "read_doc", "read_dir", "search_tools", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace", "create_directory", "publish_to_hub", "push_to_hub", "search_hub", "copy_directory"}
+		toolNames = []string{"read_go_file", "read_go_file_lines", "read_doc", "read_dir", "search_tools", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace", "create_directory", "publish_to_hub", "push_to_hub", "search_hub_directory", "copy_directory"}
 		systemPromptFragment = "当前为开发模式，请协助用户生成新代码、新模块。"
 	}
 

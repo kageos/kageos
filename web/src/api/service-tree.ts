@@ -220,6 +220,7 @@ export interface ServiceTreeDetail {
   version_num: number
   hub_full_code_path?: string
   hub_version_num?: number
+  run_count?: number  // ⭐ 运行次数（仅 function 类型有意义），用于展示「已使用 N 次」
   permissions?: Record<string, boolean>  // ⭐ 权限信息
 }
 

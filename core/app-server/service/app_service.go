@@ -340,6 +340,16 @@ func (a *AppService) RequestApp(ctx context.Context, req *dto.RequestAppReq) (*d
 	return resp, nil
 }
 
+// IncrementFunctionRunCount 将指定 full_code_path 的 function 运行次数 +1（成功执行 Form/Table/Chart 后调用，用于 search_tools 按热度排序）
+func (a *AppService) IncrementFunctionRunCount(ctx context.Context, fullCodePath string) {
+	if fullCodePath == "" {
+		return
+	}
+	if err := a.serviceTreeRepo.IncrementRunCountByFullCodePath(ctx, fullCodePath); err != nil {
+		logger.Warnf(ctx, "[AppService] IncrementFunctionRunCount failed: full_code_path=%s, err=%v", fullCodePath, err)
+	}
+}
+
 // RecordTableOperateLog 记录 Table 操作日志（OnTableAddRow, OnTableUpdateRow, OnTableDeleteRows）
 // 策略：社区版和企业版都记录完整日志，但只有企业版可以查看
 func (a *AppService) RecordTableOperateLog(ctx context.Context, req *dto.RecordTableOperateLogReq) error {

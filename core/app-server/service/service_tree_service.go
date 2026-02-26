@@ -894,10 +894,11 @@ func (s *ServiceTreeService) GetServiceTreeDetail(ctx context.Context, req *dto.
 		RefID:          tree.RefID,
 		FullCodePath:   tree.FullCodePath,
 		TemplateType:   tree.TemplateType,
-		Version:         tree.Version,
-		VersionNum:      tree.VersionNum,
+		Version:        tree.Version,
+		VersionNum:     tree.VersionNum,
 		HubFullCodePath: tree.HubFullCodePath,
 		HubVersionNum:   tree.HubVersionNum,
+		RunCount:       tree.RunCount, // ⭐ 运行次数（仅 function 有意义）
 	}
 
 	// ⭐ 查询权限信息（企业版功能）
@@ -1557,7 +1558,8 @@ func (s *ServiceTreeService) convertToGetServiceTreeResp(ctx context.Context, tr
 		VersionNum:      tree.VersionNum,
 		HubFullCodePath: tree.HubFullCodePath,
 		HubVersionNum:   tree.HubVersionNum,
-		IsAdmin:         isAdmin, // ⭐ 是否是管理员（前端优先判断此字段）
+		RunCount:        tree.RunCount, // ⭐ 运行次数（仅 function 有意义），用于排序与展示
+		IsAdmin:         isAdmin,      // ⭐ 是否是管理员（前端优先判断此字段）
 	}
 
 	// ⭐ 设置权限信息
@@ -3661,18 +3663,129 @@ func (s *ServiceTreeService) GetHubInfo(ctx context.Context, req *dto.GetHubInfo
 	}, nil
 }
 
+// splitSearchKeywordsForRelevance 将 keyword 按竖线 | 拆成多个关键词并去空（与 repository 拆分逻辑一致）
+func splitSearchKeywordsForRelevance(keyword string) []string {
+	keyword = strings.TrimSpace(keyword)
+	if keyword == "" {
+		return nil
+	}
+	parts := strings.Split(keyword, "|")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// searchFunctionsRelevanceScore 计算单条函数与关键词的相关度得分（用于排序：得分高的排前面）
+// 精确匹配优先：name/code/tag 与关键词完全一致时给更高分，便于「表格解析」等精确词把对应工具排到最前
+// 权重：name 精确 +10 / 包含 +3，code 精确 +6 / 包含 +2，description 包含 +1，tags 某标签精确 +5 / 包含 +2；多关键词累加
+func searchFunctionsRelevanceScore(tree *model.ServiceTree, keywords []string) int {
+	if len(keywords) == 0 {
+		return 0
+	}
+	score := 0
+	nameLower := strings.ToLower(strings.TrimSpace(tree.Name))
+	codeLower := strings.ToLower(strings.TrimSpace(tree.Code))
+	descLower := strings.ToLower(tree.Description)
+	tagsLower := strings.ToLower(tree.Tags)
+	tagSlice := tree.GetTagsSlice()
+	for _, k := range keywords {
+		k = strings.ToLower(strings.TrimSpace(k))
+		if k == "" {
+			continue
+		}
+		// name：精确匹配（如「表格解析」）排最前
+		if nameLower == k {
+			score += 10
+		} else if strings.Contains(nameLower, k) {
+			score += 3
+		}
+		// code：精确匹配次之
+		if codeLower == k {
+			score += 6
+		} else if strings.Contains(codeLower, k) {
+			score += 2
+		}
+		if strings.Contains(descLower, k) {
+			score += 1
+		}
+		// tags：某标签与关键词完全一致时给高分
+		tagExact := false
+		for _, t := range tagSlice {
+			if strings.ToLower(strings.TrimSpace(t)) == k {
+				tagExact = true
+				break
+			}
+		}
+		if tagExact {
+			score += 5
+		} else if strings.Contains(tagsLower, k) {
+			score += 2
+		}
+	}
+	return score
+}
+
 // SearchFunctions 搜索函数：查 ServiceTree（type=function），预加载 App、Function，返回带请求/响应参数的结果
+// 当有关键词且为第一页时，会按关键词相关度重排，把最符合的结果排在前面
 func (s *ServiceTreeService) SearchFunctions(ctx context.Context, req *dto.SearchFunctionsReq) (*dto.SearchFunctionsResp, error) {
+	pageSize := req.PageSize
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+	// 有关键词且第一页：多取一批结果用于按相关度重排，再截取 pageSize
+	fetchSize := pageSize
+	if req.Keyword != "" && req.Page == 1 {
+		fetchSize = 200
+		if fetchSize > pageSize*10 {
+			fetchSize = pageSize * 10
+		}
+	}
 	trees, total, err := s.serviceTreeRepo.SearchFunctions(
 		req.User,
 		req.App,
 		req.Keyword,
 		req.TemplateType,
 		req.Page,
-		req.PageSize,
+		fetchSize,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("搜索函数失败: %w", err)
+	}
+
+	// 有关键词且第一页：按相关度得分排序，再取前 pageSize 条
+	if req.Keyword != "" && req.Page == 1 && len(trees) > 0 {
+		keywords := splitSearchKeywordsForRelevance(req.Keyword)
+		type scored struct {
+			tree  *model.ServiceTree
+			score int
+		}
+		scoredList := make([]scored, 0, len(trees))
+		for _, t := range trees {
+			scoredList = append(scoredList, scored{t, searchFunctionsRelevanceScore(t, keywords)})
+		}
+		sort.Slice(scoredList, func(i, j int) bool {
+			if scoredList[i].score != scoredList[j].score {
+				return scoredList[i].score > scoredList[j].score
+			}
+			return scoredList[i].tree.RunCount > scoredList[j].tree.RunCount
+		})
+		// 只保留前 pageSize 条
+		trees = make([]*model.ServiceTree, 0, pageSize)
+		for i := 0; i < len(scoredList) && i < pageSize; i++ {
+			trees = append(trees, scoredList[i].tree)
+		}
+	} else if req.Page > 1 && req.Keyword != "" {
+		// 第二页及以后：repo 已按 run_count 排序，按页截取（这里 fetchSize 已等于 pageSize，trees 即当前页）
+		if len(trees) > pageSize {
+			trees = trees[:pageSize]
+		}
+	} else if len(trees) > pageSize {
+		trees = trees[:pageSize]
 	}
 
 	functionResults := make([]*dto.FunctionSearchResult, 0, len(trees))
@@ -3683,6 +3796,7 @@ func (s *ServiceTreeService) SearchFunctions(ctx context.Context, req *dto.Searc
 			Description:  tree.Description,
 			TemplateType: tree.TemplateType,
 			FullCodePath: tree.FullCodePath,
+			RunCount:     tree.RunCount,
 		}
 		if tree.App != nil {
 			result.AppID = tree.AppID

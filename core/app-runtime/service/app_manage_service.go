@@ -757,6 +757,12 @@ func (s *AppManageService) sendUpdateCallbackAndWait(ctx context.Context, user, 
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
+	// 检查 SDK 返回的错误信息
+	if rsp.ErrorMsg != "" {
+		logger.Warnf(ctx, "[sendUpdateCallbackAndWait] ⚠️ SDK returned error: %s", rsp.ErrorMsg)
+		return &rsp, fmt.Errorf("SDK onAppUpdate error: %s", rsp.ErrorMsg)
+	}
+
 	return &rsp, nil
 }
 
