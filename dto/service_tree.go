@@ -122,6 +122,7 @@ type GetServiceTreeResp struct {
 	HubFullCodePath  string                `json:"hub_full_code_path,omitempty" example:""`                 // Hub 目录完整路径，用于绑定与详情 URL（前端用此拼详情 URL）
 	HubVersionNum  int                   `json:"hub_version_num,omitempty" example:"0"`                 // Hub目录版本号（数字部分），用于版本比较与展示（展示时格式化为 v{N}）
 	HasFunction    bool                  `json:"has_function,omitempty" example:"true"`                 // ⭐ 是否有函数（仅对package类型有效）：如果该package下直接或间接包含function类型的子节点，则为true
+	RunCount       int                   `json:"run_count,omitempty"`                                   // ⭐ 运行次数（仅 function 类型有意义），用于排序与展示「已使用 N 次」
 	IsAdmin        bool                  `json:"is_admin,omitempty" example:"true"`                     // ⭐ 是否是管理员（企业版功能）：如果用户是工作空间管理员，则为 true，前端优先判断此字段，无需构造每个节点的权限
 	Permissions    map[string]bool       `json:"permissions"`                                           // ⭐ 权限信息（企业版功能）：权限点 -> 是否有权限（即使为空也返回 {}，避免前端 undefined）
 	Children       []*GetServiceTreeResp `json:"children,omitempty"`                                    // 子目录列表
@@ -150,6 +151,7 @@ type GetServiceTreeDetailResp struct {
 	VersionNum     int             `json:"version_num" example:"1"`                     // 节点当前版本号（数字部分）
 	HubFullCodePath  string          `json:"hub_full_code_path,omitempty" example:""`     // Hub 目录完整路径，用于绑定与详情 URL（前端用此拼详情 URL）
 	HubVersionNum    int             `json:"hub_version_num,omitempty" example:"0"`       // Hub目录版本号（数字部分），展示时格式化为 v{N}
+	RunCount         int             `json:"run_count,omitempty"`                         // ⭐ 运行次数（仅 function 类型有意义），用于展示「已使用 N 次」
 	Permissions      map[string]bool `json:"permissions"`                                 // ⭐ 权限标识（企业版功能）：权限点 -> 是否有权限（即使为空也返回 {}）
 }
 
@@ -299,17 +301,18 @@ type SearchFunctionsResp struct {
 
 // FunctionSearchResult 函数搜索结果（含请求/响应参数信息，便于调用方构造 body）
 type FunctionSearchResult struct {
-	ID           int64         `json:"id" example:"1"`                                                                  // 函数ID
-	Name         string        `json:"name" example:"表格解析"`                                                             // 函数名称
-	Code         string        `json:"code" example:"table_parse"`                                                      // 函数代码
-	FullCodePath string        `json:"full_code_path" example:"/system/official/agent/plugin/excel_or_csv/table_parse"` // 完整代码路径
-	Description  string        `json:"description" example:"解析Excel/CSV文件为Markdown表格"`                                  // 函数描述
-	TemplateType string        `json:"template_type" example:"form"`                                                    // 模板类型（form、table、chart）
-	AppID        int64         `json:"app_id" example:"1"`                                                              // 应用ID
-	AppUser      string        `json:"app_user" example:"system"`                                                       // 应用所属用户
-	AppCode      string        `json:"app_code" example:"official"`                                                     // 应用代码
-	Request      []interface{} `json:"request,omitempty"`                                                               // 请求参数（表单/接口入参结构，便于构造 run_form_submit 的 body）
-	Response     []interface{} `json:"response,omitempty"`                                                              // 响应参数（返回结构说明）
+	ID            int64         `json:"id" example:"1"`                                                                  // 函数ID
+	Name          string        `json:"name" example:"表格解析"`                                                             // 函数名称
+	Code          string        `json:"code" example:"table_parse"`                                                      // 函数代码
+	FullCodePath  string        `json:"full_code_path" example:"/system/official/agent/plugin/excel_or_csv/table_parse"` // 完整代码路径
+	Description   string        `json:"description" example:"解析Excel/CSV文件为Markdown表格"`                                  // 函数描述
+	TemplateType  string        `json:"template_type" example:"form"`                                                    // 模板类型（form、table、chart）
+	AppID         int64         `json:"app_id" example:"1"`                                                              // 应用ID
+	AppUser       string        `json:"app_user" example:"system"`                                                       // 应用所属用户
+	AppCode       string        `json:"app_code" example:"official"`                                                     // 应用代码
+	RunCount     int           `json:"run_count,omitempty"`                                                              // 运行次数（用于 search_tools 按热度排序）
+	Request       []interface{} `json:"request,omitempty"`                                                               // 请求参数（表单/接口入参结构，便于构造 run_form_submit 的 body）
+	Response      []interface{} `json:"response,omitempty"`                                                              // 响应参数（返回结构说明）
 }
 
 // GetServiceTreeByIDReq 根据ID获取服务目录请求

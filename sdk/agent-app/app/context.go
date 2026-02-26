@@ -27,14 +27,14 @@ func newCallbackContext(info *routerInfo) *Context {
 }
 func (a *App) NewContext(ctx context.Context, req *dto.RequestAppReq) (*Context, error) {
 	msgInfo := trace.Msg{
-		User:           env.User,
-		App:            env.App,
-		Version:        env.Version,
-		Method:         req.Method,
-		Router:         req.Router,
-		RequestUser:    req.RequestUser,
+		User:            env.User,
+		App:             env.App,
+		Version:         env.Version,
+		Method:          req.Method,
+		Router:          req.Router,
+		RequestUser:     req.RequestUser,
 		RequestUserDept: req.RequestUserDept,
-		TraceId:        req.TraceId,
+		TraceId:         req.TraceId,
 	}
 	//var req dto.RequestAppReq
 	//if err := json.Unmarshal(msg.Data, &req); err != nil {
@@ -84,6 +84,7 @@ func (c *Context) ShouldBind(req interface{}) error {
 	return nil
 }
 
+// ShouldBindValidate todo 加上validate验证
 func (c *Context) ShouldBindValidate(req interface{}) error {
 	if c.msg == nil {
 		return fmt.Errorf("msg is nil")

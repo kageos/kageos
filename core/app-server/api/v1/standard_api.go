@@ -249,6 +249,7 @@ func (s *StandardAPI) TableSearch(c *gin.Context) {
 		return
 	}
 
+	s.appService.IncrementFunctionRunCount(ctx, "/"+strings.TrimPrefix(fullCodePath, "/"))
 	response.OkWithData(c, resp.Result, metadata)
 }
 
@@ -307,6 +308,7 @@ func (s *StandardAPI) TableCreate(c *gin.Context) {
 		return
 	}
 
+	s.appService.IncrementFunctionRunCount(ctx, "/"+strings.TrimPrefix(fullCodePath, "/"))
 	response.OkWithData(c, resp.Result, metadata)
 }
 
@@ -843,6 +845,7 @@ func (s *StandardAPI) TableUpdate(c *gin.Context) {
 		return
 	}
 
+	s.appService.IncrementFunctionRunCount(ctx, "/"+strings.TrimPrefix(fullCodePath, "/"))
 	response.OkWithData(c, resp.Result, metadata)
 }
 
@@ -1009,6 +1012,7 @@ func (s *StandardAPI) FormSubmit(c *gin.Context) {
 		return
 	}
 
+	s.appService.IncrementFunctionRunCount(ctx, "/"+strings.TrimPrefix(fullCodePath, "/"))
 	response.OkWithData(c, resp.Result, metadata)
 }
 
@@ -1071,6 +1075,7 @@ func (s *StandardAPI) ChartQuery(c *gin.Context) {
 		return
 	}
 
+	s.appService.IncrementFunctionRunCount(ctx, "/"+strings.TrimPrefix(fullCodePath, "/"))
 	response.OkWithData(c, resp.Result, metadata)
 }
 

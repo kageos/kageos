@@ -153,6 +153,20 @@
                     </div>
                   </div>
 
+                  <div class="overview-divider"></div>
+
+                  <div class="overview-item">
+                    <div class="overview-icon-wrapper count-icon">
+                      <el-icon class="overview-icon"><DataLine /></el-icon>
+                    </div>
+                    <div class="overview-content">
+                      <div class="overview-label">本目录调用次数</div>
+                      <div class="overview-value">
+                        {{ totalRunCount }} 次
+                      </div>
+                    </div>
+                  </div>
+
                   <!-- Owner 信息 -->
                   <div v-if="packageNode?.owner && packageNode.owner.trim()" class="overview-divider"></div>
 
@@ -269,6 +283,9 @@
                       <div class="child-description" v-if="child.description">
                         {{ child.description }}
                       </div>
+                      <div class="child-run-count" v-if="child.type === 'function'">
+                        已使用 {{ child.run_count ?? 0 }} 次
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -354,6 +371,20 @@
               <div class="overview-label">子项数量</div>
               <div class="overview-value">
                 {{ packageNode?.children?.length || 0 }} 项
+              </div>
+            </div>
+          </div>
+
+          <div class="overview-divider"></div>
+
+          <div class="overview-item">
+            <div class="overview-icon-wrapper count-icon">
+              <el-icon class="overview-icon"><DataLine /></el-icon>
+            </div>
+            <div class="overview-content">
+              <div class="overview-label">本目录调用次数</div>
+              <div class="overview-value">
+                {{ totalRunCount }} 次
               </div>
             </div>
           </div>
@@ -473,6 +504,9 @@
                 <div class="child-description" v-if="child.description">
                   {{ child.description }}
                 </div>
+                <div class="child-run-count" v-if="child.type === 'function'">
+                  已使用 {{ child.run_count ?? 0 }} 次
+                </div>
               </div>
             </div>
           </div>
@@ -547,7 +581,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ArrowLeft, Folder, Document, CopyDocument, Key, Link, Files, Clock, Lock, Avatar, Edit, Star } from '@element-plus/icons-vue'
+import { ArrowLeft, Folder, Document, CopyDocument, Key, Link, Files, Clock, Lock, Avatar, Edit, Star, DataLine } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { ServiceTree } from '@/types'
 import { extractWorkspacePath } from '@/utils/route'
@@ -613,6 +647,15 @@ const showPermissionRequestTab = computed(() => {
 // ⭐ 所有 package 类型统一使用 directory 资源类型（包括根目录/工作空间）
 const resourceType = computed<'directory'>(() => {
   return 'directory'
+})
+
+// ⭐ 本目录下所有函数调用次数之和（仅统计直接子节点中的 function）
+const totalRunCount = computed(() => {
+  const children = props.packageNode?.children
+  if (!children?.length) return 0
+  return children
+    .filter((c: ServiceTree) => c.type === 'function')
+    .reduce((sum: number, c: ServiceTree) => sum + (c.run_count ?? 0), 0)
 })
 
 // 从路径解析 user 和 app
@@ -1435,6 +1478,12 @@ function handleChildClick(child: ServiceTree): void {
                 word-break: break-word;
                 padding-top: 8px;
                 border-top: 1px solid var(--el-border-color-lighter);
+              }
+
+              .child-run-count {
+                font-size: 12px;
+                color: var(--el-text-color-secondary);
+                margin-top: 6px;
               }
             }
           }

@@ -45,6 +45,7 @@ type ServiceTree struct {
 	VersionNum       int            `json:"version_num" gorm:"comment:节点当前版本号（数字部分）"`                                                    // 节点当前版本号（数字部分）
 	HubFullCodePath  string         `json:"hub_full_code_path" gorm:"type:varchar(500);default:'';index;comment:Hub 目录完整路径，用于绑定与详情 URL"`   // 绑定与详情 URL 用此字段
 	HubVersionNum    int            `json:"hub_version_num" gorm:"default:0;comment:Hub目录版本号（数字部分），用于版本比较与展示（展示时格式化为 v{N}）"`   // Hub目录版本号（数字部分）
+	RunCount         int            `json:"run_count" gorm:"default:0;comment:函数运行次数，仅 type=function 有意义，用于 search_tools 按热度排序"`   // 运行次数 +1 后搜索按此排序
 	Children         []*ServiceTree `json:"children" gorm:"-"`
 }
 

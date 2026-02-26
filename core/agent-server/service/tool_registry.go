@@ -384,17 +384,17 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 	})
 	out = append(out, dto.ToolDef{
 		Name:        "search_tools",
-		Description: "按关键词搜索「可用能力」：包括内置工具（读文件、写代码、执行表单等）和平台内已注册的表单/表格/图表函数。用于在不确定是否有现成能力时先搜索，再决定直接调用或创建。支持多关键词：用竖线 | 分隔，如 视频|video|流媒体 表示命中任一关键词即可。",
+		Description: "按关键词搜索「可用能力」：包括内置工具和已注册的表单/表格/图表函数。执行杂活（画图、转格式、解析文件等）前应先查当前目录或本工具搜索；绝大部分任务由 form 完成，建议传 template_type=form 缩小范围；仅明确表格增删改查或图表查询时再传 table/chart。keyword 支持多关键词用竖线 | 分隔（OR 语义），如 折线图|chart|画图 或 视频|转换。",
 		InputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
 				"keyword": map[string]interface{}{
 					"type":        "string",
-					"description": "搜索关键词，支持多关键词用竖线 | 分隔（OR 语义），如 图片|png|转换 或 视频|video|流媒体",
+					"description": "搜索关键词，支持多关键词用竖线 | 分隔（OR 语义），如 折线图|chart|画图 或 视频|video|流媒体",
 				},
 				"template_type": map[string]interface{}{
 					"type":        "string",
-					"description": "限定类型（可选）：form / table / chart，空表示全部",
+					"description": "按函数类型过滤（可选）：form（绝大部分杂活、画图、转换用此）/ table / chart。不传则返回全部类型；建议杂活类传 form",
 				},
 				"limit": map[string]interface{}{
 					"type":        "integer",
@@ -492,9 +492,9 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 		},
 	})
 
-	// search_hub：搜索应用中心（Hub）应用，搜到合适的可用 copy_directory 复制到本地
+	// search_hub_directory：搜索应用中心（Hub）目录，搜到合适的可用 copy_directory 复制到本地
 	out = append(out, dto.ToolDef{
-		Name:        "search_hub",
+		Name:        "search_hub_directory",
 		Description: "在应用中心（Hub）搜索应用，或按路径查询单个目录在 Hub 上的信息。① 按关键词搜索：传 search（可选，不传或传空则返回全部应用）、category、page、page_size（可选）。② 按路径查当前目录在 Hub 上的信息：传 full_code_path（如 /user/app/plugins/xxx），可查看该路径是否已上架、copy_url、star_count 等。返回含 copy_url（用于 copy_directory）、star_count、download_count 等。",
 		InputSchema: map[string]interface{}{
 			"type": "object",
@@ -527,7 +527,7 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 	// copy_directory：通用复制目录（源可为 Hub 链接或本地路径）。target_directory 为「目标父目录」，系统会在其下自动创建与源同名的子目录。
 	out = append(out, dto.ToolDef{
 		Name:        "copy_directory",
-		Description: "将目录复制到工作区。源：source_directory 为 Hub 链接（hub://host/path@version，来自 search_hub 的 copy_url）或本地完整路径（如 /user/app/plugins/xxx）。目标：target_directory 填「目标父目录」即当前工作区路径（如 /luobei/myapp/server），不要填「父目录+子目录名」；系统会在该父目录下自动创建与源同名的子目录（如源为 .../video_tools 则得到 .../server/video_tools）。复制成功后返回目录数、文件数。",
+		Description: "将目录复制到工作区。源：source_directory 为 Hub 链接（hub://host/path@version，来自 search_hub_directory 的 copy_url）或本地完整路径（如 /user/app/plugins/xxx）。目标：target_directory 填「目标父目录」即当前工作区路径（如 /luobei/myapp/server），不要填「父目录+子目录名」；系统会在该父目录下自动创建与源同名的子目录（如源为 .../video_tools 则得到 .../server/video_tools）。复制成功后会自动编译，无需再调用 build_workspace；返回目录数、文件数。",
 		InputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
@@ -601,7 +601,7 @@ func (r *ToolRegistry) CallTool(ctx context.Context, name string, args map[strin
 		return r.callPublishToHub(ctx, args, fullCodePath)
 	case "push_to_hub":
 		return r.callPushToHub(ctx, args, fullCodePath)
-	case "search_hub":
+	case "search_hub_directory":
 		return r.callSearchHub(ctx, args)
 	case "copy_directory":
 		return r.callCopyDirectory(ctx, args)
@@ -1567,13 +1567,16 @@ func (r *ToolRegistry) callSearchTools(ctx context.Context, args map[string]inte
 	} else if resp != nil {
 		functions = resp.Functions
 	}
-	if len(functions) > 0 {
-		buf.WriteString("【已注册函数】\n")
+		if len(functions) > 0 {
+		buf.WriteString("【已注册函数】调用方式：form → run_form_submit，table → run_table_search/run_table_create/run_table_update，chart → run_chart_query。\n")
 		for i, fn := range functions {
 			buf.WriteString(fmt.Sprintf("%d. %s\n", i+1, fn.Name))
 			buf.WriteString("   full_code_path: ")
 			buf.WriteString(fn.FullCodePath)
 			buf.WriteString("\n")
+			if fn.RunCount > 0 {
+				buf.WriteString(fmt.Sprintf("   已使用 %d 次\n", fn.RunCount))
+			}
 			if fn.Description != "" {
 				buf.WriteString("   description: ")
 				buf.WriteString(fn.Description)
@@ -1582,19 +1585,12 @@ func (r *ToolRegistry) callSearchTools(ctx context.Context, args map[string]inte
 			if fn.TemplateType != "" {
 				buf.WriteString("   type: ")
 				buf.WriteString(fn.TemplateType)
-				buf.WriteString("（调用时 form 用 run_form_submit，table 用 run_table_search/run_table_create/run_table_update，chart 用 run_chart_query）\n")
+				buf.WriteString("\n")
 			}
 			if len(fn.Request) > 0 {
 				if reqJSON, err := json.MarshalIndent(fn.Request, "   ", "  "); err == nil {
 					buf.WriteString("   request: ")
 					buf.Write(reqJSON)
-					buf.WriteString("\n")
-				}
-			}
-			if len(fn.Response) > 0 {
-				if respJSON, err := json.MarshalIndent(fn.Response, "   ", "  "); err == nil {
-					buf.WriteString("   response: ")
-					buf.Write(respJSON)
 					buf.WriteString("\n")
 				}
 			}
@@ -1782,7 +1778,7 @@ func (r *ToolRegistry) callSearchHub(ctx context.Context, args map[string]interf
 	resp, err := apicall.GetHubDirectoryList(ctx, req)
 	if err != nil {
 		logger.Errorf(ctx, "[SearchHub] GetHubDirectoryList 失败: %v", err)
-		return "search_hub 调用失败: " + err.Error(), true
+		return "search_hub_directory 调用失败: " + err.Error(), true
 	}
 	if len(resp.Items) == 0 {
 		return fmt.Sprintf("应用中心共 %d 条结果，当前页无数据。可调整 search、category 或 page 再试。", resp.Total), false

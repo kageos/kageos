@@ -48,6 +48,14 @@
         </el-tag>
       </div>
 
+      <h3 v-if="mergedFunctionData.run_count != null && mergedFunctionData.run_count > 0">使用情况</h3>
+      <div v-if="mergedFunctionData.run_count != null && mergedFunctionData.run_count > 0" class="function-usage">
+        <div class="usage-item">
+          <span class="label">已使用：</span>
+          <span class="value">{{ mergedFunctionData.run_count }} 次</span>
+        </div>
+      </div>
+
       <h3 v-if="hasUsageInfo">使用说明</h3>
       <div v-if="hasUsageInfo" class="function-usage">
         <div class="usage-item" v-if="mergedFunctionData.router">
@@ -98,7 +106,8 @@ const mergedFunctionData = computed(() => {
     created_at: detail.created_at || node.created_at || '',
     router: detail.router || node.full_code_path || '',
     method: detail.method || 'GET',
-    callbacks: detail.callbacks || ''
+    callbacks: detail.callbacks || '',
+    run_count: node.run_count ?? (detail as any).run_count
   }
 })
 

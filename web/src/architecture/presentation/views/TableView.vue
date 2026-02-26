@@ -634,20 +634,20 @@ const searchBarStorageKey = computed(() => {
   return router ? `${STORAGE_KEY_PREFIX}${router}` : ''
 })
 
-/** 从本地恢复搜索区域展开状态 */
+/** 从本地恢复搜索区域展开状态（未存过则默认展开） */
 const loadSearchBarExpanded = (): boolean => {
   const key = searchBarStorageKey.value
-  if (!key) return false
+  if (!key) return true
   try {
     const raw = localStorage.getItem(key)
     if (raw === 'true') return true
     if (raw === 'false') return false
   } catch (_) {}
-  return false
+  return true
 }
 
-/** 搜索区域是否展开（默认收起；有可搜索字段时从 localStorage 恢复上次选择） */
-const searchBarExpanded = ref(false)
+/** 搜索区域是否展开（默认展开；有可搜索字段时从 localStorage 恢复上次选择） */
+const searchBarExpanded = ref(true)
 
 /** 持久化搜索区域展开状态 */
 const saveSearchBarExpanded = (value: boolean): void => {

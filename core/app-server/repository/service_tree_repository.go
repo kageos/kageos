@@ -269,6 +269,21 @@ func (r *ServiceTreeRepository) GetServiceTreeByFullPath(fullPath string) (*mode
 	return &serviceTree, nil
 }
 
+// IncrementRunCountByFullCodePath 将指定 full_code_path 的 function 节点运行次数 +1（用于 search_tools 按热度排序）
+func (r *ServiceTreeRepository) IncrementRunCountByFullCodePath(ctx context.Context, fullPath string) error {
+	fullPath = normalizeFullCodePath(fullPath)
+	if fullPath == "" {
+		return nil
+	}
+	res := r.db.WithContext(ctx).Model(&model.ServiceTree{}).
+		Where("full_code_path = ? AND type = ?", fullPath, model.ServiceTreeTypeFunction).
+		Update("run_count", gorm.Expr("run_count + 1"))
+	if res.Error != nil {
+		return res.Error
+	}
+	return nil
+}
+
 // GetNodeByPath 根据路径查询节点（带 context，企业版使用）
 func (r *ServiceTreeRepository) GetNodeByPath(ctx context.Context, resourcePath string) (*model.ServiceTree, error) {
 	return r.GetServiceTreeByFullPath(resourcePath)
@@ -477,7 +492,7 @@ func (r *ServiceTreeRepository) SearchFunctions(user, app, keyword, templateType
 		Preload("Function").
 		Offset(offset).
 		Limit(pageSize).
-		Order("service_tree.created_at DESC").
+		Order("service_tree.run_count DESC, service_tree.created_at DESC").
 		Find(&list).Error; err != nil {
 		return nil, 0, err
 	}

@@ -1545,7 +1545,7 @@ defineExpose({
     margin-left: 6px;
     cursor: pointer;
   }
-  
+
   .node-more-actions {
     flex-shrink: 0;
     opacity: 0;
