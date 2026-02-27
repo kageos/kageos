@@ -54,8 +54,10 @@ export class PresignedURLUploader implements Uploader {
       })
 
       // 发起上传（HTTP PUT）
-      // ✨ 使用预签名 URL（包含完整域名信息）
-      this.xhr.open('PUT', credentials.url!)
+      // presigned URL 可能指向内部地址（如 localhost:9000），需要替换为当前浏览器 origin
+      // 通过 Nginx 反向代理 /ai-agent-os/ 转发到 MinIO
+      const uploadUrl = this.rewritePresignedUrl(credentials.url!)
+      this.xhr.open('PUT', uploadUrl)
       
       // 设置请求头
       if (credentials.headers) {
@@ -76,6 +78,22 @@ export class PresignedURLUploader implements Uploader {
       this.xhr.abort()
       this.xhr = null
     }
+  }
+
+  private rewritePresignedUrl(url: string): string {
+    try {
+      const parsed = new URL(url)
+      const currentOrigin = window.location.origin
+      const urlOrigin = parsed.origin
+      // 如果 presigned URL 的 origin 与浏览器不同（如内部地址 localhost:9000），
+      // 替换为当前 origin，走 Nginx 代理
+      if (urlOrigin !== currentOrigin) {
+        return `${currentOrigin}${parsed.pathname}${parsed.search}`
+      }
+    } catch {
+      // URL 解析失败，原样返回
+    }
+    return url
   }
 
   private calculateSpeed(loaded: number): string {

@@ -401,9 +401,13 @@ export async function notifyBatchUploadComplete(
  * @returns SHA256 hash 字符串（十六进制）
  */
 async function calculateSHA256(file: File): Promise<string> {
+  // crypto.subtle 仅在安全上下文（HTTPS 或 localhost）下可用
+  if (!crypto?.subtle?.digest) {
+    console.warn('[calculateSHA256] crypto.subtle not available (non-HTTPS context), skipping hash')
+    return ''
+  }
   const arrayBuffer = await file.arrayBuffer()
   const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer)
   const hashArray = Array.from(new Uint8Array(hashBuffer))
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
-  return hashHex
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
 }
