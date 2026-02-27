@@ -858,6 +858,12 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
 }
 
+// 判断 URL 是否可直接访问（绝对URL 或 / 开头的相对路径）
+function isDirectAccessUrl(url: string | undefined): boolean {
+  if (!url) return false
+  return url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/')
+}
+
 // 判断文件是否为图片
 function isImageFile(file: FileItem): boolean {
   if (!file.name) return false
@@ -925,8 +931,7 @@ function handlePreviewInNewWindow(file: FileItem): void {
     return
   }
   
-  // 🔥 所有可预览的文件（包括图片和视频）都在新窗口打开，避免抽屉遮挡预览器
-  const previewURL = file.url.startsWith('http://') || file.url.startsWith('https://')
+  const previewURL = isDirectAccessUrl(file.url)
     ? file.url
     : `/storage/api/v1/download/${encodeURIComponent(file.url)}`
   
@@ -947,40 +952,11 @@ function getPreviewImageIndex(file: FileItem): number {
 
 // 获取文件预览URL
 async function getPreviewUrl(file: FileItem): Promise<string> {
-  let previewURL = file.url
-
-  // 如果是完整的 http/https URL，直接返回
-  if (previewURL && (previewURL.startsWith('http://') || previewURL.startsWith('https://'))) {
-    return previewURL
+  if (isDirectAccessUrl(file.url)) {
+    return file.url!
   }
 
-  // 否则构建下载URL
-  if (!previewURL || (!previewURL.startsWith('http://') && !previewURL.startsWith('https://'))) {
-    previewURL = `/api/v1/storage/download/${encodeURIComponent(file.url)}`
-  }
-
-  // 如果是相对路径，需要添加token，使用blob URL
-  if (previewURL.startsWith('/')) {
-    const token = localStorage.getItem('token') || ''
-    try {
-      const res = await fetch(previewURL, {
-        headers: {
-          'X-Token': token,
-        },
-      })
-      if (res.ok) {
-        const blob = await res.blob()
-        return window.URL.createObjectURL(blob)
-      } else {
-        throw new Error(`Failed to load image: ${res.statusText}`)
-      }
-    } catch (error) {
-      Logger.error('[FilesWidget]', 'Failed to load preview image', error)
-      throw error
-    }
-  }
-
-  return previewURL
+  return `/api/v1/storage/download/${encodeURIComponent(file.url)}`
 }
 
 // 预览图片
@@ -1453,11 +1429,9 @@ function handleDeleteFile(index: number): void {
 // 下载文件
 async function handleDownloadFile(file: FileItem): Promise<void> {
   try {
-    let downloadURL = file.url
-
-    if (!downloadURL || (!downloadURL.startsWith('http://') && !downloadURL.startsWith('https://'))) {
-      downloadURL = `/storage/api/v1/download/${encodeURIComponent(file.url)}`
-    }
+    let downloadURL = isDirectAccessUrl(file.url)
+      ? file.url
+      : `/storage/api/v1/download/${encodeURIComponent(file.url)}`
 
     const token = localStorage.getItem('token') || ''
     const res = await fetch(downloadURL, {
@@ -1513,14 +1487,10 @@ async function handleDownloadAll(): Promise<void> {
     for (let i = 0; i < uploadedFiles.length; i++) {
       const file = uploadedFiles[i]
       try {
-        let downloadURL = file.url
-        
-        // 如果 url 不是完整的 URL，需要构建完整 URL
-        if (!downloadURL || (!downloadURL.startsWith('http://') && !downloadURL.startsWith('https://'))) {
-          downloadURL = `/storage/api/v1/download/${encodeURIComponent(file.url)}`
-        }
+        let downloadURL = isDirectAccessUrl(file.url)
+          ? file.url
+          : `/storage/api/v1/download/${encodeURIComponent(file.url)}`
 
-        // 下载文件
         const response = await fetch(downloadURL, {
           headers: {
             'X-Token': token,
