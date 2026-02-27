@@ -136,8 +136,8 @@ type ServiceTreeService struct {
 	appCall           *appcall.Client
 	fileSnapshotRepo  *repository.FileSnapshotRepository
 	appService        *AppService
-	permissionService *PermissionService // ⭐ 添加 PermissionService 依赖，用于查询权限
-	docService        *DocService        // ⭐ 添加 DocService 依赖，用于创建文档内容
+	permissionService *PermissionService              // ⭐ 添加 PermissionService 依赖，用于查询权限
+	docService        *DocService                     // ⭐ 添加 DocService 依赖，用于创建文档内容
 	boardPostRepo     *repository.BoardPostRepository // 版块帖子，删版块时需先删帖子
 }
 
@@ -156,9 +156,9 @@ func NewServiceTreeService(
 	return &ServiceTreeService{
 		serviceTreeRepo:   serviceTreeRepo,
 		functionRepo:      functionRepo,
-		appRepo:          appRepo,
+		appRepo:           appRepo,
 		appCall:           appCall,
-		fileSnapshotRepo: fileSnapshotRepo,
+		fileSnapshotRepo:  fileSnapshotRepo,
 		appService:        appService,
 		permissionService: permissionService,
 		docService:        docService,
@@ -883,22 +883,22 @@ func (s *ServiceTreeService) GetServiceTreeDetail(ctx context.Context, req *dto.
 
 	// 转换为响应格式
 	resp := &dto.GetServiceTreeDetailResp{
-		ID:             tree.ID,
-		Name:           tree.Name,
-		Code:           tree.Code,
-		ParentID:       tree.ParentID,
-		Type:           tree.Type,
-		Description:    tree.Description,
-		Tags:           tree.Tags,
-		AppID:          tree.AppID,
-		RefID:          tree.RefID,
-		FullCodePath:   tree.FullCodePath,
-		TemplateType:   tree.TemplateType,
-		Version:        tree.Version,
-		VersionNum:     tree.VersionNum,
+		ID:              tree.ID,
+		Name:            tree.Name,
+		Code:            tree.Code,
+		ParentID:        tree.ParentID,
+		Type:            tree.Type,
+		Description:     tree.Description,
+		Tags:            tree.Tags,
+		AppID:           tree.AppID,
+		RefID:           tree.RefID,
+		FullCodePath:    tree.FullCodePath,
+		TemplateType:    tree.TemplateType,
+		Version:         tree.Version,
+		VersionNum:      tree.VersionNum,
 		HubFullCodePath: tree.HubFullCodePath,
 		HubVersionNum:   tree.HubVersionNum,
-		RunCount:       tree.RunCount, // ⭐ 运行次数（仅 function 有意义）
+		RunCount:        tree.RunCount, // ⭐ 运行次数（仅 function 有意义）
 	}
 
 	// ⭐ 查询权限信息（企业版功能）
@@ -1540,26 +1540,26 @@ func (s *ServiceTreeService) DeleteServiceTree(ctx context.Context, id int64) er
 // ⭐ 优化：在服务树中直接返回权限信息，一次性获取所有权限（只需要8ms）
 func (s *ServiceTreeService) convertToGetServiceTreeResp(ctx context.Context, tree *model.ServiceTree, permissionsMap map[string]map[string]bool, isAdmin bool) *dto.GetServiceTreeResp {
 	resp := &dto.GetServiceTreeResp{
-		ID:             tree.ID,
-		Name:           tree.Name,
-		Code:           tree.Code,
-		ParentID:       tree.ParentID,
-		RefID:          tree.RefID,
-		Type:           tree.Type,
-		Description:    tree.Description,
-		Tags:           tree.Tags,
-		Admins:         tree.Admins,
-		PendingCount:   tree.PendingCount, // ⭐ 待审批的权限申请数量
-		Owner:          tree.CreatedBy,
-		AppID:          tree.AppID,
-		FullCodePath:   tree.FullCodePath,
-		TemplateType:   tree.TemplateType,
+		ID:              tree.ID,
+		Name:            tree.Name,
+		Code:            tree.Code,
+		ParentID:        tree.ParentID,
+		RefID:           tree.RefID,
+		Type:            tree.Type,
+		Description:     tree.Description,
+		Tags:            tree.Tags,
+		Admins:          tree.Admins,
+		PendingCount:    tree.PendingCount, // ⭐ 待审批的权限申请数量
+		Owner:           tree.CreatedBy,
+		AppID:           tree.AppID,
+		FullCodePath:    tree.FullCodePath,
+		TemplateType:    tree.TemplateType,
 		Version:         tree.Version,
 		VersionNum:      tree.VersionNum,
 		HubFullCodePath: tree.HubFullCodePath,
 		HubVersionNum:   tree.HubVersionNum,
 		RunCount:        tree.RunCount, // ⭐ 运行次数（仅 function 有意义），用于排序与展示
-		IsAdmin:         isAdmin,      // ⭐ 是否是管理员（前端优先判断此字段）
+		IsAdmin:         isAdmin,       // ⭐ 是否是管理员（前端优先判断此字段）
 	}
 
 	// ⭐ 设置权限信息

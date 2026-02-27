@@ -34,7 +34,6 @@ type CreateOpts struct {
 type BuildOpts struct {
 	SourceDir        string            // 源代码目录
 	OutputDir        string            // 输出目录
-	Platform         string            // 目标平台
 	BinaryNameFormat string            // 二进制文件名格式
 	BuildTags        []string          // 编译标签
 	LdFlags          []string          // 链接参数
@@ -330,21 +329,19 @@ func (s *AppManageService) CreateApp(ctx context.Context, user, app string, opts
 func (s *AppManageService) BuildApp(ctx context.Context, user, app string, opts ...*BuildOpts) (*builder.BuildResult, error) {
 	//logger.Infof(ctx, "[BuildApp] *** ENTRY *** user=%s, app=%s", user, app)
 
-	// 设置默认编译选项（使用配置中的平台和格式）
+	// 设置默认编译选项（平台由 builder 内部固定为 linux/当前架构）
 	buildOpts := &builder.BuildOpts{
-		Platform:         s.config.Build.Platform,
 		BinaryNameFormat: s.config.Build.BinaryNameFormat,
 	}
 
 	if opts != nil {
 		opt := opts[0]
-		// 转换类型，保留所有字段
+		// 转换类型，保留所有字段（平台由 builder 内部固定为 linux/当前架构）
 		buildOpts = &builder.BuildOpts{
-			User:             user, // 设置用户
-			App:              app,  // 设置应用
+			User:             user,
+			App:              app,
 			SourceDir:        opt.SourceDir,
 			OutputDir:        opt.OutputDir,
-			Platform:         opt.Platform,
 			BinaryNameFormat: opt.BinaryNameFormat,
 			BuildTags:        opt.BuildTags,
 			LdFlags:          opt.LdFlags,
@@ -518,7 +515,6 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, crea
 	buildOpts := &BuildOpts{
 		SourceDir:        sourceDir,
 		OutputDir:        outputDir,
-		Platform:         s.config.Build.Platform,
 		BinaryNameFormat: s.config.Build.BinaryNameFormat,
 	}
 

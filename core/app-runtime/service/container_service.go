@@ -646,15 +646,23 @@ func (s *PodmanService) RunContainerWithCommand(ctx context.Context, image, name
 		return fmt.Errorf("container service is not running")
 	}
 
+	// 宿主机在容器内的解析：优先使用配置的 host_ip_for_container，否则用 host-gateway（Podman 4.4+）
+	// 若线上 host-gateway 无效（如 rootless 或旧版），可在 config 的 sdk.host_ip_for_container 填 172.17.0.1 或宿主机 IP
+	sdkConfig := appconfig.GetSDKConfig()
+	hostEntry := "host.containers.internal:host-gateway"
+	if sdkConfig.HostIPForContainer != "" {
+		hostEntry = "host.containers.internal:" + sdkConfig.HostIPForContainer
+		logger.Infof(ctx, "[RunContainerWithCommand] Using configured host IP for container: %s", sdkConfig.HostIPForContainer)
+	}
+
 	// 使用 podman 命令行工具运行容器并挂载目录，使用指定命令作为主进程
-	// 添加 host.containers.internal -> host-gateway，使容器内能访问宿主机服务（如 NATS、Gateway）
-	// Linux Podman 下若不添加此条，NATS_URL=nats://host.containers.internal:4222 无法解析，导致 SDK 连不上 NATS，出现 "no responders" 与启动通知超时
+	// 添加 host.containers.internal -> host-gateway 或配置的 IP，使容器内能访问宿主机服务（如 NATS、Gateway）
 	logger.Infof(ctx, "Creating container with mount and command: %s", name)
 
 	// 构建命令参数
 	args := []string{"run", "-d",
 		"--name", name,
-		"--add-host", "host.containers.internal:host-gateway",
+		"--add-host", hostEntry,
 		"-v", fmt.Sprintf("%s:%s", hostPath, containerPath),
 		"-e", "TZ=Asia/Shanghai"} // 设置时区
 

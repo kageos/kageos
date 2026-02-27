@@ -227,12 +227,12 @@ func callAPIWithURL[T any](ctx context.Context, method, fullURL string, reqBody 
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	
+
 	// ✨ 从 ctx 中提取 Token
 	if token := contextx.GetToken(ctx); token != "" {
 		req.Header.Set("X-Token", token)
 	}
-	
+
 	// ✨ 从 ctx 中提取追踪ID
 	if traceID := contextx.GetTraceId(ctx); traceID != "" {
 		req.Header.Set("X-Trace-Id", traceID)

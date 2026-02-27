@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -30,7 +31,6 @@ type BuildOpts struct {
 	Version          string            // 版本号
 	SourceDir        string            // 源代码目录
 	OutputDir        string            // 输出目录
-	Platform         string            // 目标平台 (linux/amd64, linux/arm64)
 	BinaryNameFormat string            // 二进制文件名格式
 	BuildTags        []string          // 编译标签
 	LdFlags          []string          // 链接参数
@@ -54,10 +54,8 @@ func (b *Builder) Build(ctx context.Context, user, app string, opts *BuildOpts) 
 		version = b.generateVersion(user, app)
 	}
 
-	// 设置默认值
-	if opts.Platform == "" {
-		opts.Platform = "linux/amd64"
-	}
+	// 设置默认值（目标固定为 Linux，架构与当前机器一致：本地 Mac 即 Mac 架构，线上 Linux 即服务器架构）
+	platform := "linux/" + runtime.GOARCH
 	if opts.SourceDir == "" {
 		opts.SourceDir = filepath.Join(b.workDir, "namespace", user, app, "code", "cmd", "app")
 	}
@@ -92,7 +90,6 @@ func (b *Builder) Build(ctx context.Context, user, app string, opts *BuildOpts) 
 	//logger.Infof(ctx, "Building app: %s/%s, version: %s", user, app, version)
 	//logger.Infof(ctx, "Source: %s", opts.SourceDir)
 	//logger.Infof(ctx, "Output: %s", binaryPath)
-	//logger.Infof(ctx, "Platform: %s", opts.Platform)
 
 	// 先执行 go mod tidy 确保依赖是最新的
 	if err := b.runGoModTidy(ctx, opts.SourceDir); err != nil {
@@ -101,7 +98,7 @@ func (b *Builder) Build(ctx context.Context, user, app string, opts *BuildOpts) 
 	}
 
 	// 构建 Go 命令
-	cmd := b.buildGoCommand(ctx, opts.SourceDir, binaryPath, opts)
+	cmd := b.buildGoCommand(ctx, opts.SourceDir, binaryPath, platform, opts)
 
 	// 执行编译
 	output, err := cmd.CombinedOutput()
@@ -121,18 +118,17 @@ func (b *Builder) Build(ctx context.Context, user, app string, opts *BuildOpts) 
 		Version:    version,
 		BinaryPath: binaryPath,
 		BuildTime:  time.Now(),
-		Platform:   opts.Platform,
+		Platform:   platform,
 		Size:       fileInfo.Size(),
 	}, nil
 }
 
 // buildGoCommand 构建 Go 编译命令
-// 使用绝对路径避免在源代码目录下创建嵌套目录
-func (b *Builder) buildGoCommand(ctx context.Context, sourceDir, outputPath string, opts *BuildOpts) *exec.Cmd {
-	// 解析平台
-	parts := strings.Split(opts.Platform, "/")
+// platform 固定为 linux/当前架构，由 Build 内自动设置
+func (b *Builder) buildGoCommand(ctx context.Context, sourceDir, outputPath, platform string, opts *BuildOpts) *exec.Cmd {
+	parts := strings.Split(platform, "/")
 	if len(parts) != 2 {
-		parts = []string{"linux", "amd64"}
+		parts = []string{"linux", runtime.GOARCH}
 	}
 	goos, goarch := parts[0], parts[1]
 
