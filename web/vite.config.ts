@@ -73,6 +73,11 @@ export default defineConfig({
         target: 'http://localhost:9090',  // 网关地址
         changeOrigin: true,
       },
+      // MinIO 文件代理（开发环境直连本地 MinIO，生产环境由 Nginx 反向代理）
+      '/ai-agent-os': {
+        target: 'http://localhost:9000',  // MinIO 地址
+        changeOrigin: true,
+      },
     },
   },
 })

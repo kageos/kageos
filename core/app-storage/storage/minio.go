@@ -208,13 +208,11 @@ func (s *MinIOStorage) GenerateDownloadURL(ctx context.Context, bucket, key stri
 
 // GenerateDownloadURLs 生成下载 URL（同时生成外部和内部访问的URL）
 func (s *MinIOStorage) GenerateDownloadURLs(ctx context.Context, bucket, key string, expire time.Duration, cacheControl map[string]string) (externalURL string, serverURL string, err error) {
-	// 构建外部访问URL
 	scheme := "http"
 	if s.useSSL {
 		scheme = "https"
 	}
 
-	// 如果配置了CDN域名，使用CDN
 	if s.cdnDomain != "" {
 		cdnURL := s.cdnDomain
 		if !strings.HasPrefix(cdnURL, "http://") && !strings.HasPrefix(cdnURL, "https://") {
@@ -226,16 +224,16 @@ func (s *MinIOStorage) GenerateDownloadURLs(ctx context.Context, bucket, key str
 		}
 		externalURL = fmt.Sprintf("%s/%s/%s", strings.TrimSuffix(cdnURL, "/"), bucket, key)
 	} else {
-		// 直接返回公开URL（bucket已设置为public-read）
-		externalURL = fmt.Sprintf("%s://%s/%s/%s", scheme, s.endpoint, bucket, key)
+		// 返回相对路径，前端通过 Nginx 反向代理（location /{bucket}/）访问 MinIO
+		// 好处：零配置、无跨域、开发/生产一致
+		externalURL = fmt.Sprintf("/%s/%s", bucket, key)
 	}
 
-	// 构建内部访问URL（如果配置了server_endpoint且与endpoint不同）
+	// 内部访问URL（容器/SDK用，必须是绝对地址）
 	if s.serverEndpoint != "" && s.serverEndpoint != s.endpoint {
 		serverURL = fmt.Sprintf("%s://%s/%s/%s", scheme, s.serverEndpoint, bucket, key)
 	} else {
-		// 如果地址相同或未配置server_endpoint，使用外部URL
-		serverURL = externalURL
+		serverURL = fmt.Sprintf("%s://%s/%s/%s", scheme, s.endpoint, bucket, key)
 	}
 
 	return externalURL, serverURL, nil
