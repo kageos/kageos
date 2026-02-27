@@ -17,8 +17,8 @@
 ### Table 模式（单表 CRUD，GET）
 
 1. **定义结构体**：业务字段加 `gorm`、`widget`、`search`、`validate` 等标签；主键、CreatedAt、DeletedAt 等系统字段按约定写。
-2. **配置 TableTemplate**：`BaseConfig`（Name、Request、Response、CreateTables）+ `AutoCrudTable` + 可选 `OnTableAddRow` / `OnTableUpdateRow` / `OnTableDeleteRows`。
-3. **写 List 函数**：请求体嵌 `*query.SearchFilterPageReq`，`resp.Table(&lists).AutoSearchFilterPaged(db, &Model{}, req.SearchFilterPageReq).Build()`。
+2. **配置 TableTemplate**：`BaseConfig`（Name、Request、Response、CreateTables）+ **`AutoCrudTable`**（必配，指向列表结构体，前端据此显示列表与增删改入口）+ 可选 `OnTableAddRow` / `OnTableUpdateRow` / `OnTableDeleteRows`。**不需要哪种操作就删掉对应回调**：不想要新增 → 不配 `OnTableAddRow`；不想要更新 → 不配 `OnTableUpdateRow`；不允许删除 → 不配 `OnTableDeleteRows`。前端会根据是否配置回调来显示或隐藏对应按钮。
+3. **写 List 函数**：请求体嵌 `*query.SearchFilterPageReq`，用 `queryDB := ctx.GetGormDB().Model(&Model{})` 后可在 Build 前对 `queryDB` 做 Where、Preload 等，再 `resp.Table(&lists).AutoSearchFilterPaged(queryDB, &Model{}, req.SearchFilterPageReq).Build()`；Build 后可遍历 `lists` 填计算字段、关联展示字段、link 等。
 4. **注册**：`init()` 中 `packageContext.GET("路由名", ListFunc, TableTemplate)`。
 
 最小可用片段示例：
@@ -39,14 +39,21 @@ var CrmTicketTemplate = &app.TableTemplate{
 func CrmTicketList(ctx *app.Context, resp response.Response) error {
     var req struct{ *query.SearchFilterPageReq }
     ctx.ShouldBind(&req)
+    queryDB := ctx.GetGormDB().Model(&CrmTicket{}) // Build 前可对 queryDB 做 Where、Preload("关联名") 等
     var lists []*CrmTicket
-    return resp.Table(&lists).AutoSearchFilterPaged(ctx.GetGormDB(), &CrmTicket{}, req.SearchFilterPageReq).Build()
+    if err := resp.Table(&lists).AutoSearchFilterPaged(queryDB, &CrmTicket{}, req.SearchFilterPageReq).Build(); err != nil {
+        return err
+    }
+    // Build 后可遍历 lists，填计算字段、关联表展示字段（需先在 Build 前 Preload）、link 等
+    return nil
 }
 
 func init() {
     packageContext.GET("crm_ticket.table", CrmTicketList, CrmTicketTemplate)
 }
 ```
+
+List 可在 **Build 前**对 `queryDB` 做 Where、Preload 等，**Build 后**遍历 `lists` 做后处理；详见「五、Table 回调函数 → 4. List 函数」。
 
 单表完整示例（含所有常用组件与回调）：read_doc ` /builtin/doc/case_catalog/table/ticket`。
 
@@ -356,9 +363,9 @@ CostPrice    float64 `json:"cost_price" gorm:"column:cost_price" widget:"name:�
 
 ## 四、Table 模式要点
 
-- **TableTemplate**：`BaseConfig` 含 Name、Request、Response、CreateTables；`AutoCrudTable` 指向列表结构体；可选 `OnTableAddRow`、`OnTableUpdateRow`、`OnTableDeleteRows`；若新增/编辑表单中有 select 需后端动态选项，配 `OnSelectFuzzyMap`（用法见「六、Form 模式要点 → OnSelectFuzzy」）。
+- **TableTemplate**：`BaseConfig` 含 Name、Request、Response、CreateTables；**`AutoCrudTable` 必配**（指向列表结构体，前端据此展示列表与增删改入口）。**不需要哪种操作就删掉对应回调**：不想要新增 → 不配 `OnTableAddRow`；不想要更新 → 不配 `OnTableUpdateRow`；不允许删除 → 不配 `OnTableDeleteRows`（如消费记录、操作日志通常不允删除）。前端根据是否配置回调来显示或隐藏「新增」「编辑」「删除」按钮。可选 `OnTableAddRow`、`OnTableUpdateRow`、`OnTableDeleteRows`；若新增/编辑表单中有 select 需后端动态选项，配 `OnSelectFuzzyMap`（用法见「六、Form 模式要点 → OnSelectFuzzy」）。
 - **AutoCrudTable 的 model 可落库字段类型**：model 里凡是有 **gorm 列**（会被 GORM 写入数据库）的字段，**只能是**以下可落库类型：**基础类型**（int、string、bool、int64、float64 等）、**files.Files**（`gorm:"type:json"`）、**gorm.DeletedAt**（软删除，GORM 特例）。除此以外，**其他 struct、slice（如 type:table / type:form）不能作为一列写入数据库**；若在 model 里出现这类 struct/slice，须为：**外键关联**（如 `Room *MeetingRoom` 配 `gorm:"foreignKey:RoomID;references:ID"`，实际存的是 RoomID，不占一列）或 **gorm:"-"**（不落库，仅展示/表单用，如 RoomName、Status、Options、link 等）。否则 GORM 无法把该列写进数据库。
-- **List 函数**：请求体包含 `*query.SearchFilterPageReq`，使用 `resp.Table(&lists).AutoSearchFilterPaged(db, &Model{}, req.SearchFilterPageReq).Build()`；Build 后可在内存中给计算字段赋值（如剩余时间、**link 跳转 URL**，见「三、结构体与标签 → link 组件」）。
+- **List 函数**：请求体包含 `*query.SearchFilterPageReq`，使用 `resp.Table(&lists).AutoSearchFilterPaged(db, &Model{}, req.SearchFilterPageReq).Build()`；Build 后可在内存中给计算字段赋值（如剩余时间、**link 跳转 URL**，见「三、结构体与标签 → link 组件」）。若列表需要**按外表或计算字段筛选**（如按「会议室名称」筛预约、按「预约状态：待开始/进行中/已结束」筛），这些字段**不是主表的列**，应在 **Request 结构体**（TableTemplate.BaseConfig.Request）中定义：带 `form:"xxx"` 便于绑定，带 `widget` 让前端展示筛选控件；在 List 函数里**手写 Where**（外表筛先查关联表得 ID 再 `Where 外键 IN ?`，计算字段筛用主表时间等与当前时间比较），再传 `AutoSearchFilterPaged`。详见下「4. List 函数」中会议室预约示例。
 - 主键、CreatedAt、UpdatedAt、DeletedAt、DeletedBy 等系统字段约定见案例；init_.go 由脚手架生成，不要手写。
 
 完整 Table 示例（单表/多表/回调/OnSelectFuzzy/link）：read_doc ` /builtin/doc/case_catalog/table/ticket`、`/builtin/doc/case_catalog/tables/meeting`、`/builtin/doc/case_catalog/tables/hr`。
@@ -367,7 +374,7 @@ CostPrice    float64 `json:"cost_price" gorm:"column:cost_price" widget:"name:�
 
 ## 五、Table 回调函数
 
-Table 的三个回调用于新增、更新、删除时的业务逻辑；可选配置，不配则走框架默认行为。
+Table 的增删改由三个**可选**回调实现；**不配某个回调则前端不显示或禁用对应操作**（不配 `OnTableAddRow` 则无新增、不配 `OnTableUpdateRow` 则无编辑、不配 `OnTableDeleteRows` 则无删除）。配置了的回调用于新增、更新、删除时的业务逻辑；不配则走框架默认行为（若有默认实现）或该操作不可用。
 
 ### 1. OnTableAddRow（新增行）
 
@@ -444,8 +451,18 @@ OnTableDeleteRows: func(ctx *app.Context, req *callback.OnTableDeleteRowsReq) (*
 
 List 函数可在 **Build 之前** 和 **Build 之后** 两处做自定义处理：
 
-- **Build 之前**：在调用 `AutoSearchFilterPaged` 之前，对 `queryDB` 做 Where（外表筛选、计算字段的筛选条件）、Preload 等，再传入 `AutoSearchFilterPaged(queryDB, ...)`。
-- **Build 之后**：对返回的 `lists` 逐条做计算、填充不落库字段（如剩余时间、状态、关联表名称、link URL）等。
+- **Build 之前**：在调用 `AutoSearchFilterPaged` 之前，对 `queryDB` 做 Where（外表筛选、计算字段的筛选条件）、**Preload（GORM 预加载）** 等，再传入 `AutoSearchFilterPaged(queryDB, ...)`。
+- **Build 之后**：对返回的 `lists` 逐条做计算、填充不落库字段（如剩余时间、状态、**关联表名称**、link URL）等。
+
+#### GORM 预加载（Preload）
+
+当列表需要展示**关联表字段**（如预约列表要显示「会议室名称」，而表里只存了 `room_id`）时，应使用 GORM 的 **Preload** 在查主表时一并加载关联，避免 N+1 查询。步骤：
+
+1. **Model 上定义关联**：在列表结构体上声明关联字段，并设置 `gorm:"foreignKey:外键列"`（如 `Room *MeetingRoom` 配 `gorm:"foreignKey:RoomID"`），该关联字段可不落库、不展示（`json:"-"`、`widget:"-"`）。
+2. **Build 前 Preload**：在调用 `AutoSearchFilterPaged` 之前执行 `queryDB = queryDB.Preload("Room")`（参数为关联字段名），这样 Build 完成后每条记录的 `Room` 会被填充。
+3. **Build 后处理**：遍历 `lists` 时，用预加载的关联填不落库的展示字段（如 `if item.Room != nil { item.RoomName = item.Room.Name }`），再填计算字段、link 等。
+
+不预加载时，若在后处理里按 `room_id` 逐条查会议室会形成 N+1 查询；使用 Preload 后一次查询主表、一次查询关联表，性能更好。
 
 下面先给一个**仅后处理**的最小示例（剩余时间），再给一个**前处理 + 后处理**的示例（会议室预约：外表/状态筛选 + 填充会议室名称/状态/link）。
 
@@ -508,10 +525,11 @@ type MeetingRoomBooking struct {
     Status    string `json:"status" gorm:"-" widget:"name:预约状态;type:select;options:待开始,进行中,已结束;options_colors:info,primary,success" permission:"read"` // 后处理按时间计算
 }
 
-// 列表请求：RoomName、Status 为筛选条件，非表字段，需在 List 内手写 Where
+// 列表请求：RoomName、Status 为筛选条件，非主表字段（RoomName 来自外表，Status 为计算字段），
+// 需在 List 内手写 Where。字段要有 form 绑定 + widget 供前端展示筛选控件；非表字段可加 gorm:"-"。
 type MeetingRoomBookingListReq struct {
-    RoomName string `json:"room_name" form:"room_name"` // 按会议室名称模糊查
-    Status   string `json:"status" form:"status"`       // 按预约状态筛选（待开始/进行中/已结束）
+    RoomName string `json:"room_name" form:"room_name" gorm:"-" widget:"name:会议室名称;type:input"`
+    Status   string `json:"status" form:"status" widget:"name:预约状态;type:select;options:待开始,进行中,已结束;options_colors:info,primary,success"`
     query.SearchFilterPageReq
 }
 
@@ -522,7 +540,7 @@ func MeetingRoomBookingList(ctx *app.Context, resp response.Response) error {
 
     queryDB := db.Model(&MeetingRoomBooking{})
 
-    // Build 前处理 1：按会议室名称筛选（查外表得 roomIDs，再 Where room_id IN ?）
+    // Build 前处理 1：按会议室名称筛选（外表字段，先查 MeetingRoom 得 roomIDs，再 Where room_id IN ?；无匹配时返回空表）
     if req.RoomName != "" {
         var roomIDs []int
         if err := db.Model(&MeetingRoom{}).Where("name LIKE ?", "%"+req.RoomName+"%").
@@ -533,7 +551,7 @@ func MeetingRoomBookingList(ctx *app.Context, resp response.Response) error {
         }
     }
 
-    // Build 前处理 2：按预约状态筛选（计算字段，用 start_time/end_time 与当前时间比较）
+    // Build 前处理 2：按预约状态筛选（计算字段：用 start_time/end_time 与当前时间比较；多表时建议加表名前缀如 crm_meeting_room_booking.start_time）
     if req.Status != "" {
         now := time.Now().UnixMilli()
         switch req.Status {
@@ -568,7 +586,7 @@ func calculateBookingStatus(startTime, endTime int64) string {
 }
 ```
 
-要点：**前处理**用自定义 `queryDB`（外表 Where、计算字段 Where、Preload）再传 `AutoSearchFilterPaged(queryDB, ...)`；**后处理**在 Build 之后遍历 `lists` 填 `RoomName`、`Status`、`RoomLink` 等不落库字段。
+要点：**前处理**用自定义 `queryDB`（外表 Where、计算字段 Where、**Preload 预加载关联**）再传 `AutoSearchFilterPaged(queryDB, ...)`；**后处理**在 Build 之后遍历 `lists`，用预加载的 `Room` 填 `RoomName`，再填 `Status`、`RoomLink` 等不落库字段。
 
 ---
 
@@ -639,13 +657,42 @@ type HrResume struct {
 当 **select** 或 **multiselect** 的选项需要从后端查库、按关键字模糊搜索或按业务条件过滤（如只显示「可用」会议室、只显示「上架」商品）时，使用 **OnSelectFuzzy**。前端在下拉里输入关键字或回显已选值时，会调用该回调，由后端返回选项列表。
 
 - **适用**：Form 请求中的 select、Form 请求里 **table 子表**中的 select、**Table 模式**新增/编辑表单中的 select（如预约选会议室）。只要该 select 需要「后端动态选项」，就配 OnSelectFuzzy。
-- **字段配置**：在字段上加 `callback:"OnSelectFuzzy"`；字段的 **json 名**（如 `product_id`、`member_id`、`room_id`）作为模板里 `OnSelectFuzzyMap` 的 key。
+- **字段配置**：在字段上加 `callback:"OnSelectFuzzy"`；若选项依赖同表单其他字段，可加 `depend_on:字段json名`（如 `depend_on:topic_id`）提示前端该字段依赖上方字段。字段的 **json 名**（如 `product_id`、`member_id`、`room_id`）作为模板里 `OnSelectFuzzyMap` 的 key。
 - **模板配置**：在 **FormTemplate** 或 **TableTemplate** 的 `BaseConfig` 里设置 `OnSelectFuzzyMap: map[string]app.OnSelectFuzzy{"字段json名": handler}`，key 与请求/列表结构体里该字段的 json 名一致。
 - **回调签名**：`func(ctx *app.Context, req *callback.OnSelectFuzzyReq) (*callback.OnSelectFuzzyResp, error)`。
 
-**OnSelectFuzzyReq**：前端会传 `Code`（字段标识）、`Type`（`by_keyword` 用户输入关键字 / `by_value` 回显单个值 / `by_values` 回显多选值）、`Value`（关键字或已选值）。常用方法：`req.IsByKeyword()`、`req.IsByValue()`、`req.IsByValues()`；`req.Keyword()` 取关键字；`req.GetValue()`、`req.GetValues()` 取已选值（用于回显时查库）。
+**OnSelectFuzzyReq**：前端会传 `Code`（字段标识）、`Type`（`by_keyword` 用户输入关键字 / `by_value` 回显单个值 / `by_values` 回显多选值）、`Value`（关键字或已选值）。常用方法：`req.IsByKeyword()`、`req.IsByValue()`、`req.IsByValues()`；`req.Keyword()` 取关键字；`req.GetValue()`、`req.GetValues()` 取已选值（用于回显时查库）。**在回调中获取当前表单已填数据**：当某个下拉的选项依赖同表单其他字段时（例如「投票选项」依赖「投票主题」），可用 `req.BindCurrentFormData(&currentData)` 将当前用户已填写的表单数据绑定到与 Request 一致的结构体上，从而根据已填字段（如 `currentData.TopicID`）查库返回选项。**字段顺序很重要**：依赖的字段必须放在表单上面先填写（如投票主题在上、投票选项在下），这样用户先选主题后，选项回调里才能通过 `BindCurrentFormData` 拿到 `TopicID`；否则选项回调触发时依赖字段可能尚未填写，需在回调里校验并提示「请先选择 xxx」。
 
 **OnSelectFuzzyResp**：返回 `Items []*SelectFuzzyItem`（每项含 `Value`、`Label`、可选 `DisplayInfo` 供详情展示）；`MaxSelections`（0 表示不限制，1 表示单选）；可选 `Statistics map[string]interface{}`，用于在表单旁**聚合展示**（见下「Statistics 与聚合计算」）。
+
+**回调中获取当前表单数据示例（依赖字段 + 顺序）**：例如提交投票表单：先选「投票主题」、再选「投票选项」，选项列表依赖主题 ID。请求结构体上把 `TopicID` 放上面、`OptionIDs` 放下面；选项回调里用 `BindCurrentFormData` 拿到已填的 `TopicID`，再按 `topic_id` 查库返回该主题下的选项。若解析失败或 `TopicID == 0`，提示用户先选择投票主题。
+
+```go
+// 请求结构体：依赖的字段放上面，顺序重要
+type VoteSubmitReq struct {
+    TopicID   int   `json:"topic_id" widget:"name:选择投票主题;type:select" validate:"required" callback:"OnSelectFuzzy"`
+    OptionIDs []int `json:"option_ids" widget:"name:选择投票选项;type:multiselect;depend_on:topic_id" validate:"required,min=1" callback:"OnSelectFuzzy"`
+    Remark    string `json:"remark" widget:"name:投票备注;type:text_area" validate:"max=500"`
+}
+
+// 选项回调：依赖 topic_id，需先拿到当前表单已填数据
+func voteOnSelectFuzzyOption(ctx *app.Context, req *callback.OnSelectFuzzyReq) (*callback.OnSelectFuzzyResp, error) {
+    db := ctx.GetGormDB()
+    var currentData VoteSubmitReq
+    err := req.BindCurrentFormData(&currentData)
+    if err != nil {
+        return nil, fmt.Errorf("表单解析失败，请刷新选择投票主题后再重试")
+    }
+    if currentData.TopicID == 0 {
+        return nil, fmt.Errorf("请先选择投票主题，再选择投票选项")
+    }
+    var options []*VoteOption
+    // 按 currentData.TopicID 查该主题下的选项...
+    db.Where("topic_id = ?", currentData.TopicID).Find(&options)
+    // 构造 Items、Statistics 后返回
+    return &callback.OnSelectFuzzyResp{Items: items, ...}, nil
+}
+```
 
 **SelectFuzzyItem**：`Value`（提交给后端的值，如 ID）、`Label`（下拉展示文本）、`Icon`、`DisplayInfo`（额外展示信息，如单价、库存；字段名会参与聚合表达式）。
 
@@ -710,7 +757,7 @@ func onSelectFuzzyProduct(ctx *app.Context, req *callback.OnSelectFuzzyReq) (*ca
 
 当 OnSelectFuzzy 用于 **table 子表**中的 select（如收银台商品清单里的「商品」）时，Statistics 里可用：
 
-- **`statistics.Sum(expression)`**：对当前 table 所有行按表达式求和。表达式与 **MySQL/SQL 一致**：空格分隔、`*` 表示乘，字段名来自 `SelectFuzzyItem.DisplayInfo` 的 key 或行内字段名（如 `quantity`）。条件用 **MySQL IF(cond, thenExpr, elseExpr)**。  
+- **`statistics.Sum(expression)`**：对当前 table 所有行按表达式求和。表达式与 **MySQL/SQL 一致**：空格分隔、`*` 表示乘，字段名来自 `SelectFuzzyItem.DisplayInfo` 的 key 或行内字段名（如 `quantity`）。条件用 **MySQL IF(cond, thenExpr, elseExpr)**。**前端表达式解析器（ExpressionParserV2）支持该格式**，可直接使用。
   例：`statistics.Sum("价格")`、`statistics.Sum("价格 * quantity")`、`statistics.Sum("IF(price > 0, price * quantity, 销售价 * quantity)")`（有输入价用输入价×数量，否则用默认销售价×数量）、`statistics.Sum("价格 * quantity * (1 - 折扣率)")`（优惠金额）。
 - **`statistics.Count(field)`**：对当前行按某字段非空计数，如 `statistics.Count("价格")` 表示「选了几种商品」。
 - **`statistics.Avg(field, ...)`**、**`statistics.Min(field)`**、**`statistics.Max(field)`**：平均值、最小值、最大值。
@@ -806,7 +853,7 @@ func onSelectFuzzyMeetingRoom(ctx *app.Context, req *callback.OnSelectFuzzyReq) 
 
 完整示例：read_doc ` /builtin/doc/case_catalog/form_table_chart/cashier`（Form + table 子表 OnSelectFuzzy + 聚合计算）、`/builtin/doc/case_catalog/tables/meeting`（**Table 模式**预约选会议室 OnSelectFuzzy，见 meeting_room_booking.go）。
 
-Form 请求中 table 子表、OnSelectFuzzy、多 POST 同目录等：read_doc ` /builtin/doc/case_catalog/form/excelorcsv`、`/builtin/doc/case_catalog/form_table_chart/cashier`（收银台）、`/builtin/doc/case_catalog/formandtable/vote`。
+Form 请求中 table 子表、OnSelectFuzzy、多 POST 同目录等：read_doc ` /builtin/doc/case_catalog/form/excelorcsv`、`/builtin/doc/case_catalog/form_table_chart/cashier`（收银台）、`/builtin/doc/case_catalog/formandtable/vote`（投票提交：**BindCurrentFormData** 先选主题再选选项的依赖下拉示例）。
 
 ---
 

@@ -14,7 +14,7 @@
 |------|----------|----------|
 | **杂活/通用** | 图片转格式、处理视频、解析 Excel、生成图表 | `read_doc("/builtin/doc/workspace/misc-tasks")` |
 | **创建项目** | 做一个 XX 系统、新建 XX 管理 | `read_doc("/builtin/doc/sdk/agent-app-sdk-readme", "/builtin/doc/workspace/create-project")` |
-| **修改项目** | 改一下 XX、加个字段、写 README | `read_doc("/builtin/doc/workspace/modify-project")` |
+| **修改项目** | 改一下 XX、加个字段、写 README | **必须先** `read_doc("/builtin/doc/sdk/agent-app-sdk-readme", "/builtin/doc/workspace/modify-project")`；改动出错时**立即** read_doc 相关案例参考、纠正，**禁止瞎搞** |
 | **操作项目** | 查列表、提交表单、看图表、新增记录 | `read_doc("/builtin/doc/workspace/execute")` |
 | **了解项目** | 有什么能力、怎么用 | 根据环境信息作答，必要时 `read_doc("/builtin/doc/workspace/explain-project")` |
 
@@ -76,7 +76,7 @@
        ├─ 找到 → 直接使用 → 步骤5
        └─ 没找到 → 步骤3
 3. 搜索Hub免费应用
-   └─ search_hub_directory(search, category)
+   └─ search_hub_directory(search)
        ├─ 找到 → 询问用户是否复制使用
        │   ├─ 同意 → copy_directory → 直接使用 → 步骤5
        │   └─ 不同意 → 步骤4
@@ -92,7 +92,7 @@
 
 ```
 1. 优先搜索Hub
-   └─ search_hub_directory(search, category)
+   └─ search_hub_directory(search)
        ├─ 找到 → 询问用户「Hub已有类似系统，是否直接复制？」
        │   ├─ 同意 → copy_directory → 验证可用性 → 步骤4
        │   └─ 不同意 → 步骤2
@@ -119,8 +119,8 @@
 
 | 场景 | 时机 | 搜索方式 |
 |------|------|----------|
-| 创建系统类任务 | 开始前先搜 | `search_hub_directory("关键词", "table")` |
-| 临时任务类 | search_tools 无结果后 | `search_hub_directory("关键词", "form")` |
+| 创建系统类任务 | 开始前先搜 | `search_hub_directory("关键词")` 或多关键字 `search_hub_directory("美发|理发|美容|预约")` |
+| 临时任务类 | search_tools 无结果后 | `search_hub_directory("关键词")` 或多关键字用 \| 分隔 |
 
 **上架建议时机（任务完成后）**
 
@@ -165,18 +165,19 @@
 1. **读文档**：`read_doc("/builtin/doc/sdk/agent-app-sdk-readme", "/builtin/doc/workspace/create-project")`
 2. **搜Hub**：按「工具/应用获取优先级」先搜索是否有现成系统
 3. **分析需求**：结合用户描述和文档能力边界，判断能否实现
-4. **出 PRD**：按 create-project 文档的表格格式输出方案（表单字段表 + 列表模式表 + 是否新建目录），**等用户确认后再写代码**
-5. **建目录**：若方案里写「会新建目录」，则先 `create_directory`，禁止再手写 `init_.go`
-6. **生成代码**：按确认的 PRD 写代码，用 `write_go_file` 落盘；多文件时最后统一 `build_workspace()`
-7. **编译**：`build_workspace()`；若报错则根据报错用 `read_go_file_lines` 等定位，修改后再次编译，直到通过
-8. **测试前必读操作文档**：`read_doc("/builtin/doc/workspace/execute")`
-9. **测试与修复**：按 execute 文档执行测试；出错则读相关文档理解如何修改，改代码 → 编译 → 再测试，循环直到通过
-10. **输出测试报告**：明确告知项目是否已可正常使用、已验证的功能点、限制或遗留项
-11. **闭环**：询问是否上架Hub
+4. **参考示例（必做）**：按项目类型 read_doc 至少 1 个匹配案例（见 create-project 文末「参考案例」表格，如单 Table→工单管理、单 Form→Excel/CSV 或 PDF、多 Table→招聘/会议室、Table+Form→投票、Table+Form+Chart→收银台），对照案例的 PRD 格式与写法
+5. **出 PRD**：在参考案例后，按 create-project 文档的表格格式输出方案（表单字段表 + 列表模式表 + 是否新建目录），**等用户确认后再写代码**
+6. **建目录**：若方案里写「会新建目录」，则先 `create_directory`，禁止再手写 `init_.go`
+7. **生成代码**：按确认的 PRD 写代码，用 `write_go_file` 落盘；多文件时最后统一 `build_workspace()`
+8. **编译**：`build_workspace()`；若报错则根据报错用 `read_go_file_lines` 等定位，修改后再次编译，直到通过
+9. **测试前必读操作文档**：`read_doc("/builtin/doc/workspace/execute")`
+10. **测试与修复**：按 execute 文档执行测试；出错则读相关文档理解如何修改，改代码 → 编译 → 再测试，循环直到通过
+11. **输出测试报告**：明确告知项目是否已可正常使用、已验证的功能点、限制或遗留项
+12. **闭环**：询问是否上架Hub
 
 ### 修改项目类
 
-先 `read_doc("/builtin/doc/workspace/modify-project")`，再按文档改代码、编译、必要时按 execute 验证。
+**必须先** `read_doc("/builtin/doc/sdk/agent-app-sdk-readme", "/builtin/doc/workspace/modify-project")`，再按文档改代码、编译、必要时按 execute 验证。**改动出错时**（编译失败、行为不符合预期等）：**立即** read_doc 与当前改动相关的案例（见 create-project 文末「参考案例」或 SDK 文档中的案例路径），对照示例写法纠正，**禁止不看文档、不看示例就自己瞎改**。
 
 ### 操作项目类
 
@@ -188,7 +189,7 @@
 
 ### 工具/表单的简介与 Tag（便于后续检索）
 
-**search_tools / search_hub_directory 会按关键词匹配「函数简介」和「Tag」**，写的时候必须站在「用户会搜什么」来写，否则后续搜不到。
+**search_tools** 用于搜索可用工具（内置 + system 用户下已注册函数），**search_hub_directory** 搜应用市场；二者均按关键词匹配「函数简介」和「Tag」，写的时候必须站在「用户会搜什么」来写，否则后续搜不到。
 
 | 项 | 要求 | 反例（不易检索） | 正例（易检索） |
 |----|------|------------------|----------------|
@@ -209,14 +210,15 @@
 
 ---
 
-## 九、全局约束（仅此 6 条，不在子文档中重复）
+## 九、全局约束（仅此 7 条，不在子文档中重复）
 
 1. **先文档后执行**：禁止未读文档就写代码或调用执行类工具
-2. **先 PRD 后代码**：创建/修改项目时，必须先输出方案并得到用户确认后再动手
-3. **技术方案限定**：必须基于 agent-app SDK（Go），禁止 HTML/CSS/JS/localStorage/纯前端方案
-4. **严格按确认方案实现**：不画蛇添足，不自作主张加方案外的字段/模块/文件/文档
-5. **代码必须落盘**：生成代码后必须调用 write_go_file，不要只输出代码不调用工具
-6. **禁止伪代码与占位**：禁止「用 xxx 代替」「生产使用 xxx」等占位式输出
+2. **先参考案例再出 PRD**：创建项目时，出 PRD 前必须先 read_doc 与项目类型匹配的案例（见 create-project 文末表格），禁止未读案例就出 PRD
+3. **先 PRD 后代码**：创建/修改项目时，必须先输出方案并得到用户确认后再动手
+4. **技术方案限定**：必须基于 agent-app SDK（Go），禁止 HTML/CSS/JS/localStorage/纯前端方案
+5. **严格按确认方案实现**：不画蛇添足，不自作主张加方案外的字段/模块/文件/文档
+6. **代码必须落盘**：生成代码后必须调用 write_go_file，不要只输出代码不调用工具
+7. **禁止伪代码与占位**：禁止「用 xxx 代替」「生产使用 xxx」等占位式输出
 
 ---
 
@@ -226,8 +228,8 @@
 
 | 工具 | 用途 | 参数说明 |
 |------|------|----------|
-| search_tools(keyword, template_type, limit) | 搜索工作区内已存在的工具 | keyword 必填，多关键词用竖线分隔；template_type（可选）: form/table/chart；limit（可选，默认 20） |
-| search_hub_directory(search, category, full_code_path, page, page_size) | 应用中心搜索或按路径查详情 | **两种用法**：① 搜列表：传 search（可选，不传则全部）、category（可选）、page、page_size（可选，默认 1/10）。② 查某路径在 Hub 的信息：传 full_code_path（如 /user/app/plugins/xxx），返回是否已上架、copy_url、star_count 等。参数均为可选，二选一使用。 |
+| search_tools(keyword, template_type, limit) | 搜索可用工具（内置工具 + system 用户下已注册函数） | keyword 必填，多关键词用竖线分隔；template_type（可选）: form/table/chart；limit（可选，默认 20） |
+| search_hub_directory(search, full_code_path, page, page_size) | 应用中心搜索或按路径查详情 | **两种用法**：① 搜列表：传 search（可选，不传则全部；支持多关键字「或」搜索，用 \| 分隔，如 美发\|理发\|美容\|预约）、page、page_size（可选，默认 1/10）。② 查某路径在 Hub 的信息：传 full_code_path（如 /user/app/plugins/xxx），返回是否已上架、copy_url、star_count 等。参数均为可选，二选一使用。 |
 | read_dir() | 查看当前目录结构 | 了解目录下已有的工具/子目录 |
 
 **文档类**

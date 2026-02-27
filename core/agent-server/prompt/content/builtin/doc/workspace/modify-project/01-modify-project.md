@@ -2,6 +2,8 @@
 
 当用户要**改已有代码**或**给项目写文档**时，按本文档执行。
 
+**强制要求**：修改项目时**必须**先 read_doc SDK 文档（`/builtin/doc/sdk/agent-app-sdk-readme`），了解组件、Table/Form 约定、回调、标签等再动手。改动出错时（编译失败、前端不展示、行为异常等）**立即** read_doc 相关案例（见 create-project 文末「参考案例」表格或 SDK 文档中的案例路径），对照示例纠正，**禁止不看文档、不看示例就自己瞎搞**。
+
 ---
 
 ## 一、修改 PRD（先方案后动手）
@@ -25,7 +27,7 @@
 
 确认后按以下步骤执行：
 
-1. **按需读文档**：涉及组件/列表/包约定时 read_doc SDK 或案例（路径见 create-project 文档末尾表格）。
+1. **按需读文档**：**涉及任何改代码都必须先读过 SDK 文档**；涉及组件/列表/表单/回调/标签等具体写法时，read_doc 与当前改动类型匹配的案例（见 create-project 文末表格），对照示例再改。
 2. **看代码**：`read_go_file` 读取要改的文件，从实际内容中**复制要替换的原文**作为 search_string。
 3. **改代码**：**优先 `search_replace_file`**（只改一段，省 token）；仅大改或整文件重构时才用 `write_go_file`。
 4. **编译**：改完后调用 `build_workspace`。
@@ -41,7 +43,7 @@
 循环处理直到编译成功：
 1. 查看 build_workspace 返回的报错信息。
 2. 按需用 `read_go_file_lines(file_name, line_ranges)` 读报错行。
-3. 能确定原因 → 直接修复；不能确定 → read_doc SDK 或案例对照排查。
+3. 能确定原因 → 直接修复；**不能确定或改完仍不对 → 立即 read_doc SDK 或相关案例**（见 create-project 文末表格），对照示例纠正，**禁止瞎搞**。
 4. 再调 `build_workspace`，失败则重复。
 
 ---

@@ -1,54 +1,43 @@
+# Docker 构建排除文件
+# 减少构建上下文大小，加速构建
+
 # Git
 .git
 .gitignore
-.gitattributes
-
-# Documentation
-*.md
-docs/
-note/
 
 # IDE
-.vscode/
-.idea/
+.cursor
+.vscode
+.idea
 *.swp
 *.swo
-*~
 
-# Logs
-logs/
-*.log
-
-# Build artifacts
-bin/
-dist/
-build/
-
-# Test files
-*_test.go
-test/
-tests/
-
-# Frontend (not needed in backend container)
-web/
-node_modules/
-
-# Scripts (keep only necessary ones)
-scripts/
-!scripts/podman/nats-server.conf
-!scripts/start.sh
-
-# Temporary files
-tmp/
-temp/
-*.tmp
-
-# OS files
+# OS
 .DS_Store
 Thumbs.db
 
-# Docker files (avoid recursive copy)
-Dockerfile*
-docker-compose*.yml
-.dockerignore
+# Node modules（前端 Dockerfile 内部安装）
+web/node_modules
+enterprise_impl/hub/frontend/node_modules
+node_modules
 
+# Go 构建缓存
+vendor
+
+# 日志和运行时数据
+logs/
+*.log
+data/
+*.db
+
+# 文档和笔记
+note/
+blueprint/
+test/
+*.plan.md
+
+# 本地配置（使用 docker/configs 覆盖）
+# 注意：不排除 configs/，因为 Dockerfile 需要复制默认配置
+
+# Docker 自身
+docker-compose.yml

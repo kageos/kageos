@@ -33,7 +33,7 @@
 
 ### 1. 再 search_tools
 
-根据用户意图提取关键词，调用 `search_tools(keyword, template_type, limit)`。
+按关键词**搜索可用工具**（内置工具 + **system 用户下**已注册的表单/表格/图表函数）。根据用户意图提取关键词，调用 `search_tools(keyword, template_type, limit)`。
 
 - **keyword**（必填）：多关键词用 `|` 分隔（OR 语义），如 `折线图|chart|画图`、`图片|png|转换`。
 - **template_type**（可选，建议传）：按函数类型过滤。**绝大部分杂活、画图、转格式、解析文件等都由 form 完成**，应传 `template_type=form` 缩小范围、避免混入大量 table/chart。仅当用户明确是「表格增删改查」或「图表数据查询」时才传 `table` 或 `chart`；不传则返回全部类型。
@@ -81,8 +81,8 @@
 
 ## search_tools 返回格式
 
-返回包含：
+本工具用于**搜索可用工具**，返回包含：
 - **【内置工具】**：匹配到的内置工具，每条为「名称：描述」。
-- **【已注册函数】**：含一句统一调用方式说明；每条为 name、full_code_path、已使用 N 次（若有）、description、type、request（JSON）。不返回 response，减少冗余。
+- **【已注册函数】**：仅限 **system 用户下**已注册的表单/表格/图表函数；含一句统一调用方式说明；每条为 name、full_code_path、已使用 N 次（若有）、description、type、request（JSON）。不返回 response，减少冗余。
 
 从已注册函数中取 full_code_path 作为 `run_form_submit` 的第一个参数，按 request 各字段的 code 构造 body。

@@ -108,9 +108,20 @@ func (d *Directory) GetDirectoryList(c *gin.Context) {
 		req.PageSize = 100 // 最大100条
 	}
 
+	// 只看自己：从请求上下文取当前用户，未登录则 401
+	publisherUsername := req.PublisherUsername
+	if req.MineOnly {
+		currentUser := contextx.GetRequestUser(c)
+		if currentUser == "" {
+			response.NoAuth(c, "请先登录后再查看「只看我的」")
+			return
+		}
+		publisherUsername = currentUser
+	}
+
 	ctx := contextx.ToContext(c)
 	host := c.Request.Host
-	resp, err := d.directoryService.GetDirectoryList(ctx, req.Page, req.PageSize, req.Search, req.Category, req.PublisherUsername, req.FeeType, req.OrderBy, host)
+	resp, err := d.directoryService.GetDirectoryList(ctx, req.Page, req.PageSize, req.Search, req.Category, publisherUsername, req.FeeType, req.OrderBy, host)
 	if err != nil {
 		logger.Errorf(ctx, "[Directory] 获取目录列表失败: %v", err)
 		response.FailWithMessage(c, err.Error())

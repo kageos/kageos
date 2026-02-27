@@ -10,7 +10,6 @@
 # 构建文件
 *.exe
 dist/
-build/
 bin/
 
 # 运行时目录

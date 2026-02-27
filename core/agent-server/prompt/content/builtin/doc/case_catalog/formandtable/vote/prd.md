@@ -765,8 +765,8 @@ func updateOptionsPercentage(tx *gorm.DB, topicID int) error {
 		optionIDs = append(optionIDs, option.ID)
 	}
 	caseWhenBuilder.WriteString(" ELSE percentage END")
-
-	sql := "UPDATE biz_vote_system_option SET percentage = " + caseWhenBuilder.String() + " WHERE id IN ?"
+	voteOption := VoteOption{}
+	sql := "UPDATE " + voteOption.TableName() + " SET percentage = " + caseWhenBuilder.String() + " WHERE id IN ?"
 	args = append(args, optionIDs)
 
 	if err := tx.Model(&VoteOption{}).Exec(sql, args...).Error; err != nil {
@@ -1238,21 +1238,21 @@ func VoteTopicList(ctx *app.Context, resp response.Response) error {
 
 		if topics[i].Status == "已结束" || topics[i].Status == "未开始" {
 			params := VoteResultReq{TopicID: topics[i].ID}
-			topics[i].VoteActionLink, _ = ctx.BuildFunctionUrlWithText("vote_result", params, "查看投票结果")
+			topics[i].VoteActionLink, _ = ctx.BuildFunctionUrlWithText("vote_result.form", params, "查看投票结果")
 		} else if topics[i].Status == "进行中" {
 			if hasUserVoted {
 				params := VoteResultReq{TopicID: topics[i].ID}
-				topics[i].VoteActionLink, _ = ctx.BuildFunctionUrlWithText("vote_result", params, "查看投票结果")
+				topics[i].VoteActionLink, _ = ctx.BuildFunctionUrlWithText("vote_result.form", params, "查看投票结果")
 			} else {
 				params := VoteSubmitReq{TopicID: topics[i].ID}
-				topics[i].VoteActionLink, _ = ctx.BuildFunctionUrlWithText("vote_submit", params, "点击参与投票")
+				topics[i].VoteActionLink, _ = ctx.BuildFunctionUrlWithText("vote_submit.form", params, "点击参与投票")
 			}
 		}
 
 		params := VoteOption{
 			TopicID: topics[i].ID,
 		}
-		topics[i].OptionsLink, _ = ctx.BuildFunctionUrlWithText("vote_option_list", params, "查看选项列表")
+		topics[i].OptionsLink, _ = ctx.BuildFunctionUrlWithText("vote_option_list.table", params, "查看选项列表")
 	}
 
 	return nil

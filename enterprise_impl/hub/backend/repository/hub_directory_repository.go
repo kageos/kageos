@@ -24,6 +24,18 @@ func normalizeFullCodePath(p string) string {
 	return p
 }
 
+// splitSearchKeywords 将 search 按 | 拆成多个关键字，去空格、去空串
+func splitSearchKeywords(search string) []string {
+	var out []string
+	for _, part := range strings.Split(search, "|") {
+		kw := strings.TrimSpace(part)
+		if kw != "" {
+			out = append(out, kw)
+		}
+	}
+	return out
+}
+
 type HubDirectoryRepository struct {
 	db *gorm.DB
 }
@@ -50,6 +62,7 @@ func (r *HubDirectoryRepository) GetByID(ctx context.Context, id int64) (*model.
 // GetList 获取目录列表（分页）；仅返回在架应用，已删除的不展示
 // feeType: 空=全部，free=免费，paid=收费
 // orderBy: 空或 latest=最新(created_at DESC)，hot=热门(star_count DESC, download_count DESC, created_at DESC)
+// search: 支持多关键字 OR 搜索，用 | 分隔，例如 "美发|理发|美容|预约"；每个关键字匹配 name、description、tags（任意一个匹配即命中）
 func (r *HubDirectoryRepository) GetList(ctx context.Context, page, pageSize int, search, category, publisherUsername, feeType, orderBy string) ([]*model.HubDirectory, int64, error) {
 	var directories []*model.HubDirectory
 	var total int64
@@ -57,9 +70,19 @@ func (r *HubDirectoryRepository) GetList(ctx context.Context, page, pageSize int
 	query := r.db.Model(&model.HubDirectory{})
 	query = listStatusCondition(query)
 
-	// 搜索条件
+	// 搜索条件：支持多关键字 | 分隔，OR 逻辑；每个关键字在 name、description、tags 中匹配
 	if search != "" {
-		query = query.Where("name LIKE ? OR description LIKE ?", "%"+search+"%", "%"+search+"%")
+		keywords := splitSearchKeywords(search)
+		if len(keywords) > 0 {
+			var orParts []string
+			var args []interface{}
+			for _, kw := range keywords {
+				pattern := "%" + kw + "%"
+				orParts = append(orParts, "(name LIKE ? OR description LIKE ? OR tags LIKE ?)")
+				args = append(args, pattern, pattern, pattern)
+			}
+			query = query.Where(strings.Join(orParts, " OR "), args...)
+		}
 	}
 
 	// 分类筛选
