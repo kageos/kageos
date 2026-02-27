@@ -76,6 +76,15 @@ start_infra() {
     for i in $(seq 1 30); do
         if docker exec ai-agent-os-dev-mysql mysqladmin ping -h localhost -uroot -proot --silent 2>/dev/null; then
             info "MySQL 已就绪"
+            # 自动创建所有服务需要的数据库
+            info "确保数据库已创建..."
+            docker exec -i ai-agent-os-dev-mysql mysql -uroot -proot -e "
+                CREATE DATABASE IF NOT EXISTS \`app_db\` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+                CREATE DATABASE IF NOT EXISTS \`agent-server\` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+                CREATE DATABASE IF NOT EXISTS \`hr-server\` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+                CREATE DATABASE IF NOT EXISTS \`app-storage\` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+                CREATE DATABASE IF NOT EXISTS \`hub\` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+            " && info "数据库创建/确认完成" || warn "数据库创建失败，请手动检查"
             return 0
         fi
         sleep 2
