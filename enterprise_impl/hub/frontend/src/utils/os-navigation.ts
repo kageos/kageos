@@ -18,13 +18,14 @@ export function getOSFrontendURL(): string {
   // 判断是否为开发环境
   const isDev = import.meta.env.DEV || import.meta.env.MODE === 'development'
   
-  if (isDev) {
-    // 开发环境：默认使用本地 OS 前端地址
-    return 'http://localhost:5173'
-  } else {
-    // 生产环境：默认使用官方 OS 地址
-    return 'https://www.ai-agent-os.com'
+  // 自部署生产环境：Hub 8998 → Web 8999
+  const currentPort = window.location.port
+  if (currentPort === '8998') {
+    return `${window.location.protocol}//${window.location.hostname}:8999`
   }
+
+  // 开发环境
+  return 'http://localhost:5173'
 }
 
 /**

@@ -29,15 +29,7 @@ export function getHubBaseURL(): string {
  * 开发环境使用本地地址，生产环境使用官方地址
  */
 function getDefaultHubURL(): string {
-  // 判断是否为开发环境
-  const isDev = import.meta.env.DEV || import.meta.env.MODE === 'development'
-  
-  if (isDev) {
-    // 开发环境：使用本地地址（通过 Vite 代理到网关）
-    return '/hub/api/v1'
-  } else {
-    // 生产环境：使用官方地址
-    return 'https://www.ai-agent-os.com/hub/api/v1'
-  }
+  // Hub API 走 Nginx 反向代理，统一用相对路径
+  return '/hub/api/v1'
 }
 
