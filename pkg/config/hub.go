@@ -17,6 +17,8 @@ func GetHubConfig() *HubConfig {
 		cfg := &HubConfig{}
 		// 尝试从多个路径加载配置文件
 		configPaths := []string{
+			"configs/hub.yaml",
+			"enterprise_impl/hub/backend/config/hub.yaml",
 			"../../config/hub.yaml",
 		}
 
