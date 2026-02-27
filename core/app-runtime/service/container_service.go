@@ -504,21 +504,39 @@ func (s *PodmanService) getSocketURI() string {
 	// 根据平台返回默认 URI
 	switch runtime.GOOS {
 	case "linux":
-		// Linux 使用用户级 socket
-		uid := os.Getenv("UID")
-		if uid == "" {
-			uid = "1000" // 默认值
-		}
-		return fmt.Sprintf("unix:///run/user/%s/podman/podman.sock", uid)
+		return s.getLinuxPodmanSocket()
 	case "darwin":
-		// macOS 使用 Podman Machine 的本地 socket
 		return s.getMacOSPodmanSocket()
 	case "windows":
-		// Windows 使用 Podman Machine 的 SSH 连接
 		return "ssh://root@127.0.0.1:55190/run/podman/podman.sock"
 	default:
 		return "unix:///run/podman/podman.sock"
 	}
+}
+
+// getLinuxPodmanSocket 获取 Linux 上 Podman 的 socket 路径
+// 按优先级检测：系统级 → 当前用户级 → UID=1000 兜底
+func (s *PodmanService) getLinuxPodmanSocket() string {
+	candidates := []string{
+		"/run/podman/podman.sock",
+	}
+
+	uid := fmt.Sprintf("%d", os.Getuid())
+	candidates = append(candidates, fmt.Sprintf("/run/user/%s/podman/podman.sock", uid))
+
+	if uid != "1000" {
+		candidates = append(candidates, "/run/user/1000/podman/podman.sock")
+	}
+
+	for _, sock := range candidates {
+		if _, err := os.Stat(sock); err == nil {
+			logger.Infof(s.ctx, "Auto-detected Podman socket: %s", sock)
+			return "unix://" + sock
+		}
+	}
+
+	logger.Warnf(s.ctx, "No Podman socket found, falling back to /run/podman/podman.sock")
+	return "unix:///run/podman/podman.sock"
 }
 
 // getMacOSPodmanSocket 获取 macOS 上 Podman Machine 的 socket 路径
