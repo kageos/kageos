@@ -26,6 +26,10 @@ type OnSelectFuzzyReq struct {
 	ValueType string      `json:"value_type"`
 }
 
+func (r *OnSelectFuzzyReq) BindCurrentFormData(el interface{}) error {
+	return jsonx.Convert(r.Request, el)
+}
+
 func (r *OnSelectFuzzyReq) Keyword() string {
 	return fmt.Sprintf("%v", r.Value)
 }

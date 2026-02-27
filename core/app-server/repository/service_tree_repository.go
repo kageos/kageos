@@ -452,13 +452,18 @@ func splitSearchKeywords(keyword string) []string {
 }
 
 // SearchFunctions 搜索函数节点：只查 ServiceTree（type=function），按 code/name/description/tags 匹配，预加载 App、Function
+// user 非空时先查 app 表该 user 的 app id 列表，再用 app_id IN 限定，避免 JOIN 导致查不到
 func (r *ServiceTreeRepository) SearchFunctions(user, app, keyword, templateType string, page, pageSize int) ([]*model.ServiceTree, int64, error) {
 	query := r.db.Model(&model.ServiceTree{}).
-		Where("service_tree.type = ?", model.ServiceTreeTypeFunction).
-		Joins("App")
+		Where("service_tree.type = ?", model.ServiceTreeTypeFunction)
 
-	if user != "" && app != "" {
-		query = query.Where("app.user = ? AND app.code = ?", user, app)
+	// user 非空时：先查 app 表得到该用户下的 app id，用 app_id IN 限定（保证能命中 system 等）
+	if user != "" {
+		subq := r.db.Model(&model.App{}).Select("id").Where("user = ?", user)
+		if app != "" {
+			subq = subq.Where("code = ?", app)
+		}
+		query = query.Where("service_tree.app_id IN (?)", subq)
 	}
 	if templateType != "" {
 		query = query.Where("service_tree.template_type = ?", templateType)

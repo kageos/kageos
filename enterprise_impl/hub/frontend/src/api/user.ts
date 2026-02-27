@@ -106,6 +106,20 @@ function createOSAPIInstance() {
 const osAPI = createOSAPIInstance()
 
 /**
+ * 获取当前登录用户信息（需要 token，调用主项目 /hr/api/v1/user/info）
+ * 用于「只看我的」等需要当前用户名的场景
+ */
+export async function getCurrentUser(): Promise<UserInfo | null> {
+  try {
+    const response = await osAPI.get<UserInfo>('/hr/api/v1/user/info')
+    return response || null
+  } catch (error) {
+    console.error('[getCurrentUser] 获取当前用户失败:', error)
+    return null
+  }
+}
+
+/**
  * 根据用户名查询用户信息
  * @param username 用户名
  */

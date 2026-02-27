@@ -384,13 +384,13 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 	})
 	out = append(out, dto.ToolDef{
 		Name:        "search_tools",
-		Description: "按关键词搜索「可用能力」：包括内置工具和已注册的表单/表格/图表函数。执行杂活（画图、转格式、解析文件等）前应先查当前目录或本工具搜索；绝大部分任务由 form 完成，建议传 template_type=form 缩小范围；仅明确表格增删改查或图表查询时再传 table/chart。keyword 支持多关键词用竖线 | 分隔（OR 语义），如 折线图|chart|画图 或 视频|转换。",
+		Description: "按关键词搜索可用工具：返回「内置工具」与「system 用户下已注册的表单/表格/图表函数」。keyword 可选：不传则按调用次数返回高频已注册函数；传则按关键词匹配。多关键词用竖线 | 分隔（OR 语义），如 折线图|chart|画图。template_type 建议杂活传 form。",
 		InputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
 				"keyword": map[string]interface{}{
 					"type":        "string",
-					"description": "搜索关键词，支持多关键词用竖线 | 分隔（OR 语义），如 折线图|chart|画图 或 视频|video|流媒体",
+					"description": "搜索关键词（可选）。不传则按调用次数返回高频已注册函数；传则按关键词匹配，支持多关键词用竖线 | 分隔，如 折线图|chart|画图 或 视频|video|流媒体",
 				},
 				"template_type": map[string]interface{}{
 					"type":        "string",
@@ -401,7 +401,7 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 					"description": "最多返回条数（可选，默认 20）",
 				},
 			},
-			"required": []interface{}{"keyword"},
+			"required": []interface{}{},
 		},
 	})
 
@@ -495,7 +495,7 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 	// search_hub_directory：搜索应用中心（Hub）目录，搜到合适的可用 copy_directory 复制到本地
 	out = append(out, dto.ToolDef{
 		Name:        "search_hub_directory",
-		Description: "在应用中心（Hub）搜索应用，或按路径查询单个目录在 Hub 上的信息。① 按关键词搜索：传 search（可选，不传或传空则返回全部应用）、category、page、page_size（可选）。② 按路径查当前目录在 Hub 上的信息：传 full_code_path（如 /user/app/plugins/xxx），可查看该路径是否已上架、copy_url、star_count 等。返回含 copy_url（用于 copy_directory）、star_count、download_count 等。",
+		Description: "在应用中心（Hub）搜索应用，或按路径查询单个目录在 Hub 上的信息。① 按关键词搜索：传 search（可选，不传或传空则返回全部应用）；支持多关键字「或」搜索，用 | 分隔，例如：美发|理发|美容|预约，表示匹配其中任意一词即可；可传 page、page_size（可选）。② 按路径查当前目录在 Hub 上的信息：传 full_code_path（如 /user/app/plugins/xxx），可查看该路径是否已上架、copy_url、star_count 等。返回含 copy_url（用于 copy_directory）、star_count、download_count 等。",
 		InputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
@@ -505,11 +505,7 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 				},
 				"search": map[string]interface{}{
 					"type":        "string",
-					"description": "搜索关键词（可选），不传或传空则返回全部应用；传关键词则按关键词筛选，如「表单」「视频」「PDF」。与 full_code_path 二选一使用。",
-				},
-				"category": map[string]interface{}{
-					"type":        "string",
-					"description": "分类（可选），如 表单、表格、图表",
+					"description": "搜索关键词（可选），不传或传空则返回全部应用。支持多关键字「或」搜索，用 | 分隔，例如：美发|理发|美容|预约，匹配名称、描述、标签中任意一词即命中。与 full_code_path 二选一使用。",
 				},
 				"page": map[string]interface{}{
 					"type":        "integer",
@@ -1501,16 +1497,10 @@ func splitSearchKeywords(keyword string) []string {
 	return out
 }
 
-// callSearchTools 按关键词搜索可用能力（内置工具 + 已注册 Form），支持多关键词用 | 分隔（OR 语义）
+// callSearchTools 按关键词搜索可用工具（内置工具 + system 用户下已注册 Form/Table/Chart）。keyword 为空时仅返回已注册函数并按调用次数降序（高频在前）
 func (r *ToolRegistry) callSearchTools(ctx context.Context, args map[string]interface{}, fullCodePath string) (string, bool) {
 	keywordRaw := strings.TrimSpace(GetStringArg(args, "keyword"))
-	if keywordRaw == "" {
-		return "search_tools 需传 keyword（支持多关键词用竖线 | 分隔，如 视频|video|流媒体）。", true
-	}
 	keywords := splitSearchKeywords(keywordRaw)
-	if len(keywords) == 0 {
-		return "search_tools 的 keyword 不能为空。", true
-	}
 	templateType := strings.TrimSpace(GetStringArg(args, "template_type"))
 	limit := 20
 	if v, ok := args["limit"]; ok {
@@ -1523,38 +1513,39 @@ func (r *ToolRegistry) callSearchTools(ctx context.Context, args map[string]inte
 	}
 	var buf strings.Builder
 
-	// 1. 内置工具：按 name/description 匹配任一关键词
-	allTools, _ := r.ListTools(ctx, nil)
-	lowerKeywords := make([]string, len(keywords))
-	for i, k := range keywords {
-		lowerKeywords[i] = strings.ToLower(k)
-	}
-	var matchedTools []dto.ToolDef
-	for _, t := range allTools {
-		text := strings.ToLower(t.Name + " " + t.Description)
-		for _, k := range lowerKeywords {
-			if strings.Contains(text, k) {
-				matchedTools = append(matchedTools, t)
-				break
+	// 1. 内置工具：仅当有关键词时按 name/description 匹配；keyword 为空时不展示内置工具，只返回按调用次数的高频已注册函数
+	if len(keywords) > 0 {
+		allTools, _ := r.ListTools(ctx, nil)
+		lowerKeywords := make([]string, len(keywords))
+		for i, k := range keywords {
+			lowerKeywords[i] = strings.ToLower(k)
+		}
+		var matchedTools []dto.ToolDef
+		for _, t := range allTools {
+			text := strings.ToLower(t.Name + " " + t.Description)
+			for _, k := range lowerKeywords {
+				if strings.Contains(text, k) {
+					matchedTools = append(matchedTools, t)
+					break
+				}
 			}
 		}
-	}
-	if len(matchedTools) > 0 {
-		buf.WriteString("【内置工具】\n")
-		for _, t := range matchedTools {
-			buf.WriteString("- ")
-			buf.WriteString(t.Name)
-			buf.WriteString("：")
-			buf.WriteString(t.Description)
+		if len(matchedTools) > 0 {
+			buf.WriteString("【内置工具】\n")
+			for _, t := range matchedTools {
+				buf.WriteString("- ")
+				buf.WriteString(t.Name)
+				buf.WriteString("：")
+				buf.WriteString(t.Description)
+				buf.WriteString("\n")
+			}
 			buf.WriteString("\n")
 		}
-		buf.WriteString("\n")
 	}
 
-	// 2. 已注册 Form/Table/Chart：全局搜索（不传 user/app），多关键词由 app-server 按 | 拆分并 OR 查询
-	// 若传当前工作区 user/app 则只搜当前应用，图片转换等可能在 system/official 等其它应用下，会搜不到
+	// 2. 已注册 Form/Table/Chart：system 用户下；keyword 为空时后端按调用次数降序返回高频函数
 	resp, err := apicall.SearchFunctions(ctx, &dto.SearchFunctionsReq{
-		User:         "", // 空表示全局搜索，与 Postman 不传 user/app 行为一致
+		User:         "system", // 限定为 system 用户下工作空间，不搜其他用户的应用
 		App:          "",
 		Keyword:      keywordRaw,
 		TemplateType: templateType,
@@ -1568,7 +1559,11 @@ func (r *ToolRegistry) callSearchTools(ctx context.Context, args map[string]inte
 		functions = resp.Functions
 	}
 		if len(functions) > 0 {
-		buf.WriteString("【已注册函数】调用方式：form → run_form_submit，table → run_table_search/run_table_create/run_table_update，chart → run_chart_query。\n")
+		if keywordRaw == "" {
+			buf.WriteString("【已注册函数】（按调用次数从高到低，仅 system 用户下）\n")
+		} else {
+			buf.WriteString("【已注册函数】（仅 system 用户下）调用方式：form → run_form_submit，table → run_table_search/run_table_create/run_table_update，chart → run_chart_query。\n")
+		}
 		for i, fn := range functions {
 			buf.WriteString(fmt.Sprintf("%d. %s\n", i+1, fn.Name))
 			buf.WriteString("   full_code_path: ")
@@ -1596,7 +1591,11 @@ func (r *ToolRegistry) callSearchTools(ctx context.Context, args map[string]inte
 			}
 		}
 	} else if buf.Len() == 0 {
-		buf.WriteString("未匹配到任何内置工具或已注册函数，可考虑创建新目录并按「创建项目」流程（先 PRD、用户确认后再写代码）。")
+		if keywordRaw == "" {
+			buf.WriteString("当前 system 用户下暂无已注册函数；可传 keyword 按关键词搜索，或使用 search_hub_directory 搜应用市场。")
+		} else {
+			buf.WriteString("未匹配到任何可用工具（内置工具或 system 用户下已注册函数），可考虑 search_hub_directory 搜应用市场，或创建新目录并按「创建项目」流程（先 PRD、用户确认后再写代码）。")
+		}
 	}
 	return buf.String(), false
 }
@@ -1757,11 +1756,6 @@ func (r *ToolRegistry) callSearchHub(ctx context.Context, args map[string]interf
 			req.Search = strings.TrimSpace(s)
 		}
 	}
-	if v, ok := args["category"]; ok && v != nil {
-		if s, ok := v.(string); ok && s != "" {
-			req.Category = strings.TrimSpace(s)
-		}
-	}
 	if v, ok := args["page"]; ok && v != nil {
 		if n, ok := toInt(v); ok && n > 0 {
 			req.Page = n
@@ -1781,7 +1775,7 @@ func (r *ToolRegistry) callSearchHub(ctx context.Context, args map[string]interf
 		return "search_hub_directory 调用失败: " + err.Error(), true
 	}
 	if len(resp.Items) == 0 {
-		return fmt.Sprintf("应用中心共 %d 条结果，当前页无数据。可调整 search、category 或 page 再试。", resp.Total), false
+		return fmt.Sprintf("应用中心共 %d 条结果，当前页无数据。可调整 search（支持多关键字用 | 分隔）或 page 再试。", resp.Total), false
 	}
 	var b strings.Builder
 	b.WriteString(fmt.Sprintf("应用中心搜索结果（共 %d 条，当前第 %d 页）：\n\n", resp.Total, resp.Page))

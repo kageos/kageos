@@ -1,0 +1,190 @@
+# FFmpeg 构建阶段（使用 Alpine 官方 x264-dev，含 GPL libx264，便于 mov→mp4）
+# 参考：https://github.com/alfg/docker-ffmpeg  合规：通过 exec 调用 ffmpeg 可商用，分发需遵守 GPL
+FROM alpine:latest AS ffmpeg-builder
+
+# 安装构建依赖（x264、freetype、harfbuzz 等；harfbuzz 为 drawtext 滤镜所需）
+RUN apk add --no-cache \
+    build-base \
+    coreutils \
+    freetype-dev \
+    fontconfig-dev \
+    harfbuzz-dev \
+    fribidi-dev \
+    libass-dev \
+    libtheora-dev \
+    libvorbis-dev \
+    libvpx-dev \
+    opus-dev \
+    pkgconfig \
+    wget \
+    x264-dev \
+    yasm \
+    zlib-dev \
+    libpng-dev
+
+WORKDIR /tmp
+
+# 下载并构建 FFmpeg（--enable-libx264 使用系统 x264）
+ARG FFMPEG_VERSION=6.1.1
+ARG PREFIX=/opt/ffmpeg
+RUN wget -q https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz && \
+    tar -xf ffmpeg-${FFMPEG_VERSION}.tar.xz && \
+    cd ffmpeg-${FFMPEG_VERSION} && \
+    ./configure \
+        --prefix="${PREFIX}" \
+        --enable-gpl \
+        --disable-nonfree \
+        --enable-libx264 \
+        --enable-libvpx \
+        --enable-libopus \
+        --enable-libvorbis \
+        --enable-libtheora \
+        --enable-libass \
+        --enable-libfreetype \
+        --enable-libfontconfig \
+        --enable-libharfbuzz \
+        --enable-libfribidi \
+        --disable-debug \
+        --disable-doc \
+        --disable-ffplay \
+        --extra-libs="-lpthread -lm" && \
+    make -j$(grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 1) && \
+    make install && \
+    strip --strip-unneeded /opt/ffmpeg/bin/* 2>/dev/null || true && \
+    (strip --strip-unneeded /opt/ffmpeg/lib/*.so* 2>/dev/null || true) && \
+    rm -rf /opt/ffmpeg/share && \
+    cd .. && \
+    rm -rf ffmpeg-${FFMPEG_VERSION} ffmpeg-${FFMPEG_VERSION}.tar.xz
+
+# 验证
+RUN ffmpeg -version 2>/dev/null | head -1 && echo "✓ FFmpeg with libx264 ready"
+
+# 运行时镜像
+FROM alpine:latest
+WORKDIR /app
+
+# 安装必要的工具和时区数据（装后删 man/doc 以减体积）
+RUN apk add --no-cache \
+    ca-certificates \
+    file \
+    tzdata \
+    tini \
+    ghostscript \
+    poppler-utils \
+    graphicsmagick \
+    lua5.4 \
+    python3 \
+    py3-pip \
+    py3-pandas \
+    py3-numpy \
+    py3-scipy \
+    py3-matplotlib \
+    py3-pillow \
+    py3-openpyxl \
+    py3-requests \
+    libass \
+    libvpx \
+    opus \
+    libvorbis \
+    libtheora \
+    freetype \
+    fontconfig \
+    harfbuzz \
+    fribidi \
+    x264-libs \
+    tesseract-ocr \
+    tesseract-ocr-data-chi_sim \
+    && rm -rf /usr/share/man/* /usr/share/doc/* /usr/share/info/* /var/cache/apk/* 2>/dev/null || true
+
+# 安装字体：CJK（图表中文）+ 拉丁/数字/符号 + 文档用（PDF/Ghostscript 常用 Liberation 作 Arial/Times 替代）
+# 精简：不装 font-wqy-zenhei / font-noto（与 Noto CJK、DejaVu 重叠），保留 font-liberation 供 PDF 等用
+RUN apk add --no-cache \
+    font-noto-cjk \
+    font-dejavu \
+    font-liberation \
+    && fc-cache -fv \
+    && rm -rf /usr/share/man/* /usr/share/doc/* /usr/share/info/* /var/cache/apk/* 2>/dev/null || true \
+    && echo "✓ Fonts: Noto CJK, DejaVu, Liberation"
+
+# 一劳永逸：matplotlib 中文字体由 matplotlibrc 统一配置（仅用 Noto Sans CJK + DejaVu）
+RUN mkdir -p /etc/matplotlib \
+    && printf 'font.family: sans-serif\nfont.sans-serif: Noto Sans CJK SC, Noto Sans CJK TC, Noto Sans CJK JP, DejaVu Sans\naxes.unicode_minus: False\n' > /etc/matplotlib/matplotlibrc \
+    && echo "✓ matplotlib matplotlibrc (CJK) configured"
+ENV MPLCONFIGDIR=/etc/matplotlib
+
+# 创建 lua 命令的符号链接
+RUN ln -sf /usr/bin/lua5.4 /usr/bin/lua
+
+# 创建 python 命令的符号链接
+RUN ln -sf /usr/bin/python3 /usr/bin/python
+
+# 升级 pip 到最新版本
+RUN pip3 install --no-cache-dir --break-system-packages --upgrade pip
+
+# 安装 Python 编译依赖（matplotlib、scipy 等需要编译）
+RUN apk add --no-cache \
+    gcc \
+    g++ \
+    python3-dev \
+    freetype-dev \
+    libpng-dev \
+    jpeg-dev \
+    zlib-dev \
+    cmake \
+    ninja \
+    make \
+    musl-dev \
+    linux-headers \
+    && echo "✓ Python build dependencies installed"
+
+# 安装 Python 核心包 + 同层清理（/tmp、缓存、tests/docs）+ 删除编译依赖，减少镜像体积
+RUN pip3 install --no-cache-dir --break-system-packages \
+    seaborn \
+    python-docx \
+    PyPDF2 \
+    pdfplumber \
+    jieba \
+    && rm -rf /tmp/* /root/.cache /var/cache/apk/* 2>/dev/null || true \
+    && find /usr/lib/python3.*/site-packages -type d -name tests -exec rm -rf {} + 2>/dev/null || true \
+    && find /usr/lib/python3.*/site-packages -type d -name test -exec rm -rf {} + 2>/dev/null || true \
+    && find /usr/lib/python3.*/site-packages -type d \( -name doc -o -name docs \) -exec rm -rf {} + 2>/dev/null || true \
+    && apk del \
+        gcc g++ python3-dev freetype-dev libpng-dev jpeg-dev zlib-dev \
+        cmake ninja make musl-dev linux-headers \
+    && echo "✓ Python packages installed, build artifacts and tests/docs removed"
+
+# 安装 FFmpeg（使用 Alpine 官方 x264，含 libx264；通过 cmd 调用可商用）
+ENV PATH="/opt/ffmpeg/bin:${PATH}"
+COPY --from=ffmpeg-builder /opt/ffmpeg /opt/ffmpeg
+RUN rm -rf /opt/ffmpeg/share 2>/dev/null || true
+
+# 生成已安装 Python 包列表（用于快速检查）
+RUN python3 -c "import pkg_resources; packages = [d.project_name for d in pkg_resources.working_set]; print('\n'.join(sorted(packages)))" 2>/dev/null > /etc/python-installed-packages.txt || echo "" > /etc/python-installed-packages.txt && \
+    echo "export PYTHON_INSTALLED_PACKAGES=\"$(cat /etc/python-installed-packages.txt | tr '\n' ',' | sed 's/,$//')\"" >> /etc/profile.d/python-packages.sh && \
+    chmod +x /etc/profile.d/python-packages.sh && \
+    echo "✓ Python installed packages list generated"
+
+# 设置环境变量
+ENV PYTHON_PATH=/usr/bin/python3
+ENV PIP_PATH=/usr/bin/pip3
+ENV PYTHON_INSTALLED_PACKAGES=""
+
+# 复制启动脚本
+COPY scripts/start.sh /start.sh
+RUN chmod +x /start.sh
+
+# 使用 tini 作为 init 系统
+ENTRYPOINT ["/sbin/tini", "--"]
+
+# 默认命令
+CMD ["/start.sh"]
+
+# 验证安装
+RUN echo "=== 验证安装 ===" && \
+    echo "Python 版本:" && python3 --version && \
+    echo "pip 版本:" && pip3 --version && \
+    echo "FFmpeg 版本:" && ffmpeg -version 2>/dev/null | head -n 1 || echo "FFmpeg installed" && \
+    echo "Lua 版本:" && lua -v && \
+    echo "Python 核心包:" && \
+    python3 -c "import pandas, numpy, matplotlib, jieba, requests; print('✓ Core Python packages verified')" && \
+    echo "✓ All dependencies verified"

@@ -155,14 +155,15 @@
 
                   <div class="overview-divider"></div>
 
-                  <div class="overview-item">
-                    <div class="overview-icon-wrapper count-icon">
+                  <div class="overview-item overview-item-run">
+                    <div class="overview-icon-wrapper run-icon">
                       <el-icon class="overview-icon"><DataLine /></el-icon>
                     </div>
                     <div class="overview-content">
                       <div class="overview-label">本目录调用次数</div>
-                      <div class="overview-value">
-                        {{ totalRunCount }} 次
+                      <div class="overview-value overview-value-run">
+                        <span class="overview-run-num">{{ totalRunCount }}</span>
+                        <span class="overview-run-unit">次</span>
                       </div>
                     </div>
                   </div>
@@ -283,9 +284,10 @@
                       <div class="child-description" v-if="child.description">
                         {{ child.description }}
                       </div>
-                      <div class="child-run-count" v-if="child.type === 'function'">
-                        已使用 {{ child.run_count ?? 0 }} 次
-                      </div>
+                    </div>
+                    <div v-if="child.type === 'function'" class="child-run-badge">
+                      <el-icon class="child-run-badge-icon"><DataLine /></el-icon>
+                      <span class="child-run-badge-num">{{ child.run_count ?? 0 }}</span>
                     </div>
                   </div>
                 </div>
@@ -377,14 +379,15 @@
 
           <div class="overview-divider"></div>
 
-          <div class="overview-item">
-            <div class="overview-icon-wrapper count-icon">
+          <div class="overview-item overview-item-run">
+            <div class="overview-icon-wrapper run-icon">
               <el-icon class="overview-icon"><DataLine /></el-icon>
             </div>
             <div class="overview-content">
               <div class="overview-label">本目录调用次数</div>
-              <div class="overview-value">
-                {{ totalRunCount }} 次
+              <div class="overview-value overview-value-run">
+                <span class="overview-run-num">{{ totalRunCount }}</span>
+                <span class="overview-run-unit">次</span>
               </div>
             </div>
           </div>
@@ -504,9 +507,10 @@
                 <div class="child-description" v-if="child.description">
                   {{ child.description }}
                 </div>
-                <div class="child-run-count" v-if="child.type === 'function'">
-                  已使用 {{ child.run_count ?? 0 }} 次
-                </div>
+              </div>
+              <div v-if="child.type === 'function'" class="child-run-badge">
+                <el-icon class="child-run-badge-icon"><DataLine /></el-icon>
+                <span class="child-run-badge-num">{{ child.run_count ?? 0 }}</span>
               </div>
             </div>
           </div>
@@ -1326,6 +1330,15 @@ function handleChildClick(child: ServiceTree): void {
                   color: #9333ea;
                 }
               }
+
+              &.run-icon {
+                background: var(--el-fill-color-light);
+
+                .overview-icon {
+                  font-size: 24px;
+                  color: var(--el-text-color-secondary);
+                }
+              }
             }
 
             .overview-content {
@@ -1348,6 +1361,20 @@ function handleChildClick(child: ServiceTree): void {
                   font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
                   color: var(--el-color-success);
                   font-size: 16px;
+                }
+
+                &.overview-value-run {
+                  .overview-run-num,
+                  .overview-run-unit {
+                    font-size: 18px;
+                    font-weight: 600;
+                    color: var(--el-text-color-primary);
+                  }
+                  .overview-run-unit {
+                    font-weight: 500;
+                    color: var(--el-text-color-secondary);
+                    margin-left: 2px;
+                  }
                 }
               }
             }
@@ -1400,6 +1427,7 @@ function handleChildClick(child: ServiceTree): void {
           width: 100%;
 
           .child-card {
+            position: relative;
             background: var(--el-bg-color);
             border: 1px solid var(--el-border-color-lighter);
             border-radius: 12px;
@@ -1479,11 +1507,25 @@ function handleChildClick(child: ServiceTree): void {
                 padding-top: 8px;
                 border-top: 1px solid var(--el-border-color-lighter);
               }
+            }
 
-              .child-run-count {
-                font-size: 12px;
-                color: var(--el-text-color-secondary);
-                margin-top: 6px;
+            .child-run-badge {
+              position: absolute;
+              bottom: 14px;
+              right: 14px;
+              display: inline-flex;
+              align-items: center;
+              gap: 4px;
+              font-size: 12px;
+              color: var(--el-text-color-secondary);
+              font-weight: 500;
+
+              .child-run-badge-icon {
+                font-size: 13px;
+                color: var(--el-text-color-placeholder);
+              }
+              .child-run-badge-num {
+                min-width: 1ch;
               }
             }
           }

@@ -4,6 +4,8 @@
 
 **前置**：本文档与 SDK 文档配合使用。可 `read_doc("/builtin/doc/sdk/agent-app-sdk-readme", "/builtin/doc/workspace/create-project")` 一次拉取。出 PRD 前须已读过 SDK，了解组件类型与能力边界。
 
+**强制要求：出 PRD 前必须先参考示例**。须先 `read_doc` 与项目类型匹配的 1～2 个案例（见文末「参考案例」表格），对照案例的 PRD 表格格式、字段说明、列表模式写法后再写本项目的 PRD。禁止未读案例就出 PRD，否则 PRD 易错、格式不对、与实现脱节。
+
 ---
 
 ## 一、PRD 格式（必须包含两个 Markdown 表格）
@@ -85,7 +87,7 @@ AutoCrudTable 的 model 结构体中有 gorm 列的字段，**只能是**基础�
 
 PRD 末尾问一句：「请确认以上是否 OK，确认后我再生成代码。」得到用户确认后按以下步骤执行。
 
-0. **SDK**：PRD 阶段若已读过 SDK 可直接写；未读过则先 read_doc。**案例**：动手写代码前建议 read_doc 与项目类型匹配的案例（见末尾表格），对照写法再落盘。
+0. **SDK**：PRD 阶段若已读过 SDK 可直接写；未读过则先 read_doc。**案例**：出 PRD 前已按要求参考过案例；动手写代码前可再次 read_doc 与项目类型匹配的案例（见末尾表格），对照写法再落盘。
 1. **判断放哪里**：当前项目的扩展 → 放当前目录；独立新功能 → 先 `create_directory` 再在子目录下写。
 2. **write_go_file**：directory 填目标目录完整路径。.go 文件内须 `package <目标目录 code>`。单文件直接写（默认编译）；多文件时传 `build_workspace=false`，全部写完后调一次 `build_workspace`。
    - **依赖**：允许在代码中引用 GitHub 等开源项目的 Go 依赖（在 go.mod 中 require 或代码里 import 后由 go mod 管理）。执行 `build_workspace` 时会**自动拉取依赖**，无需额外操作；需要用到某开源库时可直接在代码中 import，编译时会自动处理。
@@ -102,9 +104,9 @@ PRD 末尾问一句：「请确认以上是否 OK，确认后我再生成代码�
 
 ---
 
-## 参考案例（最佳实践）
+## 参考案例（出 PRD 前必读、写代码前可再读）
 
-生成代码前可参考已有案例。**按「关键特性」匹配**：你要用到的技术点在哪个案例里出现过，就 read_doc 那个案例。
+**出 PRD 前**：必须按项目类型（单 Table / 单 Form / 多 Table / Table+Form / Table+Form+Chart）read_doc 至少 1 个匹配案例，借鉴 PRD 格式与表格写法后再出 PRD。**写代码前**：可再 read_doc 与关键特性匹配的案例对照实现。**按「关键特性」匹配**：你要用到的技术点在哪个案例里出现过，就 read_doc 那个案例。
 
 <!-- BEGIN CASE CATALOG -->
 | 案例 | read_doc 路径 | 关键特性 |

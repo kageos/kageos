@@ -131,11 +131,22 @@
       <!-- 右侧：列表 + 分页 -->
       <div class="right-area">
       <div class="main-content">
+        <!-- Tab：全部 | 只看我的 -->
+        <div class="list-scope-tabs">
+          <el-radio-group v-model="listScope" size="default" @change="handleScopeChange">
+            <el-radio-button label="all">全部</el-radio-button>
+            <el-radio-button label="mine">只看我的</el-radio-button>
+          </el-radio-group>
+        </div>
         <div class="directory-content">
         <div v-loading="loading" class="directory-list">
           <div v-if="directories.length === 0 && !loading" class="empty-state">
-            <el-empty description="暂无目录" :image-size="120">
-              <el-button type="primary" @click="handleSearch">重新搜索</el-button>
+            <el-empty
+              :description="listScope === 'mine' ? '你还没有上传过应用，去「我的目录」发布吧' : '暂无目录'"
+              :image-size="120"
+            >
+              <el-button v-if="listScope === 'mine'" type="primary" @click="handleGoToManage">去发布</el-button>
+              <el-button v-else type="primary" @click="handleSearch">重新搜索</el-button>
             </el-empty>
           </div>
 
@@ -302,6 +313,9 @@
                 </span>
                 <span v-if="item.category" class="category-dot">{{ item.category }}</span>
               </div>
+              <div v-if="item.publisher_username" class="sidebar-card-publisher">
+                <UserDisplay :username="item.publisher_username" layout="horizontal" size="small" />
+              </div>
             </div>
           </div>
           <div v-if="!latestLoading && latestList.length === 0" class="sidebar-empty">
@@ -326,6 +340,9 @@ import { useUserInfoStore } from '@/stores/userInfo'
 
 const router = useRouter()
 const userInfoStore = useUserInfoStore()
+
+// Tab：全部 | 只看我的（后端用 mine_only 参数按当前用户过滤）
+const listScope = ref<'all' | 'mine'>('all')
 
 // 搜索和筛选
 const searchKeyword = ref('')
@@ -431,6 +448,12 @@ const loadLatestList = async () => {
   try {
     const res = await getHubDirectoryList({ page: 1, page_size: 6 })
     latestList.value = res.items || []
+    const publisherUsernames = (res.items || [])
+      .map(dir => dir.publisher_username)
+      .filter(Boolean) as string[]
+    if (publisherUsernames.length > 0) {
+      userInfoStore.batchGetUserInfo(publisherUsernames).catch(() => {})
+    }
   } catch {
     latestList.value = []
   } finally {
@@ -438,7 +461,7 @@ const loadLatestList = async () => {
   }
 }
 
-// 加载目录列表
+// 加载目录列表（「只看我的」传 mine_only=true，后端按当前用户过滤；未登录时后端返回 401）
 const loadDirectoryList = async () => {
   loading.value = true
   try {
@@ -448,7 +471,8 @@ const loadDirectoryList = async () => {
       search: searchKeyword.value || undefined,
       category: selectedCategory.value || undefined,
       fee_type: feeTypeFilter.value || undefined,
-      order_by: orderBy.value || 'latest'
+      order_by: orderBy.value || 'latest',
+      mine_only: listScope.value === 'mine'
     })
 
     directories.value = response.items || []
@@ -466,8 +490,15 @@ const loadDirectoryList = async () => {
       })
     }
   } catch (error: any) {
-    ElMessage.error(`加载目录列表失败: ${error.message || '未知错误'}`)
-    console.error('加载目录列表失败:', error)
+    const status = error?.response?.status
+    if (status === 401 && listScope.value === 'mine') {
+      ElMessage.warning('请先登录后再查看「只看我的」')
+      directories.value = []
+      total.value = 0
+    } else {
+      ElMessage.error(`加载目录列表失败: ${error.message || '未知错误'}`)
+      console.error('加载目录列表失败:', error)
+    }
   } finally {
     loading.value = false
   }
@@ -481,6 +512,12 @@ const handleSearch = () => {
 
 // 筛选变化
 const handleFilterChange = () => {
+  currentPage.value = 1
+  loadDirectoryList()
+}
+
+// Tab 切换：全部 | 只看我的
+const handleScopeChange = () => {
   currentPage.value = 1
   loadDirectoryList()
 }
@@ -1002,6 +1039,19 @@ onMounted(() => {
             line-height: 20px;
           }
         }
+
+        .sidebar-card-publisher {
+          margin-top: 8px;
+          padding-top: 8px;
+          border-top: 1px solid var(--el-border-color-extra-light);
+
+          :deep(.user-display-wrapper) {
+            .user-name {
+              font-size: 12px;
+              color: var(--el-text-color-secondary);
+            }
+          }
+        }
       }
     }
 
@@ -1044,6 +1094,24 @@ onMounted(() => {
     display: flex;
     flex-direction: column;
     background: var(--el-bg-color-page);
+
+    .list-scope-tabs {
+      flex-shrink: 0;
+      padding: 16px 32px 0;
+      margin-bottom: 8px;
+
+      :deep(.el-radio-group) {
+        .el-radio-button__inner {
+          border-radius: 8px;
+        }
+        .el-radio-button:first-child .el-radio-button__inner {
+          border-radius: 8px 0 0 8px;
+        }
+        .el-radio-button:last-child .el-radio-button__inner {
+          border-radius: 0 8px 8px 0;
+        }
+      }
+    }
 
     .directory-content {
       flex: 1;

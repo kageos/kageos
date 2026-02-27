@@ -65,6 +65,8 @@ export async function getHubDirectoryList(params?: {
   search?: string
   category?: string
   publisher_username?: string
+  /** 只看自己：true 时后端按当前用户过滤（需带 token/网关带 X-Request-User），未登录返回 401 */
+  mine_only?: boolean
   fee_type?: FeeTypeFilter
   order_by?: OrderByFilter
 }): Promise<HubDirectoryListResp> {
@@ -73,6 +75,7 @@ export async function getHubDirectoryList(params?: {
   const p = { ...params }
   if (p.fee_type === '') delete (p as Record<string, unknown>).fee_type
   if (p.order_by === '') delete (p as Record<string, unknown>).order_by
+  if (p.mine_only === false) delete (p as Record<string, unknown>).mine_only
   return get<HubDirectoryListResp>(url, p || {})
 }
 

@@ -15,18 +15,21 @@ import (
 
 // MinIOStorage MinIO 存储实现
 type MinIOStorage struct {
-	client         *minio.Client
-	cdnDomain      string // CDN 域名（可选）
-	endpoint       string // MinIO endpoint（用于构建公开URL）
-	useSSL         bool   // 是否使用SSL
-	accessKey      string // Access Key（用于创建临时客户端）
-	secretKey      string // Secret Key（用于创建临时客户端）
-	region         string // Region（用于创建临时客户端）
-	serverEndpoint string // ✨ 服务端上传用的 endpoint（容器内访问）
+	client         *minio.Client // 主客户端：连接 endpoint（服务自身直连 MinIO），用于实际读写操作
+	externalClient *minio.Client // 外部客户端：基于 cdn_domain 生成浏览器预签名 URL（无 cdn_domain 时 = client）
+	cdnDomain      string        // CDN/代理域名（浏览器访问文件的公开地址，如 Nginx 反向代理域名）
+	endpoint       string        // MinIO endpoint（服务自身连接 MinIO 的地址）
+	useSSL         bool
+	accessKey      string
+	secretKey      string
+	region         string
+	serverEndpoint string // 容器内部访问 MinIO 的地址（用于生成 SDK/容器的内部 URL）
 }
 
 // NewMinIOStorage 创建 MinIO 存储
 func NewMinIOStorage(cfg Config) (*MinIOStorage, error) {
+	// 主客户端：使用 endpoint（服务自身能连通的 MinIO 地址）
+	// 本地开发: localhost:9000, Docker 部署: minio:9000
 	client, err := minio.New(cfg.GetEndpoint(), &minio.Options{
 		Creds:  credentials.NewStaticV4(cfg.GetAccessKey(), cfg.GetSecretKey(), ""),
 		Secure: cfg.GetUseSSL(),
@@ -36,11 +39,32 @@ func NewMinIOStorage(cfg Config) (*MinIOStorage, error) {
 		return nil, fmt.Errorf("failed to create MinIO client: %w", err)
 	}
 
-	// 获取 server_endpoint（如果配置了）
+	// 外部客户端：基于 cdn_domain 生成浏览器可访问的预签名 URL
+	// cdn_domain 可以是 Nginx 反向代理的域名，如 "your-domain.com"
+	// PresignedPutObject 是纯签名计算，不发起网络请求
+	var externalClient *minio.Client
+	browserEndpoint := extractHostFromCDN(cfg.GetCDNDomain())
+	if browserEndpoint != "" && browserEndpoint != cfg.GetEndpoint() {
+		ec, err := minio.New(browserEndpoint, &minio.Options{
+			Creds:  credentials.NewStaticV4(cfg.GetAccessKey(), cfg.GetSecretKey(), ""),
+			Secure: cfg.GetUseSSL(),
+			Region: cfg.GetRegion(),
+		})
+		if err != nil {
+			logger.Warnf(context.Background(), "[MinIOStorage] Failed to create external client for %s, falling back to main client: %v", browserEndpoint, err)
+			externalClient = client
+		} else {
+			externalClient = ec
+		}
+	} else {
+		externalClient = client
+	}
+
 	serverEndpoint := cfg.GetServerEndpoint()
 
 	return &MinIOStorage{
 		client:         client,
+		externalClient: externalClient,
 		cdnDomain:      cfg.GetCDNDomain(),
 		endpoint:       cfg.GetEndpoint(),
 		useSSL:         cfg.GetUseSSL(),
@@ -49,6 +73,23 @@ func NewMinIOStorage(cfg Config) (*MinIOStorage, error) {
 		region:         cfg.GetRegion(),
 		serverEndpoint: serverEndpoint,
 	}, nil
+}
+
+// extractHostFromCDN 从 cdn_domain 中提取主机名（用于创建 MinIO 客户端）
+// 输入: "http://your-domain.com" 或 "your-domain.com" → 输出: "your-domain.com"
+func extractHostFromCDN(cdnDomain string) string {
+	if cdnDomain == "" {
+		return ""
+	}
+	cdnDomain = strings.TrimSpace(cdnDomain)
+	if strings.HasPrefix(cdnDomain, "http://") || strings.HasPrefix(cdnDomain, "https://") {
+		parsed, err := url.Parse(cdnDomain)
+		if err != nil {
+			return ""
+		}
+		return parsed.Host
+	}
+	return cdnDomain
 }
 
 // GetCDNDomain 获取 CDN 域名
@@ -76,39 +117,24 @@ func (s *MinIOStorage) GetUploadEndpoint(uploadSource string) string {
 // 同时生成外部访问URL（前端使用）和内部访问URL（服务端使用）
 // uploadSource: 上传来源（browser 或 server），用于决定是否返回SDK配置
 func (s *MinIOStorage) GenerateUploadCredentials(ctx context.Context, bucket, key, contentType string, expire time.Duration, uploadSource string) (*UploadCredentials, error) {
-	// 1. 生成外部访问的URL（前端使用，使用默认endpoint）
-	externalURL, err := s.client.PresignedPutObject(ctx, bucket, key, expire)
+	// 1. 生成外部访问的URL（前端浏览器使用，用 externalClient 生成 → 域名指向 Nginx 代理）
+	externalURL, err := s.externalClient.PresignedPutObject(ctx, bucket, key, expire)
 	if err != nil {
 		logger.Errorf(ctx, "[MinIOStorage] Failed to generate external upload URL: %v", err)
 		return nil, fmt.Errorf("生成上传凭证失败: %w", err)
 	}
 
-	// 2. 生成内部访问的URL（服务端使用，如果配置了server_endpoint且与默认endpoint不同）
+	// 2. 生成内部访问的URL（服务端/SDK使用，用 client 生成 → 直连 MinIO 容器）
 	var serverURL string
-	uploadEndpoint := s.GetUploadEndpoint(uploadSource)
-	if uploadEndpoint != "" && uploadEndpoint != s.endpoint {
-		// 创建临时 client 生成内部访问的预签名 URL
-		tempClient, err := minio.New(uploadEndpoint, &minio.Options{
-			Creds:  credentials.NewStaticV4(s.accessKey, s.secretKey, ""),
-			Secure: s.useSSL,
-			Region: s.region,
-		})
+	if s.serverEndpoint != "" && s.serverEndpoint != s.endpoint {
+		internalURL, err := s.client.PresignedPutObject(ctx, bucket, key, expire)
 		if err != nil {
-			logger.Errorf(ctx, "[MinIOStorage] Failed to create temp client for server endpoint %s: %v", uploadEndpoint, err)
-			// 如果创建失败，使用外部URL（降级处理）
+			logger.Errorf(ctx, "[MinIOStorage] Failed to generate internal upload URL: %v", err)
 			serverURL = externalURL.String()
 		} else {
-			internalURL, err := tempClient.PresignedPutObject(ctx, bucket, key, expire)
-			if err != nil {
-				logger.Errorf(ctx, "[MinIOStorage] Failed to generate internal upload URL: %v", err)
-				// 如果生成失败，使用外部URL（降级处理）
-				serverURL = externalURL.String()
-			} else {
-				serverURL = internalURL.String()
-			}
+			serverURL = internalURL.String()
 		}
 	} else {
-		// 如果地址相同或未配置server_endpoint，使用外部URL
 		serverURL = externalURL.String()
 	}
 
@@ -129,15 +155,16 @@ func (s *MinIOStorage) GenerateUploadCredentials(ctx context.Context, bucket, ke
 
 	// 如果是服务端上传，在SDKConfig中放入MinIO连接信息（用于SDK直接上传）
 	if uploadSource == UploadSourceServer {
+		sdkEndpoint := s.GetUploadEndpoint(uploadSource)
 		creds.SDKConfig = map[string]interface{}{
-			"endpoint":   uploadEndpoint,
+			"endpoint":   sdkEndpoint,
 			"access_key": s.accessKey,
 			"secret_key": s.secretKey,
 			"region":     s.region,
 			"use_ssl":    s.useSSL,
 			"bucket":     bucket,
 		}
-		logger.Infof(ctx, "[MinIOStorage] Added SDK config for server upload: endpoint=%s", uploadEndpoint)
+		logger.Infof(ctx, "[MinIOStorage] Added SDK config for server upload: endpoint=%s", sdkEndpoint)
 	}
 
 	return creds, nil

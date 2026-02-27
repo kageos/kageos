@@ -11,7 +11,17 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/trace"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/env"
 	"github.com/go-playground/form/v4"
+	"github.com/go-playground/validator/v10"
 )
+
+var (
+	// defaultValidator 使用 struct 标签 "validate"（如 validate:"required,min=1"）
+	defaultValidator *validator.Validate
+)
+
+func init() {
+	defaultValidator = validator.New()
+}
 
 func newCallbackContext(info *routerInfo) *Context {
 	msgInfo := trace.Msg{
@@ -84,31 +94,33 @@ func (c *Context) ShouldBind(req interface{}) error {
 	return nil
 }
 
-// ShouldBindValidate todo 加上validate验证
+// ShouldBindValidate 绑定请求体/查询参数并在绑定成功后做 struct 校验。
+// 使用 go-playground/validator 语法，在字段上写 validate 标签即可，如 validate:"required,min=1"。
 func (c *Context) ShouldBindValidate(req interface{}) error {
 	if c.msg == nil {
 		return fmt.Errorf("msg is nil")
 	}
 
-	if c.body != nil {
-		return json.Unmarshal(c.body, req)
+	if err := c.ShouldBind(req); err != nil {
+		return err
 	}
-	if strings.ToUpper(c.msg.Method) == "GET" {
-		if c.urlQuery == "" {
-			return nil
-		}
-		query, err := url.ParseQuery(c.urlQuery)
-		if err != nil {
-			return fmt.Errorf("解析查询参数失败: %w", err)
-		}
-		err = form.NewDecoder().Decode(req, query)
-		if err != nil {
-			return fmt.Errorf("解码表单数据失败: %w", err)
-		}
-	} else {
-		return json.Unmarshal(c.body, req)
+
+	if err := defaultValidator.Struct(req); err != nil {
+		return wrapValidationError(err)
 	}
 	return nil
+}
+
+// wrapValidationError 将 validator 错误转为可读文案（只取第一个错误）
+func wrapValidationError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if vErr, ok := err.(validator.ValidationErrors); ok && len(vErr) > 0 {
+		e := vErr[0]
+		return fmt.Errorf("参数校验失败: %s 不满足规则 %s", e.Field(), e.Tag())
+	}
+	return err
 }
 
 // GetRouterGroup 获取当前请求的 RouterGroup

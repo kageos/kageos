@@ -236,6 +236,7 @@ type GetHubDirectoryListRequest struct {
 	Search            string `json:"search" form:"search"`                               // 搜索关键词
 	Category          string `json:"category" form:"category"`                          // 分类
 	PublisherUsername string `json:"publisher_username" form:"publisher_username"`       // 发布者用户名
+	MineOnly          bool   `json:"mine_only" form:"mine_only"`                         // 只看自己：true 时按当前用户过滤（需带 token/网关带 X-Request-User）
 	FeeType           string `json:"fee_type" form:"fee_type"`                          // 费用筛选：空=全部，free=免费，paid=收费
 	OrderBy           string `json:"order_by" form:"order_by"`                          // 排序：空或 latest=最新(created_at DESC)，hot=热门(star+download 优先)
 }
