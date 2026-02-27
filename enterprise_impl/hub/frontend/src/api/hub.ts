@@ -218,3 +218,35 @@ export async function deleteHubDirectory(hubDirectoryId: number): Promise<void> 
   const url = `${baseURL}/directories/${hubDirectoryId}`
   await del(url)
 }
+
+// ==================== Pub Key 管理 ====================
+
+export interface PubKeyItem {
+  id: number
+  name: string
+  key_prefix: string
+  created_at: string
+  last_used_at: string | null
+}
+
+export interface GeneratePubKeyResp {
+  id: number
+  name: string
+  key: string
+  key_prefix: string
+}
+
+export async function generatePubKey(name: string): Promise<GeneratePubKeyResp> {
+  const baseURL = getHubBaseURL()
+  return post<GeneratePubKeyResp>(`${baseURL}/pub_key/generate`, { name })
+}
+
+export async function listPubKeys(): Promise<PubKeyItem[]> {
+  const baseURL = getHubBaseURL()
+  return get<PubKeyItem[]>(`${baseURL}/pub_key/list`)
+}
+
+export async function deletePubKey(id: number): Promise<void> {
+  const baseURL = getHubBaseURL()
+  await del(`${baseURL}/pub_key/${id}`)
+}

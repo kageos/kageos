@@ -19,36 +19,34 @@ func (s *Server) setupRoutes() {
 	hub := s.httpServer.Group("/hub")
 	apiV1 := hub.Group("/api/v1")
 
-	// TODO: 认证相关路由（调用 OS API 进行认证）
-	// auth := apiV1.Group("/auth")
-	// authHandler := v1.NewAuth(s.authService)
-	// auth.POST("/login", authHandler.Login)
-	// auth.POST("/refresh", authHandler.RefreshToken)
-	// auth.POST("/logout", authHandler.Logout)
-
 	// Hub 目录管理路由
 	hubDirectory := apiV1.Group("/directories")
 	hubDirectoryHandler := v1.NewDirectory(s.hubDirectoryService)
 
 	// 公开接口（不需要认证）
-	hubDirectory.GET("", hubDirectoryHandler.GetDirectoryList)              // 获取目录列表
-	hubDirectory.GET("/detail", hubDirectoryHandler.GetDirectoryDetail) // 详情（网关已带用户信息，直接 GetRequestUser 即可返回 has_starred）
-	hubDirectory.GET("/versions", hubDirectoryHandler.GetDirectoryVersions)  // 获取目录版本列表 ?hub_directory_id=xxx
-	hubDirectory.POST("/increment_download", hubDirectoryHandler.IncrementDownloadCount) // 复制时增加下载次数
+	hubDirectory.GET("", hubDirectoryHandler.GetDirectoryList)
+	hubDirectory.GET("/detail", hubDirectoryHandler.GetDirectoryDetail)
+	hubDirectory.GET("/versions", hubDirectoryHandler.GetDirectoryVersions)
+	hubDirectory.POST("/increment_download", hubDirectoryHandler.IncrementDownloadCount)
 
-	// 需要认证的接口
+	// 发布/推送接口（支持 JWT 或 Pub Key 认证）
+	hubDirectoryPub := hubDirectory.Group("")
+	hubDirectoryPub.Use(middleware2.JWTOrPubKeyAuth(s.pubKeyService.ValidateKey))
+	hubDirectoryPub.POST("/publish", hubDirectoryHandler.PublishDirectory)
+	hubDirectoryPub.PUT("/update", hubDirectoryHandler.UpdateDirectory)
+
+	// 其他需要认证的接口（仅 JWT）
 	hubDirectoryAuth := hubDirectory.Group("")
 	hubDirectoryAuth.Use(middleware2.JWTAuth())
-	hubDirectoryAuth.POST("/publish", hubDirectoryHandler.PublishDirectory)   // 发布目录
-	hubDirectoryAuth.PUT("/update", hubDirectoryHandler.UpdateDirectory)      // 更新目录（push）
-	hubDirectoryAuth.POST("/:id/star", hubDirectoryHandler.Star)               // 加星
-	hubDirectoryAuth.DELETE("/:id/star", hubDirectoryHandler.Unstar)           // 取消星星
-	hubDirectoryAuth.DELETE("/:id", hubDirectoryHandler.DeleteDirectory)      // 删除应用（软删除，仅发布者）
+	hubDirectoryAuth.POST("/:id/star", hubDirectoryHandler.Star)
+	hubDirectoryAuth.DELETE("/:id/star", hubDirectoryHandler.Unstar)
+	hubDirectoryAuth.DELETE("/:id", hubDirectoryHandler.DeleteDirectory)
 
-	// TODO: 服务费支付路由（需要JWT验证）
-	// payment := apiV1.Group("/payments")
-	// payment.Use(middleware2.JWTAuth())
-	// paymentHandler := v1.NewPayment(s.paymentService)
-	// payment.POST("/:hub_app_id", paymentHandler.CreatePayment)
-	// payment.POST("/:payment_id/callback", paymentHandler.PaymentCallback)
+	// Pub Key 管理路由（需要 JWT 认证，用户在 Hub 前端登录后管理自己的密钥）
+	pubKeyGroup := apiV1.Group("/pub_key")
+	pubKeyGroup.Use(middleware2.JWTAuth())
+	pubKeyHandler := v1.NewPubKey(s.pubKeyService)
+	pubKeyGroup.POST("/generate", pubKeyHandler.Generate)
+	pubKeyGroup.GET("/list", pubKeyHandler.List)
+	pubKeyGroup.DELETE("/:id", pubKeyHandler.Delete)
 }

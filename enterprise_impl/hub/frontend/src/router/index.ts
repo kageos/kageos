@@ -29,6 +29,15 @@ const router = createRouter({
       }
     },
     {
+      path: '/pub-keys',
+      name: 'pub-key-manage',
+      component: () => import('../views/PubKeyManage.vue'),
+      meta: {
+        title: '发布密钥',
+        requireAuth: true
+      }
+    },
+    {
       path: '/:pathMatch(.*)*',
       name: 'not-found',
       component: () => import('../views/Error/404.vue'),

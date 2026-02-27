@@ -30,7 +30,7 @@ type Server struct {
 	emailService      *service.EmailService
 	jwtService        *service.JWTService
 	userService       *service.UserService
-	departmentService *service.DepartmentService // ⭐ 新增：部门服务
+	departmentService *service.DepartmentService
 	natsService       *service.NATSService
 
 	// 上下文
@@ -183,7 +183,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	userRepo := repository.NewUserRepository(s.db)
 	userSessionRepo := repository.NewUserSessionRepository(s.db)
 	emailCodeRepo := repository.NewEmailCodeRepository(s.db)
-	deptRepo := repository.NewDepartmentRepository(s.db) // ⭐ 新增：部门仓库
+	deptRepo := repository.NewDepartmentRepository(s.db)
 
 	// 初始化 NATS 服务
 	natsService, err := service.NewNATSService()
@@ -207,7 +207,6 @@ func (s *Server) initServices(ctx context.Context) error {
 	// 初始化用户服务
 	s.userService = service.NewUserService(userRepo, s.natsService, userSessionRepo)
 
-	// ⭐ 新增：初始化部门服务
 	s.departmentService = service.NewDepartmentService(deptRepo, userRepo)
 
 	logger.Infof(ctx, "[Server] Services initialized successfully")

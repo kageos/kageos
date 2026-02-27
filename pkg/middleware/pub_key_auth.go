@@ -1,0 +1,80 @@
+package middleware
+
+import (
+	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
+	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
+	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/gin-gonic/gin"
+)
+
+const PubKeyHeader = "X-Pub-Key"
+
+// PubKeyValidator 验证 pub key 的回调函数，返回用户名
+type PubKeyValidator func(key string) (username string, err error)
+
+// JWTOrPubKeyAuth 支持 JWT 或 Pub Key 认证的中间件
+// validator 由调用方提供（如 Hub Backend 直接查自己的 DB）
+func JWTOrPubKeyAuth(validator PubKeyValidator) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// 1. 优先从 header 获取 username（网关已解析 token）
+		requestUser := c.GetHeader(contextx.RequestUserHeader)
+		if requestUser == "" {
+			requestUser = c.GetHeader("X-Username")
+		}
+		if requestUser != "" {
+			c.Set(contextx.RequestUserHeader, requestUser)
+			if deptPath := c.GetHeader(contextx.DepartmentFullPathHeader); deptPath != "" {
+				c.Set(contextx.DepartmentFullPathHeader, deptPath)
+			}
+			c.Next()
+			return
+		}
+
+		// 2. 尝试 JWT Token
+		token := c.GetHeader(contextx.TokenHeader)
+		if token != "" {
+			jwtService := service.NewJWTService()
+			claims, err := jwtService.ValidateToken(token)
+			if err == nil {
+				c.Set(contextx.RequestUserHeader, claims.Username)
+				c.Set(contextx.TokenHeader, token)
+				if claims.DepartmentFullPath != nil && *claims.DepartmentFullPath != "" {
+					c.Set(contextx.DepartmentFullPathHeader, *claims.DepartmentFullPath)
+				}
+				c.Next()
+				return
+			}
+			logger.Warnf(c, "[JWTOrPubKeyAuth] JWT 验证失败，尝试其他认证方式: %v", err)
+		}
+
+		// 3. 内网请求 + X-Request-User
+		if isInternalRequest(c) {
+			internalUser := c.GetHeader(contextx.RequestUserHeader)
+			if internalUser != "" {
+				c.Set(contextx.RequestUserHeader, internalUser)
+				c.Next()
+				return
+			}
+		}
+
+		// 4. Pub Key 认证（直接由调用方的 validator 查询本地 DB）
+		pubKey := c.GetHeader(PubKeyHeader)
+		if pubKey != "" && validator != nil {
+			username, err := validator(pubKey)
+			if err != nil {
+				logger.Warnf(c, "[JWTOrPubKeyAuth] Pub Key 验证失败: %v", err)
+				response.FailWithMessage(c, "无效的 Pub Key")
+				c.Abort()
+				return
+			}
+			c.Set(contextx.RequestUserHeader, username)
+			logger.Infof(c, "[JWTOrPubKeyAuth] Pub Key 认证成功 - User: %s, Path: %s", username, c.Request.URL.Path)
+			c.Next()
+			return
+		}
+
+		response.FailWithMessage(c, "未提供认证令牌或 Pub Key")
+		c.Abort()
+	}
+}

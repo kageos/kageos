@@ -21,6 +21,8 @@ export interface PublishDirectoryToHubReq {
   tags?: string[]                     // 标签
   service_fee_personal?: number        // 个人用户服务费
   service_fee_enterprise?: number     // 企业用户服务费
+  remote_hub_url?: string             // 远程 Hub 地址（跨站发布）
+  pub_key?: string                    // Pub Key（跨站发布认证）
 }
 
 /**
@@ -65,6 +67,8 @@ export interface PushDirectoryToHubReq {
   version?: string                    // 新版本号（可选，不传则自动递增）
   update_description?: string         // 本版本更新说明（可选，如：新增 xxx 功能）
   api_key?: string                    // API Key（私有化部署需要）
+  remote_hub_url?: string             // 远程 Hub 地址（跨站发布）
+  pub_key?: string                    // Pub Key（跨站发布认证）
 }
 
 /**

@@ -2655,8 +2655,14 @@ func (s *ServiceTreeService) PublishDirectoryToHub(ctx context.Context, req *dto
 		DirectoryTree:        directoryTree,
 	}
 
-	// 7. 调用 Hub API（直接传 ctx，内部会提取 token、trace_id 等）
-	hubResp, err := apicall.PublishDirectoryToHub(ctx, hubReq)
+	// 7. 调用 Hub API
+	var hubResp *dto.PublishHubDirectoryResp
+	isRemote := req.RemoteHubURL != "" && req.PubKey != ""
+	if isRemote {
+		hubResp, err = apicall.PublishDirectoryToRemoteHub(ctx, req.RemoteHubURL, req.PubKey, hubReq)
+	} else {
+		hubResp, err = apicall.PublishDirectoryToHub(ctx, hubReq)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("调用 Hub API 失败: %w", err)
 	}
@@ -2817,8 +2823,13 @@ func (s *ServiceTreeService) PushDirectoryToHub(ctx context.Context, req *dto.Pu
 	}
 
 	// 8. 调用 Hub API
-	// 调用 Hub API（直接传 ctx，内部会提取 token、trace_id 等）
-	hubResp, err := apicall.UpdateDirectoryToHub(ctx, hubReq)
+	var hubResp *dto.UpdateHubDirectoryResp
+	isRemote := req.RemoteHubURL != "" && req.PubKey != ""
+	if isRemote {
+		hubResp, err = apicall.UpdateDirectoryToRemoteHub(ctx, req.RemoteHubURL, req.PubKey, hubReq)
+	} else {
+		hubResp, err = apicall.UpdateDirectoryToHub(ctx, hubReq)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("调用 Hub API 失败: %w", err)
 	}

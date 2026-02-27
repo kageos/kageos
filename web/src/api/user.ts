@@ -98,3 +98,4 @@ export function getUsersByDepartment(departmentFullPath: string) {
   return get<GetUsersByDepartmentResp>('/hr/api/v1/user/department', { department_full_path: departmentFullPath })
 }
 
+

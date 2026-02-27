@@ -101,6 +101,34 @@
         </el-alert>
       </el-form-item>
 
+      <!-- 推送目标 -->
+      <el-divider>推送目标</el-divider>
+
+      <el-form-item label="推送到">
+        <el-radio-group v-model="pushTarget" @change="handleTargetChange">
+          <el-radio label="local">本站 Hub</el-radio>
+          <el-radio label="remote">远程站点</el-radio>
+        </el-radio-group>
+      </el-form-item>
+
+      <template v-if="pushTarget === 'remote'">
+        <el-form-item label="远程地址" prop="remote_hub_url" :rules="[{ required: true, message: '请输入远程 Hub 地址', trigger: 'blur' }]">
+          <el-input
+            v-model="form.remote_hub_url"
+            placeholder="例如：http://hub.example.com 或 125.122.96.207:8999"
+          />
+        </el-form-item>
+
+        <el-form-item label="Pub Key" prop="pub_key" :rules="[{ required: true, message: '请输入远程站点的 Pub Key', trigger: 'blur' }]">
+          <el-input
+            v-model="form.pub_key"
+            placeholder="在远程站点的个人设置中生成的发布密钥"
+            show-password
+          />
+          <el-text type="info" size="small">在远程站点「个人设置 > 发布密钥」中生成</el-text>
+        </el-form-item>
+      </template>
+
       <!-- 服务费设置 -->
       <el-divider>服务费设置（可选）</el-divider>
 
@@ -168,6 +196,7 @@ const dialogVisible = computed({
 const formRef = ref()
 const loading = ref(false)
 const submitting = ref(false)
+const pushTarget = ref<'local' | 'remote'>('local')
 
 // 表单数据
 const form = ref<Partial<PushDirectoryToHubReq>>({
@@ -178,6 +207,8 @@ const form = ref<Partial<PushDirectoryToHubReq>>({
   service_fee_personal: 0,
   service_fee_enterprise: 0,
   update_description: '',
+  remote_hub_url: '',
+  pub_key: '',
 })
 
 // 选中的目录路径、当前版本、下一版本（自动递增，只读展示）
@@ -259,6 +290,13 @@ const initForm = async () => {
   }
 }
 
+const handleTargetChange = (val: 'local' | 'remote') => {
+  if (val === 'local') {
+    form.value.remote_hub_url = ''
+    form.value.pub_key = ''
+  }
+}
+
 // 提交表单
 const handleSubmit = async () => {
   if (!formRef.value) return
@@ -290,6 +328,10 @@ const handleSubmit = async () => {
         ...(form.value.service_fee_personal ? { service_fee_personal: form.value.service_fee_personal } : {}),
         ...(form.value.service_fee_enterprise ? { service_fee_enterprise: form.value.service_fee_enterprise } : {}),
         ...(form.value.update_description ? { update_description: form.value.update_description } : {}),
+      }
+      if (pushTarget.value === 'remote') {
+        requestData.remote_hub_url = form.value.remote_hub_url
+        requestData.pub_key = form.value.pub_key
       }
 
       // 调用推送接口
@@ -337,7 +379,10 @@ const handleClose = () => {
     service_fee_personal: 0,
     service_fee_enterprise: 0,
     update_description: '',
+    remote_hub_url: '',
+    pub_key: '',
   }
+  pushTarget.value = 'local'
   selectedDirectoryPath.value = ''
   currentVersion.value = ''
   nextVersion.value = ''

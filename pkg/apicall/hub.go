@@ -15,14 +15,97 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 )
 
-// PublishDirectoryToHub 发布目录到 Hub
+// PublishDirectoryToHub 发布目录到 Hub（本地 Hub，走网关）
 func PublishDirectoryToHub(ctx context.Context, req *dto.PublishHubDirectoryReq) (*dto.PublishHubDirectoryResp, error) {
 	return PostAPI[*dto.PublishHubDirectoryReq, *dto.PublishHubDirectoryResp](ctx, "/hub/api/v1/directories/publish", req)
 }
 
-// UpdateDirectoryToHub 更新目录到 Hub（用于 push）
+// UpdateDirectoryToHub 更新目录到 Hub（本地 Hub，走网关）
 func UpdateDirectoryToHub(ctx context.Context, req *dto.UpdateHubDirectoryReq) (*dto.UpdateHubDirectoryResp, error) {
 	return PutAPI[*dto.UpdateHubDirectoryReq, *dto.UpdateHubDirectoryResp](ctx, "/hub/api/v1/directories/update", req)
+}
+
+// PublishDirectoryToRemoteHub 发布目录到远程 Hub（跨站，用 Pub Key 认证）
+func PublishDirectoryToRemoteHub(ctx context.Context, remoteURL, pubKey string, req *dto.PublishHubDirectoryReq) (*dto.PublishHubDirectoryResp, error) {
+	fullURL := normalizeHubURL(remoteURL) + "/hub/api/v1/directories/publish"
+	return callAPIWithPubKey[*dto.PublishHubDirectoryResp](ctx, http.MethodPost, fullURL, pubKey, req)
+}
+
+// UpdateDirectoryToRemoteHub 更新目录到远程 Hub（跨站，用 Pub Key 认证）
+func UpdateDirectoryToRemoteHub(ctx context.Context, remoteURL, pubKey string, req *dto.UpdateHubDirectoryReq) (*dto.UpdateHubDirectoryResp, error) {
+	fullURL := normalizeHubURL(remoteURL) + "/hub/api/v1/directories/update"
+	return callAPIWithPubKey[*dto.UpdateHubDirectoryResp](ctx, http.MethodPut, fullURL, pubKey, req)
+}
+
+func normalizeHubURL(host string) string {
+	if !strings.HasPrefix(host, "http://") && !strings.HasPrefix(host, "https://") {
+		return "http://" + host
+	}
+	return strings.TrimSuffix(host, "/")
+}
+
+// callAPIWithPubKey 使用 Pub Key 认证调用远程 API
+func callAPIWithPubKey[T any](ctx context.Context, method, fullURL, pubKey string, reqBody interface{}) (T, error) {
+	var zero T
+	result, err := callAPIWithURLAndHeaders[T](ctx, method, fullURL, reqBody, map[string]string{
+		"X-Pub-Key": pubKey,
+	})
+	if err != nil {
+		return zero, err
+	}
+	return result.Data, nil
+}
+
+// callAPIWithURLAndHeaders 使用完整 URL 和自定义 header 调用 API
+func callAPIWithURLAndHeaders[T any](ctx context.Context, method, fullURL string, reqBody interface{}, headers map[string]string) (*ApiResult[T], error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	var bodyReader io.Reader
+	if reqBody != nil {
+		bodyBytes, err := json.Marshal(reqBody)
+		if err != nil {
+			return nil, fmt.Errorf("序列化请求体失败: %w", err)
+		}
+		bodyReader = bytes.NewReader(bodyBytes)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, fullURL, bodyReader)
+	if err != nil {
+		return nil, fmt.Errorf("创建请求失败: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("请求远程 Hub 失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("读取响应失败: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("远程 Hub 返回错误: %d %s, 响应: %s", resp.StatusCode, resp.Status, string(bodyBytes))
+	}
+
+	var result ApiResult[T]
+	if err := json.Unmarshal(bodyBytes, &result); err != nil {
+		return nil, fmt.Errorf("解析响应失败: %w, 响应内容: %s", err, string(bodyBytes))
+	}
+
+	if result.Code != 0 {
+		return &result, fmt.Errorf("远程 Hub 业务错误 [%d]: %s", result.Code, result.Msg)
+	}
+
+	return &result, nil
 }
 
 // GetHubDirectoryList 获取 Hub 目录列表

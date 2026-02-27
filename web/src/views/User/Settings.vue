@@ -130,6 +130,7 @@
           </el-form-item>
         </el-form>
       </el-card>
+
     </div>
   </div>
 </template>
@@ -265,21 +266,17 @@ function handleGoToOrganization() {
 
 // 组件挂载时初始化
 onMounted(async () => {
-  // 如果用户未登录，跳转到登录页
   if (!authStore.isAuthenticated) {
     router.push('/login')
     return
   }
   
-  // ⭐ 刷新用户信息，获取最新数据
   try {
     await authStore.fetchUserInfo()
   } catch (error) {
     console.error('获取用户信息失败:', error)
-    // 如果获取失败，仍然使用缓存的数据初始化表单
   }
   
-  // 初始化表单数据
   initFormData()
 })
 </script>
@@ -371,5 +368,6 @@ onMounted(async () => {
   color: var(--el-text-color-placeholder);
   font-size: 14px;
 }
+
 </style>
 
