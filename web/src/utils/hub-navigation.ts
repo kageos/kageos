@@ -14,15 +14,14 @@ export function getHubFrontendURL(): string {
     return hubURL
   }
 
-  if (import.meta.env.DEV || import.meta.env.MODE === 'development') {
-    return 'http://localhost:5174'
+  // 自部署生产环境：Web 8999 → Hub 8998
+  const currentPort = window.location.port
+  if (currentPort === '8999') {
+    return `${window.location.protocol}//${window.location.hostname}:8998`
   }
 
-  // 生产环境：Hub 前端端口 = 当前端口 - 1（如 8999 → 8998）
-  // 自部署和官方部署都适用
-  const currentPort = parseInt(window.location.port) || (window.location.protocol === 'https:' ? 443 : 80)
-  const hubPort = currentPort - 1
-  return `${window.location.protocol}//${window.location.hostname}:${hubPort}`
+  // 开发环境或其他情况
+  return 'http://localhost:5174'
 }
 
 /**
