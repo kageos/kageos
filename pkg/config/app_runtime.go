@@ -82,7 +82,6 @@ type AppDirConfig struct {
 
 // BuildConfig 编译配置
 type BuildConfig struct {
-	Platform         string `mapstructure:"platform"`
 	OutputDir        string `mapstructure:"output_dir"`
 	BinaryNameFormat string `mapstructure:"binary_name_format"`
 }
@@ -138,10 +137,6 @@ func (c *AppRuntimeConfig) Validate() error {
 			return fmt.Errorf("failed to get absolute path for base_path: %w", err)
 		}
 		c.AppManage.AppDir.BasePath = absPath
-	}
-
-	if c.AppManage.Build.Platform == "" {
-		return fmt.Errorf("build platform cannot be empty")
 	}
 
 	return nil

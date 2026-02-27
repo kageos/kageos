@@ -430,7 +430,6 @@ func (s *ServiceTreeService) BatchWriteFiles(
 	buildOpts := &BuildOpts{
 		SourceDir:        sourceDir,
 		OutputDir:        outputDir,
-		Platform:         s.config.Build.Platform,
 		BinaryNameFormat: s.config.Build.BinaryNameFormat,
 	}
 
