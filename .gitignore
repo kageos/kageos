@@ -17,9 +17,9 @@ run/
 namespace/
 
 # 配置文件（包含敏感信息）
-configs/*.yaml
-configs/*.yml
-configs/*.json
+#configs/*.yaml
+#configs/*.yml
+#configs/*.json
 
 temp/
 plan/
