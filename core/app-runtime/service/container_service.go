@@ -647,11 +647,14 @@ func (s *PodmanService) RunContainerWithCommand(ctx context.Context, image, name
 	}
 
 	// 使用 podman 命令行工具运行容器并挂载目录，使用指定命令作为主进程
+	// 添加 host.containers.internal -> host-gateway，使容器内能访问宿主机服务（如 NATS、Gateway）
+	// Linux Podman 下若不添加此条，NATS_URL=nats://host.containers.internal:4222 无法解析，导致 SDK 连不上 NATS，出现 "no responders" 与启动通知超时
 	logger.Infof(ctx, "Creating container with mount and command: %s", name)
 
 	// 构建命令参数
 	args := []string{"run", "-d",
 		"--name", name,
+		"--add-host", "host.containers.internal:host-gateway",
 		"-v", fmt.Sprintf("%s:%s", hostPath, containerPath),
 		"-e", "TZ=Asia/Shanghai"} // 设置时区
 

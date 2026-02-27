@@ -288,7 +288,7 @@ function handleGoToOrganizationPage() {
 :deep(.el-tree-node.is-current > .el-tree-node__content),
 :deep(.el-tree-node.is-expanded.is-current > .el-tree-node__content),
 :deep(.el-tree-node.is-expanded.is-current.is-focusable > .el-tree-node__content) {
-  background-color: var(--el-fill-color-light) !important;
+  background-color: rgba(99, 102, 241, 0.15) !important;
   border-left: 2px solid #6366f1;
   
   .tree-node {

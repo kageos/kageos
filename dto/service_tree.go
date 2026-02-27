@@ -13,6 +13,8 @@ type PublishDirectoryToHubReq struct {
 	Tags                 []string `json:"tags"`                                     // 标签
 	ServiceFeePersonal   float64  `json:"service_fee_personal"`                     // 个人用户服务费
 	ServiceFeeEnterprise float64  `json:"service_fee_enterprise"`                   // 企业用户服务费
+	RemoteHubURL         string   `json:"remote_hub_url"`                           // 远程 Hub 地址（跨站发布，如 http://hub.example.com）
+	PubKey               string   `json:"pub_key"`                                  // Pub Key（跨站发布时用于认证）
 }
 
 // PublishDirectoryToHubResp 发布目录到 Hub 响应
@@ -35,7 +37,9 @@ type PushDirectoryToHubReq struct {
 	ServiceFeeEnterprise float64  `json:"service_fee_enterprise"` // 企业用户服务费（可选）
 	Version              string   `json:"version"`                // 新版本号（可选，不传则自动递增为 v{N+1}）
 	UpdateDescription    string   `json:"update_description"`      // 本版本更新说明（可选，如：新增 xxx 功能）
-	APIKey               string   `json:"api_key"`                // API Key（私有化部署需要）
+	APIKey               string   `json:"api_key"`                // API Key（私有化部署需要，已废弃，用 PubKey 替代）
+	RemoteHubURL         string   `json:"remote_hub_url"`         // 远程 Hub 地址（跨站发布）
+	PubKey               string   `json:"pub_key"`                // Pub Key（跨站发布时用于认证）
 }
 
 // PushDirectoryToHubResp 推送目录到 Hub 响应

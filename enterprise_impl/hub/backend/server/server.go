@@ -26,6 +26,7 @@ type Server struct {
 
 	// 服务
 	hubDirectoryService *service.HubDirectoryService
+	pubKeyService       *service.PubKeyService
 	// authService   *service.AuthService
 	// paymentService *service.PaymentService
 
@@ -127,10 +128,11 @@ func (s *Server) initDatabase(ctx context.Context) error {
 func (s *Server) initServices(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Initializing services...")
 
-	// 初始化 Repository（两表方案：仅目录 + 快照；星星单独表）
+	// 初始化 Repository
 	hubDirectoryRepo := repository.NewHubDirectoryRepository(s.db)
 	hubSnapshotRepo := repository.NewHubSnapshotRepository(s.db)
 	hubStarRepo := repository.NewHubDirectoryStarRepository(s.db)
+	pubKeyRepo := repository.NewPubKeyRepository(s.db)
 
 	// 初始化 Service
 	s.hubDirectoryService = service.NewHubDirectoryService(
@@ -138,6 +140,7 @@ func (s *Server) initServices(ctx context.Context) error {
 		hubSnapshotRepo,
 		hubStarRepo,
 	)
+	s.pubKeyService = service.NewPubKeyService(pubKeyRepo)
 	// s.authService = service.NewAuthService(s.osClient)
 	// s.paymentService = service.NewPaymentService(paymentRepo)
 

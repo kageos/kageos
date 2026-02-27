@@ -66,4 +66,5 @@ func (s *Server) setupRoutes() {
 	userAllocationHandler := v1.NewUserAllocation(s.userService, s.departmentService)
 	user.POST("/assign", userAllocationHandler.AssignUser)
 	user.GET("/department", userAllocationHandler.GetUsersByDepartment)
+
 }
