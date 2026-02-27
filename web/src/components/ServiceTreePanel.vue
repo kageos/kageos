@@ -1590,7 +1590,7 @@ defineExpose({
 }
 
 :deep(.el-tree-node.is-current > .el-tree-node__content) {
-  background-color: var(--el-fill-color-lighter);
+  background-color: rgba(99, 102, 241, 0.08);
   border-left: 2px solid #6366f1;
   
   .tree-node {
@@ -1600,7 +1600,7 @@ defineExpose({
     }
     
     .node-icon {
-      color: #6366f1;  /* ✅ 旧版本紫色主题色 */
+      color: #6366f1;
       opacity: 0.8;
     }
     

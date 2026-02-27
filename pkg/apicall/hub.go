@@ -155,10 +155,6 @@ func callAPIWithURL[T any](ctx context.Context, method, fullURL string, reqBody 
 		req.Header.Set("X-Trace-Id", traceID)
 	}
 
-	// 注意：不需要设置 X-Request-User，因为：
-	// 1. 如果请求经过网关，网关会从 X-Token 解析并覆盖 X-Request-User
-	// 2. 如果请求不经过网关（如跨 Hub 调用），通常是公开接口，不需要用户信息
-
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("请求失败: %w", err)

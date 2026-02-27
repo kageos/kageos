@@ -212,7 +212,7 @@ const handleAction = (action: string) => {
     }
 
     &.is-selected {
-      background-color: var(--el-fill-color) !important;
+      background-color: rgba(99, 102, 241, 0.08) !important;
       border: 1px solid var(--el-border-color);
       color: var(--el-text-color-primary);
       font-weight: 500;

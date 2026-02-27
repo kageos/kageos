@@ -80,7 +80,7 @@ func callAPI[T any](ctx context.Context, method, path string, reqBody interface{
 	if traceID := contextx.GetTraceId(ctx); traceID != "" {
 		req.Header.Set(contextx.TraceIdHeader, traceID)
 	}
-	
+
 	// 6. 发送请求
 	resp, err := httpClient.Do(req)
 	if err != nil {
