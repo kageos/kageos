@@ -288,6 +288,20 @@ const uploading = ref(false)
 /** 拖拽悬停时高亮输入区 */
 const isDraggingOver = ref(false)
 
+/** 将可能带 host 的 URL 转为仅 path（工作台发送给后端时 url 不要 host） */
+function toPathOnlyUrl(url: string): string {
+  if (!url) return url
+  try {
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      const u = new URL(url)
+      return u.pathname + u.search + u.hash
+    }
+  } catch {
+    // 解析失败则原样返回
+  }
+  return url
+}
+
 /** 上传单个文件并加入附件列表（按钮选择与拖拽共用） */
 async function addFileAsAttachment(file: File): Promise<void> {
   if (!file || !props.fullCodePath) return
@@ -312,6 +326,8 @@ async function addFileAsAttachment(file: File): Promise<void> {
   if (!completeResult?.download_url) {
     throw new Error('获取下载地址失败')
   }
+  // 工作台发送时 url 只要 path，不要 host（后端可能返回带 cdnDomain 的完整 URL）
+  const urlPathOnly = toPathOnlyUrl(completeResult.download_url)
   const item: WorkspaceChatMessageFile = {
     name: completeResult.file_name,
     source_name: file.name,
@@ -320,7 +336,7 @@ async function addFileAsAttachment(file: File): Promise<void> {
     size: completeResult.file_size,
     upload_ts: Math.floor(Date.now() / 1000),
     is_uploaded: true,
-    url: completeResult.download_url,
+    url: urlPathOnly,
     server_url: completeResult.server_download_url,
     upload_user: useAuthStore().userName || undefined,
   }
