@@ -49,6 +49,19 @@ type CreateServiceTreeRuntimeResp struct {
 	ServiceTree string `json:"service_tree" example:"user"` // 服务目录名称
 }
 
+// DeleteServiceTreeRuntimeReq 删除服务目录运行时请求（app-server -> app-runtime：删磁盘目录并从 main.go 移除 import）
+type DeleteServiceTreeRuntimeReq struct {
+	User        string `json:"user"`  // 用户名
+	App         string `json:"app"`   // 应用名
+	PackagePath string `json:"package_path"` // 相对 api 的包路径，如 crm 或 crm/ticket
+}
+
+// DeleteServiceTreeRuntimeResp 删除服务目录运行时响应
+type DeleteServiceTreeRuntimeResp struct {
+	Success bool   `json:"success"`
+	Error   string `json:"error,omitempty"`
+}
+
 // DirectoryTreeItem 目录树项（支持目录和文件）
 type DirectoryTreeItem struct {
 	FullCodePath string `json:"full_code_path" binding:"required"` // 完整代码路径，如 /user/app/plugins/cashier
