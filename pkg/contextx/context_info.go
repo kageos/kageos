@@ -21,6 +21,7 @@ const DepartmentFullPathHeader = "X-Department-Full-Path"
 
 // TokenHeader HTTP Header 中的 Token key（统一使用此名称）
 const TokenHeader = "X-Token"
+const PubKeyHerder = "X-Pub-Key"
 
 // GetTraceId 获取追踪ID
 // ⭐ 只从 HTTP Header 读取（统一方式，避免混乱）
@@ -109,34 +110,57 @@ func GetToken(c context.Context) string {
 }
 
 // ToContext 将 gin.Context 转换为标准 context.Context
-// ⭐ 只从 HTTP Header 读取（统一方式，避免混乱）
-// 解析 header 中的关键信息并放入 context.Value
-// 这样即使内部使用 context.WithValue 包装，也能通过 context.Value 获取到这些值
+// 从 header 或 gin 上下文（如中间件 c.Set）读取关键信息，写入 context.Value，并同步回 c.Request.Header，保证请求头为权威来源。
 func ToContext(c *gin.Context) context.Context {
 	ctx := context.Background()
 
-	// 1. 解析 TraceId（只从 header 读取）
+	// 1. TraceId：header 或 context，取到后 set 回 header + context
 	traceId := c.GetHeader(TraceIdHeader)
 	if traceId != "" {
 		ctx = context.WithValue(ctx, TraceIdHeader, traceId)
+		c.Request.Header.Set(TraceIdHeader, traceId)
 	}
 
-	// 2. 解析 RequestUser（只从 header 读取）
+	// 2. RequestUser：优先 header，若无则从 gin 上下文取（中间件从 JWT/PubKey 解析后 c.Set 的值），取到后 set 回 header + context
 	requestUser := c.GetHeader(RequestUserHeader)
+	if requestUser == "" {
+		if v, exists := c.Get(RequestUserHeader); exists {
+			if s, ok := v.(string); ok && s != "" {
+				requestUser = s
+			}
+		}
+	}
 	if requestUser != "" {
 		ctx = context.WithValue(ctx, RequestUserHeader, requestUser)
+		c.Request.Header.Set(RequestUserHeader, requestUser)
 	}
 
-	// 3. 解析 Token（只从 header 读取）
+	// 3. Token：header 或 context，取到后 set 回 header + context
 	token := c.GetHeader(TokenHeader)
+	if token == "" {
+		if v, exists := c.Get(TokenHeader); exists {
+			if s, ok := v.(string); ok && s != "" {
+				token = s
+			}
+		}
+	}
 	if token != "" {
 		ctx = context.WithValue(ctx, TokenHeader, token)
+		c.Request.Header.Set(TokenHeader, token)
 	}
 
-	// 4. 解析 DepartmentFullPath（只从 header 读取）
+	// 4. DepartmentFullPath：header 或 context，取到后 set 回 header + context
 	deptPath := c.GetHeader(DepartmentFullPathHeader)
+	if deptPath == "" {
+		if v, exists := c.Get(DepartmentFullPathHeader); exists {
+			if s, ok := v.(string); ok && s != "" {
+				deptPath = s
+			}
+		}
+	}
 	if deptPath != "" {
 		ctx = context.WithValue(ctx, DepartmentFullPathHeader, deptPath)
+		c.Request.Header.Set(DepartmentFullPathHeader, deptPath)
 	}
 
 	return ctx

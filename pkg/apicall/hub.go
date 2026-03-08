@@ -48,7 +48,7 @@ func normalizeHubURL(host string) string {
 func callAPIWithPubKey[T any](ctx context.Context, method, fullURL, pubKey string, reqBody interface{}) (T, error) {
 	var zero T
 	result, err := callAPIWithURLAndHeaders[T](ctx, method, fullURL, reqBody, map[string]string{
-		"X-Pub-Key": pubKey,
+		contextx.PubKeyHerder: pubKey,
 	})
 	if err != nil {
 		return zero, err
