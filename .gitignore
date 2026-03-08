@@ -37,3 +37,4 @@ licenses/
 license.json
 license_enterprise_1year.json
 agent/
+data/app-runtime
