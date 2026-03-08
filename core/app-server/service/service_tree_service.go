@@ -1519,12 +1519,37 @@ func (s *ServiceTreeService) DeleteBoard(ctx context.Context, id int64) error {
 	return s.DeleteServiceTree(ctx, id)
 }
 
-// DeleteServiceTree 删除服务目录
+// DeleteServiceTree 删除服务目录（先调 app-runtime 删磁盘目录并从 main.go 移除 import，再删 DB）
 func (s *ServiceTreeService) DeleteServiceTree(ctx context.Context, id int64) error {
-	// 获取服务目录信息（用于日志）
 	serviceTree, err := s.serviceTreeRepo.GetServiceTreeByID(id)
 	if err != nil {
 		return fmt.Errorf("failed to get service tree: %w", err)
+	}
+
+	// 仅对 package 类型且非根目录：调用 app-runtime 删除磁盘目录并从 main.go 移除 import
+	if serviceTree.Type == model.ServiceTreeTypePackage && serviceTree.ParentID != 0 && serviceTree.FullCodePath != "" {
+		appModel, errApp := s.appRepo.GetAppByID(serviceTree.AppID)
+		if errApp != nil {
+			logger.Warnf(ctx, "[ServiceTreeService] GetAppByID failed, skip runtime delete: %v", errApp)
+		} else if appModel.HostID > 0 {
+			prefix := "/" + appModel.User + "/" + appModel.Code + "/"
+			packagePath := strings.TrimPrefix(serviceTree.FullCodePath, prefix)
+			packagePath = strings.Trim(packagePath, "/")
+			if packagePath != "" {
+				req := &dto.DeleteServiceTreeRuntimeReq{
+					User:        appModel.User,
+					App:         appModel.Code,
+					PackagePath: packagePath,
+				}
+				resp, errRt := s.appCall.DeleteServiceTree(ctx, appModel.HostID, req)
+				if errRt != nil {
+					logger.Warnf(ctx, "[ServiceTreeService] DeleteServiceTree runtime failed: %v", errRt)
+					// 继续删 DB，避免残留节点；磁盘可后续手动清理
+				} else if !resp.Success {
+					logger.Warnf(ctx, "[ServiceTreeService] DeleteServiceTree runtime resp error: %s", resp.Error)
+				}
+			}
+		}
 	}
 
 	// 删除服务目录（级联删除子目录）

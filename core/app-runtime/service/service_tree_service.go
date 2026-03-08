@@ -137,7 +137,7 @@ var packageContext = &app.PackageContext{
 	return nil
 }
 
-// DeleteServiceTree 删除服务目录
+// DeleteServiceTree 删除服务目录（删磁盘目录，并从 main.go 移除该包的 import）
 func (s *ServiceTreeService) DeleteServiceTree(ctx context.Context, user, app, serviceTreeName string) error {
 	logger.Infof(ctx, "[ServiceTreeService] Deleting service tree: %s/%s/%s", user, app, serviceTreeName)
 
@@ -146,13 +146,62 @@ func (s *ServiceTreeService) DeleteServiceTree(ctx context.Context, user, app, s
 	apiDir := filepath.Join(appDir, "code", "api")
 	packageDir := filepath.Join(apiDir, serviceTreeName)
 
-	// 删除目录
+	// 1. 删除磁盘目录
 	if err := os.RemoveAll(packageDir); err != nil {
 		return fmt.Errorf("failed to delete package directory: %w", err)
 	}
 
+	// 2. 从 main.go 移除该包的 import
+	packagePath := strings.Trim(strings.TrimSpace(serviceTreeName), "/")
+	if packagePath != "" {
+		if err := s.removeMainFileImport(ctx, user, app, packagePath); err != nil {
+			logger.Warnf(ctx, "[ServiceTreeService] Failed to remove import from main.go: %v", err)
+			// 不返回错误，目录已删，import 可手动处理
+		} else {
+			logger.Infof(ctx, "[ServiceTreeService] Removed import from main.go: %s", packagePath)
+		}
+	}
+
 	logger.Infof(ctx, "[ServiceTreeService] Service tree deleted successfully: %s", packageDir)
 	return nil
+}
+
+// DeleteServiceTreeByReq 按请求删除服务目录（供 NATS 调用）
+func (s *ServiceTreeService) DeleteServiceTreeByReq(ctx context.Context, req *dto.DeleteServiceTreeRuntimeReq) (*dto.DeleteServiceTreeRuntimeResp, error) {
+	if err := s.DeleteServiceTree(ctx, req.User, req.App, req.PackagePath); err != nil {
+		return &dto.DeleteServiceTreeRuntimeResp{Success: false, Error: err.Error()}, nil
+	}
+	return &dto.DeleteServiceTreeRuntimeResp{Success: true}, nil
+}
+
+// removeMainFileImport 从 main.go 中移除指定包的 import 行
+func (s *ServiceTreeService) removeMainFileImport(ctx context.Context, user, app, packagePath string) error {
+	appDir := filepath.Join(s.config.AppDir.BasePath, user, app)
+	mainFilePath := filepath.Join(appDir, "code", "cmd", "app", "main.go")
+	if _, err := os.Stat(mainFilePath); os.IsNotExist(err) {
+		return nil
+	}
+	content, err := os.ReadFile(mainFilePath)
+	if err != nil {
+		return err
+	}
+	cleanPath := strings.Trim(packagePath, "/")
+	if cleanPath == "" {
+		return nil
+	}
+	// 要删除的 import 行内容（与 updateMainFileImports 中格式一致）
+	importSuffix := fmt.Sprintf(`namespace/%s/%s/code/api/%s"`, user, app, cleanPath)
+	lines := strings.Split(string(content), "\n")
+	var newLines []string
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.Contains(trimmed, importSuffix) {
+			continue
+		}
+		newLines = append(newLines, line)
+	}
+	newContent := strings.Join(newLines, "\n")
+	return os.WriteFile(mainFilePath, []byte(newContent), 0644)
 }
 
 // RenameServiceTree 重命名服务目录（旧方法，保留兼容性）

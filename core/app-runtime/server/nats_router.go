@@ -46,6 +46,12 @@ func RegisterNATS(ctx context.Context, conn *nats.Conn, subs *[]*nats.Subscripti
 	}
 	*subs = append(*subs, sub)
 
+	sub, err = conn.QueueSubscribe("app_server.app_runtime.delete_service_tree", "app-runtime-delete-service-tree-workers", serviceTreeH.HandleServiceTreeDelete)
+	if err != nil {
+		return fmt.Errorf("subscribe service tree delete: %w", err)
+	}
+	*subs = append(*subs, sub)
+
 	sub, err = conn.QueueSubscribe("app_server.app_runtime.batch_create_directory_tree", "app-runtime-batch-create-directory-tree-workers", serviceTreeH.HandleBatchCreateDirectoryTree)
 	if err != nil {
 		return fmt.Errorf("subscribe batch create directory tree: %w", err)

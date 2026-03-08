@@ -252,6 +252,15 @@
                   </el-dropdown-item>
                   
                   <!-- Hub 相关操作 -->
+                  <!-- 导入 Go 文件：选择本地 .go 文件写入当前目录（与 write_go_file 一致） -->
+                  <el-dropdown-item 
+                    v-if="data.type === 'package' && hasPermission(data, DirectoryPermissions.write)" 
+                    command="import-go-files"
+                  >
+                    <el-icon><Download /></el-icon>
+                    导入 Go 文件
+                  </el-dropdown-item>
+                  
                   <el-dropdown-item 
                     v-if="data.type === 'package' && !data.hub_full_code_path && hasPermission(data, DirectoryPermissions.read)" 
                     command="publish-to-hub"
@@ -344,6 +353,7 @@ interface Emits {
   (e: 'delete-directory', node: ServiceTree): void  // 删除目录（非根 package）
   (e: 'refresh-tree'): void  // 刷新树（复制粘贴后需要刷新）
   (e: 'update-history', node?: ServiceTree): void  // 显示变更记录（工作空间或目录）
+  (e: 'import-go-files', node: ServiceTree): void  // 导入 Go 文件到目录
   (e: 'publish-to-hub', node: ServiceTree): void  // 发布到 Hub
   (e: 'push-to-hub', node: ServiceTree): void  // 推送到 Hub
   (e: 'pull-from-hub'): void  // 从 Hub 拉取
@@ -967,6 +977,8 @@ const handleNodeAction = (command: string, data: ServiceTree) => {
     emit('delete-board', data)
   } else if (command === 'delete-directory') {
     emit('delete-directory', data)
+  } else if (command === 'import-go-files') {
+    emit('import-go-files', data)
   } else if (command === 'publish-to-hub') {
     emit('publish-to-hub', data)
   } else if (command === 'push-to-hub') {

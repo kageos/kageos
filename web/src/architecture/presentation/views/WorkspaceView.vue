@@ -16,27 +16,30 @@
     <div class="workspace-view">
       <!-- 左侧服务目录树 -->
       <div class="left-sidebar" :class="{ 'sidebar-collapsed': !showLeftSidebar }">
-        <ServiceTreePanel
-          ref="serviceTreePanelRef"
-          :tree-data="serviceTree"
-          :loading="loading"
-          :current-node-id="currentFunction?.id || null"
-          :current-function="currentFunction"
-          :expanded-keys="expandedKeys"
-          @node-click="handleNodeClick"
-          @create-directory="handleCreateDirectory"
-          @create-docs="handleCreateDocs"
-          @create-board="handleCreateBoard"
-          @delete-doc="handleDeleteDoc"
-          @delete-board="handleDeleteBoard"
-          @delete-function="handleDeleteFunction"
-          @delete-directory="handleDeleteDirectory"
-          @publish-to-hub="handlePublishToHub"
-          @push-to-hub="handlePushToHub"
-          @pull-from-hub="handlePullFromHub"
-          @refresh-tree="handleRefreshTree"
-          @update-history="handleUpdateHistory"
-        />
+        <div class="left-sidebar-tree">
+          <ServiceTreePanel
+            ref="serviceTreePanelRef"
+            :tree-data="serviceTree"
+            :loading="loading"
+            :current-node-id="currentFunction?.id || null"
+            :current-function="currentFunction"
+            :expanded-keys="expandedKeys"
+            @node-click="handleNodeClick"
+            @create-directory="handleCreateDirectory"
+            @create-docs="handleCreateDocs"
+            @create-board="handleCreateBoard"
+            @delete-doc="handleDeleteDoc"
+            @delete-board="handleDeleteBoard"
+            @delete-function="handleDeleteFunction"
+            @delete-directory="handleDeleteDirectory"
+            @import-go-files="handleImportGoFiles"
+            @publish-to-hub="handlePublishToHub"
+            @push-to-hub="handlePushToHub"
+            @pull-from-hub="handlePullFromHub"
+            @refresh-tree="handleRefreshTree"
+            @update-history="handleUpdateHistory"
+          />
+        </div>
       </div>
 
       <!-- 左侧边栏控制按钮 -->
@@ -679,6 +682,16 @@
       </div>
     </el-drawer>
 
+    <!-- 导入 Go 文件：隐藏的 file input，选中的 .go 会写入当前目录 -->
+    <input
+      ref="importGoFileInputRef"
+      type="file"
+      accept=".go"
+      multiple
+      class="hidden"
+      @change="onImportGoFilesSelected"
+    />
+
     <!-- 🔥 右下角常驻「打开工作台」浮动按钮；执行中时显示加载图标区分 -->
     <transition name="el-fade-in">
       <div
@@ -962,6 +975,9 @@ const publishToHubDialogVisible = ref(false)
 const publishSelectedNode = ref<ServiceTreeType | null>(null)
 const pushToHubDialogVisible = ref(false)
 const pushSelectedNode = ref<ServiceTreeType | null>(null)
+const importGoFileInputRef = ref<HTMLInputElement | null>(null)
+const importGoTargetNode = ref<ServiceTreeType | null>(null)
+const importGoLoading = ref(false)
 const pullFromHubDialogVisible = ref(false)
 const pastedHubLink = ref('')  // 粘贴的 Hub 链接
 
@@ -1581,6 +1597,76 @@ const handleDocDeleted = async () => {
 }
 
 // 处理 Fork 函数组
+// 导入 Go 文件：打开文件选择，选中后按 add_functions 写入目录
+const handleImportGoFiles = (node: ServiceTreeType) => {
+  const fullCodePath = node.full_code_path
+  if (!fullCodePath) {
+    ElMessage.warning('该目录无完整路径')
+    return
+  }
+  importGoTargetNode.value = node
+  importGoFileInputRef.value?.click()
+}
+
+async function doImportGoFiles(files: FileList | File[], fullCodePath: string) {
+  const { addFunctionsToDirectory } = await import('@/api/service-tree')
+  importGoLoading.value = true
+  let ok = 0
+  let fail = 0
+  try {
+    const fileArray = Array.from(files)
+    for (let i = 0; i < fileArray.length; i++) {
+      const file = fileArray[i]
+      if (!file || !file.name.toLowerCase().endsWith('.go')) continue
+      const content = await readFileAsText(file)
+      const fileName = file.name.endsWith('.go') ? file.name : file.name + '.go'
+      try {
+        const res = await addFunctionsToDirectory({
+          full_code_path: fullCodePath,
+          file_name: fileName,
+          source_code: content,
+          skip_build: true
+        })
+        if (res?.success !== false) ok++
+        else { fail++; console.warn('add_functions failed:', res?.error) }
+      } catch (err: any) {
+        fail++
+        console.warn('add_functions error:', err)
+        ElMessage.warning(`${file.name}: ${err?.message || err?.response?.data?.msg || '写入失败'}`)
+      }
+    }
+    if (ok > 0) {
+      ElMessage.success(`已导入 ${ok} 个 Go 文件到目录，可在工作台执行编译以生效。`)
+      await handleRefreshTree()
+    }
+    if (fail > 0 && ok === 0) ElMessage.error('导入失败')
+  } finally {
+    importGoLoading.value = false
+  }
+}
+
+const onImportGoFilesSelected = async (e: Event) => {
+  const input = e.target as HTMLInputElement
+  const files = input.files
+  if (!files?.length || !importGoTargetNode.value) {
+    input.value = ''
+    return
+  }
+  const fullCodePath = importGoTargetNode.value.full_code_path!
+  importGoTargetNode.value = null
+  input.value = ''
+  await doImportGoFiles(files, fullCodePath)
+}
+
+function readFileAsText(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result ?? ''))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsText(file, 'utf-8')
+  })
+}
+
 // 处理发布到应用中心
 const handlePublishToHub = (node: ServiceTreeType) => {
   publishSelectedNode.value = node
@@ -2099,6 +2185,14 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
+.hidden {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .create-docs-code-suffix {
   color: var(--el-text-color-secondary);
   font-size: 13px;
@@ -2279,13 +2373,23 @@ onUnmounted(() => {
   border-right: 1px solid var(--el-border-color);
   transition: all 0.3s ease;
   overflow: hidden;
-  
+  display: flex;
+  flex-direction: column;
+
   &.sidebar-collapsed {
     width: 0;
     min-width: 0;
     overflow: hidden;
     border-right: none;
   }
+}
+
+/* 左侧边栏内：树区域可滚动，拖拽区固定在底部 */
+.left-sidebar-tree {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 // 左侧边栏控制按钮

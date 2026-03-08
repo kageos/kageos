@@ -187,6 +187,24 @@ export function deleteServiceTree(id: number) {
   return del(`/workspace/api/v1/service_tree/${id}`)
 }
 
+/** 向目录写入单个 Go 文件（与 write_go_file 一致：add_functions 落盘） */
+export function addFunctionsToDirectory(params: {
+  full_code_path: string
+  file_name: string
+  source_code: string
+  skip_build?: boolean
+}) {
+  return post<{ success: boolean; error?: string; app_id?: number; app_code?: string }>(
+    '/workspace/api/v1/service_tree/add_functions',
+    {
+      full_code_path: params.full_code_path,
+      file_name: params.file_name,
+      source_code: params.source_code,
+      skip_build: params.skip_build ?? true
+    }
+  )
+}
+
 // 文档相关 API
 export interface Doc {
   id: number

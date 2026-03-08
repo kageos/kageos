@@ -84,3 +84,28 @@ func (h *ServiceTreeHandler) HandleBatchWriteFiles(msg *nats.Msg) {
 	msgx.RespSuccessMsg(msg, resp)
 	logger.Infof(ctx, "[HandleBatchWriteFiles] Done: fileCount=%d, newVersion=%s", resp.FileCount, resp.NewVersion)
 }
+
+// HandleServiceTreeDelete 处理删除服务目录请求（删磁盘目录并从 main.go 移除 import）
+func (h *ServiceTreeHandler) HandleServiceTreeDelete(msg *nats.Msg) {
+	ctx := context.Background()
+	msgInfo, err := msgx.DecodeNatsMsg[dto.DeleteServiceTreeRuntimeReq](msg)
+	if err != nil {
+		logger.Errorf(ctx, "[HandleServiceTreeDelete] Failed to decode: %v", err)
+		msgx.RespFailMsg(msg, err)
+		return
+	}
+	logger.Infof(ctx, "[HandleServiceTreeDelete] Received: user=%s, app=%s, packagePath=%s",
+		msgInfo.Data.User, msgInfo.Data.App, msgInfo.Data.PackagePath)
+	resp, err := h.serviceTreeService.DeleteServiceTreeByReq(ctx, &msgInfo.Data)
+	if err != nil {
+		logger.Errorf(ctx, "[HandleServiceTreeDelete] Failed: %v", err)
+		msgx.RespFailMsg(msg, err)
+		return
+	}
+	msgx.RespSuccessMsg(msg, resp)
+	if resp.Success {
+		logger.Infof(ctx, "[HandleServiceTreeDelete] Deleted: %s", msgInfo.Data.PackagePath)
+	} else {
+		logger.Warnf(ctx, "[HandleServiceTreeDelete] Failed: %s", resp.Error)
+	}
+}
