@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -115,13 +116,36 @@ func (s *MinIOStorage) GetUploadEndpoint(uploadSource string) string {
 
 // GenerateUploadCredentials 生成上传凭证（统一接口）
 // 同时生成外部访问URL（前端使用）和内部访问URL（服务端使用）
-// uploadSource: 上传来源（browser 或 server），用于决定是否返回SDK配置
+// 浏览器上传时优先使用请求 Host 生成预签名 URL，与 Nginx 转发的 Host 一致，避免 403
 func (s *MinIOStorage) GenerateUploadCredentials(ctx context.Context, bucket, key, contentType string, expire time.Duration, uploadSource string) (*UploadCredentials, error) {
-	// 1. 生成外部访问的URL（前端浏览器使用，用 externalClient 生成 → 域名指向 Nginx 代理）
-	externalURL, err := s.externalClient.PresignedPutObject(ctx, bucket, key, expire)
-	if err != nil {
-		logger.Errorf(ctx, "[MinIOStorage] Failed to generate external upload URL: %v", err)
-		return nil, fmt.Errorf("生成上传凭证失败: %w", err)
+	// 1. 生成外部访问的 URL（前端浏览器使用）
+	// 若 context 中带有请求 Host（PresignHost），且为浏览器上传，则用该 Host 生成签名，与 Nginx proxy_set_header Host $http_host 一致
+	var externalURL *url.URL
+	presignHost := contextx.GetPresignHost(ctx)
+	if uploadSource == UploadSourceBrowser && presignHost != "" {
+		clientForHost, err := minio.New(presignHost, &minio.Options{
+			Creds:  credentials.NewStaticV4(s.accessKey, s.secretKey, ""),
+			Secure: s.useSSL,
+			Region: s.region,
+		})
+		if err != nil {
+			logger.Warnf(ctx, "[MinIOStorage] Failed to create presign client for host %s, fallback to externalClient: %v", presignHost, err)
+		} else {
+			u, err := clientForHost.PresignedPutObject(ctx, bucket, key, expire)
+			if err != nil {
+				logger.Warnf(ctx, "[MinIOStorage] PresignedPutObject with request host failed: %v", err)
+			} else {
+				externalURL = u
+			}
+		}
+	}
+	if externalURL == nil {
+		var err error
+		externalURL, err = s.externalClient.PresignedPutObject(ctx, bucket, key, expire)
+		if err != nil {
+			logger.Errorf(ctx, "[MinIOStorage] Failed to generate external upload URL: %v", err)
+			return nil, fmt.Errorf("生成上传凭证失败: %w", err)
+		}
 	}
 
 	// 2. 生成内部访问的URL（服务端/SDK使用，用 client 生成 → 直连 MinIO 容器）
