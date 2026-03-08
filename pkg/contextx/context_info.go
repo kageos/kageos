@@ -23,6 +23,11 @@ const DepartmentFullPathHeader = "X-Department-Full-Path"
 const TokenHeader = "X-Token"
 const PubKeyHerder = "X-Pub-Key"
 
+// PresignHostKey 用于生成预签名 URL 时使用的 Host（与请求 Host 一致，避免 Nginx 代理后签名 403）
+type presignHostKeyType struct{}
+
+var PresignHostKey = presignHostKeyType{}
+
 // GetTraceId 获取追踪ID
 // ⭐ 只从 HTTP Header 读取（统一方式，避免混乱）
 // 支持从 *gin.Context 或标准 context.Context 读取
@@ -109,6 +114,19 @@ func GetToken(c context.Context) string {
 	return ""
 }
 
+// GetPresignHost 获取用于生成预签名 URL 的 Host（浏览器上传时需与请求 Host 一致）
+func GetPresignHost(c context.Context) string {
+	if v, ok := c.(*gin.Context); ok {
+		return v.Request.Host
+	}
+	if value := c.Value(PresignHostKey); value != nil {
+		if host, ok := value.(string); ok && host != "" {
+			return host
+		}
+	}
+	return ""
+}
+
 // ToContext 将 gin.Context 转换为标准 context.Context
 // 从 header 或 gin 上下文（如中间件 c.Set）读取关键信息，写入 context.Value，并同步回 c.Request.Header，保证请求头为权威来源。
 func ToContext(c *gin.Context) context.Context {
@@ -161,6 +179,11 @@ func ToContext(c *gin.Context) context.Context {
 	if deptPath != "" {
 		ctx = context.WithValue(ctx, DepartmentFullPathHeader, deptPath)
 		c.Request.Header.Set(DepartmentFullPathHeader, deptPath)
+	}
+
+	// 5. PresignHost：请求的 Host，用于存储服务生成预签名 URL 时与 Nginx 转发 Host 一致，避免 403
+	if c.Request.Host != "" {
+		ctx = context.WithValue(ctx, PresignHostKey, c.Request.Host)
 	}
 
 	return ctx
