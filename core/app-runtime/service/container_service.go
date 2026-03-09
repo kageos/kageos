@@ -621,11 +621,18 @@ func (s *PodmanService) RunContainerWithMount(ctx context.Context, image, name, 
 		return fmt.Errorf("container service is not running")
 	}
 
+	// 宿主机在容器内的解析（与 RunContainerWithCommand 一致，便于容器内访问 MinIO/Gateway 等）
+	sdkConfig := appconfig.GetSDKConfig()
+	hostEntry := "host.containers.internal:host-gateway"
+	if sdkConfig.HostIPForContainer != "" {
+		hostEntry = "host.containers.internal:" + sdkConfig.HostIPForContainer
+	}
+
 	// 使用 podman 命令行工具运行容器并挂载目录
-	// podman run 会自动处理镜像拉取
 	logger.Infof(ctx, "Creating container with mount: %s", name)
 	cmd := exec.Command("podman", "run", "-d",
 		"--name", name,
+		"--add-host", hostEntry,
 		"-v", fmt.Sprintf("%s:%s", hostPath, containerPath),
 		"-e", "TZ=Asia/Shanghai", // 设置时区
 		image,
