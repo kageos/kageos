@@ -637,10 +637,18 @@
       @close="handleWorkstationDrawerClose"
     >
       <template #header>
-        <div class="workstation-drawer-header">
-          <span v-if="!workstationDrawerCollapsed" class="drawer-title">工作台</span>
-          <span v-if="!workstationDrawerCollapsed" class="drawer-path" :title="currentFunction?.full_code_path">{{ currentFunction?.full_code_path || '—' }}</span>
+        <div class="workstation-drawer-header workstation-drawer-header--compact">
           <div class="drawer-actions">
+            <el-button
+              v-if="!workstationDrawerCollapsed"
+              link
+              type="primary"
+              size="small"
+              @click="handleWorkstationMinimize"
+              title="最小化为迷你窗口"
+            >
+              <el-icon><Minus /></el-icon>
+            </el-button>
             <el-button
               v-if="!workstationDrawerCollapsed"
               link
@@ -671,10 +679,14 @@
         <WorkstationChat
           v-if="currentFunction && currentFunction.full_code_path"
           :full-code-path="currentFunction.full_code_path"
+          :dir-name="currentFunction.name || ''"
+          :initial-session-id="wsInitialSessionId"
+          :visible="workstationMode"
           :embedded="true"
           @back="handleWorkstationDrawerClose"
           @tool-call-ok="handleWorkstationToolCallOk"
           @update:sending="workstationSending = $event"
+          @update:session-id="handleWsSessionIdChange"
         />
       </div>
       <div v-show="workstationDrawerCollapsed" class="workstation-drawer-strip">
@@ -692,18 +704,32 @@
       @change="onImportGoFilesSelected"
     />
 
-    <!-- 🔥 右下角常驻「打开工作台」浮动按钮；执行中时显示加载图标区分 -->
+    <!-- 右下角常驻「打开工作台」浮动按钮（始终可见，支持开多个） -->
     <transition name="el-fade-in">
       <div
-        v-show="showWorkstationFloatingButton"
+        v-if="currentFunction?.type === 'package'"
         class="workstation-floating-btn"
-        @click="handleOpenWorkstationDrawer"
+        @click="openNewMiniWs()"
       >
-        <el-icon v-if="workstationSending" :size="22" class="is-loading"><Loading /></el-icon>
-        <el-icon v-else :size="22"><ChatDotRound /></el-icon>
-        <span class="floating-btn-text">{{ workstationSending ? '工作台执行中' : '打开工作台' }}</span>
+        <el-icon :size="22"><ChatDotRound /></el-icon>
+        <span class="floating-btn-text">打开工作台</span>
       </div>
     </transition>
+
+    <!-- 多个 Mini 浮动工作台 -->
+    <MiniWorkstation
+      v-for="mini in miniWsList"
+      :key="mini.id"
+      :visible="mini.visible"
+      :full-code-path="mini.fullCodePath"
+      :dir-name="mini.dirName"
+      :initial-session-id="mini.initialSessionId"
+      :initial-offset="mini.offset"
+      @minimize="handleMiniMinimize(mini.id)"
+      @maximize="handleMiniMaximize(mini.id, $event)"
+      @close="handleMiniRemove(mini.id)"
+      @tool-call-ok="handleWorkstationToolCallOk"
+    />
   </div>
 </template>
 
@@ -711,7 +737,7 @@
 import { computed, onMounted, onUnmounted, watch, ref, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElNotification, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon, ElSwitch, ElSkeleton } from 'element-plus'
-import { InfoFilled, ArrowLeft, ArrowRight, Fold, Expand, Close, ChatDotRound, Loading } from '@element-plus/icons-vue'
+import { InfoFilled, ArrowLeft, ArrowRight, Fold, Expand, Close, ChatDotRound, Minus } from '@element-plus/icons-vue'
 import { eventBus, WorkspaceEvent, RouteEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
@@ -732,6 +758,7 @@ import TableRowDetailDrawer from '../components/TableRowDetailDrawer.vue'
 import PermissionDeniedView from '../components/PermissionDeniedView.vue'
 import PackageDetailView from '../components/PackageDetailView.vue'
 import WorkstationChat from '../components/WorkstationChat.vue'
+import MiniWorkstation from '../components/MiniWorkstation.vue'
 import DocView from '../components/DocView.vue'
 import BoardView from '../components/BoardView.vue'
 import CreateBoardDialog from '../components/CreateBoardDialog.vue'
@@ -1065,37 +1092,116 @@ const workstationMode = ref(false)
 const workstationDrawerCollapsed = ref(false)
 /** 工作台是否正在执行（发送/工具调用中），用于抽屉关闭时显示浮动按钮 */
 const workstationSending = ref(false)
+/** 多 Mini 工作台实例 */
+interface MiniWsInstance {
+  id: string
+  fullCodePath: string
+  dirName: string
+  initialSessionId: string
+  visible: boolean
+  offset: number
+}
+const miniWsList = ref<MiniWsInstance[]>([])
+let miniIdCounter = 0
+/** 刷新时恢复的 session_id（从 URL ?ws_sid= 读取） */
+const wsInitialSessionId = ref('')
 
-/** 是否显示「打开工作台」浮动按钮：当前在目录节点且抽屉已关闭时一直显示 */
-const showWorkstationFloatingButton = computed(() => {
-  return Boolean(currentFunction.value?.type === 'package' && !workstationMode.value)
-})
-
-function handleOpenWorkstationDrawer() {
+function openWorkstationDrawer(sid?: string) {
   workstationMode.value = true
   workstationDrawerCollapsed.value = false
+  if (sid) wsInitialSessionId.value = sid
+  syncWsQueryParam(true, sid)
+}
+
+function handleOpenWorkstationDrawer() {
+  openWorkstationDrawer()
 }
 
 function handleWorkstationDrawerClose() {
   workstationMode.value = false
   workstationDrawerCollapsed.value = false
+  wsInitialSessionId.value = ''
+  syncWsQueryParam(false)
+}
+
+function openNewMiniWs(initialSessionId?: string) {
+  const offset = miniWsList.value.filter((m: MiniWsInstance) => m.visible).length * 40
+  miniWsList.value.push({
+    id: String(++miniIdCounter),
+    fullCodePath: currentFunction.value?.full_code_path || '',
+    dirName: currentFunction.value?.name || '',
+    initialSessionId: initialSessionId || '',
+    visible: true,
+    offset,
+  })
+}
+
+function handleMiniMinimize(id: string) {
+  const mini = miniWsList.value.find((m: MiniWsInstance) => m.id === id)
+  if (mini) mini.visible = false
+}
+
+function handleMiniMaximize(id: string, sid?: string) {
+  const mini = miniWsList.value.find((m: MiniWsInstance) => m.id === id)
+  if (mini) mini.visible = false
+  wsInitialSessionId.value = ''
+  nextTick(() => openWorkstationDrawer(sid))
+}
+
+function handleMiniRemove(id: string) {
+  miniWsList.value = miniWsList.value.filter((m: MiniWsInstance) => m.id !== id)
+}
+
+function handleWorkstationMinimize() {
+  const currentSid = wsInitialSessionId.value || (typeof (route.query.ws_sid) === 'string' ? route.query.ws_sid : '')
+  workstationMode.value = false
+  workstationDrawerCollapsed.value = false
+  wsInitialSessionId.value = ''
+  syncWsQueryParam(false)
+  nextTick(() => openNewMiniWs(currentSid || undefined))
+}
+
+function handleWsSessionIdChange(sid: string | undefined) {
+  if (sid) wsInitialSessionId.value = sid
+  syncWsQueryParam(true, sid)
+}
+
+function syncWsQueryParam(open: boolean, sid?: string | undefined) {
+  const query = { ...route.query }
+  if (open) {
+    query.ws = 'open'
+    if (sid) {
+      query.ws_sid = sid
+    } else {
+      delete query.ws_sid
+    }
+  } else {
+    delete query.ws
+    delete query.ws_sid
+  }
+  router.replace({ path: route.path, query })
 }
 
 /** 服务树「打开工作台」事件：导航到该目录并打开抽屉（不新开标签） */
-function handleWorkspaceOpenWorkstation(payload: { full_code_path?: string }) {
+function handleWorkspaceOpenWorkstation(payload: { full_code_path?: string; session_id?: string }) {
   const fullCodePath = (payload?.full_code_path || '').trim()
   if (!fullCodePath) return
+  // 打开全屏时收起所有 mini，让 mini 的 SSE 转发生效（!visible 时才转发）
+  miniWsList.value.forEach((m: MiniWsInstance) => { m.visible = false })
   const targetPath = buildWorkspacePath(fullCodePath)
+  wsInitialSessionId.value = ''
   if (route.path !== targetPath) {
-    router.push(targetPath).then(() => {
+    const query: Record<string, string> = { ws: 'open' }
+    if (payload.session_id) query.ws_sid = payload.session_id
+    router.push({ path: targetPath, query }).then(() => {
       nextTick(() => {
+        if (payload.session_id) wsInitialSessionId.value = payload.session_id
         workstationMode.value = true
         workstationDrawerCollapsed.value = false
       })
     })
   } else {
-    workstationMode.value = true
-    workstationDrawerCollapsed.value = false
+    nextTick(() => openWorkstationDrawer(payload.session_id))
   }
 }
 
@@ -1178,6 +1284,16 @@ onMounted(() => {
 
   // 🔥 服务目录树「打开工作台」：在本页打开抽屉并定位到该目录（不新开标签）
   eventBus.on('workspace:open-workstation', handleWorkspaceOpenWorkstation)
+
+  // 🔥 URL 参数恢复：?ws=open 时自动打开工作台抽屉，?ws_sid=xxx 恢复到具体会话
+  if (route.query.ws === 'open') {
+    const sid = typeof route.query.ws_sid === 'string' ? route.query.ws_sid : ''
+    if (sid) wsInitialSessionId.value = sid
+    nextTick(() => {
+      workstationMode.value = true
+      workstationDrawerCollapsed.value = false
+    })
+  }
 })
 
 onUnmounted(() => {
@@ -2082,8 +2198,6 @@ watch(() => currentFunction.value?.id, (newId: number | undefined, oldId: number
     // 清除旧的权限错误（新的权限错误会在加载失败时重新设置）
     permissionErrorStore.clearError()
   }
-  // 切换节点时退出工作台模式，回到目录详情
-  workstationMode.value = false
 })
 
 // 🔥 监听 queryTab 变化，处理 create/edit/detail 模式
@@ -2486,8 +2600,8 @@ onUnmounted(() => {
 
 /* 工作台抽屉：右侧滑出，可折叠为窄条 */
 .workstation-drawer .el-drawer__header {
-  margin-bottom: 12px;
-  padding: 12px 16px;
+  margin-bottom: 0;
+  padding: 4px 12px;
 }
 .workstation-drawer-header {
   display: flex;
@@ -2495,18 +2609,8 @@ onUnmounted(() => {
   gap: 8px;
   width: 100%;
 }
-.workstation-drawer-header .drawer-title {
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-}
-.workstation-drawer-header .drawer-path {
-  flex: 1;
-  min-width: 0;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.workstation-drawer-header--compact {
+  justify-content: flex-end;
 }
 .workstation-drawer-header .drawer-actions {
   flex-shrink: 0;
@@ -2520,6 +2624,9 @@ onUnmounted(() => {
 .workstation-drawer-body .workstation-chat {
   flex: 1;
   min-height: 0;
+}
+.workstation-drawer .el-drawer__body {
+  padding-top: 0;
 }
 .workstation-drawer--collapsed .el-drawer__body {
   padding: 0;
@@ -2539,7 +2646,7 @@ onUnmounted(() => {
   color: var(--el-text-color-regular);
 }
 
-/* 工作台执行中浮动按钮：抽屉关闭时显示，点击重新打开抽屉 */
+/* 右下角打开工作台浮动按钮 */
 .workstation-floating-btn {
   position: fixed;
   right: 24px;
@@ -2561,13 +2668,6 @@ onUnmounted(() => {
 .workstation-floating-btn:hover {
   background: var(--el-fill-color-light);
   box-shadow: var(--el-box-shadow);
-}
-.workstation-floating-btn .el-icon.is-loading {
-  animation: rotating 1.5s linear infinite;
-}
-@keyframes rotating {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
 }
 .workstation-floating-btn .floating-btn-text {
   white-space: nowrap;

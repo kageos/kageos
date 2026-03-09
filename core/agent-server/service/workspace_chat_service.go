@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
@@ -109,6 +110,9 @@ type WorkspaceChatService struct {
 	sessionRepo *repository.ChatSessionRepository
 	messageRepo *repository.ChatMessageRepository
 	llmRepo     *repository.LLMRepository
+
+	// runningCancels 维护「正在执行的 session → cancelFunc」映射，供手动取消使用
+	runningCancels sync.Map // key: sessionID (string), value: context.CancelFunc
 }
 
 // NewWorkspaceChatService 创建 WorkspaceChatService
@@ -182,16 +186,16 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 			err = fmt.Errorf("WorkspaceChatStream panic: %v", e)
 			select {
 			case eventChan <- StreamEvent{Event: EventError, Data: StreamEventError{Message: fmt.Sprintf("%v", e)}}:
-			case <-ctx.Done():
+			default:
 			}
 		}
 	}()
-	// 辅助函数：发送事件到 channel（检查 ctx.Done()，避免在客户端断开时阻塞）
+	// 非阻塞发送事件：写不进 eventChan 时直接丢弃（刷新后无人读也不会卡死 goroutine）
 	sendEvent := func(event string, data interface{}) {
 		select {
 		case eventChan <- StreamEvent{Event: event, Data: data}:
-		case <-ctx.Done():
-			// 上下文已取消（客户端断开），不再发送
+		default:
+			// channel 满或无人读，丢弃该事件（事件已存 DB，前端可通过轮询消息恢复）
 		}
 	}
 	user := contextx.GetRequestUser(ctx)
@@ -205,12 +209,12 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	if e != nil || workspaceCtx == nil {
 		return s.handleError(sendEvent, "无效的 full_code_path，无法解析目录", e)
 	}
-	directoryName := workspaceCtx.Directory.Name // 目录的中文名称
+	directoryName := workspaceCtx.Directory.Name
 	if directoryName == "" {
-		directoryName = workspaceCtx.Directory.Code // 如果没有中文名称，使用 code 作为备选
+		directoryName = workspaceCtx.Directory.Code
 	}
 
-	// 2) 解析或创建 session（工作台不再绑定智能体，AgentID 恒为 nil）
+	// 2) 解析或创建 session
 	var session *model.AgentChatSession
 	if req.SessionID != "" {
 		var e error
@@ -238,19 +242,42 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 
 	sessionID := session.SessionID
 
-	// 单模式：固定使用 dev 模式（工具列表 + 提示词由 prompt 包提供）
+	// ⭐ 标记会话为 generating（后台执行中）
+	session.Status = model.ChatSessionStatusGenerating
+	session.UpdatedBy = user
+	if e := s.sessionRepo.Update(session); e != nil {
+		logger.Warnf(ctx, "[WorkspaceChatStream] 标记 generating 失败: %v", e)
+	}
+
+	// ⭐ 创建可取消的 context 并注册到 runningCancels，供 CancelSession 使用
+	runCtx, runCancel := context.WithCancel(ctx)
+	s.runningCancels.Store(sessionID, runCancel)
+	// 无论正常结束还是异常，都要恢复状态并清理
+	defer func() {
+		runCancel()
+		s.runningCancels.Delete(sessionID)
+		// ⭐ 恢复会话状态：已取消的保持 cancelled，否则标回 active
+		latest, e := s.sessionRepo.GetBySessionID(sessionID)
+		if e == nil && latest != nil && latest.Status == model.ChatSessionStatusGenerating {
+			latest.Status = model.ChatSessionStatusActive
+			latest.UpdatedBy = user
+			if e := s.sessionRepo.Update(latest); e != nil {
+				logger.Warnf(ctx, "[WorkspaceChatStream] 恢复 active 失败: %v", e)
+			}
+		}
+	}()
+
 	modeProvider := prompt.GetModeProvider("dev")
 	var toolNames []string
 	var systemPromptFragment string
 	if modeProvider == nil {
-		// 兜底：与 init 时 dev 一致（含 search_tools 便于杂活先搜后用）
 		toolNames = []string{"read_go_file", "read_go_file_lines", "read_doc", "read_dir", "search_tools", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace", "create_directory", "publish_to_hub", "push_to_hub", "search_hub_directory", "copy_directory"}
 		systemPromptFragment = "当前为开发模式，请协助用户生成新代码、新模块。"
 	}
 
 	llmConfigID := req.LLMConfigID
 
-	// 3) 保存 user 消息：Content 只存用户文字，文件单独存 Files（JSON），避免前端展示时出现整段 JSON 与说明文
+	// 3) 保存 user 消息
 	storageContent, storageFiles := userContentForStorage(req.Message.Files, req.Message.Content)
 	userMsg := &model.AgentChatMessage{
 		SessionID: sessionID, AgentID: nil, Role: RoleUser,
@@ -262,12 +289,10 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		return s.handleError(sendEvent, "保存用户消息失败", e)
 	}
 
-	// 3.1) 如果是新会话且标题为空，使用第一条用户消息作为标题（用用户输入文字部分，不含 <files>）
+	// 3.1) 新会话自动生成标题
 	if session.Title == "" {
 		title := strings.TrimSpace(req.Message.Content)
-		// 移除换行符，替换为空格
 		title = strings.ReplaceAll(title, "\n", " ")
-		// 截取前50个字符
 		if len(title) > 50 {
 			title = title[:50] + "..."
 		}
@@ -286,7 +311,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	sendEvent(EventSession, StreamEventSession{SessionID: sessionID})
 
 	deps := &workspaceStreamLoopDeps{
-		ctx:                  ctx,
+		ctx:                  runCtx,
 		sendEvent:            sendEvent,
 		sessionID:            sessionID,
 		fullCodePath:         fullCodePath,
@@ -298,7 +323,80 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		files:                req.Message.Files,
 		service:              s,
 	}
-	return streamloop.RunStreamLoop(ctx, deps)
+	return streamloop.RunStreamLoop(runCtx, deps)
+}
+
+// CancelSession 手动取消正在执行的会话
+func (s *WorkspaceChatService) CancelSession(ctx context.Context, sessionID string) error {
+	session, err := s.sessionRepo.GetBySessionID(sessionID)
+	if err != nil {
+		return fmt.Errorf("会话不存在: %w", err)
+	}
+	if session.Status != model.ChatSessionStatusGenerating {
+		return fmt.Errorf("会话未在执行中（当前状态: %s）", session.Status)
+	}
+
+	// 标记为已取消
+	session.Status = model.ChatSessionStatusCancelled
+	user := contextx.GetRequestUser(ctx)
+	session.UpdatedBy = user
+	if err := s.sessionRepo.Update(session); err != nil {
+		return fmt.Errorf("更新会话状态失败: %w", err)
+	}
+
+	// 触发 cancelFunc，让 streamloop 尽快退出
+	if cancelFn, ok := s.runningCancels.LoadAndDelete(sessionID); ok {
+		cancelFn.(context.CancelFunc)()
+		logger.Infof(ctx, "[WorkspaceChatStream] 会话已取消 - SessionID: %s", sessionID)
+	}
+	return nil
+}
+
+// ListRunningSessions 查询当前用户所有正在执行的工作台会话
+func (s *WorkspaceChatService) ListRunningSessions(ctx context.Context) ([]*dto.WorkspaceSessionItem, error) {
+	user := contextx.GetRequestUser(ctx)
+	sessions, err := s.sessionRepo.ListRunningByUser(user)
+	if err != nil {
+		return nil, fmt.Errorf("查询执行中会话失败: %w", err)
+	}
+	items := make([]*dto.WorkspaceSessionItem, 0, len(sessions))
+	for _, session := range sessions {
+		items = append(items, &dto.WorkspaceSessionItem{
+			SessionID:    session.SessionID,
+			Title:        session.Title,
+			AgentID:      session.AgentID,
+			Status:       session.Status,
+			FullCodePath: session.FullCodePath,
+			CreatedAt:    session.CreatedAt,
+			UpdatedAt:    session.UpdatedAt,
+		})
+	}
+	return items, nil
+}
+
+// ListFinishedSessions 查询当前用户最近已结束的工作台会话
+func (s *WorkspaceChatService) ListFinishedSessions(ctx context.Context, limit int) ([]*dto.WorkspaceSessionItem, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	user := contextx.GetRequestUser(ctx)
+	sessions, err := s.sessionRepo.ListFinishedByUser(user, limit)
+	if err != nil {
+		return nil, fmt.Errorf("查询已结束会话失败: %w", err)
+	}
+	items := make([]*dto.WorkspaceSessionItem, 0, len(sessions))
+	for _, session := range sessions {
+		items = append(items, &dto.WorkspaceSessionItem{
+			SessionID:    session.SessionID,
+			Title:        session.Title,
+			AgentID:      session.AgentID,
+			Status:       session.Status,
+			FullCodePath: session.FullCodePath,
+			CreatedAt:    session.CreatedAt,
+			UpdatedAt:    session.UpdatedAt,
+		})
+	}
+	return items, nil
 }
 
 // prepareLLMRequest 工作台只认 LLM：llmConfigID > 0 用该配置，否则用默认
@@ -525,16 +623,16 @@ func (s *WorkspaceChatService) ListSessions(ctx context.Context, fullCodePath st
 		return nil, 0, fmt.Errorf("获取会话列表失败: %w", err)
 	}
 
-	// 转换为响应格式
 	items := make([]*dto.WorkspaceSessionItem, 0, len(sessions))
 	for _, session := range sessions {
 		items = append(items, &dto.WorkspaceSessionItem{
-			SessionID: session.SessionID,
-			Title:     session.Title,
-			AgentID:   session.AgentID,
-			Status:    session.Status,
-			CreatedAt: session.CreatedAt,
-			UpdatedAt: session.UpdatedAt,
+			SessionID:    session.SessionID,
+			Title:        session.Title,
+			AgentID:      session.AgentID,
+			Status:       session.Status,
+			FullCodePath: session.FullCodePath,
+			CreatedAt:    session.CreatedAt,
+			UpdatedAt:    session.UpdatedAt,
 		})
 	}
 

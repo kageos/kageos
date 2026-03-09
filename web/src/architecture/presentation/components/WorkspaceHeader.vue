@@ -22,16 +22,6 @@
         Debug
       </el-button>
       
-      <!-- 工作台：无目录时提示从服务目录打开；有目录时直接对话 -->
-      <el-button
-        type="primary"
-        size="small"
-        @click="() => navigateToWorkstation()"
-        title="工作台对话请在服务目录点 ⋮ → 打开工作台"
-      >
-        工作台
-      </el-button>
-      
       <!-- Hub 和 Agent 路由链接 -->
       <el-button
         type="primary"
@@ -99,6 +89,7 @@
       </el-button>
       
       <ThemeToggle />
+      <WorkstationTaskPanel :current-full-code-path="currentFullCodePath" />
       <el-dropdown @command="handleUserCommand">
         <span class="user-profile">
           <el-avatar :size="32" :src="userAvatar || undefined">{{ userInitials }}</el-avatar>
@@ -127,7 +118,7 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ArrowDown, Delete, OfficeBuilding, UserFilled } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
@@ -135,9 +126,16 @@ import { useLicenseStore } from '@/stores/license'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import DebugDialog from './DebugDialog.vue'
 import UpgradeEnterpriseDialog from '@/components/UpgradeEnterpriseDialog.vue'
+import WorkstationTaskPanel from './WorkstationTaskPanel.vue'
 import { navigateToHub as navigateToHubUtil } from '@/utils/hub-navigation'
 
+const route = useRoute()
 const router = useRouter()
+
+const currentFullCodePath = computed(() => {
+  const path = route.path || ''
+  return path.startsWith('/workspace/') ? path.replace('/workspace/', '').replace(/^\/+|\/+$/g, '') : ''
+})
 const authStore = useAuthStore()
 const licenseStore = useLicenseStore()
 
