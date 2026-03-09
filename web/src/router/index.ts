@@ -43,6 +43,15 @@ const router = createRouter({
         requireAuth: false
       }
     },
+    {
+      path: '/create-test-user',
+      name: 'create-test-user',
+      component: () => import('../views/Auth/CreateTestUser.vue'),
+      meta: {
+        title: '创建测试用户',
+        requireAuth: true
+      }
+    },
 
     // 用户设置页面
     {

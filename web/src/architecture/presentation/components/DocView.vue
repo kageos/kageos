@@ -63,13 +63,16 @@
             show-word-limit
           />
           
-          <!-- ✨ 使用 Vditor 所见即所得编辑器 -->
+          <!-- ✨ 使用 Vditor 所见即所得编辑器（支持拖拽/粘贴上传） -->
           <VditorEditor
             v-model="editContent"
             height="100%"
-            placeholder="请输入文档内容（支持 Markdown）"
+            placeholder="请输入文档内容，支持拖拽文件到此处或粘贴图片/文件上传"
             class="doc-vditor-editor"
           />
+          <div class="doc-editor-upload-hint">
+            支持拖拽文件到编辑区上传，或粘贴剪贴板中的图片/文件上传
+          </div>
         </div>
 
         <!-- 预览模式 -->
@@ -394,6 +397,13 @@ watch(() => props.node?.id, () => {
   flex-direction: column;
 }
 
+.doc-editor-upload-hint {
+  flex-shrink: 0;
+  padding: 8px 0 0;
+  font-size: 12px;
+  color: var(--el-text-color-placeholder);
+}
+
 .doc-preview {
   min-height: 400px;
 }
@@ -509,6 +519,13 @@ watch(() => props.node?.id, () => {
     td {
       color: var(--text-regular);
     }
+  }
+  
+  :deep(video) {
+    max-width: 100%;
+    height: auto;
+    border-radius: var(--border-radius-base);
+    margin: 12px 0;
   }
 }
 
