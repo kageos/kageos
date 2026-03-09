@@ -18,6 +18,7 @@ import (
 type MinIOStorage struct {
 	client         *minio.Client // 主客户端：连接 endpoint（服务自身直连 MinIO），用于实际读写操作
 	externalClient *minio.Client // 外部客户端：基于 cdn_domain 生成浏览器预签名 URL（无 cdn_domain 时 = client）
+	serverClient   *minio.Client // 容器内访问用客户端：基于 server_endpoint 生成预签名 GET（DownloadFiles 用，无则=nil）
 	cdnDomain      string        // CDN/代理域名（浏览器访问文件的公开地址，如 Nginx 反向代理域名）
 	endpoint       string        // MinIO endpoint（服务自身连接 MinIO 的地址）
 	useSSL         bool
@@ -62,10 +63,25 @@ func NewMinIOStorage(cfg Config) (*MinIOStorage, error) {
 	}
 
 	serverEndpoint := cfg.GetServerEndpoint()
+	// 容器内下载用客户端：用 server_endpoint 生成预签名 GET，桶保持私有
+	var serverClient *minio.Client
+	if serverEndpoint != "" && serverEndpoint != cfg.GetEndpoint() {
+		sc, err := minio.New(serverEndpoint, &minio.Options{
+			Creds:  credentials.NewStaticV4(cfg.GetAccessKey(), cfg.GetSecretKey(), ""),
+			Secure: cfg.GetUseSSL(),
+			Region: cfg.GetRegion(),
+		})
+		if err != nil {
+			logger.Warnf(context.Background(), "[MinIOStorage] Failed to create server client for %s: %v", serverEndpoint, err)
+		} else {
+			serverClient = sc
+		}
+	}
 
 	return &MinIOStorage{
 		client:         client,
 		externalClient: externalClient,
+		serverClient:   serverClient,
 		cdnDomain:      cfg.GetCDNDomain(),
 		endpoint:       cfg.GetEndpoint(),
 		useSSL:         cfg.GetUseSSL(),
@@ -266,8 +282,17 @@ func (s *MinIOStorage) GenerateDownloadURLs(ctx context.Context, bucket, key str
 		externalURL = fmt.Sprintf("/%s/%s", bucket, key)
 	}
 
-	// 内部访问URL（容器/SDK用，必须是绝对地址）
-	if s.serverEndpoint != "" && s.serverEndpoint != s.endpoint {
+	// 内部访问URL（容器/SDK 用，DownloadFiles 会 GET 此 URL）
+	// 使用预签名 GET，桶可保持私有，容器内无需带鉴权即可下载
+	if s.serverClient != nil {
+		u, err := s.serverClient.PresignedGetObject(ctx, bucket, key, expire, nil)
+		if err != nil {
+			logger.Warnf(ctx, "[MinIOStorage] PresignedGetObject for serverURL failed: %v, fallback to plain URL", err)
+			serverURL = fmt.Sprintf("%s://%s/%s/%s", scheme, s.serverEndpoint, bucket, key)
+		} else {
+			serverURL = u.String()
+		}
+	} else if s.serverEndpoint != "" && s.serverEndpoint != s.endpoint {
 		serverURL = fmt.Sprintf("%s://%s/%s/%s", scheme, s.serverEndpoint, bucket, key)
 	} else {
 		serverURL = fmt.Sprintf("%s://%s/%s/%s", scheme, s.endpoint, bucket, key)

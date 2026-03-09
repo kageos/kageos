@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -104,6 +105,13 @@ func (s *Storage) GetUploadToken(c *gin.Context) {
 	// 构建响应
 	resp = buildUploadTokenResponse(creds, key, expire, cdnDomain, storageType, downloadURL, serverDownloadURL, username)
 	resp.Bucket = s.storageService.GetBucketName()
+
+	// 线上排查 403：确认返回的 URL 的 host 与浏览器 PUT 时的 Host 一致
+	if resp.URL != "" {
+		if u, e := url.Parse(resp.URL); e == nil {
+			logger.Infof(c, "[GetUploadToken] upload URL host=%q (browser PUT must use same Host)", u.Host)
+		}
+	}
 
 	response.OkWithData(c, resp)
 }
