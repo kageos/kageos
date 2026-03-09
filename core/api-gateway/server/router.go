@@ -196,12 +196,15 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 	// 我们只需要确保 TraceId 被正确传递即可
 	originalDirector := proxy.Director
 	proxy.Director = func(req *http.Request) {
-		// 在 originalDirector 覆盖前保存原始 Host，供 app-storage 生成预签名 URL 时使用（与浏览器 PUT 的 Host 一致，避免 403）
+		// 保存原始 Host；若上游已传 X-Forwarded-Host（如 Vite 代理传的浏览器 Host），保留不覆盖
 		originalHost := req.Host
+		existingForwardedHost := req.Header.Get("X-Forwarded-Host")
 		originalDirector(req)
-		if originalHost != "" && originalHost != target.Host {
+		if existingForwardedHost != "" {
+			// 上游（如 Vite）已传浏览器真实 Host，保留给 app-storage 做预签名
+			req.Header.Set("X-Forwarded-Host", existingForwardedHost)
+		} else if originalHost != "" && originalHost != target.Host {
 			req.Header.Set("X-Forwarded-Host", originalHost)
-			// 若原始 Host 带端口，单独传 X-Forwarded-Port，便于 app-storage 在只收到 host 无端口时补全
 			if idx := strings.Index(originalHost, ":"); idx >= 0 && idx < len(originalHost)-1 {
 				req.Header.Set("X-Forwarded-Port", originalHost[idx+1:])
 			}
