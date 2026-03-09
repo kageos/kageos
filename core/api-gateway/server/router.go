@@ -196,7 +196,12 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 	// 我们只需要确保 TraceId 被正确传递即可
 	originalDirector := proxy.Director
 	proxy.Director = func(req *http.Request) {
+		// 在 originalDirector 覆盖前保存原始 Host，供 app-storage 生成预签名 URL 时使用（与浏览器 PUT 的 Host 一致，避免 403）
+		originalHost := req.Host
 		originalDirector(req)
+		if originalHost != "" && originalHost != target.Host {
+			req.Header.Set("X-Forwarded-Host", originalHost)
+		}
 		req.Host = target.Host
 
 		// ✨ 传递 TraceId 到后端服务
