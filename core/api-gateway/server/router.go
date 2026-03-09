@@ -201,6 +201,13 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 		originalDirector(req)
 		if originalHost != "" && originalHost != target.Host {
 			req.Header.Set("X-Forwarded-Host", originalHost)
+			// 若原始 Host 带端口，单独传 X-Forwarded-Port，便于 app-storage 在只收到 host 无端口时补全
+			if idx := strings.Index(originalHost, ":"); idx >= 0 && idx < len(originalHost)-1 {
+				req.Header.Set("X-Forwarded-Port", originalHost[idx+1:])
+			}
+			if strings.Contains(req.URL.Path, "/storage/") {
+				logger.Infof(s.ctx, "[Proxy] X-Forwarded-Host set for presign: originalHost=%q, target.Host=%q, path=%s", originalHost, target.Host, req.URL.Path)
+			}
 		}
 		req.Host = target.Host
 
