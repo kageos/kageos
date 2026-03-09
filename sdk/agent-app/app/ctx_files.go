@@ -119,12 +119,6 @@ func (c *FS) DownloadFiles(files *types.Files) *types.Files {
 			continue
 		}
 
-		if file.Hash == "" {
-			logger.Warnf(c.ctx, "[DownloadFiles] 文件 %s 没有hash，跳过", file.Name)
-			skipCount++
-			continue
-		}
-
 		// 确定下载URL（优先使用ServerUrl，服务端下载）
 		downloadURL := file.ServerUrl
 		if downloadURL == "" {
@@ -137,33 +131,37 @@ func (c *FS) DownloadFiles(files *types.Files) *types.Files {
 		}
 
 		downloadCount++
+		hasHash := file.Hash != ""
 
 		wg.Add(1)
-		go func(f *types.File, url string) {
+		go func(f *types.File, url string, useCache bool) {
 			defer wg.Done()
 
-			// 目标文件路径
 			targetPath := filepath.Join(downloadDir, f.Name)
+			var localPath string
+			var err error
 
-			// 使用文件缓存获取或下载文件
-			localPath, fromCache, err := c.fileCache.GetOrDownload(c.ctx, f.Hash, url, targetPath)
+			if useCache {
+				localPath, _, err = c.fileCache.GetOrDownload(c.ctx, f.Hash, url, targetPath)
+			} else {
+				localPath, err = c.fileCache.DownloadOnly(c.ctx, url, targetPath)
+			}
 			if err != nil {
 				logger.Errorf(c.ctx, "[DownloadFiles] 下载文件失败 %s: %v", f.Name, err)
 				return
 			}
 
-			// 更新文件信息
 			mu.Lock()
 			f.LocalPath = localPath
 			f.Downloaded = true
 			mu.Unlock()
 
-			if fromCache {
-				logger.Infof(c.ctx, "[DownloadFiles] 从缓存获取文件: %s (hash: %s)", f.Name, f.Hash)
+			if useCache {
+				logger.Infof(c.ctx, "[DownloadFiles] 下载文件完成(缓存): %s", f.Name)
 			} else {
-				logger.Infof(c.ctx, "[DownloadFiles] 下载文件完成: %s (hash: %s)", f.Name, f.Hash)
+				logger.Infof(c.ctx, "[DownloadFiles] 下载文件完成(无hash不缓存): %s", f.Name)
 			}
-		}(file, downloadURL)
+		}(file, downloadURL, hasHash)
 	}
 
 	wg.Wait()

@@ -45,6 +45,7 @@
     "axios": "^1.13.1",
     "echarts": "^6.0.0",
     "element-plus": "^2.11.5",
+    "js-sha256": "^0.10.1",
     "jszip": "^3.10.1",
     "marked": "^17.0.1",
     "monaco-editor": "^0.54.0",
