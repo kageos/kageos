@@ -115,8 +115,11 @@ func GetToken(c context.Context) string {
 	return ""
 }
 
+// PresignDefaultPort 当 Host 无端口且未收到 X-Forwarded-Port 时的默认端口（与 deploy/nginx-server.conf 中 Web 监听端口一致）
+const PresignDefaultPort = "8999"
+
 // GetPresignHost 获取用于生成预签名 URL 的 Host（浏览器上传时需与请求 Host 一致，含端口）
-// 优先 X-Forwarded-Host；若无端口则用 X-Forwarded-Port 补全，避免签名与浏览器 PUT 的 Host 不一致导致 403
+// 优先 X-Forwarded-Host；若无端口则用 X-Forwarded-Port 补全，都无则用 PresignDefaultPort 兜底，避免 403
 func GetPresignHost(c context.Context) string {
 	if v, ok := c.(*gin.Context); ok {
 		host := v.GetHeader("X-Forwarded-Host")
@@ -124,9 +127,11 @@ func GetPresignHost(c context.Context) string {
 			host = v.Request.Host
 		}
 		if host != "" && !strings.Contains(host, ":") {
-			if port := v.GetHeader("X-Forwarded-Port"); port != "" {
-				host = host + ":" + port
+			port := v.GetHeader("X-Forwarded-Port")
+			if port == "" {
+				port = PresignDefaultPort
 			}
+			host = host + ":" + port
 		}
 		return host
 	}
@@ -192,13 +197,17 @@ func ToContext(c *gin.Context) context.Context {
 		c.Request.Header.Set(DepartmentFullPathHeader, deptPath)
 	}
 
-	// 5. PresignHost：优先 X-Forwarded-Host（含端口），无端口时用 X-Forwarded-Port 补全，与浏览器 PUT 的 Host 一致避免 403
+	// 5. PresignHost：优先 X-Forwarded-Host（含端口），无端口时用 X-Forwarded-Port 或 PresignDefaultPort 补全，与浏览器 PUT 的 Host 一致避免 403
 	presignHost := c.GetHeader("X-Forwarded-Host")
 	if presignHost == "" {
 		presignHost = c.Request.Host
 	}
-	if presignHost != "" && !strings.Contains(presignHost, ":") && c.GetHeader("X-Forwarded-Port") != "" {
-		presignHost = presignHost + ":" + c.GetHeader("X-Forwarded-Port")
+	if presignHost != "" && !strings.Contains(presignHost, ":") {
+		port := c.GetHeader("X-Forwarded-Port")
+		if port == "" {
+			port = PresignDefaultPort
+		}
+		presignHost = presignHost + ":" + port
 	}
 	if presignHost != "" {
 		ctx = context.WithValue(ctx, PresignHostKey, presignHost)
