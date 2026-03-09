@@ -115,28 +115,40 @@ func (s *MinIOStorage) GetUploadEndpoint(uploadSource string) string {
 }
 
 // GenerateUploadCredentials 生成上传凭证（统一接口）
-// 同时生成外部访问URL（前端使用）和内部访问URL（服务端使用）
-// 浏览器上传时优先使用请求 Host 生成预签名 URL，与 Nginx 转发的 Host 一致，避免 403
+// 浏览器上传时：优先用配置的 cdn_domain（固定域名，本地/线上各配各的），未配置时才用请求 Host，保证签名与 PUT 的 Host 一致
 func (s *MinIOStorage) GenerateUploadCredentials(ctx context.Context, bucket, key, contentType string, expire time.Duration, uploadSource string) (*UploadCredentials, error) {
 	// 1. 生成外部访问的 URL（前端浏览器使用）
-	// 若 context 中带有请求 Host（PresignHost），且为浏览器上传，则用该 Host 生成签名，与 Nginx proxy_set_header Host $http_host 一致
+	// 优先级：配置的 cdn_domain > 请求 Host（PresignHost）。配置后本地/线上都稳定，不依赖网关传 Host
 	var externalURL *url.URL
-	presignHost := contextx.GetPresignHost(ctx)
-	logger.Infof(ctx, "[MinIOStorage] GenerateUploadCredentials: uploadSource=%s, presignHost=%q (must match browser PUT Host to avoid 403)", uploadSource, presignHost)
-	if uploadSource == UploadSourceBrowser && presignHost != "" {
-		clientForHost, err := minio.New(presignHost, &minio.Options{
-			Creds:  credentials.NewStaticV4(s.accessKey, s.secretKey, ""),
-			Secure: s.useSSL,
-			Region: s.region,
-		})
+	useConfigHost := s.cdnDomain != "" && uploadSource == UploadSourceBrowser
+	if useConfigHost {
+		// 用已根据 cdn_domain 建好的 externalClient 生成，签名与配置的域名一致
+		var err error
+		externalURL, err = s.externalClient.PresignedPutObject(ctx, bucket, key, expire)
 		if err != nil {
-			logger.Warnf(ctx, "[MinIOStorage] Failed to create presign client for host %s, fallback to externalClient: %v", presignHost, err)
-		} else {
-			u, err := clientForHost.PresignedPutObject(ctx, bucket, key, expire)
+			logger.Errorf(ctx, "[MinIOStorage] Failed to generate external upload URL (cdn_domain): %v", err)
+			return nil, fmt.Errorf("生成上传凭证失败: %w", err)
+		}
+		logger.Infof(ctx, "[MinIOStorage] GenerateUploadCredentials: using cdn_domain for presign (uploadSource=%s)", uploadSource)
+	}
+	if externalURL == nil {
+		presignHost := contextx.GetPresignHost(ctx)
+		logger.Infof(ctx, "[MinIOStorage] GenerateUploadCredentials: uploadSource=%s, presignHost=%q", uploadSource, presignHost)
+		if uploadSource == UploadSourceBrowser && presignHost != "" {
+			clientForHost, err := minio.New(presignHost, &minio.Options{
+				Creds:  credentials.NewStaticV4(s.accessKey, s.secretKey, ""),
+				Secure: s.useSSL,
+				Region: s.region,
+			})
 			if err != nil {
-				logger.Warnf(ctx, "[MinIOStorage] PresignedPutObject with request host failed: %v", err)
+				logger.Warnf(ctx, "[MinIOStorage] Failed to create presign client for host %s, fallback to externalClient: %v", presignHost, err)
 			} else {
-				externalURL = u
+				u, err := clientForHost.PresignedPutObject(ctx, bucket, key, expire)
+				if err != nil {
+					logger.Warnf(ctx, "[MinIOStorage] PresignedPutObject with request host failed: %v", err)
+				} else {
+					externalURL = u
+				}
 			}
 		}
 	}

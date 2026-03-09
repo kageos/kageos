@@ -48,10 +48,16 @@ export default defineConfig(({ mode }) => {
         target: proxyTarget,
         changeOrigin: true,
       },
-      // Storage API 通过网关代理（只代理 API 请求，不代理页面路由）
+      // Storage API：转发时带上浏览器原始 Host，供后端生成预签名 URL 与 PUT 一致（避免本地 403）
       '/storage/api': {
         target: proxyTarget,
         changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq, req) => {
+            const host = req.headers.host
+            if (host) proxyReq.setHeader('X-Forwarded-Host', host)
+          })
+        },
       },
       // Hub API 通过网关代理（只代理 API 请求，不代理页面路由）
       '/hub/api': {
@@ -78,10 +84,10 @@ export default defineConfig(({ mode }) => {
         target: proxyTarget,
         changeOrigin: true,
       },
-      // MinIO 文件代理（开发环境直连本地 MinIO，连线上时可不配或指向线上 MinIO 代理路径）
+      // MinIO 文件代理。需保留浏览器 Host（changeOrigin: false）以便预签名与 MinIO 收到的 Host 一致；本地配置 cdn_domain 为前端 origin 如 http://localhost:5173
       '/ai-agent-os': {
         target: minioTarget,
-        changeOrigin: true,
+        changeOrigin: false,
       },
     },
   },
