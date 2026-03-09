@@ -37,6 +37,7 @@ func (s *Server) setupRoutes() {
 	user := apiV1.Group("/user")
 	user.Use(middleware2.JWTAuth()) // 用户管理需要JWT认证
 	userHandler := v1.NewUser(s.userService, s.departmentService)
+	user.POST("/create_user_by_secret", authHandler.CreateUserBySecret) // 仅 system 超管可操作，一键创建用户（免邮箱）
 	user.GET("/info", userHandler.GetUserInfo)
 	user.GET("/query", userHandler.QueryUser)
 	user.GET("/search_fuzzy", userHandler.SearchUsersFuzzy)

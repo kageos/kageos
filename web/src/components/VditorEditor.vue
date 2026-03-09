@@ -3,10 +3,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue'
 import Vditor from 'vditor'
 import 'vditor/dist/index.css'
 import { useThemeStore } from '@/stores/theme'
+import { ElMessage } from 'element-plus'
+import { uploadFile, notifyUploadComplete } from '@/utils/upload'
 
 interface Props {
   modelValue: string
@@ -21,7 +23,7 @@ interface Emits {
 
 const props = withDefaults(defineProps<Props>(), {
   height: 500,
-  placeholder: '请输入内容（支持 Markdown）',
+  placeholder: '请输入内容，支持拖拽文件到此处或粘贴图片/文件上传',
   disabled: false
 })
 
@@ -31,6 +33,67 @@ const vditorRef = ref<HTMLElement>()
 let vditor: Vditor | null = null
 
 const themeStore = useThemeStore()
+
+// 文件上传路由（与富文本一致：按用户区分路径）
+const fileUploadRouter = computed(() => {
+  const savedUserStr = localStorage.getItem('user')
+  if (savedUserStr) {
+    try {
+      const savedUser = JSON.parse(savedUserStr)
+      return `${savedUser.username || 'default'}/docs/files`
+    } catch {
+      return 'default/docs/files'
+    }
+  }
+  return 'default/docs/files'
+})
+
+// 判断是否为视频文件（与富文本一致）
+function isVideoFile(file: File): boolean {
+  if (file.type.startsWith('video/')) return true
+  const ext = (file.name.split('.').pop() || '').toLowerCase()
+  return ['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm', 'm4v', '3gp'].includes(ext)
+}
+
+// 上传单个文件并插入 Markdown / HTML
+async function uploadOneAndInsert(file: File): Promise<string | null> {
+  try {
+    ElMessage.info(`正在上传 ${file.name}...`)
+    const uploadResult = await uploadFile(fileUploadRouter.value, file, () => {})
+    if (!uploadResult.fileInfo) return null
+    const completeResult = await notifyUploadComplete({
+      key: uploadResult.fileInfo.key,
+      success: true,
+      router: uploadResult.fileInfo.router,
+      file_name: uploadResult.fileInfo.file_name,
+      file_size: uploadResult.fileInfo.file_size,
+      content_type: uploadResult.fileInfo.content_type,
+      hash: uploadResult.fileInfo.hash,
+    })
+    const url = completeResult?.download_url
+    if (!url) return null
+    const isImage = file.type.startsWith('image/')
+    const isVideo = isVideoFile(file)
+    let insertContent: string
+    if (isImage) {
+      insertContent = `![${file.name}](${url})\n`
+    } else if (isVideo) {
+      // 插入 HTML 视频标签，与富文本一样直接渲染播放器（Markdown 预览用 marked 会保留 HTML）
+      insertContent = `<video src="${url}" controls width="100%"></video>\n\n`
+    } else {
+      insertContent = `[${file.name}](${url})\n`
+    }
+    if (vditor) {
+      vditor.insertValue(insertContent)
+      emit('update:modelValue', vditor.getValue())
+    }
+    ElMessage.success(`${file.name} 上传成功`)
+    return url
+  } catch (err: any) {
+    ElMessage.error(`上传 ${file.name} 失败: ${err?.message || '未知错误'}`)
+    return null
+  }
+}
 
 // 初始化编辑器
 onMounted(() => {
@@ -105,10 +168,14 @@ onMounted(() => {
       type: 'markdown'
     },
     
-    // 上传配置（暂时禁用，后续可以集成）
+    // 上传配置：拖拽/粘贴文件时走项目统一上传并插入 Markdown
     upload: {
-      handler: () => {
-        return null
+      accept: 'image/*,*/*',
+      handler: async (files: File[]) => {
+        for (const file of files) {
+          await uploadOneAndInsert(file)
+        }
+        return ''
       }
     }
   })

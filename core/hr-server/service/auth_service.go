@@ -91,6 +91,58 @@ func (s *AuthService) RegisterUser(username, email, password string) (int64, err
 	return user.ID, nil
 }
 
+// CreateUserBySecretKey 超管一键创建用户（免邮箱验证，仅 system 用户可调用，用于创建测试用户）
+func (s *AuthService) CreateUserBySecretKey(username, password string) (int64, error) {
+	// 与 RegisterUser 类似的校验与创建，但邮箱用占位、直接激活
+	userCount, err := s.userRepo.CountUsers()
+	if err != nil {
+		logger.Warnf(nil, "[AuthService] Failed to count users: %v", err)
+	} else {
+		licenseMgr := license.GetManager()
+		if err := licenseMgr.CheckUserLimit(int(userCount)); err != nil {
+			return 0, err
+		}
+	}
+
+	existingUser, err := s.userRepo.GetUserByUsername(username)
+	if err == nil && existingUser != nil {
+		return 0, fmt.Errorf("用户名已存在")
+	}
+
+	// 占位邮箱，保证唯一且不与其他用户冲突
+	placeholderEmail := username + "@test.local"
+	existingEmail, err := s.userRepo.GetUserByEmail(placeholderEmail)
+	if err == nil && existingEmail != nil {
+		return 0, fmt.Errorf("邮箱占位冲突，请换用户名")
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		logger.Errorf(nil, "[AuthService] Failed to hash password: %v", err)
+		return 0, fmt.Errorf("密码加密失败")
+	}
+
+	user := &model.User{
+		Username:           username,
+		Email:              placeholderEmail,
+		PasswordHash:       string(hashedPassword),
+		RegisterType:       "system",
+		Status:             "active",
+		EmailVerified:      true,
+		CreatedBy:          "admin_secret",
+		DepartmentFullPath: "/org/unassigned",
+	}
+
+	err = s.userRepo.CreateUser(user)
+	if err != nil {
+		logger.Errorf(nil, "[AuthService] Failed to create user by secret: %v", err)
+		return 0, fmt.Errorf("用户创建失败")
+	}
+
+	logger.Infof(nil, "[AuthService] User created by secret key: %s", username)
+	return user.ID, nil
+}
+
 // ActivateUser 激活用户
 func (s *AuthService) ActivateUser(userID int64) error {
 	// 获取用户信息
