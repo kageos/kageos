@@ -122,6 +122,7 @@ func (s *MinIOStorage) GenerateUploadCredentials(ctx context.Context, bucket, ke
 	// 若 context 中带有请求 Host（PresignHost），且为浏览器上传，则用该 Host 生成签名，与 Nginx proxy_set_header Host $http_host 一致
 	var externalURL *url.URL
 	presignHost := contextx.GetPresignHost(ctx)
+	logger.Infof(ctx, "[MinIOStorage] GenerateUploadCredentials: uploadSource=%s, presignHost=%q (must match browser PUT Host to avoid 403)", uploadSource, presignHost)
 	if uploadSource == UploadSourceBrowser && presignHost != "" {
 		clientForHost, err := minio.New(presignHost, &minio.Options{
 			Creds:  credentials.NewStaticV4(s.accessKey, s.secretKey, ""),

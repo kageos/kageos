@@ -2,6 +2,7 @@ package contextx
 
 import (
 	"context"
+	"strings"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/nats-io/nats.go"
@@ -114,14 +115,20 @@ func GetToken(c context.Context) string {
 	return ""
 }
 
-// GetPresignHost 获取用于生成预签名 URL 的 Host（浏览器上传时需与请求 Host 一致）
-// 优先使用 X-Forwarded-Host（网关转发后保留的原始 Host），否则用 Request.Host
+// GetPresignHost 获取用于生成预签名 URL 的 Host（浏览器上传时需与请求 Host 一致，含端口）
+// 优先 X-Forwarded-Host；若无端口则用 X-Forwarded-Port 补全，避免签名与浏览器 PUT 的 Host 不一致导致 403
 func GetPresignHost(c context.Context) string {
 	if v, ok := c.(*gin.Context); ok {
-		if host := v.GetHeader("X-Forwarded-Host"); host != "" {
-			return host
+		host := v.GetHeader("X-Forwarded-Host")
+		if host == "" {
+			host = v.Request.Host
 		}
-		return v.Request.Host
+		if host != "" && !strings.Contains(host, ":") {
+			if port := v.GetHeader("X-Forwarded-Port"); port != "" {
+				host = host + ":" + port
+			}
+		}
+		return host
 	}
 	if value := c.Value(PresignHostKey); value != nil {
 		if host, ok := value.(string); ok && host != "" {
@@ -185,10 +192,13 @@ func ToContext(c *gin.Context) context.Context {
 		c.Request.Header.Set(DepartmentFullPathHeader, deptPath)
 	}
 
-	// 5. PresignHost：优先 X-Forwarded-Host（网关转发后保留的浏览器 Host），否则 Request.Host，用于生成预签名 URL 与 PUT 时一致，避免 403
+	// 5. PresignHost：优先 X-Forwarded-Host（含端口），无端口时用 X-Forwarded-Port 补全，与浏览器 PUT 的 Host 一致避免 403
 	presignHost := c.GetHeader("X-Forwarded-Host")
 	if presignHost == "" {
 		presignHost = c.Request.Host
+	}
+	if presignHost != "" && !strings.Contains(presignHost, ":") && c.GetHeader("X-Forwarded-Port") != "" {
+		presignHost = presignHost + ":" + c.GetHeader("X-Forwarded-Port")
 	}
 	if presignHost != "" {
 		ctx = context.WithValue(ctx, PresignHostKey, presignHost)
