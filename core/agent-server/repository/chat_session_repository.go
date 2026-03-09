@@ -90,3 +90,29 @@ func (r *ChatSessionRepository) DeleteByTreeID(treeID int64) error {
 	return r.db.Where("tree_id = ?", treeID).Delete(&model.AgentChatSession{}).Error
 }
 
+// ListRunningByUser 查询指定用户所有正在执行（generating）的工作台会话
+func (r *ChatSessionRepository) ListRunningByUser(user string) ([]*model.AgentChatSession, error) {
+	var sessions []*model.AgentChatSession
+	if err := r.db.
+		Where("user = ? AND source = ? AND status = ?", user, "workspace", model.ChatSessionStatusGenerating).
+		Order("updated_at DESC").
+		Find(&sessions).Error; err != nil {
+		return nil, err
+	}
+	return sessions, nil
+}
+
+// ListFinishedByUser 查询指定用户最近已结束（active/done/cancelled）的工作台会话
+func (r *ChatSessionRepository) ListFinishedByUser(user string, limit int) ([]*model.AgentChatSession, error) {
+	var sessions []*model.AgentChatSession
+	if err := r.db.
+		Where("user = ? AND source = ? AND status IN ?", user, "workspace",
+			[]string{model.ChatSessionStatusActive, model.ChatSessionStatusDone, model.ChatSessionStatusCancelled}).
+		Order("updated_at DESC").
+		Limit(limit).
+		Find(&sessions).Error; err != nil {
+		return nil, err
+	}
+	return sessions, nil
+}
+

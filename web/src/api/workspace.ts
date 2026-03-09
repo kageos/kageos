@@ -40,7 +40,8 @@ export interface WorkspaceSessionItem {
   title: string
   agent_id?: number | null
   agent_name?: string
-  status: string
+  status: string // active | generating | done | cancelled
+  full_code_path?: string
   created_at: string
   updated_at: string
 }
@@ -310,4 +311,19 @@ export interface WorkspaceChatToolCallSummary {
  */
 export async function getWorkspaceMessages(params: ListWorkspaceMessagesReq): Promise<ListWorkspaceMessagesResp> {
   return axiosInstance.get<ListWorkspaceMessagesResp>('/agent/api/v1/workspace/messages', { params })
+}
+
+/** 查询当前用户所有正在执行的工作台任务 */
+export async function getRunningSessions(): Promise<{ sessions: WorkspaceSessionItem[] }> {
+  return axiosInstance.get('/agent/api/v1/workspace/sessions/running')
+}
+
+/** 查询当前用户最近已结束的工作台任务 */
+export async function getFinishedSessions(limit = 20): Promise<{ sessions: WorkspaceSessionItem[] }> {
+  return axiosInstance.get('/agent/api/v1/workspace/sessions/finished', { params: { limit } })
+}
+
+/** 取消执行中的工作台任务 */
+export async function cancelWorkspaceChat(sessionId: string): Promise<void> {
+  return axiosInstance.post('/agent/api/v1/workspace/chat/cancel', { session_id: sessionId })
 }

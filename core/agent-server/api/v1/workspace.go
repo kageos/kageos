@@ -2,6 +2,7 @@ package v1
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/service"
@@ -198,6 +199,51 @@ func (h *Workspace) ListMessages(c *gin.Context) {
 	response.OkWithData(c, &dto.ListWorkspaceMessagesResp{
 		Messages: messageInfos,
 	})
+}
+
+// ListRunningSessions 查询当前用户所有正在执行的工作台会话
+// GET /agent/api/v1/workspace/sessions/running
+func (h *Workspace) ListRunningSessions(c *gin.Context) {
+	ctx := contextx.ToContext(c)
+	items, err := h.wsChatSvc.ListRunningSessions(ctx)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.OkWithData(c, gin.H{"sessions": items})
+}
+
+// CancelChat 取消工作台会话执行
+// POST /agent/api/v1/workspace/chat/cancel
+func (h *Workspace) CancelChat(c *gin.Context) {
+	var req dto.CancelWorkspaceChatReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "参数错误: "+err.Error())
+		return
+	}
+	ctx := contextx.ToContext(c)
+	if err := h.wsChatSvc.CancelSession(ctx, req.SessionID); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.Ok(c)
+}
+
+// ListFinishedSessions 查询当前用户最近已结束的工作台会话
+// GET /agent/api/v1/workspace/sessions/finished
+func (h *Workspace) ListFinishedSessions(c *gin.Context) {
+	ctx := contextx.ToContext(c)
+	limitStr := c.DefaultQuery("limit", "20")
+	limit := 20
+	if v, err := fmt.Sscanf(limitStr, "%d", &limit); v == 0 || err != nil {
+		limit = 20
+	}
+	items, err := h.wsChatSvc.ListFinishedSessions(ctx, limit)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.OkWithData(c, gin.H{"sessions": items})
 }
 
 // ListToolNames 返回所有工具名列表

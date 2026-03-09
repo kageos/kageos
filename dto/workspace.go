@@ -53,13 +53,19 @@ type ListWorkspaceSessionsResp struct {
 
 // WorkspaceSessionItem 工作台会话项
 type WorkspaceSessionItem struct {
-	SessionID string      `json:"session_id"` // 会话ID
-	Title     string      `json:"title"`      // 会话标题
-	AgentID   *int64      `json:"agent_id"`   // 关联的智能体ID（可为空）
-	AgentName string      `json:"agent_name"` // 智能体名称（如果有）
-	Status    string      `json:"status"`     // 会话状态
-	CreatedAt models.Time `json:"created_at"` // 创建时间
-	UpdatedAt models.Time `json:"updated_at"` // 更新时间
+	SessionID    string      `json:"session_id"`              // 会话ID
+	Title        string      `json:"title"`                   // 会话标题
+	AgentID      *int64      `json:"agent_id"`                // 关联的智能体ID（可为空）
+	AgentName    string      `json:"agent_name"`              // 智能体名称（如果有）
+	Status       string      `json:"status"`                  // 会话状态（active/generating/done/cancelled）
+	FullCodePath string      `json:"full_code_path,omitempty"` // 所属目录完整路径
+	CreatedAt    models.Time `json:"created_at"`              // 创建时间
+	UpdatedAt    models.Time `json:"updated_at"`              // 更新时间
+}
+
+// CancelWorkspaceChatReq 取消工作台会话执行请求
+type CancelWorkspaceChatReq struct {
+	SessionID string `json:"session_id" binding:"required"`
 }
 
 // ListWorkspaceMessagesReq 获取工作台会话消息列表请求
