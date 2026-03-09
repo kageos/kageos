@@ -115,8 +115,12 @@ func GetToken(c context.Context) string {
 }
 
 // GetPresignHost 获取用于生成预签名 URL 的 Host（浏览器上传时需与请求 Host 一致）
+// 优先使用 X-Forwarded-Host（网关转发后保留的原始 Host），否则用 Request.Host
 func GetPresignHost(c context.Context) string {
 	if v, ok := c.(*gin.Context); ok {
+		if host := v.GetHeader("X-Forwarded-Host"); host != "" {
+			return host
+		}
 		return v.Request.Host
 	}
 	if value := c.Value(PresignHostKey); value != nil {
@@ -181,9 +185,13 @@ func ToContext(c *gin.Context) context.Context {
 		c.Request.Header.Set(DepartmentFullPathHeader, deptPath)
 	}
 
-	// 5. PresignHost：请求的 Host，用于存储服务生成预签名 URL 时与 Nginx 转发 Host 一致，避免 403
-	if c.Request.Host != "" {
-		ctx = context.WithValue(ctx, PresignHostKey, c.Request.Host)
+	// 5. PresignHost：优先 X-Forwarded-Host（网关转发后保留的浏览器 Host），否则 Request.Host，用于生成预签名 URL 与 PUT 时一致，避免 403
+	presignHost := c.GetHeader("X-Forwarded-Host")
+	if presignHost == "" {
+		presignHost = c.Request.Host
+	}
+	if presignHost != "" {
+		ctx = context.WithValue(ctx, PresignHostKey, presignHost)
 	}
 
 	return ctx
