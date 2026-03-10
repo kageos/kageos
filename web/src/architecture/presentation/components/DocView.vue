@@ -1,88 +1,93 @@
 <template>
   <div class="doc-view" v-loading="loading">
-    <div v-if="doc" class="doc-content">
-      <!-- 文档头部 -->
-      <div class="doc-header">
-        <div class="doc-title-section">
-          <h1 class="doc-title">{{ doc.name || props.node?.name || '未命名文档' }}</h1>
-          <div class="doc-meta">
-            <el-tag v-if="doc.format" size="small" type="info">{{ doc.format }}</el-tag>
-            <span v-if="doc.category" class="doc-category">{{ doc.category }}</span>
+    <!-- 阅读区：收窄 + 居中，参考 CSDN 文章区 -->
+    <div class="doc-view__reader" v-if="doc">
+      <div class="doc-content">
+        <!-- 文档头部 -->
+        <div class="doc-header">
+          <div class="doc-title-section">
+            <h1 class="doc-title">{{ doc.name || props.node?.name || '未命名文档' }}</h1>
+            <div class="doc-meta">
+              <el-tag v-if="doc.format" size="small" type="info">{{ doc.format }}</el-tag>
+              <span v-if="doc.category" class="doc-category">{{ doc.category }}</span>
+            </div>
           </div>
-        </div>
-        <div class="doc-actions" v-if="hasEditPermission">
-          <el-button 
-            type="primary" 
-            :icon="Edit" 
-            @click="handleEdit"
-            v-if="!isEditing"
-          >
-            编辑文档
-          </el-button>
-          <el-button 
-            v-else
-            :icon="Check"
-            @click="handleSave"
-            :loading="saving"
-          >
-            保存
-          </el-button>
-          <el-button 
-            v-if="isEditing"
-            @click="handleCancel"
-          >
-            取消
-          </el-button>
-          <el-button 
-            type="danger" 
-            :icon="Delete" 
-            @click="handleDelete"
-            v-if="!isEditing"
-          >
-            删除文档
-          </el-button>
-        </div>
-      </div>
-
-      <!-- 文档摘要 -->
-      <div v-if="doc.summary && !isEditing" class="doc-summary">
-        <p>{{ doc.summary }}</p>
-      </div>
-
-      <!-- 文档内容 -->
-      <div class="doc-body">
-        <!-- 编辑模式 -->
-        <div v-if="isEditing" class="doc-editor">
-          <el-input
-            v-model="editSummary"
-            type="textarea"
-            placeholder="文档摘要（可选）"
-            class="doc-summary-input"
-            :rows="2"
-            maxlength="500"
-            show-word-limit
-          />
-          
-          <!-- ✨ 使用 Vditor 所见即所得编辑器（支持拖拽/粘贴上传） -->
-          <VditorEditor
-            v-model="editContent"
-            height="100%"
-            placeholder="请输入文档内容，支持拖拽文件到此处或粘贴图片/文件上传"
-            class="doc-vditor-editor"
-          />
-          <div class="doc-editor-upload-hint">
-            支持拖拽文件到编辑区上传，或粘贴剪贴板中的图片/文件上传
+          <div class="doc-actions" v-if="hasEditPermission">
+            <el-button 
+              type="primary" 
+              :icon="Edit" 
+              @click="handleEdit"
+              v-if="!isEditing"
+            >
+              编辑文档
+            </el-button>
+            <el-button 
+              v-else
+              :icon="Check"
+              @click="handleSave"
+              :loading="saving"
+            >
+              保存
+            </el-button>
+            <el-button 
+              v-if="isEditing"
+              @click="handleCancel"
+            >
+              取消
+            </el-button>
+            <el-button 
+              type="danger" 
+              :icon="Delete" 
+              @click="handleDelete"
+              v-if="!isEditing"
+            >
+              删除文档
+            </el-button>
           </div>
         </div>
 
-        <!-- 预览模式 -->
-        <div v-else class="doc-preview">
-          <div 
-            v-if="doc.format === 'markdown'"
-            v-html="renderedContent"
-            class="markdown-content"
-          />
-          <pre v-else class="plain-text-content">{{ doc.content }}</pre>
+        <!-- 文档摘要 -->
+        <div v-if="doc.summary && !isEditing" class="doc-summary">
+          <p>{{ doc.summary }}</p>
+        </div>
+
+        <!-- 文档内容 -->
+        <div class="doc-body">
+          <!-- 编辑模式 -->
+          <div v-if="isEditing" class="doc-editor">
+            <el-input
+              v-model="editSummary"
+              type="textarea"
+              placeholder="文档摘要（可选）"
+              class="doc-summary-input"
+              :rows="2"
+              maxlength="500"
+              show-word-limit
+            />
+            
+            <!-- ✨ 使用 Vditor 所见即所得编辑器（支持拖拽/粘贴上传） -->
+            <VditorEditor
+              v-model="editContent"
+              height="100%"
+              placeholder="请输入文档内容，支持拖拽文件到此处或粘贴图片/文件上传"
+              class="doc-vditor-editor"
+            />
+            <div class="doc-editor-upload-hint">
+              支持拖拽文件到编辑区上传，或粘贴剪贴板中的图片/文件上传
+            </div>
+          </div>
+
+          <!-- 预览模式：支持图片点击预览 -->
+          <div v-else class="doc-preview">
+            <div 
+              v-if="doc.format === 'markdown'"
+              ref="markdownContentRef"
+              v-html="renderedContent"
+              class="markdown-content"
+              @click="onMarkdownClick"
+            />
+            <pre v-else class="plain-text-content">{{ doc.content }}</pre>
+          </div>
         </div>
       </div>
     </div>
@@ -100,18 +105,60 @@
         </el-button>
       </el-empty>
     </div>
+
+    <!-- 图片预览弹层 -->
+    <Teleport to="body">
+      <Transition name="doc-image-preview">
+        <div v-if="imagePreviewVisible" class="doc-image-preview" @click.self="closeImagePreview">
+          <button type="button" class="doc-image-preview__close" aria-label="关闭" @click="closeImagePreview">
+            <el-icon :size="24"><Close /></el-icon>
+          </button>
+          <button
+            v-if="previewImgList.length > 1 && previewIndex > 0"
+            type="button"
+            class="doc-image-preview__nav doc-image-preview__nav--prev"
+            aria-label="上一张"
+            @click="previewIndex = previewIndex - 1"
+          >
+            <el-icon :size="28"><ArrowLeft /></el-icon>
+          </button>
+          <button
+            v-if="previewImgList.length > 1 && previewIndex < previewImgList.length - 1"
+            type="button"
+            class="doc-image-preview__nav doc-image-preview__nav--next"
+            aria-label="下一张"
+            @click="previewIndex = previewIndex + 1"
+          >
+            <el-icon :size="28"><ArrowRight /></el-icon>
+          </button>
+          <div class="doc-image-preview__wrap" @click.self="closeImagePreview">
+            <img
+              :src="previewImgList[previewIndex]"
+              :alt="`预览 ${previewIndex + 1}/${previewImgList.length}`"
+              class="doc-image-preview__img"
+              @click.stop
+            />
+          </div>
+          <div v-if="previewImgList.length > 1" class="doc-image-preview__indicator">
+            {{ previewIndex + 1 }} / {{ previewImgList.length }}
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Edit, Check, Plus, Delete } from '@element-plus/icons-vue'
+import { Edit, Check, Plus, Delete, Close, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { marked } from 'marked'
 import type { ServiceTree } from '@/types'
 import { getDoc, updateDoc, deleteDoc } from '@/api/doc'  // ✅ 使用新的文档 API
 import { hasPermission, DocsPermission } from '@/utils/permission'
 import VditorEditor from '@/components/VditorEditor.vue'
+
+marked.setOptions({ breaks: true, gfm: true })
 
 interface Props {
   node: ServiceTree
@@ -133,6 +180,57 @@ const saving = ref(false)
 const isEditing = ref(false)
 const editSummary = ref('')
 const editContent = ref('')
+
+// 图片预览
+const markdownContentRef = ref<HTMLElement | null>(null)
+const imagePreviewVisible = ref(false)
+const previewImgList = ref<string[]>([])
+const previewIndex = ref(0)
+
+function onMarkdownClick(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  if (target?.tagName !== 'IMG') return
+  const img = target as HTMLImageElement
+  const src = img.src || img.getAttribute('src')
+  if (!src) return
+  const container = markdownContentRef.value
+  if (!container) return
+  const imgs = container.querySelectorAll<HTMLImageElement>('img')
+  const list = Array.from(imgs).map(i => i.src || i.getAttribute('src') || '').filter(Boolean)
+  const idx = list.indexOf(src)
+  if (idx === -1) return
+  previewImgList.value = list
+  previewIndex.value = idx
+  imagePreviewVisible.value = true
+}
+
+function closeImagePreview() {
+  imagePreviewVisible.value = false
+  previewImgList.value = []
+  previewIndex.value = 0
+}
+
+function onPreviewKeydown(e: KeyboardEvent) {
+  if (!imagePreviewVisible.value) return
+  if (e.key === 'Escape') {
+    closeImagePreview()
+    return
+  }
+  if (e.key === 'ArrowLeft' && previewIndex.value > 0) {
+    previewIndex.value -= 1
+    return
+  }
+  if (e.key === 'ArrowRight' && previewIndex.value < previewImgList.value.length - 1) {
+    previewIndex.value += 1
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', onPreviewKeydown)
+})
+onUnmounted(() => {
+  document.removeEventListener('keydown', onPreviewKeydown)
+})
 
 // 权限检查
 const hasEditPermission = computed(() => {
@@ -309,6 +407,13 @@ watch(() => props.node?.id, () => {
   overflow-y: auto;
 }
 
+/* 阅读区收窄 + 居中，参考 CSDN 文章宽度 */
+.doc-view__reader {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
 .doc-content {
   flex: 1;
   display: flex;
@@ -329,10 +434,11 @@ watch(() => props.node?.id, () => {
 }
 
 .doc-title {
-  font-size: 28px;
+  font-size: 26px;
   font-weight: 600;
   color: var(--text-primary);
   margin: 0 0 12px 0;
+  line-height: 1.35;
 }
 
 .doc-meta {
@@ -408,124 +514,162 @@ watch(() => props.node?.id, () => {
   min-height: 400px;
 }
 
+/* Markdown 正文：CSDN 风格排版 */
 .markdown-content {
   font-size: 16px;
-  line-height: 1.8;
+  line-height: 1.85;
   color: var(--text-primary);
-  
+  word-break: break-word;
+
   :deep(h1) {
-    font-size: 28px;
+    font-size: 26px;
     font-weight: 600;
-    margin: 24px 0 16px 0;
-    padding-bottom: 8px;
+    margin: 28px 0 16px 0;
+    padding-bottom: 10px;
     border-bottom: 2px solid var(--border-base);
     color: var(--text-primary);
+    line-height: 1.35;
   }
-  
+  :deep(h1:first-child) {
+    margin-top: 0;
+  }
+
   :deep(h2) {
-    font-size: 24px;
+    font-size: 22px;
     font-weight: 600;
-    margin: 20px 0 12px 0;
+    margin: 24px 0 12px 0;
+    color: var(--text-primary);
+    line-height: 1.4;
+  }
+
+  :deep(h3) {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 20px 0 10px 0;
     color: var(--text-primary);
   }
-  
-  :deep(h3) {
-    font-size: 20px;
+
+  :deep(h4), :deep(h5), :deep(h6) {
+    font-size: 16px;
     font-weight: 600;
     margin: 16px 0 8px 0;
     color: var(--text-primary);
   }
-  
+
   :deep(p) {
-    margin: 12px 0;
+    margin: 14px 0;
     color: var(--text-regular);
   }
-  
+
   :deep(ul), :deep(ol) {
-    margin: 12px 0;
-    padding-left: 24px;
+    margin: 14px 0;
+    padding-left: 26px;
     color: var(--text-regular);
   }
-  
+
   :deep(li) {
     margin: 6px 0;
   }
-  
+
   :deep(code) {
     background: var(--bg-tertiary);
     color: var(--color-primary);
     padding: 2px 6px;
-    border-radius: var(--border-radius-sm);
-    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-    font-size: 14px;
+    border-radius: 4px;
+    font-family: 'SF Mono', 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.92em;
     font-weight: 500;
   }
-  
+
   :deep(pre) {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-base);
-    padding: 16px;
-    border-radius: var(--border-radius-base);
+    background: var(--el-fill-color-darker, #1e1e1e);
+    color: #e0e0e0;
+    padding: 16px 18px;
+    border-radius: 8px;
     overflow-x: auto;
     margin: 16px 0;
-    
+    font-size: 14px;
+    line-height: 1.6;
+
     code {
       background: transparent;
-      color: var(--text-primary);
+      color: inherit;
       padding: 0;
       font-weight: normal;
+      font-size: inherit;
     }
   }
-  
+
   :deep(blockquote) {
     border-left: 4px solid var(--color-primary);
-    padding-left: 16px;
+    padding: 10px 16px;
     margin: 16px 0;
     color: var(--text-regular);
     background: var(--bg-secondary);
-    padding: 12px 16px;
-    border-radius: var(--border-radius-base);
+    border-radius: 0 8px 8px 0;
   }
-  
+
   :deep(a) {
     color: var(--color-primary);
     text-decoration: none;
     font-weight: 500;
-    transition: all 0.2s ease;
-    
+    transition: color 0.2s ease;
+
     &:hover {
       text-decoration: underline;
-      opacity: 0.8;
+      opacity: 0.9;
     }
   }
-  
+
   :deep(table) {
     width: 100%;
     border-collapse: collapse;
     margin: 16px 0;
-    
+    font-size: 15px;
+
     th, td {
       border: 1px solid var(--border-base);
-      padding: 8px 12px;
+      padding: 10px 14px;
       text-align: left;
     }
-    
+
     th {
       background: var(--bg-secondary);
       color: var(--text-primary);
       font-weight: 600;
     }
-    
+
     td {
       color: var(--text-regular);
     }
   }
-  
+
+  :deep(img) {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin: 12px 0;
+    cursor: pointer;
+    vertical-align: middle;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    transition: box-shadow 0.2s ease;
+
+    &:hover {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    }
+  }
+
   :deep(video) {
     max-width: 100%;
     height: auto;
-    border-radius: var(--border-radius-base);
+    border-radius: 8px;
     margin: 12px 0;
+  }
+
+  :deep(hr) {
+    border: none;
+    border-top: 1px solid var(--border-base);
+    margin: 24px 0;
   }
 }
 
@@ -547,5 +691,105 @@ watch(() => props.node?.id, () => {
   align-items: center;
   justify-content: center;
   min-height: 400px;
+}
+
+/* 图片预览弹层 */
+.doc-image-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+
+  &__close {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background 0.2s ease;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.22);
+    }
+  }
+
+  &__nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background 0.2s ease;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.22);
+    }
+
+    &--prev {
+      left: 24px;
+    }
+    &--next {
+      right: 24px;
+    }
+  }
+
+  &__wrap {
+    max-width: 90vw;
+    max-height: 85vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  &__img {
+    max-width: 100%;
+    max-height: 85vh;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  }
+
+  &__indicator {
+    position: absolute;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 6px 14px;
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+    border-radius: 20px;
+    font-size: 14px;
+  }
+}
+
+.doc-image-preview-enter-active,
+.doc-image-preview-leave-active {
+  transition: opacity 0.2s ease;
+}
+.doc-image-preview-enter-from,
+.doc-image-preview-leave-to {
+  opacity: 0;
 }
 </style>

@@ -69,28 +69,30 @@
 
       <!-- 中间函数渲染区域 -->
       <div class="function-renderer">
-        <!-- 右侧边栏控制按钮（函数=函数信息，讨论区/文档/目录=板块说明） -->
-        <div class="sidebar-controls" v-if="currentFunction && hasRightSidebarForNode">
+        <!-- 右侧边栏控制按钮：工作台会话 -->
+        <div class="sidebar-controls" v-if="workstationContext">
           <div class="right-controls">
             <el-button
               v-if="!showRightSidebar"
               link
               @click="toggleRightSidebar"
               class="sidebar-toggle"
-              :title="currentFunction.type === 'function' ? '显示函数信息' : '显示板块说明'"
+              title="显示工作台会话"
             >
               <el-icon><ArrowLeft /></el-icon>
-              {{ currentFunction.type === 'function' ? '显示函数信息' : '板块说明' }}
+              <el-badge :value="rightSidebarRunningCount" :hidden="rightSidebarRunningCount === 0" :max="99" :offset="[6, -2]">
+                工作台会话
+              </el-badge>
             </el-button>
             <el-button
               v-if="showRightSidebar"
               link
               @click="toggleRightSidebar"
               class="sidebar-toggle"
-              :title="currentFunction.type === 'function' ? '隐藏函数信息' : '隐藏板块说明'"
+              title="隐藏工作台会话"
             >
               <el-icon><ArrowRight /></el-icon>
-              {{ currentFunction.type === 'function' ? '隐藏函数信息' : '隐藏说明' }}
+              隐藏会话
             </el-button>
           </div>
         </div>
@@ -307,18 +309,61 @@
         </div>
       </div>
 
-      <!-- 右侧面板：函数=函数信息，讨论区/文档/目录=板块说明 -->
-      <div 
-        v-if="currentFunction && hasRightSidebarForNode && showRightSidebar" 
+      <!-- 右侧面板：工作台会话（仅当前节点） -->
+      <div
+        v-if="workstationContext && showRightSidebar"
         class="right-sidebar"
-        :class="{ 'sidebar-collapsed': !showRightSidebar }"
       >
-        <FunctionInfoPanel
-          v-if="currentFunction.type === 'function'"
-          :function-data="currentFunctionDetail"
-          :function-node="currentFunction"
-        />
-        <NodeDescPanel v-else :node="currentFunction" />
+        <div class="right-sidebar-session-panel">
+          <div class="right-session-header">
+            <el-icon :size="16" color="var(--el-color-primary)"><FolderOpened /></el-icon>
+            <span class="right-session-dir">{{ workstationContext.dirName }}</span>
+          </div>
+          <div class="right-session-tabs">
+            <div :class="['right-tab', { active: rightTab === 'all' }]" @click="rightTab = 'all'">
+              全部
+            </div>
+            <div :class="['right-tab', { active: rightTab === 'running' }]" @click="rightTab = 'running'">
+              执行中
+              <span v-if="rightSidebarRunningCount > 0" class="right-tab-badge">{{ rightSidebarRunningCount }}</span>
+            </div>
+            <div :class="['right-tab', { active: rightTab === 'finished' }]" @click="rightTab = 'finished'">
+              已结束
+            </div>
+          </div>
+
+          <div class="right-session-list" v-loading="rightSidebarSessionsLoading">
+            <div
+              v-for="s in filteredRightSessions"
+              :key="s.session_id"
+              :class="['right-session-card', { generating: s.status === 'generating' }]"
+              @click="openSessionInMini(s)"
+            >
+              <div class="right-session-card-head">
+                <el-icon v-if="s.status === 'generating'" class="is-loading" :size="12" color="var(--el-color-primary)"><Loading /></el-icon>
+                <span class="right-session-card-title">{{ s.title || '未命名会话' }}</span>
+              </div>
+              <div class="right-session-card-meta">
+                <el-tag v-if="s.status === 'generating'" type="primary" size="small" effect="light">执行中</el-tag>
+                <el-tag v-else-if="s.status === 'done'" type="success" size="small" effect="plain">已完成</el-tag>
+                <el-tag v-else-if="s.status === 'cancelled'" type="info" size="small" effect="plain">已取消</el-tag>
+                <span class="right-session-time">{{ formatRelativeTime(s.updated_at) }}</span>
+              </div>
+              <div v-if="s.status === 'generating'" class="right-session-card-actions">
+                <el-button size="small" link type="danger" @click.stop="handleCancelTask(s)" :loading="cancellingTaskId === s.session_id">停止</el-button>
+              </div>
+            </div>
+            <div v-if="filteredRightSessions.length === 0 && !rightSidebarSessionsLoading" class="right-session-empty">
+              <el-empty :description="rightTab === 'running' ? '暂无执行中的会话' : rightTab === 'finished' ? '暂无已结束的会话' : '暂无会话记录'" :image-size="48" />
+            </div>
+          </div>
+
+          <div class="right-session-footer">
+            <el-button type="primary" @click="openNewMiniWs()" :icon="ChatDotRound" class="right-new-session-btn">
+              新增会话
+            </el-button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -677,9 +722,9 @@
       </template>
       <div v-show="!workstationDrawerCollapsed" class="workstation-drawer-body">
         <WorkstationChat
-          v-if="currentFunction && currentFunction.full_code_path"
-          :full-code-path="currentFunction.full_code_path"
-          :dir-name="currentFunction.name || ''"
+          v-if="workstationContext"
+          :full-code-path="workstationContext.fullCodePath"
+          :dir-name="workstationContext.dirName"
           :initial-session-id="wsInitialSessionId"
           :visible="workstationMode"
           :embedded="true"
@@ -704,17 +749,6 @@
       @change="onImportGoFilesSelected"
     />
 
-    <!-- 右下角常驻「打开工作台」浮动按钮（始终可见，支持开多个） -->
-    <transition name="el-fade-in">
-      <div
-        v-if="currentFunction?.type === 'package'"
-        class="workstation-floating-btn"
-        @click="openNewMiniWs()"
-      >
-        <el-icon :size="22"><ChatDotRound /></el-icon>
-        <span class="floating-btn-text">打开工作台</span>
-      </div>
-    </transition>
 
     <!-- 多个 Mini 浮动工作台 -->
     <MiniWorkstation
@@ -725,9 +759,11 @@
       :dir-name="mini.dirName"
       :initial-session-id="mini.initialSessionId"
       :initial-offset="mini.offset"
+      :initial-position="mini.initialPosition"
+      :initial-maximized="mini.initialMaximized"
       @minimize="handleMiniMinimize(mini.id)"
-      @maximize="handleMiniMaximize(mini.id, $event)"
       @close="handleMiniRemove(mini.id)"
+      @maximize-change="handleMiniMaximizeChange"
       @tool-call-ok="handleWorkstationToolCallOk"
     />
   </div>
@@ -737,7 +773,7 @@
 import { computed, onMounted, onUnmounted, watch, ref, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElNotification, ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElIcon, ElSwitch, ElSkeleton } from 'element-plus'
-import { InfoFilled, ArrowLeft, ArrowRight, Fold, Expand, Close, ChatDotRound, Minus } from '@element-plus/icons-vue'
+import { InfoFilled, ArrowLeft, ArrowRight, Fold, Expand, Close, ChatDotRound, Minus, Loading, FolderOpened } from '@element-plus/icons-vue'
 import { eventBus, WorkspaceEvent, RouteEvent } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
@@ -762,8 +798,6 @@ import MiniWorkstation from '../components/MiniWorkstation.vue'
 import DocView from '../components/DocView.vue'
 import BoardView from '../components/BoardView.vue'
 import CreateBoardDialog from '../components/CreateBoardDialog.vue'
-import FunctionInfoPanel from '../components/FunctionInfoPanel.vue'
-import NodeDescPanel from '../components/NodeDescPanel.vue'
 import UserSearchInput from '@/components/UserSearchInput.vue'
 import UsersWidget from '../widgets/UsersWidget.vue'
 import PermissionRequestList from '@/components/Permission/PermissionRequestList.vue'
@@ -784,6 +818,7 @@ import { useAfterCreateNode } from '../composables/useAfterCreateNode'
 import { TEMPLATE_TYPE } from '@/utils/functionTypes'
 import { resolveWorkspaceUrl, extractWorkspacePath } from '@/utils/route'
 import { isLinkNavigation as checkLinkNavigation, LINK_TYPE_QUERY_KEY } from '@/utils/linkNavigation'
+import { getWorkspaceSessions, cancelWorkspaceChat, type WorkspaceSessionItem } from '@/api/workspace'
 import { hasPermission, TablePermissions, buildPermissionApplyURL } from '@/utils/permission'
 import { usePermissionErrorStore } from '@/stores/permissionError'
 
@@ -1021,15 +1056,83 @@ const serviceTreePanelRef = ref<InstanceType<typeof ServiceTreePanel> | null>(nu
 // 左侧服务目录树显示状态
 const showLeftSidebar = ref(true)
 
-// 右侧函数信息面板显示状态
+// 右侧会话面板显示状态
 const showRightSidebar = ref(true)
 
-/** 当前节点是否支持右侧面板（函数=函数信息，讨论区/文档/目录=板块说明） */
-const hasRightSidebarForNode = computed(() => {
-  const node = currentFunction.value
-  if (!node) return false
-  return node.type === 'function' || node.type === 'board' || node.type === 'docs' || node.type === 'package'
+// ─── 右侧会话列表 ───
+const rightSidebarSessions = ref<WorkspaceSessionItem[]>([])
+const rightSidebarSessionsLoading = ref(false)
+let rightSidebarPollTimer: ReturnType<typeof setInterval> | null = null
+
+const rightSidebarRunningCount = computed(() =>
+  rightSidebarSessions.value.filter((s: WorkspaceSessionItem) => s.status === 'generating').length
+)
+
+async function loadRightSidebarSessions() {
+  const ctx = workstationContext.value
+  if (!ctx) { rightSidebarSessions.value = []; return }
+  rightSidebarSessionsLoading.value = true
+  try {
+    const res = await getWorkspaceSessions({ full_code_path: ctx.fullCodePath })
+    rightSidebarSessions.value = res.sessions || []
+  } catch {
+    rightSidebarSessions.value = []
+  } finally {
+    rightSidebarSessionsLoading.value = false
+  }
+}
+
+function startRightSidebarPoll() {
+  stopRightSidebarPoll()
+  rightSidebarPollTimer = setInterval(() => {
+    if (rightSidebarSessions.value.some((s: WorkspaceSessionItem) => s.status === 'generating')) loadRightSidebarSessions()
+  }, 5000)
+}
+function stopRightSidebarPoll() {
+  if (rightSidebarPollTimer) { clearInterval(rightSidebarPollTimer); rightSidebarPollTimer = null }
+}
+
+function openSessionInMini(session: WorkspaceSessionItem) {
+  openNewMiniWs(session.session_id, session.full_code_path)
+}
+
+function formatRelativeTime(timeStr: string): string {
+  const time = new Date(timeStr)
+  const now = new Date()
+  const diff = now.getTime() - time.getTime()
+  const minutes = Math.floor(diff / 60000)
+  const hours = Math.floor(diff / 3600000)
+  const days = Math.floor(diff / 86400000)
+  if (minutes < 1) return '刚刚'
+  if (minutes < 60) return `${minutes}分钟前`
+  if (hours < 24) return `${hours}小时前`
+  if (days < 7) return `${days}天前`
+  return time.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+}
+
+// ─── 右侧面板 tab（仅筛选当前节点会话） ───
+const rightTab = ref<'all' | 'running' | 'finished'>('all')
+const cancellingTaskId = ref<string | null>(null)
+
+const filteredRightSessions = computed(() => {
+  const list = rightSidebarSessions.value
+  if (rightTab.value === 'running') return list.filter((s: WorkspaceSessionItem) => s.status === 'generating')
+  if (rightTab.value === 'finished') return list.filter((s: WorkspaceSessionItem) => s.status === 'done' || s.status === 'cancelled')
+  return list
 })
+
+async function handleCancelTask(task: WorkspaceSessionItem) {
+  cancellingTaskId.value = task.session_id
+  try {
+    await cancelWorkspaceChat(task.session_id)
+    ElMessage.success('已停止该任务')
+    loadRightSidebarSessions()
+  } catch (e: any) {
+    ElMessage.error(e?.message || '停止失败')
+  } finally {
+    cancellingTaskId.value = null
+  }
+}
 
 // 函数详情 tab 相关
 const functionActiveTab = ref('content')
@@ -1100,11 +1203,36 @@ interface MiniWsInstance {
   initialSessionId: string
   visible: boolean
   offset: number
+  initialPosition?: 'center'
+  initialMaximized?: boolean
 }
 const miniWsList = ref<MiniWsInstance[]>([])
 let miniIdCounter = 0
 /** 刷新时恢复的 session_id（从 URL ?ws_sid= 读取） */
 const wsInitialSessionId = ref('')
+
+/** 工作台上下文：点击什么节点就用什么节点的 full_code_path */
+const workstationContext = computed(() => {
+  const node = currentFunction.value
+  if (!node?.full_code_path) return null
+  const path = (node.full_code_path || '').replace(/\/+$/g, '')
+  if (!path) return null
+  const name = node.name || path.split('/').pop() || '工作台'
+  return { fullCodePath: path, dirName: name }
+})
+
+// 当目录变化或侧边栏打开时加载右侧会话列表
+watch(
+  () => [workstationContext.value?.fullCodePath, showRightSidebar.value] as const,
+  ([path, visible]: [string | undefined, boolean]) => {
+    stopRightSidebarPoll()
+    if (path && visible) {
+      loadRightSidebarSessions()
+      startRightSidebarPoll()
+    }
+  },
+  { immediate: true }
+)
 
 function openWorkstationDrawer(sid?: string) {
   workstationMode.value = true
@@ -1124,32 +1252,59 @@ function handleWorkstationDrawerClose() {
   syncWsQueryParam(false)
 }
 
-function openNewMiniWs(initialSessionId?: string) {
+function openNewMiniWs(initialSessionId?: string, overridePath?: string, overrideName?: string) {
+  const ctx = workstationContext.value
+  const fcp = overridePath || ctx?.fullCodePath
+  if (!fcp) return
+  const dirName = overrideName || ctx?.dirName || fcp.split('/').filter(Boolean).pop() || '工作台'
   const offset = miniWsList.value.filter((m: MiniWsInstance) => m.visible).length * 40
   miniWsList.value.push({
     id: String(++miniIdCounter),
-    fullCodePath: currentFunction.value?.full_code_path || '',
-    dirName: currentFunction.value?.name || '',
+    fullCodePath: fcp,
+    dirName,
     initialSessionId: initialSessionId || '',
     visible: true,
     offset,
+    initialPosition: 'center',
   })
 }
 
 function handleMiniMinimize(id: string) {
   const mini = miniWsList.value.find((m: MiniWsInstance) => m.id === id)
   if (mini) mini.visible = false
-}
-
-function handleMiniMaximize(id: string, sid?: string) {
-  const mini = miniWsList.value.find((m: MiniWsInstance) => m.id === id)
-  if (mini) mini.visible = false
-  wsInitialSessionId.value = ''
-  nextTick(() => openWorkstationDrawer(sid))
+  syncMiniWsQueryParam(false)
 }
 
 function handleMiniRemove(id: string) {
   miniWsList.value = miniWsList.value.filter((m: MiniWsInstance) => m.id !== id)
+  syncMiniWsQueryParam(false)
+}
+
+function handleMiniMaximizeChange(payload: { maximized: boolean; sessionId?: string }) {
+  if (payload.maximized) {
+    syncMiniWsQueryParam(true, payload.sessionId)
+  } else {
+    syncMiniWsQueryParam(false)
+  }
+}
+
+function syncMiniWsQueryParam(open: boolean, sid?: string) {
+  const query = { ...route.query }
+  if (open) {
+    query.mws = 'open'
+    if (sid) { query.mws_sid = sid } else { delete query.mws_sid }
+    const ctx = workstationContext.value
+    if (ctx) {
+      query.mws_path = ctx.fullCodePath
+      query.mws_name = ctx.dirName
+    }
+  } else {
+    delete query.mws
+    delete query.mws_sid
+    delete query.mws_path
+    delete query.mws_name
+  }
+  router.replace({ path: route.path, query })
 }
 
 function handleWorkstationMinimize() {
@@ -1267,6 +1422,7 @@ onMounted(() => {
   if (savedRight !== null) {
     showRightSidebar.value = savedRight === 'true'
   }
+
   
   // 🔥 监听表格详情事件（使用 Composable）
   eventBus.on('table:detail-row', async (payload: { row: Record<string, any>, index?: number, tableData?: any[], initialMode?: 'read' | 'edit' }) => {
@@ -1294,12 +1450,44 @@ onMounted(() => {
       workstationDrawerCollapsed.value = false
     })
   }
+
+  // 🔥 URL 参数恢复：?mws=open 时恢复最大化的 mini 工作台
+  if (route.query.mws === 'open') {
+    const mwsSid = typeof route.query.mws_sid === 'string' ? route.query.mws_sid : ''
+    const mwsPath = typeof route.query.mws_path === 'string' ? route.query.mws_path : ''
+    const mwsName = typeof route.query.mws_name === 'string' ? route.query.mws_name : ''
+    const restoreMiniWs = (fcp: string, name: string) => {
+      if (!fcp) return
+      miniWsList.value.push({
+        id: String(++miniIdCounter),
+        fullCodePath: fcp,
+        dirName: name || fcp.split('/').filter(Boolean).pop() || '工作台',
+        initialSessionId: mwsSid,
+        visible: true,
+        offset: 0,
+        initialPosition: 'center',
+        initialMaximized: true,
+      })
+    }
+    if (mwsPath) {
+      nextTick(() => restoreMiniWs(mwsPath, mwsName))
+    } else {
+      const stopRestore = watch(workstationContext, (ctx: { fullCodePath: string; dirName: string } | null) => {
+        if (ctx?.fullCodePath) {
+          restoreMiniWs(ctx.fullCodePath, ctx.dirName)
+          stopRestore()
+        }
+      }, { immediate: true })
+      setTimeout(() => stopRestore(), 10000)
+    }
+  }
 })
 
 onUnmounted(() => {
   // 🔥 移除全局粘贴监听
   document.removeEventListener('paste', handleGlobalPaste)
   eventBus.off('workspace:open-workstation', handleWorkspaceOpenWorkstation)
+  stopRightSidebarPoll()
 })
 
 
@@ -2570,10 +2758,10 @@ onUnmounted(() => {
   }
 }
 
-// 右侧函数信息面板
+// 右侧面板：工作台会话
 .right-sidebar {
-  width: 350px;
-  min-width: 350px;
+  width: 280px;
+  min-width: 280px;
   background-color: var(--el-bg-color);
   border-left: 1px solid var(--el-border-color-light);
   transition: all 0.3s ease;
@@ -2581,13 +2769,129 @@ onUnmounted(() => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  
-  &.sidebar-collapsed {
-    width: 0;
-    min-width: 0;
-    overflow: hidden;
-    border-left: none;
+}
+.right-sidebar-session-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+.right-session-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--el-border-color-extra-light);
+  flex-shrink: 0;
+}
+.right-session-dir {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.right-session-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0 6px;
+  border-bottom: 1px solid var(--el-border-color-extra-light);
+  flex-shrink: 0;
+}
+.right-tab {
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+  white-space: nowrap;
+  &:hover { color: var(--el-color-primary); }
+  &.active {
+    color: var(--el-color-primary);
+    font-weight: 500;
+    border-bottom-color: var(--el-color-primary);
   }
+}
+.right-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  margin-left: 4px;
+  font-size: 10px;
+  line-height: 1;
+  color: #fff;
+  background: var(--el-color-danger);
+  border-radius: 8px;
+}
+.right-session-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+.right-session-footer {
+  flex-shrink: 0;
+  padding: 10px 12px;
+  border-top: 1px solid var(--el-border-color-extra-light);
+}
+.right-new-session-btn {
+  width: 100%;
+}
+.right-session-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+.right-session-card {
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: var(--el-border-radius-base);
+  background: var(--el-bg-color);
+  cursor: pointer;
+  transition: all 0.15s;
+  &:hover {
+    border-color: var(--el-color-primary);
+    background: var(--el-fill-color-lighter);
+  }
+  &.generating {
+    border-left: 3px solid var(--el-color-primary);
+  }
+}
+.right-session-card-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.right-session-card-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+.right-session-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--el-text-color-placeholder);
+}
+.right-session-time {
+  font-size: 11px;
+  color: var(--el-text-color-placeholder);
+}
+.right-session-empty {
+  padding: 24px 8px;
+  text-align: center;
 }
 
 .ai-chat-wrapper {
@@ -2644,33 +2948,6 @@ onUnmounted(() => {
   letter-spacing: 0.2em;
   font-size: 14px;
   color: var(--el-text-color-regular);
-}
-
-/* 右下角打开工作台浮动按钮 */
-.workstation-floating-btn {
-  position: fixed;
-  right: 24px;
-  bottom: 80px;
-  z-index: 2000;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  background: var(--el-bg-color-overlay);
-  border: 1px solid var(--el-border-color);
-  border-radius: 8px;
-  box-shadow: var(--el-box-shadow-light);
-  cursor: pointer;
-  color: var(--el-color-primary);
-  font-size: 13px;
-  transition: background 0.2s, box-shadow 0.2s;
-}
-.workstation-floating-btn:hover {
-  background: var(--el-fill-color-light);
-  box-shadow: var(--el-box-shadow);
-}
-.workstation-floating-btn .floating-btn-text {
-  white-space: nowrap;
 }
 
 /* 新增/编辑页面样式 */

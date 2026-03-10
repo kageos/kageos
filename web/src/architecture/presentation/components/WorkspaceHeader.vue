@@ -89,7 +89,6 @@
       </el-button>
       
       <ThemeToggle />
-      <WorkstationTaskPanel :current-full-code-path="currentFullCodePath" />
       <el-dropdown @command="handleUserCommand">
         <span class="user-profile">
           <el-avatar :size="32" :src="userAvatar || undefined">{{ userInitials }}</el-avatar>
@@ -126,16 +125,11 @@ import { useLicenseStore } from '@/stores/license'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import DebugDialog from './DebugDialog.vue'
 import UpgradeEnterpriseDialog from '@/components/UpgradeEnterpriseDialog.vue'
-import WorkstationTaskPanel from './WorkstationTaskPanel.vue'
 import { navigateToHub as navigateToHubUtil } from '@/utils/hub-navigation'
 
 const route = useRoute()
 const router = useRouter()
 
-const currentFullCodePath = computed(() => {
-  const path = route.path || ''
-  return path.startsWith('/workspace/') ? path.replace('/workspace/', '').replace(/^\/+|\/+$/g, '') : ''
-})
 const authStore = useAuthStore()
 const licenseStore = useLicenseStore()
 

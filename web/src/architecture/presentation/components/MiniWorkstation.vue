@@ -6,25 +6,38 @@
   <transition name="mini-ws-pop">
     <div
       v-if="visible"
-      class="mini-ws"
-      :style="posStyle"
+      ref="rootRef"
+      :class="['mini-ws', { 'mini-ws--maximized': maximized }]"
+      :style="windowStyle"
       @dragover.prevent="onDragOver"
       @dragleave.prevent="onDragLeave"
       @drop.prevent="onDrop"
     >
+      <!-- 四边 + 四角 resize 手柄 -->
+      <template v-if="!maximized">
+        <div class="mini-resize-handle mini-resize-n" @mousedown.stop="startResize($event, 'n')"></div>
+        <div class="mini-resize-handle mini-resize-s" @mousedown.stop="startResize($event, 's')"></div>
+        <div class="mini-resize-handle mini-resize-e" @mousedown.stop="startResize($event, 'e')"></div>
+        <div class="mini-resize-handle mini-resize-w" @mousedown.stop="startResize($event, 'w')"></div>
+        <div class="mini-resize-handle mini-resize-ne" @mousedown.stop="startResize($event, 'ne')"></div>
+        <div class="mini-resize-handle mini-resize-nw" @mousedown.stop="startResize($event, 'nw')"></div>
+        <div class="mini-resize-handle mini-resize-se" @mousedown.stop="startResize($event, 'se')"></div>
+        <div class="mini-resize-handle mini-resize-sw" @mousedown.stop="startResize($event, 'sw')"></div>
+      </template>
+
       <!-- 标题栏：左标题 + 居中目录名 + 右按钮，可拖拽 -->
-      <div class="mini-ws-header" @mousedown="startDrag">
+      <div class="mini-ws-header" @mousedown="startDrag" @dblclick.prevent="onHeaderDblClick">
         <span class="mini-ws-title">
           <el-icon v-if="sending" class="is-loading" :size="14"><Loading /></el-icon>
           <el-icon v-else :size="14"><FolderOpened /></el-icon>
         </span>
         <span class="mini-ws-dir-name" :title="fullCodePath">{{ dirName || displayPath }}</span>
-        <div class="mini-ws-header-actions">
+        <div class="mini-ws-header-actions" @mousedown.stop>
           <el-button link size="small" @click="$emit('minimize')" title="最小化">
             <el-icon :size="14"><Minus /></el-icon>
           </el-button>
-          <el-button link size="small" @click="$emit('maximize', sessionId)" title="最大化">
-            <el-icon :size="14"><FullScreen /></el-icon>
+          <el-button link size="small" @click="toggleMaximize" :title="maximized ? '还原' : '最大化'">
+            <el-icon :size="14"><component :is="maximized ? CopyDocument : FullScreen" /></el-icon>
           </el-button>
           <el-button link size="small" @click="$emit('close')" title="关闭">
             <el-icon :size="14"><Close /></el-icon>
@@ -32,7 +45,45 @@
         </div>
       </div>
 
-      <!-- SSE 输出区（精简版） -->
+      <!-- 最大化时的主体区域：左侧会话列表 + 右侧消息 -->
+      <div class="mini-ws-body">
+
+      <!-- 最大化时：会话列表侧边栏 -->
+      <div v-if="maximized" class="mini-session-sidebar">
+        <div class="mini-session-header">
+          <span class="mini-session-title">会话列表</span>
+          <el-button text :icon="Plus" size="small" @click="handleNewSession" title="新建会话" />
+        </div>
+        <div class="mini-session-list" v-loading="loadingSessions">
+          <div
+            :class="['mini-session-card', 'mini-session-new', { active: !sessionId }]"
+            @click="handleNewSession"
+          >
+            <el-icon class="mini-session-new-icon"><Plus /></el-icon>
+            <span>新建会话</span>
+          </div>
+          <div
+            v-for="s in miniSessionList"
+            :key="s.session_id"
+            :class="['mini-session-card', { active: s.session_id === sessionId }, { generating: s.status === 'generating' }]"
+            @click="handleSelectSession(s.session_id)"
+          >
+            <div class="mini-session-card-head">
+              <el-icon v-if="s.status === 'generating'" class="is-loading" :size="12" color="var(--el-color-primary)"><Loading /></el-icon>
+              <span class="mini-session-card-title">{{ s.title || '未命名会话' }}</span>
+            </div>
+            <div class="mini-session-card-time">
+              <span v-if="s.status === 'generating'" class="mini-session-status">执行中</span>
+              <span>{{ formatRelativeTime(s.updated_at) }}</span>
+            </div>
+          </div>
+          <div v-if="miniSessionList.length === 0 && !loadingSessions" class="mini-session-empty">
+            <span>暂无会话</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SSE 输出区 -->
       <div class="mini-ws-output" ref="outputRef">
         <template v-if="messages.length > 0">
           <div
@@ -58,26 +109,41 @@
                 <template v-for="(block, bi) in msg.blocks" :key="bi">
                   <div v-if="block.type === 'content'" class="mini-content-block mini-md-content" v-html="renderMarkdown(block.text)"></div>
                   <template v-else-if="block.type === 'tool_calls'">
-                    <div class="mini-tools-block">
-                      <div v-for="tc in block.calls" :key="tc.name" class="mini-tool-tag">
-                        <el-icon v-if="tc.status === 'streaming' || tc.status === 'running'" class="is-loading" :size="12"><Loading /></el-icon>
-                        <el-icon v-else-if="tc.status === 'ok'" :size="12" color="#67c23a"><CircleCheck /></el-icon>
-                        <el-icon v-else-if="tc.status === 'error'" :size="12" color="#f56c6c"><CircleClose /></el-icon>
-                        <span>{{ tc.name }}</span>
-                      </div>
-                    </div>
-                    <OutputFilesDisplay
-                      v-if="getFileGroupsFromCalls(block.calls).length"
+                    <!-- 最大化：用 MessageToolCalls 组件渲染工具详情 -->
+                    <MessageToolCalls
+                      v-if="maximized"
+                      :tool-calls="block.calls"
                       :file-groups="getFileGroupsFromCalls(block.calls)"
-                      class="mini-msg-files"
                     />
+                    <!-- 正常大小：仅显示工具名标签 -->
+                    <template v-else>
+                      <div class="mini-tools-block">
+                        <div v-for="tc in block.calls" :key="tc.name" class="mini-tool-tag">
+                          <el-icon v-if="tc.status === 'streaming' || tc.status === 'running'" class="is-loading" :size="12"><Loading /></el-icon>
+                          <el-icon v-else-if="tc.status === 'ok'" :size="12" color="#67c23a"><CircleCheck /></el-icon>
+                          <el-icon v-else-if="tc.status === 'error'" :size="12" color="#f56c6c"><CircleClose /></el-icon>
+                          <span>{{ tc.name }}</span>
+                        </div>
+                      </div>
+                      <OutputFilesDisplay
+                        v-if="getFileGroupsFromCalls(block.calls).length"
+                        :file-groups="getFileGroupsFromCalls(block.calls)"
+                        class="mini-msg-files"
+                      />
+                    </template>
                   </template>
                 </template>
               </div>
               <template v-else>
                 <div v-if="msg.content" class="mini-msg-assistant mini-content-block mini-md-content" v-html="renderMarkdown(msg.content)"></div>
+                <!-- 最大化：用 MessageToolCalls 组件渲染工具详情 -->
+                <MessageToolCalls
+                  v-if="maximized && msg.tool_calls?.length"
+                  :tool-calls="msg.tool_calls"
+                  :file-groups="getFileGroupsFromCalls(msg.tool_calls)"
+                />
                 <OutputFilesDisplay
-                  v-if="msg.tool_calls?.length && getFileGroupsFromCalls(msg.tool_calls).length"
+                  v-else-if="msg.tool_calls?.length && getFileGroupsFromCalls(msg.tool_calls).length"
                   :file-groups="getFileGroupsFromCalls(msg.tool_calls)"
                   class="mini-msg-files"
                 />
@@ -89,6 +155,63 @@
           <span>输入命令开始工作</span>
         </div>
       </div>
+
+      <!-- 最大化时：右侧文件面板 -->
+      <div v-if="maximized && allPanelFiles.length > 0" class="mini-file-sidebar">
+        <div class="mini-file-sidebar-header">文件列表</div>
+
+        <div class="mini-file-sidebar-body">
+          <!-- 上传文件 -->
+          <template v-if="uploadedFiles.length > 0">
+            <div class="mini-file-section-title">
+              <el-icon :size="13"><UploadFilled /></el-icon>
+              上传文件 ({{ uploadedFiles.length }})
+            </div>
+            <div v-for="(f, i) in uploadedFiles" :key="'u' + i" class="mini-file-card">
+              <div v-if="isImageFile(f)" class="mini-file-thumb" @click="previewFile(f)">
+                <img :src="f.url" :alt="f.name" loading="lazy" />
+              </div>
+              <div v-else class="mini-file-icon" @click="previewFile(f)">
+                <el-icon :size="20"><DocumentIcon /></el-icon>
+                <span v-if="fileExt(f)" class="mini-file-ext">{{ fileExt(f) }}</span>
+              </div>
+              <div class="mini-file-info">
+                <span class="mini-file-name" :title="f.name">{{ f.name }}</span>
+                <div class="mini-file-actions">
+                  <el-button link size="small" type="primary" @click="previewFile(f)"><el-icon :size="12"><View /></el-icon> 预览</el-button>
+                  <el-button link size="small" type="primary" @click="downloadFile(f)"><el-icon :size="12"><Download /></el-icon> 下载</el-button>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <!-- 输出文件 -->
+          <template v-if="outputFiles.length > 0">
+            <div class="mini-file-section-title">
+              <el-icon :size="13"><FolderOpened /></el-icon>
+              输出文件 ({{ outputFiles.length }})
+            </div>
+            <div v-for="(f, i) in outputFiles" :key="'o' + i" class="mini-file-card">
+              <div v-if="isImageFile(f)" class="mini-file-thumb" @click="previewFile(f)">
+                <img :src="f.url" :alt="f.name" loading="lazy" />
+              </div>
+              <div v-else class="mini-file-icon" @click="previewFile(f)">
+                <el-icon :size="20"><DocumentIcon /></el-icon>
+                <span v-if="fileExt(f)" class="mini-file-ext">{{ fileExt(f) }}</span>
+              </div>
+              <div class="mini-file-info">
+                <span class="mini-file-name" :title="f.name">{{ f.name }}</span>
+                <div class="mini-file-actions">
+                  <el-button link size="small" type="primary" @click="previewFile(f)"><el-icon :size="12"><View /></el-icon> 预览</el-button>
+                  <el-button link size="small" type="primary" @click="downloadFile(f)"><el-icon :size="12"><Download /></el-icon> 下载</el-button>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      </div><!-- /.mini-ws-body -->
 
       <!-- 附件展示 -->
       <div v-if="attachedFiles.length > 0" class="mini-ws-files">
@@ -114,18 +237,29 @@
         >
           <el-button :icon="Paperclip" link :loading="uploading" size="small" title="上传文件" />
         </el-upload>
-        <input
+        <textarea
           ref="inputRef"
           v-model="inputText"
           class="mini-input"
-          placeholder="输入命令..."
-          :disabled="sending"
-          @keydown.enter.exact="handleSend"
+          placeholder="输入命令...（Enter 发送，Shift+Enter 换行）"
+          rows="3"
+          @keydown.enter="onInputEnter"
         />
         <el-button
+          v-if="sending"
+          type="danger"
+          size="small"
+          :loading="stopping"
+          @click="handleStopSession"
+          class="mini-send-btn"
+        >
+          <el-icon><VideoPause /></el-icon>
+          停止
+        </el-button>
+        <el-button
+          v-else
           type="primary"
           size="small"
-          :loading="sending"
           :disabled="!fullCodePath || (!inputText.trim() && attachedFiles.length === 0)"
           @click="handleSend"
           class="mini-send-btn"
@@ -147,15 +281,16 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick, onMounted, onUnmounted, computed, toRaw } from 'vue'
-import { Loading, Close, Minus, FullScreen, Paperclip, CircleCheck, CircleClose, FolderOpened, UploadFilled } from '@element-plus/icons-vue'
+import { Loading, Close, Minus, FullScreen, CopyDocument, Paperclip, CircleCheck, CircleClose, FolderOpened, UploadFilled, Plus, VideoPause, Download, View, Document as DocumentIcon } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
-import { workspaceChatStream, getWorkspaceMessages, type WorkspaceChatReq, type WorkspaceChatMessageFile } from '@/api/workspace'
+import { workspaceChatStream, getWorkspaceMessages, getWorkspaceSessions, cancelWorkspaceChat, type WorkspaceChatReq, type WorkspaceChatMessageFile, type WorkspaceSessionItem } from '@/api/workspace'
 import { useWorkspaceChatStream } from '@/architecture/presentation/composables/useWorkspaceChatStream'
 import type { ChatMessage } from '@/architecture/presentation/composables/useWorkspaceChatStream'
 import { uploadFile, notifyUploadComplete } from '@/utils/upload'
 import type { UploadProgress } from '@/utils/upload/types'
 import OutputFilesDisplay from './OutputFilesDisplay.vue'
+import MessageToolCalls from './MessageToolCalls.vue'
 import { extractFileGroupsFromResult, type OutputFileGroup } from '@/architecture/presentation/composables/useOutputFileGroups'
 import { eventBus } from '@/architecture/infrastructure/eventBus'
 import { marked } from 'marked'
@@ -177,31 +312,140 @@ const props = defineProps<{
   dirName?: string
   initialSessionId?: string
   initialOffset?: number
+  initialPosition?: 'center'
+  initialMaximized?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'minimize'): void
-  (e: 'maximize', sessionId?: string): void
   (e: 'close'): void
   (e: 'task-started', sessionId: string): void
   (e: 'tool-call-ok', payload: { name: string }): void
+  (e: 'maximize-change', payload: { maximized: boolean; sessionId?: string }): void
 }>()
 
 const { messages, sending, sessionId, send: sendMessage, handleEvent, setMessages } = useWorkspaceChatStream()
 
 const inputText = ref('')
-const inputRef = ref<HTMLInputElement>()
+const inputRef = ref<HTMLTextAreaElement>()
 const outputRef = ref<HTMLElement>()
+const rootRef = ref<HTMLElement>()
 const attachedFiles = ref<WorkspaceChatMessageFile[]>([])
 const uploading = ref(false)
 
 const UPLOAD_ROUTER = 'workspace/chat'
+
+// ─── 会话列表（最大化时使用） ───
+const miniSessionList = ref<WorkspaceSessionItem[]>([])
+const loadingSessions = ref(false)
+
+async function loadMiniSessions() {
+  if (!props.fullCodePath) { miniSessionList.value = []; return }
+  loadingSessions.value = true
+  try {
+    const res = await getWorkspaceSessions({ full_code_path: props.fullCodePath })
+    miniSessionList.value = res.sessions || []
+  } catch {
+    miniSessionList.value = []
+  } finally {
+    loadingSessions.value = false
+  }
+}
+
+function handleNewSession() {
+  stopMiniPoll()
+  stopMiniStreamListening()
+  sending.value = false
+  sessionId.value = undefined
+  setMessages([])
+}
+
+const stopping = ref(false)
+async function handleStopSession() {
+  if (!sessionId.value || stopping.value) return
+  stopping.value = true
+  try {
+    await cancelWorkspaceChat(sessionId.value)
+    sending.value = false
+    stopMiniPoll()
+    stopMiniStreamListening()
+    ElMessage.success('已停止')
+    if (maximized.value) loadMiniSessions()
+  } catch (e: any) {
+    ElMessage.error(e?.message || '停止失败')
+  } finally {
+    stopping.value = false
+  }
+}
+
+async function handleSelectSession(targetSid: string) {
+  if (targetSid === sessionId.value) return
+  stopMiniPoll()
+  stopMiniStreamListening()
+  sending.value = false
+  sessionId.value = targetSid
+  setMessages([])
+  if (maximized.value) emit('maximize-change', { maximized: true, sessionId: targetSid })
+  await loadMiniSessionMessages(targetSid)
+  if (sessionId.value !== targetSid) return
+  const found = miniSessionList.value.find(s => s.session_id === targetSid)
+  if (found?.status === 'generating') {
+    startMiniStreamListening(targetSid)
+    startMiniPoll(targetSid)
+  }
+}
+
+function formatRelativeTime(timeStr: string): string {
+  const time = new Date(timeStr)
+  const now = new Date()
+  const diff = now.getTime() - time.getTime()
+  const minutes = Math.floor(diff / 60000)
+  const hours = Math.floor(diff / 3600000)
+  const days = Math.floor(diff / 86400000)
+  if (minutes < 1) return '刚刚'
+  if (minutes < 60) return `${minutes}分钟前`
+  if (hours < 24) return `${hours}小时前`
+  if (days < 7) return `${days}天前`
+  return time.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+}
 
 const displayPath = computed(() => {
   if (!props.fullCodePath) return '未选择目录'
   const parts = props.fullCodePath.split('/').filter(Boolean)
   return parts[parts.length - 1] || props.fullCodePath
 })
+
+// ─── 最大化 / 还原 ───
+const maximized = ref(!!props.initialMaximized)
+const preMaxRect = ref<{ x: number; y: number; w: number; h: number } | null>(null)
+
+// 最大化时加载会话列表
+watch(maximized, (val) => {
+  if (val && props.fullCodePath) loadMiniSessions()
+})
+
+function toggleMaximize() {
+  if (maximized.value) {
+    maximized.value = false
+    if (preMaxRect.value) {
+      posX.value = preMaxRect.value.x
+      posY.value = preMaxRect.value.y
+      winW.value = preMaxRect.value.w
+      winH.value = preMaxRect.value.h
+    }
+    emit('maximize-change', { maximized: false })
+  } else {
+    const el = rootRef.value
+    if (el) {
+      const rect = el.getBoundingClientRect()
+      preMaxRect.value = { x: rect.left, y: rect.top, w: rect.width, h: rect.height }
+    } else {
+      preMaxRect.value = { x: posX.value ?? 0, y: posY.value ?? 0, w: winW.value, h: winH.value }
+    }
+    maximized.value = true
+    emit('maximize-change', { maximized: true, sessionId: sessionId.value })
+  }
+}
 
 // ─── 拖拽定位 ───
 const posX = ref<number | null>(null)
@@ -212,18 +456,42 @@ let dragOriginX = 0
 let dragOriginY = 0
 let dragging = false
 
-const posStyle = computed(() => {
+// ─── 用户指定宽高（拖拽调整或初始值） ───
+const MIN_W = 320
+const MIN_H = 260
+const DEFAULT_W = 380
+const DEFAULT_H = 480
+const winW = ref(DEFAULT_W)
+const winH = ref(DEFAULT_H)
+
+const windowStyle = computed(() => {
+  if (maximized.value) {
+    return {
+      left: '0', top: '0', right: '0', bottom: '0',
+      width: '100vw', height: '100vh',
+      borderRadius: '0',
+      transform: 'none',
+    }
+  }
+  const base: Record<string, string> = {
+    width: `${winW.value}px`,
+    height: `${winH.value}px`,
+  }
   if (posX.value !== null && posY.value !== null) {
-    return { left: `${posX.value}px`, top: `${posY.value}px`, right: 'auto', bottom: 'auto' }
+    return { ...base, left: `${posX.value}px`, top: `${posY.value}px`, right: 'auto', bottom: 'auto' }
+  }
+  if (props.initialPosition === 'center') {
+    return { ...base, left: '50%', top: '50%', transform: 'translate(-50%, -50%)', right: 'auto', bottom: 'auto' }
   }
   const off = props.initialOffset || 0
   if (off > 0) {
-    return { right: `${24 + off}px`, bottom: `${80 + off}px` }
+    return { ...base, right: `${24 + off}px`, bottom: `${80 + off}px` }
   }
-  return {}
+  return base
 })
 
 function startDrag(e: MouseEvent) {
+  if (maximized.value) return
   dragging = true
   dragStartX = e.clientX
   dragStartY = e.clientY
@@ -245,20 +513,101 @@ function stopDrag() {
   document.removeEventListener('mouseup', stopDrag)
 }
 
+// ─── 拖拽调整窗口大小 ───
+// 四边（n/s/e/w）：等比缩放；四角（ne/nw/se/sw）：自由调整宽高
+type ResizeDir = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
+let resizeDir: ResizeDir = 's'
+let resizeStartX = 0
+let resizeStartY = 0
+let resizeOriginX = 0
+let resizeOriginY = 0
+let resizeOriginW = 0
+let resizeOriginH = 0
+let resizeAspect = 1
+let resizing = false
+
+function startResize(e: MouseEvent, dir: ResizeDir) {
+  e.preventDefault()
+  resizing = true
+  resizeDir = dir
+  resizeStartX = e.clientX
+  resizeStartY = e.clientY
+  const el = (e.target as HTMLElement).closest('.mini-ws') as HTMLElement
+  if (el) {
+    const rect = el.getBoundingClientRect()
+    resizeOriginX = rect.left
+    resizeOriginY = rect.top
+    resizeOriginW = rect.width
+    resizeOriginH = rect.height
+    if (posX.value === null) { posX.value = rect.left; posY.value = rect.top }
+  } else {
+    resizeOriginW = winW.value
+    resizeOriginH = winH.value
+  }
+  resizeAspect = resizeOriginW / resizeOriginH
+  document.addEventListener('mousemove', onResize)
+  document.addEventListener('mouseup', stopResize)
+}
+
+function onResize(e: MouseEvent) {
+  if (!resizing) return
+  const dx = e.clientX - resizeStartX
+  const dy = e.clientY - resizeStartY
+  const d = resizeDir
+  const isEdge = d.length === 1
+
+  if (isEdge) {
+    // 四边：等比缩放
+    if (d === 'e' || d === 'w') {
+      const rawW = d === 'e' ? resizeOriginW + dx : resizeOriginW - dx
+      const newW = Math.max(MIN_W, rawW)
+      const newH = Math.max(MIN_H, Math.round(newW / resizeAspect))
+      winW.value = newW
+      winH.value = newH
+      if (d === 'w') posX.value = resizeOriginX + (resizeOriginW - newW)
+    } else {
+      const rawH = d === 's' ? resizeOriginH + dy : resizeOriginH - dy
+      const newH = Math.max(MIN_H, rawH)
+      const newW = Math.max(MIN_W, Math.round(newH * resizeAspect))
+      winW.value = newW
+      winH.value = newH
+      if (d === 'n') posY.value = resizeOriginY + (resizeOriginH - newH)
+    }
+  } else {
+    // 四角：自由调整
+    if (d.includes('e')) winW.value = Math.max(MIN_W, resizeOriginW + dx)
+    if (d.includes('w')) {
+      const newW = Math.max(MIN_W, resizeOriginW - dx)
+      posX.value = resizeOriginX + (resizeOriginW - newW)
+      winW.value = newW
+    }
+    if (d.includes('s')) winH.value = Math.max(MIN_H, resizeOriginH + dy)
+    if (d.includes('n')) {
+      const newH = Math.max(MIN_H, resizeOriginH - dy)
+      posY.value = resizeOriginY + (resizeOriginH - newH)
+      winH.value = newH
+    }
+  }
+}
+
+function stopResize() {
+  resizing = false
+  document.removeEventListener('mousemove', onResize)
+  document.removeEventListener('mouseup', stopResize)
+}
+
 // ─── 自动滚底 ───
-watch(() => messages.value.length, () => {
+function scrollToBottom() {
   nextTick(() => {
-    if (outputRef.value) outputRef.value.scrollTop = outputRef.value.scrollHeight
+    const el = outputRef.value
+    if (el) el.scrollTop = el.scrollHeight + 100
   })
-})
+}
+watch(() => messages.value.length, scrollToBottom)
 watch(() => {
   const last = messages.value[messages.value.length - 1]
-  return last?.content?.length ?? 0
-}, () => {
-  nextTick(() => {
-    if (outputRef.value) outputRef.value.scrollTop = outputRef.value.scrollHeight
-  })
-})
+  return (last?.content?.length ?? 0) + (last?.blocks?.length ?? 0) + (last?.tool_calls?.length ?? 0)
+}, scrollToBottom)
 
 // 打开时聚焦输入框
 watch(() => props.visible, (v) => {
@@ -272,6 +621,57 @@ function getFileGroupsFromCalls(calls: Array<{ result?: string }>): OutputFileGr
     groups.push(...extractFileGroupsFromResult(tc.result))
   }
   return groups
+}
+
+// ─── 最大化时右侧文件面板：收集所有上传文件 + 输出文件 ───
+interface FilePanelItem {
+  name: string
+  url: string
+  source: 'upload' | 'output'
+}
+const allPanelFiles = computed<FilePanelItem[]>(() => {
+  const list: FilePanelItem[] = []
+  for (const msg of messages.value) {
+    if (msg.role === 'user' && msg.files?.length) {
+      for (const f of msg.files) {
+        const url = f.url || ''
+        list.push({ name: f.source_name || f.name || '未命名文件', url, source: 'upload' })
+      }
+    }
+    if (msg.role === 'assistant' && msg.tool_calls?.length) {
+      const groups = getFileGroupsFromCalls(msg.tool_calls)
+      for (const g of groups) {
+        for (const f of g.files) {
+          list.push({ name: f.source_name || f.name || '输出文件', url: f.url, source: 'output' })
+        }
+      }
+    }
+  }
+  return list
+})
+const uploadedFiles = computed(() => allPanelFiles.value.filter(f => f.source === 'upload'))
+const outputFiles = computed(() => allPanelFiles.value.filter(f => f.source === 'output'))
+
+const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'])
+function isImageFile(f: FilePanelItem): boolean {
+  const ext = (f.name || '').toLowerCase().match(/\.\w+$/)?.[0] || ''
+  return IMAGE_EXTS.has(ext)
+}
+function fileExt(f: FilePanelItem): string {
+  return ((f.name || '').match(/\.(\w+)$/)?.[1] || '').toUpperCase()
+}
+function previewFile(file: FilePanelItem) {
+  window.open(file.url, '_blank', 'noopener,noreferrer')
+}
+function downloadFile(file: FilePanelItem) {
+  const a = document.createElement('a')
+  a.href = file.url
+  a.download = file.name
+  a.target = '_blank'
+  a.rel = 'noopener noreferrer'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
 }
 
 // ─── 文件上传 ───
@@ -344,14 +744,46 @@ function onDragLeave(_e: DragEvent) {
 
 async function onDrop(e: DragEvent) {
   dragOver.value = false
-  const files = e.dataTransfer?.files
+  const dt = e.dataTransfer
+  if (!dt) return
+
+  // 优先处理：从服务目录拖入的函数/目录节点
+  if (dt.types.includes('application/x-workspace-node')) {
+    try {
+      const raw = dt.getData('application/x-workspace-node')
+      const payload = raw ? JSON.parse(raw) as { type?: string; full_code_path?: string; name?: string } : null
+      if (payload?.full_code_path) {
+        const label = payload.type === 'package' ? '目录' : '函数'
+        const name = payload.name || payload.full_code_path.split('/').pop() || payload.full_code_path
+        const text = `请处理以下${label}：${name}（${payload.full_code_path}）`
+        inputText.value = text
+        nextTick(() => inputRef.value?.focus())
+      }
+    } catch (_) {
+      /* ignore parse error */
+    }
+    return
+  }
+
+  const files = dt.files
   if (!files?.length || !props.fullCodePath) return
   for (const file of Array.from(files)) {
     await onFileChange({ raw: file })
   }
 }
 
+/** 双击标题栏切换最大化 */
+function onHeaderDblClick() {
+  toggleMaximize()
+}
+
 // ─── 发送 ───
+function onInputEnter(e: KeyboardEvent) {
+  if ((e as KeyboardEvent).shiftKey) return // Shift+Enter 换行，不拦截
+  e.preventDefault()
+  handleSend()
+}
+
 async function handleSend() {
   const text = inputText.value.trim()
   const files = attachedFiles.value.length > 0 ? [...attachedFiles.value] : null
@@ -374,6 +806,10 @@ async function handleSend() {
       onEvent(event, data as Record<string, unknown>)
       if (event === 'session' && typeof data.session_id === 'string') {
         emit('task-started', data.session_id as string)
+        if (maximized.value) {
+          loadMiniSessions()
+          emit('maximize-change', { maximized: true, sessionId: data.session_id as string })
+        }
       }
       if (event === 'tool_call' && (data as { status?: string })?.status === 'ok' && typeof (data as { name?: string })?.name === 'string') {
         emit('tool-call-ok', { name: (data as { name: string }).name })
@@ -458,11 +894,15 @@ watch(
     if (!newSid || !props.fullCodePath) return
     stopMiniPoll()
     stopMiniStreamListening()
+    sending.value = false
     sessionId.value = newSid
+    setMessages([])
     await loadMiniSessionMessages(newSid)
+    if (sessionId.value !== newSid) return
     startMiniStreamListening(newSid)
     startMiniPoll(newSid)
-  }
+  },
+  { immediate: true }
 )
 
 onMounted(() => {
@@ -488,6 +928,7 @@ watch(sending, (cur, prev) => {
   if (!props.visible && prev && !cur && sessionId.value) {
     eventBus.emit('workspace:stream-done', { session_id: sessionId.value })
   }
+  if (prev && !cur && maximized.value) loadMiniSessions()
 })
 </script>
 
@@ -496,8 +937,6 @@ watch(sending, (cur, prev) => {
   position: fixed;
   right: 24px;
   bottom: 80px;
-  width: 380px;
-  max-height: 480px;
   background: var(--el-bg-color);
   border: 1px solid var(--el-border-color);
   border-radius: 12px;
@@ -506,7 +945,23 @@ watch(sending, (cur, prev) => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  transition: left 0.3s ease, top 0.3s ease, width 0.3s ease, height 0.3s ease, max-height 0.3s ease, border-radius 0.3s ease;
 }
+.mini-ws--maximized {
+  box-shadow: none;
+  border: none;
+}
+
+/* ── Resize 手柄 ── */
+.mini-resize-handle { position: absolute; z-index: 5; }
+.mini-resize-n  { top: -3px; left: 6px; right: 6px; height: 6px; cursor: n-resize; }
+.mini-resize-s  { bottom: -3px; left: 6px; right: 6px; height: 6px; cursor: s-resize; }
+.mini-resize-e  { right: -3px; top: 6px; bottom: 6px; width: 6px; cursor: e-resize; }
+.mini-resize-w  { left: -3px; top: 6px; bottom: 6px; width: 6px; cursor: w-resize; }
+.mini-resize-ne { top: -3px; right: -3px; width: 10px; height: 10px; cursor: ne-resize; }
+.mini-resize-nw { top: -3px; left: -3px; width: 10px; height: 10px; cursor: nw-resize; }
+.mini-resize-se { bottom: -3px; right: -3px; width: 10px; height: 10px; cursor: se-resize; }
+.mini-resize-sw { bottom: -3px; left: -3px; width: 10px; height: 10px; cursor: sw-resize; }
 
 /* ── 标题栏 ── */
 .mini-ws-header {
@@ -518,6 +973,10 @@ watch(sending, (cur, prev) => {
   cursor: move;
   user-select: none;
   background: var(--el-fill-color-blank);
+  flex-shrink: 0;
+}
+.mini-ws--maximized .mini-ws-header {
+  cursor: default;
 }
 .mini-ws-title {
   flex-shrink: 0;
@@ -542,15 +1001,227 @@ watch(sending, (cur, prev) => {
   gap: 2px;
 }
 
+/* ── 主体区域（sidebar + output） ── */
+.mini-ws-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ── 最大化会话侧边栏 ── */
+.mini-session-sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--el-border-color-lighter);
+  background: var(--el-fill-color-blank);
+}
+.mini-session-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--el-border-color-extra-light);
+  flex-shrink: 0;
+}
+.mini-session-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+.mini-session-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+.mini-session-card {
+  padding: 10px;
+  margin-bottom: 6px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: var(--el-border-radius-base);
+  background: var(--el-bg-color);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.mini-session-card:hover {
+  border-color: var(--el-color-primary);
+  background: var(--el-fill-color-lighter);
+}
+.mini-session-card.active {
+  border-color: var(--el-color-primary);
+  border-width: 2px;
+}
+.mini-session-card.generating {
+  border-left: 2px solid var(--el-color-primary);
+}
+.mini-session-new {
+  border-style: dashed;
+  background: var(--el-fill-color-lighter);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+}
+.mini-session-new:hover {
+  color: var(--el-color-primary);
+  border-color: var(--el-color-primary);
+}
+.mini-session-new-icon {
+  color: var(--el-color-primary);
+}
+.mini-session-card-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+.mini-session-card-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+.mini-session-card-time {
+  font-size: 11px;
+  color: var(--el-text-color-placeholder);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mini-session-status {
+  color: var(--el-color-primary);
+  font-size: 11px;
+  font-weight: 500;
+}
+.mini-session-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--el-text-color-placeholder);
+  font-size: 13px;
+}
+
+/* ── 最大化右侧文件面板 ── */
+.mini-file-sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--el-border-color-lighter);
+  background: var(--el-fill-color-blank);
+}
+.mini-file-sidebar-header {
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  border-bottom: 1px solid var(--el-border-color-extra-light);
+  flex-shrink: 0;
+}
+.mini-file-sidebar-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+.mini-file-section-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--el-text-color-secondary);
+  padding: 6px 4px 4px;
+  margin-top: 4px;
+  &:first-child { margin-top: 0; }
+}
+.mini-file-card {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  margin-bottom: 6px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: var(--el-border-radius-base);
+  transition: all 0.15s;
+  &:hover {
+    border-color: var(--el-color-primary-light-5);
+    background: var(--el-fill-color-lighter);
+  }
+}
+.mini-file-thumb {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 1px solid var(--el-border-color-extra-light);
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  &:hover { opacity: 0.8; }
+}
+.mini-file-icon {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: var(--el-fill-color-light);
+  color: var(--el-text-color-secondary);
+  cursor: pointer;
+  &:hover { background: var(--el-fill-color); }
+}
+.mini-file-ext {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--el-text-color-placeholder);
+  margin-top: 2px;
+  text-transform: uppercase;
+}
+.mini-file-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.mini-file-name {
+  font-size: 12px;
+  color: var(--el-text-color-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+.mini-file-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
 /* ── SSE 输出区 ── */
 .mini-ws-output {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 12px;
-  min-height: 120px;
-  max-height: 300px;
+  padding: 8px 12px 24px;
+  min-height: 0;
   font-size: 12px;
   line-height: 1.6;
+}
+.mini-ws--maximized .mini-ws-output {
+  padding: 16px 24px;
+  font-size: 13px;
 }
 .mini-ws-empty {
   display: flex;
@@ -739,7 +1410,7 @@ watch(sending, (cur, prev) => {
 /* ── 输入区 ── */
 .mini-ws-input {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 6px;
   padding: 8px 10px;
   border-top: 1px solid var(--el-border-color-lighter);
@@ -747,21 +1418,38 @@ watch(sending, (cur, prev) => {
 }
 .mini-upload-btn {
   flex-shrink: 0;
+  align-self: center;
 }
 .mini-input {
   flex: 1;
+  min-width: 0;
+  min-height: 56px;
+  max-height: 120px;
+  padding: 8px 10px;
   border: none;
   outline: none;
   font-size: 13px;
+  line-height: 1.5;
+  font-family: inherit;
   background: transparent;
   color: var(--el-text-color-primary);
-  min-width: 0;
+  resize: none;
+  overflow-y: auto;
 }
 .mini-input::placeholder {
   color: var(--el-text-color-placeholder);
 }
 .mini-send-btn {
   flex-shrink: 0;
+  align-self: flex-end;
+}
+
+/* ── 最大化时输入/附件区 ── */
+.mini-ws--maximized .mini-ws-input {
+  padding: 12px 24px;
+}
+.mini-ws--maximized .mini-ws-files {
+  padding: 6px 24px;
 }
 
 /* ── 拖拽上传遮罩 ── */
