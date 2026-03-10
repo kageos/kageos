@@ -481,14 +481,10 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, crea
 		return nil, fmt.Errorf("app not found: %s/%s", user, app)
 	}
 
-	// 2. 查询应用状态，判断是否为未激活状态
-	appRecord, err := s.appRepo.GetApp(user, app)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get app record: %w", err)
+	// 2. 确保应用记录存在，若无则创建（便于 build_workspace 等对“仅目录存在”的场景）；失败仅打日志，不阻断编译部署
+	if err := s.appRepo.EnsureAppExists(user, app); err != nil {
+		logger.Warnf(ctx, "[UpdateApp] ensure app record failed (non-blocking): %v", err)
 	}
-
-	isInactive := appRecord.IsInactive()
-	logStr.WriteString(fmt.Sprintf("App status: %s\t", appRecord.Status))
 
 	// 3. 使用 VersionManager 获取当前版本
 	vm := appPkg.NewVersionManager(filepath.Join(s.config.AppDir.BasePath, user), app)
@@ -584,13 +580,11 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, crea
 		logStr.WriteString(fmt.Sprintf("Startup confirmed at %s\t", notification.StartTime.Format(time.DateTime)))
 		logger.Infof(ctx, "[UpdateApp] ✅ Startup confirmed: %s/%s/%s (first handshake completed)", user, app, newVersion)
 
-		// 如果应用之前是未激活状态，现在启动成功后更新为已激活
-		if isInactive {
-			if err := s.updateAppStatusToActive(ctx, user, app); err != nil {
-				logger.Warnf(ctx, "[UpdateApp] Failed to update app status to active: %v", err)
-			} else {
-				logger.Infof(ctx, "[UpdateApp] App status updated to active: %s/%s", user, app)
-			}
+		// 启动成功后统一将应用状态更新为已激活（幂等，已为 active 时多一次 UPDATE 无影响）
+		if err := s.updateAppStatusToActive(ctx, user, app); err != nil {
+			logger.Warnf(ctx, "[UpdateApp] Failed to update app status to active: %v", err)
+		} else {
+			logger.Infof(ctx, "[UpdateApp] App status updated to active: %s/%s", user, app)
 		}
 	case <-time.After(60 * time.Second):
 		logStr.WriteString("Startup timeout\t")
