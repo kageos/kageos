@@ -49,8 +49,6 @@ export interface WorkspaceSessionItem {
 /** 获取工作台会话列表请求 */
 export interface ListWorkspaceSessionsReq {
   full_code_path: string
-  page?: number
-  page_size?: number
 }
 
 /** 获取工作台会话列表响应 */
@@ -270,7 +268,7 @@ export async function workspaceChatStream(
  * 获取工作台会话列表
  */
 export async function getWorkspaceSessions(params: ListWorkspaceSessionsReq): Promise<ListWorkspaceSessionsResp> {
-  return axiosInstance.get<ListWorkspaceSessionsResp>('/agent/api/v1/workspace/sessions', { params })
+  return axiosInstance.get<ListWorkspaceSessionsResp>(`/agent/api/v1/workspace/sessions?full_code_path=${params.full_code_path}`)
 }
 
 /** 工作台消息信息 */

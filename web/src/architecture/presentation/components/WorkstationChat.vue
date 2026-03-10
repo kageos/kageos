@@ -221,14 +221,19 @@ const props = withDefaults(
     dirName?: string
     initialSessionId?: string
     visible?: boolean
+    /** 从 mini 最大化时带过来的输入框文案 */
+    initialInputText?: string
+    /** 从 mini 最大化时带过来的附件 */
+    initialAttachedFiles?: WorkspaceChatMessageFile[]
   }>(),
-  { embedded: false, dirName: '', initialSessionId: '', visible: true }
+  { embedded: false, dirName: '', initialSessionId: '', visible: true, initialInputText: '', initialAttachedFiles: () => [] }
 )
 const emit = defineEmits<{
   (e: 'back'): void
   (e: 'tool-call-ok', payload: { name: string }): void
   (e: 'update:sending', value: boolean): void
   (e: 'update:sessionId', value: string | undefined): void
+  (e: 'clear-initial-input'): void
 }>()
 
 const router = useRouter()
@@ -414,11 +419,7 @@ async function loadSessions() {
   }
   loadingSessions.value = true
   try {
-    const res = await getWorkspaceSessions({
-      full_code_path: props.fullCodePath,
-      page: 1,
-      page_size: 50,
-    })
+    const res = await getWorkspaceSessions({ full_code_path: props.fullCodePath })
     sessionList.value = res.sessions || []
   } catch (e: any) {
     console.error('加载会话列表失败:', e)
@@ -658,6 +659,24 @@ watch(
       startStreamListening(newSid)
       startGeneratingPoll(newSid)
     }
+    // 从 mini 最大化带过来的输入/附件：应用后通知父组件清空
+    if (props.initialInputText || (props.initialAttachedFiles && props.initialAttachedFiles.length > 0)) {
+      if (props.initialInputText) inputText.value = props.initialInputText
+      if (props.initialAttachedFiles?.length) attachedFiles.value = [...props.initialAttachedFiles]
+      nextTick(() => emit('clear-initial-input'))
+    }
+  }
+)
+
+// 无会话时最大化（mini 未发过消息）：有 initialInputText 时也要填入
+watch(
+  () => [props.visible, props.initialInputText] as const,
+  ([visible, text]) => {
+    if (!visible || !text || !props.fullCodePath) return
+    if (sessionId.value) return // 已有会话时由 initialSessionId 的 watch 处理
+    inputText.value = text
+    if (props.initialAttachedFiles?.length) attachedFiles.value = [...props.initialAttachedFiles]
+    nextTick(() => emit('clear-initial-input'))
   }
 )
 

@@ -903,6 +903,16 @@ func (r *ToolRegistry) callReadDocTool(ctx context.Context, args map[string]inte
 func (r *ToolRegistry) callReadDir(ctx context.Context, args map[string]interface{}, currentFullCodePath string) (string, bool) {
 	targetPath := getDirectory(args, currentFullCodePath)
 
+	// 降级处理：检测函数路径（路径末尾含 .table/.form/.chart/.docs 等后缀），自动取父目录读取
+	degraded := false
+	originalPath := targetPath
+	if isFunctionPath(targetPath) {
+		if parentPath := getParentPath(targetPath); parentPath != "" {
+			targetPath = parentPath
+			degraded = true
+		}
+	}
+
 	// 获取参数
 	recursive := false
 	if recursiveArg, ok := args["recursive"].(bool); ok {
@@ -944,20 +954,29 @@ func (r *ToolRegistry) callReadDir(ctx context.Context, args map[string]interfac
 		return fmt.Sprintf("获取目录信息失败: %v", err), true
 	}
 
+	// 构建降级提示前缀
+	degradeNotice := ""
+	if degraded {
+		degradeNotice = fmt.Sprintf("> 注意：`%s` 是一个函数节点（非目录），已自动读取其所在的父目录 `%s`。\n\n", originalPath, targetPath)
+	}
+
 	// 树形格式：recursive=true 时整棵树，recursive=false 时只展开当前一层（max_depth=1）
 	if outputFormat == "tree" {
 		treeMaxDepth := maxDepth
 		if !recursive {
 			treeMaxDepth = 1
 		}
-		return r.buildRecursiveTree(ctx, workspaceCtx, targetPath, 0, treeMaxDepth, includeFunctions, includeFiles, fileSource, outputFormat)
+		result, hasErr := r.buildRecursiveTree(ctx, workspaceCtx, targetPath, 0, treeMaxDepth, includeFunctions, includeFiles, fileSource, outputFormat)
+		return degradeNotice + result, hasErr
 	}
 	if recursive {
-		return r.buildRecursiveTree(ctx, workspaceCtx, targetPath, 0, maxDepth, includeFunctions, includeFiles, fileSource, outputFormat)
+		result, hasErr := r.buildRecursiveTree(ctx, workspaceCtx, targetPath, 0, maxDepth, includeFunctions, includeFiles, fileSource, outputFormat)
+		return degradeNotice + result, hasErr
 	}
 
 	// 列表格式显示当前目录
-	return r.buildListFormat(ctx, workspaceCtx, targetPath, includeFunctions, includeFiles, includeCode, outputFormat)
+	result, hasErr := r.buildListFormat(ctx, workspaceCtx, targetPath, includeFunctions, includeFiles, includeCode, outputFormat)
+	return degradeNotice + result, hasErr
 }
 
 // callReadDoc 按文档名称从嵌入的 content/doc/文档目录 查 full_code_path 后返回内置文档正文（兼容 doc_name 调用）
@@ -2181,4 +2200,25 @@ func getDirectory(args map[string]interface{}, defaultPath string) string {
 		return s
 	}
 	return defaultPath
+}
+
+// isFunctionPath 判断路径是否为函数路径：路径最后一段含 "."（如 xxx.table、xxx.form、xxx.chart 等）即视为函数节点，目录节点的 code 不含点号
+func isFunctionPath(path string) bool {
+	path = strings.TrimSuffix(path, "/")
+	lastSlash := strings.LastIndex(path, "/")
+	lastSegment := path
+	if lastSlash >= 0 {
+		lastSegment = path[lastSlash+1:]
+	}
+	return strings.Contains(lastSegment, ".")
+}
+
+// getParentPath 返回路径的父目录路径；如果已是根级或无法提取则返回空字符串
+func getParentPath(path string) string {
+	path = strings.TrimSuffix(path, "/")
+	lastSlash := strings.LastIndex(path, "/")
+	if lastSlash <= 0 {
+		return ""
+	}
+	return path[:lastSlash]
 }

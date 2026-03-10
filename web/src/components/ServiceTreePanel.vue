@@ -42,7 +42,12 @@
         @node-click="handleNodeClick"
       >
         <template #default="{ node, data }">
-          <span class="tree-node">
+          <span
+            class="tree-node"
+            :class="{ 'tree-node-draggable': data.type === 'function' || data.type === 'package' }"
+            :draggable="data.type === 'function' || data.type === 'package'"
+            @dragstart="onTreeNodeDragStart($event, data)"
+          >
             <!-- 根节点：使用工作空间图标（package 类型且 parent_id=0） -->
             <img 
               v-if="data.type === 'package' && data.parent_id === 0" 
@@ -876,6 +881,17 @@ const handleNoPermissionClick = (data: ServiceTree) => {
   router.push(finalUrl)
 }
 
+function onTreeNodeDragStart(e: DragEvent, data: ServiceTree) {
+  if (!e.dataTransfer || !data.full_code_path) return
+  e.dataTransfer.setData('application/x-workspace-node', JSON.stringify({
+    type: data.type,
+    full_code_path: data.full_code_path,
+    name: data.name || data.full_code_path?.split('/').pop() || '',
+    id: data.id,
+  }))
+  e.dataTransfer.effectAllowed = 'copy'
+}
+
 const handleNodeClick = (data: ServiceTree) => {
   // 直接触发 node-click 事件，让父组件处理路由跳转
   // ⭐ 下拉菜单的点击已经通过 @click.stop.prevent 阻止了事件冒泡，所以这里不需要额外检查
@@ -1409,6 +1425,13 @@ defineExpose({
   flex: 1;
   width: 100%;
   min-width: 0; /* ⭐ 允许 flexbox 子元素正确收缩 */
+  
+  &.tree-node-draggable {
+    cursor: grab;
+    &:active {
+      cursor: grabbing;
+    }
+  }
   
   .node-icon {
     width: 16px;
