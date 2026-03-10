@@ -39,6 +39,15 @@ func (r *AppRepository) CreateApp(user, app string) error {
 	return nil
 }
 
+// EnsureAppExists 确保应用记录存在，不存在则创建（幂等，一次查询或一次写入）
+func (r *AppRepository) EnsureAppExists(user, app string) error {
+	now := time.Now()
+	var appRecord model.App
+	return r.db.Where("user = ? and app = ?", user, app).FirstOrCreate(&appRecord, model.App{
+		User: user, App: app, Version: "", Status: "inactive", StartTime: now, LastSeen: now,
+	}).Error
+}
+
 // DeleteAppAndVersions 删除应用及其所有版本记录
 func (r *AppRepository) DeleteAppAndVersions(user, app string) error {
 	// 删除应用记录
