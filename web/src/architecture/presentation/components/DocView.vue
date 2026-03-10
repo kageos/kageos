@@ -11,6 +11,19 @@
               <el-tag v-if="doc.format" size="small" type="info">{{ doc.format }}</el-tag>
               <span v-if="doc.category" class="doc-category">{{ doc.category }}</span>
             </div>
+            <div v-if="doc.created_by || doc.created_at || doc.updated_at" class="doc-info-row">
+              <span v-if="doc.created_by" class="doc-info-item doc-info-user">
+                <UserDisplay :username="doc.created_by" mode="simple" size="small" layout="horizontal" />
+              </span>
+              <span v-if="doc.created_at" class="doc-info-item">
+                <el-icon><Clock /></el-icon>
+                <span>创建 {{ formatDate(doc.created_at) }}</span>
+              </span>
+              <span v-if="doc.updated_at && doc.updated_at !== doc.created_at" class="doc-info-item">
+                <el-icon><RefreshRight /></el-icon>
+                <span>更新 {{ formatDate(doc.updated_at) }}</span>
+              </span>
+            </div>
           </div>
           <div class="doc-actions" v-if="hasEditPermission">
             <el-button 
@@ -151,12 +164,13 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Edit, Check, Plus, Delete, Close, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
+import { Edit, Check, Plus, Delete, Close, ArrowLeft, ArrowRight, Clock, RefreshRight } from '@element-plus/icons-vue'
 import { marked } from 'marked'
 import type { ServiceTree } from '@/types'
 import { getDoc, updateDoc, deleteDoc } from '@/api/doc'  // ✅ 使用新的文档 API
 import { hasPermission, DocsPermission } from '@/utils/permission'
 import VditorEditor from '@/components/VditorEditor.vue'
+import UserDisplay from '../widgets/UserDisplay.vue'
 
 marked.setOptions({ breaks: true, gfm: true })
 
@@ -249,6 +263,23 @@ const renderedContent = computed(() => {
     return doc.value.content
   }
 })
+
+// 格式化时间（创建/更新展示用）
+function formatDate(date: string | undefined): string {
+  if (!date) return ''
+  try {
+    const d = new Date(date)
+    return d.toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  } catch {
+    return date
+  }
+}
 
 // 加载文档
 const loadDoc = async () => {
@@ -450,6 +481,35 @@ watch(() => props.node?.id, () => {
 .doc-category {
   font-size: 14px;
   color: var(--text-secondary);
+}
+
+.doc-info-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+}
+
+.doc-info-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.doc-info-item .el-icon {
+  font-size: 14px;
+  color: var(--el-text-color-placeholder);
+}
+
+.doc-info-user {
+  margin-right: 4px;
+}
+
+.doc-info-user .user-display-wrapper {
+  display: inline-flex;
 }
 
 .doc-actions {
