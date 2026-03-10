@@ -7,8 +7,11 @@ export interface Doc {
   content: string
   format: string
   summary?: string
+  category?: string
   created_at: string
   updated_at: string
+  created_by?: string
+  updated_by?: string
 }
 
 /**
