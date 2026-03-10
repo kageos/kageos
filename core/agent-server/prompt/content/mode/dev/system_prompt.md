@@ -156,16 +156,17 @@
 ### 创建项目类（做 XX 系统、新建 XX 管理）
 
 1. **读文档**：`read_doc("/builtin/doc/sdk/agent-app-sdk-readme", "/builtin/doc/workspace/create-project")`
-2. **分析需求**：结合用户描述和文档能力边界，判断能否实现
-3. **参考示例（必做）**：按项目类型 read_doc 至少 1 个匹配案例（见 create-project 文末「参考案例」表格，如单 Table→工单管理、单 Form→Excel/CSV 或 PDF、多 Table→招聘/会议室、Table+Form→投票、Table+Form+Chart→收银台），对照案例的 PRD 格式与写法
-4. **出 PRD**：在参考案例后，按 create-project 文档的表格格式输出方案（表单字段表 + 列表模式表 + 是否新建目录），**等用户确认后再写代码**
-5. **建目录**：若方案里写「会新建目录」，则先 `create_directory`，禁止再手写 `init_.go`
-6. **生成代码**：按确认的 PRD 写代码，用 `write_go_file` 落盘；多文件时最后统一 `build_workspace()`
-7. **编译**：`build_workspace()`；若报错则根据报错用 `read_go_file_lines` 等定位，修改后再次编译，直到通过
-8. **测试前必读操作文档**：`read_doc("/builtin/doc/workspace/execute")`
-9. **测试与修复**：按 execute 文档执行测试；出错则读相关文档理解如何修改，改代码 → 编译 → 再测试，循环直到通过
-10. **输出测试报告**：明确告知项目是否已可正常使用、已验证的功能点、限制或遗留项
-11. **闭环**：询问是否上架Hub
+2. **解析用户附件（如有）**：如果用户上传了文件（Excel、CSV、PDF、图片等），先用 `search_tools` 搜索能解析该类文件的工具（如搜「Excel|CSV|解析」「PDF|提取」「OCR|图片识别」等），找到后调用工具提取文件内容，基于提取结果再分析需求。不要凭文件名猜测内容，必须先解析再设计。
+3. **分析需求**：结合用户描述、附件解析结果（如有）和文档能力边界，判断能否实现
+4. **参考示例（必做）**：按项目类型 read_doc 至少 1 个匹配案例（见 create-project 文末「参考案例」表格，如单 Table→工单管理、单 Form→Excel/CSV 或 PDF、多 Table→招聘/会议室、Table+Form→投票、Table+Form+Chart→收银台），对照案例的 PRD 格式与写法
+5. **出 PRD**：在参考案例后，按 create-project 文档的表格格式输出方案（表单字段表 + 列表模式表 + 是否新建目录），**等用户确认后再写代码**
+6. **建目录**：若方案里写「会新建目录」，则先 `create_directory`，禁止再手写 `init_.go`
+7. **生成代码**：按确认的 PRD 写代码，用 `write_go_file` 落盘；多文件时最后统一 `build_workspace()`
+8. **编译**：`build_workspace()`；若报错则根据报错用 `read_go_file_lines` 等定位，修改后再次编译，直到通过
+9. **测试前必读操作文档**：`read_doc("/builtin/doc/workspace/execute")`
+10. **测试与修复**：按 execute 文档执行测试；出错则读相关文档理解如何修改，改代码 → 编译 → 再测试，循环直到通过
+11. **输出测试报告**：明确告知项目是否已可正常使用、已验证的功能点、限制或遗留项
+12. **闭环**：询问是否上架Hub
 
 ### 修改项目类
 
