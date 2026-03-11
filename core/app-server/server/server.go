@@ -17,6 +17,7 @@ import (
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
 	"github.com/gin-gonic/gin"
+	"github.com/ai-agent-os/ai-agent-os/pkg/natsx"
 	"github.com/nats-io/nats.go"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -225,7 +226,7 @@ func (s *Server) initLicenseClient(ctx context.Context) error {
 	if controlCfg.GetNatsURL() != "" {
 		// 使用独立的 NATS 连接
 		var err error
-		natsConn, err = nats.Connect(controlCfg.GetNatsURL())
+		natsConn, err = natsx.Connect(controlCfg.GetNatsURL())
 		if err != nil {
 			return fmt.Errorf("failed to connect to Control Service NATS: %w", err)
 		}
@@ -315,7 +316,7 @@ func (s *Server) initNATS(ctx context.Context) error {
 
 	var err error
 	natsConfig := s.cfg.GetNats()
-	s.natsConn, err = nats.Connect(natsConfig.URL)
+	s.natsConn, err = natsx.Connect(natsConfig.URL)
 	if err != nil {
 		return fmt.Errorf("failed to connect to NATS: %w", err)
 	}

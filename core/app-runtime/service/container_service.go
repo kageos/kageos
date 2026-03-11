@@ -574,13 +574,14 @@ func (s *PodmanService) getMacOSPodmanSocket() string {
 
 // 容器管理方法
 
-// ListContainers 列出所有容器
+// ListContainers 列出所有容器（包括已停止的）
 func (s *PodmanService) ListContainers(ctx context.Context) ([]entities.ListContainer, error) {
 	if !s.IsRunning() {
 		return nil, fmt.Errorf("container service is not running")
 	}
 
-	containers, err := containers.List(s.conn, &containers.ListOptions{All: new(bool)})
+	allTrue := true
+	containers, err := containers.List(s.conn, &containers.ListOptions{All: &allTrue})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list containers: %w", err)
 	}
