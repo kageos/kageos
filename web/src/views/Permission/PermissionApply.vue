@@ -265,40 +265,36 @@
                     />
                   </div>
                   
-                  <!-- 部门选择 -->
+                  <!-- 部门选择（支持多选） -->
                   <div v-if="grantTargetType === 'department'" class="grant-target-input">
                     <div>
                       <el-button
                         type="primary"
                         @click="showDepartmentSelector = true"
                         style="width: 100%"
-                        :icon="selectedDepartment ? null : OfficeBuilding"
+                        :icon="selectedDepartments.length ? null : OfficeBuilding"
                       >
-                        {{ selectedDepartment ? `已选择: ${selectedDepartment.name}` : '选择组织架构' }}
+                        {{ selectedDepartments.length ? `已选择 ${selectedDepartments.length} 个部门` : '选择组织架构（可多选）' }}
                       </el-button>
-                      <!-- 显示选中部门的详细信息 -->
-                      <div v-if="selectedDepartment" class="selected-department-details">
-                        <div class="selected-department-card">
+                      <div v-if="selectedDepartments.length" class="selected-department-details">
+                        <div
+                          v-for="dept in selectedDepartments"
+                          :key="dept.full_code_path"
+                          class="selected-department-card"
+                        >
                           <div class="department-content">
                             <img src="/组织架构.svg" alt="部门" class="department-icon" />
                             <div class="department-info">
-                              <div class="department-name">{{ selectedDepartment.name }}</div>
+                              <div class="department-name">{{ dept.name }}</div>
                               <div class="department-meta">
-                                <span class="department-path">{{ selectedDepartment.full_code_path }}</span>
-                                <span v-if="selectedDepartment.full_name_path && selectedDepartment.full_name_path !== selectedDepartment.name" class="department-full-name">
-                                  {{ selectedDepartment.full_name_path }}
-                                </span>
-                                <span v-if="selectedDepartment.managers" class="department-managers">
-                                  <el-icon><UserFilled /></el-icon>
-                                  负责人: {{ selectedDepartment.managers }}
-                                </span>
+                                <span class="department-path">{{ dept.full_code_path }}</span>
                               </div>
                             </div>
                           </div>
                           <el-button
                             text
                             type="danger"
-                            @click="selectedDepartment = null; grantTargetDepartment = ''"
+                            @click="removeSelectedDepartment(dept)"
                             :icon="Close"
                             circle
                             class="remove-btn"
@@ -313,7 +309,7 @@
                       >
                         <template #default>
                           <div class="tip-content">
-                            <p class="tip-text">选择部门后，将给该部门下的所有用户赋权</p>
+                            <p class="tip-text">可多选部门，每个部门将单独提交一条赋权申请</p>
                           </div>
                         </template>
                       </el-alert>
@@ -395,12 +391,11 @@
     @select="handleUserSelect"
   />
 
-  <!-- 组织架构选择器对话框 -->
-  <DepartmentSelectorDialog
+  <!-- 组织架构选择器对话框（多选） -->
+  <DepartmentsSearchDialog
     v-model="showDepartmentSelector"
-    :selected-department="selectedDepartment"
-    :department-tree="departmentTree"
-    @select="handleDepartmentSelect"
+    :initial-paths="grantTargetDepartmentPaths.join(',')"
+    @confirm="handleDepartmentsSelect"
   />
 </template>
 
@@ -432,7 +427,7 @@ import { getRolesForPermissionRequest, type Role, type RolePermission } from '@/
 import { useAuthStore } from '@/stores/auth'
 import type { ServiceTree, App } from '@/types'
 import UserSelectorDialog from '@/components/UserSelectorDialog.vue'
-import DepartmentSelectorDialog from '@/components/DepartmentSelectorDialog.vue'
+import DepartmentsSearchDialog from '@/architecture/presentation/widgets/DepartmentsSearchDialog.vue'
 import type { UserInfo } from '@/types'
 import UsersWidget from '@/architecture/presentation/widgets/UsersWidget.vue'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
@@ -583,13 +578,14 @@ const hasManagePermission = computed(() => {
 // 赋权对象类型：self（自己）、user（其他用户）、department（部门）
 const grantTargetType = ref<'self' | 'user' | 'department'>('self')
 
-// 赋权目标：个人（用户对象）或组织架构（部门路径）
+// 赋权目标：个人（用户对象）或组织架构（部门路径，支持多选）
 const grantTargetUser = ref<UserInfo | null>(null)
 const grantTargetUserUsername = ref<string | null>(null)
-const grantTargetDepartment = ref<string>('')
+const grantTargetDepartment = ref<string>('') // 保留兼容，实际用 selectedDepartments
+const selectedDepartments = ref<Department[]>([])
 
-// 选中部门对象（用于显示详细信息）
-const selectedDepartment = ref<Department | null>(null)
+// 部门路径数组（用于提交和 initial-paths）
+const grantTargetDepartmentPaths = computed(() => selectedDepartments.value.map(d => d.full_code_path))
 
 // 对话框状态
 const showUserSelector = ref(false)
@@ -613,26 +609,13 @@ watch(grantTargetUserUsername, async (username) => {
   }
 })
 
-// 监听部门路径变化，更新部门对象
-watch(grantTargetDepartment, (path) => {
-  if (!path) {
-    selectedDepartment.value = null
+// 监听部门路径变化（兼容旧逻辑，selectedDepartments 为主）
+watch(grantTargetDepartmentPaths, (paths) => {
+  if (paths.length === 0) {
+    grantTargetDepartment.value = ''
     return
   }
-  // 从部门树中查找对应的部门对象
-  const findDepartment = (depts: Department[], targetPath: string): Department | null => {
-    for (const dept of depts) {
-      if (dept.full_code_path === targetPath) {
-        return dept
-      }
-      if (dept.children && dept.children.length > 0) {
-        const found = findDepartment(dept.children, targetPath)
-        if (found) return found
-      }
-    }
-    return null
-  }
-  selectedDepartment.value = findDepartment(departmentTree.value, path)
+  grantTargetDepartment.value = paths.join(',')
 })
 
 // 处理用户选择
@@ -641,10 +624,13 @@ const handleUserSelect = (user: UserInfo) => {
   grantTargetUserUsername.value = user.username
 }
 
-// 处理部门选择
-const handleDepartmentSelect = (department: Department) => {
-  selectedDepartment.value = department
-  grantTargetDepartment.value = department.full_code_path
+// 处理部门选择（多选）
+const handleDepartmentsSelect = (departments: Department[]) => {
+  selectedDepartments.value = departments
+}
+
+const removeSelectedDepartment = (dept: Department) => {
+  selectedDepartments.value = selectedDepartments.value.filter(d => d.full_code_path !== dept.full_code_path)
 }
 
 // 日期选择器快捷选项
@@ -813,7 +799,7 @@ const canSubmit = computed(() => {
   if (grantTargetType.value === 'user') {
     return grantTargetUsersValue.value?.raw && String(grantTargetUsersValue.value.raw).trim() !== ''
   } else if (grantTargetType.value === 'department') {
-    return grantTargetDepartment.value !== ''
+    return selectedDepartments.value.length > 0
   }
   // self 类型总是可以提交（如果已选择角色）
   return true
@@ -1076,11 +1062,13 @@ async function loadDepartmentTree() {
 watch(() => grantTargetType.value, (newType) => {
   if (newType === 'self') {
     grantTargetUser.value = null
-    grantTargetDepartment.value = ''
+    grantTargetUserUsername.value = null
+    selectedDepartments.value = []
   } else if (newType === 'user') {
-    grantTargetDepartment.value = ''
+    selectedDepartments.value = []
   } else if (newType === 'department') {
     grantTargetUser.value = null
+    grantTargetUserUsername.value = null
   }
 })
 
@@ -2039,13 +2027,27 @@ const handleSubmit = async () => {
       subjectType = 'user'
       subject = String(selectedUsernames).trim() // 多个用户名用逗号分隔
     } else if (grantTargetType.value === 'department') {
-      // 给部门申请权限
-      if (!grantTargetDepartment.value) {
-        ElMessage.warning('请选择要申请权限的部门')
+      // 给部门申请权限（支持多选，每个部门单独提交一条）
+      if (selectedDepartments.value.length === 0) {
+        ElMessage.warning('请至少选择一个要申请权限的部门')
         return
       }
       subjectType = 'department'
-      subject = grantTargetDepartment.value
+      // 多部门：循环提交，每个部门一条申请
+      for (const dept of selectedDepartments.value) {
+        await applyPermission({
+          resource_path: resourcePath,
+          role_id: selectedRoleId.value,
+          subject_type: 'department',
+          subject: dept.full_code_path,
+          reason: formData.value.reason,
+          end_time: endTime,
+        })
+      }
+      const targetText = `共 ${selectedDepartments.value.length} 个部门`
+      ElMessage.success(`赋权成功：${targetText}`)
+      router.push('/workspace/' + (currentApp.value?.user || '') + '/' + (currentApp.value?.code || ''))
+      return
     }
 
     // ⭐ 提交权限申请（必须通过角色申请）

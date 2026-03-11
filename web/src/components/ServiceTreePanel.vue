@@ -2,28 +2,6 @@
   <div class="service-tree-panel" v-loading="loading">
     <div class="tree-header">
       <h3>服务目录</h3>
-      <div class="header-actions">
-        <el-link
-          v-if="!loading"
-          type="primary"
-          :underline="false"
-          @click="$emit('create-directory')"
-          class="header-link"
-        >
-          <el-icon><Plus /></el-icon>
-          创建目录
-        </el-link>
-        <el-link
-          v-if="!loading"
-          type="primary"
-          :underline="false"
-          @click="handleUpdateHistoryClick"
-          class="header-link"
-        >
-          <el-icon><Clock /></el-icon>
-          变更记录
-        </el-link>
-      </div>
     </div>
     
     <div class="tree-content">
@@ -280,14 +258,6 @@
                   >
                     <el-icon><Upload /></el-icon>
                     推送到 Hub
-                  </el-dropdown-item>
-                  
-                  <!-- 变更记录 -->
-                  <el-dropdown-item 
-                    command="update-history"
-                  >
-                    <el-icon><Clock /></el-icon>
-                    变更记录
                   </el-dropdown-item>
                 </el-dropdown-menu>
               </template>
@@ -1035,12 +1005,6 @@ const handleKeyDown = (event: KeyboardEvent) => {
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown)
 })
-
-// 处理变更记录按钮点击
-const handleUpdateHistoryClick = () => {
-  // 显示工作空间变更记录
-  emit('update-history')
-}
 
 // 处理 Hub 标记点击 - 跳转到 Hub 目录详情页
 const handleHubBadgeClick = (data: ServiceTree) => {
