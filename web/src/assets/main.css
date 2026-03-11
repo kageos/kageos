@@ -9,6 +9,11 @@
   overflow: visible;
 }
 
+/* 迷你工作台「文件」下拉必须高于迷你窗 (z-index: 2500)，否则会被挡住 */
+.mini-files-dropdown-popper.el-dropdown__popper {
+  z-index: 9999 !important;
+}
+
 a,
 .green {
   text-decoration: none;

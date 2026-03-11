@@ -364,6 +364,7 @@ func (s *WorkspaceChatService) ListRunningSessions(ctx context.Context) ([]*dto.
 		items = append(items, &dto.WorkspaceSessionItem{
 			SessionID:    session.SessionID,
 			Title:        session.Title,
+			User:         session.User,
 			AgentID:      session.AgentID,
 			Status:       session.Status,
 			FullCodePath: session.FullCodePath,
@@ -389,6 +390,7 @@ func (s *WorkspaceChatService) ListFinishedSessions(ctx context.Context, limit i
 		items = append(items, &dto.WorkspaceSessionItem{
 			SessionID:    session.SessionID,
 			Title:        session.Title,
+			User:         session.User,
 			AgentID:      session.AgentID,
 			Status:       session.Status,
 			FullCodePath: session.FullCodePath,
@@ -628,6 +630,7 @@ func (s *WorkspaceChatService) ListSessions(ctx context.Context, fullCodePath st
 		items = append(items, &dto.WorkspaceSessionItem{
 			SessionID:    session.SessionID,
 			Title:        session.Title,
+			User:         session.User,
 			AgentID:      session.AgentID,
 			Status:       session.Status,
 			FullCodePath: session.FullCodePath,

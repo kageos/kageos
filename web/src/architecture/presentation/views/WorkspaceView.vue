@@ -343,6 +343,9 @@
                 <el-icon v-if="s.status === 'generating'" class="is-loading" :size="12" color="var(--el-color-primary)"><Loading /></el-icon>
                 <span class="right-session-card-title">{{ s.title || '未命名会话' }}</span>
               </div>
+              <div v-if="s.user" class="right-session-card-user">
+                <UserDisplay :username="s.user" mode="simple" size="small" />
+              </div>
               <div class="right-session-card-meta">
                 <el-tag v-if="s.status === 'generating'" type="primary" size="small" effect="light">执行中</el-tag>
                 <el-tag v-else-if="s.status === 'done'" type="success" size="small" effect="plain">已完成</el-tag>
@@ -799,6 +802,7 @@ import DocView from '../components/DocView.vue'
 import BoardView from '../components/BoardView.vue'
 import CreateBoardDialog from '../components/CreateBoardDialog.vue'
 import UserSearchInput from '@/components/UserSearchInput.vue'
+import UserDisplay from '../widgets/UserDisplay.vue'
 import UsersWidget from '../widgets/UsersWidget.vue'
 import PermissionRequestList from '@/components/Permission/PermissionRequestList.vue'
 import PermissionManageList from '@/components/Permission/PermissionManageList.vue'
@@ -2868,6 +2872,14 @@ onUnmounted(() => {
   align-items: center;
   gap: 4px;
   margin-bottom: 6px;
+}
+.right-session-card-user {
+  margin-bottom: 4px;
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+}
+.right-session-card-user :deep(.user-display-wrapper) {
+  display: inline-flex;
 }
 .right-session-card-title {
   font-size: 13px;

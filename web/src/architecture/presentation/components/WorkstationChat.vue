@@ -55,6 +55,9 @@
             <el-icon v-if="session.status === 'generating'" class="is-loading session-generating-icon" :size="12"><Loading /></el-icon>
             <span class="session-card-title">{{ session.title || '未命名会话' }}</span>
           </div>
+          <div v-if="session.user" class="session-card-user">
+            <UserDisplay :username="session.user" mode="simple" size="small" />
+          </div>
           <div class="session-card-time">
             <span v-if="session.status === 'generating'" class="session-status-text">执行中</span>
             <span>{{ formatRelativeTime(session.updated_at) }}</span>
@@ -198,6 +201,7 @@ import { workspaceChatStream, getWorkspaceSessions, getWorkspaceMessages, type W
 import { getLLMList, type LLMInfo } from '@/api/agent'
 import MessageToolCalls from './MessageToolCalls.vue'
 import OutputFilesDisplay from './OutputFilesDisplay.vue'
+import UserDisplay from '../widgets/UserDisplay.vue'
 import { extractFileGroupsFromResult, type OutputFileGroup } from '@/architecture/presentation/composables/useOutputFileGroups'
 import { ElMessage } from 'element-plus'
 import { useWorkspaceChatStream, type ChatMessage } from '@/architecture/presentation/composables/useWorkspaceChatStream'
@@ -890,6 +894,15 @@ async function send() {
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
+}
+.session-card-user {
+  margin-top: 4px;
+  margin-bottom: 4px;
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+}
+.session-card-user :deep(.user-display-wrapper) {
+  display: inline-flex;
 }
 .session-card-time {
   font-size: 12px;
