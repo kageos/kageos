@@ -37,8 +37,9 @@ export const useAuthStore = defineStore('auth', () => {
 
       ElMessage.success('登录成功')
 
-      // 跳转到首页
-      await router.push('/')
+      // 跳转到工作空间（会弹出选择工作空间）
+      const username = response.user?.username || 'me'
+      await router.push(`/workspace/${username}`)
 
       return response
     } catch (error) {

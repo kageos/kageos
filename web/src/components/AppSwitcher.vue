@@ -209,6 +209,16 @@ const handleSettingsSaved = () => {
   // 触发重新加载应用列表，以获取最新的管理员信息
   emit('load-apps')
 }
+
+// 供父组件（如 WorkspaceView）在进入 /workspace/:user 时打开选择工作空间弹窗
+function openWorkspaceListDialog() {
+  dialogVisible.value = true
+  emit('load-apps')
+}
+
+defineExpose({
+  openWorkspaceListDialog
+})
 </script>
 
 <style scoped>

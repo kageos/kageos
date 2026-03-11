@@ -240,6 +240,8 @@
                     <PermissionRequestList
                       ref="functionPermissionRequestListRef"
                       :resource-path="currentFunction?.full_code_path"
+                      resource-type="function"
+                      :template-type="currentFunctionDetail?.template_type"
                       :auto-load="functionActiveTab === 'permissionRequest'"
                     />
                   </div>
@@ -373,6 +375,7 @@
     <!-- 应用切换器（底部固定） -->
     <!-- 始终显示，即使应用列表为空，让用户可以创建应用 -->
     <AppSwitcher
+      ref="appSwitcherRef"
       :current-app="currentApp"
       :app-list="appList"
       :loading-apps="loadingApps"
@@ -1056,6 +1059,7 @@ const updateHistoryFullCodePath = ref('')
 
 // ServiceTreePanel 引用（用于展开路径）
 const serviceTreePanelRef = ref<InstanceType<typeof ServiceTreePanel> | null>(null)
+const appSwitcherRef = ref<InstanceType<typeof AppSwitcher> | null>(null)
 
 // 左侧服务目录树显示状态
 const showLeftSidebar = ref(true)
@@ -2369,6 +2373,11 @@ onMounted(async () => {
   
   // 🔥 设置路由监听
   setupRouteWatch()
+  
+  // 进入 /workspace/:user（仅 username、无 app）时自动弹出「选择工作空间」
+  if (route.name === 'workspace-user') {
+    nextTick(() => appSwitcherRef.value?.openWorkspaceListDialog())
+  }
 })
 
 // 🔥 监听服务树变化，展开目录树

@@ -2,27 +2,14 @@
   WorkspaceHeader - 工作空间顶部导航栏组件
   
   职责：
-  - 显示 Logo
-  - 主题切换
-  - 用户信息展示和操作
+  - 应用中心入口（唯一保留在栏上的按钮）
+  - 其余入口（智能体、组织架构、角色管理、企业版、Debug、主题、退出）放入用户下拉
 -->
 
 <template>
   <div class="workspace-header">
     <div class="header-right">
-      <!-- 🔥 开发工具：Debug 弹窗按钮 -->
-      <el-button
-        v-if="isDevelopment"
-        type="info"
-        size="small"
-        :icon="Delete"
-        @click="showDebugDialog = true"
-        title="开发调试工具"
-      >
-        Debug
-      </el-button>
-      
-      <!-- Hub 和 Agent 路由链接 -->
+      <!-- 仅保留应用中心在栏上 -->
       <el-button
         type="primary"
         size="small"
@@ -31,65 +18,8 @@
       >
         应用中心
       </el-button>
-      
-      <!-- 升级企业版按钮 -->
-      <el-button
-        v-if="!licenseStore.isEnterprise"
-        type="success"
-        size="small"
-        @click="showUpgradeDialog = true"
-        title="升级企业版"
-      >
-        升级企业版
-      </el-button>
-      
-      <!-- 企业版标识和注销按钮 -->
-      <template v-else>
-        <el-tag type="success" size="small">
-          {{ licenseStore.edition }}
-        </el-tag>
-        <el-button
-          type="warning"
-          size="small"
-          :icon="Delete"
-          @click="handleDeactivate"
-          title="注销 License（测试用）"
-        >
-          注销 License
-        </el-button>
-      </template>
-      
-      <el-button
-        type="primary"
-        size="small"
-        @click="navigateToAgent"
-        title="智能体管理"
-      >
-        智能体管理
-      </el-button>
-      
-      <el-button
-        type="primary"
-        size="small"
-        :icon="OfficeBuilding"
-        @click="navigateToOrganization"
-        title="组织架构和用户管理"
-      >
-        组织架构和用户管理
-      </el-button>
-      
-      <el-button
-        type="primary"
-        size="small"
-        :icon="UserFilled"
-        @click="navigateToRoleManagement"
-        title="角色管理"
-      >
-        角色管理
-      </el-button>
-      
-      <ThemeToggle />
-      <el-dropdown @command="handleUserCommand">
+
+      <el-dropdown @command="handleUserCommand" trigger="click">
         <span class="user-profile">
           <el-avatar :size="32" :src="userAvatar || undefined">{{ userInitials }}</el-avatar>
           <span class="username">{{ userName }}</span>
@@ -97,8 +27,53 @@
         </span>
         <template #dropdown>
           <el-dropdown-menu>
-            <el-dropdown-item command="settings">个人设置</el-dropdown-item>
-            <el-dropdown-item divided command="logout">退出登录</el-dropdown-item>
+            <el-dropdown-item command="settings">
+              <el-icon><UserFilled /></el-icon>
+              <span>个人设置</span>
+            </el-dropdown-item>
+            <el-dropdown-item divided command="agent">
+              <el-icon><Cpu /></el-icon>
+              <span>智能体管理</span>
+            </el-dropdown-item>
+            <el-dropdown-item command="organization">
+              <el-icon><OfficeBuilding /></el-icon>
+              <span>组织架构和用户管理</span>
+            </el-dropdown-item>
+            <el-dropdown-item command="roles">
+              <el-icon><Key /></el-icon>
+              <span>角色管理</span>
+            </el-dropdown-item>
+            <!-- 非企业版：升级企业版 -->
+            <el-dropdown-item
+              v-if="!licenseStore.isEnterprise"
+              divided
+              command="upgrade"
+            >
+              <el-icon><Promotion /></el-icon>
+              <span>升级企业版</span>
+            </el-dropdown-item>
+            <!-- 企业版：标识 + 注销 -->
+            <template v-else>
+              <el-dropdown-item divided disabled>
+                <el-tag type="success" size="small">{{ licenseStore.edition }}</el-tag>
+              </el-dropdown-item>
+              <el-dropdown-item command="deactivate">
+                <el-icon><Delete /></el-icon>
+                <span>注销 License</span>
+              </el-dropdown-item>
+            </template>
+            <el-dropdown-item v-if="isDevelopment" divided command="debug">
+              <el-icon><Setting /></el-icon>
+              <span>开发调试 (Debug)</span>
+            </el-dropdown-item>
+            <el-dropdown-item divided command="theme">
+              <el-icon><Sunny /></el-icon>
+              <span>切换主题</span>
+            </el-dropdown-item>
+            <el-dropdown-item divided command="logout">
+              <el-icon><SwitchButton /></el-icon>
+              <span>退出登录</span>
+            </el-dropdown-item>
           </el-dropdown-menu>
         </template>
       </el-dropdown>
@@ -106,10 +81,10 @@
 
     <!-- Debug 弹窗 -->
     <DebugDialog v-model="showDebugDialog" />
-    
+
     <!-- 升级企业版对话框 -->
-    <UpgradeEnterpriseDialog 
-      v-model="showUpgradeDialog" 
+    <UpgradeEnterpriseDialog
+      v-model="showUpgradeDialog"
       @activated="handleLicenseActivated"
     />
   </div>
@@ -117,21 +92,31 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { ArrowDown, Delete, OfficeBuilding, UserFilled } from '@element-plus/icons-vue'
-import { ElMessageBox } from 'element-plus'
+import { useRouter } from 'vue-router'
+import {
+  ArrowDown,
+  Delete,
+  OfficeBuilding,
+  UserFilled,
+  Cpu,
+  Key,
+  Promotion,
+  Setting,
+  Sunny,
+  SwitchButton
+} from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { useLicenseStore } from '@/stores/license'
-import ThemeToggle from '@/components/ThemeToggle.vue'
+import { useThemeStore } from '@/stores/theme'
 import DebugDialog from './DebugDialog.vue'
 import UpgradeEnterpriseDialog from '@/components/UpgradeEnterpriseDialog.vue'
 import { navigateToHub as navigateToHubUtil } from '@/utils/hub-navigation'
 
-const route = useRoute()
 const router = useRouter()
-
 const authStore = useAuthStore()
 const licenseStore = useLicenseStore()
+const themeStore = useThemeStore()
 
 // 用户相关
 const userName = computed(() => authStore.userName || 'User')
@@ -142,10 +127,36 @@ const userInitials = computed(() => {
 })
 
 const handleUserCommand = (command: string) => {
-  if (command === 'logout') {
-    handleLogout()
-  } else if (command === 'settings') {
-    router.push('/user/settings')
+  switch (command) {
+    case 'logout':
+      handleLogout()
+      break
+    case 'settings':
+      router.push('/user/settings')
+      break
+    case 'agent':
+      router.push('/agent')
+      break
+    case 'organization':
+      router.push('/organization')
+      break
+    case 'roles':
+      router.push('/permissions/roles')
+      break
+    case 'upgrade':
+      showUpgradeDialog.value = true
+      break
+    case 'deactivate':
+      handleDeactivate()
+      break
+    case 'debug':
+      showDebugDialog.value = true
+      break
+    case 'theme':
+      themeStore.toggleTheme()
+      break
+    default:
+      break
   }
 }
 

@@ -60,6 +60,7 @@ func NewPermissionService(permissionService enterprise.PermissionService, servic
 }
 
 // ApplyPermission 权限申请（逻辑在 enterprise_impl 实现 ApplyPermissionByResourcePath），本层只做编排与 pending_count 更新
+// ⭐ 若申请人在审批人列表中（如管理员给自己或给别人赋权），创建后直接通过，无需再审批
 func (s *PermissionService) ApplyPermission(ctx context.Context, req *dto.ApplyPermissionReq) (*dto.CreatePermissionRequestResp, error) {
 	applicantUsername := contextx.GetRequestUser(ctx)
 	if applicantUsername == "" {
@@ -69,13 +70,37 @@ func (s *PermissionService) ApplyPermission(ctx context.Context, req *dto.ApplyP
 	if err != nil {
 		return nil, err
 	}
-	if err := s.updateServiceTreePendingCount(ctx, appID, req.ResourcePath, 1); err != nil {
-		logger.Warnf(ctx, "[PermissionService] 更新节点 pending_count 失败: app_id=%d, resource_path=%s, error=%v", appID, req.ResourcePath, err)
+	// ⭐ 若申请人是该资源的审批人之一，直接通过，不增加 pending_count
+	approvers, _ := s.getApproversForResource(ctx, appID, req.ResourcePath)
+	autoApproved := false
+	for _, a := range approvers {
+		if strings.TrimSpace(a) == applicantUsername {
+			if errApprove := s.permissionService.ApprovePermissionRequest(ctx, requestID, applicantUsername); errApprove != nil {
+				logger.Warnf(ctx, "[PermissionService] 自动通过（审批人为自己）失败: request_id=%d, error=%v", requestID, errApprove)
+			} else {
+				autoApproved = true
+				if err := s.updateServiceTreePendingCount(ctx, appID, req.ResourcePath, -1); err != nil {
+					logger.Warnf(ctx, "[PermissionService] 自动通过后更新 pending_count 失败: %v", err)
+				}
+			}
+			break
+		}
+	}
+	if !autoApproved {
+		if err := s.updateServiceTreePendingCount(ctx, appID, req.ResourcePath, 1); err != nil {
+			logger.Warnf(ctx, "[PermissionService] 更新节点 pending_count 失败: app_id=%d, resource_path=%s, error=%v", appID, req.ResourcePath, err)
+		}
+	}
+	status := model.PermissionRequestStatusPending
+	message := "权限申请已提交，等待审批"
+	if autoApproved {
+		status = model.PermissionRequestStatusApproved
+		message = "权限已直接通过（审批人为自己）"
 	}
 	return &dto.CreatePermissionRequestResp{
 		RequestID: requestID,
-		Status:    model.PermissionRequestStatusPending,
-		Message:   "权限申请已提交，等待审批",
+		Status:    status,
+		Message:   message,
 	}, nil
 }
 
@@ -258,17 +283,41 @@ func (s *PermissionService) CreatePermissionRequest(ctx context.Context, req *dt
 		return nil, fmt.Errorf("创建权限申请失败: %w", err)
 	}
 
-	// ⭐ 更新对应节点的 pending_count（+1）
-	if err := s.updateServiceTreePendingCount(ctx, req.AppID, req.ResourcePath, 1); err != nil {
-		// 记录日志，但不影响申请创建
-		logger.Warnf(ctx, "[PermissionService] 更新节点 pending_count 失败: app_id=%d, resource_path=%s, error=%v",
-			req.AppID, req.ResourcePath, err)
+	// ⭐ 若申请人是该资源的审批人之一，直接通过，不增加 pending_count
+	approvers, _ := s.getApproversForResource(ctx, req.AppID, req.ResourcePath)
+	autoApproved := false
+	for _, a := range approvers {
+		if strings.TrimSpace(a) == username {
+			if errApprove := s.permissionService.ApprovePermissionRequest(ctx, requestID, username); errApprove != nil {
+				logger.Warnf(ctx, "[PermissionService] 自动通过（审批人为自己）失败: request_id=%d, error=%v", requestID, errApprove)
+			} else {
+				autoApproved = true
+				if err := s.updateServiceTreePendingCount(ctx, req.AppID, req.ResourcePath, -1); err != nil {
+					logger.Warnf(ctx, "[PermissionService] 自动通过后更新 pending_count 失败: %v", err)
+				}
+			}
+			break
+		}
+	}
+	if !autoApproved {
+		// ⭐ 更新对应节点的 pending_count（+1）
+		if err := s.updateServiceTreePendingCount(ctx, req.AppID, req.ResourcePath, 1); err != nil {
+			// 记录日志，但不影响申请创建
+			logger.Warnf(ctx, "[PermissionService] 更新节点 pending_count 失败: app_id=%d, resource_path=%s, error=%v",
+				req.AppID, req.ResourcePath, err)
+		}
 	}
 
+	status := model.PermissionRequestStatusPending
+	message := "权限申请已提交，等待审批"
+	if autoApproved {
+		status = model.PermissionRequestStatusApproved
+		message = "权限已直接通过（审批人为自己）"
+	}
 	return &dto.CreatePermissionRequestResp{
 		RequestID: requestID,
-		Status:    model.PermissionRequestStatusPending,
-		Message:   "权限申请已提交，等待审批",
+		Status:    status,
+		Message:   message,
 	}, nil
 }
 
@@ -512,4 +561,37 @@ func (s *PermissionService) getPermissionRequestInfo(ctx context.Context, reques
 		AppID:        request.AppID,
 		ResourcePath: request.ResourcePath,
 	}, nil
+}
+
+// getApproversForResource 获取资源的审批人列表（节点 Admins 或 app 的 Admins）
+// 用于判断申请人是否为审批人，若是则创建后直接通过
+func (s *PermissionService) getApproversForResource(ctx context.Context, appID int64, resourcePath string) ([]string, error) {
+	if s.serviceTreeRepo != nil {
+		tree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(resourcePath)
+		if err == nil && tree != nil && tree.Admins != "" {
+			var list []string
+			for _, a := range strings.Split(tree.Admins, ",") {
+				a = strings.TrimSpace(a)
+				if a != "" {
+					list = append(list, a)
+				}
+			}
+			return list, nil
+		}
+	}
+	// 节点不存在或无 Admins，尝试 app 表（如根路径 /user/app）
+	if s.appRepo != nil && appID > 0 {
+		app, err := s.appRepo.GetAppByID(appID)
+		if err == nil && app != nil && app.Admins != "" {
+			var list []string
+			for _, a := range strings.Split(app.Admins, ",") {
+				a = strings.TrimSpace(a)
+				if a != "" {
+					list = append(list, a)
+				}
+			}
+			return list, nil
+		}
+	}
+	return nil, nil
 }
