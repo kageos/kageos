@@ -87,8 +87,8 @@ verify_connection() {
 start_stopped_containers() {
     log_info "检查停止的容器..."
     
-    # 定义需要自动启动的基础设施容器
-    local infrastructure_containers=("nats-server")
+    # 定义需要自动启动的基础设施容器（顺序：先 DB 再消息队列再存储）
+    local infrastructure_containers=("mysql8" "nats-server" "minio")
     
     for container_name in "${infrastructure_containers[@]}"; do
         # 检查容器是否存在且已停止

@@ -17,7 +17,7 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 
 	v1 "github.com/ai-agent-os/ai-agent-os/core/api-gateway/api/v1"
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
+	"github.com/ai-agent-os/ai-agent-os/pkg/auth"
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
@@ -308,8 +308,7 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 			}
 
 			// 解析 token 获取 username 和组织架构信息
-			// ⭐ 使用全局配置的 JWTService（与 hr-server 保持一致，因为 token 是由 hr-server 生成的）
-			jwtService := service.NewJWTService()
+			jwtService := auth.NewJWTService()
 			claims, err := jwtService.ValidateToken(token)
 			if err == nil {
 				// 解析成功，直接覆盖 username 到 header（忽略请求中的 X-Request-User）

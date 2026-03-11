@@ -10,15 +10,17 @@ export function register(data: RegisterRequest) {
 export function login(data: LoginRequest) {
   return post<{
     token: string
+    refresh_token: string
     user: UserInfo
   }>('/hr/api/v1/auth/login', data)
 }
 
-// 刷新token
-export function refreshToken() {
+// 刷新token（传入 refresh_token，返回新 token 与 refresh_token）
+export function refreshToken(refreshTokenValue: string) {
   return post<{
     token: string
-  }>('/hr/api/v1/auth/refresh')
+    refresh_token: string
+  }>('/hr/api/v1/auth/refresh', { refresh_token: refreshTokenValue })
 }
 
 // 用户登出

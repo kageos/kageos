@@ -1,6 +1,6 @@
 import axios from 'axios'
 import type { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { usePermissionErrorStore } from '@/stores/permissionError'
 import { Logger } from '@/core/utils/logger'
@@ -75,6 +75,9 @@ service.interceptors.request.use(
   }
 )
 
+// 无感刷新：401 时正在刷新的 Promise，避免多个请求并发刷新
+let refreshPromise: Promise<string> | null = null
+
 // 响应拦截器
 service.interceptors.response.use(
   (response: AxiosResponse<ApiResponse | Blob>) => {
@@ -116,28 +119,49 @@ service.interceptors.response.use(
     return Promise.reject(error)
   },
   async (error) => {
-    const { response } = error
+    const { response, config } = error
 
     if (response) {
       const { status, data } = response
 
-      switch (status) {
-        case 401:
-          // 未授权，清除token并跳转到登录页
-          const authStore = useAuthStore()
-          await ElMessageBox.confirm(
-            '登录状态已过期，请重新登录',
-            '提示',
-            {
-              confirmButtonText: '重新登录',
-              cancelButtonText: '取消',
-              type: 'warning'
-            }
-          )
+      if (status === 401) {
+        const authStore = useAuthStore()
+        const isRefreshRequest = config?.url && String(config.url).includes('/auth/refresh')
+        const refreshTokenValue =
+          (typeof authStore.refreshToken === 'object' && authStore.refreshToken && 'value' in authStore.refreshToken
+            ? (authStore.refreshToken as { value: string }).value
+            : (authStore.refreshToken as string)) ||
+          localStorage.getItem('refresh_token') ||
+          ''
+
+        // refresh 接口本身 401：说明 refresh_token 也过期了，直接登出
+        if (isRefreshRequest || !refreshTokenValue) {
           authStore.logout()
           router.push('/login')
-          break
+          ElMessage.warning('登录已过期，请重新登录')
+          return Promise.reject(error)
+        }
 
+        // 无感刷新：只允许一个 refresh 进行，其他 401 等待同一个结果后重试
+        if (!refreshPromise) {
+          refreshPromise = authStore.refreshUserToken()
+        }
+        try {
+          await refreshPromise
+          // 刷新成功，用新 token 重试原请求（请求拦截器会从 store 取新 token）
+          return service.request(config)
+        } catch (e) {
+          refreshPromise = null
+          authStore.logout()
+          router.push('/login')
+          ElMessage.warning('登录已过期，请重新登录')
+          return Promise.reject(error)
+        } finally {
+          refreshPromise = null
+        }
+      }
+
+      switch (status) {
         case 403:
           // ⭐ 权限不足：显示详细的权限信息和申请链接
           handlePermissionDenied(data)

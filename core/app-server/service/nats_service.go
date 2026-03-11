@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
@@ -37,7 +38,9 @@ func newNatsServiceFromHostList(list []*model.Host) *NatsService {
 		url := host.Nats.URL()
 		connect, err := nats.Connect(url,
 			nats.Name(fmt.Sprintf("app-server-host-%d", host.ID)),
-			// 说明：nats.go 客户端会在重连后自动恢复订阅，这里不再手动重复订阅，避免重复消费
+			nats.MaxReconnects(-1),
+			nats.ReconnectWait(2*time.Second),
+			nats.ReconnectBufSize(8*1024*1024),
 		)
 		if err != nil {
 			panic(err)

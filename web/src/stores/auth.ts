@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { login as loginApi, logout as logoutApi, getUserInfo, refreshToken } from '@/api/auth'
+import { login as loginApi, logout as logoutApi, getUserInfo, refreshToken as refreshTokenApi } from '@/api/auth'
 import { updateUser as updateUserApi, type UpdateUserReq } from '@/api/user'
 import type { UserInfo, LoginRequest } from '@/types'
 import router from '@/router'
@@ -9,6 +9,7 @@ import router from '@/router'
 export const useAuthStore = defineStore('auth', () => {
   // 状态
   const token = ref<string>(localStorage.getItem('token') || '')
+  const refreshToken = ref<string>(localStorage.getItem('refresh_token') || '')
   
   // 从 localStorage 读取用户信息
   const savedUserStr = localStorage.getItem('user')
@@ -30,6 +31,10 @@ export const useAuthStore = defineStore('auth', () => {
 
       token.value = response.token
       user.value = response.user
+      if (response.refresh_token) {
+        refreshToken.value = response.refresh_token
+        localStorage.setItem('refresh_token', response.refresh_token)
+      }
 
       // 保存token和用户信息到localStorage
       localStorage.setItem('token', response.token)
@@ -60,8 +65,10 @@ export const useAuthStore = defineStore('auth', () => {
       // 清理本地状态
       token.value = ''
       user.value = null
+      refreshToken.value = ''
       localStorage.removeItem('token')
       localStorage.removeItem('user')
+      localStorage.removeItem('refresh_token')
 
       ElMessage.success('已退出登录')
 
@@ -88,19 +95,20 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // 刷新token
-  async function refreshUserToken() {
-    try {
-      const response = await refreshToken()
-      token.value = response.token
-      localStorage.setItem('token', response.token)
-      return response.token
-    } catch (error) {
-      console.error('刷新token失败:', error)
-      // 刷新失败，清理状态
-      await logout()
-      throw error
+  // 刷新token（无感刷新用：只负责刷新并保存，失败时 throw，不主动 logout）
+  async function refreshUserToken(): Promise<string> {
+    const rt = refreshToken.value || localStorage.getItem('refresh_token') || ''
+    if (!rt) {
+      throw new Error('No refresh token')
     }
+    const response = await refreshTokenApi(rt)
+    token.value = response.token
+    if (response.refresh_token) {
+      refreshToken.value = response.refresh_token
+      localStorage.setItem('refresh_token', response.refresh_token)
+    }
+    localStorage.setItem('token', response.token)
+    return response.token
   }
 
   // 检查登录状态
@@ -143,6 +151,7 @@ export const useAuthStore = defineStore('auth', () => {
   return {
     // 状态
     token,
+    refreshToken,
     user,
     isLoading,
 

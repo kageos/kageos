@@ -190,7 +190,8 @@ func (s *Server) initNATS(ctx context.Context) error {
 		nats.Name("agent-server"),
 		nats.Timeout(10 * time.Second),
 		nats.ReconnectWait(2 * time.Second),
-		nats.MaxReconnects(5),
+		nats.MaxReconnects(-1),
+		nats.ReconnectBufSize(8 * 1024 * 1024),
 		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
 			if err != nil {
 				logger.Warnf(ctx, "[Server] NATS disconnected: %v", err)
