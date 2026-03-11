@@ -38,6 +38,7 @@ export interface WorkspaceChatReq {
 export interface WorkspaceSessionItem {
   session_id: string
   title: string
+  user?: string
   agent_id?: number | null
   agent_name?: string
   status: string // active | generating | done | cancelled

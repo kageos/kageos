@@ -4,8 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
+	"os"
+	"runtime/debug"
+	"strings"
 	"time"
 
 	"github.com/ai-agent-os/ai-agent-os/pkg/config"
@@ -145,14 +149,31 @@ func (s *Server) initRouter(ctx context.Context) error {
 	// 创建 gin 引擎
 	s.httpServer = gin.New()
 
-	// 添加中间件：自定义 Recovery，对客户端断开导致的 ErrAbortHandler 不打印堆栈（ReverseProxy 预期行为）
-	s.httpServer.Use(gin.CustomRecovery(func(c *gin.Context, recovered interface{}) {
-		if err, ok := recovered.(error); ok && errors.Is(err, http.ErrAbortHandler) {
+	// 添加中间件：自定义 Recovery。使用 nil writer 避免 Gin 先往 stderr 打堆栈，
+	// 再由我们统一处理：ErrAbortHandler（客户端断开/代理中止）只打 Debug，其它 panic 打 Error+堆栈。
+	s.httpServer.Use(gin.RecoveryWithWriter(nil, func(c *gin.Context, recovered interface{}) {
+		if err, ok := recovered.(error); ok && (errors.Is(err, http.ErrAbortHandler) || err == http.ErrAbortHandler) {
 			logger.Debugf(ctx, "[Recovery] Client connection closed (ErrAbortHandler), path: %s", c.Request.URL.Path)
 			c.Abort()
 			return
 		}
-		logger.Errorf(ctx, "[Recovery] panic recovered: %v", recovered)
+		// 与 Gin 一致：broken pipe / connection reset 不打堆栈
+		var brokenPipe bool
+		if ne, ok := recovered.(*net.OpError); ok {
+			var se *os.SyscallError
+			if errors.As(ne, &se) {
+				low := strings.ToLower(se.Error())
+				if strings.Contains(low, "broken pipe") || strings.Contains(low, "connection reset by peer") {
+					brokenPipe = true
+				}
+			}
+		}
+		if brokenPipe {
+			logger.Debugf(ctx, "[Recovery] Broken connection: %v, path: %s", recovered, c.Request.URL.Path)
+			c.Abort()
+			return
+		}
+		logger.Errorf(ctx, "[Recovery] panic recovered: %v\n%s", recovered, debug.Stack())
 		c.AbortWithStatus(http.StatusInternalServerError)
 	}))
 	s.httpServer.Use(middleware2.Cors())

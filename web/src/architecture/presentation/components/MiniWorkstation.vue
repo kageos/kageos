@@ -33,6 +33,69 @@
         </span>
         <span class="mini-ws-dir-name" :title="fullCodePath">{{ dirName || displayPath }}</span>
         <div class="mini-ws-header-actions" @mousedown.stop>
+          <el-dropdown
+            v-if="allPanelFiles.length > 0"
+            trigger="click"
+            placement="left-start"
+            popper-class="mini-files-dropdown-popper"
+            :hide-on-click="false"
+          >
+            <el-button link size="small" class="mini-header-files-btn" title="查看文件列表">
+              <el-icon :size="14"><DocumentIcon /></el-icon>
+              <span class="mini-header-files-count">文件 ({{ allPanelFiles.length }})</span>
+            </el-button>
+            <template #dropdown>
+              <div class="mini-files-dropdown-panel">
+                <div class="mini-files-dropdown-title">文件列表</div>
+                <div class="mini-files-dropdown-body">
+                  <template v-if="uploadedFiles.length > 0">
+                    <div class="mini-file-section-title">
+                      <el-icon :size="12"><UploadFilled /></el-icon>
+                      上传文件 ({{ uploadedFiles.length }})
+                    </div>
+                    <div v-for="(f, i) in uploadedFiles" :key="'u' + i" class="mini-file-card" @click="previewFile(f)">
+                      <div v-if="isImageFile(f)" class="mini-file-thumb">
+                        <img :src="f.url" :alt="f.name" loading="lazy" />
+                      </div>
+                      <div v-else class="mini-file-icon">
+                        <el-icon :size="18"><DocumentIcon /></el-icon>
+                        <span v-if="fileExt(f)" class="mini-file-ext">{{ fileExt(f) }}</span>
+                      </div>
+                      <div class="mini-file-info">
+                        <span class="mini-file-name" :title="f.name">{{ f.name }}</span>
+                        <div class="mini-file-actions">
+                          <el-button link size="small" type="primary" @click.stop="previewFile(f)">预览</el-button>
+                          <el-button link size="small" type="primary" @click.stop="downloadFile(f)">下载</el-button>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+                  <template v-if="outputFiles.length > 0">
+                    <div class="mini-file-section-title">
+                      <el-icon :size="12"><FolderOpened /></el-icon>
+                      输出文件 ({{ outputFiles.length }})
+                    </div>
+                    <div v-for="(f, i) in outputFiles" :key="'o' + i" class="mini-file-card" @click="previewFile(f)">
+                      <div v-if="isImageFile(f)" class="mini-file-thumb">
+                        <img :src="f.url" :alt="f.name" loading="lazy" />
+                      </div>
+                      <div v-else class="mini-file-icon">
+                        <el-icon :size="18"><DocumentIcon /></el-icon>
+                        <span v-if="fileExt(f)" class="mini-file-ext">{{ fileExt(f) }}</span>
+                      </div>
+                      <div class="mini-file-info">
+                        <span class="mini-file-name" :title="f.name">{{ f.name }}</span>
+                        <div class="mini-file-actions">
+                          <el-button link size="small" type="primary" @click.stop="previewFile(f)">预览</el-button>
+                          <el-button link size="small" type="primary" @click.stop="downloadFile(f)">下载</el-button>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </el-dropdown>
           <el-button link size="small" @click="$emit('minimize')" title="最小化">
             <el-icon :size="14"><Minus /></el-icon>
           </el-button>
@@ -71,6 +134,9 @@
             <div class="mini-session-card-head">
               <el-icon v-if="s.status === 'generating'" class="is-loading" :size="12" color="var(--el-color-primary)"><Loading /></el-icon>
               <span class="mini-session-card-title">{{ s.title || '未命名会话' }}</span>
+            </div>
+            <div v-if="s.user" class="mini-session-card-user">
+              <UserDisplay :username="s.user" mode="simple" size="small" />
             </div>
             <div class="mini-session-card-time">
               <span v-if="s.status === 'generating'" class="mini-session-status">执行中</span>
@@ -291,6 +357,7 @@ import { uploadFile, notifyUploadComplete } from '@/utils/upload'
 import type { UploadProgress } from '@/utils/upload/types'
 import OutputFilesDisplay from './OutputFilesDisplay.vue'
 import MessageToolCalls from './MessageToolCalls.vue'
+import UserDisplay from '../widgets/UserDisplay.vue'
 import { extractFileGroupsFromResult, type OutputFileGroup } from '@/architecture/presentation/composables/useOutputFileGroups'
 import { eventBus } from '@/architecture/infrastructure/eventBus'
 import { marked } from 'marked'
@@ -999,6 +1066,68 @@ watch(sending, (cur, prev) => {
   flex-shrink: 0;
   display: flex;
   gap: 2px;
+  align-items: center;
+}
+.mini-header-files-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.mini-header-files-count {
+  font-size: 12px;
+  color: var(--el-color-primary);
+}
+
+/* ── 标题栏文件下拉（不遮挡内容区） ── */
+.mini-files-dropdown-panel {
+  min-width: 260px;
+  max-width: 320px;
+  background: var(--el-bg-color);
+  border-radius: var(--el-border-radius-base);
+  box-shadow: var(--el-box-shadow-light);
+}
+.mini-files-dropdown-title {
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+.mini-files-dropdown-body {
+  max-height: 360px;
+  overflow-y: auto;
+  padding: 8px;
+}
+.mini-files-dropdown-body .mini-file-section-title {
+  margin-top: 6px;
+}
+.mini-files-dropdown-body .mini-file-section-title:first-child {
+  margin-top: 0;
+}
+.mini-files-dropdown-body .mini-file-card {
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  cursor: pointer;
+}
+.mini-files-dropdown-body .mini-file-thumb {
+  width: 40px;
+  height: 40px;
+}
+.mini-files-dropdown-body .mini-file-icon {
+  width: 40px;
+  height: 40px;
+}
+.mini-files-dropdown-body .mini-file-icon .el-icon {
+  font-size: 18px;
+}
+.mini-files-dropdown-body .mini-file-name {
+  font-size: 12px;
+}
+.mini-files-dropdown-body .mini-file-actions {
+  margin-top: 2px;
+}
+.mini-files-dropdown-body .mini-file-actions .el-button {
+  font-size: 11px;
 }
 
 /* ── 主体区域（sidebar + output） ── */
@@ -1086,6 +1215,14 @@ watch(sending, (cur, prev) => {
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
+}
+.mini-session-card-user {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+}
+.mini-session-card-user :deep(.user-display-wrapper) {
+  display: inline-flex;
 }
 .mini-session-card-time {
   font-size: 11px;
@@ -1486,5 +1623,12 @@ watch(sending, (cur, prev) => {
 .mini-ws-pop-leave-to {
   transform: translateY(10px) scale(0.97);
   opacity: 0;
+}
+</style>
+
+<style lang="scss">
+/* 文件下拉 popper：去掉默认内边距（z-index 已放在 main.css 全局，确保高于迷你窗） */
+.mini-files-dropdown-popper.el-dropdown__popper {
+  padding: 0;
 }
 </style>

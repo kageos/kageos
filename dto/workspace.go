@@ -55,6 +55,7 @@ type ListWorkspaceSessionsResp struct {
 type WorkspaceSessionItem struct {
 	SessionID    string      `json:"session_id"`              // 会话ID
 	Title        string      `json:"title"`                   // 会话标题
+	User         string      `json:"user"`                    // 创建该会话的用户
 	AgentID      *int64      `json:"agent_id"`                // 关联的智能体ID（可为空）
 	AgentName    string      `json:"agent_name"`              // 智能体名称（如果有）
 	Status       string      `json:"status"`                  // 会话状态（active/generating/done/cancelled）
