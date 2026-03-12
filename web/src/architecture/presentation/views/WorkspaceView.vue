@@ -2374,9 +2374,9 @@ onMounted(async () => {
   // 🔥 设置路由监听
   setupRouteWatch()
   
-  // 进入 /workspace/:user（仅 username、无 app）时自动弹出「选择工作空间」
+  // 进入 /workspace/:user（仅 username、无 app）时自动弹出「选择工作空间」，且必须选一个或创建，不可关闭
   if (route.name === 'workspace-user') {
-    nextTick(() => appSwitcherRef.value?.openWorkspaceListDialog())
+    nextTick(() => appSwitcherRef.value?.openWorkspaceListDialog(true))
   }
 })
 

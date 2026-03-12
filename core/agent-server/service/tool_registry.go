@@ -8,21 +8,41 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/agent-server/prompt"
+	"github.com/ai-agent-os/ai-agent-os/core/agent-server/repository"
 	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
+	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/ai-agent-os/ai-agent-os/pkg/timex"
 	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
 )
 
+// workspaceContextKey 用于 context 中传递工作台会话 ID，便于埋点追溯
+type workspaceContextKey struct{}
+
+// WorkspaceSessionIDKey 工作台会话 ID 的 context key（在 executeToolCalls 中注入，callRecordWorkspaceEvent 中读取）
+var WorkspaceSessionIDKey = workspaceContextKey{}
+
+func getWorkspaceSessionID(ctx context.Context) string {
+	if v := ctx.Value(WorkspaceSessionIDKey); v != nil {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return ""
+}
+
 // ToolRegistry 工作台工具注册与调用（仅内置工具，已移除插件）
 // list_tools：仅内置；call_tool(name, args, full_code_path) 路由到对应实现
-type ToolRegistry struct{}
+type ToolRegistry struct {
+	eventRepo *repository.WorkspaceEventRepository
+}
 
-// NewToolRegistry 创建 ToolRegistry
-func NewToolRegistry() *ToolRegistry {
-	return &ToolRegistry{}
+// NewToolRegistry 创建 ToolRegistry（eventRepo 可为 nil，则 record_workspace_event 仅打日志不落库）
+func NewToolRegistry(eventRepo *repository.WorkspaceEventRepository) *ToolRegistry {
+	return &ToolRegistry{eventRepo: eventRepo}
 }
 
 // ListTools 返回可用工具定义（仅内置）。toolNames 非空时只返回 name 在列表中的工具，空则返回全部。
@@ -330,7 +350,7 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 	})
 	out = append(out, dto.ToolDef{
 		Name:        "run_form_submit",
-		Description: "执行工作区内 Form 函数的提交接口，提交表单数据。full_code_path 为表单函数的完整路径，如 /luobei/myapp/plugins/cashier_desk。body 为 JSON 对象字符串，包含表单字段（如 {\"name\":\"张三\",\"amount\":100}）；若表单无必填字段可传 {}。",
+		Description: "执行工作区内 Form 函数的提交接口，提交表单数据。full_code_path 为表单函数的完整路径，如 /luobei/myapp/plugins/cashier_desk。body 为 JSON 对象字符串，包含表单字段（如 {\"name\":\"张三\",\"amount\":100}）；若表单无必填字段可传 {}。output_display 可选，用于标记结果中需要在前端直接展示给用户的字段（避免大模型重复输出大段内容），key 为展示标签，value 为结果 JSON 中的字段名。返回中若有输出文件 URL（多为内部地址如 host.containers.internal），勿在回复用户时贴出或写「可通过以下链接访问」；文件已在工作台展示。",
 		InputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
@@ -341,6 +361,10 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 				"body": map[string]interface{}{
 					"type":        "string",
 					"description": "表单字段的 JSON 字符串（可选），如 {\"name\":\"张三\",\"amount\":100}；无字段时传 {}",
+				},
+				"output_display": map[string]interface{}{
+					"type":        "object",
+					"description": "可选。标记结果中需要在前端直接展示给用户的字段，key 为展示标签，value 为结果 JSON 中的字段名。例如 {\"识别到的文本\":\"output_text\",\"页数\":\"page_count\"}，前端会自动提取对应字段值并在工具结果旁独立展示，方便用户查看和复制",
 				},
 			},
 			"required": []interface{}{"full_code_path"},
@@ -540,6 +564,34 @@ func (r *ToolRegistry) ListTools(ctx context.Context, toolNames []string) ([]dto
 		},
 	})
 
+	// record_workspace_event：工作台埋点，记录无法实现的需求、不明确需求等，供产品分析
+	out = append(out, dto.ToolDef{
+		Name:        "record_workspace_event",
+		Description: "记录工作台内事件，用于产品分析与改进。当判断需求无法实现或需求不明确时，在回复用户前调用。event_type 必填：unsupported_demand（平台无法实现）、unclear_requirement（需求不明确需澄清）、task_failed（执行失败）等；description 必填（一句话说明）；context、extra 可选。",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"event_type": map[string]interface{}{
+					"type":        "string",
+					"description": "事件类型：unsupported_demand（平台无法实现）、unclear_requirement（需求不明确）、task_failed（执行失败）等",
+				},
+				"description": map[string]interface{}{
+					"type":        "string",
+					"description": "一句话描述，如「用户需要实时 WebSocket 推送，当前平台不支持」",
+				},
+				"context": map[string]interface{}{
+					"type":        "string",
+					"description": "可选，上下文摘要（如当前目录、用户原话摘要）",
+				},
+				"extra": map[string]interface{}{
+					"type":        "string",
+					"description": "可选，额外 JSON 字符串，供后续扩展",
+				},
+			},
+			"required": []interface{}{"event_type", "description"},
+		},
+	})
+
 	// 按模式过滤：若指定了 toolNames，只保留 name 在列表中的工具
 	if len(toolNames) > 0 {
 		nameSet := make(map[string]struct{}, len(toolNames))
@@ -601,6 +653,8 @@ func (r *ToolRegistry) CallTool(ctx context.Context, name string, args map[strin
 		return r.callSearchHub(ctx, args)
 	case "copy_directory":
 		return r.callCopyDirectory(ctx, args)
+	case "record_workspace_event":
+		return r.callRecordWorkspaceEvent(ctx, args, fullCodePath)
 	}
 	return "tool not found: " + name, true
 }
@@ -1861,6 +1915,38 @@ func (r *ToolRegistry) callCopyDirectory(ctx context.Context, args map[string]in
 		}
 	}
 	return "copy_directory: 无法解析目标应用（target_directory 为目标父目录，须为工作区已存在路径，如 /user/app/server；不要填 .../子目录名）。", true
+}
+
+// callRecordWorkspaceEvent 工作台埋点：记录无法实现的需求、不明确需求等，落库并带 session_id 便于追溯
+func (r *ToolRegistry) callRecordWorkspaceEvent(ctx context.Context, args map[string]interface{}, fullCodePath string) (string, bool) {
+	eventType := strings.TrimSpace(GetStringArg(args, "event_type"))
+	description := strings.TrimSpace(GetStringArg(args, "description"))
+	if eventType == "" || description == "" {
+		return "record_workspace_event 必填 event_type 和 description。", true
+	}
+	contextStr := GetStringArg(args, "context")
+	extra := GetStringArg(args, "extra")
+	sessionID := getWorkspaceSessionID(ctx)
+	user := contextx.GetRequestUser(ctx)
+
+	e := &model.WorkspaceEvent{
+		SessionID:    sessionID,
+		FullCodePath: fullCodePath,
+		User:         user,
+		EventType:    eventType,
+		Description:  description,
+		Context:      contextStr,
+		Extra:        extra,
+	}
+	if r.eventRepo != nil {
+		if err := r.eventRepo.Create(ctx, e); err != nil {
+			logger.Warnf(ctx, "[workspace_event] 落库失败: %v", err)
+			// 不向用户报错，仅打日志
+		}
+	}
+	logger.Infof(ctx, "[workspace_event] event_type=%s session_id=%s full_code_path=%s description=%s",
+		eventType, sessionID, fullCodePath, description)
+	return "已记录。", false
 }
 
 // parseAppFromFullCodePath 从 full_code_path 解析 app（第二段），如 /luobei/demos/xxx -> demos

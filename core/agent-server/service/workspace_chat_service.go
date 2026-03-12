@@ -271,7 +271,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	var toolNames []string
 	var systemPromptFragment string
 	if modeProvider == nil {
-		toolNames = []string{"read_go_file", "read_go_file_lines", "read_doc", "read_dir", "search_tools", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace", "create_directory", "publish_to_hub", "push_to_hub", "search_hub_directory", "copy_directory"}
+		toolNames = []string{"read_go_file", "read_go_file_lines", "read_doc", "read_dir", "search_tools", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace", "create_directory", "publish_to_hub", "push_to_hub", "search_hub_directory", "copy_directory", "record_workspace_event", "run_table_search", "run_table_create", "run_table_update", "run_form_submit", "run_chart_query"}
 		systemPromptFragment = "当前为开发模式，请协助用户生成新代码、新模块。"
 	}
 
@@ -658,6 +658,8 @@ func (s *WorkspaceChatService) executeToolCalls(
 	files *types.Files,
 	sendEvent func(string, interface{}),
 ) ([]dto.WorkspaceChatToolCallSummary, error) {
+	// 注入 session_id 到 context，供 record_workspace_event 等工具追溯
+	ctx = context.WithValue(ctx, WorkspaceSessionIDKey, sessionID)
 	toolSummaries := make([]dto.WorkspaceChatToolCallSummary, 0, len(allToolCalls))
 	logger.Infof(ctx, "[WorkspaceChatStream] 开始执行工具调用 - 工具数量: %d, SessionID: %s", len(allToolCalls), sessionID)
 
