@@ -5,6 +5,11 @@
     "when_to_use": "生成系统/应用/代码前必读。框架用法：结构体标签、Table/Form/Chart 模式、注册方式、目录约定。"
   },
   {
+    "name": "平台能力边界",
+    "full_code_path": "/builtin/doc/workspace/platform-capability-boundaries",
+    "when_to_use": "评审需求可行性前必读。涉及去水印、复杂图像/视频处理、纯前端、实时通信、第三方API 或不确定能否实现时，先 read_doc 本文档再回答。"
+  },
+  {
     "name": "案例：Excel/CSV 工具（单 Form）",
     "full_code_path": "/builtin/doc/case_catalog/form/excelorcsv",
     "when_to_use": "关键特性：`文件上传(files)` `excelize库` `多POST同目录` `文件转换`"

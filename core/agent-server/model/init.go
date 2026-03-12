@@ -20,6 +20,8 @@ func InitTables(db *gorm.DB) error {
 		&AgentChatMessage{},
 		// 工作台模式（独立表，无外键）
 		&WorkspaceMode{},
+		// 工作台埋点事件（便于追溯无法实现的需求等）
+		&WorkspaceEvent{},
 	); err != nil {
 		return err
 	}

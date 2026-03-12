@@ -34,19 +34,21 @@
         <span class="mini-ws-dir-name" :title="fullCodePath">{{ dirName || displayPath }}</span>
         <div class="mini-ws-header-actions" @mousedown.stop>
           <el-dropdown
-            v-if="allPanelFiles.length > 0"
+            ref="keyInfoDropdownRef"
+            v-if="panelHasContent"
             trigger="click"
             placement="left-start"
             popper-class="mini-files-dropdown-popper"
             :hide-on-click="false"
+            @visible-change="onKeyInfoDropdownVisibleChange"
           >
-            <el-button link size="small" class="mini-header-files-btn" title="查看文件列表">
+            <el-button link size="small" class="mini-header-files-btn" title="查看关键信息">
               <el-icon :size="14"><DocumentIcon /></el-icon>
-              <span class="mini-header-files-count">文件 ({{ allPanelFiles.length }})</span>
+              <span class="mini-header-files-count">关键信息 ({{ panelItemCount }})</span>
             </el-button>
             <template #dropdown>
               <div class="mini-files-dropdown-panel">
-                <div class="mini-files-dropdown-title">文件列表</div>
+                <div class="mini-files-dropdown-title">关键信息</div>
                 <div class="mini-files-dropdown-body">
                   <template v-if="uploadedFiles.length > 0">
                     <div class="mini-file-section-title">
@@ -90,6 +92,26 @@
                           <el-button link size="small" type="primary" @click.stop="downloadFile(f)">下载</el-button>
                         </div>
                       </div>
+                    </div>
+                  </template>
+                  <template v-if="allPanelDisplayFields.length > 0">
+                    <div class="mini-file-section-title">
+                      <el-icon :size="12"><Memo /></el-icon>
+                      输出数据 ({{ allPanelDisplayFields.length }})
+                    </div>
+                    <div v-for="(df, i) in allPanelDisplayFields" :key="'df' + i" class="mini-display-field-card">
+                      <div class="mini-df-header">
+                        <span class="mini-df-label">{{ df.label }}</span>
+                        <div class="mini-df-actions">
+                          <el-button link size="small" type="primary" @click.stop="openDfPreview(df)">
+                            <el-icon :size="11"><View /></el-icon> 预览
+                          </el-button>
+                          <el-button link size="small" type="primary" @click.stop="copyDisplayFieldValue(df)">
+                            <el-icon :size="11"><CopyDocument /></el-icon> 复制
+                          </el-button>
+                        </div>
+                      </div>
+                      <div class="mini-df-value">{{ df.value.length > 150 ? df.value.slice(0, 150) + '…' : df.value }}</div>
                     </div>
                   </template>
                 </div>
@@ -196,6 +218,11 @@
                         :file-groups="getFileGroupsFromCalls(block.calls)"
                         class="mini-msg-files"
                       />
+                      <OutputDisplayFields
+                        v-if="getDisplayFieldsFromCalls(block.calls).length"
+                        :fields="getDisplayFieldsFromCalls(block.calls)"
+                        class="mini-msg-display-fields"
+                      />
                     </template>
                   </template>
                 </template>
@@ -208,11 +235,18 @@
                   :tool-calls="msg.tool_calls"
                   :file-groups="getFileGroupsFromCalls(msg.tool_calls)"
                 />
-                <OutputFilesDisplay
-                  v-else-if="msg.tool_calls?.length && getFileGroupsFromCalls(msg.tool_calls).length"
-                  :file-groups="getFileGroupsFromCalls(msg.tool_calls)"
-                  class="mini-msg-files"
-                />
+                <template v-else-if="msg.tool_calls?.length">
+                  <OutputFilesDisplay
+                    v-if="getFileGroupsFromCalls(msg.tool_calls).length"
+                    :file-groups="getFileGroupsFromCalls(msg.tool_calls)"
+                    class="mini-msg-files"
+                  />
+                  <OutputDisplayFields
+                    v-if="getDisplayFieldsFromCalls(msg.tool_calls).length"
+                    :fields="getDisplayFieldsFromCalls(msg.tool_calls)"
+                    class="mini-msg-display-fields"
+                  />
+                </template>
               </template>
             </template>
           </div>
@@ -222,9 +256,9 @@
         </div>
       </div>
 
-      <!-- 最大化时：右侧文件面板 -->
-      <div v-if="maximized && allPanelFiles.length > 0" class="mini-file-sidebar">
-        <div class="mini-file-sidebar-header">文件列表</div>
+      <!-- 最大化时：右侧关键信息面板 -->
+      <div v-if="maximized && panelHasContent" class="mini-file-sidebar">
+        <div class="mini-file-sidebar-header">关键信息</div>
 
         <div class="mini-file-sidebar-body">
           <!-- 上传文件 -->
@@ -271,6 +305,30 @@
                   <el-button link size="small" type="primary" @click="previewFile(f)"><el-icon :size="12"><View /></el-icon> 预览</el-button>
                   <el-button link size="small" type="primary" @click="downloadFile(f)"><el-icon :size="12"><Download /></el-icon> 下载</el-button>
                 </div>
+              </div>
+            </div>
+          </template>
+
+          <!-- 输出数据 -->
+          <template v-if="allPanelDisplayFields.length > 0">
+            <div class="mini-file-section-title">
+              <el-icon :size="13"><Memo /></el-icon>
+              输出数据 ({{ allPanelDisplayFields.length }})
+            </div>
+            <div v-for="(df, i) in allPanelDisplayFields" :key="'sdf' + i" class="mini-sidebar-df-card">
+              <div class="mini-sidebar-df-header">
+                <span class="mini-sidebar-df-label">{{ df.label }}</span>
+                <div class="mini-sidebar-df-actions">
+                  <el-button link size="small" type="primary" @click="openDfPreview(df)">
+                    <el-icon :size="12"><View /></el-icon> 预览
+                  </el-button>
+                  <el-button link size="small" type="primary" @click="copyDisplayFieldValue(df)">
+                    <el-icon :size="12"><CopyDocument /></el-icon> 复制
+                  </el-button>
+                </div>
+              </div>
+              <div class="mini-sidebar-df-value">
+                <pre class="mini-sidebar-df-pre">{{ df.value }}</pre>
               </div>
             </div>
           </template>
@@ -341,13 +399,55 @@
           <span>松开上传文件</span>
         </div>
       </transition>
+
     </div>
   </transition>
+
+  <!-- 输出数据预览弹窗：自定义实现，Teleport 到 body + z-index 99999，彻底避免被遮挡和事件冒泡干扰 -->
+  <Teleport to="body">
+    <transition name="df-preview-fade">
+      <div
+        v-if="dfPreviewVisible"
+        class="df-preview-overlay"
+        @click.self="closeDfPreview"
+        @mousedown.stop
+        @mouseup.stop
+        @pointerdown.stop
+        @pointerup.stop
+      >
+        <div class="df-preview-modal" @click.stop @mousedown.stop @mouseup.stop @pointerdown.stop @pointerup.stop>
+          <div class="df-preview-header">
+            <span class="df-preview-title">{{ dfPreviewLabel }}</span>
+            <button class="df-preview-close" @click="closeDfPreview" title="关闭">
+              <el-icon :size="16"><Close /></el-icon>
+            </button>
+          </div>
+          <div class="df-preview-body">
+            <textarea
+              v-model="dfPreviewContent"
+              class="df-preview-textarea"
+              spellcheck="false"
+            />
+          </div>
+          <div class="df-preview-footer">
+            <span class="df-preview-stats">{{ dfPreviewContent.length }} 字符 · {{ dfPreviewContent.split('\n').length }} 行</span>
+            <div class="df-preview-actions">
+              <button class="df-preview-btn" @click="closeDfPreview">关闭</button>
+              <button class="df-preview-btn df-preview-btn--primary" @click="copyDfPreviewContent">
+                <el-icon :size="14"><CopyDocument /></el-icon>
+                复制全部
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </transition>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, nextTick, onMounted, onUnmounted, computed, toRaw } from 'vue'
-import { Loading, Close, Minus, FullScreen, CopyDocument, Paperclip, CircleCheck, CircleClose, FolderOpened, UploadFilled, Plus, VideoPause, Download, View, Document as DocumentIcon } from '@element-plus/icons-vue'
+import { Loading, Close, Minus, FullScreen, CopyDocument, Paperclip, CircleCheck, CircleClose, FolderOpened, UploadFilled, Plus, VideoPause, Download, View, Document as DocumentIcon, Memo } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { workspaceChatStream, getWorkspaceMessages, getWorkspaceSessions, cancelWorkspaceChat, type WorkspaceChatReq, type WorkspaceChatMessageFile, type WorkspaceSessionItem } from '@/api/workspace'
@@ -359,6 +459,8 @@ import OutputFilesDisplay from './OutputFilesDisplay.vue'
 import MessageToolCalls from './MessageToolCalls.vue'
 import UserDisplay from '../widgets/UserDisplay.vue'
 import { extractFileGroupsFromResult, type OutputFileGroup } from '@/architecture/presentation/composables/useOutputFileGroups'
+import { extractAllDisplayFields, type OutputDisplayField } from '@/architecture/presentation/composables/useOutputDisplayFields'
+import OutputDisplayFields from './OutputDisplayFields.vue'
 import { eventBus } from '@/architecture/infrastructure/eventBus'
 import { marked } from 'marked'
 
@@ -690,6 +792,11 @@ function getFileGroupsFromCalls(calls: Array<{ result?: string }>): OutputFileGr
   return groups
 }
 
+// ─── 输出数据展示辅助 ───
+function getDisplayFieldsFromCalls(calls: Array<{ arguments?: string; result?: string }>): OutputDisplayField[] {
+  return extractAllDisplayFields(calls)
+}
+
 // ─── 最大化时右侧文件面板：收集所有上传文件 + 输出文件 ───
 interface FilePanelItem {
   name: string
@@ -718,6 +825,62 @@ const allPanelFiles = computed<FilePanelItem[]>(() => {
 })
 const uploadedFiles = computed(() => allPanelFiles.value.filter(f => f.source === 'upload'))
 const outputFiles = computed(() => allPanelFiles.value.filter(f => f.source === 'output'))
+
+// ─── 面板：收集所有消息中的 output_display 字段 ───
+const allPanelDisplayFields = computed<OutputDisplayField[]>(() => {
+  const list: OutputDisplayField[] = []
+  for (const msg of messages.value) {
+    if (msg.role === 'assistant' && msg.tool_calls?.length) {
+      list.push(...extractAllDisplayFields(msg.tool_calls))
+    }
+  }
+  return list
+})
+
+const panelHasContent = computed(() => allPanelFiles.value.length > 0 || allPanelDisplayFields.value.length > 0)
+const panelItemCount = computed(() => allPanelFiles.value.length + allPanelDisplayFields.value.length)
+
+async function copyDisplayFieldValue(field: OutputDisplayField) {
+  try {
+    await navigator.clipboard.writeText(field.value)
+    ElMessage.success(`已复制「${field.label}」`)
+  } catch {
+    ElMessage.error('复制失败')
+  }
+}
+
+// ─── 关键信息 dropdown ref ───
+const keyInfoDropdownRef = ref<any>(null)
+
+function onKeyInfoDropdownVisibleChange(visible: boolean) {
+  if (!visible && dfPreviewVisible.value) {
+    setTimeout(() => { keyInfoDropdownRef.value?.handleOpen?.() }, 50)
+  }
+}
+
+// ─── 输出数据预览弹窗 ───
+const dfPreviewVisible = ref(false)
+const dfPreviewLabel = ref('')
+const dfPreviewContent = ref('')
+
+function openDfPreview(field: OutputDisplayField) {
+  dfPreviewLabel.value = field.label
+  dfPreviewContent.value = field.value
+  dfPreviewVisible.value = true
+}
+
+function closeDfPreview() {
+  dfPreviewVisible.value = false
+}
+
+async function copyDfPreviewContent() {
+  try {
+    await navigator.clipboard.writeText(dfPreviewContent.value)
+    ElMessage.success(`已复制「${dfPreviewLabel.value}」`)
+  } catch {
+    ElMessage.error('复制失败')
+  }
+}
 
 const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'])
 function isImageFile(f: FilePanelItem): boolean {
@@ -1130,6 +1293,40 @@ watch(sending, (cur, prev) => {
   font-size: 11px;
 }
 
+/* ── 标题栏下拉：输出数据卡片 ── */
+.mini-display-field-card {
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  border: 1px solid var(--el-border-color-extra-light);
+  border-radius: var(--el-border-radius-small);
+  background: var(--el-bg-color);
+}
+.mini-df-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.mini-df-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+.mini-df-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.mini-df-value {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--el-text-color-regular);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 4.5em;
+  overflow: hidden;
+}
+
 /* ── 主体区域（sidebar + output） ── */
 .mini-ws-body {
   flex: 1;
@@ -1347,6 +1544,46 @@ watch(sending, (cur, prev) => {
   margin-top: 4px;
 }
 
+/* ── 最大化右侧面板：输出数据卡片 ── */
+.mini-sidebar-df-card {
+  margin-bottom: 6px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: var(--el-border-radius-base);
+  overflow: hidden;
+}
+.mini-sidebar-df-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--el-fill-color-light);
+  border-bottom: 1px solid var(--el-border-color-extra-light);
+}
+.mini-sidebar-df-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+.mini-sidebar-df-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.mini-sidebar-df-value {
+  padding: 6px 10px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.mini-sidebar-df-pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 11px;
+  line-height: 1.5;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  color: var(--el-text-color-regular);
+}
+
 /* ── SSE 输出区 ── */
 .mini-ws-output {
   flex: 1;
@@ -1535,6 +1772,27 @@ watch(sending, (cur, prev) => {
   gap: 8px;
 }
 
+/* ── mini 消息内输出数据展示 ── */
+.mini-msg-display-fields {
+  margin: 4px 0;
+}
+.mini-msg-display-fields :deep(.odf-head) {
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+.mini-msg-display-fields :deep(.odf-card-header) {
+  padding: 4px 8px;
+}
+.mini-msg-display-fields :deep(.odf-label) {
+  font-size: 11px;
+}
+.mini-msg-display-fields :deep(.odf-value) {
+  padding: 4px 8px;
+}
+.mini-msg-display-fields :deep(.odf-pre) {
+  font-size: 11px;
+}
+
 /* ── 附件 ── */
 .mini-ws-files {
   display: flex;
@@ -1630,5 +1888,135 @@ watch(sending, (cur, prev) => {
 /* 文件下拉 popper：去掉默认内边距（z-index 已放在 main.css 全局，确保高于迷你窗） */
 .mini-files-dropdown-popper.el-dropdown__popper {
   padding: 0;
+}
+
+/* ── 输出数据预览弹窗（自定义实现，z-index 99999） ── */
+.df-preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+.df-preview-modal {
+  width: 860px;
+  max-width: 92vw;
+  max-height: 88vh;
+  background: var(--el-bg-color, #fff);
+  border-radius: 8px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.df-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--el-border-color-lighter, #eee);
+  flex-shrink: 0;
+}
+.df-preview-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--el-text-color-primary, #303133);
+}
+.df-preview-close {
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  color: var(--el-text-color-secondary, #909399);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  &:hover {
+    background: var(--el-fill-color-light, #f5f7fa);
+    color: var(--el-text-color-primary, #303133);
+  }
+}
+.df-preview-body {
+  flex: 1;
+  min-height: 0;
+  padding: 16px 20px;
+  overflow: hidden;
+}
+.df-preview-textarea {
+  width: 100%;
+  min-height: 360px;
+  max-height: calc(88vh - 140px);
+  padding: 12px 14px;
+  border: 1px solid var(--el-border-color, #dcdfe6);
+  border-radius: 6px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--el-text-color-primary, #303133);
+  background: var(--el-fill-color-blank, #fff);
+  resize: vertical;
+  outline: none;
+  box-sizing: border-box;
+  &:focus {
+    border-color: var(--el-color-primary, #409eff);
+  }
+}
+.df-preview-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-top: 1px solid var(--el-border-color-lighter, #eee);
+  flex-shrink: 0;
+}
+.df-preview-stats {
+  font-size: 12px;
+  color: var(--el-text-color-secondary, #909399);
+}
+.df-preview-actions {
+  display: flex;
+  gap: 8px;
+}
+.df-preview-btn {
+  padding: 8px 16px;
+  border: 1px solid var(--el-border-color, #dcdfe6);
+  border-radius: 4px;
+  background: var(--el-bg-color, #fff);
+  color: var(--el-text-color-regular, #606266);
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s;
+  &:hover {
+    border-color: var(--el-color-primary-light-3, #79bbff);
+    color: var(--el-color-primary, #409eff);
+  }
+}
+.df-preview-btn--primary {
+  background: var(--el-color-primary, #409eff);
+  border-color: var(--el-color-primary, #409eff);
+  color: #fff;
+  &:hover {
+    background: var(--el-color-primary-light-3, #79bbff);
+    border-color: var(--el-color-primary-light-3, #79bbff);
+    color: #fff;
+  }
+}
+.df-preview-fade-enter-active {
+  transition: opacity 0.2s ease;
+}
+.df-preview-fade-leave-active {
+  transition: opacity 0.15s ease;
+}
+.df-preview-fade-enter-from,
+.df-preview-fade-leave-to {
+  opacity: 0;
 }
 </style>
