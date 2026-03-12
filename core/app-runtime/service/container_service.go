@@ -750,13 +750,16 @@ func (s *PodmanService) StartContainer(ctx context.Context, name string) error {
 }
 
 // StopContainer 停止容器
+// 若容器已不存在或已处于退出状态，视为成功（不报错）
 func (s *PodmanService) StopContainer(ctx context.Context, name string) error {
 	if !s.IsRunning() {
 		return fmt.Errorf("container service is not running")
 	}
 
-	// 查找容器
+	// 查找容器（包括已停止的，避免“列表里显示运行中、停止时报 not found”的对账问题）
+	all := true
 	containerList, err := containers.List(s.conn, &containers.ListOptions{
+		All: &all,
 		Filters: map[string][]string{
 			"name": {name},
 		},
@@ -767,6 +770,12 @@ func (s *PodmanService) StopContainer(ctx context.Context, name string) error {
 
 	if len(containerList) == 0 {
 		return fmt.Errorf("container %s not found", name)
+	}
+
+	// 已退出/已停止则无需再 stop，直接视为成功
+	if containerList[0].State != "running" {
+		logger.Infof(ctx, "Container %s already stopped (state=%s), skipping stop", name, containerList[0].State)
+		return nil
 	}
 
 	// 停止容器

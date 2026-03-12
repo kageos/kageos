@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/robfig/cron/v3"
+
 	sharedDto "github.com/ai-agent-os/ai-agent-os/dto"
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-runtime/model"
@@ -77,13 +79,17 @@ type AppManageService struct {
 	closeWaiters   map[string]chan *CloseNotification // key: user/app/version
 	closeWaitersMu sync.RWMutex
 
-	// 定时任务控制
-	cleanupTicker *time.Ticker
-	cleanupDone   chan struct{}
+	// 定时任务控制（进程级+容器级合并为一次完整清理，由 cron + 有变动时触发）
+	cleanupDone chan struct{}
 
-	// 容器级对账巡检控制（周期更长，避免频繁调 Podman API）
+	// 容器级对账巡检控制（cron 低峰期执行 + 有变动时由 ticker 触发）
 	containerCleanupTicker *time.Ticker
 	containerCleanupDone   chan struct{}
+	containerCleanupCron   *cron.Cron // 每日定点执行，如 "0 4 * * *" 表示凌晨 4 点
+
+	// 有版本/容器变动时置为 true，ticker 检查到后执行一次巡检
+	containerCleanupMu     sync.Mutex
+	containerCleanupDirty   bool
 }
 
 // ============================================================================
@@ -415,6 +421,7 @@ func (s *AppManageService) DeleteApp(ctx context.Context, user, app string) erro
 					logger.Infof(ctx, "[DeleteApp] Container %s removed successfully", containerName)
 				}
 			}
+			s.MarkContainerCleanupDirty() // 有容器被删，下次巡检周期会做对账
 		}
 	} else {
 		logger.Warnf(ctx, "[DeleteApp] Container operator is nil, skipping container deletion")
@@ -1051,6 +1058,7 @@ func (s *AppManageService) startAppContainer(ctx context.Context, containerName,
 	}
 
 	logger.Infof(ctx, "Container started successfully with ai-agent-os image")
+	s.MarkContainerCleanupDirty() // 有新容器，下次巡检周期会做对账
 	return nil
 }
 
@@ -1100,6 +1108,7 @@ func (s *AppManageService) stopOldVersionContainer(ctx context.Context, user, ap
 	}
 
 	logger.Infof(ctx, "[stopOldVersionContainer] Old container %s stopped successfully", containerName)
+	s.MarkContainerCleanupDirty() // 有容器被停，下次巡检周期会做对账
 	return nil
 }
 
@@ -1179,55 +1188,57 @@ func (s *AppManageService) ShutdownOldVersions(ctx context.Context, user, app st
 }
 
 // StartCleanupTask 启动定时清理任务
+// 进程级清理 + 容器级巡检合并为「一次完整清理」，在凌晨 4 点与有变动时执行（进程级在前、容器级在后）
 func (s *AppManageService) StartCleanupTask(ctx context.Context) {
-	logger.Infof(ctx, "[CleanupTask] 启动定时清理 | 进程级清理=30s | 容器级巡检=120s | 保留版本数=%d", maxKeepVersions)
+	const containerCleanupCronExpr = "0 4 * * *" // 每天凌晨 4 点（cron：分 时 日 月 周）
+	logger.Infof(ctx, "[CleanupTask] 启动定时清理 | 进程级+容器级=cron(%s)+有变动时 | 顺序=进程级→容器级 | 保留版本数=%d",
+		containerCleanupCronExpr, maxKeepVersions)
 
-	// 每 30 秒执行进程级清理（基于内存中的 discovery 状态）
-	s.cleanupTicker = time.NewTicker(30 * time.Second)
+	// 凌晨 4 点：先进程级（按当前版本停非当前），再容器级（保留最近 3 版本并删除多余）
+	s.containerCleanupCron = cron.New(cron.WithLocation(time.Local))
+	_, err := s.containerCleanupCron.AddFunc(containerCleanupCronExpr, func() {
+		logger.Infof(ctx, "[CleanupTask] cron 触发 | 执行进程级清理 + 容器级巡检")
+		s.runAllCleanups(ctx)
+	})
+	if err != nil {
+		logger.Warnf(ctx, "[CleanupTask] cron 添加失败: %v，将仅依赖有变动时触发", err)
+	} else {
+		s.containerCleanupCron.Start()
+	}
 
-	go func() {
-		defer s.cleanupTicker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				logger.Infof(ctx, "[CleanupTask] 进程级清理任务已停止 (context canceled)")
-				return
-			case <-s.cleanupDone:
-				logger.Infof(ctx, "[CleanupTask] 进程级清理任务已停止 (signal)")
-				return
-			case <-s.cleanupTicker.C:
-				s.performCleanup(ctx)
-			}
-		}
-	}()
-
-	// 每 120 秒执行容器级对账巡检（调 Podman API，开销较大所以周期更长）
-	s.containerCleanupTicker = time.NewTicker(120 * time.Second)
+	// 每 1 分钟检查是否有“有变动”标记，有则执行一次完整清理（进程级+容器级）
+	s.containerCleanupTicker = time.NewTicker(1 * time.Minute)
 
 	go func() {
 		defer s.containerCleanupTicker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
-				logger.Infof(ctx, "[CleanupTask] 容器级巡检任务已停止 (context canceled)")
+				logger.Infof(ctx, "[CleanupTask] 清理任务已停止 (context canceled)")
 				return
 			case <-s.containerCleanupDone:
-				logger.Infof(ctx, "[CleanupTask] 容器级巡检任务已停止 (signal)")
+				logger.Infof(ctx, "[CleanupTask] 清理任务已停止 (signal)")
 				return
 			case <-s.containerCleanupTicker.C:
-				s.containerLevelCleanup(ctx)
+				s.maybeRunContainerLevelCleanup(ctx)
 			}
 		}
 	}()
 }
 
+// runAllCleanups 执行一次完整清理：先进程级（按当前版本停非当前），再容器级（保留最近 3 版本并删除多余）
+func (s *AppManageService) runAllCleanups(ctx context.Context) {
+	s.performCleanup(ctx)       // 进程级：按 current_version 停掉非当前且无流量的版本
+	s.containerLevelCleanup(ctx) // 容器级：每应用保留最近 3 版本，其余 stop+remove
+}
+
 // StopCleanupTask 停止定时清理任务
 func (s *AppManageService) StopCleanupTask(ctx context.Context) {
-	if s.cleanupTicker != nil {
-		s.cleanupTicker.Stop()
-	}
 	if s.containerCleanupTicker != nil {
 		s.containerCleanupTicker.Stop()
+	}
+	if s.containerCleanupCron != nil {
+		s.containerCleanupCron.Stop()
 	}
 
 	select {
@@ -1281,6 +1292,31 @@ type appContainerInfo struct {
 	version       string
 	versionNum    int // 从 "v1","v2"... 解析出的数字，用于排序
 	exited        bool
+}
+
+// maybeRunContainerLevelCleanup 仅在有变动时执行一次完整清理（进程级+容器级）
+func (s *AppManageService) maybeRunContainerLevelCleanup(ctx context.Context) {
+	s.containerCleanupMu.Lock()
+	dirty := s.containerCleanupDirty
+	s.containerCleanupMu.Unlock()
+
+	if !dirty {
+		return
+	}
+
+	logger.Infof(ctx, "[CleanupTask] 检测到版本/容器变动，执行一次完整清理（进程级→容器级）")
+	s.runAllCleanups(ctx)
+
+	s.containerCleanupMu.Lock()
+	s.containerCleanupDirty = false
+	s.containerCleanupMu.Unlock()
+}
+
+// MarkContainerCleanupDirty 标记“有容器/版本变动”，下次巡检周期会执行一次对账
+func (s *AppManageService) MarkContainerCleanupDirty() {
+	s.containerCleanupMu.Lock()
+	defer s.containerCleanupMu.Unlock()
+	s.containerCleanupDirty = true
 }
 
 // containerLevelCleanup 容器级对账巡检
@@ -1385,9 +1421,16 @@ func (s *AppManageService) containerLevelCleanup(ctx context.Context) {
 				if s.QPSTracker.IsSafeToShutdown(user, app, info.version) {
 					stopStart := time.Now()
 					logger.Infof(ctx, "[ContainerCleanup] 停止运行中的旧容器 | 容器=%s | 版本=%s（QPS=0，安全关闭）", info.containerName, info.version)
-					if stopErr := s.containerService.StopContainer(ctx, info.containerName); stopErr != nil {
-						logger.Warnf(ctx, "[ContainerCleanup] ❌ 停止容器失败 | 容器=%s | 错误=%v", info.containerName, stopErr)
-						failedClean++
+					stopErr := s.containerService.StopContainer(ctx, info.containerName)
+					if stopErr != nil {
+						// 容器已不存在（可能已被外部删除或已退出），视为已清理，不记入失败
+						if strings.Contains(stopErr.Error(), "not found") {
+							logger.Infof(ctx, "[ContainerCleanup] 容器已不存在，视为已清理 | 容器=%s | 版本=%s", info.containerName, info.version)
+							_ = s.containerService.RemoveContainer(ctx, info.containerName) // 无则 no-op
+						} else {
+							logger.Warnf(ctx, "[ContainerCleanup] ❌ 停止容器失败 | 容器=%s | 错误=%v", info.containerName, stopErr)
+							failedClean++
+						}
 						continue
 					}
 					if rmErr := s.containerService.RemoveContainer(ctx, info.containerName); rmErr != nil {
@@ -1476,12 +1519,20 @@ func (s *AppManageService) CleanupNonCurrentVersions(ctx context.Context, user, 
 			continue
 		}
 
-		// 关闭该版本
-		//logger.Infof(ctx, "[CleanupNonCurrentVersions] Shutting down non-current version %s (no traffic)", version.Version)
-		if err := s.ShutdownAppVersion(ctx, user, app, version.Version); err != nil {
-			logger.Errorf(ctx, "[CleanupNonCurrentVersions] Failed to shutdown version %s: %v", version.Version, err)
-		} else {
-			logger.Infof(ctx, "[CleanupNonCurrentVersions] 停掉进程 成功  %s_%s_%s ", user, app, version.Version)
+		// 先发优雅关闭（NATS），再强制停容器，确保非当前版本一定会被停掉
+		_ = s.ShutdownAppVersion(ctx, user, app, version.Version)
+		containerName := buildContainerName(user, app, version.Version)
+		if s.containerService != nil {
+			if err := s.containerService.StopContainer(ctx, containerName); err != nil {
+				if strings.Contains(err.Error(), "not found") {
+					logger.Infof(ctx, "[CleanupNonCurrentVersions] 容器已不存在，跳过 | %s/%s/%s", user, app, version.Version)
+				} else {
+					logger.Warnf(ctx, "[CleanupNonCurrentVersions] 停止容器失败 | %s | 错误=%v", containerName, err)
+				}
+			} else {
+				logger.Infof(ctx, "[CleanupNonCurrentVersions] 已停止非当前版本容器 | %s/%s/%s", user, app, version.Version)
+				s.MarkContainerCleanupDirty() // 触发后续容器级巡检，可清理已退出的容器
+			}
 		}
 	}
 
