@@ -51,7 +51,8 @@ type App struct {
 	exit      chan struct{}
 	startTime time.Time // 应用启动时间
 
-	routerInfo map[string]*routerInfo
+	routerInfo      map[string]*routerInfo
+	packageContexts map[string]*PackageContext
 
 	context.Context
 	// 运行中函数的计数
@@ -172,11 +173,12 @@ func NewApp() (*App, error) {
 	logger.Infof(context.Background(), "NATS connected successfully to %s", conn.ConnectedUrl())
 
 	newApp := &App{
-		Context:    context.Background(),
-		exit:       make(chan struct{}),
-		conn:       conn,
-		startTime:  time.Now(), // 记录启动时间
-		routerInfo: make(map[string]*routerInfo),
+		Context:         context.Background(),
+		exit:            make(chan struct{}),
+		conn:            conn,
+		startTime:       time.Now(), // 记录启动时间
+		routerInfo:      make(map[string]*routerInfo),
+		packageContexts: make(map[string]*PackageContext),
 		subjects: &Subjects{
 			// 保持独立的复杂主题
 			AppRequest:  subjects.BuildAppRuntime2AppSubject(env.User, env.App, env.Version),

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -378,6 +379,60 @@ func (a *App) getApis() (apis []*ApiInfo, createTables []interface{}, err error)
 	return apis, createTables, nil
 }
 
+// collectPackageInfos 收集当前应用的全量 package 信息
+// 每次 update 都会调用，返回的全量列表供 app-server 做目录对账
+func (a *App) collectPackageInfos() []*PackageInfo {
+	seen := make(map[string]*PackageInfo)
+
+	for _, info := range a.routerInfo {
+		if info.Options == nil || info.Options.PackagePath == "" {
+			continue
+		}
+
+		pkgPath := info.Options.PackagePath
+		parts := strings.Split(pkgPath, "/")
+
+		for i := 1; i <= len(parts); i++ {
+			subPath := strings.Join(parts[:i], "/")
+			if _, exists := seen[subPath]; exists {
+				continue
+			}
+
+			code := parts[i-1]
+			name := code
+			desc := ""
+
+			if pc, ok := a.packageContexts[subPath]; ok {
+				if pc.Name != "" {
+					name = pc.Name
+				}
+				if pc.Desc != "" {
+					desc = pc.Desc
+				}
+			}
+
+			seen[subPath] = &PackageInfo{
+				Code:        code,
+				Name:        name,
+				Desc:        desc,
+				RouterGroup: "/" + subPath,
+				FullPath:    fmt.Sprintf("/%s/%s/%s", env.User, env.App, subPath),
+			}
+		}
+	}
+
+	result := make([]*PackageInfo, 0, len(seen))
+	for _, info := range seen {
+		result = append(result, info)
+	}
+
+	sort.Slice(result, func(i, j int) bool {
+		return strings.Count(result[i].FullPath, "/") < strings.Count(result[j].FullPath, "/")
+	})
+
+	return result
+}
+
 // onAppUpdate 处理当api更新时候触发
 func (a *App) onAppUpdate(msg *nats.Msg) {
 	ctx := context.Background()
@@ -454,11 +509,15 @@ func (a *App) onAppUpdate(msg *nats.Msg) {
 	}
 	logger.Infof(ctx, "[onAppUpdate] Step 4 OK: add=%d, update=%d, delete=%d", len(add), len(update), len(del))
 
-	// 5. 构建差异结果
+	// 5. 构建差异结果 + 全量 package 列表（每次都返回，供 app-server 目录对账）
+	packages := a.collectPackageInfos()
+	logger.Infof(ctx, "[onAppUpdate] Step 5: collected %d packages for reconciliation", len(packages))
+
 	diffData := &DiffData{
-		Add:    add,
-		Update: update,
-		Delete: del,
+		Add:      add,
+		Update:   update,
+		Delete:   del,
+		Packages: packages,
 	}
 
 	// 6. 触发 OnApiCreate 回调
